@@ -67,3 +67,4 @@ node_modules/
 .bc/tmp/
 .playwright-mcp/
 packages/bc-cli/bin/bc
+packages/bc-agent-runner/dist/
