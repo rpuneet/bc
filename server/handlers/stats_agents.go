@@ -33,8 +33,7 @@ func (h *StatsHandler) agentSummary(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if h.statsStore == nil {
-		// Return an empty summary rather than 503 so the UI degrades gracefully.
-		writeJSON(w, http.StatusOK, stats.AgentSummary{AgentName: name})
+		httpError(w, "stats unavailable", http.StatusServiceUnavailable)
 		return
 	}
 

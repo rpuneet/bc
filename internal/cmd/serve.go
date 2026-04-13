@@ -204,14 +204,11 @@ func RunServer(addr, wsRoot, corsOrigin, apiKey string) error {
 		defer el.Close() //nolint:errcheck // best-effort
 	}
 
-	// TimescaleDB stats store — always attempt to connect. Uses STATS_DATABASE_URL
-	// env var if set, otherwise falls back to the default bc-db container DSN.
-	// If connection fails, the stats endpoints return empty data gracefully.
+	// TimescaleDB stats store (optional — nil when STATS_DATABASE_URL is not set)
 	var statsStore *bcstats.Store
-	{
-		dsn := bcstats.StatsDSN()
+	if dsn := bcstats.StatsDSN(); dsn != bcstats.DefaultStatsDSN || os.Getenv("STATS_DATABASE_URL") != "" {
 		if ss, err := bcstats.NewStore(dsn); err != nil {
-			log.Warn("stats store unavailable (TimescaleDB)", "error", err, "dsn", dsn)
+			log.Warn("stats store unavailable (TimescaleDB)", "error", err)
 		} else {
 			statsStore = ss
 			defer ss.Close() //nolint:errcheck // best-effort

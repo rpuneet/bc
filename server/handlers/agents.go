@@ -6,11 +6,9 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/rpuneet/bc/pkg/agent"
@@ -18,72 +16,10 @@ import (
 	"github.com/rpuneet/bc/pkg/events"
 	"github.com/rpuneet/bc/pkg/log"
 	"github.com/rpuneet/bc/pkg/stats"
-	"github.com/rpuneet/bc/pkg/template"
 	"github.com/rpuneet/bc/pkg/token"
 	"github.com/rpuneet/bc/pkg/workspace"
 	"github.com/rpuneet/bc/server/ws"
 )
-
-// HookEventRequest is the rich payload accepted by POST /api/agents/{name}/hook.
-// All fields except Event are optional; callers may send any subset.
-// The handler accepts the full agent.HookPayload; this struct documents the
-// additional fields introduced in Phase 1c (TaskID, TaskTitle, Metadata).
-type HookEventRequest struct {
-	ToolInput any            `json:"tool_input,omitempty"`
-	Metadata  map[string]any `json:"metadata,omitempty"`
-	TaskTitle string         `json:"task_title,omitempty"`
-	TaskID    string         `json:"task_id,omitempty"`
-	ToolName  string         `json:"tool_name,omitempty"`
-	Error     string         `json:"error,omitempty"`
-	Event     string         `json:"event"`
-}
-
-// agentEventSub is a single SSE subscriber for per-agent hook events.
-type agentEventSub struct {
-	ch   chan []byte
-	done <-chan struct{}
-}
-
-// agentEventBroker fans out hook events to per-agent SSE subscribers.
-type agentEventBroker struct {
-	subs map[string][]*agentEventSub
-	mu   sync.RWMutex
-}
-
-func newAgentEventBroker() *agentEventBroker {
-	return &agentEventBroker{subs: make(map[string][]*agentEventSub)}
-}
-
-func (b *agentEventBroker) subscribe(agentName string, done <-chan struct{}) *agentEventSub {
-	sub := &agentEventSub{ch: make(chan []byte, 64), done: done}
-	b.mu.Lock()
-	b.subs[agentName] = append(b.subs[agentName], sub)
-	b.mu.Unlock()
-	return sub
-}
-
-func (b *agentEventBroker) unsubscribe(agentName string, sub *agentEventSub) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	list := b.subs[agentName]
-	for i, s := range list {
-		if s == sub {
-			b.subs[agentName] = append(list[:i], list[i+1:]...)
-			break
-		}
-	}
-}
-
-func (b *agentEventBroker) publish(agentName string, msg []byte) {
-	b.mu.RLock()
-	defer b.mu.RUnlock()
-	for _, sub := range b.subs[agentName] {
-		select {
-		case sub.ch <- msg:
-		default: // subscriber too slow — drop
-		}
-	}
-}
 
 // AgentHandler handles /api/agents routes.
 type AgentHandler struct {
@@ -94,19 +30,12 @@ type AgentHandler struct {
 	events     events.EventStore
 	terminal   *TerminalHandler
 	statsStore *stats.Store
-	tmplStore  *template.Store
-	broker     *agentEventBroker
 }
 
 // NewAgentHandler creates an AgentHandler.
 // costs, ws, hub, and eventStore may be nil; enrichment fields will be omitted when unavailable.
 func NewAgentHandler(svc *agent.AgentService, costs *cost.Store, ws *workspace.Workspace, hub *ws.Hub) *AgentHandler {
-	return &AgentHandler{svc: svc, costs: costs, ws: ws, hub: hub, broker: newAgentEventBroker()}
-}
-
-// SetTemplateStore sets the template store used during agent creation.
-func (h *AgentHandler) SetTemplateStore(store *template.Store) {
-	h.tmplStore = store
+	return &AgentHandler{svc: svc, costs: costs, ws: ws, hub: hub}
 }
 
 // SetStatsStore sets the stats store for resource metrics enrichment.
@@ -132,18 +61,9 @@ func (h *AgentHandler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/agents/send-role", h.sendRole)
 	mux.HandleFunc("/api/agents/send-pattern", h.sendPattern)
 	mux.HandleFunc("/api/agents/stop-all", h.stopAll)
-	mux.HandleFunc("/api/agents/sync", h.syncSessions)
 	mux.HandleFunc("/api/agents/health", h.health)
-	// Bulk operations — must be registered before the catch-all below.
-	h.registerBulkRoutes(mux)
 	mux.HandleFunc("/api/agents", h.list)
 	mux.HandleFunc("/api/agents/", h.byName)
-}
-
-// avatarDTO holds agent avatar configuration.
-type avatarDTO struct {
-	Variant string `json:"variant,omitempty"`
-	Color   string `json:"color,omitempty"`
 }
 
 type agentDTO struct { //nolint:govet // field order matches JSON/API contract
@@ -152,7 +72,6 @@ type agentDTO struct { //nolint:govet // field order matches JSON/API contract
 	UpdatedAt    time.Time      `json:"updated_at"`
 	StoppedAt    *time.Time     `json:"stopped_at,omitempty"`
 	Stats        *agentStatsDTO `json:"stats,omitempty"`
-	Avatar       *avatarDTO     `json:"avatar,omitempty"`
 	Tool         string         `json:"tool,omitempty"`
 	Session      string         `json:"session,omitempty"`
 	State        string         `json:"state"`
@@ -161,7 +80,6 @@ type agentDTO struct { //nolint:govet // field order matches JSON/API contract
 	Name         string         `json:"name"`
 	Runtime      string         `json:"runtime_backend,omitempty"`
 	Role         string         `json:"role"`
-	Template     string         `json:"template,omitempty"`
 	SessionID    string         `json:"session_id,omitempty"`
 	ParentID     string         `json:"parent_id,omitempty"`
 	ID           string         `json:"id,omitempty"`
@@ -310,13 +228,11 @@ func (h *AgentHandler) list(w http.ResponseWriter, r *http.Request) {
 
 	case http.MethodPost:
 		var req struct {
-			Avatar   *avatarDTO `json:"avatar,omitempty"`
-			Name     string     `json:"name"`
-			Role     string     `json:"role"`
-			Tool     string     `json:"tool"`
-			Runtime  string     `json:"runtime_backend"`
-			Parent   string     `json:"parent"`
-			Template string     `json:"template,omitempty"`
+			Name    string `json:"name"`
+			Role    string `json:"role"`
+			Tool    string `json:"tool"`
+			Runtime string `json:"runtime_backend"`
+			Parent  string `json:"parent"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			httpError(w, "invalid request body", http.StatusBadRequest)
@@ -333,16 +249,7 @@ func (h *AgentHandler) list(w http.ResponseWriter, r *http.Request) {
 			httpError(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		dto := toDTO(a)
-		dto.Avatar = req.Avatar
-		dto.Template = req.Template
-		// Apply template: write CLAUDE.md and .mcp.json to the agent's worktree.
-		if req.Template != "" && h.tmplStore != nil {
-			if applyErr := h.applyTemplate(a, req.Template, req.Avatar); applyErr != nil {
-				log.Warn("template apply failed", "agent", a.Name, "template", req.Template, "error", applyErr)
-			}
-		}
-		writeJSON(w, http.StatusCreated, dto)
+		writeJSON(w, http.StatusCreated, toDTO(a))
 
 	default:
 		methodNotAllowed(w)
@@ -369,9 +276,6 @@ func (h *AgentHandler) byName(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		writeJSON(w, http.StatusOK, toDTO(a))
-
-	case action == "activity":
-		h.agentActivity(w, r, name)
 
 	case r.Method == http.MethodPost && action == "start":
 		var req struct {
@@ -455,79 +359,14 @@ func (h *AgentHandler) byName(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		// Build structured data map from rich payload fields for the event store.
-		eventData := map[string]any{
-			"event": string(payload.Event),
-		}
-		if payload.ToolName != "" {
-			eventData["tool_name"] = payload.ToolName
-		}
-		if payload.ToolInput != nil {
-			eventData["tool_input"] = payload.ToolInput
-		}
-		if payload.Error != "" {
-			eventData["error"] = payload.Error
-		}
-		if payload.Task != "" {
-			eventData["task"] = payload.Task
-		}
-		if payload.TaskID != "" {
-			eventData["task_id"] = payload.TaskID
-		}
-		if payload.TaskTitle != "" {
-			eventData["task_title"] = payload.TaskTitle
-		}
-		if payload.Message != "" {
-			eventData["message"] = payload.Message
-		}
-		if len(payload.Metadata) > 0 {
-			eventData["metadata"] = payload.Metadata
-		}
-
-		// Persist raw JSON body to event log — raw body in Message for full
-		// observability; structured fields in Data for typed queries.
-		now := time.Now()
+		// Persist raw JSON body to event log — no re-serialization, no field loss.
 		if h.events != nil {
 			_ = h.events.Append(events.Event{ //nolint:errcheck // best-effort logging
-				Timestamp: now,
+				Timestamp: time.Now(),
 				Type:      events.EventType("hook." + string(payload.Event)),
 				Agent:     name,
 				Message:   string(rawBody),
-				Data:      eventData,
 			})
-		}
-
-		// Build the SSE data payload for per-agent subscribers.
-		ssePayload := map[string]any{
-			"event":     string(payload.Event),
-			"timestamp": now.UTC().Format(time.RFC3339Nano),
-			"agent":     name,
-		}
-		if payload.ToolName != "" {
-			ssePayload["tool_name"] = payload.ToolName
-		}
-		if payload.ToolInput != nil {
-			ssePayload["tool_input"] = payload.ToolInput
-		}
-		if payload.Error != "" {
-			ssePayload["error"] = payload.Error
-		}
-		if payload.Task != "" {
-			ssePayload["task"] = payload.Task
-		}
-		if payload.TaskID != "" {
-			ssePayload["task_id"] = payload.TaskID
-		}
-		if payload.TaskTitle != "" {
-			ssePayload["task_title"] = payload.TaskTitle
-		}
-		if len(payload.Metadata) > 0 {
-			ssePayload["metadata"] = payload.Metadata
-		}
-
-		// Publish to per-agent SSE subscribers (GET /api/agents/{name}/events).
-		if sseMsg, encErr := buildHookSSEMessage(now, ssePayload); encErr == nil {
-			h.broker.publish(name, sseMsg)
 		}
 
 		// Publish raw hook JSON via SSE for web UI — same format as event log.
@@ -540,9 +379,6 @@ func (h *AgentHandler) byName(w http.ResponseWriter, r *http.Request) {
 		}
 
 		writeJSON(w, http.StatusOK, map[string]any{"ok": true})
-
-	case r.Method == http.MethodGet && action == "events":
-		h.streamHookEvents(w, r, name)
 
 	case r.Method == http.MethodGet && action == "stats":
 		// Return recent Docker stats samples for this agent.
@@ -592,9 +428,6 @@ func (h *AgentHandler) byName(w http.ResponseWriter, r *http.Request) {
 		}
 		writeJSON(w, http.StatusOK, map[string]string{"output": output})
 
-	case r.Method == http.MethodGet && action == "last-terminal":
-		h.lastTerminal(w, r, name)
-
 	case r.Method == http.MethodGet && action == "sessions":
 		sessions, err := h.svc.Sessions(r.Context(), name)
 		if err != nil {
@@ -635,18 +468,6 @@ func (h *AgentHandler) byName(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		h.terminal.HandleTerminal(w, r, name)
-
-	case r.Method == http.MethodGet && action == "config":
-		h.getAgentConfig(w, r, name)
-
-	case r.Method == http.MethodPatch && action == "config":
-		h.patchAgentConfig(w, r, name)
-
-	case action == "fork":
-		h.forkAgent(w, r, name)
-
-	case action == "mcps" || strings.HasPrefix(action, "mcps/"):
-		h.agentMCPs(w, r, name, action)
 
 	default:
 		httpError(w, "not found", http.StatusNotFound)
@@ -736,16 +557,6 @@ func (h *AgentHandler) stopAll(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]int{"stopped": stopped})
 }
 
-// syncSessions reconciles in-memory agent state with actual runtime sessions.
-// POST /api/agents/sync
-func (h *AgentHandler) syncSessions(w http.ResponseWriter, r *http.Request) {
-	if !requireMethod(w, r, http.MethodPost) {
-		return
-	}
-	synced, stopped := h.svc.SyncSessions(r.Context())
-	writeJSON(w, http.StatusOK, map[string]int{"synced": synced, "stopped": stopped})
-}
-
 // AgentHealthInfo represents health status of an agent.
 type AgentHealthInfo struct {
 	Name          string `json:"name"`
@@ -821,137 +632,6 @@ func (h *AgentHandler) health(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, results)
 }
 
-// buildHookSSEMessage formats a single hook event as an SSE frame:
-//
-//	id: <timestamp_ms>
-//	event: hook
-//	data: <json>
-func buildHookSSEMessage(ts time.Time, payload map[string]any) ([]byte, error) {
-	data, err := json.Marshal(payload)
-	if err != nil {
-		return nil, err
-	}
-	id := ts.UnixMilli()
-	msg := fmt.Sprintf("id: %d\nevent: hook\ndata: %s\n\n", id, data)
-	return []byte(msg), nil
-}
-
-// streamHookEvents serves GET /api/agents/{name}/events as an SSE stream.
-// It replays the last 50 hook events from the event store, then tails new
-// events as they arrive via the per-agent broker.
-func (h *AgentHandler) streamHookEvents(w http.ResponseWriter, r *http.Request, name string) {
-	flusher, ok := w.(http.Flusher)
-	if !ok {
-		httpError(w, "streaming not supported", http.StatusInternalServerError)
-		return
-	}
-
-	// Verify agent exists.
-	if _, err := h.svc.Get(r.Context(), name); err != nil {
-		httpError(w, err.Error(), http.StatusNotFound)
-		return
-	}
-
-	w.Header().Set("Content-Type", "text/event-stream")
-	w.Header().Set("Cache-Control", "no-cache")
-	w.Header().Set("Connection", "keep-alive")
-	w.Header().Set("X-Accel-Buffering", "no")
-
-	// Subscribe before replaying history so we don't miss events that arrive
-	// between the replay query and the subscription being established.
-	sub := h.broker.subscribe(name, r.Context().Done())
-	defer h.broker.unsubscribe(name, sub)
-
-	// Replay last 50 hook events from the event store.
-	if h.events != nil {
-		past, err := h.events.ReadByAgent(name)
-		if err == nil {
-			// Filter to hook.* events only; take the last 50.
-			const replayLimit = 50
-			var hookEvts []events.Event
-			for i := range past {
-				if strings.HasPrefix(string(past[i].Type), "hook.") {
-					hookEvts = append(hookEvts, past[i])
-				}
-			}
-			if len(hookEvts) > replayLimit {
-				hookEvts = hookEvts[len(hookEvts)-replayLimit:]
-			}
-			for _, ev := range hookEvts {
-				payload := map[string]any{
-					"event":     strings.TrimPrefix(string(ev.Type), "hook."),
-					"timestamp": ev.Timestamp.UTC().Format(time.RFC3339Nano),
-					"agent":     name,
-				}
-				// Merge structured data fields into payload.
-				for k, v := range ev.Data {
-					if k != "event" { // avoid duplicate
-						payload[k] = v
-					}
-				}
-				if msg, encErr := buildHookSSEMessage(ev.Timestamp, payload); encErr == nil {
-					_, _ = w.Write(msg) //nolint:errcheck
-				}
-			}
-			flusher.Flush()
-		}
-	}
-
-	keepalive := time.NewTicker(30 * time.Second)
-	defer keepalive.Stop()
-
-	for {
-		select {
-		case <-r.Context().Done():
-			return
-		case msg, ok := <-sub.ch:
-			if !ok {
-				return
-			}
-			_, _ = w.Write(msg) //nolint:errcheck
-			flusher.Flush()
-		case <-keepalive.C:
-			fmt.Fprint(w, ": keepalive\n\n") //nolint:errcheck // SSE comment
-			flusher.Flush()
-		}
-	}
-}
-
-// lastTerminal serves GET /api/agents/{name}/last-terminal.
-// It returns the last captured terminal output for an agent, which is useful
-// for inspecting the final state of stopped agents.
-func (h *AgentHandler) lastTerminal(w http.ResponseWriter, r *http.Request, name string) {
-	if !requireMethod(w, r, http.MethodGet) {
-		return
-	}
-	lines := 500
-	if lStr := r.URL.Query().Get("lines"); lStr != "" {
-		if n, err := strconv.Atoi(lStr); err == nil && n > 0 {
-			lines = n
-		}
-	}
-	lines = clampInt(lines, 1, 10000)
-
-	output, err := h.svc.Peek(r.Context(), name, lines)
-	if err != nil {
-		httpError(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	a, agentErr := h.svc.Get(r.Context(), name)
-	resp := map[string]any{
-		"output": output,
-		"agent":  name,
-	}
-	if agentErr == nil {
-		resp["state"] = string(a.State)
-		if a.StoppedAt != nil {
-			resp["stopped_at"] = a.StoppedAt.UTC().Format(time.RFC3339)
-		}
-	}
-	writeJSON(w, http.StatusOK, resp)
-}
-
 // streamOutput streams agent terminal output as SSE events.
 // Polls capture-pane every second and sends new lines as events.
 func (h *AgentHandler) streamOutput(w http.ResponseWriter, r *http.Request, name string) {
@@ -1008,273 +688,4 @@ func (h *AgentHandler) streamOutput(w http.ResponseWriter, r *http.Request, name
 			}
 		}
 	}
-}
-
-// applyTemplate writes template files (CLAUDE.md and .mcp.json) to the agent's
-// worktree. Called after successful agent creation when a template name is provided.
-func (h *AgentHandler) applyTemplate(a *agent.Agent, tmplName string, _ *avatarDTO) error {
-	tmpl, prompt, err := h.tmplStore.Get(tmplName)
-	if err != nil {
-		return fmt.Errorf("load template %q: %w", tmplName, err)
-	}
-
-	// Determine worktree path: prefer stored WorktreeDir, fall back to computed.
-	wtDir := a.WorktreeDir
-	if wtDir == "" {
-		wtDir = h.svc.Manager().WorktreePath(a.Name)
-	}
-	if wtDir == "" {
-		return fmt.Errorf("worktree path not available for agent %q", a.Name)
-	}
-
-	if err := os.MkdirAll(wtDir, 0750); err != nil {
-		return fmt.Errorf("ensure worktree dir: %w", err)
-	}
-
-	// Write system prompt as CLAUDE.md when the template has one.
-	if prompt != "" {
-		claudePath := filepath.Join(wtDir, "CLAUDE.md")
-		if writeErr := os.WriteFile(claudePath, []byte(prompt), 0600); writeErr != nil { //nolint:gosec // trusted workspace path
-			return fmt.Errorf("write CLAUDE.md: %w", writeErr)
-		}
-		log.Debug("template CLAUDE.md written", "agent", a.Name, "template", tmplName)
-	}
-
-	// Write .mcp.json from template's MCPs list.
-	if len(tmpl.MCPs) > 0 {
-		type mcpEntry struct {
-			URL  string `json:"url,omitempty"`
-			Type string `json:"type,omitempty"`
-		}
-		type mcpFile struct {
-			MCPServers map[string]mcpEntry `json:"mcpServers"`
-		}
-		cfg := mcpFile{MCPServers: make(map[string]mcpEntry, len(tmpl.MCPs))}
-		for _, name := range tmpl.MCPs {
-			cfg.MCPServers[name] = mcpEntry{}
-		}
-		b, marshalErr := json.MarshalIndent(cfg, "", "  ")
-		if marshalErr != nil {
-			return fmt.Errorf("marshal .mcp.json: %w", marshalErr)
-		}
-		mcpPath := filepath.Join(wtDir, ".mcp.json")
-		if writeErr := os.WriteFile(mcpPath, b, 0600); writeErr != nil { //nolint:gosec // trusted workspace path
-			return fmt.Errorf("write .mcp.json: %w", writeErr)
-		}
-		log.Debug("template .mcp.json written", "agent", a.Name, "template", tmplName, "mcps", len(tmpl.MCPs))
-	}
-
-	return nil
-}
-
-// ── MCP management endpoints ─────────────────────────────────────────────────
-
-// mcpServerDTO is the JSON representation of a single MCP server entry.
-type mcpServerDTO struct { //nolint:govet // field order matches JSON/API contract
-	Env     map[string]string `json:"env,omitempty"`
-	Name    string            `json:"name"`
-	URL     string            `json:"url,omitempty"`
-	Command string            `json:"command,omitempty"`
-	Type    string            `json:"type,omitempty"`
-}
-
-// agentMCPFile is the on-disk representation of .mcp.json.
-type agentMCPFile struct {
-	MCPServers map[string]agentMCPEntry `json:"mcpServers"`
-}
-
-type agentMCPEntry struct {
-	Env     map[string]string `json:"env,omitempty"`
-	Command string            `json:"command,omitempty"`
-	URL     string            `json:"url,omitempty"`
-	Type    string            `json:"type,omitempty"`
-	Args    []string          `json:"args,omitempty"`
-}
-
-// agentMCPs dispatches GET/POST /api/agents/{name}/mcps and
-// DELETE /api/agents/{name}/mcps/{mcp}.
-func (h *AgentHandler) agentMCPs(w http.ResponseWriter, r *http.Request, agentName, action string) {
-	// action is either "mcps" or "mcps/<mcp-server-name>"
-	mcpName := strings.TrimPrefix(action, "mcps/")
-	if mcpName == "mcps" {
-		mcpName = "" // bare "mcps" — no sub-resource
-	}
-
-	a, err := h.svc.Get(r.Context(), agentName)
-	if err != nil {
-		httpError(w, err.Error(), http.StatusNotFound)
-		return
-	}
-
-	wtDir := a.WorktreeDir
-	if wtDir == "" {
-		wtDir = h.svc.Manager().WorktreePath(agentName)
-	}
-
-	switch {
-	case r.Method == http.MethodGet && mcpName == "":
-		h.listAgentMCPs(w, r, a, wtDir)
-
-	case r.Method == http.MethodPost && mcpName == "":
-		h.addAgentMCP(w, r, wtDir)
-
-	case r.Method == http.MethodDelete && mcpName != "":
-		h.deleteAgentMCP(w, r, wtDir, mcpName)
-
-	default:
-		httpError(w, "not found", http.StatusNotFound)
-	}
-}
-
-// readMCPFile reads .mcp.json from the given directory.
-// Returns an empty file struct when the file does not exist.
-func readMCPFile(wtDir string) (agentMCPFile, error) {
-	var cfg agentMCPFile
-	cfg.MCPServers = make(map[string]agentMCPEntry)
-
-	mcpPath := filepath.Join(wtDir, ".mcp.json")
-	data, err := os.ReadFile(mcpPath) //nolint:gosec // trusted workspace path
-	if err != nil {
-		if os.IsNotExist(err) {
-			return cfg, nil
-		}
-		return cfg, fmt.Errorf("read .mcp.json: %w", err)
-	}
-	if jsonErr := json.Unmarshal(data, &cfg); jsonErr != nil {
-		return cfg, fmt.Errorf("parse .mcp.json: %w", jsonErr)
-	}
-	if cfg.MCPServers == nil {
-		cfg.MCPServers = make(map[string]agentMCPEntry)
-	}
-	return cfg, nil
-}
-
-// writeMCPFile persists cfg to .mcp.json in wtDir.
-func writeMCPFile(wtDir string, cfg agentMCPFile) error {
-	if err := os.MkdirAll(wtDir, 0750); err != nil {
-		return fmt.Errorf("ensure worktree dir: %w", err)
-	}
-	b, err := json.MarshalIndent(cfg, "", "  ")
-	if err != nil {
-		return fmt.Errorf("marshal .mcp.json: %w", err)
-	}
-	mcpPath := filepath.Join(wtDir, ".mcp.json")
-	if writeErr := os.WriteFile(mcpPath, b, 0600); writeErr != nil { //nolint:gosec // trusted path
-		return fmt.Errorf("write .mcp.json: %w", writeErr)
-	}
-	return nil
-}
-
-// listAgentMCPs handles GET /api/agents/{name}/mcps.
-func (h *AgentHandler) listAgentMCPs(w http.ResponseWriter, _ *http.Request, a *agent.Agent, wtDir string) {
-	var servers []mcpServerDTO
-
-	if wtDir != "" {
-		cfg, err := readMCPFile(wtDir)
-		if err != nil {
-			httpInternalError(w, "read mcp config", err)
-			return
-		}
-		for name, entry := range cfg.MCPServers {
-			servers = append(servers, mcpServerDTO{
-				Name:    name,
-				URL:     entry.URL,
-				Command: entry.Command,
-				Type:    entry.Type,
-				Env:     entry.Env,
-			})
-		}
-	}
-
-	// Fall back to role-resolved MCP servers if .mcp.json is empty.
-	if len(servers) == 0 && h.ws != nil && h.ws.RoleManager != nil && string(a.Role) != "" {
-		if resolved, resolveErr := h.ws.RoleManager.ResolveRole(string(a.Role)); resolveErr == nil {
-			for _, name := range resolved.MCPServers {
-				servers = append(servers, mcpServerDTO{Name: name})
-			}
-		}
-	}
-
-	if servers == nil {
-		servers = []mcpServerDTO{}
-	}
-	writeJSON(w, http.StatusOK, servers)
-}
-
-// addAgentMCP handles POST /api/agents/{name}/mcps.
-func (h *AgentHandler) addAgentMCP(w http.ResponseWriter, r *http.Request, wtDir string) {
-	if wtDir == "" {
-		httpError(w, "worktree path not available for this agent", http.StatusUnprocessableEntity)
-		return
-	}
-
-	var req struct {
-		Env     map[string]string `json:"env,omitempty"`
-		Name    string            `json:"name"`
-		URL     string            `json:"url,omitempty"`
-		Command string            `json:"command,omitempty"`
-		Type    string            `json:"type,omitempty"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		httpError(w, "invalid request body", http.StatusBadRequest)
-		return
-	}
-	if req.Name == "" {
-		httpError(w, "name is required", http.StatusBadRequest)
-		return
-	}
-
-	cfg, err := readMCPFile(wtDir)
-	if err != nil {
-		httpInternalError(w, "read mcp config", err)
-		return
-	}
-
-	cfg.MCPServers[req.Name] = agentMCPEntry{
-		URL:     req.URL,
-		Command: req.Command,
-		Type:    req.Type,
-		Env:     req.Env,
-	}
-
-	if writeErr := writeMCPFile(wtDir, cfg); writeErr != nil {
-		httpInternalError(w, "write mcp config", writeErr)
-		return
-	}
-
-	writeJSON(w, http.StatusCreated, mcpServerDTO{
-		Name:    req.Name,
-		URL:     req.URL,
-		Command: req.Command,
-		Type:    req.Type,
-		Env:     req.Env,
-	})
-}
-
-// deleteAgentMCP handles DELETE /api/agents/{name}/mcps/{mcp}.
-func (h *AgentHandler) deleteAgentMCP(w http.ResponseWriter, _ *http.Request, wtDir, mcpName string) {
-	if wtDir == "" {
-		httpError(w, "worktree path not available for this agent", http.StatusUnprocessableEntity)
-		return
-	}
-
-	cfg, err := readMCPFile(wtDir)
-	if err != nil {
-		httpInternalError(w, "read mcp config", err)
-		return
-	}
-
-	if _, exists := cfg.MCPServers[mcpName]; !exists {
-		httpError(w, fmt.Sprintf("MCP server %q not found", mcpName), http.StatusNotFound)
-		return
-	}
-
-	delete(cfg.MCPServers, mcpName)
-
-	if writeErr := writeMCPFile(wtDir, cfg); writeErr != nil {
-		httpInternalError(w, "write mcp config", writeErr)
-		return
-	}
-
-	w.WriteHeader(http.StatusNoContent)
 }

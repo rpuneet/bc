@@ -329,38 +329,6 @@ func (s *AgentService) publishEvent(eventType string, data map[string]any) {
 	}
 }
 
-// SyncSessions reconciles in-memory agent state with actual runtime sessions.
-// For each agent that is not already stopped or in error, it checks whether
-// the underlying tmux/docker session still exists. If the session is gone it
-// marks the agent as stopped.
-// Returns the total number of agents inspected (synced) and the number that
-// were transitioned to stopped (stopped).
-func (s *AgentService) SyncSessions(ctx context.Context) (synced, stopped int) {
-	agents := s.manager.ListAgents()
-	for _, a := range agents {
-		if a.State == StateStopped || a.State == StateError {
-			continue
-		}
-		synced++
-		rt := s.manager.RuntimeForAgent(a.Name)
-		if rt.HasSession(ctx, a.Name) {
-			continue
-		}
-		// Session gone — mark stopped.
-		if err := s.manager.UpdateAgentState(a.Name, StateStopped, ""); err != nil {
-			log.Warn("sync: failed to update agent state", "agent", a.Name, "error", err)
-			continue
-		}
-		stopped++
-		s.publishEvent("agent.state_changed", map[string]any{
-			"name":   a.Name,
-			"state":  string(StateStopped),
-			"reason": "session_gone",
-		})
-	}
-	return synced, stopped
-}
-
 // StopAll stops all running agents. Returns count of agents stopped.
 func (s *AgentService) StopAll(ctx context.Context) (int, error) {
 	agents := s.manager.ListAgents()
@@ -491,74 +459,4 @@ func (s *AgentService) GenerateName(ctx context.Context) (string, error) {
 		existing = append(existing, a.Name)
 	}
 	return names.GenerateUniqueFromList(existing, 20)
-}
-
-// ForkAgent creates a new stopped agent by copying the source agent's worktree
-// config files (CLAUDE.md, .mcp.json). The forked agent starts in stopped state.
-func (s *AgentService) ForkAgent(ctx context.Context, sourceName, newName string) (*Agent, error) {
-	src := s.manager.GetAgent(sourceName)
-	if src == nil {
-		return nil, fmt.Errorf("source agent %q not found", sourceName)
-	}
-
-	if !IsValidAgentName(newName) {
-		return nil, fmt.Errorf("agent name %q is invalid: use letters, numbers, dash, underscore (max %d chars)", newName, MaxAgentNameLength)
-	}
-
-	if existing := s.manager.GetAgent(newName); existing != nil {
-		return nil, fmt.Errorf("agent %q already exists", newName)
-	}
-
-	// Create git worktree for the new agent.
-	wtDir, err := s.manager.CreateWorktree(ctx, newName)
-	if err != nil {
-		return nil, fmt.Errorf("create worktree: %w", err)
-	}
-
-	// Copy CLAUDE.md from source worktree to new worktree.
-	if src.WorktreeDir != "" {
-		srcClaude := filepath.Join(src.WorktreeDir, "CLAUDE.md")
-		if data, readErr := os.ReadFile(srcClaude); readErr == nil { //nolint:gosec // trusted path
-			dstClaude := filepath.Join(wtDir, "CLAUDE.md")
-			if writeErr := os.WriteFile(dstClaude, data, 0600); writeErr != nil {
-				log.Warn("fork: failed to copy CLAUDE.md", "agent", newName, "error", writeErr)
-			}
-		}
-
-		// Copy .mcp.json from source worktree to new worktree.
-		srcMCP := filepath.Join(src.WorktreeDir, ".mcp.json")
-		if data, readErr := os.ReadFile(srcMCP); readErr == nil { //nolint:gosec // trusted path
-			dstMCP := filepath.Join(wtDir, ".mcp.json")
-			if writeErr := os.WriteFile(dstMCP, data, 0600); writeErr != nil {
-				log.Warn("fork: failed to copy .mcp.json", "agent", newName, "error", writeErr)
-			}
-		}
-	}
-
-	now := time.Now()
-	newAgent := &Agent{
-		ID:             newName,
-		Name:           newName,
-		Role:           src.Role,
-		State:          StateStopped,
-		Workspace:      src.Workspace,
-		Session:        newName,
-		Tool:           src.Tool,
-		RuntimeBackend: src.RuntimeBackend,
-		WorktreeDir:    wtDir,
-		Children:       []string{},
-		CreatedAt:      now,
-		UpdatedAt:      now,
-	}
-
-	if err := s.manager.RegisterStopped(newAgent); err != nil {
-		return nil, fmt.Errorf("register forked agent: %w", err)
-	}
-
-	s.publishEvent("agent.forked", map[string]any{
-		"source": sourceName,
-		"name":   newName,
-	})
-
-	return newAgent, nil
 }
