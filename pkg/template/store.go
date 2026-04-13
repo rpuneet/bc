@@ -48,11 +48,22 @@ func (s *Store) List() ([]Template, error) {
 	return templates, nil
 }
 
+// validName returns true when name is safe to use as a filesystem path component.
+// It rejects empty strings, path separators, and dot-only names to prevent path traversal.
+func validName(name string) bool {
+	return name != "" &&
+		!strings.Contains(name, "/") &&
+		!strings.Contains(name, "\\") &&
+		!strings.Contains(name, "..") &&
+		name != "." &&
+		name != ".."
+}
+
 // Get returns the template and its system prompt markdown content.
 // The system prompt is empty string when no .md file exists.
 func (s *Store) Get(name string) (*Template, string, error) {
-	if name == "" {
-		return nil, "", fmt.Errorf("template name is required")
+	if !validName(name) {
+		return nil, "", fmt.Errorf("template name %q is invalid", name)
 	}
 
 	data, err := os.ReadFile(s.jsonPath(name))
@@ -80,8 +91,8 @@ func (s *Store) Get(name string) (*Template, string, error) {
 
 // Create writes a new template. Returns an error if the template already exists.
 func (s *Store) Create(t Template, systemPrompt string) error {
-	if t.Name == "" {
-		return fmt.Errorf("template name is required")
+	if !validName(t.Name) {
+		return fmt.Errorf("template name %q is invalid", t.Name)
 	}
 	if err := s.ensureDir(); err != nil {
 		return err
@@ -100,8 +111,8 @@ func (s *Store) Create(t Template, systemPrompt string) error {
 
 // Update overwrites an existing template. Returns an error if it does not exist.
 func (s *Store) Update(name string, t Template, systemPrompt string) error {
-	if name == "" {
-		return fmt.Errorf("template name is required")
+	if !validName(name) {
+		return fmt.Errorf("template name %q is invalid", name)
 	}
 	if _, err := os.Stat(s.jsonPath(name)); os.IsNotExist(err) {
 		return fmt.Errorf("template %q not found", name)
@@ -115,8 +126,8 @@ func (s *Store) Update(name string, t Template, systemPrompt string) error {
 
 // Delete removes both the .json and .md files for the named template.
 func (s *Store) Delete(name string) error {
-	if name == "" {
-		return fmt.Errorf("template name is required")
+	if !validName(name) {
+		return fmt.Errorf("template name %q is invalid", name)
 	}
 
 	jsonPath := s.jsonPath(name)
@@ -176,7 +187,7 @@ func SeedDefaults(dir string) error {
 		"feature-dev": "You are a feature development agent. Your job is to implement features, fix bugs, and write clean, tested code.\n\n## Guidelines\n- Read existing code before modifying\n- Follow existing patterns and conventions\n- Write meaningful tests\n- Keep changes focused and minimal\n- Commit with clear messages\n",
 		"reviewer":    "You are a code review agent. Your job is to review pull requests and provide actionable feedback.\n\n## Review checklist\n- Check for bugs and logic errors\n- Verify error handling\n- Look for security issues\n- Assess test coverage\n- Review code style and consistency\n",
 		"manager":     "You are a task orchestration agent. Your job is to break down work, delegate to other agents, and track progress.\n\n## Guidelines\n- Break large tasks into small, independent pieces\n- Assign work based on agent capabilities\n- Monitor progress and unblock stuck agents\n- Summarize status updates clearly\n",
-		"blank":       "\n",
+		"blank":       "",
 	}
 
 	for _, t := range defaults {

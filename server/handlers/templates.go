@@ -25,6 +25,8 @@ func (h *TemplateHandler) Register(mux *http.ServeMux) {
 }
 
 // templateRequest is the JSON body for creating/updating a template.
+// SystemPrompt is a pointer so that PUT can distinguish between
+// "clear the prompt" (explicit empty string) and "don't change" (field absent).
 type templateRequest struct { //nolint:govet // field order matches JSON/API contract
 	ToolPolicies     *template.ToolPolicies `json:"tool_policies,omitempty"`
 	MCPs             []string               `json:"mcps,omitempty"`
@@ -33,7 +35,7 @@ type templateRequest struct { //nolint:govet // field order matches JSON/API con
 	ContextFiles     []string               `json:"context_files,omitempty"`
 	Name             string                 `json:"name"`
 	Description      string                 `json:"description,omitempty"`
-	SystemPrompt     string                 `json:"system_prompt,omitempty"`
+	SystemPrompt     *string                `json:"system_prompt,omitempty"`
 	SystemPromptFile string                 `json:"system_prompt_file,omitempty"`
 	MaxCostUSD       float64                `json:"max_cost_usd,omitempty"`
 	StuckTimeoutMin  int                    `json:"stuck_timeout_min,omitempty"`
@@ -83,7 +85,11 @@ func (h *TemplateHandler) list(w http.ResponseWriter, r *http.Request) {
 		}
 
 		t := req.toTemplate()
-		if err := h.store.Create(t, req.SystemPrompt); err != nil {
+		prompt := ""
+		if req.SystemPrompt != nil {
+			prompt = *req.SystemPrompt
+		}
+		if err := h.store.Create(t, prompt); err != nil {
 			// Distinguish conflict from internal error
 			if strings.Contains(err.Error(), "already exists") {
 				httpError(w, err.Error(), http.StatusConflict)
@@ -134,8 +140,20 @@ func (h *TemplateHandler) byName(w http.ResponseWriter, r *http.Request) {
 		}
 		req.Name = name // URL name takes precedence
 
+		// Determine the prompt to write:
+		// - explicit string (including "") → use as-is (allows clearing the prompt)
+		// - field absent (nil) → preserve the existing prompt
+		var prompt string
+		if req.SystemPrompt != nil {
+			prompt = *req.SystemPrompt
+		} else {
+			if _, existing, err := h.store.Get(name); err == nil {
+				prompt = existing
+			}
+		}
+
 		t := req.toTemplate()
-		if err := h.store.Update(name, t, req.SystemPrompt); err != nil {
+		if err := h.store.Update(name, t, prompt); err != nil {
 			if strings.Contains(err.Error(), "not found") {
 				httpError(w, err.Error(), http.StatusNotFound)
 				return

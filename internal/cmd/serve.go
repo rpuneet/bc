@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -211,11 +212,11 @@ func RunServer(addr, wsRoot, corsOrigin, apiKey string) error {
 	{
 		dsn := bcstats.StatsDSN()
 		if ss, err := bcstats.NewStore(dsn); err != nil {
-			log.Warn("stats store unavailable (TimescaleDB)", "error", err, "dsn", dsn)
+			log.Warn("stats store unavailable (TimescaleDB)", "error", err, "dsn", redactDSN(dsn))
 		} else {
 			statsStore = ss
 			defer ss.Close() //nolint:errcheck // best-effort
-			log.Info("stats store: using TimescaleDB", "dsn", dsn)
+			log.Info("stats store: using TimescaleDB", "dsn", redactDSN(dsn))
 
 			// Background system metrics collector
 			go runStatsCollector(ctx, ss, agentSvc, ws)
@@ -666,6 +667,18 @@ func parseBytes(s string) int64 {
 	default:
 		return int64(val)
 	}
+}
+
+// redactDSN replaces credentials in a DSN URL with "***" to prevent secret leakage in logs.
+func redactDSN(dsn string) string {
+	u, err := url.Parse(dsn)
+	if err != nil {
+		return "***"
+	}
+	if u.User != nil {
+		u.User = url.UserPassword("***", "***")
+	}
+	return u.String()
 }
 
 // channelPersister bridges notify.Store → gateway.ChannelStore.

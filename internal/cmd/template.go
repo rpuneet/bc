@@ -175,8 +175,8 @@ func runTemplateCreate(_ *cobra.Command, args []string) error {
 		return err
 	}
 
-	rel := filepath.Join(".bc", "templates", name+".json")
-	fmt.Printf("Created template at %s\n", rel)
+	// Print the actual path returned by the store rather than a hard-coded relative path.
+	fmt.Printf("Created template at %s\n", filepath.Join(dir, name+".json"))
 	return nil
 }
 

@@ -10,6 +10,7 @@ const STATE_COLORS: Record<string, { dot: string; text: string }> = {
   stuck: { dot: "bg-bc-warning", text: "text-bc-warning" },
   error: { dot: "bg-bc-error", text: "text-bc-error" },
   stopped: { dot: "bg-bc-muted", text: "text-bc-muted" },
+  done: { dot: "bg-bc-success", text: "text-bc-success" },
   waiting: { dot: "bg-purple-500", text: "text-purple-400" },
   starting: { dot: "bg-bc-info", text: "text-bc-info" },
 };

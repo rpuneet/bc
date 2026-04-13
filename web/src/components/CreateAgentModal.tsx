@@ -52,9 +52,12 @@ interface CreateAgentModalProps {
   existingAgents?: ExistingAgent[];
 }
 
-type Template = "feature-dev" | "reviewer" | "manager" | "blank";
 type Provider = "claude" | "gemini" | "cursor" | "codex";
 type Runtime = "docker" | "tmux";
+
+const DEFAULT_TEMPLATES = ["feature-dev", "reviewer", "manager", "blank"];
+const VALID_PROVIDERS = new Set<string>(["claude", "gemini", "cursor", "codex"]);
+const VALID_RUNTIMES = new Set<string>(["docker", "tmux"]);
 
 const SHAPES: AgentShape[] = ["hexagon", "circle", "square"];
 
@@ -77,7 +80,8 @@ export function CreateAgentModal({
   const [shape, setShape] = useState<AgentShape>(
     () => SHAPES[Math.floor(Math.random() * SHAPES.length)] ?? "hexagon",
   );
-  const [template, setTemplate] = useState<Template>("feature-dev");
+  const [template, setTemplate] = useState(DEFAULT_TEMPLATES[0] ?? "feature-dev");
+  const [templates, setTemplates] = useState<string[]>(DEFAULT_TEMPLATES);
   const [provider, setProvider] = useState<Provider>("claude");
   const [runtime, setRuntime] = useState<Runtime>("docker");
   const [task, setTask] = useState("");
@@ -85,13 +89,30 @@ export function CreateAgentModal({
 
   const firstInputRef = useRef<HTMLInputElement>(null);
 
+  // Fetch templates from API on mount
+  useEffect(() => {
+    fetch("/api/templates")
+      .then((r) => r.json())
+      .then((list: unknown) => {
+        if (Array.isArray(list) && list.length > 0) {
+          const names = (list as Array<{ name?: unknown }>)
+            .map((t) => (typeof t.name === "string" ? t.name : null))
+            .filter((n): n is string => n !== null);
+          if (names.length > 0) setTemplates(names);
+        }
+      })
+      .catch(() => {
+        /* fall back to defaults */
+      });
+  }, []);
+
   // Reset on open
   useEffect(() => {
     if (open) {
       const newName = generateName(existingNames);
       setName(newName);
       setShape(SHAPES[Math.floor(Math.random() * SHAPES.length)] ?? "hexagon");
-      setTemplate("feature-dev");
+      setTemplate(templates[0] ?? "feature-dev");
       setProvider("claude");
       setRuntime("docker");
       setTask("");
@@ -111,13 +132,17 @@ export function CreateAgentModal({
     return () => window.removeEventListener("keydown", handler);
   }, [open, onClose]);
 
-  // When clone-from selected, populate provider/runtime
+  // When clone-from selected, populate provider/runtime (with validation)
   useEffect(() => {
     if (!cloneFrom) return;
     const source = existingAgents.find((a) => a.name === cloneFrom);
     if (source) {
-      if (source.tool) setProvider(source.tool as Provider);
-      if (source.runtime_backend) setRuntime(source.runtime_backend as Runtime);
+      if (source.tool && VALID_PROVIDERS.has(source.tool)) {
+        setProvider(source.tool as Provider);
+      }
+      if (source.runtime_backend && VALID_RUNTIMES.has(source.runtime_backend)) {
+        setRuntime(source.runtime_backend as Runtime);
+      }
     }
   }, [cloneFrom, existingAgents]);
 
@@ -126,10 +151,8 @@ export function CreateAgentModal({
   }, [existingNames]);
 
   const handleCreate = useCallback(() => {
-    const values = { name, shape, template, provider, runtime, task, cloneFrom: cloneFrom || undefined };
-    console.log("[CreateAgentModal] create agent:", values);
     onClose();
-  }, [name, shape, template, provider, runtime, task, cloneFrom, onClose]);
+  }, [onClose]);
 
   if (!open) return null;
 
@@ -230,14 +253,13 @@ export function CreateAgentModal({
             </label>
             <select
               value={template}
-              onChange={(e) => setTemplate(e.target.value as Template)}
+              onChange={(e) => setTemplate(e.target.value)}
               className={INPUT_CLS}
               style={{ fontFamily: MONO }}
             >
-              <option value="feature-dev">feature-dev</option>
-              <option value="reviewer">reviewer</option>
-              <option value="manager">manager</option>
-              <option value="blank">blank</option>
+              {templates.map((t) => (
+                <option key={t} value={t}>{t}</option>
+              ))}
             </select>
           </div>
 

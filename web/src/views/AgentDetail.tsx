@@ -9,7 +9,7 @@ import { StatsTab as StatsTabComponent } from "../components/StatsTab";
 import { WebTerminal } from "../components/WebTerminal";
 import { stripAnsi } from "../utils/text";
 import { AgentIcon } from "../components/agent-ui";
-import { LoopIconButton, RalphLoopModal, useRalphLoop } from "../components/RalphLoopModal";
+import { LoopIconButton, RalphLoopModal } from "../components/RalphLoopModal";
 
 /* ═══════════════════════════════════════════════════════════════════
    Utility
@@ -116,10 +116,12 @@ function TerminalTab({
   agent,
   outputLines,
   outputRef,
+  onStart,
 }: {
   agent: Agent;
   outputLines: string[];
   outputRef: React.RefObject<HTMLPreElement>;
+  onStart?: () => void;
 }) {
   const isStopped = agent.state === "stopped" || agent.state === "error";
   const [attached, setAttached] = useState(false);
@@ -146,6 +148,7 @@ function TerminalTab({
           </div>
           <button
             type="button"
+            onClick={onStart}
             className="px-2.5 py-1 rounded text-[11px] font-medium bg-bc-accent/15 text-bc-accent hover:bg-bc-accent/25 transition-colors"
             style={{ fontFamily: MONO }}
           >
@@ -371,18 +374,21 @@ function ActivityTab({ agent }: { agent: Agent }) {
           tool_input?: { command?: string };
           message?: string;
         };
-        setActivity((prev) =>
-          [
-            {
-              event: data.event ?? "unknown",
-              timestamp: data.timestamp ?? new Date().toISOString(),
-              message: data.tool_name
-                ? `${data.tool_name}${data.tool_input?.command ? ": " + data.tool_input.command : ""}`
-                : (data.message ?? ""),
-            },
-            ...prev,
-          ].slice(0, 50),
-        );
+        const newItem: AgentActivityItem = {
+          event: data.event ?? "unknown",
+          timestamp: data.timestamp ?? new Date().toISOString(),
+          message: data.tool_name
+            ? `${data.tool_name}${data.tool_input?.command ? ": " + data.tool_input.command : ""}`
+            : (data.message ?? ""),
+        };
+        setActivity((prev) => {
+          // Deduplicate: skip if an event with the same timestamp+event already exists
+          const isDup = prev.some(
+            (it) => it.timestamp === newItem.timestamp && it.event === newItem.event,
+          );
+          if (isDup) return prev;
+          return [newItem, ...prev].slice(0, 50);
+        });
       } catch {
         /* ignore malformed events */
       }
@@ -995,7 +1001,14 @@ function ConfigTab({ agent }: { agent: Agent }) {
                     fetch(`/api/agents/${encodeURIComponent(agent.name)}`, {
                       method: "DELETE",
                     })
-                      .then(() => navigate("/agents"))
+                      .then((res) => {
+                        if (res.ok) {
+                          navigate("/agents");
+                        } else {
+                          setDeleting(false);
+                          setConfirmDelete(false);
+                        }
+                      })
                       .catch(() => {
                         setDeleting(false);
                         setConfirmDelete(false);
@@ -1312,26 +1325,24 @@ export function AgentDetail() {
       {/* ═══ TAB CONTENT ═══ */}
       <div className="flex-1 min-h-0 flex flex-col">
         {activeTab === "terminal" && (
-          <TerminalTab agent={agent} outputLines={outputLines} outputRef={outputRef} />
+          <TerminalTab
+            agent={agent}
+            outputLines={outputLines}
+            outputRef={outputRef}
+            onStart={() => { void api.startAgent(agent.name).then(() => void refresh()); }}
+          />
         )}
         {activeTab === "activity" && <ActivityTab agent={agent} />}
         {activeTab === "config" && <ConfigTab agent={agent} />}
         {activeTab === "stats" && <StatsTab agent={agent} />}
       </div>
 
-      {/* Ralph Loop modal + auto-reprompt hook */}
+      {/* Ralph Loop modal */}
       <RalphLoopModal
         open={loopOpen}
         agentName={agent.name}
         onClose={() => setLoopOpen(false)}
       />
-      <RalphLoopHook agentName={agent.name} agentState={agent.state} />
     </div>
   );
-}
-
-// Wrapper component so the hook runs inside the render tree
-function RalphLoopHook({ agentName, agentState }: { agentName: string; agentState: string }) {
-  useRalphLoop(agentName, agentState);
-  return null;
 }

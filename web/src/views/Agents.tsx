@@ -287,7 +287,7 @@ export function Agents() {
     "Provider",
     "Status",
     "Task",
-    "Tools",
+    "MCP",
     "Actions",
     "",
   ] as const;
@@ -643,8 +643,11 @@ export function Agents() {
                 </th>
                 <th className="px-4 py-2 font-medium text-bc-muted">Status</th>
                 <th className="px-4 py-2 font-medium text-bc-muted">Task</th>
-                <th className="px-4 py-2 font-medium text-bc-muted hidden md:table-cell">
-                  Tools
+                <th
+                  className="px-4 py-2 font-medium text-bc-muted hidden md:table-cell"
+                  title="MCP servers configured for this agent"
+                >
+                  MCP
                 </th>
                 <th className="px-4 py-2 font-medium text-bc-muted">Actions</th>
                 <th className="px-4 py-2 font-medium text-bc-muted w-10"></th>

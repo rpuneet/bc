@@ -25,8 +25,14 @@ func (h *AgentHandler) getAgentConfig(w http.ResponseWriter, r *http.Request, na
 		return
 	}
 
+	// Determine worktree path: use stored WorktreeDir or compute from workspace root.
+	wtDir := a.WorktreeDir
+	if wtDir == "" {
+		wtDir = h.svc.Manager().WorktreePath(name)
+	}
+
 	dto := agentConfigDTO{
-		WorktreePath:   a.WorktreeDir,
+		WorktreePath:   wtDir,
 		RuntimeBackend: a.RuntimeBackend,
 		Tool:           a.Tool,
 		Session:        a.Session,
@@ -34,8 +40,8 @@ func (h *AgentHandler) getAgentConfig(w http.ResponseWriter, r *http.Request, na
 	}
 
 	// Read CLAUDE.md from the agent's worktree.
-	if a.WorktreeDir != "" {
-		claudePath := filepath.Join(a.WorktreeDir, "CLAUDE.md")
+	if wtDir != "" {
+		claudePath := filepath.Join(wtDir, "CLAUDE.md")
 		if data, readErr := os.ReadFile(claudePath); readErr == nil { //nolint:gosec // trusted path
 			dto.SystemPrompt = string(data)
 		}

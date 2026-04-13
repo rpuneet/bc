@@ -769,6 +769,7 @@ export function Templates() {
         value={search}
         onChange={(e) => { setSearch(e.target.value); }}
         placeholder="Search templates..."
+        aria-label="Search templates"
         className="w-full max-w-sm px-3 py-1.5 rounded border border-bc-border/40 bg-bc-surface text-sm text-bc-text placeholder:text-bc-muted/40 focus:outline-none focus:border-bc-accent/50 transition-colors"
       />
 

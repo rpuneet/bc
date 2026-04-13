@@ -39,7 +39,7 @@ An agent is an isolated AI collaborator with:
 
 Templates are the new creation primitive. A template is a named, reusable configuration bundle:
 
-```
+```text
 .bc/templates/
 ├── feature-dev.json
 ├── reviewer.json
@@ -106,7 +106,7 @@ bc template delete my-template
 
 ### 2.2 Template vs Agent Instance
 
-```
+```text
 Template (reusable)                Agent (running instance)
 ─────────────────────              ─────────────────────────────
 .bc/templates/feature-dev.json →   .bc/agents/curious-otter/
@@ -415,7 +415,7 @@ Existing: Search, State. New: Runtime, Provider (dropdowns).
 
 ### 6.1 Header
 
-```
+```text
 ← Agents / curious-otter
 [64px animated avatar]  curious-otter         ● working
                         docker · claude       Updated 3s ago
@@ -426,7 +426,7 @@ Breadcrumb navigation. No role badge (roles are deleted). Live activity indicato
 
 ### 6.2 Tab Order (4 tabs)
 
-```
+```text
 [ Terminal 1 ]  [ Activity 2 ]  [ Config 3 ]  [ Stats 4 ]
 ```
 
@@ -451,7 +451,7 @@ Full-screen xterm. No bottom input bar. No chrome. Takes up the complete screen 
 
 ### 7.1 Running, Not Attached
 
-```
+```text
 ┌────────────────────────────────────────────────────────────────────────┐
 │                                                                        │
 │                    [animated agent icon 48px]                          │
@@ -468,7 +468,7 @@ Click connects the xterm WebSocket. Overlay disappears. Terminal fills the entir
 
 ### 7.2 Attached
 
-```
+```text
 ┌────────────────────────────────────────────────────────────────────────┐
 │ ● curious-otter — attached                             [Detach ×]     │
 ├────────────────────────────────────────────────────────────────────────┤
@@ -487,7 +487,7 @@ Shows last captured pane from `GET /api/agents/{name}/last-terminal` with a [Sta
 
 ### 7.4 Waiting (Permission Request)
 
-```
+```text
 ┌────────────────────────────────────────────────────────────────────────┐
 │ 🔐 curious-otter — waiting for permission                             │
 ├────────────────────────────────────────────────────────────────────────┤
@@ -512,7 +512,7 @@ Live, filterable event stream of all hook events for this agent.
 
 ### 8.1 Layout
 
-```
+```text
 ┌────────────────────────────────────────────────────────────────────────┐
 │ Activity                 [/] Filter...  [Type ▼] [Tool ▼]  [Live ●]  │
 ├────────────────────────────────────────────────────────────────────────┤
@@ -545,7 +545,7 @@ Built from `TaskCreate` and `TaskUpdate` events. Shows only current session task
 
 ### 8.3 Event Stream API
 
-```
+```text
 GET /api/agents/{name}/events   (SSE)
 ```
 
@@ -573,7 +573,7 @@ The agent's live configuration. Editable. Changes apply on restart (or soft MCP 
 
 ### 9.1 Layout
 
-```
+```text
 ┌────────────────────────────────────────────────────────────────────────┐
 │ Config                                        [Restart to apply]      │
 ├────────────────────────────────────────────────────────────────────────┤
@@ -659,7 +659,7 @@ Dedicated tab with graphs and timeframes. Composes the existing `StatsTabCompone
 
 ### 10.1 Layout
 
-```
+```text
 ┌────────────────────────────────────────────────────────────────────────┐
 │ Stats                                    [1h] [6h] [12h] [24h] [7d]  │
 ├────────────────────────────────────────────────────────────────────────┤
@@ -697,7 +697,7 @@ Stats are timeseries data from `pkg/stats`. Decoupled from config — they are o
 
 ### 11.1 Layout
 
-```
+```text
 ┌────────────────────────────────── Create Agent ──────────────────────┐
 │                                                                       │
 │  Name    ┌─────────────────────────┐  [↻]                           │
@@ -738,7 +738,7 @@ Stats are timeseries data from `pkg/stats`. Decoupled from config — they are o
 
 Client-side only. ~200 verbs x ~200 animals = ~40,000 combinations. No server endpoint needed.
 
-```
+```text
 1. Load existing agent names from React state
 2. Pick random verb + animal, join with "-"
 3. If collision, resample (max 50 retries)
@@ -825,7 +825,7 @@ bc role list|show|create|edit|delete   # entire role command group
 
 ## 13. Frontend Component Map
 
-```
+```text
 web/src/
 ├── views/
 │   ├── Agents.tsx                     (list page)

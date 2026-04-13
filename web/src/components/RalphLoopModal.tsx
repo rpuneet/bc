@@ -122,7 +122,9 @@ export function RalphLoopModal({
   }, [open, onClose]);
 
   const handleSave = useCallback(() => {
-    void setLoopConfig(agentName, { enabled, prompt }).then(() => onClose());
+    // "Enable & Save" button: auto-enable if there's a prompt and enabled is currently false
+    const saveEnabled = enabled || prompt.trim().length > 0;
+    void setLoopConfig(agentName, { enabled: saveEnabled, prompt }).then(() => onClose());
   }, [agentName, enabled, prompt, onClose]);
 
   const handleDisable = useCallback(() => {
