@@ -489,30 +489,212 @@ function ActivityTab({ agent }: { agent: Agent }) {
    System prompt, MCP servers, metadata, danger zone
    ═══════════════════════════════════════════════════════════════════ */
 
+interface AgentConfig {
+  system_prompt: string;
+  mcp_servers: string[];
+  runtime_backend: string;
+  tool: string;
+  session: string;
+  worktree_path: string;
+  created_at: string;
+  started_at: string;
+}
+
 function ConfigTab({ agent }: { agent: Agent }) {
+  const [config, setConfig] = useState<AgentConfig | null>(null);
+  const [configLoading, setConfigLoading] = useState(true);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<"" | "saved" | "error">("");
+  const [saveError, setSaveError] = useState("");
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setConfigLoading(true);
+    fetch(`/api/agents/${encodeURIComponent(agent.name)}/config`)
+      .then((res) => {
+        if (!res.ok) throw new Error(`HTTP ${String(res.status)}`);
+        return res.json() as Promise<AgentConfig>;
+      })
+      .then((data) => {
+        if (!cancelled) {
+          setConfig(data);
+          setDraft(data.system_prompt ?? "");
+        }
+      })
+      .catch(() => {
+        /* best-effort */
+      })
+      .finally(() => {
+        if (!cancelled) setConfigLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [agent.name]);
+
+  // Clear save feedback timer on unmount
+  useEffect(() => {
+    return () => {
+      if (saveTimerRef.current !== null) {
+        clearTimeout(saveTimerRef.current);
+      }
+    };
+  }, []);
+
+  const handleEdit = () => {
+    setDraft(config?.system_prompt ?? "");
+    setSaveStatus("");
+    setSaveError("");
+    setEditing(true);
+  };
+
+  const handleCancel = () => {
+    setDraft(config?.system_prompt ?? "");
+    setSaveStatus("");
+    setSaveError("");
+    setEditing(false);
+  };
+
+  const handleSave = () => {
+    setSaving(true);
+    setSaveStatus("");
+    setSaveError("");
+    fetch(`/api/agents/${encodeURIComponent(agent.name)}/config`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ system_prompt: draft }),
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error(`HTTP ${String(res.status)}`);
+        return res.json() as Promise<AgentConfig>;
+      })
+      .then((data) => {
+        setConfig(data);
+        setDraft(data.system_prompt ?? draft);
+        setEditing(false);
+        setSaveStatus("saved");
+        if (saveTimerRef.current !== null) clearTimeout(saveTimerRef.current);
+        saveTimerRef.current = setTimeout(() => setSaveStatus(""), 2000);
+      })
+      .catch((err: unknown) => {
+        const msg = err instanceof Error ? err.message : "unknown error";
+        setSaveStatus("error");
+        setSaveError(msg);
+      })
+      .finally(() => {
+        setSaving(false);
+      });
+  };
+
+  const mcpServers =
+    config?.mcp_servers && config.mcp_servers.length > 0
+      ? config.mcp_servers
+      : agent.mcp_servers ?? [];
+
   return (
     <div className="flex-1 overflow-y-auto p-6">
       <div className="max-w-3xl mx-auto space-y-10">
         {/* ── SYSTEM PROMPT ── */}
         <section>
-          <SectionRule>System Prompt</SectionRule>
-          <div className="rounded-md border border-bc-border/30 bg-bc-surface/20 p-4">
-            <p className="text-xs text-bc-muted/60 italic" style={{ fontFamily: MONO }}>
-              System prompt editing coming soon.
-            </p>
-            <p className="mt-2 text-[11px] text-bc-muted/40">
-              The agent&apos;s CLAUDE.md will be editable here. Template-based
-              configuration replaces the old role system.
-            </p>
+          <div className="mb-4 flex items-center gap-3">
+            <span
+              className="text-[10px] font-bold uppercase tracking-[0.2em] text-bc-muted/70"
+              style={{ fontFamily: MONO }}
+            >
+              System Prompt
+            </span>
+            <span className="flex-1 h-px bg-gradient-to-r from-bc-border/50 to-transparent" />
+            {/* Action buttons */}
+            {!configLoading && (
+              <div className="flex items-center gap-2">
+                {saveStatus === "saved" && (
+                  <span
+                    className="text-[11px] text-green-400 transition-opacity"
+                    style={{ fontFamily: MONO }}
+                  >
+                    Saved
+                  </span>
+                )}
+                {saveStatus === "error" && (
+                  <span
+                    className="text-[11px] text-bc-error"
+                    style={{ fontFamily: MONO }}
+                    title={saveError}
+                  >
+                    Error: {saveError}
+                  </span>
+                )}
+                {editing ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={handleCancel}
+                      disabled={saving}
+                      className="px-2.5 py-1 rounded border border-bc-border/40 text-[11px] text-bc-muted hover:text-bc-text hover:border-bc-border transition-colors disabled:opacity-40"
+                      style={{ fontFamily: MONO }}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSave}
+                      disabled={saving}
+                      className="px-2.5 py-1 rounded border border-bc-accent/30 bg-bc-accent/10 text-[11px] text-bc-accent hover:bg-bc-accent/20 transition-colors disabled:opacity-40"
+                      style={{ fontFamily: MONO }}
+                    >
+                      {saving ? "Saving…" : "Save"}
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleEdit}
+                    className="px-2.5 py-1 rounded border border-bc-border/40 text-[11px] text-bc-muted hover:text-bc-text hover:border-bc-border transition-colors"
+                    style={{ fontFamily: MONO }}
+                  >
+                    Edit
+                  </button>
+                )}
+              </div>
+            )}
           </div>
+
+          {configLoading ? (
+            <div className="rounded-md border border-bc-border/30 bg-bc-surface/20 p-4">
+              <p
+                className="text-xs text-bc-muted/40 italic"
+                style={{ fontFamily: MONO }}
+              >
+                Loading…
+              </p>
+            </div>
+          ) : editing ? (
+            <textarea
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              className="w-full min-h-[300px] rounded-md border border-bc-accent/40 bg-bc-bg p-4 text-xs text-bc-text/90 leading-relaxed resize-y outline-none focus:border-bc-accent/60 transition-colors"
+              style={{ fontFamily: MONO }}
+              spellCheck={false}
+            />
+          ) : (
+            <textarea
+              value={config?.system_prompt ?? ""}
+              readOnly
+              className="w-full min-h-[300px] rounded-md border border-bc-border/40 bg-bc-bg p-4 text-xs text-bc-text/70 leading-relaxed resize-y outline-none cursor-default"
+              style={{ fontFamily: MONO }}
+            />
+          )}
         </section>
 
         {/* ── MCP SERVERS ── */}
         <section>
           <SectionRule>MCP Servers</SectionRule>
-          {agent.mcp_servers && agent.mcp_servers.length > 0 ? (
+          {mcpServers.length > 0 ? (
             <div className="flex flex-wrap gap-1.5">
-              {agent.mcp_servers.map((s) => (
+              {mcpServers.map((s) => (
                 <span
                   key={s}
                   className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-bc-border/30 bg-bc-surface/30 text-[11px] text-bc-text/80 font-medium"
