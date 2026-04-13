@@ -25,7 +25,7 @@ func (h *TemplateHandler) Register(mux *http.ServeMux) {
 }
 
 // templateRequest is the JSON body for creating/updating a template.
-type templateRequest struct {
+type templateRequest struct { //nolint:govet // field order matches JSON/API contract
 	ToolPolicies     *template.ToolPolicies `json:"tool_policies,omitempty"`
 	MCPs             []string               `json:"mcps,omitempty"`
 	Secrets          []string               `json:"secrets,omitempty"`

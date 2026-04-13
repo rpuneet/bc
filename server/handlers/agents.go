@@ -124,6 +124,7 @@ func (h *AgentHandler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/agents/send-role", h.sendRole)
 	mux.HandleFunc("/api/agents/send-pattern", h.sendPattern)
 	mux.HandleFunc("/api/agents/stop-all", h.stopAll)
+	mux.HandleFunc("/api/agents/sync", h.syncSessions)
 	mux.HandleFunc("/api/agents/health", h.health)
 	// Bulk operations — must be registered before the catch-all below.
 	h.registerBulkRoutes(mux)
@@ -703,6 +704,16 @@ func (h *AgentHandler) stopAll(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]int{"stopped": stopped})
+}
+
+// syncSessions reconciles in-memory agent state with actual runtime sessions.
+// POST /api/agents/sync
+func (h *AgentHandler) syncSessions(w http.ResponseWriter, r *http.Request) {
+	if !requireMethod(w, r, http.MethodPost) {
+		return
+	}
+	synced, stopped := h.svc.SyncSessions(r.Context())
+	writeJSON(w, http.StatusOK, map[string]int{"synced": synced, "stopped": stopped})
 }
 
 // AgentHealthInfo represents health status of an agent.

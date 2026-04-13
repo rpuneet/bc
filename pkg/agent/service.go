@@ -329,6 +329,38 @@ func (s *AgentService) publishEvent(eventType string, data map[string]any) {
 	}
 }
 
+// SyncSessions reconciles in-memory agent state with actual runtime sessions.
+// For each agent that is not already stopped or in error, it checks whether
+// the underlying tmux/docker session still exists. If the session is gone it
+// marks the agent as stopped.
+// Returns the total number of agents inspected (synced) and the number that
+// were transitioned to stopped (stopped).
+func (s *AgentService) SyncSessions(ctx context.Context) (synced, stopped int) {
+	agents := s.manager.ListAgents()
+	for _, a := range agents {
+		if a.State == StateStopped || a.State == StateError {
+			continue
+		}
+		synced++
+		rt := s.manager.RuntimeForAgent(a.Name)
+		if rt.HasSession(ctx, a.Name) {
+			continue
+		}
+		// Session gone — mark stopped.
+		if err := s.manager.UpdateAgentState(a.Name, StateStopped, ""); err != nil {
+			log.Warn("sync: failed to update agent state", "agent", a.Name, "error", err)
+			continue
+		}
+		stopped++
+		s.publishEvent("agent.state_changed", map[string]any{
+			"name":   a.Name,
+			"state":  string(StateStopped),
+			"reason": "session_gone",
+		})
+	}
+	return synced, stopped
+}
+
 // StopAll stops all running agents. Returns count of agents stopped.
 func (s *AgentService) StopAll(ctx context.Context) (int, error) {
 	agents := s.manager.ListAgents()
