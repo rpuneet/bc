@@ -1,7 +1,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { api } from "../api/client";
-import type { Agent, AgentMetricTS, BulkResult } from "../api/client";
+import type { Agent, BulkResult } from "../api/client";
 import { usePolling } from "../hooks/usePolling";
 import { useWebSocket } from "../hooks/useWebSocket";
 import { StatusBadge } from "../components/StatusBadge";
@@ -543,7 +543,6 @@ export function Agents() {
 
   const [peekAgent, setPeekAgent] = useState<string | null>(null);
   const [stoppingAll, setStoppingAll] = useState(false);
-  const [latestStats, setLatestStats] = useState<Record<string, AgentMetricTS>>({});
 
   // Search + filter + bulk state (URL-synced where useful)
   const [search, setSearch] = useState(searchParams.get("q") ?? "");
@@ -578,24 +577,6 @@ export function Agents() {
   // Keyboard shortcuts now live after displayRows is declared below —
   // see the useEffect labelled "Global keyboard shortcuts".
 
-  // Fetch latest CPU/Mem stats for all agents
-  useEffect(() => {
-    const fetchStats = () => {
-      api.getAgentStatsLatest().then((metrics) => {
-        const map: Record<string, AgentMetricTS> = {};
-        for (const m of metrics) {
-          map[m.agent_name] = m;
-        }
-        setLatestStats(map);
-      }).catch(() => {
-        // Stats unavailable — not critical
-      });
-    };
-    fetchStats();
-    const interval = setInterval(fetchStats, 30000);
-    return () => clearInterval(interval);
-  }, []);
-
   const handleStopAll = async () => {
     setStoppingAll(true);
     try {
@@ -627,15 +608,12 @@ export function Agents() {
   const columns = [
     "Select",
     "Name",
-    "Role",
-    "Tool",
+    "Runtime",
+    "Provider",
     "Status",
     "Task",
-    "Tokens",
-    "CPU %",
-    "Mem %",
     "MCP",
-    "",
+    "Actions",
     "",
   ] as const;
 
@@ -671,65 +649,8 @@ export function Agents() {
     });
   }, [allAgents, search, roleFilter, stateFilter, toolFilter]);
 
-  // View mode: flat | tree. Auto-detect default based on whether any agent has a parent.
-  const hasHierarchy = useMemo(
-    () => allAgents.some((a) => a.parent_id != null && a.parent_id !== ""),
-    [allAgents],
-  );
-  const viewParam = searchParams.get("view");
-  const viewMode: "flat" | "tree" =
-    viewParam === "flat" || viewParam === "tree"
-      ? viewParam
-      : hasHierarchy
-      ? "tree"
-      : "flat";
-  const setViewMode = (mode: "flat" | "tree") => {
-    const next = new URLSearchParams(searchParams);
-    next.set("view", mode);
-    setSearchParams(next, { replace: true });
-  };
-
-  // Build display order: either flat list or hierarchical traversal with depth.
-  const displayRows = useMemo<{ agent: Agent; depth: number }[]>(() => {
-    if (viewMode === "flat") {
-      return filteredAgents.map((a) => ({ agent: a, depth: 0 }));
-    }
-    // Build parent → children adjacency from the filtered list.
-    const byName = new Map<string, Agent>();
-    for (const a of filteredAgents) byName.set(a.name, a);
-    const childrenOf = new Map<string, Agent[]>();
-    const roots: Agent[] = [];
-    for (const a of filteredAgents) {
-      const parent = a.parent_id ?? "";
-      if (parent && byName.has(parent)) {
-        const list = childrenOf.get(parent) ?? [];
-        list.push(a);
-        childrenOf.set(parent, list);
-      } else {
-        roots.push(a);
-      }
-    }
-    // Sort roots and children alphabetically for stable order.
-    const sortFn = (x: Agent, y: Agent) => x.name.localeCompare(y.name);
-    roots.sort(sortFn);
-    for (const list of childrenOf.values()) list.sort(sortFn);
-
-    const out: { agent: Agent; depth: number }[] = [];
-    const visited = new Set<string>();
-    const walk = (a: Agent, depth: number): void => {
-      if (visited.has(a.name)) return;
-      visited.add(a.name);
-      out.push({ agent: a, depth });
-      const kids = childrenOf.get(a.name) ?? [];
-      for (const k of kids) walk(k, depth + 1);
-    };
-    for (const r of roots) walk(r, 0);
-    // Catch any agents we missed (shouldn't happen, defensive).
-    for (const a of filteredAgents) {
-      if (!visited.has(a.name)) walk(a, 0);
-    }
-    return out;
-  }, [filteredAgents, viewMode]);
+  // Flat list only — no tree view.
+  const displayRows = useMemo(() => filteredAgents, [filteredAgents]);
 
   // Clamp focusIndex when displayRows shrinks (e.g. after filtering).
   useEffect(() => {
@@ -777,7 +698,7 @@ export function Agents() {
         const row = displayRows[focusIndex];
         if (row) {
           e.preventDefault();
-          navigate(`/agents/${encodeURIComponent(row.agent.name)}`);
+          navigate(`/agents/${encodeURIComponent(row.name)}`);
         }
         return;
       }
@@ -786,7 +707,7 @@ export function Agents() {
         const row = displayRows[focusIndex];
         if (row) {
           e.preventDefault();
-          setPeekAgent((prev) => (prev === row.agent.name ? null : row.agent.name));
+          setPeekAgent((prev) => (prev === row.name ? null : row.name));
         }
         return;
       }
@@ -797,8 +718,8 @@ export function Agents() {
           e.preventDefault();
           setSelected((prev) => {
             const next = new Set(prev);
-            if (next.has(row.agent.name)) next.delete(row.agent.name);
-            else next.add(row.agent.name);
+            if (next.has(row.name)) next.delete(row.name);
+            else next.add(row.name);
             return next;
           });
         }
@@ -809,7 +730,7 @@ export function Agents() {
         e.preventDefault();
         setSelected((prev) => {
           const next = new Set(prev);
-          const names = displayRows.map((r) => r.agent.name);
+          const names = displayRows.map((r) => r.name);
           const allSel = names.every((n) => next.has(n));
           if (allSel) {
             for (const n of names) next.delete(n);
@@ -1003,40 +924,6 @@ export function Agents() {
               Clear
             </button>
           )}
-          {hasHierarchy && (
-            <div
-              role="group"
-              aria-label="View mode"
-              className="inline-flex rounded border border-bc-border overflow-hidden text-xs"
-            >
-              <button
-                type="button"
-                onClick={() => { setViewMode("flat"); }}
-                className={`px-2.5 py-1.5 transition-colors ${
-                  viewMode === "flat"
-                    ? "bg-bc-accent/20 text-bc-accent"
-                    : "text-bc-muted hover:text-bc-text hover:bg-bc-surface"
-                }`}
-                aria-pressed={viewMode === "flat"}
-                title="Flat view"
-              >
-                Flat
-              </button>
-              <button
-                type="button"
-                onClick={() => { setViewMode("tree"); }}
-                className={`px-2.5 py-1.5 border-l border-bc-border transition-colors ${
-                  viewMode === "tree"
-                    ? "bg-bc-accent/20 text-bc-accent"
-                    : "text-bc-muted hover:text-bc-text hover:bg-bc-surface"
-                }`}
-                aria-pressed={viewMode === "tree"}
-                title="Tree view (parent → children)"
-              >
-                Tree
-              </button>
-            </div>
-          )}
         </div>
       )}
 
@@ -1082,21 +969,14 @@ export function Agents() {
                   />
                 </th>
                 <th className="px-4 py-2 font-medium text-bc-muted">Name</th>
-                <th className="px-4 py-2 font-medium text-bc-muted">Role</th>
                 <th className="px-4 py-2 font-medium text-bc-muted hidden sm:table-cell">
-                  Tool
+                  Runtime
+                </th>
+                <th className="px-4 py-2 font-medium text-bc-muted hidden sm:table-cell">
+                  Provider
                 </th>
                 <th className="px-4 py-2 font-medium text-bc-muted">Status</th>
                 <th className="px-4 py-2 font-medium text-bc-muted">Task</th>
-                <th className="px-4 py-2 font-medium text-bc-muted hidden md:table-cell">
-                  Tokens
-                </th>
-                <th className="px-4 py-2 font-medium text-bc-muted hidden md:table-cell">
-                  CPU %
-                </th>
-                <th className="px-4 py-2 font-medium text-bc-muted hidden md:table-cell">
-                  Mem %
-                </th>
                 <th className="px-4 py-2 font-medium text-bc-muted hidden md:table-cell">
                   MCP
                 </th>
@@ -1105,7 +985,7 @@ export function Agents() {
               </tr>
             </thead>
             <tbody>
-              {displayRows.map(({ agent: a, depth }, rowIdx) => (
+              {displayRows.map((a, rowIdx) => (
                 <Fragment key={a.name}>
                   <tr
                     onClick={() =>
@@ -1137,25 +1017,31 @@ export function Agents() {
                       />
                     </td>
                     <td className="px-4 py-2">
-                      <div className="flex items-center" style={{ paddingLeft: `${String(depth * 16)}px` }}>
-                        {depth > 0 && (
-                          <span
-                            aria-hidden
-                            className="text-bc-muted/40 mr-1.5 font-mono text-xs select-none"
-                          >
-                            └
-                          </span>
-                        )}
-                        <InlineAgentName agent={a} onRenamed={refresh} />
-                      </div>
-                    </td>
-                    <td className="px-4 py-2">
-                      <span className="text-bc-muted">{a.role}</span>
+                      <InlineAgentName agent={a} onRenamed={refresh} />
                     </td>
                     <td className="px-4 py-2 hidden sm:table-cell">
-                      <span className="text-bc-muted">
-                        {a.tool || "\u2014"}
-                      </span>
+                      {a.runtime_backend ? (
+                        <span
+                          className="text-[11px] px-1.5 py-0.5 rounded border border-bc-border/30 bg-bc-surface/30 text-bc-muted"
+                          style={{ fontFamily: "'JetBrains Mono', 'Fira Code', 'Space Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" }}
+                        >
+                          {a.runtime_backend}
+                        </span>
+                      ) : (
+                        <span className="text-bc-muted">{"\u2014"}</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-2 hidden sm:table-cell">
+                      {a.tool ? (
+                        <span
+                          className="text-[11px] px-1.5 py-0.5 rounded border border-bc-border/30 bg-bc-surface/30 text-bc-muted"
+                          style={{ fontFamily: "'JetBrains Mono', 'Fira Code', 'Space Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" }}
+                        >
+                          {a.tool}
+                        </span>
+                      ) : (
+                        <span className="text-bc-muted">{"\u2014"}</span>
+                      )}
                     </td>
                     <td className="px-4 py-2">
                       <StatusBadge status={a.state} />
@@ -1163,27 +1049,6 @@ export function Agents() {
                     <td className="px-4 py-2">
                       <span className="text-bc-muted" title={a.task}>
                         {a.task ? truncate(a.task, 50) : "\u2014"}
-                      </span>
-                    </td>
-                    <td className="px-4 py-2 hidden md:table-cell">
-                      <span className="text-bc-muted">
-                        {a.total_tokens != null && a.total_tokens > 0
-                          ? a.total_tokens.toLocaleString()
-                          : "\u2014"}
-                      </span>
-                    </td>
-                    <td className="px-4 py-2 hidden md:table-cell">
-                      <span className="text-bc-muted">
-                        {latestStats[a.name] != null
-                          ? `${latestStats[a.name]!.cpu_percent.toFixed(1)}%`
-                          : "\u2014"}
-                      </span>
-                    </td>
-                    <td className="px-4 py-2 hidden md:table-cell">
-                      <span className="text-bc-muted">
-                        {latestStats[a.name] != null
-                          ? `${latestStats[a.name]!.mem_percent.toFixed(1)}%`
-                          : "\u2014"}
                       </span>
                     </td>
                     <td className="px-4 py-2 hidden md:table-cell">
