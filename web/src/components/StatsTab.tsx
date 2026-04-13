@@ -202,7 +202,7 @@ export function StatsTab({ agent }: { agent: Agent }) {
 
       {/* Time range selector */}
       <div className="flex items-center justify-between">
-        <span className="text-sm font-medium text-bc-muted">{agent.name} <span className="text-bc-muted/60">({agent.role})</span></span>
+        <span className="text-sm font-medium text-bc-muted">{agent.name}</span>
         <div className="flex gap-1">
           {RANGES.map((r, i) => (
             <button key={r.label} type="button" onClick={() => setRange(i)}
