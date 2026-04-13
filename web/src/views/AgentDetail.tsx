@@ -9,13 +9,12 @@ import { StatsTab as StatsTabComponent } from "../components/StatsTab";
 import { WebTerminal } from "../components/WebTerminal";
 import { stripAnsi } from "../utils/text";
 
-function RoleBadge({ role }: { role: string }) {
-  return (
-    <span className="inline-block px-2 py-0.5 rounded text-xs font-medium bg-bc-accent/20 text-bc-accent">
-      {role}
-    </span>
-  );
-}
+/* ═══════════════════════════════════════════════════════════════════
+   Utility
+   ═══════════════════════════════════════════════════════════════════ */
+
+const MONO =
+  "'JetBrains Mono', 'Fira Code', 'Space Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
 
 function formatTime(t?: string): string {
   if (!t) return "\u2014";
@@ -48,88 +47,134 @@ function formatRelative(t?: string): string {
   }
 }
 
-/* ───────────────────────── Tab types ───────────────────────── */
+/* ═══════════════════════════════════════════════════════════════════
+   Tab types — v2: Terminal / Activity / Config / Stats
+   ═══════════════════════════════════════════════════════════════════ */
 
-type Tab = "logs" | "terminal" | "info";
+type Tab = "terminal" | "activity" | "config" | "stats";
 
 const TABS: { key: Tab; label: string; shortcut: string }[] = [
-  { key: "logs", label: "Logs", shortcut: "1" },
-  { key: "terminal", label: "Terminal", shortcut: "2" },
-  { key: "info", label: "Info", shortcut: "3" },
+  { key: "terminal", label: "Terminal", shortcut: "1" },
+  { key: "activity", label: "Activity", shortcut: "2" },
+  { key: "config", label: "Config", shortcut: "3" },
+  { key: "stats", label: "Stats", shortcut: "4" },
 ];
 
-/* ───────────────────────── Tab content ───────────────────────── */
+/* ═══════════════════════════════════════════════════════════════════
+   Section chrome
+   ═══════════════════════════════════════════════════════════════════ */
 
-function LogsTab({
+function SectionRule({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="mb-4 flex items-center gap-3">
+      <span
+        className="text-[10px] font-bold uppercase tracking-[0.2em] text-bc-muted/70"
+        style={{ fontFamily: MONO }}
+      >
+        {children}
+      </span>
+      <span className="flex-1 h-px bg-gradient-to-r from-bc-border/50 to-transparent" />
+    </div>
+  );
+}
+
+function MetaCell({
+  label,
+  children,
+  mono,
+}: {
+  label: string;
+  children: React.ReactNode;
+  mono?: boolean;
+}) {
+  return (
+    <div className="space-y-1">
+      <dt
+        className="text-[9px] font-bold uppercase tracking-[0.2em] text-bc-muted/60"
+        style={{ fontFamily: MONO }}
+      >
+        {label}
+      </dt>
+      <dd
+        className="text-[13px] text-bc-text/90 leading-tight break-all"
+        style={mono ? { fontFamily: MONO } : undefined}
+      >
+        {children}
+      </dd>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   Tab 1 — Terminal (default)
+   Immersive, zero-chrome. Fills the entire flex area.
+   ═══════════════════════════════════════════════════════════════════ */
+
+function TerminalTab({
+  agent,
   outputLines,
   outputRef,
 }: {
+  agent: Agent;
   outputLines: string[];
   outputRef: React.RefObject<HTMLPreElement>;
 }) {
+  const isStopped = agent.state === "stopped" || agent.state === "error";
+
+  if (isStopped) {
+    return (
+      <div className="flex flex-col flex-1 min-h-0">
+        {/* Stopped banner */}
+        <div className="flex items-center justify-between px-4 py-2 border-b border-bc-border/40 bg-bc-surface/30">
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-bc-muted/40" />
+            <span className="text-xs text-bc-muted" style={{ fontFamily: MONO }}>
+              {agent.name}
+            </span>
+            <span className="text-[10px] text-bc-muted/50">
+              {agent.state === "error" ? "errored" : "stopped"}
+              {agent.stopped_at ? ` \u00b7 ${formatRelative(agent.stopped_at)}` : ""}
+            </span>
+          </div>
+          <button
+            type="button"
+            className="px-2.5 py-1 rounded text-[11px] font-medium bg-bc-accent/15 text-bc-accent hover:bg-bc-accent/25 transition-colors"
+            style={{ fontFamily: MONO }}
+          >
+            Start agent
+          </button>
+        </div>
+
+        {/* Last captured output */}
+        <pre
+          ref={outputRef}
+          className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-4 text-xs leading-relaxed whitespace-pre-wrap break-words text-bc-text/70 bg-bc-bg"
+          style={{ fontFamily: MONO }}
+        >
+          {outputLines.length > 0 ? (
+            outputLines.join("\n")
+          ) : (
+            <span className="text-bc-muted/40 italic">
+              No captured output from the last run.
+            </span>
+          )}
+        </pre>
+      </div>
+    );
+  }
+
+  // Running — fullscreen WebTerminal
   return (
-    <div className="space-y-2">
-      <h2 className="text-sm font-medium text-bc-muted uppercase tracking-wide">
-        Live Output
-      </h2>
-      <pre
-        ref={outputRef}
-        className="rounded-lg border border-bc-border/50 bg-bc-bg p-4 text-xs leading-relaxed overflow-y-auto overflow-x-hidden max-h-[50vh] md:max-h-[70vh] whitespace-pre-wrap break-words text-bc-text/90 shadow-inner w-full min-w-0"
-        style={{
-          fontFamily:
-            "'Space Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
-        }}
-      >
-        {outputLines.length > 0 ? (
-          outputLines.join("\n")
-        ) : (
-          <span className="text-bc-muted italic">
-            No output yet. Agent may be idle or stopped.
-          </span>
-        )}
-      </pre>
+    <div className="flex-1 min-h-0">
+      <WebTerminal agentName={agent.name} />
     </div>
   );
 }
 
-/* ───────────────────────── Info tab building blocks ───────────────────────── */
-
-function SectionHeader({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="mb-3 flex items-baseline gap-3">
-      <h2 className="text-[10px] font-semibold text-bc-muted uppercase tracking-[0.18em]">
-        {children}
-      </h2>
-      <div className="flex-1 h-px bg-bc-border/40" />
-    </div>
-  );
-}
-
-function AgentPill({
-  name,
-  onClick,
-}: {
-  name: string;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md border border-bc-border bg-bc-surface hover:border-bc-accent/50 hover:bg-bc-accent/5 transition-colors text-xs font-medium text-bc-text focus:outline-none focus-visible:ring-2 focus-visible:ring-bc-accent"
-    >
-      <span className="w-1 h-1 rounded-full bg-bc-accent/70" />
-      <span
-        style={{
-          fontFamily:
-            "'Space Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
-        }}
-      >
-        {name}
-      </span>
-    </button>
-  );
-}
+/* ═══════════════════════════════════════════════════════════════════
+   Tab 2 — Activity
+   Vertical event stream with task banner + timeline
+   ═══════════════════════════════════════════════════════════════════ */
 
 interface TimelineEvent {
   key: string;
@@ -160,23 +205,21 @@ function buildTimeline(agent: Agent): TimelineEvent[] {
     });
   }
   if (isRunning) {
-    // Current running state — skip stale stopped_at from a previous run.
     events.push({
       key: "current",
       label:
         agent.state === "working"
           ? "Working"
           : agent.state === "starting"
-          ? "Starting"
-          : agent.state === "idle"
-          ? "Idle"
-          : "Active",
+            ? "Starting"
+            : agent.state === "idle"
+              ? "Idle"
+              : "Active",
       timestamp: agent.updated_at,
       detail: agent.task,
       active: true,
     });
   } else if (agent.stopped_at) {
-    // Stopped state is current — show it as the active event.
     events.push({
       key: "stopped",
       label: agent.state === "error" ? "Errored" : "Stopped",
@@ -189,17 +232,13 @@ function buildTimeline(agent: Agent): TimelineEvent[] {
 }
 
 function humanizeEvent(type: string): string {
-  // "agent.spawned" -> "Spawned", "work.assigned" -> "Work assigned"
   const cleaned = type.replace(/^agent\./, "").replace(/[._-]/g, " ");
   return cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
 }
 
-function InfoTab({ agent }: { agent: Agent }) {
-  const navigate = useNavigate();
-  const [metaOpen, setMetaOpen] = useState(true);
+function ActivityTab({ agent }: { agent: Agent }) {
   const [activity, setActivity] = useState<AgentActivityItem[]>([]);
 
-  // Fetch agent activity from the event store.
   useEffect(() => {
     let cancelled = false;
     api
@@ -208,19 +247,18 @@ function InfoTab({ agent }: { agent: Agent }) {
         if (!cancelled) setActivity(items);
       })
       .catch(() => {
-        // Activity is best-effort; if the endpoint fails the UI falls back
-        // to the derived timeline from timestamps.
+        /* best-effort */
       });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [agent.name]);
 
   const isStopped = agent.state === "stopped" || agent.state === "error";
   const derivedTimeline = buildTimeline(agent);
-  // If we have live activity from the event store, prefer it; otherwise fall
-  // back to the derived timeline built from agent timestamps.
   const timeline: TimelineEvent[] =
     activity.length > 0
-      ? activity.slice(0, 8).map((it, idx) => ({
+      ? activity.slice(0, 12).map((it, idx) => ({
           key: `${it.event}-${String(idx)}`,
           label: humanizeEvent(it.event),
           timestamp: it.timestamp,
@@ -228,271 +266,253 @@ function InfoTab({ agent }: { agent: Agent }) {
           active: idx === 0,
         }))
       : derivedTimeline;
+
   const lastActivity =
-    agent.stopped_at ??
-    agent.updated_at ??
-    agent.started_at ??
-    agent.created_at;
+    agent.stopped_at ?? agent.updated_at ?? agent.started_at ?? agent.created_at;
 
   return (
-    <div className="max-w-4xl mx-auto space-y-10">
-      {/* ── CURRENT TASK BANNER ── */}
-      <section>
-        <div
-          className={`rounded-lg border p-4 transition-colors ${
-            isStopped
-              ? "border-bc-border/60 bg-bc-surface/50"
-              : "border-bc-accent/30 bg-bc-accent/5"
-          }`}
-        >
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex-1 min-w-0">
-              <div className="text-[10px] font-semibold text-bc-muted uppercase tracking-[0.18em] mb-1.5">
-                {isStopped ? "Last Task" : "Current Task"}
-              </div>
-              <p className="text-sm text-bc-text break-words leading-relaxed">
-                {agent.task ? (
-                  agent.task
-                ) : (
-                  <span className="text-bc-muted italic">no task recorded</span>
-                )}
-              </p>
-            </div>
-            {lastActivity && (
-              <div className="shrink-0 text-right">
-                <div className="text-[10px] font-semibold text-bc-muted uppercase tracking-[0.18em] mb-1.5">
-                  {isStopped ? "Last ran" : "Updated"}
+    <div className="flex-1 overflow-y-auto p-6">
+      <div className="max-w-3xl mx-auto space-y-8">
+        {/* ── CURRENT TASK BANNER ── */}
+        {(agent.task || isStopped) && (
+          <div
+            className={`rounded-md border px-4 py-3 transition-colors ${
+              isStopped
+                ? "border-bc-border/40 bg-bc-surface/30"
+                : "border-bc-accent/20 bg-bc-accent/[0.04]"
+            }`}
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex-1 min-w-0">
+                <div
+                  className="text-[9px] font-bold uppercase tracking-[0.2em] text-bc-muted/60 mb-1"
+                  style={{ fontFamily: MONO }}
+                >
+                  {isStopped ? "last task" : "current task"}
                 </div>
+                <p
+                  className="text-sm text-bc-text/90 break-words leading-relaxed"
+                  style={{ fontFamily: MONO }}
+                >
+                  {agent.task ?? (
+                    <span className="text-bc-muted/40 italic">none</span>
+                  )}
+                </p>
+              </div>
+              {lastActivity && (
                 <span
-                  className="text-sm text-bc-text tabular-nums"
+                  className="text-[11px] text-bc-muted tabular-nums shrink-0 pt-0.5"
                   title={formatTime(lastActivity)}
+                  style={{ fontFamily: MONO }}
                 >
                   {formatRelative(lastActivity)}
                 </span>
-              </div>
-            )}
-          </div>
-        </div>
-        {isStopped && (
-          <p className="mt-2 ml-1 text-[11px] text-bc-muted/70 italic">
-            Agent is not running. Stats below show last known values.
-          </p>
-        )}
-      </section>
-
-      {/* ── STATS ── */}
-      <section>
-        <SectionHeader>Stats</SectionHeader>
-        <StatsTabComponent agent={agent} />
-      </section>
-
-      {/* ── HIERARCHY ── */}
-      <section>
-        <SectionHeader>Hierarchy</SectionHeader>
-        <div className="space-y-3">
-          <div className="flex items-center gap-3">
-            <span className="text-[11px] text-bc-muted w-16 shrink-0 uppercase tracking-wider">
-              Parent
-            </span>
-            {agent.parent_id ? (
-              <AgentPill
-                name={agent.parent_id}
-                onClick={() => {
-                  navigate(`/agents/${encodeURIComponent(agent.parent_id ?? "")}`);
-                }}
-              />
-            ) : (
-              <span className="text-xs text-bc-muted/40">—</span>
-            )}
-          </div>
-          <div className="flex items-start gap-3">
-            <span className="text-[11px] text-bc-muted w-16 shrink-0 pt-1 uppercase tracking-wider">
-              Children
-            </span>
-            <div className="flex flex-wrap gap-1.5">
-              {agent.children && agent.children.length > 0 ? (
-                agent.children.map((c) => (
-                  <AgentPill
-                    key={c}
-                    name={c}
-                    onClick={() => {
-                      navigate(`/agents/${encodeURIComponent(c)}`);
-                    }}
-                  />
-                ))
-              ) : (
-                <span className="text-xs text-bc-muted/40 pt-1">—</span>
               )}
             </div>
           </div>
-        </div>
-      </section>
+        )}
 
-      {/* ── ACTIVITY TIMELINE ── */}
-      <section>
-        <SectionHeader>Activity</SectionHeader>
-        {timeline.length === 0 ? (
-          <p className="text-xs text-bc-muted/40">No activity recorded</p>
-        ) : (
-          <ol className="relative ml-1">
-            {/* Vertical rail */}
-            <span
-              aria-hidden
-              className="absolute left-[3px] top-2 bottom-2 w-px bg-bc-border/60"
-            />
-            {timeline.map((evt) => (
-              <li key={evt.key} className="relative pl-6 pb-4 last:pb-0">
-                {/* Dot */}
-                <span
-                  aria-hidden
-                  className={`absolute left-0 top-[7px] w-[9px] h-[9px] rounded-full border-2 ${
-                    evt.active
-                      ? "bg-bc-accent border-bc-accent animate-pulse"
-                      : "bg-bc-bg border-bc-muted/60"
-                  }`}
-                />
-                <div className="flex items-baseline justify-between gap-3">
+        {/* ── EVENT STREAM ── */}
+        <section>
+          <SectionRule>Event Stream</SectionRule>
+
+          {timeline.length === 0 ? (
+            <p className="text-xs text-bc-muted/40 italic pl-1">
+              No activity recorded yet.
+            </p>
+          ) : (
+            <ol className="relative ml-1.5">
+              {/* Vertical rail */}
+              <span
+                aria-hidden
+                className="absolute left-[3.5px] top-2.5 bottom-2.5 w-px bg-bc-border/40"
+              />
+              {timeline.map((evt) => (
+                <li key={evt.key} className="relative pl-7 pb-5 last:pb-0">
+                  {/* Dot */}
                   <span
-                    className={`text-sm font-medium ${
-                      evt.active ? "text-bc-accent" : "text-bc-text/85"
+                    aria-hidden
+                    className={`absolute left-0 top-[7px] w-2 h-2 rounded-full border-[1.5px] transition-colors ${
+                      evt.active
+                        ? "bg-bc-accent border-bc-accent shadow-[0_0_6px_rgba(var(--bc-accent-rgb,255,165,0),0.4)]"
+                        : "bg-bc-bg border-bc-muted/50"
                     }`}
-                  >
-                    {evt.label}
-                  </span>
-                  {evt.timestamp && (
+                  />
+                  <div className="flex items-baseline justify-between gap-4">
                     <span
-                      className="text-[11px] text-bc-muted tabular-nums shrink-0"
-                      title={formatTime(evt.timestamp)}
+                      className={`text-[13px] font-semibold ${
+                        evt.active ? "text-bc-accent" : "text-bc-text/80"
+                      }`}
+                      style={{ fontFamily: MONO }}
                     >
-                      {formatRelative(evt.timestamp)}
+                      {evt.label}
                     </span>
-                  )}
-                </div>
-                {evt.detail && (
-                  <p className="mt-0.5 text-xs text-bc-muted break-words leading-relaxed">
-                    {evt.detail}
-                  </p>
-                )}
-              </li>
-            ))}
-          </ol>
-        )}
-      </section>
-
-      {/* ── METADATA (collapsible) ── */}
-      <section>
-        <button
-          type="button"
-          onClick={() => {
-            setMetaOpen((v) => !v);
-          }}
-          className="w-full flex items-center gap-3 text-left group"
-          aria-expanded={metaOpen}
-        >
-          <span className="text-[10px] font-semibold text-bc-muted uppercase tracking-[0.18em] group-hover:text-bc-text transition-colors">
-            Metadata
-          </span>
-          <div className="flex-1 h-px bg-bc-border/40" />
-          <span className="text-[10px] text-bc-muted tabular-nums">
-            {metaOpen ? "−" : "+"}
-          </span>
-        </button>
-        {metaOpen && (
-          <dl className="mt-4 grid grid-cols-[6rem_1fr] gap-y-2.5 gap-x-4 text-sm">
-            <dt className="text-[11px] text-bc-muted uppercase tracking-wider pt-0.5">
-              Role
-            </dt>
-            <dd>
-              <RoleBadge role={agent.role} />
-            </dd>
-
-            <dt className="text-[11px] text-bc-muted uppercase tracking-wider pt-0.5">
-              Tool
-            </dt>
-            <dd
-              className="text-xs text-bc-text/80"
-              style={{
-                fontFamily:
-                  "'Space Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
-              }}
-            >
-              {agent.tool || "—"}
-            </dd>
-
-            <dt className="text-[11px] text-bc-muted uppercase tracking-wider pt-0.5">
-              Runtime
-            </dt>
-            <dd
-              className="text-xs text-bc-text/80"
-              style={{
-                fontFamily:
-                  "'Space Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
-              }}
-            >
-              {agent.runtime_backend || "—"}
-            </dd>
-
-            <dt className="text-[11px] text-bc-muted uppercase tracking-wider pt-0.5">
-              Session
-            </dt>
-            <dd
-              className="text-xs text-bc-text/80 break-all"
-              style={{
-                fontFamily:
-                  "'Space Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
-              }}
-            >
-              {agent.session || "—"}
-            </dd>
-
-            {agent.mcp_servers && agent.mcp_servers.length > 0 && (
-              <>
-                <dt className="text-[11px] text-bc-muted uppercase tracking-wider pt-1">
-                  MCP
-                </dt>
-                <dd>
-                  <div className="flex flex-wrap gap-1">
-                    {agent.mcp_servers.map((s) => (
+                    {evt.timestamp && (
                       <span
-                        key={s}
-                        className="inline-block px-1.5 py-0.5 rounded text-[10px] font-medium bg-bc-accent/10 text-bc-accent"
+                        className="text-[10px] text-bc-muted/60 tabular-nums shrink-0"
+                        title={formatTime(evt.timestamp)}
+                        style={{ fontFamily: MONO }}
                       >
-                        {s.replace(/^mcp__/, "")}
+                        {formatRelative(evt.timestamp)}
                       </span>
-                    ))}
+                    )}
                   </div>
-                </dd>
-              </>
-            )}
+                  {evt.detail && (
+                    <p className="mt-1 text-xs text-bc-muted/70 break-words leading-relaxed">
+                      {evt.detail}
+                    </p>
+                  )}
+                </li>
+              ))}
+            </ol>
+          )}
+        </section>
 
-            <dt className="text-[11px] text-bc-muted uppercase tracking-wider pt-0.5">
-              Created
-            </dt>
-            <dd className="text-xs text-bc-text/80 tabular-nums">
-              {formatTime(agent.created_at)}
-            </dd>
-
-            <dt className="text-[11px] text-bc-muted uppercase tracking-wider pt-0.5">
-              Started
-            </dt>
-            <dd className="text-xs text-bc-text/80 tabular-nums">
-              {formatTime(agent.started_at)}
-            </dd>
-          </dl>
+        {/* Stopped note */}
+        {isStopped && (
+          <p
+            className="text-[10px] text-bc-muted/40 italic pl-1"
+            style={{ fontFamily: MONO }}
+          >
+            Agent is not running. Showing last known activity.
+          </p>
         )}
-      </section>
+      </div>
     </div>
   );
 }
 
-/* ───────────────────────── Main component ───────────────────────── */
+/* ═══════════════════════════════════════════════════════════════════
+   Tab 3 — Config
+   System prompt, MCP servers, metadata, danger zone
+   ═══════════════════════════════════════════════════════════════════ */
+
+function ConfigTab({ agent }: { agent: Agent }) {
+  return (
+    <div className="flex-1 overflow-y-auto p-6">
+      <div className="max-w-3xl mx-auto space-y-10">
+        {/* ── SYSTEM PROMPT ── */}
+        <section>
+          <SectionRule>System Prompt</SectionRule>
+          <div className="rounded-md border border-bc-border/30 bg-bc-surface/20 p-4">
+            <p className="text-xs text-bc-muted/60 italic" style={{ fontFamily: MONO }}>
+              System prompt editing coming soon.
+            </p>
+            <p className="mt-2 text-[11px] text-bc-muted/40">
+              The agent&apos;s CLAUDE.md will be editable here. Template-based
+              configuration replaces the old role system.
+            </p>
+          </div>
+        </section>
+
+        {/* ── MCP SERVERS ── */}
+        <section>
+          <SectionRule>MCP Servers</SectionRule>
+          {agent.mcp_servers && agent.mcp_servers.length > 0 ? (
+            <div className="flex flex-wrap gap-1.5">
+              {agent.mcp_servers.map((s) => (
+                <span
+                  key={s}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-bc-border/30 bg-bc-surface/30 text-[11px] text-bc-text/80 font-medium"
+                  style={{ fontFamily: MONO }}
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-bc-accent/60" />
+                  {s.replace(/^mcp__/, "")}
+                </span>
+              ))}
+            </div>
+          ) : (
+            <p className="text-xs text-bc-muted/40 italic pl-1">
+              No MCP servers configured.
+            </p>
+          )}
+        </section>
+
+        {/* ── METADATA ── */}
+        <section>
+          <SectionRule>Metadata</SectionRule>
+          <dl className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-4">
+            <MetaCell label="Provider" mono>
+              {agent.tool || "\u2014"}
+            </MetaCell>
+            <MetaCell label="Runtime" mono>
+              {agent.runtime_backend || "\u2014"}
+            </MetaCell>
+            <MetaCell label="Session" mono>
+              {agent.session || "\u2014"}
+            </MetaCell>
+            <MetaCell label="Created">
+              <span className="tabular-nums">{formatTime(agent.created_at)}</span>
+            </MetaCell>
+            <MetaCell label="Started">
+              <span className="tabular-nums">{formatTime(agent.started_at)}</span>
+            </MetaCell>
+            {agent.stopped_at && (
+              <MetaCell label="Stopped">
+                <span className="tabular-nums">{formatTime(agent.stopped_at)}</span>
+              </MetaCell>
+            )}
+          </dl>
+        </section>
+
+        {/* ── DANGER ZONE ── */}
+        <section>
+          <SectionRule>Danger Zone</SectionRule>
+          <div className="flex flex-wrap gap-2">
+            {(["Clone", "Archive", "Delete"] as const).map((action) => (
+              <button
+                key={action}
+                type="button"
+                className={`px-3 py-1.5 rounded-md text-[11px] font-medium border transition-colors ${
+                  action === "Delete"
+                    ? "border-bc-error/30 text-bc-error/80 hover:bg-bc-error/10"
+                    : "border-bc-border/40 text-bc-muted hover:text-bc-text hover:border-bc-border"
+                }`}
+                style={{ fontFamily: MONO }}
+              >
+                {action}
+              </button>
+            ))}
+          </div>
+        </section>
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   Tab 4 — Stats
+   Wraps existing StatsTabComponent, adds stopped-agent context
+   ═══════════════════════════════════════════════════════════════════ */
+
+function StatsTab({ agent }: { agent: Agent }) {
+  const isStopped = agent.state === "stopped" || agent.state === "error";
+  return (
+    <div className="flex-1 overflow-y-auto p-6">
+      <div className="max-w-4xl mx-auto space-y-4">
+        {isStopped && (
+          <p
+            className="text-[10px] text-bc-muted/40 italic"
+            style={{ fontFamily: MONO }}
+          >
+            Agent is not running. Stats show last known values.
+          </p>
+        )}
+        <StatsTabComponent agent={agent} />
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   Main component
+   ═══════════════════════════════════════════════════════════════════ */
 
 export function AgentDetail() {
   const { name } = useParams<{ name: string }>();
-  const [activeTab, setActiveTab] = useState<Tab>("logs");
+  const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState<Tab>("terminal");
   const [outputLines, setOutputLines] = useState<string[]>([]);
-  const [message, setMessage] = useState("");
-  const [sending, setSending] = useState(false);
   const outputRef = useRef<HTMLPreElement>(null);
   const { subscribe } = useWebSocket();
 
@@ -508,10 +528,9 @@ export function AgentDetail() {
     refresh,
   } = usePolling<Agent>(agentFetcher, 3000);
 
-  // Poll peek output every 2 seconds for reliable updates
+  // Poll peek output every 2s
   useEffect(() => {
     if (!name) return;
-
     const fetchPeek = () => {
       api
         .getAgentPeek(name, 200)
@@ -521,10 +540,9 @@ export function AgentDetail() {
           }
         })
         .catch(() => {
-          // Peek may fail for stopped agents -- ignore
+          /* peek may fail for stopped agents */
         });
     };
-
     fetchPeek();
     const interval = setInterval(fetchPeek, 2000);
     return () => clearInterval(interval);
@@ -533,11 +551,9 @@ export function AgentDetail() {
   // Stream live output via SSE
   useEffect(() => {
     if (!name) return;
-
     const es = new EventSource(
       `/api/agents/${encodeURIComponent(name)}/output`,
     );
-
     es.onmessage = (e: MessageEvent) => {
       try {
         const parsed = JSON.parse(e.data as string) as { output: string };
@@ -546,10 +562,9 @@ export function AgentDetail() {
           setOutputLines((prev) => [...prev, ...newLines].slice(-500));
         }
       } catch {
-        // ignore malformed events
+        /* ignore */
       }
     };
-
     es.addEventListener("agent.output", ((e: MessageEvent) => {
       try {
         const parsed = JSON.parse(e.data as string) as { output: string };
@@ -558,20 +573,18 @@ export function AgentDetail() {
           setOutputLines((prev) => [...prev, ...newLines].slice(-500));
         }
       } catch {
-        // ignore
+        /* ignore */
       }
     }) as EventListener);
-
     es.onerror = () => {
-      // SSE reconnects automatically; no action needed
+      /* SSE reconnects automatically */
     };
-
     return () => {
       es.close();
     };
   }, [name]);
 
-  // Auto-scroll output to bottom
+  // Auto-scroll
   useEffect(() => {
     if (outputRef.current) {
       outputRef.current.scrollTop = outputRef.current.scrollHeight;
@@ -583,8 +596,7 @@ export function AgentDetail() {
     return subscribe("agent.state_changed", () => void refresh());
   }, [subscribe, refresh]);
 
-  // Keyboard shortcuts: 1=Logs, 2=Terminal, 3=Info.
-  // 4 and 5 also map to Info (muscle memory from the old 5-tab layout).
+  // Keyboard shortcuts: 1-4 for tabs, s for start/stop, Esc for back
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement | null)?.tagName;
@@ -592,146 +604,158 @@ export function AgentDetail() {
 
       switch (e.key) {
         case "1":
-          setActiveTab("logs");
-          break;
-        case "2":
           setActiveTab("terminal");
           break;
+        case "2":
+          setActiveTab("activity");
+          break;
         case "3":
+          setActiveTab("config");
+          break;
         case "4":
-        case "5":
-          setActiveTab("info");
+          setActiveTab("stats");
+          break;
+        case "Escape":
+          navigate("/agents");
           break;
       }
     };
     window.addEventListener("keydown", handler);
-    return () => { window.removeEventListener("keydown", handler); };
-  }, []);
+    return () => {
+      window.removeEventListener("keydown", handler);
+    };
+  }, [navigate]);
 
-  const handleSend = async () => {
-    if (!name || !message.trim()) return;
-    setSending(true);
-    try {
-      await api.sendToAgent(name, message);
-      setMessage("");
-    } finally {
-      setSending(false);
-    }
-  };
+  /* ─── Loading / Error ─── */
 
   if (loading && !agent) {
-    return <div className="p-6 text-bc-muted">Loading agent...</div>;
+    return (
+      <div className="flex items-center justify-center h-full">
+        <span className="text-sm text-bc-muted/50" style={{ fontFamily: MONO }}>
+          loading\u2026
+        </span>
+      </div>
+    );
   }
   if (error && !agent) {
     return (
-      <div className="p-6 space-y-2">
-        <div className="text-bc-error">Error: {error}</div>
-        <Link to="/agents" className="text-sm text-bc-accent hover:underline">
-          Back to agents
+      <div className="p-6 space-y-3">
+        <div className="text-sm text-bc-error" style={{ fontFamily: MONO }}>
+          error: {error}
+        </div>
+        <Link
+          to="/agents"
+          className="text-xs text-bc-accent hover:underline"
+          style={{ fontFamily: MONO }}
+        >
+          \u2190 back to agents
         </Link>
       </div>
     );
   }
   if (!agent) return null;
 
+  const lastSeen =
+    agent.updated_at ?? agent.started_at ?? agent.created_at;
+
+  /* ─── Render ─── */
+
   return (
     <div className="flex flex-col h-full">
-      <div className="flex-1 overflow-y-auto p-6 space-y-4">
-        {/* Breadcrumb + Header */}
-        <div className="flex items-center gap-4">
+      {/* ═══ HEADER ═══ */}
+      <header className="shrink-0 px-6 pt-5 pb-0 space-y-3">
+        {/* Breadcrumb */}
+        <div className="flex items-center gap-1.5 text-xs text-bc-muted/60">
           <Link
             to="/agents"
-            className="text-bc-muted hover:text-bc-text text-sm"
+            className="hover:text-bc-text transition-colors"
+            style={{ fontFamily: MONO }}
           >
-            &larr; Agents
+            Agents
           </Link>
-          <h1 className="text-xl font-bold">{agent.name}</h1>
-          <RoleBadge role={agent.role} />
+          <span>/</span>
+          <span className="text-bc-text/80" style={{ fontFamily: MONO }}>
+            {agent.name}
+          </span>
+        </div>
+
+        {/* Identity row */}
+        <div className="flex items-center gap-3 flex-wrap">
+          <h1
+            className="text-lg font-bold tracking-tight text-bc-text"
+            style={{ fontFamily: MONO }}
+          >
+            {agent.name}
+          </h1>
+
+          {/* Runtime badge */}
+          {agent.runtime_backend && (
+            <span
+              className="px-1.5 py-0.5 rounded text-[10px] font-medium border border-bc-border/30 text-bc-muted/70 bg-bc-surface/30"
+              style={{ fontFamily: MONO }}
+            >
+              {agent.runtime_backend}
+            </span>
+          )}
+
+          {/* Provider badge */}
+          {agent.tool && (
+            <span
+              className="px-1.5 py-0.5 rounded text-[10px] font-medium border border-bc-border/30 text-bc-muted/70 bg-bc-surface/30"
+              style={{ fontFamily: MONO }}
+            >
+              {agent.tool}
+            </span>
+          )}
+
           <StatusBadge status={agent.state} />
+
+          {lastSeen && (
+            <span
+              className="text-[10px] text-bc-muted/40 tabular-nums ml-auto"
+              title={formatTime(lastSeen)}
+              style={{ fontFamily: MONO }}
+            >
+              {formatRelative(lastSeen)}
+            </span>
+          )}
         </div>
 
         {/* Tab bar */}
-        <div className="flex flex-wrap gap-1 border-b border-bc-border">
-          {TABS.map((tab) => (
-            <button
-              key={tab.key}
-              onClick={() => setActiveTab(tab.key)}
-              className={`px-4 py-2 text-sm font-medium transition-colors relative ${
-                activeTab === tab.key
-                  ? "text-bc-accent"
-                  : "text-bc-muted hover:text-bc-text"
-              }`}
-            >
-              {tab.label}
-              <span className="ml-1.5 text-[10px] text-bc-muted/60">
-                {tab.shortcut}
-              </span>
-              {activeTab === tab.key && (
-                <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-bc-accent" />
-              )}
-            </button>
-          ))}
-        </div>
+        <nav className="flex gap-0 border-b border-bc-border/40 -mx-6 px-6">
+          {TABS.map((tab) => {
+            const isActive = activeTab === tab.key;
+            return (
+              <button
+                key={tab.key}
+                onClick={() => setActiveTab(tab.key)}
+                className={`relative px-4 py-2.5 text-[12px] font-semibold tracking-wide uppercase transition-colors ${
+                  isActive
+                    ? "text-bc-accent"
+                    : "text-bc-muted/50 hover:text-bc-muted"
+                }`}
+                style={{ fontFamily: MONO }}
+              >
+                {tab.label}
+                <span className="ml-1.5 text-[9px] opacity-40">{tab.shortcut}</span>
+                {/* Active indicator — bottom glow bar */}
+                {isActive && (
+                  <span className="absolute bottom-0 left-2 right-2 h-[2px] rounded-full bg-bc-accent shadow-[0_0_8px_rgba(var(--bc-accent-rgb,255,165,0),0.5)]" />
+                )}
+              </button>
+            );
+          })}
+        </nav>
+      </header>
 
-        {/* Tab content */}
-        {activeTab === "logs" && (
-          <LogsTab outputLines={outputLines} outputRef={outputRef} />
-        )}
+      {/* ═══ TAB CONTENT ═══ */}
+      <div className="flex-1 min-h-0 flex flex-col">
         {activeTab === "terminal" && (
-          <div className="space-y-2">
-            <h2 className="text-sm font-medium text-bc-muted uppercase tracking-wide">
-              Interactive Terminal
-            </h2>
-            {agent.state === "stopped" || agent.state === "error" ? (
-              <div className="space-y-2">
-                <div className="rounded border border-bc-border/60 bg-bc-surface/50 px-3 py-2 text-[11px] text-bc-muted italic">
-                  Agent is not running — showing last captured output. Start the agent to attach a live terminal.
-                </div>
-                <pre
-                  className="rounded-lg border border-bc-border/50 bg-bc-bg p-4 text-xs leading-relaxed overflow-y-auto overflow-x-hidden max-h-[60vh] whitespace-pre-wrap break-words text-bc-text/80 shadow-inner w-full min-w-0"
-                  style={{
-                    fontFamily:
-                      "'Space Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
-                  }}
-                >
-                  {outputLines.length > 0 ? (
-                    outputLines.join("\n")
-                  ) : (
-                    <span className="text-bc-muted italic">No captured output from the last run.</span>
-                  )}
-                </pre>
-              </div>
-            ) : (
-              <div className="h-[60vh]">
-                <WebTerminal agentName={agent.name} />
-              </div>
-            )}
-          </div>
+          <TerminalTab agent={agent} outputLines={outputLines} outputRef={outputRef} />
         )}
-        {activeTab === "info" && <InfoTab agent={agent} />}
-      </div>
-
-      {/* Message input bar -- always visible at bottom */}
-      <div className="shrink-0 border-t border-bc-border p-4">
-        <div className="flex gap-2">
-          <input
-            type="text"
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") void handleSend();
-            }}
-            placeholder="Send message to agent..."
-            className="flex-1 bg-bc-bg border border-bc-border rounded px-3 py-1.5 text-sm focus:outline-none focus:border-bc-accent"
-          />
-          <button
-            onClick={() => void handleSend()}
-            disabled={sending || !message.trim()}
-            className="px-3 py-1.5 bg-bc-accent text-bc-bg rounded text-sm font-medium disabled:opacity-50"
-          >
-            Send
-          </button>
-        </div>
+        {activeTab === "activity" && <ActivityTab agent={agent} />}
+        {activeTab === "config" && <ConfigTab agent={agent} />}
+        {activeTab === "stats" && <StatsTab agent={agent} />}
       </div>
     </div>
   );
