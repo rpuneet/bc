@@ -162,6 +162,10 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 		if svc.Stats != nil {
 			ah.SetStatsStore(svc.Stats)
 		}
+		if svc.WS != nil {
+			templatesDir := filepath.Join(svc.WS.StateDir(), "templates")
+			ah.SetTemplateStore(template.NewStore(templatesDir))
+		}
 		ah.SetTerminalHandler(handlers.NewTerminalHandler(svc.Agents, cfg.CORSOrigin))
 		ah.Register(mux)
 	}

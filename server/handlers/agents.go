@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -17,6 +18,7 @@ import (
 	"github.com/rpuneet/bc/pkg/events"
 	"github.com/rpuneet/bc/pkg/log"
 	"github.com/rpuneet/bc/pkg/stats"
+	"github.com/rpuneet/bc/pkg/template"
 	"github.com/rpuneet/bc/pkg/token"
 	"github.com/rpuneet/bc/pkg/workspace"
 	"github.com/rpuneet/bc/server/ws"
@@ -92,6 +94,7 @@ type AgentHandler struct {
 	events     events.EventStore
 	terminal   *TerminalHandler
 	statsStore *stats.Store
+	tmplStore  *template.Store
 	broker     *agentEventBroker
 }
 
@@ -99,6 +102,11 @@ type AgentHandler struct {
 // costs, ws, hub, and eventStore may be nil; enrichment fields will be omitted when unavailable.
 func NewAgentHandler(svc *agent.AgentService, costs *cost.Store, ws *workspace.Workspace, hub *ws.Hub) *AgentHandler {
 	return &AgentHandler{svc: svc, costs: costs, ws: ws, hub: hub, broker: newAgentEventBroker()}
+}
+
+// SetTemplateStore sets the template store used during agent creation.
+func (h *AgentHandler) SetTemplateStore(store *template.Store) {
+	h.tmplStore = store
 }
 
 // SetStatsStore sets the stats store for resource metrics enrichment.
@@ -132,12 +140,19 @@ func (h *AgentHandler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/agents/", h.byName)
 }
 
+// avatarDTO holds agent avatar configuration.
+type avatarDTO struct {
+	Variant string `json:"variant,omitempty"`
+	Color   string `json:"color,omitempty"`
+}
+
 type agentDTO struct { //nolint:govet // field order matches JSON/API contract
 	CreatedAt    time.Time      `json:"created_at"`
 	StartedAt    time.Time      `json:"started_at,omitempty"`
 	UpdatedAt    time.Time      `json:"updated_at"`
 	StoppedAt    *time.Time     `json:"stopped_at,omitempty"`
 	Stats        *agentStatsDTO `json:"stats,omitempty"`
+	Avatar       *avatarDTO     `json:"avatar,omitempty"`
 	Tool         string         `json:"tool,omitempty"`
 	Session      string         `json:"session,omitempty"`
 	State        string         `json:"state"`
@@ -146,6 +161,7 @@ type agentDTO struct { //nolint:govet // field order matches JSON/API contract
 	Name         string         `json:"name"`
 	Runtime      string         `json:"runtime_backend,omitempty"`
 	Role         string         `json:"role"`
+	Template     string         `json:"template,omitempty"`
 	SessionID    string         `json:"session_id,omitempty"`
 	ParentID     string         `json:"parent_id,omitempty"`
 	ID           string         `json:"id,omitempty"`
@@ -294,11 +310,13 @@ func (h *AgentHandler) list(w http.ResponseWriter, r *http.Request) {
 
 	case http.MethodPost:
 		var req struct {
-			Name    string `json:"name"`
-			Role    string `json:"role"`
-			Tool    string `json:"tool"`
-			Runtime string `json:"runtime_backend"`
-			Parent  string `json:"parent"`
+			Avatar   *avatarDTO `json:"avatar,omitempty"`
+			Name     string     `json:"name"`
+			Role     string     `json:"role"`
+			Tool     string     `json:"tool"`
+			Runtime  string     `json:"runtime_backend"`
+			Parent   string     `json:"parent"`
+			Template string     `json:"template,omitempty"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			httpError(w, "invalid request body", http.StatusBadRequest)
@@ -315,7 +333,16 @@ func (h *AgentHandler) list(w http.ResponseWriter, r *http.Request) {
 			httpError(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		writeJSON(w, http.StatusCreated, toDTO(a))
+		dto := toDTO(a)
+		dto.Avatar = req.Avatar
+		dto.Template = req.Template
+		// Apply template: write CLAUDE.md and .mcp.json to the agent's worktree.
+		if req.Template != "" && h.tmplStore != nil {
+			if applyErr := h.applyTemplate(a, req.Template, req.Avatar); applyErr != nil {
+				log.Warn("template apply failed", "agent", a.Name, "template", req.Template, "error", applyErr)
+			}
+		}
+		writeJSON(w, http.StatusCreated, dto)
 
 	default:
 		methodNotAllowed(w)
@@ -617,6 +644,9 @@ func (h *AgentHandler) byName(w http.ResponseWriter, r *http.Request) {
 
 	case action == "fork":
 		h.forkAgent(w, r, name)
+
+	case action == "mcps" || strings.HasPrefix(action, "mcps/"):
+		h.agentMCPs(w, r, name, action)
 
 	default:
 		httpError(w, "not found", http.StatusNotFound)
@@ -978,4 +1008,273 @@ func (h *AgentHandler) streamOutput(w http.ResponseWriter, r *http.Request, name
 			}
 		}
 	}
+}
+
+// applyTemplate writes template files (CLAUDE.md and .mcp.json) to the agent's
+// worktree. Called after successful agent creation when a template name is provided.
+func (h *AgentHandler) applyTemplate(a *agent.Agent, tmplName string, _ *avatarDTO) error {
+	tmpl, prompt, err := h.tmplStore.Get(tmplName)
+	if err != nil {
+		return fmt.Errorf("load template %q: %w", tmplName, err)
+	}
+
+	// Determine worktree path: prefer stored WorktreeDir, fall back to computed.
+	wtDir := a.WorktreeDir
+	if wtDir == "" {
+		wtDir = h.svc.Manager().WorktreePath(a.Name)
+	}
+	if wtDir == "" {
+		return fmt.Errorf("worktree path not available for agent %q", a.Name)
+	}
+
+	if err := os.MkdirAll(wtDir, 0750); err != nil {
+		return fmt.Errorf("ensure worktree dir: %w", err)
+	}
+
+	// Write system prompt as CLAUDE.md when the template has one.
+	if prompt != "" {
+		claudePath := filepath.Join(wtDir, "CLAUDE.md")
+		if writeErr := os.WriteFile(claudePath, []byte(prompt), 0600); writeErr != nil { //nolint:gosec // trusted workspace path
+			return fmt.Errorf("write CLAUDE.md: %w", writeErr)
+		}
+		log.Debug("template CLAUDE.md written", "agent", a.Name, "template", tmplName)
+	}
+
+	// Write .mcp.json from template's MCPs list.
+	if len(tmpl.MCPs) > 0 {
+		type mcpEntry struct {
+			URL  string `json:"url,omitempty"`
+			Type string `json:"type,omitempty"`
+		}
+		type mcpFile struct {
+			MCPServers map[string]mcpEntry `json:"mcpServers"`
+		}
+		cfg := mcpFile{MCPServers: make(map[string]mcpEntry, len(tmpl.MCPs))}
+		for _, name := range tmpl.MCPs {
+			cfg.MCPServers[name] = mcpEntry{}
+		}
+		b, marshalErr := json.MarshalIndent(cfg, "", "  ")
+		if marshalErr != nil {
+			return fmt.Errorf("marshal .mcp.json: %w", marshalErr)
+		}
+		mcpPath := filepath.Join(wtDir, ".mcp.json")
+		if writeErr := os.WriteFile(mcpPath, b, 0600); writeErr != nil { //nolint:gosec // trusted workspace path
+			return fmt.Errorf("write .mcp.json: %w", writeErr)
+		}
+		log.Debug("template .mcp.json written", "agent", a.Name, "template", tmplName, "mcps", len(tmpl.MCPs))
+	}
+
+	return nil
+}
+
+// ── MCP management endpoints ─────────────────────────────────────────────────
+
+// mcpServerDTO is the JSON representation of a single MCP server entry.
+type mcpServerDTO struct { //nolint:govet // field order matches JSON/API contract
+	Env     map[string]string `json:"env,omitempty"`
+	Name    string            `json:"name"`
+	URL     string            `json:"url,omitempty"`
+	Command string            `json:"command,omitempty"`
+	Type    string            `json:"type,omitempty"`
+}
+
+// agentMCPFile is the on-disk representation of .mcp.json.
+type agentMCPFile struct {
+	MCPServers map[string]agentMCPEntry `json:"mcpServers"`
+}
+
+type agentMCPEntry struct {
+	Env     map[string]string `json:"env,omitempty"`
+	Command string            `json:"command,omitempty"`
+	URL     string            `json:"url,omitempty"`
+	Type    string            `json:"type,omitempty"`
+	Args    []string          `json:"args,omitempty"`
+}
+
+// agentMCPs dispatches GET/POST /api/agents/{name}/mcps and
+// DELETE /api/agents/{name}/mcps/{mcp}.
+func (h *AgentHandler) agentMCPs(w http.ResponseWriter, r *http.Request, agentName, action string) {
+	// action is either "mcps" or "mcps/<mcp-server-name>"
+	mcpName := strings.TrimPrefix(action, "mcps/")
+	if mcpName == "mcps" {
+		mcpName = "" // bare "mcps" — no sub-resource
+	}
+
+	a, err := h.svc.Get(r.Context(), agentName)
+	if err != nil {
+		httpError(w, err.Error(), http.StatusNotFound)
+		return
+	}
+
+	wtDir := a.WorktreeDir
+	if wtDir == "" {
+		wtDir = h.svc.Manager().WorktreePath(agentName)
+	}
+
+	switch {
+	case r.Method == http.MethodGet && mcpName == "":
+		h.listAgentMCPs(w, r, a, wtDir)
+
+	case r.Method == http.MethodPost && mcpName == "":
+		h.addAgentMCP(w, r, wtDir)
+
+	case r.Method == http.MethodDelete && mcpName != "":
+		h.deleteAgentMCP(w, r, wtDir, mcpName)
+
+	default:
+		httpError(w, "not found", http.StatusNotFound)
+	}
+}
+
+// readMCPFile reads .mcp.json from the given directory.
+// Returns an empty file struct when the file does not exist.
+func readMCPFile(wtDir string) (agentMCPFile, error) {
+	var cfg agentMCPFile
+	cfg.MCPServers = make(map[string]agentMCPEntry)
+
+	mcpPath := filepath.Join(wtDir, ".mcp.json")
+	data, err := os.ReadFile(mcpPath) //nolint:gosec // trusted workspace path
+	if err != nil {
+		if os.IsNotExist(err) {
+			return cfg, nil
+		}
+		return cfg, fmt.Errorf("read .mcp.json: %w", err)
+	}
+	if jsonErr := json.Unmarshal(data, &cfg); jsonErr != nil {
+		return cfg, fmt.Errorf("parse .mcp.json: %w", jsonErr)
+	}
+	if cfg.MCPServers == nil {
+		cfg.MCPServers = make(map[string]agentMCPEntry)
+	}
+	return cfg, nil
+}
+
+// writeMCPFile persists cfg to .mcp.json in wtDir.
+func writeMCPFile(wtDir string, cfg agentMCPFile) error {
+	if err := os.MkdirAll(wtDir, 0750); err != nil {
+		return fmt.Errorf("ensure worktree dir: %w", err)
+	}
+	b, err := json.MarshalIndent(cfg, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshal .mcp.json: %w", err)
+	}
+	mcpPath := filepath.Join(wtDir, ".mcp.json")
+	if writeErr := os.WriteFile(mcpPath, b, 0600); writeErr != nil { //nolint:gosec // trusted path
+		return fmt.Errorf("write .mcp.json: %w", writeErr)
+	}
+	return nil
+}
+
+// listAgentMCPs handles GET /api/agents/{name}/mcps.
+func (h *AgentHandler) listAgentMCPs(w http.ResponseWriter, _ *http.Request, a *agent.Agent, wtDir string) {
+	var servers []mcpServerDTO
+
+	if wtDir != "" {
+		cfg, err := readMCPFile(wtDir)
+		if err != nil {
+			httpInternalError(w, "read mcp config", err)
+			return
+		}
+		for name, entry := range cfg.MCPServers {
+			servers = append(servers, mcpServerDTO{
+				Name:    name,
+				URL:     entry.URL,
+				Command: entry.Command,
+				Type:    entry.Type,
+				Env:     entry.Env,
+			})
+		}
+	}
+
+	// Fall back to role-resolved MCP servers if .mcp.json is empty.
+	if len(servers) == 0 && h.ws != nil && h.ws.RoleManager != nil && string(a.Role) != "" {
+		if resolved, resolveErr := h.ws.RoleManager.ResolveRole(string(a.Role)); resolveErr == nil {
+			for _, name := range resolved.MCPServers {
+				servers = append(servers, mcpServerDTO{Name: name})
+			}
+		}
+	}
+
+	if servers == nil {
+		servers = []mcpServerDTO{}
+	}
+	writeJSON(w, http.StatusOK, servers)
+}
+
+// addAgentMCP handles POST /api/agents/{name}/mcps.
+func (h *AgentHandler) addAgentMCP(w http.ResponseWriter, r *http.Request, wtDir string) {
+	if wtDir == "" {
+		httpError(w, "worktree path not available for this agent", http.StatusUnprocessableEntity)
+		return
+	}
+
+	var req struct {
+		Env     map[string]string `json:"env,omitempty"`
+		Name    string            `json:"name"`
+		URL     string            `json:"url,omitempty"`
+		Command string            `json:"command,omitempty"`
+		Type    string            `json:"type,omitempty"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		httpError(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+	if req.Name == "" {
+		httpError(w, "name is required", http.StatusBadRequest)
+		return
+	}
+
+	cfg, err := readMCPFile(wtDir)
+	if err != nil {
+		httpInternalError(w, "read mcp config", err)
+		return
+	}
+
+	cfg.MCPServers[req.Name] = agentMCPEntry{
+		URL:     req.URL,
+		Command: req.Command,
+		Type:    req.Type,
+		Env:     req.Env,
+	}
+
+	if writeErr := writeMCPFile(wtDir, cfg); writeErr != nil {
+		httpInternalError(w, "write mcp config", writeErr)
+		return
+	}
+
+	writeJSON(w, http.StatusCreated, mcpServerDTO{
+		Name:    req.Name,
+		URL:     req.URL,
+		Command: req.Command,
+		Type:    req.Type,
+		Env:     req.Env,
+	})
+}
+
+// deleteAgentMCP handles DELETE /api/agents/{name}/mcps/{mcp}.
+func (h *AgentHandler) deleteAgentMCP(w http.ResponseWriter, _ *http.Request, wtDir, mcpName string) {
+	if wtDir == "" {
+		httpError(w, "worktree path not available for this agent", http.StatusUnprocessableEntity)
+		return
+	}
+
+	cfg, err := readMCPFile(wtDir)
+	if err != nil {
+		httpInternalError(w, "read mcp config", err)
+		return
+	}
+
+	if _, exists := cfg.MCPServers[mcpName]; !exists {
+		httpError(w, fmt.Sprintf("MCP server %q not found", mcpName), http.StatusNotFound)
+		return
+	}
+
+	delete(cfg.MCPServers, mcpName)
+
+	if writeErr := writeMCPFile(wtDir, cfg); writeErr != nil {
+		httpInternalError(w, "write mcp config", writeErr)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }
