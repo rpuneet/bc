@@ -587,6 +587,7 @@ interface AgentConfig {
 }
 
 function ConfigTab({ agent }: { agent: Agent }) {
+  const navigate = useNavigate();
   const [config, setConfig] = useState<AgentConfig | null>(null);
   const [configLoading, setConfigLoading] = useState(true);
   const [editing, setEditing] = useState(false);
@@ -595,6 +596,8 @@ function ConfigTab({ agent }: { agent: Agent }) {
   const [saveStatus, setSaveStatus] = useState<"" | "saved" | "error">("");
   const [saveError, setSaveError] = useState("");
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -828,21 +831,74 @@ function ConfigTab({ agent }: { agent: Agent }) {
         {/* ── DANGER ZONE ── */}
         <section>
           <SectionRule>Danger Zone</SectionRule>
-          <div className="flex flex-wrap gap-2">
-            {(["Clone", "Archive", "Delete"] as const).map((action) => (
+          <div className="flex flex-wrap gap-2 items-center">
+            {/* Clone — placeholder, navigates to /agents */}
+            <button
+              type="button"
+              onClick={() => navigate("/agents")}
+              className="px-3 py-1.5 rounded-md text-[11px] font-medium border border-bc-border/40 text-bc-muted hover:text-bc-text hover:border-bc-border transition-colors"
+              style={{ fontFamily: MONO }}
+            >
+              Clone
+            </button>
+
+            {/* Archive — placeholder */}
+            <button
+              type="button"
+              className="px-3 py-1.5 rounded-md text-[11px] font-medium border border-bc-border/40 text-bc-muted hover:text-bc-text hover:border-bc-border transition-colors"
+              style={{ fontFamily: MONO }}
+            >
+              Archive
+            </button>
+
+            {/* Delete — with confirmation */}
+            {confirmDelete ? (
+              <>
+                <span
+                  className="text-[11px] text-bc-error/80"
+                  style={{ fontFamily: MONO }}
+                >
+                  Are you sure?
+                </span>
+                <button
+                  type="button"
+                  disabled={deleting}
+                  onClick={() => {
+                    setDeleting(true);
+                    fetch(`/api/agents/${encodeURIComponent(agent.name)}`, {
+                      method: "DELETE",
+                    })
+                      .then(() => navigate("/agents"))
+                      .catch(() => {
+                        setDeleting(false);
+                        setConfirmDelete(false);
+                      });
+                  }}
+                  className="px-3 py-1.5 rounded-md text-[11px] font-medium border border-bc-error/50 bg-bc-error/10 text-bc-error hover:bg-bc-error/20 transition-colors disabled:opacity-40"
+                  style={{ fontFamily: MONO }}
+                >
+                  {deleting ? "Deleting…" : "Confirm"}
+                </button>
+                <button
+                  type="button"
+                  disabled={deleting}
+                  onClick={() => setConfirmDelete(false)}
+                  className="px-3 py-1.5 rounded-md text-[11px] font-medium border border-bc-border/40 text-bc-muted hover:text-bc-text hover:border-bc-border transition-colors disabled:opacity-40"
+                  style={{ fontFamily: MONO }}
+                >
+                  Cancel
+                </button>
+              </>
+            ) : (
               <button
-                key={action}
                 type="button"
-                className={`px-3 py-1.5 rounded-md text-[11px] font-medium border transition-colors ${
-                  action === "Delete"
-                    ? "border-bc-error/30 text-bc-error/80 hover:bg-bc-error/10"
-                    : "border-bc-border/40 text-bc-muted hover:text-bc-text hover:border-bc-border"
-                }`}
+                onClick={() => setConfirmDelete(true)}
+                className="px-3 py-1.5 rounded-md text-[11px] font-medium border border-bc-error/30 text-bc-error/80 hover:bg-bc-error/10 transition-colors"
                 style={{ fontFamily: MONO }}
               >
-                {action}
+                Delete
               </button>
-            ))}
+            )}
           </div>
         </section>
       </div>
