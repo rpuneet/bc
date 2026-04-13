@@ -172,7 +172,7 @@ export function CreateAgentModal({
         <div className="px-5 py-4 flex flex-col gap-4">
           {/* Shape preview */}
           <div className="flex justify-center">
-            <AgentIcon shape={shape} state="idle" size={48} />
+            <AgentIcon shape={shape} state="working" size={64} />
           </div>
 
           {/* Name + regen */}

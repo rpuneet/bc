@@ -191,7 +191,7 @@ function AgentActions({ agent, onDone }: { agent: Agent; onDone: () => void }) {
         aria-label={`Delete agent ${agent.name}`}
         className="px-1.5 py-0.5 text-xs rounded bg-bc-error/10 text-bc-error/70 hover:bg-bc-error/20 hover:text-bc-error focus-visible:ring-2 focus-visible:ring-bc-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bc-bg"
       >
-        Del
+        Delete
       </button>
     </span>
   );
@@ -595,7 +595,7 @@ export function Agents() {
 
       {/* Keyboard hints — only shown when the list is visible */}
       {allAgents.length > 0 && (
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px] text-bc-muted/60">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[9px] text-bc-muted/60 opacity-40 hover:opacity-70 transition-opacity">
           <KeyHint k="/" label="search" />
           <KeyHint k="j / k" label="nav" />
           <KeyHint k="↵" label="open" />
