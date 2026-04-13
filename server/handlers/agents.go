@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/rpuneet/bc/pkg/agent"
@@ -21,6 +22,67 @@ import (
 	"github.com/rpuneet/bc/server/ws"
 )
 
+// HookEventRequest is the rich payload accepted by POST /api/agents/{name}/hook.
+// All fields except Event are optional; callers may send any subset.
+// The handler accepts the full agent.HookPayload; this struct documents the
+// additional fields introduced in Phase 1c (TaskID, TaskTitle, Metadata).
+type HookEventRequest struct {
+	ToolInput any            `json:"tool_input,omitempty"`
+	Metadata  map[string]any `json:"metadata,omitempty"`
+	TaskTitle string         `json:"task_title,omitempty"`
+	TaskID    string         `json:"task_id,omitempty"`
+	ToolName  string         `json:"tool_name,omitempty"`
+	Error     string         `json:"error,omitempty"`
+	Event     string         `json:"event"`
+}
+
+// agentEventSub is a single SSE subscriber for per-agent hook events.
+type agentEventSub struct {
+	ch   chan []byte
+	done <-chan struct{}
+}
+
+// agentEventBroker fans out hook events to per-agent SSE subscribers.
+type agentEventBroker struct {
+	subs map[string][]*agentEventSub
+	mu   sync.RWMutex
+}
+
+func newAgentEventBroker() *agentEventBroker {
+	return &agentEventBroker{subs: make(map[string][]*agentEventSub)}
+}
+
+func (b *agentEventBroker) subscribe(agentName string, done <-chan struct{}) *agentEventSub {
+	sub := &agentEventSub{ch: make(chan []byte, 64), done: done}
+	b.mu.Lock()
+	b.subs[agentName] = append(b.subs[agentName], sub)
+	b.mu.Unlock()
+	return sub
+}
+
+func (b *agentEventBroker) unsubscribe(agentName string, sub *agentEventSub) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	list := b.subs[agentName]
+	for i, s := range list {
+		if s == sub {
+			b.subs[agentName] = append(list[:i], list[i+1:]...)
+			break
+		}
+	}
+}
+
+func (b *agentEventBroker) publish(agentName string, msg []byte) {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	for _, sub := range b.subs[agentName] {
+		select {
+		case sub.ch <- msg:
+		default: // subscriber too slow — drop
+		}
+	}
+}
+
 // AgentHandler handles /api/agents routes.
 type AgentHandler struct {
 	svc        *agent.AgentService
@@ -30,12 +92,13 @@ type AgentHandler struct {
 	events     events.EventStore
 	terminal   *TerminalHandler
 	statsStore *stats.Store
+	broker     *agentEventBroker
 }
 
 // NewAgentHandler creates an AgentHandler.
 // costs, ws, hub, and eventStore may be nil; enrichment fields will be omitted when unavailable.
 func NewAgentHandler(svc *agent.AgentService, costs *cost.Store, ws *workspace.Workspace, hub *ws.Hub) *AgentHandler {
-	return &AgentHandler{svc: svc, costs: costs, ws: ws, hub: hub}
+	return &AgentHandler{svc: svc, costs: costs, ws: ws, hub: hub, broker: newAgentEventBroker()}
 }
 
 // SetStatsStore sets the stats store for resource metrics enrichment.
@@ -364,14 +427,79 @@ func (h *AgentHandler) byName(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		// Persist raw JSON body to event log — no re-serialization, no field loss.
+		// Build structured data map from rich payload fields for the event store.
+		eventData := map[string]any{
+			"event": string(payload.Event),
+		}
+		if payload.ToolName != "" {
+			eventData["tool_name"] = payload.ToolName
+		}
+		if payload.ToolInput != nil {
+			eventData["tool_input"] = payload.ToolInput
+		}
+		if payload.Error != "" {
+			eventData["error"] = payload.Error
+		}
+		if payload.Task != "" {
+			eventData["task"] = payload.Task
+		}
+		if payload.TaskID != "" {
+			eventData["task_id"] = payload.TaskID
+		}
+		if payload.TaskTitle != "" {
+			eventData["task_title"] = payload.TaskTitle
+		}
+		if payload.Message != "" {
+			eventData["message"] = payload.Message
+		}
+		if len(payload.Metadata) > 0 {
+			eventData["metadata"] = payload.Metadata
+		}
+
+		// Persist raw JSON body to event log — raw body in Message for full
+		// observability; structured fields in Data for typed queries.
+		now := time.Now()
 		if h.events != nil {
 			_ = h.events.Append(events.Event{ //nolint:errcheck // best-effort logging
-				Timestamp: time.Now(),
+				Timestamp: now,
 				Type:      events.EventType("hook." + string(payload.Event)),
 				Agent:     name,
 				Message:   string(rawBody),
+				Data:      eventData,
 			})
+		}
+
+		// Build the SSE data payload for per-agent subscribers.
+		ssePayload := map[string]any{
+			"event":     string(payload.Event),
+			"timestamp": now.UTC().Format(time.RFC3339Nano),
+			"agent":     name,
+		}
+		if payload.ToolName != "" {
+			ssePayload["tool_name"] = payload.ToolName
+		}
+		if payload.ToolInput != nil {
+			ssePayload["tool_input"] = payload.ToolInput
+		}
+		if payload.Error != "" {
+			ssePayload["error"] = payload.Error
+		}
+		if payload.Task != "" {
+			ssePayload["task"] = payload.Task
+		}
+		if payload.TaskID != "" {
+			ssePayload["task_id"] = payload.TaskID
+		}
+		if payload.TaskTitle != "" {
+			ssePayload["task_title"] = payload.TaskTitle
+		}
+		if len(payload.Metadata) > 0 {
+			ssePayload["metadata"] = payload.Metadata
+		}
+
+		// Publish to per-agent SSE subscribers (GET /api/agents/{name}/events).
+		if sseMsg, encErr := buildHookSSEMessage(now, ssePayload); encErr == nil {
+			h.broker.publish(name, sseMsg)
 		}
 
 		// Publish raw hook JSON via SSE for web UI — same format as event log.
@@ -384,6 +512,9 @@ func (h *AgentHandler) byName(w http.ResponseWriter, r *http.Request) {
 		}
 
 		writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+
+	case r.Method == http.MethodGet && action == "events":
+		h.streamHookEvents(w, r, name)
 
 	case r.Method == http.MethodGet && action == "stats":
 		// Return recent Docker stats samples for this agent.
@@ -432,6 +563,9 @@ func (h *AgentHandler) byName(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]string{"output": output})
+
+	case r.Method == http.MethodGet && action == "last-terminal":
+		h.lastTerminal(w, r, name)
 
 	case r.Method == http.MethodGet && action == "sessions":
 		sessions, err := h.svc.Sessions(r.Context(), name)
@@ -635,6 +769,102 @@ func (h *AgentHandler) health(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, results)
+}
+
+// buildHookSSEMessage formats a single hook event as an SSE frame:
+//
+//	id: <timestamp_ms>
+//	event: hook
+//	data: <json>
+func buildHookSSEMessage(ts time.Time, payload map[string]any) ([]byte, error) {
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return nil, err
+	}
+	id := ts.UnixMilli()
+	msg := fmt.Sprintf("id: %d\nevent: hook\ndata: %s\n\n", id, data)
+	return []byte(msg), nil
+}
+
+// streamHookEvents serves GET /api/agents/{name}/events as an SSE stream.
+// It replays the last 50 hook events from the event store, then tails new
+// events as they arrive via the per-agent broker.
+func (h *AgentHandler) streamHookEvents(w http.ResponseWriter, r *http.Request, name string) {
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		httpError(w, "streaming not supported", http.StatusInternalServerError)
+		return
+	}
+
+	// Verify agent exists.
+	if _, err := h.svc.Get(r.Context(), name); err != nil {
+		httpError(w, err.Error(), http.StatusNotFound)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("X-Accel-Buffering", "no")
+
+	// Subscribe before replaying history so we don't miss events that arrive
+	// between the replay query and the subscription being established.
+	sub := h.broker.subscribe(name, r.Context().Done())
+	defer h.broker.unsubscribe(name, sub)
+
+	// Replay last 50 hook events from the event store.
+	if h.events != nil {
+		past, err := h.events.ReadByAgent(name)
+		if err == nil {
+			// Filter to hook.* events only; take the last 50.
+			const replayLimit = 50
+			var hookEvts []events.Event
+			for i := range past {
+				if strings.HasPrefix(string(past[i].Type), "hook.") {
+					hookEvts = append(hookEvts, past[i])
+				}
+			}
+			if len(hookEvts) > replayLimit {
+				hookEvts = hookEvts[len(hookEvts)-replayLimit:]
+			}
+			for _, ev := range hookEvts {
+				payload := map[string]any{
+					"event":     strings.TrimPrefix(string(ev.Type), "hook."),
+					"timestamp": ev.Timestamp.UTC().Format(time.RFC3339Nano),
+					"agent":     name,
+				}
+				// Merge structured data fields into payload.
+				for k, v := range ev.Data {
+					if k != "event" { // avoid duplicate
+						payload[k] = v
+					}
+				}
+				if msg, encErr := buildHookSSEMessage(ev.Timestamp, payload); encErr == nil {
+					_, _ = w.Write(msg) //nolint:errcheck
+				}
+			}
+			flusher.Flush()
+		}
+	}
+
+	keepalive := time.NewTicker(30 * time.Second)
+	defer keepalive.Stop()
+
+	for {
+		select {
+		case <-r.Context().Done():
+			return
+		case msg, ok := <-sub.ch:
+			if !ok {
+				return
+			}
+			_, _ = w.Write(msg) //nolint:errcheck
+			flusher.Flush()
+		case <-keepalive.C:
+			fmt.Fprint(w, ": keepalive\n\n") //nolint:errcheck // SSE comment
+			flusher.Flush()
+		}
+	}
 }
 
 // streamOutput streams agent terminal output as SSE events.
