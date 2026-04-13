@@ -9,6 +9,7 @@ import { StatsTab as StatsTabComponent } from "../components/StatsTab";
 import { WebTerminal } from "../components/WebTerminal";
 import { stripAnsi } from "../utils/text";
 import { AgentIcon } from "../components/agent-ui";
+import { LoopIconButton, RalphLoopModal, useRalphLoop } from "../components/RalphLoopModal";
 
 /* ═══════════════════════════════════════════════════════════════════
    Utility
@@ -1066,6 +1067,7 @@ export function AgentDetail() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<Tab>("terminal");
   const [outputLines, setOutputLines] = useState<string[]>([]);
+  const [loopOpen, setLoopOpen] = useState(false);
   const outputRef = useRef<HTMLPreElement>(null);
   const { subscribe } = useWebSocket();
 
@@ -1255,6 +1257,9 @@ export function AgentDetail() {
 
           <StatusBadge status={agent.state} />
 
+          {/* Ralph Loop icon */}
+          <LoopIconButton agentName={agent.name} onClick={() => setLoopOpen(true)} />
+
           {/* Live activity hint */}
           {agent.task && (
             <span
@@ -1313,6 +1318,20 @@ export function AgentDetail() {
         {activeTab === "config" && <ConfigTab agent={agent} />}
         {activeTab === "stats" && <StatsTab agent={agent} />}
       </div>
+
+      {/* Ralph Loop modal + auto-reprompt hook */}
+      <RalphLoopModal
+        open={loopOpen}
+        agentName={agent.name}
+        onClose={() => setLoopOpen(false)}
+      />
+      <RalphLoopHook agentName={agent.name} agentState={agent.state} />
     </div>
   );
+}
+
+// Wrapper component so the hook runs inside the render tree
+function RalphLoopHook({ agentName, agentState }: { agentName: string; agentState: string }) {
+  useRalphLoop(agentName, agentState);
+  return null;
 }
