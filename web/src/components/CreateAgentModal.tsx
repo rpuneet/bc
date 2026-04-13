@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from "react";
+import { AgentIcon, AgentAvatarPicker, colorFromName } from "./agent-ui";
 
 // ── Name generation ───────────────────────────────────────────────────────────
 
@@ -57,6 +58,11 @@ const INPUT_CLS =
 const MONO =
   "'JetBrains Mono', 'Fira Code', 'Space Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
 
+// ── Avatar variants ───────────────────────────────────────────────────────────
+
+const AVATAR_VARIANTS = ["geometric", "organic", "monogram"] as const;
+type AvatarVariant = (typeof AVATAR_VARIANTS)[number];
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export function CreateAgentModal({
@@ -69,20 +75,33 @@ export function CreateAgentModal({
   const [provider, setProvider] = useState<Provider>("claude");
   const [runtime, setRuntime] = useState<Runtime>("docker");
   const [task, setTask] = useState("");
+  const [variant, setVariant] = useState<AvatarVariant>(
+    () => AVATAR_VARIANTS[Math.floor(Math.random() * AVATAR_VARIANTS.length)] ?? "geometric"
+  );
+  const [color, setColor] = useState(() => colorFromName(generateName(existingNames)));
 
   const firstInputRef = useRef<HTMLInputElement>(null);
 
   // Re-generate name when modal opens
   useEffect(() => {
     if (open) {
-      setName(generateName(existingNames));
+      const newName = generateName(existingNames);
+      setName(newName);
       setTemplate("feature-dev");
       setProvider("claude");
       setRuntime("docker");
       setTask("");
+      setVariant(AVATAR_VARIANTS[Math.floor(Math.random() * AVATAR_VARIANTS.length)] ?? "geometric");
+      setColor(colorFromName(newName));
       requestAnimationFrame(() => firstInputRef.current?.focus());
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, existingNames]);
+
+  // Auto-update color when name changes
+  useEffect(() => {
+    setColor(colorFromName(name));
+  }, [name]);
 
   // Close on Escape
   useEffect(() => {
@@ -99,10 +118,10 @@ export function CreateAgentModal({
   }, [existingNames]);
 
   const handleCreate = useCallback(() => {
-    const values = { name, template, provider, runtime, task };
+    const values = { name, template, provider, runtime, task, avatar: { variant, color } };
     console.log("[CreateAgentModal] create agent:", values);
     onClose();
-  }, [name, template, provider, runtime, task, onClose]);
+  }, [name, template, provider, runtime, task, variant, color, onClose]);
 
   if (!open) return null;
 
@@ -146,6 +165,11 @@ export function CreateAgentModal({
         {/* Body */}
         <div className="px-5 py-4 flex flex-col gap-4">
 
+          {/* Avatar preview */}
+          <div className="flex justify-center">
+            <AgentIcon name={name} variant={variant} color={color} state="idle" size={48} />
+          </div>
+
           {/* Name */}
           <div className="flex flex-col gap-1.5">
             <label className="text-xs font-medium text-bc-muted uppercase tracking-wider">
@@ -177,6 +201,14 @@ export function CreateAgentModal({
               </button>
             </div>
           </div>
+
+          {/* Avatar picker */}
+          <AgentAvatarPicker
+            variant={variant}
+            color={color}
+            onVariantChange={(v) => setVariant(v as AvatarVariant)}
+            onColorChange={setColor}
+          />
 
           {/* Template */}
           <div className="flex flex-col gap-1.5">

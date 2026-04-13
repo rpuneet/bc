@@ -10,6 +10,7 @@ import { EmptyState } from "../components/EmptyState";
 import { InlineTerminal } from "../components/InlineTerminal";
 import { truncate } from "../utils/text";
 import { AgentIcon, colorFromName } from "../components/agent-ui";
+import { CreateAgentModal } from "../components/CreateAgentModal";
 
 function KeyHint({ k, label }: { k: string; label: string }) {
   return (
@@ -544,6 +545,7 @@ export function Agents() {
 
   const [peekAgent, setPeekAgent] = useState<string | null>(null);
   const [stoppingAll, setStoppingAll] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
 
   // Search + filter + bulk state (URL-synced where useful)
   const [search, setSearch] = useState(searchParams.get("q") ?? "");
@@ -852,6 +854,13 @@ export function Agents() {
               ? `${String(filteredAgents.length)} of ${String(allAgents.length)} agents`
               : `${String(allAgents.length)} agents`}
           </span>
+          <button
+            onClick={() => setCreateOpen(true)}
+            className="px-3 py-1.5 text-sm rounded bg-bc-accent text-white hover:bg-bc-accent/80 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-bc-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bc-bg"
+            aria-label="Create agent"
+          >
+            + Create Agent
+          </button>
           {allAgents.some(
             (a) => a.state !== "stopped" && a.state !== "error",
           ) && (
@@ -1197,6 +1206,12 @@ export function Agents() {
           </div>
         </div>
       )}
+
+      <CreateAgentModal
+        open={createOpen}
+        onClose={() => setCreateOpen(false)}
+        existingNames={allAgents.map((a) => a.name)}
+      />
     </div>
   );
 }
