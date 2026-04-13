@@ -54,29 +54,35 @@ Each template file:
   "name": "feature-dev",
   "description": "Full-stack feature development agent",
   "system_prompt_file": "feature-dev.md",
-  "provider": "claude",
-  "runtime": "docker",
   "mcps": ["bc", "github"],
-  "secrets": ["GITHUB_TOKEN", "ANTHROPIC_API_KEY"],
-  "plugins": [],
-  "skills": [],
-  "docker": {
-    "image": "bc-agent-claude:latest",
-    "cpus": 2,
-    "memory_mb": 4096,
-    "volumes": [
-      { "host": ".bc/agents/{name}/worktree", "container": "/workspace", "readonly": false },
-      { "host": ".", "container": "/project", "readonly": true }
-    ],
-    "env": {
-      "BC_AGENT_ID": "{name}",
-      "BC_WORKSPACE": "{workspace}"
-    }
-  }
+  "secrets": ["GITHUB_TOKEN"],
+  "plugins": ["frontend-design"],
+  "context_files": ["CLAUDE.md", "docs/ARCHITECTURE.md"],
+  "tool_policies": {
+    "allowed": ["Bash", "Read", "Write", "Edit", "Glob", "Grep", "Agent"],
+    "denied": []
+  },
+  "max_cost_usd": 50.0,
+  "stuck_timeout_min": 5
 }
 ```
 
 System prompt lives in a separate `.md` file at `.bc/templates/<name>.md`. This allows rich markdown editing without JSON escaping.
+
+**Templates are decoupled from provider and runtime.** A template defines *what* the agent knows and can access — not *how* it runs. Provider (claude/gemini/cursor/codex) and runtime (tmux/docker) are chosen at agent creation time, not baked into the template. This means the same "feature-dev" template works with any provider.
+
+Template fields informed by how top coding agents work:
+
+| Field | Purpose | Inspired by |
+|-------|---------|------------|
+| `system_prompt_file` | Core instructions for the agent | Claude Code CLAUDE.md, Cursor .cursorrules |
+| `mcps` | Tool servers the agent connects to | Claude MCP servers, Cursor extensions |
+| `secrets` | Env vars injected at runtime | API keys, tokens |
+| `plugins` | Skill packages / tool bundles | Claude skills, Cursor plugins |
+| `context_files` | Files always loaded into context | Cursor @files, Claude CLAUDE.md includes |
+| `tool_policies` | Allowed/denied tool list | Claude --allowedTools, Cursor tool permissions |
+| `max_cost_usd` | Budget cap per session | Claude max_turns, cost limits |
+| `stuck_timeout_min` | Minutes before stuck detection | Configurable per task type |
 
 **Template API:**
 

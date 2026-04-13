@@ -4,34 +4,39 @@ const MONO =
 interface Template {
   name: string;
   description: string;
-  provider: string;
   mcps: string[];
+  secrets: string[];
+  plugins: string[];
 }
 
 const MOCK_TEMPLATES: Template[] = [
   {
     name: "feature-dev",
     description: "Full-stack feature development",
-    provider: "claude",
     mcps: ["bc", "github"],
+    secrets: ["GITHUB_TOKEN"],
+    plugins: ["frontend-design"],
   },
   {
     name: "reviewer",
     description: "Code review specialist",
-    provider: "claude",
     mcps: ["bc"],
+    secrets: [],
+    plugins: [],
   },
   {
     name: "manager",
     description: "Task orchestration and delegation",
-    provider: "gemini",
     mcps: ["bc"],
+    secrets: [],
+    plugins: [],
   },
   {
     name: "blank",
     description: "Empty starting point",
-    provider: "claude",
     mcps: ["bc"],
+    secrets: [],
+    plugins: [],
   },
 ];
 
@@ -57,17 +62,26 @@ function TemplateRow({ template }: { template: Template }) {
       >
         {template.name}
       </td>
-      <td
-        className="py-3 px-4 text-xs text-bc-muted whitespace-nowrap"
-        style={{ fontFamily: MONO }}
-      >
-        {template.provider}
-      </td>
       <td className="py-3 px-4">
         <div className="flex flex-wrap gap-1">
           {template.mcps.map((mcp) => (
             <McpChip key={mcp} name={mcp} />
           ))}
+        </div>
+      </td>
+      <td className="py-3 px-4">
+        <div className="flex flex-wrap gap-1">
+          {template.secrets.length > 0
+            ? template.secrets.map((s) => (
+                <span
+                  key={s}
+                  className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-bc-muted/10 text-bc-muted/70"
+                  style={{ fontFamily: MONO }}
+                >
+                  {s}
+                </span>
+              ))
+            : <span className="text-xs text-bc-muted/30">{"\u2014"}</span>}
         </div>
       </td>
       <td className="py-3 px-4 text-sm text-bc-muted">{template.description}</td>
@@ -100,8 +114,8 @@ export function Templates() {
           <thead>
             <tr className="text-left text-[11px] font-medium text-bc-muted/60 uppercase tracking-wide">
               <th className="py-2.5 pl-4 pr-6 font-medium">Name</th>
-              <th className="py-2.5 px-4 font-medium">Provider</th>
               <th className="py-2.5 px-4 font-medium">MCPs</th>
+              <th className="py-2.5 px-4 font-medium">Secrets</th>
               <th className="py-2.5 px-4 font-medium">Description</th>
             </tr>
           </thead>
