@@ -121,6 +121,12 @@ function TerminalTab({
   outputRef: React.RefObject<HTMLPreElement>;
 }) {
   const isStopped = agent.state === "stopped" || agent.state === "error";
+  const [attached, setAttached] = useState(false);
+
+  // Reset attached state when agent stops
+  useEffect(() => {
+    if (isStopped) setAttached(false);
+  }, [isStopped]);
 
   if (isStopped) {
     return (
@@ -164,10 +170,51 @@ function TerminalTab({
     );
   }
 
-  // Running — fullscreen WebTerminal
+  // Running — show overlay first, then WebTerminal when attached
+  if (!attached) {
+    return (
+      <div className="flex-1 min-h-0 flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 rounded-full bg-bc-accent/20 flex items-center justify-center">
+            <span className="w-3 h-3 rounded-full bg-bc-accent animate-pulse" />
+          </div>
+          <span className="text-sm text-bc-text/80" style={{ fontFamily: MONO }}>
+            {agent.name} is running
+          </span>
+          <button
+            type="button"
+            onClick={() => setAttached(true)}
+            className="px-4 py-2 rounded bg-bc-accent/15 text-bc-accent text-sm hover:bg-bc-accent/25 transition-colors"
+            style={{ fontFamily: MONO }}
+          >
+            Click to attach terminal
+          </button>
+          {agent.task && (
+            <span className="text-xs text-bc-muted" style={{ fontFamily: MONO }}>
+              {agent.task}
+            </span>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="flex-1 min-h-0">
-      <WebTerminal agentName={agent.name} />
+    <div className="flex flex-col flex-1 min-h-0">
+      {/* Thin top bar with detach button */}
+      <div className="flex items-center justify-end px-3 py-1 border-b border-bc-border/30 bg-bc-surface/20">
+        <button
+          type="button"
+          onClick={() => setAttached(false)}
+          className="text-[11px] text-bc-muted/60 hover:text-bc-muted transition-colors"
+          style={{ fontFamily: MONO }}
+        >
+          [Detach]
+        </button>
+      </div>
+      <div className="flex-1 min-h-0">
+        <WebTerminal agentName={agent.name} />
+      </div>
     </div>
   );
 }
@@ -307,6 +354,45 @@ function ActivityTab({ agent }: { agent: Agent }) {
       cancelled = true;
     };
   }, [agent.name]);
+
+  // SSE live events
+  useEffect(() => {
+    if (agent.state === "stopped" || agent.state === "error") return;
+
+    const es = new EventSource(`/api/agents/${encodeURIComponent(agent.name)}/events`);
+
+    es.addEventListener("hook", (e: MessageEvent) => {
+      try {
+        const data = JSON.parse(String(e.data)) as {
+          event?: string;
+          timestamp?: string;
+          tool_name?: string;
+          tool_input?: { command?: string };
+          message?: string;
+        };
+        setActivity((prev) =>
+          [
+            {
+              event: data.event ?? "unknown",
+              timestamp: data.timestamp ?? new Date().toISOString(),
+              message: data.tool_name
+                ? `${data.tool_name}${data.tool_input?.command ? ": " + data.tool_input.command : ""}`
+                : (data.message ?? ""),
+            },
+            ...prev,
+          ].slice(0, 50),
+        );
+      } catch {
+        /* ignore malformed events */
+      }
+    });
+
+    es.onerror = () => {
+      /* auto-reconnects */
+    };
+
+    return () => es.close();
+  }, [agent.name, agent.state]);
 
   const isStopped = agent.state === "stopped" || agent.state === "error";
   const isRunning = !isStopped;
