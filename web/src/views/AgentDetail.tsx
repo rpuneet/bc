@@ -796,6 +796,12 @@ function ConfigTab({ agent }: { agent: Agent }) {
                 )}
                 {editing ? (
                   <>
+                    <span
+                      className="text-[10px] text-bc-accent/60 italic"
+                      style={{ fontFamily: MONO }}
+                    >
+                      Editing...
+                    </span>
                     <button
                       type="button"
                       onClick={handleCancel}
@@ -842,7 +848,7 @@ function ConfigTab({ agent }: { agent: Agent }) {
             <textarea
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
-              className="w-full min-h-[300px] rounded-md border border-bc-accent/40 bg-bc-bg p-4 text-xs text-bc-text/90 leading-relaxed resize-y outline-none focus:border-bc-accent/60 transition-colors"
+              className="w-full min-h-[300px] rounded-md border border-bc-accent/50 bg-bc-bg/80 p-4 text-xs text-bc-text/90 leading-relaxed resize-y outline-none focus:border-bc-accent/60 transition-colors"
               style={{ fontFamily: MONO }}
               spellCheck={false}
             />
@@ -902,7 +908,7 @@ function ConfigTab({ agent }: { agent: Agent }) {
                 onKeyDown={(e) => {
                   if (e.key === "Enter") handleMcpAdd();
                 }}
-                placeholder="server-name"
+                placeholder="mcp-server-name"
                 disabled={mcpAdding}
                 className="flex-1 max-w-[240px] rounded border border-bc-border/40 bg-bc-bg px-2.5 py-1 text-[11px] text-bc-text/90 placeholder:text-bc-muted/40 outline-none focus:border-bc-accent/50 transition-colors disabled:opacity-40"
                 style={{ fontFamily: MONO }}
@@ -950,6 +956,7 @@ function ConfigTab({ agent }: { agent: Agent }) {
         {/* ── DANGER ZONE ── */}
         <section>
           <SectionRule>Danger Zone</SectionRule>
+          <div className="rounded-md border border-bc-error/20 bg-bc-error/[0.02] px-4 py-3">
           <div className="flex flex-wrap gap-2 items-center">
             {/* Clone — placeholder, navigates to /agents */}
             <button
@@ -1018,6 +1025,7 @@ function ConfigTab({ agent }: { agent: Agent }) {
                 Delete
               </button>
             )}
+          </div>
           </div>
         </section>
       </div>
@@ -1219,7 +1227,7 @@ export function AgentDetail() {
             Agents
           </Link>
           <span className="text-xs text-bc-muted/30">/</span>
-          <AgentIcon state={agent.state} size={28} />
+          <AgentIcon state={agent.state} size={36} />
           <span
             className="text-sm font-bold text-bc-text tracking-tight shrink-0"
             style={{ fontFamily: MONO }}

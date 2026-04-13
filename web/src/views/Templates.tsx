@@ -717,6 +717,7 @@ function TemplateRow({
 
 export function Templates() {
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
 
   const fetcher = useCallback(() => fetchTemplates(), []);
   const {
@@ -726,6 +727,14 @@ export function Templates() {
     refresh,
     timedOut,
   } = usePolling(fetcher, 30000);
+
+  const filteredTemplates = templates
+    ? templates.filter(
+        (t) =>
+          t.name.toLowerCase().includes(search.toLowerCase()) ||
+          (t.description ?? "").toLowerCase().includes(search.toLowerCase()),
+      )
+    : null;
 
   // If a template is selected, show detail view
   if (selectedTemplate !== null) {
@@ -753,6 +762,15 @@ export function Templates() {
           )}
         </div>
       </div>
+
+      {/* Search */}
+      <input
+        type="text"
+        value={search}
+        onChange={(e) => { setSearch(e.target.value); }}
+        placeholder="Search templates..."
+        className="w-full max-w-sm px-3 py-1.5 rounded border border-bc-border/40 bg-bc-surface text-sm text-bc-text placeholder:text-bc-muted/40 focus:outline-none focus:border-bc-accent/50 transition-colors"
+      />
 
       {/* Create form */}
       <CreateTemplateForm
@@ -801,8 +819,17 @@ export function Templates() {
         />
       )}
 
+      {/* No search results */}
+      {!loading && filteredTemplates !== null && templates !== null && templates.length > 0 && filteredTemplates.length === 0 && (
+        <EmptyState
+          icon="T"
+          title="No matching templates"
+          description={`No templates match "${search}".`}
+        />
+      )}
+
       {/* Table */}
-      {templates !== null && templates.length > 0 && (
+      {filteredTemplates !== null && filteredTemplates.length > 0 && (
         <div className="rounded border border-bc-border bg-bc-surface overflow-hidden">
           <table className="w-full">
             <thead>
@@ -814,7 +841,7 @@ export function Templates() {
               </tr>
             </thead>
             <tbody>
-              {templates.map((t) => (
+              {filteredTemplates.map((t) => (
                 <TemplateRow
                   key={t.name}
                   template={t}
