@@ -23,334 +23,6 @@ function KeyHint({ k, label }: { k: string; label: string }) {
   );
 }
 
-// --- Create Agent Form ---
-
-interface CreateFormState {
-  name: string;
-  role: string;
-  tool: string;
-  runtime: string;
-  task: string;
-}
-
-// Hardcoded templates for common agent setups. Templates pre-fill the
-// create form with a role/tool/runtime + optional task prompt.
-interface AgentTemplate {
-  id: string;
-  label: string;
-  description: string;
-  role: string;
-  tool: string;
-  runtime: string;
-  taskPrompt?: string;
-}
-
-const TEMPLATES: AgentTemplate[] = [
-  {
-    id: "feature-dev",
-    label: "Feature developer",
-    description: "Claude in Docker, feature-dev role",
-    role: "feature-dev",
-    tool: "claude",
-    runtime: "docker",
-  },
-  {
-    id: "reviewer",
-    label: "Code reviewer",
-    description: "Claude in tmux, reviewer role",
-    role: "reviewer",
-    tool: "claude",
-    runtime: "tmux",
-  },
-  {
-    id: "manager",
-    label: "Manager",
-    description: "Gemini in tmux, manager role",
-    role: "manager",
-    tool: "gemini",
-    runtime: "tmux",
-  },
-  {
-    id: "blank",
-    label: "Blank",
-    description: "Empty form — pick everything manually",
-    role: "",
-    tool: "",
-    runtime: "",
-  },
-];
-
-function CreateAgentForm({
-  onCreated,
-  existingAgents,
-}: {
-  onCreated: () => void;
-  existingAgents: Agent[];
-}) {
-  const [open, setOpen] = useState(false);
-  const [roles, setRoles] = useState<string[]>([]);
-  const [tools, setTools] = useState<string[]>([]);
-  const [form, setForm] = useState<CreateFormState>({
-    name: "",
-    role: "",
-    tool: "",
-    runtime: "",
-    task: "",
-  });
-  const [creating, setCreating] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  // Fetch roles and tools when form opens
-  useEffect(() => {
-    if (!open) return;
-    api
-      .listRoles()
-      .then((r) => { setRoles(Object.keys(r)); })
-      .catch(() => { /* ignore */ });
-    api
-      .listCLITools()
-      .then((t) => { setTools(t.filter((tool) => tool.enabled).map((tool) => tool.name)); })
-      .catch(() => { /* ignore */ });
-  }, [open]);
-
-  const applyTemplate = (t: AgentTemplate) => {
-    setForm((f) => ({
-      ...f,
-      role: t.role,
-      tool: t.tool,
-      runtime: t.runtime,
-      task: t.taskPrompt ?? f.task,
-    }));
-  };
-
-  const copyFromAgent = (a: Agent) => {
-    setForm((f) => ({
-      ...f,
-      role: a.role,
-      tool: a.tool,
-      runtime: a.runtime_backend ?? "",
-    }));
-  };
-
-  // Top 3 most recent agents as "copy config" suggestions
-  const recentAgents = useMemo(() => {
-    return [...existingAgents]
-      .filter((a) => a.created_at)
-      .sort((a, b) => (b.created_at > a.created_at ? 1 : -1))
-      .slice(0, 3);
-  }, [existingAgents]);
-
-  const handleCreate = async () => {
-    if (!form.role) {
-      setError("Role is required");
-      return;
-    }
-    setCreating(true);
-    setError(null);
-    try {
-      const created = await api.createAgent({
-        name: form.name || undefined,
-        role: form.role,
-        tool: form.tool || undefined,
-        runtime: form.runtime || undefined,
-      });
-      // If a task was entered, send it immediately after creation so the
-      // user doesn't have to open the agent and attach work manually.
-      const task = form.task.trim();
-      if (task) {
-        try {
-          await api.sendToAgent(created.name, task);
-        } catch {
-          // Best-effort — the agent is already created, surface only create errors.
-        }
-      }
-      setForm({ name: "", role: "", tool: "", runtime: "", task: "" });
-      setOpen(false);
-      onCreated();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create agent");
-    } finally {
-      setCreating(false);
-    }
-  };
-
-  if (!open) {
-    return (
-      <button
-        onClick={() => { setOpen(true); }}
-        className="px-3 py-1.5 text-sm rounded bg-bc-accent text-white hover:bg-bc-accent/80 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-bc-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bc-bg"
-        aria-label="Create agent"
-      >
-        + Create Agent
-      </button>
-    );
-  }
-
-  return (
-    <div className="rounded border border-bc-border bg-bc-surface p-4 space-y-3">
-      <div className="flex items-center justify-between">
-        <h2 className="text-sm font-medium">Create Agent</h2>
-        <button
-          type="button"
-          onClick={() => { setOpen(false); setError(null); }}
-          className="text-bc-muted hover:text-bc-text text-sm"
-        >
-          Cancel
-        </button>
-      </div>
-
-      {/* Templates — quick presets */}
-      <div>
-        <div className="text-[10px] font-semibold text-bc-muted uppercase tracking-wider mb-1.5">
-          Start from template
-        </div>
-        <div className="flex flex-wrap gap-1.5">
-          {TEMPLATES.map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => { applyTemplate(t); }}
-              title={t.description}
-              className="px-2.5 py-1 text-xs rounded-md border border-bc-border bg-bc-bg text-bc-text hover:border-bc-accent/50 hover:bg-bc-accent/5 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-bc-accent"
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Recent config chips — copy from existing agents */}
-      {recentAgents.length > 0 && (
-        <div>
-          <div className="text-[10px] font-semibold text-bc-muted uppercase tracking-wider mb-1.5">
-            Or copy config from
-          </div>
-          <div className="flex flex-wrap gap-1.5">
-            {recentAgents.map((a) => (
-              <button
-                key={a.name}
-                type="button"
-                onClick={() => { copyFromAgent(a); }}
-                title={`${a.role} · ${a.tool} · ${a.runtime_backend ?? "default"}`}
-                className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md border border-bc-border bg-bc-bg hover:border-bc-accent/40 hover:bg-bc-accent/5 transition-colors text-[11px] text-bc-muted hover:text-bc-text focus:outline-none focus-visible:ring-2 focus-visible:ring-bc-accent"
-              >
-                <span className="w-1 h-1 rounded-full bg-bc-accent/60" />
-                {a.name}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div>
-          <label className="block text-xs text-bc-muted mb-1">
-            Name (optional)
-          </label>
-          <input
-            type="text"
-            value={form.name}
-            onChange={(e) => { setForm((f) => ({ ...f, name: e.target.value })); }}
-            placeholder="auto-generated"
-            className="w-full px-2 py-1.5 text-sm rounded border border-bc-border bg-bc-bg text-bc-text placeholder:text-bc-muted/50 focus:outline-none focus:ring-1 focus:ring-bc-accent"
-          />
-        </div>
-
-        <div>
-          <label className="block text-xs text-bc-muted mb-1">Role *</label>
-          <select
-            value={form.role}
-            onChange={(e) => { setForm((f) => ({ ...f, role: e.target.value })); }}
-            className="w-full px-2 py-1.5 text-sm rounded border border-bc-border bg-bc-bg text-bc-text focus:outline-none focus:ring-1 focus:ring-bc-accent"
-          >
-            <option value="">Select role...</option>
-            {roles.map((r) => (
-              <option key={r} value={r}>
-                {r}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div>
-          <label className="block text-xs text-bc-muted mb-1">Tool</label>
-          <select
-            value={form.tool}
-            onChange={(e) => { setForm((f) => ({ ...f, tool: e.target.value })); }}
-            className="w-full px-2 py-1.5 text-sm rounded border border-bc-border bg-bc-bg text-bc-text focus:outline-none focus:ring-1 focus:ring-bc-accent"
-          >
-            <option value="">Default</option>
-            {(() => {
-              const AI_PROVIDERS = new Set(["claude", "codex", "cursor", "gemini", "aider", "openclaw", "opencode"]);
-              const providers = tools.filter((t) => AI_PROVIDERS.has(t));
-              const cliTools = tools.filter((t) => !AI_PROVIDERS.has(t));
-              return (
-                <>
-                  {providers.length > 0 && (
-                    <optgroup label="AI Providers">
-                      {providers.map((t) => (
-                        <option key={t} value={t}>{t}</option>
-                      ))}
-                    </optgroup>
-                  )}
-                  {cliTools.length > 0 && (
-                    <optgroup label="CLI Tools">
-                      {cliTools.map((t) => (
-                        <option key={t} value={t}>{t}</option>
-                      ))}
-                    </optgroup>
-                  )}
-                </>
-              );
-            })()}
-          </select>
-        </div>
-
-        <div>
-          <label className="block text-xs text-bc-muted mb-1">Runtime</label>
-          <select
-            value={form.runtime}
-            onChange={(e) => { setForm((f) => ({ ...f, runtime: e.target.value })); }}
-            className="w-full px-2 py-1.5 text-sm rounded border border-bc-border bg-bc-bg text-bc-text focus:outline-none focus:ring-1 focus:ring-bc-accent"
-          >
-            <option value="">Default</option>
-            <option value="tmux">tmux</option>
-            <option value="docker">docker</option>
-            <option value="localhost">localhost</option>
-          </select>
-        </div>
-      </div>
-
-      {/* Task (optional) — sent to the agent immediately after creation */}
-      <div>
-        <label className="block text-xs text-bc-muted mb-1">
-          Initial task <span className="text-bc-muted/50">(optional, sent to the agent on create)</span>
-        </label>
-        <textarea
-          value={form.task}
-          onChange={(e) => { setForm((f) => ({ ...f, task: e.target.value })); }}
-          placeholder="e.g. Review PR #428 and leave comments on the auth flow"
-          rows={3}
-          className="w-full px-2 py-1.5 text-sm rounded border border-bc-border bg-bc-bg text-bc-text placeholder:text-bc-muted/50 focus:outline-none focus:ring-1 focus:ring-bc-accent resize-none"
-        />
-      </div>
-
-      {error && <p className="text-xs text-bc-error">{error}</p>}
-
-      <div className="flex justify-end">
-        <button
-          type="button"
-          onClick={() => { void handleCreate(); }}
-          disabled={creating}
-          className="px-3 py-1.5 text-sm rounded bg-bc-accent text-white hover:bg-bc-accent/80 transition-colors disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-bc-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bc-bg"
-        >
-          {creating ? "Creating..." : "Create"}
-        </button>
-      </div>
-    </div>
-  );
-}
-
 // --- Inline Rename ---
 
 function InlineAgentName({
@@ -622,17 +294,14 @@ export function Agents() {
 
   // Compute filter options from agent list
   const allAgents = useMemo(() => agents ?? [], [agents]);
-  const { availableRoles, availableStates, availableTools } = useMemo(() => {
-    const r = new Set<string>();
+  const { availableStates, availableTools } = useMemo(() => {
     const s = new Set<string>();
     const t = new Set<string>();
     for (const a of allAgents) {
-      if (a.role) r.add(a.role);
       if (a.state) s.add(a.state);
       if (a.tool) t.add(a.tool);
     }
     return {
-      availableRoles: Array.from(r).sort((x, y) => x.localeCompare(y)),
       availableStates: Array.from(s).sort((x, y) => x.localeCompare(y)),
       availableTools: Array.from(t).sort((x, y) => x.localeCompare(y)),
     };
@@ -876,8 +545,6 @@ export function Agents() {
         </div>
       </div>
 
-      <CreateAgentForm onCreated={refresh} existingAgents={allAgents} />
-
       {/* Search + filter toolbar */}
       {allAgents.length > 0 && (
         <div className="flex flex-wrap items-center gap-2">
@@ -892,17 +559,6 @@ export function Agents() {
               aria-label="Search agents"
             />
           </div>
-          <select
-            value={roleFilter}
-            onChange={(e) => { updateFilter("role", e.target.value); }}
-            className="px-2 py-1.5 text-sm rounded border border-bc-border bg-bc-bg text-bc-text focus:outline-none focus:ring-1 focus:ring-bc-accent"
-            aria-label="Filter by role"
-          >
-            <option value="">All roles</option>
-            {availableRoles.map((r) => (
-              <option key={r} value={r}>{r}</option>
-            ))}
-          </select>
           <select
             value={stateFilter}
             onChange={(e) => { updateFilter("state", e.target.value); }}
@@ -955,7 +611,7 @@ export function Agents() {
           <EmptyState
             icon=">"
             title="No agents yet"
-            description="Create your first agent using the form above."
+            description="Create your first agent using the + Create Agent button."
           />
         ) : filteredAgents.length === 0 ? (
           <EmptyState

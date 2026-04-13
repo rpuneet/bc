@@ -266,7 +266,6 @@ const MAIN_NAV_ITEMS = [
   { to: "/live", label: "Live", icon: "live" },
   { to: "/agents", label: "Agents", icon: "agents" },
   { to: "/channels", label: "Channels", icon: "channels" },
-  { to: "/roles", label: "Roles", icon: "roles" },
   { to: "/templates", label: "Templates", icon: "templates" },
   { to: "/tools", label: "Tools", icon: "tools" },
   { to: "/cron", label: "Cron", icon: "cron" },
