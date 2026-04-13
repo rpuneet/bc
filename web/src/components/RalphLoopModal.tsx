@@ -12,18 +12,24 @@ interface LoopConfig {
   prompt: string;
 }
 
-function getLoopConfig(agentName: string): LoopConfig {
+// ── API-backed loop config (server-side, persists without browser) ──
+
+async function getLoopConfig(agentName: string): Promise<LoopConfig> {
   try {
-    const raw = localStorage.getItem(`bc-loop-${agentName}`);
-    if (raw) return JSON.parse(raw) as LoopConfig;
+    const r = await fetch(`/api/agents/${encodeURIComponent(agentName)}/loop`);
+    if (r.ok) return (await r.json()) as LoopConfig;
   } catch {
     /* ignore */
   }
   return { enabled: false, prompt: "" };
 }
 
-function setLoopConfig(agentName: string, config: LoopConfig): void {
-  localStorage.setItem(`bc-loop-${agentName}`, JSON.stringify(config));
+async function setLoopConfig(agentName: string, config: LoopConfig): Promise<void> {
+  await fetch(`/api/agents/${encodeURIComponent(agentName)}/loop`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(config),
+  });
 }
 
 // ── Loop Icon Button (used in detail header) ──
@@ -35,8 +41,13 @@ export function LoopIconButton({
   agentName: string;
   onClick: () => void;
 }) {
-  const config = getLoopConfig(agentName);
-  const active = config.enabled && config.prompt.trim().length > 0;
+  const [active, setActive] = useState(false);
+
+  useEffect(() => {
+    void getLoopConfig(agentName).then((cfg) => {
+      setActive(cfg.enabled && cfg.prompt.trim().length > 0);
+    });
+  }, [agentName]);
 
   return (
     <button
@@ -53,7 +64,6 @@ export function LoopIconButton({
           : "border-bc-border/30 text-bc-muted/50 hover:text-bc-muted hover:border-bc-border/60"
       }`}
     >
-      {/* Loop icon ↻ */}
       <svg
         width="14"
         height="14"
@@ -67,7 +77,6 @@ export function LoopIconButton({
         <path d="M11 3.5A5 5 0 1 0 12 7" />
         <path d="M8 3.5h3V.5" />
       </svg>
-      {/* Active indicator dot */}
       {active && (
         <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-green-500 border border-bc-surface" />
       )}
@@ -88,18 +97,21 @@ export function RalphLoopModal({
 }) {
   const [enabled, setEnabled] = useState(false);
   const [prompt, setPrompt] = useState("");
+  const [loading, setLoading] = useState(true);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     if (open) {
-      const config = getLoopConfig(agentName);
-      setEnabled(config.enabled);
-      setPrompt(config.prompt);
-      requestAnimationFrame(() => textareaRef.current?.focus());
+      setLoading(true);
+      void getLoopConfig(agentName).then((cfg) => {
+        setEnabled(cfg.enabled);
+        setPrompt(cfg.prompt);
+        setLoading(false);
+        requestAnimationFrame(() => textareaRef.current?.focus());
+      });
     }
   }, [open, agentName]);
 
-  // Close on Escape
   useEffect(() => {
     if (!open) return;
     const handler = (e: KeyboardEvent) => {
@@ -110,14 +122,14 @@ export function RalphLoopModal({
   }, [open, onClose]);
 
   const handleSave = useCallback(() => {
-    setLoopConfig(agentName, { enabled, prompt });
-    onClose();
+    void setLoopConfig(agentName, { enabled, prompt }).then(() => onClose());
   }, [agentName, enabled, prompt, onClose]);
 
   const handleDisable = useCallback(() => {
-    setLoopConfig(agentName, { enabled: false, prompt });
-    setEnabled(false);
-    onClose();
+    void setLoopConfig(agentName, { enabled: false, prompt }).then(() => {
+      setEnabled(false);
+      onClose();
+    });
   }, [agentName, prompt, onClose]);
 
   if (!open) return null;
@@ -137,7 +149,6 @@ export function RalphLoopModal({
         aria-modal="true"
         aria-label="Ralph Loop"
       >
-        {/* Header */}
         <div className="flex items-center justify-between border-b border-bc-border px-5 py-4">
           <div className="flex items-center gap-2">
             <svg
@@ -173,18 +184,15 @@ export function RalphLoopModal({
           </button>
         </div>
 
-        {/* Body */}
         <div className="px-5 py-4 flex flex-col gap-4">
-          {/* Description */}
           <p className="text-xs text-bc-muted/70 leading-relaxed">
             When enabled, this prompt is automatically sent to{" "}
             <span className="text-bc-text/80" style={{ fontFamily: MONO }}>
               {agentName}
             </span>{" "}
-            every time the agent stops. The agent will restart and continue working.
+            every time the agent stops. Runs server-side — no browser needed.
           </p>
 
-          {/* Enable toggle */}
           <div className="flex items-center justify-between">
             <label
               className="text-xs font-medium text-bc-muted uppercase tracking-wider"
@@ -209,7 +217,6 @@ export function RalphLoopModal({
             </button>
           </div>
 
-          {/* Prompt */}
           <div className="flex flex-col gap-1.5">
             <label
               className="text-xs font-medium text-bc-muted uppercase tracking-wider"
@@ -219,21 +226,21 @@ export function RalphLoopModal({
             </label>
             <textarea
               ref={textareaRef}
-              value={prompt}
+              value={loading ? "Loading..." : prompt}
               onChange={(e) => setPrompt(e.target.value)}
+              disabled={loading}
               rows={4}
               placeholder="continue"
               className={`${INPUT_CLS} resize-none`}
               style={{ fontFamily: MONO }}
             />
             <p className="text-[10px] text-bc-muted/40">
-              This message is sent to the agent each time it stops. Use
-              &quot;continue&quot; to keep the agent working on its current task.
+              Sent to the agent each time it stops. Runs on the server — works
+              even when you close the browser.
             </p>
           </div>
         </div>
 
-        {/* Footer */}
         <div className="flex items-center justify-between border-t border-bc-border px-5 py-4">
           <div>
             {enabled && (
@@ -271,30 +278,8 @@ export function RalphLoopModal({
   );
 }
 
-// ── Hook: auto-send prompt when agent stops ──
-
-export function useRalphLoop(agentName: string, agentState: string): void {
-  const prevState = useRef(agentState);
-
-  useEffect(() => {
-    const wasRunning =
-      prevState.current !== "stopped" && prevState.current !== "error";
-    const nowStopped = agentState === "stopped" || agentState === "error";
-
-    if (wasRunning && nowStopped) {
-      const config = getLoopConfig(agentName);
-      if (config.enabled && config.prompt.trim()) {
-        // Agent just stopped and loop is active — send the prompt
-        fetch(`/api/agents/${encodeURIComponent(agentName)}/send`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ message: config.prompt }),
-        }).catch(() => {
-          /* best effort */
-        });
-      }
-    }
-
-    prevState.current = agentState;
-  }, [agentName, agentState]);
+// useRalphLoop is now a no-op — the server handles loop re-prompting.
+// Kept for backward compatibility with AgentDetail.tsx.
+export function useRalphLoop(_agentName: string, _agentState: string): void {
+  // Server-side loop via hook handler. No client-side action needed.
 }

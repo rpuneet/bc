@@ -539,7 +539,19 @@ func (h *AgentHandler) byName(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
+		// Ralph Loop: if agent just stopped (SessionEnd/Stop → idle/stopped),
+		// check for a loop config and auto-send the prompt.
+		if payload.Event == agent.HookSessionEnd || (payload.Event == agent.HookStop && targetState == agent.StateIdle) {
+			go h.maybeRalphLoop(name)
+		}
+
 		writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+
+	case r.Method == http.MethodGet && action == "loop":
+		h.getLoop(w, name)
+
+	case r.Method == http.MethodPut && action == "loop":
+		h.putLoop(w, r, name)
 
 	case r.Method == http.MethodGet && action == "events":
 		h.streamHookEvents(w, r, name)
@@ -1277,4 +1289,101 @@ func (h *AgentHandler) deleteAgentMCP(w http.ResponseWriter, _ *http.Request, wt
 	}
 
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Ralph Loop — server-side auto-reprompt on agent stop
+// ═══════════════════════════════════════════════════════════════════════════
+
+type loopConfig struct {
+	Enabled bool   `json:"enabled"`
+	Prompt  string `json:"prompt"`
+}
+
+func (h *AgentHandler) loopPath(agentName string) string {
+	if h.ws == nil {
+		return ""
+	}
+	return filepath.Join(h.ws.StateDir(), "agents", agentName, "loop.json")
+}
+
+func (h *AgentHandler) readLoop(agentName string) loopConfig {
+	p := h.loopPath(agentName)
+	if p == "" {
+		return loopConfig{}
+	}
+	data, err := os.ReadFile(p)
+	if err != nil {
+		return loopConfig{}
+	}
+	var cfg loopConfig
+	if err := json.Unmarshal(data, &cfg); err != nil {
+		return loopConfig{}
+	}
+	return cfg
+}
+
+func (h *AgentHandler) getLoop(w http.ResponseWriter, agentName string) {
+	writeJSON(w, http.StatusOK, h.readLoop(agentName))
+}
+
+func (h *AgentHandler) putLoop(w http.ResponseWriter, r *http.Request, agentName string) {
+	var cfg loopConfig
+	if err := json.NewDecoder(r.Body).Decode(&cfg); err != nil {
+		httpError(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	p := h.loopPath(agentName)
+	if p == "" {
+		httpError(w, "workspace not available", http.StatusInternalServerError)
+		return
+	}
+
+	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+		httpInternalError(w, "create loop dir", err)
+		return
+	}
+
+	data, err := json.MarshalIndent(cfg, "", "  ")
+	if err != nil {
+		httpInternalError(w, "marshal loop config", err)
+		return
+	}
+	if err := os.WriteFile(p, data, 0o644); err != nil {
+		httpInternalError(w, "write loop config", err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, cfg)
+}
+
+// maybeRalphLoop checks if the agent has a loop enabled and sends the prompt.
+// Called asynchronously after a stop/session-end hook.
+func (h *AgentHandler) maybeRalphLoop(agentName string) {
+	cfg := h.readLoop(agentName)
+	if !cfg.Enabled || strings.TrimSpace(cfg.Prompt) == "" {
+		return
+	}
+
+	// Small delay — let the agent fully settle before re-prompting.
+	time.Sleep(3 * time.Second)
+
+	ctx := context.Background()
+	if err := h.svc.Send(ctx, agentName, cfg.Prompt); err != nil {
+		log.Warn("ralph loop: send failed", "agent", agentName, "error", err)
+		return
+	}
+
+	log.Info("ralph loop: re-prompted agent", "agent", agentName)
+
+	// Log the loop event.
+	if h.events != nil {
+		_ = h.events.Append(events.Event{ //nolint:errcheck
+			Timestamp: time.Now(),
+			Type:      "ralph.loop",
+			Agent:     agentName,
+			Message:   cfg.Prompt,
+		})
+	}
 }
