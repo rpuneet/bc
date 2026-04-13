@@ -662,46 +662,37 @@ export function AgentDetail() {
 
   return (
     <div className="flex flex-col h-full">
-      {/* ═══ HEADER ═══ */}
-      <header className="shrink-0 px-6 pt-5 pb-0 space-y-3">
-        {/* Breadcrumb */}
-        <div className="flex items-center gap-1.5 text-xs text-bc-muted/60">
+      {/* ═══ HEADER — single compact line: breadcrumb + identity + badges ═══ */}
+      <header className="shrink-0 px-6 pt-4 pb-0 space-y-2.5">
+        {/* Combined breadcrumb + identity — one line */}
+        <div className="flex items-center gap-2 flex-wrap min-w-0">
           <Link
             to="/agents"
-            className="hover:text-bc-text transition-colors"
+            className="text-xs text-bc-muted/50 hover:text-bc-text transition-colors shrink-0"
             style={{ fontFamily: MONO }}
           >
             Agents
           </Link>
-          <span>/</span>
-          <span className="text-bc-text/80" style={{ fontFamily: MONO }}>
-            {agent.name}
-          </span>
-        </div>
-
-        {/* Identity row */}
-        <div className="flex items-center gap-3 flex-wrap">
-          <h1
-            className="text-lg font-bold tracking-tight text-bc-text"
+          <span className="text-xs text-bc-muted/30">/</span>
+          <span
+            className="text-sm font-bold text-bc-text tracking-tight shrink-0"
             style={{ fontFamily: MONO }}
           >
             {agent.name}
-          </h1>
+          </span>
 
-          {/* Runtime badge */}
+          {/* Inline badges */}
           {agent.runtime_backend && (
             <span
-              className="px-1.5 py-0.5 rounded text-[10px] font-medium border border-bc-border/30 text-bc-muted/70 bg-bc-surface/30"
+              className="px-1.5 py-0.5 rounded text-[10px] font-medium border border-bc-border/30 text-bc-muted/60 bg-bc-surface/20"
               style={{ fontFamily: MONO }}
             >
               {agent.runtime_backend}
             </span>
           )}
-
-          {/* Provider badge */}
           {agent.tool && (
             <span
-              className="px-1.5 py-0.5 rounded text-[10px] font-medium border border-bc-border/30 text-bc-muted/70 bg-bc-surface/30"
+              className="px-1.5 py-0.5 rounded text-[10px] font-medium border border-bc-border/30 text-bc-muted/60 bg-bc-surface/20"
               style={{ fontFamily: MONO }}
             >
               {agent.tool}
@@ -710,9 +701,20 @@ export function AgentDetail() {
 
           <StatusBadge status={agent.state} />
 
+          {/* Live activity hint */}
+          {agent.task && (
+            <span
+              className="text-[10px] text-bc-muted/50 truncate max-w-[280px]"
+              title={agent.task}
+              style={{ fontFamily: MONO }}
+            >
+              {agent.task}
+            </span>
+          )}
+
           {lastSeen && (
             <span
-              className="text-[10px] text-bc-muted/40 tabular-nums ml-auto"
+              className="text-[10px] text-bc-muted/30 tabular-nums ml-auto shrink-0"
               title={formatTime(lastSeen)}
               style={{ fontFamily: MONO }}
             >
