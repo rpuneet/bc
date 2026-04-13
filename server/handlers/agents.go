@@ -608,6 +608,15 @@ func (h *AgentHandler) byName(w http.ResponseWriter, r *http.Request) {
 		}
 		h.terminal.HandleTerminal(w, r, name)
 
+	case r.Method == http.MethodGet && action == "config":
+		h.getAgentConfig(w, r, name)
+
+	case r.Method == http.MethodPatch && action == "config":
+		h.patchAgentConfig(w, r, name)
+
+	case action == "fork":
+		h.forkAgent(w, r, name)
+
 	default:
 		httpError(w, "not found", http.StatusNotFound)
 	}
@@ -865,6 +874,41 @@ func (h *AgentHandler) streamHookEvents(w http.ResponseWriter, r *http.Request, 
 			flusher.Flush()
 		}
 	}
+}
+
+// lastTerminal serves GET /api/agents/{name}/last-terminal.
+// It returns the last captured terminal output for an agent, which is useful
+// for inspecting the final state of stopped agents.
+func (h *AgentHandler) lastTerminal(w http.ResponseWriter, r *http.Request, name string) {
+	if !requireMethod(w, r, http.MethodGet) {
+		return
+	}
+	lines := 500
+	if lStr := r.URL.Query().Get("lines"); lStr != "" {
+		if n, err := strconv.Atoi(lStr); err == nil && n > 0 {
+			lines = n
+		}
+	}
+	lines = clampInt(lines, 1, 10000)
+
+	output, err := h.svc.Peek(r.Context(), name, lines)
+	if err != nil {
+		httpError(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	a, agentErr := h.svc.Get(r.Context(), name)
+	resp := map[string]any{
+		"output": output,
+		"agent":  name,
+	}
+	if agentErr == nil {
+		resp["state"] = string(a.State)
+		if a.StoppedAt != nil {
+			resp["stopped_at"] = a.StoppedAt.UTC().Format(time.RFC3339)
+		}
+	}
+	writeJSON(w, http.StatusOK, resp)
 }
 
 // streamOutput streams agent terminal output as SSE events.
