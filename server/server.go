@@ -21,6 +21,8 @@ import (
 	"strings"
 	"time"
 
+	"path/filepath"
+
 	"github.com/rpuneet/bc/pkg/agent"
 	"github.com/rpuneet/bc/pkg/attachment"
 	"github.com/rpuneet/bc/pkg/cost"
@@ -33,6 +35,7 @@ import (
 	"github.com/rpuneet/bc/pkg/provider"
 	"github.com/rpuneet/bc/pkg/secret"
 	"github.com/rpuneet/bc/pkg/stats"
+	"github.com/rpuneet/bc/pkg/template"
 	"github.com/rpuneet/bc/pkg/tool"
 	"github.com/rpuneet/bc/pkg/workspace"
 	"github.com/rpuneet/bc/server/handlers"
@@ -252,6 +255,14 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 		handlers.NewWorkspaceHandler(svc.Agents, svc.WS).Register(mux)
 		handlers.NewDoctorHandler(svc.WS).Register(mux)
 		handlers.NewSettingsHandler(svc.WS).Register(mux)
+
+		// Templates — file-based store at <stateDir>/templates/
+		templatesDir := filepath.Join(svc.WS.StateDir(), "templates")
+		tmplStore := template.NewStore(templatesDir)
+		if seedErr := template.SeedDefaults(templatesDir); seedErr != nil {
+			log.Warn("seed default templates", "error", seedErr)
+		}
+		handlers.NewTemplateHandler(tmplStore).Register(mux)
 
 		// File upload/download for channel attachments + shared screenshots
 		fileStore := attachment.NewStore(svc.WS.StateDir())
