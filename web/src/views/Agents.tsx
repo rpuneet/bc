@@ -9,6 +9,7 @@ import { LoadingSkeleton } from "../components/LoadingSkeleton";
 import { EmptyState } from "../components/EmptyState";
 import { InlineTerminal } from "../components/InlineTerminal";
 import { truncate } from "../utils/text";
+import { AgentIcon, colorFromName } from "../components/agent-ui";
 
 function KeyHint({ k, label }: { k: string; label: string }) {
   return (
@@ -1017,7 +1018,20 @@ export function Agents() {
                       />
                     </td>
                     <td className="px-4 py-2">
-                      <InlineAgentName agent={a} onRenamed={refresh} />
+                      <span className="inline-flex items-center gap-2">
+                        <AgentIcon
+                          name={a.name}
+                          variant={
+                            (
+                              ["geometric", "organic", "monogram"] as const
+                            )[rowIdx % 3] ?? "geometric"
+                          }
+                          color={colorFromName(a.name)}
+                          state={a.state}
+                          size={24}
+                        />
+                        <InlineAgentName agent={a} onRenamed={refresh} />
+                      </span>
                     </td>
                     <td className="px-4 py-2 hidden sm:table-cell">
                       {a.runtime_backend ? (
