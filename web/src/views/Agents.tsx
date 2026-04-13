@@ -615,7 +615,7 @@ export function Agents() {
     "Provider",
     "Status",
     "Task",
-    "MCP",
+    "Tools",
     "Actions",
     "",
   ] as const;
@@ -988,7 +988,7 @@ export function Agents() {
                 <th className="px-4 py-2 font-medium text-bc-muted">Status</th>
                 <th className="px-4 py-2 font-medium text-bc-muted">Task</th>
                 <th className="px-4 py-2 font-medium text-bc-muted hidden md:table-cell">
-                  MCP
+                  Tools
                 </th>
                 <th className="px-4 py-2 font-medium text-bc-muted">Actions</th>
                 <th className="px-4 py-2 font-medium text-bc-muted w-10"></th>

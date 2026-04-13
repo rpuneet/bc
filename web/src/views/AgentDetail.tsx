@@ -586,6 +586,10 @@ interface AgentConfig {
   started_at: string;
 }
 
+interface MCPServer {
+  name: string;
+}
+
 function ConfigTab({ agent }: { agent: Agent }) {
   const navigate = useNavigate();
   const [config, setConfig] = useState<AgentConfig | null>(null);
@@ -598,6 +602,31 @@ function ConfigTab({ agent }: { agent: Agent }) {
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
+
+  // MCP server management state
+  const [mcpList, setMcpList] = useState<string[] | null>(null);
+  const [mcpLoading, setMcpLoading] = useState(true);
+  const [mcpInput, setMcpInput] = useState("");
+  const [mcpAdding, setMcpAdding] = useState(false);
+  const [mcpDeleting, setMcpDeleting] = useState<string | null>(null);
+
+  const fetchMcps = useCallback(() => {
+    setMcpLoading(true);
+    fetch(`/api/agents/${encodeURIComponent(agent.name)}/mcps`)
+      .then((res) => {
+        if (!res.ok) throw new Error(`HTTP ${String(res.status)}`);
+        return res.json() as Promise<MCPServer[]>;
+      })
+      .then((data) => {
+        setMcpList(data.map((m) => m.name));
+      })
+      .catch(() => {
+        setMcpList(null); // fall back to static chips
+      })
+      .finally(() => {
+        setMcpLoading(false);
+      });
+  }, [agent.name]);
 
   useEffect(() => {
     let cancelled = false;
@@ -623,6 +652,10 @@ function ConfigTab({ agent }: { agent: Agent }) {
       cancelled = true;
     };
   }, [agent.name]);
+
+  useEffect(() => {
+    fetchMcps();
+  }, [fetchMcps]);
 
   // Clear save feedback timer on unmount
   useEffect(() => {
@@ -678,10 +711,55 @@ function ConfigTab({ agent }: { agent: Agent }) {
       });
   };
 
-  const mcpServers =
-    config?.mcp_servers && config.mcp_servers.length > 0
-      ? config.mcp_servers
-      : agent.mcp_servers ?? [];
+  // If live fetch succeeded use that list; otherwise fall back to static record
+  const mcpServers: string[] =
+    mcpList !== null
+      ? mcpList
+      : config?.mcp_servers && config.mcp_servers.length > 0
+        ? config.mcp_servers
+        : (agent.mcp_servers ?? []);
+
+  const useLiveMcp = mcpList !== null;
+
+  const handleMcpAdd = () => {
+    const name = mcpInput.trim();
+    if (!name) return;
+    setMcpAdding(true);
+    fetch(`/api/agents/${encodeURIComponent(agent.name)}/mcps`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name }),
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error(`HTTP ${String(res.status)}`);
+        setMcpInput("");
+        fetchMcps();
+      })
+      .catch(() => {
+        /* best-effort */
+      })
+      .finally(() => {
+        setMcpAdding(false);
+      });
+  };
+
+  const handleMcpDelete = (serverName: string) => {
+    setMcpDeleting(serverName);
+    fetch(
+      `/api/agents/${encodeURIComponent(agent.name)}/mcps/${encodeURIComponent(serverName)}`,
+      { method: "DELETE" },
+    )
+      .then((res) => {
+        if (!res.ok) throw new Error(`HTTP ${String(res.status)}`);
+        fetchMcps();
+      })
+      .catch(() => {
+        /* best-effort */
+      })
+      .finally(() => {
+        setMcpDeleting(null);
+      });
+  };
 
   return (
     <div className="flex-1 overflow-y-auto p-6">
@@ -781,7 +859,11 @@ function ConfigTab({ agent }: { agent: Agent }) {
         {/* ── MCP SERVERS ── */}
         <section>
           <SectionRule>MCP Servers</SectionRule>
-          {mcpServers.length > 0 ? (
+          {mcpLoading ? (
+            <p className="text-xs text-bc-muted/40 italic pl-1" style={{ fontFamily: MONO }}>
+              Loading…
+            </p>
+          ) : mcpServers.length > 0 ? (
             <div className="flex flex-wrap gap-1.5">
               {mcpServers.map((s) => (
                 <span
@@ -791,6 +873,18 @@ function ConfigTab({ agent }: { agent: Agent }) {
                 >
                   <span className="w-1.5 h-1.5 rounded-full bg-bc-accent/60" />
                   {s.replace(/^mcp__/, "")}
+                  {useLiveMcp && (
+                    <button
+                      type="button"
+                      onClick={() => { handleMcpDelete(s); }}
+                      disabled={mcpDeleting === s}
+                      className="ml-0.5 text-bc-muted/50 hover:text-bc-error transition-colors disabled:opacity-40 leading-none"
+                      title={`Remove ${s}`}
+                      aria-label={`Remove MCP server ${s}`}
+                    >
+                      ×
+                    </button>
+                  )}
                 </span>
               ))}
             </div>
@@ -798,6 +892,31 @@ function ConfigTab({ agent }: { agent: Agent }) {
             <p className="text-xs text-bc-muted/40 italic pl-1">
               No MCP servers configured.
             </p>
+          )}
+          {useLiveMcp && (
+            <div className="mt-3 flex items-center gap-2">
+              <input
+                type="text"
+                value={mcpInput}
+                onChange={(e) => { setMcpInput(e.target.value); }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleMcpAdd();
+                }}
+                placeholder="server-name"
+                disabled={mcpAdding}
+                className="flex-1 max-w-[240px] rounded border border-bc-border/40 bg-bc-bg px-2.5 py-1 text-[11px] text-bc-text/90 placeholder:text-bc-muted/40 outline-none focus:border-bc-accent/50 transition-colors disabled:opacity-40"
+                style={{ fontFamily: MONO }}
+              />
+              <button
+                type="button"
+                onClick={handleMcpAdd}
+                disabled={mcpAdding || !mcpInput.trim()}
+                className="px-2.5 py-1 rounded border border-bc-accent/30 bg-bc-accent/10 text-[11px] text-bc-accent hover:bg-bc-accent/20 transition-colors disabled:opacity-40"
+                style={{ fontFamily: MONO }}
+              >
+                {mcpAdding ? "Adding…" : "+ Add MCP"}
+              </button>
+            </div>
           )}
         </section>
 
