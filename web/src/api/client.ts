@@ -21,6 +21,19 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+export interface BulkResult {
+  agent: string;
+  status: "ok" | "error";
+  error?: string;
+}
+
+export interface AgentActivityItem {
+  timestamp: string;
+  event: string;
+  message?: string;
+  data?: Record<string, unknown>;
+}
+
 export interface Agent {
   name: string;
   role: string;
@@ -517,6 +530,33 @@ export const api = {
       body: JSON.stringify({ new_name: newName }),
     }),
   stopAllAgents: () => request<void>("/agents/stop-all", { method: "POST" }),
+
+  // Bulk agent operations — parallel ops with per-agent results
+  bulkStartAgents: (agents: string[]) =>
+    request<{ results: BulkResult[] }>("/agents/bulk/start", {
+      method: "POST",
+      body: JSON.stringify({ agents }),
+    }),
+  bulkStopAgents: (agents: string[]) =>
+    request<{ results: BulkResult[] }>("/agents/bulk/stop", {
+      method: "POST",
+      body: JSON.stringify({ agents }),
+    }),
+  bulkDeleteAgents: (agents: string[], force = false) =>
+    request<{ results: BulkResult[] }>("/agents/bulk/delete", {
+      method: "POST",
+      body: JSON.stringify({ agents, force }),
+    }),
+  bulkMessageAgents: (agents: string[], message: string) =>
+    request<{ results: BulkResult[] }>("/agents/bulk/message", {
+      method: "POST",
+      body: JSON.stringify({ agents, message }),
+    }),
+
+  // Agent activity timeline — newest first, capped at 50 entries.
+  getAgentActivity: (name: string) =>
+    request<AgentActivityItem[]>(`/agents/${encodeURIComponent(name)}/activity`),
+
   sendToAgent: (name: string, message: string) =>
     request<void>(`/agents/${encodeURIComponent(name)}/send`, {
       method: "POST",

@@ -20,6 +20,9 @@ const Channels = lazy(() =>
 const Roles = lazy(() =>
   import("./views/Roles").then((m) => ({ default: m.Roles })),
 );
+const Templates = lazy(() =>
+  import("./views/Templates").then((m) => ({ default: m.Templates })),
+);
 const Tools = lazy(() =>
   import("./views/Tools").then((m) => ({ default: m.Tools })),
 );
@@ -114,6 +117,16 @@ export function App() {
                   <Suspense fallback={<Loading />}>
                     <ErrorBoundary>
                       <Roles />
+                    </ErrorBoundary>
+                  </Suspense>
+                }
+              />
+              <Route
+                path="templates"
+                element={
+                  <Suspense fallback={<Loading />}>
+                    <ErrorBoundary>
+                      <Templates />
                     </ErrorBoundary>
                   </Suspense>
                 }

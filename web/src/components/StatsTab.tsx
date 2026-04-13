@@ -164,6 +164,17 @@ export function StatsTab({ agent }: { agent: Agent }) {
   const totalOut = s?.output_tokens ?? 0;
   const totalCost = isFinite(s?.total_cost_usd ?? 0) ? (s?.total_cost_usd ?? 0) : 0;
 
+  // Has any live data? Used to show a helpful banner when the stats store
+  // is empty (e.g. TimescaleDB not configured, or agent never ran).
+  const hasAnyData =
+    cpuChart.length > 0 ||
+    memChart.length > 0 ||
+    tokenChart.length > 0 ||
+    totalIn > 0 ||
+    totalOut > 0 ||
+    totalCost > 0;
+  const isStopped = agent.state === "stopped" || agent.state === "error";
+
   // ── Render ─────────────────────────────────────────────────────────────────
 
   if (loading && !data) {
@@ -172,6 +183,23 @@ export function StatsTab({ agent }: { agent: Agent }) {
 
   return (
     <div className="space-y-4">
+      {/* Empty-state banner when stats store is unreachable or agent never recorded data */}
+      {!hasAnyData && !loading && (
+        <div className="rounded border border-bc-border/60 bg-bc-surface/30 p-3 text-[11px] text-bc-muted/80 leading-relaxed">
+          {isStopped ? (
+            <>
+              <span className="font-medium text-bc-muted">Stats unavailable for this agent.</span>{" "}
+              No time-series data was recorded. This happens when the agent ran before the TimescaleDB stats collector was active, or when the agent was stopped too quickly for a sample to be captured.
+            </>
+          ) : (
+            <>
+              <span className="font-medium text-bc-muted">Waiting for metrics…</span>{" "}
+              The TimescaleDB stats collector samples every 30 seconds. Live metrics will appear here once the first sample lands.
+            </>
+          )}
+        </div>
+      )}
+
       {/* Time range selector */}
       <div className="flex items-center justify-between">
         <span className="text-sm font-medium text-bc-muted">{agent.name} <span className="text-bc-muted/60">({agent.role})</span></span>

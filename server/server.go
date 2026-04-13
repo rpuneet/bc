@@ -18,8 +18,11 @@ import (
 	"io/fs"
 	"net"
 	"net/http"
+	"os"
 	"strings"
 	"time"
+
+	"path/filepath"
 
 	"github.com/rpuneet/bc/pkg/agent"
 	"github.com/rpuneet/bc/pkg/attachment"
@@ -33,6 +36,7 @@ import (
 	"github.com/rpuneet/bc/pkg/provider"
 	"github.com/rpuneet/bc/pkg/secret"
 	"github.com/rpuneet/bc/pkg/stats"
+	"github.com/rpuneet/bc/pkg/template"
 	"github.com/rpuneet/bc/pkg/tool"
 	"github.com/rpuneet/bc/pkg/workspace"
 	"github.com/rpuneet/bc/server/handlers"
@@ -158,6 +162,10 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 		if svc.Stats != nil {
 			ah.SetStatsStore(svc.Stats)
 		}
+		if svc.WS != nil {
+			templatesDir := filepath.Join(svc.WS.StateDir(), "templates")
+			ah.SetTemplateStore(template.NewStore(templatesDir))
+		}
 		ah.SetTerminalHandler(handlers.NewTerminalHandler(svc.Agents, cfg.CORSOrigin))
 		ah.Register(mux)
 	}
@@ -253,6 +261,17 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 		handlers.NewDoctorHandler(svc.WS).Register(mux)
 		handlers.NewSettingsHandler(svc.WS).Register(mux)
 
+		// Templates — file-based store at <stateDir>/templates/
+		templatesDir := filepath.Join(svc.WS.StateDir(), "templates")
+		tmplStore := template.NewStore(templatesDir)
+		if seedErr := template.SeedDefaults(templatesDir); seedErr != nil {
+			log.Warn("seed default templates", "error", seedErr)
+		}
+		if migrErr := migrateRolesToTemplates(svc.WS.RolesDir(), templatesDir); migrErr != nil {
+			log.Warn("migrate roles to templates", "error", migrErr)
+		}
+		handlers.NewTemplateHandler(tmplStore).Register(mux)
+
 		// File upload/download for channel attachments + shared screenshots
 		fileStore := attachment.NewStore(svc.WS.StateDir())
 		fileStore.AddSharedDir("/tmp/bc-shared")
@@ -341,6 +360,51 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 			IdleTimeout:  120 * time.Second,
 		},
 	}
+}
+
+// migrateRolesToTemplates copies .md role files from rolesDir into templatesDir
+// as agent templates. It is idempotent: files whose template already exists are
+// skipped. It logs each migration and is a no-op when rolesDir does not exist.
+func migrateRolesToTemplates(rolesDir, templatesDir string) error {
+	entries, err := os.ReadDir(rolesDir)
+	if os.IsNotExist(err) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("read roles dir: %w", err)
+	}
+
+	tmplStore := template.NewStore(templatesDir)
+
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".md") {
+			continue
+		}
+		name := strings.TrimSuffix(e.Name(), ".md")
+
+		// Skip if template already exists.
+		if _, _, getErr := tmplStore.Get(name); getErr == nil {
+			continue
+		}
+
+		data, readErr := os.ReadFile(filepath.Join(rolesDir, e.Name())) //nolint:gosec // trusted path
+		if readErr != nil {
+			log.Warn("migrate roles: failed to read role file", "role", name, "error", readErr)
+			continue
+		}
+
+		t := template.Template{
+			Name:        name,
+			Description: "Migrated from role: " + name,
+			MCPs:        []string{"bc"},
+		}
+		if createErr := tmplStore.Create(t, string(data)); createErr != nil {
+			log.Warn("migrate roles: failed to create template", "role", name, "error", createErr)
+			continue
+		}
+		log.Info("migrate roles: created template from role", "name", name)
+	}
+	return nil
 }
 
 // Handler returns the HTTP handler (useful for httptest.NewServer in tests).

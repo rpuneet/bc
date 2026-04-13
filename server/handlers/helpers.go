@@ -149,8 +149,9 @@ func isSSERequest(r *http.Request) bool {
 	if r.URL.Path == "/api/events" || strings.HasPrefix(r.URL.Path, "/_mcp/") {
 		return true
 	}
-	// /api/agents/{name}/output is an SSE stream
-	if strings.HasPrefix(r.URL.Path, "/api/agents/") && strings.HasSuffix(r.URL.Path, "/output") {
+	// /api/agents/{name}/output and /api/agents/{name}/events are SSE streams
+	if strings.HasPrefix(r.URL.Path, "/api/agents/") &&
+		(strings.HasSuffix(r.URL.Path, "/output") || strings.HasSuffix(r.URL.Path, "/events")) {
 		return true
 	}
 	// /api/cron/{name}/logs/live is an SSE stream
