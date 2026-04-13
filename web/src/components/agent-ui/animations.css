@@ -1,53 +1,88 @@
-@keyframes agent-idle {
-  0%, 100% { opacity: 0.85; }
-  50% { opacity: 1; }
-}
+/* Agent shape animations — the shape is the agent's "head", it reacts to state + hook events */
 
-@keyframes agent-working {
-  0%, 100% { opacity: 0.8; }
-  50% { opacity: 1; }
-}
+/* ── State-based (continuous) ── */
 
-@keyframes agent-stuck {
-  0%, 100% { transform: rotate(0deg); filter: drop-shadow(0 0 3px #f59e0b); }
-  25% { transform: rotate(-2deg); }
-  75% { transform: rotate(2deg); }
+/* Idle: slow gentle blink */
+@keyframes agent-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
 }
-
-@keyframes agent-error {
-  0%, 100% { transform: translateX(0); filter: drop-shadow(0 0 4px #ef4444); }
-  20% { transform: translateX(-2px); }
-  40% { transform: translateX(2px); }
-  60% { transform: translateX(-1px); }
-  80% { transform: translateX(1px); }
-}
-
-@keyframes agent-waiting {
-  0%, 100% { opacity: 0.7; filter: drop-shadow(0 0 2px #a855f7); }
-  50% { opacity: 1; filter: drop-shadow(0 0 6px #a855f7); }
-}
-
 .agent-anim-idle {
-  animation: agent-idle 3s ease-in-out infinite;
+  animation: agent-blink 3s ease-in-out infinite;
 }
 
+/* Working: continuous rotation */
+@keyframes agent-rotate {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
 .agent-anim-working {
-  animation: agent-working 1.5s ease-in-out infinite;
+  animation: agent-rotate 2s linear infinite;
 }
 
+/* Stuck: amber wobble */
+@keyframes agent-wobble {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(-8deg); }
+  75% { transform: rotate(8deg); }
+}
 .agent-anim-stuck {
-  animation: agent-stuck 2s ease-in-out infinite;
+  animation: agent-wobble 1.5s ease-in-out infinite;
+  filter: hue-rotate(-20deg) brightness(1.2);
 }
 
+/* Error: red shake */
+@keyframes agent-shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-3px); }
+  40% { transform: translateX(3px); }
+  60% { transform: translateX(-2px); }
+  80% { transform: translateX(2px); }
+}
 .agent-anim-error {
-  animation: agent-error 0.5s ease-in-out infinite;
+  animation: agent-shake 0.5s ease-in-out infinite;
+  filter: hue-rotate(-60deg) saturate(2);
 }
 
+/* Waiting: purple glow pulse */
+@keyframes agent-glow {
+  0%, 100% { transform: scale(1); filter: drop-shadow(0 0 0 transparent); }
+  50% { transform: scale(1.1); filter: drop-shadow(0 0 6px rgba(168, 85, 247, 0.6)); }
+}
 .agent-anim-waiting {
-  animation: agent-waiting 2.5s ease-in-out infinite;
+  animation: agent-glow 1.5s ease-in-out infinite;
 }
 
+/* Stopped: grayscale + dim */
 .agent-anim-stopped {
-  opacity: 0.6;
+  opacity: 0.4;
   filter: grayscale(1);
+}
+
+/* ── Hook event one-shots (applied via JS, removed after animationend) ── */
+
+@keyframes agent-tool-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+.agent-event-tooluse {
+  animation: agent-tool-spin 0.4s ease-out;
+}
+
+@keyframes agent-task-pop {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.3); }
+  100% { transform: scale(1); }
+}
+.agent-event-taskcreate {
+  animation: agent-task-pop 0.5s ease-out;
+}
+
+@keyframes agent-breathe {
+  0% { transform: scale(1); }
+  40% { transform: scale(0.85); }
+  100% { transform: scale(1); }
+}
+.agent-event-prompt {
+  animation: agent-breathe 0.4s ease-out;
 }

@@ -9,7 +9,7 @@ import { LoadingSkeleton } from "../components/LoadingSkeleton";
 import { EmptyState } from "../components/EmptyState";
 import { InlineTerminal } from "../components/InlineTerminal";
 import { truncate } from "../utils/text";
-import { AgentIcon, colorFromName } from "../components/agent-ui";
+import { AgentIcon } from "../components/agent-ui";
 import { CreateAgentModal } from "../components/CreateAgentModal";
 
 function KeyHint({ k, label }: { k: string; label: string }) {
@@ -684,17 +684,7 @@ export function Agents() {
                     </td>
                     <td className="px-4 py-2">
                       <span className="inline-flex items-center gap-2">
-                        <AgentIcon
-                          name={a.name}
-                          variant={
-                            (
-                              ["geometric", "organic", "monogram"] as const
-                            )[rowIdx % 3] ?? "geometric"
-                          }
-                          color={colorFromName(a.name)}
-                          state={a.state}
-                          size={24}
-                        />
+                        <AgentIcon state={a.state} size={24} />
                         <InlineAgentName agent={a} onRenamed={refresh} />
                       </span>
                     </td>
@@ -867,6 +857,7 @@ export function Agents() {
         open={createOpen}
         onClose={() => setCreateOpen(false)}
         existingNames={allAgents.map((a) => a.name)}
+        existingAgents={allAgents}
       />
     </div>
   );

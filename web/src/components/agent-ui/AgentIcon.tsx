@@ -1,106 +1,74 @@
-import { AVATAR_COLORS } from "./utils/colorFromName";
+export type AgentShape = "hexagon" | "circle" | "square";
 
 interface AgentIconProps {
-  name: string;
-  variant: "geometric" | "organic" | "monogram";
-  color: number;
+  shape?: AgentShape;
   state: string;
   size?: number;
 }
 
+const ACCENT = "var(--bc-accent, #f97316)";
+
 function stateClass(state: string): string {
   switch (state) {
-    case "stopped":
-      return "agent-anim-stopped";
-    case "error":
-      return "agent-anim-error";
-    case "stuck":
-      return "agent-anim-stuck";
-    case "waiting":
-      return "agent-anim-waiting";
     case "working":
       return "agent-anim-working";
     case "idle":
       return "agent-anim-idle";
+    case "stuck":
+      return "agent-anim-stuck";
+    case "error":
+      return "agent-anim-error";
+    case "waiting":
+      return "agent-anim-waiting";
+    case "stopped":
+      return "agent-anim-stopped";
     default:
       return "agent-anim-idle";
   }
 }
 
-function HexagonIcon({ fill, size }: { fill: string; size: number }) {
+function Hexagon({ size, fill }: { size: number; fill: string }) {
   const cx = size / 2;
   const cy = size / 2;
-  const r = size * 0.42;
+  const r = size * 0.44;
   const points = Array.from({ length: 6 }, (_, i) => {
     const angle = (Math.PI / 3) * i - Math.PI / 2;
-    return `${cx + r * Math.cos(angle)},${cy + r * Math.sin(angle)}`;
+    return `${String(cx + r * Math.cos(angle))},${String(cy + r * Math.sin(angle))}`;
   }).join(" ");
-
   return (
-    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+    <svg width={size} height={size} viewBox={`0 0 ${String(size)} ${String(size)}`}>
       <polygon points={points} fill={fill} />
     </svg>
   );
 }
 
-function BlobIcon({ fill, size }: { fill: string; size: number }) {
-  const s = size;
-  const r = s * 0.38;
-  return (
-    <svg width={s} height={s} viewBox={`0 0 ${s} ${s}`}>
-      <circle cx={s / 2} cy={s / 2} r={r} fill={fill} opacity={0.85} />
-      <circle cx={s / 2} cy={s / 2} r={r * 0.75} fill={fill} opacity={0.5} />
-    </svg>
-  );
-}
-
-function MonogramIcon({
-  letter,
-  fill,
-  size,
-}: {
-  letter: string;
-  fill: string;
-  size: number;
-}) {
+function Circle({ size, fill }: { size: number; fill: string }) {
   const r = size * 0.42;
   return (
-    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+    <svg width={size} height={size} viewBox={`0 0 ${String(size)} ${String(size)}`}>
       <circle cx={size / 2} cy={size / 2} r={r} fill={fill} />
-      <text
-        x={size / 2}
-        y={size / 2}
-        textAnchor="middle"
-        dominantBaseline="central"
-        fill="white"
-        fontSize={size * 0.4}
-        fontWeight="bold"
-        fontFamily="system-ui, sans-serif"
-      >
-        {letter}
-      </text>
     </svg>
   );
 }
 
-export function AgentIcon({
-  name,
-  variant,
-  color,
-  state,
-  size = 32,
-}: AgentIconProps) {
-  const fill = AVATAR_COLORS[color % AVATAR_COLORS.length] ?? AVATAR_COLORS[0]!;
-  const cls = stateClass(state);
-  const letter = name.charAt(0).toUpperCase();
+function Square({ size, fill }: { size: number; fill: string }) {
+  const inset = size * 0.12;
+  const s = size - inset * 2;
+  const rx = size * 0.08;
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${String(size)} ${String(size)}`}>
+      <rect x={inset} y={inset} width={s} height={s} rx={rx} fill={fill} />
+    </svg>
+  );
+}
 
+export function AgentIcon({ shape = "hexagon", state, size = 32 }: AgentIconProps) {
+  const cls = stateClass(state);
   return (
     <span className={cls} style={{ display: "inline-flex", lineHeight: 0 }}>
-      {variant === "geometric" && <HexagonIcon fill={fill} size={size} />}
-      {variant === "organic" && <BlobIcon fill={fill} size={size} />}
-      {variant === "monogram" && (
-        <MonogramIcon letter={letter} fill={fill} size={size} />
-      )}
+      {shape === "hexagon" && <Hexagon size={size} fill={ACCENT} />}
+      {shape === "circle" && <Circle size={size} fill={ACCENT} />}
+      {shape === "square" && <Square size={size} fill={ACCENT} />}
     </span>
   );
 }

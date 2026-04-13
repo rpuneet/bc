@@ -8,7 +8,7 @@ import { StatusBadge } from "../components/StatusBadge";
 import { StatsTab as StatsTabComponent } from "../components/StatsTab";
 import { WebTerminal } from "../components/WebTerminal";
 import { stripAnsi } from "../utils/text";
-import { AgentIcon, colorFromName } from "../components/agent-ui";
+import { AgentIcon } from "../components/agent-ui";
 
 /* ═══════════════════════════════════════════════════════════════════
    Utility
@@ -1219,13 +1219,7 @@ export function AgentDetail() {
             Agents
           </Link>
           <span className="text-xs text-bc-muted/30">/</span>
-          <AgentIcon
-            name={agent.name}
-            variant="geometric"
-            color={colorFromName(agent.name)}
-            state={agent.state}
-            size={28}
-          />
+          <AgentIcon state={agent.state} size={28} />
           <span
             className="text-sm font-bold text-bc-text tracking-tight shrink-0"
             style={{ fontFamily: MONO }}
