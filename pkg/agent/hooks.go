@@ -90,24 +90,27 @@ func IsKnownEvent(ev HookEvent) bool {
 // HookPayload is the JSON payload received by the /hook endpoint.
 // Different events populate different fields.
 type HookPayload struct {
-	ToolInput    any       `json:"tool_input,omitempty"`
-	SubagentID   string    `json:"subagent_id,omitempty"`
-	Channel      string    `json:"channel,omitempty"`
-	State        string    `json:"state,omitempty"`
-	Task         string    `json:"task,omitempty"`
-	ToolName     string    `json:"tool_name,omitempty"`
-	Command      string    `json:"command,omitempty"`
-	Error        string    `json:"error,omitempty"`
-	Model        string    `json:"model,omitempty"`
-	Event        HookEvent `json:"event"`
-	Sender       string    `json:"sender,omitempty"`
-	SubagentType string    `json:"subagent_type,omitempty"`
-	Message      string    `json:"message,omitempty"`
-	File         string    `json:"file,omitempty"`
-	Mentions     []string  `json:"mentions,omitempty"`
-	CostUSD      float64   `json:"cost_usd,omitempty"`
-	InputTokens  int64     `json:"input_tokens,omitempty"`
-	OutputTokens int64     `json:"output_tokens,omitempty"`
+	ToolInput    any            `json:"tool_input,omitempty"`
+	Metadata     map[string]any `json:"metadata,omitempty"`
+	SubagentID   string         `json:"subagent_id,omitempty"`
+	Channel      string         `json:"channel,omitempty"`
+	State        string         `json:"state,omitempty"`
+	Task         string         `json:"task,omitempty"`
+	TaskID       string         `json:"task_id,omitempty"`
+	TaskTitle    string         `json:"task_title,omitempty"`
+	ToolName     string         `json:"tool_name,omitempty"`
+	Command      string         `json:"command,omitempty"`
+	Error        string         `json:"error,omitempty"`
+	Model        string         `json:"model,omitempty"`
+	Event        HookEvent      `json:"event"`
+	Sender       string         `json:"sender,omitempty"`
+	SubagentType string         `json:"subagent_type,omitempty"`
+	Message      string         `json:"message,omitempty"`
+	File         string         `json:"file,omitempty"`
+	Mentions     []string       `json:"mentions,omitempty"`
+	CostUSD      float64        `json:"cost_usd,omitempty"`
+	InputTokens  int64          `json:"input_tokens,omitempty"`
+	OutputTokens int64          `json:"output_tokens,omitempty"`
 }
 
 // ── Settings.json writer (generates HTTP-based hooks) ──

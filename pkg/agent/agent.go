@@ -2312,6 +2312,64 @@ func (m *Manager) Close() error {
 	return nil
 }
 
+// WorkspacePath returns the workspace root path for this manager.
+func (m *Manager) WorkspacePath() string {
+	return m.workspacePath
+}
+
+// WorktreePath returns the filesystem path for an agent's worktree directory.
+// Returns an empty string if no worktree manager is configured.
+func (m *Manager) WorktreePath(agentName string) string {
+	if m.worktreeMgr == nil {
+		return ""
+	}
+	return m.worktreeMgr.Path(agentName)
+}
+
+// CreateWorktree creates a git worktree for the given agent name.
+// Returns the worktree path, or an error if no worktree manager is configured.
+func (m *Manager) CreateWorktree(ctx context.Context, agentName string) (string, error) {
+	if m.worktreeMgr == nil {
+		return "", fmt.Errorf("worktree manager not configured")
+	}
+	return m.worktreeMgr.Create(ctx, agentName)
+}
+
+// RegisterStopped registers a pre-built Agent record in stopped state without
+// starting a session. The caller is responsible for setting all required fields
+// (Name, Role, Workspace, Tool, RuntimeBackend, WorktreeDir) before calling this.
+// Returns an error if an agent with the same name already exists.
+func (m *Manager) RegisterStopped(a *Agent) error {
+	if a.Name == "" {
+		return fmt.Errorf("agent name is required")
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if _, exists := m.agents[a.Name]; exists {
+		return fmt.Errorf("agent %q already exists", a.Name)
+	}
+
+	now := time.Now()
+	a.State = StateStopped
+	if a.CreatedAt.IsZero() {
+		a.CreatedAt = now
+	}
+	a.UpdatedAt = now
+
+	if a.Children == nil {
+		a.Children = []string{}
+	}
+
+	m.agents[a.Name] = a
+	if err := m.saveState(); err != nil {
+		delete(m.agents, a.Name)
+		return fmt.Errorf("save state: %w", err)
+	}
+	return nil
+}
+
 // enforceRootSingleton checks if a root agent can be spawned.
 // Returns an error if a root already exists and is running.
 // Allows respawn if root is stopped or in error state.
