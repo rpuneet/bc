@@ -539,9 +539,11 @@ func (h *AgentHandler) byName(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		// Ralph Loop: if agent just stopped (SessionEnd/Stop → idle/stopped),
+		// Ralph Loop: when a turn completes (Stop → idle) or session ends,
 		// check for a loop config and auto-send the prompt.
-		if payload.Event == agent.HookSessionEnd || (payload.Event == agent.HookStop && targetState == agent.StateIdle) {
+		// Stop fires at end of every turn (agent goes back to ❯ prompt).
+		// SessionEnd fires when the Claude Code process exits.
+		if payload.Event == agent.HookStop || payload.Event == agent.HookSessionEnd {
 			go h.maybeRalphLoop(name)
 		}
 
