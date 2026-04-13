@@ -236,8 +236,61 @@ function humanizeEvent(type: string): string {
   return cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
 }
 
+function eventIcon(label: string): string {
+  const lower = label.toLowerCase();
+  if (lower === "created" || lower === "sessionstart") return "▶";
+  if (lower === "started") return "▶";
+  if (lower === "working" || lower === "tooluse") return "🔧";
+  if (lower === "starting") return "⚡";
+  if (lower === "idle") return "○";
+  if (lower === "stopped" || lower === "sessionend") return "⏹";
+  if (lower === "errored") return "✗";
+  if (lower === "taskcreate" || lower === "taskcompleted") return "◎";
+  if (lower === "permissionrequest") return "🔐";
+  return "·";
+}
+
+type EventFilter = "all" | "tools" | "tasks" | "lifecycle";
+
+const FILTER_LABELS: { key: EventFilter; label: string }[] = [
+  { key: "all", label: "All" },
+  { key: "tools", label: "Tools" },
+  { key: "tasks", label: "Tasks" },
+  { key: "lifecycle", label: "Lifecycle" },
+];
+
+function matchesFilter(label: string, filter: EventFilter): boolean {
+  if (filter === "all") return true;
+  const lower = label.toLowerCase();
+  if (filter === "tools") {
+    return lower === "working" || lower === "tooluse" || lower === "🔧";
+  }
+  if (filter === "tasks") {
+    return (
+      lower === "taskcreate" ||
+      lower === "taskcompleted" ||
+      lower.includes("task")
+    );
+  }
+  if (filter === "lifecycle") {
+    return (
+      lower === "created" ||
+      lower === "sessionstart" ||
+      lower === "started" ||
+      lower === "starting" ||
+      lower === "idle" ||
+      lower === "stopped" ||
+      lower === "sessionend" ||
+      lower === "errored" ||
+      lower === "active"
+    );
+  }
+  return true;
+}
+
 function ActivityTab({ agent }: { agent: Agent }) {
   const [activity, setActivity] = useState<AgentActivityItem[]>([]);
+  const [activeFilter, setActiveFilter] = useState<EventFilter>("all");
 
   useEffect(() => {
     let cancelled = false;
@@ -255,8 +308,9 @@ function ActivityTab({ agent }: { agent: Agent }) {
   }, [agent.name]);
 
   const isStopped = agent.state === "stopped" || agent.state === "error";
+  const isRunning = !isStopped;
   const derivedTimeline = buildTimeline(agent);
-  const timeline: TimelineEvent[] =
+  const allTimeline: TimelineEvent[] =
     activity.length > 0
       ? activity.slice(0, 12).map((it, idx) => ({
           key: `${it.event}-${String(idx)}`,
@@ -266,6 +320,10 @@ function ActivityTab({ agent }: { agent: Agent }) {
           active: idx === 0,
         }))
       : derivedTimeline;
+
+  const timeline = allTimeline.filter((evt) =>
+    matchesFilter(evt.label, activeFilter),
+  );
 
   const lastActivity =
     agent.stopped_at ?? agent.updated_at ?? agent.started_at ?? agent.created_at;
@@ -314,11 +372,53 @@ function ActivityTab({ agent }: { agent: Agent }) {
 
         {/* ── EVENT STREAM ── */}
         <section>
-          <SectionRule>Event Stream</SectionRule>
+          {/* Section header with live indicator */}
+          <div className="mb-4 flex items-center gap-3">
+            <span
+              className="text-[10px] font-bold uppercase tracking-[0.2em] text-bc-muted/70"
+              style={{ fontFamily: MONO }}
+            >
+              Event Stream
+            </span>
+            <span className="flex-1 h-px bg-gradient-to-r from-bc-border/50 to-transparent" />
+            {/* Live indicator */}
+            <span
+              className="flex items-center gap-1 text-[10px] tabular-nums"
+              style={{ fontFamily: MONO }}
+            >
+              <span
+                className={`w-1.5 h-1.5 rounded-full ${isRunning ? "bg-green-500" : "bg-bc-muted/40"}`}
+              />
+              <span className={isRunning ? "text-green-400" : "text-bc-muted/40"}>
+                {isRunning ? "Live" : "Offline"}
+              </span>
+            </span>
+          </div>
+
+          {/* Filter chips */}
+          <div className="flex items-center gap-1.5 mb-4 flex-wrap">
+            {FILTER_LABELS.map((f) => (
+              <button
+                key={f.key}
+                type="button"
+                onClick={() => setActiveFilter(f.key)}
+                className={`px-2 py-0.5 rounded border text-[10px] font-medium transition-colors ${
+                  activeFilter === f.key
+                    ? "border-bc-accent/30 bg-bc-accent/15 text-bc-accent"
+                    : "border-bc-border/30 text-bc-muted/60 hover:text-bc-muted hover:border-bc-border/50"
+                }`}
+                style={{ fontFamily: MONO }}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
 
           {timeline.length === 0 ? (
             <p className="text-xs text-bc-muted/40 italic pl-1">
-              No activity recorded yet.
+              {allTimeline.length === 0
+                ? "No activity recorded yet."
+                : "No events match this filter."}
             </p>
           ) : (
             <ol className="relative ml-1.5">
@@ -345,6 +445,7 @@ function ActivityTab({ agent }: { agent: Agent }) {
                       }`}
                       style={{ fontFamily: MONO }}
                     >
+                      <span className="mr-1.5 opacity-70">{eventIcon(evt.label)}</span>
                       {evt.label}
                     </span>
                     {evt.timestamp && (
