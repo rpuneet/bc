@@ -1,3 +1,4 @@
+export { AgentActivityStream } from "./AgentActivityStream";
 export { Chip, ChipList } from "./Chip";
 export { SectionRule } from "./SectionRule";
 export { ConfirmButton } from "./ConfirmButton";
