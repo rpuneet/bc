@@ -102,7 +102,8 @@ export function useAgentActivity(agentName?: string): {
                 fullInput: null,
                 fullOutput: null,
                 startTime: item.timestamp ? new Date(item.timestamp).getTime() : Date.now(),
-                endTime: item.timestamp ? new Date(item.timestamp).getTime() : Date.now(),
+                // Historical events don't have Pre/Post pairing so duration is unknown
+                endTime: undefined,
                 status: "completed" as const,
                 children: [],
               }));

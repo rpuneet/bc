@@ -223,14 +223,16 @@ export function ToolNodeRow({ node, depth = 0, searchQuery = "" }: { node: ToolN
         )}
         <span className="flex items-center gap-2 shrink-0">
           <RelativeTimestamp ts={node.startTime} />
-          {/* Duration pill with color-coded background */}
-          <span className={`text-[11px] tabular-nums font-mono px-1.5 py-0.5 rounded-md ${node.status === "running" ? "bg-bc-muted/10 text-bc-muted" : durationPillClass(node.startTime, node.endTime)}`}>
-            {node.status === "running" ? (
+          {/* Duration pill with color-coded background — hidden for historical events without timing */}
+          {node.status === "running" ? (
+            <span className="text-[11px] tabular-nums font-mono px-1.5 py-0.5 rounded-md bg-bc-muted/10 text-bc-muted">
               <ElapsedTimer start={node.startTime} />
-            ) : (
-              elapsed(node.startTime, node.endTime)
-            )}
-          </span>
+            </span>
+          ) : node.endTime != null ? (
+            <span className={`text-[11px] tabular-nums font-mono px-1.5 py-0.5 rounded-md ${durationPillClass(node.startTime, node.endTime)}`}>
+              {elapsed(node.startTime, node.endTime)}
+            </span>
+          ) : null}
         </span>
       </button>
 
@@ -590,9 +592,15 @@ export function DrillDownEventRow({ node }: { node: ToolNode }) {
         </span>
         <span className="flex items-center gap-2 shrink-0">
           <RelativeTimestamp ts={node.startTime} />
-          <span className={`text-[11px] tabular-nums font-mono px-1.5 py-0.5 rounded-md ${node.status === "running" ? "bg-bc-muted/10 text-bc-muted" : durationPillClass(node.startTime, node.endTime)}`}>
-            {node.status === "running" ? <ElapsedTimer start={node.startTime} /> : elapsed(node.startTime, node.endTime)}
-          </span>
+          {node.status === "running" ? (
+            <span className="text-[11px] tabular-nums font-mono px-1.5 py-0.5 rounded-md bg-bc-muted/10 text-bc-muted">
+              <ElapsedTimer start={node.startTime} />
+            </span>
+          ) : node.endTime != null ? (
+            <span className={`text-[11px] tabular-nums font-mono px-1.5 py-0.5 rounded-md ${durationPillClass(node.startTime, node.endTime)}`}>
+              {elapsed(node.startTime, node.endTime)}
+            </span>
+          ) : null}
         </span>
       </button>
 

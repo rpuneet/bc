@@ -39,6 +39,10 @@ const fmtDiskBytes = (b: number): string => {
   if (b >= 1024) return `${(b / 1024).toFixed(1)} KB`;
   return `${b} B`;
 };
+const fmtCost = (v: number): string => {
+  if (!v || !isFinite(v) || v === 0) return "$0.00";
+  return "$" + v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+};
 const trunc = (s: string, n: number) => s.length > n ? s.slice(0, n) + "\u2026" : s;
 const fromParam = (seconds: number) => new Date(Date.now() - seconds * 1000).toISOString();
 
@@ -272,7 +276,7 @@ export function StatsTab({ agent }: { agent: Agent }) {
               />
             )}
             {(computed?.cost_usd ?? 0) > 0 && (
-              <StatCard label="Cost" value={`$${(computed?.cost_usd ?? 0).toFixed(4)}`} accent />
+              <StatCard label="Cost" value={fmtCost(computed?.cost_usd ?? 0)} accent />
             )}
           </div>
 
@@ -348,7 +352,7 @@ export function StatsTab({ agent }: { agent: Agent }) {
         <StatCard label="CPU" value={`${cpuAvg.toFixed(1)}%`} sub={`max ${cpuMax.toFixed(1)}%`} />
         <StatCard label="Memory" value={`${memAvgMB} MB`} sub={`max ${memMaxMB} MB`} />
         <StatCard label="Tokens" value={fmtTokens(totalIn + totalOut)} sub={`In: ${fmtTokens(totalIn)} / Out: ${fmtTokens(totalOut)}`} />
-        <StatCard label="Cost" value={`$${totalCost.toFixed(2)}`} accent />
+        <StatCard label="Cost" value={fmtCost(totalCost)} accent />
       </div>
 
       {/* Row 2: CPU + Memory charts — only shown when TSDB has data */}
