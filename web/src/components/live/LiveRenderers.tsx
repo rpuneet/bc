@@ -647,7 +647,7 @@ export function AgentDrillDown({
   activity: AgentActivity;
   rawEvents: RawEvent[];
   tasks: Map<string, TaskItem>;
-  onBack: () => void;
+  onBack?: () => void;
 }) {
   const [activeTab, setActiveTab] = useState<DrillDownTab>("live");
   const [rawExpanded, setRawExpanded] = useState<Set<string>>(new Set());
@@ -680,16 +680,18 @@ export function AgentDrillDown({
     <div className="flex flex-col h-full">
       {/* Header bar */}
       <div className="flex items-center gap-3 mb-4 flex-wrap">
-        <button
-          type="button"
-          onClick={onBack}
-          className="inline-flex items-center gap-1.5 text-sm text-bc-muted hover:text-bc-text px-2 py-1 rounded border border-bc-border hover:border-bc-accent transition-colors shrink-0"
-        >
-          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M8 2l-4 4 4 4" />
-          </svg>
-          Back
-        </button>
+        {onBack && (
+          <button
+            type="button"
+            onClick={onBack}
+            className="inline-flex items-center gap-1.5 text-sm text-bc-muted hover:text-bc-text px-2 py-1 rounded border border-bc-border hover:border-bc-accent transition-colors shrink-0"
+          >
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M8 2l-4 4 4 4" />
+            </svg>
+            Back
+          </button>
+        )}
         <StateDot state={activity.state} />
         <span className="text-lg font-bold text-bc-text">{activity.name}</span>
         <span className="text-xs text-bc-muted font-mono">({activity.role})</span>

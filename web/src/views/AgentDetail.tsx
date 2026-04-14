@@ -11,7 +11,8 @@ import { AgentIcon } from "../components/agent-ui";
 import { LoopIconButton, RalphLoopModal } from "../components/RalphLoopModal";
 import { MCPServerList } from "../components/shared/MCPServerList";
 import { SystemPromptEditor } from "../components/shared/SystemPromptEditor";
-import { AgentActivityStream, SectionRule } from "../components/shared";
+import { SectionRule } from "../components/shared";
+import { AgentToolStream } from "../components/live/AgentToolStream";
 import { MONO } from "../utils/typography";
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -798,7 +799,7 @@ export function AgentDetail() {
           />
         )}
         {activeTab === "activity" && (
-          <AgentActivityStream
+          <AgentToolStream
             agentName={agent.name}
             agentState={agent.state}
             agentTask={agent.task}

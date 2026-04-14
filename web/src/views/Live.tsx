@@ -1,417 +1,70 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../api/client";
 import type { Agent } from "../api/client";
-import { useWebSocket } from "../hooks/useWebSocket";
+import { useAgentActivity } from "../hooks/useAgentActivity";
 import { EmptyState } from "../components/EmptyState";
 import type {
-  AgentActivity,
   FilterType,
-  HookEvent,
-  RawEvent,
-  TaskItem,
 } from "../components/live/liveTypes";
 import {
-  AUTO_COLLAPSE_MS,
-  FLUSH_INTERVAL,
-  MAX_NODES,
-} from "../components/live/liveTypes";
-import {
-  findLastIdx,
-  nextId,
   nodeMatchesSearch,
-  parseTaskCreate,
-  parseTaskListResponse,
-  parseTaskUpdate,
-  summarizeArgs,
-  updateSubagentChild,
-  updateTopLevelNode,
 } from "../components/live/liveHelpers";
 import { AgentCard, AgentDrillDown } from "../components/live/LiveRenderers";
 
 /* ── Live (Live Operations Center) ─────────────────────────────────── */
 
 export function Live() {
-  const [activities, setActivities] = useState<Map<string, AgentActivity>>(new Map());
+  const { activities, tasks, rawEventsRef, connected, reconnecting, eventCount } = useAgentActivity();
   const [agents, setAgents] = useState<Agent[]>([]);
   const [agentFilter, setAgentFilter] = useState("");
   const [typeFilter, setTypeFilter] = useState<FilterType>("all");
   const [searchFilter, setSearchFilter] = useState("");
-  const [eventCount, setEventCount] = useState(0);
   const [paused, setPaused] = useState(false);
-  const pausedRef = useRef(false);
-  const pausedBuffer = useRef<HookEvent[]>([]);
   const [pausedCount, setPausedCount] = useState(0);
+  const [collapsedOverrides, setCollapsedOverrides] = useState<Map<string, boolean>>(new Map());
   const [showJumpToLatest, setShowJumpToLatest] = useState(false);
   const [newEventsSinceScroll, setNewEventsSinceScroll] = useState(0);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [focusedCardIdx, setFocusedCardIdx] = useState(-1);
-  const [tasks, setTasks] = useState<Map<string, TaskItem>>(new Map());
   const [drillDownAgent, setDrillDownAgent] = useState<string | null>(null);
-  const rawEventsRef = useRef<Map<string, RawEvent[]>>(new Map());
   const [rawEventsVersion, setRawEventsVersion] = useState(0);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
-  const eventBuffer = useRef<HookEvent[]>([]);
-  const { connected, reconnecting, subscribe } = useWebSocket();
 
-  // Keep pausedRef in sync so interval/event handlers always see current value
-  useEffect(() => {
-    pausedRef.current = paused;
-  }, [paused]);
-
-  // Seed from agents API + initial logs
+  // Seed agent list for the filter dropdown
   useEffect(() => {
     api.listAgents().then((agentList) => {
       setAgents(agentList);
-      setActivities((prev) => {
-        const next = new Map(prev);
-        for (const a of agentList) {
-          if (!next.has(a.name)) {
-            const updatedAt = a.updated_at ? new Date(a.updated_at).getTime() : 0;
-            const agentCost = a.cost_usd ?? (a as unknown as Record<string, unknown>).total_cost_usd as number ?? 0;
-            next.set(a.name, {
-              name: a.name,
-              state: a.state,
-              task: a.task ?? "",
-              tool: a.tool,
-              role: a.role ?? "",
-              tokens: a.total_tokens ?? 0,
-              inputTokens: 0,
-              outputTokens: 0,
-              costUsd: agentCost,
-              lastEventTime: updatedAt > 0 && !isNaN(updatedAt) ? updatedAt : 0,
-              nodes: [],
-              collapsed: a.state === "stopped",
-            });
-          }
-        }
-        return next;
-      });
-    }).catch(() => {});
-
-    api.getLogs(50).then((logs) => {
-      setEventCount((c) => c + logs.length);
     }).catch(() => {});
   }, []);
 
-  // Process buffered hook events
-  const flushEvents = useCallback(() => {
-    const events = eventBuffer.current.splice(0);
-    if (events.length === 0) return;
-
-    if (pausedRef.current) {
-      pausedBuffer.current.push(...events);
-      setPausedCount(pausedBuffer.current.length);
-      return;
-    }
-
-    setEventCount((c) => c + events.length);
-
-    // Process task-related events
-    setTasks((prevTasks) => {
-      let nextTasks = prevTasks;
-      let changed = false;
-
-      for (const evt of events) {
-        const toolName = evt.tool_name ?? "";
-
-        // TaskCreate: on PostToolUse, parse the created task
-        if (evt.event === "PostToolUse" && toolName.includes("TaskCreate")) {
-          const task = parseTaskCreate(evt.tool_input, evt.tool_response, evt.agent);
-          if (task) {
-            if (!changed) { nextTasks = new Map(prevTasks); changed = true; }
-            nextTasks.set(task.id, task);
-          }
-        }
-
-        // TaskCreate: also parse ID from tool_response string like "Task #95 created successfully: Subject"
-        if (evt.event === "PostToolUse" && toolName.includes("TaskCreate")) {
-          const resp = evt.tool_response;
-          if (typeof resp === "string") {
-            const match = resp.match(/Task\s+#(\d+)/);
-            if (match) {
-              const numId = match[1]!;
-              let replaced = false;
-              for (const [key, task] of nextTasks) {
-                if (key.startsWith("task-") && task.owner === evt.agent) {
-                  if (!changed) { nextTasks = new Map(prevTasks); changed = true; }
-                  nextTasks.delete(key);
-                  nextTasks.set(numId, { ...task, id: numId });
-                  replaced = true;
-                  break;
-                }
-              }
-              if (!replaced && !nextTasks.has(numId)) {
-                if (!changed) { nextTasks = new Map(prevTasks); changed = true; }
-                const subjectMatch = resp.match(/Task\s+#\d+\s+created\s+successfully:\s*(.+)/);
-                const subject = subjectMatch ? subjectMatch[1]!.trim() : "Task #" + numId;
-                nextTasks.set(numId, { id: numId, subject, status: "pending", owner: evt.agent });
-              }
-            }
-          }
-        }
-
-        // TaskUpdate: update status
-        if ((evt.event === "PreToolUse" || evt.event === "PostToolUse") && toolName.includes("TaskUpdate")) {
-          const update = parseTaskUpdate(evt.tool_input);
-          if (update) {
-            if (!changed) { nextTasks = new Map(prevTasks); changed = true; }
-            const existing = nextTasks.get(update.taskId);
-            if (existing) {
-              const merged = { ...existing, status: update.status };
-              if (update.blockedBy) merged.blockedBy = [...(existing.blockedBy ?? []), ...update.blockedBy];
-              nextTasks.set(update.taskId, merged);
-            }
-          }
-        }
-
-        // TaskList: bootstrap/sync task state from full list
-        if (evt.event === "PostToolUse" && toolName.includes("TaskList")) {
-          const resp = evt.tool_response;
-          if (typeof resp === "string" && resp.trim().length > 0) {
-            const parsed = parseTaskListResponse(resp);
-            if (parsed.length > 0) {
-              if (!changed) { nextTasks = new Map(prevTasks); changed = true; }
-              nextTasks.clear();
-              for (const task of parsed) {
-                nextTasks.set(task.id, task);
-              }
-            }
-          }
-        }
-      }
-
-      return nextTasks;
-    });
-
-    setActivities((prev) => {
-      const next = new Map(prev);
-
-      for (const evt of events) {
-        const agentName = evt.agent;
-        if (!agentName) continue;
-
-        let activity = next.get(agentName) ?? {
-          name: agentName, state: "working", task: "", tool: "", role: "", tokens: 0, inputTokens: 0, outputTokens: 0, costUsd: 0, lastEventTime: 0, nodes: [], collapsed: false,
-        };
-        activity = { ...activity, nodes: [...activity.nodes] };
-        activity.lastEventTime = Date.now();
-
-        if (evt.task) activity.task = evt.task;
-        if (evt.input_tokens) { activity.tokens += evt.input_tokens; activity.inputTokens += evt.input_tokens; }
-        if (evt.output_tokens) { activity.tokens += evt.output_tokens; activity.outputTokens += evt.output_tokens; }
-
-        switch (evt.event) {
-          case "UserPromptSubmit":
-            activity.state = "working";
-            activity.nodes.push({
-              id: nextId(), toolName: "UserPromptSubmit",
-              args: evt.prompt ? (evt.prompt.length > 120 ? evt.prompt.slice(0, 117) + "..." : evt.prompt) : evt.task ?? "",
-              fullInput: evt.prompt ?? evt.tool_input, fullOutput: null, status: "completed",
-              startTime: Date.now(), endTime: Date.now(), children: [],
-            });
-            break;
-
-          case "PreToolUse": {
-            activity.state = "working";
-            const newNode = {
-              id: nextId(), toolName: evt.tool_name ?? "unknown", args: summarizeArgs(evt),
-              fullInput: evt.tool_input, fullOutput: null, status: "running" as const,
-              startTime: Date.now(), children: [],
-            };
-
-            // If tool_name is "Agent", this spawns a subagent -- add as top-level
-            // and track as active subagent for nesting child events
-            if (evt.tool_name === "Agent") {
-              activity.nodes.push(newNode);
-              activity.activeSubagentIdx = activity.nodes.length - 1;
-            } else if (activity.activeSubagentIdx !== undefined && activity.activeSubagentIdx >= 0) {
-              // Nest inside the active subagent node
-              const parentNode = activity.nodes[activity.activeSubagentIdx];
-              if (parentNode && parentNode.status === "running") {
-                const updatedParent = { ...parentNode, children: [...parentNode.children, newNode] };
-                activity.nodes[activity.activeSubagentIdx] = updatedParent;
-              } else {
-                activity.nodes.push(newNode);
-                activity.activeSubagentIdx = undefined;
-              }
-            } else {
-              activity.nodes.push(newNode);
-            }
-            break;
-          }
-
-          case "PostToolUse": {
-            const matchRunning = (n: AgentActivity["nodes"][number]): boolean => n.toolName === evt.tool_name && n.status === "running";
-            const markCompleted = (n: AgentActivity["nodes"][number]): AgentActivity["nodes"][number] => ({ ...n, status: "completed" as const, endTime: Date.now(), fullOutput: evt.tool_response ?? evt.tool_input });
-
-            let found = updateSubagentChild(activity, matchRunning, markCompleted);
-
-            if (evt.tool_name === "Agent") {
-              const matchAgent = (n: AgentActivity["nodes"][number]): boolean => n.toolName === "Agent" && n.status === "running";
-              found = updateTopLevelNode(activity, matchAgent, markCompleted) || found;
-              activity.activeSubagentIdx = undefined;
-            }
-
-            if (!found) {
-              updateTopLevelNode(activity, matchRunning, markCompleted);
-            }
-            break;
-          }
-
-          case "PostToolUseFailure": {
-            const matchRunning = (n: AgentActivity["nodes"][number]): boolean => n.toolName === evt.tool_name && n.status === "running";
-            const markFailed = (n: AgentActivity["nodes"][number]): AgentActivity["nodes"][number] => ({ ...n, status: "failed" as const, endTime: Date.now(), error: evt.error ?? "Tool execution failed", fullOutput: evt.tool_response ?? evt.tool_input });
-
-            const found = updateSubagentChild(activity, matchRunning, markFailed);
-            if (!found) {
-              updateTopLevelNode(activity, matchRunning, markFailed);
-            }
-            break;
-          }
-
-          case "SubagentStart": {
-            const subNode: AgentActivity["nodes"][number] = {
-              id: nextId(), toolName: `Agent: ${evt.subagent_id ?? "sub"}`,
-              args: evt.subagent_type ?? "", fullInput: evt.tool_input, fullOutput: null,
-              status: "running" as const, startTime: Date.now(), children: [],
-            };
-
-            if (activity.activeSubagentIdx !== undefined && activity.activeSubagentIdx >= 0) {
-              const parentNode = activity.nodes[activity.activeSubagentIdx];
-              if (parentNode && parentNode.status === "running") {
-                activity.nodes[activity.activeSubagentIdx] = { ...parentNode, children: [...parentNode.children, subNode] };
-                break;
-              }
-            }
-
-            activity.nodes.push(subNode);
-            activity.activeSubagentIdx = activity.nodes.length - 1;
-            break;
-          }
-
-          case "SubagentStop": {
-            const matchRunningAgent = (n: AgentActivity["nodes"][number]): boolean => n.toolName.startsWith("Agent:") && n.status === "running";
-            const markDone = (n: AgentActivity["nodes"][number]): AgentActivity["nodes"][number] => ({ ...n, status: "completed" as const, endTime: Date.now() });
-
-            const found = updateSubagentChild(activity, matchRunningAgent, markDone);
-            if (!found) {
-              const idx = findLastIdx(activity.nodes, matchRunningAgent);
-              if (idx >= 0) {
-                activity.nodes[idx] = markDone(activity.nodes[idx]!);
-                if (activity.activeSubagentIdx === idx) {
-                  activity.activeSubagentIdx = undefined;
-                }
-              }
-            }
-            break;
-          }
-
-          case "PermissionRequest":
-          case "Elicitation":
-            activity.state = "stuck";
-            activity.nodes.push({
-              id: nextId(), toolName: evt.event, args: evt.tool_name ?? "",
-              fullInput: evt.tool_input, fullOutput: null, status: "running",
-              startTime: Date.now(), children: [],
-            });
-            break;
-
-          case "SessionStart": activity.state = "idle"; break;
-          case "SessionEnd": case "Stop": activity.state = "idle"; break;
-          case "TaskCompleted": activity.state = "idle"; break;
-        }
-
-        if (activity.nodes.length > MAX_NODES) {
-          activity.nodes = activity.nodes.slice(-MAX_NODES);
-        }
-
-        const now = Date.now();
-        activity.nodes = activity.nodes.map((n) =>
-          n.status !== "running" && n.endTime && now - n.endTime > AUTO_COLLAPSE_MS
-            ? { ...n, fullInput: undefined, fullOutput: undefined }
-            : n,
-        );
-
-        next.set(agentName, activity);
-      }
-      return next;
-    });
-  }, []);
+  // Track rawEventsVersion for re-render when raw events change
+  useEffect(() => {
+    // rawEventsRef is mutated by the hook — bump version on each hook event
+    // by subscribing to eventCount changes (which the hook increments per event)
+    setRawEventsVersion((v) => v + 1);
+  }, [eventCount]);
 
   const handleResume = useCallback(() => {
     setPaused(false);
-    if (pausedBuffer.current.length > 0) {
-      eventBuffer.current.push(...pausedBuffer.current);
-      pausedBuffer.current = [];
-      setPausedCount(0);
-    }
+    setPausedCount(0);
   }, []);
 
-  useEffect(() => {
-    const id = setInterval(flushEvents, FLUSH_INTERVAL);
-    return () => clearInterval(id);
-  }, [flushEvents]);
-
-  useEffect(() => {
-    const unsub = subscribe("agent.hook", (wsEvent) => {
-      const d = wsEvent.data as unknown as HookEvent;
-      if (d?.agent) {
-        eventBuffer.current.push(d);
-        // Capture raw event for drill-down raw stream
-        const agentRaw = rawEventsRef.current.get(d.agent) ?? [];
-        agentRaw.push({ timestamp: Date.now(), eventType: d.event, raw: d });
-        if (agentRaw.length > 500) agentRaw.splice(0, agentRaw.length - 500);
-        rawEventsRef.current.set(d.agent, agentRaw);
-        setRawEventsVersion((v) => v + 1);
-      }
-    });
-    return unsub;
-  }, [subscribe]);
-
-  useEffect(() => {
-    const unsub = subscribe("agent.state_changed", (wsEvent) => {
-      const d = wsEvent.data as Record<string, unknown>;
-      const name = (d.name ?? d.agent) as string;
-      const state = d.state as string;
-      if (!name || !state) return;
-
-      // When paused, buffer state changes as synthetic hook events
-      if (pausedRef.current) {
-        pausedBuffer.current.push({ agent: name, event: "state_changed", task: d.task as string | undefined });
-        setPausedCount(pausedBuffer.current.length);
-        return;
-      }
-
-      setEventCount((c) => c + 1);
-      setActivities((prev) => {
-          const next = new Map(prev);
-          const existing = next.get(name);
-          if (existing) {
-            const updates: Partial<AgentActivity> = { state, lastEventTime: Date.now() };
-            if (d.task) updates.task = d.task as string;
-            if (d.role) updates.role = d.role as string;
-            next.set(name, { ...existing, ...updates });
-          }
-          return next;
-        });
-    });
-    return unsub;
-  }, [subscribe]);
-
   const sorted = useMemo(() => {
-    const filtered = Array.from(activities.values()).filter((a) => {
-      if (agentFilter && a.name !== agentFilter) return false;
-      if (typeFilter === "tools" && a.nodes.length === 0) return false;
-      if (searchFilter) {
-        const q = searchFilter.toLowerCase();
-        const cardHay = `${a.name} ${a.role} ${a.task} ${a.tool}`.toLowerCase();
-        if (cardHay.includes(q)) return true;
-        const hasMatchingNode = a.nodes.some((n) => nodeMatchesSearch(n, q));
-        if (!hasMatchingNode) return false;
-      }
-      return true;
-    });
+    const filtered = Array.from(activities.values())
+      .map((a) => collapsedOverrides.has(a.name) ? { ...a, collapsed: collapsedOverrides.get(a.name)! } : a)
+      .filter((a) => {
+        if (agentFilter && a.name !== agentFilter) return false;
+        if (typeFilter === "tools" && a.nodes.length === 0) return false;
+        if (searchFilter) {
+          const q = searchFilter.toLowerCase();
+          const cardHay = `${a.name} ${a.role} ${a.task} ${a.tool}`.toLowerCase();
+          if (cardHay.includes(q)) return true;
+          const hasMatchingNode = a.nodes.some((n) => nodeMatchesSearch(n, q));
+          if (!hasMatchingNode) return false;
+        }
+        return true;
+      });
     return filtered.sort((a, b) => {
       const order: Record<string, number> = { working: 0, stuck: 1, idle: 2, stopped: 3, error: 4 };
       const oa = order[a.state] ?? 5;
@@ -419,7 +72,7 @@ export function Live() {
       if (oa !== ob) return oa - ob;
       return a.name.localeCompare(b.name);
     });
-  }, [activities, agentFilter, typeFilter, searchFilter]);
+  }, [activities, collapsedOverrides, agentFilter, typeFilter, searchFilter]);
 
   useEffect(() => {
     const container = scrollContainerRef.current;
@@ -445,13 +98,14 @@ export function Live() {
   }, []);
 
   const toggleAgent = useCallback((name: string) => {
-    setActivities((prev) => {
+    setCollapsedOverrides((prev) => {
       const next = new Map(prev);
-      const existing = next.get(name);
-      if (existing) next.set(name, { ...existing, collapsed: !existing.collapsed });
+      const activity = activities.get(name);
+      const currentCollapsed = prev.has(name) ? prev.get(name)! : (activity?.collapsed ?? false);
+      next.set(name, !currentCollapsed);
       return next;
     });
-  }, []);
+  }, [activities]);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
