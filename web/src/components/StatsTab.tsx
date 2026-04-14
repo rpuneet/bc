@@ -84,6 +84,22 @@ export function StatsTab({ agent }: { agent: Agent }) {
   const { data, loading } = usePolling(fetcher, 10000);
   const s = data?.summary;
 
+  // ── Derived summary values — nested paths from backend AgentSummary struct ──
+
+  const cpuAvg = isFinite(s?.cpu?.avg_percent ?? 0) ? (s?.cpu?.avg_percent ?? 0) : 0;
+  const cpuMax = isFinite(s?.cpu?.max_percent ?? 0) ? (s?.cpu?.max_percent ?? 0) : 0;
+  const memAvgMB = s ? parseFloat(fmtMB(s.memory?.avg_bytes ?? 0)) || 0 : 0;
+  const memMaxMB = s ? parseFloat(fmtMB(s.memory?.max_bytes ?? 0)) || 0 : 0;
+
+  // Token totals: prefer TimescaleDB summary; fall back to agent record fields.
+  const totalIn = s?.tokens?.input ?? (agent.total_tokens ? Math.floor(agent.total_tokens * 0.8) : 0);
+  const totalOut = s?.tokens?.output ?? (agent.total_tokens ? Math.floor(agent.total_tokens * 0.2) : 0);
+  // Cost: prefer TimescaleDB summary; fall back to agent.cost_usd.
+  const summaryTotalUSD = s?.cost?.total_usd ?? 0;
+  const totalCost = (s != null && isFinite(summaryTotalUSD) && summaryTotalUSD > 0)
+    ? summaryTotalUSD
+    : isFinite(agent.cost_usd ?? 0) ? (agent.cost_usd ?? 0) : 0;
+
   // ── Derived chart data ───────────────────────────────────────────────────────
 
   const cpuChart = useMemo(() =>
@@ -114,7 +130,7 @@ export function StatsTab({ agent }: { agent: Agent }) {
   }, [data?.tokens]);
 
   const costBarData = useMemo(() =>
-    (s?.cost_by_model ?? [])
+    (s?.models ?? [])
       .map(m => ({
         name: trunc(m.model || "unknown", 24),
         cost: parseFloat(calculateCost(m.model, m.input_tokens, m.output_tokens).toFixed(4)),
@@ -122,28 +138,23 @@ export function StatsTab({ agent }: { agent: Agent }) {
       .filter(d => d.cost > 0)
       .sort((a, b) => b.cost - a.cost)
       .slice(0, 8),
-    [s?.cost_by_model],
+    [s?.models],
   );
-
-  // ── Summary values ─────────────────────────────────────────────────────────
-
-  const cpuAvg = isFinite(s?.cpu_avg ?? 0) ? (s?.cpu_avg ?? 0) : 0;
-  const cpuMax = isFinite(s?.cpu_max ?? 0) ? (s?.cpu_max ?? 0) : 0;
-  const memAvgMB = s ? parseFloat(fmtMB(s.mem_avg_bytes)) || 0 : 0;
-  const memMaxMB = s ? parseFloat(fmtMB(s.mem_max_bytes)) || 0 : 0;
-  const totalIn = s?.input_tokens ?? 0;
-  const totalOut = s?.output_tokens ?? 0;
-  const totalCost = isFinite(s?.total_cost_usd ?? 0) ? (s?.total_cost_usd ?? 0) : 0;
 
   // Has any live data? Used to show a helpful banner when the stats store
   // is empty (e.g. TimescaleDB not configured, or agent never ran).
-  const hasAnyData =
+  const hasTimescaleData =
     cpuChart.length > 0 ||
     memChart.length > 0 ||
+    (s?.cpu?.avg_percent ?? 0) > 0;
+
+  const hasAnyData =
+    hasTimescaleData ||
     tokenChart.length > 0 ||
     totalIn > 0 ||
     totalOut > 0 ||
     totalCost > 0;
+
   const isStopped = agent.state === "stopped" || agent.state === "error";
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -168,6 +179,14 @@ export function StatsTab({ agent }: { agent: Agent }) {
               The TimescaleDB stats collector samples every 30 seconds. Live metrics will appear here once the first sample lands.
             </>
           )}
+        </div>
+      )}
+
+      {/* Tmux-agent notice when we have cost/token data but no resource metrics */}
+      {!hasTimescaleData && hasAnyData && !loading && (
+        <div className="rounded border border-bc-border/40 bg-bc-surface/20 p-2.5 text-[10px] text-bc-muted/70 leading-relaxed">
+          <span className="font-medium">CPU/Memory metrics require TimescaleDB.</span>{" "}
+          Showing token and cost data from agent session logs.
         </div>
       )}
 
@@ -257,7 +276,7 @@ export function StatsTab({ agent }: { agent: Agent }) {
         </Panel>
       </div>
 
-      {/* Row 4: Cost by Model + Tool Usage */}
+      {/* Row 4: Cost by Model + I/O Summary */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <Panel title="Cost by Model">
           {costBarData.length === 0 ? <Empty msg="No cost data" /> : (
@@ -275,23 +294,40 @@ export function StatsTab({ agent }: { agent: Agent }) {
           )}
         </Panel>
         <Panel title="I/O Summary">
-          {!s ? <Empty /> : (
+          {!s ? (
+            // Fallback: show agent record data when TimescaleDB is unavailable
+            <div className="grid grid-cols-2 gap-3 py-4">
+              <div className="text-center">
+                <p className="text-[11px] text-bc-muted uppercase">Total Tokens</p>
+                <p className="text-lg font-bold text-[#3B82F6]">{fmtTokens(agent.total_tokens ?? 0)}</p>
+              </div>
+              <div className="text-center">
+                <p className="text-[11px] text-bc-muted uppercase">Total Cost</p>
+                <p className="text-lg font-bold text-bc-accent">${(agent.cost_usd ?? 0).toFixed(4)}</p>
+              </div>
+              <div className="col-span-2 text-center">
+                <p className="text-[10px] text-bc-muted/50 italic">
+                  Net I/O requires TimescaleDB
+                </p>
+              </div>
+            </div>
+          ) : (
             <div className="grid grid-cols-2 gap-3 py-4">
               <div className="text-center">
                 <p className="text-[11px] text-bc-muted uppercase">Net RX</p>
-                <p className="text-lg font-bold text-[#10B981]">{fmtBytes(s.net_rx_bytes)}</p>
+                <p className="text-lg font-bold text-[#10B981]">{fmtBytes(s.network?.rx_bytes ?? 0)}</p>
               </div>
               <div className="text-center">
                 <p className="text-[11px] text-bc-muted uppercase">Net TX</p>
-                <p className="text-lg font-bold text-bc-accent">{fmtBytes(s.net_tx_bytes)}</p>
+                <p className="text-lg font-bold text-bc-accent">{fmtBytes(s.network?.tx_bytes ?? 0)}</p>
               </div>
               <div className="text-center">
                 <p className="text-[11px] text-bc-muted uppercase">Disk Read</p>
-                <p className="text-lg font-bold text-[#3B82F6]">{fmtBytes(s.disk_read_bytes)}</p>
+                <p className="text-lg font-bold text-[#3B82F6]">{fmtBytes(s.disk?.read_bytes ?? 0)}</p>
               </div>
               <div className="text-center">
                 <p className="text-[11px] text-bc-muted uppercase">Disk Write</p>
-                <p className="text-lg font-bold text-[#A855F7]">{fmtBytes(s.disk_write_bytes)}</p>
+                <p className="text-lg font-bold text-[#A855F7]">{fmtBytes(s.disk?.write_bytes ?? 0)}</p>
               </div>
             </div>
           )}

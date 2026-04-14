@@ -140,21 +140,44 @@ export interface ModelCostSummary {
 
 export interface AgentStatsSummary {
   agent_name: string;
-  cpu_avg: number;
-  cpu_max: number;
-  mem_avg_bytes: number;
-  mem_max_bytes: number;
-  mem_percent: number;
-  disk_read_bytes: number;
-  disk_write_bytes: number;
-  net_rx_bytes: number;
-  net_tx_bytes: number;
+  role: string;
+  tool: string;
+  runtime: string;
+  state: string;
+  cpu: {
+    avg_percent: number;
+    max_percent: number;
+  };
+  memory: {
+    avg_bytes: number;
+    max_bytes: number;
+    avg_percent: number;
+  };
+  disk: {
+    read_bytes: number;
+    write_bytes: number;
+  };
+  network: {
+    rx_bytes: number;
+    tx_bytes: number;
+  };
+  tokens: {
+    input: number;
+    output: number;
+    cache_read: number;
+    cache_create: number;
+  };
+  cost: {
+    total_usd: number;
+  };
+  models?: AgentModelCostBreakdown[];
+}
+
+export interface AgentModelCostBreakdown {
+  model: string;
+  cost_usd: number;
   input_tokens: number;
   output_tokens: number;
-  cache_read: number;
-  cache_create: number;
-  total_cost_usd: number;
-  cost_by_model: ModelCostSummary[];
 }
 
 export interface FileAttachment {

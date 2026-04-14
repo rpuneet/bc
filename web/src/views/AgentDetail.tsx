@@ -294,9 +294,49 @@ function ConfigTab({ agent }: { agent: Agent }) {
     fetchMcps();
   };
 
+  const isDocker = (agent.runtime_backend ?? config?.runtime_backend ?? "") === "docker";
+  const isTmux = !isDocker;
+
   return (
     <div className="flex-1 overflow-y-auto p-6">
       <div className="max-w-3xl mx-auto space-y-10">
+
+        {/* ── RUNTIME BANNER ── */}
+        <div
+          className={`flex items-center gap-2.5 rounded-md px-4 py-2.5 border text-[11px] ${
+            isDocker
+              ? "border-blue-500/20 bg-blue-500/[0.04] text-blue-400/80"
+              : "border-bc-accent/20 bg-bc-accent/[0.03] text-bc-accent/70"
+          }`}
+          style={{ fontFamily: MONO }}
+        >
+          {isDocker ? (
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="1" y="4" width="12" height="8" rx="1" />
+              <path d="M4 4V2h6v2" />
+              <path d="M5 7h4M5 9.5h4" opacity="0.6" />
+            </svg>
+          ) : (
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="1.5" y="1.5" width="11" height="8" rx="1.5" />
+              <path d="M7 9.5v2.5M4 12h6" />
+            </svg>
+          )}
+          <span className="font-semibold">
+            {isDocker ? "Docker container" : "tmux (localhost)"}
+          </span>
+          <span className="text-current/50">·</span>
+          {isDocker ? (
+            <span className="text-current/60">
+              {agent.session ?? config?.session ?? "isolated container"}
+            </span>
+          ) : (
+            <span className="text-current/60">
+              session: {agent.session ?? config?.session ?? agent.name}
+            </span>
+          )}
+        </div>
+
         {/* ── SYSTEM PROMPT ── */}
         <SystemPromptEditor
           value={config?.system_prompt ?? ""}
@@ -313,20 +353,25 @@ function ConfigTab({ agent }: { agent: Agent }) {
             onAdd={useLiveMcp ? handleMcpAdd : undefined}
             onRemove={useLiveMcp ? handleMcpRemove : undefined}
           />
+          <p className="mt-2 text-[10px] text-bc-muted/40 leading-relaxed" style={{ fontFamily: MONO }}>
+            {isTmux
+              ? "For tmux agents, MCPs are managed via the Claude CLI. Changes here write to the agent\u2019s worktree."
+              : "Changes write to .mcp.json in the container."}
+          </p>
         </section>
 
-        {/* ── METADATA ── */}
+        {/* ── RUNTIME INFO ── */}
         <section>
-          <SectionRule>Metadata</SectionRule>
+          <SectionRule>Runtime</SectionRule>
           <dl className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-4">
             <MetaCell label="Provider" mono>
               {agent.tool || "\u2014"}
             </MetaCell>
-            <MetaCell label="Runtime" mono>
-              {agent.runtime_backend || "\u2014"}
+            <MetaCell label="Backend" mono>
+              {isDocker ? "docker" : "tmux"}
             </MetaCell>
             <MetaCell label="Session" mono>
-              {agent.session || "\u2014"}
+              {agent.session || config?.session || "\u2014"}
             </MetaCell>
             <MetaCell label="Created">
               <span className="tabular-nums">{formatTime(agent.created_at)}</span>
@@ -342,80 +387,98 @@ function ConfigTab({ agent }: { agent: Agent }) {
           </dl>
         </section>
 
+        {/* ── ENVIRONMENT ── */}
+        <section>
+          <SectionRule>Environment</SectionRule>
+          <p className="text-[11px] text-bc-muted/50 leading-relaxed" style={{ fontFamily: MONO }}>
+            {isTmux
+              ? "Environment variables for tmux agents are set via the provider CLI (e.g. claude env). They are inherited from the shell environment at agent start time."
+              : "Environment variables for Docker agents can be configured in the container runtime settings. They are injected at container start via the docker run env flags."}
+          </p>
+        </section>
+
+        {/* ── ACTIONS ── */}
+        <section>
+          <SectionRule>Actions</SectionRule>
+          <div className="rounded-md border border-bc-border/30 bg-bc-surface/20 px-4 py-3">
+            <div className="flex flex-wrap gap-2 items-center">
+              {/* Clone — placeholder, navigates to /agents */}
+              <button
+                type="button"
+                onClick={() => navigate("/agents")}
+                className="px-3 py-1.5 rounded-md text-[11px] font-medium border border-bc-border/40 text-bc-muted hover:text-bc-text hover:border-bc-border transition-colors"
+                style={{ fontFamily: MONO }}
+              >
+                Clone
+              </button>
+
+              {/* Archive — placeholder */}
+              <button
+                type="button"
+                className="px-3 py-1.5 rounded-md text-[11px] font-medium border border-bc-border/40 text-bc-muted hover:text-bc-text hover:border-bc-border transition-colors"
+                style={{ fontFamily: MONO }}
+              >
+                Archive
+              </button>
+            </div>
+          </div>
+        </section>
+
         {/* ── DANGER ZONE ── */}
         <section>
           <SectionRule>Danger Zone</SectionRule>
           <div className="rounded-md border border-bc-error/20 bg-bc-error/[0.02] px-4 py-3">
-          <div className="flex flex-wrap gap-2 items-center">
-            {/* Clone — placeholder, navigates to /agents */}
-            <button
-              type="button"
-              onClick={() => navigate("/agents")}
-              className="px-3 py-1.5 rounded-md text-[11px] font-medium border border-bc-border/40 text-bc-muted hover:text-bc-text hover:border-bc-border transition-colors"
-              style={{ fontFamily: MONO }}
-            >
-              Clone
-            </button>
-
-            {/* Archive — placeholder */}
-            <button
-              type="button"
-              className="px-3 py-1.5 rounded-md text-[11px] font-medium border border-bc-border/40 text-bc-muted hover:text-bc-text hover:border-bc-border transition-colors"
-              style={{ fontFamily: MONO }}
-            >
-              Archive
-            </button>
-
-            {/* Delete — with confirmation */}
-            {confirmDelete ? (
-              <>
-                <span
-                  className="text-[11px] text-bc-error/80"
-                  style={{ fontFamily: MONO }}
-                >
-                  Are you sure?
-                </span>
+            <div className="flex flex-wrap gap-2 items-center">
+              {/* Delete — with confirmation */}
+              {confirmDelete ? (
+                <>
+                  <span
+                    className="text-[11px] text-bc-error/80"
+                    style={{ fontFamily: MONO }}
+                  >
+                    Are you sure?
+                  </span>
+                  <button
+                    type="button"
+                    disabled={deleting}
+                    onClick={() => {
+                      setDeleting(true);
+                      api
+                        .deleteAgent(agent.name)
+                        .then(() => {
+                          navigate("/agents");
+                        })
+                        .catch(() => {
+                          setDeleting(false);
+                          setConfirmDelete(false);
+                        });
+                    }}
+                    className="px-3 py-1.5 rounded-md text-[11px] font-medium border border-bc-error/50 bg-bc-error/10 text-bc-error hover:bg-bc-error/20 transition-colors disabled:opacity-40"
+                    style={{ fontFamily: MONO }}
+                  >
+                    {deleting ? "Deleting…" : "Confirm"}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={deleting}
+                    onClick={() => setConfirmDelete(false)}
+                    className="px-3 py-1.5 rounded-md text-[11px] font-medium border border-bc-border/40 text-bc-muted hover:text-bc-text hover:border-bc-border transition-colors disabled:opacity-40"
+                    style={{ fontFamily: MONO }}
+                  >
+                    Cancel
+                  </button>
+                </>
+              ) : (
                 <button
                   type="button"
-                  disabled={deleting}
-                  onClick={() => {
-                    setDeleting(true);
-                    api
-                      .deleteAgent(agent.name)
-                      .then(() => {
-                        navigate("/agents");
-                      })
-                      .catch(() => {
-                        setDeleting(false);
-                        setConfirmDelete(false);
-                      });
-                  }}
-                  className="px-3 py-1.5 rounded-md text-[11px] font-medium border border-bc-error/50 bg-bc-error/10 text-bc-error hover:bg-bc-error/20 transition-colors disabled:opacity-40"
+                  onClick={() => setConfirmDelete(true)}
+                  className="px-3 py-1.5 rounded-md text-[11px] font-medium border border-bc-error/30 text-bc-error/80 hover:bg-bc-error/10 transition-colors"
                   style={{ fontFamily: MONO }}
                 >
-                  {deleting ? "Deleting…" : "Confirm"}
+                  Delete
                 </button>
-                <button
-                  type="button"
-                  disabled={deleting}
-                  onClick={() => setConfirmDelete(false)}
-                  className="px-3 py-1.5 rounded-md text-[11px] font-medium border border-bc-border/40 text-bc-muted hover:text-bc-text hover:border-bc-border transition-colors disabled:opacity-40"
-                  style={{ fontFamily: MONO }}
-                >
-                  Cancel
-                </button>
-              </>
-            ) : (
-              <button
-                type="button"
-                onClick={() => setConfirmDelete(true)}
-                className="px-3 py-1.5 rounded-md text-[11px] font-medium border border-bc-error/30 text-bc-error/80 hover:bg-bc-error/10 transition-colors"
-                style={{ fontFamily: MONO }}
-              >
-                Delete
-              </button>
-            )}
-          </div>
+              )}
+            </div>
           </div>
         </section>
       </div>
@@ -665,7 +728,7 @@ export function AgentDetail() {
           />
 
           {/* Loop icon — no background, just the icon */}
-          <LoopIconButton agentName={agent.name} onClick={() => setLoopOpen(true)} />
+          <LoopIconButton agentName={agent.name} agentState={agent.state} onClick={() => setLoopOpen(true)} />
 
           {/* Task text */}
           {agent.task && (

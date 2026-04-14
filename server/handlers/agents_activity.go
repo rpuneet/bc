@@ -39,10 +39,25 @@ func (h *AgentHandler) agentActivity(w http.ResponseWriter, r *http.Request, nam
 	out := make([]activityItem, 0, len(evts))
 	for i := len(evts) - 1; i >= 0 && len(out) < maxItems; i-- {
 		e := evts[i]
+		// Derive a human-readable message from structured data fields.
+		// Prefer: tool_name + tool_input.command > message field > omit.
+		msg := ""
+		if e.Data != nil {
+			if toolName, ok := e.Data["tool_name"].(string); ok && toolName != "" {
+				msg = toolName
+				if toolInput, ok2 := e.Data["tool_input"].(map[string]any); ok2 {
+					if cmd, ok3 := toolInput["command"].(string); ok3 && cmd != "" {
+						msg += ": " + cmd
+					}
+				}
+			} else if m, ok := e.Data["message"].(string); ok && m != "" {
+				msg = m
+			}
+		}
 		out = append(out, activityItem{
 			Timestamp: e.Timestamp.UTC().Format("2006-01-02T15:04:05.000Z"),
-			Event:     strings.TrimPrefix(string(e.Type), "agent."),
-			Message:   e.Message,
+			Event:     strings.TrimPrefix(strings.TrimPrefix(string(e.Type), "hook."), "agent."),
+			Message:   msg,
 			Data:      e.Data,
 		})
 	}

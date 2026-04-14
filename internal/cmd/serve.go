@@ -461,6 +461,22 @@ func runStatsCollector(ctx context.Context, ss *bcstats.Store, agents *bcagent.A
 				}
 			}
 
+			// -- tmux agent process stats --
+			// For agents running in tmux (not Docker), collect CPU/memory via ps.
+			for agentName, a := range agentsByName {
+				if a.RuntimeBackend != "tmux" || (a.State != "working" && a.State != "idle") {
+					continue
+				}
+				metric, psErr := collectTmuxAgentStats(ctx, agentName, a)
+				if psErr != nil {
+					log.Debug("stats: tmux ps failed", "agent", agentName, "error", psErr)
+					continue
+				}
+				if err := ss.RecordAgent(ctx, *metric); err != nil {
+					log.Debug("stats: record tmux agent metric", "agent", agentName, "error", err)
+				}
+			}
+
 			// -- token metrics from agent JSONL sessions --
 			if ws != nil {
 				agentsDir := filepath.Join(ws.RootDir, ".bc", "agents")
@@ -523,6 +539,60 @@ func collectDockerStats(ctx context.Context) []dockerStatsEntry {
 		entries = append(entries, e)
 	}
 	return entries
+}
+
+// collectTmuxAgentStats uses ps to read CPU and RSS memory for a tmux-backed agent.
+// It looks for the tmux session named "bc-<ws>-<agent>" and samples the process tree.
+// Returns an AgentMetric ready for TimescaleDB insert, or an error if ps fails.
+func collectTmuxAgentStats(ctx context.Context, agentName string, a *bcagent.Agent) (*bcstats.AgentMetric, error) {
+	// ps output: %cpu rss (rss is in KB on macOS/Linux)
+	// We match on the session name which tmux puts in the process title.
+	// Fallback: match any process with the agent name in its args.
+	sessionName := a.Session
+	if sessionName == "" {
+		sessionName = agentName
+	}
+
+	// Use `ps aux` to find processes related to the tmux session.
+	cmd := exec.CommandContext(ctx, "ps", "aux")
+	out, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("ps aux: %w", err)
+	}
+
+	var totalCPU float64
+	var totalRSSKB int64
+
+	scanner := bufio.NewScanner(bytes.NewReader(out))
+	scanner.Scan() // skip header
+	for scanner.Scan() {
+		line := scanner.Text()
+		if !strings.Contains(line, sessionName) {
+			continue
+		}
+		fields := strings.Fields(line)
+		if len(fields) < 6 {
+			continue
+		}
+		// ps aux columns: USER PID %CPU %MEM VSZ RSS TTY STAT START TIME COMMAND
+		if cpu, parseErr := strconv.ParseFloat(fields[2], 64); parseErr == nil {
+			totalCPU += cpu
+		}
+		if rss, parseErr := strconv.ParseInt(fields[5], 10, 64); parseErr == nil {
+			totalRSSKB += rss
+		}
+	}
+
+	return &bcstats.AgentMetric{
+		Time:         time.Now().UTC(),
+		AgentName:    agentName,
+		Role:         string(a.Role),
+		Tool:         a.Tool,
+		Runtime:      "tmux",
+		State:        string(a.State),
+		CPUPercent:   totalCPU,
+		MemUsedBytes: totalRSSKB * 1024,
+	}, nil
 }
 
 // isSystemContainer returns true for bc-db, bc-playwright, or *-daemon containers.

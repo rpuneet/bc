@@ -36,9 +36,11 @@ async function setLoopConfig(agentName: string, config: LoopConfig): Promise<voi
 
 export function LoopIconButton({
   agentName,
+  agentState,
   onClick,
 }: {
   agentName: string;
+  agentState?: string;
   onClick: () => void;
 }) {
   const [active, setActive] = useState(false);
@@ -49,13 +51,17 @@ export function LoopIconButton({
     });
   }, [agentName]);
 
+  // Pulse when loop is active AND agent is actively running
+  const isRunning = agentState === "working" || agentState === "starting";
+  const shouldPulse = active && isRunning;
+
   return (
     <button
       type="button"
       onClick={onClick}
       title={
         active
-          ? "Ralph Loop active — click to edit"
+          ? `Ralph Loop active${isRunning ? " — running" : " — waiting for agent to stop"} · click to edit`
           : "Ralph Loop — auto-reprompts agent when it stops"
       }
       className={`shrink-0 flex items-center gap-0.5 transition-colors ${
@@ -64,19 +70,29 @@ export function LoopIconButton({
           : "text-bc-muted/30 hover:text-bc-muted/60"
       }`}
     >
-      <svg
-        width="13"
-        height="13"
-        viewBox="0 0 14 14"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      >
-        <path d="M11 3.5A5 5 0 1 0 12 7" />
-        <path d="M8 3.5h3V.5" />
-      </svg>
+      <span className={`flex items-center gap-0.5 ${shouldPulse ? "animate-pulse" : ""}`}>
+        <svg
+          width="13"
+          height="13"
+          viewBox="0 0 14 14"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M11 3.5A5 5 0 1 0 12 7" />
+          <path d="M8 3.5h3V.5" />
+        </svg>
+        {active && (
+          <span
+            className="text-[9px] font-bold leading-none"
+            style={{ fontFamily: MONO }}
+          >
+            ∞
+          </span>
+        )}
+      </span>
     </button>
   );
 }
