@@ -563,11 +563,28 @@ func collectTmuxAgentStats(ctx context.Context, agentName string, a *bcagent.Age
 	var totalCPU float64
 	var totalRSSKB int64
 
+	// Build search patterns — match both the tmux session and the provider process within it
+	patterns := []string{sessionName}
+	if a.Session != "" && a.Session != sessionName {
+		patterns = append(patterns, a.Session)
+	}
+	// Also match the full tmux session name (bc-<hash>-<agent>)
+	if !strings.HasPrefix(sessionName, "bc-") {
+		patterns = append(patterns, "bc-"+sessionName) // partial match
+	}
+
 	scanner := bufio.NewScanner(bytes.NewReader(out))
 	scanner.Scan() // skip header
 	for scanner.Scan() {
 		line := scanner.Text()
-		if !strings.Contains(line, sessionName) {
+		matched := false
+		for _, pat := range patterns {
+			if strings.Contains(line, pat) {
+				matched = true
+				break
+			}
+		}
+		if !matched {
 			continue
 		}
 		fields := strings.Fields(line)
