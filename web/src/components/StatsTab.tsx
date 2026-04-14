@@ -96,19 +96,22 @@ export function StatsTab({ agent }: { agent: Agent }) {
 
   // ── Derived summary values — nested paths from backend AgentSummary struct ──
 
-  // CPU/mem: prefer TimescaleDB summary; fall back to live ps-sampled data from computed stats.
+  // CPU/mem: use live ps-sampled data (accurate for tmux agents) when available.
+  // Falls back to TimescaleDB summary only when live data is unavailable.
   const liveCPU = data?.computed?.cpu_percent ?? 0;
   const liveMemBytes = data?.computed?.mem_used_bytes ?? 0;
-  const cpuAvg = isFinite(s?.cpu?.avg_percent ?? 0) && (s?.cpu?.avg_percent ?? 0) > 0
-    ? (s?.cpu?.avg_percent ?? 0)
-    : (isFinite(liveCPU) ? liveCPU : 0);
-  const cpuMax = isFinite(s?.cpu?.max_percent ?? 0) ? (s?.cpu?.max_percent ?? 0) : cpuAvg;
-  const memAvgMB = s && (s.memory?.avg_bytes ?? 0) > 0
-    ? parseFloat(fmtMB(s.memory?.avg_bytes ?? 0)) || 0
-    : parseFloat(fmtMB(liveMemBytes)) || 0;
-  const memMaxMB = s && (s.memory?.max_bytes ?? 0) > 0
-    ? parseFloat(fmtMB(s.memory?.max_bytes ?? 0)) || 0
-    : memAvgMB;
+  const tsdbCPU = s?.cpu?.avg_percent ?? 0;
+  const tsdbMem = s?.memory?.avg_bytes ?? 0;
+  // Prefer live (more accurate — measures actual claude process via pane PID tree)
+  const cpuAvg = liveCPU > 0 ? liveCPU : (isFinite(tsdbCPU) ? tsdbCPU : 0);
+  const cpuMax = Math.max(s?.cpu?.max_percent ?? 0, cpuAvg);
+  const memAvgMB = liveMemBytes > 0
+    ? parseFloat(fmtMB(liveMemBytes)) || 0
+    : (tsdbMem > 0 ? parseFloat(fmtMB(tsdbMem)) || 0 : 0);
+  const memMaxMB = Math.max(
+    s?.memory?.max_bytes ? parseFloat(fmtMB(s.memory.max_bytes)) || 0 : 0,
+    memAvgMB
+  );
 
   // Token totals: prefer TimescaleDB summary; fall back to cost-store computed stats; then agent record fields.
   const computedInputTokens = data?.computed?.input_tokens ?? 0;
