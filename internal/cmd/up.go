@@ -90,6 +90,13 @@ func runUp(cmd *cobra.Command, _ []string) error {
 	fmt.Printf("Starting bc server in %s\n", wsRoot)
 	fmt.Printf("  addr: %s\n\n", upAddr)
 
+	// Set BC_BCD_ADDR so agents inherit the correct server address for hooks.
+	// Without this, agents default to :9374 even when bcd runs on a different port.
+	bcdAddr := "http://" + upAddr
+	if err := os.Setenv("BC_BCD_ADDR", bcdAddr); err == nil {
+		fmt.Printf("  BC_BCD_ADDR: %s\n", bcdAddr)
+	}
+
 	return RunServer(upAddr, wsRoot, upCORS, upAPIKey)
 }
 
