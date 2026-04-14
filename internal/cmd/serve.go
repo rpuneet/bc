@@ -203,6 +203,32 @@ func RunServer(addr, wsRoot, corsOrigin, apiKey string) error {
 	} else {
 		eventLog = el
 		defer el.Close() //nolint:errcheck // best-effort
+
+		// Prune stale events periodically (TTL: 24h, max 5000 events per agent)
+		if prunable, ok := el.(*bcevents.SQLiteLog); ok {
+			go func() {
+				// Initial prune on startup
+				if n, pErr := prunable.Prune(24*time.Hour, 5000); pErr != nil {
+					log.Warn("event prune failed", "error", pErr)
+				} else if n > 0 {
+					log.Info("event prune: deleted stale events", "count", n)
+				}
+				ticker := time.NewTicker(1 * time.Hour)
+				defer ticker.Stop()
+				for {
+					select {
+					case <-ticker.C:
+						if n, pErr := prunable.Prune(24*time.Hour, 5000); pErr != nil {
+							log.Warn("event prune failed", "error", pErr)
+						} else if n > 0 {
+							log.Info("event prune: deleted stale events", "count", n)
+						}
+					case <-ctx.Done():
+						return
+					}
+				}
+			}()
+		}
 	}
 
 	// TimescaleDB stats store — always attempt to connect. Uses STATS_DATABASE_URL
