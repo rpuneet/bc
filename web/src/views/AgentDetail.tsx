@@ -1230,8 +1230,8 @@ export function AgentDetail() {
   return (
     <div className="flex flex-col h-full">
       {/* ═══ HEADER — HUD status bar ═══ */}
-      <header className="shrink-0 px-6 pt-3 pb-0 space-y-2">
-        <div className="flex items-center gap-2.5 min-w-0">
+      <header className="shrink-0 border-b border-bc-border/40">
+        <div className="flex items-center gap-2.5 min-w-0 px-6 h-[42px]">
           {/* Back link */}
           <Link
             to="/agents"
@@ -1293,7 +1293,7 @@ export function AgentDetail() {
           {/* Task text */}
           {agent.task && (
             <span
-              className="text-[10px] text-bc-muted/50 truncate max-w-[320px]"
+              className="text-[10px] text-bc-muted/50 truncate max-w-[220px]"
               title={agent.task}
               style={{ fontFamily: MONO }}
             >
@@ -1301,27 +1301,28 @@ export function AgentDetail() {
             </span>
           )}
 
-          {/* Timestamp — pushed to right */}
+          {/* Timestamp */}
           {lastSeen && (
             <span
-              className="text-[10px] text-bc-muted/25 tabular-nums ml-auto shrink-0"
+              className="text-[10px] text-bc-muted/25 tabular-nums shrink-0"
               title={formatTime(lastSeen)}
               style={{ fontFamily: MONO }}
             >
               {formatRelative(lastSeen)}
             </span>
           )}
-        </div>
 
-        {/* Tab bar */}
-        <nav className="flex gap-0 border-b border-bc-border/40 -mx-6 px-6">
+          {/* Separator */}
+          <span className="shrink-0 w-px h-4 bg-bc-border/50 ml-auto" />
+
+          {/* Tab buttons — inline in header */}
           {TABS.map((tab) => {
             const isActive = activeTab === tab.key;
             return (
               <button
                 key={tab.key}
                 onClick={() => setActiveTab(tab.key)}
-                className={`relative px-4 py-2.5 text-[12px] font-semibold tracking-wide uppercase transition-colors ${
+                className={`relative px-3 py-1.5 text-[11px] font-semibold tracking-wide uppercase transition-colors shrink-0 ${
                   isActive
                     ? "text-bc-accent"
                     : "text-bc-muted/50 hover:text-bc-muted"
@@ -1329,15 +1330,15 @@ export function AgentDetail() {
                 style={{ fontFamily: MONO }}
               >
                 {tab.label}
-                <span className="ml-1.5 text-[9px] opacity-40">{tab.shortcut}</span>
+                <span className="ml-1 text-[9px] opacity-40">{tab.shortcut}</span>
                 {/* Active indicator — bottom glow bar */}
                 {isActive && (
-                  <span className="absolute bottom-0 left-2 right-2 h-[2px] rounded-full bg-bc-accent shadow-[0_0_8px_rgba(var(--bc-accent-rgb,255,165,0),0.5)]" />
+                  <span className="absolute bottom-0 left-1 right-1 h-[2px] rounded-full bg-bc-accent shadow-[0_0_8px_rgba(var(--bc-accent-rgb,255,165,0),0.5)]" />
                 )}
               </button>
             );
           })}
-        </nav>
+        </div>
       </header>
 
       {/* ═══ TAB CONTENT ═══ */}

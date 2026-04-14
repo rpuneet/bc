@@ -150,9 +150,25 @@ export function CreateAgentModal({
     setName(generateName(existingNames));
   }, [existingNames]);
 
-  const handleCreate = useCallback(() => {
-    onClose();
-  }, [onClose]);
+  const handleCreate = useCallback(async () => {
+    try {
+      const res = await fetch("/api/agents", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, template, tool: provider, runtime_backend: runtime, task: task || undefined }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({})) as { error?: string };
+        alert(err.error ?? "Failed to create agent");
+        return;
+      }
+      onClose();
+      // Navigate to new agent
+      window.location.href = `/agents/${encodeURIComponent(name)}`;
+    } catch {
+      alert("Failed to create agent");
+    }
+  }, [name, template, provider, runtime, task, onClose]);
 
   if (!open) return null;
 
@@ -195,7 +211,7 @@ export function CreateAgentModal({
         <div className="px-5 py-4 flex flex-col gap-4">
           {/* Shape preview */}
           <div className="flex justify-center">
-            <AgentIcon shape={shape} state="working" size={64} />
+            <AgentIcon shape={shape} state="idle" size={64} />
           </div>
 
           {/* Name + regen */}
@@ -349,7 +365,7 @@ export function CreateAgentModal({
           </button>
           <button
             type="button"
-            onClick={handleCreate}
+            onClick={() => { void handleCreate(); }}
             className="px-4 py-2 rounded text-sm font-medium bg-bc-accent text-bc-bg hover:opacity-90 transition-opacity"
             style={{ fontFamily: MONO }}
           >
