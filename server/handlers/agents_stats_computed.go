@@ -195,11 +195,34 @@ func liveAgentCPUMem(ctx context.Context, name string, svc *agent.AgentService) 
 		sessionName = name
 	}
 
-	// Step 1: Get pane PID from tmux
+	// Step 1: Get pane PID from tmux. Try the session name as-is first,
+	// then try the bc-prefixed variant (bc-<hash>-<name>).
+	var panePIDOut []byte
 	tmuxCmd := exec.CommandContext(ctx, "tmux", "list-panes", "-t", sessionName, "-F", "#{pane_pid}") //nolint:gosec
 	panePIDOut, tmuxErr := tmuxCmd.Output()
 	if tmuxErr != nil {
-		return 0, 0
+		// Session name might be just the agent name; actual tmux session is bc-<hash>-<name>
+		// List all sessions and find the matching one
+		listCmd := exec.CommandContext(ctx, "tmux", "list-sessions", "-F", "#{session_name}") //nolint:gosec
+		listOut, listErr := listCmd.Output()
+		if listErr != nil {
+			return 0, 0
+		}
+		var fullSession string
+		for _, line := range strings.Split(strings.TrimSpace(string(listOut)), "\n") {
+			if strings.Contains(line, sessionName) {
+				fullSession = strings.TrimSpace(line)
+				break
+			}
+		}
+		if fullSession == "" {
+			return 0, 0
+		}
+		retryCmd := exec.CommandContext(ctx, "tmux", "list-panes", "-t", fullSession, "-F", "#{pane_pid}") //nolint:gosec
+		panePIDOut, tmuxErr = retryCmd.Output()
+		if tmuxErr != nil {
+			return 0, 0
+		}
 	}
 	panePIDStr := strings.TrimSpace(string(panePIDOut))
 	if panePIDStr == "" {
