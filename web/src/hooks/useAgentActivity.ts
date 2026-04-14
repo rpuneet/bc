@@ -6,6 +6,7 @@ import type {
   HookEvent,
   RawEvent,
   TaskItem,
+  ToolNode,
 } from "../components/live/liveTypes";
 import {
   AUTO_COLLAPSE_MS,
@@ -75,6 +76,31 @@ export function useAgentActivity(agentName?: string): {
         }
         return next;
       });
+
+      // When filtering by single agent, fetch historical activity to pre-populate
+      if (agentName) {
+        api.getAgentActivity(agentName).then((items) => {
+          setActivities((prev) => {
+            const next = new Map(prev);
+            const existing = next.get(agentName);
+            if (existing && existing.nodes.length === 0 && items.length > 0) {
+              const nodes: ToolNode[] = items.map((item) => ({
+                id: nextId(),
+                toolName: item.event || "unknown",
+                args: item.message || "",
+                fullInput: null,
+                fullOutput: null,
+                startTime: item.timestamp ? new Date(item.timestamp).getTime() : Date.now(),
+                endTime: item.timestamp ? new Date(item.timestamp).getTime() : Date.now(),
+                status: "completed" as const,
+                children: [],
+              }));
+              next.set(agentName, { ...existing, nodes });
+            }
+            return next;
+          });
+        }).catch(() => { /* best effort */ });
+      }
     }).catch(() => {});
 
     api.getLogs(50).then((logs) => {

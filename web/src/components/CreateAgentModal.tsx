@@ -78,7 +78,7 @@ export function CreateAgentModal({
   const [shape, setShape] = useState<AgentShape>(
     () => SHAPES[Math.floor(Math.random() * SHAPES.length)] ?? "hexagon",
   );
-  const [template, setTemplate] = useState(DEFAULT_TEMPLATES[0] ?? "feature-dev");
+  const [template, setTemplate] = useState("feature-dev");
   const [templates, setTemplates] = useState<string[]>(DEFAULT_TEMPLATES);
   const [provider, setProvider] = useState<Provider>("claude");
   const [runtime, setRuntime] = useState<Runtime>("docker");
@@ -110,7 +110,7 @@ export function CreateAgentModal({
       const newName = generateName(existingNames);
       setName(newName);
       setShape(SHAPES[Math.floor(Math.random() * SHAPES.length)] ?? "hexagon");
-      setTemplate(templates[0] ?? "feature-dev");
+      setTemplate("feature-dev");
       setProvider("claude");
       setRuntime("docker");
       setTask("");
@@ -209,7 +209,7 @@ export function CreateAgentModal({
         <div className="px-5 py-4 flex flex-col gap-4">
           {/* Shape preview */}
           <div className="flex justify-center">
-            <AgentIcon shape={shape} state="idle" size={64} />
+            <AgentIcon shape={shape} state="idle" size={64} tool={provider} />
           </div>
 
           {/* Name + regen */}

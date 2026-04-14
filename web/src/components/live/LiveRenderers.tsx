@@ -694,7 +694,9 @@ export function AgentDrillDown({
         )}
         <StateDot state={activity.state} />
         <span className="text-lg font-bold text-bc-text">{activity.name}</span>
-        <span className="text-xs text-bc-muted font-mono">({activity.role})</span>
+        {activity.role && activity.role !== "base" && (
+          <span className="text-xs text-bc-muted font-mono">({activity.role})</span>
+        )}
         <span className="text-xs text-bc-muted capitalize font-mono">{activity.state}</span>
         {activity.tokens > 0 && (
           <span className="text-xs text-bc-muted font-mono tabular-nums">
@@ -898,7 +900,9 @@ export const AgentCard = memo(function AgentCard({
               )}
             </span>
             <span className="flex items-center gap-2 mt-0.5">
-              <span className="text-[11px] text-bc-muted font-mono">{activity.role}</span>
+              {activity.role && activity.role !== "base" && (
+                <span className="text-[11px] text-bc-muted font-mono">{activity.role}</span>
+              )}
               <span className={`text-[10px] font-mono capitalize px-1.5 py-0.5 rounded-full leading-none ${stateBadgeClass(activity.state)}`}>
                 {activity.state}
               </span>
