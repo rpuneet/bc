@@ -645,7 +645,7 @@ export function Agents() {
                 <th className="px-4 py-2 font-medium text-bc-muted">Task</th>
                 <th
                   className="px-4 py-2 font-medium text-bc-muted hidden md:table-cell"
-                  title="MCP servers configured for this agent"
+                  title="MCP server configuration"
                 >
                   MCP
                 </th>

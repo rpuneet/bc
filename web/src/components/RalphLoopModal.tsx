@@ -16,7 +16,19 @@ interface LoopConfig {
 async function getLoopConfig(agentName: string): Promise<LoopConfig> {
   try {
     const r = await fetch(`/api/agents/${encodeURIComponent(agentName)}/loop`);
-    if (r.ok) return (await r.json()) as LoopConfig;
+    if (r.ok) {
+      const data: unknown = await r.json();
+      if (
+        data !== null &&
+        typeof data === "object" &&
+        "enabled" in data &&
+        "prompt" in data &&
+        typeof (data as Record<string, unknown>).enabled === "boolean" &&
+        typeof (data as Record<string, unknown>).prompt === "string"
+      ) {
+        return data as LoopConfig;
+      }
+    }
   } catch {
     /* ignore */
   }

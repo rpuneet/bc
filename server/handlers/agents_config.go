@@ -96,7 +96,21 @@ func (h *AgentHandler) patchAgentConfig(w http.ResponseWriter, r *http.Request, 
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]string{"status": "updated"})
+	// Return the updated config as the response body.
+	dto := agentConfigDTO{
+		WorktreePath:   wtDir,
+		RuntimeBackend: a.RuntimeBackend,
+		Tool:           a.Tool,
+		Session:        a.Session,
+		SystemPrompt:   req.SystemPrompt,
+		MCPServers:     []string{},
+	}
+	if h.ws != nil && h.ws.RoleManager != nil && string(a.Role) != "" {
+		if resolved, resolveErr := h.ws.RoleManager.ResolveRole(string(a.Role)); resolveErr == nil && len(resolved.MCPServers) > 0 {
+			dto.MCPServers = resolved.MCPServers
+		}
+	}
+	writeJSON(w, http.StatusOK, dto)
 }
 
 // forkAgent handles POST /api/agents/{source}/fork.

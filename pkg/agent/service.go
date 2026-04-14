@@ -521,7 +521,7 @@ func (s *AgentService) ForkAgent(ctx context.Context, sourceName, newName string
 		if data, readErr := os.ReadFile(srcClaude); readErr == nil { //nolint:gosec // trusted path
 			dstClaude := filepath.Join(wtDir, "CLAUDE.md")
 			if writeErr := os.WriteFile(dstClaude, data, 0600); writeErr != nil {
-				log.Warn("fork: failed to copy CLAUDE.md", "agent", newName, "error", writeErr)
+				return nil, fmt.Errorf("fork: copy CLAUDE.md: %w", writeErr)
 			}
 		}
 
@@ -530,7 +530,7 @@ func (s *AgentService) ForkAgent(ctx context.Context, sourceName, newName string
 		if data, readErr := os.ReadFile(srcMCP); readErr == nil { //nolint:gosec // trusted path
 			dstMCP := filepath.Join(wtDir, ".mcp.json")
 			if writeErr := os.WriteFile(dstMCP, data, 0600); writeErr != nil {
-				log.Warn("fork: failed to copy .mcp.json", "agent", newName, "error", writeErr)
+				return nil, fmt.Errorf("fork: copy .mcp.json: %w", writeErr)
 			}
 		}
 	}
@@ -546,6 +546,7 @@ func (s *AgentService) ForkAgent(ctx context.Context, sourceName, newName string
 		Tool:           src.Tool,
 		RuntimeBackend: src.RuntimeBackend,
 		WorktreeDir:    wtDir,
+		ParentID:       "", // forked agents are independent — no parent
 		Children:       []string{},
 		CreatedAt:      now,
 		UpdatedAt:      now,

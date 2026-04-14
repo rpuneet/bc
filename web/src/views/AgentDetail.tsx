@@ -220,6 +220,7 @@ function ConfigTab({ agent }: { agent: Agent }) {
   const [configLoading, setConfigLoading] = useState(true);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   // MCP server management state
   const [mcpList, setMcpList] = useState<string[] | null>(null);
@@ -426,6 +427,11 @@ function ConfigTab({ agent }: { agent: Agent }) {
         <section>
           <SectionRule>Danger Zone</SectionRule>
           <div className="rounded-md border border-bc-error/20 bg-bc-error/[0.02] px-4 py-3">
+            {deleteError && (
+              <p className="mb-2 text-[11px] text-bc-error" style={{ fontFamily: MONO }}>
+                {deleteError}
+              </p>
+            )}
             <div className="flex flex-wrap gap-2 items-center">
               {/* Delete — with confirmation */}
               {confirmDelete ? (
@@ -441,14 +447,16 @@ function ConfigTab({ agent }: { agent: Agent }) {
                     disabled={deleting}
                     onClick={() => {
                       setDeleting(true);
+                      setDeleteError(null);
                       api
                         .deleteAgent(agent.name)
                         .then(() => {
                           navigate("/agents");
                         })
-                        .catch(() => {
+                        .catch((err: unknown) => {
                           setDeleting(false);
                           setConfirmDelete(false);
+                          setDeleteError(err instanceof Error ? err.message : "Failed to delete agent");
                         });
                     }}
                     className="px-3 py-1.5 rounded-md text-[11px] font-medium border border-bc-error/50 bg-bc-error/10 text-bc-error hover:bg-bc-error/20 transition-colors disabled:opacity-40"

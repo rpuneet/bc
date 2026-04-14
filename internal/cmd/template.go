@@ -98,8 +98,11 @@ func runTemplateList(_ *cobra.Command, _ []string) error {
 		}
 	}
 
-	fmt.Printf("%-*s  %-*s  %s\n", maxNameLen, "NAME", maxDescLen, "DESCRIPTION", "MCPS")
-	fmt.Println(strings.Repeat("-", maxNameLen+maxDescLen+20))
+	const mcpsHeader = "MCPS"
+	const colGap = 2 // spaces between columns
+	separatorWidth := maxNameLen + colGap + maxDescLen + colGap + len(mcpsHeader)
+	fmt.Printf("%-*s  %-*s  %s\n", maxNameLen, "NAME", maxDescLen, "DESCRIPTION", mcpsHeader)
+	fmt.Println(strings.Repeat("-", separatorWidth))
 
 	for _, t := range templates {
 		mcps := strings.Join(t.MCPs, ", ")

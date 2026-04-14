@@ -59,7 +59,10 @@
   filter: grayscale(1);
 }
 
-/* ── Hook event one-shots (applied via JS, removed after animationend) ── */
+/* ── Hook event one-shots (applied via JS, removed after animationend) ──
+ * These classes are intentionally not applied statically. They will be added
+ * programmatically by the AgentIcon component when hook events arrive via SSE,
+ * and removed again on `animationend`. Kept here for future implementation. */
 
 @keyframes agent-tool-spin {
   from { transform: rotate(0deg); }
