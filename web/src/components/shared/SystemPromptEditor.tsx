@@ -142,7 +142,7 @@ export function SystemPromptEditor({
         <textarea
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
-          className="w-full min-h-[300px] rounded-md border border-bc-accent/50 bg-bc-bg/80 p-4 text-xs text-bc-text/90 leading-relaxed resize-y outline-none focus:border-bc-accent/60 transition-colors"
+          className="w-full min-h-[180px] max-h-[250px] rounded-md border border-bc-accent/50 bg-bc-bg/80 p-4 text-xs text-bc-text/90 leading-relaxed resize-y outline-none focus:border-bc-accent/60 transition-colors"
           style={{ fontFamily: MONO }}
           spellCheck={false}
         />
@@ -150,7 +150,7 @@ export function SystemPromptEditor({
         <textarea
           value={value}
           readOnly
-          className="w-full min-h-[300px] rounded-md border border-bc-border/40 bg-bc-bg p-4 text-xs text-bc-text/70 leading-relaxed resize-y outline-none cursor-default"
+          className="w-full min-h-[180px] max-h-[250px] rounded-md border border-bc-border/40 bg-bc-bg p-4 text-xs text-bc-text/70 leading-relaxed resize-y outline-none cursor-default"
           style={{ fontFamily: MONO }}
         />
       )}

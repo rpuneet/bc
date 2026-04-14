@@ -32,6 +32,13 @@ const fmtMB = (b: number) => {
   if (!b || !isFinite(b)) return "0.0";
   return (b / 1024 / 1024).toFixed(1);
 };
+const fmtDiskBytes = (b: number): string => {
+  if (!b || !isFinite(b) || b === 0) return "0 B";
+  if (b >= 1024 * 1024 * 1024) return `${(b / 1024 / 1024 / 1024).toFixed(2)} GB`;
+  if (b >= 1024 * 1024) return `${(b / 1024 / 1024).toFixed(1)} MB`;
+  if (b >= 1024) return `${(b / 1024).toFixed(1)} KB`;
+  return `${b} B`;
+};
 const trunc = (s: string, n: number) => s.length > n ? s.slice(0, n) + "\u2026" : s;
 const fromParam = (seconds: number) => new Date(Date.now() - seconds * 1000).toISOString();
 
@@ -94,14 +101,21 @@ export function StatsTab({ agent }: { agent: Agent }) {
   const memAvgMB = s ? parseFloat(fmtMB(s.memory?.avg_bytes ?? 0)) || 0 : 0;
   const memMaxMB = s ? parseFloat(fmtMB(s.memory?.max_bytes ?? 0)) || 0 : 0;
 
-  // Token totals: prefer TimescaleDB summary; fall back to agent record fields.
-  const totalIn = s?.tokens?.input ?? (agent.total_tokens ? Math.floor(agent.total_tokens * 0.8) : 0);
-  const totalOut = s?.tokens?.output ?? (agent.total_tokens ? Math.floor(agent.total_tokens * 0.2) : 0);
-  // Cost: prefer TimescaleDB summary; fall back to agent.cost_usd.
+  // Token totals: prefer TimescaleDB summary; fall back to cost-store computed stats; then agent record fields.
+  const computedInputTokens = data?.computed?.input_tokens ?? 0;
+  const computedOutputTokens = data?.computed?.output_tokens ?? 0;
+  const totalIn = s?.tokens?.input
+    ?? (computedInputTokens > 0 ? computedInputTokens : (agent.total_tokens ? Math.floor(agent.total_tokens * 0.8) : 0));
+  const totalOut = s?.tokens?.output
+    ?? (computedOutputTokens > 0 ? computedOutputTokens : (agent.total_tokens ? Math.floor(agent.total_tokens * 0.2) : 0));
+  // Cost: prefer TimescaleDB summary; fall back to cost-store computed stats; then agent.cost_usd.
   const summaryTotalUSD = s?.cost?.total_usd ?? 0;
+  const computedCostUSD = data?.computed?.cost_usd ?? 0;
   const totalCost = (s != null && isFinite(summaryTotalUSD) && summaryTotalUSD > 0)
     ? summaryTotalUSD
-    : isFinite(agent.cost_usd ?? 0) ? (agent.cost_usd ?? 0) : 0;
+    : (isFinite(computedCostUSD) && computedCostUSD > 0)
+      ? computedCostUSD
+      : isFinite(agent.cost_usd ?? 0) ? (agent.cost_usd ?? 0) : 0;
 
   // ── Derived chart data ───────────────────────────────────────────────────────
 
@@ -238,6 +252,40 @@ export function StatsTab({ agent }: { agent: Agent }) {
             <StatCard label="Total Events" value={String(computed?.total_events ?? 0)} />
             <StatCard label="Session Duration" value={fmtDuration(computed?.session_duration_sec ?? 0)} />
             <StatCard label="Last Active" value={fmtRelative(computed?.last_active ?? "")} />
+            {(computed?.input_tokens ?? 0) > 0 && (
+              <StatCard
+                label="Tokens"
+                value={fmtTokens((computed?.input_tokens ?? 0) + (computed?.output_tokens ?? 0))}
+                sub={`In: ${fmtTokens(computed?.input_tokens ?? 0)} / Out: ${fmtTokens(computed?.output_tokens ?? 0)}`}
+              />
+            )}
+            {(computed?.cost_usd ?? 0) > 0 && (
+              <StatCard label="Cost" value={`$${(computed?.cost_usd ?? 0).toFixed(4)}`} accent />
+            )}
+          </div>
+
+          {/* Disk Usage and Channel Activity */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <StatCard
+              label="Disk Usage"
+              value={fmtDiskBytes(computed?.disk_bytes ?? 0)}
+              sub="worktree size"
+            />
+            <StatCard
+              label="Channel Sent"
+              value={String(computed?.channel_sent ?? 0)}
+              sub="messages sent"
+            />
+            <StatCard
+              label="Channel Received"
+              value={String(computed?.channel_received ?? 0)}
+              sub="messages received"
+            />
+            <StatCard
+              label="Network I/O"
+              value="—"
+              sub={computed?.network_note ?? "container runtime only"}
+            />
           </div>
 
           {/* Tool breakdown */}
@@ -250,7 +298,7 @@ export function StatsTab({ agent }: { agent: Agent }) {
                   const pct = Math.round((count / maxCount) * 100);
                   return (
                     <div key={toolName} className="flex items-center gap-2">
-                      <span className="w-20 text-[11px] text-bc-text truncate shrink-0">{toolName}</span>
+                      <span className="w-28 text-[11px] text-bc-text truncate shrink-0 overflow-hidden text-ellipsis" title={toolName}>{toolName}</span>
                       <div className="flex-1 h-1.5 rounded bg-bc-border/40 overflow-hidden">
                         <div
                           className="h-full rounded"

@@ -44,6 +44,7 @@ interface ExistingAgent {
   name: string;
   tool?: string;
   runtime_backend?: string;
+  state?: string;
 }
 
 interface CreateAgentModalProps {
@@ -293,7 +294,7 @@ export function CreateAgentModal({
                 <option value="">— none —</option>
                 {existingAgents.map((a) => (
                   <option key={a.name} value={a.name}>
-                    {a.name}
+                    {a.name}{a.state ? ` · ${a.state}` : ""}
                   </option>
                 ))}
               </select>

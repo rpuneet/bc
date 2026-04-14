@@ -678,9 +678,9 @@ export function AgentDrillDown({
 
   return (
     <div className="flex flex-col h-full">
-      {/* Header bar */}
-      <div className="flex items-center gap-3 mb-4 flex-wrap">
-        {onBack && (
+      {/* Header bar — only shown when onBack is provided (live page drill-down) */}
+      {onBack && (
+        <div className="flex items-center gap-3 mb-4 flex-wrap">
           <button
             type="button"
             onClick={onBack}
@@ -691,27 +691,27 @@ export function AgentDrillDown({
             </svg>
             Back
           </button>
-        )}
-        <StateDot state={activity.state} />
-        <span className="text-lg font-bold text-bc-text">{activity.name}</span>
-        {activity.role && activity.role !== "base" && (
-          <span className="text-xs text-bc-muted font-mono">({activity.role})</span>
-        )}
-        <span className="text-xs text-bc-muted capitalize font-mono">{activity.state}</span>
-        {activity.tokens > 0 && (
-          <span className="text-xs text-bc-muted font-mono tabular-nums">
-            {activity.tokens.toLocaleString()} tok
-          </span>
-        )}
-        {cost > 0 && (
-          <span className="text-xs text-bc-success font-mono tabular-nums">
-            ${cost.toFixed(2)}
-          </span>
-        )}
-        {activity.task && (
-          <span className="text-xs text-bc-muted truncate max-w-[400px]">{activity.task}</span>
-        )}
-      </div>
+          <StateDot state={activity.state} />
+          <span className="text-lg font-bold text-bc-text">{activity.name}</span>
+          {activity.role && activity.role !== "base" && (
+            <span className="text-xs text-bc-muted font-mono">({activity.role})</span>
+          )}
+          <span className="text-xs text-bc-muted capitalize font-mono">{activity.state}</span>
+          {activity.tokens > 0 && (
+            <span className="text-xs text-bc-muted font-mono tabular-nums">
+              {activity.tokens.toLocaleString()} tok
+            </span>
+          )}
+          {cost > 0 && (
+            <span className="text-xs text-bc-success font-mono tabular-nums">
+              ${cost.toFixed(2)}
+            </span>
+          )}
+          {activity.task && (
+            <span className="text-xs text-bc-muted truncate max-w-[400px]">{activity.task}</span>
+          )}
+        </div>
+      )}
 
       {/* Tasks section — above tabs */}
       <DrillDownTasksSection tasks={tasks} agentName={activity.name} />

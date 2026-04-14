@@ -294,6 +294,10 @@ export function Agents() {
 
   // Compute filter options from agent list
   const allAgents = useMemo(() => agents ?? [], [agents]);
+  const runningCount = useMemo(
+    () => allAgents.filter((a) => a.state !== "stopped" && a.state !== "error").length,
+    [allAgents],
+  );
   const { availableStates, availableTools } = useMemo(() => {
     const s = new Set<string>();
     const t = new Set<string>();
@@ -521,7 +525,7 @@ export function Agents() {
           <span className="text-sm text-bc-muted">
             {hasFilters
               ? `${String(filteredAgents.length)} of ${String(allAgents.length)} agents`
-              : `${String(allAgents.length)} agents`}
+              : `${String(runningCount)}/${String(allAgents.length)} running`}
           </span>
           <button
             onClick={() => setCreateOpen(true)}
@@ -687,7 +691,7 @@ export function Agents() {
                     </td>
                     <td className="px-4 py-2">
                       <span className="inline-flex items-center gap-2">
-                        <AgentIcon state={a.state} size={24} tool={a.tool} />
+                        <AgentIcon state={a.state} size={28} tool={a.tool} />
                         <InlineAgentName agent={a} onRenamed={refresh} />
                       </span>
                     </td>

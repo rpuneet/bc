@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -670,6 +671,12 @@ func (h *AgentHandler) byName(w http.ResponseWriter, r *http.Request) {
 	case r.Method == http.MethodGet && action == "stats-computed":
 		h.agentComputedStats(w, r, name)
 
+	case r.Method == http.MethodGet && action == "env":
+		h.getAgentEnv(w, name)
+
+	case r.Method == http.MethodPut && action == "env":
+		h.putAgentEnv(w, r, name)
+
 	default:
 		httpError(w, "not found", http.StatusNotFound)
 	}
@@ -1138,7 +1145,7 @@ func (h *AgentHandler) agentMCPs(w http.ResponseWriter, r *http.Request, agentNa
 		h.listAgentMCPs(w, r, a, wtDir)
 
 	case r.Method == http.MethodPost && mcpName == "":
-		h.addAgentMCP(w, r, wtDir)
+		h.addAgentMCP(w, r, a, wtDir)
 
 	case r.Method == http.MethodDelete && mcpName != "":
 		h.deleteAgentMCP(w, r, wtDir, mcpName)
@@ -1224,7 +1231,7 @@ func (h *AgentHandler) listAgentMCPs(w http.ResponseWriter, _ *http.Request, a *
 }
 
 // addAgentMCP handles POST /api/agents/{name}/mcps.
-func (h *AgentHandler) addAgentMCP(w http.ResponseWriter, r *http.Request, wtDir string) {
+func (h *AgentHandler) addAgentMCP(w http.ResponseWriter, r *http.Request, a *agent.Agent, wtDir string) {
 	if wtDir == "" {
 		httpError(w, "worktree path not available for this agent", http.StatusUnprocessableEntity)
 		return
@@ -1264,6 +1271,22 @@ func (h *AgentHandler) addAgentMCP(w http.ResponseWriter, r *http.Request, wtDir
 		return
 	}
 
+	// For tmux agents running claude, also run the provider's MCP add command
+	// so it registers in the claude CLI config (not just .mcp.json).
+	if a != nil && a.RuntimeBackend != "docker" && strings.EqualFold(a.Tool, "claude") {
+		mcpName := req.Name
+		worktreeDir := wtDir
+		go func() {
+			cmd := exec.CommandContext(context.Background(), "claude", "mcp", "add", mcpName) //nolint:gosec // mcpName validated above
+			cmd.Dir = worktreeDir
+			if out, cmdErr := cmd.CombinedOutput(); cmdErr != nil {
+				log.Warn("mcp add command failed", "agent", a.Name, "mcp", mcpName, "error", cmdErr, "output", string(out))
+			} else {
+				log.Info("mcp add command succeeded", "agent", a.Name, "mcp", mcpName)
+			}
+		}()
+	}
+
 	writeJSON(w, http.StatusCreated, mcpServerDTO{
 		Name:    req.Name,
 		URL:     req.URL,
@@ -1299,6 +1322,84 @@ func (h *AgentHandler) deleteAgentMCP(w http.ResponseWriter, _ *http.Request, wt
 	}
 
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// ── Env var persistence ───────────────────────────────────────────────────────
+
+// envVarEntry is a single key/value environment variable entry.
+type envVarEntry struct {
+	Key   string `json:"key"`
+	Value string `json:"value"`
+}
+
+// envPath returns the path to env.json for the named agent.
+func (h *AgentHandler) envPath(agentName string) string {
+	if h.ws == nil {
+		return ""
+	}
+	return filepath.Join(h.ws.StateDir(), "agents", agentName, "env.json")
+}
+
+// getAgentEnv handles GET /api/agents/{name}/env.
+func (h *AgentHandler) getAgentEnv(w http.ResponseWriter, agentName string) {
+	p := h.envPath(agentName)
+	if p == "" {
+		writeJSON(w, http.StatusOK, []envVarEntry{})
+		return
+	}
+	data, err := os.ReadFile(p) //nolint:gosec // p is constructed from trusted workspace StateDir + agent name
+	if err != nil {
+		if os.IsNotExist(err) {
+			writeJSON(w, http.StatusOK, []envVarEntry{})
+			return
+		}
+		httpInternalError(w, "read env config", err)
+		return
+	}
+	var vars []envVarEntry
+	if jsonErr := json.Unmarshal(data, &vars); jsonErr != nil {
+		writeJSON(w, http.StatusOK, []envVarEntry{})
+		return
+	}
+	if vars == nil {
+		vars = []envVarEntry{}
+	}
+	writeJSON(w, http.StatusOK, vars)
+}
+
+// putAgentEnv handles PUT /api/agents/{name}/env.
+func (h *AgentHandler) putAgentEnv(w http.ResponseWriter, r *http.Request, agentName string) {
+	var vars []envVarEntry
+	if err := json.NewDecoder(r.Body).Decode(&vars); err != nil {
+		httpError(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+	if vars == nil {
+		vars = []envVarEntry{}
+	}
+
+	p := h.envPath(agentName)
+	if p == "" {
+		httpError(w, "workspace not available", http.StatusInternalServerError)
+		return
+	}
+
+	if err := os.MkdirAll(filepath.Dir(p), 0o750); err != nil { //nolint:gosec // trusted workspace path
+		httpInternalError(w, "create env dir", err)
+		return
+	}
+
+	data, err := json.MarshalIndent(vars, "", "  ")
+	if err != nil {
+		httpInternalError(w, "marshal env config", err)
+		return
+	}
+	if writeErr := os.WriteFile(p, data, 0o600); writeErr != nil { //nolint:gosec // trusted workspace path
+		httpInternalError(w, "write env config", writeErr)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, vars)
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

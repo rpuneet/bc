@@ -418,14 +418,21 @@ export interface ChannelStats {
 
 
 // ComputedStats — computed from hook events in SQLite, no TimescaleDB required.
+// Token and cost fields are populated from the cost store when available.
 export interface ComputedStats {
   total_events: number;
   tool_calls: number;
   tool_breakdown: Record<string, number>;
   session_duration_sec: number;
   last_active: string;
+  input_tokens: number;
+  output_tokens: number;
   tokens: number;
   cost_usd: number;
+  disk_bytes: number;
+  channel_sent: number;
+  channel_received: number;
+  network_note?: string;
 }
 
 // TimescaleDB timeseries types
@@ -616,6 +623,10 @@ export const api = {
     request<{ enabled: boolean; prompt: string }>(`/agents/${encodeURIComponent(name)}/loop`),
   putAgentLoop: (name: string, config: { enabled: boolean; prompt: string }) =>
     request<{ enabled: boolean; prompt: string }>(`/agents/${encodeURIComponent(name)}/loop`, { method: "PUT", body: JSON.stringify(config) }),
+  getAgentEnv: (name: string) =>
+    request<Array<{ key: string; value: string }>>(`/agents/${encodeURIComponent(name)}/env`),
+  putAgentEnv: (name: string, vars: Array<{ key: string; value: string }>) =>
+    request<Array<{ key: string; value: string }>>(`/agents/${encodeURIComponent(name)}/env`, { method: "PUT", body: JSON.stringify(vars) }),
 
   sendToAgent: (name: string, message: string) =>
     request<void>(`/agents/${encodeURIComponent(name)}/send`, {

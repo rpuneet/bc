@@ -227,10 +227,12 @@ function ConfigTab({ agent }: { agent: Agent }) {
   const [mcpList, setMcpList] = useState<string[] | null>(null);
   const [mcpLoading, setMcpLoading] = useState(true);
 
-  // Env vars state (local only — applied on agent restart)
+  // Env vars state — persisted via API to .bc/agents/<name>/env.json
   const [envVars, setEnvVars] = useState<Array<{ key: string; value: string }>>([]);
   const [newKey, setNewKey] = useState("");
   const [newValue, setNewValue] = useState("");
+  const [envSaved, setEnvSaved] = useState(false);
+  const envSavedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const fetchMcps = useCallback(() => {
     setMcpLoading(true);
@@ -271,6 +273,36 @@ function ConfigTab({ agent }: { agent: Agent }) {
   useEffect(() => {
     fetchMcps();
   }, [fetchMcps]);
+
+  // Load persisted env vars from API on mount.
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .getAgentEnv(agent.name)
+      .then((data) => {
+        if (!cancelled) setEnvVars(data);
+      })
+      .catch(() => {
+        /* best-effort — fall back to empty */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [agent.name]);
+
+  // Persist env vars to API and show "Saved" indicator.
+  const saveEnvVars = useCallback((vars: Array<{ key: string; value: string }>) => {
+    api
+      .putAgentEnv(agent.name, vars)
+      .then(() => {
+        setEnvSaved(true);
+        if (envSavedTimer.current) clearTimeout(envSavedTimer.current);
+        envSavedTimer.current = setTimeout(() => setEnvSaved(false), 2000);
+      })
+      .catch(() => {
+        /* best-effort */
+      });
+  }, [agent.name]);
 
   // If live fetch succeeded use that list; otherwise fall back to static record
   const mcpServers: string[] =
@@ -394,7 +426,21 @@ function ConfigTab({ agent }: { agent: Agent }) {
 
         {/* ── ENVIRONMENT ── */}
         <section>
-          <SectionRule>Environment</SectionRule>
+          <div className="flex items-center justify-between mb-1">
+            <SectionRule>Environment</SectionRule>
+            {envSaved && (
+              <span className="text-[10px] text-green-500/70 transition-opacity" style={{ fontFamily: MONO }}>
+                Saved
+              </span>
+            )}
+          </div>
+
+          {/* Placeholder hint when no env vars are set */}
+          {envVars.length === 0 && (
+            <p className="mb-3 text-[10px] text-bc-muted/40 italic" style={{ fontFamily: MONO }}>
+              Common: ANTHROPIC_API_KEY, GITHUB_TOKEN, AWS_ACCESS_KEY_ID
+            </p>
+          )}
 
           {/* Existing env var rows */}
           {envVars.length > 0 && (
@@ -420,7 +466,9 @@ function ConfigTab({ agent }: { agent: Agent }) {
                   <button
                     type="button"
                     onClick={() => {
-                      setEnvVars((prev) => prev.filter((_, idx) => idx !== i));
+                      const next = envVars.filter((_, idx) => idx !== i);
+                      setEnvVars(next);
+                      saveEnvVars(next);
                     }}
                     className="shrink-0 text-[11px] text-bc-muted/30 hover:text-bc-error transition-colors opacity-0 group-hover:opacity-100"
                     aria-label={`Remove ${ev.key}`}
@@ -441,7 +489,9 @@ function ConfigTab({ agent }: { agent: Agent }) {
               onChange={(e) => setNewKey(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === "Enter" && newKey.trim()) {
-                  setEnvVars((prev) => [...prev, { key: newKey.trim(), value: newValue }]);
+                  const next = [...envVars, { key: newKey.trim(), value: newValue }];
+                  setEnvVars(next);
+                  saveEnvVars(next);
                   setNewKey("");
                   setNewValue("");
                 }
@@ -457,7 +507,9 @@ function ConfigTab({ agent }: { agent: Agent }) {
               onChange={(e) => setNewValue(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === "Enter" && newKey.trim()) {
-                  setEnvVars((prev) => [...prev, { key: newKey.trim(), value: newValue }]);
+                  const next = [...envVars, { key: newKey.trim(), value: newValue }];
+                  setEnvVars(next);
+                  saveEnvVars(next);
                   setNewKey("");
                   setNewValue("");
                 }
@@ -471,7 +523,9 @@ function ConfigTab({ agent }: { agent: Agent }) {
               disabled={!newKey.trim()}
               onClick={() => {
                 if (!newKey.trim()) return;
-                setEnvVars((prev) => [...prev, { key: newKey.trim(), value: newValue }]);
+                const next = [...envVars, { key: newKey.trim(), value: newValue }];
+                setEnvVars(next);
+                saveEnvVars(next);
                 setNewKey("");
                 setNewValue("");
               }}

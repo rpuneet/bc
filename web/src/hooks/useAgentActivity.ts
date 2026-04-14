@@ -86,7 +86,18 @@ export function useAgentActivity(agentName?: string): {
             if (existing && existing.nodes.length === 0 && items.length > 0) {
               const nodes: ToolNode[] = items.map((item) => ({
                 id: nextId(),
-                toolName: item.event || "unknown",
+                toolName: (() => {
+                  // Prefer the actual tool name embedded in the message (e.g. "Bash: sleep 120")
+                  // over the generic hook event type ("PreToolUse", "PostToolUse").
+                  if (item.message) {
+                    const colonIdx = item.message.indexOf(":");
+                    if (colonIdx > 0) return item.message.slice(0, colonIdx).trim();
+                    const spaceIdx = item.message.indexOf(" ");
+                    if (spaceIdx > 0) return item.message.slice(0, spaceIdx).trim();
+                    return item.message;
+                  }
+                  return item.event || "unknown";
+                })(),
                 args: item.message || "",
                 fullInput: null,
                 fullOutput: null,
