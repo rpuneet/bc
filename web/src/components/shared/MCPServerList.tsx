@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { MONO } from "../../utils/typography";
 
 interface MCPServerListProps {
@@ -8,6 +8,27 @@ interface MCPServerListProps {
   onRemove?: (name: string) => Promise<void>;
   className?: string;
 }
+
+const KNOWN_MCPS = [
+  { name: "bc", description: "bc workspace tools (send_message, report_status, query_costs)" },
+  { name: "github", description: "GitHub API (create_pr, list_issues, authenticate)" },
+  { name: "slack", description: "Slack messaging" },
+  { name: "linear", description: "Linear issue tracker" },
+  { name: "notion", description: "Notion pages and databases" },
+  { name: "postgres", description: "PostgreSQL database queries" },
+  { name: "sqlite", description: "SQLite database queries" },
+  { name: "filesystem", description: "File system operations" },
+  { name: "fetch", description: "HTTP fetch/API calls" },
+  { name: "puppeteer", description: "Browser automation" },
+  { name: "playwright", description: "Browser testing" },
+  { name: "docker", description: "Docker container management" },
+  { name: "kubernetes", description: "Kubernetes cluster operations" },
+  { name: "aws", description: "AWS CLI operations" },
+  { name: "gcp", description: "Google Cloud operations" },
+  { name: "stripe", description: "Stripe payment API" },
+  { name: "sentry", description: "Sentry error tracking" },
+  { name: "datadog", description: "Datadog monitoring" },
+];
 
 export function MCPServerList({
   servers,
@@ -19,12 +40,42 @@ export function MCPServerList({
   const [input, setInput] = useState("");
   const [adding, setAdding] = useState(false);
   const [removing, setRemoving] = useState<string | null>(null);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const handleAdd = () => {
-    const name = input.trim();
-    if (!name || !onAdd) return;
+  // Normalise server names for comparison (strip mcp__ prefix)
+  const normalised = servers.map((s) => s.replace(/^mcp__/, ""));
+
+  const suggestions = KNOWN_MCPS.filter((m) => {
+    if (normalised.includes(m.name)) return false;
+    if (!input.trim()) return true;
+    const q = input.toLowerCase();
+    return m.name.includes(q) || m.description.toLowerCase().includes(q);
+  });
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(e.target as Node) &&
+        inputRef.current &&
+        !inputRef.current.contains(e.target as Node)
+      ) {
+        setShowDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const doAdd = (name: string) => {
+    const trimmed = name.trim();
+    if (!trimmed || !onAdd) return;
     setAdding(true);
-    onAdd(name)
+    setShowDropdown(false);
+    onAdd(trimmed)
       .then(() => {
         setInput("");
       })
@@ -92,28 +143,79 @@ export function MCPServerList({
         </p>
       )}
       {onAdd && (
-        <div className="mt-3 flex items-center gap-2">
-          <input
-            type="text"
-            value={input}
-            onChange={(e) => { setInput(e.target.value); }}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") handleAdd();
-            }}
-            placeholder="mcp-server-name"
-            disabled={adding}
-            className="flex-1 max-w-[240px] rounded border border-bc-border/40 bg-bc-bg px-2.5 py-1 text-[11px] text-bc-text/90 placeholder:text-bc-muted/40 outline-none focus:border-bc-accent/50 transition-colors disabled:opacity-40"
-            style={{ fontFamily: MONO }}
-          />
-          <button
-            type="button"
-            onClick={handleAdd}
-            disabled={adding || !input.trim()}
-            className="px-2.5 py-1 rounded border border-bc-accent/30 bg-bc-accent/10 text-[11px] text-bc-accent hover:bg-bc-accent/20 transition-colors disabled:opacity-40"
-            style={{ fontFamily: MONO }}
-          >
-            {adding ? "Adding…" : "+ Add MCP"}
-          </button>
+        <div className="mt-3 relative">
+          <div className="flex items-center gap-2">
+            <input
+              ref={inputRef}
+              type="text"
+              value={input}
+              onChange={(e) => {
+                setInput(e.target.value);
+                setShowDropdown(true);
+              }}
+              onFocus={() => setShowDropdown(true)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") doAdd(input);
+                if (e.key === "Escape") setShowDropdown(false);
+              }}
+              placeholder="Search or type a server name…"
+              disabled={adding}
+              className="flex-1 max-w-[300px] rounded border border-bc-border/40 bg-bc-bg px-2.5 py-1 text-[11px] text-bc-text/90 placeholder:text-bc-muted/40 outline-none focus:border-bc-accent/50 transition-colors disabled:opacity-40"
+              style={{ fontFamily: MONO }}
+            />
+            <button
+              type="button"
+              onClick={() => doAdd(input)}
+              disabled={adding || !input.trim()}
+              className="px-2.5 py-1 rounded border border-bc-accent/30 bg-bc-accent/10 text-[11px] text-bc-accent hover:bg-bc-accent/20 transition-colors disabled:opacity-40"
+              style={{ fontFamily: MONO }}
+            >
+              {adding ? "Adding…" : "+ Add MCP"}
+            </button>
+          </div>
+
+          {/* Suggestions dropdown */}
+          {showDropdown && suggestions.length > 0 && (
+            <div
+              ref={dropdownRef}
+              className="absolute z-20 top-full mt-1 w-full max-w-[420px] rounded-md border border-bc-border/40 bg-bc-surface shadow-lg overflow-hidden"
+            >
+              {suggestions.map((m) => (
+                <button
+                  key={m.name}
+                  type="button"
+                  onMouseDown={(e) => {
+                    // prevent input blur before click registers
+                    e.preventDefault();
+                    doAdd(m.name);
+                  }}
+                  className="w-full flex items-start gap-3 px-3 py-2 hover:bg-bc-accent/10 transition-colors text-left group"
+                >
+                  <span
+                    className="shrink-0 mt-0.5 w-1.5 h-1.5 rounded-full bg-bc-accent/40 group-hover:bg-bc-accent/80 transition-colors"
+                  />
+                  <div className="min-w-0">
+                    <span
+                      className="block text-[11px] font-semibold text-bc-text/90 group-hover:text-bc-accent transition-colors"
+                      style={{ fontFamily: MONO }}
+                    >
+                      {m.name}
+                    </span>
+                    <span
+                      className="block text-[10px] text-bc-muted/60 truncate"
+                      style={{ fontFamily: MONO }}
+                    >
+                      {m.description}
+                    </span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+
+          <p className="mt-1.5 text-[10px] text-bc-muted/40" style={{ fontFamily: MONO }}>
+            Select from the list or press Enter to add a custom server name.
+          </p>
         </div>
       )}
     </div>

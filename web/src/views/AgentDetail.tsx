@@ -227,6 +227,11 @@ function ConfigTab({ agent }: { agent: Agent }) {
   const [mcpList, setMcpList] = useState<string[] | null>(null);
   const [mcpLoading, setMcpLoading] = useState(true);
 
+  // Env vars state (local only — applied on agent restart)
+  const [envVars, setEnvVars] = useState<Array<{ key: string; value: string }>>([]);
+  const [newKey, setNewKey] = useState("");
+  const [newValue, setNewValue] = useState("");
+
   const fetchMcps = useCallback(() => {
     setMcpLoading(true);
     api
@@ -390,10 +395,97 @@ function ConfigTab({ agent }: { agent: Agent }) {
         {/* ── ENVIRONMENT ── */}
         <section>
           <SectionRule>Environment</SectionRule>
-          <p className="text-[11px] text-bc-muted/50 leading-relaxed" style={{ fontFamily: MONO }}>
+
+          {/* Existing env var rows */}
+          {envVars.length > 0 && (
+            <div className="mb-3 rounded-md border border-bc-border/30 overflow-hidden divide-y divide-bc-border/20">
+              {envVars.map((ev, i) => (
+                <div
+                  key={i}
+                  className="flex items-center gap-2 px-3 py-2 bg-bc-surface/20 group"
+                >
+                  <span
+                    className="flex-1 min-w-0 text-[11px] font-semibold text-bc-text/80 truncate"
+                    style={{ fontFamily: MONO }}
+                  >
+                    {ev.key}
+                  </span>
+                  <span className="text-bc-muted/30 text-[11px]">=</span>
+                  <span
+                    className="flex-1 min-w-0 text-[11px] text-bc-muted/70 truncate"
+                    style={{ fontFamily: MONO }}
+                  >
+                    {ev.value}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEnvVars((prev) => prev.filter((_, idx) => idx !== i));
+                    }}
+                    className="shrink-0 text-[11px] text-bc-muted/30 hover:text-bc-error transition-colors opacity-0 group-hover:opacity-100"
+                    aria-label={`Remove ${ev.key}`}
+                    title={`Remove ${ev.key}`}
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Add row */}
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              value={newKey}
+              onChange={(e) => setNewKey(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && newKey.trim()) {
+                  setEnvVars((prev) => [...prev, { key: newKey.trim(), value: newValue }]);
+                  setNewKey("");
+                  setNewValue("");
+                }
+              }}
+              placeholder="KEY"
+              className="w-32 rounded border border-bc-border/40 bg-bc-bg px-2.5 py-1 text-[11px] text-bc-text/90 placeholder:text-bc-muted/40 outline-none focus:border-bc-accent/50 transition-colors"
+              style={{ fontFamily: MONO }}
+            />
+            <span className="text-bc-muted/40 text-[11px]" style={{ fontFamily: MONO }}>=</span>
+            <input
+              type="text"
+              value={newValue}
+              onChange={(e) => setNewValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && newKey.trim()) {
+                  setEnvVars((prev) => [...prev, { key: newKey.trim(), value: newValue }]);
+                  setNewKey("");
+                  setNewValue("");
+                }
+              }}
+              placeholder="value"
+              className="flex-1 max-w-[200px] rounded border border-bc-border/40 bg-bc-bg px-2.5 py-1 text-[11px] text-bc-text/90 placeholder:text-bc-muted/40 outline-none focus:border-bc-accent/50 transition-colors"
+              style={{ fontFamily: MONO }}
+            />
+            <button
+              type="button"
+              disabled={!newKey.trim()}
+              onClick={() => {
+                if (!newKey.trim()) return;
+                setEnvVars((prev) => [...prev, { key: newKey.trim(), value: newValue }]);
+                setNewKey("");
+                setNewValue("");
+              }}
+              className="px-2.5 py-1 rounded border border-bc-accent/30 bg-bc-accent/10 text-[11px] text-bc-accent hover:bg-bc-accent/20 transition-colors disabled:opacity-40"
+              style={{ fontFamily: MONO }}
+            >
+              + Add
+            </button>
+          </div>
+
+          <p className="mt-2 text-[10px] text-bc-muted/40 leading-relaxed" style={{ fontFamily: MONO }}>
             {isTmux
-              ? "Environment variables for tmux agents are set via the provider CLI (e.g. claude env). They are inherited from the shell environment at agent start time."
-              : "Environment variables for Docker agents can be configured in the container runtime settings. They are injected at container start via the docker run env flags."}
+              ? "Set via provider CLI environment · Env vars are applied on agent restart"
+              : "Injected as container environment variables · Env vars are applied on agent restart"}
           </p>
         </section>
 
