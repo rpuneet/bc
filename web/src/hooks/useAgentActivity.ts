@@ -79,7 +79,7 @@ export function useAgentActivity(agentName?: string): {
 
       // When filtering by single agent, fetch historical activity to pre-populate
       if (agentName) {
-        api.getAgentActivity(agentName).then((items) => {
+        api.getAgentActivity(agentName, 200).then((items) => {
           setActivities((prev) => {
             const next = new Map(prev);
             const existing = next.get(agentName);

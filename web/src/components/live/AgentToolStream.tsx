@@ -38,6 +38,7 @@ export function AgentToolStream({ agentName }: AgentToolStreamProps) {
         activity={activity}
         rawEvents={rawEvents}
         tasks={tasks}
+        hideRawStream
       />
     </div>
   );

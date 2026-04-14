@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"net/http"
+	"strconv"
 	"strings"
 )
 
@@ -33,9 +34,14 @@ func (h *AgentHandler) agentActivity(w http.ResponseWriter, r *http.Request, nam
 		return
 	}
 
-	// Reverse chronological (newest first), cap at 50 entries to keep the
-	// timeline readable. The UI handles ordering client-side.
-	const maxItems = 50
+	// Reverse chronological (newest first), cap at requested limit (default 50)
+	// to keep the timeline readable. The UI handles ordering client-side.
+	maxItems := 50
+	if limitStr := r.URL.Query().Get("limit"); limitStr != "" {
+		if n, err := strconv.Atoi(limitStr); err == nil && n > 0 && n <= 1000 {
+			maxItems = n
+		}
+	}
 	out := make([]activityItem, 0, len(evts))
 	for i := len(evts) - 1; i >= 0 && len(out) < maxItems; i-- {
 		e := evts[i]

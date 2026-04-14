@@ -605,9 +605,9 @@ export const api = {
       body: JSON.stringify({ agents, message }),
     }),
 
-  // Agent activity timeline — newest first, capped at 50 entries.
-  getAgentActivity: (name: string) =>
-    request<AgentActivityItem[]>(`/agents/${encodeURIComponent(name)}/activity`),
+  // Agent activity timeline — newest first, capped at `limit` entries (default 50, max 1000).
+  getAgentActivity: (name: string, limit = 50) =>
+    request<AgentActivityItem[]>(`/agents/${encodeURIComponent(name)}/activity?limit=${limit}`),
 
   getAgentConfig: (name: string) =>
     request<AgentConfig>(`/agents/${encodeURIComponent(name)}/config`),

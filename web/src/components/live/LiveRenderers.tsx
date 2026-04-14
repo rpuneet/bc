@@ -643,11 +643,13 @@ export function AgentDrillDown({
   rawEvents,
   tasks,
   onBack,
+  hideRawStream,
 }: {
   activity: AgentActivity;
   rawEvents: RawEvent[];
   tasks: Map<string, TaskItem>;
   onBack?: () => void;
+  hideRawStream?: boolean;
 }) {
   const [activeTab, setActiveTab] = useState<DrillDownTab>("live");
   const [rawExpanded, setRawExpanded] = useState<Set<string>>(new Set());
@@ -673,7 +675,7 @@ export function AgentDrillDown({
 
   const tabs: { key: DrillDownTab; label: string }[] = [
     { key: "live", label: "Live Stream" },
-    { key: "raw", label: "Raw Stream" },
+    ...(hideRawStream ? [] : [{ key: "raw" as DrillDownTab, label: "Raw Stream" }]),
   ];
 
   return (
