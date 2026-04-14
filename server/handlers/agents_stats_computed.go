@@ -173,21 +173,19 @@ func (h *AgentHandler) agentComputedStats(w http.ResponseWriter, r *http.Request
 }
 
 // liveAgentCPUMem samples CPU% and resident memory for the processes belonging
-// to a named agent by running `ps aux` and matching against the agent's tmux
-// session name. Returns (cpuPercent, memUsedBytes).
-// This is a best-effort fallback used when TimescaleDB is not available.
+// to a named agent. Uses tmux list-panes to find the pane PID, then walks the
+// process tree to find the actual claude/provider process.
+// Returns (cpuPercent, memUsedBytes).
 func liveAgentCPUMem(ctx context.Context, name string, svc *agent.AgentService) (float64, int64) {
 	if svc == nil {
 		return 0, 0
 	}
 
-	// Determine the tmux session name for this agent.
 	a, err := svc.Get(ctx, name)
 	if err != nil || a == nil {
 		return 0, 0
 	}
 
-	// Only sample tmux-backed agents; Docker agents are tracked via the container stats collector.
 	if a.RuntimeBackend != "" && a.RuntimeBackend != "tmux" {
 		return 0, 0
 	}
@@ -197,44 +195,69 @@ func liveAgentCPUMem(ctx context.Context, name string, svc *agent.AgentService) 
 		sessionName = name
 	}
 
-	// Build match patterns: exact session name + bc-prefixed variant.
-	patterns := []string{sessionName}
-	if !strings.HasPrefix(sessionName, "bc-") {
-		patterns = append(patterns, "bc-"+sessionName)
+	// Step 1: Get pane PID from tmux
+	tmuxCmd := exec.CommandContext(ctx, "tmux", "list-panes", "-t", sessionName, "-F", "#{pane_pid}") //nolint:gosec
+	panePIDOut, tmuxErr := tmuxCmd.Output()
+	if tmuxErr != nil {
+		return 0, 0
+	}
+	panePIDStr := strings.TrimSpace(string(panePIDOut))
+	if panePIDStr == "" {
+		return 0, 0
 	}
 
-	cmd := exec.CommandContext(ctx, "ps", "aux") //nolint:gosec // fixed args, no user input
-	out, err := cmd.Output()
-	if err != nil {
+	// Step 2: Find all child PIDs recursively (pane → shell → claude → subprocesses)
+	var allPIDs []string
+	allPIDs = append(allPIDs, panePIDStr)
+	// Walk up to 3 levels deep
+	for level := 0; level < 3; level++ {
+		var newPIDs []string
+		for _, pid := range allPIDs {
+			pgrepCmd := exec.CommandContext(ctx, "pgrep", "-P", pid) //nolint:gosec
+			pgrepOut, pgrepErr := pgrepCmd.Output()
+			if pgrepErr != nil {
+				continue
+			}
+			for _, line := range strings.Split(strings.TrimSpace(string(pgrepOut)), "\n") {
+				line = strings.TrimSpace(line)
+				if line != "" {
+					newPIDs = append(newPIDs, line)
+				}
+			}
+		}
+		if len(newPIDs) == 0 {
+			break
+		}
+		allPIDs = append(allPIDs, newPIDs...)
+	}
+
+	if len(allPIDs) <= 1 {
+		return 0, 0 // only the pane shell, no child processes
+	}
+
+	// Step 3: Get CPU% and RSS for all PIDs via ps
+	pidList := strings.Join(allPIDs, ",")
+	psCmd := exec.CommandContext(ctx, "ps", "-p", pidList, "-o", "pid,%cpu,rss") //nolint:gosec
+	psOut, psErr := psCmd.Output()
+	if psErr != nil {
 		return 0, 0
 	}
 
 	var totalCPU float64
 	var totalRSSKB int64
 
-	scanner := bufio.NewScanner(bytes.NewReader(out))
-	scanner.Scan() // skip header line
+	scanner := bufio.NewScanner(bytes.NewReader(psOut))
+	scanner.Scan() // skip header (PID %CPU RSS)
 	for scanner.Scan() {
-		line := scanner.Text()
-		matched := false
-		for _, pat := range patterns {
-			if strings.Contains(line, pat) {
-				matched = true
-				break
-			}
-		}
-		if !matched {
+		fields := strings.Fields(scanner.Text())
+		if len(fields) < 3 {
 			continue
 		}
-		// ps aux columns: USER PID %CPU %MEM VSZ RSS TTY STAT START TIME COMMAND
-		fields := strings.Fields(line)
-		if len(fields) < 6 {
-			continue
-		}
-		if cpu, parseErr := strconv.ParseFloat(fields[2], 64); parseErr == nil {
+		// Fields: PID %CPU RSS (in KB)
+		if cpu, parseErr := strconv.ParseFloat(fields[1], 64); parseErr == nil {
 			totalCPU += cpu
 		}
-		if rss, parseErr := strconv.ParseInt(fields[5], 10, 64); parseErr == nil {
+		if rss, parseErr := strconv.ParseInt(fields[2], 10, 64); parseErr == nil {
 			totalRSSKB += rss
 		}
 	}
