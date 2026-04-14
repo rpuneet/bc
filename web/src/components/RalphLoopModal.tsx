@@ -55,11 +55,22 @@ export function LoopIconButton({
   onClick: () => void;
 }) {
   const [active, setActive] = useState(false);
+  const [iterCount, setIterCount] = useState<number | null>(null);
 
   useEffect(() => {
     void getLoopConfig(agentName).then((cfg) => {
       setActive(cfg.enabled && cfg.prompt.trim().length > 0);
     });
+  }, [agentName]);
+
+  useEffect(() => {
+    fetch(`/api/agents/${encodeURIComponent(agentName)}/activity?limit=500`)
+      .then((r) => (r.ok ? (r.json() as Promise<Array<{ event: string }>>) : Promise.resolve([])))
+      .then((items) => {
+        const count = items.filter((i) => i.event === "ralph.loop").length;
+        if (count > 0) setIterCount(count);
+      })
+      .catch(() => {/* ignore */});
   }, [agentName]);
 
   // Pulse when loop is active AND agent is actively running
@@ -101,6 +112,14 @@ export function LoopIconButton({
             style={{ fontFamily: MONO }}
           >
             ↻
+          </span>
+        )}
+        {active && iterCount != null && iterCount > 0 && (
+          <span
+            className="text-[8px] font-bold leading-none"
+            style={{ fontFamily: MONO }}
+          >
+            {iterCount}
           </span>
         )}
       </span>

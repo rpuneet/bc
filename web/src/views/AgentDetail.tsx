@@ -140,6 +140,13 @@ function ConfigTab({ agent }: { agent: Agent }) {
   const [envSaved, setEnvSaved] = useState(false);
   const envSavedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Template sync state
+  const [templates, setTemplates] = useState<string[]>([]);
+  const [selectedTemplate, setSelectedTemplate] = useState("");
+  const [syncing, setSyncing] = useState(false);
+  const [syncDone, setSyncDone] = useState(false);
+  const syncDoneTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const fetchMcps = useCallback(() => {
     setMcpLoading(true);
     api
@@ -180,6 +187,22 @@ function ConfigTab({ agent }: { agent: Agent }) {
     fetchMcps();
   }, [fetchMcps]);
 
+  // Load templates list on mount.
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/templates")
+      .then((r) => (r.ok ? (r.json() as Promise<Array<{ name: string }>>) : Promise.resolve([])))
+      .then((data) => {
+        if (!cancelled) {
+          const names = data.map((t) => t.name).filter(Boolean) as string[];
+          setTemplates(names);
+          if (names.length > 0 && names[0]) setSelectedTemplate(names[0]);
+        }
+      })
+      .catch(() => {/* best-effort */});
+    return () => { cancelled = true; };
+  }, []);
+
   // Load persisted env vars from API on mount.
   useEffect(() => {
     let cancelled = false;
@@ -209,6 +232,28 @@ function ConfigTab({ agent }: { agent: Agent }) {
         /* best-effort */
       });
   }, [agent.name]);
+
+  const handleSync = useCallback(async () => {
+    if (!selectedTemplate) return;
+    setSyncing(true);
+    try {
+      const res = await fetch(`/api/templates/${encodeURIComponent(selectedTemplate)}`);
+      if (!res.ok) throw new Error(`Failed to fetch template: ${res.status}`);
+      const tmpl = await res.json() as { system_prompt?: string };
+      if (tmpl.system_prompt !== undefined) {
+        await api.patchAgentConfig(agent.name, { system_prompt: tmpl.system_prompt });
+        const updated = await api.getAgentConfig(agent.name);
+        setConfig(updated);
+      }
+      setSyncDone(true);
+      if (syncDoneTimer.current) clearTimeout(syncDoneTimer.current);
+      syncDoneTimer.current = setTimeout(() => setSyncDone(false), 2000);
+    } catch {
+      /* best-effort */
+    } finally {
+      setSyncing(false);
+    }
+  }, [agent.name, selectedTemplate]);
 
   // If live fetch succeeded use that list; otherwise fall back to static record
   const mcpServers: string[] =
@@ -286,6 +331,44 @@ function ConfigTab({ agent }: { agent: Agent }) {
           loading={configLoading}
           onSave={handleSystemPromptSave}
         />
+
+        {/* ── TEMPLATE ── */}
+        {templates.length > 0 && (
+          <section>
+            <div className="flex items-center justify-between mb-1">
+              <SectionRule>Template</SectionRule>
+              {syncDone && (
+                <span className="text-[10px] text-green-500/70 transition-opacity" style={{ fontFamily: MONO }}>
+                  Synced
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-3">
+              <select
+                value={selectedTemplate}
+                onChange={(e) => setSelectedTemplate(e.target.value)}
+                className="flex-1 rounded border border-bc-border/40 bg-bc-bg px-2.5 py-1.5 text-[11px] text-bc-text/90 outline-none focus:border-bc-accent/50 transition-colors"
+                style={{ fontFamily: MONO }}
+              >
+                {templates.map((t) => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </select>
+              <button
+                type="button"
+                disabled={syncing || !selectedTemplate}
+                onClick={() => { void handleSync(); }}
+                className="px-3 py-1.5 rounded border border-bc-accent/30 bg-bc-accent/10 text-[11px] text-bc-accent hover:bg-bc-accent/20 transition-colors disabled:opacity-40"
+                style={{ fontFamily: MONO }}
+              >
+                {syncing ? "Syncing…" : "Sync"}
+              </button>
+            </div>
+            <p className="text-[10px] text-bc-muted/40 mt-1 leading-relaxed" style={{ fontFamily: MONO }}>
+              Re-apply template system prompt and MCP configuration
+            </p>
+          </section>
+        )}
 
         {/* ── MCP SERVERS ── */}
         <section>
@@ -447,6 +530,21 @@ function ConfigTab({ agent }: { agent: Agent }) {
               ? "Set via provider CLI environment · Env vars are applied on agent restart"
               : "Injected as container environment variables · Env vars are applied on agent restart"}
           </p>
+          {agent.tool === "claude" && (
+            <div className="mt-2 text-[10px] text-bc-muted/50" style={{ fontFamily: MONO }}>
+              <span className="font-medium">Claude requires:</span> ANTHROPIC_API_KEY
+            </div>
+          )}
+          {agent.tool === "gemini" && (
+            <div className="mt-2 text-[10px] text-bc-muted/50" style={{ fontFamily: MONO }}>
+              <span className="font-medium">Gemini requires:</span> GOOGLE_API_KEY
+            </div>
+          )}
+          {agent.tool === "openai" && (
+            <div className="mt-2 text-[10px] text-bc-muted/50" style={{ fontFamily: MONO }}>
+              <span className="font-medium">OpenAI requires:</span> OPENAI_API_KEY
+            </div>
+          )}
         </section>
 
         {/* ── ACTIONS ── */}
