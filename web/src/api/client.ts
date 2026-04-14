@@ -419,6 +419,7 @@ export interface ChannelStats {
 
 // ComputedStats — computed from hook events in SQLite, no TimescaleDB required.
 // Token and cost fields are populated from the cost store when available.
+// CPU/mem are sampled live via ps aux as a fallback when TimescaleDB is unavailable.
 export interface ComputedStats {
   total_events: number;
   tool_calls: number;
@@ -433,6 +434,8 @@ export interface ComputedStats {
   channel_sent: number;
   channel_received: number;
   network_note?: string;
+  cpu_percent?: number;
+  mem_used_bytes?: number;
 }
 
 // TimescaleDB timeseries types

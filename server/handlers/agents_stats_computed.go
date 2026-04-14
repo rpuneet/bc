@@ -1,16 +1,24 @@
 package handlers
 
 import (
+	"bufio"
+	"bytes"
+	"context"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
+
+	"github.com/rpuneet/bc/pkg/agent"
 )
 
 // computedStatsResponse is the JSON payload returned by the computed stats endpoint.
 // All fields are computed from hook events in the SQLite event store — no TimescaleDB required.
 // Token and cost fields are populated from the cost store when available.
+// CPU and memory are sampled live via ps aux (fallback when TimescaleDB is unavailable).
 type computedStatsResponse struct { //nolint:govet // field order matches JSON contract
 	ToolBreakdown      map[string]int `json:"tool_breakdown"`
 	LastActive         string         `json:"last_active,omitempty"`
@@ -25,6 +33,8 @@ type computedStatsResponse struct { //nolint:govet // field order matches JSON c
 	OutputTokens       int64          `json:"output_tokens"`
 	Tokens             int            `json:"tokens"`
 	CostUSD            float64        `json:"cost_usd"`
+	CPUPercent         float64        `json:"cpu_percent"`
+	MemUsedBytes       int64          `json:"mem_used_bytes"`
 }
 
 // agentComputedStats computes activity statistics from hook events for a single agent.
@@ -140,6 +150,9 @@ func (h *AgentHandler) agentComputedStats(w http.ResponseWriter, r *http.Request
 		}
 	}
 
+	// Live CPU/mem from ps aux — fallback when TimescaleDB is unavailable.
+	cpuPercent, memUsedBytes := liveAgentCPUMem(r.Context(), name, h.svc)
+
 	writeJSON(w, http.StatusOK, computedStatsResponse{
 		TotalEvents:        totalEvents,
 		ToolCalls:          toolCalls,
@@ -154,5 +167,77 @@ func (h *AgentHandler) agentComputedStats(w http.ResponseWriter, r *http.Request
 		ChannelSent:        channelSent,
 		ChannelReceived:    channelReceived,
 		NetworkNote:        "Network tracking requires container runtime",
+		CPUPercent:         cpuPercent,
+		MemUsedBytes:       memUsedBytes,
 	})
+}
+
+// liveAgentCPUMem samples CPU% and resident memory for the processes belonging
+// to a named agent by running `ps aux` and matching against the agent's tmux
+// session name. Returns (cpuPercent, memUsedBytes).
+// This is a best-effort fallback used when TimescaleDB is not available.
+func liveAgentCPUMem(ctx context.Context, name string, svc *agent.AgentService) (float64, int64) {
+	if svc == nil {
+		return 0, 0
+	}
+
+	// Determine the tmux session name for this agent.
+	a, err := svc.Get(ctx, name)
+	if err != nil || a == nil {
+		return 0, 0
+	}
+
+	// Only sample tmux-backed agents; Docker agents are tracked via the container stats collector.
+	if a.RuntimeBackend != "" && a.RuntimeBackend != "tmux" {
+		return 0, 0
+	}
+
+	sessionName := a.Session
+	if sessionName == "" {
+		sessionName = name
+	}
+
+	// Build match patterns: exact session name + bc-prefixed variant.
+	patterns := []string{sessionName}
+	if !strings.HasPrefix(sessionName, "bc-") {
+		patterns = append(patterns, "bc-"+sessionName)
+	}
+
+	cmd := exec.CommandContext(ctx, "ps", "aux") //nolint:gosec // fixed args, no user input
+	out, err := cmd.Output()
+	if err != nil {
+		return 0, 0
+	}
+
+	var totalCPU float64
+	var totalRSSKB int64
+
+	scanner := bufio.NewScanner(bytes.NewReader(out))
+	scanner.Scan() // skip header line
+	for scanner.Scan() {
+		line := scanner.Text()
+		matched := false
+		for _, pat := range patterns {
+			if strings.Contains(line, pat) {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			continue
+		}
+		// ps aux columns: USER PID %CPU %MEM VSZ RSS TTY STAT START TIME COMMAND
+		fields := strings.Fields(line)
+		if len(fields) < 6 {
+			continue
+		}
+		if cpu, parseErr := strconv.ParseFloat(fields[2], 64); parseErr == nil {
+			totalCPU += cpu
+		}
+		if rss, parseErr := strconv.ParseInt(fields[5], 10, 64); parseErr == nil {
+			totalRSSKB += rss
+		}
+	}
+
+	return totalCPU, totalRSSKB * 1024
 }

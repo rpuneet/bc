@@ -208,10 +208,15 @@ func OpenStore(workspacePath string) (*Store, error) {
 		return &Store{backend: pg}, nil
 	}
 
-	// SQLite via shared DB
+	// SQLite via shared DB — fall back to dedicated costs.db if shared DB is unavailable.
 	shared := bcdb.SharedWrapped()
 	if shared == nil {
-		return nil, fmt.Errorf("cost store requires shared database (none available for workspace %s)", workspacePath)
+		log.Info("cost store: shared DB unavailable, falling back to dedicated costs.db")
+		s := NewStore(workspacePath)
+		if err := s.Open(); err != nil {
+			return nil, fmt.Errorf("cost store: open dedicated costs.db: %w", err)
+		}
+		return s, nil
 	}
 	s := &Store{db: shared}
 	if err := s.initSchema(shared.DB); err != nil {

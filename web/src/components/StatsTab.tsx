@@ -96,10 +96,19 @@ export function StatsTab({ agent }: { agent: Agent }) {
 
   // ── Derived summary values — nested paths from backend AgentSummary struct ──
 
-  const cpuAvg = isFinite(s?.cpu?.avg_percent ?? 0) ? (s?.cpu?.avg_percent ?? 0) : 0;
-  const cpuMax = isFinite(s?.cpu?.max_percent ?? 0) ? (s?.cpu?.max_percent ?? 0) : 0;
-  const memAvgMB = s ? parseFloat(fmtMB(s.memory?.avg_bytes ?? 0)) || 0 : 0;
-  const memMaxMB = s ? parseFloat(fmtMB(s.memory?.max_bytes ?? 0)) || 0 : 0;
+  // CPU/mem: prefer TimescaleDB summary; fall back to live ps-sampled data from computed stats.
+  const liveCPU = data?.computed?.cpu_percent ?? 0;
+  const liveMemBytes = data?.computed?.mem_used_bytes ?? 0;
+  const cpuAvg = isFinite(s?.cpu?.avg_percent ?? 0) && (s?.cpu?.avg_percent ?? 0) > 0
+    ? (s?.cpu?.avg_percent ?? 0)
+    : (isFinite(liveCPU) ? liveCPU : 0);
+  const cpuMax = isFinite(s?.cpu?.max_percent ?? 0) ? (s?.cpu?.max_percent ?? 0) : cpuAvg;
+  const memAvgMB = s && (s.memory?.avg_bytes ?? 0) > 0
+    ? parseFloat(fmtMB(s.memory?.avg_bytes ?? 0)) || 0
+    : parseFloat(fmtMB(liveMemBytes)) || 0;
+  const memMaxMB = s && (s.memory?.max_bytes ?? 0) > 0
+    ? parseFloat(fmtMB(s.memory?.max_bytes ?? 0)) || 0
+    : memAvgMB;
 
   // Token totals: prefer TimescaleDB summary; fall back to cost-store computed stats; then agent record fields.
   const computedInputTokens = data?.computed?.input_tokens ?? 0;
