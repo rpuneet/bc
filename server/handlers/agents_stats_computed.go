@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"encoding/json"
 	"net/http"
 	"os"
 	"os/exec"
@@ -20,21 +21,23 @@ import (
 // Token and cost fields are populated from the cost store when available.
 // CPU and memory are sampled live via ps aux (fallback when TimescaleDB is unavailable).
 type computedStatsResponse struct { //nolint:govet // field order matches JSON contract
-	ToolBreakdown      map[string]int `json:"tool_breakdown"`
-	LastActive         string         `json:"last_active,omitempty"`
-	NetworkNote        string         `json:"network_note,omitempty"`
-	TotalEvents        int            `json:"total_events"`
-	ToolCalls          int            `json:"tool_calls"`
-	ChannelSent        int            `json:"channel_sent"`
-	ChannelReceived    int            `json:"channel_received"`
-	SessionDurationSec int64          `json:"session_duration_sec"`
-	DiskBytes          int64          `json:"disk_bytes"`
-	InputTokens        int64          `json:"input_tokens"`
-	OutputTokens       int64          `json:"output_tokens"`
-	Tokens             int            `json:"tokens"`
-	CostUSD            float64        `json:"cost_usd"`
-	CPUPercent         float64        `json:"cpu_percent"`
-	MemUsedBytes       int64          `json:"mem_used_bytes"`
+	ToolBreakdown         map[string]int `json:"tool_breakdown"`
+	LastActive            string         `json:"last_active,omitempty"`
+	NetworkNote           string         `json:"network_note,omitempty"`
+	TotalEvents           int            `json:"total_events"`
+	ToolCalls             int            `json:"tool_calls"`
+	WebCalls              int            `json:"web_calls"`
+	ChannelSent           int            `json:"channel_sent"`
+	ChannelReceived       int            `json:"channel_received"`
+	SessionDurationSec    int64          `json:"session_duration_sec"`
+	DiskBytes             int64          `json:"disk_bytes"`
+	EstimatedNetworkBytes int64          `json:"estimated_network_bytes"`
+	InputTokens           int64          `json:"input_tokens"`
+	OutputTokens          int64          `json:"output_tokens"`
+	Tokens                int            `json:"tokens"`
+	CostUSD               float64        `json:"cost_usd"`
+	CPUPercent            float64        `json:"cpu_percent"`
+	MemUsedBytes          int64          `json:"mem_used_bytes"`
 }
 
 // agentComputedStats computes activity statistics from hook events for a single agent.
@@ -129,6 +132,31 @@ func (h *AgentHandler) agentComputedStats(w http.ResponseWriter, r *http.Request
 		}
 	}
 
+	// Count web tool calls (WebFetch / WebSearch) from PostToolUse events to estimate network I/O.
+	var webCalls int
+	var estimatedNetworkBytes int64
+	for _, e := range evts {
+		eType := string(e.Type)
+		if !strings.HasSuffix(eType, "PostToolUse") {
+			continue
+		}
+		toolName := ""
+		if e.Data != nil {
+			toolName, _ = e.Data["tool_name"].(string)
+		}
+		if toolName == "" && e.Message != "" {
+			var msgData map[string]any
+			if json.Unmarshal([]byte(e.Message), &msgData) == nil {
+				toolName, _ = msgData["tool_name"].(string)
+			}
+		}
+		if toolName == "WebFetch" || toolName == "WebSearch" {
+			webCalls++
+			// Estimate ~50KB per web request
+			estimatedNetworkBytes += 50 * 1024
+		}
+	}
+
 	var sessionDurationSec int64
 	if !firstTime.IsZero() && !lastTime.IsZero() {
 		sessionDurationSec = int64(lastTime.Sub(firstTime).Seconds())
@@ -153,22 +181,29 @@ func (h *AgentHandler) agentComputedStats(w http.ResponseWriter, r *http.Request
 	// Live CPU/mem from ps aux — fallback when TimescaleDB is unavailable.
 	cpuPercent, memUsedBytes := liveAgentCPUMem(r.Context(), name, h.svc)
 
+	networkNote := "Network tracking requires container runtime"
+	if webCalls > 0 {
+		networkNote = "~" + strconv.Itoa(webCalls) + " web requests, est. " + strconv.FormatInt(estimatedNetworkBytes/1024, 10) + "KB"
+	}
+
 	writeJSON(w, http.StatusOK, computedStatsResponse{
-		TotalEvents:        totalEvents,
-		ToolCalls:          toolCalls,
-		ToolBreakdown:      toolBreakdown,
-		SessionDurationSec: sessionDurationSec,
-		LastActive:         lastActive,
-		InputTokens:        inputTokens,
-		OutputTokens:       outputTokens,
-		Tokens:             int(inputTokens + outputTokens),
-		CostUSD:            costUSD,
-		DiskBytes:          diskBytes,
-		ChannelSent:        channelSent,
-		ChannelReceived:    channelReceived,
-		NetworkNote:        "Network tracking requires container runtime",
-		CPUPercent:         cpuPercent,
-		MemUsedBytes:       memUsedBytes,
+		TotalEvents:           totalEvents,
+		ToolCalls:             toolCalls,
+		WebCalls:              webCalls,
+		ToolBreakdown:         toolBreakdown,
+		SessionDurationSec:    sessionDurationSec,
+		LastActive:            lastActive,
+		InputTokens:           inputTokens,
+		OutputTokens:          outputTokens,
+		Tokens:                int(inputTokens + outputTokens),
+		CostUSD:               costUSD,
+		DiskBytes:             diskBytes,
+		EstimatedNetworkBytes: estimatedNetworkBytes,
+		ChannelSent:           channelSent,
+		ChannelReceived:       channelReceived,
+		NetworkNote:           networkNote,
+		CPUPercent:            cpuPercent,
+		MemUsedBytes:          memUsedBytes,
 	})
 }
 
