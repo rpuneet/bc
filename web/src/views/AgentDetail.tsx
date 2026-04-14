@@ -4,7 +4,6 @@ import { api } from "../api/client";
 import type { Agent, AgentActivityItem } from "../api/client";
 import { usePolling } from "../hooks/usePolling";
 import { useWebSocket } from "../hooks/useWebSocket";
-import { StatusBadge } from "../components/StatusBadge";
 import { StatsTab as StatsTabComponent } from "../components/StatsTab";
 import { WebTerminal } from "../components/WebTerminal";
 import { stripAnsi } from "../utils/text";
@@ -1230,53 +1229,71 @@ export function AgentDetail() {
 
   return (
     <div className="flex flex-col h-full">
-      {/* ═══ HEADER — single compact line: breadcrumb + identity + badges ═══ */}
-      <header className="shrink-0 px-6 pt-4 pb-0 space-y-2.5">
-        {/* Combined breadcrumb + identity — one line */}
-        <div className="flex items-center gap-2 flex-wrap min-w-0">
+      {/* ═══ HEADER — HUD status bar ═══ */}
+      <header className="shrink-0 px-6 pt-3 pb-0 space-y-2">
+        <div className="flex items-center gap-2.5 min-w-0">
+          {/* Back link */}
           <Link
             to="/agents"
-            className="text-xs text-bc-muted/50 hover:text-bc-text transition-colors shrink-0"
+            className="text-[10px] text-bc-muted/40 hover:text-bc-text transition-colors shrink-0"
             style={{ fontFamily: MONO }}
           >
-            Agents
+            ←
           </Link>
-          <span className="text-xs text-bc-muted/30">/</span>
-          <AgentIcon state={agent.state} size={36} />
+
+          {/* Shape with provider letter inside */}
+          <AgentIcon
+            state={agent.state}
+            size={30}
+            letter={agent.tool ? agent.tool.charAt(0).toUpperCase() : undefined}
+          />
+
+          {/* Agent name */}
           <span
-            className="text-sm font-bold text-bc-text tracking-tight shrink-0"
+            className="text-[13px] font-bold text-bc-text tracking-tight shrink-0"
             style={{ fontFamily: MONO }}
           >
             {agent.name}
           </span>
 
-          {/* Inline badges */}
+          {/* Runtime icon — monitor for tmux, container for docker */}
           {agent.runtime_backend && (
-            <span
-              className="px-1.5 py-0.5 rounded text-[10px] font-medium border border-bc-border/30 text-bc-muted/60 bg-bc-surface/20"
-              style={{ fontFamily: MONO }}
-            >
-              {agent.runtime_backend}
-            </span>
-          )}
-          {agent.tool && (
-            <span
-              className="px-1.5 py-0.5 rounded text-[10px] font-medium border border-bc-border/30 text-bc-muted/60 bg-bc-surface/20"
-              style={{ fontFamily: MONO }}
-            >
-              {agent.tool}
+            <span className="shrink-0 text-bc-muted/40" title={agent.runtime_backend}>
+              {agent.runtime_backend === "docker" ? (
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="1" y="4" width="12" height="8" rx="1" />
+                  <path d="M4 4V2h6v2" />
+                  <path d="M5 7h4M5 9.5h4" opacity="0.5" />
+                </svg>
+              ) : (
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="1.5" y="1.5" width="11" height="8" rx="1.5" />
+                  <path d="M7 9.5v2.5M4 12h6" />
+                </svg>
+              )}
             </span>
           )}
 
-          <StatusBadge status={agent.state} />
+          {/* Status dot */}
+          <span
+            className={`shrink-0 w-2 h-2 rounded-full ${
+              agent.state === "working" ? "bg-green-500 animate-pulse" :
+              agent.state === "idle" ? "bg-green-500/60" :
+              agent.state === "stuck" ? "bg-amber-500 animate-pulse" :
+              agent.state === "error" ? "bg-red-500" :
+              agent.state === "starting" ? "bg-blue-400 animate-pulse" :
+              "bg-bc-muted/30"
+            }`}
+            title={agent.state}
+          />
 
-          {/* Ralph Loop icon */}
+          {/* Loop icon — no background, just the icon */}
           <LoopIconButton agentName={agent.name} onClick={() => setLoopOpen(true)} />
 
-          {/* Live activity hint */}
+          {/* Task text */}
           {agent.task && (
             <span
-              className="text-[10px] text-bc-muted/50 truncate max-w-[280px]"
+              className="text-[10px] text-bc-muted/50 truncate max-w-[320px]"
               title={agent.task}
               style={{ fontFamily: MONO }}
             >
@@ -1284,9 +1301,10 @@ export function AgentDetail() {
             </span>
           )}
 
+          {/* Timestamp — pushed to right */}
           {lastSeen && (
             <span
-              className="text-[10px] text-bc-muted/30 tabular-nums ml-auto shrink-0"
+              className="text-[10px] text-bc-muted/25 tabular-nums ml-auto shrink-0"
               title={formatTime(lastSeen)}
               style={{ fontFamily: MONO }}
             >

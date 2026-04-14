@@ -58,15 +58,15 @@ export function LoopIconButton({
           ? "Ralph Loop active — click to edit"
           : "Ralph Loop — auto-reprompts agent when it stops"
       }
-      className={`relative shrink-0 flex items-center justify-center w-7 h-7 rounded-md border transition-colors ${
+      className={`shrink-0 flex items-center gap-0.5 transition-colors ${
         active
-          ? "border-green-500/40 bg-green-500/10 text-green-400 hover:bg-green-500/20"
-          : "border-bc-border/30 text-bc-muted/50 hover:text-bc-muted hover:border-bc-border/60"
+          ? "text-green-400 hover:text-green-300"
+          : "text-bc-muted/30 hover:text-bc-muted/60"
       }`}
     >
       <svg
-        width="14"
-        height="14"
+        width="13"
+        height="13"
         viewBox="0 0 14 14"
         fill="none"
         stroke="currentColor"
@@ -77,9 +77,6 @@ export function LoopIconButton({
         <path d="M11 3.5A5 5 0 1 0 12 7" />
         <path d="M8 3.5h3V.5" />
       </svg>
-      {active && (
-        <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-green-500 border border-bc-surface" />
-      )}
     </button>
   );
 }
