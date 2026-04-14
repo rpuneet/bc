@@ -54,6 +54,17 @@ export interface Agent {
   mcp_servers?: string[];
 }
 
+export interface AgentConfig {
+  system_prompt: string;
+  mcp_servers: string[];
+  runtime_backend: string;
+  tool: string;
+  session: string;
+  worktree_path: string;
+  created_at: string;
+  started_at: string;
+}
+
 export interface Channel {
   name: string;
   description: string;
@@ -556,6 +567,21 @@ export const api = {
   // Agent activity timeline — newest first, capped at 50 entries.
   getAgentActivity: (name: string) =>
     request<AgentActivityItem[]>(`/agents/${encodeURIComponent(name)}/activity`),
+
+  getAgentConfig: (name: string) =>
+    request<AgentConfig>(`/agents/${encodeURIComponent(name)}/config`),
+  patchAgentConfig: (name: string, patch: { system_prompt?: string }) =>
+    request<void>(`/agents/${encodeURIComponent(name)}/config`, { method: "PATCH", body: JSON.stringify(patch) }),
+  getAgentMcps: (name: string) =>
+    request<Array<{ name: string }>>(`/agents/${encodeURIComponent(name)}/mcps`),
+  addAgentMcp: (name: string, mcpName: string) =>
+    request<void>(`/agents/${encodeURIComponent(name)}/mcps`, { method: "POST", body: JSON.stringify({ name: mcpName }) }),
+  removeAgentMcp: (name: string, mcpName: string) =>
+    request<void>(`/agents/${encodeURIComponent(name)}/mcps/${encodeURIComponent(mcpName)}`, { method: "DELETE" }),
+  getAgentLoop: (name: string) =>
+    request<{ enabled: boolean; prompt: string }>(`/agents/${encodeURIComponent(name)}/loop`),
+  putAgentLoop: (name: string, config: { enabled: boolean; prompt: string }) =>
+    request<{ enabled: boolean; prompt: string }>(`/agents/${encodeURIComponent(name)}/loop`, { method: "PUT", body: JSON.stringify(config) }),
 
   sendToAgent: (name: string, message: string) =>
     request<void>(`/agents/${encodeURIComponent(name)}/send`, {

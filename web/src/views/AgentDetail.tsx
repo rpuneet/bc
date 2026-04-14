@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { api } from "../api/client";
-import type { Agent, AgentActivityItem } from "../api/client";
+import type { Agent, AgentActivityItem, AgentConfig } from "../api/client";
 import { usePolling } from "../hooks/usePolling";
 import { useWebSocket } from "../hooks/useWebSocket";
 import { StatsTab as StatsTabComponent } from "../components/StatsTab";
@@ -9,6 +9,9 @@ import { WebTerminal } from "../components/WebTerminal";
 import { stripAnsi } from "../utils/text";
 import { AgentIcon } from "../components/agent-ui";
 import { LoopIconButton, RalphLoopModal } from "../components/RalphLoopModal";
+import { MCPServerList } from "../components/shared/MCPServerList";
+import { SystemPromptEditor } from "../components/shared/SystemPromptEditor";
+import { SectionRule } from "../components/shared";
 
 /* ═══════════════════════════════════════════════════════════════════
    Utility
@@ -64,20 +67,6 @@ const TABS: { key: Tab; label: string; shortcut: string }[] = [
 /* ═══════════════════════════════════════════════════════════════════
    Section chrome
    ═══════════════════════════════════════════════════════════════════ */
-
-function SectionRule({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="mb-4 flex items-center gap-3">
-      <span
-        className="text-[10px] font-bold uppercase tracking-[0.2em] text-bc-muted/70"
-        style={{ fontFamily: MONO }}
-      >
-        {children}
-      </span>
-      <span className="flex-1 h-px bg-gradient-to-r from-bc-border/50 to-transparent" />
-    </div>
-  );
-}
 
 function MetaCell({
   label,
@@ -581,48 +570,21 @@ function ActivityTab({ agent }: { agent: Agent }) {
    System prompt, MCP servers, metadata, danger zone
    ═══════════════════════════════════════════════════════════════════ */
 
-interface AgentConfig {
-  system_prompt: string;
-  mcp_servers: string[];
-  runtime_backend: string;
-  tool: string;
-  session: string;
-  worktree_path: string;
-  created_at: string;
-  started_at: string;
-}
-
-interface MCPServer {
-  name: string;
-}
-
 function ConfigTab({ agent }: { agent: Agent }) {
   const navigate = useNavigate();
   const [config, setConfig] = useState<AgentConfig | null>(null);
   const [configLoading, setConfigLoading] = useState(true);
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [saveStatus, setSaveStatus] = useState<"" | "saved" | "error">("");
-  const [saveError, setSaveError] = useState("");
-  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
   // MCP server management state
   const [mcpList, setMcpList] = useState<string[] | null>(null);
   const [mcpLoading, setMcpLoading] = useState(true);
-  const [mcpInput, setMcpInput] = useState("");
-  const [mcpAdding, setMcpAdding] = useState(false);
-  const [mcpDeleting, setMcpDeleting] = useState<string | null>(null);
 
   const fetchMcps = useCallback(() => {
     setMcpLoading(true);
-    fetch(`/api/agents/${encodeURIComponent(agent.name)}/mcps`)
-      .then((res) => {
-        if (!res.ok) throw new Error(`HTTP ${String(res.status)}`);
-        return res.json() as Promise<MCPServer[]>;
-      })
+    api
+      .getAgentMcps(agent.name)
       .then((data) => {
         setMcpList(data.map((m) => m.name));
       })
@@ -637,15 +599,11 @@ function ConfigTab({ agent }: { agent: Agent }) {
   useEffect(() => {
     let cancelled = false;
     setConfigLoading(true);
-    fetch(`/api/agents/${encodeURIComponent(agent.name)}/config`)
-      .then((res) => {
-        if (!res.ok) throw new Error(`HTTP ${String(res.status)}`);
-        return res.json() as Promise<AgentConfig>;
-      })
+    api
+      .getAgentConfig(agent.name)
       .then((data) => {
         if (!cancelled) {
           setConfig(data);
-          setDraft(data.system_prompt ?? "");
         }
       })
       .catch(() => {
@@ -663,60 +621,6 @@ function ConfigTab({ agent }: { agent: Agent }) {
     fetchMcps();
   }, [fetchMcps]);
 
-  // Clear save feedback timer on unmount
-  useEffect(() => {
-    return () => {
-      if (saveTimerRef.current !== null) {
-        clearTimeout(saveTimerRef.current);
-      }
-    };
-  }, []);
-
-  const handleEdit = () => {
-    setDraft(config?.system_prompt ?? "");
-    setSaveStatus("");
-    setSaveError("");
-    setEditing(true);
-  };
-
-  const handleCancel = () => {
-    setDraft(config?.system_prompt ?? "");
-    setSaveStatus("");
-    setSaveError("");
-    setEditing(false);
-  };
-
-  const handleSave = () => {
-    setSaving(true);
-    setSaveStatus("");
-    setSaveError("");
-    fetch(`/api/agents/${encodeURIComponent(agent.name)}/config`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ system_prompt: draft }),
-    })
-      .then((res) => {
-        if (!res.ok) throw new Error(`HTTP ${String(res.status)}`);
-        return res.json() as Promise<AgentConfig>;
-      })
-      .then((data) => {
-        setConfig(data);
-        setDraft(data.system_prompt ?? draft);
-        setEditing(false);
-        setSaveStatus("saved");
-        if (saveTimerRef.current !== null) clearTimeout(saveTimerRef.current);
-        saveTimerRef.current = setTimeout(() => setSaveStatus(""), 2000);
-      })
-      .catch((err: unknown) => {
-        const msg = err instanceof Error ? err.message : "unknown error";
-        setSaveStatus("error");
-        setSaveError(msg);
-      })
-      .finally(() => {
-        setSaving(false);
-      });
-  };
-
   // If live fetch succeeded use that list; otherwise fall back to static record
   const mcpServers: string[] =
     mcpList !== null
@@ -727,209 +631,42 @@ function ConfigTab({ agent }: { agent: Agent }) {
 
   const useLiveMcp = mcpList !== null;
 
-  const handleMcpAdd = () => {
-    const name = mcpInput.trim();
-    if (!name) return;
-    setMcpAdding(true);
-    fetch(`/api/agents/${encodeURIComponent(agent.name)}/mcps`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name }),
-    })
-      .then((res) => {
-        if (!res.ok) throw new Error(`HTTP ${String(res.status)}`);
-        setMcpInput("");
-        fetchMcps();
-      })
-      .catch(() => {
-        /* best-effort */
-      })
-      .finally(() => {
-        setMcpAdding(false);
-      });
+  const handleSystemPromptSave = async (newValue: string) => {
+    await api.patchAgentConfig(agent.name, { system_prompt: newValue });
+    // Refresh config after save
+    const updated = await api.getAgentConfig(agent.name);
+    setConfig(updated);
   };
 
-  const handleMcpDelete = (serverName: string) => {
-    setMcpDeleting(serverName);
-    fetch(
-      `/api/agents/${encodeURIComponent(agent.name)}/mcps/${encodeURIComponent(serverName)}`,
-      { method: "DELETE" },
-    )
-      .then((res) => {
-        if (!res.ok) throw new Error(`HTTP ${String(res.status)}`);
-        fetchMcps();
-      })
-      .catch(() => {
-        /* best-effort */
-      })
-      .finally(() => {
-        setMcpDeleting(null);
-      });
+  const handleMcpAdd = async (mcpName: string) => {
+    await api.addAgentMcp(agent.name, mcpName);
+    fetchMcps();
+  };
+
+  const handleMcpRemove = async (mcpName: string) => {
+    await api.removeAgentMcp(agent.name, mcpName);
+    fetchMcps();
   };
 
   return (
     <div className="flex-1 overflow-y-auto p-6">
       <div className="max-w-3xl mx-auto space-y-10">
         {/* ── SYSTEM PROMPT ── */}
-        <section>
-          <div className="mb-4 flex items-center gap-3">
-            <span
-              className="text-[10px] font-bold uppercase tracking-[0.2em] text-bc-muted/70"
-              style={{ fontFamily: MONO }}
-            >
-              System Prompt
-            </span>
-            <span className="flex-1 h-px bg-gradient-to-r from-bc-border/50 to-transparent" />
-            {/* Action buttons */}
-            {!configLoading && (
-              <div className="flex items-center gap-2">
-                {saveStatus === "saved" && (
-                  <span
-                    className="text-[11px] text-green-400 transition-opacity"
-                    style={{ fontFamily: MONO }}
-                  >
-                    Saved
-                  </span>
-                )}
-                {saveStatus === "error" && (
-                  <span
-                    className="text-[11px] text-bc-error"
-                    style={{ fontFamily: MONO }}
-                    title={saveError}
-                  >
-                    Error: {saveError}
-                  </span>
-                )}
-                {editing ? (
-                  <>
-                    <span
-                      className="text-[10px] text-bc-accent/60 italic"
-                      style={{ fontFamily: MONO }}
-                    >
-                      Editing...
-                    </span>
-                    <button
-                      type="button"
-                      onClick={handleCancel}
-                      disabled={saving}
-                      className="px-2.5 py-1 rounded border border-bc-border/40 text-[11px] text-bc-muted hover:text-bc-text hover:border-bc-border transition-colors disabled:opacity-40"
-                      style={{ fontFamily: MONO }}
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleSave}
-                      disabled={saving}
-                      className="px-2.5 py-1 rounded border border-bc-accent/30 bg-bc-accent/10 text-[11px] text-bc-accent hover:bg-bc-accent/20 transition-colors disabled:opacity-40"
-                      style={{ fontFamily: MONO }}
-                    >
-                      {saving ? "Saving…" : "Save"}
-                    </button>
-                  </>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={handleEdit}
-                    className="px-2.5 py-1 rounded border border-bc-border/40 text-[11px] text-bc-muted hover:text-bc-text hover:border-bc-border transition-colors"
-                    style={{ fontFamily: MONO }}
-                  >
-                    Edit
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
-
-          {configLoading ? (
-            <div className="rounded-md border border-bc-border/30 bg-bc-surface/20 p-4">
-              <p
-                className="text-xs text-bc-muted/40 italic"
-                style={{ fontFamily: MONO }}
-              >
-                Loading…
-              </p>
-            </div>
-          ) : editing ? (
-            <textarea
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              className="w-full min-h-[300px] rounded-md border border-bc-accent/50 bg-bc-bg/80 p-4 text-xs text-bc-text/90 leading-relaxed resize-y outline-none focus:border-bc-accent/60 transition-colors"
-              style={{ fontFamily: MONO }}
-              spellCheck={false}
-            />
-          ) : (
-            <textarea
-              value={config?.system_prompt ?? ""}
-              readOnly
-              className="w-full min-h-[300px] rounded-md border border-bc-border/40 bg-bc-bg p-4 text-xs text-bc-text/70 leading-relaxed resize-y outline-none cursor-default"
-              style={{ fontFamily: MONO }}
-            />
-          )}
-        </section>
+        <SystemPromptEditor
+          value={config?.system_prompt ?? ""}
+          loading={configLoading}
+          onSave={handleSystemPromptSave}
+        />
 
         {/* ── MCP SERVERS ── */}
         <section>
           <SectionRule>MCP Servers</SectionRule>
-          {mcpLoading ? (
-            <p className="text-xs text-bc-muted/40 italic pl-1" style={{ fontFamily: MONO }}>
-              Loading…
-            </p>
-          ) : mcpServers.length > 0 ? (
-            <div className="flex flex-wrap gap-1.5">
-              {mcpServers.map((s) => (
-                <span
-                  key={s}
-                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-bc-border/30 bg-bc-surface/30 text-[11px] text-bc-text/80 font-medium"
-                  style={{ fontFamily: MONO }}
-                >
-                  <span className="w-1.5 h-1.5 rounded-full bg-bc-accent/60" />
-                  {s.replace(/^mcp__/, "")}
-                  {useLiveMcp && (
-                    <button
-                      type="button"
-                      onClick={() => { handleMcpDelete(s); }}
-                      disabled={mcpDeleting === s}
-                      className="ml-0.5 text-bc-muted/50 hover:text-bc-error transition-colors disabled:opacity-40 leading-none"
-                      title={`Remove ${s}`}
-                      aria-label={`Remove MCP server ${s}`}
-                    >
-                      ×
-                    </button>
-                  )}
-                </span>
-              ))}
-            </div>
-          ) : (
-            <p className="text-xs text-bc-muted/40 italic pl-1">
-              No MCP servers configured.
-            </p>
-          )}
-          {useLiveMcp && (
-            <div className="mt-3 flex items-center gap-2">
-              <input
-                type="text"
-                value={mcpInput}
-                onChange={(e) => { setMcpInput(e.target.value); }}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") handleMcpAdd();
-                }}
-                placeholder="mcp-server-name"
-                disabled={mcpAdding}
-                className="flex-1 max-w-[240px] rounded border border-bc-border/40 bg-bc-bg px-2.5 py-1 text-[11px] text-bc-text/90 placeholder:text-bc-muted/40 outline-none focus:border-bc-accent/50 transition-colors disabled:opacity-40"
-                style={{ fontFamily: MONO }}
-              />
-              <button
-                type="button"
-                onClick={handleMcpAdd}
-                disabled={mcpAdding || !mcpInput.trim()}
-                className="px-2.5 py-1 rounded border border-bc-accent/30 bg-bc-accent/10 text-[11px] text-bc-accent hover:bg-bc-accent/20 transition-colors disabled:opacity-40"
-                style={{ fontFamily: MONO }}
-              >
-                {mcpAdding ? "Adding…" : "+ Add MCP"}
-              </button>
-            </div>
-          )}
+          <MCPServerList
+            servers={mcpServers}
+            loading={mcpLoading}
+            onAdd={useLiveMcp ? handleMcpAdd : undefined}
+            onRemove={useLiveMcp ? handleMcpRemove : undefined}
+          />
         </section>
 
         {/* ── METADATA ── */}
@@ -997,16 +734,10 @@ function ConfigTab({ agent }: { agent: Agent }) {
                   disabled={deleting}
                   onClick={() => {
                     setDeleting(true);
-                    fetch(`/api/agents/${encodeURIComponent(agent.name)}`, {
-                      method: "DELETE",
-                    })
-                      .then((res) => {
-                        if (res.ok) {
-                          navigate("/agents");
-                        } else {
-                          setDeleting(false);
-                          setConfirmDelete(false);
-                        }
+                    api
+                      .deleteAgent(agent.name)
+                      .then(() => {
+                        navigate("/agents");
                       })
                       .catch(() => {
                         setDeleting(false);

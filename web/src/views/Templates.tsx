@@ -2,9 +2,8 @@ import { useCallback, useEffect, useState } from "react";
 import { LoadingSkeleton } from "../components/LoadingSkeleton";
 import { EmptyState } from "../components/EmptyState";
 import { usePolling } from "../hooks/usePolling";
-
-const MONO =
-  "'JetBrains Mono', 'Fira Code', 'Space Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
+import { ChipList, SectionRule, ConfirmButton, SearchInput } from "../components/shared";
+import { MONO } from "../utils/typography";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -91,66 +90,6 @@ const deleteTemplate = (name: string): Promise<void> =>
     if (!r.ok) throw new Error(`API error: ${r.status}`);
   });
 
-// ─── Small shared components ─────────────────────────────────────────────────
-
-function SectionRule({ label }: { label: string }) {
-  return (
-    <div className="flex items-center gap-3 py-2">
-      <span
-        className="text-[10px] font-semibold text-bc-muted/60 uppercase tracking-widest whitespace-nowrap"
-        style={{ fontFamily: MONO }}
-      >
-        {label}
-      </span>
-      <div className="flex-1 h-px bg-gradient-to-r from-bc-border/60 to-transparent" />
-    </div>
-  );
-}
-
-function Chip({
-  label,
-  color = "accent",
-}: {
-  label: string;
-  color?: "accent" | "muted" | "yellow" | "green";
-}) {
-  const palette: Record<string, string> = {
-    accent: "bg-bc-accent/10 text-bc-accent/80",
-    muted: "bg-bc-muted/10 text-bc-muted/70",
-    yellow: "bg-yellow-500/10 text-yellow-400",
-    green: "bg-green-500/10 text-green-400",
-  };
-  return (
-    <span
-      className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium ${palette[color] ?? palette.muted}`}
-      style={{ fontFamily: MONO }}
-    >
-      {label}
-    </span>
-  );
-}
-
-function ChipList({
-  items,
-  color,
-  empty = "\u2014",
-}: {
-  items: string[];
-  color?: "accent" | "muted" | "yellow" | "green";
-  empty?: string;
-}) {
-  if (!items || items.length === 0) {
-    return <span className="text-xs text-bc-muted/30">{empty}</span>;
-  }
-  return (
-    <div className="flex flex-wrap gap-1">
-      {items.map((v) => (
-        <Chip key={v} label={v} color={color} />
-      ))}
-    </div>
-  );
-}
-
 // ─── Detail view ─────────────────────────────────────────────────────────────
 
 type SaveStatus =
@@ -183,7 +122,6 @@ function TemplateDetailPanel({
   const [saveStatus, setSaveStatus] = useState<SaveStatus>({ type: "idle" });
 
   // Delete
-  const [confirming, setConfirming] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
   const load = useCallback(async () => {
@@ -245,7 +183,6 @@ function TemplateDetailPanel({
       onDeleted();
     } catch {
       setDeleting(false);
-      setConfirming(false);
     }
   };
 
@@ -441,36 +378,13 @@ function TemplateDetailPanel({
           </div>
 
           {/* Delete */}
-          {confirming ? (
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => void handleDelete()}
-                disabled={deleting}
-                className="px-3 py-1.5 rounded bg-bc-error text-bc-bg text-xs font-medium hover:opacity-90 disabled:opacity-50 transition-opacity focus-visible:ring-2 focus-visible:ring-bc-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bc-bg"
-                aria-label="Confirm delete template"
-              >
-                {deleting ? "Deleting..." : "Confirm delete"}
-              </button>
-              <button
-                type="button"
-                onClick={() => setConfirming(false)}
-                disabled={deleting}
-                className="px-3 py-1.5 rounded border border-bc-border text-bc-muted text-xs hover:text-bc-text transition-colors focus-visible:ring-2 focus-visible:ring-bc-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bc-bg"
-              >
-                Cancel
-              </button>
-            </div>
-          ) : (
-            <button
-              type="button"
-              onClick={() => setConfirming(true)}
-              className="px-3 py-1.5 rounded border border-bc-border text-bc-muted text-xs hover:text-bc-error hover:border-bc-error/50 transition-colors focus-visible:ring-2 focus-visible:ring-bc-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bc-bg"
-              aria-label={`Delete template ${detail.name}`}
-            >
-              Delete
-            </button>
-          )}
+          <ConfirmButton
+            label="Delete"
+            confirmLabel="Confirm delete"
+            onConfirm={() => void handleDelete()}
+            loading={deleting}
+            variant="danger"
+          />
         </div>
       </div>
     </div>
@@ -764,13 +678,11 @@ export function Templates() {
       </div>
 
       {/* Search */}
-      <input
-        type="text"
+      <SearchInput
         value={search}
-        onChange={(e) => { setSearch(e.target.value); }}
+        onChange={setSearch}
         placeholder="Search templates..."
-        aria-label="Search templates"
-        className="w-full max-w-sm px-3 py-1.5 rounded border border-bc-border/40 bg-bc-surface text-sm text-bc-text placeholder:text-bc-muted/40 focus:outline-none focus:border-bc-accent/50 transition-colors"
+        className="w-full max-w-sm"
       />
 
       {/* Create form */}

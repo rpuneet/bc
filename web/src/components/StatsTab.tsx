@@ -7,6 +7,7 @@ import { api } from "../api/client";
 import type { Agent, AgentStatsSummary, AgentMetricTS, TokenMetricTS } from "../api/client";
 import { usePolling } from "../hooks/usePolling";
 import { calculateCost } from "../views/Stats";
+import { Panel, Empty, fmtTime, fmtBytes, fmtTokens } from "./shared/stats-primitives";
 
 // ── Constants ────────────────────────────────────────────────────────────────────
 
@@ -27,44 +28,14 @@ const TICK = { fill: "var(--color-bc-muted)", fontSize: 10 };
 
 // ── Helpers ──────────────────────────────────────────────────────────────────────
 
-const fmtTime = (iso: string) => {
-  try { return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }); }
-  catch { return iso; }
-};
-const fmtBytes = (b: number) => {
-  if (!b) return "0 B";
-  const u = ["B", "KB", "MB", "GB", "TB"];
-  const i = Math.floor(Math.log(b) / Math.log(1024));
-  return `${(b / Math.pow(1024, i)).toFixed(1)} ${u[i]}`;
-};
 const fmtMB = (b: number) => {
   if (!b || !isFinite(b)) return "0.0";
   return (b / 1024 / 1024).toFixed(1);
-};
-const fmtTokens = (n: number) => {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
-  return String(n);
 };
 const trunc = (s: string, n: number) => s.length > n ? s.slice(0, n) + "\u2026" : s;
 const fromParam = (seconds: number) => new Date(Date.now() - seconds * 1000).toISOString();
 
 // ── Primitives ───────────────────────────────────────────────────────────────────
-
-function Panel({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div className="rounded border border-bc-border bg-bc-surface overflow-hidden">
-      <div className="flex items-center justify-between px-3 py-1.5 border-b border-bc-border bg-bc-bg/50">
-        <span className="text-[11px] font-medium text-bc-muted uppercase tracking-wider">{title}</span>
-      </div>
-      <div className="p-3">{children}</div>
-    </div>
-  );
-}
-
-function Empty({ msg = "No data yet" }: { msg?: string }) {
-  return <div className="flex items-center justify-center h-[200px] text-sm text-bc-muted">{msg}</div>;
-}
 
 function StatCard({ label, value, sub, accent }: { label: string; value: string; sub?: string; accent?: boolean }) {
   return (
