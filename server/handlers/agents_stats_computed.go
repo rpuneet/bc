@@ -168,13 +168,31 @@ func (h *AgentHandler) agentComputedStats(w http.ResponseWriter, r *http.Request
 	}
 
 	// Query cost store for token/cost data for this agent.
+	// Cost records may use different agent ID formats:
+	// "clever-urial" (short), "bc-trade-clever-urial" (worktree name), etc.
 	var inputTokens, outputTokens int64
 	var costUSD float64
 	if h.costs != nil {
+		// Try the agent name as-is first
 		if summary, err := h.costs.AgentSummary(r.Context(), name); err == nil && summary != nil {
 			inputTokens = summary.InputTokens
 			outputTokens = summary.OutputTokens
 			costUSD = summary.TotalCostUSD
+		}
+		// If no results, try common worktree-prefixed name patterns
+		if inputTokens == 0 && outputTokens == 0 {
+			wtPath := h.svc.Manager().WorktreePath(name)
+			if wtPath != "" {
+				// Extract the worktree directory name (e.g. "bc-trade-clever-urial")
+				wtDir := filepath.Base(wtPath)
+				if wtDir != name && wtDir != "." {
+					if summary, err := h.costs.AgentSummary(r.Context(), wtDir); err == nil && summary != nil {
+						inputTokens = summary.InputTokens
+						outputTokens = summary.OutputTokens
+						costUSD = summary.TotalCostUSD
+					}
+				}
+			}
 		}
 	}
 
