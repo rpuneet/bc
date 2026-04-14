@@ -100,7 +100,7 @@ export function LoopIconButton({
             className="text-[9px] font-bold leading-none"
             style={{ fontFamily: MONO }}
           >
-            ∞
+            ↻
           </span>
         )}
       </span>

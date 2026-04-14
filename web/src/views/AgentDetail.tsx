@@ -688,11 +688,11 @@ export function AgentDetail() {
             ←
           </Link>
 
-          {/* Shape with provider letter inside */}
+          {/* Shape with provider icon inside */}
           <AgentIcon
             state={agent.state}
             size={30}
-            letter={agent.tool ? agent.tool.charAt(0).toUpperCase() : undefined}
+            tool={agent.tool}
           />
 
           {/* Agent name */}

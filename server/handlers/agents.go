@@ -667,6 +667,9 @@ func (h *AgentHandler) byName(w http.ResponseWriter, r *http.Request) {
 	case action == "mcps" || strings.HasPrefix(action, "mcps/"):
 		h.agentMCPs(w, r, name, action)
 
+	case r.Method == http.MethodGet && action == "stats-computed":
+		h.agentComputedStats(w, r, name)
+
 	default:
 		httpError(w, "not found", http.StatusNotFound)
 	}

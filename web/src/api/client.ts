@@ -417,6 +417,17 @@ export interface ChannelStats {
 }
 
 
+// ComputedStats — computed from hook events in SQLite, no TimescaleDB required.
+export interface ComputedStats {
+  total_events: number;
+  tool_calls: number;
+  tool_breakdown: Record<string, number>;
+  session_duration_sec: number;
+  last_active: string;
+  tokens: number;
+  cost_usd: number;
+}
+
 // TimescaleDB timeseries types
 export interface SystemMetricTS {
   time: string;
@@ -890,6 +901,10 @@ export const api = {
     request<AgentStatsSummary>(
       `/agents/stats/summary/${encodeURIComponent(name)}${qs(params)}`,
     ),
+
+  /** Computed stats from hook events — works without TimescaleDB. */
+  getAgentComputedStats: (name: string) =>
+    request<ComputedStats>(`/agents/${encodeURIComponent(name)}/stats-computed`),
 
   /** Upload a file attachment. */
   uploadFile: async (file: File, channel: string, sender: string) => {

@@ -687,7 +687,7 @@ export function Agents() {
                     </td>
                     <td className="px-4 py-2">
                       <span className="inline-flex items-center gap-2">
-                        <AgentIcon state={a.state} size={24} />
+                        <AgentIcon state={a.state} size={24} tool={a.tool} />
                         <InlineAgentName agent={a} onRenamed={refresh} />
                       </span>
                     </td>

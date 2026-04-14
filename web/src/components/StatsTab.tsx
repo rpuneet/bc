@@ -4,7 +4,7 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
 import { api } from "../api/client";
-import type { Agent, AgentStatsSummary, AgentMetricTS, TokenMetricTS } from "../api/client";
+import type { Agent, AgentStatsSummary, AgentMetricTS, TokenMetricTS, ComputedStats } from "../api/client";
 import { usePolling } from "../hooks/usePolling";
 import { calculateCost } from "../views/Stats";
 import { Panel, Empty, fmtTime, fmtBytes, fmtTokens } from "./shared/stats-primitives";
@@ -51,6 +51,7 @@ function StatCard({ label, value, sub, accent }: { label: string; value: string;
 
 interface TabData {
   summary: AgentStatsSummary | null;
+  computed: ComputedStats | null;
   cpu: AgentMetricTS[];
   mem: AgentMetricTS[];
   net: AgentMetricTS[];
@@ -65,12 +66,13 @@ export function StatsTab({ agent }: { agent: Agent }) {
 
   const fetcher = useCallback(async (): Promise<TabData> => {
     const p = { from, agent: agent.name };
-    const [r0, r1, r2, r3, r4] = await Promise.allSettled([
+    const [r0, r1, r2, r3, r4, r5] = await Promise.allSettled([
       api.getAgentStatsSummary(agent.name, { from }),
       api.getAgentStats("cpu", p),
       api.getAgentStats("mem", p),
       api.getAgentStats("net", p),
       api.getAgentTokenStats(p),
+      api.getAgentComputedStats(agent.name),
     ]);
     return {
       summary: r0.status === "fulfilled" ? r0.value : null,
@@ -78,6 +80,7 @@ export function StatsTab({ agent }: { agent: Agent }) {
       mem: r2.status === "fulfilled" ? (r2.value ?? []) : [],
       net: r3.status === "fulfilled" ? (r3.value ?? []) : [],
       tokens: r4.status === "fulfilled" ? (r4.value ?? []) : [],
+      computed: r5.status === "fulfilled" ? r5.value : null,
     };
   }, [agent.name, from]);
 
@@ -148,12 +151,46 @@ export function StatsTab({ agent }: { agent: Agent }) {
     memChart.length > 0 ||
     (s?.cpu?.avg_percent ?? 0) > 0;
 
+  const computed = data?.computed ?? null;
+  const hasComputedData = (computed?.total_events ?? 0) > 0;
+
   const hasAnyData =
     hasTimescaleData ||
+    hasComputedData ||
     tokenChart.length > 0 ||
     totalIn > 0 ||
     totalOut > 0 ||
     totalCost > 0;
+
+  // Tool breakdown sorted by count descending, capped at 8 entries.
+  const toolBreakdownData = useMemo(() => {
+    if (!computed?.tool_breakdown) return [];
+    return Object.entries(computed.tool_breakdown)
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 8);
+  }, [computed?.tool_breakdown]);
+
+  // Format session_duration_sec as a human-readable string.
+  const fmtDuration = (secs: number): string => {
+    if (!secs || secs <= 0) return "—";
+    const h = Math.floor(secs / 3600);
+    const m = Math.floor((secs % 3600) / 60);
+    const s = secs % 60;
+    if (h > 0) return `${h}h ${m}m`;
+    if (m > 0) return `${m}m ${s}s`;
+    return `${s}s`;
+  };
+
+  // Format last_active as a relative time string.
+  const fmtRelative = (iso: string): string => {
+    if (!iso) return "—";
+    const diff = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
+    if (diff < 60) return `${diff}s ago`;
+    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+    if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+    return `${Math.floor(diff / 86400)}d ago`;
+  };
 
   const isStopped = agent.state === "stopped" || agent.state === "error";
 
@@ -187,6 +224,46 @@ export function StatsTab({ agent }: { agent: Agent }) {
         <div className="rounded border border-bc-border/40 bg-bc-surface/20 p-2.5 text-[10px] text-bc-muted/70 leading-relaxed">
           <span className="font-medium">CPU/Memory metrics require TimescaleDB.</span>{" "}
           Showing token and cost data from agent session logs.
+        </div>
+      )}
+
+      {/* Hook-based stats — shown when TimescaleDB is empty but SQLite events exist */}
+      {hasComputedData && !loading && (
+        <div className="space-y-3">
+          <p className="text-[11px] font-medium text-bc-muted uppercase tracking-wider">Activity (from hook events)</p>
+
+          {/* Summary cards */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <StatCard label="Tool Calls" value={String(computed?.tool_calls ?? 0)} />
+            <StatCard label="Total Events" value={String(computed?.total_events ?? 0)} />
+            <StatCard label="Session Duration" value={fmtDuration(computed?.session_duration_sec ?? 0)} />
+            <StatCard label="Last Active" value={fmtRelative(computed?.last_active ?? "")} />
+          </div>
+
+          {/* Tool breakdown */}
+          {toolBreakdownData.length > 0 && (
+            <div className="rounded border border-bc-border bg-bc-surface p-3">
+              <p className="text-[11px] text-bc-muted uppercase tracking-wider mb-2">Tool Breakdown</p>
+              <div className="space-y-1.5">
+                {toolBreakdownData.map(({ name: toolName, count }, i) => {
+                  const maxCount = toolBreakdownData[0]?.count ?? 1;
+                  const pct = Math.round((count / maxCount) * 100);
+                  return (
+                    <div key={toolName} className="flex items-center gap-2">
+                      <span className="w-20 text-[11px] text-bc-text truncate shrink-0">{toolName}</span>
+                      <div className="flex-1 h-1.5 rounded bg-bc-border/40 overflow-hidden">
+                        <div
+                          className="h-full rounded"
+                          style={{ width: `${pct}%`, backgroundColor: COLORS[i % COLORS.length] }}
+                        />
+                      </div>
+                      <span className="text-[11px] text-bc-muted w-6 text-right shrink-0">{count}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
