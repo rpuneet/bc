@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 
-const MONO =
-  "'JetBrains Mono', 'Fira Code', 'Space Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
+import { MONO } from "../utils/typography";
 
 const INPUT_CLS =
   "w-full bg-bc-bg border border-bc-border rounded px-3 py-2 text-sm text-bc-text " +
@@ -293,8 +292,3 @@ export function RalphLoopModal({
   );
 }
 
-// useRalphLoop is now a no-op — the server handles loop re-prompting.
-// Kept for backward compatibility with AgentDetail.tsx.
-export function useRalphLoop(_agentName: string, _agentState: string): void {
-  // Server-side loop via hook handler. No client-side action needed.
-}

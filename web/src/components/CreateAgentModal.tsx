@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { AgentIcon } from "./agent-ui";
 import type { AgentShape } from "./agent-ui";
+import { MONO } from "../utils/typography";
 
 // ── Name generation ───────────────────────────────────────────────────────────
 
@@ -64,9 +65,6 @@ const SHAPES: AgentShape[] = ["hexagon", "circle", "square"];
 const INPUT_CLS =
   "w-full bg-bc-bg border border-bc-border rounded px-3 py-2 text-sm text-bc-text " +
   "placeholder:text-bc-muted outline-none focus:border-bc-accent transition-colors";
-
-const MONO =
-  "'JetBrains Mono', 'Fira Code', 'Space Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
 
 // ── Component ─────────────────────────────────────────────────────────────────
 

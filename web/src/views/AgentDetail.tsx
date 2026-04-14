@@ -12,13 +12,11 @@ import { LoopIconButton, RalphLoopModal } from "../components/RalphLoopModal";
 import { MCPServerList } from "../components/shared/MCPServerList";
 import { SystemPromptEditor } from "../components/shared/SystemPromptEditor";
 import { AgentActivityStream, SectionRule } from "../components/shared";
+import { MONO } from "../utils/typography";
 
 /* ═══════════════════════════════════════════════════════════════════
    Utility
    ═══════════════════════════════════════════════════════════════════ */
-
-const MONO =
-  "'JetBrains Mono', 'Fira Code', 'Space Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
 
 function formatTime(t?: string): string {
   if (!t) return "\u2014";
