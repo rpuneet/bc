@@ -7,7 +7,7 @@ import { api } from "../api/client";
 import type { Agent, AgentStatsSummary, AgentMetricTS, TokenMetricTS, ComputedStats } from "../api/client";
 import { usePolling } from "../hooks/usePolling";
 import { calculateCost } from "../views/Stats";
-import { Panel, Empty, fmtTime, fmtBytes, fmtTokens } from "./shared/stats-primitives";
+import { Panel, fmtTime, fmtBytes, fmtTokens } from "./shared/stats-primitives";
 
 // ── Constants ────────────────────────────────────────────────────────────────────
 
@@ -351,125 +351,125 @@ export function StatsTab({ agent }: { agent: Agent }) {
         <StatCard label="Cost" value={`$${totalCost.toFixed(2)}`} accent />
       </div>
 
-      {/* Row 2: CPU + Memory charts */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <Panel title="CPU (%)">
-          {cpuChart.length < 2 ? <Empty /> : (
-            <ResponsiveContainer width="100%" height={200}>
-              <AreaChart data={cpuChart} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-bc-border)" vertical={false} />
-                <XAxis dataKey="time" tick={TICK} {...AX} />
-                <YAxis tick={TICK} {...AX} tickFormatter={(v: number) => `${v}%`} />
-                <Tooltip contentStyle={TT} />
-                <Area type="monotone" dataKey="cpu" name="CPU %" stroke="#FF6B35" fill="#FF6B35" fillOpacity={0.12} strokeWidth={1.5} dot={false} />
-              </AreaChart>
-            </ResponsiveContainer>
+      {/* Row 2: CPU + Memory charts — only shown when TSDB has data */}
+      {(cpuChart.length >= 2 || memChart.length >= 2) && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {cpuChart.length >= 2 && (
+            <Panel title="CPU (%)">
+              <ResponsiveContainer width="100%" height={200}>
+                <AreaChart data={cpuChart} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--color-bc-border)" vertical={false} />
+                  <XAxis dataKey="time" tick={TICK} {...AX} />
+                  <YAxis tick={TICK} {...AX} tickFormatter={(v: number) => `${v}%`} />
+                  <Tooltip contentStyle={TT} />
+                  <Area type="monotone" dataKey="cpu" name="CPU %" stroke="#FF6B35" fill="#FF6B35" fillOpacity={0.12} strokeWidth={1.5} dot={false} />
+                </AreaChart>
+              </ResponsiveContainer>
+            </Panel>
           )}
-        </Panel>
-        <Panel title="Memory (MB)">
-          {memChart.length < 2 ? <Empty /> : (
-            <ResponsiveContainer width="100%" height={200}>
-              <AreaChart data={memChart} margin={{ top: 4, right: 8, left: -10, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-bc-border)" vertical={false} />
-                <XAxis dataKey="time" tick={TICK} {...AX} />
-                <YAxis tick={TICK} {...AX} />
-                <Tooltip contentStyle={TT} formatter={(v) => [`${Number(v ?? 0).toFixed(1)} MB`]} />
-                <Area type="monotone" dataKey="mem" name="Memory MB" stroke="#3B82F6" fill="#3B82F6" fillOpacity={0.12} strokeWidth={1.5} dot={false} />
-              </AreaChart>
-            </ResponsiveContainer>
+          {memChart.length >= 2 && (
+            <Panel title="Memory (MB)">
+              <ResponsiveContainer width="100%" height={200}>
+                <AreaChart data={memChart} margin={{ top: 4, right: 8, left: -10, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--color-bc-border)" vertical={false} />
+                  <XAxis dataKey="time" tick={TICK} {...AX} />
+                  <YAxis tick={TICK} {...AX} />
+                  <Tooltip contentStyle={TT} formatter={(v) => [`${Number(v ?? 0).toFixed(1)} MB`]} />
+                  <Area type="monotone" dataKey="mem" name="Memory MB" stroke="#3B82F6" fill="#3B82F6" fillOpacity={0.12} strokeWidth={1.5} dot={false} />
+                </AreaChart>
+              </ResponsiveContainer>
+            </Panel>
           )}
-        </Panel>
-      </div>
+        </div>
+      )}
 
-      {/* Row 3: Network I/O + Token Usage */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <Panel title="Network I/O">
-          {netChart.length < 2 ? <Empty /> : (
-            <ResponsiveContainer width="100%" height={200}>
-              <AreaChart data={netChart} margin={{ top: 4, right: 8, left: -10, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-bc-border)" vertical={false} />
-                <XAxis dataKey="time" tick={TICK} {...AX} />
-                <YAxis tick={TICK} {...AX} tickFormatter={(v: number) => fmtBytes(v)} />
-                <Tooltip contentStyle={TT} formatter={(v) => [fmtBytes(Number(v ?? 0))]} />
-                <Area type="monotone" dataKey="rx" name="RX" stroke="#10B981" fill="#10B981" fillOpacity={0.12} strokeWidth={1.5} dot={false} />
-                <Area type="monotone" dataKey="tx" name="TX" stroke="#FF6B35" fill="#FF6B35" fillOpacity={0.12} strokeWidth={1.5} dot={false} />
-              </AreaChart>
-            </ResponsiveContainer>
+      {/* Row 3: Network I/O + Token Usage — only shown when data exists */}
+      {(netChart.length >= 2 || tokenChart.length >= 2) && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {netChart.length >= 2 && (
+            <Panel title="Network I/O">
+              <ResponsiveContainer width="100%" height={200}>
+                <AreaChart data={netChart} margin={{ top: 4, right: 8, left: -10, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--color-bc-border)" vertical={false} />
+                  <XAxis dataKey="time" tick={TICK} {...AX} />
+                  <YAxis tick={TICK} {...AX} tickFormatter={(v: number) => fmtBytes(v)} />
+                  <Tooltip contentStyle={TT} formatter={(v) => [fmtBytes(Number(v ?? 0))]} />
+                  <Area type="monotone" dataKey="rx" name="RX" stroke="#10B981" fill="#10B981" fillOpacity={0.12} strokeWidth={1.5} dot={false} />
+                  <Area type="monotone" dataKey="tx" name="TX" stroke="#FF6B35" fill="#FF6B35" fillOpacity={0.12} strokeWidth={1.5} dot={false} />
+                </AreaChart>
+              </ResponsiveContainer>
+            </Panel>
           )}
-        </Panel>
-        <Panel title="Token Usage">
-          {tokenChart.length < 2 ? <Empty /> : (
-            <ResponsiveContainer width="100%" height={200}>
-              <AreaChart data={tokenChart} margin={{ top: 4, right: 8, left: -8, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-bc-border)" vertical={false} />
-                <XAxis dataKey="time" tick={TICK} {...AX} />
-                <YAxis tick={TICK} {...AX} tickFormatter={(v: number) => fmtTokens(v)} />
-                <Tooltip contentStyle={TT} formatter={(v, n) => [Number(v ?? 0).toLocaleString(), n === "input" ? "Input" : "Output"]} />
-                <Area type="monotone" dataKey="input" name="Input" stroke="#3B82F6" fill="#3B82F6" fillOpacity={0.12} strokeWidth={1.5} stackId="1" dot={false} />
-                <Area type="monotone" dataKey="output" name="Output" stroke="#FF6B35" fill="#FF6B35" fillOpacity={0.12} strokeWidth={1.5} stackId="1" dot={false} />
-              </AreaChart>
-            </ResponsiveContainer>
+          {tokenChart.length >= 2 && (
+            <Panel title="Token Usage">
+              <ResponsiveContainer width="100%" height={200}>
+                <AreaChart data={tokenChart} margin={{ top: 4, right: 8, left: -8, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--color-bc-border)" vertical={false} />
+                  <XAxis dataKey="time" tick={TICK} {...AX} />
+                  <YAxis tick={TICK} {...AX} tickFormatter={(v: number) => fmtTokens(v)} />
+                  <Tooltip contentStyle={TT} formatter={(v, n) => [Number(v ?? 0).toLocaleString(), n === "input" ? "Input" : "Output"]} />
+                  <Area type="monotone" dataKey="input" name="Input" stroke="#3B82F6" fill="#3B82F6" fillOpacity={0.12} strokeWidth={1.5} stackId="1" dot={false} />
+                  <Area type="monotone" dataKey="output" name="Output" stroke="#FF6B35" fill="#FF6B35" fillOpacity={0.12} strokeWidth={1.5} stackId="1" dot={false} />
+                </AreaChart>
+              </ResponsiveContainer>
+            </Panel>
           )}
-        </Panel>
-      </div>
+        </div>
+      )}
 
-      {/* Row 4: Cost by Model + I/O Summary */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <Panel title="Cost by Model">
-          {costBarData.length === 0 ? <Empty msg="No cost data" /> : (
-            <ResponsiveContainer width="100%" height={200}>
-              <BarChart layout="vertical" data={costBarData} margin={{ top: 0, right: 8, left: 4, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-bc-border)" horizontal={false} />
-                <XAxis type="number" tick={TICK} {...AX} tickFormatter={(v: number) => `$${v}`} />
-                <YAxis type="category" dataKey="name" tick={{ ...TICK, fill: "var(--color-bc-text)", fontSize: 9 }} {...AX} width={120} />
-                <Tooltip contentStyle={TT} formatter={(v) => [`$${Number(v ?? 0).toFixed(4)}`]} />
-                <Bar dataKey="cost" radius={[0, 3, 3, 0]}>
-                  {costBarData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          )}
-        </Panel>
-        <Panel title="I/O Summary">
-          {!s ? (
-            // Fallback: show agent record data when TimescaleDB is unavailable
-            <div className="grid grid-cols-2 gap-3 py-4">
-              <div className="text-center">
-                <p className="text-[11px] text-bc-muted uppercase">Total Tokens</p>
-                <p className="text-lg font-bold text-[#3B82F6]">{fmtTokens(agent.total_tokens ?? 0)}</p>
-              </div>
-              <div className="text-center">
-                <p className="text-[11px] text-bc-muted uppercase">Total Cost</p>
-                <p className="text-lg font-bold text-bc-accent">${(agent.cost_usd ?? 0).toFixed(4)}</p>
-              </div>
-              <div className="col-span-2 text-center">
-                <p className="text-[10px] text-bc-muted/50 italic">
-                  Net I/O requires TimescaleDB
-                </p>
-              </div>
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 gap-3 py-4">
-              <div className="text-center">
-                <p className="text-[11px] text-bc-muted uppercase">Net RX</p>
-                <p className="text-lg font-bold text-[#10B981]">{fmtBytes(s.network?.rx_bytes ?? 0)}</p>
-              </div>
-              <div className="text-center">
-                <p className="text-[11px] text-bc-muted uppercase">Net TX</p>
-                <p className="text-lg font-bold text-bc-accent">{fmtBytes(s.network?.tx_bytes ?? 0)}</p>
-              </div>
-              <div className="text-center">
-                <p className="text-[11px] text-bc-muted uppercase">Disk Read</p>
-                <p className="text-lg font-bold text-[#3B82F6]">{fmtBytes(s.disk?.read_bytes ?? 0)}</p>
-              </div>
-              <div className="text-center">
-                <p className="text-[11px] text-bc-muted uppercase">Disk Write</p>
-                <p className="text-lg font-bold text-[#A855F7]">{fmtBytes(s.disk?.write_bytes ?? 0)}</p>
-              </div>
-            </div>
-          )}
-        </Panel>
-      </div>
+      {/* Row 4: Cost by Model + I/O Summary — only shown when data exists */}
+      {(() => {
+        const hasIoData = s && (
+          (s.network?.rx_bytes ?? 0) > 0 ||
+          (s.network?.tx_bytes ?? 0) > 0 ||
+          (s.disk?.read_bytes ?? 0) > 0 ||
+          (s.disk?.write_bytes ?? 0) > 0
+        );
+        const showCost = costBarData.length > 0;
+        const showIo = hasIoData;
+        if (!showCost && !showIo) return null;
+        return (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {showCost && (
+              <Panel title="Cost by Model">
+                <ResponsiveContainer width="100%" height={200}>
+                  <BarChart layout="vertical" data={costBarData} margin={{ top: 0, right: 8, left: 4, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--color-bc-border)" horizontal={false} />
+                    <XAxis type="number" tick={TICK} {...AX} tickFormatter={(v: number) => `$${v}`} />
+                    <YAxis type="category" dataKey="name" tick={{ ...TICK, fill: "var(--color-bc-text)", fontSize: 9 }} {...AX} width={120} />
+                    <Tooltip contentStyle={TT} formatter={(v) => [`$${Number(v ?? 0).toFixed(4)}`]} />
+                    <Bar dataKey="cost" radius={[0, 3, 3, 0]}>
+                      {costBarData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </Panel>
+            )}
+            {showIo && s && (
+              <Panel title="I/O Summary">
+                <div className="grid grid-cols-2 gap-3 py-4">
+                  <div className="text-center">
+                    <p className="text-[11px] text-bc-muted uppercase">Net RX</p>
+                    <p className="text-lg font-bold text-[#10B981]">{fmtBytes(s.network?.rx_bytes ?? 0)}</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-[11px] text-bc-muted uppercase">Net TX</p>
+                    <p className="text-lg font-bold text-bc-accent">{fmtBytes(s.network?.tx_bytes ?? 0)}</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-[11px] text-bc-muted uppercase">Disk Read</p>
+                    <p className="text-lg font-bold text-[#3B82F6]">{fmtBytes(s.disk?.read_bytes ?? 0)}</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-[11px] text-bc-muted uppercase">Disk Write</p>
+                    <p className="text-lg font-bold text-[#A855F7]">{fmtBytes(s.disk?.write_bytes ?? 0)}</p>
+                  </div>
+                </div>
+              </Panel>
+            )}
+          </div>
+        );
+      })()}
     </div>
   );
 }

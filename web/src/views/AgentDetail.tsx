@@ -196,7 +196,10 @@ function ConfigTab({ agent }: { agent: Agent }) {
         if (!cancelled) {
           const names = data.map((t) => t.name).filter(Boolean) as string[];
           setTemplates(names);
-          if (names.length > 0 && names[0]) setSelectedTemplate(names[0]);
+          if (names.length > 0) {
+            const nonBlank = names.filter((t) => t !== "blank");
+            setSelectedTemplate(nonBlank[0] ?? names[0] ?? "feature-dev");
+          }
         }
       })
       .catch(() => {/* best-effort */});
