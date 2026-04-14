@@ -322,9 +322,14 @@ func (h *AgentHandler) list(w http.ResponseWriter, r *http.Request) {
 			httpError(w, "invalid request body", http.StatusBadRequest)
 			return
 		}
+		// Default role to "base" when template is provided without explicit role.
+		role := req.Role
+		if role == "" && req.Template != "" {
+			role = "base"
+		}
 		a, err := h.svc.Create(r.Context(), agent.CreateOptions{
 			Name:    req.Name,
-			Role:    agent.Role(req.Role),
+			Role:    agent.Role(role),
 			Tool:    req.Tool,
 			Runtime: req.Runtime,
 			Parent:  req.Parent,
