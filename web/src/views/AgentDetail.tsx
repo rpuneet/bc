@@ -6,7 +6,6 @@ import { usePolling } from "../hooks/usePolling";
 import { useWebSocket } from "../hooks/useWebSocket";
 import { StatsTab as StatsTabComponent } from "../components/StatsTab";
 import { WebTerminal } from "../components/WebTerminal";
-import { stripAnsi } from "../utils/text";
 import { AgentIcon } from "../components/agent-ui";
 import { LoopIconButton, RalphLoopModal } from "../components/RalphLoopModal";
 import { MCPServerList } from "../components/shared/MCPServerList";
@@ -51,16 +50,16 @@ function formatRelative(t?: string): string {
 }
 
 /* ═══════════════════════════════════════════════════════════════════
-   Tab types — v2: Terminal / Activity / Config / Stats
+   Tab types — v3: Live / Attach / Config / Metrics
    ═══════════════════════════════════════════════════════════════════ */
 
-type Tab = "terminal" | "activity" | "config" | "stats";
+type Tab = "live" | "attach" | "config" | "metrics";
 
 const TABS: { key: Tab; label: string; shortcut: string }[] = [
-  { key: "terminal", label: "Terminal", shortcut: "1" },
-  { key: "activity", label: "Activity", shortcut: "2" },
+  { key: "live", label: "Live", shortcut: "1" },
+  { key: "attach", label: "Attach", shortcut: "2" },
   { key: "config", label: "Config", shortcut: "3" },
-  { key: "stats", label: "Stats", shortcut: "4" },
+  { key: "metrics", label: "Metrics", shortcut: "4" },
 ];
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -95,117 +94,24 @@ function MetaCell({
 }
 
 /* ═══════════════════════════════════════════════════════════════════
-   Tab 1 — Terminal (default)
-   Immersive, zero-chrome. Fills the entire flex area.
+   Tab 2 — Attach
+   Direct terminal access. No overlay, no pulsing dot.
    ═══════════════════════════════════════════════════════════════════ */
 
-function TerminalTab({
-  agent,
-  outputLines,
-  outputRef,
-  onStart,
-}: {
-  agent: Agent;
-  outputLines: string[];
-  outputRef: React.RefObject<HTMLPreElement>;
-  onStart?: () => void;
-}) {
+function AttachTab({ agent }: { agent: Agent }) {
   const isStopped = agent.state === "stopped" || agent.state === "error";
-  const [attached, setAttached] = useState(false);
-
-  // Reset attached state when agent stops
-  useEffect(() => {
-    if (isStopped) setAttached(false);
-  }, [isStopped]);
 
   if (isStopped) {
     return (
-      <div className="flex flex-col flex-1 min-h-0">
-        {/* Stopped banner */}
-        <div className="flex items-center justify-between px-4 py-2 border-b border-bc-border/40 bg-bc-surface/30">
-          <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-bc-muted/40" />
-            <span className="text-xs text-bc-muted" style={{ fontFamily: MONO }}>
-              {agent.name}
-            </span>
-            <span className="text-[10px] text-bc-muted/50">
-              {agent.state === "error" ? "errored" : "stopped"}
-              {agent.stopped_at ? ` \u00b7 ${formatRelative(agent.stopped_at)}` : ""}
-            </span>
-          </div>
-          <button
-            type="button"
-            onClick={onStart}
-            className="px-2.5 py-1 rounded text-[11px] font-medium bg-bc-accent/15 text-bc-accent hover:bg-bc-accent/25 transition-colors"
-            style={{ fontFamily: MONO }}
-          >
-            Start agent
-          </button>
-        </div>
-
-        {/* Last captured output */}
-        <pre
-          ref={outputRef}
-          className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-4 text-xs leading-relaxed whitespace-pre-wrap break-words text-bc-text/70 bg-bc-bg"
-          style={{ fontFamily: MONO }}
-        >
-          {outputLines.length > 0 ? (
-            outputLines.join("\n")
-          ) : (
-            <span className="text-bc-muted/40 italic">
-              No captured output from the last run.
-            </span>
-          )}
-        </pre>
-      </div>
-    );
-  }
-
-  // Running — show overlay first, then WebTerminal when attached
-  if (!attached) {
-    return (
-      <div className="flex-1 min-h-0 flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-12 h-12 rounded-full bg-bc-accent/20 flex items-center justify-center">
-            <span className="w-3 h-3 rounded-full bg-bc-accent animate-pulse" />
-          </div>
-          <span className="text-sm text-bc-text/80" style={{ fontFamily: MONO }}>
-            {agent.name} is running
-          </span>
-          <button
-            type="button"
-            onClick={() => setAttached(true)}
-            className="px-4 py-2 rounded bg-bc-accent/15 text-bc-accent text-sm hover:bg-bc-accent/25 transition-colors"
-            style={{ fontFamily: MONO }}
-          >
-            Click to attach terminal
-          </button>
-          {agent.task && (
-            <span className="text-xs text-bc-muted" style={{ fontFamily: MONO }}>
-              {agent.task}
-            </span>
-          )}
-        </div>
+      <div className="flex-1 flex items-center justify-center text-bc-muted text-sm">
+        Agent is stopped. Start the agent to attach a terminal.
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col flex-1 min-h-0">
-      {/* Thin top bar with detach button */}
-      <div className="flex items-center justify-end px-3 py-1 border-b border-bc-border/30 bg-bc-surface/20">
-        <button
-          type="button"
-          onClick={() => setAttached(false)}
-          className="text-[11px] text-bc-muted/60 hover:text-bc-muted transition-colors"
-          style={{ fontFamily: MONO }}
-        >
-          [Detach]
-        </button>
-      </div>
-      <div className="flex-1 min-h-0">
-        <WebTerminal agentName={agent.name} />
-      </div>
+    <div className="flex-1 min-h-0 relative" title="Click anywhere to focus the terminal">
+      <WebTerminal agentName={agent.name} />
     </div>
   );
 }
@@ -644,7 +550,7 @@ function ConfigTab({ agent }: { agent: Agent }) {
    Wraps existing StatsTabComponent, adds stopped-agent context
    ═══════════════════════════════════════════════════════════════════ */
 
-function StatsTab({ agent }: { agent: Agent }) {
+function MetricsTab({ agent }: { agent: Agent }) {
   const isStopped = agent.state === "stopped" || agent.state === "error";
   return (
     <div className="flex-1 overflow-y-auto p-6">
@@ -670,10 +576,8 @@ function StatsTab({ agent }: { agent: Agent }) {
 export function AgentDetail() {
   const { name } = useParams<{ name: string }>();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<Tab>("terminal");
-  const [outputLines, setOutputLines] = useState<string[]>([]);
+  const [activeTab, setActiveTab] = useState<Tab>("live");
   const [loopOpen, setLoopOpen] = useState(false);
-  const outputRef = useRef<HTMLPreElement>(null);
   const { subscribe } = useWebSocket();
 
   const agentFetcher = useCallback(async () => {
@@ -688,69 +592,6 @@ export function AgentDetail() {
     refresh,
   } = usePolling<Agent>(agentFetcher, 3000);
 
-  // Poll peek output every 2s
-  useEffect(() => {
-    if (!name) return;
-    const fetchPeek = () => {
-      api
-        .getAgentPeek(name, 200)
-        .then(({ output }) => {
-          if (output) {
-            setOutputLines(stripAnsi(output).split("\n"));
-          }
-        })
-        .catch(() => {
-          /* peek may fail for stopped agents */
-        });
-    };
-    fetchPeek();
-    const interval = setInterval(fetchPeek, 2000);
-    return () => clearInterval(interval);
-  }, [name]);
-
-  // Stream live output via SSE
-  useEffect(() => {
-    if (!name) return;
-    const es = new EventSource(
-      `/api/agents/${encodeURIComponent(name)}/output`,
-    );
-    es.onmessage = (e: MessageEvent) => {
-      try {
-        const parsed = JSON.parse(e.data as string) as { output: string };
-        if (parsed.output) {
-          const newLines = stripAnsi(parsed.output).split("\n");
-          setOutputLines((prev) => [...prev, ...newLines].slice(-500));
-        }
-      } catch {
-        /* ignore */
-      }
-    };
-    es.addEventListener("agent.output", ((e: MessageEvent) => {
-      try {
-        const parsed = JSON.parse(e.data as string) as { output: string };
-        if (parsed.output) {
-          const newLines = stripAnsi(parsed.output).split("\n");
-          setOutputLines((prev) => [...prev, ...newLines].slice(-500));
-        }
-      } catch {
-        /* ignore */
-      }
-    }) as EventListener);
-    es.onerror = () => {
-      /* SSE reconnects automatically */
-    };
-    return () => {
-      es.close();
-    };
-  }, [name]);
-
-  // Auto-scroll
-  useEffect(() => {
-    if (outputRef.current) {
-      outputRef.current.scrollTop = outputRef.current.scrollHeight;
-    }
-  }, [outputLines]);
-
   // Refresh on agent state changes
   useEffect(() => {
     return subscribe("agent.state_changed", () => void refresh());
@@ -764,16 +605,16 @@ export function AgentDetail() {
 
       switch (e.key) {
         case "1":
-          setActiveTab("terminal");
+          setActiveTab("live");
           break;
         case "2":
-          setActiveTab("activity");
+          setActiveTab("attach");
           break;
         case "3":
           setActiveTab("config");
           break;
         case "4":
-          setActiveTab("stats");
+          setActiveTab("metrics");
           break;
         case "Escape":
           navigate("/agents");
@@ -936,15 +777,7 @@ export function AgentDetail() {
 
       {/* ═══ TAB CONTENT ═══ */}
       <div className="flex-1 min-h-0 flex flex-col">
-        {activeTab === "terminal" && (
-          <TerminalTab
-            agent={agent}
-            outputLines={outputLines}
-            outputRef={outputRef}
-            onStart={() => { void api.startAgent(agent.name).then(() => void refresh()); }}
-          />
-        )}
-        {activeTab === "activity" && (
+        {activeTab === "live" && (
           <AgentToolStream
             agentName={agent.name}
             agentState={agent.state}
@@ -955,8 +788,9 @@ export function AgentDetail() {
             createdAt={agent.created_at}
           />
         )}
+        {activeTab === "attach" && <AttachTab agent={agent} />}
         {activeTab === "config" && <ConfigTab agent={agent} />}
-        {activeTab === "stats" && <StatsTab agent={agent} />}
+        {activeTab === "metrics" && <MetricsTab agent={agent} />}
       </div>
 
       {/* Ralph Loop modal */}

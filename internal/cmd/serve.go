@@ -333,8 +333,49 @@ func RunServer(addr, wsRoot, corsOrigin, apiKey string) error {
 		BuiltAt: date,
 	}
 
+	// Rewrite agent hook settings to point at the actual bcd address so
+	// existing tmux sessions that don't inherit BC_BCD_ADDR still reach bcd.
+	updateAgentHookPorts(ws, cfg.Addr)
+
 	srv := server.New(cfg, svc, hub, server.WebDist())
 	return srv.Start(ctx)
+}
+
+// updateAgentHookPorts rewrites agent hook settings to use the current bcd address.
+// This is necessary because existing tmux sessions don't inherit the BC_BCD_ADDR
+// environment variable that is set in the bcd process env.
+func updateAgentHookPorts(ws *bcworkspace.Workspace, listenAddr string) {
+	bcdURL := "http://" + listenAddr
+	agentsDir := filepath.Join(ws.StateDir(), "agents")
+	entries, err := os.ReadDir(agentsDir)
+	if err != nil {
+		return
+	}
+
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		// Find all .claude/settings.json files under this agent's worktrees
+		settingsGlob := filepath.Join(agentsDir, e.Name(), "*", ".claude", "settings.json")
+		matches, _ := filepath.Glob(settingsGlob) //nolint:errcheck // Glob only errors on bad pattern
+		for _, settingsPath := range matches {
+			data, readErr := os.ReadFile(settingsPath)
+			if readErr != nil {
+				continue
+			}
+			content := string(data)
+			updated := strings.ReplaceAll(content, "http://127.0.0.1:9374", bcdURL)
+			updated = strings.ReplaceAll(updated, "${BC_BCD_ADDR:-http://127.0.0.1:9374}", bcdURL)
+			if updated != content {
+				if writeErr := os.WriteFile(settingsPath, []byte(updated), 0644); writeErr != nil { //nolint:gosec // agent settings file
+					log.Warn("failed to update hook port", "path", settingsPath, "error", writeErr)
+					continue
+				}
+				log.Info("updated hook port", "agent", e.Name(), "addr", bcdURL)
+			}
+		}
+	}
 }
 
 func newServerAgentManager(ws *bcworkspace.Workspace) (*bcagent.Manager, *bccontainer.Backend, error) {
