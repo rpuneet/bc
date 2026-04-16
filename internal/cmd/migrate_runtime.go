@@ -44,18 +44,36 @@ func init() {
 }
 
 // WorkspaceRuntimeMigrationResult summarizes one workspace's migration.
+//
+// Integrity fields (SourceBytes / DestBytes / IntegrityMismatches) answer
+// "did every byte we intended to move actually land at the destination?".
+// A non-zero len(IntegrityMismatches) is a hard failure even if everything
+// else succeeded — the legacy .bc/ dir is NOT renamed to .bc.migrated in
+// that case, so the operator can inspect and retry.
 type WorkspaceRuntimeMigrationResult struct {
-	ID               string
-	Name             string
-	ProjectPath      string
-	DataDir          string
-	Skipped          bool
-	SkipReason       string
-	MovedFiles       int
-	MovedDirs        int
-	WorktreesMoved   int
-	WorktreesSkipped []string
-	Errors           []string
+	ID                   string
+	Name                 string
+	ProjectPath          string
+	DataDir              string
+	Skipped              bool
+	SkipReason           string
+	MovedFiles           int
+	MovedDirs            int
+	WorktreesMoved       int
+	WorktreesSkipped     []string
+	Errors               []string
+	SourceBytes          int64             // sum of file sizes we planned to move
+	DestBytes            int64             // sum of file sizes actually present at destination
+	IntegrityMismatches  []IntegrityFinding // per-file size deltas when source ≠ dest
+}
+
+// IntegrityFinding records one file where the pre-move size did not match
+// the post-move size at the destination. Either a byte drop (destination
+// smaller) or an unexpected growth flags it.
+type IntegrityFinding struct {
+	Path       string // relative path under legacy .bc/
+	SourceSize int64  // size before the move
+	DestSize   int64  // size at the destination (0 if missing)
 }
 
 func runMigrateRuntime(cmd *cobra.Command, _ []string) error {
@@ -139,6 +157,19 @@ func migrateOneWorkspaceRuntime(entry *workspace.RegistryEntry) WorkspaceRuntime
 		return res
 	}
 
+	// Pre-flight snapshot: capture every file in the legacy dir with
+	// its size. Post-migration we compare against DataDir + any agent
+	// worktrees moved by git. A byte-for-byte match is the only
+	// signal that the migration completed without silent drops.
+	preSnap, snapErr := snapshotDir(legacyDir)
+	if snapErr != nil {
+		res.Errors = append(res.Errors, fmt.Sprintf("pre-flight snapshot: %v", snapErr))
+		return res
+	}
+	for _, sz := range preSnap {
+		res.SourceBytes += sz
+	}
+
 	if err := os.MkdirAll(res.DataDir, 0o750); err != nil {
 		res.Errors = append(res.Errors, fmt.Sprintf("mkdir DataDir: %v", err))
 		return res
@@ -203,6 +234,43 @@ func migrateOneWorkspaceRuntime(entry *workspace.RegistryEntry) WorkspaceRuntime
 	if err := migrateAgentsDir(entry, legacyDir, res.DataDir, &res); err != nil {
 		res.Errors = append(res.Errors, fmt.Sprintf("agents/: %v", err))
 	}
+
+	// Integrity check: every file from the pre-flight snapshot must
+	// now live somewhere readable (DataDir OR still inside legacyDir
+	// for unknown files we skipped) at the same byte size. If any
+	// file is missing or smaller than recorded we DO NOT rename
+	// .bc → .bc.migrated — the operator needs to inspect.
+	findings := verifyMigrationIntegrity(preSnap, legacyDir, res.DataDir)
+	// Total post-migration bytes = everything still in legacyDir (skipped
+	// / unknown) + everything under DataDir (moved destinations). These
+	// are disjoint because moves delete the source, so summing both is
+	// the right accounting.
+	if postLegacy, err := snapshotDir(legacyDir); err == nil {
+		for _, sz := range postLegacy {
+			res.DestBytes += sz
+		}
+	}
+	if postData, err := snapshotDir(res.DataDir); err == nil {
+		for _, sz := range postData {
+			res.DestBytes += sz
+		}
+	}
+	res.IntegrityMismatches = findings
+	if len(findings) > 0 {
+		log.Warn("migration integrity mismatch",
+			"workspace", entry.Name,
+			"mismatches", len(findings),
+			"source_bytes", res.SourceBytes,
+			"dest_bytes", res.DestBytes,
+		)
+		// Preserve legacy .bc/ for inspection — do not rename on failure.
+		return res
+	}
+	log.Info("migration integrity verified",
+		"workspace", entry.Name,
+		"source_bytes", res.SourceBytes,
+		"dest_bytes", res.DestBytes,
+	)
 
 	// Rename the legacy .bc/ to .bc.migrated/ as a visible audit trail.
 	// Contents that were NOT moved (e.g. unknown files) stay inside.
@@ -494,6 +562,71 @@ func isDefaultBCHome() bool {
 		return false
 	}
 	return absBC == absWant
+}
+
+// verifyMigrationIntegrity compares a pre-flight snapshot of legacyDir
+// against the live state after migration. For every file that was in
+// the snapshot it locates the destination (DataDir for known moves,
+// legacyDir for unknown files we left behind) and compares sizes.
+// Returns one IntegrityFinding per mismatch — empty slice means the
+// migration moved every byte we promised to move.
+//
+// The map of legacy→destination renames mirrors the moves in
+// migrateOneWorkspaceRuntime; keep in sync if that function's move
+// list changes.
+func verifyMigrationIntegrity(preSnap map[string]int64, legacyDir, dataDir string) []IntegrityFinding {
+	findings := []IntegrityFinding{}
+	// Rename map for root-level files: settings.json → preferences.json.
+	// Everything else is the identity mapping.
+	rename := map[string]string{
+		workspace.LegacySettingsFileName: workspace.PreferencesFileName,
+	}
+	resolveDest := func(rel string) string {
+		// Leading segment identifies whether it was under a moved
+		// subtree. Everything under the known roots (roles/, logs/,
+		// channels/, prompts/, templates/, volumes/, agents/) went
+		// to dataDir/<same rel>. Root files went to dataDir/<rename[name]>.
+		cleaned := filepath.ToSlash(rel)
+		parts := strings.SplitN(cleaned, "/", 2)
+		if len(parts) == 1 {
+			// Root file — possibly renamed.
+			dest := rel
+			if r, ok := rename[rel]; ok {
+				dest = r
+			}
+			return filepath.Join(dataDir, dest)
+		}
+		// Subtree file — copied verbatim under dataDir.
+		return filepath.Join(dataDir, rel)
+	}
+	for rel, srcSize := range preSnap {
+		// If the file still exists at source, that's fine — it was a
+		// skipped unknown file. Size match is implicit.
+		srcPath := filepath.Join(legacyDir, rel)
+		if info, err := os.Stat(srcPath); err == nil && !info.IsDir() {
+			if info.Size() != srcSize {
+				findings = append(findings, IntegrityFinding{
+					Path: rel, SourceSize: srcSize, DestSize: info.Size(),
+				})
+			}
+			continue
+		}
+		// Otherwise expect it at the destination.
+		destPath := resolveDest(rel)
+		info, err := os.Stat(destPath)
+		if err != nil {
+			findings = append(findings, IntegrityFinding{
+				Path: rel, SourceSize: srcSize, DestSize: 0,
+			})
+			continue
+		}
+		if info.Size() != srcSize {
+			findings = append(findings, IntegrityFinding{
+				Path: rel, SourceSize: srcSize, DestSize: info.Size(),
+			})
+		}
+	}
+	return findings
 }
 
 // snapshotDir records every regular file under root with its size.
