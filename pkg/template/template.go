@@ -3,11 +3,17 @@
 package template
 
 // Template defines an agent template — a reusable configuration for spawning agents.
+//
+// Scope is a runtime-only attribute set by the Store when loading a
+// template; it is never persisted to disk. It records which layer of a
+// LayeredStore the template came from ("global" for ~/.bc/templates/,
+// "workspace" for <ws>/.bc/templates/).
 type Template struct {
 	ToolPolicies     *ToolPolicies `json:"tool_policies,omitempty"`
 	Name             string        `json:"name"`
 	Description      string        `json:"description,omitempty"`
 	SystemPromptFile string        `json:"system_prompt_file,omitempty"`
+	Scope            Scope         `json:"scope,omitempty"`
 	MCPs             []string      `json:"mcps,omitempty"`
 	Secrets          []string      `json:"secrets,omitempty"`
 	Plugins          []string      `json:"plugins,omitempty"`

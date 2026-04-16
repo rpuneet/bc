@@ -15,6 +15,7 @@ import (
 	bcdeps "github.com/rpuneet/bc/pkg/deps"
 	"github.com/rpuneet/bc/pkg/log"
 	bcstats "github.com/rpuneet/bc/pkg/stats"
+	bctemplate "github.com/rpuneet/bc/pkg/template"
 	bcworkspace "github.com/rpuneet/bc/pkg/workspace"
 	"github.com/rpuneet/bc/server"
 	bcws "github.com/rpuneet/bc/server/ws"
@@ -116,11 +117,27 @@ func RunServer(addr, wsRoot, corsOrigin, apiKey string) error {
 	depsRegistry.Register(bcCodeServer)
 	depsRegistry.Register(bcdeps.NewBCBrowser())
 
+	// User-global template store at ~/.bc/templates/. Seeded on first run;
+	// each workspace wraps this store with its own override directory.
+	var templatesStore *bctemplate.Store
+	if globalTmplDir, gtErr := bcworkspace.GlobalTemplatesDir(); gtErr != nil {
+		log.Warn("global templates dir unavailable", "error", gtErr)
+	} else {
+		if _, ensureErr := bcworkspace.EnsureGlobalDir(); ensureErr != nil {
+			log.Warn("ensure global bc dir", "error", ensureErr)
+		}
+		if seedErr := bctemplate.SeedDefaults(globalTmplDir); seedErr != nil {
+			log.Warn("seed global template defaults", "error", seedErr)
+		}
+		templatesStore = bctemplate.NewStore(globalTmplDir)
+	}
+
 	globals := &server.Globals{
 		Registry:  registry,
 		Stats:     statsStore,
 		Deps:      depsRegistry,
 		GlobalHub: globalHub,
+		Templates: templatesStore,
 		Build:     server.BuildInfo{Commit: commit, BuiltAt: date},
 	}
 

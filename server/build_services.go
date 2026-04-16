@@ -34,6 +34,7 @@ import (
 	"github.com/rpuneet/bc/pkg/provider"
 	bcsecret "github.com/rpuneet/bc/pkg/secret"
 	bcstats "github.com/rpuneet/bc/pkg/stats"
+	bctemplate "github.com/rpuneet/bc/pkg/template"
 	bctool "github.com/rpuneet/bc/pkg/tool"
 	bcworkspace "github.com/rpuneet/bc/pkg/workspace"
 	bcws "github.com/rpuneet/bc/server/ws"
@@ -44,9 +45,10 @@ import (
 // reuses it for every workspace the WorkspaceManager materializes.
 type Globals struct {
 	Registry  *bcworkspace.Registry
-	Stats     *bcstats.Store   // nil when TSDB unavailable
-	Deps      *bcdeps.Registry // optional dependencies registry (bc-db, etc.)
-	GlobalHub *bcws.Hub        // fan-in SSE hub for cross-workspace /api/events
+	Stats     *bcstats.Store    // nil when TSDB unavailable
+	Deps      *bcdeps.Registry  // optional dependencies registry (bc-db, etc.)
+	GlobalHub *bcws.Hub         // fan-in SSE hub for cross-workspace /api/events
+	Templates *bctemplate.Store // user-global template store (~/.bc/templates/) — wrapped per-workspace
 	Build     BuildInfo
 }
 
@@ -192,6 +194,18 @@ func buildWorkspaceServicesFromWS(ctx context.Context, globals *Globals, ws *bcw
 		}
 	}
 
+	// Template store: user-global (~/.bc/templates/) with workspace
+	// override. If globals.Templates is nil (legacy callers that did not
+	// initialize it), fall back to a workspace-local single-layer store
+	// so existing behavior is preserved.
+	var tmplStore *bctemplate.Store
+	wsTemplatesDir := filepath.Join(ws.StateDir(), "templates")
+	if globals != nil && globals.Templates != nil {
+		tmplStore = globals.Templates.WithOverride(wsTemplatesDir)
+	} else {
+		tmplStore = bctemplate.NewStore(wsTemplatesDir)
+	}
+
 	// Event log (SQLite) + pruning loop.
 	var eventLog bcevents.EventStore
 	if el, err := bcevents.OpenLog(ws.RootDir, filepath.Join(ws.StateDir(), "state.db")); err != nil {
@@ -251,6 +265,7 @@ func buildWorkspaceServicesFromWS(ctx context.Context, globals *Globals, ws *bcw
 		Secrets:      secretStore,
 		MCP:          mcpStore,
 		Tools:        toolStore,
+		Templates:    tmplStore,
 		Gateway:      gwManager,
 		Notify:       notifyService,
 		Hub:          hub,
@@ -271,6 +286,7 @@ func buildWorkspaceServicesFromWS(ctx context.Context, globals *Globals, ws *bcw
 		Secrets:       secretStore,
 		MCP:           mcpStore,
 		Tools:         toolStore,
+		Templates:     tmplStore,
 		EventLog:      eventLog,
 		EventWriter:   eventWriter,
 		WS:            ws,

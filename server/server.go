@@ -77,6 +77,7 @@ type Services struct {
 	Secrets       *secret.Store
 	MCP           *mcp.Store
 	Tools         *tool.Store
+	Templates     *template.Store
 	Stats         *stats.Store
 	EventLog      events.EventStore
 	EventWriter   *events.JSONLWriter
@@ -212,8 +213,15 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 			ah.SetStatsStore(svc.Stats)
 		}
 		if svc.WS != nil {
-			templatesDir := filepath.Join(svc.WS.StateDir(), "templates")
-			ah.SetTemplateStore(template.NewStore(templatesDir))
+			// Prefer the layered store populated by BuildWorkspaceServices;
+			// fall back to a single-layer per-workspace store for callers
+			// that construct Services manually (eg. legacy tests).
+			if svc.Templates != nil {
+				ah.SetTemplateStore(svc.Templates)
+			} else {
+				templatesDir := filepath.Join(svc.WS.StateDir(), "templates")
+				ah.SetTemplateStore(template.NewStore(templatesDir))
+			}
 		}
 		ah.SetTerminalHandler(handlers.NewTerminalHandler(svc.Agents, cfg.CORSOrigin))
 		ah.Register(mux)
@@ -335,11 +343,17 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 		handlers.NewDoctorHandler(svc.WS).Register(mux)
 		handlers.NewSettingsHandler(svc.WS).Register(mux)
 
-		// Templates — file-based store at <stateDir>/templates/
+		// Templates — prefer the layered store from BuildWorkspaceServices
+		// (global ~/.bc/templates/ + per-workspace override). Fallback to
+		// a single-layer workspace store for legacy test callers that
+		// assemble Services by hand.
+		tmplStore := svc.Templates
 		templatesDir := filepath.Join(svc.WS.StateDir(), "templates")
-		tmplStore := template.NewStore(templatesDir)
-		if seedErr := template.SeedDefaults(templatesDir); seedErr != nil {
-			log.Warn("seed default templates", "error", seedErr)
+		if tmplStore == nil {
+			tmplStore = template.NewStore(templatesDir)
+			if seedErr := template.SeedDefaults(templatesDir); seedErr != nil {
+				log.Warn("seed default templates", "error", seedErr)
+			}
 		}
 		if migrErr := migrateRolesToTemplates(svc.WS.RolesDir(), templatesDir); migrErr != nil {
 			log.Warn("migrate roles to templates", "error", migrErr)
@@ -488,7 +502,7 @@ func migrateRolesToTemplates(rolesDir, templatesDir string) error {
 			Description: "Migrated from role: " + name,
 			MCPs:        []string{"bc"},
 		}
-		if createErr := tmplStore.Create(t, string(data)); createErr != nil {
+		if createErr := tmplStore.Create(t, string(data), template.ScopeGlobal); createErr != nil {
 			log.Warn("migrate roles: failed to create template", "role", name, "error", createErr)
 			continue
 		}

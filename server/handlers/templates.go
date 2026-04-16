@@ -98,7 +98,7 @@ func (h *TemplateHandler) list(w http.ResponseWriter, r *http.Request) {
 		if req.SystemPrompt != nil {
 			prompt = *req.SystemPrompt
 		}
-		if err := store.Create(t, prompt); err != nil {
+		if err := store.Create(t, prompt, ""); err != nil {
 			// Distinguish conflict from internal error
 			if strings.Contains(err.Error(), "already exists") {
 				httpError(w, err.Error(), http.StatusConflict)
@@ -179,7 +179,7 @@ func (h *TemplateHandler) byName(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, templateResponse{Template: *updated, SystemPrompt: prompt})
 
 	case http.MethodDelete:
-		if err := h.store.Delete(name); err != nil {
+		if err := h.store.Delete(name, ""); err != nil {
 			if strings.Contains(err.Error(), "not found") {
 				httpError(w, err.Error(), http.StatusNotFound)
 				return

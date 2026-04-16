@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -8,6 +9,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/rpuneet/bc/pkg/template"
+	"github.com/rpuneet/bc/pkg/workspace"
 )
 
 var templateCmd = &cobra.Command{
@@ -16,14 +18,18 @@ var templateCmd = &cobra.Command{
 	Short:   "Manage agent templates",
 	Long: `Manage agent templates — reusable configurations for spawning agents.
 
-Templates replace Roles as the agent creation primitive. Each template
-stores metadata (MCPs, secrets, tool policies) and an optional system prompt.
+Templates are stored in ~/.bc/templates/ (user-global) and each workspace
+may override a template by placing a file with the same name under
+<ws>/.bc/templates/. List/show/edit see the union; create defaults to
+writing the user-global copy.
 
 Examples:
-  bc template list                    # List all templates
+  bc template list                    # List all templates (global + workspace overrides)
   bc template show feature-dev        # Show template details
-  bc template create my-template      # Scaffold a new template
-  bc template delete my-template      # Delete a template`,
+  bc template create my-template      # Scaffold a new user-global template
+  bc template create my-template --workspace   # Workspace-local override
+  bc template delete my-template      # Delete (prefers workspace scope)
+  bc template delete my-template --global      # Delete user-global`,
 	RunE: runTemplateList,
 }
 
@@ -54,7 +60,17 @@ var templateDeleteCmd = &cobra.Command{
 	RunE:  runTemplateDelete,
 }
 
+var (
+	templateCreateWorkspace bool
+	templateDeleteGlobal    bool
+	templateDeleteWorkspace bool
+)
+
 func init() {
+	templateCreateCmd.Flags().BoolVar(&templateCreateWorkspace, "workspace", false, "Write template as a workspace-local override (default: user-global)")
+	templateDeleteCmd.Flags().BoolVar(&templateDeleteGlobal, "global", false, "Delete the user-global template")
+	templateDeleteCmd.Flags().BoolVar(&templateDeleteWorkspace, "workspace", false, "Delete only the workspace override")
+
 	templateCmd.AddCommand(templateListCmd)
 	templateCmd.AddCommand(templateShowCmd)
 	templateCmd.AddCommand(templateCreateCmd)
@@ -62,21 +78,28 @@ func init() {
 	rootCmd.AddCommand(templateCmd)
 }
 
-func templatesDir() (string, error) {
-	ws, err := requireWorkspace()
+// openTemplateStore returns a layered Store: ~/.bc/templates/ as the
+// global default plus the current workspace's templates/ dir as an
+// override, when inside a workspace. Outside a workspace (eg. during
+// machine-level operations) the store is global-only.
+func openTemplateStore() (*template.Store, error) {
+	globalDir, err := workspace.GlobalTemplatesDir()
 	if err != nil {
-		return "", err
+		return nil, fmt.Errorf("resolve global templates dir: %w", err)
 	}
-	return filepath.Join(ws.StateDir(), "templates"), nil
+	// Workspace override is best-effort — absence is fine.
+	overrideDir := ""
+	if ws, wsErr := getWorkspace(); wsErr == nil && ws != nil {
+		overrideDir = filepath.Join(ws.StateDir(), "templates")
+	}
+	return template.NewLayeredStore(globalDir, overrideDir), nil
 }
 
 func runTemplateList(_ *cobra.Command, _ []string) error {
-	dir, err := templatesDir()
+	store, err := openTemplateStore()
 	if err != nil {
 		return err
 	}
-
-	store := template.NewStore(dir)
 	templates, err := store.List()
 	if err != nil {
 		return fmt.Errorf("list templates: %w", err)
@@ -99,9 +122,10 @@ func runTemplateList(_ *cobra.Command, _ []string) error {
 	}
 
 	const mcpsHeader = "MCPS"
+	const scopeHeader = "SCOPE"
 	const colGap = 2 // spaces between columns
-	separatorWidth := maxNameLen + colGap + maxDescLen + colGap + len(mcpsHeader)
-	fmt.Printf("%-*s  %-*s  %s\n", maxNameLen, "NAME", maxDescLen, "DESCRIPTION", mcpsHeader)
+	separatorWidth := maxNameLen + colGap + maxDescLen + colGap + len(scopeHeader) + colGap + len(mcpsHeader)
+	fmt.Printf("%-*s  %-*s  %-*s  %s\n", maxNameLen, "NAME", maxDescLen, "DESCRIPTION", len(scopeHeader), scopeHeader, mcpsHeader)
 	fmt.Println(strings.Repeat("-", separatorWidth))
 
 	for _, t := range templates {
@@ -109,7 +133,11 @@ func runTemplateList(_ *cobra.Command, _ []string) error {
 		if mcps == "" {
 			mcps = "\u2014"
 		}
-		fmt.Printf("%-*s  %-*s  %s\n", maxNameLen, t.Name, maxDescLen, t.Description, mcps)
+		scope := string(t.Scope)
+		if scope == "" {
+			scope = "global"
+		}
+		fmt.Printf("%-*s  %-*s  %-*s  %s\n", maxNameLen, t.Name, maxDescLen, t.Description, len(scopeHeader), scope, mcps)
 	}
 
 	fmt.Printf("\n%d template(s)\n", len(templates))
@@ -117,18 +145,19 @@ func runTemplateList(_ *cobra.Command, _ []string) error {
 }
 
 func runTemplateShow(_ *cobra.Command, args []string) error {
-	dir, err := templatesDir()
+	store, err := openTemplateStore()
 	if err != nil {
 		return err
 	}
-
-	store := template.NewStore(dir)
 	t, prompt, err := store.Get(args[0])
 	if err != nil {
 		return err
 	}
 
 	fmt.Printf("Name:        %s\n", t.Name)
+	if t.Scope != "" {
+		fmt.Printf("Scope:       %s\n", t.Scope)
+	}
 	if t.Description != "" {
 		fmt.Printf("Description: %s\n", t.Description)
 	}
@@ -161,37 +190,66 @@ func runTemplateShow(_ *cobra.Command, args []string) error {
 }
 
 func runTemplateCreate(_ *cobra.Command, args []string) error {
-	dir, err := templatesDir()
+	store, err := openTemplateStore()
 	if err != nil {
 		return err
 	}
 
 	name := args[0]
-	store := template.NewStore(dir)
+	scope := template.ScopeGlobal
+	if templateCreateWorkspace {
+		scope = template.ScopeWorkspace
+		if store.WorkspaceDir() == "" {
+			return fmt.Errorf("--workspace requires being inside a bc workspace")
+		}
+	}
+	if scope == template.ScopeGlobal {
+		if _, err := workspace.EnsureGlobalDir(); err != nil {
+			return err
+		}
+	}
+
 	t := template.Template{
 		Name:        name,
 		Description: "",
 		MCPs:        []string{"bc"},
 	}
-
-	if err := store.Create(t, ""); err != nil {
+	if err := store.Create(t, "", scope); err != nil {
 		return err
 	}
 
-	// Print the actual path returned by the store rather than a hard-coded relative path.
-	fmt.Printf("Created template at %s\n", filepath.Join(dir, name+".json"))
+	// Print the actual path so the user knows where the file landed.
+	dir := store.GlobalDir()
+	if scope == template.ScopeWorkspace {
+		dir = store.WorkspaceDir()
+	}
+	fmt.Printf("Created template at %s (scope: %s)\n", filepath.Join(dir, name+".json"), scope)
 	return nil
 }
 
 func runTemplateDelete(_ *cobra.Command, args []string) error {
-	dir, err := templatesDir()
+	store, err := openTemplateStore()
 	if err != nil {
 		return err
 	}
 
+	if templateDeleteGlobal && templateDeleteWorkspace {
+		return fmt.Errorf("--global and --workspace are mutually exclusive")
+	}
+
+	scope := template.Scope("")
+	switch {
+	case templateDeleteGlobal:
+		scope = template.ScopeGlobal
+	case templateDeleteWorkspace:
+		scope = template.ScopeWorkspace
+	}
+
 	name := args[0]
-	store := template.NewStore(dir)
-	if err := store.Delete(name); err != nil {
+	if err := store.Delete(name, scope); err != nil {
+		if errors.Is(err, template.ErrWrongScope) {
+			return fmt.Errorf("%w\nhint: this is a user-global template — rerun with --global", err)
+		}
 		return err
 	}
 
