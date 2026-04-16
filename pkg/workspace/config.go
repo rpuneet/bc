@@ -14,6 +14,19 @@ import (
 // ConfigVersion is the current config schema version.
 const ConfigVersion = 2
 
+// Preferences / settings filename constants.
+//
+// Before M11c: every workspace stored its config at <StateDir>/settings.json.
+// From M11c onward the canonical filename is preferences.json; the legacy
+// file is read as a fallback and promoted on first write.
+const (
+	// PreferencesFileName is the canonical workspace preferences filename (M11c+).
+	PreferencesFileName = "preferences.json"
+	// LegacySettingsFileName is the pre-M11c filename, still read for
+	// backward compatibility.
+	LegacySettingsFileName = "settings.json"
+)
+
 // Config represents the JSON-based workspace configuration for bc.
 type Config struct { //nolint:govet // field order matches JSON/API contract
 	User      UserConfig      `json:"user"`

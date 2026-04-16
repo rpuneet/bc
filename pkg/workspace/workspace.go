@@ -39,11 +39,25 @@ import (
 )
 
 // Workspace represents an active workspace.
+//
+// After M11 the Workspace maintains two independent directories:
+//
+//   - RootDir:  the project (a pristine git repo bc points at but never
+//     writes runtime state into).
+//   - DataDir:  the per-workspace runtime directory
+//     (~/.bc/workspaces/<id>/) containing preferences.json, state.db,
+//     cron.db, agents/, logs/, etc.
+//
+// StateDir() returns DataDir for new workspaces; for legacy workspaces
+// that still keep state inside <RootDir>/.bc/ (pre-M11 migration), it
+// returns that path instead so in-flight code keeps working until the
+// migration runs.
 type Workspace struct {
 	Config      *Config      // JSON config
 	RoleManager *RoleManager // Role file manager
-	RootDir     string       // Project root directory
-	stateDir    string       // State directory (~/.bc/workspaces/<id>/ or legacy .bc/)
+	RootDir     string       // Project root directory (pristine git repo)
+	DataDir     string       // Runtime state dir (~/.bc/workspaces/<id>/); set for M11+ layouts
+	stateDir    string       // Resolved state dir (DataDir for M11+, legacy .bc/ for older)
 }
 
 // Init initializes a new workspace. State is stored under ~/.bc/workspaces/<id>/.
@@ -100,6 +114,7 @@ func Init(rootDir string) (*Workspace, error) {
 
 	return &Workspace{
 		RootDir:     absRoot,
+		DataDir:     stateDir,
 		stateDir:    stateDir,
 		Config:      &cfg,
 		RoleManager: rm,
@@ -170,8 +185,18 @@ func Load(rootDir string) (*Workspace, error) {
 	}
 	_ = closeStore // store stays open for workspace lifetime
 
+	// DataDir points at the canonical global runtime dir. When stateDir
+	// is still the legacy <project>/.bc/ path (pre-migration), leave
+	// DataDir at the computed global location so callers can target the
+	// new tree even before the migration runs.
+	dataDir := stateDir
+	if globalDir, gErr := GlobalStateDir(absRoot); gErr == nil {
+		dataDir = globalDir
+	}
+
 	return &Workspace{
 		RootDir:     absRoot,
+		DataDir:     dataDir,
 		stateDir:    stateDir,
 		Config:      cfg,
 		RoleManager: rm,
@@ -224,13 +249,37 @@ func (w *Workspace) Save() error {
 	return w.Config.Save(configPath)
 }
 
-// StateDir returns the state directory path.
-// Uses the resolved state dir (global ~/.bc/workspaces/<id>/ or legacy .bc/).
+// StateDir returns the resolved state directory path.
+// Returns DataDir for M11+ layouts or the legacy <RootDir>/.bc/ path when
+// a workspace has not yet been migrated.
 func (w *Workspace) StateDir() string {
 	if w.stateDir != "" {
 		return w.stateDir
 	}
+	if w.DataDir != "" {
+		return w.DataDir
+	}
 	return filepath.Join(w.RootDir, ".bc")
+}
+
+// SettingsFile returns the absolute path of the workspace preferences
+// file. M11c renames the on-disk filename from settings.json to
+// preferences.json; this accessor is the canonical way to find whichever
+// file actually lives on disk.
+//
+// Lookup order: <StateDir>/preferences.json (M11c+), then
+// <StateDir>/settings.json (legacy). Returns the preferences.json path
+// when neither exists so callers may safely write to it.
+func (w *Workspace) SettingsFile() string {
+	prefs := filepath.Join(w.StateDir(), PreferencesFileName)
+	if _, err := os.Stat(prefs); err == nil {
+		return prefs
+	}
+	legacy := filepath.Join(w.StateDir(), LegacySettingsFileName)
+	if _, err := os.Stat(legacy); err == nil {
+		return legacy
+	}
+	return prefs
 }
 
 // AgentsDir returns the agents state directory.
