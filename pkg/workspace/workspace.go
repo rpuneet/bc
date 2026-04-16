@@ -122,8 +122,6 @@ func Init(rootDir string) (*Workspace, error) {
 }
 
 // Load loads a workspace from a directory.
-// If only a v1 config.json exists (no settings.json), Load returns an error
-// wrapping ErrNotV1Workspace so callers can suggest migration.
 func Load(rootDir string) (*Workspace, error) {
 	absRoot, err := filepath.Abs(rootDir)
 	if err != nil {
@@ -137,40 +135,15 @@ func Load(rootDir string) (*Workspace, error) {
 	}
 
 	// Load config — check global dir first (preferences.json, then
-	// settings.json), then legacy .bc/ (preferences.json, then
-	// settings.json). Auto-migrates legacy .bc/ to ~/.bc/workspaces/<id>/
-	// when the global dir is empty.
+	// settings.json), then legacy .bc/ as a fallback.
 	jsonPath := firstExisting(stateDir, PreferencesFileName, LegacySettingsFileName)
 	if jsonPath == "" {
 		legacyDir := filepath.Join(absRoot, ".bc")
 		legacyPath := firstExisting(legacyDir, PreferencesFileName, LegacySettingsFileName)
 		if legacyPath != "" {
-			// Auto-migrate legacy .bc/ to ~/.bc/workspaces/<id>/
-			if NeedsMigration(absRoot) {
-				log.Info("migrating workspace state to ~/.bc/", "from", legacyDir)
-				newDir, migrateErr := MigrateToGlobalState(absRoot)
-				if migrateErr == nil {
-					stateDir = newDir
-					jsonPath = firstExisting(newDir, PreferencesFileName, LegacySettingsFileName)
-					if jsonPath == "" {
-						// Migration produced nothing usable — fall back to legacy.
-						stateDir = legacyDir
-						jsonPath = legacyPath
-					}
-				} else {
-					log.Warn("migration failed, using legacy path", "error", migrateErr)
-					stateDir = legacyDir
-					jsonPath = legacyPath
-				}
-			} else {
-				stateDir = legacyDir
-				jsonPath = legacyPath
-			}
+			stateDir = legacyDir
+			jsonPath = legacyPath
 		} else {
-			// Check for v1 workspace
-			if _, v1Err := os.Stat(filepath.Join(legacyDir, "config.json")); v1Err == nil {
-				return nil, fmt.Errorf("%w: run 'bc workspace migrate' to upgrade", ErrNotV1Workspace)
-			}
 			return nil, fmt.Errorf("not a bc workspace (no %s or %s found in %s or %s)",
 				PreferencesFileName, LegacySettingsFileName, stateDir, legacyDir)
 		}
