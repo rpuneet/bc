@@ -1,3 +1,10 @@
+> **Note (2026-04-16):** This proposal is **extended** by
+> [`docs/proposals/multi-workspace-and-code-tab.md`](./multi-workspace-and-code-tab.md),
+> which introduces multi-workspace support, a `/w/<wsId>/…` URL scheme, a
+> shared `Header` component, the new Code tab, an optional dependencies
+> manager, and a reorder of the agent detail tabs (see the new section at the
+> bottom of this file). Where the two documents disagree, the extension doc wins.
+
 # Proposal: Agents Revamp v2 — Templates, Avatars, and Live Operations
 
 > **Status:** Proposal (v2) &nbsp;|&nbsp; **Author:** zen-zebra &nbsp;|&nbsp; **Date:** 2026-04-13 &nbsp;|&nbsp; **Issue:** [#2979](https://github.com/rpuneet/bc/issues/2979)
@@ -950,3 +957,38 @@ Out of scope for v2:
 | Tool visibility | None | Recent tools column + Bash CLI icon detection |
 | New API endpoints | 0 | 15 endpoints |
 | Breaking changes | None | Roles removed (auto-migrated to templates) |
+
+---
+
+## Addendum (2026-04-16) — Agent detail tab reorder + Code tab
+
+The extension proposal
+[`multi-workspace-and-code-tab.md`](./multi-workspace-and-code-tab.md)
+supersedes the agent detail tab layout defined earlier in this document. The
+authoritative order is now:
+
+| # | Tab | URL suffix | Notes |
+|---|-----|-----------|-------|
+| 1 | **Attach** | `/w/:wsId/agents/:name` (default) or `/attach` | tmux terminal, **new default tab** |
+| 2 | **Live** | `/live` | live events for this agent |
+| 3 | **Config** | `/config` | system prompt, MCPs, secrets |
+| 4 | **Metrics** | `/metrics` | graphs + timeframes |
+| 5 | **Code** | `/code` | **new** — agent's worktree in Monaco diff view vs main |
+
+### Changes from the earlier version of this proposal
+
+- **Default tab is now Attach.** The earlier revision opened `Live` by default.
+  Rationale: the most common operator action is to look at or interact with
+  the tmux session; `Live` is read-only and can be selected explicitly.
+- **Code is added as tab #5.** It reuses the shared Code tab components
+  defined in the extension proposal (`FileTree`, `CodeViewer`,
+  `MonacoDiffEditor`, `WorktreeDropdown`) and defaults to the agent's worktree
+  rendered in diff mode against the main worktree's `HEAD`.
+- **All agent routes are namespaced** under `/w/:wsId/agents/:name/*`. Legacy
+  `/agents/:name/*` routes 301-redirect to the active workspace for one major
+  version via the legacy-scope middleware.
+- **MCP SSE endpoint** moves from `/_mcp/<agent>/sse` to
+  `/_mcp/<wsID>/<agent>/sse`, with a compat redirect.
+
+See the extension proposal §8 ("Agent Page Tab Reorder") and §6 ("Code Tab")
+for the full component hierarchy, API shapes, and verification checklist.
