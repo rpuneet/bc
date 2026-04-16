@@ -110,6 +110,33 @@ func (h *AgentHandler) SetTemplateStore(store *template.Store) {
 	h.tmplStore = store
 }
 
+// resolveSvc returns the per-request *agent.AgentService, preferring the
+// workspace scope middleware's context view over the closure captured at
+// construction time. Phase M3: both paths resolve to the same services
+// today; phase M4 deletes the closure fallback entirely.
+func (h *AgentHandler) resolveSvc(r *http.Request) *agent.AgentService {
+	if view := WorkspaceFromContext(r.Context()); view != nil && view.Agents != nil {
+		return view.Agents
+	}
+	return h.svc
+}
+
+// resolveCosts returns the per-request *cost.Store (see resolveSvc).
+func (h *AgentHandler) resolveCosts(r *http.Request) *cost.Store {
+	if view := WorkspaceFromContext(r.Context()); view != nil && view.Costs != nil {
+		return view.Costs
+	}
+	return h.costs
+}
+
+// resolveWS returns the per-request workspace (see resolveSvc).
+func (h *AgentHandler) resolveWS(r *http.Request) *workspace.Workspace {
+	if view := WorkspaceFromContext(r.Context()); view != nil && view.Workspace != nil {
+		return view.Workspace
+	}
+	return h.ws
+}
+
 // SetStatsStore sets the stats store for resource metrics enrichment.
 func (h *AgentHandler) SetStatsStore(s *stats.Store) {
 	h.statsStore = s
@@ -219,10 +246,13 @@ func buildCostMap(ctx context.Context, store *cost.Store) map[string]*cost.Summa
 }
 
 func (h *AgentHandler) list(w http.ResponseWriter, r *http.Request) {
+	svc := h.resolveSvc(r)
+	costs := h.resolveCosts(r)
+	wsRef := h.resolveWS(r)
 	switch r.Method {
 	case http.MethodGet:
 		// State is driven by hooks — no polling or reconciler needed.
-		agents, err := h.svc.List(r.Context(), agent.ListOptions{})
+		agents, err := svc.List(r.Context(), agent.ListOptions{})
 		if err != nil {
 			httpInternalError(w, "list agents", err)
 			return
@@ -233,8 +263,8 @@ func (h *AgentHandler) list(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Enrich with per-agent cost summaries.
-		if h.costs != nil {
-			costMap := buildCostMap(r.Context(), h.costs)
+		if costs != nil {
+			costMap := buildCostMap(r.Context(), costs)
 			for i := range dtos {
 				if summary, ok := costMap[dtos[i].Name]; ok {
 					dtos[i].TotalCostUSD = summary.TotalCostUSD
@@ -244,8 +274,8 @@ func (h *AgentHandler) list(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Enrich with token usage from agent JSONL session files.
-		if h.ws != nil {
-			agentsDir := filepath.Join(h.ws.RootDir, ".bc", "agents")
+		if wsRef != nil {
+			agentsDir := filepath.Join(wsRef.RootDir, ".bc", "agents")
 			usages, tokenErr := token.CollectAll(agentsDir)
 			if tokenErr == nil {
 				// Sum per agent across models
@@ -287,10 +317,10 @@ func (h *AgentHandler) list(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Enrich with resolved MCP servers from the agent's role.
-		if h.ws != nil && h.ws.RoleManager != nil {
+		if wsRef != nil && wsRef.RoleManager != nil {
 			for i := range dtos {
 				if dtos[i].Role != "" {
-					resolved, resolveErr := h.ws.RoleManager.ResolveRole(dtos[i].Role)
+					resolved, resolveErr := wsRef.RoleManager.ResolveRole(dtos[i].Role)
 					if resolveErr == nil && len(resolved.MCPServers) > 0 {
 						dtos[i].MCPServers = resolved.MCPServers
 					}

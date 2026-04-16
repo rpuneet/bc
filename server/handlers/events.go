@@ -25,6 +25,22 @@ func (h *EventHandler) SetWriter(w *events.JSONLWriter) {
 	h.writer = w
 }
 
+// resolveStore returns the context-scoped event store with closure fallback.
+func (h *EventHandler) resolveStore(r *http.Request) events.EventStore {
+	if view := WorkspaceFromContext(r.Context()); view != nil && view.Events != nil {
+		return view.Events
+	}
+	return h.store
+}
+
+// resolveWriter returns the context-scoped event writer with closure fallback.
+func (h *EventHandler) resolveWriter(r *http.Request) *events.JSONLWriter {
+	if view := WorkspaceFromContext(r.Context()); view != nil && view.EventWriter != nil {
+		return view.EventWriter
+	}
+	return h.writer
+}
+
 // Register mounts event log routes on mux.
 func (h *EventHandler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/logs", h.logs)
@@ -45,6 +61,7 @@ func (h *EventHandler) logs(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *EventHandler) list(w http.ResponseWriter, r *http.Request) {
+	store := h.resolveStore(r)
 	tail := 100
 	if s := r.URL.Query().Get("tail"); s != "" {
 		if n, err := strconv.Atoi(s); err == nil && n > 0 {
@@ -52,7 +69,11 @@ func (h *EventHandler) list(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	tail = clampInt(tail, 1, 10000)
-	evts, err := h.store.ReadLast(tail)
+	if store == nil {
+		writeJSON(w, http.StatusOK, []events.Event{})
+		return
+	}
+	evts, err := store.ReadLast(tail)
 	if err != nil {
 		httpInternalError(w, "read events", err)
 		return
@@ -72,7 +93,12 @@ func (h *EventHandler) byAgent(w http.ResponseWriter, r *http.Request) {
 		httpError(w, "agent name required", http.StatusBadRequest)
 		return
 	}
-	evts, err := h.store.ReadByAgent(name)
+	store := h.resolveStore(r)
+	if store == nil {
+		writeJSON(w, http.StatusOK, []events.Event{})
+		return
+	}
+	evts, err := store.ReadByAgent(name)
 	if err != nil {
 		httpInternalError(w, "read events", err)
 		return
@@ -92,11 +118,12 @@ func (h *EventHandler) appendEvent(w http.ResponseWriter, r *http.Request) {
 		httpError(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
-	if h.store == nil {
+	store := h.resolveStore(r)
+	if store == nil {
 		httpError(w, "event store not configured", http.StatusInternalServerError)
 		return
 	}
-	if err := h.store.Append(ev); err != nil {
+	if err := store.Append(ev); err != nil {
 		httpInternalError(w, "append event", err)
 		return
 	}
@@ -109,12 +136,13 @@ func (h *EventHandler) currentTasks(w http.ResponseWriter, r *http.Request) {
 	if !requireMethod(w, r, http.MethodGet) {
 		return
 	}
-	if h.writer == nil {
+	writer := h.resolveWriter(r)
+	if writer == nil {
 		httpError(w, "event history not configured", http.StatusServiceUnavailable)
 		return
 	}
 
-	tasks, err := h.writer.CurrentTasks()
+	tasks, err := writer.CurrentTasks()
 	if err != nil {
 		httpInternalError(w, "read current tasks", err)
 		return
@@ -129,7 +157,8 @@ func (h *EventHandler) history(w http.ResponseWriter, r *http.Request) {
 	if !requireMethod(w, r, http.MethodGet) {
 		return
 	}
-	if h.writer == nil {
+	writer := h.resolveWriter(r)
+	if writer == nil {
 		httpError(w, "event history not configured", http.StatusServiceUnavailable)
 		return
 	}
@@ -149,7 +178,7 @@ func (h *EventHandler) history(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	evts, total, err := h.writer.ReadPage(limit, offset)
+	evts, total, err := writer.ReadPage(limit, offset)
 	if err != nil {
 		httpInternalError(w, "read event history", err)
 		return

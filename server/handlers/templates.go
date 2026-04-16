@@ -18,6 +18,14 @@ func NewTemplateHandler(store *template.Store) *TemplateHandler {
 	return &TemplateHandler{store: store}
 }
 
+// resolveStore returns the context-scoped template store with closure fallback.
+func (h *TemplateHandler) resolveStore(r *http.Request) *template.Store {
+	if view := WorkspaceFromContext(r.Context()); view != nil && view.Templates != nil {
+		return view.Templates
+	}
+	return h.store
+}
+
 // Register mounts template routes on mux.
 func (h *TemplateHandler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/templates", h.list)
@@ -64,9 +72,10 @@ type templateResponse struct {
 
 // list handles GET /api/templates and POST /api/templates.
 func (h *TemplateHandler) list(w http.ResponseWriter, r *http.Request) {
+	store := h.resolveStore(r)
 	switch r.Method {
 	case http.MethodGet:
-		templates, err := h.store.List()
+		templates, err := store.List()
 		if err != nil {
 			httpInternalError(w, "list templates", err)
 			return
@@ -89,7 +98,7 @@ func (h *TemplateHandler) list(w http.ResponseWriter, r *http.Request) {
 		if req.SystemPrompt != nil {
 			prompt = *req.SystemPrompt
 		}
-		if err := h.store.Create(t, prompt); err != nil {
+		if err := store.Create(t, prompt); err != nil {
 			// Distinguish conflict from internal error
 			if strings.Contains(err.Error(), "already exists") {
 				httpError(w, err.Error(), http.StatusConflict)
@@ -99,7 +108,7 @@ func (h *TemplateHandler) list(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		created, prompt, err := h.store.Get(req.Name)
+		created, prompt, err := store.Get(req.Name)
 		if err != nil {
 			httpInternalError(w, "fetch created template", err)
 			return

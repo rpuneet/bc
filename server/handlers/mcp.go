@@ -18,6 +18,14 @@ func NewMCPHandler(store *mcp.Store) *MCPHandler {
 	return &MCPHandler{store: store}
 }
 
+// resolveStore returns the context-scoped MCP store with closure fallback.
+func (h *MCPHandler) resolveStore(r *http.Request) *mcp.Store {
+	if view := WorkspaceFromContext(r.Context()); view != nil && view.MCP != nil {
+		return view.MCP
+	}
+	return h.store
+}
+
 // Register mounts MCP server routes on mux.
 func (h *MCPHandler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/mcp", h.list)
@@ -25,9 +33,10 @@ func (h *MCPHandler) Register(mux *http.ServeMux) {
 }
 
 func (h *MCPHandler) list(w http.ResponseWriter, r *http.Request) {
+	store := h.resolveStore(r)
 	switch r.Method {
 	case http.MethodGet:
-		servers, err := h.store.List()
+		servers, err := store.List()
 		if err != nil {
 			httpInternalError(w, "list mcp servers", err)
 			return

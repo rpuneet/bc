@@ -39,6 +39,7 @@ import (
 	"github.com/rpuneet/bc/pkg/template"
 	"github.com/rpuneet/bc/pkg/tool"
 	"github.com/rpuneet/bc/pkg/workspace"
+	"github.com/rpuneet/bc/server/handlers"
 	"github.com/rpuneet/bc/server/ws"
 )
 
@@ -136,6 +137,33 @@ func (ws *WorkspaceServices) Close() error {
 		return nil
 	}
 	return c()
+}
+
+// workspaceViewFromServices projects a *WorkspaceServices onto the
+// handler-facing WorkspaceView type. Exists to avoid importing handlers
+// from this file and vice-versa.
+func workspaceViewFromServices(svc *WorkspaceServices) *handlers.WorkspaceView {
+	if svc == nil {
+		return nil
+	}
+	return &handlers.WorkspaceView{
+		Workspace:    svc.Workspace,
+		Agents:       svc.Agents,
+		Events:       svc.Events,
+		EventWriter:  svc.EventWriter,
+		Costs:        svc.Costs,
+		CostImporter: svc.CostImporter,
+		Cron:         svc.Cron,
+		CronSched:    svc.CronSched,
+		Templates:    svc.Templates,
+		Secrets:      svc.Secrets,
+		MCP:          svc.MCP,
+		Tools:        svc.Tools,
+		Gateway:      svc.Gateway,
+		Notify:       svc.Notify,
+		Stats:        svc.Services.Stats, // stats is global, ride legacy bundle
+		Hub:          svc.Hub,
+	}
 }
 
 // WorkspaceFactory builds a fully-initialized WorkspaceServices for the given

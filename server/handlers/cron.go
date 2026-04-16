@@ -24,6 +24,22 @@ func NewCronHandler(store *cron.Store, scheduler *cron.Scheduler) *CronHandler {
 	return &CronHandler{store: store, scheduler: scheduler}
 }
 
+// resolveStore returns the context-scoped cron store with closure fallback.
+func (h *CronHandler) resolveStore(r *http.Request) *cron.Store {
+	if view := WorkspaceFromContext(r.Context()); view != nil && view.Cron != nil {
+		return view.Cron
+	}
+	return h.store
+}
+
+// resolveScheduler returns the context-scoped scheduler with closure fallback.
+func (h *CronHandler) resolveScheduler(r *http.Request) *cron.Scheduler {
+	if view := WorkspaceFromContext(r.Context()); view != nil && view.CronSched != nil {
+		return view.CronSched
+	}
+	return h.scheduler
+}
+
 // Register mounts cron routes on mux.
 func (h *CronHandler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/cron", h.list)
@@ -31,9 +47,11 @@ func (h *CronHandler) Register(mux *http.ServeMux) {
 }
 
 func (h *CronHandler) list(w http.ResponseWriter, r *http.Request) {
+	store := h.resolveStore(r)
+	sched := h.resolveScheduler(r)
 	switch r.Method {
 	case http.MethodGet:
-		jobs, err := h.store.ListJobs(r.Context())
+		jobs, err := store.ListJobs(r.Context())
 		if err != nil {
 			httpInternalError(w, "list jobs", err)
 			return
@@ -42,9 +60,9 @@ func (h *CronHandler) list(w http.ResponseWriter, r *http.Request) {
 			jobs = []*cron.Job{}
 		}
 		// Enrich with running state from scheduler
-		if h.scheduler != nil {
+		if sched != nil {
 			for _, j := range jobs {
-				j.Running = h.scheduler.IsRunning(j.Name)
+				j.Running = sched.IsRunning(j.Name)
 			}
 		}
 		limit, offset := parsePagination(r, 50)
@@ -68,7 +86,7 @@ func (h *CronHandler) list(w http.ResponseWriter, r *http.Request) {
 			httpError(w, "command or prompt is required", http.StatusBadRequest)
 			return
 		}
-		if err := h.store.AddJob(r.Context(), &job); err != nil {
+		if err := store.AddJob(r.Context(), &job); err != nil {
 			httpError(w, err.Error(), http.StatusBadRequest)
 			return
 		}

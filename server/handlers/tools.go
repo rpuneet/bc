@@ -19,6 +19,14 @@ func NewToolHandler(store *tool.Store) *ToolHandler {
 	return &ToolHandler{store: store}
 }
 
+// resolveStore returns the context-scoped tool store with closure fallback.
+func (h *ToolHandler) resolveStore(r *http.Request) *tool.Store {
+	if view := WorkspaceFromContext(r.Context()); view != nil && view.Tools != nil {
+		return view.Tools
+	}
+	return h.store
+}
+
 // Register mounts tool routes on mux.
 func (h *ToolHandler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/tools/check", h.checkAll)
@@ -27,6 +35,7 @@ func (h *ToolHandler) Register(mux *http.ServeMux) {
 }
 
 func (h *ToolHandler) list(w http.ResponseWriter, r *http.Request) {
+	store := h.resolveStore(r)
 	switch r.Method {
 	case http.MethodGet:
 		// Support ?type=cli&type=mcp filtering
@@ -34,7 +43,7 @@ func (h *ToolHandler) list(w http.ResponseWriter, r *http.Request) {
 		if types := r.URL.Query()["type"]; len(types) > 0 {
 			opts.Types = types
 		}
-		tools, err := h.store.ListWithOptions(r.Context(), opts)
+		tools, err := store.ListWithOptions(r.Context(), opts)
 		if err != nil {
 			httpInternalError(w, "list tools", err)
 			return

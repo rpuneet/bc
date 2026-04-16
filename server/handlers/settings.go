@@ -18,6 +18,14 @@ func NewSettingsHandler(ws *workspace.Workspace) *SettingsHandler {
 	return &SettingsHandler{ws: ws}
 }
 
+// resolveWS returns the context-scoped workspace with closure fallback.
+func (h *SettingsHandler) resolveWS(r *http.Request) *workspace.Workspace {
+	if view := WorkspaceFromContext(r.Context()); view != nil && view.Workspace != nil {
+		return view.Workspace
+	}
+	return h.ws
+}
+
 // Register mounts settings routes on mux.
 func (h *SettingsHandler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/settings", h.handle)
@@ -34,8 +42,9 @@ func (h *SettingsHandler) handle(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (h *SettingsHandler) get(w http.ResponseWriter, _ *http.Request) {
-	writeJSON(w, http.StatusOK, h.ws.Config)
+func (h *SettingsHandler) get(w http.ResponseWriter, r *http.Request) {
+	ws := h.resolveWS(r)
+	writeJSON(w, http.StatusOK, ws.Config)
 }
 
 // patch applies a partial update to the config. The body is a JSON object

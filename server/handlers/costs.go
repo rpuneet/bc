@@ -27,11 +27,29 @@ func (h *CostHandler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/costs/", h.byResource)
 }
 
+// resolveStore returns the context-scoped cost store with closure fallback.
+// Phase M3: both paths resolve to the same store today.
+func (h *CostHandler) resolveStore(r *http.Request) *cost.Store {
+	if view := WorkspaceFromContext(r.Context()); view != nil && view.Costs != nil {
+		return view.Costs
+	}
+	return h.store
+}
+
+// resolveImporter returns the context-scoped cost importer with closure fallback.
+func (h *CostHandler) resolveImporter(r *http.Request) *cost.Importer {
+	if view := WorkspaceFromContext(r.Context()); view != nil && view.CostImporter != nil {
+		return view.CostImporter
+	}
+	return h.importer
+}
+
 func (h *CostHandler) summary(w http.ResponseWriter, r *http.Request) {
 	if !requireMethod(w, r, http.MethodGet) {
 		return
 	}
-	s, err := h.store.WorkspaceSummary(r.Context())
+	store := h.resolveStore(r)
+	s, err := store.WorkspaceSummary(r.Context())
 	if err != nil {
 		httpInternalError(w, "workspace summary", err)
 		return
@@ -153,11 +171,12 @@ func (h *CostHandler) sync(w http.ResponseWriter, r *http.Request) {
 	if !requireMethod(w, r, http.MethodPost) {
 		return
 	}
-	if h.importer == nil {
+	importer := h.resolveImporter(r)
+	if importer == nil {
 		httpError(w, "importer not configured", http.StatusServiceUnavailable)
 		return
 	}
-	n, err := h.importer.ImportAll(r.Context())
+	n, err := importer.ImportAll(r.Context())
 	if err != nil {
 		httpInternalError(w, "import failed", err)
 		return

@@ -184,8 +184,27 @@ func WorkspaceScope(next http.Handler, mgr *WorkspaceManager) http.Handler {
 		}
 
 		// Legacy: /api/<rest> (not /api/workspaces/...)
+		// Mark as deprecated and stash the active workspace's services in
+		// context so handlers can transition to context-based resolution
+		// without needing scoped URLs. Phase M3.
 		w.Header().Set("Deprecation", "true")
 		w.Header().Set("Sunset", deprecationSunset)
+
+		if mgr != nil {
+			if active := mgr.Active(); active != nil {
+				activeID := ""
+				if e := mgr.Registry().GetActive(); e != nil {
+					activeID = e.ID
+					if activeID == "" {
+						activeID = workspace.ComputeWorkspaceID(e.Path)
+					}
+				}
+				ctx := context.WithValue(r.Context(), ctxKeyWorkspaceID, activeID)
+				ctx = context.WithValue(ctx, ctxKeyWorkspaceServices, active)
+				next.ServeHTTP(w, r.WithContext(ctx))
+				return
+			}
+		}
 		next.ServeHTTP(w, r)
 	})
 }

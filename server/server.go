@@ -279,6 +279,18 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 	// workspace shim. The context-lookup shim is wired here to avoid an
 	// import cycle between server and server/handlers.
 	handlers.SetWorkspaceIDFromContext(WorkspaceIDFromContext)
+	// Install the per-request workspace resolver so handlers can pull
+	// their per-workspace dependencies from context (phase M3). The
+	// resolver reads ctxKeyWorkspaceServices which the WorkspaceScope
+	// middleware stashes on both scoped (/api/workspaces/{id}/…) and
+	// legacy (/api/…) paths.
+	handlers.SetWorkspaceFromContext(func(ctx context.Context) *handlers.WorkspaceView {
+		svc := WorkspaceServicesFromContext(ctx)
+		if svc == nil {
+			return nil
+		}
+		return workspaceViewFromServices(svc)
+	})
 	handlers.NewCodeHandler(handlers.NewRegistryWorkspaceResolver(svc.Registry, svc.WS)).Register(mux)
 	if svc.WS != nil {
 		handlers.NewRolesHandler(svc.WS).Register(mux)
