@@ -14,11 +14,11 @@ import (
 //
 // GET /api/global/costs?start=<RFC3339|YYYY-MM-DD>&groupBy=workspace|project
 //
-// - Mount OUTSIDE WorkspaceScope so the response spans every workspace.
-// - `start` defaults to 30 days ago when omitted.
-// - `end` is not honored because the underlying store only accepts a
-//   lower bound (`since`); callers that need a window should narrow on
-//   the client. TODO(#250): widen pkg/cost to accept a full range.
+//   - Mount OUTSIDE WorkspaceScope so the response spans every workspace.
+//   - `start` defaults to 30 days ago when omitted.
+//   - `end` is not honored because the underlying store only accepts a
+//     lower bound (`since`); callers that need a window should narrow on
+//     the client. TODO(#250): widen pkg/cost to accept a full range.
 type GlobalCostsHandler struct {
 	store    *cost.Store
 	registry *workspace.Registry

@@ -12,10 +12,10 @@ import (
 // /usr/bin/tmux or /usr/bin/ps.
 type fakeRunner struct {
 	sessions     []string
-	panes        map[string][]int       // session -> pane PIDs
-	children     map[int][]int          // pid -> children
-	cpuByPID     map[int]float64        // pid -> %cpu
-	rssByPID     map[int]int64          // pid -> rss bytes
+	panes        map[string][]int // session -> pane PIDs
+	children     map[int][]int    // pid -> children
+	cpuByPID     map[int]float64  // pid -> %cpu
+	rssByPID     map[int]int64    // pid -> rss bytes
 	panePIDsErr  error
 	psStatsErr   error
 	listErr      error

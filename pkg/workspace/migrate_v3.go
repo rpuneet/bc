@@ -49,10 +49,10 @@ func MigrateToGlobalState(rootDir string) (string, error) {
 		PreferencesFileName:    true, // preferences.json (M11c+)
 		LegacySettingsFileName: true, // settings.json (legacy)
 		"bc.db":                true,
-		"state.db":              true,
-		"cron.db":               true,
-		"channels.db":           true,
-		"cost.db":               true,
+		"state.db":             true,
+		"cron.db":              true,
+		"channels.db":          true,
+		"cost.db":              true,
 	}
 	essentialDirs := map[string]bool{
 		"roles": true,
