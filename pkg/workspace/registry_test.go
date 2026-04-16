@@ -377,3 +377,156 @@ func TestWorkspaceNotFoundErrorMessage(t *testing.T) {
 		t.Error("WorkspaceNotFoundError.Error() should return message")
 	}
 }
+
+// TestComputeWorkspaceID verifies that IDs are stable, deterministic, and the
+// expected length.
+func TestComputeWorkspaceID(t *testing.T) {
+	if got := ComputeWorkspaceID(""); got != "" {
+		t.Errorf("ComputeWorkspaceID(\"\") = %q, want empty", got)
+	}
+	id1 := ComputeWorkspaceID("/Users/test/project")
+	id2 := ComputeWorkspaceID("/Users/test/project")
+	if id1 != id2 {
+		t.Errorf("ComputeWorkspaceID not deterministic: %q vs %q", id1, id2)
+	}
+	if len(id1) != registryIDLength {
+		t.Errorf("ID length = %d, want %d", len(id1), registryIDLength)
+	}
+	id3 := ComputeWorkspaceID("/Users/test/other")
+	if id1 == id3 {
+		t.Errorf("different paths produced same ID: %q", id1)
+	}
+}
+
+// TestRegistryRegisterPopulatesID ensures Register sets the ID field.
+func TestRegistryRegisterPopulatesID(t *testing.T) {
+	dir := t.TempDir()
+	r := &Registry{path: filepath.Join(dir, "workspaces.json")}
+	if err := r.RegisterWithAlias("/projects/foo", "foo", ""); err != nil {
+		t.Fatalf("RegisterWithAlias: %v", err)
+	}
+	if r.Workspaces[0].ID == "" {
+		t.Fatal("Register did not populate ID")
+	}
+	if r.Workspaces[0].ID != ComputeWorkspaceID("/projects/foo") {
+		t.Errorf("ID mismatch: got %q want %q", r.Workspaces[0].ID, ComputeWorkspaceID("/projects/foo"))
+	}
+	if r.Workspaces[0].LastUsedAt.IsZero() {
+		t.Error("LastUsedAt should be populated on Register")
+	}
+}
+
+// TestRegistryFindByID verifies the new ID-based lookup.
+func TestRegistryFindByID(t *testing.T) {
+	dir := t.TempDir()
+	r := &Registry{path: filepath.Join(dir, "workspaces.json")}
+	_ = r.RegisterWithAlias("/projects/foo", "foo", "f")
+
+	id := ComputeWorkspaceID("/projects/foo")
+	entry := r.FindByID(id)
+	if entry == nil {
+		t.Fatalf("FindByID(%q) returned nil", id)
+	}
+	if entry.Path != "/projects/foo" {
+		t.Errorf("FindByID path = %q", entry.Path)
+	}
+
+	if r.FindByID("") != nil {
+		t.Error("FindByID(\"\") should return nil")
+	}
+	if r.FindByID("deadbeef1234") != nil {
+		t.Error("FindByID for unknown id should return nil")
+	}
+
+	// Resolve should also accept the ID.
+	if got := r.Resolve(id); got == nil || got.Path != "/projects/foo" {
+		t.Error("Resolve by ID failed")
+	}
+}
+
+// TestRegistryMigrateV1ToV2 ensures loading a v1 registry file upgrades it
+// to v2 with IDs populated.
+func TestRegistryMigrateV1ToV2(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("HOME", tmpDir)
+
+	bcDir := filepath.Join(tmpDir, ".bc")
+	if err := os.MkdirAll(bcDir, 0750); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+
+	// v1 file: no version, no id, no last_used_at
+	legacy := `{
+		"active": "foo",
+		"workspaces": [
+			{"path": "/projects/foo", "name": "foo", "alias": "f",
+			 "created_at": "2025-01-01T00:00:00Z",
+			 "last_accessed": "2025-02-01T00:00:00Z"}
+		]
+	}`
+	if err := os.WriteFile(filepath.Join(bcDir, "workspaces.json"), []byte(legacy), 0600); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	r, err := LoadRegistry()
+	if err != nil {
+		t.Fatalf("LoadRegistry: %v", err)
+	}
+	if r.Version != CurrentRegistryVersion {
+		t.Errorf("Version = %d, want %d", r.Version, CurrentRegistryVersion)
+	}
+	if len(r.Workspaces) != 1 {
+		t.Fatalf("Workspaces = %d, want 1", len(r.Workspaces))
+	}
+	if r.Workspaces[0].ID == "" {
+		t.Error("Migrate did not populate ID")
+	}
+	if r.Workspaces[0].LastUsedAt.IsZero() {
+		t.Error("Migrate did not populate LastUsedAt")
+	}
+	// LastUsedAt should fall back from LastAccessed
+	if !r.Workspaces[0].LastUsedAt.Equal(r.Workspaces[0].LastAccessed) {
+		t.Errorf("LastUsedAt=%v should equal LastAccessed=%v",
+			r.Workspaces[0].LastUsedAt, r.Workspaces[0].LastAccessed)
+	}
+}
+
+// TestRegistryAtomicSave verifies Save writes atomically via tmp+rename.
+// We can't easily simulate a kill, but we can check that a tmp file is not
+// left behind on success.
+func TestRegistryAtomicSave(t *testing.T) {
+	dir := t.TempDir()
+	r := &Registry{path: filepath.Join(dir, "workspaces.json")}
+	_ = r.RegisterWithAlias("/projects/x", "x", "")
+
+	if err := r.Save(); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+
+	// No leftover .tmp files
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatalf("ReadDir: %v", err)
+	}
+	for _, e := range entries {
+		if filepath.Ext(e.Name()) == ".tmp" {
+			t.Errorf("leftover tmp file: %s", e.Name())
+		}
+	}
+
+	// File is readable and parses.
+	data, err := os.ReadFile(r.path) //nolint:gosec // test path
+	if err != nil {
+		t.Fatalf("ReadFile: %v", err)
+	}
+	r2 := &Registry{path: r.path}
+	if err := json.Unmarshal(data, r2); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
+	if r2.Version != CurrentRegistryVersion {
+		t.Errorf("serialized Version = %d, want %d", r2.Version, CurrentRegistryVersion)
+	}
+	if len(r2.Workspaces) != 1 || r2.Workspaces[0].ID == "" {
+		t.Error("Saved registry missing ID")
+	}
+}
