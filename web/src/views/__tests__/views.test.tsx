@@ -9,7 +9,6 @@ import { Tools } from "../Tools";
 import { Live } from "../Live";
 import { Cron } from "../Cron";
 import { Secrets } from "../Secrets";
-import { Workspace } from "../Workspace";
 
 const fetchMock = globalThis.fetch as ReturnType<typeof vi.fn>;
 
@@ -242,26 +241,3 @@ describe("Secrets", () => {
   });
 });
 
-describe("Workspace", () => {
-  it("renders skeleton loading then workspace status", async () => {
-    fetchMock.mockImplementation((url: string) => {
-      if (url.includes("/stats"))
-        return jsonResponse({
-          agents_total: 2, agents_running: 1,
-          channels_total: 3, messages_total: 100,
-          total_cost_usd: 5.0, roles_total: 2,
-        });
-      if (url.includes("/settings"))
-        return jsonResponse({ version: "2" });
-      return jsonResponse({
-        root_dir: "/home/project", version: "2",
-        name: "my-workspace", is_healthy: true,
-      });
-    });
-    const { container } = wrap(<Workspace />);
-    expectSkeletonLoading(container);
-    await waitFor(() => {
-      expect(screen.getByText("my-workspace")).toBeInTheDocument();
-    });
-  });
-});

@@ -659,15 +659,28 @@ function ConfigTab({ agent }: { agent: Agent }) {
    ═══════════════════════════════════════════════════════════════════ */
 
 function CodeTabPlaceholder({ agent }: { agent: Agent }) {
+  // Defers to the top-level Code view for the actual rendering — navigate
+  // there with the agent's worktree pre-selected.
   return (
     <div className="flex-1 flex items-center justify-center p-6">
-      <div className="max-w-md text-center space-y-3">
-        <p className="text-[11px] text-bc-muted/50 uppercase tracking-wider" style={{ fontFamily: MONO }}>
-          Code viewer — coming soon
+      <div className="max-w-md text-center space-y-4" style={{ fontFamily: MONO }}>
+        <p className="text-[11px] text-bc-muted/50 uppercase tracking-wider">
+          Agent code — diff view
         </p>
-        <p className="text-sm text-bc-muted">
-          Will show <span className="text-bc-text/90 font-mono">{agent.name}</span>&rsquo;s worktree diff against the main repo, with an optional VS Code (code-server) mode.
+        <p className="text-sm text-bc-muted leading-relaxed">
+          Open the Code view with <span className="text-bc-text/90">{agent.name}</span>&rsquo;s
+          worktree selected to see its uncommitted changes against the main repo.
         </p>
+        <Link
+          to={`../../code?worktree=${encodeURIComponent(agent.name)}&view=diff`}
+          relative="route"
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-md border border-bc-accent/40 bg-bc-accent/10 text-bc-accent hover:bg-bc-accent/20 transition-colors text-[12px] font-semibold"
+        >
+          Open in Code view
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.6">
+            <path d="M3 9l6-6M5 3h4v4" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </Link>
       </div>
     </div>
   );

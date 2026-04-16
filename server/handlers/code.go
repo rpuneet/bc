@@ -132,7 +132,7 @@ func (h *CodeHandler) resolveWorktreeRoot(r *http.Request) (wsRoot, wtRoot, work
 }
 
 // agentWorktreePath mirrors pkg/worktree.Manager.Path for the given
-// agent, honouring BC_HOST_WORKSPACE if set. Accepting the workspace
+// agent, honoring BC_HOST_WORKSPACE if set. Accepting the workspace
 // root as an argument keeps this logic testable without building a
 // full Manager.
 func agentWorktreePath(wsRoot, agentName string) string {
@@ -168,9 +168,9 @@ func SetWorkspaceIDFromContext(fn func(context.Context) string) {
 // ------------------------------------------------------------------ /tree
 
 type treeEntry struct {
+	Size  *int64 `json:"size,omitempty"`
 	Name  string `json:"name"`
 	Path  string `json:"path"`
-	Size  *int64 `json:"size,omitempty"`
 	IsDir bool   `json:"is_dir"`
 }
 
@@ -262,7 +262,7 @@ func isHiddenEntry(name, parentRel string) bool {
 
 // maxFileBytes is the per-request ceiling for /api/code/file responses.
 // Matches §6.4.2 (2 MiB) and protects the server from accidental OOMs
-// when a client requests a large repo artefact.
+// when a client requests a large repo artifact.
 const maxFileBytes = 2 * 1024 * 1024
 
 func (h *CodeHandler) file(w http.ResponseWriter, r *http.Request) {
@@ -429,7 +429,7 @@ func (h *CodeHandler) diff(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), diffTimeout)
 	defer cancel()
 
-	//nolint:gosec // wtRoot / relPath are sanitised via SafeJoin; worktreeName
+	//nolint:gosec // wtRoot / relPath are sanitized via SafeJoin; worktreeName
 	// is validated by the prior Stat.
 	cmd := exec.CommandContext(ctx, "git", args...)
 	var stdout, stderr bytes.Buffer

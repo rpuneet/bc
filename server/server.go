@@ -266,6 +266,11 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 		handlers.NewWorkspacesHandler(svc.Registry, svc.Agents).Register(mux)
 		handlers.NewDiscoveryHandler(svc.Registry).Register(mux)
 	}
+	// Code tab endpoints — resolves workspaces via the registry + active
+	// workspace shim. The context-lookup shim is wired here to avoid an
+	// import cycle between server and server/handlers.
+	handlers.SetWorkspaceIDFromContext(WorkspaceIDFromContext)
+	handlers.NewCodeHandler(handlers.NewRegistryWorkspaceResolver(svc.Registry, svc.WS)).Register(mux)
 	if svc.WS != nil {
 		handlers.NewRolesHandler(svc.WS).Register(mux)
 		handlers.NewWorkspaceHandler(svc.Agents, svc.WS).Register(mux)
