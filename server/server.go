@@ -320,6 +320,10 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 	// Always registered so the UI can render an empty list when no deps
 	// are configured; the handler is nil-safe internally.
 	handlers.NewDepsHandler(svc.Deps).Register(mux)
+	// Cross-workspace cost rollup — lives outside WorkspaceScope so the
+	// response spans every workspace in the registry. Handler is nil-safe
+	// and returns 503 when the global ledger isn't wired.
+	mux.Handle("/api/global/costs", handlers.NewGlobalCostsHandler(svc.Costs, svc.Registry))
 	// Code tab endpoints — resolves workspaces via the registry + active
 	// workspace shim. The context-lookup shim is wired here to avoid an
 	// import cycle between server and server/handlers.

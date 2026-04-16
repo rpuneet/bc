@@ -584,6 +584,19 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ new_name: newName }),
     }),
+
+  // Cross-workspace cost rollup (outside workspace scope).
+  globalCosts: (opts: { start?: string; groupBy?: "workspace" | "project" } = {}) => {
+    const q = new URLSearchParams();
+    if (opts.start) q.set("start", opts.start);
+    if (opts.groupBy) q.set("groupBy", opts.groupBy);
+    const qs = q.toString();
+    return request<{
+      range: { start: string };
+      groupBy: "workspace" | "project";
+      rows: Array<{ key: string; label: string; total: number }>;
+    }>(`/global/costs${qs ? "?" + qs : ""}`);
+  },
   stopAllAgents: () => request<void>("/agents/stop-all", { method: "POST" }),
 
   // Bulk agent operations — parallel ops with per-agent results

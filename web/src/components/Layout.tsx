@@ -282,6 +282,12 @@ const UTIL_NAV_ITEMS = [
   { to: "/settings", label: "Settings", icon: "settings" },
 ] as const;
 
+// Global (non-workspace-scoped) nav items — rendered below a separator
+// in the sidebar. Costs here aggregates across every workspace.
+const GLOBAL_NAV_ITEMS = [
+  { to: "/costs", label: "Costs", icon: "metrics" },
+] as const;
+
 const NAV_ITEMS = [...MAIN_NAV_ITEMS, ...UTIL_NAV_ITEMS];
 
 function readCollapsed(): boolean {
@@ -298,20 +304,22 @@ function NavList({
   collapsed,
   isMobile,
   channelsExpanded,
+  global = false,
 }: {
   items: ReadonlyArray<{ to: string; label: string; icon: string }>;
   collapsed: boolean;
   isMobile: boolean;
   channelsExpanded?: boolean;
+  /** When true, render links verbatim — skip the /w/<id>/ prefix.
+   *  Used for cross-workspace routes like /costs. */
+  global?: boolean;
 }) {
   const isIconOnly = collapsed && !isMobile;
   const showTree = !isIconOnly && channelsExpanded;
-  // All nav targets are workspace-scoped; prefix /w/<id>/ at render time.
-  // If there's no active workspace yet (initial load), the legacy
-  // /<tab> routes in App.tsx bounce to /w/<active>/<tab> via
-  // RedirectToActiveWorkspace, so clicks still reach the right place.
+  // Workspace-scoped targets get /w/<id>/ prefixed at render time.
+  // Global items skip the prefix so they hit top-level routes.
   const { workspace } = useWorkspace();
-  const prefix = workspace ? `/w/${workspace.id}` : "";
+  const prefix = !global && workspace ? `/w/${workspace.id}` : "";
 
   return (
     <>
@@ -464,6 +472,10 @@ export function Layout() {
             isMobile={isMobile}
             channelsExpanded={channelsExpanded}
           />
+          <li className={`my-1.5 ${collapsed && !isMobile ? "mx-2" : "mx-3"}`}>
+            <div className="border-t border-bc-border/15" />
+          </li>
+          <NavList items={GLOBAL_NAV_ITEMS} collapsed={collapsed} isMobile={isMobile} global />
           <li className={`my-1.5 ${collapsed && !isMobile ? "mx-2" : "mx-3"}`}>
             <div className="border-t border-bc-border/15" />
           </li>
