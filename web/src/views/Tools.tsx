@@ -363,16 +363,13 @@ export function Tools() {
 
   return (
     <div className="p-6 space-y-8">
-      <div className="flex items-center justify-between">
-        <div className="shrink-0 pl-2 sm:pl-0">
-          <h1 className="text-xl font-bold">Tools</h1>
-          <p className="text-xs text-bc-muted mt-0.5 hidden sm:block">
-            {searchLower
-              ? `${matchCount} of ${totalCount} tools`
-              : <>{providerList.length} Providers &middot; {cliTools.length} CLI{checkedTools && " \u00b7 checked"}</>
-            }
-          </p>
-        </div>
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-xs text-bc-muted hidden sm:block">
+          {searchLower
+            ? `${matchCount} of ${totalCount} tools`
+            : <>{providerList.length} Providers &middot; {cliTools.length} CLI{checkedTools && " \u00b7 checked"}</>
+          }
+        </p>
         <div className="flex items-center gap-2">
           {/* Search with magnifying glass icon */}
           <div className="relative">

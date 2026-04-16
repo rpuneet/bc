@@ -346,14 +346,10 @@ export function Settings() {
 
   return (
     <div className="p-4 md:p-6 space-y-3">
-      <div className="flex items-center justify-between mb-1">
-        <div>
-          <h1 className="text-lg font-bold text-bc-text">System Configuration</h1>
-          <p className="text-[10px] text-bc-muted">
-            preferences.json{typeof version !== "undefined" ? ` v${version}` : ""}
-          </p>
-        </div>
-      </div>
+      {/* File metadata (title lives in the top-bar chip) */}
+      <p className="text-[10px] text-bc-muted">
+        preferences.json{typeof version !== "undefined" ? ` v${version}` : ""}
+      </p>
 
       {/* Floating save bar */}
       {dirtySections.length > 0 && (

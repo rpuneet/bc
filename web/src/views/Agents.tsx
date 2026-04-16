@@ -542,21 +542,14 @@ export function Agents() {
 
   return (
     <div className="p-6 space-y-4 pb-24">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold">Agents</h1>
-        <div className="flex items-center gap-3">
+      {/* Sub-toolbar: count summary + Stop All (title + Create live in the top-bar chip) */}
+      {allAgents.length > 0 && (
+        <div className="flex items-center justify-end gap-3">
           <span className="text-sm text-bc-muted">
             {hasFilters
               ? `${String(filteredAgents.length)} of ${String(allAgents.length)} agents`
               : `${String(runningCount)}/${String(allAgents.length)} running`}
           </span>
-          <button
-            onClick={() => setCreateOpen(true)}
-            className="px-3 py-1.5 text-sm rounded bg-bc-accent text-white hover:bg-bc-accent/80 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-bc-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bc-bg"
-            aria-label="Create agent"
-          >
-            + Create Agent
-          </button>
           {allAgents.some(
             (a) => a.state !== "stopped" && a.state !== "error",
           ) && (
@@ -570,7 +563,7 @@ export function Agents() {
             </button>
           )}
         </div>
-      </div>
+      )}
 
       {/* Search + filter toolbar */}
       {allAgents.length > 0 && (
