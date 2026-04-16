@@ -80,6 +80,11 @@ export function App() {
                   <Route path="stats" element={wrap(<Stats />)} />
                   <Route path="metrics" element={wrap(<Stats />)} />
                   <Route path="settings" element={wrap(<Settings />)} />
+                  {/* /workspace is the legacy alias of /settings — the
+                      server's LegacyUIScope redirects /workspace to
+                      /w/<active>/workspace, so this SPA route must
+                      exist to avoid the 404 the Playwright sweep found. */}
+                  <Route path="workspace" element={<Navigate to="../settings" replace />} />
                   <Route path="code" element={wrap(<Code />)} />
                   <Route path="code/*" element={wrap(<Code />)} />
                 </Route>

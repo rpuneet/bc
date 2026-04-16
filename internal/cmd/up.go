@@ -98,13 +98,15 @@ func runUp(cmd *cobra.Command, _ []string) error {
 
 	// Publish the listen address at ~/.bc/daemon.addr so the bc CLI and
 	// agents can find the daemon without BC_DAEMON_ADDR when it runs on
-	// a non-default port. Best-effort — failure to write is not fatal.
-	if _, ensureErr := workspace.EnsureGlobalDir(); ensureErr == nil {
-		if addrPath, pathErr := workspace.DaemonAddrPath(); pathErr == nil {
-			if writeErr := os.WriteFile(addrPath, []byte(bcdAddr+"\n"), 0o600); writeErr != nil {
-				log.Warn("failed to write daemon addr file", "path", addrPath, "error", writeErr)
-			}
-		}
+	// a non-default port. Best-effort — failure to write is not fatal,
+	// but each failure mode must warn so users aren't silently routed
+	// back to the hardcoded :9374 default (the exact bug #43 fixed).
+	if _, ensureErr := workspace.EnsureGlobalDir(); ensureErr != nil {
+		log.Warn("daemon addr: ensure ~/.bc failed — CLI will fall back to default port", "error", ensureErr)
+	} else if addrPath, pathErr := workspace.DaemonAddrPath(); pathErr != nil {
+		log.Warn("daemon addr: resolve path failed — CLI will fall back to default port", "error", pathErr)
+	} else if writeErr := os.WriteFile(addrPath, []byte(bcdAddr+"\n"), 0o600); writeErr != nil {
+		log.Warn("daemon addr: write failed — CLI will fall back to default port", "path", addrPath, "error", writeErr)
 	}
 
 	return RunServer(upAddr, wsRoot, upCORS, upAPIKey)

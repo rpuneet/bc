@@ -154,3 +154,53 @@ func TestCodeSearch_EmptyQueryReturns400(t *testing.T) {
 		t.Errorf("status = %d, want 400", resp.StatusCode)
 	}
 }
+
+// TestCodeSearch_RejectsPathEscape guards the SafeJoin-backed subdir
+// scope. A query with `path=../../etc` must be refused, not silently
+// escape the workspace root.
+func TestCodeSearch_RejectsPathEscape(t *testing.T) {
+	srv, _ := newSearchServer(t)
+	defer srv.Close()
+
+	resp, err := http.Get(srv.URL + "/api/code/search?q=needle&path=..%2F..%2Fetc&worktree=main") //nolint:gosec,noctx // test
+	if err != nil {
+		t.Fatalf("GET: %v", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("status = %d, want 400 for path traversal", resp.StatusCode)
+	}
+}
+
+// TestCodeSearch_MaxTruncation pins the truncation boundary: with two
+// matches and max=1 we expect exactly one match returned and
+// truncated=true. Regression guard for the off-by-one that returned
+// truncated=true at exact-max boundary before the &gt;-not-&gt;= fix.
+func TestCodeSearch_MaxTruncation(t *testing.T) {
+	srv, _ := newSearchServer(t)
+	defer srv.Close()
+
+	out := decodeSearch(t, srv.URL+"/api/code/search?q=needle&worktree=main&max=1")
+	if len(out.Matches) != 1 {
+		t.Errorf("matches = %d, want 1 with max=1", len(out.Matches))
+	}
+	if !out.Truncated {
+		t.Error("truncated should be true when max=1 and corpus has 2 hits")
+	}
+}
+
+// TestCodeSearch_QueryTooLong caps q at searchMaxQueryLen chars.
+func TestCodeSearch_QueryTooLong(t *testing.T) {
+	srv, _ := newSearchServer(t)
+	defer srv.Close()
+
+	big := strings.Repeat("a", searchMaxQueryLen+1)
+	resp, err := http.Get(srv.URL + "/api/code/search?q=" + big) //nolint:gosec,noctx // test
+	if err != nil {
+		t.Fatalf("GET: %v", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("status = %d, want 400 for oversized q", resp.StatusCode)
+	}
+}

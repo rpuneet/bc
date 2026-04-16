@@ -144,6 +144,15 @@ func TestLegacyMCPCompat_PassesThroughWhenNoActiveWorkspace(t *testing.T) {
 	if cap.gotPath != "/_mcp/zen-zebra/sse" {
 		t.Errorf("path = %q, want unchanged (no active workspace)", cap.gotPath)
 	}
+	// The observability contract says: every hit on the legacy path
+	// must carry Deprecation/Sunset, even when we can't rewrite —
+	// otherwise operators grepping for stale agents miss the tail case.
+	if rec.Header().Get("Deprecation") != "true" {
+		t.Error("Deprecation header missing on pass-through")
+	}
+	if rec.Header().Get("Sunset") == "" {
+		t.Error("Sunset header missing on pass-through")
+	}
 }
 
 func TestLegacyMCPCompat_IgnoresNonMCPPaths(t *testing.T) {

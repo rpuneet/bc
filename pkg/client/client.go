@@ -9,13 +9,17 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/rpuneet/bc/pkg/log"
 )
 
 // DefaultSocketPath returns the default Unix socket path for bcd.
@@ -134,15 +138,21 @@ func discoverDaemon() string {
 }
 
 // readDaemonAddrFile reads ~/.bc/daemon.addr and returns a trimmed,
-// non-empty scheme+host:port string. Returns "" on any I/O or format
-// error — callers fall back to the hardcoded default.
+// non-empty scheme+host:port string. Returns "" when the file is
+// simply absent (bcd never started). Real I/O errors — permission
+// denied, corrupted file — log a warning so users aren't silently
+// routed to the hardcoded default when their environment is broken.
 func readDaemonAddrFile() string {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return ""
 	}
-	data, err := os.ReadFile(filepath.Join(home, ".bc", "daemon.addr")) //nolint:gosec // path is pinned to ~/.bc
+	path := filepath.Join(home, ".bc", "daemon.addr")
+	data, err := os.ReadFile(path) //nolint:gosec // path is pinned to ~/.bc
 	if err != nil {
+		if !errors.Is(err, fs.ErrNotExist) {
+			log.Warn("daemon addr: read failed — falling back to default", "path", path, "error", err)
+		}
 		return ""
 	}
 	return strings.TrimSpace(string(data))

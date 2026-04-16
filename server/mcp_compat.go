@@ -57,9 +57,18 @@ func LegacyMCPCompat(next http.Handler, mgr *WorkspaceManager) http.Handler {
 			return
 		}
 
+		// Any request that reaches this point hit the legacy
+		// /_mcp/<agent>/{sse,message} shape — stamp the deprecation
+		// headers regardless of whether we manage to rewrite, so
+		// operators grepping logs see every legacy hit (the feature's
+		// observability story depends on this even when fallback to
+		// the launch-workspace mount is active).
+		w.Header().Set("Deprecation", "true")
+		w.Header().Set("Sunset", deprecationSunset)
+
 		// Resolve the active workspace; without one we have nowhere to
 		// rewrite to, so the existing legacy launch-workspace mount
-		// keeps handling the request.
+		// keeps handling the request (still stamped above).
 		if mgr == nil {
 			next.ServeHTTP(w, r)
 			return
@@ -81,8 +90,6 @@ func LegacyMCPCompat(next http.Handler, mgr *WorkspaceManager) http.Handler {
 			}
 		}
 
-		w.Header().Set("Deprecation", "true")
-		w.Header().Set("Sunset", deprecationSunset)
 		next.ServeHTTP(w, r2)
 	})
 }

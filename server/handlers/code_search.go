@@ -17,6 +17,7 @@ package handlers
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -40,6 +41,11 @@ const searchMaxDefault = 500
 // searchMaxCeiling is a hard upper bound regardless of ?max=. Prevents
 // an accidental &max=1000000 from tying up rg for minutes.
 const searchMaxCeiling = 2000
+
+// searchMaxQueryLen caps the raw `q` parameter length. Guards against
+// pathologically long queries that inflate the argv and slow rg's
+// regex compile; ordinary queries are well under this ceiling.
+const searchMaxQueryLen = 1024
 
 // searchTimeout bounds a single rg invocation. Long searches either hit
 // this and return truncated=true, or complete well under it in practice.
@@ -66,6 +72,10 @@ func (h *CodeHandler) search(w http.ResponseWriter, r *http.Request) {
 	q := strings.TrimSpace(r.URL.Query().Get("q"))
 	if q == "" {
 		httpError(w, "q required", http.StatusBadRequest)
+		return
+	}
+	if len(q) > searchMaxQueryLen {
+		httpError(w, "q too long", http.StatusBadRequest)
 		return
 	}
 
@@ -137,21 +147,50 @@ func (h *CodeHandler) search(w http.ResponseWriter, r *http.Request) {
 		httpError(w, "search unavailable", http.StatusInternalServerError)
 		return
 	}
+	// Capture stderr so we can distinguish "no matches" (rg exit 1,
+	// empty stderr) from real failures (rg exit 2, non-empty stderr).
+	var stderrBuf bytes.Buffer
+	cmd.Stderr = &stderrBuf
 	if startErr := cmd.Start(); startErr != nil {
+		if errors.Is(startErr, exec.ErrNotFound) {
+			log.Warn("code search: rg not installed on PATH")
+			httpError(w, "ripgrep not installed on server", http.StatusNotImplemented)
+			return
+		}
 		log.Warn("code search: rg start", "error", startErr)
 		httpError(w, "search unavailable", http.StatusInternalServerError)
 		return
 	}
 
-	matches, truncated, parseErr := parseRipgrepJSON(stdout, wtRoot, max)
+	matches, truncated, dropped, parseErr := parseRipgrepJSON(stdout, wtRoot, max)
 	// Drain the rest of stdout so rg can exit cleanly when we hit max.
-	_ = cmd.Wait()
-	if parseErr != nil && !errors.Is(parseErr, context.DeadlineExceeded) {
-		log.Warn("code search: parse", "error", parseErr)
-	}
+	waitErr := cmd.Wait()
+
 	if ctx.Err() != nil {
 		// Timed out — return whatever we have, flagged as truncated.
 		truncated = true
+	}
+
+	// rg exit 2 means a real error (bad regex, unreadable tree, etc.).
+	// Exit 1 is "no matches" — expected. Surface real errors as
+	// truncated + warn so the UI doesn't silently show zero matches
+	// on a broken invocation.
+	if exitErr := (*exec.ExitError)(nil); errors.As(waitErr, &exitErr) && exitErr.ExitCode() >= 2 {
+		truncated = true
+		log.Warn("code search: rg exit",
+			"code", exitErr.ExitCode(),
+			"stderr", strings.TrimSpace(stderrBuf.String()))
+	}
+
+	if parseErr != nil && !errors.Is(parseErr, context.DeadlineExceeded) {
+		log.Warn("code search: parse", "error", parseErr)
+	}
+	if dropped > 0 {
+		// Malformed JSON from rg usually means buffer truncation or
+		// stderr bleeding into stdout. Flag as truncated so the UI
+		// warns the user rather than silently showing partial results.
+		truncated = true
+		log.Warn("code search: dropped malformed rg JSON lines", "count", dropped)
 	}
 
 	writeJSON(w, http.StatusOK, searchResponse{
@@ -191,10 +230,12 @@ type rgEvent struct {
 // parseRipgrepJSON reads one JSON event per line. It pairs each `match`
 // with the immediately surrounding `context` events (rg emits context
 // inline around each match for the -C/-A/-B flags). Returns truncated=
-// true when max is hit.
+// true when max is hit, and dropped=count of malformed lines that were
+// skipped (callers should treat non-zero as a signal that the response
+// is incomplete even if scan itself didn't error).
 func parseRipgrepJSON(r interface {
 	Read(p []byte) (n int, err error)
-}, root string, max int) (matches []searchMatch, truncated bool, err error) {
+}, root string, max int) (matches []searchMatch, truncated bool, dropped int, err error) {
 	scanner := bufio.NewScanner(r)
 	// rg can emit long lines (e.g., minified files) — bump the buffer.
 	scanner.Buffer(make([]byte, 0, 64*1024), 4*1024*1024)
@@ -211,6 +252,7 @@ func parseRipgrepJSON(r interface {
 	for scanner.Scan() {
 		var ev rgEvent
 		if unmarshalErr := json.Unmarshal(scanner.Bytes(), &ev); unmarshalErr != nil {
+			dropped++
 			continue
 		}
 		switch ev.Type {
@@ -230,11 +272,14 @@ func parseRipgrepJSON(r interface {
 				Col:  col,
 				Text: strings.TrimRight(ev.Data.Lines.Text, "\n"),
 			}
-			if len(matches)+1 >= max {
-				matches = append(matches, *pending)
+			// Truncate only when appending this match would push us
+			// PAST max. At exactly max we still let it through and
+			// keep reading to check whether another match would follow
+			// — that is the only way to report truncation accurately.
+			if len(matches)+1 > max {
 				pending = nil
 				truncated = true
-				return matches, truncated, nil
+				return matches, truncated, dropped, nil
 			}
 		case "context":
 			if pending == nil {
@@ -254,7 +299,7 @@ func parseRipgrepJSON(r interface {
 	}
 	flush()
 	if scanErr := scanner.Err(); scanErr != nil {
-		return matches, truncated, fmt.Errorf("scan: %w", scanErr)
+		return matches, truncated, dropped, fmt.Errorf("scan: %w", scanErr)
 	}
-	return matches, truncated, nil
+	return matches, truncated, dropped, nil
 }
