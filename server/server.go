@@ -159,6 +159,32 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 		fmt.Fprintf(w, `{"status":"ok","addr":%q,"commit":%q,"built_at":%q}`, cfg.Addr, cfg.Build.Commit, cfg.Build.BuiltAt) //nolint:errcheck // writing to response
 	})
 
+	// /api/health and /healthz: external-probe-friendly health endpoints
+	// that verify DB connectivity with a SELECT 1 roundtrip. Registered
+	// before the SPA catch-all so they aren't shadowed.
+	apiHealth := func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		if svc.Costs != nil {
+			if db := svc.Costs.DB(); db != nil {
+				ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+				defer cancel()
+				var one int
+				if err := db.QueryRowContext(ctx, "SELECT 1").Scan(&one); err != nil {
+					w.WriteHeader(http.StatusServiceUnavailable)
+					fmt.Fprintf(w, `{"status":"unhealthy","db":"error: %s"}`, strings.ReplaceAll(err.Error(), `"`, `'`)) //nolint:errcheck
+					return
+				}
+			}
+		}
+		fmt.Fprintf(w, `{"status":"ok","db":"ok","version":%q}`, cfg.Build.Commit) //nolint:errcheck
+	}
+	mux.HandleFunc("/api/health", apiHealth)
+	mux.HandleFunc("/healthz", apiHealth)
+
 	// Readiness probe — verifies downstream dependencies
 	mux.HandleFunc("/health/ready", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
