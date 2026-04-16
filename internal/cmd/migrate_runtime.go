@@ -704,19 +704,24 @@ func MaybeRunRuntimeMigration(ctx context.Context) {
 // printMigrationResult emits a human-readable summary of one workspace's
 // migration to cmd.OutOrStdout().
 func printMigrationResult(out interface{ Write([]byte) (int, error) }, r WorkspaceRuntimeMigrationResult) {
-	_, _ = fmt.Fprintf(out, "%s (%s)\n", r.Name, r.ID)
-	_, _ = fmt.Fprintf(out, "  project:  %s\n", r.ProjectPath)
-	_, _ = fmt.Fprintf(out, "  data_dir: %s\n", r.DataDir)
+	// Write errors are intentionally ignored — this is best-effort
+	// human-readable output to cmd.OutOrStdout(), which never errors
+	// in practice.
+	p := func(f string, a ...any) { _, _ = fmt.Fprintf(out, f, a...) }
+
+	p("%s (%s)\n", r.Name, r.ID)
+	p("  project:  %s\n", r.ProjectPath)
+	p("  data_dir: %s\n", r.DataDir)
 	if r.Skipped {
-		_, _ = fmt.Fprintf(out, "  SKIPPED: %s\n", r.SkipReason)
+		p("  SKIPPED: %s\n", r.SkipReason)
 		return
 	}
-	_, _ = fmt.Fprintf(out, "  moved: %d files, %d dirs, %d worktrees\n", r.MovedFiles, r.MovedDirs, r.WorktreesMoved)
+	p("  moved: %d files, %d dirs, %d worktrees\n", r.MovedFiles, r.MovedDirs, r.WorktreesMoved)
 	for _, s := range r.WorktreesSkipped {
-		_, _ = fmt.Fprintf(out, "  worktree skipped: %s\n", s)
+		p("  worktree skipped: %s\n", s)
 	}
 	for _, e := range r.Errors {
-		_, _ = fmt.Fprintf(out, "  error: %s\n", e)
+		p("  error: %s\n", e)
 	}
 }
 
