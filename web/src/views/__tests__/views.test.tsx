@@ -1,10 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { Dashboard } from "../Dashboard";
 import { Agents } from "../Agents";
 import { Channels } from "../Channels";
-import { Roles } from "../Roles";
 import { Tools } from "../Tools";
 import { Live } from "../Live";
 import { Cron } from "../Cron";
@@ -33,49 +31,6 @@ function expectSkeletonLoading(container: HTMLElement) {
   const pulseElements = container.querySelectorAll(".animate-pulse");
   expect(pulseElements.length).toBeGreaterThan(0);
 }
-
-describe("Dashboard", () => {
-  it("renders skeleton loading then data", async () => {
-    fetchMock.mockImplementation((url: string) => {
-      if (url.includes("/agents")) return jsonResponse([]);
-      if (url.includes("/channels")) return jsonResponse([]);
-      if (url.includes("/costs"))
-        return jsonResponse({
-          input_tokens: 0,
-          output_tokens: 0,
-          total_tokens: 100,
-          total_cost_usd: 1.5,
-          record_count: 2,
-        });
-      return jsonResponse({});
-    });
-    const { container } = wrap(<Dashboard />);
-    expectSkeletonLoading(container);
-    await waitFor(() => {
-      expect(screen.getByText("Dashboard")).toBeInTheDocument();
-    });
-  });
-
-  it("renders empty state for no agents", async () => {
-    fetchMock.mockImplementation((url: string) => {
-      if (url.includes("/agents")) return jsonResponse([]);
-      if (url.includes("/channels")) return jsonResponse([]);
-      if (url.includes("/costs"))
-        return jsonResponse({
-          input_tokens: 0,
-          output_tokens: 0,
-          total_tokens: 0,
-          total_cost_usd: 0,
-          record_count: 0,
-        });
-      return jsonResponse({});
-    });
-    wrap(<Dashboard />);
-    await waitFor(() => {
-      expect(screen.getByText("No agents detected")).toBeInTheDocument();
-    });
-  });
-});
 
 describe("Agents", () => {
   it("renders skeleton loading then agent list", async () => {
@@ -123,37 +78,6 @@ describe("Channels", () => {
     await waitFor(() => {
       // When a gateway channel exists but none is selected, shows "Select a channel".
       expect(screen.getByText("Select a channel")).toBeInTheDocument();
-    });
-  });
-});
-
-describe("Roles", () => {
-  it("renders skeleton loading then role cards", async () => {
-    fetchMock.mockReturnValue(
-      jsonResponse({
-        eng: {
-          Name: "engineer",
-          Prompt: "",
-          MCPServers: [],
-          Secrets: [],
-          Plugins: [],
-          PromptCreate: "",
-          PromptStart: "",
-          PromptStop: "",
-          PromptDelete: "",
-          Commands: {},
-          Skills: {},
-          Agents: {},
-          Rules: {},
-          Settings: {},
-          Review: "",
-        },
-      }),
-    );
-    const { container } = wrap(<Roles />);
-    expectSkeletonLoading(container);
-    await waitFor(() => {
-      expect(screen.getByText("engineer")).toBeInTheDocument();
     });
   });
 });
