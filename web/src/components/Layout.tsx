@@ -27,7 +27,7 @@ function Icon({ name, size = 14 }: { name: string; size?: number }) {
     cron: <><circle cx="7" cy="7" r="4.5" /><path d="M7 4.5v2.5l1.5 1.5" /></>,
     secrets: <path d="M7 2.5a2 2 0 00-2 2V6H4v4.5h6V6H9V4.5a2 2 0 00-2-2zm0 5.5a.75.75 0 110 1.5.75.75 0 010-1.5z" />,
     metrics: <path d="M2 10l2.5-3.5 2 1.5L10 3" strokeLinecap="round" strokeLinejoin="round" />,
-    workspace: <path d="M2.5 3.5h9v7h-9zM4.5 3.5V2.5h5v1" />,
+    code: <><path d="M5 3.5L1.5 7L5 10.5" strokeLinecap="round" strokeLinejoin="round" /><path d="M9 3.5L12.5 7L9 10.5" strokeLinecap="round" strokeLinejoin="round" /></>,
     settings: <><circle cx="7" cy="7" r="2" /><path d="M7 1.5v1.5M7 11v1.5M1.5 7H3M11 7h1.5M3 3l1 1M10 10l1 1M3 11l1-1M10 4l1-1" opacity="0.5" /></>,
     chevron: <path d="M5 3l4 4-4 4" strokeLinecap="round" strokeLinejoin="round" />,
   };
@@ -266,6 +266,7 @@ const MAIN_NAV_ITEMS = [
   { to: "/live", label: "Live", icon: "live" },
   { to: "/agents", label: "Agents", icon: "agents" },
   { to: "/channels", label: "Channels", icon: "channels" },
+  { to: "/code", label: "Code", icon: "code" },
   { to: "/templates", label: "Templates", icon: "templates" },
   { to: "/tools", label: "Tools", icon: "tools" },
   { to: "/cron", label: "Cron", icon: "cron" },
@@ -274,7 +275,6 @@ const MAIN_NAV_ITEMS = [
 ] as const;
 
 const UTIL_NAV_ITEMS = [
-  { to: "/workspace", label: "Workspace", icon: "workspace" },
   { to: "/settings", label: "Settings", icon: "settings" },
 ] as const;
 
