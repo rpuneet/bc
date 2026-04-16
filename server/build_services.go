@@ -44,12 +44,13 @@ import (
 // across all per-workspace services. bcd builds one Globals at boot and
 // reuses it for every workspace the WorkspaceManager materializes.
 type Globals struct {
-	Registry  *bcworkspace.Registry
-	Stats     *bcstats.Store    // nil when TSDB unavailable
-	Deps      *bcdeps.Registry  // optional dependencies registry (bc-db, etc.)
-	GlobalHub *bcws.Hub         // fan-in SSE hub for cross-workspace /api/events
-	Templates *bctemplate.Store // user-global template store (~/.bc/templates/) — wrapped per-workspace
-	Build     BuildInfo
+	Registry     *bcworkspace.Registry
+	Stats        *bcstats.Store    // nil when TSDB unavailable
+	Deps         *bcdeps.Registry  // optional dependencies registry (bc-db, etc.)
+	GlobalHub    *bcws.Hub         // fan-in SSE hub for cross-workspace /api/events
+	Templates    *bctemplate.Store // user-global template store (~/.bc/templates/) — wrapped per-workspace
+	SecretsVault *bcsecret.Store   // user-global secrets vault (~/.bc/secrets.vault) — shared across workspaces
+	Build        BuildInfo
 }
 
 // BuildWorkspaceServices constructs a fully-initialized WorkspaceServices
@@ -162,9 +163,16 @@ func buildWorkspaceServicesFromWS(ctx context.Context, globals *Globals, ws *bcw
 		}()
 	}
 
-	// Secret store.
+	// Secret store. Prefer the user-global vault (~/.bc/secrets.vault)
+	// supplied by Globals so a single secret set once is visible across
+	// every workspace. When Globals.SecretsVault is unset (legacy
+	// callers), fall back to the per-workspace <ws>/.bc/secrets.db.
 	var secretStore *bcsecret.Store
-	if passphrase, passErr := bcsecret.Passphrase(); passErr != nil {
+	if globals != nil && globals.SecretsVault != nil {
+		secretStore = globals.SecretsVault
+		// Don't register a closer: ownership stays with whoever
+		// populated Globals (typically RunServer).
+	} else if passphrase, passErr := bcsecret.Passphrase(); passErr != nil {
 		log.Warn("secret passphrase unavailable — secret store disabled", "error", passErr)
 	} else if ss, err := bcsecret.NewStore(ws.RootDir, passphrase); err != nil {
 		log.Warn("secret store unavailable", "error", err, "workspace", ws.RootDir)

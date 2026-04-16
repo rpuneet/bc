@@ -14,6 +14,7 @@ import (
 	bcdb "github.com/rpuneet/bc/pkg/db"
 	bcdeps "github.com/rpuneet/bc/pkg/deps"
 	"github.com/rpuneet/bc/pkg/log"
+	bcsecret "github.com/rpuneet/bc/pkg/secret"
 	bcstats "github.com/rpuneet/bc/pkg/stats"
 	bctemplate "github.com/rpuneet/bc/pkg/template"
 	bcworkspace "github.com/rpuneet/bc/pkg/workspace"
@@ -132,13 +133,28 @@ func RunServer(addr, wsRoot, corsOrigin, apiKey string) error {
 		templatesStore = bctemplate.NewStore(globalTmplDir)
 	}
 
+	// User-global secrets vault at ~/.bc/secrets.vault. A single vault
+	// keeps ANTHROPIC_API_KEY and friends visible across every workspace.
+	var globalVault *bcsecret.Store
+	if vaultPath, vpErr := bcworkspace.GlobalSecretsVault(); vpErr != nil {
+		log.Warn("global secrets vault path unavailable", "error", vpErr)
+	} else if passphrase, passErr := bcsecret.Passphrase(); passErr != nil {
+		log.Warn("secret passphrase unavailable — global vault disabled", "error", passErr)
+	} else if gv, openErr := bcsecret.OpenVaultFile(vaultPath, passphrase); openErr != nil {
+		log.Warn("global secrets vault unavailable", "error", openErr, "path", vaultPath)
+	} else {
+		globalVault = gv
+		defer gv.Close() //nolint:errcheck // best-effort
+	}
+
 	globals := &server.Globals{
-		Registry:  registry,
-		Stats:     statsStore,
-		Deps:      depsRegistry,
-		GlobalHub: globalHub,
-		Templates: templatesStore,
-		Build:     server.BuildInfo{Commit: commit, BuiltAt: date},
+		Registry:     registry,
+		Stats:        statsStore,
+		Deps:         depsRegistry,
+		GlobalHub:    globalHub,
+		Templates:    templatesStore,
+		SecretsVault: globalVault,
+		Build:        server.BuildInfo{Commit: commit, BuiltAt: date},
 	}
 
 	// Build the launch workspace's services via the factory.

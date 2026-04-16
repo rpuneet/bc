@@ -19,11 +19,16 @@ import (
 const PassphraseEnvVar = "BC_SECRET_PASSPHRASE" //nolint:gosec // not a credential, env var name constant
 
 // SecretMeta holds secret metadata (never includes the value).
+//
+// Scope is runtime-only and reports which layer of a LayeredStore owns
+// the secret ("global" or "workspace"). Plain-store lookups leave it
+// empty.
 type SecretMeta struct {
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
 	Name        string    `json:"name"`
 	Description string    `json:"description,omitempty"`
+	Scope       Scope     `json:"scope,omitempty"`
 }
 
 // Store provides encrypted secrets storage backed by SQLite or Postgres.

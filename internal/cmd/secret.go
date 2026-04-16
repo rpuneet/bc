@@ -12,6 +12,7 @@ import (
 	"github.com/rpuneet/bc/pkg/client"
 	"github.com/rpuneet/bc/pkg/secret"
 	"github.com/rpuneet/bc/pkg/ui"
+	"github.com/rpuneet/bc/pkg/workspace"
 )
 
 var secretCmd = &cobra.Command{
@@ -89,11 +90,13 @@ var secretDeleteCmd = &cobra.Command{
 
 // Flags
 var (
-	secretSetValue    string
-	secretSetFromEnv  string
-	secretSetFromFile string
-	secretSetDesc     string
-	secretShowReveal  bool
+	secretSetValue     string
+	secretSetFromEnv   string
+	secretSetFromFile  string
+	secretSetDesc      string
+	secretSetWorkspace bool
+	secretShowReveal   bool
+	secretDeleteWS     bool
 )
 
 func init() {
@@ -101,7 +104,9 @@ func init() {
 	secretSetCmd.Flags().StringVar(&secretSetFromEnv, "from-env", "", "Import value from environment variable")
 	secretSetCmd.Flags().StringVar(&secretSetFromFile, "from-file", "", "Import value from file")
 	secretSetCmd.Flags().StringVar(&secretSetDesc, "desc", "", "Secret description")
+	secretSetCmd.Flags().BoolVar(&secretSetWorkspace, "workspace", false, "Write as a workspace-scoped override (default: user-global vault)")
 	secretShowCmd.Flags().BoolVar(&secretShowReveal, "reveal", false, "Show the actual secret value")
+	secretDeleteCmd.Flags().BoolVar(&secretDeleteWS, "workspace", false, "Delete only the workspace override")
 
 	secretCmd.AddCommand(secretSetCmd)
 	secretCmd.AddCommand(secretGetCmd)
@@ -111,7 +116,27 @@ func init() {
 	rootCmd.AddCommand(secretCmd)
 }
 
+// openSecretStore returns the user-global vault by default (daemon-less
+// --reveal and `secret get` paths). Callers that want the workspace
+// override call openWorkspaceSecretStore instead.
 func openSecretStore() (*secret.Store, error) {
+	passphrase, err := secret.Passphrase()
+	if err != nil {
+		return nil, fmt.Errorf("resolve secret passphrase: %w", err)
+	}
+	vaultPath, err := workspace.GlobalSecretsVault()
+	if err != nil {
+		return nil, fmt.Errorf("resolve global vault path: %w", err)
+	}
+	if _, ensureErr := workspace.EnsureGlobalDir(); ensureErr != nil {
+		return nil, fmt.Errorf("ensure global bc dir: %w", ensureErr)
+	}
+	return secret.OpenVaultFile(vaultPath, passphrase)
+}
+
+// openWorkspaceSecretStore opens the per-workspace secrets store at
+// <ws>/.bc/secrets.db, used for workspace-scoped overrides.
+func openWorkspaceSecretStore() (*secret.Store, error) {
 	ws, err := getWorkspace()
 	if err != nil {
 		return nil, errNotInWorkspace(err)
@@ -165,6 +190,21 @@ func runSecretSet(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	// Workspace-scoped writes bypass the daemon and target the
+	// per-workspace store directly — the daemon API is global-only.
+	if secretSetWorkspace {
+		store, storeErr := openWorkspaceSecretStore()
+		if storeErr != nil {
+			return storeErr
+		}
+		defer func() { _ = store.Close() }()
+		if setErr := store.Set(name, value, secretSetDesc); setErr != nil {
+			return setErr
+		}
+		fmt.Printf("Secret %q saved (workspace scope)\n", name)
+		return nil
+	}
+
 	c, err := newDaemonClient(cmd.Context())
 	if err != nil {
 		return err
@@ -174,7 +214,7 @@ func runSecretSet(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	fmt.Printf("Secret %q saved\n", name)
+	fmt.Printf("Secret %q saved (global scope)\n", name)
 	return nil
 }
 
@@ -300,6 +340,19 @@ func runSecretDelete(cmd *cobra.Command, args []string) error {
 	name := args[0]
 	if !validIdentifier(name) {
 		return fmt.Errorf("secret name %q contains invalid characters", name)
+	}
+
+	if secretDeleteWS {
+		store, storeErr := openWorkspaceSecretStore()
+		if storeErr != nil {
+			return storeErr
+		}
+		defer func() { _ = store.Close() }()
+		if delErr := store.Delete(name); delErr != nil {
+			return delErr
+		}
+		fmt.Printf("Deleted secret %q (workspace scope)\n", name)
+		return nil
 	}
 
 	c, err := newDaemonClient(cmd.Context())
