@@ -51,6 +51,7 @@ type Globals struct {
 	Templates    *bctemplate.Store  // user-global template store (~/.bc/templates/) — wrapped per-workspace
 	SecretsVault *bcsecret.Store    // user-global secrets vault (~/.bc/secrets.vault) — shared across workspaces
 	MCPGlobal    *bcmcp.GlobalStore // user-global MCP registry (~/.bc/mcps.json)
+	CostsGlobal  *cost.Store        // user-global cost ledger (~/.bc/costs.db) — shared across workspaces
 	Build        BuildInfo
 }
 
@@ -128,10 +129,26 @@ func buildWorkspaceServicesFromWS(ctx context.Context, globals *Globals, ws *bcw
 	agentMgr.StartToolHealthLoop(svcCtx, bcagent.DefaultToolHealthInterval)
 	addCloser(func() error { agentMgr.StopToolHealthLoop(); return nil })
 
-	// Cost store + importer.
+	// Cost store + importer. Prefer the user-global ledger at
+	// ~/.bc/costs.db (M8e) when Globals.CostsGlobal is supplied — every
+	// record is tagged with the workspace id via ScopedStore /
+	// Importer.SetWorkspaceID so cross-workspace analytics work out of
+	// the box. Fall back to the per-workspace store for legacy callers
+	// / tests that assemble Globals by hand without the global ledger.
 	var costStore *cost.Store
 	var costImporter *cost.Importer
-	if cs, err := cost.OpenStore(ws.RootDir); err != nil {
+	if globals != nil && globals.CostsGlobal != nil {
+		costStore = globals.CostsGlobal
+		// Ownership stays with whoever populated Globals; no closer.
+		wsID := bcworkspace.ComputeWorkspaceID(ws.RootDir)
+		costImporter = cost.NewImporter(costStore, ws.RootDir)
+		costImporter.SetWorkspaceID(wsID)
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			runCostImportLoop(svcCtx, costImporter)
+		}()
+	} else if cs, err := cost.OpenStore(ws.RootDir); err != nil {
 		log.Warn("cost store unavailable", "error", err, "workspace", ws.RootDir)
 	} else {
 		costStore = cs

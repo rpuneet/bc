@@ -11,6 +11,7 @@ import (
 	"strings"
 	"syscall"
 
+	bccost "github.com/rpuneet/bc/pkg/cost"
 	bcdb "github.com/rpuneet/bc/pkg/db"
 	bcdeps "github.com/rpuneet/bc/pkg/deps"
 	"github.com/rpuneet/bc/pkg/log"
@@ -158,6 +159,20 @@ func RunServer(addr, wsRoot, corsOrigin, apiKey string) error {
 		mcpGlobal = bcmcp.NewGlobalStore(mcpPath)
 	}
 
+	// User-global cost ledger at ~/.bc/costs.db. Records carry
+	// workspace_id for cross-workspace analytics. When the ledger
+	// cannot be opened, per-workspace stores continue to work via the
+	// build_services.go fallback.
+	var costsGlobal *bccost.Store
+	if costsPath, cpErr := bcworkspace.GlobalCostsDB(); cpErr != nil {
+		log.Warn("global costs path unavailable", "error", cpErr)
+	} else if cs, openErr := bccost.OpenGlobalStore(costsPath); openErr != nil {
+		log.Warn("global costs ledger unavailable", "error", openErr, "path", costsPath)
+	} else {
+		costsGlobal = cs
+		defer cs.Close() //nolint:errcheck // best-effort
+	}
+
 	globals := &server.Globals{
 		Registry:     registry,
 		Stats:        statsStore,
@@ -166,6 +181,7 @@ func RunServer(addr, wsRoot, corsOrigin, apiKey string) error {
 		Templates:    templatesStore,
 		SecretsVault: globalVault,
 		MCPGlobal:    mcpGlobal,
+		CostsGlobal:  costsGlobal,
 		Build:        server.BuildInfo{Commit: commit, BuiltAt: date},
 	}
 
