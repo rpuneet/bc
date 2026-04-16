@@ -34,8 +34,16 @@ type Hub struct {
 	broadcast   chan []byte
 	done        chan struct{}
 	writer      EventWriter
+	forward     *forwardTarget
 	mu          sync.RWMutex
 	stopOnce    sync.Once
+}
+
+// forwardTarget annotates and re-publishes events to a downstream hub.
+// Used for cross-workspace fan-in to the global /api/events stream.
+type forwardTarget struct {
+	hub         *Hub
+	workspaceID string
 }
 
 // NewHub creates and returns a new Hub. Call Run() in a goroutine.
@@ -50,6 +58,20 @@ func NewHub() *Hub {
 // SetWriter attaches an EventWriter for persisting broadcast events.
 func (h *Hub) SetWriter(w EventWriter) {
 	h.writer = w
+}
+
+// ForwardTo configures the hub to also publish every event to `target`,
+// annotating it with {"workspace_id": wsID} so downstream consumers can
+// tell which workspace the event originated in. Pass target=nil to
+// disable forwarding.
+func (h *Hub) ForwardTo(target *Hub, wsID string) {
+	h.mu.Lock()
+	if target == nil {
+		h.forward = nil
+	} else {
+		h.forward = &forwardTarget{hub: target, workspaceID: wsID}
+	}
+	h.mu.Unlock()
 }
 
 // Run processes the broadcast channel until Stop is called.
@@ -72,6 +94,8 @@ func (h *Hub) Stop() {
 // Publish implements agent.EventPublisher.
 // Data is redacted before broadcast to prevent secrets from leaking to the UI.
 // If an EventWriter is attached, the event is also persisted to disk.
+// If a forward target is configured (ForwardTo), the same event is also
+// published to that hub with a workspace_id annotation.
 func (h *Hub) Publish(eventType string, data map[string]any) {
 	redacted := RedactMap(data)
 	evt := Event{Type: eventType, Data: redacted}
@@ -90,6 +114,36 @@ func (h *Hub) Publish(eventType string, data map[string]any) {
 		if wErr := h.writer.Write(eventType, redacted); wErr != nil {
 			log.Debug("event persist failed", "type", eventType, "error", wErr)
 		}
+	}
+
+	// Fan-in to the global hub (if configured) with a workspace_id tag.
+	h.mu.RLock()
+	fwd := h.forward
+	h.mu.RUnlock()
+	if fwd != nil && fwd.hub != nil {
+		// Clone the data map and annotate with workspace_id.
+		annotated := make(map[string]any, len(redacted)+1)
+		for k, v := range redacted {
+			annotated[k] = v
+		}
+		annotated["workspace_id"] = fwd.workspaceID
+		fwd.hub.publishRaw(eventType, annotated)
+	}
+}
+
+// publishRaw is Publish without triggering further forwarding — used
+// internally to avoid recursion when fan-in reaches a global hub that
+// is not itself forwarding anywhere.
+func (h *Hub) publishRaw(eventType string, data any) {
+	evt := Event{Type: eventType, Data: data}
+	msg, err := json.Marshal(evt)
+	if err != nil {
+		return
+	}
+	select {
+	case h.broadcast <- msg:
+	default:
+		log.Debug("event dropped (forward): broadcast buffer full", "type", eventType)
 	}
 }
 

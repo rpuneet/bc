@@ -86,9 +86,14 @@ func buildWorkspaceServicesFromWS(ctx context.Context, globals *Globals, ws *bcw
 	eventsJSONL := filepath.Join(ws.StateDir(), "events.jsonl")
 	eventWriter := bcevents.NewJSONLWriter(eventsJSONL, 0)
 
-	// Per-workspace SSE hub — phase M6 wires fan-in to Globals.GlobalHub.
+	// Per-workspace SSE hub. Phase M6: also forward every event to the
+	// global fan-in hub (if configured) so /api/events returns events
+	// across all loaded workspaces, annotated with workspace_id.
 	hub := bcws.NewHub()
 	go hub.Run()
+	if globals != nil && globals.GlobalHub != nil {
+		hub.ForwardTo(globals.GlobalHub, bcworkspace.ComputeWorkspaceID(ws.RootDir))
+	}
 	addCloser(func() error { hub.Stop(); return nil })
 
 	// Agent manager + service.

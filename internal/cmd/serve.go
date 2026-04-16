@@ -178,8 +178,13 @@ func RunServer(addr, wsRoot, corsOrigin, apiKey string) error {
 // updateAgentHookPorts rewrites agent hook settings to use the current bcd address.
 // This is necessary because existing tmux sessions don't inherit the BC_BCD_ADDR
 // environment variable that is set in the bcd process env.
+//
+// Phase M6: also rewrite MCP URLs from the legacy /_mcp/<agent>/ form to
+// the scoped /_mcp/ws/<wsID>/<agent>/ form so existing agents keep
+// reaching MCP after the URL scheme change.
 func updateAgentHookPorts(ws *bcworkspace.Workspace, listenAddr string) {
 	bcdURL := "http://" + listenAddr
+	wsID := bcworkspace.ComputeWorkspaceID(ws.RootDir)
 	agentsDir := filepath.Join(ws.StateDir(), "agents")
 	entries, err := os.ReadDir(agentsDir)
 	if err != nil {
@@ -190,7 +195,8 @@ func updateAgentHookPorts(ws *bcworkspace.Workspace, listenAddr string) {
 		if !e.IsDir() {
 			continue
 		}
-		settingsGlob := filepath.Join(agentsDir, e.Name(), "*", ".claude", "settings.json")
+		agentName := e.Name()
+		settingsGlob := filepath.Join(agentsDir, agentName, "*", ".claude", "settings.json")
 		matches, _ := filepath.Glob(settingsGlob) //nolint:errcheck // Glob only errors on bad pattern
 		for _, settingsPath := range matches {
 			data, readErr := os.ReadFile(settingsPath)
@@ -200,12 +206,21 @@ func updateAgentHookPorts(ws *bcworkspace.Workspace, listenAddr string) {
 			content := string(data)
 			updated := strings.ReplaceAll(content, "http://127.0.0.1:9374", bcdURL)
 			updated = strings.ReplaceAll(updated, "${BC_BCD_ADDR:-http://127.0.0.1:9374}", bcdURL)
+
+			// Rewrite MCP URL: /_mcp/<agent>/sse → /_mcp/ws/<wsID>/<agent>/sse
+			// Only rewrite if the path is exactly the legacy form (no /ws/ prefix yet).
+			legacyMCP := "/_mcp/" + agentName + "/"
+			scopedMCP := "/_mcp/ws/" + wsID + "/" + agentName + "/"
+			if strings.Contains(updated, legacyMCP) && !strings.Contains(updated, scopedMCP) {
+				updated = strings.ReplaceAll(updated, legacyMCP, scopedMCP)
+			}
+
 			if updated != content {
 				if writeErr := os.WriteFile(settingsPath, []byte(updated), 0644); writeErr != nil { //nolint:gosec // agent settings file
 					log.Warn("failed to update hook port", "path", settingsPath, "error", writeErr)
 					continue
 				}
-				log.Info("updated hook port", "agent", e.Name(), "addr", bcdURL)
+				log.Info("updated hook port", "agent", agentName, "addr", bcdURL)
 			}
 		}
 	}

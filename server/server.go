@@ -362,7 +362,13 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 	}
 	sh.Register(mux)
 
-	// MCP protocol server (SSE transport) at /mcp/
+	// MCP protocol server (SSE transport).
+	//
+	// Legacy mount at /_mcp/<agent>/{sse,message} targets the launch
+	// workspace — kept so agents spawned before phase M6 keep working.
+	// Scoped mount at /_mcp/<wsID>/<agent>/{sse,message} dispatches via
+	// the WorkspaceManager so any loaded workspace can expose MCP to its
+	// agents.
 	if svc.WS != nil {
 		mcpCfg := servermcp.Config{Workspace: svc.WS, Costs: svc.Costs}
 		if svc.Agents != nil {
@@ -380,6 +386,10 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 		} else {
 			servermcp.MountOn(mux, mcpSrv, "/_mcp")
 		}
+	}
+	// Scoped MCP dispatcher — per-workspace path.
+	if svc.WorkspaceManager != nil {
+		mux.HandleFunc("/_mcp/ws/", scopedMCPDispatch(svc.WorkspaceManager))
 	}
 
 	// Static web UI with SPA fallback — serves files if they exist,
