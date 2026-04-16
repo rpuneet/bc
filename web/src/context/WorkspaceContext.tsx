@@ -126,14 +126,20 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
  */
 export function ActiveWorkspaceGuard() {
   const { wsId } = useParams<{ wsId: string }>();
-  const { workspaces, loading } = useWorkspace();
+  const { workspaces, loading, refresh } = useWorkspace();
   const location = useLocation();
   const [activated, setActivated] = useState<string | null>(null);
 
   useEffect(() => {
     if (!wsId || activated === wsId) return;
-    void activateWorkspace(wsId).then(() => setActivated(wsId));
-  }, [wsId, activated]);
+    void activateWorkspace(wsId).then(() => {
+      setActivated(wsId);
+      // Tell WorkspaceContext to re-fetch so header + dropdown reflect the
+      // new active workspace immediately (otherwise they show stale data
+      // until the next full-page reload).
+      refresh();
+    });
+  }, [wsId, activated, refresh]);
 
   if (loading) return <div className="p-6 text-bc-muted">Loading workspace...</div>;
   if (!wsId) return <Navigate to="/w" replace />;
