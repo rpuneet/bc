@@ -406,3 +406,183 @@ event or MCP bleed.
 
 Nothing to roll back — the data is untouched throughout. Reverting the code
 commits reverts the behavior. No on-disk migration to undo.
+
+---
+
+# Part II — Decoupled Product Architecture (Phases M8-M10)
+
+M1-M7 made bcd multi-tenant over the existing fat `.bc/` model. That unblocks
+workspace switching but leaves the *product* fundamentally the same shape. If
+we want each workspace to be a cheap, disposable thing rather than a silo
+holding user-scoped state, we need to split layers.
+
+## 16. Five natural layers
+
+```
+L1  MACHINE        docker engine, tmux, Go runtime, bc-db/code-server       bc just uses
+L2  USER           ~/.bc/  templates, secrets vault, GitHub tok,            follows the user
+                    tool registry, MCP trust, cost ledger, workspace index
+L3  PROJECT        a git repo — code + remote + branch (no BC state)        owned by repo
+L4  WORKSPACE      <ws>/.bc/  thin state.db (channels, events, cron),       one per "session
+                    settings overrides, agent runtime, pointers upward       of work"
+L5  AGENT          live tmux/docker session, worktree, hook stream          ephemeral
+```
+
+Today L2, L3 partially, and L4 are all fused inside `<ws>/.bc/`. That is
+the root cause of:
+
+- Reseeding templates per workspace (L2 stuff leaking into L4)
+- Retyping ANTHROPIC_API_KEY per workspace (L2 in L4)
+- Not being able to see "cost across projects" (L2 in L4)
+- Not being able to have N workspaces on the same repo (L3 == L4 assumption)
+- Not being able to archive a workspace and keep your templates/keys (L2 in L4)
+
+## 17. Proposed split
+
+### Move to `~/.bc/` (user-scoped, machine-portable with sync)
+
+| File/dir                   | What                                        | Per-ws override? |
+|----------------------------|---------------------------------------------|------------------|
+| `~/.bc/templates/*.md,json`| Agent recipes                                | yes, via `<ws>/.bc/templates/` |
+| `~/.bc/secrets.vault`      | Encrypted KV (API keys, tokens)              | yes, `<ws>/.bc/secrets.db` for ws-only keys |
+| `~/.bc/mcps.json`          | Trusted MCP servers + default env            | yes |
+| `~/.bc/tools.json`         | Installed CLI tools registry                 | no (machine-level) |
+| `~/.bc/costs.db`           | All cost records with `workspace_id` column  | no (global ledger) |
+| `~/.bc/github-token`       | already here; unchanged                      | no |
+| `~/.bc/registry.json`      | list of workspaces (already here)            | no |
+| `~/.bc/prefs.json`         | NEW: theme, locale, default runtime          | no |
+
+### Stays in `<ws>/.bc/` (workspace-scoped, disposable)
+
+| File/dir            | What                                              |
+|---------------------|---------------------------------------------------|
+| `state.db`          | channels, events, agent state, task graph         |
+| `cron.db`           | jobs that run against THIS workspace's agents     |
+| `agents/<name>/`    | live runtime (tmux session dir, worktree)         |
+| `settings.json`     | overrides on top of user prefs — typically tiny   |
+| `env.json`          | workspace-scoped env vars (today: per-agent)      |
+
+### New `<project>/<empty>` — just a git repo
+
+No `.bc/` required at the project level unless the user explicitly does
+`bc workspace init <path>`. A "workspace" can live outside any repo (scratch
+mode) or reference a repo by path.
+
+## 18. Registry entry shape change
+
+```go
+// before
+type RegistryEntry struct {
+    ID string          // sha256(abs Path)[:12]
+    Path string        // /Users/puneet/Projects/trade  ← project AND ws
+    Name string        // "trade"
+    ...
+}
+
+// after
+type RegistryEntry struct {
+    ID          string  // sha256(abs path)[:12]
+    Name        string  // "trade-prod" (workspace identity)
+    ProjectPath string  // /Users/puneet/Projects/trade — the git repo (optional for scratch)
+    GitHubURL   string  // cached from remote
+    DataDir     string  // <project>/.bc or ~/.bc/workspaces/<name>/ for scratch
+    ...
+}
+```
+
+This lets two workspaces (`trade-prod`, `trade-paper`) share `ProjectPath`
+`/Users/puneet/Projects/trade` while having separate `DataDir`s.
+
+## 19. Phases
+
+### Phase M8 — Promote user assets
+
+1. On bcd startup, if `~/.bc/templates/` is empty, migrate from the first
+   registered workspace's `.bc/templates/` (one-time merge). Same for
+   secrets (`secrets.db` → `~/.bc/secrets.vault`), MCP config, costs.
+2. `WorkspaceServices` now reads from user-global stores by default:
+   ```go
+   svc.Templates = globalTemplates.WithOverride(ws.TemplateDirIfExists())
+   svc.Secrets   = globalSecrets.WithOverride(ws.SecretsDirIfExists())
+   svc.MCP       = globalMCP.WithOverride(ws.MCPPathIfExists())
+   svc.Costs     = globalCosts.ScopedTo(ws.ID)
+   ```
+3. Delete per-workspace `templates/`, `secrets.db`, `.mcp.json`,
+   `costs.db` on next open (archive to `.bc/.migrated/`).
+4. New commands:
+   - `bc template edit <name>` → `~/.bc/templates/<name>.md`
+   - `bc secret add KEY=VALUE` → user vault
+   - `bc secret add KEY=VALUE --workspace trade` → ws override
+   - `bc cost report --by project` → SELECT SUM GROUP BY project
+
+**Acceptance:**
+- Tuning a template in one workspace affects ALL workspaces
+- Adding a secret once makes it available in every workspace
+- `bc cost report` shows totals across all projects
+
+### Phase M9 — N workspaces per project
+
+1. Change `RegistryEntry` to separate `Name`, `ProjectPath`, `DataDir`.
+2. `bc workspace new <name> --project <path>` creates a new workspace with
+   its own `DataDir` (either `<path>/.bc-<name>` or
+   `~/.bc/workspaces/<name>`). Multiple can share `<path>`.
+3. Update tmux/docker naming to use workspace `Name+ID` (already uses ID).
+4. Update UI: group workspace dropdown by project, show workspace name as
+   primary label, project path as secondary.
+
+**Acceptance:**
+- Two workspaces pointing at `/Projects/trade` work independently
+- Agent `alice` in `trade-prod` and agent `alice` in `trade-paper` don't
+  collide at the tmux/docker layer
+- GET /api/workspaces returns distinct entries for both
+
+### Phase M10 — Archive & portability
+
+1. `bc workspace archive <name>` — stops agents, bundles
+   `<ws>/.bc/state.db + cron.db + agent logs` into `~/.bc/archives/<name>-<date>.tar.gz`,
+   removes from registry. User assets (templates/secrets/MCPs) untouched.
+2. `bc workspace restore <file>` — unpacks, re-registers.
+3. `bc export-user-state` — tars `~/.bc/templates/ + secrets.vault + mcps.json + tools.json + prefs.json` (without GitHub token by default).
+4. `bc import-user-state <file>` — unpacks on a new machine.
+
+**Acceptance:**
+- Fresh mac → install bc → `bc import-user-state`-from-backup → every
+  template/secret/MCP is there, no workspace data (correct: that's on the
+  previous machine).
+- Archive a workspace → delete the repo directory → restore → workspace data
+  back, repo needs to be re-cloned separately (that's L3 code, bc doesn't own
+  it).
+
+## 20. Migration risks & mitigations
+
+- **Concurrent secrets access across workspaces** — user vault needs a single
+  file lock. Use a simple BoltDB or SQLite for `secrets.vault`, not a naive
+  JSON file.
+- **Template edits while a workspace is generating an agent** — either the
+  workspace reads once at agent-create time (safe) or watches the file
+  (requires debounce). Start with read-once.
+- **Cost-store column addition** — `workspace_id` is a simple ADD COLUMN.
+  Backfill from path prefix during migration. Old rows get NULL, report as
+  "unattributed".
+- **GitHub token sync** — it's a secret. Default `bc export-user-state` to
+  exclude it unless `--include-auth` is passed.
+
+## 21. What this means for the product
+
+- "bc is the control plane for your AI agents." Your keys, templates, and
+  tool trust are yours and follow you. Workspaces are places you do work.
+- "Spin up a new workspace in a second." Because it's just a `state.db`, not
+  a reseeding ritual.
+- "See how you're spending across everything." Cost analytics go multi-project.
+- "Experiment without fear." Archive the workspace, experiment is gone,
+  learnings preserved via the shared user vault / templates.
+
+## 22. Relationship to M1-M7
+
+M1-M7 is the **plumbing**: bcd can dispatch to any workspace at request
+time. That's necessary but not sufficient for the product.
+
+M8-M10 is the **shape**: users store L2 things in their user dir, workspaces
+become cheap, projects become just paths.
+
+The two efforts compose cleanly. M8 can begin as soon as M7 lands.
