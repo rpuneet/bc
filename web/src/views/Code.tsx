@@ -122,6 +122,21 @@ function patchDownloadUrl(wsId: string, path: string, worktree: string): string 
   return `/api/workspaces/${encodeURIComponent(wsId)}/code/diff?${qs.toString()}`;
 }
 
+async function fetchCodeServerStatus(): Promise<{ running: boolean; endpoint: string }> {
+  try {
+    const r = await fetch("/api/deps/bc-code-server/status");
+    if (!r.ok) return { running: false, endpoint: "" };
+    const d = (await r.json()) as { state?: string };
+    return {
+      running: d.state === "running",
+      // Hardcoded for now — backend exposes on :8100 per bc_code_server.go
+      endpoint: "http://localhost:8100/?folder=/home/coder/workspace",
+    };
+  } catch {
+    return { running: false, endpoint: "" };
+  }
+}
+
 export function Code() {
   const { workspace } = useWorkspace();
   const { mode: themeMode } = useTheme();
@@ -131,12 +146,33 @@ export function Code() {
   const path = searchParams.get("path") ?? "";
   const showHidden = searchParams.get("show_hidden") === "1";
   const urlView = searchParams.get("view");
+  const vscodeMode = searchParams.get("mode") === "vscode";
   const viewMode: ViewMode =
     urlView === "plain" || urlView === "diff"
       ? (urlView as ViewMode)
       : worktree !== "main"
         ? "diff"
         : "plain";
+
+  // Poll code-server dep status every 5s so the "Edit in VS Code" toggle
+  // appears/disappears as the dep starts/stops.
+  const [codeServer, setCodeServer] = useState<{ running: boolean; endpoint: string }>({
+    running: false,
+    endpoint: "",
+  });
+  useEffect(() => {
+    let cancelled = false;
+    const tick = async () => {
+      const s = await fetchCodeServerStatus();
+      if (!cancelled) setCodeServer(s);
+    };
+    void tick();
+    const id = setInterval(() => void tick(), 5000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, []);
 
   const [worktrees, setWorktrees] = useState<WorktreeOption[]>([
     { value: "main", label: "main repo" },
@@ -456,10 +492,50 @@ export function Code() {
         >
           {showHidden ? "Hide hidden" : "Show hidden"}
         </button>
+
+        {/* Edit in VS Code (only when bc-code-server dep is running) */}
+        {codeServer.running && (
+          <button
+            type="button"
+            onClick={() => {
+              const next = new URLSearchParams(searchParams);
+              if (vscodeMode) next.delete("mode");
+              else next.set("mode", "vscode");
+              setSearchParams(next);
+            }}
+            className={`text-[10px] uppercase tracking-wider transition-colors border px-2 py-1 rounded ${
+              vscodeMode
+                ? "bg-bc-accent/20 text-bc-accent border-bc-accent/50"
+                : "text-bc-muted border-bc-border/40 hover:text-bc-text hover:border-bc-muted"
+            }`}
+            title="Open workspace in code-server (VS Code in the browser)"
+          >
+            {vscodeMode ? "Exit VS Code" : "Edit in VS Code"}
+          </button>
+        )}
       </header>
 
+      {/* VS Code iframe mode — replaces body when toggled on */}
+      {vscodeMode && codeServer.running && (
+        <div className="flex-1 min-h-0 flex flex-col">
+          <div className="shrink-0 px-6 py-1.5 bg-bc-warning/10 border-b border-bc-warning/30 text-[10px] text-bc-warning/90 flex items-center gap-2" style={{ fontFamily: MONO }}>
+            <span>⚠</span>
+            <span>
+              VS Code has <strong>write access</strong> to the workspace.
+              Changes made here are saved directly to disk.
+            </span>
+          </div>
+          <iframe
+            title="VS Code (code-server)"
+            src={codeServer.endpoint}
+            className="flex-1 w-full border-0"
+            sandbox="allow-scripts allow-same-origin allow-forms allow-downloads allow-popups allow-modals"
+          />
+        </div>
+      )}
+
       {/* Body: tree + viewer */}
-      <div className="flex-1 min-h-0 flex">
+      {!vscodeMode && <div className="flex-1 min-h-0 flex">
         {/* Tree pane */}
         <aside className="w-64 shrink-0 border-r border-bc-border/40 overflow-y-auto">
           {rootLoading && <TreeSkeleton />}
@@ -556,7 +632,7 @@ export function Code() {
               />
             )}
         </section>
-      </div>
+      </div>}
     </div>
   );
 }
