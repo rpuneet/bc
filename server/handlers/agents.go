@@ -1486,7 +1486,7 @@ func (h *AgentHandler) readLoop(agentName string) loopConfig {
 	if p == "" {
 		return loopConfig{}
 	}
-	data, err := os.ReadFile(p)
+	data, err := os.ReadFile(p) //nolint:gosec // p is built from h.loopPath(agentName) under the workspace data dir
 	if err != nil {
 		return loopConfig{}
 	}
@@ -1514,7 +1514,7 @@ func (h *AgentHandler) putLoop(w http.ResponseWriter, r *http.Request, agentName
 		return
 	}
 
-	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(p), 0o750); err != nil {
 		httpInternalError(w, "create loop dir", err)
 		return
 	}
@@ -1524,7 +1524,7 @@ func (h *AgentHandler) putLoop(w http.ResponseWriter, r *http.Request, agentName
 		httpInternalError(w, "marshal loop config", err)
 		return
 	}
-	if err := os.WriteFile(p, data, 0o644); err != nil {
+	if err := os.WriteFile(p, data, 0o600); err != nil {
 		httpInternalError(w, "write loop config", err)
 		return
 	}

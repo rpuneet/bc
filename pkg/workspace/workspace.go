@@ -158,7 +158,7 @@ func Load(rootDir string) (*Workspace, error) {
 	// The legacy file is left on disk for the user to audit.
 	if filepath.Base(jsonPath) == LegacySettingsFileName {
 		prefsPath := filepath.Join(stateDir, PreferencesFileName)
-		if _, err := os.Stat(prefsPath); os.IsNotExist(err) {
+		if _, statErr := os.Stat(prefsPath); os.IsNotExist(statErr) {
 			if saveErr := cfg.Save(prefsPath); saveErr == nil {
 				log.Info("promoted settings.json to preferences.json", "state_dir", stateDir)
 			}

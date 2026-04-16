@@ -199,7 +199,7 @@ func (DefaultTmuxProcRunner) Children(ctx context.Context, pid int) ([]int, erro
 	if pid <= 0 {
 		return nil, nil
 	}
-	cmd := exec.CommandContext(ctx, "pgrep", "-P", strconv.Itoa(pid))
+	cmd := exec.CommandContext(ctx, "pgrep", "-P", strconv.Itoa(pid)) //nolint:gosec // pid is int, not user-controlled
 	out, err := cmd.Output()
 	if err != nil {
 		// pgrep exits 1 when no matches — that's "no children", not an error.

@@ -679,4 +679,3 @@ func runWorkspaceStatus(cmd *cobra.Command, _ []string) error {
 	fmt.Println()
 	return nil
 }
-

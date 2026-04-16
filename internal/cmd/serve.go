@@ -266,7 +266,7 @@ func updateAgentHookPorts(ws *bcworkspace.Workspace, listenAddr string) {
 		settingsGlob := filepath.Join(agentsDir, agentName, "*", ".claude", "settings.json")
 		matches, _ := filepath.Glob(settingsGlob) //nolint:errcheck // Glob only errors on bad pattern
 		for _, settingsPath := range matches {
-			data, readErr := os.ReadFile(settingsPath)
+			data, readErr := os.ReadFile(settingsPath) //nolint:gosec // path is the result of filepath.Glob under the agents dir
 			if readErr != nil {
 				continue
 			}
