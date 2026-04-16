@@ -465,6 +465,9 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 	// /api/agents handler once {id} is the active workspace.
 	var handler http.Handler = mux
 	handler = WorkspaceScope(handler, svc.WorkspaceManager)
+	// Outside WorkspaceScope so that /live → /w/<active>/live happens
+	// before any /api/ scoping logic runs.
+	handler = LegacyUIScope(handler, svc.WorkspaceManager)
 	if cfg.CORS {
 		origin := cfg.CORSOrigin
 		if origin == "" {
