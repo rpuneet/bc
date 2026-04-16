@@ -8,44 +8,12 @@
  * - Supports Cmd/Ctrl+K to open, Escape to close
  */
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { MONO } from "../utils/typography";
+import { useWorkspace, type WorkspaceSummary } from "../context/WorkspaceContext";
 
-interface WorkspaceEntry {
-  id: string;
-  name: string;
-  path: string;
-  alias?: string;
-  active?: boolean;
-  github_url?: string;
-}
-
-async function fetchWorkspaces(): Promise<WorkspaceEntry[]> {
-  try {
-    const r = await fetch("/api/workspaces");
-    if (!r.ok) return [];
-    const data = (await r.json()) as unknown;
-    // Backend returns { active, workspaces: [...] } OR a bare array
-    let rawList: unknown[] = [];
-    if (Array.isArray(data)) {
-      rawList = data;
-    } else if (data && typeof data === "object" && "workspaces" in data) {
-      const inner = (data as Record<string, unknown>).workspaces;
-      if (Array.isArray(inner)) rawList = inner;
-    }
-    return rawList.filter((w): w is WorkspaceEntry => {
-      return (
-        !!w &&
-        typeof w === "object" &&
-        typeof (w as Record<string, unknown>).id === "string" &&
-        typeof (w as Record<string, unknown>).name === "string"
-      );
-    });
-  } catch {
-    return [];
-  }
-}
+type WorkspaceEntry = WorkspaceSummary;
 
 export function WorkspaceDropdown({
   onAddClick,
@@ -53,25 +21,12 @@ export function WorkspaceDropdown({
   onAddClick?: () => void;
 }) {
   const [open, setOpen] = useState(false);
-  const [workspaces, setWorkspaces] = useState<WorkspaceEntry[]>([]);
   const [query, setQuery] = useState("");
-  const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
   const location = useLocation();
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-
-  const refresh = useCallback(() => {
-    setLoading(true);
-    void fetchWorkspaces().then((ws) => {
-      setWorkspaces(ws);
-      setLoading(false);
-    });
-  }, []);
-
-  useEffect(() => {
-    refresh();
-  }, [refresh]);
+  const { workspaces, loading } = useWorkspace();
 
   useEffect(() => {
     if (!open) return;
