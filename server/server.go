@@ -66,6 +66,7 @@ func DefaultConfig() Config {
 type Services struct {
 	Agents        *agent.AgentService
 	Costs         *cost.Store
+	GlobalCosts   *cost.GlobalStore // cross-workspace cost rollups (~/.bc/costs.db)
 	CostImporter  *cost.Importer
 	Cron          *cron.Store
 	CronScheduler *cron.Scheduler
@@ -76,6 +77,7 @@ type Services struct {
 	EventLog      events.EventStore
 	EventWriter   *events.JSONLWriter
 	WS            *workspace.Workspace
+	Registry      *workspace.Registry // global workspace registry (labels for global costs)
 	Gateway       *gateway.Manager
 	Notify        *notify.Service
 }
@@ -188,6 +190,12 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 	}
 	if svc.Costs != nil {
 		handlers.NewCostHandler(svc.Costs, svc.CostImporter).Register(mux)
+	}
+	// Cross-workspace cost report — registered OUTSIDE any per-workspace
+	// scope so it can aggregate across every registered workspace. Mounts
+	// GET /api/global/costs.
+	if svc.GlobalCosts != nil {
+		handlers.NewGlobalCostHandler(svc.GlobalCosts, svc.Registry).Register(mux)
 	}
 	if svc.Cron != nil {
 		handlers.NewCronHandler(svc.Cron, svc.CronScheduler).Register(mux)

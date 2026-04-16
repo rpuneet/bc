@@ -35,6 +35,9 @@ const Secrets = lazy(() =>
 const Stats = lazy(() =>
   import("./views/Stats").then((m) => ({ default: m.Stats })),
 );
+const CostsGlobal = lazy(() =>
+  import("./views/CostsGlobal").then((m) => ({ default: m.CostsGlobal })),
+);
 const Workspace = lazy(() =>
   import("./views/Workspace").then((m) => ({ default: m.Workspace })),
 );
@@ -164,6 +167,18 @@ export function App() {
                   <Suspense fallback={<Loading />}>
                     <ErrorBoundary>
                       <Stats />
+                    </ErrorBoundary>
+                  </Suspense>
+                }
+              />
+              {/* Cross-workspace cost report — lives outside any /w/:wsId
+                  scope so it can aggregate across all workspaces. */}
+              <Route
+                path="costs"
+                element={
+                  <Suspense fallback={<Loading />}>
+                    <ErrorBoundary>
+                      <CostsGlobal />
                     </ErrorBoundary>
                   </Suspense>
                 }

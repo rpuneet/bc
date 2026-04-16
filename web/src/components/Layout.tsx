@@ -26,6 +26,7 @@ function Icon({ name, size = 14 }: { name: string; size?: number }) {
     cron: <><circle cx="7" cy="7" r="4.5" /><path d="M7 4.5v2.5l1.5 1.5" /></>,
     secrets: <path d="M7 2.5a2 2 0 00-2 2V6H4v4.5h6V6H9V4.5a2 2 0 00-2-2zm0 5.5a.75.75 0 110 1.5.75.75 0 010-1.5z" />,
     metrics: <path d="M2 10l2.5-3.5 2 1.5L10 3" strokeLinecap="round" strokeLinejoin="round" />,
+    costs: <><path d="M7 2.5v9" strokeLinecap="round" /><path d="M9.5 4.5H5.75a1.5 1.5 0 000 3h2.5a1.5 1.5 0 010 3H4.5" strokeLinecap="round" strokeLinejoin="round" /></>,
     workspace: <path d="M2.5 3.5h9v7h-9zM4.5 3.5V2.5h5v1" />,
     settings: <><circle cx="7" cy="7" r="2" /><path d="M7 1.5v1.5M7 11v1.5M1.5 7H3M11 7h1.5M3 3l1 1M10 10l1 1M3 11l1-1M10 4l1-1" opacity="0.5" /></>,
     chevron: <path d="M5 3l4 4-4 4" strokeLinecap="round" strokeLinejoin="round" />,
@@ -262,6 +263,9 @@ function ChannelNavTree() {
 /* ── Nav items ───────────────────────────────────────────────── */
 
 const MAIN_NAV_ITEMS = [
+  // Cross-workspace entry sits at the top, above the workspace-scoped nav
+  // items below. It reads from the global cost store at ~/.bc/costs.db.
+  { to: "/costs", label: "Costs", icon: "costs" },
   { to: "/live", label: "Live", icon: "live" },
   { to: "/agents", label: "Agents", icon: "agents" },
   { to: "/channels", label: "Channels", icon: "channels" },
