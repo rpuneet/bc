@@ -405,8 +405,10 @@ func LoadRoleMemory(workspacePath string, role Role) *AgentMemory {
 		}
 	}
 
-	// Load role from .bc/roles/<role>.md using RoleManager
-	stateDir := filepath.Join(workspacePath, ".bc")
+	// Load role via RoleManager. Prefer the M11 global runtime dir
+	// (~/.bc/workspaces/<id>/); fall back to the legacy <root>/.bc/
+	// sidecar when the global dir is missing or unavailable.
+	stateDir := workspaceStateDir(workspacePath)
 	rm := workspace.NewRoleManager(stateDir)
 	roleObj, err := rm.LoadRole(string(role))
 	if err != nil {
@@ -573,6 +575,10 @@ func NewManager(stateDir string) *Manager {
 
 // NewWorkspaceManager creates an agent manager scoped to a workspace.
 // Session names will be unique per workspace to avoid collisions.
+//
+// stateDir is the per-workspace runtime directory (pre-M11: <project>/.bc/;
+// M11+: ~/.bc/workspaces/<id>/). Agents are written to <stateDir>/agents/
+// and their worktrees at <stateDir>/agents/<name>/bc-<ws>-<name>/.
 func NewWorkspaceManager(stateDir, workspacePath string) *Manager {
 	cmd, tool := defaultAgentCmd()
 	tmuxBe := runtime.NewTmuxBackend(tmux.NewWorkspaceManager(DefaultSessionPrefix, workspacePath))
@@ -587,7 +593,7 @@ func NewWorkspaceManager(stateDir, workspacePath string) *Manager {
 		defaultTool:      tool,
 		workspacePath:    workspacePath,
 		maxLogBytes:      DefaultMaxLogBytes,
-		worktreeMgr:      worktree.NewManager(workspacePath),
+		worktreeMgr:      worktree.NewManagerWithDataDir(workspacePath, parentOfAgentsDir(stateDir)),
 	}
 }
 
@@ -611,8 +617,43 @@ func NewWorkspaceManagerWithRuntime(stateDir, workspacePath string, rt runtime.B
 		defaultTool:      tool,
 		workspacePath:    workspacePath,
 		maxLogBytes:      DefaultMaxLogBytes,
-		worktreeMgr:      worktree.NewManager(workspacePath),
+		worktreeMgr:      worktree.NewManagerWithDataDir(workspacePath, parentOfAgentsDir(stateDir)),
 	}
+}
+
+// parentOfAgentsDir returns the workspace runtime data dir given an agents
+// dir path. Callers historically pass ws.AgentsDir() (which ends in
+// "/agents") as stateDir; the worktree manager wants the parent so it can
+// create its own agents subdir. When stateDir does NOT end in "/agents",
+// it is treated as a full DataDir already.
+func parentOfAgentsDir(stateDir string) string {
+	if stateDir == "" {
+		return ""
+	}
+	if filepath.Base(stateDir) == "agents" {
+		return filepath.Dir(stateDir)
+	}
+	return stateDir
+}
+
+// workspaceStateDir returns the best-guess workspace runtime dir for a
+// project root. Prefers ~/.bc/workspaces/<id>/ (M11+); falls back to the
+// legacy <root>/.bc/ sidecar for pre-migration workspaces. Used by
+// package-level helpers that do not have access to a *Workspace.
+func workspaceStateDir(workspacePath string) string {
+	if globalDir, err := workspace.GlobalStateDir(workspacePath); err == nil {
+		if _, statErr := os.Stat(globalDir); statErr == nil {
+			return globalDir
+		}
+		// Global dir may not exist yet but is still the canonical
+		// location — return it if the legacy dir is absent too.
+		legacy := filepath.Join(workspacePath, ".bc")
+		if _, legacyErr := os.Stat(legacy); legacyErr != nil {
+			return globalDir
+		}
+		return legacy
+	}
+	return filepath.Join(workspacePath, ".bc")
 }
 
 // defaultAgentCmd returns the command and tool name for the default provider.
@@ -1235,7 +1276,7 @@ func (m *Manager) createAgent(ctx context.Context, opts SpawnOptions) (*Agent, e
 // setupLogPipe creates the logs directory and starts pipe-pane for the agent.
 // Returns the log file path.
 func (m *Manager) setupLogPipe(ctx context.Context, name, workspace string) string {
-	logsDir := filepath.Join(workspace, ".bc", "logs")
+	logsDir := filepath.Join(workspaceStateDir(workspace), "logs")
 	if err := os.MkdirAll(logsDir, 0750); err != nil {
 		log.Warn("failed to create logs dir", "error", err)
 		return ""
@@ -1605,8 +1646,8 @@ func (m *Manager) DeleteAgentWithOptions(ctx context.Context, name string, opts 
 		_ = cb.RemoveSession(ctx, name) //nolint:errcheck // may not exist
 	}
 
-	// 3. Remove persistent volume (.bc/volumes/<name>/)
-	volumeDir := filepath.Join(workspacePath, ".bc", "volumes", name)
+	// 3. Remove persistent volume (<DataDir>/volumes/<name>/)
+	volumeDir := filepath.Join(workspaceStateDir(workspacePath), "volumes", name)
 	if err := os.RemoveAll(volumeDir); err != nil {
 		log.Warn("delete: failed to remove agent volume", "agent", name, "error", err)
 	}
@@ -1747,7 +1788,7 @@ func (m *Manager) RenameAgent(ctx context.Context, oldName, newName string) erro
 	}
 
 	// Rename log file
-	oldLogDir := filepath.Join(m.workspacePath, ".bc", "logs")
+	oldLogDir := filepath.Join(workspaceStateDir(m.workspacePath), "logs")
 	oldLogFile := filepath.Join(oldLogDir, oldName+".log")
 	newLogFile := filepath.Join(oldLogDir, newName+".log")
 	if err := os.Rename(oldLogFile, newLogFile); err != nil && !os.IsNotExist(err) {

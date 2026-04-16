@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/rpuneet/bc/pkg/log"
+	"github.com/rpuneet/bc/pkg/workspace"
 )
 
 // Importer scans Claude Code JSONL session files and imports token usage into
@@ -83,10 +84,21 @@ func (imp *Importer) claudeProjectsDirs() []string {
 		dirs = append(dirs, filepath.Join(home, ".claude", "projects"))
 	}
 
-	// Per-agent Docker auth directories
-	agentsDir := filepath.Join(imp.workspaceDir, ".bc", "agents")
-	entries, err := os.ReadDir(agentsDir)
-	if err == nil {
+	// Per-agent Docker auth directories. M11 moved runtime state to
+	// ~/.bc/workspaces/<id>/agents/<name>/; scan both the global dir
+	// and the legacy sidecar so freshly-migrated and not-yet-migrated
+	// workspaces both work.
+	var agentsDirs []string
+	if globalDir, gErr := workspace.GlobalStateDir(imp.workspaceDir); gErr == nil {
+		agentsDirs = append(agentsDirs, filepath.Join(globalDir, "agents"))
+	}
+	agentsDirs = append(agentsDirs, filepath.Join(imp.workspaceDir, ".bc", "agents"))
+
+	for _, agentsDir := range agentsDirs {
+		entries, err := os.ReadDir(agentsDir)
+		if err != nil {
+			continue
+		}
 		for _, e := range entries {
 			if !e.IsDir() {
 				continue

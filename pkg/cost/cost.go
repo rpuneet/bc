@@ -56,6 +56,7 @@ import (
 
 	bcdb "github.com/rpuneet/bc/pkg/db"
 	"github.com/rpuneet/bc/pkg/log"
+	"github.com/rpuneet/bc/pkg/workspace"
 )
 
 // BudgetPeriod represents the time period for a budget.
@@ -124,9 +125,18 @@ type Store struct {
 }
 
 // NewStore creates a new cost store for the given workspace.
+//
+// M11: prefer ~/.bc/workspaces/<id>/costs.db; fall back to the legacy
+// <project>/.bc/costs.db when the global dir cannot be resolved. Callers
+// that want the user-global ledger (~/.bc/costs.db) should use
+// globalStore / OpenGlobalStore instead of NewStore.
 func NewStore(workspacePath string) *Store {
+	path := filepath.Join(workspacePath, ".bc", "costs.db")
+	if globalDir, err := workspace.GlobalStateDir(workspacePath); err == nil {
+		path = filepath.Join(globalDir, "costs.db")
+	}
 	return &Store{
-		path: filepath.Join(workspacePath, ".bc", "costs.db"),
+		path: path,
 	}
 }
 

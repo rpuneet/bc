@@ -143,6 +143,48 @@ func (b *Backend) containerName(name string) string {
 	return b.prefix + b.workspaceHash + "-" + name
 }
 
+// containerAgentDir returns the agent's state directory inside the
+// container (bcd side). Prefers the M11 global runtime dir; falls back
+// to the legacy <root>/.bc/agents/<name>/ for pre-M11 workspaces.
+func (b *Backend) containerAgentDir(agentName string) string {
+	if globalDir, err := workspace.GlobalStateDir(b.workspacePath); err == nil {
+		candidate := filepath.Join(globalDir, "agents", agentName)
+		if _, statErr := os.Stat(candidate); statErr == nil {
+			return candidate
+		}
+		// Global dir is the canonical location; use it even if empty.
+		legacy := filepath.Join(b.workspacePath, ".bc", "agents", agentName)
+		if _, legacyErr := os.Stat(legacy); legacyErr != nil {
+			return candidate
+		}
+		return legacy
+	}
+	return filepath.Join(b.workspacePath, ".bc", "agents", agentName)
+}
+
+// hostAgentDir returns the host path that maps to the agent's state
+// directory, used on the -v mount flag. For bcd running on the host this
+// mirrors containerAgentDir; for Docker-in-Docker setups the BC_HOST_BC_HOME
+// env var (if set) translates the container's ~/.bc/ to the host's.
+func (b *Backend) hostAgentDir(agentName, hostRoot string) string {
+	containerDir := b.containerAgentDir(agentName)
+	// Only translate when the path is under BC_HOME (the M11 global dir).
+	bcHome, err := workspace.BCHome()
+	if err == nil && strings.HasPrefix(containerDir, bcHome+string(filepath.Separator)) {
+		if hostBCHome := os.Getenv("BC_HOST_BC_HOME"); hostBCHome != "" {
+			rel := strings.TrimPrefix(containerDir, bcHome)
+			return filepath.Join(hostBCHome, rel)
+		}
+		return containerDir
+	}
+	// Legacy path (<root>/.bc/agents/<name>): translate via hostRoot.
+	rel, relErr := filepath.Rel(b.workspacePath, containerDir)
+	if relErr != nil {
+		return containerDir
+	}
+	return filepath.Join(hostRoot, rel)
+}
+
 // imageForTool returns the Docker image for a given agent tool name.
 func (b *Backend) imageForTool(toolName string) string {
 	if toolName == "" {
@@ -316,8 +358,13 @@ func (b *Backend) CreateSessionWithEnv(ctx context.Context, name, dir, command s
 
 	// Mount 2: Persistent Claude state (~/.claude/ dir)
 	// Use local (container) path for mkdir, host path for -v mount.
-	localAgentDir := filepath.Join(b.workspacePath, ".bc", "agents", name)
-	hostAgentDir := filepath.Join(hostRoot, ".bc", "agents", name)
+	//
+	// M11: agent state lives at <DataDir>/agents/<name>/ where DataDir
+	// is ~/.bc/workspaces/<id>/. The host DataDir may differ from the
+	// container DataDir when bcd runs in Docker-in-Docker; honour
+	// BC_HOST_BC_HOME (if set) for the host-side BC_HOME.
+	localAgentDir := b.containerAgentDir(name)
+	hostAgentDir := b.hostAgentDir(name, hostRoot)
 	if err := os.MkdirAll(filepath.Join(localAgentDir, "claude"), 0750); err != nil {
 		log.Warn("failed to create agent volume dir", "agent", name, "error", err)
 	} else {

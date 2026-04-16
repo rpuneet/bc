@@ -50,7 +50,7 @@ func SetupAgentFromRole(workspacePath, agentName, roleName, targetDir string) er
 }
 
 func setupAgentFromRole(workspacePath, agentName, roleName, targetDir, runtimeBackend, toolName string) error {
-	stateDir := filepath.Join(workspacePath, ".bc")
+	stateDir := workspaceStateDir(workspacePath)
 	rm := workspace.NewRoleManager(stateDir)
 
 	resolved, err := rm.ResolveRole(roleName)
@@ -87,7 +87,7 @@ func setupAgentFromRole(workspacePath, agentName, roleName, targetDir, runtimeBa
 	}
 
 	// Plugins via adapter
-	agentDir := filepath.Join(workspacePath, ".bc", "agents", agentName)
+	agentDir := filepath.Join(workspaceStateDir(workspacePath), "agents", agentName)
 	if len(resolved.Plugins) > 0 {
 		if e := adapter.SetupPlugins(agentDir, resolved.Plugins); e != nil {
 			errs = append(errs, e.Error())
@@ -158,7 +158,7 @@ func writeMCPJSON(workspacePath, agentName string, resolved *workspace.ResolvedR
 	cfg := mcpConfig{MCPServers: make(map[string]mcpServerEntry)}
 
 	// Try unified tool store first for MCP server configs, fall back to mcp.Store.
-	toolStore := pkgtool.NewStore(filepath.Join(workspacePath, ".bc"))
+	toolStore := pkgtool.NewStore(workspaceStateDir(workspacePath))
 	var toolStoreOpen bool
 	if openErr := toolStore.Open(); openErr == nil {
 		toolStoreOpen = true
@@ -439,7 +439,7 @@ func validateAgentTools(workspacePath, roleName string) []string {
 		return nil
 	}
 
-	stateDir := filepath.Join(workspacePath, ".bc")
+	stateDir := workspaceStateDir(workspacePath)
 	rm := workspace.NewRoleManager(stateDir)
 
 	resolved, err := rm.ResolveRole(roleName)
