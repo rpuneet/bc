@@ -26,8 +26,15 @@ async function fetchWorkspaces(): Promise<WorkspaceEntry[]> {
     const r = await fetch("/api/workspaces");
     if (!r.ok) return [];
     const data = (await r.json()) as unknown;
-    if (!Array.isArray(data)) return [];
-    return data.filter((w): w is WorkspaceEntry => {
+    // Backend returns { active, workspaces: [...] } OR a bare array
+    let rawList: unknown[] = [];
+    if (Array.isArray(data)) {
+      rawList = data;
+    } else if (data && typeof data === "object" && "workspaces" in data) {
+      const inner = (data as Record<string, unknown>).workspaces;
+      if (Array.isArray(inner)) rawList = inner;
+    }
+    return rawList.filter((w): w is WorkspaceEntry => {
       return (
         !!w &&
         typeof w === "object" &&
