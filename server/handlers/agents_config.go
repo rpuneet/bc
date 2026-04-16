@@ -5,7 +5,30 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+
+	"github.com/rpuneet/bc/pkg/log"
+	"github.com/rpuneet/bc/pkg/provider"
 )
+
+// promptFileForTool returns the filename the given tool writes its system
+// prompt to (CLAUDE.md for claude, GEMINI.md for gemini, .cursorrules for
+// cursor, etc.), resolved via the provider registry's ConfigAdapter. Falls
+// back to "CLAUDE.md" with a warning when the tool is empty or unknown.
+func promptFileForTool(tool string) string {
+	if tool == "" {
+		log.Warn("promptFileForTool: empty tool, defaulting to CLAUDE.md")
+		return "CLAUDE.md"
+	}
+	p, ok := provider.DefaultRegistry.Get(tool)
+	if !ok {
+		log.Warn("promptFileForTool: unknown tool, defaulting to CLAUDE.md", "tool", tool)
+		return "CLAUDE.md"
+	}
+	if adapter := provider.GetConfigAdapter(p); adapter != nil {
+		return adapter.PromptFile()
+	}
+	return provider.NewGenericAdapter(tool).PromptFile()
+}
 
 // agentConfigDTO is the response body for GET /api/agents/{name}/config.
 type agentConfigDTO struct { //nolint:govet // field order matches JSON/API contract
@@ -41,10 +64,11 @@ func (h *AgentHandler) getAgentConfig(w http.ResponseWriter, r *http.Request, na
 		MCPServers:     []string{},
 	}
 
-	// Read CLAUDE.md from the agent's worktree.
+	// Read the per-tool prompt file (CLAUDE.md / GEMINI.md / .cursorrules / ...)
+	// from the agent's worktree.
 	if wtDir != "" {
-		claudePath := filepath.Join(wtDir, "CLAUDE.md")
-		if data, readErr := os.ReadFile(claudePath); readErr == nil { //nolint:gosec // trusted path
+		promptPath := filepath.Join(wtDir, promptFileForTool(a.Tool))
+		if data, readErr := os.ReadFile(promptPath); readErr == nil { //nolint:gosec // trusted path
 			dto.SystemPrompt = string(data)
 		}
 	}
@@ -93,10 +117,11 @@ func (h *AgentHandler) patchAgentConfig(w http.ResponseWriter, r *http.Request, 
 		return
 	}
 
-	claudePath := filepath.Join(wtDir, "CLAUDE.md")
+	promptFile := promptFileForTool(a.Tool)
+	promptPath := filepath.Join(wtDir, promptFile)
 	//nolint:gosec // trusted path under workspace root
-	if writeErr := os.WriteFile(claudePath, []byte(req.SystemPrompt), 0600); writeErr != nil {
-		httpInternalError(w, "write CLAUDE.md", writeErr)
+	if writeErr := os.WriteFile(promptPath, []byte(req.SystemPrompt), 0600); writeErr != nil {
+		httpInternalError(w, "write "+promptFile, writeErr)
 		return
 	}
 

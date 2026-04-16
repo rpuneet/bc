@@ -1,6 +1,7 @@
 package handlers_test
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"os"
@@ -88,7 +89,7 @@ func TestAgentHandler_GetConfig(t *testing.T) {
 	}
 	// mcp_servers is omitempty + empty slice on DTO, so nil on decode is fine.
 	// We just assert the field type is consistent (i.e. decoded as array, not scalar).
-	if dto.MCPServers != nil && len(dto.MCPServers) != 0 {
+	if len(dto.MCPServers) != 0 {
 		t.Errorf("mcp_servers unexpected content: %v", dto.MCPServers)
 	}
 }
@@ -157,6 +158,80 @@ func TestAgentHandler_GetConfigReadsFromContext(t *testing.T) {
 	}
 	if !strings.Contains(string(body), prompt) {
 		t.Errorf("response missing ctx prompt %q, body=%s", prompt, body)
+	}
+}
+
+// TestPatchAgentConfig verifies PATCH /api/agents/{name}/config writes the
+// system prompt to the correct file based on the agent's tool. A gemini
+// agent must land in GEMINI.md (via provider ConfigAdapter fallback), NOT
+// the previously-hardcoded CLAUDE.md; a claude agent still writes CLAUDE.md.
+func TestPatchAgentConfig(t *testing.T) {
+	cases := []struct {
+		name      string
+		tool      string
+		wantFile  string
+		wrongFile string
+	}{
+		{"claude", "claude", "CLAUDE.md", "GEMINI.md"},
+		{"gemini", "gemini", "Gemini.md", "CLAUDE.md"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := setupWorkspace(t)
+			stateDir := filepath.Join(dir, ".bc")
+			if err := os.MkdirAll(filepath.Join(stateDir, "agents"), 0750); err != nil {
+				t.Fatalf("mkdir agents: %v", err)
+			}
+			wtDir := filepath.Join(dir, "wt", "zen-zebra")
+			if err := os.MkdirAll(wtDir, 0750); err != nil {
+				t.Fatalf("mkdir worktree: %v", err)
+			}
+
+			mgr := agent.NewManager(stateDir)
+			svc := agent.NewAgentService(mgr, nil, nil)
+			if err := mgr.RegisterStopped(&agent.Agent{
+				Name:           "zen-zebra",
+				Role:           agent.Role("engineer"),
+				Workspace:      dir,
+				Tool:           tc.tool,
+				RuntimeBackend: "tmux",
+				WorktreeDir:    wtDir,
+			}); err != nil {
+				t.Fatalf("register agent: %v", err)
+			}
+
+			ts := buildTestServerWithServices(t, server.Services{Agents: svc})
+			defer ts.Close()
+
+			prompt := "prompt-for-" + tc.tool
+			payload := `{"system_prompt":"` + prompt + `"}`
+			req, err := http.NewRequestWithContext(context.Background(), http.MethodPatch,
+				ts.URL+"/api/agents/zen-zebra/config", strings.NewReader(payload))
+			if err != nil {
+				t.Fatalf("new req: %v", err)
+			}
+			req.Header.Set("Content-Type", "application/json")
+			resp, err := http.DefaultClient.Do(req)
+			if err != nil {
+				t.Fatalf("do: %v", err)
+			}
+			defer func() { _ = resp.Body.Close() }()
+			assertStatus(t, resp, http.StatusOK)
+
+			// The correct prompt file must exist with the written prompt.
+			got, err := os.ReadFile(filepath.Join(wtDir, tc.wantFile)) //nolint:gosec // trusted test path
+			if err != nil {
+				t.Fatalf("expected %s to exist: %v", tc.wantFile, err)
+			}
+			if string(got) != prompt {
+				t.Errorf("%s body = %q, want %q", tc.wantFile, string(got), prompt)
+			}
+			// The wrong file must NOT have been created (regression guard for
+			// the hardcoded-CLAUDE.md bug).
+			if _, err := os.Stat(filepath.Join(wtDir, tc.wrongFile)); !os.IsNotExist(err) {
+				t.Errorf("%s unexpectedly present (err=%v); PATCH wrote to wrong file", tc.wrongFile, err)
+			}
+		})
 	}
 }
 
