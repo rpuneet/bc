@@ -729,7 +729,7 @@ func runWorkspaceMigrate(cmd *cobra.Command, args []string) error {
 	case hasV2 && !hasV1:
 		// Already fully migrated.
 		fmt.Printf("%s Already v2 — %s\n", ui.GreenText("✓"), absDir)
-		fmt.Printf("  Config: %s\n", filepath.Join(absDir, ".bc", "settings.json"))
+		fmt.Printf("  Config: %s\n", workspace.ConfigPath(absDir))
 		return nil
 
 	case hasV2 && hasV1:
@@ -769,7 +769,7 @@ func doV1Migration(absDir string, yes, dryRun bool) error {
 	fmt.Println("  Migration plan:")
 	fmt.Printf("    • Read   %s\n", filepath.Join(stateDir, "config.json"))
 	fmt.Printf("    • Write  %s  (backup)\n", filepath.Join(stateDir, "config.json.bak"))
-	fmt.Printf("    • Write  %s  (v2 format)\n", filepath.Join(stateDir, "settings.json"))
+	fmt.Printf("    • Write  %s  (v2 format)\n", filepath.Join(stateDir, workspace.PreferencesFileName))
 
 	agentFiles := workspace.CountLegacyAgentFiles(stateDir)
 	if agentFiles > 0 {
@@ -798,7 +798,7 @@ func doV1Migration(absDir string, yes, dryRun bool) error {
 	}
 
 	if result.ConfigMigrated {
-		fmt.Printf("  %s Written %s\n", ui.GreenText("✓"), filepath.Join(stateDir, "settings.json"))
+		fmt.Printf("  %s Written %s\n", ui.GreenText("✓"), filepath.Join(stateDir, workspace.PreferencesFileName))
 		fmt.Printf("  %s Backed up to %s\n", ui.GreenText("✓"), result.BackupPath)
 	}
 	if result.AgentFiles > 0 {

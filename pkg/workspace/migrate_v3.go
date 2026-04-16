@@ -46,12 +46,13 @@ func MigrateToGlobalState(rootDir string) (string, error) {
 	// Only migrate essential state files — skip agent worktrees and
 	// Claude session data (can be multi-GB). Agents will be recreated.
 	essentialFiles := map[string]bool{
-		"settings.json": true,
-		"bc.db":         true,
-		"state.db":      true,
-		"cron.db":       true,
-		"channels.db":   true,
-		"cost.db":       true,
+		PreferencesFileName:    true, // preferences.json (M11c+)
+		LegacySettingsFileName: true, // settings.json (legacy)
+		"bc.db":                true,
+		"state.db":              true,
+		"cron.db":               true,
+		"channels.db":           true,
+		"cost.db":               true,
 	}
 	essentialDirs := map[string]bool{
 		"roles": true,
@@ -102,10 +103,16 @@ func NeedsMigration(rootDir string) bool {
 	}
 
 	legacyDir := filepath.Join(absRoot, ".bc")
-	legacySettings := filepath.Join(legacyDir, "settings.json")
 
-	// Legacy exists?
-	if _, err := os.Stat(legacySettings); err != nil {
+	// Legacy exists? (either preferences.json or settings.json)
+	hasLegacy := false
+	for _, name := range []string{PreferencesFileName, LegacySettingsFileName} {
+		if _, err := os.Stat(filepath.Join(legacyDir, name)); err == nil {
+			hasLegacy = true
+			break
+		}
+	}
+	if !hasLegacy {
 		return false
 	}
 
@@ -114,13 +121,15 @@ func NeedsMigration(rootDir string) bool {
 		return false
 	}
 
-	// Global dir already has settings?
+	// Global dir already has a config file? (either name)
 	globalDir, gErr := GlobalStateDir(absRoot)
 	if gErr != nil {
 		return false
 	}
-	if _, err := os.Stat(filepath.Join(globalDir, "settings.json")); err == nil {
-		return false // already migrated
+	for _, name := range []string{PreferencesFileName, LegacySettingsFileName} {
+		if _, err := os.Stat(filepath.Join(globalDir, name)); err == nil {
+			return false // already migrated
+		}
 	}
 
 	return true

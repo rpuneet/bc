@@ -36,10 +36,10 @@ func TestInit(t *testing.T) {
 		t.Errorf("state directory not created: %v", statErr)
 	}
 
-	// settings.json was written
-	configPath := filepath.Join(stateDir, "settings.json")
+	// preferences.json was written (M11c+)
+	configPath := filepath.Join(stateDir, PreferencesFileName)
 	if _, statErr := os.Stat(configPath); statErr != nil {
-		t.Fatalf("settings.json not written: %v", statErr)
+		t.Fatalf("preferences.json not written: %v", statErr)
 	}
 }
 
@@ -112,7 +112,7 @@ func TestLoadUpdatesPathsIfMoved(t *testing.T) {
 
 	moved := t.TempDir()
 	// Copy settings from the global state dir to a legacy .bc/ in the moved location
-	srcCfg := filepath.Join(origWS.StateDir(), "settings.json")
+	srcCfg := filepath.Join(origWS.StateDir(), PreferencesFileName)
 	dstDir := filepath.Join(moved, ".bc")
 	if mkdirErr := os.MkdirAll(dstDir, 0750); mkdirErr != nil {
 		t.Fatal(mkdirErr)
@@ -121,7 +121,8 @@ func TestLoadUpdatesPathsIfMoved(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if writeErr := os.WriteFile(filepath.Join(dstDir, "settings.json"), data, 0600); writeErr != nil {
+	// Write as settings.json to exercise the legacy fallback + promotion path.
+	if writeErr := os.WriteFile(filepath.Join(dstDir, LegacySettingsFileName), data, 0600); writeErr != nil {
 		t.Fatal(writeErr)
 	}
 	if mkErr := os.MkdirAll(filepath.Join(dstDir, "roles"), 0750); mkErr != nil {
@@ -785,10 +786,10 @@ func TestInitV2Format(t *testing.T) {
 		t.Error("Config is nil")
 	}
 
-	// Check settings.json was created in the state directory
-	settingsPath := filepath.Join(ws.StateDir(), "settings.json")
+	// Check preferences.json was created in the state directory (M11c+)
+	settingsPath := filepath.Join(ws.StateDir(), PreferencesFileName)
 	if _, err := os.Stat(settingsPath); err != nil {
-		t.Errorf("settings.json not created at %s: %v", settingsPath, err)
+		t.Errorf("preferences.json not created at %s: %v", settingsPath, err)
 	}
 
 	// Check RoleManager is initialized with a store

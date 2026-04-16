@@ -164,11 +164,16 @@ func scanDir(dir string, maxDepth int, seen map[string]bool, workspaces *[]Disco
 	}
 }
 
-// isV2Workspace checks if a workspace uses v2 (JSON) config.
+// isV2Workspace checks if a workspace uses v2 (JSON) config. Accepts
+// either the M11c preferences.json or the legacy settings.json name.
 func isV2Workspace(dir string) bool {
-	settingsPath := filepath.Join(dir, ".bc", "settings.json")
-	_, err := os.Stat(settingsPath)
-	return err == nil
+	bcDir := filepath.Join(dir, ".bc")
+	for _, name := range []string{PreferencesFileName, LegacySettingsFileName} {
+		if _, err := os.Stat(filepath.Join(bcDir, name)); err == nil {
+			return true
+		}
+	}
+	return false
 }
 
 // DiscoverAndRegister discovers workspaces and adds new ones to the registry.

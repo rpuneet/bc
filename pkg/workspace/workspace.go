@@ -95,7 +95,7 @@ func Init(rootDir string) (*Workspace, error) {
 
 	cfg := DefaultConfig()
 
-	configPath := filepath.Join(stateDir, "settings.json")
+	configPath := filepath.Join(stateDir, PreferencesFileName)
 	if saveErr := cfg.Save(configPath); saveErr != nil {
 		return nil, fmt.Errorf("failed to save config: %w", saveErr)
 	}
@@ -136,20 +136,27 @@ func Load(rootDir string) (*Workspace, error) {
 		stateDir = filepath.Join(absRoot, ".bc") // fallback to legacy
 	}
 
-	// Load settings.json — check global dir first, then legacy .bc/
-	jsonPath := filepath.Join(stateDir, "settings.json")
-	if _, statErr := os.Stat(jsonPath); statErr != nil {
-		// Try legacy path — auto-migrate if found
+	// Load config — check global dir first (preferences.json, then
+	// settings.json), then legacy .bc/ (preferences.json, then
+	// settings.json). Auto-migrates legacy .bc/ to ~/.bc/workspaces/<id>/
+	// when the global dir is empty.
+	jsonPath := firstExisting(stateDir, PreferencesFileName, LegacySettingsFileName)
+	if jsonPath == "" {
 		legacyDir := filepath.Join(absRoot, ".bc")
-		legacyPath := filepath.Join(legacyDir, "settings.json")
-		if _, legacyErr := os.Stat(legacyPath); legacyErr == nil {
+		legacyPath := firstExisting(legacyDir, PreferencesFileName, LegacySettingsFileName)
+		if legacyPath != "" {
 			// Auto-migrate legacy .bc/ to ~/.bc/workspaces/<id>/
 			if NeedsMigration(absRoot) {
 				log.Info("migrating workspace state to ~/.bc/", "from", legacyDir)
 				newDir, migrateErr := MigrateToGlobalState(absRoot)
 				if migrateErr == nil {
 					stateDir = newDir
-					jsonPath = filepath.Join(newDir, "settings.json")
+					jsonPath = firstExisting(newDir, PreferencesFileName, LegacySettingsFileName)
+					if jsonPath == "" {
+						// Migration produced nothing usable — fall back to legacy.
+						stateDir = legacyDir
+						jsonPath = legacyPath
+					}
 				} else {
 					log.Warn("migration failed, using legacy path", "error", migrateErr)
 					stateDir = legacyDir
@@ -164,13 +171,25 @@ func Load(rootDir string) (*Workspace, error) {
 			if _, v1Err := os.Stat(filepath.Join(legacyDir, "config.json")); v1Err == nil {
 				return nil, fmt.Errorf("%w: run 'bc workspace migrate' to upgrade", ErrNotV1Workspace)
 			}
-			return nil, fmt.Errorf("not a bc workspace (no settings.json found in %s or %s)", stateDir, legacyDir)
+			return nil, fmt.Errorf("not a bc workspace (no %s or %s found in %s or %s)",
+				PreferencesFileName, LegacySettingsFileName, stateDir, legacyDir)
 		}
 	}
 
 	cfg, loadErr := LoadConfig(jsonPath)
 	if loadErr != nil {
-		return nil, fmt.Errorf("failed to load settings.json: %w", loadErr)
+		return nil, fmt.Errorf("failed to load workspace config: %w", loadErr)
+	}
+
+	// Promote legacy settings.json to preferences.json (idempotent).
+	// The legacy file is left on disk for the user to audit.
+	if filepath.Base(jsonPath) == LegacySettingsFileName {
+		prefsPath := filepath.Join(stateDir, PreferencesFileName)
+		if _, err := os.Stat(prefsPath); os.IsNotExist(err) {
+			if saveErr := cfg.Save(prefsPath); saveErr == nil {
+				log.Info("promoted settings.json to preferences.json", "state_dir", stateDir)
+			}
+		}
 	}
 
 	cfg.FillDefaults()
@@ -243,10 +262,23 @@ func Find(dir string) (*Workspace, error) {
 	}
 }
 
-// Save saves the workspace configuration.
+// Save saves the workspace configuration to preferences.json.
+// A legacy settings.json on disk is left alone for the user to audit.
 func (w *Workspace) Save() error {
-	configPath := filepath.Join(w.StateDir(), "settings.json")
+	configPath := filepath.Join(w.StateDir(), PreferencesFileName)
 	return w.Config.Save(configPath)
+}
+
+// firstExisting returns the first existing file path among the given
+// names under dir, or "" when none exist. Order determines priority.
+func firstExisting(dir string, names ...string) string {
+	for _, n := range names {
+		p := filepath.Join(dir, n)
+		if _, err := os.Stat(p); err == nil {
+			return p
+		}
+	}
+	return ""
 }
 
 // StateDir returns the resolved state directory path.

@@ -350,7 +350,7 @@ export function Settings() {
         <div>
           <h1 className="text-lg font-bold text-bc-text">System Configuration</h1>
           <p className="text-[10px] text-bc-muted">
-            settings.json{typeof version !== "undefined" ? ` v${version}` : ""}
+            preferences.json{typeof version !== "undefined" ? ` v${version}` : ""}
           </p>
         </div>
       </div>

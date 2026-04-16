@@ -127,11 +127,11 @@ func MigrateV1ToV2(rootDir string) (*MigrateResult, error) {
 		}
 	}
 
-	// ── 3. Write settings.json ─────────────────────────────────────────────────
+	// ── 3. Write preferences.json (M11c+) ─────────────────────────────────────
 
-	jsonPath := filepath.Join(stateDir, "settings.json")
+	jsonPath := filepath.Join(stateDir, PreferencesFileName)
 	if err := v2cfg.Save(jsonPath); err != nil {
-		return nil, fmt.Errorf("write settings.json: %w", err)
+		return nil, fmt.Errorf("write %s: %w", PreferencesFileName, err)
 	}
 	result.ConfigMigrated = true
 

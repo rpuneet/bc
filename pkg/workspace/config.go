@@ -9,7 +9,23 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/rpuneet/bc/pkg/log"
 )
+
+// logConfigPromoteInfo is called when settings.json has been successfully
+// promoted to preferences.json. Kept as a small helper so test stubs can
+// replace it without noise.
+func logConfigPromoteInfo(stateDir string) {
+	log.Info("promoted settings.json to preferences.json", "state_dir", stateDir)
+}
+
+// logConfigPromoteWarn is called when a legacy settings.json could be
+// read but the preferences.json write failed. The legacy file remains
+// authoritative until the next successful save.
+func logConfigPromoteWarn(stateDir string, err error) {
+	log.Warn("failed to promote settings.json to preferences.json", "state_dir", stateDir, "error", err)
+}
 
 // ConfigVersion is the current config schema version.
 const ConfigVersion = 2
@@ -246,12 +262,55 @@ func DefaultConfig() Config {
 }
 
 // LoadConfig reads and parses a JSON config file.
+//
+// If path is a directory, LoadConfig treats it as a state dir and looks
+// for preferences.json first (M11c+), falling back to the legacy
+// settings.json. When only the legacy file is present it is read in
+// place; the caller is responsible for writing the promoted file via
+// Save() or LoadConfig's higher-level wrappers.
+//
+// If path points at a file, it is read directly.
 func LoadConfig(path string) (*Config, error) {
+	if info, err := os.Stat(path); err == nil && info.IsDir() {
+		return loadConfigFromDir(path)
+	}
 	data, err := os.ReadFile(path) //nolint:gosec // path provided by caller
 	if err != nil {
 		return nil, fmt.Errorf("failed to read config: %w", err)
 	}
 	return ParseConfig(data)
+}
+
+// loadConfigFromDir looks in stateDir for preferences.json first, then
+// falls back to settings.json. When the legacy file is used it is
+// promoted: the parsed config is re-serialized to preferences.json so
+// subsequent reads find the canonical file. The legacy file is left on
+// disk for the user to audit and remove manually.
+func loadConfigFromDir(stateDir string) (*Config, error) {
+	prefs := filepath.Join(stateDir, PreferencesFileName)
+	if data, err := os.ReadFile(prefs); err == nil { //nolint:gosec // callsite-constructed
+		return ParseConfig(data)
+	}
+	legacy := filepath.Join(stateDir, LegacySettingsFileName)
+	data, err := os.ReadFile(legacy) //nolint:gosec // callsite-constructed
+	if err != nil {
+		return nil, fmt.Errorf("failed to read config (tried %s, %s): %w",
+			PreferencesFileName, LegacySettingsFileName, err)
+	}
+	cfg, parseErr := ParseConfig(data)
+	if parseErr != nil {
+		return nil, parseErr
+	}
+	// Promote: write preferences.json so future reads skip the fallback.
+	if saveErr := cfg.Save(prefs); saveErr != nil {
+		// Not fatal — the legacy file is still valid.
+		// We log here once; callers do not need to retry.
+		// (Use structured log; package log is already imported elsewhere.)
+		logConfigPromoteWarn(stateDir, saveErr)
+	} else {
+		logConfigPromoteInfo(stateDir)
+	}
+	return cfg, nil
 }
 
 // ParseConfig parses JSON data into a Config.
@@ -490,16 +549,37 @@ func (c *Config) Save(path string) error {
 }
 
 // ConfigPath returns the standard config file path for a workspace root.
-// Checks global state dir first, falls back to legacy .bc/.
+// Checks the global state dir first (preferences.json then settings.json),
+// then the legacy <rootDir>/.bc/ directory. When no file exists anywhere
+// yet, returns the canonical preferences.json path under the global dir
+// so callers writing a fresh config land in the right place.
 func ConfigPath(rootDir string) string {
-	stateDir, err := GlobalStateDir(rootDir)
-	if err == nil {
-		p := filepath.Join(stateDir, "settings.json")
-		if _, statErr := os.Stat(p); statErr == nil {
-			return p
+	if stateDir, err := GlobalStateDir(rootDir); err == nil {
+		prefs := filepath.Join(stateDir, PreferencesFileName)
+		if _, statErr := os.Stat(prefs); statErr == nil {
+			return prefs
 		}
+		legacy := filepath.Join(stateDir, LegacySettingsFileName)
+		if _, statErr := os.Stat(legacy); statErr == nil {
+			return legacy
+		}
+		// Nothing on disk yet — prefer the canonical name.
+		// Fall through to legacy-root check below in case caller is
+		// operating on a pre-M11 workspace.
 	}
-	return filepath.Join(rootDir, ".bc", "settings.json")
+	legacyBC := filepath.Join(rootDir, ".bc", PreferencesFileName)
+	if _, err := os.Stat(legacyBC); err == nil {
+		return legacyBC
+	}
+	legacyBCSettings := filepath.Join(rootDir, ".bc", LegacySettingsFileName)
+	if _, err := os.Stat(legacyBCSettings); err == nil {
+		return legacyBCSettings
+	}
+	// Default for callers writing a fresh config — global dir if possible.
+	if stateDir, err := GlobalStateDir(rootDir); err == nil {
+		return filepath.Join(stateDir, PreferencesFileName)
+	}
+	return legacyBC
 }
 
 // --- Nickname compatibility (used by channel system) ---

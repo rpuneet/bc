@@ -13,6 +13,7 @@ import (
 	"github.com/rpuneet/bc/pkg/client"
 	"github.com/rpuneet/bc/pkg/log"
 	"github.com/rpuneet/bc/pkg/ui"
+	bcworkspace "github.com/rpuneet/bc/pkg/workspace"
 	srvmcp "github.com/rpuneet/bc/server/mcp"
 )
 
@@ -451,13 +452,15 @@ func runMCPRegister(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
-	settingsPath := filepath.Join(ws.StateDir(), "settings.json")
+	// M11c: canonical file is preferences.json. Fall back to settings.json
+	// only if that is the only file present.
+	settingsPath := ws.SettingsFile()
 
 	// Load or create settings
 	settings := map[string]any{}
 	if data, readErr := os.ReadFile(settingsPath); readErr == nil { //nolint:gosec // known path
 		if jsonErr := json.Unmarshal(data, &settings); jsonErr != nil {
-			return fmt.Errorf("failed to parse settings.json: %w", jsonErr)
+			return fmt.Errorf("failed to parse %s: %w", filepath.Base(settingsPath), jsonErr)
 		}
 	}
 
@@ -515,9 +518,13 @@ func runMCPRegister(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("failed to marshal settings: %w", err)
 	}
 
-	if writeErr := os.WriteFile(settingsPath, data, 0600); writeErr != nil { //nolint:gosec // 0600 is correct for settings
-		return fmt.Errorf("failed to write settings.json: %w", writeErr)
+	// M11c: always write the canonical preferences.json filename going
+	// forward, even if the load came from legacy settings.json.
+	prefsPath := filepath.Join(ws.StateDir(), bcworkspace.PreferencesFileName)
+	if writeErr := os.WriteFile(prefsPath, data, 0600); writeErr != nil { //nolint:gosec // 0600 is correct
+		return fmt.Errorf("failed to write %s: %w", bcworkspace.PreferencesFileName, writeErr)
 	}
+	settingsPath = prefsPath
 
 	transport := "stdio"
 	if mcpServeSSE {

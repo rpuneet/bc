@@ -60,14 +60,29 @@ func isV1Workspace(dir string) bool {
 	return err == nil
 }
 
-// isV2Workspace checks if a directory has a v2 workspace (settings.json, or legacy config.toml).
+// isV2Workspace checks if a directory has a v2 workspace (preferences.json,
+// settings.json, or legacy config.toml). Checks both the legacy
+// <dir>/.bc/ location and the M11+ global ~/.bc/workspaces/<id>/ dir.
 func isV2Workspace(dir string) bool {
-	if _, err := os.Stat(filepath.Join(dir, ".bc", "settings.json")); err == nil {
+	bcDir := filepath.Join(dir, ".bc")
+	for _, name := range []string{workspace.PreferencesFileName, workspace.LegacySettingsFileName} {
+		if _, err := os.Stat(filepath.Join(bcDir, name)); err == nil {
+			return true
+		}
+	}
+	configPath := filepath.Join(bcDir, "config.toml")
+	if _, err := os.Stat(configPath); err == nil {
 		return true
 	}
-	configPath := filepath.Join(dir, ".bc", "config.toml")
-	_, err := os.Stat(configPath)
-	return err == nil
+	// M11+ global location.
+	if globalDir, err := workspace.GlobalStateDir(dir); err == nil {
+		for _, name := range []string{workspace.PreferencesFileName, workspace.LegacySettingsFileName} {
+			if _, err := os.Stat(filepath.Join(globalDir, name)); err == nil {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func runInit(cmd *cobra.Command, args []string) error {
@@ -124,55 +139,24 @@ func runInit(cmd *cobra.Command, args []string) error {
 
 // initV2Workspace creates a new v2 workspace structure.
 func initV2Workspace(rootDir string) error {
-	stateDir := filepath.Join(rootDir, ".bc")
-
-	// Create state directory
-	if err := os.MkdirAll(stateDir, 0750); err != nil {
-		return fmt.Errorf("failed to create .bc directory: %w", err)
-	}
-
-	// Create agents directory
-	agentsDir := filepath.Join(stateDir, "agents")
-	if err := os.MkdirAll(agentsDir, 0750); err != nil {
-		return fmt.Errorf("failed to create agents directory: %w", err)
-	}
-
-	// Create and save v2 config
-	name := filepath.Base(rootDir)
-	cfg := workspace.DefaultConfig()
-	configPath := workspace.ConfigPath(rootDir)
-
-	if err := cfg.Save(configPath); err != nil {
-		return fmt.Errorf("failed to save config: %w", err)
-	}
-
-	// Create roles directory and default root.md
-	roleMgr := workspace.NewRoleManager(stateDir)
-	created, err := roleMgr.EnsureDefaultRoot()
+	// M11: runtime state lives at ~/.bc/workspaces/<id>/ — the project
+	// directory stays a pristine git repo. Use the high-level Init()
+	// which creates the global dir, writes preferences.json, seeds
+	// roles, and registers the workspace.
+	ws, err := workspace.Init(rootDir)
 	if err != nil {
-		return fmt.Errorf("failed to create role files: %w", err)
+		return fmt.Errorf("init workspace: %w", err)
 	}
+	stateDir := ws.StateDir()
 
-	// Register in global registry
-	reg, err := workspace.LoadRegistry()
-	if err == nil {
-		reg.Register(rootDir, name)
-		_ = reg.Save()
-	}
-
-	// Print success message
 	fmt.Printf("Initialized bc v2 workspace in %s\n", rootDir)
 	fmt.Printf("\n")
-	fmt.Printf("  Created:\n")
-	fmt.Printf("    .bc/settings.json   # Workspace configuration\n")
-	fmt.Printf("    .bc/agents/         # Agent state directory\n")
-	fmt.Printf("    .bc/roles/          # Role definitions\n")
-	if created {
-		fmt.Printf("    .bc/roles/root.md   # Root agent role\n")
-	}
-	fmt.Printf("    .bc/bc.db            # Workspace database\n")
+	fmt.Printf("  Runtime state: %s\n", stateDir)
+	fmt.Printf("    preferences.json   # Workspace configuration\n")
+	fmt.Printf("    agents/            # Agent state directory\n")
+	fmt.Printf("    state.db           # Events, channels, roles\n")
 	fmt.Printf("\n")
-	fmt.Printf("  Default provider: %s\n", cfg.Providers.Default)
+	fmt.Printf("  Default provider: %s\n", ws.Config.Providers.Default)
 	fmt.Printf("\n")
 	fmt.Printf("Next steps:\n")
 	fmt.Printf("  bc up       # Start agents\n")
@@ -312,57 +296,28 @@ func promptNickname() (string, error) {
 }
 
 // initV2WorkspaceWithNickname creates a new v2 workspace with a custom nickname.
+// M11: runtime state is stored at ~/.bc/workspaces/<id>/ — the project
+// directory is left as a pristine git repo.
 func initV2WorkspaceWithNickname(rootDir string, nickname string) error {
-	stateDir := filepath.Join(rootDir, ".bc")
-
-	// Create state directory
-	if err := os.MkdirAll(stateDir, 0750); err != nil {
-		return fmt.Errorf("failed to create .bc directory: %w", err)
-	}
-
-	// Create agents directory
-	agentsDir := filepath.Join(stateDir, "agents")
-	if err := os.MkdirAll(agentsDir, 0750); err != nil {
-		return fmt.Errorf("failed to create agents directory: %w", err)
-	}
-
-	// Create and save v2 config with nickname
-	name := filepath.Base(rootDir)
-	cfg := workspace.DefaultConfig()
-	cfg.User.Name = nickname
-	configPath := workspace.ConfigPath(rootDir)
-
-	if err := cfg.Save(configPath); err != nil {
-		return fmt.Errorf("failed to save config: %w", err)
-	}
-
-	// Create roles directory and default root.md
-	roleMgr := workspace.NewRoleManager(stateDir)
-	created, err := roleMgr.EnsureDefaultRoot()
+	ws, err := workspace.Init(rootDir)
 	if err != nil {
-		return fmt.Errorf("failed to create role files: %w", err)
+		return fmt.Errorf("init workspace: %w", err)
 	}
-
-	// Register in global registry
-	reg, regErr := workspace.LoadRegistry()
-	if regErr == nil {
-		reg.Register(rootDir, name)
-		_ = reg.Save()
+	ws.Config.User.Name = nickname
+	if saveErr := ws.Save(); saveErr != nil {
+		return fmt.Errorf("save config: %w", saveErr)
 	}
+	stateDir := ws.StateDir()
 
 	// Print success message
 	fmt.Println()
 	fmt.Printf("  %s Workspace initialized at %s\n", ui.GreenText("✓"), rootDir)
 	fmt.Printf("  %s Nickname set to %s\n", ui.GreenText("✓"), nickname)
 	fmt.Println()
-	fmt.Println("  Created:")
-	fmt.Println("    .bc/settings.json   # Workspace configuration")
-	fmt.Println("    .bc/agents/         # Agent state directory")
-	fmt.Println("    .bc/roles/          # Role definitions")
-	if created {
-		fmt.Println("    .bc/roles/root.md   # Root agent role")
-	}
-	fmt.Println("    .bc/bc.db            # Workspace database")
+	fmt.Printf("  Runtime state: %s\n", stateDir)
+	fmt.Println("    preferences.json   # Workspace configuration")
+	fmt.Println("    agents/            # Agent state directory")
+	fmt.Println("    state.db           # Events, channels, roles")
 	fmt.Println()
 
 	// Bootstrap server daemons (non-fatal; warns if Docker unavailable)
