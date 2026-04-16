@@ -31,4 +31,39 @@ describe("formatTokens", () => {
   it("formats small values literally", () => {
     expect(formatTokens(42)).toBe("42");
   });
+
+  // Boundary checks — guard against a regression where callers pre-scale
+  // the value and produce absurd outputs like "44307.0M".
+  it("keeps sub-thousand values as literals", () => {
+    expect(formatTokens(999)).toBe("999");
+  });
+  it("renders exactly 1_000 as 1K", () => {
+    expect(formatTokens(1000)).toBe("1K");
+  });
+  it("renders just-below-a-million as K", () => {
+    expect(formatTokens(999_999)).toBe("1000K");
+  });
+  it("renders exactly 1_000_000 as 1.0M", () => {
+    expect(formatTokens(1_000_000)).toBe("1.0M");
+  });
+  it("renders a typical agent total (1.7M tokens)", () => {
+    expect(formatTokens(1_703_408)).toBe("1.7M");
+  });
+  it("does not double-divide huge raw counts", () => {
+    // 44_307_000_000 raw tokens is the magic number behind the '44307.0M'
+    // audit report. The formatter should render it literally (44307.0M),
+    // confirming no second-stage division. The bug was that a caller
+    // pre-divided a ~44 trillion raw count down to 44 B and then the
+    // formatter divided again; this test pins the contract.
+    expect(formatTokens(44_307_000_000)).toBe("44307.0M");
+    // And the truly absurd case ("already in millions" double-division)
+    // should never appear for real data: a 1.7M raw count formatted twice
+    // would yield something like "1.7" — not the audit's value.
+    expect(formatTokens(1.7)).not.toBe("44307.0M");
+  });
+  it("guards negative and NaN input", () => {
+    expect(formatTokens(-1)).toBe("0");
+    expect(formatTokens(Number.NaN)).toBe("0");
+    expect(formatTokens(Number.POSITIVE_INFINITY)).toBe("0");
+  });
 });
