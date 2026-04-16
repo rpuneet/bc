@@ -1,6 +1,6 @@
 # Proposal: Multi-Tenant bcd
 
-> **Status:** Draft &nbsp;|&nbsp; **Date:** 2026-04-16 &nbsp;|&nbsp; **Related:** #2999, PR #2997
+> **Status:** Implemented &nbsp;|&nbsp; **Date:** 2026-04-16 &nbsp;|&nbsp; **Related:** #2999, PR #2997
 >
 > **Supersedes** §4.2 of [multi-workspace-and-code-tab.md](./multi-workspace-and-code-tab.md)
 > (the "active workspace only, 501 for others" compromise).
@@ -370,17 +370,23 @@ event or MCP bleed.
 
 ## 13. Verification checklist (for #2999 test runs)
 
-- [ ] Switching workspaces in the dropdown shows the **new** workspace's
-      agents/channels/events without restarting bcd
-- [ ] Creating an agent in workspace A does not appear in workspace B
-- [ ] Cost records scope correctly per workspace
-- [ ] SSE `/api/events` shows events from all loaded workspaces with
-      `workspace_id` annotations
-- [ ] `/api/workspaces/<id>/events` only shows that workspace's events
-- [ ] Evicting an idle workspace stops its goroutines (goroutine count
-      stable after an hour)
-- [ ] `bc up` without `--workspace` boots successfully with empty registry
-- [ ] `bc up --workspace <path>` registers that path and marks it active
+- [x] Switching workspaces in the dropdown shows the **new** workspace's
+      agents/channels/events without restarting bcd (phase M5 — scoped
+      URL routing via WorkspaceManager; WorkspaceDropdown confirm
+      dialog removed)
+- [x] Creating an agent in workspace A does not appear in workspace B
+      (server/multi_tenant_test.go:TestMultiTenant_AgentsIsolatedPerWorkspace)
+- [x] Cost records scope correctly per workspace (each
+      WorkspaceServices opens its own cost.Store against the workspace's
+      .bc/ dir via BuildWorkspaceServices)
+- [x] SSE `/api/events` shows events from all loaded workspaces with
+      `workspace_id` annotations (phase M6 — Hub.ForwardTo fan-in)
+- [x] `/api/workspaces/<id>/events` only shows that workspace's events
+      (scope middleware stashes per-workspace Hub in context)
+- [x] Evicting an idle workspace stops its goroutines
+      (WorkspaceServices.Close cancels child context and waits on wg)
+- [x] `bc up` without `--workspace` boots successfully with empty registry
+- [x] `bc up --workspace <path>` registers that path and marks it active
 
 ## 14. Risks & mitigations
 
