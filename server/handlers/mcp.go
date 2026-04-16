@@ -129,6 +129,30 @@ func (h *MCPHandler) server(w http.ResponseWriter, r *http.Request, name string)
 		}
 		w.WriteHeader(http.StatusNoContent)
 
+	case http.MethodPatch:
+		var body struct {
+			Env map[string]string `json:"env"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			httpError(w, "invalid request body", http.StatusBadRequest)
+			return
+		}
+		if body.Env == nil {
+			httpError(w, "env field is required", http.StatusBadRequest)
+			return
+		}
+		if err := store.UpdateEnv(name, body.Env); err != nil {
+			httpError(w, err.Error(), http.StatusNotFound)
+			return
+		}
+		// Echo back the updated record so the UI can reconcile state.
+		cfg, err := store.Get(name)
+		if err != nil {
+			httpInternalError(w, "reload mcp server", err)
+			return
+		}
+		writeJSON(w, http.StatusOK, cfg)
+
 	default:
 		methodNotAllowed(w)
 	}

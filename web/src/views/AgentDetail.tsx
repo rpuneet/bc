@@ -9,6 +9,7 @@ import { WebTerminal } from "../components/WebTerminal";
 import { AgentIcon } from "../components/agent-ui";
 import { LoopIconButton, RalphLoopModal } from "../components/RalphLoopModal";
 import { MCPServerList } from "../components/shared/MCPServerList";
+import { McpEnvEditor } from "../components/shared/McpEnvEditor";
 import { SystemPromptEditor } from "../components/shared/SystemPromptEditor";
 import { SectionRule } from "../components/shared";
 import { AgentToolStream } from "../components/live/AgentToolStream";
@@ -398,6 +399,14 @@ function ConfigTab({ agent }: { agent: Agent }) {
               : "Changes write to .mcp.json in the container."}
           </p>
         </section>
+
+        {/* ── MCP ENVIRONMENT ── */}
+        {mcpServers.length > 0 && (
+          <section>
+            <SectionRule>MCP Environment</SectionRule>
+            <McpEnvEditor serverNames={mcpServers} />
+          </section>
+        )}
 
         {/* ── RUNTIME INFO ── */}
         <section>

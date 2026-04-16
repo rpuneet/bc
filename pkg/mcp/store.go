@@ -204,6 +204,60 @@ func (s *Store) Remove(name string) error {
 	return nil
 }
 
+// UpdateEnv replaces the env map for a named MCP server. Keys with empty
+// values are dropped so the UI can "remove" a variable by clearing it.
+// Returns an error if the server doesn't exist (writes never auto-create
+// the row — use Add for that).
+func (s *Store) UpdateEnv(name string, env map[string]string) error {
+	if s.pg != nil {
+		// Postgres backend — fall back to Add/Upsert-style replace.
+		cfg, err := s.pg.Get(name)
+		if err != nil {
+			return err
+		}
+		if cfg == nil {
+			return fmt.Errorf("mcp server %q not found", name)
+		}
+		cfg.Env = cleanEnv(env)
+		// Postgres store has no UpdateEnv yet; remove+add for now.
+		if err := s.pg.Remove(name); err != nil {
+			return fmt.Errorf("replace mcp %q: %w", name, err)
+		}
+		return s.pg.Add(cfg)
+	}
+	cleaned := cleanEnv(env)
+	envJSON, err := json.Marshal(cleaned)
+	if err != nil {
+		return fmt.Errorf("marshal env: %w", err)
+	}
+	ctx := context.Background()
+	result, err := s.db.ExecContext(ctx,
+		`UPDATE mcp_servers SET env = ? WHERE name = ?`,
+		string(envJSON), name,
+	)
+	if err != nil {
+		return fmt.Errorf("update env on mcp server %q: %w", name, err)
+	}
+	affected, _ := result.RowsAffected()
+	if affected == 0 {
+		return fmt.Errorf("mcp server %q not found", name)
+	}
+	return nil
+}
+
+// cleanEnv drops entries with empty values — the UI uses "" to mark a
+// row for deletion rather than sending an explicit delete.
+func cleanEnv(env map[string]string) map[string]string {
+	out := make(map[string]string, len(env))
+	for k, v := range env {
+		if k == "" || v == "" {
+			continue
+		}
+		out[k] = v
+	}
+	return out
+}
+
 // SetEnabled enables or disables an MCP server config.
 // If the server is not yet in the database but a ConfigLookupFunc is set,
 // the full config is resolved and inserted before applying the toggle.

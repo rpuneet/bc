@@ -851,6 +851,11 @@ export const api = {
     request<void>(`/mcp/${encodeURIComponent(name)}/disable`, {
       method: "POST",
     }),
+  updateMCPEnv: (name: string, env: Record<string, string>) =>
+    request<MCPServer>(`/mcp/${encodeURIComponent(name)}`, {
+      method: "PATCH",
+      body: JSON.stringify({ env }),
+    }),
 
   /** Tool list — merges MCP + CLI tools with status. */
   listTools: () => request<Tool[]>("/tools/unified"),
