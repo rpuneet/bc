@@ -136,7 +136,7 @@ export function WorkspaceDropdown({
       >
         <span className="text-bc-muted/60 text-[9px] uppercase tracking-wider">ws</span>
         <span className="font-semibold truncate max-w-[160px]">
-          {active?.name ?? (loading ? "\u2026" : "no workspace")}
+          {active?.name ?? (loading ? "…" : "no workspace")}
         </span>
         {active?.id && (
           <span className="text-bc-muted/40 text-[9px] tabular-nums">
@@ -167,7 +167,7 @@ export function WorkspaceDropdown({
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search workspaces\u2026"
+              placeholder="Search workspaces…"
               className="w-full bg-bc-bg border border-bc-border/40 rounded px-2.5 py-1 text-[11px] text-bc-text/90 placeholder:text-bc-muted/40 outline-none focus:border-bc-accent/50"
               style={{ fontFamily: MONO }}
             />
@@ -176,7 +176,7 @@ export function WorkspaceDropdown({
           <div className="max-h-[320px] overflow-y-auto py-1">
             {loading && (
               <div className="px-3 py-2 text-[11px] text-bc-muted/50" style={{ fontFamily: MONO }}>
-                loading\u2026
+                loading…
               </div>
             )}
             {!loading && filtered.length === 0 && (
@@ -219,7 +219,7 @@ export function WorkspaceDropdown({
               style={{ fontFamily: MONO }}
             >
               <span>+</span>
-              <span>Add workspace\u2026</span>
+              <span>Add workspace…</span>
             </button>
           </div>
         </div>

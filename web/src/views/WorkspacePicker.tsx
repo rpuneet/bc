@@ -45,7 +45,7 @@ export function WorkspacePicker() {
           <div className="text-[10px] text-bc-muted/50 uppercase tracking-[0.2em] mb-2">
             Registered
           </div>
-          {loading && <p className="text-[12px] text-bc-muted/50">loading\u2026</p>}
+          {loading && <p className="text-[12px] text-bc-muted/50">loading…</p>}
           {!loading && workspaces.length === 0 && (
             <p className="text-[12px] text-bc-muted/60 italic">
               No workspaces registered yet. Add one below.
@@ -232,7 +232,7 @@ function ScanPane({ onDone }: { onDone: () => void }) {
           disabled={scanning}
           className="px-3 py-1 rounded text-[11px] border border-bc-accent/30 bg-bc-accent/10 text-bc-accent hover:bg-bc-accent/20 transition-colors disabled:opacity-50"
         >
-          {scanning ? "scanning\u2026" : "Scan"}
+          {scanning ? "scanning…" : "Scan"}
         </button>
       </div>
 
@@ -279,7 +279,7 @@ function ScanPane({ onDone }: { onDone: () => void }) {
             onClick={() => void addSelected()}
             className="px-3 py-1.5 rounded text-[11px] border border-bc-accent/30 bg-bc-accent/10 text-bc-accent hover:bg-bc-accent/20 transition-colors disabled:opacity-40"
           >
-            {adding ? "adding\u2026" : `Add ${String(selected.size)} workspace${selected.size === 1 ? "" : "s"}`}
+            {adding ? "adding…" : `Add ${String(selected.size)} workspace${selected.size === 1 ? "" : "s"}`}
           </button>
         </>
       )}
@@ -375,7 +375,7 @@ function ManualPane({ onDone }: { onDone: () => void }) {
         onClick={() => void submit()}
         className="px-3 py-1.5 rounded text-[11px] border border-bc-accent/30 bg-bc-accent/10 text-bc-accent hover:bg-bc-accent/20 transition-colors disabled:opacity-40"
       >
-        {adding ? "adding\u2026" : "Add workspace"}
+        {adding ? "adding…" : "Add workspace"}
       </button>
     </div>
   );
