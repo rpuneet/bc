@@ -351,8 +351,6 @@ function SecretCard({ secret, onChanged }: { secret: Secret; onChanged: () => vo
 // --- Main View ---
 
 export function Secrets() {
-  useHeaderSlot({ title: <TabHeaderTitle>Secrets</TabHeaderTitle> });
-
   const fetcher = useCallback(() => api.listSecrets(), []);
   const {
     data: secrets,
@@ -361,6 +359,15 @@ export function Secrets() {
     refresh,
     timedOut,
   } = usePolling(fetcher, 30000);
+
+  useHeaderSlot({
+    title: <TabHeaderTitle>Secrets</TabHeaderTitle>,
+    actions: secrets ? (
+      <span className="text-[11px] text-bc-muted tabular-nums">
+        {secrets.length}
+      </span>
+    ) : undefined,
+  });
 
   if (loading && !secrets) {
     return (
@@ -403,18 +410,10 @@ export function Secrets() {
 
   return (
     <div className="p-6 space-y-5">
-      {/* Header */}
-      <div>
-        <div className="flex items-center gap-3">
-          <h1 className="text-xl font-bold text-bc-text">Secrets</h1>
-          <span className="px-2 py-0.5 rounded-full bg-bc-bg border border-bc-border text-xs font-medium text-bc-muted">
-            {list.length}
-          </span>
-        </div>
-        <p className="text-xs text-bc-muted mt-1">
-          AES-256-GCM encrypted &middot; values never exposed via API
-        </p>
-      </div>
+      {/* Page note (title + count live in the top-bar chip) */}
+      <p className="text-xs text-bc-muted">
+        AES-256-GCM encrypted &middot; values never exposed via API
+      </p>
 
       {/* Add form */}
       <AddSecretForm onCreated={refresh} />

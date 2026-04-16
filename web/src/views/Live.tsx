@@ -16,7 +16,19 @@ import { TabHeaderTitle } from "../components/Header";
 /* ── Live (Live Operations Center) ─────────────────────────────────── */
 
 export function Live() {
-  useHeaderSlot({ title: <TabHeaderTitle>Live</TabHeaderTitle> });
+  useHeaderSlot({
+    title: (
+      <TabHeaderTitle>
+        <span className="inline-flex items-center gap-2">
+          Live
+          <span className="relative flex h-2 w-2">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-bc-error opacity-75" />
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-bc-error" />
+          </span>
+        </span>
+      </TabHeaderTitle>
+    ),
+  });
 
   const { activities, tasks, rawEventsRef, connected, reconnecting, eventCount } = useAgentActivity();
   const [agents, setAgents] = useState<Agent[]>([]);
@@ -187,17 +199,9 @@ export function Live() {
 
   return (
     <div className="p-6 flex flex-col h-full relative">
-      {/* Header */}
-      <div className="flex items-center gap-3 mb-4">
-        <h1 className="text-xl font-bold text-bc-text flex items-center gap-2 shrink-0 pl-10 sm:pl-0">
-          Live
-          <span className="relative flex h-2.5 w-2.5">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-bc-error opacity-75" />
-            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-bc-error" />
-          </span>
-        </h1>
-        <span className="text-sm text-bc-muted hidden sm:inline">Real-time agent activity</span>
-        <span className="ml-auto flex items-center gap-2">
+      {/* Toolbar: status indicators + actions (title is in the top-bar chip) */}
+      <div className="flex items-center justify-end mb-4">
+        <span className="flex items-center gap-2">
           {/* SSE connection indicator */}
           <span className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-[11px] font-mono ${connected ? "bg-bc-success/10 text-bc-success" : reconnecting ? "bg-bc-warning/10 text-bc-warning" : "bg-bc-error/10 text-bc-error"}`} title={sseTooltip}>
             <span className={`inline-flex h-1.5 w-1.5 rounded-full ${sseDotColor}${reconnecting ? " animate-pulse" : ""}`} />

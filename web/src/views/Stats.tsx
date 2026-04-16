@@ -213,9 +213,8 @@ export function Stats() {
 
   return (
     <div className="p-6 space-y-4">
-      {/* Header + time range */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-lg font-semibold">System Metrics</h1>
+      {/* Time range selector (title lives in the top-bar chip) */}
+      <div className="flex items-center justify-end">
         <div className="flex gap-1">
           {RANGES.map((r, i) => (
             <button key={r.label} type="button" onClick={() => setRange(i)}

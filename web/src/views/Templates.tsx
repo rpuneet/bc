@@ -632,8 +632,6 @@ function TemplateRow({
 // ─── Main export ─────────────────────────────────────────────────────────────
 
 export function Templates() {
-  useHeaderSlot({ title: <TabHeaderTitle>Templates</TabHeaderTitle> });
-
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
   const [search, setSearch] = useState("");
 
@@ -645,6 +643,16 @@ export function Templates() {
     refresh,
     timedOut,
   } = usePolling(fetcher, 30000);
+
+  useHeaderSlot({
+    title: <TabHeaderTitle>Templates</TabHeaderTitle>,
+    actions:
+      templates !== null ? (
+        <span className="text-[11px] text-bc-muted tabular-nums">
+          {templates.length}
+        </span>
+      ) : undefined,
+  });
 
   const filteredTemplates = templates
     ? templates.filter(
@@ -671,16 +679,6 @@ export function Templates() {
   // List view
   return (
     <div className="p-6 space-y-4">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <h1 className="text-xl font-bold text-bc-text">Templates</h1>
-          {templates !== null && (
-            <span className="text-sm text-bc-muted">{templates.length}</span>
-          )}
-        </div>
-      </div>
-
       {/* Search */}
       <SearchInput
         value={search}
