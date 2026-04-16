@@ -25,14 +25,14 @@
 # Top-level
 .PHONY: build build-local build-docker test lint fmt vet check clean deps release install
 # Go
-.PHONY: build-local-bc build-local-tui-bundle test-go test-go-fast lint-go fmt-go vet-go coverage-go bench-go deps-go check-go scan-go
+.PHONY: build-local-bc build-local-tui-bundle test-go test-go-race test-go-fast lint-go fmt-go vet-go coverage-go bench-go deps-go check-go scan-go
 .PHONY: release-local-bc install-local-bc
 # Docker
 .PHONY: build-docker-daemon build-docker-db build-docker-bcdb
 .PHONY: build-docker-agent-base build-docker-agent build-docker-agents build-docker-agent-infra build-docker-playwright stop-docker-playwright run-docker-playwright
 # TS
 .PHONY: build-local-tui build-local-web build-local-landing
-.PHONY: test-ts test-tui test-web test-web-e2e test-landing
+.PHONY: test-ts test-tui test-web test-web-unit test-web-e2e test-landing
 .PHONY: lint-ts lint-tui lint-web lint-landing
 .PHONY: fmt-ts fmt-tui fmt-web fmt-landing
 .PHONY: vet-ts vet-tui vet-web vet-landing
@@ -193,6 +193,8 @@ run-docker-playwright: stop-docker-playwright ## Run Playwright MCP container (V
 test-go: ## Run Go tests with race detector
 	$(GO) test -race ./...
 
+test-go-race: test-go ## Alias for test-go (always uses -race)
+
 test-go-fast: ## Run Go tests excluding slow packages
 	# NOTE: Keep SLOW list in sync with .github/workflows/ci.yml "Run fast tests" step
 	$(GO) test -race $$($(GO) list ./... | grep -v -F "$$(printf 'github.com/gh-curious-otter/bc/pkg/tmux\ngithub.com/gh-curious-otter/bc/pkg/secret\ngithub.com/gh-curious-otter/bc/pkg/doctor\ngithub.com/gh-curious-otter/bc/internal/cmd')")
@@ -204,6 +206,8 @@ test-tui: ## Run TUI tests
 
 test-web: ## Run web UI tests
 	cd web && bun install && bun run test
+
+test-web-unit: test-web ## Alias for test-web (vitest unit suite)
 
 test-web-e2e: ## Run web e2e tests (needs running bcd)
 	cd web && bunx playwright test --config=e2e/playwright.config.ts
