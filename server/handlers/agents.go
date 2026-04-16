@@ -380,7 +380,7 @@ func (h *AgentHandler) list(w http.ResponseWriter, r *http.Request) {
 		dto.Template = req.Template
 		// Apply template: write CLAUDE.md and .mcp.json to the agent's worktree.
 		if req.Template != "" && h.tmplStore != nil {
-			if applyErr := h.applyTemplate(a, req.Template, req.Avatar); applyErr != nil {
+			if applyErr := h.applyTemplate(svc, a, req.Template, req.Avatar); applyErr != nil {
 				log.Warn("template apply failed", "agent", a.Name, "template", req.Template, "error", applyErr)
 			}
 		}
@@ -601,7 +601,7 @@ func (h *AgentHandler) byName(w http.ResponseWriter, r *http.Request) {
 		// Stop fires at end of every turn (agent goes back to ❯ prompt).
 		// SessionEnd fires when the Claude Code process exits.
 		if payload.Event == agent.HookStop || payload.Event == agent.HookSessionEnd {
-			go h.maybeRalphLoop(name)
+			go h.maybeRalphLoop(h.resolveSvc(r), name)
 		}
 
 		writeJSON(w, http.StatusOK, map[string]any{"ok": true})
@@ -1102,7 +1102,8 @@ func (h *AgentHandler) streamOutput(w http.ResponseWriter, r *http.Request, name
 
 // applyTemplate writes template files (CLAUDE.md and .mcp.json) to the agent's
 // worktree. Called after successful agent creation when a template name is provided.
-func (h *AgentHandler) applyTemplate(a *agent.Agent, tmplName string, _ *avatarDTO) error {
+// svc is the per-request resolved agent service used for worktree-path fallback.
+func (h *AgentHandler) applyTemplate(svc *agent.AgentService, a *agent.Agent, tmplName string, _ *avatarDTO) error {
 	tmpl, prompt, err := h.tmplStore.Get(tmplName)
 	if err != nil {
 		return fmt.Errorf("load template %q: %w", tmplName, err)
@@ -1110,8 +1111,8 @@ func (h *AgentHandler) applyTemplate(a *agent.Agent, tmplName string, _ *avatarD
 
 	// Determine worktree path: prefer stored WorktreeDir, fall back to computed.
 	wtDir := a.WorktreeDir
-	if wtDir == "" {
-		wtDir = h.svc.Manager().WorktreePath(a.Name)
+	if wtDir == "" && svc != nil {
+		wtDir = svc.Manager().WorktreePath(a.Name)
 	}
 	if wtDir == "" {
 		return fmt.Errorf("worktree path not available for agent %q", a.Name)
@@ -1532,10 +1533,16 @@ func (h *AgentHandler) putLoop(w http.ResponseWriter, r *http.Request, agentName
 }
 
 // maybeRalphLoop checks if the agent has a loop enabled and sends the prompt.
-// Called asynchronously after a stop/session-end hook.
-func (h *AgentHandler) maybeRalphLoop(agentName string) {
+// Called asynchronously after a stop/session-end hook. svc is the per-request
+// resolved agent service captured at the hook call site (Track A: must not
+// use h.svc closure, which is scoped to the launch-time workspace).
+func (h *AgentHandler) maybeRalphLoop(svc *agent.AgentService, agentName string) {
 	cfg := h.readLoop(agentName)
 	if !cfg.Enabled || strings.TrimSpace(cfg.Prompt) == "" {
+		return
+	}
+	if svc == nil {
+		log.Warn("ralph loop: no agent service resolved", "agent", agentName)
 		return
 	}
 
@@ -1543,7 +1550,7 @@ func (h *AgentHandler) maybeRalphLoop(agentName string) {
 	time.Sleep(3 * time.Second)
 
 	ctx := context.Background()
-	if err := h.svc.Send(ctx, agentName, cfg.Prompt); err != nil {
+	if err := svc.Send(ctx, agentName, cfg.Prompt); err != nil {
 		log.Warn("ralph loop: send failed", "agent", agentName, "error", err)
 		return
 	}

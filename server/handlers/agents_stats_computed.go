@@ -66,8 +66,10 @@ func (h *AgentHandler) agentComputedStats(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	svc := h.resolveSvc(r)
+
 	// Compute disk usage from the agent's worktree regardless of events.
-	wtPath := h.svc.Manager().WorktreePath(name)
+	wtPath := svc.Manager().WorktreePath(name)
 	var diskBytes int64
 	if wtPath != "" {
 		_ = filepath.Walk(wtPath, func(_ string, info os.FileInfo, err error) error {
@@ -195,7 +197,7 @@ func (h *AgentHandler) agentComputedStats(w http.ResponseWriter, r *http.Request
 		}
 		// If no results, try common worktree-prefixed name patterns
 		if inputTokens == 0 && outputTokens == 0 {
-			wtPath := h.svc.Manager().WorktreePath(name)
+			wtPath := svc.Manager().WorktreePath(name)
 			if wtPath != "" {
 				// Extract the worktree directory name (e.g. "bc-trade-clever-urial")
 				wtDir := filepath.Base(wtPath)
@@ -211,7 +213,7 @@ func (h *AgentHandler) agentComputedStats(w http.ResponseWriter, r *http.Request
 	}
 
 	// Live CPU/mem from ps aux — fallback when TimescaleDB is unavailable.
-	cpuPercent, memUsedBytes := liveAgentCPUMem(r.Context(), name, h.svc)
+	cpuPercent, memUsedBytes := liveAgentCPUMem(r.Context(), name, svc)
 
 	networkNote := "Network tracking requires container runtime"
 	if webCalls > 0 {
