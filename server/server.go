@@ -82,6 +82,13 @@ type Services struct {
 	WS            *workspace.Workspace
 	Gateway       *gateway.Manager
 	Notify        *notify.Service
+	// Registry is the global workspace registry (~/.bc/workspaces.json).
+	// Populated when bcd runs; exposed so the /api/workspaces handler can
+	// list / add / activate entries.
+	Registry *workspace.Registry
+	// WorkspaceManager lazy-loads per-workspace services for scoped routes
+	// at /api/workspaces/{id}/... — may be nil in tests.
+	WorkspaceManager *WorkspaceManager
 }
 
 // Server is the bcd HTTP server.
@@ -255,6 +262,9 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 		}
 		gh.Register(mux)
 	}
+	if svc.Registry != nil {
+		handlers.NewWorkspacesHandler(svc.Registry, svc.Agents).Register(mux)
+	}
 	if svc.WS != nil {
 		handlers.NewRolesHandler(svc.WS).Register(mux)
 		handlers.NewWorkspaceHandler(svc.Agents, svc.WS).Register(mux)
@@ -329,8 +339,14 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 	}
 
 	// Middleware chain (outermost runs first):
-	// RateLimit → APIKeyAuth → RequestID → RequestLogger → Recovery → Gzip → MaxBodySize → CORS → mux
+	// RateLimit → APIKeyAuth → RequestID → RequestLogger → Recovery → Gzip → MaxBodySize → CORS → WorkspaceScope → mux
+	//
+	// WorkspaceScope sits innermost so it can rewrite the request URL
+	// before the mux routes it to a handler. That lets a client hit
+	// /api/workspaces/{id}/agents and have it dispatch to the registered
+	// /api/agents handler once {id} is the active workspace.
 	var handler http.Handler = mux
+	handler = WorkspaceScope(handler, svc.WorkspaceManager)
 	if cfg.CORS {
 		origin := cfg.CORSOrigin
 		if origin == "" {

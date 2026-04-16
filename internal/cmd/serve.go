@@ -51,6 +51,30 @@ func RunServer(addr, wsRoot, corsOrigin, apiKey string) error {
 		}
 	}
 
+	// Multi-workspace registry: load (or create) the global registry at
+	// ~/.bc/workspaces.json, auto-register the workspace bcd was booted
+	// against, and mark it active so legacy /api/ routes resolve correctly.
+	// Errors here are non-fatal — single-workspace operation continues.
+	registry, regErr := bcworkspace.LoadRegistry()
+	if regErr != nil {
+		log.Warn("workspace registry unavailable — multi-workspace routes disabled", "error", regErr)
+		registry = nil
+	}
+	if registry != nil {
+		if rErr := registry.RegisterWithAlias(ws.RootDir, ws.Name(), ""); rErr != nil {
+			log.Warn("workspace registry: register current failed", "error", rErr)
+		}
+		// Promote to active if no active set yet.
+		if registry.GetActive() == nil {
+			if sErr := registry.SetActive(ws.RootDir); sErr != nil {
+				log.Warn("workspace registry: set active failed", "error", sErr)
+			}
+		}
+		if sErr := registry.Save(); sErr != nil {
+			log.Warn("workspace registry: save failed", "error", sErr)
+		}
+	}
+
 	// Set up shared database connection for all stores.
 	// Settings.json storage config is the source of truth; DATABASE_URL env var overrides for Docker.
 	var storageCfg *bcdb.StorageSettings
@@ -343,6 +367,38 @@ func RunServer(addr, wsRoot, corsOrigin, apiKey string) error {
 		EventWriter:   eventWriter,
 		WS:            ws,
 		Gateway:       gwManager,
+		Registry:      registry,
+	}
+
+	// Per-workspace services manager. The factory is intentionally minimal
+	// right now: it returns a bundle whose flat Services mirrors the active
+	// workspace's (since only the active workspace has live handlers in
+	// this phase). Expanding per-workspace factory wiring is a follow-up;
+	// today this gives us the registry-backed URL surface without
+	// duplicating the heavy initialization in RunServer.
+	wsMgr := server.NewWorkspaceManager(registry, func(ctx context.Context, w *bcworkspace.Workspace) (*server.WorkspaceServices, error) {
+		// For the active workspace we hand back the same flat Services
+		// that was built above so scoped URL rewrites reach live
+		// handlers. For any other workspace the scope middleware returns
+		// 501 until full per-workspace dispatch lands.
+		if w.RootDir == ws.RootDir {
+			return &server.WorkspaceServices{
+				Services:  svc,
+				Workspace: w,
+			}, nil
+		}
+		return &server.WorkspaceServices{Workspace: w}, nil
+	})
+	svc.WorkspaceManager = wsMgr
+	// Eager-load the active workspace so WorkspaceManager.Get(activeID)
+	// returns a handle immediately. Failure here is non-fatal — the
+	// middleware falls back to lazy load.
+	if registry != nil {
+		if _, loadErr := wsMgr.LoadActive(ctx); loadErr != nil {
+			log.Warn("workspace manager: eager load active failed", "error", loadErr)
+		}
+		wsMgr.StartEvictionLoop(ctx)
+		defer wsMgr.Close() //nolint:errcheck // best-effort
 	}
 
 	cfg := server.DefaultConfig()
