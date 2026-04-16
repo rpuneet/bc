@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -75,10 +76,23 @@ func runMigrateRuntime(cmd *cobra.Command, _ []string) error {
 // MigrateAllWorkspaceRuntimes walks the global registry and migrates each
 // workspace's runtime state to ~/.bc/workspaces/<id>/. Returns one result
 // per registered workspace.
+//
+// Pre-flight: stale registry entries (project Path no longer on disk) are
+// pruned before iteration. Without this, tests that created and cleaned
+// up tmp projects leave phantom entries behind; walking them caused the
+// "creates 11,698 junk dirs in ~/.bc/workspaces/" incident during the
+// M11 rollout.
 func MigrateAllWorkspaceRuntimes(_ context.Context) ([]WorkspaceRuntimeMigrationResult, error) {
 	reg, err := workspace.LoadRegistry()
 	if err != nil {
 		return nil, fmt.Errorf("load registry: %w", err)
+	}
+	if pruned := reg.PruneStalePaths(); pruned > 0 {
+		if saveErr := reg.Save(); saveErr != nil {
+			log.Warn("failed to persist pruned registry", "error", saveErr)
+		} else {
+			log.Info("pruned stale registry entries before migration", "removed", pruned)
+		}
 	}
 	entries := reg.List()
 	results := make([]WorkspaceRuntimeMigrationResult, 0, len(entries))
@@ -458,9 +472,77 @@ func RuntimeMigrationAlreadyRan() bool {
 	return err == nil
 }
 
+// isDefaultBCHome reports whether BCHome() resolves to the canonical
+// $HOME/.bc path. When BC_HOME is set to any other value we treat the
+// process as sandboxed (tests, integration fixtures, custom installs)
+// and decline to run the auto-migration. This prevents the M11 boot
+// hook from walking a fresh tmpdir registry or — worse — the host's
+// real registry while the test's BC_HOME points elsewhere.
+func isDefaultBCHome() bool {
+	bc, err := workspace.BCHome()
+	if err != nil {
+		return false
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return false
+	}
+	want := filepath.Join(home, ".bc")
+	absBC, errBC := filepath.Abs(bc)
+	absWant, errWant := filepath.Abs(want)
+	if errBC != nil || errWant != nil {
+		return false
+	}
+	return absBC == absWant
+}
+
+// snapshotDir records every regular file under root with its size.
+// Used before and after a move to spot-check that no bytes disappeared.
+// Returns a map from relative path → size in bytes.
+func snapshotDir(root string) (map[string]int64, error) {
+	snap := map[string]int64{}
+	err := filepath.WalkDir(root, func(p string, d fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if d.IsDir() {
+			return nil
+		}
+		info, err := d.Info()
+		if err != nil {
+			return err
+		}
+		rel, err := filepath.Rel(root, p)
+		if err != nil {
+			return err
+		}
+		snap[rel] = info.Size()
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return snap, nil
+}
+
 // MaybeRunRuntimeMigration runs the migration when it has never run
 // before on this machine. Intended for invocation at bcd startup.
+//
+// Guards (any of these skip the migration):
+//   - BC_SKIP_MIGRATION env var set to a non-empty value (explicit opt-out)
+//   - BC_HOME points anywhere other than $HOME/.bc (test sandbox, custom
+//     install) — the migration is a production-only one-shot and
+//     should never run against an isolated BC_HOME. Callers that
+//     genuinely want to migrate a custom BC_HOME must invoke
+//     `bc workspace migrate-runtime` explicitly.
+//   - The sentinel marker ~/.bc/.migrated-runtime-v1 already exists.
 func MaybeRunRuntimeMigration(ctx context.Context) {
+	if os.Getenv("BC_SKIP_MIGRATION") != "" {
+		return
+	}
+	if !isDefaultBCHome() {
+		return
+	}
 	if RuntimeMigrationAlreadyRan() {
 		return
 	}

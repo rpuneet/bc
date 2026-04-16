@@ -1,8 +1,6 @@
 package workspace
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -21,9 +19,10 @@ func BCHome() (string, error) {
 	return filepath.Join(home, ".bc"), nil
 }
 
-// GlobalStateDir returns the state directory for a workspace.
-// Path: ~/.bc/workspaces/<workspace-id>/
-// The workspace ID is the first 6 hex chars of SHA256(absRootDir).
+// GlobalStateDir returns the state directory for a workspace at
+// ~/.bc/workspaces/<workspace-id>/, where the ID is the 12-char sha256
+// prefix produced by ComputeWorkspaceID. Matches RegistryEntry.DataDir so
+// the migration and the registry agree on a single path.
 // Respects BC_STATE_DIR env var override.
 func GlobalStateDir(rootDir string) (string, error) {
 	if env := os.Getenv("BC_STATE_DIR"); env != "" {
@@ -40,15 +39,8 @@ func GlobalStateDir(rootDir string) (string, error) {
 		return "", err
 	}
 
-	id := workspaceID(absRoot)
-	return filepath.Join(bcHome, "workspaces", id), nil
-}
-
-// workspaceID returns a short hash of the workspace root path.
-// Uses first 6 hex chars of SHA256 — same format as existing wsID().
-func workspaceID(absRoot string) string {
-	h := sha256.Sum256([]byte(absRoot))
-	return hex.EncodeToString(h[:3]) // 6 hex chars
+	id := ComputeWorkspaceID(absRoot)
+	return filepath.Join(bcHome, globalWorkspacesDirName, id), nil
 }
 
 // EnsureBCHome creates the global ~/.bc directory structure if it doesn't exist.

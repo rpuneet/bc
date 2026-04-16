@@ -83,16 +83,20 @@ func ComputeWorkspaceID(path string) string {
 	return hex.EncodeToString(sum[:])[:registryIDLength]
 }
 
-// GlobalDir returns the path to ~/.bc/.
+// GlobalDir returns the path to ~/.bc/. Honors BC_HOME so test isolation
+// (or power-user overrides) route every registry read/write through the
+// same sandbox — previously this ignored BC_HOME and always read the
+// host's real registry, which let tests corrupt production state.
 func GlobalDir() string {
-	home, err := os.UserHomeDir()
+	home, err := BCHome()
 	if err != nil {
 		return ""
 	}
-	return filepath.Join(home, ".bc")
+	return home
 }
 
-// RegistryPath returns the path to ~/.bc/workspaces.json.
+// RegistryPath returns the path to ~/.bc/workspaces.json (BC_HOME-aware
+// via GlobalDir).
 func RegistryPath() string {
 	return filepath.Join(GlobalDir(), "workspaces.json")
 }
@@ -317,6 +321,36 @@ func (r *Registry) Touch(identifier string) {
 			return
 		}
 	}
+}
+
+// PruneStalePaths removes entries whose project directory no longer
+// exists on disk — e.g. test tmpdirs that the caller created via
+// t.TempDir() and that have since been cleaned up. Unlike Prune(), this
+// does not look at .bc/ or the global state dir; it only checks that
+// the root Path itself is still a directory. Returns the count removed.
+//
+// Callers should invoke this before performing batch operations against
+// the registry (like the M11 runtime migration) to avoid acting on
+// phantom entries.
+func (r *Registry) PruneStalePaths() int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	pruned := 0
+	valid := make([]RegistryEntry, 0, len(r.Workspaces))
+	for _, w := range r.Workspaces {
+		if w.Path == "" {
+			pruned++
+			continue
+		}
+		info, err := os.Stat(w.Path)
+		if err != nil || !info.IsDir() {
+			pruned++
+			continue
+		}
+		valid = append(valid, w)
+	}
+	r.Workspaces = valid
+	return pruned
 }
 
 // Prune removes entries where the workspace no longer exists on disk.

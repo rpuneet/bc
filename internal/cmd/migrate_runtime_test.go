@@ -293,3 +293,107 @@ func TestMaybeRunRuntimeMigration_MarkerSkipsSecondRun(t *testing.T) {
 		t.Errorf("legacy .bc/ was touched despite marker: %v", err)
 	}
 }
+
+// TestMaybeRunRuntimeMigration_SkipsWhenBCHomeIsSandboxed verifies that
+// MaybeRunRuntimeMigration refuses to run when BC_HOME resolves to
+// anything other than the user's default $HOME/.bc. Without this guard,
+// any test that boots bcd would walk the host's real registry and
+// corrupt production state (the M11e incident).
+func TestMaybeRunRuntimeMigration_SkipsWhenBCHomeIsSandboxed(t *testing.T) {
+	bcHome := filepath.Join(t.TempDir(), "bc-home")
+	t.Setenv("BC_HOME", bcHome)
+
+	projectDir := filepath.Join(t.TempDir(), "project")
+	if err := os.MkdirAll(projectDir, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	seedLegacyWorkspace(t, projectDir)
+
+	// No marker present, no BC_SKIP_MIGRATION set — only the BC_HOME
+	// guard should suppress the run.
+	MaybeRunRuntimeMigration(context.Background())
+
+	if _, err := os.Stat(filepath.Join(projectDir, ".bc")); err != nil {
+		t.Errorf("legacy .bc/ was touched under sandboxed BC_HOME: %v", err)
+	}
+	if RuntimeMigrationAlreadyRan() {
+		t.Error("marker was written despite guard — migration ran when it shouldn't")
+	}
+}
+
+// TestMaybeRunRuntimeMigration_RespectsSkipEnv verifies BC_SKIP_MIGRATION
+// is honored even when BC_HOME is the default. Point HOME at a tempdir
+// and BC_HOME at $HOME/.bc so the default-home guard would PASS —
+// BC_SKIP_MIGRATION is the only thing that should suppress the run.
+func TestMaybeRunRuntimeMigration_RespectsSkipEnv(t *testing.T) {
+	tmpHome := t.TempDir()
+	t.Setenv("HOME", tmpHome)
+	t.Setenv("BC_HOME", filepath.Join(tmpHome, ".bc"))
+	t.Setenv("BC_SKIP_MIGRATION", "1")
+
+	projectDir := filepath.Join(t.TempDir(), "project")
+	if err := os.MkdirAll(projectDir, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	seedLegacyWorkspace(t, projectDir)
+
+	MaybeRunRuntimeMigration(context.Background())
+
+	if _, err := os.Stat(filepath.Join(projectDir, ".bc")); err != nil {
+		t.Errorf("legacy .bc/ touched despite BC_SKIP_MIGRATION=1: %v", err)
+	}
+}
+
+// TestMigrateAllWorkspaceRuntimes_PrunesStalePathsFirst ensures that
+// registry entries whose project directory has vanished are removed
+// before iteration. Without this, phantom entries accumulated from
+// prior test runs caused the M11e incident (11,698 junk dirs created
+// under ~/.bc/workspaces/ from stale tmpdir paths).
+func TestMigrateAllWorkspaceRuntimes_PrunesStalePathsFirst(t *testing.T) {
+	bcHome := filepath.Join(t.TempDir(), "bc-home")
+	t.Setenv("BC_HOME", bcHome)
+	t.Setenv("HOME", t.TempDir()) // isolate registry path too
+
+	// Seed a registry with one live path and two phantom ones.
+	live := filepath.Join(t.TempDir(), "live-project")
+	if err := os.MkdirAll(live, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	seedLegacyWorkspace(t, live)
+
+	ghost1 := filepath.Join(t.TempDir(), "gone-1")
+	ghost2 := filepath.Join(t.TempDir(), "gone-2")
+	// Intentionally do not create these dirs — they represent
+	// registry entries whose t.TempDir() cleanup wiped the project.
+
+	reg, err := workspace.LoadRegistry()
+	if err != nil {
+		t.Fatal(err)
+	}
+	reg.Register(live, "live")
+	reg.Register(ghost1, "ghost-1")
+	reg.Register(ghost2, "ghost-2")
+	if saveErr := reg.Save(); saveErr != nil {
+		t.Fatal(saveErr)
+	}
+
+	results, err := MigrateAllWorkspaceRuntimes(context.Background())
+	if err != nil {
+		t.Fatalf("MigrateAllWorkspaceRuntimes: %v", err)
+	}
+
+	if len(results) != 1 {
+		t.Errorf("expected 1 result (only the live workspace), got %d: %+v", len(results), results)
+	}
+	for _, r := range results {
+		if r.ProjectPath == ghost1 || r.ProjectPath == ghost2 {
+			t.Errorf("ghost project migrated: %s", r.ProjectPath)
+		}
+	}
+
+	// Confirm the registry is now pruned.
+	reg2, _ := workspace.LoadRegistry()
+	if got := len(reg2.List()); got != 1 {
+		t.Errorf("registry not pruned: %d entries remain", got)
+	}
+}
