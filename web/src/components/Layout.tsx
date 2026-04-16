@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { NavLink, Outlet, useLocation } from "react-router-dom";
+import { NavLink, Outlet, useLocation, useMatch } from "react-router-dom";
 import { useTheme, THEME_LABELS } from "../context/ThemeContext";
 import { useMediaQuery } from "../hooks/useMediaQuery";
 import { CommandPalette } from "./CommandPalette";
@@ -10,6 +10,7 @@ import { SetupWizard } from "./channels/SetupWizard";
 import { Header } from "./Header";
 import { SidebarToggle, WorkspaceDropdown } from "./WorkspaceDropdown";
 import { HeaderSlotProvider, useHeaderSlotContext } from "../context/HeaderSlotContext";
+import { useWorkspace } from "../context/WorkspaceContext";
 
 const SIDEBAR_KEY = "bc-sidebar-collapsed";
 
@@ -305,15 +306,22 @@ function NavList({
 }) {
   const isIconOnly = collapsed && !isMobile;
   const showTree = !isIconOnly && channelsExpanded;
+  // All nav targets are workspace-scoped; prefix /w/<id>/ at render time.
+  // If there's no active workspace yet (initial load), the legacy
+  // /<tab> routes in App.tsx bounce to /w/<active>/<tab> via
+  // RedirectToActiveWorkspace, so clicks still reach the right place.
+  const { workspace } = useWorkspace();
+  const prefix = workspace ? `/w/${workspace.id}` : "";
 
   return (
     <>
       {items.map(({ to, label, icon }) => {
         const isChannels = label === "Channels";
+        const scopedTo = `${prefix}${to}`;
         return (
           <li key={to}>
             <NavLink
-              to={to}
+              to={scopedTo}
               end={!isChannels}
               title={isIconOnly ? label : undefined}
               className={({ isActive }) =>
@@ -359,13 +367,31 @@ export function Layout() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(readCollapsed);
 
+  // Keep channels tree expanded whenever the current URL is on the
+  // Channels tab — both the workspace-scoped /w/:wsId/channels and the
+  // legacy /channels bookmark redirect. useMatch trailing /* also
+  // handles deep links like /w/:wsId/channels/foo.
+  const scopedChannels = useMatch("/w/:wsId/channels/*");
+  const legacyChannels = useMatch("/channels/*");
+  const channelsExpanded = Boolean(scopedChannels || legacyChannels);
+
   const toggleCollapsed = useCallback(() => {
     setCollapsed((prev) => { const next = !prev; writeCollapsed(next); return next; });
   }, []);
 
   useEffect(() => { if (isMobile) setCollapsed(true); }, [isMobile]);
   useEffect(() => {
-    const match = NAV_ITEMS.find((item) => location.pathname.startsWith(item.to));
+    // Match against the trailing segment of the URL so /w/<id>/live and
+    // the legacy /live both produce the "Live" title.
+    const match = NAV_ITEMS.find((item) => {
+      const seg = item.to.replace(/^\//, "");
+      return (
+        location.pathname === item.to ||
+        location.pathname.startsWith(`${item.to}/`) ||
+        location.pathname.endsWith(`/${seg}`) ||
+        location.pathname.includes(`/${seg}/`)
+      );
+    });
     document.title = match ? `${match.label} \u2014 bc` : "bc";
   }, [location.pathname]);
   useEffect(() => { setMobileOpen(false); }, [location.pathname]);
@@ -436,7 +462,7 @@ export function Layout() {
             items={MAIN_NAV_ITEMS}
             collapsed={collapsed}
             isMobile={isMobile}
-            channelsExpanded={location.pathname.startsWith("/channels")}
+            channelsExpanded={channelsExpanded}
           />
           <li className={`my-1.5 ${collapsed && !isMobile ? "mx-2" : "mx-3"}`}>
             <div className="border-t border-bc-border/15" />
