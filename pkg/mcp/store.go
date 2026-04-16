@@ -209,23 +209,12 @@ func (s *Store) Remove(name string) error {
 // Returns an error if the server doesn't exist (writes never auto-create
 // the row — use Add for that).
 func (s *Store) UpdateEnv(name string, env map[string]string) error {
-	if s.pg != nil {
-		// Postgres backend — fall back to Add/Upsert-style replace.
-		cfg, err := s.pg.Get(name)
-		if err != nil {
-			return err
-		}
-		if cfg == nil {
-			return fmt.Errorf("mcp server %q not found", name)
-		}
-		cfg.Env = cleanEnv(env)
-		// Postgres store has no UpdateEnv yet; remove+add for now.
-		if err := s.pg.Remove(name); err != nil {
-			return fmt.Errorf("replace mcp %q: %w", name, err)
-		}
-		return s.pg.Add(cfg)
-	}
 	cleaned := cleanEnv(env)
+	if s.pg != nil {
+		// Atomic UPDATE — never remove+add (which could permanently
+		// destroy the row if the follow-up Add failed).
+		return s.pg.UpdateEnv(name, cleaned)
+	}
 	envJSON, err := json.Marshal(cleaned)
 	if err != nil {
 		return fmt.Errorf("marshal env: %w", err)
