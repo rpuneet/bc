@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { useParams, Link, useNavigate } from "react-router-dom";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useParams, Link, useLocation, useNavigate } from "react-router-dom";
 import { api } from "../api/client";
 import type { Agent, AgentConfig } from "../api/client";
 import { usePolling } from "../hooks/usePolling";
@@ -659,8 +659,14 @@ function ConfigTab({ agent }: { agent: Agent }) {
    ═══════════════════════════════════════════════════════════════════ */
 
 function CodeTabPlaceholder({ agent }: { agent: Agent }) {
-  // Defers to the top-level Code view for the actual rendering — navigate
-  // there with the agent's worktree pre-selected.
+  // Defers to the top-level Code view — build an absolute path from the
+  // current pathname so we land at /w/<ws>/code regardless of nesting.
+  const { pathname } = useLocation();
+  const match = /^(\/w\/[^/]+)\//.test(pathname)
+    ? pathname.split("/").slice(0, 3).join("/")
+    : "";
+  const target = `${match}/code?worktree=${encodeURIComponent(agent.name)}&view=diff`;
+
   return (
     <div className="flex-1 flex items-center justify-center p-6">
       <div className="max-w-md text-center space-y-4" style={{ fontFamily: MONO }}>
@@ -672,8 +678,7 @@ function CodeTabPlaceholder({ agent }: { agent: Agent }) {
           worktree selected to see its uncommitted changes against the main repo.
         </p>
         <Link
-          to={`../../code?worktree=${encodeURIComponent(agent.name)}&view=diff`}
-          relative="route"
+          to={target}
           className="inline-flex items-center gap-2 px-4 py-2 rounded-md border border-bc-accent/40 bg-bc-accent/10 text-bc-accent hover:bg-bc-accent/20 transition-colors text-[12px] font-semibold"
         >
           Open in Code view
@@ -712,7 +717,37 @@ function MetricsTab({ agent }: { agent: Agent }) {
 export function AgentDetail() {
   const { name } = useParams<{ name: string }>();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<Tab>("attach");
+  const location = useLocation();
+
+  // Derive active tab from URL sub-path: /agents/<name>/<tab>
+  // Defaults to "attach" when no sub-path is present.
+  const tabFromPath = useMemo<Tab>(() => {
+    const segments = location.pathname.split("/");
+    const last = segments[segments.length - 1];
+    const candidates: Tab[] = ["attach", "live", "config", "metrics", "code"];
+    return (candidates.includes(last as Tab) ? (last as Tab) : "attach");
+  }, [location.pathname]);
+  const [activeTab, setActiveTab] = useState<Tab>(tabFromPath);
+
+  // Keep state in sync when URL changes (browser back/forward, deep link)
+  useEffect(() => {
+    if (tabFromPath !== activeTab) setActiveTab(tabFromPath);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tabFromPath]);
+
+  // Clicking a tab updates both state and URL
+  const selectTab = useCallback(
+    (tab: Tab) => {
+      setActiveTab(tab);
+      if (!name) return;
+      const parts = location.pathname.split("/").filter(Boolean);
+      // parts = ["w", wsId, "agents", name, maybeTab]
+      const base = parts.slice(0, 4).join("/");
+      navigate(`/${base}/${tab}`, { replace: false });
+    },
+    [name, location.pathname, navigate],
+  );
+
   const [loopOpen, setLoopOpen] = useState(false);
   const { subscribe } = useWebSocket();
 
@@ -741,19 +776,19 @@ export function AgentDetail() {
 
       switch (e.key) {
         case "1":
-          setActiveTab("attach");
+          selectTab("attach");
           break;
         case "2":
-          setActiveTab("live");
+          selectTab("live");
           break;
         case "3":
-          setActiveTab("config");
+          selectTab("config");
           break;
         case "4":
-          setActiveTab("metrics");
+          selectTab("metrics");
           break;
         case "5":
-          setActiveTab("code");
+          selectTab("code");
           break;
         case "Escape":
           navigate("/agents");
@@ -894,7 +929,7 @@ export function AgentDetail() {
             return (
               <button
                 key={tab.key}
-                onClick={() => setActiveTab(tab.key)}
+                onClick={() => selectTab(tab.key)}
                 className={`relative px-3 py-1.5 text-[11px] font-semibold tracking-wide uppercase transition-colors shrink-0 ${
                   isActive
                     ? "text-bc-accent"

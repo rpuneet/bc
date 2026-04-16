@@ -177,8 +177,14 @@ function ScanPane({ onDone }: { onDone: () => void }) {
         setCandidates([]);
         return;
       }
-      const data = (await r.json()) as ScanCandidate[];
-      setCandidates(data);
+      // Backend envelopes the list as { candidates: [...] }
+      const raw = (await r.json()) as unknown;
+      const list = Array.isArray(raw)
+        ? (raw as ScanCandidate[])
+        : (raw && typeof raw === "object" && Array.isArray((raw as { candidates?: unknown }).candidates)
+          ? ((raw as { candidates: ScanCandidate[] }).candidates)
+          : []);
+      setCandidates(list);
     } catch (e) {
       setErr(e instanceof Error ? e.message : "scan failed");
     } finally {
