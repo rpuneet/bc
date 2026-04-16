@@ -5,7 +5,7 @@ import type { Agent, AgentConfig } from "../api/client";
 import { usePolling } from "../hooks/usePolling";
 import { useWebSocket } from "../hooks/useWebSocket";
 import { StatsTab as StatsTabComponent } from "../components/StatsTab";
-import { WebTerminal } from "../components/WebTerminal";
+import { WebTerminal, type TerminalConnectionState, type TerminalConnectionDetail } from "../components/WebTerminal";
 import { AgentIcon } from "../components/agent-ui";
 import { LoopIconButton, RalphLoopModal } from "../components/RalphLoopModal";
 import { MCPServerList } from "../components/shared/MCPServerList";
@@ -98,23 +98,208 @@ function MetaCell({
 
 /* ═══════════════════════════════════════════════════════════════════
    Tab 2 — Attach
-   Direct terminal access. No overlay, no pulsing dot.
+   Direct terminal access with a status overlay that explains
+   connection state: connecting / stopped / error, plus a Start/Retry
+   affordance. The overlay sits on top of the xterm surface so the
+   terminal instance (and its scrollback) is preserved across retries.
    ═══════════════════════════════════════════════════════════════════ */
+
+type AttachOverlayKind =
+  | "hidden"
+  | "connecting"
+  | "stopped"
+  | "error";
 
 function AttachTab({ agent }: { agent: Agent }) {
   const isStopped = agent.state === "stopped" || agent.state === "error";
 
-  if (isStopped) {
-    return (
-      <div className="flex-1 flex items-center justify-center text-bc-muted text-sm">
-        Agent is stopped. Start the agent to attach a terminal.
-      </div>
-    );
-  }
+  // WS lifecycle reported by WebTerminal. Seeded to "connecting" when
+  // we are about to (re)open the socket.
+  const [wsState, setWsState] = useState<TerminalConnectionState>("connecting");
+  const [wsDetail, setWsDetail] = useState<TerminalConnectionDetail | undefined>(undefined);
+  // Bumping this counter asks WebTerminal to close the current socket
+  // and open a fresh one — without rebuilding the xterm instance.
+  const [reconnectToken, setReconnectToken] = useState(0);
+  // Tracks an in-flight POST /start so the overlay can show progress.
+  const [starting, setStarting] = useState(false);
+  const [startError, setStartError] = useState<string | null>(null);
+
+  const onStateChange = useCallback(
+    (state: TerminalConnectionState, detail?: TerminalConnectionDetail) => {
+      setWsState(state);
+      setWsDetail(detail);
+    },
+    [],
+  );
+
+  const handleRetry = useCallback(() => {
+    setWsState("connecting");
+    setWsDetail(undefined);
+    setReconnectToken((t) => t + 1);
+  }, []);
+
+  const handleStart = useCallback(async () => {
+    setStarting(true);
+    setStartError(null);
+    try {
+      await api.startAgent(agent.name);
+      // Parent AgentDetail polls and will re-render once state flips to
+      // "running"; the WS will then connect on its own.
+      setWsState("connecting");
+    } catch (err) {
+      setStartError(err instanceof Error ? err.message : "Failed to start agent");
+    } finally {
+      setStarting(false);
+    }
+  }, [agent.name]);
+
+  // Compute which overlay variant (if any) to show.
+  const overlay: AttachOverlayKind = (() => {
+    if (isStopped) return "stopped";
+    if (wsState === "open") return "hidden";
+    if (wsState === "connecting") return "connecting";
+    // closed or error
+    return "error";
+  })();
 
   return (
     <div className="flex-1 min-h-0 relative" title="Click anywhere to focus the terminal">
-      <WebTerminal agentName={agent.name} />
+      {/* When the agent is stopped, we don't mount the terminal at all
+          — opening the WS would just 404. Start the agent to connect. */}
+      {!isStopped && (
+        <WebTerminal
+          agentName={agent.name}
+          reconnectToken={reconnectToken}
+          onConnectionStateChange={onStateChange}
+        />
+      )}
+      {overlay !== "hidden" && (
+        <AttachOverlay
+          kind={overlay}
+          agent={agent}
+          detail={wsDetail}
+          starting={starting}
+          startError={startError}
+          onStart={handleStart}
+          onRetry={handleRetry}
+        />
+      )}
+    </div>
+  );
+}
+
+interface AttachOverlayProps {
+  kind: Exclude<AttachOverlayKind, "hidden">;
+  agent: Agent;
+  detail?: TerminalConnectionDetail;
+  starting: boolean;
+  startError: string | null;
+  onStart: () => void;
+  onRetry: () => void;
+}
+
+function AttachOverlay({
+  kind,
+  agent,
+  detail,
+  starting,
+  startError,
+  onStart,
+  onRetry,
+}: AttachOverlayProps) {
+  // Derive the sibling "live" tab URL from the current path so the link
+  // works under workspace-scoped routes (/w/:wsId/agents/:name/...).
+  const location = useLocation();
+  const livePath = (() => {
+    const parts = location.pathname.split("/").filter(Boolean);
+    // Strip any trailing tab segment (attach/live/config/metrics/code)
+    const tabs = new Set(["attach", "live", "config", "metrics", "code"]);
+    const last = parts[parts.length - 1];
+    if (last !== undefined && tabs.has(last)) {
+      parts.pop();
+    }
+    return "/" + parts.concat("live").join("/");
+  })();
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      data-testid="attach-overlay"
+      data-state={kind}
+      className="absolute inset-0 z-10 flex items-center justify-center bg-bc-bg/70 backdrop-blur-sm"
+    >
+      <div
+        className="w-full max-w-[360px] rounded-lg border border-bc-border bg-bc-surface px-5 py-4 shadow-lg"
+        style={{ fontFamily: MONO }}
+      >
+        {kind === "connecting" && (
+          <div className="flex items-center gap-3">
+            <span
+              aria-hidden="true"
+              data-testid="attach-overlay-spinner"
+              className="inline-block h-3 w-3 rounded-full border-2 border-bc-accent/60 border-t-transparent animate-spin"
+            />
+            <span className="text-[12px] text-bc-text/90">
+              Connecting to {agent.name}
+              <span className="text-bc-muted">…</span>
+            </span>
+          </div>
+        )}
+
+        {kind === "stopped" && (
+          <div className="flex flex-col gap-3">
+            <div>
+              <p className="text-[12px] font-semibold text-bc-text">Agent is stopped</p>
+              <p className="mt-1 text-[11px] leading-relaxed text-bc-muted">
+                Start the agent to attach a live terminal.
+              </p>
+              {startError && (
+                <p className="mt-2 text-[11px] text-bc-error/90 break-words">{startError}</p>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={onStart}
+                disabled={starting}
+                className="px-3 py-1.5 rounded-md border border-bc-accent/50 bg-bc-accent/10 text-[11px] font-semibold text-bc-accent hover:bg-bc-accent/20 transition-colors disabled:opacity-40"
+              >
+                {starting ? "Starting…" : "Start agent"}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {kind === "error" && (
+          <div className="flex flex-col gap-3">
+            <div>
+              <p className="text-[12px] font-semibold text-bc-text">Connection lost</p>
+              <p className="mt-1 text-[11px] leading-relaxed text-bc-muted">
+                The terminal stream dropped.
+                {detail?.code ? ` (code ${String(detail.code)})` : ""}
+              </p>
+              {detail?.reason && (
+                <p className="mt-1 text-[11px] text-bc-muted/70 break-words">{detail.reason}</p>
+              )}
+            </div>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={onRetry}
+                className="px-3 py-1.5 rounded-md border border-bc-accent/50 bg-bc-accent/10 text-[11px] font-semibold text-bc-accent hover:bg-bc-accent/20 transition-colors"
+              >
+                Retry
+              </button>
+              <Link
+                to={livePath}
+                className="text-[11px] text-bc-accent/80 hover:text-bc-accent hover:underline"
+              >
+                View logs
+              </Link>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
