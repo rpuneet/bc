@@ -8,7 +8,11 @@ import { LoadingSkeleton } from "../components/LoadingSkeleton";
 import { EmptyState } from "../components/EmptyState";
 import { GatewayFeed } from "../components/channels/GatewayFeed";
 
+import { useHeaderSlot } from "../context/HeaderSlotContext";
+import { TabHeaderTitle } from "../components/Header";
 export function Channels() {
+  useHeaderSlot({ title: <TabHeaderTitle>Channels</TabHeaderTitle> });
+
   const { channelName: paramChannel } = useParams<{ channelName: string }>();
   const navigate = useNavigate();
 

@@ -14,6 +14,8 @@ import { LoadingSkeleton } from "../components/LoadingSkeleton";
 import { EmptyState } from "../components/EmptyState";
 import { Panel, Empty, fmtTime, fmtBytes, fmtTokens } from "../components/shared/stats-primitives";
 
+import { useHeaderSlot } from "../context/HeaderSlotContext";
+import { TabHeaderTitle } from "../components/Header";
 // ── Model Pricing ───────────────────────────────────────────────────────────────
 
 const MODEL_PRICING: Record<string, { input: number; output: number }> = {
@@ -83,6 +85,8 @@ type SortKey = "name" | "role" | "provider" | "state" | "cpu" | "mem" | "tokens"
 // ── Main ────────────────────────────────────────────────────────────────────────
 
 export function Stats() {
+  useHeaderSlot({ title: <TabHeaderTitle>Metrics</TabHeaderTitle> });
+
   const navigate = useNavigate();
   const [range, setRange] = useState(0);
   const [sortKey, setSortKey] = useState<SortKey>("cost");

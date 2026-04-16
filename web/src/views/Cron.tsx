@@ -5,6 +5,8 @@ import { usePolling } from "../hooks/usePolling";
 import { LoadingSkeleton } from "../components/LoadingSkeleton";
 import { EmptyState } from "../components/EmptyState";
 
+import { useHeaderSlot } from "../context/HeaderSlotContext";
+import { TabHeaderTitle } from "../components/Header";
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -609,6 +611,8 @@ function JobCard({
 // ---------------------------------------------------------------------------
 
 export function Cron() {
+  useHeaderSlot({ title: <TabHeaderTitle>Cron</TabHeaderTitle> });
+
   const fetcher = useCallback(() => api.listCron(), []);
   const anyRunning = (jobs: CronJob[] | null) =>
     jobs?.some((j) => j.running) ?? false;

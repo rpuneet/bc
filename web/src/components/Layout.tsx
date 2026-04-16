@@ -7,6 +7,9 @@ import { api } from "../api/client";
 import type { Channel, GatewayHealth, GatewayStatus, NotifySubscription } from "../api/client";
 import { channelPlatform } from "./channels/messageUtils";
 import { SetupWizard } from "./channels/SetupWizard";
+import { Header } from "./Header";
+import { SidebarToggle, WorkspaceDropdown } from "./WorkspaceDropdown";
+import { HeaderSlotProvider, useHeaderSlotContext } from "../context/HeaderSlotContext";
 
 const SIDEBAR_KEY = "bc-sidebar-collapsed";
 
@@ -452,10 +455,41 @@ export function Layout() {
         </div>
       </nav>
 
-      <main className="flex-1 overflow-auto bg-bc-bg">
-        <Outlet />
-      </main>
+      <HeaderSlotProvider>
+        <main className="flex-1 flex flex-col overflow-hidden bg-bc-bg">
+          <LayoutHeader collapsed={collapsed} onToggleCollapsed={toggleCollapsed} />
+          <div className="flex-1 overflow-auto">
+            <Outlet />
+          </div>
+        </main>
+      </HeaderSlotProvider>
       <CommandPalette />
     </div>
+  );
+}
+
+/* ── LayoutHeader ───────────────────────────────────────────────
+   Renders the shared Header with workspace dropdown + sidebar toggle
+   on the left, pulling per-page title/actions from HeaderSlotContext.
+──────────────────────────────────────────────────────────────── */
+function LayoutHeader({
+  collapsed,
+  onToggleCollapsed,
+}: {
+  collapsed: boolean;
+  onToggleCollapsed: () => void;
+}) {
+  const { slot } = useHeaderSlotContext();
+  return (
+    <Header
+      left={
+        <>
+          <SidebarToggle collapsed={collapsed} onToggle={onToggleCollapsed} />
+          <WorkspaceDropdown />
+        </>
+      }
+      center={slot.title}
+      actions={slot.actions}
+    />
   );
 }

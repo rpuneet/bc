@@ -5,6 +5,8 @@ import { usePolling } from "../hooks/usePolling";
 import { LoadingSkeleton } from "../components/LoadingSkeleton";
 import { EmptyState } from "../components/EmptyState";
 
+import { useHeaderSlot } from "../context/HeaderSlotContext";
+import { TabHeaderTitle } from "../components/Header";
 function timeAgo(dateStr: string): string {
   if (!dateStr) return "—";
   const now = Date.now();
@@ -349,6 +351,8 @@ function SecretCard({ secret, onChanged }: { secret: Secret; onChanged: () => vo
 // --- Main View ---
 
 export function Secrets() {
+  useHeaderSlot({ title: <TabHeaderTitle>Secrets</TabHeaderTitle> });
+
   const fetcher = useCallback(() => api.listSecrets(), []);
   const {
     data: secrets,

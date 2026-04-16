@@ -4,6 +4,8 @@ import { usePolling } from "../hooks/usePolling";
 import { LoadingSkeleton } from "../components/LoadingSkeleton";
 import { EmptyState } from "../components/EmptyState";
 
+import { useHeaderSlot } from "../context/HeaderSlotContext";
+import { TabHeaderTitle } from "../components/Header";
 type SaveStatus = "idle" | "saving" | "saved" | "error";
 
 const SECTION_ORDER = ["server", "storage", "runtime", "providers", "cron", "logs"];
@@ -260,6 +262,8 @@ function LogsSection({ data, onChange }: { data: Record<string, unknown>; onChan
 /* ------------------------------------------------------------------ */
 
 export function Settings() {
+  useHeaderSlot({ title: <TabHeaderTitle>Settings</TabHeaderTitle> });
+
   const fetcher = useCallback(() => api.getSettings(), []);
   const { data: config, loading, error, refresh, timedOut } = usePolling(fetcher, 30000);
 

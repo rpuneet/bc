@@ -11,6 +11,9 @@ import { InlineTerminal } from "../components/InlineTerminal";
 import { truncate } from "../utils/text";
 import { AgentIcon } from "../components/agent-ui";
 import { CreateAgentModal } from "../components/CreateAgentModal";
+import { useHeaderSlot } from "../context/HeaderSlotContext";
+import { TabHeaderTitle } from "../components/Header";
+import { MONO } from "../utils/typography";
 
 function KeyHint({ k, label }: { k: string; label: string }) {
   return (
@@ -218,6 +221,26 @@ export function Agents() {
   const [peekAgent, setPeekAgent] = useState<string | null>(null);
   const [stoppingAll, setStoppingAll] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
+
+  // Header slot: title + "Create agent" action
+  useHeaderSlot({
+    title: <TabHeaderTitle>Agents</TabHeaderTitle>,
+    actions: (
+      <>
+        <span className="text-[10px] text-bc-muted/40 tabular-nums" style={{ fontFamily: MONO }}>
+          {agents ? `${String(agents.length)} total` : ""}
+        </span>
+        <button
+          type="button"
+          onClick={() => setCreateOpen(true)}
+          className="px-3 py-1 rounded text-[11px] font-medium border border-bc-accent/40 bg-bc-accent/10 text-bc-accent hover:bg-bc-accent/20 transition-colors"
+          style={{ fontFamily: MONO }}
+        >
+          + New agent
+        </button>
+      </>
+    ),
+  });
 
   // Search + filter + bulk state (URL-synced where useful)
   const [search, setSearch] = useState(searchParams.get("q") ?? "");

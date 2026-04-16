@@ -5,6 +5,8 @@ import { usePolling } from "../hooks/usePolling";
 import { ChipList, SectionRule, ConfirmButton, SearchInput } from "../components/shared";
 import { MONO } from "../utils/typography";
 
+import { useHeaderSlot } from "../context/HeaderSlotContext";
+import { TabHeaderTitle } from "../components/Header";
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 interface Template {
@@ -630,6 +632,8 @@ function TemplateRow({
 // ─── Main export ─────────────────────────────────────────────────────────────
 
 export function Templates() {
+  useHeaderSlot({ title: <TabHeaderTitle>Templates</TabHeaderTitle> });
+
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
   const [search, setSearch] = useState("");
 

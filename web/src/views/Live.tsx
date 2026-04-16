@@ -11,9 +11,13 @@ import {
 } from "../components/live/liveHelpers";
 import { AgentCard, AgentDrillDown } from "../components/live/LiveRenderers";
 
+import { useHeaderSlot } from "../context/HeaderSlotContext";
+import { TabHeaderTitle } from "../components/Header";
 /* ── Live (Live Operations Center) ─────────────────────────────────── */
 
 export function Live() {
+  useHeaderSlot({ title: <TabHeaderTitle>Live</TabHeaderTitle> });
+
   const { activities, tasks, rawEventsRef, connected, reconnecting, eventCount } = useAgentActivity();
   const [agents, setAgents] = useState<Agent[]>([]);
   const [agentFilter, setAgentFilter] = useState("");
