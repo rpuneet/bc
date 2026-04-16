@@ -103,6 +103,43 @@ type Server struct {
 	addr       string
 }
 
+// NewWithManager creates a bcd server using the multi-workspace primitives.
+// It derives the launch-workspace Services bundle from mgr.Active() (for
+// registered handlers that still need closure wiring) and wires the manager
+// into the scope middleware. Phase M4: the canonical constructor going
+// forward. `New` remains for tests that assemble Services directly.
+func NewWithManager(cfg Config, mgr *WorkspaceManager, globals *Globals, staticFiles fs.FS) *Server {
+	if mgr == nil {
+		// Caller error — but surface quickly via a Services-only constructor.
+		return New(cfg, Services{}, nil, staticFiles)
+	}
+	active := mgr.Active()
+	var svc Services
+	var hub *ws.Hub
+	if active != nil {
+		svc = active.Services
+		svc.WorkspaceManager = mgr
+		hub = active.Hub
+	} else {
+		svc.WorkspaceManager = mgr
+	}
+	if globals != nil {
+		if svc.Registry == nil {
+			svc.Registry = globals.Registry
+		}
+		if svc.Deps == nil {
+			svc.Deps = globals.Deps
+		}
+		if svc.Stats == nil {
+			svc.Stats = globals.Stats
+		}
+		if cfg.Build.Commit == "" {
+			cfg.Build = globals.Build
+		}
+	}
+	return New(cfg, svc, hub, staticFiles)
+}
+
 // New creates a bcd server with the given config, services, SSE hub, and optional static files.
 func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 	if cfg.Addr == "" {

@@ -169,7 +169,10 @@ func RunServer(addr, wsRoot, corsOrigin, apiKey string) error {
 	// Rewrite agent hook settings to point at the actual bcd address.
 	updateAgentHookPorts(ws, cfg.Addr)
 
-	srv := server.New(cfg, launchSvc.Services, launchSvc.Hub, server.WebDist())
+	// Phase M4: use the manager-based constructor. The server no longer
+	// needs a flat Services bundle to function — everything is resolved
+	// per-request via the manager + context.
+	srv := server.NewWithManager(cfg, wsMgr, globals, server.WebDist())
 	return srv.Start(ctx)
 }
 
