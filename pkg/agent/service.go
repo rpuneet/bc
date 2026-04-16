@@ -146,9 +146,24 @@ func (s *AgentService) List(ctx context.Context, opts ListOptions) ([]*Agent, er
 }
 
 // Archive marks the named agent as archived, hiding it from default
-// List() results. Idempotent. Errors when the agent doesn't exist.
+// List() results. Idempotent. Errors when the agent doesn't exist, or
+// when the agent is still running — archiving a live agent leaves the
+// runtime in a confusing state, so callers must stop it first.
 func (s *AgentService) Archive(_ context.Context, name string) error {
+	a := s.manager.GetAgent(name)
+	if a == nil {
+		return fmt.Errorf("agent %q not found", name)
+	}
+	if a.ArchivedAt == nil && isRunningState(a.State) {
+		return fmt.Errorf("cannot archive agent %q while running (state=%s); stop it first", name, a.State)
+	}
 	return s.manager.SetArchived(name, true)
+}
+
+// isRunningState reports whether a state represents an agent that is
+// actively running (either idle/waiting, starting, or working).
+func isRunningState(state State) bool {
+	return state == StateIdle || state == StateStarting || state == StateWorking
 }
 
 // Unarchive clears the archived flag on the named agent.
