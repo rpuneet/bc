@@ -45,11 +45,12 @@ import (
 // reuses it for every workspace the WorkspaceManager materializes.
 type Globals struct {
 	Registry     *bcworkspace.Registry
-	Stats        *bcstats.Store    // nil when TSDB unavailable
-	Deps         *bcdeps.Registry  // optional dependencies registry (bc-db, etc.)
-	GlobalHub    *bcws.Hub         // fan-in SSE hub for cross-workspace /api/events
-	Templates    *bctemplate.Store // user-global template store (~/.bc/templates/) — wrapped per-workspace
-	SecretsVault *bcsecret.Store   // user-global secrets vault (~/.bc/secrets.vault) — shared across workspaces
+	Stats        *bcstats.Store     // nil when TSDB unavailable
+	Deps         *bcdeps.Registry   // optional dependencies registry (bc-db, etc.)
+	GlobalHub    *bcws.Hub          // fan-in SSE hub for cross-workspace /api/events
+	Templates    *bctemplate.Store  // user-global template store (~/.bc/templates/) — wrapped per-workspace
+	SecretsVault *bcsecret.Store    // user-global secrets vault (~/.bc/secrets.vault) — shared across workspaces
+	MCPGlobal    *bcmcp.GlobalStore // user-global MCP registry (~/.bc/mcps.json)
 	Build        BuildInfo
 }
 
@@ -272,6 +273,7 @@ func buildWorkspaceServicesFromWS(ctx context.Context, globals *Globals, ws *bcw
 		CronSched:    cronSched,
 		Secrets:      secretStore,
 		MCP:          mcpStore,
+		MCPGlobal:    globalMCPStore(globals),
 		Tools:        toolStore,
 		Templates:    tmplStore,
 		Gateway:      gwManager,
@@ -318,6 +320,30 @@ func buildWorkspaceServicesFromWS(ctx context.Context, globals *Globals, ws *bcw
 		return firstErr
 	}
 	return svc, nil
+}
+
+// globalMCPStore returns the Globals.MCPGlobal pointer, or nil when
+// globals itself is nil. Kept as a helper so the composite literal in
+// BuildWorkspaceServices stays compact.
+func globalMCPStore(g *Globals) *bcmcp.GlobalStore {
+	if g == nil {
+		return nil
+	}
+	return g.MCPGlobal
+}
+
+// MCPLayeredView returns a read-oriented composite of global + workspace
+// MCP registries for the given WorkspaceServices. Callers use it to
+// list / resolve servers with workspace-overrides winning. Returns nil
+// when neither layer is available.
+func (ws *WorkspaceServices) MCPLayeredView() *bcmcp.LayeredView {
+	if ws == nil {
+		return nil
+	}
+	if ws.MCPGlobal == nil && ws.MCP == nil {
+		return nil
+	}
+	return &bcmcp.LayeredView{Global: ws.MCPGlobal, Workspace: ws.MCP}
 }
 
 // newAgentManager mirrors the helper that used to live in serve.go.

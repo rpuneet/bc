@@ -14,6 +14,7 @@ import (
 	bcdb "github.com/rpuneet/bc/pkg/db"
 	bcdeps "github.com/rpuneet/bc/pkg/deps"
 	"github.com/rpuneet/bc/pkg/log"
+	bcmcp "github.com/rpuneet/bc/pkg/mcp"
 	bcsecret "github.com/rpuneet/bc/pkg/secret"
 	bcstats "github.com/rpuneet/bc/pkg/stats"
 	bctemplate "github.com/rpuneet/bc/pkg/template"
@@ -147,6 +148,16 @@ func RunServer(addr, wsRoot, corsOrigin, apiKey string) error {
 		defer gv.Close() //nolint:errcheck // best-effort
 	}
 
+	// User-global MCP registry at ~/.bc/mcps.json. Workspaces still have
+	// their own SQLite-backed overrides; handlers and agent spawn logic
+	// compose the two at resolve time.
+	var mcpGlobal *bcmcp.GlobalStore
+	if mcpPath, mpErr := bcworkspace.GlobalMCPConfig(); mpErr != nil {
+		log.Warn("global mcp config path unavailable", "error", mpErr)
+	} else {
+		mcpGlobal = bcmcp.NewGlobalStore(mcpPath)
+	}
+
 	globals := &server.Globals{
 		Registry:     registry,
 		Stats:        statsStore,
@@ -154,6 +165,7 @@ func RunServer(addr, wsRoot, corsOrigin, apiKey string) error {
 		GlobalHub:    globalHub,
 		Templates:    templatesStore,
 		SecretsVault: globalVault,
+		MCPGlobal:    mcpGlobal,
 		Build:        server.BuildInfo{Commit: commit, BuiltAt: date},
 	}
 
