@@ -35,10 +35,10 @@ type CostSummary struct {
 
 // ListOptions configures agent listing.
 type ListOptions struct {
-	Role             string // Filter by role (empty = all)
-	Status           string // Filter by status/state (empty = all)
-	IncludeArchived  bool   // When true, archived agents are included alongside live ones
-	OnlyArchived     bool   // When true, only archived agents are returned (overrides IncludeArchived)
+	Role            string // Filter by role (empty = all)
+	Status          string // Filter by status/state (empty = all)
+	IncludeArchived bool   // When true, archived agents are included alongside live ones
+	OnlyArchived    bool   // When true, only archived agents are returned (overrides IncludeArchived)
 }
 
 // CreateOptions holds parameters for creating an agent via the service.

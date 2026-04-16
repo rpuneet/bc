@@ -51,20 +51,20 @@ func init() {
 // else succeeded — the legacy .bc/ dir is NOT renamed to .bc.migrated in
 // that case, so the operator can inspect and retry.
 type WorkspaceRuntimeMigrationResult struct {
-	ID                   string
-	Name                 string
-	ProjectPath          string
-	DataDir              string
-	Skipped              bool
-	SkipReason           string
-	MovedFiles           int
-	MovedDirs            int
-	WorktreesMoved       int
-	WorktreesSkipped     []string
-	Errors               []string
-	SourceBytes          int64             // sum of file sizes we planned to move
-	DestBytes            int64             // sum of file sizes actually present at destination
-	IntegrityMismatches  []IntegrityFinding // per-file size deltas when source ≠ dest
+	ID                  string
+	Name                string
+	ProjectPath         string
+	DataDir             string
+	Skipped             bool
+	SkipReason          string
+	MovedFiles          int
+	MovedDirs           int
+	WorktreesMoved      int
+	WorktreesSkipped    []string
+	Errors              []string
+	SourceBytes         int64              // sum of file sizes we planned to move
+	DestBytes           int64              // sum of file sizes actually present at destination
+	IntegrityMismatches []IntegrityFinding // per-file size deltas when source ≠ dest
 }
 
 // IntegrityFinding records one file where the pre-move size did not match
@@ -704,19 +704,19 @@ func MaybeRunRuntimeMigration(ctx context.Context) {
 // printMigrationResult emits a human-readable summary of one workspace's
 // migration to cmd.OutOrStdout().
 func printMigrationResult(out interface{ Write([]byte) (int, error) }, r WorkspaceRuntimeMigrationResult) {
-	fmt.Fprintf(out, "%s (%s)\n", r.Name, r.ID)
-	fmt.Fprintf(out, "  project:  %s\n", r.ProjectPath)
-	fmt.Fprintf(out, "  data_dir: %s\n", r.DataDir)
+	_, _ = fmt.Fprintf(out, "%s (%s)\n", r.Name, r.ID)
+	_, _ = fmt.Fprintf(out, "  project:  %s\n", r.ProjectPath)
+	_, _ = fmt.Fprintf(out, "  data_dir: %s\n", r.DataDir)
 	if r.Skipped {
-		fmt.Fprintf(out, "  SKIPPED: %s\n", r.SkipReason)
+		_, _ = fmt.Fprintf(out, "  SKIPPED: %s\n", r.SkipReason)
 		return
 	}
-	fmt.Fprintf(out, "  moved: %d files, %d dirs, %d worktrees\n", r.MovedFiles, r.MovedDirs, r.WorktreesMoved)
+	_, _ = fmt.Fprintf(out, "  moved: %d files, %d dirs, %d worktrees\n", r.MovedFiles, r.MovedDirs, r.WorktreesMoved)
 	for _, s := range r.WorktreesSkipped {
-		fmt.Fprintf(out, "  worktree skipped: %s\n", s)
+		_, _ = fmt.Fprintf(out, "  worktree skipped: %s\n", s)
 	}
 	for _, e := range r.Errors {
-		fmt.Fprintf(out, "  error: %s\n", e)
+		_, _ = fmt.Fprintf(out, "  error: %s\n", e)
 	}
 }
 

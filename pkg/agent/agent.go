@@ -340,16 +340,16 @@ type AgentMemory struct {
 
 // Agent represents a running AI agent.
 type Agent struct {
-	UpdatedAt      time.Time    `json:"updated_at"`
-	StartedAt      time.Time    `json:"started_at"`
-	CreatedAt      time.Time    `json:"created_at"`
-	StoppedAt      *time.Time   `json:"stopped_at,omitempty"`
-	DeletedAt      *time.Time   `json:"deleted_at,omitempty"`
+	UpdatedAt time.Time  `json:"updated_at"`
+	StartedAt time.Time  `json:"started_at"`
+	CreatedAt time.Time  `json:"created_at"`
+	StoppedAt *time.Time `json:"stopped_at,omitempty"`
+	DeletedAt *time.Time `json:"deleted_at,omitempty"`
 	// ArchivedAt is set when the agent has been moved out of the
 	// default listing via POST /api/agents/{name}/archive. A non-nil
 	// value hides the agent from List() unless IncludeArchived is set.
 	// Archiving does NOT delete state; unarchive clears this field.
-	ArchivedAt *time.Time `json:"archived_at,omitempty"`
+	ArchivedAt     *time.Time   `json:"archived_at,omitempty"`
 	RolePrompt     *AgentMemory `json:"memory,omitempty"`
 	Workspace      string       `json:"workspace"`
 	ID             string       `json:"id"`
