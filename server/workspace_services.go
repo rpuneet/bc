@@ -27,8 +27,19 @@ import (
 	"sync"
 	"time"
 
+	"github.com/rpuneet/bc/pkg/agent"
+	"github.com/rpuneet/bc/pkg/cost"
+	"github.com/rpuneet/bc/pkg/cron"
+	"github.com/rpuneet/bc/pkg/events"
+	"github.com/rpuneet/bc/pkg/gateway"
 	"github.com/rpuneet/bc/pkg/log"
+	"github.com/rpuneet/bc/pkg/mcp"
+	"github.com/rpuneet/bc/pkg/notify"
+	"github.com/rpuneet/bc/pkg/secret"
+	"github.com/rpuneet/bc/pkg/template"
+	"github.com/rpuneet/bc/pkg/tool"
 	"github.com/rpuneet/bc/pkg/workspace"
+	"github.com/rpuneet/bc/server/ws"
 )
 
 // idleEvictionThreshold is how long a workspace must sit untouched before the
@@ -43,11 +54,45 @@ const evictionLoopInterval = 1 * time.Minute
 //
 // This struct is the unit of eviction: when the manager closes a workspace,
 // it calls Close which tears down every service that was opened via the
-// factory. The existing flat `Services` type (server.go) is embedded so
-// handler constructors that already accept *Services keep working.
+// factory. The existing flat `Services` type (server.go) is kept on the
+// struct so handler constructors that already accept *Services keep working
+// during the transitional phases M1-M4.
+//
+// Phase M1 widens the struct with named fields for every service a handler
+// might need. Phase M3 has handlers start reading them via
+// WorkspaceServicesFromContext. Phase M4 deletes the Services embed.
 type WorkspaceServices struct {
-	Services   Services // flat bundle passed to existing handler constructors
-	Workspace  *workspace.Workspace
+	Services  Services // legacy flat bundle passed to existing handler constructors
+	Workspace *workspace.Workspace
+
+	// Per-workspace stores/services (populated by the factory in serve.go).
+	// May be nil when the corresponding backend is unavailable in a given
+	// workspace (e.g. secret store if passphrase missing).
+	Agents       *agent.AgentService
+	AgentMgr     *agent.Manager
+	Channels     *notify.Service // bc currently co-locates channels in notify
+	Events       events.EventStore
+	EventWriter  *events.JSONLWriter
+	Costs        *cost.Store
+	CostImporter *cost.Importer
+	Cron         *cron.Store
+	CronSched    *cron.Scheduler
+	Templates    *template.Store
+	Secrets      *secret.Store
+	MCP          *mcp.Store
+	Tools        *tool.Store
+	Gateway      *gateway.Manager
+	Notify       *notify.Service
+	Hub          *ws.Hub
+
+	// cancel stops background goroutines started by the factory. It is
+	// optional — the closer is the ultimate resource-teardown call, but
+	// cancel is invoked first so goroutines can observe shutdown before
+	// their underlying stores close.
+	cancel context.CancelFunc
+	// wg lets Close wait for background goroutines to exit.
+	wg *sync.WaitGroup
+
 	closer     func() error
 	lastAccess time.Time
 	mu         sync.Mutex
@@ -68,15 +113,28 @@ func (ws *WorkspaceServices) LastAccess() time.Time {
 	return t
 }
 
-// Close invokes the factory-supplied closer. Safe to call multiple times.
+// Close stops background goroutines started by the factory, waits for them
+// to exit, then invokes the factory-supplied closer to tear down stores and
+// close DB connections. Safe to call multiple times.
 func (ws *WorkspaceServices) Close() error {
 	ws.mu.Lock()
-	defer ws.mu.Unlock()
-	if ws.closer == nil {
+	cancel := ws.cancel
+	wg := ws.wg
+	c := ws.closer
+	ws.cancel = nil
+	ws.wg = nil
+	ws.closer = nil
+	ws.mu.Unlock()
+
+	if cancel != nil {
+		cancel()
+	}
+	if wg != nil {
+		wg.Wait()
+	}
+	if c == nil {
 		return nil
 	}
-	c := ws.closer
-	ws.closer = nil
 	return c()
 }
 
