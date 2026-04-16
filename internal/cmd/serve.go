@@ -84,11 +84,17 @@ func RunServer(addr, wsRoot, corsOrigin, apiKey string) error {
 		log.Info("shared database ready", "driver", sharedDriver, "config_driver", ws.Config.Storage.Default)
 	}
 
-	pidPath := filepath.Join(ws.StateDir(), "bcd.pid")
-	if err := writePID(pidPath); err != nil {
+	pidPath, pidErr := bcworkspace.DaemonPidPath()
+	if pidErr != nil {
+		log.Warn("failed to resolve daemon pid path", "error", pidErr)
+	} else if err := writePID(pidPath); err != nil {
 		log.Warn("failed to write PID file", "path", pidPath, "error", err)
 	}
-	defer os.Remove(pidPath) //nolint:errcheck // best-effort cleanup
+	defer func() {
+		if pidPath != "" {
+			_ = os.Remove(pidPath)
+		}
+	}()
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()

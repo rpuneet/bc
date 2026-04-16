@@ -21,6 +21,8 @@ const (
 	globalCostsFileName     = "costs.db"
 	globalToolsFileName     = "tools.json"
 	globalWorkspacesDirName = "workspaces"
+	globalDaemonPidName     = "daemon.pid"
+	globalDaemonLogName     = "daemon.log"
 )
 
 // DataDir returns the per-workspace runtime directory for a given workspace
@@ -78,6 +80,20 @@ func GlobalCostsDB() (string, error) {
 // per-workspace override for this file.
 func GlobalToolsConfig() (string, error) {
 	return globalPath(globalToolsFileName)
+}
+
+// DaemonPidPath returns the path to the user-global bcd pid file
+// (~/.bc/daemon.pid). The bcd daemon is user-scoped — a single process
+// serves every workspace — so its pid lives outside any per-workspace
+// directory.
+func DaemonPidPath() (string, error) {
+	return globalPath(globalDaemonPidName)
+}
+
+// DaemonLogPath returns the path to the user-global bcd log file
+// (~/.bc/daemon.log). Same rationale as DaemonPidPath: one bcd, one log.
+func DaemonLogPath() (string, error) {
+	return globalPath(globalDaemonLogName)
 }
 
 // EnsureGlobalDir makes sure ~/.bc/ exists with 0750 permissions. It is

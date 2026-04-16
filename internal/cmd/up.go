@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 	"syscall"
 
@@ -101,16 +100,23 @@ func runUp(cmd *cobra.Command, _ []string) error {
 }
 
 // runUpDaemon starts bc up in the background by re-executing the bc binary.
-// Logs go to .bc/bcd.log, PID to .bc/bcd.pid.
+// Logs go to ~/.bc/daemon.log, PID to ~/.bc/daemon.pid.
 func runUpDaemon(wsRoot string) error {
-	ws, err := workspace.Load(wsRoot)
-	if err != nil {
+	if _, err := workspace.Load(wsRoot); err != nil {
 		return fmt.Errorf("cannot load workspace: %w", err)
 	}
 
+	if _, err := workspace.EnsureGlobalDir(); err != nil {
+		return fmt.Errorf("ensure bc home: %w", err)
+	}
+
+	pidPath, err := workspace.DaemonPidPath()
+	if err != nil {
+		return fmt.Errorf("resolve daemon pid path: %w", err)
+	}
+
 	// Check if already running
-	pidPath := filepath.Join(ws.StateDir(), "bcd.pid")
-	if pidData, readErr := os.ReadFile(pidPath); readErr == nil { //nolint:gosec // controlled workspace path
+	if pidData, readErr := os.ReadFile(pidPath); readErr == nil { //nolint:gosec // controlled home path
 		pid := strings.TrimSpace(string(pidData))
 		checkCmd := exec.CommandContext(context.Background(), "kill", "-0", pid) //nolint:gosec // trusted
 		if checkCmd.Run() == nil {
@@ -126,7 +132,10 @@ func runUpDaemon(wsRoot string) error {
 		return fmt.Errorf("cannot find bc binary: %w", err)
 	}
 
-	logPath := filepath.Join(ws.StateDir(), "bcd.log")
+	logPath, err := workspace.DaemonLogPath()
+	if err != nil {
+		return fmt.Errorf("resolve daemon log path: %w", err)
+	}
 
 	// Build args for foreground mode (without -d)
 	args := []string{
