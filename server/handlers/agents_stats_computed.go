@@ -1,20 +1,34 @@
 package handlers
 
 import (
-	"bufio"
-	"bytes"
 	"context"
 	"encoding/json"
 	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/rpuneet/bc/pkg/agent"
+	bcstats "github.com/rpuneet/bc/pkg/stats"
 )
+
+// computedStatsSampler is the shared TmuxSampler used by the computed-stats
+// endpoint. Shared instance keeps the "no per-process network stats"
+// warning to once per process, matching the behavior of the collector.
+var (
+	computedStatsSampler     *bcstats.TmuxSampler
+	computedStatsSamplerOnce sync.Once
+)
+
+func getComputedStatsSampler() *bcstats.TmuxSampler {
+	computedStatsSamplerOnce.Do(func() {
+		computedStatsSampler = bcstats.NewTmuxSampler(bcstats.DefaultTmuxProcRunner{})
+	})
+	return computedStatsSampler
+}
 
 // computedStatsResponse is the JSON payload returned by the computed stats endpoint.
 // All fields are computed from hook events in the SQLite event store — no TimescaleDB required.
@@ -225,10 +239,14 @@ func (h *AgentHandler) agentComputedStats(w http.ResponseWriter, r *http.Request
 	})
 }
 
-// liveAgentCPUMem samples CPU% and resident memory for the processes belonging
-// to a named agent. Uses tmux list-panes to find the pane PID, then walks the
-// process tree to find the actual claude/provider process.
-// Returns (cpuPercent, memUsedBytes).
+// liveAgentCPUMem samples CPU% and resident memory for the processes
+// belonging to a named agent. It delegates the PID-tree walk to
+// pkg/stats.TmuxSampler so the endpoint and the background collector
+// share one implementation.
+//
+// Returns (cpuPercent, memUsedBytes). Non-tmux agents (docker) return 0
+// from here — their live metrics are served from agent_stats rows
+// written by runContainerStatsCollector.
 func liveAgentCPUMem(ctx context.Context, name string, svc *agent.AgentService) (float64, int64) {
 	if svc == nil {
 		return 0, 0
@@ -248,95 +266,9 @@ func liveAgentCPUMem(ctx context.Context, name string, svc *agent.AgentService) 
 		sessionName = name
 	}
 
-	// Step 1: Get pane PID from tmux. Try the session name as-is first,
-	// then try the bc-prefixed variant (bc-<hash>-<name>).
-	var panePIDOut []byte
-	tmuxCmd := exec.CommandContext(ctx, "tmux", "list-panes", "-t", sessionName, "-F", "#{pane_pid}") //nolint:gosec
-	panePIDOut, tmuxErr := tmuxCmd.Output()
-	if tmuxErr != nil {
-		// Session name might be just the agent name; actual tmux session is bc-<hash>-<name>
-		// List all sessions and find the matching one
-		listCmd := exec.CommandContext(ctx, "tmux", "list-sessions", "-F", "#{session_name}") //nolint:gosec
-		listOut, listErr := listCmd.Output()
-		if listErr != nil {
-			return 0, 0
-		}
-		var fullSession string
-		for _, line := range strings.Split(strings.TrimSpace(string(listOut)), "\n") {
-			if strings.Contains(line, sessionName) {
-				fullSession = strings.TrimSpace(line)
-				break
-			}
-		}
-		if fullSession == "" {
-			return 0, 0
-		}
-		retryCmd := exec.CommandContext(ctx, "tmux", "list-panes", "-t", fullSession, "-F", "#{pane_pid}") //nolint:gosec
-		panePIDOut, tmuxErr = retryCmd.Output()
-		if tmuxErr != nil {
-			return 0, 0
-		}
-	}
-	panePIDStr := strings.TrimSpace(string(panePIDOut))
-	if panePIDStr == "" {
+	sample, err := getComputedStatsSampler().Sample(ctx, sessionName, name)
+	if err != nil {
 		return 0, 0
 	}
-
-	// Step 2: Find all child PIDs recursively (pane → shell → claude → subprocesses)
-	var allPIDs []string
-	allPIDs = append(allPIDs, panePIDStr)
-	// Walk up to 3 levels deep
-	for level := 0; level < 3; level++ {
-		var newPIDs []string
-		for _, pid := range allPIDs {
-			pgrepCmd := exec.CommandContext(ctx, "pgrep", "-P", pid) //nolint:gosec
-			pgrepOut, pgrepErr := pgrepCmd.Output()
-			if pgrepErr != nil {
-				continue
-			}
-			for _, line := range strings.Split(strings.TrimSpace(string(pgrepOut)), "\n") {
-				line = strings.TrimSpace(line)
-				if line != "" {
-					newPIDs = append(newPIDs, line)
-				}
-			}
-		}
-		if len(newPIDs) == 0 {
-			break
-		}
-		allPIDs = append(allPIDs, newPIDs...)
-	}
-
-	if len(allPIDs) <= 1 {
-		return 0, 0 // only the pane shell, no child processes
-	}
-
-	// Step 3: Get CPU% and RSS for all PIDs via ps
-	pidList := strings.Join(allPIDs, ",")
-	psCmd := exec.CommandContext(ctx, "ps", "-p", pidList, "-o", "pid,%cpu,rss") //nolint:gosec
-	psOut, psErr := psCmd.Output()
-	if psErr != nil {
-		return 0, 0
-	}
-
-	var totalCPU float64
-	var totalRSSKB int64
-
-	scanner := bufio.NewScanner(bytes.NewReader(psOut))
-	scanner.Scan() // skip header (PID %CPU RSS)
-	for scanner.Scan() {
-		fields := strings.Fields(scanner.Text())
-		if len(fields) < 3 {
-			continue
-		}
-		// Fields: PID %CPU RSS (in KB)
-		if cpu, parseErr := strconv.ParseFloat(fields[1], 64); parseErr == nil {
-			totalCPU += cpu
-		}
-		if rss, parseErr := strconv.ParseInt(fields[2], 10, 64); parseErr == nil {
-			totalRSSKB += rss
-		}
-	}
-
-	return totalCPU, totalRSSKB * 1024
+	return sample.CPUPercent, sample.MemBytes
 }
