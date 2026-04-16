@@ -12,14 +12,14 @@ type stubDep struct {
 	deprecated bool
 }
 
-func (s *stubDep) ID() string                                        { return s.id }
-func (s *stubDep) DisplayName() string                               { return s.id }
-func (s *stubDep) Description() string                               { return "stub" }
-func (s *stubDep) Status(_ context.Context) (State, error)           { return StateStopped, nil }
-func (s *stubDep) Start(_ context.Context) error                     { return nil }
-func (s *stubDep) Stop(_ context.Context) error                      { return nil }
-func (s *stubDep) Logs(_ context.Context, _ int) ([]string, error)   { return nil, nil }
-func (s *stubDep) Deprecated() bool                                  { return s.deprecated }
+func (s *stubDep) ID() string                                      { return s.id }
+func (s *stubDep) DisplayName() string                             { return s.id }
+func (s *stubDep) Description() string                             { return "stub" }
+func (s *stubDep) Status(_ context.Context) (State, error)         { return StateStopped, nil }
+func (s *stubDep) Start(_ context.Context) error                   { return nil }
+func (s *stubDep) Stop(_ context.Context) error                    { return nil }
+func (s *stubDep) Logs(_ context.Context, _ int) ([]string, error) { return nil, nil }
+func (s *stubDep) Deprecated() bool                                { return s.deprecated }
 
 func TestRegistryRegisterAndGet(t *testing.T) {
 	r := NewRegistry()
