@@ -9,7 +9,7 @@
  */
 
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import { Navigate, useLocation, useParams } from "react-router-dom";
+import { Navigate, Outlet, useLocation, useParams } from "react-router-dom";
 
 export interface WorkspaceSummary {
   id: string;
@@ -116,27 +116,26 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 }
 
 /**
- * ActiveWorkspaceGuard - Route element that:
+ * ActiveWorkspaceGuard - Route element used as a parent <Route element={...}>.
+ * Children routes are rendered via <Outlet />.
  *   1. Reads :wsId from URL params
- *   2. Validates it against the list
- *   3. Activates it server-side (fire-and-forget)
- *   4. Renders children via <Outlet /> (handled by caller)
+ *   2. Validates it against the workspace list
+ *   3. Activates it server-side (fire-and-forget, single trigger per wsId)
  *
- * If the wsId is unknown, redirects to /w (the picker).
+ * Unknown wsId redirects to /w (the picker) with a ?from= hint.
  */
-export function ActiveWorkspaceGuard({ children }: { children: ReactNode }) {
+export function ActiveWorkspaceGuard() {
   const { wsId } = useParams<{ wsId: string }>();
   const { workspaces, loading } = useWorkspace();
   const location = useLocation();
   const [activated, setActivated] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!wsId) return;
-    if (activated === wsId) return;
+    if (!wsId || activated === wsId) return;
     void activateWorkspace(wsId).then(() => setActivated(wsId));
   }, [wsId, activated]);
 
-  if (loading) return null;
+  if (loading) return <div className="p-6 text-bc-muted">Loading workspace...</div>;
   if (!wsId) return <Navigate to="/w" replace />;
 
   const match = workspaces.find((w) => w.id === wsId || w.alias === wsId);
@@ -144,7 +143,7 @@ export function ActiveWorkspaceGuard({ children }: { children: ReactNode }) {
     return <Navigate to={`/w?from=${encodeURIComponent(location.pathname)}`} replace />;
   }
 
-  return <>{children}</>;
+  return <Outlet />;
 }
 
 /**
@@ -155,11 +154,10 @@ export function RedirectToActiveWorkspace({ tab }: { tab: string }) {
   const { workspace, loading } = useWorkspace();
   const location = useLocation();
 
-  if (loading) return null;
+  if (loading) return <div className="p-6 text-bc-muted">Loading...</div>;
   if (!workspace) return <Navigate to="/w" replace />;
 
   // Preserve sub-path: /agents/foo -> /w/<id>/agents/foo
-  // Use the caller's `tab` as the base path segment.
   const cleanTab = tab.startsWith("/") ? tab.slice(1) : tab;
   const suffix = location.pathname.replace(/^\/[^/]+/, "");
   const target = `/w/${workspace.id}/${cleanTab}${suffix}${location.search}${location.hash}`;

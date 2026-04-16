@@ -1,4 +1,4 @@
-// Package discovery provides helpers for locating candidate workspaces so
+// Discovery helpers for pkg/workspace - see workspace.go for the main package doc.
 // the web UI can offer to register them. It is deliberately separate from
 // pkg/workspace to avoid coupling registration concerns with filesystem
 // scanning or network calls.
@@ -10,7 +10,7 @@
 // Each helper returns a slice of Candidate with a consistent shape so the
 // caller (handlers/workspaces.go) can serialize to JSON without additional
 // shaping.
-package discovery
+package workspace
 
 import (
 	"context"

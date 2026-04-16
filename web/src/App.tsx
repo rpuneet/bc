@@ -9,46 +9,19 @@ import {
   RedirectToActiveWorkspace,
 } from "./context/WorkspaceContext";
 
-// Lazy-loaded views - each gets its own chunk
-const Live = lazy(() =>
-  import("./views/Live").then((m) => ({ default: m.Live })),
-);
-const Agents = lazy(() =>
-  import("./views/Agents").then((m) => ({ default: m.Agents })),
-);
-const AgentDetail = lazy(() =>
-  import("./views/AgentDetail").then((m) => ({ default: m.AgentDetail })),
-);
-const Channels = lazy(() =>
-  import("./views/Channels").then((m) => ({ default: m.Channels })),
-);
-const Templates = lazy(() =>
-  import("./views/Templates").then((m) => ({ default: m.Templates })),
-);
-const Tools = lazy(() =>
-  import("./views/Tools").then((m) => ({ default: m.Tools })),
-);
-const ProviderDetail = lazy(() =>
-  import("./views/ProviderDetail").then((m) => ({ default: m.ProviderDetail })),
-);
-const Cron = lazy(() =>
-  import("./views/Cron").then((m) => ({ default: m.Cron })),
-);
-const Secrets = lazy(() =>
-  import("./views/Secrets").then((m) => ({ default: m.Secrets })),
-);
-const Stats = lazy(() =>
-  import("./views/Stats").then((m) => ({ default: m.Stats })),
-);
-const Settings = lazy(() =>
-  import("./views/Settings").then((m) => ({ default: m.Settings })),
-);
-const WorkspacePicker = lazy(() =>
-  import("./views/WorkspacePicker").then((m) => ({ default: m.WorkspacePicker })),
-);
-const Code = lazy(() =>
-  import("./views/Code").then((m) => ({ default: m.Code })),
-);
+const Live = lazy(() => import("./views/Live").then((m) => ({ default: m.Live })));
+const Agents = lazy(() => import("./views/Agents").then((m) => ({ default: m.Agents })));
+const AgentDetail = lazy(() => import("./views/AgentDetail").then((m) => ({ default: m.AgentDetail })));
+const Channels = lazy(() => import("./views/Channels").then((m) => ({ default: m.Channels })));
+const Templates = lazy(() => import("./views/Templates").then((m) => ({ default: m.Templates })));
+const Tools = lazy(() => import("./views/Tools").then((m) => ({ default: m.Tools })));
+const ProviderDetail = lazy(() => import("./views/ProviderDetail").then((m) => ({ default: m.ProviderDetail })));
+const Cron = lazy(() => import("./views/Cron").then((m) => ({ default: m.Cron })));
+const Secrets = lazy(() => import("./views/Secrets").then((m) => ({ default: m.Secrets })));
+const Stats = lazy(() => import("./views/Stats").then((m) => ({ default: m.Stats })));
+const Settings = lazy(() => import("./views/Settings").then((m) => ({ default: m.Settings })));
+const WorkspacePicker = lazy(() => import("./views/WorkspacePicker").then((m) => ({ default: m.WorkspacePicker })));
+const Code = lazy(() => import("./views/Code").then((m) => ({ default: m.Code })));
 
 function Loading() {
   return <div className="p-6 text-bc-muted">Loading...</div>;
@@ -80,41 +53,34 @@ export function App() {
           <WorkspaceProvider>
             <Routes>
               <Route element={<Layout />}>
-                {/* Root - redirect to active workspace or picker */}
+                {/* Root - redirect to active workspace */}
                 <Route index element={<RedirectToActiveWorkspace tab="live" />} />
 
-                {/* Workspace picker / onboarding */}
+                {/* Workspace picker (no workspace context required) */}
                 <Route path="w" element={wrap(<WorkspacePicker />)} />
 
-                {/* Workspace-scoped routes */}
-                <Route
-                  path="w/:wsId"
-                  element={
-                    <ActiveWorkspaceGuard>
-                      <Routes>
-                        <Route index element={<Navigate to="live" replace />} />
-                        <Route path="live" element={wrap(<Live />)} />
-                        <Route path="agents" element={wrap(<Agents />)} />
-                        <Route path="agents/:name" element={wrap(<AgentDetail />)} />
-                        <Route path="agents/:name/*" element={wrap(<AgentDetail />)} />
-                        <Route path="channels/:channelName?" element={wrap(<Channels />)} />
-                        <Route path="templates" element={wrap(<Templates />)} />
-                        <Route path="tools" element={wrap(<Tools />)} />
-                        <Route path="tools/:provider" element={wrap(<ProviderDetail />)} />
-                        <Route path="cron" element={wrap(<Cron />)} />
-                        <Route path="secrets" element={wrap(<Secrets />)} />
-                        <Route path="stats" element={wrap(<Stats />)} />
-                        <Route path="metrics" element={wrap(<Stats />)} />
-                        <Route path="settings" element={wrap(<Settings />)} />
-                        <Route path="code" element={wrap(<Code />)} />
-                        <Route path="code/*" element={wrap(<Code />)} />
-                      </Routes>
-                    </ActiveWorkspaceGuard>
-                  }
-                />
-                <Route path="w/:wsId/*" element={<Navigate to="../" replace />} />
+                {/* Workspace-scoped routes (guard renders <Outlet /> for children) */}
+                <Route path="w/:wsId" element={<ActiveWorkspaceGuard />}>
+                  <Route index element={<Navigate to="live" replace />} />
+                  <Route path="live" element={wrap(<Live />)} />
+                  <Route path="agents" element={wrap(<Agents />)} />
+                  <Route path="agents/:name" element={wrap(<AgentDetail />)} />
+                  <Route path="agents/:name/*" element={wrap(<AgentDetail />)} />
+                  <Route path="channels" element={wrap(<Channels />)} />
+                  <Route path="channels/:channelName" element={wrap(<Channels />)} />
+                  <Route path="templates" element={wrap(<Templates />)} />
+                  <Route path="tools" element={wrap(<Tools />)} />
+                  <Route path="tools/:provider" element={wrap(<ProviderDetail />)} />
+                  <Route path="cron" element={wrap(<Cron />)} />
+                  <Route path="secrets" element={wrap(<Secrets />)} />
+                  <Route path="stats" element={wrap(<Stats />)} />
+                  <Route path="metrics" element={wrap(<Stats />)} />
+                  <Route path="settings" element={wrap(<Settings />)} />
+                  <Route path="code" element={wrap(<Code />)} />
+                  <Route path="code/*" element={wrap(<Code />)} />
+                </Route>
 
-                {/* Legacy redirects - preserve old bookmarks */}
+                {/* Legacy redirects - preserve old bookmarks by bouncing to /w/<active>/<tab> */}
                 <Route path="live" element={<RedirectToActiveWorkspace tab="live" />} />
                 <Route path="logs" element={<RedirectToActiveWorkspace tab="live" />} />
                 <Route path="agents" element={<RedirectToActiveWorkspace tab="agents" />} />
@@ -129,9 +95,7 @@ export function App() {
                 <Route path="stats" element={<RedirectToActiveWorkspace tab="stats" />} />
                 <Route path="metrics" element={<RedirectToActiveWorkspace tab="stats" />} />
                 <Route path="settings" element={<RedirectToActiveWorkspace tab="settings" />} />
-                {/* Legacy /workspace -> Settings (workspace-scoped) */}
                 <Route path="workspace" element={<RedirectToActiveWorkspace tab="settings" />} />
-                {/* Legacy /roles -> templates (roles were superseded) */}
                 <Route path="roles" element={<RedirectToActiveWorkspace tab="templates" />} />
 
                 <Route path="*" element={<NotFound />} />

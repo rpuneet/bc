@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/rpuneet/bc/pkg/discovery"
 	"github.com/rpuneet/bc/pkg/workspace"
 )
 
@@ -44,7 +43,7 @@ func TestDiscoverLocalHandler(t *testing.T) {
 		t.Fatalf("status = %d, body=%s", rec.Code, rec.Body.String())
 	}
 	var response struct {
-		Candidates []discovery.Candidate `json:"candidates"`
+		Candidates []workspace.Candidate `json:"candidates"`
 	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
 		t.Fatalf("unmarshal: %v", err)
@@ -117,7 +116,7 @@ func TestGithubAuthSetAndDelete(t *testing.T) {
 		w.WriteHeader(http.StatusUnauthorized)
 	}))
 	defer srv.Close()
-	restore := discovery.SetGithubAPIBase(srv.URL)
+	restore := workspace.SetGithubAPIBase(srv.URL)
 	defer restore()
 
 	reg := &workspace.Registry{}
@@ -160,7 +159,7 @@ func TestGithubAuthSetAndDelete(t *testing.T) {
 	if rec.Code != http.StatusNoContent {
 		t.Errorf("DELETE status = %d, want 204", rec.Code)
 	}
-	if discovery.GithubConnected() {
+	if workspace.GithubConnected() {
 		t.Error("should be disconnected after DELETE")
 	}
 }
