@@ -358,7 +358,7 @@ func (h *AgentHandler) list(w http.ResponseWriter, r *http.Request) {
 		if role == "" && req.Template != "" {
 			role = "base"
 		}
-		a, err := h.svc.Create(r.Context(), agent.CreateOptions{
+		a, err := svc.Create(r.Context(), agent.CreateOptions{
 			Name:    req.Name,
 			Role:    agent.Role(role),
 			Tool:    req.Tool,
@@ -386,6 +386,7 @@ func (h *AgentHandler) list(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *AgentHandler) byName(w http.ResponseWriter, r *http.Request) {
+	svc := h.resolveSvc(r)
 	parts := strings.SplitN(strings.TrimPrefix(r.URL.Path, "/api/agents/"), "/", 2)
 	name := parts[0]
 	action := ""
@@ -399,7 +400,7 @@ func (h *AgentHandler) byName(w http.ResponseWriter, r *http.Request) {
 
 	switch {
 	case r.Method == http.MethodGet && action == "":
-		a, err := h.svc.Get(r.Context(), name)
+		a, err := svc.Get(r.Context(), name)
 		if err != nil {
 			httpError(w, err.Error(), http.StatusNotFound)
 			return
@@ -415,7 +416,7 @@ func (h *AgentHandler) byName(w http.ResponseWriter, r *http.Request) {
 			ResumeID string `json:"resume_id"`
 		}
 		_ = json.NewDecoder(r.Body).Decode(&req) //nolint:errcheck // body optional
-		a, err := h.svc.Start(r.Context(), name, agent.StartOptions{
+		a, err := svc.Start(r.Context(), name, agent.StartOptions{
 			Runtime:  req.Runtime,
 			ResumeID: req.ResumeID,
 		})
@@ -426,7 +427,7 @@ func (h *AgentHandler) byName(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, toDTO(a))
 
 	case r.Method == http.MethodPost && action == "stop":
-		if err := h.svc.Stop(r.Context(), name); err != nil {
+		if err := svc.Stop(r.Context(), name); err != nil {
 			httpError(w, err.Error(), http.StatusBadRequest)
 			return
 		}
@@ -440,7 +441,7 @@ func (h *AgentHandler) byName(w http.ResponseWriter, r *http.Request) {
 			httpError(w, "invalid request body", http.StatusBadRequest)
 			return
 		}
-		if err := h.svc.Send(r.Context(), name, req.Message); err != nil {
+		if err := svc.Send(r.Context(), name, req.Message); err != nil {
 			httpError(w, err.Error(), http.StatusBadRequest)
 			return
 		}
@@ -448,7 +449,7 @@ func (h *AgentHandler) byName(w http.ResponseWriter, r *http.Request) {
 
 	case r.Method == http.MethodDelete && action == "":
 		force := r.URL.Query().Get("force") == "true"
-		if err := h.svc.Delete(r.Context(), name, force); err != nil {
+		if err := svc.Delete(r.Context(), name, force); err != nil {
 			httpError(w, err.Error(), http.StatusBadRequest)
 			return
 		}
@@ -484,7 +485,7 @@ func (h *AgentHandler) byName(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if hasState {
-			if err := h.svc.Manager().UpdateAgentState(name, targetState, task); err != nil {
+			if err := svc.Manager().UpdateAgentState(name, targetState, task); err != nil {
 				log.Debug("hook state update skipped", "agent", name, "error", err)
 				writeJSON(w, http.StatusOK, map[string]any{"ok": true, "skipped": true, "reason": err.Error()})
 				return
@@ -603,7 +604,7 @@ func (h *AgentHandler) byName(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		limit = clampInt(limit, 1, 1000)
-		records, err := h.svc.Manager().QueryAgentStats(name, limit)
+		records, err := svc.Manager().QueryAgentStats(name, limit)
 		if err != nil {
 			httpInternalError(w, "stats unavailable", err)
 			return
@@ -621,7 +622,7 @@ func (h *AgentHandler) byName(w http.ResponseWriter, r *http.Request) {
 			httpError(w, "invalid request body", http.StatusBadRequest)
 			return
 		}
-		if err := h.svc.Rename(r.Context(), name, req.NewName); err != nil {
+		if err := svc.Rename(r.Context(), name, req.NewName); err != nil {
 			httpError(w, err.Error(), http.StatusBadRequest)
 			return
 		}
@@ -635,7 +636,7 @@ func (h *AgentHandler) byName(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		lines = clampInt(lines, 1, 10000)
-		output, err := h.svc.Peek(r.Context(), name, lines)
+		output, err := svc.Peek(r.Context(), name, lines)
 		if err != nil {
 			httpError(w, err.Error(), http.StatusBadRequest)
 			return
@@ -646,7 +647,7 @@ func (h *AgentHandler) byName(w http.ResponseWriter, r *http.Request) {
 		h.lastTerminal(w, r, name)
 
 	case r.Method == http.MethodGet && action == "sessions":
-		sessions, err := h.svc.Sessions(r.Context(), name)
+		sessions, err := svc.Sessions(r.Context(), name)
 		if err != nil {
 			httpError(w, err.Error(), http.StatusBadRequest)
 			return
@@ -670,7 +671,7 @@ func (h *AgentHandler) byName(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		state := agent.State(req.State)
-		if err := h.svc.Manager().UpdateAgentState(name, state, req.Message); err != nil {
+		if err := svc.Manager().UpdateAgentState(name, state, req.Message); err != nil {
 			httpError(w, err.Error(), http.StatusBadRequest)
 			return
 		}
@@ -713,10 +714,11 @@ func (h *AgentHandler) byName(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *AgentHandler) generateName(w http.ResponseWriter, r *http.Request) {
+	svc := h.resolveSvc(r)
 	if !requireMethod(w, r, http.MethodGet) {
 		return
 	}
-	name, err := h.svc.GenerateName(r.Context())
+	name, err := svc.GenerateName(r.Context())
 	if err != nil {
 		httpInternalError(w, "operation failed", err)
 		return
@@ -725,6 +727,7 @@ func (h *AgentHandler) generateName(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *AgentHandler) broadcast(w http.ResponseWriter, r *http.Request) {
+	svc := h.resolveSvc(r)
 	if !requireMethod(w, r, http.MethodPost) {
 		return
 	}
@@ -735,7 +738,7 @@ func (h *AgentHandler) broadcast(w http.ResponseWriter, r *http.Request) {
 		httpError(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
-	sent, err := h.svc.Broadcast(r.Context(), req.Message)
+	sent, err := svc.Broadcast(r.Context(), req.Message)
 	if err != nil {
 		httpInternalError(w, "operation failed", err)
 		return
@@ -744,6 +747,7 @@ func (h *AgentHandler) broadcast(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *AgentHandler) sendRole(w http.ResponseWriter, r *http.Request) {
+	svc := h.resolveSvc(r)
 	if !requireMethod(w, r, http.MethodPost) {
 		return
 	}
@@ -755,7 +759,7 @@ func (h *AgentHandler) sendRole(w http.ResponseWriter, r *http.Request) {
 		httpError(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
-	result, err := h.svc.SendToRole(r.Context(), req.Role, req.Message)
+	result, err := svc.SendToRole(r.Context(), req.Role, req.Message)
 	if err != nil {
 		httpInternalError(w, "operation failed", err)
 		return
@@ -764,6 +768,7 @@ func (h *AgentHandler) sendRole(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *AgentHandler) sendPattern(w http.ResponseWriter, r *http.Request) {
+	svc := h.resolveSvc(r)
 	if !requireMethod(w, r, http.MethodPost) {
 		return
 	}
@@ -775,7 +780,7 @@ func (h *AgentHandler) sendPattern(w http.ResponseWriter, r *http.Request) {
 		httpError(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
-	result, err := h.svc.SendToPattern(r.Context(), req.Pattern, req.Message)
+	result, err := svc.SendToPattern(r.Context(), req.Pattern, req.Message)
 	if err != nil {
 		httpInternalError(w, "operation failed", err)
 		return
@@ -784,10 +789,11 @@ func (h *AgentHandler) sendPattern(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *AgentHandler) stopAll(w http.ResponseWriter, r *http.Request) {
+	svc := h.resolveSvc(r)
 	if !requireMethod(w, r, http.MethodPost) {
 		return
 	}
-	stopped, err := h.svc.StopAll(r.Context())
+	stopped, err := svc.StopAll(r.Context())
 	if err != nil {
 		httpInternalError(w, "operation failed", err)
 		return
@@ -798,10 +804,11 @@ func (h *AgentHandler) stopAll(w http.ResponseWriter, r *http.Request) {
 // syncSessions reconciles in-memory agent state with actual runtime sessions.
 // POST /api/agents/sync
 func (h *AgentHandler) syncSessions(w http.ResponseWriter, r *http.Request) {
+	svc := h.resolveSvc(r)
 	if !requireMethod(w, r, http.MethodPost) {
 		return
 	}
-	synced, stopped := h.svc.SyncSessions(r.Context())
+	synced, stopped := svc.SyncSessions(r.Context())
 	writeJSON(w, http.StatusOK, map[string]int{"synced": synced, "stopped": stopped})
 }
 
@@ -818,6 +825,7 @@ type AgentHealthInfo struct {
 }
 
 func (h *AgentHandler) health(w http.ResponseWriter, r *http.Request) {
+	svc := h.resolveSvc(r)
 	if !requireMethod(w, r, http.MethodGet) {
 		return
 	}
@@ -829,7 +837,7 @@ func (h *AgentHandler) health(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	agents, err := h.svc.List(r.Context(), agent.ListOptions{})
+	agents, err := svc.List(r.Context(), agent.ListOptions{})
 	if err != nil {
 		httpInternalError(w, "list agents", err)
 		return
@@ -838,7 +846,7 @@ func (h *AgentHandler) health(w http.ResponseWriter, r *http.Request) {
 	// Optionally filter to a single agent.
 	nameFilter := r.URL.Query().Get("agent")
 
-	mgr := h.svc.Manager()
+	mgr := svc.Manager()
 	results := make([]AgentHealthInfo, 0, len(agents))
 	for _, a := range agents {
 		if nameFilter != "" && a.Name != nameFilter {
@@ -899,6 +907,7 @@ func buildHookSSEMessage(ts time.Time, payload map[string]any) ([]byte, error) {
 // It replays the last 50 hook events from the event store, then tails new
 // events as they arrive via the per-agent broker.
 func (h *AgentHandler) streamHookEvents(w http.ResponseWriter, r *http.Request, name string) {
+	svc := h.resolveSvc(r)
 	flusher, ok := w.(http.Flusher)
 	if !ok {
 		httpError(w, "streaming not supported", http.StatusInternalServerError)
@@ -906,7 +915,7 @@ func (h *AgentHandler) streamHookEvents(w http.ResponseWriter, r *http.Request, 
 	}
 
 	// Verify agent exists.
-	if _, err := h.svc.Get(r.Context(), name); err != nil {
+	if _, err := svc.Get(r.Context(), name); err != nil {
 		httpError(w, err.Error(), http.StatusNotFound)
 		return
 	}
@@ -980,6 +989,7 @@ func (h *AgentHandler) streamHookEvents(w http.ResponseWriter, r *http.Request, 
 // It returns the last captured terminal output for an agent, which is useful
 // for inspecting the final state of stopped agents.
 func (h *AgentHandler) lastTerminal(w http.ResponseWriter, r *http.Request, name string) {
+	svc := h.resolveSvc(r)
 	if !requireMethod(w, r, http.MethodGet) {
 		return
 	}
@@ -991,13 +1001,13 @@ func (h *AgentHandler) lastTerminal(w http.ResponseWriter, r *http.Request, name
 	}
 	lines = clampInt(lines, 1, 10000)
 
-	output, err := h.svc.Peek(r.Context(), name, lines)
+	output, err := svc.Peek(r.Context(), name, lines)
 	if err != nil {
 		httpError(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	a, agentErr := h.svc.Get(r.Context(), name)
+	a, agentErr := svc.Get(r.Context(), name)
 	resp := map[string]any{
 		"output": output,
 		"agent":  name,
@@ -1014,6 +1024,7 @@ func (h *AgentHandler) lastTerminal(w http.ResponseWriter, r *http.Request, name
 // streamOutput streams agent terminal output as SSE events.
 // Polls capture-pane every second and sends new lines as events.
 func (h *AgentHandler) streamOutput(w http.ResponseWriter, r *http.Request, name string) {
+	svc := h.resolveSvc(r)
 	flusher, ok := w.(http.Flusher)
 	if !ok {
 		httpError(w, "streaming not supported", http.StatusInternalServerError)
@@ -1021,7 +1032,7 @@ func (h *AgentHandler) streamOutput(w http.ResponseWriter, r *http.Request, name
 	}
 
 	// Verify agent exists
-	if _, err := h.svc.Get(r.Context(), name); err != nil {
+	if _, err := svc.Get(r.Context(), name); err != nil {
 		httpError(w, err.Error(), http.StatusNotFound)
 		return
 	}
@@ -1032,7 +1043,7 @@ func (h *AgentHandler) streamOutput(w http.ResponseWriter, r *http.Request, name
 	w.Header().Set("X-Accel-Buffering", "no")
 
 	// Send initial snapshot
-	output, err := h.svc.Peek(r.Context(), name, 50)
+	output, err := svc.Peek(r.Context(), name, 50)
 	if err == nil && output != "" {
 		data, _ := json.Marshal(map[string]string{"output": output})
 		fmt.Fprintf(w, "data: %s\n\n", data) //nolint:errcheck
@@ -1053,7 +1064,7 @@ func (h *AgentHandler) streamOutput(w http.ResponseWriter, r *http.Request, name
 		case <-r.Context().Done():
 			return
 		case <-ticker.C:
-			current, peekErr := h.svc.Peek(r.Context(), name, 200)
+			current, peekErr := svc.Peek(r.Context(), name, 200)
 			if peekErr != nil {
 				continue
 			}
@@ -1153,13 +1164,14 @@ type agentMCPEntry struct {
 // agentMCPs dispatches GET/POST /api/agents/{name}/mcps and
 // DELETE /api/agents/{name}/mcps/{mcp}.
 func (h *AgentHandler) agentMCPs(w http.ResponseWriter, r *http.Request, agentName, action string) {
+	svc := h.resolveSvc(r)
 	// action is either "mcps" or "mcps/<mcp-server-name>"
 	mcpName := strings.TrimPrefix(action, "mcps/")
 	if mcpName == "mcps" {
 		mcpName = "" // bare "mcps" — no sub-resource
 	}
 
-	a, err := h.svc.Get(r.Context(), agentName)
+	a, err := svc.Get(r.Context(), agentName)
 	if err != nil {
 		httpError(w, err.Error(), http.StatusNotFound)
 		return
@@ -1167,7 +1179,7 @@ func (h *AgentHandler) agentMCPs(w http.ResponseWriter, r *http.Request, agentNa
 
 	wtDir := a.WorktreeDir
 	if wtDir == "" {
-		wtDir = h.svc.Manager().WorktreePath(agentName)
+		wtDir = svc.Manager().WorktreePath(agentName)
 	}
 
 	switch {
