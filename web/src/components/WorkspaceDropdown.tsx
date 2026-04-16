@@ -15,6 +15,16 @@ import { useWorkspace, type WorkspaceSummary } from "../context/WorkspaceContext
 
 type WorkspaceEntry = WorkspaceSummary;
 
+/** Render a shortened path: strips $HOME prefix and keeps the last 2 segments. */
+function shortenPath(full: string): string {
+  let p = full;
+  p = p.replace(/^\/Users\/[^/]+/, "~");
+  p = p.replace(/^\/home\/[^/]+/, "~");
+  const parts = p.split("/").filter(Boolean);
+  if (parts.length <= 2) return p;
+  return (p.startsWith("~") ? "~/…/" : "…/") + parts.slice(-2).join("/");
+}
+
 export function WorkspaceDropdown({
   onAddClick,
 }: {
@@ -94,7 +104,7 @@ export function WorkspaceDropdown({
       >
         <span className="text-bc-muted/60 text-[9px] uppercase tracking-wider">ws</span>
         <span className="font-semibold truncate max-w-[160px]">
-          {active?.name ?? (loading ? "…" : "no workspace")}
+          {active ? (active.name || active.path.split("/").pop() || "unnamed") : (loading ? "…" : "no workspace")}
         </span>
         {active?.id && (
           <span className="text-bc-muted/40 text-[9px] tabular-nums">
@@ -154,13 +164,13 @@ export function WorkspaceDropdown({
               >
                 <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${ws.active ? "bg-bc-accent" : "bg-bc-muted/30"}`} />
                 <span className="text-[12px] font-semibold text-bc-text/90 truncate">
-                  {ws.name}
+                  {ws.name || ws.path.split("/").pop() || "unnamed"}
                 </span>
                 <span className="text-[9px] text-bc-muted/40 tabular-nums">
                   [{ws.id.slice(0, 6)}]
                 </span>
-                <span className="ml-auto text-[10px] text-bc-muted/40 truncate max-w-[140px]" title={ws.path}>
-                  {ws.path.replace(/^.*\//, "")}
+                <span className="ml-auto text-[10px] text-bc-muted/40 truncate max-w-[160px]" title={ws.path}>
+                  {shortenPath(ws.path)}
                 </span>
               </button>
             ))}

@@ -59,14 +59,22 @@ async function fetchWorkspaces(): Promise<WorkspaceSummary[]> {
       const inner = (data as Record<string, unknown>).workspaces;
       if (Array.isArray(inner)) rawList = inner;
     }
-    return rawList.filter((w): w is WorkspaceSummary => {
-      return (
-        !!w &&
-        typeof w === "object" &&
-        typeof (w as Record<string, unknown>).id === "string" &&
-        typeof (w as Record<string, unknown>).name === "string"
-      );
-    });
+    return rawList
+      .filter((w): w is WorkspaceSummary => {
+        return (
+          !!w &&
+          typeof w === "object" &&
+          typeof (w as Record<string, unknown>).id === "string" &&
+          typeof (w as Record<string, unknown>).name === "string"
+        );
+      })
+      .filter((w) => {
+        // Drop transient test-temp workspaces that leak into the registry.
+        const p = String(w.path || "");
+        if (/\/T\/Test[A-Z][A-Za-z0-9_]+\d/.test(p)) return false;
+        if (/\/tmp\/Test[A-Z][A-Za-z0-9_]+\d/.test(p)) return false;
+        return true;
+      });
   } catch {
     return [];
   }

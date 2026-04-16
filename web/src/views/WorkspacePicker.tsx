@@ -64,7 +64,7 @@ export function WorkspacePicker() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <span className="text-[13px] font-semibold text-bc-text">
-                        {ws.name}
+                        {ws.name || ws.path.split("/").pop() || "unnamed"}
                       </span>
                       <span className="text-[9px] text-bc-muted/40 tabular-nums">
                         [{ws.id.slice(0, 6)}]
