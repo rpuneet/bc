@@ -185,6 +185,12 @@ func RunServer(addr, wsRoot, corsOrigin, apiKey string) error {
 		Build:        server.BuildInfo{Commit: commit, BuiltAt: date},
 	}
 
+	// One-time M8 migration: move per-workspace user assets into
+	// ~/.bc/. Idempotent via ~/.bc/.migrated-user-assets-v1 marker.
+	if migrateErr := RunMigrateUserAssets(ctx, false); migrateErr != nil {
+		log.Warn("user assets migration failed", "error", migrateErr)
+	}
+
 	// Build the launch workspace's services via the factory.
 	launchSvc, buildErr := server.BuildWorkspaceServices(ctx, globals, ws.RootDir)
 	if buildErr != nil {
