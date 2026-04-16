@@ -1,0 +1,447 @@
+// build_services.go — factory for per-workspace WorkspaceServices.
+//
+// Extracted from internal/cmd/serve.go as part of multi-tenant bcd phase M2.
+// A single call to BuildWorkspaceServices(ctx, globals, wsRoot) produces a
+// fully-initialized WorkspaceServices bundle including background
+// goroutines. Its Close() cancels those goroutines and closes each store.
+//
+// The factory depends ONLY on Globals + a workspace root path, so it can
+// be invoked at any time for any registered workspace — which is the
+// substrate for multi-workspace dispatch (phases M5-M6).
+package server
+
+import (
+	"context"
+	"fmt"
+	"path/filepath"
+	"strings"
+	"sync"
+	"time"
+
+	bcagent "github.com/rpuneet/bc/pkg/agent"
+	bccontainer "github.com/rpuneet/bc/pkg/container"
+	"github.com/rpuneet/bc/pkg/cost"
+	"github.com/rpuneet/bc/pkg/cron"
+	bcdeps "github.com/rpuneet/bc/pkg/deps"
+	bcevents "github.com/rpuneet/bc/pkg/events"
+	bcgateway "github.com/rpuneet/bc/pkg/gateway"
+	bcdiscord "github.com/rpuneet/bc/pkg/gateway/discord"
+	bcslack "github.com/rpuneet/bc/pkg/gateway/slack"
+	bctelegram "github.com/rpuneet/bc/pkg/gateway/telegram"
+	"github.com/rpuneet/bc/pkg/log"
+	bcmcp "github.com/rpuneet/bc/pkg/mcp"
+	bcnotify "github.com/rpuneet/bc/pkg/notify"
+	"github.com/rpuneet/bc/pkg/provider"
+	bcsecret "github.com/rpuneet/bc/pkg/secret"
+	bcstats "github.com/rpuneet/bc/pkg/stats"
+	bctool "github.com/rpuneet/bc/pkg/tool"
+	bcworkspace "github.com/rpuneet/bc/pkg/workspace"
+	bcws "github.com/rpuneet/bc/server/ws"
+)
+
+// Globals holds dependencies that are truly workspace-agnostic and shared
+// across all per-workspace services. bcd builds one Globals at boot and
+// reuses it for every workspace the WorkspaceManager materializes.
+type Globals struct {
+	Registry  *bcworkspace.Registry
+	Stats     *bcstats.Store   // nil when TSDB unavailable
+	Deps      *bcdeps.Registry // optional dependencies registry (bc-db, etc.)
+	GlobalHub *bcws.Hub        // fan-in SSE hub for cross-workspace /api/events
+	Build     BuildInfo
+}
+
+// BuildWorkspaceServices constructs a fully-initialized WorkspaceServices
+// for the workspace rooted at wsRoot. All background goroutines are
+// started under an internal context that Close() cancels.
+//
+// The returned *WorkspaceServices has its closer field set to a function
+// that stops goroutines and closes stores. The caller (WorkspaceManager)
+// will invoke Close() on eviction / shutdown.
+func BuildWorkspaceServices(ctx context.Context, globals *Globals, wsRoot string) (*WorkspaceServices, error) {
+	ws, err := bcworkspace.Load(wsRoot)
+	if err != nil {
+		ws, err = bcworkspace.Init(wsRoot)
+		if err != nil {
+			return nil, fmt.Errorf("init workspace %s: %w", wsRoot, err)
+		}
+	}
+	return buildWorkspaceServicesFromWS(ctx, globals, ws)
+}
+
+// buildWorkspaceServicesFromWS is the inner factory used when callers
+// already hold a loaded *workspace.Workspace (e.g. from the registry).
+//
+//nolint:gocyclo // Linear dependency chain; splitting obscures the flow.
+func buildWorkspaceServicesFromWS(ctx context.Context, globals *Globals, ws *bcworkspace.Workspace) (*WorkspaceServices, error) {
+	// Child context + waitgroup so Close() can stop every goroutine spawned
+	// below and wait for them to exit.
+	svcCtx, svcCancel := context.WithCancel(ctx)
+	var wg sync.WaitGroup
+
+	// Track cleanup actions; closer invokes them in reverse order.
+	var closers []func() error
+	addCloser := func(f func() error) { closers = append(closers, f) }
+
+	// Events JSONL writer (append-only).
+	eventsJSONL := filepath.Join(ws.StateDir(), "events.jsonl")
+	eventWriter := bcevents.NewJSONLWriter(eventsJSONL, 0)
+
+	// Per-workspace SSE hub — phase M6 wires fan-in to Globals.GlobalHub.
+	hub := bcws.NewHub()
+	go hub.Run()
+	addCloser(func() error { hub.Stop(); return nil })
+
+	// Agent manager + service.
+	agentMgr, containerBackend, agentErr := newAgentManager(ws)
+	if agentErr != nil {
+		svcCancel()
+		return nil, fmt.Errorf("agent manager: %w", agentErr)
+	}
+	if err := agentMgr.LoadState(); err != nil {
+		log.Warn("failed to load agent state", "error", err, "workspace", ws.RootDir)
+	}
+	if ws.RoleManager != nil {
+		agentMgr.SetRoleManager(ws.RoleManager)
+	}
+	addCloser(func() error { return agentMgr.Close() })
+	agentSvc := bcagent.NewAgentService(agentMgr, hub, nil)
+
+	// Background container metrics collector (Docker backend only).
+	if containerBackend != nil {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			runContainerStatsCollector(svcCtx, containerBackend, agentMgr)
+		}()
+	}
+
+	// Tool health loop.
+	agentMgr.StartToolHealthLoop(svcCtx, bcagent.DefaultToolHealthInterval)
+	addCloser(func() error { agentMgr.StopToolHealthLoop(); return nil })
+
+	// Cost store + importer.
+	var costStore *cost.Store
+	var costImporter *cost.Importer
+	if cs, err := cost.OpenStore(ws.RootDir); err != nil {
+		log.Warn("cost store unavailable", "error", err, "workspace", ws.RootDir)
+	} else {
+		costStore = cs
+		addCloser(func() error { return cs.Close() })
+
+		costImporter = cost.NewImporter(cs, ws.RootDir)
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			runCostImportLoop(svcCtx, costImporter)
+		}()
+	}
+
+	// Cron store + scheduler.
+	var cronStore *cron.Store
+	var cronSched *cron.Scheduler
+	if cr, err := cron.Open(ws.RootDir); err != nil {
+		log.Warn("cron store unavailable", "error", err, "workspace", ws.RootDir)
+	} else {
+		cronStore = cr
+		addCloser(func() error { return cr.Close() })
+
+		cronLogDir := filepath.Join(ws.RootDir, ".bc", "logs", "cron")
+		cronSched = cron.NewSchedulerWithConfig(cr, cronLogDir,
+			ws.Config.Cron.PollIntervalSeconds, ws.Config.Cron.JobTimeoutSeconds)
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			cronSched.Run(svcCtx)
+		}()
+	}
+
+	// Secret store.
+	var secretStore *bcsecret.Store
+	if passphrase, passErr := bcsecret.Passphrase(); passErr != nil {
+		log.Warn("secret passphrase unavailable — secret store disabled", "error", passErr)
+	} else if ss, err := bcsecret.NewStore(ws.RootDir, passphrase); err != nil {
+		log.Warn("secret store unavailable", "error", err, "workspace", ws.RootDir)
+	} else {
+		secretStore = ss
+		addCloser(func() error { return ss.Close() })
+	}
+
+	// MCP store.
+	var mcpStore *bcmcp.Store
+	if ms, err := bcmcp.NewStore(ws.RootDir); err != nil {
+		log.Warn("mcp store unavailable", "error", err, "workspace", ws.RootDir)
+	} else {
+		mcpStore = ms
+		addCloser(func() error { return ms.Close() })
+	}
+
+	// Tool store.
+	var toolStore *bctool.Store
+	{
+		ts := bctool.NewStore(ws.StateDir())
+		if err := ts.Open(); err != nil {
+			log.Warn("tool store unavailable", "error", err, "workspace", ws.RootDir)
+		} else {
+			toolStore = ts
+			addCloser(func() error { return ts.Close() })
+		}
+	}
+
+	// Event log (SQLite) + pruning loop.
+	var eventLog bcevents.EventStore
+	if el, err := bcevents.OpenLog(ws.RootDir, filepath.Join(ws.StateDir(), "state.db")); err != nil {
+		log.Warn("event log unavailable", "error", err, "workspace", ws.RootDir)
+	} else {
+		eventLog = el
+		addCloser(func() error { return el.Close() })
+		if prunable, ok := el.(*bcevents.SQLiteLog); ok {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				runEventPruneLoop(svcCtx, prunable)
+			}()
+		}
+	}
+
+	// Stats collector — only runs if a TSDB stats store is configured
+	// globally. Uses the current workspace's agentSvc.
+	if globals != nil && globals.Stats != nil {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			runStatsCollector(svcCtx, globals.Stats, agentSvc, ws)
+		}()
+	}
+
+	// Notify service (channel subscriptions + delivery).
+	var notifyService *bcnotify.Service
+	if ns, err := bcnotify.OpenStore(ws.RootDir); err != nil {
+		log.Warn("notify store unavailable", "error", err, "workspace", ws.RootDir)
+	} else {
+		notifyService = bcnotify.NewService(ns, agentSvc, hub)
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			runNotifyPruneLoop(svcCtx, notifyService)
+		}()
+	}
+
+	// Gateway manager (Telegram/Discord/Slack adapters).
+	gwManager := buildGatewayManager(svcCtx, ws, notifyService, &wg)
+
+	// Provider registry is global but we keep it referenced for parity.
+	_ = provider.DefaultRegistry
+
+	svc := &WorkspaceServices{
+		Workspace:    ws,
+		Agents:       agentSvc,
+		AgentMgr:     agentMgr,
+		Channels:     notifyService, // same service powers channels for now
+		Events:       eventLog,
+		EventWriter:  eventWriter,
+		Costs:        costStore,
+		CostImporter: costImporter,
+		Cron:         cronStore,
+		CronSched:    cronSched,
+		Secrets:      secretStore,
+		MCP:          mcpStore,
+		Tools:        toolStore,
+		Gateway:      gwManager,
+		Notify:       notifyService,
+		Hub:          hub,
+		cancel:       svcCancel,
+		wg:           &wg,
+	}
+
+	// Populate the legacy flat Services bundle so the existing handler
+	// constructors in server.New() still receive a fully-wired payload
+	// during phases M1-M4.
+	svc.Services = Services{
+		Agents:        agentSvc,
+		Notify:        notifyService,
+		Costs:         costStore,
+		CostImporter:  costImporter,
+		Cron:          cronStore,
+		CronScheduler: cronSched,
+		Secrets:       secretStore,
+		MCP:           mcpStore,
+		Tools:         toolStore,
+		EventLog:      eventLog,
+		EventWriter:   eventWriter,
+		WS:            ws,
+		Gateway:       gwManager,
+	}
+	if globals != nil {
+		svc.Services.Stats = globals.Stats
+		svc.Services.Registry = globals.Registry
+		svc.Services.Deps = globals.Deps
+	}
+
+	// Closer runs addCloser funcs in reverse order. cancel+wg.Wait are
+	// handled by WorkspaceServices.Close() itself before invoking this.
+	svc.closer = func() error {
+		var firstErr error
+		for i := len(closers) - 1; i >= 0; i-- {
+			if err := closers[i](); err != nil && firstErr == nil {
+				firstErr = err
+			}
+		}
+		return firstErr
+	}
+	return svc, nil
+}
+
+// newAgentManager mirrors the helper that used to live in serve.go.
+func newAgentManager(ws *bcworkspace.Workspace) (*bcagent.Manager, *bccontainer.Backend, error) {
+	var wsCfg bcworkspace.DockerRuntimeConfig
+	if ws.Config != nil {
+		wsCfg = ws.Config.Runtime.Docker
+	}
+	dockerCfg := bccontainer.ConfigFromWorkspace(wsCfg)
+	be, err := bccontainer.NewBackend(dockerCfg, "bc-", ws.RootDir, provider.DefaultRegistry)
+	if err != nil {
+		log.Warn("Docker not available — agents will use tmux runtime only", "error", err, "workspace", ws.RootDir)
+		return bcagent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir), nil, nil
+	}
+	mgr := bcagent.NewWorkspaceManagerWithRuntime(ws.AgentsDir(), ws.RootDir, be, "docker")
+	return mgr, be, nil
+}
+
+// buildGatewayManager constructs the gateway.Manager from workspace config
+// and registers adapters for any enabled platforms. Returns nil if no
+// adapters are enabled.
+func buildGatewayManager(ctx context.Context, ws *bcworkspace.Workspace, notifyService *bcnotify.Service, wg *sync.WaitGroup) *bcgateway.Manager {
+	gw := ws.Config.Gateways
+
+	tgEnabled := gw.Telegram != nil && gw.Telegram.Enabled && gw.Telegram.BotToken != ""
+	dcEnabled := gw.Discord != nil && gw.Discord.Enabled && gw.Discord.BotToken != ""
+	slEnabled := gw.Slack != nil && gw.Slack.Enabled && gw.Slack.BotToken != "" && gw.Slack.AppToken != ""
+	if !tgEnabled && !dcEnabled && !slEnabled {
+		return nil
+	}
+
+	m := bcgateway.NewManager()
+	if notifyService != nil {
+		m.SetChannelStore(&channelPersister{store: notifyService.Store()})
+	}
+
+	if tgEnabled {
+		tgAdapter := bctelegram.New(gw.Telegram.BotToken, gw.Telegram.Mode)
+		if err := tgAdapter.DiscoverViaUpdate(); err != nil {
+			log.Warn("telegram: discovery failed", "error", err)
+		}
+		m.Register(tgAdapter)
+		log.Info("gateway: telegram adapter registered")
+	}
+	if dcEnabled {
+		m.Register(bcdiscord.New(gw.Discord.BotToken))
+		log.Info("gateway: discord adapter registered")
+	}
+	if slEnabled {
+		m.Register(bcslack.New(gw.Slack.BotToken, gw.Slack.AppToken))
+		log.Info("gateway: slack adapter registered")
+	}
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		if err := m.Start(ctx); err != nil && ctx.Err() == nil {
+			log.Error("gateway manager stopped", "error", err)
+		}
+	}()
+	return m
+}
+
+// runCostImportLoop drains the cost importer once immediately, then every
+// 5 minutes until ctx is canceled.
+func runCostImportLoop(ctx context.Context, imp *cost.Importer) {
+	if n, err := imp.ImportAll(ctx); err != nil {
+		log.Warn("cost import failed", "error", err)
+	} else if n > 0 {
+		log.Info("cost import: imported records", "count", n)
+	}
+	ticker := time.NewTicker(5 * time.Minute)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			if n, err := imp.ImportAll(ctx); err != nil {
+				log.Warn("cost import failed", "error", err)
+			} else if n > 0 {
+				log.Info("cost import: imported records", "count", n)
+			}
+		case <-ctx.Done():
+			return
+		}
+	}
+}
+
+// runEventPruneLoop prunes stale events (TTL 24h, max 5000 per agent)
+// every hour.
+func runEventPruneLoop(ctx context.Context, prunable *bcevents.SQLiteLog) {
+	if n, err := prunable.Prune(24*time.Hour, 5000); err != nil {
+		log.Warn("event prune failed", "error", err)
+	} else if n > 0 {
+		log.Info("event prune: deleted stale events", "count", n)
+	}
+	ticker := time.NewTicker(1 * time.Hour)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			if n, err := prunable.Prune(24*time.Hour, 5000); err != nil {
+				log.Warn("event prune failed", "error", err)
+			} else if n > 0 {
+				log.Info("event prune: deleted stale events", "count", n)
+			}
+		case <-ctx.Done():
+			return
+		}
+	}
+}
+
+// runNotifyPruneLoop keeps the last 1000 delivery-log entries per channel.
+func runNotifyPruneLoop(ctx context.Context, svc *bcnotify.Service) {
+	ticker := time.NewTicker(1 * time.Hour)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			if err := svc.PruneOldActivity(ctx, 1000); err != nil {
+				log.Warn("notify: periodic prune failed", "error", err)
+			}
+		case <-ctx.Done():
+			return
+		}
+	}
+}
+
+// channelPersister bridges notify.Store → gateway.ChannelStore.
+type channelPersister struct {
+	store *bcnotify.Store
+}
+
+func (p *channelPersister) SaveChannel(ctx context.Context, bcChannel, platform, platformID string) error {
+	return p.store.SaveChannel(ctx, bcChannel, platform, platformID)
+}
+
+func (p *channelPersister) LoadChannels(ctx context.Context) ([]bcgateway.PersistedChannel, error) {
+	ncs, err := p.store.LoadChannels(ctx)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]bcgateway.PersistedChannel, len(ncs))
+	for i, c := range ncs {
+		result[i] = bcgateway.PersistedChannel{
+			BCChannel:  c.BCChannel,
+			Platform:   c.Platform,
+			PlatformID: c.PlatformID,
+		}
+	}
+	return result, nil
+}
+
+// Minor helper: ensure string conversion doesn't drop trailing slashes in
+// future path-manipulation callers. Currently unused but kept as a
+// safety hook for phase M5 where wsRoot may come from external input.
+var _ = strings.TrimSpace
