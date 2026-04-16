@@ -15,6 +15,27 @@ import { useHeaderSlot } from "../context/HeaderSlotContext";
 import { TabHeaderTitle } from "../components/Header";
 /* ── Live (Live Operations Center) ─────────────────────────────────── */
 
+export const SHOW_STOPPED_STORAGE_KEY = "bc-live-show-stopped";
+export const ACTIVE_STATES = new Set(["idle", "starting", "working", "stuck", "done"]);
+
+function readShowStopped(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    return window.localStorage.getItem(SHOW_STOPPED_STORAGE_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function writeShowStopped(value: boolean): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(SHOW_STOPPED_STORAGE_KEY, value ? "1" : "0");
+  } catch {
+    /* ignore */
+  }
+}
+
 export function Live() {
   useHeaderSlot({
     title: (
@@ -35,6 +56,15 @@ export function Live() {
   const [agentFilter, setAgentFilter] = useState("");
   const [typeFilter, setTypeFilter] = useState<FilterType>("all");
   const [searchFilter, setSearchFilter] = useState("");
+  const [showStopped, setShowStoppedState] = useState<boolean>(() => readShowStopped());
+
+  const setShowStopped = useCallback((value: boolean | ((prev: boolean) => boolean)) => {
+    setShowStoppedState((prev) => {
+      const next = typeof value === "function" ? (value as (p: boolean) => boolean)(prev) : value;
+      writeShowStopped(next);
+      return next;
+    });
+  }, []);
   const [paused, setPaused] = useState(false);
   const [pausedCount, setPausedCount] = useState(0);
   const [collapsedOverrides, setCollapsedOverrides] = useState<Map<string, boolean>>(new Map());
@@ -66,10 +96,24 @@ export function Live() {
     setPausedCount(0);
   }, []);
 
+  // Count active/stopped for the badge — before the show-stopped filter applies.
+  const { activeCount, stoppedCount } = useMemo(() => {
+    let active = 0;
+    let stopped = 0;
+    for (const a of activities.values()) {
+      if (ACTIVE_STATES.has(a.state)) active++;
+      else stopped++;
+    }
+    return { activeCount: active, stoppedCount: stopped };
+  }, [activities]);
+
   const sorted = useMemo(() => {
     const filtered = Array.from(activities.values())
       .map((a) => collapsedOverrides.has(a.name) ? { ...a, collapsed: collapsedOverrides.get(a.name)! } : a)
       .filter((a) => {
+        // Hide stopped/error agents unless the user opts in, but never hide an
+        // agent the user explicitly selected in the agent filter dropdown.
+        if (!showStopped && !ACTIVE_STATES.has(a.state) && agentFilter !== a.name) return false;
         if (agentFilter && a.name !== agentFilter) return false;
         if (typeFilter === "tools" && a.nodes.length === 0) return false;
         if (searchFilter) {
@@ -88,7 +132,7 @@ export function Live() {
       if (oa !== ob) return oa - ob;
       return a.name.localeCompare(b.name);
     });
-  }, [activities, collapsedOverrides, agentFilter, typeFilter, searchFilter]);
+  }, [activities, collapsedOverrides, agentFilter, typeFilter, searchFilter, showStopped]);
 
   useEffect(() => {
     const container = scrollContainerRef.current;
@@ -346,6 +390,32 @@ export function Live() {
             className="text-sm rounded-md border border-bc-border bg-bc-surface pl-8 pr-2.5 py-1.5 text-bc-text placeholder:text-bc-muted focus:outline-none focus:ring-1 focus:ring-bc-accent w-56"
           />
         </div>
+        {/* Active/stopped count badge with toggle */}
+        <span
+          className="inline-flex items-center gap-1.5 text-[11px] font-mono px-2 py-1 rounded-md border border-bc-border bg-bc-surface text-bc-muted"
+          data-testid="live-state-badge"
+          title={showStopped ? "Showing all agents" : "Stopped/errored agents hidden"}
+        >
+          <span className="text-bc-success tabular-nums">{activeCount}</span>
+          <span>active</span>
+          {stoppedCount > 0 && (
+            <>
+              <span className="text-bc-border">&middot;</span>
+              <span className="tabular-nums">{stoppedCount}</span>
+              <span>stopped</span>
+              <button
+                type="button"
+                onClick={() => setShowStopped((prev) => !prev)}
+                className="text-bc-accent hover:text-bc-text underline decoration-dotted underline-offset-2 transition-colors"
+                aria-pressed={showStopped}
+                aria-label={showStopped ? "Hide stopped agents" : "Show stopped agents"}
+                data-testid="toggle-show-stopped"
+              >
+                ({showStopped ? "hide" : "show"})
+              </button>
+            </>
+          )}
+        </span>
         {/* Active filter pills */}
         {hasFilters && (
           <div className="flex items-center gap-1.5">
@@ -381,11 +451,19 @@ export function Live() {
       {/* Agent Activity Cards */}
       <div ref={scrollContainerRef} className="flex-1 overflow-y-auto min-h-0 space-y-3 relative">
         {sorted.length === 0 ? (
-          <EmptyState
-            icon=">"
-            title="No activity yet"
-            description="Events will stream here in real-time as agents work."
-          />
+          !showStopped && activeCount === 0 && stoppedCount > 0 ? (
+            <EmptyState
+              icon=">"
+              title="No active agents"
+              description={`${stoppedCount} stopped or errored ${stoppedCount === 1 ? "agent is" : "agents are"} hidden. Click "(show)" above to reveal.`}
+            />
+          ) : (
+            <EmptyState
+              icon=">"
+              title="No activity yet"
+              description="Events will stream here in real-time as agents work."
+            />
+          )
         ) : (
           sorted.map((activity, idx) => (
             <div
