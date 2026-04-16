@@ -208,22 +208,13 @@ func (s *Store) Remove(name string) error {
 // values are dropped so the UI can "remove" a variable by clearing it.
 // Returns an error if the server doesn't exist (writes never auto-create
 // the row — use Add for that).
+//
+// The mutation runs inside a transaction so a partial failure rolls back
+// to the original env (important for the Postgres path, which internally
+// replaces the row).
 func (s *Store) UpdateEnv(name string, env map[string]string) error {
 	if s.pg != nil {
-		// Postgres backend — fall back to Add/Upsert-style replace.
-		cfg, err := s.pg.Get(name)
-		if err != nil {
-			return err
-		}
-		if cfg == nil {
-			return fmt.Errorf("mcp server %q not found", name)
-		}
-		cfg.Env = cleanEnv(env)
-		// Postgres store has no UpdateEnv yet; remove+add for now.
-		if err := s.pg.Remove(name); err != nil {
-			return fmt.Errorf("replace mcp %q: %w", name, err)
-		}
-		return s.pg.Add(cfg)
+		return s.pg.UpdateEnv(name, env)
 	}
 	cleaned := cleanEnv(env)
 	envJSON, err := json.Marshal(cleaned)
@@ -231,7 +222,13 @@ func (s *Store) UpdateEnv(name string, env map[string]string) error {
 		return fmt.Errorf("marshal env: %w", err)
 	}
 	ctx := context.Background()
-	result, err := s.db.ExecContext(ctx,
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin update env tx: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }() // no-op if Commit already ran
+
+	result, err := tx.ExecContext(ctx,
 		`UPDATE mcp_servers SET env = ? WHERE name = ?`,
 		string(envJSON), name,
 	)
@@ -241,6 +238,9 @@ func (s *Store) UpdateEnv(name string, env map[string]string) error {
 	affected, _ := result.RowsAffected()
 	if affected == 0 {
 		return fmt.Errorf("mcp server %q not found", name)
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit update env: %w", err)
 	}
 	return nil
 }

@@ -138,6 +138,38 @@ func (p *PostgresStore) Remove(name string) error {
 	return nil
 }
 
+// UpdateEnv replaces the env map for a named MCP server in a single
+// transaction. Returns an error if the server doesn't exist.
+func (p *PostgresStore) UpdateEnv(name string, env map[string]string) error {
+	cleaned := cleanEnv(env)
+	envJSON, err := json.Marshal(cleaned)
+	if err != nil {
+		return fmt.Errorf("marshal env: %w", err)
+	}
+	ctx := context.Background()
+	tx, err := p.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin update env tx: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }() // no-op if Commit already ran
+
+	result, err := tx.ExecContext(ctx,
+		`UPDATE mcp_servers SET env = $1 WHERE name = $2`,
+		string(envJSON), name,
+	)
+	if err != nil {
+		return fmt.Errorf("update env on mcp server %q: %w", name, err)
+	}
+	affected, _ := result.RowsAffected()
+	if affected == 0 {
+		return fmt.Errorf("mcp server %q not found", name)
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit update env: %w", err)
+	}
+	return nil
+}
+
 // SetEnabled enables or disables an MCP server config.
 // If the server is not yet in the database but a ConfigLookupFunc is set,
 // the full config is resolved and inserted before applying the toggle.
