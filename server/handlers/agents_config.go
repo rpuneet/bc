@@ -19,7 +19,9 @@ type agentConfigDTO struct { //nolint:govet // field order matches JSON/API cont
 
 // getAgentConfig handles GET /api/agents/{name}/config.
 func (h *AgentHandler) getAgentConfig(w http.ResponseWriter, r *http.Request, name string) {
-	a, err := h.svc.Get(r.Context(), name)
+	svc := h.resolveSvc(r)
+	ws := h.resolveWS(r)
+	a, err := svc.Get(r.Context(), name)
 	if err != nil {
 		httpError(w, err.Error(), http.StatusNotFound)
 		return
@@ -28,7 +30,7 @@ func (h *AgentHandler) getAgentConfig(w http.ResponseWriter, r *http.Request, na
 	// Determine worktree path: use stored WorktreeDir or compute from workspace root.
 	wtDir := a.WorktreeDir
 	if wtDir == "" {
-		wtDir = h.svc.Manager().WorktreePath(name)
+		wtDir = svc.Manager().WorktreePath(name)
 	}
 
 	dto := agentConfigDTO{
@@ -48,8 +50,8 @@ func (h *AgentHandler) getAgentConfig(w http.ResponseWriter, r *http.Request, na
 	}
 
 	// Resolve MCP servers from the agent's role via the role manager.
-	if h.ws != nil && h.ws.RoleManager != nil && string(a.Role) != "" {
-		if resolved, resolveErr := h.ws.RoleManager.ResolveRole(string(a.Role)); resolveErr == nil && len(resolved.MCPServers) > 0 {
+	if ws != nil && ws.RoleManager != nil && string(a.Role) != "" {
+		if resolved, resolveErr := ws.RoleManager.ResolveRole(string(a.Role)); resolveErr == nil && len(resolved.MCPServers) > 0 {
 			dto.MCPServers = resolved.MCPServers
 		}
 	}
@@ -59,7 +61,9 @@ func (h *AgentHandler) getAgentConfig(w http.ResponseWriter, r *http.Request, na
 
 // patchAgentConfig handles PATCH /api/agents/{name}/config.
 func (h *AgentHandler) patchAgentConfig(w http.ResponseWriter, r *http.Request, name string) {
-	a, err := h.svc.Get(r.Context(), name)
+	svc := h.resolveSvc(r)
+	ws := h.resolveWS(r)
+	a, err := svc.Get(r.Context(), name)
 	if err != nil {
 		httpError(w, err.Error(), http.StatusNotFound)
 		return
@@ -76,7 +80,7 @@ func (h *AgentHandler) patchAgentConfig(w http.ResponseWriter, r *http.Request, 
 	// Determine worktree path: use stored WorktreeDir or compute from workspace root.
 	wtDir := a.WorktreeDir
 	if wtDir == "" {
-		wtDir = h.svc.Manager().WorktreePath(name)
+		wtDir = svc.Manager().WorktreePath(name)
 	}
 	if wtDir == "" {
 		httpError(w, "worktree path not available for this agent", http.StatusUnprocessableEntity)
@@ -105,8 +109,8 @@ func (h *AgentHandler) patchAgentConfig(w http.ResponseWriter, r *http.Request, 
 		SystemPrompt:   req.SystemPrompt,
 		MCPServers:     []string{},
 	}
-	if h.ws != nil && h.ws.RoleManager != nil && string(a.Role) != "" {
-		if resolved, resolveErr := h.ws.RoleManager.ResolveRole(string(a.Role)); resolveErr == nil && len(resolved.MCPServers) > 0 {
+	if ws != nil && ws.RoleManager != nil && string(a.Role) != "" {
+		if resolved, resolveErr := ws.RoleManager.ResolveRole(string(a.Role)); resolveErr == nil && len(resolved.MCPServers) > 0 {
 			dto.MCPServers = resolved.MCPServers
 		}
 	}
@@ -131,7 +135,9 @@ func (h *AgentHandler) forkAgent(w http.ResponseWriter, r *http.Request, sourceN
 		return
 	}
 
-	newAgent, err := h.svc.ForkAgent(r.Context(), sourceName, req.Name)
+	svc := h.resolveSvc(r)
+	ws := h.resolveWS(r)
+	newAgent, err := svc.ForkAgent(r.Context(), sourceName, req.Name)
 	if err != nil {
 		httpError(w, err.Error(), http.StatusBadRequest)
 		return
@@ -140,8 +146,8 @@ func (h *AgentHandler) forkAgent(w http.ResponseWriter, r *http.Request, sourceN
 	dto := toDTO(newAgent)
 
 	// Enrich with MCP servers from role.
-	if h.ws != nil && h.ws.RoleManager != nil && dto.Role != "" {
-		if resolved, resolveErr := h.ws.RoleManager.ResolveRole(dto.Role); resolveErr == nil {
+	if ws != nil && ws.RoleManager != nil && dto.Role != "" {
+		if resolved, resolveErr := ws.RoleManager.ResolveRole(dto.Role); resolveErr == nil {
 			dto.MCPServers = resolved.MCPServers
 		}
 	}
