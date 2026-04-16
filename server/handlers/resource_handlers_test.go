@@ -1019,7 +1019,9 @@ func TestMCPHandler_ServerMethodNotAllowed(t *testing.T) {
 		`{"name":"mna-srv","transport":"stdio","command":"echo test"}`)
 	_ = resp.Body.Close()
 
-	resp = doRequest(t, http.MethodPatch, ts.URL+"/api/mcp/mna-srv", "application/json", `{}`)
+	// PUT is not a supported method on /api/mcp/{name}. PATCH is allowed
+	// (env editor) — covered by dedicated tests in mcp_test.go.
+	resp = doRequest(t, http.MethodPut, ts.URL+"/api/mcp/mna-srv", "application/json", `{}`)
 	assertStatus(t, resp, http.StatusMethodNotAllowed)
 	_ = resp.Body.Close()
 }
