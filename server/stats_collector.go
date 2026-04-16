@@ -11,7 +11,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"os/exec"
 	"path/filepath"
 	"strconv"
@@ -25,6 +24,11 @@ import (
 	bctoken "github.com/rpuneet/bc/pkg/token"
 	bcworkspace "github.com/rpuneet/bc/pkg/workspace"
 )
+
+// tmuxSampler is shared across sampling ticks so the one-time
+// "no per-process network stats on this platform" warning stays
+// one-time across the life of the collector.
+var tmuxSampler = bcstats.NewTmuxSampler(bcstats.DefaultTmuxProcRunner{})
 
 // dockerStatsEntry represents one line of `docker stats --no-stream --format '{{json .}}'`.
 type dockerStatsEntry struct {
@@ -199,54 +203,34 @@ func collectDockerStats(ctx context.Context) []dockerStatsEntry {
 	return entries
 }
 
+// collectTmuxAgentStats samples CPU% and RSS for a tmux-backed agent by
+// walking the PID tree rooted at the tmux pane.
+//
+// Previous implementation grepped `ps aux` for the session name, which
+// both over-matched (any command line containing the name) and
+// under-matched (agents whose session string differed from the bc-hashed
+// tmux name). We now use pkg/stats.TmuxSampler which resolves the pane
+// PID via `tmux list-panes` and walks children via `pgrep -P`.
+//
+// Network bytes remain zero for tmux agents: macOS has no per-process
+// network counters without DTrace privileges, and linux /proc net stats
+// are container-wide rather than per-process. The UI renders "Network
+// tracking requires container runtime" in that case. We log a one-time
+// warning so operators know why the chart is flat.
 func collectTmuxAgentStats(ctx context.Context, agentName string, a *bcagent.Agent) (*bcstats.AgentMetric, error) {
 	sessionName := a.Session
 	if sessionName == "" {
 		sessionName = agentName
 	}
 
-	cmd := exec.CommandContext(ctx, "ps", "aux")
-	out, err := cmd.Output()
+	sample, err := tmuxSampler.Sample(ctx, sessionName, agentName)
 	if err != nil {
-		return nil, fmt.Errorf("ps aux: %w", err)
+		return nil, err
 	}
 
-	var totalCPU float64
-	var totalRSSKB int64
-
-	patterns := []string{sessionName}
-	if a.Session != "" && a.Session != sessionName {
-		patterns = append(patterns, a.Session)
-	}
-	if !strings.HasPrefix(sessionName, "bc-") {
-		patterns = append(patterns, "bc-"+sessionName)
-	}
-
-	scanner := bufio.NewScanner(bytes.NewReader(out))
-	scanner.Scan() // skip header
-	for scanner.Scan() {
-		line := scanner.Text()
-		matched := false
-		for _, pat := range patterns {
-			if strings.Contains(line, pat) {
-				matched = true
-				break
-			}
-		}
-		if !matched {
-			continue
-		}
-		fields := strings.Fields(line)
-		if len(fields) < 6 {
-			continue
-		}
-		if cpu, parseErr := strconv.ParseFloat(fields[2], 64); parseErr == nil {
-			totalCPU += cpu
-		}
-		if rss, parseErr := strconv.ParseInt(fields[5], 10, 64); parseErr == nil {
-			totalRSSKB += rss
-		}
-	}
+	tmuxSampler.WarnNoNetworkOnce(func() {
+		log.Debug("stats: tmux agents have no per-process network counters; NetRx/NetTx will be 0")
+	})
 
 	return &bcstats.AgentMetric{
 		Time:         time.Now().UTC(),
@@ -255,8 +239,8 @@ func collectTmuxAgentStats(ctx context.Context, agentName string, a *bcagent.Age
 		Tool:         a.Tool,
 		Runtime:      "tmux",
 		State:        string(a.State),
-		CPUPercent:   totalCPU,
-		MemUsedBytes: totalRSSKB * 1024,
+		CPUPercent:   sample.CPUPercent,
+		MemUsedBytes: sample.MemBytes,
 	}, nil
 }
 
