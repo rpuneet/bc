@@ -28,6 +28,7 @@ import (
 	"github.com/rpuneet/bc/pkg/attachment"
 	"github.com/rpuneet/bc/pkg/cost"
 	"github.com/rpuneet/bc/pkg/cron"
+	"github.com/rpuneet/bc/pkg/deps"
 	"github.com/rpuneet/bc/pkg/events"
 	"github.com/rpuneet/bc/pkg/gateway"
 	"github.com/rpuneet/bc/pkg/log"
@@ -89,6 +90,10 @@ type Services struct {
 	// WorkspaceManager lazy-loads per-workspace services for scoped routes
 	// at /api/workspaces/{id}/... — may be nil in tests.
 	WorkspaceManager *WorkspaceManager
+	// Deps is the optional dependencies registry (bc-db, bc-code-server,
+	// bc-browser). May be nil in tests; when nil the /api/deps handler
+	// returns an empty list and 404 for detail routes.
+	Deps *deps.Registry
 }
 
 // Server is the bcd HTTP server.
@@ -266,6 +271,10 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 		handlers.NewWorkspacesHandler(svc.Registry, svc.Agents).Register(mux)
 		handlers.NewDiscoveryHandler(svc.Registry).Register(mux)
 	}
+	// Optional dependencies manager (bc-db, bc-code-server, bc-browser).
+	// Always registered so the UI can render an empty list when no deps
+	// are configured; the handler is nil-safe internally.
+	handlers.NewDepsHandler(svc.Deps).Register(mux)
 	// Code tab endpoints — resolves workspaces via the registry + active
 	// workspace shim. The context-lookup shim is wired here to avoid an
 	// import cycle between server and server/handlers.

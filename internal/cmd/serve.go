@@ -21,6 +21,7 @@ import (
 	bccost "github.com/rpuneet/bc/pkg/cost"
 	bccron "github.com/rpuneet/bc/pkg/cron"
 	bcdb "github.com/rpuneet/bc/pkg/db"
+	bcdeps "github.com/rpuneet/bc/pkg/deps"
 	bcevents "github.com/rpuneet/bc/pkg/events"
 	bcgateway "github.com/rpuneet/bc/pkg/gateway"
 	bcdiscord "github.com/rpuneet/bc/pkg/gateway/discord"
@@ -352,6 +353,15 @@ func RunServer(addr, wsRoot, corsOrigin, apiKey string) error {
 		}
 	}
 
+	// Build the optional dependencies registry. bc-code-server is bound to
+	// the currently-active workspace root; the factory below updates it on
+	// workspace activation so Start mounts the right directory.
+	depsRegistry := bcdeps.NewRegistry()
+	bcCodeServer := bcdeps.NewBCCodeServer(ws.RootDir)
+	depsRegistry.Register(bcdeps.NewBCDB())
+	depsRegistry.Register(bcCodeServer)
+	depsRegistry.Register(bcdeps.NewBCBrowser())
+
 	svc := server.Services{
 		Agents:        agentSvc,
 		Notify:        notifyService,
@@ -368,6 +378,7 @@ func RunServer(addr, wsRoot, corsOrigin, apiKey string) error {
 		WS:            ws,
 		Gateway:       gwManager,
 		Registry:      registry,
+		Deps:          depsRegistry,
 	}
 
 	// Per-workspace services manager. The factory is intentionally minimal
@@ -382,6 +393,10 @@ func RunServer(addr, wsRoot, corsOrigin, apiKey string) error {
 		// handlers. For any other workspace the scope middleware returns
 		// 501 until full per-workspace dispatch lands.
 		if w.RootDir == ws.RootDir {
+			// Keep bc-code-server's bind mount aligned with the
+			// currently-loaded workspace so Start targets the right
+			// directory even after the user switches workspaces.
+			bcCodeServer.SetWorkspaceRoot(w.RootDir)
 			return &server.WorkspaceServices{
 				Services:  svc,
 				Workspace: w,
