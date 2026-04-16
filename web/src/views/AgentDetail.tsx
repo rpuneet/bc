@@ -131,9 +131,13 @@ function ConfigTab({ agent }: { agent: Agent }) {
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
-  // Clone state (archive UI is a separate commit once backend lands)
+  // Clone + Archive state
   const [cloneOpen, setCloneOpen] = useState(false);
   const [allAgents, setAllAgents] = useState<Agent[]>([]);
+  const [confirmArchive, setConfirmArchive] = useState(false);
+  const [archiving, setArchiving] = useState(false);
+  const [archiveError, setArchiveError] = useState<string | null>(null);
+  const isArchived = Boolean(agent.archived_at);
 
   // MCP server management state
   const [mcpList, setMcpList] = useState<string[] | null>(null);
@@ -577,16 +581,81 @@ function ConfigTab({ agent }: { agent: Agent }) {
                 Clone
               </button>
 
-              {/* Archive — placeholder until backend lands (see task #251) */}
-              <button
-                type="button"
-                disabled
-                title="Archive support coming soon"
-                className="px-3 py-1.5 rounded-md text-[11px] font-medium border border-bc-border/30 text-bc-muted/40 cursor-not-allowed"
-                style={{ fontFamily: MONO }}
-              >
-                Archive
-              </button>
+              {/* Archive / Unarchive with confirm flow mirroring Delete */}
+              {archiveError && (
+                <span className="text-[11px] text-bc-error" style={{ fontFamily: MONO }}>
+                  {archiveError}
+                </span>
+              )}
+              {isArchived ? (
+                <button
+                  type="button"
+                  disabled={archiving}
+                  onClick={() => {
+                    setArchiving(true);
+                    setArchiveError(null);
+                    api
+                      .unarchiveAgent(agent.name)
+                      .then(() => navigate("/agents"))
+                      .catch((err: unknown) => {
+                        setArchiving(false);
+                        setArchiveError(
+                          err instanceof Error ? err.message : "Failed to unarchive agent",
+                        );
+                      });
+                  }}
+                  className="px-3 py-1.5 rounded-md text-[11px] font-medium border border-bc-accent/40 text-bc-accent hover:bg-bc-accent/10 transition-colors disabled:opacity-40"
+                  style={{ fontFamily: MONO }}
+                >
+                  {archiving ? "Unarchiving…" : "Unarchive"}
+                </button>
+              ) : confirmArchive ? (
+                <>
+                  <span className="text-[11px] text-bc-muted" style={{ fontFamily: MONO }}>
+                    Archive this agent?
+                  </span>
+                  <button
+                    type="button"
+                    disabled={archiving}
+                    onClick={() => {
+                      setArchiving(true);
+                      setArchiveError(null);
+                      api
+                        .archiveAgent(agent.name)
+                        .then(() => navigate("/agents"))
+                        .catch((err: unknown) => {
+                          setArchiving(false);
+                          setConfirmArchive(false);
+                          setArchiveError(
+                            err instanceof Error ? err.message : "Failed to archive agent",
+                          );
+                        });
+                    }}
+                    className="px-3 py-1.5 rounded-md text-[11px] font-medium border border-bc-accent/50 bg-bc-accent/10 text-bc-accent hover:bg-bc-accent/20 transition-colors disabled:opacity-40"
+                    style={{ fontFamily: MONO }}
+                  >
+                    {archiving ? "Archiving…" : "Confirm"}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={archiving}
+                    onClick={() => setConfirmArchive(false)}
+                    className="px-3 py-1.5 rounded-md text-[11px] font-medium border border-bc-border/40 text-bc-muted hover:text-bc-text hover:border-bc-border transition-colors disabled:opacity-40"
+                    style={{ fontFamily: MONO }}
+                  >
+                    Cancel
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setConfirmArchive(true)}
+                  className="px-3 py-1.5 rounded-md text-[11px] font-medium border border-bc-border/40 text-bc-muted hover:text-bc-text hover:border-bc-border transition-colors"
+                  style={{ fontFamily: MONO }}
+                >
+                  Archive
+                </button>
+              )}
             </div>
 
             <CreateAgentModal

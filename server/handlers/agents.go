@@ -179,6 +179,7 @@ type agentDTO struct { //nolint:govet // field order matches JSON/API contract
 	StartedAt    time.Time      `json:"started_at,omitempty"`
 	UpdatedAt    time.Time      `json:"updated_at"`
 	StoppedAt    *time.Time     `json:"stopped_at,omitempty"`
+	ArchivedAt   *time.Time     `json:"archived_at,omitempty"`
 	Stats        *agentStatsDTO `json:"stats,omitempty"`
 	Avatar       *avatarDTO     `json:"avatar,omitempty"`
 	Tool         string         `json:"tool,omitempty"`
@@ -213,22 +214,23 @@ type agentStatsDTO struct {
 
 func toDTO(a *agent.Agent) agentDTO {
 	return agentDTO{
-		ID:        a.ID,
-		Name:      a.Name,
-		Role:      string(a.Role),
-		State:     string(a.State),
-		Task:      a.Task,
-		Team:      a.Team,
-		Tool:      a.Tool,
-		Runtime:   a.RuntimeBackend,
-		Session:   a.Session,
-		SessionID: a.SessionID,
-		ParentID:  a.ParentID,
-		Children:  a.Children,
-		CreatedAt: a.CreatedAt,
-		StartedAt: a.StartedAt,
-		UpdatedAt: a.UpdatedAt,
-		StoppedAt: a.StoppedAt,
+		ID:         a.ID,
+		Name:       a.Name,
+		Role:       string(a.Role),
+		State:      string(a.State),
+		Task:       a.Task,
+		Team:       a.Team,
+		Tool:       a.Tool,
+		Runtime:    a.RuntimeBackend,
+		Session:    a.Session,
+		SessionID:  a.SessionID,
+		ParentID:   a.ParentID,
+		Children:   a.Children,
+		CreatedAt:  a.CreatedAt,
+		StartedAt:  a.StartedAt,
+		UpdatedAt:  a.UpdatedAt,
+		StoppedAt:  a.StoppedAt,
+		ArchivedAt: a.ArchivedAt,
 	}
 }
 
@@ -252,7 +254,11 @@ func (h *AgentHandler) list(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
 		// State is driven by hooks — no polling or reconciler needed.
-		agents, err := svc.List(r.Context(), agent.ListOptions{})
+		q := r.URL.Query()
+		agents, err := svc.List(r.Context(), agent.ListOptions{
+			IncludeArchived: q.Get("includeArchived") == "1" || q.Get("includeArchived") == "true",
+			OnlyArchived:    q.Get("onlyArchived") == "1" || q.Get("onlyArchived") == "true",
+		})
 		if err != nil {
 			httpInternalError(w, "list agents", err)
 			return
@@ -432,6 +438,20 @@ func (h *AgentHandler) byName(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]string{"status": "stopped"})
+
+	case r.Method == http.MethodPost && action == "archive":
+		if err := svc.Archive(r.Context(), name); err != nil {
+			httpError(w, err.Error(), http.StatusNotFound)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]string{"status": "archived"})
+
+	case r.Method == http.MethodPost && action == "unarchive":
+		if err := svc.Unarchive(r.Context(), name); err != nil {
+			httpError(w, err.Error(), http.StatusNotFound)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]string{"status": "active"})
 
 	case r.Method == http.MethodPost && action == "send":
 		var req struct {

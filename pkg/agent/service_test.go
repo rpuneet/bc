@@ -280,3 +280,54 @@ func TestAgentService_Manager(t *testing.T) {
 		t.Error("Manager() should return the underlying manager")
 	}
 }
+
+// TestAgentService_ArchiveRoundtrip confirms Archive/Unarchive flip the
+// ArchivedAt field and interact correctly with List's default filter.
+func TestAgentService_ArchiveRoundtrip(t *testing.T) {
+	mgr := newTestManager(t)
+	mgr.agents["keep"] = &Agent{Name: "keep", Role: Role("engineer"), State: StateIdle, Children: []string{}}
+	mgr.agents["away"] = &Agent{Name: "away", Role: Role("engineer"), State: StateIdle, Children: []string{}}
+	svc := NewAgentService(mgr, nil, nil)
+	ctx := context.Background()
+
+	if err := svc.Archive(ctx, "away"); err != nil {
+		t.Fatalf("Archive: %v", err)
+	}
+
+	// Default list hides archived
+	def, _ := svc.List(ctx, ListOptions{})
+	if len(def) != 1 || def[0].Name != "keep" {
+		t.Errorf("default list: expected [keep], got %+v", def)
+	}
+
+	// IncludeArchived sees both
+	both, _ := svc.List(ctx, ListOptions{IncludeArchived: true})
+	if len(both) != 2 {
+		t.Errorf("IncludeArchived list: expected 2, got %d", len(both))
+	}
+
+	// OnlyArchived returns just away
+	only, _ := svc.List(ctx, ListOptions{OnlyArchived: true})
+	if len(only) != 1 || only[0].Name != "away" {
+		t.Errorf("OnlyArchived list: expected [away], got %+v", only)
+	}
+
+	// Idempotent double-archive
+	if err := svc.Archive(ctx, "away"); err != nil {
+		t.Errorf("second archive should be idempotent, got %v", err)
+	}
+
+	// Unarchive flips back
+	if err := svc.Unarchive(ctx, "away"); err != nil {
+		t.Fatalf("Unarchive: %v", err)
+	}
+	def2, _ := svc.List(ctx, ListOptions{})
+	if len(def2) != 2 {
+		t.Errorf("after unarchive: expected 2, got %d", len(def2))
+	}
+
+	// Archiving a missing agent errors
+	if err := svc.Archive(ctx, "ghost"); err == nil {
+		t.Error("expected error archiving unknown agent")
+	}
+}

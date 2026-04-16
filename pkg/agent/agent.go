@@ -345,6 +345,11 @@ type Agent struct {
 	CreatedAt      time.Time    `json:"created_at"`
 	StoppedAt      *time.Time   `json:"stopped_at,omitempty"`
 	DeletedAt      *time.Time   `json:"deleted_at,omitempty"`
+	// ArchivedAt is set when the agent has been moved out of the
+	// default listing via POST /api/agents/{name}/archive. A non-nil
+	// value hides the agent from List() unless IncludeArchived is set.
+	// Archiving does NOT delete state; unarchive clears this field.
+	ArchivedAt *time.Time `json:"archived_at,omitempty"`
 	RolePrompt     *AgentMemory `json:"memory,omitempty"`
 	Workspace      string       `json:"workspace"`
 	ID             string       `json:"id"`
@@ -1889,6 +1894,34 @@ func (m *Manager) GetAgent(name string) *Agent {
 	copy := *a
 	copy.Children = append([]string{}, a.Children...)
 	return &copy
+}
+
+// SetArchived stamps (or clears) ArchivedAt on an in-memory agent and
+// persists the whole agent map. Returns an error if the named agent is
+// missing. Safe to call concurrently — uses m.mu for write serialization.
+// This is the backing primitive for the AgentService Archive/Unarchive
+// methods; it intentionally does NOT kill the runtime or touch on-disk
+// state beyond the SQLite agent store (archive is reversible).
+func (m *Manager) SetArchived(name string, archived bool) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	a, exists := m.agents[name]
+	if !exists {
+		return fmt.Errorf("agent %s not found", name)
+	}
+	if archived {
+		if a.ArchivedAt != nil {
+			return nil // idempotent
+		}
+		now := time.Now()
+		a.ArchivedAt = &now
+	} else {
+		if a.ArchivedAt == nil {
+			return nil
+		}
+		a.ArchivedAt = nil
+	}
+	return m.saveState()
 }
 
 // ListAgents returns copies of all agents sorted by role hierarchy then by name.

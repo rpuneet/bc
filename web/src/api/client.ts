@@ -44,6 +44,7 @@ export interface Agent {
   created_at: string;
   updated_at: string;
   stopped_at?: string;
+  archived_at?: string;
   task?: string;
   session?: string;
   session_id?: string;
@@ -584,6 +585,10 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ new_name: newName }),
     }),
+  archiveAgent: (name: string) =>
+    request<void>(`/agents/${encodeURIComponent(name)}/archive`, { method: "POST" }),
+  unarchiveAgent: (name: string) =>
+    request<void>(`/agents/${encodeURIComponent(name)}/unarchive`, { method: "POST" }),
 
   // Cross-workspace cost rollup (outside workspace scope).
   globalCosts: (opts: { start?: string; groupBy?: "workspace" | "project" } = {}) => {

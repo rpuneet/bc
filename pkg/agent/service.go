@@ -35,8 +35,10 @@ type CostSummary struct {
 
 // ListOptions configures agent listing.
 type ListOptions struct {
-	Role   string // Filter by role (empty = all)
-	Status string // Filter by status/state (empty = all)
+	Role             string // Filter by role (empty = all)
+	Status           string // Filter by status/state (empty = all)
+	IncludeArchived  bool   // When true, archived agents are included alongside live ones
+	OnlyArchived     bool   // When true, only archived agents are returned (overrides IncludeArchived)
 }
 
 // CreateOptions holds parameters for creating an agent via the service.
@@ -111,13 +113,27 @@ func (s *AgentService) Manager() *Manager {
 func (s *AgentService) List(ctx context.Context, opts ListOptions) ([]*Agent, error) {
 	agents := s.manager.ListAgents()
 
-	// Apply filters
-	if opts.Role == "" && opts.Status == "" {
-		return agents, nil
+	// Fast path: no filters set and default archive behavior (hide).
+	if opts.Role == "" && opts.Status == "" && !opts.IncludeArchived && !opts.OnlyArchived {
+		filtered := make([]*Agent, 0, len(agents))
+		for _, a := range agents {
+			if a.ArchivedAt != nil {
+				continue
+			}
+			filtered = append(filtered, a)
+		}
+		return filtered, nil
 	}
 
 	filtered := make([]*Agent, 0, len(agents))
 	for _, a := range agents {
+		archived := a.ArchivedAt != nil
+		switch {
+		case opts.OnlyArchived && !archived:
+			continue
+		case !opts.OnlyArchived && !opts.IncludeArchived && archived:
+			continue
+		}
 		if opts.Role != "" && string(a.Role) != opts.Role {
 			continue
 		}
@@ -127,6 +143,18 @@ func (s *AgentService) List(ctx context.Context, opts ListOptions) ([]*Agent, er
 		filtered = append(filtered, a)
 	}
 	return filtered, nil
+}
+
+// Archive marks the named agent as archived, hiding it from default
+// List() results. Idempotent. Errors when the agent doesn't exist.
+func (s *AgentService) Archive(_ context.Context, name string) error {
+	return s.manager.SetArchived(name, true)
+}
+
+// Unarchive clears the archived flag on the named agent.
+// Idempotent. Errors when the agent doesn't exist.
+func (s *AgentService) Unarchive(_ context.Context, name string) error {
+	return s.manager.SetArchived(name, false)
 }
 
 // matchesStatus checks if an agent state matches a status filter.
