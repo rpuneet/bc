@@ -1,0 +1,211 @@
+package handlers
+
+import (
+	"encoding/json"
+	"errors"
+	"net/http"
+	"path/filepath"
+
+	"github.com/rpuneet/bc/pkg/discovery"
+	"github.com/rpuneet/bc/pkg/workspace"
+)
+
+// DiscoveryHandler exposes the workspace-discovery endpoints proposed in
+// §4.4: local filesystem scan, GitHub repo list, clone + register, plus
+// the small GitHub auth surface (/api/auth/github) used to authorize the
+// repo-list call.
+type DiscoveryHandler struct {
+	registry *workspace.Registry
+}
+
+// NewDiscoveryHandler constructs the handler bound to a registry.
+func NewDiscoveryHandler(registry *workspace.Registry) *DiscoveryHandler {
+	return &DiscoveryHandler{registry: registry}
+}
+
+// Register mounts all /api/workspaces/discover/* and /api/auth/github
+// routes on mux.
+func (h *DiscoveryHandler) Register(mux *http.ServeMux) {
+	mux.HandleFunc("/api/workspaces/discover/local", h.discoverLocal)
+	mux.HandleFunc("/api/workspaces/discover/github", h.discoverGithub)
+	mux.HandleFunc("/api/workspaces/clone", h.clone)
+	mux.HandleFunc("/api/auth/github", h.githubAuth)
+}
+
+// discoverLocal scans a filesystem root for git repos.
+//
+// POST body: {"root": "/abs/path", "depth": 3}
+func (h *DiscoveryHandler) discoverLocal(w http.ResponseWriter, r *http.Request) {
+	if !requireMethod(w, r, http.MethodPost) {
+		return
+	}
+	var body struct {
+		Root  string `json:"root"`
+		Depth int    `json:"depth,omitempty"`
+	}
+	if err := decodeJSONBody(r, &body); err != nil {
+		http.Error(w, `{"error":"invalid json body"}`, http.StatusBadRequest)
+		return
+	}
+	if body.Root == "" {
+		http.Error(w, `{"error":"root is required"}`, http.StatusBadRequest)
+		return
+	}
+	cands, err := discovery.ScanLocal(r.Context(), discovery.ScanOptions{
+		Root:  body.Root,
+		Depth: body.Depth,
+	})
+	if err != nil {
+		http.Error(w, `{"error":"scan failed: `+err.Error()+`"}`, http.StatusBadRequest)
+		return
+	}
+	// Annotate with "already_registered" based on the registry.
+	seen := map[string]bool{}
+	if h.registry != nil {
+		for _, entry := range h.registry.List() {
+			seen[entry.Path] = true
+		}
+	}
+	for i := range cands {
+		abs, _ := filepath.Abs(cands[i].Path) //nolint:errcheck
+		if seen[abs] {
+			cands[i].AlreadyRegistered = true
+		}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"candidates": cands})
+}
+
+// discoverGithub lists the authenticated user's repositories.
+//
+// POST body: {"query": "substring"}
+func (h *DiscoveryHandler) discoverGithub(w http.ResponseWriter, r *http.Request) {
+	if !requireMethod(w, r, http.MethodPost) {
+		return
+	}
+	var body struct {
+		Query string `json:"query,omitempty"`
+	}
+	if err := decodeJSONBody(r, &body); err != nil {
+		http.Error(w, `{"error":"invalid json body"}`, http.StatusBadRequest)
+		return
+	}
+	repos, err := discovery.ListGithubRepos(r.Context(), body.Query)
+	if err != nil {
+		if errors.Is(err, discovery.ErrGithubNotAuthenticated) {
+			http.Error(w, `{"error":"github not authenticated"}`, http.StatusUnauthorized)
+			return
+		}
+		http.Error(w, `{"error":"github api: `+err.Error()+`"}`, http.StatusBadGateway)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"repos": repos})
+}
+
+// clone clones a URL into target and registers the result.
+//
+// POST body: {"url": "...", "target": "/abs/parent", "name": "optional"}
+func (h *DiscoveryHandler) clone(w http.ResponseWriter, r *http.Request) {
+	if !requireMethod(w, r, http.MethodPost) {
+		return
+	}
+	var body struct {
+		URL    string `json:"url"`
+		Target string `json:"target"`
+		Name   string `json:"name,omitempty"`
+	}
+	if err := decodeJSONBody(r, &body); err != nil {
+		http.Error(w, `{"error":"invalid json body"}`, http.StatusBadRequest)
+		return
+	}
+	if body.URL == "" || body.Target == "" {
+		http.Error(w, `{"error":"url and target are required"}`, http.StatusBadRequest)
+		return
+	}
+	dest, err := discovery.Clone(r.Context(), body.URL, body.Target, body.Name)
+	if err != nil {
+		http.Error(w, `{"error":"clone failed: `+err.Error()+`"}`, http.StatusBadRequest)
+		return
+	}
+	name := body.Name
+	if name == "" {
+		name = filepath.Base(dest)
+	}
+	var id string
+	if h.registry != nil {
+		if rErr := h.registry.RegisterWithAlias(dest, name, ""); rErr != nil {
+			http.Error(w, `{"error":"register failed: `+rErr.Error()+`"}`, http.StatusConflict)
+			return
+		}
+		if sErr := h.registry.Save(); sErr != nil {
+			httpInternalError(w, "save registry", sErr)
+			return
+		}
+		if entry := h.registry.Find(dest); entry != nil {
+			id = entry.ID
+		}
+	}
+	writeJSON(w, http.StatusCreated, map[string]any{
+		"id":   id,
+		"path": dest,
+		"name": name,
+	})
+}
+
+// githubAuth handles GET/POST/DELETE on /api/auth/github.
+//
+//	GET    -> {"connected": bool, "login": "..."}
+//	POST   body {"token": "..."} validates + stores
+//	DELETE removes the token
+func (h *DiscoveryHandler) githubAuth(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		h.githubAuthStatus(w, r)
+	case http.MethodPost:
+		h.githubAuthSet(w, r)
+	case http.MethodDelete:
+		h.githubAuthDelete(w, r)
+	default:
+		http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
+	}
+}
+
+func (h *DiscoveryHandler) githubAuthStatus(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, http.StatusOK, map[string]any{"connected": discovery.GithubConnected()})
+}
+
+func (h *DiscoveryHandler) githubAuthSet(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Token string `json:"token"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, `{"error":"invalid json body"}`, http.StatusBadRequest)
+		return
+	}
+	if body.Token == "" {
+		http.Error(w, `{"error":"token is required"}`, http.StatusBadRequest)
+		return
+	}
+	// Validate before persisting so we don't store a garbage token.
+	login, err := discovery.ValidateGithubToken(r.Context(), body.Token)
+	if err != nil {
+		if errors.Is(err, discovery.ErrGithubNotAuthenticated) {
+			http.Error(w, `{"error":"token rejected by github"}`, http.StatusUnauthorized)
+			return
+		}
+		http.Error(w, `{"error":"validate failed: `+err.Error()+`"}`, http.StatusBadGateway)
+		return
+	}
+	if wErr := discovery.WriteGithubToken(body.Token); wErr != nil {
+		httpInternalError(w, "write token", wErr)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"connected": true, "login": login})
+}
+
+func (h *DiscoveryHandler) githubAuthDelete(w http.ResponseWriter, _ *http.Request) {
+	if err := discovery.DeleteGithubToken(); err != nil {
+		httpInternalError(w, "delete token", err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}

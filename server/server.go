@@ -264,6 +264,7 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 	}
 	if svc.Registry != nil {
 		handlers.NewWorkspacesHandler(svc.Registry, svc.Agents).Register(mux)
+		handlers.NewDiscoveryHandler(svc.Registry).Register(mux)
 	}
 	if svc.WS != nil {
 		handlers.NewRolesHandler(svc.WS).Register(mux)

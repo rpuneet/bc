@@ -61,6 +61,14 @@ var workspaceSelfRoutes = map[string]struct{}{
 	"activate": {},
 }
 
+// These top-level sub-paths are NOT workspace IDs — they live at
+// /api/workspaces/<name>/* and are served directly by discovery/registry
+// handlers. The scope middleware must pass them through unchanged.
+var workspacesReservedPrefixes = map[string]struct{}{
+	"discover": {},
+	"clone":    {},
+}
+
 // WorkspaceScope returns a middleware that:
 //   - rewrites /api/workspaces/{id}/<rest> → /api/<rest> when <rest> is a
 //     scoped resource (not a self-route), after resolving {id} to a
@@ -97,6 +105,12 @@ func WorkspaceScope(next http.Handler, mgr *WorkspaceManager) http.Handler {
 			rest := strings.TrimPrefix(path, "/api/workspaces/")
 			id, tail, _ := strings.Cut(rest, "/")
 			if id == "" {
+				next.ServeHTTP(w, r)
+				return
+			}
+			// Reserved top-level names (discover, clone, etc.) are NOT
+			// workspace IDs — forward without touching the URL.
+			if _, ok := workspacesReservedPrefixes[id]; ok {
 				next.ServeHTTP(w, r)
 				return
 			}
