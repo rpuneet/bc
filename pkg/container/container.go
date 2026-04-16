@@ -361,7 +361,7 @@ func (b *Backend) CreateSessionWithEnv(ctx context.Context, name, dir, command s
 	//
 	// M11: agent state lives at <DataDir>/agents/<name>/ where DataDir
 	// is ~/.bc/workspaces/<id>/. The host DataDir may differ from the
-	// container DataDir when bcd runs in Docker-in-Docker; honour
+	// container DataDir when bcd runs in Docker-in-Docker; honor
 	// BC_HOST_BC_HOME (if set) for the host-side BC_HOME.
 	localAgentDir := b.containerAgentDir(name)
 	hostAgentDir := b.hostAgentDir(name, hostRoot)
