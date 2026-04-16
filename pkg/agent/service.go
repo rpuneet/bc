@@ -432,47 +432,63 @@ func (s *AgentService) Rename(ctx context.Context, oldName, newName string) erro
 	return nil
 }
 
-// Sessions returns session history for an agent.
-func (s *AgentService) Sessions(ctx context.Context, name string) ([]SessionEntry, error) {
+// Sessions returns session history for an agent. Every agent (root or not)
+// has its own worktree; sessions are looked up uniformly by WorktreeDir
+// encoded to the Claude CLI projects format (abs path slashes → dashes)
+// under ~/.claude/projects/<encoded>/*.jsonl.
+func (s *AgentService) Sessions(_ context.Context, name string) ([]SessionEntry, error) {
 	a := s.manager.GetAgent(name)
 	if a == nil {
 		return nil, fmt.Errorf("agent %q not found", name)
 	}
 
 	var entries []SessionEntry
-
+	seen := make(map[string]bool)
 	if a.SessionID != "" {
 		entries = append(entries, SessionEntry{ID: a.SessionID, Current: true})
+		seen[a.SessionID] = true
 	}
 
-	histDir := filepath.Join(s.manager.stateDir, "agents", name, "session_history")
-	files, err := os.ReadDir(histDir)
-	if err == nil {
-		sort.Slice(files, func(i, j int) bool {
-			return files[i].Name() > files[j].Name()
-		})
-		for _, f := range files {
-			if f.IsDir() {
-				continue
-			}
-			data, readErr := os.ReadFile(filepath.Join(histDir, f.Name())) //nolint:gosec // trusted path
-			if readErr != nil {
-				continue
-			}
-			id := strings.TrimSpace(string(data))
-			if id == "" || id == a.SessionID {
-				continue
-			}
-			fname := strings.TrimSuffix(f.Name(), ".txt")
-			ts, parseErr := time.Parse("2006-01-02T15:04:05", fname)
-			entry := SessionEntry{ID: id}
-			if parseErr == nil {
-				entry.Timestamp = ts
-			}
-			entries = append(entries, entry)
+	if a.WorktreeDir == "" {
+		return entries, nil
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return entries, nil
+	}
+	// Claude CLI encodes the abs worktree path by replacing both
+	// '/' and '.' with '-', e.g. '/Users/p/.bc/x' → '-Users-p--bc-x'.
+	encoded := strings.ReplaceAll(a.WorktreeDir, "/", "-")
+	encoded = strings.ReplaceAll(encoded, ".", "-")
+	projDir := filepath.Join(home, ".claude", "projects", encoded)
+	files, err := os.ReadDir(projDir)
+	if err != nil {
+		return entries, nil
+	}
+	type fileEntry struct {
+		id  string
+		mod time.Time
+	}
+	var found []fileEntry
+	for _, f := range files {
+		if f.IsDir() || !strings.HasSuffix(f.Name(), ".jsonl") {
+			continue
 		}
+		id := strings.TrimSuffix(f.Name(), ".jsonl")
+		if seen[id] {
+			continue
+		}
+		seen[id] = true
+		info, infoErr := f.Info()
+		if infoErr != nil {
+			continue
+		}
+		found = append(found, fileEntry{id: id, mod: info.ModTime()})
 	}
-
+	sort.Slice(found, func(i, j int) bool { return found[i].mod.After(found[j].mod) })
+	for _, fe := range found {
+		entries = append(entries, SessionEntry{ID: fe.id, Timestamp: fe.mod})
+	}
 	return entries, nil
 }
 
