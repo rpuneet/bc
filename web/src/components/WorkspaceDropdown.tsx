@@ -71,21 +71,9 @@ export function WorkspaceDropdown({
 
   const handleSelect = (ws: WorkspaceEntry) => {
     setOpen(false);
-    // Backend limitation: only the workspace bcd was launched with has live
-    // handlers. Switching to another registered workspace updates the
-    // registry's "active" pointer but leaves the handler tree bound to the
-    // launch workspace — see docs/proposals/multi-workspace-and-code-tab.md
-    // §4.2 (deferred). To actually switch, re-launch bcd with --workspace
-    // pointing at the new path.
-    if (!ws.active) {
-      const ok = window.confirm(
-        `Switching to "${ws.name}" requires restarting bcd with\n\n` +
-        `    bc up --workspace ${ws.path}\n\n` +
-        `The current bcd is bound to the workspace it was launched with.\n` +
-        `Continue and update the registry pointer anyway?`,
-      );
-      if (!ok) return;
-    }
+    // Phase M5: bcd dispatches to any registered workspace per-request.
+    // No restart needed — the scoped URL /w/<id>/... routes directly to
+    // that workspace's services via the WorkspaceManager.
     const match = /\/w\/[^/]+(\/.*)?$/.exec(location.pathname);
     const rest = match?.[1] ?? "/agents";
     navigate(`/w/${ws.id}${rest}`);

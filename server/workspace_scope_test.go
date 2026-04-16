@@ -67,9 +67,10 @@ func TestWorkspaceScopeRewriteActive(t *testing.T) {
 	}
 }
 
-// TestWorkspaceScopeNonActiveReturns501 verifies that scoping into a
-// registered-but-not-active workspace returns 501.
-func TestWorkspaceScopeNonActiveReturns501(t *testing.T) {
+// TestWorkspaceScopeNonActiveDispatches verifies that phase M5 lifts the
+// 501-for-non-active restriction: a scoped request for any registered
+// workspace lazy-loads its services and rewrites to /api/<rest>.
+func TestWorkspaceScopeNonActiveDispatches(t *testing.T) {
 	mgr, _, _ := newScopeTestManager(t)
 
 	// Register a second workspace (not active).
@@ -91,11 +92,11 @@ func TestWorkspaceScopeNonActiveReturns501(t *testing.T) {
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
 
-	if rec.Code != http.StatusNotImplemented {
-		t.Errorf("status = %d, want 501", rec.Code)
+	if rec.Code != http.StatusOK {
+		t.Errorf("status = %d, want 200 (dispatch to non-active should succeed)", rec.Code)
 	}
-	if inner.seen != "" {
-		t.Errorf("inner handler should not run for non-active, saw %q", inner.seen)
+	if inner.seen != "/api/agents" {
+		t.Errorf("rewritten path = %q, want /api/agents", inner.seen)
 	}
 }
 

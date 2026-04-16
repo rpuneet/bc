@@ -137,29 +137,11 @@ func WorkspaceScope(next http.Handler, mgr *WorkspaceManager) http.Handler {
 				return
 			}
 
-			// Only the active workspace has a live handler tree today; for
-			// any other registered workspace return 501 with a hint to
-			// activate it first.
-			activeID := ""
-			if active := mgr.Registry().GetActive(); active != nil {
-				activeID = active.ID
-				if activeID == "" {
-					activeID = workspace.ComputeWorkspaceID(active.Path)
-				}
-			}
-			if entry.ID != activeID {
-				log.Info("scoped request for non-active workspace",
-					"id", entry.ID, "active", activeID, "path", path)
-				http.Error(w, `{"error":"non-active workspace scoped dispatch not implemented; POST /api/workspaces/{id}/activate first"}`, http.StatusNotImplemented)
-				return
-			}
-
-			// Active workspace: rewrite /api/workspaces/{id}/<rest> → /api/<rest>
-			// and propagate the resolved workspace via context so handlers
-			// can access it if they wish.
+			// Phase M5: any registered workspace dispatches via the
+			// manager. First access lazy-loads the services; subsequent
+			// requests hit the cache.
 			svc := mgr.Get(entry.ID)
 			if svc == nil {
-				// Lazy-load (rare: active workspace should already be loaded).
 				var err error
 				svc, err = mgr.Load(r.Context(), entry.ID)
 				if err != nil {

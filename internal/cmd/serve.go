@@ -131,16 +131,15 @@ func RunServer(addr, wsRoot, corsOrigin, apiKey string) error {
 	}
 	defer launchSvc.Close() //nolint:errcheck // best-effort
 
-	// Per-workspace services manager. In phase M2 the factory still only
-	// hands back live services for the launch workspace; non-launch
-	// workspaces return a bundle without wired handlers (M5 lifts that
-	// restriction).
+	// Per-workspace services manager. Phase M5: the factory builds real
+	// services for ANY registered workspace on first access. The launch
+	// workspace's bundle is reused from the eager build above.
 	wsMgr := server.NewWorkspaceManager(registry, func(ctx context.Context, w *bcworkspace.Workspace) (*server.WorkspaceServices, error) {
 		if w.RootDir == ws.RootDir {
 			bcCodeServer.SetWorkspaceRoot(w.RootDir)
 			return launchSvc, nil
 		}
-		return &server.WorkspaceServices{Workspace: w}, nil
+		return server.BuildWorkspaceServices(ctx, globals, w.RootDir)
 	})
 	launchSvc.Services.WorkspaceManager = wsMgr
 
