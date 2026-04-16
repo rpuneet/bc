@@ -54,10 +54,12 @@ const TICK_STYLE = { fill: "var(--color-bc-muted)", fontSize: 10 };
 
 // ── Helpers ─────────────────────────────────────────────────────────────────────
 
-const fmtCost = (n: number) => {
-  if (n >= 1_000) return `$${(n / 1_000).toFixed(1)}K`;
-  return `$${n.toFixed(2)}`;
-};
+// Use the shared formatter so large totals get comma-grouped instead
+// of being collapsed to "$X.XK". The audit flagged three divergent
+// cost formatters (utils/format.formatCost, StatsTab.fmtCost, and this
+// one); this module now delegates to the utility.
+import { formatCost } from "../utils/format";
+const fmtCost = (n: number) => formatCost(n);
 const trunc = (s: string, n: number) => s.length > n ? s.slice(0, n) + "\u2026" : s;
 
 function fromParam(seconds: number): string {

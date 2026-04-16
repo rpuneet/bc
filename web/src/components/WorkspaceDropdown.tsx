@@ -51,7 +51,7 @@ export function WorkspaceDropdown({
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === "w") {
         e.preventDefault();
         setOpen((v) => !v);
       }
@@ -100,7 +100,7 @@ export function WorkspaceDropdown({
             : "border-bc-border/40 bg-bc-surface/20 text-bc-text/80 hover:border-bc-border/70"
         }`}
         style={{ fontFamily: MONO }}
-        title="Switch workspace (Cmd+K)"
+        title="Switch workspace (Cmd+Shift+W)"
       >
         <span className="text-bc-muted/60 text-[9px] uppercase tracking-wider">ws</span>
         <span className="font-semibold truncate max-w-[160px]">

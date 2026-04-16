@@ -39,9 +39,13 @@ const fmtDiskBytes = (b: number): string => {
   if (b >= 1024) return `${(b / 1024).toFixed(1)} KB`;
   return `${b} B`;
 };
+// Cost formatting delegates to the canonical util so comma grouping,
+// sub-cent handling, and zero fallback stay consistent across Stats,
+// StatsTab, and CostsGlobal.
+import { formatCost } from "../utils/format";
 const fmtCost = (v: number): string => {
-  if (!v || !isFinite(v) || v === 0) return "$0.00";
-  return "$" + v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  if (!isFinite(v)) return "$0.00";
+  return formatCost(v);
 };
 const trunc = (s: string, n: number) => s.length > n ? s.slice(0, n) + "\u2026" : s;
 const fromParam = (seconds: number) => new Date(Date.now() - seconds * 1000).toISOString();
