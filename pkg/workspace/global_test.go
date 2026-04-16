@@ -7,6 +7,40 @@ import (
 	"testing"
 )
 
+func TestDataDir(t *testing.T) {
+	dir := t.TempDir()
+	withBCHome(t, dir)
+
+	t.Run("valid-id", func(t *testing.T) {
+		got, err := DataDir("abcdef123456")
+		if err != nil {
+			t.Fatalf("DataDir: %v", err)
+		}
+		want := filepath.Join(dir, "workspaces", "abcdef123456")
+		if got != want {
+			t.Errorf("got %q, want %q", got, want)
+		}
+	})
+
+	t.Run("empty-id", func(t *testing.T) {
+		if _, err := DataDir(""); err == nil {
+			t.Fatal("expected error for empty id, got nil")
+		}
+	})
+
+	t.Run("matches-ComputeWorkspaceID", func(t *testing.T) {
+		absPath := filepath.Join(dir, "some", "project")
+		id := ComputeWorkspaceID(absPath)
+		got, err := DataDir(id)
+		if err != nil {
+			t.Fatalf("DataDir: %v", err)
+		}
+		if !strings.HasSuffix(got, filepath.Join("workspaces", id)) {
+			t.Errorf("expected suffix workspaces/%s, got %q", id, got)
+		}
+	})
+}
+
 // withBCHome sets BC_HOME for the duration of the test and restores it.
 func withBCHome(t *testing.T, dir string) {
 	t.Helper()

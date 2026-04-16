@@ -15,12 +15,33 @@ import (
 
 // Subdirectories and files relative to BCHome().
 const (
-	globalTemplatesDirName = "templates"
-	globalSecretsFileName  = "secrets.vault"
-	globalMCPFileName      = "mcps.json"
-	globalCostsFileName    = "costs.db"
-	globalToolsFileName    = "tools.json"
+	globalTemplatesDirName  = "templates"
+	globalSecretsFileName   = "secrets.vault"
+	globalMCPFileName       = "mcps.json"
+	globalCostsFileName     = "costs.db"
+	globalToolsFileName     = "tools.json"
+	globalWorkspacesDirName = "workspaces"
 )
+
+// DataDir returns the per-workspace runtime directory for a given workspace
+// ID — the M11 replacement for the legacy <project>/.bc/ sidecar.
+//
+// Returns ~/.bc/workspaces/<id>/ (respecting BC_HOME). Pass the ID from
+// ComputeWorkspaceID(absRootDir) or from a RegistryEntry.
+//
+// This path holds every piece of runtime state for the workspace:
+// preferences.json, state.db, cron.db, agents/, logs/ — nothing lives
+// under the project directory anymore.
+func DataDir(id string) (string, error) {
+	if id == "" {
+		return "", fmt.Errorf("workspace id is empty")
+	}
+	home, err := BCHome()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(home, globalWorkspacesDirName, id), nil
+}
 
 // GlobalTemplatesDir returns the user-global templates directory
 // (~/.bc/templates/). Templates here apply across all workspaces; each

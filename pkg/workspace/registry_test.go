@@ -444,6 +444,74 @@ func TestRegistryFindByID(t *testing.T) {
 	}
 }
 
+// TestRegistryEntryGetDataDir verifies the DataDir accessor used by M11+.
+// Empty DataDir falls back to computing the path from the ID.
+func TestRegistryEntryGetDataDir(t *testing.T) {
+	bcHome := t.TempDir()
+	t.Setenv("BC_HOME", bcHome)
+
+	t.Run("explicit-field", func(t *testing.T) {
+		e := &RegistryEntry{ID: "abc123", DataDir: "/explicit/override"}
+		if got := e.GetDataDir(); got != "/explicit/override" {
+			t.Errorf("explicit DataDir returned %q", got)
+		}
+	})
+
+	t.Run("fallback-to-id", func(t *testing.T) {
+		e := &RegistryEntry{ID: "abc123456789"}
+		want := filepath.Join(bcHome, "workspaces", "abc123456789")
+		if got := e.GetDataDir(); got != want {
+			t.Errorf("ID-based fallback: got %q, want %q", got, want)
+		}
+	})
+
+	t.Run("fallback-to-path", func(t *testing.T) {
+		path := "/some/project"
+		e := &RegistryEntry{Path: path}
+		wantID := ComputeWorkspaceID(path)
+		want := filepath.Join(bcHome, "workspaces", wantID)
+		if got := e.GetDataDir(); got != want {
+			t.Errorf("path-based fallback: got %q, want %q", got, want)
+		}
+	})
+
+	t.Run("nil-entry", func(t *testing.T) {
+		var e *RegistryEntry
+		if got := e.GetDataDir(); got != "" {
+			t.Errorf("nil entry: got %q, want empty", got)
+		}
+	})
+
+	t.Run("no-id-no-path", func(t *testing.T) {
+		e := &RegistryEntry{}
+		if got := e.GetDataDir(); got != "" {
+			t.Errorf("empty entry: got %q, want empty", got)
+		}
+	})
+}
+
+// TestRegisterPopulatesDataDir ensures new registrations carry the DataDir
+// field so downstream code can look it up without re-deriving.
+func TestRegisterPopulatesDataDir(t *testing.T) {
+	bcHome := t.TempDir()
+	t.Setenv("BC_HOME", bcHome)
+
+	dir := t.TempDir()
+	r := &Registry{path: filepath.Join(dir, "workspaces.json")}
+	if err := r.RegisterWithAlias("/projects/foo", "foo", ""); err != nil {
+		t.Fatalf("RegisterWithAlias: %v", err)
+	}
+
+	entry := r.Workspaces[0]
+	if entry.DataDir == "" {
+		t.Fatal("Register did not populate DataDir")
+	}
+	want := filepath.Join(bcHome, "workspaces", entry.ID)
+	if entry.DataDir != want {
+		t.Errorf("DataDir = %q, want %q", entry.DataDir, want)
+	}
+}
+
 // TestRegistryMigrateV1ToV2 ensures loading a v1 registry file upgrades it
 // to v2 with IDs populated.
 func TestRegistryMigrateV1ToV2(t *testing.T) {

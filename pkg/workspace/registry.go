@@ -25,11 +25,37 @@ type RegistryEntry struct {
 	LastAccessed   time.Time `json:"last_accessed,omitempty"` // legacy — mirrors LastUsedAt for backwards compat
 	LastUsedAt     time.Time `json:"last_used_at,omitempty"`  // canonical timestamp (v2+)
 	ID             string    `json:"id,omitempty"`            // stable 12-char hash of abs path (v2+)
-	Path           string    `json:"path"`
+	Path           string    `json:"path"`                    // project root (pristine git repo)
+	DataDir        string    `json:"data_dir,omitempty"`      // runtime state dir (~/.bc/workspaces/<id>/); M11+
 	Name           string    `json:"name"`
 	Alias          string    `json:"alias,omitempty"`            // Short alias for quick access (#1218)
 	GithubURL      string    `json:"github_url,omitempty"`       // Optional GitHub remote URL (v2+)
 	GithubFullName string    `json:"github_full_name,omitempty"` // Optional GitHub owner/repo (v2+)
+}
+
+// GetDataDir returns the per-workspace runtime directory. When the
+// registry field is empty (older entries), falls back to computing it
+// from the workspace ID via DataDir(id). Returns "" if neither is
+// available.
+func (e *RegistryEntry) GetDataDir() string {
+	if e == nil {
+		return ""
+	}
+	if e.DataDir != "" {
+		return e.DataDir
+	}
+	id := e.ID
+	if id == "" {
+		id = ComputeWorkspaceID(e.Path)
+	}
+	if id == "" {
+		return ""
+	}
+	dd, err := DataDir(id)
+	if err != nil {
+		return ""
+	}
+	return dd
 }
 
 // Registry manages the global list of workspaces at ~/.bc/workspaces.json.
@@ -172,17 +198,29 @@ func (r *Registry) Migrate() bool {
 					r.Workspaces[i].LastUsedAt = r.Workspaces[i].CreatedAt
 				}
 			}
+			if r.Workspaces[i].DataDir == "" {
+				if dd, err := DataDir(r.Workspaces[i].ID); err == nil {
+					r.Workspaces[i].DataDir = dd
+				}
+			}
 		}
 		r.Version = CurrentRegistryVersion
 		changed = true
 		return changed
 	}
-	// Already v2+ — still ensure IDs are set on any entries lacking them
-	// (defensive against hand-edited registry files).
+	// Already v2+ — still ensure IDs and DataDirs are set on any entries
+	// lacking them (defensive against hand-edited registry files, and
+	// to backfill DataDir on entries written before M11).
 	for i := range r.Workspaces {
 		if r.Workspaces[i].ID == "" {
 			r.Workspaces[i].ID = ComputeWorkspaceID(r.Workspaces[i].Path)
 			changed = true
+		}
+		if r.Workspaces[i].DataDir == "" {
+			if dd, err := DataDir(r.Workspaces[i].ID); err == nil {
+				r.Workspaces[i].DataDir = dd
+				changed = true
+			}
 		}
 		if r.Workspaces[i].LastUsedAt.IsZero() && !r.Workspaces[i].LastAccessed.IsZero() {
 			r.Workspaces[i].LastUsedAt = r.Workspaces[i].LastAccessed
@@ -225,6 +263,11 @@ func (r *Registry) RegisterWithAlias(path, name, alias string) error {
 			if r.Workspaces[i].ID == "" {
 				r.Workspaces[i].ID = ComputeWorkspaceID(path)
 			}
+			if r.Workspaces[i].DataDir == "" {
+				if dd, err := DataDir(r.Workspaces[i].ID); err == nil {
+					r.Workspaces[i].DataDir = dd
+				}
+			}
 			if alias != "" {
 				r.Workspaces[i].Alias = alias
 			}
@@ -232,9 +275,15 @@ func (r *Registry) RegisterWithAlias(path, name, alias string) error {
 		}
 	}
 
+	id := ComputeWorkspaceID(path)
+	dataDir := ""
+	if dd, err := DataDir(id); err == nil {
+		dataDir = dd
+	}
 	r.Workspaces = append(r.Workspaces, RegistryEntry{
-		ID:           ComputeWorkspaceID(path),
+		ID:           id,
 		Path:         path,
+		DataDir:      dataDir,
 		Name:         name,
 		Alias:        alias,
 		CreatedAt:    now,
