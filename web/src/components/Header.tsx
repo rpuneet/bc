@@ -55,11 +55,15 @@ export function Header({ left, center, actions, compact = true }: HeaderProps) {
 /**
  * TabHeaderTitle — standard title chip used by most tabs.
  * Use when the page doesn't need anything fancy in the center slot.
+ *
+ * Styled as a bold monospace label, title-cased to match the body <h1>.
+ * Previously this rendered uppercase which clashed visually with the
+ * mixed-case heading directly below on every view.
  */
 export function TabHeaderTitle({ children }: { children: ReactNode }) {
   return (
     <span
-      className="text-[13px] font-bold text-bc-text tracking-tight shrink-0 uppercase"
+      className="text-[13px] font-semibold text-bc-text tracking-tight shrink-0"
       style={{ fontFamily: MONO }}
     >
       {children}
