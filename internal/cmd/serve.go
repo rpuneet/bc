@@ -191,6 +191,11 @@ func RunServer(addr, wsRoot, corsOrigin, apiKey string) error {
 		log.Warn("user assets migration failed", "error", migrateErr)
 	}
 
+	// One-time M11 migration: move per-workspace runtime state out of
+	// <project>/.bc/ into ~/.bc/workspaces/<id>/. Idempotent via
+	// ~/.bc/.migrated-runtime-v1 marker.
+	MaybeRunRuntimeMigration(ctx)
+
 	// Build the launch workspace's services via the factory.
 	launchSvc, buildErr := server.BuildWorkspaceServices(ctx, globals, ws.RootDir)
 	if buildErr != nil {
