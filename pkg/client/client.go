@@ -122,12 +122,30 @@ func (c *Client) get(ctx context.Context, path string, result any) error {
 }
 
 // discoverDaemon tries to find the daemon address.
-// Priority: BC_DAEMON_ADDR env > default HTTP address.
+// Priority: BC_DAEMON_ADDR env > ~/.bc/daemon.addr (written by `bc up`) > default HTTP address.
 func discoverDaemon() string {
 	if addr := os.Getenv("BC_DAEMON_ADDR"); addr != "" {
 		return addr
 	}
+	if addr := readDaemonAddrFile(); addr != "" {
+		return addr
+	}
 	return DefaultHTTPAddr
+}
+
+// readDaemonAddrFile reads ~/.bc/daemon.addr and returns a trimmed,
+// non-empty scheme+host:port string. Returns "" on any I/O or format
+// error — callers fall back to the hardcoded default.
+func readDaemonAddrFile() string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return ""
+	}
+	data, err := os.ReadFile(filepath.Join(home, ".bc", "daemon.addr")) //nolint:gosec // path is pinned to ~/.bc
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(data))
 }
 
 // IsDaemonNotRunning returns true if the error indicates the daemon is not running.

@@ -23,6 +23,7 @@ const (
 	globalWorkspacesDirName = "workspaces"
 	globalDaemonPidName     = "daemon.pid"
 	globalDaemonLogName     = "daemon.log"
+	globalDaemonAddrName    = "daemon.addr"
 )
 
 // DataDir returns the per-workspace runtime directory for a given workspace
@@ -94,6 +95,15 @@ func DaemonPidPath() (string, error) {
 // (~/.bc/daemon.log). Same rationale as DaemonPidPath: one bcd, one log.
 func DaemonLogPath() (string, error) {
 	return globalPath(globalDaemonLogName)
+}
+
+// DaemonAddrPath returns the path to the user-global bcd address file
+// (~/.bc/daemon.addr). `bc up` writes the currently-listening address
+// (scheme + host:port, e.g. "http://127.0.0.1:8080") so the CLI and
+// agents can locate the daemon without requiring BC_DAEMON_ADDR to be
+// set when the daemon runs on a non-default port.
+func DaemonAddrPath() (string, error) {
+	return globalPath(globalDaemonAddrName)
 }
 
 // EnsureGlobalDir makes sure ~/.bc/ exists with 0750 permissions. It is
