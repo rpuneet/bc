@@ -118,15 +118,18 @@ describe("WorkspaceDropdown", () => {
     });
   });
 
-  it("opens on Cmd+K and closes on Escape", async () => {
+  it("opens on Cmd+Shift+W and closes on Escape", async () => {
     renderDropdown();
     await waitFor(() => {
       expect(screen.getByText("alpha")).toBeInTheDocument();
     });
 
-    // Cmd+K opens
+    // Cmd+Shift+W opens (see WorkspaceDropdown keydown handler at
+    // src/components/WorkspaceDropdown.tsx — title says
+    // "Switch workspace (Cmd+Shift+W)"). The test was originally
+    // Cmd+K but the component's shortcut changed.
     await act(async () => {
-      fireEvent.keyDown(window, { key: "k", metaKey: true });
+      fireEvent.keyDown(window, { key: "w", metaKey: true, shiftKey: true });
     });
     await waitFor(() => {
       expect(screen.getByPlaceholderText(/search workspaces/i)).toBeInTheDocument();

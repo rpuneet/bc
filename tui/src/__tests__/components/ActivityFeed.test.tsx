@@ -2,20 +2,25 @@
  * ActivityFeed component tests
  * Issue #796 - Live activity feed with severity filtering
  *
- * Uses __mocks__/useLogs.ts auto-mock (Bun discovers it automatically).
+ * Uses mock.module() with an explicit factory — Bun does NOT
+ * auto-discover __mocks__ directories (that's a Jest-ism). The
+ * factory re-exports src/hooks/__mocks__/useLogs.ts verbatim so
+ * the shared mock remains the single source of truth.
  */
 
 import React from 'react';
 import { render } from 'ink-testing-library';
-import { describe, it, expect, vi, beforeEach } from 'bun:test';
+import { describe, it, expect, vi, beforeEach, mock } from 'bun:test';
+import * as useLogsMock from '../../hooks/__mocks__/useLogs';
 import { ThemeProvider } from '../../theme/ThemeContext';
-import { ActivityFeed } from '../../components/ActivityFeed';
-import { useLogs } from '../../hooks/useLogs';
+
+mock.module('../../hooks/useLogs', () => useLogsMock);
+
+// Import after mock.module so ActivityFeed resolves to the mock.
+const { ActivityFeed } = await import('../../components/ActivityFeed');
+const { useLogs } = await import('../../hooks/useLogs');
 
 const renderWithTheme = (ui: React.ReactElement) => render(<ThemeProvider>{ui}</ThemeProvider>);
-
-// Tell Bun to use the __mocks__ directory auto-mock
-vi.mock('../../hooks/useLogs');
 
 describe('ActivityFeed', () => {
   beforeEach(() => {
