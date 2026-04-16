@@ -81,6 +81,8 @@ func (h *CodeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.file(w, r)
 	case "diff":
 		h.diff(w, r)
+	case "search":
+		h.search(w, r)
 	default:
 		httpError(w, "unknown code endpoint", http.StatusNotFound)
 	}
