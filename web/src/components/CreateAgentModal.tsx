@@ -52,6 +52,9 @@ interface CreateAgentModalProps {
   onClose: () => void;
   existingNames: string[];
   existingAgents?: ExistingAgent[];
+  /** Pre-select a source agent in the "clone from" dropdown when the
+   *  modal opens. Used by the Clone button on AgentDetail. */
+  defaultCloneFrom?: string;
 }
 
 type Provider = "claude" | "gemini" | "cursor" | "codex";
@@ -74,6 +77,7 @@ export function CreateAgentModal({
   onClose,
   existingNames,
   existingAgents = [],
+  defaultCloneFrom = "",
 }: CreateAgentModalProps) {
   const [name, setName] = useState(() => generateName(existingNames));
   const [shape, setShape] = useState<AgentShape>(
@@ -115,11 +119,13 @@ export function CreateAgentModal({
       setProvider("claude");
       setRuntime("docker");
       setTask("");
-      setCloneFrom("");
+      // When opened from the Clone action, pre-select the source agent
+      // so the clone-from effect populates provider/runtime automatically.
+      setCloneFrom(defaultCloneFrom);
       requestAnimationFrame(() => firstInputRef.current?.focus());
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, existingNames]);
+  }, [open, existingNames, defaultCloneFrom]);
 
   // Close on Escape
   useEffect(() => {

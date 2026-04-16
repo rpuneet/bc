@@ -12,6 +12,7 @@ import { MCPServerList } from "../components/shared/MCPServerList";
 import { SystemPromptEditor } from "../components/shared/SystemPromptEditor";
 import { SectionRule } from "../components/shared";
 import { AgentToolStream } from "../components/live/AgentToolStream";
+import { CreateAgentModal } from "../components/CreateAgentModal";
 import { MONO } from "../utils/typography";
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -129,6 +130,10 @@ function ConfigTab({ agent }: { agent: Agent }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  // Clone state (archive UI is a separate commit once backend lands)
+  const [cloneOpen, setCloneOpen] = useState(false);
+  const [allAgents, setAllAgents] = useState<Agent[]>([]);
 
   // MCP server management state
   const [mcpList, setMcpList] = useState<string[] | null>(null);
@@ -556,25 +561,41 @@ function ConfigTab({ agent }: { agent: Agent }) {
           <SectionRule>Actions</SectionRule>
           <div className="rounded-md border border-bc-border/30 bg-bc-surface/20 px-4 py-3">
             <div className="flex flex-wrap gap-2 items-center">
-              {/* Clone — placeholder, navigates to /agents */}
+              {/* Clone — opens CreateAgentModal pre-seeded with this agent */}
               <button
                 type="button"
-                onClick={() => navigate("/agents")}
+                onClick={() => {
+                  api
+                    .listAgents()
+                    .then((list) => setAllAgents(list))
+                    .catch(() => setAllAgents([agent]))
+                    .finally(() => setCloneOpen(true));
+                }}
                 className="px-3 py-1.5 rounded-md text-[11px] font-medium border border-bc-border/40 text-bc-muted hover:text-bc-text hover:border-bc-border transition-colors"
                 style={{ fontFamily: MONO }}
               >
                 Clone
               </button>
 
-              {/* Archive — placeholder */}
+              {/* Archive — placeholder until backend lands (see task #251) */}
               <button
                 type="button"
-                className="px-3 py-1.5 rounded-md text-[11px] font-medium border border-bc-border/40 text-bc-muted hover:text-bc-text hover:border-bc-border transition-colors"
+                disabled
+                title="Archive support coming soon"
+                className="px-3 py-1.5 rounded-md text-[11px] font-medium border border-bc-border/30 text-bc-muted/40 cursor-not-allowed"
                 style={{ fontFamily: MONO }}
               >
                 Archive
               </button>
             </div>
+
+            <CreateAgentModal
+              open={cloneOpen}
+              onClose={() => setCloneOpen(false)}
+              existingNames={allAgents.map((a) => a.name)}
+              existingAgents={allAgents}
+              defaultCloneFrom={agent.name}
+            />
           </div>
         </section>
 
