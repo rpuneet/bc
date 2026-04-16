@@ -73,8 +73,8 @@ func TestInitV2Workspace(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GlobalStateDir: %v", err)
 	}
-	if _, err := os.Stat(stateDir); err != nil {
-		t.Errorf("global state directory not created: %v", err)
+	if _, statErr := os.Stat(stateDir); statErr != nil {
+		t.Errorf("global state directory not created: %v", statErr)
 	}
 
 	// Verify preferences.json exists and is valid.

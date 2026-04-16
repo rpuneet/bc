@@ -11,15 +11,15 @@ import (
 // mapping, then answers queries deterministically without touching
 // /usr/bin/tmux or /usr/bin/ps.
 type fakeRunner struct {
-	sessions     []string
-	panes        map[string][]int // session -> pane PIDs
-	children     map[int][]int    // pid -> children
-	cpuByPID     map[int]float64  // pid -> %cpu
-	rssByPID     map[int]int64    // pid -> rss bytes
 	panePIDsErr  error
 	psStatsErr   error
 	listErr      error
+	panes        map[string][]int
+	children     map[int][]int
+	cpuByPID     map[int]float64
+	rssByPID     map[int]int64
 	childrenErr  map[int]error
+	sessions     []string
 	panePIDCalls int
 	psStatsCalls int
 }

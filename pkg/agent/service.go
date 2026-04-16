@@ -466,8 +466,8 @@ func (s *AgentService) Sessions(_ context.Context, name string) ([]SessionEntry,
 		return entries, nil
 	}
 	type fileEntry struct {
-		id  string
 		mod time.Time
+		id  string
 	}
 	var found []fileEntry
 	for _, f := range files {

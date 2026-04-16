@@ -1470,8 +1470,8 @@ func (h *AgentHandler) putAgentEnv(w http.ResponseWriter, r *http.Request, agent
 // ═══════════════════════════════════════════════════════════════════════════
 
 type loopConfig struct {
-	Enabled bool   `json:"enabled"`
 	Prompt  string `json:"prompt"`
+	Enabled bool   `json:"enabled"`
 }
 
 func (h *AgentHandler) loopPath(agentName string) string {

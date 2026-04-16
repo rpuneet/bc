@@ -72,11 +72,11 @@ func TestCORS_WorkspaceScope_Coexist(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadRegistry: %v", err)
 	}
-	if err := reg.RegisterWithAlias(wsDir, "ws", "w"); err != nil {
-		t.Fatalf("register: %v", err)
+	if regErr := reg.RegisterWithAlias(wsDir, "ws", "w"); regErr != nil {
+		t.Fatalf("register: %v", regErr)
 	}
-	if err := reg.SetActive(wsDir); err != nil {
-		t.Fatalf("SetActive: %v", err)
+	if actErr := reg.SetActive(wsDir); actErr != nil {
+		t.Fatalf("SetActive: %v", actErr)
 	}
 
 	hub := bcws.NewHub()
@@ -89,8 +89,8 @@ func TestCORS_WorkspaceScope_Coexist(t *testing.T) {
 	mgr := server.NewWorkspaceManager(reg, func(ctx context.Context, w *workspace.Workspace) (*server.WorkspaceServices, error) {
 		return server.BuildWorkspaceServices(ctx, globals, w.RootDir)
 	})
-	if _, err := mgr.LoadActive(ctx); err != nil {
-		t.Fatalf("LoadActive: %v", err)
+	if _, loadErr := mgr.LoadActive(ctx); loadErr != nil {
+		t.Fatalf("LoadActive: %v", loadErr)
 	}
 	t.Cleanup(func() { _ = mgr.Close() })
 
@@ -191,8 +191,8 @@ func TestCORS_Preflight_Scoped(t *testing.T) {
 	mgr := server.NewWorkspaceManager(reg, func(ctx context.Context, w *workspace.Workspace) (*server.WorkspaceServices, error) {
 		return server.BuildWorkspaceServices(ctx, globals, w.RootDir)
 	})
-	if _, err := mgr.LoadActive(context.Background()); err != nil {
-		t.Fatalf("LoadActive: %v", err)
+	if _, loadErr := mgr.LoadActive(context.Background()); loadErr != nil {
+		t.Fatalf("LoadActive: %v", loadErr)
 	}
 	t.Cleanup(func() { _ = mgr.Close() })
 
