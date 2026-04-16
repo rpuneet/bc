@@ -112,10 +112,11 @@ func (h *WorkspaceHandler) status(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *WorkspaceHandler) roles(w http.ResponseWriter, r *http.Request) {
+	ws := h.resolveWS(r)
 	if !requireMethod(w, r, http.MethodGet) {
 		return
 	}
-	roles, err := h.ws.RoleManager.LoadAllRoles()
+	roles, err := ws.RoleManager.LoadAllRoles()
 	if err != nil {
 		httpInternalError(w, "list roles", err)
 		return
@@ -125,7 +126,7 @@ func (h *WorkspaceHandler) roles(w http.ResponseWriter, r *http.Request) {
 	// inherited MCP servers, secrets, commands, rules, etc.
 	resolved := make(map[string]*workspace.ResolvedRole, len(roles))
 	for name := range roles {
-		if res, resolveErr := h.ws.RoleManager.ResolveRole(name); resolveErr == nil {
+		if res, resolveErr := ws.RoleManager.ResolveRole(name); resolveErr == nil {
 			resolved[name] = res
 		}
 	}
@@ -133,6 +134,7 @@ func (h *WorkspaceHandler) roles(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *WorkspaceHandler) up(w http.ResponseWriter, r *http.Request) {
+	svc := h.resolveSvc(r)
 	if !requireMethod(w, r, http.MethodPost) {
 		return
 	}
@@ -146,7 +148,7 @@ func (h *WorkspaceHandler) up(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	a, err := h.svc.Create(r.Context(), agent.CreateOptions{
+	a, err := svc.Create(r.Context(), agent.CreateOptions{
 		Name:    "root",
 		Role:    agent.RoleRoot,
 		Tool:    req.Tool,
@@ -164,10 +166,11 @@ func (h *WorkspaceHandler) up(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *WorkspaceHandler) down(w http.ResponseWriter, r *http.Request) {
+	svc := h.resolveSvc(r)
 	if !requireMethod(w, r, http.MethodPost) {
 		return
 	}
-	stopped, err := h.svc.StopAll(r.Context())
+	stopped, err := svc.StopAll(r.Context())
 	if err != nil {
 		httpInternalError(w, "operation failed", err)
 		return

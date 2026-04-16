@@ -67,11 +67,11 @@ func (h *MCPHandler) list(w http.ResponseWriter, r *http.Request) {
 			httpError(w, "invalid request body", http.StatusBadRequest)
 			return
 		}
-		if err := h.store.Add(&cfg); err != nil {
+		if err := store.Add(&cfg); err != nil {
 			httpError(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		added, err := h.store.Get(cfg.Name)
+		added, err := store.Get(cfg.Name)
 		if err != nil {
 			httpInternalError(w, "operation failed", err)
 			return
@@ -108,9 +108,10 @@ func (h *MCPHandler) byName(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *MCPHandler) server(w http.ResponseWriter, r *http.Request, name string) {
+	store := h.resolveStore(r)
 	switch r.Method {
 	case http.MethodGet:
-		cfg, err := h.store.Get(name)
+		cfg, err := store.Get(name)
 		if err != nil {
 			httpError(w, err.Error(), http.StatusNotFound)
 			return
@@ -122,7 +123,7 @@ func (h *MCPHandler) server(w http.ResponseWriter, r *http.Request, name string)
 		writeJSON(w, http.StatusOK, cfg)
 
 	case http.MethodDelete:
-		if err := h.store.Remove(name); err != nil {
+		if err := store.Remove(name); err != nil {
 			httpError(w, err.Error(), http.StatusBadRequest)
 			return
 		}
@@ -134,10 +135,11 @@ func (h *MCPHandler) server(w http.ResponseWriter, r *http.Request, name string)
 }
 
 func (h *MCPHandler) setEnabled(w http.ResponseWriter, r *http.Request, name string, enabled bool) {
+	store := h.resolveStore(r)
 	if !requireMethod(w, r, http.MethodPost) {
 		return
 	}
-	if err := h.store.SetEnabled(name, enabled); err != nil {
+	if err := store.SetEnabled(name, enabled); err != nil {
 		httpError(w, err.Error(), http.StatusBadRequest)
 		return
 	}

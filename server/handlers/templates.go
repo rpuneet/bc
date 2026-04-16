@@ -122,6 +122,7 @@ func (h *TemplateHandler) list(w http.ResponseWriter, r *http.Request) {
 
 // byName handles GET/PUT/DELETE /api/templates/{name}.
 func (h *TemplateHandler) byName(w http.ResponseWriter, r *http.Request) {
+	store := h.resolveStore(r)
 	name := strings.TrimPrefix(r.URL.Path, "/api/templates/")
 	if name == "" {
 		httpError(w, "template name required", http.StatusBadRequest)
@@ -130,7 +131,7 @@ func (h *TemplateHandler) byName(w http.ResponseWriter, r *http.Request) {
 
 	switch r.Method {
 	case http.MethodGet:
-		t, prompt, err := h.store.Get(name)
+		t, prompt, err := store.Get(name)
 		if err != nil {
 			if strings.Contains(err.Error(), "not found") {
 				httpError(w, err.Error(), http.StatusNotFound)
@@ -156,13 +157,13 @@ func (h *TemplateHandler) byName(w http.ResponseWriter, r *http.Request) {
 		if req.SystemPrompt != nil {
 			prompt = *req.SystemPrompt
 		} else {
-			if _, existing, err := h.store.Get(name); err == nil {
+			if _, existing, err := store.Get(name); err == nil {
 				prompt = existing
 			}
 		}
 
 		t := req.toTemplate()
-		if err := h.store.Update(name, t, prompt); err != nil {
+		if err := store.Update(name, t, prompt); err != nil {
 			if strings.Contains(err.Error(), "not found") {
 				httpError(w, err.Error(), http.StatusNotFound)
 				return
@@ -171,7 +172,7 @@ func (h *TemplateHandler) byName(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		updated, prompt, err := h.store.Get(name)
+		updated, prompt, err := store.Get(name)
 		if err != nil {
 			httpInternalError(w, "fetch updated template", err)
 			return
@@ -179,7 +180,7 @@ func (h *TemplateHandler) byName(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, templateResponse{Template: *updated, SystemPrompt: prompt})
 
 	case http.MethodDelete:
-		if err := h.store.Delete(name, ""); err != nil {
+		if err := store.Delete(name, ""); err != nil {
 			if strings.Contains(err.Error(), "not found") {
 				httpError(w, err.Error(), http.StatusNotFound)
 				return

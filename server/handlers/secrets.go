@@ -63,11 +63,11 @@ func (h *SecretHandler) list(w http.ResponseWriter, r *http.Request) {
 			httpError(w, "invalid request body", http.StatusBadRequest)
 			return
 		}
-		if err := h.store.Set(req.Name, req.Value, req.Description); err != nil {
+		if err := store.Set(req.Name, req.Value, req.Description); err != nil {
 			httpError(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		meta, err := h.store.GetMeta(req.Name)
+		meta, err := store.GetMeta(req.Name)
 		if err != nil {
 			httpInternalError(w, "operation failed", err)
 			return
@@ -80,6 +80,7 @@ func (h *SecretHandler) list(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *SecretHandler) byName(w http.ResponseWriter, r *http.Request) {
+	store := h.resolveStore(r)
 	name := strings.TrimPrefix(r.URL.Path, "/api/secrets/")
 	if name == "" {
 		httpError(w, "secret name required", http.StatusBadRequest)
@@ -88,7 +89,7 @@ func (h *SecretHandler) byName(w http.ResponseWriter, r *http.Request) {
 
 	switch r.Method {
 	case http.MethodGet:
-		meta, err := h.store.GetMeta(name)
+		meta, err := store.GetMeta(name)
 		if err != nil {
 			httpError(w, err.Error(), http.StatusNotFound)
 			return
@@ -108,11 +109,11 @@ func (h *SecretHandler) byName(w http.ResponseWriter, r *http.Request) {
 			httpError(w, "invalid request body", http.StatusBadRequest)
 			return
 		}
-		if err := h.store.Set(name, req.Value, req.Description); err != nil {
+		if err := store.Set(name, req.Value, req.Description); err != nil {
 			httpError(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		meta, err := h.store.GetMeta(name)
+		meta, err := store.GetMeta(name)
 		if err != nil {
 			httpInternalError(w, "operation failed", err)
 			return
@@ -120,7 +121,7 @@ func (h *SecretHandler) byName(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, meta)
 
 	case http.MethodDelete:
-		if err := h.store.Delete(name); err != nil {
+		if err := store.Delete(name); err != nil {
 			httpError(w, err.Error(), http.StatusBadRequest)
 			return
 		}

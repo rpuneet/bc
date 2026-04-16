@@ -50,6 +50,7 @@ func (h *SettingsHandler) get(w http.ResponseWriter, r *http.Request) {
 // patch applies a partial update to the config. The body is a JSON object
 // with top-level keys matching Config fields (user, server, runtime, etc.).
 func (h *SettingsHandler) patch(w http.ResponseWriter, r *http.Request) {
+	ws := h.resolveWS(r)
 	body, err := io.ReadAll(io.LimitReader(r.Body, 1<<20))
 	if err != nil {
 		httpError(w, "failed to read body", http.StatusBadRequest)
@@ -63,7 +64,7 @@ func (h *SettingsHandler) patch(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Copy current config to avoid corrupting on error.
-	merged := *h.ws.Config
+	merged := *ws.Config
 
 	for key, raw := range rawPatch {
 		switch key {
@@ -125,11 +126,11 @@ func (h *SettingsHandler) patch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := merged.Save(workspace.ConfigPath(h.ws.RootDir)); err != nil {
+	if err := merged.Save(workspace.ConfigPath(ws.RootDir)); err != nil {
 		httpInternalError(w, "save config", err)
 		return
 	}
-	*h.ws.Config = merged
+	*ws.Config = merged
 
-	writeJSON(w, http.StatusOK, h.ws.Config)
+	writeJSON(w, http.StatusOK, ws.Config)
 }
