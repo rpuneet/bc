@@ -464,6 +464,10 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 	// /api/workspaces/{id}/agents and have it dispatch to the registered
 	// /api/agents handler once {id} is the active workspace.
 	var handler http.Handler = mux
+	// LegacyMCPCompat must wrap the mux (not WorkspaceScope) so its
+	// path rewrite reaches the /_mcp/ws/ dispatcher registered on the
+	// mux. WorkspaceScope only touches /api/ and is a no-op for MCP.
+	handler = LegacyMCPCompat(handler, svc.WorkspaceManager)
 	handler = WorkspaceScope(handler, svc.WorkspaceManager)
 	// Outside WorkspaceScope so that /live → /w/<active>/live happens
 	// before any /api/ scoping logic runs.
