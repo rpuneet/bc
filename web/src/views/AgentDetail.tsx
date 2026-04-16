@@ -53,13 +53,14 @@ function formatRelative(t?: string): string {
    Tab types — v3: Live / Attach / Config / Metrics
    ═══════════════════════════════════════════════════════════════════ */
 
-type Tab = "live" | "attach" | "config" | "metrics";
+type Tab = "attach" | "live" | "config" | "metrics" | "code";
 
 const TABS: { key: Tab; label: string; shortcut: string }[] = [
-  { key: "live", label: "Live", shortcut: "1" },
-  { key: "attach", label: "Attach", shortcut: "2" },
+  { key: "attach", label: "Attach", shortcut: "1" },
+  { key: "live", label: "Live", shortcut: "2" },
   { key: "config", label: "Config", shortcut: "3" },
   { key: "metrics", label: "Metrics", shortcut: "4" },
+  { key: "code", label: "Code", shortcut: "5" },
 ];
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -651,6 +652,27 @@ function ConfigTab({ agent }: { agent: Agent }) {
    Wraps existing StatsTabComponent, adds stopped-agent context
    ═══════════════════════════════════════════════════════════════════ */
 
+/* ═══════════════════════════════════════════════════════════════════
+   Tab 5 — Code (placeholder)
+   Shows file tree + Monaco editor (or code-server iframe when available).
+   Full implementation in Phase 3 of the multi-workspace proposal.
+   ═══════════════════════════════════════════════════════════════════ */
+
+function CodeTabPlaceholder({ agent }: { agent: Agent }) {
+  return (
+    <div className="flex-1 flex items-center justify-center p-6">
+      <div className="max-w-md text-center space-y-3">
+        <p className="text-[11px] text-bc-muted/50 uppercase tracking-wider" style={{ fontFamily: MONO }}>
+          Code viewer — coming soon
+        </p>
+        <p className="text-sm text-bc-muted">
+          Will show <span className="text-bc-text/90 font-mono">{agent.name}</span>&rsquo;s worktree diff against the main repo, with an optional VS Code (code-server) mode.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 function MetricsTab({ agent }: { agent: Agent }) {
   const isStopped = agent.state === "stopped" || agent.state === "error";
   return (
@@ -677,7 +699,7 @@ function MetricsTab({ agent }: { agent: Agent }) {
 export function AgentDetail() {
   const { name } = useParams<{ name: string }>();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<Tab>("live");
+  const [activeTab, setActiveTab] = useState<Tab>("attach");
   const [loopOpen, setLoopOpen] = useState(false);
   const { subscribe } = useWebSocket();
 
@@ -706,16 +728,19 @@ export function AgentDetail() {
 
       switch (e.key) {
         case "1":
-          setActiveTab("live");
+          setActiveTab("attach");
           break;
         case "2":
-          setActiveTab("attach");
+          setActiveTab("live");
           break;
         case "3":
           setActiveTab("config");
           break;
         case "4":
           setActiveTab("metrics");
+          break;
+        case "5":
+          setActiveTab("code");
           break;
         case "Escape":
           navigate("/agents");
@@ -892,6 +917,7 @@ export function AgentDetail() {
         {activeTab === "attach" && <AttachTab agent={agent} />}
         {activeTab === "config" && <ConfigTab agent={agent} />}
         {activeTab === "metrics" && <MetricsTab agent={agent} />}
+        {activeTab === "code" && <CodeTabPlaceholder agent={agent} />}
       </div>
 
       {/* Ralph Loop modal */}
