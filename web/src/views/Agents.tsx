@@ -14,17 +14,6 @@ import { useHeaderSlot } from "../context/HeaderSlotContext";
 import { TabHeaderTitle } from "../components/Header";
 import { MONO } from "../utils/typography";
 
-function KeyHint({ k, label }: { k: string; label: string }) {
-  return (
-    <span className="inline-flex items-center gap-1">
-      <kbd className="px-1 py-px rounded border border-bc-border/60 bg-bc-bg text-[9px] font-mono text-bc-muted">
-        {k}
-      </kbd>
-      <span>{label}</span>
-    </span>
-  );
-}
-
 // --- Inline Rename ---
 
 function InlineAgentName({
@@ -389,8 +378,11 @@ export function Agents() {
     });
   }, [allAgents, search, roleFilter, stateFilter, toolFilter]);
 
-  // Flat list only — no tree view.
-  const displayRows = useMemo(() => filteredAgents, [filteredAgents]);
+  // Sort: working first, then idle, then stopped/error.
+  const displayRows = useMemo(() => {
+    const rank = (s: string) => (s === "working" || s === "starting" ? 0 : s === "idle" ? 1 : 2);
+    return [...filteredAgents].sort((a, b) => rank(a.state) - rank(b.state) || a.name.localeCompare(b.name));
+  }, [filteredAgents]);
 
   // Clamp focusIndex when displayRows shrinks (e.g. after filtering).
   useEffect(() => {
@@ -581,7 +573,7 @@ export function Agents() {
           <span className="text-sm text-bc-muted">
             {hasFilters
               ? `${String(filteredAgents.length)} of ${String(allAgents.length)} agents`
-              : `${String(runningCount)}/${String(allAgents.length)} running`}
+              : `${String(runningCount)} active`}
           </span>
           {allAgents.some(
             (a) => a.state !== "stopped" && a.state !== "error",
@@ -646,18 +638,7 @@ export function Agents() {
         </div>
       )}
 
-      {/* Keyboard hints — only shown when the list is visible */}
-      {allAgents.length > 0 && (
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[9px] text-bc-muted/60 opacity-40 hover:opacity-70 transition-opacity">
-          <KeyHint k="/" label="search" />
-          <KeyHint k="j / k" label="nav" />
-          <KeyHint k="↵" label="open" />
-          <KeyHint k="space" label="peek" />
-          <KeyHint k="x" label="select" />
-          <KeyHint k="a" label="select all" />
-          <KeyHint k="esc" label="clear" />
-        </div>
-      )}
+      {/* Keyboard hints removed — shortcuts still work (/, j/k, Enter, space, x, a, Esc) */}
 
       <div className="rounded border border-bc-border overflow-x-auto">
         {loading && !agents ? (
@@ -727,6 +708,7 @@ export function Agents() {
                     }${
                       selected.has(a.name) ? "bg-bc-accent/10 hover:bg-bc-accent/15" : "hover:bg-bc-surface"
                     }`}
+                    style={(a.state === "stopped" || a.state === "error") ? { opacity: 0.55 } : undefined}
                   >
                     <td
                       className="px-2 py-2"
