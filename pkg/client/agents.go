@@ -32,13 +32,14 @@ type AgentInfo struct {
 
 // CreateAgentReq is the request to create an agent.
 type CreateAgentReq struct {
-	Name    string `json:"name"`
-	Role    string `json:"role"`
-	Tool    string `json:"tool,omitempty"`
-	Runtime string `json:"runtime,omitempty"`
-	Parent  string `json:"parent,omitempty"`
-	Team    string `json:"team,omitempty"`
-	EnvFile string `json:"env_file,omitempty"`
+	Name     string `json:"name"`
+	Role     string `json:"role"`
+	Tool     string `json:"tool,omitempty"`
+	Runtime  string `json:"runtime,omitempty"`
+	Parent   string `json:"parent,omitempty"`
+	Team     string `json:"team,omitempty"`
+	EnvFile  string `json:"env_file,omitempty"`
+	Template string `json:"template,omitempty"`
 }
 
 // AgentStatsRecord holds a single Docker stats sample for an agent.
