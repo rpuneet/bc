@@ -173,6 +173,34 @@ func WorkspaceScope(next http.Handler, mgr *WorkspaceManager) http.Handler {
 		w.Header().Set("Sunset", deprecationSunset)
 
 		if mgr != nil {
+			// X-BC-Workspace header overrides the default active workspace,
+			// allowing clients to scope legacy /api/ routes to a specific
+			// workspace without using the /api/workspaces/{id}/... URL form.
+			if hdrID := r.Header.Get("X-BC-Workspace"); hdrID != "" {
+				entry := mgr.Registry().FindByID(hdrID)
+				if entry == nil {
+					entry = mgr.Registry().Resolve(hdrID)
+				}
+				if entry == nil {
+					http.Error(w, `{"error":"workspace not found"}`, http.StatusNotFound)
+					return
+				}
+				svc := mgr.Get(entry.ID)
+				if svc == nil {
+					var err error
+					svc, err = mgr.Load(r.Context(), entry.ID)
+					if err != nil {
+						log.Warn("workspace scope: lazy load failed", "id", entry.ID, "error", err)
+						http.Error(w, `{"error":"failed to load workspace"}`, http.StatusInternalServerError)
+						return
+					}
+				}
+				ctx := context.WithValue(r.Context(), ctxKeyWorkspaceID, entry.ID)
+				ctx = context.WithValue(ctx, ctxKeyWorkspaceServices, svc)
+				next.ServeHTTP(w, r.WithContext(ctx))
+				return
+			}
+
 			if active := mgr.Active(); active != nil {
 				activeID := ""
 				if e := mgr.Registry().GetActive(); e != nil {
