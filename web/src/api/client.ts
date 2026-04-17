@@ -1,9 +1,20 @@
 const BASE = "/api";
 
+// Extract workspace ID from the current URL path (/w/<wsId>/...).
+function activeWorkspaceId(): string | null {
+  const match = window.location.pathname.match(/^\/w\/([^/]+)/);
+  return match?.[1] ?? null;
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const wsId = activeWorkspaceId();
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...(wsId ? { "X-BC-Workspace": wsId } : {}),
+  };
   const res = await fetch(`${BASE}${path}`, {
-    headers: { "Content-Type": "application/json" },
     ...init,
+    headers: { ...headers, ...(init?.headers as Record<string, string> ?? {}) },
   });
   if (!res.ok) {
     // Try to extract the error message from the JSON response body
@@ -949,7 +960,9 @@ export const api = {
     form.append("file", file);
     form.append("channel", channel);
     form.append("sender", sender);
-    const res = await fetch(`${BASE}/files/upload`, { method: "POST", body: form });
+    const wsId = activeWorkspaceId();
+    const headers: Record<string, string> = wsId ? { "X-BC-Workspace": wsId } : {};
+    const res = await fetch(`${BASE}/files/upload`, { method: "POST", body: form, headers });
     if (!res.ok) throw new Error(`Upload failed: ${res.status}`);
     return res.json() as Promise<FileAttachment>;
   },
