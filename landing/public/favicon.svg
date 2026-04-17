@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">
   <rect width="32" height="32" rx="6" fill="#0C0A08"/>
-  <text x="4" y="55%" dominant-baseline="middle" font-family="monospace" font-weight="700" font-size="11" fill="#EA580C">&gt;</text>
-  <text x="13" y="55%" dominant-baseline="middle" font-family="monospace" font-weight="700" font-size="13" fill="#EA580C">bc</text>
+  <text x="3" y="55%" dominant-baseline="middle" font-family="monospace" font-weight="700" font-size="10" fill="#FB923C">&gt;</text>
+  <text x="12" y="55%" dominant-baseline="middle" font-family="monospace" font-weight="700" font-size="13" fill="#EA580C">m</text>
 </svg>

@@ -2,5 +2,5 @@
   <style>@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@700&amp;family=Space+Mono:wght@700');</style>
   <rect width="512" height="512" rx="108" fill="#0C0A08"/>
   <text x="80" y="320" font-family="'Space Mono',monospace" font-weight="700" font-size="180" fill="#FB923C">&gt;</text>
-  <text x="230" y="320" font-family="'Space Grotesk',sans-serif" font-weight="700" font-size="200" letter-spacing="-8" fill="#EA580C">bc</text>
+  <text x="220" y="320" font-family="'Space Grotesk',sans-serif" font-weight="700" font-size="200" letter-spacing="-8" fill="#EA580C">m</text>
 </svg>
