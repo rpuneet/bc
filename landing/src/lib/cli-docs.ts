@@ -25,7 +25,7 @@ export interface CommandGroup {
 function parseCliDoc(content: string): CliCommand {
   const lines = content.split("\n");
 
-  // First line: ## bc <command>
+  // First line: ## mycel <command>
   const nameLine = lines.find((l) => l.startsWith("## "));
   const name = nameLine ? nameLine.replace("## ", "").trim() : "";
 
@@ -240,7 +240,7 @@ export function loadCliDocs(): {
 
     groups.push({
       id: `cmd-${groupName}`,
-      name: parentDoc.name.replace("bc ", ""),
+      name: parentDoc.name.replace("mycel ", ""),
       description: parentDoc.description,
       alias: meta.alias,
       commands,

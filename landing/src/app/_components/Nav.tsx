@@ -137,12 +137,12 @@ function GetStartedDropdown() {
     {
       icon: Monitor,
       label: "Homebrew",
-      cmd: "brew install rpuneet/bc/bc",
+      cmd: "brew install rpuneet/bc/mycel",
     },
     {
       icon: Container,
       label: "Docker",
-      cmd: "docker run -p 9374:9374 -v $(pwd):/workspace ghcr.io/rpuneet/bc bc up --addr 0.0.0.0:9374",
+      cmd: "docker run -p 9374:9374 -v $(pwd):/workspace ghcr.io/rpuneet/bc mycel up --addr 0.0.0.0:9374",
     },
   ];
 
@@ -323,7 +323,7 @@ export function Nav() {
                   curl -fsSL https://raw.githubusercontent.com/rpuneet/bc/main/scripts/install.sh | bash
                 </code>
                 <code className="block text-xs font-mono text-foreground bg-muted/50 rounded px-2.5 py-2 mb-1.5">
-                  brew install rpuneet/bc/bc
+                  brew install rpuneet/bc/mycel
                 </code>
                 <Link
                   href="/docs#installation"
