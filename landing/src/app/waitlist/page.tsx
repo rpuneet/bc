@@ -97,9 +97,6 @@ export default function WaitlistPage() {
     <main className="hero-glow flex min-h-screen items-center justify-center bg-background">
       <div className="mx-auto max-w-2xl px-4 text-center">
         <FadeUp>
-          <p className="accent-instrument mb-4 text-xl text-primary">
-            Let them cook.
-          </p>
         </FadeUp>
 
         <FadeUp delay={0.1}>

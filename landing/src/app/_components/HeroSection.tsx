@@ -46,7 +46,6 @@ export function HeroSection() {
             The Underground Network.
             <br />
             <span className="text-muted-foreground/40">
-              Let them cook.
             </span>
           </motion.h1>
 

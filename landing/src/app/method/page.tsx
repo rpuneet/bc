@@ -92,9 +92,6 @@ export default function MethodPage() {
             </p>
           </FadeUp>
           <FadeUp delay={0.3}>
-            <p className="accent-instrument mt-4 text-2xl text-primary">
-              Let them cook.
-            </p>
           </FadeUp>
         </div>
       </section>

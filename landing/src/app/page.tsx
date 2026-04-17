@@ -37,9 +37,6 @@ function HeroSection() {
             <h1 className="font-headline text-5xl font-bold tracking-tight lg:text-7xl text-on-background">
               The Underground Network.
             </h1>
-            <p className="accent-instrument mt-3 text-3xl text-primary">
-              Let them cook.
-            </p>
             <p className="mt-6 max-w-lg text-lg leading-relaxed text-on-surface-variant">
               Orchestrate teams of AI agents from your terminal. Isolated
               worktrees, structured channels, hard budget caps &mdash; all from
