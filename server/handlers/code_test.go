@@ -145,6 +145,26 @@ func TestCodeTree_ShowHidden(t *testing.T) {
 	}
 }
 
+func TestCodeTree_DotPathHidesBC(t *testing.T) {
+	ts, root := codeHarness(t)
+	if err := os.MkdirAll(filepath.Join(root, ".bc"), 0750); err != nil {
+		t.Fatal(err)
+	}
+	// path=. should still hide .bc (treated as root)
+	resp := getCode(t, ts.URL+"/api/code/tree?worktree=main&path=.")
+	defer func() { _ = resp.Body.Close() }()
+
+	var entries []map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&entries); err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range entries {
+		if e["name"] == ".bc" {
+			t.Fatalf("path=. should hide .bc but it was included: %v", entries)
+		}
+	}
+}
+
 func TestCodeTree_RejectsTraversal(t *testing.T) {
 	ts, root := codeHarness(t)
 	// Put a sensitive file outside root.

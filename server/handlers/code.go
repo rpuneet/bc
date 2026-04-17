@@ -254,7 +254,7 @@ func (h *CodeHandler) tree(w http.ResponseWriter, r *http.Request) {
 // A deeper path (e.g. inside a node_modules/.git) is still shown —
 // traversal into such dirs is the user's choice.
 func isHiddenEntry(name, parentRel string) bool {
-	if parentRel != "" {
+	if parentRel != "" && parentRel != "." {
 		return false
 	}
 	return name == ".git" || name == ".bc"
