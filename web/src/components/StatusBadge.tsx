@@ -1,5 +1,5 @@
 const COLORS: Record<string, string> = {
-  idle: "bg-bc-muted/20 text-bc-muted",
+  idle: "bg-amber-500/15 text-amber-400",
   working: "bg-green-500/20 text-green-400",
   starting: "bg-green-500/20 text-green-400",
   done: "bg-bc-success/20 text-bc-success",

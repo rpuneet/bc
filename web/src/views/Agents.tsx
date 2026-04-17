@@ -692,6 +692,13 @@ export function Agents() {
             <tbody>
               {displayRows.map((a, rowIdx) => (
                 <Fragment key={a.name}>
+                  {/* Subtle divider between active and stopped groups */}
+                  {rowIdx > 0 &&
+                    (a.state === "stopped" || a.state === "error") &&
+                    displayRows[rowIdx - 1]!.state !== "stopped" &&
+                    displayRows[rowIdx - 1]!.state !== "error" && (
+                    <tr><td colSpan={columns.length} className="h-px bg-bc-border/40" /></tr>
+                  )}
                   <tr
                     onClick={() =>
                       navigate(`/agents/${encodeURIComponent(a.name)}`)
@@ -757,7 +764,7 @@ export function Agents() {
                     </td>
                     <td className="px-4 py-2">
                       <span className="text-bc-muted" title={a.task}>
-                        {a.task ? truncate(a.task, 50) : "\u2014"}
+                        {a.task ? truncate(a.task, 50) : ""}
                       </span>
                     </td>
                     <td className="px-4 py-2 hidden md:table-cell">
