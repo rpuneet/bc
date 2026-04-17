@@ -1,12 +1,12 @@
-# bc Landing Page
+# mycel Landing Page
 
-> Official landing page for **bc** - Multi-Agent Orchestration for Claude Code
+> Official landing page for **mycel** - Multi-Agent Orchestration for Claude Code
 
-A modern, interactive landing page showcasing bc's capabilities for coordinating multiple AI agents with predictable behavior and cost awareness.
+A modern, interactive landing page showcasing mycel's capabilities for coordinating multiple AI agents with predictable behavior and cost awareness.
 
-## 🎯 About bc
+## 🎯 About mycel
 
-**bc** is a simpler, more controllable agent orchestrator for coordinating multiple Claude Code agents. It enables:
+**mycel** is a simpler, more controllable agent orchestrator for coordinating multiple Claude Code agents. It enables:
 
 - **Hierarchical Agent System** - Organized team structure (Root, Product Manager, Manager, Tech Leads, Engineers, QA)
 - **Git Worktrees** - Isolated development environments for conflict-free parallel work
@@ -31,7 +31,7 @@ bc-landing/
 │           ├── Nav.tsx              # Navigation component
 │           ├── ProductDemos.tsx     # Interactive product demos
 │           ├── ProductCarouselDemos.tsx  # Carousel for demos
-│           ├── BcHomeDemo.tsx       # bc home screen demo
+│           ├── BcHomeDemo.tsx       # mycel home screen demo
 │           ├── UiMocks.tsx          # UI mockups
 │           ├── Motion.tsx           # Animation utilities
 │           └── StatsBar.tsx         # Statistics display
@@ -108,7 +108,7 @@ npm run lint
 ## 📄 Pages
 
 ### Landing Page (`/`)
-- Hero section showcasing bc features
+- Hero section showcasing mycel features
 - Interactive product demos
 - Key statistics
 - Call-to-action sections
@@ -134,8 +134,8 @@ npm run lint
 ## 🎨 Key Features
 
 ### Interactive Demos
-- **Product Demos**: Carousel-based demonstration of bc features
-- **bc Home Mock**: Shows the TUI dashboard interface
+- **Product Demos**: Carousel-based demonstration of mycel features
+- **mycel Home Mock**: Shows the TUI dashboard interface
 - **UI Mockups**: Interactive UI component previews
 
 ### Animations
@@ -324,16 +324,16 @@ Monitor page performance using:
 
 ## 📝 License
 
-This project is part of the bc ecosystem. See LICENSE for details.
+This project is part of the mycel ecosystem. See LICENSE for details.
 
 ## 🙋 Support
 
 - **Issues**: [GitHub Issues](https://github.com/bcinfra1/bc-landing/issues)
 - **Discussions**: [GitHub Discussions](https://github.com/bcinfra1/bc-landing/discussions)
-- **Team Channels**: Join #all, #eng, #product channels in bc workspace
+- **Team Channels**: Join #all, #eng, #product channels in mycel workspace
 
 ---
 
 **Last Updated**: February 2026
 
-Made with ❤️ by the bc team
+Made with ❤️ by the mycel team

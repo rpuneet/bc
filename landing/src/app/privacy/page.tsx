@@ -24,7 +24,7 @@ export default function PrivacyPolicy() {
             <div>
               <h2 className="text-xl font-bold mb-3">Introduction</h2>
               <p className="text-muted-foreground">
-                bc (&ldquo;we,&rdquo; &ldquo;us,&rdquo; &ldquo;our,&rdquo; or
+                mycel (&ldquo;we,&rdquo; &ldquo;us,&rdquo; &ldquo;our,&rdquo; or
                 &ldquo;Company&rdquo;) is committed to protecting your privacy.
                 This Privacy Policy explains how we collect, use, disclose, and
                 safeguard your information when you visit our website and use
@@ -147,14 +147,14 @@ export default function PrivacyPolicy() {
                 practices, please contact us at:
               </p>
               <p className="text-muted-foreground mt-3">
-                <strong className="text-foreground">bc-infra</strong>
+                <strong className="text-foreground">mycel</strong>
                 <br />
                 Email:{" "}
                 <a
-                  href="mailto:puneet@bc-infra.com"
+                  href="mailto:puneet@mycel.dev"
                   className="text-primary hover:underline"
                 >
-                  puneet@bc-infra.com
+                  puneet@mycel.dev
                 </a>
               </p>
             </div>
