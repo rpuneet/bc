@@ -35,7 +35,7 @@ function HeroSection() {
             </div>
 
             <h1 className="font-headline text-5xl font-bold tracking-tight lg:text-7xl text-on-background">
-              The Underground Network.
+              AI in a Box.
             </h1>
             <p className="mt-6 max-w-lg text-lg leading-relaxed text-on-surface-variant">
               Orchestrate teams of AI agents from your terminal. Isolated

@@ -17,7 +17,7 @@ export const viewport = {
 };
 
 export const metadata = {
-  title: "mycel — The Underground Network for AI Agents",
+  title: "mycel — AI in a Box",
   description:
     "Orchestrate AI agents from your terminal. Isolated worktrees, shared channels, cost controls.",
   keywords:
@@ -41,7 +41,7 @@ export const metadata = {
     type: "website",
     locale: "en_US",
     url: "https://mycel.dev",
-    title: "mycel — The Underground Network for AI Agents",
+    title: "mycel — AI in a Box",
     description:
       "Orchestrate AI agents from your terminal. Isolated worktrees, shared channels, cost controls.",
     siteName: "mycel",
@@ -50,13 +50,13 @@ export const metadata = {
         url: "https://mycel.dev/og-image.png",
         width: 1200,
         height: 630,
-        alt: "mycel — The Underground Network for AI Agents",
+        alt: "mycel — AI in a Box",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "mycel — The Underground Network for AI Agents",
+    title: "mycel — AI in a Box",
     description:
       "Orchestrate AI agents from your terminal. Isolated worktrees, shared channels, cost controls.",
     images: ["https://mycel.dev/og-image.png"],
