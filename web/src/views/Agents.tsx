@@ -5,7 +5,6 @@ import type { Agent, BulkResult } from "../api/client";
 import { usePolling } from "../hooks/usePolling";
 import { useWebSocket } from "../hooks/useWebSocket";
 import { StatusBadge } from "../components/StatusBadge";
-import { LoadingSkeleton } from "../components/LoadingSkeleton";
 import { EmptyState } from "../components/EmptyState";
 import { InlineTerminal } from "../components/InlineTerminal";
 import { truncate } from "../utils/text";
@@ -200,6 +199,48 @@ function AgentActions({ agent, onDone }: { agent: Agent; onDone: () => void }) {
   );
 }
 
+// --- Loading skeleton matching the agents table columns ---
+
+function AgentsTableSkeleton() {
+  return (
+    <table className="w-full text-sm">
+      <thead>
+        <tr className="border-b border-bc-border text-left">
+          <th className="px-2 py-2 w-8"><div className="h-3 w-3 rounded animate-pulse bg-bc-border/40" /></th>
+          <th className="px-4 py-2"><div className="h-3 w-16 rounded animate-pulse bg-bc-border/40" /></th>
+          <th className="px-4 py-2 hidden sm:table-cell"><div className="h-3 w-14 rounded animate-pulse bg-bc-border/40" /></th>
+          <th className="px-4 py-2 hidden sm:table-cell"><div className="h-3 w-14 rounded animate-pulse bg-bc-border/40" /></th>
+          <th className="px-4 py-2"><div className="h-3 w-12 rounded animate-pulse bg-bc-border/40" /></th>
+          <th className="px-4 py-2"><div className="h-3 w-10 rounded animate-pulse bg-bc-border/40" /></th>
+          <th className="px-4 py-2 hidden md:table-cell"><div className="h-3 w-8 rounded animate-pulse bg-bc-border/40" /></th>
+          <th className="px-4 py-2"><div className="h-3 w-14 rounded animate-pulse bg-bc-border/40" /></th>
+          <th className="px-4 py-2 w-10" />
+        </tr>
+      </thead>
+      <tbody>
+        {Array.from({ length: 5 }).map((_, i) => (
+          <tr key={i} className="border-b border-bc-border/50">
+            <td className="px-2 py-3"><div className="h-3 w-3 rounded animate-pulse bg-bc-border/30" /></td>
+            <td className="px-4 py-3">
+              <div className="flex items-center gap-2">
+                <div className="h-7 w-7 rounded-full animate-pulse bg-bc-border/30 shrink-0" />
+                <div className="h-3 rounded animate-pulse bg-bc-border/30" style={{ width: `${60 + (i % 4) * 15}px` }} />
+              </div>
+            </td>
+            <td className="px-4 py-3 hidden sm:table-cell"><div className="h-3 w-12 rounded animate-pulse bg-bc-border/30" /></td>
+            <td className="px-4 py-3 hidden sm:table-cell"><div className="h-3 w-14 rounded animate-pulse bg-bc-border/30" /></td>
+            <td className="px-4 py-3"><div className="h-4 w-16 rounded-full animate-pulse bg-bc-border/30" /></td>
+            <td className="px-4 py-3"><div className="h-3 rounded animate-pulse bg-bc-border/30" style={{ width: `${80 + (i % 3) * 30}px` }} /></td>
+            <td className="px-4 py-3 hidden md:table-cell"><div className="h-4 w-10 rounded animate-pulse bg-bc-border/30" /></td>
+            <td className="px-4 py-3"><div className="h-4 w-20 rounded animate-pulse bg-bc-border/30" /></td>
+            <td className="px-4 py-3" />
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
 // --- Main Agents View ---
 
 export function Agents() {
@@ -228,7 +269,7 @@ export function Agents() {
     actions: (
       <>
         <span className="text-[10px] text-bc-muted/40 tabular-nums" style={{ fontFamily: MONO }}>
-          {agents ? `${String(agents.length)} total` : ""}
+          {agents ? `${String(agents.length)} total` : "\u2014"}
         </span>
         <button
           type="button"
@@ -505,14 +546,6 @@ export function Agents() {
   };
   const hasFilters = search !== "" || roleFilter !== "" || stateFilter !== "" || toolFilter !== "";
 
-  if (loading && !agents) {
-    return (
-      <div className="p-6 space-y-4">
-        <div className="h-6 w-24 animate-pulse rounded bg-bc-border/50" />
-        <LoadingSkeleton variant="table" rows={4} />
-      </div>
-    );
-  }
   if (timedOut && !agents) {
     return (
       <div className="p-6">
@@ -627,7 +660,9 @@ export function Agents() {
       )}
 
       <div className="rounded border border-bc-border overflow-x-auto">
-        {allAgents.length === 0 ? (
+        {loading && !agents ? (
+          <AgentsTableSkeleton />
+        ) : allAgents.length === 0 ? (
           <EmptyState
             icon=">"
             title="No agents yet"
