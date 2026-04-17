@@ -18,7 +18,16 @@ package server
 import (
 	"net/http"
 	"strings"
+	"sync/atomic"
+
+	"github.com/rpuneet/bc/pkg/log"
 )
+
+// emptyIDWarnFired guards against spamming the log when the active
+// workspace entry is present but has an empty ID. That state is a
+// registry invariant violation (ID is the 8-char sha256), so it
+// deserves visibility — but exactly once per process, not per request.
+var emptyIDWarnFired atomic.Bool
 
 // legacyUIPages is the set of top-level SPA pages that used to live at
 // /<page> and now live at /w/<wsId>/<page>. Kept as a simple map to make
@@ -82,7 +91,19 @@ func LegacyUIScope(next http.Handler, mgr *WorkspaceManager) http.Handler {
 			return
 		}
 		entry := mgr.Registry().GetActive()
-		if entry == nil || entry.ID == "" {
+		if entry == nil {
+			next.ServeHTTP(w, r)
+			return
+		}
+		if entry.ID == "" {
+			// Registry invariant says ID is an 8-char sha256 — an
+			// empty ID means the entry was written without going
+			// through RegisterWithAlias, usually a test leak. Warn
+			// once per process so operators notice, then pass through.
+			if emptyIDWarnFired.CompareAndSwap(false, true) {
+				log.Warn("legacy_scope: active workspace has empty ID — registry invariant violated",
+					"path", entry.Path, "name", entry.Name)
+			}
 			next.ServeHTTP(w, r)
 			return
 		}
