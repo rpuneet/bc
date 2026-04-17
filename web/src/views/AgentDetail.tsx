@@ -403,13 +403,10 @@ function ConfigTab({ agent }: { agent: Agent }) {
     return () => { cancelled = true; };
   }, []);
 
-  // Fetch hostname from system info endpoint.
+  // Fetch hostname from system info endpoint (uses shared API client for workspace header).
   useEffect(() => {
-    fetch("/api/system/info")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
-        if (data?.hostname) setHostname(data.hostname);
-      })
+    api.getSystemInfo()
+      .then((data) => { if (data?.hostname) setHostname(data.hostname); })
       .catch(() => {/* best-effort */});
   }, []);
 

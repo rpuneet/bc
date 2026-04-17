@@ -970,6 +970,7 @@ export const api = {
   /** Get file download URL. */
   getFileUrl: (id: string) => `${BASE}/files/${encodeURIComponent(id)}`,
 
+  getSystemInfo: () => request<{ hostname: string; os: string; arch: string }>("/system/info"),
   getSettings: () => request<SettingsConfig>("/settings"),
   updateSettings: (patch: Record<string, unknown>) =>
     request<SettingsConfig>("/settings", {

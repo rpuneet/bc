@@ -24,6 +24,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -252,11 +253,15 @@ func (m *WorkspaceManager) Load(ctx context.Context, wsID string) (*WorkspaceSer
 
 	ws, err := workspace.Load(entry.Path)
 	if err != nil {
-		// Registered but never initialized (no settings.json / preferences.json).
-		// Auto-initialize so the UI gets a valid (empty) workspace instead of 500.
+		// Only auto-init if the workspace is uninitialized (no config file).
+		// Permission errors, corrupt config, etc. should propagate as real errors.
+		errMsg := err.Error()
+		if !strings.Contains(errMsg, "not a bc workspace") && !strings.Contains(errMsg, "no preferences.json") && !strings.Contains(errMsg, "no settings.json") {
+			return nil, fmt.Errorf("load workspace %s: %w", entry.Path, err)
+		}
 		ws, err = workspace.Init(entry.Path)
 		if err != nil {
-			return nil, fmt.Errorf("load/init workspace %s: %w", entry.Path, err)
+			return nil, fmt.Errorf("init workspace %s: %w", entry.Path, err)
 		}
 		log.Info("workspace auto-initialized on first access", "path", entry.Path)
 	}

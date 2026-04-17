@@ -109,10 +109,6 @@ func (s *Service) Dispatch(channel, platform, sender, senderID, content, message
 
 		log.Info("notify: dispatch", "channel", channel, "sender", sender, "subscribers", len(subs))
 
-		if len(subs) == 0 {
-			return
-		}
-
 		mentionSet := make(map[string]bool, len(mentions))
 		for _, m := range mentions {
 			mentionSet[m] = true
