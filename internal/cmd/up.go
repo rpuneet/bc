@@ -109,6 +109,24 @@ func runUp(cmd *cobra.Command, _ []string) error {
 		log.Warn("daemon addr: write failed — CLI will fall back to default port", "path", addrPath, "error", writeErr)
 	}
 
+	// One-shot prune of stale registry entries. Go tests that write to
+	// the user-global workspaces.json without a sandbox leave phantom
+	// tmpdir entries; dropping them on every bcd boot keeps the
+	// registry accurate without requiring a separate maintenance
+	// command. Errors are best-effort — a failure to save is non-fatal
+	// and pointed at with a warn.
+	if reg, regErr := workspace.LoadRegistry(); regErr == nil {
+		if pruned := reg.PruneStalePaths(); pruned > 0 {
+			if saveErr := reg.Save(); saveErr != nil {
+				log.Warn("registry: prune save failed", "pruned", pruned, "error", saveErr)
+			} else {
+				log.Info("registry: pruned stale entries", "count", pruned)
+			}
+		}
+	} else {
+		log.Warn("registry: load for prune failed", "error", regErr)
+	}
+
 	return RunServer(upAddr, wsRoot, upCORS, upAPIKey)
 }
 
