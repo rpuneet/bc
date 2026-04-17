@@ -101,7 +101,7 @@ export default function RootLayout({
           rel="stylesheet"
         />
       </head>
-      <body className="bg-background text-foreground antialiased transition-colors duration-300">
+      <body className="bg-background text-on-background font-body antialiased transition-colors duration-300">
         <WebVitals />
         <OrganizationSchema />
         <WebsiteSchema />

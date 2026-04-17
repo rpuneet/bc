@@ -2,80 +2,86 @@ import Link from "next/link";
 
 export function Footer() {
   return (
-    <footer className="border-t border-border bg-accent/20">
+    <footer className="bg-surface-container-lowest">
       <div className="mx-auto max-w-7xl px-6 py-16">
         <div className="grid grid-cols-1 gap-12 md:grid-cols-5 mb-12">
+          {/* Logo + tagline */}
           <div className="col-span-1 md:col-span-2 space-y-4">
-            <div className="flex items-center group">
-              <span className="font-mono text-lg font-normal text-secondary/70">
-                &gt;
-              </span>
-              <span className="font-heading text-xl font-bold tracking-tight text-primary ml-1">
-                mycel
+            <div className="flex items-center">
+              <span className="font-mono text-lg text-primary">&gt;</span>
+              <span className="font-mono text-lg font-bold tracking-tight text-on-surface ml-1">
+                mycel_
               </span>
             </div>
-            <p className="text-sm text-muted-foreground max-w-xs">
+            <p className="text-sm text-on-surface-variant max-w-xs leading-relaxed">
               Multi-agent orchestration for AI coding assistants. CLI-first.
               Agent-agnostic. Open source.
             </p>
+            <p className="text-xs text-on-surface-variant/60">
+              &copy; {new Date().getFullYear()} mycel
+            </p>
           </div>
+
+          {/* Product */}
           <div className="space-y-4">
-            <h2 className="text-xs font-bold uppercase tracking-widest text-primary/40">
+            <h2 className="text-xs font-mono font-bold uppercase tracking-widest text-on-surface-variant/50">
               Product
             </h2>
             <nav
               aria-label="Product links"
-              className="flex flex-col gap-2 text-sm text-muted-foreground"
+              className="flex flex-col gap-2.5 text-sm text-on-surface-variant"
             >
               <Link
                 href="/"
-                className="hover:text-foreground transition-colors"
+                className="hover:text-on-surface transition-colors"
               >
                 Home
               </Link>
               <Link
                 href="/product"
-                className="hover:text-foreground transition-colors"
+                className="hover:text-on-surface transition-colors"
               >
                 Features
               </Link>
               <Link
                 href="/pricing"
-                className="hover:text-foreground transition-colors"
+                className="hover:text-on-surface transition-colors"
               >
                 Pricing
               </Link>
               <Link
                 href="/method"
-                className="hover:text-foreground transition-colors"
+                className="hover:text-on-surface transition-colors"
               >
                 Method
               </Link>
             </nav>
           </div>
+
+          {/* Resources */}
           <div className="space-y-4">
-            <h2 className="text-xs font-bold uppercase tracking-widest text-primary/40">
+            <h2 className="text-xs font-mono font-bold uppercase tracking-widest text-on-surface-variant/50">
               Resources
             </h2>
             <nav
               aria-label="Resources links"
-              className="flex flex-col gap-2 text-sm text-muted-foreground"
+              className="flex flex-col gap-2.5 text-sm text-on-surface-variant"
             >
               <Link
                 href="/docs"
-                className="hover:text-foreground transition-colors"
+                className="hover:text-on-surface transition-colors"
               >
-                Documentation
+                Docs
               </Link>
               <Link
                 href="/docs#installation"
-                className="hover:text-foreground transition-colors"
+                className="hover:text-on-surface transition-colors"
               >
                 Getting Started
               </Link>
               <Link
                 href="https://github.com/rpuneet/bc"
-                className="hover:text-foreground transition-colors"
+                className="hover:text-on-surface transition-colors"
                 target="_blank"
                 rel="noopener noreferrer"
               >
@@ -83,55 +89,59 @@ export function Footer() {
               </Link>
             </nav>
           </div>
+
+          {/* Company */}
           <div className="space-y-4">
-            <h2 className="text-xs font-bold uppercase tracking-widest text-primary/40">
+            <h2 className="text-xs font-mono font-bold uppercase tracking-widest text-on-surface-variant/50">
               Company
             </h2>
             <nav
               aria-label="Company links"
-              className="flex flex-col gap-2 text-sm text-muted-foreground"
+              className="flex flex-col gap-2.5 text-sm text-on-surface-variant"
             >
               <Link
                 href="mailto:puneet@mycel.dev"
-                className="hover:text-foreground transition-colors"
+                className="hover:text-on-surface transition-colors"
               >
                 Contact
               </Link>
               <Link
                 href="/privacy"
-                className="hover:text-foreground transition-colors"
+                className="hover:text-on-surface transition-colors"
               >
                 Privacy
               </Link>
               <Link
                 href="/terms"
-                className="hover:text-foreground transition-colors"
+                className="hover:text-on-surface transition-colors"
               >
                 Terms
               </Link>
-              <span className="text-muted-foreground/50 cursor-default">
-                Discord
-                <span className="text-[10px] ml-1 italic">(coming soon)</span>
-              </span>
-              <span className="text-muted-foreground/50 cursor-default">
-                Twitter / X
-                <span className="text-[10px] ml-1 italic">(coming soon)</span>
-              </span>
+              <Link
+                href="https://twitter.com/mycel_dev"
+                className="hover:text-on-surface transition-colors"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Twitter @mycel_dev
+              </Link>
             </nav>
           </div>
         </div>
-        <div className="flex flex-col md:flex-row items-center justify-between gap-4 pt-8 border-t border-border text-xs text-muted-foreground/60">
+
+        {/* Bottom bar — no border, use surface shift */}
+        <div className="flex flex-col md:flex-row items-center justify-between gap-4 pt-8 bg-surface-container-lowest text-xs text-on-surface-variant/40">
           <p>&copy; {new Date().getFullYear()} mycel. All rights reserved.</p>
           <div className="flex items-center gap-6">
             <Link
               href="/privacy"
-              className="hover:text-foreground transition-colors"
+              className="hover:text-on-surface transition-colors"
             >
               Privacy Policy
             </Link>
             <Link
               href="/terms"
-              className="hover:text-foreground transition-colors"
+              className="hover:text-on-surface transition-colors"
             >
               Terms of Service
             </Link>
