@@ -107,6 +107,12 @@ func (s *Service) Dispatch(channel, platform, sender, senderID, content, message
 			return
 		}
 
+		log.Info("notify: dispatch", "channel", channel, "sender", sender, "subscribers", len(subs))
+
+		if len(subs) == 0 {
+			return
+		}
+
 		mentionSet := make(map[string]bool, len(mentions))
 		for _, m := range mentions {
 			mentionSet[m] = true
@@ -137,6 +143,8 @@ func (s *Service) Dispatch(channel, platform, sender, senderID, content, message
 				status = StatusFailed
 				errStr = sendErr.Error()
 				log.Warn("notify: delivery failed", "agent", sub.Agent, "channel", channel, "error", sendErr)
+			} else {
+				log.Info("notify: delivered", "agent", sub.Agent, "channel", channel)
 			}
 
 			// Log delivery
