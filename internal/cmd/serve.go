@@ -30,6 +30,9 @@ import (
 // handlers, and blocks until the context is canceled or a signal is
 // received.
 func RunServer(addr, wsRoot, corsOrigin, apiKey string) error {
+	// Normalize addr: ":8080" → "127.0.0.1:8080"
+	addr = normalizeAddr(addr)
+
 	ws, err := bcworkspace.Load(wsRoot)
 	if err != nil {
 		ws, err = bcworkspace.Init(wsRoot)

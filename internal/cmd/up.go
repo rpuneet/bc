@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"fmt"
+	"net"
 	"os"
 	"os/exec"
 	"strings"
@@ -15,6 +16,19 @@ import (
 	"github.com/rpuneet/bc/pkg/ui"
 	"github.com/rpuneet/bc/pkg/workspace"
 )
+
+// normalizeAddr ensures the host part of a host:port address is not empty.
+// If the host is missing (e.g. ":8080"), it defaults to "127.0.0.1".
+func normalizeAddr(addr string) string {
+	host, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		return addr // not a host:port pair, return as-is
+	}
+	if host == "" {
+		host = "127.0.0.1"
+	}
+	return net.JoinHostPort(host, port)
+}
 
 var upCmd = &cobra.Command{
 	Use:   "up",
@@ -79,6 +93,9 @@ func runUp(cmd *cobra.Command, _ []string) error {
 			upAddr = fmt.Sprintf("%s:%d", host, port)
 		}
 	}
+
+	// Normalize addr: ":8080" → "127.0.0.1:8080"
+	upAddr = normalizeAddr(upAddr)
 
 	// Daemon mode: re-exec bc up in background
 	if upDaemon {

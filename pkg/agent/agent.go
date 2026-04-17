@@ -54,6 +54,8 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -2471,6 +2473,11 @@ func (m *Manager) enforceRootSingleton(_ string) error {
 // (with host.docker.internal substituted for Docker runtimes).
 func bcdAddrForRuntime(rt string) string {
 	if addr := os.Getenv("BC_BCD_ADDR"); addr != "" {
+		// Normalize empty hostname: "http://:8080" → "http://127.0.0.1:8080"
+		if u, parseErr := url.Parse(addr); parseErr == nil && u.Hostname() == "" && u.Port() != "" {
+			u.Host = net.JoinHostPort("127.0.0.1", u.Port())
+			addr = u.String()
+		}
 		if rt == "docker" {
 			// Replace localhost/127.0.0.1 with host.docker.internal for Docker
 			addr = strings.ReplaceAll(addr, "127.0.0.1", "host.docker.internal")
