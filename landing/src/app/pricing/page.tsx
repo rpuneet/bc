@@ -200,12 +200,12 @@ export default function PricingPage() {
                 <InstallRow
                   icon={Container}
                   title="Docker"
-                  command="docker run -p 9374:9374 -v $(pwd):/workspace ghcr.io/rpuneet/bc mycel up --addr 0.0.0.0:9374"
+                  command="docker run -p 9374:9374 -v $(pwd):/workspace ghcr.io/rpuneet/bc bc up --addr 0.0.0.0:9374"
                 />
                 <InstallRow
                   icon={GitBranch}
                   title="From source"
-                  command="go install github.com/rpuneet/bc/cmd/mycel@latest"
+                  command="go install github.com/rpuneet/bc/cmd/bc@latest"
                 />
               </div>
 
@@ -350,7 +350,7 @@ export default function PricingPage() {
               />
               <FAQItem
                 question="Do I need an account?"
-                answer="No for the Free tier. Install mycel, run mycel init, and start orchestrating. No signup, no login, no telemetry. The Cloud tier requires a signup for remote access features."
+                answer="No for the Free tier. Install mycel, run bc init, and start orchestrating. No signup, no login, no telemetry. The Cloud tier requires a signup for remote access features."
               />
               <FAQItem
                 question="What's included in Cloud?"

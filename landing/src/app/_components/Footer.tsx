@@ -121,7 +121,7 @@ export function Footer() {
           </div>
         </div>
         <div className="flex flex-col md:flex-row items-center justify-between gap-4 pt-8 border-t border-border text-xs text-muted-foreground/60">
-          <p>&copy; 2026 mycel. All rights reserved.</p>
+          <p>&copy; {new Date().getFullYear()} mycel. All rights reserved.</p>
           <div className="flex items-center gap-6">
             <Link
               href="/privacy"

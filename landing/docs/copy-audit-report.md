@@ -8,7 +8,7 @@
 
 ## Executive Summary
 
-This audit compares mycel-landing marketing copy with mycel's actual capabilities documented in `/Users/puneetrai/Projects/bc/README.md` and `/Users/puneetrai/Projects/bc/.ctx/01-architecture-overview.md`.
+This audit compares mycel-landing marketing copy with mycel's actual capabilities documented in `README.md` and `.ctx/01-architecture-overview.md`.
 
 **Key Findings:**
 - BC's value proposition emphasizes **predictable behavior and cost awareness** as core differentiators

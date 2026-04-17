@@ -31,7 +31,7 @@ bc-landing/
 │           ├── Nav.tsx              # Navigation component
 │           ├── ProductDemos.tsx     # Interactive product demos
 │           ├── ProductCarouselDemos.tsx  # Carousel for demos
-│           ├── BcHomeDemo.tsx       # mycel home screen demo
+│           ├── BcHomeDemo.tsx       # bc home screen demo
 │           ├── UiMocks.tsx          # UI mockups
 │           ├── Motion.tsx           # Animation utilities
 │           └── StatsBar.tsx         # Statistics display
@@ -330,7 +330,7 @@ This project is part of the mycel ecosystem. See LICENSE for details.
 
 - **Issues**: [GitHub Issues](https://github.com/bcinfra1/bc-landing/issues)
 - **Discussions**: [GitHub Discussions](https://github.com/bcinfra1/bc-landing/discussions)
-- **Team Channels**: Join #all, #eng, #product channels in mycel workspace
+- **Team Channels**: Join #all, #eng, #product channels in bc workspace
 
 ---
 

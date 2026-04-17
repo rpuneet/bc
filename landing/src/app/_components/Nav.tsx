@@ -137,12 +137,12 @@ function GetStartedDropdown() {
     {
       icon: Monitor,
       label: "Homebrew",
-      cmd: "brew install rpuneet/bc/mycel",
+      cmd: "brew install rpuneet/bc/bc",
     },
     {
       icon: Container,
       label: "Docker",
-      cmd: "docker run -p 9374:9374 -v $(pwd):/workspace ghcr.io/rpuneet/bc mycel up --addr 0.0.0.0:9374",
+      cmd: "docker run -p 9374:9374 -v $(pwd):/workspace ghcr.io/rpuneet/bc bc up --addr 0.0.0.0:9374",
     },
   ];
 

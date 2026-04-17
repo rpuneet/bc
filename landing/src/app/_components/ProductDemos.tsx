@@ -39,7 +39,7 @@ function TerminalHeader({ title }: { title: string }) {
         </span>
       </div>
       <span className="font-mono text-[10px] text-terminal-comment bg-terminal-bg/50 px-2 py-0.5 rounded uppercase tracking-widest">
-        mycel home
+        bc home
       </span>
     </div>
   );
@@ -391,7 +391,7 @@ function AgentsFrame({ step }: { step: number }) {
             Starting validation work. retrieved past Zod patterns. Branch
             isolated in{" "}
             <span className="text-terminal-success">
-              .mycel/worktrees/pixel/feat-validate
+              .bc/worktrees/pixel/feat-validate
             </span>
             .
           </div>
@@ -515,10 +515,10 @@ export function AgentsSection() {
       tab="Agents"
       cmdForStep={(i) =>
         i === 0
-          ? "mycel status"
+          ? "bc status"
           : i === 1
-            ? "mycel agent peek engineer-pixel"
-            : "mycel agent send pixel 'status'"
+            ? "bc agent peek engineer-pixel"
+            : "bc agent send pixel 'status'"
       }
       renderFrame={(i) => <AgentsFrame step={i} />}
     />
@@ -549,10 +549,10 @@ export function ChannelsSection() {
       tab="Channels"
       cmdForStep={(i) =>
         i === 0
-          ? "mycel home"
+          ? "bc home"
           : i === 1
-            ? "mycel channel send #general 'review'"
-            : "mycel channel history #general"
+            ? "bc channel send #general 'review'"
+            : "bc channel history #general"
       }
       renderFrame={(i) => <ChannelsFrame step={i} />}
     />
@@ -583,10 +583,10 @@ export function CronSection() {
       tab="Cron"
       cmdForStep={(i) =>
         i === 0
-          ? "mycel cron list"
+          ? "bc cron list"
           : i === 1
-            ? "mycel cron run build-sync"
-            : "mycel cron add audit"
+            ? "bc cron run build-sync"
+            : "bc cron add audit"
       }
       renderFrame={() => <CronFrame />}
     />

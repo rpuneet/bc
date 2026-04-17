@@ -30,7 +30,7 @@ export const metadata: Metadata = {
     description:
       "Explore mycel's multi-agent orchestration platform: agent lifecycle, channels, cost controls, roles, and cron jobs. A CLI-first orchestration platform.",
     images: ["https://mycel.dev/og-image.png"],
-    creator: "@myceldev",
+    creator: "@mycel_dev",
   },
 };
 

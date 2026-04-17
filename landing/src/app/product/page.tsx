@@ -278,10 +278,10 @@ export default function Product() {
           title="Create, command, observe, stop."
           description="Spawn agents with roles and tools. Send work, peek at output, manage the full lifecycle. Each agent runs in its own tmux session with an isolated git worktree."
           commands={[
-            'mycel agent create eng-01 --role engineer --tool claude',
-            'mycel agent send eng-01 "Build the auth module"',
-            'mycel agent peek eng-01',
-            'mycel agent list',
+            'bc agent create eng-01 --role engineer --tool claude',
+            'bc agent send eng-01 "Build the auth module"',
+            'bc agent peek eng-01',
+            'bc agent list',
           ]}
           screenshot="/screenshots/dashboard-02-agents.png"
           screenshotAlt="mycelAgents view showing a table of agents with their roles, tools, states, and tasks"
@@ -295,9 +295,9 @@ export default function Product() {
           title="Structured coordination via channels."
           description="Structured channels keep agents coordinated. Agents @mention each other, hand off work, and converge. Every message is logged and searchable."
           commands={[
-            'mycel channel create deploys',
-            'mycel channel send engineering "@eng-01 review PR #42"',
-            'mycel channel history engineering --last 20',
+            'bc channel create deploys',
+            'bc channel send engineering "@eng-01 review PR #42"',
+            'bc channel history engineering --last 20',
           ]}
           screenshot="/screenshots/dashboard-03-channels.png"
           screenshotAlt="mycelChannels view showing inter-agent communication with message history and reactions"
@@ -312,9 +312,9 @@ export default function Product() {
           title="Track spending across every agent."
           description="Total cost, token usage, and per-agent breakdowns in real time. Set budgets with thresholds. Hard stops pause agents that exceed their limit."
           commands={[
-            'mycel cost show',
-            'mycel cost budget set 50.00 --agent eng-01 --alert-at 0.8',
-            'mycel cost usage',
+            'bc cost show',
+            'bc cost budget set 50.00 --agent eng-01 --alert-at 0.8',
+            'bc cost usage',
           ]}
           screenshot="/screenshots/dashboard-04-costs.png"
           screenshotAlt="mycelCosts dashboard showing total spend, daily cost trends, and per-agent cost breakdown with bar chart"
@@ -326,10 +326,10 @@ export default function Product() {
           id="roles"
           label="Roles & Permissions"
           title="RBAC for your agent team."
-          description="Define roles with scoped capabilities. Engineers implement tasks. Managers assign work. Roles live as markdown files in .mycel/roles/."
+          description="Define roles with scoped capabilities. Engineers implement tasks. Managers assign work. Roles live as markdown files in .bc/roles/."
           commands={[
-            'mycel role list',
-            'mycel role show engineer',
+            'bc role list',
+            'bc role show engineer',
           ]}
           screenshot="/screenshots/dashboard-05-roles.png"
           screenshotAlt="mycelRoles view showing configured roles with their capabilities and hierarchy"
@@ -343,9 +343,9 @@ export default function Product() {
           title="Add any AI tool. Mix and match."
           description="Register AI tools and assign them to agents. Claude Code for complex features, Cursor for UI, Aider for quick fixes. mycel manages install, upgrade, and status."
           commands={[
-            'mycel tool list',
-            'mycel tool add mytool --command "mytool --yes"',
-            'mycel tool status claude',
+            'bc tool list',
+            'bc tool add mytool --command "mytool --yes"',
+            'bc tool status claude',
           ]}
           screenshot="/screenshots/dashboard-06-tools.png"
           screenshotAlt="mycelTools view showing registered AI tools with their versions, installation status, and commands"
@@ -359,9 +359,9 @@ export default function Product() {
           title="Connect tools natively via MCP."
           description="Configure MCP servers that agents connect to on spawn. Supports stdio and SSE transport. Attach servers to roles for consistent capabilities."
           commands={[
-            'mycel mcp add github-server',
-            'mycel mcp list',
-            'mycel mcp enable github-server',
+            'bc mcp add github-server',
+            'bc mcp list',
+            'bc mcp enable github-server',
           ]}
           screenshot="/screenshots/dashboard-07-mcp.png"
           screenshotAlt="mycelMCP view showing configured MCP servers with transport type and connection status"
@@ -375,9 +375,9 @@ export default function Product() {
           title="Cron-powered automation."
           description="Schedule recurring tasks with cron syntax. Send prompts to agents on a schedule and view execution history."
           commands={[
-            'mycel cron add daily-lint --schedule "0 9 * * *" --agent qa-01 --prompt "Run make lint"',
-            'mycel cron list',
-            'mycel cron logs daily-lint --last 10',
+            'bc cron add daily-lint --schedule "0 9 * * *" --agent qa-01 --prompt "Run make lint"',
+            'bc cron list',
+            'bc cron logs daily-lint --last 10',
           ]}
           screenshot="/screenshots/dashboard-08-cron.png"
           screenshotAlt="mycelCron Jobs view showing scheduled jobs with their schedules, run counts, and last execution times"
@@ -390,9 +390,9 @@ export default function Product() {
           title="Encrypted credentials, zero plaintext."
           description="API keys and credentials encrypted at rest via macOS Keychain, Linux libsecret, or AES-256-GCM. No plaintext in your repo."
           commands={[
-            'mycel secret set OPENAI_KEY',
-            'mycel secret list',
-            'mycel secret get GITHUB_TOKEN',
+            'bc secret set OPENAI_KEY',
+            'bc secret list',
+            'bc secret get GITHUB_TOKEN',
           ]}
           screenshot="/screenshots/dashboard-09-secrets.png"
           screenshotAlt="mycelSecrets view showing stored secrets with encryption backend and creation dates"
@@ -406,8 +406,8 @@ export default function Product() {
           title="Full visibility into your workspace."
           description="Agent counts, total cost, CPU/memory/disk usage, uptime, and channel activity at a glance."
           commands={[
-            'mycel stats',
-            'mycel status',
+            'bc stats',
+            'bc status',
           ]}
           screenshot="/screenshots/dashboard-10-stats-loaded.png"
           screenshotAlt="mycelStats dashboard showing agent summary, system overview, resource usage bars, and runtime metrics"
@@ -420,8 +420,8 @@ export default function Product() {
           title="Every event, searchable and filterable."
           description="All agent activity, channel messages, and system events in one log. Filter by agent, level, or time range."
           commands={[
-            'mycel logs',
-            'mycel agent logs eng-01',
+            'bc logs',
+            'bc agent logs eng-01',
           ]}
           screenshot="/screenshots/dashboard-11-logs.png"
           screenshotAlt="mycelLogs view showing a filterable stream of workspace events from agents and system"
@@ -435,8 +435,8 @@ export default function Product() {
           title="Long-running services, managed."
           description="Run background processes alongside your agents. mycel manages their lifecycle and restarts them on failure."
           commands={[
-            'mycel status',
-            'mycel doctor',
+            'bc status',
+            'bc doctor',
           ]}
           screenshot="/screenshots/dashboard-13-daemons.png"
           screenshotAlt="mycelDaemons view showing running background processes with their status and uptime"
@@ -447,11 +447,11 @@ export default function Product() {
           id="doctor"
           label="System Health"
           title="One command to check everything."
-          description="Checks workspace, database, agents, tools, MCP, secrets, git, and daemon. mycel doctor fix auto-repairs what it can."
+          description="Checks workspace, database, agents, tools, MCP, secrets, git, and daemon. bc doctor fix auto-repairs what it can."
           commands={[
-            'mycel doctor',
-            'mycel doctor check tools',
-            'mycel doctor fix',
+            'bc doctor',
+            'bc doctor check tools',
+            'bc doctor fix',
           ]}
           screenshot="/screenshots/dashboard-14-doctor.png"
           screenshotAlt="mycelDoctor view showing system health checks across workspace, tools, agents, and configuration"
@@ -471,7 +471,7 @@ export default function Product() {
               Not a new IDE. Not a framework. An orchestration layer.
             </h2>
             <p className="mt-5 max-w-2xl text-muted-foreground leading-[1.8] text-[15px]">
-              mycel coordinates your existing tools. Keep using Claude Code,
+              bc coordinates your existing tools. Keep using Claude Code,
               Cursor, Codex, or any CLI agent. mycel handles the multi-agent
               complexity.
             </p>
@@ -540,11 +540,11 @@ export default function Product() {
                   </div>
                   <div>
                     <span className="text-[var(--terminal-prompt)]">$ </span>
-                    <span className="text-[var(--terminal-command)]">mycel init</span>
+                    <span className="text-[var(--terminal-command)]">bc init</span>
                   </div>
                   <div>
                     <span className="text-[var(--terminal-prompt)]">$ </span>
-                    <span className="text-[var(--terminal-command)]">mycel up</span>
+                    <span className="text-[var(--terminal-command)]">bc up</span>
                   </div>
                   <div className="mt-1">
                     <span className="text-[var(--terminal-prompt)]">$ </span>

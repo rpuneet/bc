@@ -238,18 +238,18 @@ export default function Home() {
                 <TerminalWindow
                   title="quickstart"
                   className="min-w-[280px]"
-                  ariaLabel="Quick start commands: mycel init, mycel daemon start, mycel agent create"
+                  ariaLabel="Quick start commands: bc init, mycel daemon start, bc agent create"
                 >
                   <div className="space-y-1.5 text-[13px]">
                     <div>
-                      <span className="text-terminal-prompt">$ </span>mycel init
+                      <span className="text-terminal-prompt">$ </span>bc init
                     </div>
                     <div>
                       <span className="text-terminal-prompt">$ </span>mycel daemon
                       start
                     </div>
                     <div>
-                      <span className="text-terminal-prompt">$ </span>mycel agent
+                      <span className="text-terminal-prompt">$ </span>bc agent
                       create eng-01 --role engineer --tool claude
                     </div>
                     <div className="terminal-cursor text-terminal-comment mt-3 text-[12px]">

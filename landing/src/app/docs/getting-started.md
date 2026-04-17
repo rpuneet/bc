@@ -40,32 +40,32 @@ curl -fsSL https://raw.githubusercontent.com/rpuneet/bc/main/scripts/install.sh 
 
 ```bash
 # Stable release
-docker run -p 9374:9374 -v $(pwd):/workspace ghcr.io/rpuneet/bc:latest mycel up --addr 0.0.0.0:9374
+docker run -p 9374:9374 -v $(pwd):/workspace ghcr.io/rpuneet/bc:latest bc up --addr 0.0.0.0:9374
 
 # Bleeding-edge (main branch)
-docker run -p 9374:9374 -v $(pwd):/workspace ghcr.io/rpuneet/bc:main mycel up --addr 0.0.0.0:9374
+docker run -p 9374:9374 -v $(pwd):/workspace ghcr.io/rpuneet/bc:main bc up --addr 0.0.0.0:9374
 ```
 
 ### npm / bun
 
 ```bash
-npm install -g mycel-cli
+npm install -g bc-cli
 # or
-bunx mycel-cli
+bunx bc-cli
 ```
 
 ### Go
 
 ```bash
-go install github.com/rpuneet/bc/cmd/mycel@latest
+go install github.com/rpuneet/bc/cmd/bc@latest
 ```
 
 ### After Install
 
 ```bash
-mycel init          # Initialize workspace
-mycel up            # Start server
-mycel up -d         # Start as daemon
+bc init          # Initialize workspace
+bc up            # Start server
+bc up -d         # Start as daemon
 ```
 
 ---
@@ -78,17 +78,17 @@ mycel up -d         # Start as daemon
 # Create a new project directory
 mkdir my-project && cd my-project
 
-# Initialize mycel workspace
-mycel init
+# Initialize bc workspace
+bc init
 
 # Verify setup
-mycel status
+bc status
 ```
 
 **Output:**
 ```
-✓ Workspace initialized (.mycel/)
-✓ Config file created (.mycel/config.yaml)
+✓ Workspace initialized (.bc/)
+✓ Config file created (.bc/config.yaml)
 ✓ Ready to create agents
 ```
 
@@ -96,10 +96,10 @@ mycel status
 
 ```bash
 # Start root coordinator
-mycel up
+bc up
 
 # Check status
-mycel status
+bc status
 ```
 
 **Expected Output:**
@@ -113,13 +113,13 @@ ROOT AGENT: running
 
 ```bash
 # Create a manager agent
-mycel agent create manager-atlas --role manager --tool cursor
+bc agent create manager-atlas --role manager --tool cursor
 
 # Create an engineer agent
-mycel agent create engineer-pixel --role engineer --tool claude
+bc agent create engineer-pixel --role engineer --tool claude
 
 # List agents
-mycel agent list
+bc agent list
 ```
 
 **Output:**
@@ -140,12 +140,12 @@ AGENTS (3):
 
 ```bash
 # Add task to work queue
-mycel queue add "Implement user authentication feature" \
+bc queue add "Implement user authentication feature" \
   --priority high \
   --epic "auth-v2"
 
 # View queue
-mycel queue work
+bc queue work
 ```
 
 **Output:**
@@ -158,17 +158,17 @@ WORK QUEUE:
 
 ```bash
 # Send task assignment to #engineering channel
-mycel channel send engineering "@engineer-pixel: Take task #1 - user auth implementation. Use jwt tokens, verify against db. DM when ready."
+bc channel send engineering "@engineer-pixel: Take task #1 - user auth implementation. Use jwt tokens, verify against db. DM when ready."
 
 # Check messages
-mycel channel history engineering --limit 5
+bc channel history engineering --limit 5
 ```
 
 **Step 3: Engineer Works on Task**
 
 ```bash
 # Simulate engineer picking up work
-mycel agent peek engineer-pixel
+bc agent peek engineer-pixel
 ```
 
 **Output:**
@@ -184,20 +184,20 @@ AGENT: engineer-pixel (state: tool)
 
 ```bash
 # Check manager's queue
-mycel queue merge
+bc queue merge
 
 # Merge PR #42
-mycel merge feature/user-auth --branch main
+bc merge feature/user-auth --branch main
 
 # Verify merge
-mycel queue merge
+bc queue merge
 ```
 
 **Step 5: Celebrate!**
 
 ```bash
 # Post status to channel
-mycel channel send general "🎉 Task complete! User auth feature merged and live. Great work team!"
+bc channel send general "🎉 Task complete! User auth feature merged and live. Great work team!"
 ```
 
 ---
@@ -208,77 +208,77 @@ mycel channel send general "🎉 Task complete! User auth feature merged and liv
 
 ```bash
 # View all agents
-mycel agent list
+bc agent list
 
 # Peek at agent's current work
-mycel agent peek engineer-pixel
+bc agent peek engineer-pixel
 
 # Send direct message to agent
-mycel agent send engineer-pixel "Status update please?"
+bc agent send engineer-pixel "Status update please?"
 
 # Attach to agent's live session
-mycel agent attach engineer-pixel
+bc agent attach engineer-pixel
 ```
 
 ### Work Queue
 
 ```bash
 # View incoming work
-mycel queue work
+bc queue work
 
 # View merge queue
-mycel queue merge
+bc queue merge
 
 # Add task to queue
-mycel queue add "Task description" --priority high
+bc queue add "Task description" --priority high
 
 # Complete task
-mycel queue complete 42
+bc queue complete 42
 ```
 
 ### Channels (Team Communication)
 
 ```bash
 # List channels
-mycel channel list
+bc channel list
 
 # Send message to channel
-mycel channel send #general "Update: Feature X shipped 🚀"
+bc channel send #general "Update: Feature X shipped 🚀"
 
 # Check channel history
-mycel channel history #engineering --limit 10
+bc channel history #engineering --limit 10
 
 # Create new channel
-mycel channel create #product-team
+bc channel create #product-team
 ```
 
 ### Memory & Learning
 
 ```bash
 # View agent memory
-mycel memory show --agent engineer-pixel
+bc memory show --agent engineer-pixel
 
 # Record learning
-mycel memory record "Pattern: Always validate user input before processing"
+bc memory record "Pattern: Always validate user input before processing"
 
 # Search past experiences
-mycel memory search "authentication patterns"
+bc memory search "authentication patterns"
 ```
 
 ### Automation (Demons)
 
 ```bash
 # List scheduled tasks
-mycel demon list
+bc cron list
 
 # Run a demon manually
-mycel demon run nightly-tests
+bc cron run nightly-tests
 
 # Create new demon
-mycel demon create test-suite --schedule "0 2 * * *" --role qa --task "Nightly test run"
+bc cron create test-suite --schedule "0 2 * * *" --role qa --task "Nightly test run"
 
 # View demon logs
-mycel demon logs test-suite
+bc cron logs test-suite
 ```
 
 ---
@@ -293,10 +293,10 @@ mycel demon logs test-suite
 pwd
 
 # If needed, reinitialize
-mycel init
+bc init
 
 # Verify
-mycel status
+bc status
 ```
 
 ### Issue: Agent stuck or unresponsive
@@ -304,13 +304,13 @@ mycel status
 **Solution:**
 ```bash
 # Check agent status
-mycel agent list
+bc agent list
 
 # Restart agent
-mycel agent restart engineer-pixel
+bc agent restart engineer-pixel
 
 # View agent logs
-mycel agent logs engineer-pixel --tail 20
+bc agent logs engineer-pixel --tail 20
 ```
 
 ### Issue: Merge conflict preventing PR merge
@@ -318,13 +318,13 @@ mycel agent logs engineer-pixel --tail 20
 **Solution:**
 ```bash
 # Check merge queue for conflicts
-mycel queue merge
+bc queue merge
 
 # Agent should resolve automatically, if not:
 # Contact tech lead for manual resolution
 
 # Once resolved, retry merge
-mycel merge feature/branch-name --branch main
+bc merge feature/branch-name --branch main
 ```
 
 ### Issue: Channel messages not appearing
@@ -332,13 +332,13 @@ mycel merge feature/branch-name --branch main
 **Solution:**
 ```bash
 # Verify channel exists
-mycel channel list
+bc channel list
 
 # Verify you're sending to correct channel
-mycel channel history #general
+bc channel history #general
 
 # Resend message
-mycel channel send #general "Test message"
+bc channel send #general "Test message"
 ```
 
 ### Issue: Performance slow or timeouts
@@ -346,13 +346,13 @@ mycel channel send #general "Test message"
 **Solution:**
 ```bash
 # Check system resources
-mycel status --verbose
+bc status --verbose
 
 # Clear cache
-mycel cache clear
+bc cache clear
 
 # Restart root agent
-mycel down && mycel up
+bc down && bc up
 ```
 
 ---
@@ -392,32 +392,32 @@ Here's a realistic end-to-end workflow:
 
 ```bash
 # 1. Initialize
-mycel init && mycel up
+bc init && bc up
 
 # 2. Create team
-mycel agent create pm-alex --role product-manager --tool notion
-mycel agent create eng-sam --role engineer --tool cursor
-mycel agent create qa-jamie --role qa --tool chrome
+bc agent create pm-alex --role product-manager --tool notion
+bc agent create eng-sam --role engineer --tool cursor
+bc agent create qa-jamie --role qa --tool chrome
 
 # 3. Define work
-mycel queue add "Build user profile page" --priority high --epic "user-feature"
+bc queue add "Build user profile page" --priority high --epic "user-feature"
 
 # 4. Assign via channel
-mycel channel send #engineering "@eng-sam: Pick up user profile task. UI design in #product. Ship within 2 hours?"
+bc channel send #engineering "@eng-sam: Pick up user profile task. UI design in #product. Ship within 2 hours?"
 
 # 5. Monitor progress
-mycel agent peek eng-sam
-mycel channel history #engineering
+bc agent peek eng-sam
+bc channel history #engineering
 
 # 6. Approve & merge
-mycel queue merge
-mycel merge feature/user-profile --branch main
+bc queue merge
+bc merge feature/user-profile --branch main
 
 # 7. Announce
-mycel channel send #general "🎉 User profile feature live! Thanks team!"
+bc channel send #general "🎉 User profile feature live! Thanks team!"
 
 # 8. Record learning
-mycel memory record "User profile workflow successful. Took 1.5 hours end-to-end"
+bc memory record "User profile workflow successful. Took 1.5 hours end-to-end"
 ```
 
 ---
@@ -426,16 +426,16 @@ mycel memory record "User profile workflow successful. Took 1.5 hours end-to-end
 
 | Task | Command |
 |------|---------|
-| Check status | `mycel status` |
-| List agents | `mycel agent list` |
-| View work queue | `mycel queue work` |
-| Send message | `mycel channel send #channel "message"` |
-| View agent work | `mycel agent peek engineer-name` |
-| Merge PR | `mycel merge branch-name --branch main` |
-| Schedule task | `mycel demon create name --schedule "0 2 * * *"` |
-| Search memory | `mycel memory search "pattern"` |
-| View logs | `mycel agent logs agent-name --tail 20` |
-| Get help | `mycel --help` |
+| Check status | `bc status` |
+| List agents | `bc agent list` |
+| View work queue | `bc queue work` |
+| Send message | `bc channel send #channel "message"` |
+| View agent work | `bc agent peek engineer-name` |
+| Merge PR | `bc merge branch-name --branch main` |
+| Schedule task | `bc cron create name --schedule "0 2 * * *"` |
+| Search memory | `bc memory search "pattern"` |
+| View logs | `bc agent logs agent-name --tail 20` |
+| Get help | `bc --help` |
 
 ---
 
@@ -443,8 +443,8 @@ mycel memory record "User profile workflow successful. Took 1.5 hours end-to-end
 
 **Command line help:**
 ```bash
-mycel --help
-mycel <command> --help
+bc --help
+bc <command> --help
 ```
 
 **Documentation:**

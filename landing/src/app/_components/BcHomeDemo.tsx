@@ -156,7 +156,7 @@ function MemoryView() {
             Learnings
           </div>
           <ul className="space-y-1 text-muted-foreground">
-            <li>• Use `mycel ag send` to assign work to agents</li>
+            <li>• Use `bc ag send` to assign work to agents</li>
             <li>• Framework v4 requires specific lint flags</li>
             <li>• CI suite fails on memory edge cases</li>
           </ul>
@@ -269,7 +269,7 @@ function ChatRoom() {
 export function BcHomeDemo() {
   const frames: Frame[] = useMemo(
     () => [
-      { kind: "cmd", text: "mycel up" },
+      { kind: "cmd", text: "bc up" },
       { kind: "screen", title: "dashboard", body: <DashboardView /> },
       { kind: "screen", title: "costs", body: <CostView /> },
       { kind: "screen", title: "memory", body: <MemoryView /> },

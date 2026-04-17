@@ -15,25 +15,25 @@ const TABS = [
     id: "agents",
     label: "Agents",
     src: "/screenshots/dashboard-02-agents.png",
-    alt: "mycel agents table showing agent names, roles, tools, tasks, and statuses",
+    alt: "bc agents table showing agent names, roles, tools, tasks, and statuses",
   },
   {
     id: "channels",
     label: "Channels",
     src: "/screenshots/dashboard-03-channels.png",
-    alt: "mycel channel view showing real-time agent-to-agent communication",
+    alt: "bc channel view showing real-time agent-to-agent communication",
   },
   {
     id: "costs",
     label: "Costs",
     src: "/screenshots/dashboard-04-costs.png",
-    alt: "mycel cost tracking with daily trend chart and per-agent cost breakdown",
+    alt: "bc cost tracking with daily trend chart and per-agent cost breakdown",
   },
   {
     id: "stats",
     label: "Stats",
     src: "/screenshots/dashboard-10-stats-loaded.png",
-    alt: "mycel stats overview showing system metrics and agent performance",
+    alt: "bc stats overview showing system metrics and agent performance",
   },
 ] as const;
 

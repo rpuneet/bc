@@ -168,7 +168,7 @@ const AGENTS_STEPS: CarouselStep[] = [
     render: () => (
       <div className="space-y-4 font-mono text-sm">
         <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-          mycel status
+          bc status
         </div>
         <div className="space-y-3">
           {[
@@ -221,7 +221,7 @@ const AGENTS_STEPS: CarouselStep[] = [
     render: () => (
       <div className="space-y-4 font-mono text-sm">
         <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-          mycel agent peek engineer-01
+          bc agent peek engineer-01
         </div>
         <div className="space-y-3 p-4 rounded-lg bg-background/50 border border-border/50">
           <div className="font-semibold text-foreground">engineer-01</div>
@@ -267,7 +267,7 @@ const AGENTS_STEPS: CarouselStep[] = [
     render: () => (
       <div className="space-y-4 font-mono text-sm">
         <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-          mycel agent send engineer-01 &quot;status&quot;
+          bc agent send engineer-01 &quot;status&quot;
         </div>
         <div className="space-y-3">
           <div className="p-4 rounded-lg bg-primary/10 border border-primary/30">
@@ -419,7 +419,7 @@ const CHANNELS_STEPS: CarouselStep[] = [
     render: () => (
       <div className="space-y-4 font-mono text-sm">
         <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-          mycel channel history #general --search &quot;PR #347&quot;
+          bc channel history #general --search &quot;PR #347&quot;
         </div>
         <div className="space-y-2 p-4 rounded-lg bg-background/50 border border-border/50">
           <div className="text-xs text-muted-foreground">5 results found</div>
@@ -461,7 +461,7 @@ const CRON_STEPS: CarouselStep[] = [
     render: () => (
       <div className="space-y-3 font-mono text-sm">
         <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-          mycel cron list
+          bc cron list
         </div>
         <div className="space-y-2">
           {[
@@ -517,7 +517,7 @@ const CRON_STEPS: CarouselStep[] = [
     render: () => (
       <div className="space-y-4 font-mono text-sm">
         <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-          mycel cron run cron-health [logs]
+          bc cron run cron-health [logs]
         </div>
         <div className="space-y-2 p-4 rounded-lg bg-background/50 border border-border/50">
           <div className="text-xs text-success font-semibold">
@@ -569,7 +569,7 @@ const CRON_STEPS: CarouselStep[] = [
         <div className="p-4 rounded-lg bg-background border border-border">
           <div className="text-foreground text-xs leading-relaxed">
             <span className="text-success">$</span>{" "}
-            <span className="text-muted-foreground">mycel cron add</span>{" "}
+            <span className="text-muted-foreground">bc cron add</span>{" "}
             <span className="text-[var(--terminal-command)]">
               audit-codebase
             </span>{" "}

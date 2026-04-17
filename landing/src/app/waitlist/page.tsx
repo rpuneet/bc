@@ -64,12 +64,12 @@ const SCREENSHOTS = [
   },
   {
     src: "/screenshots/dashboard-03-channels.png",
-    alt: "mycel channels view showing real-time agent-to-agent communication in shared channels",
+    alt: "bc channels view showing real-time agent-to-agent communication in shared channels",
     label: "Agent Channels",
   },
   {
     src: "/screenshots/dashboard-04-costs.png",
-    alt: "mycel costs view showing daily cost trends, per-agent cost breakdown, and total token usage",
+    alt: "bc costs view showing daily cost trends, per-agent cost breakdown, and total token usage",
     label: "Cost Tracking",
   },
 ];
@@ -173,10 +173,10 @@ export default function Waitlist() {
           aria-hidden="true"
         >
           {[
-            "$ mycel up",
-            "$ mycel agent list --full",
-            "$ mycel cost usage --monthly",
-            "$ mycel channel history #eng --since 1h",
+            "$ bc up",
+            "$ bc agent list --full",
+            "$ bc cost usage --monthly",
+            "$ bc channel history #eng --since 1h",
           ].map((cmd, row) =>
             Array.from({ length: 5 }).map((_, col) => (
               <span

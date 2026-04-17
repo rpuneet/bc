@@ -15,14 +15,14 @@ Traditional git workflows create merge conflicts when multiple developers (or ag
 - Manual conflict resolution slows progress
 
 ### The Solution: Per-Agent Worktrees
-Each agent gets an isolated git worktree at `.mycel/worktrees/<agent-id>/`:
+Each agent gets an isolated git worktree at `.bc/worktrees/<agent-id>/`:
 
 ```
 project/
 ├── .git/                          # Main repository
 ├── src/
 │   └── app.js                     # Main code
-├── .mycel/
+├── .bc/
 │   └── worktrees/
 │       ├── eng-01/                # eng-01's isolated copy
 │       │   └── src/app.js         # eng-01 edits independently
@@ -33,23 +33,23 @@ project/
 ### How It Works
 ```bash
 # Initialize workspace
-mycel init
+bc init
 
 # Two engineers spawned
-mycel spawn eng-01 --role engineer
-mycel spawn eng-02 --role engineer
+bc spawn eng-01 --role engineer
+bc spawn eng-02 --role engineer
 
 # Both work on app.js simultaneously
-cd .mycel/worktrees/eng-01/
+cd .bc/worktrees/eng-01/
 # eng-01: add email notifications to app.js
 git commit -m "add email service"
 
-cd .mycel/worktrees/eng-02/
+cd .bc/worktrees/eng-02/
 # eng-02: add logging to app.js
 git commit -m "add logging"
 
 # Merge both to main - NO CONFLICTS!
-mycel merge process
+bc merge process
 # Result: app.js has both changes merged cleanly
 ```
 
@@ -96,7 +96,7 @@ AI agents lose context when they restart. Traditional solutions:
 All mycel state stored in git-tracked files:
 
 ```
-.mycel/
+.bc/
 ├── agents/agents.json             # Agent state & history
 ├── queue.json                     # Work queue & assignments
 ├── events.jsonl                   # Complete event log
@@ -114,20 +114,20 @@ All mycel state stored in git-tracked files:
 ### How It Works
 ```bash
 # Session 1: Agent starts work
-mycel spawn eng-01 --role engineer
-mycel queue add "Implement authentication"
-mycel queue assign work-0001 eng-01
-mycel attach eng-01
+bc spawn eng-01 --role engineer
+bc queue add "Implement authentication"
+bc queue assign work-0001 eng-01
+bc attach eng-01
 # eng-01 works on authentication...
-mycel report working "Implementing JWT validation"
+bc report working "Implementing JWT validation"
 # ... agent crashes or is stopped
 
 # Session 2: Complete recovery
-mycel status  # Shows: eng-01 was working on work-0001
-cd .mycel/worktrees/eng-01/
+bc status  # Shows: eng-01 was working on work-0001
+cd .bc/worktrees/eng-01/
 git log --oneline  # Shows all previous work
-cat .mycel/queue.json  # Shows eng-01 still assigned to work-0001
-mycel attach eng-01  # Resume from exact point
+cat .bc/queue.json  # Shows eng-01 still assigned to work-0001
+bc attach eng-01  # Resume from exact point
 ```
 
 ### Benefits
@@ -188,18 +188,18 @@ Level 2: Engineer/QA (Execution)
 ### How It Works
 ```bash
 # Build hierarchy
-mycel spawn pm-01 --role product-manager
+bc spawn pm-01 --role product-manager
 
-mycel spawn mgr-01 --role manager --parent pm-01
-mycel spawn mgr-02 --role manager --parent pm-01
+bc spawn mgr-01 --role manager --parent pm-01
+bc spawn mgr-02 --role manager --parent pm-01
 
-mycel spawn eng-01 --role engineer --parent mgr-01
-mycel spawn eng-02 --role engineer --parent mgr-01
-mycel spawn qa-01 --role qa --parent mgr-01
+bc spawn eng-01 --role engineer --parent mgr-01
+bc spawn eng-02 --role engineer --parent mgr-01
+bc spawn qa-01 --role qa --parent mgr-01
 
-mycel spawn eng-03 --role engineer --parent mgr-02
-mycel spawn eng-04 --role engineer --parent mgr-02
-mycel spawn qa-02 --role qa --parent mgr-02
+bc spawn eng-03 --role engineer --parent mgr-02
+bc spawn eng-04 --role engineer --parent mgr-02
+bc spawn qa-02 --role qa --parent mgr-02
 
 # Structure:
 # pm-01 (Product Manager)
@@ -216,16 +216,16 @@ mycel spawn qa-02 --role qa --parent mgr-02
 ### Capability Enforcement
 ```bash
 # Valid: PM can spawn managers
-mycel spawn mgr-01 --role manager --parent pm-01  # ✓ Works
+bc spawn mgr-01 --role manager --parent pm-01  # ✓ Works
 
 # Invalid: Engineer cannot spawn agents
-mycel spawn eng-02 --role engineer --parent pm-01  # ✗ Fails
+bc spawn eng-02 --role engineer --parent pm-01  # ✗ Fails
 
 # Valid: Manager can spawn engineers
-mycel spawn eng-01 --role engineer --parent mgr-01  # ✓ Works
+bc spawn eng-01 --role engineer --parent mgr-01  # ✓ Works
 
 # Invalid: Engineer cannot assign work
-mycel queue assign work-0001 eng-01  # ✗ Fails (engineers execute, don't assign)
+bc queue assign work-0001 eng-01  # ✗ Fails (engineers execute, don't assign)
 ```
 
 ### Benefits
@@ -279,15 +279,15 @@ mycel provides first-class channels for agent coordination:
 
 ```bash
 # Send to individual
-mycel send eng-01 "Check requirements in /docs/spec.md"
+bc send eng-01 "Check requirements in /docs/spec.md"
 
 # Send to channel
-mycel send #engineering "API endpoint ready for integration testing"
-mycel send #qa "New build available - test login flow"
+bc send #engineering "API endpoint ready for integration testing"
+bc send #qa "New build available - test login flow"
 
 # View history
-mycel logs #engineering
-mycel logs eng-01
+bc logs #engineering
+bc logs eng-01
 
 # Structured messages preserve context
 ```
@@ -301,28 +301,28 @@ mycel logs eng-01
 ### How It Works
 ```bash
 # Create project team
-mycel spawn eng-01 --role engineer
-mycel spawn eng-02 --role engineer
-mycel spawn qa-01 --role qa
+bc spawn eng-01 --role engineer
+bc spawn eng-02 --role engineer
+bc spawn qa-01 --role qa
 
 # Assign task
-mycel queue add "Build user authentication"
-mycel queue assign work-0001 eng-01
+bc queue add "Build user authentication"
+bc queue assign work-0001 eng-01
 
 # Send context
-mycel send eng-01 "User auth task assigned. See requirements at /docs/auth.md"
+bc send eng-01 "User auth task assigned. See requirements at /docs/auth.md"
 
 # Eng-01 works
-mycel attach eng-01  # Starts work
+bc attach eng-01  # Starts work
 
 # Meanwhile, eng-02 can ask questions
-mycel send #engineering "Does auth need 2FA?"
+bc send #engineering "Does auth need 2FA?"
 
 # eng-01 can respond when ready
-mycel send #engineering "2FA optional - can add later"
+bc send #engineering "2FA optional - can add later"
 
 # qa-01 prepares tests
-mycel send qa-01 "I'll test auth flow once eng-01 finishes"
+bc send qa-01 "I'll test auth flow once eng-01 finishes"
 
 # Complete workflow with clear communication
 ```
@@ -339,23 +339,23 @@ mycel send qa-01 "I'll test auth flow once eng-01 finishes"
 Feature: "Add password reset"
 
 1. Product sends requirements
-   mycel send #engineering "Password reset requirements in /docs/password-reset.md"
+   bc send #engineering "Password reset requirements in /docs/password-reset.md"
 
 2. Engineering discusses approach
-   mycel send #engineering "I'll use JWT tokens with 1-hour expiry"
-   mycel send #engineering "Will hash tokens for security"
+   bc send #engineering "I'll use JWT tokens with 1-hour expiry"
+   bc send #engineering "Will hash tokens for security"
 
 3. QA prepares tests
-   mycel send qa-01 "I'm ready to test password reset flow"
+   bc send qa-01 "I'm ready to test password reset flow"
 
 4. Development completes
-   mycel report done "Password reset implemented and tested"
+   bc report done "Password reset implemented and tested"
 
 5. QA validates
-   mycel send #engineering "All password reset tests passing"
+   bc send #engineering "All password reset tests passing"
 
 6. Ready to merge
-   mycel merge process
+   bc merge process
 
 All communication in context, none lost
 ```
@@ -382,44 +382,44 @@ Lifecycle: pending → assigned → working → done
 ### How It Works
 ```bash
 # Create work item
-mycel queue add "Implement user registration"
+bc queue add "Implement user registration"
 # Creates: work-0001 (status: pending)
 
 # Assign to agent
-mycel queue assign work-0001 eng-01
+bc queue assign work-0001 eng-01
 # Updates: work-0001 (status: assigned, assigned_to: eng-01)
 
 # Agent reports progress
-mycel attach eng-01
-mycel report working "Building registration form"
+bc attach eng-01
+bc report working "Building registration form"
 # Updates: work-0001 (status: working)
 
 # Agent completes
-mycel report done "Registration form complete - ready for testing"
+bc report done "Registration form complete - ready for testing"
 # Updates: work-0001 (status: done, merge_status: unmerged)
 
 # Review and merge
-mycel merge list  # Shows: work-0001 ready to merge
-mycel merge process
+bc merge list  # Shows: work-0001 ready to merge
+bc merge process
 # Updates: work-0001 (merge_status: merged, merged_at: timestamp)
 ```
 
 ### Queue Operations
 ```bash
 # List all work
-mycel queue list
+bc queue list
 
 # Show details
-mycel queue show work-0001
+bc queue show work-0001
 
 # View progress
-mycel queue status
+bc queue status
 
 # Clear completed
-mycel queue clear completed
+bc queue clear completed
 
 # Track metrics
-mycel queue metrics  # Shows: completed, avg time, etc.
+bc queue metrics  # Shows: completed, avg time, etc.
 ```
 
 ### Queue Fields
@@ -456,7 +456,7 @@ Sprint Planning:
 - Teams execute independently
 
 Progress Tracking:
-- mycel queue list shows: 2 done, 3 working, 5 pending
+- bc queue list shows: 2 done, 3 working, 5 pending
 - Can drill down: eng-01 blocked on API response
 - Can prioritize: move API work to top
 
@@ -480,7 +480,7 @@ Text-based status lacks visibility:
 
 ### The Solution: Interactive TUI Dashboard
 ```bash
-mycel home
+bc home
 ```
 
 Provides:
@@ -517,7 +517,7 @@ Provides:
 
 ### Dashboard Operations
 ```bash
-mycel home          # Open dashboard
+bc home          # Open dashboard
 ↑/↓              # Navigate
 Enter            # View details
 q                # Quit

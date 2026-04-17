@@ -1,14 +1,3 @@
 {
-  "mcpServers": {
-    "github": {
-      "type": "stdio",
-      "command": "github-mcp-server",
-      "args": [],
-      "env": {}
-    },
-    "bc": {
-      "type": "sse",
-      "url": "http://host.docker.internal:9374/_mcp/curious-otter/sse"
-    }
-  }
+  "mcpServers": {}
 }

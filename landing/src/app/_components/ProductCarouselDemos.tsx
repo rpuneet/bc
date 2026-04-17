@@ -30,7 +30,7 @@ function TerminalShell({
           </span>
         </div>
         <span className="font-mono text-[11px] text-muted-foreground">
-          mycel home
+          bc home
         </span>
       </div>
       <div className="p-6">{children}</div>
@@ -521,7 +521,7 @@ function CronScheduleFrame() {
         <div className="text-foreground">Add a cron job</div>
         <div className="mt-3 rounded-xl border border-border bg-card p-4">
           <div className="text-muted-foreground">
-            $ mycel cron add cron-health --schedule &quot;0 * * * *&quot; --cmd
+            $ bc cron add cron-health --schedule &quot;0 * * * *&quot; --cmd
             &quot;npm test&quot;
           </div>
         </div>

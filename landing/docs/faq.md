@@ -16,7 +16,7 @@ Optional: Node.js 18+ if using mycel with JavaScript/TypeScript projects.
 1. Install WSL2: `wsl --install -d Ubuntu-22.04`
 2. Inside WSL2, install Go and tmux
 3. Install mycel using Linux instructions
-4. Run mycel commands from WSL2 terminal
+4. Run bc commands from WSL2 terminal
 
 Native Windows support is not available yet, but WSL2 works well.
 
@@ -27,7 +27,7 @@ Native Windows support is not available yet, but WSL2 works well.
 rm $(which mycel)
 
 # Optional: Remove workspace
-rm -rf .mycel/
+rm -rf .bc/
 
 # Optional: Clone directory
 rm -rf ~/Projects/bc
@@ -47,7 +47,7 @@ Run `make clean` then `make build` again.
 ## Core Concepts
 
 ### Q: What is a worktree?
-**A:** A worktree is an isolated copy of your git repository where an agent works. mycel creates one worktree per agent at `.mycel/worktrees/<agent-id>/`. This allows multiple agents to work simultaneously without merge conflicts.
+**A:** A worktree is an isolated copy of your git repository where an agent works. bc creates one worktree per agent at `.bc/worktrees/<agent-id>/`. This allows multiple agents to work simultaneously without merge conflicts.
 
 Benefits:
 - Each agent has independent git state
@@ -56,10 +56,10 @@ Benefits:
 - Can merge cleanly to main
 
 ### Q: What is persistent memory?
-**A:** All mycel state is stored in git-tracked files in `.mycel/`:
-- `.mycel/agents/agents.json` - Agent state
-- `.mycel/queue.json` - Work queue
-- `.mycel/events.jsonl` - Event log
+**A:** All mycel state is stored in git-tracked files in `.bc/`:
+- `.bc/agents/agents.json` - Agent state
+- `.bc/queue.json` - Work queue
+- `.bc/events.jsonl` - Event log
 
 This means:
 - State survives crashes and restarts
@@ -79,8 +79,8 @@ This means:
 
 Example:
 ```bash
-mycel spawn pm-01 --role product-manager  # Can spawn managers
-mycel spawn eng-01 --role engineer        # Can only execute work
+bc spawn pm-01 --role product-manager  # Can spawn managers
+bc spawn eng-01 --role engineer        # Can only execute work
 ```
 
 ### Q: What is the work queue?
@@ -97,7 +97,7 @@ Each task has:
 - Assigned agent
 - Merge state
 
-View with: `mycel queue list`
+View with: `bc queue list`
 
 ---
 
@@ -114,7 +114,7 @@ This is mycel's core innovation - true parallel development.
 ### Q: How do I handle merge conflicts?
 **A:**
 1. **Prevention**: Most conflicts prevented by worktree isolation
-2. **Detection**: `mycel merge list` shows conflicts
+2. **Detection**: `bc merge list` shows conflicts
 3. **Resolution**:
    ```bash
    # Manual resolution
@@ -122,27 +122,27 @@ This is mycel's core innovation - true parallel development.
    git add conflicted-file
    git commit -m "resolve conflict"
    ```
-4. **Retry**: `mycel merge process` to continue
+4. **Retry**: `bc merge process` to continue
 
 ### Q: What happens if an agent crashes?
 **A:** No data loss due to git-backed persistence:
-1. Agent state saved in `.mycel/agents/agents.json`
-2. Work queue saved in `.mycel/queue.json`
+1. Agent state saved in `.bc/agents/agents.json`
+2. Work queue saved in `.bc/queue.json`
 3. Kill tmux session: `tmux kill-session -t bc-<agent>`
-4. Restart agent: `mycel spawn eng-01 --role engineer`
+4. Restart agent: `bc spawn eng-01 --role engineer`
 5. Agent continues from where it left off
 
 ### Q: Can agents communicate?
 **A:** Yes, via channels:
 ```bash
 # Send message
-mycel send eng-01 "Check your email for requirements"
+bc send eng-01 "Check your email for requirements"
 
 # Send to channel
-mycel send #engineering "API ready for testing"
+bc send #engineering "API ready for testing"
 
 # View messages
-mycel logs eng-01
+bc logs eng-01
 ```
 
 ### Q: How do I review work before merging?
@@ -155,11 +155,11 @@ git diff main..<agent-branch>
 git log main..<agent-branch> --oneline
 
 # View in worktree
-cd .mycel/worktrees/eng-01/
+cd .bc/worktrees/eng-01/
 git log --oneline
 
 # Merge when ready
-mycel merge process
+bc merge process
 ```
 
 ---
@@ -170,16 +170,16 @@ mycel merge process
 **A:** Scaling strategies:
 1. **Hierarchical teams**: PM → Managers → Engineers
    ```bash
-   mycel spawn pm-01 --role product-manager
-   mycel spawn mgr-01 --role manager --parent pm-01
-   mycel spawn eng-01 --role engineer --parent mgr-01
+   bc spawn pm-01 --role product-manager
+   bc spawn mgr-01 --role manager --parent pm-01
+   bc spawn eng-01 --role engineer --parent mgr-01
    ```
 
 2. **Parallel work queues**: Assign multiple tasks
    ```bash
-   mycel queue assign work-0001 eng-01
-   mycel queue assign work-0002 eng-02
-   mycel queue assign work-0003 eng-03
+   bc queue assign work-0001 eng-01
+   bc queue assign work-0002 eng-02
+   bc queue assign work-0003 eng-03
    ```
 
 3. **Dedicated roles**: QA, TechLead, etc.
@@ -211,7 +211,7 @@ Test with your workload to find optimal team size.
 Example:
 ```bash
 # Agent completes work
-mycel report done "Feature ready"
+bc report done "Feature ready"
 
 # GitHub Actions triggered by push to main
 # CI/CD runs tests automatically
@@ -224,52 +224,52 @@ mycel report done "Feature ready"
 ### Q: Agents are stuck (not running)
 **A:** Check status:
 ```bash
-mycel status
+bc status
 # If shows "stuck", investigate:
-mycel logs eng-01  # View agent logs
+bc logs eng-01  # View agent logs
 ps aux | grep tmux  # Check tmux sessions
 ```
 
 Solutions:
 ```bash
 # Force restart
-mycel kill eng-01
-mycel spawn eng-01 --role engineer
+bc kill eng-01
+bc spawn eng-01 --role engineer
 
 # Or full reset
-mycel down
-mycel init
-mycel up
+bc down
+bc init
+bc up
 ```
 
 ### Q: "Merge conflict" when trying to merge
 **A:** Handle conflicting changes:
 ```bash
 # View conflicts
-mycel merge list
+bc merge list
 
 # Resolve using git
-cd .mycel/worktrees/eng-01/
+cd .bc/worktrees/eng-01/
 # Edit conflicted files
 git add .
 git commit -m "resolve conflicts"
 
 # Retry merge
-mycel merge process
+bc merge process
 ```
 
 ### Q: "Permission denied" errors
 **A:**
 ```bash
 # Check permissions
-ls -la .mycel/worktrees/
+ls -la .bc/worktrees/
 
 # Fix if needed
-chmod -R 755 .mycel/
-chmod -R 755 .mycel/worktrees/
+chmod -R 755 .bc/
+chmod -R 755 .bc/worktrees/
 
 # Retry command
-mycel status
+bc status
 ```
 
 ### Q: tmux session won't start
@@ -282,23 +282,23 @@ tmux list-sessions
 tmux kill-server
 
 # Restart mycel
-mycel down
-mycel init
-mycel up
+bc down
+bc init
+bc up
 ```
 
 ### Q: Agent can't access files
 **A:** Agents only see their worktree:
 ```bash
 # Agent's view (limited):
-cd .mycel/worktrees/eng-01/
+cd .bc/worktrees/eng-01/
 ls  # Only files in worktree
 
 # Main project view:
 ls  # Full project files
 
 # Solution: Copy needed files to worktree
-cp -r src/ .mycel/worktrees/eng-01/
+cp -r src/ .bc/worktrees/eng-01/
 ```
 
 ---
@@ -320,11 +320,11 @@ git clone https://github.com/yourorg/project.git
 cd project
 
 # Initialize mycel
-mycel init
-mycel up
+bc init
+bc up
 
 # Work normally
-# mycel creates branches, agents work, merge to main
+# bc creates branches, agents work, merge to main
 # Push to GitHub when ready
 git push origin main
 ```
@@ -343,14 +343,14 @@ Recommended production setup:
 3. Monitoring: Watch merge queue for errors
 4. Rollback: Easy via git history
 
-### Q: How do I backup my mycel workspace?
+### Q: How do I backup my bc workspace?
 **A:**
 ```bash
 # Git clone handles it automatically
-# All state in .mycel/ is git-tracked
+# All state in .bc/ is git-tracked
 
 # Manual backup
-cp -r .mycel/ .bc.backup
+cp -r .bc/ .bc.backup
 
 # Or use git
 git commit -am "workspace snapshot"
@@ -381,14 +381,14 @@ git tag snapshot-$(date +%Y%m%d)
 **A:**
 - [GitHub Issues](https://github.com/bcinfra1/bc/issues)
 - Include: version, OS, steps to reproduce
-- Attach logs: `mycel logs`
+- Attach logs: `bc logs`
 
 ### Q: How do I get help?
 **A:**
 - **Documentation**: [mycel GitHub Wiki](https://github.com/bcinfra1/bc/wiki)
 - **Issues**: [Feature requests & bugs](https://github.com/bcinfra1/bc/issues)
 - **Discussions**: [GitHub Discussions](https://github.com/bcinfra1/bc/discussions)
-- **Community**: Ask in channels within mycel workspace
+- **Community**: Ask in channels within bc workspace
 
 ---
 
@@ -397,9 +397,9 @@ git tag snapshot-$(date +%Y%m%d)
 | Term | Definition |
 |------|-----------|
 | **Agent** | AI instance (Claude Code) running in isolated tmux session |
-| **Worktree** | Isolated copy of repo where agent works (`.mycel/worktrees/<agent>/`) |
-| **Workspace** | Project directory containing `.mycel/` state directory |
-| **Queue** | Work tracking system (`.mycel/queue.json`) |
+| **Worktree** | Isolated copy of repo where agent works (`.bc/worktrees/<agent>/`) |
+| **Workspace** | Project directory containing `.bc/` state directory |
+| **Queue** | Work tracking system (`.bc/queue.json`) |
 | **Channel** | Communication system for agent messaging |
 | **Role** | Agent type (ProductManager, Manager, Engineer, QA) with capabilities |
 | **Capability** | Action an agent is authorized to perform |

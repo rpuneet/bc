@@ -30,7 +30,7 @@ export const metadata: Metadata = {
     description:
       "Get early access to mycel, the open-source tool for orchestrating AI coding agents with zero conflicts.",
     images: ["https://mycel.dev/og-image.png"],
-    creator: "@myceldev",
+    creator: "@mycel_dev",
   },
 };
 

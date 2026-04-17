@@ -30,7 +30,7 @@ export const metadata: Metadata = {
     description:
       "Complete mycel documentation: installation, quick start, all 55 CLI commands, configuration, presets, and environment variables.",
     images: ["https://mycel.dev/og-image.png"],
-    creator: "@myceldev",
+    creator: "@mycel_dev",
   },
 };
 
