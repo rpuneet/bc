@@ -321,7 +321,24 @@ func (h *GatewayHandler) list(w http.ResponseWriter, r *http.Request) {
 	if h.ws != nil && h.ws.Config != nil {
 		gw := h.ws.Config.Gateways
 
-		if gw.Telegram != nil {
+		// Multi-Telegram: iterate the Telegrams map (includes the legacy
+		// single "telegram" key as label="").
+		for label, tc := range gw.Telegrams {
+			name := "telegram"
+			if label != "" {
+				name = "telegram:" + label
+			}
+			platforms = append(platforms, gatewayStatus{
+				Platform: name,
+				Enabled:  tc.Enabled,
+				Config: map[string]any{
+					"mode":      tc.Mode,
+					"has_token": tc.BotToken != "",
+				},
+			})
+		}
+		// Fallback for legacy single-telegram config
+		if len(gw.Telegrams) == 0 && gw.Telegram != nil {
 			platforms = append(platforms, gatewayStatus{
 				Platform: "telegram",
 				Enabled:  gw.Telegram.Enabled,
