@@ -18,14 +18,13 @@ var workspaceCmd = &cobra.Command{
 	Use:     "workspace",
 	Aliases: []string{"ws"},
 	Short:   "Manage bc workspaces",
-	Long: `Manage bc workspaces: info, config, logs, list, migrate.
+	Long: `Manage bc workspaces: info, config, logs, list.
 
 Examples:
   bc workspace info                   # Show workspace details
   bc workspace status                 # Show agents and health
   bc workspace config show            # Show workspace config
   bc workspace config set KEY VAL     # Set config value
-  bc workspace migrate                # Migrate v1 workspace to v2
   bc workspace list                   # List discovered workspaces
   bc workspace list --scan ~/Projects # Scan additional paths
   bc workspace discover               # Discover and register new workspaces`,
@@ -106,28 +105,6 @@ var workspaceConfigEditCmd = &cobra.Command{
 	Use:   "edit",
 	Short: "Edit configuration file in $EDITOR",
 	RunE:  runConfigEdit,
-}
-
-// workspaceMigrateCmd migrates a v1 workspace to v2.
-var workspaceMigrateCmd = &cobra.Command{
-	Use:   "migrate [directory]",
-	Short: "Migrate a v1 workspace to v2",
-	Long: `Migrate a bc v1 workspace (.bc/config.json) to v2 (.bc/settings.json).
-
-bc v2 uses a TOML-based config format. The migration:
-  - Reads .bc/config.json (v1 format)
-  - Writes .bc/config.json.bak (backup of original)
-  - Writes .bc/settings.json  (v2 format, best-effort field mapping)
-
-Agent state (JSON files) are migrated automatically the next time they
-are opened — no manual step needed.
-
-Examples:
-  bc workspace migrate          # Check and prompt for migration
-  bc workspace migrate ~/myapp  # Check a specific path
-  bc workspace migrate --yes    # Migrate without prompting`,
-	Args: cobra.MaximumNArgs(1),
-	RunE: runWorkspaceMigrate,
 }
 
 // workspaceListCmd lists all discovered workspaces
@@ -224,10 +201,6 @@ Examples:
 }
 
 func init() {
-	// Migrate command flags
-	workspaceMigrateCmd.Flags().Bool("yes", false, "Perform migration without prompting")
-	workspaceMigrateCmd.Flags().Bool("dry-run", false, "Show what would be migrated without making changes")
-
 	// List command flags
 	workspaceListCmd.Flags().StringSlice("scan", nil, "Additional paths to scan")
 	workspaceListCmd.Flags().Bool("no-cache", false, "Skip registry, scan filesystem only")
@@ -255,7 +228,6 @@ func init() {
 	workspaceCmd.AddCommand(workspaceStatusCmd)
 	workspaceCmd.AddCommand(workspaceUpCmd)
 	workspaceCmd.AddCommand(workspaceConfigCmd)
-	workspaceCmd.AddCommand(workspaceMigrateCmd)
 	workspaceCmd.AddCommand(workspaceListCmd)
 	workspaceCmd.AddCommand(workspaceDiscoverCmd)
 	workspaceCmd.AddCommand(workspaceAddCmd)
@@ -704,108 +676,5 @@ func runWorkspaceStatus(cmd *cobra.Command, _ []string) error {
 	}
 
 	fmt.Println()
-	return nil
-}
-
-// runWorkspaceMigrate migrates a v1 workspace to v2.
-func runWorkspaceMigrate(cmd *cobra.Command, args []string) error {
-	dir := "."
-	if len(args) > 0 {
-		dir = args[0]
-	}
-
-	absDir, err := filepath.Abs(dir)
-	if err != nil {
-		return fmt.Errorf("invalid directory: %w", err)
-	}
-
-	yes, _ := cmd.Flags().GetBool("yes")
-	dryRun, _ := cmd.Flags().GetBool("dry-run")
-
-	hasV2 := isV2Workspace(absDir)
-	hasV1 := isV1Workspace(absDir)
-
-	switch {
-	case hasV2 && !hasV1:
-		// Already fully migrated.
-		fmt.Printf("%s Already v2 — %s\n", ui.GreenText("✓"), absDir)
-		fmt.Printf("  Config: %s\n", filepath.Join(absDir, ".bc", "settings.json"))
-		return nil
-
-	case hasV2 && hasV1:
-		// Both exist — config.json is a leftover. Safe to ignore.
-		fmt.Printf("%s v2 workspace with leftover config.json — %s\n", ui.GreenText("✓"), absDir)
-		fmt.Printf("  The v1 config.json is no longer used.\n")
-		fmt.Printf("  Remove it manually: rm %s\n", filepath.Join(absDir, ".bc", "config.json"))
-		return nil
-
-	case hasV1:
-		return doV1Migration(absDir, yes, dryRun)
-
-	default:
-		fmt.Printf("%s No bc workspace found at %s\n", ui.RedText("✗"), absDir)
-		fmt.Printf("  Run 'bc init %s' to create a new workspace.\n", dir)
-		return fmt.Errorf("not a bc workspace")
-	}
-}
-
-// doV1Migration performs (or previews) the v1→v2 migration.
-func doV1Migration(absDir string, yes, dryRun bool) error {
-	v1cfg, err := workspace.LoadV1Config(absDir)
-	if err != nil {
-		return fmt.Errorf("failed to read v1 config: %w", err)
-	}
-
-	stateDir := filepath.Join(absDir, ".bc")
-
-	// Preview what will happen.
-	fmt.Printf("%s v1 workspace detected at %s\n", ui.YellowText("⚠"), absDir)
-	fmt.Println()
-	fmt.Printf("  Name:        %s\n", v1cfg.Name)
-	if v1cfg.Provider != "" {
-		fmt.Printf("  Provider:    %s\n", v1cfg.Provider)
-	}
-	fmt.Println()
-	fmt.Println("  Migration plan:")
-	fmt.Printf("    • Read   %s\n", filepath.Join(stateDir, "config.json"))
-	fmt.Printf("    • Write  %s  (backup)\n", filepath.Join(stateDir, "config.json.bak"))
-	fmt.Printf("    • Write  %s  (v2 format)\n", filepath.Join(stateDir, "settings.json"))
-
-	agentFiles := workspace.CountLegacyAgentFiles(stateDir)
-	if agentFiles > 0 {
-		fmt.Printf("    • %d agent JSON file(s) will auto-migrate on next load\n", agentFiles)
-	}
-	if dryRun {
-		fmt.Println()
-		fmt.Printf("%s Dry run — no changes made.\n", ui.YellowText("ℹ"))
-		return nil
-	}
-
-	if !yes {
-		fmt.Println()
-		fmt.Print("  Proceed with migration? [y/N] ")
-		var answer string
-		if _, scanErr := fmt.Scanln(&answer); scanErr != nil || (answer != "y" && answer != "Y") {
-			fmt.Println("  Migration canceled.")
-			return nil
-		}
-	}
-
-	fmt.Println()
-	result, err := workspace.MigrateV1ToV2(absDir)
-	if err != nil {
-		return fmt.Errorf("migration failed: %w", err)
-	}
-
-	if result.ConfigMigrated {
-		fmt.Printf("  %s Written %s\n", ui.GreenText("✓"), filepath.Join(stateDir, "settings.json"))
-		fmt.Printf("  %s Backed up to %s\n", ui.GreenText("✓"), result.BackupPath)
-	}
-	if result.AgentFiles > 0 {
-		fmt.Printf("  %s %d agent file(s) will auto-migrate on next run\n",
-			ui.GreenText("✓"), result.AgentFiles)
-	}
-	fmt.Println()
-	fmt.Printf("%s Migration complete. Run 'bc workspace info' to verify.\n", ui.GreenText("✓"))
 	return nil
 }

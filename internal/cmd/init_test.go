@@ -55,29 +55,34 @@ func TestIsV2Workspace(t *testing.T) {
 
 func TestInitV2Workspace(t *testing.T) {
 	tmpDir := t.TempDir()
+	bcHome := filepath.Join(tmpDir, "home-bc")
+	t.Setenv("BC_HOME", bcHome)
+
 	projectDir := filepath.Join(tmpDir, "test-project")
 	if err := os.MkdirAll(projectDir, 0750); err != nil {
 		t.Fatal(err)
 	}
 
-	// Initialize v2 workspace
+	// Initialize v2 workspace. M11: state lives under ~/.bc/workspaces/<id>/.
 	if err := initV2Workspace(projectDir); err != nil {
 		t.Fatalf("initV2Workspace failed: %v", err)
 	}
 
-	// Verify .bc directory exists
-	bcDir := filepath.Join(projectDir, ".bc")
-	if _, err := os.Stat(bcDir); err != nil {
-		t.Errorf(".bc directory not created: %v", err)
+	// Verify the runtime state dir exists (global location).
+	stateDir, err := workspace.GlobalStateDir(projectDir)
+	if err != nil {
+		t.Fatalf("GlobalStateDir: %v", err)
+	}
+	if _, statErr := os.Stat(stateDir); statErr != nil {
+		t.Errorf("global state directory not created: %v", statErr)
 	}
 
-	// Verify settings.json exists and is valid
-	configPath := filepath.Join(bcDir, "settings.json")
+	// Verify preferences.json exists and is valid.
+	configPath := filepath.Join(stateDir, workspace.PreferencesFileName)
 	cfg, err := workspace.LoadConfig(configPath)
 	if err != nil {
 		t.Fatalf("failed to load config: %v", err)
 	}
-
 	if cfg == nil {
 		t.Fatal("expected config, got nil")
 	}
@@ -88,22 +93,23 @@ func TestInitV2Workspace(t *testing.T) {
 		t.Errorf("config validation failed: %v", validateErr)
 	}
 
-	// Verify agents directory exists
-	agentsDir := filepath.Join(bcDir, "agents")
+	// Verify agents directory exists.
+	agentsDir := filepath.Join(stateDir, "agents")
 	if _, statErr := os.Stat(agentsDir); statErr != nil {
 		t.Errorf("agents directory not created: %v", statErr)
 	}
 
-	// Roles are now stored in SQL (bc.db), not as .bc/roles/*.md files.
-	// Verify the database file exists.
-	dbPath := filepath.Join(bcDir, "bc.db")
-	if _, statErr := os.Stat(dbPath); statErr != nil {
-		t.Errorf("bc.db not created: %v", statErr)
+	// Project directory should stay pristine — no .bc/ sidecar.
+	if _, statErr := os.Stat(filepath.Join(projectDir, ".bc")); statErr == nil {
+		t.Errorf("project .bc/ sidecar should not be created; M11 puts state in %s", stateDir)
 	}
 }
 
 func TestInitV2WorkspaceIdempotent(t *testing.T) {
 	tmpDir := t.TempDir()
+	bcHome := filepath.Join(tmpDir, "home-bc")
+	t.Setenv("BC_HOME", bcHome)
+
 	projectDir := filepath.Join(tmpDir, "test-project")
 	if err := os.MkdirAll(projectDir, 0750); err != nil {
 		t.Fatal(err)
@@ -144,6 +150,9 @@ func TestRunInitV1Detection(t *testing.T) {
 
 func TestRunInitV2AlreadyInitialized(t *testing.T) {
 	tmpDir := t.TempDir()
+	bcHome := filepath.Join(tmpDir, "home-bc")
+	t.Setenv("BC_HOME", bcHome)
+
 	projectDir := filepath.Join(tmpDir, "test-project")
 	if err := os.MkdirAll(projectDir, 0750); err != nil {
 		t.Fatal(err)
@@ -166,6 +175,9 @@ func TestRunInitV2AlreadyInitialized(t *testing.T) {
 
 func TestRunInitFreshDirectory(t *testing.T) {
 	tmpDir := t.TempDir()
+	bcHome := filepath.Join(tmpDir, "home-bc")
+	t.Setenv("BC_HOME", bcHome)
+
 	projectDir := filepath.Join(tmpDir, "fresh-project")
 	if err := os.MkdirAll(projectDir, 0750); err != nil {
 		t.Fatal(err)

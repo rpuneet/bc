@@ -9,6 +9,12 @@ import (
 )
 
 // MCPHandler handles /api/mcp routes.
+//
+// TODO(m8d-followup): the HTTP surface currently reads from the
+// workspace-scoped *mcp.Store. pkg/mcp now provides a GlobalStore
+// (~/.bc/mcps.json) + LayeredView for workspace-over-global merging; a
+// follow-up will teach this handler to return the merged view and
+// accept a scope query parameter for Add/Remove.
 type MCPHandler struct {
 	store *mcp.Store
 }
@@ -18,6 +24,14 @@ func NewMCPHandler(store *mcp.Store) *MCPHandler {
 	return &MCPHandler{store: store}
 }
 
+// resolveStore returns the context-scoped MCP store with closure fallback.
+func (h *MCPHandler) resolveStore(r *http.Request) *mcp.Store {
+	if view := WorkspaceFromContext(r.Context()); view != nil && view.MCP != nil {
+		return view.MCP
+	}
+	return h.store
+}
+
 // Register mounts MCP server routes on mux.
 func (h *MCPHandler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/mcp", h.list)
@@ -25,9 +39,10 @@ func (h *MCPHandler) Register(mux *http.ServeMux) {
 }
 
 func (h *MCPHandler) list(w http.ResponseWriter, r *http.Request) {
+	store := h.resolveStore(r)
 	switch r.Method {
 	case http.MethodGet:
-		servers, err := h.store.List()
+		servers, err := store.List()
 		if err != nil {
 			httpInternalError(w, "list mcp servers", err)
 			return
@@ -52,11 +67,11 @@ func (h *MCPHandler) list(w http.ResponseWriter, r *http.Request) {
 			httpError(w, "invalid request body", http.StatusBadRequest)
 			return
 		}
-		if err := h.store.Add(&cfg); err != nil {
+		if err := store.Add(&cfg); err != nil {
 			httpError(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		added, err := h.store.Get(cfg.Name)
+		added, err := store.Get(cfg.Name)
 		if err != nil {
 			httpInternalError(w, "operation failed", err)
 			return
@@ -93,9 +108,10 @@ func (h *MCPHandler) byName(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *MCPHandler) server(w http.ResponseWriter, r *http.Request, name string) {
+	store := h.resolveStore(r)
 	switch r.Method {
 	case http.MethodGet:
-		cfg, err := h.store.Get(name)
+		cfg, err := store.Get(name)
 		if err != nil {
 			httpError(w, err.Error(), http.StatusNotFound)
 			return
@@ -107,11 +123,35 @@ func (h *MCPHandler) server(w http.ResponseWriter, r *http.Request, name string)
 		writeJSON(w, http.StatusOK, cfg)
 
 	case http.MethodDelete:
-		if err := h.store.Remove(name); err != nil {
+		if err := store.Remove(name); err != nil {
 			httpError(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 		w.WriteHeader(http.StatusNoContent)
+
+	case http.MethodPatch:
+		var body struct {
+			Env map[string]string `json:"env"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			httpError(w, "invalid request body", http.StatusBadRequest)
+			return
+		}
+		if body.Env == nil {
+			httpError(w, "env field is required", http.StatusBadRequest)
+			return
+		}
+		if err := store.UpdateEnv(name, body.Env); err != nil {
+			httpError(w, err.Error(), http.StatusNotFound)
+			return
+		}
+		// Echo back the updated record so the UI can reconcile state.
+		cfg, err := store.Get(name)
+		if err != nil {
+			httpInternalError(w, "reload mcp server", err)
+			return
+		}
+		writeJSON(w, http.StatusOK, cfg)
 
 	default:
 		methodNotAllowed(w)
@@ -119,10 +159,11 @@ func (h *MCPHandler) server(w http.ResponseWriter, r *http.Request, name string)
 }
 
 func (h *MCPHandler) setEnabled(w http.ResponseWriter, r *http.Request, name string, enabled bool) {
+	store := h.resolveStore(r)
 	if !requireMethod(w, r, http.MethodPost) {
 		return
 	}
-	if err := h.store.SetEnabled(name, enabled); err != nil {
+	if err := store.SetEnabled(name, enabled); err != nil {
 		httpError(w, err.Error(), http.StatusBadRequest)
 		return
 	}

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/rpuneet/bc/pkg/log"
+	"github.com/rpuneet/bc/pkg/workspace"
 )
 
 // Importer scans Claude Code JSONL session files and imports token usage into
@@ -18,11 +19,23 @@ import (
 type Importer struct {
 	store        *Store
 	workspaceDir string
+	// workspaceID, when non-empty, is written into the workspace_id
+	// column of each cost_records row inserted by this Importer. Used
+	// with the user-global cost ledger (M8e) so imports get attributed
+	// to the right workspace.
+	workspaceID string
 }
 
 // NewImporter creates an Importer for the given workspace.
 func NewImporter(store *Store, workspaceDir string) *Importer {
 	return &Importer{store: store, workspaceDir: workspaceDir}
+}
+
+// SetWorkspaceID sets the workspace id tagged onto every record
+// imported by this Importer. Pass the empty string to revert to the
+// legacy behavior (untagged rows).
+func (imp *Importer) SetWorkspaceID(wsID string) {
+	imp.workspaceID = wsID
 }
 
 // ImportAll scans all known Claude projects directories and imports new sessions.
@@ -71,10 +84,21 @@ func (imp *Importer) claudeProjectsDirs() []string {
 		dirs = append(dirs, filepath.Join(home, ".claude", "projects"))
 	}
 
-	// Per-agent Docker auth directories
-	agentsDir := filepath.Join(imp.workspaceDir, ".bc", "agents")
-	entries, err := os.ReadDir(agentsDir)
-	if err == nil {
+	// Per-agent Docker auth directories. M11 moved runtime state to
+	// ~/.bc/workspaces/<id>/agents/<name>/; scan both the global dir
+	// and the legacy sidecar so freshly-migrated and not-yet-migrated
+	// workspaces both work.
+	var agentsDirs []string
+	if globalDir, gErr := workspace.GlobalStateDir(imp.workspaceDir); gErr == nil {
+		agentsDirs = append(agentsDirs, filepath.Join(globalDir, "agents"))
+	}
+	agentsDirs = append(agentsDirs, filepath.Join(imp.workspaceDir, ".bc", "agents"))
+
+	for _, agentsDir := range agentsDirs {
+		entries, err := os.ReadDir(agentsDir)
+		if err != nil {
+			continue
+		}
 		for _, e := range entries {
 			if !e.IsDir() {
 				continue
@@ -151,7 +175,17 @@ func (imp *Importer) importFile(ctx context.Context, path string) (int, error) {
 		total := e.InputTokens + e.OutputTokens + e.CacheCreationTokens + e.CacheReadTokens
 
 		var insertErr error
+		// workspace_id lives as a nullable TEXT column (added by the
+		// importer schema migrations below). When no id is set, pass
+		// nil so pre-M8e rows stay NULL.
+		var wsPtr *string
+		if imp.workspaceID != "" {
+			wsPtr = &imp.workspaceID
+		}
 		if usePostgres {
+			// Postgres backend has not yet grown the workspace_id column
+			// — deferred to a follow-up. Keep the legacy insert so the
+			// backend continues to work without schema changes.
 			_, insertErr = tx.ExecContext(ctx,
 				`INSERT INTO cost_records
 				 (agent_id, model, session_id, input_tokens, output_tokens, total_tokens,
@@ -167,13 +201,14 @@ func (imp *Importer) importFile(ctx context.Context, path string) (int, error) {
 			_, insertErr = tx.ExecContext(ctx,
 				`INSERT INTO cost_records
 				 (agent_id, model, session_id, input_tokens, output_tokens, total_tokens,
-				  cache_creation_tokens, cache_read_tokens, cost_usd, timestamp)
-				 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				  cache_creation_tokens, cache_read_tokens, cost_usd, timestamp, workspace_id)
+				 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 				ie.agentID, e.Model, e.SessionID,
 				e.InputTokens, e.OutputTokens, total,
 				e.CacheCreationTokens, e.CacheReadTokens,
 				ie.costUSD,
 				e.Timestamp.UTC().Format(time.RFC3339Nano),
+				wsPtr,
 			)
 		}
 		if insertErr != nil {
@@ -265,6 +300,9 @@ func initImporterSchema(db *sql.DB) error {
 		`ALTER TABLE cost_records ADD COLUMN session_id TEXT`,
 		`ALTER TABLE cost_records ADD COLUMN cache_creation_tokens INTEGER NOT NULL DEFAULT 0`,
 		`ALTER TABLE cost_records ADD COLUMN cache_read_tokens INTEGER NOT NULL DEFAULT 0`,
+		// M8e: workspace_id tags each row with the owning workspace so
+		// the user-global ledger can roll up cross-workspace spend.
+		`ALTER TABLE cost_records ADD COLUMN workspace_id TEXT`,
 	}
 	for _, m := range migrations {
 		_, _ = db.ExecContext(ctx, m) // ignore "duplicate column" errors

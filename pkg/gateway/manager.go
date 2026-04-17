@@ -270,13 +270,10 @@ func (m *Manager) IsGatewayChannel(name string) bool {
 // discovered in previous sessions. The channelID is set to the channel name
 // suffix (e.g., "all-bc" for "slack:all-bc") since the platform adapter
 // will resolve it.
+//
+// Channel names follow the pattern "adapter_name:channel_name" where
+// adapter_name may itself contain a colon (e.g. "telegram:foo:general").
 func (m *Manager) SeedChannel(bcChannel string) {
-	parts := strings.SplitN(bcChannel, ":", 2)
-	if len(parts) != 2 {
-		return
-	}
-	platform := parts[0]
-
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -285,17 +282,28 @@ func (m *Manager) SeedChannel(bcChannel string) {
 		return
 	}
 
-	adapter, ok := m.adapters[platform]
-	if !ok {
+	// Find the registered adapter whose name is a prefix of bcChannel.
+	// Try longest match first to handle "telegram:foo" before "telegram".
+	var bestAdapter Adapter
+	var bestPlatform string
+	for name, a := range m.adapters {
+		prefix := name + ":"
+		if strings.HasPrefix(bcChannel, prefix) && len(name) > len(bestPlatform) {
+			bestAdapter = a
+			bestPlatform = name
+		}
+	}
+	if bestAdapter == nil {
 		return
 	}
 
+	channelSuffix := bcChannel[len(bestPlatform)+1:]
 	m.channelMap[bcChannel] = channelRoute{
-		Platform:  platform,
-		ChannelID: parts[1], // will be resolved by adapter on first send
-		Adapter:   adapter,
+		Platform:  bestPlatform,
+		ChannelID: channelSuffix, // will be resolved by adapter on first send
+		Adapter:   bestAdapter,
 	}
-	log.Info("gateway: seeded channel from store", "bc_channel", bcChannel, "platform", platform)
+	log.Info("gateway: seeded channel from store", "bc_channel", bcChannel, "platform", bestPlatform)
 }
 
 // persistChannel saves a channel mapping to the store (non-blocking, best-effort).

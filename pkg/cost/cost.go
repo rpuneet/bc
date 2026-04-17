@@ -56,6 +56,7 @@ import (
 
 	bcdb "github.com/rpuneet/bc/pkg/db"
 	"github.com/rpuneet/bc/pkg/log"
+	"github.com/rpuneet/bc/pkg/workspace"
 )
 
 // BudgetPeriod represents the time period for a budget.
@@ -124,9 +125,18 @@ type Store struct {
 }
 
 // NewStore creates a new cost store for the given workspace.
+//
+// M11: prefer ~/.bc/workspaces/<id>/costs.db; fall back to the legacy
+// <project>/.bc/costs.db when the global dir cannot be resolved. Callers
+// that want the user-global ledger (~/.bc/costs.db) should use
+// globalStore / OpenGlobalStore instead of NewStore.
 func NewStore(workspacePath string) *Store {
+	path := filepath.Join(workspacePath, ".bc", "costs.db")
+	if globalDir, err := workspace.GlobalStateDir(workspacePath); err == nil {
+		path = filepath.Join(globalDir, "costs.db")
+	}
 	return &Store{
-		path: filepath.Join(workspacePath, ".bc", "costs.db"),
+		path: path,
 	}
 }
 
@@ -208,10 +218,15 @@ func OpenStore(workspacePath string) (*Store, error) {
 		return &Store{backend: pg}, nil
 	}
 
-	// SQLite via shared DB
+	// SQLite via shared DB — fall back to dedicated costs.db if shared DB is unavailable.
 	shared := bcdb.SharedWrapped()
 	if shared == nil {
-		return nil, fmt.Errorf("cost store requires shared database (none available for workspace %s)", workspacePath)
+		log.Info("cost store: shared DB unavailable, falling back to dedicated costs.db")
+		s := NewStore(workspacePath)
+		if err := s.Open(); err != nil {
+			return nil, fmt.Errorf("cost store: open dedicated costs.db: %w", err)
+		}
+		return s, nil
 	}
 	s := &Store{db: shared}
 	if err := s.initSchema(shared.DB); err != nil {

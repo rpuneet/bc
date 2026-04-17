@@ -4,14 +4,13 @@ Manage bc workspaces
 
 ### Synopsis
 
-Manage bc workspaces: info, config, logs, list, migrate.
+Manage bc workspaces: info, config, logs, list.
 
 Examples:
   bc workspace info                   # Show workspace details
   bc workspace status                 # Show agents and health
   bc workspace config show            # Show workspace config
   bc workspace config set KEY VAL     # Set config value
-  bc workspace migrate                # Migrate v1 workspace to v2
   bc workspace list                   # List discovered workspaces
   bc workspace list --scan ~/Projects # Scan additional paths
   bc workspace discover               # Discover and register new workspaces
@@ -37,7 +36,6 @@ Examples:
 * [bc workspace discover](bc_workspace_discover.md)	 - Discover and register workspaces
 * [bc workspace info](bc_workspace_info.md)	 - Show workspace information
 * [bc workspace list](bc_workspace_list.md)	 - List discovered workspaces
-* [bc workspace migrate](bc_workspace_migrate.md)	 - Migrate a v1 workspace to v2
 * [bc workspace remove](bc_workspace_remove.md)	 - Remove a workspace from the registry
 * [bc workspace stats](bc_workspace_stats.md)	 - Show workspace statistics
 * [bc workspace status](bc_workspace_status.md)	 - Show workspace status and agent health

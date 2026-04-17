@@ -2,20 +2,59 @@
  * ActivityFeed component tests
  * Issue #796 - Live activity feed with severity filtering
  *
- * Uses __mocks__/useLogs.ts auto-mock (Bun discovers it automatically).
+ * Mock strategy: mock.module() with an inline factory BEFORE any
+ * static import of the SUT. Bun hoists mock.module calls above
+ * sibling imports (matches the pattern in src/hooks/__tests__/useData.test.ts).
+ *
+ * Avoiding the `const { X } = await import(...)` dynamic-import
+ * pattern because it's sensitive to mock-call ordering on Bun 1.2.x
+ * (CI pin) while passing on 1.3.x (dev).
  */
+
+import { describe, it, expect, vi, beforeEach, mock } from 'bun:test';
+
+const defaultData = [
+  { ts: '2026-02-16T10:00:00Z', type: 'message.sent', agent: 'eng-01', message: 'Working on task' },
+  { ts: '2026-02-16T10:01:00Z', type: 'agent.error', agent: 'eng-02', message: 'Build failed' },
+  { ts: '2026-02-16T10:02:00Z', type: 'agent.stuck', agent: 'eng-03', message: 'Waiting for response' },
+];
+
+// Inline factory so there is no transitive import back into the real
+// hook — every export this module needs is defined right here.
+mock.module('../../hooks/useLogs', () => ({
+  useLogs: vi.fn(() => ({
+    data: defaultData,
+    loading: false,
+    error: null,
+    severityFilter: null,
+    filterBySeverity: vi.fn(),
+    refresh: vi.fn(),
+  })),
+  getSeverityColor: (type: string) => {
+    const lower = type.toLowerCase();
+    if (lower.includes('error') || lower.includes('fail')) return 'red';
+    if (lower.includes('warn') || lower.includes('stuck')) return 'yellow';
+    return 'gray';
+  },
+  getSeverityIcon: (type: string) => {
+    const lower = type.toLowerCase();
+    if (lower.includes('error') || lower.includes('fail')) return '✗';
+    if (lower.includes('warn') || lower.includes('stuck')) return '⚠';
+    return '·';
+  },
+}));
+
+// Convenience: the test suite imports useLogs (the mocked vi.fn) so
+// individual cases can call mockReturnValueOnce/mockReturnValue to
+// swap in per-test data without re-mocking the whole module.
 
 import React from 'react';
 import { render } from 'ink-testing-library';
-import { describe, it, expect, vi, beforeEach } from 'bun:test';
 import { ThemeProvider } from '../../theme/ThemeContext';
 import { ActivityFeed } from '../../components/ActivityFeed';
 import { useLogs } from '../../hooks/useLogs';
 
 const renderWithTheme = (ui: React.ReactElement) => render(<ThemeProvider>{ui}</ThemeProvider>);
-
-// Tell Bun to use the __mocks__ directory auto-mock
-vi.mock('../../hooks/useLogs');
 
 describe('ActivityFeed', () => {
   beforeEach(() => {

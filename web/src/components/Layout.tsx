@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { NavLink, Outlet, useLocation } from "react-router-dom";
+import { NavLink, Outlet, useLocation, useMatch } from "react-router-dom";
 import { useTheme, THEME_LABELS } from "../context/ThemeContext";
 import { useMediaQuery } from "../hooks/useMediaQuery";
 import { CommandPalette } from "./CommandPalette";
@@ -7,6 +7,10 @@ import { api } from "../api/client";
 import type { Channel, GatewayHealth, GatewayStatus, NotifySubscription } from "../api/client";
 import { channelPlatform } from "./channels/messageUtils";
 import { SetupWizard } from "./channels/SetupWizard";
+import { Header } from "./Header";
+import { SidebarToggle, WorkspaceDropdown } from "./WorkspaceDropdown";
+import { HeaderSlotProvider, useHeaderSlotContext } from "../context/HeaderSlotContext";
+import { useWorkspace } from "../context/WorkspaceContext";
 
 const SIDEBAR_KEY = "bc-sidebar-collapsed";
 
@@ -22,11 +26,12 @@ function Icon({ name, size = 14 }: { name: string; size?: number }) {
     agents: <path d="M7 3.5a2 2 0 100 4 2 2 0 000-4zM3.5 11.5c0-1.8 1.6-3 3.5-3s3.5 1.2 3.5 3" />,
     channels: <><path d="M2 4.5h10" /><path d="M2 7.5h7" opacity="0.5" /><path d="M2 10.5h10" /></>,
     roles: <path d="M7 2.5l4.5 2.5v3.5L7 11 2.5 8.5V5z" />,
+    templates: <><rect x="2.5" y="2.5" width="9" height="9" rx="1" /><path d="M5 5.5h4M5 7.5h4M5 9.5h2" opacity="0.5" /></>,
     tools: <path d="M9.5 2.5l3 3-7 7H2.5v-3z" />,
     cron: <><circle cx="7" cy="7" r="4.5" /><path d="M7 4.5v2.5l1.5 1.5" /></>,
     secrets: <path d="M7 2.5a2 2 0 00-2 2V6H4v4.5h6V6H9V4.5a2 2 0 00-2-2zm0 5.5a.75.75 0 110 1.5.75.75 0 010-1.5z" />,
     metrics: <path d="M2 10l2.5-3.5 2 1.5L10 3" strokeLinecap="round" strokeLinejoin="round" />,
-    workspace: <path d="M2.5 3.5h9v7h-9zM4.5 3.5V2.5h5v1" />,
+    code: <><path d="M5 3.5L1.5 7L5 10.5" strokeLinecap="round" strokeLinejoin="round" /><path d="M9 3.5L12.5 7L9 10.5" strokeLinecap="round" strokeLinejoin="round" /></>,
     settings: <><circle cx="7" cy="7" r="2" /><path d="M7 1.5v1.5M7 11v1.5M1.5 7H3M11 7h1.5M3 3l1 1M10 10l1 1M3 11l1-1M10 4l1-1" opacity="0.5" /></>,
     chevron: <path d="M5 3l4 4-4 4" strokeLinecap="round" strokeLinejoin="round" />,
   };
@@ -265,7 +270,8 @@ const MAIN_NAV_ITEMS = [
   { to: "/live", label: "Live", icon: "live" },
   { to: "/agents", label: "Agents", icon: "agents" },
   { to: "/channels", label: "Channels", icon: "channels" },
-  { to: "/roles", label: "Roles", icon: "roles" },
+  { to: "/code", label: "Code", icon: "code" },
+  { to: "/templates", label: "Templates", icon: "templates" },
   { to: "/tools", label: "Tools", icon: "tools" },
   { to: "/cron", label: "Cron", icon: "cron" },
   { to: "/secrets", label: "Secrets", icon: "secrets" },
@@ -273,8 +279,13 @@ const MAIN_NAV_ITEMS = [
 ] as const;
 
 const UTIL_NAV_ITEMS = [
-  { to: "/workspace", label: "Workspace", icon: "workspace" },
   { to: "/settings", label: "Settings", icon: "settings" },
+] as const;
+
+// Global (non-workspace-scoped) nav items — rendered below a separator
+// in the sidebar. Costs here aggregates across every workspace.
+const GLOBAL_NAV_ITEMS = [
+  { to: "/costs", label: "Costs", icon: "metrics" },
 ] as const;
 
 const NAV_ITEMS = [...MAIN_NAV_ITEMS, ...UTIL_NAV_ITEMS];
@@ -293,23 +304,32 @@ function NavList({
   collapsed,
   isMobile,
   channelsExpanded,
+  global = false,
 }: {
   items: ReadonlyArray<{ to: string; label: string; icon: string }>;
   collapsed: boolean;
   isMobile: boolean;
   channelsExpanded?: boolean;
+  /** When true, render links verbatim — skip the /w/<id>/ prefix.
+   *  Used for cross-workspace routes like /costs. */
+  global?: boolean;
 }) {
   const isIconOnly = collapsed && !isMobile;
   const showTree = !isIconOnly && channelsExpanded;
+  // Workspace-scoped targets get /w/<id>/ prefixed at render time.
+  // Global items skip the prefix so they hit top-level routes.
+  const { workspace } = useWorkspace();
+  const prefix = !global && workspace ? `/w/${workspace.id}` : "";
 
   return (
     <>
       {items.map(({ to, label, icon }) => {
         const isChannels = label === "Channels";
+        const scopedTo = `${prefix}${to}`;
         return (
           <li key={to}>
             <NavLink
-              to={to}
+              to={scopedTo}
               end={!isChannels}
               title={isIconOnly ? label : undefined}
               className={({ isActive }) =>
@@ -355,13 +375,31 @@ export function Layout() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(readCollapsed);
 
+  // Keep channels tree expanded whenever the current URL is on the
+  // Channels tab — both the workspace-scoped /w/:wsId/channels and the
+  // legacy /channels bookmark redirect. useMatch trailing /* also
+  // handles deep links like /w/:wsId/channels/foo.
+  const scopedChannels = useMatch("/w/:wsId/channels/*");
+  const legacyChannels = useMatch("/channels/*");
+  const channelsExpanded = Boolean(scopedChannels || legacyChannels);
+
   const toggleCollapsed = useCallback(() => {
     setCollapsed((prev) => { const next = !prev; writeCollapsed(next); return next; });
   }, []);
 
   useEffect(() => { if (isMobile) setCollapsed(true); }, [isMobile]);
   useEffect(() => {
-    const match = NAV_ITEMS.find((item) => location.pathname.startsWith(item.to));
+    // Match against the trailing segment of the URL so /w/<id>/live and
+    // the legacy /live both produce the "Live" title.
+    const match = NAV_ITEMS.find((item) => {
+      const seg = item.to.replace(/^\//, "");
+      return (
+        location.pathname === item.to ||
+        location.pathname.startsWith(`${item.to}/`) ||
+        location.pathname.endsWith(`/${seg}`) ||
+        location.pathname.includes(`/${seg}/`)
+      );
+    });
     document.title = match ? `${match.label} \u2014 bc` : "bc";
   }, [location.pathname]);
   useEffect(() => { setMobileOpen(false); }, [location.pathname]);
@@ -432,8 +470,12 @@ export function Layout() {
             items={MAIN_NAV_ITEMS}
             collapsed={collapsed}
             isMobile={isMobile}
-            channelsExpanded={location.pathname.startsWith("/channels")}
+            channelsExpanded={channelsExpanded}
           />
+          <li className={`my-1.5 ${collapsed && !isMobile ? "mx-2" : "mx-3"}`}>
+            <div className="border-t border-bc-border/15" />
+          </li>
+          <NavList items={GLOBAL_NAV_ITEMS} collapsed={collapsed} isMobile={isMobile} global />
           <li className={`my-1.5 ${collapsed && !isMobile ? "mx-2" : "mx-3"}`}>
             <div className="border-t border-bc-border/15" />
           </li>
@@ -451,10 +493,41 @@ export function Layout() {
         </div>
       </nav>
 
-      <main className="flex-1 overflow-auto bg-bc-bg">
-        <Outlet />
-      </main>
+      <HeaderSlotProvider>
+        <main className="flex-1 flex flex-col overflow-hidden bg-bc-bg">
+          <LayoutHeader collapsed={collapsed} onToggleCollapsed={toggleCollapsed} />
+          <div className="flex-1 overflow-auto">
+            <Outlet />
+          </div>
+        </main>
+      </HeaderSlotProvider>
       <CommandPalette />
     </div>
+  );
+}
+
+/* ── LayoutHeader ───────────────────────────────────────────────
+   Renders the shared Header with workspace dropdown + sidebar toggle
+   on the left, pulling per-page title/actions from HeaderSlotContext.
+──────────────────────────────────────────────────────────────── */
+function LayoutHeader({
+  collapsed,
+  onToggleCollapsed,
+}: {
+  collapsed: boolean;
+  onToggleCollapsed: () => void;
+}) {
+  const { slot } = useHeaderSlotContext();
+  return (
+    <Header
+      left={
+        <>
+          <SidebarToggle collapsed={collapsed} onToggle={onToggleCollapsed} />
+          <WorkspaceDropdown />
+        </>
+      }
+      center={slot.title}
+      actions={slot.actions}
+    />
   );
 }

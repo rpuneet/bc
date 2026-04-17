@@ -18,13 +18,17 @@ import (
 	"io/fs"
 	"net"
 	"net/http"
+	"os"
 	"strings"
 	"time"
+
+	"path/filepath"
 
 	"github.com/rpuneet/bc/pkg/agent"
 	"github.com/rpuneet/bc/pkg/attachment"
 	"github.com/rpuneet/bc/pkg/cost"
 	"github.com/rpuneet/bc/pkg/cron"
+	"github.com/rpuneet/bc/pkg/deps"
 	"github.com/rpuneet/bc/pkg/events"
 	"github.com/rpuneet/bc/pkg/gateway"
 	"github.com/rpuneet/bc/pkg/log"
@@ -33,6 +37,7 @@ import (
 	"github.com/rpuneet/bc/pkg/provider"
 	"github.com/rpuneet/bc/pkg/secret"
 	"github.com/rpuneet/bc/pkg/stats"
+	"github.com/rpuneet/bc/pkg/template"
 	"github.com/rpuneet/bc/pkg/tool"
 	"github.com/rpuneet/bc/pkg/workspace"
 	"github.com/rpuneet/bc/server/handlers"
@@ -72,12 +77,24 @@ type Services struct {
 	Secrets       *secret.Store
 	MCP           *mcp.Store
 	Tools         *tool.Store
+	Templates     *template.Store
 	Stats         *stats.Store
 	EventLog      events.EventStore
 	EventWriter   *events.JSONLWriter
 	WS            *workspace.Workspace
 	Gateway       *gateway.Manager
 	Notify        *notify.Service
+	// Registry is the global workspace registry (~/.bc/workspaces.json).
+	// Populated when bcd runs; exposed so the /api/workspaces handler can
+	// list / add / activate entries.
+	Registry *workspace.Registry
+	// WorkspaceManager lazy-loads per-workspace services for scoped routes
+	// at /api/workspaces/{id}/... — may be nil in tests.
+	WorkspaceManager *WorkspaceManager
+	// Deps is the optional dependencies registry (bc-db, bc-code-server,
+	// bc-browser). May be nil in tests; when nil the /api/deps handler
+	// returns an empty list and 404 for detail routes.
+	Deps *deps.Registry
 }
 
 // Server is the bcd HTTP server.
@@ -85,6 +102,43 @@ type Server struct {
 	httpServer *http.Server
 	handler    http.Handler
 	addr       string
+}
+
+// NewWithManager creates a bcd server using the multi-workspace primitives.
+// It derives the launch-workspace Services bundle from mgr.Active() (for
+// registered handlers that still need closure wiring) and wires the manager
+// into the scope middleware. Phase M4: the canonical constructor going
+// forward. `New` remains for tests that assemble Services directly.
+func NewWithManager(cfg Config, mgr *WorkspaceManager, globals *Globals, staticFiles fs.FS) *Server {
+	if mgr == nil {
+		// Caller error — but surface quickly via a Services-only constructor.
+		return New(cfg, Services{}, nil, staticFiles)
+	}
+	active := mgr.Active()
+	var svc Services
+	var hub *ws.Hub
+	if active != nil {
+		svc = active.Services
+		svc.WorkspaceManager = mgr
+		hub = active.Hub
+	} else {
+		svc.WorkspaceManager = mgr
+	}
+	if globals != nil {
+		if svc.Registry == nil {
+			svc.Registry = globals.Registry
+		}
+		if svc.Deps == nil {
+			svc.Deps = globals.Deps
+		}
+		if svc.Stats == nil {
+			svc.Stats = globals.Stats
+		}
+		if cfg.Build.Commit == "" {
+			cfg.Build = globals.Build
+		}
+	}
+	return New(cfg, svc, hub, staticFiles)
 }
 
 // New creates a bcd server with the given config, services, SSE hub, and optional static files.
@@ -104,6 +158,32 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 		w.Header().Set("Content-Type", "application/json")
 		fmt.Fprintf(w, `{"status":"ok","addr":%q,"commit":%q,"built_at":%q}`, cfg.Addr, cfg.Build.Commit, cfg.Build.BuiltAt) //nolint:errcheck // writing to response
 	})
+
+	// /api/health and /healthz: external-probe-friendly health endpoints
+	// that verify DB connectivity with a SELECT 1 roundtrip. Registered
+	// before the SPA catch-all so they aren't shadowed.
+	apiHealth := func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		if svc.Costs != nil {
+			if db := svc.Costs.DB(); db != nil {
+				ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+				defer cancel()
+				var one int
+				if err := db.QueryRowContext(ctx, "SELECT 1").Scan(&one); err != nil {
+					w.WriteHeader(http.StatusServiceUnavailable)
+					fmt.Fprintf(w, `{"status":"unhealthy","db":"error: %s"}`, strings.ReplaceAll(err.Error(), `"`, `'`)) //nolint:errcheck
+					return
+				}
+			}
+		}
+		fmt.Fprintf(w, `{"status":"ok","db":"ok","version":%q}`, cfg.Build.Commit) //nolint:errcheck
+	}
+	mux.HandleFunc("/api/health", apiHealth)
+	mux.HandleFunc("/healthz", apiHealth)
 
 	// Readiness probe — verifies downstream dependencies
 	mux.HandleFunc("/health/ready", func(w http.ResponseWriter, r *http.Request) {
@@ -157,6 +237,17 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 		}
 		if svc.Stats != nil {
 			ah.SetStatsStore(svc.Stats)
+		}
+		if svc.WS != nil {
+			// Prefer the layered store populated by BuildWorkspaceServices;
+			// fall back to a single-layer per-workspace store for callers
+			// that construct Services manually (eg. legacy tests).
+			if svc.Templates != nil {
+				ah.SetTemplateStore(svc.Templates)
+			} else {
+				templatesDir := filepath.Join(svc.WS.StateDir(), "templates")
+				ah.SetTemplateStore(template.NewStore(templatesDir))
+			}
 		}
 		ah.SetTerminalHandler(handlers.NewTerminalHandler(svc.Agents, cfg.CORSOrigin))
 		ah.Register(mux)
@@ -247,11 +338,57 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 		}
 		gh.Register(mux)
 	}
+	if svc.Registry != nil {
+		handlers.NewWorkspacesHandler(svc.Registry, svc.Agents).Register(mux)
+		handlers.NewDiscoveryHandler(svc.Registry).Register(mux)
+	}
+	// Optional dependencies manager (bc-db, bc-code-server, bc-browser).
+	// Always registered so the UI can render an empty list when no deps
+	// are configured; the handler is nil-safe internally.
+	handlers.NewDepsHandler(svc.Deps).Register(mux)
+	// Cross-workspace cost rollup — lives outside WorkspaceScope so the
+	// response spans every workspace in the registry. Handler is nil-safe
+	// and returns 503 when the global ledger isn't wired.
+	mux.Handle("/api/global/costs", handlers.NewGlobalCostsHandler(svc.Costs, svc.Registry))
+	// Code tab endpoints — resolves workspaces via the registry + active
+	// workspace shim. The context-lookup shim is wired here to avoid an
+	// import cycle between server and server/handlers.
+	handlers.SetWorkspaceIDFromContext(WorkspaceIDFromContext)
+	// Install the per-request workspace resolver so handlers can pull
+	// their per-workspace dependencies from context (phase M3). The
+	// resolver reads ctxKeyWorkspaceServices which the WorkspaceScope
+	// middleware stashes on both scoped (/api/workspaces/{id}/…) and
+	// legacy (/api/…) paths.
+	handlers.SetWorkspaceFromContext(func(ctx context.Context) *handlers.WorkspaceView {
+		svc := WorkspaceServicesFromContext(ctx)
+		if svc == nil {
+			return nil
+		}
+		return workspaceViewFromServices(svc)
+	})
+	handlers.NewCodeHandler(handlers.NewRegistryWorkspaceResolver(svc.Registry, svc.WS)).Register(mux)
 	if svc.WS != nil {
 		handlers.NewRolesHandler(svc.WS).Register(mux)
 		handlers.NewWorkspaceHandler(svc.Agents, svc.WS).Register(mux)
 		handlers.NewDoctorHandler(svc.WS).Register(mux)
 		handlers.NewSettingsHandler(svc.WS).Register(mux)
+
+		// Templates — prefer the layered store from BuildWorkspaceServices
+		// (global ~/.bc/templates/ + per-workspace override). Fallback to
+		// a single-layer workspace store for legacy test callers that
+		// assemble Services by hand.
+		tmplStore := svc.Templates
+		templatesDir := filepath.Join(svc.WS.StateDir(), "templates")
+		if tmplStore == nil {
+			tmplStore = template.NewStore(templatesDir)
+			if seedErr := template.SeedDefaults(templatesDir); seedErr != nil {
+				log.Warn("seed default templates", "error", seedErr)
+			}
+		}
+		if migrErr := migrateRolesToTemplates(svc.WS.RolesDir(), templatesDir); migrErr != nil {
+			log.Warn("migrate roles to templates", "error", migrErr)
+		}
+		handlers.NewTemplateHandler(tmplStore).Register(mux)
 
 		// File upload/download for channel attachments + shared screenshots
 		fileStore := attachment.NewStore(svc.WS.StateDir())
@@ -269,7 +406,13 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 	}
 	sh.Register(mux)
 
-	// MCP protocol server (SSE transport) at /mcp/
+	// MCP protocol server (SSE transport).
+	//
+	// Legacy mount at /_mcp/<agent>/{sse,message} targets the launch
+	// workspace — kept so agents spawned before phase M6 keep working.
+	// Scoped mount at /_mcp/<wsID>/<agent>/{sse,message} dispatches via
+	// the WorkspaceManager so any loaded workspace can expose MCP to its
+	// agents.
 	if svc.WS != nil {
 		mcpCfg := servermcp.Config{Workspace: svc.WS, Costs: svc.Costs}
 		if svc.Agents != nil {
@@ -287,6 +430,10 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 		} else {
 			servermcp.MountOn(mux, mcpSrv, "/_mcp")
 		}
+	}
+	// Scoped MCP dispatcher — per-workspace path.
+	if svc.WorkspaceManager != nil {
+		mux.HandleFunc("/_mcp/ws/", scopedMCPDispatch(svc.WorkspaceManager))
 	}
 
 	// Static web UI with SPA fallback — serves files if they exist,
@@ -310,14 +457,27 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 	}
 
 	// Middleware chain (outermost runs first):
-	// RateLimit → APIKeyAuth → RequestID → RequestLogger → Recovery → Gzip → MaxBodySize → CORS → mux
+	// RateLimit → APIKeyAuth → RequestID → RequestLogger → Recovery → Gzip → MaxBodySize → CORS → WorkspaceScope → mux
+	//
+	// WorkspaceScope sits innermost so it can rewrite the request URL
+	// before the mux routes it to a handler. That lets a client hit
+	// /api/workspaces/{id}/agents and have it dispatch to the registered
+	// /api/agents handler once {id} is the active workspace.
 	var handler http.Handler = mux
+	// LegacyMCPCompat must wrap the mux (not WorkspaceScope) so its
+	// path rewrite reaches the /_mcp/ws/ dispatcher registered on the
+	// mux. WorkspaceScope only touches /api/ and is a no-op for MCP.
+	handler = LegacyMCPCompat(handler, svc.WorkspaceManager)
+	handler = WorkspaceScope(handler, svc.WorkspaceManager)
+	// Outside WorkspaceScope so that /live → /w/<active>/live happens
+	// before any /api/ scoping logic runs.
+	handler = LegacyUIScope(handler, svc.WorkspaceManager)
 	if cfg.CORS {
 		origin := cfg.CORSOrigin
 		if origin == "" {
 			origin = "*"
 		}
-		handler = handlers.CORSWithOrigin(origin, mux)
+		handler = handlers.CORSWithOrigin(origin, handler)
 	}
 	handler = handlers.MaxBodySize(1 << 20)(handler) // 1MB request body limit
 	handler = handlers.Gzip(handler)
@@ -341,6 +501,51 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 			IdleTimeout:  120 * time.Second,
 		},
 	}
+}
+
+// migrateRolesToTemplates copies .md role files from rolesDir into templatesDir
+// as agent templates. It is idempotent: files whose template already exists are
+// skipped. It logs each migration and is a no-op when rolesDir does not exist.
+func migrateRolesToTemplates(rolesDir, templatesDir string) error {
+	entries, err := os.ReadDir(rolesDir)
+	if os.IsNotExist(err) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("read roles dir: %w", err)
+	}
+
+	tmplStore := template.NewStore(templatesDir)
+
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".md") {
+			continue
+		}
+		name := strings.TrimSuffix(e.Name(), ".md")
+
+		// Skip if template already exists.
+		if _, _, getErr := tmplStore.Get(name); getErr == nil {
+			continue
+		}
+
+		data, readErr := os.ReadFile(filepath.Join(rolesDir, e.Name())) //nolint:gosec // trusted path
+		if readErr != nil {
+			log.Warn("migrate roles: failed to read role file", "role", name, "error", readErr)
+			continue
+		}
+
+		t := template.Template{
+			Name:        name,
+			Description: "Migrated from role: " + name,
+			MCPs:        []string{"bc"},
+		}
+		if createErr := tmplStore.Create(t, string(data), template.ScopeGlobal); createErr != nil {
+			log.Warn("migrate roles: failed to create template", "role", name, "error", createErr)
+			continue
+		}
+		log.Info("migrate roles: created template from role", "name", name)
+	}
+	return nil
 }
 
 // Handler returns the HTTP handler (useful for httptest.NewServer in tests).

@@ -35,8 +35,10 @@ type CostSummary struct {
 
 // ListOptions configures agent listing.
 type ListOptions struct {
-	Role   string // Filter by role (empty = all)
-	Status string // Filter by status/state (empty = all)
+	Role            string // Filter by role (empty = all)
+	Status          string // Filter by status/state (empty = all)
+	IncludeArchived bool   // When true, archived agents are included alongside live ones
+	OnlyArchived    bool   // When true, only archived agents are returned (overrides IncludeArchived)
 }
 
 // CreateOptions holds parameters for creating an agent via the service.
@@ -111,13 +113,27 @@ func (s *AgentService) Manager() *Manager {
 func (s *AgentService) List(ctx context.Context, opts ListOptions) ([]*Agent, error) {
 	agents := s.manager.ListAgents()
 
-	// Apply filters
-	if opts.Role == "" && opts.Status == "" {
-		return agents, nil
+	// Fast path: no filters set and default archive behavior (hide).
+	if opts.Role == "" && opts.Status == "" && !opts.IncludeArchived && !opts.OnlyArchived {
+		filtered := make([]*Agent, 0, len(agents))
+		for _, a := range agents {
+			if a.ArchivedAt != nil {
+				continue
+			}
+			filtered = append(filtered, a)
+		}
+		return filtered, nil
 	}
 
 	filtered := make([]*Agent, 0, len(agents))
 	for _, a := range agents {
+		archived := a.ArchivedAt != nil
+		switch {
+		case opts.OnlyArchived && !archived:
+			continue
+		case !opts.OnlyArchived && !opts.IncludeArchived && archived:
+			continue
+		}
 		if opts.Role != "" && string(a.Role) != opts.Role {
 			continue
 		}
@@ -127,6 +143,33 @@ func (s *AgentService) List(ctx context.Context, opts ListOptions) ([]*Agent, er
 		filtered = append(filtered, a)
 	}
 	return filtered, nil
+}
+
+// Archive marks the named agent as archived, hiding it from default
+// List() results. Idempotent. Errors when the agent doesn't exist, or
+// when the agent is still running — archiving a live agent leaves the
+// runtime in a confusing state, so callers must stop it first.
+func (s *AgentService) Archive(_ context.Context, name string) error {
+	a := s.manager.GetAgent(name)
+	if a == nil {
+		return fmt.Errorf("agent %q not found", name)
+	}
+	if a.ArchivedAt == nil && isRunningState(a.State) {
+		return fmt.Errorf("cannot archive agent %q while running (state=%s); stop it first", name, a.State)
+	}
+	return s.manager.SetArchived(name, true)
+}
+
+// isRunningState reports whether a state represents an agent that is
+// actively running (either idle/waiting, starting, or working).
+func isRunningState(state State) bool {
+	return state == StateIdle || state == StateStarting || state == StateWorking
+}
+
+// Unarchive clears the archived flag on the named agent.
+// Idempotent. Errors when the agent doesn't exist.
+func (s *AgentService) Unarchive(_ context.Context, name string) error {
+	return s.manager.SetArchived(name, false)
 }
 
 // matchesStatus checks if an agent state matches a status filter.
@@ -329,6 +372,38 @@ func (s *AgentService) publishEvent(eventType string, data map[string]any) {
 	}
 }
 
+// SyncSessions reconciles in-memory agent state with actual runtime sessions.
+// For each agent that is not already stopped or in error, it checks whether
+// the underlying tmux/docker session still exists. If the session is gone it
+// marks the agent as stopped.
+// Returns the total number of agents inspected (synced) and the number that
+// were transitioned to stopped (stopped).
+func (s *AgentService) SyncSessions(ctx context.Context) (synced, stopped int) {
+	agents := s.manager.ListAgents()
+	for _, a := range agents {
+		if a.State == StateStopped || a.State == StateError {
+			continue
+		}
+		synced++
+		rt := s.manager.RuntimeForAgent(a.Name)
+		if rt.HasSession(ctx, a.Name) {
+			continue
+		}
+		// Session gone — mark stopped.
+		if err := s.manager.UpdateAgentState(a.Name, StateStopped, ""); err != nil {
+			log.Warn("sync: failed to update agent state", "agent", a.Name, "error", err)
+			continue
+		}
+		stopped++
+		s.publishEvent("agent.state_changed", map[string]any{
+			"name":   a.Name,
+			"state":  string(StateStopped),
+			"reason": "session_gone",
+		})
+	}
+	return synced, stopped
+}
+
 // StopAll stops all running agents. Returns count of agents stopped.
 func (s *AgentService) StopAll(ctx context.Context) (int, error) {
 	agents := s.manager.ListAgents()
@@ -357,47 +432,63 @@ func (s *AgentService) Rename(ctx context.Context, oldName, newName string) erro
 	return nil
 }
 
-// Sessions returns session history for an agent.
-func (s *AgentService) Sessions(ctx context.Context, name string) ([]SessionEntry, error) {
+// Sessions returns session history for an agent. Every agent (root or not)
+// has its own worktree; sessions are looked up uniformly by WorktreeDir
+// encoded to the Claude CLI projects format (abs path slashes → dashes)
+// under ~/.claude/projects/<encoded>/*.jsonl.
+func (s *AgentService) Sessions(_ context.Context, name string) ([]SessionEntry, error) {
 	a := s.manager.GetAgent(name)
 	if a == nil {
 		return nil, fmt.Errorf("agent %q not found", name)
 	}
 
 	var entries []SessionEntry
-
+	seen := make(map[string]bool)
 	if a.SessionID != "" {
 		entries = append(entries, SessionEntry{ID: a.SessionID, Current: true})
+		seen[a.SessionID] = true
 	}
 
-	histDir := filepath.Join(s.manager.stateDir, "agents", name, "session_history")
-	files, err := os.ReadDir(histDir)
-	if err == nil {
-		sort.Slice(files, func(i, j int) bool {
-			return files[i].Name() > files[j].Name()
-		})
-		for _, f := range files {
-			if f.IsDir() {
-				continue
-			}
-			data, readErr := os.ReadFile(filepath.Join(histDir, f.Name())) //nolint:gosec // trusted path
-			if readErr != nil {
-				continue
-			}
-			id := strings.TrimSpace(string(data))
-			if id == "" || id == a.SessionID {
-				continue
-			}
-			fname := strings.TrimSuffix(f.Name(), ".txt")
-			ts, parseErr := time.Parse("2006-01-02T15:04:05", fname)
-			entry := SessionEntry{ID: id}
-			if parseErr == nil {
-				entry.Timestamp = ts
-			}
-			entries = append(entries, entry)
+	if a.WorktreeDir == "" {
+		return entries, nil
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return entries, nil
+	}
+	// Claude CLI encodes the abs worktree path by replacing both
+	// '/' and '.' with '-', e.g. '/Users/p/.bc/x' → '-Users-p--bc-x'.
+	encoded := strings.ReplaceAll(a.WorktreeDir, "/", "-")
+	encoded = strings.ReplaceAll(encoded, ".", "-")
+	projDir := filepath.Join(home, ".claude", "projects", encoded)
+	files, err := os.ReadDir(projDir)
+	if err != nil {
+		return entries, nil
+	}
+	type fileEntry struct {
+		mod time.Time
+		id  string
+	}
+	var found []fileEntry
+	for _, f := range files {
+		if f.IsDir() || !strings.HasSuffix(f.Name(), ".jsonl") {
+			continue
 		}
+		id := strings.TrimSuffix(f.Name(), ".jsonl")
+		if seen[id] {
+			continue
+		}
+		seen[id] = true
+		info, infoErr := f.Info()
+		if infoErr != nil {
+			continue
+		}
+		found = append(found, fileEntry{id: id, mod: info.ModTime()})
 	}
-
+	sort.Slice(found, func(i, j int) bool { return found[i].mod.After(found[j].mod) })
+	for _, fe := range found {
+		entries = append(entries, SessionEntry{ID: fe.id, Timestamp: fe.mod})
+	}
 	return entries, nil
 }
 
@@ -459,4 +550,75 @@ func (s *AgentService) GenerateName(ctx context.Context) (string, error) {
 		existing = append(existing, a.Name)
 	}
 	return names.GenerateUniqueFromList(existing, 20)
+}
+
+// ForkAgent creates a new stopped agent by copying the source agent's worktree
+// config files (CLAUDE.md, .mcp.json). The forked agent starts in stopped state.
+func (s *AgentService) ForkAgent(ctx context.Context, sourceName, newName string) (*Agent, error) {
+	src := s.manager.GetAgent(sourceName)
+	if src == nil {
+		return nil, fmt.Errorf("source agent %q not found", sourceName)
+	}
+
+	if !IsValidAgentName(newName) {
+		return nil, fmt.Errorf("agent name %q is invalid: use letters, numbers, dash, underscore (max %d chars)", newName, MaxAgentNameLength)
+	}
+
+	if existing := s.manager.GetAgent(newName); existing != nil {
+		return nil, fmt.Errorf("agent %q already exists", newName)
+	}
+
+	// Create git worktree for the new agent.
+	wtDir, err := s.manager.CreateWorktree(ctx, newName)
+	if err != nil {
+		return nil, fmt.Errorf("create worktree: %w", err)
+	}
+
+	// Copy CLAUDE.md from source worktree to new worktree.
+	if src.WorktreeDir != "" {
+		srcClaude := filepath.Join(src.WorktreeDir, "CLAUDE.md")
+		if data, readErr := os.ReadFile(srcClaude); readErr == nil { //nolint:gosec // trusted path
+			dstClaude := filepath.Join(wtDir, "CLAUDE.md")
+			if writeErr := os.WriteFile(dstClaude, data, 0600); writeErr != nil {
+				return nil, fmt.Errorf("fork: copy CLAUDE.md: %w", writeErr)
+			}
+		}
+
+		// Copy .mcp.json from source worktree to new worktree.
+		srcMCP := filepath.Join(src.WorktreeDir, ".mcp.json")
+		if data, readErr := os.ReadFile(srcMCP); readErr == nil { //nolint:gosec // trusted path
+			dstMCP := filepath.Join(wtDir, ".mcp.json")
+			if writeErr := os.WriteFile(dstMCP, data, 0600); writeErr != nil {
+				return nil, fmt.Errorf("fork: copy .mcp.json: %w", writeErr)
+			}
+		}
+	}
+
+	now := time.Now()
+	newAgent := &Agent{
+		ID:             newName,
+		Name:           newName,
+		Role:           src.Role,
+		State:          StateStopped,
+		Workspace:      src.Workspace,
+		Session:        newName,
+		Tool:           src.Tool,
+		RuntimeBackend: src.RuntimeBackend,
+		WorktreeDir:    wtDir,
+		ParentID:       "", // forked agents are independent — no parent
+		Children:       []string{},
+		CreatedAt:      now,
+		UpdatedAt:      now,
+	}
+
+	if err := s.manager.RegisterStopped(newAgent); err != nil {
+		return nil, fmt.Errorf("register forked agent: %w", err)
+	}
+
+	s.publishEvent("agent.forked", map[string]any{
+		"source": sourceName,
+		"name":   newName,
+	})
+
+	return newAgent, nil
 }

@@ -5,6 +5,8 @@ import { usePolling } from "../hooks/usePolling";
 import { LoadingSkeleton } from "../components/LoadingSkeleton";
 import { EmptyState } from "../components/EmptyState";
 
+import { useHeaderSlot } from "../context/HeaderSlotContext";
+import { TabHeaderTitle } from "../components/Header";
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -624,6 +626,27 @@ export function Cron() {
   const [expandedJob, setExpandedJob] = useState<string | null>(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
 
+  useHeaderSlot({
+    title: <TabHeaderTitle>Cron</TabHeaderTitle>,
+    actions: (
+      <>
+        {jobs && (
+          <span className="inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded-full bg-bc-accent/15 text-bc-accent text-[11px] font-semibold tabular-nums">
+            {jobs.length}
+          </span>
+        )}
+        <button
+          type="button"
+          onClick={() => setShowCreateForm((v) => !v)}
+          className="px-3 py-1 rounded text-[11px] font-medium border border-bc-accent/40 bg-bc-accent/10 text-bc-accent hover:bg-bc-accent/20 transition-colors"
+          aria-label="Create new cron job"
+        >
+          + New Job
+        </button>
+      </>
+    ),
+  });
+
   // Auto-expand running jobs
   useEffect(() => {
     if (jobs) {
@@ -673,24 +696,6 @@ export function Cron() {
 
   return (
     <div className="p-6 space-y-5">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <h1 className="text-xl font-bold text-bc-text">Cron Jobs</h1>
-          <span className="inline-flex items-center justify-center min-w-[1.5rem] h-6 px-1.5 rounded-full bg-bc-accent/15 text-bc-accent text-xs font-semibold">
-            {jobList.length}
-          </span>
-        </div>
-        <button
-          type="button"
-          onClick={() => setShowCreateForm(!showCreateForm)}
-          className="px-4 py-2 rounded bg-bc-accent text-white text-sm font-medium hover:opacity-90 transition-opacity focus-visible:ring-2 focus-visible:ring-bc-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bc-bg"
-          aria-label="Create new cron job"
-        >
-          + New Job
-        </button>
-      </div>
-
       {/* Create form */}
       {showCreateForm && (
         <CreateJobForm

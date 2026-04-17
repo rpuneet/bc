@@ -6,9 +6,12 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/rpuneet/bc/pkg/agent"
@@ -16,10 +19,72 @@ import (
 	"github.com/rpuneet/bc/pkg/events"
 	"github.com/rpuneet/bc/pkg/log"
 	"github.com/rpuneet/bc/pkg/stats"
+	"github.com/rpuneet/bc/pkg/template"
 	"github.com/rpuneet/bc/pkg/token"
 	"github.com/rpuneet/bc/pkg/workspace"
 	"github.com/rpuneet/bc/server/ws"
 )
+
+// HookEventRequest is the rich payload accepted by POST /api/agents/{name}/hook.
+// All fields except Event are optional; callers may send any subset.
+// The handler accepts the full agent.HookPayload; this struct documents the
+// additional fields introduced in Phase 1c (TaskID, TaskTitle, Metadata).
+type HookEventRequest struct {
+	ToolInput any            `json:"tool_input,omitempty"`
+	Metadata  map[string]any `json:"metadata,omitempty"`
+	TaskTitle string         `json:"task_title,omitempty"`
+	TaskID    string         `json:"task_id,omitempty"`
+	ToolName  string         `json:"tool_name,omitempty"`
+	Error     string         `json:"error,omitempty"`
+	Event     string         `json:"event"`
+}
+
+// agentEventSub is a single SSE subscriber for per-agent hook events.
+type agentEventSub struct {
+	ch   chan []byte
+	done <-chan struct{}
+}
+
+// agentEventBroker fans out hook events to per-agent SSE subscribers.
+type agentEventBroker struct {
+	subs map[string][]*agentEventSub
+	mu   sync.RWMutex
+}
+
+func newAgentEventBroker() *agentEventBroker {
+	return &agentEventBroker{subs: make(map[string][]*agentEventSub)}
+}
+
+func (b *agentEventBroker) subscribe(agentName string, done <-chan struct{}) *agentEventSub {
+	sub := &agentEventSub{ch: make(chan []byte, 64), done: done}
+	b.mu.Lock()
+	b.subs[agentName] = append(b.subs[agentName], sub)
+	b.mu.Unlock()
+	return sub
+}
+
+func (b *agentEventBroker) unsubscribe(agentName string, sub *agentEventSub) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	list := b.subs[agentName]
+	for i, s := range list {
+		if s == sub {
+			b.subs[agentName] = append(list[:i], list[i+1:]...)
+			break
+		}
+	}
+}
+
+func (b *agentEventBroker) publish(agentName string, msg []byte) {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	for _, sub := range b.subs[agentName] {
+		select {
+		case sub.ch <- msg:
+		default: // subscriber too slow — drop
+		}
+	}
+}
 
 // AgentHandler handles /api/agents routes.
 type AgentHandler struct {
@@ -30,12 +95,46 @@ type AgentHandler struct {
 	events     events.EventStore
 	terminal   *TerminalHandler
 	statsStore *stats.Store
+	tmplStore  *template.Store
+	broker     *agentEventBroker
 }
 
 // NewAgentHandler creates an AgentHandler.
 // costs, ws, hub, and eventStore may be nil; enrichment fields will be omitted when unavailable.
 func NewAgentHandler(svc *agent.AgentService, costs *cost.Store, ws *workspace.Workspace, hub *ws.Hub) *AgentHandler {
-	return &AgentHandler{svc: svc, costs: costs, ws: ws, hub: hub}
+	return &AgentHandler{svc: svc, costs: costs, ws: ws, hub: hub, broker: newAgentEventBroker()}
+}
+
+// SetTemplateStore sets the template store used during agent creation.
+func (h *AgentHandler) SetTemplateStore(store *template.Store) {
+	h.tmplStore = store
+}
+
+// resolveSvc returns the per-request *agent.AgentService, preferring the
+// workspace scope middleware's context view over the closure captured at
+// construction time. Phase M3: both paths resolve to the same services
+// today; phase M4 deletes the closure fallback entirely.
+func (h *AgentHandler) resolveSvc(r *http.Request) *agent.AgentService {
+	if view := WorkspaceFromContext(r.Context()); view != nil && view.Agents != nil {
+		return view.Agents
+	}
+	return h.svc
+}
+
+// resolveCosts returns the per-request *cost.Store (see resolveSvc).
+func (h *AgentHandler) resolveCosts(r *http.Request) *cost.Store {
+	if view := WorkspaceFromContext(r.Context()); view != nil && view.Costs != nil {
+		return view.Costs
+	}
+	return h.costs
+}
+
+// resolveWS returns the per-request workspace (see resolveSvc).
+func (h *AgentHandler) resolveWS(r *http.Request) *workspace.Workspace {
+	if view := WorkspaceFromContext(r.Context()); view != nil && view.Workspace != nil {
+		return view.Workspace
+	}
+	return h.ws
 }
 
 // SetStatsStore sets the stats store for resource metrics enrichment.
@@ -61,9 +160,18 @@ func (h *AgentHandler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/agents/send-role", h.sendRole)
 	mux.HandleFunc("/api/agents/send-pattern", h.sendPattern)
 	mux.HandleFunc("/api/agents/stop-all", h.stopAll)
+	mux.HandleFunc("/api/agents/sync", h.syncSessions)
 	mux.HandleFunc("/api/agents/health", h.health)
+	// Bulk operations — must be registered before the catch-all below.
+	h.registerBulkRoutes(mux)
 	mux.HandleFunc("/api/agents", h.list)
 	mux.HandleFunc("/api/agents/", h.byName)
+}
+
+// avatarDTO holds agent avatar configuration.
+type avatarDTO struct {
+	Variant string `json:"variant,omitempty"`
+	Color   string `json:"color,omitempty"`
 }
 
 type agentDTO struct { //nolint:govet // field order matches JSON/API contract
@@ -71,7 +179,9 @@ type agentDTO struct { //nolint:govet // field order matches JSON/API contract
 	StartedAt    time.Time      `json:"started_at,omitempty"`
 	UpdatedAt    time.Time      `json:"updated_at"`
 	StoppedAt    *time.Time     `json:"stopped_at,omitempty"`
+	ArchivedAt   *time.Time     `json:"archived_at,omitempty"`
 	Stats        *agentStatsDTO `json:"stats,omitempty"`
+	Avatar       *avatarDTO     `json:"avatar,omitempty"`
 	Tool         string         `json:"tool,omitempty"`
 	Session      string         `json:"session,omitempty"`
 	State        string         `json:"state"`
@@ -80,6 +190,7 @@ type agentDTO struct { //nolint:govet // field order matches JSON/API contract
 	Name         string         `json:"name"`
 	Runtime      string         `json:"runtime_backend,omitempty"`
 	Role         string         `json:"role"`
+	Template     string         `json:"template,omitempty"`
 	SessionID    string         `json:"session_id,omitempty"`
 	ParentID     string         `json:"parent_id,omitempty"`
 	ID           string         `json:"id,omitempty"`
@@ -103,22 +214,23 @@ type agentStatsDTO struct {
 
 func toDTO(a *agent.Agent) agentDTO {
 	return agentDTO{
-		ID:        a.ID,
-		Name:      a.Name,
-		Role:      string(a.Role),
-		State:     string(a.State),
-		Task:      a.Task,
-		Team:      a.Team,
-		Tool:      a.Tool,
-		Runtime:   a.RuntimeBackend,
-		Session:   a.Session,
-		SessionID: a.SessionID,
-		ParentID:  a.ParentID,
-		Children:  a.Children,
-		CreatedAt: a.CreatedAt,
-		StartedAt: a.StartedAt,
-		UpdatedAt: a.UpdatedAt,
-		StoppedAt: a.StoppedAt,
+		ID:         a.ID,
+		Name:       a.Name,
+		Role:       string(a.Role),
+		State:      string(a.State),
+		Task:       a.Task,
+		Team:       a.Team,
+		Tool:       a.Tool,
+		Runtime:    a.RuntimeBackend,
+		Session:    a.Session,
+		SessionID:  a.SessionID,
+		ParentID:   a.ParentID,
+		Children:   a.Children,
+		CreatedAt:  a.CreatedAt,
+		StartedAt:  a.StartedAt,
+		UpdatedAt:  a.UpdatedAt,
+		StoppedAt:  a.StoppedAt,
+		ArchivedAt: a.ArchivedAt,
 	}
 }
 
@@ -136,10 +248,17 @@ func buildCostMap(ctx context.Context, store *cost.Store) map[string]*cost.Summa
 }
 
 func (h *AgentHandler) list(w http.ResponseWriter, r *http.Request) {
+	svc := h.resolveSvc(r)
+	costs := h.resolveCosts(r)
+	wsRef := h.resolveWS(r)
 	switch r.Method {
 	case http.MethodGet:
 		// State is driven by hooks — no polling or reconciler needed.
-		agents, err := h.svc.List(r.Context(), agent.ListOptions{})
+		q := r.URL.Query()
+		agents, err := svc.List(r.Context(), agent.ListOptions{
+			IncludeArchived: q.Get("includeArchived") == "1" || q.Get("includeArchived") == "true",
+			OnlyArchived:    q.Get("onlyArchived") == "1" || q.Get("onlyArchived") == "true",
+		})
 		if err != nil {
 			httpInternalError(w, "list agents", err)
 			return
@@ -150,8 +269,8 @@ func (h *AgentHandler) list(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Enrich with per-agent cost summaries.
-		if h.costs != nil {
-			costMap := buildCostMap(r.Context(), h.costs)
+		if costs != nil {
+			costMap := buildCostMap(r.Context(), costs)
 			for i := range dtos {
 				if summary, ok := costMap[dtos[i].Name]; ok {
 					dtos[i].TotalCostUSD = summary.TotalCostUSD
@@ -161,8 +280,8 @@ func (h *AgentHandler) list(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Enrich with token usage from agent JSONL session files.
-		if h.ws != nil {
-			agentsDir := filepath.Join(h.ws.RootDir, ".bc", "agents")
+		if wsRef != nil {
+			agentsDir := filepath.Join(wsRef.RootDir, ".bc", "agents")
 			usages, tokenErr := token.CollectAll(agentsDir)
 			if tokenErr == nil {
 				// Sum per agent across models
@@ -204,10 +323,10 @@ func (h *AgentHandler) list(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Enrich with resolved MCP servers from the agent's role.
-		if h.ws != nil && h.ws.RoleManager != nil {
+		if wsRef != nil && wsRef.RoleManager != nil {
 			for i := range dtos {
 				if dtos[i].Role != "" {
-					resolved, resolveErr := h.ws.RoleManager.ResolveRole(dtos[i].Role)
+					resolved, resolveErr := wsRef.RoleManager.ResolveRole(dtos[i].Role)
 					if resolveErr == nil && len(resolved.MCPServers) > 0 {
 						dtos[i].MCPServers = resolved.MCPServers
 					}
@@ -228,19 +347,26 @@ func (h *AgentHandler) list(w http.ResponseWriter, r *http.Request) {
 
 	case http.MethodPost:
 		var req struct {
-			Name    string `json:"name"`
-			Role    string `json:"role"`
-			Tool    string `json:"tool"`
-			Runtime string `json:"runtime_backend"`
-			Parent  string `json:"parent"`
+			Avatar   *avatarDTO `json:"avatar,omitempty"`
+			Name     string     `json:"name"`
+			Role     string     `json:"role"`
+			Tool     string     `json:"tool"`
+			Runtime  string     `json:"runtime_backend"`
+			Parent   string     `json:"parent"`
+			Template string     `json:"template,omitempty"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			httpError(w, "invalid request body", http.StatusBadRequest)
 			return
 		}
-		a, err := h.svc.Create(r.Context(), agent.CreateOptions{
+		// Default role to "base" when template is provided without explicit role.
+		role := req.Role
+		if role == "" && req.Template != "" {
+			role = "base"
+		}
+		a, err := svc.Create(r.Context(), agent.CreateOptions{
 			Name:    req.Name,
-			Role:    agent.Role(req.Role),
+			Role:    agent.Role(role),
 			Tool:    req.Tool,
 			Runtime: req.Runtime,
 			Parent:  req.Parent,
@@ -249,7 +375,16 @@ func (h *AgentHandler) list(w http.ResponseWriter, r *http.Request) {
 			httpError(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		writeJSON(w, http.StatusCreated, toDTO(a))
+		dto := toDTO(a)
+		dto.Avatar = req.Avatar
+		dto.Template = req.Template
+		// Apply template: write CLAUDE.md and .mcp.json to the agent's worktree.
+		if req.Template != "" && h.tmplStore != nil {
+			if applyErr := h.applyTemplate(svc, a, req.Template, req.Avatar); applyErr != nil {
+				log.Warn("template apply failed", "agent", a.Name, "template", req.Template, "error", applyErr)
+			}
+		}
+		writeJSON(w, http.StatusCreated, dto)
 
 	default:
 		methodNotAllowed(w)
@@ -257,6 +392,7 @@ func (h *AgentHandler) list(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *AgentHandler) byName(w http.ResponseWriter, r *http.Request) {
+	svc := h.resolveSvc(r)
 	parts := strings.SplitN(strings.TrimPrefix(r.URL.Path, "/api/agents/"), "/", 2)
 	name := parts[0]
 	action := ""
@@ -270,12 +406,15 @@ func (h *AgentHandler) byName(w http.ResponseWriter, r *http.Request) {
 
 	switch {
 	case r.Method == http.MethodGet && action == "":
-		a, err := h.svc.Get(r.Context(), name)
+		a, err := svc.Get(r.Context(), name)
 		if err != nil {
 			httpError(w, err.Error(), http.StatusNotFound)
 			return
 		}
 		writeJSON(w, http.StatusOK, toDTO(a))
+
+	case action == "activity":
+		h.agentActivity(w, r, name)
 
 	case r.Method == http.MethodPost && action == "start":
 		var req struct {
@@ -283,7 +422,7 @@ func (h *AgentHandler) byName(w http.ResponseWriter, r *http.Request) {
 			ResumeID string `json:"resume_id"`
 		}
 		_ = json.NewDecoder(r.Body).Decode(&req) //nolint:errcheck // body optional
-		a, err := h.svc.Start(r.Context(), name, agent.StartOptions{
+		a, err := svc.Start(r.Context(), name, agent.StartOptions{
 			Runtime:  req.Runtime,
 			ResumeID: req.ResumeID,
 		})
@@ -294,11 +433,25 @@ func (h *AgentHandler) byName(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, toDTO(a))
 
 	case r.Method == http.MethodPost && action == "stop":
-		if err := h.svc.Stop(r.Context(), name); err != nil {
+		if err := svc.Stop(r.Context(), name); err != nil {
 			httpError(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]string{"status": "stopped"})
+
+	case r.Method == http.MethodPost && action == "archive":
+		if err := svc.Archive(r.Context(), name); err != nil {
+			httpError(w, err.Error(), http.StatusNotFound)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]string{"status": "archived"})
+
+	case r.Method == http.MethodPost && action == "unarchive":
+		if err := svc.Unarchive(r.Context(), name); err != nil {
+			httpError(w, err.Error(), http.StatusNotFound)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]string{"status": "active"})
 
 	case r.Method == http.MethodPost && action == "send":
 		var req struct {
@@ -308,7 +461,7 @@ func (h *AgentHandler) byName(w http.ResponseWriter, r *http.Request) {
 			httpError(w, "invalid request body", http.StatusBadRequest)
 			return
 		}
-		if err := h.svc.Send(r.Context(), name, req.Message); err != nil {
+		if err := svc.Send(r.Context(), name, req.Message); err != nil {
 			httpError(w, err.Error(), http.StatusBadRequest)
 			return
 		}
@@ -316,7 +469,7 @@ func (h *AgentHandler) byName(w http.ResponseWriter, r *http.Request) {
 
 	case r.Method == http.MethodDelete && action == "":
 		force := r.URL.Query().Get("force") == "true"
-		if err := h.svc.Delete(r.Context(), name, force); err != nil {
+		if err := svc.Delete(r.Context(), name, force); err != nil {
 			httpError(w, err.Error(), http.StatusBadRequest)
 			return
 		}
@@ -352,21 +505,86 @@ func (h *AgentHandler) byName(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if hasState {
-			if err := h.svc.Manager().UpdateAgentState(name, targetState, task); err != nil {
+			if err := svc.Manager().UpdateAgentState(name, targetState, task); err != nil {
 				log.Debug("hook state update skipped", "agent", name, "error", err)
 				writeJSON(w, http.StatusOK, map[string]any{"ok": true, "skipped": true, "reason": err.Error()})
 				return
 			}
 		}
 
-		// Persist raw JSON body to event log — no re-serialization, no field loss.
+		// Build structured data map from rich payload fields for the event store.
+		eventData := map[string]any{
+			"event": string(payload.Event),
+		}
+		if payload.ToolName != "" {
+			eventData["tool_name"] = payload.ToolName
+		}
+		if payload.ToolInput != nil {
+			eventData["tool_input"] = payload.ToolInput
+		}
+		if payload.Error != "" {
+			eventData["error"] = payload.Error
+		}
+		if payload.Task != "" {
+			eventData["task"] = payload.Task
+		}
+		if payload.TaskID != "" {
+			eventData["task_id"] = payload.TaskID
+		}
+		if payload.TaskTitle != "" {
+			eventData["task_title"] = payload.TaskTitle
+		}
+		if payload.Message != "" {
+			eventData["message"] = payload.Message
+		}
+		if len(payload.Metadata) > 0 {
+			eventData["metadata"] = payload.Metadata
+		}
+
+		// Persist raw JSON body to event log — raw body in Message for full
+		// observability; structured fields in Data for typed queries.
+		now := time.Now()
 		if h.events != nil {
 			_ = h.events.Append(events.Event{ //nolint:errcheck // best-effort logging
-				Timestamp: time.Now(),
+				Timestamp: now,
 				Type:      events.EventType("hook." + string(payload.Event)),
 				Agent:     name,
 				Message:   string(rawBody),
+				Data:      eventData,
 			})
+		}
+
+		// Build the SSE data payload for per-agent subscribers.
+		ssePayload := map[string]any{
+			"event":     string(payload.Event),
+			"timestamp": now.UTC().Format(time.RFC3339Nano),
+			"agent":     name,
+		}
+		if payload.ToolName != "" {
+			ssePayload["tool_name"] = payload.ToolName
+		}
+		if payload.ToolInput != nil {
+			ssePayload["tool_input"] = payload.ToolInput
+		}
+		if payload.Error != "" {
+			ssePayload["error"] = payload.Error
+		}
+		if payload.Task != "" {
+			ssePayload["task"] = payload.Task
+		}
+		if payload.TaskID != "" {
+			ssePayload["task_id"] = payload.TaskID
+		}
+		if payload.TaskTitle != "" {
+			ssePayload["task_title"] = payload.TaskTitle
+		}
+		if len(payload.Metadata) > 0 {
+			ssePayload["metadata"] = payload.Metadata
+		}
+
+		// Publish to per-agent SSE subscribers (GET /api/agents/{name}/events).
+		if sseMsg, encErr := buildHookSSEMessage(now, ssePayload); encErr == nil {
+			h.broker.publish(name, sseMsg)
 		}
 
 		// Publish raw hook JSON via SSE for web UI — same format as event log.
@@ -378,7 +596,24 @@ func (h *AgentHandler) byName(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
+		// Ralph Loop: when a turn completes (Stop → idle) or session ends,
+		// check for a loop config and auto-send the prompt.
+		// Stop fires at end of every turn (agent goes back to ❯ prompt).
+		// SessionEnd fires when the Claude Code process exits.
+		if payload.Event == agent.HookStop || payload.Event == agent.HookSessionEnd {
+			go h.maybeRalphLoop(h.resolveSvc(r), name)
+		}
+
 		writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+
+	case r.Method == http.MethodGet && action == "loop":
+		h.getLoop(w, name)
+
+	case r.Method == http.MethodPut && action == "loop":
+		h.putLoop(w, r, name)
+
+	case r.Method == http.MethodGet && action == "events":
+		h.streamHookEvents(w, r, name)
 
 	case r.Method == http.MethodGet && action == "stats":
 		// Return recent Docker stats samples for this agent.
@@ -389,7 +624,7 @@ func (h *AgentHandler) byName(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		limit = clampInt(limit, 1, 1000)
-		records, err := h.svc.Manager().QueryAgentStats(name, limit)
+		records, err := svc.Manager().QueryAgentStats(name, limit)
 		if err != nil {
 			httpInternalError(w, "stats unavailable", err)
 			return
@@ -407,7 +642,7 @@ func (h *AgentHandler) byName(w http.ResponseWriter, r *http.Request) {
 			httpError(w, "invalid request body", http.StatusBadRequest)
 			return
 		}
-		if err := h.svc.Rename(r.Context(), name, req.NewName); err != nil {
+		if err := svc.Rename(r.Context(), name, req.NewName); err != nil {
 			httpError(w, err.Error(), http.StatusBadRequest)
 			return
 		}
@@ -421,15 +656,18 @@ func (h *AgentHandler) byName(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		lines = clampInt(lines, 1, 10000)
-		output, err := h.svc.Peek(r.Context(), name, lines)
+		output, err := svc.Peek(r.Context(), name, lines)
 		if err != nil {
 			httpError(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]string{"output": output})
 
+	case r.Method == http.MethodGet && action == "last-terminal":
+		h.lastTerminal(w, r, name)
+
 	case r.Method == http.MethodGet && action == "sessions":
-		sessions, err := h.svc.Sessions(r.Context(), name)
+		sessions, err := svc.Sessions(r.Context(), name)
 		if err != nil {
 			httpError(w, err.Error(), http.StatusBadRequest)
 			return
@@ -453,7 +691,7 @@ func (h *AgentHandler) byName(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		state := agent.State(req.State)
-		if err := h.svc.Manager().UpdateAgentState(name, state, req.Message); err != nil {
+		if err := svc.Manager().UpdateAgentState(name, state, req.Message); err != nil {
 			httpError(w, err.Error(), http.StatusBadRequest)
 			return
 		}
@@ -469,16 +707,38 @@ func (h *AgentHandler) byName(w http.ResponseWriter, r *http.Request) {
 		}
 		h.terminal.HandleTerminal(w, r, name)
 
+	case r.Method == http.MethodGet && action == "config":
+		h.getAgentConfig(w, r, name)
+
+	case r.Method == http.MethodPatch && action == "config":
+		h.patchAgentConfig(w, r, name)
+
+	case action == "fork":
+		h.forkAgent(w, r, name)
+
+	case action == "mcps" || strings.HasPrefix(action, "mcps/"):
+		h.agentMCPs(w, r, name, action)
+
+	case r.Method == http.MethodGet && action == "stats-computed":
+		h.agentComputedStats(w, r, name)
+
+	case r.Method == http.MethodGet && action == "env":
+		h.getAgentEnv(w, name)
+
+	case r.Method == http.MethodPut && action == "env":
+		h.putAgentEnv(w, r, name)
+
 	default:
 		httpError(w, "not found", http.StatusNotFound)
 	}
 }
 
 func (h *AgentHandler) generateName(w http.ResponseWriter, r *http.Request) {
+	svc := h.resolveSvc(r)
 	if !requireMethod(w, r, http.MethodGet) {
 		return
 	}
-	name, err := h.svc.GenerateName(r.Context())
+	name, err := svc.GenerateName(r.Context())
 	if err != nil {
 		httpInternalError(w, "operation failed", err)
 		return
@@ -487,6 +747,7 @@ func (h *AgentHandler) generateName(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *AgentHandler) broadcast(w http.ResponseWriter, r *http.Request) {
+	svc := h.resolveSvc(r)
 	if !requireMethod(w, r, http.MethodPost) {
 		return
 	}
@@ -497,7 +758,7 @@ func (h *AgentHandler) broadcast(w http.ResponseWriter, r *http.Request) {
 		httpError(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
-	sent, err := h.svc.Broadcast(r.Context(), req.Message)
+	sent, err := svc.Broadcast(r.Context(), req.Message)
 	if err != nil {
 		httpInternalError(w, "operation failed", err)
 		return
@@ -506,6 +767,7 @@ func (h *AgentHandler) broadcast(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *AgentHandler) sendRole(w http.ResponseWriter, r *http.Request) {
+	svc := h.resolveSvc(r)
 	if !requireMethod(w, r, http.MethodPost) {
 		return
 	}
@@ -517,7 +779,7 @@ func (h *AgentHandler) sendRole(w http.ResponseWriter, r *http.Request) {
 		httpError(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
-	result, err := h.svc.SendToRole(r.Context(), req.Role, req.Message)
+	result, err := svc.SendToRole(r.Context(), req.Role, req.Message)
 	if err != nil {
 		httpInternalError(w, "operation failed", err)
 		return
@@ -526,6 +788,7 @@ func (h *AgentHandler) sendRole(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *AgentHandler) sendPattern(w http.ResponseWriter, r *http.Request) {
+	svc := h.resolveSvc(r)
 	if !requireMethod(w, r, http.MethodPost) {
 		return
 	}
@@ -537,7 +800,7 @@ func (h *AgentHandler) sendPattern(w http.ResponseWriter, r *http.Request) {
 		httpError(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
-	result, err := h.svc.SendToPattern(r.Context(), req.Pattern, req.Message)
+	result, err := svc.SendToPattern(r.Context(), req.Pattern, req.Message)
 	if err != nil {
 		httpInternalError(w, "operation failed", err)
 		return
@@ -546,15 +809,27 @@ func (h *AgentHandler) sendPattern(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *AgentHandler) stopAll(w http.ResponseWriter, r *http.Request) {
+	svc := h.resolveSvc(r)
 	if !requireMethod(w, r, http.MethodPost) {
 		return
 	}
-	stopped, err := h.svc.StopAll(r.Context())
+	stopped, err := svc.StopAll(r.Context())
 	if err != nil {
 		httpInternalError(w, "operation failed", err)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]int{"stopped": stopped})
+}
+
+// syncSessions reconciles in-memory agent state with actual runtime sessions.
+// POST /api/agents/sync
+func (h *AgentHandler) syncSessions(w http.ResponseWriter, r *http.Request) {
+	svc := h.resolveSvc(r)
+	if !requireMethod(w, r, http.MethodPost) {
+		return
+	}
+	synced, stopped := svc.SyncSessions(r.Context())
+	writeJSON(w, http.StatusOK, map[string]int{"synced": synced, "stopped": stopped})
 }
 
 // AgentHealthInfo represents health status of an agent.
@@ -570,6 +845,7 @@ type AgentHealthInfo struct {
 }
 
 func (h *AgentHandler) health(w http.ResponseWriter, r *http.Request) {
+	svc := h.resolveSvc(r)
 	if !requireMethod(w, r, http.MethodGet) {
 		return
 	}
@@ -581,7 +857,7 @@ func (h *AgentHandler) health(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	agents, err := h.svc.List(r.Context(), agent.ListOptions{})
+	agents, err := svc.List(r.Context(), agent.ListOptions{})
 	if err != nil {
 		httpInternalError(w, "list agents", err)
 		return
@@ -590,7 +866,7 @@ func (h *AgentHandler) health(w http.ResponseWriter, r *http.Request) {
 	// Optionally filter to a single agent.
 	nameFilter := r.URL.Query().Get("agent")
 
-	mgr := h.svc.Manager()
+	mgr := svc.Manager()
 	results := make([]AgentHealthInfo, 0, len(agents))
 	for _, a := range agents {
 		if nameFilter != "" && a.Name != nameFilter {
@@ -632,9 +908,143 @@ func (h *AgentHandler) health(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, results)
 }
 
+// buildHookSSEMessage formats a single hook event as an SSE frame:
+//
+//	id: <timestamp_ms>
+//	event: hook
+//	data: <json>
+func buildHookSSEMessage(ts time.Time, payload map[string]any) ([]byte, error) {
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return nil, err
+	}
+	id := ts.UnixMilli()
+	msg := fmt.Sprintf("id: %d\nevent: hook\ndata: %s\n\n", id, data)
+	return []byte(msg), nil
+}
+
+// streamHookEvents serves GET /api/agents/{name}/events as an SSE stream.
+// It replays the last 50 hook events from the event store, then tails new
+// events as they arrive via the per-agent broker.
+func (h *AgentHandler) streamHookEvents(w http.ResponseWriter, r *http.Request, name string) {
+	svc := h.resolveSvc(r)
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		httpError(w, "streaming not supported", http.StatusInternalServerError)
+		return
+	}
+
+	// Verify agent exists.
+	if _, err := svc.Get(r.Context(), name); err != nil {
+		httpError(w, err.Error(), http.StatusNotFound)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("X-Accel-Buffering", "no")
+
+	// Subscribe before replaying history so we don't miss events that arrive
+	// between the replay query and the subscription being established.
+	sub := h.broker.subscribe(name, r.Context().Done())
+	defer h.broker.unsubscribe(name, sub)
+
+	// Replay last 50 hook events from the event store.
+	if h.events != nil {
+		past, err := h.events.ReadByAgent(name)
+		if err == nil {
+			// Filter to hook.* events only; take the last 50.
+			const replayLimit = 50
+			var hookEvts []events.Event
+			for i := range past {
+				if strings.HasPrefix(string(past[i].Type), "hook.") {
+					hookEvts = append(hookEvts, past[i])
+				}
+			}
+			if len(hookEvts) > replayLimit {
+				hookEvts = hookEvts[len(hookEvts)-replayLimit:]
+			}
+			for _, ev := range hookEvts {
+				payload := map[string]any{
+					"event":     strings.TrimPrefix(string(ev.Type), "hook."),
+					"timestamp": ev.Timestamp.UTC().Format(time.RFC3339Nano),
+					"agent":     name,
+				}
+				// Merge structured data fields into payload.
+				for k, v := range ev.Data {
+					if k != "event" { // avoid duplicate
+						payload[k] = v
+					}
+				}
+				if msg, encErr := buildHookSSEMessage(ev.Timestamp, payload); encErr == nil {
+					_, _ = w.Write(msg) //nolint:errcheck
+				}
+			}
+			flusher.Flush()
+		}
+	}
+
+	keepalive := time.NewTicker(30 * time.Second)
+	defer keepalive.Stop()
+
+	for {
+		select {
+		case <-r.Context().Done():
+			return
+		case msg, ok := <-sub.ch:
+			if !ok {
+				return
+			}
+			_, _ = w.Write(msg) //nolint:errcheck
+			flusher.Flush()
+		case <-keepalive.C:
+			fmt.Fprint(w, ": keepalive\n\n") //nolint:errcheck // SSE comment
+			flusher.Flush()
+		}
+	}
+}
+
+// lastTerminal serves GET /api/agents/{name}/last-terminal.
+// It returns the last captured terminal output for an agent, which is useful
+// for inspecting the final state of stopped agents.
+func (h *AgentHandler) lastTerminal(w http.ResponseWriter, r *http.Request, name string) {
+	svc := h.resolveSvc(r)
+	if !requireMethod(w, r, http.MethodGet) {
+		return
+	}
+	lines := 500
+	if lStr := r.URL.Query().Get("lines"); lStr != "" {
+		if n, err := strconv.Atoi(lStr); err == nil && n > 0 {
+			lines = n
+		}
+	}
+	lines = clampInt(lines, 1, 10000)
+
+	output, err := svc.Peek(r.Context(), name, lines)
+	if err != nil {
+		httpError(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	a, agentErr := svc.Get(r.Context(), name)
+	resp := map[string]any{
+		"output": output,
+		"agent":  name,
+	}
+	if agentErr == nil {
+		resp["state"] = string(a.State)
+		if a.StoppedAt != nil {
+			resp["stopped_at"] = a.StoppedAt.UTC().Format(time.RFC3339)
+		}
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
 // streamOutput streams agent terminal output as SSE events.
 // Polls capture-pane every second and sends new lines as events.
 func (h *AgentHandler) streamOutput(w http.ResponseWriter, r *http.Request, name string) {
+	svc := h.resolveSvc(r)
 	flusher, ok := w.(http.Flusher)
 	if !ok {
 		httpError(w, "streaming not supported", http.StatusInternalServerError)
@@ -642,7 +1052,7 @@ func (h *AgentHandler) streamOutput(w http.ResponseWriter, r *http.Request, name
 	}
 
 	// Verify agent exists
-	if _, err := h.svc.Get(r.Context(), name); err != nil {
+	if _, err := svc.Get(r.Context(), name); err != nil {
 		httpError(w, err.Error(), http.StatusNotFound)
 		return
 	}
@@ -653,7 +1063,7 @@ func (h *AgentHandler) streamOutput(w http.ResponseWriter, r *http.Request, name
 	w.Header().Set("X-Accel-Buffering", "no")
 
 	// Send initial snapshot
-	output, err := h.svc.Peek(r.Context(), name, 50)
+	output, err := svc.Peek(r.Context(), name, 50)
 	if err == nil && output != "" {
 		data, _ := json.Marshal(map[string]string{"output": output})
 		fmt.Fprintf(w, "data: %s\n\n", data) //nolint:errcheck
@@ -674,7 +1084,7 @@ func (h *AgentHandler) streamOutput(w http.ResponseWriter, r *http.Request, name
 		case <-r.Context().Done():
 			return
 		case <-ticker.C:
-			current, peekErr := h.svc.Peek(r.Context(), name, 200)
+			current, peekErr := svc.Peek(r.Context(), name, 200)
 			if peekErr != nil {
 				continue
 			}
@@ -687,5 +1097,473 @@ func (h *AgentHandler) streamOutput(w http.ResponseWriter, r *http.Request, name
 				lastLen = len(current)
 			}
 		}
+	}
+}
+
+// applyTemplate writes template files (CLAUDE.md and .mcp.json) to the agent's
+// worktree. Called after successful agent creation when a template name is provided.
+// svc is the per-request resolved agent service used for worktree-path fallback.
+func (h *AgentHandler) applyTemplate(svc *agent.AgentService, a *agent.Agent, tmplName string, _ *avatarDTO) error {
+	tmpl, prompt, err := h.tmplStore.Get(tmplName)
+	if err != nil {
+		return fmt.Errorf("load template %q: %w", tmplName, err)
+	}
+
+	// Determine worktree path: prefer stored WorktreeDir, fall back to computed.
+	wtDir := a.WorktreeDir
+	if wtDir == "" && svc != nil {
+		wtDir = svc.Manager().WorktreePath(a.Name)
+	}
+	if wtDir == "" {
+		return fmt.Errorf("worktree path not available for agent %q", a.Name)
+	}
+
+	if err := os.MkdirAll(wtDir, 0750); err != nil {
+		return fmt.Errorf("ensure worktree dir: %w", err)
+	}
+
+	// Write system prompt as CLAUDE.md when the template has one.
+	if prompt != "" {
+		claudePath := filepath.Join(wtDir, "CLAUDE.md")
+		if writeErr := os.WriteFile(claudePath, []byte(prompt), 0600); writeErr != nil { //nolint:gosec // trusted workspace path
+			return fmt.Errorf("write CLAUDE.md: %w", writeErr)
+		}
+		log.Debug("template CLAUDE.md written", "agent", a.Name, "template", tmplName)
+	}
+
+	// Write .mcp.json from template's MCPs list.
+	if len(tmpl.MCPs) > 0 {
+		type mcpEntry struct {
+			URL  string `json:"url,omitempty"`
+			Type string `json:"type,omitempty"`
+		}
+		type mcpFile struct {
+			MCPServers map[string]mcpEntry `json:"mcpServers"`
+		}
+		cfg := mcpFile{MCPServers: make(map[string]mcpEntry, len(tmpl.MCPs))}
+		for _, name := range tmpl.MCPs {
+			cfg.MCPServers[name] = mcpEntry{}
+		}
+		b, marshalErr := json.MarshalIndent(cfg, "", "  ")
+		if marshalErr != nil {
+			return fmt.Errorf("marshal .mcp.json: %w", marshalErr)
+		}
+		mcpPath := filepath.Join(wtDir, ".mcp.json")
+		if writeErr := os.WriteFile(mcpPath, b, 0600); writeErr != nil { //nolint:gosec // trusted workspace path
+			return fmt.Errorf("write .mcp.json: %w", writeErr)
+		}
+		log.Debug("template .mcp.json written", "agent", a.Name, "template", tmplName, "mcps", len(tmpl.MCPs))
+	}
+
+	return nil
+}
+
+// ── MCP management endpoints ─────────────────────────────────────────────────
+
+// mcpServerDTO is the JSON representation of a single MCP server entry.
+type mcpServerDTO struct { //nolint:govet // field order matches JSON/API contract
+	Env     map[string]string `json:"env,omitempty"`
+	Name    string            `json:"name"`
+	URL     string            `json:"url,omitempty"`
+	Command string            `json:"command,omitempty"`
+	Type    string            `json:"type,omitempty"`
+}
+
+// agentMCPFile is the on-disk representation of .mcp.json.
+type agentMCPFile struct {
+	MCPServers map[string]agentMCPEntry `json:"mcpServers"`
+}
+
+type agentMCPEntry struct {
+	Env     map[string]string `json:"env,omitempty"`
+	Command string            `json:"command,omitempty"`
+	URL     string            `json:"url,omitempty"`
+	Type    string            `json:"type,omitempty"`
+	Args    []string          `json:"args,omitempty"`
+}
+
+// agentMCPs dispatches GET/POST /api/agents/{name}/mcps and
+// DELETE /api/agents/{name}/mcps/{mcp}.
+func (h *AgentHandler) agentMCPs(w http.ResponseWriter, r *http.Request, agentName, action string) {
+	svc := h.resolveSvc(r)
+	// action is either "mcps" or "mcps/<mcp-server-name>"
+	mcpName := strings.TrimPrefix(action, "mcps/")
+	if mcpName == "mcps" {
+		mcpName = "" // bare "mcps" — no sub-resource
+	}
+
+	a, err := svc.Get(r.Context(), agentName)
+	if err != nil {
+		httpError(w, err.Error(), http.StatusNotFound)
+		return
+	}
+
+	wtDir := a.WorktreeDir
+	if wtDir == "" {
+		wtDir = svc.Manager().WorktreePath(agentName)
+	}
+
+	switch {
+	case r.Method == http.MethodGet && mcpName == "":
+		h.listAgentMCPs(w, r, a, wtDir)
+
+	case r.Method == http.MethodPost && mcpName == "":
+		h.addAgentMCP(w, r, a, wtDir)
+
+	case r.Method == http.MethodDelete && mcpName != "":
+		h.deleteAgentMCP(w, r, wtDir, mcpName)
+
+	default:
+		httpError(w, "not found", http.StatusNotFound)
+	}
+}
+
+// readMCPFile reads .mcp.json from the given directory.
+// Returns an empty file struct when the file does not exist.
+func readMCPFile(wtDir string) (agentMCPFile, error) {
+	var cfg agentMCPFile
+	cfg.MCPServers = make(map[string]agentMCPEntry)
+
+	mcpPath := filepath.Join(wtDir, ".mcp.json")
+	data, err := os.ReadFile(mcpPath) //nolint:gosec // trusted workspace path
+	if err != nil {
+		if os.IsNotExist(err) {
+			return cfg, nil
+		}
+		return cfg, fmt.Errorf("read .mcp.json: %w", err)
+	}
+	if jsonErr := json.Unmarshal(data, &cfg); jsonErr != nil {
+		return cfg, fmt.Errorf("parse .mcp.json: %w", jsonErr)
+	}
+	if cfg.MCPServers == nil {
+		cfg.MCPServers = make(map[string]agentMCPEntry)
+	}
+	return cfg, nil
+}
+
+// writeMCPFile persists cfg to .mcp.json in wtDir.
+func writeMCPFile(wtDir string, cfg agentMCPFile) error {
+	if err := os.MkdirAll(wtDir, 0750); err != nil {
+		return fmt.Errorf("ensure worktree dir: %w", err)
+	}
+	b, err := json.MarshalIndent(cfg, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshal .mcp.json: %w", err)
+	}
+	mcpPath := filepath.Join(wtDir, ".mcp.json")
+	if writeErr := os.WriteFile(mcpPath, b, 0600); writeErr != nil { //nolint:gosec // trusted path
+		return fmt.Errorf("write .mcp.json: %w", writeErr)
+	}
+	return nil
+}
+
+// listAgentMCPs handles GET /api/agents/{name}/mcps.
+func (h *AgentHandler) listAgentMCPs(w http.ResponseWriter, _ *http.Request, a *agent.Agent, wtDir string) {
+	var servers []mcpServerDTO
+
+	if wtDir != "" {
+		cfg, err := readMCPFile(wtDir)
+		if err != nil {
+			httpInternalError(w, "read mcp config", err)
+			return
+		}
+		for name, entry := range cfg.MCPServers {
+			servers = append(servers, mcpServerDTO{
+				Name:    name,
+				URL:     entry.URL,
+				Command: entry.Command,
+				Type:    entry.Type,
+				Env:     entry.Env,
+			})
+		}
+	}
+
+	// Fall back to role-resolved MCP servers if .mcp.json is empty.
+	if len(servers) == 0 && h.ws != nil && h.ws.RoleManager != nil && string(a.Role) != "" {
+		if resolved, resolveErr := h.ws.RoleManager.ResolveRole(string(a.Role)); resolveErr == nil {
+			for _, name := range resolved.MCPServers {
+				servers = append(servers, mcpServerDTO{Name: name})
+			}
+		}
+	}
+
+	if servers == nil {
+		servers = []mcpServerDTO{}
+	}
+	writeJSON(w, http.StatusOK, servers)
+}
+
+// addAgentMCP handles POST /api/agents/{name}/mcps.
+func (h *AgentHandler) addAgentMCP(w http.ResponseWriter, r *http.Request, a *agent.Agent, wtDir string) {
+	if wtDir == "" {
+		httpError(w, "worktree path not available for this agent", http.StatusUnprocessableEntity)
+		return
+	}
+
+	var req struct {
+		Env     map[string]string `json:"env,omitempty"`
+		Name    string            `json:"name"`
+		URL     string            `json:"url,omitempty"`
+		Command string            `json:"command,omitempty"`
+		Type    string            `json:"type,omitempty"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		httpError(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+	if req.Name == "" {
+		httpError(w, "name is required", http.StatusBadRequest)
+		return
+	}
+
+	cfg, err := readMCPFile(wtDir)
+	if err != nil {
+		httpInternalError(w, "read mcp config", err)
+		return
+	}
+
+	cfg.MCPServers[req.Name] = agentMCPEntry{
+		URL:     req.URL,
+		Command: req.Command,
+		Type:    req.Type,
+		Env:     req.Env,
+	}
+
+	if writeErr := writeMCPFile(wtDir, cfg); writeErr != nil {
+		httpInternalError(w, "write mcp config", writeErr)
+		return
+	}
+
+	// For tmux agents running claude, also run the provider's MCP add command
+	// so it registers in the claude CLI config (not just .mcp.json).
+	if a != nil && a.RuntimeBackend != "docker" && strings.EqualFold(a.Tool, "claude") {
+		mcpName := req.Name
+		worktreeDir := wtDir
+		go func() {
+			cmd := exec.CommandContext(context.Background(), "claude", "mcp", "add", mcpName) //nolint:gosec // mcpName validated above
+			cmd.Dir = worktreeDir
+			if out, cmdErr := cmd.CombinedOutput(); cmdErr != nil {
+				log.Warn("mcp add command failed", "agent", a.Name, "mcp", mcpName, "error", cmdErr, "output", string(out))
+			} else {
+				log.Info("mcp add command succeeded", "agent", a.Name, "mcp", mcpName)
+			}
+		}()
+	}
+
+	writeJSON(w, http.StatusCreated, mcpServerDTO{
+		Name:    req.Name,
+		URL:     req.URL,
+		Command: req.Command,
+		Type:    req.Type,
+		Env:     req.Env,
+	})
+}
+
+// deleteAgentMCP handles DELETE /api/agents/{name}/mcps/{mcp}.
+func (h *AgentHandler) deleteAgentMCP(w http.ResponseWriter, _ *http.Request, wtDir, mcpName string) {
+	if wtDir == "" {
+		httpError(w, "worktree path not available for this agent", http.StatusUnprocessableEntity)
+		return
+	}
+
+	cfg, err := readMCPFile(wtDir)
+	if err != nil {
+		httpInternalError(w, "read mcp config", err)
+		return
+	}
+
+	if _, exists := cfg.MCPServers[mcpName]; !exists {
+		httpError(w, fmt.Sprintf("MCP server %q not found", mcpName), http.StatusNotFound)
+		return
+	}
+
+	delete(cfg.MCPServers, mcpName)
+
+	if writeErr := writeMCPFile(wtDir, cfg); writeErr != nil {
+		httpInternalError(w, "write mcp config", writeErr)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// ── Env var persistence ───────────────────────────────────────────────────────
+
+// envVarEntry is a single key/value environment variable entry.
+type envVarEntry struct {
+	Key   string `json:"key"`
+	Value string `json:"value"`
+}
+
+// envPath returns the path to env.json for the named agent.
+func (h *AgentHandler) envPath(agentName string) string {
+	if h.ws == nil {
+		return ""
+	}
+	return filepath.Join(h.ws.StateDir(), "agents", agentName, "env.json")
+}
+
+// getAgentEnv handles GET /api/agents/{name}/env.
+func (h *AgentHandler) getAgentEnv(w http.ResponseWriter, agentName string) {
+	p := h.envPath(agentName)
+	if p == "" {
+		writeJSON(w, http.StatusOK, []envVarEntry{})
+		return
+	}
+	data, err := os.ReadFile(p) //nolint:gosec // p is constructed from trusted workspace StateDir + agent name
+	if err != nil {
+		if os.IsNotExist(err) {
+			writeJSON(w, http.StatusOK, []envVarEntry{})
+			return
+		}
+		httpInternalError(w, "read env config", err)
+		return
+	}
+	var vars []envVarEntry
+	if jsonErr := json.Unmarshal(data, &vars); jsonErr != nil {
+		writeJSON(w, http.StatusOK, []envVarEntry{})
+		return
+	}
+	if vars == nil {
+		vars = []envVarEntry{}
+	}
+	writeJSON(w, http.StatusOK, vars)
+}
+
+// putAgentEnv handles PUT /api/agents/{name}/env.
+func (h *AgentHandler) putAgentEnv(w http.ResponseWriter, r *http.Request, agentName string) {
+	var vars []envVarEntry
+	if err := json.NewDecoder(r.Body).Decode(&vars); err != nil {
+		httpError(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+	if vars == nil {
+		vars = []envVarEntry{}
+	}
+
+	p := h.envPath(agentName)
+	if p == "" {
+		httpError(w, "workspace not available", http.StatusInternalServerError)
+		return
+	}
+
+	if err := os.MkdirAll(filepath.Dir(p), 0o750); err != nil { //nolint:gosec // trusted workspace path
+		httpInternalError(w, "create env dir", err)
+		return
+	}
+
+	data, err := json.MarshalIndent(vars, "", "  ")
+	if err != nil {
+		httpInternalError(w, "marshal env config", err)
+		return
+	}
+	if writeErr := os.WriteFile(p, data, 0o600); writeErr != nil { //nolint:gosec // trusted workspace path
+		httpInternalError(w, "write env config", writeErr)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, vars)
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Ralph Loop — server-side auto-reprompt on agent stop
+// ═══════════════════════════════════════════════════════════════════════════
+
+type loopConfig struct {
+	Prompt  string `json:"prompt"`
+	Enabled bool   `json:"enabled"`
+}
+
+func (h *AgentHandler) loopPath(agentName string) string {
+	if h.ws == nil {
+		return ""
+	}
+	return filepath.Join(h.ws.StateDir(), "agents", agentName, "loop.json")
+}
+
+func (h *AgentHandler) readLoop(agentName string) loopConfig {
+	p := h.loopPath(agentName)
+	if p == "" {
+		return loopConfig{}
+	}
+	data, err := os.ReadFile(p) //nolint:gosec // p is built from h.loopPath(agentName) under the workspace data dir
+	if err != nil {
+		return loopConfig{}
+	}
+	var cfg loopConfig
+	if err := json.Unmarshal(data, &cfg); err != nil {
+		return loopConfig{}
+	}
+	return cfg
+}
+
+func (h *AgentHandler) getLoop(w http.ResponseWriter, agentName string) {
+	writeJSON(w, http.StatusOK, h.readLoop(agentName))
+}
+
+func (h *AgentHandler) putLoop(w http.ResponseWriter, r *http.Request, agentName string) {
+	var cfg loopConfig
+	if err := json.NewDecoder(r.Body).Decode(&cfg); err != nil {
+		httpError(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	p := h.loopPath(agentName)
+	if p == "" {
+		httpError(w, "workspace not available", http.StatusInternalServerError)
+		return
+	}
+
+	if err := os.MkdirAll(filepath.Dir(p), 0o750); err != nil {
+		httpInternalError(w, "create loop dir", err)
+		return
+	}
+
+	data, err := json.MarshalIndent(cfg, "", "  ")
+	if err != nil {
+		httpInternalError(w, "marshal loop config", err)
+		return
+	}
+	if err := os.WriteFile(p, data, 0o600); err != nil {
+		httpInternalError(w, "write loop config", err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, cfg)
+}
+
+// maybeRalphLoop checks if the agent has a loop enabled and sends the prompt.
+// Called asynchronously after a stop/session-end hook. svc is the per-request
+// resolved agent service captured at the hook call site (Track A: must not
+// use h.svc closure, which is scoped to the launch-time workspace).
+func (h *AgentHandler) maybeRalphLoop(svc *agent.AgentService, agentName string) {
+	cfg := h.readLoop(agentName)
+	if !cfg.Enabled || strings.TrimSpace(cfg.Prompt) == "" {
+		return
+	}
+	if svc == nil {
+		log.Warn("ralph loop: no agent service resolved", "agent", agentName)
+		return
+	}
+
+	// Small delay — let the agent fully settle before re-prompting.
+	time.Sleep(3 * time.Second)
+
+	ctx := context.Background()
+	if err := svc.Send(ctx, agentName, cfg.Prompt); err != nil {
+		log.Warn("ralph loop: send failed", "agent", agentName, "error", err)
+		return
+	}
+
+	log.Info("ralph loop: re-prompted agent", "agent", agentName)
+
+	// Log the loop event.
+	if h.events != nil {
+		_ = h.events.Append(events.Event{ //nolint:errcheck
+			Timestamp: time.Now(),
+			Type:      "ralph.loop",
+			Agent:     agentName,
+			Message:   cfg.Prompt,
+		})
 	}
 }

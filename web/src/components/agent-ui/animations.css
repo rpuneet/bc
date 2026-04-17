@@ -1,0 +1,91 @@
+/* Agent shape animations — the shape is the agent's "head", it reacts to state + hook events */
+
+/* ── State-based (continuous) ── */
+
+/* Idle: slow gentle blink */
+@keyframes agent-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+.agent-anim-idle {
+  animation: agent-blink 3s ease-in-out infinite;
+}
+
+/* Working: continuous rotation */
+@keyframes agent-rotate {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+.agent-anim-working {
+  animation: agent-rotate 2s linear infinite;
+}
+
+/* Stuck: amber wobble */
+@keyframes agent-wobble {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(-8deg); }
+  75% { transform: rotate(8deg); }
+}
+.agent-anim-stuck {
+  animation: agent-wobble 1.5s ease-in-out infinite;
+  filter: hue-rotate(-20deg) brightness(1.2);
+}
+
+/* Error: red shake */
+@keyframes agent-shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-3px); }
+  40% { transform: translateX(3px); }
+  60% { transform: translateX(-2px); }
+  80% { transform: translateX(2px); }
+}
+.agent-anim-error {
+  animation: agent-shake 0.5s ease-in-out infinite;
+  filter: hue-rotate(-60deg) saturate(2);
+}
+
+/* Waiting: purple glow pulse */
+@keyframes agent-glow {
+  0%, 100% { transform: scale(1); filter: drop-shadow(0 0 0 transparent); }
+  50% { transform: scale(1.1); filter: drop-shadow(0 0 6px rgba(168, 85, 247, 0.6)); }
+}
+.agent-anim-waiting {
+  animation: agent-glow 1.5s ease-in-out infinite;
+}
+
+/* Stopped: grayscale + dim */
+.agent-anim-stopped {
+  opacity: 0.4;
+  filter: grayscale(1);
+}
+
+/* ── Hook event one-shots (applied via JS, removed after animationend) ──
+ * These classes are intentionally not applied statically. They will be added
+ * programmatically by the AgentIcon component when hook events arrive via SSE,
+ * and removed again on `animationend`. Kept here for future implementation. */
+
+@keyframes agent-tool-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+.agent-event-tooluse {
+  animation: agent-tool-spin 0.4s ease-out;
+}
+
+@keyframes agent-task-pop {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.3); }
+  100% { transform: scale(1); }
+}
+.agent-event-taskcreate {
+  animation: agent-task-pop 0.5s ease-out;
+}
+
+@keyframes agent-breathe {
+  0% { transform: scale(1); }
+  40% { transform: scale(0.85); }
+  100% { transform: scale(1); }
+}
+.agent-event-prompt {
+  animation: agent-breathe 0.4s ease-out;
+}

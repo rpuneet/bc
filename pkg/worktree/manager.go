@@ -1,5 +1,8 @@
 // Package worktree manages git worktree lifecycle for agent isolation.
-// Each agent gets its own worktree at .bc/agents/<name>/worktree/
+// Each agent gets its own worktree at <DataDir>/agents/<name>/bc-<ws>-<name>/.
+// Before M11 the worktrees lived under <repoRoot>/.bc/agents/...; after
+// M11 they move to ~/.bc/workspaces/<id>/agents/... so the project
+// directory stays a pristine git repo.
 package worktree
 
 import (
@@ -21,17 +24,34 @@ type Manager struct {
 	mu           sync.Mutex
 }
 
-// NewManager creates a new worktree manager rooted at the given repository path.
-// It reads BC_HOST_WORKSPACE to determine the host base name for worktree naming.
+// NewManager creates a worktree manager whose worktrees live under the
+// legacy <repoRoot>/.bc/agents/ directory. Prefer NewManagerWithDataDir
+// for M11+ layouts where runtime state lives at ~/.bc/workspaces/<id>/.
+//
+// This constructor is kept for older call sites and tests that still
+// operate on the legacy layout.
 func NewManager(repoRoot string) *Manager {
+	return NewManagerWithDataDir(repoRoot, filepath.Join(repoRoot, ".bc"))
+}
+
+// NewManagerWithDataDir creates a worktree manager rooted at repoRoot
+// (the project git repo) whose worktrees live under <dataDir>/agents/.
+// This is the M11 constructor: dataDir is the per-workspace runtime
+// directory (~/.bc/workspaces/<id>/) and repoRoot stays untouched.
+//
+// Reads BC_HOST_WORKSPACE to determine the host base name for worktree
+// naming so containers mounting the host repo get the expected label.
+func NewManagerWithDataDir(repoRoot, dataDir string) *Manager {
 	hostBase := filepath.Base(repoRoot)
 	if hp := os.Getenv("BC_HOST_WORKSPACE"); hp != "" {
 		hostBase = filepath.Base(hp)
 	}
-
+	if dataDir == "" {
+		dataDir = filepath.Join(repoRoot, ".bc")
+	}
 	return &Manager{
 		repoRoot:     repoRoot,
-		agentsDir:    filepath.Join(repoRoot, ".bc", "agents"),
+		agentsDir:    filepath.Join(dataDir, "agents"),
 		hostBaseName: hostBase,
 	}
 }

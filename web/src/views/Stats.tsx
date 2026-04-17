@@ -12,7 +12,10 @@ import type {
 import { usePolling } from "../hooks/usePolling";
 import { LoadingSkeleton } from "../components/LoadingSkeleton";
 import { EmptyState } from "../components/EmptyState";
+import { Panel, Empty, fmtTime, fmtBytes, fmtTokens } from "../components/shared/stats-primitives";
 
+import { useHeaderSlot } from "../context/HeaderSlotContext";
+import { TabHeaderTitle } from "../components/Header";
 // ── Model Pricing ───────────────────────────────────────────────────────────────
 
 const MODEL_PRICING: Record<string, { input: number; output: number }> = {
@@ -51,46 +54,16 @@ const TICK_STYLE = { fill: "var(--color-bc-muted)", fontSize: 10 };
 
 // ── Helpers ─────────────────────────────────────────────────────────────────────
 
-const fmtTime = (iso: string) => {
-  try { return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }); }
-  catch { return iso; }
-};
-const fmtBytes = (b: number) => {
-  if (!b) return "0 B";
-  const u = ["B", "KB", "MB", "GB", "TB"];
-  const i = Math.floor(Math.log(b) / Math.log(1024));
-  return `${(b / Math.pow(1024, i)).toFixed(1)} ${u[i]}`;
-};
-const fmtTokens = (n: number) => {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
-  return String(n);
-};
-const fmtCost = (n: number) => {
-  if (n >= 1_000) return `$${(n / 1_000).toFixed(1)}K`;
-  return `$${n.toFixed(2)}`;
-};
+// Use the shared formatter so large totals get comma-grouped instead
+// of being collapsed to "$X.XK". The audit flagged three divergent
+// cost formatters (utils/format.formatCost, StatsTab.fmtCost, and this
+// one); this module now delegates to the utility.
+import { formatCost } from "../utils/format";
+const fmtCost = (n: number) => formatCost(n);
 const trunc = (s: string, n: number) => s.length > n ? s.slice(0, n) + "\u2026" : s;
 
 function fromParam(seconds: number): string {
   return new Date(Date.now() - seconds * 1000).toISOString();
-}
-
-// ── Primitives ──────────────────────────────────────────────────────────────────
-
-function Panel({ title, children, className }: { title: string; children: React.ReactNode; className?: string }) {
-  return (
-    <div className={`rounded border border-bc-border bg-bc-surface overflow-hidden ${className ?? ""}`}>
-      <div className="flex items-center justify-between px-3 py-1.5 border-b border-bc-border bg-bc-bg/50">
-        <span className="text-[11px] font-medium text-bc-muted uppercase tracking-wider">{title}</span>
-      </div>
-      <div className="p-3">{children}</div>
-    </div>
-  );
-}
-
-function Empty({ msg = "No data yet" }: { msg?: string }) {
-  return <div className="flex items-center justify-center h-[200px] text-sm text-bc-muted">{msg}</div>;
 }
 
 // ── Data ────────────────────────────────────────────────────────────────────────
@@ -114,6 +87,8 @@ type SortKey = "name" | "role" | "provider" | "state" | "cpu" | "mem" | "tokens"
 // ── Main ────────────────────────────────────────────────────────────────────────
 
 export function Stats() {
+  useHeaderSlot({ title: <TabHeaderTitle>Metrics</TabHeaderTitle> });
+
   const navigate = useNavigate();
   const [range, setRange] = useState(0);
   const [sortKey, setSortKey] = useState<SortKey>("cost");
@@ -240,9 +215,8 @@ export function Stats() {
 
   return (
     <div className="p-6 space-y-4">
-      {/* Header + time range */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-lg font-semibold">System Metrics</h1>
+      {/* Time range selector (title lives in the top-bar chip) */}
+      <div className="flex items-center justify-end">
         <div className="flex gap-1">
           {RANGES.map((r, i) => (
             <button key={r.label} type="button" onClick={() => setRange(i)}

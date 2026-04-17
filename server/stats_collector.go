@@ -1,0 +1,375 @@
+// stats_collector.go — per-workspace background metric collectors.
+//
+// Split out of internal/cmd/serve.go in phase M2 so the factory in
+// build_services.go can start these goroutines as part of a
+// WorkspaceServices lifecycle. Behavior is identical to the prior
+// implementation; only the package boundary changed.
+package server
+
+import (
+	"bufio"
+	"bytes"
+	"context"
+	"encoding/json"
+	"os/exec"
+	"path/filepath"
+	"strconv"
+	"strings"
+	"time"
+
+	bcagent "github.com/rpuneet/bc/pkg/agent"
+	bccontainer "github.com/rpuneet/bc/pkg/container"
+	"github.com/rpuneet/bc/pkg/log"
+	bcstats "github.com/rpuneet/bc/pkg/stats"
+	bctoken "github.com/rpuneet/bc/pkg/token"
+	bcworkspace "github.com/rpuneet/bc/pkg/workspace"
+)
+
+// tmuxSampler is shared across sampling ticks so the one-time
+// "no per-process network stats on this platform" warning stays
+// one-time across the life of the collector.
+var tmuxSampler = bcstats.NewTmuxSampler(bcstats.DefaultTmuxProcRunner{})
+
+// dockerStatsEntry represents one line of `docker stats --no-stream --format '{{json .}}'`.
+type dockerStatsEntry struct {
+	Container string `json:"Container"` // container ID
+	Name      string `json:"Name"`      // container name
+	CPUPerc   string `json:"CPUPerc"`
+	MemUsage  string `json:"MemUsage"`
+	MemPerc   string `json:"MemPerc"`
+	NetIO     string `json:"NetIO"`
+	BlockIO   string `json:"BlockIO"`
+}
+
+// runStatsCollector periodically samples system and agent metrics into TimescaleDB.
+//
+//nolint:gocyclo // Single pass over docker stats output; splitting obscures flow.
+func runStatsCollector(ctx context.Context, ss *bcstats.Store, agents *bcagent.AgentService, ws *bcworkspace.Workspace) {
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+
+	tokenWatermarks := make(map[string]time.Time)
+
+	agentLookup := func() map[string]*bcagent.Agent {
+		if agents == nil {
+			return nil
+		}
+		list, err := agents.List(ctx, bcagent.ListOptions{})
+		if err != nil {
+			log.Debug("stats: agent list failed", "error", err)
+			return nil
+		}
+		m := make(map[string]*bcagent.Agent, len(list))
+		for _, a := range list {
+			m[a.Name] = a
+		}
+		return m
+	}
+
+	for {
+		select {
+		case <-ticker.C:
+			now := time.Now()
+
+			entries := collectDockerStats(ctx)
+			agentsByName := agentLookup()
+
+			for _, e := range entries {
+				cpu := parsePercent(e.CPUPerc)
+				memUsed, memLimit := parseMemUsage(e.MemUsage)
+				memPct := parsePercent(e.MemPerc)
+				netRx, netTx := parseIOPair(e.NetIO)
+				diskR, diskW := parseIOPair(e.BlockIO)
+
+				name := e.Name
+				switch {
+				case isSystemContainer(name):
+					if err := ss.RecordSystem(ctx, bcstats.SystemMetric{
+						Time:           now,
+						SystemName:     name,
+						CPUPercent:     cpu,
+						MemUsedBytes:   memUsed,
+						MemLimitBytes:  memLimit,
+						MemPercent:     memPct,
+						NetRxBytes:     netRx,
+						NetTxBytes:     netTx,
+						DiskReadBytes:  diskR,
+						DiskWriteBytes: diskW,
+					}); err != nil {
+						log.Debug("stats: record system metric", "name", name, "error", err)
+					}
+				case isAgentContainer(name):
+					agentName := extractAgentName(name)
+					var role, tool, state string
+					if a, ok := agentsByName[agentName]; ok {
+						role = string(a.Role)
+						tool = a.Tool
+						state = string(a.State)
+					}
+					if err := ss.RecordAgent(ctx, bcstats.AgentMetric{
+						Time:           now,
+						AgentName:      agentName,
+						Role:           role,
+						Tool:           tool,
+						Runtime:        "docker",
+						State:          state,
+						CPUPercent:     cpu,
+						MemUsedBytes:   memUsed,
+						MemLimitBytes:  memLimit,
+						MemPercent:     memPct,
+						NetRxBytes:     netRx,
+						NetTxBytes:     netTx,
+						DiskReadBytes:  diskR,
+						DiskWriteBytes: diskW,
+					}); err != nil {
+						log.Debug("stats: record agent metric", "agent", agentName, "error", err)
+					}
+				}
+			}
+
+			for agentName, a := range agentsByName {
+				if a.RuntimeBackend != "tmux" || (a.State != "working" && a.State != "idle") {
+					continue
+				}
+				metric, psErr := collectTmuxAgentStats(ctx, agentName, a)
+				if psErr != nil {
+					log.Debug("stats: tmux ps failed", "agent", agentName, "error", psErr)
+					continue
+				}
+				if err := ss.RecordAgent(ctx, *metric); err != nil {
+					log.Debug("stats: record tmux agent metric", "agent", agentName, "error", err)
+				}
+			}
+
+			if ws != nil {
+				agentsDir := filepath.Join(ws.RootDir, ".bc", "agents")
+				for agentName := range agentsByName {
+					entries, tokenErr := bctoken.CollectAgentSince(agentsDir, agentName, tokenWatermarks[agentName])
+					if tokenErr != nil || len(entries) == 0 {
+						continue
+					}
+					var latestSuccess time.Time
+					for _, e := range entries {
+						if err := ss.RecordToken(ctx, bcstats.TokenMetric{
+							Time:         e.Timestamp,
+							AgentName:    e.AgentName,
+							Model:        e.Model,
+							InputTokens:  e.InputTokens,
+							OutputTokens: e.OutputTokens,
+							CacheRead:    e.CacheRead,
+							CacheCreate:  e.CacheCreate,
+						}); err != nil {
+							log.Debug("stats: record token metric", "agent", agentName, "error", err)
+							continue
+						}
+						if e.Timestamp.After(latestSuccess) {
+							latestSuccess = e.Timestamp
+						}
+					}
+					if !latestSuccess.IsZero() {
+						tokenWatermarks[agentName] = latestSuccess
+					}
+				}
+			}
+
+		case <-ctx.Done():
+			return
+		}
+	}
+}
+
+func collectDockerStats(ctx context.Context) []dockerStatsEntry {
+	cmd := exec.CommandContext(ctx, "docker", "stats", "--no-stream", "--format", "{{json .}}")
+	out, err := cmd.Output()
+	if err != nil {
+		log.Debug("stats: docker stats failed", "error", err)
+		return nil
+	}
+
+	var entries []dockerStatsEntry
+	scanner := bufio.NewScanner(bytes.NewReader(out))
+	for scanner.Scan() {
+		line := scanner.Bytes()
+		if len(line) == 0 {
+			continue
+		}
+		var e dockerStatsEntry
+		if err := json.Unmarshal(line, &e); err != nil {
+			log.Debug("stats: parse docker stats line", "error", err)
+			continue
+		}
+		entries = append(entries, e)
+	}
+	return entries
+}
+
+// collectTmuxAgentStats samples CPU% and RSS for a tmux-backed agent by
+// walking the PID tree rooted at the tmux pane.
+//
+// Previous implementation grepped `ps aux` for the session name, which
+// both over-matched (any command line containing the name) and
+// under-matched (agents whose session string differed from the bc-hashed
+// tmux name). We now use pkg/stats.TmuxSampler which resolves the pane
+// PID via `tmux list-panes` and walks children via `pgrep -P`.
+//
+// Network bytes remain zero for tmux agents: macOS has no per-process
+// network counters without DTrace privileges, and linux /proc net stats
+// are container-wide rather than per-process. The UI renders "Network
+// tracking requires container runtime" in that case. We log a one-time
+// warning so operators know why the chart is flat.
+func collectTmuxAgentStats(ctx context.Context, agentName string, a *bcagent.Agent) (*bcstats.AgentMetric, error) {
+	sessionName := a.Session
+	if sessionName == "" {
+		sessionName = agentName
+	}
+
+	sample, err := tmuxSampler.Sample(ctx, sessionName, agentName)
+	if err != nil {
+		return nil, err
+	}
+
+	tmuxSampler.WarnNoNetworkOnce(func() {
+		log.Debug("stats: tmux agents have no per-process network counters; NetRx/NetTx will be 0")
+	})
+
+	return &bcstats.AgentMetric{
+		Time:         time.Now().UTC(),
+		AgentName:    agentName,
+		Role:         string(a.Role),
+		Tool:         a.Tool,
+		Runtime:      "tmux",
+		State:        string(a.State),
+		CPUPercent:   sample.CPUPercent,
+		MemUsedBytes: sample.MemBytes,
+	}, nil
+}
+
+// runContainerStatsCollector samples Docker container metrics via the
+// backend API and persists them in SQLite agent_stats (for /api/agents/{name}/stats).
+func runContainerStatsCollector(ctx context.Context, be *bccontainer.Backend, mgr *bcagent.Manager) {
+	const interval = 30 * time.Second
+	const bytesToMB = 1024 * 1024
+
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			allStats, err := be.AllStats(ctx)
+			if err != nil {
+				log.Debug("container stats collection failed", "error", err)
+				continue
+			}
+			for _, cs := range allStats {
+				agentName := extractAgentName(cs.Name)
+				rec := &bcagent.AgentStatsRecord{
+					AgentName:    agentName,
+					CollectedAt:  time.Now().UTC(),
+					CPUPct:       cs.CPUPercent,
+					MemUsedMB:    float64(cs.MemoryUsed) / bytesToMB,
+					MemLimitMB:   float64(cs.MemoryLimit) / bytesToMB,
+					NetRxMB:      float64(cs.NetRx) / bytesToMB,
+					NetTxMB:      float64(cs.NetTx) / bytesToMB,
+					BlockReadMB:  float64(cs.DiskRead) / bytesToMB,
+					BlockWriteMB: float64(cs.DiskWrite) / bytesToMB,
+				}
+				if err := mgr.RecordAgentStats(rec); err != nil {
+					log.Debug("failed to record container stats", "agent", agentName, "error", err)
+				}
+			}
+		case <-ctx.Done():
+			return
+		}
+	}
+}
+
+func isSystemContainer(name string) bool {
+	if name == "bc-db" || name == "bc-playwright" {
+		return true
+	}
+	return strings.Contains(name, "-daemon")
+}
+
+func isAgentContainer(name string) bool {
+	if !strings.HasPrefix(name, "bc-") {
+		return false
+	}
+	return !isSystemContainer(name)
+}
+
+func extractAgentName(containerName string) string {
+	if len(containerName) > 10 && strings.HasPrefix(containerName, "bc-") {
+		return containerName[10:]
+	}
+	return containerName
+}
+
+func parsePercent(s string) float64 {
+	s = strings.TrimSpace(s)
+	s = strings.TrimSuffix(s, "%")
+	v, _ := strconv.ParseFloat(s, 64) //nolint:errcheck // returns 0 on failure
+	return v
+}
+
+func parseMemUsage(s string) (int64, int64) {
+	parts := strings.SplitN(s, "/", 2)
+	if len(parts) != 2 {
+		return 0, 0
+	}
+	return parseBytes(strings.TrimSpace(parts[0])), parseBytes(strings.TrimSpace(parts[1]))
+}
+
+func parseIOPair(s string) (int64, int64) {
+	parts := strings.SplitN(s, "/", 2)
+	if len(parts) != 2 {
+		return 0, 0
+	}
+	return parseBytes(strings.TrimSpace(parts[0])), parseBytes(strings.TrimSpace(parts[1]))
+}
+
+func parseBytes(s string) int64 {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return 0
+	}
+
+	unitIdx := len(s)
+	for i, c := range s {
+		if c != '.' && (c < '0' || c > '9') {
+			unitIdx = i
+			break
+		}
+	}
+
+	numStr := s[:unitIdx]
+	unit := strings.ToLower(s[unitIdx:])
+
+	val, err := strconv.ParseFloat(numStr, 64)
+	if err != nil {
+		return 0
+	}
+
+	switch unit {
+	case "b":
+		return int64(val)
+	case "kb":
+		return int64(val * 1000)
+	case "mb":
+		return int64(val * 1000 * 1000)
+	case "gb":
+		return int64(val * 1000 * 1000 * 1000)
+	case "tb":
+		return int64(val * 1000 * 1000 * 1000 * 1000)
+	case "kib":
+		return int64(val * 1024)
+	case "mib":
+		return int64(val * 1024 * 1024)
+	case "gib":
+		return int64(val * 1024 * 1024 * 1024)
+	case "tib":
+		return int64(val * 1024 * 1024 * 1024 * 1024)
+	default:
+		return int64(val)
+	}
+}

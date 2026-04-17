@@ -1,196 +1,18 @@
-import { Fragment, useCallback, useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { api } from "../api/client";
-import type { Agent, AgentMetricTS } from "../api/client";
+import type { Agent, BulkResult } from "../api/client";
 import { usePolling } from "../hooks/usePolling";
 import { useWebSocket } from "../hooks/useWebSocket";
 import { StatusBadge } from "../components/StatusBadge";
-import { LoadingSkeleton } from "../components/LoadingSkeleton";
 import { EmptyState } from "../components/EmptyState";
 import { InlineTerminal } from "../components/InlineTerminal";
 import { truncate } from "../utils/text";
-
-// --- Create Agent Form ---
-
-interface CreateFormState {
-  name: string;
-  role: string;
-  tool: string;
-  runtime: string;
-}
-
-function CreateAgentForm({ onCreated }: { onCreated: () => void }) {
-  const [open, setOpen] = useState(false);
-  const [roles, setRoles] = useState<string[]>([]);
-  const [tools, setTools] = useState<string[]>([]);
-  const [form, setForm] = useState<CreateFormState>({
-    name: "",
-    role: "",
-    tool: "",
-    runtime: "",
-  });
-  const [creating, setCreating] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  // Fetch roles and tools when form opens
-  useEffect(() => {
-    if (!open) return;
-    api
-      .listRoles()
-      .then((r) => setRoles(Object.keys(r)))
-      .catch(() => { /* ignore */ });
-    api
-      .listCLITools()
-      .then((t) => setTools(t.filter((tool) => tool.enabled).map((tool) => tool.name)))
-      .catch(() => { /* ignore */ });
-  }, [open]);
-
-  const handleCreate = async () => {
-    if (!form.role) {
-      setError("Role is required");
-      return;
-    }
-    setCreating(true);
-    setError(null);
-    try {
-      await api.createAgent({
-        name: form.name || undefined,
-        role: form.role,
-        tool: form.tool || undefined,
-        runtime: form.runtime || undefined,
-      });
-      setForm({ name: "", role: "", tool: "", runtime: "" });
-      setOpen(false);
-      onCreated();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create agent");
-    } finally {
-      setCreating(false);
-    }
-  };
-
-  if (!open) {
-    return (
-      <button
-        onClick={() => setOpen(true)}
-        className="px-3 py-1.5 text-sm rounded bg-bc-accent text-white hover:bg-bc-accent/80 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-bc-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bc-bg"
-        aria-label="Create agent"
-      >
-        + Create Agent
-      </button>
-    );
-  }
-
-  return (
-    <div className="rounded border border-bc-border bg-bc-surface p-4 space-y-3">
-      <div className="flex items-center justify-between">
-        <h2 className="text-sm font-medium">Create Agent</h2>
-        <button
-          onClick={() => {
-            setOpen(false);
-            setError(null);
-          }}
-          className="text-bc-muted hover:text-bc-text text-sm"
-        >
-          Cancel
-        </button>
-      </div>
-
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div>
-          <label className="block text-xs text-bc-muted mb-1">
-            Name (optional)
-          </label>
-          <input
-            type="text"
-            value={form.name}
-            onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-            placeholder="auto-generated"
-            className="w-full px-2 py-1.5 text-sm rounded border border-bc-border bg-bc-bg text-bc-text placeholder:text-bc-muted/50 focus:outline-none focus:ring-1 focus:ring-bc-accent"
-          />
-        </div>
-
-        <div>
-          <label className="block text-xs text-bc-muted mb-1">Role *</label>
-          <select
-            value={form.role}
-            onChange={(e) => setForm((f) => ({ ...f, role: e.target.value }))}
-            className="w-full px-2 py-1.5 text-sm rounded border border-bc-border bg-bc-bg text-bc-text focus:outline-none focus:ring-1 focus:ring-bc-accent"
-          >
-            <option value="">Select role...</option>
-            {roles.map((r) => (
-              <option key={r} value={r}>
-                {r}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div>
-          <label className="block text-xs text-bc-muted mb-1">Tool</label>
-          <select
-            value={form.tool}
-            onChange={(e) => setForm((f) => ({ ...f, tool: e.target.value }))}
-            className="w-full px-2 py-1.5 text-sm rounded border border-bc-border bg-bc-bg text-bc-text focus:outline-none focus:ring-1 focus:ring-bc-accent"
-          >
-            <option value="">Default</option>
-            {(() => {
-              const AI_PROVIDERS = new Set(["claude", "codex", "cursor", "gemini", "aider", "openclaw", "opencode"]);
-              const providers = tools.filter((t) => AI_PROVIDERS.has(t));
-              const cliTools = tools.filter((t) => !AI_PROVIDERS.has(t));
-              return (
-                <>
-                  {providers.length > 0 && (
-                    <optgroup label="AI Providers">
-                      {providers.map((t) => (
-                        <option key={t} value={t}>{t}</option>
-                      ))}
-                    </optgroup>
-                  )}
-                  {cliTools.length > 0 && (
-                    <optgroup label="CLI Tools">
-                      {cliTools.map((t) => (
-                        <option key={t} value={t}>{t}</option>
-                      ))}
-                    </optgroup>
-                  )}
-                </>
-              );
-            })()}
-          </select>
-        </div>
-
-        <div>
-          <label className="block text-xs text-bc-muted mb-1">Runtime</label>
-          <select
-            value={form.runtime}
-            onChange={(e) =>
-              setForm((f) => ({ ...f, runtime: e.target.value }))
-            }
-            className="w-full px-2 py-1.5 text-sm rounded border border-bc-border bg-bc-bg text-bc-text focus:outline-none focus:ring-1 focus:ring-bc-accent"
-          >
-            <option value="">Default</option>
-            <option value="tmux">tmux</option>
-            <option value="docker">docker</option>
-            <option value="localhost">localhost</option>
-          </select>
-        </div>
-      </div>
-
-      {error && <p className="text-xs text-bc-error">{error}</p>}
-
-      <div className="flex justify-end">
-        <button
-          onClick={handleCreate}
-          disabled={creating}
-          className="px-3 py-1.5 text-sm rounded bg-bc-accent text-white hover:bg-bc-accent/80 transition-colors disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-bc-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bc-bg"
-        >
-          {creating ? "Creating..." : "Create"}
-        </button>
-      </div>
-    </div>
-  );
-}
+import { AgentIcon } from "../components/agent-ui";
+import { CreateAgentModal } from "../components/CreateAgentModal";
+import { useHeaderSlot } from "../context/HeaderSlotContext";
+import { TabHeaderTitle } from "../components/Header";
+import { MONO } from "../utils/typography";
 
 // --- Inline Rename ---
 
@@ -360,9 +182,51 @@ function AgentActions({ agent, onDone }: { agent: Agent; onDone: () => void }) {
         aria-label={`Delete agent ${agent.name}`}
         className="px-1.5 py-0.5 text-xs rounded bg-bc-error/10 text-bc-error/70 hover:bg-bc-error/20 hover:text-bc-error focus-visible:ring-2 focus-visible:ring-bc-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bc-bg"
       >
-        Del
+        Delete
       </button>
     </span>
+  );
+}
+
+// --- Loading skeleton matching the agents table columns ---
+
+function AgentsTableSkeleton() {
+  return (
+    <table className="w-full text-sm">
+      <thead>
+        <tr className="border-b border-bc-border text-left">
+          <th className="px-2 py-2 w-8"><div className="h-3 w-3 rounded animate-pulse bg-bc-border/40" /></th>
+          <th className="px-4 py-2"><div className="h-3 w-16 rounded animate-pulse bg-bc-border/40" /></th>
+          <th className="px-4 py-2 hidden sm:table-cell"><div className="h-3 w-14 rounded animate-pulse bg-bc-border/40" /></th>
+          <th className="px-4 py-2 hidden sm:table-cell"><div className="h-3 w-14 rounded animate-pulse bg-bc-border/40" /></th>
+          <th className="px-4 py-2"><div className="h-3 w-12 rounded animate-pulse bg-bc-border/40" /></th>
+          <th className="px-4 py-2"><div className="h-3 w-10 rounded animate-pulse bg-bc-border/40" /></th>
+          <th className="px-4 py-2 hidden md:table-cell"><div className="h-3 w-8 rounded animate-pulse bg-bc-border/40" /></th>
+          <th className="px-4 py-2"><div className="h-3 w-14 rounded animate-pulse bg-bc-border/40" /></th>
+          <th className="px-4 py-2 w-10" />
+        </tr>
+      </thead>
+      <tbody>
+        {Array.from({ length: 5 }).map((_, i) => (
+          <tr key={i} className="border-b border-bc-border/50">
+            <td className="px-2 py-3"><div className="h-3 w-3 rounded animate-pulse bg-bc-border/30" /></td>
+            <td className="px-4 py-3">
+              <div className="flex items-center gap-2">
+                <div className="h-7 w-7 rounded-full animate-pulse bg-bc-border/30 shrink-0" />
+                <div className="h-3 rounded animate-pulse bg-bc-border/30" style={{ width: `${60 + (i % 4) * 15}px` }} />
+              </div>
+            </td>
+            <td className="px-4 py-3 hidden sm:table-cell"><div className="h-3 w-12 rounded animate-pulse bg-bc-border/30" /></td>
+            <td className="px-4 py-3 hidden sm:table-cell"><div className="h-3 w-14 rounded animate-pulse bg-bc-border/30" /></td>
+            <td className="px-4 py-3"><div className="h-4 w-16 rounded-full animate-pulse bg-bc-border/30" /></td>
+            <td className="px-4 py-3"><div className="h-3 rounded animate-pulse bg-bc-border/30" style={{ width: `${80 + (i % 3) * 30}px` }} /></td>
+            <td className="px-4 py-3 hidden md:table-cell"><div className="h-4 w-10 rounded animate-pulse bg-bc-border/30" /></td>
+            <td className="px-4 py-3"><div className="h-4 w-20 rounded animate-pulse bg-bc-border/30" /></td>
+            <td className="px-4 py-3" />
+          </tr>
+        ))}
+      </tbody>
+    </table>
   );
 }
 
@@ -382,28 +246,64 @@ export function Agents() {
   } = usePolling(fetcher, 5000);
   const { subscribe } = useWebSocket();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const [peekAgent, setPeekAgent] = useState<string | null>(null);
   const [stoppingAll, setStoppingAll] = useState(false);
-  const [latestStats, setLatestStats] = useState<Record<string, AgentMetricTS>>({});
+  const [createOpen, setCreateOpen] = useState(false);
 
-  // Fetch latest CPU/Mem stats for all agents
+  // Header slot: title + "Create agent" action
+  useHeaderSlot({
+    title: <TabHeaderTitle>Agents</TabHeaderTitle>,
+    actions: (
+      <>
+        <span className="text-[10px] text-bc-muted/40 tabular-nums" style={{ fontFamily: MONO }}>
+          {agents ? `${String(agents.length)} total` : "\u2014"}
+        </span>
+        <button
+          type="button"
+          onClick={() => setCreateOpen(true)}
+          className="px-3 py-1 rounded text-[11px] font-medium border border-bc-accent/40 bg-bc-accent/10 text-bc-accent hover:bg-bc-accent/20 transition-colors"
+          style={{ fontFamily: MONO }}
+        >
+          + New agent
+        </button>
+      </>
+    ),
+  });
+
+  // Search + filter + bulk state (URL-synced where useful)
+  const [search, setSearch] = useState(searchParams.get("q") ?? "");
+  const roleFilter = searchParams.get("role") ?? "";
+  const stateFilter = searchParams.get("state") ?? "";
+  const toolFilter = searchParams.get("tool") ?? "";
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [bulkError, setBulkError] = useState<string | null>(null);
+  const [focusIndex, setFocusIndex] = useState(0);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  const updateFilter = (key: "role" | "state" | "tool", value: string) => {
+    const next = new URLSearchParams(searchParams);
+    if (value) next.set(key, value);
+    else next.delete(key);
+    setSearchParams(next, { replace: true });
+  };
+
+  // Debounced search → URL sync
   useEffect(() => {
-    const fetchStats = () => {
-      api.getAgentStatsLatest().then((metrics) => {
-        const map: Record<string, AgentMetricTS> = {};
-        for (const m of metrics) {
-          map[m.agent_name] = m;
-        }
-        setLatestStats(map);
-      }).catch(() => {
-        // Stats unavailable — not critical
-      });
-    };
-    fetchStats();
-    const interval = setInterval(fetchStats, 30000);
-    return () => clearInterval(interval);
-  }, []);
+    const t = setTimeout(() => {
+      const next = new URLSearchParams(searchParams);
+      if (search) next.set("q", search);
+      else next.delete("q");
+      setSearchParams(next, { replace: true });
+    }, 250);
+    return () => { clearTimeout(t); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search]);
+
+  // Keyboard shortcuts now live after displayRows is declared below —
+  // see the useEffect labelled "Global keyboard shortcuts".
 
   const handleStopAll = async () => {
     setStoppingAll(true);
@@ -434,27 +334,210 @@ export function Agents() {
   };
 
   const columns = [
+    "Select",
     "Name",
-    "Role",
-    "Tool",
+    "Runtime",
+    "Provider",
     "Status",
     "Task",
-    "Tokens",
-    "CPU %",
-    "Mem %",
     "MCP",
-    "",
+    "Actions",
     "",
   ] as const;
 
-  if (loading && !agents) {
-    return (
-      <div className="p-6 space-y-4">
-        <div className="h-6 w-24 animate-pulse rounded bg-bc-border/50" />
-        <LoadingSkeleton variant="table" rows={4} />
-      </div>
-    );
-  }
+  // Compute filter options from agent list
+  const allAgents = useMemo(() => agents ?? [], [agents]);
+  const runningCount = useMemo(
+    () => allAgents.filter((a) => a.state !== "stopped" && a.state !== "error").length,
+    [allAgents],
+  );
+  const { availableStates, availableTools } = useMemo(() => {
+    const s = new Set<string>();
+    const t = new Set<string>();
+    for (const a of allAgents) {
+      if (a.state) s.add(a.state);
+      if (a.tool) t.add(a.tool);
+    }
+    return {
+      availableStates: Array.from(s).sort((x, y) => x.localeCompare(y)),
+      availableTools: Array.from(t).sort((x, y) => x.localeCompare(y)),
+    };
+  }, [allAgents]);
+
+  // Apply filters + search
+  const filteredAgents = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return allAgents.filter((a) => {
+      if (q && !a.name.toLowerCase().includes(q) && !(a.task ?? "").toLowerCase().includes(q)) {
+        return false;
+      }
+      if (roleFilter && a.role !== roleFilter) return false;
+      if (stateFilter && a.state !== stateFilter) return false;
+      if (toolFilter && a.tool !== toolFilter) return false;
+      return true;
+    });
+  }, [allAgents, search, roleFilter, stateFilter, toolFilter]);
+
+  // Sort: working first, then idle, then stopped/error.
+  const displayRows = useMemo(() => {
+    const rank = (s: string) => (s === "working" || s === "starting" ? 0 : s === "idle" ? 1 : 2);
+    return [...filteredAgents].sort((a, b) => rank(a.state) - rank(b.state) || a.name.localeCompare(b.name));
+  }, [filteredAgents]);
+
+  // Clamp focusIndex when displayRows shrinks (e.g. after filtering).
+  useEffect(() => {
+    if (focusIndex >= displayRows.length && displayRows.length > 0) {
+      setFocusIndex(displayRows.length - 1);
+    }
+  }, [displayRows.length, focusIndex]);
+
+  // Global keyboard shortcuts. These work when focus is anywhere on the page,
+  // except inside inputs/textareas/contenteditable elements.
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      const isInput =
+        target != null &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.isContentEditable);
+
+      // "/" always focuses search even from inputs? no — only outside.
+      if (e.key === "/" && !isInput) {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+        return;
+      }
+      if (e.key === "Escape" && selected.size > 0) {
+        setSelected(new Set());
+        return;
+      }
+      if (isInput) return;
+
+      // Row navigation
+      if (e.key === "j" || e.key === "ArrowDown") {
+        e.preventDefault();
+        setFocusIndex((i) => Math.min(i + 1, Math.max(0, displayRows.length - 1)));
+        return;
+      }
+      if (e.key === "k" || e.key === "ArrowUp") {
+        e.preventDefault();
+        setFocusIndex((i) => Math.max(i - 1, 0));
+        return;
+      }
+      // Enter opens the focused agent
+      if (e.key === "Enter") {
+        const row = displayRows[focusIndex];
+        if (row) {
+          e.preventDefault();
+          navigate(`/agents/${encodeURIComponent(row.name)}`);
+        }
+        return;
+      }
+      // Space toggles peek for the focused row
+      if (e.key === " ") {
+        const row = displayRows[focusIndex];
+        if (row) {
+          e.preventDefault();
+          setPeekAgent((prev) => (prev === row.name ? null : row.name));
+        }
+        return;
+      }
+      // x toggles selection on the focused row
+      if (e.key === "x") {
+        const row = displayRows[focusIndex];
+        if (row) {
+          e.preventDefault();
+          setSelected((prev) => {
+            const next = new Set(prev);
+            if (next.has(row.name)) next.delete(row.name);
+            else next.add(row.name);
+            return next;
+          });
+        }
+        return;
+      }
+      // a selects all visible
+      if (e.key === "a") {
+        e.preventDefault();
+        setSelected((prev) => {
+          const next = new Set(prev);
+          const names = displayRows.map((r) => r.name);
+          const allSel = names.every((n) => next.has(n));
+          if (allSel) {
+            for (const n of names) next.delete(n);
+          } else {
+            for (const n of names) next.add(n);
+          }
+          return next;
+        });
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => { window.removeEventListener("keydown", onKeyDown); };
+  }, [selected.size, displayRows, focusIndex, navigate]);
+
+  // Bulk action helpers
+  const visibleNames = filteredAgents.map((a) => a.name);
+  const allVisibleSelected = visibleNames.length > 0 && visibleNames.every((n) => selected.has(n));
+  const toggleAllVisible = () => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (allVisibleSelected) {
+        for (const n of visibleNames) next.delete(n);
+      } else {
+        for (const n of visibleNames) next.add(n);
+      }
+      return next;
+    });
+  };
+  const toggleOne = (name: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      return next;
+    });
+  };
+  const summarizeResults = (results: BulkResult[]): string | null => {
+    const failed = results.filter((r) => r.status === "error");
+    if (failed.length === 0) return null;
+    return `${String(failed.length)}/${String(results.length)} failed: ${failed.slice(0, 3).map((f) => `${f.agent} (${f.error ?? "error"})`).join(", ")}`;
+  };
+  const runBulk = async (fn: () => Promise<{ results: BulkResult[] }>) => {
+    setBulkBusy(true);
+    setBulkError(null);
+    try {
+      const { results } = await fn();
+      const err = summarizeResults(results);
+      if (err) setBulkError(err);
+      refresh();
+    } catch (e) {
+      setBulkError(e instanceof Error ? e.message : "Bulk operation failed");
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+  const handleBulkStart = () => runBulk(() => api.bulkStartAgents(Array.from(selected)));
+  const handleBulkStop = () => runBulk(() => api.bulkStopAgents(Array.from(selected)));
+  const handleBulkDelete = () => {
+    if (!window.confirm(`Delete ${String(selected.size)} agent(s)? This cannot be undone.`)) return;
+    void runBulk(() => api.bulkDeleteAgents(Array.from(selected), false)).then(() => {
+      setSelected(new Set());
+    });
+  };
+  const handleBulkMessage = () => {
+    const msg = window.prompt(`Send message to ${String(selected.size)} agent(s):`);
+    if (msg == null || msg.trim() === "") return;
+    void runBulk(() => api.bulkMessageAgents(Array.from(selected), msg.trim()));
+  };
+  const clearSelection = () => { setSelected(new Set()); };
+  const clearFilters = () => {
+    setSearch("");
+    setSearchParams(new URLSearchParams(), { replace: true });
+  };
+  const hasFilters = search !== "" || roleFilter !== "" || stateFilter !== "" || toolFilter !== "";
+
   if (timedOut && !agents) {
     return (
       <div className="p-6">
@@ -482,17 +565,17 @@ export function Agents() {
     );
   }
 
-  const agentList = agents ?? [];
-
   return (
-    <div className="p-6 space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold">Agents</h1>
-        <div className="flex items-center gap-3">
+    <div className="p-6 space-y-4 pb-24">
+      {/* Sub-toolbar: count summary + Stop All (title + Create live in the top-bar chip) */}
+      {allAgents.length > 0 && (
+        <div className="flex items-center justify-end gap-3">
           <span className="text-sm text-bc-muted">
-            {agentList.length} agents
+            {hasFilters
+              ? `${String(filteredAgents.length)} of ${String(allAgents.length)} agents`
+              : `${String(runningCount)} active`}
           </span>
-          {agentList.some(
+          {allAgents.some(
             (a) => a.state !== "stopped" && a.state !== "error",
           ) && (
             <button
@@ -505,38 +588,101 @@ export function Agents() {
             </button>
           )}
         </div>
-      </div>
+      )}
 
-      <CreateAgentForm onCreated={refresh} />
+      {/* Search + filter toolbar */}
+      {allAgents.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative flex-1 min-w-[200px]">
+            <input
+              ref={searchInputRef}
+              type="text"
+              value={search}
+              onChange={(e) => { setSearch(e.target.value); }}
+              placeholder="Search by name or task...  (press / to focus)"
+              className="w-full px-3 py-1.5 text-sm rounded border border-bc-border bg-bc-bg text-bc-text placeholder:text-bc-muted/60 focus:outline-none focus:ring-1 focus:ring-bc-accent"
+              aria-label="Search agents"
+            />
+          </div>
+          <select
+            value={stateFilter}
+            onChange={(e) => { updateFilter("state", e.target.value); }}
+            className="px-2 py-1.5 text-sm rounded border border-bc-border bg-bc-bg text-bc-text focus:outline-none focus:ring-1 focus:ring-bc-accent"
+            aria-label="Filter by state"
+          >
+            <option value="">All states</option>
+            {availableStates.map((s) => (
+              <option key={s} value={s}>{s}</option>
+            ))}
+          </select>
+          <select
+            value={toolFilter}
+            onChange={(e) => { updateFilter("tool", e.target.value); }}
+            className="px-2 py-1.5 text-sm rounded border border-bc-border bg-bc-bg text-bc-text focus:outline-none focus:ring-1 focus:ring-bc-accent"
+            aria-label="Filter by tool"
+          >
+            <option value="">All tools</option>
+            {availableTools.map((t) => (
+              <option key={t} value={t}>{t}</option>
+            ))}
+          </select>
+          {hasFilters && (
+            <button
+              onClick={clearFilters}
+              className="px-2 py-1.5 text-xs text-bc-muted hover:text-bc-text border border-bc-border rounded focus-visible:ring-2 focus-visible:ring-bc-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bc-bg"
+              aria-label="Clear filters"
+            >
+              Clear
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Keyboard hints removed — shortcuts still work (/, j/k, Enter, space, x, a, Esc) */}
 
       <div className="rounded border border-bc-border overflow-x-auto">
-        {agentList.length === 0 ? (
+        {loading && !agents ? (
+          <AgentsTableSkeleton />
+        ) : allAgents.length === 0 ? (
           <EmptyState
             icon=">"
             title="No agents yet"
-            description="Create your first agent using the form above."
+            description="Create your first agent using the + Create Agent button."
+          />
+        ) : filteredAgents.length === 0 ? (
+          <EmptyState
+            icon=">"
+            title="No agents match your filters"
+            description="Try adjusting your search or clearing the filters."
+            actionLabel="Clear filters"
+            onAction={clearFilters}
           />
         ) : (
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-bc-border text-left">
+                <th className="px-2 py-2 font-medium text-bc-muted w-8">
+                  <input
+                    type="checkbox"
+                    checked={allVisibleSelected}
+                    onChange={toggleAllVisible}
+                    className="cursor-pointer accent-bc-accent"
+                    aria-label="Select all visible agents"
+                  />
+                </th>
                 <th className="px-4 py-2 font-medium text-bc-muted">Name</th>
-                <th className="px-4 py-2 font-medium text-bc-muted">Role</th>
                 <th className="px-4 py-2 font-medium text-bc-muted hidden sm:table-cell">
-                  Tool
+                  Runtime
+                </th>
+                <th className="px-4 py-2 font-medium text-bc-muted hidden sm:table-cell">
+                  Provider
                 </th>
                 <th className="px-4 py-2 font-medium text-bc-muted">Status</th>
                 <th className="px-4 py-2 font-medium text-bc-muted">Task</th>
-                <th className="px-4 py-2 font-medium text-bc-muted hidden md:table-cell">
-                  Tokens
-                </th>
-                <th className="px-4 py-2 font-medium text-bc-muted hidden md:table-cell">
-                  CPU %
-                </th>
-                <th className="px-4 py-2 font-medium text-bc-muted hidden md:table-cell">
-                  Mem %
-                </th>
-                <th className="px-4 py-2 font-medium text-bc-muted hidden md:table-cell">
+                <th
+                  className="px-4 py-2 font-medium text-bc-muted hidden md:table-cell"
+                  title="MCP server configuration"
+                >
                   MCP
                 </th>
                 <th className="px-4 py-2 font-medium text-bc-muted">Actions</th>
@@ -544,8 +690,15 @@ export function Agents() {
               </tr>
             </thead>
             <tbody>
-              {agentList.map((a) => (
+              {displayRows.map((a, rowIdx) => (
                 <Fragment key={a.name}>
+                  {/* Subtle divider between active and stopped groups */}
+                  {rowIdx > 0 &&
+                    (a.state === "stopped" || a.state === "error") &&
+                    displayRows[rowIdx - 1]!.state !== "stopped" &&
+                    displayRows[rowIdx - 1]!.state !== "error" && (
+                    <tr><td colSpan={columns.length} className="h-px bg-bc-border/40" /></tr>
+                  )}
                   <tr
                     onClick={() =>
                       navigate(`/agents/${encodeURIComponent(a.name)}`)
@@ -555,69 +708,100 @@ export function Agents() {
                     }}
                     role="link"
                     tabIndex={0}
-                    className="border-b border-bc-border/50 cursor-pointer hover:bg-bc-surface transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-bc-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bc-bg"
+                    className={`border-b border-bc-border/50 cursor-pointer transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-bc-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bc-bg ${
+                      rowIdx === focusIndex ? "ring-1 ring-inset ring-bc-accent/40 " : ""
+                    }${
+                      peekAgent === a.name ? "bg-bc-accent/5 " : ""
+                    }${
+                      selected.has(a.name) ? "bg-bc-accent/10 hover:bg-bc-accent/15" : "hover:bg-bc-surface"
+                    }`}
+                    style={(a.state === "stopped" || a.state === "error") ? { opacity: 0.55 } : undefined}
                   >
-                    <td className="px-4 py-2">
-                      <InlineAgentName agent={a} onRenamed={refresh} />
+                    <td
+                      className="px-2 py-2"
+                      onClick={(e) => { e.stopPropagation(); }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selected.has(a.name)}
+                        onChange={() => { toggleOne(a.name); }}
+                        className="cursor-pointer accent-bc-accent"
+                        aria-label={`Select agent ${a.name}`}
+                      />
                     </td>
                     <td className="px-4 py-2">
-                      <span className="text-bc-muted">{a.role}</span>
+                      <span className="inline-flex items-center gap-2">
+                        <AgentIcon state={a.state} size={28} tool={a.tool} />
+                        <InlineAgentName agent={a} onRenamed={refresh} />
+                      </span>
                     </td>
                     <td className="px-4 py-2 hidden sm:table-cell">
-                      <span className="text-bc-muted">
-                        {a.tool || "\u2014"}
-                      </span>
+                      {a.runtime_backend ? (
+                        <span
+                          className="text-[11px] px-1.5 py-0.5 rounded border border-bc-border/30 bg-bc-surface/30 text-bc-muted"
+                          style={{ fontFamily: "'JetBrains Mono', 'Fira Code', 'Space Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" }}
+                        >
+                          {a.runtime_backend}
+                        </span>
+                      ) : (
+                        <span className="text-bc-muted">{"\u2014"}</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-2 hidden sm:table-cell">
+                      {a.tool ? (
+                        <span
+                          className="text-[11px] px-1.5 py-0.5 rounded border border-bc-border/30 bg-bc-surface/30 text-bc-muted"
+                          style={{ fontFamily: "'JetBrains Mono', 'Fira Code', 'Space Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" }}
+                        >
+                          {a.tool}
+                        </span>
+                      ) : (
+                        <span className="text-bc-muted">{"\u2014"}</span>
+                      )}
                     </td>
                     <td className="px-4 py-2">
                       <StatusBadge status={a.state} />
                     </td>
                     <td className="px-4 py-2">
                       <span className="text-bc-muted" title={a.task}>
-                        {a.task ? truncate(a.task, 50) : "\u2014"}
+                        {a.task ? truncate(a.task, 50) : ""}
                       </span>
                     </td>
                     <td className="px-4 py-2 hidden md:table-cell">
-                      <span className="text-bc-muted">
-                        {a.total_tokens != null && a.total_tokens > 0
-                          ? a.total_tokens.toLocaleString()
-                          : "\u2014"}
-                      </span>
-                    </td>
-                    <td className="px-4 py-2 hidden md:table-cell">
-                      <span className="text-bc-muted">
-                        {latestStats[a.name] != null
-                          ? `${latestStats[a.name]!.cpu_percent.toFixed(1)}%`
-                          : "\u2014"}
-                      </span>
-                    </td>
-                    <td className="px-4 py-2 hidden md:table-cell">
-                      <span className="text-bc-muted">
-                        {latestStats[a.name] != null
-                          ? `${latestStats[a.name]!.mem_percent.toFixed(1)}%`
-                          : "\u2014"}
-                      </span>
-                    </td>
-                    <td className="px-4 py-2 hidden md:table-cell">
-                      <div className="flex flex-wrap gap-1">
-                        {(a.mcp_servers ?? []).length === 0 ? (
-                          <span className="text-bc-muted">{"\u2014"}</span>
-                        ) : (a.mcp_servers ?? []).length <= 3 ? (
-                          (a.mcp_servers ?? []).map((s) => (
-                            <span key={s} className="text-[10px] px-1.5 py-0.5 rounded bg-bc-accent/10 text-bc-accent font-medium">
-                              {s.replace(/^mcp__/, "")}
-                            </span>
-                          ))
-                        ) : (
-                          <>
-                            {(a.mcp_servers ?? []).slice(0, 2).map((s) => (
+                      {(() => {
+                        const servers = a.mcp_servers ?? [];
+                        if (servers.length === 0) {
+                          return <span className="text-bc-muted">{"\u2014"}</span>;
+                        }
+                        const fullList = servers.map((s) => s.replace(/^mcp__/, "")).join(", ");
+                        if (servers.length <= 3) {
+                          return (
+                            <div className="flex flex-wrap gap-1" title={fullList}>
+                              {servers.map((s) => (
+                                <span key={s} className="text-[10px] px-1.5 py-0.5 rounded bg-bc-accent/10 text-bc-accent font-medium">
+                                  {s.replace(/^mcp__/, "")}
+                                </span>
+                              ))}
+                            </div>
+                          );
+                        }
+                        const rest = servers.slice(2).map((s) => s.replace(/^mcp__/, "")).join(", ");
+                        return (
+                          <div className="flex flex-wrap gap-1" title={fullList}>
+                            {servers.slice(0, 2).map((s) => (
                               <span key={s} className="text-[10px] px-1.5 py-0.5 rounded bg-bc-accent/10 text-bc-accent font-medium">
                                 {s.replace(/^mcp__/, "")}
                               </span>
                             ))}
-                            <span className="text-[10px] text-bc-muted">+{(a.mcp_servers ?? []).length - 2}</span>
-                          </>
-                        )}
-                      </div>
+                            <span
+                              className="text-[10px] px-1.5 py-0.5 rounded border border-bc-border text-bc-muted cursor-help"
+                              title={rest}
+                            >
+                              +{String(servers.length - 2)}
+                            </span>
+                          </div>
+                        );
+                      })()}
                     </td>
                     <td className="px-4 py-2">
                       <AgentActions agent={a} onDone={refresh} />
@@ -657,6 +841,71 @@ export function Agents() {
           </table>
         )}
       </div>
+
+      {/* Bulk action bar */}
+      {selected.size > 0 && (
+        <div className="fixed left-0 right-0 bottom-0 z-40 border-t border-bc-border bg-bc-surface/95 backdrop-blur shadow-bc-lg">
+          <div className="max-w-6xl mx-auto px-6 py-3 flex items-center gap-3 flex-wrap">
+            <span className="text-sm font-medium text-bc-text">
+              {selected.size} selected
+            </span>
+            {bulkError && (
+              <span className="text-xs text-bc-error truncate max-w-md" title={bulkError}>
+                {bulkError}
+              </span>
+            )}
+            <div className="flex items-center gap-2 ml-auto">
+              <button
+                onClick={handleBulkStart}
+                disabled={bulkBusy}
+                className="px-3 py-1.5 text-sm rounded bg-bc-success/20 text-bc-success hover:bg-bc-success/30 disabled:opacity-50 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-bc-accent"
+                aria-label="Start selected agents"
+              >
+                {bulkBusy ? "..." : "Start"}
+              </button>
+              <button
+                onClick={handleBulkStop}
+                disabled={bulkBusy}
+                className="px-3 py-1.5 text-sm rounded bg-bc-warning/20 text-bc-warning hover:bg-bc-warning/30 disabled:opacity-50 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-bc-accent"
+                aria-label="Stop selected agents"
+              >
+                {bulkBusy ? "..." : "Stop"}
+              </button>
+              <button
+                onClick={handleBulkMessage}
+                disabled={bulkBusy}
+                className="px-3 py-1.5 text-sm rounded bg-bc-accent/20 text-bc-accent hover:bg-bc-accent/30 disabled:opacity-50 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-bc-accent"
+                aria-label="Send message to selected agents"
+              >
+                {bulkBusy ? "..." : "Message"}
+              </button>
+              <button
+                onClick={handleBulkDelete}
+                disabled={bulkBusy}
+                className="px-3 py-1.5 text-sm rounded bg-bc-error/20 text-bc-error hover:bg-bc-error/30 disabled:opacity-50 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-bc-accent"
+                aria-label="Delete selected agents"
+              >
+                {bulkBusy ? "..." : "Delete"}
+              </button>
+              <button
+                onClick={clearSelection}
+                disabled={bulkBusy}
+                className="px-3 py-1.5 text-sm rounded border border-bc-border text-bc-muted hover:text-bc-text disabled:opacity-50 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-bc-accent"
+                aria-label="Clear selection"
+              >
+                Clear
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <CreateAgentModal
+        open={createOpen}
+        onClose={() => setCreateOpen(false)}
+        existingNames={allAgents.map((a) => a.name)}
+        existingAgents={allAgents}
+      />
     </div>
   );
 }

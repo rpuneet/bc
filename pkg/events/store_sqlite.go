@@ -118,6 +118,53 @@ func (l *SQLiteLog) ReadByAgent(name string) ([]Event, error) {
 	return scanEventRows(rows)
 }
 
+// Prune deletes events older than maxAge and trims per-agent events to maxPerAgent.
+func (l *SQLiteLog) Prune(maxAge time.Duration, maxPerAgent int) (int64, error) {
+	cutoff := time.Now().Add(-maxAge).Format(time.RFC3339)
+
+	// Phase 1: delete events older than maxAge
+	res, err := l.db.ExecContext(context.Background(),
+		"DELETE FROM events WHERE timestamp < ?", cutoff,
+	)
+	if err != nil {
+		return 0, fmt.Errorf("prune old events: %w", err)
+	}
+	deleted, _ := res.RowsAffected()
+
+	// Phase 2: trim per-agent events to maxPerAgent (keep newest)
+	rows, err := l.db.QueryContext(context.Background(),
+		"SELECT agent, COUNT(*) as cnt FROM events WHERE agent IS NOT NULL GROUP BY agent HAVING cnt > ?", maxPerAgent,
+	)
+	if err != nil {
+		return deleted, nil // best-effort
+	}
+	defer func() { _ = rows.Close() }()
+
+	var agents []string
+	for rows.Next() {
+		var agent string
+		var cnt int
+		if scanErr := rows.Scan(&agent, &cnt); scanErr == nil {
+			agents = append(agents, agent)
+		}
+	}
+	_ = rows.Err()
+
+	for _, agent := range agents {
+		res2, delErr := l.db.ExecContext(context.Background(),
+			`DELETE FROM events WHERE id IN (
+				SELECT id FROM events WHERE agent = ? ORDER BY id DESC LIMIT -1 OFFSET ?
+			)`, agent, maxPerAgent,
+		)
+		if delErr == nil {
+			n, _ := res2.RowsAffected()
+			deleted += n
+		}
+	}
+
+	return deleted, nil
+}
+
 // Close is a no-op — the shared DB is owned by the caller.
 func (l *SQLiteLog) Close() error {
 	return nil

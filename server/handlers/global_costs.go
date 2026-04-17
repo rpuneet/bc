@@ -1,0 +1,174 @@
+package handlers
+
+import (
+	"net/http"
+	"sort"
+	"time"
+
+	"github.com/rpuneet/bc/pkg/cost"
+	"github.com/rpuneet/bc/pkg/workspace"
+)
+
+// GlobalCostsHandler serves cross-workspace cost rollups from the
+// user-global ledger at ~/.bc/costs.db.
+//
+// GET /api/global/costs?start=<RFC3339|YYYY-MM-DD>&groupBy=workspace|project
+//
+//   - Mount OUTSIDE WorkspaceScope so the response spans every workspace.
+//   - `start` defaults to 30 days ago when omitted.
+//   - `end` is not honored because the underlying store only accepts a
+//     lower bound (`since`); callers that need a window should narrow on
+//     the client. TODO(#250): widen pkg/cost to accept a full range.
+type GlobalCostsHandler struct {
+	store    *cost.Store
+	registry *workspace.Registry
+}
+
+// NewGlobalCostsHandler builds a handler. If store is nil the endpoint
+// returns 503, keeping production test harnesses that don't wire a
+// global ledger from panicking.
+func NewGlobalCostsHandler(store *cost.Store, reg *workspace.Registry) *GlobalCostsHandler {
+	return &GlobalCostsHandler{store: store, registry: reg}
+}
+
+// CostRow is one row of the /api/global/costs response.
+type CostRow struct {
+	Key   string  `json:"key"`   // workspace id or project label
+	Label string  `json:"label"` // human-readable name
+	Total float64 `json:"total"` // USD
+}
+
+// CostReport is the envelope returned by /api/global/costs.
+type CostReport struct {
+	Range struct {
+		Start string `json:"start"`
+	} `json:"range"`
+	GroupBy string    `json:"groupBy"`
+	Rows    []CostRow `json:"rows"`
+}
+
+// ServeHTTP implements http.Handler.
+func (h *GlobalCostsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		httpError(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if h.store == nil {
+		httpError(w, "global cost ledger not configured", http.StatusServiceUnavailable)
+		return
+	}
+
+	q := r.URL.Query()
+	groupBy := q.Get("groupBy")
+	if groupBy == "" {
+		groupBy = "workspace"
+	}
+	if groupBy != "workspace" && groupBy != "project" {
+		httpError(w, "groupBy must be 'workspace' or 'project'", http.StatusBadRequest)
+		return
+	}
+
+	startStr := q.Get("start")
+	since, err := parseCostStart(startStr)
+	if err != nil {
+		httpError(w, "invalid start: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	rows, err := h.rollup(r, groupBy, since)
+	if err != nil {
+		httpInternalError(w, "roll up costs", err)
+		return
+	}
+
+	// Stable sort: highest total first, ties broken by label.
+	sort.Slice(rows, func(i, j int) bool {
+		if rows[i].Total != rows[j].Total {
+			return rows[i].Total > rows[j].Total
+		}
+		return rows[i].Label < rows[j].Label
+	})
+
+	report := CostReport{GroupBy: groupBy, Rows: rows}
+	report.Range.Start = since.Format(time.RFC3339)
+	writeJSON(w, http.StatusOK, report)
+}
+
+// rollup returns rows keyed either by workspace id or project name.
+func (h *GlobalCostsHandler) rollup(r *http.Request, groupBy string, since time.Time) ([]CostRow, error) {
+	sinceArg := sinceFormatter{t: since}
+
+	if groupBy == "workspace" {
+		byWS, err := h.store.SumByWorkspace(r.Context(), sinceArg)
+		if err != nil {
+			return nil, err
+		}
+		out := make([]CostRow, 0, len(byWS))
+		for wsID, total := range byWS {
+			key := wsID
+			label := h.resolveLabel(wsID)
+			if wsID == "" {
+				key = "unattributed"
+				label = "Unattributed"
+			}
+			out = append(out, CostRow{Key: key, Label: label, Total: total})
+		}
+		return out, nil
+	}
+
+	// groupBy=project: resolver collapses by workspace name.
+	resolve := func(wsID string) string { return h.resolveLabel(wsID) }
+	byProj, err := h.store.SumByProject(r.Context(), sinceArg, resolve)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]CostRow, 0, len(byProj))
+	for key, total := range byProj {
+		out = append(out, CostRow{Key: key, Label: key, Total: total})
+	}
+	return out, nil
+}
+
+// resolveLabel maps a workspace id to its registered name, falling
+// back to the id itself when no registry entry is found.
+func (h *GlobalCostsHandler) resolveLabel(wsID string) string {
+	if h.registry == nil || wsID == "" {
+		return wsID
+	}
+	for _, entry := range h.registry.List() {
+		if entry.ID == wsID {
+			if entry.Name != "" {
+				return entry.Name
+			}
+			return entry.Path
+		}
+	}
+	return wsID
+}
+
+// parseCostStart parses start=... into a time. Accepts RFC3339 or
+// YYYY-MM-DD. Empty input defaults to 30 days ago.
+func parseCostStart(s string) (time.Time, error) {
+	if s == "" {
+		return time.Now().Add(-30 * 24 * time.Hour), nil
+	}
+	if t, err := time.Parse(time.RFC3339, s); err == nil {
+		return t, nil
+	}
+	if t, err := time.Parse("2006-01-02", s); err == nil {
+		return t, nil
+	}
+	return time.Time{}, errBadTime
+}
+
+var errBadTime = &httpErr{Msg: "expected RFC3339 or YYYY-MM-DD"}
+
+type httpErr struct{ Msg string }
+
+func (e *httpErr) Error() string { return e.Msg }
+
+// sinceFormatter adapts time.Time to the interface{Format(string) string}
+// parameter required by (*cost.Store).SumByWorkspace / SumByProject.
+type sinceFormatter struct{ t time.Time }
+
+func (s sinceFormatter) Format(layout string) string { return s.t.Format(layout) }

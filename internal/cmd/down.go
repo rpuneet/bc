@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -55,9 +54,12 @@ func runDown(cmd *cobra.Command, _ []string) error {
 	daemonName := fmt.Sprintf("bc-%s-daemon", id)
 
 	// Stop local daemon if running via PID file
-	pidPath := filepath.Join(ws.StateDir(), "bcd.pid")
+	pidPath, pidErr := workspace.DaemonPidPath()
+	if pidErr != nil {
+		log.Warn("failed to resolve daemon pid path", "error", pidErr)
+	}
 	wasDaemon := false
-	if pidData, readErr := os.ReadFile(pidPath); readErr == nil { //nolint:gosec // controlled workspace path
+	if pidData, readErr := os.ReadFile(pidPath); readErr == nil && pidPath != "" { //nolint:gosec // controlled home path
 		wasDaemon = true
 		pid := strings.TrimSpace(string(pidData))
 		fmt.Printf("  Stopping local bcd (PID %s)... ", pid)

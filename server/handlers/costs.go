@@ -27,11 +27,29 @@ func (h *CostHandler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/costs/", h.byResource)
 }
 
+// resolveStore returns the context-scoped cost store with closure fallback.
+// Phase M3: both paths resolve to the same store today.
+func (h *CostHandler) resolveStore(r *http.Request) *cost.Store {
+	if view := WorkspaceFromContext(r.Context()); view != nil && view.Costs != nil {
+		return view.Costs
+	}
+	return h.store
+}
+
+// resolveImporter returns the context-scoped cost importer with closure fallback.
+func (h *CostHandler) resolveImporter(r *http.Request) *cost.Importer {
+	if view := WorkspaceFromContext(r.Context()); view != nil && view.CostImporter != nil {
+		return view.CostImporter
+	}
+	return h.importer
+}
+
 func (h *CostHandler) summary(w http.ResponseWriter, r *http.Request) {
 	if !requireMethod(w, r, http.MethodGet) {
 		return
 	}
-	s, err := h.store.WorkspaceSummary(r.Context())
+	store := h.resolveStore(r)
+	s, err := store.WorkspaceSummary(r.Context())
 	if err != nil {
 		httpInternalError(w, "workspace summary", err)
 		return
@@ -40,6 +58,7 @@ func (h *CostHandler) summary(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *CostHandler) byResource(w http.ResponseWriter, r *http.Request) {
+	store := h.resolveStore(r)
 	parts := strings.SplitN(strings.TrimPrefix(r.URL.Path, "/api/costs/"), "/", 3)
 	resource := parts[0]
 
@@ -48,7 +67,7 @@ func (h *CostHandler) byResource(w http.ResponseWriter, r *http.Request) {
 		if !requireMethod(w, r, http.MethodGet) {
 			return
 		}
-		summaries, err := h.store.SummaryByAgent(r.Context())
+		summaries, err := store.SummaryByAgent(r.Context())
 		if err != nil {
 			httpInternalError(w, "operation failed", err)
 			return
@@ -68,7 +87,7 @@ func (h *CostHandler) byResource(w http.ResponseWriter, r *http.Request) {
 		if !requireMethod(w, r, http.MethodGet) {
 			return
 		}
-		summaries, err := h.store.SummaryByTeam(r.Context())
+		summaries, err := store.SummaryByTeam(r.Context())
 		if err != nil {
 			httpInternalError(w, "operation failed", err)
 			return
@@ -88,7 +107,7 @@ func (h *CostHandler) byResource(w http.ResponseWriter, r *http.Request) {
 		if !requireMethod(w, r, http.MethodGet) {
 			return
 		}
-		summaries, err := h.store.SummaryByModel(r.Context())
+		summaries, err := store.SummaryByModel(r.Context())
 		if err != nil {
 			httpInternalError(w, "operation failed", err)
 			return
@@ -126,6 +145,7 @@ func (h *CostHandler) byResource(w http.ResponseWriter, r *http.Request) {
 
 // daily handles GET /api/costs/daily?days=30
 func (h *CostHandler) daily(w http.ResponseWriter, r *http.Request) {
+	store := h.resolveStore(r)
 	if !requireMethod(w, r, http.MethodGet) {
 		return
 	}
@@ -137,7 +157,7 @@ func (h *CostHandler) daily(w http.ResponseWriter, r *http.Request) {
 	}
 	days = clampInt(days, 1, 365)
 	since := time.Now().AddDate(0, 0, -days)
-	costs, err := h.store.GetDailyCosts(r.Context(), since)
+	costs, err := store.GetDailyCosts(r.Context(), since)
 	if err != nil {
 		httpInternalError(w, "operation failed", err)
 		return
@@ -153,11 +173,12 @@ func (h *CostHandler) sync(w http.ResponseWriter, r *http.Request) {
 	if !requireMethod(w, r, http.MethodPost) {
 		return
 	}
-	if h.importer == nil {
+	importer := h.resolveImporter(r)
+	if importer == nil {
 		httpError(w, "importer not configured", http.StatusServiceUnavailable)
 		return
 	}
-	n, err := h.importer.ImportAll(r.Context())
+	n, err := importer.ImportAll(r.Context())
 	if err != nil {
 		httpInternalError(w, "import failed", err)
 		return
@@ -167,6 +188,7 @@ func (h *CostHandler) sync(w http.ResponseWriter, r *http.Request) {
 
 // budgets handles /api/costs/budgets and /api/costs/budgets/{scope}.
 func (h *CostHandler) budgets(w http.ResponseWriter, r *http.Request, parts []string) {
+	store := h.resolveStore(r)
 	// Determine scope from path: /api/costs/budgets or /api/costs/budgets/{scope}
 	scope := ""
 	if len(parts) >= 2 && parts[1] != "" {
@@ -177,7 +199,7 @@ func (h *CostHandler) budgets(w http.ResponseWriter, r *http.Request, parts []st
 	case http.MethodGet:
 		if scope == "" {
 			// GET /api/costs/budgets — list all budgets
-			budgets, err := h.store.GetAllBudgets(r.Context())
+			budgets, err := store.GetAllBudgets(r.Context())
 			if err != nil {
 				httpInternalError(w, "operation failed", err)
 				return
@@ -188,7 +210,7 @@ func (h *CostHandler) budgets(w http.ResponseWriter, r *http.Request, parts []st
 			writeJSON(w, http.StatusOK, budgets)
 		} else {
 			// GET /api/costs/budgets/{scope} — get budget + check status
-			status, err := h.store.CheckBudget(r.Context(), scope)
+			status, err := store.CheckBudget(r.Context(), scope)
 			if err != nil {
 				httpInternalError(w, "operation failed", err)
 				return
@@ -229,7 +251,7 @@ func (h *CostHandler) budgets(w http.ResponseWriter, r *http.Request, parts []st
 			httpError(w, "invalid period: must be daily, weekly, or monthly", http.StatusBadRequest)
 			return
 		}
-		budget, err := h.store.SetBudget(r.Context(), req.Scope, period, req.LimitUSD, req.AlertAt, req.HardStop)
+		budget, err := store.SetBudget(r.Context(), req.Scope, period, req.LimitUSD, req.AlertAt, req.HardStop)
 		if err != nil {
 			httpInternalError(w, "operation failed", err)
 			return
@@ -242,7 +264,7 @@ func (h *CostHandler) budgets(w http.ResponseWriter, r *http.Request, parts []st
 			httpError(w, "scope is required in path", http.StatusBadRequest)
 			return
 		}
-		if err := h.store.DeleteBudget(r.Context(), scope); err != nil {
+		if err := store.DeleteBudget(r.Context(), scope); err != nil {
 			httpInternalError(w, "operation failed", err)
 			return
 		}
@@ -255,6 +277,7 @@ func (h *CostHandler) budgets(w http.ResponseWriter, r *http.Request, parts []st
 
 // project handles GET /api/costs/project?lookback_days=30&project_days=30
 func (h *CostHandler) project(w http.ResponseWriter, r *http.Request) {
+	store := h.resolveStore(r)
 	if !requireMethod(w, r, http.MethodGet) {
 		return
 	}
@@ -270,7 +293,7 @@ func (h *CostHandler) project(w http.ResponseWriter, r *http.Request) {
 			projectDays = n
 		}
 	}
-	proj, err := h.store.ProjectCost(r.Context(), lookbackDays, time.Duration(projectDays)*24*time.Hour)
+	proj, err := store.ProjectCost(r.Context(), lookbackDays, time.Duration(projectDays)*24*time.Hour)
 	if err != nil {
 		httpInternalError(w, "operation failed", err)
 		return
@@ -280,6 +303,7 @@ func (h *CostHandler) project(w http.ResponseWriter, r *http.Request) {
 
 // agentDetail handles GET /api/costs/agent/{name}
 func (h *CostHandler) agentDetail(w http.ResponseWriter, r *http.Request, parts []string) {
+	store := h.resolveStore(r)
 	if !requireMethod(w, r, http.MethodGet) {
 		return
 	}
@@ -289,7 +313,7 @@ func (h *CostHandler) agentDetail(w http.ResponseWriter, r *http.Request, parts 
 	}
 	agentName := parts[1]
 
-	summary, err := h.store.AgentSummary(r.Context(), agentName)
+	summary, err := store.AgentSummary(r.Context(), agentName)
 	if err != nil {
 		httpInternalError(w, "operation failed", err)
 		return
@@ -297,7 +321,7 @@ func (h *CostHandler) agentDetail(w http.ResponseWriter, r *http.Request, parts 
 
 	// Get daily breakdown for the last 30 days
 	since := time.Now().AddDate(0, 0, -30)
-	allAgentDaily, err := h.store.GetAgentDailyCosts(r.Context(), since)
+	allAgentDaily, err := store.GetAgentDailyCosts(r.Context(), since)
 	if err != nil {
 		httpInternalError(w, "operation failed", err)
 		return

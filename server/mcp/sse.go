@@ -116,6 +116,15 @@ func NewSSEBroker() *SSEBroker {
 	return &SSEBroker{clients: make(map[chan []byte]*sseClient), messageEndpoint: "/message"}
 }
 
+// SetMessageEndpoint overrides the endpoint URL returned to new SSE clients
+// in the initial `event: endpoint` line. Used by scoped mounts (phase M6)
+// so each per-workspace broker advertises its scoped /message path.
+func (b *SSEBroker) SetMessageEndpoint(endpoint string) {
+	b.mu.Lock()
+	b.messageEndpoint = endpoint
+	b.mu.Unlock()
+}
+
 func (b *SSEBroker) subscribe(agentName string) chan []byte {
 	ch := make(chan []byte, 8)
 	b.mu.Lock()

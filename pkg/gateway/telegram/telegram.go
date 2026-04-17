@@ -22,6 +22,7 @@ type Adapter struct {
 	chatMap       map[int64]string
 	token         string
 	mode          string
+	name          string
 	lastError     string
 	chatMu        sync.RWMutex
 	connected     bool
@@ -31,19 +32,29 @@ type Adapter struct {
 var _ gateway.Adapter = (*Adapter)(nil)
 var _ gateway.StatusReporter = (*Adapter)(nil)
 
-// New creates a new Telegram adapter.
+// New creates a new Telegram adapter with the default name "telegram".
 func New(token, mode string) *Adapter {
+	return NewNamed("telegram", token, mode)
+}
+
+// NewNamed creates a Telegram adapter with a custom name (e.g. "telegram:trade_research").
+// This allows registering multiple Telegram bots in the same gateway manager.
+func NewNamed(name, token, mode string) *Adapter {
 	if mode == "" {
 		mode = "polling"
 	}
+	if name == "" {
+		name = "telegram"
+	}
 	return &Adapter{
+		name:    name,
 		token:   token,
 		mode:    mode,
 		chatMap: make(map[int64]string),
 	}
 }
 
-func (a *Adapter) Name() string { return "telegram" }
+func (a *Adapter) Name() string { return a.name }
 
 func (a *Adapter) Start(ctx context.Context, onMessage func(gateway.InboundMessage)) error {
 	bot, err := tgbotapi.NewBotAPI(a.token)

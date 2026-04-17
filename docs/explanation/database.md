@@ -244,4 +244,3 @@ OLD (per-project):                NEW (global):
   project/.bc/logs/        ->     ~/.bc/logs/
 ```
 
-`bc workspace migrate` migrates workspace config format from v1 (`.bc/config.json`) to v2 (`.bc/settings.json`). It does not migrate database schema or copy data between directories. Agent JSON state files auto-migrate on next load.

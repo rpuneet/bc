@@ -21,6 +21,19 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+export interface BulkResult {
+  agent: string;
+  status: "ok" | "error";
+  error?: string;
+}
+
+export interface AgentActivityItem {
+  timestamp: string;
+  event: string;
+  message?: string;
+  data?: Record<string, unknown>;
+}
+
 export interface Agent {
   name: string;
   role: string;
@@ -31,6 +44,7 @@ export interface Agent {
   created_at: string;
   updated_at: string;
   stopped_at?: string;
+  archived_at?: string;
   task?: string;
   session?: string;
   session_id?: string;
@@ -39,6 +53,17 @@ export interface Agent {
   total_tokens?: number;
   runtime_backend?: string;
   mcp_servers?: string[];
+}
+
+export interface AgentConfig {
+  system_prompt: string;
+  mcp_servers: string[];
+  runtime_backend: string;
+  tool: string;
+  session: string;
+  worktree_path: string;
+  created_at: string;
+  started_at: string;
 }
 
 export interface Channel {
@@ -116,21 +141,44 @@ export interface ModelCostSummary {
 
 export interface AgentStatsSummary {
   agent_name: string;
-  cpu_avg: number;
-  cpu_max: number;
-  mem_avg_bytes: number;
-  mem_max_bytes: number;
-  mem_percent: number;
-  disk_read_bytes: number;
-  disk_write_bytes: number;
-  net_rx_bytes: number;
-  net_tx_bytes: number;
+  role: string;
+  tool: string;
+  runtime: string;
+  state: string;
+  cpu: {
+    avg_percent: number;
+    max_percent: number;
+  };
+  memory: {
+    avg_bytes: number;
+    max_bytes: number;
+    avg_percent: number;
+  };
+  disk: {
+    read_bytes: number;
+    write_bytes: number;
+  };
+  network: {
+    rx_bytes: number;
+    tx_bytes: number;
+  };
+  tokens: {
+    input: number;
+    output: number;
+    cache_read: number;
+    cache_create: number;
+  };
+  cost: {
+    total_usd: number;
+  };
+  models?: AgentModelCostBreakdown[];
+}
+
+export interface AgentModelCostBreakdown {
+  model: string;
+  cost_usd: number;
   input_tokens: number;
   output_tokens: number;
-  cache_read: number;
-  cache_create: number;
-  total_cost_usd: number;
-  cost_by_model: ModelCostSummary[];
 }
 
 export interface FileAttachment {
@@ -370,6 +418,27 @@ export interface ChannelStats {
 }
 
 
+// ComputedStats — computed from hook events in SQLite, no TimescaleDB required.
+// Token and cost fields are populated from the cost store when available.
+// CPU/mem are sampled live via ps aux as a fallback when TimescaleDB is unavailable.
+export interface ComputedStats {
+  total_events: number;
+  tool_calls: number;
+  tool_breakdown: Record<string, number>;
+  session_duration_sec: number;
+  last_active: string;
+  input_tokens: number;
+  output_tokens: number;
+  tokens: number;
+  cost_usd: number;
+  disk_bytes: number;
+  channel_sent: number;
+  channel_received: number;
+  network_note?: string;
+  cpu_percent?: number;
+  mem_used_bytes?: number;
+}
+
 // TimescaleDB timeseries types
 export interface SystemMetricTS {
   time: string;
@@ -516,7 +585,70 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ new_name: newName }),
     }),
+  archiveAgent: (name: string) =>
+    request<void>(`/agents/${encodeURIComponent(name)}/archive`, { method: "POST" }),
+  unarchiveAgent: (name: string) =>
+    request<void>(`/agents/${encodeURIComponent(name)}/unarchive`, { method: "POST" }),
+
+  // Cross-workspace cost rollup (outside workspace scope).
+  globalCosts: (opts: { start?: string; groupBy?: "workspace" | "project" } = {}) => {
+    const q = new URLSearchParams();
+    if (opts.start) q.set("start", opts.start);
+    if (opts.groupBy) q.set("groupBy", opts.groupBy);
+    const qs = q.toString();
+    return request<{
+      range: { start: string };
+      groupBy: "workspace" | "project";
+      rows: Array<{ key: string; label: string; total: number }>;
+    }>(`/global/costs${qs ? "?" + qs : ""}`);
+  },
   stopAllAgents: () => request<void>("/agents/stop-all", { method: "POST" }),
+
+  // Bulk agent operations — parallel ops with per-agent results
+  bulkStartAgents: (agents: string[]) =>
+    request<{ results: BulkResult[] }>("/agents/bulk/start", {
+      method: "POST",
+      body: JSON.stringify({ agents }),
+    }),
+  bulkStopAgents: (agents: string[]) =>
+    request<{ results: BulkResult[] }>("/agents/bulk/stop", {
+      method: "POST",
+      body: JSON.stringify({ agents }),
+    }),
+  bulkDeleteAgents: (agents: string[], force = false) =>
+    request<{ results: BulkResult[] }>("/agents/bulk/delete", {
+      method: "POST",
+      body: JSON.stringify({ agents, force }),
+    }),
+  bulkMessageAgents: (agents: string[], message: string) =>
+    request<{ results: BulkResult[] }>("/agents/bulk/message", {
+      method: "POST",
+      body: JSON.stringify({ agents, message }),
+    }),
+
+  // Agent activity timeline — newest first, capped at `limit` entries (default 50, max 1000).
+  getAgentActivity: (name: string, limit = 50) =>
+    request<AgentActivityItem[]>(`/agents/${encodeURIComponent(name)}/activity?limit=${limit}`),
+
+  getAgentConfig: (name: string) =>
+    request<AgentConfig>(`/agents/${encodeURIComponent(name)}/config`),
+  patchAgentConfig: (name: string, patch: { system_prompt?: string }) =>
+    request<void>(`/agents/${encodeURIComponent(name)}/config`, { method: "PATCH", body: JSON.stringify(patch) }),
+  getAgentMcps: (name: string) =>
+    request<Array<{ name: string }>>(`/agents/${encodeURIComponent(name)}/mcps`),
+  addAgentMcp: (name: string, mcpName: string) =>
+    request<void>(`/agents/${encodeURIComponent(name)}/mcps`, { method: "POST", body: JSON.stringify({ name: mcpName }) }),
+  removeAgentMcp: (name: string, mcpName: string) =>
+    request<void>(`/agents/${encodeURIComponent(name)}/mcps/${encodeURIComponent(mcpName)}`, { method: "DELETE" }),
+  getAgentLoop: (name: string) =>
+    request<{ enabled: boolean; prompt: string }>(`/agents/${encodeURIComponent(name)}/loop`),
+  putAgentLoop: (name: string, config: { enabled: boolean; prompt: string }) =>
+    request<{ enabled: boolean; prompt: string }>(`/agents/${encodeURIComponent(name)}/loop`, { method: "PUT", body: JSON.stringify(config) }),
+  getAgentEnv: (name: string) =>
+    request<Array<{ key: string; value: string }>>(`/agents/${encodeURIComponent(name)}/env`),
+  putAgentEnv: (name: string, vars: Array<{ key: string; value: string }>) =>
+    request<Array<{ key: string; value: string }>>(`/agents/${encodeURIComponent(name)}/env`, { method: "PUT", body: JSON.stringify(vars) }),
+
   sendToAgent: (name: string, message: string) =>
     request<void>(`/agents/${encodeURIComponent(name)}/send`, {
       method: "POST",
@@ -719,6 +851,11 @@ export const api = {
     request<void>(`/mcp/${encodeURIComponent(name)}/disable`, {
       method: "POST",
     }),
+  updateMCPEnv: (name: string, env: Record<string, string>) =>
+    request<MCPServer>(`/mcp/${encodeURIComponent(name)}`, {
+      method: "PATCH",
+      body: JSON.stringify({ env }),
+    }),
 
   /** Tool list — merges MCP + CLI tools with status. */
   listTools: () => request<Tool[]>("/tools/unified"),
@@ -801,6 +938,10 @@ export const api = {
     request<AgentStatsSummary>(
       `/agents/stats/summary/${encodeURIComponent(name)}${qs(params)}`,
     ),
+
+  /** Computed stats from hook events — works without TimescaleDB. */
+  getAgentComputedStats: (name: string) =>
+    request<ComputedStats>(`/agents/${encodeURIComponent(name)}/stats-computed`),
 
   /** Upload a file attachment. */
   uploadFile: async (file: File, channel: string, sender: string) => {

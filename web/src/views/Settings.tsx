@@ -4,6 +4,9 @@ import { usePolling } from "../hooks/usePolling";
 import { LoadingSkeleton } from "../components/LoadingSkeleton";
 import { EmptyState } from "../components/EmptyState";
 
+import { useHeaderSlot } from "../context/HeaderSlotContext";
+import { TabHeaderTitle } from "../components/Header";
+import { DependenciesSection } from "../components/settings/Dependencies";
 type SaveStatus = "idle" | "saving" | "saved" | "error";
 
 const SECTION_ORDER = ["server", "storage", "runtime", "providers", "cron", "logs"];
@@ -94,6 +97,10 @@ const SECTION_META: Record<string, { icon: React.ReactNode; desc: string }> = {
   logs: {
     icon: <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />,
     desc: "Log file location and rotation",
+  },
+  dependencies: {
+    icon: <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />,
+    desc: "Optional supporting services",
   },
 };
 
@@ -260,6 +267,8 @@ function LogsSection({ data, onChange }: { data: Record<string, unknown>; onChan
 /* ------------------------------------------------------------------ */
 
 export function Settings() {
+  useHeaderSlot({ title: <TabHeaderTitle>Settings</TabHeaderTitle> });
+
   const fetcher = useCallback(() => api.getSettings(), []);
   const { data: config, loading, error, refresh, timedOut } = usePolling(fetcher, 30000);
 
@@ -337,14 +346,10 @@ export function Settings() {
 
   return (
     <div className="p-4 md:p-6 space-y-3">
-      <div className="flex items-center justify-between mb-1">
-        <div>
-          <h1 className="text-lg font-bold text-bc-text">System Configuration</h1>
-          <p className="text-[10px] text-bc-muted">
-            settings.json{typeof version !== "undefined" ? ` v${version}` : ""}
-          </p>
-        </div>
-      </div>
+      {/* File metadata (title lives in the top-bar chip) */}
+      <p className="text-[10px] text-bc-muted">
+        preferences.json{typeof version !== "undefined" ? ` v${version}` : ""}
+      </p>
 
       {/* Floating save bar */}
       {dirtySections.length > 0 && (
@@ -411,6 +416,11 @@ export function Settings() {
           <LogsSection data={edited} onChange={handleChange} />
         </Section>
       </div>
+
+      {/* Row 4: Optional dependencies (bc-db, bc-code-server, bc-browser) */}
+      <Section title="dependencies" dirty={false}>
+        <DependenciesSection />
+      </Section>
     </div>
   );
 }

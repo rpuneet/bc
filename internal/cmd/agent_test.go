@@ -514,38 +514,6 @@ func TestAgentBroadcast_EmptyArgs(t *testing.T) {
 	}
 }
 
-func TestAgentSendRole_ValidArgs(t *testing.T) {
-	cmd := agentSendRoleCmd
-
-	// Should accept role + message
-	err := cmd.Args(cmd, []string{"engineer", "run tests"})
-	if err != nil {
-		t.Errorf("unexpected error for valid args: %v", err)
-	}
-
-	// Should accept role + multi-word message
-	err = cmd.Args(cmd, []string{"manager", "check", "status", "now"})
-	if err != nil {
-		t.Errorf("unexpected error for multi-word message: %v", err)
-	}
-}
-
-func TestAgentSendRole_InsufficientArgs(t *testing.T) {
-	cmd := agentSendRoleCmd
-
-	// MinimumNArgs(2) should reject single arg
-	err := cmd.Args(cmd, []string{"engineer"})
-	if err == nil {
-		t.Error("expected error for missing message")
-	}
-
-	// Should reject no args
-	err = cmd.Args(cmd, []string{})
-	if err == nil {
-		t.Error("expected error for no args")
-	}
-}
-
 func TestAgentSendPattern_ValidArgs(t *testing.T) {
 	cmd := agentSendPatternCmd
 
@@ -588,16 +556,6 @@ func TestAgentBroadcast_NoAgents(t *testing.T) {
 	}
 }
 
-func TestAgentSendRole_NoAgents(t *testing.T) {
-	setupTestWorkspace(t)
-
-	// Should succeed with no matching agents (no error)
-	_, err := executeCmd("agent", "send-to-role", "engineer", "hello")
-	if err != nil {
-		t.Fatalf("agent send-to-role failed: %v", err)
-	}
-}
-
 func TestAgentSendPattern_NoMatches(t *testing.T) {
 	setupTestWorkspace(t)
 
@@ -605,16 +563,6 @@ func TestAgentSendPattern_NoMatches(t *testing.T) {
 	_, err := executeCmd("agent", "send-pattern", "nonexistent-*", "hello")
 	if err != nil {
 		t.Fatalf("agent send-pattern failed: %v", err)
-	}
-}
-
-func TestAgentSendRole_InvalidRole(t *testing.T) {
-	setupTestWorkspace(t)
-
-	// Only truly invalid role names (format) should error
-	_, err := executeCmd("agent", "send-to-role", "role@invalid", "hello")
-	if err == nil {
-		t.Error("expected error for invalid role format")
 	}
 }
 
@@ -644,7 +592,6 @@ func TestAgentCommandStructure_MessageRouting(t *testing.T) {
 
 	expectedCmds := map[string]bool{
 		"broadcast":    false,
-		"send-to-role": false,
 		"send-pattern": false,
 	}
 

@@ -64,32 +64,35 @@ var agentCmd = &cobra.Command{
 
 Examples:
   bc agent list                          # List all agents
-  bc agent create eng-01 --role engineer # Create new agent
+  bc agent create eng-01 --template engineer # Create new agent
   bc agent attach eng-01                 # Attach to agent session
   bc agent peek eng-01                   # View recent output
   bc agent send eng-01 "run tests"       # Send message to agent
   bc agent stop eng-01                   # Stop agent
   bc agent broadcast "check status"      # Send to all agents
-  bc agent send-to-role engineer "test"  # Send to all engineers
+  bc agent send-pattern "eng-*" "test"   # Send to matching agents
   bc agent                               # List all agents (same as bc agent list)
   bc agent send-pattern "eng-*" "hello"  # Send to matching agents`,
 	// #925: Default to list for consistency with bc channel
 	RunE: runAgentList,
 }
 
-// agentCreateCmd creates a new agent (replaces bc spawn)
+// agentCreateCmd creates a new agent.
 var agentCreateCmd = &cobra.Command{
 	Use:   "create [name]",
 	Short: "Create a new agent",
 	Long: `Create and start a new agent.
 
 If no name is provided, a random memorable name is generated (e.g., swift-falcon).
+Agents are configured via templates (markdown files at ~/.bc/templates/).
+Use --copy to clone settings from an existing agent.
 
 Examples:
-  bc agent create --role engineer              # Create with random name
-  bc agent create worker-01                    # Create with explicit name
-  bc agent create eng-01 --role engineer       # Create engineer
-  bc agent create qa-01 --role qa --tool cursor # Create QA with Cursor`,
+  bc agent create                              # Random name, base template
+  bc agent create worker-01                    # Explicit name, base template
+  bc agent create eng-01 --template engineer   # Use engineer template
+  bc agent create qa-01 --tool cursor          # Base template with Cursor
+  bc agent create clone-01 --copy swift-hawk   # Copy config from swift-hawk`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: runAgentCreate,
 }
@@ -275,20 +278,6 @@ Examples:
 	RunE: runAgentBroadcast,
 }
 
-// agentSendRoleCmd sends a message to all agents of a specific role
-var agentSendRoleCmd = &cobra.Command{
-	Use:   "send-to-role <role> <message>",
-	Short: "Send a message to all agents of a specific role",
-	Long: `Send a message to all running agents that have the specified role.
-
-Examples:
-  bc agent send-to-role engineer "run the tests"
-  bc agent send-to-role manager "check status"
-  bc agent send-to-role tech-lead "review PRs"`,
-	Args: cobra.MinimumNArgs(2),
-	RunE: runAgentSendRole,
-}
-
 // agentSendPatternCmd sends a message to agents matching a pattern
 var agentSendPatternCmd = &cobra.Command{
 	Use:   "send-pattern <pattern> <message>",
@@ -307,42 +296,45 @@ Examples:
 
 // Flags
 var (
-	agentCreateTool    string
-	agentStatsJSON     bool
-	agentStatsLimit    int
-	agentCreateRole    string
-	agentCreateParent  string
-	agentCreateTeam    string
-	agentCreateEnv     string
-	agentCreateRuntime string
-	agentStartRuntime  string
-	agentStartResume   string // explicit session ID to resume
-	agentListRole      string
-	agentListStatus    string
-	agentListJSON      bool
-	agentListFull      bool
-	agentShowJSON      bool
-	agentShowFull      bool
-	agentPeekLines     int
-	agentPeekFollow    bool
-	agentStopForce     bool
-	agentDeleteForce   bool
-	agentDeletePurge   bool
-	agentRenameForce   bool
-	agentSendPreview   bool
-	agentLogsSince     string
+	agentCreateTool     string
+	agentStatsJSON      bool
+	agentStatsLimit     int
+	agentCreateRole     string
+	agentCreateTemplate string
+	agentCreateCopy     string
+	agentCreateParent   string
+	agentCreateTeam     string
+	agentCreateEnv      string
+	agentCreateRuntime  string
+	agentStartRuntime   string
+	agentStartResume    string // explicit session ID to resume
+	agentListRole       string
+	agentListStatus     string
+	agentListJSON       bool
+	agentListFull       bool
+	agentShowJSON       bool
+	agentShowFull       bool
+	agentPeekLines      int
+	agentPeekFollow     bool
+	agentStopForce      bool
+	agentDeleteForce    bool
+	agentDeletePurge    bool
+	agentRenameForce    bool
+	agentSendPreview    bool
+	agentLogsSince      string
 	// Health flags are defined in agent_health.go (issue #1648)
 )
 
 func init() {
 	// Create flags
 	agentCreateCmd.Flags().StringVar(&agentCreateTool, "tool", "", "Agent tool (claude, gemini, cursor, codex, opencode, openclaw, aider)")
-	agentCreateCmd.Flags().StringVar(&agentCreateRole, "role", "", "Agent role (required). Use 'bc role list' to see available roles")
-	agentCreateCmd.Flags().StringVar(&agentCreateParent, "parent", "", "Parent agent ID (must have permission to create this role)")
+	agentCreateCmd.Flags().StringVar(&agentCreateRole, "role", "", "Agent role (default: base)")
+	agentCreateCmd.Flags().StringVar(&agentCreateTemplate, "template", "", "Template name from ~/.bc/templates/ (e.g. base, engineer)")
+	agentCreateCmd.Flags().StringVar(&agentCreateCopy, "copy", "", "Copy settings from an existing agent")
+	agentCreateCmd.Flags().StringVar(&agentCreateParent, "parent", "", "Parent agent ID")
 	agentCreateCmd.Flags().StringVar(&agentCreateTeam, "team", "", "Team name (alphanumeric)")
 	agentCreateCmd.Flags().StringVar(&agentCreateEnv, "env", "", "Path to env file (KEY=VALUE per line)")
 	agentCreateCmd.Flags().StringVar(&agentCreateRuntime, "runtime", "", "Runtime backend override: tmux or docker")
-	_ = agentCreateCmd.MarkFlagRequired("role")
 
 	// List flags
 	agentListCmd.Flags().StringVar(&agentListRole, "role", "", "Filter by role")
@@ -406,7 +398,6 @@ func init() {
 	agentCmd.AddCommand(agentHealthCmd)
 	agentCmd.AddCommand(agentSessionsCmd)
 	agentCmd.AddCommand(agentBroadcastCmd)
-	agentCmd.AddCommand(agentSendRoleCmd)
 	agentCmd.AddCommand(agentSendPatternCmd)
 	agentCmd.AddCommand(agentAuthCmd)
 	agentCmd.AddCommand(agentCostCmd)
@@ -435,25 +426,37 @@ func runAgentCreate(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Validate role is not empty or "null"
-	if agentCreateRole == "" || agentCreateRole == "null" {
-		return fmt.Errorf("role is required. Use --role to specify a valid role (e.g., engineer, manager). Run 'bc role list' to see available roles")
-	}
-
-	// Parse role
-	role, roleErr := parseRoleStr(agentCreateRole)
-	if roleErr != nil {
-		return roleErr
-	}
-
-	// Prevent root agent creation via this command
-	if role == "root" {
-		return fmt.Errorf("cannot create root agent via 'bc agent create'. Use 'bc up' to initialize the root agent")
-	}
-
 	c, err := newDaemonClient(cmd.Context())
 	if err != nil {
 		return err
+	}
+
+	// --copy: resolve source agent's tool from an existing agent.
+	tmpl := agentCreateTemplate
+	toolName := agentCreateTool
+	if agentCreateCopy != "" {
+		if tmpl != "" {
+			return fmt.Errorf("--copy and --template are mutually exclusive")
+		}
+		source, getErr := c.Agents.Get(cmd.Context(), agentCreateCopy)
+		if getErr != nil {
+			return fmt.Errorf("copy source agent %q: %w", agentCreateCopy, getErr)
+		}
+		if toolName == "" {
+			toolName = source.Tool
+		}
+	}
+
+	// Default template to "base" when nothing is specified.
+	if tmpl == "" {
+		tmpl = "base"
+	}
+
+	// Role is always "base" — kept for backward compat with the server
+	// until the roles table is deleted in layout-v2.
+	role := agentCreateRole
+	if role == "" {
+		role = "base"
 	}
 
 	// Generate name if not provided
@@ -466,19 +469,21 @@ func runAgentCreate(cmd *cobra.Command, args []string) error {
 		fmt.Printf("Generated name: %s\n", agentName)
 	}
 
-	// Determine tool (server uses workspace default if empty)
-	toolName := agentCreateTool
-
 	// Create via client
-	fmt.Printf("Creating %s (%s)... ", agentName, agentCreateRole)
+	label := tmpl
+	if agentCreateCopy != "" {
+		label = "copy of " + agentCreateCopy
+	}
+	fmt.Printf("Creating %s (%s)... ", agentName, label)
 	info, createErr := c.Agents.Create(cmd.Context(), client.CreateAgentReq{
-		Name:    agentName,
-		Role:    role,
-		Tool:    toolName,
-		Runtime: agentCreateRuntime,
-		Parent:  agentCreateParent,
-		Team:    agentCreateTeam,
-		EnvFile: agentCreateEnv,
+		Name:     agentName,
+		Role:     role,
+		Tool:     toolName,
+		Runtime:  agentCreateRuntime,
+		Parent:   agentCreateParent,
+		Team:     agentCreateTeam,
+		EnvFile:  agentCreateEnv,
+		Template: tmpl,
 	})
 	if createErr != nil {
 		fmt.Println("✗")
@@ -924,36 +929,6 @@ func runAgentBroadcast(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Printf("Broadcast sent to %d agents\n", sent)
-	return nil
-}
-
-func runAgentSendRole(cmd *cobra.Command, args []string) error {
-	roleName := args[0]
-	message := strings.TrimSpace(strings.Join(args[1:], " "))
-	if message == "" {
-		return fmt.Errorf("message cannot be empty")
-	}
-
-	c, err := newDaemonClient(cmd.Context())
-	if err != nil {
-		return err
-	}
-
-	result, sendErr := c.Agents.SendToRole(cmd.Context(), roleName, message)
-	if sendErr != nil {
-		return fmt.Errorf("send-to-role failed: %w", sendErr)
-	}
-
-	for _, name := range result.Matched {
-		fmt.Printf("  %s: sent\n", name)
-	}
-
-	if result.Sent == 0 && result.Skipped == 0 && result.Failed == 0 {
-		fmt.Printf("No running agents with role %q found\n", roleName)
-		return nil
-	}
-
-	fmt.Printf("\nSent to %d %s(s) (%d skipped, %d failed)\n", result.Sent, roleName, result.Skipped, result.Failed)
 	return nil
 }
 

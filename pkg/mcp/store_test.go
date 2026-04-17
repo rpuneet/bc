@@ -301,6 +301,80 @@ func TestValidation(t *testing.T) {
 	}
 }
 
+func TestUpdateEnvReplaces(t *testing.T) {
+	s := setupTestStore(t)
+
+	cfg := &ServerConfig{
+		Name:      "gh",
+		Transport: TransportStdio,
+		Command:   "npx",
+		Env:       map[string]string{"TOKEN": "abc", "STALE": "x"},
+		Enabled:   true,
+	}
+	if err := s.Add(cfg); err != nil {
+		t.Fatal(err)
+	}
+
+	// Replace env: drop STALE via empty string, change TOKEN, add NEW.
+	err := s.UpdateEnv("gh", map[string]string{
+		"TOKEN": "def",
+		"STALE": "",
+		"NEW":   "1",
+	})
+	if err != nil {
+		t.Fatalf("UpdateEnv: %v", err)
+	}
+
+	got, err := s.Get("gh")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Env["TOKEN"] != "def" {
+		t.Errorf("TOKEN = %q, want %q", got.Env["TOKEN"], "def")
+	}
+	if _, ok := got.Env["STALE"]; ok {
+		t.Errorf("STALE should have been dropped, got %q", got.Env["STALE"])
+	}
+	if got.Env["NEW"] != "1" {
+		t.Errorf("NEW = %q, want %q", got.Env["NEW"], "1")
+	}
+}
+
+// TestUpdateEnvRollbackOnMissing confirms UpdateEnv is transactional: an
+// update that fails (row not found) leaves every OTHER row untouched.
+func TestUpdateEnvRollbackOnMissing(t *testing.T) {
+	s := setupTestStore(t)
+
+	orig := map[string]string{"TOKEN": "keep-me"}
+	if err := s.Add(&ServerConfig{
+		Name:      "srv",
+		Transport: TransportStdio,
+		Command:   "cmd",
+		Env:       orig,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	// UpdateEnv on a nonexistent server must error without mutating srv.
+	err := s.UpdateEnv("does-not-exist", map[string]string{"X": "y"})
+	if err == nil {
+		t.Fatal("expected 'not found' error on missing server")
+	}
+	if !strings.Contains(err.Error(), "not found") {
+		t.Errorf("expected 'not found' error, got: %v", err)
+	}
+
+	// Original server's env must be untouched.
+	got, err := s.Get("srv")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Env["TOKEN"] != "keep-me" {
+		t.Errorf("env corrupted after failed UpdateEnv: got %q, want %q",
+			got.Env["TOKEN"], "keep-me")
+	}
+}
+
 func TestSSETransport(t *testing.T) {
 	s := setupTestStore(t)
 

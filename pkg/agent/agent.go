@@ -54,6 +54,8 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -340,11 +342,16 @@ type AgentMemory struct {
 
 // Agent represents a running AI agent.
 type Agent struct {
-	UpdatedAt      time.Time    `json:"updated_at"`
-	StartedAt      time.Time    `json:"started_at"`
-	CreatedAt      time.Time    `json:"created_at"`
-	StoppedAt      *time.Time   `json:"stopped_at,omitempty"`
-	DeletedAt      *time.Time   `json:"deleted_at,omitempty"`
+	UpdatedAt time.Time  `json:"updated_at"`
+	StartedAt time.Time  `json:"started_at"`
+	CreatedAt time.Time  `json:"created_at"`
+	StoppedAt *time.Time `json:"stopped_at,omitempty"`
+	DeletedAt *time.Time `json:"deleted_at,omitempty"`
+	// ArchivedAt is set when the agent has been moved out of the
+	// default listing via POST /api/agents/{name}/archive. A non-nil
+	// value hides the agent from List() unless IncludeArchived is set.
+	// Archiving does NOT delete state; unarchive clears this field.
+	ArchivedAt     *time.Time   `json:"archived_at,omitempty"`
 	RolePrompt     *AgentMemory `json:"memory,omitempty"`
 	Workspace      string       `json:"workspace"`
 	ID             string       `json:"id"`
@@ -405,8 +412,10 @@ func LoadRoleMemory(workspacePath string, role Role) *AgentMemory {
 		}
 	}
 
-	// Load role from .bc/roles/<role>.md using RoleManager
-	stateDir := filepath.Join(workspacePath, ".bc")
+	// Load role via RoleManager. Prefer the M11 global runtime dir
+	// (~/.bc/workspaces/<id>/); fall back to the legacy <root>/.bc/
+	// sidecar when the global dir is missing or unavailable.
+	stateDir := workspaceStateDir(workspacePath)
 	rm := workspace.NewRoleManager(stateDir)
 	roleObj, err := rm.LoadRole(string(role))
 	if err != nil {
@@ -573,6 +582,10 @@ func NewManager(stateDir string) *Manager {
 
 // NewWorkspaceManager creates an agent manager scoped to a workspace.
 // Session names will be unique per workspace to avoid collisions.
+//
+// stateDir is the per-workspace runtime directory (pre-M11: <project>/.bc/;
+// M11+: ~/.bc/workspaces/<id>/). Agents are written to <stateDir>/agents/
+// and their worktrees at <stateDir>/agents/<name>/bc-<ws>-<name>/.
 func NewWorkspaceManager(stateDir, workspacePath string) *Manager {
 	cmd, tool := defaultAgentCmd()
 	tmuxBe := runtime.NewTmuxBackend(tmux.NewWorkspaceManager(DefaultSessionPrefix, workspacePath))
@@ -587,7 +600,7 @@ func NewWorkspaceManager(stateDir, workspacePath string) *Manager {
 		defaultTool:      tool,
 		workspacePath:    workspacePath,
 		maxLogBytes:      DefaultMaxLogBytes,
-		worktreeMgr:      worktree.NewManager(workspacePath),
+		worktreeMgr:      worktree.NewManagerWithDataDir(workspacePath, parentOfAgentsDir(stateDir)),
 	}
 }
 
@@ -611,8 +624,43 @@ func NewWorkspaceManagerWithRuntime(stateDir, workspacePath string, rt runtime.B
 		defaultTool:      tool,
 		workspacePath:    workspacePath,
 		maxLogBytes:      DefaultMaxLogBytes,
-		worktreeMgr:      worktree.NewManager(workspacePath),
+		worktreeMgr:      worktree.NewManagerWithDataDir(workspacePath, parentOfAgentsDir(stateDir)),
 	}
+}
+
+// parentOfAgentsDir returns the workspace runtime data dir given an agents
+// dir path. Callers historically pass ws.AgentsDir() (which ends in
+// "/agents") as stateDir; the worktree manager wants the parent so it can
+// create its own agents subdir. When stateDir does NOT end in "/agents",
+// it is treated as a full DataDir already.
+func parentOfAgentsDir(stateDir string) string {
+	if stateDir == "" {
+		return ""
+	}
+	if filepath.Base(stateDir) == "agents" {
+		return filepath.Dir(stateDir)
+	}
+	return stateDir
+}
+
+// workspaceStateDir returns the best-guess workspace runtime dir for a
+// project root. Prefers ~/.bc/workspaces/<id>/ (M11+); falls back to the
+// legacy <root>/.bc/ sidecar for pre-migration workspaces. Used by
+// package-level helpers that do not have access to a *Workspace.
+func workspaceStateDir(workspacePath string) string {
+	if globalDir, err := workspace.GlobalStateDir(workspacePath); err == nil {
+		if _, statErr := os.Stat(globalDir); statErr == nil {
+			return globalDir
+		}
+		// Global dir may not exist yet but is still the canonical
+		// location — return it if the legacy dir is absent too.
+		legacy := filepath.Join(workspacePath, ".bc")
+		if _, legacyErr := os.Stat(legacy); legacyErr != nil {
+			return globalDir
+		}
+		return legacy
+	}
+	return filepath.Join(workspacePath, ".bc")
 }
 
 // defaultAgentCmd returns the command and tool name for the default provider.
@@ -1235,7 +1283,7 @@ func (m *Manager) createAgent(ctx context.Context, opts SpawnOptions) (*Agent, e
 // setupLogPipe creates the logs directory and starts pipe-pane for the agent.
 // Returns the log file path.
 func (m *Manager) setupLogPipe(ctx context.Context, name, workspace string) string {
-	logsDir := filepath.Join(workspace, ".bc", "logs")
+	logsDir := filepath.Join(workspaceStateDir(workspace), "logs")
 	if err := os.MkdirAll(logsDir, 0750); err != nil {
 		log.Warn("failed to create logs dir", "error", err)
 		return ""
@@ -1605,8 +1653,8 @@ func (m *Manager) DeleteAgentWithOptions(ctx context.Context, name string, opts 
 		_ = cb.RemoveSession(ctx, name) //nolint:errcheck // may not exist
 	}
 
-	// 3. Remove persistent volume (.bc/volumes/<name>/)
-	volumeDir := filepath.Join(workspacePath, ".bc", "volumes", name)
+	// 3. Remove persistent volume (<DataDir>/volumes/<name>/)
+	volumeDir := filepath.Join(workspaceStateDir(workspacePath), "volumes", name)
 	if err := os.RemoveAll(volumeDir); err != nil {
 		log.Warn("delete: failed to remove agent volume", "agent", name, "error", err)
 	}
@@ -1747,7 +1795,7 @@ func (m *Manager) RenameAgent(ctx context.Context, oldName, newName string) erro
 	}
 
 	// Rename log file
-	oldLogDir := filepath.Join(m.workspacePath, ".bc", "logs")
+	oldLogDir := filepath.Join(workspaceStateDir(m.workspacePath), "logs")
 	oldLogFile := filepath.Join(oldLogDir, oldName+".log")
 	newLogFile := filepath.Join(oldLogDir, newName+".log")
 	if err := os.Rename(oldLogFile, newLogFile); err != nil && !os.IsNotExist(err) {
@@ -1848,6 +1896,34 @@ func (m *Manager) GetAgent(name string) *Agent {
 	copy := *a
 	copy.Children = append([]string{}, a.Children...)
 	return &copy
+}
+
+// SetArchived stamps (or clears) ArchivedAt on an in-memory agent and
+// persists the whole agent map. Returns an error if the named agent is
+// missing. Safe to call concurrently — uses m.mu for write serialization.
+// This is the backing primitive for the AgentService Archive/Unarchive
+// methods; it intentionally does NOT kill the runtime or touch on-disk
+// state beyond the SQLite agent store (archive is reversible).
+func (m *Manager) SetArchived(name string, archived bool) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	a, exists := m.agents[name]
+	if !exists {
+		return fmt.Errorf("agent %s not found", name)
+	}
+	if archived {
+		if a.ArchivedAt != nil {
+			return nil // idempotent
+		}
+		now := time.Now()
+		a.ArchivedAt = &now
+	} else {
+		if a.ArchivedAt == nil {
+			return nil
+		}
+		a.ArchivedAt = nil
+	}
+	return m.saveState()
 }
 
 // ListAgents returns copies of all agents sorted by role hierarchy then by name.
@@ -2312,6 +2388,64 @@ func (m *Manager) Close() error {
 	return nil
 }
 
+// WorkspacePath returns the workspace root path for this manager.
+func (m *Manager) WorkspacePath() string {
+	return m.workspacePath
+}
+
+// WorktreePath returns the filesystem path for an agent's worktree directory.
+// Returns an empty string if no worktree manager is configured.
+func (m *Manager) WorktreePath(agentName string) string {
+	if m.worktreeMgr == nil {
+		return ""
+	}
+	return m.worktreeMgr.Path(agentName)
+}
+
+// CreateWorktree creates a git worktree for the given agent name.
+// Returns the worktree path, or an error if no worktree manager is configured.
+func (m *Manager) CreateWorktree(ctx context.Context, agentName string) (string, error) {
+	if m.worktreeMgr == nil {
+		return "", fmt.Errorf("worktree manager not configured")
+	}
+	return m.worktreeMgr.Create(ctx, agentName)
+}
+
+// RegisterStopped registers a pre-built Agent record in stopped state without
+// starting a session. The caller is responsible for setting all required fields
+// (Name, Role, Workspace, Tool, RuntimeBackend, WorktreeDir) before calling this.
+// Returns an error if an agent with the same name already exists.
+func (m *Manager) RegisterStopped(a *Agent) error {
+	if a.Name == "" {
+		return fmt.Errorf("agent name is required")
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if _, exists := m.agents[a.Name]; exists {
+		return fmt.Errorf("agent %q already exists", a.Name)
+	}
+
+	now := time.Now()
+	a.State = StateStopped
+	if a.CreatedAt.IsZero() {
+		a.CreatedAt = now
+	}
+	a.UpdatedAt = now
+
+	if a.Children == nil {
+		a.Children = []string{}
+	}
+
+	m.agents[a.Name] = a
+	if err := m.saveState(); err != nil {
+		delete(m.agents, a.Name)
+		return fmt.Errorf("save state: %w", err)
+	}
+	return nil
+}
+
 // enforceRootSingleton checks if a root agent can be spawned.
 // Returns an error if a root already exists and is running.
 // Allows respawn if root is stopped or in error state.
@@ -2339,6 +2473,11 @@ func (m *Manager) enforceRootSingleton(_ string) error {
 // (with host.docker.internal substituted for Docker runtimes).
 func bcdAddrForRuntime(rt string) string {
 	if addr := os.Getenv("BC_BCD_ADDR"); addr != "" {
+		// Normalize empty hostname: "http://:8080" → "http://127.0.0.1:8080"
+		if u, parseErr := url.Parse(addr); parseErr == nil && u.Hostname() == "" && u.Port() != "" {
+			u.Host = net.JoinHostPort("127.0.0.1", u.Port())
+			addr = u.String()
+		}
 		if rt == "docker" {
 			// Replace localhost/127.0.0.1 with host.docker.internal for Docker
 			addr = strings.ReplaceAll(addr, "127.0.0.1", "host.docker.internal")

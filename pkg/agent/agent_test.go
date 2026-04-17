@@ -3410,3 +3410,33 @@ func TestEffectiveToolExplicit(t *testing.T) {
 		t.Errorf("Agent.Tool = %q, want %q", ag.Tool, "testcli")
 	}
 }
+
+func TestBcdAddrForRuntime_NormalizesEmptyHost(t *testing.T) {
+	tests := []struct {
+		name    string
+		envVal  string
+		runtime string
+		want    string
+	}{
+		{"empty host tmux", "http://:8080", "tmux", "http://127.0.0.1:8080"},
+		{"empty host docker", "http://:8080", "docker", "http://host.docker.internal:8080"},
+		{"normal tmux", "http://127.0.0.1:9374", "tmux", "http://127.0.0.1:9374"},
+		{"normal docker", "http://127.0.0.1:9374", "docker", "http://host.docker.internal:9374"},
+		{"no env tmux", "", "tmux", "http://127.0.0.1:9374"},
+		{"no env docker", "", "docker", "http://host.docker.internal:9374"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.envVal != "" {
+				t.Setenv("BC_BCD_ADDR", tt.envVal)
+			} else {
+				t.Setenv("BC_BCD_ADDR", "")
+			}
+			got := bcdAddrForRuntime(tt.runtime)
+			if got != tt.want {
+				t.Errorf("bcdAddrForRuntime(%q) with BC_BCD_ADDR=%q = %q, want %q",
+					tt.runtime, tt.envVal, got, tt.want)
+			}
+		})
+	}
+}

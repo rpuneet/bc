@@ -197,11 +197,20 @@ func CheckWorkspace(ws *workspace.Workspace) CategoryReport {
 		Severity: SeverityOK,
 	})
 
-	// settings.json
-	configPath := filepath.Join(stateDir, "settings.json")
+	// Preferences file (M11c+ preferences.json; M11b- settings.json).
+	configPath := filepath.Join(stateDir, workspace.PreferencesFileName)
+	if _, err := os.Stat(configPath); err != nil {
+		// Fall back to legacy settings.json so the item label matches
+		// what the user will actually find on disk.
+		legacyPath := filepath.Join(stateDir, workspace.LegacySettingsFileName)
+		if _, lerr := os.Stat(legacyPath); lerr == nil {
+			configPath = legacyPath
+		}
+	}
+	configName := filepath.Base(configPath)
 	if _, err := os.Stat(configPath); err != nil {
 		cat.Items = append(cat.Items, Item{
-			Name:     "settings.json",
+			Name:     configName,
 			Message:  "missing",
 			Severity: SeverityFail,
 			Fix:      "run 'bc init' to initialize the workspace",
@@ -210,21 +219,21 @@ func CheckWorkspace(ws *workspace.Workspace) CategoryReport {
 		if ws.Config != nil {
 			if err := ws.Config.Validate(); err != nil {
 				cat.Items = append(cat.Items, Item{
-					Name:     "settings.json",
+					Name:     configName,
 					Message:  fmt.Sprintf("invalid: %v", err),
 					Severity: SeverityFail,
-					Fix:      "edit .bc/settings.json to correct the error",
+					Fix:      fmt.Sprintf("edit %s to correct the error", configPath),
 				})
 			} else {
 				cat.Items = append(cat.Items, Item{
-					Name:     "settings.json",
+					Name:     configName,
 					Message:  fmt.Sprintf("valid (workspace: %s)", ws.Name()),
 					Severity: SeverityOK,
 				})
 			}
 		} else {
 			cat.Items = append(cat.Items, Item{
-				Name:     "settings.json",
+				Name:     configName,
 				Message:  "present",
 				Severity: SeverityOK,
 			})

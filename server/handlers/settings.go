@@ -18,6 +18,14 @@ func NewSettingsHandler(ws *workspace.Workspace) *SettingsHandler {
 	return &SettingsHandler{ws: ws}
 }
 
+// resolveWS returns the context-scoped workspace with closure fallback.
+func (h *SettingsHandler) resolveWS(r *http.Request) *workspace.Workspace {
+	if view := WorkspaceFromContext(r.Context()); view != nil && view.Workspace != nil {
+		return view.Workspace
+	}
+	return h.ws
+}
+
 // Register mounts settings routes on mux.
 func (h *SettingsHandler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/settings", h.handle)
@@ -34,13 +42,15 @@ func (h *SettingsHandler) handle(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (h *SettingsHandler) get(w http.ResponseWriter, _ *http.Request) {
-	writeJSON(w, http.StatusOK, h.ws.Config)
+func (h *SettingsHandler) get(w http.ResponseWriter, r *http.Request) {
+	ws := h.resolveWS(r)
+	writeJSON(w, http.StatusOK, ws.Config)
 }
 
 // patch applies a partial update to the config. The body is a JSON object
 // with top-level keys matching Config fields (user, server, runtime, etc.).
 func (h *SettingsHandler) patch(w http.ResponseWriter, r *http.Request) {
+	ws := h.resolveWS(r)
 	body, err := io.ReadAll(io.LimitReader(r.Body, 1<<20))
 	if err != nil {
 		httpError(w, "failed to read body", http.StatusBadRequest)
@@ -54,7 +64,7 @@ func (h *SettingsHandler) patch(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Copy current config to avoid corrupting on error.
-	merged := *h.ws.Config
+	merged := *ws.Config
 
 	for key, raw := range rawPatch {
 		switch key {
@@ -116,11 +126,11 @@ func (h *SettingsHandler) patch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := merged.Save(workspace.ConfigPath(h.ws.RootDir)); err != nil {
+	if err := merged.Save(workspace.ConfigPath(ws.RootDir)); err != nil {
 		httpInternalError(w, "save config", err)
 		return
 	}
-	*h.ws.Config = merged
+	*ws.Config = merged
 
-	writeJSON(w, http.StatusOK, h.ws.Config)
+	writeJSON(w, http.StatusOK, ws.Config)
 }

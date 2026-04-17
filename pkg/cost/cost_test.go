@@ -2,17 +2,27 @@ package cost
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 )
 
 func TestNewStore(t *testing.T) {
+	// Use a BC_HOME under t.TempDir so the global-state-dir branch
+	// resolves deterministically.
+	bcHome := t.TempDir()
+	t.Setenv("BC_HOME", bcHome)
+
 	store := NewStore("/tmp/test")
 	if store == nil {
 		t.Fatal("NewStore returned nil")
 	}
-	if store.path != "/tmp/test/.bc/costs.db" {
-		t.Errorf("path = %q, want %q", store.path, "/tmp/test/.bc/costs.db")
+	// Path should now be under ~/.bc/workspaces/<id>/costs.db (M11+).
+	if !strings.Contains(store.path, "/workspaces/") {
+		t.Errorf("path %q should contain '/workspaces/' segment", store.path)
+	}
+	if !strings.HasSuffix(store.path, "/costs.db") {
+		t.Errorf("path %q should end with '/costs.db'", store.path)
 	}
 }
 

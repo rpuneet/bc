@@ -24,6 +24,22 @@ func NewCronHandler(store *cron.Store, scheduler *cron.Scheduler) *CronHandler {
 	return &CronHandler{store: store, scheduler: scheduler}
 }
 
+// resolveStore returns the context-scoped cron store with closure fallback.
+func (h *CronHandler) resolveStore(r *http.Request) *cron.Store {
+	if view := WorkspaceFromContext(r.Context()); view != nil && view.Cron != nil {
+		return view.Cron
+	}
+	return h.store
+}
+
+// resolveScheduler returns the context-scoped scheduler with closure fallback.
+func (h *CronHandler) resolveScheduler(r *http.Request) *cron.Scheduler {
+	if view := WorkspaceFromContext(r.Context()); view != nil && view.CronSched != nil {
+		return view.CronSched
+	}
+	return h.scheduler
+}
+
 // Register mounts cron routes on mux.
 func (h *CronHandler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/cron", h.list)
@@ -31,9 +47,11 @@ func (h *CronHandler) Register(mux *http.ServeMux) {
 }
 
 func (h *CronHandler) list(w http.ResponseWriter, r *http.Request) {
+	store := h.resolveStore(r)
+	sched := h.resolveScheduler(r)
 	switch r.Method {
 	case http.MethodGet:
-		jobs, err := h.store.ListJobs(r.Context())
+		jobs, err := store.ListJobs(r.Context())
 		if err != nil {
 			httpInternalError(w, "list jobs", err)
 			return
@@ -42,9 +60,9 @@ func (h *CronHandler) list(w http.ResponseWriter, r *http.Request) {
 			jobs = []*cron.Job{}
 		}
 		// Enrich with running state from scheduler
-		if h.scheduler != nil {
+		if sched != nil {
 			for _, j := range jobs {
-				j.Running = h.scheduler.IsRunning(j.Name)
+				j.Running = sched.IsRunning(j.Name)
 			}
 		}
 		limit, offset := parsePagination(r, 50)
@@ -68,7 +86,7 @@ func (h *CronHandler) list(w http.ResponseWriter, r *http.Request) {
 			httpError(w, "command or prompt is required", http.StatusBadRequest)
 			return
 		}
-		if err := h.store.AddJob(r.Context(), &job); err != nil {
+		if err := store.AddJob(r.Context(), &job); err != nil {
 			httpError(w, err.Error(), http.StatusBadRequest)
 			return
 		}
@@ -110,9 +128,11 @@ func (h *CronHandler) byName(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *CronHandler) job(w http.ResponseWriter, r *http.Request, name string) {
+	store := h.resolveStore(r)
+	scheduler := h.resolveScheduler(r)
 	switch r.Method {
 	case http.MethodGet:
-		job, err := h.store.GetJob(r.Context(), name)
+		job, err := store.GetJob(r.Context(), name)
 		if err != nil {
 			httpError(w, err.Error(), http.StatusNotFound)
 			return
@@ -122,12 +142,12 @@ func (h *CronHandler) job(w http.ResponseWriter, r *http.Request, name string) {
 			return
 		}
 		if h.scheduler != nil {
-			job.Running = h.scheduler.IsRunning(name)
+			job.Running = scheduler.IsRunning(name)
 		}
 		writeJSON(w, http.StatusOK, job)
 
 	case http.MethodDelete:
-		if err := h.store.DeleteJob(r.Context(), name); err != nil {
+		if err := store.DeleteJob(r.Context(), name); err != nil {
 			httpError(w, err.Error(), http.StatusBadRequest)
 			return
 		}
@@ -139,10 +159,11 @@ func (h *CronHandler) job(w http.ResponseWriter, r *http.Request, name string) {
 }
 
 func (h *CronHandler) setEnabled(w http.ResponseWriter, r *http.Request, name string, enabled bool) {
+	store := h.resolveStore(r)
 	if !requireMethod(w, r, http.MethodPost) {
 		return
 	}
-	if err := h.store.SetEnabled(r.Context(), name, enabled); err != nil {
+	if err := store.SetEnabled(r.Context(), name, enabled); err != nil {
 		httpError(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -150,10 +171,11 @@ func (h *CronHandler) setEnabled(w http.ResponseWriter, r *http.Request, name st
 }
 
 func (h *CronHandler) run(w http.ResponseWriter, r *http.Request, name string) {
+	store := h.resolveStore(r)
 	if !requireMethod(w, r, http.MethodPost) {
 		return
 	}
-	job, err := h.store.GetJob(r.Context(), name)
+	job, err := store.GetJob(r.Context(), name)
 	if err != nil {
 		httpError(w, err.Error(), http.StatusNotFound)
 		return
@@ -166,7 +188,7 @@ func (h *CronHandler) run(w http.ResponseWriter, r *http.Request, name string) {
 		httpError(w, "cron job is disabled", http.StatusBadRequest)
 		return
 	}
-	if err := h.store.RecordManualTrigger(r.Context(), name); err != nil {
+	if err := store.RecordManualTrigger(r.Context(), name); err != nil {
 		httpInternalError(w, "operation failed", err)
 		return
 	}
@@ -174,6 +196,7 @@ func (h *CronHandler) run(w http.ResponseWriter, r *http.Request, name string) {
 }
 
 func (h *CronHandler) logs(w http.ResponseWriter, r *http.Request, name string) {
+	store := h.resolveStore(r)
 	if !requireMethod(w, r, http.MethodGet) {
 		return
 	}
@@ -184,7 +207,7 @@ func (h *CronHandler) logs(w http.ResponseWriter, r *http.Request, name string) 
 		}
 	}
 	last = clampInt(last, 1, 1000)
-	logs, err := h.store.GetLogs(r.Context(), name, last)
+	logs, err := store.GetLogs(r.Context(), name, last)
 	if err != nil {
 		httpInternalError(w, "operation failed", err)
 		return
@@ -194,6 +217,7 @@ func (h *CronHandler) logs(w http.ResponseWriter, r *http.Request, name string) 
 
 // liveLogs streams the live log file for a running cron job via SSE.
 func (h *CronHandler) liveLogs(w http.ResponseWriter, r *http.Request, name string) {
+	scheduler := h.resolveScheduler(r)
 	if !requireMethod(w, r, http.MethodGet) {
 		return
 	}
@@ -202,7 +226,7 @@ func (h *CronHandler) liveLogs(w http.ResponseWriter, r *http.Request, name stri
 		return
 	}
 
-	logPath := h.scheduler.LogFilePath(name)
+	logPath := scheduler.LogFilePath(name)
 	if logPath == "" {
 		httpError(w, "log streaming not available", http.StatusNotImplemented)
 		return
@@ -232,7 +256,7 @@ func (h *CronHandler) liveLogs(w http.ResponseWriter, r *http.Request, name stri
 			info, err := os.Stat(logPath)
 			if err != nil {
 				// File doesn't exist yet or job not running
-				if !h.scheduler.IsRunning(name) {
+				if !scheduler.IsRunning(name) {
 					// Job finished — send done event and close
 					fmt.Fprintf(w, "event: done\ndata: {}\n\n") //nolint:errcheck
 					flusher.Flush()
@@ -243,7 +267,7 @@ func (h *CronHandler) liveLogs(w http.ResponseWriter, r *http.Request, name stri
 
 			currentSize := info.Size()
 			if currentSize <= lastSize {
-				if !h.scheduler.IsRunning(name) {
+				if !scheduler.IsRunning(name) {
 					fmt.Fprintf(w, "event: done\ndata: {}\n\n") //nolint:errcheck
 					flusher.Flush()
 					return

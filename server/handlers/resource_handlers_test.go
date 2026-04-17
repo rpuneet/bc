@@ -24,8 +24,21 @@ import (
 
 // --- helpers for building test servers with real services ---
 
+// sandboxBCHome points BC_HOME (and HOME) at a per-test tempdir so any
+// global-registry writes land in a disposable sandbox instead of the
+// caller's real ~/.bc/workspaces.json. Without this, workspace.Init()
+// registers every t.TempDir() root in the user's production registry —
+// one leaked entry per test, growing the file forever.
+func sandboxBCHome(t *testing.T) {
+	t.Helper()
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("BC_HOME", filepath.Join(home, ".bc"))
+}
+
 func setupWorkspace(t *testing.T) string {
 	t.Helper()
+	sandboxBCHome(t)
 	dir := t.TempDir()
 	wks, err := workspace.Init(dir)
 	if err != nil {
@@ -1019,7 +1032,9 @@ func TestMCPHandler_ServerMethodNotAllowed(t *testing.T) {
 		`{"name":"mna-srv","transport":"stdio","command":"echo test"}`)
 	_ = resp.Body.Close()
 
-	resp = doRequest(t, http.MethodPatch, ts.URL+"/api/mcp/mna-srv", "application/json", `{}`)
+	// PUT is not a supported method on /api/mcp/{name}. PATCH is allowed
+	// (env editor) — covered by dedicated tests in mcp_test.go.
+	resp = doRequest(t, http.MethodPut, ts.URL+"/api/mcp/mna-srv", "application/json", `{}`)
 	assertStatus(t, resp, http.StatusMethodNotAllowed)
 	_ = resp.Body.Close()
 }

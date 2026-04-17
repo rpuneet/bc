@@ -9,10 +9,39 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/rpuneet/bc/pkg/log"
 )
+
+// logConfigPromoteInfo is called when settings.json has been successfully
+// promoted to preferences.json. Kept as a small helper so test stubs can
+// replace it without noise.
+func logConfigPromoteInfo(stateDir string) {
+	log.Info("promoted settings.json to preferences.json", "state_dir", stateDir)
+}
+
+// logConfigPromoteWarn is called when a legacy settings.json could be
+// read but the preferences.json write failed. The legacy file remains
+// authoritative until the next successful save.
+func logConfigPromoteWarn(stateDir string, err error) {
+	log.Warn("failed to promote settings.json to preferences.json", "state_dir", stateDir, "error", err)
+}
 
 // ConfigVersion is the current config schema version.
 const ConfigVersion = 2
+
+// Preferences / settings filename constants.
+//
+// Before M11c: every workspace stored its config at <StateDir>/settings.json.
+// From M11c onward the canonical filename is preferences.json; the legacy
+// file is read as a fallback and promoted on first write.
+const (
+	// PreferencesFileName is the canonical workspace preferences filename (M11c+).
+	PreferencesFileName = "preferences.json"
+	// LegacySettingsFileName is the pre-M11c filename, still read for
+	// backward compatibility.
+	LegacySettingsFileName = "settings.json"
+)
 
 // Config represents the JSON-based workspace configuration for bc.
 type Config struct { //nolint:govet // field order matches JSON/API contract
@@ -82,10 +111,87 @@ type ProviderConfig struct {
 }
 
 // GatewaysConfig configures external messaging platform integrations.
+//
+// JSON keys follow a "platform" or "platform:label" convention. Plain
+// "telegram" is a single Telegram bot (backward compat). Keys like
+// "telegram:trade_research" register additional bots — parsed into the
+// Telegrams map keyed by label.
 type GatewaysConfig struct {
-	Telegram *TelegramGatewayConfig `json:"telegram,omitempty"`
+	// Telegram is the single default Telegram bot (key "telegram").
+	// Deprecated: prefer Telegrams map for multi-bot setups.
+	Telegram *TelegramGatewayConfig `json:"-"`
 	Discord  *DiscordGatewayConfig  `json:"discord,omitempty"`
 	Slack    *SlackGatewayConfig    `json:"slack,omitempty"`
+	// Telegrams holds zero or more Telegram bots keyed by label.
+	// A plain "telegram" key is stored under label "".
+	Telegrams map[string]*TelegramGatewayConfig `json:"-"`
+}
+
+// UnmarshalJSON parses gateway config, routing "telegram:*" keys into the
+// Telegrams map and keeping Discord/Slack on their typed fields.
+func (g *GatewaysConfig) UnmarshalJSON(data []byte) error {
+	// Decode known typed fields via an alias to avoid recursion.
+	type Alias struct {
+		Discord *DiscordGatewayConfig `json:"discord,omitempty"`
+		Slack   *SlackGatewayConfig   `json:"slack,omitempty"`
+	}
+	var alias Alias
+	if err := json.Unmarshal(data, &alias); err != nil {
+		return err
+	}
+	g.Discord = alias.Discord
+	g.Slack = alias.Slack
+
+	// Decode the full map to pick up telegram keys.
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	g.Telegrams = make(map[string]*TelegramGatewayConfig)
+	for key, val := range raw {
+		if key == "telegram" {
+			var tc TelegramGatewayConfig
+			if err := json.Unmarshal(val, &tc); err != nil {
+				return fmt.Errorf("parse gateway %q: %w", key, err)
+			}
+			g.Telegram = &tc
+			g.Telegrams[""] = &tc
+		} else if strings.HasPrefix(key, "telegram:") {
+			label := strings.TrimPrefix(key, "telegram:")
+			var tc TelegramGatewayConfig
+			if err := json.Unmarshal(val, &tc); err != nil {
+				return fmt.Errorf("parse gateway %q: %w", key, err)
+			}
+			g.Telegrams[label] = &tc
+		}
+	}
+	return nil
+}
+
+// MarshalJSON serializes the gateway config, emitting "telegram:label"
+// keys for each entry in Telegrams.
+func (g GatewaysConfig) MarshalJSON() ([]byte, error) {
+	m := make(map[string]any)
+	for label, tc := range g.Telegrams {
+		if label == "" {
+			m["telegram"] = tc
+		} else {
+			m["telegram:"+label] = tc
+		}
+	}
+	// Backward compat: if Telegram is set but not in Telegrams, emit it.
+	if g.Telegram != nil {
+		if _, ok := g.Telegrams[""]; !ok {
+			m["telegram"] = g.Telegram
+		}
+	}
+	if g.Discord != nil {
+		m["discord"] = g.Discord
+	}
+	if g.Slack != nil {
+		m["slack"] = g.Slack
+	}
+	return json.Marshal(m)
 }
 
 // TelegramGatewayConfig configures the Telegram gateway adapter.
@@ -233,12 +339,55 @@ func DefaultConfig() Config {
 }
 
 // LoadConfig reads and parses a JSON config file.
+//
+// If path is a directory, LoadConfig treats it as a state dir and looks
+// for preferences.json first (M11c+), falling back to the legacy
+// settings.json. When only the legacy file is present it is read in
+// place; the caller is responsible for writing the promoted file via
+// Save() or LoadConfig's higher-level wrappers.
+//
+// If path points at a file, it is read directly.
 func LoadConfig(path string) (*Config, error) {
+	if info, err := os.Stat(path); err == nil && info.IsDir() {
+		return loadConfigFromDir(path)
+	}
 	data, err := os.ReadFile(path) //nolint:gosec // path provided by caller
 	if err != nil {
 		return nil, fmt.Errorf("failed to read config: %w", err)
 	}
 	return ParseConfig(data)
+}
+
+// loadConfigFromDir looks in stateDir for preferences.json first, then
+// falls back to settings.json. When the legacy file is used it is
+// promoted: the parsed config is re-serialized to preferences.json so
+// subsequent reads find the canonical file. The legacy file is left on
+// disk for the user to audit and remove manually.
+func loadConfigFromDir(stateDir string) (*Config, error) {
+	prefs := filepath.Join(stateDir, PreferencesFileName)
+	if data, err := os.ReadFile(prefs); err == nil { //nolint:gosec // callsite-constructed
+		return ParseConfig(data)
+	}
+	legacy := filepath.Join(stateDir, LegacySettingsFileName)
+	data, err := os.ReadFile(legacy) //nolint:gosec // callsite-constructed
+	if err != nil {
+		return nil, fmt.Errorf("failed to read config (tried %s, %s): %w",
+			PreferencesFileName, LegacySettingsFileName, err)
+	}
+	cfg, parseErr := ParseConfig(data)
+	if parseErr != nil {
+		return nil, parseErr
+	}
+	// Promote: write preferences.json so future reads skip the fallback.
+	if saveErr := cfg.Save(prefs); saveErr != nil {
+		// Not fatal — the legacy file is still valid.
+		// We log here once; callers do not need to retry.
+		// (Use structured log; package log is already imported elsewhere.)
+		logConfigPromoteWarn(stateDir, saveErr)
+	} else {
+		logConfigPromoteInfo(stateDir)
+	}
+	return cfg, nil
 }
 
 // ParseConfig parses JSON data into a Config.
@@ -477,16 +626,37 @@ func (c *Config) Save(path string) error {
 }
 
 // ConfigPath returns the standard config file path for a workspace root.
-// Checks global state dir first, falls back to legacy .bc/.
+// Checks the global state dir first (preferences.json then settings.json),
+// then the legacy <rootDir>/.bc/ directory. When no file exists anywhere
+// yet, returns the canonical preferences.json path under the global dir
+// so callers writing a fresh config land in the right place.
 func ConfigPath(rootDir string) string {
-	stateDir, err := GlobalStateDir(rootDir)
-	if err == nil {
-		p := filepath.Join(stateDir, "settings.json")
-		if _, statErr := os.Stat(p); statErr == nil {
-			return p
+	if stateDir, err := GlobalStateDir(rootDir); err == nil {
+		prefs := filepath.Join(stateDir, PreferencesFileName)
+		if _, statErr := os.Stat(prefs); statErr == nil {
+			return prefs
 		}
+		legacy := filepath.Join(stateDir, LegacySettingsFileName)
+		if _, statErr := os.Stat(legacy); statErr == nil {
+			return legacy
+		}
+		// Nothing on disk yet — prefer the canonical name.
+		// Fall through to legacy-root check below in case caller is
+		// operating on a pre-M11 workspace.
 	}
-	return filepath.Join(rootDir, ".bc", "settings.json")
+	legacyBC := filepath.Join(rootDir, ".bc", PreferencesFileName)
+	if _, err := os.Stat(legacyBC); err == nil {
+		return legacyBC
+	}
+	legacyBCSettings := filepath.Join(rootDir, ".bc", LegacySettingsFileName)
+	if _, err := os.Stat(legacyBCSettings); err == nil {
+		return legacyBCSettings
+	}
+	// Default for callers writing a fresh config — global dir if possible.
+	if stateDir, err := GlobalStateDir(rootDir); err == nil {
+		return filepath.Join(stateDir, PreferencesFileName)
+	}
+	return legacyBC
 }
 
 // --- Nickname compatibility (used by channel system) ---

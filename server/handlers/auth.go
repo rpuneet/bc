@@ -19,7 +19,7 @@ func APIKeyAuth(apiKey string) func(http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// Exempt paths: health check, SSE streams, MCP protocol
 			path := r.URL.Path
-			if path == "/health" || strings.HasPrefix(path, "/_mcp/") {
+			if path == "/health" || path == "/api/health" || path == "/healthz" || strings.HasPrefix(path, "/_mcp/") {
 				next.ServeHTTP(w, r)
 				return
 			}

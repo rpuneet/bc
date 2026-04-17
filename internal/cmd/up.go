@@ -4,9 +4,9 @@ import (
 	"context"
 	"crypto/sha256"
 	"fmt"
+	"net"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 	"syscall"
 
@@ -16,6 +16,19 @@ import (
 	"github.com/rpuneet/bc/pkg/ui"
 	"github.com/rpuneet/bc/pkg/workspace"
 )
+
+// normalizeAddr ensures the host part of a host:port address is not empty.
+// If the host is missing (e.g. ":8080"), it defaults to "127.0.0.1".
+func normalizeAddr(addr string) string {
+	host, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		return addr // not a host:port pair, return as-is
+	}
+	if host == "" {
+		host = "127.0.0.1"
+	}
+	return net.JoinHostPort(host, port)
+}
 
 var upCmd = &cobra.Command{
 	Use:   "up",
@@ -81,6 +94,9 @@ func runUp(cmd *cobra.Command, _ []string) error {
 		}
 	}
 
+	// Normalize addr: ":8080" → "127.0.0.1:8080"
+	upAddr = normalizeAddr(upAddr)
+
 	// Daemon mode: re-exec bc up in background
 	if upDaemon {
 		return runUpDaemon(wsRoot)
@@ -90,20 +106,65 @@ func runUp(cmd *cobra.Command, _ []string) error {
 	fmt.Printf("Starting bc server in %s\n", wsRoot)
 	fmt.Printf("  addr: %s\n\n", upAddr)
 
+	// Set BC_BCD_ADDR so agents inherit the correct server address for hooks.
+	// Without this, agents default to :9374 even when bcd runs on a different port.
+	bcdAddr := "http://" + upAddr
+	if err := os.Setenv("BC_BCD_ADDR", bcdAddr); err == nil {
+		fmt.Printf("  BC_BCD_ADDR: %s\n", bcdAddr)
+	}
+
+	// Publish the listen address at ~/.bc/daemon.addr so the bc CLI and
+	// agents can find the daemon without BC_DAEMON_ADDR when it runs on
+	// a non-default port. Best-effort — failure to write is not fatal,
+	// but each failure mode must warn so users aren't silently routed
+	// back to the hardcoded :9374 default (the exact bug #43 fixed).
+	if _, ensureErr := workspace.EnsureGlobalDir(); ensureErr != nil {
+		log.Warn("daemon addr: ensure ~/.bc failed — CLI will fall back to default port", "error", ensureErr)
+	} else if addrPath, pathErr := workspace.DaemonAddrPath(); pathErr != nil {
+		log.Warn("daemon addr: resolve path failed — CLI will fall back to default port", "error", pathErr)
+	} else if writeErr := os.WriteFile(addrPath, []byte(bcdAddr+"\n"), 0o600); writeErr != nil {
+		log.Warn("daemon addr: write failed — CLI will fall back to default port", "path", addrPath, "error", writeErr)
+	}
+
+	// One-shot prune of stale registry entries. Go tests that write to
+	// the user-global workspaces.json without a sandbox leave phantom
+	// tmpdir entries; dropping them on every bcd boot keeps the
+	// registry accurate without requiring a separate maintenance
+	// command. Errors are best-effort — a failure to save is non-fatal
+	// and pointed at with a warn.
+	if reg, regErr := workspace.LoadRegistry(); regErr == nil {
+		if pruned := reg.PruneStalePaths(); pruned > 0 {
+			if saveErr := reg.Save(); saveErr != nil {
+				log.Warn("registry: prune save failed", "pruned", pruned, "error", saveErr)
+			} else {
+				log.Info("registry: pruned stale entries", "count", pruned)
+			}
+		}
+	} else {
+		log.Warn("registry: load for prune failed", "error", regErr)
+	}
+
 	return RunServer(upAddr, wsRoot, upCORS, upAPIKey)
 }
 
 // runUpDaemon starts bc up in the background by re-executing the bc binary.
-// Logs go to .bc/bcd.log, PID to .bc/bcd.pid.
+// Logs go to ~/.bc/daemon.log, PID to ~/.bc/daemon.pid.
 func runUpDaemon(wsRoot string) error {
-	ws, err := workspace.Load(wsRoot)
-	if err != nil {
+	if _, err := workspace.Load(wsRoot); err != nil {
 		return fmt.Errorf("cannot load workspace: %w", err)
 	}
 
+	if _, err := workspace.EnsureGlobalDir(); err != nil {
+		return fmt.Errorf("ensure bc home: %w", err)
+	}
+
+	pidPath, err := workspace.DaemonPidPath()
+	if err != nil {
+		return fmt.Errorf("resolve daemon pid path: %w", err)
+	}
+
 	// Check if already running
-	pidPath := filepath.Join(ws.StateDir(), "bcd.pid")
-	if pidData, readErr := os.ReadFile(pidPath); readErr == nil { //nolint:gosec // controlled workspace path
+	if pidData, readErr := os.ReadFile(pidPath); readErr == nil { //nolint:gosec // controlled home path
 		pid := strings.TrimSpace(string(pidData))
 		checkCmd := exec.CommandContext(context.Background(), "kill", "-0", pid) //nolint:gosec // trusted
 		if checkCmd.Run() == nil {
@@ -119,7 +180,10 @@ func runUpDaemon(wsRoot string) error {
 		return fmt.Errorf("cannot find bc binary: %w", err)
 	}
 
-	logPath := filepath.Join(ws.StateDir(), "bcd.log")
+	logPath, err := workspace.DaemonLogPath()
+	if err != nil {
+		return fmt.Errorf("resolve daemon log path: %w", err)
+	}
 
 	// Build args for foreground mode (without -d)
 	args := []string{

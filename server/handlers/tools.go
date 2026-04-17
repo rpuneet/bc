@@ -19,6 +19,14 @@ func NewToolHandler(store *tool.Store) *ToolHandler {
 	return &ToolHandler{store: store}
 }
 
+// resolveStore returns the context-scoped tool store with closure fallback.
+func (h *ToolHandler) resolveStore(r *http.Request) *tool.Store {
+	if view := WorkspaceFromContext(r.Context()); view != nil && view.Tools != nil {
+		return view.Tools
+	}
+	return h.store
+}
+
 // Register mounts tool routes on mux.
 func (h *ToolHandler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/tools/check", h.checkAll)
@@ -27,6 +35,7 @@ func (h *ToolHandler) Register(mux *http.ServeMux) {
 }
 
 func (h *ToolHandler) list(w http.ResponseWriter, r *http.Request) {
+	store := h.resolveStore(r)
 	switch r.Method {
 	case http.MethodGet:
 		// Support ?type=cli&type=mcp filtering
@@ -34,7 +43,7 @@ func (h *ToolHandler) list(w http.ResponseWriter, r *http.Request) {
 		if types := r.URL.Query()["type"]; len(types) > 0 {
 			opts.Types = types
 		}
-		tools, err := h.store.ListWithOptions(r.Context(), opts)
+		tools, err := store.ListWithOptions(r.Context(), opts)
 		if err != nil {
 			httpInternalError(w, "list tools", err)
 			return
@@ -59,11 +68,11 @@ func (h *ToolHandler) list(w http.ResponseWriter, r *http.Request) {
 			httpError(w, "invalid request body", http.StatusBadRequest)
 			return
 		}
-		if err := h.store.Add(r.Context(), &t); err != nil {
+		if err := store.Add(r.Context(), &t); err != nil {
 			httpError(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		created, err := h.store.Get(r.Context(), t.Name)
+		created, err := store.Get(r.Context(), t.Name)
 		if err != nil {
 			httpInternalError(w, "operation failed", err)
 			return
@@ -77,10 +86,11 @@ func (h *ToolHandler) list(w http.ResponseWriter, r *http.Request) {
 
 // checkAll runs health checks on all tools.
 func (h *ToolHandler) checkAll(w http.ResponseWriter, r *http.Request) {
+	store := h.resolveStore(r)
 	if !requireMethod(w, r, http.MethodPost) {
 		return
 	}
-	tools, err := h.store.List(r.Context())
+	tools, err := store.List(r.Context())
 	if err != nil {
 		httpInternalError(w, "list tools", err)
 		return
@@ -150,9 +160,10 @@ func (h *ToolHandler) byName(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *ToolHandler) tool(w http.ResponseWriter, r *http.Request, name string) {
+	store := h.resolveStore(r)
 	switch r.Method {
 	case http.MethodGet:
-		t, err := h.store.Get(r.Context(), name)
+		t, err := store.Get(r.Context(), name)
 		if err != nil {
 			httpError(w, err.Error(), http.StatusNotFound)
 			return
@@ -170,11 +181,11 @@ func (h *ToolHandler) tool(w http.ResponseWriter, r *http.Request, name string) 
 			return
 		}
 		t.Name = name
-		if err := h.store.Update(r.Context(), &t); err != nil {
+		if err := store.Update(r.Context(), &t); err != nil {
 			httpError(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		updated, err := h.store.Get(r.Context(), name)
+		updated, err := store.Get(r.Context(), name)
 		if err != nil {
 			httpInternalError(w, "operation failed", err)
 			return
@@ -182,7 +193,7 @@ func (h *ToolHandler) tool(w http.ResponseWriter, r *http.Request, name string) 
 		writeJSON(w, http.StatusOK, updated)
 
 	case http.MethodDelete:
-		if err := h.store.Delete(r.Context(), name); err != nil {
+		if err := store.Delete(r.Context(), name); err != nil {
 			httpError(w, err.Error(), http.StatusBadRequest)
 			return
 		}
@@ -194,10 +205,11 @@ func (h *ToolHandler) tool(w http.ResponseWriter, r *http.Request, name string) 
 }
 
 func (h *ToolHandler) setEnabled(w http.ResponseWriter, r *http.Request, name string, enabled bool) {
+	store := h.resolveStore(r)
 	if !requireMethod(w, r, http.MethodPost) {
 		return
 	}
-	if err := h.store.SetEnabled(r.Context(), name, enabled); err != nil {
+	if err := store.SetEnabled(r.Context(), name, enabled); err != nil {
 		httpError(w, err.Error(), http.StatusBadRequest)
 		return
 	}

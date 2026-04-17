@@ -20,6 +20,22 @@ func NewWorkspaceHandler(svc *agent.AgentService, ws *workspace.Workspace) *Work
 	return &WorkspaceHandler{svc: svc, ws: ws}
 }
 
+// resolveSvc returns the context-scoped agent service with closure fallback.
+func (h *WorkspaceHandler) resolveSvc(r *http.Request) *agent.AgentService {
+	if view := WorkspaceFromContext(r.Context()); view != nil && view.Agents != nil {
+		return view.Agents
+	}
+	return h.svc
+}
+
+// resolveWS returns the context-scoped workspace with closure fallback.
+func (h *WorkspaceHandler) resolveWS(r *http.Request) *workspace.Workspace {
+	if view := WorkspaceFromContext(r.Context()); view != nil && view.Workspace != nil {
+		return view.Workspace
+	}
+	return h.ws
+}
+
 // Register mounts workspace routes on mux.
 func (h *WorkspaceHandler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/workspace", h.status) // root = status
@@ -33,7 +49,9 @@ func (h *WorkspaceHandler) status(w http.ResponseWriter, r *http.Request) {
 	if !requireMethod(w, r, http.MethodGet) {
 		return
 	}
-	agents, err := h.svc.List(r.Context(), agent.ListOptions{})
+	svc := h.resolveSvc(r)
+	ws := h.resolveWS(r)
+	agents, err := svc.List(r.Context(), agent.ListOptions{})
 	if err != nil {
 		httpInternalError(w, "list agents", err)
 		return
@@ -45,22 +63,22 @@ func (h *WorkspaceHandler) status(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	nickname := ""
-	if h.ws.Config != nil {
-		nickname = h.ws.Config.User.Name
+	if ws.Config != nil {
+		nickname = ws.Config.User.Name
 	}
 	// Enrich with config details
 	result := map[string]any{
-		"name":          h.ws.Name(),
+		"name":          ws.Name(),
 		"nickname":      nickname,
-		"root_dir":      h.ws.RootDir,
-		"state_dir":     h.ws.StateDir(),
+		"root_dir":      ws.RootDir,
+		"state_dir":     ws.StateDir(),
 		"agent_count":   len(agents),
 		"running_count": runningCount,
 		"is_healthy":    true,
 	}
 
-	if h.ws.Config != nil {
-		cfg := h.ws.Config
+	if ws.Config != nil {
+		cfg := ws.Config
 		result["server"] = map[string]any{
 			"host": cfg.Server.Host,
 			"port": cfg.Server.Port,
@@ -94,10 +112,11 @@ func (h *WorkspaceHandler) status(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *WorkspaceHandler) roles(w http.ResponseWriter, r *http.Request) {
+	ws := h.resolveWS(r)
 	if !requireMethod(w, r, http.MethodGet) {
 		return
 	}
-	roles, err := h.ws.RoleManager.LoadAllRoles()
+	roles, err := ws.RoleManager.LoadAllRoles()
 	if err != nil {
 		httpInternalError(w, "list roles", err)
 		return
@@ -107,7 +126,7 @@ func (h *WorkspaceHandler) roles(w http.ResponseWriter, r *http.Request) {
 	// inherited MCP servers, secrets, commands, rules, etc.
 	resolved := make(map[string]*workspace.ResolvedRole, len(roles))
 	for name := range roles {
-		if res, resolveErr := h.ws.RoleManager.ResolveRole(name); resolveErr == nil {
+		if res, resolveErr := ws.RoleManager.ResolveRole(name); resolveErr == nil {
 			resolved[name] = res
 		}
 	}
@@ -115,6 +134,7 @@ func (h *WorkspaceHandler) roles(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *WorkspaceHandler) up(w http.ResponseWriter, r *http.Request) {
+	svc := h.resolveSvc(r)
 	if !requireMethod(w, r, http.MethodPost) {
 		return
 	}
@@ -128,7 +148,7 @@ func (h *WorkspaceHandler) up(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	a, err := h.svc.Create(r.Context(), agent.CreateOptions{
+	a, err := svc.Create(r.Context(), agent.CreateOptions{
 		Name:    "root",
 		Role:    agent.RoleRoot,
 		Tool:    req.Tool,
@@ -146,10 +166,11 @@ func (h *WorkspaceHandler) up(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *WorkspaceHandler) down(w http.ResponseWriter, r *http.Request) {
+	svc := h.resolveSvc(r)
 	if !requireMethod(w, r, http.MethodPost) {
 		return
 	}
-	stopped, err := h.svc.StopAll(r.Context())
+	stopped, err := svc.StopAll(r.Context())
 	if err != nil {
 		httpInternalError(w, "operation failed", err)
 		return

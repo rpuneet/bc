@@ -1,7 +1,9 @@
 /**
  * Manual mock for useLogs hook.
- * Bun auto-discovers __mocks__ directories — no vi.mock() factory needed,
- * which avoids the "unhandled error between tests" Bun quirk.
+ * Consumed by src/__tests__/components/ActivityFeed.test.tsx via
+ * mock.module('../../hooks/useLogs', () => useLogsMock). Must mirror
+ * the real module's exports exactly (useLogs + getSeverityColor +
+ * getSeverityIcon) so all importers resolve cleanly.
  */
 
 import { vi } from 'bun:test';
@@ -26,4 +28,11 @@ export function getSeverityColor(type: string): string {
   if (lower.includes('error') || lower.includes('fail')) return 'red';
   if (lower.includes('warn') || lower.includes('stuck')) return 'yellow';
   return 'gray';
+}
+
+export function getSeverityIcon(type: string): string {
+  const lower = type.toLowerCase();
+  if (lower.includes('error') || lower.includes('fail')) return '✗';
+  if (lower.includes('warn') || lower.includes('stuck')) return '⚠';
+  return '·';
 }

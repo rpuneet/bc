@@ -175,33 +175,46 @@ func (s *Store) migrateMCPServers() {
 	if s.db == nil || s.pg != nil {
 		return // skip migration for Postgres — old mcp_servers table is SQLite-only
 	}
-	rows, err := s.db.QueryContext(context.Background(),
+	ctx := context.Background()
+
+	// Materialize all rows first, then close the cursor before issuing further
+	// queries. SQLite's single-writer model means holding an open Rows cursor
+	// blocks concurrent QueryRow/Exec on the same pool, causing a deadlock when
+	// other goroutines (e.g., cron.Store) race for a connection during startup.
+	type mcpRow struct {
+		name, transport, command, url, argsJSON, envJSON string
+		enabled                                          int
+	}
+	rows, err := s.db.QueryContext(ctx,
 		"SELECT name, transport, command, url, args, env, enabled FROM mcp_servers")
 	if err != nil {
 		return // table may not exist — that's fine
 	}
-	defer rows.Close() //nolint:errcheck
-
+	var legacy []mcpRow
 	for rows.Next() {
-		var name, transport, command, url, argsJSON, envJSON string
-		var enabled int
-		if err := rows.Scan(&name, &transport, &command, &url, &argsJSON, &envJSON, &enabled); err != nil {
+		var r mcpRow
+		if err := rows.Scan(&r.name, &r.transport, &r.command, &r.url, &r.argsJSON, &r.envJSON, &r.enabled); err != nil {
 			continue
 		}
+		legacy = append(legacy, r)
+	}
+	_ = rows.Close() //nolint:errcheck
+	_ = rows.Err()   //nolint:errcheck
 
+	for _, r := range legacy {
 		// Skip if already in tools table
 		var count int
-		_ = s.db.QueryRowContext(context.Background(),
-			"SELECT COUNT(*) FROM tools WHERE name = ?", name).Scan(&count)
+		_ = s.db.QueryRowContext(ctx,
+			"SELECT COUNT(*) FROM tools WHERE name = ?", r.name).Scan(&count)
 		if count > 0 {
 			continue
 		}
 
 		// Insert as MCP tool
-		_, _ = s.db.ExecContext(context.Background(), `
+		_, _ = s.db.ExecContext(ctx, `
 			INSERT INTO tools (name, type, command, transport, url, args, env, enabled, created_at)
 			VALUES (?, 'mcp', ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
-			name, command, transport, url, argsJSON, envJSON, enabled) //nolint:errcheck
+			r.name, r.command, r.transport, r.url, r.argsJSON, r.envJSON, r.enabled) //nolint:errcheck
 	}
 }
 
@@ -264,7 +277,6 @@ func (s *Store) seedBuiltins(ctx context.Context) error {
 	}
 
 	for _, t := range allBuiltins() {
-		t := t
 		existing, err := s.Get(ctx, t.Name)
 		if err != nil {
 			return fmt.Errorf("failed to check %s: %w", t.Name, err)
