@@ -43,7 +43,7 @@ export function HeroSection() {
             custom={1}
             className="text-balance text-[2.25rem] font-bold leading-[1.05] tracking-tight sm:text-5xl lg:text-6xl"
           >
-            AI In a Box.
+            The Underground Network.
             <br />
             <span className="text-muted-foreground/40">
               Let them cook.
@@ -67,7 +67,7 @@ export function HeroSection() {
             <Link
               href="https://github.com/rpuneet/bc"
               className="cta-glow group inline-flex h-10 sm:h-11 items-center gap-2 rounded-lg bg-primary px-6 sm:px-8 text-sm font-semibold text-primary-foreground shadow-[var(--btn-shadow)] transition-all hover:shadow-xl hover:shadow-primary/20 active:scale-[0.97]"
-              aria-label="Get started with bc on GitHub"
+              aria-label="Get started with mycel on GitHub"
             >
               Get Started
               <ArrowRight
@@ -78,7 +78,7 @@ export function HeroSection() {
             <Link
               href="/docs"
               className="inline-flex h-10 sm:h-11 items-center gap-2 rounded-lg border border-border px-6 sm:px-8 text-sm font-medium transition-colors hover:bg-accent/20 active:scale-[0.97]"
-              aria-label="Read the bc documentation"
+              aria-label="Read the mycel documentation"
             >
               View Docs
             </Link>
@@ -92,7 +92,7 @@ export function HeroSection() {
           <div className="relative overflow-hidden rounded-xl border border-border shadow-2xl">
             <Image
               src="/screenshots/dashboard-01-home.png"
-              alt="bc dashboard showing active agents, channels, cost tracking, and system overview"
+              alt="mycel dashboard showing active agents, channels, cost tracking, and system overview"
               width={1200}
               height={750}
               className="w-full h-auto"

@@ -55,7 +55,7 @@ export default function Home() {
               <div className="rounded-xl border border-destructive/20 bg-card/90 backdrop-blur-sm p-6">
                 <h3 className="mb-5 flex items-center gap-2 font-mono text-sm font-bold uppercase tracking-wider text-destructive">
                   <XCircle className="h-4 w-4" aria-hidden="true" />
-                  Without bc
+                  Without mycel
                 </h3>
                 <ul className="space-y-4 text-sm">
                   {[
@@ -78,7 +78,7 @@ export default function Home() {
               <div className="rounded-xl border border-success/20 bg-card/90 backdrop-blur-sm p-6">
                 <h3 className="mb-5 flex items-center gap-2 font-mono text-sm font-bold uppercase tracking-wider text-success">
                   <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
-                  With bc
+                  With mycel
                 </h3>
                 <ul className="space-y-4 text-sm">
                   {[
@@ -218,7 +218,7 @@ export default function Home() {
                     <Link
                       href="https://github.com/rpuneet/bc"
                       className="cta-glow group inline-flex h-12 items-center gap-2 rounded-lg bg-primary px-8 text-sm font-semibold text-primary-foreground shadow-[var(--btn-shadow)] transition-all hover:shadow-xl active:scale-[0.97]"
-                      aria-label="Get started with bc on GitHub"
+                      aria-label="Get started with mycel on GitHub"
                     >
                       Get Started
                       <ArrowRight
@@ -229,7 +229,7 @@ export default function Home() {
                     <Link
                       href="/docs"
                       className="inline-flex h-12 items-center gap-2 rounded-lg border border-border px-8 text-sm font-medium transition-colors hover:bg-accent/20 active:scale-[0.97]"
-                      aria-label="Explore the bc CLI documentation"
+                      aria-label="Explore the mycel CLI documentation"
                     >
                       Explore the Docs
                     </Link>

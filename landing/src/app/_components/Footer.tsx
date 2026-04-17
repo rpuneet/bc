@@ -11,7 +11,7 @@ export function Footer() {
                 &gt;
               </span>
               <span className="font-heading text-xl font-bold tracking-tight text-primary ml-1">
-                bc
+                mycel
               </span>
             </div>
             <p className="text-sm text-muted-foreground max-w-xs">
@@ -92,7 +92,7 @@ export function Footer() {
               className="flex flex-col gap-2 text-sm text-muted-foreground"
             >
               <Link
-                href="mailto:puneet@bc-infra.com"
+                href="mailto:puneet@mycel.dev"
                 className="hover:text-foreground transition-colors"
               >
                 Contact
@@ -121,7 +121,7 @@ export function Footer() {
           </div>
         </div>
         <div className="flex flex-col md:flex-row items-center justify-between gap-4 pt-8 border-t border-border text-xs text-muted-foreground/60">
-          <p>&copy; 2026 bc-infra. All rights reserved.</p>
+          <p>&copy; 2026 mycel. All rights reserved.</p>
           <div className="flex items-center gap-6">
             <Link
               href="/privacy"

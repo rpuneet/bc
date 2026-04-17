@@ -17,12 +17,12 @@ export const viewport = {
 };
 
 export const metadata = {
-  title: "bc — AI In a Box",
+  title: "mycel — The Underground Network for AI Agents",
   description:
     "Orchestrate AI agents from your terminal. Isolated worktrees, shared channels, cost controls.",
   keywords:
     "AI agents, agent orchestration, Claude Code, multi-agent development, git worktrees, persistent memory, cost-aware AI, software development",
-  metadataBase: new URL("https://bc-infra.com"),
+  metadataBase: new URL("https://mycel.dev"),
   alternates: {
     canonical: "/",
   },
@@ -40,36 +40,36 @@ export const metadata = {
   openGraph: {
     type: "website",
     locale: "en_US",
-    url: "https://bc-infra.com",
-    title: "bc — AI In a Box",
+    url: "https://mycel.dev",
+    title: "mycel — The Underground Network for AI Agents",
     description:
       "Orchestrate AI agents from your terminal. Isolated worktrees, shared channels, cost controls.",
-    siteName: "bc",
+    siteName: "mycel",
     images: [
       {
-        url: "https://bc-infra.com/og-image.png",
+        url: "https://mycel.dev/og-image.png",
         width: 1200,
         height: 630,
-        alt: "bc — AI In a Box",
+        alt: "mycel — The Underground Network for AI Agents",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "bc — AI In a Box",
+    title: "mycel — The Underground Network for AI Agents",
     description:
       "Orchestrate AI agents from your terminal. Isolated worktrees, shared channels, cost controls.",
-    images: ["https://bc-infra.com/og-image.png"],
-    creator: "@bcinfra",
+    images: ["https://mycel.dev/og-image.png"],
+    creator: "@mycel_dev",
   },
   authors: [
     {
-      name: "bc team",
+      name: "mycel team",
       url: "https://github.com/rpuneet",
     },
   ],
-  creator: "bc team",
-  publisher: "bc",
+  creator: "mycel team",
+  publisher: "mycel",
 };
 
 export default function RootLayout({

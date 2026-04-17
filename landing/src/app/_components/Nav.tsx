@@ -22,7 +22,7 @@ function Logo() {
         &gt;
       </span>
       <span className="font-heading text-xl font-bold tracking-tight text-primary ml-1">
-        bc
+        mycel
       </span>
     </div>
   );
@@ -255,7 +255,7 @@ export function Nav() {
           <Link
             href="/"
             className="rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-            aria-label="bc home page"
+            aria-label="mycel home page"
           >
             <Logo />
           </Link>
