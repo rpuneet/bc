@@ -342,6 +342,7 @@ function ConfigTab({ agent }: { agent: Agent }) {
   const [syncing, setSyncing] = useState(false);
   const [syncDone, setSyncDone] = useState(false);
   const syncDoneTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [hostname, setHostname] = useState("localhost");
 
   const fetchMcps = useCallback(() => {
     setMcpLoading(true);
@@ -400,6 +401,16 @@ function ConfigTab({ agent }: { agent: Agent }) {
       })
       .catch(() => {/* best-effort */});
     return () => { cancelled = true; };
+  }, []);
+
+  // Fetch hostname from system info endpoint.
+  useEffect(() => {
+    fetch("/api/system/info")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (data?.hostname) setHostname(data.hostname);
+      })
+      .catch(() => {/* best-effort */});
   }, []);
 
   // Load persisted env vars from API on mount.
@@ -510,7 +521,7 @@ function ConfigTab({ agent }: { agent: Agent }) {
             </svg>
           )}
           <span className="font-semibold">
-            {isDocker ? "Docker container" : "tmux (localhost)"}
+            {isDocker ? "Docker container" : `tmux (${hostname})`}
           </span>
           <span className="text-current/50">·</span>
           {isDocker ? (
