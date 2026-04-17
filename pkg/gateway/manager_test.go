@@ -83,12 +83,12 @@ type mockAdapter struct {
 	name string
 }
 
-func (m *mockAdapter) Name() string                                           { return m.name }
-func (m *mockAdapter) Start(_ context.Context, _ func(InboundMessage)) error  { return nil }
-func (m *mockAdapter) Stop(_ context.Context) error                           { return nil }
-func (m *mockAdapter) Send(_ context.Context, _, _, _ string) error           { return nil }
-func (m *mockAdapter) Channels(_ context.Context) ([]ExternalChannel, error)  { return nil, nil }
-func (m *mockAdapter) Health(_ context.Context) error                         { return nil }
+func (m *mockAdapter) Name() string                                          { return m.name }
+func (m *mockAdapter) Start(_ context.Context, _ func(InboundMessage)) error { return nil }
+func (m *mockAdapter) Stop(_ context.Context) error                          { return nil }
+func (m *mockAdapter) Send(_ context.Context, _, _, _ string) error          { return nil }
+func (m *mockAdapter) Channels(_ context.Context) ([]ExternalChannel, error) { return nil, nil }
+func (m *mockAdapter) Health(_ context.Context) error                        { return nil }
 
 func TestSeedChannelMultiColonPlatform(t *testing.T) {
 	m := NewManager()
