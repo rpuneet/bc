@@ -1,7 +1,7 @@
 export const metadata = {
   title: "Pricing - mycel",
   description:
-    "mycel is free and open source. Run it locally with all features. No login required.",
+    "Simple, transparent pricing. Run mycel locally for free, or scale to the cloud when you're ready.",
 };
 
 export default function PricingLayout({
