@@ -111,10 +111,87 @@ type ProviderConfig struct {
 }
 
 // GatewaysConfig configures external messaging platform integrations.
+//
+// JSON keys follow a "platform" or "platform:label" convention. Plain
+// "telegram" is a single Telegram bot (backward compat). Keys like
+// "telegram:trade_research" register additional bots — parsed into the
+// Telegrams map keyed by label.
 type GatewaysConfig struct {
-	Telegram *TelegramGatewayConfig `json:"telegram,omitempty"`
+	// Telegram is the single default Telegram bot (key "telegram").
+	// Deprecated: prefer Telegrams map for multi-bot setups.
+	Telegram *TelegramGatewayConfig `json:"-"`
 	Discord  *DiscordGatewayConfig  `json:"discord,omitempty"`
 	Slack    *SlackGatewayConfig    `json:"slack,omitempty"`
+	// Telegrams holds zero or more Telegram bots keyed by label.
+	// A plain "telegram" key is stored under label "".
+	Telegrams map[string]*TelegramGatewayConfig `json:"-"`
+}
+
+// UnmarshalJSON parses gateway config, routing "telegram:*" keys into the
+// Telegrams map and keeping Discord/Slack on their typed fields.
+func (g *GatewaysConfig) UnmarshalJSON(data []byte) error {
+	// Decode known typed fields via an alias to avoid recursion.
+	type Alias struct {
+		Discord *DiscordGatewayConfig `json:"discord,omitempty"`
+		Slack   *SlackGatewayConfig   `json:"slack,omitempty"`
+	}
+	var alias Alias
+	if err := json.Unmarshal(data, &alias); err != nil {
+		return err
+	}
+	g.Discord = alias.Discord
+	g.Slack = alias.Slack
+
+	// Decode the full map to pick up telegram keys.
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	g.Telegrams = make(map[string]*TelegramGatewayConfig)
+	for key, val := range raw {
+		if key == "telegram" {
+			var tc TelegramGatewayConfig
+			if err := json.Unmarshal(val, &tc); err != nil {
+				return fmt.Errorf("parse gateway %q: %w", key, err)
+			}
+			g.Telegram = &tc
+			g.Telegrams[""] = &tc
+		} else if strings.HasPrefix(key, "telegram:") {
+			label := strings.TrimPrefix(key, "telegram:")
+			var tc TelegramGatewayConfig
+			if err := json.Unmarshal(val, &tc); err != nil {
+				return fmt.Errorf("parse gateway %q: %w", key, err)
+			}
+			g.Telegrams[label] = &tc
+		}
+	}
+	return nil
+}
+
+// MarshalJSON serializes the gateway config, emitting "telegram:label"
+// keys for each entry in Telegrams.
+func (g GatewaysConfig) MarshalJSON() ([]byte, error) {
+	m := make(map[string]any)
+	for label, tc := range g.Telegrams {
+		if label == "" {
+			m["telegram"] = tc
+		} else {
+			m["telegram:"+label] = tc
+		}
+	}
+	// Backward compat: if Telegram is set but not in Telegrams, emit it.
+	if g.Telegram != nil {
+		if _, ok := g.Telegrams[""]; !ok {
+			m["telegram"] = g.Telegram
+		}
+	}
+	if g.Discord != nil {
+		m["discord"] = g.Discord
+	}
+	if g.Slack != nil {
+		m["slack"] = g.Slack
+	}
+	return json.Marshal(m)
 }
 
 // TelegramGatewayConfig configures the Telegram gateway adapter.

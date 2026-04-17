@@ -385,10 +385,18 @@ func newAgentManager(ws *bcworkspace.Workspace) (*bcagent.Manager, *bccontainer.
 func buildGatewayManager(ctx context.Context, ws *bcworkspace.Workspace, notifyService *bcnotify.Service, wg *sync.WaitGroup) *bcgateway.Manager {
 	gw := ws.Config.Gateways
 
-	tgEnabled := gw.Telegram != nil && gw.Telegram.Enabled && gw.Telegram.BotToken != ""
 	dcEnabled := gw.Discord != nil && gw.Discord.Enabled && gw.Discord.BotToken != ""
 	slEnabled := gw.Slack != nil && gw.Slack.Enabled && gw.Slack.BotToken != "" && gw.Slack.AppToken != ""
-	if !tgEnabled && !dcEnabled && !slEnabled {
+
+	// Count enabled Telegram bots from the Telegrams map.
+	var tgCount int
+	for _, tc := range gw.Telegrams {
+		if tc.Enabled && tc.BotToken != "" {
+			tgCount++
+		}
+	}
+
+	if tgCount == 0 && !dcEnabled && !slEnabled {
 		return nil
 	}
 
@@ -397,13 +405,22 @@ func buildGatewayManager(ctx context.Context, ws *bcworkspace.Workspace, notifyS
 		m.SetChannelStore(&channelPersister{store: notifyService.Store()})
 	}
 
-	if tgEnabled {
-		tgAdapter := bctelegram.New(gw.Telegram.BotToken, gw.Telegram.Mode)
+	// Register Telegram adapters. Label "" → adapter name "telegram",
+	// label "foo" → adapter name "telegram:foo".
+	for label, tc := range gw.Telegrams {
+		if !tc.Enabled || tc.BotToken == "" {
+			continue
+		}
+		adapterName := "telegram"
+		if label != "" {
+			adapterName = "telegram:" + label
+		}
+		tgAdapter := bctelegram.NewNamed(adapterName, tc.BotToken, tc.Mode)
 		if err := tgAdapter.DiscoverViaUpdate(); err != nil {
-			log.Warn("telegram: discovery failed", "error", err)
+			log.Warn("telegram: discovery failed", "adapter", adapterName, "error", err)
 		}
 		m.Register(tgAdapter)
-		log.Info("gateway: telegram adapter registered")
+		log.Info("gateway: telegram adapter registered", "name", adapterName)
 	}
 	if dcEnabled {
 		m.Register(bcdiscord.New(gw.Discord.BotToken))
