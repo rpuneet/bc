@@ -220,21 +220,9 @@ func requireWorkspace() (*workspace.Workspace, error) {
 }
 
 // WorkspaceContext holds workspace and agent manager for command handlers.
-// Use withWorkspace() or withAgentManager() to create instances.
 type WorkspaceContext struct {
 	Workspace *workspace.Workspace
 	Manager   *agent.Manager
-}
-
-// withWorkspace executes fn with the current workspace.
-// Returns errNotInWorkspace if not in a bc workspace.
-// Used by commands that only need workspace access (config, stats, etc.).
-func withWorkspace(fn func(ws *workspace.Workspace) error) error { //nolint:unused // Will be used as commands migrate to this pattern
-	ws, err := requireWorkspace()
-	if err != nil {
-		return err
-	}
-	return fn(ws)
 }
 
 // runInitInteractive runs an interactive workspace initialization with nickname prompt.

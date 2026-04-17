@@ -18,14 +18,13 @@ var workspaceCmd = &cobra.Command{
 	Use:     "workspace",
 	Aliases: []string{"ws"},
 	Short:   "Manage bc workspaces",
-	Long: `Manage bc workspaces: info, config, logs, list, migrate.
+	Long: `Manage bc workspaces: info, config, logs, list.
 
 Examples:
   bc workspace info                   # Show workspace details
   bc workspace status                 # Show agents and health
   bc workspace config show            # Show workspace config
   bc workspace config set KEY VAL     # Set config value
-  bc workspace migrate                # Migrate v1 workspace to v2
   bc workspace list                   # List discovered workspaces
   bc workspace list --scan ~/Projects # Scan additional paths
   bc workspace discover               # Discover and register new workspaces`,

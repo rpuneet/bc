@@ -101,7 +101,6 @@ bc workspace status                 # Show agents and health
 bc workspace list                   # List discovered workspaces
 bc workspace list --scan ~/Projects # Scan additional paths
 bc workspace discover               # Discover and register new workspaces
-bc workspace migrate                # Migrate v1 workspace to v2
 bc ws up                            # Start all roster agents
 ```
 
