@@ -252,7 +252,13 @@ func (m *WorkspaceManager) Load(ctx context.Context, wsID string) (*WorkspaceSer
 
 	ws, err := workspace.Load(entry.Path)
 	if err != nil {
-		return nil, fmt.Errorf("load workspace %s: %w", entry.Path, err)
+		// Registered but never initialized (no settings.json / preferences.json).
+		// Auto-initialize so the UI gets a valid (empty) workspace instead of 500.
+		ws, err = workspace.Init(entry.Path)
+		if err != nil {
+			return nil, fmt.Errorf("load/init workspace %s: %w", entry.Path, err)
+		}
+		log.Info("workspace auto-initialized on first access", "path", entry.Path)
 	}
 
 	if m.factory == nil {
