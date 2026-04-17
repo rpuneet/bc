@@ -105,7 +105,7 @@ clean: clean-local ## Remove all build artifacts
 
 build-local-go: build-local-bc ## Build all Go binaries
 
-build-local-bc: build-local-tui-bundle ## Build bc (embeds web UI, TUI bundle, server)
+build-local-bc: build-local-web build-local-tui-bundle ## Build bc (embeds web UI, TUI bundle, server)
 	@mkdir -p $(BUILD_DIR)
 	@if [ ! -d server/web/dist ]; then mkdir -p server/web/dist && echo '<!-- stub -->' > server/web/dist/index.html; fi
 	$(GO) build -ldflags="$(LDFLAGS_VERSION)" -o $(BUILD_DIR)/bc ./cmd/bc
