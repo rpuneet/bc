@@ -352,7 +352,7 @@ mycel status --verbose
 mycel cache clear
 
 # Restart root agent
-mycel down && bc up
+mycel down && mycel up
 ```
 
 ---
@@ -392,7 +392,7 @@ Here's a realistic end-to-end workflow:
 
 ```bash
 # 1. Initialize
-mycel init && bc up
+mycel init && mycel up
 
 # 2. Create team
 mycel agent create pm-alex --role product-manager --tool notion

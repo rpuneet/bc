@@ -179,13 +179,13 @@ const GROUP_META: Record<string, { alias: string; order: number }> = {
 
 // Top-level commands that are standalone (not groups)
 const STANDALONE_COMMANDS = [
-  "bc init",
-  "bc up",
-  "bc down",
-  "bc status",
-  "bc home",
-  "bc logs",
-  "bc version",
+  "mycel init",
+  "mycel up",
+  "mycel down",
+  "mycel status",
+  "mycel home",
+  "mycel logs",
+  "mycel version",
   "mycel completion",
 ];
 

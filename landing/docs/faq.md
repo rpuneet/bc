@@ -2,7 +2,7 @@
 
 ## Installation & Setup
 
-### Q: What are the system requirements for bc?
+### Q: What are the system requirements for mycel?
 **A:** mycel requires:
 - **Go 1.25.1+** - Download from [golang.org](https://go.dev/dl)
 - **tmux** - Available via `brew install tmux` (macOS) or `apt-get install tmux` (Linux)
@@ -20,7 +20,7 @@ Optional: Node.js 18+ if using mycel with JavaScript/TypeScript projects.
 
 Native Windows support is not available yet, but WSL2 works well.
 
-### Q: How do I uninstall bc?
+### Q: How do I uninstall mycel?
 **A:**
 ```bash
 # Remove binary
@@ -109,7 +109,7 @@ View with: `mycel queue list`
 - Agent B edits same file in their worktree
 - Both changes merge cleanly to main (no conflicts)
 
-This is bc's core innovation - true parallel development.
+This is mycel's core innovation - true parallel development.
 
 ### Q: How do I handle merge conflicts?
 **A:**
@@ -281,7 +281,7 @@ tmux list-sessions
 # Kill stale sessions
 tmux kill-server
 
-# Restart bc
+# Restart mycel
 mycel down
 mycel init
 mycel up
@@ -319,7 +319,7 @@ cp -r src/ .mycel/worktrees/eng-01/
 git clone https://github.com/yourorg/project.git
 cd project
 
-# Initialize bc
+# Initialize mycel
 mycel init
 mycel up
 
@@ -368,7 +368,7 @@ git tag snapshot-$(date +%Y%m%d)
 
 ## Contributing & Support
 
-### Q: How do I contribute to bc?
+### Q: How do I contribute to mycel?
 **A:** mycel is open source:
 1. Fork: [bcinfra1/bc](https://github.com/bcinfra1/bc)
 2. Branch: `git checkout -b feature/your-feature`
@@ -385,7 +385,7 @@ git tag snapshot-$(date +%Y%m%d)
 
 ### Q: How do I get help?
 **A:**
-- **Documentation**: [bc GitHub Wiki](https://github.com/bcinfra1/bc/wiki)
+- **Documentation**: [mycel GitHub Wiki](https://github.com/bcinfra1/bc/wiki)
 - **Issues**: [Feature requests & bugs](https://github.com/bcinfra1/bc/issues)
 - **Discussions**: [GitHub Discussions](https://github.com/bcinfra1/bc/discussions)
 - **Community**: Ask in channels within mycel workspace

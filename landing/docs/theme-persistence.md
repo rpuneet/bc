@@ -15,7 +15,7 @@ Comprehensive theme persistence system with localStorage, system preference dete
 ## Persistence Strategy
 
 ### 1. localStorage Storage
-- **Key:** `bc-theme`
+- **Key:** `mycel-theme`
 - **Values:** `"light"` | `"dark"`
 - **Persistence:** Permanent until manually cleared
 
@@ -36,7 +36,7 @@ Comprehensive theme persistence system with localStorage, system preference dete
 ### ThemeProvider Enhancements
 
 ```typescript
-const STORAGE_KEY = "bc-theme";
+const STORAGE_KEY = "mycel-theme";
 
 useEffect(() => {
   // 1. Load theme from localStorage or system preference
@@ -71,7 +71,7 @@ useEffect(() => {
    ↓
 3. applyTheme() called → Update DOM class + localStorage
    ↓
-4. localStorage.setItem("bc-theme", newTheme) → Persist preference
+4. localStorage.setItem("mycel-theme", newTheme) → Persist preference
    ↓
 5. storage event fires in OTHER tabs → Listeners notified
    ↓
@@ -147,17 +147,17 @@ export function MyComponent() {
 
 ### Setting Theme
 ```javascript
-localStorage.setItem("bc-theme", "dark");
+localStorage.setItem("mycel-theme", "dark");
 ```
 
 ### Getting Theme
 ```javascript
-const theme = localStorage.getItem("bc-theme"); // "light" | "dark" | null
+const theme = localStorage.getItem("mycel-theme"); // "light" | "dark" | null
 ```
 
 ### Removing Theme (fallback to system preference)
 ```javascript
-localStorage.removeItem("bc-theme");
+localStorage.removeItem("mycel-theme");
 ```
 
 ### Clearing All Storage

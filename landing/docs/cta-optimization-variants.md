@@ -120,7 +120,7 @@ This document provides A/B testing variants for all Call-to-Action buttons to op
 ### Path 2: Learning-Focused Users (Want to understand first)
 1. See hero section
 2. Click "Explore the Docs" → /docs
-3. Learn about bc
+3. Learn about mycel
 4. Later click "Request Early Access" → /waitlist
 
 ### Path 3: Decision-Makers (Want to evaluate)
