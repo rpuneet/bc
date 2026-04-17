@@ -59,17 +59,17 @@ const BENEFITS = [
 const SCREENSHOTS = [
   {
     src: "/screenshots/dashboard-01-home.png",
-    alt: "bc dashboard showing active agents, channels, total cost, and token usage with agent status table",
+    alt: "mycel dashboard showing active agents, channels, total cost, and token usage with agent status table",
     label: "Dashboard Overview",
   },
   {
     src: "/screenshots/dashboard-03-channels.png",
-    alt: "bc channels view showing real-time agent-to-agent communication in shared channels",
+    alt: "mycel channels view showing real-time agent-to-agent communication in shared channels",
     label: "Agent Channels",
   },
   {
     src: "/screenshots/dashboard-04-costs.png",
-    alt: "bc costs view showing daily cost trends, per-agent cost breakdown, and total token usage",
+    alt: "mycel costs view showing daily cost trends, per-agent cost breakdown, and total token usage",
     label: "Cost Tracking",
   },
 ];
@@ -100,14 +100,14 @@ export default function Waitlist() {
     try {
       await new Promise<void>((resolve, reject) => {
         const iframe = document.createElement("iframe");
-        iframe.name = "bc-waitlist-frame";
+        iframe.name = "mycel-waitlist-frame";
         iframe.style.display = "none";
         document.body.appendChild(iframe);
 
         const form = document.createElement("form");
         form.method = "POST";
         form.action = GOOGLE_FORM_ACTION;
-        form.target = "bc-waitlist-frame";
+        form.target = "mycel-waitlist-frame";
 
         const input = document.createElement("input");
         input.type = "hidden";
@@ -173,10 +173,10 @@ export default function Waitlist() {
           aria-hidden="true"
         >
           {[
-            "$ bc up",
-            "$ bc agent list --full",
-            "$ bc cost usage --monthly",
-            "$ bc channel history #eng --since 1h",
+            "$ mycel up",
+            "$ mycel agent list --full",
+            "$ mycel cost usage --monthly",
+            "$ mycel channel history #eng --since 1h",
           ].map((cmd, row) =>
             Array.from({ length: 5 }).map((_, col) => (
               <span
@@ -221,7 +221,7 @@ export default function Waitlist() {
               transition={{ duration: 0.5, delay: 0.2 }}
               className="text-lg text-muted-foreground max-w-xl mx-auto leading-relaxed"
             >
-              bc coordinates teams of AI coding agents with isolated worktrees,
+              mycel coordinates teams of AI coding agents with isolated worktrees,
               shared channels, and cost controls. Open source and local-first.
               Get notified when we launch.
             </motion.p>
@@ -248,7 +248,7 @@ export default function Waitlist() {
                         <div className="h-3 w-3 rounded-full bg-[var(--traffic-green)]" />
                       </div>
                       <span className="text-xs font-mono text-white/30 ml-2">
-                        bc waitlist --join
+                        mycel waitlist --join
                       </span>
                     </div>
                     <div className="p-6 sm:p-8">
@@ -329,7 +329,7 @@ export default function Waitlist() {
                       <div className="h-3 w-3 rounded-full bg-[var(--traffic-green)]" />
                     </div>
                     <span className="text-xs font-mono text-white/30 ml-2">
-                      bc waitlist --status
+                      mycel waitlist --status
                     </span>
                   </div>
                   <div className="p-8 sm:p-12 text-center space-y-6">
@@ -350,7 +350,7 @@ export default function Waitlist() {
                         You&apos;re on the list
                       </pre>
                       <p className="text-white/50 font-mono text-sm">
-                        We&apos;ll notify you when bc is ready for early access.
+                        We&apos;ll notify you when mycel is ready for early access.
                         In the meantime, check out the{" "}
                         <a
                           href="https://github.com/rpuneet/bc"
@@ -360,7 +360,7 @@ export default function Waitlist() {
                         >
                           GitHub repo
                         </a>{" "}
-                        — bc is open source.
+                        — mycel is open source.
                       </p>
                     </div>
                     <div className="pt-2">
@@ -425,7 +425,7 @@ export default function Waitlist() {
               See what you&apos;ll get
             </h2>
             <p className="text-muted-foreground max-w-lg mx-auto">
-              A real-time dashboard ships with bc. Monitor agents, channels,
+              A real-time dashboard ships with mycel. Monitor agents, channels,
               and costs from your browser.
             </p>
           </RevealSection>
@@ -527,13 +527,13 @@ export default function Waitlist() {
                 step: "01",
                 title: "Sign up for early access",
                 description:
-                  "Drop your email above. We'll notify you when bc is ready.",
+                  "Drop your email above. We'll notify you when mycel is ready.",
               },
               {
                 step: "02",
                 title: "Install locally",
                 description:
-                  "bc runs on your machine. One command to install, one to start. No cloud accounts required.",
+                  "mycel runs on your machine. One command to install, one to start. No cloud accounts required.",
               },
               {
                 step: "03",
@@ -577,28 +577,28 @@ export default function Waitlist() {
           <div className="space-y-6">
             {[
               {
-                q: "What is bc?",
-                a: "bc coordinates multiple AI coding agents working in parallel on isolated git worktrees. No merge conflicts, no context loss.",
+                q: "What is mycel?",
+                a: "mycel coordinates multiple AI coding agents working in parallel on isolated git worktrees. No merge conflicts, no context loss.",
               },
               {
                 q: "How is this different from using a single AI agent?",
-                a: "A single agent works on one task at a time. bc runs multiple agents in parallel, each on its own branch, communicating through structured channels. Cost controls and real-time visibility included.",
+                a: "A single agent works on one task at a time. mycel runs multiple agents in parallel, each on its own branch, communicating through structured channels. Cost controls and real-time visibility included.",
               },
               {
-                q: "Which AI tools does bc support?",
+                q: "Which AI tools does mycel support?",
                 a: "Claude Code, Cursor, Codex, Gemini, Aider, OpenCode, OpenClaw, and any CLI agent. Configure providers in a TOML file.",
               },
               {
                 q: "Do I need to change how my agents work?",
-                a: "No. Your agents keep running the same commands. bc adds the coordination layer: worktree isolation, channels, persistent memory, and cost tracking.",
+                a: "No. Your agents keep running the same commands. mycel adds the coordination layer: worktree isolation, channels, persistent memory, and cost tracking.",
               },
               {
-                q: "Is bc open source?",
+                q: "Is mycel open source?",
                 a: "Yes. Open source, runs on your machine. Inspect the code, contribute, self-host. Early access includes all features.",
               },
               {
-                q: "Does bc require a cloud account?",
-                a: "No. bc runs on your machine using tmux sessions and local git worktrees. No data leaves your machine unless you configure external AI providers.",
+                q: "Does mycel require a cloud account?",
+                a: "No. mycel runs on your machine using tmux sessions and local git worktrees. No data leaves your machine unless you configure external AI providers.",
               },
               {
                 q: "How does early access work?",

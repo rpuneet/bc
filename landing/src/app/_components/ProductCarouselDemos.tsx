@@ -30,7 +30,7 @@ function TerminalShell({
           </span>
         </div>
         <span className="font-mono text-[11px] text-muted-foreground">
-          bc home
+          mycel home
         </span>
       </div>
       <div className="p-6">{children}</div>
@@ -52,7 +52,7 @@ function BreadcrumbAndTabs({
     <div className="mb-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="font-mono text-[12px] text-muted-foreground">
-          Workspaces <span className="text-muted-foreground">›</span> bc-infra
+          Workspaces <span className="text-muted-foreground">›</span> mycel-workspace
         </div>
 
         <div className="flex items-center gap-2 rounded-xl border border-border bg-muted/40 p-1">
@@ -521,7 +521,7 @@ function CronScheduleFrame() {
         <div className="text-foreground">Add a cron job</div>
         <div className="mt-3 rounded-xl border border-border bg-card p-4">
           <div className="text-muted-foreground">
-            $ bc cron add cron-health --schedule &quot;0 * * * *&quot; --cmd
+            $ mycel cron add cron-health --schedule &quot;0 * * * *&quot; --cmd
             &quot;npm test&quot;
           </div>
         </div>

@@ -12,15 +12,15 @@ function Chip({ children }: { children: React.ReactNode }) {
 
 export function TerminalMock() {
   const lines = [
-    "$ bc init",
-    "✓ workspace initialized (.bc/)",
-    "$ bc up",
+    "$ mycel init",
+    "✓ workspace initialized (.mycel/)",
+    "$ mycel up",
     "✓ root agent started",
-    "$ bc agent create manager-atlas --role manager",
+    "$ mycel agent create manager-atlas --role manager",
     "✓ spawned manager-atlas (tool: cursor)",
-    "$ bc cost usage",
+    "$ mycel cost usage",
     "manager-atlas: epic-auth-system (in-progress)",
-    "$ bc cron list",
+    "$ mycel cron list",
     "manager-atlas: task-3-branch (conflict)  ← reject + notify",
   ];
 
@@ -59,7 +59,7 @@ export function DashboardMock() {
             status • costs • cron • agents • channels
           </div>
         </div>
-        <Chip>bc home</Chip>
+        <Chip>mycel home</Chip>
       </div>
 
       <div className="mt-4 grid gap-3 sm:grid-cols-3">
@@ -112,7 +112,7 @@ export function CostMock() {
             per-agent budgets · alerts · hard stops
           </div>
         </div>
-        <Chip>bc cost</Chip>
+        <Chip>mycel cost</Chip>
       </div>
 
       <div className="mt-4 grid gap-4 md:grid-cols-2">

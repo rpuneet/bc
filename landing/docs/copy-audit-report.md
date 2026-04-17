@@ -1,14 +1,14 @@
-# bc-landing Copy Audit Report
+# mycel-landing Copy Audit Report
 
 **Date:** 2026-02-09
-**Objective:** Audit bc-landing current copy against BC product documentation and identify alignment gaps
+**Objective:** Audit mycel-landing current copy against BC product documentation and identify alignment gaps
 **Scope:** Homepage, Product page, Docs page, Waitlist page
 
 ---
 
 ## Executive Summary
 
-This audit compares bc-landing marketing copy with BC's actual capabilities documented in `/Users/puneetrai/Projects/bc/README.md` and `/Users/puneetrai/Projects/bc/.ctx/01-architecture-overview.md`.
+This audit compares mycel-landing marketing copy with BC's actual capabilities documented in `/Users/puneetrai/Projects/bc/README.md` and `/Users/puneetrai/Projects/bc/.ctx/01-architecture-overview.md`.
 
 **Key Findings:**
 - BC's value proposition emphasizes **predictable behavior and cost awareness** as core differentiators
@@ -19,7 +19,7 @@ This audit compares bc-landing marketing copy with BC's actual capabilities docu
 
 ---
 
-## Section 1: Current bc-landing Copy Documentation
+## Section 1: Current mycel-landing Copy Documentation
 
 ### 1.1 Homepage - Hero Section
 
@@ -132,7 +132,7 @@ Subheading: "Join hundreds of developers orchestrating AI agents. Get early acce
 
 **Copy:**
 ```
-Logo text: "bc/>"
+Logo text: "mycel/>"
 Tagline: "Multi-agent orchestration system for coordinated software development."
 Footer links: Product, Documentation, Get Started, GitHub, Twitter, Contact
 ```
@@ -151,7 +151,7 @@ Footer links: Product, Documentation, Get Started, GitHub, Twitter, Contact
 
 From `BC README.md` and `.ctx/01-architecture-overview.md`:
 
-| Feature | BC Docs | bc-landing Copy | Status |
+| Feature | BC Docs | mycel-landing Copy | Status |
 |---------|---------|-----------------|--------|
 | **Multi-agent coordination** | ✅ Core | ✅ Featured | ✅ Aligned |
 | **Git worktrees (isolation)** | ✅ Core | ✅ Featured | ✅ Aligned |
@@ -176,7 +176,7 @@ From `BC README.md` and `.ctx/01-architecture-overview.md`:
 - "A simpler, more controllable agent orchestrator... with **predictable behavior and cost awareness**"
 - This is stated as BC's primary differentiator in the README
 
-**bc-landing Current Copy:**
+**mycel-landing Current Copy:**
 - Zero mentions of "cost"
 - Zero mentions of "budget"
 - Zero mentions of "billing" or "spend control"
@@ -199,7 +199,7 @@ From `BC README.md` and `.ctx/01-architecture-overview.md`:
 - "A simpler, more controllable agent orchestrator for coordinating multiple Claude Code agents with **predictable behavior**"
 - Architecture doc emphasizes role-based capabilities and state machines for predictability
 
-**bc-landing Current Copy:**
+**mycel-landing Current Copy:**
 - "Transparent" and "Full visibility" mentioned
 - "Control" implied but not stated as a differentiator
 - No messaging around behavioral predictability
@@ -222,7 +222,7 @@ From `BC README.md` and `.ctx/01-architecture-overview.md`:
 - "TUI Dashboard - Real-time visualization of agent status and progress" (Key Features)
 - TUI components (Bubble Tea) is core technology stack
 
-**bc-landing Current Copy:**
+**mycel-landing Current Copy:**
 - "CLI-First" card mentions "see exactly what agents are doing, when"
 - No visual representation of dashboard capability
 - No feature card dedicated to "Observability" or "Dashboard"
@@ -246,7 +246,7 @@ From `BC README.md` and `.ctx/01-architecture-overview.md`:
 - "Role-based hierarchy with four primary roles" with different capabilities
 - This enables organizational structure and access control
 
-**bc-landing Current Copy:**
+**mycel-landing Current Copy:**
 - No mention of organizational hierarchy
 - No feature card for access control or role-based permissions
 - Single-purpose focus on "agents" without team structure
@@ -269,7 +269,7 @@ From `BC README.md` and `.ctx/01-architecture-overview.md`:
 - "Agents lose context on restart [bc solution: State persists in git-backed .bc/ directory]"
 - "Survives crashes and restarts" and "provides rollback capability"
 
-**bc-landing Current Copy:**
+**mycel-landing Current Copy:**
 - "Persistent memory" featured (but ambiguous)
 - No mention of state recovery, crash resilience, or git-backed durability
 - No messaging around reliability/SLA concepts
@@ -296,7 +296,7 @@ From `BC README.md` and `.ctx/01-architecture-overview.md`:
 
 ### 3.2 Terminology Clarifications Needed
 
-| Term | BC Docs | bc-landing | Issue |
+| Term | BC Docs | mycel-landing | Issue |
 |------|---------|-----------|-------|
 | **Worktrees** | "git worktrees" | "isolated branches" | ✅ Acceptable translation |
 | **TUI Dashboard** | "TUI Dashboard" | "CLI-First" / "Full visibility" | ⚠️ Underselling |
@@ -380,7 +380,7 @@ From `BC README.md` and `.ctx/01-architecture-overview.md`:
 
 ## Section 6: Conclusion
 
-bc-landing currently does an excellent job communicating BC's core coordination capabilities (multi-agent orchestration, zero conflicts, persistent memory, channels). However, the landing page **significantly undersells BC's differentiators** as stated in the official documentation:
+mycel-landing currently does an excellent job communicating BC's core coordination capabilities (multi-agent orchestration, zero conflicts, persistent memory, channels). However, the landing page **significantly undersells BC's differentiators** as stated in the official documentation:
 
 1. **Cost awareness and control** - Entirely absent from messaging
 2. **Predictable behavior** - Implied but not stated as a value prop

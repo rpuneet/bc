@@ -2,11 +2,11 @@
  * Image Optimization Configuration & Utilities
  *
  * This module provides utilities and best practices for handling images
- * in the bc-landing project with optimal performance and Core Web Vitals.
+ * in the mycel-landing project with optimal performance and Core Web Vitals.
  */
 
 /**
- * Image Optimization Standards for bc-landing
+ * Image Optimization Standards for mycel-landing
  *
  * Target Metrics:
  * - All images < 200KB

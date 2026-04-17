@@ -21,7 +21,7 @@ function TerminalShell({ children }: { children: React.ReactNode }) {
           <Dot className="bg-[var(--traffic-green)]" />
         </div>
         <span className="ml-2 font-mono text-xs text-muted-foreground uppercase tracking-widest">
-          bc terminal
+          mycel terminal
         </span>
       </div>
       <div className="p-5 min-h-[320px]">{children}</div>
@@ -43,7 +43,7 @@ function DashboardView() {
   return (
     <div className="font-mono text-xs sm:text-[12px] text-foreground">
       <div className="flex items-center justify-between border-b border-border pb-2 mb-4">
-        <span className="text-muted-foreground">DASHBOARD: bc-infra</span>
+        <span className="text-muted-foreground">DASHBOARD: mycel-workspace</span>
         <span className="text-success text-xs sm:text-[10px]">● LIVE</span>
       </div>
       <div className="grid grid-cols-2 gap-4">
@@ -99,7 +99,7 @@ function CostView() {
   return (
     <div className="font-mono text-[12px] text-foreground">
       <div className="flex items-center justify-between border-b border-border pb-2 mb-4">
-        <span className="text-muted-foreground">COST TRACKING: bc-infra</span>
+        <span className="text-muted-foreground">COST TRACKING: mycel-workspace</span>
         <span className="text-muted-foreground text-[10px]">today</span>
       </div>
       <div className="grid gap-4">
@@ -156,7 +156,7 @@ function MemoryView() {
             Learnings
           </div>
           <ul className="space-y-1 text-muted-foreground">
-            <li>• Use `bc ag send` to assign work to agents</li>
+            <li>• Use `mycel ag send` to assign work to agents</li>
             <li>• Framework v4 requires specific lint flags</li>
             <li>• CI suite fails on memory edge cases</li>
           </ul>
@@ -269,7 +269,7 @@ function ChatRoom() {
 export function BcHomeDemo() {
   const frames: Frame[] = useMemo(
     () => [
-      { kind: "cmd", text: "bc up" },
+      { kind: "cmd", text: "mycel up" },
       { kind: "screen", title: "dashboard", body: <DashboardView /> },
       { kind: "screen", title: "costs", body: <CostView /> },
       { kind: "screen", title: "memory", body: <MemoryView /> },
@@ -305,10 +305,10 @@ export function BcHomeDemo() {
                 transition={{ delay: 0.5 }}
                 className="space-y-1 font-mono text-[12px] text-muted-foreground"
               >
-                <div>[bc] Starting orchestration engine...</div>
-                <div>[bc] Initializing Root Agent (root-prime)</div>
+                <div>[mycel] Starting orchestration engine...</div>
+                <div>[mycel] Initializing Root Agent (root-prime)</div>
                 <div className="text-success">
-                  [bc] Environment ready. Workspace active.
+                  [mycel] Environment ready. Workspace active.
                 </div>
               </motion.div>
             </div>

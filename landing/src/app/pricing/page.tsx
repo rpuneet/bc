@@ -200,12 +200,12 @@ export default function PricingPage() {
                 <InstallRow
                   icon={Container}
                   title="Docker"
-                  command="docker run -p 9374:9374 -v $(pwd):/workspace ghcr.io/rpuneet/bc bc up --addr 0.0.0.0:9374"
+                  command="docker run -p 9374:9374 -v $(pwd):/workspace ghcr.io/rpuneet/bc mycel up --addr 0.0.0.0:9374"
                 />
                 <InstallRow
                   icon={GitBranch}
                   title="From source"
-                  command="go install github.com/rpuneet/bc/cmd/bc@latest"
+                  command="go install github.com/rpuneet/bc/cmd/mycel@latest"
                 />
               </div>
 
@@ -320,10 +320,10 @@ export default function PricingPage() {
                   Coming soon
                 </span>
                 <a
-                  href="mailto:skitzo@bc-infra.com"
+                  href="mailto:hello@mycel.dev"
                   className="text-xs text-muted-foreground/60 hover:text-primary transition-colors"
                 >
-                  Talk to us &rarr; skitzo@bc-infra.com
+                  Talk to us &rarr; hello@mycel.dev
                 </a>
               </div>
             </motion.div>
@@ -345,20 +345,20 @@ export default function PricingPage() {
             </motion.h2>
             <motion.div variants={fadeUp} custom={1}>
               <FAQItem
-                question="Is bc really free?"
-                answer="Yes. bc is open source and runs locally on your machine. All features are included with no restrictions. You only pay for AI API tokens from your chosen providers (Claude, Gemini, etc.)."
+                question="Is mycel really free?"
+                answer="Yes. mycel is open source and runs locally on your machine. All features are included with no restrictions. You only pay for AI API tokens from your chosen providers (Claude, Gemini, etc.)."
               />
               <FAQItem
                 question="Do I need an account?"
-                answer="No for the Free tier. Install bc, run bc init, and start orchestrating. No signup, no login, no telemetry. The Cloud tier requires a signup for remote access features."
+                answer="No for the Free tier. Install mycel, run mycel init, and start orchestrating. No signup, no login, no telemetry. The Cloud tier requires a signup for remote access features."
               />
               <FAQItem
                 question="What's included in Cloud?"
                 answer="SSH access to your workspace, remote agent chat, hosted dashboard, team management features, and cloud-synced memory. Everything in the Free tier is included plus remote access capabilities."
               />
               <FAQItem
-                question="What AI providers work with bc?"
-                answer="bc supports Claude Code, Cursor, Gemini, Codex, Aider, OpenCode, and OpenClaw. You bring your own API keys and bc orchestrates agents across any combination of providers."
+                question="What AI providers work with mycel?"
+                answer="mycel supports Claude Code, Cursor, Gemini, Codex, Aider, OpenCode, and OpenClaw. You bring your own API keys and mycel orchestrates agents across any combination of providers."
               />
             </motion.div>
           </motion.div>

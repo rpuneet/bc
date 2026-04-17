@@ -1196,7 +1196,7 @@ export default function DocsContent({
     for (const group of groups) {
       cliItems.push({
         id: `cli/${group.name}`,
-        label: `bc ${group.name}`,
+        label: `mycel ${group.name}`,
         type: "cli-group",
         sectionId: "cli",
         cliGroup: group,
@@ -1430,7 +1430,7 @@ export default function DocsContent({
   const getTitle = () => {
     if (!activeItem) return "Documentation";
     if (activeItem.type === "cli-group" && activeItem.cliGroup) {
-      return `bc ${activeItem.cliGroup.name}`;
+      return `mycel ${activeItem.cliGroup.name}`;
     }
     if (activeItem.type === "cli-command" && activeItem.cliCommand) {
       return activeItem.cliCommand.name;

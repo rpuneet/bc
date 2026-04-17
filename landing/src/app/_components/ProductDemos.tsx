@@ -39,7 +39,7 @@ function TerminalHeader({ title }: { title: string }) {
         </span>
       </div>
       <span className="font-mono text-[10px] text-terminal-comment bg-terminal-bg/50 px-2 py-0.5 rounded uppercase tracking-widest">
-        bc home
+        mycel home
       </span>
     </div>
   );
@@ -53,7 +53,7 @@ function Breadcrumbs({ activeTab }: { activeTab: string }) {
         <div className="font-mono text-[11px] text-terminal-muted flex items-center gap-2">
           <span className="opacity-50">WORKSPACES</span>
           <span className="text-terminal-comment">/</span>
-          <span className="text-terminal-text font-bold">bc-infra</span>
+          <span className="text-terminal-text font-bold">mycel-workspace</span>
         </div>
         <div className="flex items-center gap-1 rounded-xl border border-terminal-comment bg-terminal-bg/40 p-1 font-mono">
           {tabs.map((t) => (
@@ -391,7 +391,7 @@ function AgentsFrame({ step }: { step: number }) {
             Starting validation work. retrieved past Zod patterns. Branch
             isolated in{" "}
             <span className="text-terminal-success">
-              .bc/worktrees/pixel/feat-validate
+              .mycel/worktrees/pixel/feat-validate
             </span>
             .
           </div>
@@ -515,10 +515,10 @@ export function AgentsSection() {
       tab="Agents"
       cmdForStep={(i) =>
         i === 0
-          ? "bc status"
+          ? "mycel status"
           : i === 1
-            ? "bc agent peek engineer-pixel"
-            : "bc agent send pixel 'status'"
+            ? "mycel agent peek engineer-pixel"
+            : "mycel agent send pixel 'status'"
       }
       renderFrame={(i) => <AgentsFrame step={i} />}
     />
@@ -549,10 +549,10 @@ export function ChannelsSection() {
       tab="Channels"
       cmdForStep={(i) =>
         i === 0
-          ? "bc home"
+          ? "mycel home"
           : i === 1
-            ? "bc channel send #general 'review'"
-            : "bc channel history #general"
+            ? "mycel channel send #general 'review'"
+            : "mycel channel history #general"
       }
       renderFrame={(i) => <ChannelsFrame step={i} />}
     />
@@ -583,10 +583,10 @@ export function CronSection() {
       tab="Cron"
       cmdForStep={(i) =>
         i === 0
-          ? "bc cron list"
+          ? "mycel cron list"
           : i === 1
-            ? "bc cron run build-sync"
-            : "bc cron add audit"
+            ? "mycel cron run build-sync"
+            : "mycel cron add audit"
       }
       renderFrame={() => <CronFrame />}
     />

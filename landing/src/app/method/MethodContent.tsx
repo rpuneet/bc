@@ -82,7 +82,7 @@ export function MethodContent() {
             className="mt-5 text-5xl font-bold tracking-tight sm:text-7xl lg:text-8xl"
             style={{ fontFamily: "Georgia, 'Times New Roman', serif" }}
           >
-            The bc Method
+            The mycel Method
           </h1>
           <p className="mt-8 text-xl sm:text-2xl text-[var(--method-muted)] leading-relaxed max-w-2xl">
             Practices for orchestrating AI agent teams.

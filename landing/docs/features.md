@@ -1,8 +1,8 @@
-# bc Features - Detailed Guide
+# mycel Features - Detailed Guide
 
 ## Overview
 
-bc provides core features designed specifically for coordinating multiple AI agents on complex development tasks. Each feature solves a specific problem in multi-agent workflows.
+mycel provides core features designed specifically for coordinating multiple AI agents on complex development tasks. Each feature solves a specific problem in multi-agent workflows.
 
 ---
 
@@ -15,14 +15,14 @@ Traditional git workflows create merge conflicts when multiple developers (or ag
 - Manual conflict resolution slows progress
 
 ### The Solution: Per-Agent Worktrees
-Each agent gets an isolated git worktree at `.bc/worktrees/<agent-id>/`:
+Each agent gets an isolated git worktree at `.mycel/worktrees/<agent-id>/`:
 
 ```
 project/
 ├── .git/                          # Main repository
 ├── src/
 │   └── app.js                     # Main code
-├── .bc/
+├── .mycel/
 │   └── worktrees/
 │       ├── eng-01/                # eng-01's isolated copy
 │       │   └── src/app.js         # eng-01 edits independently
@@ -33,23 +33,23 @@ project/
 ### How It Works
 ```bash
 # Initialize workspace
-bc init
+mycel init
 
 # Two engineers spawned
-bc spawn eng-01 --role engineer
-bc spawn eng-02 --role engineer
+mycel spawn eng-01 --role engineer
+mycel spawn eng-02 --role engineer
 
 # Both work on app.js simultaneously
-cd .bc/worktrees/eng-01/
+cd .mycel/worktrees/eng-01/
 # eng-01: add email notifications to app.js
 git commit -m "add email service"
 
-cd .bc/worktrees/eng-02/
+cd .mycel/worktrees/eng-02/
 # eng-02: add logging to app.js
 git commit -m "add logging"
 
 # Merge both to main - NO CONFLICTS!
-bc merge process
+mycel merge process
 # Result: app.js has both changes merged cleanly
 ```
 
@@ -93,10 +93,10 @@ AI agents lose context when they restart. Traditional solutions:
 - Chat history (loses system context)
 
 ### The Solution: Git-Backed Persistence
-All bc state stored in git-tracked files:
+All mycel state stored in git-tracked files:
 
 ```
-.bc/
+.mycel/
 ├── agents/agents.json             # Agent state & history
 ├── queue.json                     # Work queue & assignments
 ├── events.jsonl                   # Complete event log
@@ -114,20 +114,20 @@ All bc state stored in git-tracked files:
 ### How It Works
 ```bash
 # Session 1: Agent starts work
-bc spawn eng-01 --role engineer
-bc queue add "Implement authentication"
-bc queue assign work-0001 eng-01
-bc attach eng-01
+mycel spawn eng-01 --role engineer
+mycel queue add "Implement authentication"
+mycel queue assign work-0001 eng-01
+mycel attach eng-01
 # eng-01 works on authentication...
-bc report working "Implementing JWT validation"
+mycel report working "Implementing JWT validation"
 # ... agent crashes or is stopped
 
 # Session 2: Complete recovery
-bc status  # Shows: eng-01 was working on work-0001
-cd .bc/worktrees/eng-01/
+mycel status  # Shows: eng-01 was working on work-0001
+cd .mycel/worktrees/eng-01/
 git log --oneline  # Shows all previous work
-cat .bc/queue.json  # Shows eng-01 still assigned to work-0001
-bc attach eng-01  # Resume from exact point
+cat .mycel/queue.json  # Shows eng-01 still assigned to work-0001
+mycel attach eng-01  # Resume from exact point
 ```
 
 ### Benefits
@@ -166,7 +166,7 @@ Unorganized agent teams can:
 - Become chaotic at scale
 
 ### The Solution: Clear Role Hierarchy
-bc implements 3-level hierarchy with defined capabilities:
+mycel implements 3-level hierarchy with defined capabilities:
 
 ```
 Level 0: ProductManager (Strategic)
@@ -188,18 +188,18 @@ Level 2: Engineer/QA (Execution)
 ### How It Works
 ```bash
 # Build hierarchy
-bc spawn pm-01 --role product-manager
+mycel spawn pm-01 --role product-manager
 
-bc spawn mgr-01 --role manager --parent pm-01
-bc spawn mgr-02 --role manager --parent pm-01
+mycel spawn mgr-01 --role manager --parent pm-01
+mycel spawn mgr-02 --role manager --parent pm-01
 
-bc spawn eng-01 --role engineer --parent mgr-01
-bc spawn eng-02 --role engineer --parent mgr-01
-bc spawn qa-01 --role qa --parent mgr-01
+mycel spawn eng-01 --role engineer --parent mgr-01
+mycel spawn eng-02 --role engineer --parent mgr-01
+mycel spawn qa-01 --role qa --parent mgr-01
 
-bc spawn eng-03 --role engineer --parent mgr-02
-bc spawn eng-04 --role engineer --parent mgr-02
-bc spawn qa-02 --role qa --parent mgr-02
+mycel spawn eng-03 --role engineer --parent mgr-02
+mycel spawn eng-04 --role engineer --parent mgr-02
+mycel spawn qa-02 --role qa --parent mgr-02
 
 # Structure:
 # pm-01 (Product Manager)
@@ -216,16 +216,16 @@ bc spawn qa-02 --role qa --parent mgr-02
 ### Capability Enforcement
 ```bash
 # Valid: PM can spawn managers
-bc spawn mgr-01 --role manager --parent pm-01  # ✓ Works
+mycel spawn mgr-01 --role manager --parent pm-01  # ✓ Works
 
 # Invalid: Engineer cannot spawn agents
-bc spawn eng-02 --role engineer --parent pm-01  # ✗ Fails
+mycel spawn eng-02 --role engineer --parent pm-01  # ✗ Fails
 
 # Valid: Manager can spawn engineers
-bc spawn eng-01 --role engineer --parent mgr-01  # ✓ Works
+mycel spawn eng-01 --role engineer --parent mgr-01  # ✓ Works
 
 # Invalid: Engineer cannot assign work
-bc queue assign work-0001 eng-01  # ✗ Fails (engineers execute, don't assign)
+mycel queue assign work-0001 eng-01  # ✗ Fails (engineers execute, don't assign)
 ```
 
 ### Benefits
@@ -275,19 +275,19 @@ Agents lose context when switching communications:
 - Mentions get lost in channels
 
 ### The Solution: Native Channel System
-bc provides first-class channels for agent coordination:
+mycel provides first-class channels for agent coordination:
 
 ```bash
 # Send to individual
-bc send eng-01 "Check requirements in /docs/spec.md"
+mycel send eng-01 "Check requirements in /docs/spec.md"
 
 # Send to channel
-bc send #engineering "API endpoint ready for integration testing"
-bc send #qa "New build available - test login flow"
+mycel send #engineering "API endpoint ready for integration testing"
+mycel send #qa "New build available - test login flow"
 
 # View history
-bc logs #engineering
-bc logs eng-01
+mycel logs #engineering
+mycel logs eng-01
 
 # Structured messages preserve context
 ```
@@ -301,28 +301,28 @@ bc logs eng-01
 ### How It Works
 ```bash
 # Create project team
-bc spawn eng-01 --role engineer
-bc spawn eng-02 --role engineer
-bc spawn qa-01 --role qa
+mycel spawn eng-01 --role engineer
+mycel spawn eng-02 --role engineer
+mycel spawn qa-01 --role qa
 
 # Assign task
-bc queue add "Build user authentication"
-bc queue assign work-0001 eng-01
+mycel queue add "Build user authentication"
+mycel queue assign work-0001 eng-01
 
 # Send context
-bc send eng-01 "User auth task assigned. See requirements at /docs/auth.md"
+mycel send eng-01 "User auth task assigned. See requirements at /docs/auth.md"
 
 # Eng-01 works
-bc attach eng-01  # Starts work
+mycel attach eng-01  # Starts work
 
 # Meanwhile, eng-02 can ask questions
-bc send #engineering "Does auth need 2FA?"
+mycel send #engineering "Does auth need 2FA?"
 
 # eng-01 can respond when ready
-bc send #engineering "2FA optional - can add later"
+mycel send #engineering "2FA optional - can add later"
 
 # qa-01 prepares tests
-bc send qa-01 "I'll test auth flow once eng-01 finishes"
+mycel send qa-01 "I'll test auth flow once eng-01 finishes"
 
 # Complete workflow with clear communication
 ```
@@ -339,23 +339,23 @@ bc send qa-01 "I'll test auth flow once eng-01 finishes"
 Feature: "Add password reset"
 
 1. Product sends requirements
-   bc send #engineering "Password reset requirements in /docs/password-reset.md"
+   mycel send #engineering "Password reset requirements in /docs/password-reset.md"
 
 2. Engineering discusses approach
-   bc send #engineering "I'll use JWT tokens with 1-hour expiry"
-   bc send #engineering "Will hash tokens for security"
+   mycel send #engineering "I'll use JWT tokens with 1-hour expiry"
+   mycel send #engineering "Will hash tokens for security"
 
 3. QA prepares tests
-   bc send qa-01 "I'm ready to test password reset flow"
+   mycel send qa-01 "I'm ready to test password reset flow"
 
 4. Development completes
-   bc report done "Password reset implemented and tested"
+   mycel report done "Password reset implemented and tested"
 
 5. QA validates
-   bc send #engineering "All password reset tests passing"
+   mycel send #engineering "All password reset tests passing"
 
 6. Ready to merge
-   bc merge process
+   mycel merge process
 
 All communication in context, none lost
 ```
@@ -371,7 +371,7 @@ Tracking work across multiple agents is complex:
 - What's blocked or failed?
 
 ### The Solution: Native Work Queue
-bc provides built-in task tracking:
+mycel provides built-in task tracking:
 
 ```
 Lifecycle: pending → assigned → working → done
@@ -382,44 +382,44 @@ Lifecycle: pending → assigned → working → done
 ### How It Works
 ```bash
 # Create work item
-bc queue add "Implement user registration"
+mycel queue add "Implement user registration"
 # Creates: work-0001 (status: pending)
 
 # Assign to agent
-bc queue assign work-0001 eng-01
+mycel queue assign work-0001 eng-01
 # Updates: work-0001 (status: assigned, assigned_to: eng-01)
 
 # Agent reports progress
-bc attach eng-01
-bc report working "Building registration form"
+mycel attach eng-01
+mycel report working "Building registration form"
 # Updates: work-0001 (status: working)
 
 # Agent completes
-bc report done "Registration form complete - ready for testing"
+mycel report done "Registration form complete - ready for testing"
 # Updates: work-0001 (status: done, merge_status: unmerged)
 
 # Review and merge
-bc merge list  # Shows: work-0001 ready to merge
-bc merge process
+mycel merge list  # Shows: work-0001 ready to merge
+mycel merge process
 # Updates: work-0001 (merge_status: merged, merged_at: timestamp)
 ```
 
 ### Queue Operations
 ```bash
 # List all work
-bc queue list
+mycel queue list
 
 # Show details
-bc queue show work-0001
+mycel queue show work-0001
 
 # View progress
-bc queue status
+mycel queue status
 
 # Clear completed
-bc queue clear completed
+mycel queue clear completed
 
 # Track metrics
-bc queue metrics  # Shows: completed, avg time, etc.
+mycel queue metrics  # Shows: completed, avg time, etc.
 ```
 
 ### Queue Fields
@@ -456,7 +456,7 @@ Sprint Planning:
 - Teams execute independently
 
 Progress Tracking:
-- bc queue list shows: 2 done, 3 working, 5 pending
+- mycel queue list shows: 2 done, 3 working, 5 pending
 - Can drill down: eng-01 blocked on API response
 - Can prioritize: move API work to top
 
@@ -480,7 +480,7 @@ Text-based status lacks visibility:
 
 ### The Solution: Interactive TUI Dashboard
 ```bash
-bc home
+mycel home
 ```
 
 Provides:
@@ -493,7 +493,7 @@ Provides:
 ### Dashboard Features
 ```
 ╔════════════════════════════════════════════════════════════╗
-║ bc Dashboard                                               ║
+║ mycel Dashboard                                               ║
 ╠════════════════════════════════════════════════════════════╣
 ║ AGENTS                                                     ║
 ║ pm-01     ├─ ProductManager   ├─ idle      ├─ 2h 15m      ║
@@ -517,7 +517,7 @@ Provides:
 
 ### Dashboard Operations
 ```bash
-bc home          # Open dashboard
+mycel home          # Open dashboard
 ↑/↓              # Navigate
 Enter            # View details
 q                # Quit
@@ -528,7 +528,7 @@ q                # Quit
 
 ## Summary: Feature Comparison
 
-| Feature | Traditional Teams | bc Teams |
+| Feature | Traditional Teams | mycel Teams |
 |---------|------------------|----------|
 | **Merge Conflicts** | Common, manual resolution | Zero (worktree isolation) |
 | **Context Loss** | On restart (chat history) | Never (git-backed) |

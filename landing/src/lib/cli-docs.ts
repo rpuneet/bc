@@ -162,19 +162,19 @@ function parseCliDoc(content: string): CliCommand {
 
 /** Map of top-level command to display info */
 const GROUP_META: Record<string, { alias: string; order: number }> = {
-  agent: { alias: "bc ag", order: 1 },
-  workspace: { alias: "bc ws", order: 2 },
-  channel: { alias: "bc ch", order: 3 },
-  tool: { alias: "bc tl", order: 4 },
-  secret: { alias: "bc sec", order: 5 },
-  cost: { alias: "bc co", order: 6 },
-  cron: { alias: "bc cr", order: 7 },
-  role: { alias: "bc rl", order: 8 },
-  mcp: { alias: "bc mcp", order: 9 },
-  doctor: { alias: "bc dr", order: 10 },
+  agent: { alias: "mycel ag", order: 1 },
+  workspace: { alias: "mycel ws", order: 2 },
+  channel: { alias: "mycel ch", order: 3 },
+  tool: { alias: "mycel tl", order: 4 },
+  secret: { alias: "mycel sec", order: 5 },
+  cost: { alias: "mycel co", order: 6 },
+  cron: { alias: "mycel cr", order: 7 },
+  role: { alias: "mycel rl", order: 8 },
+  mcp: { alias: "mycel mcp", order: 9 },
+  doctor: { alias: "mycel dr", order: 10 },
   daemon: { alias: "bcd", order: 11 },
-  config: { alias: "bc cfg", order: 12 },
-  env: { alias: "bc env", order: 13 },
+  config: { alias: "mycel cfg", order: 12 },
+  env: { alias: "mycel env", order: 13 },
 };
 
 // Top-level commands that are standalone (not groups)
@@ -186,7 +186,7 @@ const STANDALONE_COMMANDS = [
   "bc home",
   "bc logs",
   "bc version",
-  "bc completion",
+  "mycel completion",
 ];
 
 /**

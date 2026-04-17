@@ -42,7 +42,7 @@ function getMethods(version: string): Method[] {
       icon: Beer,
       platforms: "macOS",
       commands: [
-        "brew install rpuneet/bc/bc",
+        "brew install rpuneet/bc/mycel",
       ],
     },
     {
@@ -51,9 +51,9 @@ function getMethods(version: string): Method[] {
       icon: Package,
       platforms: "Linux · macOS",
       commands: [
-        "npm install -g bc-cli",
+        "npm install -g mycel-cli",
         "# or",
-        "bunx bc-cli",
+        "bunx mycel-cli",
       ],
     },
     {
@@ -62,7 +62,7 @@ function getMethods(version: string): Method[] {
       icon: Code2,
       platforms: "All platforms · requires Go 1.25+",
       commands: [
-        `go install github.com/rpuneet/bc/cmd/bc@latest`,
+        `go install github.com/rpuneet/bc/cmd/mycel@latest`,
       ],
     },
     {
@@ -72,7 +72,7 @@ function getMethods(version: string): Method[] {
       platforms: "Stable + main branch",
       commands: [
         `docker pull ghcr.io/rpuneet/bc:${version}`,
-        `docker run -p 9374:9374 -v $(pwd):/workspace ghcr.io/rpuneet/bc:${version} bc up --addr 0.0.0.0:9374`,
+        `docker run -p 9374:9374 -v $(pwd):/workspace ghcr.io/rpuneet/bc:${version} mycel up --addr 0.0.0.0:9374`,
         `# Bleeding edge from main:`,
         `docker pull ghcr.io/rpuneet/bc:main`,
       ],
@@ -85,7 +85,7 @@ function getMethods(version: string): Method[] {
       commands: [
         "git clone https://github.com/rpuneet/bc",
         "cd bc",
-        "make install-local-bc",
+        "make install-local-mycel",
       ],
     },
   ];
@@ -235,9 +235,9 @@ export function InstallSection() {
             <CodeBlock
               id="after"
               lines={[
-                "bc init          # Initialize workspace",
-                "bc up            # Start server + web UI on localhost:9374",
-                "bc agent create  # Spawn an AI agent",
+                "mycel init          # Initialize workspace",
+                "mycel up            # Start server + web UI on localhost:9374",
+                "mycel agent create  # Spawn an AI agent",
               ]}
             />
           </div>
