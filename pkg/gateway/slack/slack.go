@@ -369,14 +369,9 @@ func (a *Adapter) handleMessageEvent(ev *slackevents.MessageEvent) {
 		"content", gateway.Truncate(content, 50))
 
 	if a.handler != nil {
-		raw, err := json.Marshal(map[string]any{
-			"channel_id":   ev.Channel,
-			"channel_name": channelName,
-			"user":         ev.User,
-			"text":         content,
-			"ts":           ev.TimeStamp,
-			"sub_type":     ev.SubType,
-		})
+		// Marshal the entire Slack event — preserves files, attachments,
+		// blocks, reactions, and all platform fields (raw passthrough).
+		raw, err := json.Marshal(ev)
 		if err != nil {
 			log.Warn("slack: failed to marshal event", "error", err)
 			return

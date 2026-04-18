@@ -222,15 +222,9 @@ func (a *Adapter) handleMessage(s *discordgo.Session, m *discordgo.MessageCreate
 		"content", gateway.Truncate(content, 50))
 
 	if a.handler != nil {
-		raw, err := json.Marshal(map[string]any{
-			"channel_id":   m.ChannelID,
-			"channel_name": channelName,
-			"author_id":    m.Author.ID,
-			"author":       m.Author.Username,
-			"content":      content,
-			"message_id":   m.ID,
-			"timestamp":    m.Timestamp,
-		})
+		// Marshal entire message — preserves embeds, attachments,
+		// reactions, components, and all platform fields (raw passthrough).
+		raw, err := json.Marshal(m)
 		if err != nil {
 			log.Warn("discord: failed to marshal event", "error", err)
 			return

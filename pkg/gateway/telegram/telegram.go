@@ -138,16 +138,9 @@ func (a *Adapter) Start(ctx context.Context, handler func(gateway.Notification))
 				"content", gateway.Truncate(content, 50))
 
 			// Build raw JSON from the update
-			raw, marshalErr := json.Marshal(map[string]any{
-				"update_id":  update.UpdateID,
-				"message_id": update.Message.MessageID,
-				"chat_id":    chatID,
-				"chat_title": chatTitle,
-				"from_id":    update.Message.From.ID,
-				"from_user":  update.Message.From.UserName,
-				"text":       content,
-				"date":       update.Message.Date,
-			})
+			// Marshal entire update — preserves photos, documents, stickers,
+			// audio, location, and all platform fields (raw passthrough).
+			raw, marshalErr := json.Marshal(update)
 			if marshalErr != nil {
 				log.Warn("telegram: failed to marshal update", "error", marshalErr)
 				continue
