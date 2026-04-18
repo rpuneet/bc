@@ -19,7 +19,7 @@ import (
 const defaultInterval = 60 // seconds
 
 // Adapter implements gateway.NotificationAdapter for Twitter API v2.
-type Adapter struct {
+type Adapter struct { //nolint:govet
 	httpClient   *http.Client
 	handler      func(gateway.Notification)
 	lastFetchAt  time.Time

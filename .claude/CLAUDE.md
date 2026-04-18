@@ -126,7 +126,7 @@ make clean-deps            # Remove artifacts + node_modules
 
 - **Agents**: Isolated AI assistants in tmux sessions, each with own git worktree. Have roles (root, engineer, manager) with capabilities. State in `.bc/agents/<name>/`.
 - **Workspace**: Project dir with `.bc/` subdirectory for config, state, logs. Uses settings.json (v2) config format.
-- **Channels**: Inbound notification gateways bridging external platforms (Slack, Telegram, Discord, etc.) to agents. See `docs/architecture/channels.md`.
+- **Channels**: Inbound notification gateways bridging external platforms (Slack, Telegram, Discord, etc.) to agents. See `docs/architecture/notifications.md`.
 - **Memory**: Per-agent persistent knowledge (experiences, learnings).
 - **Runtime backends**: Agents run in either tmux sessions or Docker containers, configured via `[runtime]` in settings.json.
 - **Roles**: Defined in `.bc/roles/*.md` with capabilities (create_agents, assign_work, implement_tasks, etc.) and hierarchy.

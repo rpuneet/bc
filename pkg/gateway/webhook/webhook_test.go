@@ -1,6 +1,7 @@
 package webhook
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -185,7 +186,7 @@ func TestAdapterInterface(t *testing.T) {
 		t.Errorf("Type() = %q, want %q", a.Type(), gateway.AdapterWebhook)
 	}
 
-	if err := a.Start(nil, func(_ gateway.Notification) {}); err != nil {
+	if err := a.Start(context.TODO(), func(_ gateway.Notification) {}); err != nil {
 		t.Errorf("Start() = %v, want nil", err)
 	}
 	if err := a.Stop(); err != nil {

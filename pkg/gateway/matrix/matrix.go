@@ -19,7 +19,7 @@ import (
 const defaultInterval = 10 // seconds
 
 // Adapter implements gateway.NotificationAdapter for Matrix via /sync.
-type Adapter struct {
+type Adapter struct { //nolint:govet
 	httpClient   *http.Client
 	handler      func(gateway.Notification)
 	lastFetchAt  time.Time
