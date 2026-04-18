@@ -121,7 +121,25 @@ func (a *Adapter) Start(ctx context.Context, handler func(gateway.Notification))
 
 			content := update.Message.Text
 			if content == "" {
-				// Skip non-text messages for now
+				// Use caption for photos/documents/videos, or describe the media type
+				if update.Message.Caption != "" {
+					content = update.Message.Caption
+				} else if update.Message.Photo != nil {
+					content = "[photo]"
+				} else if update.Message.Document != nil {
+					content = "[document: " + update.Message.Document.FileName + "]"
+				} else if update.Message.Video != nil {
+					content = "[video]"
+				} else if update.Message.Voice != nil {
+					content = "[voice message]"
+				} else if update.Message.Sticker != nil {
+					content = "[sticker]"
+				} else if update.Message.Location != nil {
+					content = "[location]"
+				}
+			}
+			if content == "" {
+				// Skip truly empty messages (edits, service messages, etc.)
 				continue
 			}
 
