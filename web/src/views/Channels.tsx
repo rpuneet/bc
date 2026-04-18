@@ -11,7 +11,7 @@ import { GatewayFeed } from "../components/channels/GatewayFeed";
 import { useHeaderSlot } from "../context/HeaderSlotContext";
 import { TabHeaderTitle } from "../components/Header";
 export function Channels() {
-  useHeaderSlot({ title: <TabHeaderTitle>Channels</TabHeaderTitle> });
+  useHeaderSlot({ title: <TabHeaderTitle>Notifications</TabHeaderTitle> });
 
   const { channelName: paramChannel } = useParams<{ channelName: string }>();
   const navigate = useNavigate();
@@ -48,7 +48,7 @@ export function Channels() {
       <div className="p-6">
         <EmptyState
           icon="!"
-          title="Channels took too long to load"
+          title="Notifications took too long to load"
           description="The server may be unavailable."
           actionLabel="Retry"
           onAction={refresh}
@@ -62,7 +62,7 @@ export function Channels() {
       <div className="p-6">
         <EmptyState
           icon="!"
-          title="Failed to load channels"
+          title="Failed to load notifications"
           description={error}
           actionLabel="Retry"
           onAction={refresh}
@@ -121,7 +121,7 @@ export function Channels() {
 
   return (
     <div className="flex h-full">
-      {/* Activity feed — full width, channel tree is now in the main nav sidebar */}
+      {/* Activity feed — full width, notification tree is now in the main nav sidebar */}
       <div className="flex-1 flex flex-col min-w-0">
         {selected ? (
           <GatewayFeed
@@ -133,8 +133,8 @@ export function Channels() {
           <div className="flex-1 flex items-center justify-center">
             <EmptyState
               icon="#"
-              title="Select a channel"
-              description="Choose a channel from the sidebar to view activity."
+              title="Select a notification source"
+              description="Choose a notification source from the sidebar to view activity."
             />
           </div>
         )}

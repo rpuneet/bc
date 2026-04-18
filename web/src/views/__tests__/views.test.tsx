@@ -76,8 +76,8 @@ describe("Channels", () => {
     );
     wrap(<Channels />);
     await waitFor(() => {
-      // When a gateway channel exists but none is selected, shows "Select a channel".
-      expect(screen.getByText("Select a channel")).toBeInTheDocument();
+      // When a gateway channel exists but none is selected, shows "Select a notification source".
+      expect(screen.getByText("Select a notification source")).toBeInTheDocument();
     });
   });
 });

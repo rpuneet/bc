@@ -24,7 +24,7 @@ function Icon({ name, size = 14 }: { name: string; size?: number }) {
       <path d="M3 11A6 6 0 0111 3" strokeLinecap="round" opacity="0.4" />
     </>,
     agents: <path d="M7 3.5a2 2 0 100 4 2 2 0 000-4zM3.5 11.5c0-1.8 1.6-3 3.5-3s3.5 1.2 3.5 3" />,
-    channels: <><path d="M2 4.5h10" /><path d="M2 7.5h7" opacity="0.5" /><path d="M2 10.5h10" /></>,
+    notifications: <><path d="M7 1.5a4 4 0 00-4 4v2.5l-1.5 2h11L11 8V5.5a4 4 0 00-4-4zM5.5 12a1.5 1.5 0 003 0" /></>,
     roles: <path d="M7 2.5l4.5 2.5v3.5L7 11 2.5 8.5V5z" />,
     templates: <><rect x="2.5" y="2.5" width="9" height="9" rx="1" /><path d="M5 5.5h4M5 7.5h4M5 9.5h2" opacity="0.5" /></>,
     tools: <path d="M9.5 2.5l3 3-7 7H2.5v-3z" />,
@@ -269,7 +269,7 @@ function ChannelNavTree() {
 const MAIN_NAV_ITEMS = [
   { to: "/live", label: "Live", icon: "live" },
   { to: "/agents", label: "Agents", icon: "agents" },
-  { to: "/channels", label: "Channels", icon: "channels" },
+  { to: "/channels", label: "Notifications", icon: "notifications" },
   { to: "/code", label: "Code", icon: "code" },
   { to: "/templates", label: "Templates", icon: "templates" },
   { to: "/tools", label: "Tools", icon: "tools" },
@@ -324,7 +324,7 @@ function NavList({
   return (
     <>
       {items.map(({ to, label, icon }) => {
-        const isChannels = label === "Channels";
+        const isChannels = label === "Notifications";
         const scopedTo = `${prefix}${to}`;
         return (
           <li key={to}>
@@ -376,7 +376,7 @@ export function Layout() {
   const [collapsed, setCollapsed] = useState(readCollapsed);
 
   // Keep channels tree expanded whenever the current URL is on the
-  // Channels tab — both the workspace-scoped /w/:wsId/channels and the
+  // Notifications tab — both the workspace-scoped /w/:wsId/channels and the
   // legacy /channels bookmark redirect. useMatch trailing /* also
   // handles deep links like /w/:wsId/channels/foo.
   const scopedChannels = useMatch("/w/:wsId/channels/*");

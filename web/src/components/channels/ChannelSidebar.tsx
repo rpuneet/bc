@@ -116,7 +116,7 @@ export function ChannelSidebar({
       className="w-56 shrink-0 border-r border-bc-border/40 flex flex-col bg-bc-bg"
       style={{ scrollbarWidth: "thin", scrollbarColor: "rgba(255,255,255,0.04) transparent" }}
     >
-      {/* Tab toggle: Channels | Agents */}
+      {/* Tab toggle: Notifications | Agents */}
       <div className="flex border-b border-bc-border/30">
         <button
           type="button"
@@ -127,7 +127,7 @@ export function ChannelSidebar({
               : "text-bc-muted/40 hover:text-bc-muted/70"
           }`}
         >
-          # Channels
+          # Notifications
         </button>
         <button
           type="button"
@@ -146,7 +146,7 @@ export function ChannelSidebar({
 
       <div className="flex-1 overflow-auto py-1">
         {view === "channels" ? (
-          /* ── Channels view ──────────────────────────── */
+          /* ── Notifications view ──────────────────────────── */
           <>
             {[...bucketMap.entries()].map(([platform, chs]) => {
               const meta = getMeta(platform);
@@ -179,7 +179,7 @@ export function ChannelSidebar({
                   {isExpanded && (
                     <div className="pb-0.5">
                       {chs.length === 0 && (
-                        <div className="px-3 py-1 text-[10px] text-bc-muted/20 italic pl-8">No channels</div>
+                        <div className="px-3 py-1 text-[10px] text-bc-muted/20 italic pl-8">No notifications</div>
                       )}
                       {chs.map((ch) => {
                         const isActive = selected === ch.name;
@@ -232,7 +232,7 @@ export function ChannelSidebar({
           <>
             {!selected ? (
               <div className="p-4 text-[11px] text-bc-muted/30 text-center">
-                Select a channel first
+                Select a notification source first
               </div>
             ) : (
               <>
@@ -282,7 +282,7 @@ export function ChannelSidebar({
                 <div>
                   <div className="px-3 pt-2 pb-1">
                     <span className="text-[9px] font-bold text-bc-muted/30 uppercase tracking-[0.08em]">
-                      Add to channel
+                      Add to notifications
                     </span>
                   </div>
                   {agents.filter(a => !currentChannelAgents.has(a.name)).sort((a, b) => a.name.localeCompare(b.name)).map((agent) => {

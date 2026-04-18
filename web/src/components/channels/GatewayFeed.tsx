@@ -630,7 +630,7 @@ export function GatewayFeed({
                 {platform} gateway
               </span>
             )}
-            {!platform && "bc channel"}
+            {!platform && "bc notifications"}
             <span className="text-bc-muted/20"> · agents respond via MCP</span>
           </span>
           {subAgents.size > 0 && (
