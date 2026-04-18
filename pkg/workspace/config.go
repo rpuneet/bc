@@ -144,6 +144,20 @@ type GatewaysConfig struct {
 	Sentries map[string]*SentryGatewayConfig `json:"-"`
 	// Stripes holds zero or more Stripe webhook configs keyed by label.
 	Stripes map[string]*StripeGatewayConfig `json:"-"`
+	// Bitbuckets holds zero or more Bitbucket webhook configs keyed by label.
+	Bitbuckets map[string]*BitbucketGatewayConfig `json:"-"`
+	// PagerDuties holds zero or more PagerDuty webhook configs keyed by label.
+	PagerDuties map[string]*PagerDutyGatewayConfig `json:"-"`
+	// Datadogs holds zero or more Datadog webhook configs keyed by label.
+	Datadogs map[string]*DatadogGatewayConfig `json:"-"`
+	// Grafanas holds zero or more Grafana webhook configs keyed by label.
+	Grafanas map[string]*GrafanaGatewayConfig `json:"-"`
+	// Vercels holds zero or more Vercel webhook configs keyed by label.
+	Vercels map[string]*VercelGatewayConfig `json:"-"`
+	// Netlifys holds zero or more Netlify webhook configs keyed by label.
+	Netlifys map[string]*NetlifyGatewayConfig `json:"-"`
+	// Notions holds zero or more Notion poll configs keyed by label.
+	Notions map[string]*NotionGatewayConfig `json:"-"`
 }
 
 // UnmarshalJSON parses gateway config, routing "telegram:*" keys into the
@@ -175,6 +189,13 @@ func (g *GatewaysConfig) UnmarshalJSON(data []byte) error {
 	g.Linears = make(map[string]*LinearGatewayConfig)
 	g.Sentries = make(map[string]*SentryGatewayConfig)
 	g.Stripes = make(map[string]*StripeGatewayConfig)
+	g.Bitbuckets = make(map[string]*BitbucketGatewayConfig)
+	g.PagerDuties = make(map[string]*PagerDutyGatewayConfig)
+	g.Datadogs = make(map[string]*DatadogGatewayConfig)
+	g.Grafanas = make(map[string]*GrafanaGatewayConfig)
+	g.Vercels = make(map[string]*VercelGatewayConfig)
+	g.Netlifys = make(map[string]*NetlifyGatewayConfig)
+	g.Notions = make(map[string]*NotionGatewayConfig)
 	for key, val := range raw {
 		switch {
 		case key == "telegram":
@@ -280,6 +301,76 @@ func (g *GatewaysConfig) UnmarshalJSON(data []byte) error {
 				return fmt.Errorf("parse gateway %q: %w", key, err)
 			}
 			g.Stripes[label] = &c
+		case key == "bitbucket" || strings.HasPrefix(key, "bitbucket:"):
+			label := strings.TrimPrefix(key, "bitbucket:")
+			if key == "bitbucket" {
+				label = ""
+			}
+			var c BitbucketGatewayConfig
+			if err := json.Unmarshal(val, &c); err != nil {
+				return fmt.Errorf("parse gateway %q: %w", key, err)
+			}
+			g.Bitbuckets[label] = &c
+		case key == "pagerduty" || strings.HasPrefix(key, "pagerduty:"):
+			label := strings.TrimPrefix(key, "pagerduty:")
+			if key == "pagerduty" {
+				label = ""
+			}
+			var c PagerDutyGatewayConfig
+			if err := json.Unmarshal(val, &c); err != nil {
+				return fmt.Errorf("parse gateway %q: %w", key, err)
+			}
+			g.PagerDuties[label] = &c
+		case key == "datadog" || strings.HasPrefix(key, "datadog:"):
+			label := strings.TrimPrefix(key, "datadog:")
+			if key == "datadog" {
+				label = ""
+			}
+			var c DatadogGatewayConfig
+			if err := json.Unmarshal(val, &c); err != nil {
+				return fmt.Errorf("parse gateway %q: %w", key, err)
+			}
+			g.Datadogs[label] = &c
+		case key == "grafana" || strings.HasPrefix(key, "grafana:"):
+			label := strings.TrimPrefix(key, "grafana:")
+			if key == "grafana" {
+				label = ""
+			}
+			var c GrafanaGatewayConfig
+			if err := json.Unmarshal(val, &c); err != nil {
+				return fmt.Errorf("parse gateway %q: %w", key, err)
+			}
+			g.Grafanas[label] = &c
+		case key == "vercel" || strings.HasPrefix(key, "vercel:"):
+			label := strings.TrimPrefix(key, "vercel:")
+			if key == "vercel" {
+				label = ""
+			}
+			var c VercelGatewayConfig
+			if err := json.Unmarshal(val, &c); err != nil {
+				return fmt.Errorf("parse gateway %q: %w", key, err)
+			}
+			g.Vercels[label] = &c
+		case key == "netlify" || strings.HasPrefix(key, "netlify:"):
+			label := strings.TrimPrefix(key, "netlify:")
+			if key == "netlify" {
+				label = ""
+			}
+			var c NetlifyGatewayConfig
+			if err := json.Unmarshal(val, &c); err != nil {
+				return fmt.Errorf("parse gateway %q: %w", key, err)
+			}
+			g.Netlifys[label] = &c
+		case key == "notion" || strings.HasPrefix(key, "notion:"):
+			label := strings.TrimPrefix(key, "notion:")
+			if key == "notion" {
+				label = ""
+			}
+			var c NotionGatewayConfig
+			if err := json.Unmarshal(val, &c); err != nil {
+				return fmt.Errorf("parse gateway %q: %w", key, err)
+			}
+			g.Notions[label] = &c
 		}
 	}
 	return nil
@@ -356,6 +447,55 @@ func (g GatewaysConfig) MarshalJSON() ([]byte, error) {
 			m["stripe"] = c
 		} else {
 			m["stripe:"+label] = c
+		}
+	}
+	for label, c := range g.Bitbuckets {
+		if label == "" {
+			m["bitbucket"] = c
+		} else {
+			m["bitbucket:"+label] = c
+		}
+	}
+	for label, c := range g.PagerDuties {
+		if label == "" {
+			m["pagerduty"] = c
+		} else {
+			m["pagerduty:"+label] = c
+		}
+	}
+	for label, c := range g.Datadogs {
+		if label == "" {
+			m["datadog"] = c
+		} else {
+			m["datadog:"+label] = c
+		}
+	}
+	for label, c := range g.Grafanas {
+		if label == "" {
+			m["grafana"] = c
+		} else {
+			m["grafana:"+label] = c
+		}
+	}
+	for label, c := range g.Vercels {
+		if label == "" {
+			m["vercel"] = c
+		} else {
+			m["vercel:"+label] = c
+		}
+	}
+	for label, c := range g.Netlifys {
+		if label == "" {
+			m["netlify"] = c
+		} else {
+			m["netlify:"+label] = c
+		}
+	}
+	for label, c := range g.Notions {
+		if label == "" {
+			m["notion"] = c
+		} else {
+			m["notion:"+label] = c
 		}
 	}
 	if g.Discord != nil {
@@ -435,6 +575,49 @@ type SentryGatewayConfig struct {
 type StripeGatewayConfig struct {
 	Secret  string `json:"secret"`
 	Enabled bool   `json:"enabled"`
+}
+
+// BitbucketGatewayConfig configures the Bitbucket webhook gateway adapter.
+type BitbucketGatewayConfig struct {
+	Secret  string `json:"secret,omitempty"`
+	Enabled bool   `json:"enabled"`
+}
+
+// PagerDutyGatewayConfig configures the PagerDuty webhook gateway adapter.
+type PagerDutyGatewayConfig struct {
+	Secret  string `json:"secret,omitempty"`
+	Enabled bool   `json:"enabled"`
+}
+
+// DatadogGatewayConfig configures the Datadog webhook gateway adapter.
+type DatadogGatewayConfig struct {
+	Secret  string `json:"secret,omitempty"`
+	Enabled bool   `json:"enabled"`
+}
+
+// GrafanaGatewayConfig configures the Grafana webhook gateway adapter.
+type GrafanaGatewayConfig struct {
+	Token   string `json:"token,omitempty"`
+	Enabled bool   `json:"enabled"`
+}
+
+// VercelGatewayConfig configures the Vercel webhook gateway adapter.
+type VercelGatewayConfig struct {
+	Secret  string `json:"secret,omitempty"`
+	Enabled bool   `json:"enabled"`
+}
+
+// NetlifyGatewayConfig configures the Netlify webhook gateway adapter.
+type NetlifyGatewayConfig struct {
+	Secret  string `json:"secret,omitempty"`
+	Enabled bool   `json:"enabled"`
+}
+
+// NotionGatewayConfig configures the Notion poll gateway adapter.
+type NotionGatewayConfig struct {
+	Token    string `json:"token"`
+	Interval int    `json:"interval"` // seconds, default 300
+	Enabled  bool   `json:"enabled"`
 }
 
 // CronConfig configures the cron/job scheduler.
