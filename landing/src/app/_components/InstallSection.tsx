@@ -1,10 +1,21 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Copy, Check, Terminal, Beer, Code2, Container, Package, GitBranch } from "lucide-react";
 
-const LATEST_VERSION = "v0.1.1";
+function useLatestVersion() {
+  const [version, setVersion] = useState("latest");
+  useEffect(() => {
+    fetch("https://api.github.com/repos/rpuneet/bc/releases/latest")
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.tag_name) setVersion(data.tag_name);
+      })
+      .catch(() => {});
+  }, []);
+  return version;
+}
 
 type Method = {
   id: string;
@@ -14,70 +25,71 @@ type Method = {
   commands: string[];
 };
 
-const methods: Method[] = [
-  {
-    id: "curl",
-    label: "curl",
-    icon: Terminal,
-    platforms: "macOS · Linux",
-    commands: [
-      "curl -fsSL https://raw.githubusercontent.com/rpuneet/bc/main/scripts/install.sh | bash",
-    ],
-  },
-  {
-    id: "brew",
-    label: "Homebrew",
-    icon: Beer,
-    platforms: "macOS · Linux",
-    commands: [
-      "brew tap rpuneet/bc",
-      "brew install bc",
-    ],
-  },
-  {
-    id: "go",
-    label: "Go",
-    icon: Code2,
-    platforms: "All platforms · requires Go 1.25+",
-    commands: [
-      `go install github.com/rpuneet/bc/cmd/bc@latest`,
-    ],
-  },
-  {
-    id: "docker",
-    label: "Docker",
-    icon: Container,
-    platforms: "Stable + main branch",
-    commands: [
-      `docker pull ghcr.io/rpuneet/bc:${LATEST_VERSION}`,
-      `docker run -p 9374:9374 -v $(pwd):/workspace ghcr.io/rpuneet/bc:${LATEST_VERSION} bc up --addr 0.0.0.0:9374`,
-      `# Bleeding edge from main:`,
-      `docker pull ghcr.io/rpuneet/bc:main`,
-    ],
-  },
-  {
-    id: "npm",
-    label: "npm / bun",
-    icon: Package,
-    platforms: "Wraps the Go binary",
-    commands: [
-      "npm install -g bc-cli",
-      "# or",
-      "bunx bc-cli",
-    ],
-  },
-  {
-    id: "source",
-    label: "From source",
-    icon: GitBranch,
-    platforms: "Requires Go 1.25+, Bun, tmux",
-    commands: [
-      "git clone https://github.com/rpuneet/bc",
-      "cd bc",
-      "make install-local-bc",
-    ],
-  },
-];
+function getMethods(version: string): Method[] {
+  return [
+    {
+      id: "curl",
+      label: "curl",
+      icon: Terminal,
+      platforms: "macOS · Linux",
+      commands: [
+        "curl -fsSL https://raw.githubusercontent.com/rpuneet/bc/main/scripts/install.sh | bash",
+      ],
+    },
+    {
+      id: "brew",
+      label: "Homebrew",
+      icon: Beer,
+      platforms: "macOS",
+      commands: [
+        "brew install rpuneet/bc/bc",
+      ],
+    },
+    {
+      id: "npm",
+      label: "npm / bun",
+      icon: Package,
+      platforms: "Linux · macOS",
+      commands: [
+        "npm install -g bc-cli",
+        "# or",
+        "bunx bc-cli",
+      ],
+    },
+    {
+      id: "go",
+      label: "Go",
+      icon: Code2,
+      platforms: "All platforms · requires Go 1.25+",
+      commands: [
+        `go install github.com/rpuneet/bc/cmd/bc@latest`,
+      ],
+    },
+    {
+      id: "docker",
+      label: "Docker",
+      icon: Container,
+      platforms: "Stable + main branch",
+      commands: [
+        `docker pull ghcr.io/rpuneet/bc:${version}`,
+        `docker run -p 9374:9374 -v $(pwd):/workspace ghcr.io/rpuneet/bc:${version} bc up --addr 0.0.0.0:9374`,
+        `# Bleeding edge from main:`,
+        `docker pull ghcr.io/rpuneet/bc:main`,
+      ],
+    },
+    {
+      id: "source",
+      label: "From source",
+      icon: GitBranch,
+      platforms: "Requires Go 1.25+, Bun, tmux",
+      commands: [
+        "git clone https://github.com/rpuneet/bc",
+        "cd bc",
+        "make install-local-bc",
+      ],
+    },
+  ];
+}
 
 function CodeBlock({ lines, id }: { lines: string[]; id: string }) {
   const [copied, setCopied] = useState(false);
@@ -119,6 +131,8 @@ function CodeBlock({ lines, id }: { lines: string[]; id: string }) {
 }
 
 export function InstallSection() {
+  const version = useLatestVersion();
+  const methods = getMethods(version);
   const [active, setActive] = useState("curl");
   const current = methods.find((m) => m.id === active) ?? methods[0];
 
@@ -143,7 +157,7 @@ export function InstallSection() {
             </h2>
             <span className="inline-flex items-center gap-2 rounded-full border border-border bg-card/80 px-3 py-1 font-mono text-xs text-muted-foreground">
               <span className="h-1.5 w-1.5 rounded-full bg-success" />
-              Latest: {LATEST_VERSION}
+              Latest: {version}
             </span>
           </div>
           <p className="mt-4 max-w-2xl text-muted-foreground">
