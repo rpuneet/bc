@@ -292,44 +292,70 @@ const CATEGORIES = ["Chat", "Code & DevOps", "Monitoring", "Payments", "Content"
 /* ---------- Platform chooser grid ---------- */
 
 export function PlatformChooser({ onSelect, onClose }: { onSelect: (key: string) => void; onClose: () => void }) {
+  const [search, setSearch] = useState("");
+  const q = search.toLowerCase();
+  const filtered = q ? PLATFORMS.filter((p) => p.label.toLowerCase().includes(q) || p.description.toLowerCase().includes(q) || p.category.toLowerCase().includes(q)) : PLATFORMS;
+
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm" style={{ animation: "fadeIn 120ms ease-out" }}>
-      <div className="bg-bc-bg border border-bc-border/50 rounded-xl p-5 max-w-xl w-full mx-4 shadow-2xl max-h-[85vh] overflow-auto">
-        <h2 className="text-[14px] font-semibold text-bc-text mb-4">Connect an app</h2>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md"
+      onClick={onClose}
+    >
+      <div
+        className="bg-bc-bg border border-bc-border rounded-2xl w-full max-w-2xl mx-4 shadow-2xl max-h-[90vh] flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="px-6 pt-5 pb-4 border-b border-bc-border/50">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-bold text-bc-text">Connect a platform</h2>
+            <button type="button" onClick={onClose} className="text-bc-muted hover:text-bc-text transition-colors text-xl leading-none">&times;</button>
+          </div>
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search platforms..."
+            autoFocus
+            className="w-full px-3 py-2 text-sm rounded-lg border border-bc-border/50 bg-bc-surface/30 text-bc-text placeholder:text-bc-muted/50 focus:outline-none focus:ring-1 focus:ring-bc-accent"
+          />
+        </div>
 
-        {CATEGORIES.map((cat) => {
-          const items = PLATFORMS.filter((p) => p.category === cat);
-          if (items.length === 0) return null;
-          return (
-            <div key={cat} className="mb-4">
-              <h3 className="text-[10px] font-semibold text-bc-muted/50 uppercase tracking-widest mb-2">{cat}</h3>
-              <div className="grid grid-cols-3 gap-2">
-                {items.map((p) => (
-                  <button
-                    key={p.key}
-                    type="button"
-                    onClick={() => onSelect(p.key)}
-                    className="p-2.5 border border-bc-border/30 rounded-lg hover:border-bc-border/50 hover:bg-bc-surface/20 transition-all text-left group"
-                  >
-                    <div className="flex items-center gap-2 mb-0.5">
-                      <span className="text-[14px] leading-none">{p.icon}</span>
-                      <span className="text-[11px] font-medium text-bc-muted/50 group-hover:text-bc-text">{p.label}</span>
-                    </div>
-                    <p className="text-[9px] text-bc-muted/30 leading-tight">{p.description}</p>
-                  </button>
-                ))}
+        {/* Platform grid */}
+        <div className="px-6 py-4 overflow-auto flex-1">
+          {CATEGORIES.map((cat) => {
+            const items = filtered.filter((p) => p.category === cat);
+            if (items.length === 0) return null;
+            return (
+              <div key={cat} className="mb-5">
+                <h3 className="text-[11px] font-bold text-bc-muted uppercase tracking-wider mb-3">{cat}</h3>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  {items.map((p) => (
+                    <button
+                      key={p.key}
+                      type="button"
+                      onClick={() => onSelect(p.key)}
+                      className="p-4 border border-bc-border/40 rounded-xl hover:border-bc-accent/60 hover:bg-bc-accent/5 transition-all text-left group relative"
+                    >
+                      <div className="flex items-center gap-3 mb-1.5">
+                        <span className="text-2xl leading-none">{p.icon}</span>
+                        <span className="text-sm font-semibold text-bc-text group-hover:text-bc-accent transition-colors">{p.label}</span>
+                      </div>
+                      <p className="text-xs text-bc-muted leading-snug">{p.description}</p>
+                      <div
+                        className="absolute top-2 right-2 w-2 h-2 rounded-full"
+                        style={{ backgroundColor: p.color, opacity: 0.6 }}
+                      />
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
-          );
-        })}
-
-        <button
-          type="button"
-          onClick={onClose}
-          className="mt-2 w-full py-1.5 text-[10px] text-bc-muted/30 hover:text-bc-text transition-colors"
-        >
-          Cancel
-        </button>
+            );
+          })}
+          {filtered.length === 0 && (
+            <div className="text-center py-10 text-bc-muted">No platforms match &ldquo;{search}&rdquo;</div>
+          )}
+        </div>
       </div>
     </div>,
     document.body,

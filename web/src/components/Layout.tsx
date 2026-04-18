@@ -6,7 +6,7 @@ import { CommandPalette } from "./CommandPalette";
 import { api } from "../api/client";
 import type { NotificationSource, GatewayHealth, GatewayStatus, NotifySubscription } from "../api/client";
 import { sourcePlatform } from "./notifications/messageUtils";
-import { SetupWizard, PLATFORMS, PLATFORM_MAP } from "./notifications/SetupWizard";
+import { SetupWizard, PlatformChooser, PLATFORM_MAP } from "./notifications/SetupWizard";
 import { Header } from "./Header";
 import { SidebarToggle, WorkspaceDropdown } from "./WorkspaceDropdown";
 import { HeaderSlotProvider, useHeaderSlotContext } from "../context/HeaderSlotContext";
@@ -219,34 +219,19 @@ function NotificationNavTree() {
         );
       })}
 
-      {/* Connect app — inline dropdown */}
-      <div className="px-3 pt-1 pb-0.5 relative">
-        <button type="button" onClick={() => setShowConnectMenu((v) => !v)}
-          className={`w-full py-[3px] text-[9px] border rounded transition-all ${
-            showConnectMenu
-              ? "text-bc-accent border-bc-accent/20 bg-bc-accent/5"
-              : "text-bc-muted/20 hover:text-bc-accent border-bc-border/10 hover:border-bc-accent/15"
-          }`}
+      {/* Connect app — opens full modal */}
+      <div className="px-3 pt-1 pb-0.5">
+        <button type="button" onClick={() => setShowConnectMenu(true)}
+          className="w-full py-[3px] text-[9px] border rounded transition-all text-bc-muted/30 hover:text-bc-accent border-bc-border/15 hover:border-bc-accent/20"
         >
           + Connect app
         </button>
 
         {showConnectMenu && (
-          <div className="mt-1 border border-bc-border/30 rounded-lg bg-bc-bg overflow-hidden max-h-[320px] overflow-auto"
-            style={{ animation: "fadeIn 100ms ease-out" }}
-          >
-            {PLATFORMS.map((p) => (
-              <button
-                key={p.key}
-                type="button"
-                onClick={() => { setShowConnectMenu(false); setSetupPlatform(p.key); }}
-                className="w-full flex items-center gap-2 px-3 py-1.5 text-[10px] text-bc-muted/50 hover:text-bc-text hover:bg-bc-surface/20 transition-colors"
-              >
-                <span className="text-[11px] leading-none shrink-0">{p.icon}</span>
-                <span>{p.label}</span>
-              </button>
-            ))}
-          </div>
+          <PlatformChooser
+            onSelect={(key) => { setShowConnectMenu(false); setSetupPlatform(key); }}
+            onClose={() => setShowConnectMenu(false)}
+          />
         )}
       </div>
 
