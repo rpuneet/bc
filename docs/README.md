@@ -16,7 +16,7 @@ Step-by-step guides for getting started with bc.
 Practical guides for accomplishing specific tasks.
 
 - [Configure your workspace](how-to/configure-workspace.md) -- Settings, providers, and runtime backends
-- [Set up channels](how-to/set-up-channels.md) -- Inter-agent communication and PR workflows
+- [Channel Architecture](architecture/channels.md) -- Notification gateway, platform integrations, and subscriptions
 - [Troubleshoot issues](how-to/troubleshoot.md) -- Common errors and fixes
 
 ## [Reference](reference/index.md) -- Information-oriented
