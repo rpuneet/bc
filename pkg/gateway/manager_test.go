@@ -96,13 +96,13 @@ type mockNotifAdapter struct {
 	name string
 }
 
-func (m *mockNotifAdapter) Name() string                                              { return m.name }
-func (m *mockNotifAdapter) Type() AdapterType                                         { return AdapterSocket }
-func (m *mockNotifAdapter) Start(_ context.Context, _ func(Notification)) error       { return nil }
-func (m *mockNotifAdapter) Stop() error                                               { return nil }
-func (m *mockNotifAdapter) HTTPHandler() http.Handler                                 { return nil }
-func (m *mockNotifAdapter) Channels() []ChannelInfo                                   { return nil }
-func (m *mockNotifAdapter) Status() AdapterStatus                                     { return AdapterStatus{} }
+func (m *mockNotifAdapter) Name() string                                        { return m.name }
+func (m *mockNotifAdapter) Type() AdapterType                                   { return AdapterSocket }
+func (m *mockNotifAdapter) Start(_ context.Context, _ func(Notification)) error { return nil }
+func (m *mockNotifAdapter) Stop() error                                         { return nil }
+func (m *mockNotifAdapter) HTTPHandler() http.Handler                           { return nil }
+func (m *mockNotifAdapter) Channels() []ChannelInfo                             { return nil }
+func (m *mockNotifAdapter) Status() AdapterStatus                               { return AdapterStatus{} }
 
 func TestSeedChannelMultiColonPlatform(t *testing.T) {
 	m := NewManager()

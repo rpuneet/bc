@@ -134,7 +134,7 @@ func (a *Adapter) HTTPHandler() http.Handler {
 		}
 
 		w.WriteHeader(http.StatusOK)
-		fmt.Fprint(w, "ok")
+		_, _ = fmt.Fprint(w, "ok") //nolint:errcheck
 	})
 }
 

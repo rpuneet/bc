@@ -1,6 +1,7 @@
 package github
 
 import (
+	"context"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
@@ -161,7 +162,7 @@ func TestAdapterInterface(t *testing.T) {
 	}
 
 	// Start should be a no-op and succeed.
-	if err := a.Start(nil, func(_ gateway.Notification) {}); err != nil {
+	if err := a.Start(context.TODO(), func(_ gateway.Notification) {}); err != nil {
 		t.Errorf("Start() = %v, want nil", err)
 	}
 
