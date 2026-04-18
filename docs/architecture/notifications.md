@@ -1,14 +1,14 @@
-# Channels
+# Notifications
 
-Channels are **inbound-only notification gateways** that bridge external platforms (Slack, GitHub, Telegram, etc.) to bc agents. bc routes platform events to subscribed agents. Agents respond directly using injected credentials and platform APIs -- bc never sends outbound messages on behalf of agents.
+Notifications are **inbound-only notification gateways** that bridge external platforms (Slack, GitHub, Telegram, etc.) to bc agents. bc routes platform events to subscribed agents. Agents respond directly using injected credentials and platform APIs -- bc never sends outbound messages on behalf of agents.
 
-This document is the canonical reference for the channel system. It covers architecture, data flow, interfaces, credential injection, subscriptions, the web UI, file handling, and platform setup.
+This document is the canonical reference for the notification system. It covers architecture, data flow, interfaces, credential injection, subscriptions, the web UI, file handling, and platform setup.
 
 ---
 
 ## Overview
 
-bc acts as a notification router, not a messaging proxy. External platforms push events into bc via adapter connections. bc dispatches those events to subscribed agents based on channel subscriptions and filtering rules. Agents are programs with API access -- they call platform APIs themselves using environment variable credentials.
+bc acts as a notification router, not a messaging proxy. External platforms push events into bc via adapter connections. bc dispatches those events to subscribed agents based on subscriptions and filtering rules. Agents are programs with API access -- they call platform APIs themselves using environment variable credentials.
 
 ```mermaid
 flowchart LR
@@ -52,7 +52,7 @@ sequenceDiagram
     participant P as Platform (Slack/GitHub/etc)
     participant A as NotificationAdapter
     participant N as notify.Service.Dispatch()
-    participant S as notify_subscriptions (SQLite)
+    participant S as subscriptions (SQLite)
     participant AG as Agent (tmux session)
 
     P->>A: Event (message/webhook/poll)
@@ -435,99 +435,80 @@ You have access to these platform credentials via environment variables:
 
 ```mermaid
 erDiagram
-    notify_gateways {
-        TEXT name PK
-        INTEGER enabled
-        INTEGER connected
-        TEXT last_seen_at
-        TEXT updated_at
-    }
-
-    notify_subscriptions {
+    subscriptions {
         INTEGER id PK
-        TEXT channel
+        TEXT source
         TEXT agent
         INTEGER mention_only
         TEXT created_at
     }
 
-    notify_delivery_log {
+    notification_log {
         INTEGER id PK
-        TEXT logged_at
-        TEXT channel
-        TEXT agent
-        TEXT status
-        TEXT error
-        TEXT preview
-    }
-
-    notify_messages {
-        INTEGER id PK
-        TEXT channel
+        TEXT source
         TEXT sender
-        TEXT content
+        TEXT raw
         TEXT created_at
     }
 
-    notify_channels {
-        TEXT bc_channel PK
-        TEXT platform
-        TEXT platform_id
-        TEXT updated_at
+    delivery_log {
+        INTEGER id PK
+        TEXT logged_at
+        TEXT source
+        TEXT agent
+        TEXT status
+        TEXT error
+        TEXT created_at
     }
 
-    notify_gateways ||--o{ notify_subscriptions : "channels belong to gateway"
-    notify_subscriptions ||--o{ notify_delivery_log : "deliveries per subscription"
+    subscriptions ||--o{ delivery_log : "deliveries per subscription"
 ```
 
 ### Full SQL
 
 ```sql
-CREATE TABLE IF NOT EXISTS notify_subscriptions (
+CREATE TABLE IF NOT EXISTS subscriptions (
     id           INTEGER PRIMARY KEY AUTOINCREMENT,
-    channel      TEXT NOT NULL,          -- "slack:engineering"
+    source       TEXT NOT NULL,          -- "slack:engineering", "github:bc"
     agent        TEXT NOT NULL,
     mention_only INTEGER NOT NULL DEFAULT 0,
     created_at   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
-    UNIQUE(channel, agent)
+    UNIQUE(source, agent)
 );
 
-CREATE TABLE IF NOT EXISTS notify_delivery_log (
-    id        INTEGER PRIMARY KEY AUTOINCREMENT,
-    logged_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
-    channel   TEXT NOT NULL,
-    agent     TEXT NOT NULL,
-    status    TEXT NOT NULL CHECK(status IN ('delivered', 'failed', 'pending')),
-    error     TEXT,
-    preview   TEXT  -- first 120 chars, for debugging
+CREATE TABLE IF NOT EXISTS notification_log (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    source     TEXT NOT NULL,
+    sender     TEXT NOT NULL,
+    raw        TEXT,                     -- full platform JSON payload
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
 );
 
-CREATE TABLE IF NOT EXISTS notify_gateways (
-    name         TEXT PRIMARY KEY,
-    enabled      INTEGER NOT NULL DEFAULT 0,
-    connected    INTEGER NOT NULL DEFAULT 0,
-    last_seen_at TEXT,
-    updated_at   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+CREATE TABLE IF NOT EXISTS delivery_log (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    source     TEXT NOT NULL,
+    agent      TEXT NOT NULL,
+    status     TEXT NOT NULL CHECK(status IN ('delivered', 'failed', 'pending')),
+    error      TEXT,
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
 );
 ```
 
-> Tables prefixed `notify_` to avoid collision during migration. Delivery log is pruned to the last 1000 entries per channel.
+Three tables. No gateway state table (adapter status is in-memory). No channel mapping table (adapters discover sources dynamically).
 
 ### Key Tables
 
 | Table | Purpose |
 |-------|---------|
-| `notify_subscriptions` | Maps agents to channels with `mention_only` flag. UNIQUE(channel, agent). |
-| `notify_delivery_log` | Records every delivery attempt (delivered/failed/pending). Pruned to 1000 per channel. |
-| `notify_messages` | Stores inbound messages for the web UI activity feed. |
-| `notify_gateways` | Tracks gateway connection state (enabled, connected, last_seen_at). |
-| `notify_channels` | Persists channel discovery mappings (`bc_channel` to `platform_id`). |
+| `subscriptions` | Maps agents to notification sources. `UNIQUE(source, agent)`. |
+| `notification_log` | Raw inbound events for the web UI feed. Stores full platform JSON. |
+| `delivery_log` | Every delivery attempt per agent (delivered/failed). Pruned to last 1000 per source. |
 
 ### What Is Not Stored
 
 | Not Stored | Why |
 |-----------|-----|
-| Full message content in DB | Platforms keep their own history; `notify_messages` stores only activity feed previews |
+| Full message content in DB | Platforms keep their own history; `notification_log` stores only activity feed previews |
 | Reactions | Agents react via direct API calls |
 | FTS indexes | No search needed |
 | File content | Stored in `.bc/attachments/`, not in the database |
@@ -554,7 +535,7 @@ func (s *Store) Close() error { return nil } // no-op: shared DB
 
 ## Web UI
 
-### Channels Settings Page
+### Notifications Settings Page
 
 ```
 +-------------------+------------------------------------------+----------------------+
@@ -811,7 +792,7 @@ GET    /api/gateways/{gateway}/setup                              -- platform se
 }
 ```
 
-### Channel Discovery
+### Notification Discovery
 
 ```
 GET    /api/gateways/{gateway}/channels                           -- discovered channels
@@ -862,8 +843,8 @@ flowchart TD
     A[Inbound event from platform] --> B[Adapter calls onMessage handler]
     B --> C[Manager dispatches in goroutine]
     C --> D["notify.Service.Dispatch()"]
-    D --> E[Save message to notify_messages]
-    D --> F[Load subscribers from notify_subscriptions]
+    D --> E[Save message to notification_log]
+    D --> F[Load subscribers from subscriptions]
     D --> G["Extract @mentions from content"]
 
     F --> H{For each subscriber}
@@ -876,7 +857,7 @@ flowchart TD
     K -->|No| M
 
     M --> N[tmux send-keys JSON payload]
-    M --> O[Log delivery to notify_delivery_log]
+    M --> O[Log delivery to delivery_log]
 
     D --> P[Publish gateway.message to SSE hub]
     D --> Q[Prune old delivery log entries]
@@ -905,7 +886,7 @@ All other operations (gateway setup, token management, `@mention` toggle) are do
 
 ## Migration from v0.2
 
-The channel system has evolved through three iterations:
+The notification system has evolved through three iterations:
 
 | Version | Architecture | Status |
 |---------|-------------|--------|
@@ -926,8 +907,8 @@ The channel system has evolved through three iterations:
 
 ### What Stays the Same
 
-- `notify_subscriptions` table schema
-- `notify_delivery_log` table schema
+- `subscriptions` table schema
+- `delivery_log` table schema
 - `notify.Service.Dispatch()` core logic (self-skip, mention filter, tmux send-keys)
 - Subscription REST API routes
 - Web UI subscription panel
