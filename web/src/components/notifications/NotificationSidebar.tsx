@@ -190,7 +190,7 @@ export function NotificationSidebar({
                             style={{ borderLeft: isActive ? `2px solid ${meta.color}` : "2px solid transparent" }}
                           >
                             <span className="text-bc-muted/25 text-[10px]">#</span>
-                            <span className="truncate">{displayName(ch.name)}</span>
+                            <span className="break-words" title={displayName(ch.name)}>{displayName(ch.name)}</span>
                             {count > 0 && (
                               <span className="ml-auto text-[9px] text-bc-success/40 tabular-nums">{count}</span>
                             )}
@@ -324,7 +324,7 @@ export function NotificationSidebar({
         <button
           type="button"
           onClick={() => setSetupPlatform("_choose")}
-          className="w-full py-1.5 text-[10px] font-medium text-bc-muted/30 hover:text-bc-accent border border-bc-border/20 rounded-lg hover:border-bc-accent/20 transition-all"
+          className="w-full py-1.5 text-[11px] font-medium text-bc-muted/60 hover:text-bc-accent border border-bc-border/30 rounded-lg hover:border-bc-accent/30 transition-all"
         >
           + Connect app
         </button>

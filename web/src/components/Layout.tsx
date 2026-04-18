@@ -222,7 +222,7 @@ function NotificationNavTree() {
       {/* Connect app — opens full modal */}
       <div className="px-3 pt-1 pb-0.5">
         <button type="button" onClick={() => setShowConnectMenu(true)}
-          className="w-full py-[3px] text-[9px] border rounded transition-all text-bc-muted/30 hover:text-bc-accent border-bc-border/15 hover:border-bc-accent/20"
+          className="w-full py-[3px] text-[11px] border rounded transition-all text-bc-muted/60 hover:text-bc-accent border-bc-border/30 hover:border-bc-accent/30"
         >
           + Connect app
         </button>

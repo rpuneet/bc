@@ -272,14 +272,13 @@ export function GatewayFeed({
               style={{ backgroundColor: platformColor }}
             />
             <h1 className="text-[15px] font-semibold text-bc-text tracking-tight">
-              {channelLabel}
+              {platform ? "#" : ""}{channelLabel}
             </h1>
             {platform && (
               <span
-                className="text-[9px] font-semibold uppercase tracking-[0.08em] px-1.5 py-0.5 rounded"
+                className="text-[9px] font-semibold uppercase tracking-[0.08em] px-1.5 py-0.5 rounded text-white/90"
                 style={{
-                  color: platformColor,
-                  backgroundColor: `${platformColor}12`,
+                  backgroundColor: platformColor,
                 }}
               >
                 {platform}
@@ -627,11 +626,10 @@ export function GatewayFeed({
             {platform && (
               <span className="inline-flex items-center gap-1.5">
                 <span className="w-1 h-1 rounded-full" style={{ backgroundColor: platformColor }} />
-                {platform} gateway
+                agents respond via platform API
               </span>
             )}
             {!platform && "bc notifications"}
-            <span className="text-bc-muted/20"> · agents respond via platform API</span>
           </span>
           {subAgents.size > 0 && (
             <span className="text-bc-muted/35">
