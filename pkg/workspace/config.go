@@ -125,6 +125,12 @@ type GatewaysConfig struct {
 	// Telegrams holds zero or more Telegram bots keyed by label.
 	// A plain "telegram" key is stored under label "".
 	Telegrams map[string]*TelegramGatewayConfig `json:"-"`
+	// GitHubs holds zero or more GitHub webhook configs keyed by label.
+	// A plain "github" key is stored under label "".
+	GitHubs map[string]*GitHubGatewayConfig `json:"-"`
+	// Webhooks holds zero or more generic webhook configs keyed by label.
+	// A plain "webhook" key is stored under label "".
+	Webhooks map[string]*WebhookGatewayConfig `json:"-"`
 }
 
 // UnmarshalJSON parses gateway config, routing "telegram:*" keys into the
@@ -148,21 +154,50 @@ func (g *GatewaysConfig) UnmarshalJSON(data []byte) error {
 		return err
 	}
 	g.Telegrams = make(map[string]*TelegramGatewayConfig)
+	g.GitHubs = make(map[string]*GitHubGatewayConfig)
+	g.Webhooks = make(map[string]*WebhookGatewayConfig)
 	for key, val := range raw {
-		if key == "telegram" {
+		switch {
+		case key == "telegram":
 			var tc TelegramGatewayConfig
 			if err := json.Unmarshal(val, &tc); err != nil {
 				return fmt.Errorf("parse gateway %q: %w", key, err)
 			}
 			g.Telegram = &tc
 			g.Telegrams[""] = &tc
-		} else if strings.HasPrefix(key, "telegram:") {
+		case strings.HasPrefix(key, "telegram:"):
 			label := strings.TrimPrefix(key, "telegram:")
 			var tc TelegramGatewayConfig
 			if err := json.Unmarshal(val, &tc); err != nil {
 				return fmt.Errorf("parse gateway %q: %w", key, err)
 			}
 			g.Telegrams[label] = &tc
+		case key == "github":
+			var gc GitHubGatewayConfig
+			if err := json.Unmarshal(val, &gc); err != nil {
+				return fmt.Errorf("parse gateway %q: %w", key, err)
+			}
+			g.GitHubs[""] = &gc
+		case strings.HasPrefix(key, "github:"):
+			label := strings.TrimPrefix(key, "github:")
+			var gc GitHubGatewayConfig
+			if err := json.Unmarshal(val, &gc); err != nil {
+				return fmt.Errorf("parse gateway %q: %w", key, err)
+			}
+			g.GitHubs[label] = &gc
+		case key == "webhook":
+			var wc WebhookGatewayConfig
+			if err := json.Unmarshal(val, &wc); err != nil {
+				return fmt.Errorf("parse gateway %q: %w", key, err)
+			}
+			g.Webhooks[""] = &wc
+		case strings.HasPrefix(key, "webhook:"):
+			label := strings.TrimPrefix(key, "webhook:")
+			var wc WebhookGatewayConfig
+			if err := json.Unmarshal(val, &wc); err != nil {
+				return fmt.Errorf("parse gateway %q: %w", key, err)
+			}
+			g.Webhooks[label] = &wc
 		}
 	}
 	return nil
@@ -183,6 +218,20 @@ func (g GatewaysConfig) MarshalJSON() ([]byte, error) {
 	if g.Telegram != nil {
 		if _, ok := g.Telegrams[""]; !ok {
 			m["telegram"] = g.Telegram
+		}
+	}
+	for label, gc := range g.GitHubs {
+		if label == "" {
+			m["github"] = gc
+		} else {
+			m["github:"+label] = gc
+		}
+	}
+	for label, wc := range g.Webhooks {
+		if label == "" {
+			m["webhook"] = wc
+		} else {
+			m["webhook:"+label] = wc
 		}
 	}
 	if g.Discord != nil {
@@ -213,6 +262,18 @@ type SlackGatewayConfig struct {
 	AppToken string `json:"app_token"`
 	Mode     string `json:"mode"`
 	Enabled  bool   `json:"enabled"`
+}
+
+// GitHubGatewayConfig configures the GitHub webhook gateway adapter.
+type GitHubGatewayConfig struct {
+	Secret  string `json:"secret"`
+	Enabled bool   `json:"enabled"`
+}
+
+// WebhookGatewayConfig configures a generic webhook gateway adapter.
+type WebhookGatewayConfig struct {
+	Secret  string `json:"secret,omitempty"`
+	Enabled bool   `json:"enabled"`
 }
 
 // CronConfig configures the cron/job scheduler.

@@ -26,8 +26,10 @@ import (
 	bcevents "github.com/rpuneet/bc/pkg/events"
 	bcgateway "github.com/rpuneet/bc/pkg/gateway"
 	bcdiscord "github.com/rpuneet/bc/pkg/gateway/discord"
+	bcgithub "github.com/rpuneet/bc/pkg/gateway/github"
 	bcslack "github.com/rpuneet/bc/pkg/gateway/slack"
 	bctelegram "github.com/rpuneet/bc/pkg/gateway/telegram"
+	bcwebhook "github.com/rpuneet/bc/pkg/gateway/webhook"
 	"github.com/rpuneet/bc/pkg/log"
 	bcmcp "github.com/rpuneet/bc/pkg/mcp"
 	bcnotify "github.com/rpuneet/bc/pkg/notify"
@@ -396,7 +398,23 @@ func buildGatewayManager(ctx context.Context, ws *bcworkspace.Workspace, notifyS
 		}
 	}
 
-	if tgCount == 0 && !dcEnabled && !slEnabled {
+	// Count enabled GitHub webhook adapters.
+	var ghCount int
+	for _, gc := range gw.GitHubs {
+		if gc.Enabled {
+			ghCount++
+		}
+	}
+
+	// Count enabled generic webhook adapters.
+	var whCount int
+	for _, wc := range gw.Webhooks {
+		if wc.Enabled {
+			whCount++
+		}
+	}
+
+	if tgCount == 0 && !dcEnabled && !slEnabled && ghCount == 0 && whCount == 0 {
 		return nil
 	}
 
@@ -429,6 +447,34 @@ func buildGatewayManager(ctx context.Context, ws *bcworkspace.Workspace, notifyS
 	if slEnabled {
 		m.Register(bcslack.New(gw.Slack.BotToken, gw.Slack.AppToken))
 		log.Info("gateway: slack adapter registered")
+	}
+
+	// Register GitHub webhook adapters. Label "" → adapter name "github",
+	// label "bc" → adapter name "github:bc".
+	for label, gc := range gw.GitHubs {
+		if !gc.Enabled {
+			continue
+		}
+		adapterName := "github"
+		if label != "" {
+			adapterName = "github:" + label
+		}
+		m.Register(bcgithub.NewNamed(adapterName, gc.Secret))
+		log.Info("gateway: github adapter registered", "name", adapterName)
+	}
+
+	// Register generic webhook adapters. Label "" → adapter name "webhook",
+	// label "deploy" → adapter name "webhook:deploy".
+	for label, wc := range gw.Webhooks {
+		if !wc.Enabled {
+			continue
+		}
+		adapterName := "webhook"
+		if label != "" {
+			adapterName = "webhook:" + label
+		}
+		m.Register(bcwebhook.NewWithSecret(adapterName, wc.Secret))
+		log.Info("gateway: webhook adapter registered", "name", adapterName)
 	}
 
 	wg.Add(1)

@@ -328,6 +328,12 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 		}
 		eh.Register(mux)
 	}
+	// Mount webhook HTTP handlers (GitHub, generic webhook) at /hooks/{name}.
+	if svc.Gateway != nil {
+		for name, h := range svc.Gateway.WebhookHandlers() {
+			mux.Handle("/hooks/"+name, h)
+		}
+	}
 	// Register gateway handler when a gateway manager is present OR when notify
 	// service is available — notify subscription routes must be accessible even
 	// in workspaces without an active gateway adapter.

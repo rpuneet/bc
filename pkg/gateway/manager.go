@@ -3,6 +3,7 @@ package gateway
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"strings"
 	"sync"
 	"time"
@@ -570,6 +571,18 @@ func (m *Manager) handleNotification(platform string, n Notification) {
 	if m.onInbound != nil {
 		m.onInbound(bcChannel, sender, content)
 	}
+}
+
+// WebhookHandlers returns HTTP handlers for all webhook-type adapters,
+// keyed by adapter name. The server mounts these at /hooks/{name}.
+func (m *Manager) WebhookHandlers() map[string]http.Handler {
+	handlers := make(map[string]http.Handler)
+	for name, a := range m.notificationAdapters {
+		if h := a.HTTPHandler(); h != nil {
+			handlers[name] = h
+		}
+	}
+	return handlers
 }
 
 // sanitizeChannelName converts a group name to a valid bc channel name.
