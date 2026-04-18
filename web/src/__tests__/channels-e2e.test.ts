@@ -726,18 +726,23 @@ describe("Channels Page E2E", () => {
       for (const gw of gateways) {
         expect(typeof gw.platform).toBe("string");
         expect(typeof gw.enabled).toBe("boolean");
-        expect(Array.isArray(gw.channels)).toBe(true);
+        // channels may be null from older servers, but should be an array when present
+        if (gw.channels !== null && gw.channels !== undefined) {
+          expect(Array.isArray(gw.channels)).toBe(true);
+        }
       }
     });
 
-    it("known platforms are slack, telegram, discord", async () => {
+    it("known platforms are slack, telegram, discord (with optional label suffix)", async () => {
       if (!serverAvailable) return;
       const { body } = await apiFetch("/gateways");
       const gateways = body as Array<{ platform: string }>;
       const platforms = gateways.map((g) => g.platform);
-      const known = ["slack", "telegram", "discord"];
+      const knownBases = ["slack", "telegram", "discord"];
       for (const p of platforms) {
-        expect(known).toContain(p);
+        // Multi-adapter platforms use "platform:label" format (e.g. "telegram:alerts")
+        const base = p.split(":")[0];
+        expect(knownBases).toContain(base);
       }
     });
 
@@ -764,8 +769,10 @@ describe("Channels Page E2E", () => {
       const { body } = await apiFetch("/gateways");
       const gateways = body as Array<{ platform: string; channels: string[] }>;
       for (const gw of gateways) {
-        const prefix = `${gw.platform}:`;
-        for (const ch of gw.channels) {
+        // Multi-adapter platforms use "platform:label" — channel keys use the base platform prefix
+        const basePlatform = gw.platform.split(":")[0];
+        const prefix = `${basePlatform}:`;
+        for (const ch of gw.channels ?? []) {
           expect(ch.startsWith(prefix)).toBe(true);
         }
       }
