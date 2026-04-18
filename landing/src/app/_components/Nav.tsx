@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useRef, useEffect } from "react";
-import { Menu, X } from "lucide-react";
+import { Menu, X, Copy, Check, Apple, Monitor, Container } from "lucide-react";
 import { ThemeToggle } from "./ThemeToggle";
 
 const links = [
@@ -12,6 +12,7 @@ const links = [
   { href: "/product", label: "Product" },
   { href: "/method", label: "Method" },
   { href: "/docs", label: "Docs" },
+  { href: "/#install", label: "Install" },
   { href: "/pricing", label: "Pricing" },
 ];
 
@@ -26,36 +27,149 @@ function Logo() {
   );
 }
 
-function NavLink({
-  href,
+function InstallRow({
+  icon: Icon,
   label,
-  active,
-  onClick,
+  cmd,
+  copied,
+  onCopy,
 }: {
-  href: string;
+  icon: React.ComponentType<{ className?: string; "aria-hidden"?: boolean }>;
   label: string;
-  active: boolean;
-  onClick?: () => void;
+  cmd: string;
+  copied: boolean;
+  onCopy: () => void;
 }) {
+  const [hovered, setHovered] = useState(false);
+
   return (
-    <Link
-      href={href}
-      onClick={onClick}
-      className={`relative px-3 py-1.5 text-[13px] font-medium transition-colors ${
-        active
-          ? "text-primary"
-          : "text-on-surface-variant hover:text-on-surface"
-      }`}
+    <div
+      className="px-3 py-2.5 hover:bg-accent/30 transition-colors cursor-default"
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
     >
-      {label}
-      {active && (
-        <motion.div
-          layoutId="nav-underline"
-          className="absolute bottom-0 left-3 right-3 h-[2px] bg-primary"
-          transition={{ type: "spring", stiffness: 380, damping: 30 }}
+      <div className="flex items-center gap-2.5">
+        <Icon
+          className="h-4 w-4 text-muted-foreground shrink-0"
+          aria-hidden={true}
         />
-      )}
-    </Link>
+        <span className="text-sm font-medium text-foreground">{label}</span>
+      </div>
+      <motion.div
+        initial={false}
+        animate={{
+          height: hovered ? "auto" : 0,
+          opacity: hovered ? 1 : 0,
+          marginTop: hovered ? 8 : 0,
+        }}
+        transition={{ duration: 0.2, ease: "easeInOut" }}
+        className="overflow-hidden"
+      >
+        <div className="flex items-center gap-1.5 bg-muted/50 rounded px-2 py-1.5">
+          <code className="text-xs font-mono text-foreground flex-1 min-w-0 truncate">
+            {cmd}
+          </code>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onCopy();
+            }}
+            className="shrink-0 p-1 rounded hover:bg-accent transition-colors"
+            aria-label={`Copy ${label} install command`}
+          >
+            {copied ? (
+              <Check className="h-3.5 w-3.5 text-green-500" />
+            ) : (
+              <Copy className="h-3.5 w-3.5 text-muted-foreground" />
+            )}
+          </button>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
+function GetStartedDropdown() {
+  const [open, setOpen] = useState(false);
+  const [copied, setCopied] = useState<string | null>(null);
+  const ref = useRef<HTMLDivElement>(null);
+
+  const platforms = [
+    {
+      icon: Apple,
+      label: "macOS / Linux",
+      cmd: "curl -fsSL https://raw.githubusercontent.com/rpuneet/bc/main/scripts/install.sh | bash",
+    },
+    {
+      icon: Monitor,
+      label: "Homebrew",
+      cmd: "brew install rpuneet/bc/bc",
+    },
+    {
+      icon: Container,
+      label: "Docker",
+      cmd: "docker run -p 9374:9374 -v $(pwd):/workspace ghcr.io/rpuneet/bc bc up --addr 0.0.0.0:9374",
+    },
+  ];
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node))
+        setOpen(false);
+    }
+    if (open) document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [open]);
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        onClick={() => setOpen(!open)}
+        className="inline-flex items-center gap-1.5 rounded-sm bg-primary px-4 py-1.5 text-[13px] font-medium text-primary-foreground transition-all hover:opacity-90 active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-primary cta-glow whitespace-nowrap"
+      >
+        Get Started
+      </button>
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ opacity: 0, y: -4, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -4, scale: 0.95 }}
+            transition={{ duration: 0.15 }}
+            className="absolute right-0 top-full mt-2 w-80 rounded-lg border border-border bg-card shadow-xl overflow-hidden z-50"
+          >
+            <div className="px-3 py-2 border-b border-border/60">
+              <span className="text-[10px] font-semibold uppercase tracking-[0.15em] text-muted-foreground">
+                Install
+              </span>
+            </div>
+            {platforms.map((p) => (
+              <InstallRow
+                key={p.label}
+                icon={p.icon}
+                label={p.label}
+                cmd={p.cmd}
+                copied={copied === p.label}
+                onCopy={() => {
+                  navigator.clipboard.writeText(p.cmd);
+                  setCopied(p.label);
+                  setTimeout(() => setCopied(null), 2000);
+                }}
+              />
+            ))}
+            <div className="px-3 py-2 border-t border-border/60 bg-muted/30">
+              <Link
+                href="/docs#installation"
+                onClick={() => setOpen(false)}
+                className="text-[11px] text-muted-foreground hover:text-foreground transition-colors"
+              >
+                Full installation guide →
+              </Link>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
   );
 }
 
@@ -97,6 +211,8 @@ export function Nav() {
     return pathname.startsWith(href);
   };
 
+  const handleLinkClick = () => setIsOpen(false);
+
   return (
     <header
       className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
@@ -121,24 +237,31 @@ export function Nav() {
           className="hidden md:flex items-center gap-1"
         >
           {links.map((l) => (
-            <NavLink
+            <Link
               key={l.href}
               href={l.href}
-              label={l.label}
-              active={isActive(l.href)}
-            />
+              className={`relative px-3 py-1.5 text-[13px] font-medium transition-colors ${
+                isActive(l.href)
+                  ? "text-primary"
+                  : "text-on-surface-variant hover:text-on-surface"
+              }`}
+            >
+              {l.label}
+              {isActive(l.href) && (
+                <motion.div
+                  layoutId="nav-underline"
+                  className="absolute bottom-0 left-3 right-3 h-[2px] bg-primary"
+                  transition={{ type: "spring", stiffness: 380, damping: 30 }}
+                />
+              )}
+            </Link>
           ))}
         </nav>
 
-        {/* Right: Theme toggle + Get Started */}
+        {/* Right: Theme toggle + Get Started dropdown */}
         <div className="hidden md:flex items-center gap-3">
           <ThemeToggle />
-          <Link
-            href="/docs#installation"
-            className="inline-flex items-center rounded-sm bg-primary px-4 py-1.5 text-[13px] font-medium text-primary-foreground transition-all hover:opacity-90 active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-primary cta-glow"
-          >
-            Get Started
-          </Link>
+          <GetStartedDropdown />
         </div>
 
         {/* Mobile: hamburger */}
@@ -189,7 +312,7 @@ export function Nav() {
                 <Link
                   key={l.href}
                   href={l.href}
-                  onClick={() => setIsOpen(false)}
+                  onClick={handleLinkClick}
                   className={`px-3 py-2.5 text-sm font-medium transition-colors ${
                     isActive(l.href)
                       ? "text-primary bg-surface-container/50"
@@ -199,14 +322,31 @@ export function Nav() {
                   {l.label}
                 </Link>
               ))}
-              <div className="pt-2">
+              <div className="h-px bg-border/40 my-1" />
+              <div className="px-3 py-2">
+                <div className="text-[10px] font-semibold uppercase tracking-[0.15em] text-muted-foreground mb-2">
+                  Install
+                </div>
+                <code className="block text-xs font-mono text-foreground bg-muted/50 rounded px-2.5 py-2 mb-1.5">
+                  curl -fsSL https://raw.githubusercontent.com/rpuneet/bc/main/scripts/install.sh | bash
+                </code>
+                <code className="block text-xs font-mono text-foreground bg-muted/50 rounded px-2.5 py-2 mb-1.5">
+                  brew install rpuneet/bc/bc
+                </code>
                 <Link
                   href="/docs#installation"
-                  onClick={() => setIsOpen(false)}
-                  className="block w-full text-center rounded-sm bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground"
+                  onClick={handleLinkClick}
+                  className="text-[11px] text-muted-foreground hover:text-foreground transition-colors"
                 >
-                  Get Started
+                  Full installation guide →
                 </Link>
+              </div>
+              <div className="h-px bg-border/40 my-1" />
+              <div className="px-3 py-2 flex items-center justify-between">
+                <span className="text-sm font-medium text-muted-foreground">
+                  Theme
+                </span>
+                <ThemeToggle />
               </div>
             </nav>
           </motion.div>

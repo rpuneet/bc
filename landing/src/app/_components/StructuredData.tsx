@@ -9,8 +9,8 @@ export function OrganizationSchema() {
     sameAs: [
       "https://github.com/rpuneet",
       "https://twitter.com/mycel_dev",
-      "https://linkedin.com/company/mycel",
-      "https://discord.gg/mycel",
+      "https://linkedin.com/company/mycel-dev",
+      "https://discord.gg/mycel-dev",
     ],
     contactPoint: {
       "@type": "ContactPoint",

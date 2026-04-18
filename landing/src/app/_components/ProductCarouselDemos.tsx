@@ -52,7 +52,7 @@ function BreadcrumbAndTabs({
     <div className="mb-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="font-mono text-[12px] text-muted-foreground">
-          Workspaces <span className="text-muted-foreground">›</span> mycel-workspace
+          Workspaces <span className="text-muted-foreground">›</span> mycel-dev
         </div>
 
         <div className="flex items-center gap-2 rounded-xl border border-border bg-muted/40 p-1">

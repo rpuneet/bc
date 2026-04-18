@@ -27,7 +27,6 @@ import {
   X,
   Construction,
   Hash,
-  ExternalLink,
 } from "lucide-react";
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -71,12 +70,12 @@ function CopyButton({ text }: { text: string }) {
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
       }}
-      className="absolute right-3 top-3 rounded-sm border border-outline-variant/20 bg-surface-container-high/60 p-1.5 text-on-surface-variant hover:text-on-surface transition-all duration-200 opacity-0 group-hover:opacity-100 hover:bg-surface-container-high"
+      className="absolute right-3 top-3 rounded-md border border-foreground/10 bg-foreground/5 p-1.5 text-terminal-muted hover:text-terminal-text transition-all duration-200 opacity-0 group-hover:opacity-100 hover:bg-foreground/10"
       aria-label="Copy to clipboard"
     >
       {copied ? (
         <Check
-          className="h-3.5 w-3.5 text-success"
+          className="h-3.5 w-3.5 text-terminal-success"
           aria-hidden="true"
         />
       ) : (
@@ -105,7 +104,7 @@ function highlightSyntax(code: string, language?: string): React.ReactNode[] {
     // Comment lines
     if (line.trimStart().startsWith("#") || line.trimStart().startsWith("//")) {
       result.push(
-        <span key={`l${li}`} className="text-terminal-comment italic">
+        <span key={`l${li}`} className="text-[#5c524a] italic">
           {line}
         </span>,
       );
@@ -182,13 +181,13 @@ function highlightSyntax(code: string, language?: string): React.ReactNode[] {
 
       if (best.type === "string") {
         tokens.push(
-          <span key={`t${li}-${tk++}`} className="text-terminal-success">
+          <span key={`t${li}-${tk++}`} className="text-[#22c55e]">
             {best.match}
           </span>,
         );
       } else if (best.type === "flag") {
         tokens.push(
-          <span key={`t${li}-${tk++}`} className="text-accent">
+          <span key={`t${li}-${tk++}`} className="text-[#fdba74]">
             {best.match}
           </span>,
         );
@@ -234,7 +233,7 @@ function highlightKeywords(
       );
     }
     parts.push(
-      <span key={`kw-${pk++}`} className="text-info">
+      <span key={`kw-${pk++}`} className="text-[#38bdf8]">
         {match[0]}
       </span>,
     );
@@ -262,16 +261,16 @@ function CodeBlock({
   title?: string;
 }) {
   return (
-    <div className="group relative overflow-hidden rounded-sm border border-outline-variant/10 bg-surface-container-lowest my-4">
+    <div className="group relative overflow-hidden rounded-lg border border-border/60 bg-card dark:bg-[#0C0A08] my-4 shadow-[0_2px_8px_rgba(0,0,0,0.1)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.3)]">
       {title && (
-        <div className="border-b border-outline-variant/10 bg-surface-container-low px-4 py-2 text-[10px] font-label uppercase tracking-[0.2em] text-on-surface-variant flex items-center justify-between">
+        <div className="border-b border-border/30 bg-muted dark:bg-[#151210] px-4 py-2 text-[10px] font-bold uppercase tracking-[0.2em] text-terminal-muted flex items-center justify-between">
           <span>{title}</span>
           {language && (
-            <span className="text-on-surface-variant/50">{language}</span>
+            <span className="text-terminal-muted/50">{language}</span>
           )}
         </div>
       )}
-      <div className="relative p-4 font-label text-[13px] leading-[1.7] text-terminal-text overflow-x-auto">
+      <div className="relative p-4 font-mono text-[13px] leading-[1.7] text-terminal-text overflow-x-auto">
         <CopyButton text={code} />
         <pre>
           <code>{highlightSyntax(code, language)}</code>
@@ -362,14 +361,14 @@ function InlineMarkdown({ text }: { text: string }) {
       parts.push(
         <code
           key={partKey++}
-          className="rounded-sm bg-primary/10 px-1.5 py-0.5 text-[0.85em] font-label text-primary"
+          className="rounded bg-muted px-1.5 py-0.5 text-[0.85em] font-mono text-primary"
         >
           {earliest.content}
         </code>,
       );
     } else if (earliest.type === "bold") {
       parts.push(
-        <strong key={partKey++} className="font-semibold text-on-surface">
+        <strong key={partKey++} className="font-semibold text-foreground">
           {earliest.content}
         </strong>,
       );
@@ -489,14 +488,14 @@ function MarkdownContent({
         // Skip separator row (row[1])
         const bodyRows = tableRows.slice(2).map(parseRow);
         elements.push(
-          <div key={key++} className="my-4 overflow-x-auto rounded-sm border border-outline-variant/10">
+          <div key={key++} className="my-4 overflow-x-auto rounded-lg border border-border/60">
             <table className="w-full text-sm border-collapse">
               <thead>
-                <tr className="border-b border-outline-variant/10 bg-surface-container-high/50">
+                <tr className="border-b border-border bg-muted/50">
                   {headerCells.map((cell, ci) => (
                     <th
                       key={ci}
-                      className="text-left px-4 py-2.5 font-semibold text-on-surface text-xs font-label uppercase tracking-wider"
+                      className="text-left px-4 py-2.5 font-semibold text-foreground text-xs uppercase tracking-wider"
                     >
                       {cell}
                     </th>
@@ -507,12 +506,12 @@ function MarkdownContent({
                 {bodyRows.map((row, ri) => (
                   <tr
                     key={ri}
-                    className={`border-b border-outline-variant/5 ${ri % 2 === 1 ? "bg-surface-container/30" : ""}`}
+                    className={`border-b border-border/30 ${ri % 2 === 1 ? "bg-muted/20" : ""}`}
                   >
                     {row.map((cell, ci) => (
                       <td
                         key={ci}
-                        className="px-4 py-2.5 text-on-surface-variant"
+                        className="px-4 py-2.5 text-muted-foreground"
                       >
                         <InlineMarkdown text={cell} />
                       </td>
@@ -536,12 +535,12 @@ function MarkdownContent({
         <h2
           key={key++}
           id={id}
-          className="group/heading text-xl font-headline font-bold tracking-tight mt-10 mb-4 text-on-surface scroll-mt-20"
+          className="group/heading text-xl font-bold tracking-tight mt-10 mb-4 text-foreground scroll-mt-20"
         >
           <a href={`#${id}`} className="flex items-center gap-2">
             {text}
             <Hash
-              className="h-4 w-4 text-on-surface-variant/0 group-hover/heading:text-on-surface-variant/50 transition-colors duration-200"
+              className="h-4 w-4 text-muted-foreground/0 group-hover/heading:text-muted-foreground/50 transition-colors duration-200"
               aria-hidden="true"
             />
           </a>
@@ -560,12 +559,12 @@ function MarkdownContent({
         <h3
           key={key++}
           id={id}
-          className="group/heading text-base font-headline font-bold tracking-tight mt-8 mb-3 text-on-surface scroll-mt-20"
+          className="group/heading text-base font-bold tracking-tight mt-8 mb-3 text-foreground scroll-mt-20"
         >
           <a href={`#${id}`} className="flex items-center gap-1.5">
             {text}
             <Hash
-              className="h-3.5 w-3.5 text-on-surface-variant/0 group-hover/heading:text-on-surface-variant/50 transition-colors duration-200"
+              className="h-3.5 w-3.5 text-muted-foreground/0 group-hover/heading:text-muted-foreground/50 transition-colors duration-200"
               aria-hidden="true"
             />
           </a>
@@ -584,12 +583,12 @@ function MarkdownContent({
         <h4
           key={key++}
           id={id}
-          className="group/heading text-sm font-headline font-bold tracking-tight mt-6 mb-2 text-on-surface scroll-mt-20"
+          className="group/heading text-sm font-bold tracking-tight mt-6 mb-2 text-foreground scroll-mt-20"
         >
           <a href={`#${id}`} className="flex items-center gap-1.5">
             {text}
             <Hash
-              className="h-3 w-3 text-on-surface-variant/0 group-hover/heading:text-on-surface-variant/50 transition-colors duration-200"
+              className="h-3 w-3 text-muted-foreground/0 group-hover/heading:text-muted-foreground/50 transition-colors duration-200"
               aria-hidden="true"
             />
           </a>
@@ -627,9 +626,9 @@ function MarkdownContent({
       elements.push(
         <div
           key={key++}
-          className={`border-l-2 ${borderColor} ${bgColor} rounded-r-sm pl-4 pr-4 py-3 my-4`}
+          className={`border-l-4 ${borderColor} ${bgColor} rounded-r-lg pl-4 pr-4 py-3 my-4`}
         >
-          <p className="text-sm text-on-surface-variant leading-relaxed font-body">
+          <p className="text-sm text-muted-foreground leading-relaxed">
             <InlineMarkdown text={quoteText} />
           </p>
         </div>,
@@ -649,7 +648,7 @@ function MarkdownContent({
           {listItems.map((item, idx) => (
             <li
               key={idx}
-              className="text-sm text-on-surface-variant leading-relaxed font-body marker:text-primary/40"
+              className="text-sm text-muted-foreground leading-relaxed"
             >
               <InlineMarkdown text={item} />
             </li>
@@ -671,7 +670,7 @@ function MarkdownContent({
           {listItems.map((item, idx) => (
             <li
               key={idx}
-              className="text-sm text-on-surface-variant leading-relaxed font-body marker:text-primary/40"
+              className="text-sm text-muted-foreground leading-relaxed"
             >
               <InlineMarkdown text={item} />
             </li>
@@ -684,7 +683,7 @@ function MarkdownContent({
     // Horizontal rule
     if (line.match(/^---+$/)) {
       elements.push(
-        <hr key={key++} className="border-outline-variant/10 my-8" />,
+        <hr key={key++} className="border-border my-8" />,
       );
       i++;
       continue;
@@ -700,7 +699,7 @@ function MarkdownContent({
     elements.push(
       <p
         key={key++}
-        className="text-[14px] text-on-surface-variant leading-[1.8] my-3 font-body"
+        className="text-[14px] text-muted-foreground leading-[1.8] my-3"
       >
         <InlineMarkdown text={line} />
       </p>,
@@ -743,22 +742,22 @@ function CliGroupContent({
 
   return (
     <div>
-      <p className="text-sm text-on-surface-variant mb-6 font-body">{group.description}</p>
+      <p className="text-sm text-muted-foreground mb-6">{group.description}</p>
       {group.alias && (
-        <p className="text-sm text-on-surface-variant mb-4 font-body">
+        <p className="text-sm text-muted-foreground mb-4">
           Alias:{" "}
-          <code className="rounded-sm bg-primary/10 px-1.5 py-0.5 text-[0.85em] font-label text-primary">
+          <code className="rounded bg-muted px-1.5 py-0.5 text-[0.85em] font-mono text-primary">
             {group.alias}
           </code>
         </p>
       )}
       <h2
         id="commands"
-        className="text-xl font-headline font-bold tracking-tight mt-8 mb-4 text-on-surface scroll-mt-20"
+        className="text-xl font-bold tracking-tight mt-8 mb-4 text-foreground scroll-mt-20"
       >
         Commands
       </h2>
-      <div className="space-y-3">
+      <div className="space-y-4">
         {group.commands.map((cmd) => (
           <CliCommandCard key={cmd.name} cmd={cmd} />
         ))}
@@ -789,15 +788,15 @@ function CliCommandContent({
 
   return (
     <div>
-      <p className="text-sm text-on-surface-variant mb-6 font-body">{cmd.description}</p>
+      <p className="text-sm text-muted-foreground mb-6">{cmd.description}</p>
       {cmd.synopsis && (
-        <p className="text-sm text-on-surface-variant mb-4 font-body">{cmd.synopsis}</p>
+        <p className="text-sm text-muted-foreground mb-4">{cmd.synopsis}</p>
       )}
       {cmd.usage && (
         <>
           <h2
             id="usage"
-            className="text-xl font-headline font-bold tracking-tight mt-8 mb-4 text-on-surface scroll-mt-20"
+            className="text-xl font-bold tracking-tight mt-8 mb-4 text-foreground scroll-mt-20"
           >
             Usage
           </h2>
@@ -808,7 +807,7 @@ function CliCommandContent({
         <>
           <h2
             id="options"
-            className="text-xl font-headline font-bold tracking-tight mt-8 mb-4 text-on-surface scroll-mt-20"
+            className="text-xl font-bold tracking-tight mt-8 mb-4 text-foreground scroll-mt-20"
           >
             Options
           </h2>
@@ -817,7 +816,7 @@ function CliCommandContent({
       )}
       {cmd.inheritedOptions && (
         <>
-          <h3 className="text-base font-headline font-bold tracking-tight mt-6 mb-3 text-on-surface">
+          <h3 className="text-base font-bold tracking-tight mt-6 mb-3 text-foreground">
             Inherited Options
           </h3>
           <CodeBlock code={cmd.inheritedOptions} />
@@ -827,7 +826,7 @@ function CliCommandContent({
         <>
           <h2
             id="see-also"
-            className="text-xl font-headline font-bold tracking-tight mt-8 mb-4 text-on-surface scroll-mt-20"
+            className="text-xl font-bold tracking-tight mt-8 mb-4 text-foreground scroll-mt-20"
           >
             See Also
           </h2>
@@ -835,9 +834,9 @@ function CliCommandContent({
             {cmd.subcommands.map((sub) => (
               <li
                 key={sub.name}
-                className="text-sm text-on-surface-variant leading-relaxed font-body"
+                className="text-sm text-muted-foreground leading-relaxed"
               >
-                <code className="rounded-sm bg-primary/10 px-1.5 py-0.5 text-[0.85em] font-label text-primary">
+                <code className="rounded bg-muted px-1.5 py-0.5 text-[0.85em] font-mono text-primary">
                   {sub.name}
                 </code>{" "}
                 — {sub.description}
@@ -859,36 +858,36 @@ function CliCommandCard({ cmd }: { cmd: CliCommand }) {
     .trim();
 
   return (
-    <div className="rounded-sm border border-outline-variant/10 overflow-hidden bg-surface-container/30">
+    <div className="rounded-lg border border-border overflow-hidden">
       <button
         onClick={() => setExpanded(!expanded)}
-        className="flex w-full items-center justify-between px-4 py-3 text-left hover:bg-surface-container-high/30 transition-colors"
+        className="flex w-full items-center justify-between px-4 py-3 text-left hover:bg-accent/30 transition-colors"
         aria-expanded={expanded}
       >
         <div className="flex items-center gap-3">
-          <code className="rounded-sm bg-primary/10 px-2 py-0.5 text-sm font-label font-semibold text-primary">
+          <code className="text-sm font-mono font-semibold text-foreground">
             {cmd.name}
           </code>
-          <span className="text-xs text-on-surface-variant font-body">
+          <span className="text-xs text-muted-foreground">
             {cmd.description}
           </span>
         </div>
         <ChevronDown
-          className={`h-4 w-4 text-on-surface-variant transition-transform ${expanded ? "rotate-180" : ""}`}
+          className={`h-4 w-4 text-muted-foreground transition-transform ${expanded ? "rotate-180" : ""}`}
           aria-hidden="true"
         />
       </button>
       {expanded && (
-        <div className="border-t border-outline-variant/10 px-4 py-3 bg-surface-container-low/30">
+        <div className="border-t border-border px-4 py-3 bg-accent/10">
           {cmd.usage && (
             <CodeBlock code={cmd.usage} language="bash" title="Usage" />
           )}
           {meaningfulOptions && (
             <div className="mt-2">
-              <div className="text-xs font-label font-semibold text-on-surface-variant uppercase tracking-wider mb-2">
+              <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
                 Options
               </div>
-              <pre className="text-[12px] font-label text-on-surface-variant bg-surface-container-lowest rounded-sm px-3 py-2 overflow-x-auto">
+              <pre className="text-[12px] font-mono text-muted-foreground bg-card dark:bg-[#0C0A08] rounded-lg px-3 py-2 overflow-x-auto">
                 <code>{meaningfulOptions}</code>
               </pre>
             </div>
@@ -907,11 +906,11 @@ function PlaceholderContent({ label }: { label: string }) {
   return (
     <div className="flex flex-col items-center justify-center py-16 text-center">
       <Construction
-        className="h-12 w-12 text-on-surface-variant/30 mb-4"
+        className="h-12 w-12 text-muted-foreground/30 mb-4"
         aria-hidden="true"
       />
-      <h2 className="text-lg font-headline font-semibold text-on-surface mb-2">{label}</h2>
-      <p className="text-sm text-on-surface-variant max-w-md font-body">
+      <h2 className="text-lg font-semibold text-foreground mb-2">{label}</h2>
+      <p className="text-sm text-muted-foreground max-w-md">
         This page is under construction. Check back soon or contribute on{" "}
         <a
           href="https://github.com/rpuneet/bc"
@@ -974,10 +973,10 @@ function TableOfContents({ headings }: { headings: TocHeading[] }) {
       aria-label="Table of contents"
       className="text-xs"
     >
-      <div className="font-label font-semibold text-on-surface mb-3 text-[10px] uppercase tracking-[0.15em]">
+      <div className="font-semibold text-foreground mb-3 text-xs uppercase tracking-wider">
         On this page
       </div>
-      <ul className="space-y-1 border-l border-outline-variant/15">
+      <ul className="space-y-1 border-l border-border/50">
         {headings.map((h) => (
           <li
             key={h.id}
@@ -989,10 +988,10 @@ function TableOfContents({ headings }: { headings: TocHeading[] }) {
             )}
             <a
               href={`#${h.id}`}
-              className={`block py-1 transition-colors duration-200 font-body ${
+              className={`block py-1 transition-colors duration-200 ${
                 activeId === h.id
                   ? "text-primary font-medium"
-                  : "text-on-surface-variant hover:text-on-surface"
+                  : "text-muted-foreground hover:text-foreground"
               }`}
             >
               {h.text}
@@ -1024,16 +1023,13 @@ function SidebarSection({
   const isActive = section.items.some((item) => item.id === activeItemId);
 
   return (
-    <div className="mb-1 relative">
-      {isActive && (
-        <span className="absolute left-0 top-2 w-[2px] h-5 bg-primary rounded-r-full" />
-      )}
+    <div className="mb-1">
       <button
         onClick={() => setOpen(!open)}
-        className={`flex w-full items-center gap-2 px-3 py-2.5 text-left text-[11px] font-label uppercase tracking-[0.08em] rounded-sm transition-colors duration-200 ${
+        className={`flex w-full items-center gap-2 px-3 py-2.5 text-left text-[11px] uppercase tracking-[0.08em] rounded-md transition-colors duration-200 ${
           isActive
-            ? "text-primary font-semibold"
-            : "text-on-surface-variant hover:text-on-surface font-semibold"
+            ? "text-foreground font-semibold"
+            : "text-muted-foreground hover:text-foreground font-semibold"
         }`}
         aria-expanded={open}
       >
@@ -1045,7 +1041,7 @@ function SidebarSection({
         <span>{section.label}</span>
       </button>
       <div
-        className={`ml-4 pl-3 border-l border-outline-variant/10 mt-0.5 overflow-hidden transition-all duration-200 ${
+        className={`ml-4 pl-3 border-l border-border/50 mt-0.5 overflow-hidden transition-all duration-200 ${
           open ? "max-h-[2000px] opacity-100" : "max-h-0 opacity-0"
         }`}
       >
@@ -1053,10 +1049,10 @@ function SidebarSection({
           <button
             key={item.id}
             onClick={() => onItemClick(item)}
-            className={`block w-full text-left px-3 py-1.5 text-[13px] font-body rounded-sm transition-all duration-150 ${
+            className={`block w-full text-left px-3 py-1.5 text-[13px] rounded-md transition-all duration-150 ${
               activeItemId === item.id
                 ? "text-primary bg-primary/8 border-l-2 border-primary -ml-px pl-[11px] font-medium"
-                : "text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high/30"
+                : "text-muted-foreground hover:text-foreground hover:bg-accent/20"
             }`}
           >
             {item.label}
@@ -1088,21 +1084,21 @@ function PrevNextNav({
   if (!prev && !next) return null;
 
   return (
-    <div className="flex items-center justify-between mt-12 pt-6 border-t border-outline-variant/10">
+    <div className="flex items-center justify-between mt-12 pt-6 border-t border-border">
       {prev ? (
         <button
           onClick={() => onNavigate(prev)}
-          className="group flex items-center gap-3 text-sm text-on-surface-variant hover:text-on-surface transition-all duration-200 rounded-sm border border-transparent hover:border-outline-variant/15 hover:bg-surface-container/30 px-4 py-3 -ml-4"
+          className="group flex items-center gap-3 text-sm text-muted-foreground hover:text-foreground transition-all duration-200 rounded-lg border border-transparent hover:border-border/60 hover:bg-muted/30 px-4 py-3 -ml-4"
         >
           <ChevronRight
             className="h-4 w-4 rotate-180 group-hover:-translate-x-0.5 transition-transform duration-200"
             aria-hidden="true"
           />
           <div className="text-left">
-            <div className="text-[10px] font-label uppercase tracking-wider text-on-surface-variant/70 mb-0.5">
+            <div className="text-[10px] uppercase tracking-wider text-muted-foreground/70 mb-0.5">
               Previous
             </div>
-            <div className="font-medium font-body group-hover:text-primary transition-colors duration-200">
+            <div className="font-medium group-hover:text-primary transition-colors duration-200">
               {prev.label}
             </div>
           </div>
@@ -1113,13 +1109,13 @@ function PrevNextNav({
       {next ? (
         <button
           onClick={() => onNavigate(next)}
-          className="group flex items-center gap-3 text-sm text-on-surface-variant hover:text-on-surface transition-all duration-200 text-right rounded-sm border border-transparent hover:border-outline-variant/15 hover:bg-surface-container/30 px-4 py-3 -mr-4"
+          className="group flex items-center gap-3 text-sm text-muted-foreground hover:text-foreground transition-all duration-200 text-right rounded-lg border border-transparent hover:border-border/60 hover:bg-muted/30 px-4 py-3 -mr-4"
         >
           <div>
-            <div className="text-[10px] font-label uppercase tracking-wider text-on-surface-variant/70 mb-0.5">
+            <div className="text-[10px] uppercase tracking-wider text-muted-foreground/70 mb-0.5">
               Next
             </div>
-            <div className="font-medium font-body group-hover:text-primary transition-colors duration-200">
+            <div className="font-medium group-hover:text-primary transition-colors duration-200">
               {next.label}
             </div>
           </div>
@@ -1390,7 +1386,7 @@ export default function DocsContent({
   const renderContent = () => {
     if (!activeItem) {
       return (
-        <div className="text-center py-16 text-on-surface-variant font-body">
+        <div className="text-center py-16 text-muted-foreground">
           <p>Select a page from the sidebar.</p>
         </div>
       );
@@ -1454,23 +1450,23 @@ export default function DocsContent({
   };
 
   return (
-    <main className="min-h-screen bg-background selection:bg-primary/20 selection:text-on-background overflow-x-hidden">
+    <main className="min-h-screen selection:bg-primary/20 selection:text-foreground overflow-x-hidden">
       <Nav />
 
       {/* Mobile nav toggle */}
-      <div className="lg:hidden sticky top-0 z-40 border-b border-outline-variant/10 bg-background/95 backdrop-blur-sm px-4 py-3 flex items-center gap-3">
+      <div className="lg:hidden sticky top-0 z-40 border-b border-border bg-background/95 backdrop-blur-sm px-4 py-3 flex items-center gap-3">
         <button
           onClick={() => setMobileNavOpen(!mobileNavOpen)}
-          className="p-2 rounded-sm hover:bg-surface-container-high/30 transition-colors duration-200"
+          className="p-2 rounded-md hover:bg-accent/30 transition-colors duration-200"
           aria-label="Toggle navigation"
         >
           {mobileNavOpen ? (
-            <X className="h-5 w-5 text-on-surface" />
+            <X className="h-5 w-5" />
           ) : (
-            <Menu className="h-5 w-5 text-on-surface" />
+            <Menu className="h-5 w-5" />
           )}
         </button>
-        <span className="text-sm font-headline font-medium text-on-surface truncate">
+        <span className="text-sm font-medium truncate">
           {getTitle()}
         </span>
       </div>
@@ -1485,29 +1481,19 @@ export default function DocsContent({
           />
         )}
 
-        {/* LEFT SIDEBAR */}
+        {/* ═══ LEFT SIDEBAR ═══ */}
         <aside
           className={`${
             mobileNavOpen
-              ? "fixed inset-y-0 left-0 top-[105px] z-30 w-[280px] bg-surface-container-low shadow-2xl translate-x-0"
+              ? "fixed inset-y-0 left-0 top-[105px] z-30 w-[280px] bg-card dark:bg-[#1E1A16] shadow-2xl translate-x-0"
               : "fixed -translate-x-full lg:translate-x-0"
-          } lg:relative lg:block lg:sticky lg:top-0 lg:h-screen lg:w-64 xl:w-[280px] shrink-0 border-r border-outline-variant/10 overflow-y-auto transition-transform duration-300 ease-out lg:bg-surface-container-low docs-sidebar-scroll`}
+          } lg:relative lg:block lg:sticky lg:top-0 lg:h-screen lg:w-[260px] xl:w-[280px] shrink-0 border-r border-border overflow-y-auto transition-transform duration-300 ease-out lg:bg-muted/50 docs-sidebar-scroll`}
         >
           <div className="p-4 pt-20 lg:pt-6">
-            {/* Logo + Version */}
-            <div className="mb-6 px-3">
-              <div className="flex items-center gap-2">
-                <span className="font-label text-sm text-primary">&gt; mycel_</span>
-                <span className="rounded-sm bg-primary/10 px-1.5 py-0.5 text-[10px] font-label text-primary">
-                  v0.1.0
-                </span>
-              </div>
-            </div>
-
             {/* Search */}
             <div className="relative mb-5 group/search">
               <Search
-                className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-on-surface-variant transition-colors duration-200 group-focus-within/search:text-primary"
+                className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground transition-colors duration-200 group-focus-within/search:text-primary"
                 aria-hidden="true"
               />
               <input
@@ -1515,12 +1501,12 @@ export default function DocsContent({
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search docs..."
-                className="h-9 w-full rounded-sm border border-outline-variant/15 bg-surface-container pl-9 pr-3 text-sm font-label outline-none transition-all duration-200 placeholder:text-on-surface-variant/50 focus:border-primary/40 focus:ring-2 focus:ring-primary/10 text-on-surface"
+                className="h-9 w-full rounded-lg border border-border bg-card pl-9 pr-3 text-sm outline-none transition-all duration-200 placeholder:text-muted-foreground/50 focus:border-primary/50 focus:ring-2 focus:ring-primary/15 focus:w-full"
               />
             </div>
 
             {/* Nav sections */}
-            <nav aria-label="Documentation navigation" className="relative">
+            <nav aria-label="Documentation navigation">
               {filteredSections.map((section) => (
                 <SidebarSection
                   key={section.id}
@@ -1534,38 +1520,25 @@ export default function DocsContent({
                 />
               ))}
               {search && filteredSections.length === 0 && (
-                <div className="text-center py-8 text-on-surface-variant">
+                <div className="text-center py-8 text-muted-foreground">
                   <Search
                     className="h-6 w-6 mx-auto mb-2 opacity-30"
                     aria-hidden="true"
                   />
-                  <p className="text-xs font-body">No results for &quot;{search}&quot;</p>
+                  <p className="text-xs">No results for &quot;{search}&quot;</p>
                   <button
                     onClick={() => setSearch("")}
-                    className="mt-1 text-xs text-primary hover:underline font-body"
+                    className="mt-1 text-xs text-primary hover:underline"
                   >
                     Clear search
                   </button>
                 </div>
               )}
             </nav>
-
-            {/* View on GitHub */}
-            <div className="mt-8 px-3">
-              <a
-                href="https://github.com/rpuneet/bc"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-2 rounded-sm border border-outline-variant/15 bg-surface-container/50 px-3 py-2 text-[11px] font-label uppercase tracking-[0.1em] text-on-surface-variant hover:text-primary hover:border-primary/30 transition-all duration-200"
-              >
-                <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
-                View on GitHub
-              </a>
-            </div>
           </div>
         </aside>
 
-        {/* MAIN CONTENT */}
+        {/* ═══ MAIN CONTENT ═══ */}
         <div
           id="docs-content-area"
           className="flex-1 min-w-0 overflow-y-auto"
@@ -1573,34 +1546,34 @@ export default function DocsContent({
           <div className="max-w-[720px] mx-auto px-6 lg:px-10 py-8 lg:py-12">
             {/* Breadcrumb */}
             {activeItem && (
-              <div className="text-[11px] text-on-surface-variant/70 mb-4 flex items-center gap-1.5 font-label">
-                <span className="hover:text-on-surface-variant cursor-default transition-colors duration-150">
-                  docs
+              <div className="text-xs text-muted-foreground/70 mb-4 flex items-center gap-1.5">
+                <span className="hover:text-muted-foreground cursor-default transition-colors duration-150">
+                  Docs
                 </span>
                 <ChevronRight className="h-3 w-3 opacity-40" aria-hidden="true" />
-                <span className="hover:text-on-surface-variant cursor-default transition-colors duration-150">
+                <span className="hover:text-muted-foreground cursor-default transition-colors duration-150">
                   {navSections.find((s) =>
                     s.items.some((i) => i.id === activeItemId),
                   )?.label || ""}
                 </span>
                 <ChevronRight className="h-3 w-3 opacity-40" aria-hidden="true" />
-                <span className="text-on-surface/70">{getTitle()}</span>
+                <span className="text-foreground/70">{getTitle()}</span>
               </div>
             )}
 
             {/* Title */}
-            <h1 className="text-3xl lg:text-4xl font-headline font-bold tracking-tight mb-2 text-on-surface">
+            <h1 className="text-3xl lg:text-4xl font-bold tracking-tight mb-2 text-foreground">
               {getTitle()}
             </h1>
             {getDescription() && (
-              <p className="text-base text-on-surface-variant mb-8 leading-relaxed font-body">
+              <p className="text-base text-muted-foreground mb-8 leading-relaxed">
                 {getDescription()}
               </p>
             )}
 
             <div
               key={contentKey}
-              className={`border-t border-outline-variant/10 pt-6 animate-[fadeIn_200ms_ease] ${isPending ? "opacity-60" : "opacity-100"} transition-opacity duration-150`}
+              className={`border-t border-border pt-6 animate-[fadeIn_200ms_ease] ${isPending ? "opacity-60" : "opacity-100"} transition-opacity duration-150`}
             >
               {renderContent()}
             </div>
@@ -1614,8 +1587,8 @@ export default function DocsContent({
           </div>
         </div>
 
-        {/* RIGHT SIDEBAR (Table of Contents) */}
-        <aside className="hidden xl:block sticky top-0 h-screen w-[200px] shrink-0 overflow-y-auto border-l border-outline-variant/10">
+        {/* ═══ RIGHT SIDEBAR (Table of Contents) ═══ */}
+        <aside className="hidden xl:block sticky top-0 h-screen w-[200px] shrink-0 overflow-y-auto border-l border-border">
           <div className="p-4 pt-20 lg:pt-12">
             <TableOfContents headings={tocHeadings} />
           </div>
