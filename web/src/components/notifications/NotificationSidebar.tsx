@@ -2,18 +2,12 @@ import { useState, useEffect, useCallback } from "react";
 import type { Agent, NotificationSource, GatewayStatus, NotifySubscription } from "../../api/client";
 import { api } from "../../api/client";
 import { sourcePlatform, agentColor, getRoleColor } from "./messageUtils";
-import { SetupWizard } from "./SetupWizard";
-
-const PLATFORM_META: Record<string, { label: string; color: string }> = {
-  slack: { label: "Slack", color: "#E01E5A" },
-  telegram: { label: "Telegram", color: "#26A5E4" },
-  discord: { label: "Discord", color: "#5865F2" },
-  github: { label: "GitHub", color: "#8B949E" },
-  gmail: { label: "Gmail", color: "#EA4335" },
-};
+import { SetupWizard, PlatformChooser, PLATFORM_MAP, PLATFORMS } from "./SetupWizard";
 
 function getMeta(p: string) {
-  return PLATFORM_META[p] ?? { label: p, color: "#8c7e72" };
+  const def = PLATFORM_MAP[p];
+  if (def) return { label: def.label, color: def.color };
+  return { label: p, color: "#8c7e72" };
 }
 
 function displayName(name: string): string {
@@ -90,7 +84,7 @@ export function NotificationSidebar({
   }
 
   const configuredPlatforms = new Set(bucketMap.keys());
-  const unconfigured = Object.keys(PLATFORM_META).filter(p => !configuredPlatforms.has(p));
+  const unconfigured = PLATFORMS.filter(p => !configuredPlatforms.has(p.key));
 
   // Agents for current channel
   const currentSourceAgents = selected ? sourceSubs.get(selected) ?? new Set() : new Set();
@@ -212,18 +206,27 @@ export function NotificationSidebar({
             {/* Unconfigured */}
             {unconfigured.length > 0 && (
               <div className="pt-1 mt-1 border-t border-bc-border/15 mx-3">
-                {unconfigured.map((p) => (
+                {unconfigured.slice(0, 5).map((p) => (
                   <button
-                    key={p}
+                    key={p.key}
                     type="button"
-                    onClick={() => setSetupPlatform(p)}
+                    onClick={() => setSetupPlatform(p.key)}
                     className="w-full flex items-center gap-2 py-1 text-[10px] text-bc-muted/20 hover:text-bc-muted/40 transition-colors"
                   >
                     <span className="w-1.5 h-1.5 rounded-full bg-bc-muted/10" />
-                    <span className="uppercase tracking-[0.08em] font-medium">{getMeta(p).label}</span>
+                    <span className="uppercase tracking-[0.08em] font-medium">{p.label}</span>
                     <span className="ml-auto opacity-50">+</span>
                   </button>
                 ))}
+                {unconfigured.length > 5 && (
+                  <button
+                    type="button"
+                    onClick={() => setSetupPlatform("_choose")}
+                    className="w-full py-1 text-[9px] text-bc-muted/15 hover:text-bc-accent transition-colors"
+                  >
+                    + {unconfigured.length - 5} more...
+                  </button>
+                )}
               </div>
             )}
           </>
@@ -332,28 +335,10 @@ export function NotificationSidebar({
         <SetupWizard platform={setupPlatform} onClose={() => setSetupPlatform(null)} onConnected={() => void fetchData()} />
       )}
       {setupPlatform === "_choose" && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
-          <div className="bg-bc-bg border border-bc-border/50 rounded-xl p-5 max-w-sm w-full mx-4 shadow-2xl">
-            <h2 className="text-[14px] font-semibold text-bc-text mb-4">Connect an app</h2>
-            <div className="grid grid-cols-2 gap-2">
-              {Object.entries(PLATFORM_META).map(([key, meta]) => (
-                <button key={key} type="button" onClick={() => setSetupPlatform(key)}
-                  className="p-3 border border-bc-border/30 rounded-lg hover:border-bc-border/50 hover:bg-bc-surface/20 transition-all text-left group"
-                >
-                  <div className="w-6 h-6 rounded flex items-center justify-center text-[11px] font-bold mb-1.5"
-                    style={{ backgroundColor: `${meta.color}12`, color: meta.color }}
-                  >
-                    {meta.label.charAt(0)}
-                  </div>
-                  <span className="text-[11px] text-bc-muted/50 group-hover:text-bc-text">{meta.label}</span>
-                </button>
-              ))}
-            </div>
-            <button type="button" onClick={() => setSetupPlatform(null)}
-              className="mt-3 w-full py-1.5 text-[10px] text-bc-muted/30 hover:text-bc-text transition-colors"
-            >Cancel</button>
-          </div>
-        </div>
+        <PlatformChooser
+          onSelect={(key) => setSetupPlatform(key)}
+          onClose={() => setSetupPlatform(null)}
+        />
       )}
     </nav>
   );

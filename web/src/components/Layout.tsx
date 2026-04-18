@@ -6,7 +6,7 @@ import { CommandPalette } from "./CommandPalette";
 import { api } from "../api/client";
 import type { NotificationSource, GatewayHealth, GatewayStatus, NotifySubscription } from "../api/client";
 import { sourcePlatform } from "./notifications/messageUtils";
-import { SetupWizard } from "./notifications/SetupWizard";
+import { SetupWizard, PLATFORMS, PLATFORM_MAP } from "./notifications/SetupWizard";
 import { Header } from "./Header";
 import { SidebarToggle, WorkspaceDropdown } from "./WorkspaceDropdown";
 import { HeaderSlotProvider, useHeaderSlotContext } from "../context/HeaderSlotContext";
@@ -44,16 +44,10 @@ function Icon({ name, size = 14 }: { name: string; size?: number }) {
 
 /* ── Platform config ─────────────────────────────────────────── */
 
-const PLATFORM_META: Record<string, { label: string; color: string }> = {
-  slack: { label: "Slack", color: "#E01E5A" },
-  telegram: { label: "Telegram", color: "#26A5E4" },
-  discord: { label: "Discord", color: "#5865F2" },
-  github: { label: "GitHub", color: "#8B949E" },
-  gmail: { label: "Gmail", color: "#EA4335" },
-};
-
 function getPlatformMeta(p: string) {
-  return PLATFORM_META[p] ?? { label: p, color: "#8c7e72" };
+  const def = PLATFORM_MAP[p];
+  if (def) return { label: def.label, color: def.color };
+  return { label: p, color: "#8c7e72" };
 }
 
 function displaySourceName(name: string): string {
@@ -238,18 +232,18 @@ function NotificationNavTree() {
         </button>
 
         {showConnectMenu && (
-          <div className="mt-1 border border-bc-border/30 rounded-lg bg-bc-bg overflow-hidden"
+          <div className="mt-1 border border-bc-border/30 rounded-lg bg-bc-bg overflow-hidden max-h-[320px] overflow-auto"
             style={{ animation: "fadeIn 100ms ease-out" }}
           >
-            {Object.entries(PLATFORM_META).map(([key, meta]) => (
+            {PLATFORMS.map((p) => (
               <button
-                key={key}
+                key={p.key}
                 type="button"
-                onClick={() => { setShowConnectMenu(false); setSetupPlatform(key); }}
-                className="w-full flex items-center gap-2 px-3 py-2 text-[10px] text-bc-muted/50 hover:text-bc-text hover:bg-bc-surface/20 transition-colors"
+                onClick={() => { setShowConnectMenu(false); setSetupPlatform(p.key); }}
+                className="w-full flex items-center gap-2 px-3 py-1.5 text-[10px] text-bc-muted/50 hover:text-bc-text hover:bg-bc-surface/20 transition-colors"
               >
-                <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: meta.color }} />
-                <span>{meta.label}</span>
+                <span className="text-[11px] leading-none shrink-0">{p.icon}</span>
+                <span>{p.label}</span>
               </button>
             ))}
           </div>

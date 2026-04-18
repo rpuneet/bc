@@ -1,69 +1,342 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
 
-const PLATFORM_STEPS: Record<
-  string,
-  { label: string; fields: { key: string; label: string; placeholder: string }[]; docs: string[] }
-> = {
-  slack: {
+export interface PlatformDef {
+  key: string;
+  label: string;
+  icon: string;
+  description: string;
+  color: string;
+  category: string;
+  fields: { key: string; label: string; placeholder: string; required?: boolean; type?: string }[];
+  docs: string[];
+}
+
+export const PLATFORMS: PlatformDef[] = [
+  // --- Chat ---
+  {
+    key: "slack",
     label: "Slack",
+    icon: "\u{1F4AC}",
+    description: "Team messaging via Socket Mode",
+    color: "#E01E5A",
+    category: "Chat",
     fields: [
       { key: "bot_token", label: "Bot Token", placeholder: "xoxb-..." },
       { key: "app_token", label: "App Token", placeholder: "xapp-..." },
     ],
     docs: [
-      "Go to api.slack.com/apps → your app (or create one)",
-      "Enable Socket Mode: Settings → Socket Mode → toggle ON",
-      "Add scopes: OAuth → Bot Token Scopes → channels:read, chat:write, connections:write",
-      "Copy Bot Token from OAuth & Permissions page",
-      "Generate App Token from Basic Information → App-Level Tokens (connections:write scope)",
-      "Install/reinstall the app to your workspace",
-      "Invite the bot to channels: /invite @your-bot",
+      "Create a Slack app at api.slack.com/apps, enable Socket Mode.",
+      "Add scopes: channels:read, chat:write, connections:write.",
+      "Copy Bot Token from OAuth & Permissions, App Token from Basic Information.",
+      "Install the app and invite the bot to your channels.",
     ],
   },
-  telegram: {
+  {
+    key: "telegram",
     label: "Telegram",
+    icon: "\u2708\uFE0F",
+    description: "Bot messages via long polling",
+    color: "#26A5E4",
+    category: "Chat",
     fields: [{ key: "bot_token", label: "Bot Token", placeholder: "1234567890:AAH..." }],
     docs: [
-      "Open Telegram, message @BotFather",
-      "Send /newbot to create a new bot (or /mybots for existing ones)",
-      "Copy the bot token BotFather gives you",
-      "Add the bot to your group chat",
-      "Optional: Send /setprivacy → Disable (so bot sees all messages, not just commands)",
+      "Message @BotFather on Telegram, send /newbot.",
+      "Copy the bot token and add the bot to your group.",
     ],
   },
-  discord: {
+  {
+    key: "discord",
     label: "Discord",
+    icon: "\u{1F3AE}",
+    description: "Bot messages from Discord servers",
+    color: "#5865F2",
+    category: "Chat",
     fields: [{ key: "bot_token", label: "Bot Token", placeholder: "MTIz..." }],
     docs: [
-      "Go to discord.com/developers/applications",
-      "Create or select your application",
-      "Go to Bot → enable MESSAGE CONTENT INTENT (privileged)",
-      "Copy the bot token from the Bot page",
-      "Generate an invite URL: OAuth2 → URL Generator → bot scope + Send Messages + Read Message History permissions",
-      "Open the invite URL to add the bot to your server",
+      "Create an app at discord.com/developers/applications.",
+      "Enable MESSAGE CONTENT INTENT, copy the bot token.",
+      "Generate an invite URL with bot scope and add to your server.",
     ],
   },
-  github: {
+
+  // --- Code & DevOps ---
+  {
+    key: "github",
     label: "GitHub",
-    fields: [{ key: "token", label: "Token / Webhook Secret", placeholder: "ghp_... or webhook secret" }],
+    icon: "\u{1F419}",
+    description: "PR, issue, and push webhooks",
+    color: "#8B949E",
+    category: "Code & DevOps",
+    fields: [{ key: "secret", label: "Webhook Secret", placeholder: "your-webhook-secret" }],
     docs: [
-      "Go to github.com/settings/apps (or create a GitHub App)",
-      "Configure webhook events: Pull request, Issue comment, Pull request review",
-      "Set a webhook secret for verification",
-      "Copy the token or webhook secret",
+      "Create a webhook in your repo settings (Settings > Webhooks).",
+      "Set the payload URL to your bc server\u2019s /hooks/github endpoint.",
+      "Set the secret here to match the webhook secret.",
     ],
   },
-  gmail: {
-    label: "Gmail",
-    fields: [{ key: "token", label: "OAuth Token", placeholder: "OAuth access token" }],
+  {
+    key: "gitlab",
+    label: "GitLab",
+    icon: "\u{1F98A}",
+    description: "Merge request and pipeline webhooks",
+    color: "#FC6D26",
+    category: "Code & DevOps",
+    fields: [{ key: "token", label: "Token", placeholder: "webhook-secret-token" }],
     docs: [
-      "Set up a Google Cloud project with Gmail API enabled",
-      "Create OAuth 2.0 credentials",
-      "Authorize with Gmail scope",
+      "Go to your GitLab project > Settings > Webhooks.",
+      "Set the URL to your bc server\u2019s /hooks/gitlab endpoint.",
+      "Copy the secret token and paste it here.",
     ],
   },
-};
+  {
+    key: "bitbucket",
+    label: "Bitbucket",
+    icon: "\u{1FAA3}",
+    description: "Push and PR webhooks",
+    color: "#0052CC",
+    category: "Code & DevOps",
+    fields: [{ key: "secret", label: "Secret", placeholder: "webhook-secret" }],
+    docs: [
+      "Go to your Bitbucket repo > Settings > Webhooks.",
+      "Add a webhook pointing to your bc server\u2019s /hooks/bitbucket endpoint.",
+      "Set the secret here for payload verification.",
+    ],
+  },
+  {
+    key: "jira",
+    label: "Jira",
+    icon: "\u{1F4CB}",
+    description: "Issue and sprint webhooks",
+    color: "#0052CC",
+    category: "Code & DevOps",
+    fields: [{ key: "token", label: "Token", placeholder: "webhook-secret" }],
+    docs: [
+      "Go to Jira > Settings > System > Webhooks.",
+      "Create a webhook pointing to your bc server\u2019s /hooks/jira endpoint.",
+      "Set the secret token for verification.",
+    ],
+  },
+  {
+    key: "linear",
+    label: "Linear",
+    icon: "\u{1F4D0}",
+    description: "Issue and project webhooks",
+    color: "#5E6AD2",
+    category: "Code & DevOps",
+    fields: [{ key: "api_key", label: "API Key", placeholder: "lin_api_..." }],
+    docs: [
+      "Go to Linear > Settings > API > Webhooks.",
+      "Create a webhook pointing to your bc server\u2019s /hooks/linear endpoint.",
+      "Copy your API key from Settings > API > Personal API keys.",
+    ],
+  },
+  {
+    key: "vercel",
+    label: "Vercel",
+    icon: "\u25B2",
+    description: "Deployment and build webhooks",
+    color: "#000000",
+    category: "Code & DevOps",
+    fields: [{ key: "secret", label: "Secret", placeholder: "whsec_..." }],
+    docs: [
+      "Go to your Vercel project > Settings > Webhooks.",
+      "Add a webhook endpoint pointing to /hooks/vercel on your bc server.",
+      "Copy the signing secret and paste it here.",
+    ],
+  },
+  {
+    key: "netlify",
+    label: "Netlify",
+    icon: "\u25C6",
+    description: "Deploy and build notifications",
+    color: "#00C7B7",
+    category: "Code & DevOps",
+    fields: [{ key: "secret", label: "Secret", placeholder: "webhook-secret" }],
+    docs: [
+      "Go to your Netlify site > Site settings > Notifications.",
+      "Add an outgoing webhook pointing to /hooks/netlify on your bc server.",
+      "Set and copy the secret for payload verification.",
+    ],
+  },
+
+  // --- Monitoring ---
+  {
+    key: "sentry",
+    label: "Sentry",
+    icon: "\u{1F41B}",
+    description: "Error and issue alerts",
+    color: "#362D59",
+    category: "Monitoring",
+    fields: [{ key: "client_secret", label: "Client Secret", placeholder: "sentry-client-secret" }],
+    docs: [
+      "Go to Sentry > Settings > Integrations > Internal Integration.",
+      "Create an integration with webhook URL pointing to /hooks/sentry.",
+      "Copy the client secret and paste it here.",
+    ],
+  },
+  {
+    key: "pagerduty",
+    label: "PagerDuty",
+    icon: "\u{1F6A8}",
+    description: "Incident and alert webhooks",
+    color: "#06AC38",
+    category: "Monitoring",
+    fields: [{ key: "secret", label: "Secret", placeholder: "pagerduty-secret" }],
+    docs: [
+      "Go to PagerDuty > Integrations > Generic Webhooks V3.",
+      "Add a webhook subscription pointing to /hooks/pagerduty.",
+      "Copy the signing secret and paste it here.",
+    ],
+  },
+  {
+    key: "datadog",
+    label: "Datadog",
+    icon: "\u{1F415}",
+    description: "Monitor and event webhooks",
+    color: "#632CA6",
+    category: "Monitoring",
+    fields: [{ key: "api_key", label: "API Key", placeholder: "datadog-api-key" }],
+    docs: [
+      "Go to Datadog > Integrations > Webhooks.",
+      "Create a webhook pointing to /hooks/datadog on your bc server.",
+      "Copy your API key from Organization Settings > API Keys.",
+    ],
+  },
+  {
+    key: "grafana",
+    label: "Grafana",
+    icon: "\u{1F4CA}",
+    description: "Alert notifications",
+    color: "#F46800",
+    category: "Monitoring",
+    fields: [{ key: "api_token", label: "API Token", placeholder: "grafana-api-token" }],
+    docs: [
+      "Go to Grafana > Alerting > Contact Points.",
+      "Add a webhook contact point with URL /hooks/grafana.",
+      "Copy an API token from Configuration > API Keys.",
+    ],
+  },
+
+  // --- Payments ---
+  {
+    key: "stripe",
+    label: "Stripe",
+    icon: "\u{1F4B3}",
+    description: "Payment and subscription events",
+    color: "#635BFF",
+    category: "Payments",
+    fields: [{ key: "webhook_secret", label: "Webhook Secret", placeholder: "whsec_..." }],
+    docs: [
+      "Go to Stripe Dashboard > Developers > Webhooks.",
+      "Add an endpoint pointing to /hooks/stripe on your bc server.",
+      "Copy the signing secret and paste it here.",
+    ],
+  },
+
+  // --- Content ---
+  {
+    key: "rss",
+    label: "RSS / Atom",
+    icon: "\u{1F4E1}",
+    description: "Subscribe to any RSS or Atom feed",
+    color: "#F78422",
+    category: "Content",
+    fields: [
+      { key: "url", label: "Feed URL", placeholder: "https://example.com/feed.xml", type: "url" },
+      { key: "interval", label: "Poll Interval (seconds)", placeholder: "300", type: "number" },
+    ],
+    docs: [
+      "Paste any RSS or Atom feed URL.",
+      "Set a poll interval in seconds (default: 300 = 5 minutes).",
+    ],
+  },
+  {
+    key: "notion",
+    label: "Notion",
+    icon: "\u{1F4DD}",
+    description: "Database and page change polling",
+    color: "#000000",
+    category: "Content",
+    fields: [
+      { key: "api_token", label: "API Token", placeholder: "secret_..." },
+      { key: "interval", label: "Poll Interval (seconds)", placeholder: "300", type: "number" },
+    ],
+    docs: [
+      "Create an internal integration at notion.so/my-integrations.",
+      "Copy the API token and share target pages/databases with the integration.",
+      "Set a poll interval in seconds (default: 300).",
+    ],
+  },
+
+  // --- Custom ---
+  {
+    key: "webhook",
+    label: "Generic Webhook",
+    icon: "\u{1F517}",
+    description: "Receive any JSON webhook payload",
+    color: "#8c7e72",
+    category: "Custom",
+    fields: [{ key: "secret", label: "Shared Secret (optional)", placeholder: "optional-secret", required: false }],
+    docs: [
+      "POST JSON to /hooks/webhook on your bc server.",
+      "Optionally set a shared secret for HMAC signature verification.",
+    ],
+  },
+];
+
+export const PLATFORM_MAP = Object.fromEntries(PLATFORMS.map((p) => [p.key, p]));
+
+const CATEGORIES = ["Chat", "Code & DevOps", "Monitoring", "Payments", "Content", "Custom"] as const;
+
+/* ---------- Platform chooser grid ---------- */
+
+export function PlatformChooser({ onSelect, onClose }: { onSelect: (key: string) => void; onClose: () => void }) {
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm" style={{ animation: "fadeIn 120ms ease-out" }}>
+      <div className="bg-bc-bg border border-bc-border/50 rounded-xl p-5 max-w-xl w-full mx-4 shadow-2xl max-h-[85vh] overflow-auto">
+        <h2 className="text-[14px] font-semibold text-bc-text mb-4">Connect an app</h2>
+
+        {CATEGORIES.map((cat) => {
+          const items = PLATFORMS.filter((p) => p.category === cat);
+          if (items.length === 0) return null;
+          return (
+            <div key={cat} className="mb-4">
+              <h3 className="text-[10px] font-semibold text-bc-muted/50 uppercase tracking-widest mb-2">{cat}</h3>
+              <div className="grid grid-cols-3 gap-2">
+                {items.map((p) => (
+                  <button
+                    key={p.key}
+                    type="button"
+                    onClick={() => onSelect(p.key)}
+                    className="p-2.5 border border-bc-border/30 rounded-lg hover:border-bc-border/50 hover:bg-bc-surface/20 transition-all text-left group"
+                  >
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <span className="text-[14px] leading-none">{p.icon}</span>
+                      <span className="text-[11px] font-medium text-bc-muted/50 group-hover:text-bc-text">{p.label}</span>
+                    </div>
+                    <p className="text-[9px] text-bc-muted/30 leading-tight">{p.description}</p>
+                  </button>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+
+        <button
+          type="button"
+          onClick={onClose}
+          className="mt-2 w-full py-1.5 text-[10px] text-bc-muted/30 hover:text-bc-text transition-colors"
+        >
+          Cancel
+        </button>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
+/* ---------- Setup wizard (credential form) ---------- */
 
 export function SetupWizard({
   platform,
@@ -74,7 +347,7 @@ export function SetupWizard({
   onClose: () => void;
   onConnected: () => void;
 }) {
-  const config = PLATFORM_STEPS[platform];
+  const config = PLATFORM_MAP[platform];
   const [values, setValues] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -98,14 +371,22 @@ export function SetupWizard({
     setSaving(true);
     setError(null);
     try {
-      const body: Record<string, unknown> = { enabled: true, mode: platform === "slack" ? "socket" : "polling" };
+      const body: Record<string, unknown> = { enabled: true };
+
+      // Set mode for known adapter types
+      if (platform === "slack") body.mode = "socket";
+      else if (platform === "telegram" || platform === "discord") body.mode = "polling";
+
       for (const field of config.fields) {
-        if (!values[field.key]?.trim()) {
+        const val = (values[field.key] ?? "").trim();
+        if (field.required !== false && !val) {
           setError(`${field.label} is required`);
           setSaving(false);
           return;
         }
-        body[field.key] = (values[field.key] ?? "").trim();
+        if (val) {
+          body[field.key] = field.type === "number" ? Number(val) : val;
+        }
       }
 
       const res = await fetch(`/api/gateways/${platform}`, {
@@ -135,7 +416,8 @@ export function SetupWizard({
       <div className="bg-bc-bg border border-bc-border/50 rounded-xl max-w-lg w-full mx-4 max-h-[85vh] overflow-auto shadow-2xl">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-bc-border">
-          <h2 className="text-[15px] font-semibold text-bc-text">
+          <h2 className="text-[15px] font-semibold text-bc-text flex items-center gap-2">
+            <span>{config.icon}</span>
             Connect {config.label}
           </h2>
           <button
@@ -168,9 +450,10 @@ export function SetupWizard({
             <div key={field.key}>
               <label className="block text-[11px] font-medium text-bc-muted mb-1">
                 {field.label}
+                {field.required === false && <span className="text-bc-muted/30 ml-1">(optional)</span>}
               </label>
               <input
-                type="password"
+                type={field.type === "url" ? "url" : field.type === "number" ? "text" : "password"}
                 value={values[field.key] ?? ""}
                 onChange={(e) => setValues((v) => ({ ...v, [field.key]: e.target.value }))}
                 placeholder={field.placeholder}
