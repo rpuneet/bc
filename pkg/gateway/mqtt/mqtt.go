@@ -40,9 +40,9 @@ func NewNamed(name, brokerURL, topic string) *Adapter {
 }
 
 func (a *Adapter) Name() string              { return a.name }
-func (a *Adapter) Type() gateway.AdapterType  { return gateway.AdapterSocket }
-func (a *Adapter) HTTPHandler() http.Handler  { return nil }
-func (a *Adapter) Stop() error                { return nil }
+func (a *Adapter) Type() gateway.AdapterType { return gateway.AdapterSocket }
+func (a *Adapter) HTTPHandler() http.Handler { return nil }
+func (a *Adapter) Stop() error               { return nil }
 
 // Start is a placeholder that blocks until ctx is canceled.
 // Real implementation requires an MQTT client library.

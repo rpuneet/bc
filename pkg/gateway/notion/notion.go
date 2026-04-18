@@ -37,17 +37,17 @@ type searchResult struct {
 
 // Adapter implements gateway.NotificationAdapter for Notion polling.
 type Adapter struct {
-	httpClient  *http.Client
-	handler     func(gateway.Notification)
-	seen        map[string]string // id → last_edited_time
-	lastPollAt  time.Time
-	name        string
-	token       string
-	lastError   string
-	mu          sync.Mutex
-	interval    int
-	connected   bool
-	msgCount    atomic.Int64
+	httpClient *http.Client
+	handler    func(gateway.Notification)
+	seen       map[string]string // id → last_edited_time
+	lastPollAt time.Time
+	name       string
+	token      string
+	lastError  string
+	mu         sync.Mutex
+	interval   int
+	connected  bool
+	msgCount   atomic.Int64
 }
 
 var _ gateway.NotificationAdapter = (*Adapter)(nil)

@@ -41,8 +41,8 @@ func NewNamed(name, secret string) *Adapter {
 }
 
 func (a *Adapter) Name() string              { return a.name }
-func (a *Adapter) Type() gateway.AdapterType  { return gateway.AdapterWebhook }
-func (a *Adapter) Stop() error                { return nil }
+func (a *Adapter) Type() gateway.AdapterType { return gateway.AdapterWebhook }
+func (a *Adapter) Stop() error               { return nil }
 
 // Start stores the handler.
 func (a *Adapter) Start(_ context.Context, handler func(gateway.Notification)) error {
@@ -120,8 +120,8 @@ func (a *Adapter) Status() gateway.AdapterStatus {
 // extractEvent pulls type and sender from a Google Chat event payload.
 func extractEvent(body []byte) (string, string) {
 	var event struct {
-		Type   string `json:"type"`
-		User   struct {
+		Type string `json:"type"`
+		User struct {
 			DisplayName string `json:"displayName"`
 		} `json:"user"`
 	}

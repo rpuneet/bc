@@ -34,10 +34,10 @@ type Adapter struct {
 var _ gateway.NotificationAdapter = (*Adapter)(nil)
 
 func New(token string) *Adapter              { return &Adapter{name: "grafana", token: token} }
-func NewNamed(name, token string) *Adapter    { return &Adapter{name: name, token: token} }
-func (a *Adapter) Name() string               { return a.name }
-func (a *Adapter) Type() gateway.AdapterType  { return gateway.AdapterWebhook }
-func (a *Adapter) Stop() error                { return nil }
+func NewNamed(name, token string) *Adapter   { return &Adapter{name: name, token: token} }
+func (a *Adapter) Name() string              { return a.name }
+func (a *Adapter) Type() gateway.AdapterType { return gateway.AdapterWebhook }
+func (a *Adapter) Stop() error               { return nil }
 func (a *Adapter) Start(_ context.Context, handler func(gateway.Notification)) error {
 	a.handler = handler
 	return nil

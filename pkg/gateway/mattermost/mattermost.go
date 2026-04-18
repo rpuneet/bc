@@ -41,8 +41,8 @@ func NewNamed(name, token string) *Adapter {
 }
 
 func (a *Adapter) Name() string              { return a.name }
-func (a *Adapter) Type() gateway.AdapterType  { return gateway.AdapterWebhook }
-func (a *Adapter) Stop() error                { return nil }
+func (a *Adapter) Type() gateway.AdapterType { return gateway.AdapterWebhook }
+func (a *Adapter) Stop() error               { return nil }
 
 // Start stores the handler.
 func (a *Adapter) Start(_ context.Context, handler func(gateway.Notification)) error {

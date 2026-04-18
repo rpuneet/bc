@@ -56,9 +56,9 @@ func NewNamed(name, homeserver, token string, intervalSeconds int) *Adapter {
 }
 
 func (a *Adapter) Name() string              { return a.name }
-func (a *Adapter) Type() gateway.AdapterType  { return gateway.AdapterPoll }
-func (a *Adapter) HTTPHandler() http.Handler  { return nil }
-func (a *Adapter) Stop() error                { return nil }
+func (a *Adapter) Type() gateway.AdapterType { return gateway.AdapterPoll }
+func (a *Adapter) HTTPHandler() http.Handler { return nil }
+func (a *Adapter) Stop() error               { return nil }
 
 // Start polls the Matrix /sync endpoint until ctx is canceled.
 func (a *Adapter) Start(ctx context.Context, handler func(gateway.Notification)) error {
