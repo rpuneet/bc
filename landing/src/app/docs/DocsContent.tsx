@@ -1490,6 +1490,12 @@ export default function DocsContent({
           } lg:relative lg:block lg:sticky lg:top-0 lg:h-screen lg:w-[260px] xl:w-[280px] shrink-0 border-r border-border overflow-y-auto transition-transform duration-300 ease-out lg:bg-muted/50 docs-sidebar-scroll`}
         >
           <div className="p-4 pt-20 lg:pt-6">
+            {/* Sidebar brand */}
+            <div className="mb-5 flex items-center gap-2">
+              <span className="font-mono text-sm text-primary">&gt;</span>
+              <span className="font-mono text-sm font-bold tracking-tight text-foreground">mycel<span className="animate-[blink_1s_step-end_infinite] text-primary">_</span></span>
+              <span className="ml-auto rounded-full border border-border bg-muted px-2 py-0.5 font-mono text-[10px] text-muted-foreground">v0.1.0</span>
+            </div>
             {/* Search */}
             <div className="relative mb-5 group/search">
               <Search

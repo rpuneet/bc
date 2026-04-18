@@ -1,5 +1,7 @@
 "use client";
 
+import { Nav } from "../_components/Nav";
+import { Footer } from "../_components/Footer";
 import {
   StaggerChildren,
   StaggerItem,
@@ -73,8 +75,9 @@ const PRINCIPLES = [
 export default function MethodPage() {
   return (
     <main className="min-h-screen bg-background">
+      <Nav />
       {/* Hero */}
-      <section className="py-24">
+      <section className="pt-32 pb-12">
         <div className="mx-auto max-w-3xl px-4 text-center">
           <FadeUp>
             <span className="mb-6 inline-block rounded-sm bg-surface-container-highest px-3 py-1 font-label text-xs uppercase tracking-widest text-primary">
@@ -129,6 +132,7 @@ export default function MethodPage() {
           ))}
         </StaggerChildren>
       </section>
+      <Footer />
     </main>
   );
 }

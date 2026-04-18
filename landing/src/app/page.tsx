@@ -109,7 +109,7 @@ export default function Home() {
               </h2>
             </div>
 
-            <div className="grid gap-6 md:grid-cols-3 md:gap-8">
+            <div className="grid gap-8 md:grid-cols-3 md:gap-6 lg:gap-8">
               {[
                 {
                   step: "01",
@@ -150,7 +150,7 @@ export default function Home() {
                   <div className="mb-4 font-mono text-xs font-bold uppercase tracking-[0.3em] text-muted-foreground/40">
                     {s.step}
                   </div>
-                  <TerminalWindow title={`step ${s.step}`}>
+                  <TerminalWindow title={`step ${s.step}`} className="min-h-[200px] [&_*]:text-[13px] sm:[&_*]:text-[14px]">
                     <CommandOutput
                       command={s.cmd}
                       lines={s.lines}

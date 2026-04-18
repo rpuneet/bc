@@ -321,35 +321,19 @@ export default function Product() {
           docsLink="/docs#commands"
         />
 
-        {/* ═══════════════════ ROLES & PERMISSIONS ═══════════════════ */}
+        {/* ═══════════════════ WEB DASHBOARD ═══════════════════ */}
         <FeatureSection
-          id="roles"
-          label="Roles & Permissions"
-          title="RBAC for your agent team."
-          description="Engineers implement. Managers assign. QA validates. Define roles as markdown files in .bc/roles/ and scope what each agent can do."
+          id="dashboard"
+          label="Web Dashboard"
+          title="15+ dashboard views, out of the box."
+          description="Agents, channels, costs, roles, tools, secrets, logs, cron jobs, and system health — all at localhost:9374. Roles define permissions as markdown. Tools are mix-and-match. Secrets are encrypted at rest."
           commands={[
-            'bc role list',
-            'bc role show engineer',
+            'bc up',
+            'bc status',
           ]}
           screenshot="/screenshots/dashboard-05-roles.png"
-          screenshotAlt="mycel Roles view showing configured roles with their capabilities and hierarchy"
+          screenshotAlt="mycel Web Dashboard showing roles, tools, secrets, logs, and system health views"
           imageFirst
-        />
-
-        {/* ═══════════════════ TOOL MANAGEMENT ═══════════════════ */}
-        <FeatureSection
-          id="tools"
-          label="Tool Management"
-          title="Add any AI tool. Mix and match."
-          description="Use Claude Code for complex features, Cursor for UI, Aider for quick fixes — all in the same workspace. mycel handles install, upgrade, and status."
-          commands={[
-            'bc tool list',
-            'bc tool add mytool --command "mytool --yes"',
-            'bc tool status claude',
-          ]}
-          screenshot="/screenshots/dashboard-06-tools.png"
-          screenshotAlt="mycel Tools view showing registered AI tools with their versions, installation status, and commands"
-          docsLink="/docs#commands"
         />
 
         {/* ═══════════════════ MCP INTEGRATION ═══════════════════ */}
@@ -381,81 +365,6 @@ export default function Product() {
           ]}
           screenshot="/screenshots/dashboard-08-cron.png"
           screenshotAlt="mycel Cron Jobs view showing scheduled jobs with their schedules, run counts, and last execution times"
-        />
-
-        {/* ═══════════════════ SECRETS ═══════════════════ */}
-        <FeatureSection
-          id="secrets"
-          label="Secrets Management"
-          title="Encrypted credentials, zero plaintext."
-          description="Store API keys via macOS Keychain, Linux libsecret, or AES-256-GCM. Agents get credentials injected at runtime. Nothing stored in plaintext."
-          commands={[
-            'bc secret set OPENAI_KEY',
-            'bc secret list',
-            'bc secret get GITHUB_TOKEN',
-          ]}
-          screenshot="/screenshots/dashboard-09-secrets.png"
-          screenshotAlt="mycel Secrets view showing stored secrets with encryption backend and creation dates"
-          imageFirst
-        />
-
-        {/* ═══════════════════ STATS ═══════════════════ */}
-        <FeatureSection
-          id="stats"
-          label="System Stats"
-          title="Full visibility into your workspace."
-          description="See agent counts, total spend, CPU/memory/disk usage, uptime, and channel activity — all in one view."
-          commands={[
-            'bc stats',
-            'bc status',
-          ]}
-          screenshot="/screenshots/dashboard-10-stats-loaded.png"
-          screenshotAlt="mycel Stats dashboard showing agent summary, system overview, resource usage bars, and runtime metrics"
-        />
-
-        {/* ═══════════════════ LOGS ═══════════════════ */}
-        <FeatureSection
-          id="logs"
-          label="Centralized Logs"
-          title="Every event, searchable and filterable."
-          description="Agent activity, channel messages, and system events stream into one log. Filter by agent, level, or time range to find exactly what happened."
-          commands={[
-            'bc logs',
-            'bc agent logs eng-01',
-          ]}
-          screenshot="/screenshots/dashboard-11-logs.png"
-          screenshotAlt="mycel Logs view showing a filterable stream of workspace events from agents and system"
-          imageFirst
-        />
-
-        {/* ═══════════════════ DAEMONS ═══════════════════ */}
-        <FeatureSection
-          id="daemons"
-          label="Daemon Processes"
-          title="Long-running services, managed."
-          description="Run background processes alongside your agents. mycel tracks their lifecycle, restarts on failure, and surfaces status in the dashboard."
-          commands={[
-            'bc status',
-            'bc doctor',
-          ]}
-          screenshot="/screenshots/dashboard-13-daemons.png"
-          screenshotAlt="mycel Daemons view showing running background processes with their status and uptime"
-        />
-
-        {/* ═══════════════════ DOCTOR ═══════════════════ */}
-        <FeatureSection
-          id="doctor"
-          label="System Health"
-          title="One command to check everything."
-          description="Run bc doctor to check workspace, database, agents, tools, MCP, secrets, git, and daemon. Run bc doctor fix to auto-repair what it can."
-          commands={[
-            'bc doctor',
-            'bc doctor check tools',
-            'bc doctor fix',
-          ]}
-          screenshot="/screenshots/dashboard-14-doctor.png"
-          screenshotAlt="mycel Doctor view showing system health checks across workspace, tools, agents, and configuration"
-          imageFirst
         />
 
         {/* ═══════════════════ WHY BC ═══════════════════ */}
