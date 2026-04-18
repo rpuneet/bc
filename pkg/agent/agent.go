@@ -476,6 +476,9 @@ type Manager struct {
 	// If zero, DefaultBootstrapDelay is used.
 	BootstrapDelay time.Duration
 
+	// gatewayConfig holds gateway credentials for injection into agent env vars.
+	gatewayConfig *workspace.GatewaysConfig
+
 	// maxLogBytes is the maximum log file size before truncation.
 	// Defaults to DefaultMaxLogBytes; overridden by ApplyWorkspaceConfig.
 	maxLogBytes int64
@@ -506,6 +509,7 @@ func (m *Manager) ApplyWorkspaceConfig(cfg *workspace.Config) {
 	if cfg.Logs.MaxBytes > 0 {
 		m.maxLogBytes = cfg.Logs.MaxBytes
 	}
+	m.gatewayConfig = &cfg.Gateways
 }
 
 // notifyStateChange calls the onStateChange callback if set.
@@ -982,6 +986,7 @@ func (m *Manager) startAgent(ctx context.Context, name string, opts SpawnOptions
 		env["BC_API_KEY"] = apiKey
 	}
 	injectEnv(env, wsPath, toolName, existing.EnvFile)
+	injectGatewayEnv(env, m.gatewayConfig)
 
 	rt := m.runtimeForAgent(name)
 	m.mu.Unlock()
@@ -1200,6 +1205,7 @@ func (m *Manager) createAgent(ctx context.Context, opts SpawnOptions) (*Agent, e
 		env["BC_API_KEY"] = apiKey
 	}
 	injectEnv(env, wsPath, effectiveTool, opts.EnvFile)
+	injectGatewayEnv(env, m.gatewayConfig)
 
 	rt := m.runtimeForAgent(name)
 	m.mu.Unlock()
@@ -2500,6 +2506,41 @@ func injectEnv(env map[string]string, workspacePath, _, envFile string) {
 	}
 	// Resolve ${secret:NAME} references in all env values
 	resolveSecretRefs(env, workspacePath)
+}
+
+// injectGatewayEnv injects platform credentials from gateway config into agent
+// environment variables so agents can call platform APIs directly.
+func injectGatewayEnv(env map[string]string, gw *workspace.GatewaysConfig) {
+	if gw == nil {
+		return
+	}
+	if gw.Slack != nil && gw.Slack.Enabled && gw.Slack.BotToken != "" {
+		env["SLACK_BOT_TOKEN"] = gw.Slack.BotToken
+	}
+	if gw.Slack != nil && gw.Slack.AppToken != "" {
+		env["SLACK_APP_TOKEN"] = gw.Slack.AppToken
+	}
+	if gw.Discord != nil && gw.Discord.Enabled && gw.Discord.BotToken != "" {
+		env["DISCORD_BOT_TOKEN"] = gw.Discord.BotToken
+	}
+	for label, tc := range gw.Telegrams {
+		if tc.Enabled && tc.BotToken != "" {
+			key := "TELEGRAM_BOT_TOKEN"
+			if label != "" {
+				key = "TELEGRAM_BOT_TOKEN_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
+			}
+			env[key] = tc.BotToken
+		}
+	}
+	for label, gc := range gw.GitHubs {
+		if gc.Enabled && gc.Secret != "" {
+			key := "GITHUB_WEBHOOK_SECRET"
+			if label != "" {
+				key = "GITHUB_WEBHOOK_SECRET_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
+			}
+			env[key] = gc.Secret
+		}
+	}
 }
 
 // resolveSecretRefs resolves ${secret:NAME} references in env values using the
