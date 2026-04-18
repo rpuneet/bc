@@ -727,30 +727,35 @@ func New(token string) *Adapter {
 
 func (a *Adapter) Name() string { return "myplatform" }
 
-func (a *Adapter) Start(ctx context.Context, handler func(gateway.InboundMessage)) error {
-    // 1. Connect to platform (WebSocket, long-poll, webhook server, etc.)
-    // 2. For each inbound event:
-    //    - Skip bot's own messages (self-filter)
-    //    - Extract sender name for self-skip
-    //    - Build InboundMessage with content, sender, channel info
-    //    - Call handler(msg)
-    // 3. Block until ctx.Done()
-    return nil
+func (a *Adapter) Start(ctx context.Context, handler func(gateway.Notification)) error {
+    // Connect to platform, forward raw events
+    for {
+        select {
+        case <-ctx.Done():
+            return nil
+        case event := <-a.events:
+            raw, _ := json.Marshal(event)
+            handler(gateway.Notification{
+                Channel:   extractChannel(event),
+                Platform:  "example",
+                Sender:    extractSender(event),
+                Timestamp: time.Now(),
+                Raw:       raw,
+            })
+        }
+    }
 }
 
-func (a *Adapter) Stop(ctx context.Context) error {
-    // Graceful disconnect
-    return nil
+func (a *Adapter) Stop() error { return a.conn.Close() }
+
+func (a *Adapter) Channels() []gateway.ChannelInfo {
+    return a.discovered
 }
 
-func (a *Adapter) Send(ctx context.Context, channelID, sender, content string) error {
-    // Send message to platform channel (v0.2 relay; removed in v0.3)
-    return nil
-}
+func (a *Adapter) HTTPHandler() http.Handler { return nil } // socket adapter
 
-func (a *Adapter) Channels(ctx context.Context) ([]gateway.ExternalChannel, error) {
-    // Return discovered channels/groups the bot can see
-    return nil, nil
+func (a *Adapter) Status() gateway.AdapterStatus {
+    return gateway.AdapterStatus{Connected: a.connected, MessageCount: a.count}
 }
 
 func (a *Adapter) Health(ctx context.Context) error {
@@ -894,37 +899,6 @@ bc channel status       -- gateway connection status + health
 ```
 
 All other operations (gateway setup, token management, `@mention` toggle) are done through the web UI.
-
----
-
-## Migration from v0.2
-
-The notification system has evolved through three iterations:
-
-| Version | Architecture | Status |
-|---------|-------------|--------|
-| v0.1 | `pkg/channel/` -- SQLite-backed messaging with reactions, FTS, message types | Deleted |
-| v0.2 | `pkg/gateway/` + `pkg/notify/` -- bidirectional gateway with `Adapter.Send()` | Current |
-| v0.3 | `pkg/gateway/` + `pkg/notify/` -- notification-only, no Send, raw JSON passthrough | Target |
-
-### What Changes from v0.2 to v0.3
-
-| Component | v0.2 (Current) | v0.3 (Target) |
-|-----------|---------------|---------------|
-| `Adapter` interface | Includes `Send()`, `SendFile()` methods | No outbound methods |
-| `InboundMessage` | Parsed fields (Content, Sender, ChannelName) | `Notification` with raw JSON passthrough |
-| `gateway.Manager.Send()` | Routes outbound messages to platform | Removed |
-| `gateway.Manager.SendFile()` | Routes file uploads to platform | Removed |
-| `FileSender` interface | Optional adapter capability | Removed |
-| Agent response | Via `gateway.Manager.Send()` or MCP | Direct platform API calls using env var credentials |
-
-### What Stays the Same
-
-- `subscriptions` table schema
-- `delivery_log` table schema
-- `notify.Service.Dispatch()` core logic (self-skip, mention filter, tmux send-keys)
-- Subscription REST API routes
-- Web UI subscription panel
 
 ---
 
