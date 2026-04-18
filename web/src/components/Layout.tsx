@@ -4,9 +4,9 @@ import { useTheme, THEME_LABELS } from "../context/ThemeContext";
 import { useMediaQuery } from "../hooks/useMediaQuery";
 import { CommandPalette } from "./CommandPalette";
 import { api } from "../api/client";
-import type { Channel, GatewayHealth, GatewayStatus, NotifySubscription } from "../api/client";
-import { channelPlatform } from "./channels/messageUtils";
-import { SetupWizard } from "./channels/SetupWizard";
+import type { NotificationSource, GatewayHealth, GatewayStatus, NotifySubscription } from "../api/client";
+import { sourcePlatform } from "./notifications/messageUtils";
+import { SetupWizard } from "./notifications/SetupWizard";
 import { Header } from "./Header";
 import { SidebarToggle, WorkspaceDropdown } from "./WorkspaceDropdown";
 import { HeaderSlotProvider, useHeaderSlotContext } from "../context/HeaderSlotContext";
@@ -56,15 +56,15 @@ function getPlatformMeta(p: string) {
   return PLATFORM_META[p] ?? { label: p, color: "#8c7e72" };
 }
 
-function displayChannelName(name: string): string {
+function displaySourceName(name: string): string {
   const idx = name.indexOf(":");
   return idx > 0 ? name.slice(idx + 1) : name;
 }
 
-/* ── Channel tree (inline in nav) ────────────────────────────── */
+/* ── Notification tree (inline in nav) ───────────────────────── */
 
-function ChannelNavTree() {
-  const [channels, setChannels] = useState<Channel[]>([]);
+function NotificationNavTree() {
+  const [sources, setSources] = useState<NotificationSource[]>([]);
   const [gateways, setGateways] = useState<GatewayStatus[]>([]);
   const [subs, setSubs] = useState<NotifySubscription[]>([]);
   const [health, setHealth] = useState<Map<string, GatewayHealth>>(new Map());
@@ -74,11 +74,11 @@ function ChannelNavTree() {
   const fetchData = useCallback(async () => {
     try {
       const [chs, gws, subList] = await Promise.all([
-        api.listChannels().catch(() => [] as Channel[]),
+        api.listNotificationSources().catch(() => [] as NotificationSource[]),
         api.listGateways().catch(() => [] as GatewayStatus[]),
         api.listSubscriptions().catch(() => [] as NotifySubscription[]),
       ]);
-      setChannels(chs ?? []);
+      setSources(chs ?? []);
       setGateways(gws ?? []);
       setSubs(subList ?? []);
 
@@ -119,12 +119,12 @@ function ChannelNavTree() {
   const gwMap = new Map<string, GatewayStatus>();
   for (const gw of gateways) gwMap.set(gw.platform, gw);
 
-  const bucketMap = new Map<string, Channel[]>();
-  for (const ch of channels) {
-    const p = channelPlatform(ch.name);
+  const bucketMap = new Map<string, NotificationSource[]>();
+  for (const src of sources) {
+    const p = sourcePlatform(src.name);
     if (p === "internal") continue;
     const list = bucketMap.get(p) ?? [];
-    list.push(ch);
+    list.push(src);
     bucketMap.set(p, list);
   }
   for (const gw of gateways) {
@@ -202,7 +202,7 @@ function ChannelNavTree() {
               return (
                 <NavLink
                   key={ch.name}
-                  to={"/channels/" + ch.name}
+                  to={"/notifications/" + ch.name}
                   className={({ isActive }) =>
                     `flex items-center gap-1 pl-7 pr-2 py-[4px] text-[11px] transition-all duration-100 rounded-r ${
                       isActive
@@ -216,7 +216,7 @@ function ChannelNavTree() {
                   })}
                 >
                   <span className="text-[8px] text-bc-muted/20">#</span>
-                  <span className="truncate">{displayChannelName(ch.name)}</span>
+                  <span className="truncate">{displaySourceName(ch.name)}</span>
                   {count > 0 && <span className="ml-auto text-[8px] text-bc-success/30 tabular-nums">{count}</span>}
                 </NavLink>
               );
@@ -269,7 +269,7 @@ function ChannelNavTree() {
 const MAIN_NAV_ITEMS = [
   { to: "/live", label: "Live", icon: "live" },
   { to: "/agents", label: "Agents", icon: "agents" },
-  { to: "/channels", label: "Notifications", icon: "notifications" },
+  { to: "/notifications", label: "Notifications", icon: "notifications" },
   { to: "/code", label: "Code", icon: "code" },
   { to: "/templates", label: "Templates", icon: "templates" },
   { to: "/tools", label: "Tools", icon: "tools" },
@@ -303,19 +303,19 @@ function NavList({
   items,
   collapsed,
   isMobile,
-  channelsExpanded,
+  notificationsExpanded,
   global = false,
 }: {
   items: ReadonlyArray<{ to: string; label: string; icon: string }>;
   collapsed: boolean;
   isMobile: boolean;
-  channelsExpanded?: boolean;
+  notificationsExpanded?: boolean;
   /** When true, render links verbatim — skip the /w/<id>/ prefix.
    *  Used for cross-workspace routes like /costs. */
   global?: boolean;
 }) {
   const isIconOnly = collapsed && !isMobile;
-  const showTree = !isIconOnly && channelsExpanded;
+  const showTree = !isIconOnly && notificationsExpanded;
   // Workspace-scoped targets get /w/<id>/ prefixed at render time.
   // Global items skip the prefix so they hit top-level routes.
   const { workspace } = useWorkspace();
@@ -324,13 +324,13 @@ function NavList({
   return (
     <>
       {items.map(({ to, label, icon }) => {
-        const isChannels = label === "Notifications";
+        const isNotifications = label === "Notifications";
         const scopedTo = `${prefix}${to}`;
         return (
           <li key={to}>
             <NavLink
               to={scopedTo}
-              end={!isChannels}
+              end={!isNotifications}
               title={isIconOnly ? label : undefined}
               className={({ isActive }) =>
                 `relative flex items-center gap-2.5 ${isIconOnly ? "justify-center px-2" : "pl-4 pr-3"} py-[7px] text-[13px] outline-none transition-colors duration-75 ${
@@ -350,7 +350,7 @@ function NavList({
                 <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse ml-auto" />
               )}
             </NavLink>
-            {isChannels && showTree && <ChannelNavTree />}
+            {isNotifications && showTree && <NotificationNavTree />}
           </li>
         );
       })}
@@ -375,13 +375,15 @@ export function Layout() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(readCollapsed);
 
-  // Keep channels tree expanded whenever the current URL is on the
-  // Notifications tab — both the workspace-scoped /w/:wsId/channels and the
+  // Keep notification tree expanded whenever the current URL is on the
+  // Notifications tab — both the workspace-scoped /w/:wsId/notifications and the
   // legacy /channels bookmark redirect. useMatch trailing /* also
-  // handles deep links like /w/:wsId/channels/foo.
-  const scopedChannels = useMatch("/w/:wsId/channels/*");
-  const legacyChannels = useMatch("/channels/*");
-  const channelsExpanded = Boolean(scopedChannels || legacyChannels);
+  // handles deep links like /w/:wsId/notifications/foo.
+  const scopedNotifications = useMatch("/w/:wsId/notifications/*");
+  const legacyNotifications = useMatch("/notifications/*");
+  const legacyChannelsRoute = useMatch("/channels/*");
+  const legacyChannelsScopedRoute = useMatch("/w/:wsId/channels/*");
+  const notificationsExpanded = Boolean(scopedNotifications || legacyNotifications || legacyChannelsRoute || legacyChannelsScopedRoute);
 
   const toggleCollapsed = useCallback(() => {
     setCollapsed((prev) => { const next = !prev; writeCollapsed(next); return next; });
@@ -470,7 +472,7 @@ export function Layout() {
             items={MAIN_NAV_ITEMS}
             collapsed={collapsed}
             isMobile={isMobile}
-            channelsExpanded={channelsExpanded}
+            notificationsExpanded={notificationsExpanded}
           />
           <li className={`my-1.5 ${collapsed && !isMobile ? "mx-2" : "mx-3"}`}>
             <div className="border-t border-bc-border/15" />

@@ -77,12 +77,15 @@ export interface AgentConfig {
   started_at: string;
 }
 
-export interface Channel {
+export interface NotificationSource {
   name: string;
   description: string;
   members: string[];
   member_count: number;
 }
+
+/** @deprecated Use NotificationSource instead */
+export type Channel = NotificationSource;
 
 export interface ChannelMessage {
   id: number;
@@ -666,7 +669,9 @@ export const api = {
       body: JSON.stringify({ message }),
     }),
 
-  listChannels: () => request<Channel[]>("/channels"),
+  listNotificationSources: () => request<NotificationSource[]>("/channels"),
+  /** @deprecated Use listNotificationSources instead */
+  listChannels: () => request<NotificationSource[]>("/channels"),
   getChannelHistory: (
     name: string,
     limit = 50,

@@ -1,40 +1,40 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { api } from "../api/client";
-import type { Channel } from "../api/client";
+import type { NotificationSource } from "../api/client";
 import { usePolling } from "../hooks/usePolling";
 import { AgentPeekPanel } from "../components/AgentPeekPanel";
 import { LoadingSkeleton } from "../components/LoadingSkeleton";
 import { EmptyState } from "../components/EmptyState";
-import { GatewayFeed } from "../components/channels/GatewayFeed";
+import { GatewayFeed } from "../components/notifications/GatewayFeed";
 
 import { useHeaderSlot } from "../context/HeaderSlotContext";
 import { TabHeaderTitle } from "../components/Header";
-export function Channels() {
+export function Notifications() {
   useHeaderSlot({ title: <TabHeaderTitle>Notifications</TabHeaderTitle> });
 
-  const { channelName: paramChannel } = useParams<{ channelName: string }>();
+  const { sourceName: paramSource } = useParams<{ sourceName: string }>();
   const navigate = useNavigate();
 
-  const fetcher = useCallback(() => api.listChannels(), []);
-  const { data: channels, loading, error, refresh, timedOut } = usePolling(fetcher, 10000);
+  const fetcher = useCallback(() => api.listNotificationSources(), []);
+  const { data: sources, loading, error, refresh, timedOut } = usePolling(fetcher, 10000);
 
-  const selected = paramChannel ?? null;
+  const selected = paramSource ?? null;
   const [peekAgent, setPeekAgent] = useState<string | null>(null);
 
-  // Auto-select first gateway channel if none selected
+  // Auto-select first gateway source if none selected
   useEffect(() => {
-    if (!selected && channels && channels.length > 0) {
-      const gwChannel = channels.find((c) =>
+    if (!selected && sources && sources.length > 0) {
+      const gwSource = sources.find((c) =>
         c.name.startsWith("slack:") || c.name.startsWith("telegram:") || c.name.startsWith("discord:")
       );
-      if (gwChannel) {
-        navigate("/channels/" + gwChannel.name, { replace: true });
+      if (gwSource) {
+        navigate("/notifications/" + gwSource.name, { replace: true });
       }
     }
-  }, [selected, channels, navigate]);
+  }, [selected, sources, navigate]);
 
-  if (loading && !channels) {
+  if (loading && !sources) {
     return (
       <div className="p-6 space-y-4">
         <div className="h-6 w-28 animate-pulse rounded bg-bc-border/50" />
@@ -43,7 +43,7 @@ export function Channels() {
     );
   }
 
-  if (timedOut && !channels) {
+  if (timedOut && !sources) {
     return (
       <div className="p-6">
         <EmptyState
@@ -57,7 +57,7 @@ export function Channels() {
     );
   }
 
-  if (error && !channels) {
+  if (error && !sources) {
     return (
       <div className="p-6">
         <EmptyState
@@ -71,16 +71,16 @@ export function Channels() {
     );
   }
 
-  const channelList = channels ?? [];
-  const selectedChannel = channelList.find((c: Channel) => c.name === selected);
+  const sourceList = sources ?? [];
+  const selectedSource = sourceList.find((c: NotificationSource) => c.name === selected);
 
-  // Check if there are any gateway channels
-  const hasGatewayChannels = channelList.some(
+  // Check if there are any gateway sources
+  const hasGatewaySources = sourceList.some(
     (c) => c.name.startsWith("slack:") || c.name.startsWith("telegram:") || c.name.startsWith("discord:")
   );
 
-  // Empty state: no gateway channels at all
-  if (!hasGatewayChannels) {
+  // Empty state: no gateway sources at all
+  if (!hasGatewaySources) {
     return (
       <div className="flex h-full items-center justify-center">
         <div className="max-w-lg text-center px-6">
@@ -126,7 +126,7 @@ export function Channels() {
         {selected ? (
           <GatewayFeed
             channelName={selected}
-            channel={selectedChannel}
+            channel={selectedSource}
             onPeekAgent={setPeekAgent}
           />
         ) : (

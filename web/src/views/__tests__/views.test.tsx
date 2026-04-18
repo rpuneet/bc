@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { Agents } from "../Agents";
-import { Channels } from "../Channels";
+import { Notifications } from "../Notifications";
 import { Tools } from "../Tools";
 import { Live } from "../Live";
 import { Cron } from "../Cron";
@@ -54,29 +54,28 @@ describe("Agents", () => {
   });
 });
 
-describe("Channels", () => {
-  it("renders skeleton loading then empty state when no gateway channels", async () => {
-    // pkg/channel was deleted; channels are now gateway-backed.
-    // An empty response means no gateway channels are connected yet.
+describe("Notifications", () => {
+  it("renders skeleton loading then empty state when no gateway sources", async () => {
+    // An empty response means no gateway notification sources are connected yet.
     fetchMock.mockReturnValue(jsonResponse([]));
-    const { container } = wrap(<Channels />);
+    const { container } = wrap(<Notifications />);
     expectSkeletonLoading(container);
     await waitFor(() => {
-      // The Channels view shows "Connect your first app" when no gateway channels exist.
+      // The Notifications view shows "Connect your first app" when no gateway sources exist.
       expect(screen.getByText("Connect your first app")).toBeInTheDocument();
     });
   });
 
-  it("renders empty state for gateway channels", async () => {
-    // Simulate a slack gateway channel — the frontend renders a feed view.
+  it("renders empty state for gateway notification sources", async () => {
+    // Simulate a slack gateway source — the frontend renders a feed view.
     fetchMock.mockReturnValue(
       jsonResponse([
         { name: "slack:general", description: "Gateway channel", members: [], member_count: 0 },
       ]),
     );
-    wrap(<Channels />);
+    wrap(<Notifications />);
     await waitFor(() => {
-      // When a gateway channel exists but none is selected, shows "Select a notification source".
+      // When a gateway source exists but none is selected, shows "Select a notification source".
       expect(screen.getByText("Select a notification source")).toBeInTheDocument();
     });
   });

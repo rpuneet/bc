@@ -12,7 +12,7 @@ import {
 const Live = lazy(() => import("./views/Live").then((m) => ({ default: m.Live })));
 const Agents = lazy(() => import("./views/Agents").then((m) => ({ default: m.Agents })));
 const AgentDetail = lazy(() => import("./views/AgentDetail").then((m) => ({ default: m.AgentDetail })));
-const Channels = lazy(() => import("./views/Channels").then((m) => ({ default: m.Channels })));
+const Notifications = lazy(() => import("./views/Notifications").then((m) => ({ default: m.Notifications })));
 const Templates = lazy(() => import("./views/Templates").then((m) => ({ default: m.Templates })));
 const Tools = lazy(() => import("./views/Tools").then((m) => ({ default: m.Tools })));
 const ProviderDetail = lazy(() => import("./views/ProviderDetail").then((m) => ({ default: m.ProviderDetail })));
@@ -70,8 +70,11 @@ export function App() {
                   <Route path="agents" element={wrap(<Agents />)} />
                   <Route path="agents/:name" element={wrap(<AgentDetail />)} />
                   <Route path="agents/:name/*" element={wrap(<AgentDetail />)} />
-                  <Route path="channels" element={wrap(<Channels />)} />
-                  <Route path="channels/:channelName" element={wrap(<Channels />)} />
+                  <Route path="notifications" element={wrap(<Notifications />)} />
+                  <Route path="notifications/:sourceName" element={wrap(<Notifications />)} />
+                  {/* Legacy /channels redirects within workspace scope */}
+                  <Route path="channels" element={<Navigate to="../notifications" replace />} />
+                  <Route path="channels/:channelName" element={<Navigate to="../notifications" replace />} />
                   <Route path="templates" element={wrap(<Templates />)} />
                   <Route path="tools" element={wrap(<Tools />)} />
                   <Route path="tools/:provider" element={wrap(<ProviderDetail />)} />
@@ -94,8 +97,11 @@ export function App() {
                 <Route path="logs" element={<RedirectToActiveWorkspace tab="live" />} />
                 <Route path="agents" element={<RedirectToActiveWorkspace tab="agents" />} />
                 <Route path="agents/*" element={<RedirectToActiveWorkspace tab="agents" />} />
-                <Route path="channels" element={<RedirectToActiveWorkspace tab="channels" />} />
-                <Route path="channels/*" element={<RedirectToActiveWorkspace tab="channels" />} />
+                <Route path="notifications" element={<RedirectToActiveWorkspace tab="notifications" />} />
+                <Route path="notifications/*" element={<RedirectToActiveWorkspace tab="notifications" />} />
+                {/* Legacy /channels redirects */}
+                <Route path="channels" element={<RedirectToActiveWorkspace tab="notifications" />} />
+                <Route path="channels/*" element={<RedirectToActiveWorkspace tab="notifications" />} />
                 <Route path="templates" element={<RedirectToActiveWorkspace tab="templates" />} />
                 <Route path="tools" element={<RedirectToActiveWorkspace tab="tools" />} />
                 <Route path="tools/*" element={<RedirectToActiveWorkspace tab="tools" />} />

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
-import type { Agent, Channel, GatewayStatus, NotifySubscription } from "../../api/client";
+import type { Agent, NotificationSource, GatewayStatus, NotifySubscription } from "../../api/client";
 import { api } from "../../api/client";
-import { channelPlatform, agentColor, getRoleColor } from "./messageUtils";
+import { sourcePlatform, agentColor, getRoleColor } from "./messageUtils";
 import { SetupWizard } from "./SetupWizard";
 
 const PLATFORM_META: Record<string, { label: string; color: string }> = {
@@ -21,12 +21,12 @@ function displayName(name: string): string {
   return idx > 0 ? name.slice(idx + 1) : name;
 }
 
-export function ChannelSidebar({
+export function NotificationSidebar({
   channels,
   selected,
   onSelect,
 }: {
-  channels: Channel[];
+  channels: NotificationSource[];
   selected: string | null;
   onSelect: (name: string) => void;
 }) {
@@ -34,7 +34,7 @@ export function ChannelSidebar({
   const [allSubs, setAllSubs] = useState<NotifySubscription[]>([]);
   const [agents, setAgents] = useState<Agent[]>([]);
   const [setupPlatform, setSetupPlatform] = useState<string | null>(null);
-  const [view, setView] = useState<"channels" | "agents">("channels");
+  const [view, setView] = useState<"sources" | "agents">("sources");
   const [expandedGw, setExpandedGw] = useState<Set<string>>(new Set(["slack", "telegram", "discord"]));
 
   const fetchData = useCallback(async () => {
@@ -66,20 +66,20 @@ export function ChannelSidebar({
 
   // Subscription counts
   const subCountMap = new Map<string, number>();
-  const channelSubs = new Map<string, Set<string>>();
+  const sourceSubs = new Map<string, Set<string>>();
   for (const sub of allSubs) {
     subCountMap.set(sub.channel, (subCountMap.get(sub.channel) ?? 0) + 1);
-    if (!channelSubs.has(sub.channel)) channelSubs.set(sub.channel, new Set());
-    channelSubs.get(sub.channel)!.add(sub.agent);
+    if (!sourceSubs.has(sub.channel)) sourceSubs.set(sub.channel, new Set());
+    sourceSubs.get(sub.channel)!.add(sub.agent);
   }
 
   // Build gateway buckets
   const gwMap = new Map<string, GatewayStatus>();
   for (const gw of gateways) gwMap.set(gw.platform, gw);
 
-  const bucketMap = new Map<string, Channel[]>();
+  const bucketMap = new Map<string, NotificationSource[]>();
   for (const ch of channels) {
-    const p = channelPlatform(ch.name);
+    const p = sourcePlatform(ch.name);
     if (p === "internal") continue;
     const list = bucketMap.get(p) ?? [];
     list.push(ch);
@@ -93,7 +93,7 @@ export function ChannelSidebar({
   const unconfigured = Object.keys(PLATFORM_META).filter(p => !configuredPlatforms.has(p));
 
   // Agents for current channel
-  const currentChannelAgents = selected ? channelSubs.get(selected) ?? new Set() : new Set();
+  const currentSourceAgents = selected ? sourceSubs.get(selected) ?? new Set() : new Set();
 
   const handleSubscribe = async (agent: string) => {
     if (!selected) return;
@@ -120,9 +120,9 @@ export function ChannelSidebar({
       <div className="flex border-b border-bc-border/30">
         <button
           type="button"
-          onClick={() => setView("channels")}
+          onClick={() => setView("sources")}
           className={`flex-1 py-2.5 text-[10px] font-bold uppercase tracking-[0.12em] transition-colors ${
-            view === "channels"
+            view === "sources"
               ? "text-bc-text border-b-2 border-bc-accent"
               : "text-bc-muted/40 hover:text-bc-muted/70"
           }`}
@@ -138,14 +138,14 @@ export function ChannelSidebar({
               : "text-bc-muted/40 hover:text-bc-muted/70"
           }`}
         >
-          Agents {currentChannelAgents.size > 0 && (
-            <span className="text-bc-success ml-1">{currentChannelAgents.size}</span>
+          Agents {currentSourceAgents.size > 0 && (
+            <span className="text-bc-success ml-1">{currentSourceAgents.size}</span>
           )}
         </button>
       </div>
 
       <div className="flex-1 overflow-auto py-1">
-        {view === "channels" ? (
+        {view === "sources" ? (
           /* ── Notifications view ──────────────────────────── */
           <>
             {[...bucketMap.entries()].map(([platform, chs]) => {
@@ -237,14 +237,14 @@ export function ChannelSidebar({
             ) : (
               <>
                 {/* Listening/subscribed agents */}
-                {agents.filter(a => currentChannelAgents.has(a.name)).length > 0 && (
+                {agents.filter(a => currentSourceAgents.has(a.name)).length > 0 && (
                   <div>
                     <div className="px-3 pt-2 pb-1">
                       <span className="text-[9px] font-bold text-bc-success/60 uppercase tracking-[0.08em]">
-                        Listening ({agents.filter(a => currentChannelAgents.has(a.name)).length})
+                        Listening ({agents.filter(a => currentSourceAgents.has(a.name)).length})
                       </span>
                     </div>
-                    {agents.filter(a => currentChannelAgents.has(a.name)).map((agent) => {
+                    {agents.filter(a => currentSourceAgents.has(a.name)).map((agent) => {
                       const isOnline = agent.state === "running" || agent.state === "working";
                       const roleColor = getRoleColor(agent.role);
                       return (
@@ -273,8 +273,8 @@ export function ChannelSidebar({
                 )}
 
                 {/* Divider */}
-                {agents.filter(a => currentChannelAgents.has(a.name)).length > 0 &&
-                  agents.filter(a => !currentChannelAgents.has(a.name)).length > 0 && (
+                {agents.filter(a => currentSourceAgents.has(a.name)).length > 0 &&
+                  agents.filter(a => !currentSourceAgents.has(a.name)).length > 0 && (
                   <div className="mx-3 my-1.5 border-t border-bc-border/15" />
                 )}
 
@@ -285,7 +285,7 @@ export function ChannelSidebar({
                       Add to notifications
                     </span>
                   </div>
-                  {agents.filter(a => !currentChannelAgents.has(a.name)).sort((a, b) => a.name.localeCompare(b.name)).map((agent) => {
+                  {agents.filter(a => !currentSourceAgents.has(a.name)).sort((a, b) => a.name.localeCompare(b.name)).map((agent) => {
                     const isOnline = agent.state === "running" || agent.state === "working";
                     const isStopped = agent.state === "stopped";
                     return (

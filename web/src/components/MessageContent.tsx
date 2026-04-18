@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
  * - URLs become clickable links (images rendered inline)
  * - **bold** text
  * - `code` backticks
- * - #channel references link to /channels/<name>
+ * - #channel references link to /notifications/<name>
  * - @mentions link to agent detail page
  * - [file:ID] attachment references rendered as inline images or download links
  */
@@ -24,7 +24,7 @@ const IMAGE_EXT = /\.(png|jpg|jpeg|gif|webp|svg)(\?|$)/i;
 /** Tokenize and render inline formatting. */
 function parseContent(text: string, agentNames?: Set<string>): ReactNode[] {
   // Split on patterns we want to handle, preserving delimiters
-  // Order matters: file refs, URLs first (greedy), then bold, then code, then #channel, then @mention
+  // Order matters: file refs, URLs first (greedy), then bold, then code, then #notification source, then @mention
   const pattern =
     /(\[file:[a-zA-Z0-9_-]+\])|(https?:\/\/[^\s<>)"']+)|(\*\*(?:[^*]|\*(?!\*))+\*\*)|(`[^`]+`)|(\B#(?=[a-zA-Z0-9_-]*[a-zA-Z])[a-zA-Z0-9_-]+\b)|(@[a-zA-Z0-9_-]+)/g;
 
@@ -108,12 +108,12 @@ function parseContent(text: string, agentNames?: Set<string>): ReactNode[] {
         </code>,
       );
     } else if (match[5]) {
-      // #channel reference → link to /channels/<name>
-      const channelName = full.slice(1);
+      // #channel reference → link to /notifications/<name>
+      const sourceName = full.slice(1);
       nodes.push(
         <a
           key={key}
-          href={`/channels/${channelName}`}
+          href={`/notifications/${sourceName}`}
           className="text-bc-accent font-medium hover:underline"
         >
           {full}

@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { api } from "../../api/client";
 import type {
   Agent,
-  Channel,
+  NotificationSource,
   ChannelMessage,
   DeliveryEntry,
   NotifySubscription,
@@ -49,7 +49,7 @@ export function GatewayFeed({
   onPeekAgent,
 }: {
   channelName: string;
-  channel?: Channel;
+  channel?: NotificationSource;
   onPeekAgent: (name: string) => void;
 }) {
   const PAGE_SIZE = 30;

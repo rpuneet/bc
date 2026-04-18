@@ -1,13 +1,16 @@
 import type { ChannelMessage } from "../../api/client";
 
-/** Gateway channels are bridges to external platforms — read-only activity feeds. */
+/** Gateway notification sources are bridges to external platforms — read-only activity feeds. */
 export const GATEWAY_PREFIXES = ["slack:", "telegram:", "discord:"];
 
-export function isGatewayChannel(name: string): boolean {
+export function isGatewaySource(name: string): boolean {
   return GATEWAY_PREFIXES.some((p) => name.startsWith(p));
 }
 
-/** Extract platform name from gateway channel for display. */
+/** @deprecated Use isGatewaySource instead */
+export const isGatewayChannel = isGatewaySource;
+
+/** Extract platform name from gateway source for display. */
 export function gatewayPlatform(name: string): string | null {
   for (const p of GATEWAY_PREFIXES) {
     if (name.startsWith(p)) return p.slice(0, -1);
@@ -15,13 +18,16 @@ export function gatewayPlatform(name: string): string | null {
   return null;
 }
 
-/** Derive platform bucket key from channel name. */
-export function channelPlatform(name: string): string {
+/** Derive platform bucket key from source name. */
+export function sourcePlatform(name: string): string {
   for (const p of GATEWAY_PREFIXES) {
     if (name.startsWith(p)) return p.slice(0, -1);
   }
   return "internal";
 }
+
+/** @deprecated Use sourcePlatform instead */
+export const channelPlatform = sourcePlatform;
 
 export interface MessageGroup {
   sender: string;
