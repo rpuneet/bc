@@ -91,8 +91,6 @@ export default function MethodPage() {
               Practices for orchestrating AI agent teams.
             </p>
           </FadeUp>
-          <FadeUp delay={0.3}>
-          </FadeUp>
         </div>
       </section>
 

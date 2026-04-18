@@ -96,9 +96,6 @@ export default function WaitlistPage() {
   return (
     <main className="hero-glow flex min-h-screen items-center justify-center bg-background">
       <div className="mx-auto max-w-2xl px-4 text-center">
-        <FadeUp>
-        </FadeUp>
-
         <FadeUp delay={0.1}>
           <h1 className="font-headline text-4xl font-bold tracking-tight text-on-background lg:text-6xl">
             Orchestrate{" "}
