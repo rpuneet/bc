@@ -64,16 +64,16 @@ func TestManagerIsGatewayChannel(t *testing.T) {
 	}
 }
 
-func TestManagerExternalChannels(t *testing.T) {
+func TestManagerDiscoveredSources(t *testing.T) {
 	m := NewManager()
-	if len(m.ExternalChannels()) != 0 {
+	if len(m.DiscoveredSources()) != 0 {
 		t.Error("expected empty list")
 	}
 
 	m.channelMap["telegram:marketing"] = channelRoute{Platform: "telegram"}
 	m.channelMap["slack:general"] = channelRoute{Platform: "slack"}
 
-	channels := m.ExternalChannels()
+	channels := m.DiscoveredSources()
 	if len(channels) != 2 {
 		t.Errorf("expected 2 channels, got %d", len(channels))
 	}

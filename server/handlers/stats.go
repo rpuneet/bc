@@ -180,7 +180,7 @@ func (h *StatsHandler) summary(w http.ResponseWriter, r *http.Request) {
 	// Channel stats from gateway + notify subscriptions
 	var channelsTotal, messagesTotal int
 	if h.gw != nil {
-		channelsTotal = len(h.gw.ExternalChannels())
+		channelsTotal = len(h.gw.DiscoveredSources())
 	}
 	if h.notifySvc != nil {
 		if subs, err := h.notifySvc.AllSubscriptions(ctx); err == nil {

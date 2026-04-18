@@ -107,7 +107,7 @@ func (h *GatewayHandler) gatewayChannels(w http.ResponseWriter, r *http.Request,
 			writeJSON(w, http.StatusOK, []string{})
 			return
 		}
-		extChannels := h.gw.ExternalChannels()
+		extChannels := h.gw.DiscoveredSources()
 		prefix := platform + ":"
 		var channels []map[string]string
 		for _, ch := range extChannels {
@@ -371,7 +371,7 @@ func (h *GatewayHandler) list(w http.ResponseWriter, r *http.Request) {
 
 	// Enrich with discovered channels and bot name from adapter status
 	if h.gw != nil {
-		extChannels := h.gw.ExternalChannels()
+		extChannels := h.gw.DiscoveredSources()
 		for i := range platforms {
 			prefix := platforms[i].Platform + ":"
 			for _, ch := range extChannels {
@@ -481,7 +481,7 @@ func (h *GatewayHandler) legacyChannelList(w http.ResponseWriter, r *http.Reques
 
 	// From gateway manager (discovered channels)
 	if h.gw != nil {
-		for _, ch := range h.gw.ExternalChannels() {
+		for _, ch := range h.gw.DiscoveredSources() {
 			seen[ch] = true
 			channels = append(channels, legacyChannel{
 				Name:        ch,
@@ -590,7 +590,7 @@ func (h *GatewayHandler) activity(w http.ResponseWriter, r *http.Request) {
 	// Aggregate activity across all gateway channels
 	var gwChannelNames []string
 	if h.gw != nil {
-		gwChannelNames = h.gw.ExternalChannels()
+		gwChannelNames = h.gw.DiscoveredSources()
 	}
 	if len(gwChannelNames) == 0 {
 		writeJSON(w, http.StatusOK, []notify.DeliveryEntry{})

@@ -337,8 +337,8 @@ func (m *Manager) persistChannel(bcChannel, platform, platformID string) {
 	}()
 }
 
-// ExternalChannels returns all discovered external channels.
-func (m *Manager) ExternalChannels() []string {
+// DiscoveredSources returns all discovered external channels.
+func (m *Manager) DiscoveredSources() []string {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	names := make([]string, 0, len(m.channelMap))
