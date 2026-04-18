@@ -389,10 +389,11 @@ export function SetupWizard({
         }
       }
 
-      const res = await fetch(`/api/gateways/${platform}`, {
+      // Save gateway config via settings API
+      const res = await fetch("/api/settings", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+        body: JSON.stringify({ gateways: { [platform]: body } }),
       });
 
       if (!res.ok) {
