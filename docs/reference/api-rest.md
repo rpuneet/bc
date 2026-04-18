@@ -471,7 +471,7 @@ Server-Sent Events stream.
 | `agent.stopped` | `{name, reason}` | Agent stopped |
 | `agent.deleted` | `{name}` | Agent deleted |
 | `agent.state_changed` | `{name, state, task}` | State transition (idle/working/stuck) |
-| `gateway.message` | `{channel, platform, sender, content}` | Inbound platform message |
+| `gateway.message` | `{channel, platform, sender, content, mentions}` | Inbound platform message |
 | `cost.updated` | `{agent, cost_usd, tokens}` | Cost import completed |
 | `team.updated` | `{team_id, action}` | Team membership changed |
 

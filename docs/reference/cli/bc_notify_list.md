@@ -1,26 +1,25 @@
 ## bc notify list
 
-List all notification sources with subscriber counts
+List all agent subscriptions
 
 ### Synopsis
 
-Display all notification sources discovered by connected gateway adapters, along with the number of agents subscribed to each source.
+Display all agent subscriptions across all notification channels. Each subscription maps an agent to a channel (format: `platform:channel_name`) with an optional `@mention only` filter.
 
 ### Examples
 
 ```bash
-bc notify list                  # List all sources
+bc notify list                  # List all subscriptions
 bc notify list --json           # JSON output
 ```
 
 ### Description
 
-Lists every notification source across all connected gateways. Each source represents a channel or event stream on an external platform. The output includes:
+Lists every agent subscription. The output includes:
 
-- Source name (format: `platform:channel`)
-- Platform (slack, telegram, github, etc.)
-- Number of subscribed agents
-- Gateway connection status
+- Channel name (format: `platform:channel_name`, e.g., `slack:engineering`)
+- Subscribed agent name
+- Whether `@mention only` filtering is enabled
 
 ```
 bc notify list [flags]
@@ -29,13 +28,13 @@ bc notify list [flags]
 ### Options
 
 ```
+      --json   Output as JSON
   -h, --help   help for list
 ```
 
 ### Options inherited from parent commands
 
 ```
-      --json      Output in JSON format
   -v, --verbose   Enable verbose output
 ```
 

@@ -8,10 +8,15 @@ This package defines the `Adapter` interface and `Manager` that orchestrate conn
 
 ## Key Types
 
-- **`Adapter`** -- interface that each platform implements (Start, Stop, Channels)
+- **`NotificationAdapter`** -- current interface that each platform implements (Name, Type, Start, Stop, HTTPHandler, Channels, Status)
+- **`MessageSender`** -- optional interface for adapters that support outbound messaging (Send)
 - **`Manager`** -- registers adapters, discovers channels, routes inbound events
-- **`InboundMessage`** -- normalized inbound event from a platform
-- **`ExternalChannel`** -- a channel/group discovered on a platform
+- **`Notification`** -- normalized inbound event from a platform (Channel, Platform, Sender, Mentions, Timestamp, Raw)
+- **`ChannelInfo`** -- a channel/group discovered on a platform (ID, Name, Platform)
+- **`AdapterStatus`** -- connection state reported to the web UI (Connected, Error, BotName, LastMessageAt, MessageCount)
+- **`Adapter`** -- legacy interface (deprecated, kept during migration)
+- **`InboundMessage`** -- legacy normalized message (deprecated, use Notification)
+- **`ExternalChannel`** -- legacy channel type (deprecated, use ChannelInfo)
 
 ## Adapters
 
@@ -23,4 +28,4 @@ This package defines the `Adapter` interface and `Manager` that orchestrate conn
 
 ## Architecture
 
-See [docs/architecture/channels.md](../../docs/architecture/channels.md) for the full channel architecture, including message flow diagrams, credential injection, and how to add new adapters.
+See [docs/architecture/notifications.md](../../docs/architecture/notifications.md) for the full notification architecture, including message flow diagrams, credential injection, and how to add new adapters.

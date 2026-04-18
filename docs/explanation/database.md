@@ -46,7 +46,7 @@ erDiagram
     agents }o--o| roles : "has role"
     roles ||--o{ role_mcp_servers : uses
     roles ||--o{ role_secrets : needs
-    subscriptions ||--o{ delivery_log : "deliveries per subscription"
+    notify_subscriptions ||--o{ notify_delivery_log : "deliveries per subscription"
     agents ||--o{ cost_records : generates
     agents ||--o{ events : logs
     agents ||--o{ agent_sessions : "session history"
@@ -84,27 +84,28 @@ erDiagram
         blob commands "JSON map"
         integer created_at "unix millis"
     }
-    subscriptions {
+    notify_subscriptions {
         integer id PK
-        text source "platform:channel"
+        text channel "platform:channel_name"
         text agent "NOT NULL"
         integer mention_only "0|1"
         text created_at "ISO8601"
     }
-    notification_log {
+    notify_messages {
         integer id PK
-        text source "NOT NULL"
+        text channel "NOT NULL"
         text sender "NOT NULL"
-        text raw "full platform JSON"
+        text content "NOT NULL"
         text created_at "ISO8601"
     }
-    delivery_log {
+    notify_delivery_log {
         integer id PK
-        text source "NOT NULL"
+        text logged_at "ISO8601"
+        text channel "NOT NULL"
         text agent "NOT NULL"
         text status "delivered|failed|pending"
         text error "nullable"
-        text created_at "ISO8601"
+        text preview "nullable"
     }
     cost_records {
         integer id PK
@@ -144,14 +145,14 @@ erDiagram
 
 ## Timestamp Convention
 
-All timestamps: `INTEGER` storing Unix milliseconds (`time.Now().UnixMilli()` in Go).
+Most tables use `INTEGER` storing Unix milliseconds (`time.Now().UnixMilli()` in Go): `agents`, `teams`, `team_members`, `roles`, `cost_records`, `events`, `secrets`, `mcp_servers`, `cron_jobs`, `cron_logs`.
 
-| Benefit | Detail |
-|---------|--------|
-| Storage | 8 bytes vs 20-24 for TEXT |
-| Range queries | Integer compare vs string compare |
-| Go marshaling | `time.UnixMilli(ts)` — trivial |
-| Human queries | `datetime(ts/1000, 'unixepoch')` in SQLite |
+The notification tables (`notify_subscriptions`, `notify_messages`, `notify_delivery_log`, `notify_gateways`, `notify_channels`) use `TEXT` storing ISO 8601 timestamps (`strftime('%Y-%m-%dT%H:%M:%SZ', 'now')` in SQLite, `TIMESTAMPTZ DEFAULT NOW()` in Postgres).
+
+| Format | Tables | Go Read | SQLite Query |
+|--------|--------|---------|--------------|
+| INTEGER (Unix ms) | agents, teams, costs, events, secrets, cron | `time.UnixMilli(ts)` | `datetime(ts/1000, 'unixepoch')` |
+| TEXT (ISO 8601) | notify_* | `time.Parse(time.RFC3339, s)` | Direct string comparison |
 
 ## Index Strategy
 

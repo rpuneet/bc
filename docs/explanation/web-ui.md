@@ -239,8 +239,8 @@ graph LR
         I["/ — Dashboard"]
         A["/agents — Agent list"]
         AD["/agents/:name — Agent detail<br/>(terminal peek, cost, logs)"]
-        CH["/notifications — Notification sources"]
-        CHD["/notifications/:name — Notification source detail"]
+        CH["/channels — Notification channels"]
+        CHD["/channels/:channelName — Channel detail"]
         CO["/costs — Cost overview"]
         T_List["/teams — Team list"]
         T_Detail["/teams/:name — Team detail<br/>(members, config, metrics)"]
@@ -276,9 +276,11 @@ Navigation is a static `NAV_ITEMS` array in `Layout.tsx`. Each entry has a `to` 
 | `api.startAgent(name)` | `POST /api/agents/:name/start` | Agents |
 | `api.stopAgent(name)` | `POST /api/agents/:name/stop` | Agents |
 | `api.sendToAgent(name, msg)` | `POST /api/agents/:name/send` | Agents |
-| `api.listGateways()` | `GET /api/gateways` | Dashboard, Notifications |
-| `api.getGatewayChannels(gw)` | `GET /api/gateways/:gw/channels` | Notifications |
-| `api.getChannelActivity(gw, ch)` | `GET /api/gateways/:gw/channels/:ch/activity` | Notifications |
+| `api.listGateways()` | `GET /api/gateways` | Dashboard, Channels |
+| `api.listChannels()` | `GET /api/channels` | Channels |
+| `api.getChannelHistory(name, limit, before)` | `GET /api/channels/:name/history` | Channels |
+| `api.getChannelSubscriptions(channel)` | `GET /api/gateways/:gw/channels/:ch/agents` or `/api/notify/subscriptions/:channel` | Channels |
+| `api.getChannelActivity(channel, limit)` | `GET /api/gateways/:gw/channels/:ch/activity` or `/api/notify/activity/:channel` | Channels |
 | `api.getCostSummary()` | `GET /api/costs` | Dashboard, Costs |
 | `api.getCostByAgent()` | `GET /api/costs/agents` | Costs |
 | `api.listRoles()` | `GET /api/roles` | Roles |
@@ -320,7 +322,7 @@ graph TD
     end
 
     subgraph tui ["tui/"]
-        TuiHooks["hooks/<br/>useAgents, useNotifications"]
+        TuiHooks["hooks/<br/>useAgents, usePolling"]
     end
 
     pkg -->|"import @bc/api"| WebHooks
@@ -417,7 +419,7 @@ graph TD
 |---|---|---|---|
 | Dashboard | 5s | -- | `listAgents`, `listGateways`, `getCostSummary` |
 | Agents | 5s | `agent.state_changed` | `listAgents`, `startAgent`, `stopAgent`, `sendToAgent` |
-| Notifications | 10s (list) | `gateway.message` | `listGateways`, `getGatewayChannels`, `getChannelActivity` |
+| Channels | 10s (list) | `gateway.message` | `listGateways`, `listChannels`, `getChannelHistory`, `getChannelActivity` |
 | Costs | 10s | -- | `getCostSummary`, `getCostByAgent` |
 | Roles | 30s | -- | `listRoles` + full CRUD |
 | Tools | 30s | -- | `listTools` |

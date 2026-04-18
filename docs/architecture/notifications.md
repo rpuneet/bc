@@ -290,70 +290,71 @@ Three tables track subscriptions and delivery. Adapter status lives in memory, n
 
 ```mermaid
 erDiagram
-    subscriptions {
+    notify_subscriptions {
         INTEGER id PK
-        TEXT source
+        TEXT channel
         TEXT agent
         INTEGER mention_only
         TEXT created_at
     }
 
-    notification_log {
+    notify_messages {
         INTEGER id PK
-        TEXT source
+        TEXT channel
         TEXT sender
-        TEXT raw
+        TEXT content
         TEXT created_at
     }
 
-    delivery_log {
+    notify_delivery_log {
         INTEGER id PK
         TEXT logged_at
-        TEXT source
+        TEXT channel
         TEXT agent
         TEXT status
         TEXT error
-        TEXT created_at
+        TEXT preview
     }
 
-    subscriptions ||--o{ delivery_log : "deliveries per subscription"
+    notify_subscriptions ||--o{ notify_delivery_log : "deliveries per subscription"
 ```
 
 ### SQL DDL
 
 ```sql
-CREATE TABLE IF NOT EXISTS subscriptions (
+CREATE TABLE IF NOT EXISTS notify_subscriptions (
     id           INTEGER PRIMARY KEY AUTOINCREMENT,
-    source       TEXT NOT NULL,          -- "slack:engineering", "github:bc"
+    channel      TEXT NOT NULL,          -- "slack:engineering", "telegram:bc-dev"
     agent        TEXT NOT NULL,
     mention_only INTEGER NOT NULL DEFAULT 0,
     created_at   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
-    UNIQUE(source, agent)
+    UNIQUE(channel, agent)
 );
 
-CREATE TABLE IF NOT EXISTS notification_log (
+CREATE TABLE IF NOT EXISTS notify_messages (
     id         INTEGER PRIMARY KEY AUTOINCREMENT,
-    source     TEXT NOT NULL,
+    channel    TEXT NOT NULL,
     sender     TEXT NOT NULL,
-    raw        TEXT,                     -- full platform JSON payload
+    content    TEXT NOT NULL,
     created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
 );
 
-CREATE TABLE IF NOT EXISTS delivery_log (
-    id         INTEGER PRIMARY KEY AUTOINCREMENT,
-    source     TEXT NOT NULL,
-    agent      TEXT NOT NULL,
-    status     TEXT NOT NULL CHECK(status IN ('delivered', 'failed', 'pending')),
-    error      TEXT,
-    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+CREATE TABLE IF NOT EXISTS notify_delivery_log (
+    id        INTEGER PRIMARY KEY AUTOINCREMENT,
+    logged_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+    channel   TEXT NOT NULL,
+    agent     TEXT NOT NULL,
+    status    TEXT NOT NULL CHECK(status IN ('delivered', 'failed', 'pending')),
+    error     TEXT,
+    preview   TEXT
 );
 ```
 
 | Table | Purpose |
 |-------|---------|
-| `subscriptions` | Maps agents to notification sources. `UNIQUE(source, agent)`. |
-| `notification_log` | Stores raw inbound events for the web UI feed. |
-| `delivery_log` | Records every delivery attempt per agent (delivered/failed). |
+| `notify_subscriptions` | Maps agents to notification channels. `UNIQUE(channel, agent)`. |
+| `notify_messages` | Stores inbound messages for the web UI activity feed. |
+| `notify_delivery_log` | Records every delivery attempt per agent (delivered/failed/pending). |
 
 ### Retention Policy
 
@@ -434,7 +435,7 @@ Settings are per-agent, per-channel.
 | Panel | Content |
 |-------|---------|
 | **Left sidebar** | Gateway dropdowns with channel lists. Unconnected gateways show a "Setup" link. |
-| **Main area** | Activity feed with delivery status badges. Polls every 5s and receives live WebSocket updates. |
+| **Main area** | Activity feed with delivery status badges. Polls every 5s and receives live SSE updates via `/api/events`. |
 | **Right panel** | Agent list with online indicators, role badges, and `@mention` toggle. |
 
 ### SSE Events
@@ -535,32 +536,42 @@ All endpoints are served by bcd at `http://127.0.0.1:9374`. No authentication (l
 
 ```
 GET    /api/gateways                                              -- list all gateways + status
-POST   /api/gateways                                              -- connect a new gateway
-PATCH  /api/gateways/{gateway}                                    -- update tokens/settings
-DELETE /api/gateways/{gateway}                                    -- disconnect and remove
-GET    /api/gateways/{gateway}/health                             -- live connection probe
-GET    /api/gateways/{gateway}/setup                              -- platform setup instructions
-```
-
-### Notification Discovery
-
-```
-GET    /api/gateways/{gateway}/channels                           -- discovered channels
-GET    /api/gateways/{gateway}/channels/{channel}                 -- channel detail + subscribers
+PATCH  /api/gateways/{platform}                                   -- update tokens/settings
+GET    /api/gateways/{platform}/health                            -- live connection probe
+GET    /api/gateways/{platform}/channels                          -- discovered channels
+GET    /api/gateways/{platform}/channels/{channel}                -- channel detail + subscribers
+POST   /api/gateways/{platform}/channels/{channel}/send           -- send outbound message
 ```
 
 ### Agent Subscription Management
 
+Gateway-scoped routes:
+
 ```
-POST   /api/gateways/{gateway}/channels/{channel}/agents          -- subscribe agent
-DELETE /api/gateways/{gateway}/channels/{channel}/agents/{agent}  -- unsubscribe agent
-PATCH  /api/gateways/{gateway}/channels/{channel}/agents/{agent}  -- toggle mention_only
+GET    /api/gateways/{platform}/channels/{channel}/agents          -- list subscribers
+POST   /api/gateways/{platform}/channels/{channel}/agents          -- subscribe agent
+DELETE /api/gateways/{platform}/channels/{channel}/agents/{agent}  -- unsubscribe agent
+PATCH  /api/gateways/{platform}/channels/{channel}/agents/{agent}  -- toggle mention_only
+GET    /api/gateways/{platform}/channels/{channel}/activity        -- delivery log entries
+```
+
+Flat notify routes (work for any channel, not just gateway-scoped):
+
+```
+GET    /api/notify/subscriptions                                   -- list all subscriptions
+POST   /api/notify/subscriptions                                   -- subscribe agent
+GET    /api/notify/subscriptions/{channel}                         -- list subscribers for channel
+DELETE /api/notify/subscriptions/{channel}?agent={agent}           -- unsubscribe agent
+PATCH  /api/notify/subscriptions/{channel}                         -- update subscription
+GET    /api/notify/activity/{channel}                              -- delivery log entries
 ```
 
 ### Activity Feed
 
 ```
-GET    /api/gateways/{gateway}/channels/{channel}/activity        -- delivery log entries
+GET    /api/gateways/activity                                     -- aggregate activity across all gateway channels
+GET    /api/channels                                              -- legacy channel list (gateway + subscribed)
+GET    /api/channels/{name}/history                               -- legacy message history
 ```
 
 ## Package Reference

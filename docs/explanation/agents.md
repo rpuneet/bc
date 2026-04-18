@@ -166,4 +166,4 @@ Agents receive notifications from external platforms via `tmux send-keys` -- the
 
 Agents subscribe to notification sources (`platform:channel`) and can filter with `mention_only` to receive only events where they are @mentioned.
 
-On delivery failure: logged to `delivery_log`, retried on next dispatch cycle.
+On delivery failure: logged to `notify_delivery_log` with status `failed` and the error message. There is no automatic retry -- failed deliveries are recorded for observability and the next inbound message will attempt delivery independently.
