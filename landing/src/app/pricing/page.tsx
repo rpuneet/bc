@@ -122,7 +122,7 @@ export default function PricingPage() {
           <FadeUp delay={0.1}>
             <p className="mx-auto mt-6 max-w-xl text-lg text-on-surface-variant">
               Simple, transparent pricing. Run it locally for free, or scale to
-              the cloud when you&apos;re ready to cook.
+              the cloud when you&apos;re ready to scale.
             </p>
           </FadeUp>
         </div>

@@ -46,7 +46,7 @@ export function HeroSection() {
             AI In a Box.
             <br />
             <span className="text-muted-foreground/40">
-              Let them cook.
+              Orchestrate AI agents from your terminal.
             </span>
           </motion.h1>
 
