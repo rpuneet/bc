@@ -92,7 +92,7 @@ make clean-deps            # Remove artifacts + node_modules
 - **pkg/** → reusable packages:
   - **agent/** → agent lifecycle, Manager, SpawnOptions, role setup
   - **attachment/** → file attachment handling
-  - **channel/** → SQLite-backed inter-agent communication with reactions
+  - **channel/** → (legacy, being removed) SQLite-backed inter-agent communication
   - **client/** → HTTP client for bcd API
   - **container/** → Docker runtime backend
   - **cost/** → cost tracking, budgets, import from Claude
@@ -100,7 +100,7 @@ make clean-deps            # Remove artifacts + node_modules
   - **db/** → database utilities and connection management
   - **doctor/** → workspace health diagnostics
   - **events/** → event log (SQLite)
-  - **gateway/** → API gateway routing
+  - **gateway/** → inbound notification adapters for external platforms (Slack, Telegram, Discord, etc.)
   - **log/** → structured logging
   - **mcp/** → Model Context Protocol client/server
   - **names/** → agent name generation
@@ -126,7 +126,7 @@ make clean-deps            # Remove artifacts + node_modules
 
 - **Agents**: Isolated AI assistants in tmux sessions, each with own git worktree. Have roles (root, engineer, manager) with capabilities. State in `.bc/agents/<name>/`.
 - **Workspace**: Project dir with `.bc/` subdirectory for config, state, logs. Uses settings.json (v2) config format.
-- **Channels**: SQLite-backed persistent inter-agent communication with reactions.
+- **Channels**: Inbound notification-only gateways connecting external platforms (Slack, Telegram, etc.) to agents. See [docs/architecture/channels.md](docs/architecture/channels.md).
 - **Memory**: Per-agent persistent knowledge (experiences, learnings).
 - **Runtime backends**: Agents run in either tmux sessions or Docker containers, configured via `[runtime]` in settings.json.
 - **Roles**: Defined in `.bc/roles/*.md` with capabilities (create_agents, assign_work, implement_tasks, etc.) and hierarchy.
@@ -197,5 +197,5 @@ make build-docker-agent-base       # Build agent base image
 - cmd imports pkg, never vice versa; pkg packages are self-contained
 - Workspace access: `workspace.Load(rootDir)` / `workspace.Init(rootDir)`
 - Agent operations: `ws.Agents(ctx)`, `agent.Start(ctx, ws, name, role)`
-- Channel communication: `ws.Channel(name)`, `ch.Send(agentName, message)`
+- Channel communication: notification-only inbound via `pkg/gateway` + `pkg/notify`
 - Use interfaces for loose coupling between packages

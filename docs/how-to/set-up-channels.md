@@ -1,133 +1,68 @@
-# Channel Message Conventions
+# Set Up Channels
 
-This document defines the standard message formats for bc's channel-based PR workflow.
+Channels connect external platforms (Slack, Telegram, Discord, etc.) to your bc agents as **inbound notification gateways**. Agents receive raw platform events and respond using injected credentials.
 
-## Channel Types
+For the full architecture, see [Channel Architecture](../architecture/channels.md).
 
-### #all
-Broadcast channel for system-wide announcements and nudges.
+## Connect a Platform
 
-### #reviews
-PR workflow channel for review requests, approvals, and merge notifications.
+### Slack
 
-## Message Formats
-
-### Review Request
-
-```
-@<target> PR #<number> ready for review
-```
-
-**Examples:**
-- `@tech-lead PR #123 ready for review`
-- `@tech-lead-01 PR #456 ready for review: Add user authentication`
-
-**With URL:**
-- `@tech-lead PR #789 ready for review: https://github.com/org/repo/pull/789`
-
-### Approval
-
-```
-PR #<number> approved [checkmark]
-LGTM PR #<number>
-PR #<number> looks good
-```
-
-**Examples:**
-- `PR #123 approved`
-- `LGTM PR #456`
-- `PR #789 looks good to me`
-
-### Changes Requested
-
-```
-PR #<number> needs changes: <reason>
-PR #<number> please fix <issue>
-```
-
-**Examples:**
-- `PR #123 needs changes: fix the failing tests`
-- `PR #456 please fix the formatting issues`
-
-### Merge Notification
-
-```
-PR #<number> merged to <branch>
-Merged PR #<number>
-```
-
-**Examples:**
-- `PR #123 merged to main`
-- `Merged PR #456`
-- `PR #789 pushed to develop`
-
-## Parsing Rules
-
-### PR Number Extraction
-PR numbers are extracted using pattern: `(?i)(?:pr\s*#?|#)(\d+)`
-- Matches: `PR #123`, `PR 123`, `#123`, `pr#456`
-- Does NOT match standalone numbers like agent IDs: `tech-lead-01`
-
-### @Mentions
-Mentions are extracted using pattern: `@([a-zA-Z0-9_-]+)`
-- Matches: `@tech-lead`, `@tech-lead-01`, `@user_name`
-
-### Approval Detection
-Approvals are detected by these patterns (case-insensitive):
-- `approved`
-- `lgtm`
-- `looks good`
-- `ship it`
-
-### Changes Requested Detection
-Change requests are detected by these patterns (case-insensitive):
-- `needs changes`
-- `changes requested`
-- `please fix`
-- `needs work`
-
-### Merge Detection
-Merges are detected by these patterns (case-insensitive):
-- `merged`
-- `merge to`
-- `pushed to`
-
-## Workflow
-
-1. **Engineer** opens PR, posts to #reviews:
+1. Create a Slack app at [api.slack.com/apps](https://api.slack.com/apps)
+2. Enable Socket Mode
+3. Add scopes: `channels:read`, `connections:write`
+4. Copy the bot token and app-level token
+5. Store credentials:
+   ```bash
+   bc secret set GATEWAY_SLACK_BOT_TOKEN xoxb-...
+   bc secret set GATEWAY_SLACK_APP_TOKEN xapp-...
    ```
-   @tech-lead-01 PR #123 ready for review
+6. Invite the bot to the channels you want to monitor
+
+### Telegram
+
+1. Message [@BotFather](https://t.me/BotFather) with `/newbot`
+2. Copy the bot token
+3. Store credential:
+   ```bash
+   bc secret set GATEWAY_TELEGRAM_BOT_TOKEN 123456:ABC...
    ```
+4. Add the bot to your groups
+5. Optionally disable privacy mode for full message access
 
-2. **Tech Lead** reviews and responds:
-   - Approved: `PR #123 approved`
-   - Needs work: `PR #123 needs changes: please add tests`
+### Discord
 
-3. **Automation** detects approval, notifies manager:
+1. Create an app at the [Discord Developer Portal](https://discord.com/developers/applications)
+2. Enable the `MESSAGE_CONTENT` intent
+3. Copy the bot token
+4. Store credential:
+   ```bash
+   bc secret set GATEWAY_DISCORD_BOT_TOKEN ...
    ```
-   @manager PR #123 approved by tech-lead-01 - ready to merge to main
-   ```
+5. Generate an invite URL and add the bot to your server
 
-4. **Manager** merges and posts:
-   ```
-   PR #123 merged to main
-   ```
+## Subscribe Agents
 
-## Message Types
+```bash
+bc channel subscribe --channel slack:engineering --agent eng-01
+bc channel subscribe --channel telegram:bc-dev --agent eng-02 --mention-only
+```
 
-| Type | Code | Description |
-|------|------|-------------|
-| text | `TypeText` | Regular conversation |
-| task | `TypeTask` | Work assignment with @mention |
-| review | `TypeReview` | PR review request |
-| approval | `TypeApproval` | Tech lead approval |
-| merge | `TypeMerge` | Merge request/notification |
-| status | `TypeStatus` | Agent status update |
+## Unsubscribe Agents
 
-## Code Reference
+```bash
+bc channel unsubscribe --channel slack:engineering --agent eng-01
+```
 
-The parsing and formatting functions are in `pkg/channel/`:
-- `review_request.go` - Review request parsing/formatting
-- `approval_message.go` - Approval and merge message handling
-- `automation.go` - Approval-to-merge workflow automation
-- `message_type.go` - Message type definitions
+## Check Status
+
+```bash
+bc channel list       # all channels across gateways with subscriber counts
+bc channel status     # gateway connection status + health
+```
+
+## How Agents Respond
+
+bc does **not** send outbound messages. Agents use injected platform credentials (environment variables) to call platform APIs directly. Identity instructions in the agent's system prompt tell it how to identify itself on each platform.
+
+See [Channel Architecture -- Credential Injection](../architecture/channels.md#credential-injection) for details.

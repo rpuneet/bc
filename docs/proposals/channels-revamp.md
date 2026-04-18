@@ -1,6 +1,8 @@
 # Proposal: Channels Revamp — Notification Gateway
 
-> **Status:** Proposal (v3) &nbsp;|&nbsp; **Author:** zen-zebra &nbsp;|&nbsp; **Date:** 2026-04-09 &nbsp;|&nbsp; **Issue:** [#2947](https://github.com/gh-curious-otter/bc/issues/2947)
+> **Status:** Superseded by [Channel Architecture](../architecture/channels.md) &nbsp;|&nbsp; **Author:** zen-zebra &nbsp;|&nbsp; **Date:** 2026-04-09 &nbsp;|&nbsp; **Issue:** [#2947](https://github.com/gh-curious-otter/bc/issues/2947)
+>
+> **Note:** This proposal described a bidirectional gateway with `Adapter.Send()`. The final architecture is **inbound notification-only** with raw JSON passthrough. Agents handle outbound using injected credentials. See [docs/architecture/channels.md](../architecture/channels.md) for the current design.
 
 ---
 

@@ -35,7 +35,7 @@ This document describes the internal architecture of bc, covering component rela
        |  +-----v----------------v----------------v-------+  |
        |  |              Service Layer                     |  |
        |  |                                                |  |
-       |  |  AgentService    ChannelService   TeamService  |  |
+       |  |  AgentService    NotifyService   TeamService  |  |
        |  |  CostStore       SecretStore      CronService  |  |
        |  |  DaemonManager   EventLog         RoleManager  |  |
        |  |  ToolStore       MCPStore         StatsHandler |  |
@@ -200,12 +200,13 @@ cmd/bc/          -->  internal/cmd/  -->  pkg/client/
 cmd/bcd/         -->  server/        -->  pkg/*
 
 server/
-  handlers/      -->  pkg/agent/, pkg/channel/, pkg/cost/, ...
-  mcp/           -->  pkg/agent/, pkg/channel/, pkg/cost/
+  handlers/      -->  pkg/agent/, pkg/gateway/, pkg/notify/, pkg/cost/, ...
+  mcp/           -->  pkg/agent/, pkg/notify/, pkg/cost/
 
 pkg/ (self-contained, no cross-imports between packages)
   agent/         -->  pkg/tmux/, pkg/git/
-  channel/       -->  (SQLite only)
+  gateway/       -->  pkg/notify/ (inbound notification adapters)
+  notify/        -->  (SQLite, tmux send-keys delivery)
   cost/          -->  (SQLite only)
   workspace/     -->  config/
   tmux/          -->  (external: tmux binary)

@@ -31,7 +31,7 @@ All communication flows through **bcd** as the central hub. No component talks d
 
 ## Message Delivery Flow
 
-When a message is sent to a channel, it's delivered to all members:
+When an external platform notification arrives, it is delivered to subscribed agents:
 
 ```mermaid
 sequenceDiagram
@@ -120,7 +120,7 @@ bcd maintains an in-memory SSE hub. All connected clients (web UI, TUI) receive 
 graph LR
     subgraph Sources
         AGENT_SVC[Agent Service]
-        CHAN_SVC[Channel Service]
+        NOTIFY_SVC[Notify Service]
         COST_SVC[Cost Importer]
     end
 
@@ -133,7 +133,7 @@ graph LR
     end
 
     AGENT_SVC -->|agent.created<br/>agent.stopped<br/>agent.state| HUB
-    CHAN_SVC -->|channel.message| HUB
+    NOTIFY_SVC -->|gateway.message| HUB
     HUB --> WEB1
     HUB --> WEB2
     HUB --> TUI1
@@ -150,7 +150,7 @@ graph LR
 | `agent.deleted` | Agent deleted | `{"name"}` |
 | `agent.renamed` | Agent renamed | `{"old_name","new_name"}` |
 | `agents.stopped_all` | All agents stopped | `{"count"}` |
-| `channel.message` | New message posted | `{"channel","message"}` |
+| `gateway.message` | Notification received from external platform | `{"channel","platform","sender"}` |
 
 ## Request/Response Format
 
