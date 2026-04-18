@@ -5,6 +5,7 @@ Task-oriented guides for common operations.
 | Guide | Description |
 |-------|-------------|
 | [Configure your workspace](configure-workspace.md) | Settings file structure, providers, runtime backends, and validation |
-| [Troubleshoot issues](troubleshoot.md) | Common errors and solutions for installation, agents, channels, and performance |
+| [Set up notifications](set-up-notifications.md) | Connect external platforms and subscribe agents |
+| [Troubleshoot issues](troubleshoot.md) | Common errors and solutions for installation, agents, notifications, and performance |
 
-For channel setup and configuration, see the [Channel Architecture](../architecture/channels.md) reference.
+For notification architecture details, see the [Notification Architecture](../architecture/notifications.md) reference.

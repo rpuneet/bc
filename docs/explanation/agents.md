@@ -160,17 +160,10 @@ erDiagram
 | PUT | `/api/roles/{id}` | Update |
 | DELETE | `/api/roles/{id}` | Delete (agents keep config) |
 
-## Channel Auto-Enrollment
+## Notification Delivery
 
-On creation with a team, agent joins:
-1. `#all` (broadcast)
-2. `#general`
-3. Team-specific channels
+Agents receive notifications from external platforms via `tmux send-keys` -- the only mechanism to inject into a running session. Notifications are delivered as JSON payloads containing the full platform event.
 
-## Message Delivery
+Agents subscribe to notification sources (`platform:channel`) and can filter with `mention_only` to receive only events where they are @mentioned.
 
-Via `tmux send-keys` — the only mechanism to inject into a running Claude session.
-
-Format: `[#channel @sender] message content`
-
-On failure: logged, queued for retry. Agent receives missed messages via channel history on reconnect.
+On delivery failure: logged to `delivery_log`, retried on next dispatch cycle.
