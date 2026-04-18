@@ -1,8 +1,8 @@
 /**
- * ChannelsView — Gateway tree + message feed (channels revamp)
+ * NotificationsView — Gateway tree + message feed (notifications revamp)
  *
  * Left panel: gateway tree grouped by @bot_name
- * Right panel: message feed for selected channel
+ * Right panel: message feed for selected notification source
  * Footer: key bindings
  */
 
@@ -46,11 +46,11 @@ interface GatewayBucket {
 
 type Mode = 'tree' | 'feed' | 'connect' | 'token';
 
-type ChannelsViewProps = Record<string, never>;
+type NotificationsViewProps = Record<string, never>;
 
 /* ── Component ────────────────────────────────────────────────── */
 
-export function ChannelsView(_props: ChannelsViewProps = {}): React.ReactElement {
+export function NotificationsView(_props: NotificationsViewProps = {}): React.ReactElement {
   const { theme } = useTheme();
   const { isDisabled: disableInput } = useDisableInput();
   const { setBreadcrumbs, clearBreadcrumbs } = useNavigation();
@@ -309,7 +309,7 @@ export function ChannelsView(_props: ChannelsViewProps = {}): React.ReactElement
   /* ── Render ─────────────────────────────────────────────────── */
 
   if (loading && channels.length === 0) {
-    return <LoadingIndicator message="Loading channels..." />;
+    return <LoadingIndicator message="Loading notifications..." />;
   }
 
   if (error && channels.length === 0) {
@@ -327,7 +327,7 @@ export function ChannelsView(_props: ChannelsViewProps = {}): React.ReactElement
     <Box flexDirection="column" width="100%">
       {/* Header */}
       <Box paddingX={1}>
-        <Text bold color={theme.colors.primary}>Channels</Text>
+        <Text bold color={theme.colors.primary}>Notifications</Text>
         <Text dimColor> ({String(channels.length)})</Text>
       </Box>
 
@@ -422,8 +422,8 @@ export function ChannelsView(_props: ChannelsViewProps = {}): React.ReactElement
         <Box flexDirection="column" flexGrow={1} borderStyle="single" borderColor={mode === 'feed' ? theme.colors.primary : 'gray'} paddingX={1}>
           {!selectedChannel ? (
             <Box flexDirection="column" justifyContent="center" alignItems="center" flexGrow={1}>
-              <Text dimColor>Select a channel to view messages</Text>
-              <Text dimColor>[Enter] on a channel in the tree</Text>
+              <Text dimColor>Select a source to view notifications</Text>
+              <Text dimColor>[Enter] on a source in the tree</Text>
             </Box>
           ) : feedLoading ? (
             <Box flexDirection="column" justifyContent="center" alignItems="center" flexGrow={1}>
@@ -499,4 +499,4 @@ export function ChannelsView(_props: ChannelsViewProps = {}): React.ReactElement
   );
 }
 
-export default ChannelsView;
+export default NotificationsView;

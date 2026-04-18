@@ -84,9 +84,9 @@ export function HelpView(): React.ReactElement {
       },
       {
         type: 'section' as const,
-        title: 'Channels',
+        title: 'Notifications',
         shortcuts: [
-          { keys: 'Enter', desc: 'View channel history' },
+          { keys: 'Enter', desc: 'View notification history' },
           { keys: 'm', desc: 'Compose message' },
           { keys: 'j/k', desc: 'Scroll messages' },
           { keys: 'c', desc: 'Clear draft' },

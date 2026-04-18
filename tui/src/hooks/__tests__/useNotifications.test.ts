@@ -1,12 +1,12 @@
 /**
- * useChannels hook tests (#1081)
+ * useNotifications hook tests (#1081)
  *
  * Tests cover:
  * - Type interfaces (Channel, ChannelMessage, ChannelHistory)
- * - useChannels options and result states
+ * - useNotifications options and result states
  * - useChannelHistory options and send functionality
  * - useUnreadCount behavior
- * - useChannelsWithUnread behavior
+ * - useNotificationsWithUnread behavior
  * - Polling configuration
  * - Error handling
  */
@@ -15,7 +15,7 @@ import { describe, test, expect } from 'bun:test';
 import type { Channel, ChannelMessage, ChannelHistory, ChannelsResponse } from '../../types';
 
 // Test Channel interface structure
-describe('useChannels Types', () => {
+describe('useNotifications Types', () => {
   describe('Channel interface', () => {
     test('has required name field', () => {
       const channel: Channel = {
@@ -123,7 +123,7 @@ describe('useChannels Types', () => {
 });
 
 // Test helper functions that would be used by useChannels
-describe('useChannels Helper Functions', () => {
+describe('useNotifications Helper Functions', () => {
   describe('Channel filtering', () => {
     const channels: Channel[] = [
       { name: 'engineering', members: ['eng-01', 'eng-02'] },
@@ -274,7 +274,7 @@ describe('useChannels Helper Functions', () => {
 });
 
 // Test result state combinations
-describe('useChannels Result States', () => {
+describe('useNotifications Result States', () => {
   test('initial loading state', () => {
     const state = {
       data: null,
@@ -301,12 +301,12 @@ describe('useChannels Result States', () => {
   test('error state', () => {
     const state = {
       data: null,
-      error: 'Failed to fetch channels',
+      error: 'Failed to fetch notifications',
       loading: false,
     };
     expect(state.loading).toBe(false);
     expect(state.data).toBeNull();
-    expect(state.error).toBe('Failed to fetch channels');
+    expect(state.error).toBe('Failed to fetch notifications');
   });
 
   test('empty data state', () => {
@@ -351,7 +351,7 @@ describe('useChannelHistory Result States', () => {
 });
 
 // Test useChannelsOptions
-describe('useChannels Options', () => {
+describe('useNotifications Options', () => {
   test('default options', () => {
     const options = {};
     const pollInterval = (options as { pollInterval?: number }).pollInterval ?? 5000;
@@ -422,7 +422,7 @@ describe('useUnreadCount Behavior', () => {
 });
 
 // Test channels with unread
-describe('useChannelsWithUnread', () => {
+describe('useNotificationsWithUnread', () => {
   test('returns channels with unread property', () => {
     const channels: (Channel & { unread: number })[] = [
       { name: 'engineering', members: ['eng-01'], unread: 3 },
@@ -454,10 +454,10 @@ describe('useChannelsWithUnread', () => {
 });
 
 // Test error message formatting
-describe('useChannels Error Handling', () => {
+describe('useNotifications Error Handling', () => {
   test('formats Error instance message', () => {
     const formatError = (err: unknown) =>
-      err instanceof Error ? err.message : 'Failed to fetch channels';
+      err instanceof Error ? err.message : 'Failed to fetch notifications';
 
     const error = new Error('Network timeout');
     expect(formatError(error)).toBe('Network timeout');
@@ -465,11 +465,11 @@ describe('useChannels Error Handling', () => {
 
   test('provides default message for non-Error', () => {
     const formatError = (err: unknown) =>
-      err instanceof Error ? err.message : 'Failed to fetch channels';
+      err instanceof Error ? err.message : 'Failed to fetch notifications';
 
-    expect(formatError('string error')).toBe('Failed to fetch channels');
-    expect(formatError(null)).toBe('Failed to fetch channels');
-    expect(formatError(undefined)).toBe('Failed to fetch channels');
+    expect(formatError('string error')).toBe('Failed to fetch notifications');
+    expect(formatError(null)).toBe('Failed to fetch notifications');
+    expect(formatError(undefined)).toBe('Failed to fetch notifications');
   });
 
   test('formats history error', () => {

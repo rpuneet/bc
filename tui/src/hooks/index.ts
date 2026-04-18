@@ -21,15 +21,19 @@ export {
 } from './useStatus';
 
 export {
-  useChannels,
+  useNotifications,
+  useNotifications as useChannels,
   useChannelHistory,
   useUnreadCount,
-  useChannelsWithUnread,
-  type UseChannelsOptions,
-  type UseChannelsResult,
+  useNotificationsWithUnread,
+  useNotificationsWithUnread as useChannelsWithUnread,
+  type UseNotificationsOptions,
+  type UseNotificationsOptions as UseChannelsOptions,
+  type UseNotificationsResult,
+  type UseNotificationsResult as UseChannelsResult,
   type UseChannelHistoryOptions,
   type UseChannelHistoryResult,
-} from './useChannels';
+} from './useNotifications';
 
 export { useCosts, type UseCostsOptions, type UseCostsResult } from './useCosts';
 

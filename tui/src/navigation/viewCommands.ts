@@ -28,7 +28,7 @@ export const ACTION_COMMANDS: ActionCommand[] = [
 export const VIEW_COMMANDS: ViewCommand[] = [
   { command: 'dashboard', aliases: ['dash', 'd'], view: 'dashboard', section: 'CORE' },
   { command: 'agents', aliases: ['ag', 'a'], view: 'agents', section: 'CORE' },
-  { command: 'channels', aliases: ['ch', 'c'], view: 'channels', section: 'CORE' },
+  { command: 'notifications', aliases: ['notif', 'no', 'n'], view: 'notifications', section: 'CORE' },
   { command: 'costs', aliases: ['co', 'cost'], view: 'costs', section: 'CORE' },
   { command: 'logs', aliases: ['log', 'l'], view: 'logs', section: 'CORE' },
   { command: 'tools', aliases: ['tool', 't'], view: 'tools', section: 'SYSTEM' },

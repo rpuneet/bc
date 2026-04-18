@@ -1,6 +1,6 @@
 /**
- * ChannelHistoryView - Message history and compose view for a channel
- * Extracted from ChannelsView.tsx (#1590)
+ * NotificationHistoryView - Message history and compose view for a notification source
+ * Extracted from NotificationsView.tsx (#1590)
  */
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
@@ -29,7 +29,7 @@ function calculateInputHeight(messageLength: number, terminalWidth: number): num
   return Math.min(MAX_HEIGHT, Math.max(MIN_HEIGHT, lines));
 }
 
-export interface ChannelHistoryViewProps {
+export interface NotificationHistoryViewProps {
   channel: Channel;
   disableInput?: boolean;
   onBack?: () => void;
@@ -38,7 +38,7 @@ export interface ChannelHistoryViewProps {
 }
 
 /**
- * ChannelHistoryView - Display message history and handle message composition
+ * NotificationHistoryView - Display message history and handle message composition
  *
  * Features:
  * - Message display with scroll support
@@ -46,12 +46,12 @@ export interface ChannelHistoryViewProps {
  * - Draft preservation on ESC
  * - Dynamic layout based on terminal size
  */
-export function ChannelHistoryView({
+export function NotificationHistoryView({
   channel,
   disableInput = false,
   onBack,
   startInComposeMode = false,
-}: ChannelHistoryViewProps): React.ReactElement {
+}: NotificationHistoryViewProps): React.ReactElement {
   const { theme } = useTheme();
   const {
     data: messages,
@@ -128,13 +128,13 @@ export function ChannelHistoryView({
    * This prevents global keybinds (q, 1-9, ESC) from triggering during message typing.
    *
    * When user exits input mode (presses Enter or Escape), we set focus to 'view'
-   * to keep global navigation disabled while in channel history view. This ensures that
-   * ESC navigates back to channel list (via onBack) rather than to Dashboard.
+   * to keep global navigation disabled while in notification history view. This ensures that
+   * ESC navigates back to notification list (via onBack) rather than to Dashboard.
    *
    * This fixes issue #653: "After typing a message in a channel, the keybinds to
    * q, 1,2,3... are not re-enabled"
-   * This also fixes issue #884: "ESC from channel history goes to Dashboard instead
-   * of Channels list"
+   * This also fixes issue #884: "ESC from notification history goes to Dashboard instead
+   * of Notifications list"
    */
   useEffect(() => {
     if (inputMode) {
@@ -174,7 +174,7 @@ export function ChannelHistoryView({
           setMessageBuffer(messageBuffer + input);
         }
       } else {
-        // ESC to go back to channel list
+        // ESC to go back to notification list
         // Note: Don't call returnFocus() here - focus must stay 'view' until
         // after global ESC handler runs, otherwise goHome() will fire
         if (key.escape) {
@@ -327,4 +327,4 @@ export function ChannelHistoryView({
   );
 }
 
-export default ChannelHistoryView;
+export default NotificationHistoryView;

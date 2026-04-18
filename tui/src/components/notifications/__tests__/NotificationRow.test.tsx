@@ -1,5 +1,5 @@
 /**
- * ChannelRow Tests
+ * NotificationRow Tests
  * Tests for the channel list row component (#1600)
  */
 
@@ -35,7 +35,7 @@ const mockChannelManyUnread: Channel = {
   unread: 150,
 };
 
-describe('ChannelRow Display Logic', () => {
+describe('NotificationRow Display Logic', () => {
   describe('Name formatting', () => {
     it('prefixes channel name with #', () => {
       const channelName = `#${mockChannel.name}`;
@@ -218,7 +218,7 @@ describe('ChannelRow Display Logic', () => {
   });
 });
 
-describe('ChannelRow Props Interface', () => {
+describe('NotificationRow Props Interface', () => {
   it('accepts channel prop', () => {
     const props = { channel: mockChannel, selected: false, unreadCount: 0 };
     expect(props.channel.name).toBe('general');
@@ -235,7 +235,7 @@ describe('ChannelRow Props Interface', () => {
   });
 });
 
-describe('ChannelRow Description Handling', () => {
+describe('NotificationRow Description Handling', () => {
   it('channel with description is truthy', () => {
     expect(mockChannel.description).toBeTruthy();
   });

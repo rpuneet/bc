@@ -79,7 +79,7 @@ export interface KeybindingConfig {
 export const DEFAULT_VIEW_SHORTCUTS: Record<string, View> = {
   D: 'dashboard',
   A: 'agents',
-  C: 'channels',
+  N: 'notifications',
   L: 'logs',
   M: 'mcp',
   S: 'secrets',
@@ -90,7 +90,7 @@ export const DEFAULT_VIEW_SHORTCUTS: Record<string, View> = {
 export const DEFAULT_VIEW_NUMBERS: Record<string, View> = {
   '1': 'dashboard',
   '2': 'agents',
-  '3': 'channels',
+  '3': 'notifications',
   '4': 'costs',
   '5': 'roles',
   '6': 'logs',

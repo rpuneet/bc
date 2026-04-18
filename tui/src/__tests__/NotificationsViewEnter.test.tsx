@@ -1,6 +1,6 @@
 /**
- * ChannelsView Enter Key Tests
- * Issue #1064: Enter key doesn't open channel messages
+ * NotificationsView Enter Key Tests
+ * Issue #1064: Enter key doesn't open notification messages
  *
  * Tests the stale closure fix where selectedChannel must be computed
  * inside the useInput callback to get the latest value.

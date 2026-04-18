@@ -1,5 +1,5 @@
 /**
- * useChannels hook - Fetch and manage channel data
+ * useNotifications hook - Fetch and manage notification source data
  * Issue #1004: Performance configuration tunables (Phase 5)
  * Issue #1129: Unread message indicators
  *
@@ -13,22 +13,22 @@ import { usePerformanceConfig } from '../config';
 import { useUnread } from './UnreadContext';
 import { handleApiError, logError } from '../utils';
 
-export interface UseChannelsOptions {
+export interface UseNotificationsOptions {
   /** Polling interval in ms (default: from config) */
   pollInterval?: number;
   /** Whether to poll automatically (default: true) */
   autoPoll?: boolean;
 }
 
-export interface UseChannelsResult extends BcResult<Channel[]> {
-  /** Manually refresh channels */
+export interface UseNotificationsResult extends BcResult<Channel[]> {
+  /** Manually refresh notification sources */
   refresh: () => Promise<void>;
 }
 
 /**
- * Hook to fetch and poll channel list
+ * Hook to fetch and poll notification source list
  */
-export function useChannels(options: UseChannelsOptions = {}): UseChannelsResult {
+export function useNotifications(options: UseNotificationsOptions = {}): UseNotificationsResult {
   // Get configurable poll interval from workspace config
   const perfConfig = usePerformanceConfig();
   const defaultPollInterval = perfConfig.poll_interval_channels;
@@ -46,7 +46,7 @@ export function useChannels(options: UseChannelsOptions = {}): UseChannelsResult
       setError(null);
     } catch (err) {
       const errorResult = handleApiError(err);
-      logError('useChannels', errorResult);
+      logError('useNotifications', errorResult);
       setError(errorResult.message);
     } finally {
       setLoading(false);
@@ -69,6 +69,9 @@ export function useChannels(options: UseChannelsOptions = {}): UseChannelsResult
 
   return { data, error, loading, refresh: fetchChannels };
 }
+
+// Re-export old name for backward compatibility
+export { useNotifications as useChannels };
 
 export interface UseChannelHistoryOptions {
   /** Max messages to fetch (default: 50) */
@@ -169,13 +172,13 @@ export function useUnreadCount(
 }
 
 /**
- * Hook to get all channels with their unread counts
+ * Hook to get all notification sources with their unread counts
  * #1129: Implements proper unread message tracking using UnreadContext
  *
  * Fetches message counts for each channel and uses UnreadContext to calculate
  * unread messages based on when the user last viewed each channel.
  */
-export function useChannelsWithUnread(options?: UseChannelsOptions): {
+export function useNotificationsWithUnread(options?: UseNotificationsOptions): {
   channels: (Channel & { unread: number; messageCount: number })[] | null;
   loading: boolean;
   error: string | null;
@@ -186,7 +189,7 @@ export function useChannelsWithUnread(options?: UseChannelsOptions): {
     loading: channelsLoading,
     error,
     refresh: refreshChannels,
-  } = useChannels(options);
+  } = useNotifications(options);
   const { getUnread } = useUnread();
   const [messageCounts, setMessageCounts] = useState<Record<string, number>>({});
   const [countsLoading, setCountsLoading] = useState(true);
@@ -275,3 +278,6 @@ export function useChannelsWithUnread(options?: UseChannelsOptions): {
     refresh,
   };
 }
+
+// Re-export old name for backward compatibility
+export { useNotificationsWithUnread as useChannelsWithUnread };

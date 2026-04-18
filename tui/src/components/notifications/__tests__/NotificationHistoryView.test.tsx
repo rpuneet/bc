@@ -1,12 +1,12 @@
 /**
- * ChannelHistoryView Tests
+ * NotificationHistoryView Tests
  * Tests for the channel message history component (#1600)
  */
 
 import { describe, it, expect } from 'bun:test';
 
 // Test the calculateInputHeight logic
-describe('ChannelHistoryView Input Height Calculation', () => {
+describe('NotificationHistoryView Input Height Calculation', () => {
   const MIN_HEIGHT = 3;
   const MAX_HEIGHT = 10;
 
@@ -49,7 +49,7 @@ describe('ChannelHistoryView Input Height Calculation', () => {
 });
 
 // Test message display logic
-describe('ChannelHistoryView Message Display', () => {
+describe('NotificationHistoryView Message Display', () => {
   const terminalHeight = 24;
   const inputHeight = 3;
   const layoutOverhead = 4 + inputHeight + 1 + 1 + 4 + 2; // = 15
@@ -117,7 +117,7 @@ describe('ChannelHistoryView Message Display', () => {
 });
 
 // Test scroll indicator logic
-describe('ChannelHistoryView Scroll Indicators', () => {
+describe('NotificationHistoryView Scroll Indicators', () => {
   const maxMessages = 5;
 
   it('shows "more above" when scrolled down', () => {
@@ -160,7 +160,7 @@ describe('ChannelHistoryView Scroll Indicators', () => {
 });
 
 // Test message slicing for display
-describe('ChannelHistoryView Message Slicing', () => {
+describe('NotificationHistoryView Message Slicing', () => {
   const maxMessages = 5;
 
   it('slices messages correctly for display', () => {
@@ -201,7 +201,7 @@ describe('ChannelHistoryView Message Slicing', () => {
 });
 
 // Test draft preservation logic
-describe('ChannelHistoryView Draft Handling', () => {
+describe('NotificationHistoryView Draft Handling', () => {
   it('preserves draft on escape (non-empty)', () => {
     let messageBuffer = 'Hello world';
     const clearOnEscape = false; // Draft save behavior
@@ -233,7 +233,7 @@ describe('ChannelHistoryView Draft Handling', () => {
 });
 
 // Test send error display
-describe('ChannelHistoryView Send Error', () => {
+describe('NotificationHistoryView Send Error', () => {
   const SEND_ERROR_DISPLAY_DURATION = 3000;
 
   it('has correct error display duration', () => {
@@ -256,7 +256,7 @@ describe('ChannelHistoryView Send Error', () => {
 });
 
 // Test input mode and focus states
-describe('ChannelHistoryView Focus States', () => {
+describe('NotificationHistoryView Focus States', () => {
   it('sets input focus when in input mode', () => {
     const inputMode = true;
     const expectedFocus = inputMode ? 'input' : 'view';
@@ -271,7 +271,7 @@ describe('ChannelHistoryView Focus States', () => {
 });
 
 // Test keyboard scroll logic
-describe('ChannelHistoryView Scroll Keyboard', () => {
+describe('NotificationHistoryView Scroll Keyboard', () => {
   const maxMessages = 5;
   const totalMessages = 15;
 

@@ -1,32 +1,32 @@
 /**
- * ChannelRow - Single channel row in the channel list
- * Extracted from ChannelsView.tsx (#1590)
+ * NotificationRow - Single notification row in the notification list
+ * Extracted from NotificationsView.tsx (#1590)
  */
 
 import React from 'react';
 import { Box, Text } from 'ink';
 import type { Channel } from '../../types';
 
-export interface ChannelRowProps {
+export interface NotificationRowProps {
   channel: Channel;
   selected: boolean;
   unreadCount: number;
 }
 
 /**
- * ChannelRow - Renders a single channel as a table row
- * #1890: Redesigned with column layout matching ChannelsView headers
+ * NotificationRow - Renders a single notification source as a table row
+ * #1890: Redesigned with column layout matching NotificationsView headers
  *
  * Features:
  * - Selection indicator (▸) with cyan highlight
  * - Unread badge with yellow highlight
  * - Column layout: CHANNEL (24) | UNREAD (12) | MEMBERS (10) | DESCRIPTION (flex)
  */
-export function ChannelRow({
+export function NotificationRow({
   channel,
   selected,
   unreadCount,
-}: ChannelRowProps): React.ReactElement {
+}: NotificationRowProps): React.ReactElement {
   const textColor = selected ? 'cyan' : unreadCount > 0 ? 'yellow' : undefined;
 
   // Unread display: "● N new" or "-"
@@ -57,4 +57,4 @@ export function ChannelRow({
   );
 }
 
-export default ChannelRow;
+export default NotificationRow;

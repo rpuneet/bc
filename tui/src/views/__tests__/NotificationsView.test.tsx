@@ -1,6 +1,6 @@
 /**
- * ChannelsView Tests
- * Issue #1590: Refactored channel view
+ * NotificationsView Tests
+ * Issue #1590: Refactored notification view
  *
  * Tests cover:
  * - Channel data structure
@@ -13,7 +13,7 @@
 
 import { describe, test, expect } from 'bun:test';
 
-// Type definitions matching ChannelsView
+// Type definitions matching NotificationsView
 interface Channel {
   name: string;
   description?: string;
@@ -32,7 +32,7 @@ interface BreadcrumbItem {
   view?: string;
 }
 
-// Helper functions matching ChannelsView logic
+// Helper functions matching NotificationsView logic
 function createChannelBreadcrumb(channel: Channel): BreadcrumbItem[] {
   return [{ label: `#${channel.name}` }];
 }
@@ -47,7 +47,7 @@ function shouldShowUnreadBadge(count: number): boolean {
   return count > 0;
 }
 
-describe('ChannelsView', () => {
+describe('NotificationsView', () => {
   describe('Channel Data Structure', () => {
     test('channel has required fields', () => {
       const channel: Channel = {
@@ -194,43 +194,43 @@ describe('ChannelsView', () => {
   describe('Loading State', () => {
     test('shows loading message', () => {
       const loading = true;
-      const message = loading ? 'Loading channels...' : '';
+      const message = loading ? 'Loading notifications...' : '';
 
-      expect(message).toBe('Loading channels...');
+      expect(message).toBe('Loading notifications...');
     });
   });
 
   describe('Error State', () => {
     test('shows error message', () => {
-      const error = 'Failed to load channels';
+      const error = 'Failed to load notifications';
       const message = `Error: ${error}`;
 
-      expect(message).toBe('Error: Failed to load channels');
+      expect(message).toBe('Error: Failed to load notifications');
     });
   });
 
   describe('Empty State', () => {
-    test('shows empty message when no channels', () => {
+    test('shows empty message when no notification sources', () => {
       const channels: Channel[] = [];
       const isEmpty = channels.length === 0;
 
       expect(isEmpty).toBe(true);
     });
 
-    test('shows create command hint', () => {
-      const createHint = 'Create one with: bc channel create <name>';
-      expect(createHint).toContain('bc channel create');
+    test('shows subscribe command hint', () => {
+      const subscribeHint = 'Subscribe with: bc notify subscribe <source>';
+      expect(subscribeHint).toContain('bc notify subscribe');
     });
   });
 
-  describe('Channel List Navigation', () => {
+  describe('Notification List Navigation', () => {
     const channels: ChannelWithUnread[] = [
       { name: 'general', unread: 0, messageCount: 50 },
       { name: 'alerts', unread: 5, messageCount: 100 },
       { name: 'eng', unread: 0, messageCount: 200 },
     ];
 
-    test('initial selection is first channel', () => {
+    test('initial selection is first item', () => {
       const selectedIndex = 0;
       expect(channels[selectedIndex].name).toBe('general');
     });
@@ -324,7 +324,7 @@ describe('ChannelsView', () => {
       expect(startCompose).toBe(false);
     });
 
-    test('compose only works with channels', () => {
+    test('compose only works with notification sources', () => {
       const channels: Channel[] = [];
       let started = false;
 
@@ -363,8 +363,8 @@ describe('ChannelsView', () => {
     });
   });
 
-  describe('Channel Selection', () => {
-    test('selected channel is available in history view', () => {
+  describe('Notification Selection', () => {
+    test('selected notification source is available in history view', () => {
       const channels: ChannelWithUnread[] = [
         { name: 'general', unread: 0, messageCount: 50 },
         { name: 'alerts', unread: 5, messageCount: 100 },
@@ -376,7 +376,7 @@ describe('ChannelsView', () => {
       expect(selectedChannel.unread).toBe(5);
     });
 
-    test('handles empty channel list', () => {
+    test('handles empty notification list', () => {
       const channels: ChannelWithUnread[] = [];
       const selectedIndex = 0;
 
@@ -385,8 +385,8 @@ describe('ChannelsView', () => {
     });
   });
 
-  describe('ChannelRow Display', () => {
-    test('shows channel name', () => {
+  describe('NotificationRow Display', () => {
+    test('shows notification source name', () => {
       const channel: ChannelWithUnread = {
         name: 'general',
         unread: 0,

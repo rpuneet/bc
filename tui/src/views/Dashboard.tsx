@@ -32,7 +32,7 @@ export function Dashboard() {
   const {
     summary,
     agents,
-    // channels removed from dashboard - use Channels tab [3]
+    // channels removed from dashboard - use Notifications tab [3]
     agentStats,
     isLoading,
     error,
