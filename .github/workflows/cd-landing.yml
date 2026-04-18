@@ -36,5 +36,5 @@ jobs:
             echo "VERCEL_DEPLOY_HOOK not set — skipping landing deploy"
             exit 0
           fi
-          curl -s -X POST "$VERCEL_DEPLOY_HOOK"
+          curl -sf -X POST "$VERCEL_DEPLOY_HOOK"
           echo "Vercel deployment triggered"

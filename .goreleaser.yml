@@ -36,8 +36,8 @@ builds:
     binary: bc
     env:
       - CGO_ENABLED=1
-      - CC=zig cc -target aarch64-linux-musl
-      - CXX=zig c++ -target aarch64-linux-musl
+      - CC=zig cc -target aarch64-linux-musl -lc
+      - CXX=zig c++ -target aarch64-linux-musl -lc
     ldflags:
       - -s -w
       - -X main.version={{.Version}}
@@ -177,7 +177,7 @@ nfpms:
     homepage: https://bc-infra.com
     description: Orchestration for AI agents
     license: MIT
-    maintainer: rpuneet
+    maintainer: "rpuneet <rpuneet@users.noreply.github.com>"
     formats:
       - deb
       - rpm
