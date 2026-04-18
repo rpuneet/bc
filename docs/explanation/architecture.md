@@ -50,7 +50,7 @@ This document describes the internal architecture of bc, covering component rela
        |  | +----------+  |  | ~/.bc/agents/<name>/       |  |
        |  | +----------+  |  |                            |  |
        |  | | Docker   |  |  | Tables:                    |  |
-       |  | | contrnrs |  |  |  agents, notify_subscriptions,|  |
+       |  | |containers|  |  |  agents, notify_subscriptions,|  |
        |  | +----------+  |  |  notify_delivery_log,       |  |
        |  +---------------+  |  notify_gateways,           |  |
        |                     |  notify_channels,           |  |
