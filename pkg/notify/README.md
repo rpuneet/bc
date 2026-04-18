@@ -25,4 +25,4 @@ This package receives inbound events from `pkg/gateway` adapters and routes them
 
 ## Architecture
 
-See [docs/architecture/channels.md](../../docs/architecture/channels.md) for the full channel architecture, including message flow diagrams, filtering logic, and database schema.
+See [docs/architecture/notifications.md](../../docs/architecture/notifications.md) for the full notification architecture, including message flow diagrams, filtering logic, and database schema.

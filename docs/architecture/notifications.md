@@ -585,6 +585,5 @@ GET    /api/channels/{name}/history                               -- legacy mess
 
 ## What's Next
 
-- [Channels Architecture](channels.md) -- internal agent-to-agent messaging
-- [Agent Lifecycle](agents.md) -- how agents start, receive credentials, and run
-- [MCP Protocol](mcp.md) -- Model Context Protocol integration
+- [Agent Lifecycle](../explanation/agents.md) -- how agents start, receive credentials, and run
+- [MCP Protocol](../explanation/mcp.md) -- Model Context Protocol integration

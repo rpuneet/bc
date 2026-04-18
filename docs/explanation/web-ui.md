@@ -239,8 +239,8 @@ graph LR
         I["/ — Dashboard"]
         A["/agents — Agent list"]
         AD["/agents/:name — Agent detail<br/>(terminal peek, cost, logs)"]
-        CH["/channels — Notification channels"]
-        CHD["/channels/:channelName — Channel detail"]
+        CH["/notifications — Notification sources"]
+        CHD["/notifications/:sourceName — Notification source detail"]
         CO["/costs — Cost overview"]
         T_List["/teams — Team list"]
         T_Detail["/teams/:name — Team detail<br/>(members, config, metrics)"]
@@ -276,11 +276,11 @@ Navigation is a static `NAV_ITEMS` array in `Layout.tsx`. Each entry has a `to` 
 | `api.startAgent(name)` | `POST /api/agents/:name/start` | Agents |
 | `api.stopAgent(name)` | `POST /api/agents/:name/stop` | Agents |
 | `api.sendToAgent(name, msg)` | `POST /api/agents/:name/send` | Agents |
-| `api.listGateways()` | `GET /api/gateways` | Dashboard, Channels |
-| `api.listChannels()` | `GET /api/channels` | Channels |
-| `api.getChannelHistory(name, limit, before)` | `GET /api/channels/:name/history` | Channels |
-| `api.getChannelSubscriptions(channel)` | `GET /api/gateways/:gw/channels/:ch/agents` or `/api/notify/subscriptions/:channel` | Channels |
-| `api.getChannelActivity(channel, limit)` | `GET /api/gateways/:gw/channels/:ch/activity` or `/api/notify/activity/:channel` | Channels |
+| `api.listGateways()` | `GET /api/gateways` | Dashboard, Notifications |
+| `api.listNotificationSources()` | `GET /api/channels` | Notifications |
+| `api.getChannelHistory(name, limit, before)` | `GET /api/channels/:name/history` | Notifications |
+| `api.getChannelSubscriptions(channel)` | `GET /api/gateways/:gw/channels/:ch/agents` or `/api/notify/subscriptions/:channel` | Notifications |
+| `api.getChannelActivity(channel, limit)` | `GET /api/gateways/:gw/channels/:ch/activity` or `/api/notify/activity/:channel` | Notifications |
 | `api.getCostSummary()` | `GET /api/costs` | Dashboard, Costs |
 | `api.getCostByAgent()` | `GET /api/costs/agents` | Costs |
 | `api.listRoles()` | `GET /api/roles` | Roles |
@@ -318,11 +318,11 @@ graph TD
     end
 
     subgraph web ["web/"]
-        WebHooks["hooks/<br/>usePolling, useSSE"]
+        WebHooks["hooks/<br/>usePolling, useWebSocket"]
     end
 
     subgraph tui ["tui/"]
-        TuiHooks["hooks/<br/>useAgents, usePolling"]
+        TuiHooks["hooks/<br/>useAgents, useNotifications, usePolling"]
     end
 
     pkg -->|"import @bc/api"| WebHooks
@@ -419,7 +419,7 @@ graph TD
 |---|---|---|---|
 | Dashboard | 5s | -- | `listAgents`, `listGateways`, `getCostSummary` |
 | Agents | 5s | `agent.state_changed` | `listAgents`, `startAgent`, `stopAgent`, `sendToAgent` |
-| Channels | 10s (list) | `gateway.message` | `listGateways`, `listChannels`, `getChannelHistory`, `getChannelActivity` |
+| Notifications | 10s (list) | `gateway.message` | `listGateways`, `listNotificationSources`, `getChannelHistory`, `getChannelActivity` |
 | Costs | 10s | -- | `getCostSummary`, `getCostByAgent` |
 | Roles | 30s | -- | `listRoles` + full CRUD |
 | Tools | 30s | -- | `listTools` |

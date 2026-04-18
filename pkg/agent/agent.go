@@ -1041,6 +1041,7 @@ func (m *Manager) startAgent(ctx context.Context, name string, opts SpawnOptions
 	if setupErr := SetupAgentFromRoleWithRuntime(wsPath, name, string(existing.Role), wtDir, agentRuntime, existing.Tool); setupErr != nil {
 		log.Warn("role setup failed on restart", "agent", name, "error", setupErr)
 	}
+	appendGatewayPrompt(wtDir, existing.Tool, m.gatewayConfig)
 
 	if err := rt.CreateSessionWithEnv(ctx, name, wtDir, agentCmd, env); err != nil {
 		agentLock.Unlock()
@@ -1240,6 +1241,9 @@ func (m *Manager) createAgent(ctx context.Context, opts SpawnOptions) (*Agent, e
 		log.Warn("role setup failed", "agent", name, "error", setupErr)
 		agent.Task = fmt.Sprintf("role setup failed: %v", setupErr)
 	}
+
+	// Append platform credential instructions to the agent's prompt file
+	appendGatewayPrompt(wtDir, effectiveTool, m.gatewayConfig)
 
 	// Validate required tools before starting — fail fast with clear errors.
 	if toolErrs := validateAgentTools(wsPath, string(role)); len(toolErrs) > 0 {
@@ -2506,6 +2510,78 @@ func injectEnv(env map[string]string, workspacePath, _, envFile string) {
 	}
 	// Resolve ${secret:NAME} references in all env values
 	resolveSecretRefs(env, workspacePath)
+}
+
+// gatewayPromptInstructions generates markdown instructions that tell an agent
+// about available platform credentials injected as environment variables.
+// This is appended to the agent's CLAUDE.md so the agent knows how to use them.
+func gatewayPromptInstructions(cfg *workspace.GatewaysConfig) string {
+	if cfg == nil {
+		return ""
+	}
+
+	var lines []string
+	if cfg.Slack != nil && cfg.Slack.Enabled && cfg.Slack.BotToken != "" {
+		lines = append(lines, "- SLACK_BOT_TOKEN: Use Slack API (`chat.postMessage`, etc.). Set `username` param to your agent name (BC_AGENT_ID env var) for identity.")
+	}
+	if cfg.Discord != nil && cfg.Discord.Enabled && cfg.Discord.BotToken != "" {
+		lines = append(lines, "- DISCORD_BOT_TOKEN: Use Discord API. Set `username` param to your agent name (BC_AGENT_ID env var) for identity.")
+	}
+	for label, tc := range cfg.Telegrams {
+		if tc.Enabled && tc.BotToken != "" {
+			envKey := "TELEGRAM_BOT_TOKEN"
+			if label != "" {
+				envKey = "TELEGRAM_BOT_TOKEN_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
+			}
+			lines = append(lines, fmt.Sprintf("- %s: Use Telegram Bot API. Prefix messages with `[<your-agent-name>]: ` for identity.", envKey))
+		}
+	}
+	for label, gc := range cfg.GitHubs {
+		if gc.Enabled && gc.Secret != "" {
+			envKey := "GITHUB_WEBHOOK_SECRET"
+			if label != "" {
+				envKey = "GITHUB_WEBHOOK_SECRET_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
+			}
+			lines = append(lines, fmt.Sprintf("- %s: GitHub webhook secret for signature verification.", envKey))
+		}
+	}
+
+	if len(lines) == 0 {
+		return ""
+	}
+
+	sort.Strings(lines) // deterministic output order
+
+	var sb strings.Builder
+	sb.WriteString("\n## Platform Credentials\n\n")
+	sb.WriteString("You have access to these platform credentials via environment variables:\n\n")
+	for _, l := range lines {
+		sb.WriteString(l)
+		sb.WriteString("\n")
+	}
+	sb.WriteString("\nYour agent name is available as the `BC_AGENT_ID` environment variable.\n")
+	return sb.String()
+}
+
+// appendGatewayPrompt appends platform credential instructions to the agent's
+// CLAUDE.md (or provider-equivalent prompt file) if gateway credentials exist.
+func appendGatewayPrompt(targetDir, toolName string, cfg *workspace.GatewaysConfig) {
+	instructions := gatewayPromptInstructions(cfg)
+	if instructions == "" {
+		return
+	}
+
+	adapter := resolveConfigAdapter(toolName)
+	promptFile := filepath.Join(targetDir, adapter.PromptFile())
+	f, err := os.OpenFile(promptFile, os.O_APPEND|os.O_WRONLY, 0600) //nolint:gosec // controlled agent workspace path
+	if err != nil {
+		log.Debug("cannot append gateway prompt, prompt file not writable", "path", promptFile, "error", err)
+		return
+	}
+	defer f.Close() //nolint:errcheck
+	if _, err := f.WriteString(instructions); err != nil {
+		log.Warn("failed to append gateway prompt instructions", "path", promptFile, "error", err)
+	}
 }
 
 // injectGatewayEnv injects platform credentials from gateway config into agent
