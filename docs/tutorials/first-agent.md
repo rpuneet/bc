@@ -100,6 +100,6 @@ bc agent delete eng-01
 ## Next steps
 
 - Learn how to [configure your workspace](../how-to/configure-workspace.md) with providers, runtime backends, and polling settings
-- Set up [channels for team communication](../how-to/set-up-channels.md)
+- Set up [channels for platform notifications](../architecture/channels.md)
 - Read about the [agent lifecycle and state machine](../explanation/agents.md)
 - Browse the [CLI reference](../reference/cli/bc.md)

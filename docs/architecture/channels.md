@@ -1,17 +1,14 @@
-# Channel Architecture
+# Channels
 
-> **Implementation Status**: This document describes the target channel architecture for bc v0.3.
-> The current implementation (v0.2) still uses the bidirectional gateway pattern.
-> See [Migration](#migration-from-old-system) for the transition plan.
-> Implementation tracked in [#3006](https://github.com/rpuneet/bc/issues/3006).
+Channels are **inbound-only notification gateways** that bridge external platforms (Slack, GitHub, Telegram, etc.) to bc agents. bc routes platform events to subscribed agents. Agents respond directly using injected credentials and platform APIs -- bc never sends outbound messages on behalf of agents.
 
-Channels are **inbound-only notification gateways** that bridge external platforms (Slack, GitHub, Telegram, etc.) to bc agents. bc never sends outbound messages on behalf of agents -- agents receive raw platform payloads and respond directly using injected credentials and platform APIs.
-
-This document is the canonical reference for the channel system. It covers the interface contracts, data flow, credential injection, subscription model, and instructions for adding new platform integrations.
+This document is the canonical reference for the channel system. It covers architecture, data flow, interfaces, credential injection, subscriptions, the web UI, file handling, and platform setup.
 
 ---
 
-## Architecture Overview
+## Overview
+
+bc acts as a notification router, not a messaging proxy. External platforms push events into bc via adapter connections. bc dispatches those events to subscribed agents based on channel subscriptions and filtering rules. Agents are programs with API access -- they call platform APIs themselves using environment variable credentials.
 
 ```mermaid
 flowchart LR
@@ -61,11 +58,15 @@ flowchart LR
     A2 -.->|"platform API (direct)"| T & D
 ```
 
-**Key insight**: bc is a notification router, not a messaging proxy. Agents are programs with API access -- they call platform APIs themselves.
+**Why inbound-only?** Agents are LLMs with full API access. They can parse raw JSON natively and call any platform SDK. Proxying outbound messages through bc adds complexity, maintenance burden, and surface area for bugs -- with no benefit. Each agent calls the platform API directly, the same way a human developer would.
 
 ---
 
-## Message Flow
+## How It Works
+
+### Inbound Flow
+
+Every notification follows the same path: platform to adapter to dispatch to agent.
 
 ```mermaid
 sequenceDiagram
@@ -88,6 +89,57 @@ sequenceDiagram
     AG->>P: Direct API call (e.g., Slack chat.postMessage)
 ```
 
+### Agent Response
+
+Agents respond to platform events using injected credentials. No bc middleware is involved:
+
+1. Agent receives JSON notification via `tmux send-keys`
+2. Agent parses the notification to understand the event
+3. Agent calls the platform API directly (e.g., Slack `chat.postMessage`, GitHub `POST /repos/.../comments`)
+4. Agent identifies itself per-platform (see [Agent Identity](#agent-identity))
+
+### Self-Skip and Mention Filtering
+
+Two filters prevent noise before delivery.
+
+**Self-skip** prevents agents from receiving their own outbound messages echoed back by the platform:
+
+```mermaid
+flowchart TD
+    MSG[Inbound message] --> EXTRACT[Extract sender from raw payload]
+    EXTRACT --> LOOP{For each subscriber}
+    LOOP --> CHECK{sender == subscriber?}
+    CHECK -->|Yes| SKIP[Skip delivery]
+    CHECK -->|No| NEXT[Continue to mention filter]
+```
+
+Each adapter extracts the sender with a single field lookup:
+- Slack: `event.User` or `event.BotID`
+- Telegram: `message.From.UserName`
+- Discord: `message.Author.ID`
+
+The sender string is stripped of the `[platform] ` prefix (e.g., `[slack] eng-01` becomes `eng-01`) before comparison.
+
+**Mention filtering** controls whether an agent receives all messages or only those that `@mention` it:
+
+```mermaid
+flowchart TD
+    MSG[Inbound message] --> MENTIONS["Extract @mentions via regex<br/>@[a-zA-Z][a-zA-Z0-9_-]*"]
+    MENTIONS --> LOOP{For each subscriber}
+    LOOP --> MO{mention_only enabled?}
+    MO -->|No| DELIVER[Deliver notification]
+    MO -->|Yes| FOUND{Agent @mentioned?}
+    FOUND -->|Yes| DELIVER
+    FOUND -->|No| SKIP[Skip delivery]
+```
+
+| Setting | Behavior | Use Case |
+|---------|----------|----------|
+| `mention_only = false` (default) | Agent receives all messages in the channel | Small or focused channels |
+| `mention_only = true` | Agent receives only when `@<agent-name>` appears in content | Noisy channels |
+
+Settings are per-agent, per-channel. Example: `eng-01` has `mention_only=true` for `slack:all-bc` but `mention_only=false` for `slack:engineering`.
+
 ---
 
 ## NotificationAdapter Interface
@@ -95,46 +147,63 @@ sequenceDiagram
 Every platform adapter implements this interface. The design is intentionally minimal -- adapters are thin wrappers that connect to a platform and forward raw events.
 
 ```go
-// NotificationAdapter connects to an external platform and forwards
-// inbound events as Notification values. It has no outbound/send capability.
-//
 // Located in: pkg/gateway/gateway.go
-type NotificationAdapter interface {
-    // Name returns the adapter identifier used in channel keys.
-    // Examples: "slack", "telegram", "discord", "github"
+
+// Adapter handles the platform connection lifecycle and message routing.
+type Adapter interface {
+    // Name returns the platform identifier ("telegram", "discord", "slack").
     Name() string
 
-    // Start connects to the platform and begins forwarding events.
-    // Calls handler for each inbound event. Blocks until ctx is canceled.
-    Start(ctx context.Context, handler func(Notification)) error
+    // Start connects to the platform and begins receiving messages.
+    // Calls onMessage for each inbound event. Blocks until ctx is canceled.
+    Start(ctx context.Context, onMessage func(InboundMessage)) error
 
     // Stop gracefully disconnects from the platform.
-    Stop() error
+    Stop(ctx context.Context) error
 
-    // Channels returns all channels/groups the bot can see.
-    // Called on startup for channel discovery.
-    Channels() []ChannelInfo
+    // Send delivers a message to a platform channel.
+    // NOTE: Present in v0.2 for relay. Removed in v0.3 (agents call APIs directly).
+    Send(ctx context.Context, channelID, sender, content string) error
+
+    // Channels returns all channels/groups the bot is a member of.
+    Channels(ctx context.Context) ([]ExternalChannel, error)
+
+    // Health returns nil if the adapter is connected and operational.
+    Health(ctx context.Context) error
 }
 ```
 
-**What adapters do NOT have**: `Send()`, `SendFile()`, `React()`. All outbound communication is the agent's responsibility.
-
-Each adapter is typically 50-100 lines: connect to platform, set up event listener, extract sender for self-skip, forward raw JSON.
-
----
-
-## Notification Data Model
+**Optional interfaces:**
 
 ```go
-// Notification is the envelope around a raw platform event.
+// FileSender is optionally implemented by adapters that support file uploads.
+// NOTE: Present in v0.2. Removed in v0.3.
+type FileSender interface {
+    SendFile(ctx context.Context, channelID, sender, filename string, data []byte, mimeType string) error
+}
+
+// StatusReporter is optionally implemented by adapters that report connection state.
+type StatusReporter interface {
+    Status() AdapterStatus
+}
+```
+
+### Notification Data Model
+
+The JSON payload delivered to agents via `tmux send-keys`:
+
+```go
 // Located in: pkg/notify/notify.go
+
 type Notification struct {
-    Channel   string          `json:"channel"`    // "slack:engineering", "github:bc"
-    Platform  string          `json:"platform"`   // "slack", "github", "telegram"
-    Sender    string          `json:"sender"`     // extracted for self-skip filtering
-    Mentions  []string        `json:"mentions"`   // extracted for mention_only filtering
-    Timestamp time.Time       `json:"timestamp"`
-    Raw       json.RawMessage `json:"raw"`        // entire platform payload, unparsed
+    Timestamp   string       `json:"timestamp"`
+    Channel     string       `json:"channel"`      // "slack:engineering", "github:bc"
+    Platform    string       `json:"platform"`      // "slack", "github", "telegram"
+    Sender      string       `json:"sender"`        // extracted for self-skip filtering
+    Content     string       `json:"content"`       // message text
+    MessageID   string       `json:"message_id,omitempty"`
+    Mentions    []string     `json:"mentions,omitempty"`   // extracted @mentions
+    Attachments []Attachment `json:"attachments,omitempty"`
 }
 ```
 
@@ -142,41 +211,98 @@ type Notification struct {
 |-------|---------|
 | `Channel` | Canonical key in format `<platform>:<channel_name>`. Used for subscription lookup. |
 | `Platform` | Platform identifier, matches adapter `Name()`. |
-| `Sender` | Extracted from raw payload per-adapter. Used only for self-skip (don't echo agent's own messages back). |
-| `Mentions` | Extracted via regex `@[a-zA-Z][a-zA-Z0-9_-]*` across raw JSON bytes. Used for `mention_only` subscription filter. |
-| `Timestamp` | When the event was received by bc. |
-| `Raw` | The complete, unmodified platform payload. The agent parses this directly. |
+| `Sender` | Extracted from raw payload per-adapter. Used for self-skip (don't echo agent's own messages back). |
+| `Content` | Message text content. |
+| `Mentions` | Extracted via regex `@[a-zA-Z][a-zA-Z0-9_-]*` across content. Used for `mention_only` filter. |
+| `Timestamp` | RFC 3339 timestamp when the event was received by bc. |
+| `MessageID` | Platform-specific message identifier. |
+| `Attachments` | Files shared in the message (see [File and Attachment Handling](#file-and-attachment-handling)). |
 
-**Why raw JSON?** Each platform has a unique event schema. Parsing into a normalized format loses information and creates maintenance burden. Agents are LLMs -- they parse JSON natively.
+Example notification delivered to an agent:
+
+```json
+{
+  "timestamp": "2026-04-09T10:32:15Z",
+  "channel": "slack:engineering",
+  "platform": "slack",
+  "sender": "bob",
+  "content": "@eng-01 take a look at PR #428",
+  "message_id": "1712657535.000200",
+  "mentions": ["eng-01"],
+  "attachments": []
+}
+```
+
+### Supporting Types
+
+```go
+type Attachment struct {
+    Filename  string `json:"filename"`
+    MimeType  string `json:"mime_type"`
+    URL       string `json:"url,omitempty"`
+    LocalPath string `json:"local_path,omitempty"`
+    Size      int64  `json:"size"`
+}
+
+type Subscription struct {
+    CreatedAt   time.Time `json:"created_at"`
+    Channel     string    `json:"channel"`
+    Agent       string    `json:"agent"`
+    ID          int64     `json:"id"`
+    MentionOnly bool      `json:"mention_only"`
+}
+
+type DeliveryEntry struct {
+    LoggedAt time.Time      `json:"logged_at"`
+    Channel  string         `json:"channel"`
+    Agent    string         `json:"agent"`
+    Status   DeliveryStatus `json:"status"`    // "delivered", "failed", "pending"
+    Error    string         `json:"error,omitempty"`
+    Preview  string         `json:"preview"`
+    ID       int64          `json:"id"`
+}
+
+type GatewayInfo struct {
+    LastSeenAt *time.Time `json:"last_seen_at,omitempty"`
+    UpdatedAt  time.Time  `json:"updated_at"`
+    Name       string     `json:"name"`
+    Enabled    bool       `json:"enabled"`
+    Connected  bool       `json:"connected"`
+}
+```
 
 ---
 
-## Platform Integration Table
+## Platform Integrations
 
-### Tier 1 -- Chat Platforms (Bidirectional Messaging)
+### Tier 1 -- Chat Platforms
 
-| # | Platform | Transport | SDK/Library | Credential Env Var | Identity Method | Status |
-|---|----------|-----------|-------------|-------------------|-----------------|--------|
-| 1 | **Slack** | Socket Mode (WS) | slack-go/slack | `SLACK_BOT_TOKEN`, `SLACK_APP_TOKEN` | `username` param in chat.postMessage | Implemented |
-| 2 | **Telegram** | Bot API long-polling | go-telegram-bot-api | `TELEGRAM_BOT_TOKEN` | Prefix `[agent-name]: message` | Implemented |
-| 3 | **Discord** | Gateway WebSocket | bwmarrin/discordgo | `DISCORD_BOT_TOKEN` or `DISCORD_WEBHOOK_URL` | `username` param in webhook execute | Implemented |
-| 4 | WhatsApp | Cloud API webhooks | Meta Business API | `WHATSAPP_TOKEN` | Prefix text (fixed number) | Planned |
-| 5 | Signal | signal-cli bridge | signal-cli REST API | `SIGNAL_CLI_URL` | Prefix text (fixed number) | Planned |
-| 6 | iMessage | BlueBubbles server | BlueBubbles HTTP API | `BLUEBUBBLES_URL`, `BLUEBUBBLES_PASSWORD` | Prefix text (fixed Apple ID) | Planned |
-| 7 | Matrix | Client-Server API | mautrix-go | `MATRIX_HOMESERVER`, `MATRIX_TOKEN` | Bot display name | Planned |
-| 8 | Microsoft Teams | Bot Framework | MS Bot SDK | `TEAMS_APP_ID`, `TEAMS_APP_SECRET` | Bot identity | Planned |
-| 9 | Google Chat | Chat API + Pub/Sub | Google Chat REST API | `GOOGLE_CHAT_SA_KEY` | Bot identity | Planned |
-| 10 | LINE | Messaging API | LINE Bot SDK | `LINE_CHANNEL_TOKEN` | Bot identity | Planned |
-| 11 | Feishu/Lark | Event Subscription | Feishu Open API | `FEISHU_APP_ID`, `FEISHU_APP_SECRET` | Bot identity | Planned |
-| 12 | Mattermost | WebSocket + REST | Mattermost Go driver | `MATTERMOST_URL`, `MATTERMOST_TOKEN` | `username` param | Planned |
-| 13 | IRC | IRC protocol | go-irc | `IRC_SERVER`, `IRC_NICK`, `IRC_PASSWORD` | Nick per agent | Planned |
-| 14 | Nostr | NIP-04 DMs | go-nostr | `NOSTR_PRIVATE_KEY` | Public key identity | Planned |
-| 15 | Twitch | IRC + EventSub | Twitch IRC / Helix API | `TWITCH_OAUTH_TOKEN` | Bot username | Planned |
+Bidirectional messaging platforms where agents both receive and respond.
 
-### Tier 2 -- Event/Webhook Platforms (Inbound Notifications)
+| # | Platform | Transport | Credential Env Vars | Identity Method | Status |
+|---|----------|-----------|---------------------|-----------------|--------|
+| 1 | **Slack** | Socket Mode (WebSocket) | `SLACK_BOT_TOKEN`, `SLACK_APP_TOKEN` | `username` param in `chat.postMessage` | Implemented |
+| 2 | **Telegram** | Bot API long-polling | `TELEGRAM_BOT_TOKEN` | Prefix `[agent-name]: message` | Implemented |
+| 3 | **Discord** | Gateway WebSocket | `DISCORD_BOT_TOKEN` or `DISCORD_WEBHOOK_URL` | `username` param in webhook execute | Implemented |
+| 4 | WhatsApp | Cloud API webhooks | `WHATSAPP_TOKEN` | Prefix text (fixed number) | Planned |
+| 5 | Signal | signal-cli bridge | `SIGNAL_CLI_URL` | Prefix text (fixed number) | Planned |
+| 6 | iMessage | BlueBubbles server | `BLUEBUBBLES_URL`, `BLUEBUBBLES_PASSWORD` | Prefix text (fixed Apple ID) | Planned |
+| 7 | Matrix | Client-Server API | `MATRIX_HOMESERVER`, `MATRIX_TOKEN` | Bot display name | Planned |
+| 8 | Microsoft Teams | Bot Framework | `TEAMS_APP_ID`, `TEAMS_APP_SECRET` | Bot identity | Planned |
+| 9 | Google Chat | Chat API + Pub/Sub | `GOOGLE_CHAT_SA_KEY` | Bot identity | Planned |
+| 10 | LINE | Messaging API | `LINE_CHANNEL_TOKEN` | Bot identity | Planned |
+| 11 | Feishu/Lark | Event Subscription | `FEISHU_APP_ID`, `FEISHU_APP_SECRET` | Bot identity | Planned |
+| 12 | Mattermost | WebSocket + REST | `MATTERMOST_URL`, `MATTERMOST_TOKEN` | `username` param | Planned |
+| 13 | IRC | IRC protocol | `IRC_SERVER`, `IRC_NICK`, `IRC_PASSWORD` | Nick per agent | Planned |
+| 14 | Nostr | NIP-04 DMs | `NOSTR_PRIVATE_KEY` | Public key identity | Planned |
+| 15 | Twitch | IRC + EventSub | `TWITCH_OAUTH_TOKEN` | Bot username | Planned |
 
-| # | Platform | Event Types | Transport | Credential Env Var | Status |
-|---|----------|-------------|-----------|-------------------|--------|
+### Tier 2 -- Event/Webhook Platforms
+
+Inbound-only platforms that push structured events (CI results, issue updates, deployments).
+
+| # | Platform | Event Types | Transport | Credential Env Vars | Status |
+|---|----------|-------------|-----------|---------------------|--------|
 | 16 | **GitHub** | PR, issue, push, CI, review, release, deployment | Webhooks | `GITHUB_TOKEN`, `GITHUB_WEBHOOK_SECRET` | Planned |
 | 17 | GitLab | MR, pipeline, issue, push | Webhooks | `GITLAB_TOKEN`, `GITLAB_WEBHOOK_SECRET` | Planned |
 | 18 | Bitbucket | PR, push, pipeline | Webhooks | `BITBUCKET_TOKEN` | Planned |
@@ -195,24 +321,26 @@ type Notification struct {
 | 31 | Notion | Page/database changes | Polling | `NOTION_TOKEN` | Planned |
 | 32 | Generic Webhook | Any HTTP POST with JSON | HTTP endpoint | None (public endpoint) | Planned |
 
-### Tier 3 -- IoT & Smart Home
+### Tier 3 -- IoT and Smart Home
 
-| # | Platform | Events | Transport | Credential Env Var | Status |
-|---|----------|--------|-----------|-------------------|--------|
+| # | Platform | Events | Transport | Credential Env Vars | Status |
+|---|----------|--------|-----------|---------------------|--------|
 | 33 | Home Assistant | Device state changes | WebSocket + REST | `HASS_URL`, `HASS_TOKEN` | Planned |
 | 34 | MQTT | IoT topic messages | MQTT protocol | `MQTT_BROKER`, `MQTT_USERNAME`, `MQTT_PASSWORD` | Planned |
 
-### Tier 4 -- Social & Media
+### Tier 4 -- Social and Media
 
-| # | Platform | Events | Transport | Credential Env Var | Status |
-|---|----------|--------|-----------|-------------------|--------|
+| # | Platform | Events | Transport | Credential Env Vars | Status |
+|---|----------|--------|-----------|---------------------|--------|
 | 35 | Twitter/X | Mentions, DMs | Twitter API v2 | `TWITTER_BEARER_TOKEN` | Planned |
 | 36 | Reddit | Posts/comments | Reddit API | `REDDIT_CLIENT_ID`, `REDDIT_CLIENT_SECRET` | Planned |
 | 37 | RSS/Atom | New feed entries | HTTP polling | None | Planned |
 
 ---
 
-## Credential Injection Flow
+## Credential Management
+
+### How Tokens Flow
 
 ```mermaid
 flowchart LR
@@ -224,15 +352,15 @@ flowchart LR
     style SEC fill:#2d5016,stroke:#4ade80
 ```
 
-**Step by step:**
-
 1. User enters platform credentials in the web UI setup wizard
-2. Credentials stored via `POST /api/secrets` -- encrypted with AES-256-GCM in `pkg/secret`
+2. Credentials are stored via `POST /api/secrets` -- encrypted with AES-256-GCM in `pkg/secret`
 3. When an agent starts, bc reads workspace secrets and injects them as environment variables
-4. Agent system prompt / CLAUDE.md includes instructions on which env vars are available and how to use them
+4. The agent's system prompt includes instructions on which env vars are available and how to use them
 5. Agent calls platform APIs directly using those credentials
 
-**Secret naming convention:**
+Secrets are never stored in `settings.json`, never transmitted via SSE events, and never exposed in API responses.
+
+### Secret Naming Convention
 
 | Platform | Secret Name(s) |
 |----------|---------------|
@@ -241,7 +369,14 @@ flowchart LR
 | Discord | `DISCORD_BOT_TOKEN` |
 | GitHub | `GITHUB_TOKEN`, `GITHUB_WEBHOOK_SECRET` |
 
-Secrets are never stored in `settings.json` or transmitted via SSE events.
+### Per-Platform Setup
+
+| Platform | Setup Steps |
+|----------|-------------|
+| **Slack** | Create app at api.slack.com > Enable Socket Mode > Add scopes (`channels:read`, `chat:write`, `connections:write`) > Copy bot token + app token > Invite bot to channels |
+| **Telegram** | Message @BotFather `/newbot` > Copy bot token > Add bot to groups > Disable privacy mode (optional, allows reading all group messages) |
+| **Discord** | Create app at discord.com/developers > Enable `MESSAGE_CONTENT` intent > Copy bot token > Generate invite URL with required permissions > Add bot to server |
+| **GitHub** | Create GitHub App or configure repository webhook > Select events (PR comments, reviews, issues, pushes) > Copy token and webhook secret |
 
 ---
 
@@ -269,50 +404,6 @@ You have access to these platform credentials via environment variables:
   (available as BC_AGENT_ID env var) for identity.
 - TELEGRAM_BOT_TOKEN: Use Telegram Bot API. Prefix messages with your agent name.
 ```
-
----
-
-## Self-Skip and Mention Filtering
-
-### Self-Skip
-
-Prevents agents from receiving their own outbound messages echoed back:
-
-```mermaid
-flowchart TD
-    MSG[Inbound message] --> EXTRACT[Extract sender from raw payload]
-    EXTRACT --> LOOP{For each subscriber}
-    LOOP --> CHECK{sender == subscriber?}
-    CHECK -->|Yes| SKIP[Skip delivery]
-    CHECK -->|No| NEXT[Continue to mention filter]
-```
-
-Each adapter extracts the sender with a single field lookup per platform:
-- Slack: `event.User` or `event.BotID`
-- Telegram: `message.From.UserName`
-- Discord: `message.Author.ID`
-
-### Mention Filtering
-
-The `mention_only` flag on subscriptions controls whether an agent receives all messages or only those that mention it by name.
-
-```mermaid
-flowchart TD
-    MSG[Inbound message] --> MENTIONS["Extract @mentions via regex<br/>@[a-zA-Z][a-zA-Z0-9_-]*"]
-    MENTIONS --> LOOP{For each subscriber}
-    LOOP --> MO{mention_only enabled?}
-    MO -->|No| DELIVER[Deliver notification]
-    MO -->|Yes| FOUND{Agent @mentioned?}
-    FOUND -->|Yes| DELIVER
-    FOUND -->|No| SKIP[Skip delivery]
-```
-
-| Setting | Behavior | Use Case |
-|---------|----------|----------|
-| `mention_only = false` (default) | Agent receives all messages in the channel | Small/focused channels |
-| `mention_only = true` | Agent only receives when `@<agent-name>` appears in content | Noisy channels |
-
-Per-agent, per-channel. Example: `eng-01` has `mention_only=true` for `slack:all-bc` but `mention_only=false` for `slack:engineering`.
 
 ---
 
@@ -367,7 +458,40 @@ erDiagram
     notify_subscriptions ||--o{ notify_delivery_log : "deliveries per subscription"
 ```
 
-**Key tables:**
+### Full SQL
+
+```sql
+CREATE TABLE IF NOT EXISTS notify_subscriptions (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    channel      TEXT NOT NULL,          -- "slack:engineering"
+    agent        TEXT NOT NULL,
+    mention_only INTEGER NOT NULL DEFAULT 0,
+    created_at   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+    UNIQUE(channel, agent)
+);
+
+CREATE TABLE IF NOT EXISTS notify_delivery_log (
+    id        INTEGER PRIMARY KEY AUTOINCREMENT,
+    logged_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+    channel   TEXT NOT NULL,
+    agent     TEXT NOT NULL,
+    status    TEXT NOT NULL CHECK(status IN ('delivered', 'failed', 'pending')),
+    error     TEXT,
+    preview   TEXT  -- first 120 chars, for debugging
+);
+
+CREATE TABLE IF NOT EXISTS notify_gateways (
+    name         TEXT PRIMARY KEY,
+    enabled      INTEGER NOT NULL DEFAULT 0,
+    connected    INTEGER NOT NULL DEFAULT 0,
+    last_seen_at TEXT,
+    updated_at   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+);
+```
+
+> Tables prefixed `notify_` to avoid collision during migration. Delivery log is pruned to the last 1000 entries per channel.
+
+### Key Tables
 
 | Table | Purpose |
 |-------|---------|
@@ -377,28 +501,31 @@ erDiagram
 | `notify_gateways` | Tracks gateway connection state (enabled, connected, last_seen_at). |
 | `notify_channels` | Persists channel discovery mappings (`bc_channel` to `platform_id`). |
 
-### REST API
+### What Is Not Stored
 
-```
-# Gateway management
-GET    /api/gateways                                              -- list all gateways + status
-POST   /api/gateways                                              -- connect a new gateway
-PATCH  /api/gateways/{gateway}                                    -- update tokens/settings
-DELETE /api/gateways/{gateway}                                    -- disconnect gateway
-GET    /api/gateways/{gateway}/health                             -- live connection probe
-GET    /api/gateways/{gateway}/setup                              -- platform setup instructions
+| Not Stored | Why |
+|-----------|-----|
+| Full message content in DB | Platforms keep their own history; `notify_messages` stores only activity feed previews |
+| Reactions | Agents react via direct API calls |
+| FTS indexes | No search needed |
+| File content | Stored in `.bc/attachments/`, not in the database |
 
-# Channel discovery
-GET    /api/gateways/{gateway}/channels                           -- discovered channels
-GET    /api/gateways/{gateway}/channels/{channel}                 -- channel detail + agents
+### Shared Database Pattern
 
-# Agent subscription management
-POST   /api/gateways/{gateway}/channels/{channel}/agents          -- subscribe agent
-DELETE /api/gateways/{gateway}/channels/{channel}/agents/{agent}  -- unsubscribe agent
-PATCH  /api/gateways/{gateway}/channels/{channel}/agents/{agent}  -- toggle mention_only
+All notification stores use the `db.SharedWrapped()` singleton -- no separate database files:
 
-# Activity feed
-GET    /api/gateways/{gateway}/channels/{channel}/activity        -- delivery log
+```go
+func OpenStore(workspacePath string) (*Store, error) {
+    driver := db.SharedDriver()  // "sqlite" or "timescale"
+    if driver == "timescale" {
+        pg := NewPostgresStore(db.Shared())
+        _ = pg.InitSchema()
+        return &Store{pg: pg}, nil
+    }
+    return &Store{db: db.SharedWrapped()}, nil
+}
+
+func (s *Store) Close() error { return nil } // no-op: shared DB
 ```
 
 ---
@@ -431,11 +558,82 @@ GET    /api/gateways/{gateway}/channels/{channel}/activity        -- delivery lo
 
 | Panel | Content |
 |-------|---------|
-| Left sidebar | Gateway dropdowns with channel lists. Unconnected gateways show "Setup" link. |
-| Main area | Activity feed -- all messages with delivery status badges. |
-| Right panel | Agent list with online dots, role badges, @mention toggle. |
+| **Left sidebar** | Gateway dropdowns with channel lists. Unconnected gateways show "Setup" link. |
+| **Main area** | Activity feed -- all messages with delivery status badges. |
+| **Right panel** | Agent list with online dots, role badges, `@mention` toggle. |
 
-### WebSocket Events (via SSE Hub)
+### Agent Subscription Management
+
+| Action | Description |
+|--------|-------------|
+| **Add** | Subscribe agent to channel -- starts receiving notifications |
+| **Remove** | Unsubscribe agent -- stops receiving notifications |
+| **@mention toggle** | Switch between all-messages and mention-only mode |
+
+### Empty State
+
+When no gateways are connected:
+
+```
++----------------------------------------------+
+|                                              |
+|        Connect your first app                |
+|                                              |
+|   +--------+  +----------+  +---------+     |
+|   | Slack  |  | Telegram |  | Discord |     |
+|   +--------+  +----------+  +---------+     |
+|   +--------+  +----------+                   |
+|   | GitHub |  |  Gmail   |                   |
+|   +--------+  +----------+                   |
+|                                              |
+|   Click to connect and start receiving       |
+|   notifications in your agents.              |
++----------------------------------------------+
+```
+
+### Setup Wizard Flow
+
+```mermaid
+flowchart LR
+    subgraph Setup Flow
+        A[Click 'Connect Slack'] --> B[Setup Wizard<br/>with step-by-step docs]
+        B --> C[Enter tokens]
+        C --> D[Tokens stored in<br/>pkg/secret AES-256-GCM]
+        D --> E[Gateway enabled]
+        E --> F[Adapter starts,<br/>channels discovered]
+    end
+```
+
+### Web UI Component Tree
+
+```mermaid
+graph TD
+    CH[Channels.tsx] --> GS[GatewaySidebar.tsx]
+    CH --> CV[ChannelView.tsx]
+    CH --> SP[SubscriptionPanel.tsx]
+    CH --> SW[SetupWizard.tsx]
+
+    GS --> GD[GatewayDropdown.tsx]
+    GD --> CI[ChannelItem.tsx]
+    GS --> CB[ConnectButton.tsx]
+
+    CV --> CHD[ChannelHeader.tsx]
+    CV --> AF[ActivityFeed.tsx]
+    AF --> AE[ActivityEntry.tsx]
+
+    SP --> AR[AgentRow.tsx]
+```
+
+| Component | Responsibility |
+|-----------|---------------|
+| `GatewaySidebar` | Collapsible gateway sections with channel lists |
+| `ActivityFeed` | Chatroom-style messages, polls every 5s + live WebSocket |
+| `SubscriptionPanel` | Agent list with online dots, role badges, `@mention` toggle |
+| `SetupWizard` | Platform-specific token input + step-by-step docs |
+
+### SSE Events
+
+Real-time updates pushed to the web UI via the existing SSE hub:
 
 | Event | Trigger |
 |-------|---------|
@@ -446,23 +644,59 @@ GET    /api/gateways/{gateway}/channels/{channel}/activity        -- delivery lo
 
 ---
 
-## How to Add a New Channel Adapter
+## File and Attachment Handling
 
-### 1. Create the adapter file
+### Inbound File Flow
+
+```mermaid
+flowchart TD
+    subgraph Inbound
+        A[Human shares file on Slack] --> B[Adapter receives file_share event]
+        B --> C{File size < 10MB?}
+        C -->|Yes| D[Download to .bc/attachments/hash.ext]
+        C -->|No| E[Include URL only, skip download]
+        D --> F[Notification with local_path]
+        E --> F
+        F --> G[Agent reads file from path]
+    end
+```
+
+File notification payload:
+
+```json
+{
+  "channel": "slack:engineering",
+  "sender": "alice",
+  "content": "[shared a file]",
+  "attachments": [{
+    "filename": "screenshot.png",
+    "mime_type": "image/png",
+    "size": 245760,
+    "url": "https://files.slack.com/...",
+    "local_path": ".bc/attachments/a1b2c3d4.png"
+  }]
+}
+```
+
+For Docker agents, `.bc/attachments/` is mounted as a shared volume so agents can access downloaded files.
+
+---
+
+## Adding a New Channel Adapter
+
+### Step 1: Create the adapter file
 
 ```
 pkg/gateway/<platform>/<platform>.go
 ```
 
-### 2. Implement NotificationAdapter
+### Step 2: Implement the Adapter interface
 
 ```go
 package myplatform
 
 import (
     "context"
-    "encoding/json"
-
     "github.com/rpuneet/bc/pkg/gateway"
 )
 
@@ -477,29 +711,39 @@ func New(token string) *Adapter {
 
 func (a *Adapter) Name() string { return "myplatform" }
 
-func (a *Adapter) Start(ctx context.Context, handler func(gateway.Notification)) error {
+func (a *Adapter) Start(ctx context.Context, handler func(gateway.InboundMessage)) error {
     // 1. Connect to platform (WebSocket, long-poll, webhook server, etc.)
     // 2. For each inbound event:
     //    - Skip bot's own messages (self-filter)
     //    - Extract sender name for self-skip
-    //    - Marshal entire event payload as json.RawMessage
-    //    - Call handler(Notification{...})
+    //    - Build InboundMessage with content, sender, channel info
+    //    - Call handler(msg)
     // 3. Block until ctx.Done()
     return nil
 }
 
-func (a *Adapter) Stop() error {
+func (a *Adapter) Stop(ctx context.Context) error {
     // Graceful disconnect
     return nil
 }
 
-func (a *Adapter) Channels() []gateway.ChannelInfo {
+func (a *Adapter) Send(ctx context.Context, channelID, sender, content string) error {
+    // Send message to platform channel (v0.2 relay; removed in v0.3)
+    return nil
+}
+
+func (a *Adapter) Channels(ctx context.Context) ([]gateway.ExternalChannel, error) {
     // Return discovered channels/groups the bot can see
+    return nil, nil
+}
+
+func (a *Adapter) Health(ctx context.Context) error {
+    // Live API probe -- must make an actual API call, not a nil-check
     return nil
 }
 ```
 
-### 3. Register in gateway.Manager
+### Step 3: Register in the server
 
 In `server/server.go` (or wherever adapters are wired):
 
@@ -508,19 +752,138 @@ adapter := myplatform.New(token)
 gatewayMgr.Register(adapter)
 ```
 
-### 4. Add credential env vars
+### Step 4: Add credential env vars
 
-Document the required secrets in this file's platform table and add them to the setup wizard.
+Document the required secrets in the [Platform Integrations](#platform-integrations) table and add them to the setup wizard.
 
-### 5. Add identity instructions
+### Step 5: Add identity instructions
 
 Update the agent system prompt template to include instructions for the new platform's identity mechanism.
 
 ---
 
-## Migration from Old System
+## API Reference
 
-The channel system has evolved through several iterations:
+All endpoints are served by bcd at `http://127.0.0.1:9374`. No authentication (localhost-only).
+
+### Gateway Management
+
+```
+GET    /api/gateways                                              -- list all gateways + connection status
+POST   /api/gateways                                              -- connect a new gateway
+PATCH  /api/gateways/{gateway}                                    -- update tokens/settings
+DELETE /api/gateways/{gateway}                                    -- disconnect and remove gateway
+GET    /api/gateways/{gateway}/health                             -- live connection probe
+GET    /api/gateways/{gateway}/setup                              -- platform setup instructions
+```
+
+**`POST /api/gateways`** request body:
+
+```json
+{
+  "platform": "slack",
+  "tokens": {
+    "bot_token": "xoxb-...",
+    "app_token": "xapp-..."
+  }
+}
+```
+
+### Channel Discovery
+
+```
+GET    /api/gateways/{gateway}/channels                           -- discovered channels
+GET    /api/gateways/{gateway}/channels/{channel}                 -- channel detail + subscribed agents
+```
+
+### Agent Subscription Management
+
+```
+POST   /api/gateways/{gateway}/channels/{channel}/agents          -- subscribe agent
+DELETE /api/gateways/{gateway}/channels/{channel}/agents/{agent}  -- unsubscribe agent
+PATCH  /api/gateways/{gateway}/channels/{channel}/agents/{agent}  -- toggle mention_only
+```
+
+**`POST .../agents`** request body:
+
+```json
+{
+  "agent": "eng-01",
+  "mention_only": false
+}
+```
+
+**`PATCH .../agents/{agent}`** request body:
+
+```json
+{
+  "mention_only": true
+}
+```
+
+### Activity Feed
+
+```
+GET    /api/gateways/{gateway}/channels/{channel}/activity        -- delivery log entries
+```
+
+**Frontend routes mirror the API:** `/channels/slack/engineering` maps to `/api/gateways/slack/channels/engineering`.
+
+---
+
+## Dispatch Internals
+
+The full dispatch flow inside `notify.Service`:
+
+```mermaid
+flowchart TD
+    A[Inbound event from platform] --> B[Adapter calls onMessage handler]
+    B --> C[Manager dispatches in goroutine]
+    C --> D["notify.Service.Dispatch()"]
+    D --> E[Save message to notify_messages]
+    D --> F[Load subscribers from notify_subscriptions]
+    D --> G["Extract @mentions from content"]
+
+    F --> H{For each subscriber}
+    H --> I{Self-skip: sender == agent?}
+    I -->|Yes| J[Skip]
+    I -->|No| K{mention_only enabled?}
+    K -->|Yes| L{Agent @mentioned?}
+    L -->|No| J
+    L -->|Yes| M[Deliver]
+    K -->|No| M
+
+    M --> N[tmux send-keys JSON payload]
+    M --> O[Log delivery to notify_delivery_log]
+
+    D --> P[Publish gateway.message to SSE hub]
+    D --> Q[Prune old delivery log entries]
+```
+
+Key implementation details:
+- Dispatch runs in its own goroutine -- never blocks the adapter
+- Panics are recovered and logged
+- Delivery log is pruned to 1000 entries per channel after each dispatch
+- The `[platform] ` prefix is stripped from sender names before self-skip comparison
+
+---
+
+## CLI Commands
+
+```
+bc channel list         -- all channels across gateways with subscriber counts
+bc channel subscribe    -- subscribe agent to channel
+bc channel unsubscribe  -- unsubscribe agent
+bc channel status       -- gateway connection status + health
+```
+
+All other operations (gateway setup, token management, `@mention` toggle) are done through the web UI.
+
+---
+
+## Migration from v0.2
+
+The channel system has evolved through three iterations:
 
 | Version | Architecture | Status |
 |---------|-------------|--------|
@@ -528,19 +891,18 @@ The channel system has evolved through several iterations:
 | v0.2 | `pkg/gateway/` + `pkg/notify/` -- bidirectional gateway with `Adapter.Send()` | Current |
 | v0.3 | `pkg/gateway/` + `pkg/notify/` -- notification-only, no Send, raw JSON passthrough | Target |
 
-### What changes from v0.2 to v0.3
+### What Changes from v0.2 to v0.3
 
 | Component | v0.2 (Current) | v0.3 (Target) |
 |-----------|---------------|---------------|
-| `Adapter` interface | `Send()`, `SendFile()` methods | No outbound methods |
-| `InboundMessage` | Parsed fields (Content, Sender, ChannelName) | `Notification` with `Raw json.RawMessage` |
+| `Adapter` interface | Includes `Send()`, `SendFile()` methods | No outbound methods |
+| `InboundMessage` | Parsed fields (Content, Sender, ChannelName) | `Notification` with raw JSON passthrough |
 | `gateway.Manager.Send()` | Routes outbound messages to platform | Removed |
 | `gateway.Manager.SendFile()` | Routes file uploads to platform | Removed |
 | `FileSender` interface | Optional adapter capability | Removed |
 | Agent response | Via `gateway.Manager.Send()` or MCP | Direct platform API calls using env var credentials |
-| `SeedChannel` | Complex channel mapping persistence | Simplified -- adapters discover channels |
 
-### What stays the same
+### What Stays the Same
 
 - `notify_subscriptions` table schema
 - `notify_delivery_log` table schema
@@ -552,7 +914,9 @@ The channel system has evolved through several iterations:
 
 ## Package Reference
 
-- **`pkg/gateway/`** -- Adapter interface, Manager, platform adapters (Slack, Telegram, Discord). See [`pkg/gateway/README.md`](../../pkg/gateway/README.md).
-- **`pkg/notify/`** -- Notification types, Store (SQLite/Postgres), Service (dispatch + subscription management). See [`pkg/notify/README.md`](../../pkg/notify/README.md).
-- **`pkg/secret/`** -- AES-256-GCM encrypted credential storage.
-- **`server/handlers/`** -- REST API handlers for gateway and subscription management.
+| Package | Purpose |
+|---------|---------|
+| [`pkg/gateway/`](../../pkg/gateway/README.md) | Adapter interface, Manager, platform adapters (Slack, Telegram, Discord) |
+| [`pkg/notify/`](../../pkg/notify/README.md) | Notification types, Store (SQLite/Postgres), Service (dispatch + subscription management) |
+| `pkg/secret/` | AES-256-GCM encrypted credential storage |
+| `server/handlers/` | REST API handlers for gateway and subscription management |

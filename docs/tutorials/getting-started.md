@@ -138,7 +138,7 @@ bc cost dashboard      # Full view
 
 - Learn about the [Architecture](../overview.md) to understand the system
 - Configure [Settings](../how-to/configure-workspace.md) for your workspace
-- Set up [Channels](../how-to/set-up-channels.md) for agent communication
+- Set up [Channels](../architecture/channels.md) for platform notifications
 - Explore the [REST API](../reference/api-rest.md) for programmatic access
 
 ## Troubleshooting
