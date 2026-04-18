@@ -134,6 +134,16 @@ type GatewaysConfig struct {
 	// RSSFeeds holds zero or more RSS/Atom feed configs keyed by label.
 	// A plain "rss" key is stored under label "".
 	RSSFeeds map[string]*RSSGatewayConfig `json:"-"`
+	// GitLabs holds zero or more GitLab webhook configs keyed by label.
+	GitLabs map[string]*GitLabGatewayConfig `json:"-"`
+	// Jiras holds zero or more Jira webhook configs keyed by label.
+	Jiras map[string]*JiraGatewayConfig `json:"-"`
+	// Linears holds zero or more Linear webhook configs keyed by label.
+	Linears map[string]*LinearGatewayConfig `json:"-"`
+	// Sentries holds zero or more Sentry webhook configs keyed by label.
+	Sentries map[string]*SentryGatewayConfig `json:"-"`
+	// Stripes holds zero or more Stripe webhook configs keyed by label.
+	Stripes map[string]*StripeGatewayConfig `json:"-"`
 }
 
 // UnmarshalJSON parses gateway config, routing "telegram:*" keys into the
@@ -160,6 +170,11 @@ func (g *GatewaysConfig) UnmarshalJSON(data []byte) error {
 	g.GitHubs = make(map[string]*GitHubGatewayConfig)
 	g.Webhooks = make(map[string]*WebhookGatewayConfig)
 	g.RSSFeeds = make(map[string]*RSSGatewayConfig)
+	g.GitLabs = make(map[string]*GitLabGatewayConfig)
+	g.Jiras = make(map[string]*JiraGatewayConfig)
+	g.Linears = make(map[string]*LinearGatewayConfig)
+	g.Sentries = make(map[string]*SentryGatewayConfig)
+	g.Stripes = make(map[string]*StripeGatewayConfig)
 	for key, val := range raw {
 		switch {
 		case key == "telegram":
@@ -215,6 +230,56 @@ func (g *GatewaysConfig) UnmarshalJSON(data []byte) error {
 				return fmt.Errorf("parse gateway %q: %w", key, err)
 			}
 			g.RSSFeeds[label] = &rc
+		case key == "gitlab" || strings.HasPrefix(key, "gitlab:"):
+			label := strings.TrimPrefix(key, "gitlab:")
+			if key == "gitlab" {
+				label = ""
+			}
+			var c GitLabGatewayConfig
+			if err := json.Unmarshal(val, &c); err != nil {
+				return fmt.Errorf("parse gateway %q: %w", key, err)
+			}
+			g.GitLabs[label] = &c
+		case key == "jira" || strings.HasPrefix(key, "jira:"):
+			label := strings.TrimPrefix(key, "jira:")
+			if key == "jira" {
+				label = ""
+			}
+			var c JiraGatewayConfig
+			if err := json.Unmarshal(val, &c); err != nil {
+				return fmt.Errorf("parse gateway %q: %w", key, err)
+			}
+			g.Jiras[label] = &c
+		case key == "linear" || strings.HasPrefix(key, "linear:"):
+			label := strings.TrimPrefix(key, "linear:")
+			if key == "linear" {
+				label = ""
+			}
+			var c LinearGatewayConfig
+			if err := json.Unmarshal(val, &c); err != nil {
+				return fmt.Errorf("parse gateway %q: %w", key, err)
+			}
+			g.Linears[label] = &c
+		case key == "sentry" || strings.HasPrefix(key, "sentry:"):
+			label := strings.TrimPrefix(key, "sentry:")
+			if key == "sentry" {
+				label = ""
+			}
+			var c SentryGatewayConfig
+			if err := json.Unmarshal(val, &c); err != nil {
+				return fmt.Errorf("parse gateway %q: %w", key, err)
+			}
+			g.Sentries[label] = &c
+		case key == "stripe" || strings.HasPrefix(key, "stripe:"):
+			label := strings.TrimPrefix(key, "stripe:")
+			if key == "stripe" {
+				label = ""
+			}
+			var c StripeGatewayConfig
+			if err := json.Unmarshal(val, &c); err != nil {
+				return fmt.Errorf("parse gateway %q: %w", key, err)
+			}
+			g.Stripes[label] = &c
 		}
 	}
 	return nil
@@ -256,6 +321,41 @@ func (g GatewaysConfig) MarshalJSON() ([]byte, error) {
 			m["rss"] = rc
 		} else {
 			m["rss:"+label] = rc
+		}
+	}
+	for label, c := range g.GitLabs {
+		if label == "" {
+			m["gitlab"] = c
+		} else {
+			m["gitlab:"+label] = c
+		}
+	}
+	for label, c := range g.Jiras {
+		if label == "" {
+			m["jira"] = c
+		} else {
+			m["jira:"+label] = c
+		}
+	}
+	for label, c := range g.Linears {
+		if label == "" {
+			m["linear"] = c
+		} else {
+			m["linear:"+label] = c
+		}
+	}
+	for label, c := range g.Sentries {
+		if label == "" {
+			m["sentry"] = c
+		} else {
+			m["sentry:"+label] = c
+		}
+	}
+	for label, c := range g.Stripes {
+		if label == "" {
+			m["stripe"] = c
+		} else {
+			m["stripe:"+label] = c
 		}
 	}
 	if g.Discord != nil {
@@ -305,6 +405,36 @@ type RSSGatewayConfig struct {
 	URL      string `json:"url"`
 	Interval int    `json:"interval"` // seconds, default 300
 	Enabled  bool   `json:"enabled"`
+}
+
+// GitLabGatewayConfig configures the GitLab webhook gateway adapter.
+type GitLabGatewayConfig struct {
+	Token   string `json:"token"`
+	Enabled bool   `json:"enabled"`
+}
+
+// JiraGatewayConfig configures the Jira webhook gateway adapter.
+type JiraGatewayConfig struct {
+	Secret  string `json:"secret,omitempty"`
+	Enabled bool   `json:"enabled"`
+}
+
+// LinearGatewayConfig configures the Linear webhook gateway adapter.
+type LinearGatewayConfig struct {
+	Secret  string `json:"secret"`
+	Enabled bool   `json:"enabled"`
+}
+
+// SentryGatewayConfig configures the Sentry webhook gateway adapter.
+type SentryGatewayConfig struct {
+	Secret  string `json:"secret"`
+	Enabled bool   `json:"enabled"`
+}
+
+// StripeGatewayConfig configures the Stripe webhook gateway adapter.
+type StripeGatewayConfig struct {
+	Secret  string `json:"secret"`
+	Enabled bool   `json:"enabled"`
 }
 
 // CronConfig configures the cron/job scheduler.

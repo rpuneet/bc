@@ -29,7 +29,12 @@ import (
 	bcgithub "github.com/rpuneet/bc/pkg/gateway/github"
 	bcslack "github.com/rpuneet/bc/pkg/gateway/slack"
 	bctelegram "github.com/rpuneet/bc/pkg/gateway/telegram"
+	bcgitlab "github.com/rpuneet/bc/pkg/gateway/gitlab"
+	bcjira "github.com/rpuneet/bc/pkg/gateway/jira"
+	bclinear "github.com/rpuneet/bc/pkg/gateway/linear"
 	bcrss "github.com/rpuneet/bc/pkg/gateway/rss"
+	bcsentry "github.com/rpuneet/bc/pkg/gateway/sentry"
+	bcstripe "github.com/rpuneet/bc/pkg/gateway/stripe"
 	bcwebhook "github.com/rpuneet/bc/pkg/gateway/webhook"
 	"github.com/rpuneet/bc/pkg/log"
 	bcmcp "github.com/rpuneet/bc/pkg/mcp"
@@ -423,7 +428,48 @@ func buildGatewayManager(ctx context.Context, ws *bcworkspace.Workspace, notifyS
 		}
 	}
 
-	if tgCount == 0 && !dcEnabled && !slEnabled && ghCount == 0 && whCount == 0 && rssCount == 0 {
+	// Count enabled GitLab webhook adapters.
+	var glCount int
+	for _, c := range gw.GitLabs {
+		if c.Enabled {
+			glCount++
+		}
+	}
+
+	// Count enabled Jira webhook adapters.
+	var jiraCount int
+	for _, c := range gw.Jiras {
+		if c.Enabled {
+			jiraCount++
+		}
+	}
+
+	// Count enabled Linear webhook adapters.
+	var linearCount int
+	for _, c := range gw.Linears {
+		if c.Enabled {
+			linearCount++
+		}
+	}
+
+	// Count enabled Sentry webhook adapters.
+	var sentryCount int
+	for _, c := range gw.Sentries {
+		if c.Enabled {
+			sentryCount++
+		}
+	}
+
+	// Count enabled Stripe webhook adapters.
+	var stripeCount int
+	for _, c := range gw.Stripes {
+		if c.Enabled {
+			stripeCount++
+		}
+	}
+
+	if tgCount == 0 && !dcEnabled && !slEnabled && ghCount == 0 && whCount == 0 && rssCount == 0 &&
+		glCount == 0 && jiraCount == 0 && linearCount == 0 && sentryCount == 0 && stripeCount == 0 {
 		return nil
 	}
 
@@ -498,6 +544,71 @@ func buildGatewayManager(ctx context.Context, ws *bcworkspace.Workspace, notifyS
 		}
 		m.Register(bcrss.NewNamed(adapterName, rc.URL, rc.Interval))
 		log.Info("gateway: rss adapter registered", "name", adapterName, "url", rc.URL)
+	}
+
+	// Register GitLab webhook adapters.
+	for label, c := range gw.GitLabs {
+		if !c.Enabled {
+			continue
+		}
+		adapterName := "gitlab"
+		if label != "" {
+			adapterName = "gitlab:" + label
+		}
+		m.Register(bcgitlab.NewNamed(adapterName, c.Token))
+		log.Info("gateway: gitlab adapter registered", "name", adapterName)
+	}
+
+	// Register Jira webhook adapters.
+	for label, c := range gw.Jiras {
+		if !c.Enabled {
+			continue
+		}
+		adapterName := "jira"
+		if label != "" {
+			adapterName = "jira:" + label
+		}
+		m.Register(bcjira.NewNamed(adapterName, c.Secret))
+		log.Info("gateway: jira adapter registered", "name", adapterName)
+	}
+
+	// Register Linear webhook adapters.
+	for label, c := range gw.Linears {
+		if !c.Enabled {
+			continue
+		}
+		adapterName := "linear"
+		if label != "" {
+			adapterName = "linear:" + label
+		}
+		m.Register(bclinear.NewNamed(adapterName, c.Secret))
+		log.Info("gateway: linear adapter registered", "name", adapterName)
+	}
+
+	// Register Sentry webhook adapters.
+	for label, c := range gw.Sentries {
+		if !c.Enabled {
+			continue
+		}
+		adapterName := "sentry"
+		if label != "" {
+			adapterName = "sentry:" + label
+		}
+		m.Register(bcsentry.NewNamed(adapterName, c.Secret))
+		log.Info("gateway: sentry adapter registered", "name", adapterName)
+	}
+
+	// Register Stripe webhook adapters.
+	for label, c := range gw.Stripes {
+		if !c.Enabled {
+			continue
+		}
+		adapterName := "stripe"
+		if label != "" {
+			adapterName = "stripe:" + label
+		}
+		m.Register(bcstripe.NewNamed(adapterName, c.Secret))
+		log.Info("gateway: stripe adapter registered", "name", adapterName)
 	}
 
 	wg.Add(1)
