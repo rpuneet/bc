@@ -29,30 +29,33 @@ All communication flows through **bcd** as the central hub. No component talks d
 | MCP (SSE) | JSON-RPC 2.0 | `/mcp/sse` + `/mcp/message` | Remote MCP clients |
 | Health | HTTP | `/health` | Liveness probe |
 
-## Message Delivery Flow
+## Notification Delivery Flow
 
-When a message is sent to a channel, it's delivered to all members:
+External platform events are delivered to subscribed agents via the notification gateway:
 
 ```mermaid
 sequenceDiagram
-    participant Sender as Agent/CLI
-    participant API as bcd API
+    participant Platform as External Platform
+    participant Adapter as Gateway Adapter
+    participant Notify as notify.Service
     participant DB as SQLite
     participant Hub as SSE Hub
-    participant Agent as Member Agents
+    participant Agent as Subscribed Agents
     participant Web as Web UI
 
-    Sender->>API: POST /api/channels/{name}/messages
-    API->>DB: INSERT message
-    API->>Hub: Publish channel.message event
-    Hub->>Web: SSE: channel.message
-    
-    loop Each channel member (except sender)
-        API->>Agent: tmux send-keys / docker exec
+    Platform->>Adapter: Inbound event (message/webhook)
+    Adapter->>Notify: Dispatch(channel, sender, content)
+    Notify->>DB: Save message + query subscribers
+    Notify->>Hub: Publish gateway.message event
+    Hub->>Web: SSE: gateway.message
+
+    loop Each subscriber (with self-skip + mention filter)
+        Notify->>Agent: tmux send-keys (JSON payload)
+        Notify->>DB: Log delivery (delivered/failed)
     end
-    
-    API->>Sender: 201 Created
 ```
+
+See [Channel Architecture](../architecture/channels.md) for the full notification system design.
 
 ## Agent Hook Event Flow
 
@@ -120,7 +123,7 @@ bcd maintains an in-memory SSE hub. All connected clients (web UI, TUI) receive 
 graph LR
     subgraph Sources
         AGENT_SVC[Agent Service]
-        CHAN_SVC[Channel Service]
+        NOTIFY_SVC[Notify Service]
         COST_SVC[Cost Importer]
     end
 
@@ -133,7 +136,7 @@ graph LR
     end
 
     AGENT_SVC -->|agent.created<br/>agent.stopped<br/>agent.state| HUB
-    CHAN_SVC -->|channel.message| HUB
+    NOTIFY_SVC -->|gateway.message<br/>gateway.delivery| HUB
     HUB --> WEB1
     HUB --> WEB2
     HUB --> TUI1
@@ -150,7 +153,7 @@ graph LR
 | `agent.deleted` | Agent deleted | `{"name"}` |
 | `agent.renamed` | Agent renamed | `{"old_name","new_name"}` |
 | `agents.stopped_all` | All agents stopped | `{"count"}` |
-| `channel.message` | New message posted | `{"channel","message"}` |
+| `gateway.message` | Inbound platform message | `{"channel","platform","sender","content"}` |
 
 ## Request/Response Format
 
