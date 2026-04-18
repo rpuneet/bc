@@ -1,11 +1,14 @@
-// Package slackgw implements the gateway.Adapter for Slack.
+// Package slackgw implements the gateway.NotificationAdapter for Slack.
 package slackgw
 
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
+	"net/http"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/slack-go/slack"
@@ -16,12 +19,13 @@ import (
 	"github.com/rpuneet/bc/pkg/log"
 )
 
-// Adapter implements gateway.Adapter for Slack using Socket Mode.
+// Adapter implements gateway.NotificationAdapter for Slack using Socket Mode.
+// It also implements gateway.MessageSender and gateway.FileSender for outbound messaging.
 type Adapter struct {
 	lastMessageAt time.Time
 	api           *slack.Client
 	sm            *socketmode.Client
-	onMessage     func(gateway.InboundMessage)
+	handler       func(gateway.Notification)
 	channelMap    map[string]string
 	userCache     map[string]string
 	botToken      string
@@ -31,11 +35,12 @@ type Adapter struct {
 	lastError     string
 	chatMu        sync.RWMutex
 	connected     bool
+	messageCount  atomic.Int64
 }
 
-var _ gateway.Adapter = (*Adapter)(nil)
+var _ gateway.NotificationAdapter = (*Adapter)(nil)
+var _ gateway.MessageSender = (*Adapter)(nil)
 var _ gateway.FileSender = (*Adapter)(nil)
-var _ gateway.StatusReporter = (*Adapter)(nil)
 
 // New creates a new Slack adapter using Socket Mode.
 func New(botToken, appToken string) *Adapter {
@@ -49,8 +54,12 @@ func New(botToken, appToken string) *Adapter {
 
 func (a *Adapter) Name() string { return "slack" }
 
-func (a *Adapter) Start(ctx context.Context, onMessage func(gateway.InboundMessage)) error {
-	a.onMessage = onMessage
+// Type returns AdapterSocket since Slack uses WebSocket via Socket Mode.
+func (a *Adapter) Type() gateway.AdapterType { return gateway.AdapterSocket }
+
+// Start connects to Slack Socket Mode and forwards events as Notifications.
+func (a *Adapter) Start(ctx context.Context, handler func(gateway.Notification)) error {
+	a.handler = handler
 
 	api := slack.New(
 		a.botToken,
@@ -89,17 +98,52 @@ func (a *Adapter) Start(ctx context.Context, onMessage func(gateway.InboundMessa
 	return sm.RunContext(ctx)
 }
 
-func (a *Adapter) Stop(_ context.Context) error {
+// Stop gracefully disconnects.
+func (a *Adapter) Stop() error {
 	// Socket mode client stops when context is canceled in Start
 	return nil
 }
 
+// HTTPHandler returns nil since Slack uses Socket Mode, not webhooks.
+func (a *Adapter) HTTPHandler() http.Handler { return nil }
+
+// Channels returns discovered channels.
+func (a *Adapter) Channels() []gateway.ChannelInfo {
+	a.chatMu.RLock()
+	defer a.chatMu.RUnlock()
+
+	channels := make([]gateway.ChannelInfo, 0, len(a.channelMap))
+	for id, name := range a.channelMap {
+		channels = append(channels, gateway.ChannelInfo{
+			ID:       id,
+			Name:     name,
+			Platform: "slack",
+		})
+	}
+	return channels
+}
+
+// Status returns the current connection state.
+func (a *Adapter) Status() gateway.AdapterStatus {
+	a.chatMu.RLock()
+	defer a.chatMu.RUnlock()
+	return gateway.AdapterStatus{
+		Connected:     a.connected,
+		LastMessageAt: a.lastMessageAt,
+		Error:         a.lastError,
+		BotName:       a.botName,
+		MessageCount:  a.messageCount.Load(),
+	}
+}
+
+// --- MessageSender + FileSender (outbound messaging) ---
+
+// Send delivers a message to a Slack channel.
 func (a *Adapter) Send(ctx context.Context, channelID, sender, content string) error {
 	if a.api == nil {
 		return fmt.Errorf("slack: not connected")
 	}
 
-	// Use chat:write.customize to show agent name
 	_, _, err := a.api.PostMessageContext(ctx, channelID,
 		slack.MsgOptionText(content, false),
 		slack.MsgOptionUsername(sender),
@@ -114,7 +158,7 @@ func (a *Adapter) Send(ctx context.Context, channelID, sender, content string) e
 }
 
 // SendFile uploads a file to a Slack channel.
-func (a *Adapter) SendFile(ctx context.Context, channelID, sender, filename string, data []byte, mimeType string) error {
+func (a *Adapter) SendFile(ctx context.Context, channelID, sender, filename string, data []byte, _ string) error {
 	if a.api == nil {
 		return fmt.Errorf("slack: not connected")
 	}
@@ -135,26 +179,11 @@ func (a *Adapter) SendFile(ctx context.Context, channelID, sender, filename stri
 	return nil
 }
 
-func (a *Adapter) Channels(_ context.Context) ([]gateway.ExternalChannel, error) {
-	a.chatMu.RLock()
-	defer a.chatMu.RUnlock()
-
-	channels := make([]gateway.ExternalChannel, 0, len(a.channelMap))
-	for id, name := range a.channelMap {
-		channels = append(channels, gateway.ExternalChannel{
-			ID:   id,
-			Name: name,
-			Type: "channel",
-		})
-	}
-	return channels, nil
-}
-
+// Health returns nil if the adapter is connected and operational.
 func (a *Adapter) Health(ctx context.Context) error {
 	if a.api == nil {
 		return fmt.Errorf("slack: not connected")
 	}
-	// Live probe: call auth.test to verify the connection
 	if _, err := a.api.AuthTestContext(ctx); err != nil {
 		a.chatMu.Lock()
 		a.connected = false
@@ -169,20 +198,9 @@ func (a *Adapter) Health(ctx context.Context) error {
 	return nil
 }
 
-// Status returns the current connection state.
-func (a *Adapter) Status() gateway.AdapterStatus {
-	a.chatMu.RLock()
-	defer a.chatMu.RUnlock()
-	return gateway.AdapterStatus{
-		Connected:     a.connected,
-		LastMessageAt: a.lastMessageAt,
-		Error:         a.lastError,
-		BotName:       a.botName,
-	}
-}
+// --- Internal helpers ---
 
-// discoverChannels lists channels the bot is a member of using conversations.list.
-// This populates the channelMap so the gateway manager can persist all mappings.
+// discoverChannels lists channels the bot is a member of.
 func (a *Adapter) discoverChannels(ctx context.Context) error {
 	params := &slack.GetConversationsParameters{
 		Types:           []string{"public_channel", "private_channel"},
@@ -256,7 +274,6 @@ func (a *Adapter) processEvent(sm *socketmode.Client, evt socketmode.Event) {
 
 	default:
 		log.Info("slack: unhandled event type", "type", evt.Type)
-		// Acknowledge unknown events to prevent retries
 		if evt.Request != nil {
 			sm.Ack(*evt.Request) //nolint:errcheck // best-effort ack
 		}
@@ -290,17 +307,15 @@ func (a *Adapter) handleMessageEvent(ev *slackevents.MessageEvent) {
 	if content == "" && ev.SubType != "file_share" {
 		return
 	}
-	// For file_share events with no text, add a descriptive message
 	if content == "" && ev.SubType == "file_share" {
 		content = "[shared a file]"
 	}
 
-	// Resolve channel name — try cache first, then API lookup
+	// Resolve channel name
 	a.chatMu.RLock()
 	channelName, ok := a.channelMap[ev.Channel]
 	a.chatMu.RUnlock()
 	if !ok {
-		// Lookup via API and cache the result
 		if a.api != nil {
 			if chInfo, err := a.api.GetConversationInfo(&slack.GetConversationInfoInput{
 				ChannelID: ev.Channel,
@@ -316,7 +331,7 @@ func (a *Adapter) handleMessageEvent(ev *slackevents.MessageEvent) {
 		}
 	}
 
-	// Resolve user name — cache lookups to avoid repeated API calls
+	// Resolve user name
 	sender := ev.User
 	if a.api != nil {
 		a.chatMu.RLock()
@@ -341,26 +356,37 @@ func (a *Adapter) handleMessageEvent(ev *slackevents.MessageEvent) {
 	}
 
 	now := time.Now()
-	msg := gateway.InboundMessage{
-		Timestamp:   now,
-		ChannelID:   ev.Channel,
-		ChannelName: channelName,
-		Sender:      sender,
-		SenderID:    ev.User,
-		Content:     content,
-		MessageID:   ev.TimeStamp,
-	}
 
 	a.chatMu.Lock()
 	a.lastMessageAt = now
 	a.chatMu.Unlock()
+
+	a.messageCount.Add(1)
 
 	log.Info("slack: received message",
 		"channel", channelName,
 		"sender", sender,
 		"content", gateway.Truncate(content, 50))
 
-	if a.onMessage != nil {
-		a.onMessage(msg)
+	if a.handler != nil {
+		raw, err := json.Marshal(map[string]any{
+			"channel_id":   ev.Channel,
+			"channel_name": channelName,
+			"user":         ev.User,
+			"text":         content,
+			"ts":           ev.TimeStamp,
+			"sub_type":     ev.SubType,
+		})
+		if err != nil {
+			log.Warn("slack: failed to marshal event", "error", err)
+			return
+		}
+		a.handler(gateway.Notification{
+			Channel:   channelName,
+			Platform:  "slack",
+			Sender:    sender,
+			Timestamp: now,
+			Raw:       raw,
+		})
 	}
 }

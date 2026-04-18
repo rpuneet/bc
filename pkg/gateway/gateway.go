@@ -4,10 +4,89 @@ package gateway
 
 import (
 	"context"
+	"encoding/json"
+	"net/http"
 	"time"
 )
 
-// Adapter handles the platform connection lifecycle and message routing.
+// AdapterType identifies the connection pattern for a NotificationAdapter.
+type AdapterType string
+
+const (
+	// AdapterSocket is a long-lived connection (WebSocket, polling loop).
+	AdapterSocket AdapterType = "socket"
+	// AdapterWebhook is an HTTP endpoint where the platform POSTs events to bc.
+	AdapterWebhook AdapterType = "webhook"
+	// AdapterPoll is timer-based polling where bc fetches new events.
+	AdapterPoll AdapterType = "poll"
+)
+
+// NotificationAdapter handles the platform connection lifecycle.
+// This is the new interface that all adapters should implement.
+type NotificationAdapter interface {
+	// Name returns the adapter identifier ("slack", "github", "telegram").
+	Name() string
+
+	// Type returns the connection pattern (socket, webhook, or poll).
+	Type() AdapterType
+
+	// Start connects to the platform and begins receiving notifications.
+	// Calls handler for each inbound event with raw JSON payload.
+	// Blocks until ctx is canceled. For webhook adapters, this is a no-op.
+	Start(ctx context.Context, handler func(Notification)) error
+
+	// Stop gracefully disconnects from the platform.
+	Stop() error
+
+	// HTTPHandler returns an http.Handler for webhook-based adapters.
+	// Socket and poll adapters return nil.
+	HTTPHandler() http.Handler
+
+	// Channels returns discovered channels/groups the bot has access to.
+	Channels() []ChannelInfo
+
+	// Status returns the adapter's connection state for the web UI.
+	Status() AdapterStatus
+}
+
+// MessageSender is optionally implemented by NotificationAdapters that
+// support outbound messaging (e.g., Slack, Telegram, Discord).
+type MessageSender interface {
+	// Send delivers a message to a platform channel.
+	Send(ctx context.Context, channelID, sender, content string) error
+}
+
+// Notification is a normalized inbound event from an external platform.
+// The Raw field contains the complete platform payload as JSON.
+type Notification struct {
+	Timestamp time.Time       `json:"timestamp"`
+	Raw       json.RawMessage `json:"raw"`
+	Channel   string          `json:"channel"`
+	Platform  string          `json:"platform"`
+	Sender    string          `json:"sender"`
+	Mentions  []string        `json:"mentions"`
+}
+
+// ChannelInfo represents a discovered channel on a platform.
+type ChannelInfo struct {
+	ID       string `json:"id"`
+	Name     string `json:"name"`
+	Platform string `json:"platform"`
+}
+
+// AdapterStatus reports connection state for the web UI.
+type AdapterStatus struct {
+	LastMessageAt time.Time `json:"last_message_at,omitempty"`
+	Error         string    `json:"error,omitempty"`
+	BotName       string    `json:"bot_name,omitempty"`
+	Connected     bool      `json:"connected"`
+	MessageCount  int64     `json:"message_count"`
+}
+
+// --- Legacy interface (kept during migration) ---
+
+// Adapter is the legacy interface for platform adapters.
+// Deprecated: Use NotificationAdapter for new adapters.
 type Adapter interface {
 	// Name returns the platform identifier ("telegram", "discord", "slack").
 	Name() string
@@ -35,18 +114,10 @@ type FileSender interface {
 	SendFile(ctx context.Context, channelID, sender, filename string, data []byte, mimeType string) error
 }
 
-// StatusReporter is optionally implemented by adapters that report connection state.
+// StatusReporter is optionally implemented by legacy adapters that report connection state.
 type StatusReporter interface {
 	// Status returns the current connection state for UI display.
 	Status() AdapterStatus
-}
-
-// AdapterStatus reports connection state for the web UI.
-type AdapterStatus struct {
-	LastMessageAt time.Time `json:"last_message_at,omitempty"`
-	Error         string    `json:"error,omitempty"`
-	BotName       string    `json:"bot_name,omitempty"`
-	Connected     bool      `json:"connected"`
 }
 
 // Attachment represents a file attached to a message.
@@ -60,6 +131,7 @@ type Attachment struct {
 }
 
 // InboundMessage is a normalized message from an external platform.
+// Deprecated: NotificationAdapter uses Notification instead.
 type InboundMessage struct {
 	Timestamp   time.Time
 	ChannelID   string
@@ -72,6 +144,7 @@ type InboundMessage struct {
 }
 
 // ExternalChannel represents a channel/group on an external platform.
+// Deprecated: NotificationAdapter uses ChannelInfo instead.
 type ExternalChannel struct {
 	ID   string
 	Name string

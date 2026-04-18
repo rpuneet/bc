@@ -2,6 +2,7 @@ package gateway
 
 import (
 	"context"
+	"net/http"
 	"testing"
 )
 
@@ -78,23 +79,36 @@ func TestManagerExternalChannels(t *testing.T) {
 	}
 }
 
-// mockAdapter is a minimal Adapter for testing registration.
-type mockAdapter struct {
+// mockLegacyAdapter is a minimal legacy Adapter for testing registration.
+type mockLegacyAdapter struct {
 	name string
 }
 
-func (m *mockAdapter) Name() string                                          { return m.name }
-func (m *mockAdapter) Start(_ context.Context, _ func(InboundMessage)) error { return nil }
-func (m *mockAdapter) Stop(_ context.Context) error                          { return nil }
-func (m *mockAdapter) Send(_ context.Context, _, _, _ string) error          { return nil }
-func (m *mockAdapter) Channels(_ context.Context) ([]ExternalChannel, error) { return nil, nil }
-func (m *mockAdapter) Health(_ context.Context) error                        { return nil }
+func (m *mockLegacyAdapter) Name() string                                          { return m.name }
+func (m *mockLegacyAdapter) Start(_ context.Context, _ func(InboundMessage)) error { return nil }
+func (m *mockLegacyAdapter) Stop(_ context.Context) error                          { return nil }
+func (m *mockLegacyAdapter) Send(_ context.Context, _, _, _ string) error          { return nil }
+func (m *mockLegacyAdapter) Channels(_ context.Context) ([]ExternalChannel, error) { return nil, nil }
+func (m *mockLegacyAdapter) Health(_ context.Context) error                        { return nil }
+
+// mockNotifAdapter is a minimal NotificationAdapter for testing registration.
+type mockNotifAdapter struct {
+	name string
+}
+
+func (m *mockNotifAdapter) Name() string                                              { return m.name }
+func (m *mockNotifAdapter) Type() AdapterType                                         { return AdapterSocket }
+func (m *mockNotifAdapter) Start(_ context.Context, _ func(Notification)) error       { return nil }
+func (m *mockNotifAdapter) Stop() error                                               { return nil }
+func (m *mockNotifAdapter) HTTPHandler() http.Handler                                 { return nil }
+func (m *mockNotifAdapter) Channels() []ChannelInfo                                   { return nil }
+func (m *mockNotifAdapter) Status() AdapterStatus                                     { return AdapterStatus{} }
 
 func TestSeedChannelMultiColonPlatform(t *testing.T) {
 	m := NewManager()
 	// Register two adapters: "telegram" and "telegram:foo"
-	m.Register(&mockAdapter{name: "telegram"})
-	m.Register(&mockAdapter{name: "telegram:foo"})
+	m.Register(&mockNotifAdapter{name: "telegram"})
+	m.Register(&mockNotifAdapter{name: "telegram:foo"})
 
 	// Seed a channel for the labeled adapter
 	m.SeedChannel("telegram:foo:general")
@@ -125,7 +139,7 @@ func TestSeedChannelMultiColonPlatform(t *testing.T) {
 
 func TestSeedChannelNoOverwrite(t *testing.T) {
 	m := NewManager()
-	m.Register(&mockAdapter{name: "slack"})
+	m.Register(&mockNotifAdapter{name: "slack"})
 	m.channelMap["slack:general"] = channelRoute{Platform: "slack", ChannelID: "C123"}
 
 	// SeedChannel should not overwrite existing mapping
@@ -135,18 +149,95 @@ func TestSeedChannelNoOverwrite(t *testing.T) {
 	}
 }
 
-func TestRegisterMultipleAdapters(t *testing.T) {
+func TestRegisterMultipleNotificationAdapters(t *testing.T) {
 	m := NewManager()
-	m.Register(&mockAdapter{name: "telegram:trade"})
-	m.Register(&mockAdapter{name: "telegram:gateway"})
-	m.Register(&mockAdapter{name: "telegram:kognivida"})
+	m.Register(&mockNotifAdapter{name: "telegram:trade"})
+	m.Register(&mockNotifAdapter{name: "telegram:gateway"})
+	m.Register(&mockNotifAdapter{name: "telegram:kognivida"})
 
-	if len(m.adapters) != 3 {
-		t.Errorf("expected 3 adapters, got %d", len(m.adapters))
+	if len(m.notificationAdapters) != 3 {
+		t.Errorf("expected 3 notification adapters, got %d", len(m.notificationAdapters))
 	}
 	for _, name := range []string{"telegram:trade", "telegram:gateway", "telegram:kognivida"} {
-		if _, ok := m.adapters[name]; !ok {
-			t.Errorf("adapter %q not registered", name)
+		if _, ok := m.notificationAdapters[name]; !ok {
+			t.Errorf("notification adapter %q not registered", name)
 		}
+	}
+}
+
+func TestRegisterLegacyAdapter(t *testing.T) {
+	m := NewManager()
+	m.Register(&mockLegacyAdapter{name: "slack"})
+
+	if len(m.legacyAdapters) != 1 {
+		t.Errorf("expected 1 legacy adapter, got %d", len(m.legacyAdapters))
+	}
+	if _, ok := m.legacyAdapters["slack"]; !ok {
+		t.Error("legacy adapter 'slack' not registered")
+	}
+}
+
+func TestRegisterMixedAdapters(t *testing.T) {
+	m := NewManager()
+	m.Register(&mockLegacyAdapter{name: "legacy-platform"})
+	m.Register(&mockNotifAdapter{name: "new-platform"})
+
+	if len(m.legacyAdapters) != 1 {
+		t.Errorf("expected 1 legacy adapter, got %d", len(m.legacyAdapters))
+	}
+	if len(m.notificationAdapters) != 1 {
+		t.Errorf("expected 1 notification adapter, got %d", len(m.notificationAdapters))
+	}
+}
+
+func TestAdapterStatusNotificationAdapter(t *testing.T) {
+	m := NewManager()
+	m.Register(&mockNotifAdapter{name: "discord"})
+
+	status := m.AdapterStatus("discord")
+	// mockNotifAdapter returns empty status (Connected: false)
+	if status.Connected {
+		t.Error("expected not connected for mock adapter")
+	}
+	if status.Error != "" {
+		t.Errorf("expected no error, got %q", status.Error)
+	}
+}
+
+func TestAdapterStatusUnknown(t *testing.T) {
+	m := NewManager()
+	status := m.AdapterStatus("unknown")
+	if status.Error != "adapter not registered" {
+		t.Errorf("expected 'adapter not registered' error, got %q", status.Error)
+	}
+}
+
+func TestSeedChannelMixedAdapters(t *testing.T) {
+	m := NewManager()
+	m.Register(&mockLegacyAdapter{name: "legacy"})
+	m.Register(&mockNotifAdapter{name: "notif"})
+
+	m.SeedChannel("legacy:test")
+	route, ok := m.channelMap["legacy:test"]
+	if !ok {
+		t.Fatal("expected legacy channel to be seeded")
+	}
+	if route.LegacyAdapter == nil {
+		t.Error("expected legacy adapter to be set")
+	}
+	if route.NotificationAdapter != nil {
+		t.Error("expected notification adapter to be nil for legacy channel")
+	}
+
+	m.SeedChannel("notif:test")
+	route, ok = m.channelMap["notif:test"]
+	if !ok {
+		t.Fatal("expected notif channel to be seeded")
+	}
+	if route.NotificationAdapter == nil {
+		t.Error("expected notification adapter to be set")
+	}
+	if route.LegacyAdapter != nil {
+		t.Error("expected legacy adapter to be nil for notif channel")
 	}
 }
