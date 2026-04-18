@@ -2,6 +2,7 @@ package gateway
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
@@ -25,6 +26,16 @@ type ChannelStore interface {
 	LoadChannels(ctx context.Context) ([]PersistedChannel, error)
 }
 
+// messageSender is checked at runtime for adapters that support outbound messaging.
+type messageSender interface {
+	Send(ctx context.Context, channelID, sender, content string) error
+}
+
+// fileSender is checked at runtime for adapters that support file uploads.
+type fileSender interface {
+	SendFile(ctx context.Context, channelID, sender, filename string, data []byte, mimeType string) error
+}
+
 // Manager orchestrates all gateway adapters and routes messages.
 type Manager struct {
 	// adapters holds all registered NotificationAdapter instances.
@@ -33,7 +44,7 @@ type Manager struct {
 	channelMap map[string]channelRoute
 	// onInbound is called when a message arrives from an external platform.
 	// Typically wired to ChannelService.Send + SSE hub.
-	onInbound    func(bcChannel, sender, content string)
+	onInbound    func(bcChannel, sender, content string, raw json.RawMessage)
 	channelStore ChannelStore
 	mu           sync.RWMutex
 }
@@ -58,7 +69,7 @@ func (m *Manager) SetChannelStore(store ChannelStore) {
 }
 
 // SetInboundHandler sets the callback for inbound messages from external platforms.
-func (m *Manager) SetInboundHandler(fn func(bcChannel, sender, content string)) {
+func (m *Manager) SetInboundHandler(fn func(bcChannel, sender, content string, raw json.RawMessage)) {
 	m.onInbound = fn
 }
 
@@ -236,7 +247,7 @@ func (m *Manager) Send(ctx context.Context, bcChannel, sender, content string) (
 		return true, fmt.Errorf("gateway send to %s: no adapter", bcChannel)
 	}
 
-	ms, ok := route.Adapter.(MessageSender)
+	ms, ok := route.Adapter.(messageSender)
 	if !ok {
 		return true, fmt.Errorf("gateway send to %s: adapter does not support outbound messaging", bcChannel)
 	}
@@ -261,7 +272,7 @@ func (m *Manager) SendFile(ctx context.Context, bcChannel, sender, filename stri
 		return true, fmt.Errorf("gateway %s: no adapter", bcChannel)
 	}
 
-	fs, ok := route.Adapter.(FileSender)
+	fs, ok := route.Adapter.(fileSender)
 	if !ok {
 		return true, fmt.Errorf("gateway %s does not support file uploads", bcChannel)
 	}
@@ -375,7 +386,7 @@ func (m *Manager) handleNotification(platform string, n Notification) {
 	// Convert raw JSON to content string for the inbound handler
 	content := string(n.Raw)
 	if m.onInbound != nil {
-		m.onInbound(bcChannel, sender, content)
+		m.onInbound(bcChannel, sender, content, n.Raw)
 	}
 }
 

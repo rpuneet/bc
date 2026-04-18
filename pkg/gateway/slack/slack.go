@@ -20,7 +20,7 @@ import (
 )
 
 // Adapter implements gateway.NotificationAdapter for Slack using Socket Mode.
-// It also implements gateway.MessageSender and gateway.FileSender for outbound messaging.
+// It also supports outbound messaging via Send and SendFile methods.
 type Adapter struct {
 	lastMessageAt time.Time
 	api           *slack.Client
@@ -39,8 +39,6 @@ type Adapter struct {
 }
 
 var _ gateway.NotificationAdapter = (*Adapter)(nil)
-var _ gateway.MessageSender = (*Adapter)(nil)
-var _ gateway.FileSender = (*Adapter)(nil)
 
 // New creates a new Slack adapter using Socket Mode.
 func New(botToken, appToken string) *Adapter {

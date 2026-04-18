@@ -193,7 +193,7 @@ func TestDispatchMentionFilter(t *testing.T) {
 	}
 
 	// Send message that only mentions eng-01
-	svc.Dispatch("slack:eng", "slack", "alice", "U123", "hey @eng-01 review this", "msg1", nil)
+	svc.Dispatch("slack:eng", "slack", "alice", "U123", "hey @eng-01 review this", "msg1", nil, nil)
 
 	// Wait for async dispatch
 	time.Sleep(100 * time.Millisecond)
@@ -222,7 +222,7 @@ func TestDispatchSelfSkip(t *testing.T) {
 	}
 
 	// eng-01 sends a message — should NOT be delivered back to eng-01
-	svc.Dispatch("slack:eng", "slack", "eng-01", "U456", "I just pushed a fix", "msg2", nil)
+	svc.Dispatch("slack:eng", "slack", "eng-01", "U456", "I just pushed a fix", "msg2", nil, nil)
 
 	time.Sleep(100 * time.Millisecond)
 

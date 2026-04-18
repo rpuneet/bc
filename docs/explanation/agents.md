@@ -162,7 +162,7 @@ erDiagram
 
 ## Notification Delivery
 
-Agents receive notifications from external platforms via `tmux send-keys` -- the only mechanism to inject into a running session. Notifications are delivered as JSON payloads containing the full platform event.
+Agents receive notifications from external platforms via `tmux send-keys` -- the only mechanism to inject into a running session. Notifications are delivered as JSON payloads containing both normalized fields (`channel`, `platform`, `sender`, `content`, `mentions`) and a `raw` field with the complete platform-specific JSON payload as received from the gateway adapter.
 
 Agents subscribe to notification sources (`platform:channel`) and can filter with `mention_only` to receive only events where they are @mentioned.
 

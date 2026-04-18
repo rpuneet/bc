@@ -67,7 +67,7 @@ func extractMentions(content string) []string {
 
 // Dispatch receives a normalized inbound message and delivers it to all
 // subscribed agents. Runs in its own goroutine — never blocks the adapter.
-func (s *Service) Dispatch(channel, platform, sender, senderID, content, messageID string, attachments []Attachment) {
+func (s *Service) Dispatch(channel, platform, sender, senderID, content, messageID string, attachments []Attachment, raw json.RawMessage) {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
@@ -85,6 +85,7 @@ func (s *Service) Dispatch(channel, platform, sender, senderID, content, message
 		// Build notification
 		mentions := extractMentions(content)
 		n := Notification{
+			Raw:         raw,
 			Timestamp:   time.Now().UTC().Format(time.RFC3339),
 			Channel:     channel,
 			Platform:    platform,

@@ -162,9 +162,9 @@ Composite indexes on hot paths, following SQLite left-to-right rule:
 |-------|---------------|
 | `idx_cost_agent_time(agent_name, timestamp DESC)` | Budget checks per agent |
 | `idx_cost_team_time(team_id, timestamp DESC)` | Team cost queries |
-| `idx_subscriptions_source(source, agent)` | Subscriber lookups |
-| `idx_notification_log_source(source, created_at DESC)` | Notification history |
-| `idx_delivery_log_source(source, created_at DESC)` | Delivery log queries |
+| `idx_notify_subs_channel(channel)` | Subscriber lookups |
+| `idx_notify_messages_channel(channel, id DESC)` | Message history |
+| `idx_notify_delivery_channel(channel, id DESC)` | Delivery log queries |
 | `idx_agent_sessions_agent(agent_name, created_at DESC)` | Session resume |
 | `idx_events_timestamp(timestamp DESC)` | Recent events |
 | `idx_cron_logs_job(job_name, run_at DESC)` | Job execution logs |

@@ -19,7 +19,7 @@ import (
 )
 
 // Adapter implements gateway.NotificationAdapter for Telegram.
-// It also implements gateway.MessageSender for outbound messaging.
+// It also supports outbound messaging via the Send method.
 type Adapter struct {
 	lastMessageAt time.Time
 	bot           *tgbotapi.BotAPI
@@ -34,7 +34,6 @@ type Adapter struct {
 }
 
 var _ gateway.NotificationAdapter = (*Adapter)(nil)
-var _ gateway.MessageSender = (*Adapter)(nil)
 
 // New creates a new Telegram adapter with the default name "telegram".
 func New(token, mode string) *Adapter {

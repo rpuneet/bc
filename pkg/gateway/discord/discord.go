@@ -17,7 +17,7 @@ import (
 )
 
 // Adapter implements gateway.NotificationAdapter for Discord.
-// It also implements gateway.MessageSender for outbound messaging.
+// It also supports outbound messaging via the Send method.
 type Adapter struct {
 	lastMessageAt time.Time
 	session       *discordgo.Session
@@ -31,7 +31,6 @@ type Adapter struct {
 }
 
 var _ gateway.NotificationAdapter = (*Adapter)(nil)
-var _ gateway.MessageSender = (*Adapter)(nil)
 
 // New creates a new Discord adapter.
 func New(token string) *Adapter {

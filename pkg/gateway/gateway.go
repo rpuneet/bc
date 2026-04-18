@@ -49,19 +49,6 @@ type NotificationAdapter interface {
 	Status() AdapterStatus
 }
 
-// MessageSender is optionally implemented by NotificationAdapters that
-// support outbound messaging (e.g., Slack, Telegram, Discord).
-type MessageSender interface {
-	// Send delivers a message to a platform channel.
-	Send(ctx context.Context, channelID, sender, content string) error
-}
-
-// FileSender is optionally implemented by NotificationAdapters that support file uploads.
-type FileSender interface {
-	// SendFile uploads a file to a platform channel.
-	SendFile(ctx context.Context, channelID, sender, filename string, data []byte, mimeType string) error
-}
-
 // Notification is a normalized inbound event from an external platform.
 // The Raw field contains the complete platform payload as JSON.
 type Notification struct {
