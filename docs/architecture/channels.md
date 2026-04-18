@@ -1,5 +1,10 @@
 # Channel Architecture
 
+> **Implementation Status**: This document describes the target channel architecture for bc v0.3.
+> The current implementation (v0.2) still uses the bidirectional gateway pattern.
+> See [Migration](#migration-from-old-system) for the transition plan.
+> Implementation tracked in [#3006](https://github.com/rpuneet/bc/issues/3006).
+
 Channels are **inbound-only notification gateways** that bridge external platforms (Slack, GitHub, Telegram, etc.) to bc agents. bc never sends outbound messages on behalf of agents -- agents receive raw platform payloads and respond directly using injected credentials and platform APIs.
 
 This document is the canonical reference for the channel system. It covers the interface contracts, data flow, credential injection, subscription model, and instructions for adding new platform integrations.

@@ -50,15 +50,17 @@ This document describes the internal architecture of bc, covering component rela
        |  | +----------+  |  | ~/.bc/agents/<name>/       |  |
        |  | +----------+  |  |                            |  |
        |  | | Docker   |  |  | Tables:                    |  |
-       |  | | contrnrs |  |  |  agents, notify_subscriptions,         |  |
-       |  | +----------+  |  |  notify_messages, teams,          |  |
-       |  +---------------+  |  team_members, costs,      |  |
-       |                     |  secrets, cron_jobs,        |  |
-       |  +---------------+  |  cron_logs, daemons,       |  |
-       |  | Web UI (SPA)  |  |  events, tools,            |  |
-       |  | / (embedded)  |  |  mcp_servers, roles        |  |
-       |  | 15 views      |  +----------------------------+  |
-       |  +---------------+                                  |
+       |  | | contrnrs |  |  |  agents, notify_subscriptions,|  |
+       |  | +----------+  |  |  notify_delivery_log,       |  |
+       |  +---------------+  |  notify_gateways,           |  |
+       |                     |  notify_channels,           |  |
+       |  +---------------+  |  notify_messages, teams,    |  |
+       |  | Web UI (SPA)  |  |  team_members, costs,       |  |
+       |  | / (embedded)  |  |  secrets, cron_jobs,        |  |
+       |  | 15 views      |  |  cron_logs, daemons,       |  |
+       |  +---------------+  |  events, tools,            |  |
+       |                     |  mcp_servers, roles        |  |
+       |                     +----------------------------+  |
        +---------+-------------------------------------------+
                  |
        +---------v-------------------------------------------+
