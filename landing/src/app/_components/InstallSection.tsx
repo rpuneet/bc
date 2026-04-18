@@ -4,7 +4,7 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import { Copy, Check, Terminal, Beer, Code2, Container, Package, GitBranch } from "lucide-react";
 
-const LATEST_VERSION = "v0.1.0";
+const LATEST_VERSION = "v0.1.1";
 
 type Method = {
   id: string;
