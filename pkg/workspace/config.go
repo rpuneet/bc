@@ -131,6 +131,9 @@ type GatewaysConfig struct {
 	// Webhooks holds zero or more generic webhook configs keyed by label.
 	// A plain "webhook" key is stored under label "".
 	Webhooks map[string]*WebhookGatewayConfig `json:"-"`
+	// RSSFeeds holds zero or more RSS/Atom feed configs keyed by label.
+	// A plain "rss" key is stored under label "".
+	RSSFeeds map[string]*RSSGatewayConfig `json:"-"`
 }
 
 // UnmarshalJSON parses gateway config, routing "telegram:*" keys into the
@@ -156,6 +159,7 @@ func (g *GatewaysConfig) UnmarshalJSON(data []byte) error {
 	g.Telegrams = make(map[string]*TelegramGatewayConfig)
 	g.GitHubs = make(map[string]*GitHubGatewayConfig)
 	g.Webhooks = make(map[string]*WebhookGatewayConfig)
+	g.RSSFeeds = make(map[string]*RSSGatewayConfig)
 	for key, val := range raw {
 		switch {
 		case key == "telegram":
@@ -198,6 +202,19 @@ func (g *GatewaysConfig) UnmarshalJSON(data []byte) error {
 				return fmt.Errorf("parse gateway %q: %w", key, err)
 			}
 			g.Webhooks[label] = &wc
+		case key == "rss":
+			var rc RSSGatewayConfig
+			if err := json.Unmarshal(val, &rc); err != nil {
+				return fmt.Errorf("parse gateway %q: %w", key, err)
+			}
+			g.RSSFeeds[""] = &rc
+		case strings.HasPrefix(key, "rss:"):
+			label := strings.TrimPrefix(key, "rss:")
+			var rc RSSGatewayConfig
+			if err := json.Unmarshal(val, &rc); err != nil {
+				return fmt.Errorf("parse gateway %q: %w", key, err)
+			}
+			g.RSSFeeds[label] = &rc
 		}
 	}
 	return nil
@@ -232,6 +249,13 @@ func (g GatewaysConfig) MarshalJSON() ([]byte, error) {
 			m["webhook"] = wc
 		} else {
 			m["webhook:"+label] = wc
+		}
+	}
+	for label, rc := range g.RSSFeeds {
+		if label == "" {
+			m["rss"] = rc
+		} else {
+			m["rss:"+label] = rc
 		}
 	}
 	if g.Discord != nil {
@@ -274,6 +298,13 @@ type GitHubGatewayConfig struct {
 type WebhookGatewayConfig struct {
 	Secret  string `json:"secret,omitempty"`
 	Enabled bool   `json:"enabled"`
+}
+
+// RSSGatewayConfig configures an RSS/Atom feed poll adapter.
+type RSSGatewayConfig struct {
+	URL      string `json:"url"`
+	Interval int    `json:"interval"` // seconds, default 300
+	Enabled  bool   `json:"enabled"`
 }
 
 // CronConfig configures the cron/job scheduler.

@@ -29,6 +29,7 @@ import (
 	bcgithub "github.com/rpuneet/bc/pkg/gateway/github"
 	bcslack "github.com/rpuneet/bc/pkg/gateway/slack"
 	bctelegram "github.com/rpuneet/bc/pkg/gateway/telegram"
+	bcrss "github.com/rpuneet/bc/pkg/gateway/rss"
 	bcwebhook "github.com/rpuneet/bc/pkg/gateway/webhook"
 	"github.com/rpuneet/bc/pkg/log"
 	bcmcp "github.com/rpuneet/bc/pkg/mcp"
@@ -414,7 +415,15 @@ func buildGatewayManager(ctx context.Context, ws *bcworkspace.Workspace, notifyS
 		}
 	}
 
-	if tgCount == 0 && !dcEnabled && !slEnabled && ghCount == 0 && whCount == 0 {
+	// Count enabled RSS feed adapters.
+	var rssCount int
+	for _, rc := range gw.RSSFeeds {
+		if rc.Enabled && rc.URL != "" {
+			rssCount++
+		}
+	}
+
+	if tgCount == 0 && !dcEnabled && !slEnabled && ghCount == 0 && whCount == 0 && rssCount == 0 {
 		return nil
 	}
 
@@ -475,6 +484,20 @@ func buildGatewayManager(ctx context.Context, ws *bcworkspace.Workspace, notifyS
 		}
 		m.Register(bcwebhook.NewWithSecret(adapterName, wc.Secret))
 		log.Info("gateway: webhook adapter registered", "name", adapterName)
+	}
+
+	// Register RSS feed adapters. Label "" → adapter name "rss",
+	// label "blog" → adapter name "rss:blog".
+	for label, rc := range gw.RSSFeeds {
+		if !rc.Enabled || rc.URL == "" {
+			continue
+		}
+		adapterName := "rss"
+		if label != "" {
+			adapterName = "rss:" + label
+		}
+		m.Register(bcrss.NewNamed(adapterName, rc.URL, rc.Interval))
+		log.Info("gateway: rss adapter registered", "name", adapterName, "url", rc.URL)
 	}
 
 	wg.Add(1)
