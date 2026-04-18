@@ -1032,6 +1032,9 @@ func TestLogs_NoWorkspace(t *testing.T) {
 	_ = os.Chdir(tmpDir)
 	defer func() { _ = os.Chdir(origDir) }()
 
+	// Ensure BC_WORKSPACE doesn't bypass the workspace check
+	t.Setenv("BC_WORKSPACE", "")
+
 	_, err := runLogsCmd(t, "logs")
 	if err == nil {
 		t.Fatal("expected error for non-workspace dir")
