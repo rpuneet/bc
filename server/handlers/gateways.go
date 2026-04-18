@@ -387,6 +387,13 @@ func (h *GatewayHandler) list(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Ensure channels is never null in JSON output
+	for i := range platforms {
+		if platforms[i].Channels == nil {
+			platforms[i].Channels = []string{}
+		}
+	}
+
 	writeJSON(w, http.StatusOK, platforms)
 }
 
