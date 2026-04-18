@@ -27,10 +27,8 @@ type ChannelStore interface {
 
 // Manager orchestrates all gateway adapters and routes messages.
 type Manager struct {
-	// legacyAdapters holds adapters implementing the old Adapter interface.
-	legacyAdapters map[string]Adapter
-	// notificationAdapters holds adapters implementing the new NotificationAdapter interface.
-	notificationAdapters map[string]NotificationAdapter
+	// adapters holds all registered NotificationAdapter instances.
+	adapters map[string]NotificationAdapter
 	// channelMap maps "telegram:<group_name>" → channelRoute
 	channelMap map[string]channelRoute
 	// onInbound is called when a message arrives from an external platform.
@@ -41,18 +39,16 @@ type Manager struct {
 }
 
 type channelRoute struct {
-	LegacyAdapter       Adapter
-	NotificationAdapter NotificationAdapter
-	Platform            string
-	ChannelID           string
+	Adapter   NotificationAdapter
+	Platform  string
+	ChannelID string
 }
 
 // NewManager creates a new gateway manager.
 func NewManager() *Manager {
 	return &Manager{
-		legacyAdapters:       make(map[string]Adapter),
-		notificationAdapters: make(map[string]NotificationAdapter),
-		channelMap:           make(map[string]channelRoute),
+		adapters:   make(map[string]NotificationAdapter),
+		channelMap: make(map[string]channelRoute),
 	}
 }
 
@@ -66,68 +62,33 @@ func (m *Manager) SetInboundHandler(fn func(bcChannel, sender, content string)) 
 	m.onInbound = fn
 }
 
-// Register adds an adapter to the manager. Accepts both NotificationAdapter
-// and legacy Adapter interfaces for backward compatibility during migration.
-func (m *Manager) Register(adapter any) {
+// Register adds a NotificationAdapter to the manager.
+func (m *Manager) Register(adapter NotificationAdapter) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-
-	switch a := adapter.(type) {
-	case NotificationAdapter:
-		m.notificationAdapters[a.Name()] = a
-	case Adapter:
-		m.legacyAdapters[a.Name()] = a
-	default:
-		log.Warn("gateway: Register called with unsupported adapter type")
-	}
+	m.adapters[adapter.Name()] = adapter
 }
 
 // Start discovers channels from all adapters and begins receiving messages.
 func (m *Manager) Start(ctx context.Context) error {
 	m.mu.RLock()
-	legacyList := make([]Adapter, 0, len(m.legacyAdapters))
-	for _, a := range m.legacyAdapters {
-		legacyList = append(legacyList, a)
-	}
-	notifList := make([]NotificationAdapter, 0, len(m.notificationAdapters))
-	for _, a := range m.notificationAdapters {
-		notifList = append(notifList, a)
+	adapterList := make([]NotificationAdapter, 0, len(m.adapters))
+	for _, a := range m.adapters {
+		adapterList = append(adapterList, a)
 	}
 	m.mu.RUnlock()
 
 	// Restore persisted channel mappings so Send works immediately after restart.
 	m.restorePersistedChannels(ctx)
 
-	// Discover channels from legacy adapters
-	for _, a := range legacyList {
-		m.discoverLegacyChannels(ctx, a)
-	}
-
-	// Discover channels from notification adapters
-	for _, a := range notifList {
-		m.discoverNotificationChannels(a)
+	// Discover channels from all adapters
+	for _, a := range adapterList {
+		m.discoverChannels(a)
 	}
 
 	// Start all adapters in goroutines
 	var wg sync.WaitGroup
-
-	// Start legacy adapters
-	for _, a := range legacyList {
-		wg.Add(1)
-		go func(adapter Adapter) {
-			defer wg.Done()
-			platformName := adapter.Name()
-			callback := func(msg InboundMessage) {
-				m.handleInboundFromPlatform(platformName, msg)
-			}
-			if err := adapter.Start(ctx, callback); err != nil && ctx.Err() == nil {
-				log.Error("gateway: adapter stopped with error", "adapter", adapter.Name(), "error", err)
-			}
-		}(a)
-	}
-
-	// Start notification adapters
-	for _, a := range notifList {
+	for _, a := range adapterList {
 		wg.Add(1)
 		go func(adapter NotificationAdapter) {
 			defer wg.Done()
@@ -136,7 +97,7 @@ func (m *Manager) Start(ctx context.Context) error {
 				m.handleNotification(platformName, n)
 			}
 			if err := adapter.Start(ctx, handler); err != nil && ctx.Err() == nil {
-				log.Error("gateway: notification adapter stopped with error", "adapter", adapter.Name(), "error", err)
+				log.Error("gateway: adapter stopped with error", "adapter", adapter.Name(), "error", err)
 			}
 		}(a)
 	}
@@ -165,53 +126,19 @@ func (m *Manager) restorePersistedChannels(ctx context.Context) {
 		if _, exists := m.channelMap[ch.BCChannel]; exists {
 			continue
 		}
-		// Check legacy adapters first, then notification adapters
-		if adapter, ok := m.legacyAdapters[ch.Platform]; ok {
+		if a, ok := m.adapters[ch.Platform]; ok {
 			m.channelMap[ch.BCChannel] = channelRoute{
-				Platform:      ch.Platform,
-				ChannelID:     ch.PlatformID,
-				LegacyAdapter: adapter,
-			}
-			log.Info("gateway: restored channel", "bc_channel", ch.BCChannel, "platform_id", ch.PlatformID)
-		} else if na, ok := m.notificationAdapters[ch.Platform]; ok {
-			m.channelMap[ch.BCChannel] = channelRoute{
-				Platform:            ch.Platform,
-				ChannelID:           ch.PlatformID,
-				NotificationAdapter: na,
+				Platform:  ch.Platform,
+				ChannelID: ch.PlatformID,
+				Adapter:   a,
 			}
 			log.Info("gateway: restored channel", "bc_channel", ch.BCChannel, "platform_id", ch.PlatformID)
 		}
 	}
 }
 
-// discoverLegacyChannels discovers channels from a legacy adapter.
-func (m *Manager) discoverLegacyChannels(ctx context.Context, a Adapter) {
-	channels, err := a.Channels(ctx)
-	if err != nil {
-		log.Warn("gateway: failed to discover channels", "adapter", a.Name(), "error", err)
-		return
-	}
-	type discovered struct{ bc, platform, id string }
-	toPersist := make([]discovered, 0, len(channels))
-	m.mu.Lock()
-	for _, ch := range channels {
-		bcName := a.Name() + ":" + sanitizeChannelName(ch.Name)
-		m.channelMap[bcName] = channelRoute{
-			Platform:      a.Name(),
-			ChannelID:     ch.ID,
-			LegacyAdapter: a,
-		}
-		toPersist = append(toPersist, discovered{bcName, a.Name(), ch.ID})
-		log.Info("gateway: discovered channel", "bc_channel", bcName, "platform_id", ch.ID)
-	}
-	m.mu.Unlock()
-	for _, d := range toPersist {
-		m.persistChannel(d.bc, d.platform, d.id)
-	}
-}
-
-// discoverNotificationChannels discovers channels from a NotificationAdapter.
-func (m *Manager) discoverNotificationChannels(a NotificationAdapter) {
+// discoverChannels discovers channels from an adapter.
+func (m *Manager) discoverChannels(a NotificationAdapter) {
 	channels := a.Channels()
 	type discovered struct{ bc, platform, id string }
 	toPersist := make([]discovered, 0, len(channels))
@@ -219,9 +146,9 @@ func (m *Manager) discoverNotificationChannels(a NotificationAdapter) {
 	for _, ch := range channels {
 		bcName := a.Name() + ":" + sanitizeChannelName(ch.Name)
 		m.channelMap[bcName] = channelRoute{
-			Platform:            a.Name(),
-			ChannelID:           ch.ID,
-			NotificationAdapter: a,
+			Platform:  a.Name(),
+			ChannelID: ch.ID,
+			Adapter:   a,
 		}
 		toPersist = append(toPersist, discovered{bcName, a.Name(), ch.ID})
 		log.Info("gateway: discovered channel", "bc_channel", bcName, "platform_id", ch.ID)
@@ -241,45 +168,13 @@ func (m *Manager) lateDiscovery(ctx context.Context) {
 	}
 
 	m.mu.RLock()
-	legacyList := make([]Adapter, 0, len(m.legacyAdapters))
-	for _, a := range m.legacyAdapters {
-		legacyList = append(legacyList, a)
-	}
-	notifList := make([]NotificationAdapter, 0, len(m.notificationAdapters))
-	for _, a := range m.notificationAdapters {
-		notifList = append(notifList, a)
+	adapterList := make([]NotificationAdapter, 0, len(m.adapters))
+	for _, a := range m.adapters {
+		adapterList = append(adapterList, a)
 	}
 	m.mu.RUnlock()
 
-	// Late-discover legacy adapters
-	for _, a := range legacyList {
-		channels, err := a.Channels(ctx)
-		if err != nil {
-			continue
-		}
-		type lateDiscovered struct{ bc, platform, id string }
-		var latePersist []lateDiscovered
-		m.mu.Lock()
-		for _, ch := range channels {
-			bcName := a.Name() + ":" + sanitizeChannelName(ch.Name)
-			if _, exists := m.channelMap[bcName]; !exists {
-				m.channelMap[bcName] = channelRoute{
-					Platform:      a.Name(),
-					ChannelID:     ch.ID,
-					LegacyAdapter: a,
-				}
-				latePersist = append(latePersist, lateDiscovered{bcName, a.Name(), ch.ID})
-				log.Info("gateway: late-discovered channel", "bc_channel", bcName, "platform_id", ch.ID)
-			}
-		}
-		m.mu.Unlock()
-		for _, d := range latePersist {
-			m.persistChannel(d.bc, d.platform, d.id)
-		}
-	}
-
-	// Late-discover notification adapters
-	for _, a := range notifList {
+	for _, a := range adapterList {
 		channels := a.Channels()
 		type lateDiscovered struct{ bc, platform, id string }
 		var latePersist []lateDiscovered
@@ -288,9 +183,9 @@ func (m *Manager) lateDiscovery(ctx context.Context) {
 			bcName := a.Name() + ":" + sanitizeChannelName(ch.Name)
 			if _, exists := m.channelMap[bcName]; !exists {
 				m.channelMap[bcName] = channelRoute{
-					Platform:            a.Name(),
-					ChannelID:           ch.ID,
-					NotificationAdapter: a,
+					Platform:  a.Name(),
+					ChannelID: ch.ID,
+					Adapter:   a,
 				}
 				latePersist = append(latePersist, lateDiscovered{bcName, a.Name(), ch.ID})
 				log.Info("gateway: late-discovered channel", "bc_channel", bcName, "platform_id", ch.ID)
@@ -304,44 +199,23 @@ func (m *Manager) lateDiscovery(ctx context.Context) {
 }
 
 // AdapterStatus returns the connection status for a specific adapter.
-// Checks both NotificationAdapter and legacy Adapter registrations.
 func (m *Manager) AdapterStatus(platform string) AdapterStatus {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	// Check notification adapters first (they always have Status())
-	if na, ok := m.notificationAdapters[platform]; ok {
-		return na.Status()
-	}
-
-	// Check legacy adapters
-	adapter, ok := m.legacyAdapters[platform]
+	a, ok := m.adapters[platform]
 	if !ok {
 		return AdapterStatus{Error: "adapter not registered"}
 	}
-	if sr, ok := adapter.(StatusReporter); ok {
-		return sr.Status()
-	}
-	// Fallback: check if any channels exist for this platform
-	for name := range m.channelMap {
-		if len(name) > len(platform) && name[:len(platform)+1] == platform+":" {
-			return AdapterStatus{Connected: true}
-		}
-	}
-	return AdapterStatus{}
+	return a.Status()
 }
 
 // Stop gracefully shuts down all adapters.
-func (m *Manager) Stop(ctx context.Context) {
+func (m *Manager) Stop(_ context.Context) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	for _, a := range m.legacyAdapters {
-		if err := a.Stop(ctx); err != nil {
-			log.Warn("gateway: stop error", "adapter", a.Name(), "error", err)
-		}
-	}
-	for _, a := range m.notificationAdapters {
+	for _, a := range m.adapters {
 		if err := a.Stop(); err != nil {
 			log.Warn("gateway: stop error", "adapter", a.Name(), "error", err)
 		}
@@ -358,25 +232,19 @@ func (m *Manager) Send(ctx context.Context, bcChannel, sender, content string) (
 		return false, nil // not a gateway channel
 	}
 
-	// Try legacy adapter first
-	if route.LegacyAdapter != nil {
-		if err := route.LegacyAdapter.Send(ctx, route.ChannelID, sender, content); err != nil {
-			return true, fmt.Errorf("gateway send to %s: %w", bcChannel, err)
-		}
-		return true, nil
+	if route.Adapter == nil {
+		return true, fmt.Errorf("gateway send to %s: no adapter", bcChannel)
 	}
 
-	// Try NotificationAdapter if it implements MessageSender
-	if route.NotificationAdapter != nil {
-		if ms, ok := route.NotificationAdapter.(MessageSender); ok {
-			if err := ms.Send(ctx, route.ChannelID, sender, content); err != nil {
-				return true, fmt.Errorf("gateway send to %s: %w", bcChannel, err)
-			}
-			return true, nil
-		}
+	ms, ok := route.Adapter.(MessageSender)
+	if !ok {
+		return true, fmt.Errorf("gateway send to %s: adapter does not support outbound messaging", bcChannel)
 	}
 
-	return true, fmt.Errorf("gateway send to %s: adapter does not support outbound messaging", bcChannel)
+	if err := ms.Send(ctx, route.ChannelID, sender, content); err != nil {
+		return true, fmt.Errorf("gateway send to %s: %w", bcChannel, err)
+	}
+	return true, nil
 }
 
 // SendFile uploads a file to a gateway channel. Returns false if the channel
@@ -389,30 +257,19 @@ func (m *Manager) SendFile(ctx context.Context, bcChannel, sender, filename stri
 		return false, nil
 	}
 
-	// Check legacy adapter for FileSender
-	if route.LegacyAdapter != nil {
-		fs, ok := route.LegacyAdapter.(FileSender)
-		if !ok {
-			return true, fmt.Errorf("gateway %s does not support file uploads", bcChannel)
-		}
-		if err := fs.SendFile(ctx, route.ChannelID, sender, filename, data, mimeType); err != nil {
-			return true, fmt.Errorf("gateway send file to %s: %w", bcChannel, err)
-		}
-		return true, nil
+	if route.Adapter == nil {
+		return true, fmt.Errorf("gateway %s: no adapter", bcChannel)
 	}
 
-	// Check notification adapter for FileSender
-	if route.NotificationAdapter != nil {
-		fs, ok := route.NotificationAdapter.(FileSender)
-		if ok {
-			if err := fs.SendFile(ctx, route.ChannelID, sender, filename, data, mimeType); err != nil {
-				return true, fmt.Errorf("gateway send file to %s: %w", bcChannel, err)
-			}
-			return true, nil
-		}
+	fs, ok := route.Adapter.(FileSender)
+	if !ok {
+		return true, fmt.Errorf("gateway %s does not support file uploads", bcChannel)
 	}
 
-	return true, fmt.Errorf("gateway %s does not support file uploads", bcChannel)
+	if err := fs.SendFile(ctx, route.ChannelID, sender, filename, data, mimeType); err != nil {
+		return true, fmt.Errorf("gateway send file to %s: %w", bcChannel, err)
+	}
+	return true, nil
 }
 
 // IsGatewayChannel returns true if the channel name belongs to an external gateway.
@@ -442,24 +299,13 @@ func (m *Manager) SeedChannel(bcChannel string) {
 
 	// Find the registered adapter whose name is a prefix of bcChannel.
 	// Try longest match first to handle "telegram:foo" before "telegram".
-	// Check both legacy and notification adapters.
-	var bestLegacy Adapter
-	var bestNotif NotificationAdapter
+	var bestAdapter NotificationAdapter
 	var bestPlatform string
 
-	for name, a := range m.legacyAdapters {
+	for name, a := range m.adapters {
 		prefix := name + ":"
 		if strings.HasPrefix(bcChannel, prefix) && len(name) > len(bestPlatform) {
-			bestLegacy = a
-			bestNotif = nil
-			bestPlatform = name
-		}
-	}
-	for name, a := range m.notificationAdapters {
-		prefix := name + ":"
-		if strings.HasPrefix(bcChannel, prefix) && len(name) > len(bestPlatform) {
-			bestNotif = a
-			bestLegacy = nil
+			bestAdapter = a
 			bestPlatform = name
 		}
 	}
@@ -470,10 +316,9 @@ func (m *Manager) SeedChannel(bcChannel string) {
 
 	channelSuffix := bcChannel[len(bestPlatform)+1:]
 	m.channelMap[bcChannel] = channelRoute{
-		Platform:            bestPlatform,
-		ChannelID:           channelSuffix, // will be resolved by adapter on first send
-		LegacyAdapter:       bestLegacy,
-		NotificationAdapter: bestNotif,
+		Platform:  bestPlatform,
+		ChannelID: channelSuffix, // will be resolved by adapter on first send
+		Adapter:   bestAdapter,
 	}
 	log.Info("gateway: seeded channel from store", "bc_channel", bcChannel, "platform", bestPlatform)
 }
@@ -503,45 +348,6 @@ func (m *Manager) ExternalChannels() []string {
 	return names
 }
 
-// handleInboundFromPlatform processes a message from a legacy adapter into bc.
-func (m *Manager) handleInboundFromPlatform(platform string, msg InboundMessage) {
-	// Find existing mapping for this channel ID
-	m.mu.RLock()
-	var bcChannel string
-	for name, route := range m.channelMap {
-		if route.ChannelID == msg.ChannelID {
-			bcChannel = name
-			break
-		}
-	}
-	m.mu.RUnlock()
-
-	if bcChannel == "" {
-		// Channel not mapped yet — add it dynamically using the platform name
-		channelName := msg.ChannelName
-		if channelName == "" {
-			channelName = msg.ChannelID
-		}
-		bcChannel = platform + ":" + sanitizeChannelName(channelName)
-
-		m.mu.Lock()
-		adapter := m.legacyAdapters[platform]
-		m.channelMap[bcChannel] = channelRoute{
-			Platform:      platform,
-			ChannelID:     msg.ChannelID,
-			LegacyAdapter: adapter,
-		}
-		m.mu.Unlock()
-		m.persistChannel(bcChannel, platform, msg.ChannelID)
-		log.Info("gateway: dynamically mapped channel", "bc_channel", bcChannel, "platform", platform, "platform_id", msg.ChannelID)
-	}
-
-	sender := fmt.Sprintf("[%s] %s", platform, msg.Sender)
-	if m.onInbound != nil {
-		m.onInbound(bcChannel, sender, msg.Content)
-	}
-}
-
 // handleNotification processes an event from a NotificationAdapter into bc.
 func (m *Manager) handleNotification(platform string, n Notification) {
 	channelName := n.Channel
@@ -553,11 +359,11 @@ func (m *Manager) handleNotification(platform string, n Notification) {
 	// Ensure channel is in the map
 	m.mu.Lock()
 	if _, exists := m.channelMap[bcChannel]; !exists {
-		adapter := m.notificationAdapters[platform]
+		adapter := m.adapters[platform]
 		m.channelMap[bcChannel] = channelRoute{
-			Platform:            platform,
-			ChannelID:           channelName,
-			NotificationAdapter: adapter,
+			Platform:  platform,
+			ChannelID: channelName,
+			Adapter:   adapter,
 		}
 		log.Info("gateway: dynamically mapped notification channel", "bc_channel", bcChannel, "platform", platform)
 	}
@@ -577,7 +383,7 @@ func (m *Manager) handleNotification(platform string, n Notification) {
 // keyed by adapter name. The server mounts these at /hooks/{name}.
 func (m *Manager) WebhookHandlers() map[string]http.Handler {
 	handlers := make(map[string]http.Handler)
-	for name, a := range m.notificationAdapters {
+	for name, a := range m.adapters {
 		if h := a.HTTPHandler(); h != nil {
 			handlers[name] = h
 		}

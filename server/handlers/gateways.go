@@ -83,7 +83,6 @@ func (h *GatewayHandler) gatewayHealth(w http.ResponseWriter, r *http.Request, p
 		return
 	}
 
-	// Try to get adapter status via StatusReporter interface
 	status := h.gw.AdapterStatus(platform)
 
 	writeJSON(w, http.StatusOK, map[string]any{

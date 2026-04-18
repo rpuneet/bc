@@ -79,18 +79,6 @@ func TestManagerExternalChannels(t *testing.T) {
 	}
 }
 
-// mockLegacyAdapter is a minimal legacy Adapter for testing registration.
-type mockLegacyAdapter struct {
-	name string
-}
-
-func (m *mockLegacyAdapter) Name() string                                          { return m.name }
-func (m *mockLegacyAdapter) Start(_ context.Context, _ func(InboundMessage)) error { return nil }
-func (m *mockLegacyAdapter) Stop(_ context.Context) error                          { return nil }
-func (m *mockLegacyAdapter) Send(_ context.Context, _, _, _ string) error          { return nil }
-func (m *mockLegacyAdapter) Channels(_ context.Context) ([]ExternalChannel, error) { return nil, nil }
-func (m *mockLegacyAdapter) Health(_ context.Context) error                        { return nil }
-
 // mockNotifAdapter is a minimal NotificationAdapter for testing registration.
 type mockNotifAdapter struct {
 	name string
@@ -149,44 +137,19 @@ func TestSeedChannelNoOverwrite(t *testing.T) {
 	}
 }
 
-func TestRegisterMultipleNotificationAdapters(t *testing.T) {
+func TestRegisterMultipleAdapters(t *testing.T) {
 	m := NewManager()
 	m.Register(&mockNotifAdapter{name: "telegram:trade"})
 	m.Register(&mockNotifAdapter{name: "telegram:gateway"})
 	m.Register(&mockNotifAdapter{name: "telegram:kognivida"})
 
-	if len(m.notificationAdapters) != 3 {
-		t.Errorf("expected 3 notification adapters, got %d", len(m.notificationAdapters))
+	if len(m.adapters) != 3 {
+		t.Errorf("expected 3 adapters, got %d", len(m.adapters))
 	}
 	for _, name := range []string{"telegram:trade", "telegram:gateway", "telegram:kognivida"} {
-		if _, ok := m.notificationAdapters[name]; !ok {
-			t.Errorf("notification adapter %q not registered", name)
+		if _, ok := m.adapters[name]; !ok {
+			t.Errorf("adapter %q not registered", name)
 		}
-	}
-}
-
-func TestRegisterLegacyAdapter(t *testing.T) {
-	m := NewManager()
-	m.Register(&mockLegacyAdapter{name: "slack"})
-
-	if len(m.legacyAdapters) != 1 {
-		t.Errorf("expected 1 legacy adapter, got %d", len(m.legacyAdapters))
-	}
-	if _, ok := m.legacyAdapters["slack"]; !ok {
-		t.Error("legacy adapter 'slack' not registered")
-	}
-}
-
-func TestRegisterMixedAdapters(t *testing.T) {
-	m := NewManager()
-	m.Register(&mockLegacyAdapter{name: "legacy-platform"})
-	m.Register(&mockNotifAdapter{name: "new-platform"})
-
-	if len(m.legacyAdapters) != 1 {
-		t.Errorf("expected 1 legacy adapter, got %d", len(m.legacyAdapters))
-	}
-	if len(m.notificationAdapters) != 1 {
-		t.Errorf("expected 1 notification adapter, got %d", len(m.notificationAdapters))
 	}
 }
 
@@ -212,32 +175,32 @@ func TestAdapterStatusUnknown(t *testing.T) {
 	}
 }
 
-func TestSeedChannelMixedAdapters(t *testing.T) {
+func TestSeedChannelAdapter(t *testing.T) {
 	m := NewManager()
-	m.Register(&mockLegacyAdapter{name: "legacy"})
-	m.Register(&mockNotifAdapter{name: "notif"})
+	m.Register(&mockNotifAdapter{name: "slack"})
+	m.Register(&mockNotifAdapter{name: "discord"})
 
-	m.SeedChannel("legacy:test")
-	route, ok := m.channelMap["legacy:test"]
+	m.SeedChannel("slack:test")
+	route, ok := m.channelMap["slack:test"]
 	if !ok {
-		t.Fatal("expected legacy channel to be seeded")
+		t.Fatal("expected slack channel to be seeded")
 	}
-	if route.LegacyAdapter == nil {
-		t.Error("expected legacy adapter to be set")
+	if route.Adapter == nil {
+		t.Error("expected adapter to be set")
 	}
-	if route.NotificationAdapter != nil {
-		t.Error("expected notification adapter to be nil for legacy channel")
+	if route.Platform != "slack" {
+		t.Errorf("expected platform slack, got %s", route.Platform)
 	}
 
-	m.SeedChannel("notif:test")
-	route, ok = m.channelMap["notif:test"]
+	m.SeedChannel("discord:test")
+	route, ok = m.channelMap["discord:test"]
 	if !ok {
-		t.Fatal("expected notif channel to be seeded")
+		t.Fatal("expected discord channel to be seeded")
 	}
-	if route.NotificationAdapter == nil {
-		t.Error("expected notification adapter to be set")
+	if route.Adapter == nil {
+		t.Error("expected adapter to be set")
 	}
-	if route.LegacyAdapter != nil {
-		t.Error("expected legacy adapter to be nil for notif channel")
+	if route.Platform != "discord" {
+		t.Errorf("expected platform discord, got %s", route.Platform)
 	}
 }
