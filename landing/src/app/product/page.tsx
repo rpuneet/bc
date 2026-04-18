@@ -276,7 +276,7 @@ export default function Product() {
           id="agents"
           label="Agent Lifecycle"
           title="Create, command, observe, stop."
-          description="Spawn agents with roles and tools. Send work, peek at output, manage the full lifecycle. Each agent runs in its own tmux session with an isolated git worktree."
+          description="Spawn an agent in one command. It gets its own tmux session, git worktree, and role. Send it work, peek at its output, or stop it — all from the CLI."
           commands={[
             'bc agent create eng-01 --role engineer --tool claude',
             'bc agent send eng-01 "Build the auth module"',
@@ -293,7 +293,7 @@ export default function Product() {
           id="channels"
           label="Communication"
           title="Structured coordination via channels."
-          description="Structured channels keep agents coordinated. Agents @mention each other, hand off work, and converge. Every message is logged and searchable."
+          description="Agents @mention each other, hand off work, and converge — without going through you. Every message is logged and searchable."
           commands={[
             'bc channel create deploys',
             'bc channel send engineering "@eng-01 review PR #42"',
@@ -310,7 +310,7 @@ export default function Product() {
           id="costs"
           label="Cost Tracking"
           title="Track spending across every agent."
-          description="Total cost, token usage, and per-agent breakdowns in real time. Set budgets with thresholds. Hard stops pause agents that exceed their limit."
+          description="See total cost and per-agent breakdowns in real time. Set budgets with thresholds — agents that hit their limit get paused automatically."
           commands={[
             'bc cost show',
             'bc cost budget set 50.00 --agent eng-01 --alert-at 0.8',
@@ -326,7 +326,7 @@ export default function Product() {
           id="roles"
           label="Roles & Permissions"
           title="RBAC for your agent team."
-          description="Define roles with scoped capabilities. Engineers implement tasks. Managers assign work. Roles live as markdown files in .bc/roles/."
+          description="Engineers implement. Managers assign. QA validates. Define roles as markdown files in .bc/roles/ and scope what each agent can do."
           commands={[
             'bc role list',
             'bc role show engineer',
@@ -341,7 +341,7 @@ export default function Product() {
           id="tools"
           label="Tool Management"
           title="Add any AI tool. Mix and match."
-          description="Register AI tools and assign them to agents. Claude Code for complex features, Cursor for UI, Aider for quick fixes. mycel manages install, upgrade, and status."
+          description="Use Claude Code for complex features, Cursor for UI, Aider for quick fixes — all in the same workspace. mycel handles install, upgrade, and status."
           commands={[
             'bc tool list',
             'bc tool add mytool --command "mytool --yes"',
@@ -357,7 +357,7 @@ export default function Product() {
           id="mcp"
           label="MCP Integration"
           title="Connect tools natively via MCP."
-          description="Configure MCP servers that agents connect to on spawn. Supports stdio and SSE transport. Attach servers to roles for consistent capabilities."
+          description="Add MCP servers once, and agents connect on spawn. Supports stdio and SSE transport. Attach servers to roles so every agent gets the right capabilities."
           commands={[
             'bc mcp add github-server',
             'bc mcp list',
@@ -373,7 +373,7 @@ export default function Product() {
           id="cron"
           label="Scheduled Tasks"
           title="Cron-powered automation."
-          description="Schedule recurring tasks with cron syntax. Send prompts to agents on a schedule and view execution history."
+          description="Run lints every morning. Deploy previews on push. Schedule any prompt to any agent with cron syntax, and review the execution history."
           commands={[
             'bc cron add daily-lint --schedule "0 9 * * *" --agent qa-01 --prompt "Run make lint"',
             'bc cron list',
@@ -388,7 +388,7 @@ export default function Product() {
           id="secrets"
           label="Secrets Management"
           title="Encrypted credentials, zero plaintext."
-          description="API keys and credentials encrypted at rest via macOS Keychain, Linux libsecret, or AES-256-GCM. No plaintext in your repo."
+          description="Store API keys via macOS Keychain, Linux libsecret, or AES-256-GCM. Agents get credentials injected at runtime. Nothing stored in plaintext."
           commands={[
             'bc secret set OPENAI_KEY',
             'bc secret list',
@@ -404,7 +404,7 @@ export default function Product() {
           id="stats"
           label="System Stats"
           title="Full visibility into your workspace."
-          description="Agent counts, total cost, CPU/memory/disk usage, uptime, and channel activity at a glance."
+          description="See agent counts, total spend, CPU/memory/disk usage, uptime, and channel activity — all in one view."
           commands={[
             'bc stats',
             'bc status',
@@ -418,7 +418,7 @@ export default function Product() {
           id="logs"
           label="Centralized Logs"
           title="Every event, searchable and filterable."
-          description="All agent activity, channel messages, and system events in one log. Filter by agent, level, or time range."
+          description="Agent activity, channel messages, and system events stream into one log. Filter by agent, level, or time range to find exactly what happened."
           commands={[
             'bc logs',
             'bc agent logs eng-01',
@@ -433,7 +433,7 @@ export default function Product() {
           id="daemons"
           label="Daemon Processes"
           title="Long-running services, managed."
-          description="Run background processes alongside your agents. mycel manages their lifecycle and restarts them on failure."
+          description="Run background processes alongside your agents. mycel tracks their lifecycle, restarts on failure, and surfaces status in the dashboard."
           commands={[
             'bc status',
             'bc doctor',
@@ -447,7 +447,7 @@ export default function Product() {
           id="doctor"
           label="System Health"
           title="One command to check everything."
-          description="Checks workspace, database, agents, tools, MCP, secrets, git, and daemon. bc doctor fix auto-repairs what it can."
+          description="Run bc doctor to check workspace, database, agents, tools, MCP, secrets, git, and daemon. Run bc doctor fix to auto-repair what it can."
           commands={[
             'bc doctor',
             'bc doctor check tools',
@@ -480,15 +480,15 @@ export default function Product() {
             {[
               {
                 title: "vs. Single-agent tools",
-                desc: "Claude Code, Cursor, and Codex run one agent at a time. mycel runs many in parallel on isolated branches.",
+                desc: "Claude Code, Cursor, and Codex are great — but they run one agent at a time. mycel runs many in parallel, each on its own branch, with no conflicts.",
               },
               {
                 title: "vs. Agent frameworks",
-                desc: "CrewAI and LangGraph require building agents from scratch. mycel orchestrates agents you already use. No code changes.",
+                desc: "CrewAI and LangGraph require you to build agents from scratch in Python. mycel orchestrates the tools you already use. No SDK, no code changes.",
               },
               {
                 title: "vs. Custom scripts",
-                desc: "Shell scripts break at scale. mycel gives you structured channels, persistent memory, and cost tracking out of the box.",
+                desc: "Shell scripts break when you add the fifth agent. mycel gives you structured channels, cost tracking, and role-based control out of the box.",
               },
             ].map((item, i) => (
               <div

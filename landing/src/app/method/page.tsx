@@ -12,8 +12,8 @@ const PRINCIPLES = [
     number: "01",
     title: "Isolation",
     description:
-      "Agents must operate in isolated git worktrees. Each agent gets its own branch, preventing merge conflicts and ensuring clean, parallel development.",
-    terminal: "> bc agent create eng-01 --role engineer",
+      "Without isolation, two agents editing the same file will overwrite each other. Each agent gets its own git worktree, so 10 agents can work on the same codebase with zero merge conflicts.",
+    terminal: "$ bc agent create eng-01 --role engineer",
     icon: (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /></svg>
     ),
@@ -22,8 +22,8 @@ const PRINCIPLES = [
     number: "02",
     title: "Communication",
     description:
-      "Agents communicate through structured SQLite-backed channels. No shared memory — explicit message passing for clear coordination.",
-    terminal: '> bc channel send eng "starting tests"',
+      "Agents need to coordinate without you as the bottleneck. Persistent channels with @mentions let agents hand off work, request reviews, and converge — all logged and searchable.",
+    terminal: '$ bc channel send eng "starting tests"',
     icon: (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
     ),
@@ -32,8 +32,8 @@ const PRINCIPLES = [
     number: "03",
     title: "Visibility",
     description:
-      "Every action is logged and visible. The web dashboard at localhost:9374 shows real-time agent state, output, and progress.",
-    terminal: "> bc status",
+      "You can't trust what you can't see. The web dashboard at localhost:9374 shows every agent's state, output, costs, and channel messages in real time.",
+    terminal: "$ bc status",
     icon: (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></svg>
     ),
@@ -42,8 +42,8 @@ const PRINCIPLES = [
     number: "04",
     title: "Control",
     description:
-      "Budget limits prevent runaway costs. Role permissions define what each agent can do. You stay in control.",
-    terminal: "> bc cost budget set eng-01 --limit $5.00",
+      "AI tokens add up fast. Per-agent budgets with hard stops prevent surprise bills. Role permissions scope what each agent can do, so you delegate without losing control.",
+    terminal: "$ bc cost budget set eng-01 --limit $5.00",
     icon: (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>
     ),
@@ -52,8 +52,8 @@ const PRINCIPLES = [
     number: "05",
     title: "Persistence",
     description:
-      "All state lives in .bc/ — git-backed, survives restarts. Agent worktrees, channel history, cost records are all persistent.",
-    terminal: "> bc agent start eng-01 --resume",
+      "Agents crash. Machines restart. All state lives in .bc/ — worktrees, channel history, cost records, and memory survive restarts and are backed by git.",
+    terminal: "$ bc agent start eng-01 --resume",
     icon: (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56" /><polyline points="21 3 21 9 15 9" /></svg>
     ),
@@ -62,8 +62,8 @@ const PRINCIPLES = [
     number: "06",
     title: "Simplicity",
     description:
-      "Single Go binary. No cloud dependency. No login required. Just bc init && bc up.",
-    terminal: "> bc init && bc up",
+      "No runtime dependencies. No cloud accounts. No YAML config files. One Go binary, two commands, and your agent team is running.",
+    terminal: "$ bc init && bc up",
     icon: (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="4 17 10 11 4 5" /><line x1="12" y1="19" x2="20" y2="19" /></svg>
     ),

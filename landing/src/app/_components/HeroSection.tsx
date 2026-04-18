@@ -55,8 +55,8 @@ export function HeroSection() {
             custom={2}
             className="mt-4 max-w-[520px] text-base leading-relaxed text-muted-foreground sm:text-lg"
           >
-            Coordinate teams of Claude, Gemini, Cursor, and other AI agents
-            with isolated worktrees, shared channels, and cost controls.
+            Coordinate teams of Claude, Gemini, and Cursor agents on a single
+            codebase. Isolated worktrees. Shared channels. Cost controls. One binary.
           </motion.p>
 
           <motion.div
@@ -65,22 +65,22 @@ export function HeroSection() {
             className="mt-6 flex flex-wrap items-center gap-3"
           >
             <Link
-              href="https://github.com/rpuneet/bc"
+              href="/#install"
               className="cta-glow group inline-flex h-10 sm:h-11 items-center gap-2 rounded-lg bg-primary px-6 sm:px-8 text-sm font-semibold text-primary-foreground shadow-[var(--btn-shadow)] transition-all hover:shadow-xl hover:shadow-primary/20 active:scale-[0.97]"
-              aria-label="Get started with mycel on GitHub"
+              aria-label="Download mycel"
             >
-              Get Started
+              Download
               <ArrowRight
                 className="h-4 w-4 transition-transform group-hover:translate-x-0.5"
                 aria-hidden="true"
               />
             </Link>
             <Link
-              href="/docs"
+              href="https://github.com/rpuneet/bc"
               className="inline-flex h-10 sm:h-11 items-center gap-2 rounded-lg border border-border px-6 sm:px-8 text-sm font-medium transition-colors hover:bg-accent/20 active:scale-[0.97]"
-              aria-label="Read the mycel documentation"
+              aria-label="View mycel on GitHub"
             >
-              View Docs
+              View on GitHub
             </Link>
           </motion.div>
 

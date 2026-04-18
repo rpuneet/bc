@@ -30,22 +30,22 @@ const FAQS = [
   {
     question: "Is the local version truly free?",
     answer:
-      "Yes. mycel is MIT-licensed open source. The local version includes all features — unlimited agents, channels, cost tracking, MCP integration. You only pay for the AI tokens you use with your own API keys.",
+      "Yes. mycel is MIT-licensed and fully open source. Every feature ships in the free tier — unlimited agents, channels, cost tracking, MCP, secrets, cron. You only pay your AI provider for tokens.",
   },
   {
     question: "What is included in the Cloud waitlist?",
     answer:
-      "Cloud gives you remote access to your mycel workspace via SSH, managed agent hosting, and priority support. Join the waitlist to be notified when it launches.",
+      "Cloud adds remote SSH access to your workspace, managed agent hosting, and priority support. Join the waitlist and we'll notify you when it launches.",
   },
   {
     question: "Do you offer discounts for startups?",
     answer:
-      "Yes. Contact us at hello@mycel.dev with details about your startup and we'll work something out.",
+      "Yes. Email hello@mycel.dev with details about your startup and we'll work something out.",
   },
   {
     question: "When will Enterprise be available?",
     answer:
-      "Enterprise features are in development. Contact hello@mycel.dev to discuss your requirements and timeline.",
+      "Enterprise is in development. Email hello@mycel.dev to discuss SSO, audit logs, and your timeline.",
   },
 ];
 
@@ -112,17 +112,17 @@ export default function PricingPage() {
         <div className="mx-auto max-w-5xl px-4 text-center">
           <FadeUp>
             <h1 className="font-headline text-5xl font-bold tracking-tight text-on-background lg:text-6xl">
-              Scale your
+              Simple pricing.
               <br />
               <span className="accent-instrument text-primary">
-                underground network.
+                Powerful agents.
               </span>
             </h1>
           </FadeUp>
           <FadeUp delay={0.1}>
             <p className="mx-auto mt-6 max-w-xl text-lg text-on-surface-variant">
-              Simple, transparent pricing. Run it locally for free, or scale to
-              the cloud when you&apos;re ready to scale.
+              The free tier includes every feature — unlimited agents, channels,
+              cost tracking, and MCP. You only pay for AI tokens with your own API keys.
             </p>
           </FadeUp>
         </div>

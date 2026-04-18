@@ -107,8 +107,8 @@ export default function WaitlistPage() {
 
         <FadeUp delay={0.2}>
           <p className="mx-auto mt-6 max-w-lg text-lg leading-relaxed text-on-surface-variant">
-            The local-first, provider-agnostic network layer for developers who
-            demand control over their generative pipelines.
+            mycel Cloud adds remote SSH access, managed agent hosting, and
+            priority support to the full-featured open-source CLI.
           </p>
         </FadeUp>
 

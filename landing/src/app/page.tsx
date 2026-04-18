@@ -59,11 +59,11 @@ export default function Home() {
                 </h3>
                 <ul className="space-y-4 text-sm">
                   {[
-                    "Serial execution — only one agent at a time",
-                    "Context lost between sessions",
-                    "Merge conflicts from parallel edits",
-                    "No visibility into agent activity or spending",
-                    "Surprise cost overruns at end of month",
+                    "Agents overwrite each other's changes on the same branch",
+                    "No way to see what 5 agents are doing at once",
+                    "API costs spiral with no per-agent tracking",
+                    "Context lost between sessions — agents start from scratch",
+                    "Serial execution bottleneck — only one agent at a time",
                   ].map((t) => (
                     <li key={t} className="flex gap-3 text-muted-foreground">
                       <span className="text-destructive/60 shrink-0">
@@ -82,11 +82,11 @@ export default function Home() {
                 </h3>
                 <ul className="space-y-4 text-sm">
                   {[
-                    "Multiple agents working in parallel",
-                    "Persistent memory injected on spawn",
-                    "Git worktrees — zero merge conflicts",
-                    "Real-time visibility into every agent",
-                    "Per-agent budgets with automatic hard stops",
+                    "Every agent gets its own git worktree — zero conflicts",
+                    "Real-time dashboard shows state, output, and costs",
+                    "Per-agent budgets stop overspending automatically",
+                    "Persistent memory injected on spawn — no lost context",
+                    "Run 10 agents in parallel on the same codebase",
                   ].map((t) => (
                     <li key={t} className="flex gap-3 text-muted-foreground">
                       <span className="text-success/60 shrink-0">&#x2713;</span>
