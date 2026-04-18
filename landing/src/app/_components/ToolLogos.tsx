@@ -27,24 +27,9 @@ const TOOLS: Tool[] = [
     url: "https://gemini.google.com",
     logo: "https://www.gstatic.com/lamda/images/gemini_sparkle_v002_d4735304ff6292a690345.svg",
   },
-  {
-    name: "Aider",
-    url: "https://aider.chat",
-    logo: "https://aider.chat/assets/icons/apple-touch-icon.png",
-  },
-  {
-    name: "OpenCode",
-    url: "https://opencode.ai",
-    logo: "https://www.google.com/s2/favicons?domain=opencode.ai&sz=128",
-  },
-  {
-    name: "OpenClaw",
-    url: "https://github.com/openclaw/openclaw",
-    logo: "https://openclaw.ai/favicon.svg",
-  },
 ];
 
-const Y_OFFSETS = [0, 14, -8, 18, -4, 12, -10];
+const Y_OFFSETS = [0, 14, -8, 18];
 
 function ToolChip({ tool, index }: { tool: Tool; index: number }) {
   const isExternal = tool.url.startsWith("http");
