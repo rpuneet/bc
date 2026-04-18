@@ -158,6 +158,38 @@ type GatewaysConfig struct {
 	Netlifys map[string]*NetlifyGatewayConfig `json:"-"`
 	// Notions holds zero or more Notion poll configs keyed by label.
 	Notions map[string]*NotionGatewayConfig `json:"-"`
+	// WhatsApps holds zero or more WhatsApp webhook configs keyed by label.
+	WhatsApps map[string]*WhatsAppGatewayConfig `json:"-"`
+	// Signals holds zero or more Signal poll configs keyed by label.
+	Signals map[string]*SignalGatewayConfig `json:"-"`
+	// Matrices holds zero or more Matrix poll configs keyed by label.
+	Matrices map[string]*MatrixGatewayConfig `json:"-"`
+	// MSTeams holds zero or more MS Teams webhook configs keyed by label.
+	MSTeams map[string]*MSTeamsGatewayConfig `json:"-"`
+	// GoogleChats holds zero or more Google Chat webhook configs keyed by label.
+	GoogleChats map[string]*GoogleChatGatewayConfig `json:"-"`
+	// Lines holds zero or more LINE webhook configs keyed by label.
+	Lines map[string]*LineGatewayConfig `json:"-"`
+	// Feishus holds zero or more Feishu webhook configs keyed by label.
+	Feishus map[string]*FeishuGatewayConfig `json:"-"`
+	// Mattermosts holds zero or more Mattermost webhook configs keyed by label.
+	Mattermosts map[string]*MattermostGatewayConfig `json:"-"`
+	// IRCs holds zero or more IRC socket configs keyed by label.
+	IRCs map[string]*IRCGatewayConfig `json:"-"`
+	// Nostrs holds zero or more Nostr socket configs keyed by label.
+	Nostrs map[string]*NostrGatewayConfig `json:"-"`
+	// Twitches holds zero or more Twitch webhook configs keyed by label.
+	Twitches map[string]*TwitchGatewayConfig `json:"-"`
+	// IMessages holds zero or more iMessage poll configs keyed by label.
+	IMessages map[string]*IMessageGatewayConfig `json:"-"`
+	// MQTTs holds zero or more MQTT socket configs keyed by label.
+	MQTTs map[string]*MQTTGatewayConfig `json:"-"`
+	// Twitters holds zero or more Twitter poll configs keyed by label.
+	Twitters map[string]*TwitterGatewayConfig `json:"-"`
+	// Reddits holds zero or more Reddit poll configs keyed by label.
+	Reddits map[string]*RedditGatewayConfig `json:"-"`
+	// HomeAssistants holds zero or more Home Assistant socket configs keyed by label.
+	HomeAssistants map[string]*HomeAssistantGatewayConfig `json:"-"`
 }
 
 // UnmarshalJSON parses gateway config, routing "telegram:*" keys into the
@@ -196,6 +228,22 @@ func (g *GatewaysConfig) UnmarshalJSON(data []byte) error {
 	g.Vercels = make(map[string]*VercelGatewayConfig)
 	g.Netlifys = make(map[string]*NetlifyGatewayConfig)
 	g.Notions = make(map[string]*NotionGatewayConfig)
+	g.WhatsApps = make(map[string]*WhatsAppGatewayConfig)
+	g.Signals = make(map[string]*SignalGatewayConfig)
+	g.Matrices = make(map[string]*MatrixGatewayConfig)
+	g.MSTeams = make(map[string]*MSTeamsGatewayConfig)
+	g.GoogleChats = make(map[string]*GoogleChatGatewayConfig)
+	g.Lines = make(map[string]*LineGatewayConfig)
+	g.Feishus = make(map[string]*FeishuGatewayConfig)
+	g.Mattermosts = make(map[string]*MattermostGatewayConfig)
+	g.IRCs = make(map[string]*IRCGatewayConfig)
+	g.Nostrs = make(map[string]*NostrGatewayConfig)
+	g.Twitches = make(map[string]*TwitchGatewayConfig)
+	g.IMessages = make(map[string]*IMessageGatewayConfig)
+	g.MQTTs = make(map[string]*MQTTGatewayConfig)
+	g.Twitters = make(map[string]*TwitterGatewayConfig)
+	g.Reddits = make(map[string]*RedditGatewayConfig)
+	g.HomeAssistants = make(map[string]*HomeAssistantGatewayConfig)
 	for key, val := range raw {
 		switch {
 		case key == "telegram":
@@ -371,6 +419,166 @@ func (g *GatewaysConfig) UnmarshalJSON(data []byte) error {
 				return fmt.Errorf("parse gateway %q: %w", key, err)
 			}
 			g.Notions[label] = &c
+		case key == "whatsapp" || strings.HasPrefix(key, "whatsapp:"):
+			label := strings.TrimPrefix(key, "whatsapp:")
+			if key == "whatsapp" {
+				label = ""
+			}
+			var c WhatsAppGatewayConfig
+			if err := json.Unmarshal(val, &c); err != nil {
+				return fmt.Errorf("parse gateway %q: %w", key, err)
+			}
+			g.WhatsApps[label] = &c
+		case key == "signal" || strings.HasPrefix(key, "signal:"):
+			label := strings.TrimPrefix(key, "signal:")
+			if key == "signal" {
+				label = ""
+			}
+			var c SignalGatewayConfig
+			if err := json.Unmarshal(val, &c); err != nil {
+				return fmt.Errorf("parse gateway %q: %w", key, err)
+			}
+			g.Signals[label] = &c
+		case key == "matrix" || strings.HasPrefix(key, "matrix:"):
+			label := strings.TrimPrefix(key, "matrix:")
+			if key == "matrix" {
+				label = ""
+			}
+			var c MatrixGatewayConfig
+			if err := json.Unmarshal(val, &c); err != nil {
+				return fmt.Errorf("parse gateway %q: %w", key, err)
+			}
+			g.Matrices[label] = &c
+		case key == "msteams" || strings.HasPrefix(key, "msteams:"):
+			label := strings.TrimPrefix(key, "msteams:")
+			if key == "msteams" {
+				label = ""
+			}
+			var c MSTeamsGatewayConfig
+			if err := json.Unmarshal(val, &c); err != nil {
+				return fmt.Errorf("parse gateway %q: %w", key, err)
+			}
+			g.MSTeams[label] = &c
+		case key == "googlechat" || strings.HasPrefix(key, "googlechat:"):
+			label := strings.TrimPrefix(key, "googlechat:")
+			if key == "googlechat" {
+				label = ""
+			}
+			var c GoogleChatGatewayConfig
+			if err := json.Unmarshal(val, &c); err != nil {
+				return fmt.Errorf("parse gateway %q: %w", key, err)
+			}
+			g.GoogleChats[label] = &c
+		case key == "line" || strings.HasPrefix(key, "line:"):
+			label := strings.TrimPrefix(key, "line:")
+			if key == "line" {
+				label = ""
+			}
+			var c LineGatewayConfig
+			if err := json.Unmarshal(val, &c); err != nil {
+				return fmt.Errorf("parse gateway %q: %w", key, err)
+			}
+			g.Lines[label] = &c
+		case key == "feishu" || strings.HasPrefix(key, "feishu:"):
+			label := strings.TrimPrefix(key, "feishu:")
+			if key == "feishu" {
+				label = ""
+			}
+			var c FeishuGatewayConfig
+			if err := json.Unmarshal(val, &c); err != nil {
+				return fmt.Errorf("parse gateway %q: %w", key, err)
+			}
+			g.Feishus[label] = &c
+		case key == "mattermost" || strings.HasPrefix(key, "mattermost:"):
+			label := strings.TrimPrefix(key, "mattermost:")
+			if key == "mattermost" {
+				label = ""
+			}
+			var c MattermostGatewayConfig
+			if err := json.Unmarshal(val, &c); err != nil {
+				return fmt.Errorf("parse gateway %q: %w", key, err)
+			}
+			g.Mattermosts[label] = &c
+		case key == "irc" || strings.HasPrefix(key, "irc:"):
+			label := strings.TrimPrefix(key, "irc:")
+			if key == "irc" {
+				label = ""
+			}
+			var c IRCGatewayConfig
+			if err := json.Unmarshal(val, &c); err != nil {
+				return fmt.Errorf("parse gateway %q: %w", key, err)
+			}
+			g.IRCs[label] = &c
+		case key == "nostr" || strings.HasPrefix(key, "nostr:"):
+			label := strings.TrimPrefix(key, "nostr:")
+			if key == "nostr" {
+				label = ""
+			}
+			var c NostrGatewayConfig
+			if err := json.Unmarshal(val, &c); err != nil {
+				return fmt.Errorf("parse gateway %q: %w", key, err)
+			}
+			g.Nostrs[label] = &c
+		case key == "twitch" || strings.HasPrefix(key, "twitch:"):
+			label := strings.TrimPrefix(key, "twitch:")
+			if key == "twitch" {
+				label = ""
+			}
+			var c TwitchGatewayConfig
+			if err := json.Unmarshal(val, &c); err != nil {
+				return fmt.Errorf("parse gateway %q: %w", key, err)
+			}
+			g.Twitches[label] = &c
+		case key == "imessage" || strings.HasPrefix(key, "imessage:"):
+			label := strings.TrimPrefix(key, "imessage:")
+			if key == "imessage" {
+				label = ""
+			}
+			var c IMessageGatewayConfig
+			if err := json.Unmarshal(val, &c); err != nil {
+				return fmt.Errorf("parse gateway %q: %w", key, err)
+			}
+			g.IMessages[label] = &c
+		case key == "mqtt" || strings.HasPrefix(key, "mqtt:"):
+			label := strings.TrimPrefix(key, "mqtt:")
+			if key == "mqtt" {
+				label = ""
+			}
+			var c MQTTGatewayConfig
+			if err := json.Unmarshal(val, &c); err != nil {
+				return fmt.Errorf("parse gateway %q: %w", key, err)
+			}
+			g.MQTTs[label] = &c
+		case key == "twitter" || strings.HasPrefix(key, "twitter:"):
+			label := strings.TrimPrefix(key, "twitter:")
+			if key == "twitter" {
+				label = ""
+			}
+			var c TwitterGatewayConfig
+			if err := json.Unmarshal(val, &c); err != nil {
+				return fmt.Errorf("parse gateway %q: %w", key, err)
+			}
+			g.Twitters[label] = &c
+		case key == "reddit" || strings.HasPrefix(key, "reddit:"):
+			label := strings.TrimPrefix(key, "reddit:")
+			if key == "reddit" {
+				label = ""
+			}
+			var c RedditGatewayConfig
+			if err := json.Unmarshal(val, &c); err != nil {
+				return fmt.Errorf("parse gateway %q: %w", key, err)
+			}
+			g.Reddits[label] = &c
+		case key == "homeassistant" || strings.HasPrefix(key, "homeassistant:"):
+			label := strings.TrimPrefix(key, "homeassistant:")
+			if key == "homeassistant" {
+				label = ""
+			}
+			var c HomeAssistantGatewayConfig
+			if err := json.Unmarshal(val, &c); err != nil {
+				return fmt.Errorf("parse gateway %q: %w", key, err)
+			}
+			g.HomeAssistants[label] = &c
 		}
 	}
 	return nil
@@ -498,6 +706,118 @@ func (g GatewaysConfig) MarshalJSON() ([]byte, error) {
 			m["notion:"+label] = c
 		}
 	}
+	for label, c := range g.WhatsApps {
+		if label == "" {
+			m["whatsapp"] = c
+		} else {
+			m["whatsapp:"+label] = c
+		}
+	}
+	for label, c := range g.Signals {
+		if label == "" {
+			m["signal"] = c
+		} else {
+			m["signal:"+label] = c
+		}
+	}
+	for label, c := range g.Matrices {
+		if label == "" {
+			m["matrix"] = c
+		} else {
+			m["matrix:"+label] = c
+		}
+	}
+	for label, c := range g.MSTeams {
+		if label == "" {
+			m["msteams"] = c
+		} else {
+			m["msteams:"+label] = c
+		}
+	}
+	for label, c := range g.GoogleChats {
+		if label == "" {
+			m["googlechat"] = c
+		} else {
+			m["googlechat:"+label] = c
+		}
+	}
+	for label, c := range g.Lines {
+		if label == "" {
+			m["line"] = c
+		} else {
+			m["line:"+label] = c
+		}
+	}
+	for label, c := range g.Feishus {
+		if label == "" {
+			m["feishu"] = c
+		} else {
+			m["feishu:"+label] = c
+		}
+	}
+	for label, c := range g.Mattermosts {
+		if label == "" {
+			m["mattermost"] = c
+		} else {
+			m["mattermost:"+label] = c
+		}
+	}
+	for label, c := range g.IRCs {
+		if label == "" {
+			m["irc"] = c
+		} else {
+			m["irc:"+label] = c
+		}
+	}
+	for label, c := range g.Nostrs {
+		if label == "" {
+			m["nostr"] = c
+		} else {
+			m["nostr:"+label] = c
+		}
+	}
+	for label, c := range g.Twitches {
+		if label == "" {
+			m["twitch"] = c
+		} else {
+			m["twitch:"+label] = c
+		}
+	}
+	for label, c := range g.IMessages {
+		if label == "" {
+			m["imessage"] = c
+		} else {
+			m["imessage:"+label] = c
+		}
+	}
+	for label, c := range g.MQTTs {
+		if label == "" {
+			m["mqtt"] = c
+		} else {
+			m["mqtt:"+label] = c
+		}
+	}
+	for label, c := range g.Twitters {
+		if label == "" {
+			m["twitter"] = c
+		} else {
+			m["twitter:"+label] = c
+		}
+	}
+	for label, c := range g.Reddits {
+		if label == "" {
+			m["reddit"] = c
+		} else {
+			m["reddit:"+label] = c
+		}
+	}
+	for label, c := range g.HomeAssistants {
+		if label == "" {
+			m["homeassistant"] = c
+		} else {
+			m["homeassistant:"+label] = c
+		}
+	}
 	if g.Discord != nil {
 		m["discord"] = g.Discord
 	}
@@ -618,6 +938,113 @@ type NotionGatewayConfig struct {
 	Token    string `json:"token"`
 	Interval int    `json:"interval"` // seconds, default 300
 	Enabled  bool   `json:"enabled"`
+}
+
+// WhatsAppGatewayConfig configures the WhatsApp (Meta Cloud API) webhook adapter.
+type WhatsAppGatewayConfig struct {
+	VerifyToken string `json:"verify_token"`
+	Enabled     bool   `json:"enabled"`
+}
+
+// SignalGatewayConfig configures the Signal (signal-cli REST) poll adapter.
+type SignalGatewayConfig struct {
+	APIURL   string `json:"api_url"`
+	Interval int    `json:"interval"` // seconds, default 10
+	Enabled  bool   `json:"enabled"`
+}
+
+// MatrixGatewayConfig configures the Matrix client-server poll adapter.
+type MatrixGatewayConfig struct {
+	Homeserver string `json:"homeserver"`
+	Token      string `json:"token"`
+	Interval   int    `json:"interval"` // seconds, default 10
+	Enabled    bool   `json:"enabled"`
+}
+
+// MSTeamsGatewayConfig configures the Microsoft Teams Bot Framework webhook adapter.
+type MSTeamsGatewayConfig struct {
+	Secret  string `json:"secret,omitempty"`
+	Enabled bool   `json:"enabled"`
+}
+
+// GoogleChatGatewayConfig configures the Google Chat webhook adapter.
+type GoogleChatGatewayConfig struct {
+	Secret  string `json:"secret,omitempty"`
+	Enabled bool   `json:"enabled"`
+}
+
+// LineGatewayConfig configures the LINE Messaging API webhook adapter.
+type LineGatewayConfig struct {
+	Secret  string `json:"secret"`
+	Enabled bool   `json:"enabled"`
+}
+
+// FeishuGatewayConfig configures the Feishu/Lark event subscription webhook adapter.
+type FeishuGatewayConfig struct {
+	Secret  string `json:"secret,omitempty"`
+	Enabled bool   `json:"enabled"`
+}
+
+// MattermostGatewayConfig configures the Mattermost outgoing webhook adapter.
+type MattermostGatewayConfig struct {
+	Token   string `json:"token,omitempty"`
+	Enabled bool   `json:"enabled"`
+}
+
+// IRCGatewayConfig configures the IRC socket adapter (placeholder).
+type IRCGatewayConfig struct {
+	Server  string `json:"server"`
+	Enabled bool   `json:"enabled"`
+}
+
+// NostrGatewayConfig configures the Nostr relay WebSocket adapter (placeholder).
+type NostrGatewayConfig struct {
+	RelayURL string `json:"relay_url"`
+	Enabled  bool   `json:"enabled"`
+}
+
+// TwitchGatewayConfig configures the Twitch EventSub webhook adapter.
+type TwitchGatewayConfig struct {
+	Secret  string `json:"secret"`
+	Enabled bool   `json:"enabled"`
+}
+
+// IMessageGatewayConfig configures the iMessage (BlueBubbles) poll adapter.
+type IMessageGatewayConfig struct {
+	APIURL   string `json:"api_url"`
+	Password string `json:"password"`
+	Interval int    `json:"interval"` // seconds, default 10
+	Enabled  bool   `json:"enabled"`
+}
+
+// MQTTGatewayConfig configures the MQTT socket adapter (placeholder).
+type MQTTGatewayConfig struct {
+	BrokerURL string `json:"broker_url"`
+	Topic     string `json:"topic,omitempty"`
+	Enabled   bool   `json:"enabled"`
+}
+
+// TwitterGatewayConfig configures the Twitter API v2 poll adapter.
+type TwitterGatewayConfig struct {
+	BearerToken string `json:"bearer_token"`
+	UserID      string `json:"user_id"`
+	Interval    int    `json:"interval"` // seconds, default 60
+	Enabled     bool   `json:"enabled"`
+}
+
+// RedditGatewayConfig configures the Reddit API poll adapter.
+type RedditGatewayConfig struct {
+	Subreddit   string `json:"subreddit"`
+	BearerToken string `json:"bearer_token"`
+	Interval    int    `json:"interval"` // seconds, default 60
+	Enabled     bool   `json:"enabled"`
+}
+
+// HomeAssistantGatewayConfig configures the Home Assistant WebSocket adapter (placeholder).
+type HomeAssistantGatewayConfig struct {
+	URL     string `json:"url"`
+	Token   string `json:"token"`
+	Enabled bool   `json:"enabled"`
 }
 
 // CronConfig configures the cron/job scheduler.
