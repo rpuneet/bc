@@ -25,7 +25,7 @@ graph TB
     end
 
     subgraph Storage ["Storage Layer"]
-        DB["SQLite<br/>~/.bc/bc.db<br/>agents, channels, costs,<br/>roles, events, cron"]
+        DB["SQLite<br/>~/.bc/bc.db<br/>agents, subscriptions, costs,<br/>roles, events, cron"]
         FS["Filesystem<br/>~/.bc/<br/>settings.json, logs,<br/>agent worktrees"]
     end
 
@@ -74,7 +74,7 @@ graph TD
     subgraph Views ["Views (lazy-loaded)"]
         V_Dash["Dashboard"]
         V_Agents["Agents"]
-        V_Channels["Channels"]
+        V_Notifications["Notifications"]
         V_Costs["Costs"]
         V_Teams["Teams"]
         V_Roles["Roles (CRUD)"]
@@ -239,8 +239,8 @@ graph LR
         I["/ — Dashboard"]
         A["/agents — Agent list"]
         AD["/agents/:name — Agent detail<br/>(terminal peek, cost, logs)"]
-        CH["/channels — Channel list"]
-        CHD["/channels/:name — Channel chat room"]
+        CH["/notifications — Notification sources"]
+        CHD["/notifications/:name — Notification source detail"]
         CO["/costs — Cost overview"]
         T_List["/teams — Team list"]
         T_Detail["/teams/:name — Team detail<br/>(members, config, metrics)"]
@@ -276,9 +276,9 @@ Navigation is a static `NAV_ITEMS` array in `Layout.tsx`. Each entry has a `to` 
 | `api.startAgent(name)` | `POST /api/agents/:name/start` | Agents |
 | `api.stopAgent(name)` | `POST /api/agents/:name/stop` | Agents |
 | `api.sendToAgent(name, msg)` | `POST /api/agents/:name/send` | Agents |
-| `api.listChannels()` | `GET /api/channels` | Dashboard, Channels |
-| `api.getChannelHistory(name)` | `GET /api/channels/:name/history` | Channels |
-| `api.sendToChannel(name, msg)` | `POST /api/channels/:name/messages` | Channels |
+| `api.listGateways()` | `GET /api/gateways` | Dashboard, Notifications |
+| `api.getGatewayChannels(gw)` | `GET /api/gateways/:gw/channels` | Notifications |
+| `api.getChannelActivity(gw, ch)` | `GET /api/gateways/:gw/channels/:ch/activity` | Notifications |
 | `api.getCostSummary()` | `GET /api/costs` | Dashboard, Costs |
 | `api.getCostByAgent()` | `GET /api/costs/agents` | Costs |
 | `api.listRoles()` | `GET /api/roles` | Roles |
@@ -320,7 +320,7 @@ graph TD
     end
 
     subgraph tui ["tui/"]
-        TuiHooks["hooks/<br/>useAgents, useChannels"]
+        TuiHooks["hooks/<br/>useAgents, useNotifications"]
     end
 
     pkg -->|"import @bc/api"| WebHooks
@@ -377,7 +377,7 @@ There is no global state store. Each view manages its own data via `usePolling` 
 graph TD
     subgraph ServerState ["Server State (via bcd API)"]
         Agents["Agent list + states"]
-        Channels["Channel list + messages"]
+        Channels["Notification sources + activity"]
         Costs["Cost aggregates"]
         Roles["Role definitions"]
         Tools["Tool/MCP/Secret config"]
@@ -387,7 +387,7 @@ graph TD
         Selected["Selected row/item"]
         Expanded["Expanded/collapsed sections"]
         FormInput["Form input values"]
-        ChatDraft["Chat message draft"]
+        ChatDraft["Filter/search state"]
     end
 
     subgraph InfraState ["Infrastructure State"]
@@ -402,7 +402,7 @@ graph TD
 | Category | Location | Rationale |
 |---|---|---|
 | **Agent list** | Per-view `usePolling` + SSE refresh | Server is source of truth; no client cache needed beyond current fetch |
-| **Channel messages** | Per-view local state + SSE append | Messages appended via SSE, full refetch for consistency |
+| **Notification feed** | Per-view local state + SSE append | Events appended via SSE, full refetch for consistency |
 | **Cost data** | Per-view `usePolling` | Aggregated, changes slowly |
 | **Roles** | Per-view fetch + invalidate on mutation | Refetch after create/update/delete |
 | **Theme** | `ThemeProvider` context, persisted to `localStorage` | User preference survives page reload |
@@ -415,9 +415,9 @@ graph TD
 
 | View | Polling Interval | SSE Events | API Calls |
 |---|---|---|---|
-| Dashboard | 5s | -- | `listAgents`, `listChannels`, `getCostSummary` |
+| Dashboard | 5s | -- | `listAgents`, `listGateways`, `getCostSummary` |
 | Agents | 5s | `agent.state_changed` | `listAgents`, `startAgent`, `stopAgent`, `sendToAgent` |
-| Channels | 10s (list) | `channel.message` | `listChannels`, `getChannelHistory`, `sendToChannel` |
+| Notifications | 10s (list) | `gateway.message` | `listGateways`, `getGatewayChannels`, `getChannelActivity` |
 | Costs | 10s | -- | `getCostSummary`, `getCostByAgent` |
 | Roles | 30s | -- | `listRoles` + full CRUD |
 | Tools | 30s | -- | `listTools` |

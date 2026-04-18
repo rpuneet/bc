@@ -46,11 +46,7 @@ erDiagram
     agents }o--o| roles : "has role"
     roles ||--o{ role_mcp_servers : uses
     roles ||--o{ role_secrets : needs
-    channels ||--o{ channel_members : has
-    agents ||--o{ channel_members : "member of"
-    channels ||--o{ messages : contains
-    messages ||--o{ mentions : has
-    messages ||--o{ reactions : has
+    subscriptions ||--o{ delivery_log : "deliveries per subscription"
     agents ||--o{ cost_records : generates
     agents ||--o{ events : logs
     agents ||--o{ agent_sessions : "session history"
@@ -88,19 +84,27 @@ erDiagram
         blob commands "JSON map"
         integer created_at "unix millis"
     }
-    channels {
+    subscriptions {
         integer id PK
-        text name "UNIQUE"
-        text type "group|direct"
-        integer created_at "unix millis"
+        text source "platform:channel"
+        text agent "NOT NULL"
+        integer mention_only "0|1"
+        text created_at "ISO8601"
     }
-    messages {
+    notification_log {
         integer id PK
-        integer channel_id FK
-        text sender
-        text content
-        text type "text|task|review|..."
-        integer created_at "unix millis"
+        text source "NOT NULL"
+        text sender "NOT NULL"
+        text raw "full platform JSON"
+        text created_at "ISO8601"
+    }
+    delivery_log {
+        integer id PK
+        text source "NOT NULL"
+        text agent "NOT NULL"
+        text status "delivered|failed|pending"
+        text error "nullable"
+        text created_at "ISO8601"
     }
     cost_records {
         integer id PK
@@ -157,7 +161,9 @@ Composite indexes on hot paths, following SQLite left-to-right rule:
 |-------|---------------|
 | `idx_cost_agent_time(agent_name, timestamp DESC)` | Budget checks per agent |
 | `idx_cost_team_time(team_id, timestamp DESC)` | Team cost queries |
-| `idx_messages_channel_time(channel_id, created_at DESC)` | Channel history |
+| `idx_subscriptions_source(source, agent)` | Subscriber lookups |
+| `idx_notification_log_source(source, created_at DESC)` | Notification history |
+| `idx_delivery_log_source(source, created_at DESC)` | Delivery log queries |
 | `idx_agent_sessions_agent(agent_name, created_at DESC)` | Session resume |
 | `idx_events_timestamp(timestamp DESC)` | Recent events |
 | `idx_cron_logs_job(job_name, run_at DESC)` | Job execution logs |
@@ -172,7 +178,7 @@ pkg/db/migrations/
   002_create_teams.sql
   003_create_roles.sql
   004_create_agents.sql
-  005_create_channels.sql
+  005_create_subscriptions.sql
   006_create_costs.sql
   ...
 ```
