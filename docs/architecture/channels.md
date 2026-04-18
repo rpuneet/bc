@@ -125,39 +125,89 @@ Settings are per-agent, per-channel. Example: `eng-01` has `mention_only=true` f
 
 Every platform adapter implements this interface. The design is intentionally minimal -- adapters are thin wrappers that connect to a platform and forward raw events.
 
+All 37+ platforms fall into exactly three connection patterns:
+
+| Pattern | Adapters | How it works |
+|---------|----------|--------------|
+| **Socket** | Slack, Discord, Telegram, Matrix, IRC, Mattermost, Twitch, MQTT | Long-lived connection (WebSocket/polling). `Start()` blocks, events pushed in. |
+| **Webhook** | GitHub, GitLab, Stripe, Sentry, PagerDuty, Datadog, Generic | bc exposes HTTP endpoint. Platform POSTs events. `HTTPHandler()` returns handler. |
+| **Poll** | RSS, Notion, Reddit, Gmail (polling mode) | Timer-based fetch. `Start()` polls on interval, forwards new items. |
+
 ```go
 // Located in: pkg/gateway/gateway.go
 
-// Adapter handles the platform connection lifecycle and message routing.
-type Adapter interface {
-    // Name returns the platform identifier ("telegram", "discord", "slack").
+// AdapterType identifies the connection pattern.
+type AdapterType string
+
+const (
+    AdapterSocket  AdapterType = "socket"   // long-lived connection (WebSocket, polling loop)
+    AdapterWebhook AdapterType = "webhook"  // HTTP endpoint — platform POSTs events to bc
+    AdapterPoll    AdapterType = "poll"     // timer-based polling — bc fetches new events
+)
+
+// NotificationAdapter handles the platform connection lifecycle.
+// Each adapter is ~50-100 lines: connect, extract sender, forward raw JSON.
+type NotificationAdapter interface {
+    // Name returns the adapter identifier ("slack", "github", "telegram").
     Name() string
 
-    // Start connects to the platform and begins receiving messages.
-    // Calls onMessage for each inbound event. Blocks until ctx is canceled.
-    Start(ctx context.Context, onMessage func(InboundMessage)) error
+    // Type returns the connection pattern. Determines how bc wires the adapter:
+    //   socket  → goroutine running Start()
+    //   webhook → HTTPHandler() mounted on bcd HTTP mux at /hooks/{name}
+    //   poll    → goroutine running Start() with internal ticker
+    Type() AdapterType
+
+    // Start connects to the platform and begins receiving notifications.
+    // Calls handler for each inbound event with raw JSON payload.
+    // Blocks until ctx is canceled. For webhook adapters, this is a no-op.
+    Start(ctx context.Context, handler func(Notification)) error
 
     // Stop gracefully disconnects from the platform.
-    Stop(ctx context.Context) error
-
-    // Channels returns all channels/groups the bot is a member of.
-    Channels(ctx context.Context) ([]ChannelInfo, error)
-
-    // Status returns the adapter's connection state for observability.
-    Status() AdapterStatus
+    Stop() error
 
     // HTTPHandler returns an http.Handler for webhook-based adapters.
-    // Socket/polling adapters return nil.
+    // Socket and poll adapters return nil.
+    // The handler is mounted at /hooks/{name} on the bcd HTTP server.
     HTTPHandler() http.Handler
+
+    // Channels returns discovered channels/groups the bot has access to.
+    Channels() []ChannelInfo
+
+    // Status returns the adapter's connection state for the web UI.
+    Status() AdapterStatus
 }
 
+// AdapterStatus is reported to the web UI for observability.
 type AdapterStatus struct {
-    Connected     bool
-    Error         string
-    LastMessageAt time.Time
-    MessageCount  int64
+    Connected     bool      `json:"connected"`
+    Error         string    `json:"error,omitempty"`
+    LastMessageAt time.Time `json:"last_message_at,omitempty"`
+    MessageCount  int64     `json:"message_count"`
+}
+
+// ChannelInfo represents a discovered channel on a platform.
+type ChannelInfo struct {
+    ID       string `json:"id"`       // platform channel ID
+    Name     string `json:"name"`     // human-readable name
+    Platform string `json:"platform"` // adapter name
 }
 ```
+
+### Multi-Bot Support
+
+A single platform can have **multiple adapter instances**, each with its own credentials and channels. The adapter `Name()` uses a `platform:label` convention:
+
+```
+telegram              → default Telegram bot
+telegram:trade_research → trade research bot
+telegram:kognivida    → kognivida bot
+slack                 → main workspace bot
+slack:personal        → personal workspace bot
+github:bc             → bc repo webhooks
+github:trade          → trade repo webhooks
+```
+
+The gateway manager registers each as a separate adapter. Subscriptions reference the full name (`telegram:trade_research:chat_group`), so agents can subscribe to specific bots. Credentials are stored per-instance in workspace secrets.
 
 ### Notification Data Model
 
