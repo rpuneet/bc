@@ -70,6 +70,9 @@ func (h *StatsHandler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/stats/system", h.system)
 	mux.HandleFunc("/api/stats/summary", h.summary)
 
+	// System info endpoint
+	mux.HandleFunc("/api/system/info", h.systemInfo)
+
 	// New per-resource timeseries endpoints
 	h.RegisterSystemStats(mux)
 	h.RegisterAgentStats(mux)
@@ -105,6 +108,20 @@ func (h *StatsHandler) system(w http.ResponseWriter, r *http.Request) {
 		"go_version":           runtime.Version(),
 		"uptime_seconds":       int64(time.Since(serverStartTime).Seconds()),
 		"goroutines":           runtime.NumGoroutine(),
+	})
+}
+
+func (h *StatsHandler) systemInfo(w http.ResponseWriter, r *http.Request) {
+	if !requireMethod(w, r, http.MethodGet) {
+		return
+	}
+
+	hostname, _ := os.Hostname() //nolint:errcheck // best-effort
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"hostname": hostname,
+		"os":       runtime.GOOS,
+		"arch":     runtime.GOARCH,
 	})
 }
 

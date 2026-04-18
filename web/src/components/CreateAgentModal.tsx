@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useRef, memo } from "react";
 import { AgentIcon } from "./agent-ui";
 import type { AgentShape } from "./agent-ui";
 import { MONO } from "../utils/typography";
@@ -66,6 +66,9 @@ const VALID_RUNTIMES = new Set<string>(["docker", "tmux"]);
 
 const SHAPES: AgentShape[] = ["hexagon", "circle", "square"];
 
+// Memoized avatar so CSS animation ticks don't cause parent re-renders
+const MemoAgentIcon = memo(AgentIcon);
+
 const INPUT_CLS =
   "w-full bg-bc-bg border border-bc-border rounded px-3 py-2 text-sm text-bc-text " +
   "placeholder:text-bc-muted outline-none focus:border-bc-accent transition-colors";
@@ -109,9 +112,13 @@ export function CreateAgentModal({
       });
   }, []);
 
-  // Reset on open
+  // Reset form only when the modal is first opened (open transitions to true).
+  // We use a ref to track the previous open state so that changes to
+  // existingNames or defaultCloneFrom while the modal is already open
+  // do not wipe form fields the user is actively typing in.
+  const prevOpenRef = useRef(false);
   useEffect(() => {
-    if (open) {
+    if (open && !prevOpenRef.current) {
       const newName = generateName(existingNames);
       setName(newName);
       setShape(SHAPES[Math.floor(Math.random() * SHAPES.length)] ?? "hexagon");
@@ -124,8 +131,9 @@ export function CreateAgentModal({
       setCloneFrom(defaultCloneFrom);
       requestAnimationFrame(() => firstInputRef.current?.focus());
     }
+    prevOpenRef.current = open;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, existingNames, defaultCloneFrom]);
+  }, [open]);
 
   // Close on Escape
   useEffect(() => {
@@ -216,7 +224,7 @@ export function CreateAgentModal({
         <div className="px-5 py-4 flex flex-col gap-4">
           {/* Shape preview */}
           <div className="flex justify-center">
-            <AgentIcon shape={shape} state="idle" size={64} tool={provider} />
+            <MemoAgentIcon shape={shape} state="idle" size={64} tool={provider} />
           </div>
 
           {/* Name + regen */}
