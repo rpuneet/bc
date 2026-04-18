@@ -504,14 +504,27 @@ Three tables. No gateway state table (adapter status is in-memory). No channel m
 | `notification_log` | Raw inbound events for the web UI feed. Stores full platform JSON. |
 | `delivery_log` | Every delivery attempt per agent (delivered/failed). Pruned to last 1000 per source. |
 
+### Storage & Retention
+
+`notification_log` stores the **full raw JSON** from every platform event. The web UI renders platform-specific views (Slack message card, GitHub PR card, Telegram message, etc.) with a generic JSON fallback for unknown platforms.
+
+**Retention policy** to prevent DB bloat:
+
+| Rule | Value |
+|------|-------|
+| Max entries per source | 1,000 (oldest pruned on insert) |
+| TTL | 7 days (entries older than 7d pruned on schedule) |
+| `delivery_log` retention | 1,000 per source, same TTL |
+
+Pruning runs automatically on a periodic timer (every hour). Both limits apply — whichever triggers first.
+
 ### What Is Not Stored
 
 | Not Stored | Why |
 |-----------|-----|
-| Full message content in DB | Platforms keep their own history; `notification_log` stores only activity feed previews |
-| Reactions | Agents react via direct API calls |
-| FTS indexes | No search needed |
-| File content | Stored in `.bc/attachments/`, not in the database |
+| Reactions | Agents react via direct platform API calls |
+| FTS indexes | No full-text search needed on notifications |
+| File content | Referenced by URL in raw JSON; downloaded to `.bc/attachments/` on demand |
 
 ### Shared Database Pattern
 
