@@ -12,50 +12,29 @@ bc acts as a notification router, not a messaging proxy. External platforms push
 
 ```mermaid
 flowchart LR
-    subgraph External
+    subgraph Platforms["External Platforms"]
         S[Slack]
         T[Telegram]
-        D[Discord]
         G[GitHub]
         W[Webhooks]
+        More["...40+ more"]
     end
 
-    subgraph "pkg/gateway"
-        SA[SlackAdapter]
-        TA[TelegramAdapter]
-        DA[DiscordAdapter]
-        GA[GitHubAdapter]
-        WA[WebhookAdapter]
+    subgraph bc["bc (notification router)"]
+        GW["Gateway Adapters"]
+        NS["Notify Service"]
     end
 
-    subgraph "pkg/notify"
-        SVC[Service.Dispatch]
-        ST[(notify_subscriptions)]
+    subgraph Agents["Agents (tmux/Docker)"]
+        A1[agent-1]
+        A2[agent-2]
+        A3[agent-3]
     end
 
-    subgraph Delivery
-        TM[tmux send-keys]
-        SSE[SSE Hub]
-    end
-
-    subgraph Agents
-        A1[eng-01]
-        A2[eng-02]
-    end
-
-    S --> SA
-    T --> TA
-    D --> DA
-    G --> GA
-    W --> WA
-
-    SA & TA & DA & GA & WA --> SVC
-    SVC --> ST
-    SVC --> TM --> A1 & A2
-    SVC --> SSE
-
-    A1 -.->|"platform API (direct)"| S & G
-    A2 -.->|"platform API (direct)"| T & D
+    S & T & G & W & More -- "events" --> GW
+    GW -- "Notification{Raw JSON}" --> NS
+    NS -- "dispatch to subscribers" --> A1 & A2 & A3
+    A1 & A2 & A3 -. "respond via platform API\n(credentials in env vars)" .-> Platforms
 ```
 
 **Why inbound-only?** Agents are LLMs with full API access. They can parse raw JSON natively and call any platform SDK. Proxying outbound messages through bc adds complexity, maintenance burden, and surface area for bugs -- with no benefit. Each agent calls the platform API directly, the same way a human developer would.
