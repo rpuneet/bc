@@ -383,8 +383,11 @@ func (m *Manager) handleNotification(platform string, n Notification) {
 
 	sender := fmt.Sprintf("[%s] %s", platform, n.Sender)
 
-	// Convert raw JSON to content string for the inbound handler
-	content := string(n.Raw)
+	// Use the adapter-extracted text content for display; fall back to raw JSON
+	content := n.Content
+	if content == "" {
+		content = string(n.Raw)
+	}
 	if m.onInbound != nil {
 		m.onInbound(bcChannel, sender, content, n.Raw)
 	}

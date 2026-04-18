@@ -172,6 +172,7 @@ func (a *Adapter) Start(ctx context.Context, handler func(gateway.Notification))
 				Channel:   channelName,
 				Platform:  a.name,
 				Sender:    sender,
+				Content:   content,
 				Timestamp: update.Message.Time(),
 				Raw:       raw,
 			})

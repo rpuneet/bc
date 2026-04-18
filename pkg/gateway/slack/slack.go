@@ -378,6 +378,7 @@ func (a *Adapter) handleMessageEvent(ev *slackevents.MessageEvent) {
 			Channel:   channelName,
 			Platform:  "slack",
 			Sender:    sender,
+			Content:   content,
 			Timestamp: now,
 			Raw:       raw,
 		})

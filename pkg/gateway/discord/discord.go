@@ -232,6 +232,7 @@ func (a *Adapter) handleMessage(s *discordgo.Session, m *discordgo.MessageCreate
 			Channel:   channelName,
 			Platform:  "discord",
 			Sender:    sender,
+			Content:   content,
 			Timestamp: now,
 			Raw:       raw,
 		})
