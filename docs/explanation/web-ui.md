@@ -377,7 +377,7 @@ There is no global state store. Each view manages its own data via `usePolling` 
 graph TD
     subgraph ServerState ["Server State (via bcd API)"]
         Agents["Agent list + states"]
-        Notifications["Notification sources + activity"]
+        Channels["Notification sources + activity"]
         Costs["Cost aggregates"]
         Roles["Role definitions"]
         Tools["Tool/MCP/Secret config"]
@@ -387,7 +387,7 @@ graph TD
         Selected["Selected row/item"]
         Expanded["Expanded/collapsed sections"]
         FormInput["Form input values"]
-        FilterState["Filter/search state"]
+        ChatDraft["Filter/search state"]
     end
 
     subgraph InfraState ["Infrastructure State"]
@@ -415,7 +415,7 @@ graph TD
 
 | View | Polling Interval | SSE Events | API Calls |
 |---|---|---|---|
-| Dashboard | 5s | -- | `listAgents`, `listChannels`, `getCostSummary` |
+| Dashboard | 5s | -- | `listAgents`, `listGateways`, `getCostSummary` |
 | Agents | 5s | `agent.state_changed` | `listAgents`, `startAgent`, `stopAgent`, `sendToAgent` |
 | Notifications | 10s (list) | `gateway.message` | `listGateways`, `getGatewayChannels`, `getChannelActivity` |
 | Costs | 10s | -- | `getCostSummary`, `getCostByAgent` |

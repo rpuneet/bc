@@ -6,8 +6,6 @@ List all notification sources with subscriber counts
 
 Display all notification sources discovered by connected gateway adapters, along with the number of agents subscribed to each source.
 
-Sources are grouped by platform and show their subscriber count. Use `--json` for machine-readable output.
-
 ### Examples
 
 ```bash

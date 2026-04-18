@@ -152,7 +152,6 @@ bc agent start agent-name
 ```bash
 # These commands only work inside agent sessions:
 bc agent report working "..."
-
 # Use agent send instead:
 bc agent send eng-01 "bc agent report working '...'"
 ```

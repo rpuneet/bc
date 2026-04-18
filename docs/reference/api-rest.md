@@ -547,8 +547,8 @@ Workspace-level summary counts.
   "agents_total": 5,
   "agents_running": 3,
   "agents_stopped": 2,
-  "channels_total": 4,
-  "messages_total": 120,
+  "notification_sources_total": 4,
+  "notifications_total": 120,
   "total_cost_usd": 12.50,
   "roles_total": 3,
   "tools_total": 2,
@@ -556,8 +556,8 @@ Workspace-level summary counts.
 }
 ```
 
-### `GET /api/stats/channels`
-Channel-level statistics.
+### `GET /api/stats/notifications`
+Notification-level statistics.
 
 **Response:** `200 OK`
 

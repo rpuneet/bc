@@ -44,4 +44,3 @@ bc notify subscribe <source> <agent> [flags]
 ### See Also
 
 - [bc notify](bc_notify.md) - Manage notification subscriptions and sources
-- [bc notify unsubscribe](bc_notify_unsubscribe.md) - Unsubscribe an agent from a notification source

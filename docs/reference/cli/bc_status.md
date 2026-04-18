@@ -9,7 +9,7 @@ Show the status of all bc agents.
 Examples:
   bc status                   # Show all agents
   bc status --json            # Output as JSON
-  bc status --activity        # Show recent channel activity
+  bc status --activity        # Show recent notification activity
 
 Output:
   AGENT     ROLE      STATE    UPTIME    TASK
@@ -35,7 +35,7 @@ bc status [flags]
 ### Options
 
 ```
-      --activity   Show recent channel activity
+      --activity   Show recent notification activity
   -h, --help       help for status
 ```
 
