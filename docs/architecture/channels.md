@@ -140,30 +140,22 @@ type Adapter interface {
     // Stop gracefully disconnects from the platform.
     Stop(ctx context.Context) error
 
-    // Send delivers a message to a platform channel.
-    // NOTE: Present in v0.2 for relay. Removed in v0.3 (agents call APIs directly).
-    Send(ctx context.Context, channelID, sender, content string) error
-
     // Channels returns all channels/groups the bot is a member of.
-    Channels(ctx context.Context) ([]ExternalChannel, error)
+    Channels(ctx context.Context) ([]ChannelInfo, error)
 
-    // Health returns nil if the adapter is connected and operational.
-    Health(ctx context.Context) error
-}
-```
-
-**Optional interfaces:**
-
-```go
-// FileSender is optionally implemented by adapters that support file uploads.
-// NOTE: Present in v0.2. Removed in v0.3.
-type FileSender interface {
-    SendFile(ctx context.Context, channelID, sender, filename string, data []byte, mimeType string) error
-}
-
-// StatusReporter is optionally implemented by adapters that report connection state.
-type StatusReporter interface {
+    // Status returns the adapter's connection state for observability.
     Status() AdapterStatus
+
+    // HTTPHandler returns an http.Handler for webhook-based adapters.
+    // Socket/polling adapters return nil.
+    HTTPHandler() http.Handler
+}
+
+type AdapterStatus struct {
+    Connected     bool
+    Error         string
+    LastMessageAt time.Time
+    MessageCount  int64
 }
 ```
 
@@ -175,40 +167,41 @@ The JSON payload delivered to agents via `tmux send-keys`:
 // Located in: pkg/notify/notify.go
 
 type Notification struct {
-    Timestamp   string       `json:"timestamp"`
-    Channel     string       `json:"channel"`      // "slack:engineering", "github:bc"
-    Platform    string       `json:"platform"`      // "slack", "github", "telegram"
-    Sender      string       `json:"sender"`        // extracted for self-skip filtering
-    Content     string       `json:"content"`       // message text
-    MessageID   string       `json:"message_id,omitempty"`
-    Mentions    []string     `json:"mentions,omitempty"`   // extracted @mentions
-    Attachments []Attachment `json:"attachments,omitempty"`
+    Channel   string          `json:"channel"`   // "engineering", "bc-repo", "general"
+    Platform  string          `json:"platform"`  // "slack", "github", "telegram"
+    Sender    string          `json:"sender"`    // extracted for self-skip filtering
+    Mentions  []string        `json:"mentions"`  // extracted @mentions for mention_only filter
+    Timestamp time.Time       `json:"timestamp"` // when bc received the event
+    Raw       json.RawMessage `json:"raw"`       // ENTIRE platform payload — no parsing
 }
 ```
 
 | Field | Purpose |
 |-------|---------|
-| `Channel` | Canonical key in format `<platform>:<channel_name>`. Used for subscription lookup. |
+| `Channel` | Channel name within the platform (e.g. `"engineering"`, `"bc-repo"`). Combined with `Platform` for subscription lookup as `platform:channel`. |
 | `Platform` | Platform identifier, matches adapter `Name()`. |
-| `Sender` | Extracted from raw payload per-adapter. Used for self-skip (don't echo agent's own messages back). |
-| `Content` | Message text content. |
-| `Mentions` | Extracted via regex `@[a-zA-Z][a-zA-Z0-9_-]*` across content. Used for `mention_only` filter. |
-| `Timestamp` | RFC 3339 timestamp when the event was received by bc. |
-| `MessageID` | Platform-specific message identifier. |
-| `Attachments` | Files shared in the message (see [File and Attachment Handling](#file-and-attachment-handling)). |
+| `Sender` | Extracted from raw payload (one field per adapter). Used for self-skip — don't echo agent's own messages back. |
+| `Mentions` | Extracted via regex `@[a-zA-Z][a-zA-Z0-9_-]*` across the raw JSON bytes. Used for `mention_only` subscription filter. |
+| `Timestamp` | When bc received the event. |
+| `Raw` | **Complete platform payload as-is.** No parsing, no field mapping. The agent receives the full JSON from Slack/GitHub/Telegram and parses what it needs. This avoids maintaining platform-specific data models and ensures agents get full context (files, reactions, threads, metadata — everything the platform sent). |
 
 Example notification delivered to an agent:
 
 ```json
 {
-  "timestamp": "2026-04-09T10:32:15Z",
-  "channel": "slack:engineering",
+  "timestamp": "2026-04-18T10:32:15Z",
+  "channel": "engineering",
   "platform": "slack",
   "sender": "bob",
-  "content": "@eng-01 take a look at PR #428",
-  "message_id": "1712657535.000200",
   "mentions": ["eng-01"],
-  "attachments": []
+  "raw": {
+    "type": "message",
+    "channel": "C0ABC123",
+    "user": "U0DEF456",
+    "text": "@eng-01 take a look at PR #428",
+    "ts": "1712657535.000200",
+    "team": "T0GHI789"
+  }
 }
 ```
 
