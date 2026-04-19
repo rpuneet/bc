@@ -2,64 +2,63 @@
   <rect width="512" height="512" rx="108" fill="#0C0A08"/>
 
   <defs>
-    <radialGradient id="glow" cx="50%" cy="48%" r="45%">
-      <stop offset="0%" stop-color="#FB923C" stop-opacity="0.12"/>
+    <radialGradient id="rindGrad" cx="50%" cy="45%" r="50%">
+      <stop offset="0%" stop-color="#FB923C" stop-opacity="0.15"/>
+      <stop offset="100%" stop-color="#EA580C" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="centerGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#FDBA74" stop-opacity="0.3"/>
+      <stop offset="60%" stop-color="#EA580C" stop-opacity="0.05"/>
       <stop offset="100%" stop-color="#EA580C" stop-opacity="0"/>
     </radialGradient>
   </defs>
 
-  <!-- Ambient glow behind fruit -->
-  <circle cx="256" cy="264" r="190" fill="url(#glow)"/>
+  <!-- Ambient glow -->
+  <circle cx="256" cy="264" r="180" fill="url(#rindGrad)"/>
 
-  <!-- Filled rind ring -->
-  <circle cx="256" cy="264" r="152" fill="#EA580C" opacity="0.15"/>
-  <circle cx="256" cy="264" r="152" stroke="#EA580C" stroke-width="10" fill="none"/>
+  <!-- Rind — clean double ring -->
+  <circle cx="256" cy="264" r="150" stroke="#EA580C" stroke-width="12" fill="none"/>
+  <circle cx="256" cy="264" r="138" stroke="#FB923C" stroke-width="1" fill="none" opacity="0.15"/>
 
-  <!-- Segment fills — alternating opacity for depth -->
-  <g fill="#FB923C">
-    <path d="M256 264 L256 112 A152 152 0 0 1 349 162 Z" opacity="0.12"/>
-    <path d="M256 264 L399 214 A152 152 0 0 1 408 314 Z" opacity="0.12"/>
-    <path d="M256 264 L349 366 A152 152 0 0 1 256 416 Z" opacity="0.12"/>
-    <path d="M256 264 L163 366 A152 152 0 0 1 104 314 Z" opacity="0.12"/>
-    <path d="M256 264 L104 214 A152 152 0 0 1 163 162 Z" opacity="0.12"/>
+  <!-- Segment dividers — 10 segments for a more realistic citrus look -->
+  <g stroke="#EA580C" stroke-width="1.5" stroke-linecap="round" opacity="0.3">
+    <line x1="256" y1="264" x2="256" y2="114"/>
+    <line x1="256" y1="264" x2="346" y2="155"/>
+    <line x1="256" y1="264" x2="399" y2="217"/>
+    <line x1="256" y1="264" x2="399" y2="311"/>
+    <line x1="256" y1="264" x2="346" y2="373"/>
+    <line x1="256" y1="264" x2="256" y2="414"/>
+    <line x1="256" y1="264" x2="166" y2="373"/>
+    <line x1="256" y1="264" x2="113" y2="311"/>
+    <line x1="256" y1="264" x2="113" y2="217"/>
+    <line x1="256" y1="264" x2="166" y2="155"/>
   </g>
 
-  <!-- Segment divider lines — bold and visible -->
-  <g stroke="#EA580C" stroke-width="3" stroke-linecap="round" opacity="0.7">
-    <line x1="256" y1="264" x2="256" y2="112"/>
-    <line x1="256" y1="264" x2="349" y2="162"/>
-    <line x1="256" y1="264" x2="399" y2="214"/>
-    <line x1="256" y1="264" x2="408" y2="314"/>
-    <line x1="256" y1="264" x2="349" y2="366"/>
-    <line x1="256" y1="264" x2="256" y2="416"/>
-    <line x1="256" y1="264" x2="163" y2="366"/>
-    <line x1="256" y1="264" x2="104" y2="314"/>
-    <line x1="256" y1="264" x2="104" y2="214"/>
-    <line x1="256" y1="264" x2="163" y2="162"/>
+  <!-- Pulp — curved vesicle lines inside segments -->
+  <g stroke="#FB923C" stroke-width="1" fill="none" opacity="0.1">
+    <path d="M256 135 Q280 190 335 170"/>
+    <path d="M340 175 Q355 210 390 225"/>
+    <path d="M390 230 Q360 260 392 305"/>
+    <path d="M388 310 Q355 330 342 365"/>
+    <path d="M338 368 Q300 350 260 405"/>
+    <path d="M252 405 Q215 350 172 368"/>
+    <path d="M168 362 Q155 325 120 308"/>
+    <path d="M118 300 Q148 268 120 228"/>
+    <path d="M122 222 Q155 208 168 170"/>
+    <path d="M172 166 Q210 186 252 138"/>
   </g>
 
-  <!-- Pulp curves — bolder -->
-  <g stroke="#FB923C" stroke-width="2" fill="none" opacity="0.25">
-    <path d="M256 135 Q285 195 340 178"/>
-    <path d="M345 182 Q365 220 395 228"/>
-    <path d="M400 240 Q370 270 402 308"/>
-    <path d="M395 318 Q360 340 345 362"/>
-    <path d="M338 368 Q300 345 260 410"/>
-    <path d="M252 410 Q215 345 172 368"/>
-    <path d="M165 360 Q150 330 112 310"/>
-    <path d="M110 300 Q142 270 115 232"/>
-    <path d="M118 222 Q150 210 165 178"/>
-    <path d="M172 172 Q215 195 252 140"/>
-  </g>
+  <!-- Center glow -->
+  <circle cx="256" cy="264" r="28" fill="url(#centerGlow)"/>
 
-  <!-- Center navel — bold, clear -->
-  <circle cx="256" cy="264" r="14" fill="#EA580C"/>
-  <circle cx="256" cy="264" r="6" fill="#FB923C"/>
+  <!-- Center navel -->
+  <circle cx="256" cy="264" r="8" fill="#EA580C"/>
+  <circle cx="256" cy="264" r="3.5" fill="#0C0A08" opacity="0.5"/>
 
-  <!-- Stem — thick and visible -->
-  <rect x="249" y="72" width="14" height="40" rx="7" fill="#EA580C" opacity="0.85"/>
+  <!-- Stem — rounded, organic -->
+  <path d="M253 114 Q253 88 256 78 Q259 88 259 114" fill="#EA580C" opacity="0.7"/>
 
-  <!-- Leaf — bold, vibrant -->
-  <path d="M263 88 Q290 55 320 58 Q305 72 282 86 Q270 92 263 94" fill="#22C55E" opacity="0.8"/>
-  <path d="M265 90 Q290 62 315 60" stroke="#16A34A" stroke-width="1.5" fill="none" opacity="0.5"/>
+  <!-- Leaf — more organic shape -->
+  <path d="M259 85 Q278 60 302 65 Q288 75 270 88" fill="#22c55e" opacity="0.55"/>
+  <path d="M259 85 Q280 64 302 65" stroke="#16a34a" stroke-width="0.8" fill="none" opacity="0.3"/>
 </svg>
