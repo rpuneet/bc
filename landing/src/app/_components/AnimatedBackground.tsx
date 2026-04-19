@@ -26,12 +26,12 @@ export function AnimatedBackground() {
 
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
 
-    // Particle configuration
-    const PARTICLE_COUNT = 40;
-    const CONNECTION_DISTANCE = 120;
+    // Mycelium network configuration — organic, interconnected
+    const PARTICLE_COUNT = 60;
+    const CONNECTION_DISTANCE = 180;
     const GRID_CELL_SIZE = CONNECTION_DISTANCE;
-    const MOUSE_RADIUS = 200;
-    const MOUSE_STRENGTH = 0.015;
+    const MOUSE_RADIUS = 250;
+    const MOUSE_STRENGTH = 0.008;
     let idleFrames = 0;
     const IDLE_THRESHOLD = 120; // ~2s at 60fps before throttling
 
@@ -73,9 +73,9 @@ export function AnimatedBackground() {
           z: Math.random() * 400 + 100,
           baseX: x,
           baseY: y,
-          vx: (Math.random() - 0.5) * 0.5,
-          vy: (Math.random() - 0.5) * 0.4,
-          vz: (Math.random() - 0.5) * 0.3,
+          vx: (Math.random() - 0.5) * 0.2,
+          vy: (Math.random() - 0.5) * 0.15,
+          vz: (Math.random() - 0.5) * 0.1,
           size: Math.random() * 1.5 + 0.5,
           phase: Math.random() * Math.PI * 2,
         });
@@ -177,10 +177,10 @@ export function AnimatedBackground() {
               if (dist < CONNECTION_DISTANCE) {
                 const opacity =
                   (1 - dist / CONNECTION_DISTANCE) *
-                  0.12 *
+                  0.18 *
                   Math.min(a.scale, b.scale);
                 ctx!.strokeStyle = `${lineColor}${opacity})`;
-                ctx!.lineWidth = 0.5;
+                ctx!.lineWidth = 0.8;
                 ctx!.beginPath();
                 ctx!.moveTo(a.x, a.y);
                 ctx!.lineTo(b.x, b.y);
