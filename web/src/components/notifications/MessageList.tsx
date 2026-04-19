@@ -3,12 +3,13 @@ import { Virtuoso } from "react-virtuoso";
 import type { VirtuosoHandle } from "react-virtuoso";
 import type { ChannelMessage } from "../../api/client";
 import { MessageContent } from "../MessageContent";
-import { AgentAvatar, RoleBadge } from "./AgentAvatar";
+import { RoleBadge } from "./AgentAvatar";
 import {
   groupMessages,
-  formatTimestamp,
+  formatRelativeTime,
   formatDayLabel,
   dateKey,
+  agentColor,
 } from "./messageUtils";
 import type { MessageGroup } from "./messageUtils";
 import { EmptyState } from "../EmptyState";
@@ -81,29 +82,41 @@ export function MessageList({
       const firstMsg = group.messages[0];
       if (!firstMsg) return null;
       const role = agentRoles[group.sender];
+      const nameColor = agentColor(group.sender);
 
       return (
         <div className="flex gap-3 py-1.5 px-1 hover:bg-bc-surface/30 rounded transition-colors" role="listitem">
-          <AgentAvatar name={group.sender} role={role} />
+          {/* Colored avatar circle with sender initial */}
+          <span
+            className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0"
+            style={{
+              backgroundColor: `${nameColor}20`,
+              color: nameColor,
+            }}
+            aria-label={group.sender}
+          >
+            {group.sender.charAt(0).toUpperCase()}
+          </span>
           <div className="flex-1 min-w-0">
             <div className="flex items-baseline gap-2">
               <button
                 type="button"
                 onClick={() => onPeekAgent(group.sender)}
-                className="font-medium text-sm text-bc-text hover:text-bc-accent hover:underline cursor-pointer focus-visible:ring-1 focus-visible:ring-bc-accent rounded"
+                className="font-medium text-sm hover:underline cursor-pointer decoration-1 underline-offset-2 focus-visible:ring-1 focus-visible:ring-bc-accent rounded"
+                style={{ color: nameColor }}
                 title={`Peek at ${group.sender}'s terminal`}
               >
                 {group.sender}
               </button>
               <RoleBadge role={role} />
-              <time className="text-xs text-bc-muted">
-                {formatTimestamp(group.timestamp)}
+              <time className="text-[10px] text-bc-muted/40 tabular-nums" title={new Date(group.timestamp).toLocaleString()}>
+                {formatRelativeTime(group.timestamp)}
               </time>
             </div>
             {group.messages.map((msg) => (
               <p
                 key={msg.id}
-                className="mt-0.5 text-sm whitespace-pre-wrap break-words text-bc-text"
+                className="mt-0.5 text-[13px] whitespace-pre-wrap break-words text-bc-text/80 leading-[1.65]"
               >
                 <MessageContent content={msg.content} />
               </p>

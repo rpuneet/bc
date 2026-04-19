@@ -181,3 +181,102 @@ export function agentColorMuted(name: string): string {
   const hue = AGENT_HUES[hashString(name) % AGENT_HUES.length];
   return `hsla(${hue}, 40%, 50%, 0.08)`;
 }
+
+/* ── GitHub webhook card parsing ────────────────────────────── */
+
+export interface GitHubCard {
+  type: "pr" | "issue" | "push" | "release";
+  title: string;
+  number?: number;
+  url?: string;
+  status?: string;
+  action?: string;
+  additions?: number;
+  deletions?: number;
+  changedFiles?: number;
+  branch?: string;
+  repo?: string;
+}
+
+/**
+ * Try to extract a GitHub card from a message that looks like it came
+ * from a GitHub webhook.  Returns null if the content does not match.
+ */
+export function parseGitHubCard(content: string): GitHubCard | null {
+  // Try to parse as JSON first (raw webhook payload forwarded as message)
+  try {
+    const obj = JSON.parse(content);
+    if (obj && typeof obj === "object") {
+      // Pull request event
+      if (obj.pull_request) {
+        const pr = obj.pull_request;
+        return {
+          type: "pr",
+          title: pr.title ?? "Pull Request",
+          number: pr.number,
+          url: pr.html_url,
+          status: pr.merged ? "MERGED" : pr.state?.toUpperCase() ?? "OPEN",
+          action: obj.action,
+          additions: pr.additions,
+          deletions: pr.deletions,
+          changedFiles: pr.changed_files,
+          repo: obj.repository?.full_name,
+        };
+      }
+      // Issue event
+      if (obj.issue) {
+        return {
+          type: "issue",
+          title: obj.issue.title ?? "Issue",
+          number: obj.issue.number,
+          url: obj.issue.html_url,
+          status: obj.issue.state?.toUpperCase() ?? "OPEN",
+          action: obj.action,
+          repo: obj.repository?.full_name,
+        };
+      }
+      // Push event
+      if (obj.ref && obj.commits) {
+        return {
+          type: "push",
+          title: `${obj.commits.length} commit${obj.commits.length !== 1 ? "s" : ""} pushed`,
+          branch: obj.ref?.replace("refs/heads/", ""),
+          repo: obj.repository?.full_name,
+        };
+      }
+    }
+  } catch {
+    // not JSON — try regex patterns below
+  }
+
+  // Match common GitHub notification text patterns
+  // e.g., "[user/repo] Pull request #123: Title (opened/merged/closed)"
+  const prMatch = content.match(
+    /\[([^\]]+)\]\s*(?:Pull request|PR)\s*#(\d+):\s*(.+?)(?:\s*\((opened|closed|merged|synchronize)\))?$/i,
+  );
+  if (prMatch) {
+    return {
+      type: "pr",
+      repo: prMatch[1] ?? "",
+      number: parseInt(prMatch[2] ?? "0", 10),
+      title: (prMatch[3] ?? "").trim(),
+      status: (prMatch[4] ?? "OPEN").toUpperCase(),
+    };
+  }
+
+  // Issue pattern
+  const issueMatch = content.match(
+    /\[([^\]]+)\]\s*Issue\s*#(\d+):\s*(.+?)(?:\s*\((opened|closed)\))?$/i,
+  );
+  if (issueMatch) {
+    return {
+      type: "issue",
+      repo: issueMatch[1] ?? "",
+      number: parseInt(issueMatch[2] ?? "0", 10),
+      title: (issueMatch[3] ?? "").trim(),
+      status: (issueMatch[4] ?? "OPEN").toUpperCase(),
+    };
+  }
+
+  return null;
+}

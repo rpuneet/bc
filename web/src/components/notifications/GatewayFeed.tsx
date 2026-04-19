@@ -17,7 +17,9 @@ import {
   agentColor,
   dateKey,
   formatDayLabel,
+  parseGitHubCard,
 } from "./messageUtils";
+import type { GitHubCard } from "./messageUtils";
 
 /* ── Helpers ──────────────────────────────────────────────────── */
 
@@ -40,6 +42,79 @@ const PLATFORM_ACCENT: Record<string, string> = {
   discord: "#5865F2",
   github: "#8B949E",
 };
+
+/* ── GitHub card renderer ────────────────────────────────────── */
+
+const STATUS_COLORS: Record<string, string> = {
+  OPEN: "bg-green-500/15 text-green-400 border-green-500/20",
+  MERGED: "bg-purple-500/15 text-purple-400 border-purple-500/20",
+  CLOSED: "bg-red-500/15 text-red-400 border-red-500/20",
+  SYNCHRONIZE: "bg-blue-500/15 text-blue-400 border-blue-500/20",
+};
+
+function GitHubCardView({ card }: { card: GitHubCard }) {
+  const statusClass = STATUS_COLORS[card.status ?? ""] ?? "bg-bc-surface/30 text-bc-muted border-bc-border/30";
+  const icon = card.type === "pr" ? (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" className="text-bc-muted/60 shrink-0">
+      <path d="M1.5 3.25a2.25 2.25 0 1 1 3 2.122v5.256a2.251 2.251 0 1 1-1.5 0V5.372A2.25 2.25 0 0 1 1.5 3.25Zm5.677-.177L9.573.677A.25.25 0 0 1 10 .854V2.5h1A2.5 2.5 0 0 1 13.5 5v5.628a2.251 2.251 0 1 1-1.5 0V5a1 1 0 0 0-1-1h-1v1.646a.25.25 0 0 1-.427.177L7.177 3.427a.25.25 0 0 1 0-.354ZM3.75 2.5a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5Zm0 9.5a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5Zm8.25.75a.75.75 0 1 0 1.5 0 .75.75 0 0 0-1.5 0Z" />
+    </svg>
+  ) : (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" className="text-bc-muted/60 shrink-0">
+      <path d="M8 9.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Z" />
+      <path d="M8 0a8 8 0 1 1 0 16A8 8 0 0 1 8 0ZM1.5 8a6.5 6.5 0 1 0 13 0 6.5 6.5 0 0 0-13 0Z" />
+    </svg>
+  );
+
+  return (
+    <div className="mt-1 mb-1 border border-bc-border/30 rounded-lg bg-bc-surface/10 px-3 py-2 max-w-md">
+      <div className="flex items-start gap-2">
+        {icon}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            {card.url ? (
+              <a
+                href={card.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[13px] font-medium text-bc-text hover:text-bc-accent hover:underline truncate"
+              >
+                {card.title}
+              </a>
+            ) : (
+              <span className="text-[13px] font-medium text-bc-text truncate">
+                {card.title}
+              </span>
+            )}
+            {card.number && (
+              <span className="text-[11px] text-bc-muted/40">#{card.number}</span>
+            )}
+            {card.status && (
+              <span className={`text-[9px] font-semibold uppercase px-1.5 py-0.5 rounded border ${statusClass}`}>
+                {card.status}
+              </span>
+            )}
+          </div>
+          {card.repo && (
+            <span className="text-[10px] text-bc-muted/40">{card.repo}</span>
+          )}
+          {(card.additions !== undefined || card.deletions !== undefined || card.changedFiles !== undefined) && (
+            <div className="flex items-center gap-2 mt-1 text-[10px]">
+              {card.changedFiles !== undefined && (
+                <span className="text-bc-muted/50">{card.changedFiles} file{card.changedFiles !== 1 ? "s" : ""}</span>
+              )}
+              {card.additions !== undefined && (
+                <span className="text-green-400/70">+{card.additions}</span>
+              )}
+              {card.deletions !== undefined && (
+                <span className="text-red-400/70">-{card.deletions}</span>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 /* ── Component ───────────────────────────────────────────────── */
 
@@ -333,12 +408,24 @@ export function GatewayFeed({
 
           <div className="flex items-center gap-3 text-[11px]">
 
-            {/* Agents popover trigger */}
+            {/* Settings gear (placeholder) */}
+            <button
+              type="button"
+              className="text-bc-muted/30 hover:text-bc-muted/60 transition-colors p-1 rounded"
+              title="Channel settings"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="3" />
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+              </svg>
+            </button>
+
+            {/* Agents popover trigger with avatar dots */}
             <div className="relative" ref={agentsPopoverRef}>
               <button
                 type="button"
                 onClick={() => setShowAgents((v) => !v)}
-                className={`flex items-center gap-1.5 px-2 py-0.5 rounded-md border transition-all duration-150 text-[11px] ${
+                className={`flex items-center gap-1.5 px-2 py-1 rounded-md border transition-all duration-150 text-[11px] ${
                   showAgents
                     ? "border-bc-accent/40 bg-bc-accent/8 text-bc-accent"
                     : subAgents.size > 0
@@ -346,10 +433,42 @@ export function GatewayFeed({
                     : "border-bc-border/30 text-bc-muted/50 hover:border-bc-border/50 hover:text-bc-muted"
                 }`}
               >
-                {subAgents.size > 0 && (
-                  <span className="w-1 h-1 rounded-full bg-bc-success animate-pulse" />
+                {/* Stacked avatar dots for subscribed agents */}
+                {subscribedAgents.length > 0 && (
+                  <span className="flex -space-x-1.5">
+                    {subscribedAgents.slice(0, 4).map((a) => (
+                      <span
+                        key={a.name}
+                        className="w-4 h-4 rounded-full flex items-center justify-center text-[7px] font-bold ring-1 ring-bc-bg"
+                        style={{
+                          backgroundColor: `${agentColor(a.name)}25`,
+                          color: agentColor(a.name),
+                        }}
+                        title={a.name}
+                      >
+                        {a.name.charAt(0).toUpperCase()}
+                      </span>
+                    ))}
+                    {subscribedAgents.length > 4 && (
+                      <span className="w-4 h-4 rounded-full bg-bc-surface/60 text-[7px] text-bc-muted flex items-center justify-center ring-1 ring-bc-bg font-bold">
+                        +{subscribedAgents.length - 4}
+                      </span>
+                    )}
+                  </span>
                 )}
-                {subAgents.size} agent{subAgents.size !== 1 ? "s" : ""}
+                {(() => {
+                  const liveCount = subscribedAgents.filter(
+                    (a) => a.state === "running" || a.state === "working",
+                  ).length;
+                  return liveCount > 0 ? (
+                    <span className="flex items-center gap-1">
+                      <span className="w-1 h-1 rounded-full bg-bc-success animate-pulse" />
+                      {liveCount} live
+                    </span>
+                  ) : (
+                    <span>{subAgents.size} agent{subAgents.size !== 1 ? "s" : ""}</span>
+                  );
+                })()}
               </button>
 
               {/* Agents popover */}
@@ -627,12 +746,19 @@ export function GatewayFeed({
                         const hasDelivery =
                           delivered.length > 0 || failed.length > 0;
 
+                        // GitHub webhook card detection
+                        const ghCard = platform === "github" ? parseGitHubCard(msg.content) : null;
+
                         return (
                           <div key={msg.id} className="group/msg relative">
                             <div className="py-[3px] pl-8 pr-3 rounded-md transition-colors duration-100 hover:bg-bc-surface/40">
-                              <div className="text-[13px] text-bc-text/80 whitespace-pre-wrap break-words leading-[1.65] [word-break:break-word]">
-                                <MessageContent content={msg.content} agentNames={agentNames} />
-                              </div>
+                              {ghCard ? (
+                                <GitHubCardView card={ghCard} />
+                              ) : (
+                                <div className="text-[13px] text-bc-text/80 whitespace-pre-wrap break-words leading-[1.65] [word-break:break-word]">
+                                  <MessageContent content={msg.content} agentNames={agentNames} />
+                                </div>
+                              )}
 
                               {/* Delivery tooltip — hover only */}
                               {hasDelivery && (
