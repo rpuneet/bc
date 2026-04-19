@@ -20,6 +20,7 @@ function AgentRow({
   onToggleMention: () => void;
 }) {
   const isOnline = agent.state === "running" || agent.state === "working";
+  const isStopped = agent.state === "stopped";
   const roleColor = getRoleColor(agent.role);
   const nameColor = agentColor(agent.name);
 
@@ -32,7 +33,7 @@ function AgentRow({
       transition={{ duration: 0.12 }}
       className={`px-3 py-2 transition-colors duration-100 ${
         sub ? "hover:bg-bc-surface/30" : "hover:bg-bc-surface/15"
-      }`}
+      } ${isStopped && !sub ? "opacity-50" : ""}`}
     >
       <div className="flex items-center gap-2">
         {/* Avatar initial */}
@@ -50,7 +51,7 @@ function AgentRow({
         <div className="flex-1 min-w-0 flex items-center gap-1.5">
           <span
             className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-              isOnline ? "bg-bc-success" : "bg-bc-muted/20"
+              isOnline ? "bg-bc-success" : isStopped ? "bg-bc-muted/20" : "bg-amber-400"
             }`}
           />
           <span className="text-[12px] text-bc-text/90 truncate font-medium">
@@ -162,9 +163,17 @@ export function SubscriptionPanel({
   };
 
   const subscribedAgents = agents.filter((a) => subMap.has(a.name));
+
+  // Sort agents by availability: working (green) > idle (amber) > stopped (gray, dimmed)
+  const agentSortOrder = (agent: { state: string }) => {
+    if (agent.state === "working" || agent.state === "running") return 0;
+    if (agent.state === "stopped") return 2;
+    return 1; // idle or other states
+  };
+
   const availableAgents = agents
     .filter((a) => !subMap.has(a.name))
-    .sort((a, b) => a.name.localeCompare(b.name));
+    .sort((a, b) => agentSortOrder(a) - agentSortOrder(b) || a.name.localeCompare(b.name));
 
   return (
     <aside

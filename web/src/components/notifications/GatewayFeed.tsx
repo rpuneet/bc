@@ -12,7 +12,7 @@ import { useWebSocket } from "../../hooks/useWebSocket";
 import { MessageContent } from "../MessageContent";
 import {
   gatewayPlatform,
-  formatTimestamp,
+  formatRelativeTime,
   groupMessages,
   agentColor,
   dateKey,
@@ -160,12 +160,16 @@ export function GatewayFeed({
     void fetchInitial();
   }, [fetchInitial]);
 
-  // Load more older messages when scrolling to bottom
+  // Load more older messages when scrolling to top (chat-style)
   const loadMore = useCallback(async () => {
     if (loadingMore || !hasMore || messages.length === 0) return;
     setLoadingMore(true);
     try {
-      const oldestId = messages[messages.length - 1]?.id;
+      // Find the oldest message by created_at
+      const oldestMsg = [...messages].sort(
+        (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
+      )[0];
+      const oldestId = oldestMsg?.id;
       const older = await api.getChannelHistory(channelName, PAGE_SIZE, oldestId);
       if (!older || older.length === 0) {
         setHasMore(false);
@@ -173,7 +177,7 @@ export function GatewayFeed({
         setMessages((prev) => {
           const ids = new Set(prev.map((m) => m.id));
           const newMsgs = older.filter((m) => !ids.has(m.id));
-          return [...prev, ...newMsgs];
+          return [...newMsgs, ...prev];
         });
         setHasMore(older.length >= PAGE_SIZE);
       }
@@ -181,7 +185,7 @@ export function GatewayFeed({
     setLoadingMore(false);
   }, [channelName, messages, loadingMore, hasMore]);
 
-  // IntersectionObserver for infinite scroll
+  // IntersectionObserver for infinite scroll (top sentinel for older messages)
   useEffect(() => {
     const sentinel = sentinelRef.current;
     if (!sentinel) return;
@@ -196,6 +200,34 @@ export function GatewayFeed({
     observer.observe(sentinel);
     return () => observer.disconnect();
   }, [loadMore]);
+
+  // Auto-scroll to bottom on initial load and new messages
+  const prevMsgCountRef = useRef(0);
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const isNewMessage = messages.length > prevMsgCountRef.current;
+    prevMsgCountRef.current = messages.length;
+    // Only auto-scroll if user is near the bottom or on initial load
+    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
+    if (isNewMessage && (nearBottom || !initialLoading)) {
+      requestAnimationFrame(() => {
+        el.scrollTop = el.scrollHeight;
+      });
+    }
+  }, [messages.length, initialLoading]);
+
+  // Scroll to bottom on first render with messages
+  useEffect(() => {
+    if (!initialLoading && messages.length > 0) {
+      const el = scrollRef.current;
+      if (el) {
+        requestAnimationFrame(() => {
+          el.scrollTop = el.scrollHeight;
+        });
+      }
+    }
+  }, [initialLoading]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ── Live WebSocket updates ────────────────────────────────── */
 
@@ -247,14 +279,24 @@ export function GatewayFeed({
   const subMap = new Map<string, NotifySubscription>();
   for (const sub of subscriptions) subMap.set(sub.agent, sub);
   const subscribedAgents = agents.filter((a) => subMap.has(a.name));
+
+  // Sort agents by availability: working (green) > idle (amber) > stopped (gray)
+  const agentSortOrder = (agent: { state: string }) => {
+    if (agent.state === "working" || agent.state === "running") return 0;
+    if (agent.state === "stopped") return 2;
+    return 1; // idle or other states
+  };
+
   const availableAgents = agents
     .filter((a) => !subMap.has(a.name))
-    .sort((a, b) => a.name.localeCompare(b.name));
+    .sort((a, b) => agentSortOrder(a) - agentSortOrder(b) || a.name.localeCompare(b.name));
 
-  /* ── Message grouping (newest first) ───────────────────────── */
+  /* ── Message grouping (chat order: oldest first, newest at bottom) ── */
 
-  const reversed = [...messages].reverse();
-  const groups = groupMessages(reversed);
+  const sorted = [...messages].sort(
+    (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
+  );
+  const groups = groupMessages(sorted);
 
   // Day separators
   let lastDateKey = "";
@@ -262,11 +304,11 @@ export function GatewayFeed({
   return (
     <div className="flex flex-col h-full">
       <style>{`@keyframes fadeIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }`}</style>
-      {/* ── Header ─────────────────────────────────────────────── */}
-      <div className="shrink-0 px-5 py-3.5 border-b border-bc-border/60">
+      {/* ── Integrated channel header ──────────────────────────── */}
+      <div className="shrink-0 px-5 py-2.5 border-b border-bc-border/30 bg-bc-surface/5">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            {/* Platform color bar */}
+            {/* Platform color accent */}
             <div
               className="w-0.5 h-5 rounded-full"
               style={{ backgroundColor: platformColor }}
@@ -284,12 +326,12 @@ export function GatewayFeed({
                 {platform}
               </span>
             )}
+            <span className="text-[11px] text-bc-muted/50 tabular-nums ml-1">
+              {messages.length} message{messages.length !== 1 ? "s" : ""}
+            </span>
           </div>
 
-          <div className="flex items-center gap-4 text-[11px]">
-            <span className="text-bc-muted/60 tabular-nums">
-              {messages.length}
-            </span>
+          <div className="flex items-center gap-3 text-[11px]">
 
             {/* Agents popover trigger */}
             <div className="relative" ref={agentsPopoverRef}>
@@ -505,7 +547,27 @@ export function GatewayFeed({
               </div>
             )}
 
-            {/* Message groups — no animation on bulk load for performance */}
+            {/* Load more sentinel — at top for chat-style scroll */}
+            {!hasMore && messages.length > 0 && (
+              <div className="flex items-center gap-3 py-6">
+                <div className="flex-1 h-px bg-bc-border/15" />
+                <span className="text-[9px] text-bc-muted/25 uppercase tracking-widest font-medium">
+                  Beginning of history
+                </span>
+                <div className="flex-1 h-px bg-bc-border/15" />
+              </div>
+            )}
+            {hasMore && (
+              <div ref={sentinelRef} className="py-4 text-center">
+                {loadingMore ? (
+                  <span className="text-[10px] text-bc-muted/30">Loading older messages...</span>
+                ) : (
+                  <span className="text-[10px] text-bc-muted/20">Scroll up for more</span>
+                )}
+              </div>
+            )}
+
+            {/* Message groups — chat order (oldest first, newest at bottom) */}
               {groups.map((group, gi) => {
                 const dk = dateKey(group.timestamp);
                 const showDateSep = dk !== lastDateKey;
@@ -546,8 +608,8 @@ export function GatewayFeed({
                         >
                           {cleanSender(group.sender)}
                         </button>
-                        <span className="text-[10px] text-bc-muted/30 tabular-nums">
-                          {formatTimestamp(group.timestamp)}
+                        <span className="text-[10px] text-bc-muted/30 tabular-nums" title={new Date(group.timestamp).toLocaleString()}>
+                          {formatRelativeTime(group.timestamp)}
                         </span>
                       </div>
 
@@ -596,25 +658,8 @@ export function GatewayFeed({
                 );
               })}
 
-            {/* Load more sentinel */}
-            {hasMore && (
-              <div ref={sentinelRef} className="py-4 text-center">
-                {loadingMore ? (
-                  <span className="text-[10px] text-bc-muted/30">Loading older messages...</span>
-                ) : (
-                  <span className="text-[10px] text-bc-muted/20">Scroll for more</span>
-                )}
-              </div>
-            )}
-            {!hasMore && messages.length > 0 && (
-              <div className="flex items-center gap-3 py-6">
-                <div className="flex-1 h-px bg-bc-border/15" />
-                <span className="text-[9px] text-bc-muted/25 uppercase tracking-widest font-medium">
-                  Beginning of history
-                </span>
-                <div className="flex-1 h-px bg-bc-border/15" />
-              </div>
-            )}
+            {/* Bottom spacer for chat feel */}
+            <div className="h-2" />
           </div>
         </div>
       </div>

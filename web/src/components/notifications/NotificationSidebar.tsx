@@ -115,10 +115,10 @@ export function NotificationSidebar({
         <button
           type="button"
           onClick={() => setView("sources")}
-          className={`flex-1 py-2.5 text-[10px] font-bold uppercase tracking-[0.12em] transition-colors ${
+          className={`flex-1 py-2.5 text-[11px] font-bold uppercase tracking-[0.12em] transition-colors ${
             view === "sources"
               ? "text-bc-text border-b-2 border-bc-accent"
-              : "text-bc-muted/40 hover:text-bc-muted/70"
+              : "text-bc-muted/50 hover:text-bc-muted/70"
           }`}
         >
           # Notifications
@@ -126,10 +126,10 @@ export function NotificationSidebar({
         <button
           type="button"
           onClick={() => setView("agents")}
-          className={`flex-1 py-2.5 text-[10px] font-bold uppercase tracking-[0.12em] transition-colors ${
+          className={`flex-1 py-2.5 text-[11px] font-bold uppercase tracking-[0.12em] transition-colors ${
             view === "agents"
               ? "text-bc-text border-b-2 border-bc-accent"
-              : "text-bc-muted/40 hover:text-bc-muted/70"
+              : "text-bc-muted/50 hover:text-bc-muted/70"
           }`}
         >
           Agents {currentSourceAgents.size > 0 && (
@@ -156,24 +156,24 @@ export function NotificationSidebar({
                     className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-bc-surface/20 transition-colors"
                   >
                     <svg width="8" height="8" viewBox="0 0 8 8"
-                      className={`text-bc-muted/30 transition-transform duration-150 ${isExpanded ? "" : "-rotate-90"}`}
+                      className={`text-bc-muted/50 transition-transform duration-150 ${isExpanded ? "" : "-rotate-90"}`}
                     >
                       <path d="M1.5 2L4 5L6.5 2" stroke="currentColor" strokeWidth="1.2" fill="none" strokeLinecap="round" />
                     </svg>
                     <span
                       className="w-1.5 h-1.5 rounded-full shrink-0"
-                      style={{ backgroundColor: isConnected ? "#22c55e" : gwStatus?.enabled ? "#fb923c" : "rgba(140,126,114,0.2)" }}
+                      style={{ backgroundColor: isConnected ? "#22c55e" : gwStatus?.enabled ? "#fb923c" : "rgba(140,126,114,0.3)" }}
                     />
-                    <span className="text-[10px] font-bold uppercase tracking-[0.08em]" style={{ color: meta.color }}>
+                    <span className="text-[12px] font-bold uppercase tracking-[0.08em]" style={{ color: meta.color }}>
                       {meta.label}
                     </span>
-                    <span className="text-[9px] text-bc-muted/25 ml-auto tabular-nums">{chs.length}</span>
+                    <span className="text-[11px] text-bc-muted/60 ml-auto tabular-nums">{chs.length}</span>
                   </button>
 
                   {isExpanded && (
                     <div className="pb-0.5">
                       {chs.length === 0 && (
-                        <div className="px-3 py-1 text-[10px] text-bc-muted/20 italic pl-8">No notifications</div>
+                        <div className="px-3 py-1 text-[11px] text-bc-muted/50 italic pl-8">No notifications</div>
                       )}
                       {chs.map((ch) => {
                         const isActive = selected === ch.name;
@@ -189,10 +189,10 @@ export function NotificationSidebar({
                             }`}
                             style={{ borderLeft: isActive ? `2px solid ${meta.color}` : "2px solid transparent" }}
                           >
-                            <span className="text-bc-muted/25 text-[10px]">#</span>
+                            <span className="text-bc-muted/50 text-[11px]">#</span>
                             <span className="break-words" title={displayName(ch.name)}>{displayName(ch.name)}</span>
                             {count > 0 && (
-                              <span className="ml-auto text-[9px] text-bc-success/40 tabular-nums">{count}</span>
+                              <span className="ml-auto text-[11px] text-bc-success/60 tabular-nums">{count}</span>
                             )}
                           </button>
                         );
@@ -211,7 +211,7 @@ export function NotificationSidebar({
                     key={p.key}
                     type="button"
                     onClick={() => setSetupPlatform(p.key)}
-                    className="w-full flex items-center gap-2 py-1 text-[10px] text-bc-muted/20 hover:text-bc-muted/40 transition-colors"
+                    className="w-full flex items-center gap-2 py-1 text-[11px] text-bc-muted/50 hover:text-bc-muted/70 transition-colors"
                   >
                     <span className="w-1.5 h-1.5 rounded-full bg-bc-muted/10" />
                     <span className="uppercase tracking-[0.08em] font-medium">{p.label}</span>
@@ -222,7 +222,7 @@ export function NotificationSidebar({
                   <button
                     type="button"
                     onClick={() => setSetupPlatform("_choose")}
-                    className="w-full py-1 text-[9px] text-bc-muted/15 hover:text-bc-accent transition-colors"
+                    className="w-full py-1 text-[11px] text-bc-muted/50 hover:text-bc-accent transition-colors"
                   >
                     + {unconfigured.length - 5} more...
                   </button>
@@ -234,7 +234,7 @@ export function NotificationSidebar({
           /* ── Agents view ────────────────────────────── */
           <>
             {!selected ? (
-              <div className="p-4 text-[11px] text-bc-muted/30 text-center">
+              <div className="p-4 text-[12px] text-bc-muted/50 text-center">
                 Select a notification source first
               </div>
             ) : (
@@ -243,7 +243,7 @@ export function NotificationSidebar({
                 {agents.filter(a => currentSourceAgents.has(a.name)).length > 0 && (
                   <div>
                     <div className="px-3 pt-2 pb-1">
-                      <span className="text-[9px] font-bold text-bc-success/60 uppercase tracking-[0.08em]">
+                      <span className="text-[11px] font-bold text-bc-success/70 uppercase tracking-[0.08em]">
                         Listening ({agents.filter(a => currentSourceAgents.has(a.name)).length})
                       </span>
                     </div>
@@ -258,14 +258,14 @@ export function NotificationSidebar({
                             {agent.name.charAt(0).toUpperCase()}
                           </span>
                           <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${isOnline ? "bg-bc-success" : "bg-bc-muted/20"}`} />
-                          <span className="text-[11px] text-bc-text/80 truncate flex-1">{agent.name}</span>
-                          <span className={`text-[8px] px-1 py-0.5 rounded ${roleColor.bg} ${roleColor.text} font-medium`}>
+                          <span className="text-[12px] text-bc-text/80 truncate flex-1">{agent.name}</span>
+                          <span className={`text-[9px] px-1 py-0.5 rounded ${roleColor.bg} ${roleColor.text} font-medium`}>
                             {agent.role}
                           </span>
                           <button
                             type="button"
                             onClick={() => handleUnsubscribe(agent.name)}
-                            className="text-[8px] text-bc-muted/20 hover:text-bc-error/50 transition-colors"
+                            className="text-[9px] text-bc-muted/50 hover:text-bc-error/50 transition-colors"
                           >
                             &times;
                           </button>
@@ -284,11 +284,15 @@ export function NotificationSidebar({
                 {/* Available agents */}
                 <div>
                   <div className="px-3 pt-2 pb-1">
-                    <span className="text-[9px] font-bold text-bc-muted/30 uppercase tracking-[0.08em]">
+                    <span className="text-[11px] font-bold text-bc-muted/50 uppercase tracking-[0.08em]">
                       Add to notifications
                     </span>
                   </div>
-                  {agents.filter(a => !currentSourceAgents.has(a.name)).sort((a, b) => a.name.localeCompare(b.name)).map((agent) => {
+                  {agents.filter(a => !currentSourceAgents.has(a.name)).sort((a, b) => {
+                    // Sort: working/running first, then idle, then stopped
+                    const order = (s: string) => s === "working" || s === "running" ? 0 : s === "stopped" ? 2 : 1;
+                    return order(a.state) - order(b.state) || a.name.localeCompare(b.name);
+                  }).map((agent) => {
                     const isOnline = agent.state === "running" || agent.state === "working";
                     const isStopped = agent.state === "stopped";
                     return (
@@ -301,11 +305,11 @@ export function NotificationSidebar({
                         <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${
                           isOnline ? "bg-bc-success" : isStopped ? "bg-bc-error/40" : "bg-bc-muted/15"
                         }`} />
-                        <span className="text-[11px] text-bc-muted/40 truncate flex-1">{agent.name}</span>
+                        <span className="text-[12px] text-bc-muted/60 truncate flex-1">{agent.name}</span>
                         <button
                           type="button"
                           onClick={() => handleSubscribe(agent.name)}
-                          className="text-[9px] text-bc-muted/20 hover:text-bc-accent opacity-0 group-hover:opacity-100 transition-all"
+                          className="text-[11px] text-bc-muted/50 hover:text-bc-accent opacity-0 group-hover:opacity-100 transition-all"
                         >
                           + add
                         </button>
