@@ -29,21 +29,17 @@ const TOOLS: Tool[] = [
   },
 ];
 
-const Y_OFFSETS = [0, 14, -8, 18];
-
-function ToolChip({ tool, index }: { tool: Tool; index: number }) {
+function ToolChip({ tool }: { tool: Tool }) {
   const isExternal = tool.url.startsWith("http");
-  const yOffset = Y_OFFSETS[index % Y_OFFSETS.length];
 
   return (
     <a
       href={tool.url}
       target={isExternal ? "_blank" : undefined}
       rel={isExternal ? "noopener noreferrer" : undefined}
-      className="group inline-flex items-center gap-3 shrink-0 mx-7 transition-opacity duration-200 opacity-70 hover:opacity-100"
-      style={{ transform: `translateY(${yOffset}px)` }}
+      className="group inline-flex items-center gap-3 transition-opacity duration-200 opacity-70 hover:opacity-100"
     >
-      <div className="h-10 w-10 shrink-0 rounded-xl overflow-hidden">
+      <div className="h-10 w-10 shrink-0 rounded-xl overflow-hidden flex items-center justify-center">
         {tool.logo ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
@@ -77,14 +73,10 @@ function ToolChip({ tool, index }: { tool: Tool; index: number }) {
 
 export function ToolMarquee() {
   return (
-    <div className="relative overflow-hidden py-6">
-      {/* Fade edges */}
-      <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-20 sm:w-32 bg-gradient-to-r from-background to-transparent" />
-      <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-20 sm:w-32 bg-gradient-to-l from-background to-transparent" />
-
-      <div className="flex items-center animate-[marquee_26s_linear_infinite] hover:[animation-play-state:paused] w-max">
-        {[...TOOLS, ...TOOLS].map((tool, i) => (
-          <ToolChip key={`${i}-${tool.name}`} tool={tool} index={i} />
+    <div className="py-4">
+      <div className="flex items-center justify-center gap-12 sm:gap-16">
+        {TOOLS.map((tool) => (
+          <ToolChip key={tool.name} tool={tool} />
         ))}
       </div>
     </div>

@@ -31,7 +31,7 @@ export default function Home() {
         <HeroSection />
 
         {/* Tool Carousel */}
-        <div className="mt-8 sm:mt-12 lg:mt-16 mx-auto max-w-6xl px-4 sm:px-6">
+        <div className="mt-4 sm:mt-6 lg:mt-8 mx-auto max-w-6xl px-4 sm:px-6">
           <ToolMarquee />
         </div>
 
