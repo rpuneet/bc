@@ -1,266 +1,342 @@
+"use client";
+
+import { useState, useEffect } from "react";
 import Link from "next/link";
+import Image from "next/image";
+import { GitBranch, MessageSquare, DollarSign, Layers, Copy, Check, ExternalLink } from "lucide-react";
 import { Nav } from "./_components/Nav";
-import { DashboardScreenshots } from "./_components/DashboardScreenshots";
 import { Footer } from "./_components/Footer";
-import { HeroSection } from "./_components/HeroSection";
-import { BentoGrid } from "./_components/BentoGrid";
-import { InstallSection } from "./_components/InstallSection";
 import {
   TerminalWindow,
-  CommandOutput,
-  RevealSection,
 } from "./_components/TerminalComponents";
-import { ToolMarquee } from "./_components/ToolLogos";
-import { AnimatedBackground } from "./_components/AnimatedBackground";
-import { CheckCircle2, XCircle } from "lucide-react";
-import { ArrowRight } from "lucide-react";
+import {
+  RevealSection,
+  FadeUp,
+  StaggerChildren,
+  StaggerItem,
+} from "./_components/Motion";
+
+/* ── Install commands by platform ── */
+const installCommands = {
+  macOS: "curl -fsSL https://raw.githubusercontent.com/rpuneet/bc/main/scripts/install.sh | bash",
+  Linux: "curl -fsSL https://raw.githubusercontent.com/rpuneet/bc/main/scripts/install.sh | bash",
+  Homebrew: "brew install rpuneet/bc/bc",
+  Docker: "docker run -p 9374:9374 ghcr.io/rpuneet/bc bc up",
+} as const;
+
+type Platform = keyof typeof installCommands;
+
+function detectPlatform(ua: string): Platform {
+  if (/Mac/i.test(ua)) return "macOS";
+  if (/Linux/i.test(ua)) return "Linux";
+  return "macOS"; // default
+}
+
+/* ── Copy button ── */
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    await navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <button
+      onClick={handleCopy}
+      className="shrink-0 rounded p-1.5 text-muted-foreground hover:text-on-surface transition-colors"
+      aria-label="Copy to clipboard"
+    >
+      {copied ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
+    </button>
+  );
+}
+
+/* ── Feature cards data ── */
+const features = [
+  {
+    icon: GitBranch,
+    title: "Git Worktrees",
+    desc: "Every agent works in its own git branch. Ten agents, one repo, zero merge conflicts.",
+  },
+  {
+    icon: MessageSquare,
+    title: "Channels",
+    desc: "Agents coordinate through persistent, searchable channels \u2014 like Slack for your AI team.",
+  },
+  {
+    icon: DollarSign,
+    title: "Cost Controls",
+    desc: "Per-agent budgets with hard stops. Know exactly what each agent costs in real time.",
+  },
+  {
+    icon: Layers,
+    title: "Multi-Provider",
+    desc: "Claude Code, Gemini, Cursor, Codex. Mix providers on the same project. Switch anytime.",
+  },
+];
 
 export default function Home() {
-  return (
-    <main className="min-h-screen selection:bg-primary/20 selection:text-foreground overflow-x-hidden">
-      {/* Animated particle background */}
-      <AnimatedBackground />
+  const [platform, setPlatform] = useState<Platform>("macOS");
 
-      {/* Gradient overlay */}
-      <div className="pointer-events-none fixed inset-0 z-[1] bg-[radial-gradient(ellipse_80%_60%_at_50%_-20%,rgba(234,88,12,0.04),transparent)] dark:bg-[radial-gradient(ellipse_80%_60%_at_50%_-20%,rgba(234,88,12,0.08),transparent)]" />
+  useEffect(() => {
+    setPlatform(detectPlatform(navigator.userAgent));
+  }, []);
+
+  const tabs: Platform[] = ["macOS", "Linux", "Homebrew", "Docker"];
+
+  return (
+    <main className="min-h-screen overflow-x-hidden">
+      {/* Subtle gradient overlay */}
+      <div className="pointer-events-none fixed inset-0 z-[1] bg-[radial-gradient(ellipse_80%_60%_at_50%_-20%,rgba(234,88,12,0.06),transparent)]" />
 
       <div className="relative z-[2]">
         <Nav />
 
-        {/* Hero */}
-        <HeroSection />
-
-        {/* Tool Carousel */}
-        <div className="mt-4 sm:mt-6 lg:mt-8 mx-auto max-w-6xl px-4 sm:px-6">
-          <ToolMarquee />
-        </div>
-
-        <div className="mx-auto max-w-7xl px-4 sm:px-6">
-          {/* Problem / Solution */}
-          <RevealSection className="py-12 sm:py-16 lg:py-28" id="problem">
-            <div className="mb-16">
-              <span className="font-mono text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-                The problem
+        {/* ════════════════════════════════════════
+           Section 1: Hero
+           ════════════════════════════════════════ */}
+        <section className="hero-glow pt-28 pb-16 sm:pt-36 sm:pb-20 lg:pt-44 lg:pb-24">
+          <div className="mx-auto max-w-4xl px-4 sm:px-6 text-center">
+            <FadeUp>
+              <span className="font-[var(--font-label)] text-xs tracking-[0.15em] uppercase text-primary-text">
+                CLI-first &middot; Agent-agnostic &middot; Open source
               </span>
-              <h2 className="mt-3 text-3xl font-bold tracking-tight sm:text-5xl">
-                AI agents are powerful alone —
-                <br />
-                <span className="text-muted-foreground/50">
-                  but chaotic when they work together.
-                </span>
-              </h2>
-            </div>
+            </FadeUp>
 
-            <div className="grid gap-8 lg:grid-cols-2 lg:gap-16">
-              <div className="rounded-xl border border-destructive/20 bg-card/90 backdrop-blur-sm p-6">
-                <h3 className="mb-5 flex items-center gap-2 font-mono text-sm font-bold uppercase tracking-wider text-destructive">
-                  <XCircle className="h-4 w-4" aria-hidden="true" />
-                  Without mycel
-                </h3>
-                <ul className="space-y-4 text-sm">
-                  {[
-                    "Agents overwrite each other's changes on the same branch",
-                    "No way to see what 5 agents are doing at once",
-                    "API costs spiral with no per-agent tracking",
-                    "Context lost between sessions — agents start from scratch",
-                    "Serial execution bottleneck — only one agent at a time",
-                  ].map((t) => (
-                    <li key={t} className="flex gap-3 text-muted-foreground">
-                      <span className="text-destructive/60 shrink-0">
-                        &#x2715;
-                      </span>
-                      {t}
-                    </li>
-                  ))}
-                </ul>
-              </div>
+            <FadeUp delay={0.1}>
+              <h1 className="mt-6 text-4xl lg:text-6xl font-bold tracking-tight text-on-background" style={{ fontFamily: "var(--font-headline)" }}>
+                Orchestrate AI agent teams from your terminal.
+              </h1>
+            </FadeUp>
 
-              <div className="rounded-xl border border-success/20 bg-card/90 backdrop-blur-sm p-6">
-                <h3 className="mb-5 flex items-center gap-2 font-mono text-sm font-bold uppercase tracking-wider text-success">
-                  <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
-                  With mycel
-                </h3>
-                <ul className="space-y-4 text-sm">
-                  {[
-                    "Every agent gets its own git worktree — zero conflicts",
-                    "Real-time dashboard shows state, output, and costs",
-                    "Per-agent budgets stop overspending automatically",
-                    "Persistent memory injected on spawn — no lost context",
-                    "Run 10 agents in parallel on the same codebase",
-                  ].map((t) => (
-                    <li key={t} className="flex gap-3 text-muted-foreground">
-                      <span className="text-success/60 shrink-0">&#x2713;</span>
-                      {t}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </div>
-          </RevealSection>
-
-          {/* How It Works */}
-          <RevealSection className="py-12 sm:py-16 lg:py-28" id="how-it-works">
-            <div className="mb-16 text-center">
-              <span className="font-mono text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-                How it works
-              </span>
-              <h2 className="mt-3 text-3xl font-bold tracking-tight sm:text-5xl">
-                How it actually works.
-              </h2>
-            </div>
-
-            <div className="grid gap-8 md:grid-cols-3 md:gap-6 lg:gap-8">
-              {[
-                {
-                  step: "01",
-                  cmd: "# agents run locally in Docker",
-                  title: "Isolated by design",
-                  desc: "Each agent gets its own Docker container and git worktree. They can't step on each other's work.",
-                  lines: [
-                    { text: "eng-01  docker  worktree/eng-01  working", color: "text-terminal-success" },
-                    { text: "eng-02  docker  worktree/eng-02  working", color: "text-terminal-success" },
-                    { text: "mgr-01  docker  worktree/mgr-01  idle", color: "text-terminal-muted" },
-                    { text: "3 agents · 0 conflicts", color: "text-terminal-success" },
-                  ],
-                },
-                {
-                  step: "02",
-                  cmd: "# agents coordinate through channels",
-                  title: "Structured communication",
-                  desc: "Agents talk through persistent channels — mentions, reviews, handoffs. Not through you.",
-                  lines: [
-                    { text: "[#eng @eng-01] PR ready for review", color: "text-terminal-success" },
-                    { text: "[#eng @mgr-01] LGTM. Merged.", color: "text-terminal-success" },
-                    { text: "[#eng @eng-02] Starting next task.", color: "text-terminal-muted" },
-                  ],
-                },
-                {
-                  step: "03",
-                  cmd: "# you see everything",
-                  title: "Full visibility",
-                  desc: "Costs, activity, resource usage, channel messages — all in real time. Trust through transparency.",
-                  lines: [
-                    { text: "eng-01  $2.14  245k tokens  43% budget", color: "text-terminal-success" },
-                    { text: "eng-02  $1.67  189k tokens  33% budget", color: "text-terminal-success" },
-                    { text: "total   $3.81  434k tokens", color: "text-terminal-muted" },
-                  ],
-                },
-              ].map((s, i) => (
-                <div key={s.step}>
-                  <div className="mb-4 font-mono text-xs font-bold uppercase tracking-[0.3em] text-muted-foreground/40">
-                    {s.step}
-                  </div>
-                  <TerminalWindow title={`step ${s.step}`} className="min-h-[200px] [&_*]:text-[13px] sm:[&_*]:text-[14px]">
-                    <CommandOutput
-                      command={s.cmd}
-                      lines={s.lines}
-                      delay={i * 0.2}
-                    />
-                  </TerminalWindow>
-                  <h3 className="mt-5 mb-2 text-lg font-semibold tracking-tight">
-                    {s.title}
-                  </h3>
-                  <p className="text-sm leading-relaxed text-muted-foreground">
-                    {s.desc}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </RevealSection>
-
-          {/* Feature Bento Grid */}
-          <RevealSection className="py-12 sm:py-16 lg:py-28" id="features">
-            <div className="mb-16 text-center">
-              <span className="font-mono text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-                Features
-              </span>
-              <h2 className="mt-3 text-3xl font-bold tracking-tight sm:text-5xl">
-                Everything you need.
-              </h2>
-            </div>
-            <BentoGrid />
-          </RevealSection>
-
-          {/* Install */}
-          <InstallSection />
-
-          {/* Dashboard Preview */}
-          <RevealSection className="py-12 sm:py-16 lg:py-28" id="demo">
-            <div className="mb-12 text-center">
-              <span className="font-mono text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-                Dashboard
-              </span>
-              <h2 className="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">
-                See the real dashboard.
-              </h2>
-              <p className="mt-4 text-muted-foreground text-lg max-w-xl mx-auto">
-                Monitor agents, channels, and costs from localhost:9374.
+            <FadeUp delay={0.15}>
+              <p className="mt-5 text-lg text-stone-400 max-w-2xl mx-auto leading-relaxed">
+                Coordinate Claude, Gemini, and Cursor agents on a single codebase.
+                Isolated worktrees. Shared channels. Cost controls.
               </p>
-            </div>
-            <div className="mx-auto max-w-5xl">
-              <DashboardScreenshots />
-            </div>
-          </RevealSection>
+            </FadeUp>
 
-          {/* Final CTA */}
-          <RevealSection className="pb-12 sm:pb-16 lg:pb-24">
-            <div className="relative overflow-hidden rounded-2xl border border-border bg-card shadow-[var(--card-shadow)]">
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_50%,rgba(234,88,12,0.04),transparent)] dark:bg-[radial-gradient(circle_at_30%_50%,rgba(234,88,12,0.06),transparent)] pointer-events-none" />
-              <div className="relative grid items-center gap-8 p-8 sm:p-12 lg:grid-cols-[1fr_auto] lg:gap-16 lg:p-16">
-                <div>
-                  <h2 className="text-3xl font-bold tracking-tight sm:text-5xl">
-                    Start orchestrating in 60 seconds.
-                  </h2>
-                  <p className="mt-4 max-w-lg text-lg text-muted-foreground">
-                    Free. Open source. No login required. Just three commands.
-                  </p>
-                  <div className="mt-8 flex flex-wrap items-center gap-4">
-                    <Link
-                      href="https://github.com/rpuneet/bc"
-                      className="cta-glow group inline-flex h-12 items-center gap-2 rounded-lg bg-primary px-8 text-sm font-semibold text-primary-foreground shadow-[var(--btn-shadow)] transition-all hover:shadow-xl active:scale-[0.97]"
-                      aria-label="Get started with mycel on GitHub"
+            {/* Install command */}
+            <FadeUp delay={0.2}>
+              <div className="mt-10 mx-auto max-w-2xl">
+                {/* Platform tabs */}
+                <div className="flex items-center justify-center gap-1 mb-3">
+                  {tabs.map((t) => (
+                    <button
+                      key={t}
+                      onClick={() => setPlatform(t)}
+                      className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
+                        platform === t
+                          ? "bg-surface-container-high text-on-surface"
+                          : "text-muted-foreground hover:text-on-surface-variant"
+                      }`}
+                      style={{ fontFamily: "var(--font-label)" }}
                     >
-                      Get Started
-                      <ArrowRight
-                        className="h-4 w-4 transition-transform group-hover:translate-x-0.5"
-                        aria-hidden="true"
-                      />
-                    </Link>
-                    <Link
-                      href="/docs"
-                      className="inline-flex h-12 items-center gap-2 rounded-lg border border-border px-8 text-sm font-medium transition-colors hover:bg-accent/20 active:scale-[0.97]"
-                      aria-label="Explore the mycel CLI documentation"
-                    >
-                      Explore the Docs
-                    </Link>
-                  </div>
+                      {t}
+                    </button>
+                  ))}
                 </div>
-                <TerminalWindow
-                  title="quickstart"
-                  className="min-w-[280px]"
-                  ariaLabel="Quick start commands: bc init, bc daemon start, bc agent create"
-                >
-                  <div className="space-y-1.5 text-[13px]">
-                    <div>
-                      <span className="text-terminal-prompt">$ </span>bc init
-                    </div>
-                    <div>
-                      <span className="text-terminal-prompt">$ </span>bc daemon
-                      start
-                    </div>
-                    <div>
-                      <span className="text-terminal-prompt">$ </span>bc agent
-                      create eng-01 --role engineer --tool claude
-                    </div>
-                    <div className="terminal-cursor text-terminal-comment mt-3 text-[12px]">
-                      # That&apos;s it. Your agent team is running.
-                    </div>
-                  </div>
-                </TerminalWindow>
+
+                {/* Command box */}
+                <div className="flex items-center gap-2 rounded-lg border border-outline-variant/20 bg-surface-container-low px-4 py-3">
+                  <span className="text-muted-foreground select-none" style={{ fontFamily: "var(--font-label)" }}>$</span>
+                  <code
+                    className="flex-1 text-sm text-on-surface overflow-x-auto whitespace-nowrap scrollbar-none"
+                    style={{ fontFamily: "var(--font-label)" }}
+                  >
+                    {installCommands[platform]}
+                  </code>
+                  <CopyButton text={installCommands[platform]} />
+                </div>
+
+                {/* Then run */}
+                <p className="mt-3 text-sm text-muted-foreground">
+                  Then run:{" "}
+                  <code className="text-on-surface-variant" style={{ fontFamily: "var(--font-label)" }}>
+                    bc init && bc up
+                  </code>
+                </p>
               </div>
+            </FadeUp>
+
+            {/* CTA buttons */}
+            <FadeUp delay={0.25}>
+              <div className="mt-8 flex items-center justify-center gap-4">
+                <Link
+                  href="/docs"
+                  className="inline-flex h-11 items-center gap-2 rounded-lg bg-primary px-6 text-sm font-semibold text-primary-foreground shadow-[var(--btn-shadow)] transition-all hover:shadow-lg active:scale-[0.97]"
+                >
+                  View Docs
+                  <ExternalLink className="h-3.5 w-3.5" />
+                </Link>
+                <Link
+                  href="https://github.com/rpuneet/bc"
+                  className="inline-flex h-11 items-center gap-2 rounded-lg border border-outline-variant/20 px-6 text-sm font-medium text-on-surface-variant transition-colors hover:bg-surface-container active:scale-[0.97]"
+                >
+                  <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z" />
+                  </svg>
+                  GitHub
+                </Link>
+              </div>
+            </FadeUp>
+          </div>
+        </section>
+
+        {/* ════════════════════════════════════════
+           Section 2: Quick Demo
+           ════════════════════════════════════════ */}
+        <RevealSection className="py-12 sm:py-16 lg:py-20">
+          <div className="mx-auto max-w-3xl px-4 sm:px-6">
+            <TerminalWindow title="mycel" className="terminal-glow">
+              <div className="space-y-3 text-[13px]">
+                <div>
+                  <span className="text-terminal-prompt">~ $ </span>
+                  <span className="text-terminal-text">bc init</span>
+                </div>
+                <div className="text-terminal-success">&#10003; Workspace initialized (.bc/)</div>
+                <div className="text-terminal-success">&#10003; Ready to create agents</div>
+
+                <div className="mt-2">
+                  <span className="text-terminal-prompt">~ $ </span>
+                  <span className="text-terminal-text">bc up</span>
+                </div>
+                <div className="text-terminal-muted">Server running on http://localhost:9374</div>
+
+                <div className="mt-2">
+                  <span className="text-terminal-prompt">~ $ </span>
+                  <span className="text-terminal-text">bc agent create eng-01 --role engineer --tool claude</span>
+                </div>
+                <div className="text-terminal-muted">Created worktree .bc/agents/eng-01/worktree</div>
+                <div className="text-terminal-success">Agent eng-01 is online.</div>
+
+                <div className="mt-2">
+                  <span className="text-terminal-prompt">~ $ </span>
+                  <span className="text-terminal-text">bc agent create eng-02 --role engineer --tool gemini</span>
+                </div>
+                <div className="text-terminal-muted">Created worktree .bc/agents/eng-02/worktree</div>
+                <div className="text-terminal-success">Agent eng-02 is online.</div>
+
+                <div className="mt-2">
+                  <span className="text-terminal-prompt">~ $ </span>
+                  <span className="text-terminal-text">bc status</span>
+                </div>
+                <div className="text-terminal-comment mt-1" style={{ fontFamily: "var(--font-label)" }}>
+                  <div>AGENT     ROLE       STATE     UPTIME</div>
+                  <div className="text-terminal-text">eng-01    engineer   working   2m</div>
+                  <div className="text-terminal-text">eng-02    engineer   working   1m</div>
+                </div>
+              </div>
+            </TerminalWindow>
+          </div>
+        </RevealSection>
+
+        {/* ════════════════════════════════════════
+           Section 3: Feature Grid
+           ════════════════════════════════════════ */}
+        <RevealSection className="py-12 sm:py-16 lg:py-24">
+          <div className="mx-auto max-w-4xl px-4 sm:px-6">
+            <FadeUp>
+              <h2
+                className="text-2xl font-bold tracking-tight text-on-background text-center mb-10"
+                style={{ fontFamily: "var(--font-headline)" }}
+              >
+                Built for multi-agent workflows
+              </h2>
+            </FadeUp>
+
+            <StaggerChildren className="grid gap-4 sm:grid-cols-2" stagger={0.08}>
+              {features.map((f) => (
+                <StaggerItem key={f.title}>
+                  <div className="bg-surface-container rounded-lg p-6">
+                    <f.icon className="h-5 w-5 text-primary-text mb-3" />
+                    <h3
+                      className="text-lg font-semibold text-on-surface mb-1.5"
+                      style={{ fontFamily: "var(--font-headline)" }}
+                    >
+                      {f.title}
+                    </h3>
+                    <p className="text-on-surface-variant text-sm leading-relaxed">
+                      {f.desc}
+                    </p>
+                  </div>
+                </StaggerItem>
+              ))}
+            </StaggerChildren>
+          </div>
+        </RevealSection>
+
+        {/* ════════════════════════════════════════
+           Section 4: Dashboard Screenshot
+           ════════════════════════════════════════ */}
+        <RevealSection className="py-12 sm:py-16 lg:py-24">
+          <div className="mx-auto max-w-5xl px-4 sm:px-6">
+            <FadeUp className="text-center mb-10">
+              <h2
+                className="text-2xl font-bold tracking-tight text-on-background"
+                style={{ fontFamily: "var(--font-headline)" }}
+              >
+                Real-time visibility.
+              </h2>
+              <p className="mt-3 text-on-surface-variant text-base max-w-xl mx-auto">
+                A web dashboard at localhost:9374 shows every agent&apos;s state, costs, and output.
+              </p>
+            </FadeUp>
+
+            <FadeUp delay={0.1}>
+              <div className="glass-panel terminal-glow rounded-xl overflow-hidden">
+                <Image
+                  src="/screenshots/dashboard-01-home.png"
+                  alt="mycel dashboard showing agent status, channels, and costs"
+                  width={1920}
+                  height={1080}
+                  className="w-full h-auto"
+                  priority={false}
+                />
+              </div>
+              <div className="text-center mt-5">
+                <Link
+                  href="/product"
+                  className="text-sm text-primary-text hover:text-primary transition-colors inline-flex items-center gap-1"
+                >
+                  See all 15+ views
+                  <ExternalLink className="h-3 w-3" />
+                </Link>
+              </div>
+            </FadeUp>
+          </div>
+        </RevealSection>
+
+        {/* ════════════════════════════════════════
+           Section 5: Open Source CTA
+           ════════════════════════════════════════ */}
+        <RevealSection className="py-16 sm:py-20 lg:py-28">
+          <div className="mx-auto max-w-2xl px-4 sm:px-6 text-center">
+            <h2
+              className="text-2xl font-bold tracking-tight text-on-background"
+              style={{ fontFamily: "var(--font-headline)" }}
+            >
+              Free. Open source. No cloud required.
+            </h2>
+            <p className="mt-3 text-on-surface-variant text-base">
+              MIT licensed. Run it on your machine. Own your data.
+            </p>
+            <div className="mt-8">
+              <Link
+                href="https://github.com/rpuneet/bc"
+                className="inline-flex h-11 items-center gap-2 rounded-lg border border-outline-variant/20 px-6 text-sm font-medium text-on-surface transition-colors hover:bg-surface-container active:scale-[0.97]"
+              >
+                <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z" />
+                </svg>
+                View on GitHub
+                <ExternalLink className="h-3.5 w-3.5" />
+              </Link>
             </div>
-          </RevealSection>
-        </div>
+          </div>
+        </RevealSection>
 
         <Footer />
       </div>
