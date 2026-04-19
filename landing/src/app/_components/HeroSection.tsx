@@ -74,7 +74,6 @@ export function HeroSection() {
             codebase. Isolated worktrees. Shared channels. Cost controls. One binary.
           </motion.p>
 
-          {/* Fix 4: Get Started CTA + Fix 7: GitHub button styling + Fix 9: Stars */}
           <motion.div
             variants={fadeUp}
             custom={3}
@@ -83,9 +82,9 @@ export function HeroSection() {
             <Link
               href="/#install"
               className="cta-glow group inline-flex h-10 sm:h-11 items-center gap-2 rounded-lg bg-primary px-6 sm:px-8 text-sm font-semibold text-primary-foreground shadow-[var(--btn-shadow)] transition-all hover:shadow-xl hover:shadow-primary/20 active:scale-[0.97]"
-              aria-label="Get started with mycel"
+              aria-label="Download mycel"
             >
-              Get Started
+              Download
               <ArrowRight
                 className="h-4 w-4 transition-transform group-hover:translate-x-0.5"
                 aria-hidden="true"
@@ -99,9 +98,6 @@ export function HeroSection() {
               <Code2 className="h-4 w-4" aria-hidden="true" />
               View on GitHub
             </Link>
-            <span className="font-mono text-sm text-muted-foreground">
-              150+ stars on GitHub
-            </span>
           </motion.div>
 
         </div>

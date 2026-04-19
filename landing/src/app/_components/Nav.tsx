@@ -13,7 +13,6 @@ const links = [
   { href: "/method", label: "Method" },
   { href: "/docs", label: "Docs" },
   { href: "/#install", label: "Install" },
-  { href: "/pricing", label: "Pricing" },
 ];
 
 function Logo() {

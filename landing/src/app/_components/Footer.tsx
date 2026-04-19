@@ -44,12 +44,6 @@ export function Footer() {
                 Features
               </Link>
               <Link
-                href="/pricing"
-                className="hover:text-on-surface transition-colors"
-              >
-                Pricing
-              </Link>
-              <Link
                 href="/method"
                 className="hover:text-on-surface transition-colors"
               >
