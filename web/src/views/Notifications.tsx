@@ -7,6 +7,7 @@ import { AgentPeekPanel } from "../components/AgentPeekPanel";
 import { LoadingSkeleton } from "../components/LoadingSkeleton";
 import { EmptyState } from "../components/EmptyState";
 import { GatewayFeed } from "../components/notifications/GatewayFeed";
+import { NotificationSidebar } from "../components/notifications/NotificationSidebar";
 
 import { useHeaderSlot } from "../context/HeaderSlotContext";
 import { TabHeaderTitle } from "../components/Header";
@@ -121,7 +122,14 @@ export function Notifications() {
 
   return (
     <div className="flex h-full">
-      {/* Activity feed — full width, notification tree is now in the main nav sidebar */}
+      {/* Sidebar — 228px, matching design prototype */}
+      <NotificationSidebar
+        channels={sourceList}
+        selected={selected}
+        onSelect={(name) => navigate("/notifications/" + name)}
+      />
+
+      {/* Activity feed — fills remaining space */}
       <div className="flex-1 flex flex-col min-w-0">
         {selected ? (
           <GatewayFeed

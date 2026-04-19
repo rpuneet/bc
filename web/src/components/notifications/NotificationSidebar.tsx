@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
-import type { Agent, NotificationSource, GatewayStatus, NotifySubscription } from "../../api/client";
+import type { NotificationSource, GatewayStatus, NotifySubscription } from "../../api/client";
 import { api } from "../../api/client";
-import { sourcePlatform, agentColor, getRoleColor } from "./messageUtils";
+import { sourcePlatform } from "./messageUtils";
 import { SetupWizard, PlatformChooser, PLATFORM_MAP, PLATFORMS } from "./SetupWizard";
 
 function getMeta(p: string) {
@@ -15,6 +15,80 @@ function displayName(name: string): string {
   return idx > 0 ? name.slice(idx + 1) : name;
 }
 
+/* ── Platform glyphs ─────────────────────────────────────── */
+
+function SlackGlyph({ size = 11 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" style={{ flexShrink: 0 }}>
+      <path d="M6 15a2 2 0 1 1-2-2h2v2zm1 0a2 2 0 0 1 4 0v5a2 2 0 0 1-4 0v-5z" fill="#E01E5A" />
+      <path d="M9 6a2 2 0 1 1 2-2v2H9zm0 1a2 2 0 0 1 0 4H4a2 2 0 0 1 0-4h5z" fill="#36C5F0" />
+      <path d="M18 9a2 2 0 1 1 2 2h-2V9zm-1 0a2 2 0 0 1-4 0V4a2 2 0 0 1 4 0v5z" fill="#2EB67D" />
+      <path d="M15 18a2 2 0 1 1-2 2v-2h2zm0-1a2 2 0 0 1 0-4h5a2 2 0 0 1 0 4h-5z" fill="#ECB22E" />
+    </svg>
+  );
+}
+
+function TelegramGlyph({ size = 11 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" style={{ flexShrink: 0 }}>
+      <circle cx="12" cy="12" r="11" fill="#229ED9" />
+      <path d="M5.5 11.5l12-4.5-2 12-4-3-2 2-1-3.5 7-5.5-8 3.5-2-1z" fill="#fff" />
+    </svg>
+  );
+}
+
+function DiscordGlyph({ size = 11 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" style={{ flexShrink: 0 }}>
+      <circle cx="12" cy="12" r="11" fill="#5865F2" />
+      <text x="12" y="16" textAnchor="middle" fill="#fff" fontSize="10" fontWeight="bold">D</text>
+    </svg>
+  );
+}
+
+function GitHubGlyph({ size = 11 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" style={{ flexShrink: 0 }}>
+      <path fill="#e5e5e5" d="M12 2a10 10 0 0 0-3.16 19.49c.5.09.66-.22.66-.48v-1.7c-2.78.6-3.37-1.34-3.37-1.34-.45-1.15-1.1-1.46-1.1-1.46-.9-.62.07-.6.07-.6 1 .07 1.53 1.03 1.53 1.03.89 1.52 2.34 1.08 2.91.83.09-.65.35-1.08.63-1.33-2.22-.25-4.56-1.11-4.56-4.94 0-1.1.39-1.99 1.03-2.69-.1-.25-.45-1.27.1-2.65 0 0 .84-.27 2.75 1.02a9.5 9.5 0 0 1 5 0c1.91-1.29 2.75-1.02 2.75-1.02.55 1.38.2 2.4.1 2.65.64.7 1.03 1.59 1.03 2.69 0 3.84-2.34 4.69-4.57 4.93.36.31.68.92.68 1.85v2.74c0 .27.16.58.67.48A10 10 0 0 0 12 2z" />
+    </svg>
+  );
+}
+
+const PLATFORM_GLYPHS: Record<string, React.FC<{ size?: number }>> = {
+  slack: SlackGlyph,
+  telegram: TelegramGlyph,
+  discord: DiscordGlyph,
+  github: GitHubGlyph,
+};
+
+/* ── Channel icon ────────────────────────────────────────── */
+
+function ChannelIcon({ name }: { name: string }) {
+  // Bot-style names
+  if (name.startsWith("@")) {
+    return (
+      <span className="shrink-0 flex items-center justify-center" style={{ width: 12, color: "#4a4a4a" }}>
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="4" y="8" width="16" height="12" rx="2" />
+          <circle cx="9" cy="14" r="1" fill="currentColor" />
+          <circle cx="15" cy="14" r="1" fill="currentColor" />
+          <line x1="12" y1="4" x2="12" y2="8" />
+          <circle cx="12" cy="3" r="1" fill="currentColor" />
+        </svg>
+      </span>
+    );
+  }
+  // Default: hash for channels
+  return (
+    <span
+      className="shrink-0 flex items-center justify-center"
+      style={{ width: 12, color: "#4a4a4a", fontFamily: "'JetBrains Mono', ui-monospace, monospace", fontSize: 12 }}
+    >
+      #
+    </span>
+  );
+}
+
 export function NotificationSidebar({
   channels,
   selected,
@@ -26,21 +100,17 @@ export function NotificationSidebar({
 }) {
   const [gateways, setGateways] = useState<GatewayStatus[]>([]);
   const [allSubs, setAllSubs] = useState<NotifySubscription[]>([]);
-  const [agents, setAgents] = useState<Agent[]>([]);
   const [setupPlatform, setSetupPlatform] = useState<string | null>(null);
-  const [view, setView] = useState<"sources" | "agents">("sources");
   const [expandedGw, setExpandedGw] = useState<Set<string>>(new Set(["slack", "telegram", "discord"]));
 
   const fetchData = useCallback(async () => {
     try {
-      const [gw, subs, agentList] = await Promise.all([
+      const [gw, subs] = await Promise.all([
         api.listGateways(),
         api.listSubscriptions().catch(() => []),
-        api.listAgents().catch(() => []),
       ]);
       setGateways(gw ?? []);
       setAllSubs(subs ?? []);
-      setAgents(agentList ?? []);
     } catch { /* */ }
   }, []);
 
@@ -60,11 +130,8 @@ export function NotificationSidebar({
 
   // Subscription counts
   const subCountMap = new Map<string, number>();
-  const sourceSubs = new Map<string, Set<string>>();
   for (const sub of allSubs) {
     subCountMap.set(sub.channel, (subCountMap.get(sub.channel) ?? 0) + 1);
-    if (!sourceSubs.has(sub.channel)) sourceSubs.set(sub.channel, new Set());
-    sourceSubs.get(sub.channel)!.add(sub.agent);
   }
 
   // Build gateway buckets
@@ -86,251 +153,232 @@ export function NotificationSidebar({
   const configuredPlatforms = new Set(bucketMap.keys());
   const unconfigured = PLATFORMS.filter(p => !configuredPlatforms.has(p.key));
 
-  // Agents for current channel
-  const currentSourceAgents = selected ? sourceSubs.get(selected) ?? new Set() : new Set();
-
-  const handleSubscribe = async (agent: string) => {
-    if (!selected) return;
-    try {
-      await api.subscribe(selected, agent, false);
-      await fetchData();
-    } catch { /* */ }
-  };
-
-  const handleUnsubscribe = async (agent: string) => {
-    if (!selected) return;
-    try {
-      await api.unsubscribe(selected, agent);
-      await fetchData();
-    } catch { /* */ }
-  };
-
   return (
     <nav
-      className="w-56 shrink-0 border-r border-bc-border/40 flex flex-col bg-bc-bg"
-      style={{ scrollbarWidth: "thin", scrollbarColor: "rgba(255,255,255,0.04) transparent" }}
+      className="shrink-0 flex flex-col h-full overflow-hidden"
+      style={{
+        width: 228,
+        minWidth: 228,
+        background: "#151515",
+        borderRight: "1px solid #222222",
+        scrollbarWidth: "thin",
+        scrollbarColor: "#2a2a2a transparent",
+      }}
     >
-      {/* Tab toggle: Notifications | Agents */}
-      <div className="flex border-b border-bc-border/30">
-        <button
-          type="button"
-          onClick={() => setView("sources")}
-          className={`flex-1 py-2.5 text-[11px] font-bold uppercase tracking-[0.12em] transition-colors ${
-            view === "sources"
-              ? "text-bc-text border-b-2 border-bc-accent"
-              : "text-bc-muted/50 hover:text-bc-muted/70"
-          }`}
-        >
-          # Notifications
-        </button>
-        <button
-          type="button"
-          onClick={() => setView("agents")}
-          className={`flex-1 py-2.5 text-[11px] font-bold uppercase tracking-[0.12em] transition-colors ${
-            view === "agents"
-              ? "text-bc-text border-b-2 border-bc-accent"
-              : "text-bc-muted/50 hover:text-bc-muted/70"
-          }`}
-        >
-          Agents {currentSourceAgents.size > 0 && (
-            <span className="text-bc-success ml-1">{currentSourceAgents.size}</span>
-          )}
-        </button>
-      </div>
+      {/* Scrollable channel tree */}
+      <div
+        className="flex-1 overflow-auto"
+        style={{ padding: "4px 8px 8px", scrollbarWidth: "thin", scrollbarColor: "#2a2a2a transparent" }}
+      >
+        {[...bucketMap.entries()].map(([platform, chs]) => {
+          const meta = getMeta(platform);
+          const gwStatus = gwMap.get(platform);
+          const isConnected = (gwStatus?.enabled && (gwStatus?.channels?.length ?? 0) > 0) || chs.length > 0;
+          const isExpanded = expandedGw.has(platform);
+          const Glyph = PLATFORM_GLYPHS[platform];
 
-      <div className="flex-1 overflow-auto py-1">
-        {view === "sources" ? (
-          /* ── Notifications view ──────────────────────────── */
-          <>
-            {[...bucketMap.entries()].map(([platform, chs]) => {
-              const meta = getMeta(platform);
-              const gwStatus = gwMap.get(platform);
-              const isConnected = gwStatus?.enabled && (gwStatus?.channels?.length ?? 0) > 0 || chs.length > 0;
-              const isExpanded = expandedGw.has(platform);
+          return (
+            <div key={platform}>
+              {/* Platform header row */}
+              <button
+                type="button"
+                onClick={() => toggleGw(platform)}
+                className="w-full flex items-center gap-2"
+                style={{
+                  padding: "5px 8px 2px",
+                  fontSize: 11,
+                  color: "#6b6b6b",
+                  textTransform: "uppercase",
+                  letterSpacing: 0.5,
+                  fontWeight: 600,
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                }}
+              >
+                {Glyph && <Glyph size={11} />}
+                <span>{meta.label}</span>
+                {/* Connection status dot */}
+                {isConnected && (
+                  <span
+                    className="ml-auto shrink-0"
+                    style={{
+                      width: 5,
+                      height: 5,
+                      borderRadius: 999,
+                      background: "#22c55e",
+                      boxShadow: "0 0 5px rgba(34,197,94,0.5)",
+                    }}
+                  />
+                )}
+              </button>
 
-              return (
-                <div key={platform} className="mb-0.5">
-                  <button
-                    type="button"
-                    onClick={() => toggleGw(platform)}
-                    className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-bc-surface/20 transition-colors"
-                  >
-                    <svg width="8" height="8" viewBox="0 0 8 8"
-                      className={`text-bc-muted/50 transition-transform duration-150 ${isExpanded ? "" : "-rotate-90"}`}
-                    >
-                      <path d="M1.5 2L4 5L6.5 2" stroke="currentColor" strokeWidth="1.2" fill="none" strokeLinecap="round" />
-                    </svg>
-                    <span
-                      className="w-1.5 h-1.5 rounded-full shrink-0"
-                      style={{ backgroundColor: isConnected ? "#22c55e" : gwStatus?.enabled ? "#fb923c" : "rgba(140,126,114,0.3)" }}
-                    />
-                    <span className="text-[12px] font-bold uppercase tracking-[0.08em]" style={{ color: meta.color }}>
-                      {meta.label}
-                    </span>
-                    <span className="text-[11px] text-bc-muted/60 ml-auto tabular-nums">{chs.length}</span>
-                  </button>
-
-                  {isExpanded && (
-                    <div className="pb-0.5">
-                      {chs.length === 0 && (
-                        <div className="px-3 py-1 text-[11px] text-bc-muted/50 italic pl-8">No notifications</div>
-                      )}
-                      {chs.map((ch) => {
-                        const isActive = selected === ch.name;
-                        const count = subCountMap.get(ch.name) ?? 0;
-                        return (
-                          <button
-                            key={ch.name}
-                            onClick={() => onSelect(ch.name)}
-                            className={`w-full text-left pl-7 pr-3 py-[5px] text-[12px] flex items-center gap-1.5 transition-all duration-100 ${
-                              isActive
-                                ? "bg-bc-surface/60 text-bc-text font-medium"
-                                : "text-bc-muted/60 hover:text-bc-text/80 hover:bg-bc-surface/20"
-                            }`}
-                            style={{ borderLeft: isActive ? `2px solid ${meta.color}` : "2px solid transparent" }}
-                          >
-                            <span className="text-bc-muted/50 text-[11px]">#</span>
-                            <span className="break-words" title={displayName(ch.name)}>{displayName(ch.name)}</span>
-                            {count > 0 && (
-                              <span className="ml-auto text-[11px] text-bc-success/60 tabular-nums">{count}</span>
-                            )}
-                          </button>
-                        );
-                      })}
+              {/* Channel list */}
+              {isExpanded && (
+                <div
+                  style={{
+                    paddingLeft: 10,
+                    marginLeft: 9,
+                    borderLeft: "1px solid #2a2a2a",
+                    marginTop: 2,
+                    marginBottom: 4,
+                  }}
+                >
+                  {chs.length === 0 && (
+                    <div style={{ padding: "4px 8px", fontSize: 11, color: "#4a4a4a", fontStyle: "italic" }}>
+                      No notifications
                     </div>
                   )}
-                </div>
-              );
-            })}
+                  {chs.map((ch) => {
+                    const isActive = selected === ch.name;
+                    const count = subCountMap.get(ch.name) ?? 0;
+                    const name = displayName(ch.name);
 
-            {/* Unconfigured */}
-            {unconfigured.length > 0 && (
-              <div className="pt-1 mt-1 border-t border-bc-border/15 mx-3">
-                {unconfigured.slice(0, 5).map((p) => (
-                  <button
-                    key={p.key}
-                    type="button"
-                    onClick={() => setSetupPlatform(p.key)}
-                    className="w-full flex items-center gap-2 py-1 text-[11px] text-bc-muted/50 hover:text-bc-muted/70 transition-colors"
-                  >
-                    <span className="w-1.5 h-1.5 rounded-full bg-bc-muted/10" />
-                    <span className="uppercase tracking-[0.08em] font-medium">{p.label}</span>
-                    <span className="ml-auto opacity-50">+</span>
-                  </button>
-                ))}
-                {unconfigured.length > 5 && (
-                  <button
-                    type="button"
-                    onClick={() => setSetupPlatform("_choose")}
-                    className="w-full py-1 text-[11px] text-bc-muted/50 hover:text-bc-accent transition-colors"
-                  >
-                    + {unconfigured.length - 5} more...
-                  </button>
-                )}
-              </div>
-            )}
-          </>
-        ) : (
-          /* ── Agents view ────────────────────────────── */
-          <>
-            {!selected ? (
-              <div className="p-4 text-[12px] text-bc-muted/50 text-center">
-                Select a notification source first
-              </div>
-            ) : (
-              <>
-                {/* Listening/subscribed agents */}
-                {agents.filter(a => currentSourceAgents.has(a.name)).length > 0 && (
-                  <div>
-                    <div className="px-3 pt-2 pb-1">
-                      <span className="text-[11px] font-bold text-bc-success/70 uppercase tracking-[0.08em]">
-                        Listening ({agents.filter(a => currentSourceAgents.has(a.name)).length})
-                      </span>
-                    </div>
-                    {agents.filter(a => currentSourceAgents.has(a.name)).map((agent) => {
-                      const isOnline = agent.state === "running" || agent.state === "working";
-                      const roleColor = getRoleColor(agent.role);
-                      return (
-                        <div key={agent.name} className="px-3 py-1.5 flex items-center gap-2 hover:bg-bc-surface/20 transition-colors">
-                          <span className="w-4 h-4 rounded text-[8px] font-bold flex items-center justify-center shrink-0"
-                            style={{ backgroundColor: `${agentColor(agent.name)}12`, color: agentColor(agent.name) }}
-                          >
-                            {agent.name.charAt(0).toUpperCase()}
-                          </span>
-                          <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${isOnline ? "bg-bc-success" : "bg-bc-muted/20"}`} />
-                          <span className="text-[12px] text-bc-text/80 truncate flex-1">{agent.name}</span>
-                          <span className={`text-[9px] px-1 py-0.5 rounded ${roleColor.bg} ${roleColor.text} font-medium`}>
-                            {agent.role}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => handleUnsubscribe(agent.name)}
-                            className="text-[9px] text-bc-muted/50 hover:text-bc-error/50 transition-colors"
-                          >
-                            &times;
-                          </button>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-
-                {/* Divider */}
-                {agents.filter(a => currentSourceAgents.has(a.name)).length > 0 &&
-                  agents.filter(a => !currentSourceAgents.has(a.name)).length > 0 && (
-                  <div className="mx-3 my-1.5 border-t border-bc-border/15" />
-                )}
-
-                {/* Available agents */}
-                <div>
-                  <div className="px-3 pt-2 pb-1">
-                    <span className="text-[11px] font-bold text-bc-muted/50 uppercase tracking-[0.08em]">
-                      Add to notifications
-                    </span>
-                  </div>
-                  {agents.filter(a => !currentSourceAgents.has(a.name)).sort((a, b) => {
-                    // Sort: working/running first, then idle, then stopped
-                    const order = (s: string) => s === "working" || s === "running" ? 0 : s === "stopped" ? 2 : 1;
-                    return order(a.state) - order(b.state) || a.name.localeCompare(b.name);
-                  }).map((agent) => {
-                    const isOnline = agent.state === "running" || agent.state === "working";
-                    const isStopped = agent.state === "stopped";
                     return (
-                      <div key={agent.name} className="px-3 py-1.5 flex items-center gap-2 hover:bg-bc-surface/15 transition-colors group">
-                        <span className="w-4 h-4 rounded text-[8px] font-bold flex items-center justify-center shrink-0 opacity-40"
-                          style={{ backgroundColor: `${agentColor(agent.name)}08`, color: agentColor(agent.name) }}
+                      <button
+                        key={ch.name}
+                        onClick={() => onSelect(ch.name)}
+                        className="w-full flex items-center"
+                        style={{
+                          gap: 8,
+                          height: 24,
+                          padding: "0 8px",
+                          borderRadius: 5,
+                          fontSize: 12.5,
+                          color: isActive ? "#e5e5e5" : count > 0 ? "#e5e5e5" : "#a0a0a0",
+                          background: isActive ? "rgba(249, 115, 22, 0.12)" : "transparent",
+                          fontWeight: isActive ? 600 : count > 0 ? 500 : 400,
+                          cursor: "pointer",
+                          border: "none",
+                          marginBottom: 1,
+                          textAlign: "left",
+                        }}
+                      >
+                        <ChannelIcon name={name} />
+                        <span
+                          style={{
+                            flex: 1,
+                            minWidth: 0,
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                          }}
                         >
-                          {agent.name.charAt(0).toUpperCase()}
+                          {name}
                         </span>
-                        <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-                          isOnline ? "bg-bc-success" : isStopped ? "bg-bc-error/40" : "bg-bc-muted/15"
-                        }`} />
-                        <span className="text-[12px] text-bc-muted/60 truncate flex-1">{agent.name}</span>
-                        <button
-                          type="button"
-                          onClick={() => handleSubscribe(agent.name)}
-                          className="text-[11px] text-bc-muted/50 hover:text-bc-accent opacity-0 group-hover:opacity-100 transition-all"
-                        >
-                          + add
-                        </button>
-                      </div>
+                        {count > 0 && (
+                          <span
+                            style={{
+                              fontSize: 10.5,
+                              fontWeight: 600,
+                              color: "#a0a0a0",
+                              fontFamily: "'JetBrains Mono', ui-monospace, monospace",
+                              padding: "1px 5px",
+                              borderRadius: 999,
+                              background: "#212121",
+                            }}
+                          >
+                            {count}
+                          </span>
+                        )}
+                      </button>
                     );
                   })}
                 </div>
-              </>
-            )}
-          </>
+              )}
+            </div>
+          );
+        })}
+
+        {/* Unconfigured platforms */}
+        {unconfigured.length > 0 && (
+          <div style={{ marginTop: 4 }}>
+            {unconfigured.slice(0, 3).map((p) => (
+              <button
+                key={p.key}
+                type="button"
+                onClick={() => setSetupPlatform(p.key)}
+                className="w-full flex items-center"
+                style={{
+                  gap: 8,
+                  height: 24,
+                  padding: "0 8px",
+                  borderRadius: 5,
+                  fontSize: 11,
+                  color: "#4a4a4a",
+                  cursor: "pointer",
+                  background: "none",
+                  border: "none",
+                  textAlign: "left",
+                }}
+              >
+                <span style={{ width: 12, textAlign: "center" }}>+</span>
+                <span style={{ textTransform: "uppercase", letterSpacing: 0.5, fontWeight: 500 }}>
+                  {p.label}
+                </span>
+              </button>
+            ))}
+          </div>
         )}
       </div>
 
-      {/* Bottom: Connect app */}
-      <div className="p-2 border-t border-bc-border/20">
+      {/* Bottom buttons */}
+      <div
+        style={{
+          borderTop: "1px solid #222222",
+          padding: "8px",
+          display: "flex",
+          flexDirection: "column",
+          gap: 4,
+          flexShrink: 0,
+        }}
+      >
+        {/* Routing rules button */}
+        <button
+          type="button"
+          className="w-full flex items-center"
+          style={{
+            gap: 8,
+            height: 26,
+            padding: "0 8px",
+            borderRadius: 5,
+            fontSize: 12,
+            color: "#6b6b6b",
+            cursor: "pointer",
+            border: "1px dashed #2a2a2a",
+            background: "none",
+            whiteSpace: "nowrap",
+          }}
+        >
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="6" cy="6" r="2.5" /><circle cx="18" cy="18" r="2.5" /><circle cx="18" cy="6" r="2.5" />
+            <path d="M6 8v8a2 2 0 0 0 2 2h7" /><path d="M18 8.5v7" />
+          </svg>
+          <span>Routing rules</span>
+        </button>
+
+        {/* Connect app button */}
         <button
           type="button"
           onClick={() => setSetupPlatform("_choose")}
-          className="w-full py-1.5 text-[11px] font-medium text-bc-muted/60 hover:text-bc-accent border border-bc-border/30 rounded-lg hover:border-bc-accent/30 transition-all"
+          className="w-full flex items-center"
+          style={{
+            gap: 8,
+            height: 26,
+            padding: "0 8px",
+            borderRadius: 5,
+            fontSize: 12,
+            color: "#6b6b6b",
+            cursor: "pointer",
+            border: "1px dashed #2a2a2a",
+            background: "none",
+            whiteSpace: "nowrap",
+          }}
         >
-          + Connect app
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+          </svg>
+          <span>Connect app</span>
         </button>
       </div>
 
