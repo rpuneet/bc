@@ -1,6 +1,64 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
-  <style>@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@700&amp;family=Space+Mono:wght@700');</style>
   <rect width="512" height="512" rx="108" fill="#0C0A08"/>
-  <text x="80" y="320" font-family="'Space Mono',monospace" font-weight="700" font-size="180" fill="#FB923C">&gt;</text>
-  <text x="220" y="320" font-family="'Space Grotesk',sans-serif" font-weight="700" font-size="200" letter-spacing="-8" fill="#EA580C">m</text>
+
+  <defs>
+    <radialGradient id="rindGrad" cx="50%" cy="45%" r="50%">
+      <stop offset="0%" stop-color="#FB923C" stop-opacity="0.15"/>
+      <stop offset="100%" stop-color="#EA580C" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="centerGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#FDBA74" stop-opacity="0.3"/>
+      <stop offset="60%" stop-color="#EA580C" stop-opacity="0.05"/>
+      <stop offset="100%" stop-color="#EA580C" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- Ambient glow -->
+  <circle cx="256" cy="264" r="180" fill="url(#rindGrad)"/>
+
+  <!-- Rind — clean double ring -->
+  <circle cx="256" cy="264" r="150" stroke="#EA580C" stroke-width="12" fill="none"/>
+  <circle cx="256" cy="264" r="138" stroke="#FB923C" stroke-width="1" fill="none" opacity="0.15"/>
+
+  <!-- Segment dividers — 10 segments for a more realistic citrus look -->
+  <g stroke="#EA580C" stroke-width="1.5" stroke-linecap="round" opacity="0.3">
+    <line x1="256" y1="264" x2="256" y2="114"/>
+    <line x1="256" y1="264" x2="346" y2="155"/>
+    <line x1="256" y1="264" x2="399" y2="217"/>
+    <line x1="256" y1="264" x2="399" y2="311"/>
+    <line x1="256" y1="264" x2="346" y2="373"/>
+    <line x1="256" y1="264" x2="256" y2="414"/>
+    <line x1="256" y1="264" x2="166" y2="373"/>
+    <line x1="256" y1="264" x2="113" y2="311"/>
+    <line x1="256" y1="264" x2="113" y2="217"/>
+    <line x1="256" y1="264" x2="166" y2="155"/>
+  </g>
+
+  <!-- Pulp — curved vesicle lines inside segments -->
+  <g stroke="#FB923C" stroke-width="1" fill="none" opacity="0.1">
+    <path d="M256 135 Q280 190 335 170"/>
+    <path d="M340 175 Q355 210 390 225"/>
+    <path d="M390 230 Q360 260 392 305"/>
+    <path d="M388 310 Q355 330 342 365"/>
+    <path d="M338 368 Q300 350 260 405"/>
+    <path d="M252 405 Q215 350 172 368"/>
+    <path d="M168 362 Q155 325 120 308"/>
+    <path d="M118 300 Q148 268 120 228"/>
+    <path d="M122 222 Q155 208 168 170"/>
+    <path d="M172 166 Q210 186 252 138"/>
+  </g>
+
+  <!-- Center glow -->
+  <circle cx="256" cy="264" r="28" fill="url(#centerGlow)"/>
+
+  <!-- Center navel -->
+  <circle cx="256" cy="264" r="8" fill="#EA580C"/>
+  <circle cx="256" cy="264" r="3.5" fill="#0C0A08" opacity="0.5"/>
+
+  <!-- Stem — rounded, organic -->
+  <path d="M253 114 Q253 88 256 78 Q259 88 259 114" fill="#EA580C" opacity="0.7"/>
+
+  <!-- Leaf — more organic shape -->
+  <path d="M259 85 Q278 60 302 65 Q288 75 270 88" fill="#22c55e" opacity="0.55"/>
+  <path d="M259 85 Q280 64 302 65" stroke="#16a34a" stroke-width="0.8" fill="none" opacity="0.3"/>
 </svg>
