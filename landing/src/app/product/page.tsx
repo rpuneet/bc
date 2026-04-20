@@ -56,20 +56,20 @@ function ScreenshotFrame({
 }) {
   return (
     <div
-      className={`group relative overflow-hidden rounded-xl border border-border/60 shadow-2xl dark:border-[rgba(210,180,140,0.08)] transition-transform duration-500 ease-out hover:scale-[1.02] ${className}`}
+      className={`group relative overflow-hidden rounded-xl border border-outline-variant/20 shadow-2xl transition-transform duration-500 ease-out hover:scale-[1.02] ${className}`}
       style={{
         boxShadow:
           "0 0 60px rgba(234, 88, 12, 0.06), 0 25px 50px -12px rgba(0, 0, 0, 0.4)",
       }}
     >
       {/* Browser chrome bar */}
-      <div className="flex items-center gap-2 border-b border-border/40 bg-[var(--terminal-header-bg)] px-4 py-2 dark:border-[rgba(210,180,140,0.06)]">
+      <div className="flex items-center gap-2 border-b border-outline-variant/20 bg-[var(--terminal-header-bg)] px-4 py-2">
         <div className="flex gap-1.5" aria-hidden="true">
           <span className="h-2.5 w-2.5 rounded-full bg-[var(--traffic-red)]" />
           <span className="h-2.5 w-2.5 rounded-full bg-[var(--traffic-yellow)]" />
           <span className="h-2.5 w-2.5 rounded-full bg-[var(--traffic-green)]" />
         </div>
-        <div className="mx-auto rounded-md bg-[rgba(255,255,255,0.04)] px-8 py-1 text-[10px] font-mono text-[var(--terminal-muted)] tracking-wide">
+        <div className="mx-auto rounded-md bg-[rgba(255,255,255,0.04)] px-8 py-1 text-[10px] font-label text-[var(--terminal-muted)] tracking-wide">
           localhost:9374
         </div>
         <div className="w-[52px]" />
@@ -90,18 +90,18 @@ function ScreenshotFrame({
 
 function CLICommands({ commands }: { commands: string[] }) {
   return (
-    <div className="mt-8 overflow-hidden rounded-lg border border-border/40 bg-[var(--terminal-bg)] dark:border-[rgba(210,180,140,0.06)]">
-      <div className="flex items-center gap-2 border-b border-[rgba(210,180,140,0.06)] px-4 py-2">
+    <div className="mt-8 overflow-hidden rounded-lg border border-outline-variant/20 bg-[var(--terminal-bg)]">
+      <div className="flex items-center gap-2 border-b border-outline-variant/10 px-4 py-2">
         <div className="flex gap-1.5" aria-hidden="true">
           <span className="h-2 w-2 rounded-full bg-[var(--traffic-red)]" />
           <span className="h-2 w-2 rounded-full bg-[var(--traffic-yellow)]" />
           <span className="h-2 w-2 rounded-full bg-[var(--traffic-green)]" />
         </div>
-        <span className="ml-2 font-mono text-[9px] font-bold uppercase tracking-[0.2em] text-[var(--terminal-muted)]">
+        <span className="ml-2 font-label text-[9px] font-bold uppercase tracking-[0.2em] text-[var(--terminal-muted)]">
           terminal
         </span>
       </div>
-      <div className="p-4 space-y-1.5 font-mono text-[13px] leading-relaxed text-[var(--terminal-text)]">
+      <div className="p-4 space-y-1.5 font-label text-[13px] leading-relaxed text-[var(--terminal-text)]">
         {commands.map((cmd) => (
           <div key={cmd}>
             <span className="text-[var(--terminal-prompt)]">$ </span>
@@ -195,7 +195,7 @@ function FeatureSection({
   return (
     <section
       ref={ref}
-      className="py-14 lg:py-16 border-t border-border/30"
+      className="py-14 lg:py-16 border-t border-outline-variant/20"
       id={id}
     >
       <div className="grid items-center gap-12 lg:grid-cols-2 lg:gap-20">
@@ -235,7 +235,7 @@ export default function Product() {
         initial="hidden"
         animate="visible"
         variants={stagger}
-        className="relative px-6 py-16 lg:py-20 text-center"
+        className="relative px-6 py-14 lg:py-16 text-center"
       >
         {/* Hero glow */}
         <div className="pointer-events-none absolute inset-x-0 top-0 h-[600px] bg-[radial-gradient(ellipse_60%_40%_at_50%_20%,rgba(234,88,12,0.1),transparent)]" />
@@ -261,7 +261,7 @@ export default function Product() {
         <motion.div
           variants={fadeUp}
           custom={1}
-          className="relative mx-auto mt-20 max-w-5xl"
+          className="relative mx-auto mt-12 max-w-5xl"
         >
           <ScreenshotFrame
             src="/screenshots/dashboard-01-home.png"
@@ -369,10 +369,10 @@ export default function Product() {
 
         {/* ═══════════════════ WHY BC ═══════════════════ */}
         <RevealSection
-          className="py-14 lg:py-16 border-t border-border/30"
+          className="py-14 lg:py-16 border-t border-outline-variant/20"
           id="why-bc"
         >
-          <div className="mb-14">
+          <div className="mb-10">
             <span className="inline-block font-label text-[11px] font-bold uppercase tracking-[0.25em] text-primary/80 border-b border-primary/20 pb-1">
               Why mycel?
             </span>
@@ -388,21 +388,21 @@ export default function Product() {
           <div className="grid gap-6 sm:grid-cols-3">
             {[
               {
-                title: "vs. Single-agent tools",
-                desc: "Claude Code, Cursor, and Codex are great — but they run one agent at a time. mycel runs many in parallel, each on its own branch, with no conflicts.",
-              },
-              {
-                title: "vs. Agent frameworks",
-                desc: "CrewAI and LangGraph require you to build agents from scratch in Python. mycel orchestrates the tools you already use. No SDK, no code changes.",
+                title: "vs. Manual setup",
+                desc: "Running Claude Code or Cursor one agent at a time is fine until you need five. mycel runs many in parallel, each on its own branch, with zero conflicts.",
               },
               {
                 title: "vs. Custom scripts",
                 desc: "Shell scripts break when you add the fifth agent. mycel gives you structured channels, cost tracking, and role-based control out of the box.",
               },
+              {
+                title: "vs. Agent frameworks",
+                desc: "CrewAI and LangGraph require you to build agents from scratch in Python. mycel orchestrates the tools you already use. No SDK, no code changes.",
+              },
             ].map((item, i) => (
               <div
                 key={item.title}
-                className={`rounded-xl border border-border bg-card p-7 transition-all duration-300 cursor-default ${cardAccents[i].border} ${cardAccents[i].glow}`}
+                className={`rounded-xl border border-outline-variant/20 bg-surface-container p-7 transition-all duration-300 cursor-default ${cardAccents[i].border} ${cardAccents[i].glow}`}
               >
                 <h3 className="font-headline font-semibold text-sm mb-3 text-on-background">{item.title}</h3>
                 <p className="text-sm text-on-surface-variant leading-[1.8] font-body">
@@ -416,7 +416,7 @@ export default function Product() {
         {/* ═══════════════════ CTA ═══════════════════ */}
         <RevealSection className="py-14 lg:py-16">
           <div
-            className="relative overflow-hidden rounded-2xl border border-border bg-card p-10 sm:p-14 text-center"
+            className="relative overflow-hidden rounded-2xl border border-outline-variant/20 bg-surface-container p-10 sm:p-14 text-center"
             style={{
               boxShadow:
                 "0 0 80px rgba(234, 88, 12, 0.06), 0 25px 50px -12px rgba(0, 0, 0, 0.3)",
@@ -434,15 +434,15 @@ export default function Product() {
               </p>
 
               {/* Terminal quickstart */}
-              <div className="mx-auto mt-10 max-w-md overflow-hidden rounded-lg border border-border/40 bg-[var(--terminal-bg)] text-left dark:border-[rgba(210,180,140,0.06)]">
-                <div className="flex items-center gap-2 border-b border-[rgba(210,180,140,0.06)] px-4 py-2">
+              <div className="mx-auto mt-10 max-w-md overflow-hidden rounded-lg border border-outline-variant/20 bg-[var(--terminal-bg)] text-left">
+                <div className="flex items-center gap-2 border-b border-outline-variant/10 px-4 py-2">
                   <div className="flex gap-1.5" aria-hidden="true">
                     <span className="h-2 w-2 rounded-full bg-[var(--traffic-red)]" />
                     <span className="h-2 w-2 rounded-full bg-[var(--traffic-yellow)]" />
                     <span className="h-2 w-2 rounded-full bg-[var(--traffic-green)]" />
                   </div>
                 </div>
-                <div className="p-4 font-mono text-[13px] leading-relaxed text-[var(--terminal-text)]">
+                <div className="p-4 font-label text-[13px] leading-relaxed text-[var(--terminal-text)]">
                   <div>
                     <span className="text-[var(--terminal-prompt)]">$ </span>
                     <span className="text-[var(--terminal-command)]">curl -fsSL https://raw.githubusercontent.com/rpuneet/bc/main/scripts/install.sh | bash</span>
@@ -475,7 +475,7 @@ export default function Product() {
                 </Link>
                 <Link
                   href="/docs"
-                  className="inline-flex h-12 items-center gap-2 rounded-lg border border-border px-8 text-sm font-medium transition-colors hover:bg-accent active:scale-[0.97]"
+                  className="inline-flex h-12 items-center gap-2 rounded-lg border border-outline-variant/20 px-8 text-sm font-medium text-on-surface-variant transition-colors hover:bg-surface-container hover:text-on-surface active:scale-[0.97] font-body"
                   aria-label="Browse the mycel CLI reference documentation"
                 >
                   Browse CLI Reference

@@ -133,7 +133,7 @@ export default function Home() {
                       className={`px-3 py-1.5 rounded text-xs font-label font-medium transition-colors ${
                         platform === t
                           ? "bg-surface-container-high text-on-surface"
-                          : "text-muted-foreground hover:text-on-surface-variant"
+                          : "text-on-surface-variant hover:text-on-surface"
                       }`}
                     >
                       {t}
@@ -143,7 +143,7 @@ export default function Home() {
 
                 {/* Command box */}
                 <div className="flex items-center gap-2 rounded-lg border border-outline-variant/30 bg-surface-container px-4 py-3 shadow-[0_0_60px_rgba(234,88,12,0.08),0_0_20px_rgba(234,88,12,0.04)]">
-                  <span className="text-muted-foreground select-none font-label">$</span>
+                  <span className="text-on-surface-variant select-none font-label">$</span>
                   <code className="flex-1 text-sm text-on-surface overflow-x-auto whitespace-nowrap scrollbar-none font-label">
                     {installCommands[platform]}
                   </code>
