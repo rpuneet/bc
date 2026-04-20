@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/rpuneet/bc/pkg/gateway"
+	bcwhatsapp "github.com/rpuneet/bc/pkg/gateway/whatsapp"
 	"github.com/rpuneet/bc/pkg/notify"
 	"github.com/rpuneet/bc/pkg/workspace"
 )
@@ -65,6 +66,8 @@ func (h *GatewayHandler) gatewayRouter(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case rest == "health":
 		h.gatewayHealth(w, r, platform)
+	case rest == "pair" || rest == "pair/status":
+		h.gatewayPair(w, r, platform, rest)
 	case rest == "channels" || strings.HasPrefix(rest, "channels/"):
 		h.gatewayChannels(w, r, platform, strings.TrimPrefix(rest, "channels"))
 	default:
@@ -775,4 +778,63 @@ func (h *GatewayHandler) notifyActivity(w http.ResponseWriter, r *http.Request) 
 		entries = []notify.DeliveryEntry{}
 	}
 	writeJSON(w, http.StatusOK, entries)
+}
+
+// gatewayPair handles QR-code-based pairing for adapters that support it
+// (currently WhatsApp). POST /api/gateways/{platform}/pair starts pairing
+// and returns a QR code image. GET /api/gateways/{platform}/pair/status
+// returns the current pairing state.
+func (h *GatewayHandler) gatewayPair(w http.ResponseWriter, r *http.Request, platform, route string) {
+	if h.gw == nil {
+		httpError(w, "gateway manager not available", http.StatusServiceUnavailable)
+		return
+	}
+
+	switch platform {
+	case "whatsapp":
+		h.whatsappPair(w, r, route)
+	default:
+		httpError(w, "pairing not supported for "+platform, http.StatusBadRequest)
+	}
+}
+
+func (h *GatewayHandler) whatsappPair(w http.ResponseWriter, r *http.Request, route string) {
+	adapter := h.gw.GetAdapter("whatsapp")
+
+	// If no adapter registered yet, create one on the fly.
+	if adapter == nil {
+		stateDir := ""
+		if h.ws != nil {
+			stateDir = h.ws.StateDir() + "/gateways/whatsapp"
+		}
+		if stateDir == "" {
+			httpError(w, "workspace not available", http.StatusServiceUnavailable)
+			return
+		}
+		wa := bcwhatsapp.New(stateDir)
+		h.gw.Register(wa)
+		adapter = wa
+	}
+
+	wa, ok := adapter.(*bcwhatsapp.Adapter)
+	if !ok {
+		httpError(w, "whatsapp adapter type mismatch", http.StatusInternalServerError)
+		return
+	}
+
+	switch {
+	case route == "pair" && r.Method == http.MethodPost:
+		status, err := wa.StartPairing(r.Context())
+		if err != nil {
+			httpError(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, http.StatusOK, status)
+
+	case route == "pair/status" && r.Method == http.MethodGet:
+		writeJSON(w, http.StatusOK, wa.GetPairStatus())
+
+	default:
+		methodNotAllowed(w)
+	}
 }

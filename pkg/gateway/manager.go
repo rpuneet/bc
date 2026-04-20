@@ -209,6 +209,13 @@ func (m *Manager) lateDiscovery(ctx context.Context) {
 	}
 }
 
+// GetAdapter returns a registered adapter by name, or nil if not found.
+func (m *Manager) GetAdapter(name string) NotificationAdapter {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.adapters[name]
+}
+
 // AdapterStatus returns the connection status for a specific adapter.
 func (m *Manager) AdapterStatus(platform string) AdapterStatus {
 	m.mu.RLock()

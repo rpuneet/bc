@@ -13,6 +13,7 @@ export interface PlatformDef {
   status: "ready" | "webhook" | "coming_soon";
   fields: { key: string; label: string; placeholder: string; required?: boolean; type?: string }[];
   docs: string[];
+  pairFlow?: "qr";
 }
 
 export const PLATFORMS: PlatformDef[] = [
@@ -69,12 +70,13 @@ export const PLATFORMS: PlatformDef[] = [
     description: "Personal WhatsApp via QR code pairing",
     color: "#25D366",
     category: "Chat",
-    fields: [{ key: "enabled", label: "Enabled", type: "toggle" as const, placeholder: "" }],
+    fields: [],
     docs: [
-      "Enable the adapter and restart bcd.",
-      "A QR code will appear in the daemon log — scan with WhatsApp → Linked Devices.",
-      "Session persists across restarts (no re-scan needed).",
+      "Click Connect to generate a QR code.",
+      "Scan it with WhatsApp → Linked Devices on your phone.",
+      "Session persists across restarts — no re-scan needed.",
     ],
+    pairFlow: "qr" as const,
   },
   {
     key: "signal", status: "coming_soon" as const,
@@ -812,6 +814,30 @@ export function SetupWizard({
     );
   }
 
+  // QR code pairing flow for WhatsApp etc.
+  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
+  const [pairState, setPairState] = useState<string>("idle"); // idle, loading, qr_ready, connected, error
+
+  const startQRPairing = async () => {
+    setPairState("loading");
+    setError(null);
+    try {
+      const resp = await fetch(`/api/gateways/${platform}/pair`, { method: "POST" });
+      const data = await resp.json();
+      if (!resp.ok) { setError(data.error || "Failed to start pairing"); setPairState("error"); return; }
+      if (data.state === "connected") { setPairState("connected"); onConnected(); return; }
+      if (data.qr_data_url) { setQrDataUrl(data.qr_data_url); setPairState("qr_ready"); }
+      // Poll for connection.
+      const pollId = setInterval(async () => {
+        const s = await fetch(`/api/gateways/${platform}/pair/status`).then(r => r.json());
+        if (s.state === "connected") { clearInterval(pollId); setPairState("connected"); onConnected(); }
+        else if (s.state === "error") { clearInterval(pollId); setPairState("error"); setError(s.error); }
+      }, 2000);
+      // Stop polling after 2 minutes.
+      setTimeout(() => clearInterval(pollId), 120000);
+    } catch (e) { setError(String(e)); setPairState("error"); }
+  };
+
   const handleSave = async () => {
     setSaving(true);
     setError(null);
@@ -922,7 +948,42 @@ export function SetupWizard({
               </ol>
             </div>
 
-            {/* Token inputs */}
+            {/* QR code pairing flow */}
+            {"pairFlow" in config && config.pairFlow === "qr" ? (
+              <div className="p-6 flex flex-col items-center gap-4">
+                {pairState === "idle" && (
+                  <button
+                    type="button"
+                    onClick={startQRPairing}
+                    className="px-6 py-3 bg-[#25D366] hover:bg-[#20bd5a] text-white rounded-lg font-medium text-sm transition-colors"
+                  >
+                    Generate QR Code
+                  </button>
+                )}
+                {pairState === "loading" && (
+                  <div className="text-bc-muted text-sm animate-pulse">Generating QR code...</div>
+                )}
+                {pairState === "qr_ready" && qrDataUrl && (
+                  <div className="flex flex-col items-center gap-3">
+                    <img src={qrDataUrl} alt="WhatsApp QR Code" className="w-56 h-56 rounded-lg border border-bc-border" />
+                    <p className="text-xs text-bc-muted text-center">
+                      Open WhatsApp → Linked Devices → Link a Device<br />
+                      Scan this QR code with your phone
+                    </p>
+                    <div className="flex items-center gap-2 text-xs text-bc-muted">
+                      <span className="w-2 h-2 bg-amber-400 rounded-full animate-pulse" />
+                      Waiting for scan...
+                    </div>
+                  </div>
+                )}
+                {pairState === "connected" && (
+                  <div className="flex items-center gap-2 text-sm text-green-400">
+                    <span className="text-lg">✓</span> WhatsApp connected!
+                  </div>
+                )}
+              </div>
+            ) : (
+            /* Token inputs */
             <div className="p-4 space-y-3">
               {config.fields.map((field) => (
                 <div key={field.key}>
@@ -940,6 +1001,7 @@ export function SetupWizard({
                 </div>
               ))}
             </div>
+            )}
 
             {/* Error */}
             {error && (

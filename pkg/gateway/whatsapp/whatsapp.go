@@ -5,6 +5,7 @@ package whatsapp
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -14,6 +15,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	qrcode "github.com/skip2/go-qrcode"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/store/sqlstore"
@@ -57,10 +59,134 @@ func (a *Adapter) Name() string              { return a.name }
 func (a *Adapter) Type() gateway.AdapterType { return gateway.AdapterSocket }
 func (a *Adapter) HTTPHandler() http.Handler { return nil } //nolint:revive
 
-// QRChannel returns the channel that receives QR code strings during pairing.
-// The web UI polls this to display the QR for scanning.
-func (a *Adapter) QRChannel() <-chan string {
-	return a.qrChan
+// PairStatus represents the current state of WhatsApp pairing.
+type PairStatus struct {
+	State      string `json:"state"` // "idle", "qr_ready", "connected", "error"
+	QRDataURL  string `json:"qr_data_url,omitempty"`
+	Error      string `json:"error,omitempty"`
+	Phone      string `json:"phone,omitempty"`
+}
+
+// StartPairing initiates a QR code pairing flow. Returns immediately with
+// the QR code as a data URL. Does not require bcd restart.
+func (a *Adapter) StartPairing(ctx context.Context) (*PairStatus, error) {
+	if err := os.MkdirAll(a.stateDir, 0o700); err != nil {
+		return nil, fmt.Errorf("whatsapp: create state dir: %w", err)
+	}
+
+	dbPath := filepath.Join(a.stateDir, "whatsapp.db")
+	container, err := sqlstore.New(ctx, "sqlite3", fmt.Sprintf("file:%s?_foreign_keys=on", dbPath), nil)
+	if err != nil {
+		return nil, fmt.Errorf("whatsapp: open session store: %w", err)
+	}
+
+	deviceStore, err := container.GetFirstDevice(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("whatsapp: get device: %w", err)
+	}
+
+	// Already paired?
+	if deviceStore.ID != nil {
+		client := whatsmeow.NewClient(deviceStore, nil)
+		if err := client.Connect(); err == nil {
+			a.mu.Lock()
+			a.client = client
+			a.container = container
+			a.connected = true
+			a.mu.Unlock()
+			return &PairStatus{State: "connected", Phone: deviceStore.ID.User}, nil
+		}
+	}
+
+	// Start fresh pairing.
+	client := whatsmeow.NewClient(deviceStore, nil)
+
+	qrChan, _ := client.GetQRChannel(ctx)
+
+	if err := client.Connect(); err != nil {
+		return nil, fmt.Errorf("whatsapp: connect: %w", err)
+	}
+
+	// Wait for first QR code (with timeout).
+	var qrCode string
+	timeout := time.After(15 * time.Second)
+	for {
+		select {
+		case evt := <-qrChan:
+			if evt.Event == "code" {
+				qrCode = evt.Code
+				goto gotQR
+			}
+			if evt.Event == "success" {
+				a.mu.Lock()
+				a.client = client
+				a.container = container
+				a.connected = true
+				a.mu.Unlock()
+				return &PairStatus{State: "connected"}, nil
+			}
+		case <-timeout:
+			client.Disconnect()
+			return nil, fmt.Errorf("whatsapp: timeout waiting for QR code")
+		case <-ctx.Done():
+			client.Disconnect()
+			return nil, ctx.Err()
+		}
+	}
+
+gotQR:
+	// Generate QR code as PNG base64.
+	png, qrErr := qrcode.Encode(qrCode, qrcode.Medium, 256)
+	if qrErr != nil {
+		client.Disconnect()
+		return nil, fmt.Errorf("whatsapp: generate QR image: %w", qrErr)
+	}
+	dataURL := "data:image/png;base64," + base64.StdEncoding.EncodeToString(png)
+
+	// Store client for background — wait for scan in goroutine.
+	a.mu.Lock()
+	a.client = client
+	a.container = container
+	a.mu.Unlock()
+
+	go func() {
+		for evt := range qrChan {
+			if evt.Event == "success" {
+				a.mu.Lock()
+				a.connected = true
+				a.lastError = ""
+				a.mu.Unlock()
+				log.Info("whatsapp: paired successfully")
+				// Register event handler for messages.
+				client.AddEventHandler(func(evt interface{}) {
+					a.handleEvent(evt)
+				})
+				return
+			}
+		}
+	}()
+
+	return &PairStatus{State: "qr_ready", QRDataURL: dataURL}, nil
+}
+
+// GetPairStatus returns the current pairing/connection state.
+func (a *Adapter) GetPairStatus() *PairStatus {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.connected {
+		phone := ""
+		if a.client != nil && a.client.Store.ID != nil {
+			phone = a.client.Store.ID.User
+		}
+		return &PairStatus{State: "connected", Phone: phone}
+	}
+	if a.lastError != "" {
+		return &PairStatus{State: "error", Error: a.lastError}
+	}
+	if a.client != nil {
+		return &PairStatus{State: "pairing"}
+	}
+	return &PairStatus{State: "idle"}
 }
 
 // Start connects to WhatsApp. If no session exists, it initiates QR pairing.
