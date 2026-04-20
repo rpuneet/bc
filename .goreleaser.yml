@@ -2,7 +2,8 @@
 # https://goreleaser.com
 #
 # macOS builds are handled separately in CI (release.yml) due to CGO requirements.
-# This config only builds linux/amd64.
+# Linux arm64 uses Zig as a CGO cross-compiler.
+# Windows builds disable CGO (pure Go fallbacks).
 
 version: 2
 
@@ -13,7 +14,8 @@ before:
     - go mod tidy
 
 builds:
-  - id: bc
+  # Linux amd64 — native CGO
+  - id: bc-linux-amd64
     main: ./cmd/bc
     binary: bc
     env:
@@ -28,9 +30,47 @@ builds:
     goarch:
       - amd64
 
+  # Linux arm64 — CGO via Zig cross-compiler
+  - id: bc-linux-arm64
+    main: ./cmd/bc
+    binary: bc
+    env:
+      - CGO_ENABLED=1
+      - CC=zig cc -target aarch64-linux-musl -lc
+      - CXX=zig c++ -target aarch64-linux-musl -lc
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.commit={{.ShortCommit}}
+      - -X main.date={{.Date}}
+    goos:
+      - linux
+    goarch:
+      - arm64
+
+  # Windows — CGO disabled (pure Go)
+  - id: bc-windows
+    main: ./cmd/bc
+    binary: bc
+    env:
+      - CGO_ENABLED=0
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.commit={{.ShortCommit}}
+      - -X main.date={{.Date}}
+    goos:
+      - windows
+    goarch:
+      - amd64
+      - arm64
+
 archives:
   - id: default
     format: tar.gz
+    format_overrides:
+      - goos: windows
+        format: zip
     name_template: >-
       {{ .ProjectName }}_
       {{- .Version }}_
@@ -86,6 +126,17 @@ release:
     ## bc {{ .Tag }}
 
     Orchestration for AI agents.
+
+    ### Install
+
+    | Method | Command |
+    |--------|---------|
+    | **Homebrew** (macOS) | `brew install rpuneet/bc/bc` |
+    | **npm / bun** (Linux) | `npm install -g bc-cli` or `bunx bc-cli` |
+    | **Go** | `go install github.com/rpuneet/bc/cmd/bc@{{ .Tag }}` |
+    | **Script** | `curl -fsSL https://raw.githubusercontent.com/rpuneet/bc/main/scripts/install.sh \| bash` |
+    | **Docker** | `docker pull ghcr.io/rpuneet/bc:{{ .Tag }}` |
+    | **Scoop** (Windows) | `scoop bucket add bc https://github.com/rpuneet/scoop-bc && scoop install bc` |
   footer: |
     ---
 
@@ -99,12 +150,35 @@ brews:
       token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
       branch: main
     directory: Formula
-    homepage: https://github.com/rpuneet/bc
+    homepage: https://bc-infra.com
     description: Orchestration for AI agents
     license: MIT
-    # Homebrew publish is gated by --skip=homebrew in release.yml when token not set
     skip_upload: auto
     install: |
       bin.install "bc"
     test: |
       system "#{bin}/bc", "version"
+
+scoops:
+  - name: bc
+    repository:
+      owner: rpuneet
+      name: scoop-bc
+      token: "{{ .Env.SCOOP_TAP_TOKEN }}"
+      branch: main
+    homepage: https://bc-infra.com
+    description: Orchestration for AI agents
+    license: MIT
+    skip_upload: auto
+
+nfpms:
+  - id: bc-linux
+    package_name: bc
+    homepage: https://bc-infra.com
+    description: Orchestration for AI agents
+    license: MIT
+    maintainer: "rpuneet <rpuneet@users.noreply.github.com>"
+    formats:
+      - deb
+      - rpm
+    bindir: /usr/bin
