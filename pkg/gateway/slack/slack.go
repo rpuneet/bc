@@ -256,7 +256,13 @@ func (a *Adapter) processEvent(sm *socketmode.Client, evt socketmode.Event) {
 			return
 		}
 		sm.Ack(*evt.Request) //nolint:errcheck // best-effort ack
-		a.handleEventsAPI(eventsAPIEvent)
+		// Pass raw payload so file metadata can be extracted from the
+		// original JSON (the typed struct drops unknown fields like files).
+		var rawPayload json.RawMessage
+		if evt.Request != nil {
+			rawPayload = evt.Request.Payload
+		}
+		a.handleEventsAPI(eventsAPIEvent, rawPayload)
 
 	case socketmode.EventTypeConnecting:
 		log.Info("slack: connecting via Socket Mode...")
@@ -279,19 +285,19 @@ func (a *Adapter) processEvent(sm *socketmode.Client, evt socketmode.Event) {
 }
 
 // handleEventsAPI processes Events API payloads.
-func (a *Adapter) handleEventsAPI(event slackevents.EventsAPIEvent) {
+func (a *Adapter) handleEventsAPI(event slackevents.EventsAPIEvent, rawPayload json.RawMessage) {
 	switch event.Type {
 	case slackevents.CallbackEvent:
 		innerEvent := event.InnerEvent
 		switch ev := innerEvent.Data.(type) {
 		case *slackevents.MessageEvent:
-			a.handleMessageEvent(ev)
+			a.handleMessageEvent(ev, rawPayload)
 		}
 	}
 }
 
 // handleMessageEvent processes a single message event.
-func (a *Adapter) handleMessageEvent(ev *slackevents.MessageEvent) {
+func (a *Adapter) handleMessageEvent(ev *slackevents.MessageEvent, rawPayload json.RawMessage) {
 	// Skip bot messages and message edits/deletes.
 	// Allow file_share subtype for image sharing.
 	if ev.User == a.botUserID || ev.User == "" {
@@ -307,6 +313,15 @@ func (a *Adapter) handleMessageEvent(ev *slackevents.MessageEvent) {
 	}
 	if content == "" && ev.SubType == "file_share" {
 		content = "[shared a file]"
+	}
+
+	// Extract file metadata from raw payload and append to content.
+	if ev.SubType == "file_share" {
+		if files := extractSlackFiles(rawPayload); len(files) > 0 {
+			for _, f := range files {
+				content += "\n" + f
+			}
+		}
 	}
 
 	// Resolve channel name
@@ -382,5 +397,51 @@ func (a *Adapter) handleMessageEvent(ev *slackevents.MessageEvent) {
 			Timestamp: now,
 			Raw:       raw,
 		})
+	}
+}
+
+// extractSlackFiles parses file metadata from the raw Slack event payload.
+// The Slack Events API includes a "files" array in file_share messages, but
+// the slackevents.MessageEvent struct does not expose it, so we extract it
+// from the raw JSON.  Returns lines like:
+//
+//	📎 Screenshot.png (159 KB) [image/png]
+func extractSlackFiles(rawPayload json.RawMessage) []string {
+	if len(rawPayload) == 0 {
+		return nil
+	}
+	// The payload wraps the event: {"event": {"files": [...]}}
+	var envelope struct {
+		Event struct {
+			Files []struct {
+				Name     string `json:"name"`
+				Mimetype string `json:"mimetype"`
+				Size     int64  `json:"size"`
+			} `json:"files"`
+		} `json:"event"`
+	}
+	if err := json.Unmarshal(rawPayload, &envelope); err != nil {
+		return nil
+	}
+	var lines []string
+	for _, f := range envelope.Event.Files {
+		name := f.Name
+		if name == "" {
+			name = "file"
+		}
+		lines = append(lines, fmt.Sprintf("\U0001F4CE %s (%s) [%s]", name, humanSize(f.Size), f.Mimetype))
+	}
+	return lines
+}
+
+// humanSize formats bytes into a human-readable string.
+func humanSize(b int64) string {
+	switch {
+	case b >= 1<<20:
+		return fmt.Sprintf("%.1f MB", float64(b)/float64(1<<20))
+	case b >= 1<<10:
+		return fmt.Sprintf("%d KB", b/(1<<10))
+	default:
+		return fmt.Sprintf("%d B", b)
 	}
 }

@@ -42,11 +42,26 @@ function senderInitials(sender: string): string {
 interface FileAttachmentInfo {
   type: "photo" | "video" | "document" | "file";
   name?: string;
+  size?: string;
+  mimetype?: string;
   icon: string;
 }
 
+/** Guess icon from mimetype or filename. */
+function fileIcon(mimetype?: string, name?: string): string {
+  if (mimetype?.startsWith("image/")) return "image";
+  if (mimetype?.startsWith("video/")) return "video";
+  if (name) {
+    const ext = name.split(".").pop()?.toLowerCase() ?? "";
+    if (["png", "jpg", "jpeg", "gif", "webp", "svg"].includes(ext)) return "image";
+    if (["mp4", "mov", "webm", "avi"].includes(ext)) return "video";
+  }
+  return "file";
+}
+
 /** Parse file attachment placeholders from message content.
- *  Telegram adapter adds [photo], [document:filename.ext], [video] etc. */
+ *  Telegram adapter adds [photo], [document:filename.ext], [video] etc.
+ *  Slack adapter adds lines like: 📎 name (size) [mimetype] */
 function parseFileAttachments(content: string): FileAttachmentInfo[] {
   const attachments: FileAttachmentInfo[] = [];
   const photoRe = /\[photo(?::([^\]]*))?\]/gi;
@@ -61,6 +76,19 @@ function parseFileAttachments(content: string): FileAttachmentInfo[] {
   const docRe = /\[(?:document|file):([^\]]+)\]/gi;
   while ((m = docRe.exec(content)) !== null) {
     attachments.push({ type: "document", name: m[1], icon: "file" });
+  }
+  // Slack file_share: 📎 filename (size) [mimetype]
+  const clipRe = /\u{1F4CE}\s+(.+?)\s+\(([^)]+)\)\s+\[([^\]]+)\]/gu;
+  while ((m = clipRe.exec(content)) !== null) {
+    const name = m[1];
+    const mt = m[3] ?? "";
+    attachments.push({
+      type: mt.startsWith("image/") ? "photo" : mt.startsWith("video/") ? "video" : "file",
+      name,
+      size: m[2],
+      mimetype: mt,
+      icon: fileIcon(mt, name),
+    });
   }
   return attachments;
 }
@@ -103,6 +131,9 @@ function FileAttachmentCard({ attachment }: { attachment: FileAttachmentInfo }) 
         {iconMap[attachment.icon] ?? iconMap.file}
       </span>
       <span style={{ color: "#e5e5e5" }}>{attachment.name}</span>
+      {attachment.size && (
+        <span style={{ color: "#6b6b6b", fontSize: 10 }}>({attachment.size})</span>
+      )}
     </div>
   );
 }
