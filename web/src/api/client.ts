@@ -551,13 +551,11 @@ export interface SettingsConfig {
   ui: { theme: string; mode: string; default_view: string };
 }
 
-/** Split "slack:eng" into { gw: "slack", ch: "eng" }. Returns empty if not a gateway channel. */
+/** Split "slack:eng" into { gw: "slack", ch: "eng" }. Any "platform:channel" pattern works. */
 function splitChannel(channel: string): { gw: string; ch: string } {
-  const platforms = ["slack", "telegram", "discord", "github"];
-  for (const p of platforms) {
-    if (channel.startsWith(p + ":")) {
-      return { gw: p, ch: channel.slice(p.length + 1) };
-    }
+  const idx = channel.indexOf(":");
+  if (idx > 0) {
+    return { gw: channel.slice(0, idx), ch: channel.slice(idx + 1) };
   }
   return { gw: "", ch: "" };
 }

@@ -28,9 +28,7 @@ export function Notifications() {
   // Auto-select first gateway source if none selected
   useEffect(() => {
     if (!selected && sources && sources.length > 0) {
-      const gwSource = sources.find((c) =>
-        c.name.startsWith("slack:") || c.name.startsWith("telegram:") || c.name.startsWith("discord:")
-      );
+      const gwSource = sources.find((c) => c.name.includes(":"));
       if (gwSource) {
         navigate("/notifications/" + gwSource.name, { replace: true });
       }
