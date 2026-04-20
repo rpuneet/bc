@@ -222,39 +222,49 @@ Delete role. Agents keep their current config.
 Notification gateways bridge external platforms to bc agents. See [Channel Architecture](../architecture/notifications.md) for full design.
 
 ### `GET /api/gateways`
+
 List all gateways with connection status.
 
 ### `POST /api/gateways`
+
 Connect a new gateway.
 
 **Body:** `{"platform": "slack", "tokens": {"bot_token": "xoxb-...", "app_token": "xapp-..."}}`
 
 ### `PATCH /api/gateways/{gateway}`
+
 Update gateway tokens/settings.
 
 ### `DELETE /api/gateways/{gateway}`
+
 Disconnect and remove gateway.
 
 ### `GET /api/gateways/{gateway}/health`
+
 Live connection probe.
 
 ### `GET /api/gateways/{gateway}/channels`
+
 List discovered channels for a gateway.
 
 ### `POST /api/gateways/{gateway}/channels/{channel}/agents`
+
 Subscribe an agent to a channel.
 
 **Body:** `{"agent": "eng-01", "mention_only": false}`
 
 ### `DELETE /api/gateways/{gateway}/channels/{channel}/agents/{agent}`
+
 Unsubscribe agent from channel.
 
 ### `PATCH /api/gateways/{gateway}/channels/{channel}/agents/{agent}`
+
 Update subscription settings (e.g., toggle mention_only).
 
 **Body:** `{"mention_only": true}`
 
 ### `GET /api/gateways/{gateway}/channels/{channel}/activity`
+
 Recent delivery log entries for a channel.
 
 ---

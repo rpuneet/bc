@@ -183,6 +183,7 @@ bc notify history slack:engineering --last 10
 **Cause**: Invalid credentials, network issue, or platform revoked access.
 
 **Solution**:
+
 ```bash
 # Check adapter status for error details
 bc notify status
