@@ -89,29 +89,25 @@ jobs:
       - name: Build TUI bundle for embed
         run: make build-local-tui-bundle
 
-      - name: Determine goreleaser skip flags
-        id: release_flags
+      - name: Verify release secrets
         env:
           HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
           SCOOP_TAP_TOKEN: ${{ secrets.SCOOP_TAP_TOKEN }}
         run: |
-          SKIP="validate"
-          if [ -z "$HOMEBREW_TAP_TOKEN" ]; then
-            SKIP="$SKIP,homebrew"
-            echo "HOMEBREW_TAP_TOKEN not set — skipping Homebrew publish"
+          MISSING=""
+          if [ -z "$HOMEBREW_TAP_TOKEN" ]; then MISSING="$MISSING HOMEBREW_TAP_TOKEN"; fi
+          if [ -z "$SCOOP_TAP_TOKEN" ]; then MISSING="$MISSING SCOOP_TAP_TOKEN"; fi
+          if [ -n "$MISSING" ]; then
+            echo "::error::Missing required secrets:$MISSING"
+            exit 1
           fi
-          if [ -z "$SCOOP_TAP_TOKEN" ]; then
-            SKIP="$SKIP,scoop"
-            echo "SCOOP_TAP_TOKEN not set — skipping Scoop publish"
-          fi
-          echo "skip=$SKIP" >> "$GITHUB_OUTPUT"
 
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@ec59f474b9834571250b370d4735c50f8e2d1e29 # v7
         with:
           distribution: goreleaser
           version: 'v2.8.2'
-          args: release --clean --skip=${{ steps.release_flags.outputs.skip }}
+          args: release --clean --skip=validate
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
