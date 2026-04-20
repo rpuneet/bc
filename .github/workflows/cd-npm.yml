@@ -1,0 +1,66 @@
+# Publish bc-cli to npm after a successful release
+# Triggered automatically when release.yml completes successfully.
+# The npm package is a thin wrapper that downloads the Go binary at install time.
+
+name: CD (npm)
+
+on:
+  workflow_run:
+    workflows: [Release]
+    types: [completed]
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: Publish to npm
+    runs-on: ubuntu-latest
+    if: github.event.workflow_run.conclusion == 'success'
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Resolve version from git tag at HEAD
+        id: version
+        run: |
+          TAG=$(git describe --tags --exact-match HEAD 2>/dev/null || git tag --points-at HEAD | head -n1)
+          if [ -z "$TAG" ]; then
+            echo "No tag found at HEAD"
+            exit 1
+          fi
+          VERSION="${TAG#v}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Publishing bc-cli@$VERSION"
+
+      - name: Set package version
+        working-directory: packages/bc-cli
+        env:
+          PKG_VERSION: ${{ steps.version.outputs.version }}
+        run: npm version "$PKG_VERSION" --no-git-tag-version
+
+      - name: Check if version already published
+        id: published
+        working-directory: packages/bc-cli
+        env:
+          PKG_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          NAME=$(node -p "require('./package.json').name")
+          if npm view "${NAME}@${PKG_VERSION}" version >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "${NAME}@${PKG_VERSION} already published — skipping"
+          fi
+
+      - name: Publish to npm
+        if: steps.published.outputs.exists != 'true'
+        working-directory: packages/bc-cli
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --access public
