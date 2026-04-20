@@ -26,7 +26,7 @@ import { DisableInputProvider } from '../hooks';
 // Import views
 import { Dashboard } from '../views/Dashboard';
 import { AgentsView } from '../views/AgentsView';
-import { ChannelsView } from '../views/ChannelsView';
+import { NotificationsView } from '../views/NotificationsView';
 import { CostsView } from '../views/CostsView';
 import { RolesView } from '../views/RolesView';
 import { LogsView } from '../views/LogsView';
@@ -158,7 +158,7 @@ describe('Viewport CI - 80x24 Compliance', () => {
     const views = [
       { name: 'Dashboard', component: <Dashboard /> },
       { name: 'AgentsView', component: <AgentsView /> },
-      { name: 'ChannelsView', component: <ChannelsView /> },
+      { name: 'NotificationsView', component: <NotificationsView /> },
       { name: 'CostsView', component: <CostsView /> },
       { name: 'RolesView', component: <RolesView /> },
       { name: 'LogsView', component: <LogsView /> },
