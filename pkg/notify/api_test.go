@@ -42,6 +42,13 @@ func (m *mockAgentSender) Send(_ context.Context, name, message string) error {
 	return nil
 }
 
+func (m *mockAgentSender) SendAll(_ context.Context, message string) (int, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.calls = append(m.calls, agentSendCall{Name: "*", Message: message})
+	return 1, nil
+}
+
 func (m *mockAgentSender) getCalls() []agentSendCall {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -1187,7 +1194,7 @@ func TestDispatchMentionFilter_ViaHTTP(t *testing.T) {
 		t.Fatalf("expected 2 subscriptions, got %d", len(subs))
 	}
 
-	t.Run("message without mention — only eng-01 gets it", func(t *testing.T) {
+	t.Run("message broadcasts to all agents", func(t *testing.T) {
 		sender.mu.Lock()
 		sender.calls = nil
 		sender.mu.Unlock()
@@ -1198,14 +1205,14 @@ func TestDispatchMentionFilter_ViaHTTP(t *testing.T) {
 
 		calls := sender.getCalls()
 		if len(calls) != 1 {
-			t.Fatalf("expected 1 delivery (eng-01), got %d: %v", len(calls), calls)
+			t.Fatalf("expected 1 SendAll broadcast, got %d: %v", len(calls), calls)
 		}
-		if calls[0].Name != "eng-01" {
-			t.Errorf("expected delivery to eng-01, got %s", calls[0].Name)
+		if calls[0].Name != "*" {
+			t.Errorf("expected broadcast to *, got %s", calls[0].Name)
 		}
 	})
 
-	t.Run("message with @eng-02 mention — both get it", func(t *testing.T) {
+	t.Run("mentioned message also broadcasts to all", func(t *testing.T) {
 		sender.mu.Lock()
 		sender.calls = nil
 		sender.mu.Unlock()
@@ -1215,18 +1222,8 @@ func TestDispatchMentionFilter_ViaHTTP(t *testing.T) {
 		time.Sleep(150 * time.Millisecond)
 
 		calls := sender.getCalls()
-		if len(calls) != 2 {
-			t.Fatalf("expected 2 deliveries, got %d: %v", len(calls), calls)
-		}
-		recipients := make(map[string]bool)
-		for _, c := range calls {
-			recipients[c.Name] = true
-		}
-		if !recipients["eng-01"] {
-			t.Error("expected eng-01 to receive message")
-		}
-		if !recipients["eng-02"] {
-			t.Error("expected eng-02 to receive message (was mentioned)")
+		if len(calls) != 1 {
+			t.Fatalf("expected 1 SendAll broadcast, got %d: %v", len(calls), calls)
 		}
 	})
 
@@ -1239,46 +1236,38 @@ func TestDispatchMentionFilter_ViaHTTP(t *testing.T) {
 	}
 }
 
-// TestSelfSkip_ViaHTTP verifies an agent does not receive their own message.
-func TestSelfSkip_ViaHTTP(t *testing.T) {
+// TestBroadcastAll_ViaHTTP verifies all agents receive every notification.
+func TestBroadcastAll_ViaHTTP(t *testing.T) {
 	store := setupStore(t)
 	svc, sender := setupService(store)
 	ts := setupHandler(t, svc)
 
-	ctx := context.Background()
-
-	// Subscribe both agents via API
-	for _, agent := range []string{"eng-01", "eng-02"} {
+	// Subscribe agents via API (subscriptions are still stored for UI but
+	// delivery is broadcast to all running agents regardless).
+	for _, agentName := range []string{"eng-01", "eng-02"} {
 		resp := doJSON(t, http.MethodPost, ts.URL+"/api/notify/subscriptions",
-			map[string]any{"channel": "slack:eng", "agent": agent, "mention_only": false})
+			map[string]any{"channel": "slack:eng", "agent": agentName, "mention_only": false})
 		assertStatus(t, resp, http.StatusCreated)
 		_ = resp.Body.Close()
 	}
 
-	// Verify subscriptions
-	subs, err := store.Subscribers(ctx, "slack:eng")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(subs) != 2 {
-		t.Fatalf("expected 2 subscriptions, got %d", len(subs))
-	}
-
-	// eng-01 sends a message — should NOT receive it back
+	// Any sender — broadcast reaches all running agents
 	svc.Dispatch("slack:eng", "slack", "eng-01", "U001",
 		"I just pushed a fix", "msg-self", nil, nil)
 	time.Sleep(150 * time.Millisecond)
 
 	calls := sender.getCalls()
 	if len(calls) != 1 {
-		t.Fatalf("expected 1 delivery (eng-02 only, eng-01 self-skipped), got %d: %v", len(calls), calls)
+		t.Fatalf("expected 1 SendAll broadcast, got %d: %v", len(calls), calls)
 	}
-	if calls[0].Name != "eng-02" {
-		t.Errorf("expected delivery to eng-02, got %q", calls[0].Name)
+	if calls[0].Name != "*" {
+		t.Errorf("expected broadcast to *, got %q", calls[0].Name)
 	}
-	if calls[0].Name == "eng-01" {
-		t.Error("eng-01 should not receive their own message")
-	}
+
+	// Verify activity was stored
+	resp := doJSON(t, http.MethodGet, ts.URL+"/api/notify/activity/slack:eng", nil) //nolint:bodyclose
+	assertStatus(t, resp, http.StatusOK)
+	_ = resp.Body.Close()
 }
 
 // TestNotifyServiceUnavailable verifies 503 when service is not wired up.

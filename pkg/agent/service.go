@@ -322,6 +322,23 @@ func (s *AgentService) Send(ctx context.Context, name, message string) error {
 	return s.manager.SendToAgent(ctx, name, message)
 }
 
+// SendAll broadcasts a message to all running agents.
+func (s *AgentService) SendAll(ctx context.Context, message string) (int, error) {
+	agents := s.manager.ListAgents()
+	sent := 0
+	for _, a := range agents {
+		if a.State == StateStopped || a.State == StateError {
+			continue
+		}
+		if err := s.manager.SendToAgent(ctx, a.Name, message); err != nil {
+			log.Warn("send-all: failed", "agent", a.Name, "error", err)
+			continue
+		}
+		sent++
+	}
+	return sent, nil
+}
+
 // Peek returns recent output from an agent.
 func (s *AgentService) Peek(ctx context.Context, name string, lines int) (string, error) {
 	a := s.manager.GetAgent(name)
