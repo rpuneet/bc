@@ -129,7 +129,7 @@ func (a *Adapter) poll(ctx context.Context) {
 	a.lastError = ""
 	a.mu.Unlock()
 
-	var syncResp struct {
+	var syncResp struct { //nolint:govet // inline JSON decode struct; field order matches JSON schema
 		NextBatch string `json:"next_batch"`
 		Rooms     struct {
 			Join map[string]struct {

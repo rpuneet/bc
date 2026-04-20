@@ -440,7 +440,7 @@ func LoadRoleMemory(workspacePath string, role Role) *AgentMemory {
 const DefaultBootstrapDelay = 3 * time.Second
 
 // Manager handles agent lifecycle.
-type Manager struct {
+type Manager struct { //nolint:govet // field order is intentional for readability; struct is a singleton
 	agents           map[string]*Agent
 	backends         map[string]runtime.Backend // keyed by "tmux", "docker"
 	agentLocks       map[string]*sync.Mutex     // per-agent locks for slow I/O operations

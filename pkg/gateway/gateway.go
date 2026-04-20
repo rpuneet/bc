@@ -57,7 +57,7 @@ type Notification struct {
 	Channel   string          `json:"channel"`
 	Platform  string          `json:"platform"`
 	Sender    string          `json:"sender"`
-	Content   string          `json:"content"`  // human-readable text for display/storage
+	Content   string          `json:"content"` // human-readable text for display/storage
 	Mentions  []string        `json:"mentions"`
 }
 

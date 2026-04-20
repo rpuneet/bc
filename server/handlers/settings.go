@@ -145,14 +145,14 @@ func mergeGateways(dst *workspace.GatewaysConfig, raw json.RawMessage) error {
 		return err
 	}
 	var base map[string]json.RawMessage
-	if err := json.Unmarshal(existing, &base); err != nil {
-		return err
+	if unmarshalErr := json.Unmarshal(existing, &base); unmarshalErr != nil {
+		return unmarshalErr
 	}
 
 	// Parse the incoming patch as a map.
 	var patch map[string]json.RawMessage
-	if err := json.Unmarshal(raw, &patch); err != nil {
-		return err
+	if unmarshalErr := json.Unmarshal(raw, &patch); unmarshalErr != nil {
+		return unmarshalErr
 	}
 
 	// Merge: patch keys overwrite base keys, base keys not in patch are kept.

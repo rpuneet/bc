@@ -129,7 +129,7 @@ func (a *Adapter) poll(ctx context.Context) {
 	a.lastError = ""
 	a.mu.Unlock()
 
-	var result struct {
+	var result struct { //nolint:govet // inline JSON decode struct; field order matches JSON schema
 		Data []struct {
 			ID       string `json:"id"`
 			AuthorID string `json:"author_id"`

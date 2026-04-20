@@ -12,7 +12,7 @@ import (
 )
 
 func TestSecretValidation(t *testing.T) {
-	secret := "my-webhook-secret"
+	secret := "my-webhook-secret" //nolint:gosec // test-only constant, not a real credential
 
 	tests := []struct {
 		name       string
