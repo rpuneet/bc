@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { api } from "../../api/client";
 import type {
@@ -10,6 +10,7 @@ import type {
 } from "../../api/client";
 import { useWebSocket } from "../../hooks/useWebSocket";
 import { MessageContent } from "../MessageContent";
+import { useHeaderSlot } from "../../context/HeaderSlotContext";
 import {
   gatewayPlatform,
   formatRelativeTime,
@@ -180,9 +181,15 @@ export function GatewayFeed({
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [filterAgent, setFilterAgent] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
   const agentsPopoverRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const filterRef = useRef<HTMLDivElement>(null);
   const { subscribe } = useWebSocket();
 
   const platform = gatewayPlatform(channelName);
@@ -251,6 +258,30 @@ export function GatewayFeed({
       document.removeEventListener("keydown", handleKey);
     };
   }, [showAgents]);
+
+  // Close filter popover on outside click
+  useEffect(() => {
+    if (!filterOpen) return;
+    const handleClick = (e: MouseEvent) => {
+      if (filterRef.current && !filterRef.current.contains(e.target as Node)) {
+        setFilterOpen(false);
+      }
+    };
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setFilterOpen(false);
+    };
+    document.addEventListener("mousedown", handleClick);
+    document.addEventListener("keydown", handleKey);
+    return () => {
+      document.removeEventListener("mousedown", handleClick);
+      document.removeEventListener("keydown", handleKey);
+    };
+  }, [filterOpen]);
+
+  // Focus search input when opened
+  useEffect(() => {
+    if (searchOpen) searchInputRef.current?.focus();
+  }, [searchOpen]);
 
   const handleSubscribe = async (agentName: string) => {
     setAgentLoading(agentName);
@@ -411,9 +442,25 @@ export function GatewayFeed({
     .filter((a) => !subMap.has(a.name))
     .sort((a, b) => agentSortOrder(a) - agentSortOrder(b) || a.name.localeCompare(b.name));
 
-  /* ── Message grouping ─────────────────────────────────────── */
+  /* ── Message filtering & grouping ──────────────────────────── */
 
-  const sorted = [...messages].sort(
+  const filteredMessages = useMemo(() => {
+    let msgs = messages;
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      msgs = msgs.filter(
+        (m) =>
+          m.content.toLowerCase().includes(q) ||
+          m.sender.toLowerCase().includes(q),
+      );
+    }
+    if (filterAgent) {
+      msgs = msgs.filter((m) => m.sender === filterAgent);
+    }
+    return msgs;
+  }, [messages, searchQuery, filterAgent]);
+
+  const sorted = [...filteredMessages].sort(
     (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
   );
   const groups = groupMessages(sorted);
@@ -422,76 +469,67 @@ export function GatewayFeed({
 
   const PlatformGlyph = PLATFORM_GLYPHS[platform ?? ""];
 
-  return (
-    <div className="flex flex-col h-full" style={{ background: "#0d0d0d" }}>
-      {/* ── Header ─────────────────────────────────────────────── */}
-      <div
-        className="shrink-0 flex items-center"
-        style={{
-          height: 48,
-          gap: 10,
-          padding: "0 16px",
-          borderBottom: "1px solid #222222",
-          background: "#0d0d0d",
-        }}
-      >
-        {/* Channel name */}
-        <div className="flex items-center shrink-0" style={{ gap: 6 }}>
-          {platform && (
-            <span style={{ color: "#6b6b6b", fontFamily: "'JetBrains Mono', monospace", fontSize: 15, fontWeight: 400 }}>
-              #
-            </span>
-          )}
-          <span style={{ fontSize: 14, fontWeight: 600, color: "#e5e5e5", whiteSpace: "nowrap" }}>
-            {channelLabel}
-          </span>
-        </div>
+  /* ── Unique senders for filter dropdown ──────────────────── */
+  const uniqueSenders = useMemo(() => {
+    const senders = new Set(messages.map((m) => m.sender));
+    return [...senders].sort();
+  }, [messages]);
 
-        {/* Platform badge */}
+  /* ── Header slot — injects into Layout header ──────────── */
+  const liveCount = subscribedAgents.filter(
+    (a) => a.state === "running" || a.state === "working",
+  ).length;
+
+  const headerTitle = useMemo(
+    () => (
+      <div className="flex items-center" style={{ gap: 8 }}>
+        <span style={{ color: "#6b6b6b", fontSize: 13 }}>#</span>
+        <span style={{ fontSize: 13, fontWeight: 600, color: "#e5e5e5" }}>{channelLabel}</span>
         {platform && PlatformGlyph && (
           <div
-            className="flex items-center shrink-0"
+            className="flex items-center"
             style={{
-              gap: 5,
-              padding: "2px 7px 2px 6px",
+              gap: 4,
+              padding: "1px 6px",
               background: "#1a1a1a",
               borderRadius: 4,
-              fontSize: 11,
+              fontSize: 10,
               color: "#a0a0a0",
               fontWeight: 500,
-              whiteSpace: "nowrap",
             }}
           >
-            <PlatformGlyph size={11} />
+            <PlatformGlyph size={10} />
             <span>{platform}</span>
           </div>
         )}
-
-        {/* Message count */}
-        <div
-          className="flex items-center shrink-0"
+        <span
           style={{
-            gap: 8,
             color: "#6b6b6b",
-            fontSize: 11.5,
+            fontSize: 10.5,
             fontFamily: "'JetBrains Mono', monospace",
-            whiteSpace: "nowrap",
           }}
         >
-          <span>{messages.length} msgs</span>
-        </div>
+          {messages.length} msgs
+        </span>
+      </div>
+    ),
+    [channelLabel, platform, PlatformGlyph, messages.length],
+  );
 
+  const headerActions = useMemo(
+    () => (
+      <div className="flex items-center" style={{ gap: 4 }}>
         {/* Agents popover trigger */}
-        <div className="relative ml-auto shrink-0" ref={agentsPopoverRef}>
+        <div className="relative" ref={agentsPopoverRef}>
           <button
             type="button"
             onClick={() => setShowAgents((v) => !v)}
             className="flex items-center"
             style={{
-              gap: 6,
+              gap: 5,
               padding: "3px 8px 3px 6px",
               borderRadius: 5,
-              fontSize: 11,
+              fontSize: 10.5,
               color: showAgents ? "#e5e5e5" : "#a0a0a0",
               background: showAgents ? "#212121" : "#1a1a1a",
               cursor: "pointer",
@@ -502,7 +540,6 @@ export function GatewayFeed({
               transition: "background 100ms",
             }}
           >
-            {/* Mini avatar stack */}
             {subscribedAgents.length > 0 && (
               <span className="flex">
                 {subscribedAgents.slice(0, 3).map((a, i) => (
@@ -510,13 +547,13 @@ export function GatewayFeed({
                     key={a.name}
                     className="flex items-center justify-center"
                     style={{
-                      width: 16,
-                      height: 16,
-                      borderRadius: 4,
+                      width: 14,
+                      height: 14,
+                      borderRadius: 3,
                       background: agentColor(a.name),
-                      marginLeft: i === 0 ? 0 : -5,
-                      border: "1.5px solid #0d0d0d",
-                      fontSize: 8.5,
+                      marginLeft: i === 0 ? 0 : -4,
+                      border: "1px solid #0d0d0d",
+                      fontSize: 7.5,
                       fontWeight: 700,
                       color: "#0d0d0d",
                       fontFamily: "'JetBrains Mono', monospace",
@@ -527,438 +564,343 @@ export function GatewayFeed({
                 ))}
               </span>
             )}
-            {(() => {
-              const liveCount = subscribedAgents.filter(
-                (a) => a.state === "running" || a.state === "working",
-              ).length;
-              return (
-                <span>{liveCount}/{subscribedAgents.length + availableAgents.length} agents</span>
-              );
-            })()}
-            {/* Pulse dot */}
+            <span>{liveCount}/{subscribedAgents.length + availableAgents.length} agents</span>
             {subscribedAgents.some(a => a.state === "running" || a.state === "working") && (
-              <span
-                style={{
-                  width: 6,
-                  height: 6,
-                  borderRadius: 999,
-                  background: "#22c55e",
-                  boxShadow: "0 0 5px rgba(34,197,94,0.6)",
-                }}
-              />
+              <span style={{ width: 5, height: 5, borderRadius: 999, background: "#22c55e", boxShadow: "0 0 5px rgba(34,197,94,0.6)" }} />
             )}
-            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginLeft: 1, color: "#6b6b6b" }}>
+            <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: "#6b6b6b" }}>
               <polyline points="6 9 12 15 18 9" />
             </svg>
           </button>
-
-          {/* ── Agents popover ─────────────────────────────── */}
-          {showAgents && (
-            <div
-              style={{
-                position: "absolute",
-                top: 40,
-                right: 0,
-                width: 420,
-                background: "#1a1a1a",
-                borderRadius: 10,
-                boxShadow: "0 20px 60px rgba(0,0,0,0.6), 0 0 0 1px #2a2a2a",
-                zIndex: 50,
-                overflow: "hidden",
-                display: "flex",
-                flexDirection: "column",
-                maxHeight: 520,
-                animation: "fadeIn 120ms ease-out",
-              }}
-              onClick={(e) => e.stopPropagation()}
-            >
-              {/* Popover header */}
-              <div
-                className="flex items-center"
-                style={{
-                  padding: "12px 14px 10px",
-                  borderBottom: "1px solid #222222",
-                  gap: 8,
-                }}
-              >
-                <span style={{ fontSize: 13, fontWeight: 600, color: "#e5e5e5" }}>
-                  Subscribed agents
-                </span>
-                <span
-                  className="flex items-center ml-auto"
-                  style={{
-                    gap: 5,
-                    fontSize: 11,
-                    color: "#6b6b6b",
-                    fontFamily: "'JetBrains Mono', monospace",
-                  }}
-                >
-                  {subscribedAgents.some(a => a.state === "running" || a.state === "working") && (
-                    <span
-                      style={{
-                        width: 6,
-                        height: 6,
-                        borderRadius: 999,
-                        background: "#22c55e",
-                        boxShadow: "0 0 5px rgba(34,197,94,0.6)",
-                      }}
-                    />
-                  )}
-                  <span>
-                    {subscribedAgents.filter(a => a.state === "running" || a.state === "working").length} live
-                    {" "}· {agents.length} total
-                  </span>
-                </span>
-              </div>
-
-              {/* Loading skeleton */}
-              {popoverLoading && agents.length === 0 && (
-                <div className="p-3 space-y-3 animate-pulse">
-                  {[...Array(4)].map((_, i) => (
-                    <div key={i} className="flex items-center gap-2">
-                      <div className="w-7 h-7 rounded-md" style={{ background: "#212121" }} />
-                      <div className="h-3 rounded" style={{ background: "#212121", width: `${50 + i * 12}%` }} />
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Agent list */}
-              <div className="flex-1 overflow-auto" style={{ padding: "4px 0 8px", scrollbarWidth: "thin", scrollbarColor: "#2a2a2a transparent" }}>
-                <AnimatePresence>
-                  {/* Subscribed agents section */}
-                  {subscribedAgents.length > 0 && (
-                    <div>
-                      <div
-                        className="flex items-center"
-                        style={{
-                          padding: "10px 14px 4px",
-                          fontSize: 10,
-                          color: "#6b6b6b",
-                          textTransform: "uppercase",
-                          letterSpacing: 0.6,
-                          fontWeight: 600,
-                          gap: 6,
-                        }}
-                      >
-                        <span style={{ width: 5, height: 5, borderRadius: 999, background: "#22c55e" }} />
-                        <span>Listening</span>
-                        <span className="ml-auto" style={{ color: "#4a4a4a", fontFamily: "'JetBrains Mono', monospace", fontWeight: 400 }}>
-                          {subscribedAgents.length}
-                        </span>
-                      </div>
-                      {subscribedAgents.map((agent) => {
-                        const sub = subMap.get(agent.name);
-                        const isOnline = agent.state === "running" || agent.state === "working";
-                        const color = agentColor(agent.name);
-                        return (
-                          <motion.div
-                            key={agent.name}
-                            layout
-                            initial={{ opacity: 0, x: 8 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            exit={{ opacity: 0, x: -8 }}
-                            transition={{ duration: 0.12 }}
-                            className="flex"
-                            style={{ gap: 10, padding: "8px 14px", cursor: "pointer" }}
-                          >
-                            {/* Agent avatar */}
-                            <div className="relative" style={{ width: 28, height: 28, minWidth: 28 }}>
-                              <span
-                                className="flex items-center justify-center"
-                                style={{
-                                  width: 28,
-                                  height: 28,
-                                  borderRadius: 6,
-                                  background: color,
-                                  color: "#0d0d0d",
-                                  fontWeight: 700,
-                                  fontSize: 10.5,
-                                  fontFamily: "'JetBrains Mono', monospace",
-                                }}
-                              >
-                                {agent.name.slice(0, 2).toUpperCase()}
-                              </span>
-                              <span
-                                style={{
-                                  position: "absolute",
-                                  bottom: -1,
-                                  right: -1,
-                                  width: 8,
-                                  height: 8,
-                                  borderRadius: 999,
-                                  background: isOnline ? "#22c55e" : agent.state === "idle" ? "#f59e0b" : "#4a4a4a",
-                                  border: "2px solid #1a1a1a",
-                                  boxSizing: "content-box",
-                                }}
-                              />
-                            </div>
-                            {/* Agent info */}
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-baseline" style={{ gap: 6 }}>
-                                <span style={{ fontSize: 12.5, fontWeight: 600, color: "#e5e5e5", fontFamily: "'JetBrains Mono', monospace" }}>
-                                  {agent.name}
-                                </span>
-                                <span
-                                  style={{
-                                    fontSize: 10,
-                                    color: "#6b6b6b",
-                                    fontFamily: "'JetBrains Mono', monospace",
-                                    padding: "0 5px",
-                                    background: "#212121",
-                                    borderRadius: 3,
-                                    lineHeight: "14px",
-                                  }}
-                                >
-                                  {agent.role}
-                                </span>
-                                <span className="ml-auto" style={{ fontSize: 10.5, color: "#6b6b6b", fontFamily: "'JetBrains Mono', monospace" }}>
-                                  {agent.state}
-                                </span>
-                              </div>
-                              <div className="flex items-center mt-1" style={{ gap: 6 }}>
-                                <button
-                                  type="button"
-                                  onClick={() => handleToggleMention(agent.name, sub?.mention_only ?? false)}
-                                  disabled={agentLoading !== null}
-                                  className="transition-all"
-                                  style={{
-                                    fontSize: 9.5,
-                                    padding: "1px 6px",
-                                    borderRadius: 3,
-                                    border: sub?.mention_only ? "1px solid rgba(249,115,22,0.3)" : "1px solid #2a2a2a",
-                                    background: sub?.mention_only ? "rgba(249,115,22,0.08)" : "transparent",
-                                    color: sub?.mention_only ? "#f97316" : "#6b6b6b",
-                                    cursor: agentLoading === agent.name ? "wait" : "pointer",
-                                    fontFamily: "'JetBrains Mono', monospace",
-                                  }}
-                                >
-                                  {agentLoading === agent.name ? (
-                                    <span className="inline-block w-3 h-3 border border-current border-t-transparent rounded-full animate-spin" />
-                                  ) : sub?.mention_only ? "@ mentions" : "all msgs"}
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleUnsubscribe(agent.name)}
-                                  disabled={agentLoading !== null}
-                                  style={{
-                                    fontSize: 9.5,
-                                    color: "#4a4a4a",
-                                    cursor: agentLoading === agent.name ? "wait" : "pointer",
-                                    background: "none",
-                                    border: "none",
-                                    marginLeft: "auto",
-                                    fontFamily: "'JetBrains Mono', monospace",
-                                  }}
-                                  className="hover:text-red-400 transition-colors"
-                                >
-                                  {agentLoading === agent.name ? (
-                                    <span className="inline-block w-2.5 h-2.5 border border-current border-t-transparent rounded-full animate-spin" />
-                                  ) : "remove"}
-                                </button>
-                              </div>
-                            </div>
-                          </motion.div>
-                        );
-                      })}
-                    </div>
-                  )}
-
-                  {/* Divider */}
-                  {subscribedAgents.length > 0 && availableAgents.length > 0 && (
-                    <div style={{ margin: "4px 14px", borderTop: "1px solid #222222" }} />
-                  )}
-
-                  {/* Available agents */}
-                  {availableAgents.length > 0 && (
-                    <div>
-                      <div
-                        className="flex items-center"
-                        style={{
-                          padding: "10px 14px 4px",
-                          fontSize: 10,
-                          color: "#6b6b6b",
-                          textTransform: "uppercase",
-                          letterSpacing: 0.6,
-                          fontWeight: 600,
-                          gap: 6,
-                        }}
-                      >
-                        <span style={{ width: 5, height: 5, borderRadius: 999, background: "#4a4a4a" }} />
-                        <span>Available</span>
-                        <span className="ml-auto" style={{ color: "#4a4a4a", fontFamily: "'JetBrains Mono', monospace", fontWeight: 400 }}>
-                          {availableAgents.length}
-                        </span>
-                      </div>
-                      {availableAgents.map((agent) => {
-                        const isOnline = agent.state === "running" || agent.state === "working";
-                        const color = agentColor(agent.name);
-                        return (
-                          <motion.div
-                            key={agent.name}
-                            layout
-                            initial={{ opacity: 0, x: 8 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            exit={{ opacity: 0, x: -8 }}
-                            transition={{ duration: 0.12 }}
-                            className="flex items-center hover:bg-white/[0.03] transition-colors"
-                            style={{ gap: 10, padding: "8px 14px", cursor: "pointer" }}
-                          >
-                            <div className="relative" style={{ width: 28, height: 28, minWidth: 28 }}>
-                              <span
-                                className="flex items-center justify-center"
-                                style={{
-                                  width: 28,
-                                  height: 28,
-                                  borderRadius: 6,
-                                  background: `${color}40`,
-                                  color: color,
-                                  fontWeight: 700,
-                                  fontSize: 10.5,
-                                  fontFamily: "'JetBrains Mono', monospace",
-                                }}
-                              >
-                                {agent.name.slice(0, 2).toUpperCase()}
-                              </span>
-                              <span
-                                style={{
-                                  position: "absolute",
-                                  bottom: -1,
-                                  right: -1,
-                                  width: 8,
-                                  height: 8,
-                                  borderRadius: 999,
-                                  background: isOnline ? "#22c55e" : agent.state === "idle" ? "#f59e0b" : "#4a4a4a",
-                                  border: "2px solid #1a1a1a",
-                                  boxSizing: "content-box",
-                                }}
-                              />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-baseline" style={{ gap: 6 }}>
-                                <span style={{ fontSize: 12.5, fontWeight: 600, color: "#a0a0a0", fontFamily: "'JetBrains Mono', monospace" }}>
-                                  {agent.name}
-                                </span>
-                                <span
-                                  style={{
-                                    fontSize: 10,
-                                    color: "#6b6b6b",
-                                    fontFamily: "'JetBrains Mono', monospace",
-                                    padding: "0 5px",
-                                    background: "#212121",
-                                    borderRadius: 3,
-                                    lineHeight: "14px",
-                                  }}
-                                >
-                                  {agent.role}
-                                </span>
-                              </div>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => handleSubscribe(agent.name)}
-                              disabled={agentLoading !== null}
-                              style={{
-                                fontSize: 9.5,
-                                color: "#4a4a4a",
-                                cursor: agentLoading === agent.name ? "wait" : "pointer",
-                                background: "none",
-                                border: "none",
-                                fontFamily: "'JetBrains Mono', monospace",
-                              }}
-                              className="hover:text-orange-400 transition-colors"
-                            >
-                              {agentLoading === agent.name ? (
-                                <span className="inline-block w-2.5 h-2.5 border border-current border-t-transparent rounded-full animate-spin" />
-                              ) : "+ add"}
-                            </button>
-                          </motion.div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </AnimatePresence>
-
-                {agents.length === 0 && !popoverLoading && (
-                  <div className="p-6 text-center" style={{ fontSize: 11, color: "#4a4a4a" }}>
-                    No agents
-                  </div>
-                )}
-              </div>
-
-              {/* Popover footer */}
-              <div
-                className="flex"
-                style={{
-                  padding: "8px 10px",
-                  borderTop: "1px solid #222222",
-                  gap: 6,
-                  background: "#1a1a1a",
-                }}
-              >
-                <button
-                  type="button"
-                  className="flex items-center justify-center flex-1"
-                  style={{
-                    padding: "5px 8px",
-                    borderRadius: 5,
-                    background: "#212121",
-                    color: "#a0a0a0",
-                    fontSize: 11,
-                    fontWeight: 500,
-                    cursor: "pointer",
-                    border: "none",
-                    gap: 5,
-                  }}
-                >
-                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                    <circle cx="6" cy="6" r="2.5" /><circle cx="18" cy="18" r="2.5" /><circle cx="18" cy="6" r="2.5" />
-                    <path d="M6 8v8a2 2 0 0 0 2 2h7" /><path d="M18 8.5v7" />
-                  </svg>
-                  <span>Routing rules</span>
-                </button>
-              </div>
-            </div>
-          )}
         </div>
 
-        {/* Header action buttons */}
-        <div className="flex items-center shrink-0" style={{ gap: 4 }}>
-          {/* Search */}
+        {/* Search toggle */}
+        <button
+          type="button"
+          onClick={() => { setSearchOpen((v) => !v); if (searchOpen) setSearchQuery(""); }}
+          className="flex items-center justify-center"
+          style={{
+            width: 26,
+            height: 26,
+            borderRadius: 6,
+            color: searchOpen ? "#f97316" : "#6b6b6b",
+            cursor: "pointer",
+            background: searchOpen ? "rgba(249,115,22,0.1)" : "none",
+            border: "none",
+          }}
+          title="Search messages"
+        >
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="11" cy="11" r="7" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+          </svg>
+        </button>
+
+        {/* Filter toggle */}
+        <div className="relative" ref={filterRef}>
           <button
             type="button"
+            onClick={() => setFilterOpen((v) => !v)}
             className="flex items-center justify-center"
-            style={{ width: 26, height: 26, borderRadius: 6, color: "#6b6b6b", cursor: "pointer", background: "none", border: "none" }}
-            title="Search"
+            style={{
+              width: 26,
+              height: 26,
+              borderRadius: 6,
+              color: filterAgent ? "#f97316" : filterOpen ? "#e5e5e5" : "#6b6b6b",
+              cursor: "pointer",
+              background: filterAgent ? "rgba(249,115,22,0.1)" : "none",
+              border: "none",
+            }}
+            title="Filter messages"
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="11" cy="11" r="7" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
-            </svg>
-          </button>
-          {/* Filter */}
-          <button
-            type="button"
-            className="flex items-center justify-center"
-            style={{ width: 26, height: 26, borderRadius: 6, color: "#6b6b6b", cursor: "pointer", background: "none", border: "none" }}
-            title="Filter"
-          >
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
               <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
-            </svg>
-          </button>
-          {/* Settings */}
-          <button
-            type="button"
-            className="flex items-center justify-center"
-            style={{ width: 26, height: 26, borderRadius: 6, color: "#6b6b6b", cursor: "pointer", background: "none", border: "none" }}
-            title="Settings"
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="1" /><circle cx="19" cy="12" r="1" /><circle cx="5" cy="12" r="1" />
             </svg>
           </button>
         </div>
       </div>
+    ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [showAgents, searchOpen, filterOpen, filterAgent, liveCount, subscribedAgents, availableAgents],
+  );
+
+  useHeaderSlot({ title: headerTitle, actions: headerActions });
+
+  return (
+    <div className="flex flex-col h-full relative" style={{ background: "#0d0d0d" }}>
+      {/* ── Agents popover (overlays feed) ────────────────────── */}
+      {showAgents && (
+        <div
+          style={{
+            position: "absolute",
+            top: 4,
+            right: 16,
+            width: 420,
+            background: "#1a1a1a",
+            borderRadius: 10,
+            boxShadow: "0 20px 60px rgba(0,0,0,0.6), 0 0 0 1px #2a2a2a",
+            zIndex: 50,
+            overflow: "hidden",
+            display: "flex",
+            flexDirection: "column",
+            maxHeight: 520,
+            animation: "fadeIn 120ms ease-out",
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Popover header */}
+          <div
+            className="flex items-center"
+            style={{ padding: "12px 14px 10px", borderBottom: "1px solid #222222", gap: 8 }}
+          >
+            <span style={{ fontSize: 13, fontWeight: 600, color: "#e5e5e5" }}>Subscribed agents</span>
+            <span className="flex items-center ml-auto" style={{ gap: 5, fontSize: 11, color: "#6b6b6b", fontFamily: "'JetBrains Mono', monospace" }}>
+              {subscribedAgents.some(a => a.state === "running" || a.state === "working") && (
+                <span style={{ width: 6, height: 6, borderRadius: 999, background: "#22c55e", boxShadow: "0 0 5px rgba(34,197,94,0.6)" }} />
+              )}
+              <span>{liveCount} live · {agents.length} total</span>
+            </span>
+          </div>
+
+          {/* Loading skeleton */}
+          {popoverLoading && agents.length === 0 && (
+            <div className="p-3 space-y-3 animate-pulse">
+              {[...Array(4)].map((_, i) => (
+                <div key={i} className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-md" style={{ background: "#212121" }} />
+                  <div className="h-3 rounded" style={{ background: "#212121", width: `${50 + i * 12}%` }} />
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Agent list */}
+          <div className="flex-1 overflow-auto" style={{ padding: "4px 0 8px", scrollbarWidth: "thin", scrollbarColor: "#2a2a2a transparent" }}>
+            <AnimatePresence>
+              {subscribedAgents.length > 0 && (
+                <div>
+                  <div className="flex items-center" style={{ padding: "10px 14px 4px", fontSize: 10, color: "#6b6b6b", textTransform: "uppercase", letterSpacing: 0.6, fontWeight: 600, gap: 6 }}>
+                    <span style={{ width: 5, height: 5, borderRadius: 999, background: "#22c55e" }} />
+                    <span>Listening</span>
+                    <span className="ml-auto" style={{ color: "#4a4a4a", fontFamily: "'JetBrains Mono', monospace", fontWeight: 400 }}>{subscribedAgents.length}</span>
+                  </div>
+                  {subscribedAgents.map((agent) => {
+                    const sub = subMap.get(agent.name);
+                    const isOnline = agent.state === "running" || agent.state === "working";
+                    const color = agentColor(agent.name);
+                    return (
+                      <motion.div key={agent.name} layout initial={{ opacity: 0, x: 8 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -8 }} transition={{ duration: 0.12 }} className="flex" style={{ gap: 10, padding: "8px 14px", cursor: "pointer" }}>
+                        <div className="relative" style={{ width: 28, height: 28, minWidth: 28 }}>
+                          <span className="flex items-center justify-center" style={{ width: 28, height: 28, borderRadius: 6, background: color, color: "#0d0d0d", fontWeight: 700, fontSize: 10.5, fontFamily: "'JetBrains Mono', monospace" }}>
+                            {agent.name.slice(0, 2).toUpperCase()}
+                          </span>
+                          <span style={{ position: "absolute", bottom: -1, right: -1, width: 8, height: 8, borderRadius: 999, background: isOnline ? "#22c55e" : agent.state === "idle" ? "#f59e0b" : "#4a4a4a", border: "2px solid #1a1a1a", boxSizing: "content-box" }} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-baseline" style={{ gap: 6 }}>
+                            <span style={{ fontSize: 12.5, fontWeight: 600, color: "#e5e5e5", fontFamily: "'JetBrains Mono', monospace" }}>{agent.name}</span>
+                            <span style={{ fontSize: 10, color: "#6b6b6b", fontFamily: "'JetBrains Mono', monospace", padding: "0 5px", background: "#212121", borderRadius: 3, lineHeight: "14px" }}>{agent.role}</span>
+                            <span className="ml-auto" style={{ fontSize: 10.5, color: "#6b6b6b", fontFamily: "'JetBrains Mono', monospace" }}>{agent.state}</span>
+                          </div>
+                          <div className="flex items-center mt-1" style={{ gap: 6 }}>
+                            <button type="button" onClick={() => handleToggleMention(agent.name, sub?.mention_only ?? false)} disabled={agentLoading !== null} className="transition-all" style={{ fontSize: 9.5, padding: "1px 6px", borderRadius: 3, border: sub?.mention_only ? "1px solid rgba(249,115,22,0.3)" : "1px solid #2a2a2a", background: sub?.mention_only ? "rgba(249,115,22,0.08)" : "transparent", color: sub?.mention_only ? "#f97316" : "#6b6b6b", cursor: agentLoading === agent.name ? "wait" : "pointer", fontFamily: "'JetBrains Mono', monospace" }}>
+                              {agentLoading === agent.name ? <span className="inline-block w-3 h-3 border border-current border-t-transparent rounded-full animate-spin" /> : sub?.mention_only ? "@ mentions" : "all msgs"}
+                            </button>
+                            <button type="button" onClick={() => handleUnsubscribe(agent.name)} disabled={agentLoading !== null} style={{ fontSize: 9.5, color: "#4a4a4a", cursor: agentLoading === agent.name ? "wait" : "pointer", background: "none", border: "none", marginLeft: "auto", fontFamily: "'JetBrains Mono', monospace" }} className="hover:text-red-400 transition-colors">
+                              {agentLoading === agent.name ? <span className="inline-block w-2.5 h-2.5 border border-current border-t-transparent rounded-full animate-spin" /> : "remove"}
+                            </button>
+                          </div>
+                        </div>
+                      </motion.div>
+                    );
+                  })}
+                </div>
+              )}
+              {subscribedAgents.length > 0 && availableAgents.length > 0 && (
+                <div style={{ margin: "4px 14px", borderTop: "1px solid #222222" }} />
+              )}
+              {availableAgents.length > 0 && (
+                <div>
+                  <div className="flex items-center" style={{ padding: "10px 14px 4px", fontSize: 10, color: "#6b6b6b", textTransform: "uppercase", letterSpacing: 0.6, fontWeight: 600, gap: 6 }}>
+                    <span style={{ width: 5, height: 5, borderRadius: 999, background: "#4a4a4a" }} />
+                    <span>Available</span>
+                    <span className="ml-auto" style={{ color: "#4a4a4a", fontFamily: "'JetBrains Mono', monospace", fontWeight: 400 }}>{availableAgents.length}</span>
+                  </div>
+                  {availableAgents.map((agent) => {
+                    const isOnline = agent.state === "running" || agent.state === "working";
+                    const color = agentColor(agent.name);
+                    return (
+                      <motion.div key={agent.name} layout initial={{ opacity: 0, x: 8 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -8 }} transition={{ duration: 0.12 }} className="flex items-center hover:bg-white/[0.03] transition-colors" style={{ gap: 10, padding: "8px 14px", cursor: "pointer" }}>
+                        <div className="relative" style={{ width: 28, height: 28, minWidth: 28 }}>
+                          <span className="flex items-center justify-center" style={{ width: 28, height: 28, borderRadius: 6, background: `${color}40`, color: color, fontWeight: 700, fontSize: 10.5, fontFamily: "'JetBrains Mono', monospace" }}>
+                            {agent.name.slice(0, 2).toUpperCase()}
+                          </span>
+                          <span style={{ position: "absolute", bottom: -1, right: -1, width: 8, height: 8, borderRadius: 999, background: isOnline ? "#22c55e" : agent.state === "idle" ? "#f59e0b" : "#4a4a4a", border: "2px solid #1a1a1a", boxSizing: "content-box" }} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-baseline" style={{ gap: 6 }}>
+                            <span style={{ fontSize: 12.5, fontWeight: 600, color: "#a0a0a0", fontFamily: "'JetBrains Mono', monospace" }}>{agent.name}</span>
+                            <span style={{ fontSize: 10, color: "#6b6b6b", fontFamily: "'JetBrains Mono', monospace", padding: "0 5px", background: "#212121", borderRadius: 3, lineHeight: "14px" }}>{agent.role}</span>
+                          </div>
+                        </div>
+                        <button type="button" onClick={() => handleSubscribe(agent.name)} disabled={agentLoading !== null} style={{ fontSize: 9.5, color: "#4a4a4a", cursor: agentLoading === agent.name ? "wait" : "pointer", background: "none", border: "none", fontFamily: "'JetBrains Mono', monospace" }} className="hover:text-orange-400 transition-colors">
+                          {agentLoading === agent.name ? <span className="inline-block w-2.5 h-2.5 border border-current border-t-transparent rounded-full animate-spin" /> : "+ add"}
+                        </button>
+                      </motion.div>
+                    );
+                  })}
+                </div>
+              )}
+            </AnimatePresence>
+            {agents.length === 0 && !popoverLoading && (
+              <div className="p-6 text-center" style={{ fontSize: 11, color: "#4a4a4a" }}>No agents</div>
+            )}
+          </div>
+
+          {/* Popover footer */}
+          <div className="flex" style={{ padding: "8px 10px", borderTop: "1px solid #222222", gap: 6, background: "#1a1a1a" }}>
+            <button type="button" className="flex items-center justify-center flex-1" style={{ padding: "5px 8px", borderRadius: 5, background: "#212121", color: "#a0a0a0", fontSize: 11, fontWeight: 500, cursor: "pointer", border: "none", gap: 5 }}>
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="6" cy="6" r="2.5" /><circle cx="18" cy="18" r="2.5" /><circle cx="18" cy="6" r="2.5" />
+                <path d="M6 8v8a2 2 0 0 0 2 2h7" /><path d="M18 8.5v7" />
+              </svg>
+              <span>Routing rules</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Filter popover (overlays feed) ────────────────────── */}
+      {filterOpen && (
+        <div
+          style={{
+            position: "absolute",
+            top: 4,
+            right: 60,
+            width: 220,
+            background: "#1a1a1a",
+            borderRadius: 8,
+            boxShadow: "0 12px 40px rgba(0,0,0,0.5), 0 0 0 1px #2a2a2a",
+            zIndex: 50,
+            overflow: "hidden",
+            animation: "fadeIn 120ms ease-out",
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div style={{ padding: "10px 12px 6px", fontSize: 11, fontWeight: 600, color: "#a0a0a0", textTransform: "uppercase", letterSpacing: 0.5 }}>
+            Filter by sender
+          </div>
+          <div style={{ maxHeight: 200, overflowY: "auto", padding: "0 6px 8px", scrollbarWidth: "thin", scrollbarColor: "#2a2a2a transparent" }}>
+            <button
+              type="button"
+              onClick={() => { setFilterAgent(null); setFilterOpen(false); }}
+              style={{
+                display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "6px 8px", borderRadius: 5,
+                fontSize: 12, color: !filterAgent ? "#f97316" : "#a0a0a0", background: !filterAgent ? "rgba(249,115,22,0.08)" : "transparent",
+                border: "none", cursor: "pointer", textAlign: "left",
+              }}
+            >
+              All senders
+            </button>
+            {uniqueSenders.map((sender) => (
+              <button
+                key={sender}
+                type="button"
+                onClick={() => { setFilterAgent(sender); setFilterOpen(false); }}
+                style={{
+                  display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "6px 8px", borderRadius: 5,
+                  fontSize: 12, color: filterAgent === sender ? "#f97316" : "#a0a0a0", background: filterAgent === sender ? "rgba(249,115,22,0.08)" : "transparent",
+                  border: "none", cursor: "pointer", textAlign: "left",
+                  fontFamily: "'JetBrains Mono', monospace",
+                }}
+              >
+                <span
+                  className="flex items-center justify-center shrink-0"
+                  style={{ width: 18, height: 18, borderRadius: 4, background: agentColor(sender), color: "#0d0d0d", fontWeight: 700, fontSize: 8, fontFamily: "'JetBrains Mono', monospace" }}
+                >
+                  {senderInitials(sender)}
+                </span>
+                <span className="truncate">{cleanSender(sender)}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── Search bar (inline below header) ─────────────────── */}
+      {searchOpen && (
+        <div
+          className="shrink-0 flex items-center"
+          style={{
+            padding: "6px 16px",
+            borderBottom: "1px solid #222222",
+            background: "#151515",
+            gap: 8,
+          }}
+        >
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#6b6b6b" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+            <circle cx="11" cy="11" r="7" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+          </svg>
+          <input
+            ref={searchInputRef}
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Escape") { setSearchOpen(false); setSearchQuery(""); } }}
+            placeholder="Search messages..."
+            style={{
+              flex: 1,
+              background: "none",
+              border: "none",
+              outline: "none",
+              color: "#e5e5e5",
+              fontSize: 12,
+              fontFamily: "'JetBrains Mono', monospace",
+            }}
+          />
+          {searchQuery && (
+            <span style={{ fontSize: 10, color: "#6b6b6b", fontFamily: "'JetBrains Mono', monospace", whiteSpace: "nowrap" }}>
+              {filteredMessages.length} result{filteredMessages.length !== 1 ? "s" : ""}
+            </span>
+          )}
+          <button
+            type="button"
+            onClick={() => { setSearchOpen(false); setSearchQuery(""); }}
+            style={{ background: "none", border: "none", color: "#6b6b6b", cursor: "pointer", padding: 2 }}
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+        </div>
+      )}
+
+      {/* ── Active filter indicator ──────────────────────────── */}
+      {filterAgent && !filterOpen && (
+        <div
+          className="shrink-0 flex items-center"
+          style={{
+            padding: "4px 16px",
+            borderBottom: "1px solid #222222",
+            background: "#151515",
+            gap: 6,
+            fontSize: 11,
+            color: "#a0a0a0",
+          }}
+        >
+          <span style={{ color: "#6b6b6b" }}>Filtered by:</span>
+          <span style={{ color: "#f97316", fontFamily: "'JetBrains Mono', monospace" }}>{cleanSender(filterAgent)}</span>
+          <button
+            type="button"
+            onClick={() => setFilterAgent(null)}
+            style={{ background: "none", border: "none", color: "#6b6b6b", cursor: "pointer", padding: 2, marginLeft: "auto" }}
+            title="Clear filter"
+          >
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+        </div>
+      )}
 
       {/* Channel description / topic bar */}
       {channel?.description && channel.description !== "Gateway channel" && (

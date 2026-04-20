@@ -271,6 +271,7 @@ function NotificationNavTree() {
       {/* Routing rules */}
       <button
         type="button"
+        onClick={() => window.alert("Routing rules configuration coming soon. Use per-agent subscription controls in the agents popover.")}
         className="w-full flex items-center"
         style={{
           gap: 8,

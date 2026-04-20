@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { api } from "../api/client";
 import type { NotificationSource } from "../api/client";
@@ -11,7 +11,10 @@ import { GatewayFeed } from "../components/notifications/GatewayFeed";
 import { useHeaderSlot } from "../context/HeaderSlotContext";
 import { TabHeaderTitle } from "../components/Header";
 export function Notifications() {
-  useHeaderSlot({ title: <TabHeaderTitle>Notifications</TabHeaderTitle> });
+  // Set a default header; GatewayFeed overrides this when a channel is active.
+  // useMemo ensures stable references to avoid infinite re-render loops.
+  const defaultTitle = useMemo(() => <TabHeaderTitle>Notifications</TabHeaderTitle>, []);
+  useHeaderSlot({ title: defaultTitle });
 
   const { sourceName: paramSource } = useParams<{ sourceName: string }>();
   const navigate = useNavigate();
