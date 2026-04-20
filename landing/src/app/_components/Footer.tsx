@@ -7,11 +7,11 @@ export function Footer() {
         <div className="grid grid-cols-1 gap-12 md:grid-cols-5 mb-12">
           {/* Logo + tagline */}
           <div className="col-span-1 md:col-span-2 space-y-4">
-            <div className="flex items-center">
-              <span className="font-mono text-lg text-primary">&gt;</span>
-              <span className="font-mono text-lg font-bold tracking-tight text-on-surface ml-1">
-                mycel_
-              </span>
+            <div className="flex items-center gap-2">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/icon.svg" alt="" width={28} height={28} className="h-7 w-7" />
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/logo.svg" alt="mycel" height={20} className="h-5" />
             </div>
             <p className="text-sm text-on-surface-variant max-w-xs leading-relaxed">
               Multi-agent orchestration for AI coding assistants. CLI-first.

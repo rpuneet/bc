@@ -16,11 +16,11 @@ const links = [
 
 function Logo() {
   return (
-    <div className="flex items-center">
-      <span className="font-mono text-lg text-primary">&gt;</span>
-      <span className="font-mono text-lg font-bold tracking-tight text-on-surface ml-1">
-        mycel
-      </span>
+    <div className="flex items-center gap-2">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src="/icon.svg" alt="" width={28} height={28} className="h-7 w-7" />
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src="/logo.svg" alt="mycel" height={20} className="h-5" />
     </div>
   );
 }
