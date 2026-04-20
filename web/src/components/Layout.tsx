@@ -527,17 +527,39 @@ export function Layout() {
         <div className="px-3 py-3 border-b border-bc-border/30 flex items-center justify-between">
           {(!collapsed || isMobile) ? (
             <div className="flex items-center gap-2 overflow-hidden">
-              <span className="w-6 h-6 rounded-md bg-bc-accent/15 text-bc-accent flex items-center justify-center text-[10px] font-bold shrink-0">
-                {(userName || "U")[0]!.toUpperCase()}
+              <span
+                className="w-6 h-6 shrink-0 flex items-center justify-center font-bold"
+                style={{
+                  borderRadius: 7,
+                  background: "var(--bc-accent, #f97316)",
+                  color: "#0d0d0d",
+                  fontSize: 12,
+                  fontFamily: "'JetBrains Mono', monospace",
+                  letterSpacing: -0.5,
+                }}
+              >
+                bc
               </span>
               <div className="min-w-0">
-                <p className="text-[12px] font-medium text-bc-text truncate">{userName || "User"}</p>
-                <p className="text-[9px] text-bc-muted/40 -mt-0.5">workspace</p>
+                <p className="text-[13px] font-semibold text-bc-text truncate" style={{ letterSpacing: -0.1 }}>
+                  {userName ? `@${userName}` : "@bc"}
+                </p>
+                <p className="text-[9px] text-bc-muted/40 -mt-0.5" style={{ fontFamily: "'JetBrains Mono', monospace" }}>workspace</p>
               </div>
             </div>
           ) : (
-            <span className="w-6 h-6 rounded-md bg-bc-accent/15 text-bc-accent flex items-center justify-center text-[10px] font-bold shrink-0">
-              {(userName || "U")[0]!.toUpperCase()}
+            <span
+              className="w-6 h-6 shrink-0 flex items-center justify-center font-bold"
+              style={{
+                borderRadius: 7,
+                background: "var(--bc-accent, #f97316)",
+                color: "#0d0d0d",
+                fontSize: 12,
+                fontFamily: "'JetBrains Mono', monospace",
+                letterSpacing: -0.5,
+              }}
+            >
+              bc
             </span>
           )}
           {isMobile ? (

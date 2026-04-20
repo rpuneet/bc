@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { api } from "../../api/client";
 import type {
@@ -34,6 +35,76 @@ function cleanSender(sender: string): string {
 function senderInitials(sender: string): string {
   const clean = cleanSender(sender);
   return clean.slice(0, 2).toUpperCase();
+}
+
+/* ── File attachment detection ────────────────────────────────── */
+
+interface FileAttachmentInfo {
+  type: "photo" | "video" | "document" | "file";
+  name?: string;
+  icon: string;
+}
+
+/** Parse file attachment placeholders from message content.
+ *  Telegram adapter adds [photo], [document:filename.ext], [video] etc. */
+function parseFileAttachments(content: string): FileAttachmentInfo[] {
+  const attachments: FileAttachmentInfo[] = [];
+  const photoRe = /\[photo(?::([^\]]*))?\]/gi;
+  let m;
+  while ((m = photoRe.exec(content)) !== null) {
+    attachments.push({ type: "photo", name: m[1] || "Photo", icon: "image" });
+  }
+  const videoRe = /\[video(?::([^\]]*))?\]/gi;
+  while ((m = videoRe.exec(content)) !== null) {
+    attachments.push({ type: "video", name: m[1] || "Video", icon: "video" });
+  }
+  const docRe = /\[(?:document|file):([^\]]+)\]/gi;
+  while ((m = docRe.exec(content)) !== null) {
+    attachments.push({ type: "document", name: m[1], icon: "file" });
+  }
+  return attachments;
+}
+
+function FileAttachmentCard({ attachment }: { attachment: FileAttachmentInfo }) {
+  const iconMap: Record<string, JSX.Element> = {
+    image: (
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><polyline points="21 15 16 10 5 21" />
+      </svg>
+    ),
+    video: (
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <polygon points="23 7 16 12 23 17 23 7" /><rect x="1" y="5" width="15" height="14" rx="2" />
+      </svg>
+    ),
+    file: (
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline points="14 2 14 8 20 8" />
+      </svg>
+    ),
+  };
+
+  return (
+    <div
+      className="inline-flex items-center"
+      style={{
+        gap: 6,
+        padding: "3px 8px",
+        marginTop: 4,
+        borderRadius: 5,
+        background: "#1a1a1a",
+        border: "1px solid #2a2a2a",
+        fontSize: 11,
+        color: "#a0a0a0",
+        fontFamily: "'JetBrains Mono', monospace",
+      }}
+    >
+      <span style={{ color: "#6b6b6b", display: "flex" }}>
+        {iconMap[attachment.icon] ?? iconMap.file}
+      </span>
+      <span style={{ color: "#e5e5e5" }}>{attachment.name}</span>
+    </div>
+  );
 }
 
 /* ── Platform glyphs ─────────────────────────────────────────── */
@@ -192,6 +263,7 @@ export function GatewayFeed({
   const filterRef = useRef<HTMLDivElement>(null);
   const { subscribe } = useWebSocket();
 
+  const navigate = useNavigate();
   const platform = gatewayPlatform(channelName);
   const channelLabel = channelName.includes(":")
     ? channelName.split(":").slice(1).join(":")
@@ -483,6 +555,25 @@ export function GatewayFeed({
   const headerTitle = useMemo(
     () => (
       <div className="flex items-center" style={{ gap: 8 }}>
+        <button
+          type="button"
+          onClick={() => navigate(-1)}
+          className="flex items-center justify-center shrink-0"
+          style={{
+            width: 22,
+            height: 22,
+            borderRadius: 5,
+            color: "#6b6b6b",
+            cursor: "pointer",
+            background: "none",
+            border: "none",
+          }}
+          title="Go back"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="15 18 9 12 15 6" />
+          </svg>
+        </button>
         <span style={{ color: "#6b6b6b", fontSize: 13 }}>#</span>
         <span style={{ fontSize: 13, fontWeight: 600, color: "#e5e5e5" }}>{channelLabel}</span>
         {platform && PlatformGlyph && (
@@ -513,7 +604,7 @@ export function GatewayFeed({
         </span>
       </div>
     ),
-    [channelLabel, platform, PlatformGlyph, messages.length],
+    [channelLabel, platform, PlatformGlyph, messages.length, navigate],
   );
 
   const headerActions = useMemo(
@@ -1093,6 +1184,7 @@ export function GatewayFeed({
                           const failed = msgDeliveries.filter((d) => d.status === "failed");
                           const hasDelivery = delivered.length > 0 || failed.length > 0;
                           const ghCard = platform === "github" ? parseGitHubCard(msg.content) : null;
+                          const fileAttachments = parseFileAttachments(msg.content);
 
                           return (
                             <div key={msg.id} className="group/msg relative">
@@ -1113,6 +1205,15 @@ export function GatewayFeed({
                                     }}
                                   >
                                     <MessageContent content={msg.content} agentNames={agentNames} />
+                                  </div>
+                                )}
+
+                                {/* File attachments */}
+                                {fileAttachments.length > 0 && (
+                                  <div className="flex flex-wrap" style={{ gap: 4, marginTop: 2 }}>
+                                    {fileAttachments.map((att, i) => (
+                                      <FileAttachmentCard key={i} attachment={att} />
+                                    ))}
                                   </div>
                                 )}
 
