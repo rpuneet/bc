@@ -20,7 +20,7 @@ describe('Command Registry', () => {
   test('COMMAND_REGISTRY has expected categories', () => {
     const categoryNames = COMMAND_REGISTRY.map((cat) => cat.name);
     expect(categoryNames).toContain('Agent Management');
-    expect(categoryNames).toContain('Communication');
+    expect(categoryNames).toContain('Notifications');
     expect(categoryNames).toContain('Tracking & Monitoring');
     expect(categoryNames).toContain('Configuration');
     expect(categoryNames).toContain('Process Management');
@@ -63,9 +63,9 @@ describe('getAllCommands()', () => {
     expect(commands.some((cmd) => cmd.name === 'agent status')).toBe(true);
   });
 
-  test('includes channel send command', () => {
+  test('includes notify subscribe command', () => {
     const commands = getAllCommands();
-    expect(commands.some((cmd) => cmd.name === 'channel send')).toBe(true);
+    expect(commands.some((cmd) => cmd.name === 'notify subscribe')).toBe(true);
   });
 
   test('includes config show command', () => {
@@ -113,7 +113,7 @@ describe('searchCommands()', () => {
   });
 
   test('returns multiple matching results', () => {
-    const results = searchCommands('channel');
+    const results = searchCommands('notify');
     expect(results.length).toBeGreaterThan(1);
   });
 });
@@ -126,9 +126,9 @@ describe('getCommandsByCategory()', () => {
   });
 
   test('all returned commands belong to requested category', () => {
-    const commands = getCommandsByCategory('Communication');
+    const commands = getCommandsByCategory('Notifications');
     commands.forEach((cmd) => {
-      expect(cmd.category).toBe('Communication');
+      expect(cmd.category).toBe('Notifications');
     });
   });
 
@@ -141,7 +141,7 @@ describe('getCommandsByCategory()', () => {
   test('returns commands from all categories', () => {
     const categories = [
       'Agent Management',
-      'Communication',
+      'Notifications',
       'Tracking & Monitoring',
       'Configuration',
       'Process Management',
@@ -157,7 +157,7 @@ describe('getCommandsByCategory()', () => {
 
 describe('Command Properties', () => {
   const agentStatusCmd = getAllCommands().find((cmd) => cmd.name === 'agent status');
-  const channelSendCmd = getAllCommands().find((cmd) => cmd.name === 'channel send');
+  const channelSendCmd = getAllCommands().find((cmd) => cmd.name === 'notify subscribe');
 
   test('read-only commands are marked correctly', () => {
     expect(agentStatusCmd?.readOnly).toBe(true);
@@ -359,7 +359,7 @@ describe('Favorites Sorting Logic', () => {
     expect(favorites.has('agent list')).toBe(true);
     expect(favorites.size).toBe(1);
 
-    favorites.add('channel send');
+    favorites.add('notify subscribe');
     expect(favorites.size).toBe(2);
 
     favorites.delete('agent list');
@@ -546,7 +546,7 @@ describe('Command Execution Safety', () => {
     expect(modifyingCommands.length).toBeGreaterThan(0);
 
     // These commands modify state
-    const sendCmd = modifyingCommands.find((cmd) => cmd.name === 'channel send');
+    const sendCmd = modifyingCommands.find((cmd) => cmd.name === 'notify subscribe');
     expect(sendCmd).toBeTruthy();
   });
 

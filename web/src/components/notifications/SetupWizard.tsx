@@ -790,6 +790,8 @@ export function SetupWizard({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [step, setStep] = useState<"credentials" | "agents">("credentials");
+  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
+  const [pairState, setPairState] = useState<string>("idle");
 
   // Escape to close
   useEffect(() => {
@@ -813,10 +815,6 @@ export function SetupWizard({
       document.body,
     );
   }
-
-  // QR code pairing flow for WhatsApp etc.
-  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
-  const [pairState, setPairState] = useState<string>("idle"); // idle, loading, qr_ready, connected, error
 
   const startQRPairing = async () => {
     setPairState("loading");
