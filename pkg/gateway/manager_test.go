@@ -129,4 +129,3 @@ func TestAdapterStatusUnknown(t *testing.T) {
 		t.Errorf("expected 'adapter not registered' error, got %q", status.Error)
 	}
 }
-

@@ -18,8 +18,8 @@ import (
 	_ "github.com/mattn/go-sqlite3" // register sqlite3 driver for whatsmeow session store
 	qrcode "github.com/skip2/go-qrcode"
 	"go.mau.fi/whatsmeow"
-	"go.mau.fi/whatsmeow/store"
 	"go.mau.fi/whatsmeow/proto/waE2E"
+	"go.mau.fi/whatsmeow/store"
 	"go.mau.fi/whatsmeow/store/sqlstore"
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
@@ -29,7 +29,7 @@ import (
 )
 
 // Adapter implements gateway.NotificationAdapter for WhatsApp via whatsmeow.
-type Adapter struct {
+type Adapter struct { //nolint:govet
 	client        *whatsmeow.Client
 	container     *sqlstore.Container
 	handler       func(gateway.Notification)
@@ -68,10 +68,10 @@ func (a *Adapter) HTTPHandler() http.Handler { return nil } //nolint:revive
 
 // PairStatus represents the current state of WhatsApp pairing.
 type PairStatus struct {
-	State      string `json:"state"` // "idle", "qr_ready", "connected", "error"
-	QRDataURL  string `json:"qr_data_url,omitempty"`
-	Error      string `json:"error,omitempty"`
-	Phone      string `json:"phone,omitempty"`
+	State     string `json:"state"` // "idle", "qr_ready", "connected", "error"
+	QRDataURL string `json:"qr_data_url,omitempty"`
+	Error     string `json:"error,omitempty"`
+	Phone     string `json:"phone,omitempty"`
 }
 
 // StartPairing initiates a QR code pairing flow. Returns immediately with

@@ -19,7 +19,7 @@ import (
 )
 
 // Config holds IRC connection parameters.
-type Config struct {
+type Config struct { //nolint:govet
 	Server   string   // e.g. "irc.libera.chat:6697"
 	Nick     string   // bot nickname
 	Channels []string // channels to join (e.g. ["#bc", "#dev"])
@@ -56,18 +56,18 @@ func (a *Adapter) Start(ctx context.Context, handler func(gateway.Notification))
 	a.handler = handler
 
 	conn := ircevent.Connection{
-		Server:       a.cfg.Server,
-		Nick:         a.cfg.Nick,
-		UseTLS:       a.cfg.UseTLS,
-		Password:     a.cfg.Password,
-		QuitMessage:  "bc agent disconnecting",
-		KeepAlive:    30, // send PING every 30s to detect dead connections
+		Server:        a.cfg.Server,
+		Nick:          a.cfg.Nick,
+		UseTLS:        a.cfg.UseTLS,
+		Password:      a.cfg.Password,
+		QuitMessage:   "bc agent disconnecting",
+		KeepAlive:     30, // send PING every 30s to detect dead connections
 		ReconnectFreq: 10, // reconnect after 10s on drop
 	}
 
 	conn.AddConnectCallback(func(_ ircmsg.Message) {
 		for _, ch := range a.cfg.Channels {
-			conn.Join(ch)
+			conn.Join(ch) //nolint:errcheck
 		}
 		a.mu.Lock()
 		a.connected = true

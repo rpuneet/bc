@@ -18,7 +18,7 @@ import (
 )
 
 // Config holds MQTT connection parameters.
-type Config struct {
+type Config struct { //nolint:govet
 	Broker   string   // e.g. "tcp://localhost:1883"
 	ClientID string   // MQTT client ID
 	Topics   []string // topics to subscribe (e.g. ["home/sensors/#", "alerts/+"])
@@ -104,7 +104,7 @@ func (a *Adapter) subscribe() {
 		token := a.client.Subscribe(t, 0, func(_ pahomqtt.Client, msg pahomqtt.Message) {
 			a.handleMessage(t, msg)
 		})
-		if token.WaitTimeout(10 * time.Second) && token.Error() != nil {
+		if token.WaitTimeout(10*time.Second) && token.Error() != nil {
 			log.Warn("mqtt: subscribe failed", "topic", t, "error", token.Error())
 			a.mu.Lock()
 			a.lastError = "subscribe " + t + ": " + token.Error().Error()

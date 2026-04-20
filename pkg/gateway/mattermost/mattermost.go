@@ -59,11 +59,14 @@ func (a *Adapter) Start(ctx context.Context, handler func(gateway.Notification))
 
 	header := http.Header{"Authorization": {"Bearer " + a.cfg.Token}}
 
-	conn, _, err := websocket.DefaultDialer.DialContext(ctx, wsURL, header)
+	conn, wsResp, err := websocket.DefaultDialer.DialContext(ctx, wsURL, header)
+	if wsResp != nil && wsResp.Body != nil {
+		wsResp.Body.Close() //nolint:errcheck
+	}
 	if err != nil {
 		return fmt.Errorf("mattermost: connect: %w", err)
 	}
-	defer conn.Close()
+	defer conn.Close() //nolint:errcheck
 
 	// Authenticate via WebSocket challenge.
 	authMsg := map[string]interface{}{
@@ -85,7 +88,7 @@ func (a *Adapter) Start(ctx context.Context, handler func(gateway.Notification))
 	// Close conn when context is canceled (unblocks ReadMessage).
 	go func() {
 		<-ctx.Done()
-		conn.Close()
+		conn.Close() //nolint:errcheck
 	}()
 
 	// Read loop.
@@ -109,7 +112,7 @@ func (a *Adapter) Start(ctx context.Context, handler func(gateway.Notification))
 func (a *Adapter) Stop() error {
 	a.mu.Lock()
 	if a.conn != nil {
-		a.conn.Close()
+		a.conn.Close() //nolint:errcheck //nolint:errcheck
 		a.conn = nil
 	}
 	a.connected = false
@@ -186,7 +189,7 @@ func (a *Adapter) handleRaw(msg []byte) {
 // getChannels fetches channels via REST API (for discovery).
 func (a *Adapter) getChannels() []gateway.ChannelInfo { //nolint:unused // reserved for future channel discovery
 	url := a.cfg.URL + "/api/v4/users/me/channels"
-	req, err := http.NewRequest(http.MethodGet, url, nil)
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, url, nil)
 	if err != nil {
 		return nil
 	}
@@ -195,7 +198,7 @@ func (a *Adapter) getChannels() []gateway.ChannelInfo { //nolint:unused // reser
 	if err != nil {
 		return nil
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close()          //nolint:errcheck
 	body, _ := io.ReadAll(resp.Body) //nolint:errcheck
 
 	var channels []struct {
