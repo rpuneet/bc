@@ -4,8 +4,10 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { GitBranch, MessageSquare, DollarSign, Layers, Copy, Check, ExternalLink } from "lucide-react";
+import { motion, useScroll, useTransform } from "framer-motion";
 import { Nav } from "./_components/Nav";
 import { Footer } from "./_components/Footer";
+import { SporeLogo } from "./_components/SporeLogo";
 import {
   TerminalWindow,
 } from "./_components/TerminalComponents";
@@ -80,6 +82,14 @@ const features = [
 
 export default function Home() {
   const [platform, setPlatform] = useState<Platform>("macOS");
+  const { scrollY } = useScroll();
+
+  // Hero spore scroll-driven transforms: shrink and move to nav logo position
+  const sporeScale = useTransform(scrollY, [0, 300], [1, 0.15]);
+  const sporeY = useTransform(scrollY, [0, 300], [0, -120]);
+  const sporeX = useTransform(scrollY, [0, 300], [0, -300]);
+  const sporeOpacity = useTransform(scrollY, [0, 200, 300], [1, 0.5, 0]);
+  const auraOpacity = useTransform(scrollY, [0, 150], [1, 0]);
 
   useEffect(() => {
     setPlatform(detectPlatform(navigator.userAgent));
@@ -92,7 +102,7 @@ export default function Home() {
       {/* Mycelium-themed animated background */}
       <AnimatedBackground />
       {/* Subtle gradient overlay */}
-      <div className="pointer-events-none fixed inset-0 z-[1] bg-[radial-gradient(ellipse_80%_60%_at_50%_-20%,rgba(234,88,12,0.06),transparent)]" />
+      <div className="pointer-events-none fixed inset-0 z-[1] bg-[radial-gradient(ellipse_80%_60%_at_50%_-20%,rgba(234,88,12,0.10),transparent)]" />
 
       <div className="relative z-[2]">
         <Nav />
@@ -102,6 +112,27 @@ export default function Home() {
            ════════════════════════════════════════ */}
         <section className="hero-glow pt-20 pb-10 sm:pt-28 sm:pb-14 lg:pt-32 lg:pb-16">
           <div className="mx-auto max-w-4xl px-4 sm:px-6 text-center">
+            {/* Floating hero spore with scroll-to-nav animation */}
+            <motion.div
+              className="relative flex items-center justify-center mb-8"
+              style={{
+                scale: sporeScale,
+                y: sporeY,
+                x: sporeX,
+                opacity: sporeOpacity,
+              }}
+            >
+              {/* Glowing aura behind spore */}
+              <motion.div
+                className="hero-spore-aura"
+                style={{ opacity: auraOpacity }}
+              />
+              {/* Bobbing animation wrapper */}
+              <div className="animate-float">
+                <SporeLogo size={190} />
+              </div>
+            </motion.div>
+
             <FadeUp>
               <span className="font-label text-xs tracking-[0.15em] uppercase text-primary">
                 CLI-first &middot; Agent-agnostic &middot; Open source
@@ -142,7 +173,7 @@ export default function Home() {
                 </div>
 
                 {/* Command box */}
-                <div className="flex items-center gap-2 rounded-lg border border-outline-variant/20 bg-surface-container-low px-4 py-3">
+                <div className="flex items-center gap-2 rounded-lg border border-outline-variant/30 bg-surface-container px-4 py-3 shadow-[0_0_20px_rgba(234,88,12,0.06)]">
                   <span className="text-muted-foreground select-none font-label">$</span>
                   <code
                     className="flex-1 text-sm text-on-surface overflow-x-auto whitespace-nowrap scrollbar-none font-label"
@@ -199,6 +230,9 @@ export default function Home() {
           </div>
         </section>
 
+        {/* Section separator */}
+        <div className="mx-auto max-w-5xl px-6"><div className="section-separator" /></div>
+
         {/* ════════════════════════════════════════
            Section 2: Quick Demo
            ════════════════════════════════════════ */}
@@ -247,6 +281,9 @@ export default function Home() {
           </div>
         </RevealSection>
 
+        {/* Section separator */}
+        <div className="mx-auto max-w-5xl px-6"><div className="section-separator" /></div>
+
         {/* ════════════════════════════════════════
            Section 3: Feature Grid
            ════════════════════════════════════════ */}
@@ -263,7 +300,7 @@ export default function Home() {
             <StaggerChildren className="grid gap-4 sm:grid-cols-2" stagger={0.08}>
               {features.map((f) => (
                 <StaggerItem key={f.title}>
-                  <div className="bg-surface-container rounded-lg p-6">
+                  <div className="bg-surface-container rounded-lg p-6 feature-card">
                     <f.icon className="h-5 w-5 text-primary mb-3" />
                     <h3
                       className="text-lg font-semibold text-on-background mb-1.5 font-headline"
@@ -279,6 +316,9 @@ export default function Home() {
             </StaggerChildren>
           </div>
         </RevealSection>
+
+        {/* Section separator */}
+        <div className="mx-auto max-w-5xl px-6"><div className="section-separator" /></div>
 
         {/* ════════════════════════════════════════
            Section 4: Dashboard Screenshot
@@ -320,6 +360,9 @@ export default function Home() {
           </div>
         </RevealSection>
 
+        {/* Section separator */}
+        <div className="mx-auto max-w-5xl px-6"><div className="section-separator" /></div>
+
         {/* ════════════════════════════════════════
            Section 5: Open Source CTA
            ════════════════════════════════════════ */}
@@ -347,6 +390,9 @@ export default function Home() {
             </div>
           </div>
         </RevealSection>
+
+        {/* Footer gradient separator */}
+        <div className="mx-auto max-w-6xl px-6"><div className="footer-separator" /></div>
 
         <Footer />
       </div>
