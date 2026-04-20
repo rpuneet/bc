@@ -18,6 +18,7 @@ import (
 	_ "github.com/mattn/go-sqlite3" // register sqlite3 driver for whatsmeow session store
 	qrcode "github.com/skip2/go-qrcode"
 	"go.mau.fi/whatsmeow"
+	"go.mau.fi/whatsmeow/store"
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/store/sqlstore"
 	"go.mau.fi/whatsmeow/types"
@@ -41,6 +42,11 @@ type Adapter struct {
 	messageCount  atomic.Int64
 	// qrChan receives QR codes during pairing.
 	qrChan chan string
+}
+
+func init() {
+	// Set device properties to mimic Chrome WhatsApp Web — reduces rate limiting.
+	store.SetOSInfo("bc", [3]uint32{2, 26, 4})
 }
 
 var _ gateway.NotificationAdapter = (*Adapter)(nil)
