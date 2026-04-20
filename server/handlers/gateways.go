@@ -424,8 +424,8 @@ func (h *GatewayHandler) updatePlatform(w http.ResponseWriter, r *http.Request, 
 	}
 
 	cfg := h.ws.Config
-	switch platform {
-	case "telegram":
+	switch {
+	case platform == "telegram":
 		if cfg.Gateways.Telegram == nil {
 			cfg.Gateways.Telegram = &workspace.TelegramGatewayConfig{}
 		}
@@ -433,7 +433,21 @@ func (h *GatewayHandler) updatePlatform(w http.ResponseWriter, r *http.Request, 
 			httpError(w, "invalid telegram config: "+err.Error(), http.StatusBadRequest)
 			return
 		}
-	case "discord":
+	case strings.HasPrefix(platform, "telegram:"):
+		label := strings.TrimPrefix(platform, "telegram:")
+		if cfg.Gateways.Telegrams == nil {
+			cfg.Gateways.Telegrams = make(map[string]*workspace.TelegramGatewayConfig)
+		}
+		tc := cfg.Gateways.Telegrams[label]
+		if tc == nil {
+			tc = &workspace.TelegramGatewayConfig{}
+		}
+		if err := json.Unmarshal(body, tc); err != nil {
+			httpError(w, "invalid telegram config: "+err.Error(), http.StatusBadRequest)
+			return
+		}
+		cfg.Gateways.Telegrams[label] = tc
+	case platform == "discord":
 		if cfg.Gateways.Discord == nil {
 			cfg.Gateways.Discord = &workspace.DiscordGatewayConfig{}
 		}
@@ -441,7 +455,7 @@ func (h *GatewayHandler) updatePlatform(w http.ResponseWriter, r *http.Request, 
 			httpError(w, "invalid discord config: "+err.Error(), http.StatusBadRequest)
 			return
 		}
-	case "slack":
+	case platform == "slack":
 		if cfg.Gateways.Slack == nil {
 			cfg.Gateways.Slack = &workspace.SlackGatewayConfig{}
 		}
