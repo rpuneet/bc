@@ -2545,6 +2545,240 @@ func gatewayPromptInstructions(cfg *workspace.GatewaysConfig) string {
 			lines = append(lines, fmt.Sprintf("- %s: GitHub webhook secret for signature verification.", envKey))
 		}
 	}
+	for label, gc := range cfg.GitLabs {
+		if gc.Enabled && gc.Token != "" {
+			envKey := "GITLAB_TOKEN"
+			if label != "" {
+				envKey += "_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
+			}
+			lines = append(lines, fmt.Sprintf("- %s: GitLab webhook token for authentication.", envKey))
+		}
+	}
+	for label, gc := range cfg.Bitbuckets {
+		if gc.Enabled && gc.Secret != "" {
+			envKey := "BITBUCKET_SECRET"
+			if label != "" {
+				envKey += "_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
+			}
+			lines = append(lines, fmt.Sprintf("- %s: Bitbucket webhook secret for signature verification.", envKey))
+		}
+	}
+	for label, gc := range cfg.Jiras {
+		if gc.Enabled && gc.Secret != "" {
+			envKey := "JIRA_SECRET"
+			if label != "" {
+				envKey += "_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
+			}
+			lines = append(lines, fmt.Sprintf("- %s: Jira webhook secret for signature verification.", envKey))
+		}
+	}
+	for label, gc := range cfg.Linears {
+		if gc.Enabled && gc.Secret != "" {
+			envKey := "LINEAR_SECRET"
+			if label != "" {
+				envKey += "_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
+			}
+			lines = append(lines, fmt.Sprintf("- %s: Linear webhook signing secret.", envKey))
+		}
+	}
+	for label, gc := range cfg.Sentries {
+		if gc.Enabled && gc.Secret != "" {
+			envKey := "SENTRY_SECRET"
+			if label != "" {
+				envKey += "_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
+			}
+			lines = append(lines, fmt.Sprintf("- %s: Sentry webhook secret for signature verification.", envKey))
+		}
+	}
+	for label, gc := range cfg.Stripes {
+		if gc.Enabled && gc.Secret != "" {
+			envKey := "STRIPE_SECRET"
+			if label != "" {
+				envKey += "_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
+			}
+			lines = append(lines, fmt.Sprintf("- %s: Stripe webhook signing secret.", envKey))
+		}
+	}
+	for label, gc := range cfg.PagerDuties {
+		if gc.Enabled && gc.Secret != "" {
+			envKey := "PAGERDUTY_SECRET"
+			if label != "" {
+				envKey += "_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
+			}
+			lines = append(lines, fmt.Sprintf("- %s: PagerDuty webhook secret.", envKey))
+		}
+	}
+	for label, gc := range cfg.Datadogs {
+		if gc.Enabled && gc.Secret != "" {
+			envKey := "DATADOG_SECRET"
+			if label != "" {
+				envKey += "_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
+			}
+			lines = append(lines, fmt.Sprintf("- %s: Datadog webhook secret.", envKey))
+		}
+	}
+	for label, gc := range cfg.Grafanas {
+		if gc.Enabled && gc.Token != "" {
+			envKey := "GRAFANA_TOKEN"
+			if label != "" {
+				envKey += "_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
+			}
+			lines = append(lines, fmt.Sprintf("- %s: Grafana webhook token.", envKey))
+		}
+	}
+	for label, gc := range cfg.Vercels {
+		if gc.Enabled && gc.Secret != "" {
+			envKey := "VERCEL_SECRET"
+			if label != "" {
+				envKey += "_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
+			}
+			lines = append(lines, fmt.Sprintf("- %s: Vercel webhook secret.", envKey))
+		}
+	}
+	for label, gc := range cfg.Netlifys {
+		if gc.Enabled && gc.Secret != "" {
+			envKey := "NETLIFY_SECRET"
+			if label != "" {
+				envKey += "_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
+			}
+			lines = append(lines, fmt.Sprintf("- %s: Netlify webhook secret.", envKey))
+		}
+	}
+	for label, gc := range cfg.Notions {
+		if gc.Enabled && gc.Token != "" {
+			envKey := "NOTION_TOKEN"
+			if label != "" {
+				envKey += "_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
+			}
+			lines = append(lines, fmt.Sprintf("- %s: Notion API token.", envKey))
+		}
+	}
+	for label, gc := range cfg.RSSFeeds {
+		if gc.Enabled && gc.URL != "" {
+			envKey := "RSS_URL"
+			if label != "" {
+				envKey += "_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
+			}
+			lines = append(lines, fmt.Sprintf("- %s: RSS/Atom feed URL.", envKey))
+		}
+	}
+	for label, gc := range cfg.Webhooks {
+		if gc.Enabled && gc.Secret != "" {
+			envKey := "WEBHOOK_SECRET"
+			if label != "" {
+				envKey += "_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
+			}
+			lines = append(lines, fmt.Sprintf("- %s: Generic webhook secret.", envKey))
+		}
+	}
+	for label, gc := range cfg.WhatsApps {
+		if gc.Enabled && gc.VerifyToken != "" {
+			envKey := "WHATSAPP_VERIFY_TOKEN"
+			if label != "" {
+				envKey += "_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
+			}
+			lines = append(lines, fmt.Sprintf("- %s: WhatsApp verify token.", envKey))
+		}
+	}
+	for label, gc := range cfg.Matrices {
+		if gc.Enabled && gc.Token != "" {
+			envKey := "MATRIX_TOKEN"
+			if label != "" {
+				envKey += "_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
+			}
+			lines = append(lines, fmt.Sprintf("- %s: Matrix access token.", envKey))
+		}
+	}
+	for label, gc := range cfg.MSTeams {
+		if gc.Enabled && gc.Secret != "" {
+			envKey := "MSTEAMS_SECRET"
+			if label != "" {
+				envKey += "_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
+			}
+			lines = append(lines, fmt.Sprintf("- %s: MS Teams webhook secret.", envKey))
+		}
+	}
+	for label, gc := range cfg.GoogleChats {
+		if gc.Enabled && gc.Secret != "" {
+			envKey := "GOOGLECHAT_SECRET"
+			if label != "" {
+				envKey += "_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
+			}
+			lines = append(lines, fmt.Sprintf("- %s: Google Chat webhook secret.", envKey))
+		}
+	}
+	for label, gc := range cfg.Lines {
+		if gc.Enabled && gc.Secret != "" {
+			envKey := "LINE_SECRET"
+			if label != "" {
+				envKey += "_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
+			}
+			lines = append(lines, fmt.Sprintf("- %s: LINE channel secret.", envKey))
+		}
+	}
+	for label, gc := range cfg.Feishus {
+		if gc.Enabled && gc.Secret != "" {
+			envKey := "FEISHU_SECRET"
+			if label != "" {
+				envKey += "_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
+			}
+			lines = append(lines, fmt.Sprintf("- %s: Feishu/Lark verification secret.", envKey))
+		}
+	}
+	for label, gc := range cfg.Mattermosts {
+		if gc.Enabled && gc.Token != "" {
+			envKey := "MATTERMOST_TOKEN"
+			if label != "" {
+				envKey += "_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
+			}
+			lines = append(lines, fmt.Sprintf("- %s: Mattermost outgoing webhook token.", envKey))
+		}
+	}
+	for label, gc := range cfg.Twitches {
+		if gc.Enabled && gc.Secret != "" {
+			envKey := "TWITCH_SECRET"
+			if label != "" {
+				envKey += "_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
+			}
+			lines = append(lines, fmt.Sprintf("- %s: Twitch EventSub secret.", envKey))
+		}
+	}
+	for label, gc := range cfg.Twitters {
+		if gc.Enabled && gc.BearerToken != "" {
+			envKey := "TWITTER_BEARER_TOKEN"
+			if label != "" {
+				envKey += "_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
+			}
+			lines = append(lines, fmt.Sprintf("- %s: Twitter API bearer token.", envKey))
+		}
+	}
+	for label, gc := range cfg.Reddits {
+		if gc.Enabled && gc.BearerToken != "" {
+			envKey := "REDDIT_BEARER_TOKEN"
+			if label != "" {
+				envKey += "_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
+			}
+			lines = append(lines, fmt.Sprintf("- %s: Reddit API bearer token.", envKey))
+		}
+	}
+	for label, gc := range cfg.HomeAssistants {
+		if gc.Enabled && gc.Token != "" {
+			envKey := "HOMEASSISTANT_TOKEN"
+			if label != "" {
+				envKey += "_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
+			}
+			lines = append(lines, fmt.Sprintf("- %s: Home Assistant long-lived access token.", envKey))
+		}
+	}
+	for label, gc := range cfg.IMessages {
+		if gc.Enabled && gc.Password != "" {
+			envKey := "IMESSAGE_PASSWORD"
+			if label != "" {
+				envKey += "_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
+			}
+			lines = append(lines, fmt.Sprintf("- %s: iMessage (BlueBubbles) password.", envKey))
+		}
+	}
 
 	if len(lines) == 0 {
 		return ""
@@ -2615,6 +2849,240 @@ func injectGatewayEnv(env map[string]string, gw *workspace.GatewaysConfig) {
 				key = "GITHUB_WEBHOOK_SECRET_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
 			}
 			env[key] = gc.Secret
+		}
+	}
+	for label, gc := range gw.GitLabs {
+		if gc.Enabled && gc.Token != "" {
+			key := "GITLAB_TOKEN"
+			if label != "" {
+				key += "_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
+			}
+			env[key] = gc.Token
+		}
+	}
+	for label, gc := range gw.Bitbuckets {
+		if gc.Enabled && gc.Secret != "" {
+			key := "BITBUCKET_SECRET"
+			if label != "" {
+				key += "_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
+			}
+			env[key] = gc.Secret
+		}
+	}
+	for label, gc := range gw.Jiras {
+		if gc.Enabled && gc.Secret != "" {
+			key := "JIRA_SECRET"
+			if label != "" {
+				key += "_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
+			}
+			env[key] = gc.Secret
+		}
+	}
+	for label, gc := range gw.Linears {
+		if gc.Enabled && gc.Secret != "" {
+			key := "LINEAR_SECRET"
+			if label != "" {
+				key += "_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
+			}
+			env[key] = gc.Secret
+		}
+	}
+	for label, gc := range gw.Sentries {
+		if gc.Enabled && gc.Secret != "" {
+			key := "SENTRY_SECRET"
+			if label != "" {
+				key += "_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
+			}
+			env[key] = gc.Secret
+		}
+	}
+	for label, gc := range gw.Stripes {
+		if gc.Enabled && gc.Secret != "" {
+			key := "STRIPE_SECRET"
+			if label != "" {
+				key += "_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
+			}
+			env[key] = gc.Secret
+		}
+	}
+	for label, gc := range gw.PagerDuties {
+		if gc.Enabled && gc.Secret != "" {
+			key := "PAGERDUTY_SECRET"
+			if label != "" {
+				key += "_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
+			}
+			env[key] = gc.Secret
+		}
+	}
+	for label, gc := range gw.Datadogs {
+		if gc.Enabled && gc.Secret != "" {
+			key := "DATADOG_SECRET"
+			if label != "" {
+				key += "_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
+			}
+			env[key] = gc.Secret
+		}
+	}
+	for label, gc := range gw.Grafanas {
+		if gc.Enabled && gc.Token != "" {
+			key := "GRAFANA_TOKEN"
+			if label != "" {
+				key += "_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
+			}
+			env[key] = gc.Token
+		}
+	}
+	for label, gc := range gw.Vercels {
+		if gc.Enabled && gc.Secret != "" {
+			key := "VERCEL_SECRET"
+			if label != "" {
+				key += "_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
+			}
+			env[key] = gc.Secret
+		}
+	}
+	for label, gc := range gw.Netlifys {
+		if gc.Enabled && gc.Secret != "" {
+			key := "NETLIFY_SECRET"
+			if label != "" {
+				key += "_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
+			}
+			env[key] = gc.Secret
+		}
+	}
+	for label, gc := range gw.Notions {
+		if gc.Enabled && gc.Token != "" {
+			key := "NOTION_TOKEN"
+			if label != "" {
+				key += "_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
+			}
+			env[key] = gc.Token
+		}
+	}
+	for label, gc := range gw.RSSFeeds {
+		if gc.Enabled && gc.URL != "" {
+			key := "RSS_URL"
+			if label != "" {
+				key += "_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
+			}
+			env[key] = gc.URL
+		}
+	}
+	for label, gc := range gw.Webhooks {
+		if gc.Enabled && gc.Secret != "" {
+			key := "WEBHOOK_SECRET"
+			if label != "" {
+				key += "_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
+			}
+			env[key] = gc.Secret
+		}
+	}
+	for label, gc := range gw.WhatsApps {
+		if gc.Enabled && gc.VerifyToken != "" {
+			key := "WHATSAPP_VERIFY_TOKEN"
+			if label != "" {
+				key += "_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
+			}
+			env[key] = gc.VerifyToken
+		}
+	}
+	for label, gc := range gw.Matrices {
+		if gc.Enabled && gc.Token != "" {
+			key := "MATRIX_TOKEN"
+			if label != "" {
+				key += "_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
+			}
+			env[key] = gc.Token
+		}
+	}
+	for label, gc := range gw.MSTeams {
+		if gc.Enabled && gc.Secret != "" {
+			key := "MSTEAMS_SECRET"
+			if label != "" {
+				key += "_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
+			}
+			env[key] = gc.Secret
+		}
+	}
+	for label, gc := range gw.GoogleChats {
+		if gc.Enabled && gc.Secret != "" {
+			key := "GOOGLECHAT_SECRET"
+			if label != "" {
+				key += "_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
+			}
+			env[key] = gc.Secret
+		}
+	}
+	for label, gc := range gw.Lines {
+		if gc.Enabled && gc.Secret != "" {
+			key := "LINE_SECRET"
+			if label != "" {
+				key += "_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
+			}
+			env[key] = gc.Secret
+		}
+	}
+	for label, gc := range gw.Feishus {
+		if gc.Enabled && gc.Secret != "" {
+			key := "FEISHU_SECRET"
+			if label != "" {
+				key += "_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
+			}
+			env[key] = gc.Secret
+		}
+	}
+	for label, gc := range gw.Mattermosts {
+		if gc.Enabled && gc.Token != "" {
+			key := "MATTERMOST_TOKEN"
+			if label != "" {
+				key += "_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
+			}
+			env[key] = gc.Token
+		}
+	}
+	for label, gc := range gw.Twitches {
+		if gc.Enabled && gc.Secret != "" {
+			key := "TWITCH_SECRET"
+			if label != "" {
+				key += "_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
+			}
+			env[key] = gc.Secret
+		}
+	}
+	for label, gc := range gw.Twitters {
+		if gc.Enabled && gc.BearerToken != "" {
+			key := "TWITTER_BEARER_TOKEN"
+			if label != "" {
+				key += "_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
+			}
+			env[key] = gc.BearerToken
+		}
+	}
+	for label, gc := range gw.Reddits {
+		if gc.Enabled && gc.BearerToken != "" {
+			key := "REDDIT_BEARER_TOKEN"
+			if label != "" {
+				key += "_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
+			}
+			env[key] = gc.BearerToken
+		}
+	}
+	for label, gc := range gw.HomeAssistants {
+		if gc.Enabled && gc.Token != "" {
+			key := "HOMEASSISTANT_TOKEN"
+			if label != "" {
+				key += "_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
+			}
+			env[key] = gc.Token
+		}
+	}
+	for label, gc := range gw.IMessages {
+		if gc.Enabled && gc.Password != "" {
+			key := "IMESSAGE_PASSWORD"
+			if label != "" {
+				key += "_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
+			}
+			env[key] = gc.Password
 		}
 	}
 }
