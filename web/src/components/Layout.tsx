@@ -147,71 +147,120 @@ function NotificationNavTree() {
     return `Disconnected${h.error ? ": " + h.error : ""}`;
   };
 
-  const botDisplayName = (platform: string, gw?: GatewayStatus): string => {
-    if (gw?.bot_name) return gw.bot_name;
-    return platform;
-  };
+  const { workspace } = useWorkspace();
+  const prefix = workspace ? `/w/${workspace.id}` : "";
 
   return (
-    <div className="py-0.5 ml-3 border-l border-bc-border/20">
+    <div
+      style={{
+        paddingLeft: 10,
+        marginLeft: 9,
+        borderLeft: "1px solid var(--bc-border, rgba(255,255,255,0.08))",
+        marginTop: 2,
+        marginBottom: 4,
+        maxHeight: 280,
+        overflowY: "auto",
+      }}
+    >
       {[...bucketMap.entries()].map(([platform, chs]) => {
         const meta = getPlatformMeta(platform);
         const gwStatus = gwMap.get(platform);
         const isConnected = (gwStatus?.enabled && (gwStatus?.channels?.length ?? 0) > 0) || chs.length > 0;
         const isExpanded = expandedGw.has(platform);
-        const name = botDisplayName(platform, gwStatus);
 
         return (
           <div key={platform}>
+            {/* Platform header */}
             <button
               type="button"
               onClick={() => toggleGw(platform)}
-              className="w-full flex items-center gap-1.5 pl-3 pr-2 py-[3px] text-[10px] hover:bg-bc-bg/40 transition-colors group"
+              className="w-full flex items-center"
+              style={{
+                gap: 8,
+                padding: "5px 8px 2px",
+                fontSize: 11,
+                color: "var(--bc-muted, #6b6b6b)",
+                textTransform: "uppercase",
+                letterSpacing: 0.5,
+                fontWeight: 600,
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+              }}
             >
-              <svg width="6" height="6" viewBox="0 0 8 8"
-                className={`text-bc-muted/25 transition-transform duration-100 shrink-0 ${isExpanded ? "" : "-rotate-90"}`}
-              >
-                <path d="M1.5 2L4 5L6.5 2" stroke="currentColor" strokeWidth="1.2" fill="none" strokeLinecap="round" />
-              </svg>
-              <span className="w-[5px] h-[5px] rounded-full shrink-0"
-                title={healthTooltip(platform)}
-                style={{ backgroundColor: isConnected ? "#22c55e" : gwStatus?.enabled ? "#fb923c" : "rgba(140,126,114,0.12)" }}
-              />
-              <span className="font-medium text-bc-text/60 group-hover:text-bc-text/80 truncate">
-                @{name}
-              </span>
-              <span className="text-[8px] px-1 py-px rounded shrink-0" style={{ color: meta.color, opacity: 0.5 }}>
-                {meta.label.toLowerCase()}
-              </span>
-              <span className="ml-auto flex items-center gap-1">
-                {isConnected && (
-                  <span className="text-[7px] text-bc-success/40 font-medium">live</span>
-                )}
-                <span className="text-[8px] text-bc-muted/20 tabular-nums">{chs.length || ""}</span>
-              </span>
+              <span>{meta.label}</span>
+              {isConnected && (
+                <span
+                  className="ml-auto shrink-0"
+                  title={healthTooltip(platform)}
+                  style={{
+                    width: 5,
+                    height: 5,
+                    borderRadius: 999,
+                    background: "#22c55e",
+                    boxShadow: "0 0 5px rgba(34,197,94,0.5)",
+                  }}
+                />
+              )}
             </button>
 
+            {/* Channel rows */}
             {isExpanded && chs.map((ch) => {
               const count = subCountMap.get(ch.name) ?? 0;
+              const chName = displaySourceName(ch.name);
               return (
                 <NavLink
                   key={ch.name}
-                  to={"/notifications/" + ch.name}
-                  className={({ isActive }) =>
-                    `flex items-center gap-1 pl-7 pr-2 py-[4px] text-[11px] transition-all duration-100 rounded-r ${
-                      isActive
-                        ? "text-bc-text bg-bc-surface/50 font-medium"
-                        : "text-bc-muted/40 hover:text-bc-text/70 hover:bg-bc-surface/25"
-                    }`
-                  }
-                  style={({ isActive }) => ({
-                    borderLeft: isActive ? `3px solid ${meta.color}` : "3px solid transparent",
-                    marginLeft: "-1px",
+                  to={`${prefix}/notifications/${ch.name}`}
+                  className="block"
+                  style={({ isActive }: { isActive: boolean }) => ({
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    height: 24,
+                    padding: "0 8px",
+                    borderRadius: 5,
+                    fontSize: 12.5,
+                    color: isActive ? "var(--bc-text, #e5e5e5)" : count > 0 ? "var(--bc-text, #e5e5e5)" : "var(--bc-muted, #a0a0a0)",
+                    background: isActive ? "rgba(249, 115, 22, 0.12)" : "transparent",
+                    fontWeight: isActive ? 600 : count > 0 ? 500 : 400,
+                    cursor: "pointer",
+                    marginBottom: 1,
+                    textDecoration: "none",
                   })}
                 >
-                  <span className="text-[8px] text-bc-muted/20">#</span>
-                  <span className="truncate">{displaySourceName(ch.name)}</span>
-                  {count > 0 && <span className="ml-auto text-[8px] text-bc-success/30 tabular-nums">{count}</span>}
+                  <span
+                    style={{
+                      width: 12,
+                      color: "var(--bc-muted, #4a4a4a)",
+                      fontFamily: "'JetBrains Mono', monospace",
+                      fontSize: 12,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      flexShrink: 0,
+                    }}
+                  >
+                    #
+                  </span>
+                  <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {chName}
+                  </span>
+                  {count > 0 && (
+                    <span
+                      style={{
+                        fontSize: 10.5,
+                        fontWeight: 600,
+                        color: "var(--bc-muted, #a0a0a0)",
+                        fontFamily: "'JetBrains Mono', monospace",
+                        padding: "1px 5px",
+                        borderRadius: 999,
+                        background: "var(--bc-surface, #212121)",
+                      }}
+                    >
+                      {count}
+                    </span>
+                  )}
                 </NavLink>
               );
             })}
@@ -219,26 +268,66 @@ function NotificationNavTree() {
         );
       })}
 
-      {/* Connect app — opens full modal */}
-      <div className="px-3 pt-1 pb-0.5">
-        <button type="button" onClick={() => setShowConnectMenu(true)}
-          className="w-full py-[3px] text-[11px] border rounded transition-all text-bc-muted/60 hover:text-bc-accent border-bc-border/30 hover:border-bc-accent/30"
-        >
-          + Connect app
-        </button>
+      {/* Routing rules */}
+      <button
+        type="button"
+        className="w-full flex items-center"
+        style={{
+          gap: 8,
+          height: 26,
+          padding: "0 8px",
+          marginTop: 4,
+          borderRadius: 5,
+          fontSize: 12,
+          color: "var(--bc-muted, #6b6b6b)",
+          cursor: "pointer",
+          border: "1px dashed var(--bc-border, #2a2a2a)",
+          background: "none",
+          whiteSpace: "nowrap",
+        }}
+      >
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="6" cy="6" r="2.5" /><circle cx="18" cy="18" r="2.5" /><circle cx="18" cy="6" r="2.5" />
+          <path d="M6 8v8a2 2 0 0 0 2 2h7" /><path d="M18 8.5v7" />
+        </svg>
+        <span>Routing rules</span>
+      </button>
 
-        {showConnectMenu && (
-          <PlatformChooser
-            onSelect={(key) => { setShowConnectMenu(false); setSetupPlatform(key); }}
-            onClose={() => setShowConnectMenu(false)}
-          />
-        )}
-      </div>
+      {/* Connect app */}
+      <button
+        type="button"
+        onClick={() => setShowConnectMenu(true)}
+        className="w-full flex items-center"
+        style={{
+          gap: 8,
+          height: 26,
+          padding: "0 8px",
+          marginTop: 4,
+          borderRadius: 5,
+          fontSize: 12,
+          color: "var(--bc-muted, #6b6b6b)",
+          cursor: "pointer",
+          border: "1px dashed var(--bc-border, #2a2a2a)",
+          background: "none",
+          whiteSpace: "nowrap",
+        }}
+      >
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+          <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+        </svg>
+        <span>Connect app</span>
+      </button>
+
+      {showConnectMenu && (
+        <PlatformChooser
+          onSelect={(key) => { setShowConnectMenu(false); setSetupPlatform(key); }}
+          onClose={() => setShowConnectMenu(false)}
+        />
+      )}
 
       {setupPlatform && setupPlatform !== "_choose" && (
         <SetupWizard platform={setupPlatform} onClose={() => setSetupPlatform(null)} onConnected={() => void fetchData()} />
       )}
-      <style>{`@keyframes fadeIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }`}</style>
     </div>
   );
 }

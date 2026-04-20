@@ -7,7 +7,6 @@ import { AgentPeekPanel } from "../components/AgentPeekPanel";
 import { LoadingSkeleton } from "../components/LoadingSkeleton";
 import { EmptyState } from "../components/EmptyState";
 import { GatewayFeed } from "../components/notifications/GatewayFeed";
-import { NotificationSidebar } from "../components/notifications/NotificationSidebar";
 
 import { useHeaderSlot } from "../context/HeaderSlotContext";
 import { TabHeaderTitle } from "../components/Header";
@@ -122,14 +121,7 @@ export function Notifications() {
 
   return (
     <div className="flex h-full">
-      {/* Sidebar — 228px, matching design prototype */}
-      <NotificationSidebar
-        channels={sourceList}
-        selected={selected}
-        onSelect={(name) => navigate("/notifications/" + name)}
-      />
-
-      {/* Activity feed — fills remaining space */}
+      {/* Activity feed — fills full width (channel tree is in main sidebar) */}
       <div className="flex-1 flex flex-col min-w-0">
         {selected ? (
           <GatewayFeed
@@ -141,8 +133,8 @@ export function Notifications() {
           <div className="flex-1 flex items-center justify-center">
             <EmptyState
               icon="#"
-              title="Select a notification source"
-              description="Choose a notification source from the sidebar to view activity."
+              title="Select a channel"
+              description="Choose a channel from the sidebar to view its activity feed."
             />
           </div>
         )}
