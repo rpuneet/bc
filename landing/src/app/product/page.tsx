@@ -153,20 +153,20 @@ function FeatureSection({
       animate={inView ? "visible" : "hidden"}
       className={imageFirst ? "order-1 lg:order-2" : ""}
     >
-      <span className="inline-block font-mono text-[11px] font-bold uppercase tracking-[0.25em] text-primary/80 border-b border-primary/20 pb-1">
+      <span className="inline-block font-label text-[11px] font-bold uppercase tracking-[0.25em] text-primary/80 border-b border-primary/20 pb-1">
         {label}
       </span>
-      <h2 className="mt-5 text-3xl font-bold tracking-tight sm:text-4xl leading-[1.15]">
+      <h2 className="mt-5 text-3xl font-bold tracking-tight sm:text-4xl leading-[1.15] font-headline text-on-background">
         {title}
       </h2>
-      <p className="mt-5 text-muted-foreground leading-[1.8] text-[15px]">
+      <p className="mt-5 text-on-surface-variant leading-[1.8] text-[15px] font-body">
         {description}
         {docsLink && (
           <>
             {" "}
             <Link
               href={docsLink}
-              className="text-foreground underline underline-offset-4 hover:text-primary transition-colors"
+              className="text-on-background underline underline-offset-4 hover:text-primary transition-colors"
             >
               See docs &rarr;
             </Link>
@@ -195,7 +195,7 @@ function FeatureSection({
   return (
     <section
       ref={ref}
-      className="py-28 lg:py-36 border-t border-border/30"
+      className="py-14 lg:py-16 border-t border-border/30"
       id={id}
     >
       <div className="grid items-center gap-12 lg:grid-cols-2 lg:gap-20">
@@ -225,7 +225,7 @@ const cardAccents = [
 
 export default function Product() {
   return (
-    <main className="min-h-screen selection:bg-primary/20 selection:text-foreground overflow-x-hidden">
+    <main className="min-h-screen selection:bg-primary/20 selection:text-on-background overflow-x-hidden">
       <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(ellipse_80%_60%_at_50%_-20%,rgba(234,88,12,0.04),transparent)] dark:bg-[radial-gradient(ellipse_80%_60%_at_50%_-20%,rgba(234,88,12,0.08),transparent)]" />
 
       <Nav />
@@ -235,23 +235,23 @@ export default function Product() {
         initial="hidden"
         animate="visible"
         variants={stagger}
-        className="relative px-6 py-24 lg:py-36 text-center"
+        className="relative px-6 py-16 lg:py-20 text-center"
       >
         {/* Hero glow */}
         <div className="pointer-events-none absolute inset-x-0 top-0 h-[600px] bg-[radial-gradient(ellipse_60%_40%_at_50%_20%,rgba(234,88,12,0.1),transparent)]" />
 
         <motion.div variants={fadeUp} custom={0} className="relative mx-auto max-w-4xl">
-          <span className="inline-block font-mono text-[11px] font-bold uppercase tracking-[0.3em] text-primary border border-primary/20 rounded-full px-4 py-1.5 mb-6">
+          <span className="inline-block font-label text-[11px] font-bold uppercase tracking-[0.3em] text-primary border border-primary/20 rounded-full px-4 py-1.5 mb-6">
             Product
           </span>
-          <h1 className="text-4xl font-bold tracking-tight sm:text-6xl lg:text-7xl leading-[1.05]">
+          <h1 className="text-4xl font-bold tracking-tight sm:text-6xl lg:text-7xl leading-[1.05] font-headline text-on-background">
             The complete platform for
             <br />
-            <span className="text-muted-foreground/40">
+            <span className="text-on-surface-variant/60">
               multi-agent orchestration.
             </span>
           </h1>
-          <p className="mx-auto mt-8 max-w-2xl text-lg text-muted-foreground leading-relaxed">
+          <p className="mx-auto mt-8 max-w-2xl text-lg text-on-surface-variant leading-relaxed font-body">
             Agents, channels, roles, cost tracking, secrets, and cron jobs.
             Everything you need to run parallel AI agents.
           </p>
@@ -369,17 +369,17 @@ export default function Product() {
 
         {/* ═══════════════════ WHY BC ═══════════════════ */}
         <RevealSection
-          className="py-28 lg:py-36 border-t border-border/30"
+          className="py-14 lg:py-16 border-t border-border/30"
           id="why-bc"
         >
           <div className="mb-14">
-            <span className="inline-block font-mono text-[11px] font-bold uppercase tracking-[0.25em] text-primary/80 border-b border-primary/20 pb-1">
+            <span className="inline-block font-label text-[11px] font-bold uppercase tracking-[0.25em] text-primary/80 border-b border-primary/20 pb-1">
               Why mycel?
             </span>
-            <h2 className="mt-5 text-3xl font-bold tracking-tight sm:text-4xl leading-[1.15]">
+            <h2 className="mt-5 text-3xl font-bold tracking-tight sm:text-4xl leading-[1.15] font-headline text-on-background">
               Not a new IDE. Not a framework. An orchestration layer.
             </h2>
-            <p className="mt-5 max-w-2xl text-muted-foreground leading-[1.8] text-[15px]">
+            <p className="mt-5 max-w-2xl text-on-surface-variant leading-[1.8] text-[15px] font-body">
               mycel coordinates your existing tools. Keep using Claude Code,
               Cursor, Codex, or any CLI agent. mycel handles the multi-agent
               complexity.
@@ -404,8 +404,8 @@ export default function Product() {
                 key={item.title}
                 className={`rounded-xl border border-border bg-card p-7 transition-all duration-300 cursor-default ${cardAccents[i].border} ${cardAccents[i].glow}`}
               >
-                <h3 className="font-semibold text-sm mb-3">{item.title}</h3>
-                <p className="text-sm text-muted-foreground leading-[1.8]">
+                <h3 className="font-headline font-semibold text-sm mb-3 text-on-background">{item.title}</h3>
+                <p className="text-sm text-on-surface-variant leading-[1.8] font-body">
                   {item.desc}
                 </p>
               </div>
@@ -414,7 +414,7 @@ export default function Product() {
         </RevealSection>
 
         {/* ═══════════════════ CTA ═══════════════════ */}
-        <RevealSection className="py-28 lg:py-36">
+        <RevealSection className="py-14 lg:py-16">
           <div
             className="relative overflow-hidden rounded-2xl border border-border bg-card p-10 sm:p-14 text-center"
             style={{
@@ -426,10 +426,10 @@ export default function Product() {
             <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_50%_50%_at_50%_0%,rgba(234,88,12,0.08),transparent)]" />
 
             <div className="relative">
-              <h2 className="text-3xl font-bold tracking-tight sm:text-4xl lg:text-5xl">
+              <h2 className="text-3xl font-bold tracking-tight sm:text-4xl lg:text-5xl font-headline text-on-background">
                 Start orchestrating in 60 seconds.
               </h2>
-              <p className="mx-auto mt-5 max-w-xl text-lg text-muted-foreground leading-relaxed">
+              <p className="mx-auto mt-5 max-w-xl text-lg text-on-surface-variant leading-relaxed font-body">
                 Install mycel, run three commands, and your agent team is live.
               </p>
 

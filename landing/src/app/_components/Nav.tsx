@@ -19,7 +19,7 @@ function Logo() {
   return (
     <div className="flex items-center gap-2">
       <SporeLogo size={28} />
-      <span className="font-headline text-lg font-bold tracking-tight text-on-surface">mycel</span>
+      <span className="font-headline text-lg font-bold tracking-tight text-on-background">mycel</span>
     </div>
   );
 }

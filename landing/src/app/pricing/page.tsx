@@ -108,7 +108,7 @@ export default function PricingPage() {
   return (
     <main className="min-h-screen bg-background">
       {/* Hero */}
-      <section className="hero-glow py-24">
+      <section className="hero-glow py-16">
         <div className="mx-auto max-w-5xl px-4 text-center">
           <FadeUp>
             <h1 className="font-headline text-5xl font-bold tracking-tight text-on-background lg:text-6xl">
@@ -260,7 +260,7 @@ export default function PricingPage() {
       </section>
 
       {/* FAQ */}
-      <section className="py-24">
+      <section className="py-16">
         <div className="mx-auto max-w-3xl px-4">
           <RevealSection className="mb-10 text-center">
             <h2 className="font-headline text-3xl font-bold text-on-background">

@@ -4,13 +4,13 @@ import { SporeLogo } from "./SporeLogo";
 export function Footer() {
   return (
     <footer className="bg-surface-container-lowest">
-      <div className="mx-auto max-w-7xl px-6 py-16">
+      <div className="mx-auto max-w-7xl px-6 py-12">
         <div className="grid grid-cols-1 gap-12 md:grid-cols-5 mb-12">
           {/* Logo + tagline */}
           <div className="col-span-1 md:col-span-2 space-y-4">
             <div className="flex items-center gap-2">
               <SporeLogo size={28} />
-              <span className="font-headline text-lg font-bold tracking-tight text-on-surface">mycel</span>
+              <span className="font-headline text-lg font-bold tracking-tight text-on-background">mycel</span>
             </div>
             <p className="text-sm text-on-surface-variant max-w-xs leading-relaxed">
               Multi-agent orchestration for AI coding assistants. CLI-first.
@@ -23,7 +23,7 @@ export function Footer() {
 
           {/* Product */}
           <div className="space-y-4">
-            <h2 className="text-xs font-mono font-bold uppercase tracking-widest text-on-surface-variant/50">
+            <h2 className="text-xs font-label font-bold uppercase tracking-widest text-on-surface-variant/50">
               Product
             </h2>
             <nav
@@ -53,7 +53,7 @@ export function Footer() {
 
           {/* Resources */}
           <div className="space-y-4">
-            <h2 className="text-xs font-mono font-bold uppercase tracking-widest text-on-surface-variant/50">
+            <h2 className="text-xs font-label font-bold uppercase tracking-widest text-on-surface-variant/50">
               Resources
             </h2>
             <nav
@@ -85,7 +85,7 @@ export function Footer() {
 
           {/* Company */}
           <div className="space-y-4">
-            <h2 className="text-xs font-mono font-bold uppercase tracking-widest text-on-surface-variant/50">
+            <h2 className="text-xs font-label font-bold uppercase tracking-widest text-on-surface-variant/50">
               Company
             </h2>
             <nav

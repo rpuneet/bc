@@ -77,7 +77,7 @@ export default function MethodPage() {
     <main className="min-h-screen bg-background">
       <Nav />
       {/* Hero */}
-      <section className="pt-32 pb-12">
+      <section className="pt-24 pb-8">
         <div className="mx-auto max-w-3xl px-4 text-center">
           <FadeUp>
             <span className="mb-6 inline-block rounded-sm bg-surface-container-highest px-3 py-1 font-label text-xs uppercase tracking-widest text-primary">
@@ -98,7 +98,7 @@ export default function MethodPage() {
       </section>
 
       {/* Principle Cards */}
-      <section className="py-16">
+      <section className="py-12">
         <StaggerChildren className="mx-auto max-w-3xl space-y-8 px-4" stagger={0.12}>
           {PRINCIPLES.map((p) => (
             <StaggerItem key={p.number}>
