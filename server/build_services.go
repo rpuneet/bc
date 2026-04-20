@@ -922,7 +922,8 @@ func buildGatewayManager(ctx context.Context, ws *bcworkspace.Workspace, notifyS
 		if label != "" {
 			adapterName = "whatsapp:" + label
 		}
-		m.Register(bcwhatsapp.NewNamed(adapterName, c.VerifyToken))
+		waStateDir := filepath.Join(ws.StateDir(), "gateways", adapterName)
+		m.Register(bcwhatsapp.NewNamed(adapterName, waStateDir))
 		log.Info("gateway: whatsapp adapter registered", "name", adapterName)
 	}
 
@@ -1026,7 +1027,12 @@ func buildGatewayManager(ctx context.Context, ws *bcworkspace.Workspace, notifyS
 		if label != "" {
 			adapterName = "irc:" + label
 		}
-		m.Register(bcirc.NewNamed(adapterName, c.Server))
+		m.Register(bcirc.New(adapterName, bcirc.Config{
+			Server:   c.Server,
+			Nick:     "bc-bot",
+			Channels: []string{}, // TODO: add channels to config
+			UseTLS:   true,
+		}))
 		log.Info("gateway: irc adapter registered", "name", adapterName)
 	}
 
@@ -1078,7 +1084,15 @@ func buildGatewayManager(ctx context.Context, ws *bcworkspace.Workspace, notifyS
 		if label != "" {
 			adapterName = "mqtt:" + label
 		}
-		m.Register(bcmqtt.NewNamed(adapterName, c.BrokerURL, c.Topic))
+		topics := []string{c.Topic}
+		if c.Topic == "" {
+			topics = []string{"#"}
+		}
+		m.Register(bcmqtt.New(adapterName, bcmqtt.Config{
+			Broker:   c.BrokerURL,
+			ClientID: "bc-" + adapterName,
+			Topics:   topics,
+		}))
 		log.Info("gateway: mqtt adapter registered", "name", adapterName)
 	}
 
