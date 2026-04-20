@@ -373,12 +373,14 @@ function NavList({
   collapsed,
   isMobile,
   notificationsExpanded,
+  onToggleNotifications,
   global = false,
 }: {
   items: ReadonlyArray<{ to: string; label: string; icon: string }>;
   collapsed: boolean;
   isMobile: boolean;
   notificationsExpanded?: boolean;
+  onToggleNotifications?: () => void;
   /** When true, render links verbatim — skip the /w/<id>/ prefix.
    *  Used for cross-workspace routes like /costs. */
   global?: boolean;
@@ -418,6 +420,25 @@ function NavList({
               {label === "Live" && (
                 <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse ml-auto" />
               )}
+              {isNotifications && !isIconOnly && onToggleNotifications && (
+                <button
+                  type="button"
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); onToggleNotifications(); }}
+                  className="ml-auto shrink-0 p-0.5 rounded text-bc-muted/40 hover:text-bc-muted/70 transition-all"
+                  aria-label={notificationsExpanded ? "Collapse channels" : "Expand channels"}
+                >
+                  <svg
+                    width="12" height="12" viewBox="0 0 14 14" fill="none"
+                    stroke="currentColor" strokeWidth="1.5"
+                    style={{
+                      transform: notificationsExpanded ? "rotate(90deg)" : "rotate(0deg)",
+                      transition: "transform 150ms ease",
+                    }}
+                  >
+                    <path d="M5 3l4 4-4 4" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </button>
+              )}
             </NavLink>
             {isNotifications && showTree && <NotificationNavTree />}
           </li>
@@ -444,15 +465,19 @@ export function Layout() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(readCollapsed);
 
-  // Keep notification tree expanded whenever the current URL is on the
-  // Notifications tab — both the workspace-scoped /w/:wsId/notifications and the
-  // legacy /channels bookmark redirect. useMatch trailing /* also
-  // handles deep links like /w/:wsId/notifications/foo.
+  // Notification tree collapse state — defaults to expanded when on the
+  // Notifications route, but the user can toggle it by clicking the nav item.
   const scopedNotifications = useMatch("/w/:wsId/notifications/*");
   const legacyNotifications = useMatch("/notifications/*");
   const legacyChannelsRoute = useMatch("/channels/*");
   const legacyChannelsScopedRoute = useMatch("/w/:wsId/channels/*");
-  const notificationsExpanded = Boolean(scopedNotifications || legacyNotifications || legacyChannelsRoute || legacyChannelsScopedRoute);
+  const onNotifRoute = Boolean(scopedNotifications || legacyNotifications || legacyChannelsRoute || legacyChannelsScopedRoute);
+  const [notifManualToggle, setNotifManualToggle] = useState<boolean | null>(null);
+  // Auto-expand when navigating to notifications, but respect manual toggle
+  const notificationsExpanded = notifManualToggle !== null ? notifManualToggle : onNotifRoute;
+  const toggleNotifications = useCallback(() => {
+    setNotifManualToggle((prev) => !(prev !== null ? prev : onNotifRoute));
+  }, [onNotifRoute]);
 
   const toggleCollapsed = useCallback(() => {
     setCollapsed((prev) => { const next = !prev; writeCollapsed(next); return next; });
@@ -542,6 +567,7 @@ export function Layout() {
             collapsed={collapsed}
             isMobile={isMobile}
             notificationsExpanded={notificationsExpanded}
+            onToggleNotifications={toggleNotifications}
           />
           <li className={`my-1.5 ${collapsed && !isMobile ? "mx-2" : "mx-3"}`}>
             <div className="border-t border-bc-border/15" />

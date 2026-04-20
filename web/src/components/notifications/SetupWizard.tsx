@@ -1,5 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
+import { api } from "../../api/client";
+import type { Agent, GatewayStatus } from "../../api/client";
 
 export interface PlatformDef {
   key: string;
@@ -293,8 +295,57 @@ const CATEGORIES = ["Chat", "Code & DevOps", "Monitoring", "Payments", "Content"
 
 export function PlatformChooser({ onSelect, onClose }: { onSelect: (key: string) => void; onClose: () => void }) {
   const [search, setSearch] = useState("");
+  const [connectedGateways, setConnectedGateways] = useState<Map<string, GatewayStatus>>(new Map());
+
+  useEffect(() => {
+    api.listGateways().then((gws) => {
+      const m = new Map<string, GatewayStatus>();
+      for (const gw of gws ?? []) {
+        if (gw.enabled) m.set(gw.platform, gw);
+      }
+      setConnectedGateways(m);
+    }).catch(() => {});
+  }, []);
+
   const q = search.toLowerCase();
   const filtered = q ? PLATFORMS.filter((p) => p.label.toLowerCase().includes(q) || p.description.toLowerCase().includes(q) || p.category.toLowerCase().includes(q)) : PLATFORMS;
+
+  const connectedPlatforms = filtered.filter((p) => connectedGateways.has(p.key));
+  const availablePlatforms = filtered.filter((p) => !connectedGateways.has(p.key));
+
+  const renderPlatformCard = (p: PlatformDef) => {
+    const isConnected = connectedGateways.has(p.key);
+    return (
+      <button
+        key={p.key}
+        type="button"
+        onClick={() => onSelect(p.key)}
+        className="p-4 border border-bc-border/40 rounded-xl hover:border-bc-accent/60 hover:bg-bc-accent/5 transition-all text-left group relative"
+        style={isConnected ? { borderColor: "rgba(34,197,94,0.3)" } : undefined}
+      >
+        <div className="flex items-center gap-3 mb-1.5">
+          <span className="text-2xl leading-none">{p.icon}</span>
+          <span className="text-sm font-semibold text-bc-text group-hover:text-bc-accent transition-colors">{p.label}</span>
+          {isConnected && (
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="ml-auto shrink-0">
+              <circle cx="7" cy="7" r="6" fill="#22c55e" opacity="0.15" />
+              <path d="M4 7l2 2 4-4" stroke="#22c55e" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          )}
+        </div>
+        <p className="text-xs text-bc-muted leading-snug">{p.description}</p>
+        {isConnected && (
+          <span className="text-[10px] text-green-500/80 mt-1 block">Connected</span>
+        )}
+        {!isConnected && (
+          <div
+            className="absolute top-2 right-2 w-2 h-2 rounded-full"
+            style={{ backgroundColor: p.color, opacity: 0.6 }}
+          />
+        )}
+      </button>
+    );
+  };
 
   return createPortal(
     <div
@@ -323,31 +374,28 @@ export function PlatformChooser({ onSelect, onClose }: { onSelect: (key: string)
 
         {/* Platform grid */}
         <div className="px-6 py-4 overflow-auto flex-1">
+          {/* Connected section */}
+          {connectedPlatforms.length > 0 && (
+            <div className="mb-5">
+              <h3 className="text-[11px] font-bold text-green-500/80 uppercase tracking-wider mb-3">Connected</h3>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {connectedPlatforms.map(renderPlatformCard)}
+              </div>
+            </div>
+          )}
+
+          {/* Available section */}
+          {connectedPlatforms.length > 0 && availablePlatforms.length > 0 && (
+            <div className="border-t border-bc-border/30 my-4" />
+          )}
           {CATEGORIES.map((cat) => {
-            const items = filtered.filter((p) => p.category === cat);
+            const items = availablePlatforms.filter((p) => p.category === cat);
             if (items.length === 0) return null;
             return (
               <div key={cat} className="mb-5">
                 <h3 className="text-[11px] font-bold text-bc-muted uppercase tracking-wider mb-3">{cat}</h3>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                  {items.map((p) => (
-                    <button
-                      key={p.key}
-                      type="button"
-                      onClick={() => onSelect(p.key)}
-                      className="p-4 border border-bc-border/40 rounded-xl hover:border-bc-accent/60 hover:bg-bc-accent/5 transition-all text-left group relative"
-                    >
-                      <div className="flex items-center gap-3 mb-1.5">
-                        <span className="text-2xl leading-none">{p.icon}</span>
-                        <span className="text-sm font-semibold text-bc-text group-hover:text-bc-accent transition-colors">{p.label}</span>
-                      </div>
-                      <p className="text-xs text-bc-muted leading-snug">{p.description}</p>
-                      <div
-                        className="absolute top-2 right-2 w-2 h-2 rounded-full"
-                        style={{ backgroundColor: p.color, opacity: 0.6 }}
-                      />
-                    </button>
-                  ))}
+                  {items.map(renderPlatformCard)}
                 </div>
               </div>
             );
@@ -364,6 +412,140 @@ export function PlatformChooser({ onSelect, onClose }: { onSelect: (key: string)
 
 /* ---------- Setup wizard (credential form) ---------- */
 
+/* ---------- Agent subscription step ---------- */
+
+function AgentSubscriptionStep({
+  platform,
+  platformLabel,
+  onDone,
+}: {
+  platform: string;
+  platformLabel: string;
+  onDone: () => void;
+}) {
+  const [agents, setAgents] = useState<Agent[]>([]);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [mentionOnly, setMentionOnly] = useState<Set<string>>(new Set());
+  const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    api.listAgents().then((list) => {
+      setAgents(list ?? []);
+      setLoading(false);
+    }).catch(() => setLoading(false));
+  }, []);
+
+  const toggleAgent = (name: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) { next.delete(name); mentionOnly.delete(name); setMentionOnly(new Set(mentionOnly)); }
+      else next.add(name);
+      return next;
+    });
+  };
+
+  const toggleMention = (name: string) => {
+    setMentionOnly((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name); else next.add(name);
+      return next;
+    });
+  };
+
+  const handleDone = async () => {
+    setSaving(true);
+    try {
+      // Subscribe each selected agent to the platform's default channel
+      const channel = `${platform}:general`;
+      await Promise.all(
+        [...selected].map((agent) =>
+          api.subscribe(channel, agent, mentionOnly.has(agent)).catch(() => {}),
+        ),
+      );
+    } catch { /* best effort */ }
+    setSaving(false);
+    onDone();
+  };
+
+  const stateColor = (state: string) => {
+    if (state === "working" || state === "running") return "#22c55e";
+    if (state === "idle") return "#eab308";
+    return "#6b7280";
+  };
+
+  return (
+    <div>
+      <div className="p-4 border-b border-bc-border/50">
+        <div className="flex items-center gap-2 mb-1">
+          <span className="text-[10px] font-bold text-bc-accent bg-bc-accent/10 px-2 py-0.5 rounded-full uppercase tracking-wider">Step 2</span>
+        </div>
+        <h3 className="text-[14px] font-semibold text-bc-text">Add agents to {platformLabel}</h3>
+        <p className="text-[12px] text-bc-muted mt-1">Select which agents should receive notifications from this platform.</p>
+      </div>
+
+      <div className="p-4 max-h-[300px] overflow-auto">
+        {loading ? (
+          <div className="text-center py-6 text-bc-muted text-[12px]">Loading agents...</div>
+        ) : agents.length === 0 ? (
+          <div className="text-center py-6 text-bc-muted text-[12px]">No agents found</div>
+        ) : (
+          <div className="space-y-1">
+            {agents.filter((a) => !a.archived_at).map((agent) => (
+              <label
+                key={agent.name}
+                className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-bc-surface/50 cursor-pointer transition-colors"
+              >
+                <input
+                  type="checkbox"
+                  checked={selected.has(agent.name)}
+                  onChange={() => toggleAgent(agent.name)}
+                  className="shrink-0 accent-[var(--bc-accent)]"
+                />
+                <span
+                  className="shrink-0 w-2 h-2 rounded-full"
+                  style={{ backgroundColor: stateColor(agent.state) }}
+                  title={agent.state}
+                />
+                <span className="text-[13px] text-bc-text flex-1 min-w-0 truncate">{agent.name}</span>
+                {selected.has(agent.name) && (
+                  <button
+                    type="button"
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); toggleMention(agent.name); }}
+                    className="shrink-0 text-[10px] px-2 py-0.5 rounded-full border transition-colors"
+                    style={{
+                      borderColor: mentionOnly.has(agent.name) ? "rgba(249,115,22,0.4)" : "var(--bc-border, #333)",
+                      color: mentionOnly.has(agent.name) ? "rgb(249,115,22)" : "var(--bc-muted, #888)",
+                      background: mentionOnly.has(agent.name) ? "rgba(249,115,22,0.1)" : "transparent",
+                    }}
+                    title={mentionOnly.has(agent.name) ? "Mention only: ON" : "Mention only: OFF"}
+                  >
+                    @mention only
+                  </button>
+                )}
+              </label>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="flex justify-between items-center gap-2 p-4 border-t border-bc-border">
+        <span className="text-[11px] text-bc-muted">{selected.size} agent{selected.size !== 1 ? "s" : ""} selected</span>
+        <button
+          type="button"
+          onClick={handleDone}
+          disabled={saving}
+          className="px-4 py-1.5 text-[12px] text-bc-bg bg-bc-accent hover:bg-bc-accent-hover rounded font-medium transition-colors disabled:opacity-50"
+        >
+          {saving ? "Saving..." : "Done"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* ---------- Setup wizard (credential form + agent subscription) ---------- */
+
 export function SetupWizard({
   platform,
   onClose,
@@ -377,7 +559,7 @@ export function SetupWizard({
   const [values, setValues] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
+  const [step, setStep] = useState<"credentials" | "agents">("credentials");
 
   if (!config) {
     return createPortal(
@@ -427,15 +609,17 @@ export function SetupWizard({
         throw new Error(text || `HTTP ${res.status}`);
       }
 
-      setSuccess(true);
-      setTimeout(() => {
-        onConnected();
-        onClose();
-      }, 1500);
+      // Move to agent subscription step
+      setStep("agents");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save");
     }
     setSaving(false);
+  };
+
+  const handleAgentsDone = () => {
+    onConnected();
+    onClose();
   };
 
   return createPortal(
@@ -445,7 +629,7 @@ export function SetupWizard({
         <div className="flex items-center justify-between p-4 border-b border-bc-border">
           <h2 className="text-[15px] font-semibold text-bc-text flex items-center gap-2">
             <span>{config.icon}</span>
-            Connect {config.label}
+            {step === "credentials" ? `Connect ${config.label}` : `${config.label} Setup`}
           </h2>
           <button
             type="button"
@@ -456,70 +640,103 @@ export function SetupWizard({
           </button>
         </div>
 
-        {/* Steps */}
-        <div className="p-4 border-b border-bc-border/50">
-          <h3 className="text-[11px] font-semibold text-bc-muted uppercase tracking-widest mb-2">
-            Setup Steps
-          </h3>
-          <ol className="space-y-1.5">
-            {config.docs.map((step, i) => (
-              <li key={i} className="flex gap-2 text-[12px] text-bc-text/70">
-                <span className="text-bc-accent font-mono shrink-0">{i + 1}.</span>
-                <span>{step}</span>
-              </li>
-            ))}
-          </ol>
+        {/* Step indicator */}
+        <div className="px-4 pt-3 flex items-center gap-2">
+          <span
+            className="text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider"
+            style={{
+              color: step === "credentials" ? "rgb(249,115,22)" : "#22c55e",
+              background: step === "credentials" ? "rgba(249,115,22,0.1)" : "rgba(34,197,94,0.1)",
+            }}
+          >
+            Step 1
+          </span>
+          <span className="text-[11px] text-bc-muted">
+            {step === "credentials" ? "Enter credentials" : "Connected"}
+          </span>
+          <span className="text-bc-muted/30 mx-1">&rarr;</span>
+          <span
+            className="text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider"
+            style={{
+              color: step === "agents" ? "rgb(249,115,22)" : "var(--bc-muted, #888)",
+              background: step === "agents" ? "rgba(249,115,22,0.1)" : "transparent",
+              border: step === "agents" ? "none" : "1px solid var(--bc-border, #333)",
+            }}
+          >
+            Step 2
+          </span>
+          <span className="text-[11px] text-bc-muted">Add agents</span>
         </div>
 
-        {/* Token inputs */}
-        <div className="p-4 space-y-3">
-          {config.fields.map((field) => (
-            <div key={field.key}>
-              <label className="block text-[11px] font-medium text-bc-muted mb-1">
-                {field.label}
-                {field.required === false && <span className="text-bc-muted/30 ml-1">(optional)</span>}
-              </label>
-              <input
-                type={field.type === "url" ? "url" : field.type === "number" ? "text" : "password"}
-                value={values[field.key] ?? ""}
-                onChange={(e) => setValues((v) => ({ ...v, [field.key]: e.target.value }))}
-                placeholder={field.placeholder}
-                className="w-full px-3 py-2 bg-bc-surface border border-bc-border rounded text-[13px] text-bc-text placeholder:text-bc-muted/30 focus:border-bc-accent focus:outline-none transition-colors"
-              />
+        {step === "credentials" ? (
+          <>
+            {/* Setup docs */}
+            <div className="p-4 border-b border-bc-border/50">
+              <h3 className="text-[11px] font-semibold text-bc-muted uppercase tracking-widest mb-2">
+                Setup Steps
+              </h3>
+              <ol className="space-y-1.5">
+                {config.docs.map((docStep, i) => (
+                  <li key={i} className="flex gap-2 text-[12px] text-bc-text/70">
+                    <span className="text-bc-accent font-mono shrink-0">{i + 1}.</span>
+                    <span>{docStep}</span>
+                  </li>
+                ))}
+              </ol>
             </div>
-          ))}
-        </div>
 
-        {/* Error / Success */}
-        {error && (
-          <div className="mx-4 mb-3 px-3 py-2 bg-bc-error/10 border border-bc-error/20 rounded text-[12px] text-bc-error">
-            {error}
-          </div>
-        )}
-        {success && (
-          <div className="mx-4 mb-3 px-3 py-2 bg-bc-success/10 border border-bc-success/20 rounded text-[12px] text-bc-success">
-            Connected! Restarting gateway adapter...
-          </div>
-        )}
+            {/* Token inputs */}
+            <div className="p-4 space-y-3">
+              {config.fields.map((field) => (
+                <div key={field.key}>
+                  <label className="block text-[11px] font-medium text-bc-muted mb-1">
+                    {field.label}
+                    {field.required === false && <span className="text-bc-muted/30 ml-1">(optional)</span>}
+                  </label>
+                  <input
+                    type={field.type === "url" ? "url" : field.type === "number" ? "text" : "password"}
+                    value={values[field.key] ?? ""}
+                    onChange={(e) => setValues((v) => ({ ...v, [field.key]: e.target.value }))}
+                    placeholder={field.placeholder}
+                    className="w-full px-3 py-2 bg-bc-surface border border-bc-border rounded text-[13px] text-bc-text placeholder:text-bc-muted/30 focus:border-bc-accent focus:outline-none transition-colors"
+                  />
+                </div>
+              ))}
+            </div>
 
-        {/* Actions */}
-        <div className="flex justify-end gap-2 p-4 border-t border-bc-border">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-1.5 text-[12px] text-bc-muted hover:text-bc-text border border-bc-border rounded transition-colors"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={saving || success}
-            className="px-4 py-1.5 text-[12px] text-bc-bg bg-bc-accent hover:bg-bc-accent-hover rounded font-medium transition-colors disabled:opacity-50"
-          >
-            {saving ? "Saving..." : success ? "Connected!" : "Connect"}
-          </button>
-        </div>
+            {/* Error */}
+            {error && (
+              <div className="mx-4 mb-3 px-3 py-2 bg-bc-error/10 border border-bc-error/20 rounded text-[12px] text-bc-error">
+                {error}
+              </div>
+            )}
+
+            {/* Actions */}
+            <div className="flex justify-end gap-2 p-4 border-t border-bc-border">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-4 py-1.5 text-[12px] text-bc-muted hover:text-bc-text border border-bc-border rounded transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSave}
+                disabled={saving}
+                className="px-4 py-1.5 text-[12px] text-bc-bg bg-bc-accent hover:bg-bc-accent-hover rounded font-medium transition-colors disabled:opacity-50"
+              >
+                {saving ? "Connecting..." : "Connect"}
+              </button>
+            </div>
+          </>
+        ) : (
+          <AgentSubscriptionStep
+            platform={platform}
+            platformLabel={config.label}
+            onDone={handleAgentsDone}
+          />
+        )}
       </div>
     </div>,
     document.body,
