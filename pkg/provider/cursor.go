@@ -19,7 +19,7 @@ func NewCursorProvider() *CursorProvider {
 	return &CursorProvider{
 		name:        "cursor",
 		description: "Cursor Agent CLI",
-		command:     "cursor-agent --force --print",
+		command:     "cursor-agent",
 		binary:      "cursor-agent",
 	}
 }
@@ -50,8 +50,13 @@ func (p *CursorProvider) InstallHint() string {
 }
 
 // BuildCommand returns the full command for a given runtime context.
-func (p *CursorProvider) BuildCommand(_ CommandOpts) string {
-	return p.command
+// Supports --resume with session ID for session continuation.
+func (p *CursorProvider) BuildCommand(opts CommandOpts) string {
+	cmd := p.command
+	if opts.SessionID != "" {
+		cmd += " --resume " + opts.SessionID
+	}
+	return cmd
 }
 
 // IsInstalled checks if the provider binary is available.
