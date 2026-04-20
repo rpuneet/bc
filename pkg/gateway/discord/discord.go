@@ -194,19 +194,23 @@ func (a *Adapter) handleMessage(s *discordgo.Session, m *discordgo.MessageCreate
 		return
 	}
 
-	// Get channel name (resolve via API if not cached)
+	// Get channel name as "guild:channel" (resolve via API if not cached)
 	a.chatMu.RLock()
 	channelName, ok := a.guildChannels[m.ChannelID]
 	a.chatMu.RUnlock()
 	if !ok {
+		chName := m.ChannelID
 		if ch, err := s.Channel(m.ChannelID); err == nil && ch.Name != "" {
-			channelName = ch.Name
-			a.chatMu.Lock()
-			a.guildChannels[m.ChannelID] = channelName
-			a.chatMu.Unlock()
-		} else {
-			channelName = m.ChannelID
+			chName = ch.Name
 		}
+		guildName := m.GuildID
+		if guild, err := s.Guild(m.GuildID); err == nil && guild.Name != "" {
+			guildName = guild.Name
+		}
+		channelName = guildName + ":" + chName
+		a.chatMu.Lock()
+		a.guildChannels[m.ChannelID] = channelName
+		a.chatMu.Unlock()
 	}
 
 	sender := m.Author.Username
