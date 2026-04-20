@@ -10,6 +10,7 @@ export interface PlatformDef {
   description: string;
   color: string;
   category: string;
+  status: "ready" | "webhook" | "coming_soon";
   fields: { key: string; label: string; placeholder: string; required?: boolean; type?: string }[];
   docs: string[];
 }
@@ -17,7 +18,7 @@ export interface PlatformDef {
 export const PLATFORMS: PlatformDef[] = [
   // --- Chat ---
   {
-    key: "slack",
+    key: "slack", status: "ready" as const,
     label: "Slack",
     icon: "\u{1F4AC}",
     description: "Team messaging via Socket Mode",
@@ -35,7 +36,7 @@ export const PLATFORMS: PlatformDef[] = [
     ],
   },
   {
-    key: "telegram",
+    key: "telegram", status: "ready" as const,
     label: "Telegram",
     icon: "\u2708\uFE0F",
     description: "Bot messages via long polling",
@@ -48,7 +49,7 @@ export const PLATFORMS: PlatformDef[] = [
     ],
   },
   {
-    key: "discord",
+    key: "discord", status: "ready" as const,
     label: "Discord",
     icon: "\u{1F3AE}",
     description: "Bot messages from Discord servers",
@@ -64,7 +65,7 @@ export const PLATFORMS: PlatformDef[] = [
 
   // --- Code & DevOps ---
   {
-    key: "github",
+    key: "github", status: "webhook" as const,
     label: "GitHub",
     icon: "\u{1F419}",
     description: "PR, issue, and push webhooks",
@@ -78,7 +79,7 @@ export const PLATFORMS: PlatformDef[] = [
     ],
   },
   {
-    key: "gitlab",
+    key: "gitlab", status: "webhook" as const,
     label: "GitLab",
     icon: "\u{1F98A}",
     description: "Merge request and pipeline webhooks",
@@ -92,7 +93,7 @@ export const PLATFORMS: PlatformDef[] = [
     ],
   },
   {
-    key: "bitbucket",
+    key: "bitbucket", status: "webhook" as const,
     label: "Bitbucket",
     icon: "\u{1FAA3}",
     description: "Push and PR webhooks",
@@ -106,7 +107,7 @@ export const PLATFORMS: PlatformDef[] = [
     ],
   },
   {
-    key: "jira",
+    key: "jira", status: "webhook" as const,
     label: "Jira",
     icon: "\u{1F4CB}",
     description: "Issue and sprint webhooks",
@@ -120,7 +121,7 @@ export const PLATFORMS: PlatformDef[] = [
     ],
   },
   {
-    key: "linear",
+    key: "linear", status: "webhook" as const,
     label: "Linear",
     icon: "\u{1F4D0}",
     description: "Issue and project webhooks",
@@ -134,7 +135,7 @@ export const PLATFORMS: PlatformDef[] = [
     ],
   },
   {
-    key: "vercel",
+    key: "vercel", status: "webhook" as const,
     label: "Vercel",
     icon: "\u25B2",
     description: "Deployment and build webhooks",
@@ -148,7 +149,7 @@ export const PLATFORMS: PlatformDef[] = [
     ],
   },
   {
-    key: "netlify",
+    key: "netlify", status: "webhook" as const,
     label: "Netlify",
     icon: "\u25C6",
     description: "Deploy and build notifications",
@@ -164,7 +165,7 @@ export const PLATFORMS: PlatformDef[] = [
 
   // --- Monitoring ---
   {
-    key: "sentry",
+    key: "sentry", status: "webhook" as const,
     label: "Sentry",
     icon: "\u{1F41B}",
     description: "Error and issue alerts",
@@ -178,7 +179,7 @@ export const PLATFORMS: PlatformDef[] = [
     ],
   },
   {
-    key: "pagerduty",
+    key: "pagerduty", status: "webhook" as const,
     label: "PagerDuty",
     icon: "\u{1F6A8}",
     description: "Incident and alert webhooks",
@@ -192,7 +193,7 @@ export const PLATFORMS: PlatformDef[] = [
     ],
   },
   {
-    key: "datadog",
+    key: "datadog", status: "webhook" as const,
     label: "Datadog",
     icon: "\u{1F415}",
     description: "Monitor and event webhooks",
@@ -206,7 +207,7 @@ export const PLATFORMS: PlatformDef[] = [
     ],
   },
   {
-    key: "grafana",
+    key: "grafana", status: "webhook" as const,
     label: "Grafana",
     icon: "\u{1F4CA}",
     description: "Alert notifications",
@@ -222,7 +223,7 @@ export const PLATFORMS: PlatformDef[] = [
 
   // --- Payments ---
   {
-    key: "stripe",
+    key: "stripe", status: "webhook" as const,
     label: "Stripe",
     icon: "\u{1F4B3}",
     description: "Payment and subscription events",
@@ -238,7 +239,7 @@ export const PLATFORMS: PlatformDef[] = [
 
   // --- Content ---
   {
-    key: "rss",
+    key: "rss", status: "ready" as const,
     label: "RSS / Atom",
     icon: "\u{1F4E1}",
     description: "Subscribe to any RSS or Atom feed",
@@ -254,7 +255,7 @@ export const PLATFORMS: PlatformDef[] = [
     ],
   },
   {
-    key: "notion",
+    key: "notion", status: "coming_soon" as const,
     label: "Notion",
     icon: "\u{1F4DD}",
     description: "Database and page change polling",
@@ -273,7 +274,7 @@ export const PLATFORMS: PlatformDef[] = [
 
   // --- Custom ---
   {
-    key: "webhook",
+    key: "webhook", status: "webhook" as const,
     label: "Generic Webhook",
     icon: "\u{1F517}",
     description: "Receive any JSON webhook payload",
@@ -319,8 +320,12 @@ export function PlatformChooser({ onSelect, onClose }: { onSelect: (key: string)
       <button
         key={p.key}
         type="button"
-        onClick={() => onSelect(p.key)}
-        className="p-4 border border-bc-border/40 rounded-xl hover:border-bc-accent/60 hover:bg-bc-accent/5 transition-all text-left group relative"
+        onClick={() => p.status !== "coming_soon" && onSelect(p.key)}
+        className={`p-4 border rounded-xl transition-all text-left group relative ${
+          p.status === "coming_soon"
+            ? "border-bc-border/20 opacity-50 cursor-not-allowed"
+            : "border-bc-border/40 hover:border-bc-accent/60 hover:bg-bc-accent/5 cursor-pointer"
+        }`}
         style={isConnected ? { borderColor: "rgba(34,197,94,0.3)" } : undefined}
       >
         <div className="flex items-center gap-3 mb-1.5">
@@ -337,7 +342,13 @@ export function PlatformChooser({ onSelect, onClose }: { onSelect: (key: string)
         {isConnected && (
           <span className="text-[10px] text-green-500/80 mt-1 block">Connected</span>
         )}
-        {!isConnected && (
+        {!isConnected && p.status === "webhook" && (
+          <span className="text-[10px] text-amber-500/60 mt-1 block">Webhook · requires public URL</span>
+        )}
+        {!isConnected && p.status === "coming_soon" && (
+          <span className="text-[10px] text-bc-muted/40 mt-1 block">Coming soon</span>
+        )}
+        {!isConnected && p.status === "ready" && (
           <div
             className="absolute top-2 right-2 w-2 h-2 rounded-full"
             style={{ backgroundColor: p.color, opacity: 0.6 }}
