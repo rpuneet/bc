@@ -359,6 +359,310 @@ function GitHubCardView({ card }: { card: GitHubCard }) {
   );
 }
 
+/* ── Emoji Reactions ─────────────────────────────────────────── */
+
+const EMOJI_PALETTE = ["👍", "👎", "😀", "🎉", "❤️", "🚀", "👀", "🤔", "✅", "❌"];
+
+/** Per-message reaction state: Map<messageId, Map<emoji, { count, active }>> */
+type ReactionMap = Map<string, Map<string, { count: number; active: boolean }>>;
+
+function useReactions() {
+  const [reactions, setReactions] = useState<ReactionMap>(new Map());
+
+  const toggleReaction = useCallback((messageId: string, emoji: string) => {
+    setReactions((prev) => {
+      const next = new Map(prev);
+      const msgReactions = new Map(next.get(messageId) ?? new Map());
+      const existing = msgReactions.get(emoji);
+      if (existing?.active) {
+        // Remove our reaction
+        if (existing.count <= 1) {
+          msgReactions.delete(emoji);
+        } else {
+          msgReactions.set(emoji, { count: existing.count - 1, active: false });
+        }
+      } else {
+        // Add our reaction
+        msgReactions.set(emoji, {
+          count: (existing?.count ?? 0) + 1,
+          active: true,
+        });
+      }
+      if (msgReactions.size === 0) {
+        next.delete(messageId);
+      } else {
+        next.set(messageId, msgReactions);
+      }
+      return next;
+    });
+  }, []);
+
+  return { reactions, toggleReaction };
+}
+
+function EmojiPicker({
+  onSelect,
+  onClose,
+}: {
+  onSelect: (emoji: string) => void;
+  onClose: () => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handle = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
+    };
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("mousedown", handle);
+    document.addEventListener("keydown", handleKey);
+    return () => {
+      document.removeEventListener("mousedown", handle);
+      document.removeEventListener("keydown", handleKey);
+    };
+  }, [onClose]);
+
+  return (
+    <div
+      ref={ref}
+      style={{
+        position: "absolute",
+        top: "100%",
+        right: 0,
+        marginTop: 4,
+        background: "#1a1a1a",
+        border: "1px solid #222",
+        borderRadius: 8,
+        padding: 6,
+        display: "grid",
+        gridTemplateColumns: "repeat(5, 1fr)",
+        gap: 2,
+        boxShadow: "0 12px 40px rgba(0,0,0,0.6)",
+        zIndex: 60,
+        animation: "fadeIn 100ms ease-out",
+      }}
+      onClick={(e) => e.stopPropagation()}
+    >
+      {EMOJI_PALETTE.map((emoji) => (
+        <button
+          key={emoji}
+          type="button"
+          onClick={() => {
+            onSelect(emoji);
+            onClose();
+          }}
+          style={{
+            width: 32,
+            height: 32,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontSize: 16,
+            background: "none",
+            border: "none",
+            borderRadius: 6,
+            cursor: "pointer",
+            transition: "background 80ms",
+          }}
+          className="hover:bg-white/10"
+        >
+          {emoji}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function MessageActions({
+  onEmojiSelect,
+  onReply,
+}: {
+  onEmojiSelect: (emoji: string) => void;
+  onReply: () => void;
+}) {
+  const [pickerOpen, setPickerOpen] = useState(false);
+
+  return (
+    <div
+      className="absolute opacity-0 group-hover/msg:opacity-100 transition-opacity duration-100"
+      style={{
+        top: -14,
+        right: 8,
+        zIndex: 10,
+        pointerEvents: "none",
+      }}
+    >
+      <div
+        className="flex items-center"
+        style={{
+          background: "#1a1a1a",
+          border: "1px solid #222",
+          borderRadius: 6,
+          padding: "2px 2px",
+          gap: 1,
+          boxShadow: "0 4px 16px rgba(0,0,0,0.4)",
+          pointerEvents: "auto",
+        }}
+      >
+        {/* Emoji picker button */}
+        <div className="relative">
+          <button
+            type="button"
+            title="Add reaction"
+            onClick={(e) => {
+              e.stopPropagation();
+              setPickerOpen((v) => !v);
+            }}
+            className="hover:bg-white/10 transition-colors"
+            style={{
+              width: 28,
+              height: 28,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              borderRadius: 4,
+              cursor: "pointer",
+              background: "none",
+              border: "none",
+              fontSize: 14,
+            }}
+          >
+            😀
+          </button>
+          {pickerOpen && (
+            <EmojiPicker
+              onSelect={onEmojiSelect}
+              onClose={() => setPickerOpen(false)}
+            />
+          )}
+        </div>
+
+        {/* Reply button */}
+        <button
+          type="button"
+          title="Reply"
+          onClick={(e) => {
+            e.stopPropagation();
+            onReply();
+          }}
+          className="hover:bg-white/10 transition-colors"
+          style={{
+            width: 28,
+            height: 28,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            borderRadius: 4,
+            cursor: "pointer",
+            background: "none",
+            border: "none",
+            color: "#6b6b6b",
+          }}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="9 17 4 12 9 7" />
+            <path d="M20 18v-2a4 4 0 0 0-4-4H4" />
+          </svg>
+        </button>
+
+        {/* Pin button */}
+        <button
+          type="button"
+          title="Pin message"
+          onClick={(e) => e.stopPropagation()}
+          className="hover:bg-white/10 transition-colors"
+          style={{
+            width: 28,
+            height: 28,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            borderRadius: 4,
+            cursor: "pointer",
+            background: "none",
+            border: "none",
+            color: "#6b6b6b",
+          }}
+        >
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="12" y1="17" x2="12" y2="22" />
+            <path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z" />
+          </svg>
+        </button>
+
+        {/* More menu button */}
+        <button
+          type="button"
+          title="More actions"
+          onClick={(e) => e.stopPropagation()}
+          className="hover:bg-white/10 transition-colors"
+          style={{
+            width: 28,
+            height: 28,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            borderRadius: 4,
+            cursor: "pointer",
+            background: "none",
+            border: "none",
+            color: "#6b6b6b",
+            fontSize: 16,
+            lineHeight: 1,
+          }}
+        >
+          &#x22EF;
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function ReactionRow({
+  reactions,
+  onToggle,
+}: {
+  reactions: Map<string, { count: number; active: boolean }> | undefined;
+  onToggle: (emoji: string) => void;
+}) {
+  if (!reactions || reactions.size === 0) return null;
+
+  return (
+    <div className="flex flex-wrap items-center" style={{ gap: 4, marginTop: 4 }}>
+      {[...reactions.entries()].map(([emoji, { count, active }]) => (
+        <button
+          key={emoji}
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggle(emoji);
+          }}
+          className="transition-all duration-100"
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 4,
+            padding: "2px 8px",
+            borderRadius: 999,
+            fontSize: 12,
+            lineHeight: "18px",
+            background: active ? "rgba(249,115,22,0.1)" : "#1a1a1a",
+            border: `1px solid ${active ? "rgba(249,115,22,0.5)" : "#222"}`,
+            color: active ? "#f97316" : "#a0a0a0",
+            cursor: "pointer",
+            fontVariantNumeric: "tabular-nums",
+          }}
+        >
+          <span style={{ fontSize: 13 }}>{emoji}</span>
+          <span style={{ fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}>{count}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
 /* ── Component ───────────────────────────────────────────────── */
 
 export function GatewayFeed({
@@ -372,6 +676,7 @@ export function GatewayFeed({
 }) {
   const PAGE_SIZE = 30;
   const [messages, setMessages] = useState<ChannelMessage[]>([]);
+  const { reactions, toggleReaction } = useReactions();
   const [deliveries, setDeliveries] = useState<DeliveryEntry[]>([]);
   const [subscriptions, setSubscriptions] = useState<NotifySubscription[]>([]);
   const [agents, setAgents] = useState<Agent[]>([]);
@@ -1394,6 +1699,11 @@ export function GatewayFeed({
 
                           return (
                             <div key={msg.id} className="group/msg relative">
+                              {/* Hover action toolbar */}
+                              <MessageActions
+                                onEmojiSelect={(emoji) => toggleReaction(String(msg.id), emoji)}
+                                onReply={() => composerRef.current?.focus()}
+                              />
                               <div
                                 className="rounded-md transition-colors duration-100 hover:bg-white/[0.02]"
                                 style={{ padding: "2px 0" }}
@@ -1422,6 +1732,12 @@ export function GatewayFeed({
                                     ))}
                                   </div>
                                 )}
+
+                                {/* Emoji reactions */}
+                                <ReactionRow
+                                  reactions={reactions.get(String(msg.id))}
+                                  onToggle={(emoji) => toggleReaction(String(msg.id), emoji)}
+                                />
 
                                 {/* Delivery indicators */}
                                 {hasDelivery && (
