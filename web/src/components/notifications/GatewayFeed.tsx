@@ -146,26 +146,87 @@ const PLATFORM_GLYPHS: Record<string, React.FC<{ size?: number }>> = {
 
 /* ── GitHub card renderer ────────────────────────────────────── */
 
-const STATUS_COLORS: Record<string, string> = {
-  OPEN: "bg-green-500/15 text-green-400 border-green-500/20",
-  MERGED: "bg-purple-500/15 text-purple-400 border-purple-500/20",
-  CLOSED: "bg-red-500/15 text-red-400 border-red-500/20",
-  SYNCHRONIZE: "bg-blue-500/15 text-blue-400 border-blue-500/20",
-};
-
-function GitHubCardView({ card }: { card: GitHubCard }) {
-  const statusClass = STATUS_COLORS[card.status ?? ""] ?? "bg-bc-surface/30 text-bc-muted border-bc-border/30";
-  const stateColor = card.status === "MERGED" ? "#a855f7" : card.status === "CLOSED" ? "#ef4444" : "#22c55e";
-  const icon = card.type === "pr" ? (
-    <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" className="text-bc-muted/60 shrink-0">
-      <path d="M1.5 3.25a2.25 2.25 0 1 1 3 2.122v5.256a2.251 2.251 0 1 1-1.5 0V5.372A2.25 2.25 0 0 1 1.5 3.25Zm5.677-.177L9.573.677A.25.25 0 0 1 10 .854V2.5h1A2.5 2.5 0 0 1 13.5 5v5.628a2.251 2.251 0 1 1-1.5 0V5a1 1 0 0 0-1-1h-1v1.646a.25.25 0 0 1-.427.177L7.177 3.427a.25.25 0 0 1 0-.354ZM3.75 2.5a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5Zm0 9.5a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5Zm8.25.75a.75.75 0 1 0 1.5 0 .75.75 0 0 0-1.5 0Z" />
-    </svg>
-  ) : (
-    <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" className="text-bc-muted/60 shrink-0">
-      <path d="M8 9.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Z" />
-      <path d="M8 0a8 8 0 1 1 0 16A8 8 0 0 1 8 0ZM1.5 8a6.5 6.5 0 1 0 13 0 6.5 6.5 0 0 0-13 0Z" />
+function GitHubGlyph({ size = 11 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 16 16" fill="currentColor" style={{ flexShrink: 0, color: "#6b6b6b" }}>
+      <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z" />
     </svg>
   );
+}
+
+function GitHubCardView({ card }: { card: GitHubCard }) {
+  // Push card — blue border, branch + files changed
+  if (card.type === "push") {
+    return (
+      <div
+        className="mt-1.5 max-w-lg overflow-hidden"
+        style={{
+          background: "#151515",
+          borderRadius: 6,
+          borderLeft: "2px solid #3b82f6",
+        }}
+      >
+        <div
+          className="flex items-center"
+          style={{
+            padding: "8px 12px 6px",
+            gap: 7,
+            fontSize: 10.5,
+            color: "#6b6b6b",
+            fontFamily: "'JetBrains Mono', monospace",
+          }}
+        >
+          <GitHubGlyph size={11} />
+          <span
+            style={{
+              fontSize: 9.5,
+              fontFamily: "'JetBrains Mono', monospace",
+              padding: "1px 5px",
+              borderRadius: 3,
+              background: "#1a1a1a",
+              color: "#a0a0a0",
+              textTransform: "uppercase",
+              letterSpacing: 0.5,
+              fontWeight: 600,
+            }}
+          >
+            push
+          </span>
+          {card.repo && <span style={{ color: "#6b6b6b" }}>{card.repo}</span>}
+          {card.branch && <span style={{ color: "#a0a0a0", fontWeight: 500 }}>{card.branch}</span>}
+        </div>
+        <div style={{ padding: "2px 12px 10px" }}>
+          <div style={{ fontSize: 13, fontWeight: 500, color: "#e5e5e5", lineHeight: 1.4 }}>
+            {card.title}
+          </div>
+          <div
+            className="flex flex-wrap"
+            style={{
+              fontSize: 11,
+              color: "#6b6b6b",
+              fontFamily: "'JetBrains Mono', monospace",
+              marginTop: 4,
+              gap: 10,
+            }}
+          >
+            {card.changedFiles !== undefined && (
+              <span>{card.changedFiles} file{card.changedFiles !== 1 ? "s" : ""}</span>
+            )}
+            {card.additions !== undefined && (
+              <span style={{ color: "#22c55e" }}>+{card.additions}</span>
+            )}
+            {card.deletions !== undefined && (
+              <span style={{ color: "#ef4444" }}>-{card.deletions}</span>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // PR / Issue card — colored left border based on state
+  const stateColor = card.status === "MERGED" ? "#a855f7" : card.status === "CLOSED" ? "#ef4444" : "#22c55e";
+  const stateLabel = (card.status ?? "").replace(/_/g, " ");
 
   return (
     <div
@@ -176,55 +237,92 @@ function GitHubCardView({ card }: { card: GitHubCard }) {
         borderLeft: `2px solid ${stateColor}`,
       }}
     >
-      <div className="flex items-start gap-2 px-3 py-2">
-        {icon}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            {card.url ? (
-              <a
-                href={card.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="hover:underline truncate"
-                style={{ fontSize: 13, fontWeight: 500, color: "#e5e5e5" }}
-              >
-                {card.title}
-              </a>
-            ) : (
-              <span style={{ fontSize: 13, fontWeight: 500, color: "#e5e5e5" }} className="truncate">
-                {card.title}
-              </span>
-            )}
-            {card.number && (
-              <span style={{ fontSize: 11, color: "#a0a0a0", fontFamily: "'JetBrains Mono', monospace" }}>
-                #{card.number}
-              </span>
-            )}
-            {card.status && (
-              <span className={`text-[9px] font-semibold uppercase px-1.5 py-0.5 rounded border ${statusClass}`}>
-                {card.status}
-              </span>
-            )}
-          </div>
-          {card.repo && (
-            <span style={{ fontSize: 10, color: "#6b6b6b", fontFamily: "'JetBrains Mono', monospace" }}>
-              {card.repo}
-            </span>
-          )}
-          {(card.additions !== undefined || card.deletions !== undefined || card.changedFiles !== undefined) && (
-            <div className="flex items-center gap-2 mt-1" style={{ fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}>
-              {card.changedFiles !== undefined && (
-                <span style={{ color: "#6b6b6b" }}>{card.changedFiles} file{card.changedFiles !== 1 ? "s" : ""}</span>
-              )}
-              {card.additions !== undefined && (
-                <span style={{ color: "#22c55e" }}>+{card.additions}</span>
-              )}
-              {card.deletions !== undefined && (
-                <span style={{ color: "#ef4444" }}>-{card.deletions}</span>
-              )}
-            </div>
+      {/* Card header with event type badge */}
+      <div
+        className="flex items-center"
+        style={{
+          padding: "8px 12px 6px",
+          gap: 7,
+          fontSize: 10.5,
+          color: "#6b6b6b",
+          fontFamily: "'JetBrains Mono', monospace",
+        }}
+      >
+        <GitHubGlyph size={11} />
+        <span
+          style={{
+            fontSize: 9.5,
+            fontFamily: "'JetBrains Mono', monospace",
+            padding: "1px 5px",
+            borderRadius: 3,
+            background: "#1a1a1a",
+            color: "#a0a0a0",
+            textTransform: "uppercase",
+            letterSpacing: 0.5,
+            fontWeight: 600,
+          }}
+        >
+          {card.type === "pr" ? "pull_request" : card.type}
+        </span>
+        {card.repo && <span style={{ color: "#6b6b6b" }}>{card.repo}</span>}
+        {card.number != null && <span style={{ color: "#a0a0a0", fontWeight: 500 }}>#{card.number}</span>}
+        {card.status && (
+          <span
+            style={{
+              marginLeft: "auto",
+              fontSize: 9.5,
+              fontWeight: 700,
+              color: stateColor,
+              padding: "1px 6px",
+              borderRadius: 3,
+              background: `color-mix(in oklab, ${stateColor} 14%, transparent)`,
+              textTransform: "uppercase",
+              letterSpacing: 0.6,
+            }}
+          >
+            {stateLabel}
+          </span>
+        )}
+      </div>
+      {/* Card body */}
+      <div style={{ padding: "2px 12px 10px" }}>
+        <div style={{ fontSize: 13, fontWeight: 500, color: "#e5e5e5", lineHeight: 1.4 }}>
+          {card.url ? (
+            <a
+              href={card.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:underline"
+              style={{ color: "#e5e5e5", textDecoration: "none" }}
+            >
+              {card.title}
+            </a>
+          ) : (
+            card.title
           )}
         </div>
+        {(card.additions !== undefined || card.deletions !== undefined || card.changedFiles !== undefined) && (
+          <div
+            className="flex flex-wrap"
+            style={{
+              fontSize: 11,
+              color: "#6b6b6b",
+              fontFamily: "'JetBrains Mono', monospace",
+              marginTop: 4,
+              gap: 10,
+            }}
+          >
+            {card.changedFiles !== undefined && (
+              <span>{card.changedFiles} file{card.changedFiles !== 1 ? "s" : ""}</span>
+            )}
+            {card.additions !== undefined && (
+              <span style={{ color: "#22c55e" }}>+{card.additions}</span>
+            )}
+            {card.deletions !== undefined && (
+              <span style={{ color: "#ef4444" }}>-{card.deletions}</span>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -256,6 +354,10 @@ export function GatewayFeed({
   const [searchQuery, setSearchQuery] = useState("");
   const [filterOpen, setFilterOpen] = useState(false);
   const [filterAgent, setFilterAgent] = useState<string | null>(null);
+  const [topicDismissed, setTopicDismissed] = useState(false);
+  const [composerText, setComposerText] = useState("");
+  const [composerSending, setComposerSending] = useState(false);
+  const composerRef = useRef<HTMLTextAreaElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
   const agentsPopoverRef = useRef<HTMLDivElement>(null);
@@ -382,6 +484,33 @@ export function GatewayFeed({
     setAgentLoading(null);
   };
 
+  const handleComposerSend = async () => {
+    const content = composerText.trim();
+    if (!content || composerSending) return;
+    setComposerSending(true);
+    try {
+      const sender = subscribedAgents[0]?.name ?? "api";
+      if (platform) {
+        // Send via gateway: POST /api/gateways/{platform}/channels/{channel}/send
+        const gw = platform;
+        const ch = channelLabel;
+        await fetch(`/api/gateways/${encodeURIComponent(gw)}/channels/${encodeURIComponent(ch)}/send`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ content, sender }),
+        });
+      } else {
+        // Fallback: send via agent send
+        await api.sendToAgent(sender, content);
+      }
+      setComposerText("");
+      if (composerRef.current) {
+        composerRef.current.style.height = "auto";
+      }
+    } catch { /* */ }
+    setComposerSending(false);
+  };
+
   useEffect(() => {
     void fetchInitial();
   }, [fetchInitial]);
@@ -498,8 +627,6 @@ export function GatewayFeed({
   }
 
   const agentNames = new Set(agents.map((a) => a.name));
-  const subAgents = new Set(subscriptions.map((s) => s.agent));
-
   const subMap = new Map<string, NotifySubscription>();
   for (const sub of subscriptions) subMap.set(sub.agent, sub);
   const subscribedAgents = agents.filter((a) => subMap.has(a.name));
@@ -993,10 +1120,10 @@ export function GatewayFeed({
         </div>
       )}
 
-      {/* Channel description / topic bar */}
-      {channel?.description && channel.description !== "Gateway channel" && (
+      {/* Channel topic / pinned bar */}
+      {!topicDismissed && (
         <div
-          className="flex items-start"
+          className="flex items-start shrink-0"
           style={{
             padding: "10px 18px",
             fontSize: 12,
@@ -1010,7 +1137,52 @@ export function GatewayFeed({
           <svg width="11" height="11" viewBox="0 0 24 24" fill="#f97316" stroke="none" style={{ marginTop: 1, flexShrink: 0 }}>
             <path d="M12 17v5M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z" />
           </svg>
-          <span>{channel.description}</span>
+          <span style={{ flex: 1 }}>
+            {channel?.description && channel.description !== "Gateway channel"
+              ? channel.description
+              : (<>
+                  Coordination feed for{" "}
+                  <span style={{ color: "#a0a0a0", fontFamily: "'JetBrains Mono', monospace" }}>
+                    #{channelLabel}
+                  </span>
+                  . Agents posting here are routed via your{" "}
+                  <span
+                    style={{ color: "#f97316", cursor: "pointer" }}
+                    onClick={() => setShowAgents(true)}
+                  >
+                    routing rules
+                  </span>
+                  .
+                  {platform && (
+                    <>
+                      {" "}Attachments are raw{" "}
+                      <span style={{ color: "#a0a0a0", fontFamily: "'JetBrains Mono', monospace" }}>
+                        {platform}
+                      </span>{" "}
+                      webhook payloads.
+                    </>
+                  )}
+                </>)
+            }
+          </span>
+          <button
+            type="button"
+            onClick={() => setTopicDismissed(true)}
+            style={{
+              background: "none",
+              border: "none",
+              color: "#4a4a4a",
+              cursor: "pointer",
+              padding: 2,
+              flexShrink: 0,
+              marginTop: 1,
+            }}
+            title="Dismiss"
+          >
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
         </div>
       )}
 
@@ -1183,7 +1355,10 @@ export function GatewayFeed({
                           const delivered = msgDeliveries.filter((d) => d.status === "delivered");
                           const failed = msgDeliveries.filter((d) => d.status === "failed");
                           const hasDelivery = delivered.length > 0 || failed.length > 0;
-                          const ghCard = platform === "github" ? parseGitHubCard(msg.content) : null;
+                          // Detect webhook JSON payloads on any platform
+                          const looksLikeWebhook = msg.content.trimStart().startsWith("{") &&
+                            /pull_request|"issue"|"ref".*"commits"|"action"/i.test(msg.content);
+                          const ghCard = (platform === "github" || looksLikeWebhook) ? parseGitHubCard(msg.content) : null;
                           const fileAttachments = parseFileAttachments(msg.content);
 
                           return (
@@ -1249,7 +1424,7 @@ export function GatewayFeed({
         </div>
       </div>
 
-      {/* ── Footer / Composer area ────────────────────────────── */}
+      {/* ── Message Composer ──────────────────────────────────── */}
       <div
         className="shrink-0"
         style={{
@@ -1258,28 +1433,137 @@ export function GatewayFeed({
           background: "#0d0d0d",
         }}
       >
-        <div className="flex items-center justify-between" style={{ fontSize: 10 }}>
-          <span style={{ color: "#4a4a4a" }}>
+        <div
+          style={{
+            background: "#151515",
+            borderRadius: 8,
+            padding: "10px 12px",
+            display: "flex",
+            flexDirection: "column",
+            gap: 8,
+            border: "1px solid #2a2a2a",
+          }}
+        >
+          <textarea
+            ref={composerRef}
+            value={composerText}
+            onChange={(e) => {
+              setComposerText(e.target.value);
+              // Auto-resize
+              const el = e.target;
+              el.style.height = "auto";
+              el.style.height = Math.min(el.scrollHeight, 120) + "px";
+            }}
+            onKeyDown={(e) => {
+              if ((e.metaKey || e.ctrlKey) && e.key === "Enter" && composerText.trim() && !composerSending) {
+                e.preventDefault();
+                void handleComposerSend();
+              }
+            }}
+            placeholder={`Message #${channelLabel} as ${subscribedAgents[0]?.name ?? "agent"}`}
+            rows={1}
+            style={{
+              background: "transparent",
+              border: "none",
+              outline: "none",
+              color: "#e5e5e5",
+              fontFamily: "inherit",
+              fontSize: 13.5,
+              resize: "none",
+              minHeight: 20,
+              maxHeight: 120,
+              lineHeight: 1.5,
+            }}
+          />
+          <div className="flex items-center" style={{ gap: 2, color: "#6b6b6b" }}>
+            {/* Action icons */}
+            <button type="button" title="Attach" style={{ width: 26, height: 26, borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", color: "#6b6b6b", cursor: "pointer", background: "none", border: "none" }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+              </svg>
+            </button>
+            <button type="button" title="Command" style={{ width: 26, height: 26, borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", color: "#6b6b6b", cursor: "pointer", background: "none", border: "none" }}>
+              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, lineHeight: 1 }}>/</span>
+            </button>
+            <button type="button" title="Mention" style={{ width: 26, height: 26, borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", color: "#6b6b6b", cursor: "pointer", background: "none", border: "none" }}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="4" /><path d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-3.92 7.94" />
+              </svg>
+            </button>
+            <button type="button" title="Emoji" style={{ width: 26, height: 26, borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", color: "#6b6b6b", cursor: "pointer", background: "none", border: "none" }}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10" /><path d="M8 14s1.5 2 4 2 4-2 4-2" /><line x1="9" y1="9" x2="9.01" y2="9" /><line x1="15" y1="9" x2="15.01" y2="9" />
+              </svg>
+            </button>
+
+            {/* Gateway indicator */}
             {platform && (
-              <span className="inline-flex items-center" style={{ gap: 6 }}>
-                <span
-                  style={{
-                    width: 5,
-                    height: 5,
-                    borderRadius: 999,
-                    background: "#22c55e",
-                  }}
-                />
-                <span>sending via bc gateway → {platform}</span>
+              <span
+                className="inline-flex items-center"
+                style={{
+                  gap: 5,
+                  fontSize: 10.5,
+                  color: "#6b6b6b",
+                  fontFamily: "'JetBrains Mono', monospace",
+                  padding: "2px 7px",
+                  background: "#1a1a1a",
+                  borderRadius: 4,
+                  marginLeft: "auto",
+                }}
+              >
+                <span style={{ width: 5, height: 5, borderRadius: 999, background: "#22c55e" }} />
+                <span>sending via bc gateway &rarr; {platform}</span>
               </span>
             )}
-            {!platform && "bc notifications"}
-          </span>
-          {subAgents.size > 0 && (
-            <span style={{ color: "#4a4a4a", fontFamily: "'JetBrains Mono', monospace" }}>
-              {subAgents.size} agent{subAgents.size !== 1 ? "s" : ""} subscribed
+            {!platform && <span style={{ marginLeft: "auto" }} />}
+
+            {/* Keyboard hint + Send button */}
+            <span
+              className="flex items-center"
+              style={{
+                marginLeft: platform ? 8 : "auto",
+                fontSize: 10.5,
+                color: "#6b6b6b",
+                fontFamily: "'JetBrains Mono', monospace",
+                gap: 6,
+                whiteSpace: "nowrap",
+              }}
+            >
+              <span>
+                <span style={{ fontSize: 10, fontFamily: "'JetBrains Mono', monospace", padding: "1px 5px", background: "#1a1a1a", borderRadius: 3, color: "#a0a0a0" }}>
+                  {"\u2318"}
+                </span>{" "}
+                <span style={{ fontSize: 10, fontFamily: "'JetBrains Mono', monospace", padding: "1px 5px", background: "#1a1a1a", borderRadius: 3, color: "#a0a0a0" }}>
+                  {"\u21B5"}
+                </span>
+              </span>
+              <button
+                type="button"
+                onClick={() => void handleComposerSend()}
+                disabled={!composerText.trim() || composerSending}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 5,
+                  background: composerText.trim() && !composerSending ? "#f97316" : "#4a4a4a",
+                  color: "#0d0d0d",
+                  padding: "4px 10px",
+                  borderRadius: 5,
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: composerText.trim() && !composerSending ? "pointer" : "default",
+                  border: "none",
+                  opacity: composerText.trim() && !composerSending ? 1 : 0.5,
+                  transition: "background 100ms, opacity 100ms",
+                }}
+              >
+                <span>{composerSending ? "Sending..." : "Send"}</span>
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#0d0d0d" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="5" y1="12" x2="19" y2="12" /><polyline points="12 5 19 12 12 19" />
+                </svg>
+              </button>
             </span>
-          )}
+          </div>
         </div>
       </div>
 
