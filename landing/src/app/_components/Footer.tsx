@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { SporeLogo } from "./SporeLogo";
 
 export function Footer() {
   return (
@@ -8,10 +9,8 @@ export function Footer() {
           {/* Logo + tagline */}
           <div className="col-span-1 md:col-span-2 space-y-4">
             <div className="flex items-center gap-2">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/icon.svg" alt="" width={28} height={28} className="h-7 w-7" />
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/logo.svg" alt="mycel" height={20} className="h-5" />
+              <SporeLogo size={28} />
+              <span className="font-headline text-lg font-bold tracking-tight text-on-surface">mycel</span>
             </div>
             <p className="text-sm text-on-surface-variant max-w-xs leading-relaxed">
               Multi-agent orchestration for AI coding assistants. CLI-first.

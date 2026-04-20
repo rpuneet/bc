@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
+import { SporeLogo } from "./SporeLogo";
 import { useState, useRef, useEffect } from "react";
 import { Menu, X, Copy, Check, Apple, Monitor, Container } from "lucide-react";
 import { ThemeToggle } from "./ThemeToggle";
@@ -17,10 +18,8 @@ const links = [
 function Logo() {
   return (
     <div className="flex items-center gap-2">
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/icon.svg" alt="" width={28} height={28} className="h-7 w-7" />
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/logo.svg" alt="mycel" height={20} className="h-5" />
+      <SporeLogo size={28} />
+      <span className="font-headline text-lg font-bold tracking-tight text-on-surface">mycel</span>
     </div>
   );
 }

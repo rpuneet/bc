@@ -2,6 +2,7 @@
 
 import { Nav } from "../_components/Nav";
 import { Footer } from "../_components/Footer";
+import { SporeLogo } from "../_components/SporeLogo";
 import {
   useState,
   useMemo,
@@ -1492,10 +1493,8 @@ export default function DocsContent({
           <div className="p-4 pt-20 lg:pt-6">
             {/* Sidebar brand */}
             <div className="mb-5 flex items-center gap-2">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/icon.svg" alt="" width={24} height={24} className="h-6 w-6" />
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/logo.svg" alt="mycel" height={16} className="h-4" />
+              <SporeLogo size={24} />
+              <span className="font-headline text-sm font-bold tracking-tight text-foreground">mycel</span>
               <span className="ml-auto rounded-full border border-border bg-muted px-2 py-0.5 font-mono text-[10px] text-muted-foreground">v0.1.0</span>
             </div>
             {/* Search */}
