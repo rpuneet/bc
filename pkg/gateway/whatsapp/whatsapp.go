@@ -244,19 +244,18 @@ func (a *Adapter) Start(ctx context.Context, handler func(gateway.Notification))
 		if err := client.Connect(); err != nil {
 			return fmt.Errorf("whatsapp: connect for pairing: %w", err)
 		}
+		log.Info("whatsapp: waiting for QR scan...", "adapter", a.name)
 	} else {
 		// Already paired — just connect.
 		if err := client.Connect(); err != nil {
 			return fmt.Errorf("whatsapp: connect: %w", err)
 		}
+		a.mu.Lock()
+		a.connected = true
+		a.lastError = ""
+		a.mu.Unlock()
+		log.Info("whatsapp: connected (existing session)", "adapter", a.name)
 	}
-
-	a.mu.Lock()
-	a.connected = true
-	a.lastError = ""
-	a.mu.Unlock()
-
-	log.Info("whatsapp: connected", "adapter", a.name)
 
 	// Block until context is done.
 	<-ctx.Done()

@@ -56,11 +56,13 @@ func (a *Adapter) Start(ctx context.Context, handler func(gateway.Notification))
 	a.handler = handler
 
 	conn := ircevent.Connection{
-		Server:      a.cfg.Server,
-		Nick:        a.cfg.Nick,
-		UseTLS:      a.cfg.UseTLS,
-		Password:    a.cfg.Password,
-		QuitMessage: "bc agent disconnecting",
+		Server:       a.cfg.Server,
+		Nick:         a.cfg.Nick,
+		UseTLS:       a.cfg.UseTLS,
+		Password:     a.cfg.Password,
+		QuitMessage:  "bc agent disconnecting",
+		KeepAlive:    30, // send PING every 30s to detect dead connections
+		ReconnectFreq: 10, // reconnect after 10s on drop
 	}
 
 	conn.AddConnectCallback(func(_ ircmsg.Message) {

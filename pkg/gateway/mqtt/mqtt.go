@@ -104,7 +104,13 @@ func (a *Adapter) subscribe() {
 		token := a.client.Subscribe(t, 0, func(_ pahomqtt.Client, msg pahomqtt.Message) {
 			a.handleMessage(t, msg)
 		})
-		token.Wait() //nolint:errcheck
+		if token.WaitTimeout(10 * time.Second) && token.Error() != nil {
+			log.Warn("mqtt: subscribe failed", "topic", t, "error", token.Error())
+			a.mu.Lock()
+			a.lastError = "subscribe " + t + ": " + token.Error().Error()
+			a.mu.Unlock()
+			continue
+		}
 		log.Info("mqtt: subscribed", "topic", t)
 	}
 }

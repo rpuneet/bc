@@ -28,6 +28,7 @@ type Config struct {
 // Adapter implements gateway.NotificationAdapter for Mattermost.
 type Adapter struct {
 	cfg           Config
+	conn          *websocket.Conn
 	handler       func(gateway.Notification)
 	lastMessageAt time.Time
 	name          string
@@ -75,34 +76,42 @@ func (a *Adapter) Start(ctx context.Context, handler func(gateway.Notification))
 	}
 
 	a.mu.Lock()
+	a.conn = conn
 	a.connected = true
 	a.lastError = ""
 	a.mu.Unlock()
 	log.Info("mattermost: connected", "url", a.cfg.URL)
 
+	// Close conn when context is canceled (unblocks ReadMessage).
+	go func() {
+		<-ctx.Done()
+		conn.Close()
+	}()
+
 	// Read loop.
 	for {
-		select {
-		case <-ctx.Done():
-			return nil
-		default:
-		}
-
 		_, msg, readErr := conn.ReadMessage()
 		if readErr != nil {
 			a.mu.Lock()
 			a.connected = false
 			a.lastError = readErr.Error()
+			a.conn = nil
 			a.mu.Unlock()
+			if ctx.Err() != nil {
+				return nil // clean shutdown
+			}
 			return fmt.Errorf("mattermost: read: %w", readErr)
 		}
-
 		a.handleRaw(msg)
 	}
 }
 
 func (a *Adapter) Stop() error {
 	a.mu.Lock()
+	if a.conn != nil {
+		a.conn.Close()
+		a.conn = nil
+	}
 	a.connected = false
 	a.mu.Unlock()
 	return nil
