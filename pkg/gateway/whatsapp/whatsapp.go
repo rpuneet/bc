@@ -15,6 +15,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	_ "github.com/mattn/go-sqlite3" // register sqlite3 driver for whatsmeow session store
 	qrcode "github.com/skip2/go-qrcode"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waE2E"
