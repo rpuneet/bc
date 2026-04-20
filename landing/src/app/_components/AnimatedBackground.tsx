@@ -26,6 +26,8 @@ export function AnimatedBackground() {
     let animationId: number;
     let mouseX = -1;
     let mouseY = -1;
+    let scrollY = 0;
+    let prevScrollY = 0;
 
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
 
@@ -67,7 +69,7 @@ export function AnimatedBackground() {
           y: Math.random() * height,
           vx: (Math.random() - 0.5) * 0.4,
           vy: (Math.random() - 0.5) * 0.4,
-          radius: 2 + Math.random() * 6,
+          radius: (2 + Math.random() * 6) * 0.8, // 20% smaller
         });
       }
     }
@@ -75,8 +77,16 @@ export function AnimatedBackground() {
     function draw() {
       ctx!.clearRect(0, 0, width, height);
 
+      // Scroll delta for parallax
+      const scrollDelta = scrollY - prevScrollY;
+      prevScrollY = scrollY;
+
       // Update spore positions (Brownian motion)
       for (const s of spores) {
+        // Parallax: larger spores (closer) move more with scroll
+        // radius ranges ~1.6-6.4, normalize to 0-1 depth factor
+        const depthFactor = (s.radius - 1.6) / 4.8; // 0 = small/far, 1 = large/close
+        s.y -= scrollDelta * (0.02 + depthFactor * 0.06);
         // Random velocity nudge each frame
         s.vx += (Math.random() - 0.5) * 0.06;
         s.vy += (Math.random() - 0.5) * 0.06;
@@ -151,22 +161,22 @@ export function AnimatedBackground() {
               if (dist < CONNECTION_DISTANCE) {
                 const opacity = (1 - dist / CONNECTION_DISTANCE) * 0.25;
 
-                // Bloom pass (thick, faint)
+                // Bloom pass (thick, faint) — 10% thinner
                 ctx!.beginPath();
                 ctx!.moveTo(a.x, a.y);
                 ctx!.lineTo(b.x, b.y);
                 ctx!.strokeStyle = `rgba(234, 88, 12, ${opacity * 0.3})`;
-                ctx!.lineWidth = 3;
+                ctx!.lineWidth = 2.7;
                 ctx!.shadowColor = "#EA580C";
                 ctx!.shadowBlur = 10;
                 ctx!.stroke();
 
-                // Sharp pass (thin, bright)
+                // Sharp pass (thin, bright) — 10% thinner
                 ctx!.beginPath();
                 ctx!.moveTo(a.x, a.y);
                 ctx!.lineTo(b.x, b.y);
                 ctx!.strokeStyle = `rgba(234, 88, 12, ${opacity * 0.8})`;
-                ctx!.lineWidth = 0.8;
+                ctx!.lineWidth = 0.72;
                 ctx!.shadowBlur = 0;
                 ctx!.stroke();
               }
@@ -188,7 +198,7 @@ export function AnimatedBackground() {
             ctx!.moveTo(s.x, s.y);
             ctx!.lineTo(mouseX, mouseY);
             ctx!.strokeStyle = `rgba(253, 186, 116, ${opacity})`;
-            ctx!.lineWidth = 0.6;
+            ctx!.lineWidth = 0.54;
             ctx!.stroke();
           }
         }
@@ -251,6 +261,10 @@ export function AnimatedBackground() {
       }
     }
 
+    function handleScroll() {
+      scrollY = window.scrollY;
+    }
+
     function handleMouseMove(e: MouseEvent) {
       mouseX = e.clientX;
       mouseY = e.clientY;
@@ -266,6 +280,7 @@ export function AnimatedBackground() {
     animationId = requestAnimationFrame(draw);
 
     window.addEventListener("resize", resize);
+    window.addEventListener("scroll", handleScroll, { passive: true });
     window.addEventListener("mousemove", handleMouseMove, { passive: true });
     document.addEventListener("mouseleave", handleMouseLeave);
 
@@ -273,6 +288,7 @@ export function AnimatedBackground() {
       cancelAnimationFrame(animationId);
       clearTimeout(animationId);
       window.removeEventListener("resize", resize);
+      window.removeEventListener("scroll", handleScroll);
       window.removeEventListener("mousemove", handleMouseMove);
       document.removeEventListener("mouseleave", handleMouseLeave);
     };
