@@ -92,51 +92,6 @@ func (m *mockNotifAdapter) HTTPHandler() http.Handler                           
 func (m *mockNotifAdapter) Channels() []ChannelInfo                             { return nil }
 func (m *mockNotifAdapter) Status() AdapterStatus                               { return AdapterStatus{} }
 
-func TestSeedChannelMultiColonPlatform(t *testing.T) {
-	m := NewManager()
-	// Register two adapters: "telegram" and "telegram:foo"
-	m.Register(&mockNotifAdapter{name: "telegram"})
-	m.Register(&mockNotifAdapter{name: "telegram:foo"})
-
-	// Seed a channel for the labeled adapter
-	m.SeedChannel("telegram:foo:general")
-	route, ok := m.channelMap["telegram:foo:general"]
-	if !ok {
-		t.Fatal("expected channel to be seeded")
-	}
-	if route.Platform != "telegram:foo" {
-		t.Errorf("expected platform telegram:foo, got %s", route.Platform)
-	}
-	if route.ChannelID != "general" {
-		t.Errorf("expected channelID general, got %s", route.ChannelID)
-	}
-
-	// Seed a channel for the plain adapter
-	m.SeedChannel("telegram:marketing")
-	route, ok = m.channelMap["telegram:marketing"]
-	if !ok {
-		t.Fatal("expected channel to be seeded")
-	}
-	if route.Platform != "telegram" {
-		t.Errorf("expected platform telegram, got %s", route.Platform)
-	}
-	if route.ChannelID != "marketing" {
-		t.Errorf("expected channelID marketing, got %s", route.ChannelID)
-	}
-}
-
-func TestSeedChannelNoOverwrite(t *testing.T) {
-	m := NewManager()
-	m.Register(&mockNotifAdapter{name: "slack"})
-	m.channelMap["slack:general"] = channelRoute{Platform: "slack", ChannelID: "C123"}
-
-	// SeedChannel should not overwrite existing mapping
-	m.SeedChannel("slack:general")
-	if m.channelMap["slack:general"].ChannelID != "C123" {
-		t.Error("SeedChannel overwrote existing mapping")
-	}
-}
-
 func TestRegisterMultipleAdapters(t *testing.T) {
 	m := NewManager()
 	m.Register(&mockNotifAdapter{name: "telegram:trade"})
@@ -175,32 +130,3 @@ func TestAdapterStatusUnknown(t *testing.T) {
 	}
 }
 
-func TestSeedChannelAdapter(t *testing.T) {
-	m := NewManager()
-	m.Register(&mockNotifAdapter{name: "slack"})
-	m.Register(&mockNotifAdapter{name: "discord"})
-
-	m.SeedChannel("slack:test")
-	route, ok := m.channelMap["slack:test"]
-	if !ok {
-		t.Fatal("expected slack channel to be seeded")
-	}
-	if route.Adapter == nil {
-		t.Error("expected adapter to be set")
-	}
-	if route.Platform != "slack" {
-		t.Errorf("expected platform slack, got %s", route.Platform)
-	}
-
-	m.SeedChannel("discord:test")
-	route, ok = m.channelMap["discord:test"]
-	if !ok {
-		t.Fatal("expected discord channel to be seeded")
-	}
-	if route.Adapter == nil {
-		t.Error("expected adapter to be set")
-	}
-	if route.Platform != "discord" {
-		t.Errorf("expected platform discord, got %s", route.Platform)
-	}
-}

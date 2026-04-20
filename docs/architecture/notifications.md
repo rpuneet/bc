@@ -92,6 +92,7 @@ type NotificationAdapter interface {
 type AdapterStatus struct {
     Connected     bool      `json:"connected"`
     Error         string    `json:"error,omitempty"`
+    BotName       string    `json:"bot_name,omitempty"`
     LastMessageAt time.Time `json:"last_message_at,omitempty"`
     MessageCount  int64     `json:"message_count"`
 }
@@ -109,15 +110,16 @@ type ChannelInfo struct {
 Each notification wraps the complete platform payload as raw JSON. Agents parse what they need. This avoids maintaining platform-specific data models and gives agents full context (files, reactions, threads, metadata).
 
 ```go
-// Located in: pkg/notify/notify.go
+// Located in: pkg/gateway/gateway.go
 
 type Notification struct {
+    Timestamp time.Time       `json:"timestamp"` // when bc received the event
+    Raw       json.RawMessage `json:"raw"`       // ENTIRE platform payload — no parsing
     Channel   string          `json:"channel"`   // "engineering", "bc-repo", "general"
     Platform  string          `json:"platform"`  // "slack", "github", "telegram"
     Sender    string          `json:"sender"`    // extracted for self-skip filtering
+    Content   string          `json:"content"`   // human-readable text for display/storage
     Mentions  []string        `json:"mentions"`  // extracted @mentions for mention_only filter
-    Timestamp time.Time       `json:"timestamp"` // when bc received the event
-    Raw       json.RawMessage `json:"raw"`       // ENTIRE platform payload — no parsing
 }
 ```
 
@@ -126,6 +128,7 @@ type Notification struct {
 | `Channel` | Channel name within the platform (e.g., `"engineering"`). Combined with `Platform` for subscription lookup as `platform:channel`. |
 | `Platform` | Platform identifier. Matches adapter `Name()`. |
 | `Sender` | Extracted from raw payload (one field per adapter). Used for self-skip filtering. |
+| `Content` | Human-readable text extracted by the adapter for display and storage. Falls back to raw JSON. |
 | `Mentions` | Extracted via regex `@[a-zA-Z][a-zA-Z0-9_-]*` across the raw JSON bytes. Used for `mention_only` filtering. |
 | `Timestamp` | When bc received the event. |
 | `Raw` | Complete platform payload, unmodified. The agent receives the full JSON and parses what it needs. |
@@ -286,7 +289,7 @@ You have access to these platform credentials via environment variables:
 
 ### Database Schema
 
-Three tables track subscriptions and delivery. Adapter status lives in memory, not in the database. Adapters discover channels dynamically.
+Five tables track subscriptions, delivery, gateway state, and channel mappings.
 
 ```mermaid
 erDiagram
@@ -317,6 +320,21 @@ erDiagram
     }
 
     notify_subscriptions ||--o{ notify_delivery_log : "deliveries per subscription"
+
+    notify_gateways {
+        TEXT name PK
+        INTEGER enabled
+        INTEGER connected
+        TEXT last_seen_at
+        TEXT updated_at
+    }
+
+    notify_channels {
+        TEXT bc_channel PK
+        TEXT platform
+        TEXT platform_id
+        TEXT updated_at
+    }
 ```
 
 ### SQL DDL
@@ -348,6 +366,21 @@ CREATE TABLE IF NOT EXISTS notify_delivery_log (
     error     TEXT,
     preview   TEXT
 );
+
+CREATE TABLE IF NOT EXISTS notify_gateways (
+    name         TEXT PRIMARY KEY,
+    enabled      INTEGER NOT NULL DEFAULT 0,
+    connected    INTEGER NOT NULL DEFAULT 0,
+    last_seen_at TEXT,
+    updated_at   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+);
+
+CREATE TABLE IF NOT EXISTS notify_channels (
+    bc_channel   TEXT PRIMARY KEY,
+    platform     TEXT NOT NULL,
+    platform_id  TEXT NOT NULL,
+    updated_at   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+);
 ```
 
 | Table | Purpose |
@@ -355,6 +388,8 @@ CREATE TABLE IF NOT EXISTS notify_delivery_log (
 | `notify_subscriptions` | Maps agents to notification channels. `UNIQUE(channel, agent)`. |
 | `notify_messages` | Stores inbound messages for the web UI activity feed. |
 | `notify_delivery_log` | Records every delivery attempt per agent (delivered/failed/pending). |
+| `notify_gateways` | Persists gateway adapter state (enabled, connected) across restarts. |
+| `notify_channels` | Maps bc channel names to platform channel IDs for routing. |
 
 ### Retention Policy
 

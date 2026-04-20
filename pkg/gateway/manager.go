@@ -298,49 +298,6 @@ func (m *Manager) IsGatewayChannel(name string) bool {
 	return ok
 }
 
-// SeedChannel adds a known gateway channel to the channel map.
-// Used on startup to restore mappings for channels that were dynamically
-// discovered in previous sessions. The channelID is set to the channel name
-// suffix (e.g., "all-bc" for "slack:all-bc") since the platform adapter
-// will resolve it.
-//
-// Channel names follow the pattern "adapter_name:channel_name" where
-// adapter_name may itself contain a colon (e.g. "telegram:foo:general").
-func (m *Manager) SeedChannel(bcChannel string) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	// Don't overwrite existing mappings (from adapter discovery)
-	if _, exists := m.channelMap[bcChannel]; exists {
-		return
-	}
-
-	// Find the registered adapter whose name is a prefix of bcChannel.
-	// Try longest match first to handle "telegram:foo" before "telegram".
-	var bestAdapter NotificationAdapter
-	var bestPlatform string
-
-	for name, a := range m.adapters {
-		prefix := name + ":"
-		if strings.HasPrefix(bcChannel, prefix) && len(name) > len(bestPlatform) {
-			bestAdapter = a
-			bestPlatform = name
-		}
-	}
-
-	if bestPlatform == "" {
-		return
-	}
-
-	channelSuffix := bcChannel[len(bestPlatform)+1:]
-	m.channelMap[bcChannel] = channelRoute{
-		Platform:  bestPlatform,
-		ChannelID: channelSuffix, // will be resolved by adapter on first send
-		Adapter:   bestAdapter,
-	}
-	log.Info("gateway: seeded channel from store", "bc_channel", bcChannel, "platform", bestPlatform)
-}
-
 // persistChannel saves a channel mapping to the store (non-blocking, best-effort).
 func (m *Manager) persistChannel(bcChannel, platform, platformID string) {
 	if m.channelStore == nil {
