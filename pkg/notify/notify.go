@@ -3,7 +3,10 @@
 // bc agents via tmux send-keys.
 package notify
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
 
 // ChannelKey is the canonical identifier for an external channel.
 // Format: "<platform>:<channel_name>", e.g., "slack:engineering".
@@ -20,14 +23,15 @@ const (
 
 // Notification is the JSON payload sent to subscribed agents via tmux send-keys.
 type Notification struct {
-	Timestamp   string       `json:"timestamp"`
-	Channel     string       `json:"channel"`
-	Platform    string       `json:"platform"`
-	Sender      string       `json:"sender"`
-	Content     string       `json:"content"`
-	MessageID   string       `json:"message_id,omitempty"`
-	Mentions    []string     `json:"mentions,omitempty"`
-	Attachments []Attachment `json:"attachments,omitempty"`
+	Raw         json.RawMessage `json:"raw,omitempty"`
+	Timestamp   string          `json:"timestamp"`
+	Channel     string          `json:"channel"`
+	Platform    string          `json:"platform"`
+	Sender      string          `json:"sender"`
+	Content     string          `json:"content"`
+	MessageID   string          `json:"message_id,omitempty"`
+	Mentions    []string        `json:"mentions,omitempty"`
+	Attachments []Attachment    `json:"attachments,omitempty"`
 }
 
 // Attachment describes a file shared on a channel.

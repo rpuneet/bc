@@ -21,7 +21,7 @@ import { RootProvider } from './providers';
 import { Dashboard } from './views/Dashboard';
 import { AgentsView } from './views/AgentsView';
 import { RolesView } from './views/RolesView';
-import { ChannelsView } from './views/ChannelsView';
+import { NotificationsView } from './views/NotificationsView';
 import { CostsView } from './views/CostsView';
 import { LogsView } from './views/LogsView';
 import { WorktreesView } from './views/WorktreesView';
@@ -194,8 +194,8 @@ const ViewContent = memo(function ViewContent({ view }: ViewContentProps): React
       return <Dashboard />;
     case 'agents':
       return <AgentsView />;
-    case 'channels':
-      return <ChannelsView />;
+    case 'notifications':
+      return <NotificationsView />;
     case 'costs':
       return <CostsView />;
     case 'logs':

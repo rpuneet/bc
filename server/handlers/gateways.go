@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/rpuneet/bc/pkg/gateway"
+	bcwhatsapp "github.com/rpuneet/bc/pkg/gateway/whatsapp"
 	"github.com/rpuneet/bc/pkg/notify"
 	"github.com/rpuneet/bc/pkg/workspace"
 )
@@ -65,6 +66,8 @@ func (h *GatewayHandler) gatewayRouter(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case rest == "health":
 		h.gatewayHealth(w, r, platform)
+	case rest == "pair" || rest == "pair/status":
+		h.gatewayPair(w, r, platform, rest)
 	case rest == "channels" || strings.HasPrefix(rest, "channels/"):
 		h.gatewayChannels(w, r, platform, strings.TrimPrefix(rest, "channels"))
 	default:
@@ -83,7 +86,6 @@ func (h *GatewayHandler) gatewayHealth(w http.ResponseWriter, r *http.Request, p
 		return
 	}
 
-	// Try to get adapter status via StatusReporter interface
 	status := h.gw.AdapterStatus(platform)
 
 	writeJSON(w, http.StatusOK, map[string]any{
@@ -108,7 +110,7 @@ func (h *GatewayHandler) gatewayChannels(w http.ResponseWriter, r *http.Request,
 			writeJSON(w, http.StatusOK, []string{})
 			return
 		}
-		extChannels := h.gw.ExternalChannels()
+		extChannels := h.gw.DiscoveredSources()
 		prefix := platform + ":"
 		var channels []map[string]string
 		for _, ch := range extChannels {
@@ -372,7 +374,7 @@ func (h *GatewayHandler) list(w http.ResponseWriter, r *http.Request) {
 
 	// Enrich with discovered channels and bot name from adapter status
 	if h.gw != nil {
-		extChannels := h.gw.ExternalChannels()
+		extChannels := h.gw.DiscoveredSources()
 		for i := range platforms {
 			prefix := platforms[i].Platform + ":"
 			for _, ch := range extChannels {
@@ -425,8 +427,8 @@ func (h *GatewayHandler) updatePlatform(w http.ResponseWriter, r *http.Request, 
 	}
 
 	cfg := h.ws.Config
-	switch platform {
-	case "telegram":
+	switch {
+	case platform == "telegram":
 		if cfg.Gateways.Telegram == nil {
 			cfg.Gateways.Telegram = &workspace.TelegramGatewayConfig{}
 		}
@@ -434,7 +436,21 @@ func (h *GatewayHandler) updatePlatform(w http.ResponseWriter, r *http.Request, 
 			httpError(w, "invalid telegram config: "+err.Error(), http.StatusBadRequest)
 			return
 		}
-	case "discord":
+	case strings.HasPrefix(platform, "telegram:"):
+		label := strings.TrimPrefix(platform, "telegram:")
+		if cfg.Gateways.Telegrams == nil {
+			cfg.Gateways.Telegrams = make(map[string]*workspace.TelegramGatewayConfig)
+		}
+		tc := cfg.Gateways.Telegrams[label]
+		if tc == nil {
+			tc = &workspace.TelegramGatewayConfig{}
+		}
+		if err := json.Unmarshal(body, tc); err != nil {
+			httpError(w, "invalid telegram config: "+err.Error(), http.StatusBadRequest)
+			return
+		}
+		cfg.Gateways.Telegrams[label] = tc
+	case platform == "discord":
 		if cfg.Gateways.Discord == nil {
 			cfg.Gateways.Discord = &workspace.DiscordGatewayConfig{}
 		}
@@ -442,7 +458,7 @@ func (h *GatewayHandler) updatePlatform(w http.ResponseWriter, r *http.Request, 
 			httpError(w, "invalid discord config: "+err.Error(), http.StatusBadRequest)
 			return
 		}
-	case "slack":
+	case platform == "slack":
 		if cfg.Gateways.Slack == nil {
 			cfg.Gateways.Slack = &workspace.SlackGatewayConfig{}
 		}
@@ -482,7 +498,7 @@ func (h *GatewayHandler) legacyChannelList(w http.ResponseWriter, r *http.Reques
 
 	// From gateway manager (discovered channels)
 	if h.gw != nil {
-		for _, ch := range h.gw.ExternalChannels() {
+		for _, ch := range h.gw.DiscoveredSources() {
 			seen[ch] = true
 			channels = append(channels, legacyChannel{
 				Name:        ch,
@@ -591,7 +607,7 @@ func (h *GatewayHandler) activity(w http.ResponseWriter, r *http.Request) {
 	// Aggregate activity across all gateway channels
 	var gwChannelNames []string
 	if h.gw != nil {
-		gwChannelNames = h.gw.ExternalChannels()
+		gwChannelNames = h.gw.DiscoveredSources()
 	}
 	if len(gwChannelNames) == 0 {
 		writeJSON(w, http.StatusOK, []notify.DeliveryEntry{})
@@ -762,4 +778,63 @@ func (h *GatewayHandler) notifyActivity(w http.ResponseWriter, r *http.Request) 
 		entries = []notify.DeliveryEntry{}
 	}
 	writeJSON(w, http.StatusOK, entries)
+}
+
+// gatewayPair handles QR-code-based pairing for adapters that support it
+// (currently WhatsApp). POST /api/gateways/{platform}/pair starts pairing
+// and returns a QR code image. GET /api/gateways/{platform}/pair/status
+// returns the current pairing state.
+func (h *GatewayHandler) gatewayPair(w http.ResponseWriter, r *http.Request, platform, route string) {
+	if h.gw == nil {
+		httpError(w, "gateway manager not available", http.StatusServiceUnavailable)
+		return
+	}
+
+	switch platform {
+	case "whatsapp":
+		h.whatsappPair(w, r, route)
+	default:
+		httpError(w, "pairing not supported for "+platform, http.StatusBadRequest)
+	}
+}
+
+func (h *GatewayHandler) whatsappPair(w http.ResponseWriter, r *http.Request, route string) {
+	adapter := h.gw.GetAdapter("whatsapp")
+
+	// If no adapter registered yet, create one on the fly.
+	if adapter == nil {
+		stateDir := ""
+		if h.ws != nil {
+			stateDir = h.ws.StateDir() + "/gateways/whatsapp"
+		}
+		if stateDir == "" {
+			httpError(w, "workspace not available", http.StatusServiceUnavailable)
+			return
+		}
+		wa := bcwhatsapp.New(stateDir)
+		h.gw.Register(wa)
+		adapter = wa
+	}
+
+	wa, ok := adapter.(*bcwhatsapp.Adapter)
+	if !ok {
+		httpError(w, "whatsapp adapter type mismatch", http.StatusInternalServerError)
+		return
+	}
+
+	switch {
+	case route == "pair" && r.Method == http.MethodPost:
+		status, err := wa.StartPairing(r.Context())
+		if err != nil {
+			httpError(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, http.StatusOK, status)
+
+	case route == "pair/status" && r.Method == http.MethodGet:
+		writeJSON(w, http.StatusOK, wa.GetPairStatus())
+
+	default:
+		methodNotAllowed(w)
+	}
 }

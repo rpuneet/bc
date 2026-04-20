@@ -2,6 +2,7 @@ package gateway
 
 import (
 	"context"
+	"net/http"
 	"testing"
 )
 
@@ -63,83 +64,39 @@ func TestManagerIsGatewayChannel(t *testing.T) {
 	}
 }
 
-func TestManagerExternalChannels(t *testing.T) {
+func TestManagerDiscoveredSources(t *testing.T) {
 	m := NewManager()
-	if len(m.ExternalChannels()) != 0 {
+	if len(m.DiscoveredSources()) != 0 {
 		t.Error("expected empty list")
 	}
 
 	m.channelMap["telegram:marketing"] = channelRoute{Platform: "telegram"}
 	m.channelMap["slack:general"] = channelRoute{Platform: "slack"}
 
-	channels := m.ExternalChannels()
+	channels := m.DiscoveredSources()
 	if len(channels) != 2 {
 		t.Errorf("expected 2 channels, got %d", len(channels))
 	}
 }
 
-// mockAdapter is a minimal Adapter for testing registration.
-type mockAdapter struct {
+// mockNotifAdapter is a minimal NotificationAdapter for testing registration.
+type mockNotifAdapter struct {
 	name string
 }
 
-func (m *mockAdapter) Name() string                                          { return m.name }
-func (m *mockAdapter) Start(_ context.Context, _ func(InboundMessage)) error { return nil }
-func (m *mockAdapter) Stop(_ context.Context) error                          { return nil }
-func (m *mockAdapter) Send(_ context.Context, _, _, _ string) error          { return nil }
-func (m *mockAdapter) Channels(_ context.Context) ([]ExternalChannel, error) { return nil, nil }
-func (m *mockAdapter) Health(_ context.Context) error                        { return nil }
-
-func TestSeedChannelMultiColonPlatform(t *testing.T) {
-	m := NewManager()
-	// Register two adapters: "telegram" and "telegram:foo"
-	m.Register(&mockAdapter{name: "telegram"})
-	m.Register(&mockAdapter{name: "telegram:foo"})
-
-	// Seed a channel for the labeled adapter
-	m.SeedChannel("telegram:foo:general")
-	route, ok := m.channelMap["telegram:foo:general"]
-	if !ok {
-		t.Fatal("expected channel to be seeded")
-	}
-	if route.Platform != "telegram:foo" {
-		t.Errorf("expected platform telegram:foo, got %s", route.Platform)
-	}
-	if route.ChannelID != "general" {
-		t.Errorf("expected channelID general, got %s", route.ChannelID)
-	}
-
-	// Seed a channel for the plain adapter
-	m.SeedChannel("telegram:marketing")
-	route, ok = m.channelMap["telegram:marketing"]
-	if !ok {
-		t.Fatal("expected channel to be seeded")
-	}
-	if route.Platform != "telegram" {
-		t.Errorf("expected platform telegram, got %s", route.Platform)
-	}
-	if route.ChannelID != "marketing" {
-		t.Errorf("expected channelID marketing, got %s", route.ChannelID)
-	}
-}
-
-func TestSeedChannelNoOverwrite(t *testing.T) {
-	m := NewManager()
-	m.Register(&mockAdapter{name: "slack"})
-	m.channelMap["slack:general"] = channelRoute{Platform: "slack", ChannelID: "C123"}
-
-	// SeedChannel should not overwrite existing mapping
-	m.SeedChannel("slack:general")
-	if m.channelMap["slack:general"].ChannelID != "C123" {
-		t.Error("SeedChannel overwrote existing mapping")
-	}
-}
+func (m *mockNotifAdapter) Name() string                                        { return m.name }
+func (m *mockNotifAdapter) Type() AdapterType                                   { return AdapterSocket }
+func (m *mockNotifAdapter) Start(_ context.Context, _ func(Notification)) error { return nil }
+func (m *mockNotifAdapter) Stop() error                                         { return nil }
+func (m *mockNotifAdapter) HTTPHandler() http.Handler                           { return nil }
+func (m *mockNotifAdapter) Channels() []ChannelInfo                             { return nil }
+func (m *mockNotifAdapter) Status() AdapterStatus                               { return AdapterStatus{} }
 
 func TestRegisterMultipleAdapters(t *testing.T) {
 	m := NewManager()
-	m.Register(&mockAdapter{name: "telegram:trade"})
-	m.Register(&mockAdapter{name: "telegram:gateway"})
-	m.Register(&mockAdapter{name: "telegram:kognivida"})
+	m.Register(&mockNotifAdapter{name: "telegram:trade"})
+	m.Register(&mockNotifAdapter{name: "telegram:gateway"})
+	m.Register(&mockNotifAdapter{name: "telegram:kognivida"})
 
 	if len(m.adapters) != 3 {
 		t.Errorf("expected 3 adapters, got %d", len(m.adapters))
@@ -148,5 +105,27 @@ func TestRegisterMultipleAdapters(t *testing.T) {
 		if _, ok := m.adapters[name]; !ok {
 			t.Errorf("adapter %q not registered", name)
 		}
+	}
+}
+
+func TestAdapterStatusNotificationAdapter(t *testing.T) {
+	m := NewManager()
+	m.Register(&mockNotifAdapter{name: "discord"})
+
+	status := m.AdapterStatus("discord")
+	// mockNotifAdapter returns empty status (Connected: false)
+	if status.Connected {
+		t.Error("expected not connected for mock adapter")
+	}
+	if status.Error != "" {
+		t.Errorf("expected no error, got %q", status.Error)
+	}
+}
+
+func TestAdapterStatusUnknown(t *testing.T) {
+	m := NewManager()
+	status := m.AdapterStatus("unknown")
+	if status.Error != "adapter not registered" {
+		t.Errorf("expected 'adapter not registered' error, got %q", status.Error)
 	}
 }

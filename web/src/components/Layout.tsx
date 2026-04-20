@@ -4,9 +4,9 @@ import { useTheme, THEME_LABELS } from "../context/ThemeContext";
 import { useMediaQuery } from "../hooks/useMediaQuery";
 import { CommandPalette } from "./CommandPalette";
 import { api } from "../api/client";
-import type { Channel, GatewayHealth, GatewayStatus, NotifySubscription } from "../api/client";
-import { channelPlatform } from "./channels/messageUtils";
-import { SetupWizard } from "./channels/SetupWizard";
+import type { NotificationSource, GatewayHealth, GatewayStatus, NotifySubscription } from "../api/client";
+import { sourcePlatform } from "./notifications/messageUtils";
+import { SetupWizard, PlatformChooser, PLATFORM_MAP } from "./notifications/SetupWizard";
 import { Header } from "./Header";
 import { SidebarToggle, WorkspaceDropdown } from "./WorkspaceDropdown";
 import { HeaderSlotProvider, useHeaderSlotContext } from "../context/HeaderSlotContext";
@@ -24,7 +24,7 @@ function Icon({ name, size = 14 }: { name: string; size?: number }) {
       <path d="M3 11A6 6 0 0111 3" strokeLinecap="round" opacity="0.4" />
     </>,
     agents: <path d="M7 3.5a2 2 0 100 4 2 2 0 000-4zM3.5 11.5c0-1.8 1.6-3 3.5-3s3.5 1.2 3.5 3" />,
-    channels: <><path d="M2 4.5h10" /><path d="M2 7.5h7" opacity="0.5" /><path d="M2 10.5h10" /></>,
+    notifications: <><path d="M7 1.5a4 4 0 00-4 4v2.5l-1.5 2h11L11 8V5.5a4 4 0 00-4-4zM5.5 12a1.5 1.5 0 003 0" /></>,
     roles: <path d="M7 2.5l4.5 2.5v3.5L7 11 2.5 8.5V5z" />,
     templates: <><rect x="2.5" y="2.5" width="9" height="9" rx="1" /><path d="M5 5.5h4M5 7.5h4M5 9.5h2" opacity="0.5" /></>,
     tools: <path d="M9.5 2.5l3 3-7 7H2.5v-3z" />,
@@ -44,27 +44,21 @@ function Icon({ name, size = 14 }: { name: string; size?: number }) {
 
 /* ── Platform config ─────────────────────────────────────────── */
 
-const PLATFORM_META: Record<string, { label: string; color: string }> = {
-  slack: { label: "Slack", color: "#E01E5A" },
-  telegram: { label: "Telegram", color: "#26A5E4" },
-  discord: { label: "Discord", color: "#5865F2" },
-  github: { label: "GitHub", color: "#8B949E" },
-  gmail: { label: "Gmail", color: "#EA4335" },
-};
-
 function getPlatformMeta(p: string) {
-  return PLATFORM_META[p] ?? { label: p, color: "#8c7e72" };
+  const def = PLATFORM_MAP[p];
+  if (def) return { label: def.label, color: def.color };
+  return { label: p, color: "#8c7e72" };
 }
 
-function displayChannelName(name: string): string {
+function displaySourceName(name: string): string {
   const idx = name.indexOf(":");
   return idx > 0 ? name.slice(idx + 1) : name;
 }
 
-/* ── Channel tree (inline in nav) ────────────────────────────── */
+/* ── Notification tree (inline in nav) ───────────────────────── */
 
-function ChannelNavTree() {
-  const [channels, setChannels] = useState<Channel[]>([]);
+function NotificationNavTree() {
+  const [sources, setSources] = useState<NotificationSource[]>([]);
   const [gateways, setGateways] = useState<GatewayStatus[]>([]);
   const [subs, setSubs] = useState<NotifySubscription[]>([]);
   const [health, setHealth] = useState<Map<string, GatewayHealth>>(new Map());
@@ -74,11 +68,11 @@ function ChannelNavTree() {
   const fetchData = useCallback(async () => {
     try {
       const [chs, gws, subList] = await Promise.all([
-        api.listChannels().catch(() => [] as Channel[]),
+        api.listNotificationSources().catch(() => [] as NotificationSource[]),
         api.listGateways().catch(() => [] as GatewayStatus[]),
         api.listSubscriptions().catch(() => [] as NotifySubscription[]),
       ]);
-      setChannels(chs ?? []);
+      setSources(chs ?? []);
       setGateways(gws ?? []);
       setSubs(subList ?? []);
 
@@ -119,12 +113,12 @@ function ChannelNavTree() {
   const gwMap = new Map<string, GatewayStatus>();
   for (const gw of gateways) gwMap.set(gw.platform, gw);
 
-  const bucketMap = new Map<string, Channel[]>();
-  for (const ch of channels) {
-    const p = channelPlatform(ch.name);
+  const bucketMap = new Map<string, NotificationSource[]>();
+  for (const src of sources) {
+    const p = sourcePlatform(src.name);
     if (p === "internal") continue;
     const list = bucketMap.get(p) ?? [];
-    list.push(ch);
+    list.push(src);
     bucketMap.set(p, list);
   }
   for (const gw of gateways) {
@@ -153,71 +147,120 @@ function ChannelNavTree() {
     return `Disconnected${h.error ? ": " + h.error : ""}`;
   };
 
-  const botDisplayName = (platform: string, gw?: GatewayStatus): string => {
-    if (gw?.bot_name) return gw.bot_name;
-    return platform;
-  };
+  const { workspace } = useWorkspace();
+  const prefix = workspace ? `/w/${workspace.id}` : "";
 
   return (
-    <div className="py-0.5 ml-3 border-l border-bc-border/20">
+    <div
+      style={{
+        paddingLeft: 10,
+        marginLeft: 9,
+        borderLeft: "1px solid var(--bc-border, rgba(255,255,255,0.08))",
+        marginTop: 2,
+        marginBottom: 4,
+        maxHeight: 280,
+        overflowY: "auto",
+      }}
+    >
       {[...bucketMap.entries()].map(([platform, chs]) => {
         const meta = getPlatformMeta(platform);
         const gwStatus = gwMap.get(platform);
         const isConnected = (gwStatus?.enabled && (gwStatus?.channels?.length ?? 0) > 0) || chs.length > 0;
         const isExpanded = expandedGw.has(platform);
-        const name = botDisplayName(platform, gwStatus);
 
         return (
           <div key={platform}>
+            {/* Platform header */}
             <button
               type="button"
               onClick={() => toggleGw(platform)}
-              className="w-full flex items-center gap-1.5 pl-3 pr-2 py-[3px] text-[10px] hover:bg-bc-bg/40 transition-colors group"
+              className="w-full flex items-center"
+              style={{
+                gap: 8,
+                padding: "5px 8px 2px",
+                fontSize: 11,
+                color: "var(--bc-muted, #6b6b6b)",
+                textTransform: "uppercase",
+                letterSpacing: 0.5,
+                fontWeight: 600,
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+              }}
             >
-              <svg width="6" height="6" viewBox="0 0 8 8"
-                className={`text-bc-muted/25 transition-transform duration-100 shrink-0 ${isExpanded ? "" : "-rotate-90"}`}
-              >
-                <path d="M1.5 2L4 5L6.5 2" stroke="currentColor" strokeWidth="1.2" fill="none" strokeLinecap="round" />
-              </svg>
-              <span className="w-[5px] h-[5px] rounded-full shrink-0"
-                title={healthTooltip(platform)}
-                style={{ backgroundColor: isConnected ? "#22c55e" : gwStatus?.enabled ? "#fb923c" : "rgba(140,126,114,0.12)" }}
-              />
-              <span className="font-medium text-bc-text/60 group-hover:text-bc-text/80 truncate">
-                @{name}
-              </span>
-              <span className="text-[8px] px-1 py-px rounded shrink-0" style={{ color: meta.color, opacity: 0.5 }}>
-                {meta.label.toLowerCase()}
-              </span>
-              <span className="ml-auto flex items-center gap-1">
-                {isConnected && (
-                  <span className="text-[7px] text-bc-success/40 font-medium">live</span>
-                )}
-                <span className="text-[8px] text-bc-muted/20 tabular-nums">{chs.length || ""}</span>
-              </span>
+              <span>{meta.label}</span>
+              {isConnected && (
+                <span
+                  className="ml-auto shrink-0"
+                  title={healthTooltip(platform)}
+                  style={{
+                    width: 5,
+                    height: 5,
+                    borderRadius: 999,
+                    background: "#22c55e",
+                    boxShadow: "0 0 5px rgba(34,197,94,0.5)",
+                  }}
+                />
+              )}
             </button>
 
+            {/* Channel rows */}
             {isExpanded && chs.map((ch) => {
               const count = subCountMap.get(ch.name) ?? 0;
+              const chName = displaySourceName(ch.name);
               return (
                 <NavLink
                   key={ch.name}
-                  to={"/channels/" + ch.name}
-                  className={({ isActive }) =>
-                    `flex items-center gap-1 pl-7 pr-2 py-[4px] text-[11px] transition-all duration-100 rounded-r ${
-                      isActive
-                        ? "text-bc-text bg-bc-surface/50 font-medium"
-                        : "text-bc-muted/40 hover:text-bc-text/70 hover:bg-bc-surface/25"
-                    }`
-                  }
-                  style={({ isActive }) => ({
-                    borderLeft: isActive ? `3px solid ${meta.color}` : "3px solid transparent",
-                    marginLeft: "-1px",
+                  to={`${prefix}/notifications/${ch.name}`}
+                  className="block"
+                  style={({ isActive }: { isActive: boolean }) => ({
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    height: 24,
+                    padding: "0 8px",
+                    borderRadius: 5,
+                    fontSize: 12.5,
+                    color: isActive ? "var(--bc-text, #e5e5e5)" : count > 0 ? "var(--bc-text, #e5e5e5)" : "var(--bc-muted, #a0a0a0)",
+                    background: isActive ? "rgba(249, 115, 22, 0.12)" : "transparent",
+                    fontWeight: isActive ? 600 : count > 0 ? 500 : 400,
+                    cursor: "pointer",
+                    marginBottom: 1,
+                    textDecoration: "none",
                   })}
                 >
-                  <span className="text-[8px] text-bc-muted/20">#</span>
-                  <span className="truncate">{displayChannelName(ch.name)}</span>
-                  {count > 0 && <span className="ml-auto text-[8px] text-bc-success/30 tabular-nums">{count}</span>}
+                  <span
+                    style={{
+                      width: 12,
+                      color: "var(--bc-muted, #4a4a4a)",
+                      fontFamily: "'JetBrains Mono', monospace",
+                      fontSize: 12,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      flexShrink: 0,
+                    }}
+                  >
+                    #
+                  </span>
+                  <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {chName}
+                  </span>
+                  {count > 0 && (
+                    <span
+                      style={{
+                        fontSize: 10.5,
+                        fontWeight: 600,
+                        color: "var(--bc-muted, #a0a0a0)",
+                        fontFamily: "'JetBrains Mono', monospace",
+                        padding: "1px 5px",
+                        borderRadius: 999,
+                        background: "var(--bc-surface, #212121)",
+                      }}
+                    >
+                      {count}
+                    </span>
+                  )}
                 </NavLink>
               );
             })}
@@ -225,41 +268,67 @@ function ChannelNavTree() {
         );
       })}
 
-      {/* Connect app — inline dropdown */}
-      <div className="px-3 pt-1 pb-0.5 relative">
-        <button type="button" onClick={() => setShowConnectMenu((v) => !v)}
-          className={`w-full py-[3px] text-[9px] border rounded transition-all ${
-            showConnectMenu
-              ? "text-bc-accent border-bc-accent/20 bg-bc-accent/5"
-              : "text-bc-muted/20 hover:text-bc-accent border-bc-border/10 hover:border-bc-accent/15"
-          }`}
-        >
-          + Connect app
-        </button>
+      {/* Routing rules */}
+      <button
+        type="button"
+        onClick={() => window.alert("Routing rules configuration coming soon. Use per-agent subscription controls in the agents popover.")}
+        className="w-full flex items-center"
+        style={{
+          gap: 8,
+          height: 26,
+          padding: "0 8px",
+          marginTop: 4,
+          borderRadius: 5,
+          fontSize: 12,
+          color: "var(--bc-muted, #6b6b6b)",
+          cursor: "pointer",
+          border: "1px dashed var(--bc-border, #2a2a2a)",
+          background: "none",
+          whiteSpace: "nowrap",
+        }}
+      >
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="6" cy="6" r="2.5" /><circle cx="18" cy="18" r="2.5" /><circle cx="18" cy="6" r="2.5" />
+          <path d="M6 8v8a2 2 0 0 0 2 2h7" /><path d="M18 8.5v7" />
+        </svg>
+        <span>Routing rules</span>
+      </button>
 
-        {showConnectMenu && (
-          <div className="mt-1 border border-bc-border/30 rounded-lg bg-bc-bg overflow-hidden"
-            style={{ animation: "fadeIn 100ms ease-out" }}
-          >
-            {Object.entries(PLATFORM_META).map(([key, meta]) => (
-              <button
-                key={key}
-                type="button"
-                onClick={() => { setShowConnectMenu(false); setSetupPlatform(key); }}
-                className="w-full flex items-center gap-2 px-3 py-2 text-[10px] text-bc-muted/50 hover:text-bc-text hover:bg-bc-surface/20 transition-colors"
-              >
-                <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: meta.color }} />
-                <span>{meta.label}</span>
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
+      {/* Connect app */}
+      <button
+        type="button"
+        onClick={() => setShowConnectMenu(true)}
+        className="w-full flex items-center"
+        style={{
+          gap: 8,
+          height: 26,
+          padding: "0 8px",
+          marginTop: 4,
+          borderRadius: 5,
+          fontSize: 12,
+          color: "var(--bc-muted, #6b6b6b)",
+          cursor: "pointer",
+          border: "1px dashed var(--bc-border, #2a2a2a)",
+          background: "none",
+          whiteSpace: "nowrap",
+        }}
+      >
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+          <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+        </svg>
+        <span>Connect app</span>
+      </button>
+
+      {showConnectMenu && (
+        <PlatformChooser
+          onSelect={(key) => { setShowConnectMenu(false); setSetupPlatform(key); }}
+          onClose={() => setShowConnectMenu(false)}
+        />
+      )}
 
       {setupPlatform && setupPlatform !== "_choose" && (
         <SetupWizard platform={setupPlatform} onClose={() => setSetupPlatform(null)} onConnected={() => void fetchData()} />
       )}
-      <style>{`@keyframes fadeIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }`}</style>
     </div>
   );
 }
@@ -269,7 +338,7 @@ function ChannelNavTree() {
 const MAIN_NAV_ITEMS = [
   { to: "/live", label: "Live", icon: "live" },
   { to: "/agents", label: "Agents", icon: "agents" },
-  { to: "/channels", label: "Channels", icon: "channels" },
+  { to: "/notifications", label: "Notifications", icon: "notifications" },
   { to: "/code", label: "Code", icon: "code" },
   { to: "/templates", label: "Templates", icon: "templates" },
   { to: "/tools", label: "Tools", icon: "tools" },
@@ -303,19 +372,21 @@ function NavList({
   items,
   collapsed,
   isMobile,
-  channelsExpanded,
+  notificationsExpanded,
+  onToggleNotifications,
   global = false,
 }: {
   items: ReadonlyArray<{ to: string; label: string; icon: string }>;
   collapsed: boolean;
   isMobile: boolean;
-  channelsExpanded?: boolean;
+  notificationsExpanded?: boolean;
+  onToggleNotifications?: () => void;
   /** When true, render links verbatim — skip the /w/<id>/ prefix.
    *  Used for cross-workspace routes like /costs. */
   global?: boolean;
 }) {
   const isIconOnly = collapsed && !isMobile;
-  const showTree = !isIconOnly && channelsExpanded;
+  const showTree = !isIconOnly && notificationsExpanded;
   // Workspace-scoped targets get /w/<id>/ prefixed at render time.
   // Global items skip the prefix so they hit top-level routes.
   const { workspace } = useWorkspace();
@@ -324,13 +395,13 @@ function NavList({
   return (
     <>
       {items.map(({ to, label, icon }) => {
-        const isChannels = label === "Channels";
+        const isNotifications = label === "Notifications";
         const scopedTo = `${prefix}${to}`;
         return (
           <li key={to}>
             <NavLink
               to={scopedTo}
-              end={!isChannels}
+              end={!isNotifications}
               title={isIconOnly ? label : undefined}
               className={({ isActive }) =>
                 `relative flex items-center gap-2.5 ${isIconOnly ? "justify-center px-2" : "pl-4 pr-3"} py-[7px] text-[13px] outline-none transition-colors duration-75 ${
@@ -349,8 +420,27 @@ function NavList({
               {label === "Live" && (
                 <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse ml-auto" />
               )}
+              {isNotifications && !isIconOnly && onToggleNotifications && (
+                <button
+                  type="button"
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); onToggleNotifications(); }}
+                  className="ml-auto shrink-0 p-0.5 rounded text-bc-muted/40 hover:text-bc-muted/70 transition-all"
+                  aria-label={notificationsExpanded ? "Collapse channels" : "Expand channels"}
+                >
+                  <svg
+                    width="12" height="12" viewBox="0 0 14 14" fill="none"
+                    stroke="currentColor" strokeWidth="1.5"
+                    style={{
+                      transform: notificationsExpanded ? "rotate(90deg)" : "rotate(0deg)",
+                      transition: "transform 150ms ease",
+                    }}
+                  >
+                    <path d="M5 3l4 4-4 4" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </button>
+              )}
             </NavLink>
-            {isChannels && showTree && <ChannelNavTree />}
+            {isNotifications && showTree && <NotificationNavTree />}
           </li>
         );
       })}
@@ -375,13 +465,19 @@ export function Layout() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(readCollapsed);
 
-  // Keep channels tree expanded whenever the current URL is on the
-  // Channels tab — both the workspace-scoped /w/:wsId/channels and the
-  // legacy /channels bookmark redirect. useMatch trailing /* also
-  // handles deep links like /w/:wsId/channels/foo.
-  const scopedChannels = useMatch("/w/:wsId/channels/*");
-  const legacyChannels = useMatch("/channels/*");
-  const channelsExpanded = Boolean(scopedChannels || legacyChannels);
+  // Notification tree collapse state — defaults to expanded when on the
+  // Notifications route, but the user can toggle it by clicking the nav item.
+  const scopedNotifications = useMatch("/w/:wsId/notifications/*");
+  const legacyNotifications = useMatch("/notifications/*");
+  const legacyChannelsRoute = useMatch("/channels/*");
+  const legacyChannelsScopedRoute = useMatch("/w/:wsId/channels/*");
+  const onNotifRoute = Boolean(scopedNotifications || legacyNotifications || legacyChannelsRoute || legacyChannelsScopedRoute);
+  const [notifManualToggle, setNotifManualToggle] = useState<boolean | null>(null);
+  // Auto-expand when navigating to notifications, but respect manual toggle
+  const notificationsExpanded = notifManualToggle !== null ? notifManualToggle : onNotifRoute;
+  const toggleNotifications = useCallback(() => {
+    setNotifManualToggle((prev) => !(prev !== null ? prev : onNotifRoute));
+  }, [onNotifRoute]);
 
   const toggleCollapsed = useCallback(() => {
     setCollapsed((prev) => { const next = !prev; writeCollapsed(next); return next; });
@@ -431,17 +527,39 @@ export function Layout() {
         <div className="px-3 py-3 border-b border-bc-border/30 flex items-center justify-between">
           {(!collapsed || isMobile) ? (
             <div className="flex items-center gap-2 overflow-hidden">
-              <span className="w-6 h-6 rounded-md bg-bc-accent/15 text-bc-accent flex items-center justify-center text-[10px] font-bold shrink-0">
-                {(userName || "U")[0]!.toUpperCase()}
+              <span
+                className="w-6 h-6 shrink-0 flex items-center justify-center font-bold"
+                style={{
+                  borderRadius: 7,
+                  background: "var(--bc-accent, #f97316)",
+                  color: "#0d0d0d",
+                  fontSize: 12,
+                  fontFamily: "'JetBrains Mono', monospace",
+                  letterSpacing: -0.5,
+                }}
+              >
+                bc
               </span>
               <div className="min-w-0">
-                <p className="text-[12px] font-medium text-bc-text truncate">{userName || "User"}</p>
-                <p className="text-[9px] text-bc-muted/40 -mt-0.5">workspace</p>
+                <p className="text-[13px] font-semibold text-bc-text truncate" style={{ letterSpacing: -0.1 }}>
+                  {userName ? `@${userName}` : "@bc"}
+                </p>
+                <p className="text-[9px] text-bc-muted/40 -mt-0.5" style={{ fontFamily: "'JetBrains Mono', monospace" }}>workspace</p>
               </div>
             </div>
           ) : (
-            <span className="w-6 h-6 rounded-md bg-bc-accent/15 text-bc-accent flex items-center justify-center text-[10px] font-bold shrink-0">
-              {(userName || "U")[0]!.toUpperCase()}
+            <span
+              className="w-6 h-6 shrink-0 flex items-center justify-center font-bold"
+              style={{
+                borderRadius: 7,
+                background: "var(--bc-accent, #f97316)",
+                color: "#0d0d0d",
+                fontSize: 12,
+                fontFamily: "'JetBrains Mono', monospace",
+                letterSpacing: -0.5,
+              }}
+            >
+              bc
             </span>
           )}
           {isMobile ? (
@@ -470,7 +588,8 @@ export function Layout() {
             items={MAIN_NAV_ITEMS}
             collapsed={collapsed}
             isMobile={isMobile}
-            channelsExpanded={channelsExpanded}
+            notificationsExpanded={notificationsExpanded}
+            onToggleNotifications={toggleNotifications}
           />
           <li className={`my-1.5 ${collapsed && !isMobile ? "mx-2" : "mx-3"}`}>
             <div className="border-t border-bc-border/15" />

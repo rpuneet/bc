@@ -46,11 +46,7 @@ erDiagram
     agents }o--o| roles : "has role"
     roles ||--o{ role_mcp_servers : uses
     roles ||--o{ role_secrets : needs
-    channels ||--o{ channel_members : has
-    agents ||--o{ channel_members : "member of"
-    channels ||--o{ messages : contains
-    messages ||--o{ mentions : has
-    messages ||--o{ reactions : has
+    notify_subscriptions ||--o{ notify_delivery_log : "deliveries per subscription"
     agents ||--o{ cost_records : generates
     agents ||--o{ events : logs
     agents ||--o{ agent_sessions : "session history"
@@ -88,19 +84,28 @@ erDiagram
         blob commands "JSON map"
         integer created_at "unix millis"
     }
-    channels {
+    notify_subscriptions {
         integer id PK
-        text name "UNIQUE"
-        text type "group|direct"
-        integer created_at "unix millis"
+        text channel "platform:channel_name"
+        text agent "NOT NULL"
+        integer mention_only "0|1"
+        text created_at "ISO8601"
     }
-    messages {
+    notify_messages {
         integer id PK
-        integer channel_id FK
-        text sender
-        text content
-        text type "text|task|review|..."
-        integer created_at "unix millis"
+        text channel "NOT NULL"
+        text sender "NOT NULL"
+        text content "NOT NULL"
+        text created_at "ISO8601"
+    }
+    notify_delivery_log {
+        integer id PK
+        text logged_at "ISO8601"
+        text channel "NOT NULL"
+        text agent "NOT NULL"
+        text status "delivered|failed|pending"
+        text error "nullable"
+        text preview "nullable"
     }
     cost_records {
         integer id PK
@@ -140,14 +145,14 @@ erDiagram
 
 ## Timestamp Convention
 
-All timestamps: `INTEGER` storing Unix milliseconds (`time.Now().UnixMilli()` in Go).
+Most tables use `INTEGER` storing Unix milliseconds (`time.Now().UnixMilli()` in Go): `agents`, `teams`, `team_members`, `roles`, `cost_records`, `events`, `secrets`, `mcp_servers`, `cron_jobs`, `cron_logs`.
 
-| Benefit | Detail |
-|---------|--------|
-| Storage | 8 bytes vs 20-24 for TEXT |
-| Range queries | Integer compare vs string compare |
-| Go marshaling | `time.UnixMilli(ts)` — trivial |
-| Human queries | `datetime(ts/1000, 'unixepoch')` in SQLite |
+The notification tables (`notify_subscriptions`, `notify_messages`, `notify_delivery_log`, `notify_gateways`, `notify_channels`) use `TEXT` storing ISO 8601 timestamps (`strftime('%Y-%m-%dT%H:%M:%SZ', 'now')` in SQLite, `TIMESTAMPTZ DEFAULT NOW()` in Postgres).
+
+| Format | Tables | Go Read | SQLite Query |
+|--------|--------|---------|--------------|
+| INTEGER (Unix ms) | agents, teams, costs, events, secrets, cron | `time.UnixMilli(ts)` | `datetime(ts/1000, 'unixepoch')` |
+| TEXT (ISO 8601) | notify_* | `time.Parse(time.RFC3339, s)` | Direct string comparison |
 
 ## Index Strategy
 
@@ -157,7 +162,9 @@ Composite indexes on hot paths, following SQLite left-to-right rule:
 |-------|---------------|
 | `idx_cost_agent_time(agent_name, timestamp DESC)` | Budget checks per agent |
 | `idx_cost_team_time(team_id, timestamp DESC)` | Team cost queries |
-| `idx_messages_channel_time(channel_id, created_at DESC)` | Channel history |
+| `idx_notify_subs_channel(channel)` | Subscriber lookups |
+| `idx_notify_messages_channel(channel, id DESC)` | Message history |
+| `idx_notify_delivery_channel(channel, id DESC)` | Delivery log queries |
 | `idx_agent_sessions_agent(agent_name, created_at DESC)` | Session resume |
 | `idx_events_timestamp(timestamp DESC)` | Recent events |
 | `idx_cron_logs_job(job_name, run_at DESC)` | Job execution logs |
@@ -172,7 +179,7 @@ pkg/db/migrations/
   002_create_teams.sql
   003_create_roles.sql
   004_create_agents.sql
-  005_create_channels.sql
+  005_create_subscriptions.sql
   006_create_costs.sql
   ...
 ```

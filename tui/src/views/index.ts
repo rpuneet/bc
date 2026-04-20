@@ -6,7 +6,7 @@
 export { Dashboard } from './Dashboard';
 export { AgentsView } from './AgentsView';
 export { AgentDetailView } from './AgentDetailView';
-export { ChannelsView } from './ChannelsView';
+export { NotificationsView } from './NotificationsView';
 export { CostsView } from './CostsView';
 export { LogsView } from './LogsView';
 export { RolesView } from './RolesView';

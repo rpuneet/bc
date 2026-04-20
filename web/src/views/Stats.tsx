@@ -79,7 +79,7 @@ interface StatsData {
   agentNet: AgentMetricTS[];
   agentDisk: AgentMetricTS[];
   tokenMetrics: TokenMetricTS[];
-  channelStats: ChannelStats[];
+  notificationStats: ChannelStats[];
 }
 
 type SortKey = "name" | "role" | "provider" | "state" | "cpu" | "mem" | "tokens" | "cost";
@@ -122,7 +122,7 @@ export function Stats() {
       agentNet: r7.status === "fulfilled" ? (r7.value ?? []) : [],
       agentDisk: r8.status === "fulfilled" ? (r8.value ?? []) : [],
       tokenMetrics: r9.status === "fulfilled" ? (r9.value ?? []) : [],
-      channelStats: r10.status === "fulfilled" ? (r10.value ?? []) : [],
+      notificationStats: r10.status === "fulfilled" ? (r10.value ?? []) : [],
     };
   }, [from]);
 
@@ -162,12 +162,12 @@ export function Stats() {
     return Array.from(buckets.values());
   }, [data?.tokenMetrics, hasCacheData]);
 
-  const channelBarData = useMemo(() => {
-    return [...(data?.channelStats ?? [])]
+  const notificationBarData = useMemo(() => {
+    return [...(data?.notificationStats ?? [])]
       .sort((a, b) => b.message_count - a.message_count)
       .slice(0, 10)
       .map(c => ({ name: trunc(c.name, 16), messages: c.message_count }));
-  }, [data?.channelStats]);
+  }, [data?.notificationStats]);
 
   const costByModelBar = useMemo(() => {
     return tokensByModel
@@ -425,18 +425,18 @@ export function Stats() {
         </Panel>
       </div>
 
-      {/* Row 5: Channels & Cost Breakdown */}
+      {/* Row 5: Notifications & Cost Breakdown */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <Panel title="Channel Activity (Top 10)">
-          {channelBarData.length === 0 ? <Empty msg="No channel data" /> : (
+        <Panel title="Notification Activity (Top 10)">
+          {notificationBarData.length === 0 ? <Empty msg="No notification data" /> : (
             <ResponsiveContainer width="100%" height={200}>
-              <BarChart layout="vertical" data={channelBarData} margin={{ top: 0, right: 8, left: 4, bottom: 0 }}>
+              <BarChart layout="vertical" data={notificationBarData} margin={{ top: 0, right: 8, left: 4, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--color-bc-border)" horizontal={false} />
                 <XAxis type="number" tick={TICK_STYLE} {...AX} />
                 <YAxis type="category" dataKey="name" tick={{ ...TICK_STYLE, fill: "var(--color-bc-text)", fontSize: 9 }} {...AX} width={100} />
                 <Tooltip contentStyle={TT} formatter={(v) => [Number(v ?? 0).toLocaleString(), "Messages"]} />
                 <Bar dataKey="messages" radius={[0, 3, 3, 0]}>
-                  {channelBarData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                  {notificationBarData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
                 </Bar>
               </BarChart>
             </ResponsiveContainer>

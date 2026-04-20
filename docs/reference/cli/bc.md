@@ -19,13 +19,13 @@ Getting Started:
 Common Workflows:
   Start working:    bc up && bc status
   Monitor agents:   bc status --activity
-  Send message:     bc channel send eng "message"
+  Notifications:    bc notify list
   Debug agent:      bc logs --agent eng-01 --tail 50
   Cost check:       bc cost show
 
 Command Groups (with short aliases):
   agent                        Manage agents
-  channel (ch)                 Communication channels
+  notify (nt)                  Notification subscriptions
   cost (co)                    Cost tracking and budgets
   workspace (ws)               Workspace management
   doctor (dr)                  Health checks
@@ -34,7 +34,7 @@ Command Groups (with short aliases):
 Key Features:
   • Coordinate multiple AI coding agents in parallel
   • Isolated git worktrees per agent
-  • Channel-based agent communication
+  • Platform notification routing to agents
   • Cost tracking and limits
   • Hierarchical agent roles (product-manager, manager, engineer)
 
@@ -66,7 +66,7 @@ bc [flags]
 ### SEE ALSO
 
 * [bc agent](bc_agent.md)	 - Manage bc agents
-* [bc channel](bc_channel.md)	 - Manage communication channels
+* [bc notify](bc_notify.md)	 - Manage notification subscriptions and sources
 * [bc completion](bc_completion.md)	 - Generate shell completion scripts
 * [bc config](bc_config.md)	 - Manage workspace configuration
 * [bc cost](bc_cost.md)	 - Show cost information

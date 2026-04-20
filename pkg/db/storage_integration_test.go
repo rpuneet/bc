@@ -779,7 +779,7 @@ func TestStorageChannelSharedDBReady(t *testing.T) {
 
 	// Channel SQLiteStore opens its own connection to .bc/bc.db.
 	// Verify the shared DB infrastructure is set up correctly for channel use.
-	// Full channel CRUD tests live in pkg/channel/*_test.go.
+	// Full channel CRUD tests live in pkg/notify/*_test.go.
 	bcDir := filepath.Join(dir, ".bc")
 	if mkErr := os.MkdirAll(bcDir, 0750); mkErr != nil {
 		t.Fatalf("mkdir .bc: %v", mkErr)

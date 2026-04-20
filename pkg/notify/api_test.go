@@ -42,6 +42,13 @@ func (m *mockAgentSender) Send(_ context.Context, name, message string) error {
 	return nil
 }
 
+func (m *mockAgentSender) SendAll(_ context.Context, message string) (int, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.calls = append(m.calls, agentSendCall{Name: "*", Message: message})
+	return 1, nil
+}
+
 func (m *mockAgentSender) getCalls() []agentSendCall {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -1193,7 +1200,7 @@ func TestDispatchMentionFilter_ViaHTTP(t *testing.T) {
 		sender.mu.Unlock()
 
 		svc.Dispatch("slack:eng", "slack", "external-user", "U001",
-			"hey everyone, new deployment done", "msg-no-mention", nil)
+			"hey everyone, new deployment done", "msg-no-mention", nil, nil)
 		time.Sleep(150 * time.Millisecond)
 
 		calls := sender.getCalls()
@@ -1211,7 +1218,7 @@ func TestDispatchMentionFilter_ViaHTTP(t *testing.T) {
 		sender.mu.Unlock()
 
 		svc.Dispatch("slack:eng", "slack", "external-user", "U001",
-			"@eng-02 please review the PR", "msg-with-mention", nil)
+			"@eng-02 please review the PR", "msg-with-mention", nil, nil)
 		time.Sleep(150 * time.Millisecond)
 
 		calls := sender.getCalls()
@@ -1247,15 +1254,13 @@ func TestSelfSkip_ViaHTTP(t *testing.T) {
 
 	ctx := context.Background()
 
-	// Subscribe both agents via API
-	for _, agent := range []string{"eng-01", "eng-02"} {
+	for _, agentName := range []string{"eng-01", "eng-02"} {
 		resp := doJSON(t, http.MethodPost, ts.URL+"/api/notify/subscriptions",
-			map[string]any{"channel": "slack:eng", "agent": agent, "mention_only": false})
+			map[string]any{"channel": "slack:eng", "agent": agentName, "mention_only": false})
 		assertStatus(t, resp, http.StatusCreated)
 		_ = resp.Body.Close()
 	}
 
-	// Verify subscriptions
 	subs, err := store.Subscribers(ctx, "slack:eng")
 	if err != nil {
 		t.Fatal(err)
@@ -1264,20 +1269,17 @@ func TestSelfSkip_ViaHTTP(t *testing.T) {
 		t.Fatalf("expected 2 subscriptions, got %d", len(subs))
 	}
 
-	// eng-01 sends a message — should NOT receive it back
-	svc.Dispatch("slack:eng", "slack", "eng-01", "U001",
-		"I just pushed a fix", "msg-self", nil)
+	// eng-01 sends — should NOT receive it back (self-skip)
+	svc.Dispatch("slack:eng", "slack", "[slack] eng-01", "U001",
+		"I just pushed a fix", "msg-self", nil, nil)
 	time.Sleep(150 * time.Millisecond)
 
 	calls := sender.getCalls()
 	if len(calls) != 1 {
-		t.Fatalf("expected 1 delivery (eng-02 only, eng-01 self-skipped), got %d: %v", len(calls), calls)
+		t.Fatalf("expected 1 delivery (eng-02 only), got %d: %v", len(calls), calls)
 	}
 	if calls[0].Name != "eng-02" {
 		t.Errorf("expected delivery to eng-02, got %q", calls[0].Name)
-	}
-	if calls[0].Name == "eng-01" {
-		t.Error("eng-01 should not receive their own message")
 	}
 }
 

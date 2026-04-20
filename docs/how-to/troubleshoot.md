@@ -152,41 +152,47 @@ bc agent start agent-name
 ```bash
 # These commands only work inside agent sessions:
 bc agent report working "..."
-bc channel join eng
-
 # Use agent send instead:
 bc agent send eng-01 "bc agent report working '...'"
 ```
 
-## Channel Issues
+## Notification Issues
 
-### Messages Not Delivered
+### Notifications Not Delivered
 
-**Cause**: Target agent not running or channel database issue.
+**Cause**: Target agent not running, adapter disconnected, or subscription missing.
 
 **Solution**:
+
 ```bash
 # Check agent status
 bc status
 
-# Check channel members
-bc channel list
+# Check adapter connection health
+bc notify status
 
-# Verify database
-sqlite3 .bc/bc.db "SELECT * FROM messages ORDER BY timestamp DESC LIMIT 5;"
+# Verify subscriptions
+bc notify list
+
+# Check delivery log
+bc notify history slack:engineering --last 10
 ```
 
-### "channel not found"
+### Adapter Disconnected
 
-**Cause**: Channel doesn't exist.
+**Cause**: Invalid credentials, network issue, or platform revoked access.
 
 **Solution**:
-```bash
-# List existing channels
-bc channel list
 
-# Create if needed
-bc channel create channel-name
+```bash
+# Check adapter status for error details
+bc notify status
+
+# Verify credentials
+bc secret list
+
+# Restart bcd to reconnect adapters
+bc down && bc up
 ```
 
 ### Database Locked
@@ -197,9 +203,6 @@ bc channel create channel-name
 ```bash
 # Check for running bc processes
 pgrep -f "bc "
-
-# Kill if stuck
-pkill -f "bc channel"
 
 # Wait a moment, then retry
 ```

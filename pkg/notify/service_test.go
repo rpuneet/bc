@@ -27,6 +27,13 @@ func (m *mockSender) Send(_ context.Context, name, message string) error {
 	return nil
 }
 
+func (m *mockSender) SendAll(_ context.Context, message string) (int, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.calls = append(m.calls, sendCall{Name: "*", Message: message})
+	return 1, nil
+}
+
 func (m *mockSender) getCalls() []sendCall {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -192,10 +199,9 @@ func TestDispatchMentionFilter(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Send message that only mentions eng-01
-	svc.Dispatch("slack:eng", "slack", "alice", "U123", "hey @eng-01 review this", "msg1", nil)
+	// Message mentions eng-01 only — eng-02 (mention_only) should be skipped
+	svc.Dispatch("slack:eng", "slack", "alice", "U123", "hey @eng-01 review this", "msg1", nil, nil)
 
-	// Wait for async dispatch
 	time.Sleep(100 * time.Millisecond)
 
 	calls := sender.getCalls()
@@ -221,14 +227,14 @@ func TestDispatchSelfSkip(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// eng-01 sends a message — should NOT be delivered back to eng-01
-	svc.Dispatch("slack:eng", "slack", "eng-01", "U456", "I just pushed a fix", "msg2", nil)
+	// eng-01 sends — should NOT be delivered back to eng-01
+	svc.Dispatch("slack:eng", "slack", "[slack] eng-01", "U456", "I just pushed a fix", "msg2", nil, nil)
 
 	time.Sleep(100 * time.Millisecond)
 
 	calls := sender.getCalls()
 	if len(calls) != 1 {
-		t.Fatalf("expected 1 delivery (eng-02 only, self-skip eng-01), got %d", len(calls))
+		t.Fatalf("expected 1 delivery (eng-02 only), got %d", len(calls))
 	}
 	if calls[0].Name != "eng-02" {
 		t.Errorf("expected delivery to eng-02, got %s", calls[0].Name)

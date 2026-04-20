@@ -4,7 +4,7 @@
  * Issue #1109: Fixed 80x24 display by adjusting thresholds:
  * - Full (>=120 cols): [dash] Dashboard [ag] Agents ...
  * - Short (100-119 cols): [dash] Dash [ag] Agt ...
- * - Minimal (<100 cols): [dash] [ag] [ch] ... (fits 80x24)
+ * - Minimal (<100 cols): [dash] [ag] [no] ... (fits 80x24)
  *
  * Issue #1927: Added MCP, Secrets, Processes tabs
  */
@@ -20,7 +20,7 @@ import { NavigationProvider } from '../navigation/NavigationContext';
 const ALL_TAB_KEYS = [
   '[dash]',
   '[ag]',
-  '[ch]',
+  '[no]',
   '[co]',
   '[log]',
   '[ro]',
@@ -67,7 +67,7 @@ describe('TabBar display mode logic', () => {
 
     expect(output).toContain('[dash]');
     expect(output).toContain('[ag]');
-    expect(output).toContain('[ch]');
+    expect(output).toContain('[no]');
     expect(output).toContain('Dash');
     expect(output).toMatch(/Ag/);
     expect(output).not.toContain('Dashboard');
@@ -106,7 +106,7 @@ describe('TabBar display mode logic', () => {
 
     expect(output).toContain('[dash]');
     expect(output).toContain('[ag]');
-    expect(output).toContain('[ch]');
+    expect(output).toContain('[no]');
     expect(output).not.toContain('Dash');
     expect(output).not.toContain('Dashboard');
   });
@@ -140,7 +140,7 @@ describe('TabBar structure', () => {
     expect(output).toContain('board'); // "Dashboard" may wrap
     expect(output).toContain('[ag]');
     expect(output).toMatch(/Agent/);
-    expect(output).toContain('[ch]');
+    expect(output).toContain('[no]');
   });
 
   test('short labels map correctly at 100-119 cols', () => {
@@ -182,7 +182,7 @@ describe('TabBar #1109 - Fix 80x24 display (replaces #1038 tests)', () => {
 
     expect(output).toContain('[dash]');
     expect(output).toContain('[ag]');
-    expect(output).toContain('[ch]');
+    expect(output).toContain('[no]');
     expect(output).not.toContain('Dashboard');
     expect(output).not.toContain('Dash');
   });

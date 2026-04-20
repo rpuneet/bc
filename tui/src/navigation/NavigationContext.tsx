@@ -9,7 +9,7 @@ import type { ReactNode } from 'react';
 export type View =
   | 'dashboard'
   | 'agents'
-  | 'channels'
+  | 'notifications'
   | 'costs'
   | 'logs'
   | 'roles'
@@ -33,7 +33,7 @@ export interface TabConfig {
 export const DEFAULT_TABS: TabConfig[] = [
   { key: 'dash', view: 'dashboard', label: 'Dashboard', shortLabel: 'Dash' },
   { key: 'ag', view: 'agents', label: 'Agents', shortLabel: 'Agt' },
-  { key: 'ch', view: 'channels', label: 'Channels', shortLabel: 'Chan' },
+  { key: 'no', view: 'notifications', label: 'Notifications', shortLabel: 'Notif' },
   { key: 'co', view: 'costs', label: 'Costs', shortLabel: 'Cost' },
   { key: 'log', view: 'logs', label: 'Logs', shortLabel: 'Log' },
   { key: 'ro', view: 'roles', label: 'Roles', shortLabel: 'Role' },

@@ -59,19 +59,19 @@ bc agent attach eng-01
 
 Press `Ctrl+B` then `D` to detach from the session without stopping the agent.
 
-## Step 5: Set up a communication channel
+## Step 5: Subscribe to notifications
 
-Create a channel so agents can communicate:
-
-```bash
-bc channel create eng
-bc channel send eng "eng-01 is working on the health check endpoint"
-```
-
-View channel history:
+Subscribe the agent to a notification source so it receives platform events:
 
 ```bash
-bc channel history eng
+# List available notification sources
+bc notify list
+
+# Subscribe eng-01 to a Slack channel
+bc notify subscribe slack:engineering eng-01
+
+# Check recent notifications
+bc notify history slack:engineering --last 10
 ```
 
 ## Step 6: Check costs
@@ -100,6 +100,6 @@ bc agent delete eng-01
 ## Next steps
 
 - Learn how to [configure your workspace](../how-to/configure-workspace.md) with providers, runtime backends, and polling settings
-- Set up [channels for team communication](../how-to/set-up-channels.md)
+- Set up [notifications from external platforms](../how-to/set-up-notifications.md)
 - Read about the [agent lifecycle and state machine](../explanation/agents.md)
 - Browse the [CLI reference](../reference/cli/bc.md)

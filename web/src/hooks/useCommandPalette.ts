@@ -43,7 +43,7 @@ export function useCommandPalette() {
       // Navigation — mirrors the sidebar order exactly.
       { id: "nav-live", label: "Live", section: "Navigate", icon: "~", action: () => navigate("/live") },
       { id: "nav-agents", label: "Agents", section: "Navigate", icon: "A", action: () => navigate("/agents") },
-      { id: "nav-channels", label: "Channels", section: "Navigate", icon: "C", action: () => navigate("/channels") },
+      { id: "nav-notifications", label: "Notifications", section: "Navigate", icon: "N", action: () => navigate("/notifications") },
       { id: "nav-code", label: "Code", section: "Navigate", icon: "<", action: () => navigate("/code") },
       { id: "nav-templates", label: "Templates", section: "Navigate", icon: "T", action: () => navigate("/templates") },
       { id: "nav-tools", label: "Tools", section: "Navigate", icon: "t", action: () => navigate("/tools") },
@@ -53,7 +53,7 @@ export function useCommandPalette() {
       { id: "nav-settings", label: "Settings", section: "Navigate", icon: "\u2699", action: () => navigate("/settings") },
       // Actions
       { id: "act-create-agent", label: "Create Agent", section: "Action", icon: "+", action: () => navigate("/agents?action=create") },
-      { id: "act-create-channel", label: "Create Channel", section: "Action", icon: "+", action: () => navigate("/channels?action=create") },
+      { id: "act-create-notification", label: "Create Notification", section: "Action", icon: "+", action: () => navigate("/notifications?action=create") },
     ],
     [navigate],
   );

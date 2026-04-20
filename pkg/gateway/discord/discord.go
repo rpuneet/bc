@@ -1,10 +1,13 @@
-// Package discord implements the gateway.Adapter for Discord.
+// Package discord implements the gateway.NotificationAdapter for Discord.
 package discord
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"net/http"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/bwmarrin/discordgo"
@@ -13,20 +16,21 @@ import (
 	"github.com/rpuneet/bc/pkg/log"
 )
 
-// Adapter implements gateway.Adapter for Discord.
+// Adapter implements gateway.NotificationAdapter for Discord.
+// It also supports outbound messaging via the Send method.
 type Adapter struct {
 	lastMessageAt time.Time
 	session       *discordgo.Session
-	onMessage     func(gateway.InboundMessage)
+	handler       func(gateway.Notification)
 	guildChannels map[string]string
 	token         string
 	lastError     string
 	chatMu        sync.RWMutex
 	connected     bool
+	messageCount  atomic.Int64
 }
 
-var _ gateway.Adapter = (*Adapter)(nil)
-var _ gateway.StatusReporter = (*Adapter)(nil)
+var _ gateway.NotificationAdapter = (*Adapter)(nil)
 
 // New creates a new Discord adapter.
 func New(token string) *Adapter {
@@ -38,8 +42,12 @@ func New(token string) *Adapter {
 
 func (a *Adapter) Name() string { return "discord" }
 
-func (a *Adapter) Start(ctx context.Context, onMessage func(gateway.InboundMessage)) error {
-	a.onMessage = onMessage
+// Type returns AdapterSocket since Discord uses a WebSocket gateway.
+func (a *Adapter) Type() gateway.AdapterType { return gateway.AdapterSocket }
+
+// Start connects to Discord and forwards events as Notifications.
+func (a *Adapter) Start(ctx context.Context, handler func(gateway.Notification)) error {
+	a.handler = handler
 
 	session, err := discordgo.New("Bot " + a.token)
 	if err != nil {
@@ -68,13 +76,48 @@ func (a *Adapter) Start(ctx context.Context, onMessage func(gateway.InboundMessa
 	return session.Close()
 }
 
-func (a *Adapter) Stop(_ context.Context) error {
+// Stop gracefully disconnects.
+func (a *Adapter) Stop() error {
 	if a.session != nil {
 		return a.session.Close()
 	}
 	return nil
 }
 
+// HTTPHandler returns nil since Discord uses a WebSocket gateway.
+func (a *Adapter) HTTPHandler() http.Handler { return nil }
+
+// Channels returns discovered channels.
+func (a *Adapter) Channels() []gateway.ChannelInfo {
+	a.chatMu.RLock()
+	defer a.chatMu.RUnlock()
+
+	channels := make([]gateway.ChannelInfo, 0, len(a.guildChannels))
+	for id, name := range a.guildChannels {
+		channels = append(channels, gateway.ChannelInfo{
+			ID:       id,
+			Name:     name,
+			Platform: "discord",
+		})
+	}
+	return channels
+}
+
+// Status returns the current connection state.
+func (a *Adapter) Status() gateway.AdapterStatus {
+	a.chatMu.RLock()
+	defer a.chatMu.RUnlock()
+	return gateway.AdapterStatus{
+		Connected:     a.connected,
+		LastMessageAt: a.lastMessageAt,
+		Error:         a.lastError,
+		MessageCount:  a.messageCount.Load(),
+	}
+}
+
+// --- MessageSender (outbound messaging) ---
+
+// Send delivers a message to a Discord channel.
 func (a *Adapter) Send(_ context.Context, channelID, sender, content string) error {
 	if a.session == nil {
 		return fmt.Errorf("discord: not connected")
@@ -91,26 +134,11 @@ func (a *Adapter) Send(_ context.Context, channelID, sender, content string) err
 	return nil
 }
 
-func (a *Adapter) Channels(_ context.Context) ([]gateway.ExternalChannel, error) {
-	a.chatMu.RLock()
-	defer a.chatMu.RUnlock()
-
-	channels := make([]gateway.ExternalChannel, 0, len(a.guildChannels))
-	for id, name := range a.guildChannels {
-		channels = append(channels, gateway.ExternalChannel{
-			ID:   id,
-			Name: name,
-			Type: "channel",
-		})
-	}
-	return channels, nil
-}
-
+// Health returns nil if the adapter is connected and operational.
 func (a *Adapter) Health(_ context.Context) error {
 	if a.session == nil {
 		return fmt.Errorf("discord: not connected")
 	}
-	// Live probe: check session state
 	if a.session.State == nil || a.session.State.User == nil {
 		a.chatMu.Lock()
 		a.connected = false
@@ -125,16 +153,7 @@ func (a *Adapter) Health(_ context.Context) error {
 	return nil
 }
 
-// Status returns the current connection state.
-func (a *Adapter) Status() gateway.AdapterStatus {
-	a.chatMu.RLock()
-	defer a.chatMu.RUnlock()
-	return gateway.AdapterStatus{
-		Connected:     a.connected,
-		LastMessageAt: a.lastMessageAt,
-		Error:         a.lastError,
-	}
-}
+// --- Internal handlers ---
 
 // handleReady processes the Ready event to discover guilds and channels.
 func (a *Adapter) handleReady(_ *discordgo.Session, r *discordgo.Ready) {
@@ -149,7 +168,6 @@ func (a *Adapter) handleReady(_ *discordgo.Session, r *discordgo.Ready) {
 
 		a.chatMu.Lock()
 		for _, ch := range channels {
-			// Only text channels
 			if ch.Type == discordgo.ChannelTypeGuildText {
 				a.guildChannels[ch.ID] = ch.Name
 				log.Info("discord: discovered channel", "channel", ch.Name, "id", ch.ID, "guild", guild.ID)
@@ -189,22 +207,34 @@ func (a *Adapter) handleMessage(s *discordgo.Session, m *discordgo.MessageCreate
 		sender = m.Member.Nick
 	}
 
-	msg := gateway.InboundMessage{
-		ChannelID:   m.ChannelID,
-		ChannelName: channelName,
-		Sender:      sender,
-		SenderID:    m.Author.ID,
-		Content:     content,
-		MessageID:   m.ID,
-		Timestamp:   m.Timestamp,
-	}
+	now := time.Now()
+
+	a.chatMu.Lock()
+	a.lastMessageAt = now
+	a.chatMu.Unlock()
+
+	a.messageCount.Add(1)
 
 	log.Info("discord: received message",
 		"channel", channelName,
 		"sender", sender,
 		"content", gateway.Truncate(content, 50))
 
-	if a.onMessage != nil {
-		a.onMessage(msg)
+	if a.handler != nil {
+		// Marshal entire message — preserves embeds, attachments,
+		// reactions, components, and all platform fields (raw passthrough).
+		raw, err := json.Marshal(m)
+		if err != nil {
+			log.Warn("discord: failed to marshal event", "error", err)
+			return
+		}
+		a.handler(gateway.Notification{
+			Channel:   channelName,
+			Platform:  "discord",
+			Sender:    sender,
+			Content:   content,
+			Timestamp: now,
+			Raw:       raw,
+		})
 	}
 }

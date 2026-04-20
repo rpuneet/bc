@@ -284,7 +284,7 @@ export function StatsTab({ agent }: { agent: Agent }) {
             )}
           </div>
 
-          {/* Disk Usage and Channel Activity */}
+          {/* Disk Usage and Notification Activity */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <StatCard
               label="Disk Usage"
@@ -292,12 +292,12 @@ export function StatsTab({ agent }: { agent: Agent }) {
               sub="worktree size"
             />
             <StatCard
-              label="Channel Sent"
+              label="Notifications Sent"
               value={String(computed?.channel_sent ?? 0)}
               sub="messages sent"
             />
             <StatCard
-              label="Channel Received"
+              label="Notifications Received"
               value={String(computed?.channel_received ?? 0)}
               sub="messages received"
             />

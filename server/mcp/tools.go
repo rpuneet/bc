@@ -169,7 +169,7 @@ func (s *Server) toolListChannels() (*toolsCallResult, error) {
 		}, nil
 	}
 
-	channels := s.gateway.ExternalChannels()
+	channels := s.gateway.DiscoveredSources()
 	if len(channels) == 0 {
 		return &toolsCallResult{
 			Content: []ToolContent{textContent("(no channels)")},

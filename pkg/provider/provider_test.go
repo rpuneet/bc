@@ -422,8 +422,8 @@ func TestCursorProvider(t *testing.T) {
 	if p.Description() == "" {
 		t.Error("expected non-empty description")
 	}
-	if p.Command() != "cursor-agent --force --print" {
-		t.Errorf("expected command 'cursor-agent --force --print', got %q", p.Command())
+	if p.Command() != "cursor-agent" {
+		t.Errorf("expected command 'cursor-agent', got %q", p.Command())
 	}
 }
 

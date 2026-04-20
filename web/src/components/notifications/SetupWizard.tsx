@@ -1,0 +1,1041 @@
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { api } from "../../api/client";
+import type { Agent, GatewayStatus } from "../../api/client";
+
+export interface PlatformDef {
+  key: string;
+  label: string;
+  icon: string;
+  description: string;
+  color: string;
+  category: string;
+  status: "ready" | "webhook" | "coming_soon";
+  fields: { key: string; label: string; placeholder: string; required?: boolean; type?: string }[];
+  docs: string[];
+  pairFlow?: "qr";
+}
+
+export const PLATFORMS: PlatformDef[] = [
+  // --- Chat ---
+  {
+    key: "slack", status: "ready" as const,
+    label: "Slack",
+    icon: "\u{1F4AC}",
+    description: "Team messaging via Socket Mode",
+    color: "#E01E5A",
+    category: "Chat",
+    fields: [
+      { key: "bot_token", label: "Bot Token", placeholder: "xoxb-..." },
+      { key: "app_token", label: "App Token", placeholder: "xapp-..." },
+    ],
+    docs: [
+      "Create a Slack app at api.slack.com/apps, enable Socket Mode.",
+      "Add scopes: channels:read, chat:write, connections:write.",
+      "Copy Bot Token from OAuth & Permissions, App Token from Basic Information.",
+      "Install the app and invite the bot to your channels.",
+    ],
+  },
+  {
+    key: "telegram", status: "ready" as const,
+    label: "Telegram",
+    icon: "\u2708\uFE0F",
+    description: "Bot messages via long polling",
+    color: "#26A5E4",
+    category: "Chat",
+    fields: [{ key: "bot_token", label: "Bot Token", placeholder: "1234567890:AAH..." }],
+    docs: [
+      "Message @BotFather on Telegram, send /newbot.",
+      "Copy the bot token and add the bot to your group.",
+    ],
+  },
+  {
+    key: "discord", status: "ready" as const,
+    label: "Discord",
+    icon: "\u{1F3AE}",
+    description: "Bot messages from Discord servers",
+    color: "#5865F2",
+    category: "Chat",
+    fields: [{ key: "bot_token", label: "Bot Token", placeholder: "MTIz..." }],
+    docs: [
+      "Create an app at discord.com/developers/applications.",
+      "Enable MESSAGE CONTENT INTENT, copy the bot token.",
+      "Generate an invite URL with bot scope and add to your server.",
+    ],
+  },
+  {
+    key: "whatsapp", status: "ready" as const,
+    label: "WhatsApp",
+    icon: "\u{1F4F1}",
+    description: "Personal WhatsApp via QR code pairing",
+    color: "#25D366",
+    category: "Chat",
+    fields: [],
+    docs: [
+      "Click Connect to generate a QR code.",
+      "Scan it with WhatsApp → Linked Devices on your phone.",
+      "Session persists across restarts — no re-scan needed.",
+    ],
+    pairFlow: "qr" as const,
+  },
+  {
+    key: "signal", status: "coming_soon" as const,
+    label: "Signal",
+    icon: "\u{1F510}",
+    description: "Private encrypted messaging",
+    color: "#3A76F0",
+    category: "Chat",
+    fields: [],
+    docs: [],
+  },
+  {
+    key: "matrix", status: "ready" as const,
+    label: "Matrix",
+    icon: "\u{1F30D}",
+    description: "Decentralized chat via client-server API",
+    color: "#0DBD8B",
+    category: "Chat",
+    fields: [
+      { key: "homeserver", label: "Homeserver URL", type: "text" as const, placeholder: "https://matrix.org" },
+      { key: "access_token", label: "Access Token", type: "password" as const, placeholder: "syt_..." },
+    ],
+    docs: ["Get an access token from Element → Settings → Help & About → Access Token."],
+  },
+  {
+    key: "msteams", status: "coming_soon" as const,
+    label: "MS Teams",
+    icon: "\u{1F4BC}",
+    description: "Microsoft Teams integration",
+    color: "#6264A7",
+    category: "Chat",
+    fields: [],
+    docs: [],
+  },
+  {
+    key: "googlechat", status: "coming_soon" as const,
+    label: "Google Chat",
+    icon: "\u{1F4E8}",
+    description: "Google Workspace messaging",
+    color: "#00AC47",
+    category: "Chat",
+    fields: [],
+    docs: [],
+  },
+  {
+    key: "line", status: "coming_soon" as const,
+    label: "Line",
+    icon: "\u{1F4AC}",
+    description: "Line Messaging API",
+    color: "#06C755",
+    category: "Chat",
+    fields: [],
+    docs: [],
+  },
+  {
+    key: "feishu", status: "coming_soon" as const,
+    label: "Feishu",
+    icon: "\u{1F426}",
+    description: "Lark/Feishu bot messaging",
+    color: "#3370FF",
+    category: "Chat",
+    fields: [],
+    docs: [],
+  },
+  {
+    key: "mattermost", status: "ready" as const,
+    label: "Mattermost",
+    icon: "\u{1F5E8}\uFE0F",
+    description: "Self-hosted team messaging via WebSocket",
+    color: "#0058CC",
+    category: "Chat",
+    fields: [
+      { key: "url", label: "Server URL", type: "text" as const, placeholder: "https://mattermost.example.com" },
+      { key: "token", label: "Personal Access Token", type: "password" as const, placeholder: "abc123..." },
+    ],
+    docs: [
+      "Go to Account Settings → Security → Personal Access Tokens.",
+      "Create a token and paste it above.",
+    ],
+  },
+  {
+    key: "irc", status: "ready" as const,
+    label: "IRC",
+    icon: "\u{1F4DF}",
+    description: "Connect to any IRC server with TLS",
+    color: "#6B7280",
+    category: "Chat",
+    fields: [],
+    docs: [],
+  },
+
+  // --- Code & DevOps ---
+  {
+    key: "github", status: "webhook" as const,
+    label: "GitHub",
+    icon: "\u{1F419}",
+    description: "PR, issue, and push webhooks",
+    color: "#8B949E",
+    category: "Code & DevOps",
+    fields: [{ key: "secret", label: "Webhook Secret", placeholder: "your-webhook-secret" }],
+    docs: [
+      "Create a webhook in your repo settings (Settings > Webhooks).",
+      "Set the payload URL to your bc server\u2019s /hooks/github endpoint.",
+      "Set the secret here to match the webhook secret.",
+    ],
+  },
+  {
+    key: "gitlab", status: "webhook" as const,
+    label: "GitLab",
+    icon: "\u{1F98A}",
+    description: "Merge request and pipeline webhooks",
+    color: "#FC6D26",
+    category: "Code & DevOps",
+    fields: [{ key: "token", label: "Token", placeholder: "webhook-secret-token" }],
+    docs: [
+      "Go to your GitLab project > Settings > Webhooks.",
+      "Set the URL to your bc server\u2019s /hooks/gitlab endpoint.",
+      "Copy the secret token and paste it here.",
+    ],
+  },
+  {
+    key: "bitbucket", status: "webhook" as const,
+    label: "Bitbucket",
+    icon: "\u{1FAA3}",
+    description: "Push and PR webhooks",
+    color: "#0052CC",
+    category: "Code & DevOps",
+    fields: [{ key: "secret", label: "Secret", placeholder: "webhook-secret" }],
+    docs: [
+      "Go to your Bitbucket repo > Settings > Webhooks.",
+      "Add a webhook pointing to your bc server\u2019s /hooks/bitbucket endpoint.",
+      "Set the secret here for payload verification.",
+    ],
+  },
+  {
+    key: "vercel", status: "webhook" as const,
+    label: "Vercel",
+    icon: "\u25B2",
+    description: "Deployment and build webhooks",
+    color: "#000000",
+    category: "Code & DevOps",
+    fields: [{ key: "secret", label: "Secret", placeholder: "whsec_..." }],
+    docs: [
+      "Go to your Vercel project > Settings > Webhooks.",
+      "Add a webhook endpoint pointing to /hooks/vercel on your bc server.",
+      "Copy the signing secret and paste it here.",
+    ],
+  },
+  {
+    key: "netlify", status: "webhook" as const,
+    label: "Netlify",
+    icon: "\u25C6",
+    description: "Deploy and build notifications",
+    color: "#00C7B7",
+    category: "Code & DevOps",
+    fields: [{ key: "secret", label: "Secret", placeholder: "webhook-secret" }],
+    docs: [
+      "Go to your Netlify site > Site settings > Notifications.",
+      "Add an outgoing webhook pointing to /hooks/netlify on your bc server.",
+      "Set and copy the secret for payload verification.",
+    ],
+  },
+
+  // --- Monitoring ---
+  {
+    key: "sentry", status: "webhook" as const,
+    label: "Sentry",
+    icon: "\u{1F41B}",
+    description: "Error and issue alerts",
+    color: "#362D59",
+    category: "Monitoring",
+    fields: [{ key: "client_secret", label: "Client Secret", placeholder: "sentry-client-secret" }],
+    docs: [
+      "Go to Sentry > Settings > Integrations > Internal Integration.",
+      "Create an integration with webhook URL pointing to /hooks/sentry.",
+      "Copy the client secret and paste it here.",
+    ],
+  },
+  {
+    key: "pagerduty", status: "webhook" as const,
+    label: "PagerDuty",
+    icon: "\u{1F6A8}",
+    description: "Incident and alert webhooks",
+    color: "#06AC38",
+    category: "Monitoring",
+    fields: [{ key: "secret", label: "Secret", placeholder: "pagerduty-secret" }],
+    docs: [
+      "Go to PagerDuty > Integrations > Generic Webhooks V3.",
+      "Add a webhook subscription pointing to /hooks/pagerduty.",
+      "Copy the signing secret and paste it here.",
+    ],
+  },
+  {
+    key: "datadog", status: "webhook" as const,
+    label: "Datadog",
+    icon: "\u{1F415}",
+    description: "Monitor and event webhooks",
+    color: "#632CA6",
+    category: "Monitoring",
+    fields: [{ key: "api_key", label: "API Key", placeholder: "datadog-api-key" }],
+    docs: [
+      "Go to Datadog > Integrations > Webhooks.",
+      "Create a webhook pointing to /hooks/datadog on your bc server.",
+      "Copy your API key from Organization Settings > API Keys.",
+    ],
+  },
+  {
+    key: "grafana", status: "webhook" as const,
+    label: "Grafana",
+    icon: "\u{1F4CA}",
+    description: "Alert notifications",
+    color: "#F46800",
+    category: "Monitoring",
+    fields: [{ key: "api_token", label: "API Token", placeholder: "grafana-api-token" }],
+    docs: [
+      "Go to Grafana > Alerting > Contact Points.",
+      "Add a webhook contact point with URL /hooks/grafana.",
+      "Copy an API token from Configuration > API Keys.",
+    ],
+  },
+  {
+    key: "homeassistant", status: "coming_soon" as const,
+    label: "Home Assistant",
+    icon: "\u{1F3E0}",
+    description: "Smart home automations and events",
+    color: "#41BDF5",
+    category: "Monitoring",
+    fields: [],
+    docs: [],
+  },
+
+  // --- Payments ---
+  {
+    key: "stripe", status: "webhook" as const,
+    label: "Stripe",
+    icon: "\u{1F4B3}",
+    description: "Payment and subscription events",
+    color: "#635BFF",
+    category: "Payments",
+    fields: [{ key: "webhook_secret", label: "Webhook Secret", placeholder: "whsec_..." }],
+    docs: [
+      "Go to Stripe Dashboard > Developers > Webhooks.",
+      "Add an endpoint pointing to /hooks/stripe on your bc server.",
+      "Copy the signing secret and paste it here.",
+    ],
+  },
+
+  // --- Content ---
+  {
+    key: "rss", status: "ready" as const,
+    label: "RSS / Atom",
+    icon: "\u{1F4E1}",
+    description: "Subscribe to any RSS or Atom feed",
+    color: "#F78422",
+    category: "Content",
+    fields: [
+      { key: "url", label: "Feed URL", placeholder: "https://example.com/feed.xml", type: "url" },
+      { key: "interval", label: "Poll Interval (seconds)", placeholder: "300", type: "number" },
+    ],
+    docs: [
+      "Paste any RSS or Atom feed URL.",
+      "Set a poll interval in seconds (default: 300 = 5 minutes).",
+    ],
+  },
+  {
+    key: "notion", status: "coming_soon" as const,
+    label: "Notion",
+    icon: "\u{1F4DD}",
+    description: "Database and page change polling",
+    color: "#000000",
+    category: "Content",
+    fields: [
+      { key: "api_token", label: "API Token", placeholder: "secret_..." },
+      { key: "interval", label: "Poll Interval (seconds)", placeholder: "300", type: "number" },
+    ],
+    docs: [
+      "Create an internal integration at notion.so/my-integrations.",
+      "Copy the API token and share target pages/databases with the integration.",
+      "Set a poll interval in seconds (default: 300).",
+    ],
+  },
+  {
+    key: "reddit", status: "coming_soon" as const,
+    label: "Reddit",
+    icon: "\u{1F4E2}",
+    description: "Subreddit and post monitoring",
+    color: "#FF4500",
+    category: "Content",
+    fields: [],
+    docs: [],
+  },
+  {
+    key: "twitch", status: "coming_soon" as const,
+    label: "Twitch",
+    icon: "\u{1F3AE}",
+    description: "Stream and chat events",
+    color: "#9146FF",
+    category: "Content",
+    fields: [],
+    docs: [],
+  },
+  {
+    key: "twitter", status: "coming_soon" as const,
+    label: "Twitter / X",
+    icon: "\u{1F426}",
+    description: "Mentions and timeline events",
+    color: "#1DA1F2",
+    category: "Content",
+    fields: [],
+    docs: [],
+  },
+  {
+    key: "nostr", status: "coming_soon" as const,
+    label: "Nostr",
+    icon: "\u{1F4E1}",
+    description: "Decentralized social protocol",
+    color: "#8B5CF6",
+    category: "Content",
+    fields: [],
+    docs: [],
+  },
+
+  // --- Custom ---
+  {
+    key: "webhook", status: "webhook" as const,
+    label: "Generic Webhook",
+    icon: "\u{1F517}",
+    description: "Receive any JSON webhook payload",
+    color: "#8c7e72",
+    category: "Custom",
+    fields: [{ key: "secret", label: "Shared Secret (optional)", placeholder: "optional-secret", required: false }],
+    docs: [
+      "POST JSON to /hooks/webhook on your bc server.",
+      "Optionally set a shared secret for HMAC signature verification.",
+    ],
+  },
+  {
+    key: "mqtt", status: "ready" as const,
+    label: "MQTT",
+    icon: "\u{1F4E1}",
+    description: "Subscribe to any MQTT broker topics",
+    color: "#660066",
+    category: "Custom",
+    fields: [
+      { key: "broker_url", label: "Broker URL", type: "text" as const, placeholder: "tcp://localhost:1883" },
+      { key: "topic", label: "Topic", type: "text" as const, placeholder: "home/sensors/#" },
+    ],
+    docs: ["Connect to any MQTT broker (Mosquitto, HiveMQ, etc.)."],
+  },
+];
+
+export const PLATFORM_MAP = Object.fromEntries(PLATFORMS.map((p) => [p.key, p]));
+
+const CATEGORIES = ["Chat", "Code & DevOps", "Monitoring", "Payments", "Content", "Custom"] as const;
+
+/* ---------- Platform chooser full-screen modal ---------- */
+
+export function PlatformChooser({ onSelect, onClose }: { onSelect: (key: string) => void; onClose: () => void }) {
+  const [search, setSearch] = useState("");
+  const [connectedGateways, setConnectedGateways] = useState<Map<string, GatewayStatus>>(new Map());
+  const searchRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    api.listGateways().then((gws) => {
+      const m = new Map<string, GatewayStatus>();
+      for (const gw of gws ?? []) {
+        if (gw.enabled) m.set(gw.platform, gw);
+      }
+      setConnectedGateways(m);
+    }).catch(() => {});
+  }, []);
+
+  // Focus search on mount
+  useEffect(() => {
+    requestAnimationFrame(() => searchRef.current?.focus());
+  }, []);
+
+  // Escape to close
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [onClose]);
+
+  const q = search.toLowerCase();
+  const filtered = q
+    ? PLATFORMS.filter(
+        (p) =>
+          p.label.toLowerCase().includes(q) ||
+          p.description.toLowerCase().includes(q) ||
+          p.category.toLowerCase().includes(q) ||
+          p.key.toLowerCase().includes(q),
+      )
+    : PLATFORMS;
+
+  const connectedPlatforms = filtered.filter((p) => connectedGateways.has(p.key));
+  const availablePlatforms = filtered.filter((p) => !connectedGateways.has(p.key));
+
+  const renderCard = (p: PlatformDef) => {
+    const isConnected = connectedGateways.has(p.key);
+    const isComingSoon = p.status === "coming_soon";
+
+    return (
+      <button
+        key={p.key}
+        type="button"
+        onClick={() => !isComingSoon && onSelect(p.key)}
+        className={`
+          relative flex flex-col p-4 rounded-xl border text-left
+          transition-all duration-150 ease-out group
+          ${isComingSoon
+            ? "border-bc-border/20 opacity-40 cursor-not-allowed"
+            : "border-bc-border/40 cursor-pointer hover:border-bc-accent/50 hover:scale-[1.02] hover:shadow-[0_0_20px_rgba(249,115,22,0.08)]"
+          }
+          ${isConnected ? "border-green-500/30 bg-green-500/[0.03]" : ""}
+        `}
+      >
+        {/* Connected badge */}
+        {isConnected && (
+          <div className="absolute top-2.5 right-2.5">
+            <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+              <circle cx="9" cy="9" r="8" fill="#22c55e" opacity="0.15" />
+              <path d="M5.5 9l2.5 2.5 4.5-4.5" stroke="#22c55e" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </div>
+        )}
+
+        {/* Icon + name */}
+        <div className="flex items-center gap-2.5 mb-2">
+          <span className="text-2xl leading-none select-none">{p.icon}</span>
+          <span className={`text-sm font-semibold text-bc-text transition-colors ${!isComingSoon ? "group-hover:text-bc-accent" : ""}`}>
+            {p.label}
+          </span>
+        </div>
+
+        {/* Description */}
+        <p className="text-xs text-bc-muted leading-relaxed flex-1">{p.description}</p>
+
+        {/* Status tag */}
+        <div className="mt-2.5">
+          {isConnected && (
+            <span className="inline-flex items-center gap-1 text-[10px] font-medium text-green-500/80">
+              <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
+              Connected
+            </span>
+          )}
+          {!isConnected && p.status === "webhook" && (
+            <span className="text-[10px] text-amber-500/60">Webhook &middot; requires public URL</span>
+          )}
+          {!isConnected && p.status === "ready" && (
+            <span className="inline-flex items-center gap-1 text-[10px] text-bc-accent/60">
+              <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: p.color, opacity: 0.7 }} />
+              Ready to connect
+            </span>
+          )}
+          {!isConnected && isComingSoon && (
+            <span className="text-[10px] text-bc-muted/40">Coming soon</span>
+          )}
+        </div>
+      </button>
+    );
+  };
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center"
+      style={{ animation: "fadeIn 120ms ease-out" }}
+    >
+      {/* Backdrop */}
+      <div
+        className="absolute inset-0 bg-black/80 backdrop-blur-md"
+        onClick={onClose}
+      />
+
+      {/* Modal */}
+      <div className="relative z-10 bg-bc-bg border border-bc-border rounded-2xl shadow-2xl flex flex-col w-[calc(100vw-48px)] max-w-[960px] max-h-[calc(100vh-48px)]">
+        {/* Header */}
+        <div className="px-6 pt-5 pb-4 border-b border-bc-border/50 shrink-0">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-lg font-bold text-bc-text tracking-tight">Connect a platform</h2>
+              <p className="text-xs text-bc-muted mt-0.5">Choose a service to receive notifications from</p>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="w-8 h-8 flex items-center justify-center rounded-lg text-bc-muted hover:text-bc-text hover:bg-bc-surface transition-colors"
+              aria-label="Close"
+            >
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+                <path d="M4 4l8 8M12 4l-8 8" />
+              </svg>
+            </button>
+          </div>
+
+          {/* Search */}
+          <div className="relative">
+            <svg
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-bc-muted/40"
+              width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.3"
+            >
+              <circle cx="6" cy="6" r="4" />
+              <path d="M9 9l3.5 3.5" strokeLinecap="round" />
+            </svg>
+            <input
+              ref={searchRef}
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search platforms..."
+              className="w-full pl-9 pr-3 py-2.5 text-sm rounded-lg border border-bc-border/50 bg-bc-surface/30 text-bc-text placeholder:text-bc-muted/40 focus:outline-none focus:ring-1 focus:ring-bc-accent/50 focus:border-bc-accent/30 transition-colors"
+            />
+          </div>
+        </div>
+
+        {/* Grid content */}
+        <div className="flex-1 overflow-auto px-6 py-5" style={{ scrollbarWidth: "thin", scrollbarColor: "rgba(255,255,255,0.06) transparent" }}>
+          {/* Connected section */}
+          {connectedPlatforms.length > 0 && (
+            <div className="mb-6">
+              <h3 className="text-[11px] font-bold text-green-500/80 uppercase tracking-wider mb-3 flex items-center gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
+                Connected
+              </h3>
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+                {connectedPlatforms.map(renderCard)}
+              </div>
+            </div>
+          )}
+
+          {connectedPlatforms.length > 0 && availablePlatforms.length > 0 && (
+            <div className="border-t border-bc-border/20 my-5" />
+          )}
+
+          {/* Categorized available platforms */}
+          {CATEGORIES.map((cat) => {
+            const items = availablePlatforms.filter((p) => p.category === cat);
+            if (items.length === 0) return null;
+            return (
+              <div key={cat} className="mb-6 last:mb-0">
+                <h3 className="text-[11px] font-bold text-bc-muted uppercase tracking-wider mb-3">{cat}</h3>
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+                  {items.map(renderCard)}
+                </div>
+              </div>
+            );
+          })}
+
+          {filtered.length === 0 && (
+            <div className="flex flex-col items-center justify-center py-16 text-bc-muted">
+              <svg width="32" height="32" viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="1.2" className="mb-3 opacity-30">
+                <circle cx="14" cy="14" r="9" />
+                <path d="M20.5 20.5l7 7" strokeLinecap="round" />
+              </svg>
+              <p className="text-sm">No platforms match &ldquo;{search}&rdquo;</p>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
+/* ---------- Agent subscription step ---------- */
+
+function AgentSubscriptionStep({
+  platform,
+  platformLabel,
+  onDone,
+}: {
+  platform: string;
+  platformLabel: string;
+  onDone: () => void;
+}) {
+  const [agents, setAgents] = useState<Agent[]>([]);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [mentionOnly, setMentionOnly] = useState<Set<string>>(new Set());
+  const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    api.listAgents().then((list) => {
+      setAgents(list ?? []);
+      setLoading(false);
+    }).catch(() => setLoading(false));
+  }, []);
+
+  const toggleAgent = (name: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) { next.delete(name); mentionOnly.delete(name); setMentionOnly(new Set(mentionOnly)); }
+      else next.add(name);
+      return next;
+    });
+  };
+
+  const toggleMention = (name: string) => {
+    setMentionOnly((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name); else next.add(name);
+      return next;
+    });
+  };
+
+  const handleDone = async () => {
+    setSaving(true);
+    try {
+      const channel = `${platform}:general`;
+      await Promise.all(
+        [...selected].map((agent) =>
+          api.subscribe(channel, agent, mentionOnly.has(agent)).catch(() => {}),
+        ),
+      );
+    } catch { /* best effort */ }
+    setSaving(false);
+    onDone();
+  };
+
+  const stateColor = (state: string) => {
+    if (state === "working" || state === "running") return "#22c55e";
+    if (state === "idle") return "#eab308";
+    return "#6b7280";
+  };
+
+  return (
+    <div>
+      <div className="p-4 border-b border-bc-border/50">
+        <div className="flex items-center gap-2 mb-1">
+          <span className="text-[10px] font-bold text-bc-accent bg-bc-accent/10 px-2 py-0.5 rounded-full uppercase tracking-wider">Step 2</span>
+        </div>
+        <h3 className="text-[14px] font-semibold text-bc-text">Add agents to {platformLabel}</h3>
+        <p className="text-[12px] text-bc-muted mt-1">Select which agents should receive notifications from this platform.</p>
+      </div>
+
+      <div className="p-4 max-h-[300px] overflow-auto">
+        {loading ? (
+          <div className="text-center py-6 text-bc-muted text-[12px]">Loading agents...</div>
+        ) : agents.length === 0 ? (
+          <div className="text-center py-6 text-bc-muted text-[12px]">No agents found</div>
+        ) : (
+          <div className="space-y-1">
+            {agents.filter((a) => !a.archived_at).map((agent) => (
+              <label
+                key={agent.name}
+                className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-bc-surface/50 cursor-pointer transition-colors"
+              >
+                <input
+                  type="checkbox"
+                  checked={selected.has(agent.name)}
+                  onChange={() => toggleAgent(agent.name)}
+                  className="shrink-0 accent-[var(--bc-accent)]"
+                />
+                <span
+                  className="shrink-0 w-2 h-2 rounded-full"
+                  style={{ backgroundColor: stateColor(agent.state) }}
+                  title={agent.state}
+                />
+                <span className="text-[13px] text-bc-text flex-1 min-w-0 truncate">{agent.name}</span>
+                {selected.has(agent.name) && (
+                  <button
+                    type="button"
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); toggleMention(agent.name); }}
+                    className="shrink-0 text-[10px] px-2 py-0.5 rounded-full border transition-colors"
+                    style={{
+                      borderColor: mentionOnly.has(agent.name) ? "rgba(249,115,22,0.4)" : "var(--bc-border, #333)",
+                      color: mentionOnly.has(agent.name) ? "rgb(249,115,22)" : "var(--bc-muted, #888)",
+                      background: mentionOnly.has(agent.name) ? "rgba(249,115,22,0.1)" : "transparent",
+                    }}
+                    title={mentionOnly.has(agent.name) ? "Mention only: ON" : "Mention only: OFF"}
+                  >
+                    @mention only
+                  </button>
+                )}
+              </label>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="flex justify-between items-center gap-2 p-4 border-t border-bc-border">
+        <span className="text-[11px] text-bc-muted">{selected.size} agent{selected.size !== 1 ? "s" : ""} selected</span>
+        <button
+          type="button"
+          onClick={handleDone}
+          disabled={saving}
+          className="px-4 py-1.5 text-[12px] text-bc-bg bg-bc-accent hover:bg-bc-accent-hover rounded font-medium transition-colors disabled:opacity-50"
+        >
+          {saving ? "Saving..." : "Done"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* ---------- Setup wizard (credential form + agent subscription) ---------- */
+
+export function SetupWizard({
+  platform,
+  onClose,
+  onConnected,
+}: {
+  platform: string;
+  onClose: () => void;
+  onConnected: () => void;
+}) {
+  const config = PLATFORM_MAP[platform];
+  const [values, setValues] = useState<Record<string, string>>({});
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [step, setStep] = useState<"credentials" | "agents">("credentials");
+  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
+  const [pairState, setPairState] = useState<string>("idle");
+
+  // Escape to close
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [onClose]);
+
+  if (!config) {
+    return createPortal(
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+        <div className="bg-bc-bg border border-bc-border/50 rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl">
+          <p className="text-bc-muted">Unknown platform: {platform}</p>
+          <button type="button" onClick={onClose} className="mt-4 text-sm text-bc-accent">
+            Close
+          </button>
+        </div>
+      </div>,
+      document.body,
+    );
+  }
+
+  const startQRPairing = async () => {
+    setPairState("loading");
+    setError(null);
+    try {
+      const resp = await fetch(`/api/gateways/${platform}/pair`, { method: "POST" });
+      const data = await resp.json();
+      if (!resp.ok) { setError(data.error || "Failed to start pairing"); setPairState("error"); return; }
+      if (data.state === "connected") { setPairState("connected"); onConnected(); return; }
+      if (data.qr_data_url) { setQrDataUrl(data.qr_data_url); setPairState("qr_ready"); }
+      // Poll for connection.
+      const pollId = setInterval(async () => {
+        const s = await fetch(`/api/gateways/${platform}/pair/status`).then(r => r.json());
+        if (s.state === "connected") { clearInterval(pollId); setPairState("connected"); onConnected(); }
+        else if (s.state === "error") { clearInterval(pollId); setPairState("error"); setError(s.error); }
+      }, 2000);
+      // Stop polling after 2 minutes.
+      setTimeout(() => clearInterval(pollId), 120000);
+    } catch (e) { setError(String(e)); setPairState("error"); }
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    setError(null);
+    try {
+      const body: Record<string, unknown> = { enabled: true };
+
+      if (platform === "slack") body.mode = "socket";
+      else if (platform === "telegram" || platform === "discord") body.mode = "polling";
+
+      for (const field of config.fields) {
+        const val = (values[field.key] ?? "").trim();
+        if (field.required !== false && !val) {
+          setError(`${field.label} is required`);
+          setSaving(false);
+          return;
+        }
+        if (val) {
+          body[field.key] = field.type === "number" ? Number(val) : val;
+        }
+      }
+
+      const res = await fetch("/api/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ gateways: { [platform]: body } }),
+      });
+
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || `HTTP ${res.status}`);
+      }
+
+      setStep("agents");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save");
+    }
+    setSaving(false);
+  };
+
+  const handleAgentsDone = () => {
+    onConnected();
+    onClose();
+  };
+
+  return createPortal(
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 backdrop-blur-sm" style={{ animation: 'fadeIn 120ms ease-out' }}>
+      <div className="bg-bc-bg border border-bc-border/50 rounded-xl max-w-lg w-full mx-4 max-h-[85vh] overflow-auto shadow-2xl">
+        {/* Header */}
+        <div className="flex items-center justify-between p-4 border-b border-bc-border">
+          <h2 className="text-[15px] font-semibold text-bc-text flex items-center gap-2">
+            <span>{config.icon}</span>
+            {step === "credentials" ? `Connect ${config.label}` : `${config.label} Setup`}
+          </h2>
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-8 h-8 flex items-center justify-center rounded-lg text-bc-muted hover:text-bc-text hover:bg-bc-surface transition-colors"
+            aria-label="Close"
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+              <path d="M4 4l8 8M12 4l-8 8" />
+            </svg>
+          </button>
+        </div>
+
+        {/* Step indicator */}
+        <div className="px-4 pt-3 flex items-center gap-2">
+          <span
+            className="text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider"
+            style={{
+              color: step === "credentials" ? "rgb(249,115,22)" : "#22c55e",
+              background: step === "credentials" ? "rgba(249,115,22,0.1)" : "rgba(34,197,94,0.1)",
+            }}
+          >
+            Step 1
+          </span>
+          <span className="text-[11px] text-bc-muted">
+            {step === "credentials" ? "Enter credentials" : "Connected"}
+          </span>
+          <span className="text-bc-muted/30 mx-1">&rarr;</span>
+          <span
+            className="text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider"
+            style={{
+              color: step === "agents" ? "rgb(249,115,22)" : "var(--bc-muted, #888)",
+              background: step === "agents" ? "rgba(249,115,22,0.1)" : "transparent",
+              border: step === "agents" ? "none" : "1px solid var(--bc-border, #333)",
+            }}
+          >
+            Step 2
+          </span>
+          <span className="text-[11px] text-bc-muted">Add agents</span>
+        </div>
+
+        {step === "credentials" ? (
+          <>
+            {/* Setup docs */}
+            <div className="p-4 border-b border-bc-border/50">
+              <h3 className="text-[11px] font-semibold text-bc-muted uppercase tracking-widest mb-2">
+                Setup Steps
+              </h3>
+              <ol className="space-y-1.5">
+                {config.docs.map((docStep, i) => (
+                  <li key={i} className="flex gap-2 text-[12px] text-bc-text/70">
+                    <span className="text-bc-accent font-mono shrink-0">{i + 1}.</span>
+                    <span>{docStep}</span>
+                  </li>
+                ))}
+              </ol>
+            </div>
+
+            {/* QR code pairing flow */}
+            {"pairFlow" in config && config.pairFlow === "qr" ? (
+              <div className="p-6 flex flex-col items-center gap-4">
+                {pairState === "idle" && (
+                  <button
+                    type="button"
+                    onClick={startQRPairing}
+                    className="px-6 py-3 bg-[#25D366] hover:bg-[#20bd5a] text-white rounded-lg font-medium text-sm transition-colors"
+                  >
+                    Generate QR Code
+                  </button>
+                )}
+                {pairState === "loading" && (
+                  <div className="text-bc-muted text-sm animate-pulse">Generating QR code...</div>
+                )}
+                {pairState === "qr_ready" && qrDataUrl && (
+                  <div className="flex flex-col items-center gap-3">
+                    <img src={qrDataUrl} alt="WhatsApp QR Code" className="w-56 h-56 rounded-lg border border-bc-border" />
+                    <p className="text-xs text-bc-muted text-center">
+                      Open WhatsApp → Linked Devices → Link a Device<br />
+                      Scan this QR code with your phone
+                    </p>
+                    <div className="flex items-center gap-2 text-xs text-bc-muted">
+                      <span className="w-2 h-2 bg-amber-400 rounded-full animate-pulse" />
+                      Waiting for scan...
+                    </div>
+                  </div>
+                )}
+                {pairState === "connected" && (
+                  <div className="flex items-center gap-2 text-sm text-green-400">
+                    <span className="text-lg">✓</span> WhatsApp connected!
+                  </div>
+                )}
+              </div>
+            ) : (
+            /* Token inputs */
+            <div className="p-4 space-y-3">
+              {config.fields.map((field) => (
+                <div key={field.key}>
+                  <label className="block text-[11px] font-medium text-bc-muted mb-1">
+                    {field.label}
+                    {field.required === false && <span className="text-bc-muted/30 ml-1">(optional)</span>}
+                  </label>
+                  <input
+                    type={field.type === "url" ? "url" : field.type === "number" ? "text" : "password"}
+                    value={values[field.key] ?? ""}
+                    onChange={(e) => setValues((v) => ({ ...v, [field.key]: e.target.value }))}
+                    placeholder={field.placeholder}
+                    className="w-full px-3 py-2 bg-bc-surface border border-bc-border rounded text-[13px] text-bc-text placeholder:text-bc-muted/30 focus:border-bc-accent focus:outline-none transition-colors"
+                  />
+                </div>
+              ))}
+            </div>
+            )}
+
+            {/* Error */}
+            {error && (
+              <div className="mx-4 mb-3 px-3 py-2 bg-bc-error/10 border border-bc-error/20 rounded text-[12px] text-bc-error">
+                {error}
+              </div>
+            )}
+
+            {/* Actions */}
+            <div className="flex justify-end gap-2 p-4 border-t border-bc-border">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-4 py-1.5 text-[12px] text-bc-muted hover:text-bc-text border border-bc-border rounded transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSave}
+                disabled={saving}
+                className="px-4 py-1.5 text-[12px] text-bc-bg bg-bc-accent hover:bg-bc-accent-hover rounded font-medium transition-colors disabled:opacity-50"
+              >
+                {saving ? "Connecting..." : "Connect"}
+              </button>
+            </div>
+          </>
+        ) : (
+          <AgentSubscriptionStep
+            platform={platform}
+            platformLabel={config.label}
+            onDone={handleAgentsDone}
+          />
+        )}
+      </div>
+    </div>,
+    document.body,
+  );
+}

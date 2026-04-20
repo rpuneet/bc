@@ -217,27 +217,55 @@ Delete role. Agents keep their current config.
 
 ---
 
-## Channels
+## Gateways & Channels
 
-### `GET /api/channels`
-### `POST /api/channels`
-**Body:** `{"name": "reviews", "description": "Code review channel"}`
+Notification gateways bridge external platforms to bc agents. See [Channel Architecture](../architecture/notifications.md) for full design.
 
-### `GET /api/channels/{name}`
-### `PATCH /api/channels/{name}`
-### `DELETE /api/channels/{name}`
+### `GET /api/gateways`
 
-### `GET /api/channels/{name}/history?limit=50&offset=0`
-**Query params:** `limit` (max 1000), `offset`
+List all gateways with connection status.
 
-### `POST /api/channels/{name}/messages`
-**Body:** `{"sender": "eng-01", "content": "PR ready for review"}`
-Triggers delivery to all channel members via `tmux send-keys`.
+### `POST /api/gateways`
 
-### `POST /api/channels/{name}/members`
-**Body:** `{"agent_id": "eng-01"}`
+Connect a new gateway.
 
-### `DELETE /api/channels/{name}/members?agent_id=eng-01`
+**Body:** `{"platform": "slack", "tokens": {"bot_token": "xoxb-...", "app_token": "xapp-..."}}`
+
+### `PATCH /api/gateways/{gateway}`
+
+Update gateway tokens/settings.
+
+### `DELETE /api/gateways/{gateway}`
+
+Disconnect and remove gateway.
+
+### `GET /api/gateways/{gateway}/health`
+
+Live connection probe.
+
+### `GET /api/gateways/{gateway}/channels`
+
+List discovered channels for a gateway.
+
+### `POST /api/gateways/{gateway}/channels/{channel}/agents`
+
+Subscribe an agent to a channel.
+
+**Body:** `{"agent": "eng-01", "mention_only": false}`
+
+### `DELETE /api/gateways/{gateway}/channels/{channel}/agents/{agent}`
+
+Unsubscribe agent from channel.
+
+### `PATCH /api/gateways/{gateway}/channels/{channel}/agents/{agent}`
+
+Update subscription settings (e.g., toggle mention_only).
+
+**Body:** `{"mention_only": true}`
+
+### `GET /api/gateways/{gateway}/channels/{channel}/activity`
+
+Recent delivery log entries for a channel.
 
 ---
 
@@ -453,7 +481,7 @@ Server-Sent Events stream.
 | `agent.stopped` | `{name, reason}` | Agent stopped |
 | `agent.deleted` | `{name}` | Agent deleted |
 | `agent.state_changed` | `{name, state, task}` | State transition (idle/working/stuck) |
-| `channel.message` | `{channel, sender, content, type}` | New message |
+| `gateway.message` | `{channel, platform, sender, content, mentions, timestamp}` | Inbound platform message |
 | `cost.updated` | `{agent, cost_usd, tokens}` | Cost import completed |
 | `team.updated` | `{team_id, action}` | Team membership changed |
 
@@ -529,8 +557,8 @@ Workspace-level summary counts.
   "agents_total": 5,
   "agents_running": 3,
   "agents_stopped": 2,
-  "channels_total": 4,
-  "messages_total": 120,
+  "notification_sources_total": 4,
+  "notifications_total": 120,
   "total_cost_usd": 12.50,
   "roles_total": 3,
   "tools_total": 2,
@@ -538,8 +566,8 @@ Workspace-level summary counts.
 }
 ```
 
-### `GET /api/stats/channels`
-Channel-level statistics.
+### `GET /api/stats/notifications`
+Notification-level statistics.
 
 **Response:** `200 OK`
 

@@ -42,7 +42,7 @@ User identity settings.
 
 | Field      | Type   | Default | Description                                      |
 |------------|--------|---------|--------------------------------------------------|
-| `nickname` | string | `@bc`   | Display name for channel messages (max 15 chars, must start with `@`, alphanumeric and underscores only) |
+| `nickname` | string | `@bc`   | Display name for messages (max 15 chars, must start with `@`, alphanumeric and underscores only) |
 
 ### `[providers]`
 
@@ -123,7 +123,7 @@ TUI polling intervals and cache TTLs. All values are in milliseconds. Minimum po
 | Field                    | Type  | Default | Description                        |
 |--------------------------|-------|---------|------------------------------------|
 | `poll_interval_agents`   | int64 | `2000`  | Agent status update interval       |
-| `poll_interval_channels` | int64 | `3000`  | Channel message polling interval   |
+| `poll_interval_channels` | int64 | `3000`  | Notification feed polling interval   |
 | `poll_interval_costs`    | int64 | `5000`  | Cost data refresh interval         |
 | `poll_interval_status`   | int64 | `2000`  | Dashboard status refresh interval  |
 | `poll_interval_logs`     | int64 | `3000`  | Log viewer refresh interval        |

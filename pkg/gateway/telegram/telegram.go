@@ -1,12 +1,15 @@
-// Package telegram implements the gateway.Adapter for Telegram Bot API.
+// Package telegram implements the gateway.NotificationAdapter for Telegram Bot API.
 package telegram
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"net/http"
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
@@ -15,7 +18,8 @@ import (
 	"github.com/rpuneet/bc/pkg/log"
 )
 
-// Adapter implements gateway.Adapter for Telegram.
+// Adapter implements gateway.NotificationAdapter for Telegram.
+// It also supports outbound messaging via the Send method.
 type Adapter struct {
 	lastMessageAt time.Time
 	bot           *tgbotapi.BotAPI
@@ -26,11 +30,10 @@ type Adapter struct {
 	lastError     string
 	chatMu        sync.RWMutex
 	connected     bool
+	messageCount  atomic.Int64
 }
 
-// Ensure Adapter implements gateway.Adapter.
-var _ gateway.Adapter = (*Adapter)(nil)
-var _ gateway.StatusReporter = (*Adapter)(nil)
+var _ gateway.NotificationAdapter = (*Adapter)(nil)
 
 // New creates a new Telegram adapter with the default name "telegram".
 func New(token, mode string) *Adapter {
@@ -56,7 +59,11 @@ func NewNamed(name, token, mode string) *Adapter {
 
 func (a *Adapter) Name() string { return a.name }
 
-func (a *Adapter) Start(ctx context.Context, onMessage func(gateway.InboundMessage)) error {
+// Type returns AdapterSocket since Telegram uses long-polling that blocks like a socket.
+func (a *Adapter) Type() gateway.AdapterType { return gateway.AdapterSocket }
+
+// Start connects to Telegram and forwards events as Notifications.
+func (a *Adapter) Start(ctx context.Context, handler func(gateway.Notification)) error {
 	bot, err := tgbotapi.NewBotAPI(a.token)
 	if err != nil {
 		return fmt.Errorf("telegram: failed to connect: %w", err)
@@ -113,48 +120,113 @@ func (a *Adapter) Start(ctx context.Context, onMessage func(gateway.InboundMessa
 
 			content := update.Message.Text
 			if content == "" {
-				// Skip non-text messages for now
+				// Use caption for photos/documents/videos, or describe the media type
+				if update.Message.Caption != "" {
+					content = update.Message.Caption
+				} else if update.Message.Photo != nil {
+					content = "[photo]"
+				} else if update.Message.Document != nil {
+					content = "[document: " + update.Message.Document.FileName + "]"
+				} else if update.Message.Video != nil {
+					content = "[video]"
+				} else if update.Message.Voice != nil {
+					content = "[voice message]"
+				} else if update.Message.Sticker != nil {
+					content = "[sticker]"
+				} else if update.Message.Location != nil {
+					content = "[location]"
+				}
+			}
+			if content == "" {
+				// Skip truly empty messages (edits, service messages, etc.)
 				continue
 			}
 
-			senderID := ""
-			if update.Message.From != nil {
-				senderID = strconv.FormatInt(update.Message.From.ID, 10)
-			}
+			now := time.Now()
+			a.chatMu.Lock()
+			a.lastMessageAt = now
+			a.chatMu.Unlock()
 
-			msg := gateway.InboundMessage{
-				ChannelID:   strconv.FormatInt(chatID, 10),
-				ChannelName: chatTitle,
-				Sender:      sender,
-				SenderID:    senderID,
-				Content:     content,
-				MessageID:   strconv.Itoa(update.Message.MessageID),
-				Timestamp:   update.Message.Time(),
-			}
+			a.messageCount.Add(1)
 
 			log.Info("telegram: received message",
 				"chat", chatTitle,
 				"sender", sender,
 				"content", gateway.Truncate(content, 50))
 
-			a.chatMu.Lock()
-			a.lastMessageAt = time.Now()
-			a.chatMu.Unlock()
-
-			if onMessage != nil {
-				onMessage(msg)
+			// Build raw JSON from the update
+			// Marshal entire update — preserves photos, documents, stickers,
+			// audio, location, and all platform fields (raw passthrough).
+			raw, marshalErr := json.Marshal(update)
+			if marshalErr != nil {
+				log.Warn("telegram: failed to marshal update", "error", marshalErr)
+				continue
 			}
+
+			channelName := chatTitle
+			if channelName == "" {
+				channelName = strconv.FormatInt(chatID, 10)
+			}
+
+			handler(gateway.Notification{
+				Channel:   channelName,
+				Platform:  a.name,
+				Sender:    sender,
+				Content:   content,
+				Timestamp: update.Message.Time(),
+				Raw:       raw,
+			})
 		}
 	}
 }
 
-func (a *Adapter) Stop(_ context.Context) error {
+// Stop gracefully disconnects.
+func (a *Adapter) Stop() error {
 	if a.bot != nil {
 		a.bot.StopReceivingUpdates()
 	}
 	return nil
 }
 
+// HTTPHandler returns nil since Telegram uses polling, not webhooks.
+func (a *Adapter) HTTPHandler() http.Handler { return nil }
+
+// Channels returns discovered channels.
+func (a *Adapter) Channels() []gateway.ChannelInfo {
+	a.chatMu.RLock()
+	defer a.chatMu.RUnlock()
+
+	channels := make([]gateway.ChannelInfo, 0, len(a.chatMap))
+	for id, name := range a.chatMap {
+		channels = append(channels, gateway.ChannelInfo{
+			ID:       strconv.FormatInt(id, 10),
+			Name:     name,
+			Platform: a.name,
+		})
+	}
+	return channels
+}
+
+// Status returns the current connection state.
+func (a *Adapter) Status() gateway.AdapterStatus {
+	a.chatMu.RLock()
+	defer a.chatMu.RUnlock()
+	botName := ""
+	if a.bot != nil {
+		botName = a.bot.Self.UserName
+	}
+	return gateway.AdapterStatus{
+		Connected:     a.connected,
+		LastMessageAt: a.lastMessageAt,
+		Error:         a.lastError,
+		BotName:       botName,
+		MessageCount:  a.messageCount.Load(),
+	}
+}
+
+// --- MessageSender (outbound messaging) ---
+
+// Send delivers a message to a Telegram chat.
 func (a *Adapter) Send(_ context.Context, channelID, sender, content string) error {
 	if a.bot == nil {
 		return fmt.Errorf("telegram: bot not connected")
@@ -179,26 +251,11 @@ func (a *Adapter) Send(_ context.Context, channelID, sender, content string) err
 	return nil
 }
 
-func (a *Adapter) Channels(_ context.Context) ([]gateway.ExternalChannel, error) {
-	a.chatMu.RLock()
-	defer a.chatMu.RUnlock()
-
-	channels := make([]gateway.ExternalChannel, 0, len(a.chatMap))
-	for id, name := range a.chatMap {
-		channels = append(channels, gateway.ExternalChannel{
-			ID:   strconv.FormatInt(id, 10),
-			Name: name,
-			Type: "group",
-		})
-	}
-	return channels, nil
-}
-
+// Health returns nil if the adapter is connected and operational.
 func (a *Adapter) Health(_ context.Context) error {
 	if a.bot == nil {
 		return fmt.Errorf("telegram: not connected")
 	}
-	// Live probe: call getMe to verify the connection
 	if _, err := a.bot.GetMe(); err != nil {
 		a.chatMu.Lock()
 		a.connected = false
@@ -213,22 +270,6 @@ func (a *Adapter) Health(_ context.Context) error {
 	return nil
 }
 
-// Status returns the current connection state.
-func (a *Adapter) Status() gateway.AdapterStatus {
-	a.chatMu.RLock()
-	defer a.chatMu.RUnlock()
-	botName := ""
-	if a.bot != nil {
-		botName = a.bot.Self.UserName
-	}
-	return gateway.AdapterStatus{
-		Connected:     a.connected,
-		LastMessageAt: a.lastMessageAt,
-		Error:         a.lastError,
-		BotName:       botName,
-	}
-}
-
 // DiscoverViaUpdate processes a single getUpdates call to discover groups
 // the bot has been added to. Called before Start to populate initial channels.
 func (a *Adapter) DiscoverViaUpdate() error {
@@ -238,12 +279,10 @@ func (a *Adapter) DiscoverViaUpdate() error {
 	}
 	a.bot = bot
 
-	// Do a quick getUpdates with short timeout to discover groups
 	u := tgbotapi.NewUpdate(0)
 	u.Timeout = 2
 	updates, err := bot.GetUpdates(u)
 	if err != nil {
-		// Not fatal — bot may just have no pending updates
 		log.Warn("telegram: discovery getUpdates failed", "error", err)
 		return nil
 	}
@@ -265,7 +304,6 @@ func (a *Adapter) DiscoverViaUpdate() error {
 }
 
 // AddChat manually registers a chat ID → name mapping.
-// Used when the bot hasn't received any messages yet but we know about the group.
 func (a *Adapter) AddChat(chatID int64, name string) {
 	a.chatMu.Lock()
 	defer a.chatMu.Unlock()

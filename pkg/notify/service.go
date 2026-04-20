@@ -14,6 +14,8 @@ import (
 // Implemented by *agent.AgentService (Send method).
 type AgentSender interface {
 	Send(ctx context.Context, name, message string) error
+	// SendAll broadcasts a message to all running agents.
+	SendAll(ctx context.Context, message string) (sent int, err error)
 }
 
 // Broadcaster pushes events to connected web clients via SSE/WebSocket.
@@ -44,8 +46,7 @@ func NewService(store *Store, agents AgentSender, hub Broadcaster) *Service {
 // Store returns the underlying store for direct access by handlers.
 func (s *Service) Store() *Store { return s.store }
 
-// platformPrefixRe strips "[platform] " prefix added by gateway inbound handlers,
-// e.g. "[slack] jolly-vulture" → "jolly-vulture".
+// platformPrefixRe strips "[platform] " prefix from sender names.
 var platformPrefixRe = regexp.MustCompile(`^\[[\w-]+\]\s+`)
 
 var mentionRe = regexp.MustCompile(`@([a-zA-Z][a-zA-Z0-9_-]*)`)
@@ -65,9 +66,9 @@ func extractMentions(content string) []string {
 	return mentions
 }
 
-// Dispatch receives a normalized inbound message and delivers it to all
-// subscribed agents. Runs in its own goroutine — never blocks the adapter.
-func (s *Service) Dispatch(channel, platform, sender, senderID, content, messageID string, attachments []Attachment) {
+// Dispatch receives a normalized inbound message and delivers it to
+// subscribed agents only. Runs in its own goroutine — never blocks the adapter.
+func (s *Service) Dispatch(channel, platform, sender, senderID, content, messageID string, attachments []Attachment, raw json.RawMessage) {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
@@ -85,6 +86,7 @@ func (s *Service) Dispatch(channel, platform, sender, senderID, content, message
 		// Build notification
 		mentions := extractMentions(content)
 		n := Notification{
+			Raw:         raw,
 			Timestamp:   time.Now().UTC().Format(time.RFC3339),
 			Channel:     channel,
 			Platform:    platform,
@@ -100,10 +102,10 @@ func (s *Service) Dispatch(channel, platform, sender, senderID, content, message
 			return
 		}
 
-		// Get subscribers
-		subs, err := s.store.Subscribers(ctx, channel)
-		if err != nil {
-			log.Warn("notify: failed to get subscribers", "channel", channel, "error", err)
+		// Get subscribers for this channel
+		subs, subErr := s.store.Subscribers(ctx, channel)
+		if subErr != nil {
+			log.Warn("notify: failed to get subscribers", "channel", channel, "error", subErr)
 			return
 		}
 
@@ -115,23 +117,22 @@ func (s *Service) Dispatch(channel, platform, sender, senderID, content, message
 		}
 
 		// Strip platform prefix from sender for self-skip comparison.
-		// Gateway inbound messages arrive as "[slack] agent-name" but
-		// subscriptions store bare agent names like "agent-name".
+		// Gateway messages arrive as "[slack] agent-name" but subscriptions
+		// store bare agent names.
 		rawSender := platformPrefixRe.ReplaceAllString(sender, "")
 
-		// Deliver to each subscriber
+		// Deliver to each subscribed agent
 		for _, sub := range subs {
 			// Self-skip: don't echo agent's own message back
 			if strings.EqualFold(sub.Agent, rawSender) {
 				continue
 			}
 
-			// @mention filter: if mention_only is ON, skip unless agent is mentioned
+			// @mention filter: if mention_only, skip unless agent is mentioned
 			if sub.MentionOnly && !mentionSet[strings.ToLower(sub.Agent)] {
 				continue
 			}
 
-			// Deliver via tmux send-keys
 			sendErr := s.agents.Send(ctx, sub.Agent, string(payload))
 			status := StatusDelivered
 			errStr := ""
@@ -143,7 +144,6 @@ func (s *Service) Dispatch(channel, platform, sender, senderID, content, message
 				log.Info("notify: delivered", "agent", sub.Agent, "channel", channel)
 			}
 
-			// Log delivery
 			if logErr := s.store.LogDelivery(ctx, DeliveryEntry{
 				Channel: channel,
 				Agent:   sub.Agent,

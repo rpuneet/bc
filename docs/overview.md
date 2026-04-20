@@ -28,7 +28,7 @@ project/
           .mcp.json         # MCP server configs
         worktree/           # Git worktree checkout
     roles/                 # Role definitions
-    channels/              # Channel data
+    notifications/         # Notification data
     prompts/               # Default prompt templates
 ```
 
@@ -53,7 +53,7 @@ graph TB
 
     subgraph Services
         AgentSvc[Agent Service]
-        ChannelSvc[Channel Service]
+        NotifySvc[Notify Service]
         TeamSvc[Team Service]
         CostSvc[Cost Service]
         SecretSvc[Secret Service]
@@ -77,12 +77,12 @@ graph TB
     TUI -->|HTTP/JSON| REST
     AI -->|stdio / SSE| MCP
 
-    REST --> AgentSvc & ChannelSvc & TeamSvc & CostSvc & SecretSvc & CronSvc & DaemonSvc & EventSvc & StatsSvc
-    MCP --> AgentSvc & ChannelSvc & CostSvc
+    REST --> AgentSvc & NotifySvc & TeamSvc & CostSvc & SecretSvc & CronSvc & DaemonSvc & EventSvc & StatsSvc
+    MCP --> AgentSvc & NotifySvc & CostSvc
 
     AgentSvc --> Tmux & Docker
     DaemonSvc --> Tmux & Docker
-    AgentSvc & ChannelSvc & TeamSvc & CostSvc & SecretSvc & CronSvc & DaemonSvc & EventSvc --> DB
+    AgentSvc & NotifySvc & TeamSvc & CostSvc & SecretSvc & CronSvc & DaemonSvc & EventSvc --> DB
 
     Tmux & Docker --> AI
 ```
@@ -111,10 +111,10 @@ Middleware chain: Recovery, RequestID, CORS, Gzip, MaxBody, Routes.
 
 React SPA with 16 views, embedded in the bcd binary via `server/web/dist/`:
 
-- **Dashboard** -- workspace overview with agent/channel/cost summary
+- **Dashboard** -- workspace overview with agent/notification/cost summary
 - **Agents** -- list, create, start/stop, send messages, peek output
 - **Agent Detail** -- per-agent terminal output, metrics, sessions
-- **Channels** -- messaging, member management, search
+- **Notifications** -- notification sources, subscriptions, delivery feed
 - **Costs** -- per-agent, per-team, per-model breakdown with daily charts
 - **Cron** -- scheduled jobs with enable/disable, manual trigger, logs
 - **Daemons** -- long-running process management
@@ -133,7 +133,7 @@ Features: Cmd+K command palette, dark/light theming, responsive layout, SSE real
 
 React Ink terminal UI with 13 views and k9s-style keyboard navigation:
 
-- Dashboard, Agents, Agent Detail, Channels, Costs, Logs, MCP
+- Dashboard, Agents, Agent Detail, Notifications, Costs, Logs, MCP
 - Processes, Roles, Secrets, Tools, Worktrees, Help
 
 Built with Bun, compiled to CommonJS in `tui/dist/`.
@@ -170,15 +170,15 @@ graph TD
 - Teams can have a default workspace; agents inherit it but can override
 - Deleting a team does NOT delete its agents
 
-### Channels
+### Notifications
 
-SQLite-backed messaging for agent coordination:
-- Group and direct channels with member management
-- Message types: text, task, review, approval, merge, status
-- @mentions, reactions, FTS5 search
-- Delivery to agents via `tmux send-keys` with formatted context: `[#channel @sender] message`
-- Auto-enrollment: agents join team channels on creation
-- Retry queue for failed deliveries
+Inbound-only gateway that bridges external platforms (Slack, Telegram, GitHub, and others) to agents:
+- Gateway adapters connect via socket, webhook, or polling patterns
+- Agents subscribe to notification sources (`platform:channel`)
+- Mention-only filtering for noisy channels
+- Delivery via `tmux send-keys` with JSON payload
+- Delivery logging with retry for failed dispatches
+- Self-skip filtering prevents agents from receiving their own echoed messages
 
 ### Secrets
 
@@ -198,7 +198,7 @@ Scheduled bash commands that run on a timer. Supports enable/disable, manual tri
 
 ### Stats
 
-System-level metrics (CPU, memory, disk, uptime, goroutines) and workspace summary (agent counts, channel counts, cost totals, role/tool counts).
+System-level metrics (CPU, memory, disk, uptime, goroutines) and workspace summary (agent counts, notification source counts, cost totals, role/tool counts).
 
 ## Data Flow
 
@@ -224,26 +224,26 @@ sequenceDiagram
     Svc-->>CLI: 201 Created
 ```
 
-### Channel Message Delivery
+### Notification Delivery
 
 ```mermaid
 sequenceDiagram
-    participant Sender as Sender
-    participant API as bcd API
+    participant Platform as External Platform
+    participant Adapter as Gateway Adapter
+    participant Notify as notify.Service
     participant DB as SQLite
     participant Hub as SSE Hub
-    participant Agent as Target Agent
+    participant Agent as Subscribed Agent
 
-    Sender->>API: POST /api/channels/{ch}/messages
-    API->>DB: INSERT INTO messages
-    API->>DB: SELECT members WHERE channel = ch
-    loop Each member (except sender)
-        API->>Agent: tmux send-keys "[#ch @sender] message"
-        alt Delivery failed
-            API->>DB: Queue for retry
-        end
+    Platform->>Adapter: Inbound event
+    Adapter->>Notify: Dispatch(channel, sender, content)
+    Notify->>DB: Save to notification_log
+    Notify->>DB: Query subscribers
+    loop Each subscriber (with self-skip + mention filter)
+        Notify->>Agent: tmux send-keys (JSON payload)
+        Notify->>DB: Log delivery status
     end
-    API->>Hub: Publish channel.message SSE event
+    Notify->>Hub: Publish gateway.message SSE event
 ```
 
 ### Agent State via Hooks

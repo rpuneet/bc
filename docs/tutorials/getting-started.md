@@ -103,17 +103,17 @@ bc down
 
 ## Common Workflows
 
-### Team Communication
+### Notification Subscriptions
 
 ```bash
-# Create a channel
-bc channel create eng
+# List available notification sources
+bc notify list
 
-# Send a message
-bc channel send eng "Starting implementation of feature X"
+# Subscribe an agent to a Slack channel
+bc notify subscribe slack:engineering eng-01
 
-# View history
-bc channel history eng
+# Check recent notifications
+bc notify history slack:engineering --last 10
 ```
 
 ### Agent Reporting
@@ -138,7 +138,7 @@ bc cost dashboard      # Full view
 
 - Learn about the [Architecture](../overview.md) to understand the system
 - Configure [Settings](../how-to/configure-workspace.md) for your workspace
-- Set up [Channels](../how-to/set-up-channels.md) for agent communication
+- Set up [Notifications](../how-to/set-up-notifications.md) for platform event routing
 - Explore the [REST API](../reference/api-rest.md) for programmatic access
 
 ## Troubleshooting
