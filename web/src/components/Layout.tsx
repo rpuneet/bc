@@ -44,15 +44,33 @@ function Icon({ name, size = 14 }: { name: string; size?: number }) {
 
 /* ── Platform config ─────────────────────────────────────────── */
 
+const PLATFORM_ICONS: Record<string, string> = {
+  slack: "💬", telegram: "✈️", discord: "🎮", github: "🐙", whatsapp: "📱",
+  irc: "📟", mqtt: "📡", matrix: "🌍", mattermost: "🗨️",
+};
+
 function getPlatformMeta(p: string) {
   const def = PLATFORM_MAP[p];
-  if (def) return { label: def.label, color: def.color };
-  return { label: p, color: "#8c7e72" };
+  const icon = PLATFORM_ICONS[p] ?? "📌";
+  if (def) return { label: def.label, color: def.color, icon };
+  return { label: p, color: "#8c7e72", icon };
 }
 
+/** Extract display channel name (last segment after platform and optional server). */
 function displaySourceName(name: string): string {
-  const idx = name.indexOf(":");
-  return idx > 0 ? name.slice(idx + 1) : name;
+  // "discord:Server Name:general" → "general"
+  // "slack:engineering" → "engineering"
+  const parts = name.split(":");
+  return parts[parts.length - 1] || name;
+}
+
+/** Extract the group identifier (server/workspace/bot) from a channel name. */
+function sourceGroup(name: string): string | null {
+  // "discord:Server Name:general" → "Server Name"
+  // "slack:engineering" → null (no sub-group)
+  const parts = name.split(":");
+  if (parts.length >= 3) return parts.slice(1, -1).join(":");
+  return null;
 }
 
 /* ── Notification tree (inline in nav) ───────────────────────── */
@@ -170,25 +188,24 @@ function NotificationNavTree() {
 
         return (
           <div key={platform}>
-            {/* Platform header */}
+            {/* Platform header — icon + server/workspace name */}
             <button
               type="button"
               onClick={() => toggleGw(platform)}
               className="w-full flex items-center"
               style={{
-                gap: 8,
+                gap: 6,
                 padding: "5px 8px 2px",
-                fontSize: 11,
-                color: "var(--bc-muted, #6b6b6b)",
-                textTransform: "uppercase",
-                letterSpacing: 0.5,
-                fontWeight: 600,
+                fontSize: 11.5,
+                color: "var(--bc-text-2, #a0a0a0)",
+                fontWeight: 500,
                 background: "none",
                 border: "none",
                 cursor: "pointer",
               }}
             >
-              <span>{meta.label}</span>
+              <span style={{ fontSize: 12 }}>{meta.icon}</span>
+              <span className="truncate">{(chs.length > 0 ? sourceGroup(chs[0]?.name ?? "") : null) ?? meta.label}</span>
               {isConnected && (
                 <span
                   className="ml-auto shrink-0"
@@ -202,6 +219,9 @@ function NotificationNavTree() {
                   }}
                 />
               )}
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ opacity: 0.4, transform: isExpanded ? "rotate(0deg)" : "rotate(-90deg)", transition: "transform 0.15s" }}>
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
             </button>
 
             {/* Channel rows */}
