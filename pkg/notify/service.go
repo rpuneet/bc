@@ -46,6 +46,9 @@ func NewService(store *Store, agents AgentSender, hub Broadcaster) *Service {
 // Store returns the underlying store for direct access by handlers.
 func (s *Service) Store() *Store { return s.store }
 
+// platformPrefixRe strips "[platform] " prefix from sender names.
+var platformPrefixRe = regexp.MustCompile(`^\[[\w-]+\]\s+`)
+
 var mentionRe = regexp.MustCompile(`@([a-zA-Z][a-zA-Z0-9_-]*)`)
 
 // extractMentions parses @agent-name mentions from message content.
@@ -63,8 +66,8 @@ func extractMentions(content string) []string {
 	return mentions
 }
 
-// Dispatch receives a normalized inbound message and broadcasts it to all
-// running agents. Runs in its own goroutine — never blocks the adapter.
+// Dispatch receives a normalized inbound message and delivers it to
+// subscribed agents only. Runs in its own goroutine — never blocks the adapter.
 func (s *Service) Dispatch(channel, platform, sender, senderID, content, messageID string, attachments []Attachment, raw json.RawMessage) {
 	go func() {
 		defer func() {
@@ -99,28 +102,51 @@ func (s *Service) Dispatch(channel, platform, sender, senderID, content, message
 			return
 		}
 
-		// Broadcast to ALL running agents (like agent send commands).
-		// Every inbound notification is forwarded as-is to every running agent.
-		log.Info("notify: broadcast", "channel", channel, "sender", sender)
+		// Get subscribers for this channel
+		subs, subErr := s.store.Subscribers(ctx, channel)
+		if subErr != nil {
+			log.Warn("notify: failed to get subscribers", "channel", channel, "error", subErr)
+			return
+		}
 
-		if s.agents != nil {
-			sent, sendErr := s.agents.SendAll(ctx, string(payload))
-			if sendErr != nil {
-				log.Warn("notify: broadcast failed", "channel", channel, "error", sendErr)
-			} else {
-				log.Info("notify: broadcast complete", "channel", channel, "sent", sent)
+		log.Info("notify: dispatch", "channel", channel, "sender", sender, "subscribers", len(subs))
+
+		mentionSet := make(map[string]bool, len(mentions))
+		for _, m := range mentions {
+			mentionSet[m] = true
+		}
+
+		// Strip platform prefix from sender for self-skip comparison.
+		// Gateway messages arrive as "[slack] agent-name" but subscriptions
+		// store bare agent names.
+		rawSender := platformPrefixRe.ReplaceAllString(sender, "")
+
+		// Deliver to each subscribed agent
+		for _, sub := range subs {
+			// Self-skip: don't echo agent's own message back
+			if strings.EqualFold(sub.Agent, rawSender) {
+				continue
 			}
 
-			// Log delivery summary
+			// @mention filter: if mention_only, skip unless agent is mentioned
+			if sub.MentionOnly && !mentionSet[strings.ToLower(sub.Agent)] {
+				continue
+			}
+
+			sendErr := s.agents.Send(ctx, sub.Agent, string(payload))
 			status := StatusDelivered
 			errStr := ""
 			if sendErr != nil {
 				status = StatusFailed
 				errStr = sendErr.Error()
+				log.Warn("notify: delivery failed", "agent", sub.Agent, "channel", channel, "error", sendErr)
+			} else {
+				log.Info("notify: delivered", "agent", sub.Agent, "channel", channel)
 			}
+
 			if logErr := s.store.LogDelivery(ctx, DeliveryEntry{
 				Channel: channel,
-				Agent:   "*",
+				Agent:   sub.Agent,
 				Status:  status,
 				Error:   errStr,
 				Preview: truncate(content, 120),

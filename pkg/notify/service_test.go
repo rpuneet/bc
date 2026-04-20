@@ -183,33 +183,61 @@ func TestExtractMentions(t *testing.T) {
 	}
 }
 
-func TestDispatchBroadcastAll(t *testing.T) {
+func TestDispatchMentionFilter(t *testing.T) {
 	store := setupTestStore(t)
+	ctx := context.Background()
 
 	sender := &mockSender{}
 	hub := &mockHub{}
 	svc := NewService(store, sender, hub)
 
-	// Dispatch broadcasts to all running agents via SendAll
+	// eng-01 gets all messages, eng-02 is mention-only
+	if err := store.Subscribe(ctx, "slack:eng", "eng-01", false); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Subscribe(ctx, "slack:eng", "eng-02", true); err != nil {
+		t.Fatal(err)
+	}
+
+	// Message mentions eng-01 only — eng-02 (mention_only) should be skipped
 	svc.Dispatch("slack:eng", "slack", "alice", "U123", "hey @eng-01 review this", "msg1", nil, nil)
 
-	// Wait for async dispatch
 	time.Sleep(100 * time.Millisecond)
 
 	calls := sender.getCalls()
 	if len(calls) != 1 {
-		t.Fatalf("expected 1 SendAll call, got %d: %v", len(calls), calls)
+		t.Fatalf("expected 1 delivery (eng-01 only), got %d: %v", len(calls), calls)
 	}
-	if calls[0].Name != "*" {
-		t.Errorf("expected broadcast to *, got %s", calls[0].Name)
+	if calls[0].Name != "eng-01" {
+		t.Errorf("expected delivery to eng-01, got %s", calls[0].Name)
+	}
+}
+
+func TestDispatchSelfSkip(t *testing.T) {
+	store := setupTestStore(t)
+	ctx := context.Background()
+
+	sender := &mockSender{}
+	svc := NewService(store, sender, nil)
+
+	if err := store.Subscribe(ctx, "slack:eng", "eng-01", false); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Subscribe(ctx, "slack:eng", "eng-02", false); err != nil {
+		t.Fatal(err)
 	}
 
-	// Verify SSE hub was notified
-	hub.mu.Lock()
-	eventCount := len(hub.events)
-	hub.mu.Unlock()
-	if eventCount == 0 {
-		t.Error("expected SSE event to be published")
+	// eng-01 sends — should NOT be delivered back to eng-01
+	svc.Dispatch("slack:eng", "slack", "[slack] eng-01", "U456", "I just pushed a fix", "msg2", nil, nil)
+
+	time.Sleep(100 * time.Millisecond)
+
+	calls := sender.getCalls()
+	if len(calls) != 1 {
+		t.Fatalf("expected 1 delivery (eng-02 only), got %d", len(calls))
+	}
+	if calls[0].Name != "eng-02" {
+		t.Errorf("expected delivery to eng-02, got %s", calls[0].Name)
 	}
 }
 
