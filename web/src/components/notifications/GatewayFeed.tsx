@@ -1078,7 +1078,7 @@ export function GatewayFeed({
     () => (
       <div className="flex items-center" style={{ gap: 4 }}>
         {/* Agents popover trigger */}
-        <div className="relative" ref={agentsPopoverRef}>
+        <div className="relative">
           <button
             type="button"
             onClick={() => setShowAgents((v) => !v)}
@@ -1188,6 +1188,7 @@ export function GatewayFeed({
       {/* ── Agents popover (overlays feed) ────────────────────── */}
       {showAgents && (
         <div
+          ref={agentsPopoverRef}
           style={{
             position: "absolute",
             top: 4,
