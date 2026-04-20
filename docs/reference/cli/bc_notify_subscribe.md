@@ -1,4 +1,4 @@
-## bc notify subscribe
+# bc notify subscribe
 
 Subscribe an agent to a notification source
 
@@ -23,20 +23,20 @@ Use `--mention-only` to filter notifications so the agent only receives events w
 
 The source must be a valid `platform:channel` identifier discovered by a connected gateway adapter. Use `bc notify list` to see available sources.
 
-```
+```text
 bc notify subscribe <source> <agent> [flags]
 ```
 
 ### Options
 
-```
+```text
   -h, --help           help for subscribe
       --mention-only   Only notify when the agent is @mentioned
 ```
 
 ### Options inherited from parent commands
 
-```
+```text
       --json      Output in JSON format
   -v, --verbose   Enable verbose output
 ```

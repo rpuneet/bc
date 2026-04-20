@@ -163,6 +163,7 @@ bc agent send eng-01 "bc agent report working '...'"
 **Cause**: Target agent not running, adapter disconnected, or subscription missing.
 
 **Solution**:
+
 ```bash
 # Check agent status
 bc status

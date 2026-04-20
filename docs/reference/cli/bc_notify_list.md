@@ -1,4 +1,4 @@
-## bc notify list
+# bc notify list
 
 List all agent subscriptions
 
@@ -21,20 +21,20 @@ Lists every agent subscription. The output includes:
 - Subscribed agent name
 - Whether `@mention only` filtering is enabled
 
-```
+```text
 bc notify list [flags]
 ```
 
 ### Options
 
-```
+```text
       --json   Output as JSON
   -h, --help   help for list
 ```
 
 ### Options inherited from parent commands
 
-```
+```text
   -v, --verbose   Enable verbose output
 ```
 

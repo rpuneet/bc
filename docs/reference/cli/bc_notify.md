@@ -1,4 +1,4 @@
-## bc notify
+# bc notify
 
 Manage notification subscriptions and sources
 
@@ -32,13 +32,13 @@ See Also:
 
 ### Options
 
-```
+```text
   -h, --help   help for notify
 ```
 
 ### Options inherited from parent commands
 
-```
+```text
       --json      Output in JSON format
   -v, --verbose   Enable verbose output
 ```

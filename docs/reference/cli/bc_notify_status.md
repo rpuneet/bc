@@ -1,4 +1,4 @@
-## bc notify status
+# bc notify status
 
 Show adapter connection status and health
 
@@ -24,19 +24,19 @@ Output columns:
 - Total messages processed
 - Error details (if any)
 
-```
+```text
 bc notify status [flags]
 ```
 
 ### Options
 
-```
+```text
   -h, --help   help for status
 ```
 
 ### Options inherited from parent commands
 
-```
+```text
       --json      Output in JSON format
   -v, --verbose   Enable verbose output
 ```

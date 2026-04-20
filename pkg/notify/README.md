@@ -1,6 +1,6 @@
 # pkg/notify
 
-Notification dispatch and subscription management for bc channels.
+Notification dispatch and subscription management for bc.
 
 ## Overview
 

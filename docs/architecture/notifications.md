@@ -547,23 +547,14 @@ POST   /api/gateways/{platform}/channels/{channel}/send           -- send outbou
 
 Gateway-scoped routes:
 
-```
-GET    /api/gateways/{platform}/channels/{channel}/agents          -- list subscribers
-POST   /api/gateways/{platform}/channels/{channel}/agents          -- subscribe agent
-DELETE /api/gateways/{platform}/channels/{channel}/agents/{agent}  -- unsubscribe agent
-PATCH  /api/gateways/{platform}/channels/{channel}/agents/{agent}  -- toggle mention_only
-GET    /api/gateways/{platform}/channels/{channel}/activity        -- delivery log entries
-```
-
-Flat notify routes (work for any channel, not just gateway-scoped):
-
-```
-GET    /api/notify/subscriptions                                   -- list all subscriptions
-POST   /api/notify/subscriptions                                   -- subscribe agent
-GET    /api/notify/subscriptions/{channel}                         -- list subscribers for channel
-DELETE /api/notify/subscriptions/{channel}?agent={agent}           -- unsubscribe agent
-PATCH  /api/notify/subscriptions/{channel}                         -- update subscription
-GET    /api/notify/activity/{channel}                              -- delivery log entries
+```text
+GET    /api/notify/subscriptions                         -- list all subscriptions
+POST   /api/notify/subscriptions                         -- subscribe agent {channel, agent, mention_only}
+GET    /api/notify/subscriptions/{channel}               -- list subscribers for channel
+DELETE /api/notify/subscriptions/{channel}?agent={agent} -- unsubscribe agent
+PATCH  /api/notify/subscriptions/{channel}               -- update subscription (toggle mention_only)
+GET    /api/notify/activity/{channel}                    -- delivery log entries
+GET    /api/gateways/activity                            -- aggregated activity across all gateways
 ```
 
 ### Activity Feed

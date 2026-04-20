@@ -1,4 +1,4 @@
-## bc notify history
+# bc notify history
 
 Show recent notifications for a source
 
@@ -19,13 +19,13 @@ bc notify history telegram:bc-dev --limit 20           # Telegram group history
 
 Retrieves recent notifications from the notification log for a given source. Each entry shows the sender, timestamp, and a preview of the notification content. Delivery status indicates whether the notification was successfully dispatched to subscribed agents.
 
-```
+```text
 bc notify history <source> [flags]
 ```
 
 ### Options
 
-```
+```text
   -h, --help           help for history
       --last int       Show last N notifications (alias for --limit)
       --limit int      Maximum number of notifications to show (default 50)
@@ -34,7 +34,7 @@ bc notify history <source> [flags]
 
 ### Options inherited from parent commands
 
-```
+```text
       --json      Output in JSON format
   -v, --verbose   Enable verbose output
 ```

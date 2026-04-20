@@ -126,10 +126,13 @@ If an adapter shows disconnected:
 ### Agent not receiving notifications
 
 1. Confirm the subscription exists:
+
    ```bash
    bc notify list
    ```
+
 2. Confirm the agent is running:
+
    ```bash
    bc status
    ```
