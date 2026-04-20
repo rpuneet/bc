@@ -1,5 +1,5 @@
-// Package mattermost implements a gateway.NotificationAdapter for
-// Mattermost outgoing webhooks with token validation.
+// Package mattermost implements a gateway.NotificationAdapter using the
+// Mattermost WebSocket API for real-time message events.
 package mattermost
 
 import (
@@ -8,20 +8,29 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/gorilla/websocket"
 
 	"github.com/rpuneet/bc/pkg/gateway"
 	"github.com/rpuneet/bc/pkg/log"
 )
 
-// Adapter implements gateway.NotificationAdapter for Mattermost webhooks.
+// Config holds Mattermost connection parameters.
+type Config struct {
+	URL   string // e.g. "https://mattermost.example.com"
+	Token string // personal access token or bot token
+}
+
+// Adapter implements gateway.NotificationAdapter for Mattermost.
 type Adapter struct {
-	lastMessageAt time.Time
+	cfg           Config
 	handler       func(gateway.Notification)
+	lastMessageAt time.Time
 	name          string
-	token         string
 	lastError     string
 	mu            sync.Mutex
 	connected     bool
@@ -30,87 +39,79 @@ type Adapter struct {
 
 var _ gateway.NotificationAdapter = (*Adapter)(nil)
 
-// New creates a Mattermost webhook adapter with the default name.
-func New(token string) *Adapter {
-	return &Adapter{name: "mattermost", token: token}
-}
-
-// NewNamed creates a named Mattermost adapter.
-func NewNamed(name, token string) *Adapter {
-	return &Adapter{name: name, token: token}
+// New creates a Mattermost adapter.
+func New(name string, cfg Config) *Adapter {
+	return &Adapter{name: name, cfg: cfg}
 }
 
 func (a *Adapter) Name() string              { return a.name }
-func (a *Adapter) Type() gateway.AdapterType { return gateway.AdapterWebhook }
-func (a *Adapter) Stop() error               { return nil }
+func (a *Adapter) Type() gateway.AdapterType { return gateway.AdapterSocket }
+func (a *Adapter) HTTPHandler() http.Handler { return nil }
 
-// Start stores the handler.
-func (a *Adapter) Start(_ context.Context, handler func(gateway.Notification)) error {
+// Start connects via WebSocket and listens for posted messages.
+func (a *Adapter) Start(ctx context.Context, handler func(gateway.Notification)) error {
 	a.handler = handler
+
+	wsURL := strings.Replace(a.cfg.URL, "https://", "wss://", 1)
+	wsURL = strings.Replace(wsURL, "http://", "ws://", 1)
+	wsURL += "/api/v4/websocket"
+
+	header := http.Header{"Authorization": {"Bearer " + a.cfg.Token}}
+
+	conn, _, err := websocket.DefaultDialer.DialContext(ctx, wsURL, header)
+	if err != nil {
+		return fmt.Errorf("mattermost: connect: %w", err)
+	}
+	defer conn.Close()
+
+	// Authenticate via WebSocket challenge.
+	authMsg := map[string]interface{}{
+		"seq":    1,
+		"action": "authentication_challenge",
+		"data":   map[string]string{"token": a.cfg.Token},
+	}
+	if err := conn.WriteJSON(authMsg); err != nil {
+		return fmt.Errorf("mattermost: auth: %w", err)
+	}
+
+	a.mu.Lock()
+	a.connected = true
+	a.lastError = ""
+	a.mu.Unlock()
+	log.Info("mattermost: connected", "url", a.cfg.URL)
+
+	// Read loop.
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		default:
+		}
+
+		_, msg, readErr := conn.ReadMessage()
+		if readErr != nil {
+			a.mu.Lock()
+			a.connected = false
+			a.lastError = readErr.Error()
+			a.mu.Unlock()
+			return fmt.Errorf("mattermost: read: %w", readErr)
+		}
+
+		a.handleRaw(msg)
+	}
+}
+
+func (a *Adapter) Stop() error {
+	a.mu.Lock()
+	a.connected = false
+	a.mu.Unlock()
 	return nil
 }
 
-// HTTPHandler returns an http.Handler that validates the outgoing webhook
-// token and processes Mattermost payloads.
-func (a *Adapter) HTTPHandler() http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-			return
-		}
-
-		body, err := io.ReadAll(r.Body)
-		if err != nil {
-			http.Error(w, "failed to read body", http.StatusBadRequest)
-			return
-		}
-
-		// Validate outgoing webhook token.
-		if a.token != "" {
-			token := extractToken(body)
-			if token != a.token {
-				http.Error(w, "invalid token", http.StatusUnauthorized)
-				return
-			}
-		}
-
-		sender, channel := extractSenderChannel(body)
-		now := time.Now()
-
-		a.mu.Lock()
-		a.lastMessageAt = now
-		a.connected = true
-		a.lastError = ""
-		a.mu.Unlock()
-
-		a.messageCount.Add(1)
-
-		log.Info("mattermost: received webhook",
-			"sender", sender,
-			"channel", channel,
-			"adapter", a.name)
-
-		if a.handler != nil {
-			a.handler(gateway.Notification{
-				Channel:   channel,
-				Platform:  "mattermost",
-				Sender:    sender,
-				Timestamp: now,
-				Raw:       body,
-			})
-		}
-
-		w.WriteHeader(http.StatusOK)
-		_, _ = fmt.Fprint(w, "ok") //nolint:errcheck
-	})
-}
-
-// Channels returns a single channel for the adapter.
 func (a *Adapter) Channels() []gateway.ChannelInfo {
-	return []gateway.ChannelInfo{{ID: a.name, Name: a.name, Platform: "mattermost"}}
+	return []gateway.ChannelInfo{{ID: "messages", Name: "messages", Platform: "mattermost"}}
 }
 
-// Status returns the adapter's connection state.
 func (a *Adapter) Status() gateway.AdapterStatus {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -122,33 +123,88 @@ func (a *Adapter) Status() gateway.AdapterStatus {
 	}
 }
 
-// extractToken pulls the token from a Mattermost outgoing webhook payload.
-func extractToken(body []byte) string {
-	var payload struct {
-		Token string `json:"token"`
+func (a *Adapter) handleRaw(msg []byte) {
+	var evt struct {
+		Event string `json:"event"`
+		Data  struct {
+			Post        string `json:"post"`
+			ChannelName string `json:"channel_name"`
+			SenderName  string `json:"sender_name"`
+		} `json:"data"`
 	}
-	if err := json.Unmarshal(body, &payload); err == nil {
-		return payload.Token
+	if err := json.Unmarshal(msg, &evt); err != nil {
+		return
 	}
-	return ""
+	if evt.Event != "posted" {
+		return
+	}
+
+	var post struct {
+		Message   string `json:"message"`
+		ChannelID string `json:"channel_id"`
+		UserID    string `json:"user_id"`
+	}
+	if err := json.Unmarshal([]byte(evt.Data.Post), &post); err != nil {
+		return
+	}
+
+	now := time.Now()
+	a.mu.Lock()
+	a.lastMessageAt = now
+	a.mu.Unlock()
+	a.messageCount.Add(1)
+
+	sender := evt.Data.SenderName
+	channel := evt.Data.ChannelName
+	if channel == "" {
+		channel = post.ChannelID
+	}
+
+	log.Info("mattermost: message", "sender", sender, "channel", channel)
+
+	if a.handler != nil {
+		a.handler(gateway.Notification{
+			Channel:   channel,
+			Platform:  "mattermost",
+			Sender:    sender,
+			Content:   post.Message,
+			Timestamp: now,
+			Raw:       msg,
+		})
+	}
 }
 
-// extractSenderChannel pulls sender and channel from the payload.
-func extractSenderChannel(body []byte) (string, string) {
-	var payload struct {
-		UserName    string `json:"user_name"`
-		ChannelName string `json:"channel_name"`
+// getChannels fetches channels via REST API (for discovery).
+func (a *Adapter) getChannels() []gateway.ChannelInfo { //nolint:unused // reserved for future channel discovery
+	url := a.cfg.URL + "/api/v4/users/me/channels"
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return nil
 	}
-	if err := json.Unmarshal(body, &payload); err == nil {
-		s := payload.UserName
-		if s == "" {
-			s = "mattermost"
-		}
-		c := payload.ChannelName
-		if c == "" {
-			c = "messages"
-		}
-		return s, c
+	req.Header.Set("Authorization", "Bearer "+a.cfg.Token)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil
 	}
-	return "mattermost", "messages"
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body) //nolint:errcheck
+
+	var channels []struct {
+		ID          string `json:"id"`
+		DisplayName string `json:"display_name"`
+		Name        string `json:"name"`
+	}
+	if err := json.Unmarshal(body, &channels); err != nil {
+		return nil
+	}
+
+	result := make([]gateway.ChannelInfo, 0, len(channels))
+	for _, ch := range channels {
+		name := ch.DisplayName
+		if name == "" {
+			name = ch.Name
+		}
+		result = append(result, gateway.ChannelInfo{ID: ch.ID, Name: name, Platform: "mattermost"})
+	}
+	return result
 }

@@ -1014,7 +1014,9 @@ func buildGatewayManager(ctx context.Context, ws *bcworkspace.Workspace, notifyS
 		if label != "" {
 			adapterName = "mattermost:" + label
 		}
-		m.Register(bcmattermost.NewNamed(adapterName, c.Token))
+		m.Register(bcmattermost.New(adapterName, bcmattermost.Config{
+			Token: c.Token,
+		}))
 		log.Info("gateway: mattermost adapter registered", "name", adapterName)
 	}
 
