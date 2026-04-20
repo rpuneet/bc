@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { api } from "../../api/client";
 import type { Agent, GatewayStatus } from "../../api/client";
@@ -62,6 +62,96 @@ export const PLATFORMS: PlatformDef[] = [
       "Generate an invite URL with bot scope and add to your server.",
     ],
   },
+  {
+    key: "whatsapp", status: "coming_soon" as const,
+    label: "WhatsApp",
+    icon: "\u{1F4F1}",
+    description: "Business API messaging",
+    color: "#25D366",
+    category: "Chat",
+    fields: [],
+    docs: [],
+  },
+  {
+    key: "signal", status: "coming_soon" as const,
+    label: "Signal",
+    icon: "\u{1F510}",
+    description: "Private encrypted messaging",
+    color: "#3A76F0",
+    category: "Chat",
+    fields: [],
+    docs: [],
+  },
+  {
+    key: "matrix", status: "coming_soon" as const,
+    label: "Matrix",
+    icon: "\u{1F30D}",
+    description: "Decentralized chat protocol",
+    color: "#0DBD8B",
+    category: "Chat",
+    fields: [],
+    docs: [],
+  },
+  {
+    key: "msteams", status: "coming_soon" as const,
+    label: "MS Teams",
+    icon: "\u{1F4BC}",
+    description: "Microsoft Teams integration",
+    color: "#6264A7",
+    category: "Chat",
+    fields: [],
+    docs: [],
+  },
+  {
+    key: "googlechat", status: "coming_soon" as const,
+    label: "Google Chat",
+    icon: "\u{1F4E8}",
+    description: "Google Workspace messaging",
+    color: "#00AC47",
+    category: "Chat",
+    fields: [],
+    docs: [],
+  },
+  {
+    key: "line", status: "coming_soon" as const,
+    label: "Line",
+    icon: "\u{1F4AC}",
+    description: "Line Messaging API",
+    color: "#06C755",
+    category: "Chat",
+    fields: [],
+    docs: [],
+  },
+  {
+    key: "feishu", status: "coming_soon" as const,
+    label: "Feishu",
+    icon: "\u{1F426}",
+    description: "Lark/Feishu bot messaging",
+    color: "#3370FF",
+    category: "Chat",
+    fields: [],
+    docs: [],
+  },
+  {
+    key: "mattermost", status: "coming_soon" as const,
+    label: "Mattermost",
+    icon: "\u{1F5E8}\uFE0F",
+    description: "Self-hosted team messaging",
+    color: "#0058CC",
+    category: "Chat",
+    fields: [],
+    docs: [],
+  },
+  {
+    key: "irc", status: "coming_soon" as const,
+    label: "IRC",
+    icon: "\u{1F4DF}",
+    description: "Internet Relay Chat",
+    color: "#6B7280",
+    category: "Chat",
+    fields: [],
+    docs: [],
+  },
 
   // --- Code & DevOps ---
   {
@@ -104,34 +194,6 @@ export const PLATFORMS: PlatformDef[] = [
       "Go to your Bitbucket repo > Settings > Webhooks.",
       "Add a webhook pointing to your bc server\u2019s /hooks/bitbucket endpoint.",
       "Set the secret here for payload verification.",
-    ],
-  },
-  {
-    key: "jira", status: "webhook" as const,
-    label: "Jira",
-    icon: "\u{1F4CB}",
-    description: "Issue and sprint webhooks",
-    color: "#0052CC",
-    category: "Code & DevOps",
-    fields: [{ key: "token", label: "Token", placeholder: "webhook-secret" }],
-    docs: [
-      "Go to Jira > Settings > System > Webhooks.",
-      "Create a webhook pointing to your bc server\u2019s /hooks/jira endpoint.",
-      "Set the secret token for verification.",
-    ],
-  },
-  {
-    key: "linear", status: "webhook" as const,
-    label: "Linear",
-    icon: "\u{1F4D0}",
-    description: "Issue and project webhooks",
-    color: "#5E6AD2",
-    category: "Code & DevOps",
-    fields: [{ key: "api_key", label: "API Key", placeholder: "lin_api_..." }],
-    docs: [
-      "Go to Linear > Settings > API > Webhooks.",
-      "Create a webhook pointing to your bc server\u2019s /hooks/linear endpoint.",
-      "Copy your API key from Settings > API > Personal API keys.",
     ],
   },
   {
@@ -220,6 +282,16 @@ export const PLATFORMS: PlatformDef[] = [
       "Copy an API token from Configuration > API Keys.",
     ],
   },
+  {
+    key: "homeassistant", status: "coming_soon" as const,
+    label: "Home Assistant",
+    icon: "\u{1F3E0}",
+    description: "Smart home automations and events",
+    color: "#41BDF5",
+    category: "Monitoring",
+    fields: [],
+    docs: [],
+  },
 
   // --- Payments ---
   {
@@ -271,6 +343,46 @@ export const PLATFORMS: PlatformDef[] = [
       "Set a poll interval in seconds (default: 300).",
     ],
   },
+  {
+    key: "reddit", status: "coming_soon" as const,
+    label: "Reddit",
+    icon: "\u{1F4E2}",
+    description: "Subreddit and post monitoring",
+    color: "#FF4500",
+    category: "Content",
+    fields: [],
+    docs: [],
+  },
+  {
+    key: "twitch", status: "coming_soon" as const,
+    label: "Twitch",
+    icon: "\u{1F3AE}",
+    description: "Stream and chat events",
+    color: "#9146FF",
+    category: "Content",
+    fields: [],
+    docs: [],
+  },
+  {
+    key: "twitter", status: "coming_soon" as const,
+    label: "Twitter / X",
+    icon: "\u{1F426}",
+    description: "Mentions and timeline events",
+    color: "#1DA1F2",
+    category: "Content",
+    fields: [],
+    docs: [],
+  },
+  {
+    key: "nostr", status: "coming_soon" as const,
+    label: "Nostr",
+    icon: "\u{1F4E1}",
+    description: "Decentralized social protocol",
+    color: "#8B5CF6",
+    category: "Content",
+    fields: [],
+    docs: [],
+  },
 
   // --- Custom ---
   {
@@ -286,17 +398,28 @@ export const PLATFORMS: PlatformDef[] = [
       "Optionally set a shared secret for HMAC signature verification.",
     ],
   },
+  {
+    key: "mqtt", status: "coming_soon" as const,
+    label: "MQTT",
+    icon: "\u{1F4E1}",
+    description: "IoT message broker protocol",
+    color: "#660066",
+    category: "Custom",
+    fields: [],
+    docs: [],
+  },
 ];
 
 export const PLATFORM_MAP = Object.fromEntries(PLATFORMS.map((p) => [p.key, p]));
 
 const CATEGORIES = ["Chat", "Code & DevOps", "Monitoring", "Payments", "Content", "Custom"] as const;
 
-/* ---------- Platform chooser grid ---------- */
+/* ---------- Platform chooser full-screen modal ---------- */
 
 export function PlatformChooser({ onSelect, onClose }: { onSelect: (key: string) => void; onClose: () => void }) {
   const [search, setSearch] = useState("");
   const [connectedGateways, setConnectedGateways] = useState<Map<string, GatewayStatus>>(new Map());
+  const searchRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     api.listGateways().then((gws) => {
@@ -308,111 +431,192 @@ export function PlatformChooser({ onSelect, onClose }: { onSelect: (key: string)
     }).catch(() => {});
   }, []);
 
+  // Focus search on mount
+  useEffect(() => {
+    requestAnimationFrame(() => searchRef.current?.focus());
+  }, []);
+
+  // Escape to close
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [onClose]);
+
   const q = search.toLowerCase();
-  const filtered = q ? PLATFORMS.filter((p) => p.label.toLowerCase().includes(q) || p.description.toLowerCase().includes(q) || p.category.toLowerCase().includes(q)) : PLATFORMS;
+  const filtered = q
+    ? PLATFORMS.filter(
+        (p) =>
+          p.label.toLowerCase().includes(q) ||
+          p.description.toLowerCase().includes(q) ||
+          p.category.toLowerCase().includes(q) ||
+          p.key.toLowerCase().includes(q),
+      )
+    : PLATFORMS;
 
   const connectedPlatforms = filtered.filter((p) => connectedGateways.has(p.key));
   const availablePlatforms = filtered.filter((p) => !connectedGateways.has(p.key));
 
-  const renderPlatformCard = (p: PlatformDef) => {
+  const renderCard = (p: PlatformDef) => {
     const isConnected = connectedGateways.has(p.key);
+    const isComingSoon = p.status === "coming_soon";
+
     return (
       <button
         key={p.key}
         type="button"
-        onClick={() => p.status !== "coming_soon" && onSelect(p.key)}
-        className={`p-4 border rounded-xl transition-all text-left group relative ${
-          p.status === "coming_soon"
-            ? "border-bc-border/20 opacity-50 cursor-not-allowed"
-            : "border-bc-border/40 hover:border-bc-accent/60 hover:bg-bc-accent/5 cursor-pointer"
-        }`}
-        style={isConnected ? { borderColor: "rgba(34,197,94,0.3)" } : undefined}
+        onClick={() => !isComingSoon && onSelect(p.key)}
+        className={`
+          relative flex flex-col p-4 rounded-xl border text-left
+          transition-all duration-150 ease-out group
+          ${isComingSoon
+            ? "border-bc-border/20 opacity-40 cursor-not-allowed"
+            : "border-bc-border/40 cursor-pointer hover:border-bc-accent/50 hover:scale-[1.02] hover:shadow-[0_0_20px_rgba(249,115,22,0.08)]"
+          }
+          ${isConnected ? "border-green-500/30 bg-green-500/[0.03]" : ""}
+        `}
       >
-        <div className="flex items-center gap-3 mb-1.5">
-          <span className="text-2xl leading-none">{p.icon}</span>
-          <span className="text-sm font-semibold text-bc-text group-hover:text-bc-accent transition-colors">{p.label}</span>
-          {isConnected && (
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="ml-auto shrink-0">
-              <circle cx="7" cy="7" r="6" fill="#22c55e" opacity="0.15" />
-              <path d="M4 7l2 2 4-4" stroke="#22c55e" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+        {/* Connected badge */}
+        {isConnected && (
+          <div className="absolute top-2.5 right-2.5">
+            <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+              <circle cx="9" cy="9" r="8" fill="#22c55e" opacity="0.15" />
+              <path d="M5.5 9l2.5 2.5 4.5-4.5" stroke="#22c55e" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
+          </div>
+        )}
+
+        {/* Icon + name */}
+        <div className="flex items-center gap-2.5 mb-2">
+          <span className="text-2xl leading-none select-none">{p.icon}</span>
+          <span className={`text-sm font-semibold text-bc-text transition-colors ${!isComingSoon ? "group-hover:text-bc-accent" : ""}`}>
+            {p.label}
+          </span>
+        </div>
+
+        {/* Description */}
+        <p className="text-xs text-bc-muted leading-relaxed flex-1">{p.description}</p>
+
+        {/* Status tag */}
+        <div className="mt-2.5">
+          {isConnected && (
+            <span className="inline-flex items-center gap-1 text-[10px] font-medium text-green-500/80">
+              <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
+              Connected
+            </span>
+          )}
+          {!isConnected && p.status === "webhook" && (
+            <span className="text-[10px] text-amber-500/60">Webhook &middot; requires public URL</span>
+          )}
+          {!isConnected && p.status === "ready" && (
+            <span className="inline-flex items-center gap-1 text-[10px] text-bc-accent/60">
+              <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: p.color, opacity: 0.7 }} />
+              Ready to connect
+            </span>
+          )}
+          {!isConnected && isComingSoon && (
+            <span className="text-[10px] text-bc-muted/40">Coming soon</span>
           )}
         </div>
-        <p className="text-xs text-bc-muted leading-snug">{p.description}</p>
-        {isConnected && (
-          <span className="text-[10px] text-green-500/80 mt-1 block">Connected</span>
-        )}
-        {!isConnected && p.status === "webhook" && (
-          <span className="text-[10px] text-amber-500/60 mt-1 block">Webhook · requires public URL</span>
-        )}
-        {!isConnected && p.status === "coming_soon" && (
-          <span className="text-[10px] text-bc-muted/40 mt-1 block">Coming soon</span>
-        )}
-        {!isConnected && p.status === "ready" && (
-          <div
-            className="absolute top-2 right-2 w-2 h-2 rounded-full"
-            style={{ backgroundColor: p.color, opacity: 0.6 }}
-          />
-        )}
       </button>
     );
   };
 
   return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md"
-      onClick={onClose}
+      className="fixed inset-0 z-50 flex items-center justify-center"
+      style={{ animation: "fadeIn 120ms ease-out" }}
     >
+      {/* Backdrop */}
       <div
-        className="bg-bc-bg border border-bc-border rounded-2xl w-full max-w-2xl mx-4 shadow-2xl max-h-[90vh] flex flex-col"
-        onClick={(e) => e.stopPropagation()}
-      >
+        className="absolute inset-0 bg-black/80 backdrop-blur-md"
+        onClick={onClose}
+      />
+
+      {/* Modal */}
+      <div className="relative z-10 bg-bc-bg border border-bc-border rounded-2xl shadow-2xl flex flex-col w-[calc(100vw-48px)] max-w-[960px] max-h-[calc(100vh-48px)]">
         {/* Header */}
-        <div className="px-6 pt-5 pb-4 border-b border-bc-border/50">
+        <div className="px-6 pt-5 pb-4 border-b border-bc-border/50 shrink-0">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-bold text-bc-text">Connect a platform</h2>
-            <button type="button" onClick={onClose} className="text-bc-muted hover:text-bc-text transition-colors text-xl leading-none">&times;</button>
+            <div>
+              <h2 className="text-lg font-bold text-bc-text tracking-tight">Connect a platform</h2>
+              <p className="text-xs text-bc-muted mt-0.5">Choose a service to receive notifications from</p>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="w-8 h-8 flex items-center justify-center rounded-lg text-bc-muted hover:text-bc-text hover:bg-bc-surface transition-colors"
+              aria-label="Close"
+            >
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+                <path d="M4 4l8 8M12 4l-8 8" />
+              </svg>
+            </button>
           </div>
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search platforms..."
-            autoFocus
-            className="w-full px-3 py-2 text-sm rounded-lg border border-bc-border/50 bg-bc-surface/30 text-bc-text placeholder:text-bc-muted/50 focus:outline-none focus:ring-1 focus:ring-bc-accent"
-          />
+
+          {/* Search */}
+          <div className="relative">
+            <svg
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-bc-muted/40"
+              width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.3"
+            >
+              <circle cx="6" cy="6" r="4" />
+              <path d="M9 9l3.5 3.5" strokeLinecap="round" />
+            </svg>
+            <input
+              ref={searchRef}
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search platforms..."
+              className="w-full pl-9 pr-3 py-2.5 text-sm rounded-lg border border-bc-border/50 bg-bc-surface/30 text-bc-text placeholder:text-bc-muted/40 focus:outline-none focus:ring-1 focus:ring-bc-accent/50 focus:border-bc-accent/30 transition-colors"
+            />
+          </div>
         </div>
 
-        {/* Platform grid */}
-        <div className="px-6 py-4 overflow-auto flex-1">
+        {/* Grid content */}
+        <div className="flex-1 overflow-auto px-6 py-5" style={{ scrollbarWidth: "thin", scrollbarColor: "rgba(255,255,255,0.06) transparent" }}>
           {/* Connected section */}
           {connectedPlatforms.length > 0 && (
-            <div className="mb-5">
-              <h3 className="text-[11px] font-bold text-green-500/80 uppercase tracking-wider mb-3">Connected</h3>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                {connectedPlatforms.map(renderPlatformCard)}
+            <div className="mb-6">
+              <h3 className="text-[11px] font-bold text-green-500/80 uppercase tracking-wider mb-3 flex items-center gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
+                Connected
+              </h3>
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+                {connectedPlatforms.map(renderCard)}
               </div>
             </div>
           )}
 
-          {/* Available section */}
           {connectedPlatforms.length > 0 && availablePlatforms.length > 0 && (
-            <div className="border-t border-bc-border/30 my-4" />
+            <div className="border-t border-bc-border/20 my-5" />
           )}
+
+          {/* Categorized available platforms */}
           {CATEGORIES.map((cat) => {
             const items = availablePlatforms.filter((p) => p.category === cat);
             if (items.length === 0) return null;
             return (
-              <div key={cat} className="mb-5">
+              <div key={cat} className="mb-6 last:mb-0">
                 <h3 className="text-[11px] font-bold text-bc-muted uppercase tracking-wider mb-3">{cat}</h3>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                  {items.map(renderPlatformCard)}
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+                  {items.map(renderCard)}
                 </div>
               </div>
             );
           })}
+
           {filtered.length === 0 && (
-            <div className="text-center py-10 text-bc-muted">No platforms match &ldquo;{search}&rdquo;</div>
+            <div className="flex flex-col items-center justify-center py-16 text-bc-muted">
+              <svg width="32" height="32" viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="1.2" className="mb-3 opacity-30">
+                <circle cx="14" cy="14" r="9" />
+                <path d="M20.5 20.5l7 7" strokeLinecap="round" />
+              </svg>
+              <p className="text-sm">No platforms match &ldquo;{search}&rdquo;</p>
+            </div>
           )}
         </div>
       </div>
@@ -420,8 +624,6 @@ export function PlatformChooser({ onSelect, onClose }: { onSelect: (key: string)
     document.body,
   );
 }
-
-/* ---------- Setup wizard (credential form) ---------- */
 
 /* ---------- Agent subscription step ---------- */
 
@@ -467,7 +669,6 @@ function AgentSubscriptionStep({
   const handleDone = async () => {
     setSaving(true);
     try {
-      // Subscribe each selected agent to the platform's default channel
       const channel = `${platform}:general`;
       await Promise.all(
         [...selected].map((agent) =>
@@ -572,6 +773,15 @@ export function SetupWizard({
   const [error, setError] = useState<string | null>(null);
   const [step, setStep] = useState<"credentials" | "agents">("credentials");
 
+  // Escape to close
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [onClose]);
+
   if (!config) {
     return createPortal(
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
@@ -592,7 +802,6 @@ export function SetupWizard({
     try {
       const body: Record<string, unknown> = { enabled: true };
 
-      // Set mode for known adapter types
       if (platform === "slack") body.mode = "socket";
       else if (platform === "telegram" || platform === "discord") body.mode = "polling";
 
@@ -608,7 +817,6 @@ export function SetupWizard({
         }
       }
 
-      // Save gateway config via settings API
       const res = await fetch("/api/settings", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -620,7 +828,6 @@ export function SetupWizard({
         throw new Error(text || `HTTP ${res.status}`);
       }
 
-      // Move to agent subscription step
       setStep("agents");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save");
@@ -645,9 +852,12 @@ export function SetupWizard({
           <button
             type="button"
             onClick={onClose}
-            className="text-bc-muted hover:text-bc-text text-lg transition-colors"
+            className="w-8 h-8 flex items-center justify-center rounded-lg text-bc-muted hover:text-bc-text hover:bg-bc-surface transition-colors"
+            aria-label="Close"
           >
-            &times;
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+              <path d="M4 4l8 8M12 4l-8 8" />
+            </svg>
           </button>
         </div>
 
