@@ -741,10 +741,14 @@ export function GatewayFeed({
     setPopoverLoading(false);
   }, [channelName]);
 
+  // Fetch agents on mount to populate the counter, then refresh when popover opens.
+  useEffect(() => {
+    void fetchAgents();
+  }, [fetchAgents]);
+
   useEffect(() => {
     if (!showAgents) return;
     setPopoverLoading(true);
-    setAgents([]);
     void fetchAgents();
     const interval = setInterval(() => void fetchAgents(), 8000);
     return () => clearInterval(interval);
