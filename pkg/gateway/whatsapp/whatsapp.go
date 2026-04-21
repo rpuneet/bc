@@ -23,6 +23,7 @@ import (
 	"go.mau.fi/whatsmeow/store/sqlstore"
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
+	waLog "go.mau.fi/whatsmeow/util/log"
 
 	"github.com/rpuneet/bc/pkg/gateway"
 	"github.com/rpuneet/bc/pkg/log"
@@ -105,8 +106,9 @@ func (a *Adapter) StartPairing(ctx context.Context) (*PairStatus, error) {
 		}
 	}
 
-	// Start fresh pairing.
-	client := whatsmeow.NewClient(deviceStore, nil)
+	// Start fresh pairing with logging enabled.
+	waLogger := waLog.Stdout("whatsapp", "INFO", false)
+	client := whatsmeow.NewClient(deviceStore, waLogger)
 
 	qrChan, _ := client.GetQRChannel(ctx)
 
@@ -158,13 +160,13 @@ gotQR:
 
 	go func() {
 		for evt := range qrChan {
+			log.Info("whatsapp: qr channel event", "event", evt.Event, "code_len", len(evt.Code))
 			if evt.Event == "success" {
 				a.mu.Lock()
 				a.connected = true
 				a.lastError = ""
 				a.mu.Unlock()
 				log.Info("whatsapp: paired successfully")
-				// Register event handler for messages.
 				client.AddEventHandler(func(evt interface{}) {
 					a.handleEvent(evt)
 				})

@@ -107,10 +107,15 @@ func (a *Adapter) Channels() []gateway.ChannelInfo {
 func (a *Adapter) Status() gateway.AdapterStatus {
 	a.chatMu.RLock()
 	defer a.chatMu.RUnlock()
+	botName := ""
+	if a.session != nil && a.session.State != nil && a.session.State.User != nil {
+		botName = a.session.State.User.Username
+	}
 	return gateway.AdapterStatus{
 		Connected:     a.connected,
 		LastMessageAt: a.lastMessageAt,
 		Error:         a.lastError,
+		BotName:       botName,
 		MessageCount:  a.messageCount.Load(),
 	}
 }
