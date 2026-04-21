@@ -372,16 +372,9 @@ func (h *GatewayHandler) list(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Enrich with discovered channels and bot name from adapter status
+	// Enrich with bot name from adapter status (channels come from notify sources, not discovery)
 	if h.gw != nil {
-		extChannels := h.gw.DiscoveredSources()
 		for i := range platforms {
-			prefix := platforms[i].Platform + ":"
-			for _, ch := range extChannels {
-				if strings.HasPrefix(ch, prefix) {
-					platforms[i].Channels = append(platforms[i].Channels, ch)
-				}
-			}
 			status := h.gw.AdapterStatus(platforms[i].Platform)
 			if status.BotName != "" {
 				platforms[i].BotName = status.BotName
@@ -398,18 +391,10 @@ func (h *GatewayHandler) list(w http.ResponseWriter, r *http.Request) {
 		for _, name := range h.gw.AdapterNames() {
 			if !configSet[name] {
 				status := h.gw.AdapterStatus(name)
-				// Filter discovered channels to only those belonging to this adapter.
-				var adapterChannels []string
-				for _, ch := range h.gw.DiscoveredSources() {
-					if strings.HasPrefix(ch, name+":") {
-						adapterChannels = append(adapterChannels, ch)
-					}
-				}
 				platforms = append(platforms, gatewayStatus{
 					Platform: name,
 					Enabled:  true,
 					BotName:  status.BotName,
-					Channels: adapterChannels,
 				})
 			}
 		}
