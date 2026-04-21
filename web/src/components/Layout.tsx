@@ -7,6 +7,7 @@ import { api } from "../api/client";
 import type { NotificationSource, GatewayHealth, GatewayStatus, NotifySubscription } from "../api/client";
 import { sourcePlatform } from "./notifications/messageUtils";
 import { SetupWizard, PlatformChooser, PLATFORM_MAP } from "./notifications/SetupWizard";
+import { PLATFORM_ICON_MAP } from "./notifications/PlatformIcons";
 import { Header } from "./Header";
 import { SidebarToggle, WorkspaceDropdown } from "./WorkspaceDropdown";
 import { HeaderSlotProvider, useHeaderSlotContext } from "../context/HeaderSlotContext";
@@ -44,16 +45,13 @@ function Icon({ name, size = 14 }: { name: string; size?: number }) {
 
 /* ── Platform config ─────────────────────────────────────────── */
 
-const PLATFORM_ICONS: Record<string, string> = {
-  slack: "💬", telegram: "✈️", discord: "🎮", github: "🐙", whatsapp: "📱",
-  irc: "📟", mqtt: "📡", matrix: "🌍", mattermost: "🗨️",
-};
-
 function getPlatformMeta(p: string) {
-  const def = PLATFORM_MAP[p];
-  const icon = PLATFORM_ICONS[p] ?? "📌";
-  if (def) return { label: def.label, color: def.color, icon };
-  return { label: p, color: "#8c7e72", icon };
+  // Handle compound keys like "telegram:gateway" — look up base platform
+  const base = p.includes(":") ? (p.split(":")[0] ?? p) : p;
+  const def = PLATFORM_MAP[base];
+  const IconComponent = PLATFORM_ICON_MAP[base] ?? null;
+  if (def) return { label: def.label, color: def.color, IconComponent };
+  return { label: p, color: "#8c7e72", IconComponent };
 }
 
 /** Extract display channel name (last segment after platform and optional server). */
@@ -71,6 +69,107 @@ function sourceGroup(name: string): string | null {
   const parts = name.split(":");
   if (parts.length >= 3) return parts.slice(1, -1).join(":");
   return null;
+}
+
+/* ── Channel list with show more/less toggle ───────────────── */
+
+const SIDEBAR_CHANNEL_LIMIT = 15;
+
+function ChannelList({
+  channels,
+  subCountMap,
+  prefix,
+}: {
+  channels: NotificationSource[];
+  subCountMap: Map<string, number>;
+  prefix: string;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const visible = expanded ? channels : channels.slice(0, SIDEBAR_CHANNEL_LIMIT);
+  const hasMore = channels.length > SIDEBAR_CHANNEL_LIMIT;
+
+  return (
+    <>
+      {visible.map((ch) => {
+        const count = subCountMap.get(ch.name) ?? 0;
+        const chName = displaySourceName(ch.name);
+        return (
+          <NavLink
+            key={ch.name}
+            to={`${prefix}/notifications/${ch.name}`}
+            className="block"
+            style={({ isActive }: { isActive: boolean }) => ({
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              height: 24,
+              padding: "0 8px",
+              borderRadius: 5,
+              fontSize: 12.5,
+              color: isActive ? "var(--bc-text, #e5e5e5)" : count > 0 ? "var(--bc-text, #e5e5e5)" : "var(--bc-muted, #a0a0a0)",
+              background: isActive ? "rgba(249, 115, 22, 0.12)" : "transparent",
+              fontWeight: isActive ? 600 : count > 0 ? 500 : 400,
+              cursor: "pointer",
+              marginBottom: 1,
+              textDecoration: "none",
+            })}
+          >
+            <span
+              style={{
+                width: 12,
+                color: "var(--bc-muted, #4a4a4a)",
+                fontFamily: "'JetBrains Mono', monospace",
+                fontSize: 12,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flexShrink: 0,
+              }}
+            >
+              #
+            </span>
+            <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {chName}
+            </span>
+            {count > 0 && (
+              <span
+                style={{
+                  fontSize: 10.5,
+                  fontWeight: 600,
+                  color: "var(--bc-muted, #a0a0a0)",
+                  fontFamily: "'JetBrains Mono', monospace",
+                  padding: "1px 5px",
+                  borderRadius: 999,
+                  background: "var(--bc-surface, #212121)",
+                }}
+              >
+                {count}
+              </span>
+            )}
+          </NavLink>
+        );
+      })}
+      {hasMore && (
+        <button
+          type="button"
+          onClick={() => setExpanded((prev) => !prev)}
+          style={{
+            display: "block",
+            width: "100%",
+            padding: "3px 8px",
+            fontSize: 11,
+            color: "var(--bc-muted, #6b6b6b)",
+            background: "none",
+            border: "none",
+            cursor: "pointer",
+            textAlign: "left",
+          }}
+        >
+          {expanded ? "show less" : `show ${channels.length - SIDEBAR_CHANNEL_LIMIT} more...`}
+        </button>
+      )}
+    </>
+  );
 }
 
 /* ── Notification tree (inline in nav) ───────────────────────── */
@@ -131,13 +230,17 @@ function NotificationNavTree() {
   const gwMap = new Map<string, GatewayStatus>();
   for (const gw of gateways) gwMap.set(gw.platform, gw);
 
+  // Group channels by their gateway platform key (e.g., "telegram:gateway", "telegram:trade_research")
+  // so each connected bot/server gets its own sidebar section.
   const bucketMap = new Map<string, NotificationSource[]>();
   for (const src of sources) {
-    const p = sourcePlatform(src.name);
-    if (p === "internal") continue;
-    const list = bucketMap.get(p) ?? [];
+    // Match source to its gateway entry (e.g., "telegram:gateway:marketing" → gateway "telegram:gateway")
+    const matchedGw = gateways.find((gw) => src.name.startsWith(gw.platform + ":"));
+    const key = matchedGw?.platform ?? sourcePlatform(src.name);
+    if (key === "internal") continue;
+    const list = bucketMap.get(key) ?? [];
     list.push(src);
-    bucketMap.set(p, list);
+    bucketMap.set(key, list);
   }
   for (const gw of gateways) {
     if (!bucketMap.has(gw.platform)) bucketMap.set(gw.platform, []);
@@ -204,8 +307,8 @@ function NotificationNavTree() {
                 cursor: "pointer",
               }}
             >
-              <span style={{ fontSize: 12 }}>{meta.icon}</span>
-              <span className="truncate">{(chs.length > 0 ? sourceGroup(chs[0]?.name ?? "") : null) ?? meta.label}</span>
+              {meta.IconComponent ? <meta.IconComponent size={12} /> : <span style={{ fontSize: 12 }}>{"📌"}</span>}
+              <span className="truncate">{gwStatus?.bot_name || (chs.length > 0 ? sourceGroup(chs[0]?.name ?? "") : null) || meta.label}</span>
               {isConnected && (
                 <span
                   className="ml-auto shrink-0"
@@ -225,65 +328,7 @@ function NotificationNavTree() {
             </button>
 
             {/* Channel rows */}
-            {isExpanded && chs.map((ch) => {
-              const count = subCountMap.get(ch.name) ?? 0;
-              const chName = displaySourceName(ch.name);
-              return (
-                <NavLink
-                  key={ch.name}
-                  to={`${prefix}/notifications/${ch.name}`}
-                  className="block"
-                  style={({ isActive }: { isActive: boolean }) => ({
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 8,
-                    height: 24,
-                    padding: "0 8px",
-                    borderRadius: 5,
-                    fontSize: 12.5,
-                    color: isActive ? "var(--bc-text, #e5e5e5)" : count > 0 ? "var(--bc-text, #e5e5e5)" : "var(--bc-muted, #a0a0a0)",
-                    background: isActive ? "rgba(249, 115, 22, 0.12)" : "transparent",
-                    fontWeight: isActive ? 600 : count > 0 ? 500 : 400,
-                    cursor: "pointer",
-                    marginBottom: 1,
-                    textDecoration: "none",
-                  })}
-                >
-                  <span
-                    style={{
-                      width: 12,
-                      color: "var(--bc-muted, #4a4a4a)",
-                      fontFamily: "'JetBrains Mono', monospace",
-                      fontSize: 12,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      flexShrink: 0,
-                    }}
-                  >
-                    #
-                  </span>
-                  <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {chName}
-                  </span>
-                  {count > 0 && (
-                    <span
-                      style={{
-                        fontSize: 10.5,
-                        fontWeight: 600,
-                        color: "var(--bc-muted, #a0a0a0)",
-                        fontFamily: "'JetBrains Mono', monospace",
-                        padding: "1px 5px",
-                        borderRadius: 999,
-                        background: "var(--bc-surface, #212121)",
-                      }}
-                    >
-                      {count}
-                    </span>
-                  )}
-                </NavLink>
-              );
-            })}
+            {isExpanded && <ChannelList channels={chs} subCountMap={subCountMap} prefix={prefix} />}
           </div>
         );
       })}

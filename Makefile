@@ -133,6 +133,7 @@ build-local-tui: ## Build TUI
 build-local-web: ## Build web UI → server/web/dist/
 	cd web && bun install && bun run build
 	@rm -rf server/web/dist
+	@mkdir -p server/web
 	@cp -r web/dist server/web/dist
 
 build-local-landing: ## Build landing page

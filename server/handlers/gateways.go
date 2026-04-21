@@ -372,19 +372,30 @@ func (h *GatewayHandler) list(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Enrich with discovered channels and bot name from adapter status
+	// Enrich with bot name from adapter status (channels come from notify sources, not discovery)
 	if h.gw != nil {
-		extChannels := h.gw.DiscoveredSources()
 		for i := range platforms {
-			prefix := platforms[i].Platform + ":"
-			for _, ch := range extChannels {
-				if strings.HasPrefix(ch, prefix) {
-					platforms[i].Channels = append(platforms[i].Channels, ch)
-				}
-			}
 			status := h.gw.AdapterStatus(platforms[i].Platform)
 			if status.BotName != "" {
 				platforms[i].BotName = status.BotName
+			}
+		}
+	}
+
+	// Include dynamically registered adapters not in config (e.g., WhatsApp via QR pairing).
+	if h.gw != nil {
+		configSet := make(map[string]bool)
+		for _, p := range platforms {
+			configSet[p.Platform] = true
+		}
+		for _, name := range h.gw.AdapterNames() {
+			if !configSet[name] {
+				status := h.gw.AdapterStatus(name)
+				platforms = append(platforms, gatewayStatus{
+					Platform: name,
+					Enabled:  true,
+					BotName:  status.BotName,
+				})
 			}
 		}
 	}
@@ -821,6 +832,14 @@ func (h *GatewayHandler) whatsappPair(w http.ResponseWriter, r *http.Request, ro
 		httpError(w, "whatsapp adapter type mismatch", http.StatusInternalServerError)
 		return
 	}
+
+	// Always wire handler so messages flow into the notification system —
+	// needed both for fresh pairing and reconnection from saved session.
+	wa.SetHandler(func(n gateway.Notification) {
+		if h.gw != nil {
+			h.gw.HandleNotification("whatsapp", n)
+		}
+	})
 
 	switch {
 	case route == "pair" && r.Method == http.MethodPost:
