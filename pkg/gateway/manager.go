@@ -105,7 +105,7 @@ func (m *Manager) Start(ctx context.Context) error {
 			defer wg.Done()
 			platformName := adapter.Name()
 			handler := func(n Notification) {
-				m.handleNotification(platformName, n)
+				m.HandleNotification(platformName, n)
 			}
 			if err := adapter.Start(ctx, handler); err != nil && ctx.Err() == nil {
 				log.Error("gateway: adapter stopped with error", "adapter", adapter.Name(), "error", err)
@@ -334,8 +334,10 @@ func (m *Manager) DiscoveredSources() []string {
 	return names
 }
 
-// handleNotification processes an event from a NotificationAdapter into bc.
-func (m *Manager) handleNotification(platform string, n Notification) {
+// HandleNotification processes an event from a NotificationAdapter into bc.
+// Exported so that dynamically paired adapters (e.g., WhatsApp QR) can route
+// messages through the manager without going through Start().
+func (m *Manager) HandleNotification(platform string, n Notification) {
 	channelName := n.Channel
 	if channelName == "" {
 		channelName = "default"

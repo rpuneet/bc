@@ -74,6 +74,15 @@ func (a *Adapter) Name() string              { return a.name }
 func (a *Adapter) Type() gateway.AdapterType { return gateway.AdapterSocket }
 func (a *Adapter) HTTPHandler() http.Handler { return nil } //nolint:revive
 
+// SetHandler sets the notification handler for messages received via QR pairing.
+// Called by the gateway handler after pair completes to wire messages into the
+// notification system without going through Start().
+func (a *Adapter) SetHandler(handler func(gateway.Notification)) {
+	a.mu.Lock()
+	a.handler = handler
+	a.mu.Unlock()
+}
+
 // PairStatus represents the current state of WhatsApp pairing.
 type PairStatus struct {
 	State     string `json:"state"` // "idle", "qr_ready", "connected", "error"

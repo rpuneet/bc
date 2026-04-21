@@ -398,11 +398,18 @@ func (h *GatewayHandler) list(w http.ResponseWriter, r *http.Request) {
 		for _, name := range h.gw.AdapterNames() {
 			if !configSet[name] {
 				status := h.gw.AdapterStatus(name)
+				// Filter discovered channels to only those belonging to this adapter.
+				var adapterChannels []string
+				for _, ch := range h.gw.DiscoveredSources() {
+					if strings.HasPrefix(ch, name+":") {
+						adapterChannels = append(adapterChannels, ch)
+					}
+				}
 				platforms = append(platforms, gatewayStatus{
 					Platform: name,
 					Enabled:  true,
 					BotName:  status.BotName,
-					Channels: h.gw.DiscoveredSources(),
+					Channels: adapterChannels,
 				})
 			}
 		}
@@ -843,6 +850,12 @@ func (h *GatewayHandler) whatsappPair(w http.ResponseWriter, r *http.Request, ro
 
 	switch {
 	case route == "pair" && r.Method == http.MethodPost:
+		// Wire handler so messages flow into the notification system.
+		wa.SetHandler(func(n gateway.Notification) {
+			if h.gw != nil {
+				h.gw.HandleNotification("whatsapp", n)
+			}
+		})
 		status, err := wa.StartPairing(r.Context())
 		if err != nil {
 			httpError(w, err.Error(), http.StatusInternalServerError)
