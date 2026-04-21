@@ -848,14 +848,16 @@ func (h *GatewayHandler) whatsappPair(w http.ResponseWriter, r *http.Request, ro
 		return
 	}
 
+	// Always wire handler so messages flow into the notification system —
+	// needed both for fresh pairing and reconnection from saved session.
+	wa.SetHandler(func(n gateway.Notification) {
+		if h.gw != nil {
+			h.gw.HandleNotification("whatsapp", n)
+		}
+	})
+
 	switch {
 	case route == "pair" && r.Method == http.MethodPost:
-		// Wire handler so messages flow into the notification system.
-		wa.SetHandler(func(n gateway.Notification) {
-			if h.gw != nil {
-				h.gw.HandleNotification("whatsapp", n)
-			}
-		})
 		status, err := wa.StartPairing(r.Context())
 		if err != nil {
 			httpError(w, err.Error(), http.StatusInternalServerError)
