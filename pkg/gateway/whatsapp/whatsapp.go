@@ -112,6 +112,9 @@ func (a *Adapter) StartPairing(ctx context.Context) (*PairStatus, error) {
 	// Already paired?
 	if deviceStore.ID != nil {
 		client := whatsmeow.NewClient(deviceStore, nil)
+		client.AddEventHandler(func(evt interface{}) {
+			a.handleEvent(evt)
+		})
 		if err := client.Connect(); err == nil {
 			a.mu.Lock()
 			a.client = client
@@ -464,6 +467,54 @@ func extractContent(msg *waE2E.Message) string {
 	}
 	if msg.LocationMessage != nil {
 		return "[location]"
+	}
+	if msg.PollCreationMessage != nil {
+		q := "poll"
+		if msg.PollCreationMessage.Name != nil {
+			q = *msg.PollCreationMessage.Name
+		}
+		return "[poll: " + q + "]"
+	}
+	if msg.ReactionMessage != nil {
+		emoji := ""
+		if msg.ReactionMessage.Text != nil {
+			emoji = *msg.ReactionMessage.Text
+		}
+		if emoji == "" {
+			return "[reaction removed]"
+		}
+		return "[reaction: " + emoji + "]"
+	}
+	if msg.EditedMessage != nil && msg.EditedMessage.Message != nil {
+		edited := extractContent(msg.EditedMessage.Message)
+		if edited != "" {
+			return "[edited] " + edited
+		}
+		return "[edited message]"
+	}
+	if msg.ProtocolMessage != nil && msg.ProtocolMessage.EditedMessage != nil {
+		edited := extractContent(msg.ProtocolMessage.EditedMessage)
+		if edited != "" {
+			return "[edited] " + edited
+		}
+		return "[edited message]"
+	}
+	if msg.ListMessage != nil {
+		title := "list"
+		if msg.ListMessage.Title != nil {
+			title = *msg.ListMessage.Title
+		}
+		return "[list: " + title + "]"
+	}
+	if msg.ButtonsMessage != nil {
+		text := "buttons"
+		if msg.ButtonsMessage.ContentText != nil {
+			text = *msg.ButtonsMessage.ContentText
+		}
+		return "[buttons: " + text + "]"
+	}
+	if msg.TemplateMessage != nil {
+		return "[template]"
 	}
 	return "[unsupported message type]"
 }

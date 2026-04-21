@@ -71,6 +71,107 @@ function sourceGroup(name: string): string | null {
   return null;
 }
 
+/* ── Channel list with show more/less toggle ───────────────── */
+
+const SIDEBAR_CHANNEL_LIMIT = 15;
+
+function ChannelList({
+  channels,
+  subCountMap,
+  prefix,
+}: {
+  channels: NotificationSource[];
+  subCountMap: Map<string, number>;
+  prefix: string;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const visible = expanded ? channels : channels.slice(0, SIDEBAR_CHANNEL_LIMIT);
+  const hasMore = channels.length > SIDEBAR_CHANNEL_LIMIT;
+
+  return (
+    <>
+      {visible.map((ch) => {
+        const count = subCountMap.get(ch.name) ?? 0;
+        const chName = displaySourceName(ch.name);
+        return (
+          <NavLink
+            key={ch.name}
+            to={`${prefix}/notifications/${ch.name}`}
+            className="block"
+            style={({ isActive }: { isActive: boolean }) => ({
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              height: 24,
+              padding: "0 8px",
+              borderRadius: 5,
+              fontSize: 12.5,
+              color: isActive ? "var(--bc-text, #e5e5e5)" : count > 0 ? "var(--bc-text, #e5e5e5)" : "var(--bc-muted, #a0a0a0)",
+              background: isActive ? "rgba(249, 115, 22, 0.12)" : "transparent",
+              fontWeight: isActive ? 600 : count > 0 ? 500 : 400,
+              cursor: "pointer",
+              marginBottom: 1,
+              textDecoration: "none",
+            })}
+          >
+            <span
+              style={{
+                width: 12,
+                color: "var(--bc-muted, #4a4a4a)",
+                fontFamily: "'JetBrains Mono', monospace",
+                fontSize: 12,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flexShrink: 0,
+              }}
+            >
+              #
+            </span>
+            <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {chName}
+            </span>
+            {count > 0 && (
+              <span
+                style={{
+                  fontSize: 10.5,
+                  fontWeight: 600,
+                  color: "var(--bc-muted, #a0a0a0)",
+                  fontFamily: "'JetBrains Mono', monospace",
+                  padding: "1px 5px",
+                  borderRadius: 999,
+                  background: "var(--bc-surface, #212121)",
+                }}
+              >
+                {count}
+              </span>
+            )}
+          </NavLink>
+        );
+      })}
+      {hasMore && (
+        <button
+          type="button"
+          onClick={() => setExpanded((prev) => !prev)}
+          style={{
+            display: "block",
+            width: "100%",
+            padding: "3px 8px",
+            fontSize: 11,
+            color: "var(--bc-muted, #6b6b6b)",
+            background: "none",
+            border: "none",
+            cursor: "pointer",
+            textAlign: "left",
+          }}
+        >
+          {expanded ? "show less" : `show ${channels.length - SIDEBAR_CHANNEL_LIMIT} more...`}
+        </button>
+      )}
+    </>
+  );
+}
+
 /* ── Notification tree (inline in nav) ───────────────────────── */
 
 function NotificationNavTree() {
@@ -227,65 +328,7 @@ function NotificationNavTree() {
             </button>
 
             {/* Channel rows */}
-            {isExpanded && chs.map((ch) => {
-              const count = subCountMap.get(ch.name) ?? 0;
-              const chName = displaySourceName(ch.name);
-              return (
-                <NavLink
-                  key={ch.name}
-                  to={`${prefix}/notifications/${ch.name}`}
-                  className="block"
-                  style={({ isActive }: { isActive: boolean }) => ({
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 8,
-                    height: 24,
-                    padding: "0 8px",
-                    borderRadius: 5,
-                    fontSize: 12.5,
-                    color: isActive ? "var(--bc-text, #e5e5e5)" : count > 0 ? "var(--bc-text, #e5e5e5)" : "var(--bc-muted, #a0a0a0)",
-                    background: isActive ? "rgba(249, 115, 22, 0.12)" : "transparent",
-                    fontWeight: isActive ? 600 : count > 0 ? 500 : 400,
-                    cursor: "pointer",
-                    marginBottom: 1,
-                    textDecoration: "none",
-                  })}
-                >
-                  <span
-                    style={{
-                      width: 12,
-                      color: "var(--bc-muted, #4a4a4a)",
-                      fontFamily: "'JetBrains Mono', monospace",
-                      fontSize: 12,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      flexShrink: 0,
-                    }}
-                  >
-                    #
-                  </span>
-                  <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {chName}
-                  </span>
-                  {count > 0 && (
-                    <span
-                      style={{
-                        fontSize: 10.5,
-                        fontWeight: 600,
-                        color: "var(--bc-muted, #a0a0a0)",
-                        fontFamily: "'JetBrains Mono', monospace",
-                        padding: "1px 5px",
-                        borderRadius: 999,
-                        background: "var(--bc-surface, #212121)",
-                      }}
-                    >
-                      {count}
-                    </span>
-                  )}
-                </NavLink>
-              );
-            })}
+            {isExpanded && <ChannelList channels={chs} subCountMap={subCountMap} prefix={prefix} />}
           </div>
         );
       })}
