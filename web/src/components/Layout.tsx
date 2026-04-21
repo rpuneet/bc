@@ -7,6 +7,7 @@ import { api } from "../api/client";
 import type { NotificationSource, GatewayHealth, GatewayStatus, NotifySubscription } from "../api/client";
 import { sourcePlatform } from "./notifications/messageUtils";
 import { SetupWizard, PlatformChooser, PLATFORM_MAP } from "./notifications/SetupWizard";
+import { PLATFORM_ICON_MAP } from "./notifications/PlatformIcons";
 import { Header } from "./Header";
 import { SidebarToggle, WorkspaceDropdown } from "./WorkspaceDropdown";
 import { HeaderSlotProvider, useHeaderSlotContext } from "../context/HeaderSlotContext";
@@ -44,16 +45,11 @@ function Icon({ name, size = 14 }: { name: string; size?: number }) {
 
 /* ── Platform config ─────────────────────────────────────────── */
 
-const PLATFORM_ICONS: Record<string, string> = {
-  slack: "💬", telegram: "✈️", discord: "🎮", github: "🐙", whatsapp: "📱",
-  irc: "📟", mqtt: "📡", matrix: "🌍", mattermost: "🗨️",
-};
-
 function getPlatformMeta(p: string) {
   const def = PLATFORM_MAP[p];
-  const icon = PLATFORM_ICONS[p] ?? "📌";
-  if (def) return { label: def.label, color: def.color, icon };
-  return { label: p, color: "#8c7e72", icon };
+  const IconComponent = PLATFORM_ICON_MAP[p] ?? null;
+  if (def) return { label: def.label, color: def.color, IconComponent };
+  return { label: p, color: "#8c7e72", IconComponent };
 }
 
 /** Extract display channel name (last segment after platform and optional server). */
@@ -204,8 +200,8 @@ function NotificationNavTree() {
                 cursor: "pointer",
               }}
             >
-              <span style={{ fontSize: 12 }}>{meta.icon}</span>
-              <span className="truncate">{(chs.length > 0 ? sourceGroup(chs[0]?.name ?? "") : null) ?? meta.label}</span>
+              {meta.IconComponent ? <meta.IconComponent size={12} /> : <span style={{ fontSize: 12 }}>{"📌"}</span>}
+              <span className="truncate">{gwStatus?.bot_name || (chs.length > 0 ? sourceGroup(chs[0]?.name ?? "") : null) || meta.label}</span>
               {isConnected && (
                 <span
                   className="ml-auto shrink-0"

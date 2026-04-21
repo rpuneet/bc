@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { api } from "../../api/client";
 import type { Agent, GatewayStatus } from "../../api/client";
+import { PLATFORM_ICON_MAP } from "./PlatformIcons";
 
 export interface PlatformDef {
   key: string;
@@ -508,7 +509,12 @@ export function PlatformChooser({ onSelect, onClose }: { onSelect: (key: string)
 
         {/* Icon + name */}
         <div className="flex items-center gap-2.5 mb-2">
-          <span className="text-2xl leading-none select-none">{p.icon}</span>
+          {(() => {
+            const PIcon = PLATFORM_ICON_MAP[p.key];
+            return PIcon
+              ? <span className="flex items-center justify-center w-7 h-7"><PIcon size={22} /></span>
+              : <span className="text-2xl leading-none select-none">{p.icon}</span>;
+          })()}
           <span className={`text-sm font-semibold text-bc-text transition-colors ${!isComingSoon ? "group-hover:text-bc-accent" : ""}`}>
             {p.label}
           </span>
@@ -886,7 +892,12 @@ export function SetupWizard({
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-bc-border">
           <h2 className="text-[15px] font-semibold text-bc-text flex items-center gap-2">
-            <span>{config.icon}</span>
+            {(() => {
+              const WizIcon = PLATFORM_ICON_MAP[platform];
+              return WizIcon
+                ? <span className="flex items-center"><WizIcon size={18} /></span>
+                : <span>{config.icon}</span>;
+            })()}
             {step === "credentials" ? `Connect ${config.label}` : `${config.label} Setup`}
           </h2>
           <button
