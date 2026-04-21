@@ -46,8 +46,10 @@ function Icon({ name, size = 14 }: { name: string; size?: number }) {
 /* ── Platform config ─────────────────────────────────────────── */
 
 function getPlatformMeta(p: string) {
-  const def = PLATFORM_MAP[p];
-  const IconComponent = PLATFORM_ICON_MAP[p] ?? null;
+  // Handle compound keys like "telegram:gateway" — look up base platform
+  const base = p.includes(":") ? (p.split(":")[0] ?? p) : p;
+  const def = PLATFORM_MAP[base];
+  const IconComponent = PLATFORM_ICON_MAP[base] ?? null;
   if (def) return { label: def.label, color: def.color, IconComponent };
   return { label: p, color: "#8c7e72", IconComponent };
 }
@@ -127,13 +129,17 @@ function NotificationNavTree() {
   const gwMap = new Map<string, GatewayStatus>();
   for (const gw of gateways) gwMap.set(gw.platform, gw);
 
+  // Group channels by their gateway platform key (e.g., "telegram:gateway", "telegram:trade_research")
+  // so each connected bot/server gets its own sidebar section.
   const bucketMap = new Map<string, NotificationSource[]>();
   for (const src of sources) {
-    const p = sourcePlatform(src.name);
-    if (p === "internal") continue;
-    const list = bucketMap.get(p) ?? [];
+    // Match source to its gateway entry (e.g., "telegram:gateway:marketing" → gateway "telegram:gateway")
+    const matchedGw = gateways.find((gw) => src.name.startsWith(gw.platform + ":"));
+    const key = matchedGw?.platform ?? sourcePlatform(src.name);
+    if (key === "internal") continue;
+    const list = bucketMap.get(key) ?? [];
     list.push(src);
-    bucketMap.set(p, list);
+    bucketMap.set(key, list);
   }
   for (const gw of gateways) {
     if (!bucketMap.has(gw.platform)) bucketMap.set(gw.platform, []);
