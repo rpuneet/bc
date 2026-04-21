@@ -209,6 +209,17 @@ func (m *Manager) lateDiscovery(ctx context.Context) {
 	}
 }
 
+// AdapterNames returns the names of all registered adapters.
+func (m *Manager) AdapterNames() []string {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	names := make([]string, 0, len(m.adapters))
+	for name := range m.adapters {
+		names = append(names, name)
+	}
+	return names
+}
+
 // GetAdapter returns a registered adapter by name, or nil if not found.
 func (m *Manager) GetAdapter(name string) NotificationAdapter {
 	m.mu.RLock()

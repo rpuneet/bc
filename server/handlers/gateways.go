@@ -389,6 +389,25 @@ func (h *GatewayHandler) list(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Include dynamically registered adapters not in config (e.g., WhatsApp via QR pairing).
+	if h.gw != nil {
+		configSet := make(map[string]bool)
+		for _, p := range platforms {
+			configSet[p.Platform] = true
+		}
+		for _, name := range h.gw.AdapterNames() {
+			if !configSet[name] {
+				status := h.gw.AdapterStatus(name)
+				platforms = append(platforms, gatewayStatus{
+					Platform: name,
+					Enabled:  true,
+					BotName:  status.BotName,
+					Channels: h.gw.DiscoveredSources(),
+				})
+			}
+		}
+	}
+
 	// Ensure channels is never null in JSON output
 	for i := range platforms {
 		if platforms[i].Channels == nil {
