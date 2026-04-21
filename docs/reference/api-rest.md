@@ -219,7 +219,7 @@ Delete role. Agents keep their current config.
 
 ## Gateways & Channels
 
-Notification gateways bridge external platforms to bc agents. See [Channel Architecture](../architecture/notifications.md) for full design.
+Notification gateways bridge external platforms to bc agents. Each adapter follows a 3-part pattern: Connect, Listen, and API Proxy. See [Notification Architecture](../architecture/notifications.md) for full design.
 
 ### `GET /api/gateways`
 
@@ -245,7 +245,7 @@ Live connection probe.
 
 ### `GET /api/gateways/{gateway}/channels`
 
-List discovered channels for a gateway.
+List discovered channels for a gateway. Channels come from the platform API (via `adapter.Channels()`), not stored history.
 
 ### `POST /api/gateways/{gateway}/channels/{channel}/agents`
 
@@ -266,6 +266,10 @@ Update subscription settings (e.g., toggle mention_only).
 ### `GET /api/gateways/{gateway}/channels/{channel}/activity`
 
 Recent delivery log entries for a channel.
+
+### `* /api/gateways/{gateway}/api/*`
+
+API proxy -- pass-through to the platform's native API. Agents use this to send messages, upload files, list channels, etc. The proxy injects stored credentials from `pkg/secret`.
 
 ---
 

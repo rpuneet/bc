@@ -1,24 +1,38 @@
 # Notifications
 
-Notifications are inbound-only gateways that bridge external platforms (Slack, GitHub, Telegram, and 30+ others) to bc agents. bc routes platform events to subscribed agents, who respond directly using injected credentials and platform APIs.
+Notifications bridge external platforms (Slack, Telegram, Discord, WhatsApp, GitHub, and 30+ others) to bc agents. Each adapter follows a three-part pattern: **Connect** (authenticate with the platform), **Listen** (receive real-time events), and **API Proxy** (expose the platform's native API to agents).
 
 ## Architecture
 
-bc acts as a notification router, not a messaging proxy. External platforms push events into bc through adapter connections. bc dispatches those events to subscribed agents based on filtering rules. Agents call platform APIs themselves using environment variable credentials.
+Each adapter follows a simple 3-part pattern:
+
+### 1. Connect
+
+Authenticate with the platform (token, QR code, OAuth). The adapter stores only credentials and session state. Everything else comes from the platform API at runtime.
+
+### 2. Listen
+
+Receive real-time events via one of three transport patterns. Forward each event as `Notification{Raw JSON}` -- no parsing, no platform-specific data models. The agent gets the full platform payload.
+
+### 3. API Proxy
+
+Expose the platform's native API via `/api/gateways/{platform}/api/*`. Agents call platform APIs through this proxy (send messages, upload files, list channels, etc.). There are no `Send`/`SendFile`/`React` methods on the adapter interface. The proxy passes through auth headers from stored credentials.
 
 ```mermaid
 flowchart LR
     subgraph Platforms["External Platforms"]
         S[Slack]
         T[Telegram]
+        D[Discord]
+        W[WhatsApp]
         G[GitHub]
-        W[Webhooks]
-        More["...40+ more"]
+        More["...30+ more"]
     end
 
-    subgraph bc["bc (notification router)"]
-        GW["Gateway Adapters"]
+    subgraph bc["bc daemon"]
+        GW["Gateway Adapters<br/>(Connect + Listen)"]
         NS["Notify Service"]
+        PROXY["API Proxy<br/>/api/gateways/{platform}/api/*"]
     end
 
     subgraph Agents["Agents (tmux/Docker)"]
@@ -27,68 +41,46 @@ flowchart LR
         A3[agent-3]
     end
 
-    S & T & G & W & More -- "events" --> GW
+    S & T & D & W & G & More -- "events" --> GW
     GW -- "Notification{Raw JSON}" --> NS
     NS -- "dispatch to subscribers" --> A1 & A2 & A3
-    A1 & A2 & A3 -. "respond via platform API\n(credentials in env vars)" .-> Platforms
+    A1 & A2 & A3 -. "platform API calls\nvia proxy" .-> PROXY
+    PROXY -. "forwarded with\nstored credentials" .-> Platforms
 ```
 
-All 37+ platform adapters follow one of three connection patterns:
+All adapters follow one of three transport patterns:
 
 | Pattern | Examples | Mechanism |
 |---------|----------|-----------|
-| **Socket** | Slack, Discord, Telegram, Matrix, IRC, Mattermost, Twitch, MQTT | Long-lived connection. `Start()` blocks, events stream in. |
-| **Webhook** | GitHub, GitLab, Stripe, Sentry, PagerDuty, Datadog, Generic | bc exposes an HTTP endpoint. The platform POSTs events. |
-| **Poll** | RSS, Notion, Reddit, Gmail | Timer-based fetch. `Start()` polls on interval, forwards new items. |
+| **Socket** | Slack, Discord, Telegram, WhatsApp, IRC, Mattermost, MQTT | Long-lived connection. `Start()` blocks, events stream in. |
+| **Webhook** | GitHub, Generic Webhook | bc exposes an HTTP endpoint. The platform POSTs events. |
+| **Poll** | RSS, Matrix, Reddit, Twitter | Timer-based fetch. `Start()` polls on interval, forwards new items. |
 
 ## NotificationAdapter Interface
 
-Every platform adapter implements this interface. Adapters are thin wrappers (~50-100 lines) that connect to a platform and forward raw events.
+Every platform adapter implements this interface. The interface is intentionally minimal -- adapters connect, listen, and expose an HTTP handler for webhooks and API proxy. There are no platform-specific send/reply methods.
 
 ```go
 // Located in: pkg/gateway/gateway.go
 
-// AdapterType identifies the connection pattern.
 type AdapterType string
 
 const (
     AdapterSocket  AdapterType = "socket"   // long-lived connection (WebSocket, polling loop)
-    AdapterWebhook AdapterType = "webhook"  // HTTP endpoint — platform POSTs events to bc
-    AdapterPoll    AdapterType = "poll"     // timer-based polling — bc fetches new events
+    AdapterWebhook AdapterType = "webhook"  // HTTP endpoint -- platform POSTs events to bc
+    AdapterPoll    AdapterType = "poll"      // timer-based polling -- bc fetches new events
 )
 
-// NotificationAdapter handles the platform connection lifecycle.
 type NotificationAdapter interface {
-    // Name returns the adapter identifier ("slack", "github", "telegram").
-    Name() string
-
-    // Type returns the connection pattern. Determines how bc wires the adapter:
-    //   socket  → goroutine running Start()
-    //   webhook → HTTPHandler() mounted on bcd HTTP mux at /hooks/{name}
-    //   poll    → goroutine running Start() with internal ticker
-    Type() AdapterType
-
-    // Start connects to the platform and begins receiving notifications.
-    // Calls handler for each inbound event with raw JSON payload.
-    // Blocks until ctx is canceled. For webhook adapters, this is a no-op.
-    Start(ctx context.Context, handler func(Notification)) error
-
-    // Stop gracefully disconnects from the platform.
-    Stop() error
-
-    // HTTPHandler returns an http.Handler for webhook-based adapters.
-    // Socket and poll adapters return nil.
-    // The handler is mounted at /hooks/{name} on the bcd HTTP server.
-    HTTPHandler() http.Handler
-
-    // Channels returns discovered channels/groups the bot has access to.
-    Channels() []ChannelInfo
-
-    // Status returns the adapter's connection state for the web UI.
-    Status() AdapterStatus
+    Name() string                                            // adapter identifier ("slack", "github", "telegram")
+    Type() AdapterType                                       // socket, webhook, or poll
+    Start(ctx context.Context, handler func(Notification)) error  // connect + listen; blocks until ctx canceled
+    Stop() error                                             // graceful disconnect
+    Channels() []ChannelInfo                                 // from platform API, not stored history
+    Status() AdapterStatus                                   // connection state for web UI
+    HTTPHandler() http.Handler                               // for webhooks + API proxy
 }
 
-// AdapterStatus is reported to the web UI for observability.
 type AdapterStatus struct {
     Connected     bool      `json:"connected"`
     Error         string    `json:"error,omitempty"`
@@ -97,13 +89,18 @@ type AdapterStatus struct {
     MessageCount  int64     `json:"message_count"`
 }
 
-// ChannelInfo represents a discovered channel on a platform.
 type ChannelInfo struct {
     ID       string `json:"id"`       // platform channel ID
     Name     string `json:"name"`     // human-readable name
     Platform string `json:"platform"` // adapter name
 }
 ```
+
+Key design decisions:
+
+- **No Send/SendFile/React methods.** Agents interact with platforms through the API proxy at `/api/gateways/{platform}/api/*`, which forwards requests using stored credentials.
+- **Channels() queries the platform API live**, not a stored message history. The web UI sidebar shows channels/groups from this method.
+- **HTTPHandler() serves double duty** for webhook adapters (receiving inbound events) and all adapters (API proxy pass-through).
 
 ## Notification Data Model
 
@@ -170,86 +167,74 @@ The gateway manager registers each as a separate adapter. Subscriptions referenc
 
 ## Platform Integrations
 
-### Tier 1: Chat Platforms
+### Working Adapters
 
-Bidirectional messaging platforms where agents receive and respond.
+These adapters use real platform SDKs and are fully functional.
 
-| # | Platform | Transport | Credential Env Vars | Identity Method | Status |
-|---|----------|-----------|---------------------|-----------------|--------|
-| 1 | **Slack** | Socket Mode (WebSocket) | `SLACK_BOT_TOKEN`, `SLACK_APP_TOKEN` | `username` param in `chat.postMessage` | Implemented |
-| 2 | **Telegram** | Bot API long-polling | `TELEGRAM_BOT_TOKEN` | Prefix `[agent-name]: message` | Implemented |
-| 3 | **Discord** | Gateway WebSocket | `DISCORD_BOT_TOKEN` or `DISCORD_WEBHOOK_URL` | `username` param in webhook execute | Implemented |
-| 4 | WhatsApp | Cloud API webhooks | `WHATSAPP_TOKEN` | Prefix text (fixed number) | Planned |
-| 5 | Signal | signal-cli bridge | `SIGNAL_CLI_URL` | Prefix text (fixed number) | Planned |
-| 6 | iMessage | BlueBubbles server | `BLUEBUBBLES_URL`, `BLUEBUBBLES_PASSWORD` | Prefix text (fixed Apple ID) | Planned |
-| 7 | Matrix | Client-Server API | `MATRIX_HOMESERVER`, `MATRIX_TOKEN` | Bot display name | Planned |
-| 8 | Microsoft Teams | Bot Framework | `TEAMS_APP_ID`, `TEAMS_APP_SECRET` | Bot identity | Planned |
-| 9 | Google Chat | Chat API + Pub/Sub | `GOOGLE_CHAT_SA_KEY` | Bot identity | Planned |
-| 10 | LINE | Messaging API | `LINE_CHANNEL_TOKEN` | Bot identity | Planned |
-| 11 | Feishu/Lark | Event Subscription | `FEISHU_APP_ID`, `FEISHU_APP_SECRET` | Bot identity | Planned |
-| 12 | Mattermost | WebSocket + REST | `MATTERMOST_URL`, `MATTERMOST_TOKEN` | `username` param | Planned |
-| 13 | IRC | IRC protocol | `IRC_SERVER`, `IRC_NICK`, `IRC_PASSWORD` | Nick per agent | Planned |
-| 14 | Nostr | NIP-04 DMs | `NOSTR_PRIVATE_KEY` | Public key identity | Planned |
-| 15 | Twitch | IRC + EventSub | `TWITCH_OAUTH_TOKEN` | Bot username | Planned |
+| # | Platform | Transport | SDK / Library | Status |
+|---|----------|-----------|---------------|--------|
+| 1 | **Slack** | Socket Mode (WebSocket) | `slack-go/slack` | Working |
+| 2 | **Telegram** | Bot API long-polling | `go-telegram-bot-api` | Working |
+| 3 | **Discord** | Gateway WebSocket | `bwmarrin/discordgo` | Working |
+| 4 | **WhatsApp** | Multi-device protocol | `whatsmeow` (QR pairing) | Working |
+| 5 | **IRC** | IRC protocol | `ergochat/irc-go` | Working |
+| 6 | **MQTT** | MQTT 3.1.1/5.0 | `eclipse/paho.mqtt.golang` | Working |
+| 7 | **Mattermost** | WebSocket + REST | `gorilla/websocket` | Working |
+| 8 | **GitHub** | Webhooks | Webhook handler | Working |
+| 9 | **Generic Webhook** | HTTP POST | Webhook receiver | Working |
+| 10 | **RSS/Atom** | HTTP polling | HTTP client | Working |
+| 11 | **Matrix** | Client-Server API polling | HTTP client | Working |
+| 12 | **Reddit** | Reddit API polling | HTTP client | Working |
+| 13 | **Twitter/X** | Twitter API v2 polling | HTTP client | Working |
 
-### Tier 2: Event and Webhook Platforms
+### Coming Soon
 
-Inbound-only platforms that push structured events (CI results, issue updates, deployments).
+These adapters have scaffolding but are not yet connected to real platform SDKs.
 
-| # | Platform | Event Types | Transport | Credential Env Vars | Status |
-|---|----------|-------------|-----------|---------------------|--------|
-| 16 | **GitHub** | PR, issue, push, CI, review, release, deployment | Webhooks | `GITHUB_TOKEN`, `GITHUB_WEBHOOK_SECRET` | Planned |
-| 17 | GitLab | MR, pipeline, issue, push | Webhooks | `GITLAB_TOKEN`, `GITLAB_WEBHOOK_SECRET` | Planned |
-| 18 | Bitbucket | PR, push, pipeline | Webhooks | `BITBUCKET_TOKEN` | Planned |
-| 19 | Gmail | Email received | Google Pub/Sub | `GMAIL_SA_KEY` | Planned |
-| 20 | Outlook | Email received | Graph API webhooks | `OUTLOOK_CLIENT_ID`, `OUTLOOK_CLIENT_SECRET` | Planned |
-| 21 | Jira | Issue CRUD, transitions | Webhooks | `JIRA_TOKEN`, `JIRA_WEBHOOK_SECRET` | Planned |
-| 22 | Linear | Issue CRUD, cycle changes | Webhooks | `LINEAR_API_KEY`, `LINEAR_WEBHOOK_SECRET` | Planned |
-| 23 | Sentry | Error/exception alerts | Webhooks | `SENTRY_DSN` | Planned |
-| 24 | PagerDuty | Incident triggered/resolved | Webhooks | `PAGERDUTY_TOKEN` | Planned |
-| 25 | Datadog | Alert triggered | Webhooks | `DATADOG_API_KEY` | Planned |
-| 26 | Grafana | Alert firing/resolved | Webhooks | `GRAFANA_API_KEY` | Planned |
-| 27 | Vercel | Deployment events | Webhooks | `VERCEL_TOKEN` | Planned |
-| 28 | Netlify | Deploy events | Webhooks | `NETLIFY_TOKEN` | Planned |
-| 29 | AWS SNS | Any SNS topic | HTTP subscription | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` | Planned |
-| 30 | Stripe | Payment, subscription events | Webhooks | `STRIPE_WEBHOOK_SECRET` | Planned |
-| 31 | Notion | Page/database changes | Polling | `NOTION_TOKEN` | Planned |
-| 32 | Generic Webhook | Any HTTP POST with JSON | HTTP endpoint | None (public endpoint) | Planned |
-
-### Tier 3: IoT and Smart Home
-
-| # | Platform | Events | Transport | Credential Env Vars | Status |
-|---|----------|--------|-----------|---------------------|--------|
-| 33 | Home Assistant | Device state changes | WebSocket + REST | `HASS_URL`, `HASS_TOKEN` | Planned |
-| 34 | MQTT | IoT topic messages | MQTT protocol | `MQTT_BROKER`, `MQTT_USERNAME`, `MQTT_PASSWORD` | Planned |
-
-### Tier 4: Social and Media
-
-| # | Platform | Events | Transport | Credential Env Vars | Status |
-|---|----------|--------|-----------|---------------------|--------|
-| 35 | Twitter/X | Mentions, DMs | Twitter API v2 | `TWITTER_BEARER_TOKEN` | Planned |
-| 36 | Reddit | Posts/comments | Reddit API | `REDDIT_CLIENT_ID`, `REDDIT_CLIENT_SECRET` | Planned |
-| 37 | RSS/Atom | New feed entries | HTTP polling | None | Planned |
+| Platform | Transport | Notes |
+|----------|-----------|-------|
+| Signal | signal-cli bridge | Stub |
+| Line | Messaging API | Stub |
+| Feishu/Lark | Event Subscription | Stub |
+| Google Chat | Chat API + Pub/Sub | Stub |
+| Microsoft Teams | Bot Framework | Stub |
+| GitLab | Webhooks | Stub |
+| Bitbucket | Webhooks | Stub |
+| Jira | Webhooks | Stub |
+| Linear | Webhooks | Stub |
+| Sentry | Webhooks | Stub |
+| PagerDuty | Webhooks | Stub |
+| Datadog | Webhooks | Stub |
+| Grafana | Webhooks | Stub |
+| Stripe | Webhooks | Stub |
+| Vercel | Webhooks | Stub |
+| Netlify | Webhooks | Stub |
+| Notion | Polling | Stub |
+| Twitch | IRC + EventSub | Stub |
+| Home Assistant | WebSocket + REST | Stub |
+| Nostr | NIP-04 DMs | Stub |
+| iMessage | BlueBubbles | Stub |
 
 ## Credential Management
 
-Credentials flow from the web UI through encrypted storage into agent environment variables.
+Credentials flow from the web UI through encrypted storage into the adapter. Agents access platform APIs through the API proxy -- they do not need credentials in their environment.
 
 ```mermaid
 flowchart LR
     UI["Web UI<br/>Setup Wizard"] -->|"POST /api/secrets"| SEC["pkg/secret<br/>AES-256-GCM"]
-    SEC -->|"agent start"| ENV["Agent env vars"]
-    ENV --> AGENT["Agent process<br/>(tmux/Docker)"]
-    AGENT -->|"uses credentials"| PLATFORM["Platform API"]
+    SEC -->|"adapter start"| ADAPTER["Gateway Adapter"]
+    ADAPTER -->|"authenticates"| PLATFORM["Platform API"]
+    AGENT["Agent"] -->|"/api/gateways/{platform}/api/*"| PROXY["API Proxy"]
+    PROXY -->|"stored credentials"| PLATFORM
 
     style SEC fill:#2d5016,stroke:#4ade80
 ```
 
 1. The user enters platform credentials in the web UI setup wizard.
 2. `POST /api/secrets` encrypts them with AES-256-GCM via `pkg/secret`.
-3. When an agent starts, bc reads workspace secrets and injects them as environment variables.
-4. The agent's system prompt includes instructions on which env vars are available.
-5. The agent calls platform APIs directly using those credentials.
+3. When the adapter starts, it authenticates with the platform using stored credentials.
+4. Agents call platform APIs through the API proxy at `/api/gateways/{platform}/api/*`.
+5. The proxy injects stored credentials into outbound requests.
 
 Secrets are never stored in `settings.json`, never transmitted via SSE events, and never exposed in API responses.
 
@@ -258,11 +243,12 @@ Secrets are never stored in `settings.json`, never transmitted via SSE events, a
 | **Slack** | Create app at api.slack.com > Enable Socket Mode > Add scopes (`channels:read`, `chat:write`, `connections:write`) > Copy bot token + app token > Invite bot to channels |
 | **Telegram** | Message @BotFather `/newbot` > Copy bot token > Add bot to groups > Disable privacy mode (optional, for reading all group messages) |
 | **Discord** | Create app at discord.com/developers > Enable `MESSAGE_CONTENT` intent > Copy bot token > Generate invite URL with required permissions > Add bot to server |
+| **WhatsApp** | Scan QR code in the web UI to pair via whatsmeow multi-device protocol |
 | **GitHub** | Create GitHub App or configure repository webhook > Select events (PR comments, reviews, issues, pushes) > Copy token and webhook secret |
 
 ## Agent Identity
 
-Each platform has different support for per-message identity. Some allow setting a username per API call; others require the agent to prefix its name in the message body.
+Agents interact with platforms through the API proxy. Per-message identity depends on what the platform API supports:
 
 | Platform | Per-Message Identity? | Mechanism |
 |----------|----------------------|-----------|
@@ -271,19 +257,9 @@ Each platform has different support for per-message identity. Some allow setting
 | Mattermost | Yes | Bot API username parameter |
 | Telegram | No (fixed bot name) | Agent prefixes message with `[agent-name]: ` |
 | WhatsApp | No (fixed number) | Agent prefixes message text |
-| Signal | No (fixed number) | Agent prefixes message text |
 | GitHub | App-level | Comments appear as the GitHub App / token owner |
-| Gmail | No (account holder) | Sends as authenticated user |
 
-Identity instructions are injected into the agent's system prompt at startup:
-
-```markdown
-## Platform Credentials
-You have access to these platform credentials via environment variables:
-- SLACK_BOT_TOKEN: Use Slack API. Set `username` param to your agent name
-  (available as BC_AGENT_ID env var) for identity.
-- TELEGRAM_BOT_TOKEN: Use Telegram Bot API. Prefix messages with your agent name.
-```
+Identity instructions are injected into the agent's system prompt at startup. Agents know their own name via the `BC_AGENT_ID` environment variable and use it when calling the API proxy.
 
 ## Subscriptions
 
@@ -469,7 +445,7 @@ Settings are per-agent, per-channel.
 
 | Panel | Content |
 |-------|---------|
-| **Left sidebar** | Gateway dropdowns with channel lists. Unconnected gateways show a "Setup" link. |
+| **Left sidebar** | Connected apps listed by platform icon + bot/server name (from `adapter.Channels()`). Channels/groups come from the platform API, not stored message history. Per-platform UI renderers for activity (WhatsApp shows contacts/groups, Slack shows threads, Discord shows servers). Unconnected gateways show a "Setup" link. |
 | **Main area** | Activity feed with delivery status badges. Polls every 5s and receives live SSE updates via `/api/events`. |
 | **Right panel** | Agent list with online indicators, role badges, and `@mention` toggle. |
 
@@ -506,27 +482,34 @@ graph TD
 
 1. Create the adapter file at `pkg/gateway/<platform>/<platform>.go`.
 
-2. Implement `NotificationAdapter`:
+2. Implement the three-part pattern:
 
 ```go
 package myplatform
 
 import (
     "context"
+    "net/http"
     "github.com/rpuneet/bc/pkg/gateway"
 )
 
 type Adapter struct {
-    token string
+    token     string
+    connected bool
+    count     int64
 }
 
 func New(token string) *Adapter {
     return &Adapter{token: token}
 }
 
-func (a *Adapter) Name() string { return "myplatform" }
+func (a *Adapter) Name() string          { return "myplatform" }
+func (a *Adapter) Type() gateway.AdapterType { return gateway.AdapterSocket }
 
+// Connect + Listen: authenticate, then forward raw events
 func (a *Adapter) Start(ctx context.Context, handler func(gateway.Notification)) error {
+    // Connect to the platform using a.token
+    // ...
     for {
         select {
         case <-ctx.Done():
@@ -538,17 +521,26 @@ func (a *Adapter) Start(ctx context.Context, handler func(gateway.Notification))
                 Platform:  "myplatform",
                 Sender:    extractSender(event),
                 Timestamp: time.Now(),
-                Raw:       raw,
+                Raw:       raw,  // full platform payload, no parsing
             })
         }
     }
 }
 
-func (a *Adapter) Stop() error              { return a.conn.Close() }
-func (a *Adapter) HTTPHandler() http.Handler { return nil }
-func (a *Adapter) Channels() []gateway.ChannelInfo { return a.discovered }
+func (a *Adapter) Stop() error { return a.conn.Close() }
+
+// Channels from the platform API (live query, not stored history)
+func (a *Adapter) Channels() []gateway.ChannelInfo { return a.queryPlatformChannels() }
+
 func (a *Adapter) Status() gateway.AdapterStatus {
     return gateway.AdapterStatus{Connected: a.connected, MessageCount: a.count}
+}
+
+// API Proxy: forward /api/gateways/myplatform/api/* to the platform
+func (a *Adapter) HTTPHandler() http.Handler {
+    mux := http.NewServeMux()
+    mux.HandleFunc("/api/", a.proxyToPlatform)
+    return mux
 }
 ```
 
@@ -559,9 +551,7 @@ adapter := myplatform.New(token)
 gatewayMgr.Register(adapter)
 ```
 
-4. Add credential env vars to the [Platform Integrations](#platform-integrations) table and the setup wizard.
-
-5. Update the agent system prompt template with identity instructions for the new platform.
+4. Add the platform to the [Platform Integrations](#platform-integrations) table and the setup wizard.
 
 ## API Reference
 
@@ -573,9 +563,9 @@ All endpoints are served by bcd at `http://127.0.0.1:9374`. No authentication (l
 GET    /api/gateways                                              -- list all gateways + status
 PATCH  /api/gateways/{platform}                                   -- update tokens/settings
 GET    /api/gateways/{platform}/health                            -- live connection probe
-GET    /api/gateways/{platform}/channels                          -- discovered channels
+GET    /api/gateways/{platform}/channels                          -- discovered channels (from platform API)
 GET    /api/gateways/{platform}/channels/{channel}                -- channel detail + subscribers
-POST   /api/gateways/{platform}/channels/{channel}/send           -- send outbound message
+*      /api/gateways/{platform}/api/*                             -- API proxy (pass-through to platform)
 ```
 
 ### Agent Subscription Management
@@ -604,7 +594,7 @@ GET    /api/channels/{name}/history                               -- legacy mess
 
 | Package | Purpose |
 |---------|---------|
-| [`pkg/gateway/`](../../pkg/gateway/README.md) | Adapter interface, Manager, platform adapters (Slack, Telegram, Discord) |
+| [`pkg/gateway/`](../../pkg/gateway/README.md) | Adapter interface, Manager, 34 platform adapters (13 working, 21 coming soon) |
 | [`pkg/notify/`](../../pkg/notify/README.md) | Notification types, Store (SQLite/Postgres), Service (dispatch + subscription management) |
 | `pkg/secret/` | AES-256-GCM encrypted credential storage |
 | `server/handlers/` | REST API handlers for gateway and subscription management |
