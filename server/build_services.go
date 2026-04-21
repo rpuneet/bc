@@ -25,38 +25,18 @@ import (
 	bcdeps "github.com/rpuneet/bc/pkg/deps"
 	bcevents "github.com/rpuneet/bc/pkg/events"
 	bcgateway "github.com/rpuneet/bc/pkg/gateway"
-	bcbitbucket "github.com/rpuneet/bc/pkg/gateway/bitbucket"
-	bcdatadog "github.com/rpuneet/bc/pkg/gateway/datadog"
 	bcdiscord "github.com/rpuneet/bc/pkg/gateway/discord"
-	bcfeishu "github.com/rpuneet/bc/pkg/gateway/feishu"
 	bcgithub "github.com/rpuneet/bc/pkg/gateway/github"
-	bcgitlab "github.com/rpuneet/bc/pkg/gateway/gitlab"
-	bcgooglechat "github.com/rpuneet/bc/pkg/gateway/googlechat"
-	bcgrafana "github.com/rpuneet/bc/pkg/gateway/grafana"
-	bchomeassistant "github.com/rpuneet/bc/pkg/gateway/homeassistant"
-	bcimessage "github.com/rpuneet/bc/pkg/gateway/imessage"
 	bcirc "github.com/rpuneet/bc/pkg/gateway/irc"
-	bcjira "github.com/rpuneet/bc/pkg/gateway/jira"
-	bcline "github.com/rpuneet/bc/pkg/gateway/line"
-	bclinear "github.com/rpuneet/bc/pkg/gateway/linear"
 	bcmatrix "github.com/rpuneet/bc/pkg/gateway/matrix"
 	bcmattermost "github.com/rpuneet/bc/pkg/gateway/mattermost"
 	bcmqtt "github.com/rpuneet/bc/pkg/gateway/mqtt"
-	bcmsteams "github.com/rpuneet/bc/pkg/gateway/msteams"
-	bcnetlify "github.com/rpuneet/bc/pkg/gateway/netlify"
-	bcnostr "github.com/rpuneet/bc/pkg/gateway/nostr"
 	bcnotion "github.com/rpuneet/bc/pkg/gateway/notion"
-	bcpagerduty "github.com/rpuneet/bc/pkg/gateway/pagerduty"
 	bcreddit "github.com/rpuneet/bc/pkg/gateway/reddit"
 	bcrss "github.com/rpuneet/bc/pkg/gateway/rss"
-	bcsentry "github.com/rpuneet/bc/pkg/gateway/sentry"
-	bcsignal "github.com/rpuneet/bc/pkg/gateway/signal"
 	bcslack "github.com/rpuneet/bc/pkg/gateway/slack"
-	bcstripe "github.com/rpuneet/bc/pkg/gateway/stripe"
 	bctelegram "github.com/rpuneet/bc/pkg/gateway/telegram"
-	bctwitch "github.com/rpuneet/bc/pkg/gateway/twitch"
 	bctwitter "github.com/rpuneet/bc/pkg/gateway/twitter"
-	bcvercel "github.com/rpuneet/bc/pkg/gateway/vercel"
 	bcwebhook "github.com/rpuneet/bc/pkg/gateway/webhook"
 	bcwhatsapp "github.com/rpuneet/bc/pkg/gateway/whatsapp"
 	"github.com/rpuneet/bc/pkg/log"
@@ -451,94 +431,6 @@ func buildGatewayManager(ctx context.Context, ws *bcworkspace.Workspace, notifyS
 		}
 	}
 
-	// Count enabled GitLab webhook adapters.
-	var glCount int
-	for _, c := range gw.GitLabs {
-		if c.Enabled {
-			glCount++
-		}
-	}
-
-	// Count enabled Jira webhook adapters.
-	var jiraCount int
-	for _, c := range gw.Jiras {
-		if c.Enabled {
-			jiraCount++
-		}
-	}
-
-	// Count enabled Linear webhook adapters.
-	var linearCount int
-	for _, c := range gw.Linears {
-		if c.Enabled {
-			linearCount++
-		}
-	}
-
-	// Count enabled Sentry webhook adapters.
-	var sentryCount int
-	for _, c := range gw.Sentries {
-		if c.Enabled {
-			sentryCount++
-		}
-	}
-
-	// Count enabled Stripe webhook adapters.
-	var stripeCount int
-	for _, c := range gw.Stripes {
-		if c.Enabled {
-			stripeCount++
-		}
-	}
-
-	// Count enabled Bitbucket webhook adapters.
-	var bbCount int
-	for _, c := range gw.Bitbuckets {
-		if c.Enabled {
-			bbCount++
-		}
-	}
-
-	// Count enabled PagerDuty webhook adapters.
-	var pdCount int
-	for _, c := range gw.PagerDuties {
-		if c.Enabled {
-			pdCount++
-		}
-	}
-
-	// Count enabled Datadog webhook adapters.
-	var ddCount int
-	for _, c := range gw.Datadogs {
-		if c.Enabled {
-			ddCount++
-		}
-	}
-
-	// Count enabled Grafana webhook adapters.
-	var grafCount int
-	for _, c := range gw.Grafanas {
-		if c.Enabled {
-			grafCount++
-		}
-	}
-
-	// Count enabled Vercel webhook adapters.
-	var vercelCount int
-	for _, c := range gw.Vercels {
-		if c.Enabled {
-			vercelCount++
-		}
-	}
-
-	// Count enabled Netlify webhook adapters.
-	var netlifyCount int
-	for _, c := range gw.Netlifys {
-		if c.Enabled {
-			netlifyCount++
-		}
-	}
-
 	// Count enabled Notion poll adapters.
 	var notionCount int
 	for _, c := range gw.Notions {
@@ -555,51 +447,11 @@ func buildGatewayManager(ctx context.Context, ws *bcworkspace.Workspace, notifyS
 		}
 	}
 
-	// Count enabled Signal poll adapters.
-	var sigCount int
-	for _, c := range gw.Signals {
-		if c.Enabled && c.APIURL != "" {
-			sigCount++
-		}
-	}
-
 	// Count enabled Matrix poll adapters.
 	var matrixCount int
 	for _, c := range gw.Matrices {
 		if c.Enabled && c.Token != "" {
 			matrixCount++
-		}
-	}
-
-	// Count enabled MS Teams webhook adapters.
-	var teamsCount int
-	for _, c := range gw.MSTeams {
-		if c.Enabled {
-			teamsCount++
-		}
-	}
-
-	// Count enabled Google Chat webhook adapters.
-	var gchatCount int
-	for _, c := range gw.GoogleChats {
-		if c.Enabled {
-			gchatCount++
-		}
-	}
-
-	// Count enabled LINE webhook adapters.
-	var lineCount int
-	for _, c := range gw.Lines {
-		if c.Enabled {
-			lineCount++
-		}
-	}
-
-	// Count enabled Feishu webhook adapters.
-	var feishuCount int
-	for _, c := range gw.Feishus {
-		if c.Enabled {
-			feishuCount++
 		}
 	}
 
@@ -616,30 +468,6 @@ func buildGatewayManager(ctx context.Context, ws *bcworkspace.Workspace, notifyS
 	for _, c := range gw.IRCs {
 		if c.Enabled {
 			ircCount++
-		}
-	}
-
-	// Count enabled Nostr socket adapters.
-	var nostrCount int
-	for _, c := range gw.Nostrs {
-		if c.Enabled {
-			nostrCount++
-		}
-	}
-
-	// Count enabled Twitch webhook adapters.
-	var twitchCount int
-	for _, c := range gw.Twitches {
-		if c.Enabled {
-			twitchCount++
-		}
-	}
-
-	// Count enabled iMessage poll adapters.
-	var imsgCount int
-	for _, c := range gw.IMessages {
-		if c.Enabled && c.APIURL != "" {
-			imsgCount++
 		}
 	}
 
@@ -667,20 +495,9 @@ func buildGatewayManager(ctx context.Context, ws *bcworkspace.Workspace, notifyS
 		}
 	}
 
-	// Count enabled Home Assistant socket adapters.
-	var haCount int
-	for _, c := range gw.HomeAssistants {
-		if c.Enabled {
-			haCount++
-		}
-	}
-
 	if tgCount == 0 && !dcEnabled && !slEnabled && ghCount == 0 && whCount == 0 && rssCount == 0 &&
-		glCount == 0 && jiraCount == 0 && linearCount == 0 && sentryCount == 0 && stripeCount == 0 &&
-		bbCount == 0 && pdCount == 0 && ddCount == 0 && grafCount == 0 && vercelCount == 0 && netlifyCount == 0 && notionCount == 0 &&
-		waCount == 0 && sigCount == 0 && matrixCount == 0 && teamsCount == 0 && gchatCount == 0 &&
-		lineCount == 0 && feishuCount == 0 && mmCount == 0 && ircCount == 0 && nostrCount == 0 &&
-		twitchCount == 0 && imsgCount == 0 && mqttCount == 0 && twitterCount == 0 && redditCount == 0 && haCount == 0 {
+		notionCount == 0 && waCount == 0 && matrixCount == 0 &&
+		mmCount == 0 && ircCount == 0 && mqttCount == 0 && twitterCount == 0 && redditCount == 0 {
 		return nil
 	}
 
@@ -757,149 +574,6 @@ func buildGatewayManager(ctx context.Context, ws *bcworkspace.Workspace, notifyS
 		log.Info("gateway: rss adapter registered", "name", adapterName, "url", rc.URL)
 	}
 
-	// Register GitLab webhook adapters.
-	for label, c := range gw.GitLabs {
-		if !c.Enabled {
-			continue
-		}
-		adapterName := "gitlab"
-		if label != "" {
-			adapterName = "gitlab:" + label
-		}
-		m.Register(bcgitlab.NewNamed(adapterName, c.Token))
-		log.Info("gateway: gitlab adapter registered", "name", adapterName)
-	}
-
-	// Register Jira webhook adapters.
-	for label, c := range gw.Jiras {
-		if !c.Enabled {
-			continue
-		}
-		adapterName := "jira"
-		if label != "" {
-			adapterName = "jira:" + label
-		}
-		m.Register(bcjira.NewNamed(adapterName, c.Secret))
-		log.Info("gateway: jira adapter registered", "name", adapterName)
-	}
-
-	// Register Linear webhook adapters.
-	for label, c := range gw.Linears {
-		if !c.Enabled {
-			continue
-		}
-		adapterName := "linear"
-		if label != "" {
-			adapterName = "linear:" + label
-		}
-		m.Register(bclinear.NewNamed(adapterName, c.Secret))
-		log.Info("gateway: linear adapter registered", "name", adapterName)
-	}
-
-	// Register Sentry webhook adapters.
-	for label, c := range gw.Sentries {
-		if !c.Enabled {
-			continue
-		}
-		adapterName := "sentry"
-		if label != "" {
-			adapterName = "sentry:" + label
-		}
-		m.Register(bcsentry.NewNamed(adapterName, c.Secret))
-		log.Info("gateway: sentry adapter registered", "name", adapterName)
-	}
-
-	// Register Stripe webhook adapters.
-	for label, c := range gw.Stripes {
-		if !c.Enabled {
-			continue
-		}
-		adapterName := "stripe"
-		if label != "" {
-			adapterName = "stripe:" + label
-		}
-		m.Register(bcstripe.NewNamed(adapterName, c.Secret))
-		log.Info("gateway: stripe adapter registered", "name", adapterName)
-	}
-
-	// Register Bitbucket webhook adapters.
-	for label, c := range gw.Bitbuckets {
-		if !c.Enabled {
-			continue
-		}
-		adapterName := "bitbucket"
-		if label != "" {
-			adapterName = "bitbucket:" + label
-		}
-		m.Register(bcbitbucket.NewNamed(adapterName, c.Secret))
-		log.Info("gateway: bitbucket adapter registered", "name", adapterName)
-	}
-
-	// Register PagerDuty webhook adapters.
-	for label, c := range gw.PagerDuties {
-		if !c.Enabled {
-			continue
-		}
-		adapterName := "pagerduty"
-		if label != "" {
-			adapterName = "pagerduty:" + label
-		}
-		m.Register(bcpagerduty.NewNamed(adapterName, c.Secret))
-		log.Info("gateway: pagerduty adapter registered", "name", adapterName)
-	}
-
-	// Register Datadog webhook adapters.
-	for label, c := range gw.Datadogs {
-		if !c.Enabled {
-			continue
-		}
-		adapterName := "datadog"
-		if label != "" {
-			adapterName = "datadog:" + label
-		}
-		m.Register(bcdatadog.NewNamed(adapterName, c.Secret))
-		log.Info("gateway: datadog adapter registered", "name", adapterName)
-	}
-
-	// Register Grafana webhook adapters.
-	for label, c := range gw.Grafanas {
-		if !c.Enabled {
-			continue
-		}
-		adapterName := "grafana"
-		if label != "" {
-			adapterName = "grafana:" + label
-		}
-		m.Register(bcgrafana.NewNamed(adapterName, c.Token))
-		log.Info("gateway: grafana adapter registered", "name", adapterName)
-	}
-
-	// Register Vercel webhook adapters.
-	for label, c := range gw.Vercels {
-		if !c.Enabled {
-			continue
-		}
-		adapterName := "vercel"
-		if label != "" {
-			adapterName = "vercel:" + label
-		}
-		m.Register(bcvercel.NewNamed(adapterName, c.Secret))
-		log.Info("gateway: vercel adapter registered", "name", adapterName)
-	}
-
-	// Register Netlify webhook adapters.
-	for label, c := range gw.Netlifys {
-		if !c.Enabled {
-			continue
-		}
-		adapterName := "netlify"
-		if label != "" {
-			adapterName = "netlify:" + label
-		}
-		m.Register(bcnetlify.NewNamed(adapterName, c.Secret))
-		log.Info("gateway: netlify adapter registered", "name", adapterName)
-	}
-
 	// Register Notion poll adapters.
 	for label, c := range gw.Notions {
 		if !c.Enabled || c.Token == "" {
@@ -927,19 +601,6 @@ func buildGatewayManager(ctx context.Context, ws *bcworkspace.Workspace, notifyS
 		log.Info("gateway: whatsapp adapter registered", "name", adapterName)
 	}
 
-	// Register Signal poll adapters.
-	for label, c := range gw.Signals {
-		if !c.Enabled || c.APIURL == "" {
-			continue
-		}
-		adapterName := "signal"
-		if label != "" {
-			adapterName = "signal:" + label
-		}
-		m.Register(bcsignal.NewNamed(adapterName, c.APIURL, c.Interval))
-		log.Info("gateway: signal adapter registered", "name", adapterName)
-	}
-
 	// Register Matrix poll adapters.
 	for label, c := range gw.Matrices {
 		if !c.Enabled || c.Token == "" {
@@ -951,58 +612,6 @@ func buildGatewayManager(ctx context.Context, ws *bcworkspace.Workspace, notifyS
 		}
 		m.Register(bcmatrix.NewNamed(adapterName, c.Homeserver, c.Token, c.Interval))
 		log.Info("gateway: matrix adapter registered", "name", adapterName)
-	}
-
-	// Register MS Teams webhook adapters.
-	for label, c := range gw.MSTeams {
-		if !c.Enabled {
-			continue
-		}
-		adapterName := "msteams"
-		if label != "" {
-			adapterName = "msteams:" + label
-		}
-		m.Register(bcmsteams.NewNamed(adapterName, c.Secret))
-		log.Info("gateway: msteams adapter registered", "name", adapterName)
-	}
-
-	// Register Google Chat webhook adapters.
-	for label, c := range gw.GoogleChats {
-		if !c.Enabled {
-			continue
-		}
-		adapterName := "googlechat"
-		if label != "" {
-			adapterName = "googlechat:" + label
-		}
-		m.Register(bcgooglechat.NewNamed(adapterName, c.Secret))
-		log.Info("gateway: googlechat adapter registered", "name", adapterName)
-	}
-
-	// Register LINE webhook adapters.
-	for label, c := range gw.Lines {
-		if !c.Enabled {
-			continue
-		}
-		adapterName := "line"
-		if label != "" {
-			adapterName = "line:" + label
-		}
-		m.Register(bcline.NewNamed(adapterName, c.Secret))
-		log.Info("gateway: line adapter registered", "name", adapterName)
-	}
-
-	// Register Feishu webhook adapters.
-	for label, c := range gw.Feishus {
-		if !c.Enabled {
-			continue
-		}
-		adapterName := "feishu"
-		if label != "" {
-			adapterName = "feishu:" + label
-		}
-		m.Register(bcfeishu.NewNamed(adapterName, c.Secret))
-		log.Info("gateway: feishu adapter registered", "name", adapterName)
 	}
 
 	// Register Mattermost webhook adapters.
@@ -1036,45 +645,6 @@ func buildGatewayManager(ctx context.Context, ws *bcworkspace.Workspace, notifyS
 			UseTLS:   true,
 		}))
 		log.Info("gateway: irc adapter registered", "name", adapterName)
-	}
-
-	// Register Nostr socket adapters.
-	for label, c := range gw.Nostrs {
-		if !c.Enabled {
-			continue
-		}
-		adapterName := "nostr"
-		if label != "" {
-			adapterName = "nostr:" + label
-		}
-		m.Register(bcnostr.NewNamed(adapterName, c.RelayURL))
-		log.Info("gateway: nostr adapter registered", "name", adapterName)
-	}
-
-	// Register Twitch webhook adapters.
-	for label, c := range gw.Twitches {
-		if !c.Enabled {
-			continue
-		}
-		adapterName := "twitch"
-		if label != "" {
-			adapterName = "twitch:" + label
-		}
-		m.Register(bctwitch.NewNamed(adapterName, c.Secret))
-		log.Info("gateway: twitch adapter registered", "name", adapterName)
-	}
-
-	// Register iMessage poll adapters.
-	for label, c := range gw.IMessages {
-		if !c.Enabled || c.APIURL == "" {
-			continue
-		}
-		adapterName := "imessage"
-		if label != "" {
-			adapterName = "imessage:" + label
-		}
-		m.Register(bcimessage.NewNamed(adapterName, c.APIURL, c.Password, c.Interval))
-		log.Info("gateway: imessage adapter registered", "name", adapterName)
 	}
 
 	// Register MQTT socket adapters.
@@ -1122,19 +692,6 @@ func buildGatewayManager(ctx context.Context, ws *bcworkspace.Workspace, notifyS
 		}
 		m.Register(bcreddit.NewNamed(adapterName, c.Subreddit, c.BearerToken, c.Interval))
 		log.Info("gateway: reddit adapter registered", "name", adapterName)
-	}
-
-	// Register Home Assistant socket adapters.
-	for label, c := range gw.HomeAssistants {
-		if !c.Enabled {
-			continue
-		}
-		adapterName := "homeassistant"
-		if label != "" {
-			adapterName = "homeassistant:" + label
-		}
-		m.Register(bchomeassistant.NewNamed(adapterName, c.URL, c.Token))
-		log.Info("gateway: homeassistant adapter registered", "name", adapterName)
 	}
 
 	wg.Add(1)

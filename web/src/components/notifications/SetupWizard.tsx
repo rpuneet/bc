@@ -185,7 +185,7 @@ export const PLATFORMS: PlatformDef[] = [
     ],
   },
   {
-    key: "gitlab", status: "webhook" as const,
+    key: "gitlab", status: "coming_soon" as const,
     label: "GitLab",
     icon: "\u{1F98A}",
     description: "Merge request and pipeline webhooks",
@@ -199,7 +199,7 @@ export const PLATFORMS: PlatformDef[] = [
     ],
   },
   {
-    key: "bitbucket", status: "webhook" as const,
+    key: "bitbucket", status: "coming_soon" as const,
     label: "Bitbucket",
     icon: "\u{1FAA3}",
     description: "Push and PR webhooks",
@@ -213,7 +213,7 @@ export const PLATFORMS: PlatformDef[] = [
     ],
   },
   {
-    key: "vercel", status: "webhook" as const,
+    key: "vercel", status: "coming_soon" as const,
     label: "Vercel",
     icon: "\u25B2",
     description: "Deployment and build webhooks",
@@ -227,7 +227,7 @@ export const PLATFORMS: PlatformDef[] = [
     ],
   },
   {
-    key: "netlify", status: "webhook" as const,
+    key: "netlify", status: "coming_soon" as const,
     label: "Netlify",
     icon: "\u25C6",
     description: "Deploy and build notifications",
@@ -243,7 +243,7 @@ export const PLATFORMS: PlatformDef[] = [
 
   // --- Monitoring ---
   {
-    key: "sentry", status: "webhook" as const,
+    key: "sentry", status: "coming_soon" as const,
     label: "Sentry",
     icon: "\u{1F41B}",
     description: "Error and issue alerts",
@@ -257,7 +257,7 @@ export const PLATFORMS: PlatformDef[] = [
     ],
   },
   {
-    key: "pagerduty", status: "webhook" as const,
+    key: "pagerduty", status: "coming_soon" as const,
     label: "PagerDuty",
     icon: "\u{1F6A8}",
     description: "Incident and alert webhooks",
@@ -271,7 +271,7 @@ export const PLATFORMS: PlatformDef[] = [
     ],
   },
   {
-    key: "datadog", status: "webhook" as const,
+    key: "datadog", status: "coming_soon" as const,
     label: "Datadog",
     icon: "\u{1F415}",
     description: "Monitor and event webhooks",
@@ -285,7 +285,7 @@ export const PLATFORMS: PlatformDef[] = [
     ],
   },
   {
-    key: "grafana", status: "webhook" as const,
+    key: "grafana", status: "coming_soon" as const,
     label: "Grafana",
     icon: "\u{1F4CA}",
     description: "Alert notifications",
@@ -311,7 +311,7 @@ export const PLATFORMS: PlatformDef[] = [
 
   // --- Payments ---
   {
-    key: "stripe", status: "webhook" as const,
+    key: "stripe", status: "coming_soon" as const,
     label: "Stripe",
     icon: "\u{1F4B3}",
     description: "Payment and subscription events",
