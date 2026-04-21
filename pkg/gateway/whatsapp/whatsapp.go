@@ -46,8 +46,11 @@ type Adapter struct { //nolint:govet
 }
 
 func init() {
-	// Set device properties to mimic Chrome WhatsApp Web — reduces rate limiting.
 	store.SetOSInfo("bc", [3]uint32{2, 26, 4})
+	// Fetch latest WA version to avoid 428 rejection for outdated clients.
+	if ver, err := whatsmeow.GetLatestVersion(context.Background(), nil); err == nil {
+		store.SetWAVersion(*ver)
+	}
 }
 
 var _ gateway.NotificationAdapter = (*Adapter)(nil)
