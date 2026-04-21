@@ -23,6 +23,7 @@ import (
 	"go.mau.fi/whatsmeow/store/sqlstore"
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
+	"go.mau.fi/whatsmeow/proto/waCompanionReg"
 	waLog "go.mau.fi/whatsmeow/util/log"
 
 	"github.com/rpuneet/bc/pkg/gateway"
@@ -46,11 +47,13 @@ type Adapter struct { //nolint:govet
 }
 
 func init() {
-	store.SetOSInfo("bc", [3]uint32{2, 26, 4})
-	// Fetch latest WA version to avoid 428 rejection for outdated clients.
+	// Fetch latest WA web version and set device identity to match WhatsApp Web.
 	if ver, err := whatsmeow.GetLatestVersion(context.Background(), nil); err == nil {
 		store.SetWAVersion(*ver)
+		log.Info("whatsapp: using WA version", "version", ver.String())
 	}
+	store.DeviceProps.PlatformType = waCompanionReg.DeviceProps_CHROME.Enum()
+	store.SetOSInfo("Chrome", store.GetWAVersion())
 }
 
 var _ gateway.NotificationAdapter = (*Adapter)(nil)
@@ -109,11 +112,14 @@ func (a *Adapter) StartPairing(ctx context.Context) (*PairStatus, error) {
 		}
 	}
 
-	// Start fresh pairing with logging enabled.
-	waLogger := waLog.Stdout("whatsapp", "INFO", false)
+	// Start fresh pairing with verbose logging.
+	waLogger := waLog.Stdout("whatsapp", "DEBUG", true)
 	client := whatsmeow.NewClient(deviceStore, waLogger)
 
-	qrChan, _ := client.GetQRChannel(ctx)
+	// Use background context — the HTTP request context ends when we return the QR,
+	// but the QR channel must stay alive until the user scans.
+	bgCtx := context.Background()
+	qrChan, _ := client.GetQRChannel(bgCtx)
 
 	if err := client.Connect(); err != nil {
 		return nil, fmt.Errorf("whatsapp: connect: %w", err)
