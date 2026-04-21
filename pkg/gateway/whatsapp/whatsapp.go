@@ -18,12 +18,12 @@ import (
 	_ "github.com/mattn/go-sqlite3" // register sqlite3 driver for whatsmeow session store
 	qrcode "github.com/skip2/go-qrcode"
 	"go.mau.fi/whatsmeow"
+	"go.mau.fi/whatsmeow/proto/waCompanionReg"
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/store"
 	"go.mau.fi/whatsmeow/store/sqlstore"
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
-	"go.mau.fi/whatsmeow/proto/waCompanionReg"
 	waLog "go.mau.fi/whatsmeow/util/log"
 
 	"github.com/rpuneet/bc/pkg/gateway"
