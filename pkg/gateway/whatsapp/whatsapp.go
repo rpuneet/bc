@@ -43,7 +43,8 @@ type Adapter struct { //nolint:govet
 	connected     bool
 	messageCount  atomic.Int64
 	// qrChan receives QR codes during pairing.
-	qrChan chan string
+	qrChan     chan string
+	groupCache map[string]string
 }
 
 func init() {
@@ -341,7 +342,7 @@ func (a *Adapter) handleMessage(msg *events.Message) {
 
 	sender := formatSender(msg.Info)
 	content := extractContent(msg.Message)
-	channel := formatChannel(msg.Info)
+	channel := a.resolveChannel(msg.Info)
 
 	now := time.Now()
 	a.mu.Lock()
@@ -373,14 +374,36 @@ func formatSender(info types.MessageInfo) string {
 	return info.Sender.User
 }
 
-// formatChannel returns a channel identifier for the chat.
-func formatChannel(info types.MessageInfo) string {
-	if info.IsGroup {
-		// Use group JID as channel name.
-		return info.Chat.User
+// resolveChannel returns a human-readable channel name. For groups, fetches
+// the group subject via the WhatsApp API. Caches results.
+func (a *Adapter) resolveChannel(info types.MessageInfo) string {
+	jid := info.Chat
+
+	a.mu.Lock()
+	if a.groupCache == nil {
+		a.groupCache = make(map[string]string)
 	}
-	// DM — use sender number as channel.
-	return info.Sender.User
+	if cached, ok := a.groupCache[jid.String()]; ok {
+		a.mu.Unlock()
+		return cached
+	}
+	a.mu.Unlock()
+
+	if info.IsGroup && a.client != nil {
+		if groupInfo, err := a.client.GetGroupInfo(context.Background(), jid); err == nil && groupInfo.Name != "" {
+			a.mu.Lock()
+			a.groupCache[jid.String()] = groupInfo.Name
+			a.mu.Unlock()
+			return groupInfo.Name
+		}
+	}
+
+	// Fallback: use phone number for DMs, JID user part for groups
+	name := jid.User
+	a.mu.Lock()
+	a.groupCache[jid.String()] = name
+	a.mu.Unlock()
+	return name
 }
 
 // extractContent pulls text from a WhatsApp message proto.
