@@ -27,13 +27,17 @@ import (
 	bcgateway "github.com/rpuneet/bc/pkg/gateway"
 	bcdiscord "github.com/rpuneet/bc/pkg/gateway/discord"
 	bcgithub "github.com/rpuneet/bc/pkg/gateway/github"
+	bchomeassistant "github.com/rpuneet/bc/pkg/gateway/homeassistant"
+	bcimessage "github.com/rpuneet/bc/pkg/gateway/imessage"
 	bcirc "github.com/rpuneet/bc/pkg/gateway/irc"
 	bcmatrix "github.com/rpuneet/bc/pkg/gateway/matrix"
 	bcmattermost "github.com/rpuneet/bc/pkg/gateway/mattermost"
 	bcmqtt "github.com/rpuneet/bc/pkg/gateway/mqtt"
+	bcnostr "github.com/rpuneet/bc/pkg/gateway/nostr"
 	bcnotion "github.com/rpuneet/bc/pkg/gateway/notion"
 	bcreddit "github.com/rpuneet/bc/pkg/gateway/reddit"
 	bcrss "github.com/rpuneet/bc/pkg/gateway/rss"
+	bcsignal "github.com/rpuneet/bc/pkg/gateway/signal"
 	bcslack "github.com/rpuneet/bc/pkg/gateway/slack"
 	bctelegram "github.com/rpuneet/bc/pkg/gateway/telegram"
 	bctwitter "github.com/rpuneet/bc/pkg/gateway/twitter"
@@ -679,6 +683,58 @@ func buildGatewayManager(ctx context.Context, ws *bcworkspace.Workspace, notifyS
 		}
 		m.Register(bctwitter.NewNamed(adapterName, c.BearerToken, c.UserID, c.Interval))
 		log.Info("gateway: twitter adapter registered", "name", adapterName)
+	}
+
+	// Register Signal poll adapters.
+	for label, c := range gw.Signals {
+		if !c.Enabled || c.APIURL == "" {
+			continue
+		}
+		adapterName := "signal"
+		if label != "" {
+			adapterName = "signal:" + label
+		}
+		m.Register(bcsignal.NewNamed(adapterName, c.APIURL, c.Interval))
+		log.Info("gateway: signal adapter registered", "name", adapterName)
+	}
+
+	// Register Nostr socket adapters.
+	for label, c := range gw.Nostrs {
+		if !c.Enabled {
+			continue
+		}
+		adapterName := "nostr"
+		if label != "" {
+			adapterName = "nostr:" + label
+		}
+		m.Register(bcnostr.NewNamed(adapterName, c.RelayURL))
+		log.Info("gateway: nostr adapter registered", "name", adapterName)
+	}
+
+	// Register iMessage poll adapters.
+	for label, c := range gw.IMessages {
+		if !c.Enabled || c.APIURL == "" {
+			continue
+		}
+		adapterName := "imessage"
+		if label != "" {
+			adapterName = "imessage:" + label
+		}
+		m.Register(bcimessage.NewNamed(adapterName, c.APIURL, c.Password, c.Interval))
+		log.Info("gateway: imessage adapter registered", "name", adapterName)
+	}
+
+	// Register Home Assistant socket adapters.
+	for label, c := range gw.HomeAssistants {
+		if !c.Enabled {
+			continue
+		}
+		adapterName := "homeassistant"
+		if label != "" {
+			adapterName = "homeassistant:" + label
+		}
+		m.Register(bchomeassistant.NewNamed(adapterName, c.URL, c.Token))
+		log.Info("gateway: homeassistant adapter registered", "name", adapterName)
 	}
 
 	// Register Reddit poll adapters.

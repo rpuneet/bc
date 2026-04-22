@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"regexp"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -108,15 +107,10 @@ func (a *Adapter) Channels() []gateway.ChannelInfo {
 func (a *Adapter) Status() gateway.AdapterStatus {
 	a.chatMu.RLock()
 	defer a.chatMu.RUnlock()
-	botName := ""
-	if a.session != nil && a.session.State != nil && a.session.State.User != nil {
-		botName = a.session.State.User.Username
-	}
 	return gateway.AdapterStatus{
 		Connected:     a.connected,
 		LastMessageAt: a.lastMessageAt,
 		Error:         a.lastError,
-		BotName:       botName,
 		MessageCount:  a.messageCount.Load(),
 	}
 }
@@ -159,26 +153,6 @@ func (a *Adapter) Health(_ context.Context) error {
 	return nil
 }
 
-// sanitizeGuildName replaces spaces, colons, and runs of non-alphanumeric
-// characters with dashes so that the guild:channel key is URL-safe and
-// doesn't conflict with the platform:channel separator.
-var reUnsafe = regexp.MustCompile(`[^a-zA-Z0-9-]+`)
-
-func sanitizeGuildName(name string) string {
-	s := reUnsafe.ReplaceAllString(name, "-")
-	// Trim leading/trailing dashes.
-	for len(s) > 0 && s[0] == '-' {
-		s = s[1:]
-	}
-	for len(s) > 0 && s[len(s)-1] == '-' {
-		s = s[:len(s)-1]
-	}
-	if s == "" {
-		return "unknown"
-	}
-	return s
-}
-
 // --- Internal handlers ---
 
 // handleReady processes the Ready event to discover guilds and channels.
@@ -186,22 +160,17 @@ func (a *Adapter) handleReady(_ *discordgo.Session, r *discordgo.Ready) {
 	log.Info("discord: ready", "guilds", len(r.Guilds))
 
 	for _, guild := range r.Guilds {
-		guildName := guild.ID
-		if g, err := a.session.Guild(guild.ID); err == nil && g.Name != "" {
-			guildName = sanitizeGuildName(g.Name)
-		}
-
 		channels, err := a.session.GuildChannels(guild.ID)
 		if err != nil {
-			log.Warn("discord: failed to list channels", "guild", guildName, "error", err)
+			log.Warn("discord: failed to list channels", "guild", guild.ID, "error", err)
 			continue
 		}
 
 		a.chatMu.Lock()
 		for _, ch := range channels {
 			if ch.Type == discordgo.ChannelTypeGuildText {
-				a.guildChannels[ch.ID] = guildName + ":" + ch.Name
-				log.Info("discord: discovered channel", "channel", guildName+":"+ch.Name, "id", ch.ID)
+				a.guildChannels[ch.ID] = ch.Name
+				log.Info("discord: discovered channel", "channel", ch.Name, "id", ch.ID, "guild", guild.ID)
 			}
 		}
 		a.chatMu.Unlock()
@@ -225,23 +194,12 @@ func (a *Adapter) handleMessage(s *discordgo.Session, m *discordgo.MessageCreate
 		return
 	}
 
-	// Get channel name as "guild:channel" (resolve via API if not cached)
+	// Get channel name
 	a.chatMu.RLock()
 	channelName, ok := a.guildChannels[m.ChannelID]
 	a.chatMu.RUnlock()
 	if !ok {
-		chName := m.ChannelID
-		if ch, err := s.Channel(m.ChannelID); err == nil && ch.Name != "" {
-			chName = ch.Name
-		}
-		guildName := m.GuildID
-		if guild, err := s.Guild(m.GuildID); err == nil && guild.Name != "" {
-			guildName = sanitizeGuildName(guild.Name)
-		}
-		channelName = guildName + ":" + chName
-		a.chatMu.Lock()
-		a.guildChannels[m.ChannelID] = channelName
-		a.chatMu.Unlock()
+		channelName = m.ChannelID
 	}
 
 	sender := m.Author.Username
