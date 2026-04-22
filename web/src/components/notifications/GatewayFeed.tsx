@@ -20,8 +20,10 @@ import {
   dateKey,
   formatDayLabel,
   parseGitHubCard,
+  parseRSSCard,
+  parseWebhookCard,
 } from "./messageUtils";
-import type { GitHubCard } from "./messageUtils";
+import type { GitHubCard, RSSCard, WebhookCard } from "./messageUtils";
 
 /* ── Helpers ──────────────────────────────────────────────────── */
 
@@ -169,10 +171,33 @@ function DiscordGlyph({ size = 11 }: { size?: number }) {
   );
 }
 
+function WhatsAppGlyph({ size = 11 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" style={{ flexShrink: 0 }}>
+      <circle cx="12" cy="12" r="11" fill="#25D366" />
+      <text x="12" y="16" textAnchor="middle" fill="#fff" fontSize="10" fontWeight="bold">W</text>
+    </svg>
+  );
+}
+
+function RSSGlyph({ size = 11 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" style={{ flexShrink: 0 }}>
+      <circle cx="12" cy="12" r="11" fill="#F78422" />
+      <circle cx="8" cy="16" r="2" fill="#fff" />
+      <path d="M6 12a8 8 0 0 1 8 8" stroke="#fff" strokeWidth="2" fill="none" strokeLinecap="round" />
+      <path d="M6 8a12 12 0 0 1 12 12" stroke="#fff" strokeWidth="2" fill="none" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 const PLATFORM_GLYPHS: Record<string, React.FC<{ size?: number }>> = {
   slack: SlackGlyph,
   telegram: TelegramGlyph,
   discord: DiscordGlyph,
+  whatsapp: WhatsAppGlyph,
+  github: ({ size = 11 }) => <GitHubGlyph size={size} />,
+  rss: RSSGlyph,
 };
 
 /* ── GitHub card renderer ────────────────────────────────────── */
@@ -353,6 +378,55 @@ function GitHubCardView({ card }: { card: GitHubCard }) {
               <span style={{ color: "#ef4444" }}>-{card.deletions}</span>
             )}
           </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ── RSS card renderer ──────────────────────────────────────── */
+
+function RSSCardView({ card }: { card: RSSCard }) {
+  const pubDateLabel = card.pubDate && !isNaN(new Date(card.pubDate).getTime())
+    ? formatRelativeTime(card.pubDate) : null;
+  return (
+    <div className="mt-1.5 max-w-lg overflow-hidden" style={{ background: "var(--bc-surface, #151515)", borderRadius: 6, borderLeft: "2px solid #F78422" }}>
+      <div className="flex items-center" style={{ padding: "8px 12px 4px", gap: 7, fontSize: 10.5, color: "var(--bc-muted, #6b6b6b)", fontFamily: "'JetBrains Mono', monospace" }}>
+        <RSSGlyph size={11} />
+        <span style={{ fontSize: 9.5, padding: "1px 5px", borderRadius: 3, background: "var(--bc-surface-hover, #1a1a1a)", color: "var(--bc-muted, #a0a0a0)", textTransform: "uppercase", letterSpacing: 0.5, fontWeight: 600 }}>feed</span>
+        {card.source && <span>{card.source}</span>}
+        {pubDateLabel && <span style={{ marginLeft: "auto" }}>{pubDateLabel}</span>}
+      </div>
+      <div style={{ padding: "4px 12px 10px" }}>
+        <div style={{ fontSize: 13, fontWeight: 500, color: "var(--bc-text, #e5e5e5)", lineHeight: 1.4 }}>
+          {card.link ? (<a href={card.link} target="_blank" rel="noopener noreferrer" className="hover:underline" style={{ color: "var(--bc-text, #e5e5e5)", textDecoration: "none" }}>{card.title}</a>) : card.title}
+        </div>
+        {card.description && <div style={{ fontSize: 12, color: "var(--bc-muted, #a0a0a0)", marginTop: 4, lineHeight: 1.4, maxHeight: 60, overflow: "hidden" }}>{card.description.slice(0, 200)}</div>}
+      </div>
+    </div>
+  );
+}
+
+/* ── Webhook JSON card renderer ────────────────────────────── */
+
+function WebhookCardView({ card }: { card: WebhookCard }) {
+  const [expanded, setExpanded] = useState(false);
+  const preview = useMemo(() => JSON.stringify(card.payload, null, 2), [card.payload]);
+  const short = preview.slice(0, 200);
+  return (
+    <div className="mt-1.5 max-w-lg overflow-hidden" style={{ background: "var(--bc-surface, #151515)", borderRadius: 6, borderLeft: "2px solid #6B7280" }}>
+      <div className="flex items-center" style={{ padding: "8px 12px 4px", gap: 7, fontSize: 10.5, color: "var(--bc-muted, #6b6b6b)", fontFamily: "'JetBrains Mono', monospace" }}>
+        {card.event && <span style={{ fontSize: 9.5, padding: "1px 5px", borderRadius: 3, background: "var(--bc-surface-hover, #1a1a1a)", color: "var(--bc-muted, #a0a0a0)", textTransform: "uppercase", letterSpacing: 0.5, fontWeight: 600 }}>{card.event}</span>}
+        {card.action && <span style={{ color: "var(--bc-muted, #a0a0a0)", fontWeight: 500 }}>{card.action}</span>}
+      </div>
+      <div style={{ padding: "4px 12px 10px" }}>
+        <pre style={{ fontSize: 11, color: "var(--bc-muted, #a0a0a0)", fontFamily: "'JetBrains Mono', monospace", lineHeight: 1.4, whiteSpace: "pre-wrap", wordBreak: "break-all", maxHeight: expanded ? "none" : 80, overflow: "hidden", margin: 0 }}>
+          {expanded ? preview : short}
+        </pre>
+        {preview.length > 200 && (
+          <button type="button" onClick={() => setExpanded((v) => !v)} style={{ fontSize: 10, color: "var(--bc-accent, #f97316)", background: "none", border: "none", cursor: "pointer", padding: "4px 0 0", fontFamily: "'JetBrains Mono', monospace" }}>
+            {expanded ? "collapse" : "expand JSON..."}
+          </button>
         )}
       </div>
     </div>
@@ -1700,6 +1774,8 @@ export function GatewayFeed({
                           const looksLikeWebhook = msg.content.trimStart().startsWith("{") &&
                             /pull_request|"issue"|"ref".*"commits"|"action"/i.test(msg.content);
                           const ghCard = (platform === "github" || looksLikeWebhook) ? parseGitHubCard(msg.content) : null;
+                          const rssCard = platform === "rss" ? parseRSSCard(msg.content) : null;
+                          const webhookCard = !ghCard && !rssCard && platform === "webhook" ? parseWebhookCard(msg.content) : null;
                           const fileAttachments = parseFileAttachments(msg.content);
 
                           return (
@@ -1715,6 +1791,10 @@ export function GatewayFeed({
                               >
                                 {ghCard ? (
                                   <GitHubCardView card={ghCard} />
+                                ) : rssCard ? (
+                                  <RSSCardView card={rssCard} />
+                                ) : webhookCard ? (
+                                  <WebhookCardView card={webhookCard} />
                                 ) : (
                                   <div
                                     className="whitespace-pre-wrap break-words"

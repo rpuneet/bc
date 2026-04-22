@@ -70,10 +70,32 @@ func (h *GatewayHandler) gatewayRouter(w http.ResponseWriter, r *http.Request) {
 		h.gatewayPair(w, r, platform, rest)
 	case rest == "channels" || strings.HasPrefix(rest, "channels/"):
 		h.gatewayChannels(w, r, platform, strings.TrimPrefix(rest, "channels"))
+	case rest == "api" || strings.HasPrefix(rest, "api/"):
+		h.gatewayAPIProxy(w, r, platform, strings.TrimPrefix(rest, "api"))
 	default:
 		// Existing: PATCH /api/gateways/{platform}
 		h.byPlatform(w, r)
 	}
+}
+
+// gatewayAPIProxy forwards requests to /api/gateways/{platform}/api/* to the adapter's HTTP handler.
+func (h *GatewayHandler) gatewayAPIProxy(w http.ResponseWriter, r *http.Request, platform, subpath string) {
+	if h.gw == nil {
+		httpError(w, "gateway manager not available", http.StatusServiceUnavailable)
+		return
+	}
+	adapter := h.gw.GetAdapter(platform)
+	if adapter == nil {
+		httpError(w, "adapter not found: "+platform, http.StatusNotFound)
+		return
+	}
+	handler := adapter.HTTPHandler()
+	if handler == nil {
+		httpError(w, "adapter does not support API proxy: "+platform, http.StatusNotImplemented)
+		return
+	}
+	r.URL.Path = subpath
+	handler.ServeHTTP(w, r)
 }
 
 // gatewayHealth returns live health status for a gateway adapter.
@@ -372,12 +394,20 @@ func (h *GatewayHandler) list(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Enrich with bot name from adapter status (channels come from notify sources, not discovery)
+	// Enrich with bot name and discovered channels from adapter status
 	if h.gw != nil {
+		discovered := h.gw.DiscoveredSources()
 		for i := range platforms {
 			status := h.gw.AdapterStatus(platforms[i].Platform)
 			if status.BotName != "" {
 				platforms[i].BotName = status.BotName
+			}
+			// Populate channels from adapter discovery
+			prefix := platforms[i].Platform + ":"
+			for _, ch := range discovered {
+				if strings.HasPrefix(ch, prefix) {
+					platforms[i].Channels = append(platforms[i].Channels, ch)
+				}
 			}
 		}
 	}

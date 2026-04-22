@@ -105,7 +105,7 @@ func (m *Manager) Start(ctx context.Context) error {
 			defer wg.Done()
 			platformName := adapter.Name()
 			handler := func(n Notification) {
-				m.HandleNotification(platformName, n)
+				m.handleNotification(platformName, n)
 			}
 			if err := adapter.Start(ctx, handler); err != nil && ctx.Err() == nil {
 				log.Error("gateway: adapter stopped with error", "adapter", adapter.Name(), "error", err)
@@ -209,6 +209,13 @@ func (m *Manager) lateDiscovery(ctx context.Context) {
 	}
 }
 
+// GetAdapter returns a registered adapter by name, or nil if not found.
+func (m *Manager) GetAdapter(name string) NotificationAdapter {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.adapters[name]
+}
+
 // AdapterNames returns the names of all registered adapters.
 func (m *Manager) AdapterNames() []string {
 	m.mu.RLock()
@@ -220,11 +227,9 @@ func (m *Manager) AdapterNames() []string {
 	return names
 }
 
-// GetAdapter returns a registered adapter by name, or nil if not found.
-func (m *Manager) GetAdapter(name string) NotificationAdapter {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-	return m.adapters[name]
+// HandleNotification processes an inbound notification from a specific platform.
+func (m *Manager) HandleNotification(platform string, n Notification) {
+	m.handleNotification(platform, n)
 }
 
 // AdapterStatus returns the connection status for a specific adapter.
@@ -334,10 +339,8 @@ func (m *Manager) DiscoveredSources() []string {
 	return names
 }
 
-// HandleNotification processes an event from a NotificationAdapter into bc.
-// Exported so that dynamically paired adapters (e.g., WhatsApp QR) can route
-// messages through the manager without going through Start().
-func (m *Manager) HandleNotification(platform string, n Notification) {
+// handleNotification processes an event from a NotificationAdapter into bc.
+func (m *Manager) handleNotification(platform string, n Notification) {
 	channelName := n.Channel
 	if channelName == "" {
 		channelName = "default"

@@ -31,7 +31,7 @@ All communication flows through **bcd** as the central hub. No component talks d
 
 ## Notification Delivery Flow
 
-External platform events are delivered to subscribed agents via the notification gateway. Each adapter follows a 3-part pattern: Connect (authenticate), Listen (receive events), and API Proxy (expose platform API to agents).
+External platform events are delivered to subscribed agents via the notification gateway:
 
 ```mermaid
 sequenceDiagram
@@ -44,7 +44,7 @@ sequenceDiagram
     participant Web as Web UI
 
     Platform->>Adapter: Inbound event (message/webhook)
-    Adapter->>Notify: Dispatch(Notification{Raw JSON})
+    Adapter->>Notify: Dispatch(channel, sender, content)
     Notify->>DB: Save message + query subscribers
     Notify->>Hub: Publish gateway.message event
     Hub->>Web: SSE: gateway.message
@@ -53,10 +53,6 @@ sequenceDiagram
         Notify->>Agent: tmux send-keys (JSON payload)
         Notify->>DB: Log delivery (delivered/failed)
     end
-
-    Note over Agent,Platform: Agents respond via API proxy
-    Agent->>Adapter: /api/gateways/{platform}/api/*
-    Adapter->>Platform: Forward with stored credentials
 ```
 
 See [Notification Architecture](../architecture/notifications.md) for the full notification system design.

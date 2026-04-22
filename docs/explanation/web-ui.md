@@ -281,7 +281,6 @@ Navigation is a static `NAV_ITEMS` array in `Layout.tsx`. Each entry has a `to` 
 | `api.getChannelHistory(name, limit, before)` | `GET /api/channels/:name/history` | Notifications |
 | `api.getChannelSubscriptions(channel)` | `GET /api/gateways/:gw/channels/:ch/agents` or `/api/notify/subscriptions/:channel` | Notifications |
 | `api.getChannelActivity(channel, limit)` | `GET /api/gateways/:gw/channels/:ch/activity` or `/api/notify/activity/:channel` | Notifications |
-| `api.proxyPlatformAPI(gateway, path)` | `* /api/gateways/:gw/api/*` | Notifications (agent API calls) |
 | `api.getCostSummary()` | `GET /api/costs` | Dashboard, Costs |
 | `api.getCostByAgent()` | `GET /api/costs/agents` | Costs |
 | `api.listRoles()` | `GET /api/roles` | Roles |
@@ -420,7 +419,7 @@ graph TD
 |---|---|---|---|
 | Dashboard | 5s | -- | `listAgents`, `listGateways`, `getCostSummary` |
 | Agents | 5s | `agent.state_changed` | `listAgents`, `startAgent`, `stopAgent`, `sendToAgent` |
-| Notifications | 10s (list) | `gateway.message` | `listGateways`, `listNotificationSources`, `getChannelHistory`, `getChannelActivity`. Sidebar shows channels from platform API (`adapter.Channels()`), per-platform UI renderers for activity. |
+| Notifications | 10s (list) | `gateway.message` | `listGateways`, `listNotificationSources`, `getChannelHistory`, `getChannelActivity` |
 | Costs | 10s | -- | `getCostSummary`, `getCostByAgent` |
 | Roles | 30s | -- | `listRoles` + full CRUD |
 | Tools | 30s | -- | `listTools` |
