@@ -1,7 +1,14 @@
 import type { ChannelMessage } from "../../api/client";
 
 /** Gateway notification sources are bridges to external platforms — read-only activity feeds. */
-export const GATEWAY_PREFIXES = ["slack:", "telegram:", "discord:"];
+export const GATEWAY_PREFIXES = [
+  "slack:", "telegram:", "discord:", "whatsapp:", "github:", "gitlab:",
+  "webhook:", "rss:", "mqtt:", "irc:", "matrix:", "mattermost:", "reddit:",
+  "twitter:", "notion:", "jira:", "linear:", "sentry:", "pagerduty:",
+  "datadog:", "grafana:", "stripe:", "bitbucket:", "signal:", "msteams:",
+  "feishu:", "googlechat:", "line:", "netlify:", "vercel:", "twitch:",
+  "nostr:", "homeassistant:", "imessage:",
+];
 
 export function isGatewaySource(name: string): boolean {
   return GATEWAY_PREFIXES.some((p) => name.startsWith(p));
@@ -278,5 +285,57 @@ export function parseGitHubCard(content: string): GitHubCard | null {
     };
   }
 
+  return null;
+}
+
+/* ── RSS / webhook card parsing ───────────────────────────────── */
+
+export interface RSSCard {
+  title: string;
+  link?: string;
+  description?: string;
+  pubDate?: string;
+  source?: string;
+}
+
+/** Try to extract an RSS entry card from a message. */
+export function parseRSSCard(content: string): RSSCard | null {
+  try {
+    const obj = JSON.parse(content);
+    if (obj && typeof obj === "object" && obj.title && (obj.link || obj.url)) {
+      return {
+        title: obj.title,
+        link: obj.link ?? obj.url,
+        description: obj.description ?? obj.summary,
+        pubDate: obj.pubDate ?? obj.published ?? obj.date,
+        source: obj.feed ?? obj.source,
+      };
+    }
+  } catch {
+    // not JSON
+  }
+  return null;
+}
+
+export interface WebhookCard {
+  event?: string;
+  action?: string;
+  payload: Record<string, unknown>;
+}
+
+/** Try to parse a generic webhook JSON payload. */
+export function parseWebhookCard(content: string): WebhookCard | null {
+  try {
+    const obj = JSON.parse(content);
+    if (obj && typeof obj === "object" && !Array.isArray(obj)) {
+      return {
+        event: obj.event_type ?? obj.event ?? obj.type,
+        action: obj.action,
+        payload: obj,
+      };
+    }
+  } catch {
+    // not JSON
+  }
   return null;
 }
