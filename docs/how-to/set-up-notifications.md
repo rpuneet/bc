@@ -4,7 +4,7 @@ This guide walks through connecting external platforms to bc and routing notific
 
 ## Overview
 
-bc routes inbound events from external platforms (Slack, Telegram, Discord, WhatsApp, GitHub, and others) to subscribed agents. Each adapter connects to a platform, listens for events, and exposes the platform's native API via a proxy. Agents receive notifications as JSON payloads in their tmux or Docker sessions and interact with platforms through the API proxy at `/api/gateways/{platform}/api/*`.
+bc routes inbound events from external platforms (Slack, Telegram, GitHub, and others) to subscribed agents. Agents receive notifications as JSON payloads in their tmux or Docker sessions and respond using platform APIs directly.
 
 ## 1. Add a Notification Source
 

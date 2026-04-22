@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { api } from "../../api/client";
 import type { Agent, GatewayStatus } from "../../api/client";
-import { PLATFORM_ICON_MAP } from "./PlatformIcons";
 
 export interface PlatformDef {
   key: string;
@@ -185,7 +184,7 @@ export const PLATFORMS: PlatformDef[] = [
     ],
   },
   {
-    key: "gitlab", status: "coming_soon" as const,
+    key: "gitlab", status: "webhook" as const,
     label: "GitLab",
     icon: "\u{1F98A}",
     description: "Merge request and pipeline webhooks",
@@ -199,7 +198,7 @@ export const PLATFORMS: PlatformDef[] = [
     ],
   },
   {
-    key: "bitbucket", status: "coming_soon" as const,
+    key: "bitbucket", status: "webhook" as const,
     label: "Bitbucket",
     icon: "\u{1FAA3}",
     description: "Push and PR webhooks",
@@ -213,7 +212,7 @@ export const PLATFORMS: PlatformDef[] = [
     ],
   },
   {
-    key: "vercel", status: "coming_soon" as const,
+    key: "vercel", status: "webhook" as const,
     label: "Vercel",
     icon: "\u25B2",
     description: "Deployment and build webhooks",
@@ -227,7 +226,7 @@ export const PLATFORMS: PlatformDef[] = [
     ],
   },
   {
-    key: "netlify", status: "coming_soon" as const,
+    key: "netlify", status: "webhook" as const,
     label: "Netlify",
     icon: "\u25C6",
     description: "Deploy and build notifications",
@@ -243,7 +242,7 @@ export const PLATFORMS: PlatformDef[] = [
 
   // --- Monitoring ---
   {
-    key: "sentry", status: "coming_soon" as const,
+    key: "sentry", status: "webhook" as const,
     label: "Sentry",
     icon: "\u{1F41B}",
     description: "Error and issue alerts",
@@ -257,7 +256,7 @@ export const PLATFORMS: PlatformDef[] = [
     ],
   },
   {
-    key: "pagerduty", status: "coming_soon" as const,
+    key: "pagerduty", status: "webhook" as const,
     label: "PagerDuty",
     icon: "\u{1F6A8}",
     description: "Incident and alert webhooks",
@@ -271,7 +270,7 @@ export const PLATFORMS: PlatformDef[] = [
     ],
   },
   {
-    key: "datadog", status: "coming_soon" as const,
+    key: "datadog", status: "webhook" as const,
     label: "Datadog",
     icon: "\u{1F415}",
     description: "Monitor and event webhooks",
@@ -285,7 +284,7 @@ export const PLATFORMS: PlatformDef[] = [
     ],
   },
   {
-    key: "grafana", status: "coming_soon" as const,
+    key: "grafana", status: "webhook" as const,
     label: "Grafana",
     icon: "\u{1F4CA}",
     description: "Alert notifications",
@@ -311,7 +310,7 @@ export const PLATFORMS: PlatformDef[] = [
 
   // --- Payments ---
   {
-    key: "stripe", status: "coming_soon" as const,
+    key: "stripe", status: "webhook" as const,
     label: "Stripe",
     icon: "\u{1F4B3}",
     description: "Payment and subscription events",
@@ -509,12 +508,7 @@ export function PlatformChooser({ onSelect, onClose }: { onSelect: (key: string)
 
         {/* Icon + name */}
         <div className="flex items-center gap-2.5 mb-2">
-          {(() => {
-            const PIcon = PLATFORM_ICON_MAP[p.key];
-            return PIcon
-              ? <span className="flex items-center justify-center w-7 h-7"><PIcon size={22} /></span>
-              : <span className="text-2xl leading-none select-none">{p.icon}</span>;
-          })()}
+          <span className="text-2xl leading-none select-none">{p.icon}</span>
           <span className={`text-sm font-semibold text-bc-text transition-colors ${!isComingSoon ? "group-hover:text-bc-accent" : ""}`}>
             {p.label}
           </span>
@@ -892,12 +886,7 @@ export function SetupWizard({
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-bc-border">
           <h2 className="text-[15px] font-semibold text-bc-text flex items-center gap-2">
-            {(() => {
-              const WizIcon = PLATFORM_ICON_MAP[platform];
-              return WizIcon
-                ? <span className="flex items-center"><WizIcon size={18} /></span>
-                : <span>{config.icon}</span>;
-            })()}
+            <span>{config.icon}</span>
             {step === "credentials" ? `Connect ${config.label}` : `${config.label} Setup`}
           </h2>
           <button
