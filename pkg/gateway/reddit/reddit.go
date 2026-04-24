@@ -122,12 +122,6 @@ func (a *Adapter) poll(ctx context.Context) {
 		return
 	}
 
-	a.mu.Lock()
-	a.connected = true
-	a.lastFetchAt = time.Now()
-	a.lastError = ""
-	a.mu.Unlock()
-
 	var listing struct {
 		Data struct {
 			Children []struct {
@@ -140,8 +134,15 @@ func (a *Adapter) poll(ctx context.Context) {
 		} `json:"data"`
 	}
 	if err := json.Unmarshal(body, &listing); err != nil {
+		a.setError(fmt.Sprintf("decode: %v", err))
 		return
 	}
+
+	a.mu.Lock()
+	a.connected = true
+	a.lastFetchAt = time.Now()
+	a.lastError = ""
+	a.mu.Unlock()
 
 	var count int
 	for _, child := range listing.Data.Children {

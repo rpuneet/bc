@@ -177,25 +177,6 @@ func (a *Adapter) SendFile(ctx context.Context, channelID, sender, filename stri
 	return nil
 }
 
-// Health returns nil if the adapter is connected and operational.
-func (a *Adapter) Health(ctx context.Context) error {
-	if a.api == nil {
-		return fmt.Errorf("slack: not connected")
-	}
-	if _, err := a.api.AuthTestContext(ctx); err != nil {
-		a.chatMu.Lock()
-		a.connected = false
-		a.lastError = err.Error()
-		a.chatMu.Unlock()
-		return fmt.Errorf("slack: auth test failed: %w", err)
-	}
-	a.chatMu.Lock()
-	a.connected = true
-	a.lastError = ""
-	a.chatMu.Unlock()
-	return nil
-}
-
 // --- Internal helpers ---
 
 // discoverChannels lists channels the bot is a member of.

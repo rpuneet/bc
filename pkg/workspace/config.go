@@ -987,14 +987,16 @@ type FeishuGatewayConfig struct {
 
 // MattermostGatewayConfig configures the Mattermost outgoing webhook adapter.
 type MattermostGatewayConfig struct {
+	URL     string `json:"url,omitempty"`
 	Token   string `json:"token,omitempty"`
 	Enabled bool   `json:"enabled"`
 }
 
-// IRCGatewayConfig configures the IRC socket adapter (placeholder).
+// IRCGatewayConfig configures the IRC socket adapter.
 type IRCGatewayConfig struct {
-	Server  string `json:"server"`
-	Enabled bool   `json:"enabled"`
+	Server   string   `json:"server"`
+	Channels []string `json:"channels,omitempty"`
+	Enabled  bool     `json:"enabled"`
 }
 
 // NostrGatewayConfig configures the Nostr relay WebSocket adapter (placeholder).

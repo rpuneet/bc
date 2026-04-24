@@ -134,25 +134,6 @@ func (a *Adapter) Send(_ context.Context, channelID, sender, content string) err
 	return nil
 }
 
-// Health returns nil if the adapter is connected and operational.
-func (a *Adapter) Health(_ context.Context) error {
-	if a.session == nil {
-		return fmt.Errorf("discord: not connected")
-	}
-	if a.session.State == nil || a.session.State.User == nil {
-		a.chatMu.Lock()
-		a.connected = false
-		a.lastError = "session not ready"
-		a.chatMu.Unlock()
-		return fmt.Errorf("discord: session not ready")
-	}
-	a.chatMu.Lock()
-	a.connected = true
-	a.lastError = ""
-	a.chatMu.Unlock()
-	return nil
-}
-
 // --- Internal handlers ---
 
 // handleReady processes the Ready event to discover guilds and channels.

@@ -14,7 +14,6 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
-	"strings"
 	"sync"
 	"time"
 
@@ -27,13 +26,11 @@ import (
 	bcgateway "github.com/rpuneet/bc/pkg/gateway"
 	bcdiscord "github.com/rpuneet/bc/pkg/gateway/discord"
 	bcgithub "github.com/rpuneet/bc/pkg/gateway/github"
-	bchomeassistant "github.com/rpuneet/bc/pkg/gateway/homeassistant"
 	bcimessage "github.com/rpuneet/bc/pkg/gateway/imessage"
 	bcirc "github.com/rpuneet/bc/pkg/gateway/irc"
 	bcmatrix "github.com/rpuneet/bc/pkg/gateway/matrix"
 	bcmattermost "github.com/rpuneet/bc/pkg/gateway/mattermost"
 	bcmqtt "github.com/rpuneet/bc/pkg/gateway/mqtt"
-	bcnostr "github.com/rpuneet/bc/pkg/gateway/nostr"
 	bcnotion "github.com/rpuneet/bc/pkg/gateway/notion"
 	bcreddit "github.com/rpuneet/bc/pkg/gateway/reddit"
 	bcrss "github.com/rpuneet/bc/pkg/gateway/rss"
@@ -628,6 +625,7 @@ func buildGatewayManager(ctx context.Context, ws *bcworkspace.Workspace, notifyS
 			adapterName = "mattermost:" + label
 		}
 		m.Register(bcmattermost.New(adapterName, bcmattermost.Config{
+			URL:   c.URL,
 			Token: c.Token,
 		}))
 		log.Info("gateway: mattermost adapter registered", "name", adapterName)
@@ -645,7 +643,7 @@ func buildGatewayManager(ctx context.Context, ws *bcworkspace.Workspace, notifyS
 		m.Register(bcirc.New(adapterName, bcirc.Config{
 			Server:   c.Server,
 			Nick:     "bc-bot",
-			Channels: []string{}, // TODO: add channels to config
+			Channels: c.Channels,
 			UseTLS:   true,
 		}))
 		log.Info("gateway: irc adapter registered", "name", adapterName)
@@ -698,19 +696,6 @@ func buildGatewayManager(ctx context.Context, ws *bcworkspace.Workspace, notifyS
 		log.Info("gateway: signal adapter registered", "name", adapterName)
 	}
 
-	// Register Nostr socket adapters.
-	for label, c := range gw.Nostrs {
-		if !c.Enabled {
-			continue
-		}
-		adapterName := "nostr"
-		if label != "" {
-			adapterName = "nostr:" + label
-		}
-		m.Register(bcnostr.NewNamed(adapterName, c.RelayURL))
-		log.Info("gateway: nostr adapter registered", "name", adapterName)
-	}
-
 	// Register iMessage poll adapters.
 	for label, c := range gw.IMessages {
 		if !c.Enabled || c.APIURL == "" {
@@ -722,19 +707,6 @@ func buildGatewayManager(ctx context.Context, ws *bcworkspace.Workspace, notifyS
 		}
 		m.Register(bcimessage.NewNamed(adapterName, c.APIURL, c.Password, c.Interval))
 		log.Info("gateway: imessage adapter registered", "name", adapterName)
-	}
-
-	// Register Home Assistant socket adapters.
-	for label, c := range gw.HomeAssistants {
-		if !c.Enabled {
-			continue
-		}
-		adapterName := "homeassistant"
-		if label != "" {
-			adapterName = "homeassistant:" + label
-		}
-		m.Register(bchomeassistant.NewNamed(adapterName, c.URL, c.Token))
-		log.Info("gateway: homeassistant adapter registered", "name", adapterName)
 	}
 
 	// Register Reddit poll adapters.
@@ -849,7 +821,3 @@ func (p *channelPersister) LoadChannels(ctx context.Context) ([]bcgateway.Persis
 	return result, nil
 }
 
-// Minor helper: ensure string conversion doesn't drop trailing slashes in
-// future path-manipulation callers. Currently unused but kept as a
-// safety hook for phase M5 where wsRoot may come from external input.
-var _ = strings.TrimSpace

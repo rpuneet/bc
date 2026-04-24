@@ -11,7 +11,7 @@ export interface PlatformDef {
   description: string;
   color: string;
   category: string;
-  status: "ready" | "webhook" | "coming_soon";
+  status: "ready" | "webhook" | "poll" | "coming_soon";
   fields: { key: string; label: string; placeholder: string; required?: boolean; type?: string }[];
   docs: string[];
   pairFlow?: "qr";
@@ -80,7 +80,7 @@ export const PLATFORMS: PlatformDef[] = [
     pairFlow: "qr" as const,
   },
   {
-    key: "signal", status: "coming_soon" as const,
+    key: "signal", status: "poll" as const,
     label: "Signal",
     icon: "\u{1F510}",
     description: "Private encrypted messaging",
@@ -343,7 +343,7 @@ export const PLATFORMS: PlatformDef[] = [
     ],
   },
   {
-    key: "notion", status: "coming_soon" as const,
+    key: "notion", status: "poll" as const,
     label: "Notion",
     icon: "\u{1F4DD}",
     description: "Database and page change polling",
@@ -360,7 +360,7 @@ export const PLATFORMS: PlatformDef[] = [
     ],
   },
   {
-    key: "reddit", status: "coming_soon" as const,
+    key: "reddit", status: "poll" as const,
     label: "Reddit",
     icon: "\u{1F4E2}",
     description: "Subreddit and post monitoring",
@@ -380,7 +380,7 @@ export const PLATFORMS: PlatformDef[] = [
     docs: [],
   },
   {
-    key: "twitter", status: "coming_soon" as const,
+    key: "twitter", status: "poll" as const,
     label: "Twitter / X",
     icon: "\u{1F426}",
     description: "Mentions and timeline events",
