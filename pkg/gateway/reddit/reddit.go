@@ -116,6 +116,11 @@ func (a *Adapter) poll(ctx context.Context) {
 	}
 	defer resp.Body.Close() //nolint:errcheck
 
+	if resp.StatusCode != http.StatusOK {
+		a.setError(fmt.Sprintf("HTTP %d", resp.StatusCode))
+		return
+	}
+
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		a.setError(fmt.Sprintf("read body: %v", err))
