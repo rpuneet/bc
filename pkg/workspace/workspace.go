@@ -67,6 +67,12 @@ func Init(rootDir string) (*Workspace, error) {
 		return nil, err
 	}
 
+	// Verify this is a git repository — bc requires git for agent worktrees.
+	gitDir := filepath.Join(absRoot, ".git")
+	if _, statErr := os.Stat(gitDir); os.IsNotExist(statErr) {
+		return nil, fmt.Errorf("not a git repository: %s\nRun 'git init' first, then 'bc init'", absRoot)
+	}
+
 	if homeErr := EnsureBCHome(); homeErr != nil {
 		return nil, homeErr
 	}
@@ -126,6 +132,12 @@ func Load(rootDir string) (*Workspace, error) {
 	absRoot, err := filepath.Abs(rootDir)
 	if err != nil {
 		return nil, err
+	}
+
+	// Verify this is a git repository.
+	gitDir := filepath.Join(absRoot, ".git")
+	if _, statErr := os.Stat(gitDir); os.IsNotExist(statErr) {
+		return nil, fmt.Errorf("not a git repository: %s", absRoot)
 	}
 
 	// Try global state dir first (~/.bc/workspaces/<id>/)
