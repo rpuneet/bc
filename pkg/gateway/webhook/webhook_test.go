@@ -230,6 +230,133 @@ func TestMethodNotAllowed(t *testing.T) {
 	}
 }
 
+func TestWebhookBodySizeLimit(t *testing.T) {
+	tests := []struct {
+		name     string
+		bodySize int
+		wantOK   bool
+	}{
+		{
+			name:     "small payload accepted",
+			bodySize: 100,
+			wantOK:   true,
+		},
+		{
+			name:     "exactly 1MB accepted",
+			bodySize: 1 << 20, // 1MB
+			wantOK:   true,
+		},
+		{
+			name:     "over 1MB truncated silently",
+			bodySize: (1 << 20) + 1000, // 1MB + 1000 bytes
+			wantOK:   true,             // handler reads up to 1MB, rest is ignored
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var received []byte
+			a := New()
+			a.handler = func(n gateway.Notification) {
+				received = n.Raw
+			}
+
+			// Build a JSON body of the desired size.
+			// Use a repeated character payload embedded in JSON.
+			payload := `{"data":"` + strings.Repeat("x", tt.bodySize-12) + `"}`
+			req := httptest.NewRequest(http.MethodPost, "/hooks/webhook", strings.NewReader(payload))
+			rr := httptest.NewRecorder()
+			a.HTTPHandler().ServeHTTP(rr, req)
+
+			if tt.wantOK && rr.Code != http.StatusOK {
+				t.Fatalf("got status %d, want 200", rr.Code)
+			}
+
+			// For oversized payloads, verify the raw data is capped at 1MB
+			if tt.bodySize > 1<<20 && len(received) > 1<<20 {
+				t.Errorf("received %d bytes, expected at most %d (1MB limit)", len(received), 1<<20)
+			}
+		})
+	}
+}
+
+func TestWebhookConstantTimeSecretComparison(t *testing.T) {
+	// Verify that valid and invalid secrets produce correct results.
+	// This tests that the auth validation works correctly for both paths,
+	// which is the observable behavior of constant-time comparison.
+	secret := "s3cr3t-t0k3n" //nolint:gosec // test-only constant
+
+	tests := []struct {
+		name       string
+		authHeader string
+		secretHdr  string
+		wantStatus int
+	}{
+		{
+			name:       "correct bearer token accepted",
+			authHeader: "Bearer s3cr3t-t0k3n",
+			wantStatus: http.StatusOK,
+		},
+		{
+			name:       "correct X-Webhook-Secret accepted",
+			secretHdr:  "s3cr3t-t0k3n",
+			wantStatus: http.StatusOK,
+		},
+		{
+			name:       "wrong bearer token rejected",
+			authHeader: "Bearer wrong-token",
+			wantStatus: http.StatusUnauthorized,
+		},
+		{
+			name:       "wrong X-Webhook-Secret rejected",
+			secretHdr:  "wrong-token",
+			wantStatus: http.StatusUnauthorized,
+		},
+		{
+			name:       "empty secret header rejected",
+			secretHdr:  "",
+			wantStatus: http.StatusUnauthorized,
+		},
+		{
+			name:       "similar-length wrong secret rejected",
+			authHeader: "Bearer s3cr3t-t0k3o", // off by one char
+			wantStatus: http.StatusUnauthorized,
+		},
+		{
+			name:       "bearer prefix without token rejected",
+			authHeader: "Bearer ",
+			wantStatus: http.StatusUnauthorized,
+		},
+		{
+			name:       "basic auth scheme rejected",
+			authHeader: "Basic czNjcjN0LXQwazNu",
+			wantStatus: http.StatusUnauthorized,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			a := NewWithSecret("webhook", secret)
+			a.handler = func(_ gateway.Notification) {}
+
+			req := httptest.NewRequest(http.MethodPost, "/hooks/webhook", strings.NewReader(`{"test":true}`))
+			if tt.authHeader != "" {
+				req.Header.Set("Authorization", tt.authHeader)
+			}
+			if tt.secretHdr != "" {
+				req.Header.Set("X-Webhook-Secret", tt.secretHdr)
+			}
+
+			rr := httptest.NewRecorder()
+			a.HTTPHandler().ServeHTTP(rr, req)
+
+			if rr.Code != tt.wantStatus {
+				t.Errorf("got status %d, want %d", rr.Code, tt.wantStatus)
+			}
+		})
+	}
+}
+
 func TestStatusUpdatesAfterWebhook(t *testing.T) {
 	a := New()
 	a.handler = func(_ gateway.Notification) {}
