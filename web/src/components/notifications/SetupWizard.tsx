@@ -732,8 +732,12 @@ function AgentSubscriptionStep({
   const toggleAgent = (name: string) => {
     setSelected((prev) => {
       const next = new Set(prev);
-      if (next.has(name)) { next.delete(name); mentionOnly.delete(name); setMentionOnly(new Set(mentionOnly)); }
-      else next.add(name);
+      if (next.has(name)) {
+        next.delete(name);
+        setMentionOnly((m) => { const nm = new Set(m); nm.delete(name); return nm; });
+      } else {
+        next.add(name);
+      }
       return next;
     });
   };
@@ -843,7 +847,7 @@ function linkifyDoc(text: string): React.ReactNode {
   const parts = text.split(urlRe);
   if (parts.length === 1) return text;
   return parts.map((part, i) =>
-    urlRe.test(part) ? (
+    /^https?:\/\//.test(part) ? (
       <a key={i} href={part} target="_blank" rel="noopener noreferrer" style={{ color: "var(--bc-accent, #f97316)", textDecoration: "underline" }}>
         {part.replace(/^https?:\/\//, "")}
       </a>
@@ -871,6 +875,8 @@ export function SetupWizard({
   const [step, setStep] = useState<"credentials" | "agents">("credentials");
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
   const [pairState, setPairState] = useState<string>("idle");
+  const qrPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const qrTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Escape to close
   useEffect(() => {
@@ -880,6 +886,14 @@ export function SetupWizard({
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
   }, [onClose]);
+
+  // Cleanup QR poll interval on unmount.
+  useEffect(() => {
+    return () => {
+      if (qrPollRef.current) clearInterval(qrPollRef.current);
+      if (qrTimeoutRef.current) clearTimeout(qrTimeoutRef.current);
+    };
+  }, []);
 
   if (!config) {
     return createPortal(
@@ -907,11 +921,13 @@ export function SetupWizard({
       // Poll for connection.
       const pollId = setInterval(async () => {
         const s = await fetch(`/api/gateways/${platform}/pair/status`).then(r => r.json());
-        if (s.state === "connected") { clearInterval(pollId); setPairState("connected"); onConnected(); }
-        else if (s.state === "error") { clearInterval(pollId); setPairState("error"); setError(s.error); }
+        if (s.state === "connected") { clearInterval(pollId); qrPollRef.current = null; setPairState("connected"); onConnected(); }
+        else if (s.state === "error") { clearInterval(pollId); qrPollRef.current = null; setPairState("error"); setError(s.error); }
       }, 2000);
+      qrPollRef.current = pollId;
       // Stop polling after 2 minutes.
-      setTimeout(() => clearInterval(pollId), 120000);
+      const timeoutId = setTimeout(() => { clearInterval(pollId); qrPollRef.current = null; }, 120000);
+      qrTimeoutRef.current = timeoutId;
     } catch (e) { setError(String(e)); setPairState("error"); }
   };
 
