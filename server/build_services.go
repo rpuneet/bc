@@ -820,4 +820,3 @@ func (p *channelPersister) LoadChannels(ctx context.Context) ([]bcgateway.Persis
 	}
 	return result, nil
 }
-

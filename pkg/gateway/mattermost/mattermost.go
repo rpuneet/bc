@@ -184,4 +184,3 @@ func (a *Adapter) handleRaw(msg []byte) {
 		})
 	}
 }
-
