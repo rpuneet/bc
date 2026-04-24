@@ -86,8 +86,15 @@ export const PLATFORMS: PlatformDef[] = [
     description: "Private encrypted messaging",
     color: "#3A76F0",
     category: "Chat",
-    fields: [],
-    docs: [],
+    fields: [
+      { key: "api_url", label: "signal-cli REST API URL", placeholder: "http://localhost:8080", required: true },
+      { key: "interval", label: "Poll Interval (seconds)", placeholder: "10", type: "number" },
+    ],
+    docs: [
+      "Run signal-cli-rest-api: docker run -p 8080:8080 bbernhard/signal-cli-rest-api",
+      "Register or link your phone number via the signal-cli REST API.",
+      "Enter the API URL (default: http://localhost:8080).",
+    ],
   },
   {
     key: "matrix", status: "ready" as const,
@@ -98,7 +105,7 @@ export const PLATFORMS: PlatformDef[] = [
     category: "Chat",
     fields: [
       { key: "homeserver", label: "Homeserver URL", type: "text" as const, placeholder: "https://matrix.org" },
-      { key: "access_token", label: "Access Token", type: "password" as const, placeholder: "syt_..." },
+      { key: "token", label: "Access Token", type: "password" as const, placeholder: "syt_..." },
     ],
     docs: ["Get an access token from Element → Settings → Help & About → Access Token."],
   },
@@ -165,8 +172,14 @@ export const PLATFORMS: PlatformDef[] = [
     description: "Connect to any IRC server with TLS",
     color: "#6B7280",
     category: "Chat",
-    fields: [],
-    docs: [],
+    fields: [
+      { key: "server", label: "Server", placeholder: "irc.libera.chat:6697", required: true },
+      { key: "channels", label: "Channels (comma-separated)", placeholder: "#general,#dev" },
+    ],
+    docs: [
+      "Enter the IRC server address with port (TLS enabled by default).",
+      "List channels to join, separated by commas.",
+    ],
   },
 
   // --- Code & DevOps ---
@@ -350,7 +363,7 @@ export const PLATFORMS: PlatformDef[] = [
     color: "#000000",
     category: "Content",
     fields: [
-      { key: "api_token", label: "API Token", placeholder: "secret_..." },
+      { key: "token", label: "API Token", placeholder: "secret_..." },
       { key: "interval", label: "Poll Interval (seconds)", placeholder: "300", type: "number" },
     ],
     docs: [
@@ -442,6 +455,24 @@ export const PLATFORMS: PlatformDef[] = [
       { key: "topic", label: "Topic", type: "text" as const, placeholder: "home/sensors/#" },
     ],
     docs: ["Connect to any MQTT broker (Mosquitto, HiveMQ, etc.)."],
+  },
+  {
+    key: "imessage", status: "poll" as const,
+    label: "iMessage",
+    icon: "\u{1F4AC}",
+    description: "iMessage via BlueBubbles API (macOS only)",
+    color: "#34C759",
+    category: "Chat",
+    fields: [
+      { key: "api_url", label: "BlueBubbles API URL", placeholder: "http://localhost:1234", required: true },
+      { key: "password", label: "API Password", placeholder: "BlueBubbles password", type: "password" as const },
+      { key: "interval", label: "Poll Interval (seconds)", placeholder: "10", type: "number" },
+    ],
+    docs: [
+      "Install BlueBubbles on a Mac: bluebubbles.app",
+      "Enable the API server in BlueBubbles settings.",
+      "Enter the API URL and password from BlueBubbles.",
+    ],
   },
 ];
 
@@ -878,7 +909,11 @@ export function SetupWizard({
           return;
         }
         if (val) {
-          body[field.key] = field.type === "number" ? Number(val) : val;
+          if (field.key === "channels") {
+            body[field.key] = val.split(",").map((s: string) => s.trim()).filter(Boolean);
+          } else {
+            body[field.key] = field.type === "number" ? Number(val) : val;
+          }
         }
       }
 
