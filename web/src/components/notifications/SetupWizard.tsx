@@ -11,7 +11,7 @@ export interface PlatformDef {
   description: string;
   color: string;
   category: string;
-  status: "ready" | "webhook" | "coming_soon";
+  status: "ready" | "webhook" | "poll" | "coming_soon";
   fields: { key: string; label: string; placeholder: string; required?: boolean; type?: string }[];
   docs: string[];
   pairFlow?: "qr";
@@ -31,7 +31,7 @@ export const PLATFORMS: PlatformDef[] = [
       { key: "app_token", label: "App Token", placeholder: "xapp-..." },
     ],
     docs: [
-      "Create a Slack app at api.slack.com/apps, enable Socket Mode.",
+      "Create a Slack app → https://api.slack.com/apps — enable Socket Mode.",
       "Add scopes: channels:read, chat:write, connections:write.",
       "Copy Bot Token from OAuth & Permissions, App Token from Basic Information.",
       "Install the app and invite the bot to your channels.",
@@ -46,7 +46,7 @@ export const PLATFORMS: PlatformDef[] = [
     category: "Chat",
     fields: [{ key: "bot_token", label: "Bot Token", placeholder: "1234567890:AAH..." }],
     docs: [
-      "Message @BotFather on Telegram, send /newbot.",
+      "Message @BotFather on Telegram → https://t.me/BotFather — send /newbot.",
       "Copy the bot token and add the bot to your group.",
     ],
   },
@@ -59,8 +59,8 @@ export const PLATFORMS: PlatformDef[] = [
     category: "Chat",
     fields: [{ key: "bot_token", label: "Bot Token", placeholder: "MTIz..." }],
     docs: [
-      "Create an app at discord.com/developers/applications.",
-      "Enable MESSAGE CONTENT INTENT, copy the bot token.",
+      "Create an app → https://discord.com/developers/applications",
+      "Enable MESSAGE CONTENT INTENT under Bot settings, copy the bot token.",
       "Generate an invite URL with bot scope and add to your server.",
     ],
   },
@@ -80,14 +80,21 @@ export const PLATFORMS: PlatformDef[] = [
     pairFlow: "qr" as const,
   },
   {
-    key: "signal", status: "coming_soon" as const,
+    key: "signal", status: "poll" as const,
     label: "Signal",
     icon: "\u{1F510}",
     description: "Private encrypted messaging",
     color: "#3A76F0",
     category: "Chat",
-    fields: [],
-    docs: [],
+    fields: [
+      { key: "api_url", label: "signal-cli REST API URL", placeholder: "http://localhost:8080", required: true },
+      { key: "interval", label: "Poll Interval (seconds)", placeholder: "10", type: "number" },
+    ],
+    docs: [
+      "Install signal-cli-rest-api → https://github.com/bbernhard/signal-cli-rest-api",
+      "Run: docker run -p 8080:8080 bbernhard/signal-cli-rest-api",
+      "Register or link your phone number, then enter the API URL.",
+    ],
   },
   {
     key: "matrix", status: "ready" as const,
@@ -98,9 +105,12 @@ export const PLATFORMS: PlatformDef[] = [
     category: "Chat",
     fields: [
       { key: "homeserver", label: "Homeserver URL", type: "text" as const, placeholder: "https://matrix.org" },
-      { key: "access_token", label: "Access Token", type: "password" as const, placeholder: "syt_..." },
+      { key: "token", label: "Access Token", type: "password" as const, placeholder: "syt_..." },
     ],
-    docs: ["Get an access token from Element → Settings → Help & About → Access Token."],
+    docs: [
+      "Download Element → https://element.io/download",
+      "Get an access token: Element → Settings → Help & About → Access Token.",
+    ],
   },
   {
     key: "msteams", status: "coming_soon" as const,
@@ -154,8 +164,8 @@ export const PLATFORMS: PlatformDef[] = [
       { key: "token", label: "Personal Access Token", type: "password" as const, placeholder: "abc123..." },
     ],
     docs: [
-      "Go to Account Settings → Security → Personal Access Tokens.",
-      "Create a token and paste it above.",
+      "Mattermost docs → https://docs.mattermost.com/developer/personal-access-tokens.html",
+      "Go to Account Settings → Security → Personal Access Tokens, create and paste above.",
     ],
   },
   {
@@ -165,8 +175,14 @@ export const PLATFORMS: PlatformDef[] = [
     description: "Connect to any IRC server with TLS",
     color: "#6B7280",
     category: "Chat",
-    fields: [],
-    docs: [],
+    fields: [
+      { key: "server", label: "Server", placeholder: "irc.libera.chat:6697", required: true },
+      { key: "channels", label: "Channels (comma-separated)", placeholder: "#general,#dev" },
+    ],
+    docs: [
+      "Popular servers: irc.libera.chat:6697, irc.oftc.net:6697 (TLS).",
+      "List channels to join, separated by commas (e.g. #general,#dev).",
+    ],
   },
 
   // --- Code & DevOps ---
@@ -179,7 +195,7 @@ export const PLATFORMS: PlatformDef[] = [
     category: "Code & DevOps",
     fields: [{ key: "secret", label: "Webhook Secret", placeholder: "your-webhook-secret" }],
     docs: [
-      "Create a webhook in your repo settings (Settings > Webhooks).",
+      "Create a webhook → your repo → Settings → Webhooks.",
       "Set the payload URL to your bc server\u2019s /hooks/github endpoint.",
       "Set the secret here to match the webhook secret.",
     ],
@@ -343,31 +359,39 @@ export const PLATFORMS: PlatformDef[] = [
     ],
   },
   {
-    key: "notion", status: "coming_soon" as const,
+    key: "notion", status: "poll" as const,
     label: "Notion",
     icon: "\u{1F4DD}",
     description: "Database and page change polling",
     color: "#000000",
     category: "Content",
     fields: [
-      { key: "api_token", label: "API Token", placeholder: "secret_..." },
+      { key: "token", label: "API Token", placeholder: "secret_..." },
       { key: "interval", label: "Poll Interval (seconds)", placeholder: "300", type: "number" },
     ],
     docs: [
-      "Create an internal integration at notion.so/my-integrations.",
+      "Create an integration → https://www.notion.so/my-integrations",
       "Copy the API token and share target pages/databases with the integration.",
       "Set a poll interval in seconds (default: 300).",
     ],
   },
   {
-    key: "reddit", status: "coming_soon" as const,
+    key: "reddit", status: "poll" as const,
     label: "Reddit",
     icon: "\u{1F4E2}",
     description: "Subreddit and post monitoring",
     color: "#FF4500",
     category: "Content",
-    fields: [],
-    docs: [],
+    fields: [
+      { key: "subreddit", label: "Subreddit", placeholder: "golang", required: true },
+      { key: "bearer_token", label: "Bearer Token", placeholder: "OAuth bearer token", required: true },
+      { key: "interval", label: "Poll Interval (seconds)", placeholder: "60", type: "number" },
+    ],
+    docs: [
+      "Create a Reddit app → https://www.reddit.com/prefs/apps (script type).",
+      "Generate an OAuth bearer token using client credentials.",
+      "Enter the subreddit name (without r/) and poll interval.",
+    ],
   },
   {
     key: "twitch", status: "coming_soon" as const,
@@ -380,14 +404,22 @@ export const PLATFORMS: PlatformDef[] = [
     docs: [],
   },
   {
-    key: "twitter", status: "coming_soon" as const,
+    key: "twitter", status: "poll" as const,
     label: "Twitter / X",
     icon: "\u{1F426}",
     description: "Mentions and timeline events",
     color: "#1DA1F2",
     category: "Content",
-    fields: [],
-    docs: [],
+    fields: [
+      { key: "bearer_token", label: "Bearer Token", placeholder: "Twitter API v2 bearer token", required: true },
+      { key: "user_id", label: "User ID", placeholder: "Numeric user ID to monitor", required: true },
+      { key: "interval", label: "Poll Interval (seconds)", placeholder: "60", type: "number" },
+    ],
+    docs: [
+      "Create a developer app → https://developer.twitter.com/en/portal/dashboard",
+      "Copy the Bearer Token from the app settings.",
+      "Find your numeric user ID (not @handle).",
+    ],
   },
   {
     key: "nostr", status: "coming_soon" as const,
@@ -425,7 +457,28 @@ export const PLATFORMS: PlatformDef[] = [
       { key: "broker_url", label: "Broker URL", type: "text" as const, placeholder: "tcp://localhost:1883" },
       { key: "topic", label: "Topic", type: "text" as const, placeholder: "home/sensors/#" },
     ],
-    docs: ["Connect to any MQTT broker (Mosquitto, HiveMQ, etc.)."],
+    docs: [
+      "MQTT broker docs → https://mosquitto.org/ or https://www.hivemq.com/",
+      "Enter your broker URL and the topic pattern to subscribe to.",
+    ],
+  },
+  {
+    key: "imessage", status: "poll" as const,
+    label: "iMessage",
+    icon: "\u{1F4AC}",
+    description: "iMessage via BlueBubbles API (macOS only)",
+    color: "#34C759",
+    category: "Chat",
+    fields: [
+      { key: "api_url", label: "BlueBubbles API URL", placeholder: "http://localhost:1234", required: true },
+      { key: "password", label: "API Password", placeholder: "BlueBubbles password", type: "password" as const },
+      { key: "interval", label: "Poll Interval (seconds)", placeholder: "10", type: "number" },
+    ],
+    docs: [
+      "Install BlueBubbles on a Mac → https://bluebubbles.app",
+      "Enable the API server in BlueBubbles settings.",
+      "Enter the API URL and password from BlueBubbles.",
+    ],
   },
 ];
 
@@ -539,6 +592,9 @@ export function PlatformChooser({ onSelect, onClose }: { onSelect: (key: string)
               <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: p.color, opacity: 0.7 }} />
               Ready to connect
             </span>
+          )}
+          {!isConnected && p.status === "poll" && (
+            <span className="text-[10px] text-blue-400/60">Polling &middot; needs API token</span>
           )}
           {!isConnected && isComingSoon && (
             <span className="text-[10px] text-bc-muted/40">Coming soon</span>
@@ -676,8 +732,12 @@ function AgentSubscriptionStep({
   const toggleAgent = (name: string) => {
     setSelected((prev) => {
       const next = new Set(prev);
-      if (next.has(name)) { next.delete(name); mentionOnly.delete(name); setMentionOnly(new Set(mentionOnly)); }
-      else next.add(name);
+      if (next.has(name)) {
+        next.delete(name);
+        setMentionOnly((m) => { const nm = new Set(m); nm.delete(name); return nm; });
+      } else {
+        next.add(name);
+      }
       return next;
     });
   };
@@ -780,6 +840,23 @@ function AgentSubscriptionStep({
   );
 }
 
+/* ---------- Linkify URLs in doc strings ---------- */
+
+function linkifyDoc(text: string): React.ReactNode {
+  const urlRe = /(https?:\/\/[^\s,)]+)/g;
+  const parts = text.split(urlRe);
+  if (parts.length === 1) return text;
+  return parts.map((part, i) =>
+    /^https?:\/\//.test(part) ? (
+      <a key={i} href={part} target="_blank" rel="noopener noreferrer" style={{ color: "var(--bc-accent, #f97316)", textDecoration: "underline" }}>
+        {part.replace(/^https?:\/\//, "")}
+      </a>
+    ) : (
+      <span key={i}>{part}</span>
+    ),
+  );
+}
+
 /* ---------- Setup wizard (credential form + agent subscription) ---------- */
 
 export function SetupWizard({
@@ -798,6 +875,8 @@ export function SetupWizard({
   const [step, setStep] = useState<"credentials" | "agents">("credentials");
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
   const [pairState, setPairState] = useState<string>("idle");
+  const qrPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const qrTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Escape to close
   useEffect(() => {
@@ -807,6 +886,14 @@ export function SetupWizard({
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
   }, [onClose]);
+
+  // Cleanup QR poll interval on unmount.
+  useEffect(() => {
+    return () => {
+      if (qrPollRef.current) clearInterval(qrPollRef.current);
+      if (qrTimeoutRef.current) clearTimeout(qrTimeoutRef.current);
+    };
+  }, []);
 
   if (!config) {
     return createPortal(
@@ -834,11 +921,13 @@ export function SetupWizard({
       // Poll for connection.
       const pollId = setInterval(async () => {
         const s = await fetch(`/api/gateways/${platform}/pair/status`).then(r => r.json());
-        if (s.state === "connected") { clearInterval(pollId); setPairState("connected"); onConnected(); }
-        else if (s.state === "error") { clearInterval(pollId); setPairState("error"); setError(s.error); }
+        if (s.state === "connected") { clearInterval(pollId); qrPollRef.current = null; setPairState("connected"); onConnected(); }
+        else if (s.state === "error") { clearInterval(pollId); qrPollRef.current = null; setPairState("error"); setError(s.error); }
       }, 2000);
+      qrPollRef.current = pollId;
       // Stop polling after 2 minutes.
-      setTimeout(() => clearInterval(pollId), 120000);
+      const timeoutId = setTimeout(() => { clearInterval(pollId); qrPollRef.current = null; }, 120000);
+      qrTimeoutRef.current = timeoutId;
     } catch (e) { setError(String(e)); setPairState("error"); }
   };
 
@@ -859,7 +948,11 @@ export function SetupWizard({
           return;
         }
         if (val) {
-          body[field.key] = field.type === "number" ? Number(val) : val;
+          if (field.key === "channels") {
+            body[field.key] = val.split(",").map((s: string) => s.trim()).filter(Boolean);
+          } else {
+            body[field.key] = field.type === "number" ? Number(val) : val;
+          }
         }
       }
 
@@ -951,7 +1044,7 @@ export function SetupWizard({
                 {config.docs.map((docStep, i) => (
                   <li key={i} className="flex gap-2 text-[12px] text-bc-text/70">
                     <span className="text-bc-accent font-mono shrink-0">{i + 1}.</span>
-                    <span>{docStep}</span>
+                    <span>{linkifyDoc(docStep)}</span>
                   </li>
                 ))}
               </ol>

@@ -11,9 +11,6 @@ export function isGatewaySource(name: string): boolean {
   return GATEWAY_PREFIXES.some((p) => name.startsWith(p));
 }
 
-/** @deprecated Use isGatewaySource instead */
-export const isGatewayChannel = isGatewaySource;
-
 /** Extract platform name from gateway source for display. */
 export function gatewayPlatform(name: string): string | null {
   for (const p of GATEWAY_PREFIXES) {
@@ -29,9 +26,6 @@ export function sourcePlatform(name: string): string {
   }
   return "internal";
 }
-
-/** @deprecated Use sourcePlatform instead */
-export const channelPlatform = sourcePlatform;
 
 export interface MessageGroup {
   sender: string;

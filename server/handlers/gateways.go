@@ -94,8 +94,9 @@ func (h *GatewayHandler) gatewayAPIProxy(w http.ResponseWriter, r *http.Request,
 		httpError(w, "adapter does not support API proxy: "+platform, http.StatusNotImplemented)
 		return
 	}
-	r.URL.Path = subpath
-	handler.ServeHTTP(w, r)
+	r2 := r.Clone(r.Context())
+	r2.URL.Path = subpath
+	handler.ServeHTTP(w, r2)
 }
 
 // gatewayHealth returns live health status for a gateway adapter.
@@ -593,6 +594,7 @@ func (h *GatewayHandler) legacyChannelHistory(w http.ResponseWriter, r *http.Req
 			limit = n
 		}
 	}
+	limit = clampInt(limit, 1, 200)
 	var before int64
 	if s := r.URL.Query().Get("before"); s != "" {
 		if n, err := strconv.ParseInt(s, 10, 64); err == nil {

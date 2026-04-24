@@ -1389,16 +1389,6 @@ export function GatewayFeed({
             )}
           </div>
 
-          {/* Popover footer */}
-          <div className="flex" style={{ padding: "8px 10px", borderTop: "1px solid var(--bc-border, #222222)", gap: 6, background: "var(--bc-surface-hover, #1a1a1a)" }}>
-            <button type="button" className="flex items-center justify-center flex-1" style={{ padding: "5px 8px", borderRadius: 5, background: "var(--bc-surface-hover, #212121)", color: "var(--bc-muted, #a0a0a0)", fontSize: 11, fontWeight: 500, cursor: "pointer", border: "none", gap: 5 }}>
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="6" cy="6" r="2.5" /><circle cx="18" cy="18" r="2.5" /><circle cx="18" cy="6" r="2.5" />
-                <path d="M6 8v8a2 2 0 0 0 2 2h7" /><path d="M18 8.5v7" />
-              </svg>
-              <span>Routing rules</span>
-            </button>
-          </div>
         </div>
       )}
 
@@ -1560,12 +1550,12 @@ export function GatewayFeed({
                   <span style={{ color: "var(--bc-muted, #a0a0a0)", fontFamily: "'JetBrains Mono', monospace" }}>
                     #{channelLabel}
                   </span>
-                  . Agents posting here are routed via your{" "}
+                  . Agents posting here are managed via{" "}
                   <span
                     style={{ color: "var(--bc-accent, #f97316)", cursor: "pointer" }}
                     onClick={() => setShowAgents(true)}
                   >
-                    routing rules
+                    agent subscriptions
                   </span>
                   .
                   {platform && (

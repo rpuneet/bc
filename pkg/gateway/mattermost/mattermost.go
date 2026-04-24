@@ -6,7 +6,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"strings"
 	"sync"
@@ -184,39 +183,4 @@ func (a *Adapter) handleRaw(msg []byte) {
 			Raw:       msg,
 		})
 	}
-}
-
-// getChannels fetches channels via REST API (for discovery).
-func (a *Adapter) getChannels() []gateway.ChannelInfo { //nolint:unused // reserved for future channel discovery
-	url := a.cfg.URL + "/api/v4/users/me/channels"
-	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, url, nil)
-	if err != nil {
-		return nil
-	}
-	req.Header.Set("Authorization", "Bearer "+a.cfg.Token)
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return nil
-	}
-	defer resp.Body.Close()          //nolint:errcheck
-	body, _ := io.ReadAll(resp.Body) //nolint:errcheck
-
-	var channels []struct {
-		ID          string `json:"id"`
-		DisplayName string `json:"display_name"`
-		Name        string `json:"name"`
-	}
-	if err := json.Unmarshal(body, &channels); err != nil {
-		return nil
-	}
-
-	result := make([]gateway.ChannelInfo, 0, len(channels))
-	for _, ch := range channels {
-		name := ch.DisplayName
-		if name == "" {
-			name = ch.Name
-		}
-		result = append(result, gateway.ChannelInfo{ID: ch.ID, Name: name, Platform: "mattermost"})
-	}
-	return result
 }

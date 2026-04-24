@@ -63,15 +63,6 @@ type DeliveryEntry struct {
 	ID       int64          `json:"id"`
 }
 
-// GatewayInfo holds gateway state from the database.
-type GatewayInfo struct {
-	LastSeenAt *time.Time `json:"last_seen_at,omitempty"`
-	UpdatedAt  time.Time  `json:"updated_at"`
-	Name       string     `json:"name"`
-	Enabled    bool       `json:"enabled"`
-	Connected  bool       `json:"connected"`
-}
-
 // truncate returns the first n characters of s.
 func truncate(s string, n int) string {
 	runes := []rune(s)
