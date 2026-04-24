@@ -366,8 +366,16 @@ export const PLATFORMS: PlatformDef[] = [
     description: "Subreddit and post monitoring",
     color: "#FF4500",
     category: "Content",
-    fields: [],
-    docs: [],
+    fields: [
+      { key: "subreddit", label: "Subreddit", placeholder: "golang", required: true },
+      { key: "bearer_token", label: "Bearer Token", placeholder: "OAuth bearer token", required: true },
+      { key: "interval", label: "Poll Interval (seconds)", placeholder: "60", type: "number" },
+    ],
+    docs: [
+      "Create a Reddit app at reddit.com/prefs/apps (script type).",
+      "Generate an OAuth bearer token using client credentials.",
+      "Enter the subreddit name (without r/) and poll interval.",
+    ],
   },
   {
     key: "twitch", status: "coming_soon" as const,
@@ -386,8 +394,16 @@ export const PLATFORMS: PlatformDef[] = [
     description: "Mentions and timeline events",
     color: "#1DA1F2",
     category: "Content",
-    fields: [],
-    docs: [],
+    fields: [
+      { key: "bearer_token", label: "Bearer Token", placeholder: "Twitter API v2 bearer token", required: true },
+      { key: "user_id", label: "User ID", placeholder: "Numeric user ID to monitor", required: true },
+      { key: "interval", label: "Poll Interval (seconds)", placeholder: "60", type: "number" },
+    ],
+    docs: [
+      "Create a Twitter developer app at developer.twitter.com.",
+      "Copy the Bearer Token from the app settings.",
+      "Find your numeric user ID (not @handle).",
+    ],
   },
   {
     key: "nostr", status: "coming_soon" as const,
@@ -539,6 +555,9 @@ export function PlatformChooser({ onSelect, onClose }: { onSelect: (key: string)
               <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: p.color, opacity: 0.7 }} />
               Ready to connect
             </span>
+          )}
+          {!isConnected && p.status === "poll" && (
+            <span className="text-[10px] text-blue-400/60">Polling &middot; needs API token</span>
           )}
           {!isConnected && isComingSoon && (
             <span className="text-[10px] text-bc-muted/40">Coming soon</span>
