@@ -836,6 +836,23 @@ function AgentSubscriptionStep({
   );
 }
 
+/* ---------- Linkify URLs in doc strings ---------- */
+
+function linkifyDoc(text: string): React.ReactNode {
+  const urlRe = /(https?:\/\/[^\s,)]+)/g;
+  const parts = text.split(urlRe);
+  if (parts.length === 1) return text;
+  return parts.map((part, i) =>
+    urlRe.test(part) ? (
+      <a key={i} href={part} target="_blank" rel="noopener noreferrer" style={{ color: "var(--bc-accent, #f97316)", textDecoration: "underline" }}>
+        {part.replace(/^https?:\/\//, "")}
+      </a>
+    ) : (
+      <span key={i}>{part}</span>
+    ),
+  );
+}
+
 /* ---------- Setup wizard (credential form + agent subscription) ---------- */
 
 export function SetupWizard({
@@ -1011,7 +1028,7 @@ export function SetupWizard({
                 {config.docs.map((docStep, i) => (
                   <li key={i} className="flex gap-2 text-[12px] text-bc-text/70">
                     <span className="text-bc-accent font-mono shrink-0">{i + 1}.</span>
-                    <span>{docStep}</span>
+                    <span>{linkifyDoc(docStep)}</span>
                   </li>
                 ))}
               </ol>
