@@ -333,32 +333,6 @@ function NotificationNavTree() {
         );
       })}
 
-      {/* Routing rules */}
-      <button
-        type="button"
-        onClick={() => window.alert("Routing rules configuration coming soon. Use per-agent subscription controls in the agents popover.")}
-        className="w-full flex items-center"
-        style={{
-          gap: 8,
-          height: 26,
-          padding: "0 8px",
-          marginTop: 4,
-          borderRadius: 5,
-          fontSize: 12,
-          color: "var(--bc-muted, #6b6b6b)",
-          cursor: "pointer",
-          border: "1px dashed var(--bc-border, #2a2a2a)",
-          background: "none",
-          whiteSpace: "nowrap",
-        }}
-      >
-        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-          <circle cx="6" cy="6" r="2.5" /><circle cx="18" cy="18" r="2.5" /><circle cx="18" cy="6" r="2.5" />
-          <path d="M6 8v8a2 2 0 0 0 2 2h7" /><path d="M18 8.5v7" />
-        </svg>
-        <span>Routing rules</span>
-      </button>
-
       {/* Connect app */}
       <button
         type="button"
