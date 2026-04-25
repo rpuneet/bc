@@ -2,7 +2,9 @@ package agent
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -138,7 +140,7 @@ func (s *SQLiteStore) Load(name string) (*Agent, error) {
 
 	a, err := scanAgentRow(row)
 	if err != nil {
-		if err.Error() == "sql: no rows in result set" {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}
 		return nil, err
@@ -152,7 +154,7 @@ func (s *SQLiteStore) LoadRoot() (*Agent, error) {
 
 	a, err := scanAgentRow(row)
 	if err != nil {
-		if err.Error() == "sql: no rows in result set" {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}
 		return nil, err

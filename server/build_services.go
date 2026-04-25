@@ -126,7 +126,6 @@ func buildWorkspaceServicesFromWS(ctx context.Context, globals *Globals, ws *bcw
 		agentMgr.SetRoleManager(ws.RoleManager)
 	}
 	addCloser(func() error { return agentMgr.Close() })
-	agentSvc := bcagent.NewAgentService(agentMgr, hub, nil)
 
 	// Background container metrics collector (Docker backend only).
 	if containerBackend != nil {
@@ -173,6 +172,13 @@ func buildWorkspaceServicesFromWS(ctx context.Context, globals *Globals, ws *bcw
 			runCostImportLoop(svcCtx, costImporter)
 		}()
 	}
+
+	// Wire cost querier into agent service (after cost store is initialized).
+	var costQuerier bcagent.CostQuerier
+	if costStore != nil {
+		costQuerier = &costStoreAdapter{store: costStore}
+	}
+	agentSvc := bcagent.NewAgentService(agentMgr, hub, costQuerier)
 
 	// Cron store + scheduler.
 	var cronStore *cron.Store
@@ -275,7 +281,7 @@ func buildWorkspaceServicesFromWS(ctx context.Context, globals *Globals, ws *bcw
 	if ns, err := bcnotify.OpenStore(ws.RootDir); err != nil {
 		log.Warn("notify store unavailable", "error", err, "workspace", ws.RootDir)
 	} else {
-		notifyService = bcnotify.NewService(ns, agentSvc, hub)
+		notifyService = bcnotify.NewServiceWithContext(svcCtx, ns, agentSvc, hub)
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -819,4 +825,24 @@ func (p *channelPersister) LoadChannels(ctx context.Context) ([]bcgateway.Persis
 		}
 	}
 	return result, nil
+}
+
+// costStoreAdapter bridges cost.Store → bcagent.CostQuerier.
+type costStoreAdapter struct {
+	store *cost.Store
+}
+
+func (a *costStoreAdapter) AgentCostSummary(agentID string) (*bcagent.CostSummary, error) {
+	sum, err := a.store.AgentSummary(context.Background(), agentID)
+	if err != nil {
+		return nil, err
+	}
+	return &bcagent.CostSummary{
+		AgentID:      sum.AgentID,
+		InputTokens:  sum.InputTokens,
+		OutputTokens: sum.OutputTokens,
+		TotalTokens:  sum.TotalTokens,
+		TotalCostUSD: sum.TotalCostUSD,
+		RequestCount: sum.RecordCount,
+	}, nil
 }

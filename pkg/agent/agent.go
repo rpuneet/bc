@@ -1304,7 +1304,11 @@ func (m *Manager) setupLogPipe(ctx context.Context, name, workspace string) stri
 	// Truncate if over max size
 	truncateLogFile(logPath, m.maxLogBytes)
 
-	if err := m.runtimeForAgent(name).PipePane(ctx, name, logPath); err != nil {
+	m.mu.RLock()
+	rt := m.runtimeForAgent(name)
+	m.mu.RUnlock()
+
+	if err := rt.PipePane(ctx, name, logPath); err != nil {
 		log.Warn("failed to start pipe-pane", "agent", name, "error", err)
 		return ""
 	}
@@ -2146,6 +2150,7 @@ func (m *Manager) SendToAgent(ctx context.Context, name, message string) error {
 func (m *Manager) CaptureOutput(ctx context.Context, name string, lines int) (string, error) {
 	m.mu.RLock()
 	agent := m.agents[name]
+	rt := m.runtimeForAgent(name)
 	m.mu.RUnlock()
 
 	// Try log file first
@@ -2158,7 +2163,7 @@ func (m *Manager) CaptureOutput(ctx context.Context, name string, lines int) (st
 	}
 
 	// Fall back to tmux capture-pane
-	return m.runtimeForAgent(name).Capture(ctx, name, lines)
+	return rt.Capture(ctx, name, lines)
 }
 
 // tailFile reads the last N lines from a file.
