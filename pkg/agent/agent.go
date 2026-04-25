@@ -1520,7 +1520,7 @@ func (m *Manager) StopAgent(ctx context.Context, name string) error {
 	if !exists {
 		m.mu.RUnlock()
 		log.Warn("agent not found", "name", name)
-		return fmt.Errorf("agent %s not found", name)
+		return fmt.Errorf("agent %s: %w", name, ErrNotFound)
 	}
 	rt := m.runtimeForAgent(name)
 	stateDir := m.stateDir
@@ -1603,7 +1603,7 @@ func (m *Manager) StopAgentTree(ctx context.Context, name string) error {
 func (m *Manager) collectAgentTree(name string) ([]agentTreeEntry, error) {
 	agent, exists := m.agents[name]
 	if !exists {
-		return nil, fmt.Errorf("agent %s not found", name)
+		return nil, fmt.Errorf("agent %s: %w", name, ErrNotFound)
 	}
 
 	var entries []agentTreeEntry
@@ -1647,7 +1647,7 @@ func (m *Manager) DeleteAgentWithOptions(ctx context.Context, name string, opts 
 	agent, exists := m.agents[name]
 	if !exists {
 		m.mu.RUnlock()
-		return fmt.Errorf("agent %s not found", name)
+		return fmt.Errorf("agent %s: %w", name, ErrNotFound)
 	}
 	rt := m.runtimeForAgent(name)
 	workspacePath := m.workspacePath
@@ -1747,7 +1747,7 @@ func (m *Manager) RenameAgent(ctx context.Context, oldName, newName string) erro
 	agent, exists := m.agents[oldName]
 	if !exists {
 		m.mu.Unlock()
-		return fmt.Errorf("agent %s not found", oldName)
+		return fmt.Errorf("agent %s: %w", oldName, ErrNotFound)
 	}
 	if _, newExists := m.agents[newName]; newExists {
 		m.mu.Unlock()
@@ -1756,7 +1756,7 @@ func (m *Manager) RenameAgent(ctx context.Context, oldName, newName string) erro
 	// Agent must be stopped — rename while running is unsafe
 	if agent.State != StateStopped && agent.State != StateError {
 		m.mu.Unlock()
-		return fmt.Errorf("agent %q must be stopped before renaming (state: %s)", oldName, agent.State)
+		return fmt.Errorf("agent %q must be stopped before renaming (state: %s): %w", oldName, agent.State, ErrInvalidState)
 	}
 	rt := m.runtimeForAgent(oldName)
 	m.mu.Unlock()
@@ -1923,7 +1923,7 @@ func (m *Manager) SetArchived(name string, archived bool) error {
 	defer m.mu.Unlock()
 	a, exists := m.agents[name]
 	if !exists {
-		return fmt.Errorf("agent %s not found", name)
+		return fmt.Errorf("agent %s: %w", name, ErrNotFound)
 	}
 	if archived {
 		if a.ArchivedAt != nil {
@@ -2090,7 +2090,7 @@ func (m *Manager) UpdateAgentState(name string, state State, task string) error 
 	agent, exists := m.agents[name]
 	if !exists {
 		m.mu.Unlock()
-		return fmt.Errorf("agent %s not found", name)
+		return fmt.Errorf("agent %s: %w", name, ErrNotFound)
 	}
 
 	if err := ValidateTransition(agent.State, state); err != nil {
@@ -2123,7 +2123,7 @@ func (m *Manager) SetAgentTeam(name, team string) error {
 
 	agent, exists := m.agents[name]
 	if !exists {
-		return fmt.Errorf("agent %s not found", name)
+		return fmt.Errorf("agent %s: %w", name, ErrNotFound)
 	}
 
 	agent.Team = team
@@ -2231,7 +2231,7 @@ func (m *Manager) FollowOutput(ctx context.Context, name string, lines int, w io
 	m.mu.RUnlock()
 
 	if a == nil {
-		return fmt.Errorf("agent %q not found", name)
+		return fmt.Errorf("agent %q: %w", name, ErrNotFound)
 	}
 
 	// No log file — fall back to one-shot capture
