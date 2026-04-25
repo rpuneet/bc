@@ -318,29 +318,11 @@ func buildWorkspaceServicesFromWS(ctx context.Context, globals *Globals, ws *bcw
 		wg:           &wg,
 	}
 
-	// Populate the legacy flat Services bundle so the existing handler
-	// constructors in server.New() still receive a fully-wired payload
-	// during phases M1-M4.
-	svc.Services = Services{
-		Agents:        agentSvc,
-		Notify:        notifyService,
-		Costs:         costStore,
-		CostImporter:  costImporter,
-		Cron:          cronStore,
-		CronScheduler: cronSched,
-		Secrets:       secretStore,
-		MCP:           mcpStore,
-		Tools:         toolStore,
-		Templates:     tmplStore,
-		EventLog:      eventLog,
-		EventWriter:   eventWriter,
-		WS:            ws,
-		Gateway:       gwManager,
-	}
+	// Propagate global-scoped stores onto the per-workspace bundle so
+	// that projections (e.g. workspaceViewFromServices, NewWithManager)
+	// can reach them without a separate Globals reference.
 	if globals != nil {
-		svc.Services.Stats = globals.Stats
-		svc.Services.Registry = globals.Registry
-		svc.Services.Deps = globals.Deps
+		svc.Stats = globals.Stats
 	}
 
 	// Closer runs addCloser funcs in reverse order. cancel+wg.Wait are

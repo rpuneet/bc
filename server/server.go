@@ -105,10 +105,9 @@ type Server struct {
 }
 
 // NewWithManager creates a bcd server using the multi-workspace primitives.
-// It derives the launch-workspace Services bundle from mgr.Active() (for
-// registered handlers that still need closure wiring) and wires the manager
-// into the scope middleware. Phase M4: the canonical constructor going
-// forward. `New` remains for tests that assemble Services directly.
+// It projects the active workspace's named fields into a flat Services
+// struct for the handler constructors, then wires the manager into the
+// scope middleware. `New` remains for tests that assemble Services directly.
 func NewWithManager(cfg Config, mgr *WorkspaceManager, globals *Globals, staticFiles fs.FS) *Server {
 	if mgr == nil {
 		// Caller error — but surface quickly via a Services-only constructor.
@@ -118,7 +117,7 @@ func NewWithManager(cfg Config, mgr *WorkspaceManager, globals *Globals, staticF
 	var svc Services
 	var hub *ws.Hub
 	if active != nil {
-		svc = active.Services
+		svc = servicesFromWorkspace(active)
 		svc.WorkspaceManager = mgr
 		hub = active.Hub
 	} else {
@@ -139,6 +138,29 @@ func NewWithManager(cfg Config, mgr *WorkspaceManager, globals *Globals, staticF
 		}
 	}
 	return New(cfg, svc, hub, staticFiles)
+}
+
+// servicesFromWorkspace projects a *WorkspaceServices onto the flat Services
+// struct consumed by handler constructors. This is the single point of
+// translation between the two representations.
+func servicesFromWorkspace(ws *WorkspaceServices) Services {
+	return Services{
+		Agents:        ws.Agents,
+		Costs:         ws.Costs,
+		CostImporter:  ws.CostImporter,
+		Cron:          ws.Cron,
+		CronScheduler: ws.CronSched,
+		Secrets:       ws.Secrets,
+		MCP:           ws.MCP,
+		Tools:         ws.Tools,
+		Templates:     ws.Templates,
+		Stats:         ws.Stats,
+		EventLog:      ws.Events,
+		EventWriter:   ws.EventWriter,
+		WS:            ws.Workspace,
+		Gateway:       ws.Gateway,
+		Notify:        ws.Notify,
+	}
 }
 
 // New creates a bcd server with the given config, services, SSE hub, and optional static files.
