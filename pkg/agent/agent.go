@@ -354,6 +354,7 @@ type Agent struct {
 	ArchivedAt     *time.Time   `json:"archived_at,omitempty"`
 	RolePrompt     *AgentMemory `json:"memory,omitempty"`
 	Workspace      string       `json:"workspace"`
+	RepoRoot       string       `json:"repo_root,omitempty"`
 	ID             string       `json:"id"`
 	Name           string       `json:"name"`
 	Task           string       `json:"task,omitempty"`
@@ -1169,6 +1170,7 @@ func (m *Manager) createAgent(ctx context.Context, opts SpawnOptions) (*Agent, e
 		Role:           role,
 		State:          StateStarting,
 		Workspace:      wsPath,
+		RepoRoot:       wsPath,
 		Session:        name,
 		Tool:           effectiveTool,
 		ParentID:       parentID,

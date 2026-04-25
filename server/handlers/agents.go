@@ -195,6 +195,7 @@ type agentDTO struct { //nolint:govet // field order matches JSON/API contract
 	SessionID    string         `json:"session_id,omitempty"`
 	ParentID     string         `json:"parent_id,omitempty"`
 	ID           string         `json:"id,omitempty"`
+	RepoRoot     string         `json:"repo_root,omitempty"`
 	MCPServers   []string       `json:"mcp_servers,omitempty"`
 	Children     []string       `json:"children,omitempty"`
 	TotalCostUSD float64        `json:"total_cost_usd"`
@@ -232,6 +233,7 @@ func toDTO(a *agent.Agent) agentDTO {
 		UpdatedAt:  a.UpdatedAt,
 		StoppedAt:  a.StoppedAt,
 		ArchivedAt: a.ArchivedAt,
+		RepoRoot:   a.RepoRoot,
 	}
 }
 

@@ -64,6 +64,7 @@ export interface Agent {
   total_tokens?: number;
   runtime_backend?: string;
   mcp_servers?: string[];
+  repo_root?: string;
 }
 
 export interface AgentConfig {

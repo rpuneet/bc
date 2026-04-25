@@ -75,6 +75,7 @@ func createAgentsTable(d *db.DB) error {
 	_, _ = d.ExecContext(ctx, `ALTER TABLE agents ADD COLUMN created_at TEXT`)                //nolint:errcheck // ignore if already exists
 	_, _ = d.ExecContext(ctx, `ALTER TABLE agents ADD COLUMN stopped_at TEXT`)                //nolint:errcheck // ignore if already exists
 	_, _ = d.ExecContext(ctx, `ALTER TABLE agents ADD COLUMN deleted_at TEXT`)                //nolint:errcheck // ignore if already exists
+	_, _ = d.ExecContext(ctx, `ALTER TABLE agents ADD COLUMN repo_root TEXT DEFAULT ''`)      //nolint:errcheck // ignore if already exists
 
 	// agent_stats: time-series Docker resource samples.
 	statsSchema := `
@@ -118,8 +119,8 @@ func (s *SQLiteStore) Save(ctx context.Context, a *Agent) error {
 		 worktree_dir, log_file, hooked_work, children,
 		 is_root, crash_count, last_crash_time, recovered_from,
 		 runtime_backend, session_id, created_at, stopped_at, deleted_at,
-		 started_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		 started_at, updated_at, repo_root)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		a.Name, string(a.Role), string(a.State),
 		nullStr(a.Tool), nullStr(a.ParentID), nullStr(a.Team), nullStr(a.Task),
 		nullStr(a.Session), a.Workspace,
@@ -129,7 +130,7 @@ func (s *SQLiteStore) Save(ctx context.Context, a *Agent) error {
 		nullTime(a.LastCrashTime), nullStr(a.RecoveredFrom),
 		nullStr(a.RuntimeBackend), nullStr(a.SessionID),
 		formatTime(createdAt), nullTime(a.StoppedAt), nullTime(a.DeletedAt),
-		formatTime(a.StartedAt), formatTime(now),
+		formatTime(a.StartedAt), formatTime(now), nullStr(a.RepoRoot),
 	)
 	return err
 }
@@ -212,8 +213,8 @@ func (s *SQLiteStore) SaveAll(ctx context.Context, agents map[string]*Agent) err
 		 worktree_dir, log_file, hooked_work, children,
 		 is_root, crash_count, last_crash_time, recovered_from,
 		 runtime_backend, session_id, created_at, stopped_at, deleted_at,
-		 started_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+		 started_at, updated_at, repo_root)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
 	if err != nil {
 		return err
 	}
@@ -239,7 +240,7 @@ func (s *SQLiteStore) SaveAll(ctx context.Context, agents map[string]*Agent) err
 			nullTime(a.LastCrashTime), nullStr(a.RecoveredFrom),
 			nullStr(a.RuntimeBackend), nullStr(a.SessionID),
 			formatTime(createdAt), nullTime(a.StoppedAt), nullTime(a.DeletedAt),
-			formatTime(a.StartedAt), formatTime(now),
+			formatTime(a.StartedAt), formatTime(now), nullStr(a.RepoRoot),
 		)
 		if err != nil {
 			return fmt.Errorf("save agent %s: %w", a.Name, err)
@@ -301,13 +302,13 @@ const agentSelectCols = `SELECT name, role, state, tool, parent_id, team, task, 
 	       worktree_dir, log_file, hooked_work, children,
 	       is_root, crash_count, last_crash_time, recovered_from,
 	       runtime_backend, session_id, created_at, stopped_at, deleted_at,
-	       started_at, updated_at`
+	       started_at, updated_at, repo_root`
 
 func scanAgentRow(s interface{ Scan(...any) error }) (*Agent, error) {
 	var a Agent
 	var role, state string
 	var tool, parentID, team, task, session, worktreeDir, logFile, hookedWork, childrenJSON *string
-	var lastCrashTime, recoveredFrom, runtimeBackend, sessionID *string
+	var lastCrashTime, recoveredFrom, runtimeBackend, sessionID, repoRoot *string
 	var createdAt, stoppedAt, deletedAt *string
 	var startedAt, updatedAt string
 	var isRoot, crashCount int
@@ -318,7 +319,7 @@ func scanAgentRow(s interface{ Scan(...any) error }) (*Agent, error) {
 		&worktreeDir, &logFile, &hookedWork, &childrenJSON,
 		&isRoot, &crashCount, &lastCrashTime, &recoveredFrom,
 		&runtimeBackend, &sessionID, &createdAt, &stoppedAt, &deletedAt,
-		&startedAt, &updatedAt,
+		&startedAt, &updatedAt, &repoRoot,
 	)
 	if err != nil {
 		return nil, err
@@ -340,6 +341,7 @@ func scanAgentRow(s interface{ Scan(...any) error }) (*Agent, error) {
 	a.CrashCount = crashCount
 	a.RecoveredFrom = deref(recoveredFrom)
 	a.RuntimeBackend = deref(runtimeBackend)
+	a.RepoRoot = deref(repoRoot)
 
 	if childrenJSON != nil && *childrenJSON != "" {
 		_ = json.Unmarshal([]byte(*childrenJSON), &a.Children) //nolint:errcheck // best-effort
