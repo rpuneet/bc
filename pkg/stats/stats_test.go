@@ -1,6 +1,7 @@
 package stats
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -176,7 +177,7 @@ func seedAgentsFile(t *testing.T, workspaceRoot string, agents map[string]*agent
 		t.Fatalf("NewSQLiteStore: %v", err)
 	}
 	defer func() { _ = store.Close() }()
-	if err := store.SaveAll(agents); err != nil {
+	if err := store.SaveAll(context.Background(), agents); err != nil {
 		t.Fatalf("SaveAll: %v", err)
 	}
 }

@@ -90,7 +90,7 @@ func (m *Manager) updateStateForToolHealth(name, task string) error {
 	ag.UpdatedAt = time.Now()
 	changed = prevState != StateStuck
 
-	if err := m.saveState(); err != nil {
+	if err := m.saveState(context.Background()); err != nil {
 		log.Warn("failed to save agent state after tool health check", "error", err)
 	}
 	m.mu.Unlock()

@@ -228,7 +228,7 @@ func (s *AgentService) Start(ctx context.Context, name string, opts StartOptions
 			log.Info("reconciling dead agent for restart", "agent", name, "state", existing.State)
 			existing.State = StateStopped
 			existing.UpdatedAt = time.Now()
-			_ = s.manager.saveState()
+			_ = s.manager.saveState(ctx)
 		} else {
 			return nil, fmt.Errorf("agent %q is already running (state: %s): %w", name, existing.State, ErrAlreadyRunning)
 		}
@@ -281,7 +281,7 @@ func (s *AgentService) Delete(ctx context.Context, name string, force bool) erro
 		if !s.manager.runtimeForAgent(name).HasSession(ctx, name) {
 			a.State = StateStopped
 			a.UpdatedAt = time.Now()
-			_ = s.manager.saveState()
+			_ = s.manager.saveState(ctx)
 		} else {
 			return fmt.Errorf("agent %q must be stopped before deletion (state: %s). Use ?force=true to delete anyway: %w", name, a.State, ErrAlreadyRunning)
 		}

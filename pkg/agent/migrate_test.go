@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -40,7 +41,7 @@ func TestMigrateJSONToSQLite_AgentsJSON(t *testing.T) {
 	}
 
 	// Verify agents are in SQLite
-	all, err := store.LoadAll()
+	all, err := store.LoadAll(context.Background())
 	if err != nil {
 		t.Fatalf("LoadAll: %v", err)
 	}
@@ -88,7 +89,7 @@ func TestMigrateJSONToSQLite_RootJSON(t *testing.T) {
 		t.Fatalf("migrateJSONToSQLite: %v", err)
 	}
 
-	root, _ := store.Load("root")
+	root, _ := store.Load(context.Background(), "root")
 	if root == nil {
 		t.Fatal("root agent not found after migration")
 	}
@@ -124,7 +125,7 @@ func TestMigrateJSONToSQLite_PerAgentJSON(t *testing.T) {
 		t.Fatalf("migrateJSONToSQLite: %v", err)
 	}
 
-	solo, _ := store.Load("solo")
+	solo, _ := store.Load(context.Background(), "solo")
 	if solo == nil {
 		t.Fatal("solo agent not found after migration")
 	}

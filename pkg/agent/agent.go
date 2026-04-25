@@ -889,7 +889,7 @@ func (m *Manager) SpawnAgentWithOptions(ctx context.Context, opts SpawnOptions) 
 				existing.StartedAt = time.Now()
 			}
 			existing.UpdatedAt = time.Now()
-			if err := m.saveState(); err != nil {
+			if err := m.saveState(ctx); err != nil {
 				log.Warn("failed to save agent state", "error", err)
 			}
 			m.mu.Unlock()
@@ -1067,7 +1067,7 @@ func (m *Manager) startAgent(ctx context.Context, name string, opts SpawnOptions
 
 	// Phase 3: global lock — persist state
 	m.mu.Lock()
-	if err := m.saveState(); err != nil {
+	if err := m.saveState(ctx); err != nil {
 		log.Warn("failed to save agent state", "error", err)
 	}
 	m.mu.Unlock()
@@ -1282,7 +1282,7 @@ func (m *Manager) createAgent(ctx context.Context, opts SpawnOptions) (*Agent, e
 	}
 
 	// Save state
-	if err := m.saveState(); err != nil {
+	if err := m.saveState(ctx); err != nil {
 		log.Warn("failed to save agent state", "error", err)
 	}
 	m.mu.Unlock()
@@ -1550,7 +1550,7 @@ func (m *Manager) StopAgent(ctx context.Context, name string) error {
 	// Phase 3: global lock — update parent, persist
 	m.mu.Lock()
 	m.removeFromParent(name)
-	if err := m.saveState(); err != nil {
+	if err := m.saveState(ctx); err != nil {
 		log.Warn("failed to save agent state", "error", err)
 	}
 	m.mu.Unlock()
@@ -1591,7 +1591,7 @@ func (m *Manager) StopAgentTree(ctx context.Context, name string) error {
 		e.agent.UpdatedAt = now
 		e.agent.Children = []string{} // Clear children since they're stopped
 	}
-	if err := m.saveState(); err != nil {
+	if err := m.saveState(ctx); err != nil {
 		log.Warn("failed to save agent state after tree stop", "error", err)
 	}
 	m.mu.Unlock()
@@ -1710,7 +1710,7 @@ func (m *Manager) DeleteAgentWithOptions(ctx context.Context, name string, opts 
 	// 9. Soft-delete in SQLite first (set deleted_at) so the agent won't be
 	// resurrected by LoadAll even if bcd crashes before the hard delete.
 	if m.store != nil {
-		if err := m.store.SoftDelete(name); err != nil {
+		if err := m.store.SoftDelete(ctx, name); err != nil {
 			log.Warn("delete: failed to soft-delete agent in store", "agent", name, "error", err)
 		}
 	}
@@ -1719,14 +1719,14 @@ func (m *Manager) DeleteAgentWithOptions(ctx context.Context, name string, opts 
 	delete(m.agents, name)
 	delete(m.agentLocks, name)
 
-	if err := m.saveState(); err != nil {
+	if err := m.saveState(ctx); err != nil {
 		log.Warn("delete: failed to save state", "agent", name, "error", err)
 	}
 
 	// 11. Hard-delete the row from SQLite. The soft-delete above already
 	// prevents resurrection; this removes the row entirely for cleanliness.
 	if m.store != nil {
-		if err := m.store.Delete(name); err != nil {
+		if err := m.store.Delete(ctx, name); err != nil {
 			log.Warn("delete: failed to remove agent from store", "agent", name, "error", err)
 		}
 	}
@@ -1870,7 +1870,7 @@ func (m *Manager) RenameAgent(ctx context.Context, oldName, newName string) erro
 		}
 	}
 
-	if err := m.saveState(); err != nil {
+	if err := m.saveState(ctx); err != nil {
 		return fmt.Errorf("rename: failed to save state: %w", err)
 	}
 
@@ -1891,7 +1891,7 @@ func (m *Manager) StopAll(ctx context.Context) error {
 		agent.UpdatedAt = now
 	}
 
-	if err := m.saveState(); err != nil {
+	if err := m.saveState(ctx); err != nil {
 		log.Warn("failed to save agent state", "error", err)
 	}
 	return nil
@@ -1937,7 +1937,7 @@ func (m *Manager) SetArchived(name string, archived bool) error {
 		}
 		a.ArchivedAt = nil
 	}
-	return m.saveState()
+	return m.saveState(context.Background())
 }
 
 // ListAgents returns copies of all agents sorted by role hierarchy then by name.
@@ -2104,7 +2104,7 @@ func (m *Manager) UpdateAgentState(name string, state State, task string) error 
 	agent.UpdatedAt = time.Now()
 	changed = prevState != state
 
-	if err := m.saveState(); err != nil {
+	if err := m.saveState(context.Background()); err != nil {
 		log.Warn("failed to save agent state", "error", err)
 	}
 	m.mu.Unlock()
@@ -2129,7 +2129,7 @@ func (m *Manager) SetAgentTeam(name, team string) error {
 	agent.Team = team
 	agent.UpdatedAt = time.Now()
 
-	if err := m.saveState(); err != nil {
+	if err := m.saveState(context.Background()); err != nil {
 		log.Warn("failed to save agent state", "error", err)
 	}
 	return nil
@@ -2308,11 +2308,11 @@ func (m *Manager) AttachToAgent(ctx context.Context, name string) error {
 // saveState persists agent state to SQLite.
 // SQLite with WAL mode handles concurrency natively — no file locks needed.
 // Must be called while holding m.mu.
-func (m *Manager) saveState() error {
+func (m *Manager) saveState(ctx context.Context) error {
 	if m.store == nil {
 		return nil
 	}
-	return m.store.SaveAll(m.agents)
+	return m.store.SaveAll(ctx, m.agents)
 }
 
 // LoadState loads agent state from SQLite.
@@ -2345,7 +2345,7 @@ func (m *Manager) LoadState() error {
 	}
 
 	// Load all agents from SQLite
-	agents, err := store.LoadAll()
+	agents, err := store.LoadAll(context.Background())
 	if err != nil {
 		return fmt.Errorf("load agents: %w", err)
 	}
@@ -2382,7 +2382,7 @@ func (m *Manager) QueryAgentStats(agentName string, limit int) ([]*AgentStatsRec
 	if m.store == nil {
 		return nil, fmt.Errorf("no store available")
 	}
-	return m.store.QueryStats(agentName, limit)
+	return m.store.QueryStats(context.Background(), agentName, limit)
 }
 
 // RecordAgentStats persists a single AgentStatsRecord to the SQLite store.
@@ -2392,7 +2392,7 @@ func (m *Manager) RecordAgentStats(rec *AgentStatsRecord) error {
 	if m.store == nil {
 		return fmt.Errorf("no store available")
 	}
-	return m.store.SaveStats(rec)
+	return m.store.SaveStats(context.Background(), rec)
 }
 
 // Close closes the SQLite store. Call when done with the manager.
@@ -2454,7 +2454,7 @@ func (m *Manager) RegisterStopped(a *Agent) error {
 	}
 
 	m.agents[a.Name] = a
-	if err := m.saveState(); err != nil {
+	if err := m.saveState(context.Background()); err != nil {
 		delete(m.agents, a.Name)
 		return fmt.Errorf("save state: %w", err)
 	}

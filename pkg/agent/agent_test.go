@@ -529,7 +529,7 @@ func TestSaveAndLoadState(t *testing.T) {
 	}
 
 	// Save state
-	if err := m1.saveState(); err != nil {
+	if err := m1.saveState(context.Background()); err != nil {
 		t.Fatalf("saveState failed: %v", err)
 	}
 	_ = store.Close()
@@ -603,7 +603,7 @@ func TestSaveState_EmptyStateDir(t *testing.T) {
 		agents:   make(map[string]*Agent),
 		stateDir: "",
 	}
-	if err := m.saveState(); err != nil {
+	if err := m.saveState(context.Background()); err != nil {
 		t.Errorf("saveState with empty stateDir should return nil, got: %v", err)
 	}
 }
@@ -631,12 +631,12 @@ func TestSaveState_WithAgents(t *testing.T) {
 		stateDir: tmpDir,
 		store:    store,
 	}
-	if saveErr := m.saveState(); saveErr != nil {
+	if saveErr := m.saveState(context.Background()); saveErr != nil {
 		t.Fatalf("saveState failed: %v", saveErr)
 	}
 
 	// Verify agent was saved to SQLite
-	loaded, err := store.Load("test-agent")
+	loaded, err := store.Load(context.Background(), "test-agent")
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
@@ -654,7 +654,7 @@ func TestSaveState_NilStore(t *testing.T) {
 		stateDir: t.TempDir(),
 		store:    nil, // no store
 	}
-	if err := m.saveState(); err != nil {
+	if err := m.saveState(context.Background()); err != nil {
 		t.Fatalf("saveState with nil store should be no-op: %v", err)
 	}
 }
@@ -690,7 +690,7 @@ func TestSaveState_RoundTrip(t *testing.T) {
 		stateDir: tmpDir,
 		store:    store,
 	}
-	if err := original.saveState(); err != nil {
+	if err := original.saveState(context.Background()); err != nil {
 		t.Fatalf("saveState failed: %v", err)
 	}
 	_ = store.Close()
@@ -862,7 +862,7 @@ func TestStopAgent(t *testing.T) {
 	}
 
 	// State should be persisted to SQLite
-	loaded, err := m.store.Load("eng-1")
+	loaded, err := m.store.Load(context.Background(), "eng-1")
 	if err != nil {
 		t.Fatalf("store.Load: %v", err)
 	}
@@ -1199,7 +1199,7 @@ func TestUpdateAgentState_TaskUpdate(t *testing.T) {
 	}
 
 	// State should be persisted to SQLite
-	loaded, err := m.store.Load("eng-1")
+	loaded, err := m.store.Load(context.Background(), "eng-1")
 	if err != nil {
 		t.Fatalf("store.Load: %v", err)
 	}
@@ -1312,7 +1312,7 @@ func TestSaveLoadState_ComplexHierarchy(t *testing.T) {
 		UpdatedAt:   now,
 	}
 
-	if err := m.saveState(); err != nil {
+	if err := m.saveState(context.Background()); err != nil {
 		t.Fatalf("saveState failed: %v", err)
 	}
 	_ = store.Close()
