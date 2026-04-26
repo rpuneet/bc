@@ -365,9 +365,10 @@ func (m *Manager) handleNotification(platform string, n Notification) {
 		}
 	}
 
-	// Ensure channel is in the map
+	// Ensure channel is in the map — only persist when first created
 	m.mu.Lock()
-	if _, exists := m.channelMap[bcChannel]; !exists {
+	_, exists := m.channelMap[bcChannel]
+	if !exists {
 		adapter := m.adapters[platform]
 		m.channelMap[bcChannel] = channelRoute{
 			Platform:  platform,
@@ -377,7 +378,9 @@ func (m *Manager) handleNotification(platform string, n Notification) {
 		log.Info("gateway: dynamically mapped notification channel", "bc_channel", bcChannel, "platform", platform, "channel_id", channelID)
 	}
 	m.mu.Unlock()
-	m.persistChannel(bcChannel, platform, channelID)
+	if !exists {
+		m.persistChannel(bcChannel, platform, channelID)
+	}
 
 	sender := fmt.Sprintf("[%s] %s", platform, n.Sender)
 
