@@ -123,9 +123,15 @@ export default function WaitlistPage() {
                   onSubmit={handleSubmit}
                   className="flex flex-col gap-3 sm:flex-row"
                 >
+                  <label htmlFor="waitlist-email" className="sr-only">
+                    Email address
+                  </label>
                   <input
+                    id="waitlist-email"
+                    name="email"
                     type="email"
                     required
+                    autoComplete="email"
                     value={email}
                     onChange={(e) => {
                       setEmail(e.target.value);

@@ -45,6 +45,7 @@ function CopyButton({ text }: { text: string }) {
 
   return (
     <button
+      type="button"
       onClick={handleCopy}
       className="shrink-0 rounded p-1.5 text-on-surface-variant hover:text-on-surface transition-colors"
       aria-label="Copy to clipboard"
@@ -129,6 +130,7 @@ export default function Home() {
                   {tabs.map((t) => (
                     <button
                       key={t}
+                      type="button"
                       onClick={() => setPlatform(t)}
                       className={`px-3 py-1.5 rounded text-xs font-label font-medium transition-colors ${
                         platform === t

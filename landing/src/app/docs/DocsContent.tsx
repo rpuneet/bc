@@ -71,7 +71,8 @@ function CopyButton({ text }: { text: string }) {
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
       }}
-      className="absolute right-3 top-3 rounded-md border border-foreground/10 bg-foreground/5 p-1.5 text-terminal-muted hover:text-terminal-text transition-all duration-200 opacity-0 group-hover:opacity-100 hover:bg-foreground/10"
+      type="button"
+      className="absolute right-3 top-3 rounded-md border border-foreground/10 bg-foreground/5 p-1.5 text-terminal-muted hover:text-terminal-text transition-all duration-200 opacity-60 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100 focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-primary hover:bg-foreground/10"
       aria-label="Copy to clipboard"
     >
       {copied ? (
