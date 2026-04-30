@@ -350,7 +350,7 @@ Recommended production setup:
 # All state in .bc/ is git-tracked
 
 # Manual backup
-cp -r .bc/ .bc.backup
+cp -r .mycel/ .mycel.backup
 
 # Or use git
 git commit -am "workspace snapshot"

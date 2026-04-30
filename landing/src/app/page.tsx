@@ -21,8 +21,8 @@ import { AnimatedBackground } from "./_components/AnimatedBackground";
 const installCommands = {
   macOS: "curl -fsSL https://raw.githubusercontent.com/rpuneet/bc/main/scripts/install.sh | bash",
   Linux: "curl -fsSL https://raw.githubusercontent.com/rpuneet/bc/main/scripts/install.sh | bash",
-  Homebrew: "brew install rpuneet/bc/bc",
-  Docker: "docker run -p 9374:9374 ghcr.io/rpuneet/bc bc up",
+  Homebrew: "brew install rpuneet/bc/mycel",
+  Docker: "docker run -p 9374:9374 ghcr.io/rpuneet/bc mycel up",
 } as const;
 
 type Platform = keyof typeof installCommands;
@@ -153,9 +153,9 @@ export default function Home() {
                 {/* Then run */}
                 <p className="mt-3 text-sm text-on-surface-variant font-body">
                   Then run:{" "}
-                  <code className="text-primary font-label">bc init</code>
+                  <code className="text-primary font-label">mycel init</code>
                   {" && "}
-                  <code className="text-primary font-label">bc up</code>
+                  <code className="text-primary font-label">mycel up</code>
                 </p>
               </div>
             </FadeUp>
@@ -209,14 +209,14 @@ export default function Home() {
               <div className="space-y-3 text-[13px] leading-7">
                 <div>
                   <span className="text-terminal-prompt">~ $ </span>
-                  <span className="text-terminal-text">bc init</span>
+                  <span className="text-terminal-text">mycel init</span>
                 </div>
-                <div className="text-terminal-success">&#10003; Workspace initialized (.bc/)</div>
+                <div className="text-terminal-success">&#10003; Workspace initialized (.mycel/)</div>
                 <div className="text-terminal-success">&#10003; Ready to create agents</div>
 
                 <div className="mt-2">
                   <span className="text-terminal-prompt">~ $ </span>
-                  <span className="text-terminal-text">bc up</span>
+                  <span className="text-terminal-text">mycel up</span>
                 </div>
                 <div className="text-terminal-muted">
                   Server running on <span className="text-primary">http://localhost:9374</span>
@@ -224,16 +224,16 @@ export default function Home() {
 
                 <div className="mt-2">
                   <span className="text-terminal-prompt">~ $ </span>
-                  <span className="text-terminal-text">bc agent create eng-01 --role engineer --tool claude</span>
+                  <span className="text-terminal-text">mycel agent create eng-01 --role engineer --tool claude</span>
                 </div>
-                <div className="text-terminal-muted">Created worktree .bc/agents/eng-01/worktree</div>
+                <div className="text-terminal-muted">Created worktree .mycel/agents/eng-01/worktree</div>
                 <div className="text-terminal-muted">
                   Agent <span className="text-primary">eng-01</span> is online.
                 </div>
 
                 <div className="mt-2">
                   <span className="text-terminal-prompt">~ $ </span>
-                  <span className="text-terminal-text">bc status</span>
+                  <span className="text-terminal-text">mycel status</span>
                 </div>
                 <div className="text-terminal-comment mt-1 font-label">
                   <div className="text-primary/70">AGENT     ROLE       STATE     UPTIME</div>

@@ -42,7 +42,7 @@ function getMethods(version: string): Method[] {
       icon: Beer,
       platforms: "macOS",
       commands: [
-        "brew install rpuneet/bc/bc",
+        "brew install rpuneet/bc/mycel",
       ],
     },
     {

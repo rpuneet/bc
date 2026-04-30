@@ -278,10 +278,10 @@ export default function Product() {
           title="Create, command, observe, stop."
           description="Spawn an agent in one command. It gets its own tmux session, git worktree, and role. Send it work, peek at its output, or stop it — all from the CLI."
           commands={[
-            'bc agent create eng-01 --role engineer --tool claude',
-            'bc agent send eng-01 "Build the auth module"',
-            'bc agent peek eng-01',
-            'bc agent list',
+            'mycel agent create eng-01 --role engineer --tool claude',
+            'mycel agent send eng-01 "Build the auth module"',
+            'mycel agent peek eng-01',
+            'mycel agent list',
           ]}
           screenshot="/screenshots/dashboard-02-agents.png"
           screenshotAlt="mycel Agents view showing a table of agents with their roles, tools, states, and tasks"
@@ -295,9 +295,9 @@ export default function Product() {
           title="Structured coordination via channels."
           description="Agents @mention each other, hand off work, and converge — without going through you. Every message is logged and searchable."
           commands={[
-            'bc channel create deploys',
-            'bc channel send engineering "@eng-01 review PR #42"',
-            'bc channel history engineering --last 20',
+            'mycel channel create deploys',
+            'mycel channel send engineering "@eng-01 review PR #42"',
+            'mycel channel history engineering --last 20',
           ]}
           screenshot="/screenshots/dashboard-03-channels.png"
           screenshotAlt="mycel Channels view showing inter-agent communication with message history and reactions"
@@ -312,9 +312,9 @@ export default function Product() {
           title="Track spending across every agent."
           description="See total cost and per-agent breakdowns in real time. Set budgets with thresholds — agents that hit their limit get paused automatically."
           commands={[
-            'bc cost show',
-            'bc cost budget set 50.00 --agent eng-01 --alert-at 0.8',
-            'bc cost usage',
+            'mycel cost show',
+            'mycel cost budget set 50.00 --agent eng-01 --alert-at 0.8',
+            'mycel cost usage',
           ]}
           screenshot="/screenshots/dashboard-04-costs.png"
           screenshotAlt="mycel Costs dashboard showing total spend, daily cost trends, and per-agent cost breakdown with bar chart"
@@ -328,8 +328,8 @@ export default function Product() {
           title="15+ dashboard views, out of the box."
           description="Agents, channels, costs, roles, tools, secrets, logs, cron jobs, and system health — all at localhost:9374. Roles define permissions as markdown. Tools are mix-and-match. Secrets are encrypted at rest."
           commands={[
-            'bc up',
-            'bc status',
+            'mycel up',
+            'mycel status',
           ]}
           screenshot="/screenshots/dashboard-05-roles.png"
           screenshotAlt="mycel Web Dashboard showing roles, tools, secrets, logs, and system health views"
@@ -343,9 +343,9 @@ export default function Product() {
           title="Connect tools natively via MCP."
           description="Add MCP servers once, and agents connect on spawn. Supports stdio and SSE transport. Attach servers to roles so every agent gets the right capabilities."
           commands={[
-            'bc mcp add github-server',
-            'bc mcp list',
-            'bc mcp enable github-server',
+            'mycel mcp add github-server',
+            'mycel mcp list',
+            'mycel mcp enable github-server',
           ]}
           screenshot="/screenshots/dashboard-07-mcp.png"
           screenshotAlt="mycel MCP view showing configured MCP servers with transport type and connection status"
@@ -359,9 +359,9 @@ export default function Product() {
           title="Cron-powered automation."
           description="Run lints every morning. Deploy previews on push. Schedule any prompt to any agent with cron syntax, and review the execution history."
           commands={[
-            'bc cron add daily-lint --schedule "0 9 * * *" --agent qa-01 --prompt "Run make lint"',
-            'bc cron list',
-            'bc cron logs daily-lint --last 10',
+            'mycel cron add daily-lint --schedule "0 9 * * *" --agent qa-01 --prompt "Run make lint"',
+            'mycel cron list',
+            'mycel cron logs daily-lint --last 10',
           ]}
           screenshot="/screenshots/dashboard-08-cron.png"
           screenshotAlt="mycel Cron Jobs view showing scheduled jobs with their schedules, run counts, and last execution times"
@@ -449,11 +449,11 @@ export default function Product() {
                   </div>
                   <div>
                     <span className="text-[var(--terminal-prompt)]">$ </span>
-                    <span className="text-[var(--terminal-command)]">bc init</span>
+                    <span className="text-[var(--terminal-command)]">mycel init</span>
                   </div>
                   <div>
                     <span className="text-[var(--terminal-prompt)]">$ </span>
-                    <span className="text-[var(--terminal-command)]">bc up</span>
+                    <span className="text-[var(--terminal-command)]">mycel up</span>
                   </div>
                   <div className="mt-1">
                     <span className="text-[var(--terminal-prompt)]">$ </span>
