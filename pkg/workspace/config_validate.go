@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"unicode/utf8"
 )
 
 // Valid theme names.
@@ -128,7 +129,7 @@ func (c *Config) validateServer() error {
 func (c *Config) validateStorage() error {
 	// Accept "timescale" and legacy "sql" for backward compatibility
 	if c.Storage.Default != "" && c.Storage.Default != "sqlite" && c.Storage.Default != "timescale" && c.Storage.Default != "sql" {
-		return fmt.Errorf("storage.default must be 'sqlite' or 'timescale', got %q", c.Storage.Default)
+		return fmt.Errorf("storage.default must be 'sqlite', 'timescale', or 'sql' (legacy), got %q", c.Storage.Default)
 	}
 	if c.Storage.Timescale.Port != 0 && (c.Storage.Timescale.Port < 1 || c.Storage.Timescale.Port > 65535) {
 		return fmt.Errorf("storage.timescale.port must be between 1 and 65535, got %d", c.Storage.Timescale.Port)
@@ -167,7 +168,9 @@ func isValidMode(mode string) bool {
 
 // validateUser validates user config values.
 func (c *Config) validateUser() error {
-	if len(c.User.Name) > NameMaxLength {
+	// Use rune count, not byte length, so multi-byte Unicode names are
+	// not unfairly truncated against NameMaxLength.
+	if utf8.RuneCountInString(c.User.Name) > NameMaxLength {
 		return ErrNameTooLong
 	}
 	return nil
