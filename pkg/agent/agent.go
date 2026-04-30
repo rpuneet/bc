@@ -1920,7 +1920,7 @@ func (m *Manager) GetAgent(name string) *Agent {
 // This is the backing primitive for the AgentService Archive/Unarchive
 // methods; it intentionally does NOT kill the runtime or touch on-disk
 // state beyond the SQLite agent store (archive is reversible).
-func (m *Manager) SetArchived(name string, archived bool) error {
+func (m *Manager) SetArchived(ctx context.Context, name string, archived bool) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	a, exists := m.agents[name]
@@ -1939,7 +1939,7 @@ func (m *Manager) SetArchived(name string, archived bool) error {
 		}
 		a.ArchivedAt = nil
 	}
-	return m.saveState(context.Background())
+	return m.saveState(ctx)
 }
 
 // ListAgents returns copies of all agents sorted by role hierarchy then by name.
@@ -2085,7 +2085,7 @@ func (m *Manager) RunningCount() int {
 
 // UpdateAgentState updates an agent's state and task.
 // Returns an error if the transition is invalid per the state machine.
-func (m *Manager) UpdateAgentState(name string, state State, task string) error {
+func (m *Manager) UpdateAgentState(ctx context.Context, name string, state State, task string) error {
 	var changed bool
 
 	m.mu.Lock()
@@ -2106,7 +2106,7 @@ func (m *Manager) UpdateAgentState(name string, state State, task string) error 
 	agent.UpdatedAt = time.Now()
 	changed = prevState != state
 
-	if err := m.saveState(context.Background()); err != nil {
+	if err := m.saveState(ctx); err != nil {
 		log.Warn("failed to save agent state", "error", err)
 	}
 	m.mu.Unlock()
@@ -2119,7 +2119,7 @@ func (m *Manager) UpdateAgentState(name string, state State, task string) error 
 }
 
 // SetAgentTeam assigns an agent to a team.
-func (m *Manager) SetAgentTeam(name, team string) error {
+func (m *Manager) SetAgentTeam(ctx context.Context, name, team string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -2131,7 +2131,7 @@ func (m *Manager) SetAgentTeam(name, team string) error {
 	agent.Team = team
 	agent.UpdatedAt = time.Now()
 
-	if err := m.saveState(context.Background()); err != nil {
+	if err := m.saveState(ctx); err != nil {
 		log.Warn("failed to save agent state", "error", err)
 	}
 	return nil

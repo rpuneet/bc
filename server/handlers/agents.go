@@ -525,7 +525,7 @@ func (h *AgentHandler) byName(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if hasState {
-			if err := svc.Manager().UpdateAgentState(name, targetState, task); err != nil {
+			if err := svc.Manager().UpdateAgentState(r.Context(), name, targetState, task); err != nil {
 				log.Debug("hook state update skipped", "agent", name, "error", err)
 				writeJSON(w, http.StatusOK, map[string]any{"ok": true, "skipped": true, "reason": err.Error()})
 				return
@@ -711,7 +711,7 @@ func (h *AgentHandler) byName(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		state := agent.State(req.State)
-		if err := svc.Manager().UpdateAgentState(name, state, req.Message); err != nil {
+		if err := svc.Manager().UpdateAgentState(r.Context(), name, state, req.Message); err != nil {
 			httpError(w, err.Error(), http.StatusBadRequest)
 			return
 		}

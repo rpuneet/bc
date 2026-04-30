@@ -149,7 +149,7 @@ func (s *AgentService) List(ctx context.Context, opts ListOptions) ([]*Agent, er
 // List() results. Idempotent. Errors when the agent doesn't exist, or
 // when the agent is still running — archiving a live agent leaves the
 // runtime in a confusing state, so callers must stop it first.
-func (s *AgentService) Archive(_ context.Context, name string) error {
+func (s *AgentService) Archive(ctx context.Context, name string) error {
 	a := s.manager.GetAgent(name)
 	if a == nil {
 		return fmt.Errorf("agent %q: %w", name, ErrNotFound)
@@ -157,7 +157,7 @@ func (s *AgentService) Archive(_ context.Context, name string) error {
 	if a.ArchivedAt == nil && isRunningState(a.State) {
 		return fmt.Errorf("cannot archive agent %q while running (state=%s); stop it first: %w", name, a.State, ErrAlreadyRunning)
 	}
-	return s.manager.SetArchived(name, true)
+	return s.manager.SetArchived(ctx, name, true)
 }
 
 // isRunningState reports whether a state represents an agent that is
@@ -168,8 +168,8 @@ func isRunningState(state State) bool {
 
 // Unarchive clears the archived flag on the named agent.
 // Idempotent. Errors when the agent doesn't exist.
-func (s *AgentService) Unarchive(_ context.Context, name string) error {
-	return s.manager.SetArchived(name, false)
+func (s *AgentService) Unarchive(ctx context.Context, name string) error {
+	return s.manager.SetArchived(ctx, name, false)
 }
 
 // matchesStatus checks if an agent state matches a status filter.
@@ -407,7 +407,7 @@ func (s *AgentService) SyncSessions(ctx context.Context) (synced, stopped int) {
 			continue
 		}
 		// Session gone — mark stopped.
-		if err := s.manager.UpdateAgentState(a.Name, StateStopped, ""); err != nil {
+		if err := s.manager.UpdateAgentState(ctx, a.Name, StateStopped, ""); err != nil {
 			log.Warn("sync: failed to update agent state", "agent", a.Name, "error", err)
 			continue
 		}
