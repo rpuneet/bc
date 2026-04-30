@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 
@@ -40,6 +41,10 @@ func setupWorkspace(t *testing.T) string {
 	t.Helper()
 	sandboxBCHome(t)
 	dir := t.TempDir()
+	// workspace.Init requires a git repo
+	if out, err := exec.CommandContext(context.Background(), "git", "init", dir).CombinedOutput(); err != nil { //nolint:gosec // dir is a t.TempDir(), not user input
+		t.Fatalf("git init: %v\n%s", err, out)
+	}
 	wks, err := workspace.Init(dir)
 	if err != nil {
 		t.Fatalf("init workspace: %v", err)
@@ -2032,7 +2037,7 @@ func TestAgentHandler_SendOnNonexistent(t *testing.T) {
 	defer ts.Close()
 
 	resp := post(t, ts.URL+"/api/agents/nonexist/send", "application/json", `{"message":"hello"}`)
-	assertStatus(t, resp, http.StatusBadRequest)
+	assertStatus(t, resp, http.StatusNotFound)
 	_ = resp.Body.Close()
 }
 
@@ -2116,7 +2121,7 @@ func TestAgentHandler_StartNonexistent(t *testing.T) {
 	defer ts.Close()
 
 	resp := post(t, ts.URL+"/api/agents/nonexist/start", "application/json", ``)
-	assertStatus(t, resp, http.StatusBadRequest)
+	assertStatus(t, resp, http.StatusNotFound)
 	_ = resp.Body.Close()
 }
 
@@ -2132,7 +2137,7 @@ func TestAgentHandler_StopNonexistent(t *testing.T) {
 	defer ts.Close()
 
 	resp := post(t, ts.URL+"/api/agents/nonexist/stop", "application/json", ``)
-	assertStatus(t, resp, http.StatusBadRequest)
+	assertStatus(t, resp, http.StatusNotFound)
 	_ = resp.Body.Close()
 }
 
@@ -2148,7 +2153,7 @@ func TestAgentHandler_DeleteNonexistent(t *testing.T) {
 	defer ts.Close()
 
 	resp := doRequest(t, http.MethodDelete, ts.URL+"/api/agents/nonexist", "", "")
-	assertStatus(t, resp, http.StatusBadRequest)
+	assertStatus(t, resp, http.StatusNotFound)
 	_ = resp.Body.Close()
 }
 
@@ -2164,7 +2169,7 @@ func TestAgentHandler_PeekNonexistent(t *testing.T) {
 	defer ts.Close()
 
 	resp := get(t, ts.URL+"/api/agents/nonexist/peek")
-	assertStatus(t, resp, http.StatusBadRequest)
+	assertStatus(t, resp, http.StatusNotFound)
 	_ = resp.Body.Close()
 }
 
@@ -2180,7 +2185,7 @@ func TestAgentHandler_SessionsNonexistent(t *testing.T) {
 	defer ts.Close()
 
 	resp := get(t, ts.URL+"/api/agents/nonexist/sessions")
-	assertStatus(t, resp, http.StatusBadRequest)
+	assertStatus(t, resp, http.StatusNotFound)
 	_ = resp.Body.Close()
 }
 
