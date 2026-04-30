@@ -402,11 +402,23 @@ func (s *Store) LoadChannels(ctx context.Context) ([]PersistedChannel, error) {
 }
 
 // SaveChannel persists a channel mapping so it survives server restarts.
+//
+// On conflict, platform_id is preserved if the existing row already has a
+// non-empty value. This prevents a later event with a fallback platform_id
+// (e.g., the channel name when a numeric chat_id couldn't be extracted from
+// the raw payload) from clobbering a previously-stored real platform_id.
 func (s *Store) SaveChannel(ctx context.Context, bcChannel, platform, platformID string) error {
 	_, err := s.db.ExecContext(ctx, s.q(
 		`INSERT INTO notify_channels (bc_channel, platform, platform_id, updated_at)
 		 VALUES (?, ?, ?, ?)
-		 ON CONFLICT(bc_channel) DO UPDATE SET platform = excluded.platform, platform_id = excluded.platform_id, updated_at = excluded.updated_at`),
+		 ON CONFLICT(bc_channel) DO UPDATE SET
+		   platform = excluded.platform,
+		   platform_id = CASE
+		     WHEN notify_channels.platform_id IS NULL OR notify_channels.platform_id = ''
+		       THEN excluded.platform_id
+		     ELSE notify_channels.platform_id
+		   END,
+		   updated_at = excluded.updated_at`),
 		bcChannel, platform, platformID, time.Now().UTC().Format(time.RFC3339))
 	return err
 }
