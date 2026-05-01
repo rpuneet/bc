@@ -159,17 +159,6 @@ brews:
     test: |
       system "#{bin}/mycel", "version"
 
-scoops:
-  - name: mycel
-    repository:
-      owner: rpuneet
-      name: scoop-mycel
-      token: "{{ .Env.SCOOP_TAP_TOKEN }}"
-      branch: main
-    homepage: https://bc-infra.com
-    description: Orchestration for AI agents
-    license: MIT
-    skip_upload: auto
 
 nfpms:
   - id: mycel-linux
