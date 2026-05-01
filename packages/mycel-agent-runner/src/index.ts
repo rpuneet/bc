@@ -1,4 +1,4 @@
-// bc-agent-runner entry point.
+// mycel-agent-runner entry point.
 //
 // One process per agent. Reads its identity, working directory, and policy
 // from environment variables (set by bcd when it spawns the runner) and
@@ -104,13 +104,13 @@ async function main(): Promise<void> {
   const server = app.listen(port, host, () => {
     // eslint-disable-next-line no-console
     console.log(
-      `[bc-agent-runner] agent=${agentName} listening on http://${host}:${port}`,
+      `[mycel-agent-runner] agent=${agentName} listening on http://${host}:${port}`,
     );
   });
 
   const shutdown = (signal: NodeJS.Signals) => {
     // eslint-disable-next-line no-console
-    console.log(`[bc-agent-runner] received ${signal}, shutting down`);
+    console.log(`[mycel-agent-runner] received ${signal}, shutting down`);
     runner.shutdown();
     hub.closeAll();
     server.close(() => process.exit(0));
@@ -124,7 +124,7 @@ async function main(): Promise<void> {
 main().catch((err: unknown) => {
   // eslint-disable-next-line no-console
   console.error(
-    `[bc-agent-runner] fatal: ${err instanceof Error ? err.stack ?? err.message : String(err)}`,
+    `[mycel-agent-runner] fatal: ${err instanceof Error ? err.stack ?? err.message : String(err)}`,
   );
   process.exit(1);
 });
