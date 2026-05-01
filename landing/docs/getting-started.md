@@ -57,7 +57,7 @@ make build
 make install
 
 # Verify installation
-bc --version
+mycel --version
 ```
 
 ### Linux
@@ -77,7 +77,7 @@ make build
 make install
 
 # Verify installation
-bc --version
+mycel --version
 ```
 
 ### Windows (WSL2 Recommended)
@@ -97,7 +97,7 @@ make build
 make install
 
 # Verify installation
-bc --version
+mycel --version
 ```
 
 ---
@@ -111,8 +111,8 @@ bc --version
 mkdir my-project
 cd my-project
 
-# Initialize bc workspace
-bc init
+# Initialize mycel workspace
+mycel init
 
 # Expected output:
 # ✓ Workspace initialized at /Users/you/my-project/.bc/
@@ -124,15 +124,15 @@ bc init
 
 ```bash
 # Start the root coordinator agent
-bc up
+mycel up
 
 # Expected output:
 # ✓ Root agent started
 # ✓ Workspace ready
-# ✓ Use 'bc home' to view dashboard
+# ✓ Use 'mycel home' to view dashboard
 
 # Check status
-bc status
+mycel status
 # Shows: root (running)
 ```
 
@@ -140,7 +140,7 @@ bc status
 
 ```bash
 # View the interactive dashboard
-bc home
+mycel home
 
 # Navigation:
 # - Arrow keys: Navigate agents/tasks
@@ -152,7 +152,7 @@ bc home
 
 ```bash
 # In a new terminal, spawn an engineer agent
-bc spawn eng-01 --role engineer
+mycel spawn eng-01 --role engineer
 
 # Expected output:
 # ✓ Agent eng-01 spawned
@@ -164,10 +164,10 @@ bc spawn eng-01 --role engineer
 
 ```bash
 # Add a task to the queue
-bc queue add "Implement login feature"
+mycel queue add "Implement login feature"
 
 # List tasks
-bc queue list
+mycel queue list
 
 # Output:
 # ID          Status     Title
@@ -178,10 +178,10 @@ bc queue list
 
 ```bash
 # Assign task to agent
-bc queue assign work-0001 eng-01
+mycel queue assign work-0001 eng-01
 
 # Check assignment
-bc queue list
+mycel queue list
 
 # Output:
 # work-0001   assigned   Implement login feature   (assigned to: eng-01)
@@ -191,23 +191,23 @@ bc queue list
 
 ```bash
 # Attach to agent session to see execution
-bc attach eng-01
+mycel attach eng-01
 
 # Inside agent session:
 # - View current working directory: pwd
 # - Agent has access to full project
 # - Agent can make commits, create branches
-# - Agent reports progress via: bc report working "message"
+# - Agent reports progress via: mycel report working "message"
 ```
 
 ### 8. Report Completion
 
 ```bash
 # Agent signals completion (from within session or external)
-bc report done "Login feature implemented and tested"
+mycel report done "Login feature implemented and tested"
 
 # Check queue
-bc queue list
+mycel queue list
 
 # Output:
 # work-0001   done   Implement login feature   (completed by: eng-01)
@@ -217,10 +217,10 @@ bc queue list
 
 ```bash
 # List mergeable work
-bc merge list
+mycel merge list
 
 # Merge all completed work to main
-bc merge process
+mycel merge process
 
 # Verify main branch has changes
 git log --oneline -5
@@ -243,50 +243,50 @@ mkdir notification-service
 cd notification-service
 git init
 git branch main
-bc init
-bc up
+mycel init
+mycel up
 ```
 
 **Step 2: Create Work Items**
 
 ```bash
 # Add feature task
-bc queue add "Add email notification service"
+mycel queue add "Add email notification service"
 
 # Add parallel work
-bc queue add "Create email templates"
-bc queue add "Write tests for notifications"
+mycel queue add "Create email templates"
+mycel queue add "Write tests for notifications"
 ```
 
 **Step 3: Spawn Team**
 
 ```bash
 # Spawn engineers for parallel work
-bc spawn eng-01 --role engineer  # Backend API
-bc spawn eng-02 --role engineer  # Templates
-bc spawn qa-01 --role qa         # Testing
+mycel spawn eng-01 --role engineer  # Backend API
+mycel spawn eng-02 --role engineer  # Templates
+mycel spawn qa-01 --role qa         # Testing
 
 # Spawn tech lead for reviews
-bc spawn tech-lead-01 --role tech-lead
+mycel spawn tech-lead-01 --role tech-lead
 ```
 
 **Step 4: Assign Work**
 
 ```bash
 # Assign tasks
-bc queue assign work-0001 eng-01  # API task
-bc queue assign work-0002 eng-02  # Templates task
-bc queue assign work-0003 qa-01   # Tests task
+mycel queue assign work-0001 eng-01  # API task
+mycel queue assign work-0002 eng-02  # Templates task
+mycel queue assign work-0003 qa-01   # Tests task
 
 # Check progress
-bc status
+mycel status
 ```
 
 **Step 5: Monitor Execution**
 
 ```bash
 # View real-time status
-bc home
+mycel home
 
 # See all agents working in parallel:
 # - eng-01: working (in .bc/worktrees/eng-01/)
@@ -305,17 +305,17 @@ git checkout -b feature/email-api
 # ... implement email service ...
 git add .
 git commit -m "feat: email notification API"
-bc report done "Email API complete - ready for review"
+mycel report done "Email API complete - ready for review"
 ```
 
 **Step 7: Review and Merge**
 
 ```bash
 # List completed work
-bc merge list
+mycel merge list
 
 # Merge to main
-bc merge process
+mycel merge process
 
 # Verify on main
 git log --oneline
@@ -330,9 +330,9 @@ git log --oneline
 
 ```bash
 # Spawn next team for additional features
-bc spawn eng-03 --role engineer
-bc queue add "Add SMS notification provider"
-bc queue assign work-0004 eng-03
+mycel spawn eng-03 --role engineer
+mycel queue add "Add SMS notification provider"
+mycel queue assign work-0004 eng-03
 ```
 
 ---
@@ -343,89 +343,89 @@ bc queue assign work-0004 eng-03
 
 ```bash
 # Initialize new workspace
-bc init
+mycel init
 
 # Start root agent
-bc up
+mycel up
 
 # Check workspace status
-bc status
+mycel status
 
 # Stop all agents
-bc down
+mycel down
 
 # View logs
-bc logs
+mycel logs
 
 # View dashboard
-bc home
+mycel home
 ```
 
 ### Agent Management
 
 ```bash
 # Spawn new agent
-bc spawn eng-01 --role engineer
-bc spawn tech-lead-01 --role tech-lead
+mycel spawn eng-01 --role engineer
+mycel spawn tech-lead-01 --role tech-lead
 
 # List agents
-bc status
+mycel status
 
 # Attach to agent session
-bc attach eng-01
+mycel attach eng-01
 
 # View agent logs
-bc logs eng-01
+mycel logs eng-01
 
 # Stop agent
-bc stop eng-01
+mycel stop eng-01
 
 # Kill agent session
-bc kill eng-01
+mycel kill eng-01
 ```
 
 ### Work Queue
 
 ```bash
 # Add task
-bc queue add "Implement feature X"
+mycel queue add "Implement feature X"
 
 # List all tasks
-bc queue list
+mycel queue list
 
 # Show task details
-bc queue show work-0001
+mycel queue show work-0001
 
 # Assign task
-bc queue assign work-0001 eng-01
+mycel queue assign work-0001 eng-01
 
 # Mark task status
-bc report working "In progress..."
-bc report done "Completed!"
-bc report stuck "Blocked by dependency"
-bc report failed "Error occurred"
+mycel report working "In progress..."
+mycel report done "Completed!"
+mycel report stuck "Blocked by dependency"
+mycel report failed "Error occurred"
 
 # Clear completed
-bc queue clear completed
+mycel queue clear completed
 ```
 
 ### Git & Merge
 
 ```bash
 # View branches to merge
-bc merge list
+mycel merge list
 
 # Merge all ready branches
-bc merge process
+mycel merge process
 
 # Merge specific task
-bc merge work-0001
+mycel merge work-0001
 
 # View merge conflicts
-bc merge conflicts
+mycel merge conflicts
 
 # Abort merge
-bc merge abort
+mycel merge abort
 
 # View main branch
 git log main --oneline
@@ -435,16 +435,16 @@ git log main --oneline
 
 ```bash
 # Send message to agent
-bc send eng-01 "Check our conversation for details"
+mycel send eng-01 "Check our conversation for details"
 
 # Send to channel
-bc send #eng-team "Update ready for review"
+mycel send #eng-team "Update ready for review"
 
 # List channels
-bc channels list
+mycel channels list
 
 # View channel history
-bc channels read #eng-team
+mycel channels read #eng-team
 ```
 
 ---
@@ -489,10 +489,10 @@ tmux list-sessions
 tmux kill-server
 
 # Re-init workspace
-bc down
+mycel down
 rm -rf .bc/
-bc init
-bc up
+mycel init
+mycel up
 ```
 
 ### Issue: "Merge conflicts"
@@ -505,7 +505,7 @@ error: merge conflict in src/app/page.tsx
 **Solution:**
 ```bash
 # View conflicts
-bc merge conflicts
+mycel merge conflicts
 
 # Resolve manually or use agent
 cd .bc/worktrees/eng-01/
@@ -514,7 +514,7 @@ git add .
 git commit -m "resolve merge conflicts"
 
 # Continue merge
-bc merge process
+mycel merge process
 ```
 
 ### Issue: "Permission denied" on worktree
@@ -533,7 +533,7 @@ ls -la .bc/worktrees/
 chmod -R 755 .bc/
 
 # Retry operation
-bc status
+mycel status
 ```
 
 ### Issue: "Agent not in workspace"
@@ -550,7 +550,7 @@ pwd
 ls .bc/
 
 # If missing, re-initialize
-bc init
+mycel init
 
 # Or navigate to correct project
 cd /path/to/project
@@ -569,10 +569,10 @@ error: no AI agent configured
 # Visit: https://claude.com/claude-code
 
 # Configure mycel to use Claude Code
-bc config set agent-tool claude-code
+mycel config set agent-tool claude-code
 
 # Verify configuration
-bc config show
+mycel config show
 ```
 
 ---
@@ -649,7 +649,7 @@ Real-time messaging between agents for coordination without losing context.
 
 ### Build Your First Project
 1. Create a small project (e.g., API service, web app)
-2. Initialize bc workspace
+2. Initialize mycel workspace
 3. Spawn 2-3 agents for different features
 4. Assign work and monitor progress
 5. Merge completed work to main
@@ -665,12 +665,12 @@ Real-time messaging between agents for coordination without losing context.
 ## Support
 
 ### Documentation
-- Full docs: [bc GitHub Repository](https://github.com/bcinfra1/bc)
+- Full docs: [mycel GitHub Repository](https://github.com/bcinfra1/bc)
 - Issues: [GitHub Issues](https://github.com/bcinfra1/bc/issues)
 - Discussions: [GitHub Discussions](https://github.com/bcinfra1/bc/discussions)
 
 ### Community
-- Join bc workspace for real-time support
+- Join mycel workspace for real-time support
 - Ask questions in #help channel
 - Share workflows in #showcase
 
@@ -680,30 +680,30 @@ Real-time messaging between agents for coordination without losing context.
 
 ```bash
 # Initialization
-bc init                                # Initialize workspace
-bc up                                  # Start root agent
+mycel init                                # Initialize workspace
+mycel up                                  # Start root agent
 
 # Agents
-bc spawn eng-01 --role engineer       # Spawn agent
-bc status                              # List agents
-bc attach eng-01                       # Connect to agent
-bc down                                # Stop all agents
+mycel spawn eng-01 --role engineer       # Spawn agent
+mycel status                              # List agents
+mycel attach eng-01                       # Connect to agent
+mycel down                                # Stop all agents
 
 # Work
-bc queue add "Title"                   # Create task
-bc queue assign work-0001 eng-01       # Assign task
-bc report done "Message"               # Complete task
-bc merge process                       # Merge to main
+mycel queue add "Title"                   # Create task
+mycel queue assign work-0001 eng-01       # Assign task
+mycel report done "Message"               # Complete task
+mycel merge process                       # Merge to main
 
 # Monitoring
-bc home                                # View dashboard
-bc status                              # Check status
-bc logs                                # View logs
-bc queue list                          # List tasks
+mycel home                                # View dashboard
+mycel status                              # Check status
+mycel logs                                # View logs
+mycel queue list                          # List tasks
 ```
 
 ---
 
 **Happy building with bc! 🚀**
 
-For more information, visit [bc on GitHub](https://github.com/bcinfra1/bc)
+For more information, visit [mycel on GitHub](https://github.com/bcinfra1/bc)

@@ -72,7 +72,7 @@ function getMethods(version: string): Method[] {
       platforms: "Stable + main branch",
       commands: [
         `docker pull ghcr.io/rpuneet/mycel:${version}`,
-        `docker run -p 9374:9374 -v $(pwd):/workspace ghcr.io/rpuneet/mycel:${version} bc up --addr 0.0.0.0:9374`,
+        `docker run -p 9374:9374 -v $(pwd):/workspace ghcr.io/rpuneet/mycel:${version} mycel up --addr 0.0.0.0:9374`,
         `# Bleeding edge from main:`,
         `docker pull ghcr.io/rpuneet/mycel:main`,
       ],
@@ -235,9 +235,9 @@ export function InstallSection() {
             <CodeBlock
               id="after"
               lines={[
-                "bc init          # Initialize workspace",
-                "bc up            # Start server + web UI on localhost:9374",
-                "bc agent create  # Spawn an AI agent",
+                "mycel init          # Initialize workspace",
+                "mycel up            # Start server + web UI on localhost:9374",
+                "mycel agent create  # Spawn an AI agent",
               ]}
             />
           </div>

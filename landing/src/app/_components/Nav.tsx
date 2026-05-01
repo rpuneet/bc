@@ -105,7 +105,7 @@ function GetStartedDropdown() {
     {
       icon: Container,
       label: "Docker",
-      cmd: "docker run -p 9374:9374 -v $(pwd):/workspace ghcr.io/rpuneet/mycel bc up --addr 0.0.0.0:9374",
+      cmd: "docker run -p 9374:9374 -v $(pwd):/workspace ghcr.io/rpuneet/mycel mycel up --addr 0.0.0.0:9374",
     },
   ];
 

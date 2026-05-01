@@ -36,9 +36,9 @@ mycel works with any CLI-based AI coding assistant:
 ## Quick Start
 
 ```bash
-bc init --preset small-team
-bc up
-bc home
+mycel init --preset small-team
+mycel up
+mycel home
 ```
 
 ## Contact
