@@ -1,8 +1,8 @@
-# bc Features - Detailed Guide
+# mycel Features - Detailed Guide
 
 ## Overview
 
-bc provides core features designed specifically for coordinating multiple AI agents on complex development tasks. Each feature solves a specific problem in multi-agent workflows.
+mycel provides core features designed specifically for coordinating multiple AI agents on complex development tasks. Each feature solves a specific problem in multi-agent workflows.
 
 ---
 
@@ -93,7 +93,7 @@ AI agents lose context when they restart. Traditional solutions:
 - Chat history (loses system context)
 
 ### The Solution: Git-Backed Persistence
-All bc state stored in git-tracked files:
+All mycel state stored in git-tracked files:
 
 ```
 .bc/
@@ -166,7 +166,7 @@ Unorganized agent teams can:
 - Become chaotic at scale
 
 ### The Solution: Clear Role Hierarchy
-bc implements 3-level hierarchy with defined capabilities:
+mycel implements 3-level hierarchy with defined capabilities:
 
 ```
 Level 0: ProductManager (Strategic)
@@ -275,7 +275,7 @@ Agents lose context when switching communications:
 - Mentions get lost in channels
 
 ### The Solution: Native Channel System
-bc provides first-class channels for agent coordination:
+mycel provides first-class channels for agent coordination:
 
 ```bash
 # Send to individual
@@ -371,7 +371,7 @@ Tracking work across multiple agents is complex:
 - What's blocked or failed?
 
 ### The Solution: Native Work Queue
-bc provides built-in task tracking:
+mycel provides built-in task tracking:
 
 ```
 Lifecycle: pending → assigned → working → done
@@ -493,7 +493,7 @@ Provides:
 ### Dashboard Features
 ```
 ╔════════════════════════════════════════════════════════════╗
-║ bc Dashboard                                               ║
+║ mycel Dashboard                                               ║
 ╠════════════════════════════════════════════════════════════╣
 ║ AGENTS                                                     ║
 ║ pm-01     ├─ ProductManager   ├─ idle      ├─ 2h 15m      ║
@@ -528,7 +528,7 @@ q                # Quit
 
 ## Summary: Feature Comparison
 
-| Feature | Traditional Teams | bc Teams |
+| Feature | Traditional Teams | mycel Teams |
 |---------|------------------|----------|
 | **Merge Conflicts** | Common, manual resolution | Zero (worktree isolation) |
 | **Context Loss** | On restart (chat history) | Never (git-backed) |

@@ -1,6 +1,6 @@
-# bc Examples - Real-World Use Cases
+# mycel Examples - Real-World Use Cases
 
-Practical examples of bc in action for common development scenarios.
+Practical examples of mycel in action for common development scenarios.
 
 ## Table of Contents
 
@@ -21,15 +21,15 @@ Practical examples of bc in action for common development scenarios.
 ### Team Structure
 ```bash
 # Product Manager coordinates
-bc spawn pm-01 --role product-manager
+bc agent create pm-01 --role product-manager
 
 # Manager executes strategy
-bc spawn mgr-01 --role manager --parent pm-01
+bc agent create mgr-01 --role manager --parent pm-01
 
 # 2 Engineers + 1 QA
-bc spawn eng-01 --role engineer --parent mgr-01  # Backend
-bc spawn eng-02 --role engineer --parent mgr-01  # Frontend
-bc spawn qa-01 --role qa --parent mgr-01         # Testing
+bc agent create eng-01 --role engineer --parent mgr-01  # Backend
+bc agent create eng-02 --role engineer --parent mgr-01  # Frontend
+bc agent create qa-01 --role qa --parent mgr-01         # Testing
 ```
 
 ### Week 1: User Authentication
@@ -55,13 +55,13 @@ bc home
 
 ### Parallelization Benefits
 ```
-Timeline WITHOUT bc (sequential):
+Timeline WITHOUT mycel (sequential):
 Day 1-2: Backend builds JWT auth (eng-01 works)
 Day 3-4: Frontend builds login UI (waits for API)
 Day 5-6: Integration & testing
 Day 7: Deploy
 
-Timeline WITH bc (parallel):
+Timeline WITH mycel (parallel):
 Day 1-3: Backend (eng-01) + Frontend (eng-02) work simultaneously
 Day 4: QA tests both in parallel
 Day 5: Deploy
@@ -117,20 +117,20 @@ Each PM spawns 3 engineers + 1 QA
 ### Initialization
 ```bash
 # Root coordinates
-bc spawn root-01 --role product-manager
+bc agent create root-01 --role product-manager
 
 # 5 service managers
-bc spawn pm-user --role manager --parent root-01
-bc spawn pm-order --role manager --parent root-01
-bc spawn pm-payment --role manager --parent root-01
-bc spawn pm-inventory --role manager --parent root-01
-bc spawn pm-analytics --role manager --parent root-01
+bc agent create pm-user --role manager --parent root-01
+bc agent create pm-order --role manager --parent root-01
+bc agent create pm-payment --role manager --parent root-01
+bc agent create pm-inventory --role manager --parent root-01
+bc agent create pm-analytics --role manager --parent root-01
 
 # Each manager spawns engineers
 for service in user order payment inventory analytics; do
-  bc spawn eng-${service}-01 --role engineer --parent pm-${service}
-  bc spawn eng-${service}-02 --role engineer --parent pm-${service}
-  bc spawn qa-${service}-01 --role qa --parent pm-${service}
+  bc agent create eng-${service}-01 --role engineer --parent pm-${service}
+  bc agent create eng-${service}-02 --role engineer --parent pm-${service}
+  bc agent create qa-${service}-01 --role qa --parent pm-${service}
 done
 
 # Result: 15 agents in organized hierarchy
@@ -170,7 +170,7 @@ Traditional Approach:
 - Integration testing nightmares
 - 2-week integration cycle
 
-bc Approach:
+mycel Approach:
 - 5 teams in isolated worktrees
 - No merge conflicts in code
 - API contracts defined upfront
@@ -188,16 +188,16 @@ bc Approach:
 ### Team Roles
 ```bash
 # Core maintainers (permanent)
-bc spawn maintainer-01 --role product-manager  # Lead
-bc spawn maintainer-02 --role manager
-bc spawn maintainer-03 --role manager
+bc agent create maintainer-01 --role product-manager  # Lead
+bc agent create maintainer-02 --role manager
+bc agent create maintainer-03 --role manager
 
 # Triage: QA role
-bc spawn qa-triage-01 --role qa
+bc agent create qa-triage-01 --role qa
 
 # Contributor engineers (rotating)
-bc spawn contributor-01 --role engineer
-bc spawn contributor-02 --role engineer
+bc agent create contributor-01 --role engineer
+bc agent create contributor-02 --role engineer
 # ... etc
 ```
 
@@ -285,14 +285,14 @@ bc metrics
 ### Continuous Integration
 ```bash
 # Multiple engineers working on different features
-bc spawn eng-01 --role engineer  # Dark mode
-bc spawn eng-02 --role engineer  # Bulk export
-bc spawn eng-03 --role engineer  # Dashboards
-bc spawn eng-04 --role engineer  # Email fix
-bc spawn eng-05 --role engineer  # Performance
-bc spawn eng-06 --role engineer  # Documentation
-bc spawn qa-01 --role qa         # Testing
-bc spawn tech-lead-01 --role tech-lead
+bc agent create eng-01 --role engineer  # Dark mode
+bc agent create eng-02 --role engineer  # Bulk export
+bc agent create eng-03 --role engineer  # Dashboards
+bc agent create eng-04 --role engineer  # Email fix
+bc agent create eng-05 --role engineer  # Performance
+bc agent create eng-06 --role engineer  # Documentation
+bc agent create qa-01 --role qa         # Testing
+bc agent create tech-lead-01 --role tech-lead
 
 # Wednesday: Merge features to staging
 bc merge process --to staging
@@ -315,20 +315,20 @@ bc merge process --to main
 ### Team Specialization
 ```bash
 # 3 iOS engineers
-bc spawn ios-lead --role manager
-bc spawn ios-eng-01 --role engineer --parent ios-lead
-bc spawn ios-eng-02 --role engineer --parent ios-lead
-bc spawn ios-qa --role qa --parent ios-lead
+bc agent create ios-lead --role manager
+bc agent create ios-eng-01 --role engineer --parent ios-lead
+bc agent create ios-eng-02 --role engineer --parent ios-lead
+bc agent create ios-qa --role qa --parent ios-lead
 
 # 3 Android engineers
-bc spawn android-lead --role manager
-bc spawn android-eng-01 --role engineer --parent android-lead
-bc spawn android-eng-02 --role engineer --parent android-lead
-bc spawn android-qa --role qa --parent android-lead
+bc agent create android-lead --role manager
+bc agent create android-eng-01 --role engineer --parent android-lead
+bc agent create android-eng-02 --role engineer --parent android-lead
+bc agent create android-qa --role qa --parent android-lead
 
 # Shared features (backend)
-bc spawn backend-lead --role manager
-bc spawn backend-eng --role engineer --parent backend-lead
+bc agent create backend-lead --role manager
+bc agent create backend-eng --role engineer --parent backend-lead
 ```
 
 ### Parallel Platform Development
@@ -387,11 +387,11 @@ Data Ingestion → Transformation → Storage → Analytics
 ### Parallel Pipeline Development
 ```bash
 # Each stage has owner
-bc spawn eng-01 --role engineer  # Ingestion (APIs, webhooks)
-bc spawn eng-02 --role engineer  # Transformation (cleaning, enrichment)
-bc spawn eng-03 --role engineer  # Storage (DB, data warehouse)
-bc spawn eng-04 --role engineer  # Analytics (dashboards, reports)
-bc spawn qa-01 --role qa         # Data quality testing
+bc agent create eng-01 --role engineer  # Ingestion (APIs, webhooks)
+bc agent create eng-02 --role engineer  # Transformation (cleaning, enrichment)
+bc agent create eng-03 --role engineer  # Storage (DB, data warehouse)
+bc agent create eng-04 --role engineer  # Analytics (dashboards, reports)
+bc agent create qa-01 --role qa         # Data quality testing
 
 # Sprint: Add email interaction tracking
 bc queue add "Ingest email events from SendGrid"
@@ -434,19 +434,19 @@ bc home
 ### Microservice Coordination
 ```bash
 # API Gateway
-bc spawn gateway-eng --role engineer
+bc agent create gateway-eng --role engineer
 
 # 4 Backend Services
-bc spawn auth-service-eng --role engineer
-bc spawn users-service-eng --role engineer
-bc spawn products-service-eng --role engineer
-bc spawn orders-service-eng --role engineer
+bc agent create auth-service-eng --role engineer
+bc agent create users-service-eng --role engineer
+bc agent create products-service-eng --role engineer
+bc agent create orders-service-eng --role engineer
 
 # Shared utilities
-bc spawn utils-eng --role engineer
+bc agent create utils-eng --role engineer
 
 # Infrastructure
-bc spawn ops-eng --role engineer
+bc agent create ops-eng --role engineer
 ```
 
 ### Contract-First API Development
@@ -548,24 +548,24 @@ Large teams (15+ people):
 
 ### Startup (3 people, 4 weeks)
 ```
-Without bc: 4 weeks sequential → Launch Day 28
-With bc: 2.5 weeks parallel → Launch Day 18
+Without mycel: 4 weeks sequential → Launch Day 28
+With mycel: 2.5 weeks parallel → Launch Day 18
 
 Result: 10 days faster to market
 ```
 
 ### Enterprise (15 people, microservices)
 ```
-Without bc: 1 feature per 2 weeks
-With bc: 5 features per 2 weeks (parallel services)
+Without mycel: 1 feature per 2 weeks
+With mycel: 5 features per 2 weeks (parallel services)
 
 Result: 5x feature velocity
 ```
 
 ### OSS (10 maintainers, 50 issues)
 ```
-Without bc: 3-month backlog
-With bc: 2-week backlog (parallel contributors)
+Without mycel: 3-month backlog
+With mycel: 2-week backlog (parallel contributors)
 
 Result: 6x faster issue resolution
 ```
@@ -576,7 +576,7 @@ Result: 6x faster issue resolution
 
 1. **Clear Task Definition** - Each task must be discrete and independent
 2. **Upfront Planning** - Define dependencies before assigning work
-3. **Regular Synchronization** - Daily standup via bc dashboard
+3. **Regular Synchronization** - Daily standup via mycel dashboard
 4. **Code Review** - Tech leads review work before merge
 5. **Automated Testing** - CI/CD validates all merged changes
 6. **Communication** - Use channels for coordination, not interruption

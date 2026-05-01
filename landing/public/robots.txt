@@ -1,4 +1,4 @@
-# bc Landing Page robots.txt
+# mycel Landing Page robots.txt
 # Allow all search engines to crawl and index the site
 
 User-agent: *
@@ -18,4 +18,4 @@ Allow: /
 Crawl-delay: 1
 
 # Sitemap location
-Sitemap: https://bc-infra.com/sitemap.xml
+Sitemap: https://mycel.dev/sitemap.xml

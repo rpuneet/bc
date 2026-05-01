@@ -56,20 +56,20 @@ function ScreenshotFrame({
 }) {
   return (
     <div
-      className={`group relative overflow-hidden rounded-xl border border-border/60 shadow-2xl dark:border-[rgba(210,180,140,0.08)] transition-transform duration-500 ease-out hover:scale-[1.02] ${className}`}
+      className={`group relative overflow-hidden rounded-xl border border-outline-variant/20 shadow-2xl transition-transform duration-500 ease-out hover:scale-[1.02] ${className}`}
       style={{
         boxShadow:
           "0 0 60px rgba(234, 88, 12, 0.06), 0 25px 50px -12px rgba(0, 0, 0, 0.4)",
       }}
     >
       {/* Browser chrome bar */}
-      <div className="flex items-center gap-2 border-b border-border/40 bg-[var(--terminal-header-bg)] px-4 py-2 dark:border-[rgba(210,180,140,0.06)]">
+      <div className="flex items-center gap-2 border-b border-outline-variant/20 bg-[var(--terminal-header-bg)] px-4 py-2">
         <div className="flex gap-1.5" aria-hidden="true">
           <span className="h-2.5 w-2.5 rounded-full bg-[var(--traffic-red)]" />
           <span className="h-2.5 w-2.5 rounded-full bg-[var(--traffic-yellow)]" />
           <span className="h-2.5 w-2.5 rounded-full bg-[var(--traffic-green)]" />
         </div>
-        <div className="mx-auto rounded-md bg-[rgba(255,255,255,0.04)] px-8 py-1 text-[10px] font-mono text-[var(--terminal-muted)] tracking-wide">
+        <div className="mx-auto rounded-md bg-[rgba(255,255,255,0.04)] px-8 py-1 text-[10px] font-label text-[var(--terminal-muted)] tracking-wide">
           localhost:9374
         </div>
         <div className="w-[52px]" />
@@ -90,18 +90,18 @@ function ScreenshotFrame({
 
 function CLICommands({ commands }: { commands: string[] }) {
   return (
-    <div className="mt-8 overflow-hidden rounded-lg border border-border/40 bg-[var(--terminal-bg)] dark:border-[rgba(210,180,140,0.06)]">
-      <div className="flex items-center gap-2 border-b border-[rgba(210,180,140,0.06)] px-4 py-2">
+    <div className="mt-8 overflow-hidden rounded-lg border border-outline-variant/20 bg-[var(--terminal-bg)]">
+      <div className="flex items-center gap-2 border-b border-outline-variant/10 px-4 py-2">
         <div className="flex gap-1.5" aria-hidden="true">
           <span className="h-2 w-2 rounded-full bg-[var(--traffic-red)]" />
           <span className="h-2 w-2 rounded-full bg-[var(--traffic-yellow)]" />
           <span className="h-2 w-2 rounded-full bg-[var(--traffic-green)]" />
         </div>
-        <span className="ml-2 font-mono text-[9px] font-bold uppercase tracking-[0.2em] text-[var(--terminal-muted)]">
+        <span className="ml-2 font-label text-[9px] font-bold uppercase tracking-[0.2em] text-[var(--terminal-muted)]">
           terminal
         </span>
       </div>
-      <div className="p-4 space-y-1.5 font-mono text-[13px] leading-relaxed text-[var(--terminal-text)]">
+      <div className="p-4 space-y-1.5 font-label text-[13px] leading-relaxed text-[var(--terminal-text)]">
         {commands.map((cmd) => (
           <div key={cmd}>
             <span className="text-[var(--terminal-prompt)]">$ </span>
@@ -153,20 +153,20 @@ function FeatureSection({
       animate={inView ? "visible" : "hidden"}
       className={imageFirst ? "order-1 lg:order-2" : ""}
     >
-      <span className="inline-block font-mono text-[11px] font-bold uppercase tracking-[0.25em] text-primary/80 border-b border-primary/20 pb-1">
+      <span className="inline-block font-label text-[11px] font-bold uppercase tracking-[0.25em] text-primary/80 border-b border-primary/20 pb-1">
         {label}
       </span>
-      <h2 className="mt-5 text-3xl font-bold tracking-tight sm:text-4xl leading-[1.15]">
+      <h2 className="mt-5 text-3xl font-bold tracking-tight sm:text-4xl leading-[1.15] font-headline text-on-background">
         {title}
       </h2>
-      <p className="mt-5 text-muted-foreground leading-[1.8] text-[15px]">
+      <p className="mt-5 text-on-surface-variant leading-[1.8] text-[15px] font-body">
         {description}
         {docsLink && (
           <>
             {" "}
             <Link
               href={docsLink}
-              className="text-foreground underline underline-offset-4 hover:text-primary transition-colors"
+              className="text-on-background underline underline-offset-4 hover:text-primary transition-colors"
             >
               See docs &rarr;
             </Link>
@@ -195,7 +195,7 @@ function FeatureSection({
   return (
     <section
       ref={ref}
-      className="py-28 lg:py-36 border-t border-border/30"
+      className="py-14 lg:py-16 border-t border-outline-variant/20"
       id={id}
     >
       <div className="grid items-center gap-12 lg:grid-cols-2 lg:gap-20">
@@ -225,7 +225,7 @@ const cardAccents = [
 
 export default function Product() {
   return (
-    <main className="min-h-screen selection:bg-primary/20 selection:text-foreground overflow-x-hidden">
+    <main className="min-h-screen selection:bg-primary/20 selection:text-on-background overflow-x-hidden">
       <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(ellipse_80%_60%_at_50%_-20%,rgba(234,88,12,0.04),transparent)] dark:bg-[radial-gradient(ellipse_80%_60%_at_50%_-20%,rgba(234,88,12,0.08),transparent)]" />
 
       <Nav />
@@ -235,23 +235,23 @@ export default function Product() {
         initial="hidden"
         animate="visible"
         variants={stagger}
-        className="relative px-6 py-24 lg:py-36 text-center"
+        className="relative px-6 py-14 lg:py-16 text-center"
       >
         {/* Hero glow */}
         <div className="pointer-events-none absolute inset-x-0 top-0 h-[600px] bg-[radial-gradient(ellipse_60%_40%_at_50%_20%,rgba(234,88,12,0.1),transparent)]" />
 
         <motion.div variants={fadeUp} custom={0} className="relative mx-auto max-w-4xl">
-          <span className="inline-block font-mono text-[11px] font-bold uppercase tracking-[0.3em] text-primary border border-primary/20 rounded-full px-4 py-1.5 mb-6">
+          <span className="inline-block font-label text-[11px] font-bold uppercase tracking-[0.3em] text-primary border border-primary/20 rounded-full px-4 py-1.5 mb-6">
             Product
           </span>
-          <h1 className="text-4xl font-bold tracking-tight sm:text-6xl lg:text-7xl leading-[1.05]">
+          <h1 className="text-4xl font-bold tracking-tight sm:text-6xl lg:text-7xl leading-[1.05] font-headline text-on-background">
             The complete platform for
             <br />
-            <span className="text-muted-foreground/40">
+            <span className="text-on-surface-variant/60">
               multi-agent orchestration.
             </span>
           </h1>
-          <p className="mx-auto mt-8 max-w-2xl text-lg text-muted-foreground leading-relaxed">
+          <p className="mx-auto mt-8 max-w-2xl text-lg text-on-surface-variant leading-relaxed font-body">
             Agents, channels, roles, cost tracking, secrets, and cron jobs.
             Everything you need to run parallel AI agents.
           </p>
@@ -261,11 +261,11 @@ export default function Product() {
         <motion.div
           variants={fadeUp}
           custom={1}
-          className="relative mx-auto mt-20 max-w-5xl"
+          className="relative mx-auto mt-12 max-w-5xl"
         >
           <ScreenshotFrame
             src="/screenshots/dashboard-01-home.png"
-            alt="bc Web UI dashboard showing workspace overview with agent status, channels, and system health"
+            alt="mycel Web UI dashboard showing workspace overview with agent status, channels, and system health"
           />
         </motion.div>
       </motion.section>
@@ -276,15 +276,15 @@ export default function Product() {
           id="agents"
           label="Agent Lifecycle"
           title="Create, command, observe, stop."
-          description="Spawn agents with roles and tools. Send work, peek at output, manage the full lifecycle. Each agent runs in its own tmux session with an isolated git worktree."
+          description="Spawn an agent in one command. It gets its own tmux session, git worktree, and role. Send it work, peek at its output, or stop it — all from the CLI."
           commands={[
-            'bc agent create eng-01 --role engineer --tool claude',
-            'bc agent send eng-01 "Build the auth module"',
-            'bc agent peek eng-01',
-            'bc agent list',
+            'mycel agent create eng-01 --role engineer --tool claude',
+            'mycel agent send eng-01 "Build the auth module"',
+            'mycel agent peek eng-01',
+            'mycel agent list',
           ]}
           screenshot="/screenshots/dashboard-02-agents.png"
-          screenshotAlt="bc Agents view showing a table of agents with their roles, tools, states, and tasks"
+          screenshotAlt="mycel Agents view showing a table of agents with their roles, tools, states, and tasks"
           docsLink="/docs#commands"
         />
 
@@ -293,14 +293,14 @@ export default function Product() {
           id="channels"
           label="Communication"
           title="Structured coordination via channels."
-          description="Structured channels keep agents coordinated. Agents @mention each other, hand off work, and converge. Every message is logged and searchable."
+          description="Agents @mention each other, hand off work, and converge — without going through you. Every message is logged and searchable."
           commands={[
-            'bc channel create deploys',
-            'bc channel send engineering "@eng-01 review PR #42"',
-            'bc channel history engineering --last 20',
+            'mycel channel create deploys',
+            'mycel channel send engineering "@eng-01 review PR #42"',
+            'mycel channel history engineering --last 20',
           ]}
           screenshot="/screenshots/dashboard-03-channels.png"
-          screenshotAlt="bc Channels view showing inter-agent communication with message history and reactions"
+          screenshotAlt="mycel Channels view showing inter-agent communication with message history and reactions"
           docsLink="/docs#commands"
           imageFirst
         />
@@ -310,46 +310,30 @@ export default function Product() {
           id="costs"
           label="Cost Tracking"
           title="Track spending across every agent."
-          description="Total cost, token usage, and per-agent breakdowns in real time. Set budgets with thresholds. Hard stops pause agents that exceed their limit."
+          description="See total cost and per-agent breakdowns in real time. Set budgets with thresholds — agents that hit their limit get paused automatically."
           commands={[
-            'bc cost show',
-            'bc cost budget set 50.00 --agent eng-01 --alert-at 0.8',
-            'bc cost usage',
+            'mycel cost show',
+            'mycel cost budget set 50.00 --agent eng-01 --alert-at 0.8',
+            'mycel cost usage',
           ]}
           screenshot="/screenshots/dashboard-04-costs.png"
-          screenshotAlt="bc Costs dashboard showing total spend, daily cost trends, and per-agent cost breakdown with bar chart"
+          screenshotAlt="mycel Costs dashboard showing total spend, daily cost trends, and per-agent cost breakdown with bar chart"
           docsLink="/docs#commands"
         />
 
-        {/* ═══════════════════ ROLES & PERMISSIONS ═══════════════════ */}
+        {/* ═══════════════════ WEB DASHBOARD ═══════════════════ */}
         <FeatureSection
-          id="roles"
-          label="Roles & Permissions"
-          title="RBAC for your agent team."
-          description="Define roles with scoped capabilities. Engineers implement tasks. Managers assign work. Roles live as markdown files in .bc/roles/."
+          id="dashboard"
+          label="Web Dashboard"
+          title="15+ dashboard views, out of the box."
+          description="Agents, channels, costs, roles, tools, secrets, logs, cron jobs, and system health — all at localhost:9374. Roles define permissions as markdown. Tools are mix-and-match. Secrets are encrypted at rest."
           commands={[
-            'bc role list',
-            'bc role show engineer',
+            'mycel up',
+            'mycel status',
           ]}
           screenshot="/screenshots/dashboard-05-roles.png"
-          screenshotAlt="bc Roles view showing configured roles with their capabilities and hierarchy"
+          screenshotAlt="mycel Web Dashboard showing roles, tools, secrets, logs, and system health views"
           imageFirst
-        />
-
-        {/* ═══════════════════ TOOL MANAGEMENT ═══════════════════ */}
-        <FeatureSection
-          id="tools"
-          label="Tool Management"
-          title="Add any AI tool. Mix and match."
-          description="Register AI tools and assign them to agents. Claude Code for complex features, Cursor for UI, Aider for quick fixes. bc manages install, upgrade, and status."
-          commands={[
-            'bc tool list',
-            'bc tool add mytool --command "mytool --yes"',
-            'bc tool status claude',
-          ]}
-          screenshot="/screenshots/dashboard-06-tools.png"
-          screenshotAlt="bc Tools view showing registered AI tools with their versions, installation status, and commands"
-          docsLink="/docs#commands"
         />
 
         {/* ═══════════════════ MCP INTEGRATION ═══════════════════ */}
@@ -357,14 +341,14 @@ export default function Product() {
           id="mcp"
           label="MCP Integration"
           title="Connect tools natively via MCP."
-          description="Configure MCP servers that agents connect to on spawn. Supports stdio and SSE transport. Attach servers to roles for consistent capabilities."
+          description="Add MCP servers once, and agents connect on spawn. Supports stdio and SSE transport. Attach servers to roles so every agent gets the right capabilities."
           commands={[
-            'bc mcp add github-server',
-            'bc mcp list',
-            'bc mcp enable github-server',
+            'mycel mcp add github-server',
+            'mycel mcp list',
+            'mycel mcp enable github-server',
           ]}
           screenshot="/screenshots/dashboard-07-mcp.png"
-          screenshotAlt="bc MCP view showing configured MCP servers with transport type and connection status"
+          screenshotAlt="mycel MCP view showing configured MCP servers with transport type and connection status"
           imageFirst
         />
 
@@ -373,130 +357,55 @@ export default function Product() {
           id="cron"
           label="Scheduled Tasks"
           title="Cron-powered automation."
-          description="Schedule recurring tasks with cron syntax. Send prompts to agents on a schedule and view execution history."
+          description="Run lints every morning. Deploy previews on push. Schedule any prompt to any agent with cron syntax, and review the execution history."
           commands={[
-            'bc cron add daily-lint --schedule "0 9 * * *" --agent qa-01 --prompt "Run make lint"',
-            'bc cron list',
-            'bc cron logs daily-lint --last 10',
+            'mycel cron add daily-lint --schedule "0 9 * * *" --agent qa-01 --prompt "Run make lint"',
+            'mycel cron list',
+            'mycel cron logs daily-lint --last 10',
           ]}
           screenshot="/screenshots/dashboard-08-cron.png"
-          screenshotAlt="bc Cron Jobs view showing scheduled jobs with their schedules, run counts, and last execution times"
-        />
-
-        {/* ═══════════════════ SECRETS ═══════════════════ */}
-        <FeatureSection
-          id="secrets"
-          label="Secrets Management"
-          title="Encrypted credentials, zero plaintext."
-          description="API keys and credentials encrypted at rest via macOS Keychain, Linux libsecret, or AES-256-GCM. No plaintext in your repo."
-          commands={[
-            'bc secret set OPENAI_KEY',
-            'bc secret list',
-            'bc secret get GITHUB_TOKEN',
-          ]}
-          screenshot="/screenshots/dashboard-09-secrets.png"
-          screenshotAlt="bc Secrets view showing stored secrets with encryption backend and creation dates"
-          imageFirst
-        />
-
-        {/* ═══════════════════ STATS ═══════════════════ */}
-        <FeatureSection
-          id="stats"
-          label="System Stats"
-          title="Full visibility into your workspace."
-          description="Agent counts, total cost, CPU/memory/disk usage, uptime, and channel activity at a glance."
-          commands={[
-            'bc stats',
-            'bc status',
-          ]}
-          screenshot="/screenshots/dashboard-10-stats-loaded.png"
-          screenshotAlt="bc Stats dashboard showing agent summary, system overview, resource usage bars, and runtime metrics"
-        />
-
-        {/* ═══════════════════ LOGS ═══════════════════ */}
-        <FeatureSection
-          id="logs"
-          label="Centralized Logs"
-          title="Every event, searchable and filterable."
-          description="All agent activity, channel messages, and system events in one log. Filter by agent, level, or time range."
-          commands={[
-            'bc logs',
-            'bc agent logs eng-01',
-          ]}
-          screenshot="/screenshots/dashboard-11-logs.png"
-          screenshotAlt="bc Logs view showing a filterable stream of workspace events from agents and system"
-          imageFirst
-        />
-
-        {/* ═══════════════════ DAEMONS ═══════════════════ */}
-        <FeatureSection
-          id="daemons"
-          label="Daemon Processes"
-          title="Long-running services, managed."
-          description="Run background processes alongside your agents. bc manages their lifecycle and restarts them on failure."
-          commands={[
-            'bc status',
-            'bc doctor',
-          ]}
-          screenshot="/screenshots/dashboard-13-daemons.png"
-          screenshotAlt="bc Daemons view showing running background processes with their status and uptime"
-        />
-
-        {/* ═══════════════════ DOCTOR ═══════════════════ */}
-        <FeatureSection
-          id="doctor"
-          label="System Health"
-          title="One command to check everything."
-          description="Checks workspace, database, agents, tools, MCP, secrets, git, and daemon. bc doctor fix auto-repairs what it can."
-          commands={[
-            'bc doctor',
-            'bc doctor check tools',
-            'bc doctor fix',
-          ]}
-          screenshot="/screenshots/dashboard-14-doctor.png"
-          screenshotAlt="bc Doctor view showing system health checks across workspace, tools, agents, and configuration"
-          imageFirst
+          screenshotAlt="mycel Cron Jobs view showing scheduled jobs with their schedules, run counts, and last execution times"
         />
 
         {/* ═══════════════════ WHY BC ═══════════════════ */}
         <RevealSection
-          className="py-28 lg:py-36 border-t border-border/30"
+          className="py-14 lg:py-16 border-t border-outline-variant/20"
           id="why-bc"
         >
-          <div className="mb-14">
-            <span className="inline-block font-mono text-[11px] font-bold uppercase tracking-[0.25em] text-primary/80 border-b border-primary/20 pb-1">
-              Why bc?
+          <div className="mb-10">
+            <span className="inline-block font-label text-[11px] font-bold uppercase tracking-[0.25em] text-primary/80 border-b border-primary/20 pb-1">
+              Why mycel?
             </span>
-            <h2 className="mt-5 text-3xl font-bold tracking-tight sm:text-4xl leading-[1.15]">
+            <h2 className="mt-5 text-3xl font-bold tracking-tight sm:text-4xl leading-[1.15] font-headline text-on-background">
               Not a new IDE. Not a framework. An orchestration layer.
             </h2>
-            <p className="mt-5 max-w-2xl text-muted-foreground leading-[1.8] text-[15px]">
-              bc coordinates your existing tools. Keep using Claude Code,
-              Cursor, Codex, or any CLI agent. bc handles the multi-agent
+            <p className="mt-5 max-w-2xl text-on-surface-variant leading-[1.8] text-[15px] font-body">
+              mycel coordinates your existing tools. Keep using Claude Code,
+              Cursor, Codex, or any CLI agent. mycel handles the multi-agent
               complexity.
             </p>
           </div>
           <div className="grid gap-6 sm:grid-cols-3">
             {[
               {
-                title: "vs. Single-agent tools",
-                desc: "Claude Code, Cursor, and Codex run one agent at a time. bc runs many in parallel on isolated branches.",
-              },
-              {
-                title: "vs. Agent frameworks",
-                desc: "CrewAI and LangGraph require building agents from scratch. bc orchestrates agents you already use. No code changes.",
+                title: "vs. Manual setup",
+                desc: "Running Claude Code or Cursor one agent at a time is fine until you need five. mycel runs many in parallel, each on its own branch, with zero conflicts.",
               },
               {
                 title: "vs. Custom scripts",
-                desc: "Shell scripts break at scale. bc gives you structured channels, persistent memory, and cost tracking out of the box.",
+                desc: "Shell scripts break when you add the fifth agent. mycel gives you structured channels, cost tracking, and role-based control out of the box.",
+              },
+              {
+                title: "vs. Agent frameworks",
+                desc: "CrewAI and LangGraph require you to build agents from scratch in Python. mycel orchestrates the tools you already use. No SDK, no code changes.",
               },
             ].map((item, i) => (
               <div
                 key={item.title}
-                className={`rounded-xl border border-border bg-card p-7 transition-all duration-300 cursor-default ${cardAccents[i].border} ${cardAccents[i].glow}`}
+                className={`rounded-xl border border-outline-variant/20 bg-surface-container p-7 transition-all duration-300 cursor-default ${cardAccents[i].border} ${cardAccents[i].glow}`}
               >
-                <h3 className="font-semibold text-sm mb-3">{item.title}</h3>
-                <p className="text-sm text-muted-foreground leading-[1.8]">
+                <h3 className="font-headline font-semibold text-sm mb-3 text-on-background">{item.title}</h3>
+                <p className="text-sm text-on-surface-variant leading-[1.8] font-body">
                   {item.desc}
                 </p>
               </div>
@@ -505,9 +414,9 @@ export default function Product() {
         </RevealSection>
 
         {/* ═══════════════════ CTA ═══════════════════ */}
-        <RevealSection className="py-28 lg:py-36">
+        <RevealSection className="py-14 lg:py-16">
           <div
-            className="relative overflow-hidden rounded-2xl border border-border bg-card p-10 sm:p-14 text-center"
+            className="relative overflow-hidden rounded-2xl border border-outline-variant/20 bg-surface-container p-10 sm:p-14 text-center"
             style={{
               boxShadow:
                 "0 0 80px rgba(234, 88, 12, 0.06), 0 25px 50px -12px rgba(0, 0, 0, 0.3)",
@@ -517,34 +426,34 @@ export default function Product() {
             <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_50%_50%_at_50%_0%,rgba(234,88,12,0.08),transparent)]" />
 
             <div className="relative">
-              <h2 className="text-3xl font-bold tracking-tight sm:text-4xl lg:text-5xl">
+              <h2 className="text-3xl font-bold tracking-tight sm:text-4xl lg:text-5xl font-headline text-on-background">
                 Start orchestrating in 60 seconds.
               </h2>
-              <p className="mx-auto mt-5 max-w-xl text-lg text-muted-foreground leading-relaxed">
-                Install bc, run three commands, and your agent team is live.
+              <p className="mx-auto mt-5 max-w-xl text-lg text-on-surface-variant leading-relaxed font-body">
+                Install mycel, run three commands, and your agent team is live.
               </p>
 
               {/* Terminal quickstart */}
-              <div className="mx-auto mt-10 max-w-md overflow-hidden rounded-lg border border-border/40 bg-[var(--terminal-bg)] text-left dark:border-[rgba(210,180,140,0.06)]">
-                <div className="flex items-center gap-2 border-b border-[rgba(210,180,140,0.06)] px-4 py-2">
+              <div className="mx-auto mt-10 max-w-md overflow-hidden rounded-lg border border-outline-variant/20 bg-[var(--terminal-bg)] text-left">
+                <div className="flex items-center gap-2 border-b border-outline-variant/10 px-4 py-2">
                   <div className="flex gap-1.5" aria-hidden="true">
                     <span className="h-2 w-2 rounded-full bg-[var(--traffic-red)]" />
                     <span className="h-2 w-2 rounded-full bg-[var(--traffic-yellow)]" />
                     <span className="h-2 w-2 rounded-full bg-[var(--traffic-green)]" />
                   </div>
                 </div>
-                <div className="p-4 font-mono text-[13px] leading-relaxed text-[var(--terminal-text)]">
+                <div className="p-4 font-label text-[13px] leading-relaxed text-[var(--terminal-text)]">
                   <div>
                     <span className="text-[var(--terminal-prompt)]">$ </span>
                     <span className="text-[var(--terminal-command)]">curl -fsSL https://raw.githubusercontent.com/rpuneet/bc/main/scripts/install.sh | bash</span>
                   </div>
                   <div>
                     <span className="text-[var(--terminal-prompt)]">$ </span>
-                    <span className="text-[var(--terminal-command)]">bc init</span>
+                    <span className="text-[var(--terminal-command)]">mycel init</span>
                   </div>
                   <div>
                     <span className="text-[var(--terminal-prompt)]">$ </span>
-                    <span className="text-[var(--terminal-command)]">bc up</span>
+                    <span className="text-[var(--terminal-command)]">mycel up</span>
                   </div>
                   <div className="mt-1">
                     <span className="text-[var(--terminal-prompt)]">$ </span>
@@ -566,8 +475,8 @@ export default function Product() {
                 </Link>
                 <Link
                   href="/docs"
-                  className="inline-flex h-12 items-center gap-2 rounded-lg border border-border px-8 text-sm font-medium transition-colors hover:bg-accent active:scale-[0.97]"
-                  aria-label="Browse the bc CLI reference documentation"
+                  className="inline-flex h-12 items-center gap-2 rounded-lg border border-outline-variant/20 px-8 text-sm font-medium text-on-surface-variant transition-colors hover:bg-surface-container hover:text-on-surface active:scale-[0.97] font-body"
+                  aria-label="Browse the mycel CLI reference documentation"
                 >
                   Browse CLI Reference
                 </Link>

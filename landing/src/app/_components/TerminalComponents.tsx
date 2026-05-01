@@ -8,7 +8,7 @@ import { useRef, useEffect, useState, type ReactNode } from "react";
    ═══════════════════════════════════════════════════════════════════ */
 
 export function TerminalWindow({
-  title = "bc terminal",
+  title = "mycel terminal",
   children,
   className = "",
   ariaLabel,

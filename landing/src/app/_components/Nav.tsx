@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
+import { SporeLogo } from "./SporeLogo";
 import { useState, useRef, useEffect } from "react";
 import { Menu, X, Copy, Check, Apple, Monitor, Container } from "lucide-react";
 import { ThemeToggle } from "./ThemeToggle";
@@ -11,53 +13,14 @@ const links = [
   { href: "/product", label: "Product" },
   { href: "/method", label: "Method" },
   { href: "/docs", label: "Docs" },
-  { href: "/#install", label: "Install" },
-  { href: "/pricing", label: "Pricing" },
 ];
 
 function Logo() {
   return (
-    <div className="flex items-center group">
-      <span className="font-mono text-lg font-normal text-secondary/70">
-        &gt;
-      </span>
-      <span className="font-heading text-xl font-bold tracking-tight text-primary ml-1">
-        bc
-      </span>
+    <div className="flex items-center gap-2">
+      <SporeLogo size={28} />
+      <span className="font-headline text-lg font-bold tracking-tight text-on-background">mycel</span>
     </div>
-  );
-}
-
-function HamburgerButton({
-  isOpen,
-  onClick,
-}: {
-  isOpen: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className="p-1.5 rounded-md hover:bg-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-      aria-label={isOpen ? "Close menu" : "Open menu"}
-      aria-expanded={isOpen}
-      aria-controls="mobile-menu"
-    >
-      <motion.div
-        animate={isOpen ? "open" : "closed"}
-        variants={{
-          open: { rotate: 90 },
-          closed: { rotate: 0 },
-        }}
-        transition={{ duration: 0.2 }}
-      >
-        {isOpen ? (
-          <X size={20} aria-hidden="true" />
-        ) : (
-          <Menu size={20} aria-hidden="true" />
-        )}
-      </motion.div>
-    </button>
   );
 }
 
@@ -78,16 +41,16 @@ function InstallRow({
 
   return (
     <div
-      className="px-3 py-2.5 hover:bg-accent/30 transition-colors cursor-default"
+      className="px-3 py-2.5 hover:bg-surface-container-high/30 transition-colors cursor-default"
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
       <div className="flex items-center gap-2.5">
         <Icon
-          className="h-4 w-4 text-muted-foreground shrink-0"
+          className="h-4 w-4 text-on-surface-variant shrink-0"
           aria-hidden={true}
         />
-        <span className="text-sm font-medium text-foreground">{label}</span>
+        <span className="text-sm font-medium text-on-background">{label}</span>
       </div>
       <motion.div
         initial={false}
@@ -99,8 +62,8 @@ function InstallRow({
         transition={{ duration: 0.2, ease: "easeInOut" }}
         className="overflow-hidden"
       >
-        <div className="flex items-center gap-1.5 bg-muted/50 rounded px-2 py-1.5">
-          <code className="text-xs font-mono text-foreground flex-1 min-w-0 truncate">
+        <div className="flex items-center gap-1.5 bg-surface-container-highest/50 rounded px-2 py-1.5">
+          <code className="text-xs font-label text-on-background flex-1 min-w-0 truncate">
             {cmd}
           </code>
           <button
@@ -108,13 +71,13 @@ function InstallRow({
               e.stopPropagation();
               onCopy();
             }}
-            className="shrink-0 p-1 rounded hover:bg-accent transition-colors"
+            className="shrink-0 p-1 rounded hover:bg-surface-container-high transition-colors"
             aria-label={`Copy ${label} install command`}
           >
             {copied ? (
               <Check className="h-3.5 w-3.5 text-green-500" />
             ) : (
-              <Copy className="h-3.5 w-3.5 text-muted-foreground" />
+              <Copy className="h-3.5 w-3.5 text-on-surface-variant" />
             )}
           </button>
         </div>
@@ -137,7 +100,7 @@ function GetStartedDropdown() {
     {
       icon: Monitor,
       label: "Homebrew",
-      cmd: "brew install rpuneet/bc/bc",
+      cmd: "brew install rpuneet/bc/mycel",
     },
     {
       icon: Container,
@@ -159,7 +122,7 @@ function GetStartedDropdown() {
     <div className="relative" ref={ref}>
       <button
         onClick={() => setOpen(!open)}
-        className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3.5 py-1 text-[13px] font-medium text-primary-foreground transition-all hover:opacity-90 active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary whitespace-nowrap"
+        className="inline-flex items-center gap-1.5 rounded-sm bg-primary px-4 py-1.5 text-[13px] font-medium text-primary-foreground transition-all hover:opacity-90 active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-primary cta-glow whitespace-nowrap"
       >
         Get Started
       </button>
@@ -170,10 +133,10 @@ function GetStartedDropdown() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -4, scale: 0.95 }}
             transition={{ duration: 0.15 }}
-            className="absolute right-0 top-full mt-2 w-80 rounded-lg border border-border bg-card shadow-xl overflow-hidden z-50"
+            className="absolute right-0 top-full mt-2 w-80 rounded-lg border border-outline-variant/20 bg-surface-container shadow-xl overflow-hidden z-50"
           >
-            <div className="px-3 py-2 border-b border-border/60">
-              <span className="text-[10px] font-semibold uppercase tracking-[0.15em] text-muted-foreground">
+            <div className="px-3 py-2 border-b border-outline-variant/20">
+              <span className="text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant">
                 Install
               </span>
             </div>
@@ -191,11 +154,11 @@ function GetStartedDropdown() {
                 }}
               />
             ))}
-            <div className="px-3 py-2 border-t border-border/60 bg-muted/30">
+            <div className="px-3 py-2 border-t border-outline-variant/20 bg-surface-container-highest/30">
               <Link
                 href="/docs#installation"
                 onClick={() => setOpen(false)}
-                className="text-[11px] text-muted-foreground hover:text-foreground transition-colors"
+                className="text-[11px] text-on-surface-variant hover:text-on-surface transition-colors"
               >
                 Full installation guide →
               </Link>
@@ -211,6 +174,7 @@ export function Nav() {
   const [isOpen, setIsOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const pathname = usePathname();
 
   useEffect(() => {
     function onScroll() {
@@ -239,52 +203,89 @@ export function Nav() {
     return () => document.removeEventListener("keydown", handleEscape);
   }, [isOpen]);
 
+  const isActive = (href: string) => {
+    if (href === "/") return pathname === "/";
+    return pathname.startsWith(href);
+  };
+
   const handleLinkClick = () => setIsOpen(false);
 
   return (
     <header
-      className={`sticky top-0 z-50 transition-all duration-300 ${
+      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
         scrolled
-          ? "border-b border-border/50 bg-background/75 backdrop-blur-xl shadow-sm"
-          : "border-b border-transparent bg-transparent"
+          ? "bg-[var(--nav-bg)] backdrop-blur-xl shadow-[0_1px_0_var(--glass-border)]"
+          : "bg-transparent"
       }`}
     >
-      <div className="mx-auto flex max-w-6xl items-center px-4 py-3 sm:px-6">
-        {/* Left: Logo + Nav links */}
-        <div className="flex items-center gap-1">
-          <Link
-            href="/"
-            className="rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-            aria-label="bc home page"
-          >
-            <Logo />
-          </Link>
-          <div className="hidden md:block w-[2px] h-4 bg-primary/60 mx-2 animate-[blink_1s_step-end_infinite]" />
-          <nav
-            aria-label="Main navigation"
-            className="hidden items-center md:flex"
-          >
-            {links.map((l) => (
-              <Link
-                key={l.href}
-                href={l.href}
-                className="rounded-md px-2.5 py-1 text-[13px] font-medium text-muted-foreground transition-colors hover:text-foreground hover:bg-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-              >
-                {l.label}
-              </Link>
-            ))}
-          </nav>
-        </div>
+      <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:px-6">
+        {/* Left: Logo */}
+        <Link
+          href="/"
+          className="focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+          aria-label="mycel home page"
+        >
+          <Logo />
+        </Link>
 
-        {/* Right: Install + Theme toggle */}
-        <div className="hidden md:flex items-center gap-2 ml-auto">
-          <GetStartedDropdown />
+        {/* Center: Nav links */}
+        <nav
+          aria-label="Main navigation"
+          className="hidden md:flex items-center gap-1"
+        >
+          {links.map((l) => (
+            <Link
+              key={l.href}
+              href={l.href}
+              className={`relative px-3 py-1.5 text-[13px] font-medium transition-colors ${
+                isActive(l.href)
+                  ? "text-primary"
+                  : "text-on-surface-variant hover:text-on-surface"
+              }`}
+            >
+              {l.label}
+              {isActive(l.href) && (
+                <motion.div
+                  layoutId="nav-underline"
+                  className="absolute bottom-0 left-3 right-3 h-[2px] bg-primary"
+                  transition={{ type: "spring", stiffness: 380, damping: 30 }}
+                />
+              )}
+            </Link>
+          ))}
+        </nav>
+
+        {/* Right: Theme toggle + Get Started dropdown */}
+        <div className="hidden md:flex items-center gap-3">
           <ThemeToggle />
+          <GetStartedDropdown />
         </div>
 
         {/* Mobile: hamburger */}
-        <div className="md:hidden ml-auto">
-          <HamburgerButton isOpen={isOpen} onClick={() => setIsOpen(!isOpen)} />
+        <div className="md:hidden flex items-center gap-2">
+          <ThemeToggle />
+          <button
+            onClick={() => setIsOpen(!isOpen)}
+            className="p-1.5 hover:bg-surface-container-high/50 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            aria-label={isOpen ? "Close menu" : "Open menu"}
+            aria-expanded={isOpen}
+            aria-controls="mobile-menu"
+          >
+            <motion.div
+              animate={isOpen ? "open" : "closed"}
+              variants={{
+                open: { rotate: 90 },
+                closed: { rotate: 0 },
+              }}
+              transition={{ duration: 0.2 }}
+            >
+              {isOpen ? (
+                <X size={20} aria-hidden="true" />
+              ) : (
+                <Menu size={20} aria-hidden="true" />
+              )}
+            </motion.div>
+          </button>
         </div>
       </div>
 
@@ -298,44 +299,48 @@ export function Nav() {
             animate={{ opacity: 1, height: "auto" }}
             exit={{ opacity: 0, height: 0 }}
             transition={{ duration: 0.2, ease: "easeInOut" }}
-            className="md:hidden border-t border-border/50 bg-background/95 backdrop-blur-sm"
+            className="md:hidden bg-surface-container-low/95 backdrop-blur-xl"
           >
             <nav
               aria-label="Mobile navigation"
-              className="flex flex-col px-4 py-2 space-y-0.5"
+              className="flex flex-col px-4 py-3 space-y-1"
             >
               {links.map((l) => (
                 <Link
                   key={l.href}
                   href={l.href}
                   onClick={handleLinkClick}
-                  className="rounded-md px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-foreground transition-colors flex items-center"
+                  className={`px-3 py-2.5 text-sm font-medium transition-colors ${
+                    isActive(l.href)
+                      ? "text-primary bg-surface-container/50"
+                      : "text-on-surface-variant hover:text-on-surface hover:bg-surface-container/30"
+                  }`}
                 >
                   {l.label}
                 </Link>
               ))}
-              <div className="h-px bg-border/40 my-1" />
+              <div className="h-px bg-outline-variant/20 my-1" />
               <div className="px-3 py-2">
-                <div className="text-[10px] font-semibold uppercase tracking-[0.15em] text-muted-foreground mb-2">
+                <div className="text-[10px] font-semibold uppercase tracking-[0.15em] text-on-surface-variant mb-2">
                   Install
                 </div>
-                <code className="block text-xs font-mono text-foreground bg-muted/50 rounded px-2.5 py-2 mb-1.5">
+                <code className="block text-xs font-label text-on-background bg-surface-container-highest/50 rounded px-2.5 py-2 mb-1.5">
                   curl -fsSL https://raw.githubusercontent.com/rpuneet/bc/main/scripts/install.sh | bash
                 </code>
-                <code className="block text-xs font-mono text-foreground bg-muted/50 rounded px-2.5 py-2 mb-1.5">
-                  brew install rpuneet/bc/bc
+                <code className="block text-xs font-label text-on-background bg-surface-container-highest/50 rounded px-2.5 py-2 mb-1.5">
+                  brew install rpuneet/bc/mycel
                 </code>
                 <Link
                   href="/docs#installation"
                   onClick={handleLinkClick}
-                  className="text-[11px] text-muted-foreground hover:text-foreground transition-colors"
+                  className="text-[11px] text-on-surface-variant hover:text-on-surface transition-colors"
                 >
                   Full installation guide →
                 </Link>
               </div>
-              <div className="h-px bg-border/40 my-1" />
+              <div className="h-px bg-outline-variant/20 my-1" />
               <div className="px-3 py-2 flex items-center justify-between">
-                <span className="text-sm font-medium text-muted-foreground">
+                <span className="text-sm font-medium text-on-surface-variant">
                   Theme
                 </span>
                 <ThemeToggle />

@@ -1,5 +1,20 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">
   <rect width="32" height="32" rx="6" fill="#0C0A08"/>
-  <text x="4" y="55%" dominant-baseline="middle" font-family="monospace" font-weight="700" font-size="11" fill="#EA580C">&gt;</text>
-  <text x="13" y="55%" dominant-baseline="middle" font-family="monospace" font-weight="700" font-size="13" fill="#EA580C">bc</text>
+  <circle cx="16" cy="17" r="10" stroke="#EA580C" stroke-width="1.5" fill="none"/>
+  <circle cx="16" cy="17" r="9" stroke="#FB923C" stroke-width="0.3" fill="none" opacity="0.2"/>
+  <g stroke="#EA580C" stroke-width="0.4" stroke-linecap="round" opacity="0.3">
+    <line x1="16" y1="17" x2="16" y2="7"/>
+    <line x1="16" y1="17" x2="22.6" y2="10.8"/>
+    <line x1="16" y1="17" x2="26" y2="14"/>
+    <line x1="16" y1="17" x2="26" y2="20"/>
+    <line x1="16" y1="17" x2="22.6" y2="23.2"/>
+    <line x1="16" y1="17" x2="16" y2="27"/>
+    <line x1="16" y1="17" x2="9.4" y2="23.2"/>
+    <line x1="16" y1="17" x2="6" y2="20"/>
+    <line x1="16" y1="17" x2="6" y2="14"/>
+    <line x1="16" y1="17" x2="9.4" y2="10.8"/>
+  </g>
+  <circle cx="16" cy="17" r="1.2" fill="#EA580C"/>
+  <rect x="15" y="4.5" width="2" height="2.5" rx="1" fill="#FB923C" opacity="0.8"/>
+  <path d="M17 5.5 Q19 3.5 21 4 Q20 5 18.5 6" fill="#22c55e" opacity="0.6"/>
 </svg>

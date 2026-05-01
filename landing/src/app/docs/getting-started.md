@@ -1,6 +1,6 @@
-# Getting Started with bc
+# Getting Started with mycel
 
-Welcome to **bc** – the multi-agent orchestration system for coordinated software development. This guide will walk you through installation, setup, and your first workflow.
+Welcome to **mycel** – the multi-agent orchestration system for coordinated software development. This guide will walk you through installation, setup, and your first workflow.
 
 ---
 
@@ -26,7 +26,7 @@ curl -fsSL https://raw.githubusercontent.com/rpuneet/bc/main/scripts/install.sh 
 
 **Using Homebrew:**
 ```bash
-brew install rpuneet/bc/bc
+brew install rpuneet/bc/mycel
 ```
 
 ### Linux
@@ -134,7 +134,7 @@ AGENTS (3):
 
 ## Your First Workflow
 
-### Scenario: Build a Feature with bc
+### Scenario: Build a Feature with mycel
 
 **Step 1: Create a Work Queue Task**
 
@@ -269,16 +269,16 @@ bc memory search "authentication patterns"
 
 ```bash
 # List scheduled tasks
-bc demon list
+bc cron list
 
 # Run a demon manually
-bc demon run nightly-tests
+bc cron run nightly-tests
 
 # Create new demon
-bc demon create test-suite --schedule "0 2 * * *" --role qa --task "Nightly test run"
+bc cron create test-suite --schedule "0 2 * * *" --role qa --task "Nightly test run"
 
 # View demon logs
-bc demon logs test-suite
+bc cron logs test-suite
 ```
 
 ---
@@ -381,8 +381,8 @@ bc down && bc up
 
 ### 5. Get Support
 - GitHub Issues: [Report bugs](https://github.com/rpuneet/bc/issues)
-- Documentation: [Full docs](https://docs.bc-infra.com)
-- Community: [Discord server](https://discord.gg/bc-infra)
+- Documentation: [Full docs](https://docs.mycel.dev)
+- Community: [Discord server](https://discord.gg/mycel-dev)
 
 ---
 
@@ -432,7 +432,7 @@ bc memory record "User profile workflow successful. Took 1.5 hours end-to-end"
 | Send message | `bc channel send #channel "message"` |
 | View agent work | `bc agent peek engineer-name` |
 | Merge PR | `bc merge branch-name --branch main` |
-| Schedule task | `bc demon create name --schedule "0 2 * * *"` |
+| Schedule task | `bc cron create name --schedule "0 2 * * *"` |
 | Search memory | `bc memory search "pattern"` |
 | View logs | `bc agent logs agent-name --tail 20` |
 | Get help | `bc --help` |
@@ -448,14 +448,14 @@ bc <command> --help
 ```
 
 **Documentation:**
-- [Full Documentation](https://docs.bc-infra.com)
-- [API Docs](https://docs.bc-infra.com/api)
-- [CLI Reference](https://docs.bc-infra.com/cli)
+- [Full Documentation](https://docs.mycel.dev)
+- [API Docs](https://docs.mycel.dev/api)
+- [CLI Reference](https://docs.mycel.dev/cli)
 
 **Support:**
 - [GitHub Issues](https://github.com/rpuneet/bc/issues)
-- [Discord Community](https://discord.gg/bc-infra)
-- Email: support@bc-infra.com
+- [Discord Community](https://discord.gg/mycel-dev)
+- Email: hello@mycel.dev
 
 ---
 

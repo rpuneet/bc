@@ -43,7 +43,7 @@ function DashboardView() {
   return (
     <div className="font-mono text-xs sm:text-[12px] text-foreground">
       <div className="flex items-center justify-between border-b border-border pb-2 mb-4">
-        <span className="text-muted-foreground">DASHBOARD: bc-infra</span>
+        <span className="text-muted-foreground">DASHBOARD: mycel-dev</span>
         <span className="text-success text-xs sm:text-[10px]">● LIVE</span>
       </div>
       <div className="grid grid-cols-2 gap-4">
@@ -99,7 +99,7 @@ function CostView() {
   return (
     <div className="font-mono text-[12px] text-foreground">
       <div className="flex items-center justify-between border-b border-border pb-2 mb-4">
-        <span className="text-muted-foreground">COST TRACKING: bc-infra</span>
+        <span className="text-muted-foreground">COST TRACKING: mycel-dev</span>
         <span className="text-muted-foreground text-[10px]">today</span>
       </div>
       <div className="grid gap-4">

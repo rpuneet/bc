@@ -1,371 +1,277 @@
 "use client";
 
-import Link from "next/link";
 import { useState } from "react";
+import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
-import { Nav } from "../_components/Nav";
-import { Footer } from "../_components/Footer";
 import {
-  Copy,
-  Check,
-  ChevronDown,
-  Apple,
-  Container,
-  GitBranch,
-  ExternalLink,
-} from "lucide-react";
-import { TechTags } from "../_components/TechIcon";
+  FadeUp,
+  RevealSection,
+  StaggerChildren,
+  StaggerItem,
+} from "../_components/Motion";
 
-const fadeUp = {
-  hidden: { opacity: 0, y: 30 },
-  visible: (i: number) => ({
-    opacity: 1,
-    y: 0,
-    transition: { delay: i * 0.12, duration: 0.6, ease: "easeOut" as const },
-  }),
-};
+const CHECK = (
+  <svg
+    width="16"
+    height="16"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2.5"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className="text-primary shrink-0"
+  >
+    <polyline points="20 6 9 17 4 12" />
+  </svg>
+);
 
-function CopyButton({ text }: { text: string }) {
-  const [copied, setCopied] = useState(false);
+const FAQS = [
+  {
+    question: "Is the local version truly free?",
+    answer:
+      "Yes. mycel is MIT-licensed and fully open source. Every feature ships in the free tier — unlimited agents, channels, cost tracking, MCP, secrets, cron. You only pay your AI provider for tokens.",
+  },
+  {
+    question: "What is included in the Cloud waitlist?",
+    answer:
+      "Cloud adds remote SSH access to your workspace, managed agent hosting, and priority support. Join the waitlist and we'll notify you when it launches.",
+  },
+  {
+    question: "Do you offer discounts for startups?",
+    answer:
+      "Yes. Email hello@mycel.dev with details about your startup and we'll work something out.",
+  },
+  {
+    question: "When will Enterprise be available?",
+    answer:
+      "Enterprise is in development. Email hello@mycel.dev to discuss SSO, audit logs, and your timeline.",
+  },
+];
 
-  const handleCopy = () => {
-    void navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
-  return (
-    <button
-      onClick={handleCopy}
-      className="shrink-0 p-1 rounded hover:bg-accent/30 transition-colors"
-      aria-label="Copy to clipboard"
-    >
-      {copied ? (
-        <Check className="h-3.5 w-3.5 text-success" />
-      ) : (
-        <Copy className="h-3.5 w-3.5 text-muted-foreground" />
-      )}
-    </button>
-  );
-}
-
-interface InstallRowProps {
-  icon: React.ComponentType<{ className?: string }>;
-  title: string;
-  command: string;
-}
-
-function InstallRow({ icon: Icon, title, command }: InstallRowProps) {
-  const [expanded, setExpanded] = useState(false);
+function FAQAccordion() {
+  const [openIndex, setOpenIndex] = useState<number | null>(null);
 
   return (
-    <div
-      className="group rounded-md border border-border/40 hover:border-border/70 transition-all cursor-pointer"
-      onClick={() => setExpanded(!expanded)}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") setExpanded(!expanded);
-      }}
-      role="button"
-      tabIndex={0}
-      aria-expanded={expanded}
-    >
-      <div className="flex items-center gap-2.5 px-3 py-1.5">
-        <Icon className="h-3 w-3 text-muted-foreground shrink-0" />
-        <span className="text-sm">{title}</span>
-        <ChevronDown
-          className={`h-2.5 w-2.5 text-muted-foreground/40 ml-auto transition-transform ${expanded ? "rotate-180" : ""}`}
-        />
-      </div>
-      <AnimatePresence>
-        {expanded && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="overflow-hidden"
+    <div>
+      {FAQS.map((faq, i) => (
+        <div
+          key={i}
+          className="border-b border-outline-variant/10 bg-surface-container"
+        >
+          <button
+            onClick={() => setOpenIndex(openIndex === i ? null : i)}
+            className="flex w-full items-center justify-between py-4 px-4 text-left"
+            aria-expanded={openIndex === i}
           >
-            <div className="px-3 pb-2">
-              <div className="flex items-center gap-2 rounded bg-background/60 border border-border/30 px-2.5 py-1.5 font-mono text-[11px]">
-                <code className="text-muted-foreground flex-1 overflow-x-auto whitespace-nowrap">
-                  {command}
-                </code>
-                <CopyButton text={command} />
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
-  );
-}
-
-
-interface FAQItemProps {
-  question: string;
-  answer: string;
-}
-
-function FAQItem({ question, answer }: FAQItemProps) {
-  const [open, setOpen] = useState(false);
-
-  return (
-    <div className="border-b border-border/40">
-      <button
-        onClick={() => setOpen(!open)}
-        className="flex w-full items-center justify-between py-3 text-left"
-        aria-expanded={open}
-      >
-        <span className="font-semibold text-sm">{question}</span>
-        <ChevronDown
-          className={`h-4 w-4 text-muted-foreground shrink-0 transition-transform ${open ? "rotate-180" : ""}`}
-        />
-      </button>
-      <AnimatePresence>
-        {open && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="overflow-hidden"
-          >
-            <p className="pb-3 text-sm text-muted-foreground leading-relaxed">
-              {answer}
-            </p>
-          </motion.div>
-        )}
-      </AnimatePresence>
+            <span className="font-headline text-sm font-semibold text-on-background">
+              {faq.question}
+            </span>
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className={`shrink-0 text-on-surface-variant transition-transform duration-200 ${
+                openIndex === i ? "rotate-180" : ""
+              }`}
+            >
+              <polyline points="6 9 12 15 18 9" />
+            </svg>
+          </button>
+          <AnimatePresence>
+            {openIndex === i && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="overflow-hidden"
+              >
+                <p className="px-4 pb-4 text-sm leading-relaxed text-on-surface-variant">
+                  {faq.answer}
+                </p>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      ))}
     </div>
   );
 }
 
 export default function PricingPage() {
   return (
-    <main className="min-h-screen selection:bg-primary/20 selection:text-foreground">
-      <div className="pointer-events-none fixed inset-0 z-[1] bg-[radial-gradient(ellipse_80%_60%_at_50%_-20%,rgba(234,88,12,0.04),transparent)] dark:bg-[radial-gradient(ellipse_80%_60%_at_50%_-20%,rgba(234,88,12,0.08),transparent)]" />
+    <main className="min-h-screen bg-background">
+      {/* Hero */}
+      <section className="hero-glow py-16">
+        <div className="mx-auto max-w-5xl px-4 text-center">
+          <FadeUp>
+            <h1 className="font-headline text-5xl font-bold tracking-tight text-on-background lg:text-6xl">
+              Simple pricing.
+              <br />
+              <span className="accent-instrument text-primary">
+                Powerful agents.
+              </span>
+            </h1>
+          </FadeUp>
+          <FadeUp delay={0.1}>
+            <p className="mx-auto mt-6 max-w-xl text-lg text-on-surface-variant">
+              The free tier includes every feature — unlimited agents, channels,
+              cost tracking, and MCP. You only pay for AI tokens with your own API keys.
+            </p>
+          </FadeUp>
+        </div>
+      </section>
 
-      <div className="relative z-[2]">
-        <Nav />
-
-        <div className="mx-auto max-w-5xl px-4 sm:px-6 py-16 sm:py-24">
-          <motion.div
-            initial="hidden"
-            animate="visible"
-            className="text-center mb-16"
-          >
-            <motion.h1
-              variants={fadeUp}
-              custom={1}
-              className="text-4xl font-bold tracking-tight sm:text-6xl"
-            >
-              Pricing
-            </motion.h1>
-            <motion.p
-              variants={fadeUp}
-              custom={2}
-              className="mt-4 text-lg text-muted-foreground max-w-xl mx-auto"
-            >
-              No login. No signup. You pay only for AI tokens.
-            </motion.p>
-          </motion.div>
-
-          <motion.div
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true, margin: "-50px" }}
-            className="grid gap-6 lg:grid-cols-3 items-stretch"
-          >
-            {/* Free Tier */}
-            <motion.div
-              variants={fadeUp}
-              custom={0}
-              className="rounded-2xl border border-border/60 border-l-2 border-l-primary bg-gradient-to-b from-[#1A1714] to-[#1C1916] p-8 flex flex-col shadow-[0_0_30px_rgba(234,88,12,0.06)] transition-transform duration-300 hover:-translate-y-1"
-            >
-              <div className="mb-1">
-                <h2 className="text-2xl font-bold">Free</h2>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Runs locally on your machine
-                </p>
+      {/* Pricing Cards */}
+      <section className="py-16">
+        <StaggerChildren
+          className="mx-auto grid max-w-5xl grid-cols-1 gap-6 px-4 lg:grid-cols-3"
+          stagger={0.12}
+        >
+          {/* Free */}
+          <StaggerItem>
+            <div className="flex h-full flex-col rounded-sm bg-surface-container p-8">
+              <span className="font-label text-sm text-on-surface-variant">
+                01_
+              </span>
+              <h2 className="mt-2 font-headline text-2xl font-bold text-on-background">
+                Free
+              </h2>
+              <div className="mt-4 flex items-baseline gap-2">
+                <span className="font-headline text-4xl font-bold text-on-background">
+                  $0
+                </span>
+                <span className="text-on-surface-variant">/ forever</span>
               </div>
-
-              <div className="h-px bg-border/40 my-6" />
-
-              <div className="space-y-2 mb-6 flex-1">
-                <InstallRow
-                  icon={Apple}
-                  title="macOS / Linux"
-                  command="curl -fsSL https://raw.githubusercontent.com/rpuneet/bc/main/scripts/install.sh | bash"
-                />
-                <InstallRow
-                  icon={Container}
-                  title="Docker"
-                  command="docker run -p 9374:9374 -v $(pwd):/workspace ghcr.io/rpuneet/bc bc up --addr 0.0.0.0:9374"
-                />
-                <InstallRow
-                  icon={GitBranch}
-                  title="From source"
-                  command="go install github.com/rpuneet/bc/cmd/bc@latest"
-                />
-              </div>
-
-              <TechTags tags={["docker", "tmux", "postgresql", "sqlite"]} />
-
-              <div className="mt-6">
-                <Link
-                  href="https://github.com/rpuneet/bc"
-                  className="flex items-center justify-center gap-2 w-full rounded-lg bg-primary py-2.5 text-center text-sm font-semibold text-primary-foreground transition-all hover:opacity-90 active:scale-[0.98]"
-                >
-                  Get Started
-                  <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
-                </Link>
-              </div>
-            </motion.div>
-
-            {/* Cloud Tier */}
-            <motion.div
-              variants={fadeUp}
-              custom={1}
-              className="rounded-2xl border border-border/60 hover:border-blue-500/20 bg-gradient-to-b from-[#1A1714] to-[#1C1916] p-8 flex flex-col transition-all duration-300 hover:-translate-y-1"
-            >
-              <div className="mb-1">
-                <h2 className="text-2xl font-bold">Cloud</h2>
-                <div className="mt-1 flex items-baseline gap-1">
-                  <span className="text-2xl font-bold tracking-tight">
-                    &#8377;1,000
-                  </span>
-                  <span className="text-muted-foreground text-sm">
-                    / month
-                  </span>
-                </div>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Access your workspace from anywhere
-                </p>
-              </div>
-
-              <div className="h-px bg-border/40 my-6" />
-
-              <ul className="space-y-3 mb-6 flex-1">
+              <p className="mt-3 text-sm text-on-surface-variant">
+                For individuals and open-source projects running locally.
+              </p>
+              <ul className="mt-6 flex-1 space-y-3">
                 {[
-                  "SSH access to your workspace",
-                  "Remote agent management",
-                  "Everything in Free",
+                  "Open source core",
+                  "Local execution",
+                  "Community support",
+                  "Unlimited agents",
                 ].map((f) => (
-                  <li
-                    key={f}
-                    className="flex items-center gap-2.5 text-sm text-muted-foreground"
-                  >
-                    <span className="h-1 w-1 rounded-full bg-muted-foreground/50 shrink-0" />
+                  <li key={f} className="flex items-center gap-2 text-sm text-on-surface-variant">
+                    {CHECK}
                     {f}
                   </li>
                 ))}
               </ul>
+              <Link
+                href="/docs"
+                className="mt-8 block w-full rounded-sm bg-primary py-3 text-center font-label text-sm font-semibold text-on-background transition-opacity hover:opacity-90"
+              >
+                Get Started
+              </Link>
+            </div>
+          </StaggerItem>
 
-              <TechTags
-                tags={["kubernetes", "aws", "gcp", "ssh", "mcp"]}
-              />
-
-              <div className="mt-6">
-                <Link
-                  href="/waitlist"
-                  className="block w-full rounded-lg border border-border/60 py-2.5 text-center text-sm font-semibold transition-colors hover:bg-accent/20 active:scale-[0.98]"
-                >
-                  Join Waitlist
-                </Link>
-              </div>
-            </motion.div>
-
-            {/* Enterprise Tier */}
-            <motion.div
-              variants={fadeUp}
-              custom={2}
-              className="rounded-2xl border border-border/60 bg-gradient-to-b from-[#1A1714] to-[#1C1916] p-8 flex flex-col relative overflow-hidden transition-transform duration-300 hover:-translate-y-1"
-            >
-              <div className="flex flex-col flex-1">
-                <div className="mb-1">
-                  <h2 className="text-2xl font-bold">Enterprise</h2>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    For teams at scale
-                  </p>
-                </div>
-
-                <div className="h-px bg-border/40 my-6" />
-
-                <ul className="space-y-3 mb-6 flex-1">
-                  {[
-                    "SSO / SAML authentication",
-                    "Audit logs and compliance",
-                    "Dedicated support",
-                    "Custom SLA",
-                  ].map((f) => (
-                    <li
-                      key={f}
-                      className="flex items-center gap-2.5 text-sm text-muted-foreground"
-                    >
-                      <span className="h-1 w-1 rounded-full bg-muted-foreground/50 shrink-0" />
-                      {f}
-                    </li>
-                  ))}
-                </ul>
-
-                <TechTags
-                  tags={["sso", "saml", "audit", "sla"]}
-                />
-              </div>
-
-              {/* Coming soon overlay */}
-              <div className="absolute inset-0 z-10 bg-gradient-to-b from-transparent via-[#1A1714]/60 to-[#1A1714]/95" />
-              <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3">
-                <span className="px-4 py-1.5 rounded-full border border-border/80 bg-card/90 text-sm font-semibold text-muted-foreground shadow-[0_0_20px_rgba(255,255,255,0.04)]">
-                  Coming soon
+          {/* Cloud */}
+          <StaggerItem>
+            <div className="relative flex h-full flex-col rounded-sm bg-surface-container-high p-8">
+              <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-sm bg-primary px-3 py-1 font-label text-xs font-semibold text-on-background">
+                Most Popular
+              </span>
+              <span className="font-label text-sm text-on-surface-variant">
+                02_
+              </span>
+              <h2 className="mt-2 font-headline text-2xl font-bold text-on-background">
+                Cloud
+              </h2>
+              <div className="mt-4 flex items-baseline gap-2">
+                <span className="font-headline text-4xl font-bold text-on-background">
+                  &#8377;1,000
                 </span>
-                <a
-                  href="mailto:skitzo@bc-infra.com"
-                  className="text-xs text-muted-foreground/60 hover:text-primary transition-colors"
-                >
-                  Talk to us &rarr; skitzo@bc-infra.com
-                </a>
+                <span className="text-on-surface-variant">/ month</span>
               </div>
-            </motion.div>
-          </motion.div>
+              <p className="mt-3 text-sm text-on-surface-variant">
+                For small teams scaling their infrastructure.
+              </p>
+              <ul className="mt-6 flex-1 space-y-3">
+                {[
+                  "Everything in Free",
+                  "Remote agents",
+                  "Secure SSH access",
+                  "Priority email support",
+                  "Advanced telemetry",
+                ].map((f) => (
+                  <li key={f} className="flex items-center gap-2 text-sm text-on-surface-variant">
+                    {CHECK}
+                    {f}
+                  </li>
+                ))}
+              </ul>
+              <Link
+                href="/waitlist"
+                className="mt-8 block w-full rounded-sm border border-outline-variant/20 py-3 text-center font-label text-sm font-semibold text-on-background transition-colors hover:bg-surface-container"
+              >
+                Join Waitlist
+              </Link>
+            </div>
+          </StaggerItem>
 
-          {/* FAQ Section */}
-          <motion.div
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true, margin: "-50px" }}
-            className="mt-10 max-w-2xl mx-auto"
-          >
-            <motion.h2
-              variants={fadeUp}
-              custom={0}
-              className="text-2xl font-bold tracking-tight text-center mb-6"
-            >
-              Frequently asked questions
-            </motion.h2>
-            <motion.div variants={fadeUp} custom={1}>
-              <FAQItem
-                question="Is bc really free?"
-                answer="Yes. bc is open source and runs locally on your machine. All features are included with no restrictions. You only pay for AI API tokens from your chosen providers (Claude, Gemini, etc.)."
-              />
-              <FAQItem
-                question="Do I need an account?"
-                answer="No for the Free tier. Install bc, run bc init, and start orchestrating. No signup, no login, no telemetry. The Cloud tier requires a signup for remote access features."
-              />
-              <FAQItem
-                question="What's included in Cloud?"
-                answer="SSH access to your workspace, remote agent chat, hosted dashboard, team management features, and cloud-synced memory. Everything in the Free tier is included plus remote access capabilities."
-              />
-              <FAQItem
-                question="What AI providers work with bc?"
-                answer="bc supports Claude Code, Cursor, Gemini, Codex, Aider, OpenCode, and OpenClaw. You bring your own API keys and bc orchestrates agents across any combination of providers."
-              />
-            </motion.div>
-          </motion.div>
+          {/* Enterprise */}
+          <StaggerItem>
+            <div className="flex h-full flex-col rounded-sm bg-surface-container p-8">
+              <span className="font-label text-sm text-on-surface-variant">
+                03_
+              </span>
+              <h2 className="mt-2 font-headline text-2xl font-bold text-on-background">
+                Enterprise
+              </h2>
+              <div className="mt-4">
+                <span className="font-headline text-4xl font-bold text-on-background">
+                  Custom
+                </span>
+              </div>
+              <p className="mt-3 text-sm text-on-surface-variant">
+                For large orgs needing robust security and compliance.
+              </p>
+              <ul className="mt-6 flex-1 space-y-3">
+                {[
+                  "SSO Integration",
+                  "Detailed audit logs",
+                  "Dedicated support SLA",
+                  "Custom agent limits",
+                ].map((f) => (
+                  <li key={f} className="flex items-center gap-2 text-sm text-on-surface-variant">
+                    {CHECK}
+                    {f}
+                  </li>
+                ))}
+              </ul>
+              <a
+                href="mailto:hello@mycel.dev"
+                className="mt-8 block text-center font-label text-sm text-primary transition-opacity hover:opacity-80"
+              >
+                Contact hello@mycel.dev
+              </a>
+            </div>
+          </StaggerItem>
+        </StaggerChildren>
+      </section>
+
+      {/* FAQ */}
+      <section className="py-16">
+        <div className="mx-auto max-w-3xl px-4">
+          <RevealSection className="mb-10 text-center">
+            <h2 className="font-headline text-3xl font-bold text-on-background">
+              Frequently Asked Questions
+            </h2>
+          </RevealSection>
+          <RevealSection delay={0.1}>
+            <FAQAccordion />
+          </RevealSection>
         </div>
-
-        <Footer />
-      </div>
+      </section>
     </main>
   );
 }

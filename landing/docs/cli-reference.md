@@ -1,6 +1,6 @@
-# bc CLI Reference Guide
+# mycel CLI Reference Guide
 
-Complete command reference for the bc multi-agent orchestration system.
+Complete command reference for the mycel multi-agent orchestration system.
 
 ## Table of Contents
 
@@ -20,7 +20,7 @@ Complete command reference for the bc multi-agent orchestration system.
 ## Workspace Commands
 
 ### bc init
-Initialize a new bc v2 workspace.
+Initialize a new bc workspace.
 
 ```bash
 bc init                        # Interactive wizard
@@ -367,19 +367,19 @@ bc cron remove daily-lint             # Delete a job
 
 ## Daemon & Processes
 
-### bc daemon
+### mycel daemon
 
 ```bash
-bc daemon start          # Start the bcd HTTP server
-bc daemon status         # Check bcd server health
-bc daemon stop           # Stop bcd server
-bc daemon stop myproc    # Stop a named process
-bc daemon run --name db  # Run a workspace process
-bc daemon list           # List running workspace processes
-bc daemon logs           # View bcd logs
-bc daemon logs myproc    # View process logs
-bc daemon restart myproc # Restart a process
-bc daemon rm myproc      # Remove a stopped process
+mycel daemon start          # Start the bcd HTTP server
+mycel daemon status         # Check bcd server health
+mycel daemon stop           # Stop bcd server
+mycel daemon stop myproc    # Stop a named process
+mycel daemon run --name db  # Run a workspace process
+mycel daemon list           # List running workspace processes
+mycel daemon logs           # View bcd logs
+mycel daemon logs myproc    # View process logs
+mycel daemon restart myproc # Restart a process
+mycel daemon rm myproc      # Remove a stopped process
 ```
 
 ---
@@ -477,7 +477,7 @@ bc doctor fix --category git       # Fix specific category
 ```bash
 bc version       # Show version info
 bc --version     # Same as above
-bc -V            # Same as above
+mycel -V            # Same as above
 ```
 
 ---
@@ -493,8 +493,8 @@ bc mcp show github                              # Show server details
 bc mcp remove github                            # Remove a server
 bc mcp disable github                           # Disable a server
 bc mcp enable github                            # Re-enable a server
-bc mcp register                                 # Register bc as MCP server
-bc mcp serve                                    # Start bc as MCP server
+bc mcp register                                 # Register mycel as MCP server
+bc mcp serve                                    # Start mycel as MCP server
 ```
 
 ---
@@ -547,4 +547,4 @@ NO_COLOR          # Disable colored output
 
 ---
 
-**For more help:** `bc --help` or `bc <command> --help`
+**For more help:** `bc --help` or `mycel <command> --help`

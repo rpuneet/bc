@@ -31,7 +31,7 @@ Before installing bc, ensure you have:
 
 ### Optional
 - **Docker** - For isolated testing environments
-- **Node.js 18+** - If running bc on Node.js projects
+- **Node.js 18+** - If running mycel on Node.js projects
 
 ---
 
@@ -46,7 +46,7 @@ brew install go
 # Install tmux
 brew install tmux
 
-# Clone bc repository
+# Clone mycel repository
 git clone https://github.com/bcinfra1/bc.git
 cd bc
 
@@ -568,7 +568,7 @@ error: no AI agent configured
 # Install Claude Code CLI
 # Visit: https://claude.com/claude-code
 
-# Configure bc to use Claude Code
+# Configure mycel to use Claude Code
 bc config set agent-tool claude-code
 
 # Verify configuration
@@ -583,7 +583,7 @@ bc config show
 
 ```
 my-project/
-├── .bc/                          # bc state directory
+├── .bc/                          # mycel state directory
 │   ├── settings.json              # Workspace configuration
 │   ├── queue.json               # Work queue
 │   ├── events.jsonl             # Event log
