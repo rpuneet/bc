@@ -23,13 +23,13 @@ func (a *ClaudeConfigAdapter) SupportsSkills() bool   { return true }
 
 // SetupMCP configures MCP servers for Claude Code.
 // Prefers `claude mcp add` CLI; falls back to .mcp.json file write.
-func (a *ClaudeConfigAdapter) SetupMCP(targetDir, agentName string, servers map[string]MCPEntry) error {
+func (a *ClaudeConfigAdapter) SetupMCP(ctx context.Context, targetDir, agentName string, servers map[string]MCPEntry) error {
 	if len(servers) == 0 {
 		return nil
 	}
 
 	// Try claude CLI first
-	if a.setupMCPViaCLI(targetDir, servers) {
+	if a.setupMCPViaCLI(ctx, targetDir, servers) {
 		return nil
 	}
 
@@ -70,7 +70,7 @@ func (a *ClaudeConfigAdapter) SetupPlugins(agentDir string, plugins []string) er
 }
 
 // setupMCPViaCLI uses `claude mcp add` commands.
-func (a *ClaudeConfigAdapter) setupMCPViaCLI(targetDir string, servers map[string]MCPEntry) bool {
+func (a *ClaudeConfigAdapter) setupMCPViaCLI(ctx context.Context, targetDir string, servers map[string]MCPEntry) bool {
 	claudePath, err := exec.LookPath("claude")
 	if err != nil {
 		return false
@@ -78,7 +78,7 @@ func (a *ClaudeConfigAdapter) setupMCPViaCLI(targetDir string, servers map[strin
 
 	for name, entry := range servers {
 		// Remove existing to avoid duplicates
-		rmCmd := exec.CommandContext(context.TODO(), claudePath, "mcp", "remove", name, "--scope", "project") //nolint:gosec
+		rmCmd := exec.CommandContext(ctx, claudePath, "mcp", "remove", name, "--scope", "project") //nolint:gosec
 		rmCmd.Dir = targetDir
 		_ = rmCmd.Run() //nolint:errcheck
 
@@ -100,7 +100,7 @@ func (a *ClaudeConfigAdapter) setupMCPViaCLI(targetDir string, servers map[strin
 			continue
 		}
 
-		cmd := exec.CommandContext(context.TODO(), claudePath, args...) //nolint:gosec
+		cmd := exec.CommandContext(ctx, claudePath, args...) //nolint:gosec
 		cmd.Dir = targetDir
 		_ = cmd.Run() //nolint:errcheck
 	}

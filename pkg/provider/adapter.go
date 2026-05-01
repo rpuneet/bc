@@ -1,6 +1,8 @@
 // Package provider — ConfigAdapter extends Provider with config file setup.
 package provider
 
+import "context"
+
 // MCPEntry represents an MCP server configuration for adapter setup.
 type MCPEntry struct { //nolint:govet // field order matches API contract
 	Env       map[string]string
@@ -23,7 +25,7 @@ type ConfigAdapter interface {
 	ConfigDir() string
 
 	// SetupMCP configures MCP servers for this provider in the target directory.
-	SetupMCP(targetDir, agentName string, servers map[string]MCPEntry) error
+	SetupMCP(ctx context.Context, targetDir, agentName string, servers map[string]MCPEntry) error
 
 	// SetupPlugins writes plugin configuration for this provider.
 	SetupPlugins(agentDir string, plugins []string) error
@@ -64,8 +66,10 @@ func (a *GenericAdapter) SupportsRules() bool    { return false }
 func (a *GenericAdapter) SupportsCommands() bool { return false }
 func (a *GenericAdapter) SupportsSkills() bool   { return false }
 
-func (a *GenericAdapter) SetupMCP(_, _ string, _ map[string]MCPEntry) error { return nil }
-func (a *GenericAdapter) SetupPlugins(_ string, _ []string) error           { return nil }
+func (a *GenericAdapter) SetupMCP(_ context.Context, _, _ string, _ map[string]MCPEntry) error {
+	return nil
+}
+func (a *GenericAdapter) SetupPlugins(_ string, _ []string) error { return nil }
 
 func toUpperFirst(s string) string {
 	if s == "" {
