@@ -27,6 +27,14 @@ func AgentFromContext(ctx context.Context) string {
 	return ""
 }
 
+// ContextWithAgent returns ctx with the given authenticated agent ID
+// attached. The agent identity is treated as the only trusted source of
+// "sender" for outbound MCP tool calls (#2967). Used by the SSE message
+// handler and by tests that need to simulate an authenticated request.
+func ContextWithAgent(ctx context.Context, agentID string) context.Context {
+	return context.WithValue(ctx, ctxKeyAgent, agentID)
+}
+
 // Server is a bc MCP server. It owns handles to workspace state and dispatches
 // JSON-RPC 2.0 requests from either stdio or SSE transports.
 type Server struct {

@@ -9,7 +9,36 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"github.com/rpuneet/bc/pkg/log"
 )
+
+// resolveSender returns the authoritative sender identity for outbound MCP
+// tool calls (send_message, send_file).
+//
+// Security (issue #2967): the agent identity attached to the request context
+// (set from the authenticated SSE connection — either the agent-scoped path
+// /_mcp/<agent>/{sse,message} or the ?agent= query param) is the ONLY
+// trusted source of identity. Any client-supplied "sender" value is
+// advisory: if it disagrees with the context agent we log a warning and
+// override it to prevent MCP sender spoofing.
+//
+// If no agent is bound to the context (legacy / unauthenticated flows) we
+// fall back to the client value, and finally to "agent".
+func resolveSender(ctx context.Context, clientSender string) string {
+	ctxAgent := AgentFromContext(ctx)
+	if ctxAgent != "" {
+		if clientSender != "" && clientSender != ctxAgent {
+			log.Warn("mcp: ignoring client-supplied sender — using authenticated agent",
+				"client_sender", clientSender, "ctx_agent", ctxAgent)
+		}
+		return ctxAgent
+	}
+	if clientSender != "" {
+		return clientSender
+	}
+	return "agent"
+}
 
 // definedTools returns the static list of tools this server exposes.
 func definedTools() []Tool {
@@ -125,13 +154,9 @@ func (s *Server) toolSendMessage(ctx context.Context, raw json.RawMessage) (*too
 			IsError: true,
 		}, nil
 	}
-	if args.Sender == "" {
-		if agentID, ok := ctx.Value(ctxKeyAgent).(string); ok && agentID != "" {
-			args.Sender = agentID
-		} else {
-			args.Sender = "agent"
-		}
-	}
+	// Always derive the sender from the authenticated context — never trust
+	// the client-supplied value. See resolveSender / issue #2967.
+	args.Sender = resolveSender(ctx, args.Sender)
 
 	if s.gateway == nil {
 		return &toolsCallResult{
@@ -406,11 +431,10 @@ func (s *Server) toolSendFile(ctx context.Context, raw json.RawMessage) (*toolsC
 		mimeType = "application/pdf"
 	}
 
-	// Get sender from context
-	sender := "agent"
-	if agentID, ok := ctx.Value(ctxKeyAgent).(string); ok && agentID != "" {
-		sender = agentID
-	}
+	// Get sender from context — always trust ctx over client input (#2967).
+	// send_file currently has no client-supplied sender field, but route
+	// through resolveSender for consistency and future-proofing.
+	sender := resolveSender(ctx, "")
 
 	// Route through gateway manager
 	if s.gateway == nil {
