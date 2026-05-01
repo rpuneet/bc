@@ -7,7 +7,7 @@ import { Copy, Check, Terminal, Beer, Code2, Container, Package, GitBranch } fro
 function useLatestVersion() {
   const [version, setVersion] = useState("latest");
   useEffect(() => {
-    fetch("https://api.github.com/repos/rpuneet/bc/releases/latest")
+    fetch("https://api.github.com/repos/rpuneet/mycel/releases/latest")
       .then((r) => r.json())
       .then((data) => {
         if (data.tag_name) setVersion(data.tag_name);
@@ -33,7 +33,7 @@ function getMethods(version: string): Method[] {
       icon: Terminal,
       platforms: "macOS · Linux",
       commands: [
-        "curl -fsSL https://raw.githubusercontent.com/rpuneet/bc/main/scripts/install.sh | bash",
+        "curl -fsSL https://raw.githubusercontent.com/rpuneet/mycel/main/scripts/install.sh | bash",
       ],
     },
     {
@@ -42,7 +42,7 @@ function getMethods(version: string): Method[] {
       icon: Beer,
       platforms: "macOS",
       commands: [
-        "brew install rpuneet/bc/mycel",
+        "brew install rpuneet/mycel/mycel",
       ],
     },
     {
@@ -71,10 +71,10 @@ function getMethods(version: string): Method[] {
       icon: Container,
       platforms: "Stable + main branch",
       commands: [
-        `docker pull ghcr.io/rpuneet/bc:${version}`,
-        `docker run -p 9374:9374 -v $(pwd):/workspace ghcr.io/rpuneet/bc:${version} bc up --addr 0.0.0.0:9374`,
+        `docker pull ghcr.io/rpuneet/mycel:${version}`,
+        `docker run -p 9374:9374 -v $(pwd):/workspace ghcr.io/rpuneet/mycel:${version} bc up --addr 0.0.0.0:9374`,
         `# Bleeding edge from main:`,
-        `docker pull ghcr.io/rpuneet/bc:main`,
+        `docker pull ghcr.io/rpuneet/mycel:main`,
       ],
     },
     {
@@ -83,7 +83,7 @@ function getMethods(version: string): Method[] {
       icon: GitBranch,
       platforms: "Requires Go 1.25+, Bun, tmux",
       commands: [
-        "git clone https://github.com/rpuneet/bc",
+        "git clone https://github.com/rpuneet/mycel",
         "cd bc",
         "make install-local-bc",
       ],

@@ -21,29 +21,29 @@ Welcome to **mycel** – the multi-agent orchestration system for coordinated so
 
 **Install script:**
 ```bash
-curl -fsSL https://raw.githubusercontent.com/rpuneet/bc/main/scripts/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/rpuneet/mycel/main/scripts/install.sh | bash
 ```
 
 **Using Homebrew:**
 ```bash
-brew install rpuneet/bc/mycel
+brew install rpuneet/mycel/mycel
 ```
 
 ### Linux
 
 **Install script:**
 ```bash
-curl -fsSL https://raw.githubusercontent.com/rpuneet/bc/main/scripts/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/rpuneet/mycel/main/scripts/install.sh | bash
 ```
 
 ### Docker
 
 ```bash
 # Stable release
-docker run -p 9374:9374 -v $(pwd):/workspace ghcr.io/rpuneet/bc:latest bc up --addr 0.0.0.0:9374
+docker run -p 9374:9374 -v $(pwd):/workspace ghcr.io/rpuneet/mycel:latest bc up --addr 0.0.0.0:9374
 
 # Bleeding-edge (main branch)
-docker run -p 9374:9374 -v $(pwd):/workspace ghcr.io/rpuneet/bc:main bc up --addr 0.0.0.0:9374
+docker run -p 9374:9374 -v $(pwd):/workspace ghcr.io/rpuneet/mycel:main bc up --addr 0.0.0.0:9374
 ```
 
 ### npm / bun
@@ -380,7 +380,7 @@ bc down && bc up
 - Audit logging and compliance
 
 ### 5. Get Support
-- GitHub Issues: [Report bugs](https://github.com/rpuneet/bc/issues)
+- GitHub Issues: [Report bugs](https://github.com/rpuneet/mycel/issues)
 - Documentation: [Full docs](https://docs.mycel.dev)
 - Community: [Discord server](https://discord.gg/mycel-dev)
 
@@ -453,7 +453,7 @@ bc <command> --help
 - [CLI Reference](https://docs.mycel.dev/cli)
 
 **Support:**
-- [GitHub Issues](https://github.com/rpuneet/bc/issues)
+- [GitHub Issues](https://github.com/rpuneet/mycel/issues)
 - [Discord Community](https://discord.gg/mycel-dev)
 - Email: hello@mycel.dev
 

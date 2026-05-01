@@ -91,7 +91,7 @@ export function HeroSection() {
               />
             </Link>
             <Link
-              href="https://github.com/rpuneet/bc"
+              href="https://github.com/rpuneet/mycel"
               className="inline-flex h-10 sm:h-11 items-center gap-2 rounded-lg border border-outline-variant/50 px-6 sm:px-8 text-sm font-medium transition-colors hover:bg-accent/20 active:scale-[0.97]"
               aria-label="View mycel on GitHub"
             >

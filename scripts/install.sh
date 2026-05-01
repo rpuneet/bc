@@ -1,11 +1,11 @@
 #!/bin/bash
 # bc installer script
-# Usage: curl -fsSL https://raw.githubusercontent.com/rpuneet/bc/main/scripts/install.sh | bash
+# Usage: curl -fsSL https://raw.githubusercontent.com/rpuneet/mycel/main/scripts/install.sh | bash
 
 set -e
 
 # Configuration
-REPO="rpuneet/bc"
+REPO="rpuneet/mycel"
 INSTALL_DIR="${BC_INSTALL_DIR:-/usr/local/bin}"
 BINARY_NAME="bc"
 

@@ -5,7 +5,7 @@
 #   1. Build from source via `make install-local-bc` and run `bc version`.
 #   2. Dry-run verify scripts/install.sh URL patterns without touching the host.
 #   3. `go install github.com/rpuneet/bc/cmd/bc@latest` into a throwaway GOPATH.
-#   4. Pull + run ghcr.io/rpuneet/bc:v0.1.0 Docker image.
+#   4. Pull + run ghcr.io/rpuneet/mycel:v0.1.0 Docker image.
 #
 # Exit 0 if every test passes, exit 1 if any fail. Individual test failures
 # are reported but do not abort the run — we want the full picture.
@@ -13,9 +13,10 @@
 set -u
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-REPO_SLUG="rpuneet/bc"
+REPO_SLUG="rpuneet/mycel"
 DOCKER_IMAGE="ghcr.io/${REPO_SLUG}:v0.1.0"
-GO_PKG="github.com/${REPO_SLUG}/cmd/bc@latest"
+# Go module path still uses the legacy slug until a separate module rename PR.
+GO_PKG="github.com/rpuneet/bc/cmd/bc@latest"
 INSTALL_SH="${REPO_ROOT}/scripts/install.sh"
 
 # ANSI colors (skip if not a TTY or NO_COLOR set).
@@ -114,13 +115,13 @@ test_install_sh_dry_run() {
         return
     fi
 
-    if ! grep -q 'rpuneet/bc' "$INSTALL_SH"; then
-        echo "  install.sh does not reference rpuneet/bc"
+    if ! grep -q 'rpuneet/mycel' "$INSTALL_SH"; then
+        echo "  install.sh does not reference rpuneet/mycel"
         fail "install-sh-repo-url"
         return
     fi
 
-    if ! grep -qE 'github\.com/rpuneet/bc/releases' "$INSTALL_SH"; then
+    if ! grep -qE 'github\.com/rpuneet/mycel/releases' "$INSTALL_SH"; then
         echo "  install.sh missing GitHub releases URL pattern"
         fail "install-sh-release-url"
         return

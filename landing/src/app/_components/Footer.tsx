@@ -73,7 +73,7 @@ export function Footer() {
                 Getting Started
               </Link>
               <Link
-                href="https://github.com/rpuneet/bc"
+                href="https://github.com/rpuneet/mycel"
                 className="hover:text-on-surface transition-colors"
                 target="_blank"
                 rel="noopener noreferrer"

@@ -1,6 +1,6 @@
 # bc-cli
 
-npm installer for [bc](https://github.com/rpuneet/bc) — a CLI-first AI agent orchestration system. bc coordinates teams of Claude, Gemini, Cursor, Codex, and other AI agents working in isolated environments with per-agent git worktrees.
+npm installer for [bc](https://github.com/rpuneet/mycel) — a CLI-first AI agent orchestration system. bc coordinates teams of Claude, Gemini, Cursor, Codex, and other AI agents working in isolated environments with per-agent git worktrees.
 
 This package downloads the pre-built Go binary for your platform on `npm install`. No build tools or Go toolchain required.
 
@@ -47,7 +47,7 @@ The `postinstall` script (`install.mjs`) runs after `npm install` and:
 
 1. Detects your OS and CPU architecture
 2. Fetches the latest release version from the GitHub API
-3. Downloads the matching `bc_VERSION_OS_ARCH.tar.gz` from [GitHub Releases](https://github.com/rpuneet/bc/releases)
+3. Downloads the matching `bc_VERSION_OS_ARCH.tar.gz` from [GitHub Releases](https://github.com/rpuneet/mycel/releases)
 4. Extracts the `bc` binary into `bin/bc`
 5. Verifies the binary runs
 
@@ -59,13 +59,13 @@ If the npm postinstall doesn't work (corporate firewalls, CI restrictions, etc.)
 
 ```bash
 # Homebrew (macOS)
-brew install rpuneet/bc/bc-infra
+brew install rpuneet/mycel/bc-infra
 
 # From source
-git clone https://github.com/rpuneet/bc && cd bc && make install-local-bc
+git clone https://github.com/rpuneet/mycel && cd bc && make install-local-bc
 
 # Direct download
-# https://github.com/rpuneet/bc/releases/latest
+# https://github.com/rpuneet/mycel/releases/latest
 ```
 
 ## Troubleshooting
