@@ -147,14 +147,14 @@ jobs:
           LDFLAGS="-s -w -X main.version=${VERSION} -X main.commit=${COMMIT} -X main.date=${DATE}"
 
           # arm64 (native on macos-latest)
-          CGO_ENABLED=1 GOOS=darwin GOARCH=arm64 go build -ldflags="${LDFLAGS}" -o dist/bc ./cmd/bc
-          tar -C dist -czvf "dist/bc_${VERSION}_darwin_arm64.tar.gz" bc
-          rm dist/bc
+          CGO_ENABLED=1 GOOS=darwin GOARCH=arm64 go build -ldflags="${LDFLAGS}" -o dist/mycel ./cmd/bc
+          tar -C dist -czvf "dist/mycel_${VERSION}_darwin_arm64.tar.gz" mycel
+          rm dist/mycel
 
           # amd64 (cross-compile — macOS supports this natively via universal toolchain)
-          CGO_ENABLED=1 GOOS=darwin GOARCH=amd64 go build -ldflags="${LDFLAGS}" -o dist/bc ./cmd/bc
-          tar -C dist -czvf "dist/bc_${VERSION}_darwin_amd64.tar.gz" bc
-          rm dist/bc
+          CGO_ENABLED=1 GOOS=darwin GOARCH=amd64 go build -ldflags="${LDFLAGS}" -o dist/mycel ./cmd/bc
+          tar -C dist -czvf "dist/mycel_${VERSION}_darwin_amd64.tar.gz" mycel
+          rm dist/mycel
 
           cd dist && shasum -a 256 *.tar.gz > checksums-macos.txt
 
@@ -163,7 +163,7 @@ jobs:
         with:
           tag_name: ${{ needs.prepare.outputs.tag }}
           files: |
-            dist/bc_*.tar.gz
+            dist/mycel_*.tar.gz
             dist/checksums-macos.txt
           fail_on_unmatched_files: false
 
