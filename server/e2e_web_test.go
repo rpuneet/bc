@@ -34,7 +34,7 @@ import (
 func newE2EServerWithWebUI(t *testing.T) *e2eServer {
 	t.Helper()
 
-	dir := t.TempDir()
+	dir := gitInitWorkspaceDir(t)
 	bcDir := filepath.Join(dir, ".bc")
 	if err := os.MkdirAll(filepath.Join(bcDir, "roles"), 0750); err != nil {
 		t.Fatal(err)

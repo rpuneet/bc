@@ -13,7 +13,7 @@ import (
 // --- Init ---
 
 func TestInit(t *testing.T) {
-	dir := t.TempDir()
+	dir := gitInitTempDir(t)
 
 	ws, err := Init(dir)
 	if err != nil {
@@ -44,7 +44,7 @@ func TestInit(t *testing.T) {
 }
 
 func TestInitIdempotent(t *testing.T) {
-	dir := t.TempDir()
+	dir := gitInitTempDir(t)
 
 	ws1, err := Init(dir)
 	if err != nil {
@@ -63,7 +63,7 @@ func TestInitIdempotent(t *testing.T) {
 // --- Load ---
 
 func TestLoad(t *testing.T) {
-	dir := t.TempDir()
+	dir := gitInitTempDir(t)
 	if _, err := Init(dir); err != nil {
 		t.Fatal(err)
 	}
@@ -78,7 +78,7 @@ func TestLoad(t *testing.T) {
 }
 
 func TestLoadNotAWorkspace(t *testing.T) {
-	dir := t.TempDir()
+	dir := gitInitTempDir(t)
 
 	_, err := Load(dir)
 	if err == nil {
@@ -87,7 +87,7 @@ func TestLoadNotAWorkspace(t *testing.T) {
 }
 
 func TestLoadInvalidTOML(t *testing.T) {
-	dir := t.TempDir()
+	dir := gitInitTempDir(t)
 	bcDir := filepath.Join(dir, ".bc")
 	if err := os.MkdirAll(bcDir, 0750); err != nil {
 		t.Fatal(err)
@@ -104,13 +104,13 @@ func TestLoadInvalidTOML(t *testing.T) {
 
 func TestLoadUpdatesPathsIfMoved(t *testing.T) {
 	// Init in one location, then copy state to a new location with .bc/ and Load
-	orig := t.TempDir()
+	orig := gitInitTempDir(t)
 	origWS, err := Init(orig)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	moved := t.TempDir()
+	moved := gitInitTempDir(t)
 	// Copy settings from the global state dir to a legacy .bc/ in the moved location
 	srcCfg := filepath.Join(origWS.StateDir(), PreferencesFileName)
 	dstDir := filepath.Join(moved, ".bc")
@@ -152,7 +152,7 @@ func TestLoadUpdatesPathsIfMoved(t *testing.T) {
 // --- Find (upward search) ---
 
 func TestFindInCurrentDir(t *testing.T) {
-	dir := t.TempDir()
+	dir := gitInitTempDir(t)
 	if _, err := Init(dir); err != nil {
 		t.Fatal(err)
 	}
@@ -172,7 +172,7 @@ func TestFindInCurrentDir(t *testing.T) {
 }
 
 func TestFindInParentDir(t *testing.T) {
-	parent := t.TempDir()
+	parent := gitInitTempDir(t)
 	if _, err := Init(parent); err != nil {
 		t.Fatal(err)
 	}
@@ -199,7 +199,7 @@ func TestFindInParentDir(t *testing.T) {
 
 func TestFindNestedWorkspaces(t *testing.T) {
 	// Outer workspace
-	outer := t.TempDir()
+	outer := gitInitTempDir(t)
 	if _, err := Init(outer); err != nil {
 		t.Fatal(err)
 	}
@@ -209,6 +209,7 @@ func TestFindNestedWorkspaces(t *testing.T) {
 	if err := os.MkdirAll(inner, 0750); err != nil {
 		t.Fatal(err)
 	}
+	gitInit(t, inner)
 	if _, err := Init(inner); err != nil {
 		t.Fatal(err)
 	}
@@ -252,7 +253,7 @@ func TestFindNoWorkspace(t *testing.T) {
 // --- Save ---
 
 func TestSave(t *testing.T) {
-	dir := t.TempDir()
+	dir := gitInitTempDir(t)
 	ws, err := Init(dir)
 	if err != nil {
 		t.Fatal(err)
@@ -279,7 +280,7 @@ func TestSave(t *testing.T) {
 // --- Path helpers ---
 
 func TestPathHelpers(t *testing.T) {
-	dir := t.TempDir()
+	dir := gitInitTempDir(t)
 	ws, err := Init(dir)
 	if err != nil {
 		t.Fatal(err)
@@ -309,7 +310,7 @@ func TestPathHelpers(t *testing.T) {
 // --- LogsDir ---
 
 func TestLogsDirV2CustomPath(t *testing.T) {
-	dir := t.TempDir()
+	dir := gitInitTempDir(t)
 	ws, err := Init(dir)
 	if err != nil {
 		t.Fatal(err)
@@ -333,7 +334,7 @@ func TestLogsDirV2CustomPath(t *testing.T) {
 }
 
 func TestLogsDirV2EmptyPath(t *testing.T) {
-	dir := t.TempDir()
+	dir := gitInitTempDir(t)
 	ws, err := Init(dir)
 	if err != nil {
 		t.Fatal(err)
@@ -358,7 +359,7 @@ func TestLogsDirV2EmptyPath(t *testing.T) {
 }
 
 func TestLogsDirNilConfig(t *testing.T) {
-	dir := t.TempDir()
+	dir := gitInitTempDir(t)
 	ws, err := Init(dir)
 	if err != nil {
 		t.Fatal(err)
@@ -377,7 +378,7 @@ func TestLogsDirNilConfig(t *testing.T) {
 // --- EnsureDirs ---
 
 func TestEnsureDirs(t *testing.T) {
-	dir := t.TempDir()
+	dir := gitInitTempDir(t)
 	ws, err := Init(dir)
 	if err != nil {
 		t.Fatal(err)
@@ -400,7 +401,7 @@ func TestEnsureDirs(t *testing.T) {
 }
 
 func TestEnsureDirsV2(t *testing.T) {
-	dir := t.TempDir()
+	dir := gitInitTempDir(t)
 
 	// Init creates a v2 workspace
 	ws, err := Init(dir)
@@ -430,7 +431,7 @@ func TestEnsureDirsV2(t *testing.T) {
 }
 
 func TestEnsureDirsIdempotent(t *testing.T) {
-	dir := t.TempDir()
+	dir := gitInitTempDir(t)
 	ws, err := Init(dir)
 	if err != nil {
 		t.Fatal(err)
@@ -455,7 +456,7 @@ func TestIsWorkspace(t *testing.T) {
 	}{
 		{
 			func(t *testing.T) string {
-				dir := t.TempDir()
+				dir := gitInitTempDir(t)
 				if _, err := Init(dir); err != nil {
 					t.Fatal(err)
 				}
@@ -653,7 +654,7 @@ func TestRegistryPrune(t *testing.T) {
 	r := newTestRegistry(t)
 
 	// Create a real workspace
-	realDir := t.TempDir()
+	realDir := gitInitTempDir(t)
 	if _, err := Init(realDir); err != nil {
 		t.Fatal(err)
 	}
@@ -696,7 +697,7 @@ func TestRegistryPruneAllGone(t *testing.T) {
 func TestRegistryPruneNothingToPrune(t *testing.T) {
 	r := newTestRegistry(t)
 
-	realDir := t.TempDir()
+	realDir := gitInitTempDir(t)
 	if _, err := Init(realDir); err != nil {
 		t.Fatal(err)
 	}
@@ -771,7 +772,7 @@ func TestRegistrySaveCreatesDirectory(t *testing.T) {
 // =====================
 
 func TestInitV2Format(t *testing.T) {
-	dir := t.TempDir()
+	dir := gitInitTempDir(t)
 
 	ws, err := Init(dir)
 	if err != nil {
@@ -810,7 +811,7 @@ func TestInitV2Format(t *testing.T) {
 }
 
 func TestLoadV2Workspace(t *testing.T) {
-	dir := t.TempDir()
+	dir := gitInitTempDir(t)
 
 	// Initialize v2 workspace
 	_, err := Init(dir)
@@ -845,7 +846,7 @@ func TestLoadV2Workspace(t *testing.T) {
 }
 
 func TestWorkspaceV2Directories(t *testing.T) {
-	dir := t.TempDir()
+	dir := gitInitTempDir(t)
 
 	ws, err := Init(dir)
 	if err != nil {
@@ -866,7 +867,7 @@ func TestWorkspaceV2Directories(t *testing.T) {
 }
 
 func TestWorkspaceGetRole(t *testing.T) {
-	dir := t.TempDir()
+	dir := gitInitTempDir(t)
 
 	ws, err := Init(dir)
 	if err != nil {
@@ -890,7 +891,7 @@ func TestWorkspaceGetRole(t *testing.T) {
 }
 
 func TestWorkspaceGetRolePrompt(t *testing.T) {
-	dir := t.TempDir()
+	dir := gitInitTempDir(t)
 
 	ws, err := Init(dir)
 	if err != nil {
@@ -910,7 +911,7 @@ func TestWorkspaceGetRolePrompt(t *testing.T) {
 }
 
 func TestWorkspaceDefaultProvider(t *testing.T) {
-	dir := t.TempDir()
+	dir := gitInitTempDir(t)
 
 	// v2 workspace - default provider is gemini (minimal root-only startup)
 	ws, err := Init(dir)
@@ -929,7 +930,7 @@ func TestWorkspaceDefaultProvider(t *testing.T) {
 }
 
 func TestWorkspaceSaveV2(t *testing.T) {
-	dir := t.TempDir()
+	dir := gitInitTempDir(t)
 
 	ws, err := Init(dir)
 	if err != nil {
@@ -956,7 +957,7 @@ func TestWorkspaceSaveV2(t *testing.T) {
 }
 
 func TestWorkspaceDefaultProviderCustom(t *testing.T) {
-	dir := t.TempDir()
+	dir := gitInitTempDir(t)
 
 	ws, err := Init(dir)
 	if err != nil {

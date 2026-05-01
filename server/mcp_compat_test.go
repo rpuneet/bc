@@ -40,6 +40,7 @@ func bootMCPCompat(t *testing.T, withActive bool) (http.Handler, *captureHandler
 	var activeID string
 	if withActive {
 		wsDir := t.TempDir()
+		gitInitDir(t, wsDir)
 		if _, initErr := workspace.Init(wsDir); initErr != nil {
 			t.Fatalf("workspace.Init: %v", initErr)
 		}

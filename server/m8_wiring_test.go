@@ -37,6 +37,7 @@ func TestM8WiringTemplatesGlobalOverride(t *testing.T) {
 	}
 
 	wsDir := t.TempDir()
+	gitInitDir(t, wsDir)
 	svc, err := BuildWorkspaceServices(context.Background(), globals, wsDir)
 	if err != nil {
 		t.Fatalf("build: %v", err)
@@ -99,7 +100,9 @@ func TestM8WiringSecretsPreferGlobalVault(t *testing.T) {
 	}
 
 	globals := &Globals{SecretsVault: vault}
-	svc, err := BuildWorkspaceServices(context.Background(), globals, t.TempDir())
+	wsDir := t.TempDir()
+	gitInitDir(t, wsDir)
+	svc, err := BuildWorkspaceServices(context.Background(), globals, wsDir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -131,7 +134,9 @@ func TestM8WiringMCPGlobalView(t *testing.T) {
 	}
 
 	globals := &Globals{MCPGlobal: gs}
-	svc, err := BuildWorkspaceServices(context.Background(), globals, t.TempDir())
+	wsDir := t.TempDir()
+	gitInitDir(t, wsDir)
+	svc, err := BuildWorkspaceServices(context.Background(), globals, wsDir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -171,6 +176,7 @@ func TestM8WiringCostsGlobalLedger(t *testing.T) {
 
 	globals := &Globals{CostsGlobal: costs}
 	wsDir := t.TempDir()
+	gitInitDir(t, wsDir)
 	svc, err := BuildWorkspaceServices(context.Background(), globals, wsDir)
 	if err != nil {
 		t.Fatal(err)

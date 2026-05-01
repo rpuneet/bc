@@ -63,6 +63,7 @@ func newMultiTenantHarness(t *testing.T) *multiTenantHarness {
 		if err := os.MkdirAll(dir, 0o750); err != nil {
 			t.Fatalf("mkdir %s: %v", dir, err)
 		}
+		gitInitDir(t, dir)
 		if _, err := workspace.Init(dir); err != nil {
 			t.Fatalf("workspace.Init %s: %v", dir, err)
 		}

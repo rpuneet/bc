@@ -30,6 +30,7 @@ func setupLogsWorkspace(t *testing.T) (string, func()) {
 	}
 
 	tmpDir := t.TempDir()
+	gitInitDir(t, tmpDir)
 	ws, err := workspace.Init(tmpDir)
 	if err != nil {
 		t.Fatalf("failed to init workspace: %v", err)

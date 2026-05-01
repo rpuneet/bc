@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 
@@ -40,6 +41,12 @@ func setupWorkspace(t *testing.T) string {
 	t.Helper()
 	sandboxBCHome(t)
 	dir := t.TempDir()
+	// workspace.Init requires the dir to be a git checkout.
+	gitCmd := exec.CommandContext(t.Context(), "git", "init", "-q")
+	gitCmd.Dir = dir
+	if out, err := gitCmd.CombinedOutput(); err != nil {
+		t.Fatalf("git init in %s failed: %v\n%s", dir, err, out)
+	}
 	wks, err := workspace.Init(dir)
 	if err != nil {
 		t.Fatalf("init workspace: %v", err)

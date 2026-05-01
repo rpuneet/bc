@@ -50,6 +50,7 @@ func setupIntegrationWorkspace(t *testing.T) (string, func()) {
 	}
 
 	tmpDir := t.TempDir()
+	gitInitDir(t, tmpDir)
 
 	// Initialize a workspace using the workspace package
 	ws, err := workspace.Init(tmpDir)

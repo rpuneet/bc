@@ -28,6 +28,7 @@ func bootLegacyScope(t *testing.T, withActive bool) (http.Handler, http.Handler)
 	}
 	if withActive {
 		wsDir := t.TempDir()
+		gitInitDir(t, wsDir)
 		if _, initErr := workspace.Init(wsDir); initErr != nil {
 			t.Fatalf("workspace.Init: %v", initErr)
 		}

@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 
@@ -43,6 +44,12 @@ func newE2EServer(t *testing.T) *e2eServer {
 	t.Helper()
 
 	dir := t.TempDir()
+	// workspace.Load requires the dir to be a git checkout.
+	gitCmd := exec.CommandContext(t.Context(), "git", "init", "-q")
+	gitCmd.Dir = dir
+	if out, err := gitCmd.CombinedOutput(); err != nil {
+		t.Fatalf("git init in %s failed: %v\n%s", dir, err, out)
+	}
 	bcDir := filepath.Join(dir, ".bc")
 	if err := os.MkdirAll(filepath.Join(bcDir, "roles"), 0750); err != nil {
 		t.Fatal(err)

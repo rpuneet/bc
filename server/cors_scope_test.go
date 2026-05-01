@@ -52,6 +52,7 @@ func TestCORS_WorkspaceScope_Coexist(t *testing.T) {
 	if err := os.MkdirAll(wsDir, 0o750); err != nil {
 		t.Fatalf("mkdir ws: %v", err)
 	}
+	gitInitDir(t, wsDir)
 	if _, err := workspace.Init(wsDir); err != nil {
 		t.Fatalf("workspace.Init: %v", err)
 	}
@@ -161,6 +162,7 @@ func TestCORS_Preflight_Scoped(t *testing.T) {
 	if err := os.MkdirAll(wsDir, 0o750); err != nil {
 		t.Fatalf("mkdir ws: %v", err)
 	}
+	gitInitDir(t, wsDir)
 	if _, err := workspace.Init(wsDir); err != nil {
 		t.Fatalf("Init: %v", err)
 	}
