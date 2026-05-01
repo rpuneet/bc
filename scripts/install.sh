@@ -1,13 +1,13 @@
 #!/bin/bash
-# bc installer script
+# mycel installer script
 # Usage: curl -fsSL https://raw.githubusercontent.com/rpuneet/mycel/main/scripts/install.sh | bash
 
 set -e
 
 # Configuration
 REPO="rpuneet/mycel"
-INSTALL_DIR="${BC_INSTALL_DIR:-/usr/local/bin}"
-BINARY_NAME="bc"
+INSTALL_DIR="${MYCEL_INSTALL_DIR:-${BC_INSTALL_DIR:-/usr/local/bin}}"
+BINARY_NAME="mycel"
 
 # Colors
 RED='\033[0;31m'
@@ -65,7 +65,7 @@ detect_platform() {
 
     # Linux arm64 builds are not yet available
     if [ "$OS" = "linux" ] && [ "$ARCH" = "arm64" ]; then
-        error "Linux arm64 builds are not yet available. Please build from source: go install github.com/rpuneet/bc/cmd/bc@latest"
+        error "Linux arm64 builds are not yet available. Please build from source: go install github.com/rpuneet/mycel/cmd/bc@latest"
     fi
 
     info "Detecting OS... ${OS} ${ARCH}"
@@ -85,13 +85,13 @@ get_latest_version() {
 
 # Download and install binary
 download_and_install() {
-    # Archive naming: bc_VERSION_OS_ARCH.tar.gz (version without leading v)
+    # Archive naming: mycel_VERSION_OS_ARCH.tar.gz (version without leading v)
     VERSION_NUM="${VERSION#v}"
-    ARCHIVE_NAME="bc_${VERSION_NUM}_${OS}_${ARCH}.tar.gz"
+    ARCHIVE_NAME="mycel_${VERSION_NUM}_${OS}_${ARCH}.tar.gz"
     DOWNLOAD_URL="https://github.com/${REPO}/releases/download/${VERSION}/${ARCHIVE_NAME}"
     TMP_DIR=$(mktemp -d)
 
-    info "Downloading bc ${VERSION}..."
+    info "Downloading mycel ${VERSION}..."
 
     if ! curl -fsSL "$DOWNLOAD_URL" -o "${TMP_DIR}/${ARCHIVE_NAME}"; then
         rm -rf "$TMP_DIR"
@@ -110,7 +110,7 @@ download_and_install() {
     info "Extracting archive..."
     tar -xzf "${TMP_DIR}/${ARCHIVE_NAME}" -C "$TMP_DIR"
 
-    TMP_FILE="${TMP_DIR}/bc"
+    TMP_FILE="${TMP_DIR}/mycel"
     if [ ! -f "$TMP_FILE" ]; then
         rm -rf "$TMP_DIR"
         error "Binary not found in archive."
@@ -136,7 +136,7 @@ verify_installation() {
     info "Verifying installation..."
 
     if [ -x "${INSTALL_DIR}/${BINARY_NAME}" ]; then
-        success "bc installed successfully!"
+        success "mycel installed successfully!"
     else
         error "Installation failed. Binary not found."
     fi
@@ -145,7 +145,7 @@ verify_installation() {
 # Check dependencies
 check_dependencies() {
     if ! command -v tmux &> /dev/null; then
-        warn "tmux is not installed (required for bc agents)"
+        warn "tmux is not installed (required for mycel agents)"
         echo ""
         case "$OS" in
             darwin)
@@ -162,12 +162,12 @@ check_dependencies() {
 # Print next steps
 print_next_steps() {
     echo ""
-    success "Run 'bc' to get started."
+    success "Run 'mycel' to get started."
     echo ""
     echo "Quick start:"
-    echo "  bc init          # Initialize workspace"
-    echo "  bc up            # Start server"
-    echo "  bc up -d         # Start as daemon"
+    echo "  mycel init          # Initialize workspace"
+    echo "  mycel up            # Start server"
+    echo "  mycel up -d         # Start as daemon"
     echo ""
     echo "Documentation: https://github.com/${REPO}#readme"
 }
@@ -175,8 +175,8 @@ print_next_steps() {
 # Main
 main() {
     echo ""
-    echo "bc Installer"
-    echo "============"
+    echo "mycel Installer"
+    echo "==============="
     echo ""
 
     detect_platform
