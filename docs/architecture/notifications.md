@@ -33,6 +33,35 @@ flowchart LR
     A1 & A2 & A3 -. "respond via platform API\n(credentials in env vars)" .-> Platforms
 ```
 
+## Gateway adapters are inbound-only
+
+Gateway adapters in `pkg/gateway/<platform>/` exist to **receive** messages
+from external platforms (Slack, Telegram, Discord, WhatsApp, GitHub, etc.)
+and dispatch them into bcd's notification pipeline. They are **not** a
+generic outbound abstraction.
+
+When an agent needs to **send** a message to an external platform, the
+agent talks to the platform's API directly using credentials injected
+from `prefs.json` / the workspace secret store. Examples:
+
+- **Telegram**: `curl -H "Authorization: Bearer $TELEGRAM_BOT_TOKEN" https://api.telegram.org/bot.../sendMessage`
+- **Slack**: `chat.postMessage` via the Slack Web API using `$SLACK_BOT_TOKEN`
+- **WhatsApp**: `whatsmeow` library directly — the gateway only listens; agents send
+
+The existing `Send` methods on the Slack, Telegram, and Discord adapters
+are a **legacy convenience** used internally by bcd's notify dispatch
+path (e.g. when a local channel relays to an external platform via the
+`POST /api/gateways/{platform}/channels/{channel}/send` endpoint). Do
+**not** add `Send` to new adapters. WhatsApp, Matrix, IRC, Signal, and
+the other 30+ adapters deliberately have no `Send` method — that is
+correct per this design, **not** a missing feature or a bug.
+
+If you find a code-review tool flagging "adapter X is missing Send",
+that finding is incorrect: outbound is the agent's responsibility, and
+the inbound adapter is complete without it.
+
+## Connection patterns
+
 All 37+ platform adapters follow one of three connection patterns:
 
 | Pattern | Examples | Mechanism |
