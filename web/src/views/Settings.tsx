@@ -24,15 +24,15 @@ function deepEqual(a: unknown, b: unknown): boolean {
 /*  Shared components                                                   */
 /* ------------------------------------------------------------------ */
 
-const INPUT_CLS = "w-full px-2 py-0.5 text-xs rounded border border-bc-border bg-bc-bg text-bc-text font-mono focus:outline-none focus:ring-1 focus:ring-bc-accent";
+const INPUT_CLS = "w-full px-2 py-0.5 text-xs rounded border border-mycel-border bg-mycel-bg text-mycel-text font-mono focus:outline-none focus:ring-1 focus:ring-mycel-accent";
 
 function Field({ label, children, suffix }: { label: string; children: React.ReactNode; suffix?: string }) {
   return (
     <div className="flex items-center gap-2 min-h-[28px]">
-      <label className="text-[11px] text-bc-muted w-24 shrink-0 text-right">{label}</label>
+      <label className="text-[11px] text-mycel-muted w-24 shrink-0 text-right">{label}</label>
       <div className="flex-1 flex items-center gap-1.5 min-w-0">
         {children}
-        {suffix && <span className="text-[10px] text-bc-muted shrink-0">{suffix}</span>}
+        {suffix && <span className="text-[10px] text-mycel-muted shrink-0">{suffix}</span>}
       </div>
     </div>
   );
@@ -51,7 +51,7 @@ function PasswordField({ value, onChange }: { value: string; onChange: (v: strin
       <button
         type="button"
         onClick={() => setVisible(!visible)}
-        className="absolute inset-y-0 right-0 flex items-center px-2 text-bc-muted hover:text-bc-text"
+        className="absolute inset-y-0 right-0 flex items-center px-2 text-mycel-muted hover:text-mycel-text"
         tabIndex={-1}
       >
         <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -117,23 +117,23 @@ function Section({
   const meta = SECTION_META[title];
 
   return (
-    <div className={`rounded border ${dirty ? "border-bc-accent/40" : "border-bc-border"} bg-bc-surface`}>
+    <div className={`rounded border ${dirty ? "border-mycel-accent/40" : "border-mycel-border"} bg-mycel-surface`}>
       <button
         type="button"
         onClick={() => setOpen(!open)}
-        className="w-full flex items-center gap-2 px-3 py-2 hover:bg-bc-bg/30 transition-colors"
+        className="w-full flex items-center gap-2 px-3 py-2 hover:bg-mycel-bg/30 transition-colors"
       >
-        <svg className="w-3.5 h-3.5 text-bc-muted shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+        <svg className="w-3.5 h-3.5 text-mycel-muted shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
           {meta?.icon}
         </svg>
-        <span className="text-[11px] font-semibold text-bc-text uppercase tracking-wide">{title}</span>
-        {meta?.desc && <span className="text-[10px] text-bc-muted ml-auto mr-2 hidden sm:inline">{meta.desc}</span>}
-        {dirty && <span className="w-1.5 h-1.5 rounded-full bg-bc-accent" />}
-        <svg className={`w-3 h-3 text-bc-muted transition-transform ${open ? "rotate-90" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <span className="text-[11px] font-semibold text-mycel-text uppercase tracking-wide">{title}</span>
+        {meta?.desc && <span className="text-[10px] text-mycel-muted ml-auto mr-2 hidden sm:inline">{meta.desc}</span>}
+        {dirty && <span className="w-1.5 h-1.5 rounded-full bg-mycel-accent" />}
+        <svg className={`w-3 h-3 text-mycel-muted transition-transform ${open ? "rotate-90" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
         </svg>
       </button>
-      {open && <div className="px-3 pb-3 pt-1.5 space-y-1.5 border-t border-bc-border">{children}</div>}
+      {open && <div className="px-3 pb-3 pt-1.5 space-y-1.5 border-t border-mycel-border">{children}</div>}
     </div>
   );
 }
@@ -347,18 +347,18 @@ export function Settings() {
   return (
     <div className="p-4 md:p-6 space-y-3">
       {/* File metadata (title lives in the top-bar chip) */}
-      <p className="text-[10px] text-bc-muted">
+      <p className="text-[10px] text-mycel-muted">
         preferences.json{typeof version !== "undefined" ? ` v${version}` : ""}
       </p>
 
       {/* Floating save bar */}
       {dirtySections.length > 0 && (
-        <div className="sticky top-0 z-20 rounded border border-bc-accent/50 bg-bc-accent/10 backdrop-blur px-3 py-2 flex items-center justify-between">
-          <div className="text-xs text-bc-text">
+        <div className="sticky top-0 z-20 rounded border border-mycel-accent/50 bg-mycel-accent/10 backdrop-blur px-3 py-2 flex items-center justify-between">
+          <div className="text-xs text-mycel-text">
             <span className="font-medium">Unsaved:</span>{" "}
-            <span className="text-bc-muted">{dirtySections.join(", ")}</span>
+            <span className="text-mycel-muted">{dirtySections.join(", ")}</span>
             {dirtySections.some((k) => RESTART_SECTIONS.has(k)) && (
-              <span className="ml-2 text-bc-accent">Restart required after save</span>
+              <span className="ml-2 text-mycel-accent">Restart required after save</span>
             )}
           </div>
           <button
@@ -366,8 +366,8 @@ export function Settings() {
             disabled={saveStatus === "saving"}
             className={`px-3 py-1 rounded text-xs font-medium transition-all disabled:opacity-50 ${
               saveStatus === "error"
-                ? "bg-bc-error text-white hover:opacity-90"
-                : "bg-bc-accent text-white hover:opacity-90"
+                ? "bg-mycel-error text-white hover:opacity-90"
+                : "bg-mycel-accent text-white hover:opacity-90"
             }`}
           >
             {saveStatus === "saving" ? "Saving..." : saveStatus === "error" ? "Retry" : "Save"}
@@ -376,13 +376,13 @@ export function Settings() {
       )}
 
       {saveStatus === "saved" && dirtySections.length === 0 && !restartWarning && (
-        <div className="rounded border border-bc-success/30 bg-bc-success/10 px-3 py-1.5 text-xs text-bc-success">
+        <div className="rounded border border-mycel-success/30 bg-mycel-success/10 px-3 py-1.5 text-xs text-mycel-success">
           Changes saved.
         </div>
       )}
 
       {restartWarning && (
-        <div className="rounded border border-bc-error/30 bg-bc-error/10 px-3 py-1.5 text-xs text-bc-error">
+        <div className="rounded border border-mycel-error/30 bg-mycel-error/10 px-3 py-1.5 text-xs text-mycel-error">
           Changes saved. Restart bcd to apply (<code className="font-mono">bc down &amp;&amp; bc up -d</code>)
         </div>
       )}

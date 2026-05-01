@@ -61,12 +61,12 @@ export function SystemPromptEditor({
     <section className={className}>
       <div className="mb-4 flex items-center gap-3">
         <span
-          className="text-[10px] font-bold uppercase tracking-[0.2em] text-bc-muted/70"
+          className="text-[10px] font-bold uppercase tracking-[0.2em] text-mycel-muted/70"
           style={{ fontFamily: MONO }}
         >
           System Prompt
         </span>
-        <span className="flex-1 h-px bg-gradient-to-r from-bc-border/50 to-transparent" />
+        <span className="flex-1 h-px bg-gradient-to-r from-mycel-border/50 to-transparent" />
         {!loading && (
           <div className="flex items-center gap-2">
             {saveStatus === "saved" && (
@@ -79,7 +79,7 @@ export function SystemPromptEditor({
             )}
             {saveStatus === "error" && (
               <span
-                className="text-[11px] text-bc-error"
+                className="text-[11px] text-mycel-error"
                 style={{ fontFamily: MONO }}
                 title={saveError}
               >
@@ -89,7 +89,7 @@ export function SystemPromptEditor({
             {editing ? (
               <>
                 <span
-                  className="text-[10px] text-bc-accent/60 italic"
+                  className="text-[10px] text-mycel-accent/60 italic"
                   style={{ fontFamily: MONO }}
                 >
                   Editing...
@@ -98,7 +98,7 @@ export function SystemPromptEditor({
                   type="button"
                   onClick={handleCancel}
                   disabled={saving}
-                  className="px-2.5 py-1 rounded border border-bc-border/40 text-[11px] text-bc-muted hover:text-bc-text hover:border-bc-border transition-colors disabled:opacity-40"
+                  className="px-2.5 py-1 rounded border border-mycel-border/40 text-[11px] text-mycel-muted hover:text-mycel-text hover:border-mycel-border transition-colors disabled:opacity-40"
                   style={{ fontFamily: MONO }}
                 >
                   Cancel
@@ -107,7 +107,7 @@ export function SystemPromptEditor({
                   type="button"
                   onClick={handleSave}
                   disabled={saving}
-                  className="px-2.5 py-1 rounded border border-bc-accent/30 bg-bc-accent/10 text-[11px] text-bc-accent hover:bg-bc-accent/20 transition-colors disabled:opacity-40"
+                  className="px-2.5 py-1 rounded border border-mycel-accent/30 bg-mycel-accent/10 text-[11px] text-mycel-accent hover:bg-mycel-accent/20 transition-colors disabled:opacity-40"
                   style={{ fontFamily: MONO }}
                 >
                   {saving ? "Saving…" : "Save"}
@@ -118,7 +118,7 @@ export function SystemPromptEditor({
                 <button
                   type="button"
                   onClick={handleEdit}
-                  className="px-2.5 py-1 rounded border border-bc-border/40 text-[11px] text-bc-muted hover:text-bc-text hover:border-bc-border transition-colors"
+                  className="px-2.5 py-1 rounded border border-mycel-border/40 text-[11px] text-mycel-muted hover:text-mycel-text hover:border-mycel-border transition-colors"
                   style={{ fontFamily: MONO }}
                 >
                   Edit
@@ -130,9 +130,9 @@ export function SystemPromptEditor({
       </div>
 
       {loading ? (
-        <div className="rounded-md border border-bc-border/30 bg-bc-surface/20 p-4">
+        <div className="rounded-md border border-mycel-border/30 bg-mycel-surface/20 p-4">
           <p
-            className="text-xs text-bc-muted/40 italic"
+            className="text-xs text-mycel-muted/40 italic"
             style={{ fontFamily: MONO }}
           >
             Loading…
@@ -142,7 +142,7 @@ export function SystemPromptEditor({
         <textarea
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
-          className="w-full min-h-[180px] max-h-[250px] rounded-md border border-bc-accent/50 bg-bc-bg/80 p-4 text-xs text-bc-text/90 leading-relaxed resize-y outline-none focus:border-bc-accent/60 transition-colors"
+          className="w-full min-h-[180px] max-h-[250px] rounded-md border border-mycel-accent/50 bg-mycel-bg/80 p-4 text-xs text-mycel-text/90 leading-relaxed resize-y outline-none focus:border-mycel-accent/60 transition-colors"
           style={{ fontFamily: MONO }}
           spellCheck={false}
         />
@@ -150,7 +150,7 @@ export function SystemPromptEditor({
         <textarea
           value={value}
           readOnly
-          className="w-full min-h-[180px] max-h-[250px] rounded-md border border-bc-border/40 bg-bc-bg p-4 text-xs text-bc-text/70 leading-relaxed resize-y outline-none cursor-default"
+          className="w-full min-h-[180px] max-h-[250px] rounded-md border border-mycel-border/40 bg-mycel-bg p-4 text-xs text-mycel-text/70 leading-relaxed resize-y outline-none cursor-default"
           style={{ fontFamily: MONO }}
         />
       )}

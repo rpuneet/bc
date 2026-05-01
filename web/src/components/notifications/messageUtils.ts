@@ -142,7 +142,7 @@ export const ROLE_COLORS: Record<string, { bg: string; text: string }> = {
   base: { bg: "bg-slate-500/20", text: "text-slate-400" },
 };
 
-export const DEFAULT_ROLE_COLOR = { bg: "bg-bc-muted/20", text: "text-bc-muted" };
+export const DEFAULT_ROLE_COLOR = { bg: "bg-mycel-muted/20", text: "text-mycel-muted" };
 
 export function getRoleColor(role: string | undefined): { bg: string; text: string } {
   if (!role) return DEFAULT_ROLE_COLOR;

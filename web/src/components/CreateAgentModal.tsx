@@ -70,8 +70,8 @@ const SHAPES: AgentShape[] = ["hexagon", "circle", "square"];
 const MemoAgentIcon = memo(AgentIcon);
 
 const INPUT_CLS =
-  "w-full bg-bc-bg border border-bc-border rounded px-3 py-2 text-sm text-bc-text " +
-  "placeholder:text-bc-muted outline-none focus:border-bc-accent transition-colors";
+  "w-full bg-mycel-bg border border-mycel-border rounded px-3 py-2 text-sm text-mycel-text " +
+  "placeholder:text-mycel-muted outline-none focus:border-mycel-accent transition-colors";
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
@@ -194,16 +194,16 @@ export function CreateAgentModal({
       <div className="absolute inset-0 bg-black/60" />
 
       <div
-        className="relative w-full max-w-md rounded-lg border border-bc-border bg-bc-surface shadow-2xl max-h-[90vh] overflow-y-auto"
+        className="relative w-full max-w-md rounded-lg border border-mycel-border bg-mycel-surface shadow-2xl max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
         aria-label="Create agent"
       >
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-bc-border px-5 py-4">
+        <div className="flex items-center justify-between border-b border-mycel-border px-5 py-4">
           <h2
-            className="text-sm font-semibold text-bc-text tracking-wide uppercase"
+            className="text-sm font-semibold text-mycel-text tracking-wide uppercase"
             style={{ fontFamily: MONO }}
           >
             Create Agent
@@ -211,7 +211,7 @@ export function CreateAgentModal({
           <button
             type="button"
             onClick={onClose}
-            className="text-bc-muted hover:text-bc-text transition-colors rounded p-1 -mr-1"
+            className="text-mycel-muted hover:text-mycel-text transition-colors rounded p-1 -mr-1"
             aria-label="Close"
           >
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
@@ -229,7 +229,7 @@ export function CreateAgentModal({
 
           {/* Name + regen */}
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-medium text-bc-muted uppercase tracking-wider" style={{ fontFamily: MONO }}>
+            <label className="text-xs font-medium text-mycel-muted uppercase tracking-wider" style={{ fontFamily: MONO }}>
               Name
             </label>
             <div className="flex items-center gap-2">
@@ -248,7 +248,7 @@ export function CreateAgentModal({
                 type="button"
                 onClick={handleRegenerate}
                 title="Regenerate name"
-                className="shrink-0 flex items-center justify-center w-8 h-8 rounded border border-bc-border bg-bc-bg text-bc-muted hover:text-bc-accent hover:border-bc-accent transition-colors"
+                className="shrink-0 flex items-center justify-center w-8 h-8 rounded border border-mycel-border bg-mycel-bg text-mycel-muted hover:text-mycel-accent hover:border-mycel-accent transition-colors"
               >
                 <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M11.5 2A6 6 0 1 0 12 6.5" />
@@ -260,7 +260,7 @@ export function CreateAgentModal({
 
           {/* Shape dropdown */}
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-medium text-bc-muted uppercase tracking-wider" style={{ fontFamily: MONO }}>
+            <label className="text-xs font-medium text-mycel-muted uppercase tracking-wider" style={{ fontFamily: MONO }}>
               Shape
             </label>
             <select
@@ -277,7 +277,7 @@ export function CreateAgentModal({
 
           {/* Template */}
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-medium text-bc-muted uppercase tracking-wider" style={{ fontFamily: MONO }}>
+            <label className="text-xs font-medium text-mycel-muted uppercase tracking-wider" style={{ fontFamily: MONO }}>
               Template
             </label>
             <select
@@ -295,9 +295,9 @@ export function CreateAgentModal({
           {/* Clone from existing agent */}
           {existingAgents.length > 0 && (
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-medium text-bc-muted uppercase tracking-wider" style={{ fontFamily: MONO }}>
+              <label className="text-xs font-medium text-mycel-muted uppercase tracking-wider" style={{ fontFamily: MONO }}>
                 Clone config from{" "}
-                <span className="normal-case font-normal text-bc-muted/70">(optional)</span>
+                <span className="normal-case font-normal text-mycel-muted/70">(optional)</span>
               </label>
               <select
                 value={cloneFrom}
@@ -318,7 +318,7 @@ export function CreateAgentModal({
           {/* Provider + Runtime */}
           <div className="grid grid-cols-2 gap-3">
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-medium text-bc-muted uppercase tracking-wider" style={{ fontFamily: MONO }}>
+              <label className="text-xs font-medium text-mycel-muted uppercase tracking-wider" style={{ fontFamily: MONO }}>
                 Provider
               </label>
               <select
@@ -334,7 +334,7 @@ export function CreateAgentModal({
               </select>
             </div>
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-medium text-bc-muted uppercase tracking-wider" style={{ fontFamily: MONO }}>
+              <label className="text-xs font-medium text-mycel-muted uppercase tracking-wider" style={{ fontFamily: MONO }}>
                 Runtime
               </label>
               <select
@@ -351,9 +351,9 @@ export function CreateAgentModal({
 
           {/* Initial task */}
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-medium text-bc-muted uppercase tracking-wider" style={{ fontFamily: MONO }}>
+            <label className="text-xs font-medium text-mycel-muted uppercase tracking-wider" style={{ fontFamily: MONO }}>
               Initial Task{" "}
-              <span className="normal-case font-normal text-bc-muted/70">(optional)</span>
+              <span className="normal-case font-normal text-mycel-muted/70">(optional)</span>
             </label>
             <textarea
               value={task}
@@ -367,11 +367,11 @@ export function CreateAgentModal({
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-3 border-t border-bc-border px-5 py-4">
+        <div className="flex items-center justify-end gap-3 border-t border-mycel-border px-5 py-4">
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 rounded text-sm text-bc-muted hover:text-bc-text border border-bc-border hover:border-bc-muted bg-bc-bg transition-colors"
+            className="px-4 py-2 rounded text-sm text-mycel-muted hover:text-mycel-text border border-mycel-border hover:border-mycel-muted bg-mycel-bg transition-colors"
             style={{ fontFamily: MONO }}
           >
             Cancel
@@ -379,7 +379,7 @@ export function CreateAgentModal({
           <button
             type="button"
             onClick={() => { void handleCreate(); }}
-            className="px-4 py-2 rounded text-sm font-medium bg-bc-accent text-bc-bg hover:opacity-90 transition-opacity"
+            className="px-4 py-2 rounded text-sm font-medium bg-mycel-accent text-mycel-bg hover:opacity-90 transition-opacity"
             style={{ fontFamily: MONO }}
           >
             Create agent

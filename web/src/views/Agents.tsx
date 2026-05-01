@@ -64,7 +64,7 @@ function InlineAgentName({
         disabled={saving}
         autoFocus
         onClick={(e) => e.stopPropagation()}
-        className="px-1 py-0.5 text-sm font-medium rounded border border-bc-accent bg-bc-bg text-bc-text focus:outline-none focus:ring-1 focus:ring-bc-accent w-32"
+        className="px-1 py-0.5 text-sm font-medium rounded border border-mycel-accent bg-mycel-bg text-mycel-text focus:outline-none focus:ring-1 focus:ring-mycel-accent w-32"
         aria-label="Rename agent"
       />
     );
@@ -73,7 +73,7 @@ function InlineAgentName({
   return (
     <button
       type="button"
-      className="font-medium cursor-pointer hover:text-bc-accent transition-colors focus-visible:ring-2 focus-visible:ring-bc-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bc-bg rounded"
+      className="font-medium cursor-pointer hover:text-mycel-accent transition-colors focus-visible:ring-2 focus-visible:ring-mycel-accent focus-visible:ring-offset-1 focus-visible:ring-offset-mycel-bg rounded"
       onClick={(e) => {
         e.stopPropagation();
         setEditing(true);
@@ -114,14 +114,14 @@ function AgentActions({ agent, onDone }: { agent: Agent; onDone: () => void }) {
         className="inline-flex items-center gap-1"
         onClick={(e) => e.stopPropagation()}
       >
-        <span className="text-xs text-bc-error mr-1">Delete?</span>
+        <span className="text-xs text-mycel-error mr-1">Delete?</span>
         <button
           onClick={(e) => {
             e.stopPropagation();
             act(() => api.deleteAgent(agent.name));
           }}
           disabled={busy}
-          className="px-1.5 py-0.5 text-xs rounded bg-bc-error/20 text-bc-error hover:bg-bc-error/30 disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-bc-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bc-bg"
+          className="px-1.5 py-0.5 text-xs rounded bg-mycel-error/20 text-mycel-error hover:bg-mycel-error/30 disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-mycel-accent focus-visible:ring-offset-1 focus-visible:ring-offset-mycel-bg"
           aria-label={`Confirm delete agent ${agent.name}`}
         >
           {busy ? "..." : "Yes"}
@@ -132,7 +132,7 @@ function AgentActions({ agent, onDone }: { agent: Agent; onDone: () => void }) {
             setConfirming(null);
           }}
           aria-label="Cancel delete"
-          className="px-1.5 py-0.5 text-xs rounded bg-bc-border/50 text-bc-muted hover:text-bc-text focus-visible:ring-2 focus-visible:ring-bc-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bc-bg"
+          className="px-1.5 py-0.5 text-xs rounded bg-mycel-border/50 text-mycel-muted hover:text-mycel-text focus-visible:ring-2 focus-visible:ring-mycel-accent focus-visible:ring-offset-1 focus-visible:ring-offset-mycel-bg"
         >
           No
         </button>
@@ -154,7 +154,7 @@ function AgentActions({ agent, onDone }: { agent: Agent; onDone: () => void }) {
           disabled={busy}
           title="Start agent"
           aria-label={`Start agent ${agent.name}`}
-          className="px-1.5 py-0.5 text-xs rounded bg-bc-success/20 text-bc-success hover:bg-bc-success/30 disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-bc-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bc-bg"
+          className="px-1.5 py-0.5 text-xs rounded bg-mycel-success/20 text-mycel-success hover:bg-mycel-success/30 disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-mycel-accent focus-visible:ring-offset-1 focus-visible:ring-offset-mycel-bg"
         >
           {busy ? "..." : "Start"}
         </button>
@@ -168,7 +168,7 @@ function AgentActions({ agent, onDone }: { agent: Agent; onDone: () => void }) {
           disabled={busy}
           title="Stop agent"
           aria-label={`Stop agent ${agent.name}`}
-          className="px-1.5 py-0.5 text-xs rounded bg-bc-warning/20 text-bc-warning hover:bg-bc-warning/30 disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-bc-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bc-bg"
+          className="px-1.5 py-0.5 text-xs rounded bg-mycel-warning/20 text-mycel-warning hover:bg-mycel-warning/30 disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-mycel-accent focus-visible:ring-offset-1 focus-visible:ring-offset-mycel-bg"
         >
           {busy ? "..." : "Stop"}
         </button>
@@ -180,7 +180,7 @@ function AgentActions({ agent, onDone }: { agent: Agent; onDone: () => void }) {
         }}
         title="Delete agent"
         aria-label={`Delete agent ${agent.name}`}
-        className="px-1.5 py-0.5 text-xs rounded bg-bc-error/10 text-bc-error/70 hover:bg-bc-error/20 hover:text-bc-error focus-visible:ring-2 focus-visible:ring-bc-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bc-bg"
+        className="px-1.5 py-0.5 text-xs rounded bg-mycel-error/10 text-mycel-error/70 hover:bg-mycel-error/20 hover:text-mycel-error focus-visible:ring-2 focus-visible:ring-mycel-accent focus-visible:ring-offset-1 focus-visible:ring-offset-mycel-bg"
       >
         Delete
       </button>
@@ -194,34 +194,34 @@ function AgentsTableSkeleton() {
   return (
     <table className="w-full text-sm">
       <thead>
-        <tr className="border-b border-bc-border text-left">
-          <th className="px-2 py-2 w-8"><div className="h-3 w-3 rounded animate-pulse bg-bc-border/40" /></th>
-          <th className="px-4 py-2"><div className="h-3 w-16 rounded animate-pulse bg-bc-border/40" /></th>
-          <th className="px-4 py-2 hidden sm:table-cell"><div className="h-3 w-14 rounded animate-pulse bg-bc-border/40" /></th>
-          <th className="px-4 py-2 hidden sm:table-cell"><div className="h-3 w-14 rounded animate-pulse bg-bc-border/40" /></th>
-          <th className="px-4 py-2"><div className="h-3 w-12 rounded animate-pulse bg-bc-border/40" /></th>
-          <th className="px-4 py-2"><div className="h-3 w-10 rounded animate-pulse bg-bc-border/40" /></th>
-          <th className="px-4 py-2 hidden md:table-cell"><div className="h-3 w-8 rounded animate-pulse bg-bc-border/40" /></th>
-          <th className="px-4 py-2"><div className="h-3 w-14 rounded animate-pulse bg-bc-border/40" /></th>
+        <tr className="border-b border-mycel-border text-left">
+          <th className="px-2 py-2 w-8"><div className="h-3 w-3 rounded animate-pulse bg-mycel-border/40" /></th>
+          <th className="px-4 py-2"><div className="h-3 w-16 rounded animate-pulse bg-mycel-border/40" /></th>
+          <th className="px-4 py-2 hidden sm:table-cell"><div className="h-3 w-14 rounded animate-pulse bg-mycel-border/40" /></th>
+          <th className="px-4 py-2 hidden sm:table-cell"><div className="h-3 w-14 rounded animate-pulse bg-mycel-border/40" /></th>
+          <th className="px-4 py-2"><div className="h-3 w-12 rounded animate-pulse bg-mycel-border/40" /></th>
+          <th className="px-4 py-2"><div className="h-3 w-10 rounded animate-pulse bg-mycel-border/40" /></th>
+          <th className="px-4 py-2 hidden md:table-cell"><div className="h-3 w-8 rounded animate-pulse bg-mycel-border/40" /></th>
+          <th className="px-4 py-2"><div className="h-3 w-14 rounded animate-pulse bg-mycel-border/40" /></th>
           <th className="px-4 py-2 w-10" />
         </tr>
       </thead>
       <tbody>
         {Array.from({ length: 5 }).map((_, i) => (
-          <tr key={i} className="border-b border-bc-border/50">
-            <td className="px-2 py-3"><div className="h-3 w-3 rounded animate-pulse bg-bc-border/30" /></td>
+          <tr key={i} className="border-b border-mycel-border/50">
+            <td className="px-2 py-3"><div className="h-3 w-3 rounded animate-pulse bg-mycel-border/30" /></td>
             <td className="px-4 py-3">
               <div className="flex items-center gap-2">
-                <div className="h-7 w-7 rounded-full animate-pulse bg-bc-border/30 shrink-0" />
-                <div className="h-3 rounded animate-pulse bg-bc-border/30" style={{ width: `${60 + (i % 4) * 15}px` }} />
+                <div className="h-7 w-7 rounded-full animate-pulse bg-mycel-border/30 shrink-0" />
+                <div className="h-3 rounded animate-pulse bg-mycel-border/30" style={{ width: `${60 + (i % 4) * 15}px` }} />
               </div>
             </td>
-            <td className="px-4 py-3 hidden sm:table-cell"><div className="h-3 w-12 rounded animate-pulse bg-bc-border/30" /></td>
-            <td className="px-4 py-3 hidden sm:table-cell"><div className="h-3 w-14 rounded animate-pulse bg-bc-border/30" /></td>
-            <td className="px-4 py-3"><div className="h-4 w-16 rounded-full animate-pulse bg-bc-border/30" /></td>
-            <td className="px-4 py-3"><div className="h-3 rounded animate-pulse bg-bc-border/30" style={{ width: `${80 + (i % 3) * 30}px` }} /></td>
-            <td className="px-4 py-3 hidden md:table-cell"><div className="h-4 w-10 rounded animate-pulse bg-bc-border/30" /></td>
-            <td className="px-4 py-3"><div className="h-4 w-20 rounded animate-pulse bg-bc-border/30" /></td>
+            <td className="px-4 py-3 hidden sm:table-cell"><div className="h-3 w-12 rounded animate-pulse bg-mycel-border/30" /></td>
+            <td className="px-4 py-3 hidden sm:table-cell"><div className="h-3 w-14 rounded animate-pulse bg-mycel-border/30" /></td>
+            <td className="px-4 py-3"><div className="h-4 w-16 rounded-full animate-pulse bg-mycel-border/30" /></td>
+            <td className="px-4 py-3"><div className="h-3 rounded animate-pulse bg-mycel-border/30" style={{ width: `${80 + (i % 3) * 30}px` }} /></td>
+            <td className="px-4 py-3 hidden md:table-cell"><div className="h-4 w-10 rounded animate-pulse bg-mycel-border/30" /></td>
+            <td className="px-4 py-3"><div className="h-4 w-20 rounded animate-pulse bg-mycel-border/30" /></td>
             <td className="px-4 py-3" />
           </tr>
         ))}
@@ -257,13 +257,13 @@ export function Agents() {
     title: <TabHeaderTitle>Agents</TabHeaderTitle>,
     actions: (
       <>
-        <span className="text-[10px] text-bc-muted/40 tabular-nums" style={{ fontFamily: MONO }}>
+        <span className="text-[10px] text-mycel-muted/40 tabular-nums" style={{ fontFamily: MONO }}>
           {agents ? `${String(agents.length)} total` : "\u2014"}
         </span>
         <button
           type="button"
           onClick={() => setCreateOpen(true)}
-          className="px-3 py-1 rounded text-[11px] font-medium border border-bc-accent/40 bg-bc-accent/10 text-bc-accent hover:bg-bc-accent/20 transition-colors"
+          className="px-3 py-1 rounded text-[11px] font-medium border border-mycel-accent/40 bg-mycel-accent/10 text-mycel-accent hover:bg-mycel-accent/20 transition-colors"
           style={{ fontFamily: MONO }}
         >
           + New agent
@@ -570,7 +570,7 @@ export function Agents() {
       {/* Sub-toolbar: count summary + Stop All (title + Create live in the top-bar chip) */}
       {allAgents.length > 0 && (
         <div className="flex items-center justify-end gap-3">
-          <span className="text-sm text-bc-muted">
+          <span className="text-sm text-mycel-muted">
             {hasFilters
               ? `${String(filteredAgents.length)} of ${String(allAgents.length)} agents`
               : `${String(runningCount)} active`}
@@ -581,7 +581,7 @@ export function Agents() {
             <button
               onClick={handleStopAll}
               disabled={stoppingAll}
-              className="px-3 py-1.5 text-sm rounded bg-bc-error/20 text-bc-error hover:bg-bc-error/30 disabled:opacity-50 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-bc-error focus-visible:ring-offset-1 focus-visible:ring-offset-bc-bg"
+              className="px-3 py-1.5 text-sm rounded bg-mycel-error/20 text-mycel-error hover:bg-mycel-error/30 disabled:opacity-50 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-mycel-error focus-visible:ring-offset-1 focus-visible:ring-offset-mycel-bg"
               aria-label="Stop all agents"
             >
               {stoppingAll ? "Stopping..." : "Stop All"}
@@ -600,14 +600,14 @@ export function Agents() {
               value={search}
               onChange={(e) => { setSearch(e.target.value); }}
               placeholder="Search by name or task...  (press / to focus)"
-              className="w-full px-3 py-1.5 text-sm rounded border border-bc-border bg-bc-bg text-bc-text placeholder:text-bc-muted/60 focus:outline-none focus:ring-1 focus:ring-bc-accent"
+              className="w-full px-3 py-1.5 text-sm rounded border border-mycel-border bg-mycel-bg text-mycel-text placeholder:text-mycel-muted/60 focus:outline-none focus:ring-1 focus:ring-mycel-accent"
               aria-label="Search agents"
             />
           </div>
           <select
             value={stateFilter}
             onChange={(e) => { updateFilter("state", e.target.value); }}
-            className="px-2 py-1.5 text-sm rounded border border-bc-border bg-bc-bg text-bc-text focus:outline-none focus:ring-1 focus:ring-bc-accent"
+            className="px-2 py-1.5 text-sm rounded border border-mycel-border bg-mycel-bg text-mycel-text focus:outline-none focus:ring-1 focus:ring-mycel-accent"
             aria-label="Filter by state"
           >
             <option value="">All states</option>
@@ -618,7 +618,7 @@ export function Agents() {
           <select
             value={toolFilter}
             onChange={(e) => { updateFilter("tool", e.target.value); }}
-            className="px-2 py-1.5 text-sm rounded border border-bc-border bg-bc-bg text-bc-text focus:outline-none focus:ring-1 focus:ring-bc-accent"
+            className="px-2 py-1.5 text-sm rounded border border-mycel-border bg-mycel-bg text-mycel-text focus:outline-none focus:ring-1 focus:ring-mycel-accent"
             aria-label="Filter by tool"
           >
             <option value="">All tools</option>
@@ -629,7 +629,7 @@ export function Agents() {
           {hasFilters && (
             <button
               onClick={clearFilters}
-              className="px-2 py-1.5 text-xs text-bc-muted hover:text-bc-text border border-bc-border rounded focus-visible:ring-2 focus-visible:ring-bc-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bc-bg"
+              className="px-2 py-1.5 text-xs text-mycel-muted hover:text-mycel-text border border-mycel-border rounded focus-visible:ring-2 focus-visible:ring-mycel-accent focus-visible:ring-offset-1 focus-visible:ring-offset-mycel-bg"
               aria-label="Clear filters"
             >
               Clear
@@ -640,7 +640,7 @@ export function Agents() {
 
       {/* Keyboard hints removed — shortcuts still work (/, j/k, Enter, space, x, a, Esc) */}
 
-      <div className="rounded border border-bc-border overflow-x-auto">
+      <div className="rounded border border-mycel-border overflow-x-auto">
         {loading && !agents ? (
           <AgentsTableSkeleton />
         ) : allAgents.length === 0 ? (
@@ -660,33 +660,33 @@ export function Agents() {
         ) : (
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-bc-border text-left">
-                <th className="px-2 py-2 font-medium text-bc-muted w-8">
+              <tr className="border-b border-mycel-border text-left">
+                <th className="px-2 py-2 font-medium text-mycel-muted w-8">
                   <input
                     type="checkbox"
                     checked={allVisibleSelected}
                     onChange={toggleAllVisible}
-                    className="cursor-pointer accent-bc-accent"
+                    className="cursor-pointer accent-mycel-accent"
                     aria-label="Select all visible agents"
                   />
                 </th>
-                <th className="px-4 py-2 font-medium text-bc-muted">Name</th>
-                <th className="px-4 py-2 font-medium text-bc-muted hidden sm:table-cell">
+                <th className="px-4 py-2 font-medium text-mycel-muted">Name</th>
+                <th className="px-4 py-2 font-medium text-mycel-muted hidden sm:table-cell">
                   Runtime
                 </th>
-                <th className="px-4 py-2 font-medium text-bc-muted hidden sm:table-cell">
+                <th className="px-4 py-2 font-medium text-mycel-muted hidden sm:table-cell">
                   Provider
                 </th>
-                <th className="px-4 py-2 font-medium text-bc-muted">Status</th>
-                <th className="px-4 py-2 font-medium text-bc-muted">Task</th>
+                <th className="px-4 py-2 font-medium text-mycel-muted">Status</th>
+                <th className="px-4 py-2 font-medium text-mycel-muted">Task</th>
                 <th
-                  className="px-4 py-2 font-medium text-bc-muted hidden md:table-cell"
+                  className="px-4 py-2 font-medium text-mycel-muted hidden md:table-cell"
                   title="MCP server configuration"
                 >
                   MCP
                 </th>
-                <th className="px-4 py-2 font-medium text-bc-muted">Actions</th>
-                <th className="px-4 py-2 font-medium text-bc-muted w-10"></th>
+                <th className="px-4 py-2 font-medium text-mycel-muted">Actions</th>
+                <th className="px-4 py-2 font-medium text-mycel-muted w-10"></th>
               </tr>
             </thead>
             <tbody>
@@ -697,7 +697,7 @@ export function Agents() {
                     (a.state === "stopped" || a.state === "error") &&
                     displayRows[rowIdx - 1]!.state !== "stopped" &&
                     displayRows[rowIdx - 1]!.state !== "error" && (
-                    <tr><td colSpan={columns.length} className="h-px bg-bc-border/40" /></tr>
+                    <tr><td colSpan={columns.length} className="h-px bg-mycel-border/40" /></tr>
                   )}
                   <tr
                     onClick={() =>
@@ -708,12 +708,12 @@ export function Agents() {
                     }}
                     role="link"
                     tabIndex={0}
-                    className={`border-b border-bc-border/50 cursor-pointer transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-bc-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bc-bg ${
-                      rowIdx === focusIndex ? "ring-1 ring-inset ring-bc-accent/40 " : ""
+                    className={`border-b border-mycel-border/50 cursor-pointer transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-mycel-accent focus-visible:ring-offset-1 focus-visible:ring-offset-mycel-bg ${
+                      rowIdx === focusIndex ? "ring-1 ring-inset ring-mycel-accent/40 " : ""
                     }${
-                      peekAgent === a.name ? "bg-bc-accent/5 " : ""
+                      peekAgent === a.name ? "bg-mycel-accent/5 " : ""
                     }${
-                      selected.has(a.name) ? "bg-bc-accent/10 hover:bg-bc-accent/15" : "hover:bg-bc-surface"
+                      selected.has(a.name) ? "bg-mycel-accent/10 hover:bg-mycel-accent/15" : "hover:bg-mycel-surface"
                     }`}
                     style={(a.state === "stopped" || a.state === "error") ? { opacity: 0.55 } : undefined}
                   >
@@ -725,7 +725,7 @@ export function Agents() {
                         type="checkbox"
                         checked={selected.has(a.name)}
                         onChange={() => { toggleOne(a.name); }}
-                        className="cursor-pointer accent-bc-accent"
+                        className="cursor-pointer accent-mycel-accent"
                         aria-label={`Select agent ${a.name}`}
                       />
                     </td>
@@ -738,32 +738,32 @@ export function Agents() {
                     <td className="px-4 py-2 hidden sm:table-cell">
                       {a.runtime_backend ? (
                         <span
-                          className="text-[11px] px-1.5 py-0.5 rounded border border-bc-border/30 bg-bc-surface/30 text-bc-muted"
+                          className="text-[11px] px-1.5 py-0.5 rounded border border-mycel-border/30 bg-mycel-surface/30 text-mycel-muted"
                           style={{ fontFamily: "'JetBrains Mono', 'Fira Code', 'Space Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" }}
                         >
                           {a.runtime_backend}
                         </span>
                       ) : (
-                        <span className="text-bc-muted">{"\u2014"}</span>
+                        <span className="text-mycel-muted">{"\u2014"}</span>
                       )}
                     </td>
                     <td className="px-4 py-2 hidden sm:table-cell">
                       {a.tool ? (
                         <span
-                          className="text-[11px] px-1.5 py-0.5 rounded border border-bc-border/30 bg-bc-surface/30 text-bc-muted"
+                          className="text-[11px] px-1.5 py-0.5 rounded border border-mycel-border/30 bg-mycel-surface/30 text-mycel-muted"
                           style={{ fontFamily: "'JetBrains Mono', 'Fira Code', 'Space Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" }}
                         >
                           {a.tool}
                         </span>
                       ) : (
-                        <span className="text-bc-muted">{"\u2014"}</span>
+                        <span className="text-mycel-muted">{"\u2014"}</span>
                       )}
                     </td>
                     <td className="px-4 py-2">
                       <StatusBadge status={a.state} />
                     </td>
                     <td className="px-4 py-2">
-                      <span className="text-bc-muted" title={a.task}>
+                      <span className="text-mycel-muted" title={a.task}>
                         {a.task ? truncate(a.task, 50) : ""}
                       </span>
                     </td>
@@ -771,14 +771,14 @@ export function Agents() {
                       {(() => {
                         const servers = a.mcp_servers ?? [];
                         if (servers.length === 0) {
-                          return <span className="text-bc-muted">{"\u2014"}</span>;
+                          return <span className="text-mycel-muted">{"\u2014"}</span>;
                         }
                         const fullList = servers.map((s) => s.replace(/^mcp__/, "")).join(", ");
                         if (servers.length <= 3) {
                           return (
                             <div className="flex flex-wrap gap-1" title={fullList}>
                               {servers.map((s) => (
-                                <span key={s} className="text-[10px] px-1.5 py-0.5 rounded bg-bc-accent/10 text-bc-accent font-medium">
+                                <span key={s} className="text-[10px] px-1.5 py-0.5 rounded bg-mycel-accent/10 text-mycel-accent font-medium">
                                   {s.replace(/^mcp__/, "")}
                                 </span>
                               ))}
@@ -789,12 +789,12 @@ export function Agents() {
                         return (
                           <div className="flex flex-wrap gap-1" title={fullList}>
                             {servers.slice(0, 2).map((s) => (
-                              <span key={s} className="text-[10px] px-1.5 py-0.5 rounded bg-bc-accent/10 text-bc-accent font-medium">
+                              <span key={s} className="text-[10px] px-1.5 py-0.5 rounded bg-mycel-accent/10 text-mycel-accent font-medium">
                                 {s.replace(/^mcp__/, "")}
                               </span>
                             ))}
                             <span
-                              className="text-[10px] px-1.5 py-0.5 rounded border border-bc-border text-bc-muted cursor-help"
+                              className="text-[10px] px-1.5 py-0.5 rounded border border-mycel-border text-mycel-muted cursor-help"
                               title={rest}
                             >
                               +{String(servers.length - 2)}
@@ -809,10 +809,10 @@ export function Agents() {
                     <td className="px-4 py-2 text-center">
                       <button
                         onClick={(e) => handlePeekToggle(a.name, e)}
-                        className={`inline-flex items-center justify-center w-7 h-7 rounded transition-colors focus:ring-2 focus:ring-bc-accent focus:outline-none ${
+                        className={`inline-flex items-center justify-center w-7 h-7 rounded transition-colors focus:ring-2 focus:ring-mycel-accent focus:outline-none ${
                           peekAgent === a.name
-                            ? "bg-bc-accent/20 text-bc-accent"
-                            : "text-bc-muted hover:text-bc-text hover:bg-bc-surface"
+                            ? "bg-mycel-accent/20 text-mycel-accent"
+                            : "text-mycel-muted hover:text-mycel-text hover:bg-mycel-surface"
                         }`}
                         title={
                           peekAgent === a.name ? "Hide output" : "Peek output"
@@ -828,7 +828,7 @@ export function Agents() {
                   {peekAgent === a.name && (
                     <tr
                       key={`${a.name}-peek`}
-                      className="border-b border-bc-border/50"
+                      className="border-b border-mycel-border/50"
                     >
                       <td colSpan={columns.length} className="p-0">
                         <InlineTerminal agentName={a.name} lines={10} />
@@ -844,13 +844,13 @@ export function Agents() {
 
       {/* Bulk action bar */}
       {selected.size > 0 && (
-        <div className="fixed left-0 right-0 bottom-0 z-40 border-t border-bc-border bg-bc-surface/95 backdrop-blur shadow-bc-lg">
+        <div className="fixed left-0 right-0 bottom-0 z-40 border-t border-mycel-border bg-mycel-surface/95 backdrop-blur shadow-mycel-lg">
           <div className="max-w-6xl mx-auto px-6 py-3 flex items-center gap-3 flex-wrap">
-            <span className="text-sm font-medium text-bc-text">
+            <span className="text-sm font-medium text-mycel-text">
               {selected.size} selected
             </span>
             {bulkError && (
-              <span className="text-xs text-bc-error truncate max-w-md" title={bulkError}>
+              <span className="text-xs text-mycel-error truncate max-w-md" title={bulkError}>
                 {bulkError}
               </span>
             )}
@@ -858,7 +858,7 @@ export function Agents() {
               <button
                 onClick={handleBulkStart}
                 disabled={bulkBusy}
-                className="px-3 py-1.5 text-sm rounded bg-bc-success/20 text-bc-success hover:bg-bc-success/30 disabled:opacity-50 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-bc-accent"
+                className="px-3 py-1.5 text-sm rounded bg-mycel-success/20 text-mycel-success hover:bg-mycel-success/30 disabled:opacity-50 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-mycel-accent"
                 aria-label="Start selected agents"
               >
                 {bulkBusy ? "..." : "Start"}
@@ -866,7 +866,7 @@ export function Agents() {
               <button
                 onClick={handleBulkStop}
                 disabled={bulkBusy}
-                className="px-3 py-1.5 text-sm rounded bg-bc-warning/20 text-bc-warning hover:bg-bc-warning/30 disabled:opacity-50 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-bc-accent"
+                className="px-3 py-1.5 text-sm rounded bg-mycel-warning/20 text-mycel-warning hover:bg-mycel-warning/30 disabled:opacity-50 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-mycel-accent"
                 aria-label="Stop selected agents"
               >
                 {bulkBusy ? "..." : "Stop"}
@@ -874,7 +874,7 @@ export function Agents() {
               <button
                 onClick={handleBulkMessage}
                 disabled={bulkBusy}
-                className="px-3 py-1.5 text-sm rounded bg-bc-accent/20 text-bc-accent hover:bg-bc-accent/30 disabled:opacity-50 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-bc-accent"
+                className="px-3 py-1.5 text-sm rounded bg-mycel-accent/20 text-mycel-accent hover:bg-mycel-accent/30 disabled:opacity-50 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-mycel-accent"
                 aria-label="Send message to selected agents"
               >
                 {bulkBusy ? "..." : "Message"}
@@ -882,7 +882,7 @@ export function Agents() {
               <button
                 onClick={handleBulkDelete}
                 disabled={bulkBusy}
-                className="px-3 py-1.5 text-sm rounded bg-bc-error/20 text-bc-error hover:bg-bc-error/30 disabled:opacity-50 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-bc-accent"
+                className="px-3 py-1.5 text-sm rounded bg-mycel-error/20 text-mycel-error hover:bg-mycel-error/30 disabled:opacity-50 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-mycel-accent"
                 aria-label="Delete selected agents"
               >
                 {bulkBusy ? "..." : "Delete"}
@@ -890,7 +890,7 @@ export function Agents() {
               <button
                 onClick={clearSelection}
                 disabled={bulkBusy}
-                className="px-3 py-1.5 text-sm rounded border border-bc-border text-bc-muted hover:text-bc-text disabled:opacity-50 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-bc-accent"
+                className="px-3 py-1.5 text-sm rounded border border-mycel-border text-mycel-muted hover:text-mycel-text disabled:opacity-50 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-mycel-accent"
                 aria-label="Clear selection"
               >
                 Clear

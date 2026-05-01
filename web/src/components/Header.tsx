@@ -29,7 +29,7 @@ export interface HeaderProps {
 export function Header({ left, center, actions, compact = true }: HeaderProps) {
   return (
     <header
-      className="shrink-0 border-b border-bc-border/40"
+      className="shrink-0 border-b border-mycel-border/40"
       style={{ fontFamily: MONO }}
     >
       <div
@@ -41,7 +41,7 @@ export function Header({ left, center, actions, compact = true }: HeaderProps) {
         {left && <div className="flex items-center gap-2 shrink-0">{left}</div>}
 
         {/* Center slot — takes remaining space, truncates on overflow */}
-        <div className="flex-1 min-w-0 flex items-center gap-2 text-[12px] text-bc-text/90">
+        <div className="flex-1 min-w-0 flex items-center gap-2 text-[12px] text-mycel-text/90">
           {center}
         </div>
 
@@ -63,7 +63,7 @@ export function Header({ left, center, actions, compact = true }: HeaderProps) {
 export function TabHeaderTitle({ children }: { children: ReactNode }) {
   return (
     <span
-      className="text-[13px] font-semibold text-bc-text tracking-tight shrink-0"
+      className="text-[13px] font-semibold text-mycel-text tracking-tight shrink-0"
       style={{ fontFamily: MONO }}
     >
       {children}

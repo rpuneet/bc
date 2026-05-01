@@ -38,7 +38,7 @@ async function postAction(id: string, action: "start" | "stop"): Promise<void> {
 }
 
 function stateColor(state: string, deprecated: boolean): string {
-  if (deprecated) return "bg-bc-muted";
+  if (deprecated) return "bg-mycel-muted";
   switch (state) {
     case "running":
       return "bg-green-500";
@@ -47,17 +47,17 @@ function stateColor(state: string, deprecated: boolean): string {
     case "stopping":
       return "bg-amber-500";
     case "error":
-      return "bg-bc-error";
+      return "bg-mycel-error";
     case "stopped":
-      return "bg-bc-muted";
+      return "bg-mycel-muted";
     default:
-      return "bg-bc-muted";
+      return "bg-mycel-muted";
   }
 }
 
 function DepIcon({ id }: { id: string }) {
   // Simple SVGs per dep; generic box as fallback.
-  const common = "w-5 h-5 text-bc-muted";
+  const common = "w-5 h-5 text-mycel-muted";
   if (id === "bc-db") {
     return (
       <svg className={common} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -137,14 +137,14 @@ function LogsPanel({ id }: LogsPanelProps) {
   return (
     <div className="mt-2">
       {streamError && (
-        <div className="text-[11px] text-bc-error mb-1">{streamError}</div>
+        <div className="text-[11px] text-mycel-error mb-1">{streamError}</div>
       )}
       <pre
         ref={containerRef}
-        className="h-40 overflow-auto rounded border border-bc-border bg-bc-bg p-2 text-[11px] font-mono text-bc-text whitespace-pre-wrap"
+        className="h-40 overflow-auto rounded border border-mycel-border bg-mycel-bg p-2 text-[11px] font-mono text-mycel-text whitespace-pre-wrap"
       >
         {lines.length === 0 ? (
-          <span className="text-bc-muted">(no log lines yet)</span>
+          <span className="text-mycel-muted">(no log lines yet)</span>
         ) : (
           lines.join("\n")
         )}
@@ -178,14 +178,14 @@ function DepCard({ dep, onRefresh }: { dep: DepView; onRefresh: () => void }) {
   const starting = dep.state === "starting" || dep.state === "stopping";
 
   return (
-    <div className="rounded border border-bc-border bg-bc-surface p-3">
+    <div className="rounded border border-mycel-border bg-mycel-surface p-3">
       <div className="flex items-start gap-3">
         <DepIcon id={dep.id} />
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <span className="text-[13px] font-semibold text-bc-text truncate">{dep.name}</span>
+            <span className="text-[13px] font-semibold text-mycel-text truncate">{dep.name}</span>
             {dep.deprecated && (
-              <span className="text-[10px] px-1.5 py-0.5 rounded bg-bc-muted/20 text-bc-muted uppercase tracking-wide">
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-mycel-muted/20 text-mycel-muted uppercase tracking-wide">
                 Deprecated
               </span>
             )}
@@ -193,21 +193,21 @@ function DepCard({ dep, onRefresh }: { dep: DepView; onRefresh: () => void }) {
               className={`inline-block w-2 h-2 rounded-full ${stateColor(dep.state, dep.deprecated)}`}
               title={dep.state}
             />
-            <span className="text-[10px] text-bc-muted capitalize">{dep.state}</span>
+            <span className="text-[10px] text-mycel-muted capitalize">{dep.state}</span>
           </div>
-          <p className="text-[11px] text-bc-muted mt-1">{dep.description}</p>
+          <p className="text-[11px] text-mycel-muted mt-1">{dep.description}</p>
           {dep.error && (
-            <p className="text-[11px] text-bc-error mt-1">{dep.error}</p>
+            <p className="text-[11px] text-mycel-error mt-1">{dep.error}</p>
           )}
           {actionError && (
-            <p className="text-[11px] text-bc-error mt-1">{actionError}</p>
+            <p className="text-[11px] text-mycel-error mt-1">{actionError}</p>
           )}
           <div className="flex items-center gap-2 mt-2">
             {dep.deprecated ? (
               <button
                 type="button"
                 disabled
-                className="text-[11px] px-2 py-0.5 rounded border border-bc-border bg-bc-bg text-bc-muted cursor-not-allowed"
+                className="text-[11px] px-2 py-0.5 rounded border border-mycel-border bg-mycel-bg text-mycel-muted cursor-not-allowed"
               >
                 Deprecated
               </button>
@@ -216,7 +216,7 @@ function DepCard({ dep, onRefresh }: { dep: DepView; onRefresh: () => void }) {
                 type="button"
                 onClick={() => void act("stop")}
                 disabled={busy || starting}
-                className="text-[11px] px-2 py-0.5 rounded border border-bc-border bg-bc-bg text-bc-text hover:border-bc-error hover:text-bc-error disabled:opacity-50"
+                className="text-[11px] px-2 py-0.5 rounded border border-mycel-border bg-mycel-bg text-mycel-text hover:border-mycel-error hover:text-mycel-error disabled:opacity-50"
               >
                 {busy ? "Stopping..." : "Stop"}
               </button>
@@ -225,7 +225,7 @@ function DepCard({ dep, onRefresh }: { dep: DepView; onRefresh: () => void }) {
                 type="button"
                 onClick={() => void act("start")}
                 disabled={busy || starting}
-                className="text-[11px] px-2 py-0.5 rounded border border-bc-border bg-bc-bg text-bc-text hover:border-bc-accent hover:text-bc-accent disabled:opacity-50"
+                className="text-[11px] px-2 py-0.5 rounded border border-mycel-border bg-mycel-bg text-mycel-text hover:border-mycel-accent hover:text-mycel-accent disabled:opacity-50"
               >
                 {busy ? "Starting..." : "Start"}
               </button>
@@ -233,7 +233,7 @@ function DepCard({ dep, onRefresh }: { dep: DepView; onRefresh: () => void }) {
             <button
               type="button"
               onClick={() => setShowLogs((v) => !v)}
-              className="text-[11px] px-2 py-0.5 rounded border border-bc-border bg-bc-bg text-bc-muted hover:text-bc-text"
+              className="text-[11px] px-2 py-0.5 rounded border border-mycel-border bg-mycel-bg text-mycel-muted hover:text-mycel-text"
             >
               {showLogs ? "Hide logs" : "Logs"}
             </button>
@@ -250,12 +250,12 @@ export function DependenciesSection() {
 
   if (loading && !data) {
     return (
-      <div className="text-[11px] text-bc-muted">Loading dependencies...</div>
+      <div className="text-[11px] text-mycel-muted">Loading dependencies...</div>
     );
   }
   if (error && !data) {
     return (
-      <div className="text-[11px] text-bc-error">
+      <div className="text-[11px] text-mycel-error">
         Failed to load dependencies: {error}
       </div>
     );
@@ -264,7 +264,7 @@ export function DependenciesSection() {
   const deps = data ?? [];
   if (deps.length === 0) {
     return (
-      <div className="text-[11px] text-bc-muted">
+      <div className="text-[11px] text-mycel-muted">
         No optional dependencies configured.
       </div>
     );

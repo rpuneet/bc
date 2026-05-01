@@ -96,18 +96,18 @@ export function WorkspaceDropdown({
         onClick={() => setOpen((v) => !v)}
         className={`flex items-center gap-1.5 px-2.5 py-1 rounded border text-[11px] transition-colors ${
           open
-            ? "border-bc-accent/60 bg-bc-accent/[0.06] text-bc-text"
-            : "border-bc-border/40 bg-bc-surface/20 text-bc-text/80 hover:border-bc-border/70"
+            ? "border-mycel-accent/60 bg-mycel-accent/[0.06] text-mycel-text"
+            : "border-mycel-border/40 bg-mycel-surface/20 text-mycel-text/80 hover:border-mycel-border/70"
         }`}
         style={{ fontFamily: MONO }}
         title="Switch workspace (Cmd+Shift+W)"
       >
-        <span className="text-bc-muted/60 text-[9px] uppercase tracking-wider">ws</span>
+        <span className="text-mycel-muted/60 text-[9px] uppercase tracking-wider">ws</span>
         <span className="font-semibold truncate max-w-[160px]">
           {active ? (active.name || active.path.split("/").pop() || "unnamed") : (loading ? "…" : "no workspace")}
         </span>
         {active?.id && (
-          <span className="text-bc-muted/40 text-[9px] tabular-nums">
+          <span className="text-mycel-muted/40 text-[9px] tabular-nums">
             [{active.id.slice(0, 6)}]
           </span>
         )}
@@ -126,29 +126,29 @@ export function WorkspaceDropdown({
 
       {open && (
         <div
-          className="absolute left-0 mt-1.5 w-80 rounded-md border border-bc-border/60 bg-bc-surface shadow-xl z-50 overflow-hidden"
+          className="absolute left-0 mt-1.5 w-80 rounded-md border border-mycel-border/60 bg-mycel-surface shadow-xl z-50 overflow-hidden"
           role="menu"
         >
-          <div className="px-2.5 py-2 border-b border-bc-border/40">
+          <div className="px-2.5 py-2 border-b border-mycel-border/40">
             <input
               ref={inputRef}
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search workspaces…"
-              className="w-full bg-bc-bg border border-bc-border/40 rounded px-2.5 py-1 text-[11px] text-bc-text/90 placeholder:text-bc-muted/40 outline-none focus:border-bc-accent/50"
+              className="w-full bg-mycel-bg border border-mycel-border/40 rounded px-2.5 py-1 text-[11px] text-mycel-text/90 placeholder:text-mycel-muted/40 outline-none focus:border-mycel-accent/50"
               style={{ fontFamily: MONO }}
             />
           </div>
 
           <div className="max-h-[320px] overflow-y-auto py-1">
             {loading && (
-              <div className="px-3 py-2 text-[11px] text-bc-muted/50" style={{ fontFamily: MONO }}>
+              <div className="px-3 py-2 text-[11px] text-mycel-muted/50" style={{ fontFamily: MONO }}>
                 loading…
               </div>
             )}
             {!loading && filtered.length === 0 && (
-              <div className="px-3 py-2 text-[11px] text-bc-muted/50 italic" style={{ fontFamily: MONO }}>
+              <div className="px-3 py-2 text-[11px] text-mycel-muted/50 italic" style={{ fontFamily: MONO }}>
                 {workspaces.length === 0 ? "no workspaces registered" : "no matches"}
               </div>
             )}
@@ -157,33 +157,33 @@ export function WorkspaceDropdown({
                 key={ws.id}
                 type="button"
                 onClick={() => handleSelect(ws)}
-                className={`w-full flex items-center gap-2 px-3 py-1.5 text-left hover:bg-bc-accent/[0.06] transition-colors ${
-                  ws.active ? "bg-bc-accent/[0.04]" : ""
+                className={`w-full flex items-center gap-2 px-3 py-1.5 text-left hover:bg-mycel-accent/[0.06] transition-colors ${
+                  ws.active ? "bg-mycel-accent/[0.04]" : ""
                 }`}
                 style={{ fontFamily: MONO }}
               >
-                <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${ws.active ? "bg-bc-accent" : "bg-bc-muted/30"}`} />
-                <span className="text-[12px] font-semibold text-bc-text/90 truncate">
+                <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${ws.active ? "bg-mycel-accent" : "bg-mycel-muted/30"}`} />
+                <span className="text-[12px] font-semibold text-mycel-text/90 truncate">
                   {ws.name || ws.path.split("/").pop() || "unnamed"}
                 </span>
-                <span className="text-[9px] text-bc-muted/40 tabular-nums">
+                <span className="text-[9px] text-mycel-muted/40 tabular-nums">
                   [{ws.id.slice(0, 6)}]
                 </span>
-                <span className="ml-auto text-[10px] text-bc-muted/40 truncate max-w-[160px]" title={ws.path}>
+                <span className="ml-auto text-[10px] text-mycel-muted/40 truncate max-w-[160px]" title={ws.path}>
                   {shortenPath(ws.path)}
                 </span>
               </button>
             ))}
           </div>
 
-          <div className="border-t border-bc-border/40 px-2.5 py-1.5">
+          <div className="border-t border-mycel-border/40 px-2.5 py-1.5">
             <button
               type="button"
               onClick={() => {
                 setOpen(false);
                 onAddClick?.();
               }}
-              className="w-full flex items-center gap-2 px-2.5 py-1.5 text-[11px] text-bc-accent hover:bg-bc-accent/[0.08] rounded transition-colors"
+              className="w-full flex items-center gap-2 px-2.5 py-1.5 text-[11px] text-mycel-accent hover:bg-mycel-accent/[0.08] rounded transition-colors"
               style={{ fontFamily: MONO }}
             >
               <span>+</span>
@@ -207,7 +207,7 @@ export function SidebarToggle({
     <button
       type="button"
       onClick={onToggle}
-      className="shrink-0 w-7 h-7 flex items-center justify-center rounded text-bc-muted/60 hover:text-bc-text hover:bg-bc-surface/40 transition-colors"
+      className="shrink-0 w-7 h-7 flex items-center justify-center rounded text-mycel-muted/60 hover:text-mycel-text hover:bg-mycel-surface/40 transition-colors"
       title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
       aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
     >

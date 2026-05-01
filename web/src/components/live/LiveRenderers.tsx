@@ -36,33 +36,33 @@ export function StateDot({ state }: { state: string }) {
   if (state === "working")
     return (
       <span className="relative flex h-2.5 w-2.5">
-        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-bc-success opacity-75" />
-        <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-bc-success" />
+        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-mycel-success opacity-75" />
+        <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-mycel-success" />
       </span>
     );
   if (state === "stuck")
     return (
       <span className="relative flex h-2.5 w-2.5">
-        <span className="absolute inline-flex h-full w-full animate-pulse rounded-full bg-bc-warning opacity-50" />
-        <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-bc-warning" />
+        <span className="absolute inline-flex h-full w-full animate-pulse rounded-full bg-mycel-warning opacity-50" />
+        <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-mycel-warning" />
       </span>
     );
   if (state === "error" || state === "stopped")
-    return <span className="inline-flex h-2.5 w-2.5 rounded-full bg-bc-error" />;
-  return <span className="inline-flex h-2.5 w-2.5 rounded-full bg-bc-muted/40" />;
+    return <span className="inline-flex h-2.5 w-2.5 rounded-full bg-mycel-error" />;
+  return <span className="inline-flex h-2.5 w-2.5 rounded-full bg-mycel-muted/40" />;
 }
 
 export function ToolDot({ status }: { status: ToolNode["status"] }) {
   if (status === "running")
     return (
       <span className="relative flex h-2 w-2 mt-[5px] shrink-0">
-        <span className="absolute inline-flex h-full w-full animate-pulse rounded-full bg-bc-accent opacity-75" />
-        <span className="relative inline-flex h-2 w-2 rounded-full bg-bc-accent" />
+        <span className="absolute inline-flex h-full w-full animate-pulse rounded-full bg-mycel-accent opacity-75" />
+        <span className="relative inline-flex h-2 w-2 rounded-full bg-mycel-accent" />
       </span>
     );
   if (status === "failed")
-    return <span className="inline-flex h-2 w-2 mt-[5px] shrink-0 rounded-full bg-bc-error" />;
-  return <span className="inline-flex h-2 w-2 mt-[5px] shrink-0 rounded-full bg-bc-success" />;
+    return <span className="inline-flex h-2 w-2 mt-[5px] shrink-0 rounded-full bg-mycel-error" />;
+  return <span className="inline-flex h-2 w-2 mt-[5px] shrink-0 rounded-full bg-mycel-success" />;
 }
 
 /* ── Elapsed Timer ─────────────────────────────────────────────────── */
@@ -85,7 +85,7 @@ export function RelativeTimestamp({ ts }: { ts: number }) {
     return () => clearInterval(id);
   }, []);
   return (
-    <span title={new Date(ts).toISOString()} className="text-[10px] text-bc-muted/60 font-mono tabular-nums">
+    <span title={new Date(ts).toISOString()} className="text-[10px] text-mycel-muted/60 font-mono tabular-nums">
       {relativeTime(ts)}
     </span>
   );
@@ -117,7 +117,7 @@ export function CopyButton({ text }: { text: string }) {
     <button
       type="button"
       onClick={(e) => { e.stopPropagation(); handleCopy(); }}
-      className="text-[10px] text-bc-muted hover:text-bc-text px-1.5 py-0.5 rounded border border-bc-border/40 hover:border-bc-accent transition-colors shrink-0"
+      className="text-[10px] text-mycel-muted hover:text-mycel-text px-1.5 py-0.5 rounded border border-mycel-border/40 hover:border-mycel-accent transition-colors shrink-0"
       aria-label="Copy to clipboard"
     >
       {copied ? "Copied" : "Copy"}
@@ -134,7 +134,7 @@ export function McpBadge({ server, func }: { server: string; func: string }) {
         <span aria-hidden="true">{mcpServerIcon(server)}</span>
         <span>{server}</span>
       </span>
-      <span className="font-mono text-[13px] text-bc-text font-medium">{func}</span>
+      <span className="font-mono text-[13px] text-mycel-text font-medium">{func}</span>
     </span>
   );
 }
@@ -166,7 +166,7 @@ export function ToolNameDisplay({ toolName, searchQuery }: { toolName: string; s
   return (
     <span className="inline-flex items-center gap-1">
       <span className="text-[12px]" aria-hidden="true">{toolIcon(toolName)}</span>
-      <span className="font-mono text-[13px] text-bc-text font-semibold">
+      <span className="font-mono text-[13px] text-mycel-text font-semibold">
         {searchQuery ? <SearchHighlight text={parsed.display} query={searchQuery} /> : parsed.display}
       </span>
     </span>
@@ -193,31 +193,31 @@ export function ToolNodeRow({ node, depth = 0, searchQuery = "" }: { node: ToolN
     <>
       <button
         type="button"
-        className={`group flex items-center gap-2 py-1.5 px-3 w-full text-left hover:bg-bc-surface-hover cursor-pointer transition-colors focus-visible:ring-2 focus-visible:ring-bc-accent ${node.status === "failed" ? "!bg-bc-error/5 hover:!bg-bc-error/10" : ""}`}
+        className={`group flex items-center gap-2 py-1.5 px-3 w-full text-left hover:bg-mycel-surface-hover cursor-pointer transition-colors focus-visible:ring-2 focus-visible:ring-mycel-accent ${node.status === "failed" ? "!bg-mycel-error/5 hover:!bg-mycel-error/10" : ""}`}
         style={{ paddingLeft: `${indent + 12}px` }}
         onClick={() => setExpanded(!expanded)}
         aria-label={`${expanded ? "Collapse" : "Expand"} tool ${node.toolName}`}
       >
-        <span className="text-bc-muted text-xs select-none shrink-0">
+        <span className="text-mycel-muted text-xs select-none shrink-0">
           {depth > 0 ? "\u251C\u2500" : ""}
         </span>
         {/* Animated chevron */}
         <motion.span
-          className="text-bc-muted/50 text-[10px] select-none shrink-0 w-3 text-center group-hover:text-bc-muted"
+          className="text-mycel-muted/50 text-[10px] select-none shrink-0 w-3 text-center group-hover:text-mycel-muted"
           animate={{ rotate: hasDetails ? (expanded ? 90 : 0) : 0 }}
           transition={{ duration: 0.15 }}
         >
           {hasDetails ? "\u25B6" : "\u00B7"}
         </motion.span>
         {/* Tool icon in rounded container */}
-        <span className="inline-flex items-center justify-center h-5 w-5 rounded bg-bc-surface border border-bc-border/60 shrink-0">
+        <span className="inline-flex items-center justify-center h-5 w-5 rounded bg-mycel-surface border border-mycel-border/60 shrink-0">
           <ToolDot status={node.status} />
         </span>
         <span className="shrink-0">
           <ToolNameDisplay toolName={node.toolName} searchQuery={searchQuery} />
         </span>
         {node.args && (
-          <span className="text-[12px] text-bc-muted font-mono min-w-0 flex-1 break-words" title={redactSecrets(node.args)}>
+          <span className="text-[12px] text-mycel-muted font-mono min-w-0 flex-1 break-words" title={redactSecrets(node.args)}>
             {searchQuery ? <SearchHighlight text={redactSecrets(node.args)} query={searchQuery} /> : redactSecrets(node.args)}
           </span>
         )}
@@ -225,7 +225,7 @@ export function ToolNodeRow({ node, depth = 0, searchQuery = "" }: { node: ToolN
           <RelativeTimestamp ts={node.startTime} />
           {/* Duration pill with color-coded background — hidden for historical events without timing */}
           {node.status === "running" ? (
-            <span className="text-[11px] tabular-nums font-mono px-1.5 py-0.5 rounded-md bg-bc-muted/10 text-bc-muted">
+            <span className="text-[11px] tabular-nums font-mono px-1.5 py-0.5 rounded-md bg-mycel-muted/10 text-mycel-muted">
               <ElapsedTimer start={node.startTime} />
             </span>
           ) : node.endTime != null ? (
@@ -238,7 +238,7 @@ export function ToolNodeRow({ node, depth = 0, searchQuery = "" }: { node: ToolN
 
       {node.error && (
         <div
-          className="text-[11px] text-bc-error/80 font-mono px-3 py-0.5"
+          className="text-[11px] text-mycel-error/80 font-mono px-3 py-0.5"
           style={{ paddingLeft: `${indent + 40}px` }}
         >
           {redactSecrets(node.error.length > 120 ? node.error.slice(0, 117) + "..." : node.error)}
@@ -247,14 +247,14 @@ export function ToolNodeRow({ node, depth = 0, searchQuery = "" }: { node: ToolN
 
       {expanded && node.fullInput && (
         <div
-          className="text-[11px] font-mono px-3 py-1 bg-bc-surface mx-3 mb-1 rounded overflow-x-auto max-h-48 overflow-y-auto"
+          className="text-[11px] font-mono px-3 py-1 bg-mycel-surface mx-3 mb-1 rounded overflow-x-auto max-h-48 overflow-y-auto"
           style={{ marginLeft: `${indent + 12}px` }}
         >
           <div className="flex items-center justify-between mb-1">
-            <span className="text-[10px] text-bc-muted uppercase tracking-wide font-semibold">Input</span>
+            <span className="text-[10px] text-mycel-muted uppercase tracking-wide font-semibold">Input</span>
             <CopyButton text={inputJson} />
           </div>
-          <pre className="whitespace-pre-wrap break-all text-bc-muted">
+          <pre className="whitespace-pre-wrap break-all text-mycel-muted">
             {inputJson}
           </pre>
         </div>
@@ -262,14 +262,14 @@ export function ToolNodeRow({ node, depth = 0, searchQuery = "" }: { node: ToolN
 
       {expanded && node.fullOutput && (
         <div
-          className="text-[11px] font-mono px-3 py-1 bg-bc-surface mx-3 mb-1 rounded overflow-x-auto max-h-48 overflow-y-auto"
+          className="text-[11px] font-mono px-3 py-1 bg-mycel-surface mx-3 mb-1 rounded overflow-x-auto max-h-48 overflow-y-auto"
           style={{ marginLeft: `${indent + 12}px` }}
         >
           <div className="flex items-center justify-between mb-1">
-            <span className="text-[10px] text-bc-success uppercase tracking-wide font-semibold">Output</span>
+            <span className="text-[10px] text-mycel-success uppercase tracking-wide font-semibold">Output</span>
             <CopyButton text={outputJson} />
           </div>
-          <pre className="whitespace-pre-wrap break-all text-bc-success/80">
+          <pre className="whitespace-pre-wrap break-all text-mycel-success/80">
             {outputJson}
           </pre>
         </div>
@@ -302,18 +302,18 @@ export function AgentTreeNode({ node, depth = 0 }: { node: ToolNode; depth?: num
       {/* Subagent header */}
       <button
         type="button"
-        className="group flex items-start gap-2 py-1.5 px-3 w-full text-left hover:bg-bc-surface-hover cursor-pointer transition-colors focus-visible:ring-2 focus-visible:ring-bc-accent bg-blue-950/20 rounded-md my-0.5"
+        className="group flex items-start gap-2 py-1.5 px-3 w-full text-left hover:bg-mycel-surface-hover cursor-pointer transition-colors focus-visible:ring-2 focus-visible:ring-mycel-accent bg-blue-950/20 rounded-md my-0.5"
         onClick={() => setExpanded(!expanded)}
         aria-label={`${expanded ? "Collapse" : "Expand"} subagent ${node.toolName}`}
       >
-        <span className="text-bc-muted/50 text-[10px] select-none mt-[3px] shrink-0 w-3 text-center group-hover:text-bc-muted">
+        <span className="text-mycel-muted/50 text-[10px] select-none mt-[3px] shrink-0 w-3 text-center group-hover:text-mycel-muted">
           {childCount > 0 ? (expanded ? "\u25BC" : "\u25B6") : "\u00B7"}
         </span>
         <ToolDot status={node.status} />
         <span className="text-[13px]" aria-hidden="true">{"\uD83E\uDD16"}</span>
-        <span className="font-mono text-[13px] text-bc-text font-semibold">{node.toolName}</span>
+        <span className="font-mono text-[13px] text-mycel-text font-semibold">{node.toolName}</span>
         {node.args && (
-          <span className="text-[12px] text-bc-muted truncate max-w-[300px] font-mono italic">
+          <span className="text-[12px] text-mycel-muted truncate max-w-[300px] font-mono italic">
             &ldquo;{node.args}&rdquo;
           </span>
         )}
@@ -329,22 +329,22 @@ export function AgentTreeNode({ node, depth = 0 }: { node: ToolNode; depth?: num
             </span>
           ) : null}
           {node.status === "completed" && (
-            <span className="text-[10px] text-bc-success font-mono">{"\u2713"}</span>
+            <span className="text-[10px] text-mycel-success font-mono">{"\u2713"}</span>
           )}
           {node.status === "failed" && (
-            <span className="text-[10px] text-bc-error font-mono">{"\u2717"}</span>
+            <span className="text-[10px] text-mycel-error font-mono">{"\u2717"}</span>
           )}
         </span>
       </button>
 
       {/* Tree children with connector lines */}
       {expanded && childCount > 0 && (
-        <div className="border-l-2 border-bc-muted/30 ml-4 pl-3">
+        <div className="border-l-2 border-mycel-muted/30 ml-4 pl-3">
           {toolChildren.map((child, idx) => {
             const isLast = idx === toolChildren.length - 1 && subagentChildren.length === 0;
             return (
               <div key={child.id} className="flex items-start gap-0">
-                <span className="text-bc-muted/30 text-xs select-none mt-[3px] shrink-0 w-4">
+                <span className="text-mycel-muted/30 text-xs select-none mt-[3px] shrink-0 w-4">
                   {isLast ? "\u2514\u2500" : "\u251C\u2500"}
                 </span>
                 <div className="flex-1 min-w-0">
@@ -359,7 +359,7 @@ export function AgentTreeNode({ node, depth = 0 }: { node: ToolNode; depth?: num
             const isLast = idx === subagentChildren.length - 1;
             return (
               <div key={child.id} className="flex items-start gap-0">
-                <span className="text-bc-muted/30 text-xs select-none mt-[3px] shrink-0 w-4">
+                <span className="text-mycel-muted/30 text-xs select-none mt-[3px] shrink-0 w-4">
                   {isLast ? "\u2514\u2500" : "\u251C\u2500"}
                 </span>
                 <div className="flex-1 min-w-0">
@@ -399,16 +399,16 @@ export function AggregatedChildRow({ child, searchQuery = "" }: { child: ToolNod
           <button
             type="button"
             onClick={() => setShowRawJson(!showRawJson)}
-            className="text-[10px] text-bc-muted hover:text-bc-accent font-mono transition-colors px-2 py-0.5 rounded border border-bc-border/30 hover:border-bc-accent/50"
+            className="text-[10px] text-mycel-muted hover:text-mycel-accent font-mono transition-colors px-2 py-0.5 rounded border border-mycel-border/30 hover:border-mycel-accent/50"
           >
             {showRawJson ? "Hide Raw JSON" : "Raw JSON"}
           </button>
           {showRawJson && (
-            <div className="mt-1 text-[11px] font-mono px-3 py-2 bg-bc-bg rounded border border-bc-border/30 overflow-x-auto max-h-64 overflow-y-auto">
+            <div className="mt-1 text-[11px] font-mono px-3 py-2 bg-mycel-bg rounded border border-mycel-border/30 overflow-x-auto max-h-64 overflow-y-auto">
               <div className="flex justify-end mb-1">
                 <CopyButton text={fullEventJson} />
               </div>
-              <pre className="whitespace-pre-wrap break-all text-bc-muted">
+              <pre className="whitespace-pre-wrap break-all text-mycel-muted">
                 {fullEventJson}
               </pre>
             </div>
@@ -426,19 +426,19 @@ export function AggregatedNodeRow({ node, searchQuery = "" }: { node: Aggregated
     <>
       <button
         type="button"
-        className="group flex items-start gap-2 py-1 px-3 w-full text-left hover:bg-bc-surface-hover cursor-pointer transition-colors focus-visible:ring-2 focus-visible:ring-bc-accent bg-bc-surface/50"
+        className="group flex items-start gap-2 py-1 px-3 w-full text-left hover:bg-mycel-surface-hover cursor-pointer transition-colors focus-visible:ring-2 focus-visible:ring-mycel-accent bg-mycel-surface/50"
         onClick={() => setExpanded(!expanded)}
         aria-label={`${expanded ? "Collapse" : "Expand"} aggregated ${node.toolName} (${node.count} calls)`}
       >
-        <span className="text-bc-muted text-xs select-none mt-[3px] shrink-0">
+        <span className="text-mycel-muted text-xs select-none mt-[3px] shrink-0">
           {expanded ? "\u25BC" : "\u25B6"}
         </span>
-        <span className="inline-flex h-2 w-2 mt-[5px] shrink-0 rounded-full bg-bc-success" />
+        <span className="inline-flex h-2 w-2 mt-[5px] shrink-0 rounded-full bg-mycel-success" />
         <ToolNameDisplay toolName={node.toolName} />
-        <span className="text-[12px] font-mono font-semibold text-bc-accent px-1.5 py-0 rounded bg-bc-accent/10">
+        <span className="text-[12px] font-mono font-semibold text-mycel-accent px-1.5 py-0 rounded bg-mycel-accent/10">
           &times;{node.count}
         </span>
-        <span className="text-[11px] text-bc-muted font-mono tabular-nums flex-1 min-w-0">
+        <span className="text-[11px] text-mycel-muted font-mono tabular-nums flex-1 min-w-0">
           {node.count} total
           {node.totalDuration > 0 && <> &middot; {elapsed(0, node.totalDuration)}</>}
           {node.totalDuration > 0 && node.count > 1 && (
@@ -446,14 +446,14 @@ export function AggregatedNodeRow({ node, searchQuery = "" }: { node: Aggregated
           )}
           {node.totalTokens > 0 && <> &middot; {node.totalTokens.toLocaleString()} tok</>}
           {node.failCount > 0 && (
-            <span className="text-bc-error"> &middot; {node.failCount} failed</span>
+            <span className="text-mycel-error"> &middot; {node.failCount} failed</span>
           )}
           <> &middot; {node.successCount}/{node.count} ok</>
         </span>
       </button>
 
       {expanded && (
-        <div className="border-l-2 border-bc-border/40 ml-6">
+        <div className="border-l-2 border-mycel-border/40 ml-6">
           {node.children.map((child) => (
             <AggregatedChildRow key={child.id} child={child} searchQuery={searchQuery} />
           ))}
@@ -494,56 +494,56 @@ export function DrillDownTasksSection({ tasks, agentName }: { tasks: Map<string,
   if (total === 0) return null;
 
   return (
-    <div className="rounded-lg border border-bc-border bg-bc-surface overflow-hidden mb-4">
+    <div className="rounded-lg border border-mycel-border bg-mycel-surface overflow-hidden mb-4">
       <button
         type="button"
         onClick={() => setCollapsed(!collapsed)}
-        className="flex items-center gap-2 w-full px-4 py-2.5 text-left hover:bg-bc-surface-hover transition-colors"
+        className="flex items-center gap-2 w-full px-4 py-2.5 text-left hover:bg-mycel-surface-hover transition-colors"
       >
-        <span className="text-bc-muted/50 text-[10px] select-none w-3 text-center">
+        <span className="text-mycel-muted/50 text-[10px] select-none w-3 text-center">
           {collapsed ? "\u25B6" : "\u25BC"}
         </span>
         <span className="text-[13px]">{"\u2705"}</span>
-        <span className="text-sm font-semibold text-bc-text">Tasks</span>
-        <span className="text-xs text-bc-muted font-mono tabular-nums">
+        <span className="text-sm font-semibold text-mycel-text">Tasks</span>
+        <span className="text-xs text-mycel-muted font-mono tabular-nums">
           ({completedCount}/{total} complete)
         </span>
-        <span className="flex-1 mx-2 h-1.5 bg-bc-bg rounded-full overflow-hidden max-w-[200px]">
+        <span className="flex-1 mx-2 h-1.5 bg-mycel-bg rounded-full overflow-hidden max-w-[200px]">
           <span
-            className="h-full bg-bc-success rounded-full transition-all duration-300"
+            className="h-full bg-mycel-success rounded-full transition-all duration-300"
             style={{ width: `${progressPct}%` }}
           />
         </span>
       </button>
 
       {!collapsed && (
-        <div className="border-t border-bc-border/60 px-4 py-2 space-y-1.5">
+        <div className="border-t border-mycel-border/60 px-4 py-2 space-y-1.5">
           {agentTasks.map((task) => {
             const isBlocked = task.blockedBy && task.blockedBy.length > 0 && task.status !== "completed";
-            const borderColor = task.status === "completed" ? "border-l-bc-success" :
-              task.status === "in_progress" ? "border-l-bc-accent" :
-              task.status === "pending" ? "border-l-bc-muted" :
-              "border-l-bc-error";
+            const borderColor = task.status === "completed" ? "border-l-mycel-success" :
+              task.status === "in_progress" ? "border-l-mycel-accent" :
+              task.status === "pending" ? "border-l-mycel-muted" :
+              "border-l-mycel-error";
             return (
-              <div key={task.id} className={`flex items-center gap-2 py-1.5 px-2.5 rounded-md bg-bc-bg border-l-2 ${borderColor} ${isBlocked ? "opacity-50" : ""}`}>
-                <span className="text-[11px] text-bc-muted font-mono shrink-0">#{task.id}</span>
+              <div key={task.id} className={`flex items-center gap-2 py-1.5 px-2.5 rounded-md bg-mycel-bg border-l-2 ${borderColor} ${isBlocked ? "opacity-50" : ""}`}>
+                <span className="text-[11px] text-mycel-muted font-mono shrink-0">#{task.id}</span>
                 <span className={`text-sm font-mono min-w-0 ${
-                  task.status === "completed" ? "line-through text-bc-muted/60" :
-                  task.status === "in_progress" ? "text-bc-accent font-semibold" :
-                  "text-bc-text"
+                  task.status === "completed" ? "line-through text-mycel-muted/60" :
+                  task.status === "in_progress" ? "text-mycel-accent font-semibold" :
+                  "text-mycel-text"
                 }`}>
                   {task.subject.length > 80 ? task.subject.slice(0, 77) + "..." : task.subject}
                 </span>
                 {isBlocked && (
-                  <span className="text-[10px] text-bc-warning/80 font-mono shrink-0">
+                  <span className="text-[10px] text-mycel-warning/80 font-mono shrink-0">
                     Blocked by {task.blockedBy!.map((b) => `#${b}`).join(", ")}
                   </span>
                 )}
                 <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono capitalize shrink-0 ml-auto ${
-                  task.status === "completed" ? "bg-bc-success/15 text-bc-success" :
-                  task.status === "in_progress" ? "bg-bc-accent/15 text-bc-accent" :
-                  task.status === "pending" ? "bg-bc-muted/15 text-bc-muted" :
-                  "bg-bc-error/15 text-bc-error"
+                  task.status === "completed" ? "bg-mycel-success/15 text-mycel-success" :
+                  task.status === "in_progress" ? "bg-mycel-accent/15 text-mycel-accent" :
+                  task.status === "pending" ? "bg-mycel-muted/15 text-mycel-muted" :
+                  "bg-mycel-error/15 text-mycel-error"
                 }`}>
                   {task.status.replace("_", " ")}
                 </span>
@@ -565,35 +565,35 @@ export function DrillDownEventRow({ node }: { node: ToolNode }) {
   const outputJson = node.fullOutput ? JSON.stringify(redactValue(node.fullOutput), null, 2) : "";
 
   return (
-    <div className={`border-b border-bc-border/30 ${node.status === "failed" ? "bg-bc-error/5" : ""}`}>
+    <div className={`border-b border-mycel-border/30 ${node.status === "failed" ? "bg-mycel-error/5" : ""}`}>
       <button
         type="button"
-        className="group flex items-center gap-3 py-2.5 px-4 w-full text-left hover:bg-bc-surface-hover cursor-pointer transition-colors"
+        className="group flex items-center gap-3 py-2.5 px-4 w-full text-left hover:bg-mycel-surface-hover cursor-pointer transition-colors"
         onClick={() => setExpanded(!expanded)}
         aria-label={`${expanded ? "Collapse" : "Expand"} ${node.toolName} event`}
       >
         {/* Animated chevron */}
         <motion.span
-          className="text-bc-muted/50 text-[10px] select-none shrink-0 w-3 text-center group-hover:text-bc-muted"
+          className="text-mycel-muted/50 text-[10px] select-none shrink-0 w-3 text-center group-hover:text-mycel-muted"
           animate={{ rotate: hasDetails ? (expanded ? 90 : 0) : 0 }}
           transition={{ duration: 0.15 }}
         >
           {hasDetails ? "\u25B6" : "\u00B7"}
         </motion.span>
         {/* Icon container */}
-        <span className="inline-flex items-center justify-center h-6 w-6 rounded-md bg-bc-surface border border-bc-border/60 shrink-0">
+        <span className="inline-flex items-center justify-center h-6 w-6 rounded-md bg-mycel-surface border border-mycel-border/60 shrink-0">
           <ToolDot status={node.status} />
         </span>
         <span className="shrink-0">
           <ToolNameDisplay toolName={node.toolName} />
         </span>
-        <span className="text-[12px] text-bc-muted font-mono min-w-0 flex-1 break-words">
+        <span className="text-[12px] text-mycel-muted font-mono min-w-0 flex-1 break-words">
           {redactSecrets(node.args)}
         </span>
         <span className="flex items-center gap-2 shrink-0">
           <RelativeTimestamp ts={node.startTime} />
           {node.status === "running" ? (
-            <span className="text-[11px] tabular-nums font-mono px-1.5 py-0.5 rounded-md bg-bc-muted/10 text-bc-muted">
+            <span className="text-[11px] tabular-nums font-mono px-1.5 py-0.5 rounded-md bg-mycel-muted/10 text-mycel-muted">
               <ElapsedTimer start={node.startTime} />
             </span>
           ) : node.endTime != null ? (
@@ -605,28 +605,28 @@ export function DrillDownEventRow({ node }: { node: ToolNode }) {
       </button>
 
       {node.error && (
-        <div className="text-[11px] text-bc-error/80 font-mono px-4 py-0.5 ml-8">
+        <div className="text-[11px] text-mycel-error/80 font-mono px-4 py-0.5 ml-8">
           {redactSecrets(node.error.length > 200 ? node.error.slice(0, 197) + "..." : node.error)}
         </div>
       )}
 
       {expanded && !!node.fullInput && (
-        <div className="text-[11px] font-mono px-4 py-2 bg-bc-surface mx-4 mb-1 rounded overflow-x-auto max-h-64 overflow-y-auto">
+        <div className="text-[11px] font-mono px-4 py-2 bg-mycel-surface mx-4 mb-1 rounded overflow-x-auto max-h-64 overflow-y-auto">
           <div className="flex items-center justify-between mb-1">
-            <span className="text-[10px] text-bc-muted uppercase tracking-wide font-semibold">Input</span>
+            <span className="text-[10px] text-mycel-muted uppercase tracking-wide font-semibold">Input</span>
             <CopyButton text={inputJson} />
           </div>
-          <pre className="whitespace-pre-wrap break-all text-bc-muted">{inputJson}</pre>
+          <pre className="whitespace-pre-wrap break-all text-mycel-muted">{inputJson}</pre>
         </div>
       )}
 
       {expanded && !!node.fullOutput && (
-        <div className="text-[11px] font-mono px-4 py-2 bg-bc-surface mx-4 mb-1 rounded overflow-x-auto max-h-64 overflow-y-auto">
+        <div className="text-[11px] font-mono px-4 py-2 bg-mycel-surface mx-4 mb-1 rounded overflow-x-auto max-h-64 overflow-y-auto">
           <div className="flex items-center justify-between mb-1">
-            <span className="text-[10px] text-bc-success uppercase tracking-wide font-semibold">Output</span>
+            <span className="text-[10px] text-mycel-success uppercase tracking-wide font-semibold">Output</span>
             <CopyButton text={outputJson} />
           </div>
-          <pre className="whitespace-pre-wrap break-all text-bc-success/80">{outputJson}</pre>
+          <pre className="whitespace-pre-wrap break-all text-mycel-success/80">{outputJson}</pre>
         </div>
       )}
     </div>
@@ -694,7 +694,7 @@ export function AgentDrillDown({
           <button
             type="button"
             onClick={onBack}
-            className="inline-flex items-center gap-1.5 text-sm text-bc-muted hover:text-bc-text px-2 py-1 rounded border border-bc-border hover:border-bc-accent transition-colors shrink-0"
+            className="inline-flex items-center gap-1.5 text-sm text-mycel-muted hover:text-mycel-text px-2 py-1 rounded border border-mycel-border hover:border-mycel-accent transition-colors shrink-0"
           >
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M8 2l-4 4 4 4" />
@@ -702,23 +702,23 @@ export function AgentDrillDown({
             Back
           </button>
           <StateDot state={activity.state} />
-          <span className="text-lg font-bold text-bc-text">{activity.name}</span>
+          <span className="text-lg font-bold text-mycel-text">{activity.name}</span>
           {activity.role && activity.role !== "base" && (
-            <span className="text-xs text-bc-muted font-mono">({activity.role})</span>
+            <span className="text-xs text-mycel-muted font-mono">({activity.role})</span>
           )}
-          <span className="text-xs text-bc-muted capitalize font-mono">{activity.state}</span>
+          <span className="text-xs text-mycel-muted capitalize font-mono">{activity.state}</span>
           {activity.tokens > 0 && (
-            <span className="text-xs text-bc-muted font-mono tabular-nums">
+            <span className="text-xs text-mycel-muted font-mono tabular-nums">
               {activity.tokens.toLocaleString()} tok
             </span>
           )}
           {cost > 0 && (
-            <span className="text-xs text-bc-success font-mono tabular-nums">
+            <span className="text-xs text-mycel-success font-mono tabular-nums">
               ${cost.toFixed(2)}
             </span>
           )}
           {activity.task && (
-            <span className="text-xs text-bc-muted truncate max-w-[400px]">{activity.task}</span>
+            <span className="text-xs text-mycel-muted truncate max-w-[400px]">{activity.task}</span>
           )}
         </div>
       )}
@@ -727,7 +727,7 @@ export function AgentDrillDown({
       <DrillDownTasksSection tasks={tasks} agentName={activity.name} />
 
       {/* Tabs */}
-      <div className="flex items-center gap-0 border-b border-bc-border mb-4">
+      <div className="flex items-center gap-0 border-b border-mycel-border mb-4">
         {tabs.map((tab) => (
           <button
             key={tab.key}
@@ -735,8 +735,8 @@ export function AgentDrillDown({
             onClick={() => setActiveTab(tab.key)}
             className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
               activeTab === tab.key
-                ? "border-bc-accent text-bc-text"
-                : "border-transparent text-bc-muted hover:text-bc-text hover:border-bc-border"
+                ? "border-mycel-accent text-mycel-text"
+                : "border-transparent text-mycel-muted hover:text-mycel-text hover:border-mycel-border"
             }`}
           >
             {tab.label}
@@ -750,7 +750,7 @@ export function AgentDrillDown({
         {activeTab === "live" && (
           <div>
             {allNodes.length === 0 ? (
-              <div className="text-sm text-bc-muted italic py-8 text-center">
+              <div className="text-sm text-mycel-muted italic py-8 text-center">
                 No tool events yet for this agent.
               </div>
             ) : (
@@ -765,7 +765,7 @@ export function AgentDrillDown({
         {activeTab === "raw" && (
           <div className="space-y-1">
             {reversedRawEvents.length === 0 ? (
-              <div className="text-sm text-bc-muted italic py-8 text-center">
+              <div className="text-sm text-mycel-muted italic py-8 text-center">
                 No raw events captured for this agent yet.
               </div>
             ) : (
@@ -774,34 +774,34 @@ export function AgentDrillDown({
                 const isOpen = rawExpanded.has(evtKey);
                 const jsonStr = JSON.stringify(redactValue(evt.raw), null, 2);
                 return (
-                  <div key={evtKey} className="border border-bc-border/40 rounded bg-bc-surface overflow-hidden">
+                  <div key={evtKey} className="border border-mycel-border/40 rounded bg-mycel-surface overflow-hidden">
                     <button
                       type="button"
                       onClick={() => toggleRawExpanded(evtKey)}
-                      className="flex items-center gap-2 w-full px-3 py-1.5 text-left hover:bg-bc-surface-hover transition-colors"
+                      className="flex items-center gap-2 w-full px-3 py-1.5 text-left hover:bg-mycel-surface-hover transition-colors"
                     >
-                      <span className="text-bc-muted/50 text-[10px] select-none w-3 text-center">
+                      <span className="text-mycel-muted/50 text-[10px] select-none w-3 text-center">
                         {isOpen ? "\u25BC" : "\u25B6"}
                       </span>
-                      <span className="text-[10px] text-bc-muted font-mono tabular-nums shrink-0">
+                      <span className="text-[10px] text-mycel-muted font-mono tabular-nums shrink-0">
                         {new Date(evt.timestamp).toISOString().replace("T", " ").slice(0, 23)}
                       </span>
                       <span className={`text-[11px] font-mono font-medium shrink-0 px-1.5 py-0.5 rounded ${rawEventBadgeColor(evt.eventType)}`}>
                         {evt.eventType}
                       </span>
-                      <span className="text-[11px] text-bc-muted font-mono truncate flex-1">
+                      <span className="text-[11px] text-mycel-muted font-mono truncate flex-1">
                         {jsonStr.length > 100 ? jsonStr.slice(0, 97) + "..." : jsonStr.replace(/\n/g, " ")}
                       </span>
                     </button>
                     {isOpen && (
-                      <div className="border-t border-bc-border/40 px-3 py-2 bg-bc-bg">
+                      <div className="border-t border-mycel-border/40 px-3 py-2 bg-mycel-bg">
                         <div className="flex justify-end mb-1">
                           <CopyButton text={jsonStr} />
                         </div>
-                        <pre className="text-[11px] font-mono text-bc-muted whitespace-pre-wrap break-all max-h-64 overflow-y-auto">
+                        <pre className="text-[11px] font-mono text-mycel-muted whitespace-pre-wrap break-all max-h-64 overflow-y-auto">
                           {jsonStr.split("\n").map((line, i) => (
                             <span key={i} className="flex">
-                              <span className="select-none text-bc-muted/30 w-8 text-right pr-3 shrink-0 tabular-nums">{i + 1}</span>
+                              <span className="select-none text-mycel-muted/30 w-8 text-right pr-3 shrink-0 tabular-nums">{i + 1}</span>
                               <span>{line}</span>
                               {"\n"}
                             </span>
@@ -861,7 +861,7 @@ export const AgentCard = memo(function AgentCard({
 
   return (
     <motion.div
-      className={`rounded-lg border bg-bc-surface overflow-hidden transition-colors ${isFilterActive ? "border-bc-accent ring-1 ring-bc-accent/30" : "border-bc-border"}`}
+      className={`rounded-lg border bg-mycel-surface overflow-hidden transition-colors ${isFilterActive ? "border-mycel-accent ring-1 ring-mycel-accent/30" : "border-mycel-border"}`}
       whileHover={{ y: -1 }}
       transition={{ duration: 0.15 }}
     >
@@ -870,13 +870,13 @@ export const AgentCard = memo(function AgentCard({
         <button
           type="button"
           onClick={(e) => { e.stopPropagation(); onToggle(); }}
-          className="flex items-center gap-3 px-3 py-3 hover:bg-bc-surface-hover transition-colors text-left focus-visible:ring-2 focus-visible:ring-bc-accent shrink-0"
+          className="flex items-center gap-3 px-3 py-3 hover:bg-mycel-surface-hover transition-colors text-left focus-visible:ring-2 focus-visible:ring-mycel-accent shrink-0"
           aria-label={`${activity.collapsed ? "Expand" : "Collapse"} ${activity.name} tool list`}
         >
           <motion.svg
             width="12" height="12" viewBox="0 0 12 12" fill="none"
             stroke="currentColor" strokeWidth="2"
-            className="text-bc-muted"
+            className="text-mycel-muted"
             animate={{ rotate: activity.collapsed ? 0 : 90 }}
             transition={{ duration: 0.15 }}
           >
@@ -888,30 +888,30 @@ export const AgentCard = memo(function AgentCard({
         <button
           type="button"
           onClick={onDrillDown}
-          className="group flex-1 flex items-center gap-3 py-3 pr-4 hover:bg-bc-surface-hover transition-colors text-left focus-visible:ring-2 focus-visible:ring-bc-accent min-w-0 cursor-pointer"
+          className="group flex-1 flex items-center gap-3 py-3 pr-4 hover:bg-mycel-surface-hover transition-colors text-left focus-visible:ring-2 focus-visible:ring-mycel-accent min-w-0 cursor-pointer"
           title={`Open ${activity.name} detail view`}
         >
           {/* Monogram circle */}
-          <span className="inline-flex items-center justify-center h-8 w-8 rounded-full bg-bc-accent/20 text-bc-accent font-bold text-sm shrink-0">
+          <span className="inline-flex items-center justify-center h-8 w-8 rounded-full bg-mycel-accent/20 text-mycel-accent font-bold text-sm shrink-0">
             {monogram}
           </span>
 
           {/* Name + role + state */}
           <div className="flex flex-col min-w-0">
             <span className="flex items-center gap-2">
-              <span className="font-bold text-[15px] text-bc-text leading-tight">
+              <span className="font-bold text-[15px] text-mycel-text leading-tight">
                 {activity.name}
               </span>
               <StateDot state={activity.state} />
               {errorCount > 0 && (
-                <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 text-[10px] font-bold text-white bg-bc-error rounded-full leading-none">
+                <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 text-[10px] font-bold text-white bg-mycel-error rounded-full leading-none">
                   {errorCount}
                 </span>
               )}
             </span>
             <span className="flex items-center gap-2 mt-0.5">
               {activity.role && activity.role !== "base" && (
-                <span className="text-[11px] text-bc-muted font-mono">{activity.role}</span>
+                <span className="text-[11px] text-mycel-muted font-mono">{activity.role}</span>
               )}
               <span className={`text-[10px] font-mono capitalize px-1.5 py-0.5 rounded-full leading-none ${stateBadgeClass(activity.state)}`}>
                 {activity.state}
@@ -920,42 +920,42 @@ export const AgentCard = memo(function AgentCard({
           </div>
 
           {searchTerm && matchCount > 0 && (
-            <span className="text-[11px] text-bc-accent font-mono shrink-0">
+            <span className="text-[11px] text-mycel-accent font-mono shrink-0">
               {matchCount} {matchCount === 1 ? "match" : "matches"}
             </span>
           )}
 
           {activity.task && (
-            <span className="text-[12px] text-bc-muted truncate max-w-[250px] hidden lg:inline">
+            <span className="text-[12px] text-mycel-muted truncate max-w-[250px] hidden lg:inline">
               {activity.task}
             </span>
           )}
 
           <span className="ml-auto flex items-center gap-3 shrink-0">
             {runningCount > 0 && (
-              <span className="text-[11px] text-bc-accent font-mono tabular-nums">
+              <span className="text-[11px] text-mycel-accent font-mono tabular-nums">
                 {runningCount} running
               </span>
             )}
             {/* Cost -- prominent */}
             {cost > 0 && (
-              <span className="text-xs font-semibold text-bc-success font-mono tabular-nums px-1.5 py-0.5 rounded bg-bc-success/10" title={activity.costUsd > 0 ? "From API" : "Estimated from tokens"}>
+              <span className="text-xs font-semibold text-mycel-success font-mono tabular-nums px-1.5 py-0.5 rounded bg-mycel-success/10" title={activity.costUsd > 0 ? "From API" : "Estimated from tokens"}>
                 ${cost.toFixed(2)}
               </span>
             )}
             {/* Tokens */}
             {activity.tokens > 0 && (
-              <span className="text-[11px] text-bc-muted font-mono tabular-nums">
+              <span className="text-[11px] text-mycel-muted font-mono tabular-nums">
                 {activity.tokens.toLocaleString()} tok
               </span>
             )}
             {/* Idle chip */}
             {isIdle && activity.lastEventTime > 0 && (
-              <span className="text-[10px] text-bc-muted/60 font-mono px-1.5 py-0.5 rounded bg-bc-muted/10">
+              <span className="text-[10px] text-mycel-muted/60 font-mono px-1.5 py-0.5 rounded bg-mycel-muted/10">
                 <IdleTimer lastEventTime={activity.lastEventTime} />
               </span>
             )}
-            <span className="text-[11px] text-bc-muted/60 group-hover:text-bc-accent transition-colors hidden sm:inline">
+            <span className="text-[11px] text-mycel-muted/60 group-hover:text-mycel-accent transition-colors hidden sm:inline">
               &rarr;
             </span>
           </span>
@@ -969,14 +969,14 @@ export const AgentCard = memo(function AgentCard({
             animate={{ height: "auto", opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
             transition={{ duration: 0.2, ease: "easeOut" }}
-            className="border-t border-bc-border/60 py-1 overflow-hidden"
+            className="border-t border-mycel-border/60 py-1 overflow-hidden"
           >
             {visibleNodes.length > 3 && (
               <div className="flex justify-end px-3 py-1">
                 <button
                   type="button"
                   onClick={() => setCollapseOld((prev) => !prev)}
-                  className="text-[10px] text-bc-muted hover:text-bc-accent font-mono transition-colors"
+                  className="text-[10px] text-mycel-muted hover:text-mycel-accent font-mono transition-colors"
                 >
                   {collapseOld ? "Show all" : "Collapse old"}
                 </button>
@@ -1011,7 +1011,7 @@ export const AgentCard = memo(function AgentCard({
       </AnimatePresence>
 
       {!activity.collapsed && showToolNodes && visibleNodes.length === 0 && !searchTerm && (
-        <div className="border-t border-bc-border/60 py-3 px-4 text-[12px] text-bc-muted italic">
+        <div className="border-t border-mycel-border/60 py-3 px-4 text-[12px] text-mycel-muted italic">
           {activity.lastEventTime > 0 ? (
             <IdleTimer lastEventTime={activity.lastEventTime} />
           ) : (
@@ -1021,8 +1021,8 @@ export const AgentCard = memo(function AgentCard({
       )}
 
       {!activity.collapsed && typeFilter === "state" && (
-        <div className="border-t border-bc-border/60 py-3 px-4 text-[12px] text-bc-muted">
-          <span className="capitalize font-medium text-bc-text">{activity.state}</span>
+        <div className="border-t border-mycel-border/60 py-3 px-4 text-[12px] text-mycel-muted">
+          <span className="capitalize font-medium text-mycel-text">{activity.state}</span>
           {activity.task && <span className="ml-2">--- {activity.task}</span>}
           {activity.tokens > 0 && (
             <span className="ml-2 font-mono tabular-nums">{activity.tokens.toLocaleString()} tokens</span>

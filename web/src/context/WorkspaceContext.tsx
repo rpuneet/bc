@@ -149,7 +149,7 @@ export function ActiveWorkspaceGuard() {
     });
   }, [wsId, activated, refresh]);
 
-  if (loading) return <div className="p-6 text-bc-muted">Loading workspace...</div>;
+  if (loading) return <div className="p-6 text-mycel-muted">Loading workspace...</div>;
   if (!wsId) return <Navigate to="/w" replace />;
 
   const match = workspaces.find((w) => w.id === wsId || w.alias === wsId);
@@ -168,7 +168,7 @@ export function RedirectToActiveWorkspace({ tab }: { tab: string }) {
   const { workspace, loading } = useWorkspace();
   const location = useLocation();
 
-  if (loading) return <div className="p-6 text-bc-muted">Loading...</div>;
+  if (loading) return <div className="p-6 text-mycel-muted">Loading...</div>;
   if (!workspace) return <Navigate to="/w" replace />;
 
   // Preserve sub-path: /agents/foo -> /w/<id>/agents/foo
