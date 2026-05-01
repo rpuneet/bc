@@ -31,12 +31,12 @@ import (
 	"testing"
 	"time"
 
-	bccost "github.com/rpuneet/bc/pkg/cost"
-	bcdb "github.com/rpuneet/bc/pkg/db"
-	bcevents "github.com/rpuneet/bc/pkg/events"
-	"github.com/rpuneet/bc/pkg/workspace"
-	"github.com/rpuneet/bc/server"
-	bcws "github.com/rpuneet/bc/server/ws"
+	bccost "github.com/rpuneet/mycel/pkg/cost"
+	bcdb "github.com/rpuneet/mycel/pkg/db"
+	bcevents "github.com/rpuneet/mycel/pkg/events"
+	"github.com/rpuneet/mycel/pkg/workspace"
+	"github.com/rpuneet/mycel/server"
+	bcws "github.com/rpuneet/mycel/server/ws"
 )
 
 // dispatchHarness is the fixture for every dispatch test.

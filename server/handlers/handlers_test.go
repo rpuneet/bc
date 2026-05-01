@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/rpuneet/bc/server"
-	"github.com/rpuneet/bc/server/ws"
+	"github.com/rpuneet/mycel/server"
+	"github.com/rpuneet/mycel/server/ws"
 )
 
 // --- test helpers (mirrors server_test.go pattern) ---

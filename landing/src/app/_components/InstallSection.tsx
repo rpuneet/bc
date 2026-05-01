@@ -51,9 +51,9 @@ function getMethods(version: string): Method[] {
       icon: Package,
       platforms: "Linux · macOS",
       commands: [
-        "npm install -g bc-cli",
+        "npm install -g mycel-cli",
         "# or",
-        "bunx bc-cli",
+        "bunx mycel-cli",
       ],
     },
     {
@@ -62,9 +62,7 @@ function getMethods(version: string): Method[] {
       icon: Code2,
       platforms: "All platforms · requires Go 1.25+",
       commands: [
-        `go install github.com/rpuneet/bc/cmd/bc@latest`,
-        `# Note: go install produces a binary named 'bc'.`,
-        `# For the 'mycel' binary, use brew install or docker run.`,
+        `go install github.com/rpuneet/mycel/cmd/mycel@latest`,
       ],
     },
     {

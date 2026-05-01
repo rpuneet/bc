@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/rpuneet/bc/pkg/log"
+	"github.com/rpuneet/mycel/pkg/log"
 )
 
 // statusRecorder wraps http.ResponseWriter to capture the status code.

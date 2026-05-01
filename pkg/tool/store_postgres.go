@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"time"
 
-	bcdb "github.com/rpuneet/bc/pkg/db"
-	"github.com/rpuneet/bc/pkg/log"
+	bcdb "github.com/rpuneet/mycel/pkg/db"
+	"github.com/rpuneet/mycel/pkg/log"
 )
 
 // PostgresStore provides Postgres-backed tool management.

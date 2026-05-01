@@ -16,7 +16,7 @@ before:
 builds:
   # Linux amd64 — native CGO
   - id: mycel-linux-amd64
-    main: ./cmd/bc
+    main: ./cmd/mycel
     binary: mycel
     env:
       - CGO_ENABLED=1
@@ -32,7 +32,7 @@ builds:
 
   # Linux arm64 — CGO via Zig cross-compiler
   - id: mycel-linux-arm64
-    main: ./cmd/bc
+    main: ./cmd/mycel
     binary: mycel
     env:
       - CGO_ENABLED=1
@@ -50,7 +50,7 @@ builds:
 
   # Windows — CGO disabled (pure Go)
   - id: mycel-windows
-    main: ./cmd/bc
+    main: ./cmd/mycel
     binary: mycel
     env:
       - CGO_ENABLED=0
@@ -133,7 +133,7 @@ release:
     |--------|---------|
     | **Homebrew** (macOS) | `brew install rpuneet/mycel/mycel` |
     | **npm / bun** (Linux) | `npm install -g bc-cli` or `bunx bc-cli` |
-    | **Go** | `go install github.com/rpuneet/mycel/cmd/bc@{{ .Tag }}` |
+    | **Go** | `go install github.com/rpuneet/mycel/cmd/mycel@{{ .Tag }}` |
     | **Script** | `curl -fsSL https://raw.githubusercontent.com/rpuneet/mycel/main/scripts/install.sh \| bash` |
     | **Docker** | `docker pull ghcr.io/rpuneet/mycel:{{ .Tag }}` |
     | **Scoop** (Windows) | `scoop bucket add mycel https://github.com/rpuneet/scoop-mycel && scoop install mycel` |

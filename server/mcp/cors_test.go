@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/rpuneet/bc/server/mcp"
+	"github.com/rpuneet/mycel/server/mcp"
 )
 
 // ─── #2960: MCP SSE CORS wildcard ────────────────────────────────────────────

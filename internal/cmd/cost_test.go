@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rpuneet/bc/pkg/cost"
+	"github.com/rpuneet/mycel/pkg/cost"
 )
 
 // Cost command tests use executeIntegrationCmd which captures os.Stdout

@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rpuneet/bc/pkg/cron"
+	"github.com/rpuneet/mycel/pkg/cron"
 )
 
 // CronHandler handles /api/cron routes.

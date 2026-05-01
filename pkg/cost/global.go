@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 
-	bcdb "github.com/rpuneet/bc/pkg/db"
+	bcdb "github.com/rpuneet/mycel/pkg/db"
 )
 
 // OpenGlobalStore opens the user-global cost ledger at vaultPath (eg.

@@ -3,7 +3,7 @@ package cmd
 import (
 	"regexp"
 
-	"github.com/rpuneet/bc/pkg/client"
+	"github.com/rpuneet/mycel/pkg/client"
 )
 
 // getClient returns an HTTP client for the bcd server.

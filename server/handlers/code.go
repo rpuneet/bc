@@ -28,9 +28,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rpuneet/bc/pkg/files"
-	"github.com/rpuneet/bc/pkg/log"
-	"github.com/rpuneet/bc/pkg/workspace"
+	"github.com/rpuneet/mycel/pkg/files"
+	"github.com/rpuneet/mycel/pkg/log"
+	"github.com/rpuneet/mycel/pkg/workspace"
 )
 
 // WorkspaceResolver is the minimal slice of the server's workspace manager

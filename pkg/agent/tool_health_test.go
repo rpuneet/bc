@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/rpuneet/bc/pkg/provider"
+	"github.com/rpuneet/mycel/pkg/provider"
 )
 
 // stubProvider is a minimal provider for testing tool health checks.

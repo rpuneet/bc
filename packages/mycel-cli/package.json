@@ -1,7 +1,7 @@
 {
-  "name": "bc-cli",
+  "name": "mycel-cli",
   "version": "0.1.0",
-  "description": "bc — AI agent orchestration. Coordinate teams of Claude, Gemini, Cursor, and other AI agents.",
+  "description": "mycel — AI agent orchestration. Coordinate teams of Claude, Gemini, Cursor, and other AI agents.",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -10,7 +10,7 @@
   "homepage": "https://github.com/rpuneet/mycel",
   "keywords": ["ai", "agents", "orchestration", "claude", "gemini", "cursor", "codex", "cli"],
   "bin": {
-    "bc": "bin/bc"
+    "mycel": "bin/mycel"
   },
   "scripts": {
     "postinstall": "node install.mjs"

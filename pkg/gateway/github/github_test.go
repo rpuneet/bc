@@ -12,7 +12,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/rpuneet/bc/pkg/gateway"
+	"github.com/rpuneet/mycel/pkg/gateway"
 )
 
 func computeHMAC(secret string, body []byte) string {

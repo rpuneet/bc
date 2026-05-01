@@ -8,8 +8,8 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/rpuneet/bc/pkg/runtime"
-	"github.com/rpuneet/bc/pkg/tmux"
+	"github.com/rpuneet/mycel/pkg/runtime"
+	"github.com/rpuneet/mycel/pkg/tmux"
 )
 
 // ---------------------------------------------------------------------------

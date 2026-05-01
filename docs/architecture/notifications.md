@@ -503,7 +503,7 @@ package myplatform
 
 import (
     "context"
-    "github.com/rpuneet/bc/pkg/gateway"
+    "github.com/rpuneet/mycel/pkg/gateway"
 )
 
 type Adapter struct {

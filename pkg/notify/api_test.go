@@ -11,9 +11,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rpuneet/bc/pkg/db"
-	"github.com/rpuneet/bc/pkg/notify"
-	"github.com/rpuneet/bc/server/handlers"
+	"github.com/rpuneet/mycel/pkg/db"
+	"github.com/rpuneet/mycel/pkg/notify"
+	"github.com/rpuneet/mycel/server/handlers"
 )
 
 // ---------------------------------------------------------------------------

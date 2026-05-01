@@ -11,17 +11,17 @@ import (
 	"strings"
 	"syscall"
 
-	bccost "github.com/rpuneet/bc/pkg/cost"
-	bcdb "github.com/rpuneet/bc/pkg/db"
-	bcdeps "github.com/rpuneet/bc/pkg/deps"
-	"github.com/rpuneet/bc/pkg/log"
-	bcmcp "github.com/rpuneet/bc/pkg/mcp"
-	bcsecret "github.com/rpuneet/bc/pkg/secret"
-	bcstats "github.com/rpuneet/bc/pkg/stats"
-	bctemplate "github.com/rpuneet/bc/pkg/template"
-	bcworkspace "github.com/rpuneet/bc/pkg/workspace"
-	"github.com/rpuneet/bc/server"
-	bcws "github.com/rpuneet/bc/server/ws"
+	bccost "github.com/rpuneet/mycel/pkg/cost"
+	bcdb "github.com/rpuneet/mycel/pkg/db"
+	bcdeps "github.com/rpuneet/mycel/pkg/deps"
+	"github.com/rpuneet/mycel/pkg/log"
+	bcmcp "github.com/rpuneet/mycel/pkg/mcp"
+	bcsecret "github.com/rpuneet/mycel/pkg/secret"
+	bcstats "github.com/rpuneet/mycel/pkg/stats"
+	bctemplate "github.com/rpuneet/mycel/pkg/template"
+	bcworkspace "github.com/rpuneet/mycel/pkg/workspace"
+	"github.com/rpuneet/mycel/server"
+	bcws "github.com/rpuneet/mycel/server/ws"
 )
 
 // RunServer starts the bc server (formerly bcd) in the foreground.

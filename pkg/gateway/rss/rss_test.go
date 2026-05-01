@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rpuneet/bc/pkg/gateway"
+	"github.com/rpuneet/mycel/pkg/gateway"
 )
 
 const testRSS = `<?xml version="1.0" encoding="UTF-8"?>

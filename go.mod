@@ -1,4 +1,4 @@
-module github.com/rpuneet/bc
+module github.com/rpuneet/mycel
 
 go 1.25.4
 

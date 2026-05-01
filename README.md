@@ -16,13 +16,13 @@ Coordinate teams of Claude, Gemini, Cursor, and other AI agents with isolated wo
 curl -fsSL https://raw.githubusercontent.com/rpuneet/mycel/main/scripts/install.sh | bash
 
 # Homebrew
-brew install rpuneet/mycel/bc
+brew install rpuneet/mycel/mycel
 
 # Go
-go install github.com/rpuneet/bc/cmd/bc@latest
+go install github.com/rpuneet/mycel/cmd/mycel@latest
 
 # From source
-git clone https://github.com/rpuneet/mycel && cd bc && make install-local-bc
+git clone https://github.com/rpuneet/mycel && cd mycel && make install-local-bc
 ```
 
 **Prerequisites:** Go 1.25+, tmux, git. For TUI: Bun.

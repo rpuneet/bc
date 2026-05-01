@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rpuneet/bc/pkg/db"
+	"github.com/rpuneet/mycel/pkg/db"
 )
 
 // Store is the SQLite/Postgres-backed persistence layer for subscriptions

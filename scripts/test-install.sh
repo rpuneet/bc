@@ -4,7 +4,7 @@
 # Tests:
 #   1. Build from source via `make install-local-bc` and run `bc version`.
 #   2. Dry-run verify scripts/install.sh URL patterns without touching the host.
-#   3. `go install github.com/rpuneet/bc/cmd/bc@latest` into a throwaway GOPATH.
+#   3. `go install github.com/rpuneet/mycel/cmd/mycel@latest` into a throwaway GOPATH.
 #   4. Pull + run ghcr.io/rpuneet/mycel:v0.1.0 Docker image.
 #
 # Exit 0 if every test passes, exit 1 if any fail. Individual test failures
@@ -15,8 +15,7 @@ set -u
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 REPO_SLUG="rpuneet/mycel"
 DOCKER_IMAGE="ghcr.io/${REPO_SLUG}:v0.1.0"
-# Go module path still uses the legacy slug until a separate module rename PR.
-GO_PKG="github.com/rpuneet/bc/cmd/bc@latest"
+GO_PKG="github.com/rpuneet/mycel/cmd/mycel@latest"
 INSTALL_SH="${REPO_ROOT}/scripts/install.sh"
 
 # ANSI colors (skip if not a TTY or NO_COLOR set).
@@ -84,14 +83,14 @@ test_build_from_source() {
         return
     fi
 
-    if [[ ! -x "${gobin}/bc" ]]; then
-        echo "  expected binary at ${gobin}/bc"
+    if [[ ! -x "${gobin}/mycel" ]]; then
+        echo "  expected binary at ${gobin}/mycel"
         fail "build-from-source"
         return
     fi
 
-    if ! "${gobin}/bc" version >/tmp/bc-test-install-version.log 2>&1; then
-        echo "  bc version failed, see /tmp/bc-test-install-version.log"
+    if ! "${gobin}/mycel" version >/tmp/bc-test-install-version.log 2>&1; then
+        echo "  mycel version failed, see /tmp/bc-test-install-version.log"
         fail "build-from-source"
         return
     fi
@@ -152,14 +151,14 @@ test_go_install() {
         return
     fi
 
-    if [[ ! -x "${tmp_gopath}/bin/bc" ]]; then
-        echo "  expected binary at ${tmp_gopath}/bin/bc"
+    if [[ ! -x "${tmp_gopath}/bin/mycel" ]]; then
+        echo "  expected binary at ${tmp_gopath}/bin/mycel"
         fail "go-install"
         return
     fi
 
-    if ! "${tmp_gopath}/bin/bc" version >/tmp/bc-test-install-govers.log 2>&1; then
-        echo "  installed bc version failed, see /tmp/bc-test-install-govers.log"
+    if ! "${tmp_gopath}/bin/mycel" version >/tmp/bc-test-install-govers.log 2>&1; then
+        echo "  installed mycel version failed, see /tmp/bc-test-install-govers.log"
         fail "go-install"
         return
     fi
@@ -187,7 +186,7 @@ test_docker() {
         return
     fi
 
-    if ! docker run --rm "$DOCKER_IMAGE" bc version >/tmp/bc-test-install-dockerrun.log 2>&1; then
+    if ! docker run --rm "$DOCKER_IMAGE" mycel version >/tmp/bc-test-install-dockerrun.log 2>&1; then
         echo "  docker run failed, see /tmp/bc-test-install-dockerrun.log"
         fail "docker-run"
         return

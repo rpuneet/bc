@@ -9,7 +9,7 @@ import (
 
 	_ "github.com/jackc/pgx/v5/stdlib" // Postgres driver via pgx
 
-	"github.com/rpuneet/bc/pkg/log"
+	"github.com/rpuneet/mycel/pkg/log"
 )
 
 // DefaultStatsDSN is the connection string for the unified bc-db TimescaleDB container.

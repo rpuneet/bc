@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rpuneet/bc/pkg/agent"
-	"github.com/rpuneet/bc/pkg/db"
+	"github.com/rpuneet/mycel/pkg/agent"
+	"github.com/rpuneet/mycel/pkg/db"
 )
 
 func TestNew(t *testing.T) {

@@ -65,16 +65,16 @@ import (
 	"sync"
 	"time"
 
-	"github.com/rpuneet/bc/pkg/container"
-	"github.com/rpuneet/bc/pkg/db"
-	"github.com/rpuneet/bc/pkg/log"
-	"github.com/rpuneet/bc/pkg/names"
-	"github.com/rpuneet/bc/pkg/provider"
-	"github.com/rpuneet/bc/pkg/runtime"
-	"github.com/rpuneet/bc/pkg/secret"
-	"github.com/rpuneet/bc/pkg/tmux"
-	"github.com/rpuneet/bc/pkg/workspace"
-	"github.com/rpuneet/bc/pkg/worktree"
+	"github.com/rpuneet/mycel/pkg/container"
+	"github.com/rpuneet/mycel/pkg/db"
+	"github.com/rpuneet/mycel/pkg/log"
+	"github.com/rpuneet/mycel/pkg/names"
+	"github.com/rpuneet/mycel/pkg/provider"
+	"github.com/rpuneet/mycel/pkg/runtime"
+	"github.com/rpuneet/mycel/pkg/secret"
+	"github.com/rpuneet/mycel/pkg/tmux"
+	"github.com/rpuneet/mycel/pkg/workspace"
+	"github.com/rpuneet/mycel/pkg/worktree"
 )
 
 // MaxAgentNameLength is the maximum allowed length for an agent name.

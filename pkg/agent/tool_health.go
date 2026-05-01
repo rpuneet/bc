@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/rpuneet/bc/pkg/log"
+	"github.com/rpuneet/mycel/pkg/log"
 )
 
 // CheckToolHealth verifies that the tool binary for the named agent is still

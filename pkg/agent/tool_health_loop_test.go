@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rpuneet/bc/pkg/provider"
+	"github.com/rpuneet/mycel/pkg/provider"
 )
 
 func TestToolHealthLoop_ChecksPeriodically(t *testing.T) {

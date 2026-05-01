@@ -7,7 +7,7 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/rpuneet/bc/pkg/agent"
+	"github.com/rpuneet/mycel/pkg/agent"
 )
 
 // testBcdHandler is the handler used by the package-level fake bcd server.

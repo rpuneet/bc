@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/rpuneet/bc/pkg/gateway"
+	"github.com/rpuneet/mycel/pkg/gateway"
 )
 
 func TestSecretValidation(t *testing.T) {

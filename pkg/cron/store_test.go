@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rpuneet/bc/pkg/db"
+	"github.com/rpuneet/mycel/pkg/db"
 )
 
 func setupSharedDB(t *testing.T) {

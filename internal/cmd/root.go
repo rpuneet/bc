@@ -10,8 +10,8 @@ import (
 	"github.com/charmbracelet/x/term"
 	"github.com/spf13/cobra"
 
-	"github.com/rpuneet/bc/pkg/log"
-	"github.com/rpuneet/bc/pkg/ui"
+	"github.com/rpuneet/mycel/pkg/log"
+	"github.com/rpuneet/mycel/pkg/ui"
 )
 
 var (
@@ -75,8 +75,8 @@ Environment Variables:
   BC_ROOT           Workspace root directory
   NO_COLOR          Disable colored output
 
-Documentation: https://github.com/rpuneet/bc
-Full CLI reference: https://github.com/rpuneet/bc/docs/cli.md`,
+Documentation: https://github.com/rpuneet/mycel
+Full CLI reference: https://github.com/rpuneet/mycel/docs/cli.md`,
 	// PersistentPreRun initializes logging based on flags
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		verbose, err := cmd.Flags().GetBool("verbose")

@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rpuneet/bc/pkg/deps"
+	"github.com/rpuneet/mycel/pkg/deps"
 )
 
 // DepsHandler exposes the optional dependencies manager (see pkg/deps).

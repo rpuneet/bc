@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"sync"
 
-	"github.com/rpuneet/bc/pkg/agent"
+	"github.com/rpuneet/mycel/pkg/agent"
 )
 
 // bulkResult is the per-agent result of a bulk operation.
