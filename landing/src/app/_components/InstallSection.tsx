@@ -63,6 +63,8 @@ function getMethods(version: string): Method[] {
       platforms: "All platforms · requires Go 1.25+",
       commands: [
         `go install github.com/rpuneet/bc/cmd/bc@latest`,
+        `# Note: go install produces a binary named 'bc'.`,
+        `# For the 'mycel' binary, use brew install or docker run.`,
       ],
     },
     {

@@ -60,6 +60,8 @@ bunx bc-cli
 go install github.com/rpuneet/bc/cmd/bc@latest
 ```
 
+> Note: `go install` produces a binary named `bc`. For the `mycel` binary, use `brew install` or `docker run` above.
+
 ### After Install
 
 ```bash
