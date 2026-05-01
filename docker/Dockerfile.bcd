@@ -27,7 +27,7 @@ COPY internal/ internal/
 COPY prompt[s]/ prompts/
 COPY --from=web /app/web/dist /app/server/web/dist
 
-RUN CGO_ENABLED=1 go build -ldflags="-s -w" -o /bc ./cmd/mycel
+RUN CGO_ENABLED=1 go build -ldflags="-s -w" -o /mycel ./cmd/mycel
 
 # Stage 3: Runtime (includes dev toolchain for cron build jobs)
 FROM ubuntu:24.04
@@ -55,7 +55,7 @@ RUN curl -fsSL https://bun.sh/install | bash && \
     git config --global --add safe.directory /workspace && \
     git config --global --add safe.directory /home/agent/.bc
 
-COPY --from=go /bc /usr/local/bin/bc
+COPY --from=go /mycel /usr/local/bin/mycel
 
 # Workspace architecture: project source is mounted at /workspace, while
 # workspace state lives under BC_HOME (default ~/.bc/). The BC_STATE_DIR
@@ -69,5 +69,5 @@ HEALTHCHECK --interval=10s --timeout=3s --start-period=10s --retries=3 \
     CMD curl -sf http://localhost:9374/health
 
 WORKDIR /workspace
-ENTRYPOINT ["bash", "-c", "tmux new-session -d -s _bc_init 'sleep infinity' && exec bc \"$@\"", "--"]
+ENTRYPOINT ["bash", "-c", "tmux new-session -d -s _bc_init 'sleep infinity' && exec mycel \"$@\"", "--"]
 CMD ["up", "--addr", "0.0.0.0:9374", "--workspace", "/workspace"]

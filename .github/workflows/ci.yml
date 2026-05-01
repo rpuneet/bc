@@ -208,12 +208,12 @@ jobs:
           bun-version: ${{ env.BUN_VERSION }}
 
       - name: Build release binary
-        run: make release-local-bc
+        run: make release-local-mycel
 
       - name: Verify binary runs
         run: |
-          ./bin/bc version
-          ./bin/bc up --help > /dev/null
+          ./bin/mycel version
+          ./bin/mycel up --help > /dev/null
 
   # ── Container Scan (main only) ──────────────────────────────────────
   scan:
