@@ -27,6 +27,7 @@ type Broadcaster interface {
 // Service is the notification dispatch core. It receives inbound messages
 // from gateway adapters and routes them to subscribed agents via tmux send-keys.
 type Service struct {
+	ctx        context.Context
 	store      *Store
 	agents     AgentSender
 	hub        Broadcaster
@@ -35,7 +36,16 @@ type Service struct {
 
 // NewService creates a new notify service.
 func NewService(store *Store, agents AgentSender, hub Broadcaster) *Service {
+	return NewServiceWithContext(context.Background(), store, agents, hub)
+}
+
+// NewServiceWithContext creates a notify service with the given context.
+// The context is used for background dispatch goroutines instead of
+// context.Background(), allowing callers to cancel in-flight deliveries
+// during shutdown.
+func NewServiceWithContext(ctx context.Context, store *Store, agents AgentSender, hub Broadcaster) *Service {
 	return &Service{
+		ctx:        ctx,
 		store:      store,
 		agents:     agents,
 		hub:        hub,
@@ -76,7 +86,7 @@ func (s *Service) Dispatch(channel, platform, sender, senderID, content, message
 			}
 		}()
 
-		ctx := context.Background()
+		ctx := s.ctx
 
 		// Store message for activity feed history
 		if saveErr := s.store.SaveMessage(ctx, channel, sender, content); saveErr != nil {

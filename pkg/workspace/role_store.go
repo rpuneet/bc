@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -405,7 +406,7 @@ func scanRoleRow(scanner interface{ Scan(...any) error }) (*Role, error) {
 		&createdAt, &updatedAt,
 	)
 	if err != nil {
-		if err.Error() == "sql: no rows in result set" {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, fmt.Errorf("role not found")
 		}
 		return nil, err

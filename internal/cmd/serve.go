@@ -211,7 +211,7 @@ func RunServer(addr, wsRoot, corsOrigin, apiKey string) error {
 		}
 		return server.BuildWorkspaceServices(ctx, globals, w.RootDir)
 	})
-	launchSvc.Services.WorkspaceManager = wsMgr
+	// WorkspaceManager is wired into Services by NewWithManager, not here.
 
 	if registry != nil {
 		if _, loadErr := wsMgr.LoadActive(ctx); loadErr != nil {

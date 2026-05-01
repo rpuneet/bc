@@ -107,7 +107,7 @@ build-local-go: build-local-bc ## Build all Go binaries
 
 build-local-bc: build-local-web build-local-tui-bundle ## Build bc (embeds web UI, TUI bundle, server)
 	@mkdir -p $(BUILD_DIR)
-	@if [ ! -d server/web/dist ]; then mkdir -p server/web/dist && echo '<!-- stub -->' > server/web/dist/index.html; fi
+	@if [ ! -f server/web/dist/index.html ]; then mkdir -p server/web/dist && echo '<!-- stub -->' > server/web/dist/index.html; fi
 	$(GO) build -ldflags="$(LDFLAGS_VERSION)" -o $(BUILD_DIR)/bc ./cmd/bc
 
 build-local-tui-bundle: ## Build single-file TUI bundle for embedding into bc binary
@@ -294,7 +294,7 @@ ci-docker: ## Build all Docker images
 
 release-local-bc: build-local-tui-bundle ## Build optimized bc binary (embeds web + TUI)
 	@mkdir -p $(BUILD_DIR)
-	@if [ ! -d server/web/dist ]; then mkdir -p server/web/dist && echo '<!-- stub -->' > server/web/dist/index.html; fi
+	@if [ ! -f server/web/dist/index.html ]; then mkdir -p server/web/dist && echo '<!-- stub -->' > server/web/dist/index.html; fi
 	$(GO) build -ldflags="$(LDFLAGS_RELEASE)" -o $(BUILD_DIR)/bc ./cmd/bc
 
 # =============================================================================

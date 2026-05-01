@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 
@@ -43,6 +44,10 @@ func newE2EServer(t *testing.T) *e2eServer {
 	t.Helper()
 
 	dir := t.TempDir()
+	// workspace.Load requires a git repo
+	if out, err := exec.CommandContext(context.Background(), "git", "init", dir).CombinedOutput(); err != nil { //nolint:gosec // dir is a t.TempDir(), not user input
+		t.Fatalf("git init: %v\n%s", err, out)
+	}
 	bcDir := filepath.Join(dir, ".bc")
 	if err := os.MkdirAll(filepath.Join(bcDir, "roles"), 0750); err != nil {
 		t.Fatal(err)
@@ -267,8 +272,8 @@ func TestE2E_Agents_DeleteNotFound(t *testing.T) {
 	s := newE2EServer(t)
 
 	code := s.delete(t, "/api/agents/nonexistent")
-	if code != 400 {
-		t.Fatalf("want 400, got %d", code)
+	if code != 404 {
+		t.Fatalf("want 404, got %d", code)
 	}
 }
 
