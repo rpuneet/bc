@@ -272,8 +272,8 @@ func TestE2E_Agents_DeleteNotFound(t *testing.T) {
 	s := newE2EServer(t)
 
 	code := s.delete(t, "/api/agents/nonexistent")
-	if code != 400 {
-		t.Fatalf("want 400, got %d", code)
+	if code != 404 {
+		t.Fatalf("want 404, got %d", code)
 	}
 }
 

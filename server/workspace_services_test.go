@@ -20,6 +20,7 @@ func initTestWorkspace(t *testing.T, tmpDir, name string) (string, string) {
 	if err := os.MkdirAll(wsDir, 0750); err != nil {
 		t.Fatalf("mkdir ws: %v", err)
 	}
+	gitInitDir(t, wsDir)
 	if _, err := workspace.Init(wsDir); err != nil {
 		t.Fatalf("workspace.Init: %v", err)
 	}

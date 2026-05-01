@@ -67,6 +67,7 @@ func newConcurrentHarness(t *testing.T, n int) *concurrentHarness {
 		if err := os.MkdirAll(p, 0o750); err != nil {
 			t.Fatalf("mkdir: %v", err)
 		}
+		gitInitDir(t, p)
 		if _, err := workspace.Init(p); err != nil {
 			t.Fatalf("init: %v", err)
 		}
@@ -119,6 +120,7 @@ func newConcurrentHarness(t *testing.T, n int) *concurrentHarness {
 
 	ctx := context.Background()
 	mgr := server.NewWorkspaceManager(reg, func(ctx context.Context, w *workspace.Workspace) (*server.WorkspaceServices, error) {
+		gitInitDir(t, w.RootDir)
 		return server.BuildWorkspaceServices(ctx, globals, w.RootDir)
 	})
 	// Eager-load every workspace so the concurrency hammer exercises

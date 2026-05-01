@@ -96,6 +96,7 @@ func newDispatchHarness(t *testing.T) *dispatchHarness {
 		if err := os.MkdirAll(dir, 0o750); err != nil {
 			t.Fatalf("mkdir %s: %v", dir, err)
 		}
+		gitInitDir(t, dir)
 		if _, err := workspace.Init(dir); err != nil {
 			t.Fatalf("workspace.Init %s: %v", dir, err)
 		}
@@ -162,6 +163,7 @@ func newDispatchHarness(t *testing.T) *dispatchHarness {
 
 	ctx := context.Background()
 	mgr := server.NewWorkspaceManager(reg, func(ctx context.Context, w *workspace.Workspace) (*server.WorkspaceServices, error) {
+		gitInitDir(t, w.RootDir)
 		return server.BuildWorkspaceServices(ctx, globals, w.RootDir)
 	})
 
