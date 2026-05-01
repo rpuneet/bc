@@ -65,7 +65,7 @@ detect_platform() {
 
     # Linux arm64 builds are not yet available
     if [ "$OS" = "linux" ] && [ "$ARCH" = "arm64" ]; then
-        error "Linux arm64 builds are not yet available. Please build from source: go install github.com/rpuneet/mycel/cmd/bc@latest"
+        error "Linux arm64 builds are not yet available. Please build from source: go install github.com/rpuneet/mycel/cmd/mycel@latest"
     fi
 
     info "Detecting OS... ${OS} ${ARCH}"
