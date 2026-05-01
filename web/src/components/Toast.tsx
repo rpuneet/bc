@@ -11,9 +11,9 @@ export interface ToastMessage {
 let nextId = 1;
 
 const LEVEL_STYLES: Record<ToastLevel, string> = {
-  error:   "bg-bc-error/90 text-white",
-  success: "bg-bc-success/90 text-white",
-  info:    "bg-bc-accent/90 text-white",
+  error:   "bg-mycel-error/90 text-white",
+  success: "bg-mycel-success/90 text-white",
+  info:    "bg-mycel-accent/90 text-white",
 };
 
 function ToastItem({ toast, onDismiss }: { toast: ToastMessage; onDismiss: (id: number) => void }) {

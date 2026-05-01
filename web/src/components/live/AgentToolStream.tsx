@@ -25,7 +25,7 @@ export function AgentToolStream({ agentName }: AgentToolStreamProps) {
   if (!activity) {
     return (
       <div className="flex-1 flex items-center justify-center p-6">
-        <p className="text-sm text-bc-muted/50 italic">
+        <p className="text-sm text-mycel-muted/50 italic">
           No activity yet — waiting for events
         </p>
       </div>

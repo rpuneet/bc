@@ -191,7 +191,7 @@ function TemplateDetailPanel({
   if (loading) {
     return (
       <div className="p-6 space-y-4">
-        <div className="h-5 w-24 animate-pulse rounded bg-bc-border/50" />
+        <div className="h-5 w-24 animate-pulse rounded bg-mycel-border/50" />
         <LoadingSkeleton variant="text" rows={6} />
       </div>
     );
@@ -218,21 +218,21 @@ function TemplateDetailPanel({
         <button
           type="button"
           onClick={onBack}
-          className="text-xs text-bc-muted hover:text-bc-text transition-colors focus-visible:ring-2 focus-visible:ring-bc-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bc-bg rounded"
+          className="text-xs text-mycel-muted hover:text-mycel-text transition-colors focus-visible:ring-2 focus-visible:ring-mycel-accent focus-visible:ring-offset-1 focus-visible:ring-offset-mycel-bg rounded"
           aria-label="Back to templates list"
         >
           ← Templates
         </button>
-        <span className="text-bc-muted/40">/</span>
+        <span className="text-mycel-muted/40">/</span>
         <h1
-          className="text-xl font-bold text-bc-text"
+          className="text-xl font-bold text-mycel-text"
           style={{ fontFamily: MONO }}
         >
           {detail.name}
         </h1>
       </div>
 
-      <div className="rounded border border-bc-border bg-bc-surface p-5 space-y-5">
+      <div className="rounded border border-mycel-border bg-mycel-surface p-5 space-y-5">
         {/* Description */}
         <div className="space-y-1">
           <SectionRule label="Description" />
@@ -241,13 +241,13 @@ function TemplateDetailPanel({
               type="text"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              className="w-full px-3 py-2 rounded border border-bc-border bg-bc-bg text-bc-text text-sm focus:outline-none focus:ring-2 focus:ring-bc-accent"
+              className="w-full px-3 py-2 rounded border border-mycel-border bg-mycel-bg text-mycel-text text-sm focus:outline-none focus:ring-2 focus:ring-mycel-accent"
               placeholder="Short description"
               aria-label="Description"
             />
           ) : (
-            <p className="text-sm text-bc-muted">
-              {detail.description || <span className="text-bc-muted/30">—</span>}
+            <p className="text-sm text-mycel-muted">
+              {detail.description || <span className="text-mycel-muted/30">—</span>}
             </p>
           )}
         </div>
@@ -259,18 +259,18 @@ function TemplateDetailPanel({
             <textarea
               value={systemPrompt}
               onChange={(e) => setSystemPrompt(e.target.value)}
-              className="w-full min-h-[200px] px-3 py-2 rounded border border-bc-border bg-bc-bg text-bc-text text-sm resize-y focus:outline-none focus:ring-2 focus:ring-bc-accent"
+              className="w-full min-h-[200px] px-3 py-2 rounded border border-mycel-border bg-mycel-bg text-mycel-text text-sm resize-y focus:outline-none focus:ring-2 focus:ring-mycel-accent"
               style={{ fontFamily: MONO }}
               placeholder="# Template Name&#10;&#10;System prompt instructions..."
               aria-label="System prompt"
             />
           ) : (
             <pre
-              className="text-xs bg-bc-bg rounded p-3 whitespace-pre-wrap text-bc-text/80 border border-bc-border min-h-[80px]"
+              className="text-xs bg-mycel-bg rounded p-3 whitespace-pre-wrap text-mycel-text/80 border border-mycel-border min-h-[80px]"
               style={{ fontFamily: MONO }}
             >
               {detail.system_prompt?.trim() || (
-                <span className="text-bc-muted/30">No system prompt defined.</span>
+                <span className="text-mycel-muted/30">No system prompt defined.</span>
               )}
             </pre>
           )}
@@ -284,7 +284,7 @@ function TemplateDetailPanel({
               type="text"
               value={mcpsRaw}
               onChange={(e) => setMcpsRaw(e.target.value)}
-              className="w-full px-3 py-2 rounded border border-bc-border bg-bc-bg text-bc-text text-sm focus:outline-none focus:ring-2 focus:ring-bc-accent"
+              className="w-full px-3 py-2 rounded border border-mycel-border bg-mycel-bg text-mycel-text text-sm focus:outline-none focus:ring-2 focus:ring-mycel-accent"
               placeholder="bc, github"
               aria-label="MCP servers (comma-separated)"
               style={{ fontFamily: MONO }}
@@ -302,7 +302,7 @@ function TemplateDetailPanel({
               type="text"
               value={secretsRaw}
               onChange={(e) => setSecretsRaw(e.target.value)}
-              className="w-full px-3 py-2 rounded border border-bc-border bg-bc-bg text-bc-text text-sm focus:outline-none focus:ring-2 focus:ring-bc-accent"
+              className="w-full px-3 py-2 rounded border border-mycel-border bg-mycel-bg text-mycel-text text-sm focus:outline-none focus:ring-2 focus:ring-mycel-accent"
               placeholder="GITHUB_TOKEN, OPENAI_KEY"
               aria-label="Secrets (comma-separated)"
               style={{ fontFamily: MONO }}
@@ -320,7 +320,7 @@ function TemplateDetailPanel({
               type="text"
               value={pluginsRaw}
               onChange={(e) => setPluginsRaw(e.target.value)}
-              className="w-full px-3 py-2 rounded border border-bc-border bg-bc-bg text-bc-text text-sm focus:outline-none focus:ring-2 focus:ring-bc-accent"
+              className="w-full px-3 py-2 rounded border border-mycel-border bg-mycel-bg text-mycel-text text-sm focus:outline-none focus:ring-2 focus:ring-mycel-accent"
               placeholder="frontend-design"
               aria-label="Plugins (comma-separated)"
               style={{ fontFamily: MONO }}
@@ -331,7 +331,7 @@ function TemplateDetailPanel({
         </div>
 
         {/* Actions */}
-        <div className="flex items-center justify-between pt-2 border-t border-bc-border">
+        <div className="flex items-center justify-between pt-2 border-t border-mycel-border">
           <div className="flex items-center gap-3">
             {editing ? (
               <>
@@ -339,7 +339,7 @@ function TemplateDetailPanel({
                   type="button"
                   onClick={() => void handleSave()}
                   disabled={saveStatus.type === "saving"}
-                  className="px-4 py-2 rounded bg-bc-accent text-white text-sm font-medium hover:opacity-90 disabled:opacity-50 transition-opacity focus-visible:ring-2 focus-visible:ring-bc-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bc-bg"
+                  className="px-4 py-2 rounded bg-mycel-accent text-white text-sm font-medium hover:opacity-90 disabled:opacity-50 transition-opacity focus-visible:ring-2 focus-visible:ring-mycel-accent focus-visible:ring-offset-1 focus-visible:ring-offset-mycel-bg"
                 >
                   {saveStatus.type === "saving" ? "Saving..." : "Save"}
                 </button>
@@ -355,15 +355,15 @@ function TemplateDetailPanel({
                     setSecretsRaw((detail.secrets ?? []).join(", "));
                     setPluginsRaw((detail.plugins ?? []).join(", "));
                   }}
-                  className="px-3 py-2 rounded border border-bc-border text-bc-muted text-sm hover:text-bc-text transition-colors focus-visible:ring-2 focus-visible:ring-bc-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bc-bg"
+                  className="px-3 py-2 rounded border border-mycel-border text-mycel-muted text-sm hover:text-mycel-text transition-colors focus-visible:ring-2 focus-visible:ring-mycel-accent focus-visible:ring-offset-1 focus-visible:ring-offset-mycel-bg"
                 >
                   Cancel
                 </button>
                 {saveStatus.type === "success" && (
-                  <span className="text-xs text-bc-success">Saved</span>
+                  <span className="text-xs text-mycel-success">Saved</span>
                 )}
                 {saveStatus.type === "error" && (
-                  <span className="text-xs text-bc-error">
+                  <span className="text-xs text-mycel-error">
                     {saveStatus.message}
                   </span>
                 )}
@@ -372,7 +372,7 @@ function TemplateDetailPanel({
               <button
                 type="button"
                 onClick={() => setEditing(true)}
-                className="px-4 py-2 rounded border border-bc-border text-bc-muted text-sm hover:text-bc-text transition-colors focus-visible:ring-2 focus-visible:ring-bc-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bc-bg"
+                className="px-4 py-2 rounded border border-mycel-border text-mycel-muted text-sm hover:text-mycel-text transition-colors focus-visible:ring-2 focus-visible:ring-mycel-accent focus-visible:ring-offset-1 focus-visible:ring-offset-mycel-bg"
               >
                 Edit
               </button>
@@ -451,12 +451,12 @@ function CreateTemplateForm({ onCreated }: { onCreated: (name: string) => void }
         <button
           type="button"
           onClick={() => setExpanded(true)}
-          className="px-4 py-2 rounded bg-bc-accent text-white text-sm font-medium hover:opacity-90 transition-opacity focus-visible:ring-2 focus-visible:ring-bc-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bc-bg"
+          className="px-4 py-2 rounded bg-mycel-accent text-white text-sm font-medium hover:opacity-90 transition-opacity focus-visible:ring-2 focus-visible:ring-mycel-accent focus-visible:ring-offset-1 focus-visible:ring-offset-mycel-bg"
         >
           + Create Template
         </button>
         {status.type === "success" && (
-          <span className="text-xs text-bc-success">Template created</span>
+          <span className="text-xs text-mycel-success">Template created</span>
         )}
       </div>
     );
@@ -465,16 +465,16 @@ function CreateTemplateForm({ onCreated }: { onCreated: (name: string) => void }
   return (
     <form
       onSubmit={(e) => void handleSubmit(e)}
-      className="rounded border border-bc-border bg-bc-surface p-5 space-y-4"
+      className="rounded border border-mycel-border bg-mycel-surface p-5 space-y-4"
     >
       <div className="flex items-center justify-between">
-        <h2 className="text-sm font-semibold text-bc-muted uppercase tracking-wide">
+        <h2 className="text-sm font-semibold text-mycel-muted uppercase tracking-wide">
           Create Template
         </h2>
         <button
           type="button"
           onClick={() => setExpanded(false)}
-          className="text-xs text-bc-muted hover:text-bc-text transition-colors focus-visible:ring-2 focus-visible:ring-bc-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bc-bg rounded"
+          className="text-xs text-mycel-muted hover:text-mycel-text transition-colors focus-visible:ring-2 focus-visible:ring-mycel-accent focus-visible:ring-offset-1 focus-visible:ring-offset-mycel-bg rounded"
           aria-label="Cancel creating template"
         >
           Cancel
@@ -483,8 +483,8 @@ function CreateTemplateForm({ onCreated }: { onCreated: (name: string) => void }
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div className="space-y-1">
-          <label className="block text-sm text-bc-text" htmlFor="tpl-name">
-            Name <span className="text-bc-error">*</span>
+          <label className="block text-sm text-mycel-text" htmlFor="tpl-name">
+            Name <span className="text-mycel-error">*</span>
           </label>
           <input
             id="tpl-name"
@@ -493,12 +493,12 @@ function CreateTemplateForm({ onCreated }: { onCreated: (name: string) => void }
             onChange={(e) => setName(e.target.value)}
             placeholder="my-template"
             required
-            className="w-full px-3 py-2 rounded border border-bc-border bg-bc-bg text-bc-text text-sm focus:outline-none focus:ring-2 focus:ring-bc-accent"
+            className="w-full px-3 py-2 rounded border border-mycel-border bg-mycel-bg text-mycel-text text-sm focus:outline-none focus:ring-2 focus:ring-mycel-accent"
             style={{ fontFamily: MONO }}
           />
         </div>
         <div className="space-y-1">
-          <label className="block text-sm text-bc-text" htmlFor="tpl-desc">
+          <label className="block text-sm text-mycel-text" htmlFor="tpl-desc">
             Description
           </label>
           <input
@@ -507,11 +507,11 @@ function CreateTemplateForm({ onCreated }: { onCreated: (name: string) => void }
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             placeholder="Short description"
-            className="w-full px-3 py-2 rounded border border-bc-border bg-bc-bg text-bc-text text-sm focus:outline-none focus:ring-2 focus:ring-bc-accent"
+            className="w-full px-3 py-2 rounded border border-mycel-border bg-mycel-bg text-mycel-text text-sm focus:outline-none focus:ring-2 focus:ring-mycel-accent"
           />
         </div>
         <div className="space-y-1">
-          <label className="block text-sm text-bc-text" htmlFor="tpl-mcps">
+          <label className="block text-sm text-mycel-text" htmlFor="tpl-mcps">
             MCPs
           </label>
           <input
@@ -520,12 +520,12 @@ function CreateTemplateForm({ onCreated }: { onCreated: (name: string) => void }
             value={mcpsRaw}
             onChange={(e) => setMcpsRaw(e.target.value)}
             placeholder="bc, github"
-            className="w-full px-3 py-2 rounded border border-bc-border bg-bc-bg text-bc-text text-sm focus:outline-none focus:ring-2 focus:ring-bc-accent"
+            className="w-full px-3 py-2 rounded border border-mycel-border bg-mycel-bg text-mycel-text text-sm focus:outline-none focus:ring-2 focus:ring-mycel-accent"
             style={{ fontFamily: MONO }}
           />
         </div>
         <div className="space-y-1">
-          <label className="block text-sm text-bc-text" htmlFor="tpl-secrets">
+          <label className="block text-sm text-mycel-text" htmlFor="tpl-secrets">
             Secrets
           </label>
           <input
@@ -534,12 +534,12 @@ function CreateTemplateForm({ onCreated }: { onCreated: (name: string) => void }
             value={secretsRaw}
             onChange={(e) => setSecretsRaw(e.target.value)}
             placeholder="GITHUB_TOKEN"
-            className="w-full px-3 py-2 rounded border border-bc-border bg-bc-bg text-bc-text text-sm focus:outline-none focus:ring-2 focus:ring-bc-accent"
+            className="w-full px-3 py-2 rounded border border-mycel-border bg-mycel-bg text-mycel-text text-sm focus:outline-none focus:ring-2 focus:ring-mycel-accent"
             style={{ fontFamily: MONO }}
           />
         </div>
         <div className="space-y-1 sm:col-span-2">
-          <label className="block text-sm text-bc-text" htmlFor="tpl-plugins">
+          <label className="block text-sm text-mycel-text" htmlFor="tpl-plugins">
             Plugins
           </label>
           <input
@@ -548,14 +548,14 @@ function CreateTemplateForm({ onCreated }: { onCreated: (name: string) => void }
             value={pluginsRaw}
             onChange={(e) => setPluginsRaw(e.target.value)}
             placeholder="frontend-design"
-            className="w-full px-3 py-2 rounded border border-bc-border bg-bc-bg text-bc-text text-sm focus:outline-none focus:ring-2 focus:ring-bc-accent"
+            className="w-full px-3 py-2 rounded border border-mycel-border bg-mycel-bg text-mycel-text text-sm focus:outline-none focus:ring-2 focus:ring-mycel-accent"
             style={{ fontFamily: MONO }}
           />
         </div>
       </div>
 
       <div className="space-y-1">
-        <label className="block text-sm text-bc-text" htmlFor="tpl-prompt">
+        <label className="block text-sm text-mycel-text" htmlFor="tpl-prompt">
           System Prompt
         </label>
         <textarea
@@ -563,7 +563,7 @@ function CreateTemplateForm({ onCreated }: { onCreated: (name: string) => void }
           value={systemPrompt}
           onChange={(e) => setSystemPrompt(e.target.value)}
           placeholder="# Template Name&#10;&#10;System prompt instructions in Markdown..."
-          className="w-full min-h-[200px] px-3 py-2 rounded border border-bc-border bg-bc-bg text-bc-text text-sm resize-y focus:outline-none focus:ring-2 focus:ring-bc-accent"
+          className="w-full min-h-[200px] px-3 py-2 rounded border border-mycel-border bg-mycel-bg text-mycel-text text-sm resize-y focus:outline-none focus:ring-2 focus:ring-mycel-accent"
           style={{ fontFamily: MONO }}
         />
       </div>
@@ -572,15 +572,15 @@ function CreateTemplateForm({ onCreated }: { onCreated: (name: string) => void }
         <button
           type="submit"
           disabled={status.type === "saving" || !name.trim()}
-          className="px-4 py-2 rounded bg-bc-accent text-white text-sm font-medium hover:opacity-90 disabled:opacity-50 transition-opacity focus-visible:ring-2 focus-visible:ring-bc-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bc-bg"
+          className="px-4 py-2 rounded bg-mycel-accent text-white text-sm font-medium hover:opacity-90 disabled:opacity-50 transition-opacity focus-visible:ring-2 focus-visible:ring-mycel-accent focus-visible:ring-offset-1 focus-visible:ring-offset-mycel-bg"
         >
           {status.type === "saving" ? "Creating..." : "Create Template"}
         </button>
         {status.type === "success" && (
-          <span className="text-xs text-bc-success">Template created</span>
+          <span className="text-xs text-mycel-success">Template created</span>
         )}
         {status.type === "error" && (
-          <span className="text-xs text-bc-error">{status.message}</span>
+          <span className="text-xs text-mycel-error">{status.message}</span>
         )}
       </div>
     </form>
@@ -598,7 +598,7 @@ function TemplateRow({
 }) {
   return (
     <tr
-      className="border-t border-bc-border/40 hover:bg-bc-surface/60 transition-colors cursor-pointer"
+      className="border-t border-mycel-border/40 hover:bg-mycel-surface/60 transition-colors cursor-pointer"
       onClick={onClick}
       role="button"
       tabIndex={0}
@@ -611,7 +611,7 @@ function TemplateRow({
       }}
     >
       <td
-        className="py-3 pl-4 pr-6 text-sm font-medium text-bc-text whitespace-nowrap"
+        className="py-3 pl-4 pr-6 text-sm font-medium text-mycel-text whitespace-nowrap"
         style={{ fontFamily: MONO }}
       >
         {template.name}
@@ -622,8 +622,8 @@ function TemplateRow({
       <td className="py-3 px-4">
         <ChipList items={template.secrets ?? []} color="yellow" />
       </td>
-      <td className="py-3 px-4 text-sm text-bc-muted">
-        {template.description || <span className="text-bc-muted/30">\u2014</span>}
+      <td className="py-3 px-4 text-sm text-mycel-muted">
+        {template.description || <span className="text-mycel-muted/30">\u2014</span>}
       </td>
     </tr>
   );
@@ -648,7 +648,7 @@ export function Templates() {
     title: <TabHeaderTitle>Templates</TabHeaderTitle>,
     actions:
       templates !== null ? (
-        <span className="text-[11px] text-bc-muted tabular-nums">
+        <span className="text-[11px] text-mycel-muted tabular-nums">
           {templates.length}
         </span>
       ) : undefined,
@@ -698,7 +698,7 @@ export function Templates() {
       {/* Loading */}
       {loading && !templates && (
         <div className="space-y-2">
-          <div className="h-5 w-24 animate-pulse rounded bg-bc-border/50" />
+          <div className="h-5 w-24 animate-pulse rounded bg-mycel-border/50" />
           <LoadingSkeleton variant="text" rows={4} />
         </div>
       )}
@@ -745,10 +745,10 @@ export function Templates() {
 
       {/* Table */}
       {filteredTemplates !== null && filteredTemplates.length > 0 && (
-        <div className="rounded border border-bc-border bg-bc-surface overflow-hidden">
+        <div className="rounded border border-mycel-border bg-mycel-surface overflow-hidden">
           <table className="w-full">
             <thead>
-              <tr className="text-left text-[11px] font-medium text-bc-muted/60 uppercase tracking-wide">
+              <tr className="text-left text-[11px] font-medium text-mycel-muted/60 uppercase tracking-wide">
                 <th className="py-2.5 pl-4 pr-6 font-medium">Name</th>
                 <th className="py-2.5 px-4 font-medium">MCPs</th>
                 <th className="py-2.5 px-4 font-medium">Secrets</th>

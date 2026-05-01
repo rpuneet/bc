@@ -87,14 +87,14 @@ export function CommandPalette() {
 
       {/* Palette */}
       <div
-        className="relative w-full max-w-lg rounded-lg border border-bc-border bg-bc-surface shadow-2xl"
+        className="relative w-full max-w-lg rounded-lg border border-mycel-border bg-mycel-surface shadow-2xl"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
         aria-label="Command palette"
       >
         {/* Search input */}
-        <div className="flex items-center gap-2 border-b border-bc-border px-4 py-3">
+        <div className="flex items-center gap-2 border-b border-mycel-border px-4 py-3">
           <svg
             width="16"
             height="16"
@@ -102,7 +102,7 @@ export function CommandPalette() {
             fill="none"
             stroke="currentColor"
             strokeWidth="2"
-            className="shrink-0 text-bc-muted"
+            className="shrink-0 text-mycel-muted"
           >
             <circle cx="6.5" cy="6.5" r="4.5" />
             <path d="M10 10l4 4" />
@@ -114,10 +114,10 @@ export function CommandPalette() {
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Type a command..."
-            className="flex-1 bg-transparent text-sm text-bc-text placeholder:text-bc-muted outline-none"
+            className="flex-1 bg-transparent text-sm text-mycel-text placeholder:text-mycel-muted outline-none"
             aria-label="Search commands"
           />
-          <kbd className="hidden sm:inline-block rounded border border-bc-border px-1.5 py-0.5 text-[10px] text-bc-muted">
+          <kbd className="hidden sm:inline-block rounded border border-mycel-border px-1.5 py-0.5 text-[10px] text-mycel-muted">
             ESC
           </kbd>
         </div>
@@ -125,7 +125,7 @@ export function CommandPalette() {
         {/* Results */}
         <div ref={listRef} className="max-h-72 overflow-y-auto py-2">
           {filtered.length === 0 ? (
-            <div className="px-4 py-6 text-center text-sm text-bc-muted">
+            <div className="px-4 py-6 text-center text-sm text-mycel-muted">
               No results found
             </div>
           ) : (
@@ -142,19 +142,19 @@ export function CommandPalette() {
                     onMouseEnter={() => setActiveIndex(itemIndex)}
                     className={`flex w-full items-center gap-3 px-4 py-2 text-left text-sm transition-colors ${
                       itemIndex === activeIndex
-                        ? "bg-bc-accent/10 text-bc-accent"
-                        : "text-bc-text hover:bg-bc-bg"
+                        ? "bg-mycel-accent/10 text-mycel-accent"
+                        : "text-mycel-text hover:bg-mycel-bg"
                     }`}
                   >
-                    <span className="w-5 text-center font-mono text-xs text-bc-muted">
+                    <span className="w-5 text-center font-mono text-xs text-mycel-muted">
                       {item.icon}
                     </span>
                     <span className="flex-1">{item.label}</span>
                     {item.section === "Navigate" && (
-                      <span className="text-xs text-bc-muted">Go to</span>
+                      <span className="text-xs text-mycel-muted">Go to</span>
                     )}
                     {item.section === "Action" && (
-                      <span className="text-xs text-bc-muted">Run</span>
+                      <span className="text-xs text-mycel-muted">Run</span>
                     )}
                   </button>
                 );
@@ -162,7 +162,7 @@ export function CommandPalette() {
               flatIndex += items.length;
               return (
                 <div key={section}>
-                  <div className="px-4 py-1.5 text-xs font-medium text-bc-muted">
+                  <div className="px-4 py-1.5 text-xs font-medium text-mycel-muted">
                     {section}
                   </div>
                   {sectionItems}
@@ -173,21 +173,21 @@ export function CommandPalette() {
         </div>
 
         {/* Footer hint */}
-        <div className="flex items-center gap-3 border-t border-bc-border px-4 py-2 text-[10px] text-bc-muted">
+        <div className="flex items-center gap-3 border-t border-mycel-border px-4 py-2 text-[10px] text-mycel-muted">
           <span>
-            <kbd className="rounded border border-bc-border px-1 py-0.5">
+            <kbd className="rounded border border-mycel-border px-1 py-0.5">
               &uarr;&darr;
             </kbd>{" "}
             navigate
           </span>
           <span>
-            <kbd className="rounded border border-bc-border px-1 py-0.5">
+            <kbd className="rounded border border-mycel-border px-1 py-0.5">
               &crarr;
             </kbd>{" "}
             select
           </span>
           <span>
-            <kbd className="rounded border border-bc-border px-1 py-0.5">
+            <kbd className="rounded border border-mycel-border px-1 py-0.5">
               esc
             </kbd>{" "}
             close

@@ -42,11 +42,11 @@ export function Table<T>({
   return (
     <table className="w-full text-sm">
       <thead>
-        <tr className="border-b border-bc-border text-left">
+        <tr className="border-b border-mycel-border text-left">
           {columns.map((col) => (
             <th
               key={col.key}
-              className={`px-4 py-2 font-medium text-bc-muted ${col.className ?? ""}`}
+              className={`px-4 py-2 font-medium text-mycel-muted ${col.className ?? ""}`}
             >
               {col.label}
             </th>
@@ -60,8 +60,8 @@ export function Table<T>({
             <React.Fragment key={keyFn(row)}>
               <tr
                 onClick={onRowClick ? () => onRowClick(row) : undefined}
-                className={`border-b border-bc-border/50 ${
-                  onRowClick ? "cursor-pointer hover:bg-bc-surface" : ""
+                className={`border-b border-mycel-border/50 ${
+                  onRowClick ? "cursor-pointer hover:bg-mycel-surface" : ""
                 }`}
               >
                 {columns.map((col) => (

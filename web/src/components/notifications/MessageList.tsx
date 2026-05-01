@@ -69,11 +69,11 @@ export function MessageList({
       if (item.type === "separator") {
         return (
           <div className="flex items-center gap-3 py-3" role="separator">
-            <div className="flex-1 h-px bg-bc-border" />
-            <time className="text-[10px] text-bc-muted font-medium uppercase tracking-wider">
+            <div className="flex-1 h-px bg-mycel-border" />
+            <time className="text-[10px] text-mycel-muted font-medium uppercase tracking-wider">
               {item.label}
             </time>
-            <div className="flex-1 h-px bg-bc-border" />
+            <div className="flex-1 h-px bg-mycel-border" />
           </div>
         );
       }
@@ -85,7 +85,7 @@ export function MessageList({
       const nameColor = agentColor(group.sender);
 
       return (
-        <div className="flex gap-3 py-1.5 px-1 hover:bg-bc-surface/30 rounded transition-colors" role="listitem">
+        <div className="flex gap-3 py-1.5 px-1 hover:bg-mycel-surface/30 rounded transition-colors" role="listitem">
           {/* Colored avatar circle with sender initial */}
           <span
             className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0"
@@ -102,21 +102,21 @@ export function MessageList({
               <button
                 type="button"
                 onClick={() => onPeekAgent(group.sender)}
-                className="font-medium text-sm hover:underline cursor-pointer decoration-1 underline-offset-2 focus-visible:ring-1 focus-visible:ring-bc-accent rounded"
+                className="font-medium text-sm hover:underline cursor-pointer decoration-1 underline-offset-2 focus-visible:ring-1 focus-visible:ring-mycel-accent rounded"
                 style={{ color: nameColor }}
                 title={`Peek at ${group.sender}'s terminal`}
               >
                 {group.sender}
               </button>
               <RoleBadge role={role} />
-              <time className="text-[10px] text-bc-muted/40 tabular-nums" title={new Date(group.timestamp).toLocaleString()}>
+              <time className="text-[10px] text-mycel-muted/40 tabular-nums" title={new Date(group.timestamp).toLocaleString()}>
                 {formatRelativeTime(group.timestamp)}
               </time>
             </div>
             {group.messages.map((msg) => (
               <p
                 key={msg.id}
-                className="mt-0.5 text-[13px] whitespace-pre-wrap break-words text-bc-text/80 leading-[1.65]"
+                className="mt-0.5 text-[13px] whitespace-pre-wrap break-words text-mycel-text/80 leading-[1.65]"
               >
                 <MessageContent content={msg.content} />
               </p>
@@ -156,13 +156,13 @@ export function MessageList({
         Header: () =>
           loadingMore ? (
             <div className="flex justify-center py-3">
-              <span className="text-xs text-bc-muted animate-pulse">
+              <span className="text-xs text-mycel-muted animate-pulse">
                 Loading older messages...
               </span>
             </div>
           ) : hasMore === false ? (
             <div className="flex justify-center py-3">
-              <span className="text-xs text-bc-muted">
+              <span className="text-xs text-mycel-muted">
                 Beginning of conversation
               </span>
             </div>

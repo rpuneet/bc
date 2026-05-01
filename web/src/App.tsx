@@ -25,15 +25,15 @@ const Code = lazy(() => import("./views/Code").then((m) => ({ default: m.Code })
 const CostsGlobal = lazy(() => import("./views/CostsGlobal").then((m) => ({ default: m.CostsGlobal })));
 
 function Loading() {
-  return <div className="p-6 text-bc-muted">Loading...</div>;
+  return <div className="p-6 text-mycel-muted">Loading...</div>;
 }
 
 function NotFound() {
   return (
     <div className="flex-1 flex flex-col items-center justify-center p-6">
-      <p className="text-6xl font-bold font-mono text-bc-muted">404</p>
-      <p className="mt-2 text-bc-muted">Page not found</p>
-      <Link to="/" className="mt-4 text-sm text-bc-accent hover:underline">
+      <p className="text-6xl font-bold font-mono text-mycel-muted">404</p>
+      <p className="mt-2 text-mycel-muted">Page not found</p>
+      <Link to="/" className="mt-4 text-sm text-mycel-accent hover:underline">
         Go home
       </Link>
     </div>

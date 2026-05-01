@@ -20,13 +20,13 @@ export function SectionRule({
     <div className="flex items-center gap-3 py-2">
       {text && (
         <span
-          className="text-[10px] font-semibold text-bc-muted/60 uppercase tracking-widest whitespace-nowrap"
+          className="text-[10px] font-semibold text-mycel-muted/60 uppercase tracking-widest whitespace-nowrap"
           style={{ fontFamily: MONO }}
         >
           {text}
         </span>
       )}
-      <div className="flex-1 h-px bg-gradient-to-r from-bc-border/60 to-transparent" />
+      <div className="flex-1 h-px bg-gradient-to-r from-mycel-border/60 to-transparent" />
       {trailing && <div className="flex items-center gap-2">{trailing}</div>}
     </div>
   );

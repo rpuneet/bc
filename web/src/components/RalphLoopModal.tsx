@@ -3,8 +3,8 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { MONO } from "../utils/typography";
 
 const INPUT_CLS =
-  "w-full bg-bc-bg border border-bc-border rounded px-3 py-2 text-sm text-bc-text " +
-  "placeholder:text-bc-muted outline-none focus:border-bc-accent transition-colors";
+  "w-full bg-mycel-bg border border-mycel-border rounded px-3 py-2 text-sm text-mycel-text " +
+  "placeholder:text-mycel-muted outline-none focus:border-mycel-accent transition-colors";
 
 interface LoopConfig {
   enabled: boolean;
@@ -89,7 +89,7 @@ export function LoopIconButton({
       className={`shrink-0 flex items-center gap-0.5 transition-colors ${
         active
           ? "text-green-400 hover:text-green-300"
-          : "text-bc-muted/30 hover:text-bc-muted/60"
+          : "text-mycel-muted/30 hover:text-mycel-muted/60"
       }`}
     >
       <span className={`flex items-center gap-0.5 ${shouldPulse ? "animate-pulse" : ""}`}>
@@ -188,13 +188,13 @@ export function RalphLoopModal({
       <div className="absolute inset-0 bg-black/60" />
 
       <div
-        className="relative w-full max-w-md rounded-lg border border-bc-border bg-bc-surface shadow-2xl"
+        className="relative w-full max-w-md rounded-lg border border-mycel-border bg-mycel-surface shadow-2xl"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
         aria-label="Ralph Loop"
       >
-        <div className="flex items-center justify-between border-b border-bc-border px-5 py-4">
+        <div className="flex items-center justify-between border-b border-mycel-border px-5 py-4">
           <div className="flex items-center gap-2">
             <svg
               width="16"
@@ -205,13 +205,13 @@ export function RalphLoopModal({
               strokeWidth="1.8"
               strokeLinecap="round"
               strokeLinejoin="round"
-              className={enabled ? "text-green-400" : "text-bc-muted"}
+              className={enabled ? "text-green-400" : "text-mycel-muted"}
             >
               <path d="M11 3.5A5 5 0 1 0 12 7" />
               <path d="M8 3.5h3V.5" />
             </svg>
             <h2
-              className="text-sm font-semibold text-bc-text tracking-wide uppercase"
+              className="text-sm font-semibold text-mycel-text tracking-wide uppercase"
               style={{ fontFamily: MONO }}
             >
               Ralph Loop
@@ -220,7 +220,7 @@ export function RalphLoopModal({
           <button
             type="button"
             onClick={onClose}
-            className="text-bc-muted hover:text-bc-text transition-colors rounded p-1 -mr-1"
+            className="text-mycel-muted hover:text-mycel-text transition-colors rounded p-1 -mr-1"
             aria-label="Close"
           >
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
@@ -230,9 +230,9 @@ export function RalphLoopModal({
         </div>
 
         <div className="px-5 py-4 flex flex-col gap-4">
-          <p className="text-xs text-bc-muted/70 leading-relaxed">
+          <p className="text-xs text-mycel-muted/70 leading-relaxed">
             When enabled, this prompt is automatically sent to{" "}
-            <span className="text-bc-text/80" style={{ fontFamily: MONO }}>
+            <span className="text-mycel-text/80" style={{ fontFamily: MONO }}>
               {agentName}
             </span>{" "}
             every time the agent stops. Runs server-side — no browser needed.
@@ -240,7 +240,7 @@ export function RalphLoopModal({
 
           <div className="flex items-center justify-between">
             <label
-              className="text-xs font-medium text-bc-muted uppercase tracking-wider"
+              className="text-xs font-medium text-mycel-muted uppercase tracking-wider"
               style={{ fontFamily: MONO }}
             >
               Enabled
@@ -251,7 +251,7 @@ export function RalphLoopModal({
               aria-checked={enabled}
               onClick={() => setEnabled((v) => !v)}
               className={`relative w-10 h-5 rounded-full transition-colors ${
-                enabled ? "bg-green-500" : "bg-bc-border"
+                enabled ? "bg-green-500" : "bg-mycel-border"
               }`}
             >
               <span
@@ -264,7 +264,7 @@ export function RalphLoopModal({
 
           <div className="flex flex-col gap-1.5">
             <label
-              className="text-xs font-medium text-bc-muted uppercase tracking-wider"
+              className="text-xs font-medium text-mycel-muted uppercase tracking-wider"
               style={{ fontFamily: MONO }}
             >
               Loop Prompt
@@ -279,20 +279,20 @@ export function RalphLoopModal({
               className={`${INPUT_CLS} resize-none`}
               style={{ fontFamily: MONO }}
             />
-            <p className="text-[10px] text-bc-muted/40">
+            <p className="text-[10px] text-mycel-muted/40">
               Sent to the agent each time it stops. Runs on the server — works
               even when you close the browser.
             </p>
           </div>
         </div>
 
-        <div className="flex items-center justify-between border-t border-bc-border px-5 py-4">
+        <div className="flex items-center justify-between border-t border-mycel-border px-5 py-4">
           <div>
             {enabled && (
               <button
                 type="button"
                 onClick={handleDisable}
-                className="px-3 py-1.5 rounded text-xs text-bc-error/80 border border-bc-error/20 hover:bg-bc-error/10 transition-colors"
+                className="px-3 py-1.5 rounded text-xs text-mycel-error/80 border border-mycel-error/20 hover:bg-mycel-error/10 transition-colors"
                 style={{ fontFamily: MONO }}
               >
                 Disable loop
@@ -303,7 +303,7 @@ export function RalphLoopModal({
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded text-sm text-bc-muted hover:text-bc-text border border-bc-border hover:border-bc-muted bg-bc-bg transition-colors"
+              className="px-4 py-2 rounded text-sm text-mycel-muted hover:text-mycel-text border border-mycel-border hover:border-mycel-muted bg-mycel-bg transition-colors"
               style={{ fontFamily: MONO }}
             >
               Cancel
@@ -311,7 +311,7 @@ export function RalphLoopModal({
             <button
               type="button"
               onClick={handleSave}
-              className="px-4 py-2 rounded text-sm font-medium bg-bc-accent text-bc-bg hover:opacity-90 transition-opacity"
+              className="px-4 py-2 rounded text-sm font-medium bg-mycel-accent text-mycel-bg hover:opacity-90 transition-opacity"
               style={{ fontFamily: MONO }}
             >
               {enabled ? "Save" : "Enable & Save"}

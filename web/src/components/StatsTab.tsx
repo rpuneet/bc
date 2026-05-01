@@ -20,11 +20,11 @@ const RANGES = [
 ] as const;
 
 const TT: React.CSSProperties = {
-  backgroundColor: "var(--color-bc-surface)", border: "1px solid var(--color-bc-border)",
-  borderRadius: "6px", color: "var(--color-bc-text)", fontSize: "12px",
+  backgroundColor: "var(--color-mycel-surface)", border: "1px solid var(--color-mycel-border)",
+  borderRadius: "6px", color: "var(--color-mycel-text)", fontSize: "12px",
 };
 const AX = { axisLine: false as const, tickLine: false as const };
-const TICK = { fill: "var(--color-bc-muted)", fontSize: 10 };
+const TICK = { fill: "var(--color-mycel-muted)", fontSize: 10 };
 
 // ── Helpers ──────────────────────────────────────────────────────────────────────
 
@@ -54,10 +54,10 @@ const fromParam = (seconds: number) => new Date(Date.now() - seconds * 1000).toI
 
 function StatCard({ label, value, sub, accent }: { label: string; value: string; sub?: string; accent?: boolean }) {
   return (
-    <div className="rounded border border-bc-border bg-bc-surface p-3">
-      <p className="text-[11px] text-bc-muted uppercase tracking-wider">{label}</p>
-      <p className={`mt-1 text-xl font-bold ${accent ? "text-bc-accent" : ""}`}>{value}</p>
-      {sub && <p className="text-[10px] text-bc-muted">{sub}</p>}
+    <div className="rounded border border-mycel-border bg-mycel-surface p-3">
+      <p className="text-[11px] text-mycel-muted uppercase tracking-wider">{label}</p>
+      <p className={`mt-1 text-xl font-bold ${accent ? "text-mycel-accent" : ""}`}>{value}</p>
+      {sub && <p className="text-[10px] text-mycel-muted">{sub}</p>}
     </div>
   );
 }
@@ -231,22 +231,22 @@ export function StatsTab({ agent }: { agent: Agent }) {
   // ── Render ─────────────────────────────────────────────────────────────────
 
   if (loading && !data) {
-    return <div className="p-4 text-sm text-bc-muted">Loading stats for {agent.name}...</div>;
+    return <div className="p-4 text-sm text-mycel-muted">Loading stats for {agent.name}...</div>;
   }
 
   return (
     <div className="space-y-4">
       {/* Empty-state banner when stats store is unreachable or agent never recorded data */}
       {!hasAnyData && !loading && (
-        <div className="rounded border border-bc-border/60 bg-bc-surface/30 p-3 text-[11px] text-bc-muted/80 leading-relaxed">
+        <div className="rounded border border-mycel-border/60 bg-mycel-surface/30 p-3 text-[11px] text-mycel-muted/80 leading-relaxed">
           {isStopped ? (
             <>
-              <span className="font-medium text-bc-muted">Stats unavailable for this agent.</span>{" "}
+              <span className="font-medium text-mycel-muted">Stats unavailable for this agent.</span>{" "}
               No time-series data was recorded. This happens when the agent ran before the TimescaleDB stats collector was active, or when the agent was stopped too quickly for a sample to be captured.
             </>
           ) : (
             <>
-              <span className="font-medium text-bc-muted">Waiting for metrics…</span>{" "}
+              <span className="font-medium text-mycel-muted">Waiting for metrics…</span>{" "}
               The TimescaleDB stats collector samples every 30 seconds. Live metrics will appear here once the first sample lands.
             </>
           )}
@@ -255,7 +255,7 @@ export function StatsTab({ agent }: { agent: Agent }) {
 
       {/* Tmux-agent notice when we have cost/token data but no resource metrics */}
       {!hasTimescaleData && hasAnyData && !loading && (
-        <div className="rounded border border-bc-border/40 bg-bc-surface/20 p-2.5 text-[10px] text-bc-muted/70 leading-relaxed">
+        <div className="rounded border border-mycel-border/40 bg-mycel-surface/20 p-2.5 text-[10px] text-mycel-muted/70 leading-relaxed">
           <span className="font-medium">CPU/Memory metrics require TimescaleDB.</span>{" "}
           Showing token and cost data from agent session logs.
         </div>
@@ -264,7 +264,7 @@ export function StatsTab({ agent }: { agent: Agent }) {
       {/* Hook-based stats — shown when TimescaleDB is empty but SQLite events exist */}
       {hasComputedData && !loading && (
         <div className="space-y-3">
-          <p className="text-[11px] font-medium text-bc-muted uppercase tracking-wider">Activity (from hook events)</p>
+          <p className="text-[11px] font-medium text-mycel-muted uppercase tracking-wider">Activity (from hook events)</p>
 
           {/* Summary cards */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -310,22 +310,22 @@ export function StatsTab({ agent }: { agent: Agent }) {
 
           {/* Tool breakdown */}
           {toolBreakdownData.length > 0 && (
-            <div className="rounded border border-bc-border bg-bc-surface p-3">
-              <p className="text-[11px] text-bc-muted uppercase tracking-wider mb-2">Tool Breakdown</p>
+            <div className="rounded border border-mycel-border bg-mycel-surface p-3">
+              <p className="text-[11px] text-mycel-muted uppercase tracking-wider mb-2">Tool Breakdown</p>
               <div className="space-y-1.5">
                 {toolBreakdownData.map(({ name: toolName, count }, i) => {
                   const maxCount = toolBreakdownData[0]?.count ?? 1;
                   const pct = Math.round((count / maxCount) * 100);
                   return (
                     <div key={toolName} className="flex items-center gap-2">
-                      <span className="w-28 text-[11px] text-bc-text truncate shrink-0 overflow-hidden text-ellipsis" title={toolName}>{toolName}</span>
-                      <div className="flex-1 h-1.5 rounded bg-bc-border/40 overflow-hidden">
+                      <span className="w-28 text-[11px] text-mycel-text truncate shrink-0 overflow-hidden text-ellipsis" title={toolName}>{toolName}</span>
+                      <div className="flex-1 h-1.5 rounded bg-mycel-border/40 overflow-hidden">
                         <div
                           className="h-full rounded"
                           style={{ width: `${pct}%`, backgroundColor: COLORS[i % COLORS.length] }}
                         />
                       </div>
-                      <span className="text-[11px] text-bc-muted w-6 text-right shrink-0">{count}</span>
+                      <span className="text-[11px] text-mycel-muted w-6 text-right shrink-0">{count}</span>
                     </div>
                   );
                 })}
@@ -337,14 +337,14 @@ export function StatsTab({ agent }: { agent: Agent }) {
 
       {/* Time range selector */}
       <div className="flex items-center justify-between">
-        <span className="text-sm font-medium text-bc-muted">{agent.name}</span>
+        <span className="text-sm font-medium text-mycel-muted">{agent.name}</span>
         <div className="flex gap-1">
           {RANGES.map((r, i) => (
             <button key={r.label} type="button" onClick={() => setRange(i)}
               className={`px-2.5 py-1 text-xs rounded border transition-colors ${
                 i === range
-                  ? "border-bc-accent bg-bc-accent/10 text-bc-accent"
-                  : "border-bc-border text-bc-muted hover:text-bc-text hover:border-bc-muted"
+                  ? "border-mycel-accent bg-mycel-accent/10 text-mycel-accent"
+                  : "border-mycel-border text-mycel-muted hover:text-mycel-text hover:border-mycel-muted"
               }`}
             >{r.label}</button>
           ))}
@@ -366,7 +366,7 @@ export function StatsTab({ agent }: { agent: Agent }) {
             <Panel title="CPU (%)">
               <ResponsiveContainer width="100%" height={200}>
                 <AreaChart data={cpuChart} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--color-bc-border)" vertical={false} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--color-mycel-border)" vertical={false} />
                   <XAxis dataKey="time" tick={TICK} {...AX} />
                   <YAxis tick={TICK} {...AX} tickFormatter={(v: number) => `${v}%`} />
                   <Tooltip contentStyle={TT} />
@@ -379,7 +379,7 @@ export function StatsTab({ agent }: { agent: Agent }) {
             <Panel title="Memory (MB)">
               <ResponsiveContainer width="100%" height={200}>
                 <AreaChart data={memChart} margin={{ top: 4, right: 8, left: -10, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--color-bc-border)" vertical={false} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--color-mycel-border)" vertical={false} />
                   <XAxis dataKey="time" tick={TICK} {...AX} />
                   <YAxis tick={TICK} {...AX} />
                   <Tooltip contentStyle={TT} formatter={(v) => [`${Number(v ?? 0).toFixed(1)} MB`]} />
@@ -398,7 +398,7 @@ export function StatsTab({ agent }: { agent: Agent }) {
             <Panel title="Network I/O">
               <ResponsiveContainer width="100%" height={200}>
                 <AreaChart data={netChart} margin={{ top: 4, right: 8, left: -10, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--color-bc-border)" vertical={false} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--color-mycel-border)" vertical={false} />
                   <XAxis dataKey="time" tick={TICK} {...AX} />
                   <YAxis tick={TICK} {...AX} tickFormatter={(v: number) => fmtBytes(v)} />
                   <Tooltip contentStyle={TT} formatter={(v) => [fmtBytes(Number(v ?? 0))]} />
@@ -412,7 +412,7 @@ export function StatsTab({ agent }: { agent: Agent }) {
             <Panel title="Token Usage">
               <ResponsiveContainer width="100%" height={200}>
                 <AreaChart data={tokenChart} margin={{ top: 4, right: 8, left: -8, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--color-bc-border)" vertical={false} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--color-mycel-border)" vertical={false} />
                   <XAxis dataKey="time" tick={TICK} {...AX} />
                   <YAxis tick={TICK} {...AX} tickFormatter={(v: number) => fmtTokens(v)} />
                   <Tooltip contentStyle={TT} formatter={(v, n) => [Number(v ?? 0).toLocaleString(), n === "input" ? "Input" : "Output"]} />
@@ -442,9 +442,9 @@ export function StatsTab({ agent }: { agent: Agent }) {
               <Panel title="Cost by Model">
                 <ResponsiveContainer width="100%" height={200}>
                   <BarChart layout="vertical" data={costBarData} margin={{ top: 0, right: 8, left: 4, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="var(--color-bc-border)" horizontal={false} />
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--color-mycel-border)" horizontal={false} />
                     <XAxis type="number" tick={TICK} {...AX} tickFormatter={(v: number) => `$${v}`} />
-                    <YAxis type="category" dataKey="name" tick={{ ...TICK, fill: "var(--color-bc-text)", fontSize: 9 }} {...AX} width={120} />
+                    <YAxis type="category" dataKey="name" tick={{ ...TICK, fill: "var(--color-mycel-text)", fontSize: 9 }} {...AX} width={120} />
                     <Tooltip contentStyle={TT} formatter={(v) => [`$${Number(v ?? 0).toFixed(4)}`]} />
                     <Bar dataKey="cost" radius={[0, 3, 3, 0]}>
                       {costBarData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
@@ -457,19 +457,19 @@ export function StatsTab({ agent }: { agent: Agent }) {
               <Panel title="I/O Summary">
                 <div className="grid grid-cols-2 gap-3 py-4">
                   <div className="text-center">
-                    <p className="text-[11px] text-bc-muted uppercase">Net RX</p>
+                    <p className="text-[11px] text-mycel-muted uppercase">Net RX</p>
                     <p className="text-lg font-bold text-[#10B981]">{fmtBytes(s.network?.rx_bytes ?? 0)}</p>
                   </div>
                   <div className="text-center">
-                    <p className="text-[11px] text-bc-muted uppercase">Net TX</p>
-                    <p className="text-lg font-bold text-bc-accent">{fmtBytes(s.network?.tx_bytes ?? 0)}</p>
+                    <p className="text-[11px] text-mycel-muted uppercase">Net TX</p>
+                    <p className="text-lg font-bold text-mycel-accent">{fmtBytes(s.network?.tx_bytes ?? 0)}</p>
                   </div>
                   <div className="text-center">
-                    <p className="text-[11px] text-bc-muted uppercase">Disk Read</p>
+                    <p className="text-[11px] text-mycel-muted uppercase">Disk Read</p>
                     <p className="text-lg font-bold text-[#3B82F6]">{fmtBytes(s.disk?.read_bytes ?? 0)}</p>
                   </div>
                   <div className="text-center">
-                    <p className="text-[11px] text-bc-muted uppercase">Disk Write</p>
+                    <p className="text-[11px] text-mycel-muted uppercase">Disk Write</p>
                     <p className="text-lg font-bold text-[#A855F7]">{fmtBytes(s.disk?.write_bytes ?? 0)}</p>
                   </div>
                 </div>

@@ -35,7 +35,7 @@ function CopyButton({ text }: { text: string }) {
       type="button"
       onClick={handleCopy}
       title="Copy to clipboard"
-      className="ml-1 px-1.5 py-0.5 rounded text-[10px] border border-bc-border text-bc-muted hover:text-bc-accent hover:border-bc-accent/50 transition-colors"
+      className="ml-1 px-1.5 py-0.5 rounded text-[10px] border border-mycel-border text-mycel-muted hover:text-mycel-accent hover:border-mycel-accent/50 transition-colors"
     >
       {copied ? "Copied" : "Copy"}
     </button>
@@ -81,7 +81,7 @@ function AddSecretForm({ onCreated }: { onCreated: () => void }) {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="flex items-center gap-2 px-4 py-2 rounded-lg border border-dashed border-bc-border text-sm text-bc-muted hover:text-bc-accent hover:border-bc-accent/50 transition-colors"
+        className="flex items-center gap-2 px-4 py-2 rounded-lg border border-dashed border-mycel-border text-sm text-mycel-muted hover:text-mycel-accent hover:border-mycel-accent/50 transition-colors"
       >
         <span className="text-lg leading-none">+</span> Add Secret
       </button>
@@ -91,14 +91,14 @@ function AddSecretForm({ onCreated }: { onCreated: () => void }) {
   return (
     <form
       onSubmit={handleSubmit}
-      className="rounded-lg border border-bc-border bg-bc-surface p-5 space-y-4"
+      className="rounded-lg border border-mycel-border bg-mycel-surface p-5 space-y-4"
     >
       <div className="flex items-center justify-between">
-        <h2 className="text-sm font-semibold text-bc-text">New Secret</h2>
+        <h2 className="text-sm font-semibold text-mycel-text">New Secret</h2>
         <button
           type="button"
           onClick={() => { setOpen(false); setError(null); }}
-          className="text-bc-muted hover:text-bc-text text-sm transition-colors"
+          className="text-mycel-muted hover:text-mycel-text text-sm transition-colors"
         >
           Cancel
         </button>
@@ -106,7 +106,7 @@ function AddSecretForm({ onCreated }: { onCreated: () => void }) {
 
       <div className="space-y-3">
         <div className="space-y-1">
-          <label className="block text-xs font-medium text-bc-muted uppercase tracking-wide">
+          <label className="block text-xs font-medium text-mycel-muted uppercase tracking-wide">
             Name
           </label>
           <input
@@ -114,12 +114,12 @@ function AddSecretForm({ onCreated }: { onCreated: () => void }) {
             value={name}
             onChange={(e) => setName(e.target.value.toUpperCase().replace(/[^A-Z0-9_]/g, "_"))}
             placeholder="MY_API_KEY"
-            className="w-full px-3 py-2 rounded-md border border-bc-border bg-bc-bg text-bc-text text-sm font-mono focus:outline-none focus:ring-2 focus:ring-bc-accent"
+            className="w-full px-3 py-2 rounded-md border border-mycel-border bg-mycel-bg text-mycel-text text-sm font-mono focus:outline-none focus:ring-2 focus:ring-mycel-accent"
           />
         </div>
 
         <div className="space-y-1">
-          <label className="block text-xs font-medium text-bc-muted uppercase tracking-wide">
+          <label className="block text-xs font-medium text-mycel-muted uppercase tracking-wide">
             Value
           </label>
           <div className="relative">
@@ -128,12 +128,12 @@ function AddSecretForm({ onCreated }: { onCreated: () => void }) {
               value={value}
               onChange={(e) => setValue(e.target.value)}
               placeholder="Enter secret value"
-              className="w-full px-3 py-2 pr-16 rounded-md border border-bc-border bg-bc-bg text-bc-text text-sm font-mono focus:outline-none focus:ring-2 focus:ring-bc-accent"
+              className="w-full px-3 py-2 pr-16 rounded-md border border-mycel-border bg-mycel-bg text-mycel-text text-sm font-mono focus:outline-none focus:ring-2 focus:ring-mycel-accent"
             />
             <button
               type="button"
               onClick={() => setShowValue(!showValue)}
-              className="absolute right-2 top-1/2 -translate-y-1/2 px-2 py-0.5 text-[11px] text-bc-muted hover:text-bc-text transition-colors"
+              className="absolute right-2 top-1/2 -translate-y-1/2 px-2 py-0.5 text-[11px] text-mycel-muted hover:text-mycel-text transition-colors"
             >
               {showValue ? "Hide" : "Show"}
             </button>
@@ -141,27 +141,27 @@ function AddSecretForm({ onCreated }: { onCreated: () => void }) {
         </div>
 
         <div className="space-y-1">
-          <label className="block text-xs font-medium text-bc-muted uppercase tracking-wide">
-            Description <span className="text-bc-muted/60 normal-case">(optional)</span>
+          <label className="block text-xs font-medium text-mycel-muted uppercase tracking-wide">
+            Description <span className="text-mycel-muted/60 normal-case">(optional)</span>
           </label>
           <input
             type="text"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             placeholder="What this secret is used for"
-            className="w-full px-3 py-2 rounded-md border border-bc-border bg-bc-bg text-bc-text text-sm focus:outline-none focus:ring-2 focus:ring-bc-accent"
+            className="w-full px-3 py-2 rounded-md border border-mycel-border bg-mycel-bg text-mycel-text text-sm focus:outline-none focus:ring-2 focus:ring-mycel-accent"
           />
         </div>
       </div>
 
       {error && (
-        <p className="text-xs text-bc-error">{error}</p>
+        <p className="text-xs text-mycel-error">{error}</p>
       )}
 
       <button
         type="submit"
         disabled={saving || !name.trim() || !value.trim()}
-        className="px-4 py-2 rounded-md bg-bc-accent text-white text-sm font-medium hover:opacity-90 disabled:opacity-50 transition-opacity"
+        className="px-4 py-2 rounded-md bg-mycel-accent text-white text-sm font-medium hover:opacity-90 disabled:opacity-50 transition-opacity"
       >
         {saving ? "Creating..." : "Create Secret"}
       </button>
@@ -212,21 +212,21 @@ function SecretCard({ secret, onChanged }: { secret: Secret; onChanged: () => vo
   const reference = `\${secret:${secret.name}}`;
 
   return (
-    <div className="rounded-lg border border-bc-border bg-bc-surface p-4 space-y-3">
+    <div className="rounded-lg border border-mycel-border bg-mycel-surface p-4 space-y-3">
       {/* Header row */}
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
-          <h3 className="font-mono font-bold text-bc-text text-sm truncate">
+          <h3 className="font-mono font-bold text-mycel-text text-sm truncate">
             {secret.name}
           </h3>
           {secret.description && (
-            <p className="text-xs text-bc-muted mt-0.5 line-clamp-2">
+            <p className="text-xs text-mycel-muted mt-0.5 line-clamp-2">
               {secret.description}
             </p>
           )}
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-bc-bg border border-bc-border text-[11px] text-bc-muted">
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-mycel-bg border border-mycel-border text-[11px] text-mycel-muted">
             <svg className="w-3 h-3" viewBox="0 0 16 16" fill="currentColor">
               <path d="M8 1a4 4 0 0 0-4 4v3H3a1 1 0 0 0-1 1v5a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V9a1 1 0 0 0-1-1h-1V5a4 4 0 0 0-4-4zm2 7H6V5a2 2 0 1 1 4 0v3z"/>
             </svg>
@@ -237,20 +237,20 @@ function SecretCard({ secret, onChanged }: { secret: Secret; onChanged: () => vo
 
       {/* Usage reference */}
       <div className="flex items-center gap-1">
-        <code className="text-[11px] font-mono text-bc-muted bg-bc-bg px-2 py-0.5 rounded border border-bc-border">
+        <code className="text-[11px] font-mono text-mycel-muted bg-mycel-bg px-2 py-0.5 rounded border border-mycel-border">
           {reference}
         </code>
         <CopyButton text={reference} />
       </div>
 
       {/* Timestamps */}
-      <div className="flex items-center gap-4 text-[11px] text-bc-muted">
+      <div className="flex items-center gap-4 text-[11px] text-mycel-muted">
         <span>Created {timeAgo(secret.created_at)}</span>
       </div>
 
       {/* Inline update form */}
       {editing && (
-        <div className="pt-2 border-t border-bc-border space-y-2">
+        <div className="pt-2 border-t border-mycel-border space-y-2">
           <div className="relative">
             <input
               type={showValue ? "text" : "password"}
@@ -267,13 +267,13 @@ function SecretCard({ secret, onChanged }: { secret: Secret; onChanged: () => vo
               }}
               placeholder="Enter new value"
               autoFocus
-              className="w-full px-3 py-2 pr-16 rounded-md border border-bc-border bg-bc-bg text-bc-text text-sm font-mono focus:outline-none focus:ring-2 focus:ring-bc-accent"
+              className="w-full px-3 py-2 pr-16 rounded-md border border-mycel-border bg-mycel-bg text-mycel-text text-sm font-mono focus:outline-none focus:ring-2 focus:ring-mycel-accent"
               aria-label={`New value for ${secret.name}`}
             />
             <button
               type="button"
               onClick={() => setShowValue(!showValue)}
-              className="absolute right-2 top-1/2 -translate-y-1/2 px-2 py-0.5 text-[11px] text-bc-muted hover:text-bc-text transition-colors"
+              className="absolute right-2 top-1/2 -translate-y-1/2 px-2 py-0.5 text-[11px] text-mycel-muted hover:text-mycel-text transition-colors"
             >
               {showValue ? "Hide" : "Show"}
             </button>
@@ -283,7 +283,7 @@ function SecretCard({ secret, onChanged }: { secret: Secret; onChanged: () => vo
               type="button"
               onClick={handleUpdate}
               disabled={saving || !newValue.trim()}
-              className="px-3 py-1.5 rounded-md bg-bc-accent text-white text-xs font-medium hover:opacity-90 disabled:opacity-50 transition-opacity"
+              className="px-3 py-1.5 rounded-md bg-mycel-accent text-white text-xs font-medium hover:opacity-90 disabled:opacity-50 transition-opacity"
             >
               {saving ? "Saving..." : "Save"}
             </button>
@@ -295,11 +295,11 @@ function SecretCard({ secret, onChanged }: { secret: Secret; onChanged: () => vo
                 setShowValue(false);
                 setSaveError(null);
               }}
-              className="px-3 py-1.5 rounded-md border border-bc-border text-bc-muted text-xs hover:text-bc-text transition-colors"
+              className="px-3 py-1.5 rounded-md border border-mycel-border text-mycel-muted text-xs hover:text-mycel-text transition-colors"
             >
               Cancel
             </button>
-            {saveError && <span className="text-xs text-bc-error">{saveError}</span>}
+            {saveError && <span className="text-xs text-mycel-error">{saveError}</span>}
           </div>
         </div>
       )}
@@ -310,7 +310,7 @@ function SecretCard({ secret, onChanged }: { secret: Secret; onChanged: () => vo
           <button
             type="button"
             onClick={() => setEditing(true)}
-            className="px-3 py-1.5 rounded-md border border-bc-border text-xs text-bc-muted hover:text-bc-accent hover:border-bc-accent/50 transition-colors"
+            className="px-3 py-1.5 rounded-md border border-mycel-border text-xs text-mycel-muted hover:text-mycel-accent hover:border-mycel-accent/50 transition-colors"
           >
             Update Value
           </button>
@@ -320,7 +320,7 @@ function SecretCard({ secret, onChanged }: { secret: Secret; onChanged: () => vo
                 type="button"
                 onClick={handleDelete}
                 disabled={deleting}
-                className="px-3 py-1.5 rounded-md bg-bc-error text-bc-bg text-xs font-medium hover:opacity-90 disabled:opacity-50 transition-opacity"
+                className="px-3 py-1.5 rounded-md bg-mycel-error text-mycel-bg text-xs font-medium hover:opacity-90 disabled:opacity-50 transition-opacity"
               >
                 {deleting ? "Deleting..." : "Confirm Delete"}
               </button>
@@ -328,7 +328,7 @@ function SecretCard({ secret, onChanged }: { secret: Secret; onChanged: () => vo
                 type="button"
                 onClick={() => setConfirming(false)}
                 disabled={deleting}
-                className="px-3 py-1.5 rounded-md border border-bc-border text-bc-muted text-xs hover:text-bc-text transition-colors"
+                className="px-3 py-1.5 rounded-md border border-mycel-border text-mycel-muted text-xs hover:text-mycel-text transition-colors"
               >
                 Cancel
               </button>
@@ -337,7 +337,7 @@ function SecretCard({ secret, onChanged }: { secret: Secret; onChanged: () => vo
             <button
               type="button"
               onClick={() => setConfirming(true)}
-              className="px-3 py-1.5 rounded-md border border-bc-border text-xs text-bc-muted hover:text-bc-error hover:border-red-400/50 transition-colors"
+              className="px-3 py-1.5 rounded-md border border-mycel-border text-xs text-mycel-muted hover:text-mycel-error hover:border-red-400/50 transition-colors"
             >
               Delete
             </button>
@@ -363,7 +363,7 @@ export function Secrets() {
   useHeaderSlot({
     title: <TabHeaderTitle>Secrets</TabHeaderTitle>,
     actions: secrets ? (
-      <span className="text-[11px] text-bc-muted tabular-nums">
+      <span className="text-[11px] text-mycel-muted tabular-nums">
         {secrets.length}
       </span>
     ) : undefined,
@@ -372,7 +372,7 @@ export function Secrets() {
   if (loading && !secrets) {
     return (
       <div className="p-6 space-y-4">
-        <div className="h-6 w-32 animate-pulse rounded bg-bc-border/50" />
+        <div className="h-6 w-32 animate-pulse rounded bg-mycel-border/50" />
         <LoadingSkeleton variant="table" rows={3} />
       </div>
     );
@@ -411,7 +411,7 @@ export function Secrets() {
   return (
     <div className="p-6 space-y-5">
       {/* Page note (title + count live in the top-bar chip) */}
-      <p className="text-xs text-bc-muted">
+      <p className="text-xs text-mycel-muted">
         AES-256-GCM encrypted &middot; values never exposed via API
       </p>
 

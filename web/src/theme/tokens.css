@@ -3,7 +3,7 @@
 @tailwind utilities;
 
 /* ═══════════════════════════════════════════════════════════════════════
-   bc Design System — Theme Tokens
+   mycel Design System — Theme Tokens
    Three themes: Solar Flare (default), Dark, Light
    ═══════════════════════════════════════════════════════════════════════ */
 
@@ -11,20 +11,20 @@
 /* Warm charcoal + neon tangerine — elevated surfaces, subtle glow      */
 /* Inspired by Vercel/Linear dark with warm undertones                  */
 :root {
-  --bc-bg: #0c0a09;
-  --bc-surface: #1c1917;
-  --bc-surface-hover: #292524;
-  --bc-border: #44403c;
-  --bc-text: #fafaf9;
-  --bc-muted: #a8a29e;
-  --bc-accent: #f97316;
-  --bc-accent-hover: #fb923c;
-  --bc-success: #4ade80;
-  --bc-warning: #fbbf24;
-  --bc-error: #f87171;
-  --bc-info: #22d3ee;
-  --bc-shadow: 0 1px 3px rgba(0,0,0,0.4), 0 1px 2px rgba(0,0,0,0.3);
-  --bc-shadow-lg: 0 4px 12px rgba(0,0,0,0.5), 0 2px 4px rgba(0,0,0,0.3);
+  --mycel-bg: #0c0a09;
+  --mycel-surface: #1c1917;
+  --mycel-surface-hover: #292524;
+  --mycel-border: #44403c;
+  --mycel-text: #fafaf9;
+  --mycel-muted: #a8a29e;
+  --mycel-accent: #f97316;
+  --mycel-accent-hover: #fb923c;
+  --mycel-success: #4ade80;
+  --mycel-warning: #fbbf24;
+  --mycel-error: #f87171;
+  --mycel-info: #22d3ee;
+  --mycel-shadow: 0 1px 3px rgba(0,0,0,0.4), 0 1px 2px rgba(0,0,0,0.3);
+  --mycel-shadow-lg: 0 4px 12px rgba(0,0,0,0.5), 0 2px 4px rgba(0,0,0,0.3);
 
   font-family: Inter, "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
   color-scheme: dark;
@@ -33,20 +33,20 @@
 /* ── Dark ────────────────────────────────────────────────────────────── */
 /* Zinc palette + emerald accent — Catppuccin Mocha inspired            */
 html.dark {
-  --bc-bg: #09090b;
-  --bc-surface: #18181b;
-  --bc-surface-hover: #27272a;
-  --bc-border: #3f3f46;
-  --bc-text: #fafafa;
-  --bc-muted: #a1a1aa;
-  --bc-accent: #10b981;
-  --bc-accent-hover: #34d399;
-  --bc-success: #4ade80;
-  --bc-warning: #fbbf24;
-  --bc-error: #f87171;
-  --bc-info: #67e8f9;
-  --bc-shadow: 0 1px 3px rgba(0,0,0,0.5), 0 1px 2px rgba(0,0,0,0.4);
-  --bc-shadow-lg: 0 4px 12px rgba(0,0,0,0.6), 0 2px 4px rgba(0,0,0,0.4);
+  --mycel-bg: #09090b;
+  --mycel-surface: #18181b;
+  --mycel-surface-hover: #27272a;
+  --mycel-border: #3f3f46;
+  --mycel-text: #fafafa;
+  --mycel-muted: #a1a1aa;
+  --mycel-accent: #10b981;
+  --mycel-accent-hover: #34d399;
+  --mycel-success: #4ade80;
+  --mycel-warning: #fbbf24;
+  --mycel-error: #f87171;
+  --mycel-info: #67e8f9;
+  --mycel-shadow: 0 1px 3px rgba(0,0,0,0.5), 0 1px 2px rgba(0,0,0,0.4);
+  --mycel-shadow-lg: 0 4px 12px rgba(0,0,0,0.6), 0 2px 4px rgba(0,0,0,0.4);
 
   color-scheme: dark;
 }
@@ -54,20 +54,20 @@ html.dark {
 /* ── Light ───────────────────────────────────────────────────────────── */
 /* Stone palette + tangerine — Radix Sand inspired, high contrast       */
 html.light {
-  --bc-bg: #f5f5f4;
-  --bc-surface: #ffffff;
-  --bc-surface-hover: #fafaf9;
-  --bc-border: #d6d3d1;
-  --bc-text: #0c0a09;
-  --bc-muted: #57534e;
-  --bc-accent: #ea580c;
-  --bc-accent-hover: #c2410c;
-  --bc-success: #16a34a;
-  --bc-warning: #d97706;
-  --bc-error: #dc2626;
-  --bc-info: #0891b2;
-  --bc-shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.06);
-  --bc-shadow-lg: 0 4px 12px rgba(0,0,0,0.1), 0 2px 4px rgba(0,0,0,0.06);
+  --mycel-bg: #f5f5f4;
+  --mycel-surface: #ffffff;
+  --mycel-surface-hover: #fafaf9;
+  --mycel-border: #d6d3d1;
+  --mycel-text: #0c0a09;
+  --mycel-muted: #57534e;
+  --mycel-accent: #ea580c;
+  --mycel-accent-hover: #c2410c;
+  --mycel-success: #16a34a;
+  --mycel-warning: #d97706;
+  --mycel-error: #dc2626;
+  --mycel-info: #0891b2;
+  --mycel-shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.06);
+  --mycel-shadow-lg: 0 4px 12px rgba(0,0,0,0.1), 0 2px 4px rgba(0,0,0,0.06);
 
   color-scheme: light;
 }
@@ -77,8 +77,8 @@ html.light {
 body {
   margin: 0;
   min-height: 100vh;
-  background-color: var(--bc-bg);
-  color: var(--bc-text);
+  background-color: var(--mycel-bg);
+  color: var(--mycel-text);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -101,9 +101,9 @@ body {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: var(--bc-border);
+  background: var(--mycel-border);
   border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--bc-muted);
+  background: var(--mycel-muted);
 }

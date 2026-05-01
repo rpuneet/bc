@@ -83,26 +83,26 @@ export function InlineTerminal({ agentName, lines = 10 }: InlineTerminalProps) {
   }, [outputLines]);
 
   return (
-    <div className="bg-bc-bg border-t border-bc-border/30 px-4 py-3">
+    <div className="bg-mycel-bg border-t border-mycel-border/30 px-4 py-3">
       <div
         ref={scrollRef}
-        className="rounded bg-bc-bg border border-bc-border/40 p-3 font-mono text-xs leading-relaxed text-bc-text max-h-48 overflow-auto whitespace-pre-wrap"
+        className="rounded bg-mycel-bg border border-mycel-border/40 p-3 font-mono text-xs leading-relaxed text-mycel-text max-h-48 overflow-auto whitespace-pre-wrap"
       >
         {loading ? (
-          <span className="text-bc-muted animate-pulse">Loading output...</span>
+          <span className="text-mycel-muted animate-pulse">Loading output...</span>
         ) : outputLines.length > 0 ? (
           outputLines.join("\n")
         ) : sseError ? (
-          <span className="text-bc-muted">Agent not running.</span>
+          <span className="text-mycel-muted">Agent not running.</span>
         ) : (
-          <span className="text-bc-muted">No output available.</span>
+          <span className="text-mycel-muted">No output available.</span>
         )}
       </div>
       <div className="mt-2 text-right">
         <Link
           to={`/agents/${encodeURIComponent(agentName)}`}
           onClick={(e) => e.stopPropagation()}
-          className="text-xs text-bc-accent hover:underline"
+          className="text-xs text-mycel-accent hover:underline"
         >
           View Detail &rarr;
         </Link>
