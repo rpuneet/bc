@@ -11,7 +11,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/rpuneet/bc/pkg/log"
+	"github.com/rpuneet/mycel/pkg/log"
 )
 
 // runHome is called from runRoot when a workspace is found.

@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/rpuneet/bc/pkg/log"
+	"github.com/rpuneet/mycel/pkg/log"
 )
 
 // DefaultPassword returns the database password from BC_DB_PASSWORD env var,

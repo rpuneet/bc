@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rpuneet/bc/server"
-	"github.com/rpuneet/bc/server/ws"
+	"github.com/rpuneet/mycel/server"
+	"github.com/rpuneet/mycel/server/ws"
 )
 
 func buildTestServer(t *testing.T) *httptest.Server {

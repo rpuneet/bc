@@ -9,10 +9,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/rpuneet/bc/pkg/agent"
-	"github.com/rpuneet/bc/server"
-	"github.com/rpuneet/bc/server/handlers"
-	"github.com/rpuneet/bc/server/ws"
+	"github.com/rpuneet/mycel/pkg/agent"
+	"github.com/rpuneet/mycel/server"
+	"github.com/rpuneet/mycel/server/handlers"
+	"github.com/rpuneet/mycel/server/ws"
 )
 
 // TestAgentHandler_GetConfig verifies GET /api/agents/{name}/config returns

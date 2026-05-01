@@ -8,7 +8,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/rpuneet/bc/pkg/deps"
+	"github.com/rpuneet/mycel/pkg/deps"
 )
 
 // fakeDep is a handler-side test double implementing deps.Dependency.

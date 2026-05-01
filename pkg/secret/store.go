@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rpuneet/bc/pkg/db"
+	"github.com/rpuneet/mycel/pkg/db"
 )
 
 // PassphraseEnvVar is the environment variable for the master passphrase.

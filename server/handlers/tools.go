@@ -6,7 +6,7 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/rpuneet/bc/pkg/tool"
+	"github.com/rpuneet/mycel/pkg/tool"
 )
 
 // ToolHandler handles /api/tools routes.

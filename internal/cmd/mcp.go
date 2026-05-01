@@ -10,11 +10,11 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/rpuneet/bc/pkg/client"
-	"github.com/rpuneet/bc/pkg/log"
-	"github.com/rpuneet/bc/pkg/ui"
-	bcworkspace "github.com/rpuneet/bc/pkg/workspace"
-	srvmcp "github.com/rpuneet/bc/server/mcp"
+	"github.com/rpuneet/mycel/pkg/client"
+	"github.com/rpuneet/mycel/pkg/log"
+	"github.com/rpuneet/mycel/pkg/ui"
+	bcworkspace "github.com/rpuneet/mycel/pkg/workspace"
+	srvmcp "github.com/rpuneet/mycel/server/mcp"
 )
 
 var mcpCmd = &cobra.Command{

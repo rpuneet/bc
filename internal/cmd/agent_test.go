@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/rpuneet/bc/pkg/agent"
+	"github.com/rpuneet/mycel/pkg/agent"
 )
 
 // --- isValidAgentName Tests ---

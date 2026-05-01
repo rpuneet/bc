@@ -5,7 +5,7 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/rpuneet/bc/pkg/workspace"
+	"github.com/rpuneet/mycel/pkg/workspace"
 )
 
 // SettingsHandler handles /api/settings routes.

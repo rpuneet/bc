@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rpuneet/bc/pkg/db"
+	"github.com/rpuneet/mycel/pkg/db"
 )
 
 // ToolType classifies a tool.

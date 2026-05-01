@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rpuneet/bc/server/handlers"
+	"github.com/rpuneet/mycel/server/handlers"
 )
 
 // fakeResolver is a tiny WorkspaceResolver that always returns the

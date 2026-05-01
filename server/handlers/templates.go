@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/rpuneet/bc/pkg/template"
+	"github.com/rpuneet/mycel/pkg/template"
 )
 
 // TemplateHandler handles /api/templates routes.

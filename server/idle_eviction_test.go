@@ -19,7 +19,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rpuneet/bc/pkg/workspace"
+	"github.com/rpuneet/mycel/pkg/workspace"
 )
 
 // TestWorkspaceManager_IdleEviction verifies:

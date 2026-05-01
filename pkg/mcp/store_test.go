@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/rpuneet/bc/pkg/db"
+	"github.com/rpuneet/mycel/pkg/db"
 )
 
 func setupTestStore(t *testing.T) *Store {

@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rpuneet/bc/pkg/stats"
+	"github.com/rpuneet/mycel/pkg/stats"
 )
 
 // statsQuery holds parsed query parameters common to all stats endpoints.

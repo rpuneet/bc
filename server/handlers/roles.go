@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/rpuneet/bc/pkg/workspace"
+	"github.com/rpuneet/mycel/pkg/workspace"
 )
 
 // RolesHandler handles /api/roles routes.

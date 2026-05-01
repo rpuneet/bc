@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rpuneet/bc/pkg/workspace"
+	"github.com/rpuneet/mycel/pkg/workspace"
 )
 
 // initTestWorkspace creates a minimal workspace via workspace.Init under

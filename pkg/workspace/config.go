@@ -7,7 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/rpuneet/bc/pkg/log"
+	"github.com/rpuneet/mycel/pkg/log"
 )
 
 // logConfigPromoteInfo is called when settings.json has been successfully

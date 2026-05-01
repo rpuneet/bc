@@ -7,10 +7,10 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/rpuneet/bc/pkg/gateway"
-	bcwhatsapp "github.com/rpuneet/bc/pkg/gateway/whatsapp"
-	"github.com/rpuneet/bc/pkg/notify"
-	"github.com/rpuneet/bc/pkg/workspace"
+	"github.com/rpuneet/mycel/pkg/gateway"
+	bcwhatsapp "github.com/rpuneet/mycel/pkg/gateway/whatsapp"
+	"github.com/rpuneet/mycel/pkg/notify"
+	"github.com/rpuneet/mycel/pkg/workspace"
 )
 
 // GatewayHandler handles /api/gateways routes.

@@ -12,11 +12,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rpuneet/bc/pkg/provider"
-	"github.com/rpuneet/bc/pkg/runtime"
-	"github.com/rpuneet/bc/pkg/tmux"
-	"github.com/rpuneet/bc/pkg/workspace"
-	"github.com/rpuneet/bc/pkg/worktree"
+	"github.com/rpuneet/mycel/pkg/provider"
+	"github.com/rpuneet/mycel/pkg/runtime"
+	"github.com/rpuneet/mycel/pkg/tmux"
+	"github.com/rpuneet/mycel/pkg/workspace"
+	"github.com/rpuneet/mycel/pkg/worktree"
 )
 
 func TestMain(m *testing.M) {

@@ -8,8 +8,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/rpuneet/bc/pkg/template"
-	"github.com/rpuneet/bc/pkg/workspace"
+	"github.com/rpuneet/mycel/pkg/template"
+	"github.com/rpuneet/mycel/pkg/workspace"
 )
 
 var templateCmd = &cobra.Command{

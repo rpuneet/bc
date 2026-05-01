@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/rpuneet/bc/pkg/db"
+	"github.com/rpuneet/mycel/pkg/db"
 )
 
 // SQLiteStore provides SQLite-backed persistence for agent state.

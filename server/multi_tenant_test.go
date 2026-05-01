@@ -24,10 +24,10 @@ import (
 	"sort"
 	"testing"
 
-	bcevents "github.com/rpuneet/bc/pkg/events"
-	"github.com/rpuneet/bc/pkg/workspace"
-	"github.com/rpuneet/bc/server"
-	bcws "github.com/rpuneet/bc/server/ws"
+	bcevents "github.com/rpuneet/mycel/pkg/events"
+	"github.com/rpuneet/mycel/pkg/workspace"
+	"github.com/rpuneet/mycel/server"
+	bcws "github.com/rpuneet/mycel/server/ws"
 )
 
 // multiTenantHarness is the test fixture: a running bcd + two registered

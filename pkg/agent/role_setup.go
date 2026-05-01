@@ -12,12 +12,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rpuneet/bc/pkg/log"
-	pkgmcp "github.com/rpuneet/bc/pkg/mcp"
-	"github.com/rpuneet/bc/pkg/provider"
-	"github.com/rpuneet/bc/pkg/secret"
-	pkgtool "github.com/rpuneet/bc/pkg/tool"
-	"github.com/rpuneet/bc/pkg/workspace"
+	"github.com/rpuneet/mycel/pkg/log"
+	pkgmcp "github.com/rpuneet/mycel/pkg/mcp"
+	"github.com/rpuneet/mycel/pkg/provider"
+	"github.com/rpuneet/mycel/pkg/secret"
+	pkgtool "github.com/rpuneet/mycel/pkg/tool"
+	"github.com/rpuneet/mycel/pkg/workspace"
 )
 
 // SetupAgentFromRole resolves a role via BFS inheritance and writes all

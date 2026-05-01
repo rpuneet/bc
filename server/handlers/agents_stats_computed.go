@@ -11,8 +11,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/rpuneet/bc/pkg/agent"
-	bcstats "github.com/rpuneet/bc/pkg/stats"
+	"github.com/rpuneet/mycel/pkg/agent"
+	bcstats "github.com/rpuneet/mycel/pkg/stats"
 )
 
 // computedStatsSampler is the shared TmuxSampler used by the computed-stats

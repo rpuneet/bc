@@ -14,8 +14,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rpuneet/bc/pkg/workspace"
-	"github.com/rpuneet/bc/server/mcp"
+	"github.com/rpuneet/mycel/pkg/workspace"
+	"github.com/rpuneet/mycel/server/mcp"
 )
 
 // ─── helpers ─────────────────────────────────────────────────────────────────

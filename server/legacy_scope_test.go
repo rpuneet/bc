@@ -10,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/rpuneet/bc/pkg/workspace"
-	bcws "github.com/rpuneet/bc/server/ws"
+	"github.com/rpuneet/mycel/pkg/workspace"
+	bcws "github.com/rpuneet/mycel/server/ws"
 )
 
 // bootLegacyScope produces a working mgr + next handler so each test

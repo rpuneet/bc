@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/rpuneet/bc/pkg/workspace"
+	"github.com/rpuneet/mycel/pkg/workspace"
 )
 
 func newTestWorkspace(t *testing.T) *workspace.Workspace {

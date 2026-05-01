@@ -30,10 +30,10 @@ import (
 	"path/filepath"
 	"testing"
 
-	bcdb "github.com/rpuneet/bc/pkg/db"
-	"github.com/rpuneet/bc/pkg/workspace"
-	"github.com/rpuneet/bc/server"
-	bcws "github.com/rpuneet/bc/server/ws"
+	bcdb "github.com/rpuneet/mycel/pkg/db"
+	"github.com/rpuneet/mycel/pkg/workspace"
+	"github.com/rpuneet/mycel/server"
+	bcws "github.com/rpuneet/mycel/server/ws"
 )
 
 // TestCORS_WorkspaceScope_Coexist boots a bcd server with CORS enabled

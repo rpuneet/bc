@@ -17,8 +17,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/rpuneet/bc/pkg/log"
-	servermcp "github.com/rpuneet/bc/server/mcp"
+	"github.com/rpuneet/mycel/pkg/log"
+	servermcp "github.com/rpuneet/mycel/server/mcp"
 )
 
 // perWorkspaceMCP tracks one MCP server per workspace ID so dispatch is

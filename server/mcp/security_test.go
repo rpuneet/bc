@@ -7,9 +7,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/rpuneet/bc/pkg/gateway"
-	"github.com/rpuneet/bc/pkg/workspace"
-	"github.com/rpuneet/bc/server/mcp"
+	"github.com/rpuneet/mycel/pkg/gateway"
+	"github.com/rpuneet/mycel/pkg/workspace"
+	"github.com/rpuneet/mycel/server/mcp"
 )
 
 // ─── #2967: MCP sender spoof regression ──────────────────────────────────────

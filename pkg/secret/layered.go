@@ -5,7 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/rpuneet/bc/pkg/db"
+	"github.com/rpuneet/mycel/pkg/db"
 )
 
 // Scope distinguishes which layer of a layered secret store holds a

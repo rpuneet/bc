@@ -10,10 +10,10 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/rpuneet/bc/pkg/agent"
-	"github.com/rpuneet/bc/pkg/cost"
-	"github.com/rpuneet/bc/pkg/provider"
-	"github.com/rpuneet/bc/pkg/workspace"
+	"github.com/rpuneet/mycel/pkg/agent"
+	"github.com/rpuneet/mycel/pkg/cost"
+	"github.com/rpuneet/mycel/pkg/provider"
+	"github.com/rpuneet/mycel/pkg/workspace"
 )
 
 // ProviderInfo represents a provider with usage stats.

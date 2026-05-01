@@ -9,9 +9,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/rpuneet/bc/pkg/agent"
-	"github.com/rpuneet/bc/pkg/log"
-	"github.com/rpuneet/bc/pkg/workspace"
+	"github.com/rpuneet/mycel/pkg/agent"
+	"github.com/rpuneet/mycel/pkg/log"
+	"github.com/rpuneet/mycel/pkg/workspace"
 )
 
 // WorkspacesHandler exposes the global multi-workspace registry API.

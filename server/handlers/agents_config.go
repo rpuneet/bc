@@ -6,8 +6,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/rpuneet/bc/pkg/log"
-	"github.com/rpuneet/bc/pkg/provider"
+	"github.com/rpuneet/mycel/pkg/log"
+	"github.com/rpuneet/mycel/pkg/provider"
 )
 
 // promptFileForTool returns the filename the given tool writes its system

@@ -7,11 +7,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rpuneet/bc/pkg/agent"
-	"github.com/rpuneet/bc/pkg/cost"
-	"github.com/rpuneet/bc/pkg/gateway"
-	"github.com/rpuneet/bc/pkg/notify"
-	"github.com/rpuneet/bc/pkg/workspace"
+	"github.com/rpuneet/mycel/pkg/agent"
+	"github.com/rpuneet/mycel/pkg/cost"
+	"github.com/rpuneet/mycel/pkg/gateway"
+	"github.com/rpuneet/mycel/pkg/notify"
+	"github.com/rpuneet/mycel/pkg/workspace"
 )
 
 // ctxKeyAgent is the context key for the agent ID extracted from the SSE connection.

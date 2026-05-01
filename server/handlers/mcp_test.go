@@ -7,8 +7,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/rpuneet/bc/pkg/db"
-	"github.com/rpuneet/bc/pkg/mcp"
+	"github.com/rpuneet/mycel/pkg/db"
+	"github.com/rpuneet/mycel/pkg/mcp"
 )
 
 func newTestMCPStore(t *testing.T) *mcp.Store {

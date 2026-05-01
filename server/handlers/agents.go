@@ -15,15 +15,15 @@ import (
 	"sync"
 	"time"
 
-	"github.com/rpuneet/bc/pkg/agent"
-	"github.com/rpuneet/bc/pkg/cost"
-	"github.com/rpuneet/bc/pkg/events"
-	"github.com/rpuneet/bc/pkg/log"
-	"github.com/rpuneet/bc/pkg/stats"
-	"github.com/rpuneet/bc/pkg/template"
-	"github.com/rpuneet/bc/pkg/token"
-	"github.com/rpuneet/bc/pkg/workspace"
-	"github.com/rpuneet/bc/server/ws"
+	"github.com/rpuneet/mycel/pkg/agent"
+	"github.com/rpuneet/mycel/pkg/cost"
+	"github.com/rpuneet/mycel/pkg/events"
+	"github.com/rpuneet/mycel/pkg/log"
+	"github.com/rpuneet/mycel/pkg/stats"
+	"github.com/rpuneet/mycel/pkg/template"
+	"github.com/rpuneet/mycel/pkg/token"
+	"github.com/rpuneet/mycel/pkg/workspace"
+	"github.com/rpuneet/mycel/server/ws"
 )
 
 // HookEventRequest is the rich payload accepted by POST /api/agents/{name}/hook.

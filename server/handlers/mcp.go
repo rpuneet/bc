@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/rpuneet/bc/pkg/mcp"
+	"github.com/rpuneet/mycel/pkg/mcp"
 )
 
 // MCPHandler handles /api/mcp routes.

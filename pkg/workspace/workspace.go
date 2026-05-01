@@ -34,8 +34,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/rpuneet/bc/pkg/db"
-	"github.com/rpuneet/bc/pkg/log"
+	"github.com/rpuneet/mycel/pkg/db"
+	"github.com/rpuneet/mycel/pkg/log"
 )
 
 // Workspace represents an active workspace.
