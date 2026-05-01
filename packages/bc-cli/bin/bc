@@ -1,3 +1,0 @@
-#!/bin/sh
-echo "bc binary not installed. Run: npm install bc-cli" >&2
-exit 1
