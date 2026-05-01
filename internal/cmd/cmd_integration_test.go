@@ -3,6 +3,7 @@ package cmd
 import (
 	"bytes"
 	"encoding/json"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -73,9 +74,31 @@ func setupIntegrationWorkspace(t *testing.T) (string, func()) {
 	}
 }
 
+// executeIntegrationCmdT runs rootCmd with an isolated fake bcd server.
+// If handler is non-nil, it overrides the package-level fake bcd handler
+// for the duration of the test. The default handler (set in TestMain)
+// returns 200 on /health and 404 elsewhere — enough to exercise CLI
+// error paths without ever reaching the real bcd at :9374.
+//
+// Prefer this over executeIntegrationCmd when a test wants to assert
+// against bcd responses (e.g. a successful agent send). Otherwise the
+// plain executeIntegrationCmd is fine — TestMain pins BC_DAEMON_ADDR
+// at the fake server for the whole test process.
+func executeIntegrationCmdT(t *testing.T, handler http.HandlerFunc, args ...string) (string, string, error) {
+	t.Helper()
+	if handler != nil {
+		setTestBcdHandler(t, handler)
+	}
+	return executeIntegrationCmd(args...)
+}
+
 // executeIntegrationCmd runs rootCmd with the given args, capturing real stdout output.
 // Commands use fmt.Printf/Println (writing to os.Stdout), so we redirect
 // os.Stdout to a pipe to capture output. Returns captured stdout and any error.
+//
+// All callers are automatically isolated from the production bcd: TestMain
+// starts a fake httptest.Server and pins BC_DAEMON_ADDR to it for the
+// entire test process.
 func executeIntegrationCmd(args ...string) (string, string, error) {
 	// Save and redirect os.Stdout
 	origStdout := os.Stdout
@@ -146,12 +169,25 @@ func TestAgentSendNoWorkspace(t *testing.T) {
 	}
 	defer func() { _ = os.Chdir(origDir) }()
 
-	_, _, err = executeIntegrationCmd("agent", "send", "worker-01", "hello")
+	// Use the per-test handler variant so this test additionally asserts
+	// no bcd traffic is generated when there's no workspace: any request
+	// the CLI makes would be a bug (workspace check must run first).
+	bcdHit := false
+	handler := func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/health" {
+			bcdHit = true
+		}
+		w.WriteHeader(http.StatusOK)
+	}
+	_, _, err = executeIntegrationCmdT(t, handler, "agent", "send", "worker-01", "hello")
 	if err == nil {
 		t.Fatal("expected error when not in workspace, got nil")
 	}
 	if !strings.Contains(err.Error(), "not in a bc workspace") {
 		t.Errorf("expected workspace error, got: %v", err)
+	}
+	if bcdHit {
+		t.Error("CLI should not contact bcd when there is no workspace")
 	}
 }
 
