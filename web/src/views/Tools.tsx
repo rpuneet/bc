@@ -326,7 +326,11 @@ export function Tools() {
     setTogglingSet((prev) => new Set(prev).add(tool.name));
 
     try {
-      wasDisabled ? await api.enableTool(tool.name) : await api.disableTool(tool.name);
+      if (wasDisabled) {
+        await api.enableTool(tool.name);
+      } else {
+        await api.disableTool(tool.name);
+      }
       addToast("success", `${tool.name} ${wasDisabled ? "enabled" : "disabled"}`);
       setCheckedTools(null);
       refresh();
