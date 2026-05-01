@@ -6,7 +6,6 @@ import {
   StaggerChildren,
   StaggerItem,
   FadeUp,
-  RevealSection,
 } from "../_components/Motion";
 
 const PRINCIPLES = [

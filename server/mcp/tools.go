@@ -137,6 +137,31 @@ func definedTools() []Tool {
 	}
 }
 
+// Per-field input length caps for MCP tool arguments. Enforced at handler
+// entry so abusive callers can't exhaust memory via the /_mcp/* routes (which
+// are exempt from the global MaxBodySize middleware — see
+// server/handlers/helpers.go).
+const (
+	maxMessageLen = 64 * 1024 // 64KB — chat-style messages
+	maxCommentLen = 64 * 1024 // 64KB — file upload comments
+	maxChannelLen = 256       // gateway channel identifier
+	maxSenderLen  = 256       // sender / agent display name
+	maxRoleLen    = 256       // role filter on list_agents
+	maxPathLen    = 4 * 1024  // file_path on send_file (matches typical PATH_MAX)
+)
+
+// validateLen returns a tool error result if v exceeds maxBytes. The bool
+// indicates whether the caller should return early.
+func validateLen(field, v string, maxBytes int) (*toolsCallResult, bool) {
+	if len(v) > maxBytes {
+		return &toolsCallResult{
+			Content: []ToolContent{textContent(fmt.Sprintf("%s too long: %d bytes (max %d)", field, len(v), maxBytes))},
+			IsError: true,
+		}, true
+	}
+	return nil, false
+}
+
 // ─── send_message ───────────────────────────────────────────────────────────
 
 func (s *Server) toolSendMessage(ctx context.Context, raw json.RawMessage) (*toolsCallResult, error) {
@@ -153,6 +178,15 @@ func (s *Server) toolSendMessage(ctx context.Context, raw json.RawMessage) (*too
 			Content: []ToolContent{textContent("channel and message are required")},
 			IsError: true,
 		}, nil
+	}
+	if res, stop := validateLen("channel", args.Channel, maxChannelLen); stop {
+		return res, nil
+	}
+	if res, stop := validateLen("message", args.Message, maxMessageLen); stop {
+		return res, nil
+	}
+	if res, stop := validateLen("sender", args.Sender, maxSenderLen); stop {
+		return res, nil
 	}
 	// Always derive the sender from the authenticated context — never trust
 	// the client-supplied value. See resolveSender / issue #2967.
@@ -230,6 +264,9 @@ func (s *Server) toolReadChannel(ctx context.Context, raw json.RawMessage) (*too
 			Content: []ToolContent{textContent("channel is required")},
 			IsError: true,
 		}, nil
+	}
+	if res, stop := validateLen("channel", args.Channel, maxChannelLen); stop {
+		return res, nil
 	}
 	if args.Limit <= 0 {
 		args.Limit = 20
@@ -317,6 +354,9 @@ func (s *Server) toolListAgents(raw json.RawMessage) (*toolsCallResult, error) {
 	if len(raw) > 0 {
 		_ = json.Unmarshal(raw, &args) //nolint:errcheck // optional args
 	}
+	if res, stop := validateLen("role", args.Role, maxRoleLen); stop {
+		return res, nil
+	}
 
 	if s.agents == nil {
 		return &toolsCallResult{
@@ -365,6 +405,15 @@ func (s *Server) toolSendFile(ctx context.Context, raw json.RawMessage) (*toolsC
 			Content: []ToolContent{textContent("channel and file_path are required")},
 			IsError: true,
 		}, nil
+	}
+	if res, stop := validateLen("channel", args.Channel, maxChannelLen); stop {
+		return res, nil
+	}
+	if res, stop := validateLen("file_path", args.FilePath, maxPathLen); stop {
+		return res, nil
+	}
+	if res, stop := validateLen("comment", args.Comment, maxCommentLen); stop {
+		return res, nil
 	}
 
 	// Validate file path is under workspace to prevent reading arbitrary files
