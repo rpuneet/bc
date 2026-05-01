@@ -275,7 +275,7 @@ func (h *ProviderHandler) addMCP(w http.ResponseWriter, r *http.Request, name st
 
 	// Use the provider's ConfigAdapter if available.
 	type mcpSetup interface {
-		SetupMCP(targetDir, agentName string, servers map[string]provider.MCPEntry) error
+		SetupMCP(ctx context.Context, targetDir, agentName string, servers map[string]provider.MCPEntry) error
 	}
 	adapter, hasAdapter := p.(mcpSetup)
 	if !hasAdapter {
@@ -296,7 +296,7 @@ func (h *ProviderHandler) addMCP(w http.ResponseWriter, r *http.Request, name st
 		URL:       req.URL,
 		Command:   req.Command,
 	}
-	if err := adapter.SetupMCP(h.ws.RootDir, "", map[string]provider.MCPEntry{req.Name: entry}); err != nil {
+	if err := adapter.SetupMCP(r.Context(), h.ws.RootDir, "", map[string]provider.MCPEntry{req.Name: entry}); err != nil {
 		httpInternalError(w, "add mcp server", err)
 		return
 	}
