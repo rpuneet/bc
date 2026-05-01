@@ -1,12 +1,12 @@
 {
-  "name": "@bc/agent-runner",
+  "name": "@mycel/agent-runner",
   "version": "0.1.0",
   "description": "Thin HTTP wrapper around the Claude Agent SDK. Hosts a single Claude agent and exposes it over REST + SSE so bcd can drive it.",
   "license": "MIT",
   "type": "module",
   "main": "dist/index.js",
   "bin": {
-    "bc-agent-runner": "dist/index.js"
+    "mycel-agent-runner": "dist/index.js"
   },
   "scripts": {
     "build": "tsc",

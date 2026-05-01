@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "@bc/agent-runner",
+      "name": "@mycel/agent-runner",
       "dependencies": {
         "@anthropic-ai/claude-agent-sdk": "^0.2.71",
         "express": "^4.21.2",

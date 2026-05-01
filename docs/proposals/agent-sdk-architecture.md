@@ -257,7 +257,7 @@ hooks={
 A thin wrapper (~100 lines) that runs inside the container (or on host for localhost runtime):
 
 ```typescript
-// bc-agent-runner/index.ts
+// mycel-agent-runner/index.ts
 import { ClaudeAgent } from '@anthropic-ai/claude-agent-sdk'
 import express from 'express'
 
@@ -335,7 +335,7 @@ app.post('/stop', (req, res) => {
   res.json({ status: 'stopped' })
 })
 
-app.listen(8080, () => console.log(`bc-agent-runner for ${AGENT_NAME} on :8080`))
+app.listen(8080, () => console.log(`mycel-agent-runner for ${AGENT_NAME} on :8080`))
 ```
 
 ### How bcd uses it
@@ -345,7 +345,7 @@ app.listen(8080, () => console.log(`bc-agent-runner for ${AGENT_NAME} on :8080`)
 // Instead of:
 //   docker run ... bash -c "tmux new-session 'claude --dangerously-skip-permissions'"
 // Now:
-//   docker run ... node /app/bc-agent-runner/index.js
+//   docker run ... node /app/mycel-agent-runner/index.js
 
 // In pkg/agent/agent.go — sending work to agent
 // Instead of:
@@ -380,11 +380,11 @@ RUN npm install -g @anthropic-ai/claude-code
 ### With SDK: bc-agent-sdk
 ```dockerfile
 FROM node:22-slim
-COPY bc-agent-runner/ /app/bc-agent-runner/
-RUN cd /app/bc-agent-runner && npm install
+COPY mycel-agent-runner/ /app/mycel-agent-runner/
+RUN cd /app/mycel-agent-runner && npm install
 # SDK uses API key, no login needed
 ENV ANTHROPIC_API_KEY=${secret:ANTHROPIC_API_KEY}
-CMD ["node", "/app/bc-agent-runner/index.js"]
+CMD ["node", "/app/mycel-agent-runner/index.js"]
 ```
 
 - Smaller image (no claude CLI, no tmux needed inside container)
@@ -395,7 +395,7 @@ CMD ["node", "/app/bc-agent-runner/index.js"]
 
 ## Migration Path
 
-### Phase 1: Build bc-agent-runner (SMALL)
+### Phase 1: Build mycel-agent-runner (SMALL)
 - Create the thin SDK wrapper as shown above
 - Test locally with one agent
 - Verify: query, status, messages, stop all work
@@ -453,7 +453,7 @@ CMD ["node", "/app/bc-agent-runner/index.js"]
 - SDK is Claude-specific
 - Mitigation: ConfigAdapter abstraction (#2852) already handles this
 - Other providers use their own SDKs (ADK for Gemini, Codex SDK for OpenAI)
-- bc-agent-runner would be Claude-specific; other providers get their own runners
+- mycel-agent-runner would be Claude-specific; other providers get their own runners
 
 ---
 
@@ -463,7 +463,7 @@ The Claude Agent SDK replaces the bottom layer of bc's stack:
 
 ```
 BEFORE:  bcd → Docker → tmux → claude CLI → terminal output → regex
-AFTER:   bcd → Docker → bc-agent-runner → Claude SDK → typed events → HTTP
+AFTER:   bcd → Docker → mycel-agent-runner → Claude SDK → typed events → HTTP
 ```
 
 Same isolation (Docker + worktrees). Same orchestration (bcd). Same dashboard.

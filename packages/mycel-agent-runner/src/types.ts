@@ -1,4 +1,4 @@
-// HTTP API contract for bc-agent-runner.
+// HTTP API contract for mycel-agent-runner.
 //
 // One running process == one Claude agent. bcd POSTs prompts in, listens to
 // /events for typed activity, and reads /messages for the conversation log.

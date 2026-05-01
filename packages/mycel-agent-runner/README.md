@@ -1,4 +1,4 @@
-# bc-agent-runner
+# mycel-agent-runner
 
 Thin HTTP wrapper around the [Claude Agent SDK](https://platform.claude.com/docs/en/agent-sdk).
 One process == one Claude agent. bcd POSTs prompts in and listens to typed
@@ -68,7 +68,7 @@ from environment variables.
 ## Running locally
 
 ```bash
-cd packages/bc-agent-runner
+cd packages/mycel-agent-runner
 bun install
 bun run build
 ANTHROPIC_API_KEY=sk-... \
