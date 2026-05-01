@@ -3,8 +3,8 @@ site_description: Multi-agent AI orchestration CLI
 site_author: bc contributors
 site_url: https://rpuneet.github.io/bc
 
-repo_name: rpuneet/bc
-repo_url: https://github.com/rpuneet/bc
+repo_name: rpuneet/mycel
+repo_url: https://github.com/rpuneet/mycel
 edit_uri: edit/main/docs/
 
 theme:
@@ -105,4 +105,4 @@ nav:
 extra:
   social:
     - icon: fontawesome/brands/github
-      link: https://github.com/rpuneet/bc
+      link: https://github.com/rpuneet/mycel

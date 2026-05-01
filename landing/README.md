@@ -14,7 +14,7 @@ A modern, interactive landing page showcasing mycel's capabilities for coordinat
 - **TUI Dashboard** - Visual monitoring of agent status and progress
 - **Multi-Tool Support** - Works with Claude Code, Cursor, and other AI development tools
 
-Learn more: [bc on GitHub](https://github.com/rpuneet/bc)
+Learn more: [bc on GitHub](https://github.com/rpuneet/mycel)
 
 ## 📋 Project Structure
 
@@ -276,7 +276,7 @@ Create a `.env.local` file for local development:
 
 ## 📚 Resources
 
-- [bc Documentation](https://github.com/rpuneet/bc)
+- [bc Documentation](https://github.com/rpuneet/mycel)
 - [Next.js Documentation](https://nextjs.org/docs)
 - [Tailwind CSS Documentation](https://tailwindcss.com/docs)
 - [Framer Motion Documentation](https://www.framer.com/motion)

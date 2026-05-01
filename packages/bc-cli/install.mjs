@@ -15,7 +15,7 @@ import { fileURLToPath } from "node:url";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const BIN_DIR = join(__dirname, "bin");
 const BIN_PATH = join(BIN_DIR, "bc");
-const REPO = "rpuneet/bc";
+const REPO = "rpuneet/mycel";
 
 function getPlatform() {
   const platform = process.platform;
@@ -211,15 +211,15 @@ install().catch((err) => {
   console.error("You can install bc manually:");
   console.error("");
   console.error("  # macOS (Homebrew)");
-  console.error("  brew install rpuneet/bc/bc-infra");
+  console.error("  brew install rpuneet/mycel/bc-infra");
   console.error("");
   console.error("  # From source");
   console.error(
-    "  git clone https://github.com/rpuneet/bc && cd bc && make install-local-bc"
+    "  git clone https://github.com/rpuneet/mycel && cd bc && make install-local-bc"
   );
   console.error("");
   console.error("  # Direct download");
-  console.error("  https://github.com/rpuneet/bc/releases/latest");
+  console.error("  https://github.com/rpuneet/mycel/releases/latest");
   console.error("");
 
   // Exit 0 so npm install doesn't fail — the placeholder script will tell

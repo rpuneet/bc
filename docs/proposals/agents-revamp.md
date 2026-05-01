@@ -7,7 +7,7 @@
 
 # Proposal: Agents Revamp v2 — Templates, Avatars, and Live Operations
 
-> **Status:** Proposal (v2) &nbsp;|&nbsp; **Author:** zen-zebra &nbsp;|&nbsp; **Date:** 2026-04-13 &nbsp;|&nbsp; **Issue:** [#2979](https://github.com/rpuneet/bc/issues/2979)
+> **Status:** Proposal (v2) &nbsp;|&nbsp; **Author:** zen-zebra &nbsp;|&nbsp; **Date:** 2026-04-13 &nbsp;|&nbsp; **Issue:** [#2979](https://github.com/rpuneet/mycel/issues/2979)
 
 ---
 

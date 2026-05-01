@@ -131,16 +131,16 @@ release:
 
     | Method | Command |
     |--------|---------|
-    | **Homebrew** (macOS) | `brew install rpuneet/bc/bc` |
+    | **Homebrew** (macOS) | `brew install rpuneet/mycel/bc` |
     | **npm / bun** (Linux) | `npm install -g bc-cli` or `bunx bc-cli` |
-    | **Go** | `go install github.com/rpuneet/bc/cmd/bc@{{ .Tag }}` |
-    | **Script** | `curl -fsSL https://raw.githubusercontent.com/rpuneet/bc/main/scripts/install.sh \| bash` |
-    | **Docker** | `docker pull ghcr.io/rpuneet/bc:{{ .Tag }}` |
+    | **Go** | `go install github.com/rpuneet/mycel/cmd/bc@{{ .Tag }}` |
+    | **Script** | `curl -fsSL https://raw.githubusercontent.com/rpuneet/mycel/main/scripts/install.sh \| bash` |
+    | **Docker** | `docker pull ghcr.io/rpuneet/mycel:{{ .Tag }}` |
     | **Scoop** (Windows) | `scoop bucket add bc https://github.com/rpuneet/scoop-bc && scoop install bc` |
   footer: |
     ---
 
-    **Full Changelog**: https://github.com/rpuneet/bc/compare/{{ .PreviousTag }}...{{ .Tag }}
+    **Full Changelog**: https://github.com/rpuneet/mycel/compare/{{ .PreviousTag }}...{{ .Tag }}
 
 brews:
   - name: bc

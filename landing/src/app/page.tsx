@@ -19,10 +19,10 @@ import { AnimatedBackground } from "./_components/AnimatedBackground";
 
 /* ── Install commands by platform ── */
 const installCommands = {
-  macOS: "curl -fsSL https://raw.githubusercontent.com/rpuneet/bc/main/scripts/install.sh | bash",
-  Linux: "curl -fsSL https://raw.githubusercontent.com/rpuneet/bc/main/scripts/install.sh | bash",
-  Homebrew: "brew install rpuneet/bc/mycel",
-  Docker: "docker run -p 9374:9374 ghcr.io/rpuneet/bc mycel up",
+  macOS: "curl -fsSL https://raw.githubusercontent.com/rpuneet/mycel/main/scripts/install.sh | bash",
+  Linux: "curl -fsSL https://raw.githubusercontent.com/rpuneet/mycel/main/scripts/install.sh | bash",
+  Homebrew: "brew install rpuneet/mycel/mycel",
+  Docker: "docker run -p 9374:9374 ghcr.io/rpuneet/mycel mycel up",
 } as const;
 
 type Platform = keyof typeof installCommands;
@@ -183,7 +183,7 @@ export default function Home() {
                     <ExternalLink className="h-3.5 w-3.5" />
                   </Link>
                   <Link
-                    href="https://github.com/rpuneet/bc"
+                    href="https://github.com/rpuneet/mycel"
                     className="inline-flex h-11 items-center gap-2 rounded-lg border border-outline-variant/20 px-6 text-sm font-medium text-on-surface-variant transition-colors hover:bg-surface-container hover:border-primary/30 hover:text-primary active:scale-[0.97] font-body"
                   >
                     <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
@@ -195,13 +195,13 @@ export default function Home() {
                 {/* GitHub badges */}
                 <div className="flex items-center gap-2 flex-wrap justify-center">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src="https://img.shields.io/github/stars/rpuneet/bc?style=flat-square&color=ea580c&labelColor=1e1b18" alt="GitHub stars" className="h-5" />
+                  <img src="https://img.shields.io/github/stars/rpuneet/mycel?style=flat-square&color=ea580c&labelColor=1e1b18" alt="GitHub stars" className="h-5" />
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src="https://img.shields.io/github/license/rpuneet/bc?style=flat-square&color=ea580c&labelColor=1e1b18" alt="License" className="h-5" />
+                  <img src="https://img.shields.io/github/license/rpuneet/mycel?style=flat-square&color=ea580c&labelColor=1e1b18" alt="License" className="h-5" />
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src="https://img.shields.io/github/last-commit/rpuneet/bc?style=flat-square&color=ea580c&labelColor=1e1b18" alt="Last commit" className="h-5" />
+                  <img src="https://img.shields.io/github/last-commit/rpuneet/mycel?style=flat-square&color=ea580c&labelColor=1e1b18" alt="Last commit" className="h-5" />
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src="https://img.shields.io/github/go-mod/go-version/rpuneet/bc?style=flat-square&color=ea580c&labelColor=1e1b18" alt="Go version" className="h-5" />
+                  <img src="https://img.shields.io/github/go-mod/go-version/rpuneet/mycel?style=flat-square&color=ea580c&labelColor=1e1b18" alt="Go version" className="h-5" />
                 </div>
               </div>
             </FadeUp>
@@ -348,7 +348,7 @@ export default function Home() {
             </p>
             <div className="mt-8">
               <Link
-                href="https://github.com/rpuneet/bc"
+                href="https://github.com/rpuneet/mycel"
                 className="inline-flex h-11 items-center gap-2 rounded-lg bg-primary px-8 text-sm font-semibold text-primary-foreground shadow-[var(--btn-shadow)] transition-all hover:shadow-[0_0_20px_rgba(234,88,12,0.3)] active:scale-[0.97]"
               >
                 <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">

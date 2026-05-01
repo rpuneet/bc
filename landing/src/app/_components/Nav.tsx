@@ -95,17 +95,17 @@ function GetStartedDropdown() {
     {
       icon: Apple,
       label: "macOS / Linux",
-      cmd: "curl -fsSL https://raw.githubusercontent.com/rpuneet/bc/main/scripts/install.sh | bash",
+      cmd: "curl -fsSL https://raw.githubusercontent.com/rpuneet/mycel/main/scripts/install.sh | bash",
     },
     {
       icon: Monitor,
       label: "Homebrew",
-      cmd: "brew install rpuneet/bc/mycel",
+      cmd: "brew install rpuneet/mycel/mycel",
     },
     {
       icon: Container,
       label: "Docker",
-      cmd: "docker run -p 9374:9374 -v $(pwd):/workspace ghcr.io/rpuneet/bc bc up --addr 0.0.0.0:9374",
+      cmd: "docker run -p 9374:9374 -v $(pwd):/workspace ghcr.io/rpuneet/mycel bc up --addr 0.0.0.0:9374",
     },
   ];
 
@@ -325,10 +325,10 @@ export function Nav() {
                   Install
                 </div>
                 <code className="block text-xs font-label text-on-background bg-surface-container-highest/50 rounded px-2.5 py-2 mb-1.5">
-                  curl -fsSL https://raw.githubusercontent.com/rpuneet/bc/main/scripts/install.sh | bash
+                  curl -fsSL https://raw.githubusercontent.com/rpuneet/mycel/main/scripts/install.sh | bash
                 </code>
                 <code className="block text-xs font-label text-on-background bg-surface-container-highest/50 rounded px-2.5 py-2 mb-1.5">
-                  brew install rpuneet/bc/mycel
+                  brew install rpuneet/mycel/mycel
                 </code>
                 <Link
                   href="/docs#installation"

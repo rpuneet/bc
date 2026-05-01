@@ -16,7 +16,7 @@ Thank you for your interest in contributing to bc! This document provides guidel
 
 ```bash
 # Clone the repository
-git clone https://github.com/rpuneet/bc.git
+git clone https://github.com/rpuneet/mycel.git
 cd bc
 
 # Install dependencies
@@ -305,7 +305,7 @@ Releases are cut manually via GitHub Actions. CI/CD is fully automated from tag 
 
 ### Steps
 
-1. Ensure `main` is green. Check https://github.com/rpuneet/bc/actions/workflows/ci.yml
+1. Ensure `main` is green. Check https://github.com/rpuneet/mycel/actions/workflows/ci.yml
 2. Go to **Actions → Release → Run workflow**
 3. Enter version in semver format: `vMAJOR.MINOR.PATCH` (e.g. `v0.1.0`)
    - Alpha/RC allowed: `v0.2.0-alpha`, `v1.0.0-rc.1`
@@ -319,7 +319,7 @@ The release workflow:
 2. **CI** — full test suite (lint, test, TUI, web, landing, build gate, security, container scan)
 3. **Release Linux** — GoReleaser builds `linux/amd64`, creates archive + checksums, publishes GitHub release
 4. **Release macOS** — Native CGO builds for `darwin/amd64` and `darwin/arm64`, uploads to release
-5. **Release Docker** — Pushes `ghcr.io/rpuneet/bc:<version>` and `:latest` to GHCR
+5. **Release Docker** — Pushes `ghcr.io/rpuneet/mycel:<version>` and `:latest` to GHCR
 6. **SBOM** — Generates and uploads `sbom.spdx.json` to release
 
 ### Homebrew tap publish
@@ -328,7 +328,7 @@ Requires `HOMEBREW_TAP_TOKEN` repo secret (GitHub PAT with repo scope for `rpune
 
 ### Continuous deployment
 
-Every merge to `main` also publishes `ghcr.io/rpuneet/bc:main` via `.github/workflows/cd-main.yml`. No tagging required — users can pull the bleeding edge.
+Every merge to `main` also publishes `ghcr.io/rpuneet/mycel:main` via `.github/workflows/cd-main.yml`. No tagging required — users can pull the bleeding edge.
 
 ### Version strategy
 

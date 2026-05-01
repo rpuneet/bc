@@ -445,7 +445,7 @@ export default function Product() {
                 <div className="p-4 font-label text-[13px] leading-relaxed text-[var(--terminal-text)]">
                   <div>
                     <span className="text-[var(--terminal-prompt)]">$ </span>
-                    <span className="text-[var(--terminal-command)]">curl -fsSL https://raw.githubusercontent.com/rpuneet/bc/main/scripts/install.sh | bash</span>
+                    <span className="text-[var(--terminal-command)]">curl -fsSL https://raw.githubusercontent.com/rpuneet/mycel/main/scripts/install.sh | bash</span>
                   </div>
                   <div>
                     <span className="text-[var(--terminal-prompt)]">$ </span>

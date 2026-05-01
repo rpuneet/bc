@@ -5,9 +5,9 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/rpuneet/bc"
+    "url": "https://github.com/rpuneet/mycel"
   },
-  "homepage": "https://github.com/rpuneet/bc",
+  "homepage": "https://github.com/rpuneet/mycel",
   "keywords": ["ai", "agents", "orchestration", "claude", "gemini", "cursor", "codex", "cli"],
   "bin": {
     "bc": "bin/bc"
