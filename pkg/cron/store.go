@@ -72,6 +72,10 @@ CREATE TABLE IF NOT EXISTS cron_logs (
 
 CREATE INDEX IF NOT EXISTS idx_cron_logs_job ON cron_logs(job_name, run_at DESC);
 `
+	// context.TODO() retained: initSchema runs synchronously during cron.Open at
+	// startup before any request context exists; threading ctx through would
+	// force a public API change on Open() and dozens of call sites across
+	// tests/services for no operational benefit (schema DDL is fire-and-forget).
 	_, err := s.db.ExecContext(context.TODO(), schema)
 	return err
 }

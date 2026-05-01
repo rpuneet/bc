@@ -59,6 +59,10 @@ func (s *Store) initSchema() error {
 	} else {
 		schema = schemaSQLite
 	}
+	// context.TODO() retained: initSchema runs synchronously during OpenStore at
+	// startup before any request context exists; threading ctx through would
+	// force a public API change on OpenStore and dozens of call sites across
+	// tests/services for no operational benefit (schema DDL is fire-and-forget).
 	_, err := s.db.ExecContext(context.TODO(), schema)
 	return err
 }
