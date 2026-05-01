@@ -195,10 +195,10 @@ jobs:
           file: docker/Dockerfile.bcd
           push: true
           tags: |
-            ghcr.io/rpuneet/bc:${{ needs.prepare.outputs.tag }}
-            ghcr.io/rpuneet/bc:latest
+            ghcr.io/rpuneet/mycel:${{ needs.prepare.outputs.tag }}
+            ghcr.io/rpuneet/mycel:latest
           labels: |
-            org.opencontainers.image.source=https://github.com/rpuneet/bc
+            org.opencontainers.image.source=https://github.com/rpuneet/mycel
             org.opencontainers.image.version=${{ needs.prepare.outputs.version }}
             org.opencontainers.image.revision=${{ github.sha }}
           cache-from: type=gha

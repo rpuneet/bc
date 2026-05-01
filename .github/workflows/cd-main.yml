@@ -1,10 +1,10 @@
 # Continuous Deployment for main branch
 # On every push to main, builds and publishes:
-#   - Docker image: ghcr.io/rpuneet/bc:main (and :main-<sha>)
+#   - Docker image: ghcr.io/rpuneet/mycel:main (and :main-<sha>)
 #   - Does NOT create GitHub releases (use release.yml for tagged releases)
 #
 # This gives users a way to pull the latest bleeding-edge main:
-#   docker pull ghcr.io/rpuneet/bc:main
+#   docker pull ghcr.io/rpuneet/mycel:main
 
 name: CD (main)
 
@@ -51,10 +51,10 @@ jobs:
           file: docker/Dockerfile.bcd
           push: true
           tags: |
-            ghcr.io/rpuneet/bc:main
-            ghcr.io/rpuneet/bc:main-${{ github.sha }}
+            ghcr.io/rpuneet/mycel:main
+            ghcr.io/rpuneet/mycel:main-${{ github.sha }}
           labels: |
-            org.opencontainers.image.source=https://github.com/rpuneet/bc
+            org.opencontainers.image.source=https://github.com/rpuneet/mycel
             org.opencontainers.image.revision=${{ github.sha }}
             org.opencontainers.image.description=bc AI agent orchestration (main branch)
           cache-from: type=gha
