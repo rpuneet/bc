@@ -38,7 +38,7 @@ var mcpRegistry = &perWorkspaceMCP{
 // /_mcp/ws/<wsID>/<agent>/<action> and dispatches them to the workspace's
 // MCP server. The first request for a given wsID lazily constructs that
 // workspace's MCP server using its loaded WorkspaceServices.
-func scopedMCPDispatch(mgr *WorkspaceManager) http.HandlerFunc {
+func scopedMCPDispatch(mgr *WorkspaceManager, corsOrigin string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		remainder := strings.TrimPrefix(r.URL.Path, "/_mcp/ws/")
 		parts := strings.SplitN(remainder, "/", 3)
@@ -64,7 +64,7 @@ func scopedMCPDispatch(mgr *WorkspaceManager) http.HandlerFunc {
 			}
 		}
 
-		srv, broker, err := ensureMCPServer(wsID, svc)
+		srv, broker, err := ensureMCPServer(wsID, svc, corsOrigin)
 		if err != nil {
 			log.Warn("scoped MCP: server build failed", "id", wsID, "error", err)
 			http.Error(w, `{"error":"mcp unavailable"}`, http.StatusInternalServerError)
@@ -90,7 +90,7 @@ func scopedMCPDispatch(mgr *WorkspaceManager) http.HandlerFunc {
 
 // ensureMCPServer returns a cached MCP server for wsID or builds one on
 // first access. Caller must hold the workspace services (non-nil).
-func ensureMCPServer(wsID string, svc *WorkspaceServices) (*servermcp.Server, *servermcp.SSEBroker, error) {
+func ensureMCPServer(wsID string, svc *WorkspaceServices, corsOrigin string) (*servermcp.Server, *servermcp.SSEBroker, error) {
 	mcpRegistry.mu.Lock()
 	defer mcpRegistry.mu.Unlock()
 
@@ -114,6 +114,9 @@ func ensureMCPServer(wsID string, svc *WorkspaceServices) (*servermcp.Server, *s
 	}
 	broker := servermcp.NewSSEBroker()
 	broker.SetMessageEndpoint("/_mcp/ws/" + wsID + "/{agent}/message")
+	if corsOrigin != "" {
+		broker.SetCORSOrigin(corsOrigin)
+	}
 	srv.SetBroker(broker)
 
 	mcpRegistry.servers[wsID] = srv

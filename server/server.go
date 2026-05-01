@@ -456,12 +456,17 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 		if mcpErr != nil {
 			log.Warn("MCP server unavailable", "error", mcpErr)
 		} else {
-			servermcp.MountOn(mux, mcpSrv, "/_mcp")
+			broker := servermcp.MountOn(mux, mcpSrv, "/_mcp")
+			// Mirror the API CORS policy onto the MCP SSE transport so MCP
+			// cannot bypass the configured origin policy (#2960).
+			if cfg.CORSOrigin != "" {
+				broker.SetCORSOrigin(cfg.CORSOrigin)
+			}
 		}
 	}
 	// Scoped MCP dispatcher — per-workspace path.
 	if svc.WorkspaceManager != nil {
-		mux.HandleFunc("/_mcp/ws/", scopedMCPDispatch(svc.WorkspaceManager))
+		mux.HandleFunc("/_mcp/ws/", scopedMCPDispatch(svc.WorkspaceManager, cfg.CORSOrigin))
 	}
 
 	// Static web UI with SPA fallback — serves files if they exist,
