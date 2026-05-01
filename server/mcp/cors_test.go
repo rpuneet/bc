@@ -12,7 +12,7 @@ import (
 // ─── #2960: MCP SSE CORS wildcard ────────────────────────────────────────────
 
 // TestSSE_CORSOrigin_DefaultsToWildcard preserves the historic loopback
-// behaviour: callers that don't set an explicit origin get "*".
+// behavior: callers that don't set an explicit origin get "*".
 func TestSSE_CORSOrigin_DefaultsToWildcard(t *testing.T) {
 	b := mcp.NewSSEBroker()
 

@@ -24,11 +24,11 @@ type fakeAdapter struct {
 	lastChannel string
 }
 
-func (a *fakeAdapter) Name() string                     { return "fake" }
-func (a *fakeAdapter) Type() gateway.AdapterType        { return gateway.AdapterPoll }
-func (a *fakeAdapter) Stop() error                      { return nil }
-func (a *fakeAdapter) HTTPHandler() http.Handler        { return nil }
-func (a *fakeAdapter) Status() gateway.AdapterStatus    { return gateway.AdapterStatus{Connected: true} }
+func (a *fakeAdapter) Name() string                  { return "fake" }
+func (a *fakeAdapter) Type() gateway.AdapterType     { return gateway.AdapterPoll }
+func (a *fakeAdapter) Stop() error                   { return nil }
+func (a *fakeAdapter) HTTPHandler() http.Handler     { return nil }
+func (a *fakeAdapter) Status() gateway.AdapterStatus { return gateway.AdapterStatus{Connected: true} }
 func (a *fakeAdapter) Channels() []gateway.ChannelInfo {
 	return []gateway.ChannelInfo{{ID: "room", Name: "room", Platform: "fake"}}
 }
@@ -54,7 +54,7 @@ func (a *fakeAdapter) Send(_ context.Context, channelID, sender, content string)
 // scheduler turn — but the simpler path is to call HandleNotification on
 // nothing and rely on the existing discovery happening synchronously
 // inside Start before it begins to wait. The cleanest is to start the
-// manager with an immediately-cancelled context: Start runs discovery
+// manager with an immediately-canceled context: Start runs discovery
 // before <-ctx.Done().
 func newServerWithFakeGateway(t *testing.T) (*mcp.Server, *fakeAdapter) {
 	t.Helper()
@@ -71,7 +71,7 @@ func newServerWithFakeGateway(t *testing.T) (*mcp.Server, *fakeAdapter) {
 
 	// Drive channel discovery: Manager.Start runs restorePersistedChannels
 	// + discoverChannels synchronously, then enters a select on ctx.Done().
-	// With an already-cancelled ctx, Start returns immediately AFTER
+	// With an already-canceled ctx, Start returns immediately AFTER
 	// discovery runs.
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -153,7 +153,7 @@ func TestSendMessage_SenderSpoofIsOverridden(t *testing.T) {
 
 // TestSendMessage_NoCtxAgent_FallsBackToClient verifies the legacy fallback
 // path: when no agent is bound to the context (e.g., stdio transport), the
-// client value is honoured for backward compatibility.
+// client value is honored for backward compatibility.
 func TestSendMessage_NoCtxAgent_FallsBackToClient(t *testing.T) {
 	srv, fa := newServerWithFakeGateway(t)
 
@@ -205,4 +205,3 @@ func TestSendMessage_CtxAgent_BlankClientUsesCtx(t *testing.T) {
 		t.Fatalf("sender = %q, want alice", fa.lastSender)
 	}
 }
-
