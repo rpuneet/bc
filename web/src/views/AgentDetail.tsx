@@ -1091,7 +1091,7 @@ export function AgentDetail() {
     return () => {
       window.removeEventListener("keydown", handler);
     };
-  }, [navigate]);
+  }, [navigate, selectTab]);
 
   /* ─── Loading / Error ─── */
 
