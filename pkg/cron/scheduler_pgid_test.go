@@ -5,7 +5,9 @@ package cron
 import (
 	"bytes"
 	"context"
+	"errors"
 	"os"
+	"os/exec"
 	"os/signal"
 	"strconv"
 	"strings"
@@ -75,8 +77,19 @@ func TestDefaultExec_SignalToChildGroupDoesNotReachParent(t *testing.T) {
 
 	// `kill -TERM 0` sends SIGTERM to every process in the caller's group.
 	// If isolation works, only the child shell receives it; the test process
-	// (the simulated bcd parent) does not.
-	_ = s.defaultExec(ctx, "kill -TERM 0", &out)
+	// (the simulated bcd parent) does not. The child shell exits with signal
+	// status when it receives SIGTERM, so defaultExec returns a non-nil
+	// *exec.ExitError — that is the expected, working-as-intended outcome
+	// here. We only need to assert the kill scenario actually ran (no
+	// "command not found" or syntax error from the host shell).
+	if err := s.defaultExec(ctx, "kill -TERM 0", &out); err != nil {
+		// An exit error from the killed shell is expected. A different
+		// error type would mean the kill never executed.
+		var exitErr *exec.ExitError
+		if !errors.As(err, &exitErr) {
+			t.Fatalf("defaultExec failed before kill could run: %v (output=%q)", err, out.String())
+		}
+	}
 
 	select {
 	case <-gotSig:
