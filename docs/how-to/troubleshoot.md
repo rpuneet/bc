@@ -427,4 +427,4 @@ When reporting issues, include:
 5. Relevant logs: `bc logs --tail 100`
 6. Config (without secrets): `bc config show`
 
-File issues at: https://github.com/rpuneet/bc/issues
+File issues at: https://github.com/rpuneet/mycel/issues
