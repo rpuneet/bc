@@ -428,6 +428,165 @@ func TestToolCall_SendFile_MissingFile(t *testing.T) {
 	}
 }
 
+// ─── tool input length caps ──────────────────────────────────────────────────
+
+// TestToolCall_InputLengthCaps verifies that MCP tool handlers reject
+// oversized string fields. The /_mcp/* routes are exempt from the global
+// MaxBodySize middleware, so per-tool caps are the only line of defense
+// (see server/handlers/helpers.go MaxBodySize).
+func TestToolCall_InputLengthCaps(t *testing.T) {
+	srv := newTestServer(t)
+
+	const (
+		maxMessage = 64 * 1024
+		maxChannel = 256
+		maxSender  = 256
+		maxRole    = 256
+		maxPath    = 4 * 1024
+		maxComment = 64 * 1024
+	)
+
+	tests := []struct {
+		args    map[string]any
+		name    string
+		tool    string
+		wantErr bool
+	}{
+		// send_message
+		{
+			name: "send_message under message cap",
+			tool: "send_message",
+			args: map[string]any{
+				"channel": "slack:eng",
+				"message": strings.Repeat("a", maxMessage),
+			},
+			// no gateway configured in test workspace → returns isError=true with
+			// "no gateway configured" message; that's NOT a length-cap failure.
+			wantErr: true,
+		},
+		{
+			name: "send_message message over cap",
+			tool: "send_message",
+			args: map[string]any{
+				"channel": "slack:eng",
+				"message": strings.Repeat("a", maxMessage+1),
+			},
+			wantErr: true,
+		},
+		{
+			name: "send_message channel over cap",
+			tool: "send_message",
+			args: map[string]any{
+				"channel": strings.Repeat("c", maxChannel+1),
+				"message": "hi",
+			},
+			wantErr: true,
+		},
+		{
+			name: "send_message sender over cap",
+			tool: "send_message",
+			args: map[string]any{
+				"channel": "slack:eng",
+				"message": "hi",
+				"sender":  strings.Repeat("s", maxSender+1),
+			},
+			wantErr: true,
+		},
+		// read_channel
+		{
+			name: "read_channel channel over cap",
+			tool: "read_channel",
+			args: map[string]any{
+				"channel": strings.Repeat("c", maxChannel+1),
+			},
+			wantErr: true,
+		},
+		// list_agents
+		{
+			name: "list_agents role over cap",
+			tool: "list_agents",
+			args: map[string]any{
+				"role": strings.Repeat("r", maxRole+1),
+			},
+			wantErr: true,
+		},
+		// send_file
+		{
+			name: "send_file channel over cap",
+			tool: "send_file",
+			args: map[string]any{
+				"channel":   strings.Repeat("c", maxChannel+1),
+				"file_path": "/tmp/x.png",
+			},
+			wantErr: true,
+		},
+		{
+			name: "send_file file_path over cap",
+			tool: "send_file",
+			args: map[string]any{
+				"channel":   "slack:eng",
+				"file_path": strings.Repeat("p", maxPath+1),
+			},
+			wantErr: true,
+		},
+		{
+			name: "send_file comment over cap",
+			tool: "send_file",
+			args: map[string]any{
+				"channel":   "slack:eng",
+				"file_path": "/tmp/x.png",
+				"comment":   strings.Repeat("c", maxComment+1),
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var result struct {
+				Content []mcp.ToolContent `json:"content"`
+				IsError bool              `json:"isError"`
+			}
+			rpc(t, srv, "tools/call", map[string]any{
+				"name":      tc.tool,
+				"arguments": tc.args,
+			}, &result)
+			if result.IsError != tc.wantErr {
+				t.Fatalf("isError = %v, want %v (content=%+v)", result.IsError, tc.wantErr, result.Content)
+			}
+		})
+	}
+}
+
+// TestToolCall_InputLengthCaps_ErrorMessage verifies the exact error text
+// indicates which field exceeded its cap, so callers can debug.
+func TestToolCall_InputLengthCaps_ErrorMessage(t *testing.T) {
+	srv := newTestServer(t)
+
+	var result struct {
+		Content []mcp.ToolContent `json:"content"`
+		IsError bool              `json:"isError"`
+	}
+	rpc(t, srv, "tools/call", map[string]any{
+		"name": "send_message",
+		"arguments": map[string]any{
+			"channel": "slack:eng",
+			"message": strings.Repeat("a", 64*1024+1),
+		},
+	}, &result)
+
+	if !result.IsError {
+		t.Fatal("expected isError=true for oversize message")
+	}
+	if len(result.Content) == 0 {
+		t.Fatal("expected error content")
+	}
+	got := result.Content[0].Text
+	if !strings.Contains(got, "message too long") {
+		t.Errorf("error message %q does not mention which field exceeded cap", got)
+	}
+}
+
 // ─── stdio transport ─────────────────────────────────────────────────────────
 
 func TestStdio_RoundTrip(t *testing.T) {
