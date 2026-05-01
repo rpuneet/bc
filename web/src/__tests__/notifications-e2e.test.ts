@@ -20,7 +20,7 @@ import { describe, it, expect, beforeAll, afterAll, afterEach, vi } from "vitest
 // Capture a real fetch implementation before the setup.ts mock takes effect.
 // In Node (vitest), `fetch` is provided by undici. We use dynamic import so
 // that this runs before the vi.fn() stub is applied by setup.ts.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 let realFetch: typeof fetch = globalThis.fetch as typeof fetch;
 
 const BASE = "http://localhost:9374/api";

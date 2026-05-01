@@ -1251,7 +1251,7 @@ export function GatewayFeed({
         </div>
       </div>
     ),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
     [showAgents, searchOpen, filterOpen, filterAgent, liveCount, subscribedAgents, availableAgents],
   );
 

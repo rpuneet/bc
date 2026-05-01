@@ -215,7 +215,7 @@ export function Live() {
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [sorted, focusedCardIdx, toggleAgent]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [sorted, focusedCardIdx, toggleAgent]);  
 
   const hasFilters = agentFilter || typeFilter !== "all" || searchFilter;
 
