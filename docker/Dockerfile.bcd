@@ -27,7 +27,7 @@ COPY internal/ internal/
 COPY prompt[s]/ prompts/
 COPY --from=web /app/web/dist /app/server/web/dist
 
-RUN CGO_ENABLED=1 go build -ldflags="-s -w" -o /bc ./cmd/bc
+RUN CGO_ENABLED=1 go build -ldflags="-s -w" -o /bc ./cmd/mycel
 
 # Stage 3: Runtime (includes dev toolchain for cron build jobs)
 FROM ubuntu:24.04
