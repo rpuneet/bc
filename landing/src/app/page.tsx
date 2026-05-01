@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { GitBranch, MessageSquare, DollarSign, Layers, Copy, Check, ExternalLink } from "lucide-react";
@@ -32,6 +32,13 @@ function detectPlatform(ua: string): Platform {
   if (/Linux/i.test(ua)) return "Linux";
   return "macOS";
 }
+
+/* ── External-store hook for client-only platform detection.
+ *    SSR snapshot is "macOS" to match initial render; the client
+ *    swaps in the detected platform after hydration. ── */
+const subscribePlatform = () => () => {};
+const getPlatformSnapshot = (): Platform => detectPlatform(navigator.userAgent);
+const getPlatformServerSnapshot = (): Platform => "macOS";
 
 /* ── Copy button ── */
 function CopyButton({ text }: { text: string }) {
@@ -80,11 +87,13 @@ const features = [
 ];
 
 export default function Home() {
-  const [platform, setPlatform] = useState<Platform>("macOS");
-
-  useEffect(() => {
-    setPlatform(detectPlatform(navigator.userAgent));
-  }, []);
+  const detected = useSyncExternalStore(
+    subscribePlatform,
+    getPlatformSnapshot,
+    getPlatformServerSnapshot,
+  );
+  const [override, setPlatform] = useState<Platform | null>(null);
+  const platform = override ?? detected;
 
   const tabs: Platform[] = ["macOS", "Linux", "Homebrew", "Docker"];
 
