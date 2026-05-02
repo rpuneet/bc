@@ -84,8 +84,8 @@ function getMethods(version: string): Method[] {
       platforms: "Requires Go 1.25+, Bun, tmux",
       commands: [
         "git clone https://github.com/rpuneet/mycel",
-        "cd bc",
-        "make install-local-bc",
+        "cd mycel",
+        "make install-local-mycel",
       ],
     },
   ];
