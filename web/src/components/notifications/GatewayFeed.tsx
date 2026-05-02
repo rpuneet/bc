@@ -1157,6 +1157,8 @@ export function GatewayFeed({
             type="button"
             onClick={() => setShowAgents((v) => !v)}
             className="flex items-center"
+            title={`${liveCount} live / ${subscribedAgents.length + availableAgents.length} total agents — click to manage subscriptions`}
+            aria-label={`${liveCount} of ${subscribedAgents.length + availableAgents.length} agents live; manage subscriptions`}
             style={{
               gap: 5,
               padding: "3px 8px 3px 6px",
@@ -1967,20 +1969,20 @@ export function GatewayFeed({
                   display: "flex",
                   alignItems: "center",
                   gap: 5,
-                  background: composerText.trim() && !composerSending ? "var(--mycel-accent, #f97316)" : "var(--mycel-muted, #4a4a4a)",
-                  color: "var(--mycel-bg, #0d0d0d)",
+                  background: composerText.trim() && !composerSending ? "var(--mycel-accent, #f97316)" : "var(--mycel-surface-hover, #2a2a2a)",
+                  color: composerText.trim() && !composerSending ? "var(--mycel-bg, #0d0d0d)" : "var(--mycel-text, #e5e5e5)",
                   padding: "4px 10px",
                   borderRadius: 5,
                   fontSize: 12,
                   fontWeight: 600,
                   cursor: composerText.trim() && !composerSending ? "pointer" : "default",
-                  border: "none",
-                  opacity: composerText.trim() && !composerSending ? 1 : 0.5,
+                  border: composerText.trim() && !composerSending ? "none" : "1px solid var(--mycel-border, #333)",
+                  opacity: composerText.trim() && !composerSending ? 1 : 0.7,
                   transition: "background 100ms, opacity 100ms",
                 }}
               >
                 <span>{composerSending ? "Sending..." : "Send"}</span>
-                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="var(--mycel-bg, #0d0d0d)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <line x1="5" y1="12" x2="19" y2="12" /><polyline points="12 5 19 12 12 19" />
                 </svg>
               </button>

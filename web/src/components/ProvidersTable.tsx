@@ -176,7 +176,10 @@ export function ProvidersTable({ providers, search }: Props) {
 
       {/* Card grid view */}
       {viewMode === "cards" ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        <div
+          className="grid gap-3"
+          style={{ gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))" }}
+        >
           {sorted.map((p) => (
             <ProviderCard
               key={p.name}
