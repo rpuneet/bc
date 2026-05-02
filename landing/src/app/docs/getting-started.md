@@ -49,9 +49,9 @@ docker run -p 9374:9374 -v $(pwd):/workspace ghcr.io/rpuneet/mycel:main mycel up
 ### npm / bun
 
 ```bash
-npm install -g bc-cli
+npm install -g mycel-cli
 # or
-bunx bc-cli
+bunx mycel-cli
 ```
 
 ### Go

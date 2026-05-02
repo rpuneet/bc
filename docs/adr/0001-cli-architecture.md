@@ -48,9 +48,9 @@ The current React TUI bundle (`internal/cmd/tui-bundle/`) will be **deprecated**
 
 ### 4. Single entry point, no `cmd/bcd`
 
-- `cmd/bc` is the only binary. `bc daemon run` is the blessed way to launch `bcd`.
+- `cmd/mycel` is the only binary. `mycel daemon run` is the blessed way to launch the server.
 - `cmd/bcd` does **not** exist and should not be added.
-- Handlers live under `server/handlers/` and are shared by the embedded web UI, CLI HTTP client, and `bc tunnel`.
+- Handlers live under `server/handlers/` and are shared by the embedded web UI, CLI HTTP client, and `mycel tunnel`.
 
 ### 5. `--json` everywhere; `--help` from a meta endpoint
 

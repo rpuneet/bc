@@ -1,4 +1,4 @@
-# GoReleaser configuration for bc
+# GoReleaser configuration for mycel
 # https://goreleaser.com
 #
 # macOS builds are handled separately in CI (release.yml) due to CGO requirements.
@@ -132,7 +132,7 @@ release:
     | Method | Command |
     |--------|---------|
     | **Homebrew** (macOS) | `brew install rpuneet/mycel/mycel` |
-    | **npm / bun** (Linux) | `npm install -g bc-cli` or `bunx bc-cli` |
+    | **npm / bun** (Linux) | `npm install -g mycel-cli` or `bunx mycel-cli` |
     | **Go** | `go install github.com/rpuneet/mycel/cmd/mycel@{{ .Tag }}` |
     | **Script** | `curl -fsSL https://raw.githubusercontent.com/rpuneet/mycel/main/scripts/install.sh \| bash` |
     | **Docker** | `docker pull ghcr.io/rpuneet/mycel:{{ .Tag }}` |

@@ -94,7 +94,7 @@ func runDoctor(cmd *cobra.Command, _ []string) error {
 	ws, err := getWorkspace()
 	if err != nil {
 		// No workspace: run tools-only check
-		fmt.Println("bc doctor")
+		fmt.Println("mycel doctor")
 		fmt.Println(strings.Repeat("─", 40))
 		fmt.Println()
 		fmt.Println(ui.YellowText("⚠") + " No workspace found — running tools check only")
@@ -227,7 +227,7 @@ func runDoctorFix(cmd *cobra.Command, _ []string) error {
 // ─── Output helpers ───────────────────────────────────────────────────────────
 
 func printReport(report *doctor.Report) {
-	fmt.Println("bc doctor")
+	fmt.Println("mycel doctor")
 	fmt.Println(strings.Repeat("─", 40))
 	fmt.Println()
 
@@ -282,7 +282,7 @@ func printCategory(cat doctor.CategoryReport) {
 // ─── Client report helpers (for API-based output) ─────────────────────────────
 
 func printClientReport(report *client.DoctorReport) {
-	fmt.Println("bc doctor")
+	fmt.Println("mycel doctor")
 	fmt.Println(strings.Repeat("─", 40))
 	fmt.Println()
 

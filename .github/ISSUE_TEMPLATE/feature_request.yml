@@ -124,13 +124,13 @@ body:
 
         ```bash
         make ci-local                       # Full CI pipeline (MUST PASS before merge)
-        make build-bc-local                 # Build bc CLI
-        make build-bcd-local                # Build bcd server
+        make build-local-mycel              # Build mycel CLI (embeds web UI + TUI + server)
+        make build-docker-daemon            # Build daemon Docker image
         make test-go                        # Go tests
         make test-ts                        # All TS tests
         make lint-go                        # golangci-lint
         make vet-ts                         # Typecheck all TS
-        make deploy-bcd-local               # Deploy locally on :9374
+        make run-mycel                      # Run mycel locally on :9374
         ```
 
         ### Labels (apply before starting work)

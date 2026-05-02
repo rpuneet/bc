@@ -1,7 +1,7 @@
 # Code Coverage Standards
 
 ## Overview
-bc maintains code quality through continuous coverage enforcement. All PRs must meet coverage thresholds before merge.
+mycel maintains code quality through continuous coverage enforcement. All PRs must meet coverage thresholds before merge.
 
 ## Coverage Requirements
 

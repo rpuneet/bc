@@ -383,7 +383,7 @@ export function Settings() {
 
       {restartWarning && (
         <div className="rounded border border-mycel-error/30 bg-mycel-error/10 px-3 py-1.5 text-xs text-mycel-error">
-          Changes saved. Restart bcd to apply (<code className="font-mono">bc down &amp;&amp; bc up -d</code>)
+          Changes saved. Restart bcd to apply (<code className="font-mono">mycel down &amp;&amp; mycel up -d</code>)
         </div>
       )}
 

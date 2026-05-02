@@ -535,7 +535,7 @@ export function Layout() {
         location.pathname.includes(`/${seg}/`)
       );
     });
-    document.title = match ? `${match.label} \u2014 bc` : "bc";
+    document.title = match ? `${match.label} \u2014 mycel` : "mycel";
   }, [location.pathname]);
   useEffect(() => { setMobileOpen(false); }, [location.pathname]);
 
@@ -577,11 +577,11 @@ export function Layout() {
                   letterSpacing: -0.5,
                 }}
               >
-                bc
+                mycel
               </span>
               <div className="min-w-0">
                 <p className="text-[13px] font-semibold text-mycel-text truncate" style={{ letterSpacing: -0.1 }}>
-                  {userName ? `@${userName}` : "@bc"}
+                  {userName ? `@${userName}` : "@mycel"}
                 </p>
                 <p className="text-[9px] text-mycel-muted/40 -mt-0.5" style={{ fontFamily: "'JetBrains Mono', monospace" }}>workspace</p>
               </div>
@@ -598,7 +598,7 @@ export function Layout() {
                 letterSpacing: -0.5,
               }}
             >
-              bc
+              mycel
             </span>
           )}
           {isMobile ? (

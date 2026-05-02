@@ -198,7 +198,7 @@ make lint
 
 ```
 bc/
-├── cmd/bc/              # CLI entry point (main.go)
+├── cmd/mycel/           # CLI entry point (main.go)
 ├── config/              # Generated config code (cfgx)
 ├── internal/
 │   └── cmd/             # Cobra command implementations

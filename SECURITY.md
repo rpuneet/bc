@@ -45,7 +45,7 @@ We take security seriously. If you discover a security vulnerability in bc, plea
 
 This policy applies to:
 
-- The **bc CLI** tool (`cmd/bc`, `internal/cmd`, `pkg/`)
+- The **mycel CLI** tool (`cmd/mycel`, `internal/cmd`, `pkg/`)
 - The **bcd server** (`server/`) including the REST API, WebSocket, and MCP SSE endpoints
 - The **TUI** interface (`tui/`)
 - The **web dashboard** (`web/`) embedded in bcd

@@ -862,8 +862,8 @@ func TestAgentCreate_RejectsRootRole(t *testing.T) {
 	if !strings.Contains(err.Error(), "cannot create root agent") {
 		t.Errorf("error should mention cannot create root agent: %v", err)
 	}
-	if !strings.Contains(err.Error(), "bc up") {
-		t.Errorf("error should mention 'bc up': %v", err)
+	if !strings.Contains(err.Error(), "mycel up") {
+		t.Errorf("error should mention 'mycel up': %v", err)
 	}
 }
 

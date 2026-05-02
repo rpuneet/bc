@@ -124,12 +124,12 @@ func runInit(cmd *cobra.Command, args []string) error {
 	if isV1Workspace(absDir) {
 		log.Debug("v1 workspace detected", "dir", absDir)
 		fmt.Fprintln(os.Stderr, "Warning: Existing v1 workspace detected.")
-		fmt.Fprintln(os.Stderr, "bc v2 is a clean break - v1 data will not be migrated.")
+		fmt.Fprintln(os.Stderr, "mycel v2 is a clean break - v1 data will not be migrated.")
 		fmt.Fprintln(os.Stderr, "")
 		fmt.Fprintln(os.Stderr, "To proceed:")
 		fmt.Fprintln(os.Stderr, "  - Backup .bc/ if needed")
 		fmt.Fprintln(os.Stderr, "  - Remove .bc/ directory")
-		fmt.Fprintln(os.Stderr, "  - Run bc init again")
+		fmt.Fprintln(os.Stderr, "  - Run mycel init again")
 		return fmt.Errorf("cannot initialize: v1 workspace exists")
 	}
 
@@ -196,7 +196,7 @@ func newDaemonClient(ctx context.Context) (*client.Client, error) {
 	}
 	c := client.New("")
 	if err := c.Ping(ctx); err != nil {
-		return nil, fmt.Errorf("bcd is not running — start it with 'bcd' or 'bc up' first\n(%w)", err)
+		return nil, fmt.Errorf("bcd is not running — start it with 'bcd' or 'mycel up' first\n(%w)", err)
 	}
 	return c, nil
 }
