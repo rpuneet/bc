@@ -1888,6 +1888,7 @@ export function GatewayFeed({
               }
             }}
             placeholder={`Message #${channelLabel} as ${subscribedAgents[0]?.name ?? "agent"}`}
+            aria-label={`Message #${channelLabel}`}
             rows={1}
             style={{
               background: "transparent",
