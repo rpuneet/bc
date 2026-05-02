@@ -1,7 +1,7 @@
-site_name: bc Documentation
+site_name: mycel Documentation
 site_description: Multi-agent AI orchestration CLI
-site_author: bc contributors
-site_url: https://rpuneet.github.io/bc
+site_author: mycel contributors
+site_url: https://rpuneet.github.io/mycel
 
 repo_name: rpuneet/mycel
 repo_url: https://github.com/rpuneet/mycel

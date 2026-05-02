@@ -89,11 +89,11 @@ graph TB
 
 ## Components
 
-### bc CLI (`cmd/bc/`)
+### mycel CLI (`cmd/mycel/`)
 
-Thin HTTP client. All commands are HTTP requests to bcd -- no direct DB/filesystem access. Opens the TUI if a workspace exists, prompts init if not, shows help in non-interactive mode.
+Thin HTTP client. All commands are HTTP requests to the daemon -- no direct DB/filesystem access. Opens the TUI if a workspace exists, prompts init if not, shows help in non-interactive mode.
 
-### bcd Daemon (`cmd/bcd/`, `server/`)
+### Daemon (`cmd/mycel/`, `server/`)
 
 Long-running HTTP server on `127.0.0.1:9374`. Single process managing all state.
 

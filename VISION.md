@@ -2,7 +2,7 @@
 
 ## Multi-Agent Orchestration for Software Development
 
-**bc** is a CLI tool for orchestrating multiple AI agents to work together on software projects. Unlike single-agent tools, bc enables teams of specialized agents coordinating through structured communication.
+**mycel** is a CLI tool for orchestrating multiple AI agents to work together on software projects. Unlike single-agent tools, mycel enables teams of specialized agents coordinating through structured communication.
 
 ## Core Philosophy
 
@@ -29,7 +29,7 @@ Humans remain in control:
 
 ## Unique Differentiators
 
-| Feature | bc | Single-Agent Tools |
+| Feature | mycel | Single-Agent Tools |
 |---------|----|--------------------|
 | Multiple parallel agents | Yes | No |
 | Role-based hierarchy | Yes | No |
@@ -68,7 +68,7 @@ Humans remain in control:
 
 ## Getting Involved
 
-bc is open source. Contributions welcome:
+mycel is open source. Contributions welcome:
 - Report issues on GitHub
 - Submit PRs for features and fixes
 - Share feedback on multi-agent workflows

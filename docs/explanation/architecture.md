@@ -198,8 +198,8 @@ The React SPA is compiled and embedded in the bcd binary via `server/web/dist/`.
 ## Package Dependencies
 
 ```
-cmd/bc/          -->  internal/cmd/  -->  pkg/client/
-cmd/bcd/         -->  server/        -->  pkg/*
+cmd/mycel/       -->  internal/cmd/  -->  pkg/client/
+                 -->  server/        -->  pkg/*
 
 server/
   handlers/      -->  pkg/agent/, pkg/notify/, pkg/cost/, ...
