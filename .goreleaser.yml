@@ -142,23 +142,6 @@ release:
 
     **Full Changelog**: https://github.com/rpuneet/mycel/compare/{{ .PreviousTag }}...{{ .Tag }}
 
-brews:
-  - name: mycel
-    repository:
-      owner: rpuneet
-      name: homebrew-mycel
-      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
-      branch: main
-    directory: Formula
-    homepage: https://bc-infra.com
-    description: Orchestration for AI agents
-    license: MIT
-    skip_upload: auto
-    install: |
-      bin.install "mycel"
-    test: |
-      system "#{bin}/mycel", "version"
-
 
 nfpms:
   - id: mycel-linux
