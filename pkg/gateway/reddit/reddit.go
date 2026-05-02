@@ -107,7 +107,7 @@ func (a *Adapter) poll(ctx context.Context) {
 		return
 	}
 	req.Header.Set("Authorization", "Bearer "+a.bearerToken)
-	req.Header.Set("User-Agent", "bc-gateway/1.0")
+	req.Header.Set("User-Agent", "mycel-gateway/1.0")
 
 	resp, err := a.httpClient.Do(req)
 	if err != nil {

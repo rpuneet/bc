@@ -54,7 +54,7 @@ func New(secret string) *Adapter {
 }
 
 // NewNamed creates a named GitHub adapter for multi-repo setups
-// (e.g. "github:bc", "github:trade").
+// (e.g. "github:mycel", "github:trade").
 func NewNamed(name, secret string) *Adapter {
 	return &Adapter{
 		name:   name,

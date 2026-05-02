@@ -22,7 +22,7 @@ import (
 type Config struct { //nolint:govet
 	Server   string   // e.g. "irc.libera.chat:6697"
 	Nick     string   // bot nickname
-	Channels []string // channels to join (e.g. ["#bc", "#dev"])
+	Channels []string // channels to join (e.g. ["#mycel", "#dev"])
 	UseTLS   bool
 	Password string // optional server password
 }
@@ -60,7 +60,7 @@ func (a *Adapter) Start(ctx context.Context, handler func(gateway.Notification))
 		Nick:          a.cfg.Nick,
 		UseTLS:        a.cfg.UseTLS,
 		Password:      a.cfg.Password,
-		QuitMessage:   "bc agent disconnecting",
+		QuitMessage:   "mycel agent disconnecting",
 		KeepAlive:     30, // send PING every 30s to detect dead connections
 		ReconnectFreq: 10, // reconnect after 10s on drop
 	}
