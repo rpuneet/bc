@@ -246,7 +246,7 @@ export async function execBc(args: string[]): Promise<string> {
     }
 
     // Use BC_BIN if set, otherwise fall back to 'bc' in PATH (#1612: Validate env vars)
-    const bcBin = process.env.BC_BIN ?? 'bc';
+    const bcBin = process.env.MYCEL_BIN ?? process.env.BC_BIN ?? 'mycel';
     const bcRoot = process.env.BC_ROOT ?? process.cwd();
 
     // Validate bcRoot exists before spawning
@@ -311,7 +311,7 @@ export async function execBc(args: string[]): Promise<string> {
       if (finished) return;
       finished = true;
       cleanupTimers();
-      reject(new Error(`Failed to spawn bc: ${err.message}`));
+      reject(new Error(`Failed to spawn mycel: ${err.message}`));
     });
   });
 }
@@ -775,7 +775,7 @@ export async function pruneWorktrees(force = false): Promise<string> {
  * @throws Error if session doesn't exist or attachment fails
  */
 export function attachToAgentSession(agentName: string): void {
-  const bcBin = process.env.BC_BIN ?? 'bc';
+  const bcBin = process.env.MYCEL_BIN ?? process.env.BC_BIN ?? 'mycel';
   spawnSync(bcBin, ['agent', 'attach', agentName], {
     stdio: 'inherit',
   });
