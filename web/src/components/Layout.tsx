@@ -532,16 +532,15 @@ export function Layout() {
 
   useEffect(() => { if (isMobile) setCollapsed(true); }, [isMobile]);
   useEffect(() => {
-    // Match against the trailing segment of the URL so /w/<id>/live and
-    // the legacy /live both produce the "Live" title.
+    // Compare ONLY the first URL segment after an optional /w/<id> prefix
+    // so sub-routes such as /agents/<name>/live keep their parent ("Agents")
+    // title rather than incorrectly resolving to a same-named top-level
+    // tab ("Live").
+    const stripped = location.pathname.replace(/^\/w\/[^/]+/, "");
+    const firstSeg = stripped.replace(/^\//, "").split("/")[0] ?? "";
     const match = NAV_ITEMS.find((item) => {
       const seg = item.to.replace(/^\//, "");
-      return (
-        location.pathname === item.to ||
-        location.pathname.startsWith(`${item.to}/`) ||
-        location.pathname.endsWith(`/${seg}`) ||
-        location.pathname.includes(`/${seg}/`)
-      );
+      return seg === firstSeg;
     });
     document.title = match ? `${match.label} \u2014 mycel` : "mycel";
   }, [location.pathname]);
