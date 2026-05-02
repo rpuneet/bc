@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useRef, memo } from "react";
+import { useNavigate } from "react-router-dom";
 import { AgentIcon } from "./agent-ui";
 import type { AgentShape } from "./agent-ui";
 import { MONO } from "../utils/typography";
@@ -92,8 +93,11 @@ export function CreateAgentModal({
   const [runtime, setRuntime] = useState<Runtime>("docker");
   const [task, setTask] = useState("");
   const [cloneFrom, setCloneFrom] = useState("");
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
   const firstInputRef = useRef<HTMLInputElement>(null);
+  const navigate = useNavigate();
 
   // Fetch templates from API on mount
   useEffect(() => {
@@ -126,6 +130,8 @@ export function CreateAgentModal({
       setProvider("claude");
       setRuntime("docker");
       setTask("");
+      setSubmitError(null);
+      setSubmitting(false);
       // When opened from the Clone action, pre-select the source agent
       // so the clone-from effect populates provider/runtime automatically.
       setCloneFrom(defaultCloneFrom);
@@ -166,9 +172,15 @@ export function CreateAgentModal({
   const handleCreate = useCallback(async () => {
     const trimmed = name.trim();
     if (!trimmed) {
-      alert("Agent name is required.");
+      setSubmitError("Agent name is required.");
       return;
     }
+    if (existingNames.includes(trimmed)) {
+      setSubmitError(`Agent "${trimmed}" already exists. Pick a different name.`);
+      return;
+    }
+    setSubmitError(null);
+    setSubmitting(true);
     try {
       const res = await fetch("/api/agents", {
         method: "POST",
@@ -177,16 +189,19 @@ export function CreateAgentModal({
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({})) as { error?: string };
-        alert(err.error ?? "Failed to create agent");
+        setSubmitError(err.error ?? "Failed to create agent");
+        setSubmitting(false);
         return;
       }
       onClose();
-      // Navigate to new agent
-      window.location.href = `/agents/${encodeURIComponent(trimmed)}`;
-    } catch {
-      alert("Failed to create agent");
+      // Use SPA navigation; preserves workspace prefix when present.
+      const prefix = window.location.pathname.match(/^\/w\/[^/]+/)?.[0] ?? "";
+      navigate(`${prefix}/agents/${encodeURIComponent(trimmed)}`);
+    } catch (e) {
+      setSubmitError(e instanceof Error ? e.message : "Failed to create agent");
+      setSubmitting(false);
     }
-  }, [name, template, provider, runtime, task, onClose]);
+  }, [name, template, provider, runtime, task, existingNames, onClose, navigate]);
 
   if (!open) return null;
 
@@ -372,23 +387,36 @@ export function CreateAgentModal({
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-3 border-t border-mycel-border px-5 py-4">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-2 rounded text-sm text-mycel-muted hover:text-mycel-text border border-mycel-border hover:border-mycel-muted bg-mycel-bg transition-colors"
-            style={{ fontFamily: MONO }}
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={() => { void handleCreate(); }}
-            className="px-4 py-2 rounded text-sm font-medium bg-mycel-accent text-mycel-bg hover:opacity-90 transition-opacity"
-            style={{ fontFamily: MONO }}
-          >
-            Create agent
-          </button>
+        <div className="border-t border-mycel-border px-5 py-4 flex flex-col gap-2">
+          {submitError && (
+            <div
+              role="alert"
+              className="rounded border border-mycel-error/40 bg-mycel-error/10 px-3 py-2 text-xs text-mycel-error"
+              style={{ fontFamily: MONO }}
+            >
+              {submitError}
+            </div>
+          )}
+          <div className="flex items-center justify-end gap-3">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={submitting}
+              className="px-4 py-2 rounded text-sm text-mycel-muted hover:text-mycel-text border border-mycel-border hover:border-mycel-muted bg-mycel-bg transition-colors disabled:opacity-50"
+              style={{ fontFamily: MONO }}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => { void handleCreate(); }}
+              disabled={submitting || !name.trim()}
+              className="px-4 py-2 rounded text-sm font-medium bg-mycel-accent text-mycel-bg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+              style={{ fontFamily: MONO }}
+            >
+              {submitting ? "Creating..." : "Create agent"}
+            </button>
+          </div>
         </div>
       </div>
     </div>

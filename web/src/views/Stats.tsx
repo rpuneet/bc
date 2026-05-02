@@ -40,6 +40,7 @@ const RANGES = [
   { label: "12h", seconds: 43200 },
   { label: "24h", seconds: 86400 },
   { label: "7d", seconds: 604800 },
+  { label: "30d", seconds: 2592000 },
 ] as const;
 
 const INFRA = ["bc-db", "bc-daemon", "bc-playwright"];

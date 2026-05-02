@@ -641,12 +641,13 @@ function MessageActions({
           </svg>
         </button>
 
-        {/* Pin button */}
+        {/* Pin button — placeholder for future feature */}
         <button
           type="button"
-          title="Pin message"
+          title="Pin message (coming soon)"
+          aria-label="Pin message (coming soon)"
+          disabled
           onClick={(e) => e.stopPropagation()}
-          className="hover:bg-white/10 transition-colors"
           style={{
             width: 28,
             height: 28,
@@ -654,10 +655,11 @@ function MessageActions({
             alignItems: "center",
             justifyContent: "center",
             borderRadius: 4,
-            cursor: "pointer",
+            cursor: "not-allowed",
             background: "none",
             border: "none",
-            color: "var(--mycel-muted, #6b6b6b)",
+            color: "var(--mycel-muted, #4a4a4a)",
+            opacity: 0.5,
           }}
         >
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -666,12 +668,13 @@ function MessageActions({
           </svg>
         </button>
 
-        {/* More menu button */}
+        {/* More menu button — placeholder for future feature */}
         <button
           type="button"
-          title="More actions"
+          title="More actions (coming soon)"
+          aria-label="More actions (coming soon)"
+          disabled
           onClick={(e) => e.stopPropagation()}
-          className="hover:bg-white/10 transition-colors"
           style={{
             width: 28,
             height: 28,
@@ -679,12 +682,13 @@ function MessageActions({
             alignItems: "center",
             justifyContent: "center",
             borderRadius: 4,
-            cursor: "pointer",
+            cursor: "not-allowed",
             background: "none",
             border: "none",
-            color: "var(--mycel-muted, #6b6b6b)",
+            color: "var(--mycel-muted, #4a4a4a)",
             fontSize: 16,
             lineHeight: 1,
+            opacity: 0.5,
           }}
         >
           &#x22EF;
@@ -1098,7 +1102,7 @@ export function GatewayFeed({
 
   const headerTitle = useMemo(
     () => (
-      <div className="flex items-center" style={{ gap: 8 }}>
+      <div className="flex items-center min-w-0" style={{ gap: 8 }}>
         <button
           type="button"
           onClick={() => navigate(-1)}
@@ -1118,11 +1122,17 @@ export function GatewayFeed({
             <polyline points="15 18 9 12 15 6" />
           </svg>
         </button>
-        <span style={{ color: "var(--mycel-muted, #6b6b6b)", fontSize: 13 }}>#</span>
-        <span style={{ fontSize: 13, fontWeight: 600, color: "var(--mycel-text, #e5e5e5)" }}>{channelLabel}</span>
+        <span className="shrink-0" style={{ color: "var(--mycel-muted, #6b6b6b)", fontSize: 13 }}>#</span>
+        <span
+          className="truncate min-w-0"
+          title={channelLabel}
+          style={{ fontSize: 13, fontWeight: 600, color: "var(--mycel-text, #e5e5e5)" }}
+        >
+          {channelLabel}
+        </span>
         {platform && PlatformGlyph && (
           <div
-            className="flex items-center"
+            className="hidden sm:flex items-center shrink-0"
             style={{
               gap: 4,
               padding: "1px 6px",
@@ -1138,6 +1148,7 @@ export function GatewayFeed({
           </div>
         )}
         <span
+          className="hidden sm:inline shrink-0"
           style={{
             color: "var(--mycel-muted, #6b6b6b)",
             fontSize: 10.5,
@@ -1904,21 +1915,21 @@ export function GatewayFeed({
             }}
           />
           <div className="flex items-center" style={{ gap: 2, color: "var(--mycel-muted, #6b6b6b)" }}>
-            {/* Action icons */}
-            <button type="button" title="Attach" style={{ width: 26, height: 26, borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--mycel-muted, #6b6b6b)", cursor: "pointer", background: "none", border: "none" }}>
+            {/* Action icons — non-functional placeholders for future composer features */}
+            <button type="button" title="Attach files (coming soon)" aria-label="Attach files (coming soon)" disabled style={{ width: 26, height: 26, borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--mycel-muted, #4a4a4a)", cursor: "not-allowed", background: "none", border: "none", opacity: 0.5 }}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                 <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
               </svg>
             </button>
-            <button type="button" title="Command" style={{ width: 26, height: 26, borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--mycel-muted, #6b6b6b)", cursor: "pointer", background: "none", border: "none" }}>
+            <button type="button" title="Slash commands (coming soon)" aria-label="Slash commands (coming soon)" disabled style={{ width: 26, height: 26, borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--mycel-muted, #4a4a4a)", cursor: "not-allowed", background: "none", border: "none", opacity: 0.5 }}>
               <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, lineHeight: 1 }}>/</span>
             </button>
-            <button type="button" title="Mention" style={{ width: 26, height: 26, borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--mycel-muted, #6b6b6b)", cursor: "pointer", background: "none", border: "none" }}>
+            <button type="button" title="Mention agent (coming soon)" aria-label="Mention agent (coming soon)" disabled style={{ width: 26, height: 26, borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--mycel-muted, #4a4a4a)", cursor: "not-allowed", background: "none", border: "none", opacity: 0.5 }}>
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="12" cy="12" r="4" /><path d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-3.92 7.94" />
               </svg>
             </button>
-            <button type="button" title="Emoji" style={{ width: 26, height: 26, borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--mycel-muted, #6b6b6b)", cursor: "pointer", background: "none", border: "none" }}>
+            <button type="button" title="Emoji picker (coming soon)" aria-label="Emoji picker (coming soon)" disabled style={{ width: 26, height: 26, borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--mycel-muted, #4a4a4a)", cursor: "not-allowed", background: "none", border: "none", opacity: 0.5 }}>
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="12" cy="12" r="10" /><path d="M8 14s1.5 2 4 2 4-2 4-2" /><line x1="9" y1="9" x2="9.01" y2="9" /><line x1="15" y1="9" x2="15.01" y2="9" />
               </svg>

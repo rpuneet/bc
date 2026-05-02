@@ -736,7 +736,7 @@ describe("Notifications Page E2E", () => {
       const { body } = await apiFetch("/gateways");
       const gateways = body as Array<{ platform: string }>;
       const platforms = gateways.map((g) => g.platform);
-      const knownBases = ["slack", "telegram", "discord", "github", "webhook"];
+      const knownBases = ["slack", "telegram", "discord", "github", "webhook", "whatsapp", "rss"];
       for (const p of platforms) {
         // Platform may be "telegram:label" — check base prefix
         const base = p.split(":")[0];
