@@ -254,13 +254,21 @@ function NotificationNavTree() {
     if (h.connected) {
       let tip = "Connected";
       if (h.last_message_at) {
-        const ago = Date.now() - new Date(h.last_message_at).getTime();
-        const mins = Math.floor(ago / 60000);
-        if (mins < 1) tip += " · last message: just now";
-        else if (mins < 60) tip += ` · last message: ${mins}m ago`;
-        else {
-          const hrs = Math.floor(mins / 60);
-          tip += ` · last message: ${hrs}h ago`;
+        const ts = new Date(h.last_message_at).getTime();
+        // Guard against zero / unset / pre-2001 timestamps that produce
+        // nonsensical "17753690h ago" tooltips.
+        if (Number.isFinite(ts) && ts > 978307200000) {
+          const ago = Date.now() - ts;
+          const mins = Math.floor(ago / 60000);
+          if (mins < 1) tip += " · last message: just now";
+          else if (mins < 60) tip += ` · last message: ${mins}m ago`;
+          else if (mins < 1440) {
+            const hrs = Math.floor(mins / 60);
+            tip += ` · last message: ${hrs}h ago`;
+          } else {
+            const days = Math.floor(mins / 1440);
+            tip += ` · last message: ${days}d ago`;
+          }
         }
       }
       return tip;

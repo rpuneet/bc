@@ -777,8 +777,11 @@ export function GatewayFeed({
 
   const navigate = useNavigate();
   const platform = gatewayPlatform(channelName);
+  // Show the leaf channel segment as the visible label. Internal keys carry
+  // the full path (e.g. "discord:server:general"); only the final segment is
+  // meaningful to humans.
   const channelLabel = channelName.includes(":")
-    ? channelName.split(":").slice(1).join(":")
+    ? (channelName.split(":").pop() || channelName)
     : channelName;
 
   /* ── Data fetching ─────────────────────────────────────────── */
