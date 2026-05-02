@@ -316,7 +316,21 @@ function NotificationNavTree() {
               }}
             >
               {meta.IconComponent ? <meta.IconComponent size={12} /> : <span style={{ fontSize: 12 }}>{"📌"}</span>}
-              <span className="truncate">{gwStatus?.bot_name || (chs.length > 0 ? sourceGroup(chs[0]?.name ?? "") : null) || meta.label}</span>
+              {(() => {
+                const subLabel = gwStatus?.bot_name || (chs.length > 0 ? sourceGroup(chs[0]?.name ?? "") : null);
+                // When a bot/server name is present, show platform + bot for clarity
+                // (e.g., "Slack · bc_gateway"); otherwise just the platform label.
+                if (subLabel && subLabel !== meta.label) {
+                  return (
+                    <span className="truncate flex items-baseline" style={{ gap: 5, minWidth: 0 }}>
+                      <span style={{ flexShrink: 0 }}>{meta.label}</span>
+                      <span style={{ color: "var(--mycel-muted, #6b6b6b)", fontSize: 10.5 }}>·</span>
+                      <span className="truncate" style={{ minWidth: 0 }}>{subLabel}</span>
+                    </span>
+                  );
+                }
+                return <span className="truncate">{meta.label}</span>;
+              })()}
               {isConnected && (
                 <span
                   className="ml-auto shrink-0"

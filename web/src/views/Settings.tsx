@@ -361,25 +361,39 @@ export function Settings() {
 
       {/* Floating save bar */}
       {dirtySections.length > 0 && (
-        <div className="sticky top-0 z-20 rounded border border-mycel-accent/50 bg-mycel-accent/10 backdrop-blur px-3 py-2 flex items-center justify-between">
-          <div className="text-xs text-mycel-text">
+        <div className="sticky top-0 z-20 rounded border border-mycel-accent/50 bg-mycel-accent/10 backdrop-blur px-3 py-2 flex items-center justify-between gap-3">
+          <div className="text-xs text-mycel-text min-w-0">
             <span className="font-medium">Unsaved:</span>{" "}
             <span className="text-mycel-muted">{dirtySections.join(", ")}</span>
             {dirtySections.some((k) => RESTART_SECTIONS.has(k)) && (
               <span className="ml-2 text-mycel-accent">Restart required after save</span>
             )}
           </div>
-          <button
-            onClick={handleSaveAll}
-            disabled={saveStatus === "saving"}
-            className={`px-3 py-1 rounded text-xs font-medium transition-all disabled:opacity-50 ${
-              saveStatus === "error"
-                ? "bg-mycel-error text-white hover:opacity-90"
-                : "bg-mycel-accent text-white hover:opacity-90"
-            }`}
-          >
-            {saveStatus === "saving" ? "Saving..." : saveStatus === "error" ? "Retry" : "Save"}
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={() => {
+                if (original) setEdited(deepClone(original));
+                setSaveStatus("idle");
+              }}
+              disabled={saveStatus === "saving"}
+              className="px-3 py-1 rounded text-xs font-medium border border-mycel-border text-mycel-muted hover:text-mycel-text hover:border-mycel-muted transition-colors disabled:opacity-50"
+              title="Discard unsaved changes"
+            >
+              Discard
+            </button>
+            <button
+              onClick={handleSaveAll}
+              disabled={saveStatus === "saving"}
+              className={`px-3 py-1 rounded text-xs font-medium transition-all disabled:opacity-50 ${
+                saveStatus === "error"
+                  ? "bg-mycel-error text-white hover:opacity-90"
+                  : "bg-mycel-accent text-white hover:opacity-90"
+              }`}
+            >
+              {saveStatus === "saving" ? "Saving..." : saveStatus === "error" ? "Retry" : "Save"}
+            </button>
+          </div>
         </div>
       )}
 
@@ -391,7 +405,7 @@ export function Settings() {
 
       {restartWarning && (
         <div className="rounded border border-mycel-error/30 bg-mycel-error/10 px-3 py-1.5 text-xs text-mycel-error">
-          Changes saved. Restart bcd to apply (<code className="font-mono">mycel down &amp;&amp; mycel up -d</code>)
+          Changes saved. Restart mycel to apply (<code className="font-mono">mycel down &amp;&amp; mycel up -d</code>)
         </div>
       )}
 

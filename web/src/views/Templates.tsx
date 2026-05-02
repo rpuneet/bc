@@ -623,7 +623,7 @@ function TemplateRow({
         <ChipList items={template.secrets ?? []} color="yellow" />
       </td>
       <td className="py-3 px-4 text-sm text-mycel-muted">
-        {template.description || <span className="text-mycel-muted/30">\u2014</span>}
+        {template.description || <span className="text-mycel-muted/30">{"\u2014"}</span>}
       </td>
     </tr>
   );
