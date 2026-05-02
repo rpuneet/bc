@@ -19,8 +19,8 @@ func TestRootCommand(t *testing.T) {
 	}
 
 	output := buf.String()
-	if !strings.Contains(output, "bc") {
-		t.Errorf("Expected output to contain 'bc', got: %s", output)
+	if !strings.Contains(output, "mycel") {
+		t.Errorf("Expected output to contain 'mycel', got: %s", output)
 	}
 }
 
@@ -51,7 +51,7 @@ func TestRootReturnsCommand(t *testing.T) {
 	if cmd == nil {
 		t.Fatal("Root() returned nil")
 	}
-	if cmd.Use != "bc" {
-		t.Errorf("Expected Use = 'bc', got '%s'", cmd.Use)
+	if cmd.Use != "mycel" {
+		t.Errorf("Expected Use = 'mycel', got '%s'", cmd.Use)
 	}
 }
