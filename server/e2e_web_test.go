@@ -12,20 +12,21 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
 	"testing/fstest"
 
-	"github.com/rpuneet/bc/pkg/agent"
-	"github.com/rpuneet/bc/pkg/cost"
-	"github.com/rpuneet/bc/pkg/cron"
-	bcdb "github.com/rpuneet/bc/pkg/db"
-	"github.com/rpuneet/bc/pkg/events"
-	pkgmcp "github.com/rpuneet/bc/pkg/mcp"
-	"github.com/rpuneet/bc/pkg/tool"
-	"github.com/rpuneet/bc/pkg/workspace"
-	"github.com/rpuneet/bc/server"
+	"github.com/rpuneet/mycel/pkg/agent"
+	"github.com/rpuneet/mycel/pkg/cost"
+	"github.com/rpuneet/mycel/pkg/cron"
+	bcdb "github.com/rpuneet/mycel/pkg/db"
+	"github.com/rpuneet/mycel/pkg/events"
+	pkgmcp "github.com/rpuneet/mycel/pkg/mcp"
+	"github.com/rpuneet/mycel/pkg/tool"
+	"github.com/rpuneet/mycel/pkg/workspace"
+	"github.com/rpuneet/mycel/server"
 )
 
 // newE2EServerWithWebUI creates a bcd server with a synthetic web UI filesystem
@@ -35,6 +36,10 @@ func newE2EServerWithWebUI(t *testing.T) *e2eServer {
 	t.Helper()
 
 	dir := t.TempDir()
+	// workspace.Load requires a git repo
+	if out, err := exec.CommandContext(context.Background(), "git", "init", dir).CombinedOutput(); err != nil { //nolint:gosec // dir is a t.TempDir(), not user input
+		t.Fatalf("git init: %v\n%s", err, out)
+	}
 	bcDir := filepath.Join(dir, ".bc")
 	if err := os.MkdirAll(filepath.Join(bcDir, "roles"), 0750); err != nil {
 		t.Fatal(err)

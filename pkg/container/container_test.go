@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/rpuneet/bc/pkg/provider"
-	"github.com/rpuneet/bc/pkg/workspace"
+	"github.com/rpuneet/mycel/pkg/provider"
+	"github.com/rpuneet/mycel/pkg/workspace"
 )
 
 func TestConfigFromWorkspace_Defaults(t *testing.T) {

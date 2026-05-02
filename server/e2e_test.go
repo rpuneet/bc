@@ -13,21 +13,22 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 
-	"github.com/rpuneet/bc/pkg/agent"
-	"github.com/rpuneet/bc/pkg/cost"
-	"github.com/rpuneet/bc/pkg/cron"
-	bcdb "github.com/rpuneet/bc/pkg/db"
+	"github.com/rpuneet/mycel/pkg/agent"
+	"github.com/rpuneet/mycel/pkg/cost"
+	"github.com/rpuneet/mycel/pkg/cron"
+	bcdb "github.com/rpuneet/mycel/pkg/db"
 
-	"github.com/rpuneet/bc/pkg/events"
-	pkgmcp "github.com/rpuneet/bc/pkg/mcp"
-	"github.com/rpuneet/bc/pkg/notify"
-	"github.com/rpuneet/bc/pkg/tool"
-	"github.com/rpuneet/bc/pkg/workspace"
-	"github.com/rpuneet/bc/server"
-	"github.com/rpuneet/bc/server/ws"
+	"github.com/rpuneet/mycel/pkg/events"
+	pkgmcp "github.com/rpuneet/mycel/pkg/mcp"
+	"github.com/rpuneet/mycel/pkg/notify"
+	"github.com/rpuneet/mycel/pkg/tool"
+	"github.com/rpuneet/mycel/pkg/workspace"
+	"github.com/rpuneet/mycel/server"
+	"github.com/rpuneet/mycel/server/ws"
 )
 
 // ─── Test Harness ────────────────────────────────────────────────────────────
@@ -43,6 +44,10 @@ func newE2EServer(t *testing.T) *e2eServer {
 	t.Helper()
 
 	dir := t.TempDir()
+	// workspace.Load requires a git repo
+	if out, err := exec.CommandContext(context.Background(), "git", "init", dir).CombinedOutput(); err != nil { //nolint:gosec // dir is a t.TempDir(), not user input
+		t.Fatalf("git init: %v\n%s", err, out)
+	}
 	bcDir := filepath.Join(dir, ".bc")
 	if err := os.MkdirAll(filepath.Join(bcDir, "roles"), 0750); err != nil {
 		t.Fatal(err)
@@ -267,8 +272,8 @@ func TestE2E_Agents_DeleteNotFound(t *testing.T) {
 	s := newE2EServer(t)
 
 	code := s.delete(t, "/api/agents/nonexistent")
-	if code != 400 {
-		t.Fatalf("want 400, got %d", code)
+	if code != 404 {
+		t.Fatalf("want 404, got %d", code)
 	}
 }
 

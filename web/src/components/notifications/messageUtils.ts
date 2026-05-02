@@ -1,14 +1,15 @@
 import type { ChannelMessage } from "../../api/client";
 
 /** Gateway notification sources are bridges to external platforms — read-only activity feeds. */
-export const GATEWAY_PREFIXES = ["slack:", "telegram:", "discord:"];
+export const GATEWAY_PREFIXES = [
+  "slack:", "telegram:", "discord:", "whatsapp:", "github:", "webhook:",
+  "rss:", "mqtt:", "irc:", "matrix:", "mattermost:", "reddit:", "twitter:",
+  "notion:", "signal:", "nostr:", "homeassistant:", "imessage:",
+];
 
 export function isGatewaySource(name: string): boolean {
   return GATEWAY_PREFIXES.some((p) => name.startsWith(p));
 }
-
-/** @deprecated Use isGatewaySource instead */
-export const isGatewayChannel = isGatewaySource;
 
 /** Extract platform name from gateway source for display. */
 export function gatewayPlatform(name: string): string | null {
@@ -25,9 +26,6 @@ export function sourcePlatform(name: string): string {
   }
   return "internal";
 }
-
-/** @deprecated Use sourcePlatform instead */
-export const channelPlatform = sourcePlatform;
 
 export interface MessageGroup {
   sender: string;
@@ -144,7 +142,7 @@ export const ROLE_COLORS: Record<string, { bg: string; text: string }> = {
   base: { bg: "bg-slate-500/20", text: "text-slate-400" },
 };
 
-export const DEFAULT_ROLE_COLOR = { bg: "bg-bc-muted/20", text: "text-bc-muted" };
+export const DEFAULT_ROLE_COLOR = { bg: "bg-mycel-muted/20", text: "text-mycel-muted" };
 
 export function getRoleColor(role: string | undefined): { bg: string; text: string } {
   if (!role) return DEFAULT_ROLE_COLOR;
@@ -278,5 +276,55 @@ export function parseGitHubCard(content: string): GitHubCard | null {
     };
   }
 
+  return null;
+}
+
+/* ── RSS / webhook card parsing ───────────────────────────────── */
+
+export interface RSSCard {
+  title: string;
+  link?: string;
+  description?: string;
+  pubDate?: string;
+  source?: string;
+}
+
+export function parseRSSCard(content: string): RSSCard | null {
+  try {
+    const obj = JSON.parse(content);
+    if (obj && typeof obj === "object" && !Array.isArray(obj) && obj.title && (obj.link || obj.url)) {
+      return {
+        title: obj.title,
+        link: obj.link ?? obj.url,
+        description: obj.description ?? obj.summary,
+        pubDate: obj.pubDate ?? obj.published ?? obj.date,
+        source: obj.feed ?? obj.source,
+      };
+    }
+  } catch {
+    // not JSON
+  }
+  return null;
+}
+
+export interface WebhookCard {
+  event?: string;
+  action?: string;
+  payload: Record<string, unknown>;
+}
+
+export function parseWebhookCard(content: string): WebhookCard | null {
+  try {
+    const obj = JSON.parse(content);
+    if (obj && typeof obj === "object" && !Array.isArray(obj)) {
+      return {
+        event: obj.event_type ?? obj.event ?? obj.type,
+        action: obj.action,
+        payload: obj,
+      };
+    }
+  } catch {
+    // not JSON
+  }
   return null;
 }

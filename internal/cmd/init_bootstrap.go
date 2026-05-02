@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/rpuneet/bc/pkg/ui"
+	"github.com/rpuneet/mycel/pkg/ui"
 )
 
 // bootstrapServerDaemons starts bc-db (unified TimescaleDB) during bc init.

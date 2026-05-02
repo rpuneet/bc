@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/rpuneet/bc/pkg/log"
+	"github.com/rpuneet/mycel/pkg/log"
 )
 
 // CheckToolHealth verifies that the tool binary for the named agent is still
@@ -59,7 +59,7 @@ func (m *Manager) CheckToolHealth(ctx context.Context, agentName string) error {
 	)
 
 	task := fmt.Sprintf("tool unavailable: %s binary not found", toolName)
-	if err := m.updateStateForToolHealth(agentName, task); err != nil {
+	if err := m.updateStateForToolHealth(ctx, agentName, task); err != nil {
 		return fmt.Errorf("failed to mark agent %q as stuck: %w", agentName, err)
 	}
 
@@ -69,7 +69,7 @@ func (m *Manager) CheckToolHealth(ctx context.Context, agentName string) error {
 // updateStateForToolHealth sets an agent to StateStuck when its tool is
 // unavailable. It validates the transition and notifies state-change
 // listeners.
-func (m *Manager) updateStateForToolHealth(name, task string) error {
+func (m *Manager) updateStateForToolHealth(ctx context.Context, name, task string) error {
 	var changed bool
 
 	m.mu.Lock()
@@ -90,7 +90,7 @@ func (m *Manager) updateStateForToolHealth(name, task string) error {
 	ag.UpdatedAt = time.Now()
 	changed = prevState != StateStuck
 
-	if err := m.saveState(); err != nil {
+	if err := m.saveState(ctx); err != nil {
 		log.Warn("failed to save agent state after tool health check", "error", err)
 	}
 	m.mu.Unlock()

@@ -9,7 +9,7 @@ import (
 
 	_ "github.com/mattn/go-sqlite3"
 
-	"github.com/rpuneet/bc/pkg/workspace"
+	"github.com/rpuneet/mycel/pkg/workspace"
 )
 
 // ─── Severity ────────────────────────────────────────────────────────────────
@@ -311,7 +311,7 @@ func TestCheckDatabase_NoDB(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	cat := CheckDatabase(ws)
+	cat := CheckDatabase(context.Background(), ws)
 
 	// With no databases, we expect warnings (not found = will be created on use)
 	_, warn, fail := cat.Counts()
@@ -336,7 +336,7 @@ func TestCheckDatabase_ValidDB(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	cat := CheckDatabase(ws)
+	cat := CheckDatabase(context.Background(), ws)
 
 	for _, item := range cat.Items {
 		if item.Name == "state.db integrity" && item.Severity != SeverityOK {
@@ -361,7 +361,7 @@ func TestCheckDatabase_MissingTable(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	cat := CheckDatabase(ws)
+	cat := CheckDatabase(context.Background(), ws)
 
 	var foundMissingTable bool
 	for _, item := range cat.Items {

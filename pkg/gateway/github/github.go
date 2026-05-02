@@ -14,8 +14,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/rpuneet/bc/pkg/gateway"
-	"github.com/rpuneet/bc/pkg/log"
+	"github.com/rpuneet/mycel/pkg/gateway"
+	"github.com/rpuneet/mycel/pkg/log"
 )
 
 // commonEventTypes are the GitHub webhook events surfaced as channels.
@@ -85,7 +85,7 @@ func (a *Adapter) HTTPHandler() http.Handler {
 			return
 		}
 
-		body, err := io.ReadAll(r.Body)
+		body, err := io.ReadAll(io.LimitReader(r.Body, 1<<20))
 		if err != nil {
 			http.Error(w, "failed to read body", http.StatusBadRequest)
 			return

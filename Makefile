@@ -1,4 +1,4 @@
-# bc — Agent Orchestration System
+# mycel — Agent Orchestration System
 #
 # Structure:
 #   build-local-*    Host machine binaries (Go, TS)
@@ -25,8 +25,8 @@
 # Top-level
 .PHONY: build build-local build-docker test lint fmt vet check clean deps release install
 # Go
-.PHONY: build-local-bc build-local-tui-bundle test-go test-go-race test-go-fast lint-go fmt-go vet-go coverage-go bench-go deps-go check-go scan-go
-.PHONY: release-local-bc install-local-bc
+.PHONY: build-local-bc build-local-mycel build-local-tui-bundle test-go test-go-race test-go-fast lint-go fmt-go vet-go coverage-go bench-go deps-go check-go scan-go
+.PHONY: release-local-bc release-local-mycel install-local-bc install-local-mycel
 # Docker
 .PHONY: build-docker-daemon build-docker-db build-docker-bcdb
 .PHONY: build-docker-agent-base build-docker-agent build-docker-agents build-docker-agent-infra build-docker-playwright stop-docker-playwright run-docker-playwright
@@ -37,7 +37,7 @@
 .PHONY: fmt-ts fmt-tui fmt-web fmt-landing
 .PHONY: vet-ts vet-tui vet-web vet-landing
 .PHONY: coverage-ts bench-ts deps-ts check-ts scan-ts
-.PHONY: run-bc run-web run-landing run-tui
+.PHONY: run-bc run-mycel run-web run-landing run-tui
 # CI
 .PHONY: ci-local ci-docker
 # Clean
@@ -73,7 +73,7 @@ _BOLD  := \033[1m
 # =============================================================================
 
 help: ## Show all targets
-	@echo "bc — Agent Orchestration System ($(VERSION))"
+	@echo "mycel — Agent Orchestration System ($(VERSION))"
 	@echo ""
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-30s\033[0m %s\n", $$1, $$2}'
 	@echo ""
@@ -95,22 +95,24 @@ fmt: fmt-go fmt-ts ## Format all code
 vet: vet-go vet-ts ## Vet all code
 check: check-go check-ts ## Full quality gate
 deps: deps-go deps-ts ## Install all dependencies
-release: release-local-bc ## Build release binaries (stripped)
-install: install-local-bc ## Install bc to $GOPATH/bin
+release: release-local-mycel ## Build release binaries (stripped)
+install: install-local-mycel ## Install mycel to $GOPATH/bin
 clean: clean-local ## Remove all build artifacts
 
 # =============================================================================
 # Build — Local Go
 # =============================================================================
 
-build-local-go: build-local-bc ## Build all Go binaries
+build-local-go: build-local-mycel ## Build all Go binaries
 
-build-local-bc: build-local-web build-local-tui-bundle ## Build bc (embeds web UI, TUI bundle, server)
+build-local-mycel: build-local-web build-local-tui-bundle ## Build mycel (embeds web UI, TUI bundle, server)
 	@mkdir -p $(BUILD_DIR)
-	@if [ ! -d server/web/dist ]; then mkdir -p server/web/dist && echo '<!-- stub -->' > server/web/dist/index.html; fi
-	$(GO) build -ldflags="$(LDFLAGS_VERSION)" -o $(BUILD_DIR)/bc ./cmd/bc
+	@if [ ! -f server/web/dist/index.html ]; then mkdir -p server/web/dist && echo "<!-- stub -->" > server/web/dist/index.html; fi
+	$(GO) build -ldflags="$(LDFLAGS_VERSION)" -o $(BUILD_DIR)/mycel ./cmd/mycel
 
-build-local-tui-bundle: ## Build single-file TUI bundle for embedding into bc binary
+build-local-bc: build-local-mycel ## Deprecated alias for build-local-mycel
+
+build-local-tui-bundle: ## Build single-file TUI bundle for embedding into mycel binary
 	@mkdir -p internal/cmd/tui-bundle
 	@if [ ! -f tui/node_modules/.package-lock.json ] && [ ! -d tui/node_modules/react-devtools-core ]; then \
 		echo "Installing TUI dependencies..."; \
@@ -292,17 +294,21 @@ ci-docker: ## Build all Docker images
 # Release
 # =============================================================================
 
-release-local-bc: build-local-tui-bundle ## Build optimized bc binary (embeds web + TUI)
+release-local-mycel: build-local-tui-bundle ## Build optimized mycel binary (embeds web + TUI)
 	@mkdir -p $(BUILD_DIR)
-	@if [ ! -d server/web/dist ]; then mkdir -p server/web/dist && echo '<!-- stub -->' > server/web/dist/index.html; fi
-	$(GO) build -ldflags="$(LDFLAGS_RELEASE)" -o $(BUILD_DIR)/bc ./cmd/bc
+	@if [ ! -f server/web/dist/index.html ]; then mkdir -p server/web/dist && echo "<!-- stub -->" > server/web/dist/index.html; fi
+	$(GO) build -ldflags="$(LDFLAGS_RELEASE)" -o $(BUILD_DIR)/mycel ./cmd/mycel
+
+release-local-bc: release-local-mycel ## Deprecated alias for release-local-mycel
 
 # =============================================================================
 # Run (dev, foreground)
 # =============================================================================
 
-run-bc: ## Run bc CLI from source
-	$(GO) run ./cmd/bc
+run-mycel: ## Run mycel CLI from source
+	$(GO) run ./cmd/mycel
+
+run-bc: run-mycel ## Deprecated alias for run-mycel
 
 run-web: ## Run web UI dev server
 	cd web && bun run dev
@@ -320,8 +326,10 @@ build-landing-prod: ## Production build for landing page (Cloudflare Pages)
 # Install
 # =============================================================================
 
-install-local-bc: build-local-bc ## Install bc to $GOPATH/bin
-	cp $(BUILD_DIR)/bc $(shell $(GO) env GOPATH)/bin/
+install-local-mycel: build-local-mycel ## Install mycel to $GOPATH/bin
+	cp $(BUILD_DIR)/mycel $(shell $(GO) env GOPATH)/bin/
+
+install-local-bc: install-local-mycel ## Deprecated alias for install-local-mycel
 
 # =============================================================================
 # Dependencies

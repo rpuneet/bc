@@ -1,4 +1,4 @@
-# bc-landing Performance Audit Report
+# mycel-landing Performance Audit Report
 
 **Date:** 2026-02-09
 **Tool:** Google Lighthouse v16.1.6
@@ -296,7 +296,7 @@ Accessibility        74         >80        🟡 PASS (border)
 
 ## Conclusion
 
-bc-landing demonstrates **excellent overall performance** with:
+mycel-landing demonstrates **excellent overall performance** with:
 - ✅ **Perfect performance score** (100/100) on all Core Web Vitals
 - ✅ **Strong SEO foundation** (91/100) with proper metadata
 - ✅ **Good best practices** (96/100) implementation

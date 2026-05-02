@@ -17,12 +17,12 @@ import (
 	"strings"
 	"time"
 
-	bcagent "github.com/rpuneet/bc/pkg/agent"
-	bccontainer "github.com/rpuneet/bc/pkg/container"
-	"github.com/rpuneet/bc/pkg/log"
-	bcstats "github.com/rpuneet/bc/pkg/stats"
-	bctoken "github.com/rpuneet/bc/pkg/token"
-	bcworkspace "github.com/rpuneet/bc/pkg/workspace"
+	bcagent "github.com/rpuneet/mycel/pkg/agent"
+	bccontainer "github.com/rpuneet/mycel/pkg/container"
+	"github.com/rpuneet/mycel/pkg/log"
+	bcstats "github.com/rpuneet/mycel/pkg/stats"
+	bctoken "github.com/rpuneet/mycel/pkg/token"
+	bcworkspace "github.com/rpuneet/mycel/pkg/workspace"
 )
 
 // tmuxSampler is shared across sampling ticks so the one-time

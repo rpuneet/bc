@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rpuneet/bc/pkg/workspace"
+	"github.com/rpuneet/mycel/pkg/workspace"
 )
 
 // initTestWorkspace creates a minimal workspace via workspace.Init under
@@ -20,6 +20,7 @@ func initTestWorkspace(t *testing.T, tmpDir, name string) (string, string) {
 	if err := os.MkdirAll(wsDir, 0750); err != nil {
 		t.Fatalf("mkdir ws: %v", err)
 	}
+	gitInitDir(t, wsDir)
 	if _, err := workspace.Init(wsDir); err != nil {
 		t.Fatalf("workspace.Init: %v", err)
 	}

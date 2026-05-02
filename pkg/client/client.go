@@ -19,7 +19,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rpuneet/bc/pkg/log"
+	"github.com/rpuneet/mycel/pkg/log"
 )
 
 // DefaultSocketPath returns the default Unix socket path for bcd.

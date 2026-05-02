@@ -3,7 +3,7 @@ package mcp
 import (
 	"context"
 
-	"github.com/rpuneet/bc/pkg/workspace"
+	"github.com/rpuneet/mycel/pkg/workspace"
 )
 
 // ─── bc://workspace/status ───────────────────────────────────────────────────

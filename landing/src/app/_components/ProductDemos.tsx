@@ -53,7 +53,7 @@ function Breadcrumbs({ activeTab }: { activeTab: string }) {
         <div className="font-mono text-[11px] text-terminal-muted flex items-center gap-2">
           <span className="opacity-50">WORKSPACES</span>
           <span className="text-terminal-comment">/</span>
-          <span className="text-terminal-text font-bold">bc-infra</span>
+          <span className="text-terminal-text font-bold">mycel-dev</span>
         </div>
         <div className="flex items-center gap-1 rounded-xl border border-terminal-comment bg-terminal-bg/40 p-1 font-mono">
           {tabs.map((t) => (

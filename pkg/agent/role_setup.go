@@ -12,12 +12,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rpuneet/bc/pkg/log"
-	pkgmcp "github.com/rpuneet/bc/pkg/mcp"
-	"github.com/rpuneet/bc/pkg/provider"
-	"github.com/rpuneet/bc/pkg/secret"
-	pkgtool "github.com/rpuneet/bc/pkg/tool"
-	"github.com/rpuneet/bc/pkg/workspace"
+	"github.com/rpuneet/mycel/pkg/log"
+	pkgmcp "github.com/rpuneet/mycel/pkg/mcp"
+	"github.com/rpuneet/mycel/pkg/provider"
+	"github.com/rpuneet/mycel/pkg/secret"
+	pkgtool "github.com/rpuneet/mycel/pkg/tool"
+	"github.com/rpuneet/mycel/pkg/workspace"
 )
 
 // SetupAgentFromRole resolves a role via BFS inheritance and writes all
@@ -35,21 +35,21 @@ import (
 // SetupAgentFromRoleWithRuntime sets up agent workspace files for the given role,
 // runtime backend, and tool provider. Uses ConfigAdapter for provider-specific
 // file layout (prompt file, config dir, MCP setup, plugins).
-func SetupAgentFromRoleWithRuntime(workspacePath, agentName, roleName, targetDir, runtimeBackend string, toolName ...string) error {
+func SetupAgentFromRoleWithRuntime(ctx context.Context, workspacePath, agentName, roleName, targetDir, runtimeBackend string, toolName ...string) error {
 	tool := ""
 	if len(toolName) > 0 {
 		tool = toolName[0]
 	}
-	return setupAgentFromRole(workspacePath, agentName, roleName, targetDir, runtimeBackend, tool)
+	return setupAgentFromRole(ctx, workspacePath, agentName, roleName, targetDir, runtimeBackend, tool)
 }
 
 // SetupAgentFromRole sets up agent workspace files for the given role.
 // Defaults to tmux runtime (all MCP transports available).
-func SetupAgentFromRole(workspacePath, agentName, roleName, targetDir string) error {
-	return setupAgentFromRole(workspacePath, agentName, roleName, targetDir, "tmux", "")
+func SetupAgentFromRole(ctx context.Context, workspacePath, agentName, roleName, targetDir string) error {
+	return setupAgentFromRole(ctx, workspacePath, agentName, roleName, targetDir, "tmux", "")
 }
 
-func setupAgentFromRole(workspacePath, agentName, roleName, targetDir, runtimeBackend, toolName string) error {
+func setupAgentFromRole(ctx context.Context, workspacePath, agentName, roleName, targetDir, runtimeBackend, toolName string) error {
 	stateDir := workspaceStateDir(workspacePath)
 	rm := workspace.NewRoleManager(stateDir)
 
@@ -74,7 +74,7 @@ func setupAgentFromRole(workspacePath, agentName, roleName, targetDir, runtimeBa
 	}
 
 	// MCP config via adapter (claude mcp add, .mcp.json, .cursor/mcp.json, etc.)
-	if e := writeMCPJSON(workspacePath, agentName, resolved, secrets, targetDir, runtimeBackend); e != nil {
+	if e := writeMCPJSON(ctx, workspacePath, agentName, resolved, secrets, targetDir, runtimeBackend); e != nil {
 		errs = append(errs, e.Error())
 	}
 
@@ -153,7 +153,7 @@ type mcpServerEntry struct {
 
 var secretRefPattern = regexp.MustCompile(`\$\{secret:([^}]+)\}`)
 
-func writeMCPJSON(workspacePath, agentName string, resolved *workspace.ResolvedRole, secrets map[string]string, targetDir, runtimeBackend string) error {
+func writeMCPJSON(ctx context.Context, workspacePath, agentName string, resolved *workspace.ResolvedRole, secrets map[string]string, targetDir, runtimeBackend string) error {
 	isDocker := runtimeBackend == "docker"
 	cfg := mcpConfig{MCPServers: make(map[string]mcpServerEntry)}
 
@@ -261,7 +261,7 @@ func writeMCPJSON(workspacePath, agentName string, resolved *workspace.ResolvedR
 	}
 
 	// Prefer claude CLI for MCP setup; fall back to .mcp.json file write.
-	if len(cfg.MCPServers) > 0 && setupMCPViaCLI(targetDir, agentName, cfg.MCPServers) {
+	if len(cfg.MCPServers) > 0 && setupMCPViaCLI(ctx, targetDir, agentName, cfg.MCPServers) {
 		log.Debug("MCP servers configured via claude CLI", "agent", agentName, "count", len(cfg.MCPServers))
 		return nil
 	}
@@ -524,7 +524,7 @@ func checkSSEEndpoint(url string) error {
 //
 // Returns true if claude CLI was used successfully, false if caller should
 // fall back to file-based .mcp.json.
-func setupMCPViaCLI(targetDir, agentName string, servers map[string]mcpServerEntry) bool {
+func setupMCPViaCLI(ctx context.Context, targetDir, agentName string, servers map[string]mcpServerEntry) bool {
 	// Check if claude CLI is available
 	claudePath, err := exec.LookPath("claude")
 	if err != nil {
@@ -533,12 +533,12 @@ func setupMCPViaCLI(targetDir, agentName string, servers map[string]mcpServerEnt
 	}
 
 	// First remove any existing MCP servers to avoid duplicates
-	existingCmd := exec.CommandContext(context.TODO(), claudePath, "mcp", "list") //nolint:gosec // trusted claude CLI path
+	existingCmd := exec.CommandContext(ctx, claudePath, "mcp", "list") //nolint:gosec // trusted claude CLI path
 	existingCmd.Dir = targetDir
 	if out, err := existingCmd.Output(); err == nil && len(out) > 0 {
 		// Parse existing servers and remove them
 		for name := range servers {
-			rmCmd := exec.CommandContext(context.TODO(), claudePath, "mcp", "remove", name, "--scope", "project") //nolint:gosec // trusted claude CLI path
+			rmCmd := exec.CommandContext(ctx, claudePath, "mcp", "remove", name, "--scope", "project") //nolint:gosec // trusted claude CLI path
 			rmCmd.Dir = targetDir
 			_ = rmCmd.Run() //nolint:errcheck // ignore if not found
 		}
@@ -574,7 +574,7 @@ func setupMCPViaCLI(targetDir, agentName string, servers map[string]mcpServerEnt
 			continue
 		}
 
-		cmd := exec.CommandContext(context.TODO(), claudePath, args...) //nolint:gosec // args are from trusted config
+		cmd := exec.CommandContext(ctx, claudePath, args...) //nolint:gosec // args are from trusted config
 		cmd.Dir = targetDir
 		if out, err := cmd.CombinedOutput(); err != nil {
 			log.Warn("claude mcp add failed", "name", name, "error", err, "output", string(out))

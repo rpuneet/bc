@@ -6,9 +6,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/rpuneet/bc/pkg/client"
-	"github.com/rpuneet/bc/pkg/doctor"
-	"github.com/rpuneet/bc/pkg/ui"
+	"github.com/rpuneet/mycel/pkg/client"
+	"github.com/rpuneet/mycel/pkg/doctor"
+	"github.com/rpuneet/mycel/pkg/ui"
 )
 
 var doctorCmd = &cobra.Command{

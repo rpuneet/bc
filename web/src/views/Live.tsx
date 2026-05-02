@@ -43,8 +43,8 @@ export function Live() {
         <span className="inline-flex items-center gap-2">
           Live
           <span className="relative flex h-2 w-2">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-bc-error opacity-75" />
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-bc-error" />
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-mycel-error opacity-75" />
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-mycel-error" />
           </span>
         </span>
       </TabHeaderTitle>
@@ -215,7 +215,7 @@ export function Live() {
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [sorted, focusedCardIdx, toggleAgent]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [sorted, focusedCardIdx, toggleAgent]);  
 
   const hasFilters = agentFilter || typeFilter !== "all" || searchFilter;
 
@@ -247,17 +247,17 @@ export function Live() {
       <div className="flex items-center justify-end mb-4">
         <span className="flex items-center gap-2">
           {/* SSE connection indicator */}
-          <span className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-[11px] font-mono ${connected ? "bg-bc-success/10 text-bc-success" : reconnecting ? "bg-bc-warning/10 text-bc-warning" : "bg-bc-error/10 text-bc-error"}`} title={sseTooltip}>
+          <span className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-[11px] font-mono ${connected ? "bg-mycel-success/10 text-mycel-success" : reconnecting ? "bg-mycel-warning/10 text-mycel-warning" : "bg-mycel-error/10 text-mycel-error"}`} title={sseTooltip}>
             <span className={`inline-flex h-1.5 w-1.5 rounded-full ${sseDotColor}${reconnecting ? " animate-pulse" : ""}`} />
             <span className="hidden sm:inline">{connected ? "Connected" : reconnecting ? "Reconnecting" : "Disconnected"}</span>
           </span>
           {/* Event count pill */}
-          <span className="text-[11px] text-bc-muted font-mono tabular-nums px-2 py-1 rounded-md bg-bc-surface border border-bc-border">{eventCount.toLocaleString()} events</span>
+          <span className="text-[11px] text-mycel-muted font-mono tabular-nums px-2 py-1 rounded-md bg-mycel-surface border border-mycel-border">{eventCount.toLocaleString()} events</span>
           {/* Pause/Resume button */}
           <button
             type="button"
             onClick={() => paused ? handleResume() : setPaused(true)}
-            className={`relative inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-md border transition-colors ${paused ? "border-bc-warning bg-bc-warning/15 text-bc-warning hover:bg-bc-warning/25" : "border-bc-border hover:border-bc-accent bg-bc-surface text-bc-text"}`}
+            className={`relative inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-md border transition-colors ${paused ? "border-mycel-warning bg-mycel-warning/15 text-mycel-warning hover:bg-mycel-warning/25" : "border-mycel-border hover:border-mycel-accent bg-mycel-surface text-mycel-text"}`}
             title={paused ? `Resume (${pausedCount} buffered)` : "Pause stream"}
           >
             {paused ? (
@@ -267,7 +267,7 @@ export function Live() {
             )}
             <span className="hidden sm:inline">{paused ? "Resume" : "Pause"}</span>
             {paused && pausedCount > 0 && (
-              <span className="text-[10px] font-bold text-bc-warning ml-0.5">({pausedCount})</span>
+              <span className="text-[10px] font-bold text-mycel-warning ml-0.5">({pausedCount})</span>
             )}
           </button>
           {/* Export button with download icon */}
@@ -299,7 +299,7 @@ export function Live() {
               a.click();
               URL.revokeObjectURL(url);
             }}
-            className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-md border border-bc-border hover:border-bc-accent bg-bc-surface text-bc-muted hover:text-bc-text transition-colors"
+            className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-md border border-mycel-border hover:border-mycel-accent bg-mycel-surface text-mycel-muted hover:text-mycel-text transition-colors"
             title="Export event feed as JSON"
           >
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5">
@@ -311,7 +311,7 @@ export function Live() {
           <button
             type="button"
             onClick={() => setShowShortcuts((prev) => !prev)}
-            className="inline-flex items-center justify-center h-7 w-7 rounded-md border border-bc-border hover:border-bc-accent bg-bc-surface text-bc-muted hover:text-bc-text text-xs transition-colors"
+            className="inline-flex items-center justify-center h-7 w-7 rounded-md border border-mycel-border hover:border-mycel-accent bg-mycel-surface text-mycel-muted hover:text-mycel-text text-xs transition-colors"
             title="Keyboard shortcuts (?)"
           >
             ?
@@ -321,13 +321,13 @@ export function Live() {
 
       {/* Keyboard Shortcuts Overlay */}
       {showShortcuts && (
-        <div className="absolute top-16 right-6 z-50 bg-bc-surface border border-bc-border rounded-lg shadow-lg p-4 w-64">
+        <div className="absolute top-16 right-6 z-50 bg-mycel-surface border border-mycel-border rounded-lg shadow-lg p-4 w-64">
           <div className="flex items-center justify-between mb-3">
-            <span className="text-sm font-semibold text-bc-text">Keyboard Shortcuts</span>
+            <span className="text-sm font-semibold text-mycel-text">Keyboard Shortcuts</span>
             <button
               type="button"
               onClick={() => setShowShortcuts(false)}
-              className="text-bc-muted hover:text-bc-text text-sm"
+              className="text-mycel-muted hover:text-mycel-text text-sm"
             >
               &times;
             </button>
@@ -342,10 +342,10 @@ export function Live() {
               ["?", "Toggle this help"],
             ].map(([key, desc]) => (
               <div key={key} className="flex items-center gap-2">
-                <kbd className="inline-flex items-center justify-center min-w-[24px] h-5 px-1.5 rounded bg-bc-bg border border-bc-border text-bc-text font-mono text-[11px]">
+                <kbd className="inline-flex items-center justify-center min-w-[24px] h-5 px-1.5 rounded bg-mycel-bg border border-mycel-border text-mycel-text font-mono text-[11px]">
                   {key}
                 </kbd>
-                <span className="text-bc-muted">{desc}</span>
+                <span className="text-mycel-muted">{desc}</span>
               </div>
             ))}
           </div>
@@ -353,11 +353,11 @@ export function Live() {
       )}
 
       {/* Filter Bar */}
-      <div className="flex flex-wrap items-center gap-2 mb-4 sticky top-0 z-10 bg-bc-bg py-2">
+      <div className="flex flex-wrap items-center gap-2 mb-4 sticky top-0 z-10 bg-mycel-bg py-2">
         <select
           value={agentFilter}
           onChange={(e) => setAgentFilter(e.target.value)}
-          className="text-sm rounded-md border border-bc-border bg-bc-surface px-2.5 py-1.5 text-bc-text focus:outline-none focus:ring-1 focus:ring-bc-accent appearance-none pr-7"
+          className="text-sm rounded-md border border-mycel-border bg-mycel-surface px-2.5 py-1.5 text-mycel-text focus:outline-none focus:ring-1 focus:ring-mycel-accent appearance-none pr-7"
           style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%238c7e72' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")`, backgroundRepeat: "no-repeat", backgroundPosition: "right 8px center" }}
         >
           <option value="">All agents</option>
@@ -368,7 +368,7 @@ export function Live() {
         <select
           value={typeFilter}
           onChange={(e) => setTypeFilter(e.target.value as FilterType)}
-          className="text-sm rounded-md border border-bc-border bg-bc-surface px-2.5 py-1.5 text-bc-text focus:outline-none focus:ring-1 focus:ring-bc-accent appearance-none pr-7"
+          className="text-sm rounded-md border border-mycel-border bg-mycel-surface px-2.5 py-1.5 text-mycel-text focus:outline-none focus:ring-1 focus:ring-mycel-accent appearance-none pr-7"
           style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%238c7e72' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")`, backgroundRepeat: "no-repeat", backgroundPosition: "right 8px center" }}
         >
           <option value="all">All</option>
@@ -377,7 +377,7 @@ export function Live() {
         </select>
         {/* Search with magnifying glass icon */}
         <div className="relative">
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" className="absolute left-2.5 top-1/2 -translate-y-1/2 text-bc-muted pointer-events-none">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" className="absolute left-2.5 top-1/2 -translate-y-1/2 text-mycel-muted pointer-events-none">
             <circle cx="6" cy="6" r="4.5" />
             <path d="M9.5 9.5L13 13" />
           </svg>
@@ -387,26 +387,26 @@ export function Live() {
             value={searchFilter}
             onChange={(e) => setSearchFilter(e.target.value)}
             placeholder="Search events... (/ to focus)"
-            className="text-sm rounded-md border border-bc-border bg-bc-surface pl-8 pr-2.5 py-1.5 text-bc-text placeholder:text-bc-muted focus:outline-none focus:ring-1 focus:ring-bc-accent w-56"
+            className="text-sm rounded-md border border-mycel-border bg-mycel-surface pl-8 pr-2.5 py-1.5 text-mycel-text placeholder:text-mycel-muted focus:outline-none focus:ring-1 focus:ring-mycel-accent w-56"
           />
         </div>
         {/* Active/stopped count badge with toggle */}
         <span
-          className="inline-flex items-center gap-1.5 text-[11px] font-mono px-2 py-1 rounded-md border border-bc-border bg-bc-surface text-bc-muted"
+          className="inline-flex items-center gap-1.5 text-[11px] font-mono px-2 py-1 rounded-md border border-mycel-border bg-mycel-surface text-mycel-muted"
           data-testid="live-state-badge"
           title={showStopped ? "Showing all agents" : "Stopped/errored agents hidden"}
         >
-          <span className="text-bc-success tabular-nums">{activeCount}</span>
+          <span className="text-mycel-success tabular-nums">{activeCount}</span>
           <span>active</span>
           {stoppedCount > 0 && (
             <>
-              <span className="text-bc-border">&middot;</span>
+              <span className="text-mycel-border">&middot;</span>
               <span className="tabular-nums">{stoppedCount}</span>
               <span>stopped</span>
               <button
                 type="button"
                 onClick={() => setShowStopped((prev) => !prev)}
-                className="text-bc-accent hover:text-bc-text underline decoration-dotted underline-offset-2 transition-colors"
+                className="text-mycel-accent hover:text-mycel-text underline decoration-dotted underline-offset-2 transition-colors"
                 aria-pressed={showStopped}
                 aria-label={showStopped ? "Hide stopped agents" : "Show stopped agents"}
                 data-testid="toggle-show-stopped"
@@ -420,27 +420,27 @@ export function Live() {
         {hasFilters && (
           <div className="flex items-center gap-1.5">
             {agentFilter && (
-              <span className="inline-flex items-center gap-1 text-[11px] font-mono px-2 py-1 rounded-full bg-bc-accent/10 text-bc-accent border border-bc-accent/30">
+              <span className="inline-flex items-center gap-1 text-[11px] font-mono px-2 py-1 rounded-full bg-mycel-accent/10 text-mycel-accent border border-mycel-accent/30">
                 {agentFilter}
-                <button type="button" onClick={() => setAgentFilter("")} className="hover:text-bc-text ml-0.5" aria-label="Remove agent filter">&times;</button>
+                <button type="button" onClick={() => setAgentFilter("")} className="hover:text-mycel-text ml-0.5" aria-label="Remove agent filter">&times;</button>
               </span>
             )}
             {typeFilter !== "all" && (
-              <span className="inline-flex items-center gap-1 text-[11px] font-mono px-2 py-1 rounded-full bg-bc-accent/10 text-bc-accent border border-bc-accent/30">
+              <span className="inline-flex items-center gap-1 text-[11px] font-mono px-2 py-1 rounded-full bg-mycel-accent/10 text-mycel-accent border border-mycel-accent/30">
                 {typeFilter === "tools" ? "Tool Calls" : "State Changes"}
-                <button type="button" onClick={() => setTypeFilter("all")} className="hover:text-bc-text ml-0.5" aria-label="Remove type filter">&times;</button>
+                <button type="button" onClick={() => setTypeFilter("all")} className="hover:text-mycel-text ml-0.5" aria-label="Remove type filter">&times;</button>
               </span>
             )}
             {searchFilter && (
-              <span className="inline-flex items-center gap-1 text-[11px] font-mono px-2 py-1 rounded-full bg-bc-accent/10 text-bc-accent border border-bc-accent/30">
+              <span className="inline-flex items-center gap-1 text-[11px] font-mono px-2 py-1 rounded-full bg-mycel-accent/10 text-mycel-accent border border-mycel-accent/30">
                 &ldquo;{searchFilter.length > 16 ? searchFilter.slice(0, 14) + "..." : searchFilter}&rdquo;
-                <button type="button" onClick={() => setSearchFilter("")} className="hover:text-bc-text ml-0.5" aria-label="Remove search filter">&times;</button>
+                <button type="button" onClick={() => setSearchFilter("")} className="hover:text-mycel-text ml-0.5" aria-label="Remove search filter">&times;</button>
               </span>
             )}
             <button
               type="button"
               onClick={() => { setAgentFilter(""); setTypeFilter("all"); setSearchFilter(""); }}
-              className="text-[11px] text-bc-muted hover:text-bc-text px-2 py-1 rounded-md border border-bc-border hover:border-bc-accent transition-colors"
+              className="text-[11px] text-mycel-muted hover:text-mycel-text px-2 py-1 rounded-md border border-mycel-border hover:border-mycel-accent transition-colors"
             >
               Clear all
             </button>
@@ -468,7 +468,7 @@ export function Live() {
           sorted.map((activity, idx) => (
             <div
               key={activity.name}
-              className={focusedCardIdx === idx ? "ring-2 ring-bc-accent rounded-lg" : ""}
+              className={focusedCardIdx === idx ? "ring-2 ring-mycel-accent rounded-lg" : ""}
             >
               <AgentCard
                 activity={activity}
@@ -489,12 +489,12 @@ export function Live() {
         <button
           type="button"
           onClick={jumpToLatest}
-          className="absolute bottom-8 right-8 z-20 inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-bc-border bg-bc-surface text-bc-text text-sm shadow-lg hover:border-bc-accent hover:bg-bc-surface-hover transition-colors"
+          className="absolute bottom-8 right-8 z-20 inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-mycel-border bg-mycel-surface text-mycel-text text-sm shadow-lg hover:border-mycel-accent hover:bg-mycel-surface-hover transition-colors"
         >
           <span>&darr;</span>
           Jump to latest
           {newEventsSinceScroll > 0 && (
-            <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 text-[11px] font-bold text-white bg-bc-accent rounded-full leading-none">
+            <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 text-[11px] font-bold text-white bg-mycel-accent rounded-full leading-none">
               {newEventsSinceScroll}
             </span>
           )}

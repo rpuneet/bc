@@ -4,6 +4,7 @@ package webhook
 
 import (
 	"context"
+	"crypto/subtle"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -13,8 +14,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/rpuneet/bc/pkg/gateway"
-	"github.com/rpuneet/bc/pkg/log"
+	"github.com/rpuneet/mycel/pkg/gateway"
+	"github.com/rpuneet/mycel/pkg/log"
 )
 
 // Adapter implements gateway.NotificationAdapter for generic webhooks.
@@ -80,7 +81,7 @@ func (a *Adapter) HTTPHandler() http.Handler {
 			return
 		}
 
-		body, err := io.ReadAll(r.Body)
+		body, err := io.ReadAll(io.LimitReader(r.Body, 1<<20))
 		if err != nil {
 			http.Error(w, "failed to read body", http.StatusBadRequest)
 			return
@@ -144,13 +145,13 @@ func (a *Adapter) validateAuth(r *http.Request) bool {
 	// Check Authorization: Bearer <secret>.
 	if auth := r.Header.Get("Authorization"); auth != "" {
 		const prefix = "Bearer "
-		if strings.HasPrefix(auth, prefix) && auth[len(prefix):] == a.secret {
+		if strings.HasPrefix(auth, prefix) && subtle.ConstantTimeCompare([]byte(auth[len(prefix):]), []byte(a.secret)) == 1 {
 			return true
 		}
 	}
 
 	// Check X-Webhook-Secret header.
-	if r.Header.Get("X-Webhook-Secret") == a.secret {
+	if subtle.ConstantTimeCompare([]byte(r.Header.Get("X-Webhook-Secret")), []byte(a.secret)) == 1 {
 		return true
 	}
 

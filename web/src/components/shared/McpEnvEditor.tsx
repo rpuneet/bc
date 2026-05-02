@@ -41,14 +41,14 @@ export function McpEnvEditor({ serverNames }: McpEnvEditorProps) {
 
   if (servers === null) {
     return (
-      <p className="text-[11px] text-bc-muted/60" style={{ fontFamily: MONO }}>
+      <p className="text-[11px] text-mycel-muted/60" style={{ fontFamily: MONO }}>
         Loading MCP env…
       </p>
     );
   }
   if (servers.length === 0) {
     return (
-      <p className="text-[11px] text-bc-muted/60" style={{ fontFamily: MONO }}>
+      <p className="text-[11px] text-mycel-muted/60" style={{ fontFamily: MONO }}>
         {serverNames.length === 0
           ? "No MCP servers attached."
           : "Attached servers aren\u2019t in the MCP registry yet."}
@@ -59,7 +59,7 @@ export function McpEnvEditor({ serverNames }: McpEnvEditorProps) {
   return (
     <div className="flex flex-col gap-2">
       {error && (
-        <p className="text-[11px] text-bc-error" style={{ fontFamily: MONO }}>
+        <p className="text-[11px] text-mycel-error" style={{ fontFamily: MONO }}>
           {error}
         </p>
       )}
@@ -69,23 +69,23 @@ export function McpEnvEditor({ serverNames }: McpEnvEditorProps) {
         return (
           <div
             key={srv.name}
-            className="rounded border border-bc-border/30 bg-bc-surface/20"
+            className="rounded border border-mycel-border/30 bg-mycel-surface/20"
           >
             <button
               type="button"
               onClick={() => setExpanded(isOpen ? null : srv.name)}
-              className="w-full flex items-center justify-between px-3 py-2 text-left hover:bg-bc-surface/40 transition-colors"
+              className="w-full flex items-center justify-between px-3 py-2 text-left hover:bg-mycel-surface/40 transition-colors"
             >
               <span className="flex items-center gap-2">
-                <span className="font-medium text-bc-text text-[12px]" style={{ fontFamily: MONO }}>
+                <span className="font-medium text-mycel-text text-[12px]" style={{ fontFamily: MONO }}>
                   {srv.name}
                 </span>
                 {srv.enabled === false && (
-                  <span className="text-[10px] uppercase tracking-wide text-bc-muted/60">
+                  <span className="text-[10px] uppercase tracking-wide text-mycel-muted/60">
                     disabled
                   </span>
                 )}
-                <span className="text-[10px] text-bc-muted/60">
+                <span className="text-[10px] text-mycel-muted/60">
                   {envCount === 0 ? "no env" : `${envCount} env ${envCount === 1 ? "var" : "vars"}`}
                 </span>
               </span>
@@ -96,7 +96,7 @@ export function McpEnvEditor({ serverNames }: McpEnvEditorProps) {
                 fill="none"
                 stroke="currentColor"
                 strokeWidth="1.5"
-                className={`text-bc-muted transition-transform ${isOpen ? "rotate-90" : ""}`}
+                className={`text-mycel-muted transition-transform ${isOpen ? "rotate-90" : ""}`}
               >
                 <path d="M3 1l4 4-4 4" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
@@ -114,7 +114,7 @@ export function McpEnvEditor({ serverNames }: McpEnvEditorProps) {
           </div>
         );
       })}
-      <p className="text-[10px] text-bc-muted/40 leading-relaxed" style={{ fontFamily: MONO }}>
+      <p className="text-[10px] text-mycel-muted/40 leading-relaxed" style={{ fontFamily: MONO }}>
         MCP env is shared across every agent that uses the server. To override a
         value per-agent, set it in the agent\u2019s Environment section above.
       </p>
@@ -188,9 +188,9 @@ function EnvEditor({
   };
 
   return (
-    <div className="px-3 pb-3 border-t border-bc-border/20">
+    <div className="px-3 pb-3 border-t border-mycel-border/20">
       {pairs.length === 0 && (
-        <p className="py-2 text-[11px] text-bc-muted/60" style={{ fontFamily: MONO }}>
+        <p className="py-2 text-[11px] text-mycel-muted/60" style={{ fontFamily: MONO }}>
           No env variables set.
         </p>
       )}
@@ -200,18 +200,18 @@ function EnvEditor({
             type="text"
             value={p.key}
             onChange={(e) => update(i, "key", e.target.value)}
-            className="flex-1 bg-bc-bg border border-bc-border/40 rounded px-2 py-1 text-[12px] text-bc-text font-mono outline-none focus:border-bc-accent"
+            className="flex-1 bg-mycel-bg border border-mycel-border/40 rounded px-2 py-1 text-[12px] text-mycel-text font-mono outline-none focus:border-mycel-accent"
           />
           <input
             type="text"
             value={p.value}
             onChange={(e) => update(i, "value", e.target.value)}
-            className="flex-1 bg-bc-bg border border-bc-border/40 rounded px-2 py-1 text-[12px] text-bc-text font-mono outline-none focus:border-bc-accent"
+            className="flex-1 bg-mycel-bg border border-mycel-border/40 rounded px-2 py-1 text-[12px] text-mycel-text font-mono outline-none focus:border-mycel-accent"
           />
           <button
             type="button"
             onClick={() => remove(i)}
-            className="px-2 py-1 text-[11px] text-bc-muted/60 hover:text-bc-error"
+            className="px-2 py-1 text-[11px] text-mycel-muted/60 hover:text-mycel-error"
             style={{ fontFamily: MONO }}
           >
             ✕
@@ -219,13 +219,13 @@ function EnvEditor({
         </div>
       ))}
 
-      <div className="flex gap-2 mt-2 pt-2 border-t border-bc-border/15">
+      <div className="flex gap-2 mt-2 pt-2 border-t border-mycel-border/15">
         <input
           type="text"
           value={newKey}
           onChange={(e) => setNewKey(e.target.value)}
           placeholder="KEY"
-          className="flex-1 bg-bc-bg border border-bc-border/40 rounded px-2 py-1 text-[12px] text-bc-muted font-mono outline-none focus:border-bc-accent"
+          className="flex-1 bg-mycel-bg border border-mycel-border/40 rounded px-2 py-1 text-[12px] text-mycel-muted font-mono outline-none focus:border-mycel-accent"
         />
         <input
           type="text"
@@ -235,13 +235,13 @@ function EnvEditor({
             if (e.key === "Enter") addNew();
           }}
           placeholder="value"
-          className="flex-1 bg-bc-bg border border-bc-border/40 rounded px-2 py-1 text-[12px] text-bc-muted font-mono outline-none focus:border-bc-accent"
+          className="flex-1 bg-mycel-bg border border-mycel-border/40 rounded px-2 py-1 text-[12px] text-mycel-muted font-mono outline-none focus:border-mycel-accent"
         />
         <button
           type="button"
           onClick={addNew}
           disabled={!newKey.trim()}
-          className="px-3 py-1 text-[11px] rounded border border-bc-border/40 text-bc-muted hover:text-bc-text hover:border-bc-border disabled:opacity-30"
+          className="px-3 py-1 text-[11px] rounded border border-mycel-border/40 text-mycel-muted hover:text-mycel-text hover:border-mycel-border disabled:opacity-30"
           style={{ fontFamily: MONO }}
         >
           Add
@@ -250,11 +250,11 @@ function EnvEditor({
 
       <div className="flex items-center justify-between mt-3">
         {saveError ? (
-          <span className="text-[11px] text-bc-error" style={{ fontFamily: MONO }}>
+          <span className="text-[11px] text-mycel-error" style={{ fontFamily: MONO }}>
             {saveError}
           </span>
         ) : (
-          <span className="text-[10px] text-bc-muted/40" style={{ fontFamily: MONO }}>
+          <span className="text-[10px] text-mycel-muted/40" style={{ fontFamily: MONO }}>
             {dirty ? "Unsaved changes" : "Synced"}
           </span>
         )}
@@ -262,7 +262,7 @@ function EnvEditor({
           type="button"
           onClick={save}
           disabled={!dirty || saving}
-          className="px-3 py-1 text-[11px] rounded border border-bc-accent/40 text-bc-accent hover:bg-bc-accent/10 disabled:opacity-30"
+          className="px-3 py-1 text-[11px] rounded border border-mycel-accent/40 text-mycel-accent hover:bg-mycel-accent/10 disabled:opacity-30"
           style={{ fontFamily: MONO }}
         >
           {saving ? "Saving…" : "Save"}

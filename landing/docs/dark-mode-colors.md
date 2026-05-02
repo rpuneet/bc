@@ -8,7 +8,7 @@
 
 ## Overview
 
-Comprehensive dark mode color system for bc-landing with WCAG AA compliance verification. All contrast ratios meet or exceed 4.5:1 for text, 3:1 for non-text elements.
+Comprehensive dark mode color system for mycel-landing with WCAG AA compliance verification. All contrast ratios meet or exceed 4.5:1 for text, 3:1 for non-text elements.
 
 ---
 

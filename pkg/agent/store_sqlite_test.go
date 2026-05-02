@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"context"
 	"path/filepath"
 	"testing"
 	"time"
@@ -29,12 +30,12 @@ func TestSQLiteStore_SaveLoadDelete(t *testing.T) {
 	}
 
 	// Save
-	if saveErr := store.Save(a); saveErr != nil {
+	if saveErr := store.Save(context.Background(), a); saveErr != nil {
 		t.Fatalf("Save: %v", saveErr)
 	}
 
 	// Load
-	loaded, err := store.Load("eng-01")
+	loaded, err := store.Load(context.Background(), "eng-01")
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
@@ -61,7 +62,7 @@ func TestSQLiteStore_SaveLoadDelete(t *testing.T) {
 	}
 
 	// Load non-existent
-	missing, err := store.Load("nonexistent")
+	missing, err := store.Load(context.Background(), "nonexistent")
 	if err != nil {
 		t.Fatalf("Load nonexistent: %v", err)
 	}
@@ -70,10 +71,10 @@ func TestSQLiteStore_SaveLoadDelete(t *testing.T) {
 	}
 
 	// Delete
-	if err := store.Delete("eng-01"); err != nil {
+	if err := store.Delete(context.Background(), "eng-01"); err != nil {
 		t.Fatalf("Delete: %v", err)
 	}
-	after, _ := store.Load("eng-01")
+	after, _ := store.Load(context.Background(), "eng-01")
 	if after != nil {
 		t.Fatal("expected nil after delete")
 	}
@@ -88,7 +89,7 @@ func TestSQLiteStore_LoadAll(t *testing.T) {
 	defer func() { _ = store.Close() }()
 
 	for _, name := range []string{"a", "b", "c"} {
-		_ = store.Save(&Agent{
+		_ = store.Save(context.Background(), &Agent{
 			Name:      name,
 			Role:      Role("worker"),
 			State:     StateIdle,
@@ -97,7 +98,7 @@ func TestSQLiteStore_LoadAll(t *testing.T) {
 		})
 	}
 
-	all, err := store.LoadAll()
+	all, err := store.LoadAll(context.Background())
 	if err != nil {
 		t.Fatalf("LoadAll: %v", err)
 	}
@@ -118,11 +119,11 @@ func TestSQLiteStore_SaveAll(t *testing.T) {
 		"x": {Name: "x", Role: "worker", State: StateIdle, Workspace: "/ws", StartedAt: time.Now()},
 		"y": {Name: "y", Role: "engineer", State: StateWorking, Workspace: "/ws", StartedAt: time.Now()},
 	}
-	if err := store.SaveAll(agents); err != nil {
+	if err := store.SaveAll(context.Background(), agents); err != nil {
 		t.Fatalf("SaveAll: %v", err)
 	}
 
-	all, _ := store.LoadAll()
+	all, _ := store.LoadAll(context.Background())
 	if len(all) != 2 {
 		t.Fatalf("expected 2 agents, got %d", len(all))
 	}
@@ -136,19 +137,19 @@ func TestSQLiteStore_UpdateState(t *testing.T) {
 	}
 	defer func() { _ = store.Close() }()
 
-	_ = store.Save(&Agent{Name: "a", Role: "worker", State: StateIdle, Workspace: "/ws", StartedAt: time.Now()})
+	_ = store.Save(context.Background(), &Agent{Name: "a", Role: "worker", State: StateIdle, Workspace: "/ws", StartedAt: time.Now()})
 
-	if err := store.UpdateState("a", StateWorking); err != nil {
+	if err := store.UpdateState(context.Background(), "a", StateWorking); err != nil {
 		t.Fatalf("UpdateState: %v", err)
 	}
 
-	a, _ := store.Load("a")
+	a, _ := store.Load(context.Background(), "a")
 	if a.State != StateWorking {
 		t.Errorf("State = %q, want working", a.State)
 	}
 
 	// Non-existent agent
-	if err := store.UpdateState("zzz", StateIdle); err == nil {
+	if err := store.UpdateState(context.Background(), "zzz", StateIdle); err == nil {
 		t.Fatal("expected error for non-existent agent")
 	}
 }
@@ -161,19 +162,19 @@ func TestSQLiteStore_UpdateField(t *testing.T) {
 	}
 	defer func() { _ = store.Close() }()
 
-	_ = store.Save(&Agent{Name: "a", Role: "worker", State: StateIdle, Workspace: "/ws", StartedAt: time.Now()})
+	_ = store.Save(context.Background(), &Agent{Name: "a", Role: "worker", State: StateIdle, Workspace: "/ws", StartedAt: time.Now()})
 
-	if err := store.UpdateField("a", "team", "alpha"); err != nil {
+	if err := store.UpdateField(context.Background(), "a", "team", "alpha"); err != nil {
 		t.Fatalf("UpdateField: %v", err)
 	}
 
-	a, _ := store.Load("a")
+	a, _ := store.Load(context.Background(), "a")
 	if a.Team != "alpha" {
 		t.Errorf("Team = %q, want alpha", a.Team)
 	}
 
 	// Disallowed field
-	if err := store.UpdateField("a", "name", "evil"); err == nil {
+	if err := store.UpdateField(context.Background(), "a", "name", "evil"); err == nil {
 		t.Fatal("expected error for disallowed field")
 	}
 }
@@ -200,11 +201,11 @@ func TestSQLiteStore_RootFields(t *testing.T) {
 		Children:      []string{"eng-01"},
 	}
 
-	if err := store.Save(a); err != nil {
+	if err := store.Save(context.Background(), a); err != nil {
 		t.Fatalf("Save root: %v", err)
 	}
 
-	loaded, _ := store.Load("root")
+	loaded, _ := store.Load(context.Background(), "root")
 	if !loaded.IsRoot {
 		t.Error("IsRoot should be true")
 	}
@@ -237,14 +238,14 @@ func TestSQLiteStore_ConcurrentAccess(t *testing.T) {
 	defer func() { _ = s2.Close() }()
 
 	// s1 saves agent A
-	_ = s1.Save(&Agent{Name: "a", Role: "worker", State: StateIdle, Workspace: "/ws", StartedAt: time.Now()})
+	_ = s1.Save(context.Background(), &Agent{Name: "a", Role: "worker", State: StateIdle, Workspace: "/ws", StartedAt: time.Now()})
 
 	// s2 saves agent B
-	_ = s2.Save(&Agent{Name: "b", Role: "engineer", State: StateWorking, Workspace: "/ws", StartedAt: time.Now()})
+	_ = s2.Save(context.Background(), &Agent{Name: "b", Role: "engineer", State: StateWorking, Workspace: "/ws", StartedAt: time.Now()})
 
 	// Both should see both agents
-	all1, _ := s1.LoadAll()
-	all2, _ := s2.LoadAll()
+	all1, _ := s1.LoadAll(context.Background())
+	all2, _ := s2.LoadAll(context.Background())
 
 	if len(all1) != 2 {
 		t.Errorf("s1 sees %d agents, want 2", len(all1))
@@ -264,7 +265,7 @@ func TestSQLiteStore_SoftDelete(t *testing.T) {
 
 	// Save two agents
 	for _, name := range []string{"keep", "remove"} {
-		_ = store.Save(&Agent{
+		_ = store.Save(context.Background(), &Agent{
 			Name:      name,
 			Role:      Role("worker"),
 			State:     StateIdle,
@@ -274,12 +275,12 @@ func TestSQLiteStore_SoftDelete(t *testing.T) {
 	}
 
 	// Soft-delete one agent
-	if softErr := store.SoftDelete("remove"); softErr != nil {
+	if softErr := store.SoftDelete(context.Background(), "remove"); softErr != nil {
 		t.Fatalf("SoftDelete: %v", softErr)
 	}
 
 	// LoadAll should exclude the soft-deleted agent
-	all, err := store.LoadAll()
+	all, err := store.LoadAll(context.Background())
 	if err != nil {
 		t.Fatalf("LoadAll: %v", err)
 	}
@@ -294,7 +295,7 @@ func TestSQLiteStore_SoftDelete(t *testing.T) {
 	}
 
 	// Direct Load should still find the soft-deleted agent (row exists)
-	removed, err := store.Load("remove")
+	removed, err := store.Load(context.Background(), "remove")
 	if err != nil {
 		t.Fatalf("Load soft-deleted: %v", err)
 	}
@@ -306,10 +307,10 @@ func TestSQLiteStore_SoftDelete(t *testing.T) {
 	}
 
 	// Hard-delete should remove the row entirely
-	if err := store.Delete("remove"); err != nil {
+	if err := store.Delete(context.Background(), "remove"); err != nil {
 		t.Fatalf("Delete: %v", err)
 	}
-	after, _ := store.Load("remove")
+	after, _ := store.Load(context.Background(), "remove")
 	if after != nil {
 		t.Error("expected nil after hard delete")
 	}
@@ -324,14 +325,14 @@ func TestSQLiteStore_DeletedAtPersistence(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewSQLiteStore: %v", err)
 	}
-	_ = store1.Save(&Agent{
+	_ = store1.Save(context.Background(), &Agent{
 		Name:      "zombie",
 		Role:      Role("worker"),
 		State:     StateIdle,
 		Workspace: "/tmp/ws",
 		StartedAt: time.Now(),
 	})
-	if softErr := store1.SoftDelete("zombie"); softErr != nil {
+	if softErr := store1.SoftDelete(context.Background(), "zombie"); softErr != nil {
 		t.Fatalf("SoftDelete: %v", softErr)
 	}
 	_ = store1.Close()
@@ -343,7 +344,7 @@ func TestSQLiteStore_DeletedAtPersistence(t *testing.T) {
 	}
 	defer func() { _ = store2.Close() }()
 
-	all, err := store2.LoadAll()
+	all, err := store2.LoadAll(context.Background())
 	if err != nil {
 		t.Fatalf("LoadAll after restart: %v", err)
 	}

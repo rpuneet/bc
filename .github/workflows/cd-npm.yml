@@ -1,4 +1,4 @@
-# Publish bc-cli to npm after a successful release
+# Publish mycel-cli to npm after a successful release
 # Triggered automatically when release.yml completes successfully.
 # The npm package is a thin wrapper that downloads the Go binary at install time.
 
@@ -23,7 +23,7 @@ jobs:
           ref: ${{ github.event.workflow_run.head_sha }}
           fetch-depth: 0
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: '22'
           registry-url: 'https://registry.npmjs.org'
@@ -38,17 +38,17 @@ jobs:
           fi
           VERSION="${TAG#v}"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "Publishing bc-cli@$VERSION"
+          echo "Publishing mycel-cli@$VERSION"
 
       - name: Set package version
-        working-directory: packages/bc-cli
+        working-directory: packages/mycel-cli
         env:
           PKG_VERSION: ${{ steps.version.outputs.version }}
         run: npm version "$PKG_VERSION" --no-git-tag-version
 
       - name: Check if version already published
         id: published
-        working-directory: packages/bc-cli
+        working-directory: packages/mycel-cli
         env:
           PKG_VERSION: ${{ steps.version.outputs.version }}
         run: |
@@ -60,7 +60,7 @@ jobs:
 
       - name: Publish to npm
         if: steps.published.outputs.exists != 'true'
-        working-directory: packages/bc-cli
+        working-directory: packages/mycel-cli
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: npm publish --access public

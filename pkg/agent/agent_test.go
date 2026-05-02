@@ -12,11 +12,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rpuneet/bc/pkg/provider"
-	"github.com/rpuneet/bc/pkg/runtime"
-	"github.com/rpuneet/bc/pkg/tmux"
-	"github.com/rpuneet/bc/pkg/workspace"
-	"github.com/rpuneet/bc/pkg/worktree"
+	"github.com/rpuneet/mycel/pkg/provider"
+	"github.com/rpuneet/mycel/pkg/runtime"
+	"github.com/rpuneet/mycel/pkg/tmux"
+	"github.com/rpuneet/mycel/pkg/workspace"
+	"github.com/rpuneet/mycel/pkg/worktree"
 )
 
 func TestMain(m *testing.M) {
@@ -529,7 +529,7 @@ func TestSaveAndLoadState(t *testing.T) {
 	}
 
 	// Save state
-	if err := m1.saveState(); err != nil {
+	if err := m1.saveState(context.Background()); err != nil {
 		t.Fatalf("saveState failed: %v", err)
 	}
 	_ = store.Close()
@@ -603,7 +603,7 @@ func TestSaveState_EmptyStateDir(t *testing.T) {
 		agents:   make(map[string]*Agent),
 		stateDir: "",
 	}
-	if err := m.saveState(); err != nil {
+	if err := m.saveState(context.Background()); err != nil {
 		t.Errorf("saveState with empty stateDir should return nil, got: %v", err)
 	}
 }
@@ -631,12 +631,12 @@ func TestSaveState_WithAgents(t *testing.T) {
 		stateDir: tmpDir,
 		store:    store,
 	}
-	if saveErr := m.saveState(); saveErr != nil {
+	if saveErr := m.saveState(context.Background()); saveErr != nil {
 		t.Fatalf("saveState failed: %v", saveErr)
 	}
 
 	// Verify agent was saved to SQLite
-	loaded, err := store.Load("test-agent")
+	loaded, err := store.Load(context.Background(), "test-agent")
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
@@ -654,7 +654,7 @@ func TestSaveState_NilStore(t *testing.T) {
 		stateDir: t.TempDir(),
 		store:    nil, // no store
 	}
-	if err := m.saveState(); err != nil {
+	if err := m.saveState(context.Background()); err != nil {
 		t.Fatalf("saveState with nil store should be no-op: %v", err)
 	}
 }
@@ -690,7 +690,7 @@ func TestSaveState_RoundTrip(t *testing.T) {
 		stateDir: tmpDir,
 		store:    store,
 	}
-	if err := original.saveState(); err != nil {
+	if err := original.saveState(context.Background()); err != nil {
 		t.Fatalf("saveState failed: %v", err)
 	}
 	_ = store.Close()
@@ -862,7 +862,7 @@ func TestStopAgent(t *testing.T) {
 	}
 
 	// State should be persisted to SQLite
-	loaded, err := m.store.Load("eng-1")
+	loaded, err := m.store.Load(context.Background(), "eng-1")
 	if err != nil {
 		t.Fatalf("store.Load: %v", err)
 	}
@@ -1186,7 +1186,7 @@ func TestUpdateAgentState_TaskUpdate(t *testing.T) {
 	}
 
 	// Transition to working with a task
-	if err := m.UpdateAgentState("eng-1", StateWorking, "writing tests"); err != nil {
+	if err := m.UpdateAgentState(context.Background(), "eng-1", StateWorking, "writing tests"); err != nil {
 		t.Fatalf("UpdateAgentState failed: %v", err)
 	}
 
@@ -1199,7 +1199,7 @@ func TestUpdateAgentState_TaskUpdate(t *testing.T) {
 	}
 
 	// State should be persisted to SQLite
-	loaded, err := m.store.Load("eng-1")
+	loaded, err := m.store.Load(context.Background(), "eng-1")
 	if err != nil {
 		t.Fatalf("store.Load: %v", err)
 	}
@@ -1312,7 +1312,7 @@ func TestSaveLoadState_ComplexHierarchy(t *testing.T) {
 		UpdatedAt:   now,
 	}
 
-	if err := m.saveState(); err != nil {
+	if err := m.saveState(context.Background()); err != nil {
 		t.Fatalf("saveState failed: %v", err)
 	}
 	_ = store.Close()
@@ -1713,7 +1713,7 @@ func TestUpdateAgentStateValidation(t *testing.T) {
 	}
 
 	// Valid: idle → working
-	if err := m.UpdateAgentState("test-agent", StateWorking, "starting task"); err != nil {
+	if err := m.UpdateAgentState(context.Background(), "test-agent", StateWorking, "starting task"); err != nil {
 		t.Errorf("idle→working should be valid: %v", err)
 	}
 	if m.agents["test-agent"].State != StateWorking {
@@ -1721,12 +1721,12 @@ func TestUpdateAgentStateValidation(t *testing.T) {
 	}
 
 	// Valid: working → done
-	if err := m.UpdateAgentState("test-agent", StateDone, "finished"); err != nil {
+	if err := m.UpdateAgentState(context.Background(), "test-agent", StateDone, "finished"); err != nil {
 		t.Errorf("working→done should be valid: %v", err)
 	}
 
 	// Invalid: done → stuck
-	if err := m.UpdateAgentState("test-agent", StateStuck, "stuck"); err == nil {
+	if err := m.UpdateAgentState(context.Background(), "test-agent", StateStuck, "stuck"); err == nil {
 		t.Error("done→stuck should be invalid, but returned nil")
 	}
 	if m.agents["test-agent"].State != StateDone {
@@ -1734,7 +1734,7 @@ func TestUpdateAgentStateValidation(t *testing.T) {
 	}
 
 	// Agent not found
-	if err := m.UpdateAgentState("nonexistent", StateWorking, ""); err == nil {
+	if err := m.UpdateAgentState(context.Background(), "nonexistent", StateWorking, ""); err == nil {
 		t.Error("should error for nonexistent agent")
 	}
 }
@@ -1750,12 +1750,12 @@ func TestUpdateAgentState_SameStateMessageUpdate(t *testing.T) {
 	}
 
 	// idle → working
-	if err := m.UpdateAgentState("test-agent", StateWorking, "starting task"); err != nil {
+	if err := m.UpdateAgentState(context.Background(), "test-agent", StateWorking, "starting task"); err != nil {
 		t.Fatalf("idle→working should be valid: %v", err)
 	}
 
 	// working → working (update message)
-	if err := m.UpdateAgentState("test-agent", StateWorking, "now testing edge cases"); err != nil {
+	if err := m.UpdateAgentState(context.Background(), "test-agent", StateWorking, "now testing edge cases"); err != nil {
 		t.Errorf("working→working should be valid: %v", err)
 	}
 	if m.agents["test-agent"].Task != "now testing edge cases" {
@@ -1766,12 +1766,12 @@ func TestUpdateAgentState_SameStateMessageUpdate(t *testing.T) {
 	}
 
 	// working → stuck
-	if err := m.UpdateAgentState("test-agent", StateStuck, "blocked on dependency"); err != nil {
+	if err := m.UpdateAgentState(context.Background(), "test-agent", StateStuck, "blocked on dependency"); err != nil {
 		t.Fatalf("working→stuck should be valid: %v", err)
 	}
 
 	// stuck → stuck (update message)
-	if err := m.UpdateAgentState("test-agent", StateStuck, "still blocked, filed issue"); err != nil {
+	if err := m.UpdateAgentState(context.Background(), "test-agent", StateStuck, "still blocked, filed issue"); err != nil {
 		t.Errorf("stuck→stuck should be valid: %v", err)
 	}
 	if m.agents["test-agent"].Task != "still blocked, filed issue" {
@@ -1779,12 +1779,12 @@ func TestUpdateAgentState_SameStateMessageUpdate(t *testing.T) {
 	}
 
 	// stuck → idle
-	if err := m.UpdateAgentState("test-agent", StateIdle, ""); err != nil {
+	if err := m.UpdateAgentState(context.Background(), "test-agent", StateIdle, ""); err != nil {
 		t.Fatalf("stuck→idle should be valid: %v", err)
 	}
 
 	// idle → idle (update message)
-	if err := m.UpdateAgentState("test-agent", StateIdle, "waiting for assignment"); err != nil {
+	if err := m.UpdateAgentState(context.Background(), "test-agent", StateIdle, "waiting for assignment"); err != nil {
 		t.Errorf("idle→idle should be valid: %v", err)
 	}
 	if m.agents["test-agent"].Task != "waiting for assignment" {
@@ -2555,7 +2555,7 @@ func TestManagerSetAgentTeam(t *testing.T) {
 	}
 
 	// Test setting team on existing agent
-	err := m.SetAgentTeam("test-agent", "backend")
+	err := m.SetAgentTeam(context.Background(), "test-agent", "backend")
 	if err != nil {
 		t.Fatalf("SetAgentTeam() error = %v", err)
 	}
@@ -2570,7 +2570,7 @@ func TestManagerSetAgentTeam(t *testing.T) {
 	}
 
 	// Test setting team on non-existent agent
-	err = m.SetAgentTeam("nonexistent", "team")
+	err = m.SetAgentTeam(context.Background(), "nonexistent", "team")
 	if err == nil {
 		t.Error("SetAgentTeam() should error for non-existent agent")
 	}
@@ -2762,7 +2762,7 @@ func TestLoadRoleMemory_EmptyPrompt(t *testing.T) {
 func TestUpdateAgentState_NotFound(t *testing.T) {
 	m := newTestManager(t)
 
-	err := m.UpdateAgentState("nonexistent", StateWorking, "working on task")
+	err := m.UpdateAgentState(context.Background(), "nonexistent", StateWorking, "working on task")
 	if err == nil {
 		t.Error("expected error when updating non-existent agent")
 	}
@@ -2773,7 +2773,7 @@ func TestUpdateAgentState_NotFound(t *testing.T) {
 func TestSetAgentTeam_NotFound(t *testing.T) {
 	m := newTestManager(t)
 
-	err := m.SetAgentTeam("nonexistent", "backend")
+	err := m.SetAgentTeam(context.Background(), "nonexistent", "backend")
 	if err == nil {
 		t.Error("expected error when setting team for non-existent agent")
 	}
@@ -2788,7 +2788,7 @@ func TestSetAgentTeam_Success(t *testing.T) {
 		Children: []string{},
 	}
 
-	err := m.SetAgentTeam("eng-01", "frontend")
+	err := m.SetAgentTeam(context.Background(), "eng-01", "frontend")
 	if err != nil {
 		t.Fatalf("SetAgentTeam failed: %v", err)
 	}

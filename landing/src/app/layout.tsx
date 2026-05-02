@@ -17,12 +17,12 @@ export const viewport = {
 };
 
 export const metadata = {
-  title: "bc — AI In a Box",
+  title: "mycel — AI in a Box",
   description:
     "Orchestrate AI agents from your terminal. Isolated worktrees, shared channels, cost controls.",
   keywords:
     "AI agents, agent orchestration, Claude Code, multi-agent development, git worktrees, persistent memory, cost-aware AI, software development",
-  metadataBase: new URL("https://bc-infra.com"),
+  metadataBase: new URL("https://mycel.dev"),
   alternates: {
     canonical: "/",
   },
@@ -40,36 +40,36 @@ export const metadata = {
   openGraph: {
     type: "website",
     locale: "en_US",
-    url: "https://bc-infra.com",
-    title: "bc — AI In a Box",
+    url: "https://mycel.dev",
+    title: "mycel — AI in a Box",
     description:
       "Orchestrate AI agents from your terminal. Isolated worktrees, shared channels, cost controls.",
-    siteName: "bc",
+    siteName: "mycel",
     images: [
       {
-        url: "https://bc-infra.com/og-image.png",
+        url: "https://mycel.dev/og-image.png",
         width: 1200,
         height: 630,
-        alt: "bc — AI In a Box",
+        alt: "mycel — AI in a Box",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "bc — AI In a Box",
+    title: "mycel — AI in a Box",
     description:
       "Orchestrate AI agents from your terminal. Isolated worktrees, shared channels, cost controls.",
-    images: ["https://bc-infra.com/og-image.png"],
-    creator: "@bcinfra",
+    images: ["https://mycel.dev/og-image.png"],
+    creator: "@mycel_dev",
   },
   authors: [
     {
-      name: "bc team",
+      name: "mycel team",
       url: "https://github.com/rpuneet",
     },
   ],
-  creator: "bc team",
-  publisher: "bc",
+  creator: "mycel team",
+  publisher: "mycel",
 };
 
 export default function RootLayout({
@@ -95,13 +95,14 @@ export default function RootLayout({
           href="https://fonts.gstatic.com"
           crossOrigin="anonymous"
         />
+        <script dangerouslySetInnerHTML={{ __html: `try{var t=localStorage.getItem('mycel-theme')||localStorage.getItem('bc-theme')||'dark';if(t==='dark'||(t==='system'&&window.matchMedia('(prefers-color-scheme:dark)').matches)){document.documentElement.classList.add('dark')}}catch(e){}` }} />
         {/* eslint-disable-next-line @next/next/no-page-custom-font */}
         <link
           href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500&family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap"
           rel="stylesheet"
         />
       </head>
-      <body className="bg-background text-foreground antialiased transition-colors duration-300">
+      <body className="bg-background text-on-background font-body antialiased transition-colors duration-300">
         <WebVitals />
         <OrganizationSchema />
         <WebsiteSchema />

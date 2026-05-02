@@ -37,8 +37,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/rpuneet/bc/pkg/log"
-	"github.com/rpuneet/bc/pkg/workspace"
+	"github.com/rpuneet/mycel/pkg/log"
+	"github.com/rpuneet/mycel/pkg/workspace"
 )
 
 // ctxKey is an unexported type for context keys so external packages can't

@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/rpuneet/bc/pkg/log"
+	"github.com/rpuneet/mycel/pkg/log"
 )
 
 // DefaultToolHealthInterval is the default interval between tool health checks.

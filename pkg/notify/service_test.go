@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rpuneet/bc/pkg/db"
+	"github.com/rpuneet/mycel/pkg/db"
 )
 
 // mockSender records SendToAgent calls.
@@ -263,39 +263,6 @@ func TestDeliveryLog(t *testing.T) {
 	}
 	if len(entries) != 3 {
 		t.Fatalf("expected 3 entries (limit), got %d", len(entries))
-	}
-}
-
-func TestGatewayUpsert(t *testing.T) {
-	store := setupTestStore(t)
-	ctx := context.Background()
-
-	if err := store.UpsertGateway(ctx, "slack", true, false); err != nil {
-		t.Fatal(err)
-	}
-
-	gateways, err := store.ListGateways(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(gateways) != 1 {
-		t.Fatalf("expected 1 gateway, got %d", len(gateways))
-	}
-	if !gateways[0].Enabled || gateways[0].Connected {
-		t.Error("expected enabled=true, connected=false")
-	}
-
-	// Update connected
-	if err = store.SetGatewayConnected(ctx, "slack", true); err != nil {
-		t.Fatal(err)
-	}
-
-	gateways, err = store.ListGateways(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !gateways[0].Connected {
-		t.Error("expected connected=true after SetGatewayConnected")
 	}
 }
 

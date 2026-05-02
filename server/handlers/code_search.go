@@ -29,8 +29,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rpuneet/bc/pkg/files"
-	"github.com/rpuneet/bc/pkg/log"
+	"github.com/rpuneet/mycel/pkg/files"
+	"github.com/rpuneet/mycel/pkg/log"
 )
 
 // searchMaxDefault caps the number of match records a single request

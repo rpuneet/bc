@@ -13,7 +13,7 @@ Get bc running in 5 minutes.
 ### From Source
 
 ```bash
-git clone https://github.com/rpuneet/bc.git
+git clone https://github.com/rpuneet/mycel.git
 cd bc
 make build
 make install  # Installs to $GOPATH/bin

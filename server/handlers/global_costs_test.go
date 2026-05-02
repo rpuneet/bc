@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rpuneet/bc/pkg/cost"
-	"github.com/rpuneet/bc/pkg/workspace"
+	"github.com/rpuneet/mycel/pkg/cost"
+	"github.com/rpuneet/mycel/pkg/workspace"
 )
 
 func newTestGlobalStore(t *testing.T) *cost.Store {

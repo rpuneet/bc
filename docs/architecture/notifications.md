@@ -33,6 +33,35 @@ flowchart LR
     A1 & A2 & A3 -. "respond via platform API\n(credentials in env vars)" .-> Platforms
 ```
 
+## Gateway adapters are inbound-only
+
+Gateway adapters in `pkg/gateway/<platform>/` exist to **receive** messages
+from external platforms (Slack, Telegram, Discord, WhatsApp, GitHub, etc.)
+and dispatch them into bcd's notification pipeline. They are **not** a
+generic outbound abstraction.
+
+When an agent needs to **send** a message to an external platform, the
+agent talks to the platform's API directly using credentials injected
+from `prefs.json` / the workspace secret store. Examples:
+
+- **Telegram**: `curl -H "Authorization: Bearer $TELEGRAM_BOT_TOKEN" https://api.telegram.org/bot.../sendMessage`
+- **Slack**: `chat.postMessage` via the Slack Web API using `$SLACK_BOT_TOKEN`
+- **WhatsApp**: `whatsmeow` library directly — the gateway only listens; agents send
+
+The existing `Send` methods on the Slack, Telegram, and Discord adapters
+are a **legacy convenience** used internally by bcd's notify dispatch
+path (e.g. when a local channel relays to an external platform via the
+`POST /api/gateways/{platform}/channels/{channel}/send` endpoint). Do
+**not** add `Send` to new adapters. WhatsApp, Matrix, IRC, Signal, and
+the other 30+ adapters deliberately have no `Send` method — that is
+correct per this design, **not** a missing feature or a bug.
+
+If you find a code-review tool flagging "adapter X is missing Send",
+that finding is incorrect: outbound is the agent's responsibility, and
+the inbound adapter is complete without it.
+
+## Connection patterns
+
 All 37+ platform adapters follow one of three connection patterns:
 
 | Pattern | Examples | Mechanism |
@@ -176,19 +205,19 @@ Bidirectional messaging platforms where agents receive and respond.
 
 | # | Platform | Transport | Credential Env Vars | Identity Method | Status |
 |---|----------|-----------|---------------------|-----------------|--------|
-| 1 | **Slack** | Socket Mode (WebSocket) | `SLACK_BOT_TOKEN`, `SLACK_APP_TOKEN` | `username` param in `chat.postMessage` | Implemented |
-| 2 | **Telegram** | Bot API long-polling | `TELEGRAM_BOT_TOKEN` | Prefix `[agent-name]: message` | Implemented |
-| 3 | **Discord** | Gateway WebSocket | `DISCORD_BOT_TOKEN` or `DISCORD_WEBHOOK_URL` | `username` param in webhook execute | Implemented |
-| 4 | WhatsApp | Cloud API webhooks | `WHATSAPP_TOKEN` | Prefix text (fixed number) | Planned |
-| 5 | Signal | signal-cli bridge | `SIGNAL_CLI_URL` | Prefix text (fixed number) | Planned |
-| 6 | iMessage | BlueBubbles server | `BLUEBUBBLES_URL`, `BLUEBUBBLES_PASSWORD` | Prefix text (fixed Apple ID) | Planned |
-| 7 | Matrix | Client-Server API | `MATRIX_HOMESERVER`, `MATRIX_TOKEN` | Bot display name | Planned |
+| 1 | **Slack** | Socket Mode (WebSocket) | `SLACK_BOT_TOKEN`, `SLACK_APP_TOKEN` | `username` param in `chat.postMessage` | Active |
+| 2 | **Telegram** | Bot API long-polling | `TELEGRAM_BOT_TOKEN` | Prefix `[agent-name]: message` | Active |
+| 3 | **Discord** | Gateway WebSocket | `DISCORD_BOT_TOKEN` or `DISCORD_WEBHOOK_URL` | `username` param in webhook execute | Active |
+| 4 | **WhatsApp** | Cloud API webhooks | `WHATSAPP_TOKEN` | Prefix text (fixed number) | Active |
+| 5 | **Signal** | signal-cli bridge | `SIGNAL_CLI_URL` | Prefix text (fixed number) | Active |
+| 6 | **iMessage** | BlueBubbles server | `BLUEBUBBLES_URL`, `BLUEBUBBLES_PASSWORD` | Prefix text (fixed Apple ID) | Active |
+| 7 | **Matrix** | Client-Server API | `MATRIX_HOMESERVER`, `MATRIX_TOKEN` | Bot display name | Active |
 | 8 | Microsoft Teams | Bot Framework | `TEAMS_APP_ID`, `TEAMS_APP_SECRET` | Bot identity | Planned |
 | 9 | Google Chat | Chat API + Pub/Sub | `GOOGLE_CHAT_SA_KEY` | Bot identity | Planned |
 | 10 | LINE | Messaging API | `LINE_CHANNEL_TOKEN` | Bot identity | Planned |
 | 11 | Feishu/Lark | Event Subscription | `FEISHU_APP_ID`, `FEISHU_APP_SECRET` | Bot identity | Planned |
-| 12 | Mattermost | WebSocket + REST | `MATTERMOST_URL`, `MATTERMOST_TOKEN` | `username` param | Planned |
-| 13 | IRC | IRC protocol | `IRC_SERVER`, `IRC_NICK`, `IRC_PASSWORD` | Nick per agent | Planned |
+| 12 | **Mattermost** | WebSocket + REST | `MATTERMOST_URL`, `MATTERMOST_TOKEN` | `username` param | Active |
+| 13 | **IRC** | IRC protocol | `IRC_SERVER`, `IRC_NICK`, `IRC_PASSWORD` | Nick per agent | Active |
 | 14 | Nostr | NIP-04 DMs | `NOSTR_PRIVATE_KEY` | Public key identity | Planned |
 | 15 | Twitch | IRC + EventSub | `TWITCH_OAUTH_TOKEN` | Bot username | Planned |
 
@@ -198,7 +227,7 @@ Inbound-only platforms that push structured events (CI results, issue updates, d
 
 | # | Platform | Event Types | Transport | Credential Env Vars | Status |
 |---|----------|-------------|-----------|---------------------|--------|
-| 16 | **GitHub** | PR, issue, push, CI, review, release, deployment | Webhooks | `GITHUB_TOKEN`, `GITHUB_WEBHOOK_SECRET` | Planned |
+| 16 | **GitHub** | PR, issue, push, CI, review, release, deployment | Webhooks | `GITHUB_TOKEN`, `GITHUB_WEBHOOK_SECRET` | Active |
 | 17 | GitLab | MR, pipeline, issue, push | Webhooks | `GITLAB_TOKEN`, `GITLAB_WEBHOOK_SECRET` | Planned |
 | 18 | Bitbucket | PR, push, pipeline | Webhooks | `BITBUCKET_TOKEN` | Planned |
 | 19 | Gmail | Email received | Google Pub/Sub | `GMAIL_SA_KEY` | Planned |
@@ -213,23 +242,23 @@ Inbound-only platforms that push structured events (CI results, issue updates, d
 | 28 | Netlify | Deploy events | Webhooks | `NETLIFY_TOKEN` | Planned |
 | 29 | AWS SNS | Any SNS topic | HTTP subscription | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` | Planned |
 | 30 | Stripe | Payment, subscription events | Webhooks | `STRIPE_WEBHOOK_SECRET` | Planned |
-| 31 | Notion | Page/database changes | Polling | `NOTION_TOKEN` | Planned |
-| 32 | Generic Webhook | Any HTTP POST with JSON | HTTP endpoint | None (public endpoint) | Planned |
+| 31 | **Notion** | Page/database changes | Polling | `NOTION_TOKEN` | Active |
+| 32 | **Generic Webhook** | Any HTTP POST with JSON | HTTP endpoint | None (public endpoint) | Active |
 
 ### Tier 3: IoT and Smart Home
 
 | # | Platform | Events | Transport | Credential Env Vars | Status |
 |---|----------|--------|-----------|---------------------|--------|
 | 33 | Home Assistant | Device state changes | WebSocket + REST | `HASS_URL`, `HASS_TOKEN` | Planned |
-| 34 | MQTT | IoT topic messages | MQTT protocol | `MQTT_BROKER`, `MQTT_USERNAME`, `MQTT_PASSWORD` | Planned |
+| 34 | **MQTT** | IoT topic messages | MQTT protocol | `MQTT_BROKER`, `MQTT_USERNAME`, `MQTT_PASSWORD` | Active |
 
 ### Tier 4: Social and Media
 
 | # | Platform | Events | Transport | Credential Env Vars | Status |
 |---|----------|--------|-----------|---------------------|--------|
-| 35 | Twitter/X | Mentions, DMs | Twitter API v2 | `TWITTER_BEARER_TOKEN` | Planned |
-| 36 | Reddit | Posts/comments | Reddit API | `REDDIT_CLIENT_ID`, `REDDIT_CLIENT_SECRET` | Planned |
-| 37 | RSS/Atom | New feed entries | HTTP polling | None | Planned |
+| 35 | **Twitter/X** | Mentions, DMs | Twitter API v2 | `TWITTER_BEARER_TOKEN` | Active |
+| 36 | **Reddit** | Posts/comments | Reddit API | `REDDIT_CLIENT_ID`, `REDDIT_CLIENT_SECRET` | Active |
+| 37 | **RSS/Atom** | New feed entries | HTTP polling | None | Active |
 
 ## Credential Management
 
@@ -478,28 +507,18 @@ Settings are per-agent, per-channel.
 | Event | Trigger |
 |-------|---------|
 | `gateway.message` | New inbound message -- appends to activity feed |
-| `gateway.delivery` | Delivery status update (delivered/failed) |
-| `gateway.connected` | Adapter connected to platform |
-| `gateway.disconnected` | Adapter lost connection |
 
 ### Component Tree
 
 ```mermaid
 graph TD
-    CH[Channels.tsx] --> GS[GatewaySidebar.tsx]
-    CH --> CV[ChannelView.tsx]
-    CH --> SP[SubscriptionPanel.tsx]
-    CH --> SW[SetupWizard.tsx]
+    NS[NotificationSidebar.tsx] --> GF[GatewayFeed.tsx]
+    NS --> SP[SubscriptionPanel.tsx]
+    NS --> SW[SetupWizard.tsx]
 
-    GS --> GD[GatewayDropdown.tsx]
-    GD --> CI[ChannelItem.tsx]
-    GS --> CB[ConnectButton.tsx]
-
-    CV --> CHD[ChannelHeader.tsx]
-    CV --> AF[ActivityFeed.tsx]
-    AF --> AE[ActivityEntry.tsx]
-
-    SP --> AR[AgentRow.tsx]
+    GF --> ML[MessageList.tsx]
+    GF --> AA[AgentAvatar.tsx]
+    GF --> MU[messageUtils.ts]
 ```
 
 ## Adding a New Adapter
@@ -513,7 +532,7 @@ package myplatform
 
 import (
     "context"
-    "github.com/rpuneet/bc/pkg/gateway"
+    "github.com/rpuneet/mycel/pkg/gateway"
 )
 
 type Adapter struct {
@@ -552,7 +571,7 @@ func (a *Adapter) Status() gateway.AdapterStatus {
 }
 ```
 
-3. Register the adapter in `server/server.go`:
+3. Register the adapter in `server/build_services.go` (the `buildGatewayManager` function):
 
 ```go
 adapter := myplatform.New(token)

@@ -55,7 +55,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/rpuneet/bc/pkg/log"
+	"github.com/rpuneet/mycel/pkg/log"
 )
 
 // validEnvVarName matches valid POSIX environment variable names:

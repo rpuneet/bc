@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/rpuneet/bc/pkg/log"
+	"github.com/rpuneet/mycel/pkg/log"
 )
 
 const (
@@ -226,8 +226,19 @@ func (s *Scheduler) executeJob(ctx context.Context, job *Job) {
 }
 
 // defaultExec runs a shell command and streams output to the writer.
+//
+// The child shell is placed in its own process group (see isolateProcessGroup)
+// so that signals delivered to the bcd process group — for example a cron job
+// that runs `kill 0`, `kill -- -$$`, or any tool that broadcasts SIGTERM to its
+// own process group — do not propagate to the bcd parent and trigger a
+// graceful shutdown of the cron scheduler itself.
+//
+// This does not protect against commands that target bcd by PID directly
+// (e.g. `lsof -ti :9374 | xargs kill`); such commands must exclude the bcd
+// PID themselves or use an external supervisor for restarts.
 func (s *Scheduler) defaultExec(ctx context.Context, command string, logWriter io.Writer) error {
 	cmd := exec.CommandContext(ctx, "sh", "-c", command) //#nosec G204 -- commands are user-configured cron jobs
+	isolateProcessGroup(cmd)
 	var buf bytes.Buffer
 	w := io.MultiWriter(&buf, logWriter)
 	cmd.Stdout = w

@@ -11,7 +11,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/rpuneet/bc/pkg/client"
+	"github.com/rpuneet/mycel/pkg/client"
 )
 
 var costCmd = &cobra.Command{

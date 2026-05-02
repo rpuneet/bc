@@ -2,6 +2,7 @@
 
 import { Nav } from "../_components/Nav";
 import { Footer } from "../_components/Footer";
+import { SporeLogo } from "../_components/SporeLogo";
 import {
   useState,
   useMemo,
@@ -70,7 +71,8 @@ function CopyButton({ text }: { text: string }) {
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
       }}
-      className="absolute right-3 top-3 rounded-md border border-foreground/10 bg-foreground/5 p-1.5 text-terminal-muted hover:text-terminal-text transition-all duration-200 opacity-0 group-hover:opacity-100 hover:bg-foreground/10"
+      type="button"
+      className="absolute right-3 top-3 rounded-md border border-foreground/10 bg-foreground/5 p-1.5 text-terminal-muted hover:text-terminal-text transition-all duration-200 opacity-60 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100 focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-primary hover:bg-foreground/10"
       aria-label="Copy to clipboard"
     >
       {copied ? (
@@ -913,7 +915,7 @@ function PlaceholderContent({ label }: { label: string }) {
       <p className="text-sm text-muted-foreground max-w-md">
         This page is under construction. Check back soon or contribute on{" "}
         <a
-          href="https://github.com/rpuneet/bc"
+          href="https://github.com/rpuneet/mycel"
           className="text-primary hover:underline"
           target="_blank"
           rel="noopener noreferrer"
@@ -1196,7 +1198,7 @@ export default function DocsContent({
     for (const group of groups) {
       cliItems.push({
         id: `cli/${group.name}`,
-        label: `bc ${group.name}`,
+        label: `mycel ${group.name}`,
         type: "cli-group",
         sectionId: "cli",
         cliGroup: group,
@@ -1430,7 +1432,7 @@ export default function DocsContent({
   const getTitle = () => {
     if (!activeItem) return "Documentation";
     if (activeItem.type === "cli-group" && activeItem.cliGroup) {
-      return `bc ${activeItem.cliGroup.name}`;
+      return `mycel ${activeItem.cliGroup.name}`;
     }
     if (activeItem.type === "cli-command" && activeItem.cliCommand) {
       return activeItem.cliCommand.name;
@@ -1490,6 +1492,12 @@ export default function DocsContent({
           } lg:relative lg:block lg:sticky lg:top-0 lg:h-screen lg:w-[260px] xl:w-[280px] shrink-0 border-r border-border overflow-y-auto transition-transform duration-300 ease-out lg:bg-muted/50 docs-sidebar-scroll`}
         >
           <div className="p-4 pt-20 lg:pt-6">
+            {/* Sidebar brand */}
+            <div className="mb-5 flex items-center gap-2">
+              <SporeLogo size={24} />
+              <span className="font-headline text-sm font-bold tracking-tight text-foreground">mycel</span>
+              <span className="ml-auto rounded-full border border-border bg-muted px-2 py-0.5 font-mono text-[10px] text-muted-foreground">v0.1.0</span>
+            </div>
             {/* Search */}
             <div className="relative mb-5 group/search">
               <Search

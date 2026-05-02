@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -14,15 +15,15 @@ import (
 	"sync"
 	"time"
 
-	"github.com/rpuneet/bc/pkg/agent"
-	"github.com/rpuneet/bc/pkg/cost"
-	"github.com/rpuneet/bc/pkg/events"
-	"github.com/rpuneet/bc/pkg/log"
-	"github.com/rpuneet/bc/pkg/stats"
-	"github.com/rpuneet/bc/pkg/template"
-	"github.com/rpuneet/bc/pkg/token"
-	"github.com/rpuneet/bc/pkg/workspace"
-	"github.com/rpuneet/bc/server/ws"
+	"github.com/rpuneet/mycel/pkg/agent"
+	"github.com/rpuneet/mycel/pkg/cost"
+	"github.com/rpuneet/mycel/pkg/events"
+	"github.com/rpuneet/mycel/pkg/log"
+	"github.com/rpuneet/mycel/pkg/stats"
+	"github.com/rpuneet/mycel/pkg/template"
+	"github.com/rpuneet/mycel/pkg/token"
+	"github.com/rpuneet/mycel/pkg/workspace"
+	"github.com/rpuneet/mycel/server/ws"
 )
 
 // HookEventRequest is the rich payload accepted by POST /api/agents/{name}/hook.
@@ -194,6 +195,7 @@ type agentDTO struct { //nolint:govet // field order matches JSON/API contract
 	SessionID    string         `json:"session_id,omitempty"`
 	ParentID     string         `json:"parent_id,omitempty"`
 	ID           string         `json:"id,omitempty"`
+	RepoRoot     string         `json:"repo_root,omitempty"`
 	MCPServers   []string       `json:"mcp_servers,omitempty"`
 	Children     []string       `json:"children,omitempty"`
 	TotalCostUSD float64        `json:"total_cost_usd"`
@@ -231,6 +233,7 @@ func toDTO(a *agent.Agent) agentDTO {
 		UpdatedAt:  a.UpdatedAt,
 		StoppedAt:  a.StoppedAt,
 		ArchivedAt: a.ArchivedAt,
+		RepoRoot:   a.RepoRoot,
 	}
 }
 
@@ -391,6 +394,23 @@ func (h *AgentHandler) list(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// agentHTTPStatus maps domain errors from pkg/agent to the appropriate HTTP
+// status code.  Callers use this instead of hardcoding 400/404.
+func agentHTTPStatus(err error) int {
+	switch {
+	case errors.Is(err, agent.ErrNotFound):
+		return http.StatusNotFound
+	case errors.Is(err, agent.ErrAlreadyRunning):
+		return http.StatusConflict
+	case errors.Is(err, agent.ErrNotRunning):
+		return http.StatusConflict
+	case errors.Is(err, agent.ErrInvalidState):
+		return http.StatusConflict
+	default:
+		return http.StatusInternalServerError
+	}
+}
+
 func (h *AgentHandler) byName(w http.ResponseWriter, r *http.Request) {
 	svc := h.resolveSvc(r)
 	parts := strings.SplitN(strings.TrimPrefix(r.URL.Path, "/api/agents/"), "/", 2)
@@ -408,7 +428,7 @@ func (h *AgentHandler) byName(w http.ResponseWriter, r *http.Request) {
 	case r.Method == http.MethodGet && action == "":
 		a, err := svc.Get(r.Context(), name)
 		if err != nil {
-			httpError(w, err.Error(), http.StatusNotFound)
+			httpError(w, err.Error(), agentHTTPStatus(err))
 			return
 		}
 		writeJSON(w, http.StatusOK, toDTO(a))
@@ -427,28 +447,28 @@ func (h *AgentHandler) byName(w http.ResponseWriter, r *http.Request) {
 			ResumeID: req.ResumeID,
 		})
 		if err != nil {
-			httpError(w, err.Error(), http.StatusBadRequest)
+			httpError(w, err.Error(), agentHTTPStatus(err))
 			return
 		}
 		writeJSON(w, http.StatusOK, toDTO(a))
 
 	case r.Method == http.MethodPost && action == "stop":
 		if err := svc.Stop(r.Context(), name); err != nil {
-			httpError(w, err.Error(), http.StatusBadRequest)
+			httpError(w, err.Error(), agentHTTPStatus(err))
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]string{"status": "stopped"})
 
 	case r.Method == http.MethodPost && action == "archive":
 		if err := svc.Archive(r.Context(), name); err != nil {
-			httpError(w, err.Error(), http.StatusNotFound)
+			httpError(w, err.Error(), agentHTTPStatus(err))
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]string{"status": "archived"})
 
 	case r.Method == http.MethodPost && action == "unarchive":
 		if err := svc.Unarchive(r.Context(), name); err != nil {
-			httpError(w, err.Error(), http.StatusNotFound)
+			httpError(w, err.Error(), agentHTTPStatus(err))
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]string{"status": "active"})
@@ -462,7 +482,7 @@ func (h *AgentHandler) byName(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if err := svc.Send(r.Context(), name, req.Message); err != nil {
-			httpError(w, err.Error(), http.StatusBadRequest)
+			httpError(w, err.Error(), agentHTTPStatus(err))
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]string{"status": "sent"})
@@ -470,7 +490,7 @@ func (h *AgentHandler) byName(w http.ResponseWriter, r *http.Request) {
 	case r.Method == http.MethodDelete && action == "":
 		force := r.URL.Query().Get("force") == "true"
 		if err := svc.Delete(r.Context(), name, force); err != nil {
-			httpError(w, err.Error(), http.StatusBadRequest)
+			httpError(w, err.Error(), agentHTTPStatus(err))
 			return
 		}
 		w.WriteHeader(http.StatusNoContent)
@@ -505,7 +525,7 @@ func (h *AgentHandler) byName(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if hasState {
-			if err := svc.Manager().UpdateAgentState(name, targetState, task); err != nil {
+			if err := svc.Manager().UpdateAgentState(r.Context(), name, targetState, task); err != nil {
 				log.Debug("hook state update skipped", "agent", name, "error", err)
 				writeJSON(w, http.StatusOK, map[string]any{"ok": true, "skipped": true, "reason": err.Error()})
 				return
@@ -643,7 +663,7 @@ func (h *AgentHandler) byName(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if err := svc.Rename(r.Context(), name, req.NewName); err != nil {
-			httpError(w, err.Error(), http.StatusBadRequest)
+			httpError(w, err.Error(), agentHTTPStatus(err))
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]string{"status": "renamed", "name": req.NewName})
@@ -658,7 +678,7 @@ func (h *AgentHandler) byName(w http.ResponseWriter, r *http.Request) {
 		lines = clampInt(lines, 1, 10000)
 		output, err := svc.Peek(r.Context(), name, lines)
 		if err != nil {
-			httpError(w, err.Error(), http.StatusBadRequest)
+			httpError(w, err.Error(), agentHTTPStatus(err))
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]string{"output": output})
@@ -669,7 +689,7 @@ func (h *AgentHandler) byName(w http.ResponseWriter, r *http.Request) {
 	case r.Method == http.MethodGet && action == "sessions":
 		sessions, err := svc.Sessions(r.Context(), name)
 		if err != nil {
-			httpError(w, err.Error(), http.StatusBadRequest)
+			httpError(w, err.Error(), agentHTTPStatus(err))
 			return
 		}
 		if sessions == nil {
@@ -691,7 +711,7 @@ func (h *AgentHandler) byName(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		state := agent.State(req.State)
-		if err := svc.Manager().UpdateAgentState(name, state, req.Message); err != nil {
+		if err := svc.Manager().UpdateAgentState(r.Context(), name, state, req.Message); err != nil {
 			httpError(w, err.Error(), http.StatusBadRequest)
 			return
 		}

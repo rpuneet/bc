@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rpuneet/bc/pkg/db"
+	"github.com/rpuneet/mycel/pkg/db"
 )
 
 // Store is the SQLite/Postgres-backed persistence layer for subscriptions
@@ -59,6 +59,10 @@ func (s *Store) initSchema() error {
 	} else {
 		schema = schemaSQLite
 	}
+	// context.TODO() retained: initSchema runs synchronously during OpenStore at
+	// startup before any request context exists; threading ctx through would
+	// force a public API change on OpenStore and dozens of call sites across
+	// tests/services for no operational benefit (schema DDL is fire-and-forget).
 	_, err := s.db.ExecContext(context.TODO(), schema)
 	return err
 }
@@ -374,76 +378,6 @@ func (s *Store) GetMessages(ctx context.Context, channel string, limit int, befo
 	return msgs, rows.Err()
 }
 
-// UpsertGateway inserts or updates a gateway record.
-func (s *Store) UpsertGateway(ctx context.Context, name string, enabled, connected bool) error {
-	enabledInt, connectedInt := 0, 0
-	if enabled {
-		enabledInt = 1
-	}
-	if connected {
-		connectedInt = 1
-	}
-	now := time.Now().UTC().Format(time.RFC3339)
-	_, err := s.db.ExecContext(ctx, s.q(
-		`INSERT INTO notify_gateways (name, enabled, connected, updated_at)
-		 VALUES (?, ?, ?, ?)
-		 ON CONFLICT(name) DO UPDATE SET
-		     enabled = excluded.enabled,
-		     connected = excluded.connected,
-		     updated_at = excluded.updated_at`),
-		name, enabledInt, connectedInt, now)
-	return err
-}
-
-// SetGatewayConnected updates the connected status and last_seen_at.
-func (s *Store) SetGatewayConnected(ctx context.Context, name string, connected bool) error {
-	connectedInt := 0
-	if connected {
-		connectedInt = 1
-	}
-	now := time.Now().UTC().Format(time.RFC3339)
-	var lastSeen sql.NullString
-	if connected {
-		lastSeen = sql.NullString{String: now, Valid: true}
-	}
-	_, err := s.db.ExecContext(ctx, s.q(
-		`UPDATE notify_gateways SET connected = ?, last_seen_at = COALESCE(?, last_seen_at),
-		 updated_at = ? WHERE name = ?`),
-		connectedInt, lastSeen, now, name)
-	return err
-}
-
-// ListGateways returns all registered gateways.
-func (s *Store) ListGateways(ctx context.Context) ([]GatewayInfo, error) {
-	rows, err := s.db.QueryContext(ctx,
-		`SELECT name, enabled, connected, last_seen_at, updated_at FROM notify_gateways ORDER BY name`)
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = rows.Close() }()
-
-	var gateways []GatewayInfo
-	for rows.Next() {
-		var g GatewayInfo
-		var enabledInt, connectedInt int
-		var lastSeenStr, updatedStr sql.NullString
-		if err := rows.Scan(&g.Name, &enabledInt, &connectedInt, &lastSeenStr, &updatedStr); err != nil {
-			return nil, err
-		}
-		g.Enabled = enabledInt != 0
-		g.Connected = connectedInt != 0
-		if lastSeenStr.Valid {
-			t, _ := time.Parse(time.RFC3339, lastSeenStr.String) //nolint:errcheck // DB-written timestamp
-			g.LastSeenAt = &t
-		}
-		if updatedStr.Valid {
-			g.UpdatedAt, _ = time.Parse(time.RFC3339, updatedStr.String) //nolint:errcheck // DB-written timestamp
-		}
-		gateways = append(gateways, g)
-	}
-	return gateways, rows.Err()
-}
-
 // PersistedChannel is a saved bc_channel → platform_id mapping.
 type PersistedChannel struct {
 	BCChannel  string
@@ -472,11 +406,23 @@ func (s *Store) LoadChannels(ctx context.Context) ([]PersistedChannel, error) {
 }
 
 // SaveChannel persists a channel mapping so it survives server restarts.
+//
+// On conflict, platform_id is preserved if the existing row already has a
+// non-empty value. This prevents a later event with a fallback platform_id
+// (e.g., the channel name when a numeric chat_id couldn't be extracted from
+// the raw payload) from clobbering a previously-stored real platform_id.
 func (s *Store) SaveChannel(ctx context.Context, bcChannel, platform, platformID string) error {
 	_, err := s.db.ExecContext(ctx, s.q(
 		`INSERT INTO notify_channels (bc_channel, platform, platform_id, updated_at)
 		 VALUES (?, ?, ?, ?)
-		 ON CONFLICT(bc_channel) DO UPDATE SET platform = excluded.platform, platform_id = excluded.platform_id, updated_at = excluded.updated_at`),
+		 ON CONFLICT(bc_channel) DO UPDATE SET
+		   platform = excluded.platform,
+		   platform_id = CASE
+		     WHEN notify_channels.platform_id IS NULL OR notify_channels.platform_id = ''
+		       THEN excluded.platform_id
+		     ELSE notify_channels.platform_id
+		   END,
+		   updated_at = excluded.updated_at`),
 		bcChannel, platform, platformID, time.Now().UTC().Format(time.RFC3339))
 	return err
 }

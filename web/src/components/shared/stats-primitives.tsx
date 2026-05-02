@@ -15,10 +15,10 @@ export function Panel({
 }) {
   return (
     <div
-      className={`rounded border border-bc-border bg-bc-surface overflow-hidden ${className ?? ""}`}
+      className={`rounded border border-mycel-border bg-mycel-surface overflow-hidden ${className ?? ""}`}
     >
-      <div className="flex items-center justify-between px-3 py-1.5 border-b border-bc-border bg-bc-bg/50">
-        <span className="text-[11px] font-medium text-bc-muted uppercase tracking-wider">
+      <div className="flex items-center justify-between px-3 py-1.5 border-b border-mycel-border bg-mycel-bg/50">
+        <span className="text-[11px] font-medium text-mycel-muted uppercase tracking-wider">
           {title}
         </span>
       </div>
@@ -29,7 +29,7 @@ export function Panel({
 
 export function Empty({ msg = "No data yet" }: { msg?: string }) {
   return (
-    <div className="flex items-center justify-center h-[200px] text-sm text-bc-muted">
+    <div className="flex items-center justify-center h-[200px] text-sm text-mycel-muted">
       {msg}
     </div>
   );

@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/rpuneet/bc/pkg/workspace"
-	bcws "github.com/rpuneet/bc/server/ws"
+	"github.com/rpuneet/mycel/pkg/workspace"
+	bcws "github.com/rpuneet/mycel/server/ws"
 )
 
 // captureHandler records the URL.Path the middleware forwarded so tests
@@ -40,6 +40,7 @@ func bootMCPCompat(t *testing.T, withActive bool) (http.Handler, *captureHandler
 	var activeID string
 	if withActive {
 		wsDir := t.TempDir()
+		gitInitDir(t, wsDir)
 		if _, initErr := workspace.Init(wsDir); initErr != nil {
 			t.Fatalf("workspace.Init: %v", initErr)
 		}
@@ -60,6 +61,7 @@ func bootMCPCompat(t *testing.T, withActive bool) (http.Handler, *captureHandler
 
 	globals := &Globals{Registry: reg, GlobalHub: hub}
 	mgr := NewWorkspaceManager(reg, func(ctx context.Context, w *workspace.Workspace) (*WorkspaceServices, error) {
+		gitInitDir(t, w.RootDir)
 		return BuildWorkspaceServices(ctx, globals, w.RootDir)
 	})
 	t.Cleanup(func() { _ = mgr.Close() })

@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/rpuneet/bc/pkg/workspace"
+	"github.com/rpuneet/mycel/pkg/workspace"
 )
 
 func TestConfigShow(t *testing.T) {

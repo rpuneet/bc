@@ -1,10 +1,10 @@
-// Package main is the entry point for the bc CLI.
+// Package main is the entry point for the mycel CLI.
 package main
 
 import (
 	"os"
 
-	"github.com/rpuneet/bc/internal/cmd"
+	"github.com/rpuneet/mycel/internal/cmd"
 )
 
 // Version information set by ldflags during build.

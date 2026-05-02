@@ -24,25 +24,25 @@ import (
 
 	"path/filepath"
 
-	"github.com/rpuneet/bc/pkg/agent"
-	"github.com/rpuneet/bc/pkg/attachment"
-	"github.com/rpuneet/bc/pkg/cost"
-	"github.com/rpuneet/bc/pkg/cron"
-	"github.com/rpuneet/bc/pkg/deps"
-	"github.com/rpuneet/bc/pkg/events"
-	"github.com/rpuneet/bc/pkg/gateway"
-	"github.com/rpuneet/bc/pkg/log"
-	"github.com/rpuneet/bc/pkg/mcp"
-	"github.com/rpuneet/bc/pkg/notify"
-	"github.com/rpuneet/bc/pkg/provider"
-	"github.com/rpuneet/bc/pkg/secret"
-	"github.com/rpuneet/bc/pkg/stats"
-	"github.com/rpuneet/bc/pkg/template"
-	"github.com/rpuneet/bc/pkg/tool"
-	"github.com/rpuneet/bc/pkg/workspace"
-	"github.com/rpuneet/bc/server/handlers"
-	servermcp "github.com/rpuneet/bc/server/mcp"
-	"github.com/rpuneet/bc/server/ws"
+	"github.com/rpuneet/mycel/pkg/agent"
+	"github.com/rpuneet/mycel/pkg/attachment"
+	"github.com/rpuneet/mycel/pkg/cost"
+	"github.com/rpuneet/mycel/pkg/cron"
+	"github.com/rpuneet/mycel/pkg/deps"
+	"github.com/rpuneet/mycel/pkg/events"
+	"github.com/rpuneet/mycel/pkg/gateway"
+	"github.com/rpuneet/mycel/pkg/log"
+	"github.com/rpuneet/mycel/pkg/mcp"
+	"github.com/rpuneet/mycel/pkg/notify"
+	"github.com/rpuneet/mycel/pkg/provider"
+	"github.com/rpuneet/mycel/pkg/secret"
+	"github.com/rpuneet/mycel/pkg/stats"
+	"github.com/rpuneet/mycel/pkg/template"
+	"github.com/rpuneet/mycel/pkg/tool"
+	"github.com/rpuneet/mycel/pkg/workspace"
+	"github.com/rpuneet/mycel/server/handlers"
+	servermcp "github.com/rpuneet/mycel/server/mcp"
+	"github.com/rpuneet/mycel/server/ws"
 )
 
 const defaultAddr = "127.0.0.1:9374"
@@ -105,10 +105,9 @@ type Server struct {
 }
 
 // NewWithManager creates a bcd server using the multi-workspace primitives.
-// It derives the launch-workspace Services bundle from mgr.Active() (for
-// registered handlers that still need closure wiring) and wires the manager
-// into the scope middleware. Phase M4: the canonical constructor going
-// forward. `New` remains for tests that assemble Services directly.
+// It projects the active workspace's named fields into a flat Services
+// struct for the handler constructors, then wires the manager into the
+// scope middleware. `New` remains for tests that assemble Services directly.
 func NewWithManager(cfg Config, mgr *WorkspaceManager, globals *Globals, staticFiles fs.FS) *Server {
 	if mgr == nil {
 		// Caller error — but surface quickly via a Services-only constructor.
@@ -118,7 +117,7 @@ func NewWithManager(cfg Config, mgr *WorkspaceManager, globals *Globals, staticF
 	var svc Services
 	var hub *ws.Hub
 	if active != nil {
-		svc = active.Services
+		svc = servicesFromWorkspace(active)
 		svc.WorkspaceManager = mgr
 		hub = active.Hub
 	} else {
@@ -139,6 +138,29 @@ func NewWithManager(cfg Config, mgr *WorkspaceManager, globals *Globals, staticF
 		}
 	}
 	return New(cfg, svc, hub, staticFiles)
+}
+
+// servicesFromWorkspace projects a *WorkspaceServices onto the flat Services
+// struct consumed by handler constructors. This is the single point of
+// translation between the two representations.
+func servicesFromWorkspace(ws *WorkspaceServices) Services {
+	return Services{
+		Agents:        ws.Agents,
+		Costs:         ws.Costs,
+		CostImporter:  ws.CostImporter,
+		Cron:          ws.Cron,
+		CronScheduler: ws.CronSched,
+		Secrets:       ws.Secrets,
+		MCP:           ws.MCP,
+		Tools:         ws.Tools,
+		Templates:     ws.Templates,
+		Stats:         ws.Stats,
+		EventLog:      ws.Events,
+		EventWriter:   ws.EventWriter,
+		WS:            ws.Workspace,
+		Gateway:       ws.Gateway,
+		Notify:        ws.Notify,
+	}
 }
 
 // New creates a bcd server with the given config, services, SSE hub, and optional static files.
@@ -434,12 +456,17 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 		if mcpErr != nil {
 			log.Warn("MCP server unavailable", "error", mcpErr)
 		} else {
-			servermcp.MountOn(mux, mcpSrv, "/_mcp")
+			broker := servermcp.MountOn(mux, mcpSrv, "/_mcp")
+			// Mirror the API CORS policy onto the MCP SSE transport so MCP
+			// cannot bypass the configured origin policy (#2960).
+			if cfg.CORSOrigin != "" {
+				broker.SetCORSOrigin(cfg.CORSOrigin)
+			}
 		}
 	}
 	// Scoped MCP dispatcher — per-workspace path.
 	if svc.WorkspaceManager != nil {
-		mux.HandleFunc("/_mcp/ws/", scopedMCPDispatch(svc.WorkspaceManager))
+		mux.HandleFunc("/_mcp/ws/", scopedMCPDispatch(svc.WorkspaceManager, cfg.CORSOrigin))
 	}
 
 	// Static web UI with SPA fallback — serves files if they exist,

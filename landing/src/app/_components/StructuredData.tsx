@@ -2,20 +2,20 @@ export function OrganizationSchema() {
   const schema = {
     "@context": "https://schema.org",
     "@type": "Organization",
-    name: "bc",
-    url: "https://bc-infra.com",
+    name: "mycel",
+    url: "https://mycel.dev",
     description:
       "Orchestrate AI agents from your terminal. Isolated worktrees, shared channels, cost controls.",
     sameAs: [
       "https://github.com/rpuneet",
-      "https://twitter.com/bc_infra",
-      "https://linkedin.com/company/bc-infra",
-      "https://discord.gg/bc-infra",
+      "https://twitter.com/mycel_dev",
+      "https://linkedin.com/company/mycel-dev",
+      "https://discord.gg/mycel-dev",
     ],
     contactPoint: {
       "@type": "ContactPoint",
       contactType: "Customer Support",
-      email: "support@bc-infra.com",
+      email: "puneet@mycel.dev",
     },
   };
 
@@ -31,8 +31,8 @@ export function WebsiteSchema() {
   const schema = {
     "@context": "https://schema.org",
     "@type": "WebSite",
-    name: "bc",
-    url: "https://bc-infra.com",
+    name: "mycel",
+    url: "https://mycel.dev",
   };
 
   return (
@@ -67,9 +67,9 @@ export function ProductSchema() {
   const schema = {
     "@context": "https://schema.org",
     "@type": "SoftwareApplication",
-    name: "bc",
+    name: "mycel",
     applicationCategory: "DeveloperApplication",
-    url: "https://bc-infra.com",
+    url: "https://mycel.dev",
     description:
       "Multi-agent orchestration system for AI coding agents with persistent memory, zero conflicts, and cost-aware scaling.",
     operatingSystem: "Any",

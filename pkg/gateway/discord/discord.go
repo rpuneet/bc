@@ -12,8 +12,8 @@ import (
 
 	"github.com/bwmarrin/discordgo"
 
-	"github.com/rpuneet/bc/pkg/gateway"
-	"github.com/rpuneet/bc/pkg/log"
+	"github.com/rpuneet/mycel/pkg/gateway"
+	"github.com/rpuneet/mycel/pkg/log"
 )
 
 // Adapter implements gateway.NotificationAdapter for Discord.
@@ -131,25 +131,6 @@ func (a *Adapter) Send(_ context.Context, channelID, sender, content string) err
 	}
 
 	log.Info("discord: sent message", "channel_id", channelID, "sender", sender)
-	return nil
-}
-
-// Health returns nil if the adapter is connected and operational.
-func (a *Adapter) Health(_ context.Context) error {
-	if a.session == nil {
-		return fmt.Errorf("discord: not connected")
-	}
-	if a.session.State == nil || a.session.State.User == nil {
-		a.chatMu.Lock()
-		a.connected = false
-		a.lastError = "session not ready"
-		a.chatMu.Unlock()
-		return fmt.Errorf("discord: session not ready")
-	}
-	a.chatMu.Lock()
-	a.connected = true
-	a.lastError = ""
-	a.chatMu.Unlock()
 	return nil
 }
 

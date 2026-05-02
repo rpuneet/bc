@@ -7,6 +7,7 @@ import { api } from "../api/client";
 import type { NotificationSource, GatewayHealth, GatewayStatus, NotifySubscription } from "../api/client";
 import { sourcePlatform } from "./notifications/messageUtils";
 import { SetupWizard, PlatformChooser, PLATFORM_MAP } from "./notifications/SetupWizard";
+import { PLATFORM_ICON_MAP } from "./notifications/PlatformIcons";
 import { Header } from "./Header";
 import { SidebarToggle, WorkspaceDropdown } from "./WorkspaceDropdown";
 import { HeaderSlotProvider, useHeaderSlotContext } from "../context/HeaderSlotContext";
@@ -45,14 +46,130 @@ function Icon({ name, size = 14 }: { name: string; size?: number }) {
 /* ── Platform config ─────────────────────────────────────────── */
 
 function getPlatformMeta(p: string) {
-  const def = PLATFORM_MAP[p];
-  if (def) return { label: def.label, color: def.color };
-  return { label: p, color: "#8c7e72" };
+  // Handle compound keys like "telegram:gateway" — look up base platform
+  const base = p.includes(":") ? (p.split(":")[0] ?? p) : p;
+  const def = PLATFORM_MAP[base];
+  const IconComponent = PLATFORM_ICON_MAP[base] ?? null;
+  if (def) return { label: def.label, color: def.color, IconComponent };
+  return { label: p, color: "#8c7e72", IconComponent };
 }
 
+/** Extract display channel name (last segment after platform and optional server). */
 function displaySourceName(name: string): string {
-  const idx = name.indexOf(":");
-  return idx > 0 ? name.slice(idx + 1) : name;
+  // "discord:Server Name:general" → "general"
+  // "slack:engineering" → "engineering"
+  const parts = name.split(":");
+  return parts[parts.length - 1] || name;
+}
+
+/** Extract the group identifier (server/workspace/bot) from a channel name. */
+function sourceGroup(name: string): string | null {
+  // "discord:Server Name:general" → "Server Name"
+  // "slack:engineering" → null (no sub-group)
+  const parts = name.split(":");
+  if (parts.length >= 3) return parts.slice(1, -1).join(":");
+  return null;
+}
+
+/* ── Channel list with show more/less toggle ───────────────── */
+
+const SIDEBAR_CHANNEL_LIMIT = 15;
+
+function ChannelList({
+  channels,
+  subCountMap,
+  prefix,
+}: {
+  channels: NotificationSource[];
+  subCountMap: Map<string, number>;
+  prefix: string;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const visible = expanded ? channels : channels.slice(0, SIDEBAR_CHANNEL_LIMIT);
+  const hasMore = channels.length > SIDEBAR_CHANNEL_LIMIT;
+
+  return (
+    <>
+      {visible.map((ch) => {
+        const count = subCountMap.get(ch.name) ?? 0;
+        const chName = displaySourceName(ch.name);
+        return (
+          <NavLink
+            key={ch.name}
+            to={`${prefix}/notifications/${ch.name}`}
+            className="block"
+            style={({ isActive }: { isActive: boolean }) => ({
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              height: 24,
+              padding: "0 8px",
+              borderRadius: 5,
+              fontSize: 12.5,
+              color: isActive ? "var(--mycel-text, #e5e5e5)" : count > 0 ? "var(--mycel-text, #e5e5e5)" : "var(--mycel-muted, #a0a0a0)",
+              background: isActive ? "rgba(249, 115, 22, 0.12)" : "transparent",
+              fontWeight: isActive ? 600 : count > 0 ? 500 : 400,
+              cursor: "pointer",
+              marginBottom: 1,
+              textDecoration: "none",
+            })}
+          >
+            <span
+              style={{
+                width: 12,
+                color: "var(--mycel-muted, #4a4a4a)",
+                fontFamily: "'JetBrains Mono', monospace",
+                fontSize: 12,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flexShrink: 0,
+              }}
+            >
+              #
+            </span>
+            <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {chName}
+            </span>
+            {count > 0 && (
+              <span
+                style={{
+                  fontSize: 10.5,
+                  fontWeight: 600,
+                  color: "var(--mycel-muted, #a0a0a0)",
+                  fontFamily: "'JetBrains Mono', monospace",
+                  padding: "1px 5px",
+                  borderRadius: 999,
+                  background: "var(--mycel-surface, #212121)",
+                }}
+              >
+                {count}
+              </span>
+            )}
+          </NavLink>
+        );
+      })}
+      {hasMore && (
+        <button
+          type="button"
+          onClick={() => setExpanded((prev) => !prev)}
+          style={{
+            display: "block",
+            width: "100%",
+            padding: "3px 8px",
+            fontSize: 11,
+            color: "var(--mycel-muted, #6b6b6b)",
+            background: "none",
+            border: "none",
+            cursor: "pointer",
+            textAlign: "left",
+          }}
+        >
+          {expanded ? "show less" : `show ${channels.length - SIDEBAR_CHANNEL_LIMIT} more...`}
+        </button>
+      )}
+    </>
+  );
 }
 
 /* ── Notification tree (inline in nav) ───────────────────────── */
@@ -113,13 +230,17 @@ function NotificationNavTree() {
   const gwMap = new Map<string, GatewayStatus>();
   for (const gw of gateways) gwMap.set(gw.platform, gw);
 
+  // Group channels by their gateway platform key (e.g., "telegram:gateway", "telegram:trade_research")
+  // so each connected bot/server gets its own sidebar section.
   const bucketMap = new Map<string, NotificationSource[]>();
   for (const src of sources) {
-    const p = sourcePlatform(src.name);
-    if (p === "internal") continue;
-    const list = bucketMap.get(p) ?? [];
+    // Match source to its gateway entry (e.g., "telegram:gateway:marketing" → gateway "telegram:gateway")
+    const matchedGw = gateways.find((gw) => src.name.startsWith(gw.platform + ":"));
+    const key = matchedGw?.platform ?? sourcePlatform(src.name);
+    if (key === "internal") continue;
+    const list = bucketMap.get(key) ?? [];
     list.push(src);
-    bucketMap.set(p, list);
+    bucketMap.set(key, list);
   }
   for (const gw of gateways) {
     if (!bucketMap.has(gw.platform)) bucketMap.set(gw.platform, []);
@@ -155,7 +276,7 @@ function NotificationNavTree() {
       style={{
         paddingLeft: 10,
         marginLeft: 9,
-        borderLeft: "1px solid var(--bc-border, rgba(255,255,255,0.08))",
+        borderLeft: "1px solid var(--mycel-border, rgba(255,255,255,0.08))",
         marginTop: 2,
         marginBottom: 4,
         maxHeight: 280,
@@ -170,25 +291,24 @@ function NotificationNavTree() {
 
         return (
           <div key={platform}>
-            {/* Platform header */}
+            {/* Platform header — icon + server/workspace name */}
             <button
               type="button"
               onClick={() => toggleGw(platform)}
               className="w-full flex items-center"
               style={{
-                gap: 8,
+                gap: 6,
                 padding: "5px 8px 2px",
-                fontSize: 11,
-                color: "var(--bc-muted, #6b6b6b)",
-                textTransform: "uppercase",
-                letterSpacing: 0.5,
-                fontWeight: 600,
+                fontSize: 11.5,
+                color: "var(--mycel-text-2, #a0a0a0)",
+                fontWeight: 500,
                 background: "none",
                 border: "none",
                 cursor: "pointer",
               }}
             >
-              <span>{meta.label}</span>
+              {meta.IconComponent ? <meta.IconComponent size={12} /> : <span style={{ fontSize: 12 }}>{"📌"}</span>}
+              <span className="truncate">{gwStatus?.bot_name || (chs.length > 0 ? sourceGroup(chs[0]?.name ?? "") : null) || meta.label}</span>
               {isConnected && (
                 <span
                   className="ml-auto shrink-0"
@@ -202,97 +322,16 @@ function NotificationNavTree() {
                   }}
                 />
               )}
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ opacity: 0.4, transform: isExpanded ? "rotate(0deg)" : "rotate(-90deg)", transition: "transform 0.15s" }}>
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
             </button>
 
             {/* Channel rows */}
-            {isExpanded && chs.map((ch) => {
-              const count = subCountMap.get(ch.name) ?? 0;
-              const chName = displaySourceName(ch.name);
-              return (
-                <NavLink
-                  key={ch.name}
-                  to={`${prefix}/notifications/${ch.name}`}
-                  className="block"
-                  style={({ isActive }: { isActive: boolean }) => ({
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 8,
-                    height: 24,
-                    padding: "0 8px",
-                    borderRadius: 5,
-                    fontSize: 12.5,
-                    color: isActive ? "var(--bc-text, #e5e5e5)" : count > 0 ? "var(--bc-text, #e5e5e5)" : "var(--bc-muted, #a0a0a0)",
-                    background: isActive ? "rgba(249, 115, 22, 0.12)" : "transparent",
-                    fontWeight: isActive ? 600 : count > 0 ? 500 : 400,
-                    cursor: "pointer",
-                    marginBottom: 1,
-                    textDecoration: "none",
-                  })}
-                >
-                  <span
-                    style={{
-                      width: 12,
-                      color: "var(--bc-muted, #4a4a4a)",
-                      fontFamily: "'JetBrains Mono', monospace",
-                      fontSize: 12,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      flexShrink: 0,
-                    }}
-                  >
-                    #
-                  </span>
-                  <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {chName}
-                  </span>
-                  {count > 0 && (
-                    <span
-                      style={{
-                        fontSize: 10.5,
-                        fontWeight: 600,
-                        color: "var(--bc-muted, #a0a0a0)",
-                        fontFamily: "'JetBrains Mono', monospace",
-                        padding: "1px 5px",
-                        borderRadius: 999,
-                        background: "var(--bc-surface, #212121)",
-                      }}
-                    >
-                      {count}
-                    </span>
-                  )}
-                </NavLink>
-              );
-            })}
+            {isExpanded && <ChannelList channels={chs} subCountMap={subCountMap} prefix={prefix} />}
           </div>
         );
       })}
-
-      {/* Routing rules */}
-      <button
-        type="button"
-        onClick={() => window.alert("Routing rules configuration coming soon. Use per-agent subscription controls in the agents popover.")}
-        className="w-full flex items-center"
-        style={{
-          gap: 8,
-          height: 26,
-          padding: "0 8px",
-          marginTop: 4,
-          borderRadius: 5,
-          fontSize: 12,
-          color: "var(--bc-muted, #6b6b6b)",
-          cursor: "pointer",
-          border: "1px dashed var(--bc-border, #2a2a2a)",
-          background: "none",
-          whiteSpace: "nowrap",
-        }}
-      >
-        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-          <circle cx="6" cy="6" r="2.5" /><circle cx="18" cy="18" r="2.5" /><circle cx="18" cy="6" r="2.5" />
-          <path d="M6 8v8a2 2 0 0 0 2 2h7" /><path d="M18 8.5v7" />
-        </svg>
-        <span>Routing rules</span>
-      </button>
 
       {/* Connect app */}
       <button
@@ -306,9 +345,9 @@ function NotificationNavTree() {
           marginTop: 4,
           borderRadius: 5,
           fontSize: 12,
-          color: "var(--bc-muted, #6b6b6b)",
+          color: "var(--mycel-muted, #6b6b6b)",
           cursor: "pointer",
-          border: "1px dashed var(--bc-border, #2a2a2a)",
+          border: "1px dashed var(--mycel-border, #2a2a2a)",
           background: "none",
           whiteSpace: "nowrap",
         }}
@@ -406,8 +445,8 @@ function NavList({
               className={({ isActive }) =>
                 `relative flex items-center gap-2.5 ${isIconOnly ? "justify-center px-2" : "pl-4 pr-3"} py-[7px] text-[13px] outline-none transition-colors duration-75 ${
                   isActive
-                    ? "text-bc-accent font-medium border-l-2 border-bc-accent bg-bc-bg/60"
-                    : "text-bc-muted/70 hover:text-bc-text hover:bg-bc-bg/30 border-l-2 border-transparent"
+                    ? "text-mycel-accent font-medium border-l-2 border-mycel-accent bg-mycel-bg/60"
+                    : "text-mycel-muted/70 hover:text-mycel-text hover:bg-mycel-bg/30 border-l-2 border-transparent"
                 }`
               }
             >
@@ -424,7 +463,7 @@ function NavList({
                 <button
                   type="button"
                   onClick={(e) => { e.preventDefault(); e.stopPropagation(); onToggleNotifications(); }}
-                  className="ml-auto shrink-0 p-0.5 rounded text-bc-muted/40 hover:text-bc-muted/70 transition-all"
+                  className="ml-auto shrink-0 p-0.5 rounded text-mycel-muted/40 hover:text-mycel-muted/70 transition-all"
                   aria-label={notificationsExpanded ? "Collapse channels" : "Expand channels"}
                 >
                   <svg
@@ -506,7 +545,7 @@ export function Layout() {
     <div className="flex h-screen">
       {/* Mobile hamburger */}
       <button type="button" onClick={() => setMobileOpen(true)}
-        className="fixed top-3 left-3 z-40 md:hidden p-2 rounded border border-bc-border bg-bc-surface text-bc-muted hover:text-bc-text transition-colors"
+        className="fixed top-3 left-3 z-40 md:hidden p-2 rounded border border-mycel-border bg-mycel-surface text-mycel-muted hover:text-mycel-text transition-colors"
         aria-label="Open navigation"
       >
         <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5">
@@ -518,20 +557,20 @@ export function Layout() {
 
       {/* Sidebar */}
       <nav
-        className={`fixed inset-y-0 left-0 z-50 ${sidebarWidth} shrink-0 border-r border-bc-border/50 bg-bc-surface shadow-bc flex flex-col transition-all duration-200 md:relative md:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-50 ${sidebarWidth} shrink-0 border-r border-mycel-border/50 bg-mycel-surface shadow-mycel flex flex-col transition-all duration-200 md:relative md:translate-x-0 ${
           isMobile ? (mobileOpen ? "translate-x-0 w-48" : "-translate-x-full") : ""
         }`}
         style={{ scrollbarWidth: "thin", scrollbarColor: "rgba(255,255,255,0.04) transparent" }}
       >
         {/* Header */}
-        <div className="px-3 py-3 border-b border-bc-border/30 flex items-center justify-between">
+        <div className="px-3 py-3 border-b border-mycel-border/30 flex items-center justify-between">
           {(!collapsed || isMobile) ? (
             <div className="flex items-center gap-2 overflow-hidden">
               <span
                 className="w-6 h-6 shrink-0 flex items-center justify-center font-bold"
                 style={{
                   borderRadius: 7,
-                  background: "var(--bc-accent, #f97316)",
+                  background: "var(--mycel-accent, #f97316)",
                   color: "#0d0d0d",
                   fontSize: 12,
                   fontFamily: "'JetBrains Mono', monospace",
@@ -541,10 +580,10 @@ export function Layout() {
                 bc
               </span>
               <div className="min-w-0">
-                <p className="text-[13px] font-semibold text-bc-text truncate" style={{ letterSpacing: -0.1 }}>
+                <p className="text-[13px] font-semibold text-mycel-text truncate" style={{ letterSpacing: -0.1 }}>
                   {userName ? `@${userName}` : "@bc"}
                 </p>
-                <p className="text-[9px] text-bc-muted/40 -mt-0.5" style={{ fontFamily: "'JetBrains Mono', monospace" }}>workspace</p>
+                <p className="text-[9px] text-mycel-muted/40 -mt-0.5" style={{ fontFamily: "'JetBrains Mono', monospace" }}>workspace</p>
               </div>
             </div>
           ) : (
@@ -552,7 +591,7 @@ export function Layout() {
               className="w-6 h-6 shrink-0 flex items-center justify-center font-bold"
               style={{
                 borderRadius: 7,
-                background: "var(--bc-accent, #f97316)",
+                background: "var(--mycel-accent, #f97316)",
                 color: "#0d0d0d",
                 fontSize: 12,
                 fontFamily: "'JetBrains Mono', monospace",
@@ -564,7 +603,7 @@ export function Layout() {
           )}
           {isMobile ? (
             <button type="button" onClick={() => setMobileOpen(false)}
-              className="p-0.5 rounded text-bc-muted/40 hover:text-bc-text transition-colors" aria-label="Close navigation"
+              className="p-0.5 rounded text-mycel-muted/40 hover:text-mycel-text transition-colors" aria-label="Close navigation"
             >
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5">
                 <path d="M3 3l8 8M11 3l-8 8" />
@@ -572,7 +611,7 @@ export function Layout() {
             </button>
           ) : (
             <button type="button" onClick={toggleCollapsed}
-              className="p-0.5 rounded text-bc-muted/30 hover:text-bc-muted/70 transition-colors"
+              className="p-0.5 rounded text-mycel-muted/30 hover:text-mycel-muted/70 transition-colors"
               aria-label={collapsed ? "Expand navigation" : "Collapse navigation"}
             >
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5">
@@ -592,19 +631,19 @@ export function Layout() {
             onToggleNotifications={toggleNotifications}
           />
           <li className={`my-1.5 ${collapsed && !isMobile ? "mx-2" : "mx-3"}`}>
-            <div className="border-t border-bc-border/15" />
+            <div className="border-t border-mycel-border/15" />
           </li>
           <NavList items={GLOBAL_NAV_ITEMS} collapsed={collapsed} isMobile={isMobile} global />
           <li className={`my-1.5 ${collapsed && !isMobile ? "mx-2" : "mx-3"}`}>
-            <div className="border-t border-bc-border/15" />
+            <div className="border-t border-mycel-border/15" />
           </li>
           <NavList items={UTIL_NAV_ITEMS} collapsed={collapsed} isMobile={isMobile} />
         </ul>
 
         {/* Theme toggle */}
-        <div className="px-3 py-2 border-t border-bc-border/20">
+        <div className="px-3 py-2 border-t border-mycel-border/20">
           <button type="button" onClick={toggle}
-            className="px-2 py-1 rounded text-[10px] text-bc-muted/30 hover:text-bc-muted/60 border border-bc-border/15 hover:border-bc-border/30 transition-colors w-full"
+            className="px-2 py-1 rounded text-[10px] text-mycel-muted/30 hover:text-mycel-muted/60 border border-mycel-border/15 hover:border-mycel-border/30 transition-colors w-full"
             title={`Theme: ${THEME_LABELS[mode]}`}
           >
             {collapsed && !isMobile ? THEME_LABELS[mode][0] : THEME_LABELS[mode]}
@@ -613,7 +652,7 @@ export function Layout() {
       </nav>
 
       <HeaderSlotProvider>
-        <main className="flex-1 flex flex-col overflow-hidden bg-bc-bg">
+        <main className="flex-1 flex flex-col overflow-hidden bg-mycel-bg">
           <LayoutHeader collapsed={collapsed} onToggleCollapsed={toggleCollapsed} />
           <div className="flex-1 overflow-auto">
             <Outlet />

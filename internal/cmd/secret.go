@@ -9,10 +9,10 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/rpuneet/bc/pkg/client"
-	"github.com/rpuneet/bc/pkg/secret"
-	"github.com/rpuneet/bc/pkg/ui"
-	"github.com/rpuneet/bc/pkg/workspace"
+	"github.com/rpuneet/mycel/pkg/client"
+	"github.com/rpuneet/mycel/pkg/secret"
+	"github.com/rpuneet/mycel/pkg/ui"
+	"github.com/rpuneet/mycel/pkg/workspace"
 )
 
 var secretCmd = &cobra.Command{

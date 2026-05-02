@@ -162,7 +162,7 @@ Configuration is stored in `settings.json` (JSON format). The `make gen-go` targ
 ## Code Style
 
 - gofmt with -s (simplify)
-- goimports with local prefix `github.com/rpuneet/bc` (import grouping: stdlib, external, local)
+- goimports with local prefix `github.com/rpuneet/mycel` (import grouping: stdlib, external, local)
 - Short receiver names: `w` for workspace, `a` for agent, `c` for channel
 - Avoid package-level variables except for cobra commands
 - Struct field alignment matters for memory efficiency (govet fieldalignment)

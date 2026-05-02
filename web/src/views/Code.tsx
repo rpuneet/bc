@@ -387,7 +387,7 @@ export function Code() {
 
   if (!workspace) {
     return (
-      <div className="flex-1 flex items-center justify-center text-bc-muted">
+      <div className="flex-1 flex items-center justify-center text-mycel-muted">
         No workspace selected.
       </div>
     );
@@ -400,8 +400,8 @@ export function Code() {
   return (
     <div className="flex flex-col h-full" style={{ fontFamily: MONO }}>
       {/* Header */}
-      <header className="shrink-0 border-b border-bc-border/40 px-6 h-[42px] flex items-center gap-3">
-        <span className="text-[11px] font-bold text-bc-text uppercase tracking-[0.2em]">
+      <header className="shrink-0 border-b border-mycel-border/40 px-6 h-[42px] flex items-center gap-3">
+        <span className="text-[11px] font-bold text-mycel-text uppercase tracking-[0.2em]">
           Code
         </span>
 
@@ -409,7 +409,7 @@ export function Code() {
         <select
           value={worktree}
           onChange={(e) => setWorktree(e.target.value)}
-          className="rounded border border-bc-border/40 bg-bc-surface/20 text-bc-text/90 text-[11px] px-2 py-1 outline-none focus:border-bc-accent/50"
+          className="rounded border border-mycel-border/40 bg-mycel-surface/20 text-mycel-text/90 text-[11px] px-2 py-1 outline-none focus:border-mycel-accent/50"
         >
           {worktrees.map((wt) => (
             <option key={wt.value} value={wt.value}>
@@ -420,14 +420,14 @@ export function Code() {
 
         {/* View mode toggle (only when worktree !== main) */}
         {worktree !== "main" && (
-          <div className="flex items-center rounded border border-bc-border/40 overflow-hidden text-[10px]">
+          <div className="flex items-center rounded border border-mycel-border/40 overflow-hidden text-[10px]">
             <button
               type="button"
               onClick={() => setViewMode("diff")}
               className={`px-2 py-1 uppercase tracking-wider transition-colors ${
                 viewMode === "diff"
-                  ? "bg-bc-accent/20 text-bc-accent"
-                  : "text-bc-muted hover:text-bc-text"
+                  ? "bg-mycel-accent/20 text-mycel-accent"
+                  : "text-mycel-muted hover:text-mycel-text"
               }`}
             >
               Diff
@@ -435,10 +435,10 @@ export function Code() {
             <button
               type="button"
               onClick={() => setViewMode("plain")}
-              className={`px-2 py-1 uppercase tracking-wider transition-colors border-l border-bc-border/40 ${
+              className={`px-2 py-1 uppercase tracking-wider transition-colors border-l border-mycel-border/40 ${
                 viewMode === "plain"
-                  ? "bg-bc-accent/20 text-bc-accent"
-                  : "text-bc-muted hover:text-bc-text"
+                  ? "bg-mycel-accent/20 text-mycel-accent"
+                  : "text-mycel-muted hover:text-mycel-text"
               }`}
             >
               Plain
@@ -447,11 +447,11 @@ export function Code() {
         )}
 
         {/* Breadcrumb */}
-        <div className="flex-1 min-w-0 flex items-center gap-1 text-[11px] text-bc-muted/70 truncate">
+        <div className="flex-1 min-w-0 flex items-center gap-1 text-[11px] text-mycel-muted/70 truncate">
           <button
             type="button"
             onClick={() => updateParams({ path: "" })}
-            className="hover:text-bc-accent transition-colors shrink-0"
+            className="hover:text-mycel-accent transition-colors shrink-0"
           >
             /
           </button>
@@ -460,11 +460,11 @@ export function Code() {
               <button
                 type="button"
                 onClick={() => updateParams({ path: b.path })}
-                className="hover:text-bc-accent transition-colors truncate max-w-[140px]"
+                className="hover:text-mycel-accent transition-colors truncate max-w-[140px]"
               >
                 {b.label}
               </button>
-              <span className="text-bc-muted/30">/</span>
+              <span className="text-mycel-muted/30">/</span>
             </span>
           ))}
         </div>
@@ -474,7 +474,7 @@ export function Code() {
           <button
             type="button"
             onClick={downloadPatch}
-            className="text-[10px] uppercase tracking-wider text-bc-muted hover:text-bc-accent transition-colors"
+            className="text-[10px] uppercase tracking-wider text-mycel-muted hover:text-mycel-accent transition-colors"
             title="Download unified diff as .patch"
           >
             Download patch
@@ -486,7 +486,7 @@ export function Code() {
           type="button"
           onClick={toggleHidden}
           className={`text-[10px] uppercase tracking-wider transition-colors ${
-            showHidden ? "text-bc-accent" : "text-bc-muted hover:text-bc-text"
+            showHidden ? "text-mycel-accent" : "text-mycel-muted hover:text-mycel-text"
           }`}
           title="Toggle .git / .bc entries"
         >
@@ -505,8 +505,8 @@ export function Code() {
             }}
             className={`text-[10px] uppercase tracking-wider transition-colors border px-2 py-1 rounded ${
               vscodeMode
-                ? "bg-bc-accent/20 text-bc-accent border-bc-accent/50"
-                : "text-bc-muted border-bc-border/40 hover:text-bc-text hover:border-bc-muted"
+                ? "bg-mycel-accent/20 text-mycel-accent border-mycel-accent/50"
+                : "text-mycel-muted border-mycel-border/40 hover:text-mycel-text hover:border-mycel-muted"
             }`}
             title="Open workspace in code-server (VS Code in the browser)"
           >
@@ -518,7 +518,7 @@ export function Code() {
       {/* VS Code iframe mode — replaces body when toggled on */}
       {vscodeMode && codeServer.running && (
         <div className="flex-1 min-h-0 flex flex-col">
-          <div className="shrink-0 px-6 py-1.5 bg-bc-warning/10 border-b border-bc-warning/30 text-[10px] text-bc-warning/90 flex items-center gap-2" style={{ fontFamily: MONO }}>
+          <div className="shrink-0 px-6 py-1.5 bg-mycel-warning/10 border-b border-mycel-warning/30 text-[10px] text-mycel-warning/90 flex items-center gap-2" style={{ fontFamily: MONO }}>
             <span>⚠</span>
             <span>
               VS Code has <strong>write access</strong> to the workspace.
@@ -537,13 +537,13 @@ export function Code() {
       {/* Body: tree + viewer */}
       {!vscodeMode && <div className="flex-1 min-h-0 flex">
         {/* Tree pane */}
-        <aside className="w-64 shrink-0 border-r border-bc-border/40 overflow-y-auto">
+        <aside className="w-64 shrink-0 border-r border-mycel-border/40 overflow-y-auto">
           {rootLoading && <TreeSkeleton />}
           {!rootLoading && rootError && (
-            <div className="px-3 py-2 text-[11px] text-bc-danger/70">{rootError}</div>
+            <div className="px-3 py-2 text-[11px] text-mycel-danger/70">{rootError}</div>
           )}
           {!rootLoading && !rootError && rootEntries.length === 0 && (
-            <div className="px-3 py-2 text-[11px] text-bc-muted/50 italic">
+            <div className="px-3 py-2 text-[11px] text-mycel-muted/50 italic">
               {worktree === "main"
                 ? "No files to display."
                 : "This agent's worktree does not exist or has no files."}
@@ -567,23 +567,23 @@ export function Code() {
         {/* Viewer pane */}
         <section className="flex-1 min-w-0 overflow-hidden relative">
           {!path && (
-            <div className="h-full flex items-center justify-center text-[11px] text-bc-muted/50 italic">
+            <div className="h-full flex items-center justify-center text-[11px] text-mycel-muted/50 italic">
               Select a file from the tree
             </div>
           )}
           {path && contentLoading && <EditorShimmer />}
           {path && !contentLoading && fileError && (
-            <div className="h-full flex items-center justify-center text-[11px] text-bc-danger/70">
+            <div className="h-full flex items-center justify-center text-[11px] text-mycel-danger/70">
               {fileError}
             </div>
           )}
           {path && !contentLoading && !fileError && fileContent.binary && (
-            <div className="h-full flex flex-col items-center justify-center gap-2 text-[11px] text-bc-muted">
+            <div className="h-full flex flex-col items-center justify-center gap-2 text-[11px] text-mycel-muted">
               <div>Binary file</div>
               <a
                 href={fileDownloadUrl(workspace.id, path, worktree)}
                 download
-                className="text-bc-accent hover:underline"
+                className="text-mycel-accent hover:underline"
               >
                 Download
               </a>
@@ -676,20 +676,20 @@ function TreeList({
               type="button"
               onClick={() => onSelect(node)}
               style={{ paddingLeft: 12 + depth * 12 }}
-              className={`w-full flex items-center gap-1.5 pr-3 py-1 text-left text-[11px] hover:bg-bc-accent/[0.06] transition-colors ${
+              className={`w-full flex items-center gap-1.5 pr-3 py-1 text-left text-[11px] hover:bg-mycel-accent/[0.06] transition-colors ${
                 selectedPath === node.path
-                  ? "bg-bc-accent/[0.08] text-bc-accent"
-                  : "text-bc-text/80"
+                  ? "bg-mycel-accent/[0.08] text-mycel-accent"
+                  : "text-mycel-text/80"
               }`}
             >
-              <span className="text-bc-muted/40 shrink-0 w-3 text-center">{icon}</span>
+              <span className="text-mycel-muted/40 shrink-0 w-3 text-center">{icon}</span>
               <span className="truncate">{node.name}</span>
             </button>
             {isExpanded && (
               <>
                 {childLoading && !childEntries && (
                   <div
-                    className="text-[10px] text-bc-muted/50 italic py-0.5"
+                    className="text-[10px] text-mycel-muted/50 italic py-0.5"
                     style={{ paddingLeft: 12 + (depth + 1) * 12 }}
                   >
                     loading…
@@ -710,7 +710,7 @@ function TreeList({
                 )}
                 {childEntries && childEntries.length === 0 && !childLoading && (
                   <div
-                    className="text-[10px] text-bc-muted/40 italic py-0.5"
+                    className="text-[10px] text-mycel-muted/40 italic py-0.5"
                     style={{ paddingLeft: 12 + (depth + 1) * 12 }}
                   >
                     (empty)
@@ -731,7 +731,7 @@ function TreeSkeleton() {
       {Array.from({ length: 8 }).map((_, i) => (
         <div
           key={i}
-          className="h-3 animate-pulse rounded bg-bc-border/40"
+          className="h-3 animate-pulse rounded bg-mycel-border/40"
           style={{ width: `${50 + ((i * 13) % 40)}%` }}
         />
       ))}
@@ -745,7 +745,7 @@ function EditorShimmer() {
       {Array.from({ length: 14 }).map((_, i) => (
         <div
           key={i}
-          className="h-3 animate-pulse rounded bg-bc-border/30"
+          className="h-3 animate-pulse rounded bg-mycel-border/30"
           style={{ width: `${40 + ((i * 17) % 55)}%` }}
         />
       ))}

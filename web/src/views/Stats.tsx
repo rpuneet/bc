@@ -46,11 +46,11 @@ const INFRA = ["bc-db", "bc-daemon", "bc-playwright"];
 const isInfra = (n: string) => INFRA.some(p => n === p || n.startsWith(p + "-")) || n.length <= 3;
 
 const TT: React.CSSProperties = {
-  backgroundColor: "var(--color-bc-surface)", border: "1px solid var(--color-bc-border)",
-  borderRadius: "6px", color: "var(--color-bc-text)", fontSize: "12px",
+  backgroundColor: "var(--color-mycel-surface)", border: "1px solid var(--color-mycel-border)",
+  borderRadius: "6px", color: "var(--color-mycel-text)", fontSize: "12px",
 };
 const AX = { axisLine: false as const, tickLine: false as const };
-const TICK_STYLE = { fill: "var(--color-bc-muted)", fontSize: 10 };
+const TICK_STYLE = { fill: "var(--color-mycel-muted)", fontSize: 10 };
 
 // ── Helpers ─────────────────────────────────────────────────────────────────────
 
@@ -222,8 +222,8 @@ export function Stats() {
             <button key={r.label} type="button" onClick={() => setRange(i)}
               className={`px-2.5 py-1 text-xs rounded border transition-colors ${
                 i === range
-                  ? "border-bc-accent bg-bc-accent/10 text-bc-accent"
-                  : "border-bc-border text-bc-muted hover:text-bc-text hover:border-bc-muted"
+                  ? "border-mycel-accent bg-mycel-accent/10 text-mycel-accent"
+                  : "border-mycel-border text-mycel-muted hover:text-mycel-text hover:border-mycel-muted"
               }`}
             >{r.label}</button>
           ))}
@@ -236,14 +236,14 @@ export function Stats() {
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
               <thead>
-                <tr className="text-bc-muted text-left">
+                <tr className="text-mycel-muted text-left">
                   {colHeaders.map(h => (
-                    <th key={h.key} className="py-1.5 px-2 font-medium cursor-pointer hover:text-bc-text select-none" onClick={(e) => { e.stopPropagation(); e.preventDefault(); handleSort(h.key); }}>
+                    <th key={h.key} className="py-1.5 px-2 font-medium cursor-pointer hover:text-mycel-text select-none" onClick={(e) => { e.stopPropagation(); e.preventDefault(); handleSort(h.key); }}>
                       <div className="flex items-center">
                         {h.label}
                         {sortKey === h.key && <span className="ml-1">{sortAsc ? "\u25B2" : "\u25BC"}</span>}
                       </div>
-                      {h.agg && <div className="text-[10px] font-normal text-bc-muted">{h.agg}</div>}
+                      {h.agg && <div className="text-[10px] font-normal text-mycel-muted">{h.agg}</div>}
                     </th>
                   ))}
                 </tr>
@@ -251,7 +251,7 @@ export function Stats() {
               <tbody>
                 {agentTable.map(a => (
                   <tr key={a.name}
-                    className="border-t border-bc-border/50 hover:bg-bc-bg/50 cursor-pointer transition-colors"
+                    className="border-t border-mycel-border/50 hover:bg-mycel-bg/50 cursor-pointer transition-colors"
                     onClick={() => navigate(`/agents/${encodeURIComponent(a.name)}`)}
                   >
                     <td className="py-1.5 px-2 font-medium">
@@ -260,13 +260,13 @@ export function Stats() {
                         {a.name}
                       </span>
                     </td>
-                    <td className="py-1.5 px-2 text-bc-muted">{a.role}</td>
-                    <td className="py-1.5 px-2 text-bc-muted">{a.provider}</td>
+                    <td className="py-1.5 px-2 text-mycel-muted">{a.role}</td>
+                    <td className="py-1.5 px-2 text-mycel-muted">{a.provider}</td>
                     <td className="py-1.5 px-2">
                       <span className="flex items-center gap-1.5">
                         <span className={`w-1.5 h-1.5 rounded-full ${
                           a.state === "working" || a.state === "idle" || a.state === "running" ? "bg-green-500"
-                          : a.state === "stuck" ? "bg-orange-500" : "bg-bc-muted"
+                          : a.state === "stuck" ? "bg-orange-500" : "bg-mycel-muted"
                         }`} />
                         {a.state}
                       </span>
@@ -274,7 +274,7 @@ export function Stats() {
                     <td className="py-1.5 px-2 font-mono">{a.cpu.toFixed(1)}</td>
                     <td className="py-1.5 px-2 font-mono">{a.mem.toFixed(0)}</td>
                     <td className="py-1.5 px-2 font-mono">{fmtTokens(a.tokens)}</td>
-                    <td className="py-1.5 px-2 font-mono text-bc-accent">${a.cost.toFixed(2)}</td>
+                    <td className="py-1.5 px-2 font-mono text-mycel-accent">${a.cost.toFixed(2)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -285,9 +285,9 @@ export function Stats() {
 
       {/* Sticky agent legend bar */}
       {Object.keys(agentColors).length > 0 && (
-        <div className="sticky top-0 z-10 flex flex-wrap items-center gap-3 px-3 py-2 bg-bc-bg/95 backdrop-blur-sm border-b border-bc-border">
+        <div className="sticky top-0 z-10 flex flex-wrap items-center gap-3 px-3 py-2 bg-mycel-bg/95 backdrop-blur-sm border-b border-mycel-border">
           {Object.entries(agentColors).map(([name, color]) => (
-            <span key={name} className="flex items-center gap-1.5 text-xs text-bc-muted">
+            <span key={name} className="flex items-center gap-1.5 text-xs text-mycel-muted">
               <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: color }} />
               {name}
             </span>
@@ -301,7 +301,7 @@ export function Stats() {
           {cpuChart.data.length === 0 ? <Empty /> : (
             <ResponsiveContainer width="100%" height={200}>
               <AreaChart data={cpuChart.data} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-bc-border)" vertical={false} />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-mycel-border)" vertical={false} />
                 <XAxis dataKey="time" tick={TICK_STYLE} {...AX} />
                 <YAxis tick={TICK_STYLE} {...AX} tickFormatter={(v: number) => `${v}%`} />
                 <Tooltip contentStyle={TT} />
@@ -316,7 +316,7 @@ export function Stats() {
           {memChart.data.length === 0 ? <Empty /> : (
             <ResponsiveContainer width="100%" height={200}>
               <AreaChart data={memChart.data} margin={{ top: 4, right: 8, left: -10, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-bc-border)" vertical={false} />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-mycel-border)" vertical={false} />
                 <XAxis dataKey="time" tick={TICK_STYLE} {...AX} />
                 <YAxis tick={TICK_STYLE} {...AX} />
                 <Tooltip contentStyle={TT} formatter={(v) => [`${Number(v ?? 0).toFixed(1)} MB`]} />
@@ -335,7 +335,7 @@ export function Stats() {
           {tokenChart.length === 0 ? <Empty /> : (
             <ResponsiveContainer width="100%" height={200}>
               <AreaChart data={tokenChart} margin={{ top: 4, right: 8, left: -8, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-bc-border)" vertical={false} />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-mycel-border)" vertical={false} />
                 <XAxis dataKey="time" tick={TICK_STYLE} {...AX} />
                 <YAxis tick={TICK_STYLE} {...AX} tickFormatter={(v: number) => fmtTokens(v)} />
                 <Tooltip contentStyle={TT} formatter={(v, n) => [Number(v ?? 0).toLocaleString(), n === "input" ? "Input" : "Output"]} />
@@ -349,7 +349,7 @@ export function Stats() {
           {costOverTime.length === 0 ? <Empty msg="No cost data" /> : (
             <ResponsiveContainer width="100%" height={200}>
               <AreaChart data={costOverTime} margin={{ top: 4, right: 8, left: -8, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-bc-border)" vertical={false} />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-mycel-border)" vertical={false} />
                 <XAxis dataKey="time" tick={TICK_STYLE} {...AX} />
                 <YAxis tick={TICK_STYLE} {...AX} tickFormatter={(v: number) => `$${v.toFixed(2)}`} />
                 <Tooltip contentStyle={TT} formatter={(v) => [`$${Number(v ?? 0).toFixed(4)}`]} />
@@ -366,7 +366,7 @@ export function Stats() {
           {netChart.length === 0 ? <Empty /> : (
             <ResponsiveContainer width="100%" height={200}>
               <AreaChart data={netChart} margin={{ top: 4, right: 8, left: -10, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-bc-border)" vertical={false} />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-mycel-border)" vertical={false} />
                 <XAxis dataKey="time" tick={TICK_STYLE} {...AX} />
                 <YAxis tick={TICK_STYLE} {...AX} tickFormatter={(v: number) => fmtBytes(v)} />
                 <Tooltip contentStyle={TT} formatter={(v) => [fmtBytes(Number(v ?? 0))]} />
@@ -380,7 +380,7 @@ export function Stats() {
           {diskChart.length === 0 ? <Empty /> : (
             <ResponsiveContainer width="100%" height={200}>
               <AreaChart data={diskChart} margin={{ top: 4, right: 8, left: -10, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-bc-border)" vertical={false} />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-mycel-border)" vertical={false} />
                 <XAxis dataKey="time" tick={TICK_STYLE} {...AX} />
                 <YAxis tick={TICK_STYLE} {...AX} tickFormatter={(v: number) => fmtBytes(v)} />
                 <Tooltip contentStyle={TT} formatter={(v) => [fmtBytes(Number(v ?? 0))]} />
@@ -398,9 +398,9 @@ export function Stats() {
           {tokensByModel.length === 0 ? <Empty msg="No model data" /> : (
             <ResponsiveContainer width="100%" height={200}>
               <BarChart layout="vertical" data={tokensByModel.slice(0, 8).map(m => ({ name: trunc(m.name, 24), tokens: m.tokens }))} margin={{ top: 0, right: 8, left: 4, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-bc-border)" horizontal={false} />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-mycel-border)" horizontal={false} />
                 <XAxis type="number" tick={TICK_STYLE} {...AX} tickFormatter={(v: number) => fmtTokens(v)} />
-                <YAxis type="category" dataKey="name" tick={{ ...TICK_STYLE, fill: "var(--color-bc-text)", fontSize: 9 }} {...AX} width={120} />
+                <YAxis type="category" dataKey="name" tick={{ ...TICK_STYLE, fill: "var(--color-mycel-text)", fontSize: 9 }} {...AX} width={120} />
                 <Tooltip contentStyle={TT} formatter={(v) => [fmtTokens(Number(v ?? 0))]} />
                 <Bar dataKey="tokens" radius={[0, 3, 3, 0]}>
                   {tokensByModel.slice(0, 8).map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
@@ -413,7 +413,7 @@ export function Stats() {
           {!hasCacheData ? <Empty msg="Cache data — coming soon" /> : (
             <ResponsiveContainer width="100%" height={200}>
               <AreaChart data={cacheChart} margin={{ top: 4, right: 8, left: -8, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-bc-border)" vertical={false} />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-mycel-border)" vertical={false} />
                 <XAxis dataKey="time" tick={TICK_STYLE} {...AX} />
                 <YAxis tick={TICK_STYLE} {...AX} tickFormatter={(v: number) => fmtTokens(v)} />
                 <Tooltip contentStyle={TT} formatter={(v, n) => [fmtTokens(Number(v ?? 0)), n === "cache_read" ? "Cache Read" : "Cache Create"]} />
@@ -431,9 +431,9 @@ export function Stats() {
           {notificationBarData.length === 0 ? <Empty msg="No notification data" /> : (
             <ResponsiveContainer width="100%" height={200}>
               <BarChart layout="vertical" data={notificationBarData} margin={{ top: 0, right: 8, left: 4, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-bc-border)" horizontal={false} />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-mycel-border)" horizontal={false} />
                 <XAxis type="number" tick={TICK_STYLE} {...AX} />
-                <YAxis type="category" dataKey="name" tick={{ ...TICK_STYLE, fill: "var(--color-bc-text)", fontSize: 9 }} {...AX} width={100} />
+                <YAxis type="category" dataKey="name" tick={{ ...TICK_STYLE, fill: "var(--color-mycel-text)", fontSize: 9 }} {...AX} width={100} />
                 <Tooltip contentStyle={TT} formatter={(v) => [Number(v ?? 0).toLocaleString(), "Messages"]} />
                 <Bar dataKey="messages" radius={[0, 3, 3, 0]}>
                   {notificationBarData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
@@ -446,9 +446,9 @@ export function Stats() {
           {tokensByAgent.length === 0 ? <Empty msg="No cost data" /> : (
             <ResponsiveContainer width="100%" height={200}>
               <BarChart layout="vertical" data={tokensByAgent.slice(0, 8).map(a => ({ name: trunc(a.name, 20), cost: parseFloat(a.cost.toFixed(4)) }))} margin={{ top: 0, right: 8, left: 4, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-bc-border)" horizontal={false} />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-mycel-border)" horizontal={false} />
                 <XAxis type="number" tick={TICK_STYLE} {...AX} tickFormatter={(v: number) => `$${v}`} />
-                <YAxis type="category" dataKey="name" tick={{ ...TICK_STYLE, fill: "var(--color-bc-text)", fontSize: 9 }} {...AX} width={100} />
+                <YAxis type="category" dataKey="name" tick={{ ...TICK_STYLE, fill: "var(--color-mycel-text)", fontSize: 9 }} {...AX} width={100} />
                 <Tooltip contentStyle={TT} formatter={(v) => [`$${Number(v ?? 0).toFixed(4)}`]} />
                 <Bar dataKey="cost" radius={[0, 3, 3, 0]}>
                   {tokensByAgent.slice(0, 8).map((a, i) => <Cell key={i} fill={agentColors[a.name] ?? COLORS[i % COLORS.length]} />)}
@@ -465,7 +465,7 @@ export function Stats() {
           {tokensByAgent.length === 0 ? <Empty msg="No token data" /> : (
             <ResponsiveContainer width="100%" height={200}>
               <BarChart data={tokensByAgent.slice(0, 8).map(a => ({ name: trunc(a.name, 12), input: a.input, output: a.output }))} margin={{ top: 4, right: 8, left: -8, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-bc-border)" vertical={false} />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-mycel-border)" vertical={false} />
                 <XAxis dataKey="name" tick={{ ...TICK_STYLE, fontSize: 9 }} {...AX} />
                 <YAxis tick={TICK_STYLE} {...AX} tickFormatter={(v: number) => fmtTokens(v)} />
                 <Tooltip contentStyle={TT} formatter={(v, n) => [fmtTokens(Number(v ?? 0)), n === "input" ? "Input" : "Output"]} />
@@ -479,9 +479,9 @@ export function Stats() {
           {costByModelBar.length === 0 ? <Empty msg="No cost data" /> : (
             <ResponsiveContainer width="100%" height={200}>
               <BarChart layout="vertical" data={costByModelBar} margin={{ top: 0, right: 8, left: 4, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-bc-border)" horizontal={false} />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-mycel-border)" horizontal={false} />
                 <XAxis type="number" tick={TICK_STYLE} {...AX} tickFormatter={(v: number) => `$${v}`} />
-                <YAxis type="category" dataKey="name" tick={{ ...TICK_STYLE, fill: "var(--color-bc-text)", fontSize: 9 }} {...AX} width={120} />
+                <YAxis type="category" dataKey="name" tick={{ ...TICK_STYLE, fill: "var(--color-mycel-text)", fontSize: 9 }} {...AX} width={120} />
                 <Tooltip contentStyle={TT} formatter={(v) => [`$${Number(v ?? 0).toFixed(4)}`]} />
                 <Bar dataKey="cost" radius={[0, 3, 3, 0]}>
                   {costByModelBar.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}

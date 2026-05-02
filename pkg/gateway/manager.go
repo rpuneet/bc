@@ -5,11 +5,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/rpuneet/bc/pkg/log"
+	"github.com/rpuneet/mycel/pkg/log"
 )
 
 // PersistedChannel is a saved bc_channel → platform_id mapping.
@@ -216,6 +217,22 @@ func (m *Manager) GetAdapter(name string) NotificationAdapter {
 	return m.adapters[name]
 }
 
+// AdapterNames returns the names of all registered adapters.
+func (m *Manager) AdapterNames() []string {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	names := make([]string, 0, len(m.adapters))
+	for name := range m.adapters {
+		names = append(names, name)
+	}
+	return names
+}
+
+// HandleNotification processes an inbound notification from a specific platform.
+func (m *Manager) HandleNotification(platform string, n Notification) {
+	m.handleNotification(platform, n)
+}
+
 // AdapterStatus returns the connection status for a specific adapter.
 func (m *Manager) AdapterStatus(platform string) AdapterStatus {
 	m.mu.RLock()
@@ -331,19 +348,39 @@ func (m *Manager) handleNotification(platform string, n Notification) {
 	}
 	bcChannel := platform + ":" + sanitizeChannelName(channelName)
 
-	// Ensure channel is in the map
+	// Determine the channel ID for routing. For platforms that need a
+	// numeric ID (e.g., Telegram chat_id), extract it from the raw payload.
+	// Fall back to the channel name if extraction fails.
+	channelID := channelName
+	if len(n.Raw) > 0 {
+		var rawMsg struct {
+			Message struct {
+				Chat struct {
+					ID int64 `json:"id"`
+				} `json:"chat"`
+			} `json:"message"`
+		}
+		if err := json.Unmarshal(n.Raw, &rawMsg); err == nil && rawMsg.Message.Chat.ID != 0 {
+			channelID = strconv.FormatInt(rawMsg.Message.Chat.ID, 10)
+		}
+	}
+
+	// Ensure channel is in the map — only persist when first created
 	m.mu.Lock()
-	if _, exists := m.channelMap[bcChannel]; !exists {
+	_, exists := m.channelMap[bcChannel]
+	if !exists {
 		adapter := m.adapters[platform]
 		m.channelMap[bcChannel] = channelRoute{
 			Platform:  platform,
-			ChannelID: channelName,
+			ChannelID: channelID,
 			Adapter:   adapter,
 		}
-		log.Info("gateway: dynamically mapped notification channel", "bc_channel", bcChannel, "platform", platform)
+		log.Info("gateway: dynamically mapped notification channel", "bc_channel", bcChannel, "platform", platform, "channel_id", channelID)
 	}
 	m.mu.Unlock()
-	m.persistChannel(bcChannel, platform, channelName)
+	if !exists {
+		m.persistChannel(bcChannel, platform, channelID)
+	}
 
 	sender := fmt.Sprintf("[%s] %s", platform, n.Sender)
 

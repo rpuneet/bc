@@ -81,7 +81,7 @@ const SECTIONS: {
     id: "tutorials",
     label: "Tutorials",
     description:
-      "Step-by-step guides to get you up and running with bc from scratch.",
+      "Step-by-step guides to get you up and running with mycel from scratch.",
     dir: "tutorials",
   },
   {

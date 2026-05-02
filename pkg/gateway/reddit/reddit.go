@@ -12,8 +12,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/rpuneet/bc/pkg/gateway"
-	"github.com/rpuneet/bc/pkg/log"
+	"github.com/rpuneet/mycel/pkg/gateway"
+	"github.com/rpuneet/mycel/pkg/log"
 )
 
 const defaultInterval = 60 // seconds
@@ -116,17 +116,16 @@ func (a *Adapter) poll(ctx context.Context) {
 	}
 	defer resp.Body.Close() //nolint:errcheck
 
+	if resp.StatusCode != http.StatusOK {
+		a.setError(fmt.Sprintf("HTTP %d", resp.StatusCode))
+		return
+	}
+
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		a.setError(fmt.Sprintf("read body: %v", err))
 		return
 	}
-
-	a.mu.Lock()
-	a.connected = true
-	a.lastFetchAt = time.Now()
-	a.lastError = ""
-	a.mu.Unlock()
 
 	var listing struct {
 		Data struct {
@@ -140,8 +139,15 @@ func (a *Adapter) poll(ctx context.Context) {
 		} `json:"data"`
 	}
 	if err := json.Unmarshal(body, &listing); err != nil {
+		a.setError(fmt.Sprintf("decode: %v", err))
 		return
 	}
+
+	a.mu.Lock()
+	a.connected = true
+	a.lastFetchAt = time.Now()
+	a.lastError = ""
+	a.mu.Unlock()
 
 	var count int
 	for _, child := range listing.Data.Children {

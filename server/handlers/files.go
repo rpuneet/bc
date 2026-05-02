@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/rpuneet/bc/pkg/attachment"
+	"github.com/rpuneet/mycel/pkg/attachment"
 )
 
 // FileHandler handles file upload and download routes.

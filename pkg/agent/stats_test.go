@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"context"
 	"testing"
 	"time"
 )
@@ -21,11 +22,11 @@ func TestSaveAndQueryStats(t *testing.T) {
 		NetRxMB:     0.1,
 		NetTxMB:     0.05,
 	}
-	if saveErr := store.SaveStats(rec); saveErr != nil {
+	if saveErr := store.SaveStats(context.Background(), rec); saveErr != nil {
 		t.Fatalf("SaveStats: %v", saveErr)
 	}
 
-	records, err := store.QueryStats("eng-01", 10)
+	records, err := store.QueryStats(context.Background(), "eng-01", 10)
 	if err != nil {
 		t.Fatalf("QueryStats: %v", err)
 	}
@@ -51,7 +52,7 @@ func TestQueryStats_Empty(t *testing.T) {
 	}
 	defer func() { _ = store.Close() }()
 
-	records, err := store.QueryStats("nobody", 10)
+	records, err := store.QueryStats(context.Background(), "nobody", 10)
 	if err != nil {
 		t.Fatalf("QueryStats: %v", err)
 	}
@@ -73,11 +74,11 @@ func TestQueryStats_LimitRespected(t *testing.T) {
 			CollectedAt: time.Now().Add(time.Duration(i) * time.Second),
 			CPUPct:      float64(i),
 		}
-		if saveErr := store.SaveStats(rec); saveErr != nil {
+		if saveErr := store.SaveStats(context.Background(), rec); saveErr != nil {
 			t.Fatalf("SaveStats #%d: %v", i, saveErr)
 		}
 	}
-	records, err := store.QueryStats("worker", 3)
+	records, err := store.QueryStats(context.Background(), "worker", 3)
 	if err != nil {
 		t.Fatalf("QueryStats: %v", err)
 	}

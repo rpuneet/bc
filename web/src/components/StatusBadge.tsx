@@ -2,10 +2,10 @@ const COLORS: Record<string, string> = {
   idle: "bg-amber-500/15 text-amber-400",
   working: "bg-green-500/20 text-green-400",
   starting: "bg-green-500/20 text-green-400",
-  done: "bg-bc-success/20 text-bc-success",
+  done: "bg-mycel-success/20 text-mycel-success",
   stuck: "bg-amber-500/20 text-amber-400",
-  error: "bg-bc-error/20 text-red-400",
-  stopped: "bg-bc-muted/10 text-bc-muted",
+  error: "bg-mycel-error/20 text-red-400",
+  stopped: "bg-mycel-muted/10 text-mycel-muted",
 };
 
 export function StatusBadge({ status }: { status: string }) {

@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/rpuneet/bc/pkg/workspace"
+	"github.com/rpuneet/mycel/pkg/workspace"
 )
 
 // dummyHandler records the path it was invoked with so tests can assert the
@@ -28,6 +28,7 @@ func newScopeTestManager(t *testing.T) (*WorkspaceManager, string, string) {
 	if err := os.MkdirAll(wsDir, 0750); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
+	gitInitDir(t, wsDir)
 	if _, err := workspace.Init(wsDir); err != nil {
 		t.Fatalf("Init: %v", err)
 	}
@@ -79,6 +80,7 @@ func TestWorkspaceScopeNonActiveDispatches(t *testing.T) {
 	if err := os.MkdirAll(wsDir2, 0750); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
+	gitInitDir(t, wsDir2)
 	if _, err := workspace.Init(wsDir2); err != nil {
 		t.Fatalf("Init: %v", err)
 	}

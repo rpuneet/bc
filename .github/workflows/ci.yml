@@ -59,7 +59,7 @@ jobs:
       - name: Run fast tests with race detector and coverage
         run: |
           # NOTE: Keep SLOW list in sync with Makefile test-go-fast target
-          SLOW="github.com/rpuneet/bc/pkg/tmux github.com/rpuneet/bc/pkg/secret github.com/rpuneet/bc/pkg/doctor github.com/rpuneet/bc/internal/cmd"
+          SLOW="github.com/rpuneet/mycel/pkg/tmux github.com/rpuneet/mycel/pkg/secret github.com/rpuneet/mycel/pkg/doctor github.com/rpuneet/mycel/internal/cmd"
           PACKAGES=$(go list ./... | grep -v -F "$(echo $SLOW | tr ' ' '\n')")
           go test -race -coverprofile=coverage.out $PACKAGES
 
@@ -79,7 +79,7 @@ jobs:
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@57e3a136b779b570ffcdbf80b3bdc90e7fab3de2 # v5
-        if: github.event_name == 'push' || github.repository == 'rpuneet/bc'
+        if: github.event_name == 'push' || github.repository == 'rpuneet/mycel'
         with:
           files: coverage.out
           fail_ci_if_error: false
@@ -208,12 +208,12 @@ jobs:
           bun-version: ${{ env.BUN_VERSION }}
 
       - name: Build release binary
-        run: make release-local-bc
+        run: make release-local-mycel
 
       - name: Verify binary runs
         run: |
-          ./bin/bc version
-          ./bin/bc up --help > /dev/null
+          ./bin/mycel version
+          ./bin/mycel up --help > /dev/null
 
   # ── Container Scan (main only) ──────────────────────────────────────
   scan:
@@ -228,7 +228,7 @@ jobs:
       - name: Build bcd image
         run: docker build -t bc-daemon:latest -f docker/Dockerfile.bcd .
       - name: Scan with Trivy
-        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: bc-daemon:latest
           format: sarif

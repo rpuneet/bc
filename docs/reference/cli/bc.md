@@ -47,8 +47,8 @@ Environment Variables:
   BC_ROOT           Workspace root directory
   NO_COLOR          Disable colored output
 
-Documentation: https://github.com/rpuneet/bc
-Full CLI reference: https://github.com/rpuneet/bc/docs/cli.md
+Documentation: https://github.com/rpuneet/mycel
+Full CLI reference: https://github.com/rpuneet/mycel/docs/cli.md
 
 ```
 bc [flags]

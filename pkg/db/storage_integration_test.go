@@ -9,11 +9,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rpuneet/bc/pkg/cron"
-	"github.com/rpuneet/bc/pkg/db"
-	"github.com/rpuneet/bc/pkg/events"
-	"github.com/rpuneet/bc/pkg/mcp"
-	"github.com/rpuneet/bc/pkg/tool"
+	"github.com/rpuneet/mycel/pkg/cron"
+	"github.com/rpuneet/mycel/pkg/db"
+	"github.com/rpuneet/mycel/pkg/events"
+	"github.com/rpuneet/mycel/pkg/mcp"
+	"github.com/rpuneet/mycel/pkg/tool"
 )
 
 // setupSharedDB opens a temporary SQLite database and sets it as the shared DB.

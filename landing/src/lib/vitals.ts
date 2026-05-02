@@ -3,9 +3,6 @@ import { onCLS, onFCP, onINP, onLCP, onTTFB } from "web-vitals";
 
 /**
  * Logs a Web Vitals metric to the console.
- *
- * TODO: Wire up an analytics endpoint here to send metrics to a backend
- * service (e.g., POST to /api/vitals) for production monitoring.
  */
 function sendMetric(metric: Metric) {
   console.log(`[Web Vitals] ${metric.name}: ${metric.value.toFixed(2)}`, {

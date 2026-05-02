@@ -26,11 +26,11 @@ import (
 	"sync/atomic"
 	"testing"
 
-	bccost "github.com/rpuneet/bc/pkg/cost"
-	bcdb "github.com/rpuneet/bc/pkg/db"
-	"github.com/rpuneet/bc/pkg/workspace"
-	"github.com/rpuneet/bc/server"
-	bcws "github.com/rpuneet/bc/server/ws"
+	bccost "github.com/rpuneet/mycel/pkg/cost"
+	bcdb "github.com/rpuneet/mycel/pkg/db"
+	"github.com/rpuneet/mycel/pkg/workspace"
+	"github.com/rpuneet/mycel/server"
+	bcws "github.com/rpuneet/mycel/server/ws"
 )
 
 // wsSetup is a single workspace's test state.
@@ -67,6 +67,7 @@ func newConcurrentHarness(t *testing.T, n int) *concurrentHarness {
 		if err := os.MkdirAll(p, 0o750); err != nil {
 			t.Fatalf("mkdir: %v", err)
 		}
+		gitInitDir(t, p)
 		if _, err := workspace.Init(p); err != nil {
 			t.Fatalf("init: %v", err)
 		}
@@ -119,6 +120,7 @@ func newConcurrentHarness(t *testing.T, n int) *concurrentHarness {
 
 	ctx := context.Background()
 	mgr := server.NewWorkspaceManager(reg, func(ctx context.Context, w *workspace.Workspace) (*server.WorkspaceServices, error) {
+		gitInitDir(t, w.RootDir)
 		return server.BuildWorkspaceServices(ctx, globals, w.RootDir)
 	})
 	// Eager-load every workspace so the concurrency hammer exercises

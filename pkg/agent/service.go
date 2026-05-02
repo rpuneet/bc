@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rpuneet/bc/pkg/log"
-	"github.com/rpuneet/bc/pkg/names"
+	"github.com/rpuneet/mycel/pkg/log"
+	"github.com/rpuneet/mycel/pkg/names"
 )
 
 // EventPublisher is the interface for publishing agent lifecycle events.
@@ -149,15 +149,15 @@ func (s *AgentService) List(ctx context.Context, opts ListOptions) ([]*Agent, er
 // List() results. Idempotent. Errors when the agent doesn't exist, or
 // when the agent is still running — archiving a live agent leaves the
 // runtime in a confusing state, so callers must stop it first.
-func (s *AgentService) Archive(_ context.Context, name string) error {
+func (s *AgentService) Archive(ctx context.Context, name string) error {
 	a := s.manager.GetAgent(name)
 	if a == nil {
-		return fmt.Errorf("agent %q not found", name)
+		return fmt.Errorf("agent %q: %w", name, ErrNotFound)
 	}
 	if a.ArchivedAt == nil && isRunningState(a.State) {
-		return fmt.Errorf("cannot archive agent %q while running (state=%s); stop it first", name, a.State)
+		return fmt.Errorf("cannot archive agent %q while running (state=%s); stop it first: %w", name, a.State, ErrAlreadyRunning)
 	}
-	return s.manager.SetArchived(name, true)
+	return s.manager.SetArchived(ctx, name, true)
 }
 
 // isRunningState reports whether a state represents an agent that is
@@ -168,8 +168,8 @@ func isRunningState(state State) bool {
 
 // Unarchive clears the archived flag on the named agent.
 // Idempotent. Errors when the agent doesn't exist.
-func (s *AgentService) Unarchive(_ context.Context, name string) error {
-	return s.manager.SetArchived(name, false)
+func (s *AgentService) Unarchive(ctx context.Context, name string) error {
+	return s.manager.SetArchived(ctx, name, false)
 }
 
 // matchesStatus checks if an agent state matches a status filter.
@@ -219,7 +219,7 @@ func (s *AgentService) Create(ctx context.Context, opts CreateOptions) (*Agent, 
 func (s *AgentService) Start(ctx context.Context, name string, opts StartOptions) (*Agent, error) {
 	existing := s.manager.GetAgent(name)
 	if existing == nil {
-		return nil, fmt.Errorf("agent %q not found", name)
+		return nil, fmt.Errorf("agent %q: %w", name, ErrNotFound)
 	}
 
 	if existing.State != StateStopped && existing.State != StateError {
@@ -228,9 +228,9 @@ func (s *AgentService) Start(ctx context.Context, name string, opts StartOptions
 			log.Info("reconciling dead agent for restart", "agent", name, "state", existing.State)
 			existing.State = StateStopped
 			existing.UpdatedAt = time.Now()
-			_ = s.manager.saveState()
+			_ = s.manager.saveState(ctx)
 		} else {
-			return nil, fmt.Errorf("agent %q is already running (state: %s)", name, existing.State)
+			return nil, fmt.Errorf("agent %q is already running (state: %s): %w", name, existing.State, ErrAlreadyRunning)
 		}
 	}
 
@@ -274,16 +274,16 @@ func (s *AgentService) Stop(ctx context.Context, name string) error {
 func (s *AgentService) Delete(ctx context.Context, name string, force bool) error {
 	a := s.manager.GetAgent(name)
 	if a == nil {
-		return fmt.Errorf("agent %q not found", name)
+		return fmt.Errorf("agent %q: %w", name, ErrNotFound)
 	}
 	if !force && a.State != StateStopped {
 		// Reconcile: container may have died without bcd noticing
 		if !s.manager.runtimeForAgent(name).HasSession(ctx, name) {
 			a.State = StateStopped
 			a.UpdatedAt = time.Now()
-			_ = s.manager.saveState()
+			_ = s.manager.saveState(ctx)
 		} else {
-			return fmt.Errorf("agent %q must be stopped before deletion (state: %s). Use ?force=true to delete anyway", name, a.State)
+			return fmt.Errorf("agent %q must be stopped before deletion (state: %s). Use ?force=true to delete anyway: %w", name, a.State, ErrAlreadyRunning)
 		}
 	}
 
@@ -309,14 +309,14 @@ func (s *AgentService) Delete(ctx context.Context, name string, force bool) erro
 func (s *AgentService) Send(ctx context.Context, name, message string) error {
 	a := s.manager.GetAgent(name)
 	if a == nil {
-		return fmt.Errorf("agent %q not found", name)
+		return fmt.Errorf("agent %q: %w", name, ErrNotFound)
 	}
 	// Reconcile stale state: if marked stopped but session is alive, correct it
 	if a.State == StateStopped {
 		if s.manager.RuntimeForAgent(name).HasSession(ctx, name) {
 			a.State = StateIdle
 		} else {
-			return fmt.Errorf("agent %q is stopped", name)
+			return fmt.Errorf("agent %q is stopped: %w", name, ErrNotRunning)
 		}
 	}
 	return s.manager.SendToAgent(ctx, name, message)
@@ -343,7 +343,7 @@ func (s *AgentService) SendAll(ctx context.Context, message string) (int, error)
 func (s *AgentService) Peek(ctx context.Context, name string, lines int) (string, error) {
 	a := s.manager.GetAgent(name)
 	if a == nil {
-		return "", fmt.Errorf("agent %q not found", name)
+		return "", fmt.Errorf("agent %q: %w", name, ErrNotFound)
 	}
 	return s.manager.CaptureOutput(ctx, name, lines)
 }
@@ -378,7 +378,7 @@ func (s *AgentService) Broadcast(ctx context.Context, message string) (int, erro
 func (s *AgentService) Get(ctx context.Context, name string) (*Agent, error) {
 	a := s.manager.GetAgent(name)
 	if a == nil {
-		return nil, fmt.Errorf("agent %q not found", name)
+		return nil, fmt.Errorf("agent %q: %w", name, ErrNotFound)
 	}
 	return a, nil
 }
@@ -407,7 +407,7 @@ func (s *AgentService) SyncSessions(ctx context.Context) (synced, stopped int) {
 			continue
 		}
 		// Session gone — mark stopped.
-		if err := s.manager.UpdateAgentState(a.Name, StateStopped, ""); err != nil {
+		if err := s.manager.UpdateAgentState(ctx, a.Name, StateStopped, ""); err != nil {
 			log.Warn("sync: failed to update agent state", "agent", a.Name, "error", err)
 			continue
 		}
@@ -456,7 +456,7 @@ func (s *AgentService) Rename(ctx context.Context, oldName, newName string) erro
 func (s *AgentService) Sessions(_ context.Context, name string) ([]SessionEntry, error) {
 	a := s.manager.GetAgent(name)
 	if a == nil {
-		return nil, fmt.Errorf("agent %q not found", name)
+		return nil, fmt.Errorf("agent %q: %w", name, ErrNotFound)
 	}
 
 	var entries []SessionEntry
@@ -574,7 +574,7 @@ func (s *AgentService) GenerateName(ctx context.Context) (string, error) {
 func (s *AgentService) ForkAgent(ctx context.Context, sourceName, newName string) (*Agent, error) {
 	src := s.manager.GetAgent(sourceName)
 	if src == nil {
-		return nil, fmt.Errorf("source agent %q not found", sourceName)
+		return nil, fmt.Errorf("source agent %q: %w", sourceName, ErrNotFound)
 	}
 
 	if !IsValidAgentName(newName) {

@@ -7,10 +7,10 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/rpuneet/bc/pkg/gateway"
-	bcwhatsapp "github.com/rpuneet/bc/pkg/gateway/whatsapp"
-	"github.com/rpuneet/bc/pkg/notify"
-	"github.com/rpuneet/bc/pkg/workspace"
+	"github.com/rpuneet/mycel/pkg/gateway"
+	bcwhatsapp "github.com/rpuneet/mycel/pkg/gateway/whatsapp"
+	"github.com/rpuneet/mycel/pkg/notify"
+	"github.com/rpuneet/mycel/pkg/workspace"
 )
 
 // GatewayHandler handles /api/gateways routes.
@@ -70,10 +70,33 @@ func (h *GatewayHandler) gatewayRouter(w http.ResponseWriter, r *http.Request) {
 		h.gatewayPair(w, r, platform, rest)
 	case rest == "channels" || strings.HasPrefix(rest, "channels/"):
 		h.gatewayChannels(w, r, platform, strings.TrimPrefix(rest, "channels"))
+	case rest == "api" || strings.HasPrefix(rest, "api/"):
+		h.gatewayAPIProxy(w, r, platform, strings.TrimPrefix(rest, "api"))
 	default:
 		// Existing: PATCH /api/gateways/{platform}
 		h.byPlatform(w, r)
 	}
+}
+
+// gatewayAPIProxy forwards requests to /api/gateways/{platform}/api/* to the adapter's HTTP handler.
+func (h *GatewayHandler) gatewayAPIProxy(w http.ResponseWriter, r *http.Request, platform, subpath string) {
+	if h.gw == nil {
+		httpError(w, "gateway manager not available", http.StatusServiceUnavailable)
+		return
+	}
+	adapter := h.gw.GetAdapter(platform)
+	if adapter == nil {
+		httpError(w, "adapter not found: "+platform, http.StatusNotFound)
+		return
+	}
+	handler := adapter.HTTPHandler()
+	if handler == nil {
+		httpError(w, "adapter does not support API proxy: "+platform, http.StatusNotImplemented)
+		return
+	}
+	r2 := r.Clone(r.Context())
+	r2.URL.Path = subpath
+	handler.ServeHTTP(w, r2)
 }
 
 // gatewayHealth returns live health status for a gateway adapter.
@@ -372,19 +395,38 @@ func (h *GatewayHandler) list(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Enrich with discovered channels and bot name from adapter status
+	// Enrich with bot name and discovered channels from adapter status
 	if h.gw != nil {
-		extChannels := h.gw.DiscoveredSources()
+		discovered := h.gw.DiscoveredSources()
 		for i := range platforms {
+			status := h.gw.AdapterStatus(platforms[i].Platform)
+			if status.BotName != "" {
+				platforms[i].BotName = status.BotName
+			}
+			// Populate channels from adapter discovery
 			prefix := platforms[i].Platform + ":"
-			for _, ch := range extChannels {
+			for _, ch := range discovered {
 				if strings.HasPrefix(ch, prefix) {
 					platforms[i].Channels = append(platforms[i].Channels, ch)
 				}
 			}
-			status := h.gw.AdapterStatus(platforms[i].Platform)
-			if status.BotName != "" {
-				platforms[i].BotName = status.BotName
+		}
+	}
+
+	// Include dynamically registered adapters not in config (e.g., WhatsApp via QR pairing).
+	if h.gw != nil {
+		configSet := make(map[string]bool)
+		for _, p := range platforms {
+			configSet[p.Platform] = true
+		}
+		for _, name := range h.gw.AdapterNames() {
+			if !configSet[name] {
+				status := h.gw.AdapterStatus(name)
+				platforms = append(platforms, gatewayStatus{
+					Platform: name,
+					Enabled:  true,
+					BotName:  status.BotName,
+				})
 			}
 		}
 	}
@@ -552,6 +594,7 @@ func (h *GatewayHandler) legacyChannelHistory(w http.ResponseWriter, r *http.Req
 			limit = n
 		}
 	}
+	limit = clampInt(limit, 1, 200)
 	var before int64
 	if s := r.URL.Query().Get("before"); s != "" {
 		if n, err := strconv.ParseInt(s, 10, 64); err == nil {
@@ -821,6 +864,14 @@ func (h *GatewayHandler) whatsappPair(w http.ResponseWriter, r *http.Request, ro
 		httpError(w, "whatsapp adapter type mismatch", http.StatusInternalServerError)
 		return
 	}
+
+	// Always wire handler so messages flow into the notification system —
+	// needed both for fresh pairing and reconnection from saved session.
+	wa.SetHandler(func(n gateway.Notification) {
+		if h.gw != nil {
+			h.gw.HandleNotification("whatsapp", n)
+		}
+	})
 
 	switch {
 	case route == "pair" && r.Method == http.MethodPost:

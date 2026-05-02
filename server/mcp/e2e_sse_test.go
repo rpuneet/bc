@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rpuneet/bc/server/mcp"
+	"github.com/rpuneet/mycel/server/mcp"
 )
 
 // sseEvent represents a parsed SSE event from the stream.

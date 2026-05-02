@@ -1,30 +1,30 @@
-# bc FAQ - Frequently Asked Questions
+# mycel FAQ - Frequently Asked Questions
 
 ## Installation & Setup
 
-### Q: What are the system requirements for bc?
-**A:** bc requires:
+### Q: What are the system requirements for mycel?
+**A:** mycel requires:
 - **Go 1.25.1+** - Download from [golang.org](https://go.dev/dl)
 - **tmux** - Available via `brew install tmux` (macOS) or `apt-get install tmux` (Linux)
 - **git 2.30+** - Version control system
 - **Claude Code** (or compatible AI tool like Cursor)
 
-Optional: Node.js 18+ if using bc with JavaScript/TypeScript projects.
+Optional: Node.js 18+ if using mycel with JavaScript/TypeScript projects.
 
-### Q: Can I use bc on Windows?
+### Q: Can I use mycel on Windows?
 **A:** Yes, using WSL2 (Windows Subsystem for Linux 2):
 1. Install WSL2: `wsl --install -d Ubuntu-22.04`
 2. Inside WSL2, install Go and tmux
-3. Install bc using Linux instructions
-4. Run bc commands from WSL2 terminal
+3. Install mycel using Linux instructions
+4. Run mycel commands from WSL2 terminal
 
 Native Windows support is not available yet, but WSL2 works well.
 
-### Q: How do I uninstall bc?
+### Q: How do I uninstall mycel?
 **A:**
 ```bash
 # Remove binary
-rm $(which bc)
+rm $(which mycel)
 
 # Optional: Remove workspace
 rm -rf .bc/
@@ -47,7 +47,7 @@ Run `make clean` then `make build` again.
 ## Core Concepts
 
 ### Q: What is a worktree?
-**A:** A worktree is an isolated copy of your git repository where an agent works. bc creates one worktree per agent at `.bc/worktrees/<agent-id>/`. This allows multiple agents to work simultaneously without merge conflicts.
+**A:** A worktree is an isolated copy of your git repository where an agent works. mycel creates one worktree per agent at `.bc/worktrees/<agent-id>/`. This allows multiple agents to work simultaneously without merge conflicts.
 
 Benefits:
 - Each agent has independent git state
@@ -56,7 +56,7 @@ Benefits:
 - Can merge cleanly to main
 
 ### Q: What is persistent memory?
-**A:** All bc state is stored in git-tracked files in `.bc/`:
+**A:** All mycel state is stored in git-tracked files in `.bc/`:
 - `.bc/agents/agents.json` - Agent state
 - `.bc/queue.json` - Work queue
 - `.bc/events.jsonl` - Event log
@@ -68,7 +68,7 @@ This means:
 - Complete debugging history
 
 ### Q: How do roles and capabilities work?
-**A:** bc uses role-based access control:
+**A:** mycel uses role-based access control:
 
 | Role | Can Create | Can Assign | Can Execute |
 |------|-----------|-----------|------------|
@@ -79,8 +79,8 @@ This means:
 
 Example:
 ```bash
-bc spawn pm-01 --role product-manager  # Can spawn managers
-bc spawn eng-01 --role engineer        # Can only execute work
+mycel spawn pm-01 --role product-manager  # Can spawn managers
+mycel spawn eng-01 --role engineer        # Can only execute work
 ```
 
 ### Q: What is the work queue?
@@ -97,24 +97,24 @@ Each task has:
 - Assigned agent
 - Merge state
 
-View with: `bc queue list`
+View with: `mycel queue list`
 
 ---
 
 ## Workflow Questions
 
 ### Q: Can multiple agents work on the same file?
-**A:** Yes! bc uses git worktrees to prevent conflicts:
+**A:** Yes! mycel uses git worktrees to prevent conflicts:
 - Agent A edits `src/app.js` in their worktree
 - Agent B edits same file in their worktree
 - Both changes merge cleanly to main (no conflicts)
 
-This is bc's core innovation - true parallel development.
+This is mycel's core innovation - true parallel development.
 
 ### Q: How do I handle merge conflicts?
 **A:**
 1. **Prevention**: Most conflicts prevented by worktree isolation
-2. **Detection**: `bc merge list` shows conflicts
+2. **Detection**: `mycel merge list` shows conflicts
 3. **Resolution**:
    ```bash
    # Manual resolution
@@ -122,27 +122,27 @@ This is bc's core innovation - true parallel development.
    git add conflicted-file
    git commit -m "resolve conflict"
    ```
-4. **Retry**: `bc merge process` to continue
+4. **Retry**: `mycel merge process` to continue
 
 ### Q: What happens if an agent crashes?
 **A:** No data loss due to git-backed persistence:
 1. Agent state saved in `.bc/agents/agents.json`
 2. Work queue saved in `.bc/queue.json`
 3. Kill tmux session: `tmux kill-session -t bc-<agent>`
-4. Restart agent: `bc spawn eng-01 --role engineer`
+4. Restart agent: `mycel spawn eng-01 --role engineer`
 5. Agent continues from where it left off
 
 ### Q: Can agents communicate?
 **A:** Yes, via channels:
 ```bash
 # Send message
-bc send eng-01 "Check your email for requirements"
+mycel send eng-01 "Check your email for requirements"
 
 # Send to channel
-bc send #engineering "API ready for testing"
+mycel send #engineering "API ready for testing"
 
 # View messages
-bc logs eng-01
+mycel logs eng-01
 ```
 
 ### Q: How do I review work before merging?
@@ -159,27 +159,27 @@ cd .bc/worktrees/eng-01/
 git log --oneline
 
 # Merge when ready
-bc merge process
+mycel merge process
 ```
 
 ---
 
 ## Performance & Optimization
 
-### Q: How do I optimize bc for large teams?
+### Q: How do I optimize mycel for large teams?
 **A:** Scaling strategies:
 1. **Hierarchical teams**: PM → Managers → Engineers
    ```bash
-   bc spawn pm-01 --role product-manager
-   bc spawn mgr-01 --role manager --parent pm-01
-   bc spawn eng-01 --role engineer --parent mgr-01
+   mycel spawn pm-01 --role product-manager
+   mycel spawn mgr-01 --role manager --parent pm-01
+   mycel spawn eng-01 --role engineer --parent mgr-01
    ```
 
 2. **Parallel work queues**: Assign multiple tasks
    ```bash
-   bc queue assign work-0001 eng-01
-   bc queue assign work-0002 eng-02
-   bc queue assign work-0003 eng-03
+   mycel queue assign work-0001 eng-01
+   mycel queue assign work-0002 eng-02
+   mycel queue assign work-0003 eng-03
    ```
 
 3. **Dedicated roles**: QA, TechLead, etc.
@@ -193,7 +193,7 @@ bc merge process
 
 Test with your workload to find optimal team size.
 
-### Q: How do I speed up bc operations?
+### Q: How do I speed up mycel operations?
 **A:**
 1. **Shallow clone**: `git clone --depth 1` for faster setup
 2. **Fewer agents**: Each agent = worktree checkout time
@@ -201,8 +201,8 @@ Test with your workload to find optimal team size.
 4. **Better disk**: SSD recommended for worktree operations
 5. **Parallel tasks**: Use multiple agents
 
-### Q: Does bc support CI/CD integration?
-**A:** Yes, bc plays well with CI/CD:
+### Q: Does mycel support CI/CD integration?
+**A:** Yes, mycel plays well with CI/CD:
 - Export build artifacts from agent worktrees
 - Trigger tests from merged commits
 - Webhooks for completion events
@@ -211,7 +211,7 @@ Test with your workload to find optimal team size.
 Example:
 ```bash
 # Agent completes work
-bc report done "Feature ready"
+mycel report done "Feature ready"
 
 # GitHub Actions triggered by push to main
 # CI/CD runs tests automatically
@@ -224,29 +224,29 @@ bc report done "Feature ready"
 ### Q: Agents are stuck (not running)
 **A:** Check status:
 ```bash
-bc status
+mycel status
 # If shows "stuck", investigate:
-bc logs eng-01  # View agent logs
+mycel logs eng-01  # View agent logs
 ps aux | grep tmux  # Check tmux sessions
 ```
 
 Solutions:
 ```bash
 # Force restart
-bc kill eng-01
-bc spawn eng-01 --role engineer
+mycel kill eng-01
+mycel spawn eng-01 --role engineer
 
 # Or full reset
-bc down
-bc init
-bc up
+mycel down
+mycel init
+mycel up
 ```
 
 ### Q: "Merge conflict" when trying to merge
 **A:** Handle conflicting changes:
 ```bash
 # View conflicts
-bc merge list
+mycel merge list
 
 # Resolve using git
 cd .bc/worktrees/eng-01/
@@ -255,7 +255,7 @@ git add .
 git commit -m "resolve conflicts"
 
 # Retry merge
-bc merge process
+mycel merge process
 ```
 
 ### Q: "Permission denied" errors
@@ -269,7 +269,7 @@ chmod -R 755 .bc/
 chmod -R 755 .bc/worktrees/
 
 # Retry command
-bc status
+mycel status
 ```
 
 ### Q: tmux session won't start
@@ -281,10 +281,10 @@ tmux list-sessions
 # Kill stale sessions
 tmux kill-server
 
-# Restart bc
-bc down
-bc init
-bc up
+# Restart mycel
+mycel down
+mycel init
+mycel up
 ```
 
 ### Q: Agent can't access files
@@ -305,31 +305,31 @@ cp -r src/ .bc/worktrees/eng-01/
 
 ## Advanced Questions
 
-### Q: Can I use bc with monorepos?
+### Q: Can I use mycel with monorepos?
 **A:** Yes, perfectly designed for monorepos:
 - Each agent in separate worktree
 - Can work on different packages simultaneously
 - Worktree isolation prevents conflicts
 - Merge strategy handles cross-package changes
 
-### Q: Does bc work with GitHub/GitLab?
-**A:** Yes! bc works with any git repository:
+### Q: Does mycel work with GitHub/GitLab?
+**A:** Yes! mycel works with any git repository:
 ```bash
 # Clone from GitHub
 git clone https://github.com/yourorg/project.git
 cd project
 
-# Initialize bc
-bc init
-bc up
+# Initialize mycel
+mycel init
+mycel up
 
 # Work normally
-# bc creates branches, agents work, merge to main
+# mycel creates branches, agents work, merge to main
 # Push to GitHub when ready
 git push origin main
 ```
 
-### Q: Can I use bc in production?
+### Q: Can I use mycel in production?
 **A:** Yes, with caveats:
 - **Agents = Code Execution**: All agents can execute code
 - **Security**: Restrict agent roles as needed
@@ -343,23 +343,23 @@ Recommended production setup:
 3. Monitoring: Watch merge queue for errors
 4. Rollback: Easy via git history
 
-### Q: How do I backup my bc workspace?
+### Q: How do I backup my mycel workspace?
 **A:**
 ```bash
 # Git clone handles it automatically
 # All state in .bc/ is git-tracked
 
 # Manual backup
-cp -r .bc/ .bc.backup
+cp -r .mycel/ .mycel.backup
 
 # Or use git
 git commit -am "workspace snapshot"
 git tag snapshot-$(date +%Y%m%d)
 ```
 
-### Q: Can I integrate bc with existing workflows?
+### Q: Can I integrate mycel with existing workflows?
 **A:** Absolutely:
-- bc is agent-agnostic (works with Claude, Cursor, etc.)
+- mycel is agent-agnostic (works with Claude, Cursor, etc.)
 - Agents use standard git commands
 - Integrates with any CI/CD system
 - Works alongside traditional development
@@ -368,8 +368,8 @@ git tag snapshot-$(date +%Y%m%d)
 
 ## Contributing & Support
 
-### Q: How do I contribute to bc?
-**A:** bc is open source:
+### Q: How do I contribute to mycel?
+**A:** mycel is open source:
 1. Fork: [bcinfra1/bc](https://github.com/bcinfra1/bc)
 2. Branch: `git checkout -b feature/your-feature`
 3. Implement improvements
@@ -381,14 +381,14 @@ git tag snapshot-$(date +%Y%m%d)
 **A:**
 - [GitHub Issues](https://github.com/bcinfra1/bc/issues)
 - Include: version, OS, steps to reproduce
-- Attach logs: `bc logs`
+- Attach logs: `mycel logs`
 
 ### Q: How do I get help?
 **A:**
-- **Documentation**: [bc GitHub Wiki](https://github.com/bcinfra1/bc/wiki)
+- **Documentation**: [mycel GitHub Wiki](https://github.com/bcinfra1/bc/wiki)
 - **Issues**: [Feature requests & bugs](https://github.com/bcinfra1/bc/issues)
 - **Discussions**: [GitHub Discussions](https://github.com/bcinfra1/bc/discussions)
-- **Community**: Ask in channels within bc workspace
+- **Community**: Ask in channels within mycel workspace
 
 ---
 

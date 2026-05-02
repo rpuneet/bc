@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/rpuneet/bc/pkg/agent"
+	"github.com/rpuneet/mycel/pkg/agent"
 )
 
 // resetAgentFlags resets agent command flags between tests

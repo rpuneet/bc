@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rpuneet/bc/pkg/runtime"
+	"github.com/rpuneet/mycel/pkg/runtime"
 )
 
 // mockBackend implements runtime.Backend for testing runtime routing.
@@ -236,11 +236,11 @@ func TestSQLiteStore_RuntimeBackend_Save(t *testing.T) {
 		StartedAt:      time.Now(),
 	}
 
-	if saveErr := store.Save(a); saveErr != nil {
+	if saveErr := store.Save(context.Background(), a); saveErr != nil {
 		t.Fatalf("Save: %v", saveErr)
 	}
 
-	loaded, loadErr := store.Load("root")
+	loaded, loadErr := store.Load(context.Background(), "root")
 	if loadErr != nil {
 		t.Fatalf("Load: %v", loadErr)
 	}
@@ -284,11 +284,11 @@ func TestSQLiteStore_RuntimeBackend_SaveAll(t *testing.T) {
 		},
 	}
 
-	if saveErr := store.SaveAll(agents); saveErr != nil {
+	if saveErr := store.SaveAll(context.Background(), agents); saveErr != nil {
 		t.Fatalf("SaveAll: %v", saveErr)
 	}
 
-	all, loadErr := store.LoadAll()
+	all, loadErr := store.LoadAll(context.Background())
 	if loadErr != nil {
 		t.Fatalf("LoadAll: %v", loadErr)
 	}
@@ -312,7 +312,7 @@ func TestSQLiteStore_RuntimeBackend_UpdateField(t *testing.T) {
 	}
 	defer func() { _ = store.Close() }()
 
-	_ = store.Save(&Agent{
+	_ = store.Save(context.Background(), &Agent{
 		Name:           "root",
 		Role:           RoleRoot,
 		State:          StateIdle,
@@ -322,11 +322,11 @@ func TestSQLiteStore_RuntimeBackend_UpdateField(t *testing.T) {
 	})
 
 	// Update runtime_backend
-	if err := store.UpdateField("root", "runtime_backend", "tmux"); err != nil {
+	if err := store.UpdateField(context.Background(), "root", "runtime_backend", "tmux"); err != nil {
 		t.Fatalf("UpdateField: %v", err)
 	}
 
-	loaded, _ := store.Load("root")
+	loaded, _ := store.Load(context.Background(), "root")
 	if loaded.RuntimeBackend != "tmux" {
 		t.Errorf("RuntimeBackend = %q, want tmux", loaded.RuntimeBackend)
 	}
@@ -340,7 +340,7 @@ func TestSQLiteStore_RuntimeBackend_LoadRoot(t *testing.T) {
 	}
 	defer func() { _ = store.Close() }()
 
-	_ = store.Save(&Agent{
+	_ = store.Save(context.Background(), &Agent{
 		Name:           "root",
 		Role:           RoleRoot,
 		State:          StateIdle,
@@ -350,7 +350,7 @@ func TestSQLiteStore_RuntimeBackend_LoadRoot(t *testing.T) {
 		StartedAt:      time.Now(),
 	})
 
-	loaded, err := store.LoadRoot()
+	loaded, err := store.LoadRoot(context.Background())
 	if err != nil {
 		t.Fatalf("LoadRoot: %v", err)
 	}
@@ -392,7 +392,7 @@ func TestManager_RuntimeBackend_RoundTrip(t *testing.T) {
 	}
 
 	// Save state
-	if err := mgr.saveState(); err != nil {
+	if err := mgr.saveState(context.Background()); err != nil {
 		t.Fatalf("saveState: %v", err)
 	}
 
@@ -408,7 +408,7 @@ func TestManager_RuntimeBackend_RoundTrip(t *testing.T) {
 	}
 	mgr2.store = store2
 
-	agents, err := store2.LoadAll()
+	agents, err := store2.LoadAll(context.Background())
 	if err != nil {
 		t.Fatalf("LoadAll: %v", err)
 	}

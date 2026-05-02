@@ -70,7 +70,7 @@ formatters:
 
     goimports:
       local-prefixes:
-        - github.com/rpuneet/bc
+        - github.com/rpuneet/mycel
 
 issues:
   max-issues-per-linter: 0

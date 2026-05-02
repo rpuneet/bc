@@ -100,16 +100,16 @@ export function AgentPeekPanel({ agentName, onClose }: AgentPeekPanelProps) {
   }, [outputLines]);
 
   return (
-    <div className="w-[420px] shrink-0 border-l border-bc-border flex flex-col bg-bc-bg">
+    <div className="w-[420px] shrink-0 border-l border-mycel-border flex flex-col bg-mycel-bg">
       {/* Header */}
-      <div className="px-4 py-2 border-b border-bc-border bg-bc-surface flex items-center justify-between">
+      <div className="px-4 py-2 border-b border-mycel-border bg-mycel-surface flex items-center justify-between">
         <div className="flex items-center gap-2 min-w-0">
           <span className="font-medium truncate">{agentName}</span>
           {agent && <StatusBadge status={agent.state} />}
         </div>
         <button
           onClick={onClose}
-          className="text-bc-muted hover:text-bc-text text-sm ml-2 shrink-0"
+          className="text-mycel-muted hover:text-mycel-text text-sm ml-2 shrink-0"
           aria-label="Close peek panel"
         >
           close
@@ -118,7 +118,7 @@ export function AgentPeekPanel({ agentName, onClose }: AgentPeekPanelProps) {
 
       {/* Agent metadata */}
       {agent && (
-        <div className="px-4 py-1.5 border-b border-bc-border/50 text-xs text-bc-muted flex gap-3">
+        <div className="px-4 py-1.5 border-b border-mycel-border/50 text-xs text-mycel-muted flex gap-3">
           <span>Role: {agent.role}</span>
           <span>Tool: {agent.tool || "\u2014"}</span>
           {agent.cost_usd != null && (
@@ -131,7 +131,7 @@ export function AgentPeekPanel({ agentName, onClose }: AgentPeekPanelProps) {
       <div ref={scrollContainerRef} className="flex-1 overflow-auto">
         <pre
           ref={outputRef}
-          className="p-3 text-xs font-mono whitespace-pre-wrap break-words leading-relaxed text-bc-text/80"
+          className="p-3 text-xs font-mono whitespace-pre-wrap break-words leading-relaxed text-mycel-text/80"
         >
           {outputLines.length > 0
             ? outputLines.join("\n")

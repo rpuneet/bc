@@ -20,10 +20,10 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/rpuneet/bc/pkg/log"
-	"github.com/rpuneet/bc/pkg/provider"
-	"github.com/rpuneet/bc/pkg/runtime"
-	"github.com/rpuneet/bc/pkg/workspace"
+	"github.com/rpuneet/mycel/pkg/log"
+	"github.com/rpuneet/mycel/pkg/provider"
+	"github.com/rpuneet/mycel/pkg/runtime"
+	"github.com/rpuneet/mycel/pkg/workspace"
 )
 
 // validEnvVarName matches valid POSIX environment variable names:

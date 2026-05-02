@@ -20,7 +20,7 @@ import (
 	"strings"
 	"sync/atomic"
 
-	"github.com/rpuneet/bc/pkg/log"
+	"github.com/rpuneet/mycel/pkg/log"
 )
 
 // emptyIDWarnFired guards against spamming the log when the active

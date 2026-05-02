@@ -18,14 +18,16 @@ import (
 	_ "github.com/mattn/go-sqlite3" // register sqlite3 driver for whatsmeow session store
 	qrcode "github.com/skip2/go-qrcode"
 	"go.mau.fi/whatsmeow"
+	"go.mau.fi/whatsmeow/proto/waCompanionReg"
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/store"
 	"go.mau.fi/whatsmeow/store/sqlstore"
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
+	waLog "go.mau.fi/whatsmeow/util/log"
 
-	"github.com/rpuneet/bc/pkg/gateway"
-	"github.com/rpuneet/bc/pkg/log"
+	"github.com/rpuneet/mycel/pkg/gateway"
+	"github.com/rpuneet/mycel/pkg/log"
 )
 
 // Adapter implements gateway.NotificationAdapter for WhatsApp via whatsmeow.
@@ -41,12 +43,18 @@ type Adapter struct { //nolint:govet
 	connected     bool
 	messageCount  atomic.Int64
 	// qrChan receives QR codes during pairing.
-	qrChan chan string
+	qrChan     chan string
+	groupCache map[string]string
 }
 
 func init() {
-	// Set device properties to mimic Chrome WhatsApp Web — reduces rate limiting.
-	store.SetOSInfo("bc", [3]uint32{2, 26, 4})
+	// Fetch latest WA web version and set device identity to match WhatsApp Web.
+	if ver, err := whatsmeow.GetLatestVersion(context.Background(), nil); err == nil {
+		store.SetWAVersion(*ver)
+		log.Info("whatsapp: using WA version", "version", ver.String())
+	}
+	store.DeviceProps.PlatformType = waCompanionReg.DeviceProps_CHROME.Enum()
+	store.SetOSInfo("Chrome", store.GetWAVersion())
 }
 
 var _ gateway.NotificationAdapter = (*Adapter)(nil)
@@ -65,6 +73,15 @@ func NewNamed(name, stateDir string) *Adapter {
 func (a *Adapter) Name() string              { return a.name }
 func (a *Adapter) Type() gateway.AdapterType { return gateway.AdapterSocket }
 func (a *Adapter) HTTPHandler() http.Handler { return nil } //nolint:revive
+
+// SetHandler sets the notification handler for messages received via QR pairing.
+// Called by the gateway handler after pair completes to wire messages into the
+// notification system without going through Start().
+func (a *Adapter) SetHandler(handler func(gateway.Notification)) {
+	a.mu.Lock()
+	a.handler = handler
+	a.mu.Unlock()
+}
 
 // PairStatus represents the current state of WhatsApp pairing.
 type PairStatus struct {
@@ -95,6 +112,9 @@ func (a *Adapter) StartPairing(ctx context.Context) (*PairStatus, error) {
 	// Already paired?
 	if deviceStore.ID != nil {
 		client := whatsmeow.NewClient(deviceStore, nil)
+		client.AddEventHandler(func(evt interface{}) {
+			a.handleEvent(evt)
+		})
 		if err := client.Connect(); err == nil {
 			a.mu.Lock()
 			a.client = client
@@ -105,10 +125,14 @@ func (a *Adapter) StartPairing(ctx context.Context) (*PairStatus, error) {
 		}
 	}
 
-	// Start fresh pairing.
-	client := whatsmeow.NewClient(deviceStore, nil)
+	// Start fresh pairing with verbose logging.
+	waLogger := waLog.Stdout("whatsapp", "DEBUG", true)
+	client := whatsmeow.NewClient(deviceStore, waLogger)
 
-	qrChan, _ := client.GetQRChannel(ctx)
+	// Use background context — the HTTP request context ends when we return the QR,
+	// but the QR channel must stay alive until the user scans.
+	bgCtx := context.Background()
+	qrChan, _ := client.GetQRChannel(bgCtx)
 
 	if err := client.Connect(); err != nil {
 		return nil, fmt.Errorf("whatsapp: connect: %w", err)
@@ -158,13 +182,13 @@ gotQR:
 
 	go func() {
 		for evt := range qrChan {
+			log.Info("whatsapp: qr channel event", "event", evt.Event, "code_len", len(evt.Code))
 			if evt.Event == "success" {
 				a.mu.Lock()
 				a.connected = true
 				a.lastError = ""
 				a.mu.Unlock()
 				log.Info("whatsapp: paired successfully")
-				// Register event handler for messages.
 				client.AddEventHandler(func(evt interface{}) {
 					a.handleEvent(evt)
 				})
@@ -330,7 +354,7 @@ func (a *Adapter) handleMessage(msg *events.Message) {
 
 	sender := formatSender(msg.Info)
 	content := extractContent(msg.Message)
-	channel := formatChannel(msg.Info)
+	channel := a.resolveChannel(msg.Info)
 
 	now := time.Now()
 	a.mu.Lock()
@@ -362,14 +386,36 @@ func formatSender(info types.MessageInfo) string {
 	return info.Sender.User
 }
 
-// formatChannel returns a channel identifier for the chat.
-func formatChannel(info types.MessageInfo) string {
-	if info.IsGroup {
-		// Use group JID as channel name.
-		return info.Chat.User
+// resolveChannel returns a human-readable channel name. For groups, fetches
+// the group subject via the WhatsApp API. Caches results.
+func (a *Adapter) resolveChannel(info types.MessageInfo) string {
+	jid := info.Chat
+
+	a.mu.Lock()
+	if a.groupCache == nil {
+		a.groupCache = make(map[string]string)
 	}
-	// DM — use sender number as channel.
-	return info.Sender.User
+	if cached, ok := a.groupCache[jid.String()]; ok {
+		a.mu.Unlock()
+		return cached
+	}
+	a.mu.Unlock()
+
+	if info.IsGroup && a.client != nil {
+		if groupInfo, err := a.client.GetGroupInfo(context.Background(), jid); err == nil && groupInfo.Name != "" {
+			a.mu.Lock()
+			a.groupCache[jid.String()] = groupInfo.Name
+			a.mu.Unlock()
+			return groupInfo.Name
+		}
+	}
+
+	// Fallback: use phone number for DMs, JID user part for groups
+	name := jid.User
+	a.mu.Lock()
+	a.groupCache[jid.String()] = name
+	a.mu.Unlock()
+	return name
 }
 
 // extractContent pulls text from a WhatsApp message proto.
@@ -421,6 +467,54 @@ func extractContent(msg *waE2E.Message) string {
 	}
 	if msg.LocationMessage != nil {
 		return "[location]"
+	}
+	if msg.PollCreationMessage != nil {
+		q := "poll"
+		if msg.PollCreationMessage.Name != nil {
+			q = *msg.PollCreationMessage.Name
+		}
+		return "[poll: " + q + "]"
+	}
+	if msg.ReactionMessage != nil {
+		emoji := ""
+		if msg.ReactionMessage.Text != nil {
+			emoji = *msg.ReactionMessage.Text
+		}
+		if emoji == "" {
+			return "[reaction removed]"
+		}
+		return "[reaction: " + emoji + "]"
+	}
+	if msg.EditedMessage != nil && msg.EditedMessage.Message != nil {
+		edited := extractContent(msg.EditedMessage.Message)
+		if edited != "" {
+			return "[edited] " + edited
+		}
+		return "[edited message]"
+	}
+	if msg.ProtocolMessage != nil && msg.ProtocolMessage.EditedMessage != nil {
+		edited := extractContent(msg.ProtocolMessage.EditedMessage)
+		if edited != "" {
+			return "[edited] " + edited
+		}
+		return "[edited message]"
+	}
+	if msg.ListMessage != nil {
+		title := "list"
+		if msg.ListMessage.Title != nil {
+			title = *msg.ListMessage.Title
+		}
+		return "[list: " + title + "]"
+	}
+	if msg.ButtonsMessage != nil {
+		text := "buttons"
+		if msg.ButtonsMessage.ContentText != nil {
+			text = *msg.ButtonsMessage.ContentText
+		}
+		return "[buttons: " + text + "]"
+	}
+	if msg.TemplateMessage != nil {
+		return "[template]"
 	}
 	return "[unsupported message type]"
 }

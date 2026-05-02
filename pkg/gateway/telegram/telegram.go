@@ -14,8 +14,8 @@ import (
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 
-	"github.com/rpuneet/bc/pkg/gateway"
-	"github.com/rpuneet/bc/pkg/log"
+	"github.com/rpuneet/mycel/pkg/gateway"
+	"github.com/rpuneet/mycel/pkg/log"
 )
 
 // Adapter implements gateway.NotificationAdapter for Telegram.
@@ -248,25 +248,6 @@ func (a *Adapter) Send(_ context.Context, channelID, sender, content string) err
 	}
 
 	log.Info("telegram: sent message", "chat_id", channelID, "sender", sender)
-	return nil
-}
-
-// Health returns nil if the adapter is connected and operational.
-func (a *Adapter) Health(_ context.Context) error {
-	if a.bot == nil {
-		return fmt.Errorf("telegram: not connected")
-	}
-	if _, err := a.bot.GetMe(); err != nil {
-		a.chatMu.Lock()
-		a.connected = false
-		a.lastError = err.Error()
-		a.chatMu.Unlock()
-		return fmt.Errorf("telegram: getMe failed: %w", err)
-	}
-	a.chatMu.Lock()
-	a.connected = true
-	a.lastError = ""
-	a.chatMu.Unlock()
 	return nil
 }
 

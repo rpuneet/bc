@@ -9,8 +9,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/rpuneet/bc/pkg/ui"
-	"github.com/rpuneet/bc/pkg/workspace"
+	"github.com/rpuneet/mycel/pkg/ui"
+	"github.com/rpuneet/mycel/pkg/workspace"
 )
 
 // workspaceCmd is the parent command for workspace operations

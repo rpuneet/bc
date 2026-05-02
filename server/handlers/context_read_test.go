@@ -24,11 +24,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/rpuneet/bc/pkg/cost"
-	"github.com/rpuneet/bc/pkg/events"
-	"github.com/rpuneet/bc/pkg/secret"
-	"github.com/rpuneet/bc/pkg/template"
-	"github.com/rpuneet/bc/server/handlers"
+	"github.com/rpuneet/mycel/pkg/cost"
+	"github.com/rpuneet/mycel/pkg/events"
+	"github.com/rpuneet/mycel/pkg/secret"
+	"github.com/rpuneet/mycel/pkg/template"
+	"github.com/rpuneet/mycel/server/handlers"
 )
 
 // withCtxView installs a WorkspaceFromContext resolver that returns the

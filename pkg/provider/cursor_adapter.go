@@ -1,6 +1,7 @@
 package provider
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -18,7 +19,7 @@ func (a *CursorConfigAdapter) SupportsCommands() bool { return false }
 func (a *CursorConfigAdapter) SupportsSkills() bool   { return false }
 
 // SetupMCP writes .cursor/mcp.json for Cursor's MCP support.
-func (a *CursorConfigAdapter) SetupMCP(targetDir, _ string, servers map[string]MCPEntry) error {
+func (a *CursorConfigAdapter) SetupMCP(_ context.Context, targetDir, _ string, servers map[string]MCPEntry) error {
 	if len(servers) == 0 {
 		return nil
 	}

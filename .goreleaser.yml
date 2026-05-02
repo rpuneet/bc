@@ -7,7 +7,7 @@
 
 version: 2
 
-project_name: bc
+project_name: mycel
 
 before:
   hooks:
@@ -15,9 +15,9 @@ before:
 
 builds:
   # Linux amd64 — native CGO
-  - id: bc-linux-amd64
-    main: ./cmd/bc
-    binary: bc
+  - id: mycel-linux-amd64
+    main: ./cmd/mycel
+    binary: mycel
     env:
       - CGO_ENABLED=1
     ldflags:
@@ -31,9 +31,9 @@ builds:
       - amd64
 
   # Linux arm64 — CGO via Zig cross-compiler
-  - id: bc-linux-arm64
-    main: ./cmd/bc
-    binary: bc
+  - id: mycel-linux-arm64
+    main: ./cmd/mycel
+    binary: mycel
     env:
       - CGO_ENABLED=1
       - CC=zig cc -target aarch64-linux-musl -lc
@@ -49,9 +49,9 @@ builds:
       - arm64
 
   # Windows — CGO disabled (pure Go)
-  - id: bc-windows
-    main: ./cmd/bc
-    binary: bc
+  - id: mycel-windows
+    main: ./cmd/mycel
+    binary: mycel
     env:
       - CGO_ENABLED=0
     ldflags:
@@ -118,12 +118,12 @@ changelog:
 release:
   github:
     owner: rpuneet
-    name: bc
+    name: mycel
   draft: false
   prerelease: auto
   mode: append
   header: |
-    ## bc {{ .Tag }}
+    ## mycel {{ .Tag }}
 
     Orchestration for AI agents.
 
@@ -131,22 +131,22 @@ release:
 
     | Method | Command |
     |--------|---------|
-    | **Homebrew** (macOS) | `brew install rpuneet/bc/bc` |
+    | **Homebrew** (macOS) | `brew install rpuneet/mycel/mycel` |
     | **npm / bun** (Linux) | `npm install -g bc-cli` or `bunx bc-cli` |
-    | **Go** | `go install github.com/rpuneet/bc/cmd/bc@{{ .Tag }}` |
-    | **Script** | `curl -fsSL https://raw.githubusercontent.com/rpuneet/bc/main/scripts/install.sh \| bash` |
-    | **Docker** | `docker pull ghcr.io/rpuneet/bc:{{ .Tag }}` |
-    | **Scoop** (Windows) | `scoop bucket add bc https://github.com/rpuneet/scoop-bc && scoop install bc` |
+    | **Go** | `go install github.com/rpuneet/mycel/cmd/mycel@{{ .Tag }}` |
+    | **Script** | `curl -fsSL https://raw.githubusercontent.com/rpuneet/mycel/main/scripts/install.sh \| bash` |
+    | **Docker** | `docker pull ghcr.io/rpuneet/mycel:{{ .Tag }}` |
+    | **Scoop** (Windows) | `scoop bucket add mycel https://github.com/rpuneet/scoop-mycel && scoop install mycel` |
   footer: |
     ---
 
-    **Full Changelog**: https://github.com/rpuneet/bc/compare/{{ .PreviousTag }}...{{ .Tag }}
+    **Full Changelog**: https://github.com/rpuneet/mycel/compare/{{ .PreviousTag }}...{{ .Tag }}
 
 brews:
-  - name: bc
+  - name: mycel
     repository:
       owner: rpuneet
-      name: homebrew-bc
+      name: homebrew-mycel
       token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
       branch: main
     directory: Formula
@@ -155,25 +155,14 @@ brews:
     license: MIT
     skip_upload: auto
     install: |
-      bin.install "bc"
+      bin.install "mycel"
     test: |
-      system "#{bin}/bc", "version"
+      system "#{bin}/mycel", "version"
 
-scoops:
-  - name: bc
-    repository:
-      owner: rpuneet
-      name: scoop-bc
-      token: "{{ .Env.SCOOP_TAP_TOKEN }}"
-      branch: main
-    homepage: https://bc-infra.com
-    description: Orchestration for AI agents
-    license: MIT
-    skip_upload: auto
 
 nfpms:
-  - id: bc-linux
-    package_name: bc
+  - id: mycel-linux
+    package_name: mycel
     homepage: https://bc-infra.com
     description: Orchestration for AI agents
     license: MIT

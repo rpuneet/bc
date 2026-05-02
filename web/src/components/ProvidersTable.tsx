@@ -17,12 +17,12 @@ function statusOrder(p: ProviderInfo): number {
 
 function StatusDot({ provider }: { provider: ProviderInfo }) {
   if (!provider.installed) {
-    return <span className="inline-flex items-center gap-1.5 text-bc-error"><span className="text-xs">&#10005;</span> N/A</span>;
+    return <span className="inline-flex items-center gap-1.5 text-mycel-error"><span className="text-xs">&#10005;</span> N/A</span>;
   }
   if (provider.agent_count > 0) {
-    return <span className="inline-flex items-center gap-1.5 text-bc-success"><span className="w-2 h-2 rounded-full bg-bc-success inline-block" /> Active</span>;
+    return <span className="inline-flex items-center gap-1.5 text-mycel-success"><span className="w-2 h-2 rounded-full bg-mycel-success inline-block" /> Active</span>;
   }
-  return <span className="inline-flex items-center gap-1.5 text-bc-muted"><span className="w-2 h-2 rounded-full bg-bc-muted inline-block" /> Idle</span>;
+  return <span className="inline-flex items-center gap-1.5 text-mycel-muted"><span className="w-2 h-2 rounded-full bg-mycel-muted inline-block" /> Idle</span>;
 }
 
 /* ── Sort dropdown for card mode ── */
@@ -39,7 +39,7 @@ function SortDropdown({ sortKey, sortDir, onSort }: { sortKey: SortKey; sortDir:
     <select
       value={sortKey}
       onChange={(e) => onSort(e.target.value as SortKey)}
-      className="text-xs px-2 py-1 rounded border border-bc-border bg-bc-bg text-bc-muted focus:outline-none focus:ring-1 focus:ring-bc-accent"
+      className="text-xs px-2 py-1 rounded border border-mycel-border bg-mycel-bg text-mycel-muted focus:outline-none focus:ring-1 focus:ring-mycel-accent"
       aria-label="Sort providers"
     >
       {options.map((o) => (
@@ -54,11 +54,11 @@ function SortDropdown({ sortKey, sortDir, onSort }: { sortKey: SortKey; sortDir:
 /* ── View mode toggle icons ── */
 function ViewToggle({ mode, onChange }: { mode: ViewMode; onChange: (m: ViewMode) => void }) {
   return (
-    <div className="flex items-center border border-bc-border rounded overflow-hidden">
+    <div className="flex items-center border border-mycel-border rounded overflow-hidden">
       <button
         type="button"
         onClick={() => onChange("cards")}
-        className={`p-1.5 transition-colors ${mode === "cards" ? "bg-bc-accent/10 text-bc-accent" : "text-bc-muted hover:text-bc-text"}`}
+        className={`p-1.5 transition-colors ${mode === "cards" ? "bg-mycel-accent/10 text-mycel-accent" : "text-mycel-muted hover:text-mycel-text"}`}
         aria-label="Card view"
       >
         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -71,7 +71,7 @@ function ViewToggle({ mode, onChange }: { mode: ViewMode; onChange: (m: ViewMode
       <button
         type="button"
         onClick={() => onChange("table")}
-        className={`p-1.5 transition-colors ${mode === "table" ? "bg-bc-accent/10 text-bc-accent" : "text-bc-muted hover:text-bc-text"}`}
+        className={`p-1.5 transition-colors ${mode === "table" ? "bg-mycel-accent/10 text-mycel-accent" : "text-mycel-muted hover:text-mycel-text"}`}
         aria-label="Table view"
       >
         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -139,7 +139,7 @@ export function ProvidersTable({ providers, search }: Props) {
 
   const sortIndicator = (key: SortKey) => {
     if (sortKey !== key) return null;
-    return <span className="ml-1 text-bc-accent">{sortDir === "asc" ? "\u25B2" : "\u25BC"}</span>;
+    return <span className="ml-1 text-mycel-accent">{sortDir === "asc" ? "\u25B2" : "\u25BC"}</span>;
   };
 
   if (sorted.length === 0) {
@@ -171,7 +171,7 @@ export function ProvidersTable({ providers, search }: Props) {
             <SortDropdown sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
           )}
         </div>
-        <span className="text-xs text-bc-muted">{sorted.length} provider{sorted.length !== 1 ? "s" : ""}</span>
+        <span className="text-xs text-mycel-muted">{sorted.length} provider{sorted.length !== 1 ? "s" : ""}</span>
       </div>
 
       {/* Card grid view */}
@@ -187,20 +187,20 @@ export function ProvidersTable({ providers, search }: Props) {
         </div>
       ) : (
         /* Table view */
-        <div className="rounded border border-bc-border overflow-hidden">
+        <div className="rounded border border-mycel-border overflow-hidden">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-bc-border bg-bc-surface">
+              <tr className="border-b border-mycel-border bg-mycel-surface">
                 {columns.map((col) => (
                   <th
                     key={col.key}
                     onClick={(e) => { e.stopPropagation(); e.preventDefault(); toggleSort(col.key); }}
-                    className={`px-4 py-2 font-medium text-bc-muted cursor-pointer select-none hover:text-bc-text transition-colors text-left ${col.className ?? ""}`}
+                    className={`px-4 py-2 font-medium text-mycel-muted cursor-pointer select-none hover:text-mycel-text transition-colors text-left ${col.className ?? ""}`}
                   >
                     {col.label}{sortIndicator(col.key)}
                   </th>
                 ))}
-                <th className="px-4 py-2 font-medium text-bc-muted text-right">Actions</th>
+                <th className="px-4 py-2 font-medium text-mycel-muted text-right">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -208,13 +208,13 @@ export function ProvidersTable({ providers, search }: Props) {
                 <tr
                   key={p.name}
                   onClick={() => navigate(`/tools/${encodeURIComponent(p.name)}`)}
-                  className="border-b border-bc-border/50 cursor-pointer hover:bg-bc-surface transition-colors"
+                  className="border-b border-mycel-border/50 cursor-pointer hover:bg-mycel-surface transition-colors"
                 >
                   <td className="px-4 py-2.5 font-medium">{p.name}</td>
                   <td className="px-4 py-2.5 text-xs"><StatusDot provider={p} /></td>
-                  <td className="px-4 py-2.5 text-xs text-bc-muted font-mono">{p.version || "\u2014"}</td>
+                  <td className="px-4 py-2.5 text-xs text-mycel-muted font-mono">{p.version || "\u2014"}</td>
                   <td className="px-4 py-2.5 text-right tabular-nums">{p.agent_count}</td>
-                  <td className="px-4 py-2.5 text-right tabular-nums text-bc-muted">{formatTokens(p.total_tokens)}</td>
+                  <td className="px-4 py-2.5 text-right tabular-nums text-mycel-muted">{formatTokens(p.total_tokens)}</td>
                   <td className="px-4 py-2.5 text-right tabular-nums">{formatCost(p.total_cost_usd)}</td>
                   <td className="px-4 py-2.5 text-right">
                     <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
@@ -222,20 +222,20 @@ export function ProvidersTable({ providers, search }: Props) {
                         <button
                           type="button"
                           onClick={() => navigate(`/tools/${encodeURIComponent(p.name)}`)}
-                          className="text-xs px-2 py-0.5 rounded bg-bc-warning/10 text-bc-warning hover:bg-bc-warning/20 transition-colors"
+                          className="text-xs px-2 py-0.5 rounded bg-mycel-warning/10 text-mycel-warning hover:bg-mycel-warning/20 transition-colors"
                         >
                           Install
                         </button>
                       )}
                       {p.installed && p.install_hint && (
-                        <span className="text-xs px-2 py-0.5 rounded bg-bc-info/10 text-bc-info">
+                        <span className="text-xs px-2 py-0.5 rounded bg-mycel-info/10 text-mycel-info">
                           Update
                         </span>
                       )}
                       <button
                         type="button"
                         onClick={() => navigate(`/tools/${encodeURIComponent(p.name)}`)}
-                        className="text-xs px-1.5 py-0.5 rounded border border-bc-border text-bc-muted hover:text-bc-text hover:border-bc-accent/50 transition-colors"
+                        className="text-xs px-1.5 py-0.5 rounded border border-mycel-border text-mycel-muted hover:text-mycel-text hover:border-mycel-accent/50 transition-colors"
                         aria-label={`Configure ${p.name}`}
                       >
                         &#9881;

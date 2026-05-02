@@ -13,16 +13,16 @@ import type { ToastLevel } from "../components/Toast";
 import { useHeaderSlot } from "../context/HeaderSlotContext";
 import { TabHeaderTitle } from "../components/Header";
 const STATUS_CONFIG: Record<string, { dot: string; label: string; textColor: string }> = {
-  connected:     { dot: "bg-bc-success", label: "Connected",     textColor: "text-bc-success" },
-  configured:    { dot: "bg-bc-success", label: "Configured",    textColor: "text-bc-success" },
-  installed:     { dot: "bg-bc-success", label: "Installed",     textColor: "text-bc-success" },
-  disabled:      { dot: "bg-bc-muted",   label: "Disabled",      textColor: "text-bc-muted" },
-  not_installed: { dot: "bg-bc-error",   label: "Not installed", textColor: "text-bc-error" },
-  error:         { dot: "bg-bc-error",   label: "Error",         textColor: "text-bc-error" },
-  unknown:       { dot: "bg-bc-muted",   label: "Unknown",       textColor: "text-bc-muted" },
+  connected:     { dot: "bg-mycel-success", label: "Connected",     textColor: "text-mycel-success" },
+  configured:    { dot: "bg-mycel-success", label: "Configured",    textColor: "text-mycel-success" },
+  installed:     { dot: "bg-mycel-success", label: "Installed",     textColor: "text-mycel-success" },
+  disabled:      { dot: "bg-mycel-muted",   label: "Disabled",      textColor: "text-mycel-muted" },
+  not_installed: { dot: "bg-mycel-error",   label: "Not installed", textColor: "text-mycel-error" },
+  error:         { dot: "bg-mycel-error",   label: "Error",         textColor: "text-mycel-error" },
+  unknown:       { dot: "bg-mycel-muted",   label: "Unknown",       textColor: "text-mycel-muted" },
 };
 
-const inputCls = "w-full px-2 py-1.5 text-sm rounded border border-bc-border bg-bc-bg text-bc-text focus:outline-none focus:ring-1 focus:ring-bc-accent";
+const inputCls = "w-full px-2 py-1.5 text-sm rounded border border-mycel-border bg-mycel-bg text-mycel-text focus:outline-none focus:ring-1 focus:ring-mycel-accent";
 
 function getStatusConfig(s: string) { return STATUS_CONFIG[s] ?? STATUS_CONFIG.unknown!; }
 
@@ -32,7 +32,7 @@ function ChevronIcon({ expanded }: { expanded: boolean }) {
     <motion.svg
       animate={{ rotate: expanded ? 90 : 0 }}
       transition={{ type: "spring", stiffness: 300, damping: 20 }}
-      className="w-3 h-3 text-bc-muted"
+      className="w-3 h-3 text-mycel-muted"
       fill="none"
       viewBox="0 0 24 24"
       stroke="currentColor"
@@ -54,7 +54,7 @@ function CLIDepsRow({ tool, onToggle, onRemove, toggling, removing, expanded, on
   return (
     <>
       <tr
-        className="border-b border-bc-border hover:bg-bc-surface/50 cursor-pointer transition-colors"
+        className="border-b border-mycel-border hover:bg-mycel-surface/50 cursor-pointer transition-colors"
         onClick={onExpand}
       >
         <td className="px-3 py-2 text-sm">
@@ -69,12 +69,12 @@ function CLIDepsRow({ tool, onToggle, onRemove, toggling, removing, expanded, on
             <span className={`text-xs ${cfg.textColor}`}>{tool.version || cfg.label}</span>
           </span>
         </td>
-        <td className="px-3 py-2 text-xs text-bc-muted font-mono">{tool.version || "\u2014"}</td>
+        <td className="px-3 py-2 text-xs text-mycel-muted font-mono">{tool.version || "\u2014"}</td>
         <td className="px-3 py-2 text-xs">
           {tool.required ? (
-            <span className="px-1.5 py-0.5 rounded bg-bc-accent/10 text-bc-accent text-[10px] font-medium">Yes</span>
+            <span className="px-1.5 py-0.5 rounded bg-mycel-accent/10 text-mycel-accent text-[10px] font-medium">Yes</span>
           ) : (
-            <span className="text-bc-muted">No</span>
+            <span className="text-mycel-muted">No</span>
           )}
         </td>
         <td className="px-3 py-2 text-right" onClick={(e) => e.stopPropagation()}>
@@ -82,22 +82,22 @@ function CLIDepsRow({ tool, onToggle, onRemove, toggling, removing, expanded, on
             <button type="button" onClick={onToggle} disabled={toggling}
               role="switch" aria-checked={!isDisabled}
               aria-label={isDisabled ? `Enable ${tool.name}` : `Disable ${tool.name}`}
-              className={`text-[11px] px-2 py-0.5 rounded transition-colors focus-visible:ring-2 focus-visible:ring-bc-accent disabled:opacity-50 ${isDisabled ? "bg-bc-border text-bc-muted hover:bg-bc-border/80" : "bg-bc-success/10 text-bc-success hover:bg-bc-success/20"}`}>
+              className={`text-[11px] px-2 py-0.5 rounded transition-colors focus-visible:ring-2 focus-visible:ring-mycel-accent disabled:opacity-50 ${isDisabled ? "bg-mycel-border text-mycel-muted hover:bg-mycel-border/80" : "bg-mycel-success/10 text-mycel-success hover:bg-mycel-success/20"}`}>
               {toggling ? "..." : isDisabled ? "Enable" : "Disable"}
             </button>
             {!tool.required && (
               confirmRemove ? (
                 <span className="inline-flex items-center gap-1">
                   <button type="button" onClick={() => { onRemove(); setConfirmRemove(false); }} disabled={removing}
-                    className="text-[11px] px-2 py-0.5 rounded bg-bc-error/20 text-bc-error disabled:opacity-50" aria-label="Confirm remove">
+                    className="text-[11px] px-2 py-0.5 rounded bg-mycel-error/20 text-mycel-error disabled:opacity-50" aria-label="Confirm remove">
                     {removing ? "..." : "Yes"}
                   </button>
                   <button type="button" onClick={() => setConfirmRemove(false)} disabled={removing}
-                    className="text-[11px] px-2 py-0.5 rounded border border-bc-border text-bc-muted" aria-label="Cancel remove">No</button>
+                    className="text-[11px] px-2 py-0.5 rounded border border-mycel-border text-mycel-muted" aria-label="Cancel remove">No</button>
                 </span>
               ) : (
                 <button type="button" onClick={() => setConfirmRemove(true)}
-                  className="text-[11px] px-2 py-0.5 rounded border border-bc-border text-bc-muted hover:text-bc-error hover:border-bc-error/50 transition-colors"
+                  className="text-[11px] px-2 py-0.5 rounded border border-mycel-border text-mycel-muted hover:text-mycel-error hover:border-mycel-error/50 transition-colors"
                   aria-label={`Remove ${tool.name}`}>Remove</button>
               )
             )}
@@ -106,20 +106,20 @@ function CLIDepsRow({ tool, onToggle, onRemove, toggling, removing, expanded, on
       </tr>
       <AnimatePresence>
         {expanded && (
-          <tr className="border-b border-bc-border">
+          <tr className="border-b border-mycel-border">
             <td colSpan={5} className="p-0">
               <motion.div
                 initial={{ height: 0, opacity: 0 }}
                 animate={{ height: "auto", opacity: 1 }}
                 exit={{ height: 0, opacity: 0 }}
                 transition={{ duration: 0.2, ease: "easeOut" }}
-                className="overflow-hidden bg-bc-surface/30"
+                className="overflow-hidden bg-mycel-surface/30"
               >
                 <div className="px-8 py-3 space-y-2">
                   {tool.install_cmd && (
                     <div className="flex items-center gap-2">
-                      <span className="text-xs text-bc-muted shrink-0">Install:</span>
-                      <code className="flex-1 text-xs font-mono text-bc-text bg-bc-bg rounded px-2 py-1 border border-bc-border/50">
+                      <span className="text-xs text-mycel-muted shrink-0">Install:</span>
+                      <code className="flex-1 text-xs font-mono text-mycel-text bg-mycel-bg rounded px-2 py-1 border border-mycel-border/50">
                         {tool.install_cmd}
                       </code>
                       <CopyButton text={tool.install_cmd} />
@@ -128,15 +128,15 @@ function CLIDepsRow({ tool, onToggle, onRemove, toggling, removing, expanded, on
                   {tool.command && (
                     <>
                       <div className="flex items-center gap-2">
-                        <span className="text-xs text-bc-muted shrink-0">Version cmd:</span>
-                        <code className="flex-1 text-xs font-mono text-bc-text bg-bc-bg rounded px-2 py-1 border border-bc-border/50">
+                        <span className="text-xs text-mycel-muted shrink-0">Version cmd:</span>
+                        <code className="flex-1 text-xs font-mono text-mycel-text bg-mycel-bg rounded px-2 py-1 border border-mycel-border/50">
                           {tool.command} --version
                         </code>
                         <CopyButton text={`${tool.command} --version`} />
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="text-xs text-bc-muted shrink-0">Path:</span>
-                        <code className="flex-1 text-xs font-mono text-bc-text bg-bc-bg rounded px-2 py-1 border border-bc-border/50">
+                        <span className="text-xs text-mycel-muted shrink-0">Path:</span>
+                        <code className="flex-1 text-xs font-mono text-mycel-text bg-mycel-bg rounded px-2 py-1 border border-mycel-border/50">
                           {tool.command}
                         </code>
                         <CopyButton text={tool.command} />
@@ -144,7 +144,7 @@ function CLIDepsRow({ tool, onToggle, onRemove, toggling, removing, expanded, on
                     </>
                   )}
                   {tool.error && (
-                    <div className="text-xs text-bc-error bg-bc-error/5 rounded px-2 py-1 border border-bc-error/20">
+                    <div className="text-xs text-mycel-error bg-mycel-error/5 rounded px-2 py-1 border border-mycel-error/20">
                       Error: {tool.error}
                     </div>
                   )}
@@ -189,30 +189,30 @@ function AddCLIToolForm({ onClose, onAdded, onToast }: { onClose: () => void; on
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -8 }}
       transition={{ duration: 0.2 }}
-      className="rounded border border-bc-accent bg-bc-surface p-4 space-y-3"
+      className="rounded border border-mycel-accent bg-mycel-surface p-4 space-y-3"
     >
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-medium">Add CLI Tool</h3>
-        <button type="button" onClick={onClose} className="text-xs text-bc-muted hover:text-bc-text">Cancel</button>
+        <button type="button" onClick={onClose} className="text-xs text-mycel-muted hover:text-mycel-text">Cancel</button>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <div>
-          <label className="text-xs text-bc-muted block mb-1">Name</label>
+          <label className="text-xs text-mycel-muted block mb-1">Name</label>
           <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="gh" className={inputCls} />
         </div>
         <div>
-          <label className="text-xs text-bc-muted block mb-1">Command</label>
+          <label className="text-xs text-mycel-muted block mb-1">Command</label>
           <input type="text" value={command} onChange={(e) => setCommand(e.target.value)} placeholder="gh" className={inputCls} />
         </div>
         <div className="md:col-span-2">
-          <label className="text-xs text-bc-muted block mb-1">Install Command (optional)</label>
+          <label className="text-xs text-mycel-muted block mb-1">Install Command (optional)</label>
           <input type="text" value={installCmd} onChange={(e) => setInstallCmd(e.target.value)}
             placeholder="apt-get install -y gh" className={inputCls} />
         </div>
       </div>
-      {error && <p className="text-xs text-bc-error">{error}</p>}
+      {error && <p className="text-xs text-mycel-error">{error}</p>}
       <button type="button" onClick={() => void handleSubmit()} disabled={submitting || !name.trim()}
-        className="px-3 py-1.5 text-sm rounded bg-bc-accent text-bc-bg font-medium disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-bc-accent">
+        className="px-3 py-1.5 text-sm rounded bg-mycel-accent text-mycel-bg font-medium disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-mycel-accent">
         {submitting ? "Adding..." : "Add CLI Tool"}
       </button>
     </motion.div>
@@ -222,7 +222,7 @@ function AddCLIToolForm({ onClose, onAdded, onToast }: { onClose: () => void; on
 /* ── Spinner icon ── */
 function Spinner() {
   return (
-    <svg className="animate-spin w-4 h-4 text-bc-muted" fill="none" viewBox="0 0 24 24">
+    <svg className="animate-spin w-4 h-4 text-mycel-muted" fill="none" viewBox="0 0 24 24">
       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
     </svg>
@@ -302,7 +302,7 @@ export function Tools() {
   if (loading && !tools && providersLoading && !providers) {
     return (
       <div className="p-6 space-y-6">
-        <div className="h-6 w-32 animate-pulse rounded bg-bc-border/50" />
+        <div className="h-6 w-32 animate-pulse rounded bg-mycel-border/50" />
         <LoadingSkeleton variant="cards" rows={4} />
       </div>
     );
@@ -326,7 +326,11 @@ export function Tools() {
     setTogglingSet((prev) => new Set(prev).add(tool.name));
 
     try {
-      wasDisabled ? await api.enableTool(tool.name) : await api.disableTool(tool.name);
+      if (wasDisabled) {
+        await api.enableTool(tool.name);
+      } else {
+        await api.disableTool(tool.name);
+      }
       addToast("success", `${tool.name} ${wasDisabled ? "enabled" : "disabled"}`);
       setCheckedTools(null);
       refresh();
@@ -364,7 +368,7 @@ export function Tools() {
   return (
     <div className="p-6 space-y-8">
       <div className="flex items-center justify-between gap-3">
-        <p className="text-xs text-bc-muted hidden sm:block">
+        <p className="text-xs text-mycel-muted hidden sm:block">
           {searchLower
             ? `${matchCount} of ${totalCount} tools`
             : <>{providerList.length} Providers &middot; {cliTools.length} CLI{checkedTools && " \u00b7 checked"}</>
@@ -374,7 +378,7 @@ export function Tools() {
           {/* Search with magnifying glass icon */}
           <div className="relative">
             <svg
-              className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-bc-muted pointer-events-none"
+              className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-mycel-muted pointer-events-none"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -388,13 +392,13 @@ export function Tools() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search tools..."
-              className="w-40 sm:w-52 pl-7 pr-7 py-1.5 text-sm rounded border border-bc-border bg-bc-bg text-bc-text placeholder:text-bc-muted focus:outline-none focus:ring-1 focus:ring-bc-accent"
+              className="w-40 sm:w-52 pl-7 pr-7 py-1.5 text-sm rounded border border-mycel-border bg-mycel-bg text-mycel-text placeholder:text-mycel-muted focus:outline-none focus:ring-1 focus:ring-mycel-accent"
             />
             {search && (
               <button
                 type="button"
                 onClick={() => setSearch("")}
-                className="absolute right-1.5 top-1/2 -translate-y-1/2 text-bc-muted hover:text-bc-text text-sm leading-none px-1"
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 text-mycel-muted hover:text-mycel-text text-sm leading-none px-1"
                 aria-label="Clear search"
               >
                 &times;
@@ -402,12 +406,12 @@ export function Tools() {
             )}
           </div>
           <button type="button" onClick={() => void handleCheck()} disabled={checking}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded border border-bc-border text-bc-muted hover:text-bc-text transition-colors disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-bc-accent">
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded border border-mycel-border text-mycel-muted hover:text-mycel-text transition-colors disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-mycel-accent">
             {checking ? <Spinner /> : null}
             {checking ? "Checking..." : "Health Check"}
           </button>
           <button type="button" onClick={() => setShowAddForm(!showAddForm)}
-            className="px-3 py-1.5 text-sm rounded bg-bc-info/10 text-bc-info hover:bg-bc-info/20 transition-colors focus-visible:ring-2 focus-visible:ring-bc-accent">
+            className="px-3 py-1.5 text-sm rounded bg-mycel-info/10 text-mycel-info hover:bg-mycel-info/20 transition-colors focus-visible:ring-2 focus-visible:ring-mycel-accent">
             + CLI Tool
           </button>
         </div>
@@ -418,23 +422,23 @@ export function Tools() {
       </AnimatePresence>
 
       <section>
-        <h2 className="text-xs font-medium text-bc-muted uppercase tracking-widest mb-3">
+        <h2 className="text-xs font-medium text-mycel-muted uppercase tracking-widest mb-3">
           Providers ({providerList.length}) &mdash; AI model providers
         </h2>
         <ProvidersTable providers={providerList} search={search} />
       </section>
 
       <section>
-        <h2 className="text-xs font-medium text-bc-muted uppercase tracking-widest mb-3">
+        <h2 className="text-xs font-medium text-mycel-muted uppercase tracking-widest mb-3">
           CLI Dependencies ({filteredCli.length}{searchLower ? `/${cliTools.length}` : ""})
         </h2>
         {filteredCli.length === 0 ? (
           <EmptyState icon=">" title={searchLower ? "No matching CLI tools" : "No CLI dependencies"} description={searchLower ? "Try a different search term." : "Add CLI tools like gh, aws, or wrangler."} />
         ) : (
-          <div className="rounded border border-bc-border overflow-hidden">
+          <div className="rounded border border-mycel-border overflow-hidden">
             <table className="w-full text-left">
               <thead>
-                <tr className="bg-bc-surface border-b border-bc-border text-[11px] text-bc-muted uppercase tracking-wider">
+                <tr className="bg-mycel-surface border-b border-mycel-border text-[11px] text-mycel-muted uppercase tracking-wider">
                   <th className="px-3 py-2 font-medium">Tool</th>
                   <th className="px-3 py-2 font-medium">Status</th>
                   <th className="px-3 py-2 font-medium">Version</th>

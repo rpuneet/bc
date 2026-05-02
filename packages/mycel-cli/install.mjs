@@ -1,7 +1,7 @@
 /**
- * bc-cli postinstall script
+ * mycel-cli postinstall script
  *
- * Downloads the correct bc binary for the current platform from GitHub Releases.
+ * Downloads the correct mycel binary for the current platform from GitHub Releases.
  * Uses only Node.js built-ins — no external dependencies.
  */
 
@@ -14,8 +14,8 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const BIN_DIR = join(__dirname, "bin");
-const BIN_PATH = join(BIN_DIR, "bc");
-const REPO = "rpuneet/bc";
+const BIN_PATH = join(BIN_DIR, "mycel");
+const REPO = "rpuneet/mycel";
 
 function getPlatform() {
   const platform = process.platform;
@@ -37,7 +37,7 @@ function getPlatform() {
   if (!os || !cpu) {
     throw new Error(
       `Unsupported platform: ${platform}/${arch}. ` +
-        `bc supports: macOS (amd64, arm64), Linux (amd64).`
+        `mycel supports: macOS (amd64, arm64), Linux (amd64).`
     );
   }
 
@@ -45,7 +45,7 @@ function getPlatform() {
   if (os === "linux" && cpu === "arm64") {
     throw new Error(
       `Unsupported platform: linux/arm64. ` +
-        `bc currently supports: macOS (amd64, arm64), Linux (amd64).`
+        `mycel currently supports: macOS (amd64, arm64), Linux (amd64).`
     );
   }
 
@@ -55,7 +55,7 @@ function getPlatform() {
 function httpsGet(url) {
   return new Promise((resolve, reject) => {
     https
-      .get(url, { headers: { "User-Agent": "bc-cli-installer" } }, (res) => {
+      .get(url, { headers: { "User-Agent": "mycel-cli-installer" } }, (res) => {
         if (
           res.statusCode >= 300 &&
           res.statusCode < 400 &&
@@ -115,7 +115,7 @@ async function getVersion() {
 
 /**
  * Extract a .tar.gz stream. Minimal tar parser — we only need to extract
- * one file (the bc binary) and want zero dependencies.
+ * one file (the mycel binary) and want zero dependencies.
  */
 async function extractTarGz(stream, destPath) {
   const gunzip = createGunzip();
@@ -159,7 +159,7 @@ async function extractTarGz(stream, destPath) {
     // Type '0' or '\0' = regular file
     if (
       (typeFlag === 48 || typeFlag === 0) &&
-      (name === "bc" || name.endsWith("/bc"))
+      (name === "mycel" || name.endsWith("/mycel"))
     ) {
       const fileData = tar.subarray(offset, offset + size);
       mkdirSync(dirname(destPath), { recursive: true });
@@ -179,17 +179,17 @@ async function install() {
   const { os, arch } = getPlatform();
   const version = await getVersion();
 
-  const filename = `bc_${version}_${os}_${arch}.tar.gz`;
+  const filename = `mycel_${version}_${os}_${arch}.tar.gz`;
   const url = `https://github.com/${REPO}/releases/download/v${version}/${filename}`;
 
-  console.log(`bc-cli: downloading bc v${version} for ${os}/${arch}...`);
-  console.log(`bc-cli: ${url}`);
+  console.log(`mycel-cli: downloading mycel v${version} for ${os}/${arch}...`);
+  console.log(`mycel-cli: ${url}`);
 
   const res = await httpsGet(url);
   const found = await extractTarGz(res, BIN_PATH);
 
   if (!found) {
-    throw new Error("Could not find 'bc' binary in the downloaded archive.");
+    throw new Error("Could not find 'mycel' binary in the downloaded archive.");
   }
 
   // Verify the binary works (using execFileSync — no shell, no injection risk)
@@ -198,31 +198,31 @@ async function install() {
       encoding: "utf8",
       timeout: 10000,
     }).trim();
-    console.log(`bc-cli: installed successfully — ${output}`);
+    console.log(`mycel-cli: installed successfully — ${output}`);
   } catch {
     console.log(
-      "bc-cli: binary installed but 'bc version' check failed (this may be fine on CI)."
+      "mycel-cli: binary installed but 'mycel version' check failed (this may be fine on CI)."
     );
   }
 }
 
 install().catch((err) => {
-  console.error(`\nbc-cli: installation failed: ${err.message}\n`);
-  console.error("You can install bc manually:");
+  console.error(`\nmycel-cli: installation failed: ${err.message}\n`);
+  console.error("You can install mycel manually:");
   console.error("");
   console.error("  # macOS (Homebrew)");
-  console.error("  brew install rpuneet/bc/bc-infra");
+  console.error("  brew install rpuneet/mycel/mycel");
   console.error("");
   console.error("  # From source");
   console.error(
-    "  git clone https://github.com/rpuneet/bc && cd bc && make install-local-bc"
+    "  git clone https://github.com/rpuneet/mycel && cd mycel && make install-local-bc"
   );
   console.error("");
   console.error("  # Direct download");
-  console.error("  https://github.com/rpuneet/bc/releases/latest");
+  console.error("  https://github.com/rpuneet/mycel/releases/latest");
   console.error("");
 
   // Exit 0 so npm install doesn't fail — the placeholder script will tell
-  // the user what happened if they try to run bc.
+  // the user what happened if they try to run mycel.
   process.exit(0);
 });

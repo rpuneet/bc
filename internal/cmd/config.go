@@ -12,8 +12,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/rpuneet/bc/pkg/client"
-	"github.com/rpuneet/bc/pkg/workspace"
+	"github.com/rpuneet/mycel/pkg/client"
+	"github.com/rpuneet/mycel/pkg/workspace"
 )
 
 var configCmd = &cobra.Command{

@@ -4,9 +4,9 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/rpuneet/bc/pkg/agent"
-	"github.com/rpuneet/bc/pkg/provider"
-	"github.com/rpuneet/bc/pkg/workspace"
+	"github.com/rpuneet/mycel/pkg/agent"
+	"github.com/rpuneet/mycel/pkg/provider"
+	"github.com/rpuneet/mycel/pkg/workspace"
 )
 
 // expectedProviders is the canonical list of providers that must be in DefaultRegistry.

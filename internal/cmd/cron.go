@@ -7,9 +7,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/rpuneet/bc/pkg/client"
-	"github.com/rpuneet/bc/pkg/cron"
-	"github.com/rpuneet/bc/pkg/ui"
+	"github.com/rpuneet/mycel/pkg/client"
+	"github.com/rpuneet/mycel/pkg/cron"
+	"github.com/rpuneet/mycel/pkg/ui"
 )
 
 var cronCmd = &cobra.Command{

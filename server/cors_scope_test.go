@@ -30,10 +30,10 @@ import (
 	"path/filepath"
 	"testing"
 
-	bcdb "github.com/rpuneet/bc/pkg/db"
-	"github.com/rpuneet/bc/pkg/workspace"
-	"github.com/rpuneet/bc/server"
-	bcws "github.com/rpuneet/bc/server/ws"
+	bcdb "github.com/rpuneet/mycel/pkg/db"
+	"github.com/rpuneet/mycel/pkg/workspace"
+	"github.com/rpuneet/mycel/server"
+	bcws "github.com/rpuneet/mycel/server/ws"
 )
 
 // TestCORS_WorkspaceScope_Coexist boots a bcd server with CORS enabled
@@ -52,6 +52,7 @@ func TestCORS_WorkspaceScope_Coexist(t *testing.T) {
 	if err := os.MkdirAll(wsDir, 0o750); err != nil {
 		t.Fatalf("mkdir ws: %v", err)
 	}
+	gitInitDir(t, wsDir)
 	if _, err := workspace.Init(wsDir); err != nil {
 		t.Fatalf("workspace.Init: %v", err)
 	}
@@ -87,6 +88,7 @@ func TestCORS_WorkspaceScope_Coexist(t *testing.T) {
 
 	ctx := context.Background()
 	mgr := server.NewWorkspaceManager(reg, func(ctx context.Context, w *workspace.Workspace) (*server.WorkspaceServices, error) {
+		gitInitDir(t, w.RootDir)
 		return server.BuildWorkspaceServices(ctx, globals, w.RootDir)
 	})
 	if _, loadErr := mgr.LoadActive(ctx); loadErr != nil {
@@ -161,6 +163,7 @@ func TestCORS_Preflight_Scoped(t *testing.T) {
 	if err := os.MkdirAll(wsDir, 0o750); err != nil {
 		t.Fatalf("mkdir ws: %v", err)
 	}
+	gitInitDir(t, wsDir)
 	if _, err := workspace.Init(wsDir); err != nil {
 		t.Fatalf("Init: %v", err)
 	}
@@ -189,6 +192,7 @@ func TestCORS_Preflight_Scoped(t *testing.T) {
 
 	globals := &server.Globals{Registry: reg, GlobalHub: hub}
 	mgr := server.NewWorkspaceManager(reg, func(ctx context.Context, w *workspace.Workspace) (*server.WorkspaceServices, error) {
+		gitInitDir(t, w.RootDir)
 		return server.BuildWorkspaceServices(ctx, globals, w.RootDir)
 	})
 	if _, loadErr := mgr.LoadActive(context.Background()); loadErr != nil {

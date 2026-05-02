@@ -25,12 +25,12 @@ export function CopyButton({ text, className = "" }: CopyButtonProps) {
         e.stopPropagation();
         void handleCopy();
       }}
-      className={`inline-flex items-center justify-center w-6 h-6 rounded transition-colors hover:bg-bc-surface-hover focus-visible:ring-2 focus-visible:ring-bc-accent ${className}`}
+      className={`inline-flex items-center justify-center w-6 h-6 rounded transition-colors hover:bg-mycel-surface-hover focus-visible:ring-2 focus-visible:ring-mycel-accent ${className}`}
       aria-label={copied ? "Copied" : "Copy to clipboard"}
     >
       {copied ? (
         <svg
-          className="w-3.5 h-3.5 text-bc-success"
+          className="w-3.5 h-3.5 text-mycel-success"
           fill="none"
           viewBox="0 0 24 24"
           stroke="currentColor"
@@ -40,7 +40,7 @@ export function CopyButton({ text, className = "" }: CopyButtonProps) {
         </svg>
       ) : (
         <svg
-          className="w-3.5 h-3.5 text-bc-muted hover:text-bc-text"
+          className="w-3.5 h-3.5 text-mycel-muted hover:text-mycel-text"
           fill="none"
           viewBox="0 0 24 24"
           stroke="currentColor"

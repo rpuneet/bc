@@ -9,7 +9,36 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"github.com/rpuneet/mycel/pkg/log"
 )
+
+// resolveSender returns the authoritative sender identity for outbound MCP
+// tool calls (send_message, send_file).
+//
+// Security (issue #2967): the agent identity attached to the request context
+// (set from the authenticated SSE connection — either the agent-scoped path
+// /_mcp/<agent>/{sse,message} or the ?agent= query param) is the ONLY
+// trusted source of identity. Any client-supplied "sender" value is
+// advisory: if it disagrees with the context agent we log a warning and
+// override it to prevent MCP sender spoofing.
+//
+// If no agent is bound to the context (legacy / unauthenticated flows) we
+// fall back to the client value, and finally to "agent".
+func resolveSender(ctx context.Context, clientSender string) string {
+	ctxAgent := AgentFromContext(ctx)
+	if ctxAgent != "" {
+		if clientSender != "" && clientSender != ctxAgent {
+			log.Warn("mcp: ignoring client-supplied sender — using authenticated agent",
+				"client_sender", clientSender, "ctx_agent", ctxAgent)
+		}
+		return ctxAgent
+	}
+	if clientSender != "" {
+		return clientSender
+	}
+	return "agent"
+}
 
 // definedTools returns the static list of tools this server exposes.
 func definedTools() []Tool {
@@ -108,6 +137,31 @@ func definedTools() []Tool {
 	}
 }
 
+// Per-field input length caps for MCP tool arguments. Enforced at handler
+// entry so abusive callers can't exhaust memory via the /_mcp/* routes (which
+// are exempt from the global MaxBodySize middleware — see
+// server/handlers/helpers.go).
+const (
+	maxMessageLen = 64 * 1024 // 64KB — chat-style messages
+	maxCommentLen = 64 * 1024 // 64KB — file upload comments
+	maxChannelLen = 256       // gateway channel identifier
+	maxSenderLen  = 256       // sender / agent display name
+	maxRoleLen    = 256       // role filter on list_agents
+	maxPathLen    = 4 * 1024  // file_path on send_file (matches typical PATH_MAX)
+)
+
+// validateLen returns a tool error result if v exceeds maxBytes. The bool
+// indicates whether the caller should return early.
+func validateLen(field, v string, maxBytes int) (*toolsCallResult, bool) {
+	if len(v) > maxBytes {
+		return &toolsCallResult{
+			Content: []ToolContent{textContent(fmt.Sprintf("%s too long: %d bytes (max %d)", field, len(v), maxBytes))},
+			IsError: true,
+		}, true
+	}
+	return nil, false
+}
+
 // ─── send_message ───────────────────────────────────────────────────────────
 
 func (s *Server) toolSendMessage(ctx context.Context, raw json.RawMessage) (*toolsCallResult, error) {
@@ -125,13 +179,18 @@ func (s *Server) toolSendMessage(ctx context.Context, raw json.RawMessage) (*too
 			IsError: true,
 		}, nil
 	}
-	if args.Sender == "" {
-		if agentID, ok := ctx.Value(ctxKeyAgent).(string); ok && agentID != "" {
-			args.Sender = agentID
-		} else {
-			args.Sender = "agent"
-		}
+	if res, stop := validateLen("channel", args.Channel, maxChannelLen); stop {
+		return res, nil
 	}
+	if res, stop := validateLen("message", args.Message, maxMessageLen); stop {
+		return res, nil
+	}
+	if res, stop := validateLen("sender", args.Sender, maxSenderLen); stop {
+		return res, nil
+	}
+	// Always derive the sender from the authenticated context — never trust
+	// the client-supplied value. See resolveSender / issue #2967.
+	args.Sender = resolveSender(ctx, args.Sender)
 
 	if s.gateway == nil {
 		return &toolsCallResult{
@@ -205,6 +264,9 @@ func (s *Server) toolReadChannel(ctx context.Context, raw json.RawMessage) (*too
 			Content: []ToolContent{textContent("channel is required")},
 			IsError: true,
 		}, nil
+	}
+	if res, stop := validateLen("channel", args.Channel, maxChannelLen); stop {
+		return res, nil
 	}
 	if args.Limit <= 0 {
 		args.Limit = 20
@@ -292,6 +354,9 @@ func (s *Server) toolListAgents(raw json.RawMessage) (*toolsCallResult, error) {
 	if len(raw) > 0 {
 		_ = json.Unmarshal(raw, &args) //nolint:errcheck // optional args
 	}
+	if res, stop := validateLen("role", args.Role, maxRoleLen); stop {
+		return res, nil
+	}
 
 	if s.agents == nil {
 		return &toolsCallResult{
@@ -340,6 +405,15 @@ func (s *Server) toolSendFile(ctx context.Context, raw json.RawMessage) (*toolsC
 			Content: []ToolContent{textContent("channel and file_path are required")},
 			IsError: true,
 		}, nil
+	}
+	if res, stop := validateLen("channel", args.Channel, maxChannelLen); stop {
+		return res, nil
+	}
+	if res, stop := validateLen("file_path", args.FilePath, maxPathLen); stop {
+		return res, nil
+	}
+	if res, stop := validateLen("comment", args.Comment, maxCommentLen); stop {
+		return res, nil
 	}
 
 	// Validate file path is under workspace to prevent reading arbitrary files
@@ -406,11 +480,10 @@ func (s *Server) toolSendFile(ctx context.Context, raw json.RawMessage) (*toolsC
 		mimeType = "application/pdf"
 	}
 
-	// Get sender from context
-	sender := "agent"
-	if agentID, ok := ctx.Value(ctxKeyAgent).(string); ok && agentID != "" {
-		sender = agentID
-	}
+	// Get sender from context — always trust ctx over client input (#2967).
+	// send_file currently has no client-supplied sender field, but route
+	// through resolveSender for consistency and future-proofing.
+	sender := resolveSender(ctx, "")
 
 	// Route through gateway manager
 	if s.gateway == nil {

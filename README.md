@@ -1,9 +1,9 @@
 # bc
 
-[![CI](https://github.com/rpuneet/bc/actions/workflows/ci.yml/badge.svg)](https://github.com/rpuneet/bc/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/github/v/release/rpuneet/bc?include_prereleases)](https://github.com/rpuneet/bc/releases)
-[![Go](https://img.shields.io/github/go-mod/go-version/rpuneet/bc)](https://go.dev/)
-[![License](https://img.shields.io/github/license/rpuneet/bc)](LICENSE)
+[![CI](https://github.com/rpuneet/mycel/actions/workflows/ci.yml/badge.svg)](https://github.com/rpuneet/mycel/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/rpuneet/mycel?include_prereleases)](https://github.com/rpuneet/mycel/releases)
+[![Go](https://img.shields.io/github/go-mod/go-version/rpuneet/mycel)](https://go.dev/)
+[![License](https://img.shields.io/github/license/rpuneet/mycel)](LICENSE)
 
 AI agents are powerful alone — chaotic when they work together. bc fixes that.
 
@@ -13,16 +13,16 @@ Coordinate teams of Claude, Gemini, Cursor, and other AI agents with isolated wo
 
 ```bash
 # macOS / Linux
-curl -fsSL https://raw.githubusercontent.com/rpuneet/bc/main/scripts/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/rpuneet/mycel/main/scripts/install.sh | bash
 
 # Homebrew
-brew install rpuneet/bc/bc
+brew install rpuneet/mycel/mycel
 
 # Go
-go install github.com/rpuneet/bc/cmd/bc@latest
+go install github.com/rpuneet/mycel/cmd/mycel@latest
 
 # From source
-git clone https://github.com/rpuneet/bc && cd bc && make install-local-bc
+git clone https://github.com/rpuneet/mycel && cd mycel && make install-local-bc
 ```
 
 **Prerequisites:** Go 1.25+, tmux, git. For TUI: Bun.

@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"sync"
 
-	"github.com/rpuneet/bc/pkg/log"
+	"github.com/rpuneet/mycel/pkg/log"
 )
 
 // Event is the payload broadcast to SSE subscribers.

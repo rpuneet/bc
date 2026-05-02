@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rpuneet/bc/pkg/db"
+	"github.com/rpuneet/mycel/pkg/db"
 )
 
 // ToolType classifies a tool.
@@ -227,6 +227,11 @@ func (s *Store) Close() error {
 }
 
 func initSchema(db *sql.DB) error {
+	// context.TODO() retained: initSchema runs synchronously during Store.Open
+	// at startup/test setup before any request context exists; threading ctx
+	// through would force a public API change on NewStore/Open and dozens of
+	// call sites across tests/services for no operational benefit (DDL completes
+	// in microseconds and cannot be canceled meaningfully).
 	_, err := db.ExecContext(context.TODO(), `
 		CREATE TABLE IF NOT EXISTS tools (
 			name          TEXT PRIMARY KEY,
@@ -264,6 +269,7 @@ func initSchema(db *sql.DB) error {
 		"ALTER TABLE tools ADD COLUMN health_status TEXT DEFAULT 'unknown'",
 		"ALTER TABLE tools ADD COLUMN last_checked TEXT",
 	} {
+		// context.TODO() retained: see initSchema header comment — startup-only DDL.
 		_, _ = db.ExecContext(context.TODO(), col) //nolint:errcheck // ignore if columns exist
 	}
 

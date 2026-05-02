@@ -1,13 +1,80 @@
 package cmd
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"os"
+	"sync/atomic"
 	"testing"
 
-	"github.com/rpuneet/bc/pkg/agent"
+	"github.com/rpuneet/mycel/pkg/agent"
 )
 
+// testBcdHandler is the handler used by the package-level fake bcd server.
+// Tests can swap it via setTestBcdHandler / resetTestBcdHandler to assert
+// against bcd interactions; the default returns 404 for every path so that
+// "no agent found" / "not in workspace" code paths are exercised without
+// reaching a real bcd.
+//
+// IMPORTANT: this server protects production bcd from `go test` runs.
+// Without it, executeIntegrationCmd would resolve BC_DAEMON_ADDR to the
+// real daemon at 127.0.0.1:9374 and hammer it during CI / dev test runs.
+var testBcdHandler atomic.Value // stores http.HandlerFunc
+
+func defaultTestBcdHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// /health must succeed so newDaemonClient.Ping() doesn't fail
+		// before workspace checks complete.
+		if r.URL.Path == "/health" {
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"status":"ok"}`))
+			return
+		}
+		http.NotFound(w, r)
+	}
+}
+
+// setTestBcdHandler swaps the active fake-bcd handler for the duration
+// of the test, restoring the default on cleanup.
+func setTestBcdHandler(t *testing.T, h http.HandlerFunc) {
+	t.Helper()
+	prev := testBcdHandler.Load()
+	testBcdHandler.Store(h)
+	t.Cleanup(func() {
+		if prev != nil {
+			testBcdHandler.Store(prev)
+		} else {
+			testBcdHandler.Store(defaultTestBcdHandler())
+		}
+	})
+}
+
 func TestMain(m *testing.M) {
+	// Start a fake bcd server for the entire test process so no test
+	// accidentally reaches the real bcd. Individual tests can override
+	// the handler via setTestBcdHandler.
+	testBcdHandler.Store(defaultTestBcdHandler())
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		h, _ := testBcdHandler.Load().(http.HandlerFunc)
+		if h == nil {
+			http.NotFound(w, r)
+			return
+		}
+		h.ServeHTTP(w, r)
+	}))
+	defer srv.Close()
+
+	// Force the bc client to talk to our fake server, not the real bcd.
+	_ = os.Setenv("BC_DAEMON_ADDR", srv.URL)
+
+	// Clear workspace env vars inherited from the dev's shell so tests
+	// that intentionally chdir to a tmpDir (and expect "not in a bc
+	// workspace") don't accidentally pick up the developer's BC_WORKSPACE
+	// pointing at the bc repo. Tests that need a workspace set this
+	// explicitly via t.Setenv in setupIntegrationWorkspace.
+	_ = os.Unsetenv("BC_WORKSPACE")
+	_ = os.Unsetenv("BC_AGENT_WORKTREE")
+
 	// Setup roles for tests - mirrors pkg/agent/agent_test.go TestMain
 	agent.RoleCapabilities[agent.Role("engineer")] = []agent.Capability{agent.CapImplementTasks}
 	agent.RoleCapabilities[agent.Role("manager")] = []agent.Capability{agent.CapAssignWork, agent.CapCreateAgents}

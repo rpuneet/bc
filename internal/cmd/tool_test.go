@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/rpuneet/bc/pkg/ui"
+	"github.com/rpuneet/mycel/pkg/ui"
 )
 
 func TestToolList_OutputFormat(t *testing.T) {

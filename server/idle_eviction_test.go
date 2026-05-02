@@ -19,7 +19,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rpuneet/bc/pkg/workspace"
+	"github.com/rpuneet/mycel/pkg/workspace"
 )
 
 // TestWorkspaceManager_IdleEviction verifies:
@@ -40,6 +40,7 @@ func TestWorkspaceManager_IdleEviction(t *testing.T) {
 		if err := os.MkdirAll(dir, 0o750); err != nil {
 			t.Fatalf("mkdir %s: %v", name, err)
 		}
+		gitInitDir(t, dir)
 		if _, err := workspace.Init(dir); err != nil {
 			t.Fatalf("Init %s: %v", name, err)
 		}
@@ -138,6 +139,7 @@ func TestWorkspaceManager_SweepIdempotent(t *testing.T) {
 	if err := os.MkdirAll(wsDir, 0o750); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
+	gitInitDir(t, wsDir)
 	if _, err := workspace.Init(wsDir); err != nil {
 		t.Fatalf("Init: %v", err)
 	}
@@ -197,6 +199,7 @@ func TestWorkspaceManager_NotIdleYet(t *testing.T) {
 	if err := os.MkdirAll(wsDir, 0o750); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
+	gitInitDir(t, wsDir)
 	if _, err := workspace.Init(wsDir); err != nil {
 		t.Fatalf("Init: %v", err)
 	}

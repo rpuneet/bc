@@ -102,7 +102,7 @@ export function MCPServerList({
   if (loading) {
     return (
       <p
-        className="text-xs text-bc-muted/40 italic pl-1"
+        className="text-xs text-mycel-muted/40 italic pl-1"
         style={{ fontFamily: MONO }}
       >
         Loading...
@@ -117,17 +117,17 @@ export function MCPServerList({
           {servers.map((s) => (
             <span
               key={s}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-bc-border/30 bg-bc-surface/30 text-[11px] text-bc-text/80 font-medium"
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-mycel-border/30 bg-mycel-surface/30 text-[11px] text-mycel-text/80 font-medium"
               style={{ fontFamily: MONO }}
             >
-              <span className="w-1.5 h-1.5 rounded-full bg-bc-accent/60" />
+              <span className="w-1.5 h-1.5 rounded-full bg-mycel-accent/60" />
               {s.replace(/^mcp__/, "")}
               {onRemove && (
                 <button
                   type="button"
                   onClick={() => { handleRemove(s); }}
                   disabled={removing === s}
-                  className="ml-0.5 text-bc-muted/50 hover:text-bc-error transition-colors disabled:opacity-40 leading-none"
+                  className="ml-0.5 text-mycel-muted/50 hover:text-mycel-error transition-colors disabled:opacity-40 leading-none"
                   title={`Remove ${s}`}
                   aria-label={`Remove MCP server ${s}`}
                 >
@@ -138,7 +138,7 @@ export function MCPServerList({
           ))}
         </div>
       ) : (
-        <p className="text-xs text-bc-muted/40 italic pl-1">
+        <p className="text-xs text-mycel-muted/40 italic pl-1">
           No MCP servers configured.
         </p>
       )}
@@ -160,14 +160,14 @@ export function MCPServerList({
               }}
               placeholder="Search or type a server name…"
               disabled={adding}
-              className="flex-1 max-w-[300px] rounded border border-bc-border/40 bg-bc-bg px-2.5 py-1 text-[11px] text-bc-text/90 placeholder:text-bc-muted/40 outline-none focus:border-bc-accent/50 transition-colors disabled:opacity-40"
+              className="flex-1 max-w-[300px] rounded border border-mycel-border/40 bg-mycel-bg px-2.5 py-1 text-[11px] text-mycel-text/90 placeholder:text-mycel-muted/40 outline-none focus:border-mycel-accent/50 transition-colors disabled:opacity-40"
               style={{ fontFamily: MONO }}
             />
             <button
               type="button"
               onClick={() => doAdd(input)}
               disabled={adding || !input.trim()}
-              className="px-2.5 py-1 rounded border border-bc-accent/30 bg-bc-accent/10 text-[11px] text-bc-accent hover:bg-bc-accent/20 transition-colors disabled:opacity-40"
+              className="px-2.5 py-1 rounded border border-mycel-accent/30 bg-mycel-accent/10 text-[11px] text-mycel-accent hover:bg-mycel-accent/20 transition-colors disabled:opacity-40"
               style={{ fontFamily: MONO }}
             >
               {adding ? "Adding…" : "+ Add MCP"}
@@ -178,7 +178,7 @@ export function MCPServerList({
           {showDropdown && suggestions.length > 0 && (
             <div
               ref={dropdownRef}
-              className="absolute z-20 top-full mt-1 w-full max-w-[420px] rounded-md border border-bc-border/40 bg-bc-surface shadow-lg overflow-hidden"
+              className="absolute z-20 top-full mt-1 w-full max-w-[420px] rounded-md border border-mycel-border/40 bg-mycel-surface shadow-lg overflow-hidden"
             >
               {suggestions.map((m) => (
                 <button
@@ -189,20 +189,20 @@ export function MCPServerList({
                     e.preventDefault();
                     doAdd(m.name);
                   }}
-                  className="w-full flex items-start gap-3 px-3 py-2 hover:bg-bc-accent/10 transition-colors text-left group"
+                  className="w-full flex items-start gap-3 px-3 py-2 hover:bg-mycel-accent/10 transition-colors text-left group"
                 >
                   <span
-                    className="shrink-0 mt-0.5 w-1.5 h-1.5 rounded-full bg-bc-accent/40 group-hover:bg-bc-accent/80 transition-colors"
+                    className="shrink-0 mt-0.5 w-1.5 h-1.5 rounded-full bg-mycel-accent/40 group-hover:bg-mycel-accent/80 transition-colors"
                   />
                   <div className="min-w-0">
                     <span
-                      className="block text-[11px] font-semibold text-bc-text/90 group-hover:text-bc-accent transition-colors"
+                      className="block text-[11px] font-semibold text-mycel-text/90 group-hover:text-mycel-accent transition-colors"
                       style={{ fontFamily: MONO }}
                     >
                       {m.name}
                     </span>
                     <span
-                      className="block text-[10px] text-bc-muted/60 truncate"
+                      className="block text-[10px] text-mycel-muted/60 truncate"
                       style={{ fontFamily: MONO }}
                     >
                       {m.description}
@@ -213,7 +213,7 @@ export function MCPServerList({
             </div>
           )}
 
-          <p className="mt-1.5 text-[10px] text-bc-muted/40" style={{ fontFamily: MONO }}>
+          <p className="mt-1.5 text-[10px] text-mycel-muted/40" style={{ fontFamily: MONO }}>
             Select from the list or press Enter to add a custom server name.
           </p>
         </div>

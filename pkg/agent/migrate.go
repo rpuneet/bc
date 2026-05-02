@@ -1,12 +1,13 @@
 package agent
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
 	"time"
 
-	"github.com/rpuneet/bc/pkg/log"
+	"github.com/rpuneet/mycel/pkg/log"
 )
 
 // AgentState is the legacy per-agent JSON state format (v1).
@@ -62,10 +63,13 @@ func migrateJSONToSQLite(store *SQLiteStore, stateDir, workspace string) error {
 				if a.Workspace == "" {
 					a.Workspace = workspace
 				}
+				if a.RepoRoot == "" {
+					a.RepoRoot = a.Workspace
+				}
 				if a.StartedAt.IsZero() {
 					a.StartedAt = time.Now()
 				}
-				if saveErr := store.Save(a); saveErr != nil {
+				if saveErr := store.Save(context.Background(), a); saveErr != nil {
 					log.Warn("migrate: failed to save agent from agents.json", "agent", name, "error", saveErr)
 				}
 			}
@@ -86,7 +90,7 @@ func migrateJSONToSQLite(store *SQLiteStore, stateDir, workspace string) error {
 				a.Name = "root"
 			}
 			a.ID = a.Name
-			if saveErr := store.Save(a); saveErr != nil {
+			if saveErr := store.Save(context.Background(), a); saveErr != nil {
 				log.Warn("migrate: failed to save root agent", "error", saveErr)
 			} else {
 				migrated = true
@@ -123,10 +127,10 @@ func migrateJSONToSQLite(store *SQLiteStore, stateDir, workspace string) error {
 			}
 
 			// Only save if not already in DB (agents.json merge took priority)
-			existing, _ := store.Load(agentName)
+			existing, _ := store.Load(context.Background(), agentName)
 			if existing == nil {
 				a := state.ToAgent(workspace)
-				if err := store.Save(a); err != nil {
+				if err := store.Save(context.Background(), a); err != nil {
 					log.Warn("migrate: failed to save per-agent state", "agent", agentName, "error", err)
 				} else {
 					migrated = true

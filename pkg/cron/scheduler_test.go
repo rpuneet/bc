@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rpuneet/bc/pkg/db"
+	"github.com/rpuneet/mycel/pkg/db"
 )
 
 // openTestStore creates a temporary cron store for testing.

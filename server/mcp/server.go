@@ -7,11 +7,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rpuneet/bc/pkg/agent"
-	"github.com/rpuneet/bc/pkg/cost"
-	"github.com/rpuneet/bc/pkg/gateway"
-	"github.com/rpuneet/bc/pkg/notify"
-	"github.com/rpuneet/bc/pkg/workspace"
+	"github.com/rpuneet/mycel/pkg/agent"
+	"github.com/rpuneet/mycel/pkg/cost"
+	"github.com/rpuneet/mycel/pkg/gateway"
+	"github.com/rpuneet/mycel/pkg/notify"
+	"github.com/rpuneet/mycel/pkg/workspace"
 )
 
 // ctxKeyAgent is the context key for the agent ID extracted from the SSE connection.
@@ -25,6 +25,14 @@ func AgentFromContext(ctx context.Context) string {
 		return v
 	}
 	return ""
+}
+
+// ContextWithAgent returns ctx with the given authenticated agent ID
+// attached. The agent identity is treated as the only trusted source of
+// "sender" for outbound MCP tool calls (#2967). Used by the SSE message
+// handler and by tests that need to simulate an authenticated request.
+func ContextWithAgent(ctx context.Context, agentID string) context.Context {
+	return context.WithValue(ctx, ctxKeyAgent, agentID)
 }
 
 // Server is a bc MCP server. It owns handles to workspace state and dispatches

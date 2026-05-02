@@ -2,10 +2,10 @@
 // bundling and a lazy-loading manager so bcd can hold multiple workspaces
 // open simultaneously.
 //
-// The existing `Services` struct (server.go) is the flat dependency bundle
-// used by the handler constructors. `WorkspaceServices` wraps that with a
-// `Workspace` reference plus a closer so the manager can shut down a
-// workspace cleanly on eviction.
+// `WorkspaceServices` holds per-workspace stores with a `Workspace`
+// reference plus a closer so the manager can shut down a workspace cleanly
+// on eviction. The flat `Services` struct (server.go) is projected from
+// these fields when constructing the HTTP server.
 //
 // Call flow:
 //
@@ -28,20 +28,21 @@ import (
 	"sync"
 	"time"
 
-	"github.com/rpuneet/bc/pkg/agent"
-	"github.com/rpuneet/bc/pkg/cost"
-	"github.com/rpuneet/bc/pkg/cron"
-	"github.com/rpuneet/bc/pkg/events"
-	"github.com/rpuneet/bc/pkg/gateway"
-	"github.com/rpuneet/bc/pkg/log"
-	"github.com/rpuneet/bc/pkg/mcp"
-	"github.com/rpuneet/bc/pkg/notify"
-	"github.com/rpuneet/bc/pkg/secret"
-	"github.com/rpuneet/bc/pkg/template"
-	"github.com/rpuneet/bc/pkg/tool"
-	"github.com/rpuneet/bc/pkg/workspace"
-	"github.com/rpuneet/bc/server/handlers"
-	"github.com/rpuneet/bc/server/ws"
+	"github.com/rpuneet/mycel/pkg/agent"
+	"github.com/rpuneet/mycel/pkg/cost"
+	"github.com/rpuneet/mycel/pkg/cron"
+	"github.com/rpuneet/mycel/pkg/events"
+	"github.com/rpuneet/mycel/pkg/gateway"
+	"github.com/rpuneet/mycel/pkg/log"
+	"github.com/rpuneet/mycel/pkg/mcp"
+	"github.com/rpuneet/mycel/pkg/notify"
+	"github.com/rpuneet/mycel/pkg/secret"
+	"github.com/rpuneet/mycel/pkg/stats"
+	"github.com/rpuneet/mycel/pkg/template"
+	"github.com/rpuneet/mycel/pkg/tool"
+	"github.com/rpuneet/mycel/pkg/workspace"
+	"github.com/rpuneet/mycel/server/handlers"
+	"github.com/rpuneet/mycel/server/ws"
 )
 
 // idleEvictionThreshold is how long a workspace must sit untouched before the
@@ -56,15 +57,9 @@ const evictionLoopInterval = 1 * time.Minute
 //
 // This struct is the unit of eviction: when the manager closes a workspace,
 // it calls Close which tears down every service that was opened via the
-// factory. The existing flat `Services` type (server.go) is kept on the
-// struct so handler constructors that already accept *Services keep working
-// during the transitional phases M1-M4.
-//
-// Phase M1 widens the struct with named fields for every service a handler
-// might need. Phase M3 has handlers start reading them via
-// WorkspaceServicesFromContext. Phase M4 deletes the Services embed.
+// factory. Handler constructors receive a flat Services struct projected
+// from these named fields via NewWithManager / New.
 type WorkspaceServices struct {
-	Services  Services // legacy flat bundle passed to existing handler constructors
 	Workspace *workspace.Workspace
 
 	// Per-workspace stores/services (populated by the factory in serve.go).
@@ -87,6 +82,7 @@ type WorkspaceServices struct {
 	Gateway      *gateway.Manager
 	Notify       *notify.Service
 	Hub          *ws.Hub
+	Stats        *stats.Store // global stats store — set by factory when Globals.Stats is available
 
 	// cancel stops background goroutines started by the factory. It is
 	// optional — the closer is the ultimate resource-teardown call, but
@@ -163,7 +159,7 @@ func workspaceViewFromServices(svc *WorkspaceServices) *handlers.WorkspaceView {
 		Tools:        svc.Tools,
 		Gateway:      svc.Gateway,
 		Notify:       svc.Notify,
-		Stats:        svc.Services.Stats, // stats is global, ride legacy bundle
+		Stats:        svc.Stats,
 		Hub:          svc.Hub,
 	}
 }

@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rpuneet/bc/pkg/db"
+	"github.com/rpuneet/mycel/pkg/db"
 )
 
 // setupSharedDB creates a temporary SQLite shared database for tests.

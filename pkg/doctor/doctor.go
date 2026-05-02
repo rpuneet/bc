@@ -13,7 +13,7 @@
 // Run a single category:
 //
 //	cat := doctor.CheckWorkspace(ws)
-//	cat := doctor.CheckDatabase(ws)
+//	cat := doctor.CheckDatabase(ctx, ws)
 //	cat := doctor.CheckAgents(ctx, ws)
 //	cat := doctor.CheckTools(ctx)
 //	cat := doctor.CheckGit(ctx, ws)
@@ -32,10 +32,10 @@ import (
 
 	_ "github.com/mattn/go-sqlite3" // SQLite driver
 
-	"github.com/rpuneet/bc/pkg/agent"
-	"github.com/rpuneet/bc/pkg/provider"
-	"github.com/rpuneet/bc/pkg/tool"
-	"github.com/rpuneet/bc/pkg/workspace"
+	"github.com/rpuneet/mycel/pkg/agent"
+	"github.com/rpuneet/mycel/pkg/provider"
+	"github.com/rpuneet/mycel/pkg/tool"
+	"github.com/rpuneet/mycel/pkg/workspace"
 )
 
 // Severity indicates the outcome of a single health check item.
@@ -136,7 +136,7 @@ func (r *Report) Summary() (ok, warn, fail int) {
 func RunAll(ctx context.Context, ws *workspace.Workspace) *Report {
 	cats := []CategoryReport{
 		CheckWorkspace(ws),
-		CheckDatabase(ws),
+		CheckDatabase(ctx, ws),
 		CheckAgents(ctx, ws),
 		CheckTools(ctx),
 		CheckGit(ctx, ws),
@@ -152,7 +152,7 @@ func CategoryByName(ctx context.Context, ws *workspace.Workspace, name string) *
 		c := CheckWorkspace(ws)
 		return &c
 	case "database", "db":
-		c := CheckDatabase(ws)
+		c := CheckDatabase(ctx, ws)
 		return &c
 	case "agents", "agent":
 		c := CheckAgents(ctx, ws)
@@ -301,24 +301,24 @@ func CheckWorkspace(ws *workspace.Workspace) CategoryReport {
 // ─── Database ────────────────────────────────────────────────────────────────
 
 // CheckDatabase checks SQLite integrity and table existence.
-func CheckDatabase(ws *workspace.Workspace) CategoryReport {
+func CheckDatabase(ctx context.Context, ws *workspace.Workspace) CategoryReport {
 	cat := CategoryReport{Name: "Database"}
 
 	stateDir := ws.StateDir()
 
 	// bc.db — agents table
 	stateDB := filepath.Join(stateDir, "bc.db")
-	cat.Items = append(cat.Items, checkSQLiteFile(stateDB, "bc.db", []string{"agents"})...)
+	cat.Items = append(cat.Items, checkSQLiteFile(ctx, stateDB, "bc.db", []string{"agents"})...)
 
 	// bc.db — channels/messages tables
 	channelsDB := filepath.Join(stateDir, "bc.db")
-	cat.Items = append(cat.Items, checkSQLiteFile(channelsDB, "bc.db", []string{"channels", "messages"})...)
+	cat.Items = append(cat.Items, checkSQLiteFile(ctx, channelsDB, "bc.db", []string{"channels", "messages"})...)
 
 	return cat
 }
 
 // checkSQLiteFile checks a SQLite file: existence, integrity, and required tables.
-func checkSQLiteFile(path, label string, requiredTables []string) []Item {
+func checkSQLiteFile(ctx context.Context, path, label string, requiredTables []string) []Item {
 	// 1 for file check, 1 for integrity, len(requiredTables) for table checks
 	items := make([]Item, 0, 2+len(requiredTables))
 
@@ -345,7 +345,7 @@ func checkSQLiteFile(path, label string, requiredTables []string) []Item {
 
 	// PRAGMA integrity_check
 	var result string
-	if err := db.QueryRowContext(context.TODO(), "PRAGMA integrity_check").Scan(&result); err != nil {
+	if err := db.QueryRowContext(ctx, "PRAGMA integrity_check").Scan(&result); err != nil {
 		items = append(items, Item{
 			Name:     label + " integrity",
 			Message:  fmt.Sprintf("check failed: %v", err),
@@ -368,7 +368,7 @@ func checkSQLiteFile(path, label string, requiredTables []string) []Item {
 	// Check required tables
 	for _, table := range requiredTables {
 		var name string
-		err := db.QueryRowContext(context.TODO(),
+		err := db.QueryRowContext(ctx,
 			"SELECT name FROM sqlite_master WHERE type='table' AND name=?", table,
 		).Scan(&name)
 		if err == sql.ErrNoRows {

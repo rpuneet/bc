@@ -193,25 +193,25 @@ export function elapsed(start: number, end?: number): string {
 
 export function durationColorClass(start: number, end?: number): string {
   const ms = (end ?? Date.now()) - start;
-  if (ms < 500) return "text-bc-success";
-  if (ms < 2000) return "text-bc-warning";
-  if (ms < 10000) return "text-bc-accent";
-  return "text-bc-error";
+  if (ms < 500) return "text-mycel-success";
+  if (ms < 2000) return "text-mycel-warning";
+  if (ms < 10000) return "text-mycel-accent";
+  return "text-mycel-error";
 }
 
 export function durationPillClass(start: number, end?: number): string {
   const ms = (end ?? Date.now()) - start;
-  if (ms < 500) return "bg-bc-success/15 text-bc-success";
-  if (ms < 2000) return "bg-bc-warning/15 text-bc-warning";
-  if (ms < 10000) return "bg-bc-accent/15 text-bc-accent";
-  return "bg-bc-error/15 text-bc-error";
+  if (ms < 500) return "bg-mycel-success/15 text-mycel-success";
+  if (ms < 2000) return "bg-mycel-warning/15 text-mycel-warning";
+  if (ms < 10000) return "bg-mycel-accent/15 text-mycel-accent";
+  return "bg-mycel-error/15 text-mycel-error";
 }
 
 export function stateBadgeClass(state: string): string {
-  if (state === "working") return "bg-bc-success/15 text-bc-success";
-  if (state === "stuck") return "bg-bc-warning/15 text-bc-warning";
-  if (state === "error" || state === "stopped") return "bg-bc-error/15 text-bc-error";
-  return "bg-bc-muted/15 text-bc-muted";
+  if (state === "working") return "bg-mycel-success/15 text-mycel-success";
+  if (state === "stuck") return "bg-mycel-warning/15 text-mycel-warning";
+  if (state === "error" || state === "stopped") return "bg-mycel-error/15 text-mycel-error";
+  return "bg-mycel-muted/15 text-mycel-muted";
 }
 
 export function relativeTime(ts: number): string {

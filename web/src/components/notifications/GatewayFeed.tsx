@@ -20,8 +20,10 @@ import {
   dateKey,
   formatDayLabel,
   parseGitHubCard,
+  parseRSSCard,
+  parseWebhookCard,
 } from "./messageUtils";
-import type { GitHubCard } from "./messageUtils";
+import type { GitHubCard, RSSCard, WebhookCard } from "./messageUtils";
 
 /* ── Helpers ──────────────────────────────────────────────────── */
 
@@ -120,19 +122,19 @@ function FileAttachmentCard({ attachment }: { attachment: FileAttachmentInfo }) 
         padding: "3px 8px",
         marginTop: 4,
         borderRadius: 5,
-        background: "var(--bc-surface-hover, #1a1a1a)",
-        border: "1px solid var(--bc-border, #2a2a2a)",
+        background: "var(--mycel-surface-hover, #1a1a1a)",
+        border: "1px solid var(--mycel-border, #2a2a2a)",
         fontSize: 11,
-        color: "var(--bc-muted, #a0a0a0)",
+        color: "var(--mycel-muted, #a0a0a0)",
         fontFamily: "'JetBrains Mono', monospace",
       }}
     >
-      <span style={{ color: "var(--bc-muted, #6b6b6b)", display: "flex" }}>
+      <span style={{ color: "var(--mycel-muted, #6b6b6b)", display: "flex" }}>
         {iconMap[attachment.icon] ?? iconMap.file}
       </span>
-      <span style={{ color: "var(--bc-text, #e5e5e5)" }}>{attachment.name}</span>
+      <span style={{ color: "var(--mycel-text, #e5e5e5)" }}>{attachment.name}</span>
       {attachment.size && (
-        <span style={{ color: "var(--bc-muted, #6b6b6b)", fontSize: 10 }}>({attachment.size})</span>
+        <span style={{ color: "var(--mycel-muted, #6b6b6b)", fontSize: 10 }}>({attachment.size})</span>
       )}
     </div>
   );
@@ -169,17 +171,40 @@ function DiscordGlyph({ size = 11 }: { size?: number }) {
   );
 }
 
+function WhatsAppGlyph({ size = 11 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" style={{ flexShrink: 0 }}>
+      <circle cx="12" cy="12" r="11" fill="#25D366" />
+      <text x="12" y="16" textAnchor="middle" fill="#fff" fontSize="10" fontWeight="bold">W</text>
+    </svg>
+  );
+}
+
+function RSSGlyph({ size = 11 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" style={{ flexShrink: 0 }}>
+      <circle cx="12" cy="12" r="11" fill="#F78422" />
+      <circle cx="8" cy="16" r="2" fill="#fff" />
+      <path d="M6 12a8 8 0 0 1 8 8" stroke="#fff" strokeWidth="2" fill="none" strokeLinecap="round" />
+      <path d="M6 8a12 12 0 0 1 12 12" stroke="#fff" strokeWidth="2" fill="none" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 const PLATFORM_GLYPHS: Record<string, React.FC<{ size?: number }>> = {
   slack: SlackGlyph,
   telegram: TelegramGlyph,
   discord: DiscordGlyph,
+  whatsapp: WhatsAppGlyph,
+  github: ({ size = 11 }) => <GitHubGlyph size={size} />,
+  rss: RSSGlyph,
 };
 
 /* ── GitHub card renderer ────────────────────────────────────── */
 
 function GitHubGlyph({ size = 11 }: { size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 16 16" fill="currentColor" style={{ flexShrink: 0, color: "var(--bc-muted, #6b6b6b)" }}>
+    <svg width={size} height={size} viewBox="0 0 16 16" fill="currentColor" style={{ flexShrink: 0, color: "var(--mycel-muted, #6b6b6b)" }}>
       <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z" />
     </svg>
   );
@@ -192,7 +217,7 @@ function GitHubCardView({ card }: { card: GitHubCard }) {
       <div
         className="mt-1.5 max-w-lg overflow-hidden"
         style={{
-          background: "var(--bc-surface, #151515)",
+          background: "var(--mycel-surface, #151515)",
           borderRadius: 6,
           borderLeft: "2px solid #3b82f6",
         }}
@@ -203,7 +228,7 @@ function GitHubCardView({ card }: { card: GitHubCard }) {
             padding: "8px 12px 6px",
             gap: 7,
             fontSize: 10.5,
-            color: "var(--bc-muted, #6b6b6b)",
+            color: "var(--mycel-muted, #6b6b6b)",
             fontFamily: "'JetBrains Mono', monospace",
           }}
         >
@@ -214,8 +239,8 @@ function GitHubCardView({ card }: { card: GitHubCard }) {
               fontFamily: "'JetBrains Mono', monospace",
               padding: "1px 5px",
               borderRadius: 3,
-              background: "var(--bc-surface-hover, #1a1a1a)",
-              color: "var(--bc-muted, #a0a0a0)",
+              background: "var(--mycel-surface-hover, #1a1a1a)",
+              color: "var(--mycel-muted, #a0a0a0)",
               textTransform: "uppercase",
               letterSpacing: 0.5,
               fontWeight: 600,
@@ -223,18 +248,18 @@ function GitHubCardView({ card }: { card: GitHubCard }) {
           >
             push
           </span>
-          {card.repo && <span style={{ color: "var(--bc-muted, #6b6b6b)" }}>{card.repo}</span>}
-          {card.branch && <span style={{ color: "var(--bc-muted, #a0a0a0)", fontWeight: 500 }}>{card.branch}</span>}
+          {card.repo && <span style={{ color: "var(--mycel-muted, #6b6b6b)" }}>{card.repo}</span>}
+          {card.branch && <span style={{ color: "var(--mycel-muted, #a0a0a0)", fontWeight: 500 }}>{card.branch}</span>}
         </div>
         <div style={{ padding: "2px 12px 10px" }}>
-          <div style={{ fontSize: 13, fontWeight: 500, color: "var(--bc-text, #e5e5e5)", lineHeight: 1.4 }}>
+          <div style={{ fontSize: 13, fontWeight: 500, color: "var(--mycel-text, #e5e5e5)", lineHeight: 1.4 }}>
             {card.title}
           </div>
           <div
             className="flex flex-wrap"
             style={{
               fontSize: 11,
-              color: "var(--bc-muted, #6b6b6b)",
+              color: "var(--mycel-muted, #6b6b6b)",
               fontFamily: "'JetBrains Mono', monospace",
               marginTop: 4,
               gap: 10,
@@ -263,7 +288,7 @@ function GitHubCardView({ card }: { card: GitHubCard }) {
     <div
       className="mt-1.5 max-w-lg overflow-hidden"
       style={{
-        background: "var(--bc-surface, #151515)",
+        background: "var(--mycel-surface, #151515)",
         borderRadius: 6,
         borderLeft: `2px solid ${stateColor}`,
       }}
@@ -275,7 +300,7 @@ function GitHubCardView({ card }: { card: GitHubCard }) {
           padding: "8px 12px 6px",
           gap: 7,
           fontSize: 10.5,
-          color: "var(--bc-muted, #6b6b6b)",
+          color: "var(--mycel-muted, #6b6b6b)",
           fontFamily: "'JetBrains Mono', monospace",
         }}
       >
@@ -286,8 +311,8 @@ function GitHubCardView({ card }: { card: GitHubCard }) {
             fontFamily: "'JetBrains Mono', monospace",
             padding: "1px 5px",
             borderRadius: 3,
-            background: "var(--bc-surface-hover, #1a1a1a)",
-            color: "var(--bc-muted, #a0a0a0)",
+            background: "var(--mycel-surface-hover, #1a1a1a)",
+            color: "var(--mycel-muted, #a0a0a0)",
             textTransform: "uppercase",
             letterSpacing: 0.5,
             fontWeight: 600,
@@ -295,8 +320,8 @@ function GitHubCardView({ card }: { card: GitHubCard }) {
         >
           {card.type === "pr" ? "pull_request" : card.type}
         </span>
-        {card.repo && <span style={{ color: "var(--bc-muted, #6b6b6b)" }}>{card.repo}</span>}
-        {card.number != null && <span style={{ color: "var(--bc-muted, #a0a0a0)", fontWeight: 500 }}>#{card.number}</span>}
+        {card.repo && <span style={{ color: "var(--mycel-muted, #6b6b6b)" }}>{card.repo}</span>}
+        {card.number != null && <span style={{ color: "var(--mycel-muted, #a0a0a0)", fontWeight: 500 }}>#{card.number}</span>}
         {card.status && (
           <span
             style={{
@@ -317,14 +342,14 @@ function GitHubCardView({ card }: { card: GitHubCard }) {
       </div>
       {/* Card body */}
       <div style={{ padding: "2px 12px 10px" }}>
-        <div style={{ fontSize: 13, fontWeight: 500, color: "var(--bc-text, #e5e5e5)", lineHeight: 1.4 }}>
+        <div style={{ fontSize: 13, fontWeight: 500, color: "var(--mycel-text, #e5e5e5)", lineHeight: 1.4 }}>
           {card.url ? (
             <a
               href={card.url}
               target="_blank"
               rel="noopener noreferrer"
               className="hover:underline"
-              style={{ color: "var(--bc-text, #e5e5e5)", textDecoration: "none" }}
+              style={{ color: "var(--mycel-text, #e5e5e5)", textDecoration: "none" }}
             >
               {card.title}
             </a>
@@ -337,7 +362,7 @@ function GitHubCardView({ card }: { card: GitHubCard }) {
             className="flex flex-wrap"
             style={{
               fontSize: 11,
-              color: "var(--bc-muted, #6b6b6b)",
+              color: "var(--mycel-muted, #6b6b6b)",
               fontFamily: "'JetBrains Mono', monospace",
               marginTop: 4,
               gap: 10,
@@ -353,6 +378,55 @@ function GitHubCardView({ card }: { card: GitHubCard }) {
               <span style={{ color: "#ef4444" }}>-{card.deletions}</span>
             )}
           </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ── RSS card renderer ──────────────────────────────────────── */
+
+function RSSCardView({ card }: { card: RSSCard }) {
+  const pubDateLabel = card.pubDate && !isNaN(new Date(card.pubDate).getTime())
+    ? formatRelativeTime(card.pubDate) : null;
+  return (
+    <div className="mt-1.5 max-w-lg overflow-hidden" style={{ background: "var(--mycel-surface, #151515)", borderRadius: 6, borderLeft: "2px solid #F78422" }}>
+      <div className="flex items-center" style={{ padding: "8px 12px 4px", gap: 7, fontSize: 10.5, color: "var(--mycel-muted, #6b6b6b)", fontFamily: "'JetBrains Mono', monospace" }}>
+        <RSSGlyph size={11} />
+        <span style={{ fontSize: 9.5, padding: "1px 5px", borderRadius: 3, background: "var(--mycel-surface-hover, #1a1a1a)", color: "var(--mycel-muted, #a0a0a0)", textTransform: "uppercase", letterSpacing: 0.5, fontWeight: 600 }}>feed</span>
+        {card.source && <span>{card.source}</span>}
+        {pubDateLabel && <span style={{ marginLeft: "auto" }}>{pubDateLabel}</span>}
+      </div>
+      <div style={{ padding: "4px 12px 10px" }}>
+        <div style={{ fontSize: 13, fontWeight: 500, color: "var(--mycel-text, #e5e5e5)", lineHeight: 1.4 }}>
+          {card.link ? (<a href={card.link} target="_blank" rel="noopener noreferrer" className="hover:underline" style={{ color: "var(--mycel-text, #e5e5e5)", textDecoration: "none" }}>{card.title}</a>) : card.title}
+        </div>
+        {card.description && <div style={{ fontSize: 12, color: "var(--mycel-muted, #a0a0a0)", marginTop: 4, lineHeight: 1.4, maxHeight: 60, overflow: "hidden" }}>{card.description.slice(0, 200)}</div>}
+      </div>
+    </div>
+  );
+}
+
+/* ── Webhook JSON card renderer ────────────────────────────── */
+
+function WebhookCardView({ card }: { card: WebhookCard }) {
+  const [expanded, setExpanded] = useState(false);
+  const preview = useMemo(() => JSON.stringify(card.payload, null, 2), [card.payload]);
+  const short = preview.slice(0, 200);
+  return (
+    <div className="mt-1.5 max-w-lg overflow-hidden" style={{ background: "var(--mycel-surface, #151515)", borderRadius: 6, borderLeft: "2px solid #6B7280" }}>
+      <div className="flex items-center" style={{ padding: "8px 12px 4px", gap: 7, fontSize: 10.5, color: "var(--mycel-muted, #6b6b6b)", fontFamily: "'JetBrains Mono', monospace" }}>
+        {card.event && <span style={{ fontSize: 9.5, padding: "1px 5px", borderRadius: 3, background: "var(--mycel-surface-hover, #1a1a1a)", color: "var(--mycel-muted, #a0a0a0)", textTransform: "uppercase", letterSpacing: 0.5, fontWeight: 600 }}>{card.event}</span>}
+        {card.action && <span style={{ color: "var(--mycel-muted, #a0a0a0)", fontWeight: 500 }}>{card.action}</span>}
+      </div>
+      <div style={{ padding: "4px 12px 10px" }}>
+        <pre style={{ fontSize: 11, color: "var(--mycel-muted, #a0a0a0)", fontFamily: "'JetBrains Mono', monospace", lineHeight: 1.4, whiteSpace: "pre-wrap", wordBreak: "break-all", maxHeight: expanded ? "none" : 80, overflow: "hidden", margin: 0 }}>
+          {expanded ? preview : short}
+        </pre>
+        {preview.length > 200 && (
+          <button type="button" onClick={() => setExpanded((v) => !v)} style={{ fontSize: 10, color: "var(--mycel-accent, #f97316)", background: "none", border: "none", cursor: "pointer", padding: "4px 0 0", fontFamily: "'JetBrains Mono', monospace" }}>
+            {expanded ? "collapse" : "expand JSON..."}
+          </button>
         )}
       </div>
     </div>
@@ -432,8 +506,8 @@ function EmojiPicker({
         top: "100%",
         right: 0,
         marginTop: 4,
-        background: "var(--bc-surface-hover, #1a1a1a)",
-        border: "1px solid var(--bc-border, #222)",
+        background: "var(--mycel-surface-hover, #1a1a1a)",
+        border: "1px solid var(--mycel-border, #222)",
         borderRadius: 8,
         padding: 6,
         display: "grid",
@@ -497,8 +571,8 @@ function MessageActions({
       <div
         className="flex items-center"
         style={{
-          background: "var(--bc-surface-hover, #1a1a1a)",
-          border: "1px solid var(--bc-border, #222)",
+          background: "var(--mycel-surface-hover, #1a1a1a)",
+          border: "1px solid var(--mycel-border, #222)",
           borderRadius: 6,
           padding: "2px 2px",
           gap: 1,
@@ -558,7 +632,7 @@ function MessageActions({
             cursor: "pointer",
             background: "none",
             border: "none",
-            color: "var(--bc-muted, #6b6b6b)",
+            color: "var(--mycel-muted, #6b6b6b)",
           }}
         >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -583,7 +657,7 @@ function MessageActions({
             cursor: "pointer",
             background: "none",
             border: "none",
-            color: "var(--bc-muted, #6b6b6b)",
+            color: "var(--mycel-muted, #6b6b6b)",
           }}
         >
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -608,7 +682,7 @@ function MessageActions({
             cursor: "pointer",
             background: "none",
             border: "none",
-            color: "var(--bc-muted, #6b6b6b)",
+            color: "var(--mycel-muted, #6b6b6b)",
             fontSize: 16,
             lineHeight: 1,
           }}
@@ -648,9 +722,9 @@ function ReactionRow({
             borderRadius: 999,
             fontSize: 12,
             lineHeight: "18px",
-            background: active ? "rgba(249,115,22,0.1)" : "var(--bc-surface-hover, #1a1a1a)",
+            background: active ? "rgba(249,115,22,0.1)" : "var(--mycel-surface-hover, #1a1a1a)",
             border: `1px solid ${active ? "rgba(249,115,22,0.5)" : "#222"}`,
-            color: active ? "var(--bc-accent, #f97316)" : "var(--bc-muted, #a0a0a0)",
+            color: active ? "var(--mycel-accent, #f97316)" : "var(--mycel-muted, #a0a0a0)",
             cursor: "pointer",
             fontVariantNumeric: "tabular-nums",
           }}
@@ -1030,7 +1104,7 @@ export function GatewayFeed({
             width: 22,
             height: 22,
             borderRadius: 5,
-            color: "var(--bc-muted, #6b6b6b)",
+            color: "var(--mycel-muted, #6b6b6b)",
             cursor: "pointer",
             background: "none",
             border: "none",
@@ -1041,18 +1115,18 @@ export function GatewayFeed({
             <polyline points="15 18 9 12 15 6" />
           </svg>
         </button>
-        <span style={{ color: "var(--bc-muted, #6b6b6b)", fontSize: 13 }}>#</span>
-        <span style={{ fontSize: 13, fontWeight: 600, color: "var(--bc-text, #e5e5e5)" }}>{channelLabel}</span>
+        <span style={{ color: "var(--mycel-muted, #6b6b6b)", fontSize: 13 }}>#</span>
+        <span style={{ fontSize: 13, fontWeight: 600, color: "var(--mycel-text, #e5e5e5)" }}>{channelLabel}</span>
         {platform && PlatformGlyph && (
           <div
             className="flex items-center"
             style={{
               gap: 4,
               padding: "1px 6px",
-              background: "var(--bc-surface-hover, #1a1a1a)",
+              background: "var(--mycel-surface-hover, #1a1a1a)",
               borderRadius: 4,
               fontSize: 10,
-              color: "var(--bc-muted, #a0a0a0)",
+              color: "var(--mycel-muted, #a0a0a0)",
               fontWeight: 500,
             }}
           >
@@ -1062,7 +1136,7 @@ export function GatewayFeed({
         )}
         <span
           style={{
-            color: "var(--bc-muted, #6b6b6b)",
+            color: "var(--mycel-muted, #6b6b6b)",
             fontSize: 10.5,
             fontFamily: "'JetBrains Mono', monospace",
           }}
@@ -1088,8 +1162,8 @@ export function GatewayFeed({
               padding: "3px 8px 3px 6px",
               borderRadius: 5,
               fontSize: 10.5,
-              color: showAgents ? "var(--bc-text, #e5e5e5)" : "var(--bc-muted, #a0a0a0)",
-              background: showAgents ? "var(--bc-surface-hover, #212121)" : "var(--bc-surface-hover, #1a1a1a)",
+              color: showAgents ? "var(--mycel-text, #e5e5e5)" : "var(--mycel-muted, #a0a0a0)",
+              background: showAgents ? "var(--mycel-surface-hover, #212121)" : "var(--mycel-surface-hover, #1a1a1a)",
               cursor: "pointer",
               fontFamily: "'JetBrains Mono', monospace",
               userSelect: "none",
@@ -1110,10 +1184,10 @@ export function GatewayFeed({
                       borderRadius: 3,
                       background: agentColor(a.name),
                       marginLeft: i === 0 ? 0 : -4,
-                      border: "1px solid var(--bc-bg, #0d0d0d)",
+                      border: "1px solid var(--mycel-bg, #0d0d0d)",
                       fontSize: 7.5,
                       fontWeight: 700,
-                      color: "var(--bc-bg, #0d0d0d)",
+                      color: "var(--mycel-bg, #0d0d0d)",
                       fontFamily: "'JetBrains Mono', monospace",
                     }}
                   >
@@ -1126,7 +1200,7 @@ export function GatewayFeed({
             {subscribedAgents.some(a => a.state === "running" || a.state === "working") && (
               <span style={{ width: 5, height: 5, borderRadius: 999, background: "#22c55e", boxShadow: "0 0 5px rgba(34,197,94,0.6)" }} />
             )}
-            <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: "var(--bc-muted, #6b6b6b)" }}>
+            <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: "var(--mycel-muted, #6b6b6b)" }}>
               <polyline points="6 9 12 15 18 9" />
             </svg>
           </button>
@@ -1141,7 +1215,7 @@ export function GatewayFeed({
             width: 26,
             height: 26,
             borderRadius: 6,
-            color: searchOpen ? "var(--bc-accent, #f97316)" : "var(--bc-muted, #6b6b6b)",
+            color: searchOpen ? "var(--mycel-accent, #f97316)" : "var(--mycel-muted, #6b6b6b)",
             cursor: "pointer",
             background: searchOpen ? "rgba(249,115,22,0.1)" : "none",
             border: "none",
@@ -1163,7 +1237,7 @@ export function GatewayFeed({
               width: 26,
               height: 26,
               borderRadius: 6,
-              color: filterAgent ? "var(--bc-accent, #f97316)" : filterOpen ? "var(--bc-text, #e5e5e5)" : "var(--bc-muted, #6b6b6b)",
+              color: filterAgent ? "var(--mycel-accent, #f97316)" : filterOpen ? "var(--mycel-text, #e5e5e5)" : "var(--mycel-muted, #6b6b6b)",
               cursor: "pointer",
               background: filterAgent ? "rgba(249,115,22,0.1)" : "none",
               border: "none",
@@ -1177,14 +1251,14 @@ export function GatewayFeed({
         </div>
       </div>
     ),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
     [showAgents, searchOpen, filterOpen, filterAgent, liveCount, subscribedAgents, availableAgents],
   );
 
   useHeaderSlot({ title: headerTitle, actions: headerActions });
 
   return (
-    <div className="flex flex-col h-full relative" style={{ background: "var(--bc-bg, #0d0d0d)" }}>
+    <div className="flex flex-col h-full relative" style={{ background: "var(--mycel-bg, #0d0d0d)" }}>
       {/* ── Agents popover (overlays feed) ────────────────────── */}
       {showAgents && (
         <div
@@ -1194,9 +1268,9 @@ export function GatewayFeed({
             top: 4,
             right: 16,
             width: 420,
-            background: "var(--bc-surface-hover, #1a1a1a)",
+            background: "var(--mycel-surface-hover, #1a1a1a)",
             borderRadius: 10,
-            boxShadow: "0 20px 60px rgba(0,0,0,0.6), 0 0 0 1px var(--bc-border, #2a2a2a)",
+            boxShadow: "0 20px 60px rgba(0,0,0,0.6), 0 0 0 1px var(--mycel-border, #2a2a2a)",
             zIndex: 50,
             overflow: "hidden",
             display: "flex",
@@ -1209,10 +1283,10 @@ export function GatewayFeed({
           {/* Popover header */}
           <div
             className="flex items-center"
-            style={{ padding: "12px 14px 10px", borderBottom: "1px solid var(--bc-border, #222222)", gap: 8 }}
+            style={{ padding: "12px 14px 10px", borderBottom: "1px solid var(--mycel-border, #222222)", gap: 8 }}
           >
-            <span style={{ fontSize: 13, fontWeight: 600, color: "var(--bc-text, #e5e5e5)" }}>Subscribed agents</span>
-            <span className="flex items-center ml-auto" style={{ gap: 5, fontSize: 11, color: "var(--bc-muted, #6b6b6b)", fontFamily: "'JetBrains Mono', monospace" }}>
+            <span style={{ fontSize: 13, fontWeight: 600, color: "var(--mycel-text, #e5e5e5)" }}>Subscribed agents</span>
+            <span className="flex items-center ml-auto" style={{ gap: 5, fontSize: 11, color: "var(--mycel-muted, #6b6b6b)", fontFamily: "'JetBrains Mono', monospace" }}>
               {subscribedAgents.some(a => a.state === "running" || a.state === "working") && (
                 <span style={{ width: 6, height: 6, borderRadius: 999, background: "#22c55e", boxShadow: "0 0 5px rgba(34,197,94,0.6)" }} />
               )}
@@ -1225,22 +1299,22 @@ export function GatewayFeed({
             <div className="p-3 space-y-3 animate-pulse">
               {[...Array(4)].map((_, i) => (
                 <div key={i} className="flex items-center gap-2">
-                  <div className="w-7 h-7 rounded-md" style={{ background: "var(--bc-surface-hover, #212121)" }} />
-                  <div className="h-3 rounded" style={{ background: "var(--bc-surface-hover, #212121)", width: `${50 + i * 12}%` }} />
+                  <div className="w-7 h-7 rounded-md" style={{ background: "var(--mycel-surface-hover, #212121)" }} />
+                  <div className="h-3 rounded" style={{ background: "var(--mycel-surface-hover, #212121)", width: `${50 + i * 12}%` }} />
                 </div>
               ))}
             </div>
           )}
 
           {/* Agent list */}
-          <div className="flex-1 overflow-auto" style={{ padding: "4px 0 8px", scrollbarWidth: "thin", scrollbarColor: "var(--bc-border, #2a2a2a) transparent" }}>
+          <div className="flex-1 overflow-auto" style={{ padding: "4px 0 8px", scrollbarWidth: "thin", scrollbarColor: "var(--mycel-border, #2a2a2a) transparent" }}>
             <AnimatePresence>
               {subscribedAgents.length > 0 && (
                 <div>
-                  <div className="flex items-center" style={{ padding: "10px 14px 4px", fontSize: 10, color: "var(--bc-muted, #6b6b6b)", textTransform: "uppercase", letterSpacing: 0.6, fontWeight: 600, gap: 6 }}>
+                  <div className="flex items-center" style={{ padding: "10px 14px 4px", fontSize: 10, color: "var(--mycel-muted, #6b6b6b)", textTransform: "uppercase", letterSpacing: 0.6, fontWeight: 600, gap: 6 }}>
                     <span style={{ width: 5, height: 5, borderRadius: 999, background: "#22c55e" }} />
                     <span>Listening</span>
-                    <span className="ml-auto" style={{ color: "var(--bc-muted, #4a4a4a)", fontFamily: "'JetBrains Mono', monospace", fontWeight: 400 }}>{subscribedAgents.length}</span>
+                    <span className="ml-auto" style={{ color: "var(--mycel-muted, #4a4a4a)", fontFamily: "'JetBrains Mono', monospace", fontWeight: 400 }}>{subscribedAgents.length}</span>
                   </div>
                   {subscribedAgents.map((agent) => {
                     const sub = subMap.get(agent.name);
@@ -1249,22 +1323,22 @@ export function GatewayFeed({
                     return (
                       <motion.div key={agent.name} layout initial={{ opacity: 0, x: 8 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -8 }} transition={{ duration: 0.12 }} className="flex" style={{ gap: 10, padding: "8px 14px", cursor: "pointer" }}>
                         <div className="relative" style={{ width: 28, height: 28, minWidth: 28 }}>
-                          <span className="flex items-center justify-center" style={{ width: 28, height: 28, borderRadius: 6, background: color, color: "var(--bc-bg, #0d0d0d)", fontWeight: 700, fontSize: 10.5, fontFamily: "'JetBrains Mono', monospace" }}>
+                          <span className="flex items-center justify-center" style={{ width: 28, height: 28, borderRadius: 6, background: color, color: "var(--mycel-bg, #0d0d0d)", fontWeight: 700, fontSize: 10.5, fontFamily: "'JetBrains Mono', monospace" }}>
                             {agent.name.slice(0, 2).toUpperCase()}
                           </span>
-                          <span style={{ position: "absolute", bottom: -1, right: -1, width: 8, height: 8, borderRadius: 999, background: isOnline ? "#22c55e" : agent.state === "idle" ? "#f59e0b" : "var(--bc-muted, #4a4a4a)", border: "2px solid var(--bc-surface-hover, #1a1a1a)", boxSizing: "content-box" }} />
+                          <span style={{ position: "absolute", bottom: -1, right: -1, width: 8, height: 8, borderRadius: 999, background: isOnline ? "#22c55e" : agent.state === "idle" ? "#f59e0b" : "var(--mycel-muted, #4a4a4a)", border: "2px solid var(--mycel-surface-hover, #1a1a1a)", boxSizing: "content-box" }} />
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-baseline" style={{ gap: 6 }}>
-                            <span style={{ fontSize: 12.5, fontWeight: 600, color: "var(--bc-text, #e5e5e5)", fontFamily: "'JetBrains Mono', monospace" }}>{agent.name}</span>
-                            <span style={{ fontSize: 10, color: "var(--bc-muted, #6b6b6b)", fontFamily: "'JetBrains Mono', monospace", padding: "0 5px", background: "var(--bc-surface-hover, #212121)", borderRadius: 3, lineHeight: "14px" }}>{agent.role}</span>
-                            <span className="ml-auto" style={{ fontSize: 10.5, color: "var(--bc-muted, #6b6b6b)", fontFamily: "'JetBrains Mono', monospace" }}>{agent.state}</span>
+                            <span style={{ fontSize: 12.5, fontWeight: 600, color: "var(--mycel-text, #e5e5e5)", fontFamily: "'JetBrains Mono', monospace" }}>{agent.name}</span>
+                            <span style={{ fontSize: 10, color: "var(--mycel-muted, #6b6b6b)", fontFamily: "'JetBrains Mono', monospace", padding: "0 5px", background: "var(--mycel-surface-hover, #212121)", borderRadius: 3, lineHeight: "14px" }}>{agent.role}</span>
+                            <span className="ml-auto" style={{ fontSize: 10.5, color: "var(--mycel-muted, #6b6b6b)", fontFamily: "'JetBrains Mono', monospace" }}>{agent.state}</span>
                           </div>
                           <div className="flex items-center mt-1" style={{ gap: 6 }}>
-                            <button type="button" onClick={() => handleToggleMention(agent.name, sub?.mention_only ?? false)} disabled={agentLoading !== null} className="transition-all" style={{ fontSize: 9.5, padding: "1px 6px", borderRadius: 3, border: sub?.mention_only ? "1px solid rgba(249,115,22,0.3)" : "1px solid var(--bc-border, #2a2a2a)", background: sub?.mention_only ? "rgba(249,115,22,0.08)" : "transparent", color: sub?.mention_only ? "var(--bc-accent, #f97316)" : "var(--bc-muted, #6b6b6b)", cursor: agentLoading === agent.name ? "wait" : "pointer", fontFamily: "'JetBrains Mono', monospace" }}>
+                            <button type="button" onClick={() => handleToggleMention(agent.name, sub?.mention_only ?? false)} disabled={agentLoading !== null} className="transition-all" style={{ fontSize: 9.5, padding: "1px 6px", borderRadius: 3, border: sub?.mention_only ? "1px solid rgba(249,115,22,0.3)" : "1px solid var(--mycel-border, #2a2a2a)", background: sub?.mention_only ? "rgba(249,115,22,0.08)" : "transparent", color: sub?.mention_only ? "var(--mycel-accent, #f97316)" : "var(--mycel-muted, #6b6b6b)", cursor: agentLoading === agent.name ? "wait" : "pointer", fontFamily: "'JetBrains Mono', monospace" }}>
                               {agentLoading === agent.name ? <span className="inline-block w-3 h-3 border border-current border-t-transparent rounded-full animate-spin" /> : sub?.mention_only ? "@ mentions" : "all msgs"}
                             </button>
-                            <button type="button" onClick={() => handleUnsubscribe(agent.name)} disabled={agentLoading !== null} style={{ fontSize: 9.5, color: "var(--bc-muted, #4a4a4a)", cursor: agentLoading === agent.name ? "wait" : "pointer", background: "none", border: "none", marginLeft: "auto", fontFamily: "'JetBrains Mono', monospace" }} className="hover:text-red-400 transition-colors">
+                            <button type="button" onClick={() => handleUnsubscribe(agent.name)} disabled={agentLoading !== null} style={{ fontSize: 9.5, color: "var(--mycel-muted, #4a4a4a)", cursor: agentLoading === agent.name ? "wait" : "pointer", background: "none", border: "none", marginLeft: "auto", fontFamily: "'JetBrains Mono', monospace" }} className="hover:text-red-400 transition-colors">
                               {agentLoading === agent.name ? <span className="inline-block w-2.5 h-2.5 border border-current border-t-transparent rounded-full animate-spin" /> : "remove"}
                             </button>
                           </div>
@@ -1275,14 +1349,14 @@ export function GatewayFeed({
                 </div>
               )}
               {subscribedAgents.length > 0 && availableAgents.length > 0 && (
-                <div style={{ margin: "4px 14px", borderTop: "1px solid var(--bc-border, #222222)" }} />
+                <div style={{ margin: "4px 14px", borderTop: "1px solid var(--mycel-border, #222222)" }} />
               )}
               {availableAgents.length > 0 && (
                 <div>
-                  <div className="flex items-center" style={{ padding: "10px 14px 4px", fontSize: 10, color: "var(--bc-muted, #6b6b6b)", textTransform: "uppercase", letterSpacing: 0.6, fontWeight: 600, gap: 6 }}>
-                    <span style={{ width: 5, height: 5, borderRadius: 999, background: "var(--bc-muted, #4a4a4a)" }} />
+                  <div className="flex items-center" style={{ padding: "10px 14px 4px", fontSize: 10, color: "var(--mycel-muted, #6b6b6b)", textTransform: "uppercase", letterSpacing: 0.6, fontWeight: 600, gap: 6 }}>
+                    <span style={{ width: 5, height: 5, borderRadius: 999, background: "var(--mycel-muted, #4a4a4a)" }} />
                     <span>Available</span>
-                    <span className="ml-auto" style={{ color: "var(--bc-muted, #4a4a4a)", fontFamily: "'JetBrains Mono', monospace", fontWeight: 400 }}>{availableAgents.length}</span>
+                    <span className="ml-auto" style={{ color: "var(--mycel-muted, #4a4a4a)", fontFamily: "'JetBrains Mono', monospace", fontWeight: 400 }}>{availableAgents.length}</span>
                   </div>
                   {availableAgents.map((agent) => {
                     const isOnline = agent.state === "running" || agent.state === "working";
@@ -1293,15 +1367,15 @@ export function GatewayFeed({
                           <span className="flex items-center justify-center" style={{ width: 28, height: 28, borderRadius: 6, background: `${color}40`, color: color, fontWeight: 700, fontSize: 10.5, fontFamily: "'JetBrains Mono', monospace" }}>
                             {agent.name.slice(0, 2).toUpperCase()}
                           </span>
-                          <span style={{ position: "absolute", bottom: -1, right: -1, width: 8, height: 8, borderRadius: 999, background: isOnline ? "#22c55e" : agent.state === "idle" ? "#f59e0b" : "var(--bc-muted, #4a4a4a)", border: "2px solid var(--bc-surface-hover, #1a1a1a)", boxSizing: "content-box" }} />
+                          <span style={{ position: "absolute", bottom: -1, right: -1, width: 8, height: 8, borderRadius: 999, background: isOnline ? "#22c55e" : agent.state === "idle" ? "#f59e0b" : "var(--mycel-muted, #4a4a4a)", border: "2px solid var(--mycel-surface-hover, #1a1a1a)", boxSizing: "content-box" }} />
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-baseline" style={{ gap: 6 }}>
-                            <span style={{ fontSize: 12.5, fontWeight: 600, color: "var(--bc-muted, #a0a0a0)", fontFamily: "'JetBrains Mono', monospace" }}>{agent.name}</span>
-                            <span style={{ fontSize: 10, color: "var(--bc-muted, #6b6b6b)", fontFamily: "'JetBrains Mono', monospace", padding: "0 5px", background: "var(--bc-surface-hover, #212121)", borderRadius: 3, lineHeight: "14px" }}>{agent.role}</span>
+                            <span style={{ fontSize: 12.5, fontWeight: 600, color: "var(--mycel-muted, #a0a0a0)", fontFamily: "'JetBrains Mono', monospace" }}>{agent.name}</span>
+                            <span style={{ fontSize: 10, color: "var(--mycel-muted, #6b6b6b)", fontFamily: "'JetBrains Mono', monospace", padding: "0 5px", background: "var(--mycel-surface-hover, #212121)", borderRadius: 3, lineHeight: "14px" }}>{agent.role}</span>
                           </div>
                         </div>
-                        <button type="button" onClick={() => handleSubscribe(agent.name)} disabled={agentLoading !== null} style={{ fontSize: 9.5, color: "var(--bc-muted, #4a4a4a)", cursor: agentLoading === agent.name ? "wait" : "pointer", background: "none", border: "none", fontFamily: "'JetBrains Mono', monospace" }} className="hover:text-orange-400 transition-colors">
+                        <button type="button" onClick={() => handleSubscribe(agent.name)} disabled={agentLoading !== null} style={{ fontSize: 9.5, color: "var(--mycel-muted, #4a4a4a)", cursor: agentLoading === agent.name ? "wait" : "pointer", background: "none", border: "none", fontFamily: "'JetBrains Mono', monospace" }} className="hover:text-orange-400 transition-colors">
                           {agentLoading === agent.name ? <span className="inline-block w-2.5 h-2.5 border border-current border-t-transparent rounded-full animate-spin" /> : "+ add"}
                         </button>
                       </motion.div>
@@ -1311,20 +1385,10 @@ export function GatewayFeed({
               )}
             </AnimatePresence>
             {agents.length === 0 && !popoverLoading && (
-              <div className="p-6 text-center" style={{ fontSize: 11, color: "var(--bc-muted, #4a4a4a)" }}>No agents</div>
+              <div className="p-6 text-center" style={{ fontSize: 11, color: "var(--mycel-muted, #4a4a4a)" }}>No agents</div>
             )}
           </div>
 
-          {/* Popover footer */}
-          <div className="flex" style={{ padding: "8px 10px", borderTop: "1px solid var(--bc-border, #222222)", gap: 6, background: "var(--bc-surface-hover, #1a1a1a)" }}>
-            <button type="button" className="flex items-center justify-center flex-1" style={{ padding: "5px 8px", borderRadius: 5, background: "var(--bc-surface-hover, #212121)", color: "var(--bc-muted, #a0a0a0)", fontSize: 11, fontWeight: 500, cursor: "pointer", border: "none", gap: 5 }}>
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="6" cy="6" r="2.5" /><circle cx="18" cy="18" r="2.5" /><circle cx="18" cy="6" r="2.5" />
-                <path d="M6 8v8a2 2 0 0 0 2 2h7" /><path d="M18 8.5v7" />
-              </svg>
-              <span>Routing rules</span>
-            </button>
-          </div>
         </div>
       )}
 
@@ -1336,25 +1400,25 @@ export function GatewayFeed({
             top: 4,
             right: 60,
             width: 220,
-            background: "var(--bc-surface-hover, #1a1a1a)",
+            background: "var(--mycel-surface-hover, #1a1a1a)",
             borderRadius: 8,
-            boxShadow: "0 12px 40px rgba(0,0,0,0.5), 0 0 0 1px var(--bc-border, #2a2a2a)",
+            boxShadow: "0 12px 40px rgba(0,0,0,0.5), 0 0 0 1px var(--mycel-border, #2a2a2a)",
             zIndex: 50,
             overflow: "hidden",
             animation: "fadeIn 120ms ease-out",
           }}
           onClick={(e) => e.stopPropagation()}
         >
-          <div style={{ padding: "10px 12px 6px", fontSize: 11, fontWeight: 600, color: "var(--bc-muted, #a0a0a0)", textTransform: "uppercase", letterSpacing: 0.5 }}>
+          <div style={{ padding: "10px 12px 6px", fontSize: 11, fontWeight: 600, color: "var(--mycel-muted, #a0a0a0)", textTransform: "uppercase", letterSpacing: 0.5 }}>
             Filter by sender
           </div>
-          <div style={{ maxHeight: 200, overflowY: "auto", padding: "0 6px 8px", scrollbarWidth: "thin", scrollbarColor: "var(--bc-border, #2a2a2a) transparent" }}>
+          <div style={{ maxHeight: 200, overflowY: "auto", padding: "0 6px 8px", scrollbarWidth: "thin", scrollbarColor: "var(--mycel-border, #2a2a2a) transparent" }}>
             <button
               type="button"
               onClick={() => { setFilterAgent(null); setFilterOpen(false); }}
               style={{
                 display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "6px 8px", borderRadius: 5,
-                fontSize: 12, color: !filterAgent ? "var(--bc-accent, #f97316)" : "var(--bc-muted, #a0a0a0)", background: !filterAgent ? "rgba(249,115,22,0.08)" : "transparent",
+                fontSize: 12, color: !filterAgent ? "var(--mycel-accent, #f97316)" : "var(--mycel-muted, #a0a0a0)", background: !filterAgent ? "rgba(249,115,22,0.08)" : "transparent",
                 border: "none", cursor: "pointer", textAlign: "left",
               }}
             >
@@ -1367,14 +1431,14 @@ export function GatewayFeed({
                 onClick={() => { setFilterAgent(sender); setFilterOpen(false); }}
                 style={{
                   display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "6px 8px", borderRadius: 5,
-                  fontSize: 12, color: filterAgent === sender ? "var(--bc-accent, #f97316)" : "var(--bc-muted, #a0a0a0)", background: filterAgent === sender ? "rgba(249,115,22,0.08)" : "transparent",
+                  fontSize: 12, color: filterAgent === sender ? "var(--mycel-accent, #f97316)" : "var(--mycel-muted, #a0a0a0)", background: filterAgent === sender ? "rgba(249,115,22,0.08)" : "transparent",
                   border: "none", cursor: "pointer", textAlign: "left",
                   fontFamily: "'JetBrains Mono', monospace",
                 }}
               >
                 <span
                   className="flex items-center justify-center shrink-0"
-                  style={{ width: 18, height: 18, borderRadius: 4, background: agentColor(sender), color: "var(--bc-bg, #0d0d0d)", fontWeight: 700, fontSize: 8, fontFamily: "'JetBrains Mono', monospace" }}
+                  style={{ width: 18, height: 18, borderRadius: 4, background: agentColor(sender), color: "var(--mycel-bg, #0d0d0d)", fontWeight: 700, fontSize: 8, fontFamily: "'JetBrains Mono', monospace" }}
                 >
                   {senderInitials(sender)}
                 </span>
@@ -1391,12 +1455,12 @@ export function GatewayFeed({
           className="shrink-0 flex items-center"
           style={{
             padding: "6px 16px",
-            borderBottom: "1px solid var(--bc-border, #222222)",
-            background: "var(--bc-surface, #151515)",
+            borderBottom: "1px solid var(--mycel-border, #222222)",
+            background: "var(--mycel-surface, #151515)",
             gap: 8,
           }}
         >
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--bc-muted, #6b6b6b)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--mycel-muted, #6b6b6b)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
             <circle cx="11" cy="11" r="7" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
           </svg>
           <input
@@ -1411,20 +1475,20 @@ export function GatewayFeed({
               background: "none",
               border: "none",
               outline: "none",
-              color: "var(--bc-text, #e5e5e5)",
+              color: "var(--mycel-text, #e5e5e5)",
               fontSize: 12,
               fontFamily: "'JetBrains Mono', monospace",
             }}
           />
           {searchQuery && (
-            <span style={{ fontSize: 10, color: "var(--bc-muted, #6b6b6b)", fontFamily: "'JetBrains Mono', monospace", whiteSpace: "nowrap" }}>
+            <span style={{ fontSize: 10, color: "var(--mycel-muted, #6b6b6b)", fontFamily: "'JetBrains Mono', monospace", whiteSpace: "nowrap" }}>
               {filteredMessages.length} result{filteredMessages.length !== 1 ? "s" : ""}
             </span>
           )}
           <button
             type="button"
             onClick={() => { setSearchOpen(false); setSearchQuery(""); }}
-            style={{ background: "none", border: "none", color: "var(--bc-muted, #6b6b6b)", cursor: "pointer", padding: 2 }}
+            style={{ background: "none", border: "none", color: "var(--mycel-muted, #6b6b6b)", cursor: "pointer", padding: 2 }}
           >
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
@@ -1439,19 +1503,19 @@ export function GatewayFeed({
           className="shrink-0 flex items-center"
           style={{
             padding: "4px 16px",
-            borderBottom: "1px solid var(--bc-border, #222222)",
-            background: "var(--bc-surface, #151515)",
+            borderBottom: "1px solid var(--mycel-border, #222222)",
+            background: "var(--mycel-surface, #151515)",
             gap: 6,
             fontSize: 11,
-            color: "var(--bc-muted, #a0a0a0)",
+            color: "var(--mycel-muted, #a0a0a0)",
           }}
         >
-          <span style={{ color: "var(--bc-muted, #6b6b6b)" }}>Filtered by:</span>
-          <span style={{ color: "var(--bc-accent, #f97316)", fontFamily: "'JetBrains Mono', monospace" }}>{cleanSender(filterAgent)}</span>
+          <span style={{ color: "var(--mycel-muted, #6b6b6b)" }}>Filtered by:</span>
+          <span style={{ color: "var(--mycel-accent, #f97316)", fontFamily: "'JetBrains Mono', monospace" }}>{cleanSender(filterAgent)}</span>
           <button
             type="button"
             onClick={() => setFilterAgent(null)}
-            style={{ background: "none", border: "none", color: "var(--bc-muted, #6b6b6b)", cursor: "pointer", padding: 2, marginLeft: "auto" }}
+            style={{ background: "none", border: "none", color: "var(--mycel-muted, #6b6b6b)", cursor: "pointer", padding: 2, marginLeft: "auto" }}
             title="Clear filter"
           >
             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -1468,14 +1532,14 @@ export function GatewayFeed({
           style={{
             padding: "10px 18px",
             fontSize: 12,
-            color: "var(--bc-muted, #6b6b6b)",
+            color: "var(--mycel-muted, #6b6b6b)",
             lineHeight: 1.55,
-            borderBottom: "1px solid var(--bc-border, #222222)",
-            background: "var(--bc-surface, #151515)",
+            borderBottom: "1px solid var(--mycel-border, #222222)",
+            background: "var(--mycel-surface, #151515)",
             gap: 10,
           }}
         >
-          <svg width="11" height="11" viewBox="0 0 24 24" fill="var(--bc-accent, #f97316)" stroke="none" style={{ marginTop: 1, flexShrink: 0 }}>
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="var(--mycel-accent, #f97316)" stroke="none" style={{ marginTop: 1, flexShrink: 0 }}>
             <path d="M12 17v5M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z" />
           </svg>
           <span style={{ flex: 1 }}>
@@ -1483,21 +1547,21 @@ export function GatewayFeed({
               ? channel.description
               : (<>
                   Coordination feed for{" "}
-                  <span style={{ color: "var(--bc-muted, #a0a0a0)", fontFamily: "'JetBrains Mono', monospace" }}>
+                  <span style={{ color: "var(--mycel-muted, #a0a0a0)", fontFamily: "'JetBrains Mono', monospace" }}>
                     #{channelLabel}
                   </span>
-                  . Agents posting here are routed via your{" "}
+                  . Agents posting here are managed via{" "}
                   <span
-                    style={{ color: "var(--bc-accent, #f97316)", cursor: "pointer" }}
+                    style={{ color: "var(--mycel-accent, #f97316)", cursor: "pointer" }}
                     onClick={() => setShowAgents(true)}
                   >
-                    routing rules
+                    agent subscriptions
                   </span>
                   .
                   {platform && (
                     <>
                       {" "}Attachments are raw{" "}
-                      <span style={{ color: "var(--bc-muted, #a0a0a0)", fontFamily: "'JetBrains Mono', monospace" }}>
+                      <span style={{ color: "var(--mycel-muted, #a0a0a0)", fontFamily: "'JetBrains Mono', monospace" }}>
                         {platform}
                       </span>{" "}
                       webhook payloads.
@@ -1512,7 +1576,7 @@ export function GatewayFeed({
             style={{
               background: "none",
               border: "none",
-              color: "var(--bc-muted, #4a4a4a)",
+              color: "var(--mycel-muted, #4a4a4a)",
               cursor: "pointer",
               padding: 2,
               flexShrink: 0,
@@ -1534,7 +1598,7 @@ export function GatewayFeed({
           className="absolute inset-0 overflow-auto"
           style={{
             scrollbarWidth: "thin",
-            scrollbarColor: "var(--bc-border, #2a2a2a) transparent",
+            scrollbarColor: "var(--mycel-border, #2a2a2a) transparent",
           }}
         >
           <div style={{ padding: "14px 0 8px", display: "flex", flexDirection: "column", marginTop: "auto" }}>
@@ -1542,13 +1606,13 @@ export function GatewayFeed({
               <div className="space-y-4 py-4 px-5 animate-pulse">
                 {[...Array(5)].map((_, i) => (
                   <div key={i} className="flex items-start gap-3">
-                    <div className="w-7 h-7 rounded-md flex-shrink-0" style={{ background: "var(--bc-surface-hover, #212121)" }} />
+                    <div className="w-7 h-7 rounded-md flex-shrink-0" style={{ background: "var(--mycel-surface-hover, #212121)" }} />
                     <div className="flex-1 space-y-2">
                       <div className="flex items-center gap-2">
-                        <div className="h-3 w-20 rounded" style={{ background: "var(--bc-surface-hover, #1a1a1a)" }} />
-                        <div className="h-2 w-12 rounded" style={{ background: "var(--bc-surface, #151515)" }} />
+                        <div className="h-3 w-20 rounded" style={{ background: "var(--mycel-surface-hover, #1a1a1a)" }} />
+                        <div className="h-2 w-12 rounded" style={{ background: "var(--mycel-surface, #151515)" }} />
                       </div>
-                      <div className="h-3 rounded" style={{ background: "var(--bc-surface, #151515)", width: `${60 + (i * 7) % 30}%` }} />
+                      <div className="h-3 rounded" style={{ background: "var(--mycel-surface, #151515)", width: `${60 + (i * 7) % 30}%` }} />
                     </div>
                   </div>
                 ))}
@@ -1556,14 +1620,14 @@ export function GatewayFeed({
             )}
             {!initialLoading && messages.length === 0 && (
               <div className="flex flex-col items-center justify-center py-24 text-center">
-                <svg width="32" height="32" viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="1.2" style={{ color: "var(--bc-muted, #4a4a4a)" }} className="mb-4">
+                <svg width="32" height="32" viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="1.2" style={{ color: "var(--mycel-muted, #4a4a4a)" }} className="mb-4">
                   <path d="M4 16h6m12 0h6M16 4v6m0 12v6" strokeLinecap="round" />
                   <circle cx="16" cy="16" r="3" />
                 </svg>
-                <h3 style={{ fontSize: 14, fontWeight: 500, color: "var(--bc-muted, #6b6b6b)", marginBottom: 4 }}>
+                <h3 style={{ fontSize: 14, fontWeight: 500, color: "var(--mycel-muted, #6b6b6b)", marginBottom: 4 }}>
                   Waiting for messages
                 </h3>
-                <p style={{ fontSize: 12, color: "var(--bc-muted, #4a4a4a)" }}>
+                <p style={{ fontSize: 12, color: "var(--mycel-muted, #4a4a4a)" }}>
                   Activity from {platform ?? "this channel"} will stream here in real-time.
                 </p>
               </div>
@@ -1572,28 +1636,28 @@ export function GatewayFeed({
             {/* Beginning of history */}
             {!hasMore && messages.length > 0 && (
               <div className="flex items-center py-6 px-5" style={{ gap: 10 }}>
-                <div className="flex-1" style={{ height: 1, background: "var(--bc-border, #222222)" }} />
+                <div className="flex-1" style={{ height: 1, background: "var(--mycel-border, #222222)" }} />
                 <span
                   style={{
                     fontSize: 11,
                     fontWeight: 600,
-                    color: "var(--bc-muted, #a0a0a0)",
-                    background: "var(--bc-surface-hover, #1a1a1a)",
+                    color: "var(--mycel-muted, #a0a0a0)",
+                    background: "var(--mycel-surface-hover, #1a1a1a)",
                     padding: "3px 10px",
                     borderRadius: 999,
                   }}
                 >
                   Beginning of history
                 </span>
-                <div className="flex-1" style={{ height: 1, background: "var(--bc-border, #222222)" }} />
+                <div className="flex-1" style={{ height: 1, background: "var(--mycel-border, #222222)" }} />
               </div>
             )}
             {hasMore && (
               <div ref={sentinelRef} className="py-4 text-center">
                 {loadingMore ? (
-                  <span style={{ fontSize: 10, color: "var(--bc-muted, #4a4a4a)" }}>Loading older messages...</span>
+                  <span style={{ fontSize: 10, color: "var(--mycel-muted, #4a4a4a)" }}>Loading older messages...</span>
                 ) : (
-                  <span style={{ fontSize: 10, color: "var(--bc-muted, #4a4a4a)" }}>Scroll up for more</span>
+                  <span style={{ fontSize: 10, color: "var(--mycel-muted, #4a4a4a)" }}>Scroll up for more</span>
                 )}
               </div>
             )}
@@ -1615,24 +1679,24 @@ export function GatewayFeed({
                         padding: "14px 18px",
                         position: "sticky",
                         top: 0,
-                        background: "linear-gradient(var(--bc-bg, #0d0d0d) 40%, transparent)",
+                        background: "linear-gradient(var(--mycel-bg, #0d0d0d) 40%, transparent)",
                         zIndex: 2,
                       }}
                     >
-                      <div className="flex-1" style={{ height: 1, background: "var(--bc-border, #222222)" }} />
+                      <div className="flex-1" style={{ height: 1, background: "var(--mycel-border, #222222)" }} />
                       <div
                         style={{
                           fontSize: 11,
                           fontWeight: 600,
-                          color: "var(--bc-muted, #a0a0a0)",
-                          background: "var(--bc-surface-hover, #1a1a1a)",
+                          color: "var(--mycel-muted, #a0a0a0)",
+                          background: "var(--mycel-surface-hover, #1a1a1a)",
                           padding: "3px 10px",
                           borderRadius: 999,
                         }}
                       >
                         {formatDayLabel(group.timestamp)}
                       </div>
-                      <div className="flex-1" style={{ height: 1, background: "var(--bc-border, #222222)" }} />
+                      <div className="flex-1" style={{ height: 1, background: "var(--mycel-border, #222222)" }} />
                     </div>
                   )}
 
@@ -1649,7 +1713,7 @@ export function GatewayFeed({
                           minWidth: 30,
                           borderRadius: 6,
                           background: agentColor(group.sender),
-                          color: "var(--bc-bg, #0d0d0d)",
+                          color: "var(--mycel-bg, #0d0d0d)",
                           fontWeight: 700,
                           fontSize: 10.5,
                           fontFamily: "'JetBrains Mono', monospace",
@@ -1668,7 +1732,7 @@ export function GatewayFeed({
                             style={{
                               fontSize: 13.5,
                               fontWeight: 600,
-                              color: "var(--bc-text, #e5e5e5)",
+                              color: "var(--mycel-text, #e5e5e5)",
                               fontFamily: "'JetBrains Mono', monospace",
                               background: "none",
                               border: "none",
@@ -1680,7 +1744,7 @@ export function GatewayFeed({
                           <span
                             style={{
                               fontSize: 11,
-                              color: "var(--bc-muted, #6b6b6b)",
+                              color: "var(--mycel-muted, #6b6b6b)",
                               fontFamily: "'JetBrains Mono', monospace",
                             }}
                             title={new Date(group.timestamp).toLocaleString()}
@@ -1700,6 +1764,8 @@ export function GatewayFeed({
                           const looksLikeWebhook = msg.content.trimStart().startsWith("{") &&
                             /pull_request|"issue"|"ref".*"commits"|"action"/i.test(msg.content);
                           const ghCard = (platform === "github" || looksLikeWebhook) ? parseGitHubCard(msg.content) : null;
+                          const rssCard = platform === "rss" ? parseRSSCard(msg.content) : null;
+                          const webhookCard = !ghCard && !rssCard && platform === "webhook" ? parseWebhookCard(msg.content) : null;
                           const fileAttachments = parseFileAttachments(msg.content);
 
                           return (
@@ -1715,12 +1781,16 @@ export function GatewayFeed({
                               >
                                 {ghCard ? (
                                   <GitHubCardView card={ghCard} />
+                                ) : rssCard ? (
+                                  <RSSCardView card={rssCard} />
+                                ) : webhookCard ? (
+                                  <WebhookCardView card={webhookCard} />
                                 ) : (
                                   <div
                                     className="whitespace-pre-wrap break-words"
                                     style={{
                                       fontSize: 13.5,
-                                      color: "var(--bc-text, #e5e5e5)",
+                                      color: "var(--mycel-text, #e5e5e5)",
                                       lineHeight: 1.55,
                                       wordBreak: "break-word",
                                     }}
@@ -1781,19 +1851,19 @@ export function GatewayFeed({
         className="shrink-0"
         style={{
           padding: "10px 18px 14px",
-          borderTop: "1px solid var(--bc-border, #222222)",
-          background: "var(--bc-bg, #0d0d0d)",
+          borderTop: "1px solid var(--mycel-border, #222222)",
+          background: "var(--mycel-bg, #0d0d0d)",
         }}
       >
         <div
           style={{
-            background: "var(--bc-surface, #151515)",
+            background: "var(--mycel-surface, #151515)",
             borderRadius: 8,
             padding: "10px 12px",
             display: "flex",
             flexDirection: "column",
             gap: 8,
-            border: "1px solid var(--bc-border, #2a2a2a)",
+            border: "1px solid var(--mycel-border, #2a2a2a)",
           }}
         >
           <textarea
@@ -1818,7 +1888,7 @@ export function GatewayFeed({
               background: "transparent",
               border: "none",
               outline: "none",
-              color: "var(--bc-text, #e5e5e5)",
+              color: "var(--mycel-text, #e5e5e5)",
               fontFamily: "inherit",
               fontSize: 13.5,
               resize: "none",
@@ -1827,22 +1897,22 @@ export function GatewayFeed({
               lineHeight: 1.5,
             }}
           />
-          <div className="flex items-center" style={{ gap: 2, color: "var(--bc-muted, #6b6b6b)" }}>
+          <div className="flex items-center" style={{ gap: 2, color: "var(--mycel-muted, #6b6b6b)" }}>
             {/* Action icons */}
-            <button type="button" title="Attach" style={{ width: 26, height: 26, borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--bc-muted, #6b6b6b)", cursor: "pointer", background: "none", border: "none" }}>
+            <button type="button" title="Attach" style={{ width: 26, height: 26, borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--mycel-muted, #6b6b6b)", cursor: "pointer", background: "none", border: "none" }}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                 <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
               </svg>
             </button>
-            <button type="button" title="Command" style={{ width: 26, height: 26, borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--bc-muted, #6b6b6b)", cursor: "pointer", background: "none", border: "none" }}>
+            <button type="button" title="Command" style={{ width: 26, height: 26, borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--mycel-muted, #6b6b6b)", cursor: "pointer", background: "none", border: "none" }}>
               <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, lineHeight: 1 }}>/</span>
             </button>
-            <button type="button" title="Mention" style={{ width: 26, height: 26, borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--bc-muted, #6b6b6b)", cursor: "pointer", background: "none", border: "none" }}>
+            <button type="button" title="Mention" style={{ width: 26, height: 26, borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--mycel-muted, #6b6b6b)", cursor: "pointer", background: "none", border: "none" }}>
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="12" cy="12" r="4" /><path d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-3.92 7.94" />
               </svg>
             </button>
-            <button type="button" title="Emoji" style={{ width: 26, height: 26, borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--bc-muted, #6b6b6b)", cursor: "pointer", background: "none", border: "none" }}>
+            <button type="button" title="Emoji" style={{ width: 26, height: 26, borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--mycel-muted, #6b6b6b)", cursor: "pointer", background: "none", border: "none" }}>
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="12" cy="12" r="10" /><path d="M8 14s1.5 2 4 2 4-2 4-2" /><line x1="9" y1="9" x2="9.01" y2="9" /><line x1="15" y1="9" x2="15.01" y2="9" />
               </svg>
@@ -1855,10 +1925,10 @@ export function GatewayFeed({
                 style={{
                   gap: 5,
                   fontSize: 10.5,
-                  color: "var(--bc-muted, #6b6b6b)",
+                  color: "var(--mycel-muted, #6b6b6b)",
                   fontFamily: "'JetBrains Mono', monospace",
                   padding: "2px 7px",
-                  background: "var(--bc-surface-hover, #1a1a1a)",
+                  background: "var(--mycel-surface-hover, #1a1a1a)",
                   borderRadius: 4,
                   marginLeft: "auto",
                 }}
@@ -1875,17 +1945,17 @@ export function GatewayFeed({
               style={{
                 marginLeft: platform ? 8 : "auto",
                 fontSize: 10.5,
-                color: "var(--bc-muted, #6b6b6b)",
+                color: "var(--mycel-muted, #6b6b6b)",
                 fontFamily: "'JetBrains Mono', monospace",
                 gap: 6,
                 whiteSpace: "nowrap",
               }}
             >
               <span>
-                <span style={{ fontSize: 10, fontFamily: "'JetBrains Mono', monospace", padding: "1px 5px", background: "var(--bc-surface-hover, #1a1a1a)", borderRadius: 3, color: "var(--bc-muted, #a0a0a0)" }}>
+                <span style={{ fontSize: 10, fontFamily: "'JetBrains Mono', monospace", padding: "1px 5px", background: "var(--mycel-surface-hover, #1a1a1a)", borderRadius: 3, color: "var(--mycel-muted, #a0a0a0)" }}>
                   {"\u2318"}
                 </span>{" "}
-                <span style={{ fontSize: 10, fontFamily: "'JetBrains Mono', monospace", padding: "1px 5px", background: "var(--bc-surface-hover, #1a1a1a)", borderRadius: 3, color: "var(--bc-muted, #a0a0a0)" }}>
+                <span style={{ fontSize: 10, fontFamily: "'JetBrains Mono', monospace", padding: "1px 5px", background: "var(--mycel-surface-hover, #1a1a1a)", borderRadius: 3, color: "var(--mycel-muted, #a0a0a0)" }}>
                   {"\u21B5"}
                 </span>
               </span>
@@ -1897,8 +1967,8 @@ export function GatewayFeed({
                   display: "flex",
                   alignItems: "center",
                   gap: 5,
-                  background: composerText.trim() && !composerSending ? "var(--bc-accent, #f97316)" : "var(--bc-muted, #4a4a4a)",
-                  color: "var(--bc-bg, #0d0d0d)",
+                  background: composerText.trim() && !composerSending ? "var(--mycel-accent, #f97316)" : "var(--mycel-muted, #4a4a4a)",
+                  color: "var(--mycel-bg, #0d0d0d)",
                   padding: "4px 10px",
                   borderRadius: 5,
                   fontSize: 12,
@@ -1910,7 +1980,7 @@ export function GatewayFeed({
                 }}
               >
                 <span>{composerSending ? "Sending..." : "Send"}</span>
-                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="var(--bc-bg, #0d0d0d)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="var(--mycel-bg, #0d0d0d)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <line x1="5" y1="12" x2="19" y2="12" /><polyline points="12 5 19 12 12 19" />
                 </svg>
               </button>

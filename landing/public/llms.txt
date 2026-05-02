@@ -1,6 +1,6 @@
-# bc — Multi-Agent Orchestration Platform
+# mycel — Multi-Agent Orchestration Platform
 
-> bc is a CLI-first, agent-agnostic orchestration platform for AI coding agents. It coordinates teams of AI agents across isolated git worktrees with persistent memory, structured communication channels, and per-agent cost controls.
+> mycel is a CLI-first, agent-agnostic orchestration platform for AI coding agents. It coordinates teams of AI agents across isolated git worktrees with persistent memory, structured communication channels, and per-agent cost controls.
 
 ## Key Features
 
@@ -14,7 +14,7 @@
 
 ## Supported AI Tools
 
-bc works with any CLI-based AI coding assistant:
+mycel works with any CLI-based AI coding assistant:
 - Claude Code
 - Cursor
 - GitHub Copilot
@@ -26,24 +26,24 @@ bc works with any CLI-based AI coding assistant:
 
 ## Pages
 
-- [Home](https://bc-infra.com/): Overview and product introduction
-- [Product](https://bc-infra.com/product): Detailed feature breakdown with 55 commands across 9 categories
-- [Documentation](https://bc-infra.com/docs): CLI reference, configuration, and quick start guide
-- [Waitlist](https://bc-infra.com/waitlist): Sign up for early access to the open beta
-- [Privacy Policy](https://bc-infra.com/privacy): Data collection and usage practices
-- [Terms of Service](https://bc-infra.com/terms): Usage terms and conditions
+- [Home](https://mycel.dev/): Overview and product introduction
+- [Product](https://mycel.dev/product): Detailed feature breakdown with 55 commands across 9 categories
+- [Documentation](https://mycel.dev/docs): CLI reference, configuration, and quick start guide
+- [Waitlist](https://mycel.dev/waitlist): Sign up for early access to the open beta
+- [Privacy Policy](https://mycel.dev/privacy): Data collection and usage practices
+- [Terms of Service](https://mycel.dev/terms): Usage terms and conditions
 
 ## Quick Start
 
 ```bash
-bc init --preset small-team
-bc up
-bc home
+mycel init --preset small-team
+mycel up
+mycel home
 ```
 
 ## Contact
 
-- Email: puneet@bc-infra.com
+- Email: puneet@mycel.dev
 - GitHub: https://github.com/bcinfra1
 - Twitter: https://twitter.com/bc_infra
 - License: MIT

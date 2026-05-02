@@ -10,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/rpuneet/bc/pkg/workspace"
-	bcws "github.com/rpuneet/bc/server/ws"
+	"github.com/rpuneet/mycel/pkg/workspace"
+	bcws "github.com/rpuneet/mycel/server/ws"
 )
 
 // bootLegacyScope produces a working mgr + next handler so each test
@@ -28,6 +28,7 @@ func bootLegacyScope(t *testing.T, withActive bool) (http.Handler, http.Handler)
 	}
 	if withActive {
 		wsDir := t.TempDir()
+		gitInitDir(t, wsDir)
 		if _, initErr := workspace.Init(wsDir); initErr != nil {
 			t.Fatalf("workspace.Init: %v", initErr)
 		}
@@ -45,6 +46,7 @@ func bootLegacyScope(t *testing.T, withActive bool) (http.Handler, http.Handler)
 
 	globals := &Globals{Registry: reg, GlobalHub: hub}
 	mgr := NewWorkspaceManager(reg, func(ctx context.Context, w *workspace.Workspace) (*WorkspaceServices, error) {
+		gitInitDir(t, w.RootDir)
 		return BuildWorkspaceServices(ctx, globals, w.RootDir)
 	})
 	t.Cleanup(func() { _ = mgr.Close() })

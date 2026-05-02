@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/rpuneet/bc/pkg/workspace"
+	"github.com/rpuneet/mycel/pkg/workspace"
 )
 
 func TestIsV1Workspace(t *testing.T) {
@@ -62,6 +62,7 @@ func TestInitV2Workspace(t *testing.T) {
 	if err := os.MkdirAll(projectDir, 0750); err != nil {
 		t.Fatal(err)
 	}
+	gitInitDir(t, projectDir)
 
 	// Initialize v2 workspace. M11: state lives under ~/.bc/workspaces/<id>/.
 	if err := initV2Workspace(projectDir); err != nil {
@@ -114,6 +115,7 @@ func TestInitV2WorkspaceIdempotent(t *testing.T) {
 	if err := os.MkdirAll(projectDir, 0750); err != nil {
 		t.Fatal(err)
 	}
+	gitInitDir(t, projectDir)
 
 	// First init
 	if err := initV2Workspace(projectDir); err != nil {
@@ -157,6 +159,7 @@ func TestRunInitV2AlreadyInitialized(t *testing.T) {
 	if err := os.MkdirAll(projectDir, 0750); err != nil {
 		t.Fatal(err)
 	}
+	gitInitDir(t, projectDir)
 
 	// First init should succeed
 	if err := initV2Workspace(projectDir); err != nil {
@@ -182,6 +185,7 @@ func TestRunInitFreshDirectory(t *testing.T) {
 	if err := os.MkdirAll(projectDir, 0750); err != nil {
 		t.Fatal(err)
 	}
+	gitInitDir(t, projectDir)
 
 	// Use quick mode to skip interactive wizard (no stdin in tests)
 	initQuick = true

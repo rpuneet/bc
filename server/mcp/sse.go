@@ -80,7 +80,7 @@ func (s *Server) HandleSSEMessage(ctx context.Context, broker *SSEBroker) http.H
 
 		// Pass agent identity from query param into context for tool handlers.
 		if agentID := r.URL.Query().Get("agent"); agentID != "" {
-			ctx = context.WithValue(ctx, ctxKeyAgent, agentID) //nolint:staticcheck // string key is fine for internal use
+			ctx = ContextWithAgent(ctx, agentID)
 		}
 
 		resp := s.Handle(ctx, req)
@@ -108,12 +108,34 @@ type sseClient struct {
 type SSEBroker struct {
 	clients         map[chan []byte]*sseClient
 	messageEndpoint string
+	corsOrigin      string
 	mu              sync.Mutex
 }
 
 // NewSSEBroker creates an SSEBroker ready to use.
+//
+// The default CORS origin is "*" — safe because bcd binds to loopback by
+// default. Callers that expose bcd beyond loopback should call
+// SetCORSOrigin to lock the SSE endpoint to a specific origin (issue #2960).
 func NewSSEBroker() *SSEBroker {
-	return &SSEBroker{clients: make(map[chan []byte]*sseClient), messageEndpoint: "/message"}
+	return &SSEBroker{
+		clients:         make(map[chan []byte]*sseClient),
+		messageEndpoint: "/message",
+		corsOrigin:      "*",
+	}
+}
+
+// SetCORSOrigin overrides the Access-Control-Allow-Origin value emitted on
+// SSE responses. Pass an empty string to keep the wildcard default. Used by
+// bcd to mirror the API CORSOrigin setting onto the MCP SSE transport so
+// MCP cannot bypass the configured origin policy (issue #2960).
+func (b *SSEBroker) SetCORSOrigin(origin string) {
+	if origin == "" {
+		return
+	}
+	b.mu.Lock()
+	b.corsOrigin = origin
+	b.mu.Unlock()
 }
 
 // SetMessageEndpoint overrides the endpoint URL returned to new SSE clients
@@ -200,7 +222,13 @@ func (b *SSEBroker) handleSSE(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
+	b.mu.Lock()
+	origin := b.corsOrigin
+	b.mu.Unlock()
+	if origin == "" {
+		origin = "*"
+	}
+	w.Header().Set("Access-Control-Allow-Origin", origin)
 
 	agentID := r.URL.Query().Get("agent")
 	ch := b.subscribe(agentID)

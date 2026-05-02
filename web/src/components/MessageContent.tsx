@@ -56,14 +56,14 @@ function parseContent(text: string, agentNames?: Set<string>): ReactNode[] {
           <img
             src={fileUrl}
             alt="attachment"
-            className="max-w-sm max-h-64 rounded border border-bc-border"
+            className="max-w-sm max-h-64 rounded border border-mycel-border"
             loading="lazy"
             onError={(e) => {
               // If not an image, show as download link
               const el = e.currentTarget;
               const parent = el.parentElement;
               if (parent) {
-                parent.className = "text-bc-accent underline-offset-2 hover:underline text-xs";
+                parent.className = "text-mycel-accent underline-offset-2 hover:underline text-xs";
                 parent.textContent = `📎 ${fileId}`;
               }
             }}
@@ -76,7 +76,7 @@ function parseContent(text: string, agentNames?: Set<string>): ReactNode[] {
       if (IMAGE_EXT.test(url)) {
         nodes.push(
           <a key={key} href={url} target="_blank" rel="noopener noreferrer" className="inline-block my-1">
-            <img src={url} alt="" className="max-w-sm max-h-64 rounded border border-bc-border" loading="lazy" />
+            <img src={url} alt="" className="max-w-sm max-h-64 rounded border border-mycel-border" loading="lazy" />
           </a>,
         );
       } else {
@@ -86,7 +86,7 @@ function parseContent(text: string, agentNames?: Set<string>): ReactNode[] {
             href={url}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-bc-accent underline-offset-2 hover:underline"
+            className="text-mycel-accent underline-offset-2 hover:underline"
           >
             {url}
           </a>,
@@ -102,7 +102,7 @@ function parseContent(text: string, agentNames?: Set<string>): ReactNode[] {
       nodes.push(
         <code
           key={key}
-          className="rounded bg-bc-surface px-1 py-0.5 font-mono text-[0.85em]"
+          className="rounded bg-mycel-surface px-1 py-0.5 font-mono text-[0.85em]"
         >
           {inner}
         </code>,
@@ -114,7 +114,7 @@ function parseContent(text: string, agentNames?: Set<string>): ReactNode[] {
         <a
           key={key}
           href={`/notifications/${sourceName}`}
-          className="text-bc-accent font-medium hover:underline"
+          className="text-mycel-accent font-medium hover:underline"
         >
           {full}
         </a>,
@@ -129,8 +129,8 @@ function parseContent(text: string, agentNames?: Set<string>): ReactNode[] {
           href={`/agents/${name}`}
           className={
             isKnown
-              ? "text-bc-accent font-medium hover:underline bg-bc-accent/10 rounded px-0.5"
-              : "text-bc-muted/60 font-medium hover:underline"
+              ? "text-mycel-accent font-medium hover:underline bg-mycel-accent/10 rounded px-0.5"
+              : "text-mycel-muted/60 font-medium hover:underline"
           }
         >
           {full}

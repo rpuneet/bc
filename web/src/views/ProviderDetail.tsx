@@ -16,7 +16,7 @@ import { ToastContainer, useToast } from "../components/Toast";
 import { formatCost, formatTokens } from "../utils/format";
 
 const inputCls =
-  "w-full px-2.5 py-1.5 text-sm rounded border border-bc-border bg-bc-bg text-bc-text focus:outline-none focus:ring-1 focus:ring-bc-accent";
+  "w-full px-2.5 py-1.5 text-sm rounded border border-mycel-border bg-mycel-bg text-mycel-text focus:outline-none focus:ring-1 focus:ring-mycel-accent";
 
 const HEALTHY_STATUSES = new Set(["ok", "active", "connected"]);
 
@@ -51,13 +51,13 @@ function ProviderHeader({
       <div className="flex items-center gap-3">
         <Link
           to="/tools"
-          className="text-bc-muted hover:text-bc-text text-sm shrink-0"
+          className="text-mycel-muted hover:text-mycel-text text-sm shrink-0"
         >
           &larr; Tools
         </Link>
         {/* Monogram */}
-        <div className="w-9 h-9 rounded-full bg-bc-accent/20 flex items-center justify-center shrink-0">
-          <span className="text-sm font-bold text-bc-accent">
+        <div className="w-9 h-9 rounded-full bg-mycel-accent/20 flex items-center justify-center shrink-0">
+          <span className="text-sm font-bold text-mycel-accent">
             {provider.name.charAt(0).toUpperCase()}
           </span>
         </div>
@@ -67,7 +67,7 @@ function ProviderHeader({
             <StatusBadge status={providerStatus(provider)} />
           </div>
           {provider.version && (
-            <span className="inline-block mt-0.5 px-2 py-0.5 rounded text-xs font-mono bg-bc-surface border border-bc-border text-bc-muted">
+            <span className="inline-block mt-0.5 px-2 py-0.5 rounded text-xs font-mono bg-mycel-surface border border-mycel-border text-mycel-muted">
               v{provider.version}
             </span>
           )}
@@ -79,7 +79,7 @@ function ProviderHeader({
             type="button"
             onClick={onInstall}
             disabled={installing}
-            className="px-3 py-1.5 text-sm rounded bg-bc-warning/10 text-bc-warning hover:bg-bc-warning/20 transition-colors disabled:opacity-50"
+            className="px-3 py-1.5 text-sm rounded bg-mycel-warning/10 text-mycel-warning hover:bg-mycel-warning/20 transition-colors disabled:opacity-50"
           >
             {installing ? "Installing..." : "Install"}
           </button>
@@ -89,7 +89,7 @@ function ProviderHeader({
             type="button"
             onClick={onUpdate}
             disabled={updating}
-            className="px-3 py-1.5 text-sm rounded bg-bc-info/10 text-bc-info hover:bg-bc-info/20 transition-colors disabled:opacity-50"
+            className="px-3 py-1.5 text-sm rounded bg-mycel-info/10 text-mycel-info hover:bg-mycel-info/20 transition-colors disabled:opacity-50"
           >
             {updating ? "Checking..." : "Check for Update"}
           </button>
@@ -97,12 +97,12 @@ function ProviderHeader({
         <span
           className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-medium ${
             provider.enabled
-              ? "bg-bc-success/10 text-bc-success"
-              : "bg-bc-muted/10 text-bc-muted"
+              ? "bg-mycel-success/10 text-mycel-success"
+              : "bg-mycel-muted/10 text-mycel-muted"
           }`}
         >
           <span
-            className={`w-2 h-2 rounded-full ${provider.enabled ? "bg-bc-success" : "bg-bc-muted"}`}
+            className={`w-2 h-2 rounded-full ${provider.enabled ? "bg-mycel-success" : "bg-mycel-muted"}`}
           />
           {provider.enabled ? "Enabled" : "Disabled"}
         </span>
@@ -146,19 +146,19 @@ function ConfigPanel({
 
   return (
     <section>
-      <h2 className="text-xs font-medium text-bc-muted uppercase tracking-widest mb-3">
+      <h2 className="text-xs font-medium text-mycel-muted uppercase tracking-widest mb-3">
         Configuration
       </h2>
-      <div className="rounded border border-bc-border bg-bc-surface p-4 space-y-4">
+      <div className="rounded border border-mycel-border bg-mycel-surface p-4 space-y-4">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label className="text-xs text-bc-muted block mb-1">Binary</label>
-            <div className="text-sm font-mono text-bc-text/80 px-2.5 py-1.5 rounded bg-bc-bg border border-bc-border/50">
+            <label className="text-xs text-mycel-muted block mb-1">Binary</label>
+            <div className="text-sm font-mono text-mycel-text/80 px-2.5 py-1.5 rounded bg-mycel-bg border border-mycel-border/50">
               {provider.binary || "\u2014"}
             </div>
           </div>
           <div>
-            <label className="text-xs text-bc-muted block mb-1">Command</label>
+            <label className="text-xs text-mycel-muted block mb-1">Command</label>
             <input
               type="text"
               value={command}
@@ -170,15 +170,15 @@ function ConfigPanel({
             />
           </div>
           <div>
-            <label className="text-xs text-bc-muted block mb-1">Description</label>
-            <div className="text-sm text-bc-text/80 px-2.5 py-1.5 rounded bg-bc-bg border border-bc-border/50">
+            <label className="text-xs text-mycel-muted block mb-1">Description</label>
+            <div className="text-sm text-mycel-text/80 px-2.5 py-1.5 rounded bg-mycel-bg border border-mycel-border/50">
               {provider.description || "\u2014"}
             </div>
           </div>
           <div>
-            <label className="text-xs text-bc-muted block mb-1">Install Hint</label>
+            <label className="text-xs text-mycel-muted block mb-1">Install Hint</label>
             <div className="flex items-center gap-1">
-              <div className="flex-1 text-sm font-mono text-bc-text/80 px-2.5 py-1.5 rounded bg-bc-bg border border-bc-border/50 truncate">
+              <div className="flex-1 text-sm font-mono text-mycel-text/80 px-2.5 py-1.5 rounded bg-mycel-bg border border-mycel-border/50 truncate">
                 {provider.install_hint || "\u2014"}
               </div>
               {provider.install_hint && <CopyButton text={provider.install_hint} />}
@@ -186,7 +186,7 @@ function ConfigPanel({
           </div>
         </div>
         {provider.config?.default === "true" && (
-          <div className="text-xs text-bc-accent">
+          <div className="text-xs text-mycel-accent">
             This is the default provider.
           </div>
         )}
@@ -195,7 +195,7 @@ function ConfigPanel({
             type="button"
             onClick={() => void handleSave()}
             disabled={saving || !dirty}
-            className="px-3 py-1.5 text-sm rounded bg-bc-accent text-bc-bg font-medium disabled:opacity-50 transition-colors"
+            className="px-3 py-1.5 text-sm rounded bg-mycel-accent text-mycel-bg font-medium disabled:opacity-50 transition-colors"
           >
             {saving ? "Saving..." : "Save Configuration"}
           </button>
@@ -203,7 +203,7 @@ function ConfigPanel({
             type="button"
             onClick={handleReset}
             disabled={saving}
-            className="px-3 py-1.5 text-sm rounded border border-bc-border text-bc-muted hover:text-bc-text transition-colors disabled:opacity-50"
+            className="px-3 py-1.5 text-sm rounded border border-mycel-border text-mycel-muted hover:text-mycel-text transition-colors disabled:opacity-50"
           >
             Reset to Default
           </button>
@@ -219,9 +219,9 @@ type MCPHealthStatus = "connected" | "error" | "unknown";
 
 function MCPHealthBadge({ status, error }: { status: MCPHealthStatus; error?: string }) {
   const styles: Record<MCPHealthStatus, { bg: string; text: string; dot: string; label: string }> = {
-    connected: { bg: "bg-bc-success/15", text: "text-bc-success", dot: "bg-bc-success", label: "Connected" },
-    error:     { bg: "bg-bc-error/15",   text: "text-bc-error",   dot: "bg-bc-error",   label: "Error" },
-    unknown:   { bg: "bg-bc-warning/15", text: "text-bc-warning", dot: "bg-bc-warning", label: "Unknown" },
+    connected: { bg: "bg-mycel-success/15", text: "text-mycel-success", dot: "bg-mycel-success", label: "Connected" },
+    error:     { bg: "bg-mycel-error/15",   text: "text-mycel-error",   dot: "bg-mycel-error",   label: "Error" },
+    unknown:   { bg: "bg-mycel-warning/15", text: "text-mycel-warning", dot: "bg-mycel-warning", label: "Unknown" },
   };
   const s = styles[status];
   return (
@@ -261,13 +261,13 @@ function MCPHealthSummary({ servers, healthMap }: { servers: ProviderMCPServer[]
 
   return (
     <div className="mb-3">
-      <div className="flex items-center justify-between text-xs text-bc-muted mb-1">
+      <div className="flex items-center justify-between text-xs text-mycel-muted mb-1">
         <span>MCP Health</span>
         <span>{healthy}/{servers.length} healthy</span>
       </div>
-      <div className="h-1.5 rounded-full bg-bc-border overflow-hidden">
+      <div className="h-1.5 rounded-full bg-mycel-border overflow-hidden">
         <motion.div
-          className={`h-full rounded-full ${pct === 100 ? "bg-bc-success" : pct > 0 ? "bg-bc-warning" : "bg-bc-error"}`}
+          className={`h-full rounded-full ${pct === 100 ? "bg-mycel-success" : pct > 0 ? "bg-mycel-warning" : "bg-mycel-error"}`}
           initial={{ width: 0 }}
           animate={{ width: `${pct}%` }}
           transition={{ duration: 0.5, ease: "easeOut" }}
@@ -343,7 +343,7 @@ function MCPSection({
   return (
     <section>
       <div className="flex items-center justify-between mb-3">
-        <h2 className="text-xs font-medium text-bc-muted uppercase tracking-widest">
+        <h2 className="text-xs font-medium text-mycel-muted uppercase tracking-widest">
           MCP Servers ({servers.length})
         </h2>
         <div className="flex items-center gap-2">
@@ -352,7 +352,7 @@ function MCPSection({
               type="button"
               onClick={() => void handleCheckAll()}
               disabled={checking}
-              className="text-xs px-2 py-1 rounded bg-bc-accent/10 text-bc-accent hover:bg-bc-accent/20 transition-colors disabled:opacity-50"
+              className="text-xs px-2 py-1 rounded bg-mycel-accent/10 text-mycel-accent hover:bg-mycel-accent/20 transition-colors disabled:opacity-50"
             >
               {checking ? "Checking..." : "Check All MCPs"}
             </button>
@@ -360,7 +360,7 @@ function MCPSection({
           <button
             type="button"
             onClick={() => setShowAdd(!showAdd)}
-            className="text-xs px-2 py-1 rounded bg-bc-info/10 text-bc-info hover:bg-bc-info/20 transition-colors"
+            className="text-xs px-2 py-1 rounded bg-mycel-info/10 text-mycel-info hover:bg-mycel-info/20 transition-colors"
           >
             {showAdd ? "Cancel" : "+ Add MCP"}
           </button>
@@ -370,10 +370,10 @@ function MCPSection({
       <MCPHealthSummary servers={servers} healthMap={healthMap} />
 
       {showAdd && (
-        <div className="rounded border border-bc-accent bg-bc-surface p-4 space-y-3 mb-4">
+        <div className="rounded border border-mycel-accent bg-mycel-surface p-4 space-y-3 mb-4">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
-              <label className="text-xs text-bc-muted block mb-1">Name</label>
+              <label className="text-xs text-mycel-muted block mb-1">Name</label>
               <input
                 type="text"
                 value={mcpName}
@@ -383,7 +383,7 @@ function MCPSection({
               />
             </div>
             <div>
-              <label className="text-xs text-bc-muted block mb-1">Transport</label>
+              <label className="text-xs text-mycel-muted block mb-1">Transport</label>
               <select
                 value={mcpTransport}
                 onChange={(e) => setMcpTransport(e.target.value as "stdio" | "sse")}
@@ -394,7 +394,7 @@ function MCPSection({
               </select>
             </div>
             <div>
-              <label className="text-xs text-bc-muted block mb-1">
+              <label className="text-xs text-mycel-muted block mb-1">
                 {mcpTransport === "sse" ? "URL" : "Command"}
               </label>
               <input
@@ -410,7 +410,7 @@ function MCPSection({
             type="button"
             onClick={() => void handleAdd()}
             disabled={adding || !mcpName.trim() || !mcpValue.trim()}
-            className="px-3 py-1.5 text-sm rounded bg-bc-accent text-bc-bg font-medium disabled:opacity-50"
+            className="px-3 py-1.5 text-sm rounded bg-mycel-accent text-mycel-bg font-medium disabled:opacity-50"
           >
             {adding ? "Adding..." : "Add MCP Server"}
           </button>
@@ -424,10 +424,10 @@ function MCPSection({
           description={`No MCP servers configured for ${providerName}.`}
         />
       ) : (
-        <div className="rounded border border-bc-border overflow-hidden">
+        <div className="rounded border border-mycel-border overflow-hidden">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-bc-border bg-bc-surface text-[11px] text-bc-muted uppercase tracking-wider">
+              <tr className="border-b border-mycel-border bg-mycel-surface text-[11px] text-mycel-muted uppercase tracking-wider">
                 <th className="px-4 py-2 font-medium text-left">Name</th>
                 <th className="px-4 py-2 font-medium text-left">Transport</th>
                 <th className="px-4 py-2 font-medium text-left">URL / Command</th>
@@ -438,14 +438,14 @@ function MCPSection({
               {servers.map((s) => {
                 const health = resolveMCPHealth(s, healthMap);
                 return (
-                  <tr key={s.name} className="border-b border-bc-border/50 hover:bg-bc-surface/50 transition-colors">
+                  <tr key={s.name} className="border-b border-mycel-border/50 hover:bg-mycel-surface/50 transition-colors">
                     <td className="px-4 py-2.5 font-medium">{s.name}</td>
                     <td className="px-4 py-2.5">
-                      <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-bc-surface border border-bc-border">
+                      <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-mycel-surface border border-mycel-border">
                         {s.transport}
                       </span>
                     </td>
-                    <td className="px-4 py-2.5 font-mono text-xs text-bc-muted truncate max-w-xs">
+                    <td className="px-4 py-2.5 font-mono text-xs text-mycel-muted truncate max-w-xs">
                       <div className="flex items-center gap-1">
                         <span className="truncate">{s.url || s.command || "\u2014"}</span>
                         {(s.url || s.command) && <CopyButton text={s.url || s.command || ""} />}
@@ -468,12 +468,12 @@ function MCPSection({
 /* ── Stat Tile ── */
 function StatTile({ label, value, icon, accent }: { label: string; value: string; icon: React.ReactNode; accent?: boolean }) {
   return (
-    <div className="rounded border border-bc-border bg-bc-surface p-3">
+    <div className="rounded border border-mycel-border bg-mycel-surface p-3">
       <div className="flex items-center gap-2 mb-1">
-        <span className="text-bc-muted">{icon}</span>
-        <span className="text-[11px] text-bc-muted uppercase tracking-wider">{label}</span>
+        <span className="text-mycel-muted">{icon}</span>
+        <span className="text-[11px] text-mycel-muted uppercase tracking-wider">{label}</span>
       </div>
-      <p className={`text-lg font-bold ${accent ? "text-bc-accent" : ""}`}>{value}</p>
+      <p className={`text-lg font-bold ${accent ? "text-mycel-accent" : ""}`}>{value}</p>
     </div>
   );
 }
@@ -533,7 +533,7 @@ function CostBars({ provider }: { provider: ProviderDetailResponse }) {
 
   return (
     <section>
-      <h3 className="text-xs font-medium text-bc-muted uppercase tracking-widest mb-3">
+      <h3 className="text-xs font-medium text-mycel-muted uppercase tracking-widest mb-3">
         Cost by Model
       </h3>
       <div className="space-y-2">
@@ -542,12 +542,12 @@ function CostBars({ provider }: { provider: ProviderDetailResponse }) {
           return (
             <div key={m.model}>
               <div className="flex items-center justify-between text-xs mb-0.5">
-                <span className="font-mono text-bc-text truncate mr-2">{m.model}</span>
-                <span className="text-bc-muted tabular-nums shrink-0">{formatCost(m.total_cost_usd)}</span>
+                <span className="font-mono text-mycel-text truncate mr-2">{m.model}</span>
+                <span className="text-mycel-muted tabular-nums shrink-0">{formatCost(m.total_cost_usd)}</span>
               </div>
-              <div className="h-1.5 rounded-full bg-bc-border overflow-hidden">
+              <div className="h-1.5 rounded-full bg-mycel-border overflow-hidden">
                 <div
-                  className="h-full rounded-full bg-bc-accent transition-all duration-500 ease-out"
+                  className="h-full rounded-full bg-mycel-accent transition-all duration-500 ease-out"
                   style={{ width: `${pct}%` }}
                 />
               </div>
@@ -568,11 +568,11 @@ function AgentsSidebar({
 }) {
   return (
     <section>
-      <h3 className="text-xs font-medium text-bc-muted uppercase tracking-widest mb-3">
+      <h3 className="text-xs font-medium text-mycel-muted uppercase tracking-widest mb-3">
         Agents ({agents.length})
       </h3>
       {agents.length === 0 ? (
-        <p className="text-xs text-bc-muted">No agents using this provider.</p>
+        <p className="text-xs text-mycel-muted">No agents using this provider.</p>
       ) : (
         <div className="space-y-1">
           {agents.map((a) => {
@@ -581,26 +581,26 @@ function AgentsSidebar({
               <Link
                 key={a.name}
                 to={`/agents/${encodeURIComponent(a.name)}`}
-                className="group flex items-center gap-2 px-3 py-2 rounded border border-bc-border hover:border-bc-accent/40 hover:bg-bc-surface-hover transition-colors"
+                className="group flex items-center gap-2 px-3 py-2 rounded border border-mycel-border hover:border-mycel-accent/40 hover:bg-mycel-surface-hover transition-colors"
               >
                 {/* Pulse dot */}
                 <span className="relative flex h-2 w-2 shrink-0">
                   {isRunning && (
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-bc-success opacity-75" />
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-mycel-success opacity-75" />
                   )}
                   <span
                     className={`relative inline-flex rounded-full h-2 w-2 ${
-                      isRunning ? "bg-bc-success" : "bg-bc-muted"
+                      isRunning ? "bg-mycel-success" : "bg-mycel-muted"
                     }`}
                   />
                 </span>
                 <div className="flex-1 min-w-0">
-                  <span className="text-sm font-medium text-bc-text truncate block">{a.name}</span>
-                  <span className="text-[10px] text-bc-muted">{a.role}</span>
+                  <span className="text-sm font-medium text-mycel-text truncate block">{a.name}</span>
+                  <span className="text-[10px] text-mycel-muted">{a.role}</span>
                 </div>
                 {/* Hover arrow */}
                 <svg
-                  className="w-3.5 h-3.5 text-bc-muted opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+                  className="w-3.5 h-3.5 text-mycel-muted opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
                   fill="none"
                   viewBox="0 0 24 24"
                   stroke="currentColor"
@@ -622,7 +622,7 @@ function AgentsSidebar({
 function CommandsSection({ commands }: { commands: ProviderCommand[] }) {
   return (
     <section>
-      <h2 className="text-xs font-medium text-bc-muted uppercase tracking-widest mb-3">
+      <h2 className="text-xs font-medium text-mycel-muted uppercase tracking-widest mb-3">
         Available Commands ({commands.length})
       </h2>
       {commands.length === 0 ? (
@@ -632,10 +632,10 @@ function CommandsSection({ commands }: { commands: ProviderCommand[] }) {
           description="No commands available for this provider."
         />
       ) : (
-        <div className="rounded border border-bc-border overflow-hidden">
+        <div className="rounded border border-mycel-border overflow-hidden">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-bc-border bg-bc-surface text-[11px] text-bc-muted uppercase tracking-wider">
+              <tr className="border-b border-mycel-border bg-mycel-surface text-[11px] text-mycel-muted uppercase tracking-wider">
                 <th className="px-4 py-2 font-medium text-left">Command</th>
                 <th className="px-4 py-2 font-medium text-left">Description</th>
                 <th className="px-4 py-2 font-medium text-left">Usage</th>
@@ -645,14 +645,14 @@ function CommandsSection({ commands }: { commands: ProviderCommand[] }) {
               {commands.map((c) => {
                 const fullCmd = c.args ? `${c.command} ${c.args}` : c.command;
                 return (
-                  <tr key={c.name} className="border-b border-bc-border/50 hover:bg-bc-surface/50 transition-colors">
+                  <tr key={c.name} className="border-b border-mycel-border/50 hover:bg-mycel-surface/50 transition-colors">
                     <td className="px-4 py-2.5 font-medium">{c.name}</td>
-                    <td className="px-4 py-2.5 text-bc-muted">{c.description}</td>
+                    <td className="px-4 py-2.5 text-mycel-muted">{c.description}</td>
                     <td className="px-4 py-2.5">
                       <div className="flex items-center gap-1">
-                        <code className="font-mono text-xs text-bc-text/80">
+                        <code className="font-mono text-xs text-mycel-text/80">
                           {c.command}
-                          {c.args && <span className="text-bc-muted ml-1">{c.args}</span>}
+                          {c.args && <span className="text-mycel-muted ml-1">{c.args}</span>}
                         </code>
                         <CopyButton text={fullCmd} />
                       </div>
@@ -745,7 +745,7 @@ export function ProviderDetail() {
   if (loading && !provider) {
     return (
       <div className="p-6 space-y-6">
-        <div className="h-6 w-48 animate-pulse rounded bg-bc-border/50" />
+        <div className="h-6 w-48 animate-pulse rounded bg-mycel-border/50" />
         <LoadingSkeleton variant="cards" rows={3} />
       </div>
     );

@@ -38,7 +38,7 @@ export function Notifications() {
   if (loading && !sources) {
     return (
       <div className="p-6 space-y-4">
-        <div className="h-6 w-28 animate-pulse rounded bg-bc-border/50" />
+        <div className="h-6 w-28 animate-pulse rounded bg-mycel-border/50" />
         <LoadingSkeleton variant="text" rows={5} />
       </div>
     );
@@ -86,8 +86,8 @@ export function Notifications() {
       <div className="flex h-full items-center justify-center">
         <div className="max-w-lg text-center px-6">
           <div className="text-4xl mb-4 opacity-40">#</div>
-          <h2 className="text-xl font-semibold text-bc-text mb-2">Connect your first app</h2>
-          <p className="text-sm text-bc-muted/60 mb-8">
+          <h2 className="text-xl font-semibold text-mycel-text mb-2">Connect your first app</h2>
+          <p className="text-sm text-mycel-muted/60 mb-8">
             Link Slack, Telegram, or Discord to start receiving messages in your agents.
           </p>
           <div className="grid grid-cols-3 gap-3 max-w-sm mx-auto">
@@ -101,7 +101,7 @@ export function Notifications() {
               <button
                 key={p.name}
                 type="button"
-                className="p-4 border border-bc-border/30 rounded-xl hover:border-bc-border/60 hover:bg-bc-surface/30 transition-all text-center group"
+                className="p-4 border border-mycel-border/30 rounded-xl hover:border-mycel-border/60 hover:bg-mycel-surface/30 transition-all text-center group"
               >
                 <div
                   className="w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold mx-auto mb-2"
@@ -109,7 +109,7 @@ export function Notifications() {
                 >
                   {p.name.charAt(0)}
                 </div>
-                <span className="text-xs font-medium text-bc-muted/60 group-hover:text-bc-text transition-colors">
+                <span className="text-xs font-medium text-mycel-muted/60 group-hover:text-mycel-text transition-colors">
                   {p.name}
                 </span>
               </button>

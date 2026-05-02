@@ -6,20 +6,21 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 
-	"github.com/rpuneet/bc/pkg/agent"
-	"github.com/rpuneet/bc/pkg/cost"
-	"github.com/rpuneet/bc/pkg/cron"
-	"github.com/rpuneet/bc/pkg/db"
-	"github.com/rpuneet/bc/pkg/events"
-	"github.com/rpuneet/bc/pkg/mcp"
-	"github.com/rpuneet/bc/pkg/secret"
-	"github.com/rpuneet/bc/pkg/tool"
-	"github.com/rpuneet/bc/pkg/workspace"
-	"github.com/rpuneet/bc/server"
-	"github.com/rpuneet/bc/server/ws"
+	"github.com/rpuneet/mycel/pkg/agent"
+	"github.com/rpuneet/mycel/pkg/cost"
+	"github.com/rpuneet/mycel/pkg/cron"
+	"github.com/rpuneet/mycel/pkg/db"
+	"github.com/rpuneet/mycel/pkg/events"
+	"github.com/rpuneet/mycel/pkg/mcp"
+	"github.com/rpuneet/mycel/pkg/secret"
+	"github.com/rpuneet/mycel/pkg/tool"
+	"github.com/rpuneet/mycel/pkg/workspace"
+	"github.com/rpuneet/mycel/server"
+	"github.com/rpuneet/mycel/server/ws"
 )
 
 // --- helpers for building test servers with real services ---
@@ -40,6 +41,10 @@ func setupWorkspace(t *testing.T) string {
 	t.Helper()
 	sandboxBCHome(t)
 	dir := t.TempDir()
+	// workspace.Init requires a git repo
+	if out, err := exec.CommandContext(context.Background(), "git", "init", dir).CombinedOutput(); err != nil { //nolint:gosec // dir is a t.TempDir(), not user input
+		t.Fatalf("git init: %v\n%s", err, out)
+	}
 	wks, err := workspace.Init(dir)
 	if err != nil {
 		t.Fatalf("init workspace: %v", err)
@@ -2032,7 +2037,7 @@ func TestAgentHandler_SendOnNonexistent(t *testing.T) {
 	defer ts.Close()
 
 	resp := post(t, ts.URL+"/api/agents/nonexist/send", "application/json", `{"message":"hello"}`)
-	assertStatus(t, resp, http.StatusBadRequest)
+	assertStatus(t, resp, http.StatusNotFound)
 	_ = resp.Body.Close()
 }
 
@@ -2116,7 +2121,7 @@ func TestAgentHandler_StartNonexistent(t *testing.T) {
 	defer ts.Close()
 
 	resp := post(t, ts.URL+"/api/agents/nonexist/start", "application/json", ``)
-	assertStatus(t, resp, http.StatusBadRequest)
+	assertStatus(t, resp, http.StatusNotFound)
 	_ = resp.Body.Close()
 }
 
@@ -2132,7 +2137,7 @@ func TestAgentHandler_StopNonexistent(t *testing.T) {
 	defer ts.Close()
 
 	resp := post(t, ts.URL+"/api/agents/nonexist/stop", "application/json", ``)
-	assertStatus(t, resp, http.StatusBadRequest)
+	assertStatus(t, resp, http.StatusNotFound)
 	_ = resp.Body.Close()
 }
 
@@ -2148,7 +2153,7 @@ func TestAgentHandler_DeleteNonexistent(t *testing.T) {
 	defer ts.Close()
 
 	resp := doRequest(t, http.MethodDelete, ts.URL+"/api/agents/nonexist", "", "")
-	assertStatus(t, resp, http.StatusBadRequest)
+	assertStatus(t, resp, http.StatusNotFound)
 	_ = resp.Body.Close()
 }
 
@@ -2164,7 +2169,7 @@ func TestAgentHandler_PeekNonexistent(t *testing.T) {
 	defer ts.Close()
 
 	resp := get(t, ts.URL+"/api/agents/nonexist/peek")
-	assertStatus(t, resp, http.StatusBadRequest)
+	assertStatus(t, resp, http.StatusNotFound)
 	_ = resp.Body.Close()
 }
 
@@ -2180,7 +2185,7 @@ func TestAgentHandler_SessionsNonexistent(t *testing.T) {
 	defer ts.Close()
 
 	resp := get(t, ts.URL+"/api/agents/nonexist/sessions")
-	assertStatus(t, resp, http.StatusBadRequest)
+	assertStatus(t, resp, http.StatusNotFound)
 	_ = resp.Body.Close()
 }
 
