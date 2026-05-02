@@ -118,8 +118,7 @@ function relativeTime(dateStr: string | null): string {
 // Create Job Form
 // ---------------------------------------------------------------------------
 
-function CreateJobForm({ onCreated }: { onCreated: () => void }) {
-  const [open, setOpen] = useState(false);
+function CreateJobForm({ onCreated, onCancel }: { onCreated: () => void; onCancel: () => void }) {
   const [name, setName] = useState("");
   const [schedule, setSchedule] = useState("");
   const [command, setCommand] = useState("");
@@ -143,7 +142,6 @@ function CreateJobForm({ onCreated }: { onCreated: () => void }) {
       });
       setStatus({ type: "success" });
       reset();
-      setOpen(false);
       onCreated();
     } catch (err) {
       setStatus({
@@ -153,8 +151,6 @@ function CreateJobForm({ onCreated }: { onCreated: () => void }) {
       setTimeout(() => setStatus({ type: "idle" }), 4000);
     }
   };
-
-  if (!open) return null;
 
   const inputCls =
     "w-full px-3 py-2 rounded border border-mycel-border bg-mycel-bg text-mycel-text text-sm focus:outline-none focus:ring-2 focus:ring-mycel-accent";
@@ -226,7 +222,7 @@ function CreateJobForm({ onCreated }: { onCreated: () => void }) {
           type="button"
           onClick={() => {
             reset();
-            setOpen(false);
+            onCancel();
           }}
           className="px-4 py-2 rounded border border-mycel-border text-mycel-muted text-sm hover:text-mycel-text transition-colors focus-visible:ring-2 focus-visible:ring-mycel-accent focus-visible:ring-offset-1 focus-visible:ring-offset-mycel-bg"
         >
@@ -703,6 +699,7 @@ export function Cron() {
             refresh();
             setShowCreateForm(false);
           }}
+          onCancel={() => setShowCreateForm(false)}
         />
       )}
 
@@ -711,7 +708,7 @@ export function Cron() {
         <EmptyState
           icon="~"
           title="No cron jobs"
-          description="Create a cron job above or use 'bc cron add <name>' to schedule recurring tasks."
+          description="Click '+ New Job' above or use 'bc cron add <name>' to schedule recurring tasks."
         />
       ) : (
         <div className="grid grid-cols-1 gap-3">

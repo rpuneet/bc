@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, Link, useLocation, useNavigate } from "react-router-dom";
+import { useWorkspace } from "../context/WorkspaceContext";
 import { api } from "../api/client";
 import type { Agent, AgentConfig } from "../api/client";
 import { usePolling } from "../hooks/usePolling";
@@ -309,7 +310,7 @@ function AttachOverlay({
    System prompt, MCP servers, metadata, danger zone
    ═══════════════════════════════════════════════════════════════════ */
 
-function ConfigTab({ agent }: { agent: Agent }) {
+function ConfigTab({ agent, agentsUrl }: { agent: Agent; agentsUrl: string }) {
   const navigate = useNavigate();
   const [config, setConfig] = useState<AgentConfig | null>(null);
   const [configLoading, setConfigLoading] = useState(true);
@@ -798,7 +799,7 @@ function ConfigTab({ agent }: { agent: Agent }) {
                     setArchiveError(null);
                     api
                       .unarchiveAgent(agent.name)
-                      .then(() => navigate("/agents"))
+                      .then(() => navigate(agentsUrl))
                       .catch((err: unknown) => {
                         setArchiving(false);
                         setArchiveError(
@@ -824,7 +825,7 @@ function ConfigTab({ agent }: { agent: Agent }) {
                       setArchiveError(null);
                       api
                         .archiveAgent(agent.name)
-                        .then(() => navigate("/agents"))
+                        .then(() => navigate(agentsUrl))
                         .catch((err: unknown) => {
                           setArchiving(false);
                           setConfirmArchive(false);
@@ -898,7 +899,7 @@ function ConfigTab({ agent }: { agent: Agent }) {
                       api
                         .deleteAgent(agent.name)
                         .then(() => {
-                          navigate("/agents");
+                          navigate(agentsUrl);
                         })
                         .catch((err: unknown) => {
                           setDeleting(false);
@@ -1010,6 +1011,9 @@ export function AgentDetail() {
   const { name } = useParams<{ name: string }>();
   const navigate = useNavigate();
   const location = useLocation();
+  const { workspace } = useWorkspace();
+  // Workspace-scoped /agents URL so back-links don't bounce through a redirect.
+  const agentsUrl = workspace ? `/w/${workspace.id}/agents` : "/agents";
 
   // Derive active tab from URL sub-path: /agents/<name>/<tab>
   // Defaults to "attach" when no sub-path is present.
@@ -1083,7 +1087,7 @@ export function AgentDetail() {
           selectTab("code");
           break;
         case "Escape":
-          navigate("/agents");
+          navigate(agentsUrl);
           break;
       }
     };
@@ -1091,7 +1095,7 @@ export function AgentDetail() {
     return () => {
       window.removeEventListener("keydown", handler);
     };
-  }, [navigate, selectTab]);
+  }, [navigate, selectTab, agentsUrl]);
 
   /* ─── Loading / Error ─── */
 
@@ -1111,7 +1115,7 @@ export function AgentDetail() {
           error: {error}
         </div>
         <Link
-          to="/agents"
+          to={agentsUrl}
           className="text-xs text-mycel-accent hover:underline"
           style={{ fontFamily: MONO }}
         >
@@ -1134,7 +1138,7 @@ export function AgentDetail() {
         <div className="flex items-center gap-2.5 min-w-0 px-6 h-[42px]">
           {/* Back link */}
           <Link
-            to="/agents"
+            to={agentsUrl}
             className="text-[10px] text-mycel-muted/40 hover:text-mycel-text transition-colors shrink-0"
             style={{ fontFamily: MONO }}
           >
@@ -1255,7 +1259,7 @@ export function AgentDetail() {
           />
         )}
         {activeTab === "attach" && <AttachTab agent={agent} />}
-        {activeTab === "config" && <ConfigTab agent={agent} />}
+        {activeTab === "config" && <ConfigTab agent={agent} agentsUrl={agentsUrl} />}
         {activeTab === "metrics" && <MetricsTab agent={agent} />}
         {activeTab === "code" && <CodeTabPlaceholder agent={agent} />}
       </div>

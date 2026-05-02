@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type { ProviderInfo } from "../api/client";
 import { formatCost, formatTokens } from "../utils/format";
+import { useWorkspace } from "../context/WorkspaceContext";
 import { EmptyState } from "./EmptyState";
 import { ProviderCard } from "./ProviderCard";
 
@@ -92,6 +93,10 @@ export function ProvidersTable({ providers, search }: Props) {
   const [sortDir, setSortDir] = useState<SortDir>("asc");
   const [viewMode, setViewMode] = useState<ViewMode>("cards");
   const navigate = useNavigate();
+  const { workspace } = useWorkspace();
+  // Build workspace-scoped tools URL so clicks land on the scoped route
+  // directly rather than relying on a redirect.
+  const toolsBase = workspace ? `/w/${workspace.id}/tools` : "/tools";
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase().trim();
@@ -184,7 +189,7 @@ export function ProvidersTable({ providers, search }: Props) {
             <ProviderCard
               key={p.name}
               provider={p}
-              onClick={() => navigate(`/tools/${encodeURIComponent(p.name)}`)}
+              onClick={() => navigate(`${toolsBase}/${encodeURIComponent(p.name)}`)}
             />
           ))}
         </div>
@@ -210,7 +215,7 @@ export function ProvidersTable({ providers, search }: Props) {
               {sorted.map((p) => (
                 <tr
                   key={p.name}
-                  onClick={() => navigate(`/tools/${encodeURIComponent(p.name)}`)}
+                  onClick={() => navigate(`${toolsBase}/${encodeURIComponent(p.name)}`)}
                   className="border-b border-mycel-border/50 cursor-pointer hover:bg-mycel-surface transition-colors"
                 >
                   <td className="px-4 py-2.5 font-medium">{p.name}</td>
@@ -224,7 +229,7 @@ export function ProvidersTable({ providers, search }: Props) {
                       {!p.installed && p.install_hint && (
                         <button
                           type="button"
-                          onClick={() => navigate(`/tools/${encodeURIComponent(p.name)}`)}
+                          onClick={() => navigate(`${toolsBase}/${encodeURIComponent(p.name)}`)}
                           className="text-xs px-2 py-0.5 rounded bg-mycel-warning/10 text-mycel-warning hover:bg-mycel-warning/20 transition-colors"
                         >
                           Install
@@ -237,7 +242,7 @@ export function ProvidersTable({ providers, search }: Props) {
                       )}
                       <button
                         type="button"
-                        onClick={() => navigate(`/tools/${encodeURIComponent(p.name)}`)}
+                        onClick={() => navigate(`${toolsBase}/${encodeURIComponent(p.name)}`)}
                         className="text-xs px-1.5 py-0.5 rounded border border-mycel-border text-mycel-muted hover:text-mycel-text hover:border-mycel-accent/50 transition-colors"
                         aria-label={`Configure ${p.name}`}
                       >
