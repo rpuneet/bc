@@ -30,7 +30,7 @@ func SetVersionInfo(v, c, d string) {
 
 // rootCmd is the base command for bc.
 var rootCmd = &cobra.Command{
-	Use:   "bc",
+	Use:   "mycel",
 	Short: "A simpler, more controllable agent orchestrator",
 	Long: `bc is a multi-agent orchestration system for AI coding assistants.
 
