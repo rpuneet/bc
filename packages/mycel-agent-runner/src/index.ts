@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 // mycel-agent-runner entry point.
 //
 // One process per agent. Reads its identity, working directory, and policy

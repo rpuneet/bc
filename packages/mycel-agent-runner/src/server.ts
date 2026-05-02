@@ -1,6 +1,6 @@
 import express, { type Express, type Request, type Response } from "express";
 
-import { AgentRunner } from "./agent.js";
+import { AgentBusyError, AgentRunner } from "./agent.js";
 import { SseHub } from "./sse.js";
 import type {
   HealthResponse,
@@ -52,10 +52,12 @@ export function buildServer(
       };
       res.status(202).json(response);
     } catch (err) {
+      if (err instanceof AgentBusyError) {
+        res.status(409).json({ error: err.message });
+        return;
+      }
       const message = err instanceof Error ? err.message : String(err);
-      // Busy is the only expected error path here.
-      const status = message.includes("busy") ? 409 : 500;
-      res.status(status).json({ error: message });
+      res.status(500).json({ error: message });
     }
   });
 

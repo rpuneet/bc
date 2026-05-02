@@ -9,6 +9,16 @@ import type {
 } from "./types.js";
 import type { SseHub } from "./sse.js";
 
+// AgentBusyError is thrown when startQuery is called while a query is already
+// in flight. Callers (e.g. the HTTP server) can use `instanceof` to map this
+// to a 409 instead of relying on string matching against the error message.
+export class AgentBusyError extends Error {
+  constructor() {
+    super("agent is busy; call /stop before starting a new query");
+    this.name = "AgentBusyError";
+  }
+}
+
 // AgentRunner wraps a single Claude agent. Only one query can be in flight at
 // a time — if a new /query arrives while one is already running, the caller
 // gets a 409. /stop interrupts the active query so a new one can start.
@@ -78,7 +88,7 @@ export class AgentRunner {
   // until completion.
   async startQuery(req: QueryRequest): Promise<{ session_id: string | null }> {
     if (this.isBusy()) {
-      throw new Error("agent is busy; call /stop before starting a new query");
+      throw new AgentBusyError();
     }
 
     const options = this.buildOptions(req);
