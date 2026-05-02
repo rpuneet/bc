@@ -18,6 +18,7 @@ func TestSanitizeChannelName(t *testing.T) {
 		{"café ☕", "caf-"},
 		{"UPPER CASE", "upper-case"},
 		{"a/b\\c", "abc"},
+		{"My Server:general", "my-server:general"},
 		{"", ""},
 	}
 	for _, tt := range tests {

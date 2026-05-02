@@ -57,7 +57,10 @@ function AddSecretForm({ onCreated }: { onCreated: () => void }) {
     e.preventDefault();
     const trimmedName = name.trim().toUpperCase().replace(/[^A-Z0-9_]/g, "_");
     const trimmedValue = value.trim();
-    if (!trimmedName || !trimmedValue) return;
+    if (!trimmedName || !trimmedValue) {
+      setError(!trimmedName ? "Name is required." : "Value is required.");
+      return;
+    }
 
     setSaving(true);
     setError(null);

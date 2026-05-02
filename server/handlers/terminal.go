@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"os"
@@ -13,7 +14,33 @@ import (
 
 	"github.com/rpuneet/mycel/pkg/agent"
 	"github.com/rpuneet/mycel/pkg/log"
+	"github.com/rpuneet/mycel/pkg/runtime"
 )
+
+// waitForSession polls rt.HasSession with short backoff until the session
+// is up or the deadline expires. Returns true if the session became
+// available within the deadline.
+func waitForSession(ctx context.Context, rt runtime.Backend, name string, max time.Duration) bool {
+	if rt.HasSession(ctx, name) {
+		return true
+	}
+	deadline := time.Now().Add(max)
+	delay := 50 * time.Millisecond
+	for time.Now().Before(deadline) {
+		select {
+		case <-ctx.Done():
+			return false
+		case <-time.After(delay):
+		}
+		if rt.HasSession(ctx, name) {
+			return true
+		}
+		if delay < 400*time.Millisecond {
+			delay *= 2
+		}
+	}
+	return false
+}
 
 // TerminalHandler handles /api/agents/:name/terminal WebSocket connections.
 // It bridges the browser to a tmux session via a PTY.
@@ -61,7 +88,11 @@ func (h *TerminalHandler) HandleTerminal(w http.ResponseWriter, r *http.Request,
 		httpError(w, "no runtime backend for agent", http.StatusInternalServerError)
 		return
 	}
-	if !rt.HasSession(r.Context(), agentName) {
+	// Freshly-spawned agents race with the runtime: the agent record is
+	// already in StateRunning before tmux/docker has finished bringing the
+	// session up. Retry briefly (up to ~2s) before giving up so the UI's
+	// Attach tab does not 409 on the first connect after Create.
+	if !waitForSession(r.Context(), rt, agentName, 2*time.Second) {
 		httpError(w, "no active session for agent", http.StatusConflict)
 		return
 	}

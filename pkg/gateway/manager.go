@@ -407,13 +407,15 @@ func (m *Manager) WebhookHandlers() map[string]http.Handler {
 }
 
 // sanitizeChannelName converts a group name to a valid bc channel name.
+// Preserves ':' so adapters can pass compound names like
+// "guildName:channelName" (Discord) without the segments concatenating.
 func sanitizeChannelName(name string) string {
 	name = strings.ToLower(name)
 	name = strings.ReplaceAll(name, " ", "-")
-	// Remove any characters that aren't alphanumeric, dash, or underscore
+	// Remove any characters that aren't alphanumeric, dash, underscore, or colon
 	var b strings.Builder
 	for _, r := range name {
-		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '-' || r == '_' {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '-' || r == '_' || r == ':' {
 			b.WriteRune(r)
 		}
 	}

@@ -163,14 +163,20 @@ export function Code() {
   useEffect(() => {
     let cancelled = false;
     const tick = async () => {
+      if (typeof document !== "undefined" && document.hidden) return;
       const s = await fetchCodeServerStatus();
       if (!cancelled) setCodeServer(s);
     };
     void tick();
-    const id = setInterval(() => void tick(), 5000);
+    const id = setInterval(() => void tick(), 10000);
+    const onVis = () => {
+      if (!document.hidden) void tick();
+    };
+    document.addEventListener("visibilitychange", onVis);
     return () => {
       cancelled = true;
       clearInterval(id);
+      document.removeEventListener("visibilitychange", onVis);
     };
   }, []);
 

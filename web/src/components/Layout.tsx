@@ -572,16 +572,16 @@ export function Layout() {
                   borderRadius: 7,
                   background: "var(--mycel-accent, #f97316)",
                   color: "#0d0d0d",
-                  fontSize: 12,
+                  fontSize: 14,
                   fontFamily: "'JetBrains Mono', monospace",
                   letterSpacing: -0.5,
                 }}
               >
-                mycel
+                m
               </span>
               <div className="min-w-0">
                 <p className="text-[13px] font-semibold text-mycel-text truncate" style={{ letterSpacing: -0.1 }}>
-                  {userName ? `@${userName}` : "@mycel"}
+                  {userName ? (userName.startsWith("@") ? userName : `@${userName}`) : "@mycel"}
                 </p>
                 <p className="text-[9px] text-mycel-muted/40 -mt-0.5" style={{ fontFamily: "'JetBrains Mono', monospace" }}>workspace</p>
               </div>
@@ -593,12 +593,12 @@ export function Layout() {
                 borderRadius: 7,
                 background: "var(--mycel-accent, #f97316)",
                 color: "#0d0d0d",
-                fontSize: 12,
+                fontSize: 14,
                 fontFamily: "'JetBrains Mono', monospace",
                 letterSpacing: -0.5,
               }}
             >
-              mycel
+              m
             </span>
           )}
           {isMobile ? (
