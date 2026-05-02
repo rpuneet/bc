@@ -164,11 +164,16 @@ export function CreateAgentModal({
   }, [existingNames]);
 
   const handleCreate = useCallback(async () => {
+    const trimmed = name.trim();
+    if (!trimmed) {
+      alert("Agent name is required.");
+      return;
+    }
     try {
       const res = await fetch("/api/agents", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, template, tool: provider, runtime_backend: runtime, task: task || undefined }),
+        body: JSON.stringify({ name: trimmed, template, tool: provider, runtime_backend: runtime, task: task || undefined }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({})) as { error?: string };
@@ -177,7 +182,7 @@ export function CreateAgentModal({
       }
       onClose();
       // Navigate to new agent
-      window.location.href = `/agents/${encodeURIComponent(name)}`;
+      window.location.href = `/agents/${encodeURIComponent(trimmed)}`;
     } catch {
       alert("Failed to create agent");
     }

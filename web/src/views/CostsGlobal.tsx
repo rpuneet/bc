@@ -21,7 +21,7 @@ function defaultStart(): string {
 
 export function CostsGlobal() {
   const [start, setStart] = useState<string>(defaultStart);
-  const [groupBy, setGroupBy] = useState<GroupBy>("workspace");
+  const groupBy: GroupBy = "workspace";
   const [rows, setRows] = useState<CostRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -61,22 +61,9 @@ export function CostsGlobal() {
           onChange={(e) => setStart(e.target.value)}
           className="bg-mycel-bg border border-mycel-border rounded px-2 py-1 text-mycel-text outline-none focus:border-mycel-accent"
         />
-        <div className="flex rounded border border-mycel-border overflow-hidden">
-          {(["workspace", "project"] as const).map((g) => (
-            <button
-              key={g}
-              type="button"
-              onClick={() => setGroupBy(g)}
-              className={`px-2.5 py-1 text-[11px] ${
-                groupBy === g
-                  ? "bg-mycel-accent/15 text-mycel-accent"
-                  : "bg-mycel-surface text-mycel-muted hover:text-mycel-text"
-              }`}
-            >
-              {g === "workspace" ? "By workspace" : "By project"}
-            </button>
-          ))}
-        </div>
+        {/* "By project" toggle removed: project labels currently resolve to
+            the same workspace name, producing identical rows. Re-add when a
+            distinct project axis exists in the data model. */}
       </div>
     ),
   });

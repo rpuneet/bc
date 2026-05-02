@@ -141,17 +141,24 @@ func (a *Adapter) handleReady(_ *discordgo.Session, r *discordgo.Ready) {
 	log.Info("discord: ready", "guilds", len(r.Guilds))
 
 	for _, guild := range r.Guilds {
+		guildName := guild.ID
+		if g, err := a.session.Guild(guild.ID); err == nil && g.Name != "" {
+			guildName = g.Name
+		}
+
 		channels, err := a.session.GuildChannels(guild.ID)
 		if err != nil {
-			log.Warn("discord: failed to list channels", "guild", guild.ID, "error", err)
+			log.Warn("discord: failed to list channels", "guild", guildName, "error", err)
 			continue
 		}
 
 		a.chatMu.Lock()
 		for _, ch := range channels {
 			if ch.Type == discordgo.ChannelTypeGuildText {
-				a.guildChannels[ch.ID] = ch.Name
-				log.Info("discord: discovered channel", "channel", ch.Name, "id", ch.ID, "guild", guild.ID)
+				// Format: "guildName:channelName" — gateway manager keeps the
+				// separator so the sidebar shows server + channel separately.
+				a.guildChannels[ch.ID] = guildName + ":" + ch.Name
+				log.Info("discord: discovered channel", "channel", guildName+":"+ch.Name, "id", ch.ID)
 			}
 		}
 		a.chatMu.Unlock()

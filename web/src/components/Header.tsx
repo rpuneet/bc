@@ -33,8 +33,8 @@ export function Header({ left, center, actions, compact = true }: HeaderProps) {
       style={{ fontFamily: MONO }}
     >
       <div
-        className={`flex items-center gap-2.5 min-w-0 px-6 ${
-          compact ? "h-[42px]" : "h-[52px]"
+        className={`flex items-center gap-2.5 min-w-0 px-3 sm:px-6 flex-wrap sm:flex-nowrap py-1.5 sm:py-0 ${
+          compact ? "sm:min-h-[42px]" : "sm:min-h-[52px]"
         }`}
       >
         {/* Left slot */}

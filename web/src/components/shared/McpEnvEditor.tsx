@@ -51,7 +51,7 @@ export function McpEnvEditor({ serverNames }: McpEnvEditorProps) {
       <p className="text-[11px] text-mycel-muted/60" style={{ fontFamily: MONO }}>
         {serverNames.length === 0
           ? "No MCP servers attached."
-          : "Attached servers aren\u2019t in the MCP registry yet."}
+          : "Attached servers aren't in the MCP registry yet."}
       </p>
     );
   }
@@ -116,7 +116,7 @@ export function McpEnvEditor({ serverNames }: McpEnvEditorProps) {
       })}
       <p className="text-[10px] text-mycel-muted/40 leading-relaxed" style={{ fontFamily: MONO }}>
         MCP env is shared across every agent that uses the server. To override a
-        value per-agent, set it in the agent\u2019s Environment section above.
+        value per-agent, set it in the agent's Environment section above.
       </p>
     </div>
   );

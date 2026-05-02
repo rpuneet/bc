@@ -966,7 +966,7 @@ function CodeTabPlaceholder({ agent }: { agent: Agent }) {
           Agent code — diff view
         </p>
         <p className="text-sm text-mycel-muted leading-relaxed">
-          Open the Code view with <span className="text-mycel-text/90">{agent.name}</span>&rsquo;s
+          Open the Code view with <span className="text-mycel-text/90">{agent.name}</span>'s
           worktree selected to see its uncommitted changes against the main repo.
         </p>
         <Link

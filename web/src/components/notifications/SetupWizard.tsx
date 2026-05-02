@@ -196,7 +196,7 @@ export const PLATFORMS: PlatformDef[] = [
     fields: [{ key: "secret", label: "Webhook Secret", placeholder: "your-webhook-secret" }],
     docs: [
       "Create a webhook → your repo → Settings → Webhooks.",
-      "Set the payload URL to your bc server\u2019s /hooks/github endpoint.",
+      "Set the payload URL to your bc server's /hooks/github endpoint.",
       "Set the secret here to match the webhook secret.",
     ],
   },
@@ -210,7 +210,7 @@ export const PLATFORMS: PlatformDef[] = [
     fields: [{ key: "token", label: "Token", placeholder: "webhook-secret-token" }],
     docs: [
       "Go to your GitLab project > Settings > Webhooks.",
-      "Set the URL to your bc server\u2019s /hooks/gitlab endpoint.",
+      "Set the URL to your bc server's /hooks/gitlab endpoint.",
       "Copy the secret token and paste it here.",
     ],
   },
@@ -224,7 +224,7 @@ export const PLATFORMS: PlatformDef[] = [
     fields: [{ key: "secret", label: "Secret", placeholder: "webhook-secret" }],
     docs: [
       "Go to your Bitbucket repo > Settings > Webhooks.",
-      "Add a webhook pointing to your bc server\u2019s /hooks/bitbucket endpoint.",
+      "Add a webhook pointing to your bc server's /hooks/bitbucket endpoint.",
       "Set the secret here for payload verification.",
     ],
   },

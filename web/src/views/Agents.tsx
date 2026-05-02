@@ -71,18 +71,19 @@ function InlineAgentName({
   }
 
   return (
-    <button
-      type="button"
-      className="font-medium cursor-pointer hover:text-mycel-accent transition-colors focus-visible:ring-2 focus-visible:ring-mycel-accent focus-visible:ring-offset-1 focus-visible:ring-offset-mycel-bg rounded"
-      onClick={(e) => {
+    <span
+      className="font-medium"
+      // Double-click enters rename mode; single click should fall through
+      // to the row click (which opens the agent detail page).
+      onDoubleClick={(e) => {
         e.stopPropagation();
         setEditing(true);
       }}
-      title="Click to rename"
-      aria-label={`Rename agent ${agent.name}`}
+      title="Double-click to rename"
+      aria-label={`Agent ${agent.name} (double-click to rename)`}
     >
       {agent.name}
-    </button>
+    </span>
   );
 }
 
@@ -306,6 +307,9 @@ export function Agents() {
   // see the useEffect labelled "Global keyboard shortcuts".
 
   const handleStopAll = async () => {
+    if (typeof window !== "undefined" && !window.confirm("Stop all running agents? This cannot be undone.")) {
+      return;
+    }
     setStoppingAll(true);
     try {
       await api.stopAllAgents();
@@ -579,9 +583,10 @@ export function Agents() {
             (a) => a.state !== "stopped" && a.state !== "error",
           ) && (
             <button
+              type="button"
               onClick={handleStopAll}
               disabled={stoppingAll}
-              className="px-3 py-1.5 text-sm rounded bg-mycel-error/20 text-mycel-error hover:bg-mycel-error/30 disabled:opacity-50 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-mycel-error focus-visible:ring-offset-1 focus-visible:ring-offset-mycel-bg"
+              className="px-3 py-1.5 text-xs font-medium rounded border border-mycel-error/40 bg-mycel-error/10 text-mycel-error hover:bg-mycel-error/20 hover:border-mycel-error/60 disabled:opacity-50 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-mycel-error focus-visible:ring-offset-1 focus-visible:ring-offset-mycel-bg"
               aria-label="Stop all agents"
             >
               {stoppingAll ? "Stopping..." : "Stop All"}

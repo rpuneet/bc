@@ -351,6 +351,14 @@ export function Settings() {
         preferences.json{typeof version !== "undefined" ? ` v${version}` : ""}
       </p>
 
+      {/* Saved confirmation toast — visible briefly after a successful save
+          when no other sections are dirty. */}
+      {saveStatus === "saved" && dirtySections.length === 0 && (
+        <div className="fixed bottom-4 right-4 z-30 rounded border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-400">
+          Saved
+        </div>
+      )}
+
       {/* Floating save bar */}
       {dirtySections.length > 0 && (
         <div className="sticky top-0 z-20 rounded border border-mycel-accent/50 bg-mycel-accent/10 backdrop-blur px-3 py-2 flex items-center justify-between">
