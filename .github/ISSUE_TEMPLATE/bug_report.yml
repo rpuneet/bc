@@ -133,7 +133,7 @@ body:
         make ci-local                       # Full CI pipeline (MUST PASS)
         make test-go                        # Go tests with race detector
         make lint-go                        # golangci-lint
-        make build-bcd-local                # Build bcd server
+        make build-local-mycel              # Build mycel binary (embeds server + web UI)
         go test -race -run TestName ./pkg/  # Run specific test
         ```
 

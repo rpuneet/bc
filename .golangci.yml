@@ -49,7 +49,7 @@ linters:
           - mnd
 
       # Ignore certain checks in main.go
-      - path: cmd/bc/main\.go
+      - path: cmd/mycel/main\.go
         linters:
           - gochecknoglobals
 

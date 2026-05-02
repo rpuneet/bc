@@ -95,7 +95,7 @@ download_and_install() {
 
     if ! curl -fsSL "$DOWNLOAD_URL" -o "${TMP_DIR}/${ARCHIVE_NAME}"; then
         rm -rf "$TMP_DIR"
-        error "Failed to download bc. Check if release exists for ${OS}/${ARCH}."
+        error "Failed to download mycel. Check if release exists for ${OS}/${ARCH}."
     fi
 
     # Verify checksum if available
