@@ -11,8 +11,11 @@ function getMeta(p: string) {
 }
 
 function displayName(name: string): string {
-  const idx = name.indexOf(":");
-  return idx > 0 ? name.slice(idx + 1) : name;
+  // Show only the leaf channel segment, e.g.:
+  //   "discord:server-name:general" → "general"
+  //   "slack:engineering"           → "engineering"
+  const parts = name.split(":");
+  return parts[parts.length - 1] || name;
 }
 
 /* ── Platform glyphs ─────────────────────────────────────── */
