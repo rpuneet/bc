@@ -396,7 +396,7 @@ const GLOBAL_NAV_ITEMS = [
   { to: "/costs", label: "Costs", icon: "metrics" },
 ] as const;
 
-const NAV_ITEMS = [...MAIN_NAV_ITEMS, ...UTIL_NAV_ITEMS];
+const NAV_ITEMS = [...MAIN_NAV_ITEMS, ...UTIL_NAV_ITEMS, ...GLOBAL_NAV_ITEMS];
 
 function readCollapsed(): boolean {
   try { return localStorage.getItem(SIDEBAR_KEY) === "true"; } catch { return false; }
@@ -640,13 +640,21 @@ export function Layout() {
           <NavList items={UTIL_NAV_ITEMS} collapsed={collapsed} isMobile={isMobile} />
         </ul>
 
-        {/* Theme toggle */}
-        <div className="px-3 py-2 border-t border-mycel-border/20">
+        {/* Theme toggle — matches nav-item width and padding for visual alignment */}
+        <div className="py-1.5 border-t border-mycel-border/20">
           <button type="button" onClick={toggle}
-            className="px-2 py-1 rounded text-[10px] text-mycel-muted/30 hover:text-mycel-muted/60 border border-mycel-border/15 hover:border-mycel-border/30 transition-colors w-full"
+            className={`relative flex items-center gap-2.5 ${collapsed && !isMobile ? "justify-center px-2" : "pl-4 pr-3"} py-[7px] w-full text-[11px] text-mycel-muted/50 hover:text-mycel-text hover:bg-mycel-bg/30 border-l-2 border-transparent transition-colors`}
             title={`Theme: ${THEME_LABELS[mode]}`}
           >
-            {collapsed && !isMobile ? THEME_LABELS[mode][0] : THEME_LABELS[mode]}
+            <span className="shrink-0 flex items-center justify-center w-4 opacity-60">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <circle cx="7" cy="7" r="3" />
+                <path d="M7 1v2M7 11v2M1 7h2M11 7h2M2.5 2.5l1.5 1.5M10 10l1.5 1.5M2.5 11.5L4 10M10 4l1.5-1.5" strokeLinecap="round" />
+              </svg>
+            </span>
+            {(!collapsed || isMobile) && (
+              <span className="truncate">{THEME_LABELS[mode]}</span>
+            )}
           </button>
         </div>
       </nav>

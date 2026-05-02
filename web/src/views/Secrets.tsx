@@ -101,7 +101,7 @@ function AddSecretForm({ onCreated }: { onCreated: () => void }) {
         <button
           type="button"
           onClick={() => { setOpen(false); setError(null); }}
-          className="text-mycel-muted hover:text-mycel-text text-sm transition-colors"
+          className="px-3 py-1 rounded text-xs text-mycel-muted hover:text-mycel-text border border-mycel-border hover:border-mycel-muted bg-mycel-bg transition-colors"
         >
           Cancel
         </button>

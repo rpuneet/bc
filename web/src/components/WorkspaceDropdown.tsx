@@ -102,8 +102,7 @@ export function WorkspaceDropdown({
         style={{ fontFamily: MONO }}
         title="Switch workspace (Cmd+Shift+W)"
       >
-        <span className="text-mycel-muted/60 text-[9px] uppercase tracking-wider">ws</span>
-        <span className="font-semibold truncate max-w-[160px]">
+        <span className="font-semibold truncate max-w-[180px]">
           {active ? (active.name || active.path.split("/").pop() || "unnamed") : (loading ? "…" : "no workspace")}
         </span>
         {active?.id && (

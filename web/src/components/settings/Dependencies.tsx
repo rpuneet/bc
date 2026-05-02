@@ -270,11 +270,43 @@ export function DependenciesSection() {
     );
   }
 
+  const active = deps.filter((d) => !d.deprecated);
+  const deprecated = deps.filter((d) => d.deprecated);
+
   return (
     <div className="space-y-2">
-      {deps.map((d) => (
+      {active.map((d) => (
         <DepCard key={d.id} dep={d} onRefresh={refresh} />
       ))}
+      {deprecated.length > 0 && (
+        <DeprecatedSection deps={deprecated} onRefresh={refresh} />
+      )}
+    </div>
+  );
+}
+
+function DeprecatedSection({ deps, onRefresh }: { deps: DepView[]; onRefresh: () => void }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="rounded border border-mycel-border/40 bg-mycel-bg/30">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center gap-2 px-3 py-1.5 text-[11px] text-mycel-muted hover:text-mycel-text transition-colors"
+      >
+        <svg className={`w-3 h-3 transition-transform ${open ? "rotate-90" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+        </svg>
+        <span className="uppercase tracking-wide">Deprecated</span>
+        <span className="text-mycel-muted/60">({deps.length})</span>
+      </button>
+      {open && (
+        <div className="px-2 pb-2 space-y-2">
+          {deps.map((d) => (
+            <DepCard key={d.id} dep={d} onRefresh={onRefresh} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }

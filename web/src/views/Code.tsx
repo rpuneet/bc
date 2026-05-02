@@ -54,8 +54,28 @@ const EMPTY_FILE: FileResult = {
   notFound: false,
 };
 
+// Common build / dependency directories that clutter the file tree.
+// When `Show hidden` is off, these are filtered out alongside dotfiles.
+// Users can still inspect them by toggling `Show hidden`.
+const HIDDEN_DIRS = new Set([
+  ".git",
+  ".bc",
+  "node_modules",
+  "dist",
+  "build",
+  ".next",
+  ".turbo",
+  ".cache",
+  ".parcel-cache",
+  "__pycache__",
+  ".venv",
+  "venv",
+  "target",
+  "vendor",
+]);
+
 function isHiddenEntry(name: string): boolean {
-  return name === ".git" || name === ".bc";
+  return HIDDEN_DIRS.has(name);
 }
 
 async function fetchTree(
