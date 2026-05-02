@@ -8,7 +8,6 @@ import (
 	"os"
 	"os/exec"
 	"strings"
-	"syscall"
 
 	"github.com/spf13/cobra"
 
@@ -214,8 +213,8 @@ func runUpDaemon(wsRoot string) error {
 	cmd.Stderr = logFile
 	cmd.Dir = wsRoot
 	cmd.Env = os.Environ()
-	// Start in a new session so SIGHUP from terminal close doesn't propagate.
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+	// Start in a new session so SIGHUP from terminal close doesn't propagate (no-op on Windows).
+	detachSession(cmd)
 
 	if err := cmd.Start(); err != nil {
 		_ = logFile.Close()
