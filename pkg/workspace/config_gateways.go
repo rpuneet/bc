@@ -838,8 +838,9 @@ type NotionGatewayConfig struct {
 
 // WhatsAppGatewayConfig configures the WhatsApp (Meta Cloud API) webhook adapter.
 type WhatsAppGatewayConfig struct {
-	VerifyToken string `json:"verify_token"`
-	Enabled     bool   `json:"enabled"`
+	VerifyToken         string `json:"verify_token"`
+	Enabled             bool   `json:"enabled"`
+	IncludeSelfMessages bool   `json:"include_self_messages"`
 }
 
 // SignalGatewayConfig configures the Signal (signal-cli REST) poll adapter.

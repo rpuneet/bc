@@ -586,8 +586,10 @@ func buildGatewayManager(ctx context.Context, ws *bcworkspace.Workspace, notifyS
 			adapterName = "whatsapp:" + label
 		}
 		waStateDir := filepath.Join(ws.StateDir(), "gateways", adapterName)
-		m.Register(bcwhatsapp.NewNamed(adapterName, waStateDir))
-		log.Info("gateway: whatsapp adapter registered", "name", adapterName)
+		wa := bcwhatsapp.NewNamed(adapterName, waStateDir)
+		wa.SetIncludeSelfMessages(c.IncludeSelfMessages)
+		m.Register(wa)
+		log.Info("gateway: whatsapp adapter registered", "name", adapterName, "include_self", c.IncludeSelfMessages)
 	}
 
 	// Register Matrix poll adapters.
