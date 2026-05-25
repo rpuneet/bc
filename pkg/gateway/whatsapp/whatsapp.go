@@ -32,16 +32,17 @@ import (
 
 // Adapter implements gateway.NotificationAdapter for WhatsApp via whatsmeow.
 type Adapter struct { //nolint:govet
-	client        *whatsmeow.Client
-	container     *sqlstore.Container
-	handler       func(gateway.Notification)
-	lastMessageAt time.Time
-	name          string
-	stateDir      string
-	lastError     string
-	mu            sync.Mutex
-	connected     bool
-	messageCount  atomic.Int64
+	client              *whatsmeow.Client
+	container           *sqlstore.Container
+	handler             func(gateway.Notification)
+	lastMessageAt       time.Time
+	name                string
+	stateDir            string
+	lastError           string
+	mu                  sync.Mutex
+	connected           bool
+	includeSelfMessages bool
+	messageCount        atomic.Int64
 	// qrChan receives QR codes during pairing.
 	qrChan     chan string
 	groupCache map[string]string
@@ -68,6 +69,15 @@ func New(stateDir string) *Adapter {
 // NewNamed creates a named WhatsApp adapter for multi-account setups.
 func NewNamed(name, stateDir string) *Adapter {
 	return &Adapter{name: name, stateDir: stateDir}
+}
+
+// SetIncludeSelfMessages controls whether messages sent by the paired account
+// itself are ingested. Off by default; enable to discover groups the user
+// created where no other party has yet sent a message.
+func (a *Adapter) SetIncludeSelfMessages(v bool) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.includeSelfMessages = v
 }
 
 func (a *Adapter) Name() string              { return a.name }
@@ -342,9 +352,14 @@ func (a *Adapter) handleEvent(evt interface{}) {
 
 // handleMessage processes an incoming WhatsApp message.
 func (a *Adapter) handleMessage(msg *events.Message) {
-	// Skip own messages.
+	// Skip own messages unless explicitly opted in.
 	if msg.Info.IsFromMe {
-		return
+		a.mu.Lock()
+		include := a.includeSelfMessages
+		a.mu.Unlock()
+		if !include {
+			return
+		}
 	}
 
 	// Skip status broadcasts.
