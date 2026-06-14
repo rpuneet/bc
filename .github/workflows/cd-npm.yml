@@ -8,6 +8,12 @@ on:
   workflow_run:
     workflows: [Release]
     types: [completed]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Git tag to publish (e.g., v0.2.6)'
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -16,11 +22,20 @@ jobs:
   publish:
     name: Publish to npm
     runs-on: ubuntu-latest
-    if: github.event.workflow_run.conclusion == 'success'
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     steps:
+      - name: Validate dispatch tag
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          TAG_INPUT: ${{ github.event.inputs.tag }}
+        run: |
+          if [[ ! "$TAG_INPUT" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$ ]]; then
+            echo "::error::Invalid tag format: $TAG_INPUT (expected vX.Y.Z)"
+            exit 1
+          fi
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
-          ref: ${{ github.event.workflow_run.head_sha }}
+          ref: ${{ github.event.inputs.tag || github.event.workflow_run.head_sha }}
           fetch-depth: 0
 
       - uses: actions/setup-node@v6
