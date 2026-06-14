@@ -1,21 +1,25 @@
 import { test, expect } from "@playwright/test";
 
+// Unscoped paths that should either render directly or redirect into the
+// workspace-scoped equivalent (/w/<active>/<tab>). Retired surfaces
+// (/mcp, /doctor, /daemons) are intentionally absent — see App.tsx for
+// the redirect table that lands them on the nearest live page.
 const pages = [
-  { path: "/", name: "Dashboard" },
+  { path: "/", name: "Live (root)" },
   { path: "/agents", name: "Agents" },
-  { path: "/channels", name: "Channels" },
+  { path: "/notifications", name: "Notifications" },
+  { path: "/channels", name: "Channels (legacy → Notifications)" },
   { path: "/costs", name: "Costs" },
-  { path: "/roles", name: "Roles" },
   { path: "/tools", name: "Tools" },
-  { path: "/mcp", name: "MCP" },
+  { path: "/code", name: "Code" },
   { path: "/cron", name: "Cron" },
   { path: "/secrets", name: "Secrets" },
   { path: "/settings", name: "Settings" },
-  { path: "/doctor", name: "Doctor" },
-  { path: "/logs", name: "Logs" },
-  { path: "/stats", name: "Stats" },
-  { path: "/workspace", name: "Workspace" },
-  { path: "/daemons", name: "Daemons" },
+  { path: "/templates", name: "Templates" },
+  { path: "/logs", name: "Logs (legacy → Live)" },
+  { path: "/stats", name: "Metrics" },
+  { path: "/workspace", name: "Workspace (legacy → Settings)" },
+  { path: "/roles", name: "Roles (legacy → Templates)" },
 ];
 
 test.describe("Smoke tests — every sidebar page loads", () => {

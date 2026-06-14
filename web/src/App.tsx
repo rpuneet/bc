@@ -112,6 +112,12 @@ export function App() {
                 <Route path="settings" element={<RedirectToActiveWorkspace tab="settings" />} />
                 <Route path="workspace" element={<RedirectToActiveWorkspace tab="settings" />} />
                 <Route path="roles" element={<RedirectToActiveWorkspace tab="templates" />} />
+                <Route path="code" element={<RedirectToActiveWorkspace tab="code" />} />
+                <Route path="code/*" element={<RedirectToActiveWorkspace tab="code" />} />
+                {/* Retired surfaces — bookmarks land on the closest live page */}
+                <Route path="mcp" element={<RedirectToActiveWorkspace tab="tools" />} />
+                <Route path="doctor" element={<RedirectToActiveWorkspace tab="settings" />} />
+                <Route path="daemons" element={<RedirectToActiveWorkspace tab="settings" />} />
 
                 <Route path="*" element={<NotFound />} />
               </Route>
