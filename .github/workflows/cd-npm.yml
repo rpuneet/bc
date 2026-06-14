@@ -18,6 +18,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: cd-npm-${{ github.event.inputs.tag || github.event.workflow_run.head_sha }}
+  cancel-in-progress: false
+
 jobs:
   publish:
     name: Publish to npm
@@ -31,6 +35,10 @@ jobs:
         run: |
           if [[ ! "$TAG_INPUT" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$ ]]; then
             echo "::error::Invalid tag format: $TAG_INPUT (expected vX.Y.Z)"
+            exit 1
+          fi
+          if ! git ls-remote --tags --exit-code "https://github.com/${{ github.repository }}.git" "refs/tags/$TAG_INPUT" >/dev/null; then
+            echo "::error::Tag $TAG_INPUT does not exist in ${{ github.repository }}"
             exit 1
           fi
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
