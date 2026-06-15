@@ -144,10 +144,25 @@ function Section({
 
 function ServerSection({ data, onChange }: { data: Record<string, unknown>; onChange: (path: string[], v: unknown) => void }) {
   const s = (data.server ?? {}) as Record<string, unknown>;
+  const configuredPort = Number(s.port ?? 0);
+  // The Settings page renders the *configured* port from settings.json,
+  // but the daemon may be running on an override (BC_BCD_ADDR, --addr flag,
+  // or the legacy 9374 default if neither is set). Surface the actual
+  // listen port from the browser's connection so users see the live
+  // value alongside the editable config value.
+  const actualPort = typeof window !== "undefined" && window.location.port
+    ? Number(window.location.port)
+    : 0;
+  const portDrift = actualPort > 0 && actualPort !== configuredPort;
   return (
     <>
       <Field label="Host"><input className={INPUT_CLS} value={String(s.host ?? "")} onChange={(e) => onChange(["server", "host"], e.target.value)} /></Field>
-      <Field label="Port"><input className={INPUT_CLS} type="number" value={Number(s.port ?? 0)} onChange={(e) => onChange(["server", "port"], Number(e.target.value))} /></Field>
+      <Field
+        label="Port"
+        suffix={portDrift ? `running on ${actualPort}` : actualPort > 0 ? "live" : undefined}
+      >
+        <input className={INPUT_CLS} type="number" value={configuredPort} onChange={(e) => onChange(["server", "port"], Number(e.target.value))} />
+      </Field>
       <Field label="CORS Origin"><input className={INPUT_CLS} value={String(s.cors_origin ?? "")} onChange={(e) => onChange(["server", "cors_origin"], e.target.value)} /></Field>
     </>
   );
