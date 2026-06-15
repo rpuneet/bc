@@ -286,7 +286,7 @@ func (a *Adapter) handleMessageEvent(ev *slackevents.MessageEvent, rawPayload js
 	// (pkg/notify/service.go) prevents the sender from receiving
 	// their own message back.
 	//
-	// CRITICAL: only honour `Username` when the event also came from
+	// CRITICAL: only honor `Username` when the event also came from
 	// our own bot user. Other apps in the same workspace can post
 	// with any `username` override they like, and treating that as
 	// agent identity would let any installed app impersonate
