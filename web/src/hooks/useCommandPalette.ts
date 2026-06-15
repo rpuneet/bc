@@ -50,6 +50,7 @@ export function useCommandPalette() {
       { id: "nav-cron", label: "Cron", section: "Navigate", icon: "@", action: () => navigate("/cron") },
       { id: "nav-secrets", label: "Secrets", section: "Navigate", icon: "#", action: () => navigate("/secrets") },
       { id: "nav-metrics", label: "Metrics", section: "Navigate", icon: "M", action: () => navigate("/metrics") },
+      { id: "nav-costs", label: "Costs", section: "Navigate", icon: "$", action: () => navigate("/costs") },
       { id: "nav-settings", label: "Settings", section: "Navigate", icon: "\u2699", action: () => navigate("/settings") },
       // Actions
       { id: "act-create-agent", label: "Create Agent", section: "Action", icon: "+", action: () => navigate("/agents?action=create") },
