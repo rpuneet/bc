@@ -69,7 +69,7 @@ function CLIDepsRow({ tool, onToggle, onRemove, toggling, removing, expanded, on
             <span className={`text-xs ${cfg.textColor}`}>{tool.version || cfg.label}</span>
           </span>
         </td>
-        <td className="px-3 py-2 text-xs text-mycel-muted font-mono">{tool.version || "\u2014"}</td>
+        <td className="px-3 py-2 text-xs text-mycel-muted font-mono max-w-[180px] truncate" title={tool.version || ""}>{tool.version || "\u2014"}</td>
         <td className="px-3 py-2 text-xs">
           {tool.required ? (
             <span className="px-1.5 py-0.5 rounded bg-mycel-accent/10 text-mycel-accent text-[10px] font-medium">Yes</span>

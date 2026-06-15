@@ -80,7 +80,7 @@ export function CostsGlobal() {
         <span className="text-[11px] uppercase tracking-wider text-mycel-muted/60">Total</span>
         <span className="text-2xl font-semibold text-mycel-text">{formatCost(total)}</span>
         <span className="text-[11px] text-mycel-muted/60">
-          since {start} · {rows?.length ?? 0} {groupBy === "workspace" ? "workspaces" : "projects"}
+          since {start} · {rows?.length ?? 0} {(rows?.length ?? 0) === 1 ? (groupBy === "workspace" ? "workspace" : "project") : (groupBy === "workspace" ? "workspaces" : "projects")}
         </span>
       </div>
 
