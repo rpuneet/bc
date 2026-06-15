@@ -284,9 +284,17 @@ func (a *Adapter) handleMessageEvent(ev *slackevents.MessageEvent, rawPayload js
 	// bot token. We let those through so other agents — and the
 	// channel feed — see them. The notify layer's self-skip
 	// (pkg/notify/service.go) prevents the sender from receiving
-	// their own message back. Drop only unattributed bot posts.
+	// their own message back.
+	//
+	// CRITICAL: only honour `Username` when the event also came from
+	// our own bot user. Other apps in the same workspace can post
+	// with any `username` override they like, and treating that as
+	// agent identity would let any installed app impersonate
+	// `zen-zebra` / `lucid-meerkat`. Pinning on `ev.User == botUserID`
+	// makes the impersonation token-bound: only callers holding our
+	// own bot token can route as an agent.
 	if ev.SubType == "bot_message" {
-		if ev.Username == "" {
+		if ev.User != a.botUserID || ev.Username == "" {
 			return
 		}
 	} else {
@@ -340,9 +348,10 @@ func (a *Adapter) handleMessageEvent(ev *slackevents.MessageEvent, rawPayload js
 	}
 
 	// Resolve user name. For bot_message posts the impersonation
-	// username IS the sender — that's the agent name we route on.
+	// Username is the sender — the gate above already verified the
+	// event came from our own bot user, so Username is trusted.
 	sender := ev.User
-	if ev.SubType == "bot_message" && ev.Username != "" {
+	if ev.SubType == "bot_message" && ev.User == a.botUserID && ev.Username != "" {
 		sender = ev.Username
 	} else if a.api != nil {
 		a.chatMu.RLock()
