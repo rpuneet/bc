@@ -279,13 +279,27 @@ func (a *Adapter) handleEventsAPI(event slackevents.EventsAPIEvent, rawPayload j
 
 // handleMessageEvent processes a single message event.
 func (a *Adapter) handleMessageEvent(ev *slackevents.MessageEvent, rawPayload json.RawMessage) {
-	// Skip bot messages and message edits/deletes.
-	// Allow file_share subtype for image sharing.
-	if ev.User == a.botUserID || ev.User == "" {
-		return
-	}
-	if ev.SubType != "" && ev.SubType != "file_share" {
-		return
+	// Bot-impersonation posts (subtype="bot_message" with a Username
+	// override) are how mycel agents publish to Slack via the shared
+	// bot token. We let those through so other agents — and the
+	// channel feed — see them. The notify layer's self-skip
+	// (pkg/notify/service.go) prevents the sender from receiving
+	// their own message back. Drop only unattributed bot posts.
+	if ev.SubType == "bot_message" {
+		if ev.Username == "" {
+			return
+		}
+	} else {
+		// Skip messages the bot itself emitted with no impersonation
+		// (legacy outbound echo) and messages with no user attribution.
+		if ev.User == a.botUserID || ev.User == "" {
+			return
+		}
+		// Allow file_share subtype for image sharing; drop other
+		// edit/delete/system subtypes.
+		if ev.SubType != "" && ev.SubType != "file_share" {
+			return
+		}
 	}
 
 	content := ev.Text
@@ -325,9 +339,12 @@ func (a *Adapter) handleMessageEvent(ev *slackevents.MessageEvent, rawPayload js
 		}
 	}
 
-	// Resolve user name
+	// Resolve user name. For bot_message posts the impersonation
+	// username IS the sender — that's the agent name we route on.
 	sender := ev.User
-	if a.api != nil {
+	if ev.SubType == "bot_message" && ev.Username != "" {
+		sender = ev.Username
+	} else if a.api != nil {
 		a.chatMu.RLock()
 		cachedName, cached := a.userCache[ev.User]
 		a.chatMu.RUnlock()
