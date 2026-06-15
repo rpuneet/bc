@@ -15,6 +15,52 @@ import { useHeaderSlot } from "../context/HeaderSlotContext";
 import { TabHeaderTitle } from "../components/Header";
 /* ── Live (Live Operations Center) ─────────────────────────────────── */
 
+/** One stat tile in the Live summary strip. Background gets the strip's
+ *  border color from the parent grid gap so the tiles read as one
+ *  segmented unit instead of five floating cards. */
+function SummaryStat({
+  label,
+  value,
+  accent,
+  mono,
+}: {
+  label: string;
+  value: React.ReactNode;
+  accent?: string;
+  mono?: boolean;
+}) {
+  return (
+    <div className="bg-mycel-surface px-3 py-2 flex flex-col gap-0.5">
+      <span className="text-[10px] uppercase tracking-wider text-mycel-muted/70">{label}</span>
+      <span className={`text-sm ${mono ? "font-mono" : "font-semibold"} tabular-nums ${accent ?? "text-mycel-text"}`}>
+        {value}
+      </span>
+    </div>
+  );
+}
+
+function formatTokens(n: number): string {
+  if (n <= 0) return "0";
+  if (n < 1_000) return n.toString();
+  if (n < 1_000_000) return `${(n / 1_000).toFixed(1)}k`;
+  return `${(n / 1_000_000).toFixed(2)}M`;
+}
+
+/** Compact relative-time renderer (mm:ss / Xs / Ym) for the last-event tile. */
+function RelTime({ ms }: { ms: number }) {
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, []);
+  const delta = Math.max(0, Math.floor((now - ms) / 1000));
+  if (delta < 60) return <>{delta}s ago</>;
+  if (delta < 3600) return <>{Math.floor(delta / 60)}m ago</>;
+  if (delta < 86400) return <>{Math.floor(delta / 3600)}h ago</>;
+  return <>{Math.floor(delta / 86400)}d ago</>;
+}
+
+
 export const SHOW_STOPPED_STORAGE_KEY = "bc-live-show-stopped";
 export const ACTIVE_STATES = new Set(["idle", "starting", "working", "stuck", "done"]);
 
@@ -97,15 +143,22 @@ export function Live() {
   }, []);
 
   // Count active/stopped for the badge — before the show-stopped filter applies.
-  const { activeCount, stoppedCount } = useMemo(() => {
-    let active = 0;
-    let stopped = 0;
+  // Also computes the secondary stats (idle, error, tokens, last-event) the
+  // summary strip surfaces above the agent cards.
+  const summary = useMemo(() => {
+    let active = 0, idle = 0, working = 0, errored = 0, stopped = 0, tokens = 0, lastEvent = 0;
     for (const a of activities.values()) {
       if (ACTIVE_STATES.has(a.state)) active++;
       else stopped++;
+      if (a.state === "idle") idle++;
+      else if (a.state === "working" || a.state === "starting") working++;
+      else if (a.state === "error" || a.state === "stuck") errored++;
+      tokens += a.tokens || 0;
+      if (a.lastEventTime > lastEvent) lastEvent = a.lastEventTime;
     }
-    return { activeCount: active, stoppedCount: stopped };
+    return { active, idle, working, errored, stopped, tokens, lastEvent };
   }, [activities]);
+  const { active: activeCount, stopped: stoppedCount } = summary;
 
   const sorted = useMemo(() => {
     const filtered = Array.from(activities.values())
@@ -447,6 +500,19 @@ export function Live() {
           </div>
         )}
       </div>
+
+      {/* Summary strip — at-a-glance counters + tokens + last-event time.
+          Rendered only when there is at least one agent so the page doesn't
+          show a "0 / 0 / 0" header on the cold-start empty state. */}
+      {activities.size > 0 && (
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-px rounded-md border border-mycel-border bg-mycel-border/40 overflow-hidden mb-4">
+          <SummaryStat label="Working" value={summary.working} accent="text-emerald-300" />
+          <SummaryStat label="Idle" value={summary.idle} accent="text-amber-300" />
+          <SummaryStat label="Errored" value={summary.errored} accent="text-rose-300" />
+          <SummaryStat label="Tokens" value={formatTokens(summary.tokens)} mono />
+          <SummaryStat label="Last event" value={summary.lastEvent > 0 ? <RelTime ms={summary.lastEvent} /> : "—"} mono />
+        </div>
+      )}
 
       {/* Agent Activity Cards */}
       <div ref={scrollContainerRef} className="flex-1 overflow-y-auto min-h-0 space-y-3 relative">
