@@ -98,6 +98,7 @@ function ChannelList({
             key={ch.name}
             to={`${prefix}/notifications/${ch.name}`}
             className="block"
+            title={ch.name}
             style={({ isActive }: { isActive: boolean }) => ({
               display: "flex",
               alignItems: "center",
@@ -661,20 +662,26 @@ export function Layout() {
           <NavList items={UTIL_NAV_ITEMS} collapsed={collapsed} isMobile={isMobile} />
         </ul>
 
-        {/* Theme toggle — matches nav-item width and padding for visual alignment */}
-        <div className="py-1.5 border-t border-mycel-border/20">
+        {/* Theme toggle — matches nav-item width and padding for visual alignment.
+            Foreground bumped from muted/50 to muted/75 so the label is legible
+            without competing with the active-nav highlight above it. */}
+        <div className="py-1.5 border-t border-mycel-border/30">
           <button type="button" onClick={toggle}
-            className={`relative flex items-center gap-2.5 ${collapsed && !isMobile ? "justify-center px-2" : "pl-4 pr-3"} py-[7px] w-full text-[11px] text-mycel-muted/50 hover:text-mycel-text hover:bg-mycel-bg/30 border-l-2 border-transparent transition-colors`}
-            title={`Theme: ${THEME_LABELS[mode]}`}
+            className={`relative flex items-center gap-2.5 ${collapsed && !isMobile ? "justify-center px-2" : "pl-4 pr-3"} py-[7px] w-full text-[11px] text-mycel-muted/75 hover:text-mycel-text hover:bg-mycel-bg/30 border-l-2 border-transparent transition-colors`}
+            title={`Theme: ${THEME_LABELS[mode]} — click to switch`}
+            aria-label={`Switch theme — currently ${THEME_LABELS[mode]}`}
           >
-            <span className="shrink-0 flex items-center justify-center w-4 opacity-60">
+            <span className="shrink-0 flex items-center justify-center w-4 opacity-80">
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5">
                 <circle cx="7" cy="7" r="3" />
                 <path d="M7 1v2M7 11v2M1 7h2M11 7h2M2.5 2.5l1.5 1.5M10 10l1.5 1.5M2.5 11.5L4 10M10 4l1.5-1.5" strokeLinecap="round" />
               </svg>
             </span>
             {(!collapsed || isMobile) && (
-              <span className="truncate">{THEME_LABELS[mode]}</span>
+              <>
+                <span className="truncate font-medium tracking-tight">{THEME_LABELS[mode]}</span>
+                <span className="ml-auto text-[9px] text-mycel-muted/50 uppercase tracking-wider">theme</span>
+              </>
             )}
           </button>
         </div>
