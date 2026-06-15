@@ -1061,6 +1061,10 @@ func (m *Manager) startAgent(ctx context.Context, name string, opts SpawnOptions
 
 	if existing.State == StateStopped || existing.State == StateError {
 		existing.State = StateStarting
+		// Reset the task so the UI doesn't render the previous session's
+		// terminal task (e.g. "Session ended") next to a fresh "Starting"
+		// badge. The next hook fires within seconds and replaces this.
+		existing.Task = "Starting…"
 	}
 	existing.UpdatedAt = time.Now()
 
