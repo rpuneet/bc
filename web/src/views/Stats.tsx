@@ -299,7 +299,7 @@ export function Stats() {
       {/* Row 1: CPU + Memory */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <Panel title="CPU by Agent (%)">
-          {cpuChart.data.length === 0 ? <Empty /> : (
+          {cpuChart.data.length === 0 ? <Empty msg="No CPU data" /> : (
             <ResponsiveContainer width="100%" height={200}>
               <AreaChart data={cpuChart.data} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--color-mycel-border)" vertical={false} />
@@ -314,7 +314,7 @@ export function Stats() {
           )}
         </Panel>
         <Panel title="Memory by Agent (MB)">
-          {memChart.data.length === 0 ? <Empty /> : (
+          {memChart.data.length === 0 ? <Empty msg="No memory data" /> : (
             <ResponsiveContainer width="100%" height={200}>
               <AreaChart data={memChart.data} margin={{ top: 4, right: 8, left: -10, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--color-mycel-border)" vertical={false} />
@@ -333,7 +333,7 @@ export function Stats() {
       {/* Row 2: Token Flow */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <Panel title="Token Throughput">
-          {tokenChart.length === 0 ? <Empty /> : (
+          {tokenChart.length === 0 ? <Empty msg="No token data" /> : (
             <ResponsiveContainer width="100%" height={200}>
               <AreaChart data={tokenChart} margin={{ top: 4, right: 8, left: -8, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--color-mycel-border)" vertical={false} />
@@ -364,7 +364,7 @@ export function Stats() {
       {/* Row 3: I/O */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <Panel title="Network I/O">
-          {netChart.length === 0 ? <Empty /> : (
+          {netChart.length === 0 ? <Empty msg="No network data" /> : (
             <ResponsiveContainer width="100%" height={200}>
               <AreaChart data={netChart} margin={{ top: 4, right: 8, left: -10, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--color-mycel-border)" vertical={false} />
@@ -378,7 +378,7 @@ export function Stats() {
           )}
         </Panel>
         <Panel title="Disk I/O">
-          {diskChart.length === 0 ? <Empty /> : (
+          {diskChart.length === 0 ? <Empty msg="No disk data" /> : (
             <ResponsiveContainer width="100%" height={200}>
               <AreaChart data={diskChart} margin={{ top: 4, right: 8, left: -10, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--color-mycel-border)" vertical={false} />
