@@ -26,8 +26,22 @@
   --mycel-shadow: 0 1px 3px rgba(0,0,0,0.4), 0 1px 2px rgba(0,0,0,0.3);
   --mycel-shadow-lg: 0 4px 12px rgba(0,0,0,0.5), 0 2px 4px rgba(0,0,0,0.3);
 
-  font-family: Inter, "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+  /* Geist Sans for body copy; falls back to ui-sans-serif so the
+     dashboard stays readable if @fontsource fails to load. JetBrains
+     Mono stays around as a mono fallback for the existing
+     font-mono-styled tabular numbers. */
+  font-family: "Geist Sans", ui-sans-serif, system-ui, -apple-system, sans-serif;
   color-scheme: dark;
+}
+
+/* Tailwind's `font-mono` utility resolves to this stack via the global
+   theme; Geist Mono is the preferred monospaced face. */
+.font-mono,
+code,
+kbd,
+pre,
+samp {
+  font-family: "Geist Mono", "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
 }
 
 /* ── Dark ────────────────────────────────────────────────────────────── */
