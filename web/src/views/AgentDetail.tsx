@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, Link, useLocation, useNavigate } from "react-router-dom";
 import { useWorkspace } from "../context/WorkspaceContext";
+import { useHeaderSlot } from "../context/HeaderSlotContext";
 import { api } from "../api/client";
 import type { Agent, AgentConfig } from "../api/client";
 import { usePolling } from "../hooks/usePolling";
@@ -1014,6 +1015,14 @@ export function AgentDetail() {
   const { workspace } = useWorkspace();
   // Workspace-scoped /agents URL so back-links don't bounce through a redirect.
   const agentsUrl = workspace ? `/w/${workspace.id}/agents` : "/agents";
+
+  // AgentDetail renders its own comprehensive HUD bar (back link + agent
+  // icon + name + state + task + tabs). Clearing the global LayoutHeader's
+  // center slot here prevents the two-band stack the v0.2.6 review flagged
+  // (stale parent-page title sitting on top of our richer local header).
+  // The left slot (workspace dropdown + sidebar toggle) stays untouched
+  // for navigation context.
+  useHeaderSlot({ title: null });
 
   // Derive active tab from URL sub-path: /agents/<name>/<tab>
   // Defaults to "attach" when no sub-path is present.
