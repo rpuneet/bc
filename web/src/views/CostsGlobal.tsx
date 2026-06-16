@@ -69,7 +69,7 @@ export function CostsGlobal() {
   });
 
   return (
-    <div className="p-6 flex flex-col gap-4 max-w-4xl">
+    <div className="p-6 flex flex-col gap-4 max-w-4xl mx-auto">
       {error && (
         <div className="rounded border border-mycel-error/40 bg-mycel-error/5 px-3 py-2 text-[12px] text-mycel-error">
           {error}
