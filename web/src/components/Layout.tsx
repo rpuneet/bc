@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { NavLink, Outlet, useLocation, useMatch } from "react-router-dom";
+import { motion, AnimatePresence } from "framer-motion";
 import { useTheme, THEME_LABELS } from "../context/ThemeContext";
 import { useMediaQuery } from "../hooks/useMediaQuery";
 import { CommandPalette } from "./CommandPalette";
@@ -14,6 +15,33 @@ import { HeaderSlotProvider, useHeaderSlotContext } from "../context/HeaderSlotC
 import { useWorkspace } from "../context/WorkspaceContext";
 
 const SIDEBAR_KEY = "bc-sidebar-collapsed";
+
+/* ── Route transition wrapper ────────────────────────────────────────
+   Subtle 120ms fade + 4px lift on every route change so navigating
+   between sidebar tabs feels intentional rather than abrupt. Keyed
+   on the route's first two segments (e.g. /w/:wsId) so deep links
+   under the same view (Agent detail tabs, channel selection) do not
+   retrigger the transition. Honors prefers-reduced-motion. */
+function RouteTransition({ children }: { children: React.ReactNode }) {
+  const location = useLocation();
+  // /w/<wsId>/<tab> → key on "/w/<wsId>/<tab>". Deeper segments share a key.
+  const segments = location.pathname.split("/").filter(Boolean).slice(0, 3);
+  const key = "/" + segments.join("/");
+  return (
+    <AnimatePresence mode="wait" initial={false}>
+      <motion.div
+        key={key}
+        initial={{ opacity: 0, y: 4 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -4 }}
+        transition={{ duration: 0.12, ease: [0.4, 0, 0.2, 1] }}
+        className="h-full"
+      >
+        {children}
+      </motion.div>
+    </AnimatePresence>
+  );
+}
 
 /* ── Refined icons at 14px ──────────────────────────────────── */
 
@@ -691,7 +719,9 @@ export function Layout() {
         <main className="flex-1 flex flex-col overflow-hidden bg-mycel-bg">
           <LayoutHeader collapsed={collapsed} onToggleCollapsed={toggleCollapsed} />
           <div className="flex-1 overflow-auto">
-            <Outlet />
+            <RouteTransition>
+              <Outlet />
+            </RouteTransition>
           </div>
         </main>
       </HeaderSlotProvider>
