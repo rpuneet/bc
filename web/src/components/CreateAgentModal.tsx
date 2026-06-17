@@ -350,7 +350,9 @@ export function CreateAgentModal({
                 <option value="claude">claude</option>
                 <option value="gemini">gemini</option>
                 <option value="cursor">cursor</option>
+                <option value="pi">pi</option>
                 <option value="codex">codex</option>
+                <option value="pi">pi</option>
               </select>
             </div>
             <div className="flex flex-col gap-1.5">
