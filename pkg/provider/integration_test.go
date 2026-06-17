@@ -15,6 +15,7 @@ var expectedProviders = []string{
 	"codex",
 	"cursor",
 	"gemini",
+	"pi",
 }
 
 func TestRegistryCompleteness(t *testing.T) {
@@ -58,6 +59,7 @@ func TestProviderConfigRoundtrip(t *testing.T) {
 				"gemini": {Command: "gemini --yolo"},
 				"cursor": {Command: "cursor --force"},
 				"codex":  {Command: "codex --auto"},
+				"pi":     {Command: "pi --print"},
 			},
 		},
 	}

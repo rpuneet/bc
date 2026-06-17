@@ -327,7 +327,7 @@ var (
 
 func init() {
 	// Create flags
-	agentCreateCmd.Flags().StringVar(&agentCreateTool, "tool", "", "Agent tool (claude, gemini, cursor, codex, opencode, openclaw, aider)")
+	agentCreateCmd.Flags().StringVar(&agentCreateTool, "tool", "", "Agent tool (claude, gemini, cursor, codex, opencode, openclaw, aider, pi)")
 	agentCreateCmd.Flags().StringVar(&agentCreateRole, "role", "", "Agent role (default: base)")
 	agentCreateCmd.Flags().StringVar(&agentCreateTemplate, "template", "", "Template name from ~/.bc/templates/ (e.g. base, engineer)")
 	agentCreateCmd.Flags().StringVar(&agentCreateCopy, "copy", "", "Copy settings from an existing agent")
