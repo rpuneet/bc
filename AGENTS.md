@@ -1,15 +1,42 @@
 # Agent Instructions
 
-This project uses **bd** (beads) for issue tracking. Run `bd onboard` to get started.
+## Project Overview
+
+This project is **mycel** - an AI agent orchestration platform. Previously called `bc`, it helps coordinate multiple AI agents (Claude, Gemini, Cursor, etc.) in isolated environments.
+
+## Quick Start
+
+Initialize and run mycel:
+
+```bash
+mycel init                    # Initialize workspace
+mycel up                      # Start server + web UI on localhost:9374
+mycel agent create <name> \
+  --role engineer \
+  --tool claude              # Spawn an agent
+mycel status                  # See what's running
+```
 
 ## Quick Reference
 
+### Managing Agents
+
 ```bash
-bd ready              # Find available work
-bd show <id>          # View issue details
-bd update <id> --status in_progress  # Claim work
-bd close <id>         # Complete work
-bd sync               # Sync with git
+mycel agent list              # List all agents
+mycel agent create <name>     # Create new agent
+mycel agent attach <agent>    # Attach to agent session
+mycel agent peek <agent>      # Watch agent output
+mycel agent stop <agent>      # Stop agent
+mycel down                    # Stop all agents
+```
+
+### Development
+
+```bash
+make build                    # Build everything
+make test                     # Run all tests
+make lint                     # Run linters
+make check                    # Full quality gate
 ```
 
 ## Landing the Plane (Session Completion)
@@ -18,17 +45,24 @@ bd sync               # Sync with git
 
 **MANDATORY WORKFLOW:**
 
-1. **File issues for remaining work** - Create issues for anything that needs follow-up
+1. **File issues for remaining work** - Create GitHub issues for anything that needs follow-up
 2. **Run quality gates** (if code changed) - Tests, linters, builds
-3. **Update issue status** - Close finished work, update in-progress items
+   ```bash
+   make test                     # Run tests
+   make lint                     # Run linters
+   ```
+3. **Update issue status** - Close finished GitHub issues, update in-progress items
 4. **PUSH TO REMOTE** - This is MANDATORY:
    ```bash
    git pull --rebase
-   bd sync
    git push
    git status  # MUST show "up to date with origin"
    ```
 5. **Clean up** - Clear stashes, prune remote branches
+   ```bash
+   git stash clear
+   git remote prune origin
+   ```
 6. **Verify** - All changes committed AND pushed
 7. **Hand off** - Provide context for next session
 
@@ -38,3 +72,13 @@ bd sync               # Sync with git
 - NEVER say "ready to push when you are" - YOU must push
 - If push fails, resolve and retry until it succeeds
 
+## Architecture
+
+mycel uses a provider-based architecture where different AI agent CLIs (Claude, Gemini, Cursor, etc.) are registered as providers. Each provider implements a common interface for:
+
+- Starting agents with provider-specific commands
+- Session resumption (for providers that support it)
+- State detection (idle, working, done, error)
+- Version detection
+
+See `pkg/provider/` for provider implementations.
