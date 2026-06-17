@@ -80,8 +80,6 @@ nav:
     - CI / CD: explanation/ci-cd.md
     - MCP protocol: explanation/mcp.md
     - Design decisions: explanation/design-decisions.md
-  - Architecture:
-    - Notifications: architecture/notifications.md
   - Reference:
     - REST API: reference/api-rest.md
     - Settings API: reference/api-settings.md
