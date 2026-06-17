@@ -22,6 +22,10 @@ import {
 interface HeaderSlot {
   title?: ReactNode;
   actions?: ReactNode;
+  /** When true, the LayoutHeader is removed entirely (no row, no border).
+   *  Pages that render their own self-contained header (AgentDetail's HUD
+   *  bar) use this to avoid a second top band stacking above their own. */
+  hidden?: boolean;
 }
 
 interface HeaderSlotContextValue {
@@ -63,5 +67,5 @@ export function useHeaderSlot(slot: HeaderSlot) {
     setSlot(slot);
     return () => clearSlot();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [slot.title, slot.actions]);
+  }, [slot.title, slot.actions, slot.hidden]);
 }

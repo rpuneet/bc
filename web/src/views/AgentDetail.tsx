@@ -1017,12 +1017,12 @@ export function AgentDetail() {
   const agentsUrl = workspace ? `/w/${workspace.id}/agents` : "/agents";
 
   // AgentDetail renders its own comprehensive HUD bar (back link + agent
-  // icon + name + state + task + tabs). Clearing the global LayoutHeader's
-  // center slot here prevents the two-band stack the v0.2.6 review flagged
-  // (stale parent-page title sitting on top of our richer local header).
-  // The left slot (workspace dropdown + sidebar toggle) stays untouched
-  // for navigation context.
-  useHeaderSlot({ title: null });
+  // icon + name + state + task + tabs), so the global LayoutHeader is
+  // hidden entirely on this view — no empty 42px row + border above our
+  // own header. The sidebar still owns its own collapse arrow and the
+  // workspace dropdown is reachable from the sidebar header, so nothing
+  // navigation-critical is lost.
+  useHeaderSlot({ hidden: true });
 
   // Derive active tab from URL sub-path: /agents/<name>/<tab>
   // Defaults to "attach" when no sub-path is present.

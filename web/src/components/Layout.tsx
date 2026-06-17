@@ -742,6 +742,12 @@ function LayoutHeader({
   onToggleCollapsed: () => void;
 }) {
   const { slot } = useHeaderSlotContext();
+  // Pages that render their own self-contained top band (AgentDetail's
+  // HUD bar) opt out of the LayoutHeader entirely so we don't render an
+  // empty 42px row + border above their own header. Sidebar toggle +
+  // workspace dropdown still live in the sidebar, so navigation is
+  // unaffected.
+  if (slot.hidden) return null;
   return (
     <Header
       left={
