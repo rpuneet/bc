@@ -47,22 +47,28 @@ make check                    # Full quality gate
 
 1. **File issues for remaining work** - Create GitHub issues for anything that needs follow-up
 2. **Run quality gates** (if code changed) - Tests, linters, builds
+
    ```bash
    make test                     # Run tests
    make lint                     # Run linters
    ```
+
 3. **Update issue status** - Close finished GitHub issues, update in-progress items
 4. **PUSH TO REMOTE** - This is MANDATORY:
+
    ```bash
    git pull --rebase
    git push
    git status  # MUST show "up to date with origin"
    ```
+
 5. **Clean up** - Clear stashes, prune remote branches
+
    ```bash
    git stash clear
    git remote prune origin
    ```
+
 6. **Verify** - All changes committed AND pushed
 7. **Hand off** - Provide context for next session
 
