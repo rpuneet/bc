@@ -59,48 +59,36 @@ markdown_extensions:
 
 nav:
   - Home: index.md
-  - Getting Started:
-    - Quick Start: guides/quickstart.md
-    - Configuration: guides/configuration.md
-    - Troubleshooting: guides/troubleshooting.md
+  - Overview: overview.md
+  - How To:
+    - how-to/index.md
+    - Configure workspace: how-to/configure-workspace.md
+    - Set up notifications: how-to/set-up-notifications.md
+    - Troubleshoot: how-to/troubleshoot.md
+  - Explanation:
+    - explanation/index.md
+    - Architecture: explanation/architecture.md
+    - Agents: explanation/agents.md
+    - Agent lifecycle redesign: explanation/agent-lifecycle-redesign.md
+    - Database: explanation/database.md
+    - Web UI: explanation/web-ui.md
+    - Terminal UI: explanation/tui.md
+    - Design system: explanation/design-system.md
+    - Networking: explanation/networking.md
+    - Security: explanation/security.md
+    - Deployment: explanation/deployment.md
+    - CI / CD: explanation/ci-cd.md
+    - MCP protocol: explanation/mcp.md
+    - Design decisions: explanation/design-decisions.md
   - Architecture:
-    - Overview: overview.md
-    - System Design: architecture/README.md
-    - Design Decisions: architecture/design-decisions.md
-    - Agent Lifecycle: backend/agents.md
-    - Database Schema: database/database.md
-  - API Reference:
-    - REST API: api/rest.md
-    - Settings API: api/settings.md
-    - MCP Protocol: backend/mcp.md
-  - Frontend:
-    - Web Dashboard: frontend/web-ui.md
-    - Terminal UI: frontend/tui.md
-    - Design System: frontend/design-system.md
-    - Networking: frontend/networking.md
-  - Guides:
-    - Channels: guides/channels.md
-  - CLI Reference:
-    - Overview: reference/cli/bc.md
-    - bc agent: reference/cli/bc_agent.md
-    - bc channel: reference/cli/bc_channel.md
-    - bc config: reference/cli/bc_config.md
-    - bc cost: reference/cli/bc_cost.md
-    - bc cron: reference/cli/bc_cron.md
-    - bc daemon: reference/cli/bc_daemon.md
-    - bc doctor: reference/cli/bc_doctor.md
-    - bc env: reference/cli/bc_env.md
-    - bc mcp: reference/cli/bc_mcp.md
-    - bc role: reference/cli/bc_role.md
-    - bc secret: reference/cli/bc_secret.md
-    - bc tool: reference/cli/bc_tool.md
-    - bc workspace: reference/cli/bc_workspace.md
-  - Infrastructure:
-    - CI/CD: infrastructure/ci-cd.md
-    - Deployment: infrastructure/deployment.md
-    - Security: infrastructure/security.md
+    - Notifications: architecture/notifications.md
+  - Reference:
+    - REST API: reference/api-rest.md
+    - Settings API: reference/api-settings.md
   - Contributing:
-    - Testing Guide: contributing/testing.md
+    - Testing guide: contributing/testing.md
+  - ADR:
+    - 0001 — CLI architecture: adr/0001-cli-architecture.md
 
 extra:
   social:
