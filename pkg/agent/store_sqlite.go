@@ -49,6 +49,7 @@ func createAgentsTable(d *db.DB) error {
 			workspace     TEXT NOT NULL,
 			worktree_dir  TEXT,
 			log_file      TEXT,
+			env_file      TEXT,
 			hooked_work   TEXT,
 			children      TEXT,
 			is_root       INTEGER NOT NULL DEFAULT 0,
@@ -71,6 +72,7 @@ func createAgentsTable(d *db.DB) error {
 	// Migrations: add columns for existing databases
 	_, _ = d.ExecContext(ctx, `ALTER TABLE agents ADD COLUMN runtime_backend TEXT`)           //nolint:errcheck // ignore if already exists
 	_, _ = d.ExecContext(ctx, `ALTER TABLE agents ADD COLUMN session_id TEXT`)                //nolint:errcheck // ignore if already exists
+	_, _ = d.ExecContext(ctx, `ALTER TABLE agents ADD COLUMN env_file TEXT`)                  //nolint:errcheck // ignore if already exists
 	_, _ = d.ExecContext(ctx, `ALTER TABLE agents ADD COLUMN ttl INTEGER NOT NULL DEFAULT 0`) //nolint:errcheck // ignore if already exists
 	_, _ = d.ExecContext(ctx, `ALTER TABLE agents ADD COLUMN created_at TEXT`)                //nolint:errcheck // ignore if already exists
 	_, _ = d.ExecContext(ctx, `ALTER TABLE agents ADD COLUMN stopped_at TEXT`)                //nolint:errcheck // ignore if already exists
@@ -116,15 +118,15 @@ func (s *SQLiteStore) Save(ctx context.Context, a *Agent) error {
 	_, err = s.db.ExecContext(ctx, `
 		INSERT OR REPLACE INTO agents
 		(name, role, state, tool, parent_id, team, task, session, workspace,
-		 worktree_dir, log_file, hooked_work, children,
+		 worktree_dir, log_file, env_file, hooked_work, children,
 		 is_root, crash_count, last_crash_time, recovered_from,
 		 runtime_backend, session_id, created_at, stopped_at, deleted_at,
 		 started_at, updated_at, repo_root)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		a.Name, string(a.Role), string(a.State),
 		nullStr(a.Tool), nullStr(a.ParentID), nullStr(a.Team), nullStr(a.Task),
 		nullStr(a.Session), a.Workspace,
-		nullStr(a.WorktreeDir), nullStr(a.LogFile),
+		nullStr(a.WorktreeDir), nullStr(a.LogFile), nullStr(a.EnvFile),
 		nullStr(a.HookedWork), string(children),
 		boolToInt(a.IsRoot), a.CrashCount,
 		nullTime(a.LastCrashTime), nullStr(a.RecoveredFrom),
@@ -210,11 +212,11 @@ func (s *SQLiteStore) SaveAll(ctx context.Context, agents map[string]*Agent) err
 	stmt, err := tx.PrepareContext(ctx, `
 		INSERT OR REPLACE INTO agents
 		(name, role, state, tool, parent_id, team, task, session, workspace,
-		 worktree_dir, log_file, hooked_work, children,
+		 worktree_dir, log_file, env_file, hooked_work, children,
 		 is_root, crash_count, last_crash_time, recovered_from,
 		 runtime_backend, session_id, created_at, stopped_at, deleted_at,
 		 started_at, updated_at, repo_root)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
 	if err != nil {
 		return err
 	}
@@ -234,7 +236,7 @@ func (s *SQLiteStore) SaveAll(ctx context.Context, agents map[string]*Agent) err
 			a.Name, string(a.Role), string(a.State),
 			nullStr(a.Tool), nullStr(a.ParentID), nullStr(a.Team), nullStr(a.Task),
 			nullStr(a.Session), a.Workspace,
-			nullStr(a.WorktreeDir), nullStr(a.LogFile),
+			nullStr(a.WorktreeDir), nullStr(a.LogFile), nullStr(a.EnvFile),
 			nullStr(a.HookedWork), string(children),
 			boolToInt(a.IsRoot), a.CrashCount,
 			nullTime(a.LastCrashTime), nullStr(a.RecoveredFrom),
@@ -299,7 +301,7 @@ func (s *SQLiteStore) Close() error {
 
 // agentSelectCols is the SELECT column list used by all Load* methods.
 const agentSelectCols = `SELECT name, role, state, tool, parent_id, team, task, session, workspace,
-	       worktree_dir, log_file, hooked_work, children,
+	       worktree_dir, log_file, env_file, hooked_work, children,
 	       is_root, crash_count, last_crash_time, recovered_from,
 	       runtime_backend, session_id, created_at, stopped_at, deleted_at,
 	       started_at, updated_at, repo_root`
@@ -307,7 +309,7 @@ const agentSelectCols = `SELECT name, role, state, tool, parent_id, team, task, 
 func scanAgentRow(s interface{ Scan(...any) error }) (*Agent, error) {
 	var a Agent
 	var role, state string
-	var tool, parentID, team, task, session, worktreeDir, logFile, hookedWork, childrenJSON *string
+	var tool, parentID, team, task, session, worktreeDir, logFile, envFile, hookedWork, childrenJSON *string
 	var lastCrashTime, recoveredFrom, runtimeBackend, sessionID, repoRoot *string
 	var createdAt, stoppedAt, deletedAt *string
 	var startedAt, updatedAt string
@@ -316,7 +318,7 @@ func scanAgentRow(s interface{ Scan(...any) error }) (*Agent, error) {
 	err := s.Scan(
 		&a.Name, &role, &state,
 		&tool, &parentID, &team, &task, &session, &a.Workspace,
-		&worktreeDir, &logFile, &hookedWork, &childrenJSON,
+		&worktreeDir, &logFile, &envFile, &hookedWork, &childrenJSON,
 		&isRoot, &crashCount, &lastCrashTime, &recoveredFrom,
 		&runtimeBackend, &sessionID, &createdAt, &stoppedAt, &deletedAt,
 		&startedAt, &updatedAt, &repoRoot,
@@ -336,6 +338,7 @@ func scanAgentRow(s interface{ Scan(...any) error }) (*Agent, error) {
 	a.SessionID = deref(sessionID)
 	a.WorktreeDir = deref(worktreeDir)
 	a.LogFile = deref(logFile)
+	a.EnvFile = deref(envFile)
 	a.HookedWork = deref(hookedWork)
 	a.IsRoot = isRoot != 0
 	a.CrashCount = crashCount
