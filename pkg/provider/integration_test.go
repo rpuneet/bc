@@ -55,11 +55,11 @@ func TestProviderConfigRoundtrip(t *testing.T) {
 	cfg := workspace.Config{
 		Providers: workspace.ProvidersConfig{
 			Providers: map[string]workspace.ProviderConfig{
-				"claude": {Command: "claude --skip"},
+				"claude": {Command: "claude --dangerously-skip-permissions"},
 				"gemini": {Command: "gemini --yolo"},
 				"cursor": {Command: "cursor --force"},
 				"codex":  {Command: "codex --auto"},
-				"pi":     {Command: "pi --print"},
+				"pi":     {Command: "pi"},
 			},
 		},
 	}
