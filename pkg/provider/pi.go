@@ -34,7 +34,7 @@ func NewPiProvider() *PiProvider {
 		GenericAdapter: NewGenericAdapter("pi"),
 		name:           "pi",
 		description:    "Pi coding assistant CLI",
-		command:        "pi --print",
+		command:        "pi",
 		binary:         "pi",
 	}
 }
@@ -65,10 +65,10 @@ func (p *PiProvider) InstallHint() string {
 }
 
 // BuildCommand returns the full command for a given runtime context.
-// For pi, we use --print for non-interactive mode and --session to track state.
+// For pi, we start with base command and add session flags as needed.
 // SessionID is quoted to prevent potential shell injection issues.
 func (p *PiProvider) BuildCommand(opts CommandOpts) string {
-	cmd := "pi --print"
+	cmd := p.Command()
 	if opts.SessionID != "" {
 		// Quote SessionID to handle potential spaces/special chars
 		cmd += fmt.Sprintf(" --session \"%s\"", opts.SessionID)
