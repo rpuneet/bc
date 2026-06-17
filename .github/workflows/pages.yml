@@ -32,7 +32,14 @@ jobs:
           python-version: '3.12.9'
       - name: Build docs
         run: |
-          pip install mkdocs-material==9.6.12 pymdown-extensions==10.14.3
+          # Pygments 2.18+ raises 'NoneType has no attribute replace' when
+          # pymdown-extensions 10.14 calls HtmlFormatter with filename=None
+          # for untitled code fences. Pin to 2.17 until the pymdownx fix
+          # lands so we can drop this pin.
+          pip install \
+            'mkdocs-material==9.6.12' \
+            'pymdown-extensions==10.14.3' \
+            'Pygments==2.17.2'
           mkdocs build
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
