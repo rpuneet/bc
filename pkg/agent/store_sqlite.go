@@ -72,7 +72,7 @@ func createAgentsTable(d *db.DB) error {
 	// Migrations: add columns for existing databases
 	_, _ = d.ExecContext(ctx, `ALTER TABLE agents ADD COLUMN runtime_backend TEXT`)           //nolint:errcheck // ignore if already exists
 	_, _ = d.ExecContext(ctx, `ALTER TABLE agents ADD COLUMN session_id TEXT`)                //nolint:errcheck // ignore if already exists
-	_, _ = d.ExecContext(ctx, `ALTER TABLE agents ADD COLUMN env_file TEXT`)                //nolint:errcheck // ignore if already exists
+	_, _ = d.ExecContext(ctx, `ALTER TABLE agents ADD COLUMN env_file TEXT`)                  //nolint:errcheck // ignore if already exists
 	_, _ = d.ExecContext(ctx, `ALTER TABLE agents ADD COLUMN ttl INTEGER NOT NULL DEFAULT 0`) //nolint:errcheck // ignore if already exists
 	_, _ = d.ExecContext(ctx, `ALTER TABLE agents ADD COLUMN created_at TEXT`)                //nolint:errcheck // ignore if already exists
 	_, _ = d.ExecContext(ctx, `ALTER TABLE agents ADD COLUMN stopped_at TEXT`)                //nolint:errcheck // ignore if already exists

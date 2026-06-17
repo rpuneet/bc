@@ -352,3 +352,88 @@ func TestSQLiteStore_DeletedAtPersistence(t *testing.T) {
 		t.Fatalf("expected 0 agents after restart, got %d (soft-deleted agent resurrected)", len(all))
 	}
 }
+
+func TestSQLiteStore_EnvFilePersistence(t *testing.T) {
+	dir := t.TempDir()
+	store, err := NewSQLiteStore(filepath.Join(dir, "state.db"))
+	if err != nil {
+		t.Fatalf("NewSQLiteStore: %v", err)
+	}
+	defer func() { _ = store.Close() }()
+
+	now := time.Now().Truncate(time.Second)
+	testEnvPath := "/tmp/test-agent-env.json"
+
+	a := &Agent{
+		Name:      "agent-with-env",
+		ID:        "agent-with-env",
+		Role:      Role("engineer"),
+		State:     StateIdle,
+		Tool:      "claude",
+		Workspace: "/tmp/ws",
+		CreatedAt: now,
+		StartedAt: now,
+		EnvFile:   testEnvPath,
+		Children:  []string{},
+	}
+
+	// Save agent with EnvFile
+	if saveErr := store.Save(context.Background(), a); saveErr != nil {
+		t.Fatalf("Save: %v", saveErr)
+	}
+
+	// Load and verify EnvFile persisted
+	loaded, err := store.Load(context.Background(), "agent-with-env")
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if loaded == nil {
+		t.Fatal("Load returned nil")
+	}
+	if loaded.EnvFile != testEnvPath {
+		t.Errorf("EnvFile = %q, want %q", loaded.EnvFile, testEnvPath)
+	}
+
+	// Test SaveAll also persists EnvFile
+	agents := map[string]*Agent{
+		"agent-1": {
+			Name:      "agent-1",
+			ID:        "agent-1",
+			Role:      Role("engineer"),
+			State:     StateIdle,
+			Tool:      "claude",
+			Workspace: "/tmp/ws",
+			CreatedAt: now,
+			StartedAt: now,
+			EnvFile:   "/tmp/agent-1-env.json",
+			Children:  []string{},
+		},
+		"agent-2": {
+			Name:      "agent-2",
+			ID:        "agent-2",
+			Role:      Role("manager"),
+			State:     StateWorking,
+			Tool:      "pi",
+			Workspace: "/tmp/ws2",
+			CreatedAt: now,
+			StartedAt: now,
+			EnvFile:   "/tmp/agent-2-env.json",
+			Children:  []string{},
+		},
+	}
+
+	if saveAllErr := store.SaveAll(context.Background(), agents); saveAllErr != nil {
+		t.Fatalf("SaveAll: %v", saveAllErr)
+	}
+
+	// Verify both agents loaded with correct EnvFile
+	for name, expectedAgent := range agents {
+		loaded, err := store.Load(context.Background(), name)
+		if err != nil {
+			t.Fatalf("Load %s: %v", name, err)
+		}
+		if loaded.EnvFile != expectedAgent.EnvFile {
+			t.Errorf("%s EnvFile = %q, want %q", name, loaded.EnvFile, expectedAgent.EnvFile)
+		}
+	}
+}
