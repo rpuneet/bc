@@ -449,6 +449,14 @@ const GLOBAL_NAV_ITEMS = [
 
 const NAV_ITEMS = [...MAIN_NAV_ITEMS, ...UTIL_NAV_ITEMS, ...GLOBAL_NAV_ITEMS];
 
+/**
+ * TITLE_ITEMS — extends NAV_ITEMS with surfaces that resolve to a
+ * document title but live outside the sidebar nav lists (e.g. /about
+ * sits in the sidebar footer next to the theme toggle, not in any
+ * NavList). Keep this list in sync with non-nav top-level routes.
+ */
+const TITLE_ITEMS = [...NAV_ITEMS, { to: "/about", label: "About" }];
+
 function readCollapsed(): boolean {
   try { return localStorage.getItem(SIDEBAR_KEY) === "true"; } catch { return false; }
 }
@@ -581,7 +589,7 @@ export function Layout() {
     // tab ("Live").
     const stripped = location.pathname.replace(/^\/w\/[^/]+/, "");
     const firstSeg = stripped.replace(/^\//, "").split("/")[0] ?? "";
-    const match = NAV_ITEMS.find((item) => {
+    const match = TITLE_ITEMS.find((item) => {
       const seg = item.to.replace(/^\//, "");
       return seg === firstSeg;
     });
@@ -689,6 +697,32 @@ export function Layout() {
           </li>
           <NavList items={UTIL_NAV_ITEMS} collapsed={collapsed} isMobile={isMobile} />
         </ul>
+
+        {/* About chip — surfaces installed version + distribution channel
+            status. Sits in the sidebar footer next to the theme toggle so
+            users always have a one-click answer to "what version am I on?". */}
+        <div className="py-1 border-t border-mycel-border/30">
+          <NavLink
+            to="/about"
+            className={({ isActive }) =>
+              `relative flex items-center gap-2.5 ${collapsed && !isMobile ? "justify-center px-2" : "pl-4 pr-3"} py-[7px] w-full text-[11px] ${isActive ? "text-mycel-text bg-mycel-bg/30 border-l-2 border-mycel-accent" : "text-mycel-muted/75 hover:text-mycel-text hover:bg-mycel-bg/30 border-l-2 border-transparent"} transition-colors`
+            }
+            title="About / version info"
+          >
+            <span className="shrink-0 flex items-center justify-center w-4 opacity-80">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <circle cx="7" cy="7" r="5.5" />
+                <path d="M7 4.5v.01M6 6.5h1v3h1" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </span>
+            {(!collapsed || isMobile) && (
+              <>
+                <span className="truncate font-medium tracking-tight">About</span>
+                <span className="ml-auto text-[9px] text-mycel-muted/50 uppercase tracking-wider">version</span>
+              </>
+            )}
+          </NavLink>
+        </div>
 
         {/* Theme toggle — matches nav-item width and padding for visual alignment.
             Foreground bumped from muted/50 to muted/75 so the label is legible

@@ -23,6 +23,7 @@ const Settings = lazy(() => import("./views/Settings").then((m) => ({ default: m
 const WorkspacePicker = lazy(() => import("./views/WorkspacePicker").then((m) => ({ default: m.WorkspacePicker })));
 const Code = lazy(() => import("./views/Code").then((m) => ({ default: m.Code })));
 const CostsGlobal = lazy(() => import("./views/CostsGlobal").then((m) => ({ default: m.CostsGlobal })));
+const About = lazy(() => import("./views/About").then((m) => ({ default: m.About })));
 
 function Loading() {
   return <div className="p-6 text-mycel-muted">Loading...</div>;
@@ -62,6 +63,7 @@ export function App() {
 
                 {/* Global (cross-workspace) routes — outside /w/:wsId */}
                 <Route path="costs" element={wrap(<CostsGlobal />)} />
+                <Route path="about" element={wrap(<About />)} />
 
                 {/* Workspace-scoped routes (guard renders <Outlet /> for children) */}
                 <Route path="w/:wsId" element={<ActiveWorkspaceGuard />}>
