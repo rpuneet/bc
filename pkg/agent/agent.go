@@ -480,6 +480,13 @@ type Manager struct { //nolint:govet // field order is intentional for readabili
 	// gatewayConfig holds gateway credentials for injection into agent env vars.
 	gatewayConfig *workspace.GatewaysConfig
 
+	// providersConfig holds the workspace's provider command overrides
+	// (preferences.json `providers.<tool>.command`). Used by
+	// getAgentCommand to layer a user-supplied command on top of the
+	// provider's hardcoded BuildCommand — e.g. so `pi` can be pointed
+	// at AWS Bedrock via workspace config.
+	providersConfig *workspace.ProvidersConfig
+
 	// maxLogBytes is the maximum log file size before truncation.
 	// Defaults to DefaultMaxLogBytes; overridden by ApplyWorkspaceConfig.
 	maxLogBytes int64
@@ -511,6 +518,7 @@ func (m *Manager) ApplyWorkspaceConfig(cfg *workspace.Config) {
 		m.maxLogBytes = cfg.Logs.MaxBytes
 	}
 	m.gatewayConfig = &cfg.Gateways
+	m.providersConfig = &cfg.Providers
 }
 
 // notifyStateChange calls the onStateChange callback if set.
@@ -681,19 +689,59 @@ func defaultAgentCmd() (string, string) {
 	return p.Command(), name
 }
 
-// getAgentCommand looks up the command for a tool from the manager's provider registry.
+// getAgentCommand looks up the command for a tool from the manager's
+// provider registry, layering a workspace-level override on top when
+// the workspace's preferences.json defines one. The override path is
+// what makes a user able to spawn pi against AWS Bedrock by writing:
+//
+//	providers:
+//	  pi:
+//	    command: pi --provider amazon-bedrock --model anthropic.claude-…
+//
+// Resolution order: workspace ProvidersConfig command (if non-empty)
+// → provider's own BuildCommand. Session flags from the provider
+// (--continue / --session) are appended even when the workspace
+// overrides the base command so resume still works.
 // SessionID takes priority over the resume flag when non-empty.
 func (m *Manager) getAgentCommand(toolName, agentName string, resume bool, sessionID string) (string, bool) {
-	if m.providerRegistry != nil {
-		if p, ok := m.providerRegistry.Get(toolName); ok {
-			return p.BuildCommand(provider.CommandOpts{
-				AgentName: agentName,
-				Resume:    resume,
-				SessionID: sessionID,
-			}), true
+	if m.providerRegistry == nil {
+		return "", false
+	}
+	p, ok := m.providerRegistry.Get(toolName)
+	if !ok {
+		return "", false
+	}
+	opts := provider.CommandOpts{
+		AgentName: agentName,
+		Resume:    resume,
+		SessionID: sessionID,
+	}
+	// Apply workspace-level command override when present. We rebuild
+	// the session flags via the provider so we don't lose --continue
+	// or --session "<id>" handling.
+	if m.providersConfig != nil {
+		if cfg, ok := m.providersConfig.Providers[toolName]; ok && cfg.Command != "" {
+			return appendSessionFlags(cfg.Command, opts), true
 		}
 	}
-	return "", false
+	return p.BuildCommand(opts), true
+}
+
+// appendSessionFlags adds the same --continue / --session flags the
+// provider's BuildCommand would, but to an arbitrary base command. We
+// keep the logic in one place so workspace overrides cooperate with
+// resume cleanly.
+func appendSessionFlags(base string, opts provider.CommandOpts) string {
+	cmd := base
+	if opts.SessionID != "" {
+		// Quote SessionID to handle potential spaces / special chars,
+		// matching PiProvider.BuildCommand's approach.
+		cmd += fmt.Sprintf(" --session %q", opts.SessionID)
+	}
+	if opts.Resume {
+		cmd += " --continue"
+	}
+	return cmd
 }
 
 // listAvailableTools returns tool names from the manager's provider registry.
