@@ -449,6 +449,14 @@ const GLOBAL_NAV_ITEMS = [
 
 const NAV_ITEMS = [...MAIN_NAV_ITEMS, ...UTIL_NAV_ITEMS, ...GLOBAL_NAV_ITEMS];
 
+/**
+ * TITLE_ITEMS — extends NAV_ITEMS with surfaces that resolve to a
+ * document title but live outside the sidebar nav lists (e.g. /about
+ * sits in the sidebar footer next to the theme toggle, not in any
+ * NavList). Keep this list in sync with non-nav top-level routes.
+ */
+const TITLE_ITEMS = [...NAV_ITEMS, { to: "/about", label: "About" }];
+
 function readCollapsed(): boolean {
   try { return localStorage.getItem(SIDEBAR_KEY) === "true"; } catch { return false; }
 }
@@ -581,7 +589,7 @@ export function Layout() {
     // tab ("Live").
     const stripped = location.pathname.replace(/^\/w\/[^/]+/, "");
     const firstSeg = stripped.replace(/^\//, "").split("/")[0] ?? "";
-    const match = NAV_ITEMS.find((item) => {
+    const match = TITLE_ITEMS.find((item) => {
       const seg = item.to.replace(/^\//, "");
       return seg === firstSeg;
     });

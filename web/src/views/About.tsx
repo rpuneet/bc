@@ -33,6 +33,17 @@ interface ChannelStatus {
 
 const GITHUB_REPO = "rpuneet/mycel";
 
+/** withTimeout — caps any one channel-check fetch at `ms` so a hung
+ *  request (DNS timeout, GitHub API rate-limit holding the socket open,
+ *  slow mirror) can't pin the page in the loading state. Resolves the
+ *  supplied fallback instead of rejecting. */
+function withTimeout<T>(p: Promise<T>, fallback: T, ms = 8000): Promise<T> {
+  return Promise.race([
+    p,
+    new Promise<T>((resolve) => setTimeout(() => resolve(fallback), ms)),
+  ]);
+}
+
 async function fetchHealth(): Promise<Health | null> {
   try {
     const r = await fetch("/api/health");
@@ -104,19 +115,22 @@ export function About() {
 
   const refresh = useCallback(async () => {
     setLoading(true);
-    const [h, l, n, b, p] = await Promise.all([
-      fetchHealth(),
-      fetchLatestGhRelease(),
-      fetchNpmLatest(),
-      fetchBrewVersion(),
-      pingPages(),
-    ]);
-    setHealth(h);
-    setLatest(l);
-    setNpm(n);
-    setBrew(b);
-    setPagesOk(p);
-    setLoading(false);
+    try {
+      const [h, l, n, b, p] = await Promise.all([
+        withTimeout(fetchHealth(), null),
+        withTimeout(fetchLatestGhRelease(), null),
+        withTimeout(fetchNpmLatest(), null),
+        withTimeout(fetchBrewVersion(), null),
+        withTimeout(pingPages(), false),
+      ]);
+      setHealth(h);
+      setLatest(l);
+      setNpm(n);
+      setBrew(b);
+      setPagesOk(p);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => {
@@ -144,14 +158,31 @@ export function About() {
       href: "https://www.npmjs.com/package/mycel-cli",
       version: npm?.latest,
       detail: npm ? `${npm.versions.length} versions` : undefined,
-      state: npm ? (latestTag && npm.latest !== latestTag ? "stale" : "ok") : "unknown",
+      // Without a latest GitHub tag we have no baseline to call this
+      // "ok" or "stale" against — degrade to "unknown" instead of
+      // showing a false green dot when the GitHub API is rate-limited.
+      state: npm
+        ? latestTag
+          ? npm.latest !== latestTag
+            ? "stale"
+            : "ok"
+          : "unknown"
+        : "unknown",
     },
     {
       label: "Homebrew tap",
       href: `https://github.com/${GITHUB_REPO.split("/")[0]}/homebrew-mycel`,
       version: brew ?? undefined,
       detail: "brew tap rpuneet/mycel",
-      state: brew ? (latestTag && brew !== latestTag ? "stale" : "ok") : "unknown",
+      // Same reasoning as the npm tile — without latestTag we can't
+      // declare healthy or stale, so fall back to "unknown".
+      state: brew
+        ? latestTag
+          ? brew !== latestTag
+            ? "stale"
+            : "ok"
+          : "unknown"
+        : "unknown",
     },
     {
       label: "Docs site",
