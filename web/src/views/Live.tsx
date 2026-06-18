@@ -514,8 +514,18 @@ export function Live() {
         </div>
       )}
 
-      {/* Agent Activity Cards */}
-      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto min-h-0 space-y-3 relative">
+      {/* Agent Activity Cards.
+          overflow-anchor: none stops the browser auto-scrolling when a
+          card above the viewport changes height (the source of the
+          "jumps to bottom / latest at top swap" the team flagged).
+          Newest is anchored at the top via the sort comparator above,
+          and the explicit Jump-to-latest button handles intentional
+          recentering when the user has scrolled away. */}
+      <div
+        ref={scrollContainerRef}
+        className="flex-1 overflow-y-auto min-h-0 space-y-3 relative max-h-full"
+        style={{ overflowAnchor: "none", scrollbarGutter: "stable" }}
+      >
         {sorted.length === 0 ? (
           !showStopped && activeCount === 0 && stoppedCount > 0 ? (
             <EmptyState
