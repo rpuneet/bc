@@ -196,6 +196,11 @@ type agentDTO struct { //nolint:govet // field order matches JSON/API contract
 	ParentID     string         `json:"parent_id,omitempty"`
 	ID           string         `json:"id,omitempty"`
 	RepoRoot     string         `json:"repo_root,omitempty"`
+	// Workspace is the absolute path the agent is bound to. Surfaces
+	// the workspace-as-property model (#3079) so clients can filter
+	// /api/agents?workspace=<path> without going through the legacy
+	// /api/workspaces/<id>/agents route.
+	Workspace    string         `json:"workspace,omitempty"`
 	MCPServers   []string       `json:"mcp_servers,omitempty"`
 	Children     []string       `json:"children,omitempty"`
 	TotalCostUSD float64        `json:"total_cost_usd"`
@@ -234,6 +239,7 @@ func toDTO(a *agent.Agent) agentDTO {
 		StoppedAt:  a.StoppedAt,
 		ArchivedAt: a.ArchivedAt,
 		RepoRoot:   a.RepoRoot,
+		Workspace:  a.Workspace,
 	}
 }
 
@@ -265,6 +271,38 @@ func (h *AgentHandler) list(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			httpInternalError(w, "list agents", err)
 			return
+		}
+		// `?workspace=<absolute_path>` filter — first half of the
+		// workspace-as-property surface (#3079). When set, only agents
+		// bound to that workspace are returned. When unset, every
+		// workspace's agents are listed (the legacy default; the
+		// /api/workspaces/<id>/agents scoped route still works via the
+		// workspace_scope middleware for callers that haven't migrated
+		// yet).
+		if wsFilter := q.Get("workspace"); wsFilter != "" {
+			filtered := agents[:0]
+			for _, a := range agents {
+				if a.Workspace == wsFilter {
+					filtered = append(filtered, a)
+				}
+			}
+			agents = filtered
+		}
+		// `?workspace=<absolute_path>` filter — first half of the
+		// workspace-as-property surface (#3079). When set, only agents
+		// bound to that workspace are returned. When unset, every
+		// workspace's agents are listed (the legacy default; the
+		// /api/workspaces/<id>/agents scoped route still works via the
+		// workspace_scope middleware for callers that haven't migrated
+		// yet).
+		if wsFilter := q.Get("workspace"); wsFilter != "" {
+			filtered := agents[:0]
+			for _, a := range agents {
+				if a.Workspace == wsFilter {
+					filtered = append(filtered, a)
+				}
+			}
+			agents = filtered
 		}
 		dtos := make([]agentDTO, 0, len(agents))
 		for _, a := range agents {
