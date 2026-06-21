@@ -50,16 +50,6 @@ Examples:
 
 var toolListJSON bool
 
-// ── check (legacy alias for status) ──────────────────────────────────────────
-
-var toolCheckCmd = &cobra.Command{
-	Use:    "check <tool>",
-	Short:  "Check details for a specific tool",
-	Hidden: true, // superseded by 'show' and 'status'
-	Args:   cobra.ExactArgs(1),
-	RunE:   runToolCheck,
-}
-
 // ── show ──────────────────────────────────────────────────────────────────────
 
 var toolShowCmd = &cobra.Command{
@@ -177,7 +167,6 @@ func init() {
 	toolEditCmd.Flags().StringVar(&toolEditEnabled, "enabled", "", "Enable or disable (true/false)")
 
 	toolCmd.AddCommand(toolListCmd)
-	toolCmd.AddCommand(toolCheckCmd)
 	toolCmd.AddCommand(toolShowCmd)
 	toolCmd.AddCommand(toolStatusCmd)
 	toolCmd.AddCommand(toolAddCmd)
@@ -187,7 +176,6 @@ func init() {
 	toolCmd.AddCommand(toolDeleteCmd)
 	toolCmd.AddCommand(toolRunCmd)
 
-	toolCheckCmd.ValidArgsFunction = completeToolNames
 	toolShowCmd.ValidArgsFunction = completeToolNames
 	toolStatusCmd.ValidArgsFunction = completeToolNames
 	toolSetupCmd.ValidArgsFunction = completeToolNames
@@ -421,40 +409,6 @@ func truncateToolCmd(s string) string {
 		return s
 	}
 	return s[:max-3] + "..."
-}
-
-// ── check (legacy) ────────────────────────────────────────────────────────────
-
-func runToolCheck(cmd *cobra.Command, args []string) error {
-	ctx := cmd.Context()
-	name := args[0]
-
-	p, err := provider.GetProvider(name)
-	if err != nil {
-		return fmt.Errorf("unknown tool %q (use 'bc tool list' to see available tools)", name)
-	}
-
-	info := getToolInfo(ctx, p)
-
-	statusDisplay := ui.RedText("not found")
-	if info.Status == "installed" {
-		statusDisplay = ui.GreenText("installed")
-	}
-
-	pathDisplay := info.Path
-	if pathDisplay == "" {
-		pathDisplay = "-"
-	}
-
-	ui.SimpleTable(
-		"Tool", info.Name,
-		"Status", statusDisplay,
-		"Version", info.Version,
-		"Command", info.Command,
-		"Path", pathDisplay,
-	)
-
-	return nil
 }
 
 // ── show ──────────────────────────────────────────────────────────────────────
