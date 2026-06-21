@@ -176,35 +176,35 @@ type avatarDTO struct {
 }
 
 type agentDTO struct { //nolint:govet // field order matches JSON/API contract
-	CreatedAt    time.Time      `json:"created_at"`
-	StartedAt    time.Time      `json:"started_at,omitempty"`
-	UpdatedAt    time.Time      `json:"updated_at"`
-	StoppedAt    *time.Time     `json:"stopped_at,omitempty"`
-	ArchivedAt   *time.Time     `json:"archived_at,omitempty"`
-	Stats        *agentStatsDTO `json:"stats,omitempty"`
-	Avatar       *avatarDTO     `json:"avatar,omitempty"`
-	Tool         string         `json:"tool,omitempty"`
-	Session      string         `json:"session,omitempty"`
-	State        string         `json:"state"`
-	Task         string         `json:"task,omitempty"`
-	Team         string         `json:"team,omitempty"`
-	Name         string         `json:"name"`
-	Runtime      string         `json:"runtime_backend,omitempty"`
-	Role         string         `json:"role"`
-	Template     string         `json:"template,omitempty"`
-	SessionID    string         `json:"session_id,omitempty"`
-	ParentID     string         `json:"parent_id,omitempty"`
-	ID           string         `json:"id,omitempty"`
-	RepoRoot     string         `json:"repo_root,omitempty"`
+	CreatedAt  time.Time      `json:"created_at"`
+	StartedAt  time.Time      `json:"started_at,omitempty"`
+	UpdatedAt  time.Time      `json:"updated_at"`
+	StoppedAt  *time.Time     `json:"stopped_at,omitempty"`
+	ArchivedAt *time.Time     `json:"archived_at,omitempty"`
+	Stats      *agentStatsDTO `json:"stats,omitempty"`
+	Avatar     *avatarDTO     `json:"avatar,omitempty"`
+	Tool       string         `json:"tool,omitempty"`
+	Session    string         `json:"session,omitempty"`
+	State      string         `json:"state"`
+	Task       string         `json:"task,omitempty"`
+	Team       string         `json:"team,omitempty"`
+	Name       string         `json:"name"`
+	Runtime    string         `json:"runtime_backend,omitempty"`
+	Role       string         `json:"role"`
+	Template   string         `json:"template,omitempty"`
+	SessionID  string         `json:"session_id,omitempty"`
+	ParentID   string         `json:"parent_id,omitempty"`
+	ID         string         `json:"id,omitempty"`
+	RepoRoot   string         `json:"repo_root,omitempty"`
 	// Workspace is the absolute path the agent is bound to. Surfaces
 	// the workspace-as-property model (#3079) so clients can filter
 	// /api/agents?workspace=<path> without going through the legacy
 	// /api/workspaces/<id>/agents route.
-	Workspace    string         `json:"workspace,omitempty"`
-	MCPServers   []string       `json:"mcp_servers,omitempty"`
-	Children     []string       `json:"children,omitempty"`
-	TotalCostUSD float64        `json:"total_cost_usd"`
-	TotalTokens  int64          `json:"total_tokens"`
+	Workspace    string   `json:"workspace,omitempty"`
+	MCPServers   []string `json:"mcp_servers,omitempty"`
+	Children     []string `json:"children,omitempty"`
+	TotalCostUSD float64  `json:"total_cost_usd"`
+	TotalTokens  int64    `json:"total_tokens"`
 }
 
 // agentStatsDTO holds resource metrics included when ?include=stats is set.
