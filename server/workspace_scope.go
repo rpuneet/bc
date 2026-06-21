@@ -173,10 +173,19 @@ func WorkspaceScope(next http.Handler, mgr *WorkspaceManager) http.Handler {
 		w.Header().Set("Sunset", deprecationSunset)
 
 		if mgr != nil {
-			// X-BC-Workspace header overrides the default active workspace,
-			// allowing clients to scope legacy /api/ routes to a specific
-			// workspace without using the /api/workspaces/{id}/... URL form.
-			if hdrID := r.Header.Get("X-BC-Workspace"); hdrID != "" {
+			// X-BC-Workspace header OR ?workspace= query param overrides
+			// the active workspace, allowing clients to scope flat /api/
+			// routes to a specific workspace without using the
+			// /api/workspaces/{id}/... URL form. The header is preferred
+			// (browsers send it automatically once the SPA detects a
+			// /w/<id> path), but the query param is convenient for
+			// curl-style ad-hoc calls and is the form we're standardising
+			// on as we delete the /api/workspaces/{id} surface (#3079).
+			hdrID := r.Header.Get("X-BC-Workspace")
+			if hdrID == "" {
+				hdrID = r.URL.Query().Get("workspace")
+			}
+			if hdrID != "" {
 				entry := mgr.Registry().FindByID(hdrID)
 				if entry == nil {
 					entry = mgr.Registry().Resolve(hdrID)
