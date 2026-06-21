@@ -562,7 +562,14 @@ function splitChannel(channel: string): { gw: string; ch: string } {
 }
 
 export const api = {
-  listAgents: () => request<Agent[]>("/agents"),
+  /** List agents. Pass `workspace` to filter to a single workspace path —
+   *  this hits the flat /api/agents?workspace= surface (#3079) instead of
+   *  the legacy /api/workspaces/<id>/agents scoped route. Omit to list
+   *  every workspace's agents (cross-workspace view). */
+  listAgents: (workspace?: string) =>
+    request<Agent[]>(
+      workspace ? `/agents?workspace=${encodeURIComponent(workspace)}` : "/agents",
+    ),
   getAgent: (name: string) =>
     request<Agent>(`/agents/${encodeURIComponent(name)}`),
   getAgentPeek: (name: string, lines = 50) =>
