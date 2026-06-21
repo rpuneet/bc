@@ -48,33 +48,13 @@ func newScopeTestManager(t *testing.T) (*WorkspaceManager, string, string) {
 	return mgr, id, wsDir
 }
 
-// TestWorkspaceScopeRewriteActive verifies that a scoped URL for the active
-// workspace is rewritten to the legacy /api/<rest> form.
-func TestWorkspaceScopeRewriteActive(t *testing.T) {
-	mgr, id, _ := newScopeTestManager(t)
-
-	inner := &dummyHandler{}
-	h := WorkspaceScope(inner, mgr)
-
-	req := httptest.NewRequest(http.MethodGet, "/api/workspaces/"+id+"/agents", nil)
-	rec := httptest.NewRecorder()
-	h.ServeHTTP(rec, req)
-
-	if inner.seen != "/api/agents" {
-		t.Errorf("URL not rewritten: got %q want %q", inner.seen, "/api/agents")
-	}
-	if dep := rec.Header().Get("Deprecation"); dep != "" {
-		t.Errorf("scoped route should not carry Deprecation header, got %q", dep)
-	}
-}
-
-// TestWorkspaceScopeNonActiveDispatches verifies that phase M5 lifts the
-// 501-for-non-active restriction: a scoped request for any registered
-// workspace lazy-loads its services and rewrites to /api/<rest>.
-func TestWorkspaceScopeNonActiveDispatches(t *testing.T) {
+// TestWorkspaceScopeQueryParam verifies the ?workspace=<id> query param
+// resolves a registered (non-active) workspace and stashes its services
+// in the request context.
+func TestWorkspaceScopeQueryParam(t *testing.T) {
 	mgr, _, _ := newScopeTestManager(t)
 
-	// Register a second workspace (not active).
+	// Register a second (non-active) workspace.
 	tmpDir := t.TempDir()
 	wsDir2 := filepath.Join(tmpDir, "ws2")
 	if err := os.MkdirAll(wsDir2, 0750); err != nil {
@@ -87,29 +67,65 @@ func TestWorkspaceScopeNonActiveDispatches(t *testing.T) {
 	_ = mgr.Registry().RegisterWithAlias(wsDir2, "ws2", "")
 	id2 := workspace.ComputeWorkspaceID(wsDir2)
 
-	inner := &dummyHandler{}
+	var gotID string
+	inner := http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		gotID = WorkspaceIDFromContext(r.Context())
+	})
 	h := WorkspaceScope(inner, mgr)
 
-	req := httptest.NewRequest(http.MethodGet, "/api/workspaces/"+id2+"/agents", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/agents?workspace="+id2, nil)
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusOK {
-		t.Errorf("status = %d, want 200 (dispatch to non-active should succeed)", rec.Code)
+		t.Errorf("status = %d, want 200", rec.Code)
 	}
-	if inner.seen != "/api/agents" {
-		t.Errorf("rewritten path = %q, want /api/agents", inner.seen)
+	if gotID != id2 {
+		t.Errorf("ctx workspace id = %q, want %q", gotID, id2)
 	}
 }
 
-// TestWorkspaceScopeUnknownWorkspace returns 404.
+// TestWorkspaceScopeHeader verifies X-BC-Workspace overrides the active
+// workspace scope.
+func TestWorkspaceScopeHeader(t *testing.T) {
+	mgr, _, _ := newScopeTestManager(t)
+
+	tmpDir := t.TempDir()
+	wsDir2 := filepath.Join(tmpDir, "ws2")
+	if err := os.MkdirAll(wsDir2, 0750); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	gitInitDir(t, wsDir2)
+	if _, err := workspace.Init(wsDir2); err != nil {
+		t.Fatalf("Init: %v", err)
+	}
+	_ = mgr.Registry().RegisterWithAlias(wsDir2, "ws2", "")
+	id2 := workspace.ComputeWorkspaceID(wsDir2)
+
+	var gotID string
+	inner := http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		gotID = WorkspaceIDFromContext(r.Context())
+	})
+	h := WorkspaceScope(inner, mgr)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/agents", nil)
+	req.Header.Set("X-BC-Workspace", id2)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if gotID != id2 {
+		t.Errorf("ctx workspace id = %q, want %q", gotID, id2)
+	}
+}
+
+// TestWorkspaceScopeUnknownWorkspace returns 404 for an unregistered id.
 func TestWorkspaceScopeUnknownWorkspace(t *testing.T) {
 	mgr, _, _ := newScopeTestManager(t)
 
 	inner := &dummyHandler{}
 	h := WorkspaceScope(inner, mgr)
 
-	req := httptest.NewRequest(http.MethodGet, "/api/workspaces/deadbeef1234/agents", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/agents?workspace=deadbeef1234", nil)
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
 
@@ -118,15 +134,17 @@ func TestWorkspaceScopeUnknownWorkspace(t *testing.T) {
 	}
 }
 
-// TestWorkspaceScopeSelfRoutePassThrough ensures /api/workspaces/{id} and
-// /api/workspaces/{id}/activate go straight through to the mux (registry
-// self-routes) without URL rewrite.
+// TestWorkspaceScopeSelfRoutePassThrough ensures /api/workspaces/... self
+// routes go straight through to the mux (registry self-routes) without
+// any per-request scope injection.
 func TestWorkspaceScopeSelfRoutePassThrough(t *testing.T) {
 	mgr, id, _ := newScopeTestManager(t)
 
 	for _, path := range []string{
+		"/api/workspaces",
 		"/api/workspaces/" + id,
 		"/api/workspaces/" + id + "/activate",
+		"/api/workspaces/discover/local",
 	} {
 		inner := &dummyHandler{}
 		h := WorkspaceScope(inner, mgr)
@@ -139,26 +157,23 @@ func TestWorkspaceScopeSelfRoutePassThrough(t *testing.T) {
 	}
 }
 
-// TestWorkspaceScopeLegacyDeprecation ensures legacy /api/ routes get
-// Deprecation + Sunset headers.
-func TestWorkspaceScopeLegacyDeprecation(t *testing.T) {
-	mgr, _, _ := newScopeTestManager(t)
+// TestWorkspaceScopeDefaultsToActive ensures flat /api/ paths with no
+// explicit hint resolve to the active workspace.
+func TestWorkspaceScopeDefaultsToActive(t *testing.T) {
+	mgr, activeID, _ := newScopeTestManager(t)
 
-	inner := &dummyHandler{}
+	var gotID string
+	inner := http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		gotID = WorkspaceIDFromContext(r.Context())
+	})
 	h := WorkspaceScope(inner, mgr)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/agents", nil)
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
 
-	if rec.Header().Get("Deprecation") != "true" {
-		t.Errorf("Deprecation header missing")
-	}
-	if rec.Header().Get("Sunset") == "" {
-		t.Errorf("Sunset header missing")
-	}
-	if inner.seen != "/api/agents" {
-		t.Errorf("legacy path rewritten: %q", inner.seen)
+	if gotID != activeID {
+		t.Errorf("ctx workspace id = %q, want active %q", gotID, activeID)
 	}
 }
 
@@ -175,8 +190,5 @@ func TestWorkspaceScopeNonAPIPassThrough(t *testing.T) {
 
 	if inner.seen != "/" {
 		t.Errorf("non-API path affected: %q", inner.seen)
-	}
-	if rec.Header().Get("Deprecation") != "" {
-		t.Errorf("non-API should not get Deprecation")
 	}
 }

@@ -5,11 +5,10 @@
 //	GET /api/code/diff?worktree=[&path=]
 //
 // The routes are registered at /api/code/ and dispatched by ServeHTTP
-// based on the first path segment. They work under the WorkspaceScope
-// middleware (/api/workspaces/{id}/code/*) which rewrites the URL and
-// stashes the resolved workspace in the request context, and also
-// transparently for the legacy /api/code/* form using the active
-// workspace.
+// based on the first path segment. The WorkspaceScope middleware resolves
+// the target workspace from the X-BC-Workspace header or ?workspace=<id>
+// query param (falling back to the active workspace) and stashes the
+// resolved *WorkspaceServices in the request context.
 //
 // Every filesystem read is sandboxed via pkg/files.SafeJoin; .git/
 // and .bc/ subdirs are hidden by default; file reads cap at 2 MiB.

@@ -22,7 +22,7 @@ async function firstWorkspaceAndAgent(
   if (!list.length) return null;
   const ws = list[0];
 
-  const aResp = await request.get(`/api/workspaces/${ws.id}/agents`);
+  const aResp = await request.get(`/api/agents?workspace=${encodeURIComponent(ws.id)}`);
   if (!aResp.ok()) return null;
   const agents = (await aResp.json()) as Agent[];
   if (!Array.isArray(agents) || !agents.length) return null;
