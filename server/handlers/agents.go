@@ -163,6 +163,7 @@ func (h *AgentHandler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/agents/stop-all", h.stopAll)
 	mux.HandleFunc("/api/agents/sync", h.syncSessions)
 	mux.HandleFunc("/api/agents/health", h.health)
+	mux.HandleFunc("/api/agents/activity", h.activity)
 	// Bulk operations — must be registered before the catch-all below.
 	h.registerBulkRoutes(mux)
 	mux.HandleFunc("/api/agents", h.list)

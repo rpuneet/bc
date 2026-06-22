@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../api/client";
 import { useWebSocket } from "./useWebSocket";
+import type { AgentActivityItem } from "../api/client";
 import type {
   AgentActivity,
   HookEvent,
@@ -8,6 +9,33 @@ import type {
   TaskItem,
   ToolNode,
 } from "../components/live/liveTypes";
+
+// Turn a persisted activity row into a ToolNode for the Live card.
+// Historical rows lack Pre/Post pairing so we mark them completed with
+// unknown duration — same approach as the per-agent hydration path.
+function activityItemToNode(item: AgentActivityItem): ToolNode {
+  const toolName = (() => {
+    if (item.message) {
+      const colonIdx = item.message.indexOf(":");
+      if (colonIdx > 0) return item.message.slice(0, colonIdx).trim();
+      const spaceIdx = item.message.indexOf(" ");
+      if (spaceIdx > 0) return item.message.slice(0, spaceIdx).trim();
+      return item.message;
+    }
+    return item.event || "unknown";
+  })();
+  return {
+    id: nextId(),
+    toolName,
+    args: item.message || "",
+    fullInput: null,
+    fullOutput: null,
+    startTime: item.timestamp ? new Date(item.timestamp).getTime() : Date.now(),
+    endTime: undefined,
+    status: "completed" as const,
+    children: [],
+  };
+}
 import {
   AUTO_COLLAPSE_MS,
   FLUSH_INTERVAL,
@@ -84,30 +112,36 @@ export function useAgentActivity(agentName?: string): {
             const next = new Map(prev);
             const existing = next.get(agentName);
             if (existing && existing.nodes.length === 0 && items.length > 0) {
-              const nodes: ToolNode[] = items.map((item) => ({
-                id: nextId(),
-                toolName: (() => {
-                  // Prefer the actual tool name embedded in the message (e.g. "Bash: sleep 120")
-                  // over the generic hook event type ("PreToolUse", "PostToolUse").
-                  if (item.message) {
-                    const colonIdx = item.message.indexOf(":");
-                    if (colonIdx > 0) return item.message.slice(0, colonIdx).trim();
-                    const spaceIdx = item.message.indexOf(" ");
-                    if (spaceIdx > 0) return item.message.slice(0, spaceIdx).trim();
-                    return item.message;
-                  }
-                  return item.event || "unknown";
-                })(),
-                args: item.message || "",
-                fullInput: null,
-                fullOutput: null,
-                startTime: item.timestamp ? new Date(item.timestamp).getTime() : Date.now(),
-                // Historical events don't have Pre/Post pairing so duration is unknown
-                endTime: undefined,
-                status: "completed" as const,
-                children: [],
-              }));
+              const nodes: ToolNode[] = items.map(activityItemToNode);
               next.set(agentName, { ...existing, nodes });
+            }
+            return next;
+          });
+        }).catch(() => { /* best effort */ });
+      } else {
+        // Multi-agent view (Live page): hydrate from the cross-agent
+        // /api/agents/activity feed so cards aren't empty on reload (#3138).
+        api.getActivity(400).then((items) => {
+          if (items.length === 0) return;
+          const byAgent = new Map<string, AgentActivityItem[]>();
+          for (const it of items) {
+            const who = it.agent || "";
+            if (!who) continue;
+            const list = byAgent.get(who);
+            if (list) list.push(it);
+            else byAgent.set(who, [it]);
+          }
+          setActivities((prev) => {
+            const next = new Map(prev);
+            for (const [who, rows] of byAgent) {
+              const existing = next.get(who);
+              if (!existing || existing.nodes.length > 0) continue;
+              // Oldest-first inside each card; the REST feed is newest-first.
+              const nodes: ToolNode[] = rows
+                .slice()
+                .reverse()
+                .map(activityItemToNode);
+              next.set(who, { ...existing, nodes });
             }
             return next;
           });
