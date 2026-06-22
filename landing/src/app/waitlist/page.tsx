@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { FadeUp } from "../_components/Motion";
+import { Nav } from "../_components/Nav";
+import { Footer } from "../_components/Footer";
 
 const GOOGLE_FORM_ACTION =
   "https://docs.google.com/forms/d/e/1FAIpQLSc_aJ3S3nV5EizpkzTZnN7H5UykoANpC8jet2M7J0Qo3rhG8Q/formResponse";
@@ -94,8 +96,10 @@ export default function WaitlistPage() {
   };
 
   return (
-    <main className="hero-glow flex min-h-screen items-center justify-center bg-background">
-      <div className="mx-auto max-w-2xl px-4 text-center">
+    <div className="flex min-h-screen flex-col bg-background">
+      <Nav />
+      <main className="hero-glow flex flex-1 items-center justify-center">
+        <div className="mx-auto max-w-2xl px-4 text-center">
         <FadeUp delay={0.1}>
           <h1 className="font-headline text-4xl font-bold tracking-tight text-on-background lg:text-6xl">
             Orchestrate{" "}
@@ -188,7 +192,9 @@ export default function WaitlistPage() {
             4+ PROVIDERS &bull; OPEN SOURCE &bull; LOCAL-FIRST
           </p>
         </FadeUp>
-      </div>
-    </main>
+        </div>
+      </main>
+      <Footer />
+    </div>
   );
 }
