@@ -9,6 +9,8 @@ import {
   StaggerChildren,
   StaggerItem,
 } from "../_components/Motion";
+import { Nav } from "../_components/Nav";
+import { Footer } from "../_components/Footer";
 
 const CHECK = (
   <svg
@@ -107,6 +109,7 @@ function FAQAccordion() {
 export default function PricingPage() {
   return (
     <main className="min-h-screen bg-background">
+      <Nav />
       {/* Hero */}
       <section className="hero-glow py-16">
         <div className="mx-auto max-w-5xl px-4 text-center">
@@ -272,6 +275,7 @@ export default function PricingPage() {
           </RevealSection>
         </div>
       </section>
+      <Footer />
     </main>
   );
 }
