@@ -55,7 +55,11 @@ tmp/
 # Build artifacts
 bc
 bcd
-server/web/dist/
+server/web/dist/*
+# Keep a placeholder so //go:embed in server/embed.go has at least one
+# file to embed (otherwise `go install github.com/rpuneet/mycel/cmd/bc`
+# fails when the consumer hasn't run `bun run build`).
+!server/web/dist/placeholder.txt
 web/dist/
 tui/dist/
 landing/.next/
