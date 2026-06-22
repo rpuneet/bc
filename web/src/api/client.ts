@@ -43,6 +43,10 @@ export interface AgentActivityItem {
   event: string;
   message?: string;
   data?: Record<string, unknown>;
+  // Present on the cross-agent /api/agents/activity response (#3138).
+  // Omitted on the per-agent /api/agents/{name}/activity response since
+  // the agent is implied by the URL.
+  agent?: string;
 }
 
 export interface Agent {
@@ -648,6 +652,11 @@ export const api = {
   // Agent activity timeline — newest first, capped at `limit` entries (default 50, max 1000).
   getAgentActivity: (name: string, limit = 50) =>
     request<AgentActivityItem[]>(`/agents/${encodeURIComponent(name)}/activity?limit=${limit}`),
+  // Cross-agent recent activity for Live page hydration (#3138). Newest
+  // first; each item carries an `agent` field so callers can route to
+  // the right card.
+  getActivity: (limit = 200) =>
+    request<AgentActivityItem[]>(`/agents/activity?limit=${limit}`),
 
   getAgentConfig: (name: string) =>
     request<AgentConfig>(`/agents/${encodeURIComponent(name)}/config`),
