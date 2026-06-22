@@ -99,17 +99,24 @@ func WorkspaceScope(next http.Handler, mgr *WorkspaceManager) http.Handler {
 				http.Error(w, `{"error":"workspace not found"}`, http.StatusNotFound)
 				return
 			}
-			svc := mgr.Get(entry.ID)
+			// Legacy registry entries can lack a persisted ID; mirror the
+			// active-fallback path and derive one from the workspace path
+			// so mgr.Get/Load receive a stable key.
+			resolvedID := entry.ID
+			if resolvedID == "" {
+				resolvedID = workspace.ComputeWorkspaceID(entry.Path)
+			}
+			svc := mgr.Get(resolvedID)
 			if svc == nil {
 				var err error
-				svc, err = mgr.Load(r.Context(), entry.ID)
+				svc, err = mgr.Load(r.Context(), resolvedID)
 				if err != nil {
-					log.Warn("workspace scope: lazy load failed", "id", entry.ID, "error", err)
+					log.Warn("workspace scope: lazy load failed", "id", resolvedID, "error", err)
 					http.Error(w, `{"error":"failed to load workspace"}`, http.StatusInternalServerError)
 					return
 				}
 			}
-			ctx := context.WithValue(r.Context(), ctxKeyWorkspaceID, entry.ID)
+			ctx := context.WithValue(r.Context(), ctxKeyWorkspaceID, resolvedID)
 			ctx = context.WithValue(ctx, ctxKeyWorkspaceServices, svc)
 			next.ServeHTTP(w, r.WithContext(ctx))
 			return

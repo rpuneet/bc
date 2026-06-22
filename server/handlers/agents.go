@@ -271,9 +271,10 @@ func (h *AgentHandler) list(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		// `?workspace=<absolute_path>` filter narrows results to agents
-		// bound to a single workspace (#3079). The matching path is the
-		// agent's bound workspace path — typically the absolute fs path
-		// the registry uses as ID.
+		// bound to a single workspace (#3079). The value must be the
+		// workspace's absolute filesystem path — NOT its registry ID
+		// hash — because we compare directly against a.Workspace which
+		// stores the absolute path the agent was spawned in.
 		if wsFilter := q.Get("workspace"); wsFilter != "" {
 			filtered := agents[:0]
 			for _, a := range agents {

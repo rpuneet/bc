@@ -145,6 +145,7 @@ func TestWorkspaceScopeSelfRoutePassThrough(t *testing.T) {
 		"/api/workspaces/" + id,
 		"/api/workspaces/" + id + "/activate",
 		"/api/workspaces/discover/local",
+		"/api/workspaces/clone",
 	} {
 		inner := &dummyHandler{}
 		h := WorkspaceScope(inner, mgr)
