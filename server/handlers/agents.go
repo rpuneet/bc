@@ -196,10 +196,8 @@ type agentDTO struct { //nolint:govet // field order matches JSON/API contract
 	ParentID   string         `json:"parent_id,omitempty"`
 	ID         string         `json:"id,omitempty"`
 	RepoRoot   string         `json:"repo_root,omitempty"`
-	// Workspace is the absolute path the agent is bound to. Surfaces
-	// the workspace-as-property model (#3079) so clients can filter
-	// /api/agents?workspace=<path> without going through the legacy
-	// /api/workspaces/<id>/agents route.
+	// Workspace is the absolute path the agent is bound to (#3079).
+	// Clients filter via /api/agents?workspace=<path>.
 	Workspace    string   `json:"workspace,omitempty"`
 	MCPServers   []string `json:"mcp_servers,omitempty"`
 	Children     []string `json:"children,omitempty"`
@@ -272,29 +270,11 @@ func (h *AgentHandler) list(w http.ResponseWriter, r *http.Request) {
 			httpInternalError(w, "list agents", err)
 			return
 		}
-		// `?workspace=<absolute_path>` filter — first half of the
-		// workspace-as-property surface (#3079). When set, only agents
-		// bound to that workspace are returned. When unset, every
-		// workspace's agents are listed (the legacy default; the
-		// /api/workspaces/<id>/agents scoped route still works via the
-		// workspace_scope middleware for callers that haven't migrated
-		// yet).
-		if wsFilter := q.Get("workspace"); wsFilter != "" {
-			filtered := agents[:0]
-			for _, a := range agents {
-				if a.Workspace == wsFilter {
-					filtered = append(filtered, a)
-				}
-			}
-			agents = filtered
-		}
-		// `?workspace=<absolute_path>` filter — first half of the
-		// workspace-as-property surface (#3079). When set, only agents
-		// bound to that workspace are returned. When unset, every
-		// workspace's agents are listed (the legacy default; the
-		// /api/workspaces/<id>/agents scoped route still works via the
-		// workspace_scope middleware for callers that haven't migrated
-		// yet).
+		// `?workspace=<absolute_path>` filter narrows results to agents
+		// bound to a single workspace (#3079). The value must be the
+		// workspace's absolute filesystem path — NOT its registry ID
+		// hash — because we compare directly against a.Workspace which
+		// stores the absolute path the agent was spawned in.
 		if wsFilter := q.Get("workspace"); wsFilter != "" {
 			filtered := agents[:0]
 			for _, a := range agents {

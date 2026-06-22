@@ -154,7 +154,7 @@ func TestConcurrent_ScopedDispatch(t *testing.T) {
 			"system_prompt": "probe",
 		}
 		b, _ := json.Marshal(body)
-		req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, h.ts.URL+"/api/workspaces/"+w.id+"/templates", bytes.NewReader(b))
+		req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, h.ts.URL+"/api/templates?workspace="+w.id, bytes.NewReader(b))
 		if err != nil {
 			t.Fatalf("build seed req: %v", err)
 		}
@@ -177,7 +177,7 @@ func TestConcurrent_ScopedDispatch(t *testing.T) {
 		wantName := fmt.Sprintf("tpl-ws%d", idx)
 		go func() {
 			defer wg.Done()
-			req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, h.ts.URL+"/api/workspaces/"+target.id+"/templates", nil)
+			req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, h.ts.URL+"/api/templates?workspace="+target.id, nil)
 			if err != nil {
 				errCount.Add(1)
 				return

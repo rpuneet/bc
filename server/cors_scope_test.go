@@ -1,24 +1,17 @@
-// cors_scope_test.go — regression test for commit 0e2bed15, where the
-// CORS middleware wrapper previously bypassed WorkspaceScope by wrapping
-// the mux directly instead of the already-wrapped handler.
-//
-// Symptom: with --cors-origin set (the default dev flow), any request
-// to /api/workspaces/{id}/<rest> hit the raw mux and 404'd because the
-// scope middleware never rewrote the URL.
+// cors_scope_test.go — regression test for the CORS + WorkspaceScope
+// middleware interaction (originally commit 0e2bed15). The CORS wrapper
+// must sit OUTSIDE the WorkspaceScope wrapper so that per-request
+// workspace resolution still fires while CORS headers land on the
+// response.
 //
 // This test boots the real middleware chain with CORS enabled, fires a
-// scoped request, and asserts BOTH concerns at once:
+// workspace-scoped request via the flat /api/<rest>?workspace=<id>
+// surface (#3079), and asserts BOTH concerns at once:
 //
 //  1. The CORS headers (Access-Control-Allow-Origin, Allow-Methods) land
 //     on the response — i.e. the CORS wrapper IS in the chain.
-//  2. The scoped URL is actually dispatched — i.e. the scope middleware
-//     is NOT bypassed. We prove this by reaching a registered handler
-//     (GET /api/workspaces/{id}/health returns 200 or a routed handler;
-//     here we assert we don't get the 404 that the bug produced).
-//
-// The original bug would manifest as 404 on the scoped path even when
-// the CORS headers were present. Keeping both checks in one test makes
-// the regression obvious.
+//  2. The request is actually dispatched (no 404) — i.e. the scope
+//     middleware is NOT bypassed.
 package server_test
 
 import (
@@ -109,7 +102,7 @@ func TestCORS_WorkspaceScope_Coexist(t *testing.T) {
 	// Fire a scoped GET. Under the buggy wiring this returned 404 from
 	// the mux because CORS wrapped the raw mux and the scope middleware
 	// never saw the request.
-	scopedURL := fmt.Sprintf("%s/api/workspaces/%s/agents", ts.URL, wsID)
+	scopedURL := fmt.Sprintf("%s/api/agents?workspace=%s", ts.URL, wsID)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, scopedURL, nil)
 	if err != nil {
 		t.Fatalf("new req: %v", err)
@@ -205,7 +198,7 @@ func TestCORS_Preflight_Scoped(t *testing.T) {
 	defer ts.Close()
 
 	req, err := http.NewRequestWithContext(context.Background(), http.MethodOptions,
-		fmt.Sprintf("%s/api/workspaces/%s/agents", ts.URL, wsID), nil)
+		fmt.Sprintf("%s/api/agents?workspace=%s", ts.URL, wsID), nil)
 	if err != nil {
 		t.Fatalf("new req: %v", err)
 	}

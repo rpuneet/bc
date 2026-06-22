@@ -9,7 +9,7 @@
 
 import { test, expect } from "@playwright/test";
 
-type Ws = { id: string; name: string };
+type Ws = { id: string; name: string; path: string };
 type Agent = { name: string };
 
 async function firstWorkspaceAndAgent(
@@ -22,7 +22,9 @@ async function firstWorkspaceAndAgent(
   if (!list.length) return null;
   const ws = list[0];
 
-  const aResp = await request.get(`/api/workspaces/${ws.id}/agents`);
+  // /api/agents filter compares against the agent's bound Workspace
+  // (absolute filesystem path), so pass ws.path — not the registry id hash.
+  const aResp = await request.get(`/api/agents?workspace=${encodeURIComponent(ws.path)}`);
   if (!aResp.ok()) return null;
   const agents = (await aResp.json()) as Agent[];
   if (!Array.isArray(agents) || !agents.length) return null;

@@ -113,9 +113,6 @@ func (h *WorkspacesHandler) item(w http.ResponseWriter, r *http.Request) {
 		}
 		h.activate(w, r, id)
 	default:
-		// Scoped resource routes (/api/workspaces/{id}/agents, etc.) are
-		// handled by the WorkspaceScope middleware upstream. If we reach
-		// here, the middleware did not match — surface a clear 404.
 		http.NotFound(w, r)
 	}
 }

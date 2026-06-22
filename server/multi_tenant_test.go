@@ -143,8 +143,11 @@ func newMultiTenantHarness(t *testing.T) *multiTenantHarness {
 }
 
 // apiGET performs GET against the harness and returns body + status.
+// Scoped paths of the form "/api/workspaces/<id>/<rest>" are auto-rewritten
+// to "/api/<rest>?workspace=<id>" (the current API surface, #3079).
 func (h *multiTenantHarness) apiGET(t *testing.T, path string) (int, []byte) {
 	t.Helper()
+	path = rewriteWorkspaceScopedPath(path)
 	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, h.ts.URL+path, nil)
 	if err != nil {
 		t.Fatalf("build request: %v", err)

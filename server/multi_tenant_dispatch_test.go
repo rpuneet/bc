@@ -54,14 +54,17 @@ func (h *dispatchHarness) close() {
 	_ = h.mgr.Close() //nolint:errcheck
 }
 
-// api fires an HTTP call against the harness server. pathBuilder may be a
-// literal scoped URL like "/api/workspaces/<id>/templates".
+// api fires an HTTP call against the harness server. A scoped path like
+// "/api/workspaces/<id>/<rest>" is auto-rewritten to the flat
+// "/api/<rest>?workspace=<id>" form so legacy tests continue to exercise
+// per-workspace dispatch via the current API surface.
 func (h *dispatchHarness) api(t *testing.T, method, path string, body []byte) (int, []byte) {
 	t.Helper()
 	var r io.Reader
 	if body != nil {
 		r = bytes.NewReader(body)
 	}
+	path = rewriteWorkspaceScopedPath(path)
 	req, err := http.NewRequestWithContext(context.Background(), method, h.ts.URL+path, r)
 	if err != nil {
 		t.Fatalf("build request: %v", err)

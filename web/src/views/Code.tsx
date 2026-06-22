@@ -11,9 +11,9 @@
  *           (default when a worktree other than main is selected)
  *
  * Backend endpoints used:
- *   GET /api/workspaces/{ws}/code/tree?path=&worktree=&show_hidden=
- *   GET /api/workspaces/{ws}/code/file?path=&worktree=
- *   GET /api/workspaces/{ws}/code/diff?worktree=&path=
+ *   GET /api/code/tree?path=&worktree=&show_hidden=&workspace=
+ *   GET /api/code/file?path=&worktree=&workspace=
+ *   GET /api/code/diff?worktree=&path=&workspace=
  */
 
 import Editor, { DiffEditor } from "@monaco-editor/react";
@@ -88,7 +88,7 @@ async function fetchTree(
   if (showHidden) qs.set("show_hidden", "1");
   try {
     const r = await fetch(
-      `/api/workspaces/${encodeURIComponent(wsId)}/code/tree?${qs.toString()}`,
+      `/api/code/tree?${qs.toString()}&workspace=${encodeURIComponent(wsId)}`,
     );
     if (!r.ok) return [];
     const data = (await r.json()) as unknown;
@@ -115,7 +115,7 @@ async function fetchFile(
   const qs = new URLSearchParams({ path, worktree });
   try {
     const r = await fetch(
-      `/api/workspaces/${encodeURIComponent(wsId)}/code/file?${qs.toString()}`,
+      `/api/code/file?${qs.toString()}&workspace=${encodeURIComponent(wsId)}`,
     );
     if (r.status === 404) {
       return { content: "", binary: false, ok: true, notFound: true };
@@ -134,12 +134,12 @@ async function fetchFile(
 
 function fileDownloadUrl(wsId: string, path: string, worktree: string): string {
   const qs = new URLSearchParams({ path, worktree });
-  return `/api/workspaces/${encodeURIComponent(wsId)}/code/file?${qs.toString()}`;
+  return `/api/code/file?${qs.toString()}&workspace=${encodeURIComponent(wsId)}`;
 }
 
 function patchDownloadUrl(wsId: string, path: string, worktree: string): string {
   const qs = new URLSearchParams({ worktree, path });
-  return `/api/workspaces/${encodeURIComponent(wsId)}/code/diff?${qs.toString()}`;
+  return `/api/code/diff?${qs.toString()}&workspace=${encodeURIComponent(wsId)}`;
 }
 
 async function fetchCodeServerStatus(): Promise<{ running: boolean; endpoint: string }> {
