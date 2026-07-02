@@ -1142,44 +1142,37 @@ export function AgentDetail() {
 
   return (
     <div className="flex flex-col h-full">
-      {/* ═══ HEADER — HUD status bar ═══ */}
-      <header className="shrink-0 border-b border-mycel-border/40">
-        <div className="flex items-center gap-2.5 min-w-0 px-6 h-[42px]">
-          {/* Back link */}
+      {/* ═══ HEADER — HUD status bar ═══
+          Three-section rhythm: identity → status → tabs. Hairline
+          separators between sections give the row explicit structure
+          instead of the previous run-on gap-2.5 line. */}
+      <header className="shrink-0 border-b border-mycel-border/40 bg-mycel-surface/40 backdrop-blur-sm">
+        <div className="flex items-center gap-3 min-w-0 px-4 sm:px-6 h-[48px]">
+          {/* ── Identity ── */}
           <Link
             to={agentsUrl}
-            className="text-[10px] text-mycel-muted/40 hover:text-mycel-text transition-colors shrink-0"
-            style={{ fontFamily: MONO }}
+            className="text-mycel-muted/50 hover:text-mycel-text transition-colors shrink-0"
+            title="Back to agents"
+            aria-label="Back to agents"
           >
-            ←
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M9 3l-4 4 4 4" />
+            </svg>
           </Link>
-
-          {/* Shape with provider icon inside */}
-          <AgentIcon
-            state={agent.state}
-            size={30}
-            tool={agent.tool}
-          />
-
-          {/* Agent name */}
-          <span
-            className="text-[13px] font-bold text-mycel-text tracking-tight shrink-0"
-            style={{ fontFamily: MONO }}
-          >
+          <AgentIcon state={agent.state} size={28} tool={agent.tool} />
+          <span className="text-[14px] font-semibold text-mycel-text tracking-tight shrink-0">
             {agent.name}
           </span>
-
-          {/* Runtime icon — monitor for tmux, container for docker */}
           {agent.runtime_backend && (
-            <span className="shrink-0 text-mycel-muted/40" title={agent.runtime_backend}>
+            <span className="shrink-0 text-mycel-muted/50" title={`Runtime: ${agent.runtime_backend}`}>
               {agent.runtime_backend === "docker" ? (
-                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
+                <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
                   <rect x="1" y="4" width="12" height="8" rx="1" />
                   <path d="M4 4V2h6v2" />
                   <path d="M5 7h4M5 9.5h4" opacity="0.5" />
                 </svg>
               ) : (
-                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
+                <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
                   <rect x="1.5" y="1.5" width="11" height="8" rx="1.5" />
                   <path d="M7 9.5v2.5M4 12h6" />
                 </svg>
@@ -1187,37 +1180,49 @@ export function AgentDetail() {
             </span>
           )}
 
-          {/* Status dot */}
+          {/* Hairline separator — identity ↔ status */}
+          <span className="hidden sm:block h-4 w-px bg-mycel-border/50 shrink-0" aria-hidden />
+
+          {/* ── Status ── state chip + task line */}
           <span
-            className={`shrink-0 w-2 h-2 rounded-full ${
-              agent.state === "working" ? "bg-green-500 animate-pulse" :
-              agent.state === "idle" ? "bg-green-500/60" :
-              agent.state === "stuck" ? "bg-amber-500 animate-pulse" :
-              agent.state === "error" ? "bg-red-500" :
-              agent.state === "starting" ? "bg-blue-400 animate-pulse" :
-              "bg-mycel-muted/30"
+            className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-medium tracking-wide uppercase ring-1 shrink-0 ${
+              agent.state === "working" ? "bg-emerald-500/15 text-emerald-300 ring-emerald-500/30" :
+              agent.state === "idle" ? "bg-amber-500/15 text-amber-300 ring-amber-500/25" :
+              agent.state === "stuck" ? "bg-amber-500/20 text-amber-300 ring-amber-500/30" :
+              agent.state === "error" ? "bg-rose-500/15 text-rose-300 ring-rose-500/30" :
+              agent.state === "starting" ? "bg-sky-500/15 text-sky-300 ring-sky-500/30" :
+              agent.state === "done" ? "bg-sky-500/15 text-sky-300 ring-sky-500/25" :
+              "bg-zinc-500/15 text-zinc-300 ring-zinc-500/25"
             }`}
             title={agent.state}
-          />
+          >
+            <span
+              className={`w-1.5 h-1.5 rounded-full ${
+                agent.state === "working" ? "bg-emerald-400 animate-pulse" :
+                agent.state === "starting" ? "bg-sky-400 animate-pulse" :
+                agent.state === "stuck" ? "bg-amber-400 animate-pulse" :
+                agent.state === "error" ? "bg-rose-400" :
+                "bg-current opacity-60"
+              }`}
+              aria-hidden
+            />
+            {agent.state}
+          </span>
 
-          {/* Loop icon — no background, just the icon */}
           <LoopIconButton agentName={agent.name} agentState={agent.state} onClick={() => setLoopOpen(true)} />
 
-          {/* Task text */}
           {agent.task && (
             <span
-              className="text-[10px] text-mycel-muted/50 truncate max-w-[220px]"
+              className="text-[11px] text-mycel-muted/70 truncate min-w-0 flex-shrink"
               title={agent.task}
-              style={{ fontFamily: MONO }}
             >
               {agent.task}
             </span>
           )}
 
-          {/* Timestamp */}
           {lastSeen && (
             <span
-              className="text-[10px] text-mycel-muted/25 tabular-nums shrink-0"
+              className="text-[10px] text-mycel-muted/40 tabular-nums shrink-0"
               title={formatTime(lastSeen)}
               style={{ fontFamily: MONO }}
             >
@@ -1225,33 +1230,40 @@ export function AgentDetail() {
             </span>
           )}
 
-          {/* Separator */}
-          <span className="shrink-0 w-px h-4 bg-mycel-border/50 ml-auto" />
+          {/* Hairline separator — status ↔ tabs. ml-auto pushes tabs to
+              the right edge. */}
+          <span className="ml-auto hidden sm:block h-4 w-px bg-mycel-border/50 shrink-0" aria-hidden />
 
-          {/* Tab buttons — inline in header */}
+          {/* ── Tabs ── */}
           {TABS.map((tab) => {
             const isActive = activeTab === tab.key;
             return (
               <button
                 key={tab.key}
                 onClick={() => selectTab(tab.key)}
-                className={`relative px-3 py-1.5 text-[11px] font-semibold tracking-wide uppercase transition-colors shrink-0 ${
+                className={`relative px-2.5 py-1.5 text-[11px] font-medium tracking-wide uppercase transition-colors shrink-0 ${
                   isActive
                     ? "text-mycel-accent"
-                    : "text-mycel-muted/50 hover:text-mycel-muted"
+                    : "text-mycel-muted/55 hover:text-mycel-text"
                 }`}
-                style={{ fontFamily: MONO }}
               >
-                {tab.label}
-                <span
-                  className="ml-1.5 inline-flex items-center justify-center rounded border border-mycel-border/40 px-1 text-[9px] leading-none py-[3px] opacity-50"
-                  aria-hidden
-                >
-                  {tab.shortcut}
+                <span className="inline-flex items-center gap-1.5">
+                  {tab.label}
+                  <span
+                    className={`inline-flex items-center justify-center min-w-[16px] h-[15px] rounded px-1 text-[9px] leading-none font-mono transition-colors ${
+                      isActive
+                        ? "bg-mycel-accent/15 text-mycel-accent"
+                        : "bg-mycel-border/30 text-mycel-muted/60"
+                    }`}
+                    aria-hidden
+                  >
+                    {tab.shortcut}
+                  </span>
                 </span>
-                {/* Active indicator — bottom glow bar */}
+                {/* Active indicator — clean underline instead of the
+                    old glow-bar; matches the surrounding restraint. */}
                 {isActive && (
-                  <span className="absolute bottom-0 left-1 right-1 h-[2px] rounded-full bg-mycel-accent shadow-[0_0_8px_rgba(var(--mycel-accent-rgb,255,165,0),0.5)]" />
+                  <span className="absolute -bottom-px left-2 right-2 h-[2px] bg-mycel-accent rounded-full" />
                 )}
               </button>
             );
