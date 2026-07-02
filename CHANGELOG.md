@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-07-02
+
+### Added
+- **Pi provider** — new agent tool option, wired end-to-end (backend + web modal) (#3135).
+- **About page** (`/about`) — installed version, dist-channel availability, live daemon health checks (#3137).
+- **Live page activity hydration** — cards pre-fill from the persisted event store on mount; no longer empty on reload (#3138, #3164).
+
+### Changed
+- **Workspace-as-property (RFC #3079)** — every workspace-scoped `/api/*` route now resolves scope via `X-BC-Workspace` header or `?workspace=<id>` query param. The `/api/workspaces/{id}/<rest>` path-rewrite is deleted; only registry self-routes (`/api/workspaces`, `…/{id}`, `…/activate`, `…/discover/*`, `…/clone`) remain (#3147, #3148, #3149, #3150).
+- Live page scroll uses pinned anchor (`overflow-anchor: none`, `scrollbar-gutter: stable`) so card updates no longer jump the viewport (#3139, #3140).
+- `AgentDetail` no longer stacks two headers — the global `LayoutHeader` is suppressed entirely on that route (#3129).
+- Docs site (mkdocs) nav resynced with actual tree; Pygments pinned to 2.17.2 to unblock GitHub Pages build (#3130, #3131, #3132, #3133).
+- Landing `/pricing` and `/waitlist` now render `Nav` + `Footer` (#3078, #3167).
+
+### Fixed
+- Fresh install + `bc init` followed by any command errored with "not in a bc workspace". `workspace.Init` now surfaces registry-save errors instead of swallowing them, and `workspace.Find` self-heals by probing `~/.bc/workspaces/<id>/preferences.json` for the walked directory (#3173).
+- Inter-agent DMs silently no-op'd — `POST /api/agents/{name}/send` now uses `DisallowUnknownFields` and rejects empty message bodies with 400 instead of typing an empty string into the target session (#3174).
+- Agent state wedged at `starting` — `AgentService.Send` now reconciles both `stopped` and `starting` when a live session is detected (#3175).
+- Agent env vars silently dropped — `EnvFile` column was never persisted to SQLite, so `${secret:NAME}` refs (including AWS Bedrock keys) failed to load. Re-save env from the UI/API after upgrading to recover (#3136).
+- Provider command override was dead code — `agent.Start` now actually reads `wsCfg.GetProvider(toolName).Command` (#3141, #3147).
+- `go install github.com/rpuneet/mycel/cmd/bc` was broken because `//go:embed web/dist` had nothing to embed on a fresh checkout. Track `server/web/dist/placeholder.txt` in git (#3036, #3165).
+
+### Removed
+- Dead `bc env` command and hidden `tool check` alias (#3143, #3146).
+- Historical `/api/workspaces/{id}/<rest>` path-scoped route family (see workspace-as-property above).
+
+### Deferred to v0.3.1+
+- npm Trusted Publishing (OIDC) migration for `cd-npm.yml` — pending Trusted Publisher registration on npmjs.com (#3166).
+- Gateway → per-agent platform-tool rearchitecture: outbound Slack / Telegram / Discord / WhatsApp will move from `POST /api/gateways/{platform}/…/send` into per-agent tools using the official platform APIs. Also fixes the recurring "bc gateway" attribution issue on Slack file uploads.
+- Major dependency bumps: React 19 (#3163), Vite 8 (#3155), Tailwind 4 (#3161), react-router 7 (#3159), ink 7 (#3152), slack-go 0.27 (#3168), landing eslint 10 (#3169), landing lucide 1.22 (#3170).
+
 ## [0.2.3] - 2026-05-02
 
 ### Added

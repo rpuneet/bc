@@ -1,6 +1,8 @@
 # Proposal: Multi-Workspace Support, URL + Header Refactor, Code Tab, and Optional Dependencies
 
-> **Status:** Proposal (v1) &nbsp;|&nbsp; **Author:** zen-zebra &nbsp;|&nbsp; **Date:** 2026-04-16
+> **Status:** Superseded by RFC #3079 (workspace-as-property, shipped in v0.3.0) &nbsp;|&nbsp; **Original Author:** zen-zebra &nbsp;|&nbsp; **Date:** 2026-04-16
+>
+> **Historical note (v0.3.0, 2026-07-02):** the `/api/workspaces/{ws}/…` path-scoped API surface described in §5 and §9 of this document was **replaced** in v0.3.0 by a flat `/api/*` surface where workspace scope is expressed as an `X-BC-Workspace: <id>` header or a `?workspace=<id>` query parameter. Only registry self-routes remain under `/api/workspaces/…`. See RFC #3079 and PRs #3147, #3148, #3149, #3150. The rest of this document is kept for historical context; do not implement it as written.
 >
 > **Extends:** [`docs/proposals/agents-revamp.md`](./agents-revamp.md) (v2)
 >
