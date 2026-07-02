@@ -76,10 +76,19 @@ export function CostsGlobal() {
         </div>
       )}
 
-      <div className="flex items-baseline gap-3">
-        <span className="text-[11px] uppercase tracking-wider text-mycel-muted/60">Total</span>
-        <span className="text-2xl font-semibold text-mycel-text">{formatCost(total)}</span>
-        <span className="text-[11px] text-mycel-muted/60">
+      {/* TOTAL block — label + big number reads as a headline row.
+          Counter drops below the number as a caption so it doesn't
+          crowd the value. Keeps the "grow into a chart" affordance
+          open — the row can accept a donut / spark to its right
+          later without another restructure. */}
+      <div className="flex flex-col gap-1">
+        <span className="text-[10px] font-medium uppercase tracking-[0.14em] text-mycel-muted/60">
+          Total
+        </span>
+        <span className="text-[28px] font-semibold text-mycel-text leading-none tabular-nums">
+          {formatCost(total)}
+        </span>
+        <span className="text-[11px] text-mycel-muted/60 tabular-nums">
           {/* Date repeats the value in the picker top-right; show the
               counter only to avoid the DD/MM ↔ ISO format mismatch. */}
           {rows?.length ?? 0} {(rows?.length ?? 0) === 1 ? (groupBy === "workspace" ? "workspace" : "project") : (groupBy === "workspace" ? "workspaces" : "projects")}

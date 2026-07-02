@@ -422,16 +422,31 @@ export function Tools() {
       </AnimatePresence>
 
       <section>
-        <h2 className="text-xs font-medium text-mycel-muted uppercase tracking-widest mb-3">
-          Providers ({providerList.length}) &mdash; AI model providers
-        </h2>
+        {/* Section header: single sentence, no redundant count in a
+            "5 providers" chip elsewhere on the page. Keep it a quiet
+            editorial rule + label. */}
+        <div className="flex items-baseline gap-2 mb-3">
+          <h2 className="text-[11px] font-medium text-mycel-muted uppercase tracking-[0.14em]">
+            AI Model Providers
+          </h2>
+          <span className="text-[11px] text-mycel-muted/50 tabular-nums">
+            {providerList.length}
+          </span>
+          <span className="flex-1 h-px bg-mycel-border/40 self-center" aria-hidden />
+        </div>
         <ProvidersTable providers={providerList} search={search} />
       </section>
 
       <section>
-        <h2 className="text-xs font-medium text-mycel-muted uppercase tracking-widest mb-3">
-          CLI Dependencies ({filteredCli.length}{searchLower ? `/${cliTools.length}` : ""})
-        </h2>
+        <div className="flex items-baseline gap-2 mb-3">
+          <h2 className="text-[11px] font-medium text-mycel-muted uppercase tracking-[0.14em]">
+            CLI Dependencies
+          </h2>
+          <span className="text-[11px] text-mycel-muted/50 tabular-nums">
+            {filteredCli.length}{searchLower ? `/${cliTools.length}` : ""}
+          </span>
+          <span className="flex-1 h-px bg-mycel-border/40 self-center" aria-hidden />
+        </div>
         {filteredCli.length === 0 ? (
           <EmptyState icon=">" title={searchLower ? "No matching CLI tools" : "No CLI dependencies"} description={searchLower ? "Try a different search term." : "Add CLI tools like gh, aws, or wrangler."} />
         ) : (

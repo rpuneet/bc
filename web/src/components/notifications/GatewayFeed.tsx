@@ -1935,23 +1935,34 @@ export function GatewayFeed({
               </svg>
             </button>
 
-            {/* Gateway indicator */}
+            {/* Gateway indicator — clearer bordered chip so it reads
+                as a routing badge, not disposable meta text. */}
             {platform && (
               <span
-                className="inline-flex items-center"
+                className="inline-flex items-center gap-1.5"
                 style={{
-                  gap: 5,
                   fontSize: 10.5,
                   color: "var(--mycel-muted, #6b6b6b)",
                   fontFamily: "'JetBrains Mono', monospace",
-                  padding: "2px 7px",
+                  padding: "3px 8px",
                   background: "var(--mycel-surface-hover, #1a1a1a)",
-                  borderRadius: 4,
+                  border: "1px solid var(--mycel-border, rgba(255,255,255,0.06))",
+                  borderRadius: 5,
                   marginLeft: "auto",
                 }}
+                title="Outgoing messages route through the mycel gateway to the destination platform."
               >
-                <span style={{ width: 5, height: 5, borderRadius: 999, background: "#22c55e" }} />
-                <span>sending via mycel gateway &rarr; {platform}</span>
+                <span
+                  style={{
+                    width: 6,
+                    height: 6,
+                    borderRadius: 999,
+                    background: "#22c55e",
+                    boxShadow: "0 0 6px rgba(34,197,94,0.5)",
+                  }}
+                />
+                <span>routing via</span>
+                <span style={{ color: "var(--mycel-text, #cccccc)", fontWeight: 500 }}>{platform}</span>
               </span>
             )}
             {!platform && <span style={{ marginLeft: "auto" }} />}

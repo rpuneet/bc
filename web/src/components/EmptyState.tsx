@@ -64,6 +64,15 @@ function GlyphIcon({ kind }: { kind: string }) {
           <path d="M12 7v5l3 2" />
         </svg>
       );
+    case "T":
+      // Stack of two cards — templates
+      return (
+        <svg {...common} aria-hidden>
+          <rect x="6" y="4" width="14" height="12" rx="1.5" />
+          <rect x="4" y="8" width="14" height="12" rx="1.5" />
+          <path d="M8 12h6M8 15h4" opacity="0.5" />
+        </svg>
+      );
     default:
       return null;
   }
