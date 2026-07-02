@@ -496,8 +496,19 @@ func (h *AgentHandler) byName(w http.ResponseWriter, r *http.Request) {
 		var req struct {
 			Message string `json:"message"`
 		}
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			httpError(w, "invalid request body", http.StatusBadRequest)
+		// Strict decode: agents were silently no-op'ing DMs to each other
+		// because the /send endpoint accepted the gateway body shape
+		// ({sender, content}) and typed an empty string into the target's
+		// session (#3174). Reject unknown fields and empty messages so the
+		// caller gets a clear 400 instead of a false success.
+		dec := json.NewDecoder(r.Body)
+		dec.DisallowUnknownFields()
+		if err := dec.Decode(&req); err != nil {
+			httpError(w, "invalid request body: "+err.Error(), http.StatusBadRequest)
+			return
+		}
+		if strings.TrimSpace(req.Message) == "" {
+			httpError(w, "message must not be empty", http.StatusBadRequest)
 			return
 		}
 		if err := svc.Send(r.Context(), name, req.Message); err != nil {
