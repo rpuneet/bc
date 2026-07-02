@@ -106,7 +106,7 @@ func runTemplateList(_ *cobra.Command, _ []string) error {
 	}
 
 	if len(templates) == 0 {
-		fmt.Println("No templates defined. Use 'bc template create <name>' to create one.")
+		fmt.Println("No templates defined. Use 'mycel template create <name>' to create one.")
 		return nil
 	}
 
@@ -200,7 +200,7 @@ func runTemplateCreate(_ *cobra.Command, args []string) error {
 	if templateCreateWorkspace {
 		scope = template.ScopeWorkspace
 		if store.WorkspaceDir() == "" {
-			return fmt.Errorf("--workspace requires being inside a bc workspace")
+			return fmt.Errorf("--workspace requires being inside a mycel workspace")
 		}
 	}
 	if scope == template.ScopeGlobal {

@@ -17,17 +17,17 @@ import (
 var workspaceCmd = &cobra.Command{
 	Use:     "workspace",
 	Aliases: []string{"ws"},
-	Short:   "Manage bc workspaces",
-	Long: `Manage bc workspaces: info, config, logs, list.
+	Short:   "Manage mycel workspaces",
+	Long: `Manage mycel workspaces: info, config, logs, list.
 
 Examples:
-  bc workspace info                   # Show workspace details
-  bc workspace status                 # Show agents and health
-  bc workspace config show            # Show workspace config
-  bc workspace config set KEY VAL     # Set config value
-  bc workspace list                   # List discovered workspaces
-  bc workspace list --scan ~/Projects # Scan additional paths
-  bc workspace discover               # Discover and register new workspaces`,
+  mycel workspace info                   # Show workspace details
+  mycel workspace status                 # Show agents and health
+  mycel workspace config show            # Show workspace config
+  mycel workspace config set KEY VAL     # Set config value
+  mycel workspace list                   # List discovered workspaces
+  mycel workspace list --scan ~/Projects # Scan additional paths
+  mycel workspace discover               # Discover and register new workspaces`,
 }
 
 // workspaceInfoCmd shows detailed workspace information.
@@ -41,8 +41,8 @@ Shows workspace name, path, version, runtime backend, role count,
 and agent summary.
 
 Examples:
-  bc workspace info         # Human-readable output
-  bc workspace info --json  # JSON output`,
+  mycel workspace info         # Human-readable output
+  mycel workspace info --json  # JSON output`,
 	RunE: runWorkspaceInfo,
 }
 
@@ -54,8 +54,8 @@ var workspaceStatusCmd = &cobra.Command{
 config validity, and uptime.
 
 Examples:
-  bc workspace status         # Status overview
-  bc workspace status --json  # JSON output`,
+  mycel workspace status         # Status overview
+  mycel workspace status --json  # JSON output`,
 	RunE: runWorkspaceStatus,
 }
 
@@ -66,11 +66,11 @@ var workspaceConfigCmd = &cobra.Command{
 	Long: `Manage workspace configuration (.bc/settings.json).
 
 Examples:
-  bc workspace config show                    # Show full config
-  bc workspace config get providers.default   # Get a value
-  bc workspace config set providers.default claude # Set a value
-  bc workspace config validate                # Validate config
-  bc workspace config edit                    # Open in $EDITOR`,
+  mycel workspace config show                    # Show full config
+  mycel workspace config get providers.default   # Get a value
+  mycel workspace config set providers.default claude # Set a value
+  mycel workspace config validate                # Validate config
+  mycel workspace config edit                    # Open in $EDITOR`,
 	RunE: runConfigShow,
 }
 
@@ -111,7 +111,7 @@ var workspaceConfigEditCmd = &cobra.Command{
 var workspaceListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List discovered workspaces",
-	Long: `List all bc workspaces on this machine.
+	Long: `List all mycel workspaces on this machine.
 
 Searches:
   - Global registry (~/.bc/workspaces.json)
@@ -119,10 +119,10 @@ Searches:
   - Additional paths specified with --scan
 
 Examples:
-  bc workspace list                    # List all workspaces
-  bc workspace list --json             # Output as JSON
-  bc workspace list --scan ~/work      # Include additional path
-  bc workspace list --no-cache         # Skip registry, scan only`,
+  mycel workspace list                    # List all workspaces
+  mycel workspace list --json             # Output as JSON
+  mycel workspace list --scan ~/work      # Include additional path
+  mycel workspace list --no-cache         # Skip registry, scan only`,
 	RunE: runWorkspaceList,
 }
 
@@ -130,13 +130,13 @@ Examples:
 var workspaceDiscoverCmd = &cobra.Command{
 	Use:   "discover",
 	Short: "Discover and register workspaces",
-	Long: `Scan filesystem for bc workspaces and add them to the registry.
+	Long: `Scan filesystem for mycel workspaces and add them to the registry.
 
 This updates ~/.bc/workspaces.json with newly found workspaces.
 
 Examples:
-  bc workspace discover                # Scan default locations
-  bc workspace discover --scan ~/work  # Include additional path`,
+  mycel workspace discover                # Scan default locations
+  mycel workspace discover --scan ~/work  # Include additional path`,
 	RunE: runWorkspaceDiscover,
 }
 
@@ -148,10 +148,10 @@ var workspaceAddCmd = &cobra.Command{
 	Long: `Register a workspace in the global registry for quick access.
 
 Examples:
-  bc workspace add .                        # Add current directory
-  bc workspace add ~/projects/frontend      # Add by path
-  bc workspace add . --alias fe             # Add with short alias
-  bc workspace add ~/api --alias backend    # Add with alias`,
+  mycel workspace add .                        # Add current directory
+  mycel workspace add ~/projects/frontend      # Add by path
+  mycel workspace add . --alias fe             # Add with short alias
+  mycel workspace add ~/api --alias backend    # Add with alias`,
 	Args: cobra.ExactArgs(1),
 	RunE: runWorkspaceAdd,
 }
@@ -165,8 +165,8 @@ var workspaceRemoveCmd = &cobra.Command{
 This does not delete the workspace, just removes it from the registry.
 
 Examples:
-  bc workspace remove fe                    # Remove by alias
-  bc workspace remove ~/projects/frontend   # Remove by path`,
+  mycel workspace remove fe                    # Remove by alias
+  mycel workspace remove ~/projects/frontend   # Remove by path`,
 	Args: cobra.ExactArgs(1),
 	RunE: runWorkspaceRemove,
 }
@@ -178,9 +178,9 @@ var workspaceSwitchCmd = &cobra.Command{
 	Long: `Set the active workspace for cross-workspace operations.
 
 Examples:
-  bc workspace switch fe                    # Switch by alias
-  bc workspace switch ~/projects/frontend   # Switch by path
-  bc workspace switch --clear               # Clear active workspace`,
+  mycel workspace switch fe                    # Switch by alias
+  mycel workspace switch ~/projects/frontend   # Switch by path
+  mycel workspace switch --clear               # Clear active workspace`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: runWorkspaceSwitch,
 }
@@ -195,7 +195,7 @@ Agents that are already running are skipped. Missing role files are
 created from built-in defaults automatically.
 
 Examples:
-  bc workspace up          # Start roster agents
+  mycel workspace up          # Start roster agents
   bc ws up                 # Short alias`,
 	RunE: runWorkspaceUp,
 }
@@ -245,7 +245,7 @@ func runWorkspaceUp(_ *cobra.Command, _ []string) error {
 
 	// Roster was removed from settings. bc up starts infrastructure containers
 	// individually via the up command (internal/cmd/up.go).
-	fmt.Println("Use 'bc up --port <port>' to start bc infrastructure.")
+	fmt.Println("Use 'mycel up --port <port>' to start bc infrastructure.")
 	return nil
 }
 
@@ -352,7 +352,7 @@ func runWorkspaceAdd(cmd *cobra.Command, args []string) error {
 
 	// Verify it's a workspace
 	if !workspace.IsWorkspace(absPath) {
-		return fmt.Errorf("not a bc workspace: %s (no .bc directory found)", absPath)
+		return fmt.Errorf("not a mycel workspace: %s (no .bc directory found)", absPath)
 	}
 
 	// Load workspace to get name

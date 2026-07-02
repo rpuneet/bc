@@ -52,7 +52,7 @@ func runHome(cmd *cobra.Command, args []string) error {
 	tuiCmd.Stdout = os.Stdout
 	tuiCmd.Stderr = os.Stderr
 
-	// Set environment for bc CLI path
+	// Set environment for mycel CLI path
 	// Get the current executable path so TUI can call bc
 	bcBin, _ := os.Executable()
 	tuiCmd.Env = append(os.Environ(),
@@ -127,7 +127,7 @@ func resolveTUIEntry(wsRoot string) (string, string, error) {
 		log.Debug("TUI not built, checking for source")
 		tuiSrc := filepath.Join(tuiDir, "src", "index.tsx")
 		if _, srcErr := os.Stat(tuiSrc); os.IsNotExist(srcErr) {
-			return "", "", fmt.Errorf("TUI not found. Run from the bc repository root or install a released bc binary")
+			return "", "", fmt.Errorf("TUI not found. Run from the mycel repository root or install a released mycel binary")
 		}
 
 		fmt.Println("TUI not built. Building now...")

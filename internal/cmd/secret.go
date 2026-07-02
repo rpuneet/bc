@@ -267,7 +267,7 @@ func runSecretList(cmd *cobra.Command, _ []string) error {
 	if len(secrets) == 0 {
 		ui.Warning("No secrets configured")
 		ui.BlankLine()
-		ui.Info("Run 'bc secret set <name> --value <value>' to add one")
+		ui.Info("Run 'mycel secret set <name> --value <value>' to add one")
 		return nil
 	}
 

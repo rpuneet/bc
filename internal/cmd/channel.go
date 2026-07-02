@@ -137,7 +137,7 @@ var channelReactCmd = &cobra.Command{
 	Short: "React to a channel message",
 	Long: `Add an emoji reaction to a message in a channel.
 
-The message-index is shown in 'bc channel history' output.
+The message-index is shown in 'mycel channel history' output.
 Use common emoji like 👍, 👎, ❤️, 🎉, 👀, 🚀 or any emoji.
 
 Examples:
@@ -303,8 +303,8 @@ func runChannelList(cmd *cobra.Command, _ []string) error {
 	if len(channels) == 0 {
 		ui.Warning("No channels defined")
 		ui.BlankLine()
-		ui.Info("Run 'bc channel create <name>' to create a channel")
-		ui.Info("Or run 'bc up' to create default channels")
+		ui.Info("Run 'mycel channel create <name>' to create a channel")
+		ui.Info("Or run 'mycel up' to create default channels")
 		return nil
 	}
 
@@ -461,7 +461,7 @@ func runChannelDelete(cmd *cobra.Command, args []string) error {
 func runChannelJoin(cmd *cobra.Command, args []string) error {
 	agentID := os.Getenv("BC_AGENT_ID")
 	if agentID == "" {
-		return errorAgentNotRunning(fmt.Sprintf("bc channel join %s", args[0]))
+		return errorAgentNotRunning(fmt.Sprintf("mycel channel join %s", args[0]))
 	}
 
 	channelName := args[0]
@@ -486,7 +486,7 @@ func runChannelJoin(cmd *cobra.Command, args []string) error {
 func runChannelLeave(cmd *cobra.Command, args []string) error {
 	agentID := os.Getenv("BC_AGENT_ID")
 	if agentID == "" {
-		return errorAgentNotRunning(fmt.Sprintf("bc channel leave %s", args[0]))
+		return errorAgentNotRunning(fmt.Sprintf("mycel channel leave %s", args[0]))
 	}
 
 	channelName := args[0]
@@ -681,7 +681,7 @@ func runChannelShow(cmd *cobra.Command, args []string) error {
 
 	ch, err := c.Channels.Get(cmd.Context(), channelName)
 	if err != nil {
-		return fmt.Errorf("channel %q not found (use 'bc channel list' to see available channels): %w", channelName, err)
+		return fmt.Errorf("channel %q not found (use 'mycel channel list' to see available channels): %w", channelName, err)
 	}
 
 	msgs, _ := c.Channels.History(cmd.Context(), channelName, 5, 0, "")

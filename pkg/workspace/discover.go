@@ -37,7 +37,7 @@ func DefaultDiscoverOptions() DiscoverOptions {
 	}
 }
 
-// Discover finds all bc workspaces on the machine.
+// Discover finds all mycel workspaces on the machine.
 // It checks the global registry and optionally scans common directories.
 func Discover(opts DiscoverOptions) ([]DiscoveredWorkspace, error) {
 	seen := make(map[string]bool)

@@ -20,9 +20,9 @@ var workspaceStatsCmd = &cobra.Command{
 metrics, agent utilization, and completion rates.
 
 Examples:
-  bc workspace stats             # human-readable summary
-  bc workspace stats --json      # JSON output for scripting
-  bc workspace stats --save      # save stats snapshot to .bc/stats.json`,
+  mycel workspace stats             # human-readable summary
+  mycel workspace stats --json      # JSON output for scripting
+  mycel workspace stats --save      # save stats snapshot to .bc/stats.json`,
 	RunE: runStats,
 }
 

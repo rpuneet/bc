@@ -299,7 +299,7 @@ func TestAgentNoWorkspace(t *testing.T) {
 	if execErr == nil {
 		t.Error("expected error when not in workspace")
 	}
-	if !strings.Contains(execErr.Error(), "not in a bc workspace") {
+	if !strings.Contains(execErr.Error(), "not in a mycel workspace") {
 		t.Errorf("expected workspace error, got: %v", execErr)
 	}
 }

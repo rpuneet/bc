@@ -59,8 +59,8 @@ func newAgentManager(ws *workspace.Workspace) *agent.Manager {
 var agentCmd = &cobra.Command{
 	Use:     "agent",
 	Aliases: []string{"ag"},
-	Short:   "Manage bc agents",
-	Long: `Manage bc agent lifecycle: create, list, attach, peek, stop, send.
+	Short:   "Manage mycel agents",
+	Long: `Manage mycel agent lifecycle: create, list, attach, peek, stop, send.
 
 Examples:
   bc agent list                          # List all agents
@@ -631,11 +631,11 @@ func runAgentPeek(cmd *cobra.Command, args []string) error {
 
 		a := mgr.GetAgent(agentName)
 		if a == nil {
-			return fmt.Errorf("agent %q not found (use 'bc agent list' to see available agents)", agentName)
+			return fmt.Errorf("agent %q not found (use 'mycel agent list' to see available agents)", agentName)
 		}
 
 		if a.State == "stopped" {
-			return fmt.Errorf("agent %q is stopped (use 'bc agent start %s' to start it)", agentName, agentName)
+			return fmt.Errorf("agent %q is stopped (use 'mycel agent start %s' to start it)", agentName, agentName)
 		}
 
 		fmt.Printf("=== %s (following, Ctrl+C to stop) ===\n", agentName)

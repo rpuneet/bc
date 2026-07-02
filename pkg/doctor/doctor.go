@@ -187,7 +187,7 @@ func CheckWorkspace(ws *workspace.Workspace) CategoryReport {
 			Name:     ".bc/ directory",
 			Message:  "missing",
 			Severity: SeverityFail,
-			Fix:      "run 'bc init' to initialize the workspace",
+			Fix:      "run 'mycel init' to initialize the workspace",
 		})
 		return cat
 	}
@@ -213,7 +213,7 @@ func CheckWorkspace(ws *workspace.Workspace) CategoryReport {
 			Name:     configName,
 			Message:  "missing",
 			Severity: SeverityFail,
-			Fix:      "run 'bc init' to initialize the workspace",
+			Fix:      "run 'mycel init' to initialize the workspace",
 		})
 	} else {
 		if ws.Config != nil {
@@ -247,7 +247,7 @@ func CheckWorkspace(ws *workspace.Workspace) CategoryReport {
 			Name:     "roles/",
 			Message:  "missing",
 			Severity: SeverityWarn,
-			Fix:      "run 'bc init' to recreate role files",
+			Fix:      "run 'mycel init' to recreate role files",
 		})
 	} else {
 		entries, err := os.ReadDir(rolesDir)
@@ -285,7 +285,7 @@ func CheckWorkspace(ws *workspace.Workspace) CategoryReport {
 			Name:     "agents/",
 			Message:  "missing",
 			Severity: SeverityWarn,
-			Fix:      "run 'bc init' to recreate directory structure",
+			Fix:      "run 'mycel init' to recreate directory structure",
 		})
 	} else {
 		cat.Items = append(cat.Items, Item{
@@ -376,7 +376,7 @@ func checkSQLiteFile(ctx context.Context, path, label string, requiredTables []s
 				Name:     fmt.Sprintf("%s: table %q", label, table),
 				Message:  "missing",
 				Severity: SeverityFail,
-				Fix:      "run 'bc doctor fix' to recreate missing tables",
+				Fix:      "run 'mycel doctor fix' to recreate missing tables",
 			})
 		} else if err != nil {
 			items = append(items, Item{
@@ -441,7 +441,7 @@ func CheckAgents(ctx context.Context, ws *workspace.Workspace) CategoryReport {
 					Name:     a.Name,
 					Message:  fmt.Sprintf("worktree missing: %s", a.WorktreeDir),
 					Severity: SeverityFail,
-					Fix:      "run 'bc doctor fix' to remove orphaned agent entries",
+					Fix:      "run 'mycel doctor fix' to remove orphaned agent entries",
 				})
 				agentOK = false
 			}
