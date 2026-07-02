@@ -14,6 +14,70 @@ import { useHeaderSlot } from "../context/HeaderSlotContext";
 import { TabHeaderTitle } from "../components/Header";
 import { MONO } from "../utils/typography";
 
+/**
+ * RuntimeChip / ProviderChip — visually distinguish two adjacent columns
+ * whose text values (tmux/docker vs claude/gemini/cursor/pi/codex) used
+ * to render as identical monospace pills. Runtime carries a shape glyph
+ * (terminal for tmux, container for docker) so at-a-glance readers can
+ * tell "how it runs" from "what it runs" without reading the label.
+ */
+function RuntimeChip({ runtime }: { runtime?: string | null }) {
+  if (!runtime) return <span className="text-mycel-muted/50">—</span>;
+  const isDocker = runtime === "docker";
+  return (
+    <span
+      className="inline-flex items-center gap-1.5 text-[11px] px-1.5 py-[3px] rounded border border-mycel-border/40 bg-mycel-surface/40 text-mycel-muted"
+      style={{ fontFamily: MONO }}
+      title={`Runtime: ${runtime}`}
+    >
+      <span className="opacity-70">
+        {isDocker ? (
+          <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.2">
+            <rect x="1" y="4" width="10" height="6" rx="0.5" />
+            <rect x="3" y="1.5" width="6" height="2" rx="0.4" />
+            <path d="M2.5 5.5h1M4.5 5.5h1M6.5 5.5h1M8.5 5.5h1" opacity="0.5" />
+          </svg>
+        ) : (
+          <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.2">
+            <rect x="1" y="1.5" width="10" height="9" rx="0.8" />
+            <path d="M3 5l1.5 1.5L3 8M5.5 8h3" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        )}
+      </span>
+      {runtime}
+    </span>
+  );
+}
+
+/** Per-provider hue as an accent dot so Provider chips differ from the
+ *  Runtime chips beside them. Kept subtle — the dot is muted-hue at
+ *  ~50% opacity, not a marketing swatch. */
+const PROVIDER_DOTS: Record<string, string> = {
+  claude:   "bg-orange-400/70",
+  gemini:   "bg-sky-400/70",
+  cursor:   "bg-fuchsia-400/70",
+  codex:    "bg-emerald-400/70",
+  pi:       "bg-teal-400/70",
+  aider:    "bg-amber-400/70",
+  opencode: "bg-indigo-400/70",
+  openclaw: "bg-rose-400/70",
+};
+
+function ProviderChip({ tool }: { tool?: string | null }) {
+  if (!tool) return <span className="text-mycel-muted/50">—</span>;
+  const dot = PROVIDER_DOTS[tool] ?? "bg-mycel-muted/50";
+  return (
+    <span
+      className="inline-flex items-center gap-1.5 text-[11px] px-1.5 py-[3px] rounded border border-mycel-border/40 bg-mycel-surface/40 text-mycel-text/85"
+      style={{ fontFamily: MONO }}
+      title={`Provider: ${tool}`}
+    >
+      <span className={`inline-block w-1.5 h-1.5 rounded-full ${dot}`} aria-hidden />
+      {tool}
+    </span>
+  );
+}
+
 // --- Inline Rename ---
 
 function InlineAgentName({
@@ -155,9 +219,9 @@ function AgentActions({ agent, onDone }: { agent: Agent; onDone: () => void }) {
           disabled={busy}
           title="Start agent"
           aria-label={`Start agent ${agent.name}`}
-          className="px-1.5 py-0.5 text-xs rounded bg-mycel-success/20 text-mycel-success hover:bg-mycel-success/30 disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-mycel-accent focus-visible:ring-offset-1 focus-visible:ring-offset-mycel-bg"
+          className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-medium rounded border border-emerald-500/30 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20 hover:border-emerald-500/50 disabled:opacity-50 transition-colors focus-visible:ring-2 focus-visible:ring-mycel-accent focus-visible:ring-offset-1 focus-visible:ring-offset-mycel-bg"
         >
-          {busy ? "..." : "Start"}
+          {busy ? "…" : "Start"}
         </button>
       )}
       {isRunning && (
@@ -169,9 +233,9 @@ function AgentActions({ agent, onDone }: { agent: Agent; onDone: () => void }) {
           disabled={busy}
           title="Stop agent"
           aria-label={`Stop agent ${agent.name}`}
-          className="px-1.5 py-0.5 text-xs rounded bg-mycel-warning/20 text-mycel-warning hover:bg-mycel-warning/30 disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-mycel-accent focus-visible:ring-offset-1 focus-visible:ring-offset-mycel-bg"
+          className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-medium rounded border border-amber-500/30 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20 hover:border-amber-500/50 disabled:opacity-50 transition-colors focus-visible:ring-2 focus-visible:ring-mycel-accent focus-visible:ring-offset-1 focus-visible:ring-offset-mycel-bg"
         >
-          {busy ? "..." : "Stop"}
+          {busy ? "…" : "Stop"}
         </button>
       )}
       <button
@@ -181,7 +245,7 @@ function AgentActions({ agent, onDone }: { agent: Agent; onDone: () => void }) {
         }}
         title="Delete agent"
         aria-label={`Delete agent ${agent.name}`}
-        className="px-1.5 py-0.5 text-xs rounded bg-mycel-error/10 text-mycel-error/70 hover:bg-mycel-error/20 hover:text-mycel-error focus-visible:ring-2 focus-visible:ring-mycel-accent focus-visible:ring-offset-1 focus-visible:ring-offset-mycel-bg"
+        className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-medium rounded border border-mycel-border/40 bg-transparent text-mycel-muted hover:border-rose-500/40 hover:bg-rose-500/10 hover:text-rose-300 transition-colors focus-visible:ring-2 focus-visible:ring-mycel-accent focus-visible:ring-offset-1 focus-visible:ring-offset-mycel-bg"
       >
         Delete
       </button>
@@ -740,29 +804,11 @@ export function Agents() {
                         <InlineAgentName agent={a} onRenamed={refresh} />
                       </span>
                     </td>
-                    <td className="px-4 py-2 hidden sm:table-cell">
-                      {a.runtime_backend ? (
-                        <span
-                          className="text-[11px] px-1.5 py-0.5 rounded border border-mycel-border/30 bg-mycel-surface/30 text-mycel-muted"
-                          style={{ fontFamily: "'JetBrains Mono', 'Fira Code', 'Space Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" }}
-                        >
-                          {a.runtime_backend}
-                        </span>
-                      ) : (
-                        <span className="text-mycel-muted">{"\u2014"}</span>
-                      )}
+                    <td className="px-4 py-1.5 hidden sm:table-cell">
+                      <RuntimeChip runtime={a.runtime_backend} />
                     </td>
-                    <td className="px-4 py-2 hidden sm:table-cell">
-                      {a.tool ? (
-                        <span
-                          className="text-[11px] px-1.5 py-0.5 rounded border border-mycel-border/30 bg-mycel-surface/30 text-mycel-muted"
-                          style={{ fontFamily: "'JetBrains Mono', 'Fira Code', 'Space Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" }}
-                        >
-                          {a.tool}
-                        </span>
-                      ) : (
-                        <span className="text-mycel-muted">{"\u2014"}</span>
-                      )}
+                    <td className="px-4 py-1.5 hidden sm:table-cell">
+                      <ProviderChip tool={a.tool} />
                     </td>
                     <td className="px-4 py-2">
                       <StatusBadge status={a.state} />
@@ -772,37 +818,42 @@ export function Agents() {
                         {a.task ? truncate(a.task, 50) : ""}
                       </span>
                     </td>
-                    <td className="px-4 py-2 hidden md:table-cell">
+                    <td className="px-4 py-1.5 hidden md:table-cell">
                       {(() => {
                         const servers = a.mcp_servers ?? [];
-                        if (servers.length === 0) {
-                          return <span className="text-mycel-muted">{"\u2014"}</span>;
+                        // Every agent has the built-in "mycel" (formerly
+                        // "bc") MCP server. Showing it on every row was
+                        // pure visual noise. Only surface EXTRA servers
+                        // beyond the default; render "\u2014" otherwise.
+                        const extras = servers
+                          .map((s) => s.replace(/^mcp__/, ""))
+                          .filter((s) => s !== "bc" && s !== "mycel");
+                        if (extras.length === 0) {
+                          return <span className="text-mycel-muted/40 text-[11px]">{"\u2014"}</span>;
                         }
-                        const fullList = servers.map((s) => s.replace(/^mcp__/, "")).join(", ");
-                        if (servers.length <= 3) {
+                        const fullList = extras.join(", ");
+                        if (extras.length <= 2) {
                           return (
                             <div className="flex flex-wrap gap-1" title={fullList}>
-                              {servers.map((s) => (
+                              {extras.map((s) => (
                                 <span key={s} className="text-[10px] px-1.5 py-0.5 rounded bg-mycel-accent/10 text-mycel-accent font-medium">
-                                  {s.replace(/^mcp__/, "")}
+                                  {s}
                                 </span>
                               ))}
                             </div>
                           );
                         }
-                        const rest = servers.slice(2).map((s) => s.replace(/^mcp__/, "")).join(", ");
+                        const rest = extras.slice(1).join(", ");
                         return (
                           <div className="flex flex-wrap gap-1" title={fullList}>
-                            {servers.slice(0, 2).map((s) => (
-                              <span key={s} className="text-[10px] px-1.5 py-0.5 rounded bg-mycel-accent/10 text-mycel-accent font-medium">
-                                {s.replace(/^mcp__/, "")}
-                              </span>
-                            ))}
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-mycel-accent/10 text-mycel-accent font-medium">
+                              {extras[0]}
+                            </span>
                             <span
                               className="text-[10px] px-1.5 py-0.5 rounded border border-mycel-border text-mycel-muted cursor-help"
                               title={rest}
                             >
-                              +{String(servers.length - 2)}
+                              +{String(extras.length - 1)}
                             </span>
                           </div>
                         );
