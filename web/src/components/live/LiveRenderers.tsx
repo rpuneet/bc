@@ -1011,9 +1011,13 @@ export const AgentCard = memo(function AgentCard({
       </AnimatePresence>
 
       {!activity.collapsed && showToolNodes && visibleNodes.length === 0 && !searchTerm && (
-        <div className="border-t border-mycel-border/60 py-3 px-4 text-[12px] text-mycel-muted italic">
+        <div className="border-t border-mycel-border/60 py-3 px-4 text-[12px] text-mycel-muted italic flex items-center gap-2">
           {activity.lastEventTime > 0 ? (
-            <IdleTimer lastEventTime={activity.lastEventTime} />
+            <>
+              <span>No recent events</span>
+              <span className="text-mycel-border">·</span>
+              <IdleTimer lastEventTime={activity.lastEventTime} />
+            </>
           ) : (
             "Waiting for activity..."
           )}

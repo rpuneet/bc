@@ -445,7 +445,7 @@ export function Live() {
         </div>
         {/* Active/stopped count badge with toggle */}
         <span
-          className="inline-flex items-center gap-1.5 text-[11px] font-mono px-2 py-1 rounded-md border border-mycel-border bg-mycel-surface text-mycel-muted"
+          className="inline-flex items-center gap-1.5 whitespace-nowrap text-[11px] font-mono px-2 py-1 rounded-md border border-mycel-border bg-mycel-surface text-mycel-muted"
           data-testid="live-state-badge"
           title={showStopped ? "Showing all agents" : "Stopped/errored agents hidden"}
         >
