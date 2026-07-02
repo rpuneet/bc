@@ -1,4 +1,4 @@
-# bc Design System: Solar Flare
+# mycel Design System: Solar Flare
 
 > Unified visual language for all bc frontends and CLI output.
 

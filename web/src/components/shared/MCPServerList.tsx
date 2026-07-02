@@ -10,7 +10,7 @@ interface MCPServerListProps {
 }
 
 const KNOWN_MCPS = [
-  { name: "bc", description: "bc workspace tools (send_message, report_status, query_costs)" },
+  { name: "bc", description: "mycel workspace tools (send_message, report_status, query_costs)" },
   { name: "github", description: "GitHub API (create_pr, list_issues, authenticate)" },
   { name: "slack", description: "Slack messaging" },
   { name: "linear", description: "Linear issue tracker" },

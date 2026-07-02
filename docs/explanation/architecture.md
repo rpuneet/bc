@@ -13,7 +13,7 @@ This document describes the internal architecture of bc, covering component rela
               +-----------------+------------------+
               |                 |                   |
        +------v------+  +------v------+   +--------v-------+
-       |  bc CLI     |  |  TUI        |   |  Web Browser   |
+       |  mycel CLI     |  |  TUI        |   |  Web Browser   |
        |  (Go binary)|  |  (React Ink)|   |                |
        +------+------+  +------+------+   +--------+-------+
               |                 |                   |
@@ -82,7 +82,7 @@ This document describes the internal architecture of bc, covering component rela
 
 ### Request Lifecycle
 
-1. **Client** (bc CLI, Web UI, or TUI) sends HTTP request to bcd
+1. **Client** (mycel CLI, Web UI, or TUI) sends HTTP request to bcd
 2. **Middleware chain** processes: Recovery, RequestID, CORS, Gzip, MaxBody
 3. **Handler** dispatches to the appropriate service method
 4. **Service** performs business logic, interacts with runtime backends and SQLite

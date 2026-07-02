@@ -4,9 +4,9 @@
 
 ```mermaid
 graph TB
-    CLI[bc CLI] -->|HTTP REST| BCD[bcd :9374]
+    CLI[mycel CLI] -->|HTTP REST| BCD[bcd :9374]
     WEB[Web UI] -->|HTTP + SSE| BCD
-    TUI[TUI] -->|bc CLI| CLI
+    TUI[TUI] -->|mycel CLI| CLI
     AGENT_MCP[AI Agents] -->|MCP stdio/SSE| BCD
 
     BCD -->|SQL| DB[(~/.bc/bc.db)]

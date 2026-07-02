@@ -708,7 +708,7 @@ export function Cron() {
         <EmptyState
           icon="~"
           title="No cron jobs"
-          description="Click '+ New Job' above or use 'bc cron add <name>' to schedule recurring tasks."
+          description="Click '+ New Job' above or use 'mycel cron add <name>' to schedule recurring tasks."
         />
       ) : (
         <div className="grid grid-cols-1 gap-3">

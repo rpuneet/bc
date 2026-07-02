@@ -4,8 +4,8 @@ This tutorial walks you through creating, running, and communicating with your f
 
 ## Prerequisites
 
-- A bc workspace initialized (`bc init` completed)
-- The root agent running (`bc up`)
+- A mycel workspace initialized (`mycel init` completed)
+- The root agent running (`mycel up`)
 - An AI provider configured (e.g., Claude Code or Gemini)
 
 ## Step 1: Create an agent
@@ -13,7 +13,7 @@ This tutorial walks you through creating, running, and communicating with your f
 Create an engineer agent named `eng-01`:
 
 ```bash
-bc agent create eng-01 --role engineer
+mycel agent create eng-01 --role engineer
 ```
 
 This creates:
@@ -24,7 +24,7 @@ This creates:
 ## Step 2: Verify the agent is running
 
 ```bash
-bc status
+mycel status
 ```
 
 You should see `eng-01` listed with state `idle`:
@@ -38,7 +38,7 @@ eng-01   engineer  idle    10s
 ## Step 3: Send work to the agent
 
 ```bash
-bc agent send eng-01 "Add a health check endpoint that returns JSON with status and uptime"
+mycel agent send eng-01 "Add a health check endpoint that returns JSON with status and uptime"
 ```
 
 The agent receives the message in its tmux session and begins working.
@@ -48,13 +48,13 @@ The agent receives the message in its tmux session and begins working.
 Watch the agent's output in real time:
 
 ```bash
-bc agent peek eng-01
+mycel agent peek eng-01
 ```
 
 Or attach directly to the agent's tmux session:
 
 ```bash
-bc agent attach eng-01
+mycel agent attach eng-01
 ```
 
 Press `Ctrl+B` then `D` to detach from the session without stopping the agent.
@@ -88,13 +88,13 @@ bc cost agent
 When the work is complete:
 
 ```bash
-bc agent stop eng-01
+mycel agent stop eng-01
 ```
 
 To clean up entirely (removes worktree and state):
 
 ```bash
-bc agent delete eng-01
+mycel agent delete eng-01
 ```
 
 ## Next steps

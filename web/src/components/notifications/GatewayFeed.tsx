@@ -1951,7 +1951,7 @@ export function GatewayFeed({
                 }}
               >
                 <span style={{ width: 5, height: 5, borderRadius: 999, background: "#22c55e" }} />
-                <span>sending via bc gateway &rarr; {platform}</span>
+                <span>sending via mycel gateway &rarr; {platform}</span>
               </span>
             )}
             {!platform && <span style={{ marginLeft: "auto" }} />}

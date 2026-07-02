@@ -426,7 +426,7 @@ export function Secrets() {
         <EmptyState
           icon="*"
           title="No secrets stored"
-          description="Click '+ Add Secret' above or run 'bc secret set <name> --value <value>'."
+          description="Click '+ Add Secret' above or run 'mycel secret set <name> --value <value>'."
         />
       ) : (
         <div className="grid gap-3">

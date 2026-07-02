@@ -1,6 +1,6 @@
-# bc Documentation
+# mycel Documentation
 
-bc is a CLI-first orchestration system for coordinating teams of AI coding agents across multiple repositories.
+mycel is a CLI-first orchestration system for coordinating teams of AI coding agents across multiple repositories.
 
 This documentation is organized following the [Diataxis framework](https://diataxis.fr) into four categories:
 

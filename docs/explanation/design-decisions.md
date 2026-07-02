@@ -65,7 +65,7 @@ work for local development and for isolated, reproducible builds.
 **Tradeoffs:**
 
 - Docker backend requires Docker daemon and pre-built agent images.
-- Docker agents start without auth and need manual `bc agent attach` for
+- Docker agents start without auth and need manual `mycel agent attach` for
   initial login.
 
 ---
