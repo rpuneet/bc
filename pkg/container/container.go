@@ -169,7 +169,7 @@ func (b *Backend) containerAgentDir(agentName string) string {
 func (b *Backend) hostAgentDir(agentName, hostRoot string) string {
 	containerDir := b.containerAgentDir(agentName)
 	// Only translate when the path is under BC_HOME (the M11 global dir).
-	bcHome, err := workspace.BCHome()
+	bcHome, err := workspace.MycelHome()
 	if err == nil && strings.HasPrefix(containerDir, bcHome+string(filepath.Separator)) {
 		if hostBCHome := os.Getenv("BC_HOST_BC_HOME"); hostBCHome != "" {
 			rel := strings.TrimPrefix(containerDir, bcHome)
