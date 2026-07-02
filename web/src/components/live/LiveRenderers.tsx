@@ -904,8 +904,16 @@ export const AgentCard = memo(function AgentCard({
               </span>
               <StateDot state={activity.state} />
               {errorCount > 0 && (
-                <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 text-[10px] font-bold text-white bg-mycel-error rounded-full leading-none">
-                  {errorCount}
+                <span
+                  className="inline-flex items-center gap-1 pl-1 pr-1.5 h-[18px] text-[10px] font-mono font-medium text-mycel-error border border-mycel-error/40 bg-mycel-error/10 rounded leading-none"
+                  title={`${errorCount} failed tool ${errorCount === 1 ? "call" : "calls"} in this session`}
+                  aria-label={`${errorCount} failed tool ${errorCount === 1 ? "call" : "calls"}`}
+                >
+                  <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.6">
+                    <circle cx="5" cy="5" r="3.5" />
+                    <path d="M5 3.5v2M5 6.5v.01" strokeLinecap="round" />
+                  </svg>
+                  <span className="tabular-nums">{errorCount}</span>
                 </span>
               )}
             </span>
