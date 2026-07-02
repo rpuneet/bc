@@ -121,10 +121,16 @@ func Init(rootDir string) (*Workspace, error) {
 	// rejects as "not in a bc workspace".
 	reg, regErr := LoadRegistry()
 	if regErr != nil {
+		if closeStore != nil {
+			_ = closeStore() //nolint:errcheck // best-effort cleanup on error path
+		}
 		return nil, fmt.Errorf("failed to load workspace registry (%s): %w", RegistryPath(), regErr)
 	}
 	reg.Register(absRoot, cfg.User.Name)
 	if saveErr := reg.Save(); saveErr != nil {
+		if closeStore != nil {
+			_ = closeStore() //nolint:errcheck // best-effort cleanup on error path
+		}
 		return nil, fmt.Errorf("failed to persist workspace registry (%s): %w", RegistryPath(), saveErr)
 	}
 
@@ -254,8 +260,14 @@ func Find(dir string) (*Workspace, error) {
 		stateDir, sdErr := DataDir(id)
 		if sdErr == nil {
 			if prefs := firstExisting(stateDir, PreferencesFileName, LegacySettingsFileName); prefs != "" {
+				// Preserve the configured user name when re-registering so
+				// the self-heal doesn't clobber it with an empty string.
+				name := ""
+				if cfg, cfgErr := LoadConfig(prefs); cfgErr == nil && cfg != nil {
+					name = cfg.User.Name
+				}
 				if reg, regErr := LoadRegistry(); regErr == nil {
-					reg.Register(current, "")
+					reg.Register(current, name)
 					if saveErr := reg.Save(); saveErr != nil {
 						log.Warn("workspace registry: self-heal save failed", "path", current, "error", saveErr)
 					} else {

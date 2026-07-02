@@ -322,7 +322,11 @@ func (s *AgentService) Send(ctx context.Context, name, message string) error {
 	// if not we return the honest "not running" error.
 	if a.State == StateStopped || a.State == StateStarting {
 		if s.manager.RuntimeForAgent(name).HasSession(ctx, name) {
-			a.State = StateIdle
+			// GetAgent returned a copy — reset via UpdateAgentState so
+			// the manager's authoritative state actually moves.
+			if uErr := s.manager.UpdateAgentState(ctx, name, StateIdle, a.Task); uErr != nil {
+				log.Warn("reconcile to idle failed", "agent", name, "from", a.State, "error", uErr)
+			}
 		} else if a.State == StateStopped {
 			return fmt.Errorf("agent %q is stopped: %w", name, ErrNotRunning)
 		} else {

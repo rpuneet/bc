@@ -14,18 +14,23 @@ import (
 func TestInit_FailsWhenRegistrySaveFails(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
-	t.Setenv("BC_HOME", filepath.Join(home, ".bc"))
+	bcHome := filepath.Join(home, ".bc")
+	t.Setenv("BC_HOME", bcHome)
 
-	// Pre-create the registry file's parent directory as a read-only
-	// path so the rename step in Registry.Save fails.
-	if err := os.MkdirAll(filepath.Join(home, ".bc"), 0o500); err != nil {
-		t.Fatalf("mkdir: %v", err)
+	// Pre-create the state dir so Init's own mkdir/EnsureBCHome/config
+	// save steps succeed. Only then clamp ~/.bc/ read-only so the
+	// atomic rename in Registry.Save is the specific step that fails —
+	// otherwise this test would pass for the wrong reason.
+	if err := os.MkdirAll(filepath.Join(bcHome, "workspaces"), 0o750); err != nil {
+		t.Fatalf("mkdir bc home: %v", err)
 	}
-	// Undo the restriction on cleanup so t.TempDir can clean.
-	t.Cleanup(func() { _ = os.Chmod(filepath.Join(home, ".bc"), 0o700) }) //nolint:gosec // cleanup only
-
 	proj := t.TempDir()
 	gitInitDir(t, proj)
+
+	if err := os.Chmod(bcHome, 0o500); err != nil { //nolint:gosec // read-only clamp is the point of the test
+		t.Fatalf("chmod: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(bcHome, 0o700) }) //nolint:gosec // cleanup only
 
 	_, err := Init(proj)
 	if err == nil {
