@@ -288,7 +288,7 @@ export function Live() {
 
   const hasFilters = agentFilter || typeFilter !== "all" || searchFilter;
 
-  const sseDotColor = connected ? "bg-emerald-500" : reconnecting ? "bg-yellow-500" : "bg-red-500";
+  const sseDotColor = connected ? "bg-mycel-success" : reconnecting ? "bg-mycel-warning" : "bg-mycel-error";
   const sseTooltip = connected ? "SSE connected" : reconnecting ? "Reconnecting..." : "Disconnected";
 
   // Drill-down view

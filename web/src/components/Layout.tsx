@@ -135,7 +135,7 @@ function ChannelList({
               padding: "0 8px",
               borderRadius: 5,
               fontSize: 12.5,
-              color: isActive ? "var(--mycel-text, #e5e5e5)" : count > 0 ? "var(--mycel-text, #e5e5e5)" : "var(--mycel-muted, #a0a0a0)",
+              color: isActive ? "var(--mycel-text)" : count > 0 ? "var(--mycel-text)" : "var(--mycel-muted)",
               background: isActive ? "color-mix(in srgb, var(--mycel-accent) 14%, transparent)" : "transparent",
               fontWeight: isActive ? 600 : count > 0 ? 500 : 400,
               cursor: "pointer",
@@ -146,7 +146,7 @@ function ChannelList({
             <span
               style={{
                 width: 12,
-                color: "var(--mycel-muted, #4a4a4a)",
+                color: "var(--mycel-muted)",
                 fontFamily: "'JetBrains Mono', monospace",
                 fontSize: 12,
                 display: "flex",
@@ -165,11 +165,11 @@ function ChannelList({
                 style={{
                   fontSize: 10.5,
                   fontWeight: 600,
-                  color: "var(--mycel-muted, #a0a0a0)",
+                  color: "var(--mycel-muted)",
                   fontFamily: "'JetBrains Mono', monospace",
                   padding: "1px 5px",
                   borderRadius: 999,
-                  background: "var(--mycel-surface, #212121)",
+                  background: "var(--mycel-surface)",
                 }}
               >
                 {count}
@@ -187,7 +187,7 @@ function ChannelList({
             width: "100%",
             padding: "3px 8px",
             fontSize: 11,
-            color: "var(--mycel-muted, #6b6b6b)",
+            color: "var(--mycel-muted)",
             background: "none",
             border: "none",
             cursor: "pointer",
@@ -337,7 +337,7 @@ function NotificationNavTree() {
                 gap: 6,
                 padding: "5px 8px 2px",
                 fontSize: 11.5,
-                color: "var(--mycel-text-2, #a0a0a0)",
+                color: "var(--mycel-text-2)",
                 fontWeight: 500,
                 background: "none",
                 border: "none",
@@ -353,7 +353,7 @@ function NotificationNavTree() {
                   return (
                     <span className="truncate flex items-baseline" style={{ gap: 5, minWidth: 0 }}>
                       <span style={{ flexShrink: 0 }}>{meta.label}</span>
-                      <span style={{ color: "var(--mycel-muted, #6b6b6b)", fontSize: 10.5 }}>·</span>
+                      <span style={{ color: "var(--mycel-muted)", fontSize: 10.5 }}>·</span>
                       <span className="truncate" style={{ minWidth: 0 }}>{subLabel}</span>
                     </span>
                   );
@@ -368,7 +368,7 @@ function NotificationNavTree() {
                     width: 5,
                     height: 5,
                     borderRadius: 999,
-                    background: "var(--mycel-success, #22c55e)",
+                    background: "var(--mycel-success)",
                     boxShadow: "0 0 5px color-mix(in srgb, var(--mycel-success) 50%, transparent)",
                   }}
                 />
@@ -396,9 +396,9 @@ function NotificationNavTree() {
           marginTop: 4,
           borderRadius: 5,
           fontSize: 12,
-          color: "var(--mycel-muted, #6b6b6b)",
+          color: "var(--mycel-muted)",
           cursor: "pointer",
-          border: "1px dashed var(--mycel-border, #2a2a2a)",
+          border: "1px dashed var(--mycel-border)",
           background: "none",
           whiteSpace: "nowrap",
         }}
@@ -654,7 +654,7 @@ export function Layout() {
                 className="w-6 h-6 shrink-0 flex items-center justify-center font-bold"
                 style={{
                   borderRadius: 7,
-                  background: "var(--mycel-accent, #f97316)",
+                  background: "var(--mycel-accent)",
                   color: "#0d0d0d",
                   fontSize: 14,
                   fontFamily: "'JetBrains Mono', monospace",
@@ -675,8 +675,8 @@ export function Layout() {
               className="w-6 h-6 shrink-0 flex items-center justify-center font-bold"
               style={{
                 borderRadius: 7,
-                background: "var(--mycel-accent, #f97316)",
-                color: "var(--mycel-accent-fg, #0d0d0d)",
+                background: "var(--mycel-accent)",
+                color: "var(--mycel-accent-fg)",
                 fontSize: 14,
                 fontFamily: "'JetBrains Mono', monospace",
                 letterSpacing: -0.5,

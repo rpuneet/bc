@@ -47,15 +47,21 @@ const RANGES = [
   { label: "30d", seconds: 2592000 },
 ] as const;
 
-const INFRA = ["bc-db", "bc-daemon", "bc-playwright"];
+// Infrastructure container names to exclude from agent charts. Both the
+// canonical mycel-* namespace (v0.3.1+) and the legacy bc-* namespace are
+// filtered for one release cycle so pre-rename containers don't leak in.
+const INFRA = [
+  "mycel-db", "mycel-daemon", "mycel-playwright",
+  "bc-db", "bc-daemon", "bc-playwright",
+];
 const isInfra = (n: string) => INFRA.some(p => n === p || n.startsWith(p + "-")) || n.length <= 3;
 
 const TT: React.CSSProperties = {
-  backgroundColor: "var(--color-mycel-surface)", border: "1px solid var(--color-mycel-border)",
-  borderRadius: "6px", color: "var(--color-mycel-text)", fontSize: "12px",
+  backgroundColor: "var(--mycel-surface)", border: "1px solid var(--mycel-border)",
+  borderRadius: "6px", color: "var(--mycel-text)", fontSize: "12px",
 };
 const AX = { axisLine: false as const, tickLine: false as const };
-const TICK_STYLE = { fill: "var(--color-mycel-muted)", fontSize: 10 };
+const TICK_STYLE = { fill: "var(--mycel-muted)", fontSize: 10 };
 
 // ── Helpers ─────────────────────────────────────────────────────────────────────
 
@@ -279,7 +285,7 @@ export function Stats() {
                     <td className="py-1.5 px-2 font-mono">{a.cpu.toFixed(1)}</td>
                     <td className="py-1.5 px-2 font-mono">{a.mem.toFixed(0)}</td>
                     <td className="py-1.5 px-2 font-mono">{fmtTokens(a.tokens)}</td>
-                    <td className="py-1.5 px-2 font-mono text-mycel-accent">${a.cost.toFixed(2)}</td>
+                    <td className={`py-1.5 px-2 font-mono ${a.cost > 0 ? "text-mycel-accent" : "text-mycel-muted"}`}>${a.cost.toFixed(2)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -306,7 +312,7 @@ export function Stats() {
           {cpuChart.data.length === 0 ? <Empty msg="No CPU data" /> : (
             <ResponsiveContainer width="100%" height={200}>
               <AreaChart data={cpuChart.data} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-mycel-border)" vertical={false} />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--mycel-border)" vertical={false} />
                 <XAxis dataKey="time" tick={TICK_STYLE} {...AX} />
                 <YAxis tick={TICK_STYLE} {...AX} tickFormatter={(v: number) => `${v}%`} />
                 <Tooltip contentStyle={TT} />
@@ -321,7 +327,7 @@ export function Stats() {
           {memChart.data.length === 0 ? <Empty msg="No memory data" /> : (
             <ResponsiveContainer width="100%" height={200}>
               <AreaChart data={memChart.data} margin={{ top: 4, right: 8, left: -10, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-mycel-border)" vertical={false} />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--mycel-border)" vertical={false} />
                 <XAxis dataKey="time" tick={TICK_STYLE} {...AX} />
                 <YAxis tick={TICK_STYLE} {...AX} />
                 <Tooltip contentStyle={TT} formatter={(v) => [`${Number(v ?? 0).toFixed(1)} MB`]} />
@@ -340,7 +346,7 @@ export function Stats() {
           {tokenChart.length === 0 ? <Empty msg="No token data" /> : (
             <ResponsiveContainer width="100%" height={200}>
               <AreaChart data={tokenChart} margin={{ top: 4, right: 8, left: -8, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-mycel-border)" vertical={false} />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--mycel-border)" vertical={false} />
                 <XAxis dataKey="time" tick={TICK_STYLE} {...AX} />
                 <YAxis tick={TICK_STYLE} {...AX} tickFormatter={(v: number) => fmtTokens(v)} />
                 <Tooltip contentStyle={TT} formatter={(v, n) => [Number(v ?? 0).toLocaleString(), n === "input" ? "Input" : "Output"]} />
@@ -354,7 +360,7 @@ export function Stats() {
           {costOverTime.length === 0 ? <Empty msg="No cost data" /> : (
             <ResponsiveContainer width="100%" height={200}>
               <AreaChart data={costOverTime} margin={{ top: 4, right: 8, left: -8, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-mycel-border)" vertical={false} />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--mycel-border)" vertical={false} />
                 <XAxis dataKey="time" tick={TICK_STYLE} {...AX} />
                 <YAxis tick={TICK_STYLE} {...AX} tickFormatter={(v: number) => `$${v.toFixed(2)}`} />
                 <Tooltip contentStyle={TT} formatter={(v) => [`$${Number(v ?? 0).toFixed(4)}`]} />
@@ -371,7 +377,7 @@ export function Stats() {
           {netChart.length === 0 ? <Empty msg="No network data" /> : (
             <ResponsiveContainer width="100%" height={200}>
               <AreaChart data={netChart} margin={{ top: 4, right: 8, left: -10, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-mycel-border)" vertical={false} />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--mycel-border)" vertical={false} />
                 <XAxis dataKey="time" tick={TICK_STYLE} {...AX} />
                 <YAxis tick={TICK_STYLE} {...AX} tickFormatter={(v: number) => fmtBytes(v)} />
                 <Tooltip contentStyle={TT} formatter={(v) => [fmtBytes(Number(v ?? 0))]} />
@@ -385,7 +391,7 @@ export function Stats() {
           {diskChart.length === 0 ? <Empty msg="No disk data" /> : (
             <ResponsiveContainer width="100%" height={200}>
               <AreaChart data={diskChart} margin={{ top: 4, right: 8, left: -10, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-mycel-border)" vertical={false} />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--mycel-border)" vertical={false} />
                 <XAxis dataKey="time" tick={TICK_STYLE} {...AX} />
                 <YAxis tick={TICK_STYLE} {...AX} tickFormatter={(v: number) => fmtBytes(v)} />
                 <Tooltip contentStyle={TT} formatter={(v) => [fmtBytes(Number(v ?? 0))]} />
@@ -403,9 +409,9 @@ export function Stats() {
           {tokensByModel.length === 0 ? <Empty msg="No model data" /> : (
             <ResponsiveContainer width="100%" height={200}>
               <BarChart layout="vertical" data={tokensByModel.slice(0, 8).map(m => ({ name: trunc(m.name, 24), tokens: m.tokens }))} margin={{ top: 0, right: 8, left: 4, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-mycel-border)" horizontal={false} />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--mycel-border)" horizontal={false} />
                 <XAxis type="number" tick={TICK_STYLE} {...AX} tickFormatter={(v: number) => fmtTokens(v)} />
-                <YAxis type="category" dataKey="name" tick={{ ...TICK_STYLE, fill: "var(--color-mycel-text)", fontSize: 9 }} {...AX} width={120} />
+                <YAxis type="category" dataKey="name" tick={{ ...TICK_STYLE, fill: "var(--mycel-text)", fontSize: 9 }} {...AX} width={120} />
                 <Tooltip contentStyle={TT} formatter={(v) => [fmtTokens(Number(v ?? 0))]} />
                 <Bar dataKey="tokens" radius={[0, 3, 3, 0]}>
                   {tokensByModel.slice(0, 8).map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
@@ -418,7 +424,7 @@ export function Stats() {
           {!hasCacheData ? <Empty msg="Cache data — coming soon" /> : (
             <ResponsiveContainer width="100%" height={200}>
               <AreaChart data={cacheChart} margin={{ top: 4, right: 8, left: -8, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-mycel-border)" vertical={false} />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--mycel-border)" vertical={false} />
                 <XAxis dataKey="time" tick={TICK_STYLE} {...AX} />
                 <YAxis tick={TICK_STYLE} {...AX} tickFormatter={(v: number) => fmtTokens(v)} />
                 <Tooltip contentStyle={TT} formatter={(v, n) => [fmtTokens(Number(v ?? 0)), n === "cache_read" ? "Cache Read" : "Cache Create"]} />
@@ -436,9 +442,9 @@ export function Stats() {
           {notificationBarData.length === 0 ? <Empty msg="No notification data" /> : (
             <ResponsiveContainer width="100%" height={200}>
               <BarChart layout="vertical" data={notificationBarData} margin={{ top: 0, right: 8, left: 4, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-mycel-border)" horizontal={false} />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--mycel-border)" horizontal={false} />
                 <XAxis type="number" tick={TICK_STYLE} {...AX} />
-                <YAxis type="category" dataKey="name" tick={{ ...TICK_STYLE, fill: "var(--color-mycel-text)", fontSize: 9 }} {...AX} width={100} />
+                <YAxis type="category" dataKey="name" tick={{ ...TICK_STYLE, fill: "var(--mycel-text)", fontSize: 9 }} {...AX} width={100} />
                 <Tooltip contentStyle={TT} formatter={(v) => [Number(v ?? 0).toLocaleString(), "Messages"]} />
                 <Bar dataKey="messages" radius={[0, 3, 3, 0]}>
                   {notificationBarData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
@@ -451,9 +457,9 @@ export function Stats() {
           {tokensByAgent.length === 0 ? <Empty msg="No cost data" /> : (
             <ResponsiveContainer width="100%" height={200}>
               <BarChart layout="vertical" data={tokensByAgent.slice(0, 8).map(a => ({ name: trunc(a.name, 20), cost: parseFloat(a.cost.toFixed(4)) }))} margin={{ top: 0, right: 8, left: 4, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-mycel-border)" horizontal={false} />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--mycel-border)" horizontal={false} />
                 <XAxis type="number" tick={TICK_STYLE} {...AX} tickFormatter={(v: number) => `$${v}`} />
-                <YAxis type="category" dataKey="name" tick={{ ...TICK_STYLE, fill: "var(--color-mycel-text)", fontSize: 9 }} {...AX} width={100} />
+                <YAxis type="category" dataKey="name" tick={{ ...TICK_STYLE, fill: "var(--mycel-text)", fontSize: 9 }} {...AX} width={100} />
                 <Tooltip contentStyle={TT} formatter={(v) => [`$${Number(v ?? 0).toFixed(4)}`]} />
                 <Bar dataKey="cost" radius={[0, 3, 3, 0]}>
                   {tokensByAgent.slice(0, 8).map((a, i) => <Cell key={i} fill={agentColors[a.name] ?? COLORS[i % COLORS.length]} />)}
@@ -470,7 +476,7 @@ export function Stats() {
           {tokensByAgent.length === 0 ? <Empty msg="No token data" /> : (
             <ResponsiveContainer width="100%" height={200}>
               <BarChart data={tokensByAgent.slice(0, 8).map(a => ({ name: trunc(a.name, 12), input: a.input, output: a.output }))} margin={{ top: 4, right: 8, left: -8, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-mycel-border)" vertical={false} />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--mycel-border)" vertical={false} />
                 <XAxis dataKey="name" tick={{ ...TICK_STYLE, fontSize: 9 }} {...AX} />
                 <YAxis tick={TICK_STYLE} {...AX} tickFormatter={(v: number) => fmtTokens(v)} />
                 <Tooltip contentStyle={TT} formatter={(v, n) => [fmtTokens(Number(v ?? 0)), n === "input" ? "Input" : "Output"]} />
@@ -484,9 +490,9 @@ export function Stats() {
           {costByModelBar.length === 0 ? <Empty msg="No cost data" /> : (
             <ResponsiveContainer width="100%" height={200}>
               <BarChart layout="vertical" data={costByModelBar} margin={{ top: 0, right: 8, left: 4, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-mycel-border)" horizontal={false} />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--mycel-border)" horizontal={false} />
                 <XAxis type="number" tick={TICK_STYLE} {...AX} tickFormatter={(v: number) => `$${v}`} />
-                <YAxis type="category" dataKey="name" tick={{ ...TICK_STYLE, fill: "var(--color-mycel-text)", fontSize: 9 }} {...AX} width={120} />
+                <YAxis type="category" dataKey="name" tick={{ ...TICK_STYLE, fill: "var(--mycel-text)", fontSize: 9 }} {...AX} width={120} />
                 <Tooltip contentStyle={TT} formatter={(v) => [`$${Number(v ?? 0).toFixed(4)}`]} />
                 <Bar dataKey="cost" radius={[0, 3, 3, 0]}>
                   {costByModelBar.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
