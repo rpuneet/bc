@@ -198,9 +198,11 @@ func TestGlobalDir(t *testing.T) {
 		t.Skip("no home directory available")
 	}
 
-	// Should end with .bc
-	if filepath.Base(dir) != ".bc" {
-		t.Errorf("GlobalDir should end with .bc, got %s", dir)
+	// Should end with .mycel (canonical) or .bc (legacy install still
+	// on the old tree — MigrateLegacyHome hasn't run yet).
+	base := filepath.Base(dir)
+	if base != ".mycel" && base != ".bc" {
+		t.Errorf("GlobalDir should end with .mycel or .bc, got %s", dir)
 	}
 }
 
