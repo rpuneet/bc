@@ -1,6 +1,6 @@
 {
   "name": "@bc/design-tokens",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "description": "Shared design tokens for the bc UI — Solar Flare palette, typography, and spacing",
   "type": "module",
   "main": "./src/index.ts",
