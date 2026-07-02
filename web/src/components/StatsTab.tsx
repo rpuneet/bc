@@ -11,7 +11,9 @@ import { Panel, fmtTime, fmtBytes, fmtTokens } from "./shared/stats-primitives";
 
 // ── Constants ────────────────────────────────────────────────────────────────────
 
-const COLORS = ["#FF6B35", "#3B82F6", "#10B981", "#A855F7", "#F59E0B", "#EC4899", "#06B6D4", "#84CC16"];
+// Chart palette — first entry follows the theme accent (see Stats.tsx).
+const ACCENT = "var(--mycel-accent)";
+const COLORS = [ACCENT, "#3B82F6", "#10B981", "#A855F7", "#F59E0B", "#EC4899", "#06B6D4", "#84CC16"];
 const RANGES = [
   { label: "1h", seconds: 3600 },
   { label: "6h", seconds: 21600 },
@@ -370,7 +372,7 @@ export function StatsTab({ agent }: { agent: Agent }) {
                   <XAxis dataKey="time" tick={TICK} {...AX} />
                   <YAxis tick={TICK} {...AX} tickFormatter={(v: number) => `${v}%`} />
                   <Tooltip contentStyle={TT} />
-                  <Area type="monotone" dataKey="cpu" name="CPU %" stroke="#FF6B35" fill="#FF6B35" fillOpacity={0.12} strokeWidth={1.5} dot={false} />
+                  <Area type="monotone" dataKey="cpu" name="CPU %" stroke={ACCENT} fill={ACCENT} fillOpacity={0.12} strokeWidth={1.5} dot={false} />
                 </AreaChart>
               </ResponsiveContainer>
             </Panel>
@@ -403,7 +405,7 @@ export function StatsTab({ agent }: { agent: Agent }) {
                   <YAxis tick={TICK} {...AX} tickFormatter={(v: number) => fmtBytes(v)} />
                   <Tooltip contentStyle={TT} formatter={(v) => [fmtBytes(Number(v ?? 0))]} />
                   <Area type="monotone" dataKey="rx" name="RX" stroke="#10B981" fill="#10B981" fillOpacity={0.12} strokeWidth={1.5} dot={false} />
-                  <Area type="monotone" dataKey="tx" name="TX" stroke="#FF6B35" fill="#FF6B35" fillOpacity={0.12} strokeWidth={1.5} dot={false} />
+                  <Area type="monotone" dataKey="tx" name="TX" stroke={ACCENT} fill={ACCENT} fillOpacity={0.12} strokeWidth={1.5} dot={false} />
                 </AreaChart>
               </ResponsiveContainer>
             </Panel>
@@ -417,7 +419,7 @@ export function StatsTab({ agent }: { agent: Agent }) {
                   <YAxis tick={TICK} {...AX} tickFormatter={(v: number) => fmtTokens(v)} />
                   <Tooltip contentStyle={TT} formatter={(v, n) => [Number(v ?? 0).toLocaleString(), n === "input" ? "Input" : "Output"]} />
                   <Area type="monotone" dataKey="input" name="Input" stroke="#3B82F6" fill="#3B82F6" fillOpacity={0.12} strokeWidth={1.5} stackId="1" dot={false} />
-                  <Area type="monotone" dataKey="output" name="Output" stroke="#FF6B35" fill="#FF6B35" fillOpacity={0.12} strokeWidth={1.5} stackId="1" dot={false} />
+                  <Area type="monotone" dataKey="output" name="Output" stroke={ACCENT} fill={ACCENT} fillOpacity={0.12} strokeWidth={1.5} stackId="1" dot={false} />
                 </AreaChart>
               </ResponsiveContainer>
             </Panel>
