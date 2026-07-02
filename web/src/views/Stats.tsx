@@ -314,10 +314,29 @@ export function Stats() {
               <AreaChart data={cpuChart.data} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--mycel-border)" vertical={false} />
                 <XAxis dataKey="time" tick={TICK_STYLE} {...AX} />
-                <YAxis tick={TICK_STYLE} {...AX} tickFormatter={(v: number) => `${v}%`} />
-                <Tooltip contentStyle={TT} />
+                {/* Y auto-scales but stays at least 5% tall so a busy-agent tiny value
+                    isn't stranded on the baseline invisible. Not stacked — CPU% across
+                    agents isn't additive; stacking made low values disappear when one
+                    agent spiked. */}
+                <YAxis
+                  tick={TICK_STYLE}
+                  {...AX}
+                  domain={[0, (dataMax: number) => Math.max(dataMax * 1.1, 5)]}
+                  tickFormatter={(v: number) => `${v.toFixed(v < 10 ? 1 : 0)}%`}
+                />
+                <Tooltip contentStyle={TT} formatter={(v, name) => [`${Number(v ?? 0).toFixed(2)}%`, name]} />
                 {cpuChart.agents.map((n) => (
-                  <Area key={n} type="monotone" dataKey={n} stroke={agentColors[n] ?? COLORS[0]} fill={agentColors[n] ?? COLORS[0]} fillOpacity={0.12} strokeWidth={1.5} dot={false} stackId="cpu" />
+                  <Area
+                    key={n}
+                    type="monotone"
+                    dataKey={n}
+                    stroke={agentColors[n] ?? COLORS[0]}
+                    fill={agentColors[n] ?? COLORS[0]}
+                    fillOpacity={0.08}
+                    strokeWidth={1.75}
+                    dot={false}
+                    connectNulls
+                  />
                 ))}
               </AreaChart>
             </ResponsiveContainer>
