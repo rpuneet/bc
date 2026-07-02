@@ -1243,7 +1243,12 @@ export function AgentDetail() {
                 style={{ fontFamily: MONO }}
               >
                 {tab.label}
-                <span className="ml-1 text-[9px] opacity-40">{tab.shortcut}</span>
+                <span
+                  className="ml-1.5 inline-flex items-center justify-center rounded border border-mycel-border/40 px-1 text-[9px] leading-none py-[3px] opacity-50"
+                  aria-hidden
+                >
+                  {tab.shortcut}
+                </span>
                 {/* Active indicator — bottom glow bar */}
                 {isActive && (
                   <span className="absolute bottom-0 left-1 right-1 h-[2px] rounded-full bg-mycel-accent shadow-[0_0_8px_rgba(var(--mycel-accent-rgb,255,165,0),0.5)]" />
