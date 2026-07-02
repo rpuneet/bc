@@ -464,6 +464,30 @@ function writeCollapsed(v: boolean) {
   try { localStorage.setItem(SIDEBAR_KEY, String(v)); } catch { /* */ }
 }
 
+/* ── Nav section divider ─────────────────────────────────────────
+   Small labeled caption (e.g. "Global", "System") between nav groups.
+   Collapses to a hairline rule when the sidebar is icon-only, so
+   collapsed mode stays compact but expanded mode communicates the
+   grouping semantics. */
+function NavSectionDivider({ label, collapsed }: { label: string; collapsed: boolean }) {
+  if (collapsed) {
+    return (
+      <li className="mx-2 my-2">
+        <div className="border-t border-mycel-border/20" />
+      </li>
+    );
+  }
+  return (
+    <li className="mt-4 mb-1 px-4">
+      <span
+        className="text-[9px] uppercase tracking-[0.14em] text-mycel-muted/40 font-medium"
+      >
+        {label}
+      </span>
+    </li>
+  );
+}
+
 /* ── Nav list ────────────────────────────────────────────────── */
 
 function NavList({
@@ -679,8 +703,11 @@ export function Layout() {
           )}
         </div>
 
-        {/* Nav */}
-        <ul className="flex-1 py-1.5 overflow-y-auto" style={{ scrollbarWidth: "thin" }}>
+        {/* Nav — sectioned. Labeled captions replace the anonymous
+            dividers so the grouping (workspace items vs global items vs
+            system items) is explicit; the captions collapse to a bare
+            hairline when the sidebar is icon-only. */}
+        <ul className="flex-1 py-2 overflow-y-auto" style={{ scrollbarWidth: "thin" }}>
           <NavList
             items={MAIN_NAV_ITEMS}
             collapsed={collapsed}
@@ -688,65 +715,74 @@ export function Layout() {
             notificationsExpanded={notificationsExpanded}
             onToggleNotifications={toggleNotifications}
           />
-          <li className={`my-1.5 ${collapsed && !isMobile ? "mx-2" : "mx-3"}`}>
-            <div className="border-t border-mycel-border/15" />
-          </li>
+          <NavSectionDivider label="Global" collapsed={collapsed && !isMobile} />
           <NavList items={GLOBAL_NAV_ITEMS} collapsed={collapsed} isMobile={isMobile} global />
-          <li className={`my-1.5 ${collapsed && !isMobile ? "mx-2" : "mx-3"}`}>
-            <div className="border-t border-mycel-border/15" />
-          </li>
+          <NavSectionDivider label="System" collapsed={collapsed && !isMobile} />
           <NavList items={UTIL_NAV_ITEMS} collapsed={collapsed} isMobile={isMobile} />
         </ul>
 
-        {/* About chip — surfaces installed version + distribution channel
-            status. Sits in the sidebar footer next to the theme toggle so
-            users always have a one-click answer to "what version am I on?". */}
-        <div className="py-1 border-t border-mycel-border/30">
-          <NavLink
-            to="/about"
-            className={({ isActive }) =>
-              `relative flex items-center gap-2.5 ${collapsed && !isMobile ? "justify-center px-2" : "pl-4 pr-3"} py-[7px] w-full text-[11px] ${isActive ? "text-mycel-text bg-mycel-bg/30 border-l-2 border-mycel-accent" : "text-mycel-muted/75 hover:text-mycel-text hover:bg-mycel-bg/30 border-l-2 border-transparent"} transition-colors`
-            }
-            title="About / version info"
-          >
-            <span className="shrink-0 flex items-center justify-center w-4 opacity-80">
+        {/* Unified sidebar footer — About + Theme picker in a single
+            row so the two utility affordances read as related chrome,
+            not two separate nav items competing for attention. The
+            About link takes the primary space (users care about
+            version); the theme toggle is a compact icon button on the
+            right. Collapsed sidebar falls back to two stacked
+            icon-only rows so both remain reachable. */}
+        {collapsed && !isMobile ? (
+          <div className="border-t border-mycel-border/30 flex flex-col">
+            <NavLink
+              to="/about"
+              className={({ isActive }) =>
+                `flex items-center justify-center px-2 py-[9px] ${isActive ? "text-mycel-text bg-mycel-bg/30 border-l-2 border-mycel-accent" : "text-mycel-muted/70 hover:text-mycel-text hover:bg-mycel-bg/30 border-l-2 border-transparent"} transition-colors`
+              }
+              title="About / version"
+            >
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5">
                 <circle cx="7" cy="7" r="5.5" />
                 <path d="M7 4.5v.01M6 6.5h1v3h1" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
-            </span>
-            {(!collapsed || isMobile) && (
-              <>
-                <span className="truncate font-medium tracking-tight">About</span>
-                <span className="ml-auto text-[9px] text-mycel-muted/50 uppercase tracking-wider">version</span>
-              </>
-            )}
-          </NavLink>
-        </div>
-
-        {/* Theme toggle — matches nav-item width and padding for visual alignment.
-            Foreground bumped from muted/50 to muted/75 so the label is legible
-            without competing with the active-nav highlight above it. */}
-        <div className="py-1.5 border-t border-mycel-border/30">
-          <button type="button" onClick={toggle}
-            className={`relative flex items-center gap-2.5 ${collapsed && !isMobile ? "justify-center px-2" : "pl-4 pr-3"} py-[7px] w-full text-[11px] text-mycel-muted/75 hover:text-mycel-text hover:bg-mycel-bg/30 border-l-2 border-transparent transition-colors`}
-            title={`Theme: ${THEME_LABELS[mode]} — click to switch`}
-            aria-label={`Switch theme — currently ${THEME_LABELS[mode]}`}
-          >
-            <span className="shrink-0 flex items-center justify-center w-4 opacity-80">
+            </NavLink>
+            <button type="button" onClick={toggle}
+              className="flex items-center justify-center px-2 py-[9px] text-mycel-muted/70 hover:text-mycel-text hover:bg-mycel-bg/30 border-l-2 border-transparent transition-colors"
+              title={`Theme: ${THEME_LABELS[mode]}`}
+              aria-label={`Switch theme — currently ${THEME_LABELS[mode]}`}
+            >
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5">
                 <circle cx="7" cy="7" r="3" />
                 <path d="M7 1v2M7 11v2M1 7h2M11 7h2M2.5 2.5l1.5 1.5M10 10l1.5 1.5M2.5 11.5L4 10M10 4l1.5-1.5" strokeLinecap="round" />
               </svg>
-            </span>
-            {(!collapsed || isMobile) && (
-              <>
-                <span className="truncate font-medium tracking-tight">{THEME_LABELS[mode]}</span>
-                <span className="ml-auto text-[9px] text-mycel-muted/50 uppercase tracking-wider">theme</span>
-              </>
-            )}
-          </button>
-        </div>
+            </button>
+          </div>
+        ) : (
+          <div className="border-t border-mycel-border/30 flex items-stretch">
+            <NavLink
+              to="/about"
+              className={({ isActive }) =>
+                `flex-1 flex items-center gap-2.5 pl-4 pr-2 py-[9px] text-[11px] ${isActive ? "text-mycel-text bg-mycel-bg/30 border-l-2 border-mycel-accent" : "text-mycel-muted/75 hover:text-mycel-text hover:bg-mycel-bg/30 border-l-2 border-transparent"} transition-colors`
+              }
+              title="About / version"
+            >
+              <span className="shrink-0 flex items-center justify-center w-4 opacity-80">
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5">
+                  <circle cx="7" cy="7" r="5.5" />
+                  <path d="M7 4.5v.01M6 6.5h1v3h1" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </span>
+              <span className="truncate font-medium tracking-tight">About</span>
+            </NavLink>
+            <button type="button" onClick={toggle}
+              className="shrink-0 flex items-center gap-1.5 px-3 py-[9px] text-[10px] text-mycel-muted/75 hover:text-mycel-text hover:bg-mycel-bg/30 border-l border-mycel-border/30 transition-colors"
+              title={`Theme: ${THEME_LABELS[mode]} — click to switch`}
+              aria-label={`Switch theme — currently ${THEME_LABELS[mode]}`}
+            >
+              <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" className="opacity-80">
+                <circle cx="7" cy="7" r="3" />
+                <path d="M7 1v2M7 11v2M1 7h2M11 7h2M2.5 2.5l1.5 1.5M10 10l1.5 1.5M2.5 11.5L4 10M10 4l1.5-1.5" strokeLinecap="round" />
+              </svg>
+              <span className="hidden md:inline truncate">{THEME_LABELS[mode]}</span>
+            </button>
+          </div>
+        )}
       </nav>
 
       <HeaderSlotProvider>

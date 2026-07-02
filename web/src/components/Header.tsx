@@ -28,43 +28,57 @@ export interface HeaderProps {
 
 export function Header({ left, center, actions, compact = true }: HeaderProps) {
   return (
-    <header
-      className="shrink-0 border-b border-mycel-border/40"
-      style={{ fontFamily: MONO }}
-    >
+    <header className="shrink-0 border-b border-mycel-border/40 bg-mycel-surface/40 backdrop-blur-sm">
       <div
-        className={`flex items-center gap-2.5 min-w-0 px-3 sm:px-6 flex-wrap sm:flex-nowrap py-1.5 sm:py-0 ${
-          compact ? "sm:min-h-[42px]" : "sm:min-h-[52px]"
+        className={`flex items-center min-w-0 px-4 sm:px-6 flex-wrap sm:flex-nowrap py-2 sm:py-0 ${
+          compact ? "sm:min-h-[48px]" : "sm:min-h-[56px]"
         }`}
       >
-        {/* Left slot */}
-        {left && <div className="flex items-center gap-2 shrink-0">{left}</div>}
+        {/* Left slot — sidebar toggle + workspace switcher */}
+        {left && (
+          <div className="flex items-center gap-2 shrink-0">
+            {left}
+          </div>
+        )}
 
-        {/* Center slot — takes remaining space, truncates on overflow */}
-        <div className="flex-1 min-w-0 flex items-center gap-2 text-[12px] text-mycel-text/90">
+        {/* Hairline separator between left and center — only when both slots are populated */}
+        {left && center && (
+          <span className="hidden sm:block mx-3 h-4 w-px bg-mycel-border/50 shrink-0" aria-hidden />
+        )}
+
+        {/* Center slot — page title / status. Grows to fill; truncates cleanly. */}
+        <div className="flex-1 min-w-0 flex items-center gap-2 text-[13px] text-mycel-text/90">
           {center}
         </div>
 
-        {/* Right slot — actions, always visible */}
-        {actions && <div className="flex items-center gap-2 shrink-0">{actions}</div>}
+        {/* Right slot — actions. Left separator only when there IS a center. */}
+        {actions && (
+          <>
+            {center && (
+              <span className="hidden sm:block mx-3 h-4 w-px bg-mycel-border/50 shrink-0" aria-hidden />
+            )}
+            <div className="flex items-center gap-2 shrink-0">{actions}</div>
+          </>
+        )}
       </div>
     </header>
   );
 }
 
 /**
- * TabHeaderTitle — standard title chip used by most tabs.
- * Use when the page doesn't need anything fancy in the center slot.
+ * TabHeaderTitle — standard page title chip in the header center slot.
  *
- * Styled as a bold monospace label, title-cased to match the body <h1>.
- * Previously this rendered uppercase which clashed visually with the
- * mixed-case heading directly below on every view.
+ * Geist Sans (not mono) at 14px semibold. The workspace switcher and
+ * status pills on either side already use mono; a mono h1 in the
+ * middle blurred the visual hierarchy. Using Sans here gives the page
+ * title clear prominence as the heading of the row.
  */
 export function TabHeaderTitle({ children }: { children: ReactNode }) {
+  // MONO import retained for callers that still reference it via prop.
+  void MONO;
   return (
     <span
-      className="text-[13px] font-semibold text-mycel-text tracking-tight shrink-0"
-      style={{ fontFamily: MONO }}
+      className="text-[14px] font-semibold text-mycel-text tracking-tight shrink-0"
     >
       {children}
     </span>
