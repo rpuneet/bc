@@ -1,3 +1,5 @@
+import { formatDuration, formatRelative } from "../../utils/time";
+
 import type {
   AgentActivity,
   AggregatedNode,
@@ -215,12 +217,9 @@ export function stateBadgeClass(state: string): string {
 }
 
 export function relativeTime(ts: number): string {
-  const diff = Date.now() - ts;
-  if (diff < 1000) return "just now";
-  if (diff < 60_000) return `${Math.floor(diff / 1000)}s ago`;
-  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m ago`;
-  if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h ago`;
-  return `${Math.floor(diff / 86_400_000)}d ago`;
+  // Unbounded ladder (no max-day fallback) — matches the pre-consolidation
+  // liveHelpers behavior used by the always-relative live view timeline.
+  return formatRelative(ts, { maxDays: Number.POSITIVE_INFINITY });
 }
 
 const INPUT_COST_PER_TOKEN = 3 / 1_000_000;
@@ -235,11 +234,7 @@ export function estimateCost(activity: AgentActivity): number {
 }
 
 export function idleDuration(lastEventTime: number): string {
-  const diff = Date.now() - lastEventTime;
-  if (diff < 60_000) return `Idle ${Math.floor(diff / 1000)}s`;
-  if (diff < 3_600_000) return `Idle ${Math.floor(diff / 60_000)}m`;
-  if (diff < 86_400_000) return `Idle ${Math.floor(diff / 3_600_000)}h`;
-  return `Idle ${Math.floor(diff / 86_400_000)}d`;
+  return formatDuration(Date.now() - lastEventTime, { prefix: "Idle " });
 }
 
 /* ── Node search / sort ────────────────────────────────────────────── */
