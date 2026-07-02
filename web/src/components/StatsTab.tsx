@@ -22,11 +22,11 @@ const RANGES = [
 ] as const;
 
 const TT: React.CSSProperties = {
-  backgroundColor: "var(--color-mycel-surface)", border: "1px solid var(--color-mycel-border)",
-  borderRadius: "6px", color: "var(--color-mycel-text)", fontSize: "12px",
+  backgroundColor: "var(--mycel-surface)", border: "1px solid var(--mycel-border)",
+  borderRadius: "6px", color: "var(--mycel-text)", fontSize: "12px",
 };
 const AX = { axisLine: false as const, tickLine: false as const };
-const TICK = { fill: "var(--color-mycel-muted)", fontSize: 10 };
+const TICK = { fill: "var(--mycel-muted)", fontSize: 10 };
 
 // ── Helpers ──────────────────────────────────────────────────────────────────────
 
@@ -368,7 +368,7 @@ export function StatsTab({ agent }: { agent: Agent }) {
             <Panel title="CPU (%)">
               <ResponsiveContainer width="100%" height={200}>
                 <AreaChart data={cpuChart} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--color-mycel-border)" vertical={false} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--mycel-border)" vertical={false} />
                   <XAxis dataKey="time" tick={TICK} {...AX} />
                   <YAxis tick={TICK} {...AX} tickFormatter={(v: number) => `${v}%`} />
                   <Tooltip contentStyle={TT} />
@@ -381,7 +381,7 @@ export function StatsTab({ agent }: { agent: Agent }) {
             <Panel title="Memory (MB)">
               <ResponsiveContainer width="100%" height={200}>
                 <AreaChart data={memChart} margin={{ top: 4, right: 8, left: -10, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--color-mycel-border)" vertical={false} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--mycel-border)" vertical={false} />
                   <XAxis dataKey="time" tick={TICK} {...AX} />
                   <YAxis tick={TICK} {...AX} />
                   <Tooltip contentStyle={TT} formatter={(v) => [`${Number(v ?? 0).toFixed(1)} MB`]} />
@@ -400,7 +400,7 @@ export function StatsTab({ agent }: { agent: Agent }) {
             <Panel title="Network I/O">
               <ResponsiveContainer width="100%" height={200}>
                 <AreaChart data={netChart} margin={{ top: 4, right: 8, left: -10, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--color-mycel-border)" vertical={false} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--mycel-border)" vertical={false} />
                   <XAxis dataKey="time" tick={TICK} {...AX} />
                   <YAxis tick={TICK} {...AX} tickFormatter={(v: number) => fmtBytes(v)} />
                   <Tooltip contentStyle={TT} formatter={(v) => [fmtBytes(Number(v ?? 0))]} />
@@ -414,7 +414,7 @@ export function StatsTab({ agent }: { agent: Agent }) {
             <Panel title="Token Usage">
               <ResponsiveContainer width="100%" height={200}>
                 <AreaChart data={tokenChart} margin={{ top: 4, right: 8, left: -8, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--color-mycel-border)" vertical={false} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--mycel-border)" vertical={false} />
                   <XAxis dataKey="time" tick={TICK} {...AX} />
                   <YAxis tick={TICK} {...AX} tickFormatter={(v: number) => fmtTokens(v)} />
                   <Tooltip contentStyle={TT} formatter={(v, n) => [Number(v ?? 0).toLocaleString(), n === "input" ? "Input" : "Output"]} />
@@ -444,9 +444,9 @@ export function StatsTab({ agent }: { agent: Agent }) {
               <Panel title="Cost by Model">
                 <ResponsiveContainer width="100%" height={200}>
                   <BarChart layout="vertical" data={costBarData} margin={{ top: 0, right: 8, left: 4, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="var(--color-mycel-border)" horizontal={false} />
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--mycel-border)" horizontal={false} />
                     <XAxis type="number" tick={TICK} {...AX} tickFormatter={(v: number) => `$${v}`} />
-                    <YAxis type="category" dataKey="name" tick={{ ...TICK, fill: "var(--color-mycel-text)", fontSize: 9 }} {...AX} width={120} />
+                    <YAxis type="category" dataKey="name" tick={{ ...TICK, fill: "var(--mycel-text)", fontSize: 9 }} {...AX} width={120} />
                     <Tooltip contentStyle={TT} formatter={(v) => [`$${Number(v ?? 0).toFixed(4)}`]} />
                     <Bar dataKey="cost" radius={[0, 3, 3, 0]}>
                       {costBarData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
