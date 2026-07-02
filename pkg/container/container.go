@@ -316,10 +316,16 @@ func (b *Backend) CreateSessionWithEnv(ctx context.Context, name, dir, command s
 		return fmt.Errorf("workspace %q is not a git repository (no .git found): %w", dir, err)
 	}
 
+	// Resolve image once per session — avoids double docker probe
+	// (validation below + docker run selection at the end).
+	image := b.cfg.Image
+	if toolName, ok := env["BC_AGENT_TOOL"]; ok && toolName != "" {
+		image = b.imageForTool(toolName)
+	}
+
 	// Validate tool/image consistency — catch mismatches like running "gemini"
 	// command inside a "bc-agent-claude" image (Exit 127).
 	if toolName, ok := env["BC_AGENT_TOOL"]; ok && toolName != "" {
-		image := b.imageForTool(toolName)
 		cmdBin := strings.Fields(command)
 		if len(cmdBin) > 0 {
 			bin := cmdBin[0]
@@ -448,13 +454,8 @@ func (b *Backend) CreateSessionWithEnv(ctx context.Context, name, dir, command s
 		args = append(args, "-e", k+"="+v)
 	}
 
-	// Select image based on agent tool
-	image := b.cfg.Image
-	if toolName, ok := env["BC_AGENT_TOOL"]; ok && toolName != "" {
-		image = b.imageForTool(toolName)
-	}
-
 	// Run the agent command. claude --tmux handles its own tmux session.
+	// image was resolved once at the top of this function.
 	args = append(args, "--entrypoint", "bash", image, "-c", command)
 
 	log.Debug("creating docker container", "name", cn, "image", image)

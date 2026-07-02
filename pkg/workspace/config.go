@@ -162,7 +162,7 @@ func DefaultConfig() Config {
 		Runtime: RuntimeConfig{
 			Default: "docker",
 			Docker: DockerRuntimeConfig{
-				Image:            "bc-agent:latest",
+				Image:            "mycel-agent-claude:latest",
 				Network:          "bc-net",
 				DockerSocketPath: "/var/run/docker.sock",
 				CPUs:             2,

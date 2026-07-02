@@ -1,4 +1,4 @@
-# bc agent base image — developer tools shared by all provider images
+# mycel agent base image — developer tools shared by all provider images
 # Usage: docker build -t mycel-agent-base:latest -f docker/Dockerfile.base .
 
 FROM ubuntu:24.04
