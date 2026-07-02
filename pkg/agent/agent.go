@@ -82,8 +82,15 @@ const MaxAgentNameLength = 64
 
 // Default configuration constants.
 const (
-	// DefaultSessionPrefix is the tmux session name prefix for bc agents.
-	DefaultSessionPrefix = "bc-"
+	// DefaultSessionPrefix is the tmux session / container name prefix for
+	// mycel agents (was "bc-" prior to v0.3.1). Sourced from pkg/tmux so
+	// there is a single source of truth for the rename.
+	DefaultSessionPrefix = tmux.DefaultPrefix
+
+	// LegacySessionPrefix is the pre-v0.3.1 prefix. Reader-side fallbacks
+	// use this so agents/sessions created before the rename keep working
+	// for one release cycle. Remove after v0.3.2.
+	LegacySessionPrefix = tmux.LegacyPrefix
 
 	// DefaultProvider is the default AI provider for new agents.
 	DefaultProvider = "claude"
@@ -579,7 +586,7 @@ func normalizeRuntime(rt string) string {
 // NewManager creates a new agent manager with workspace-scoped tmux sessions.
 func NewManager(stateDir string) *Manager {
 	cmd, tool := defaultAgentCmd()
-	tmuxBe := runtime.NewTmuxBackend(tmux.NewManager(DefaultSessionPrefix))
+	tmuxBe := runtime.NewTmuxBackend(tmux.NewManager(DefaultSessionPrefix).WithLegacyPrefix(LegacySessionPrefix))
 	return &Manager{
 		agents:           make(map[string]*Agent),
 		agentLocks:       make(map[string]*sync.Mutex),
@@ -601,7 +608,7 @@ func NewManager(stateDir string) *Manager {
 // and their worktrees at <stateDir>/agents/<name>/bc-<ws>-<name>/.
 func NewWorkspaceManager(stateDir, workspacePath string) *Manager {
 	cmd, tool := defaultAgentCmd()
-	tmuxBe := runtime.NewTmuxBackend(tmux.NewWorkspaceManager(DefaultSessionPrefix, workspacePath))
+	tmuxBe := runtime.NewTmuxBackend(tmux.NewWorkspaceManager(DefaultSessionPrefix, workspacePath).WithLegacyPrefix(LegacySessionPrefix))
 	return &Manager{
 		agents:           make(map[string]*Agent),
 		agentLocks:       make(map[string]*sync.Mutex),
@@ -624,7 +631,7 @@ func NewWorkspaceManagerWithRuntime(stateDir, workspacePath string, rt runtime.B
 	bes := map[string]runtime.Backend{rtName: rt}
 	// Always register a tmux backend so agents with RuntimeBackend="tmux" work
 	if rtName != "tmux" {
-		bes["tmux"] = runtime.NewTmuxBackend(tmux.NewWorkspaceManager(DefaultSessionPrefix, workspacePath))
+		bes["tmux"] = runtime.NewTmuxBackend(tmux.NewWorkspaceManager(DefaultSessionPrefix, workspacePath).WithLegacyPrefix(LegacySessionPrefix))
 	}
 	return &Manager{
 		agents:           make(map[string]*Agent),

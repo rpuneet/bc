@@ -102,11 +102,20 @@ type Backend struct {
 	logCancels        map[string]context.CancelFunc
 	providerRegistry  *provider.Registry
 	prefix            string
+	legacyPrefix      string // Optional prior container-name prefix ("bc-") — reader-side fallback for pre-rename containers.
 	workspaceHash     string
 	workspacePath     string
 	hostWorkspacePath string // host path for Docker-in-Docker mounts (from BC_HOST_WORKSPACE)
 	cfg               Config
 	mu                sync.RWMutex
+}
+
+// WithLegacyPrefix configures a prior container-name prefix that ListSessions
+// should also recognize. Used during renames (v0.3.1: "bc-" → "mycel-") so
+// pre-upgrade containers remain discoverable for one cycle.
+func (b *Backend) WithLegacyPrefix(prefix string) *Backend {
+	b.legacyPrefix = prefix
+	return b
 }
 
 // NewBackend creates a Docker runtime backend.
@@ -619,6 +628,10 @@ func (b *Backend) ListSessions(ctx context.Context) ([]runtime.Session, error) {
 
 	var sessions []runtime.Session
 	fullPrefix := b.prefix + b.workspaceHash + "-"
+	var legacyFullPrefix string
+	if b.legacyPrefix != "" && b.legacyPrefix != b.prefix {
+		legacyFullPrefix = b.legacyPrefix + b.workspaceHash + "-"
+	}
 	for _, line := range strings.Split(strings.TrimSpace(string(output)), "\n") {
 		if line == "" {
 			continue
@@ -628,11 +641,17 @@ func (b *Backend) ListSessions(ctx context.Context) ([]runtime.Session, error) {
 			continue
 		}
 		n := parts[0]
-		if !strings.HasPrefix(n, fullPrefix) {
+		matched := ""
+		switch {
+		case strings.HasPrefix(n, fullPrefix):
+			matched = fullPrefix
+		case legacyFullPrefix != "" && strings.HasPrefix(n, legacyFullPrefix):
+			matched = legacyFullPrefix
+		default:
 			continue
 		}
 		sessions = append(sessions, runtime.Session{
-			Name:    strings.TrimPrefix(n, fullPrefix),
+			Name:    strings.TrimPrefix(n, matched),
 			Created: parts[1],
 		})
 	}

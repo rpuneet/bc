@@ -169,7 +169,7 @@ func DefaultConfig() Config {
 				MemoryMB:         4096,
 			},
 			Tmux: TmuxRuntimeConfig{
-				SessionPrefix: "bc",
+				SessionPrefix: "mycel",
 				HistoryLimit:  10000,
 				DefaultShell:  "/bin/bash",
 			},

@@ -370,11 +370,12 @@ func newAgentManager(ws *bcworkspace.Workspace) (*bcagent.Manager, *bccontainer.
 		wsCfg = ws.Config.Runtime.Docker
 	}
 	dockerCfg := bccontainer.ConfigFromWorkspace(wsCfg)
-	be, err := bccontainer.NewBackend(dockerCfg, "bc-", ws.RootDir, provider.DefaultRegistry)
+	be, err := bccontainer.NewBackend(dockerCfg, bcagent.DefaultSessionPrefix, ws.RootDir, provider.DefaultRegistry)
 	if err != nil {
 		log.Warn("Docker not available — agents will use tmux runtime only", "error", err, "workspace", ws.RootDir)
 		return bcagent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir), nil, nil
 	}
+	be = be.WithLegacyPrefix(bcagent.LegacySessionPrefix)
 	mgr := bcagent.NewWorkspaceManagerWithRuntime(ws.AgentsDir(), ws.RootDir, be, "docker")
 	return mgr, be, nil
 }
