@@ -33,7 +33,11 @@ export function calculateCost(model: string, inputTokens: number, outputTokens: 
 
 // ── Constants ───────────────────────────────────────────────────────────────────
 
-const COLORS = ["#FF6B35", "#3B82F6", "#10B981", "#A855F7", "#F59E0B", "#EC4899", "#06B6D4", "#84CC16"];
+// Chart palette. First entry uses the theme accent so charts feel like they
+// belong to the current theme (tangerine in Solar Flare / Light, emerald in
+// Dark). The rest are theme-agnostic hues that stay readable in all three.
+const ACCENT = "var(--mycel-accent)";
+const COLORS = [ACCENT, "#3B82F6", "#10B981", "#A855F7", "#F59E0B", "#EC4899", "#06B6D4", "#84CC16"];
 const RANGES = [
   { label: "1h", seconds: 3600 },
   { label: "6h", seconds: 21600 },
@@ -341,7 +345,7 @@ export function Stats() {
                 <YAxis tick={TICK_STYLE} {...AX} tickFormatter={(v: number) => fmtTokens(v)} />
                 <Tooltip contentStyle={TT} formatter={(v, n) => [Number(v ?? 0).toLocaleString(), n === "input" ? "Input" : "Output"]} />
                 <Area type="monotone" dataKey="input" name="Input" stroke="#3B82F6" fill="#3B82F6" fillOpacity={0.12} strokeWidth={1.5} stackId="1" dot={false} />
-                <Area type="monotone" dataKey="output" name="Output" stroke="#FF6B35" fill="#FF6B35" fillOpacity={0.12} strokeWidth={1.5} stackId="1" dot={false} />
+                <Area type="monotone" dataKey="output" name="Output" stroke={ACCENT} fill={ACCENT} fillOpacity={0.12} strokeWidth={1.5} stackId="1" dot={false} />
               </AreaChart>
             </ResponsiveContainer>
           )}
@@ -354,7 +358,7 @@ export function Stats() {
                 <XAxis dataKey="time" tick={TICK_STYLE} {...AX} />
                 <YAxis tick={TICK_STYLE} {...AX} tickFormatter={(v: number) => `$${v.toFixed(2)}`} />
                 <Tooltip contentStyle={TT} formatter={(v) => [`$${Number(v ?? 0).toFixed(4)}`]} />
-                <Area type="monotone" dataKey="cost" name="Cost" stroke="#FF6B35" fill="#FF6B35" fillOpacity={0.15} strokeWidth={1.5} dot={false} />
+                <Area type="monotone" dataKey="cost" name="Cost" stroke={ACCENT} fill={ACCENT} fillOpacity={0.15} strokeWidth={1.5} dot={false} />
               </AreaChart>
             </ResponsiveContainer>
           )}
@@ -372,7 +376,7 @@ export function Stats() {
                 <YAxis tick={TICK_STYLE} {...AX} tickFormatter={(v: number) => fmtBytes(v)} />
                 <Tooltip contentStyle={TT} formatter={(v) => [fmtBytes(Number(v ?? 0))]} />
                 <Area type="monotone" dataKey="rx" name="RX" stroke="#10B981" fill="#10B981" fillOpacity={0.12} strokeWidth={1.5} dot={false} />
-                <Area type="monotone" dataKey="tx" name="TX" stroke="#FF6B35" fill="#FF6B35" fillOpacity={0.12} strokeWidth={1.5} dot={false} />
+                <Area type="monotone" dataKey="tx" name="TX" stroke={ACCENT} fill={ACCENT} fillOpacity={0.12} strokeWidth={1.5} dot={false} />
               </AreaChart>
             </ResponsiveContainer>
           )}
@@ -471,7 +475,7 @@ export function Stats() {
                 <YAxis tick={TICK_STYLE} {...AX} tickFormatter={(v: number) => fmtTokens(v)} />
                 <Tooltip contentStyle={TT} formatter={(v, n) => [fmtTokens(Number(v ?? 0)), n === "input" ? "Input" : "Output"]} />
                 <Bar dataKey="input" name="Input" fill="#3B82F6" radius={[3, 3, 0, 0]} />
-                <Bar dataKey="output" name="Output" fill="#FF6B35" radius={[3, 3, 0, 0]} />
+                <Bar dataKey="output" name="Output" fill={ACCENT} radius={[3, 3, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           )}
