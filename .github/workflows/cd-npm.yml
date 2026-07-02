@@ -67,7 +67,7 @@ jobs:
         working-directory: packages/mycel-cli
         env:
           PKG_VERSION: ${{ steps.version.outputs.version }}
-        run: npm version "$PKG_VERSION" --no-git-tag-version
+        run: npm version "$PKG_VERSION" --no-git-tag-version --allow-same-version
 
       - name: Check if version already published
         id: published
