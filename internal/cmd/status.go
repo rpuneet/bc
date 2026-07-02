@@ -115,7 +115,7 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	if len(agentList) == 0 {
 		fmt.Println("No agents configured")
 		fmt.Println()
-		fmt.Println("Run 'bc up' to start agents")
+		fmt.Println("Run 'mycel up' to start agents")
 		return nil
 	}
 

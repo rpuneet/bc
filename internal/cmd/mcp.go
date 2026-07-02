@@ -53,7 +53,7 @@ Examples:
   bc mcp add remote --transport sse --url "https://api.example.com/mcp"
   bc mcp add github --command npx --env 'GITHUB_TOKEN=${secret:GITHUB_TOKEN}' --env "OWNER=me"
 
-Use ${secret:NAME} references for sensitive values (see 'bc secret set').`,
+Use ${secret:NAME} references for sensitive values (see 'mycel secret set').`,
 	Args: cobra.ExactArgs(1),
 	RunE: runMCPAdd,
 }
@@ -251,7 +251,7 @@ func runMCPList(cmd *cobra.Command, args []string) error {
 	if len(configs) == 0 {
 		ui.Warning("No MCP servers configured")
 		ui.BlankLine()
-		ui.Info("Run 'bc mcp add <name> --command <cmd>' to add one")
+		ui.Info("Run 'mycel mcp add <name> --command <cmd>' to add one")
 		return nil
 	}
 

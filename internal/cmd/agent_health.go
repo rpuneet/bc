@@ -102,7 +102,7 @@ func runAgentHealth(cmd *cobra.Command, args []string) error {
 	}
 
 	if agentFilter != "" && len(healthData) == 0 {
-		return fmt.Errorf("agent %q not found (use 'bc agent list' to see available agents)", agentFilter)
+		return fmt.Errorf("agent %q not found (use 'mycel agent list' to see available agents)", agentFilter)
 	}
 
 	if len(healthData) == 0 {

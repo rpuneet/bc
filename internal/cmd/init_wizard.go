@@ -59,7 +59,7 @@ func RunWizard(dir string) error {
 	}
 	if isV1Workspace(absDir) {
 		fmt.Fprintln(os.Stderr, "Warning: Existing v1 workspace detected.")
-		fmt.Fprintln(os.Stderr, "Run 'bc init' after removing .bc/ directory to migrate.")
+		fmt.Fprintln(os.Stderr, "Run 'mycel init' after removing .bc/ directory to migrate.")
 		return fmt.Errorf("cannot initialize: v1 workspace exists")
 	}
 
@@ -91,7 +91,7 @@ func RunWizard(dir string) error {
 // printWelcome prints the wizard welcome banner.
 func printWelcome() {
 	fmt.Println()
-	fmt.Println("  " + ui.CyanText("Welcome to bc!"))
+	fmt.Println("  " + ui.CyanText("Welcome to mycel!"))
 	fmt.Println("  " + ui.GrayText("AI Agent Orchestration CLI"))
 	fmt.Println()
 }

@@ -142,7 +142,7 @@ var configUserCmd = &cobra.Command{
 	Short: "Manage user-level configuration (~/.bcrc)",
 	Long: `Manage user-level configuration stored in ~/.bcrc.
 
-User configuration provides defaults that apply across all bc workspaces:
+User configuration provides defaults that apply across all mycel workspaces:
   - Your nickname for channel messages
   - Default role for new agents
   - Preferred AI tools
@@ -216,11 +216,11 @@ func init() {
 func loadWorkspaceConfig() (*workspace.Config, string, error) {
 	ws, err := getWorkspace()
 	if err != nil {
-		return nil, "", fmt.Errorf("not in a bc workspace: %w", err)
+		return nil, "", fmt.Errorf("not in a mycel workspace: %w", err)
 	}
 
 	if ws.Config == nil {
-		return nil, "", fmt.Errorf("workspace is using v1 config format. Run 'bc init' to upgrade to v2")
+		return nil, "", fmt.Errorf("workspace is using v1 config format. Run 'mycel init' to upgrade to v2")
 	}
 
 	configPath := workspace.ConfigPath(ws.RootDir)
@@ -804,7 +804,7 @@ func runConfigUserInitWizard() (workspace.UserRCConfig, error) {
 	cfg := workspace.DefaultUserRCConfig()
 
 	fmt.Println()
-	fmt.Println("bc - User Configuration Setup")
+	fmt.Println("mycel - User Configuration Setup")
 	fmt.Println(strings.Repeat("-", 40))
 	fmt.Println()
 
@@ -827,7 +827,7 @@ func runConfigUserInitWizard() (workspace.UserRCConfig, error) {
 	}
 
 	// Auto-start root
-	fmt.Printf("Auto-start root agent on 'bc up'? [Y/n]: ")
+	fmt.Printf("Auto-start root agent on 'mycel up'? [Y/n]: ")
 	if _, err := fmt.Scanln(&input); err == nil {
 		input = strings.ToLower(strings.TrimSpace(input))
 		cfg.Defaults.AutoStartRoot = input != "n" && input != "no"
@@ -855,7 +855,7 @@ func runConfigUserShow(_ *cobra.Command, _ []string) error {
 	if cfg == nil {
 		path := workspace.UserRCConfigPath()
 		fmt.Printf("No user config found at %s\n", path)
-		fmt.Println("Run 'bc config user init' to create one.")
+		fmt.Println("Run 'mycel config user init' to create one.")
 		return nil
 	}
 

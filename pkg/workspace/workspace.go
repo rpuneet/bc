@@ -9,7 +9,7 @@
 //
 //	ws, err := workspace.Find(".")
 //	if err != nil {
-//	    log.Fatal("not in a bc workspace")
+//	    log.Fatal("not in a mycel workspace")
 //	}
 //	fmt.Println("Workspace:", ws.Name())
 //
@@ -70,7 +70,7 @@ func Init(rootDir string) (*Workspace, error) {
 	// Verify this is a git repository — bc requires git for agent worktrees.
 	gitDir := filepath.Join(absRoot, ".git")
 	if _, statErr := os.Stat(gitDir); os.IsNotExist(statErr) {
-		return nil, fmt.Errorf("not a git repository: %s\nRun 'git init' first, then 'bc init'", absRoot)
+		return nil, fmt.Errorf("not a git repository: %s\nRun 'git init' first, then 'mycel init'", absRoot)
 	}
 
 	if homeErr := EnsureBCHome(); homeErr != nil {
@@ -118,7 +118,7 @@ func Init(rootDir string) (*Workspace, error) {
 	// makes `bc <cmd>` resolve after init. If we can't persist it, init
 	// must fail loudly (#3173) — silently succeeding here leaves the
 	// user with a phantom workspace that every subsequent command
-	// rejects as "not in a bc workspace".
+	// rejects as "not in a mycel workspace".
 	reg, regErr := LoadRegistry()
 	if regErr != nil {
 		if closeStore != nil {
@@ -172,7 +172,7 @@ func Load(rootDir string) (*Workspace, error) {
 			stateDir = legacyDir
 			jsonPath = legacyPath
 		} else {
-			return nil, fmt.Errorf("not a bc workspace (no %s or %s found in %s or %s)",
+			return nil, fmt.Errorf("not a mycel workspace (no %s or %s found in %s or %s)",
 				PreferencesFileName, LegacySettingsFileName, stateDir, legacyDir)
 		}
 	}

@@ -24,7 +24,7 @@ import (
 	bcws "github.com/rpuneet/mycel/server/ws"
 )
 
-// RunServer starts the bc server (formerly bcd) in the foreground.
+// RunServer starts the mycel server (formerly bcd) in the foreground.
 // It loads the workspace registry, constructs shared Globals, builds the
 // launch workspace's WorkspaceServices via the server-side factory, wires
 // handlers, and blocks until the context is canceled or a signal is

@@ -249,8 +249,8 @@ func TestConfigNoWorkspace(t *testing.T) {
 		t.Fatal("expected error when not in workspace")
 	}
 
-	if !strings.Contains(err.Error(), "not in a bc workspace") {
-		t.Errorf("expected 'not in a bc workspace' error, got: %v", err)
+	if !strings.Contains(err.Error(), "not in a mycel workspace") {
+		t.Errorf("expected 'not in a mycel workspace' error, got: %v", err)
 	}
 }
 

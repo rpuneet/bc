@@ -24,8 +24,8 @@ var (
 
 var initCmd = &cobra.Command{
 	Use:   "init [directory]",
-	Short: "Initialize a new bc v2 workspace",
-	Long: `Initialize a new bc v2 workspace in the specified directory (or current directory).
+	Short: "Initialize a new mycel v2 workspace",
+	Long: `Initialize a new mycel v2 workspace in the specified directory (or current directory).
 
 This creates a .bc directory with v2 configuration for managing agents.
 
@@ -149,7 +149,7 @@ func initV2Workspace(rootDir string) error {
 	}
 	stateDir := ws.StateDir()
 
-	fmt.Printf("Initialized bc v2 workspace in %s\n", rootDir)
+	fmt.Printf("Initialized mycel v2 workspace in %s\n", rootDir)
 	fmt.Printf("\n")
 	fmt.Printf("  Runtime state: %s\n", stateDir)
 	fmt.Printf("    preferences.json   # Workspace configuration\n")
@@ -201,12 +201,12 @@ func newDaemonClient(ctx context.Context) (*client.Client, error) {
 	return c, nil
 }
 
-// errNotInWorkspace returns an actionable error for commands that require a bc workspace.
+// errNotInWorkspace returns an actionable error for commands that require a mycel workspace.
 func errNotInWorkspace(err error) error {
 	if err != nil {
-		return fmt.Errorf("not in a bc workspace (run 'bc init' to initialize one): %w", err)
+		return fmt.Errorf("not in a mycel workspace (run 'mycel init' to initialize one): %w", err)
 	}
-	return fmt.Errorf("not in a bc workspace. Run 'bc init' in your project directory to create one")
+	return fmt.Errorf("not in a mycel workspace. Run 'mycel init' in your project directory to create one")
 }
 
 // requireWorkspace returns the current workspace or an actionable error.
@@ -240,7 +240,7 @@ func runInitInteractive(_ *cobra.Command, dir string) error {
 	}
 	if isV1Workspace(absDir) {
 		fmt.Fprintln(os.Stderr, "Warning: Existing v1 workspace detected.")
-		fmt.Fprintln(os.Stderr, "Run 'bc init' after removing .bc/ directory to migrate.")
+		fmt.Fprintln(os.Stderr, "Run 'mycel init' after removing .bc/ directory to migrate.")
 		return fmt.Errorf("cannot initialize: v1 workspace exists")
 	}
 

@@ -15,7 +15,7 @@ var doctorCmd = &cobra.Command{
 	Use:     "doctor",
 	Aliases: []string{"dr"},
 	Short:   "Health checks and diagnostics",
-	Long: `Run health checks on your bc workspace and dependencies.
+	Long: `Run health checks on your mycel workspace and dependencies.
 
 Checks workspace config, agent state, databases, tools, and git worktrees.
 
@@ -51,7 +51,7 @@ var doctorCheckCmd = &cobra.Command{
 var doctorFixCmd = &cobra.Command{
 	Use:   "fix",
 	Short: "Auto-fix fixable issues",
-	Long: `Attempt to automatically repair fixable issues found by 'bc doctor'.
+	Long: `Attempt to automatically repair fixable issues found by 'mycel doctor'.
 
 Fixable issues include:
   - Orphaned git worktrees
@@ -243,7 +243,7 @@ func printReport(report *doctor.Report) {
 	if fail > 0 {
 		fmt.Println(ui.RedText(summary))
 		fmt.Println()
-		fmt.Println("Run 'bc doctor fix' to auto-repair fixable issues.")
+		fmt.Println("Run 'mycel doctor fix' to auto-repair fixable issues.")
 	} else if warn > 0 {
 		fmt.Println(ui.YellowText(summary))
 	} else {
@@ -298,7 +298,7 @@ func printClientReport(report *client.DoctorReport) {
 	if fail > 0 {
 		fmt.Println(ui.RedText(summary))
 		fmt.Println()
-		fmt.Println("Run 'bc doctor fix' to auto-repair fixable issues.")
+		fmt.Println("Run 'mycel doctor fix' to auto-repair fixable issues.")
 	} else if warn > 0 {
 		fmt.Println(ui.YellowText(summary))
 	} else {

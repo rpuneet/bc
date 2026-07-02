@@ -72,7 +72,7 @@ Environment Variables:
   BC_AGENT_ROLE     Current agent role
   BC_WORKSPACE      Path to workspace root
   BC_AGENT_WORKTREE Path to agent's worktree
-  BC_BIN            Path to bc binary (default: bc in PATH)
+  BC_BIN            Path to mycel binary (default: bc in PATH)
   BC_ROOT           Workspace root directory
   NO_COLOR          Disable colored output
 
@@ -172,7 +172,7 @@ func runRoot(cmd *cobra.Command, args []string) error {
 // promptInit displays an interactive prompt to initialize a new workspace.
 func promptInit(cmd *cobra.Command) error {
 	fmt.Println()
-	fmt.Printf("  %s\n", ui.BoldText("bc - AI Agent Orchestration"))
+	fmt.Printf("  %s\n", ui.BoldText("mycel - AI Agent Orchestration"))
 	fmt.Println()
 	fmt.Println("  No workspace found in current directory.")
 	fmt.Println()
@@ -199,7 +199,7 @@ func promptInit(cmd *cobra.Command) error {
 // runInteractiveInit runs an interactive workspace initialization.
 func runInteractiveInit(cmd *cobra.Command) error {
 	fmt.Println()
-	fmt.Println("  Initializing bc workspace...")
+	fmt.Println("  Initializing mycel workspace...")
 	fmt.Println()
 
 	// Get current directory

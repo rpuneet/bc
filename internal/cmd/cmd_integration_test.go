@@ -183,7 +183,7 @@ func TestAgentSendNoWorkspace(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error when not in workspace, got nil")
 	}
-	if !strings.Contains(err.Error(), "not in a bc workspace") {
+	if !strings.Contains(err.Error(), "not in a mycel workspace") {
 		t.Errorf("expected workspace error, got: %v", err)
 	}
 	if bcdHit {
@@ -267,7 +267,7 @@ func TestAgentReportNoWorkspace(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error when not in workspace, got nil")
 	}
-	if !strings.Contains(err.Error(), "not in a bc workspace") {
+	if !strings.Contains(err.Error(), "not in a mycel workspace") {
 		t.Errorf("expected workspace error, got: %v", err)
 	}
 }
@@ -333,7 +333,7 @@ func TestStatusNoWorkspace(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error when not in workspace, got nil")
 	}
-	if !strings.Contains(err.Error(), "not in a bc workspace") {
+	if !strings.Contains(err.Error(), "not in a mycel workspace") {
 		t.Errorf("expected workspace error, got: %v", err)
 	}
 }
@@ -450,7 +450,7 @@ func TestLogsNoWorkspace(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error when not in workspace, got nil")
 	}
-	if !strings.Contains(err.Error(), "not in a bc workspace") {
+	if !strings.Contains(err.Error(), "not in a mycel workspace") {
 		t.Errorf("expected workspace error, got: %v", err)
 	}
 }
@@ -590,7 +590,7 @@ func TestStatsNoWorkspace(t *testing.T) {
 	_, _, err = executeIntegrationCmd("workspace", "stats")
 	// When bcd is running, stats works via API even without a local workspace.
 	// When bcd is not running, should fail with workspace error.
-	if err != nil && !strings.Contains(err.Error(), "not in a bc workspace") {
+	if err != nil && !strings.Contains(err.Error(), "not in a mycel workspace") {
 		t.Errorf("expected either success (bcd running) or workspace error, got: %v", err)
 	}
 }

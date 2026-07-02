@@ -31,8 +31,8 @@ func normalizeAddr(addr string) string {
 
 var upCmd = &cobra.Command{
 	Use:   "up",
-	Short: "Start bc server",
-	Long: `Start the bc server (API, web UI, MCP, agent management).
+	Short: "Start mycel server",
+	Long: `Start the mycel server (API, web UI, MCP, agent management).
 
 By default the server runs in the foreground (for Docker/Railway).
 Use -d to run as a background daemon.
@@ -102,7 +102,7 @@ func runUp(cmd *cobra.Command, _ []string) error {
 	}
 
 	// Foreground mode: run server directly
-	fmt.Printf("Starting bc server in %s\n", wsRoot)
+	fmt.Printf("Starting mycel server in %s\n", wsRoot)
 	fmt.Printf("  addr: %s\n\n", upAddr)
 
 	// Set BC_BCD_ADDR so agents inherit the correct server address for hooks.
@@ -112,7 +112,7 @@ func runUp(cmd *cobra.Command, _ []string) error {
 		fmt.Printf("  BC_BCD_ADDR: %s\n", bcdAddr)
 	}
 
-	// Publish the listen address at ~/.bc/daemon.addr so the bc CLI and
+	// Publish the listen address at ~/.bc/daemon.addr so the mycel CLI and
 	// agents can find the daemon without BC_DAEMON_ADDR when it runs on
 	// a non-default port. Best-effort — failure to write is not fatal,
 	// but each failure mode must warn so users aren't silently routed
@@ -146,7 +146,7 @@ func runUp(cmd *cobra.Command, _ []string) error {
 	return RunServer(upAddr, wsRoot, upCORS, upAPIKey)
 }
 
-// runUpDaemon starts bc up in the background by re-executing the bc binary.
+// runUpDaemon starts bc up in the background by re-executing the mycel binary.
 // Logs go to ~/.bc/daemon.log, PID to ~/.bc/daemon.pid.
 func runUpDaemon(wsRoot string) error {
 	if _, err := workspace.Load(wsRoot); err != nil {
@@ -167,7 +167,7 @@ func runUpDaemon(wsRoot string) error {
 		pid := strings.TrimSpace(string(pidData))
 		checkCmd := exec.CommandContext(context.Background(), "kill", "-0", pid) //nolint:gosec // trusted
 		if checkCmd.Run() == nil {
-			fmt.Printf("  bc server already running (PID %s)\n", pid)
+			fmt.Printf("  mycel server already running (PID %s)\n", pid)
 			fmt.Printf("  http://%s\n", upAddr)
 			return nil
 		}
@@ -176,7 +176,7 @@ func runUpDaemon(wsRoot string) error {
 	// Find our own binary to re-exec
 	selfPath, err := os.Executable()
 	if err != nil {
-		return fmt.Errorf("cannot find bc binary: %w", err)
+		return fmt.Errorf("cannot find mycel binary: %w", err)
 	}
 
 	logPath, err := workspace.DaemonLogPath()
@@ -219,7 +219,7 @@ func runUpDaemon(wsRoot string) error {
 	if err := cmd.Start(); err != nil {
 		_ = logFile.Close()
 		_ = nullFile.Close()
-		return fmt.Errorf("start bc server: %w", err)
+		return fmt.Errorf("start mycel server: %w", err)
 	}
 	_ = logFile.Close()
 	_ = nullFile.Close()
@@ -232,7 +232,7 @@ func runUpDaemon(wsRoot string) error {
 	// Detach — don't wait for the process
 	_ = cmd.Process.Release()
 
-	fmt.Printf("  %s bc server started (PID %d)\n", ui.GreenText("ok"), cmd.Process.Pid)
+	fmt.Printf("  %s mycel server started (PID %d)\n", ui.GreenText("ok"), cmd.Process.Pid)
 	fmt.Printf("  http://%s\n", upAddr)
 	fmt.Printf("  logs: %s\n", logPath)
 	fmt.Printf("  pid:  %s\n", pidPath)

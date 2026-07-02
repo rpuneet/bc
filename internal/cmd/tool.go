@@ -226,7 +226,7 @@ func getToolOrProvider(ctx context.Context, s *tool.Store, name string) (*tool.T
 	// Fallback: synthesize from provider registry
 	p, err := provider.GetProvider(name)
 	if err != nil {
-		return nil, fmt.Errorf("unknown tool %q (use 'bc tool list' to see available tools)", name)
+		return nil, fmt.Errorf("unknown tool %q (use 'mycel tool list' to see available tools)", name)
 	}
 	return &tool.Tool{
 		Name:    p.Name(),
@@ -582,7 +582,7 @@ func runToolAdd(cmd *cobra.Command, args []string) error {
 		}
 		fmt.Printf("Added tool %s\n", ui.GreenText(name))
 		if apiTool.InstallCmd != "" {
-			fmt.Printf("Run 'bc tool setup %s' to install it.\n", name)
+			fmt.Printf("Run 'mycel tool setup %s' to install it.\n", name)
 		}
 		return nil
 	}
@@ -620,7 +620,7 @@ func runToolAdd(cmd *cobra.Command, args []string) error {
 
 	fmt.Printf("Added tool %s\n", ui.GreenText(name))
 	if t.InstallCmd != "" {
-		fmt.Printf("Run 'bc tool setup %s' to install it.\n", name)
+		fmt.Printf("Run 'mycel tool setup %s' to install it.\n", name)
 	}
 	return nil
 }

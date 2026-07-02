@@ -74,7 +74,7 @@ description: Base role — provides bc MCP server, workspace communication, and 
 mcp_servers:
   - bc
 prompt_create: |
-  You have been created as a new agent in a bc workspace.
+  You have been created as a new agent in a mycel workspace.
   Use the report_status MCP tool to set your initial task.
   Check #all and #engineering channels for context.
 prompt_start: |
@@ -96,7 +96,7 @@ commands:
     Include your agent name as the sender.
 rules:
   workspace-communication: |
-    All workspace operations MUST use bc MCP tools. Never use bc CLI commands directly.
+    All workspace operations MUST use bc MCP tools. Never use mycel CLI commands directly.
     Available MCP tools: send_message, report_status, query_costs.
     Always include your agent name as sender when sending messages.
   channel-etiquette: |
@@ -156,7 +156,7 @@ prompt_start: |
 
 # Root Agent
 
-You are the root agent for this bc workspace.
+You are the root agent for this mycel workspace.
 
 ## Additional MCP Tools
 - **create_agent**: Create new agents {name, role, tool}

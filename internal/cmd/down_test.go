@@ -22,7 +22,7 @@ func TestDownNoWorkspace(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error when not in workspace, got nil")
 	}
-	if !strings.Contains(err.Error(), "not in a bc workspace") {
+	if !strings.Contains(err.Error(), "not in a mycel workspace") {
 		t.Errorf("expected workspace error, got: %v", err)
 	}
 }
