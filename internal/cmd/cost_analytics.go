@@ -42,8 +42,8 @@ var costSummaryCmd = &cobra.Command{
 	Long: `Show cost summary with today, this week, this month, and all-time totals.
 
 Examples:
-  bc cost summary
-  bc cost summary --json`,
+  mycel cost summary
+  mycel cost summary --json`,
 	RunE: runCostSummary,
 }
 
@@ -53,8 +53,8 @@ var costAgentCmd = &cobra.Command{
 	Long: `Show cost breakdown by agent. If a name is given, shows detail for that agent.
 
 Examples:
-  bc cost agent                    # All agents
-  bc cost agent swift-falcon       # Specific agent`,
+  mycel cost agent                    # All agents
+  mycel cost agent swift-falcon       # Specific agent`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: runCostAgent,
 }
@@ -65,8 +65,8 @@ var costModelCmd = &cobra.Command{
 	Long: `Show cost breakdown by model.
 
 Examples:
-  bc cost model
-  bc cost model claude-sonnet-4-6`,
+  mycel cost model
+  mycel cost model claude-sonnet-4-6`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: runCostModel,
 }
@@ -77,9 +77,9 @@ var costDailyCmd = &cobra.Command{
 	Long: `Show daily cost totals for the last N days.
 
 Examples:
-  bc cost daily              # Last 30 days (default)
-  bc cost daily --days 7     # Last 7 days
-  bc cost daily --json`,
+  mycel cost daily              # Last 30 days (default)
+  mycel cost daily --days 7     # Last 7 days
+  mycel cost daily --json`,
 	RunE: runCostDaily,
 }
 
@@ -90,8 +90,8 @@ var costDashboardCmd = &cobra.Command{
 per-model breakdown, and budget status.
 
 Examples:
-  bc cost dashboard
-  bc cost dashboard --json`,
+  mycel cost dashboard
+  mycel cost dashboard --json`,
 	RunE: runCostDashboard,
 }
 

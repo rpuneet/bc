@@ -24,12 +24,12 @@ Claude Code's local JSONL session files.
 Requires npx (Node.js) to be available on the system.
 
 Examples:
-  bc cost usage                        # Daily usage report
-  bc cost usage --monthly              # Monthly summary
-  bc cost usage --session              # Per-session breakdown
-  bc cost usage --since 20260301       # Usage since date (YYYYMMDD)
-  bc cost usage --until 20260301       # Usage until date (YYYYMMDD)
-  bc cost usage --json                 # Raw JSON output`,
+  mycel cost usage                        # Daily usage report
+  mycel cost usage --monthly              # Monthly summary
+  mycel cost usage --session              # Per-session breakdown
+  mycel cost usage --since 20260301       # Usage since date (YYYYMMDD)
+  mycel cost usage --until 20260301       # Usage until date (YYYYMMDD)
+  mycel cost usage --json                 # Raw JSON output`,
 	RunE: runCostUsage,
 }
 

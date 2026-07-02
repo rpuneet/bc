@@ -27,11 +27,11 @@ Categories:
   git         Worktree validity and orphaned worktrees
 
 Examples:
-  bc doctor                          # Full health check
-  bc doctor check workspace          # Check specific category
-  bc doctor fix                      # Auto-fix fixable issues
-  bc doctor fix --dry-run            # Preview fixes
-  bc doctor fix --category git       # Fix specific category
+  mycel doctor                          # Full health check
+  mycel doctor check workspace          # Check specific category
+  mycel doctor fix                      # Auto-fix fixable issues
+  mycel doctor fix --dry-run            # Preview fixes
+  mycel doctor fix --category git       # Fix specific category
 
 Exit codes:
   0  All checks passed or only warnings
@@ -60,9 +60,9 @@ Fixable issues include:
 Use --dry-run to preview actions without making changes.
 
 Examples:
-  bc doctor fix                      # Fix all fixable issues
-  bc doctor fix --dry-run            # Preview fixes
-  bc doctor fix --category git       # Fix specific category`,
+  mycel doctor fix                      # Fix all fixable issues
+  mycel doctor fix --dry-run            # Preview fixes
+  mycel doctor fix --category git       # Fix specific category`,
 	RunE: runDoctorFix,
 }
 

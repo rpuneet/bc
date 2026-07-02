@@ -26,15 +26,15 @@ MCP servers provide tools and resources to AI agents. Configurations are
 stored per-workspace and can be referenced by roles.
 
 Examples:
-  bc mcp list                                     # List all MCP servers
-  bc mcp add github --command npx --args "@modelcontextprotocol/server-github"
-  bc mcp add sqlite --command npx --args "@modelcontextprotocol/server-sqlite,/path/to/db"
-  bc mcp add remote --transport sse --url "https://api.example.com/mcp"
-  bc mcp add github --command npx --env "GITHUB_TOKEN=tok_123"
-  bc mcp show github                              # Show server details
-  bc mcp remove github                            # Remove a server
-  bc mcp disable github                           # Disable a server
-  bc mcp enable github                            # Re-enable a server`,
+  mycel mcp list                                     # List all MCP servers
+  mycel mcp add github --command npx --args "@modelcontextprotocol/server-github"
+  mycel mcp add sqlite --command npx --args "@modelcontextprotocol/server-sqlite,/path/to/db"
+  mycel mcp add remote --transport sse --url "https://api.example.com/mcp"
+  mycel mcp add github --command npx --env "GITHUB_TOKEN=tok_123"
+  mycel mcp show github                              # Show server details
+  mycel mcp remove github                            # Remove a server
+  mycel mcp disable github                           # Disable a server
+  mycel mcp enable github                            # Re-enable a server`,
 }
 
 var mcpAddCmd = &cobra.Command{
@@ -48,10 +48,10 @@ For SSE transport, specify --transport sse and --url.
 Environment variables can be passed with --env as KEY=VALUE pairs.
 
 Examples:
-  bc mcp add github --command npx --args "@modelcontextprotocol/server-github"
-  bc mcp add db --command npx --args "@modelcontextprotocol/server-sqlite,/tmp/test.db"
-  bc mcp add remote --transport sse --url "https://api.example.com/mcp"
-  bc mcp add github --command npx --env 'GITHUB_TOKEN=${secret:GITHUB_TOKEN}' --env "OWNER=me"
+  mycel mcp add github --command npx --args "@modelcontextprotocol/server-github"
+  mycel mcp add db --command npx --args "@modelcontextprotocol/server-sqlite,/tmp/test.db"
+  mycel mcp add remote --transport sse --url "https://api.example.com/mcp"
+  mycel mcp add github --command npx --env 'GITHUB_TOKEN=${secret:GITHUB_TOKEN}' --env "OWNER=me"
 
 Use ${secret:NAME} references for sensitive values (see 'mycel secret set').`,
 	Args: cobra.ExactArgs(1),
@@ -120,9 +120,9 @@ Tools available:
   query_costs      Query cost usage
 
 Examples:
-  bc mcp serve                    # stdio — use in Claude Code settings.json
-  bc mcp serve --sse              # SSE on :8811
-  bc mcp serve --sse --addr :9000 # SSE on custom port`,
+  mycel mcp serve                    # stdio — use in Claude Code settings.json
+  mycel mcp serve --sse              # SSE on :8811
+  mycel mcp serve --sse --addr :9000 # SSE on custom port`,
 	RunE: runMCPServe,
 }
 
@@ -135,8 +135,8 @@ This writes (or updates) the mcp.servers entry in the workspace
 settings.json so that agents automatically have access to bc MCP tools.
 
 Examples:
-  bc mcp register               # Register with stdio transport
-  bc mcp register --sse         # Register with SSE transport`,
+  mycel mcp register               # Register with stdio transport
+  mycel mcp register --sse         # Register with SSE transport`,
 	RunE: runMCPRegister,
 }
 

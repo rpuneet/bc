@@ -23,15 +23,15 @@ var costCmd = &cobra.Command{
 Shows Claude Code token usage, costs, and budget management.
 
 Examples:
-  bc cost                              # Show cost records (default)
-  bc cost show eng-01                  # Show costs for specific agent
-  bc cost usage                        # Claude Code usage via ccusage
-  bc cost usage --monthly              # Monthly summary
-  bc cost budget show                  # Show budget status
+  mycel cost                              # Show cost records (default)
+  mycel cost show eng-01                  # Show costs for specific agent
+  mycel cost usage                        # Claude Code usage via ccusage
+  mycel cost usage --monthly              # Monthly summary
+  mycel cost budget show                  # Show budget status
 
 See Also:
-  bc home           TUI dashboard with cost overview
-  bc status         Agent status (includes cost info)`,
+  mycel home           TUI dashboard with cost overview
+  mycel status         Agent status (includes cost info)`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: runCostShow,
 }
@@ -44,9 +44,9 @@ var costShowCmd = &cobra.Command{
 You can specify the agent either as a positional argument or using --agent flag.
 
 Examples:
-  bc cost show
-  bc cost show engineer-01
-  bc cost show --agent engineer-01`,
+  mycel cost show
+  mycel cost show engineer-01
+  mycel cost show --agent engineer-01`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: runCostShow,
 }

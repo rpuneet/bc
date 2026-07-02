@@ -63,16 +63,16 @@ var agentCmd = &cobra.Command{
 	Long: `Manage mycel agent lifecycle: create, list, attach, peek, stop, send.
 
 Examples:
-  bc agent list                          # List all agents
-  bc agent create eng-01 --template engineer # Create new agent
-  bc agent attach eng-01                 # Attach to agent session
-  bc agent peek eng-01                   # View recent output
-  bc agent send eng-01 "run tests"       # Send message to agent
-  bc agent stop eng-01                   # Stop agent
-  bc agent broadcast "check status"      # Send to all agents
-  bc agent send-pattern "eng-*" "test"   # Send to matching agents
-  bc agent                               # List all agents (same as bc agent list)
-  bc agent send-pattern "eng-*" "hello"  # Send to matching agents`,
+  mycel agent list                          # List all agents
+  mycel agent create eng-01 --template engineer # Create new agent
+  mycel agent attach eng-01                 # Attach to agent session
+  mycel agent peek eng-01                   # View recent output
+  mycel agent send eng-01 "run tests"       # Send message to agent
+  mycel agent stop eng-01                   # Stop agent
+  mycel agent broadcast "check status"      # Send to all agents
+  mycel agent send-pattern "eng-*" "test"   # Send to matching agents
+  mycel agent                               # List all agents (same as mycel agent list)
+  mycel agent send-pattern "eng-*" "hello"  # Send to matching agents`,
 	// #925: Default to list for consistency with bc channel
 	RunE: runAgentList,
 }
@@ -88,11 +88,11 @@ Agents are configured via templates (markdown files at ~/.bc/templates/).
 Use --copy to clone settings from an existing agent.
 
 Examples:
-  bc agent create                              # Random name, base template
-  bc agent create worker-01                    # Explicit name, base template
-  bc agent create eng-01 --template engineer   # Use engineer template
-  bc agent create qa-01 --tool cursor          # Base template with Cursor
-  bc agent create clone-01 --copy swift-hawk   # Copy config from swift-hawk`,
+  mycel agent create                              # Random name, base template
+  mycel agent create worker-01                    # Explicit name, base template
+  mycel agent create eng-01 --template engineer   # Use engineer template
+  mycel agent create qa-01 --tool cursor          # Base template with Cursor
+  mycel agent create clone-01 --copy swift-hawk   # Copy config from swift-hawk`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: runAgentCreate,
 }
@@ -104,12 +104,12 @@ var agentListCmd = &cobra.Command{
 	Long: `List all agents with their status, role, and current task.
 
 Examples:
-  bc agent list          # List all agents
-  bc agent list --json   # Output as JSON
-  bc agent list --role engineer  # Filter by role`,
+  mycel agent list          # List all agents
+  mycel agent list --json   # Output as JSON
+  mycel agent list --role engineer  # Filter by role`,
 	Args: func(cmd *cobra.Command, args []string) error {
 		if len(args) > 0 {
-			return fmt.Errorf("unexpected argument %q. To filter by role, use: bc agent list --role %s", args[0], args[0])
+			return fmt.Errorf("unexpected argument %q. To filter by role, use: mycel agent list --role %s", args[0], args[0])
 		}
 		return nil
 	},
@@ -125,7 +125,7 @@ var agentAttachCmd = &cobra.Command{
 Use Ctrl+b d to detach and return to your shell.
 
 Examples:
-  bc agent attach eng-01   # Attach to eng-01`,
+  mycel agent attach eng-01   # Attach to eng-01`,
 	Args: cobra.ExactArgs(1),
 	RunE: runAgentAttach,
 }
@@ -137,9 +137,9 @@ var agentPeekCmd = &cobra.Command{
 	Long: `Capture and display recent output from an agent's session.
 
 Examples:
-  bc agent peek eng-01              # Show last 500 lines
-  bc agent peek eng-01 --lines 100  # Show last 100 lines
-  bc agent peek eng-01 --follow     # Stream live output (Ctrl+C to stop)`,
+  mycel agent peek eng-01              # Show last 500 lines
+  mycel agent peek eng-01 --lines 100  # Show last 100 lines
+  mycel agent peek eng-01 --follow     # Stream live output (Ctrl+C to stop)`,
 	Args: cobra.ExactArgs(1),
 	RunE: runAgentPeek,
 }
@@ -151,8 +151,8 @@ var agentShowCmd = &cobra.Command{
 	Long: `Show detailed information about an agent.
 
 Examples:
-  bc agent show eng-01       # Show eng-01 details
-  bc agent show eng-01 --json  # Output as JSON`,
+  mycel agent show eng-01       # Show eng-01 details
+  mycel agent show eng-01 --json  # Output as JSON`,
 	Args: cobra.ExactArgs(1),
 	RunE: runAgentShow,
 }
@@ -172,8 +172,8 @@ and cannot be changed on restart. Use --runtime to switch infrastructure
 backends (tmux vs docker) without changing the agent's identity.
 
 Examples:
-  bc agent start eng-01                    # Start stopped agent (resumes session)
-  bc agent start eng-01 --runtime docker   # Override runtime backend`,
+  mycel agent start eng-01                    # Start stopped agent (resumes session)
+  mycel agent start eng-01 --runtime docker   # Override runtime backend`,
 	Args: cobra.ExactArgs(1),
 	RunE: runAgentStart,
 }
@@ -185,8 +185,8 @@ var agentStopCmd = &cobra.Command{
 	Long: `Stop a specific agent and its tmux session.
 
 Examples:
-  bc agent stop eng-01       # Stop eng-01
-  bc agent stop eng-01 --force  # Force stop`,
+  mycel agent stop eng-01       # Stop eng-01
+  mycel agent stop eng-01 --force  # Force stop`,
 	Args: cobra.ExactArgs(1),
 	RunE: runAgentStop,
 }
@@ -201,9 +201,9 @@ Use --preview to see what action will be taken before sending (Intent Preview).
 This shows agent details and asks for confirmation.
 
 Examples:
-  bc agent send eng-01 "run the tests"
-  bc agent send coordinator "check status"
-  bc agent send eng-01 "implement login" --preview  # Preview before sending`,
+  mycel agent send eng-01 "run the tests"
+  mycel agent send coordinator "check status"
+  mycel agent send eng-01 "implement login" --preview  # Preview before sending`,
 	Args: cobra.MinimumNArgs(2),
 	RunE: runAgentSend,
 }
@@ -221,10 +221,10 @@ Use --force to delete an agent without stopping it first.
 Use --purge to also delete the agent's memory directory.
 
 Examples:
-  bc agent delete eng-01              # Delete stopped agent (preserves memory)
-  bc agent delete eng-01 --force      # Force delete (any state)
-  bc agent delete eng-01 --purge      # Delete including memory
-  bc agent delete eng-01 --force --purge  # Force delete with full cleanup`,
+  mycel agent delete eng-01              # Delete stopped agent (preserves memory)
+  mycel agent delete eng-01 --force      # Force delete (any state)
+  mycel agent delete eng-01 --purge      # Delete including memory
+  mycel agent delete eng-01 --force --purge  # Force delete with full cleanup`,
 	Args: cobra.ExactArgs(1),
 	RunE: runAgentDelete,
 }
@@ -239,8 +239,8 @@ This updates the agent's name and channel memberships.
 By default, running agents cannot be renamed (use --force to override).
 
 Examples:
-  bc agent rename eng-01 engineer-01
-  bc agent rename eng-01 eng-02 --force  # Rename running agent`,
+  mycel agent rename eng-01 engineer-01
+  mycel agent rename eng-01 eng-02 --force  # Rename running agent`,
 	Args: cobra.ExactArgs(2),
 	RunE: runAgentRename,
 }
@@ -257,8 +257,8 @@ The current session ID (if captured) is listed first, followed by archived
 session IDs from previous runs.
 
 Examples:
-  bc agent sessions eng-01       # List session IDs
-  bc agent sessions eng-01 --json`,
+  mycel agent sessions eng-01       # List session IDs
+  mycel agent sessions eng-01 --json`,
 	Args: cobra.ExactArgs(1),
 	RunE: runAgentSessions,
 }
@@ -272,8 +272,8 @@ var agentBroadcastCmd = &cobra.Command{
 	Long: `Broadcast a message to all running agents in the workspace.
 
 Examples:
-  bc agent broadcast "run tests"
-  bc agent broadcast "check status"`,
+  mycel agent broadcast "run tests"
+  mycel agent broadcast "check status"`,
 	Args: cobra.MinimumNArgs(1),
 	RunE: runAgentBroadcast,
 }
@@ -287,9 +287,9 @@ var agentSendPatternCmd = &cobra.Command{
 Pattern uses glob-style matching (* matches any characters).
 
 Examples:
-  bc agent send-pattern "engineer-*" "run tests"
-  bc agent send-pattern "eng-0*" "check status"
-  bc agent send-pattern "*-lead" "review PRs"`,
+  mycel agent send-pattern "engineer-*" "run tests"
+  mycel agent send-pattern "eng-0*" "check status"
+  mycel agent send-pattern "*-lead" "review PRs"`,
 	Args: cobra.MinimumNArgs(2),
 	RunE: runAgentSendPattern,
 }
@@ -495,9 +495,9 @@ func runAgentCreate(cmd *cobra.Command, args []string) error {
 	fmt.Println("Agent created successfully!")
 	fmt.Println()
 	fmt.Println("Commands:")
-	fmt.Printf("  bc agent attach %s    # Attach to session\n", agentName)
-	fmt.Printf("  bc agent send %s <msg> # Send message\n", agentName)
-	fmt.Printf("  bc agent peek %s       # View output\n", agentName)
+	fmt.Printf("  mycel agent attach %s    # Attach to session\n", agentName)
+	fmt.Printf("  mycel agent send %s <msg> # Send message\n", agentName)
+	fmt.Printf("  mycel agent peek %s       # View output\n", agentName)
 
 	return nil
 }
@@ -1027,8 +1027,8 @@ var agentCostCmd = &cobra.Command{
 	Long: `Show the cost breakdown for a specific agent including tokens and USD cost.
 
 Examples:
-  bc agent cost eng-01       # Show eng-01 cost
-  bc agent cost eng-01 --json  # Output as JSON`,
+  mycel agent cost eng-01       # Show eng-01 cost
+  mycel agent cost eng-01 --json  # Output as JSON`,
 	Args: cobra.ExactArgs(1),
 	RunE: runAgentCost,
 }
@@ -1040,8 +1040,8 @@ var agentLogsCmd = &cobra.Command{
 	Long: `Show the event log history for a specific agent.
 
 Examples:
-  bc agent logs eng-01               # Show all events
-  bc agent logs eng-01 --since 1h    # Show events from last hour`,
+  mycel agent logs eng-01               # Show all events
+  mycel agent logs eng-01 --since 1h    # Show events from last hour`,
 	Args: cobra.ExactArgs(1),
 	RunE: runAgentLogs,
 }
@@ -1121,17 +1121,17 @@ var agentAuthCmd = &cobra.Command{
 credentials directory. Opens a browser for authentication.
 
 Usage:
-  bc agent auth my-agent        # Login for a specific agent
-  bc agent auth my-agent status # Check auth status`,
+  mycel agent auth my-agent        # Login for a specific agent
+  mycel agent auth my-agent status # Check auth status`,
 	Args: cobra.MinimumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		agentName := args[0]
 		fmt.Printf("Agent auth is handled inside the container.\n\n")
 		fmt.Printf("To authenticate agent %q:\n", agentName)
-		fmt.Printf("  1. Attach: bc agent attach %s\n", agentName)
+		fmt.Printf("  1. Attach: mycel agent attach %s\n", agentName)
 		fmt.Printf("  2. Run /login inside Claude Code\n")
 		fmt.Printf("\nOr set ANTHROPIC_API_KEY in workspace env:\n")
-		fmt.Printf("  bc env set ANTHROPIC_API_KEY sk-ant-...\n")
+		fmt.Printf("  mycel env set ANTHROPIC_API_KEY sk-ant-...\n")
 		return nil
 	},
 }
@@ -1173,7 +1173,7 @@ func runAgentSessions(cmd *cobra.Command, args []string) error {
 		}
 		fmt.Printf("  %s%s%s\n", s.ID, current, ts)
 	}
-	fmt.Printf("\nResume a session: bc agent start %s --resume <id>\n", agentName)
+	fmt.Printf("\nResume a session: mycel agent start %s --resume <id>\n", agentName)
 
 	return nil
 }
@@ -1188,9 +1188,9 @@ Stats are collected every 30 s by bcd while the agent is running with a
 Docker runtime backend. They are stored in .bc/bc.db.
 
 Examples:
-  bc agent stats eng-01              # Human-readable table
-  bc agent stats eng-01 --json       # JSON output
-  bc agent stats eng-01 --limit 50   # Show more records`,
+  mycel agent stats eng-01              # Human-readable table
+  mycel agent stats eng-01 --json       # JSON output
+  mycel agent stats eng-01 --limit 50   # Show more records`,
 	Args: cobra.ExactArgs(1),
 	RunE: runAgentStats,
 }

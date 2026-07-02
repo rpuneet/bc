@@ -25,10 +25,10 @@ var agentHealthCmd = &cobra.Command{
 	Long: `Check health status of agents including tmux session and state freshness.
 
 Examples:
-  bc agent health              # Check all agents
-  bc agent health eng-01       # Check specific agent
-  bc agent health --json       # Output as JSON
-  bc agent health --detect-stuck --alert eng  # Detect stuck and alert`,
+  mycel agent health              # Check all agents
+  mycel agent health eng-01       # Check specific agent
+  mycel agent health --json       # Output as JSON
+  mycel agent health --detect-stuck --alert eng  # Detect stuck and alert`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: runAgentHealth,
 }

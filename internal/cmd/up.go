@@ -38,10 +38,10 @@ By default the server runs in the foreground (for Docker/Railway).
 Use -d to run as a background daemon.
 
 Examples:
-  bc up                              # Foreground (Docker/Railway)
-  bc up -d                           # Background daemon
-  bc up --addr 0.0.0.0:9374         # Custom listen address
-  bc up --workspace /path/to/ws     # Explicit workspace`,
+  mycel up                              # Foreground (Docker/Railway)
+  mycel up -d                           # Background daemon
+  mycel up --addr 0.0.0.0:9374         # Custom listen address
+  mycel up --workspace /path/to/ws     # Explicit workspace`,
 	RunE: runUp,
 }
 

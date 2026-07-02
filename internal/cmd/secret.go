@@ -30,13 +30,13 @@ Other configs reference secrets with ${secret:NAME} syntax:
   env = { ANTHROPIC_API_KEY = "${secret:ANTHROPIC_API_KEY}" }
 
 Examples:
-  bc secret set ANTHROPIC_API_KEY                    # Prompt for value
-  bc secret set ANTHROPIC_API_KEY --value "sk-..."   # Set directly
-  bc secret set GITHUB_TOKEN --from-env GITHUB_TOKEN # Import from env var
-  bc secret list                                     # List names (no values)
-  bc secret show ANTHROPIC_API_KEY                   # Show metadata
-  bc secret show ANTHROPIC_API_KEY --reveal          # Show actual value
-  bc secret delete ANTHROPIC_API_KEY                 # Delete a secret`,
+  mycel secret set ANTHROPIC_API_KEY                    # Prompt for value
+  mycel secret set ANTHROPIC_API_KEY --value "sk-..."   # Set directly
+  mycel secret set GITHUB_TOKEN --from-env GITHUB_TOKEN # Import from env var
+  mycel secret list                                     # List names (no values)
+  mycel secret show ANTHROPIC_API_KEY                   # Show metadata
+  mycel secret show ANTHROPIC_API_KEY --reveal          # Show actual value
+  mycel secret delete ANTHROPIC_API_KEY                 # Delete a secret`,
 }
 
 var secretSetCmd = &cobra.Command{
@@ -48,14 +48,14 @@ The value can be provided via --value, --from-env, or --from-file.
 If none are specified, reads from stdin.
 
 Note: --value appears in shell history. For sensitive values, prefer:
-  bc secret set API_KEY --from-env API_KEY
-  echo "sk-abc123" | bc secret set API_KEY
+  mycel secret set API_KEY --from-env API_KEY
+  echo "sk-abc123" | mycel secret set API_KEY
 
 Examples:
-  bc secret set API_KEY --value "sk-abc123"
-  bc secret set API_KEY --from-env API_KEY
-  bc secret set API_KEY --from-file /path/to/key
-  echo "sk-abc123" | bc secret set API_KEY`,
+  mycel secret set API_KEY --value "sk-abc123"
+  mycel secret set API_KEY --from-env API_KEY
+  mycel secret set API_KEY --from-file /path/to/key
+  echo "sk-abc123" | mycel secret set API_KEY`,
 	Args: cobra.ExactArgs(1),
 	RunE: runSecretSet,
 }
@@ -129,7 +129,7 @@ func openSecretStore() (*secret.Store, error) {
 		return nil, fmt.Errorf("resolve global vault path: %w", err)
 	}
 	if _, ensureErr := workspace.EnsureGlobalDir(); ensureErr != nil {
-		return nil, fmt.Errorf("ensure global bc dir: %w", ensureErr)
+		return nil, fmt.Errorf("ensure global mycel dir: %w", ensureErr)
 	}
 	return secret.OpenVaultFile(vaultPath, passphrase)
 }

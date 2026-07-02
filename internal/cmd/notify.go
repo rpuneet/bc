@@ -23,11 +23,11 @@ Channels deliver external app messages to subscribed agents via tmux send-keys.
 Agents respond using the platform's own MCP tools.
 
 Examples:
-  bc notify status                               # Show gateway connection status
-  bc notify list                                  # List all subscriptions
-  bc notify subscribe slack:eng eng-01            # Subscribe agent to channel
-  bc notify unsubscribe slack:eng eng-01          # Unsubscribe agent
-  bc notify activity slack:eng                    # Show delivery activity log`,
+  mycel notify status                               # Show gateway connection status
+  mycel notify list                                  # List all subscriptions
+  mycel notify subscribe slack:eng eng-01            # Subscribe agent to channel
+  mycel notify unsubscribe slack:eng eng-01          # Unsubscribe agent
+  mycel notify activity slack:eng                    # Show delivery activity log`,
 	}
 
 	statusCmd := &cobra.Command{
