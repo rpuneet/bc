@@ -13,7 +13,7 @@ import (
 	"path/filepath"
 )
 
-// Subdirectories and files relative to BCHome().
+// Subdirectories and files relative to MycelHome().
 const (
 	globalTemplatesDirName  = "templates"
 	globalSecretsFileName   = "secrets.vault"
@@ -39,7 +39,7 @@ func DataDir(id string) (string, error) {
 	if id == "" {
 		return "", fmt.Errorf("workspace id is empty")
 	}
-	home, err := BCHome()
+	home, err := MycelHome()
 	if err != nil {
 		return "", err
 	}
@@ -108,9 +108,9 @@ func DaemonAddrPath() (string, error) {
 
 // EnsureGlobalDir makes sure ~/.bc/ exists with 0750 permissions. It is
 // idempotent and safe to call from any process path that needs to write
-// a global asset. Returns the resolved BCHome path for convenience.
+// a global asset. Returns the resolved MycelHome path for convenience.
 func EnsureGlobalDir() (string, error) {
-	home, err := BCHome()
+	home, err := MycelHome()
 	if err != nil {
 		return "", err
 	}
@@ -120,11 +120,11 @@ func EnsureGlobalDir() (string, error) {
 	return home, nil
 }
 
-// globalPath joins BCHome() with name. It does NOT create the parent; use
-// EnsureGlobalDir when writing. Returns an error only if BCHome cannot
+// globalPath joins MycelHome() with name. It does NOT create the parent; use
+// EnsureGlobalDir when writing. Returns an error only if MycelHome cannot
 // be resolved (HOME unset and BC_HOME unset).
 func globalPath(name string) (string, error) {
-	home, err := BCHome()
+	home, err := MycelHome()
 	if err != nil {
 		return "", err
 	}

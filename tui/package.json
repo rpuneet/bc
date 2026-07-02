@@ -1,7 +1,7 @@
 {
   "name": "@bc/tui",
   "version": "0.1.0",
-  "description": "Terminal UI for bc agent orchestration",
+  "description": "Terminal UI for mycel agent orchestration",
   "type": "module",
   "main": "dist/index.js",
   "scripts": {

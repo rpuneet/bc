@@ -73,7 +73,7 @@ func Init(rootDir string) (*Workspace, error) {
 		return nil, fmt.Errorf("not a git repository: %s\nRun 'git init' first, then 'mycel init'", absRoot)
 	}
 
-	if homeErr := EnsureBCHome(); homeErr != nil {
+	if homeErr := EnsureMycelHome(); homeErr != nil {
 		return nil, homeErr
 	}
 

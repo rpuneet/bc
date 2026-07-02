@@ -83,7 +83,7 @@ export function AgentList({
       return (
         <Box flexDirection="column" padding={1}>
           <Text dimColor>No agents yet.</Text>
-          <Text dimColor>Create one with: bc agent create --role &lt;role&gt;</Text>
+          <Text dimColor>Create one with: mycel agent create --role &lt;role&gt;</Text>
         </Box>
       );
     }
@@ -95,7 +95,7 @@ export function AgentList({
     return (
       <Box flexDirection="column" padding={1}>
         <Text dimColor>No agents yet.</Text>
-        <Text dimColor>Create one with: bc agent create --role &lt;role&gt;</Text>
+        <Text dimColor>Create one with: mycel agent create --role &lt;role&gt;</Text>
       </Box>
     );
   }

@@ -434,13 +434,13 @@ func runMCPServe(cmd *cobra.Command, _ []string) error {
 	defer srv.Close() //nolint:errcheck
 
 	if mcpServeSSE {
-		fmt.Fprintf(os.Stderr, "bc MCP server listening on %s (SSE transport)\n", mcpServeAddr)
+		fmt.Fprintf(os.Stderr, "mycel MCP server listening on %s (SSE transport)\n", mcpServeAddr)
 		fmt.Fprintf(os.Stderr, "  Connect via: http://%s/sse\n", mcpServeAddr)
 		return srv.ServeSSE(ctx, mcpServeAddr)
 	}
 
 	// stdio transport — don't write to stdout (it's the protocol stream)
-	fmt.Fprintf(os.Stderr, "bc MCP server ready (stdio transport)\n")
+	fmt.Fprintf(os.Stderr, "mycel MCP server ready (stdio transport)\n")
 	return srv.ServeStdio(ctx)
 }
 

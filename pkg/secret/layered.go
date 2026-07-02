@@ -214,7 +214,7 @@ func (l *LayeredStore) Delete(name string) error {
 	return fmt.Errorf("secret %q not found", name)
 }
 
-// DeleteScoped removes from a specific scope. Useful for "bc secret
+// DeleteScoped removes from a specific scope. Useful for "mycel secret
 // delete NAME --global" / "--workspace".
 func (l *LayeredStore) DeleteScoped(scope Scope, name string) error {
 	switch scope {

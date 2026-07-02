@@ -27,7 +27,7 @@ var initCmd = &cobra.Command{
 	Short: "Initialize a new mycel v2 workspace",
 	Long: `Initialize a new mycel v2 workspace in the specified directory (or current directory).
 
-This creates a .bc directory with v2 configuration for managing agents.
+This creates a .mycel-scoped workspace directory with v2 configuration for managing agents.
 
 v2 workspace structure:
   .bc/

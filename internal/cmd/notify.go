@@ -51,7 +51,7 @@ Examples:
 
 			if len(subs) == 0 {
 				fmt.Println("No subscriptions configured.")
-				fmt.Println("Use 'bc notify subscribe <channel> <agent>' to add one.")
+				fmt.Println("Use 'mycel notify subscribe <channel> <agent>' to add one.")
 				return nil
 			}
 
