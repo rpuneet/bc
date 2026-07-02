@@ -194,7 +194,24 @@ func (h *GatewayHandler) gatewayChannels(w http.ResponseWriter, r *http.Request,
 }
 
 // gatewayChannelSend handles POST /api/gateways/{platform}/channels/{channel}/send
+//
+// DEPRECATED (v0.3.1 → v0.4.0): outbound-to-platform is an agent responsibility.
+// Agents should call the platform's official SDK/API (chat.postMessage etc.)
+// directly with per-agent credentials so file uploads and posts attribute
+// correctly. See issue #3178. This endpoint will return 410 Gone in v0.4.0.
+//
+// Every response includes RFC 8594 Deprecation + Sunset headers so callers
+// can detect the deprecation programmatically without having to parse the body.
 func (h *GatewayHandler) gatewayChannelSend(w http.ResponseWriter, r *http.Request, channel string) {
+	// Always signal deprecation on this endpoint — even on error responses —
+	// so clients discover the deprecation on their next call regardless of
+	// input shape. RFC 8594 §3 (Deprecation) + §3 (Sunset). Sunset date is
+	// the projected v0.4.0 cut; adjust if the release slips.
+	w.Header().Set("Deprecation", "true")
+	w.Header().Set("Sunset", "Wed, 01 Jul 2026 00:00:00 GMT")
+	w.Header().Add("Link", `<https://github.com/rpuneet/mycel/issues/3178>; rel="deprecation"; type="text/html"`)
+	w.Header().Add("Warning", `299 - "Deprecated API: prefer per-agent platform SDKs. See issue #3178."`)
+
 	if !requireMethod(w, r, http.MethodPost) {
 		return
 	}

@@ -56,6 +56,28 @@ path (e.g. when a local channel relays to an external platform via the
 the other 30+ adapters deliberately have no `Send` method — that is
 correct per this design, **not** a missing feature or a bug.
 
+### `POST /api/gateways/{platform}/channels/{channel}/send` is deprecated
+
+**Status: Deprecated since v0.3.1. Sunset: v0.4.0 (target 2026-07-01).**
+
+This endpoint violates the "notifications strictly inbound" principle
+above. It is retained as a legacy shim so pre-v0.3.1 integrations keep
+working during the transition. Every response now carries RFC 8594
+Deprecation + Sunset headers so callers can detect the deprecation
+programmatically:
+
+```
+Deprecation: true
+Sunset: Wed, 01 Jul 2026 00:00:00 GMT
+Link: <https://github.com/rpuneet/mycel/issues/3178>; rel="deprecation"; type="text/html"
+Warning: 299 - "Deprecated API: prefer per-agent platform SDKs. See issue #3178."
+```
+
+The replacement pattern is already documented above: each agent calls the
+platform's official SDK directly with credentials from its own env, so
+posts, file uploads, and reactions attribute correctly to the agent's own
+bot identity. Tracking issue: [#3178](https://github.com/rpuneet/mycel/issues/3178).
+
 If you find a code-review tool flagging "adapter X is missing Send",
 that finding is incorrect: outbound is the agent's responsibility, and
 the inbound adapter is complete without it.
