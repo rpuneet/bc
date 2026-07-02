@@ -88,7 +88,7 @@ func ComputeWorkspaceID(path string) string {
 // same sandbox — previously this ignored BC_HOME and always read the
 // host's real registry, which let tests corrupt production state.
 func GlobalDir() string {
-	home, err := BCHome()
+	home, err := MycelHome()
 	if err != nil {
 		return ""
 	}

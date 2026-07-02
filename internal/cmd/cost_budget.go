@@ -178,7 +178,7 @@ func runCostBudgetShow(cmd *cobra.Command, args []string) error {
 
 	if len(budgets) == 0 {
 		fmt.Println("No budgets configured")
-		fmt.Println("\nUse 'bc cost budget set <amount>' to set a budget")
+		fmt.Println("\nUse 'mycel cost budget set <amount>' to set a budget")
 		return nil
 	}
 

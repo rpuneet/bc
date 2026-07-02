@@ -72,7 +72,7 @@ Environment Variables:
   BC_AGENT_ROLE     Current agent role
   BC_WORKSPACE      Path to workspace root
   BC_AGENT_WORKTREE Path to agent's worktree
-  BC_BIN            Path to mycel binary (default: bc in PATH)
+  BC_BIN            Path to mycel binary (default: mycel in PATH)
   BC_ROOT           Workspace root directory
   NO_COLOR          Disable colored output
 

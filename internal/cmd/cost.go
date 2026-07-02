@@ -103,7 +103,7 @@ func fetchCCUsageDailyReport(ctx context.Context) *ccusageDailyReport {
 	return &report
 }
 
-// costShowResponse is the enriched JSON response for 'bc cost show --json'.
+// costShowResponse is the enriched JSON response for 'mycel cost show --json'.
 type costShowResponse struct {
 	ByAgent            map[string]float64 `json:"by_agent"`
 	ByTeam             map[string]float64 `json:"by_team"`

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 
 	"github.com/rpuneet/mycel/pkg/log"
 )
@@ -15,6 +16,16 @@ import (
 const (
 	legacyHomeDirName = ".bc"
 	homeDirName       = ".mycel"
+)
+
+// warnBCHomeOnce / warnBCStateDirOnce keep the "deprecated env var"
+// WARN to at most one line per process. Both MycelHome() and
+// GlobalStateDir() are called from bcd request handlers, so without the
+// guard the log would be flooded on every request when a deployment
+// still exports the legacy env var.
+var (
+	warnBCHomeOnce     sync.Once
+	warnBCStateDirOnce sync.Once
 )
 
 // MycelHome returns the global mycel home directory.
@@ -35,7 +46,9 @@ func MycelHome() (string, error) {
 		return env, nil
 	}
 	if env := os.Getenv("BC_HOME"); env != "" {
-		log.Warn("BC_HOME is deprecated; use MYCEL_HOME", "value", env)
+		warnBCHomeOnce.Do(func() {
+			log.Warn("BC_HOME is deprecated; use MYCEL_HOME", "value", env)
+		})
 		return env, nil
 	}
 	home, err := os.UserHomeDir()
@@ -110,7 +123,9 @@ func GlobalStateDir(rootDir string) (string, error) {
 		return env, nil
 	}
 	if env := os.Getenv("BC_STATE_DIR"); env != "" {
-		log.Warn("BC_STATE_DIR is deprecated; use MYCEL_STATE_DIR", "value", env)
+		warnBCStateDirOnce.Do(func() {
+			log.Warn("BC_STATE_DIR is deprecated; use MYCEL_STATE_DIR", "value", env)
+		})
 		return env, nil
 	}
 

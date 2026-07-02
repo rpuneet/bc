@@ -64,7 +64,7 @@ This policy applies to:
 
 ### Secret Management
 
-bc stores secrets in an encrypted, per-workspace store under `.bc/secrets/`. Secrets are injected into agent sessions at startup via environment variables and are never written to disk in plaintext. Use `bc secret set` to manage secrets instead of placing them in `.env`.
+mycel stores secrets in an encrypted, per-workspace store under the mycel state directory. Secrets are injected into agent sessions at startup via environment variables and are never written to disk in plaintext. Use `mycel secret set` to manage secrets instead of placing them in `.env`.
 
 Sensitive patterns (API keys, tokens, DSNs) are redacted from WebSocket streams by the bcd server before reaching the web dashboard.
 
@@ -95,8 +95,8 @@ Each agent runs in its own tmux session (local) or Docker container (production)
 
 When using bc:
 
-- Keep bc updated to the latest version
-- Store API keys and tokens via `bc secret set`, not in `.env` or shell history
+- Keep mycel updated to the latest version
+- Store API keys and tokens via `mycel secret set`, not in `.env` or shell history
 - Review agent prompts and role definitions before execution
 - Use environment variables for sensitive data (never hardcode)
 - Restrict agent capabilities to the minimum required via role definitions

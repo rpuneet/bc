@@ -42,15 +42,15 @@ Naming convention: `make <verb>[-<runtime>]-<component>` where `runtime` = `loca
 |---------|-------------|
 | `make build` | Build everything (local + docker) |
 | `make build-local` | Build all local binaries (go + ts) |
-| `make build-local-go` | Build all Go binaries (bc + bcd) |
-| `make build-local-bc` | Build bc CLI binary to `bin/bc` |
+| `make build-local-go` | Build all Go binaries (mycel + bcd) |
+| `make build-local-bc` | Build mycel CLI binary to `bin/mycel` |
 | `make build-local-bcd` | Build bcd server binary (embeds web UI) |
 | `make build-local-ts` | Build all TS packages (tui + web + landing) |
 | `make build-local-tui` | Build TUI package |
 | `make build-local-web` | Build React web UI → `server/web/dist/` |
 | `make build-local-landing` | Build Next.js landing page |
 | `make release` | Build optimized release binaries (stripped symbols) |
-| `make install-local-bc` | Install bc to `$GOPATH/bin` |
+| `make install-local-bc` | Install mycel to `$GOPATH/bin` |
 
 ### Build (Docker)
 
@@ -96,7 +96,7 @@ Naming convention: `make <verb>[-<runtime>]-<component>` where `runtime` = `loca
 
 | Command | Description |
 |---------|-------------|
-| `make run-bc` | Run bc CLI from source (`go run`) |
+| `make run-bc` | Run mycel CLI from source (`go run`) |
 | `make run-web` | Run web UI dev server (hot reload) |
 | `make run-landing` | Run landing dev server (hot reload) |
 | `make run-tui` | Run TUI in dev mode |
@@ -110,7 +110,7 @@ Naming convention: `make <verb>[-<runtime>]-<component>` where `runtime` = `loca
 | `make deps-ts` | Install all TS dependencies (bun install) |
 | `make scan-go` | Run govulncheck for Go vulnerabilities |
 | `make scan-ts` | Run TS dependency audit |
-| `make install-local-bc` | Install bc to `$GOPATH/bin` |
+| `make install-local-bc` | Install mycel to `$GOPATH/bin` |
 | `make clean` | Remove all build artifacts |
 | `make clean-deps` | Remove build artifacts + node_modules |
 

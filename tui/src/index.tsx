@@ -18,7 +18,7 @@ if (!process.stdin.isTTY) {
   console.error('');
   console.error('Alternatives:');
   console.error('  bc status       # View agent status (non-interactive)');
-  console.error('  bc agent list   # List agents');
+  console.error('  mycel agent list   # List agents');
   console.error('  bc notify list  # List notification sources');
   process.exit(1);
 }

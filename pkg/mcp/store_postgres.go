@@ -84,7 +84,7 @@ func (p *PostgresStore) Add(cfg *ServerConfig) error {
 	)
 	if err != nil {
 		if strings.Contains(err.Error(), "duplicate key") || strings.Contains(err.Error(), "unique constraint") {
-			return fmt.Errorf("mcp server %q already exists (use 'bc mcp remove %s' first)", cfg.Name, cfg.Name)
+			return fmt.Errorf("mcp server %q already exists (use 'mycel mcp remove %s' first)", cfg.Name, cfg.Name)
 		}
 		return fmt.Errorf("add mcp server %q: %w", cfg.Name, err)
 	}

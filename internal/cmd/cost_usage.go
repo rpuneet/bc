@@ -138,7 +138,7 @@ func runCostUsage(cmd *cobra.Command, args []string) error {
 func fetchCCUsage(cmd *cobra.Command) ([]byte, error) {
 	npxPath, err := exec.LookPath("npx")
 	if err != nil {
-		return nil, fmt.Errorf("npx not found — install Node.js to use 'bc cost usage' (ccusage requires npx)")
+		return nil, fmt.Errorf("npx not found — install Node.js to use 'mycel cost usage' (ccusage requires npx)")
 	}
 
 	ccArgs := []string{npxPath, "ccusage@latest", "--json"}

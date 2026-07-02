@@ -135,7 +135,7 @@ func (g *GlobalStore) Add(cfg *ServerConfig) error {
 	}
 	for _, s := range reg.Servers {
 		if s.Name == cfg.Name {
-			return fmt.Errorf("mcp server %q already exists (use 'bc mcp remove %s' first)", cfg.Name, cfg.Name)
+			return fmt.Errorf("mcp server %q already exists (use 'mycel mcp remove %s' first)", cfg.Name, cfg.Name)
 		}
 	}
 	copy := *cfg
