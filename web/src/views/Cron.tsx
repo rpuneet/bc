@@ -706,7 +706,7 @@ export function Cron() {
       {/* Job cards */}
       {jobList.length === 0 ? (
         <EmptyState
-          icon="~"
+          icon="clock"
           title="No cron jobs"
           description="Click '+ New Job' above or use 'mycel cron add <name>' to schedule recurring tasks."
         />
