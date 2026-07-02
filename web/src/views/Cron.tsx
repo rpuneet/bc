@@ -7,6 +7,7 @@ import { EmptyState } from "../components/EmptyState";
 
 import { useHeaderSlot } from "../context/HeaderSlotContext";
 import { TabHeaderTitle } from "../components/Header";
+import { formatRelative } from "../utils/time";
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -94,24 +95,11 @@ function describeCron(expr: string): string {
 }
 
 function relativeTime(dateStr: string | null): string {
-  if (!dateStr) return "never";
-  const now = Date.now();
-  const then = new Date(dateStr).getTime();
-  const diff = now - then;
-
-  if (diff < 0) {
-    // Future
-    const abs = Math.abs(diff);
-    if (abs < 60_000) return `in ${Math.round(abs / 1000)}s`;
-    if (abs < 3_600_000) return `in ${Math.round(abs / 60_000)}m`;
-    if (abs < 86_400_000) return `in ${Math.round(abs / 3_600_000)}h`;
-    return `in ${Math.round(abs / 86_400_000)}d`;
-  }
-
-  if (diff < 60_000) return `${Math.round(diff / 1000)}s ago`;
-  if (diff < 3_600_000) return `${Math.round(diff / 60_000)}m ago`;
-  if (diff < 86_400_000) return `${Math.round(diff / 3_600_000)}h ago`;
-  return `${Math.round(diff / 86_400_000)}d ago`;
+  return formatRelative(dateStr, {
+    emptyLabel: "never",
+    allowFuture: true,
+    maxDays: Number.POSITIVE_INFINITY,
+  });
 }
 
 // ---------------------------------------------------------------------------

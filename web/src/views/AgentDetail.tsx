@@ -16,42 +16,11 @@ import { SystemPromptEditor } from "../components/shared/SystemPromptEditor";
 import { SectionRule } from "../components/shared";
 import { AgentToolStream } from "../components/live/AgentToolStream";
 import { CreateAgentModal } from "../components/CreateAgentModal";
+import { formatAbsolute, formatRelative as sharedFormatRelative } from "../utils/time";
 import { MONO } from "../utils/typography";
 
-/* ═══════════════════════════════════════════════════════════════════
-   Utility
-   ═══════════════════════════════════════════════════════════════════ */
-
-function formatTime(t?: string): string {
-  if (!t) return "\u2014";
-  try {
-    const d = new Date(t);
-    if (isNaN(d.getTime())) return "\u2014";
-    return d.toLocaleString();
-  } catch {
-    return "\u2014";
-  }
-}
-
-function formatRelative(t?: string): string {
-  if (!t) return "";
-  try {
-    const d = new Date(t);
-    if (isNaN(d.getTime())) return "";
-    const diffMs = Date.now() - d.getTime();
-    const diffSec = Math.floor(Math.abs(diffMs) / 1000);
-    if (diffSec < 60) return `${String(diffSec)}s ago`;
-    const diffMin = Math.floor(diffSec / 60);
-    if (diffMin < 60) return `${String(diffMin)}m ago`;
-    const diffHr = Math.floor(diffMin / 60);
-    if (diffHr < 24) return `${String(diffHr)}h ago`;
-    const diffDay = Math.floor(diffHr / 24);
-    if (diffDay < 30) return `${String(diffDay)}d ago`;
-    return d.toLocaleDateString();
-  } catch {
-    return "";
-  }
-}
+const formatTime = (t?: string): string => formatAbsolute(t);
+const formatRelative = (t?: string): string => sharedFormatRelative(t, { emptyLabel: "" });
 
 /* ═══════════════════════════════════════════════════════════════════
    Tab types — v3: Live / Attach / Config / Metrics
