@@ -29,20 +29,20 @@ var initCmd = &cobra.Command{
 
 This creates a .mycel-scoped workspace directory with v2 configuration for managing agents.
 
-v2 workspace structure:
-  .bc/
-    settings.json  # Workspace configuration
-    roles/         # Agent role definitions
-      root.md      # Root agent role
-    agents/        # Per-agent state files
+v2 workspace structure (runtime state lives outside the project dir):
+  ~/.mycel/workspaces/<id>/
+    preferences.json  # Workspace configuration
+    roles/            # Agent role definitions
+      root.md         # Root agent role
+    agents/           # Per-agent state files
 
 Examples:
-  bc init                        # Interactive wizard
-  bc init --quick                # Quick init with defaults
-  bc init --preset solo          # Use solo developer preset
-  bc init --preset small-team    # Use small team preset
-  bc init --preset full-team     # Use full team preset
-  bc init ~/Projects/myapp       # Initialize specific directory`,
+  mycel init                        # Interactive wizard
+  mycel init --quick                # Quick init with defaults
+  mycel init --preset solo          # Use solo developer preset
+  mycel init --preset small-team    # Use small team preset
+  mycel init --preset full-team     # Use full team preset
+  mycel init ~/Projects/myapp       # Initialize specific directory`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: runInit,
 }
@@ -159,8 +159,8 @@ func initV2Workspace(rootDir string) error {
 	fmt.Printf("  Default provider: %s\n", ws.Config.Providers.Default)
 	fmt.Printf("\n")
 	fmt.Printf("Next steps:\n")
-	fmt.Printf("  bc up       # Start agents\n")
-	fmt.Printf("  bc status   # Check agent status\n")
+	fmt.Printf("  mycel up       # Start agents\n")
+	fmt.Printf("  mycel status   # Check agent status\n")
 
 	return nil
 }
@@ -312,9 +312,9 @@ func initV2WorkspaceWithNickname(rootDir string, nickname string) error {
 	bootstrapServerDaemons(rootDir)
 
 	fmt.Println("  Next steps:")
-	fmt.Println("    bc          # Open the dashboard")
-	fmt.Println("    bc up       # Start agents")
-	fmt.Println("    bc status   # Check agent status")
+	fmt.Println("    mycel       # Open the dashboard")
+	fmt.Println("    mycel up    # Start agents")
+	fmt.Println("    mycel status # Check agent status")
 
 	return nil
 }

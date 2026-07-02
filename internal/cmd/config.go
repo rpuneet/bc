@@ -27,13 +27,13 @@ Configuration uses a hierarchical key structure with dot notation:
   providers.default
 
 Examples:
-  bc config show                        # Show all config
-  bc config get providers.default           # Get a specific value
-  bc config set providers.default 6      # Set a value
-  bc config list                        # List all config keys
-  bc config edit                        # Open config in editor
-  bc config validate                    # Validate config file
-  bc config reset                       # Reset to defaults`,
+  mycel config show                        # Show all config
+  mycel config get providers.default           # Get a specific value
+  mycel config set providers.default 6      # Set a value
+  mycel config list                        # List all config keys
+  mycel config edit                        # Open config in editor
+  mycel config validate                    # Validate config file
+  mycel config reset                       # Reset to defaults`,
 	RunE: runConfigShow,
 }
 
@@ -45,10 +45,10 @@ var configShowCmd = &cobra.Command{
 If a key is specified, shows only that section. Otherwise shows entire config.
 
 Examples:
-  bc config show                  # Show all config
-  bc config show tools            # Show tools section
-  bc config show tools.claude     # Show specific tool config
-  bc config show --json           # Output as JSON`,
+  mycel config show                  # Show all config
+  mycel config show tools            # Show tools section
+  mycel config show tools.claude     # Show specific tool config
+  mycel config show --json           # Output as JSON`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: runConfigShow,
 }
@@ -59,10 +59,10 @@ var configGetCmd = &cobra.Command{
 	Long: `Get a specific configuration value using dot notation.
 
 Examples:
-  bc config get workspace.name
-  bc config get providers.default
-  bc config get providers.default
-  bc config get tools.claude.command`,
+  mycel config get workspace.name
+  mycel config get providers.default
+  mycel config get providers.default
+  mycel config get tools.claude.command`,
 	Args: cobra.ExactArgs(1),
 	RunE: runConfigGet,
 }
@@ -75,10 +75,10 @@ var configSetCmd = &cobra.Command{
 The value type is automatically inferred (string, number, boolean).
 
 Examples:
-  bc config set providers.default 6
-  bc config set providers.default claude
-  bc config set runtime.backend docker
-  bc config set tools.claude.command "claude --force"`,
+  mycel config set providers.default 6
+  mycel config set providers.default claude
+  mycel config set runtime.backend docker
+  mycel config set tools.claude.command "claude --force"`,
 	Args: cobra.ExactArgs(2),
 	RunE: runConfigSet,
 }
@@ -89,8 +89,8 @@ var configListCmd = &cobra.Command{
 	Long: `List all available configuration keys in the workspace config.
 
 Examples:
-  bc config list
-  bc config list --json           # Output as JSON array`,
+  mycel config list
+  mycel config list --json           # Output as JSON array`,
 	RunE: runConfigList,
 }
 
@@ -102,7 +102,7 @@ var configEditCmd = &cobra.Command{
 Uses $EDITOR environment variable, falls back to 'nano' if not set.
 
 Examples:
-  bc config edit`,
+  mycel config edit`,
 	RunE: runConfigEdit,
 }
 
@@ -118,7 +118,7 @@ Checks for:
   - Tool references exist
 
 Examples:
-  bc config validate`,
+  mycel config validate`,
 	RunE: runConfigValidate,
 }
 
@@ -130,8 +130,8 @@ var configResetCmd = &cobra.Command{
 WARNING: This will overwrite your current config. Back up first if needed.
 
 Examples:
-  bc config reset
-  bc config reset --force         # Skip confirmation`,
+  mycel config reset
+  mycel config reset --force         # Skip confirmation`,
 	RunE: runConfigReset,
 }
 
@@ -150,9 +150,9 @@ User configuration provides defaults that apply across all mycel workspaces:
 Workspace config (.bc/settings.json) takes precedence over user config.
 
 Examples:
-  bc config user init   # Create ~/.bcrc with guided prompts
-  bc config user show   # Show user config
-  bc config user path   # Show user config path`,
+  mycel config user init   # Create ~/.bcrc with guided prompts
+  mycel config user show   # Show user config
+  mycel config user path   # Show user config path`,
 	RunE: runConfigUserShow,
 }
 
@@ -162,8 +162,8 @@ var configUserInitCmd = &cobra.Command{
 	Long: `Create a new ~/.bcrc file with guided prompts.
 
 Examples:
-  bc config user init          # Interactive setup
-  bc config user init --quick  # Use defaults without prompts`,
+  mycel config user init          # Interactive setup
+  mycel config user init --quick  # Use defaults without prompts`,
 	RunE: runConfigUserInit,
 }
 
@@ -173,7 +173,7 @@ var configUserShowCmd = &cobra.Command{
 	Long: `Display the current user configuration from ~/.bcrc.
 
 Examples:
-  bc config user show`,
+  mycel config user show`,
 	RunE: runConfigUserShow,
 }
 
@@ -183,7 +183,7 @@ var configUserPathCmd = &cobra.Command{
 	Long: `Display the path to the user configuration file.
 
 Examples:
-  bc config user path`,
+  mycel config user path`,
 	RunE: runConfigUserPath,
 }
 

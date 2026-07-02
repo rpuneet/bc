@@ -24,9 +24,9 @@ var statusCmd = &cobra.Command{
 	Long: `Show the status of all bc agents.
 
 Examples:
-  bc status                   # Show all agents
-  bc status --json            # Output as JSON
-  bc status --activity        # Show recent channel activity
+  mycel status                   # Show all agents
+  mycel status --json            # Output as JSON
+  mycel status --activity        # Show recent channel activity
 
 Output:
   AGENT     ROLE      STATE    UPTIME    TASK
@@ -41,9 +41,9 @@ Agent States:
   stopped   Agent is not running
 
 See Also:
-  bc agent list   List agents with more detail
-  bc logs         View agent event logs
-  bc home         Open TUI dashboard`,
+  mycel agent list   List agents with more detail
+  mycel logs         View agent event logs
+  mycel home         Open TUI dashboard`,
 	RunE: runStatus,
 }
 

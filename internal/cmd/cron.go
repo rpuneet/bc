@@ -27,14 +27,14 @@ Cron expressions use standard 5-field format:
   * * * * *
 
 Examples:
-  bc cron add daily-lint --schedule "0 9 * * *" --agent qa-01 --prompt "Run make lint"
-  bc cron list                          # List all cron jobs
-  bc cron show daily-lint               # Show job details
-  bc cron enable daily-lint             # Enable a disabled job
-  bc cron disable daily-lint            # Disable without deleting
-  bc cron run daily-lint                # Trigger manually
-  bc cron logs daily-lint --last 10     # Show last 10 executions
-  bc cron remove daily-lint             # Delete a job`,
+  mycel cron add daily-lint --schedule "0 9 * * *" --agent qa-01 --prompt "Run make lint"
+  mycel cron list                          # List all cron jobs
+  mycel cron show daily-lint               # Show job details
+  mycel cron enable daily-lint             # Enable a disabled job
+  mycel cron disable daily-lint            # Disable without deleting
+  mycel cron run daily-lint                # Trigger manually
+  mycel cron logs daily-lint --last 10     # Show last 10 executions
+  mycel cron remove daily-lint             # Delete a job`,
 }
 
 var cronAddCmd = &cobra.Command{
@@ -45,9 +45,9 @@ var cronAddCmd = &cobra.Command{
 One of --agent+--prompt or --command is required.
 
 Examples:
-  bc cron add daily-lint --schedule "0 9 * * *" --agent qa-01 --prompt "Run make lint and report"
-  bc cron add hourly-check --schedule "0 * * * *" --command "make check"
-  bc cron add weekday-standup --schedule "0 9 * * 1-5" --agent root --prompt "Send standup"`,
+  mycel cron add daily-lint --schedule "0 9 * * *" --agent qa-01 --prompt "Run make lint and report"
+  mycel cron add hourly-check --schedule "0 * * * *" --command "make check"
+  mycel cron add weekday-standup --schedule "0 9 * * 1-5" --agent root --prompt "Send standup"`,
 	Args: cobra.ExactArgs(1),
 	RunE: runCronAdd,
 }
@@ -58,8 +58,8 @@ var cronListCmd = &cobra.Command{
 	Long: `Display all scheduled cron jobs with their status.
 
 Examples:
-  bc cron list
-  bc cron list --json`,
+  mycel cron list
+  mycel cron list --json`,
 	RunE: runCronList,
 }
 
@@ -69,8 +69,8 @@ var cronShowCmd = &cobra.Command{
 	Long: `Display full details of a cron job including schedule and run history stats.
 
 Examples:
-  bc cron show daily-lint
-  bc cron show daily-lint --json`,
+  mycel cron show daily-lint
+  mycel cron show daily-lint --json`,
 	Args: cobra.ExactArgs(1),
 	RunE: runCronShow,
 }
@@ -82,7 +82,7 @@ var cronRemoveCmd = &cobra.Command{
 	Long: `Delete a cron job and its execution logs.
 
 Examples:
-  bc cron remove daily-lint`,
+  mycel cron remove daily-lint`,
 	Args: cobra.ExactArgs(1),
 	RunE: runCronRemove,
 }
@@ -93,7 +93,7 @@ var cronEnableCmd = &cobra.Command{
 	Long: `Enable a disabled cron job. The next run time is recalculated from now.
 
 Examples:
-  bc cron enable daily-lint`,
+  mycel cron enable daily-lint`,
 	Args: cobra.ExactArgs(1),
 	RunE: runCronEnable,
 }
@@ -104,7 +104,7 @@ var cronDisableCmd = &cobra.Command{
 	Long: `Disable a cron job without deleting it.
 
 Examples:
-  bc cron disable daily-lint`,
+  mycel cron disable daily-lint`,
 	Args: cobra.ExactArgs(1),
 	RunE: runCronDisable,
 }
@@ -117,7 +117,7 @@ The job must be enabled. The daemon (bcd) executes the actual agent interaction;
 this command records the trigger and updates run stats.
 
 Examples:
-  bc cron run daily-lint`,
+  mycel cron run daily-lint`,
 	Args: cobra.ExactArgs(1),
 	RunE: runCronRun,
 }
@@ -128,9 +128,9 @@ var cronLogsCmd = &cobra.Command{
 	Long: `Display the execution log for a cron job.
 
 Examples:
-  bc cron logs daily-lint
-  bc cron logs daily-lint --last 5
-  bc cron logs daily-lint --json`,
+  mycel cron logs daily-lint
+  mycel cron logs daily-lint --last 5
+  mycel cron logs daily-lint --json`,
 	Args: cobra.ExactArgs(1),
 	RunE: runCronLogs,
 }

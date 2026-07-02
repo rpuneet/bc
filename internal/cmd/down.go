@@ -19,8 +19,8 @@ var downCmd = &cobra.Command{
 	Long: `Stop bc-<id>-daemon and bc-db Docker containers.
 
 Examples:
-  bc down
-  bc down --workspace /path/to/workspace`,
+  mycel down
+  mycel down --workspace /path/to/workspace`,
 	RunE: runDown,
 }
 

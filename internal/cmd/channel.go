@@ -25,22 +25,22 @@ Channels are named groups of agent members. Messages sent to a channel are
 delivered to all member tmux sessions.
 
 Examples:
-  bc channel list                      # List all channels
-  bc channel create workers            # Create a channel named "workers"
-  bc channel show workers              # Show channel details
-  bc channel add workers worker-01     # Add member to channel
-  bc channel add workers --agent w-01  # Add member via --agent flag
-  bc channel send workers "run tests"  # Send to all members
-  bc channel history workers --last 20 # Show last 20 messages
-  bc channel react workers 5 👍        # React to message
-  bc channel edit workers --desc "..."  # Edit channel description
-  bc channel remove workers worker-01  # Remove a member
-  bc channel delete workers            # Delete the channel
-  bc channel status                    # Overview of all channels
+  mycel channel list                      # List all channels
+  mycel channel create workers            # Create a channel named "workers"
+  mycel channel show workers              # Show channel details
+  mycel channel add workers worker-01     # Add member to channel
+  mycel channel add workers --agent w-01  # Add member via --agent flag
+  mycel channel send workers "run tests"  # Send to all members
+  mycel channel history workers --last 20 # Show last 20 messages
+  mycel channel react workers 5 👍        # React to message
+  mycel channel edit workers --desc "..."  # Edit channel description
+  mycel channel remove workers worker-01  # Remove a member
+  mycel channel delete workers            # Delete the channel
+  mycel channel status                    # Overview of all channels
 
 Agent Commands (require BC_AGENT_ID):
-  bc channel join workers              # Join a channel (current agent)
-  bc channel leave workers             # Leave a channel (current agent)
+  mycel channel join workers              # Join a channel (current agent)
+  mycel channel leave workers             # Leave a channel (current agent)
 
 Default Channels:
   #eng       Engineering team (all engineer agents)
@@ -53,9 +53,9 @@ Message Format:
   Use @agent-name to mention specific agents in messages.
 
 See Also:
-  bc agent send       Send message to single agent
-  bc agent broadcast  Send to all agents
-  bc status           View agents and their channels`,
+  mycel agent send       Send message to single agent
+  mycel agent broadcast  Send to all agents
+  mycel status           View agents and their channels`,
 }
 
 var channelCreateCmd = &cobra.Command{
@@ -121,13 +121,13 @@ var channelHistoryCmd = &cobra.Command{
 	Long: `Display the history of messages sent to a channel.
 
 Examples:
-  bc channel history eng                       # Last 50 messages (default)
-  bc channel history eng --limit 10            # Last 10 messages
-  bc channel history eng --since 1h            # Messages from last hour
-  bc channel history eng --agent agent-core    # Messages from agent-core only
-  bc channel history eng --from 2026-03-01     # Messages from date
-  bc channel history eng --from 2026-03-01 --to 2026-03-05  # Date range
-  bc channel history eng --limit 20 --offset 20  # Page 2 of 20`,
+  mycel channel history eng                       # Last 50 messages (default)
+  mycel channel history eng --limit 10            # Last 10 messages
+  mycel channel history eng --since 1h            # Messages from last hour
+  mycel channel history eng --agent agent-core    # Messages from agent-core only
+  mycel channel history eng --from 2026-03-01     # Messages from date
+  mycel channel history eng --from 2026-03-01 --to 2026-03-05  # Date range
+  mycel channel history eng --limit 20 --offset 20  # Page 2 of 20`,
 	Args: cobra.ExactArgs(1),
 	RunE: runChannelHistory,
 }
@@ -141,8 +141,8 @@ The message-index is shown in 'mycel channel history' output.
 Use common emoji like 👍, 👎, ❤️, 🎉, 👀, 🚀 or any emoji.
 
 Examples:
-  bc channel react engineering 5 👍
-  bc channel react general 0 🎉`,
+  mycel channel react engineering 5 👍
+  mycel channel react general 0 🎉`,
 	Args: cobra.ExactArgs(3),
 	RunE: runChannelReact,
 }
@@ -154,8 +154,8 @@ var channelShowCmd = &cobra.Command{
 description, and message history statistics.
 
 Examples:
-  bc channel show engineering    # Show engineering channel details
-  bc channel show standup --json # Output as JSON`,
+  mycel channel show engineering    # Show engineering channel details
+  mycel channel show standup --json # Output as JSON`,
 	Args: cobra.ExactArgs(1),
 	RunE: runChannelShow,
 }
@@ -176,8 +176,8 @@ var channelStatusCmd = &cobra.Command{
 Columns: Name, Members, Messages, Last Message (preview), Last Activity.
 
 Examples:
-  bc channel status           # Show all channels with details
-  bc channel status --json    # JSON output`,
+  mycel channel status           # Show all channels with details
+  mycel channel status --json    # JSON output`,
 	RunE: runChannelStatus,
 }
 
@@ -187,7 +187,7 @@ var channelEditCmd = &cobra.Command{
 	Long: `Edit a channel's description or settings.
 
 Examples:
-  bc channel edit eng --desc "Engineering discussion"`,
+  mycel channel edit eng --desc "Engineering discussion"`,
 	Args: cobra.ExactArgs(1),
 	RunE: runChannelEdit,
 }

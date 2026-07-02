@@ -254,9 +254,9 @@ func printWizardSuccess(state *WizardState) {
 	fmt.Println("    .bc/bc.db            # Workspace database")
 	fmt.Println()
 	fmt.Println("  Next steps:")
-	fmt.Println("    bc          # Open the dashboard")
-	fmt.Println("    bc up       # Start agents")
-	fmt.Println("    bc status   # Check agent status")
+	fmt.Println("    mycel       # Open the dashboard")
+	fmt.Println("    mycel up    # Start agents")
+	fmt.Println("    mycel status # Check agent status")
 	fmt.Println()
 }
 

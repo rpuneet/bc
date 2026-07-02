@@ -24,10 +24,10 @@ var costReportCmd = &cobra.Command{
 
 By default prints per-workspace breakdown. Use --by to change grouping:
 
-  bc cost report                  # per-workspace totals
-  bc cost report --by workspace   # per-workspace totals
-  bc cost report --by project     # per-project totals (workspace name grouping)
-  bc cost report --since 30d      # only include records from last 30 days`,
+  mycel cost report                  # per-workspace totals
+  mycel cost report --by workspace   # per-workspace totals
+  mycel cost report --by project     # per-project totals (workspace name grouping)
+  mycel cost report --since 30d      # only include records from last 30 days`,
 	RunE: runCostReport,
 }
 

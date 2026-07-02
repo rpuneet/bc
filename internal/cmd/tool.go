@@ -25,14 +25,14 @@ var toolCmd = &cobra.Command{
 	Long: `Add, remove, and inspect AI tool providers for agent spawning.
 
 Examples:
-  bc tool list              # Show all tools with status
-  bc tool add myagent       # Add a custom tool
-  bc tool show claude       # Show tool details
-  bc tool setup claude      # Install and configure a tool
-  bc tool status claude     # Check installation status
-  bc tool upgrade claude    # Upgrade an installed tool
-  bc tool delete mytool     # Remove a custom tool
-  bc tool run claude --help # Run a tool directly`,
+  mycel tool list              # Show all tools with status
+  mycel tool add myagent       # Add a custom tool
+  mycel tool show claude       # Show tool details
+  mycel tool setup claude      # Install and configure a tool
+  mycel tool status claude     # Check installation status
+  mycel tool upgrade claude    # Upgrade an installed tool
+  mycel tool delete mytool     # Remove a custom tool
+  mycel tool run claude --help # Run a tool directly`,
 }
 
 // ── list ──────────────────────────────────────────────────────────────────────
@@ -43,8 +43,8 @@ var toolListCmd = &cobra.Command{
 	Long: `Show all registered AI tool providers with installation status, version, and command.
 
 Examples:
-  bc tool list        # Table output
-  bc tool list --json # JSON output for scripting`,
+  mycel tool list        # Table output
+  mycel tool list --json # JSON output for scripting`,
 	RunE: runToolList,
 }
 
@@ -76,8 +76,8 @@ var toolAddCmd = &cobra.Command{
 	Long: `Add a custom tool provider to the workspace.
 
 Examples:
-  bc tool add mytool --command "mytool --yes" --install "pip install mytool"
-  bc tool add mytool --command "mytool" --slash-cmds "/help,/quit"`,
+  mycel tool add mytool --command "mytool --yes" --install "pip install mytool"
+  mycel tool add mytool --command "mytool" --slash-cmds "/help,/quit"`,
 	Args: cobra.ExactArgs(1),
 	RunE: runToolAdd,
 }

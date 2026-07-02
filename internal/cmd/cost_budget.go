@@ -17,10 +17,10 @@ var costBudgetCmd = &cobra.Command{
 	Long: `Commands for managing cost budgets and limits.
 
 Examples:
-  bc cost budget show
-  bc cost budget set 100.00
-  bc cost budget set 50.00 --agent engineer-01
-  bc cost budget set 500.00 --period monthly --alert-at 0.9`,
+  mycel cost budget show
+  mycel cost budget set 100.00
+  mycel cost budget set 50.00 --agent engineer-01
+  mycel cost budget set 500.00 --period monthly --alert-at 0.9`,
 }
 
 var costBudgetSetCmd = &cobra.Command{
@@ -29,12 +29,12 @@ var costBudgetSetCmd = &cobra.Command{
 	Long: `Set a cost budget for the workspace, agent, or team.
 
 Examples:
-  bc cost budget set 100.00                          # Set workspace budget to $100
-  bc cost budget set 50.00 --agent engineer-01       # Set agent budget
-  bc cost budget set 500.00 --team engineering       # Set team budget
-  bc cost budget set 100.00 --period weekly          # Weekly budget
-  bc cost budget set 100.00 --alert-at 0.9           # Alert at 90%
-  bc cost budget set 100.00 --hard-stop              # Stop when limit reached`,
+  mycel cost budget set 100.00                          # Set workspace budget to $100
+  mycel cost budget set 50.00 --agent engineer-01       # Set agent budget
+  mycel cost budget set 500.00 --team engineering       # Set team budget
+  mycel cost budget set 100.00 --period weekly          # Weekly budget
+  mycel cost budget set 100.00 --alert-at 0.9           # Alert at 90%
+  mycel cost budget set 100.00 --hard-stop              # Stop when limit reached`,
 	Args: cobra.ExactArgs(1),
 	RunE: runCostBudgetSet,
 }
@@ -45,8 +45,8 @@ var costBudgetShowCmd = &cobra.Command{
 	Long: `Show current budget configuration and status.
 
 Examples:
-  bc cost budget show                   # Show all budgets
-  bc cost budget show --agent eng-01    # Show agent budget`,
+  mycel cost budget show                   # Show all budgets
+  mycel cost budget show --agent eng-01    # Show agent budget`,
 	RunE: runCostBudgetShow,
 }
 
@@ -56,8 +56,8 @@ var costBudgetDeleteCmd = &cobra.Command{
 	Long: `Delete a budget configuration.
 
 Examples:
-  bc cost budget delete                  # Delete workspace budget
-  bc cost budget delete --agent eng-01   # Delete agent budget`,
+  mycel cost budget delete                  # Delete workspace budget
+  mycel cost budget delete --agent eng-01   # Delete agent budget`,
 	RunE: runCostBudgetDelete,
 }
 

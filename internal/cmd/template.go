@@ -24,12 +24,12 @@ may override a template by placing a file with the same name under
 writing the user-global copy.
 
 Examples:
-  bc template list                    # List all templates (global + workspace overrides)
-  bc template show feature-dev        # Show template details
-  bc template create my-template      # Scaffold a new user-global template
-  bc template create my-template --workspace   # Workspace-local override
-  bc template delete my-template      # Delete (prefers workspace scope)
-  bc template delete my-template --global      # Delete user-global`,
+  mycel template list                    # List all templates (global + workspace overrides)
+  mycel template show feature-dev        # Show template details
+  mycel template create my-template      # Scaffold a new user-global template
+  mycel template create my-template --workspace   # Workspace-local override
+  mycel template delete my-template      # Delete (prefers workspace scope)
+  mycel template delete my-template --global      # Delete user-global`,
 	RunE: runTemplateList,
 }
 
