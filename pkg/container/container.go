@@ -19,6 +19,7 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/rpuneet/mycel/pkg/log"
 	"github.com/rpuneet/mycel/pkg/provider"
@@ -81,7 +82,7 @@ func ConfigFromWorkspace(dcfg workspace.DockerRuntimeConfig) Config {
 		MemoryMB:    dcfg.MemoryMB,
 	}
 	if cfg.Image == "" {
-		cfg.Image = "bc-agent-claude:latest"
+		cfg.Image = "mycel-agent-claude:latest"
 	}
 	if cfg.CPUs == 0 {
 		cfg.CPUs = 2.0
@@ -186,6 +187,11 @@ func (b *Backend) hostAgentDir(agentName, hostRoot string) string {
 }
 
 // imageForTool returns the Docker image for a given agent tool name.
+//
+// Prefers the current mycel-agent-<tool>:latest tag. If only the legacy
+// bc-agent-<tool>:latest image is present locally, returns that instead so
+// pre-rename installs keep booting. The fallback is skipped when the caller
+// has no docker daemon available (probeImageExists returns false quickly).
 func (b *Backend) imageForTool(toolName string) string {
 	if toolName == "" {
 		return b.cfg.Image
@@ -199,7 +205,34 @@ func (b *Backend) imageForTool(toolName string) string {
 			}
 		}
 	}
-	return "bc-agent-" + toolName + ":latest"
+	return resolveImageWithLegacyFallback("mycel-agent-"+toolName+":latest", "bc-agent-"+toolName+":latest")
+}
+
+// resolveImageWithLegacyFallback returns preferred if it exists locally
+// (or if the local image inventory can't be probed), else fallback.
+// This exists solely to bridge the bc-agent-* → mycel-agent-* rename for
+// installs that were bootstrapped before v0.3.1. Remove after one cycle.
+func resolveImageWithLegacyFallback(preferred, fallback string) string {
+	if imageExistsLocally(preferred) {
+		return preferred
+	}
+	if imageExistsLocally(fallback) {
+		return fallback
+	}
+	return preferred
+}
+
+// imageExistsLocally returns true if `docker image inspect <ref>` succeeds.
+// Returns false on any error (including no docker daemon) so callers treat
+// "unknown" as "not present" and stick with the preferred name.
+func imageExistsLocally(ref string) bool {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	//nolint:gosec // trusted binary, ref built from constant prefixes
+	cmd := exec.CommandContext(ctx, "docker", "image", "inspect", ref)
+	cmd.Stdout = io.Discard
+	cmd.Stderr = io.Discard
+	return cmd.Run() == nil
 }
 
 // SessionName returns the full session name with prefix.
@@ -283,17 +316,30 @@ func (b *Backend) CreateSessionWithEnv(ctx context.Context, name, dir, command s
 		return fmt.Errorf("workspace %q is not a git repository (no .git found): %w", dir, err)
 	}
 
+	// Resolve image once per session — avoids double docker probe
+	// (validation below + docker run selection at the end).
+	image := b.cfg.Image
+	if toolName, ok := env["BC_AGENT_TOOL"]; ok && toolName != "" {
+		image = b.imageForTool(toolName)
+	}
+
 	// Validate tool/image consistency — catch mismatches like running "gemini"
 	// command inside a "bc-agent-claude" image (Exit 127).
 	if toolName, ok := env["BC_AGENT_TOOL"]; ok && toolName != "" {
-		image := b.imageForTool(toolName)
 		cmdBin := strings.Fields(command)
 		if len(cmdBin) > 0 {
 			bin := cmdBin[0]
-			// If image is tool-specific (bc-agent-<X>) but command binary doesn't match,
-			// the binary likely doesn't exist in the image.
-			if strings.HasPrefix(image, "bc-agent-") {
-				imageTool := strings.TrimSuffix(strings.TrimPrefix(image, "bc-agent-"), ":latest")
+			// If image is tool-specific (mycel-agent-<X> or legacy bc-agent-<X>)
+			// but command binary doesn't match, the binary likely doesn't exist
+			// in the image.
+			var imageTool string
+			switch {
+			case strings.HasPrefix(image, "mycel-agent-"):
+				imageTool = strings.TrimSuffix(strings.TrimPrefix(image, "mycel-agent-"), ":latest")
+			case strings.HasPrefix(image, "bc-agent-"):
+				imageTool = strings.TrimSuffix(strings.TrimPrefix(image, "bc-agent-"), ":latest")
+			}
+			if imageTool != "" {
 				if bin != imageTool && bin != "bash" && bin != "sh" {
 					// Only warn if the binary name looks like a different tool
 					for _, knownTool := range []string{"claude", "gemini", "cursor", "codex"} {
@@ -408,13 +454,8 @@ func (b *Backend) CreateSessionWithEnv(ctx context.Context, name, dir, command s
 		args = append(args, "-e", k+"="+v)
 	}
 
-	// Select image based on agent tool
-	image := b.cfg.Image
-	if toolName, ok := env["BC_AGENT_TOOL"]; ok && toolName != "" {
-		image = b.imageForTool(toolName)
-	}
-
 	// Run the agent command. claude --tmux handles its own tmux session.
+	// image was resolved once at the top of this function.
 	args = append(args, "--entrypoint", "bash", image, "-c", command)
 
 	log.Debug("creating docker container", "name", cn, "image", image)

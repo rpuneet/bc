@@ -1,9 +1,9 @@
 # Infrastructure agent image with AWS CLI and Cloudflare CLI
 # Extends the Claude agent image with cloud ops tooling.
-# Usage: docker build -t bc-agent-infra:latest -f docker/Dockerfile.infra .
-# Requires: bc-agent-claude:latest
+# Usage: docker build -t mycel-agent-infra:latest -f docker/Dockerfile.infra .
+# Requires: mycel-agent-claude:latest
 
-FROM bc-agent-claude:latest
+FROM mycel-agent-claude:latest
 
 USER root
 

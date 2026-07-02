@@ -16,8 +16,8 @@ import (
 func TestConfigFromWorkspace_Defaults(t *testing.T) {
 	cfg := ConfigFromWorkspace(workspace.DockerRuntimeConfig{})
 
-	if cfg.Image != "bc-agent-claude:latest" {
-		t.Errorf("Image = %q, want bc-agent-claude:latest", cfg.Image)
+	if cfg.Image != "mycel-agent-claude:latest" {
+		t.Errorf("Image = %q, want mycel-agent-claude:latest", cfg.Image)
 	}
 	if cfg.CPUs != 2.0 {
 		t.Errorf("CPUs = %f, want 2.0", cfg.CPUs)
@@ -124,24 +124,24 @@ func TestSessionName(t *testing.T) {
 
 func TestImageForTool_Default(t *testing.T) {
 	b := &Backend{
-		cfg: Config{Image: "bc-agent-claude:latest"},
+		cfg: Config{Image: "mycel-agent-claude:latest"},
 	}
 
 	// Empty tool name returns default image
 	got := b.imageForTool("")
-	if got != "bc-agent-claude:latest" {
-		t.Errorf("imageForTool(\"\") = %q, want bc-agent-claude:latest", got)
+	if got != "mycel-agent-claude:latest" {
+		t.Errorf("imageForTool(\"\") = %q, want mycel-agent-claude:latest", got)
 	}
 }
 
 func TestImageForTool_Convention(t *testing.T) {
 	b := &Backend{
-		cfg: Config{Image: "bc-agent-claude:latest"},
+		cfg: Config{Image: "mycel-agent-claude:latest"},
 	}
 
 	// Unknown tool without registry falls back to convention
 	got := b.imageForTool("gemini")
-	want := "bc-agent-gemini:latest"
+	want := "mycel-agent-gemini:latest"
 	if got != want {
 		t.Errorf("imageForTool(\"gemini\") = %q, want %q", got, want)
 	}
@@ -155,7 +155,7 @@ func TestImageForTool_FallbackToConfig(t *testing.T) {
 	// Tool that doesn't match convention pattern
 	got := b.imageForTool("unknown-tool")
 	// Should return convention-based name
-	want := "bc-agent-unknown-tool:latest"
+	want := "mycel-agent-unknown-tool:latest"
 	if got != want {
 		t.Errorf("imageForTool(\"unknown-tool\") = %q, want %q", got, want)
 	}
@@ -185,7 +185,7 @@ func TestImageForTool_WithContainerCustomizer(t *testing.T) {
 	registry.Register(mp)
 
 	b := &Backend{
-		cfg:              Config{Image: "bc-agent-claude:latest"},
+		cfg:              Config{Image: "mycel-agent-claude:latest"},
 		providerRegistry: registry,
 	}
 
@@ -202,12 +202,12 @@ func TestImageForTool_CustomizerReturnsEmpty(t *testing.T) {
 	registry.Register(mp)
 
 	b := &Backend{
-		cfg:              Config{Image: "bc-agent-claude:latest"},
+		cfg:              Config{Image: "mycel-agent-claude:latest"},
 		providerRegistry: registry,
 	}
 
 	got := b.imageForTool("empty-img")
-	want := "bc-agent-empty-img:latest"
+	want := "mycel-agent-empty-img:latest"
 	if got != want {
 		t.Errorf("imageForTool(\"empty-img\") = %q, want %q (should fall through to convention)", got, want)
 	}
@@ -220,12 +220,12 @@ func TestImageForTool_RegistryMiss(t *testing.T) {
 	registry.Register(mp)
 
 	b := &Backend{
-		cfg:              Config{Image: "bc-agent-claude:latest"},
+		cfg:              Config{Image: "mycel-agent-claude:latest"},
 		providerRegistry: registry,
 	}
 
 	got := b.imageForTool("missing-tool")
-	want := "bc-agent-missing-tool:latest"
+	want := "mycel-agent-missing-tool:latest"
 	if got != want {
 		t.Errorf("imageForTool(\"missing-tool\") = %q, want %q", got, want)
 	}
@@ -236,7 +236,7 @@ func TestCreateSessionWithEnv_EmptyDir(t *testing.T) {
 		prefix:        "bc-",
 		workspaceHash: "aabbcc",
 		workspacePath: t.TempDir(),
-		cfg:           Config{Image: "bc-agent-claude:latest", Network: "bridge", CPUs: 2.0, MemoryMB: 2048},
+		cfg:           Config{Image: "mycel-agent-claude:latest", Network: "bridge", CPUs: 2.0, MemoryMB: 2048},
 		logCancels:    make(map[string]context.CancelFunc),
 	}
 
@@ -255,7 +255,7 @@ func TestCreateSessionWithEnv_NoGitDir(t *testing.T) {
 		prefix:        "bc-",
 		workspaceHash: "aabbcc",
 		workspacePath: dir,
-		cfg:           Config{Image: "bc-agent-claude:latest", Network: "bridge", CPUs: 2.0, MemoryMB: 2048},
+		cfg:           Config{Image: "mycel-agent-claude:latest", Network: "bridge", CPUs: 2.0, MemoryMB: 2048},
 		logCancels:    make(map[string]context.CancelFunc),
 	}
 
@@ -279,7 +279,7 @@ func TestCreateSessionWithEnv_ToolImageMismatch(t *testing.T) {
 		prefix:        "bc-",
 		workspaceHash: "aabbcc",
 		workspacePath: dir,
-		cfg:           Config{Image: "bc-agent-claude:latest", Network: "bridge", CPUs: 2.0, MemoryMB: 2048},
+		cfg:           Config{Image: "mycel-agent-claude:latest", Network: "bridge", CPUs: 2.0, MemoryMB: 2048},
 		logCancels:    make(map[string]context.CancelFunc),
 	}
 
@@ -305,7 +305,7 @@ func TestCreateSessionWithEnv_ToolImageMatch(t *testing.T) {
 		prefix:        "bc-",
 		workspaceHash: "aabbcc",
 		workspacePath: dir,
-		cfg:           Config{Image: "bc-agent-claude:latest", Network: "bridge", CPUs: 2.0, MemoryMB: 2048},
+		cfg:           Config{Image: "mycel-agent-claude:latest", Network: "bridge", CPUs: 2.0, MemoryMB: 2048},
 		logCancels:    make(map[string]context.CancelFunc),
 	}
 
