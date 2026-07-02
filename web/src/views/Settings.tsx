@@ -361,10 +361,19 @@ export function Settings() {
 
   return (
     <div className="p-4 md:p-6 space-y-3">
-      {/* File metadata (title lives in the top-bar chip) */}
-      <p className="text-[10px] text-mycel-muted">
-        preferences.json{typeof version !== "undefined" ? ` v${version}` : ""}
-      </p>
+      {/* File metadata badge — the source of truth for what these
+          settings map to on disk. Small chip with a bordered file
+          glyph so it reads as chrome, not as a subtitle competing
+          with the page header above. */}
+      <div className="flex items-center gap-2">
+        <span className="inline-flex items-center gap-1.5 text-[10px] font-mono px-2 py-1 rounded border border-mycel-border/50 bg-mycel-surface/40 text-mycel-muted">
+          <svg width="10" height="10" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M3 1.5h5l3 3v8H3z" />
+            <path d="M8 1.5v3h3" />
+          </svg>
+          preferences.json{typeof version !== "undefined" ? ` · v${version}` : ""}
+        </span>
+      </div>
 
       {/* Saved confirmation toast — visible briefly after a successful save
           when no other sections are dirty. */}
