@@ -451,9 +451,9 @@ function CreateTemplateForm({ onCreated }: { onCreated: (name: string) => void }
         <button
           type="button"
           onClick={() => setExpanded(true)}
-          className="px-4 py-2 rounded bg-mycel-accent text-white text-sm font-medium hover:opacity-90 transition-opacity focus-visible:ring-2 focus-visible:ring-mycel-accent focus-visible:ring-offset-1 focus-visible:ring-offset-mycel-bg"
+          className="flex items-center gap-2 px-4 py-2 rounded-lg border border-dashed border-mycel-border text-sm text-mycel-muted hover:text-mycel-accent hover:border-mycel-accent/50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mycel-accent focus-visible:ring-offset-1 focus-visible:ring-offset-mycel-bg"
         >
-          + Create Template
+          <span className="text-lg leading-none">+</span> Create Template
         </button>
         {status.type === "success" && (
           <span className="text-xs text-mycel-success">Template created</span>
