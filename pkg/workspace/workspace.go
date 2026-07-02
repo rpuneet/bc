@@ -112,10 +112,26 @@ func Init(rootDir string) (*Workspace, error) {
 	}
 	_ = closeStore // store stays open for workspace lifetime
 
-	// Register in global registry so Find()/IsWorkspace() work without .bc/ marker.
-	if reg, regErr := LoadRegistry(); regErr == nil {
-		reg.Register(absRoot, cfg.User.Name)
-		_ = reg.Save() //nolint:errcheck // best-effort
+	// Register in global registry so Find()/IsWorkspace() work — M11+
+	// workspaces live at ~/.bc/workspaces/<id>/ with NO .bc/ marker in
+	// the project directory, so the registry is the ONLY thing that
+	// makes `bc <cmd>` resolve after init. If we can't persist it, init
+	// must fail loudly (#3173) — silently succeeding here leaves the
+	// user with a phantom workspace that every subsequent command
+	// rejects as "not in a bc workspace".
+	reg, regErr := LoadRegistry()
+	if regErr != nil {
+		if closeStore != nil {
+			_ = closeStore() //nolint:errcheck // best-effort cleanup on error path
+		}
+		return nil, fmt.Errorf("failed to load workspace registry (%s): %w", RegistryPath(), regErr)
+	}
+	reg.Register(absRoot, cfg.User.Name)
+	if saveErr := reg.Save(); saveErr != nil {
+		if closeStore != nil {
+			_ = closeStore() //nolint:errcheck // best-effort cleanup on error path
+		}
+		return nil, fmt.Errorf("failed to persist workspace registry (%s): %w", RegistryPath(), saveErr)
 	}
 
 	return &Workspace{
@@ -231,8 +247,45 @@ func Find(dir string) (*Workspace, error) {
 		}
 	}
 
-	// Legacy fallback: walk up looking for .bc/ directory marker.
+	// Self-heal (#3173): if the registry says nothing matches but a
+	// state directory exists at ~/.bc/workspaces/<id>/ where
+	// <id> == ComputeWorkspaceID(walked-path), the workspace was
+	// initialized but the registry file got out of sync — most often
+	// because Init's Save() failed on a fresh HOME, or the user hand-
+	// deleted workspaces.json. Register the entry on the fly so the
+	// next `bc` call sees a healed registry.
 	current := absDir
+	for {
+		id := ComputeWorkspaceID(current)
+		stateDir, sdErr := DataDir(id)
+		if sdErr == nil {
+			if prefs := firstExisting(stateDir, PreferencesFileName, LegacySettingsFileName); prefs != "" {
+				// Preserve the configured user name when re-registering so
+				// the self-heal doesn't clobber it with an empty string.
+				name := ""
+				if cfg, cfgErr := LoadConfig(prefs); cfgErr == nil && cfg != nil {
+					name = cfg.User.Name
+				}
+				if reg, regErr := LoadRegistry(); regErr == nil {
+					reg.Register(current, name)
+					if saveErr := reg.Save(); saveErr != nil {
+						log.Warn("workspace registry: self-heal save failed", "path", current, "error", saveErr)
+					} else {
+						log.Info("workspace registry: self-healed on find", "id", id, "path", current)
+					}
+				}
+				return Load(current)
+			}
+		}
+		parent := filepath.Dir(current)
+		if parent == current {
+			break
+		}
+		current = parent
+	}
+
+	// Legacy fallback: walk up looking for .bc/ directory marker.
+	current = absDir
 	for {
 		stateDir := filepath.Join(current, ".bc")
 		if _, err := os.Stat(stateDir); err == nil {

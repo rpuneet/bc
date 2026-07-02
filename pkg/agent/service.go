@@ -311,12 +311,26 @@ func (s *AgentService) Send(ctx context.Context, name, message string) error {
 	if a == nil {
 		return fmt.Errorf("agent %q: %w", name, ErrNotFound)
 	}
-	// Reconcile stale state: if marked stopped but session is alive, correct it
-	if a.State == StateStopped {
+	// Reconcile stale state (#3175). Two wedges are common:
+	//
+	//   - marked stopped but the tmux session is actually alive → idle
+	//   - stuck at "starting" because the transition hook was missed
+	//     (crash before writing state, hook dropped, etc.) → idle
+	//
+	// In both cases we probe the runtime for a live session. If one
+	// exists we correct the visible state so the dashboard stops lying;
+	// if not we return the honest "not running" error.
+	if a.State == StateStopped || a.State == StateStarting {
 		if s.manager.RuntimeForAgent(name).HasSession(ctx, name) {
-			a.State = StateIdle
-		} else {
+			// GetAgent returned a copy — reset via UpdateAgentState so
+			// the manager's authoritative state actually moves.
+			if uErr := s.manager.UpdateAgentState(ctx, name, StateIdle, a.Task); uErr != nil {
+				log.Warn("reconcile to idle failed", "agent", name, "from", a.State, "error", uErr)
+			}
+		} else if a.State == StateStopped {
 			return fmt.Errorf("agent %q is stopped: %w", name, ErrNotRunning)
+		} else {
+			return fmt.Errorf("agent %q is still starting: %w", name, ErrNotRunning)
 		}
 	}
 	return s.manager.SendToAgent(ctx, name, message)
