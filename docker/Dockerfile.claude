@@ -1,11 +1,11 @@
 # Claude Code agent image
-# Usage: docker build -t bc-agent-claude:latest -f docker/Dockerfile.claude .
-# Requires: bc-agent-base:latest (docker build -f docker/Dockerfile.base .)
+# Usage: docker build -t mycel-agent-claude:latest -f docker/Dockerfile.claude .
+# Requires: mycel-agent-base:latest (docker build -f docker/Dockerfile.base .)
 
 FROM alpine/git AS plugins
 RUN git clone --depth 1 https://github.com/anthropics/claude-plugins-official.git /plugins
 
-FROM bc-agent-base:latest AS base
+FROM mycel-agent-base:latest AS base
 
 USER root
 

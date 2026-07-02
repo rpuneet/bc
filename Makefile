@@ -55,7 +55,8 @@ DATE    ?= $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
 BUILD_DIR ?= bin
 GO ?= go
 
-REGISTRY ?= bc
+REGISTRY ?= mycel
+LEGACY_REGISTRY ?= bc
 IMAGE_TAG ?= latest
 AGENT_PROVIDERS := claude gemini codex cursor
 
@@ -154,21 +155,26 @@ build-docker-bcdb: build-docker-db ## Alias: Build bcdb (Postgres) Docker image
 
 build-docker-agent-base: ## Build agent base image
 	docker build -t $(REGISTRY)-agent-base:$(IMAGE_TAG) -f docker/Dockerfile.base .
+	docker tag $(REGISTRY)-agent-base:$(IMAGE_TAG) $(LEGACY_REGISTRY)-agent-base:$(IMAGE_TAG)
 
 build-docker-agent: build-docker-agent-base ## Build default agent image (claude)
 	docker build -t $(REGISTRY)-agent-claude:$(IMAGE_TAG) -f docker/Dockerfile.claude .
+	docker tag $(REGISTRY)-agent-claude:$(IMAGE_TAG) $(LEGACY_REGISTRY)-agent-claude:$(IMAGE_TAG)
 
 build-docker-agent-%: build-docker-agent-base ## Build agent image for provider
 	docker build -t $(REGISTRY)-agent-$*:$(IMAGE_TAG) -f docker/Dockerfile.$* .
+	docker tag $(REGISTRY)-agent-$*:$(IMAGE_TAG) $(LEGACY_REGISTRY)-agent-$*:$(IMAGE_TAG)
 
 build-docker-agents: build-docker-agent-base ## Build all agent images
 	@for p in $(AGENT_PROVIDERS); do \
 		echo "Building $(REGISTRY)-agent-$$p..."; \
 		docker build -t $(REGISTRY)-agent-$$p:$(IMAGE_TAG) -f docker/Dockerfile.$$p . || exit 1; \
+		docker tag $(REGISTRY)-agent-$$p:$(IMAGE_TAG) $(LEGACY_REGISTRY)-agent-$$p:$(IMAGE_TAG); \
 	done
 
 build-docker-agent-infra: build-docker-agent ## Build infra agent image (extends claude)
 	docker build -t $(REGISTRY)-agent-infra:$(IMAGE_TAG) -f docker/Dockerfile.infra .
+	docker tag $(REGISTRY)-agent-infra:$(IMAGE_TAG) $(LEGACY_REGISTRY)-agent-infra:$(IMAGE_TAG)
 
 build-docker-playwright: ## Build Playwright MCP Docker image (separate from main build)
 	docker build -t bc-playwright:latest -f docker/Dockerfile.playwright .
