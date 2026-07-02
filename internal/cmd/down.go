@@ -15,8 +15,8 @@ import (
 
 var downCmd = &cobra.Command{
 	Use:   "down",
-	Short: "Stop bc services",
-	Long: `Stop bc-<id>-daemon and bc-db Docker containers.
+	Short: "Stop mycel services",
+	Long: `Stop the mycel daemon and database Docker containers for this workspace.
 
 Examples:
   mycel down
@@ -48,7 +48,7 @@ func runDown(cmd *cobra.Command, _ []string) error {
 
 	ctx := cmd.Context()
 
-	fmt.Printf("Stopping bc in %s\n\n", ws.RootDir)
+	fmt.Printf("Stopping mycel in %s\n\n", ws.RootDir)
 
 	id := wsID(ws.RootDir)
 	daemonName := fmt.Sprintf("bc-%s-daemon", id)

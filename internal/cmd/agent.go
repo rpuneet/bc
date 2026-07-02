@@ -71,7 +71,7 @@ Examples:
   mycel agent stop eng-01                   # Stop agent
   mycel agent broadcast "check status"      # Send to all agents
   mycel agent send-pattern "eng-*" "test"   # Send to matching agents
-  mycel agent                               # List all agents (same as bc agent list)
+  mycel agent                               # List all agents (same as mycel agent list)
   mycel agent send-pattern "eng-*" "hello"  # Send to matching agents`,
 	// #925: Default to list for consistency with bc channel
 	RunE: runAgentList,
@@ -109,7 +109,7 @@ Examples:
   mycel agent list --role engineer  # Filter by role`,
 	Args: func(cmd *cobra.Command, args []string) error {
 		if len(args) > 0 {
-			return fmt.Errorf("unexpected argument %q. To filter by role, use: bc agent list --role %s", args[0], args[0])
+			return fmt.Errorf("unexpected argument %q. To filter by role, use: mycel agent list --role %s", args[0], args[0])
 		}
 		return nil
 	},
@@ -495,9 +495,9 @@ func runAgentCreate(cmd *cobra.Command, args []string) error {
 	fmt.Println("Agent created successfully!")
 	fmt.Println()
 	fmt.Println("Commands:")
-	fmt.Printf("  bc agent attach %s    # Attach to session\n", agentName)
-	fmt.Printf("  bc agent send %s <msg> # Send message\n", agentName)
-	fmt.Printf("  bc agent peek %s       # View output\n", agentName)
+	fmt.Printf("  mycel agent attach %s    # Attach to session\n", agentName)
+	fmt.Printf("  mycel agent send %s <msg> # Send message\n", agentName)
+	fmt.Printf("  mycel agent peek %s       # View output\n", agentName)
 
 	return nil
 }
@@ -1128,10 +1128,10 @@ Usage:
 		agentName := args[0]
 		fmt.Printf("Agent auth is handled inside the container.\n\n")
 		fmt.Printf("To authenticate agent %q:\n", agentName)
-		fmt.Printf("  1. Attach: bc agent attach %s\n", agentName)
+		fmt.Printf("  1. Attach: mycel agent attach %s\n", agentName)
 		fmt.Printf("  2. Run /login inside Claude Code\n")
 		fmt.Printf("\nOr set ANTHROPIC_API_KEY in workspace env:\n")
-		fmt.Printf("  bc env set ANTHROPIC_API_KEY sk-ant-...\n")
+		fmt.Printf("  mycel env set ANTHROPIC_API_KEY sk-ant-...\n")
 		return nil
 	},
 }
@@ -1173,7 +1173,7 @@ func runAgentSessions(cmd *cobra.Command, args []string) error {
 		}
 		fmt.Printf("  %s%s%s\n", s.ID, current, ts)
 	}
-	fmt.Printf("\nResume a session: bc agent start %s --resume <id>\n", agentName)
+	fmt.Printf("\nResume a session: mycel agent start %s --resume <id>\n", agentName)
 
 	return nil
 }

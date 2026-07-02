@@ -49,13 +49,13 @@ If none are specified, reads from stdin.
 
 Note: --value appears in shell history. For sensitive values, prefer:
   mycel secret set API_KEY --from-env API_KEY
-  echo "sk-abc123" | bc secret set API_KEY
+  echo "sk-abc123" | mycel secret set API_KEY
 
 Examples:
   mycel secret set API_KEY --value "sk-abc123"
   mycel secret set API_KEY --from-env API_KEY
   mycel secret set API_KEY --from-file /path/to/key
-  echo "sk-abc123" | bc secret set API_KEY`,
+  echo "sk-abc123" | mycel secret set API_KEY`,
 	Args: cobra.ExactArgs(1),
 	RunE: runSecretSet,
 }
@@ -129,7 +129,7 @@ func openSecretStore() (*secret.Store, error) {
 		return nil, fmt.Errorf("resolve global vault path: %w", err)
 	}
 	if _, ensureErr := workspace.EnsureGlobalDir(); ensureErr != nil {
-		return nil, fmt.Errorf("ensure global bc dir: %w", ensureErr)
+		return nil, fmt.Errorf("ensure global mycel dir: %w", ensureErr)
 	}
 	return secret.OpenVaultFile(vaultPath, passphrase)
 }

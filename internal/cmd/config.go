@@ -61,7 +61,7 @@ var configGetCmd = &cobra.Command{
 Examples:
   mycel config get workspace.name
   mycel config get providers.default
-  mycel config get providers.default
+  mycel config get providers.claude.command
   mycel config get tools.claude.command`,
 	Args: cobra.ExactArgs(1),
 	RunE: runConfigGet,
