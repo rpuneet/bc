@@ -39,10 +39,11 @@ func newAgentManager(ws *workspace.Workspace) *agent.Manager {
 			wsCfg = ws.Config.Runtime.Docker
 		}
 		dockerCfg := container.ConfigFromWorkspace(wsCfg)
-		be, err := container.NewBackend(dockerCfg, "bc-", ws.RootDir, provider.DefaultRegistry)
+		be, err := container.NewBackend(dockerCfg, agent.DefaultSessionPrefix, ws.RootDir, provider.DefaultRegistry)
 		if err != nil {
 			log.Warn("Docker unavailable, falling back to tmux", "error", err)
 		} else {
+			be = be.WithLegacyPrefix(agent.LegacySessionPrefix)
 			mgr = agent.NewWorkspaceManagerWithRuntime(ws.AgentsDir(), ws.RootDir, be, "docker")
 		}
 	}
