@@ -284,23 +284,48 @@ func runContainerStatsCollector(ctx context.Context, be *bccontainer.Backend, mg
 	}
 }
 
+// agentContainerPrefixes are all container-name prefixes that identify an
+// agent container. "mycel-" is the canonical v0.3.1+ prefix; "bc-" is kept
+// for one release cycle so pre-rename containers keep reporting stats.
+var agentContainerPrefixes = []string{"mycel-", "bc-"}
+
+// systemContainerNames identifies infrastructure containers that should be
+// recorded via RecordSystem rather than RecordAgent.
 func isSystemContainer(name string) bool {
-	if name == "bc-db" || name == "bc-playwright" {
+	switch name {
+	case "mycel-db", "mycel-playwright", "bc-db", "bc-playwright":
 		return true
 	}
 	return strings.Contains(name, "-daemon")
 }
 
 func isAgentContainer(name string) bool {
-	if !strings.HasPrefix(name, "bc-") {
+	for _, p := range agentContainerPrefixes {
+		if !strings.HasPrefix(name, p) {
+			continue
+		}
+		rest := name[len(p):]
+		// Require a `<hash>-<agent>` suffix — bare "mycel-" / "bc-" aren't agents.
+		if i := strings.Index(rest, "-"); i > 0 && i < len(rest)-1 {
+			return !isSystemContainer(name)
+		}
 		return false
 	}
-	return !isSystemContainer(name)
+	return false
 }
 
+// extractAgentName strips the "<prefix><hash>-" segment from a full container
+// name (e.g. "mycel-13c6e9-zen-zebra" → "zen-zebra"). Falls back to the raw
+// container name when the shape is unexpected.
 func extractAgentName(containerName string) string {
-	if len(containerName) > 10 && strings.HasPrefix(containerName, "bc-") {
-		return containerName[10:]
+	for _, p := range agentContainerPrefixes {
+		if !strings.HasPrefix(containerName, p) {
+			continue
+		}
+		rest := containerName[len(p):]
+		if i := strings.Index(rest, "-"); i > 0 && i < len(rest)-1 {
+			return rest[i+1:]
+		}
 	}
 	return containerName
 }
