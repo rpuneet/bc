@@ -13,7 +13,7 @@ bc deploys as three tiers of containers coordinated by the host's Docker daemon:
 ```mermaid
 graph TB
     subgraph Host
-        CLI[bc CLI]
+        CLI[mycel CLI]
         Docker[Docker Daemon]
     end
 

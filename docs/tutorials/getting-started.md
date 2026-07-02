@@ -22,7 +22,7 @@ make install  # Installs to $GOPATH/bin
 ### Verify Installation
 
 ```bash
-bc version
+mycel version
 ```
 
 ## Your First Workspace
@@ -33,13 +33,13 @@ Navigate to your project directory and run:
 
 ```bash
 cd your-project
-bc init
+mycel init
 ```
 
 Or use the quick-start wizard:
 
 ```bash
-bc init --quick
+mycel init --quick
 ```
 
 This creates a `.bc/` directory with:
@@ -50,7 +50,7 @@ This creates a `.bc/` directory with:
 ### Step 2: Start the Root Agent
 
 ```bash
-bc up
+mycel up
 ```
 
 This spawns the root agent in a tmux session. The root agent can create and manage other agents.
@@ -58,7 +58,7 @@ This spawns the root agent in a tmux session. The root agent can create and mana
 ### Step 3: Check Status
 
 ```bash
-bc status
+mycel status
 ```
 
 Output:
@@ -72,13 +72,13 @@ root    root   working   10s      Initializing...
 ### Step 4: Create an Engineer
 
 ```bash
-bc agent create eng-01 --role engineer
+mycel agent create eng-01 --role engineer
 ```
 
 ### Step 5: Send Work
 
 ```bash
-bc agent send eng-01 "Implement the login feature per issue #42"
+mycel agent send eng-01 "Implement the login feature per issue #42"
 ```
 
 ### Step 6: Monitor Progress
@@ -86,19 +86,19 @@ bc agent send eng-01 "Implement the login feature per issue #42"
 Open the TUI dashboard:
 
 ```bash
-bc home
+mycel home
 ```
 
 Or check specific agent output:
 
 ```bash
-bc agent peek eng-01
+mycel agent peek eng-01
 ```
 
 ### Step 7: Stop When Done
 
 ```bash
-bc down
+mycel down
 ```
 
 ## Common Workflows
@@ -121,9 +121,9 @@ bc notify history slack:engineering --last 10
 Agents report their status:
 
 ```bash
-bc agent report working "Implementing login API"
-bc agent report done "Feature complete"
-bc agent report stuck "Need database access"
+mycel agent report working "Implementing login API"
+mycel agent report done "Feature complete"
+mycel agent report stuck "Need database access"
 ```
 
 ### Cost Tracking
@@ -145,7 +145,7 @@ bc cost dashboard      # Full view
 
 If you encounter issues:
 
-1. Check `bc logs` for recent events
+1. Check `mycel logs` for recent events
 2. Verify tmux is installed: `tmux -V`
 3. Ensure your AI tool is configured correctly
 4. See [Troubleshooting Guide](../how-to/troubleshoot.md) for common issues

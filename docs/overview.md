@@ -2,7 +2,7 @@
 
 ## System Design
 
-bc is a CLI-first orchestration system for coordinating teams of AI coding agents. The system is split into two binaries: `bc` (thin CLI client) and `bcd` (long-running daemon). The daemon manages agents across multiple git repositories from a single global installation at `~/.bc/`.
+mycel is a CLI-first orchestration system for coordinating teams of AI coding agents. The system is split into two binaries: `bc` (thin CLI client) and `bcd` (long-running daemon). The daemon manages agents across multiple git repositories from a single global installation at `~/.bc/`.
 
 Key numbers:
 - **44 REST API endpoints** across 14 resource groups
@@ -32,14 +32,14 @@ project/
     prompts/               # Default prompt templates
 ```
 
-`bc init` initializes the per-project `.bc/` directory and starts bcd.
+`mycel init` initializes the per-project `.bc/` directory and starts bcd.
 
 ## Architecture Layers
 
 ```mermaid
 graph TB
     subgraph Clients
-        CLI[bc CLI<br/>thin HTTP client]
+        CLI[mycel CLI<br/>thin HTTP client]
         WebUI[Web Dashboard<br/>16 views + Cmd+K]
         TUI[TUI<br/>13 views, k9s-style]
         AI[AI Agents<br/>Claude, Gemini, etc.]
@@ -206,7 +206,7 @@ System-level metrics (CPU, memory, disk, uptime, goroutines) and workspace summa
 
 ```mermaid
 sequenceDiagram
-    participant CLI as bc CLI
+    participant CLI as mycel CLI
     participant API as bcd API
     participant Svc as Agent Service
     participant RT as Runtime

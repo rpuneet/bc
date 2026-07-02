@@ -196,7 +196,7 @@ export const PLATFORMS: PlatformDef[] = [
     fields: [{ key: "secret", label: "Webhook Secret", placeholder: "your-webhook-secret" }],
     docs: [
       "Create a webhook → your repo → Settings → Webhooks.",
-      "Set the payload URL to your bc server's /hooks/github endpoint.",
+      "Set the payload URL to your mycel server's /hooks/github endpoint.",
       "Set the secret here to match the webhook secret.",
     ],
   },
@@ -210,7 +210,7 @@ export const PLATFORMS: PlatformDef[] = [
     fields: [{ key: "token", label: "Token", placeholder: "webhook-secret-token" }],
     docs: [
       "Go to your GitLab project > Settings > Webhooks.",
-      "Set the URL to your bc server's /hooks/gitlab endpoint.",
+      "Set the URL to your mycel server's /hooks/gitlab endpoint.",
       "Copy the secret token and paste it here.",
     ],
   },
@@ -224,7 +224,7 @@ export const PLATFORMS: PlatformDef[] = [
     fields: [{ key: "secret", label: "Secret", placeholder: "webhook-secret" }],
     docs: [
       "Go to your Bitbucket repo > Settings > Webhooks.",
-      "Add a webhook pointing to your bc server's /hooks/bitbucket endpoint.",
+      "Add a webhook pointing to your mycel server's /hooks/bitbucket endpoint.",
       "Set the secret here for payload verification.",
     ],
   },
@@ -238,7 +238,7 @@ export const PLATFORMS: PlatformDef[] = [
     fields: [{ key: "secret", label: "Secret", placeholder: "whsec_..." }],
     docs: [
       "Go to your Vercel project > Settings > Webhooks.",
-      "Add a webhook endpoint pointing to /hooks/vercel on your bc server.",
+      "Add a webhook endpoint pointing to /hooks/vercel on your mycel server.",
       "Copy the signing secret and paste it here.",
     ],
   },
@@ -252,7 +252,7 @@ export const PLATFORMS: PlatformDef[] = [
     fields: [{ key: "secret", label: "Secret", placeholder: "webhook-secret" }],
     docs: [
       "Go to your Netlify site > Site settings > Notifications.",
-      "Add an outgoing webhook pointing to /hooks/netlify on your bc server.",
+      "Add an outgoing webhook pointing to /hooks/netlify on your mycel server.",
       "Set and copy the secret for payload verification.",
     ],
   },
@@ -296,7 +296,7 @@ export const PLATFORMS: PlatformDef[] = [
     fields: [{ key: "api_key", label: "API Key", placeholder: "datadog-api-key" }],
     docs: [
       "Go to Datadog > Integrations > Webhooks.",
-      "Create a webhook pointing to /hooks/datadog on your bc server.",
+      "Create a webhook pointing to /hooks/datadog on your mycel server.",
       "Copy your API key from Organization Settings > API Keys.",
     ],
   },
@@ -336,7 +336,7 @@ export const PLATFORMS: PlatformDef[] = [
     fields: [{ key: "webhook_secret", label: "Webhook Secret", placeholder: "whsec_..." }],
     docs: [
       "Go to Stripe Dashboard > Developers > Webhooks.",
-      "Add an endpoint pointing to /hooks/stripe on your bc server.",
+      "Add an endpoint pointing to /hooks/stripe on your mycel server.",
       "Copy the signing secret and paste it here.",
     ],
   },
@@ -442,7 +442,7 @@ export const PLATFORMS: PlatformDef[] = [
     category: "Custom",
     fields: [{ key: "secret", label: "Shared Secret (optional)", placeholder: "optional-secret", required: false }],
     docs: [
-      "POST JSON to /hooks/webhook on your bc server.",
+      "POST JSON to /hooks/webhook on your mycel server.",
       "Optionally set a shared secret for HMAC signature verification.",
     ],
   },

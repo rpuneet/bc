@@ -11,7 +11,7 @@ The web dashboard is one of four equal API consumers of the `bcd` daemon. It has
 ```mermaid
 graph TB
     subgraph Clients ["API Clients (equal peers)"]
-        CLI["bc CLI<br/><code>internal/cmd/</code><br/>Go binary, direct function calls"]
+        CLI["mycel CLI<br/><code>internal/cmd/</code><br/>Go binary, direct function calls"]
         TUI["bc TUI<br/><code>tui/src/</code><br/>React/Ink terminal app"]
         Web["bc Web Dashboard<br/><code>web/src/</code><br/>React SPA in browser"]
         MCP["MCP Agents<br/><code>server/mcp/</code><br/>AI tool servers"]
