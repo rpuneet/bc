@@ -75,6 +75,15 @@ type Session struct {
 // DefaultCacheTTL is the default time-to-live for cached session data.
 const DefaultCacheTTL = 2 * time.Second
 
+// DefaultPrefix is the canonical tmux session-name prefix used since v0.3.1.
+// LegacyPrefix is the pre-v0.3.1 prefix retained for reader-side fallback
+// so upgraded workspaces can still see sessions that were created before
+// the rename. Remove LegacyPrefix + associated fallback after v0.3.2.
+const (
+	DefaultPrefix = "mycel-"
+	LegacyPrefix  = "bc-"
+)
+
 // Manager handles tmux session operations.
 type Manager struct {
 	// Session cache for reducing tmux subprocess calls (#980).
@@ -150,12 +159,13 @@ func NewWorkspaceManager(prefix, workspacePath string) *Manager {
 	}
 }
 
-// NewDefaultManager creates a new tmux manager with default prefix "mycel-"
-// and "bc-" as the reader-side legacy fallback.
+// NewDefaultManager creates a new tmux manager with the canonical prefix
+// (DefaultPrefix, "mycel-") and the legacy prefix (LegacyPrefix, "bc-")
+// wired for reader-side fallback.
 func NewDefaultManager() *Manager {
 	return &Manager{
-		SessionPrefix:   "mycel-",
-		LegacyPrefix:    "bc-",
+		SessionPrefix:   DefaultPrefix,
+		LegacyPrefix:    LegacyPrefix,
 		execCommand:     exec.Command,
 		hasSessionCache: make(map[string]bool),
 		cacheTTL:        DefaultCacheTTL,
@@ -512,6 +522,21 @@ func (m *Manager) ListSessions(ctx context.Context) ([]Session, error) {
 		return nil, err
 	}
 
+	// Build full prefixes once — they don't depend on the current line.
+	// The legacy prefix is also matched so pre-rename sessions remain
+	// listable during the transition cycle.
+	fullPrefix := m.SessionPrefix
+	if m.workspaceHash != "" {
+		fullPrefix = m.SessionPrefix + m.workspaceHash + "-"
+	}
+	var legacyFullPrefix string
+	if m.LegacyPrefix != "" && m.LegacyPrefix != m.SessionPrefix {
+		legacyFullPrefix = m.LegacyPrefix
+		if m.workspaceHash != "" {
+			legacyFullPrefix = m.LegacyPrefix + m.workspaceHash + "-"
+		}
+	}
+
 	var sessions []Session
 	for _, line := range strings.Split(strings.TrimSpace(string(output)), "\n") {
 		if line == "" {
@@ -524,20 +549,6 @@ func (m *Manager) ListSessions(ctx context.Context) ([]Session, error) {
 		}
 
 		name := parts[0]
-		// Build full prefixes including workspace hash. The legacy prefix
-		// is also matched so pre-rename sessions remain listable during
-		// the transition cycle.
-		fullPrefix := m.SessionPrefix
-		if m.workspaceHash != "" {
-			fullPrefix = m.SessionPrefix + m.workspaceHash + "-"
-		}
-		var legacyFullPrefix string
-		if m.LegacyPrefix != "" && m.LegacyPrefix != m.SessionPrefix {
-			legacyFullPrefix = m.LegacyPrefix
-			if m.workspaceHash != "" {
-				legacyFullPrefix = m.LegacyPrefix + m.workspaceHash + "-"
-			}
-		}
 		matchedPrefix := ""
 		switch {
 		case strings.HasPrefix(name, fullPrefix):

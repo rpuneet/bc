@@ -83,13 +83,14 @@ const MaxAgentNameLength = 64
 // Default configuration constants.
 const (
 	// DefaultSessionPrefix is the tmux session / container name prefix for
-	// mycel agents (was "bc-" prior to v0.3.1).
-	DefaultSessionPrefix = "mycel-"
+	// mycel agents (was "bc-" prior to v0.3.1). Sourced from pkg/tmux so
+	// there is a single source of truth for the rename.
+	DefaultSessionPrefix = tmux.DefaultPrefix
 
 	// LegacySessionPrefix is the pre-v0.3.1 prefix. Reader-side fallbacks
 	// use this so agents/sessions created before the rename keep working
 	// for one release cycle. Remove after v0.3.2.
-	LegacySessionPrefix = "bc-"
+	LegacySessionPrefix = tmux.LegacyPrefix
 
 	// DefaultProvider is the default AI provider for new agents.
 	DefaultProvider = "claude"
