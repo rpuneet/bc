@@ -540,7 +540,7 @@ function EmojiPicker({
             cursor: "pointer",
             transition: "background 80ms",
           }}
-          className="hover:bg-white/10"
+          className="hover:bg-mycel-surface-hover"
         >
           {emoji}
         </button>
@@ -589,7 +589,7 @@ function MessageActions({
               e.stopPropagation();
               setPickerOpen((v) => !v);
             }}
-            className="hover:bg-white/10 transition-colors"
+            className="hover:bg-mycel-surface-hover transition-colors"
             style={{
               width: 28,
               height: 28,
@@ -621,7 +621,7 @@ function MessageActions({
             e.stopPropagation();
             onReply();
           }}
-          className="hover:bg-white/10 transition-colors"
+          className="hover:bg-mycel-surface-hover transition-colors"
           style={{
             width: 28,
             height: 28,
@@ -1378,7 +1378,7 @@ export function GatewayFeed({
                     const isOnline = agent.state === "running" || agent.state === "working";
                     const color = agentColor(agent.name);
                     return (
-                      <motion.div key={agent.name} layout initial={{ opacity: 0, x: 8 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -8 }} transition={{ duration: 0.12 }} className="flex items-center hover:bg-white/[0.03] transition-colors" style={{ gap: 10, padding: "8px 14px", cursor: "pointer" }}>
+                      <motion.div key={agent.name} layout initial={{ opacity: 0, x: 8 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -8 }} transition={{ duration: 0.12 }} className="flex items-center hover:bg-mycel-surface-hover transition-colors" style={{ gap: 10, padding: "8px 14px", cursor: "pointer" }}>
                         <div className="relative" style={{ width: 28, height: 28, minWidth: 28 }}>
                           <span className="flex items-center justify-center" style={{ width: 28, height: 28, borderRadius: 6, background: `${color}40`, color: color, fontWeight: 700, fontSize: 10.5, fontFamily: "'JetBrains Mono', monospace" }}>
                             {agent.name.slice(0, 2).toUpperCase()}
@@ -1792,7 +1792,7 @@ export function GatewayFeed({
                                 onReply={() => composerRef.current?.focus()}
                               />
                               <div
-                                className="rounded-md transition-colors duration-100 hover:bg-white/[0.02]"
+                                className="rounded-md transition-colors duration-100 hover:bg-mycel-surface-hover"
                                 style={{ padding: "2px 0" }}
                               >
                                 {ghCard ? (

@@ -136,7 +136,7 @@ function ChannelList({
               borderRadius: 5,
               fontSize: 12.5,
               color: isActive ? "var(--mycel-text, #e5e5e5)" : count > 0 ? "var(--mycel-text, #e5e5e5)" : "var(--mycel-muted, #a0a0a0)",
-              background: isActive ? "rgba(249, 115, 22, 0.12)" : "transparent",
+              background: isActive ? "color-mix(in srgb, var(--mycel-accent) 14%, transparent)" : "transparent",
               fontWeight: isActive ? 600 : count > 0 ? 500 : 400,
               cursor: "pointer",
               marginBottom: 1,
@@ -368,8 +368,8 @@ function NotificationNavTree() {
                     width: 5,
                     height: 5,
                     borderRadius: 999,
-                    background: "#22c55e",
-                    boxShadow: "0 0 5px rgba(34,197,94,0.5)",
+                    background: "var(--mycel-success, #22c55e)",
+                    boxShadow: "0 0 5px color-mix(in srgb, var(--mycel-success) 50%, transparent)",
                   }}
                 />
               )}
@@ -480,7 +480,7 @@ function NavSectionDivider({ label, collapsed }: { label: string; collapsed: boo
   return (
     <li className="mt-4 mb-1 px-4">
       <span
-        className="text-[9px] uppercase tracking-[0.14em] text-mycel-muted/40 font-medium"
+        className="text-[10px] uppercase tracking-[0.12em] text-mycel-muted/80 font-medium"
       >
         {label}
       </span>
@@ -528,8 +528,8 @@ function NavList({
               className={({ isActive }) =>
                 `relative flex items-center gap-2.5 ${isIconOnly ? "justify-center px-2" : "pl-4 pr-3"} py-[7px] text-[13px] outline-none transition-colors duration-75 ${
                   isActive
-                    ? "text-mycel-accent font-medium border-l-2 border-mycel-accent bg-mycel-bg/60"
-                    : "text-mycel-muted/70 hover:text-mycel-text hover:bg-mycel-bg/30 border-l-2 border-transparent"
+                    ? "text-mycel-accent font-medium border-l-2 border-mycel-accent bg-mycel-surface-hover"
+                    : "text-mycel-muted hover:text-mycel-text hover:bg-mycel-surface-hover border-l-2 border-transparent"
                 }`
               }
             >
@@ -540,7 +540,7 @@ function NavList({
                 <span className="truncate">{label}</span>
               )}
               {label === "Live" && (
-                <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse ml-auto" />
+                <span className="w-1.5 h-1.5 rounded-full bg-mycel-live animate-pulse ml-auto" />
               )}
               {isNotifications && !isIconOnly && onToggleNotifications && (
                 <button
@@ -644,8 +644,10 @@ export function Layout() {
         }`}
         style={{ scrollbarWidth: "thin", scrollbarColor: "rgba(255,255,255,0.04) transparent" }}
       >
-        {/* Header */}
-        <div className="px-3 py-3 border-b border-mycel-border/30 flex items-center justify-between">
+        {/* Header — heights kept in sync with Header.tsx compact mode (48px)
+            so the drawer top-line aligns pixel-perfect with the main pane
+            header across the fold. */}
+        <div className="px-3 min-h-[48px] border-b border-mycel-border/40 flex items-center justify-between">
           {(!collapsed || isMobile) ? (
             <div className="flex items-center gap-2 overflow-hidden">
               <span
@@ -665,7 +667,7 @@ export function Layout() {
                 <p className="text-[13px] font-semibold text-mycel-text truncate" style={{ letterSpacing: -0.1 }}>
                   {userName ? (userName.startsWith("@") ? userName : `@${userName}`) : "@mycel"}
                 </p>
-                <p className="text-[9px] text-mycel-muted/40 -mt-0.5" style={{ fontFamily: "'JetBrains Mono', monospace" }}>workspace</p>
+                <p className="text-[10px] text-mycel-muted -mt-0.5" style={{ fontFamily: "'JetBrains Mono', monospace" }}>workspace</p>
               </div>
             </div>
           ) : (
@@ -674,7 +676,7 @@ export function Layout() {
               style={{
                 borderRadius: 7,
                 background: "var(--mycel-accent, #f97316)",
-                color: "#0d0d0d",
+                color: "var(--mycel-accent-fg, #0d0d0d)",
                 fontSize: 14,
                 fontFamily: "'JetBrains Mono', monospace",
                 letterSpacing: -0.5,
