@@ -511,6 +511,13 @@ function pivotAgentMetric(metrics: AgentMetricTS[], mode: "cpu_percent" | "mem_m
       : parseFloat((m.mem_used_bytes / 1024 / 1024).toFixed(1));
     buckets.set(t, b);
   }
+  // Backfill missing agents in each bucket with 0 — otherwise stacked areas
+  // collapse at any bucket where an agent has no sample (#3182).
+  for (const b of buckets.values()) {
+    for (const a of agents) {
+      if (b[a] === undefined) b[a] = 0;
+    }
+  }
   return { agents, data: Array.from(buckets.values()) };
 }
 
