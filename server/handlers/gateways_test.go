@@ -298,6 +298,32 @@ func TestGatewayChannelSendMethodNotAllowed(t *testing.T) {
 	}
 }
 
+// TestGatewayChannelSendEmitsDeprecationHeaders — RFC 8594 Deprecation +
+// Sunset headers must be present on every response from the send endpoint,
+// including error responses. See issue #3178.
+func TestGatewayChannelSendEmitsDeprecationHeaders(t *testing.T) {
+	gw := gateway.NewManager()
+	h := &GatewayHandler{gw: gw}
+
+	// Even a wrong method must still carry the deprecation signal.
+	req := httptest.NewRequest(http.MethodGet, "/api/gateways/slack/channels/eng/send", nil)
+	rr := httptest.NewRecorder()
+	h.gatewayChannelSend(rr, req, "slack:eng")
+
+	if rr.Header().Get("Deprecation") != "true" {
+		t.Errorf("Deprecation header = %q, want %q", rr.Header().Get("Deprecation"), "true")
+	}
+	if rr.Header().Get("Sunset") == "" {
+		t.Errorf("Sunset header missing")
+	}
+	if !strings.Contains(rr.Header().Get("Link"), `rel="deprecation"`) {
+		t.Errorf("Link header missing rel=deprecation, got %q", rr.Header().Get("Link"))
+	}
+	if !strings.Contains(rr.Header().Get("Warning"), "Deprecated") {
+		t.Errorf("Warning header missing deprecation text, got %q", rr.Header().Get("Warning"))
+	}
+}
+
 func TestGatewayListNoNullChannels(t *testing.T) {
 	// Verify channels is never null in JSON output (always []).
 	gw := gateway.NewManager()
