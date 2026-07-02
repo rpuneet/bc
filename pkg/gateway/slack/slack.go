@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -145,7 +146,7 @@ func (a *Adapter) Send(ctx context.Context, channelID, sender, content string) e
 	_, _, err := a.api.PostMessageContext(ctx, channelID,
 		slack.MsgOptionText(content, false),
 		slack.MsgOptionUsername(sender),
-		slack.MsgOptionIconEmoji(":robot_face:"),
+		slack.MsgOptionIconEmoji(iconEmojiForSender(sender)),
 	)
 	if err != nil {
 		return fmt.Errorf("slack: send failed: %w", err)
@@ -153,6 +154,52 @@ func (a *Adapter) Send(ctx context.Context, channelID, sender, content string) e
 
 	log.Info("slack: sent message", "channel_id", channelID, "sender", sender)
 	return nil
+}
+
+// iconEmojiForSender maps an agent sender name to a Slack :icon: emoji.
+// Agent names in bc follow the "adjective-animal" pattern (zen-zebra,
+// noble-hyena, fierce-capybara, etc.), so we pluck the trailing token
+// and look it up. Falls back to :robot_face: when the animal has no
+// known Slack emoji shortcode. This is what makes messages appear with
+// the right avatar in Slack channels instead of a generic robot for
+// every agent (#3172).
+func iconEmojiForSender(sender string) string {
+	// Trailing token after the last hyphen.
+	name := sender
+	if i := strings.LastIndex(name, "-"); i >= 0 {
+		name = name[i+1:]
+	}
+	name = strings.ToLower(strings.TrimSpace(name))
+
+	// Well-known Slack shortcodes. Not exhaustive; extend as new agent
+	// names ship.
+	switch name {
+	case "zebra":
+		return ":zebra_face:"
+	case "meerkat", "otter":
+		return ":otter:"
+	case "hyena", "dog", "wolf":
+		return ":dog2:"
+	case "kestrel", "falcon", "hawk", "eagle", "bird":
+		return ":bird:"
+	case "capybara", "hamster", "mouse", "rat":
+		return ":hamster:"
+	case "koala":
+		return ":koala:"
+	case "panda":
+		return ":panda_face:"
+	case "buffalo", "bull", "ox":
+		return ":ox:"
+	case "vulture", "raven", "crow":
+		return ":black_bird:"
+	case "lemur", "monkey", "ape":
+		return ":monkey_face:"
+	case "cat", "kitten":
+		return ":cat:"
+	case "fox":
+		return ":fox_face:"
+	}
+	return ":robot_face:"
 }
 
 // SendFile uploads a file to a Slack channel.
