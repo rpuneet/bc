@@ -37,31 +37,67 @@ export function calculateCost(model: string, inputTokens: number, outputTokens: 
 // belong to the current theme (tangerine in Solar Flare / Light, emerald in
 // Dark). The rest are theme-agnostic hues that stay readable in all three.
 const ACCENT = "var(--mycel-accent)";
-const COLORS = [ACCENT, "#3B82F6", "#10B981", "#A855F7", "#F59E0B", "#EC4899", "#06B6D4", "#84CC16"];
+// Categorical palette chosen for six-plus-series distinguishability
+// across all three themes. First slot follows the theme accent; the
+// rest are picked from the Radix + Tailwind categorical palettes so
+// adjacent series never collide. Deuteranopia-checked pairs:
+// cobalt/emerald safe, rose/violet safe, amber/tangerine handled by
+// dash pattern rotation below.
+const COLORS = [
+  ACCENT,      // theme accent — tangerine (Solar Flare / Light) or emerald (Dark)
+  "#3B82F6",   // cobalt
+  "#EC4899",   // rose
+  "#F59E0B",   // amber
+  "#A855F7",   // violet
+  "#06B6D4",   // cyan
+  "#84CC16",   // lime
+  "#F97316",   // tangerine (only conflicts with accent under Solar Flare / Light — kicked to slot 7)
+];
+
+// Dash-pattern palette for a11y — color-only encoding fails deuteranopia
+// simulators; giving each series a distinct stroke pattern keeps the
+// chart legible without needing to distinguish adjacent hues. Slot 0 is
+// always solid so the theme-accent series stays "hero"; other slots
+// rotate through dash / dot / long-dash patterns. #3205 P2 a11y.
+const DASH_PATTERNS: string[] = [
+  "",              // solid (theme accent)
+  "5 3",           // long dash
+  "2 2",           // dot
+  "6 3 2 3",       // dash-dot
+  "4 4",           // short dash
+  "8 4",           // extra-long dash
+  "3 2 2 2 2 2",   // dash-dot-dot
+  "1 3",           // sparse dot
+];
 
 /**
  * Per-agent Area chart series with the repeated stroke/fill/dot/connect
  * boilerplate consolidated. `color` is optional — falls back to the
- * theme-accented first palette slot when the agent has no assigned color
- * (the empty state during first render). #3205 v0.3.3 batch 7.
+ * theme-accented first palette slot when the agent has no assigned color.
+ * Pass `dashIndex` to select a stroke pattern (see DASH_PATTERNS) for a11y.
+ * #3205 v0.3.3 batches 7+8.
  */
 function AgentArea({
   name,
   color,
   fillOpacity,
   stackId,
+  dashIndex,
 }: {
   name: string;
   color?: string;
   fillOpacity: number;
   stackId?: string;
+  dashIndex?: number;
 }) {
   const c = color ?? COLORS[0];
+  const dash = dashIndex !== undefined ? DASH_PATTERNS[dashIndex % DASH_PATTERNS.length] : "";
   return (
     <Area
       type="monotone"
       dataKey={name}
       stroke={c}
+      strokeDasharray={dash || undefined}
       fill={c}
       fillOpacity={fillOpacity}
       strokeWidth={1.75}
@@ -374,8 +410,8 @@ export function Stats() {
                   tickFormatter={(v: number) => `${v.toFixed(v < 10 ? 1 : 0)}%`}
                 />
                 <Tooltip contentStyle={TT} formatter={(v, name) => [`${Number(v ?? 0).toFixed(2)}%`, name]} />
-                {cpuChart.agents.map((n) => (
-                  <AgentArea key={n} name={n} color={agentColors[n]} fillOpacity={0.08} />
+                {cpuChart.agents.map((n, i) => (
+                  <AgentArea key={n} name={n} color={agentColors[n]} fillOpacity={0.08} dashIndex={i} />
                 ))}
               </AreaChart>
             </ResponsiveContainer>
@@ -389,8 +425,8 @@ export function Stats() {
                 <XAxis dataKey="time" tick={TICK_STYLE} {...AX} />
                 <YAxis tick={TICK_STYLE} {...AX} />
                 <Tooltip contentStyle={TT} formatter={(v) => [`${Number(v ?? 0).toFixed(1)} MB`]} />
-                {memChart.agents.map((n) => (
-                  <AgentArea key={n} name={n} color={agentColors[n]} fillOpacity={0.20} stackId="mem" />
+                {memChart.agents.map((n, i) => (
+                  <AgentArea key={n} name={n} color={agentColors[n]} fillOpacity={0.20} stackId="mem" dashIndex={i} />
                 ))}
               </AreaChart>
             </ResponsiveContainer>
