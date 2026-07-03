@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.7] - 2026-07-03
+
+Course-correct on the v0.3.6 notifications rewrite.
+
+### Reverted
+- **Restore `GatewayFeed.tsx` + `AgentPeekPanel.tsx`.** The v0.3.6
+  `ChannelStream` rewrite over-corrected the notifications-are-a-stream
+  arc. The header "N/N agents" dropdown (Listening / Available with
+  the per-agent @-mentions vs all-msgs toggle + remove/add) and the
+  per-message delivered / not-delivered labels ARE routing
+  observability, not chat framing. Only reactions + a
+  proxy-back-out composer would violate stream-only, and reactions
+  stayed out from v0.3.4. `web/src/views/Notifications.tsx` renders
+  `GatewayFeed` again; `ChannelStream.tsx` deleted.
+
+### Added
+- **Slack mrkdwn client-side normalization** in `MessageContent`.
+  Slack sends messages with raw angle-bracket tokens that rendered
+  broken in the UI (`<@U0AP1U92T3K>` for @-mentions,
+  `<#C0BAJV8UXLL|general>` for channel refs, `<https://url|label>`
+  for links). Rewrite them before the existing tokenizer runs:
+
+      <@USERID>              -> @user
+      <@USERID|name>         -> @name
+      <#CHANNELID|name>      -> #name
+      <#CHANNELID>           -> #channel
+      <https://url|label>    -> label (https://url)
+      <https://url>          -> https://url
+
+  Full user-ID -> display-name resolution needs a Slack `users.info`
+  round trip and belongs on the gateway adapter; this client-side
+  pass at least strips the noise.
+
 ## [0.3.6] - 2026-07-03
 
 Post-v0.3.5 cleanup pass.
