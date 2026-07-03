@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/rpuneet/mycel/pkg/log"
 	"github.com/rpuneet/mycel/pkg/provider"
@@ -65,8 +66,10 @@ func (h *AgentHandler) getAgentConfig(w http.ResponseWriter, r *http.Request, na
 	}
 
 	// Read the per-tool prompt file (CLAUDE.md / GEMINI.md / .cursorrules / ...)
-	// from the agent's worktree.
-	if wtDir != "" {
+	// from the agent's worktree. Reject traversal segments so a corrupt
+	// worktree path can never read outside the workspace.
+	wtDir = filepath.Clean(wtDir)
+	if wtDir != "." && !strings.Contains(wtDir, "..") {
 		promptPath := filepath.Join(wtDir, promptFileForTool(a.Tool))
 		if data, readErr := os.ReadFile(promptPath); readErr == nil { //nolint:gosec // trusted path
 			dto.SystemPrompt = string(data)
@@ -108,6 +111,11 @@ func (h *AgentHandler) patchAgentConfig(w http.ResponseWriter, r *http.Request, 
 	}
 	if wtDir == "" {
 		httpError(w, "worktree path not available for this agent", http.StatusUnprocessableEntity)
+		return
+	}
+	wtDir = filepath.Clean(wtDir)
+	if strings.Contains(wtDir, "..") {
+		httpError(w, "unsafe worktree path", http.StatusBadRequest)
 		return
 	}
 

@@ -43,6 +43,13 @@ func (a *ClaudeConfigAdapter) SetupPlugins(agentDir string, plugins []string) er
 		return nil
 	}
 
+	// agentDir derives from validated agent names; reject traversal
+	// segments as defense in depth.
+	agentDir = filepath.Clean(agentDir)
+	if strings.Contains(agentDir, "..") {
+		return fmt.Errorf("unsafe agent dir %q", agentDir)
+	}
+
 	claudeDir := filepath.Join(agentDir, "claude")
 	if err := os.MkdirAll(claudeDir, 0750); err != nil {
 		return fmt.Errorf("create claude dir: %w", err)

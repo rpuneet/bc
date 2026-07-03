@@ -317,7 +317,24 @@ func resolveSecretValue(value string, secrets map[string]string) string {
 
 // ── File writers ────────────────────────────────────────────────────────────
 
+// cleanSetupDir normalizes dir and rejects traversal segments so role
+// files are always written inside the intended agent directory.
+func cleanSetupDir(dir string) (string, error) {
+	dir = filepath.Clean(dir)
+	if strings.Contains(dir, "..") {
+		return "", fmt.Errorf("unsafe directory %q", dir)
+	}
+	return dir, nil
+}
+
 func writeTextFile(dir, name, content string) error {
+	dir, err := cleanSetupDir(dir)
+	if err != nil {
+		return err
+	}
+	if !filepath.IsLocal(name) {
+		return fmt.Errorf("unsafe file name %q", name)
+	}
 	if err := os.MkdirAll(dir, 0750); err != nil {
 		return fmt.Errorf("mkdir %s: %w", dir, err)
 	}
@@ -328,7 +345,14 @@ func writeTextFile(dir, name, content string) error {
 }
 
 func writeJSONFile(dir, name string, data any) error {
-	if err := os.MkdirAll(dir, 0750); err != nil {
+	dir, err := cleanSetupDir(dir)
+	if err != nil {
+		return err
+	}
+	if !filepath.IsLocal(name) {
+		return fmt.Errorf("unsafe file name %q", name)
+	}
+	if err = os.MkdirAll(dir, 0750); err != nil {
 		return fmt.Errorf("mkdir %s: %w", dir, err)
 	}
 	b, err := json.MarshalIndent(data, "", "  ")
@@ -341,6 +365,10 @@ func writeJSONFile(dir, name string, data any) error {
 // cleanStaleMDFiles removes .md files from dir that are not in the new file set.
 // Non-.md files and the directory itself are left untouched.
 func cleanStaleMDFiles(dir string, newFiles map[string]string) error {
+	dir, dirErr := cleanSetupDir(dir)
+	if dirErr != nil {
+		return dirErr
+	}
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -382,6 +410,10 @@ func cleanStaleMDFiles(dir string, newFiles map[string]string) error {
 // into it (role settings override non-hook keys, but existing hooks are preserved),
 // and writes the merged result back.
 func mergeSettingsJSON(dir string, roleSettings map[string]any) error {
+	dir, dirErr := cleanSetupDir(dir)
+	if dirErr != nil {
+		return dirErr
+	}
 	settingsPath := filepath.Join(dir, "settings.json")
 
 	// Read existing settings (may contain hooks from WriteWorkspaceHookSettings).
@@ -414,6 +446,10 @@ func writeMDFiles(dir string, files map[string]string) error {
 	if len(files) == 0 {
 		return nil
 	}
+	dir, dirErr := cleanSetupDir(dir)
+	if dirErr != nil {
+		return dirErr
+	}
 	if err := os.MkdirAll(dir, 0750); err != nil {
 		return fmt.Errorf("mkdir %s: %w", dir, err)
 	}
@@ -421,6 +457,9 @@ func writeMDFiles(dir string, files map[string]string) error {
 		fname := name
 		if !strings.HasSuffix(fname, ".md") {
 			fname += ".md"
+		}
+		if !filepath.IsLocal(fname) {
+			return fmt.Errorf("unsafe file name %q", fname)
 		}
 		if !strings.HasSuffix(content, "\n") {
 			content += "\n"
