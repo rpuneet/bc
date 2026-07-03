@@ -345,7 +345,7 @@ export function StatsTab({ agent }: { agent: Agent }) {
             <button key={r.label} type="button" onClick={() => setRange(i)}
               className={`px-2.5 py-1 text-xs rounded border transition-colors ${
                 i === range
-                  ? "border-mycel-accent bg-mycel-accent/10 text-mycel-accent"
+                  ? "border-mycel-accent text-mycel-accent"
                   : "border-mycel-border text-mycel-muted hover:text-mycel-text hover:border-mycel-muted"
               }`}
             >{r.label}</button>

@@ -257,8 +257,12 @@ export function Stats() {
         {RANGES.map((r, i) => (
           <button key={r.label} type="button" onClick={() => setRange(i)}
             className={`px-2 py-0.5 text-[11px] rounded border transition-colors ${
+              /* Selected state uses accent text + border only — the
+                 tinted accent bg was a triple-accent that competed
+                 with the sidebar brand tile + active nav under Dark
+                 (#3205 batch 10). */
               i === range
-                ? "border-mycel-accent bg-mycel-accent/10 text-mycel-accent"
+                ? "border-mycel-accent text-mycel-accent"
                 : "border-mycel-border text-mycel-muted hover:text-mycel-text hover:border-mycel-muted"
             }`}
           >{r.label}</button>
