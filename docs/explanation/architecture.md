@@ -1,8 +1,10 @@
 # Architecture
 
-This document describes the internal architecture of bc, covering component relationships, data flow, and key design decisions.
+This document describes the internal architecture of mycel, covering component relationships, data flow, and key design decisions.
 
 ## Component Diagram
+
+mycel ships as a single binary. `mycel <verb>` subcommands are thin HTTP clients; `mycel up` runs the server (API, web UI, MCP, agent management) in the same binary — foreground by default, background daemon with `-d`.
 
 ```
                           +-----------+
@@ -13,54 +15,53 @@ This document describes the internal architecture of bc, covering component rela
               +-----------------+------------------+
               |                 |                   |
        +------v------+  +------v------+   +--------v-------+
-       |  mycel CLI     |  |  TUI        |   |  Web Browser   |
+       |  mycel CLI  |  |  TUI        |   |  Web Browser   |
        |  (Go binary)|  |  (React Ink)|   |                |
        +------+------+  +------+------+   +--------+-------+
               |                 |                   |
               |  HTTP/JSON      |  HTTP/JSON        |  HTTP + SSE
               |                 |                   |
        +------v-----------------v-------------------v-------+
-       |                    bcd Daemon                       |
+       |               mycel server (mycel up)               |
        |                  127.0.0.1:9374                     |
        |                                                     |
-       |  Middleware: Recovery > RequestID > CORS > Gzip     |
-       |              > MaxBody > Routes                     |
+       |  Middleware (outermost first):                      |
+       |    RateLimit > APIKeyAuth > RequestID >             |
+       |    RequestLogger > Recovery > Gzip >                |
+       |    MaxBodySize(1MB) > CORS > WorkspaceScope > mux   |
        |                                                     |
        |  +------------+  +-----------+  +----------------+  |
        |  | REST API   |  | SSE Hub   |  | MCP Server     |  |
-       |  | /api/*     |  | /api/     |  | /mcp/sse       |  |
-       |  | 41 endpts  |  | events    |  | /mcp/message   |  |
-       |  +-----+------+  +-----+----+  | (JSON-RPC 2.0) |  |
-       |        |                |       +--------+-------+  |
+       |  | /api/*     |  | /api/     |  | /_mcp/...      |  |
+       |  | (see REST  |  | events    |  | (JSON-RPC 2.0) |  |
+       |  | API ref)   |  +-----+-----+  +--------+-------+  |
+       |  +-----+------+        |                 |          |
        |  +-----v----------------v----------------v-------+  |
        |  |              Service Layer                     |  |
        |  |                                                |  |
-       |  |  AgentService    NotifyService    TeamService  |  |
-       |  |  CostStore       SecretStore      CronService  |  |
-       |  |  DaemonManager   EventLog         RoleManager  |  |
-       |  |  ToolStore       MCPStore         StatsHandler |  |
+       |  |  AgentService    NotifyService    CronService  |  |
+       |  |  CostStore       SecretStore      EventLog     |  |
+       |  |  RoleStore       ToolStore        MCPStore     |  |
+       |  |  WorkspaceManager                              |  |
        |  +-----+--------------------+--------------------+  |
        |        |                    |                        |
        |  +-----v---------+  +------v---------------------+  |
        |  | Runtime       |  | Storage                    |  |
        |  |               |  |                            |  |
-       |  | +----------+  |  | ~/.bc/bc.db (SQLite WAL)   |  |
-       |  | | tmux     |  |  | ~/.bc/settings.json        |  |
-       |  | | sessions |  |  | ~/.bc/secret-key           |  |
-       |  | +----------+  |  | ~/.bc/agents/<name>/       |  |
-       |  | +----------+  |  |                            |  |
-       |  | | Docker   |  |  | Tables:                    |  |
-       |  | |containers|  |  |  agents, notify_subscriptions,|  |
-       |  | +----------+  |  |  notify_delivery_log,       |  |
-       |  +---------------+  |  notify_gateways,           |  |
-       |                     |  notify_channels,           |  |
-       |  +---------------+  |  notify_messages, teams,    |  |
-       |  | Web UI (SPA)  |  |  team_members, costs,       |  |
-       |  | / (embedded)  |  |  secrets, cron_jobs,        |  |
-       |  | 15 views      |  |  cron_logs, daemons,       |  |
-       |  +---------------+  |  events, tools,            |  |
-       |                     |  mcp_servers, roles        |  |
-       |                     +----------------------------+  |
+       |  | +----------+  |  | <ws>/.bc/bc.db (SQLite WAL |  |
+       |  | | tmux     |  |  |   or TimescaleDB)          |  |
+       |  | | sessions |  |  | <ws>/.bc/settings.json     |  |
+       |  | +----------+  |  | ~/.mycel/ global tree      |  |
+       |  | +----------+  |  |   (registry, secrets vault,|  |
+       |  | | Docker   |  |  |    costs.db, templates,    |  |
+       |  | |containers|  |  |    workspaces/<id>/agents) |  |
+       |  | +----------+  |  +----------------------------+  |
+       |  +---------------+                                  |
+       |                                                     |
+       |  +---------------+                                  |
+       |  | Web UI (SPA)  |                                  |
+       |  | / (embedded)  |                                  |
+       |  +---------------+                                  |
        +---------+-------------------------------------------+
                  |
        +---------v-------------------------------------------+
@@ -78,16 +79,20 @@ This document describes the internal architecture of bc, covering component rela
        +------------------------------------------------------+
 ```
 
+The repo has two entry points under `cmd/`: `cmd/mycel` (the binary) and `cmd/gendocs` (CLI reference generation).
+
 ## Data Flow
 
 ### Request Lifecycle
 
-1. **Client** (mycel CLI, Web UI, or TUI) sends HTTP request to bcd
-2. **Middleware chain** processes: Recovery, RequestID, CORS, Gzip, MaxBody
-3. **Handler** dispatches to the appropriate service method
-4. **Service** performs business logic, interacts with runtime backends and SQLite
-5. **SSE Hub** broadcasts events to connected clients for real-time updates
-6. **Response** returns JSON to the caller
+1. **Client** (mycel CLI, Web UI, or TUI) sends an HTTP request to the server. Clients discover the address via `BC_DAEMON_ADDR`, the `~/.mycel/daemon.addr` file written by `mycel up`, or the `127.0.0.1:9374` default.
+2. **Middleware chain** processes (outermost first, from `server/server.go`): RateLimit (token bucket, 100 rps / burst 200) → APIKeyAuth (Bearer token, only when an API key is configured) → RequestID → RequestLogger → Recovery → Gzip → MaxBodySize (1 MB) → CORS → WorkspaceScope (rewrites `/api/workspaces/{id}/…` and resolves the workspace services for the request).
+3. **Handler** dispatches to the appropriate service method.
+4. **Service** performs business logic, interacts with runtime backends and the workspace database.
+5. **SSE Hub** broadcasts events to connected clients for real-time updates.
+6. **Response** returns JSON to the caller.
+
+The REST surface is documented in the REST API reference; endpoint counts are deliberately not repeated here because they drift.
 
 ### Agent Lifecycle
 
@@ -96,7 +101,7 @@ This document describes the internal architecture of bc, covering component rela
                         |
                         v
                +--------+--------+
-               | INSERT into DB  |
+               | Record agent    |
                | state: starting |
                +--------+--------+
                         |
@@ -104,7 +109,7 @@ This document describes the internal architecture of bc, covering component rela
               |                   |
      +--------v--------+ +-------v--------+
      | git worktree add| | Write role     |
-     | (new branch)    | | CLAUDE.md      |
+     | (pkg/worktree)  | | CLAUDE.md      |
      +---------+-------+ | .mcp.json      |
                |         | settings.json  |
                |         +-------+--------+
@@ -122,17 +127,17 @@ This document describes the internal architecture of bc, covering component rela
                          |
                 +--------v--------+
                 | state: idle     |
-                | SSE: agent.     |
+                | SSE: agent      |
                 |   created       |
                 +-----------------+
 ```
 
 ### MCP Integration
 
-AI agents connect to bcd via MCP (Model Context Protocol) for workspace operations:
+AI agents connect to the server via MCP (Model Context Protocol) for workspace operations:
 
 ```
-AI Agent (Claude Code)              bcd MCP Server
+AI Agent (Claude Code)             mycel MCP Server
         |                                  |
         |-- initialize (JSON-RPC 2.0) ---->|
         |<-- capabilities + tools ---------|
@@ -146,39 +151,44 @@ AI Agent (Claude Code)              bcd MCP Server
         |<-- result ----------------------|
 ```
 
-Two transports are supported:
-- **SSE**: `/mcp/sse` (server events) + `/mcp/message` (client requests) -- used by web/remote clients
-- **stdio**: standard input/output -- used by AI agents running locally
+HTTP transport is mounted under `/_mcp/`:
+- `/_mcp/<agent>/{sse,message}` — SSE stream plus client-request endpoint, agent identity in the path
+- `/_mcp/<wsID>/<agent>/…` — workspace-scoped form, dispatched via the WorkspaceManager
+- A compatibility shim (`server/mcp_compat.go`) keeps older `/_mcp` URL shapes working
+
+stdio transport is used by locally launched agent tooling.
 
 ## Key Design Decisions
 
-### Why bc/bcd Split?
+### Why a Single Binary with a Daemon Subcommand?
 
-The CLI (`bc`) is a thin HTTP client that delegates all operations to the daemon (`bcd`). This means:
-- CLI starts instantly (no DB connections, no state loading)
-- Multiple CLI invocations share the same daemon state
+`mycel` is one binary: subcommands are HTTP clients, and `mycel up` is the server. This means:
+- CLI commands start instantly (no DB connections, no state loading)
+- Multiple CLI invocations share the same server state
 - Web UI, TUI, and CLI all see the same data
-- Daemon can maintain long-lived connections (SSE, cost polling)
+- The server maintains long-lived concerns (SSE, cost polling, cron)
+- One artifact to build, version, and ship — the web UI is embedded in it
 
-### Why SQLite?
+### Why SQLite (with a TimescaleDB Option)?
 
-- Zero configuration -- no external database to install or manage
-- WAL mode enables concurrent reads with single-writer
+- Zero configuration — no external database to install or manage
+- WAL mode enables concurrent reads with a single writer
 - Local-first architecture matches the single-machine use case
-- goose migrations provide proper schema versioning with rollback
+- Schema is created idempotently (`CREATE TABLE IF NOT EXISTS` per store) — no migration framework
+- For server deployments, the same stores run against TimescaleDB (Postgres 17) via `DATABASE_URL` or `storage.default` in settings.json — see `docs/explanation/database.md`
 
 ### Why tmux + Docker?
 
 - **tmux**: Zero overhead for local development, instant session creation
-- **Docker**: Isolation for untrusted agents, reproducible environments
+- **Docker**: Isolation for untrusted agents, reproducible environments (default runtime)
 - Both backends present a uniform interface (start, stop, send-keys, capture-pane)
-- Agents are unaware of their runtime -- the abstraction is transparent
+- Agents are unaware of their runtime — the abstraction is transparent
 
 ### Why Embedded Web UI?
 
-The React SPA is compiled and embedded in the bcd binary via `server/web/dist/`. This means:
-- Single binary deployment -- no separate web server
-- Version-locked UI -- always matches the API
+The React SPA is compiled and embedded in the binary via `server/web/dist/` (`//go:embed`). This means:
+- Single binary deployment — no separate web server
+- Version-locked UI — always matches the API
 - Works offline with no CDN dependencies
 
 ### Why SSE over WebSocket?
@@ -193,25 +203,26 @@ The React SPA is compiled and embedded in the bcd binary via `server/web/dist/`.
 - Standard protocol for AI agent integration (JSON-RPC 2.0)
 - Agents can discover and call workspace tools dynamically
 - Curated tool subset prevents agents from performing admin operations
-- Supports both SSE (remote) and stdio (local) transports
+- Supports both HTTP/SSE and stdio transports
 
 ## Package Dependencies
 
 ```
 cmd/mycel/       -->  internal/cmd/  -->  pkg/client/
-                 -->  server/        -->  pkg/*
+                                     -->  server/  -->  pkg/*
 
 server/
   handlers/      -->  pkg/agent/, pkg/notify/, pkg/cost/, ...
   mcp/           -->  pkg/agent/, pkg/notify/, pkg/cost/
 
-pkg/ (self-contained, no cross-imports between packages)
-  agent/         -->  pkg/tmux/, pkg/git/
-  notify/        -->  (SQLite only, notification dispatch)
-  cost/          -->  (SQLite only)
+pkg/ (self-contained, minimal cross-imports)
+  agent/         -->  pkg/tmux/, pkg/container/, pkg/worktree/
+  notify/        -->  pkg/db/ (shared workspace DB)
+  cost/          -->  pkg/db/
   workspace/     -->  config/
   tmux/          -->  (external: tmux binary)
-  git/           -->  (external: git binary)
+  container/     -->  (external: docker binary)
+  worktree/      -->  (external: git binary)
 ```
 
 Rule: `cmd/` imports `pkg/`, never vice versa. `pkg/` packages are self-contained.

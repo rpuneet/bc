@@ -1,14 +1,14 @@
 # Deployment Architecture
 
-This document is the source of truth for how bc's infrastructure is deployed. It covers the full stack: the coordination daemon (bcd), the database (bcdb), agent containers, networking, volumes, and resource management.
+This document is the source of truth for how mycel's infrastructure is deployed. It covers the full stack: the server, the database (bcdb), agent containers, networking, volumes, and resource management.
 
 ## System Overview
 
-bc deploys as three tiers of containers coordinated by the host's Docker daemon:
+A deployment has up to three tiers coordinated by the host's Docker daemon:
 
-1. **bcd** -- coordination daemon serving the HTTP API and web UI
-2. **bcdb** -- database for workspace state
-3. **Agent containers** -- one per agent, each running a provider CLI inside tmux
+1. **mycel server** — `mycel up` serving the HTTP API and embedded web UI (host process, or the `mycel-daemon` container image)
+2. **bcdb** — optional TimescaleDB database (`mycel-bcdb`); SQLite is the default and needs no container
+3. **Agent containers** — one per agent, each running a provider CLI inside tmux
 
 ```mermaid
 graph TB
@@ -18,22 +18,21 @@ graph TB
     end
 
     subgraph Infrastructure
-        bcd[bcd :9374]
-        bcdb[(bcdb :5432)]
+        srv[mycel server :9374]
+        bcdb[(mycel-bcdb :5432)]
     end
 
     subgraph Agents
-        A1[bc-ab12cd-team-alice<br/>claude]
-        A2[bc-ab12cd-team-bob<br/>gemini]
-        A3[bc-ab12cd-team-carol<br/>aider]
+        A1[mycel-ab12cd-alice<br/>claude]
+        A2[mycel-ab12cd-bob<br/>gemini]
+        A3[mycel-ab12cd-carol<br/>codex]
     end
 
-    CLI -->|HTTP API| bcd
-    bcd -->|SQL| bcdb
-    bcd -->|docker exec| A1
-    bcd -->|docker exec| A2
-    bcd -->|docker exec| A3
-    Docker -.->|manages| bcd
+    CLI -->|HTTP API| srv
+    srv -->|SQL when configured| bcdb
+    srv -->|docker exec| A1
+    srv -->|docker exec| A2
+    srv -->|docker exec| A3
     Docker -.->|manages| bcdb
     Docker -.->|manages| A1
     Docker -.->|manages| A2
@@ -42,43 +41,53 @@ graph TB
 
 ## Docker Image Hierarchy
 
-All agent images share a common base. Provider-specific images add only the CLI tool.
+All agent images share a common base. Provider-specific images add only the CLI tool. Ground truth: `docker/` and the Makefile (`REGISTRY ?= mycel`, `AGENT_PROVIDERS := claude gemini codex cursor`).
 
 ```mermaid
 graph TD
-    U[ubuntu:24.04] --> BASE[bc-agent-base]
-    BASE --> CLAUDE[bc-agent-claude]
-    BASE --> GEMINI[bc-agent-gemini]
-    BASE --> CODEX[bc-agent-codex]
-    BASE --> AIDER[bc-agent-aider]
-    BASE --> OPENCODE[bc-agent-opencode]
-    BASE --> OPENCLAW[bc-agent-openclaw]
-    BASE --> CURSOR[bc-agent-cursor]
+    U[ubuntu:24.04] --> BASE[mycel-agent-base]
+    BASE --> CLAUDE[mycel-agent-claude]
+    BASE --> GEMINI[mycel-agent-gemini]
+    BASE --> CODEX[mycel-agent-codex]
+    BASE --> CURSOR[mycel-agent-cursor]
+    CLAUDE --> INFRA[mycel-agent-infra]
 
-    PG[postgres:17] --> BCDB[bc-bcdb]
-    BUN[bun + golang] --> BCD[bc-bcd]
+    TS[timescale/timescaledb:2.19.1-pg17] --> BCDB[mycel-bcdb]
+    BUILD[oven/bun:1.2 + golang:1.25.11] --> DAEMON[mycel-daemon]
+    PW[Playwright] --> PWI[bc-playwright]
 ```
+
+| Image | Dockerfile | Purpose |
+|-------|-----------|---------|
+| `mycel-agent-base` | `docker/Dockerfile.base` | Shared developer tooling for all agents |
+| `mycel-agent-claude/gemini/codex/cursor` | `docker/Dockerfile.<provider>` | Base + one provider CLI |
+| `mycel-agent-infra` | `docker/Dockerfile.infra` | Extends claude with infra tooling |
+| `mycel-daemon` | `docker/Dockerfile.bcd` | Multi-stage: bun builds the web UI, Go 1.25.11 builds the binary |
+| `mycel-bcdb` | `docker/Dockerfile.bcdb` | TimescaleDB (`POSTGRES_USER=bc`, `POSTGRES_DB=bc`, password at runtime), seeds `docker/bcdb/init.sql` |
+| `bc-playwright` | `docker/Dockerfile.playwright` | Playwright MCP server (built separately) |
+
+Agent images are also tagged with the legacy `bc-agent-*` names for one release cycle (v0.3.x rename fallback).
 
 ### Base Image (`docker/Dockerfile.base`)
 
 | Component | Purpose |
 |-----------|---------|
-| Go 1.25.1 | Build tools, Go-based providers |
-| Bun | JS runtime, TUI, Node compat |
+| Go 1.25.11 (`ARG GOVERSION`, SHA256-verified) | Build tools, Go-based tooling |
+| Bun 1.2.15 (also symlinked as `node`/`npx`) | JS runtime for provider CLIs and tooling |
 | tmux | Session management inside containers |
-| git, gh | Version control, GitHub CLI |
-| gcc, libc6-dev | CGO (SQLite) |
-| sqlite3, jq, curl | Utilities |
+| git, gh, openssh-client | Version control, GitHub CLI |
+| make, sqlite3, jq, curl, unzip | Utilities |
+| locales, ncurses-term | UTF-8 + terminal support (`TERM=xterm-256color`, `COLORTERM=truecolor`) |
 
 Runs as non-root user `agent` with `WORKDIR /workspace`.
 
 ### Container Naming
 
 ```
-bc-<session-id-last6>-<team>-<agent>
+mycel-<workspace-hash6>-<agent>
 ```
 
-Examples: `bc-a1b2c3-backend-alice`, `bc-a1b2c3-infra-bcdb`
+`workspace-hash6` is the first 6 hex characters of the SHA-256 of the host workspace path (`pkg/container/container.go`). Example: `mycel-a1b2c3-alice`. Containers created under the pre-rename `bc-` prefix remain discoverable via a legacy-prefix fallback.
 
 ### Container Lifecycle
 
@@ -86,75 +95,53 @@ Examples: `bc-a1b2c3-backend-alice`, `bc-a1b2c3-infra-bcdb`
 stateDiagram-v2
     [*] --> Running: docker run
     Running --> Stopped: agent stop (preserves state)
-    Stopped --> Running: agent start (reuses volumes)
+    Stopped --> Running: agent start (reuses state mounts)
     Stopped --> [*]: agent delete (permanent)
     Running --> [*]: agent delete --force
 ```
 
 ## Volume Mounts
 
-```mermaid
-graph LR
-    subgraph Host
-        WS[workspace repo]
-        AUTH[~/.bc/agents/alice/auth]
-        SOCK[/var/run/docker.sock]
-        PGDATA[bcdb-data volume]
-    end
+Ground truth: `pkg/container/container.go`. Agent state lives at `~/.mycel/workspaces/<id>/agents/<name>/` on the host (legacy fallback: `<workspace>/.bc/agents/<name>/`).
 
-    subgraph Agent
-        AWSP[/workspace]
-        AAUTH[/home/agent/.claude]
-    end
+| Mount | Container path | Purpose |
+|-------|---------------|---------|
+| Host project root | `/workspace` | Full repo mounted so git worktrees resolve (`-w` is set to the agent's worktree subdirectory) |
+| `<agent-dir>/claude/` | `/home/agent/.claude` | Persistent provider state across restarts |
+| `<agent-dir>/claude.json` | `/home/agent/.claude.json` | Provider app config (OAuth account — auth persistence) |
+| Named volume `bc-shared-tmp` | `/tmp/bc-shared` | Cross-container file exchange (e.g. Playwright screenshots) |
+| `runtime.docker.extra_mounts` | as specified | User-defined mounts, validated against the workspace root |
 
-    subgraph bcd
-        BWSP[/workspace]
-        BSOCK[/var/run/docker.sock]
-    end
-
-    subgraph bcdb
-        BPG[/var/lib/postgresql/data]
-    end
-
-    WS --> AWSP
-    AUTH --> AAUTH
-    WS --> BWSP
-    SOCK --> BSOCK
-    PGDATA --> BPG
-```
-
-| Mount | Purpose |
-|-------|---------|
-| Workspace repo -> `/workspace` | Agent's git worktree |
-| `~/.bc/agents/<name>/auth` -> `/home/agent/.claude` | Persistent provider state |
-| Docker socket -> bcd | Container management |
-| Named volume -> bcdb | Database persistence |
+When the server itself runs in Docker (Docker-in-Docker), `BC_HOST_WORKSPACE` supplies the host-side path so `-v` mounts resolve correctly.
 
 ## Network Topology
 
-Default: **host networking** -- all containers share the host network namespace.
+Default: the **`bc-net`** Docker network (`runtime.docker.network` in settings.json; the backend falls back to `bridge` when unset).
 
 | Service | Port | Protocol |
 |---------|------|----------|
-| bcd | 9374 | HTTP (REST + SSE + MCP) |
+| mycel server | 9374 (default `127.0.0.1`) | HTTP (REST + SSE + MCP) |
 | bcdb | 5432 | PostgreSQL |
 
 ## Resource Limits
 
+Defaults from `pkg/workspace/config.go`:
+
 | Resource | Default | Config Key |
 |----------|---------|-----------|
 | CPUs | 2.0 | `runtime.docker.cpus` |
-| Memory | 2048 MB | `runtime.docker.memory_mb` |
-| Network | host | `runtime.docker.network` |
+| Memory | 4096 MB | `runtime.docker.memory_mb` |
+| Network | `bc-net` | `runtime.docker.network` |
+| Image | `mycel-agent-claude:latest` | `runtime.docker.image` |
 
 ## Health Checks
 
 | Service | Method |
 |---------|--------|
-| bcd | `GET /health` -> `{"status":"ok"}` |
-| bcdb | `pg_isready` |
+| mycel server | `GET /health` → `{"status":"ok"}` |
+| bcdb | `pg_isready -U bc -d bc` (baked into the image) |
 | Agents | `docker inspect` + `docker exec tmux list-sessions` |
 
 ## Local Dev (tmux mode)
 
-Set `runtime.backend = "tmux"` -- agents run as tmux sessions on the host. No Docker needed. SQLite for all storage.
+Set `runtime.default = "tmux"` in settings.json — agents run as tmux sessions on the host (prefix `mycel-`), no Docker needed, SQLite for all storage. This is the local development fallback; `docker` is the default runtime.

@@ -2,252 +2,156 @@
 
 ## Overview
 
-All bc data lives in a single SQLite database at `~/.bc/bc.db` using WAL mode. A server-based SQL backend is planned for future multi-user deployments but is not currently implemented.
+mycel uses two storage backends behind a single abstraction:
 
-## Connection Architecture
+- **SQLite** (default) — zero-configuration, local-first. The shared workspace database lives at `<workspace>/.bc/bc.db`.
+- **TimescaleDB** (Postgres 17) — implemented and shipping as the `mycel-bcdb` Docker image (`timescale/timescaledb:2.19.1-pg17`). Selected via config or environment (see below).
+
+There is deliberately no single global database. Data is split by scope:
+
+| Scope | Location | Contents |
+|-------|----------|----------|
+| Workspace | `<workspace>/.bc/bc.db` | Shared workspace DB: notifications, cron, MCP servers, tools, events, roles |
+| Per-workspace runtime | `~/.mycel/workspaces/<id>/` | Agent state dirs, per-workspace `costs.db` |
+| User-global | `~/.mycel/` | `secrets.vault` (SQLite vault), `costs.db` (cross-workspace ledger), `workspaces.json` registry, `mcps.json`, `tools.json`, `daemon.{pid,log,addr}` |
+
+`~/.mycel/` is resolved by `pkg/workspace.MycelHome()`: `MYCEL_HOME` env var, then `BC_HOME` (deprecated), then `~/.mycel/`, with a one-time migration from a legacy `~/.bc/` tree. Known consolidation work is tracked in issues #3237 and #3238 (folding the remaining per-concern DB files into the shared workspace DB).
+
+## Backend Selection
+
+`pkg/db/unified.go` (`OpenWorkspaceDBWithConfig`) picks the backend at startup:
+
+1. **`DATABASE_URL` env var** — Postgres/TimescaleDB override for Docker and CI.
+2. **`settings.json` `storage.default`** — `"timescale"` (legacy value `"sql"` also accepted) connects using `storage.timescale.{host,port,user,password,database}`; the password falls back to `BC_DB_PASSWORD`. If TimescaleDB is unreachable, the daemon logs a warning and falls back to SQLite rather than starting with nil stores.
+3. **SQLite default** — `<workspace>/.bc/bc.db` (path overridable via `storage.sqlite.path`).
+
+## Shared Connection
+
+One connection is opened at startup and registered via `db.SetShared(db, driver)`; the driver string is `"sqlite"` or `"timescale"`. Stores (`pkg/notify`, `pkg/cron`, `pkg/mcp`, `pkg/tool`, `pkg/events`, `pkg/workspace` roles, `pkg/cost`) retrieve it with `db.Shared()` / `db.SharedWrapped()` and never open the same file twice. Stores fall back to opening a dedicated file only when no shared connection is set (e.g., short-lived CLI paths).
 
 ```mermaid
 graph LR
-    subgraph "bcd process"
-        W[Write Pool<br/>MaxOpenConns=1]
-        R[Read Pool<br/>MaxOpenConns=4]
+    subgraph "mycel process"
+        S["db.SetShared() at startup"]
+        N[notify store]
+        C[cron store]
+        M[mcp store]
+        T[tool store]
+        E[events store]
+        R[role store]
     end
-    W -->|single writer| DB["~/.bc/bc.db<br/>SQLite WAL"]
-    R -->|concurrent reads| DB
+    S --> DB["<workspace>/.bc/bc.db (SQLite WAL)<br/>or TimescaleDB"]
+    N & C & M & T & E & R -->|db.Shared()| S
 ```
 
-### Connection Settings
+## SQLite Connection Settings
+
+From `pkg/db/db.go` (`Open` + pragmas):
 
 | Setting | Value | Rationale |
 |---------|-------|-----------|
-| Journal mode | WAL | Concurrent reads + single writer |
-| Foreign keys | ON (per-connection) | Referential integrity |
-| Busy timeout | 30,000ms | Handle concurrent agent access |
+| Journal mode | WAL | Concurrent readers + single writer |
+| Foreign keys | ON (connection string) | Referential integrity |
+| Busy timeout | 30,000 ms | Handle concurrent agent access |
 | Synchronous | NORMAL | Safe with WAL; avoids unnecessary fsync |
-| Cache size | -2000 (2MB) | Reasonable for local workload |
+| Cache size | 2,000 KB (2 MB) | Reasonable for local workload |
 | Temp store | MEMORY | Faster temp table operations |
-| mmap_size | 268435456 (256MB) | Memory-mapped reads |
+| mmap_size | 268435456 (256 MB) | Memory-mapped reads |
+| Connection pool | `MaxOpenConns=1`, `MaxIdleConns=1` | SQLite's single-writer model — one connection, no separate read pool |
 
-### Rules
+## Schema Management
 
-1. One shared DB opened at bcd startup, passed to all stores
-2. All stores accept `*db.DB` — no store opens its own connection
-3. Write pool (MaxOpenConns=1): all mutations
-4. Read pool (MaxOpenConns=4, read-only): all queries
-5. Never open the same file from multiple sql.Open calls
+There is no migration framework. Every store owns its schema and creates it idempotently at startup with `CREATE TABLE IF NOT EXISTS` (each store's `InitSchema()`), with driver-appropriate column types — e.g. `TIMESTAMPTZ DEFAULT NOW()` on TimescaleDB vs `TEXT`/`INTEGER` timestamps on SQLite. Schema changes are additive; column additions use guarded `ALTER TABLE` where needed.
 
-## Entity Relationship Diagram
+The TimescaleDB image additionally seeds `docker/bcdb/init.sql` (relational tables plus hypertables) on first container start.
 
-```mermaid
-erDiagram
-    teams ||--o{ teams : "parent_id (tree)"
-    teams ||--o{ team_members : has
-    agents ||--o{ team_members : "member of"
-    agents }o--o| roles : "has role"
-    roles ||--o{ role_mcp_servers : uses
-    roles ||--o{ role_secrets : needs
-    notify_subscriptions ||--o{ notify_delivery_log : "deliveries per subscription"
-    agents ||--o{ cost_records : generates
-    agents ||--o{ events : logs
-    agents ||--o{ agent_sessions : "session history"
-    cron_jobs ||--o{ cron_logs : executions
-    mcp_servers ||--o{ role_mcp_servers : "used by"
-    secrets ||--o{ role_secrets : "used by"
+## Roles: JSON Columns, Not Join Tables
 
-    teams {
-        text id PK
-        text name "NOT NULL"
-        text parent_id FK "NULL for root"
-        text workspace "git repo path"
-        integer created_at "unix millis"
-    }
-    team_members {
-        text team_id FK "PK"
-        text agent_id FK "PK"
-        integer joined_at "unix millis"
-    }
-    agents {
-        text name PK
-        text role_id FK
-        text state "idle|working|stuck|starting|stopped|error"
-        text tool "claude|gemini|cursor|aider|codex"
-        text workspace "git repo path"
-        text session_id "Claude UUID"
-        text runtime "tmux|docker"
-        integer created_at "unix millis"
-    }
-    roles {
-        text id PK
-        text name "UNIQUE"
-        blob prompt "CLAUDE.md content"
-        blob settings "JSON"
-        blob commands "JSON map"
-        integer created_at "unix millis"
-    }
-    notify_subscriptions {
-        integer id PK
-        text channel "platform:channel_name"
-        text agent "NOT NULL"
-        integer mention_only "0|1"
-        text created_at "ISO8601"
-    }
-    notify_messages {
-        integer id PK
-        text channel "NOT NULL"
-        text sender "NOT NULL"
-        text content "NOT NULL"
-        text created_at "ISO8601"
-    }
-    notify_delivery_log {
-        integer id PK
-        text logged_at "ISO8601"
-        text channel "NOT NULL"
-        text agent "NOT NULL"
-        text status "delivered|failed|pending"
-        text error "nullable"
-        text preview "nullable"
-    }
-    cost_records {
-        integer id PK
-        text agent_name FK
-        text model
-        real cost_usd
-        integer timestamp "unix millis"
-    }
-    secrets {
-        text name PK
-        blob value "AES-256-GCM"
-        integer created_at "unix millis"
-    }
-    mcp_servers {
-        text name PK
-        text transport "stdio|sse"
-        integer enabled "0|1"
-    }
-    events {
-        integer id PK
-        text type
-        text agent
-        integer timestamp "unix millis"
-    }
-    cron_jobs {
-        text name PK
-        text schedule "5-field cron"
-        integer enabled "0|1"
-    }
-    cron_logs {
-        integer id PK
-        text job_name FK
-        text status
-        integer run_at "unix millis"
-    }
-```
-
-## Timestamp Convention
-
-Most tables use `INTEGER` storing Unix milliseconds (`time.Now().UnixMilli()` in Go): `agents`, `teams`, `team_members`, `roles`, `cost_records`, `events`, `secrets`, `mcp_servers`, `cron_jobs`, `cron_logs`.
-
-The notification tables (`notify_subscriptions`, `notify_messages`, `notify_delivery_log`, `notify_gateways`, `notify_channels`) use `TEXT` storing ISO 8601 timestamps (`strftime('%Y-%m-%dT%H:%M:%SZ', 'now')` in SQLite, `TIMESTAMPTZ DEFAULT NOW()` in Postgres).
-
-| Format | Tables | Go Read | SQLite Query |
-|--------|--------|---------|--------------|
-| INTEGER (Unix ms) | agents, teams, costs, events, secrets, cron | `time.UnixMilli(ts)` | `datetime(ts/1000, 'unixepoch')` |
-| TEXT (ISO 8601) | notify_* | `time.Parse(time.RFC3339, s)` | Direct string comparison |
-
-## Index Strategy
-
-Composite indexes on hot paths, following SQLite left-to-right rule:
-
-| Index | Query Pattern |
-|-------|---------------|
-| `idx_cost_agent_time(agent_name, timestamp DESC)` | Budget checks per agent |
-| `idx_cost_team_time(team_id, timestamp DESC)` | Team cost queries |
-| `idx_notify_subs_channel(channel)` | Subscriber lookups |
-| `idx_notify_messages_channel(channel, id DESC)` | Message history |
-| `idx_notify_delivery_channel(channel, id DESC)` | Delivery log queries |
-| `idx_agent_sessions_agent(agent_name, created_at DESC)` | Session resume |
-| `idx_events_timestamp(timestamp DESC)` | Recent events |
-| `idx_cron_logs_job(job_name, run_at DESC)` | Job execution logs |
-
-## Migration Strategy
-
-[goose](https://github.com/pressly/goose) with embedded SQL files:
+Roles are a single table (`pkg/workspace/role_store.go`). List- and map-valued fields are JSON-encoded TEXT columns — there are no `role_mcp_servers` / `role_secrets` join tables:
 
 ```
-pkg/db/migrations/
-  001_create_settings.sql
-  002_create_teams.sql
-  003_create_roles.sql
-  004_create_agents.sql
-  005_create_subscriptions.sql
-  006_create_costs.sql
-  ...
+roles(
+  name PRIMARY KEY, description, prompt,
+  mcp_servers '[]', parent_roles '[]', secrets '[]', plugins '[]', cli_tools '[]',
+  settings '{}', rules '{}', agents '{}', skills '{}', commands '{}',
+  prompt_create, prompt_start, prompt_stop, prompt_delete, review,
+  created_at, updated_at
+)
 ```
 
-Run `goose.Up()` at bcd startup. No `CREATE TABLE IF NOT EXISTS` in application code.
+The same JSON-column pattern applies elsewhere (provider settings, tool metadata). This keeps reads single-row and writes atomic at the cost of not being able to query membership relationally — acceptable at workspace scale.
 
-## Future: Server-Based SQL
+## Main Table Groups
 
-When needed for multi-user deployment:
-- Add driver for target DB (Postgres, SQL Server)
-- Dialect abstraction for placeholder differences (`?` vs `$1`)
-- goose handles multi-DB migrations natively
-- Split read/write at connection string level
+| Group | Store | Tables (representative) |
+|-------|-------|------------------------|
+| Notifications | `pkg/notify` | `notify_subscriptions`, `notify_messages`, `notify_delivery_log`, `notify_gateways`, `notify_channels` |
+| Cron | `pkg/cron` | `cron_jobs`, `cron_logs` |
+| MCP | `pkg/mcp` | `mcp_servers` |
+| Tools | `pkg/tool` | tool registry tables |
+| Events | `pkg/events` | event log |
+| Roles | `pkg/workspace` | `roles` |
+| Costs | `pkg/cost` | cost records (shared DB on TimescaleDB; dedicated `costs.db` fallback on SQLite) |
+| Secrets | `pkg/secret` | encrypted secret rows in `~/.mycel/secrets.vault` |
+
+Timestamp conventions vary by store: most tables use `INTEGER` Unix milliseconds; the notification tables use `TEXT` ISO 8601 on SQLite and `TIMESTAMPTZ` on TimescaleDB.
+
+## TimescaleDB Backend
+
+Postgres support is not planned — it exists:
+
+- `pkg/db/postgres.go` — connection handling, `DATABASE_URL` / DSN construction.
+- Per-store Postgres implementations: `pkg/cost/store_postgres.go`, `pkg/cron/store_postgres.go`, `pkg/events/store_postgres.go`, `pkg/mcp/store_postgres.go`, `pkg/secret/store_postgres.go`, `pkg/tool/store_postgres.go`; the role store switches dialect on the shared driver string.
+- `docker/Dockerfile.bcdb` builds `mycel-bcdb` from `timescale/timescaledb:2.19.1-pg17` (`POSTGRES_USER=bc`, `POSTGRES_DB=bc`, password injected at runtime; `pg_isready` healthcheck baked in).
+- Time-series data (costs, events) uses TimescaleDB hypertables; relational tables are plain Postgres.
 
 ## Filesystem Layout
 
 ```
-~/.bc/
-  bc.db                     # Main SQLite database (all tables)
-  settings.json             # Global settings
-  secret-key                # AES-256 encryption key (0600 perms)
-  agents/
-    <agent-name>/
-      .claude/              # Provider config (mounted into containers)
-        CLAUDE.md           # Role prompt
-        settings.json       # Claude Code settings + hooks
-        .mcp.json           # MCP server configs
-      worktree/             # Git worktree checkout
-  logs/
-    <agent-name>.log        # Session logs (tmux pipe-pane output)
+~/.mycel/                       # MycelHome (MYCEL_HOME overrides; legacy ~/.bc/ honored)
+  workspaces.json               # Workspace registry
+  secrets.vault                 # User-global secret vault (SQLite, encrypted values)
+  costs.db                      # Cross-workspace cost ledger (records tagged workspace_id)
+  mcps.json                     # User-global MCP server config
+  tools.json                    # User-global tool registry
+  templates/                    # User-global templates
+  daemon.pid / daemon.log / daemon.addr   # Server process state
+  workspaces/<id>/              # Per-workspace runtime dir (pkg/workspace.DataDir)
+    agents/<name>/
+      claude/                   # Provider state (mounted into containers as ~/.claude)
+      claude.json               # Provider app config (auth persistence)
+    costs.db                    # Per-workspace cost data (SQLite mode)
+
+<workspace>/.bc/                # Workspace sidecar (checked-out project)
+  settings.json                 # Workspace config (v2 JSON)
+  bc.db                         # Shared workspace database
+  templates/                    # Workspace-scoped templates
 ```
 
 ## Secret Encryption
 
 ```mermaid
 graph LR
-    PASS[Passphrase<br/>BC_SECRET_PASSPHRASE<br/>or ~/.bc/secret-key] --> PBKDF2[PBKDF2-SHA256<br/>600k iterations]
+    PASS[Passphrase] --> PBKDF2[PBKDF2-SHA256<br/>600k iterations]
     SALT[Random 16-byte salt] --> PBKDF2
     PBKDF2 --> KEY[256-bit AES key]
     KEY --> GCM[AES-256-GCM]
     NONCE[Random nonce] --> GCM
     PLAIN[Secret value] --> GCM
-    GCM --> CIPHER[base64 ciphertext<br/>stored in DB]
+    GCM --> CIPHER[base64 ciphertext<br/>stored in vault]
 ```
 
-Key file (`~/.bc/secret-key`) auto-generated with `0600` on first use.
+`pkg/secret/crypto.go`: PBKDF2-SHA256 with 600,000 iterations (OWASP 2023 guidance) derives an AES-256 key; values are sealed with AES-256-GCM, nonce prepended, base64-encoded. Secrets are layered by scope, with the user-global vault at `~/.mycel/secrets.vault`.
 
 ## Cost Data Pipeline
 
 ```mermaid
 graph LR
-    CLAUDE[Claude Code<br/>JSONL sessions] --> IMPORT[Cost Importer<br/>every 5 min]
+    CLAUDE[Claude Code<br/>JSONL sessions] --> IMPORT[Cost Importer]
     IMPORT --> PARSE[Parse tokens<br/>+ model pricing]
-    PARSE --> DB[(cost_records)]
+    PARSE --> DB[(cost records)]
     DB --> API[/api/costs/*]
     API --> WEB[Web/TUI dashboards]
 ```
 
-Importer scans `~/.bc/agents/*/auth/.claude/` for session JSONL files, extracts token usage, applies model pricing, inserts with watermark dedup.
-
-## Migration Path (old -> new)
-
-```
-OLD (per-project):                NEW (global):
-  project/.bc/bc.db        ->     ~/.bc/bc.db
-  project/.bc/settings.json  ->     ~/.bc/settings.json
-  project/.bc/agents/      ->     ~/.bc/agents/
-  project/.bc/roles/*.md   ->     roles table in bc.db
-  project/.bc/logs/        ->     ~/.bc/logs/
-```
-
+The importer scans agent provider state for session JSONL files, extracts token usage, applies model pricing, and inserts with watermark dedup. On TimescaleDB, cost records go to the shared DB (hypertable); on SQLite they live in the per-workspace `costs.db`, with the user-global `~/.mycel/costs.db` serving cross-workspace rollups.
