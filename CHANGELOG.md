@@ -7,24 +7,72 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.3] - 2026-07-03
+
+Seven-batch continuation of the v0.3.2 design review pass — chart
+palette rework + dash-pattern a11y, interactive chart legend, emerald
+accent overuse audit, AgentArea extraction with scrim/scrollbar
+tokens, agents page grouped by workspace (#3076), emoji reactions
+end-to-end (#3075), and #3178 phase 2 landing as a direct-API
+outbound cookbook rather than mycel-side wrapper tools.
+
 ### Added
-- **Outbound cookbook** (#3178 phase 2) — per-agent Slack / Telegram / Discord / WhatsApp
-  outbound documented as a direct-API pattern: agents load bot tokens from their own
-  `env.json` (with `${secret:NAME}` refs) and call each platform's official REST endpoint
-  (`chat.postMessage`, `sendMessage`, webhook, local WhatsApp daemon) with per-agent
-  `username` / `icon_emoji`. Full recipe lives in
-  `docs/architecture-notifications.md#outbound-cookbook`; the how-to in
-  `docs/how-to/set-up-notifications.md` cross-links it. No mycel-side wrapper tools —
-  the daemon stays out of platform auth / rate-limit / retry.
+- **Emoji reactions** (#3075, #3226 batch 12) — end-to-end pipeline for
+  Slack + Discord reactions. New `reactions TEXT` column on
+  `notify_messages` stores a JSON-encoded `[{name, count}]` array;
+  `extractReactions()` in `pkg/notify/service.go` parses both Slack
+  (`reactions[].name`) and Discord (`reactions[].emoji.name`) shapes.
+  `legacyChannelHistory` handler surfaces them in the JSON response;
+  `MessageList.tsx` renders per-message reaction pills.
+- **Agents page grouped by workspace** (#3076, batch 11) — one card per
+  workspace, agents grouped underneath with role + status chips.
+- **Interactive chart legend** (batch 9) — click a series to solo it,
+  shift-click to toggle multiple. Keyboard-accessible.
+- **Outbound cookbook** (#3178 phase 2, batch 13) — per-agent Slack /
+  Telegram / Discord / WhatsApp outbound documented as a direct-API
+  pattern: agents load bot tokens from their own `env.json` (with
+  `${secret:NAME}` refs) and call each platform's official REST
+  endpoint (`chat.postMessage`, `sendMessage`, webhook, local WhatsApp
+  daemon) with per-agent `username` / `icon_emoji`. Full recipe in
+  `docs/architecture-notifications.md#outbound-cookbook`. No
+  mycel-side wrapper tools — daemon stays out of platform auth /
+  rate-limit / retry.
+
+### Changed
+- **Chart palette + dash-pattern a11y** (batch 8) — repalette every
+  Recharts series to the tokenized 6-swatch mycel palette; add dashed
+  stroke patterns so series remain distinguishable in monochrome /
+  color-blind settings.
+- **Emerald accent overuse pared back** (batch 10) — audit + swap of
+  gratuitous emerald usage in favor of neutral tokens; success/status
+  emerald reserved for actual success semantics.
+- **`AgentArea` extracted** (batch 7) — pulls the agent detail panel
+  out of the workspace shell; new `--mycel-scrim` + scrollbar tokens
+  cascade across theme variants.
+
+### Deprecated
+- **`POST /api/gateways/{platform}/channels/{channel}/send`** — RFC 8594
+  `Deprecation` + `Sunset` headers on every response. Will return
+  `410 Gone` in v0.4.0. New integrations use the per-agent outbound
+  cookbook.
 
 ### Docs
 - **Notification architecture doc rehabilitated** — renamed
-  `docs/_architecture-notifications.md` → `docs/architecture-notifications.md`, wired
-  into mkdocs nav under Explanation, and fixed the stale
-  `../architecture/notifications.md` cross-links in `docs/explanation/networking.md`,
-  `docs/reference/api-rest.md`, `docs/README.md`, `docs/index.md`, and the notifications
-  how-to. `bc <verb>` → `mycel <verb>` sweep on the how-to (channel names like
-  `github:bc` / `slack:all-bc` left alone).
+  `docs/_architecture-notifications.md` → `docs/architecture-notifications.md`,
+  wired into mkdocs nav under Explanation, and fixed the stale
+  `../architecture/notifications.md` cross-links in
+  `docs/explanation/networking.md`, `docs/reference/api-rest.md`,
+  `docs/README.md`, `docs/index.md`, and the notifications how-to.
+  `bc <verb>` → `mycel <verb>` sweep on the how-to (channel names
+  like `github:bc` / `slack:all-bc` left alone).
+
+### Fixed
+- **Gateway channel double-prefix** (#3219, #3220) — inbound Slack
+  messages were being stored under `slack:slack:general` due to a
+  double-prefix silently added by the gateway handler. Defensive
+  prefix-strip fixes new writes; phantom rows purged from the
+  workspace DB. Restores agent subscription routing for existing
+  Slack channels.
 
 ## [0.3.2] - 2026-07-03
 
