@@ -2,19 +2,11 @@ import { formatDuration, formatRelative } from "../../utils/time";
 
 import type {
   AgentActivity,
-  AggregatedNode,
-  DisplayNode,
   HookEvent,
   TaskItem,
   ToolNode,
 } from "./liveTypes";
-import {
-  AGGREGATION_WINDOW_MS,
-  FAILED_NEVER_AGGREGATE_MS,
-  isAggregatedNode,
-  MAX_INDIVIDUAL_NODES,
-  TASK_STATUS_MAP,
-} from "./liveTypes";
+import { TASK_STATUS_MAP } from "./liveTypes";
 
 /* ── ID generator ──────────────────────────────────────────────────── */
 
@@ -51,28 +43,6 @@ export function parseToolName(name: string): ParsedTool {
     return { display: action, type: "mcp", mcpServer: parts[0], mcpFunction: action };
   }
   return { display: name, type: "internal" };
-}
-
-export function toolIcon(name: string): string {
-  if (name === "Bash" || name === "BashOutput") return "\u2328\uFE0F";
-  if (name === "Read") return "\uD83D\uDCD6";
-  if (name === "Write" || name === "Edit") return "\u270F\uFE0F";
-  if (name === "Glob" || name === "Grep") return "\uD83D\uDD0D";
-  if (name === "Agent") return "\uD83E\uDD16";
-  if (name === "WebFetch" || name === "WebSearch") return "\uD83C\uDF10";
-  if (name.startsWith("Task")) return "\u2705";
-  if (name === "NotebookEdit") return "\uD83D\uDCD3";
-  if (name === "LSP" || name === "ToolSearch") return "\u2699\uFE0F";
-  if (name === "AskUserQuestion") return "\u2753";
-  if (name === "Skill") return "\uD83C\uDFAF";
-  return "\u2699\uFE0F";
-}
-
-export function mcpServerIcon(server: string): string {
-  if (server === "playwright" || server === "playwright2") return "\uD83C\uDFAD";
-  if (server === "github") return "\uD83D\uDC19";
-  if (server === "bc") return "\u26A1";
-  return "\uD83D\uDD0C";
 }
 
 export function mcpBadgeColors(server: string): string {
@@ -121,17 +91,13 @@ export function extractToolMetadata(toolName: string, input: unknown): string {
   const trunc = (s: string, max = 80): string => s.length > max ? s.slice(0, max - 3) + "..." : s;
 
   if (toolName === "Bash" || toolName === "bash") {
+    // Prefer the human-written description over the raw command — it is
+    // the richer one-line summary when the hook payload carries it.
+    if (typeof obj.description === "string" && obj.description) return redactSecrets(trunc(obj.description, 60));
     if (typeof obj.command === "string") return redactSecrets(trunc(obj.command));
   }
-  if ((toolName === "Read" || toolName === "Write") && typeof obj.file_path === "string") {
-    return trunc(obj.file_path);
-  }
-  if (toolName === "Edit") {
-    let s = typeof obj.file_path === "string" ? obj.file_path : "";
-    if (typeof obj.old_string === "string") {
-      s += " " + trunc(obj.old_string, 40);
-    }
-    return trunc(s);
+  if ((toolName === "Read" || toolName === "Write" || toolName === "Edit" || toolName === "NotebookEdit") && typeof obj.file_path === "string") {
+    return obj.file_path;
   }
   if ((toolName === "Grep" || toolName === "Glob") && typeof obj.pattern === "string") {
     return trunc(obj.pattern);
@@ -193,14 +159,6 @@ export function elapsed(start: number, end?: number): string {
   return `${(ms / 60_000).toFixed(1)}m`;
 }
 
-export function durationColorClass(start: number, end?: number): string {
-  const ms = (end ?? Date.now()) - start;
-  if (ms < 500) return "text-mycel-success";
-  if (ms < 2000) return "text-mycel-warning";
-  if (ms < 10000) return "text-mycel-accent";
-  return "text-mycel-error";
-}
-
 export function durationPillClass(start: number, end?: number): string {
   const ms = (end ?? Date.now()) - start;
   if (ms < 500) return "bg-mycel-success/15 text-mycel-success";
@@ -237,284 +195,25 @@ export function idleDuration(lastEventTime: number): string {
   return formatDuration(Date.now() - lastEventTime, { prefix: "Idle " });
 }
 
-/* ── Node search / sort ────────────────────────────────────────────── */
+/* ── Node search / flatten ──────────────────────────────────────── */
 
 export function nodeMatchesSearch(node: ToolNode, query: string): boolean {
   const hay = `${node.toolName} ${node.args}`.toLowerCase();
   return hay.includes(query);
 }
 
-export function sortNodes(nodes: ToolNode[]): ToolNode[] {
-  return [...nodes].sort((a, b) => {
-    // Running first (newest first among running)
-    if (a.status === "running" && b.status !== "running") return -1;
-    if (b.status === "running" && a.status !== "running") return 1;
-    if (a.status === "running" && b.status === "running") return b.startTime - a.startTime;
-    // Failed second (newest first among failed)
-    if (a.status === "failed" && b.status !== "failed") return -1;
-    if (b.status === "failed" && a.status !== "failed") return 1;
-    if (a.status === "failed" && b.status === "failed") return b.startTime - a.startTime;
-    // Completed: sort by duration (longest first)
-    const aDur = (a.endTime ?? a.startTime) - a.startTime;
-    const bDur = (b.endTime ?? b.startTime) - b.startTime;
-    return bDur - aDur;
-  });
-}
-
-/* ── Aggregation ──────────────────────────────────────────────────── */
-
-const AGGREGATION_MIN_COUNT = 3;
-
-export const NEVER_AGGREGATE_EVENTS = new Set([
-  "SubagentStart", "SubagentStop", "Agent",
-  "PermissionRequest", "Elicitation",
-  "UserPromptSubmit", "SessionStart", "SessionEnd",
-  "Stop", "TaskCompleted",
-]);
-
-export function shouldNeverAggregate(node: ToolNode, now?: number): boolean {
-  // Failed tools: never aggregate for 2 minutes after creation
-  if (node.status === "failed") {
-    const ts = now ?? Date.now();
-    if (ts - node.startTime < FAILED_NEVER_AGGREGATE_MS) return true;
-  }
-  if (NEVER_AGGREGATE_EVENTS.has(node.toolName)) return true;
-  if (node.toolName.startsWith("Agent:")) return true;
-  return false;
-}
-
-export interface AggStats {
-  totalDuration: number;
-  totalTokens: number;
-  successCount: number;
-  failCount: number;
-  minStart: number;
-  maxEnd: number;
-}
-
-export function computeToolNodeStats(nodes: ToolNode[]): AggStats {
-  let totalDuration = 0;
-  let successCount = 0;
-  let failCount = 0;
-  let minStart = Infinity;
-  let maxEnd = 0;
-
-  for (const n of nodes) {
-    totalDuration += n.endTime ? n.endTime - n.startTime : 0;
-    if (n.status === "completed") successCount++;
-    if (n.status === "failed") failCount++;
-    if (n.startTime < minStart) minStart = n.startTime;
-    if (n.endTime && n.endTime > maxEnd) maxEnd = n.endTime;
-  }
-
-  return { totalDuration, totalTokens: 0, successCount, failCount, minStart, maxEnd };
-}
-
-export function buildAggregatedNode(idPrefix: string, toolName: string, children: ToolNode[], stats: AggStats): AggregatedNode {
-  return {
-    type: "aggregate",
-    id: `${idPrefix}-${children[0]!.id}`,
-    toolName,
-    count: children.length,
-    children,
-    totalDuration: stats.totalDuration,
-    totalTokens: stats.totalTokens,
-    successCount: stats.successCount,
-    failCount: stats.failCount,
-    startTime: stats.minStart,
-    endTime: stats.maxEnd || Date.now(),
+/** Flatten a node tree (subagent children nest under their parent) into
+ *  a single flat list so every hook event renders as one stream row. */
+export function flattenNodes(nodes: ToolNode[]): ToolNode[] {
+  const out: ToolNode[] = [];
+  const walk = (list: ToolNode[]) => {
+    for (const n of list) {
+      out.push(n);
+      if (n.children.length > 0) walk(n.children);
+    }
   };
-}
-
-export function flattenDisplayNodes(group: DisplayNode[]): { children: ToolNode[]; stats: AggStats } {
-  const allChildren: ToolNode[] = [];
-  let totalDuration = 0;
-  let totalTokens = 0;
-  let successCount = 0;
-  let failCount = 0;
-  let minStart = Infinity;
-  let maxEnd = 0;
-
-  for (const g of group) {
-    if (isAggregatedNode(g)) {
-      allChildren.push(...g.children);
-      totalDuration += g.totalDuration;
-      totalTokens += g.totalTokens;
-      successCount += g.successCount;
-      failCount += g.failCount;
-      if (g.startTime < minStart) minStart = g.startTime;
-      if (g.endTime > maxEnd) maxEnd = g.endTime;
-    } else {
-      allChildren.push(g);
-      totalDuration += g.endTime ? g.endTime - g.startTime : 0;
-      if (g.status === "completed") successCount++;
-      if (g.status === "failed") failCount++;
-      if (g.startTime < minStart) minStart = g.startTime;
-      if (g.endTime && g.endTime > maxEnd) maxEnd = g.endTime;
-    }
-  }
-
-  return { children: allChildren, stats: { totalDuration, totalTokens, successCount, failCount, minStart, maxEnd } };
-}
-
-export function aggregateNodes(nodes: ToolNode[], collapseOlderThan?: number, totalNodeCount?: number): DisplayNode[] {
-  if (nodes.length === 0) return [];
-
-  const now = Date.now();
-  const threshold = collapseOlderThan ?? 0;
-  const agentTotalNodes = totalNodeCount ?? nodes.length;
-
-  // If agent has fewer than MAX_INDIVIDUAL_NODES total calls, show all individually
-  if (agentTotalNodes < MAX_INDIVIDUAL_NODES) {
-    return nodes;
-  }
-
-  if (threshold > 0) {
-    const recentNodes: ToolNode[] = [];
-    const oldByTool = new Map<string, ToolNode[]>();
-
-    for (const n of nodes) {
-      const age = now - n.startTime;
-      if (age <= threshold || n.status === "running" || shouldNeverAggregate(n, now)) {
-        recentNodes.push(n);
-      } else {
-        const key = n.toolName;
-        if (!oldByTool.has(key)) oldByTool.set(key, []);
-        oldByTool.get(key)!.push(n);
-      }
-    }
-
-    const oldAggregated: DisplayNode[] = [];
-    for (const [toolName, group] of oldByTool) {
-      if (group.length >= 2) {
-        const stats = computeToolNodeStats(group);
-        oldAggregated.push(buildAggregatedNode("agg-old", toolName, group, stats));
-      } else {
-        oldAggregated.push(...group);
-      }
-    }
-
-    oldAggregated.sort((a, b) => b.startTime - a.startTime);
-
-    const recentAggregated = aggregateConsecutive(recentNodes);
-    return aggregateByType([...recentAggregated, ...oldAggregated], agentTotalNodes);
-  }
-
-  return aggregateByType(aggregateConsecutive(nodes), agentTotalNodes);
-}
-
-/** Post-completion aggregation: collapse completed tool calls of the same type
- *  across non-consecutive positions when count >= AGGREGATION_MIN_COUNT.
- *  Running events are always shown individually.
- *  Failed events are pinned (shown individually) for FAILED_NEVER_AGGREGATE_MS,
- *  then become eligible for type-based aggregation. */
-export function aggregateByType(displayNodes: DisplayNode[], totalNodeCount?: number): DisplayNode[] {
-  // If agent has fewer than MAX_INDIVIDUAL_NODES total calls, skip aggregation
-  if (totalNodeCount !== undefined && totalNodeCount < MAX_INDIVIDUAL_NODES) {
-    return displayNodes;
-  }
-
-  const now = Date.now();
-  const pinned: DisplayNode[] = [];
-  const candidates: DisplayNode[] = [];
-
-  for (const node of displayNodes) {
-    if (isAggregatedNode(node)) {
-      candidates.push(node);
-    } else {
-      const tn = node as ToolNode;
-      if (tn.status === "running") {
-        pinned.push(node);
-      } else if (tn.status === "failed" && (now - tn.startTime) < FAILED_NEVER_AGGREGATE_MS) {
-        // Failed events within 2 minutes are always pinned individually
-        pinned.push(node);
-      } else {
-        candidates.push(node);
-      }
-    }
-  }
-
-  const byTool = new Map<string, DisplayNode[]>();
-  const ungroupable: DisplayNode[] = [];
-
-  for (const node of candidates) {
-    if (isAggregatedNode(node)) {
-      const key = node.toolName;
-      if (!byTool.has(key)) byTool.set(key, []);
-      byTool.get(key)!.push(node);
-    } else {
-      const tn = node as ToolNode;
-      if (shouldNeverAggregate(tn, now)) {
-        ungroupable.push(node);
-      } else {
-        const key = tn.toolName;
-        if (!byTool.has(key)) byTool.set(key, []);
-        byTool.get(key)!.push(node);
-      }
-    }
-  }
-
-  const aggregated: DisplayNode[] = [];
-  for (const [toolName, group] of byTool) {
-    let totalIndividual = 0;
-    for (const g of group) {
-      totalIndividual += isAggregatedNode(g) ? g.count : 1;
-    }
-
-    if (totalIndividual >= AGGREGATION_MIN_COUNT) {
-      const { children: allChildren, stats } = flattenDisplayNodes(group);
-      aggregated.push(buildAggregatedNode("agg-type", toolName, allChildren, stats));
-    } else {
-      ungroupable.push(...group);
-    }
-  }
-
-  // Pinned (running/failed) first, then ungroupable individuals, then aggregated summaries at bottom
-  return [...pinned, ...ungroupable, ...aggregated];
-}
-
-export function aggregateConsecutive(nodes: ToolNode[]): DisplayNode[] {
-  if (nodes.length === 0) return [];
-
-  const now = Date.now();
-  const result: DisplayNode[] = [];
-  let i = 0;
-
-  while (i < nodes.length) {
-    const current = nodes[i];
-    if (!current) { i++; continue; }
-
-    if (shouldNeverAggregate(current, now) || current.status === "running") {
-      result.push(current);
-      i++;
-      continue;
-    }
-
-    const group: ToolNode[] = [current];
-    let j = i + 1;
-    while (j < nodes.length) {
-      const next = nodes[j];
-      if (!next) break;
-      if (next.toolName !== current.toolName) break;
-      if (shouldNeverAggregate(next, now) || next.status === "running") break;
-      const prev = group[group.length - 1];
-      if (!prev) break;
-      if (Math.abs(next.startTime - prev.startTime) > AGGREGATION_WINDOW_MS) break;
-      group.push(next);
-      j++;
-    }
-
-    if (group.length >= 2) {
-      const stats = computeToolNodeStats(group);
-      result.push(buildAggregatedNode("agg", current.toolName, group, stats));
-      i = j;
-    } else {
-      result.push(current);
-      i++;
-    }
-  }
-
-  return result;
+  walk(nodes);
+  return out;
 }
 
 /* ── Task parsing helpers ──────────────────────────────────────────── */
