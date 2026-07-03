@@ -127,9 +127,8 @@ func (c *Config) validateServer() error {
 
 // validateStorage validates storage configuration.
 func (c *Config) validateStorage() error {
-	// Accept "timescale" and legacy "sql" for backward compatibility
-	if c.Storage.Default != "" && c.Storage.Default != "sqlite" && c.Storage.Default != "timescale" && c.Storage.Default != "sql" {
-		return fmt.Errorf("storage.default must be 'sqlite', 'timescale', or 'sql' (legacy), got %q", c.Storage.Default)
+	if c.Storage.Default != "" && c.Storage.Default != "sqlite" && c.Storage.Default != "timescale" {
+		return fmt.Errorf("storage.default must be 'sqlite' or 'timescale', got %q", c.Storage.Default)
 	}
 	if c.Storage.Timescale.Port != 0 && (c.Storage.Timescale.Port < 1 || c.Storage.Timescale.Port > 65535) {
 		return fmt.Errorf("storage.timescale.port must be between 1 and 65535, got %d", c.Storage.Timescale.Port)

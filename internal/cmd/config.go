@@ -19,7 +19,7 @@ import (
 var configCmd = &cobra.Command{
 	Use:   "config",
 	Short: "Manage workspace configuration",
-	Long: `Commands for managing workspace configuration (.bc/settings.json).
+	Long: `Commands for managing workspace configuration (preferences.json).
 
 Configuration uses a hierarchical key structure with dot notation:
   workspace.name
@@ -147,7 +147,7 @@ User configuration provides defaults that apply across all mycel workspaces:
   - Default role for new agents
   - Preferred AI tools
 
-Workspace config (.bc/settings.json) takes precedence over user config.
+Workspace config (preferences.json) takes precedence over user config.
 
 Examples:
   mycel config user init   # Create ~/.bcrc with guided prompts
@@ -223,8 +223,7 @@ func loadWorkspaceConfig() (*workspace.Config, string, error) {
 		return nil, "", fmt.Errorf("workspace is using v1 config format. Run 'mycel init' to upgrade to v2")
 	}
 
-	configPath := workspace.ConfigPath(ws.RootDir)
-	return ws.Config, configPath, nil
+	return ws.Config, ws.SettingsFile(), nil
 }
 
 // loadConfigViaAPI tries to load workspace config through the daemon API,
@@ -433,7 +432,7 @@ func runConfigReset(cmd *cobra.Command, args []string) error {
 		return errNotInWorkspace(err)
 	}
 
-	configPath := workspace.ConfigPath(ws.RootDir)
+	configPath := ws.SettingsFile()
 
 	if !configForce {
 		fmt.Printf("⚠️  This will overwrite your config at: %s\n", configPath)

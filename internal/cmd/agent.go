@@ -43,7 +43,6 @@ func newAgentManager(ws *workspace.Workspace) *agent.Manager {
 		if err != nil {
 			log.Warn("Docker unavailable, falling back to tmux", "error", err)
 		} else {
-			be = be.WithLegacyPrefix(agent.LegacySessionPrefix)
 			mgr = agent.NewWorkspaceManagerWithRuntime(ws.AgentsDir(), ws.RootDir, be, "docker")
 		}
 	}
@@ -85,7 +84,7 @@ var agentCreateCmd = &cobra.Command{
 	Long: `Create and start a new agent.
 
 If no name is provided, a random memorable name is generated (e.g., swift-falcon).
-Agents are configured via templates (markdown files at ~/.bc/templates/).
+Agents are configured via templates (markdown files at ~/.mycel/templates/).
 Use --copy to clone settings from an existing agent.
 
 Examples:
@@ -330,7 +329,7 @@ func init() {
 	// Create flags
 	agentCreateCmd.Flags().StringVar(&agentCreateTool, "tool", "", "Agent tool (claude, gemini, cursor, codex, opencode, openclaw, aider, pi)")
 	agentCreateCmd.Flags().StringVar(&agentCreateRole, "role", "", "Agent role (default: base)")
-	agentCreateCmd.Flags().StringVar(&agentCreateTemplate, "template", "", "Template name from ~/.bc/templates/ (e.g. base, engineer)")
+	agentCreateCmd.Flags().StringVar(&agentCreateTemplate, "template", "", "Template name from ~/.mycel/templates/ (e.g. base, engineer)")
 	agentCreateCmd.Flags().StringVar(&agentCreateCopy, "copy", "", "Copy settings from an existing agent")
 	agentCreateCmd.Flags().StringVar(&agentCreateParent, "parent", "", "Parent agent ID")
 	agentCreateCmd.Flags().StringVar(&agentCreateTeam, "team", "", "Team name (alphanumeric)")

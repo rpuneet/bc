@@ -91,3 +91,44 @@ func TestGatewaysConfigMarshalRoundTrip(t *testing.T) {
 		t.Error("slack mismatch after round-trip")
 	}
 }
+
+// TestMergeGatewaysPatch verifies the deep-merge semantics used by the
+// settings PATCH handler: patched platforms are replaced, unpatched
+// platforms are preserved.
+func TestMergeGatewaysPatch(t *testing.T) {
+	gw := GatewaysConfig{
+		Slack: &SlackGatewayConfig{BotToken: "xoxb-old", Enabled: true},
+		Telegrams: map[string]*TelegramGatewayConfig{
+			"": {BotToken: "tg-tok", Enabled: true},
+		},
+	}
+
+	patch := json.RawMessage(`{"discord":{"bot_token":"dc-tok","enabled":true}}`)
+	if err := MergeGatewaysPatch(&gw, patch); err != nil {
+		t.Fatalf("MergeGatewaysPatch: %v", err)
+	}
+
+	if gw.Discord == nil || gw.Discord.BotToken != "dc-tok" {
+		t.Error("discord not merged in")
+	}
+	if gw.Slack == nil || gw.Slack.BotToken != "xoxb-old" {
+		t.Error("slack was wiped by unrelated patch")
+	}
+	if len(gw.Telegrams) != 1 || gw.Telegrams[""].BotToken != "tg-tok" {
+		t.Error("telegram was wiped by unrelated patch")
+	}
+
+	// Patching an existing platform replaces it.
+	patch2 := json.RawMessage(`{"slack":{"bot_token":"xoxb-new","enabled":false}}`)
+	if err := MergeGatewaysPatch(&gw, patch2); err != nil {
+		t.Fatalf("MergeGatewaysPatch(slack): %v", err)
+	}
+	if gw.Slack == nil || gw.Slack.BotToken != "xoxb-new" || gw.Slack.Enabled {
+		t.Errorf("slack not replaced: %+v", gw.Slack)
+	}
+
+	// Malformed patch errors and does not corrupt config.
+	if err := MergeGatewaysPatch(&gw, json.RawMessage("{{nope")); err == nil {
+		t.Error("expected error for malformed patch")
+	}
+}

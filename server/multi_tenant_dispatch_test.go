@@ -90,7 +90,7 @@ func newDispatchHarness(t *testing.T) *dispatchHarness {
 	// Isolate HOME so ~/.bc for the test lives in tmp.
 	home := t.TempDir()
 	t.Setenv("HOME", home)
-	t.Setenv("BC_HOME", filepath.Join(home, ".bc"))
+	t.Setenv("MYCEL_HOME", filepath.Join(home, ".bc"))
 	t.Setenv("BC_SECRET_PASSPHRASE", "unit-test")
 
 	wsA := filepath.Join(t.TempDir(), "wsA")
@@ -281,7 +281,7 @@ func TestDispatch_Secrets(t *testing.T) {
 	status, resp = h.api(t, http.MethodPost, "/api/workspaces/"+h.wsBID+"/secrets", body("SECRET_B", "vb"))
 	requireStatus(t, http.StatusCreated, status, "set B", resp)
 
-	// Secrets vault is user-global when BC_SECRET_PASSPHRASE + BC_HOME
+	// Secrets vault is user-global when BC_SECRET_PASSPHRASE + MYCEL_HOME
 	// are set (per BuildWorkspaceServices), so both secrets may be
 	// visible from either scope. This is a legitimate case for global
 	// secrets (proposal §8). The guarantee we DO need is that requests

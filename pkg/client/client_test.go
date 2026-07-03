@@ -97,7 +97,7 @@ func TestNew(t *testing.T) {
 func TestNew_EmptyAddr(t *testing.T) {
 	// With no env var AND no addr file, should use default.
 	// Point HOME at an empty tempdir so the test doesn't see the
-	// developer's live ~/.bc/daemon.addr.
+	// developer's live ~/.mycel/daemon.addr.
 	os.Unsetenv("BC_DAEMON_ADDR") //nolint:errcheck
 	t.Setenv("HOME", t.TempDir())
 	c := New("")
@@ -121,7 +121,7 @@ func TestNew_DaemonAddrFile(t *testing.T) {
 	os.Unsetenv("BC_DAEMON_ADDR") //nolint:errcheck
 	tmp := t.TempDir()
 	t.Setenv("HOME", tmp)
-	bcDir := filepath.Join(tmp, ".bc")
+	bcDir := filepath.Join(tmp, ".mycel")
 	if err := os.MkdirAll(bcDir, 0o750); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
@@ -136,12 +136,12 @@ func TestNew_DaemonAddrFile(t *testing.T) {
 }
 
 // TestNew_EnvWinsOverFile pins the precedence: BC_DAEMON_ADDR must beat
-// the addr file so a developer with a stale ~/.bc/daemon.addr can still
+// the addr file so a developer with a stale ~/.mycel/daemon.addr can still
 // override via env without deleting the file.
 func TestNew_EnvWinsOverFile(t *testing.T) {
 	tmp := t.TempDir()
 	t.Setenv("HOME", tmp)
-	bcDir := filepath.Join(tmp, ".bc")
+	bcDir := filepath.Join(tmp, ".mycel")
 	if err := os.MkdirAll(bcDir, 0o750); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}

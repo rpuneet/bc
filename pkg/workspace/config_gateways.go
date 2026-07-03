@@ -949,7 +949,7 @@ type HomeAssistantGatewayConfig struct {
 // MergeGatewaysPatch deep-merges raw gateway JSON into dst. Each key in
 // the patch is applied independently so a patch containing only
 // {"discord": {...}} does not wipe existing Slack/Telegram config.
-// Shared by the settings PATCH handler and the config overlay (#3239).
+// Used by the settings PATCH handler.
 func MergeGatewaysPatch(dst *GatewaysConfig, raw json.RawMessage) error {
 	// Marshal the existing config to get the current state as a map.
 	existing, err := json.Marshal(dst)

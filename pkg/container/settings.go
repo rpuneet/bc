@@ -2,8 +2,10 @@ package container
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // requiredClaudeSettings are fields that MUST be present to prevent
@@ -18,6 +20,12 @@ var requiredClaudeSettings = map[string]any{
 // If the file doesn't exist, creates it. If it exists, merges in any
 // missing required fields without overwriting user customizations.
 func SeedClaudeSettings(volumeDir string) error {
+	// volumeDir derives from agent state paths; reject anything that
+	// escaped upstream validation before touching the filesystem.
+	volumeDir = filepath.Clean(volumeDir)
+	if volumeDir == "" || volumeDir == "." || strings.Contains(volumeDir, "..") {
+		return fmt.Errorf("invalid volume dir %q", volumeDir)
+	}
 	settingsPath := filepath.Join(volumeDir, "settings.json")
 
 	// Load existing settings if present

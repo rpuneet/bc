@@ -90,70 +90,22 @@ func TestLoadNotAWorkspace(t *testing.T) {
 	}
 }
 
-func TestLoadInvalidTOML(t *testing.T) {
+func TestLoadInvalidConfig(t *testing.T) {
 	dir := t.TempDir()
 	gitInitDir(t, dir)
-	bcDir := filepath.Join(dir, ".bc")
-	if err := os.MkdirAll(bcDir, 0750); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(bcDir, "settings.json"), []byte("{{bad"), 0600); err != nil {
-		t.Fatal(err)
-	}
-
-	_, err := Load(dir)
-	if err == nil {
-		t.Fatal("Load invalid TOML: expected error, got nil")
-	}
-}
-
-func TestLoadUpdatesPathsIfMoved(t *testing.T) {
-	// Init in one location, then copy state to a new location with .bc/ and Load
-	orig := t.TempDir()
-	gitInitDir(t, orig)
-	origWS, err := Init(orig)
+	ws, err := Init(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	moved := t.TempDir()
-	gitInitDir(t, moved)
-	// Copy settings from the global state dir to a legacy .bc/ in the moved location
-	srcCfg := filepath.Join(origWS.StateDir(), PreferencesFileName)
-	dstDir := filepath.Join(moved, ".bc")
-	if mkdirErr := os.MkdirAll(dstDir, 0750); mkdirErr != nil {
-		t.Fatal(mkdirErr)
-	}
-	data, err := os.ReadFile(srcCfg) //nolint:gosec // test file read
-	if err != nil {
-		t.Fatal(err)
-	}
-	// Write as settings.json to exercise the legacy fallback path (read-only, #3239).
-	if writeErr := os.WriteFile(filepath.Join(dstDir, LegacySettingsFileName), data, 0600); writeErr != nil {
+	// Corrupt the active preferences.json — Load must fail loudly.
+	prefs := filepath.Join(ws.StateDir(), PreferencesFileName)
+	if writeErr := os.WriteFile(prefs, []byte("{{bad"), 0600); writeErr != nil {
 		t.Fatal(writeErr)
 	}
-	if mkErr := os.MkdirAll(filepath.Join(dstDir, "roles"), 0750); mkErr != nil {
-		t.Fatal(mkErr)
-	}
 
-	ws, err := Load(moved)
-	if err != nil {
-		t.Fatal(err)
+	if _, loadErr := Load(dir); loadErr == nil {
+		t.Fatal("Load invalid config: expected error, got nil")
 	}
-
-	absDir, err := filepath.Abs(moved)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if ws.RootDir != absDir {
-		t.Errorf("RootDir = %q, want %q", ws.RootDir, absDir)
-	}
-	// After loading, workspace may have migrated to ~/.bc/workspaces/<id>/
-	// StateDir should be a valid directory regardless of location
-	if _, statErr := os.Stat(ws.StateDir()); statErr != nil {
-		t.Errorf("StateDir %q does not exist: %v", ws.StateDir(), statErr)
-	}
-	_ = absDir
 }
 
 // --- Find (upward search) ---
@@ -607,13 +559,13 @@ func TestRegistryUnregisterNotFound(t *testing.T) {
 func TestRegistryTouch(t *testing.T) {
 	r := newTestRegistry(t)
 	r.Register("/a", "a")
-	originalTime := r.Workspaces[0].LastAccessed
+	originalTime := r.Workspaces[0].LastUsedAt
 
 	time.Sleep(time.Millisecond)
 	r.Touch("/a")
 
-	if !r.Workspaces[0].LastAccessed.After(originalTime) {
-		t.Error("Touch did not update LastAccessed")
+	if !r.Workspaces[0].LastUsedAt.After(originalTime) {
+		t.Error("Touch did not update LastUsedAt")
 	}
 }
 

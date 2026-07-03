@@ -8,10 +8,10 @@ import (
 )
 
 func TestNewStore(t *testing.T) {
-	// Use a BC_HOME under t.TempDir so the global-state-dir branch
+	// Use a MYCEL_HOME under t.TempDir so the global-state-dir branch
 	// resolves deterministically.
 	bcHome := t.TempDir()
-	t.Setenv("BC_HOME", bcHome)
+	t.Setenv("MYCEL_HOME", bcHome)
 
 	store := NewStore("/tmp/test")
 	if store == nil {

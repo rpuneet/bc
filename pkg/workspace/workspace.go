@@ -1,7 +1,8 @@
 // Package workspace provides workspace and project management for bc.
 //
-// A workspace represents a project directory containing bc configuration
-// and agent state in .bc/settings.json.
+// A workspace represents a project directory whose configuration and
+// agent state live under ~/.mycel/workspaces/<id>/ (preferences.json,
+// state databases, agents/, logs/).
 //
 // # Basic Usage
 //
@@ -40,27 +41,22 @@ import (
 
 // Workspace represents an active workspace.
 //
-// After M11 the Workspace maintains two independent directories:
+// The Workspace maintains two independent directories:
 //
 //   - RootDir:  the project (a pristine git repo bc points at but never
 //     writes runtime state into).
 //   - DataDir:  the per-workspace runtime directory
-//     (~/.bc/workspaces/<id>/) containing preferences.json, state.db,
-//     cron.db, agents/, logs/, etc.
-//
-// StateDir() returns DataDir for new workspaces; for legacy workspaces
-// that still keep state inside <RootDir>/.bc/ (pre-M11 migration), it
-// returns that path instead so in-flight code keeps working until the
-// migration runs.
+//     (~/.mycel/workspaces/<id>/) containing preferences.json, state
+//     databases, agents/, logs/, etc.
 type Workspace struct {
 	Config      *Config      // JSON config
 	RoleManager *RoleManager // Role file manager
 	RootDir     string       // Project root directory (pristine git repo)
-	DataDir     string       // Runtime state dir (~/.bc/workspaces/<id>/); set for M11+ layouts
-	stateDir    string       // Resolved state dir (DataDir for M11+, legacy .bc/ for older)
+	DataDir     string       // Runtime state dir (~/.mycel/workspaces/<id>/)
+	stateDir    string       // Resolved state dir (normally == DataDir)
 }
 
-// Init initializes a new workspace. State is stored under ~/.bc/workspaces/<id>/.
+// Init initializes a new workspace. State is stored under ~/.mycel/workspaces/<id>/.
 func Init(rootDir string) (*Workspace, error) {
 	absRoot, err := filepath.Abs(rootDir)
 	if err != nil {
@@ -113,7 +109,7 @@ func Init(rootDir string) (*Workspace, error) {
 	_ = closeStore // store stays open for workspace lifetime
 
 	// Register in global registry so Find()/IsWorkspace() work — M11+
-	// workspaces live at ~/.bc/workspaces/<id>/ with NO .bc/ marker in
+	// workspaces live at ~/.mycel/workspaces/<id>/ with NO .bc/ marker in
 	// the project directory, so the registry is the ONLY thing that
 	// makes `bc <cmd>` resolve after init. If we can't persist it, init
 	// must fail loudly (#3173) — silently succeeding here leaves the
@@ -156,62 +152,29 @@ func Load(rootDir string) (*Workspace, error) {
 		return nil, fmt.Errorf("not a git repository: %s", absRoot)
 	}
 
-	// Try global state dir first (~/.bc/workspaces/<id>/)
+	// State lives in the global state dir (~/.mycel/workspaces/<id>/).
 	stateDir, stateDirErr := GlobalStateDir(absRoot)
 	if stateDirErr != nil {
-		stateDir = filepath.Join(absRoot, ".bc") // fallback to legacy
+		return nil, fmt.Errorf("cannot determine state directory: %w", stateDirErr)
 	}
 
-	// Load config — check global dir first (preferences.json, then
-	// settings.json), then legacy .bc/ as a fallback.
-	jsonPath := firstExisting(stateDir, PreferencesFileName, LegacySettingsFileName)
-	if jsonPath == "" {
-		legacyDir := filepath.Join(absRoot, ".bc")
-		legacyPath := firstExisting(legacyDir, PreferencesFileName, LegacySettingsFileName)
-		if legacyPath != "" {
-			stateDir = legacyDir
-			jsonPath = legacyPath
-		} else {
-			return nil, fmt.Errorf("not a mycel workspace (no %s or %s found in %s or %s)",
-				PreferencesFileName, LegacySettingsFileName, stateDir, legacyDir)
-		}
+	// Config is <stateDir>/preferences.json — the only config file bc reads.
+	jsonPath := filepath.Join(stateDir, PreferencesFileName)
+	if _, statErr := os.Stat(jsonPath); statErr != nil {
+		return nil, fmt.Errorf("not a mycel workspace (no %s found in %s); run 'mycel init'",
+			PreferencesFileName, stateDir)
 	}
 
 	cfg, loadErr := LoadConfig(jsonPath)
 	if loadErr != nil {
 		return nil, fmt.Errorf("failed to load workspace config: %w", loadErr)
 	}
-
-	// #3239: preferences.json is the active config, but a human may have
-	// edited a legacy settings.json (state dir or project .bc/) since it
-	// was last written. When such a file is strictly newer (mtime),
-	// overlay it section-by-section so the edit takes effect instead of
-	// being silently shadowed.
-	overlayPath := ""
-	if filepath.Base(jsonPath) == PreferencesFileName {
-		overlayPath = applyNewerSettingsOverlay(cfg, jsonPath, stateDir, absRoot)
-	}
-	if overlayPath != "" {
-		log.Info("config: "+PreferencesFileName+" (+overlay from "+filepath.Base(overlayPath)+")",
-			"path", jsonPath, "overlay", overlayPath)
-	} else {
-		log.Info("config: "+filepath.Base(jsonPath), "path", jsonPath)
-	}
+	log.Info("config: "+PreferencesFileName, "path", jsonPath)
 
 	cfg.FillDefaults()
 
 	if valErr := cfg.Validate(); valErr != nil {
-		return nil, fmt.Errorf("invalid settings.json: %w", valErr)
-	}
-
-	// Persist the merged result so preferences.json reflects the overlay
-	// and becomes the newest file — subsequent loads skip the overlay.
-	// This is the only write Load performs: plain reads never save
-	// (the old save-on-read promotion is gone, #3239).
-	if overlayPath != "" {
-		if saveErr := cfg.Save(jsonPath); saveErr != nil {
-			log.Warn("failed to persist merged config", "path", jsonPath, "error", saveErr)
-		}
+		return nil, fmt.Errorf("invalid %s: %w", PreferencesFileName, valErr)
 	}
 
 	rm, closeStore, err := loadRoleManager(stateDir)
@@ -220,18 +183,9 @@ func Load(rootDir string) (*Workspace, error) {
 	}
 	_ = closeStore // store stays open for workspace lifetime
 
-	// DataDir points at the canonical global runtime dir. When stateDir
-	// is still the legacy <project>/.bc/ path (pre-migration), leave
-	// DataDir at the computed global location so callers can target the
-	// new tree even before the migration runs.
-	dataDir := stateDir
-	if globalDir, gErr := GlobalStateDir(absRoot); gErr == nil {
-		dataDir = globalDir
-	}
-
 	return &Workspace{
 		RootDir:     absRoot,
-		DataDir:     dataDir,
+		DataDir:     stateDir,
 		stateDir:    stateDir,
 		Config:      cfg,
 		RoleManager: rm,
@@ -239,8 +193,8 @@ func Load(rootDir string) (*Workspace, error) {
 }
 
 // Find searches for a workspace starting from dir and going up.
-// It checks the registry first (for .bc/-free workspaces), then
-// falls back to the legacy .bc/ directory walk.
+// It checks the registry first, then falls back to a .bc/ directory
+// marker walk (agent worktrees live under <project>/.bc/agents/).
 func Find(dir string) (*Workspace, error) {
 	absDir, err := filepath.Abs(dir)
 	if err != nil {
@@ -263,7 +217,7 @@ func Find(dir string) (*Workspace, error) {
 	}
 
 	// Self-heal (#3173): if the registry says nothing matches but a
-	// state directory exists at ~/.bc/workspaces/<id>/ where
+	// state directory exists at ~/.mycel/workspaces/<id>/ where
 	// <id> == ComputeWorkspaceID(walked-path), the workspace was
 	// initialized but the registry file got out of sync — most often
 	// because Init's Save() failed on a fresh HOME, or the user hand-
@@ -274,7 +228,8 @@ func Find(dir string) (*Workspace, error) {
 		id := ComputeWorkspaceID(current)
 		stateDir, sdErr := DataDir(id)
 		if sdErr == nil {
-			if prefs := firstExisting(stateDir, PreferencesFileName, LegacySettingsFileName); prefs != "" {
+			prefs := filepath.Join(stateDir, PreferencesFileName)
+			if _, statErr := os.Stat(prefs); statErr == nil {
 				// Preserve the configured user name when re-registering so
 				// the self-heal doesn't clobber it with an empty string.
 				name := ""
@@ -299,7 +254,8 @@ func Find(dir string) (*Workspace, error) {
 		current = parent
 	}
 
-	// Legacy fallback: walk up looking for .bc/ directory marker.
+	// Fallback: walk up looking for a .bc/ directory marker (runtime
+	// layout — agent worktrees live under <project>/.bc/agents/).
 	current = absDir
 	for {
 		stateDir := filepath.Join(current, ".bc")
@@ -316,27 +272,13 @@ func Find(dir string) (*Workspace, error) {
 }
 
 // Save saves the workspace configuration to preferences.json.
-// A legacy settings.json on disk is left alone for the user to audit.
 func (w *Workspace) Save() error {
 	configPath := filepath.Join(w.StateDir(), PreferencesFileName)
 	return w.Config.Save(configPath)
 }
 
-// firstExisting returns the first existing file path among the given
-// names under dir, or "" when none exist. Order determines priority.
-func firstExisting(dir string, names ...string) string {
-	for _, n := range names {
-		p := filepath.Join(dir, n)
-		if _, err := os.Stat(p); err == nil {
-			return p
-		}
-	}
-	return ""
-}
-
-// StateDir returns the resolved state directory path.
-// Returns DataDir for M11+ layouts or the legacy <RootDir>/.bc/ path when
-// a workspace has not yet been migrated.
+// StateDir returns the resolved state directory path
+// (~/.mycel/workspaces/<id>/).
 func (w *Workspace) StateDir() string {
 	if w.stateDir != "" {
 		return w.stateDir
@@ -348,23 +290,10 @@ func (w *Workspace) StateDir() string {
 }
 
 // SettingsFile returns the absolute path of the workspace preferences
-// file. M11c renames the on-disk filename from settings.json to
-// preferences.json; this accessor is the canonical way to find whichever
-// file actually lives on disk.
-//
-// Lookup order: <StateDir>/preferences.json (M11c+), then
-// <StateDir>/settings.json (legacy). Returns the preferences.json path
-// when neither exists so callers may safely write to it.
+// file: <StateDir>/preferences.json. The path is returned whether or not
+// the file exists yet, so callers may safely write to it.
 func (w *Workspace) SettingsFile() string {
-	prefs := filepath.Join(w.StateDir(), PreferencesFileName)
-	if _, err := os.Stat(prefs); err == nil {
-		return prefs
-	}
-	legacy := filepath.Join(w.StateDir(), LegacySettingsFileName)
-	if _, err := os.Stat(legacy); err == nil {
-		return legacy
-	}
-	return prefs
+	return filepath.Join(w.StateDir(), PreferencesFileName)
 }
 
 // AgentsDir returns the agents state directory.
@@ -410,9 +339,10 @@ func (w *Workspace) EnsureDirs() error {
 }
 
 // IsWorkspace checks if a directory is a workspace.
-// Checks legacy .bc/ directory and global state dir (~/.bc/workspaces/<id>/).
+// Checks the .bc/ runtime marker and the global state dir
+// (~/.mycel/workspaces/<id>/).
 func IsWorkspace(dir string) bool {
-	// Check legacy .bc/ marker
+	// Check .bc/ runtime marker (agent worktree layout)
 	stateDir := filepath.Join(dir, ".bc")
 	if _, err := os.Stat(stateDir); err == nil {
 		return true

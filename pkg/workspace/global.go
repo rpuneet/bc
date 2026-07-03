@@ -1,11 +1,11 @@
 package workspace
 
-// global.go — path helpers for user-global assets (~/.bc/...).
+// global.go — path helpers for user-global assets (~/.mycel/...).
 //
 // Phase M8 of the multi-tenant refactor promotes templates, secrets, MCP
 // trust, and costs from per-workspace `.bc/` directories to a single
-// user-scoped `~/.bc/` tree. These helpers centralize the path resolution
-// so tests can swap BC_HOME and production code stays consistent.
+// user-scoped `~/.mycel/` tree. These helpers centralize the path resolution
+// so tests can swap MYCEL_HOME and production code stays consistent.
 
 import (
 	"fmt"
@@ -26,10 +26,10 @@ const (
 	globalDaemonAddrName    = "daemon.addr"
 )
 
-// DataDir returns the per-workspace runtime directory for a given workspace
-// ID — the M11 replacement for the legacy <project>/.bc/ sidecar.
+// DataDir returns the per-workspace runtime directory for a given
+// workspace ID.
 //
-// Returns ~/.bc/workspaces/<id>/ (respecting BC_HOME). Pass the ID from
+// Returns ~/.mycel/workspaces/<id>/ (respecting MYCEL_HOME). Pass the ID from
 // ComputeWorkspaceID(absRootDir) or from a RegistryEntry.
 //
 // This path holds every piece of runtime state for the workspace:
@@ -47,7 +47,7 @@ func DataDir(id string) (string, error) {
 }
 
 // GlobalTemplatesDir returns the user-global templates directory
-// (~/.bc/templates/). Templates here apply across all workspaces; each
+// (~/.mycel/templates/). Templates here apply across all workspaces; each
 // workspace may override a template by placing a file with the same name
 // under <ws>/.bc/templates/.
 func GlobalTemplatesDir() (string, error) {
@@ -55,28 +55,28 @@ func GlobalTemplatesDir() (string, error) {
 }
 
 // GlobalSecretsVault returns the path to the user-global secrets vault
-// (~/.bc/secrets.vault). This is a SQLite database holding the user's
+// (~/.mycel/secrets.vault). This is a SQLite database holding the user's
 // encrypted key/value secrets shared across workspaces.
 func GlobalSecretsVault() (string, error) {
 	return globalPath(globalSecretsFileName)
 }
 
 // GlobalMCPConfig returns the path to the user-global MCP trust config
-// (~/.bc/mcps.json). Servers listed here are available to every
+// (~/.mycel/mcps.json). Servers listed here are available to every
 // workspace unless the workspace overrides them locally.
 func GlobalMCPConfig() (string, error) {
 	return globalPath(globalMCPFileName)
 }
 
 // GlobalCostsDB returns the path to the user-global cost ledger
-// (~/.bc/costs.db). Every cost record is tagged with a workspace_id so
+// (~/.mycel/costs.db). Every cost record is tagged with a workspace_id so
 // cross-workspace analytics work without data duplication.
 func GlobalCostsDB() (string, error) {
 	return globalPath(globalCostsFileName)
 }
 
 // GlobalToolsConfig returns the path to the user-global CLI tools
-// registry (~/.bc/tools.json). Tools here describe machine-level
+// registry (~/.mycel/tools.json). Tools here describe machine-level
 // dependencies (claude, bun, docker helpers, etc.) — there is no
 // per-workspace override for this file.
 func GlobalToolsConfig() (string, error) {
@@ -84,7 +84,7 @@ func GlobalToolsConfig() (string, error) {
 }
 
 // DaemonPidPath returns the path to the user-global bcd pid file
-// (~/.bc/daemon.pid). The bcd daemon is user-scoped — a single process
+// (~/.mycel/daemon.pid). The bcd daemon is user-scoped — a single process
 // serves every workspace — so its pid lives outside any per-workspace
 // directory.
 func DaemonPidPath() (string, error) {
@@ -92,13 +92,13 @@ func DaemonPidPath() (string, error) {
 }
 
 // DaemonLogPath returns the path to the user-global bcd log file
-// (~/.bc/daemon.log). Same rationale as DaemonPidPath: one bcd, one log.
+// (~/.mycel/daemon.log). Same rationale as DaemonPidPath: one bcd, one log.
 func DaemonLogPath() (string, error) {
 	return globalPath(globalDaemonLogName)
 }
 
 // DaemonAddrPath returns the path to the user-global bcd address file
-// (~/.bc/daemon.addr). `mycel up` writes the currently-listening address
+// (~/.mycel/daemon.addr). `mycel up` writes the currently-listening address
 // (scheme + host:port, e.g. "http://127.0.0.1:8080") so the CLI and
 // agents can locate the daemon without requiring BC_DAEMON_ADDR to be
 // set when the daemon runs on a non-default port.
@@ -106,7 +106,7 @@ func DaemonAddrPath() (string, error) {
 	return globalPath(globalDaemonAddrName)
 }
 
-// EnsureGlobalDir makes sure ~/.bc/ exists with 0750 permissions. It is
+// EnsureGlobalDir makes sure ~/.mycel/ exists with 0750 permissions. It is
 // idempotent and safe to call from any process path that needs to write
 // a global asset. Returns the resolved MycelHome path for convenience.
 func EnsureGlobalDir() (string, error) {
@@ -122,7 +122,7 @@ func EnsureGlobalDir() (string, error) {
 
 // globalPath joins MycelHome() with name. It does NOT create the parent; use
 // EnsureGlobalDir when writing. Returns an error only if MycelHome cannot
-// be resolved (HOME unset and BC_HOME unset).
+// be resolved (HOME unset and MYCEL_HOME unset).
 func globalPath(name string) (string, error) {
 	home, err := MycelHome()
 	if err != nil {

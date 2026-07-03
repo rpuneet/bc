@@ -167,22 +167,25 @@ type Store struct {
 
 // NewStore creates a new cost store for the given workspace.
 //
-// M11: prefer ~/.bc/workspaces/<id>/costs.db; fall back to the legacy
-// <project>/.bc/costs.db when the global dir cannot be resolved. Callers
-// that want the user-global ledger (~/.bc/costs.db) should use
-// globalStore / OpenGlobalStore instead of NewStore.
+// The per-workspace ledger lives at ~/.mycel/workspaces/<id>/costs.db.
+// Callers that want the user-global ledger (~/.mycel/costs.db) should
+// use globalStore / OpenGlobalStore instead of NewStore.
 func NewStore(workspacePath string) *Store {
-	path := filepath.Join(workspacePath, ".bc", "costs.db")
-	if globalDir, err := workspace.GlobalStateDir(workspacePath); err == nil {
-		path = filepath.Join(globalDir, "costs.db")
+	globalDir, err := workspace.GlobalStateDir(workspacePath)
+	if err != nil {
+		// Home dir unresolvable — Open() will fail with a clear error.
+		return &Store{}
 	}
 	return &Store{
-		path: path,
+		path: filepath.Join(globalDir, "costs.db"),
 	}
 }
 
 // Open initializes the SQLite database.
 func (s *Store) Open() error {
+	if s.path == "" {
+		return fmt.Errorf("cost store: no database path (cannot resolve mycel home)")
+	}
 	database, err := bcdb.Open(s.path)
 	if err != nil {
 		return fmt.Errorf("failed to open database: %w", err)

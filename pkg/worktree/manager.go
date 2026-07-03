@@ -1,7 +1,7 @@
 // Package worktree manages git worktree lifecycle for agent isolation.
 // Each agent gets its own worktree at <DataDir>/agents/<name>/bc-<ws>-<name>/.
 // Before M11 the worktrees lived under <repoRoot>/.bc/agents/...; after
-// M11 they move to ~/.bc/workspaces/<id>/agents/... so the project
+// M11 they move to ~/.mycel/workspaces/<id>/agents/... so the project
 // directory stays a pristine git repo.
 package worktree
 
@@ -26,7 +26,7 @@ type Manager struct {
 
 // NewManager creates a worktree manager whose worktrees live under the
 // legacy <repoRoot>/.bc/agents/ directory. Prefer NewManagerWithDataDir
-// for M11+ layouts where runtime state lives at ~/.bc/workspaces/<id>/.
+// for M11+ layouts where runtime state lives at ~/.mycel/workspaces/<id>/.
 //
 // This constructor is kept for older call sites and tests that still
 // operate on the legacy layout.
@@ -37,7 +37,7 @@ func NewManager(repoRoot string) *Manager {
 // NewManagerWithDataDir creates a worktree manager rooted at repoRoot
 // (the project git repo) whose worktrees live under <dataDir>/agents/.
 // This is the M11 constructor: dataDir is the per-workspace runtime
-// directory (~/.bc/workspaces/<id>/) and repoRoot stays untouched.
+// directory (~/.mycel/workspaces/<id>/) and repoRoot stays untouched.
 //
 // Reads BC_HOST_WORKSPACE to determine the host base name for worktree
 // naming so containers mounting the host repo get the expected label.

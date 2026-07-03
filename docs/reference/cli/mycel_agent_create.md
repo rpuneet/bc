@@ -7,7 +7,7 @@ Create a new agent
 Create and start a new agent.
 
 If no name is provided, a random memorable name is generated (e.g., swift-falcon).
-Agents are configured via templates (markdown files at ~/.bc/templates/).
+Agents are configured via templates (markdown files at ~/.mycel/templates/).
 Use --copy to clone settings from an existing agent.
 
 Examples:
@@ -31,7 +31,7 @@ mycel agent create [name] [flags]
       --role string       Agent role (default: base)
       --runtime string    Runtime backend override: tmux or docker
       --team string       Team name (alphanumeric)
-      --template string   Template name from ~/.bc/templates/ (e.g. base, engineer)
+      --template string   Template name from ~/.mycel/templates/ (e.g. base, engineer)
       --tool string       Agent tool (claude, gemini, cursor, codex, opencode, openclaw, aider, pi)
 ```
 

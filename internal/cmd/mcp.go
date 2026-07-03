@@ -454,8 +454,7 @@ func runMCPRegister(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
-	// M11c: canonical file is preferences.json. Fall back to settings.json
-	// only if that is the only file present.
+	// The workspace config file is <StateDir>/preferences.json.
 	settingsPath := ws.SettingsFile()
 
 	// Load or create settings
@@ -520,8 +519,7 @@ func runMCPRegister(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("failed to marshal settings: %w", err)
 	}
 
-	// M11c: always write the canonical preferences.json filename going
-	// forward, even if the load came from legacy settings.json.
+	// Write back to the canonical preferences.json.
 	prefsPath := filepath.Join(ws.StateDir(), bcworkspace.PreferencesFileName)
 	if writeErr := os.WriteFile(prefsPath, data, 0600); writeErr != nil { //nolint:gosec // 0600 is correct
 		return fmt.Errorf("failed to write %s: %w", bcworkspace.PreferencesFileName, writeErr)

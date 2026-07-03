@@ -6,7 +6,7 @@ Manage agent templates
 
 Manage agent templates — reusable configurations for spawning agents.
 
-Templates are stored in ~/.bc/templates/ (user-global) and each workspace
+Templates are stored in ~/.mycel/templates/ (user-global) and each workspace
 may override a template by placing a file with the same name under
 <ws>/.bc/templates/. List/show/edit see the union; create defaults to
 writing the user-global copy.

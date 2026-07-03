@@ -11,19 +11,10 @@ import (
 // ConfigVersion is the current config schema version.
 const ConfigVersion = 2
 
-// Preferences / settings filename constants.
-//
-// Before M11c: every workspace stored its config at <StateDir>/settings.json.
-// From M11c onward the canonical filename is preferences.json; the legacy
-// file is read as a fallback and, when it is newer than preferences.json,
-// overlaid on top of it and the merge persisted (#3239).
-const (
-	// PreferencesFileName is the canonical workspace preferences filename (M11c+).
-	PreferencesFileName = "preferences.json"
-	// LegacySettingsFileName is the pre-M11c filename, still read for
-	// backward compatibility.
-	LegacySettingsFileName = "settings.json"
-)
+// PreferencesFileName is the workspace preferences filename. Every
+// workspace stores its config at <StateDir>/preferences.json — the one
+// and only config file bc reads.
+const PreferencesFileName = "preferences.json"
 
 // Config represents the JSON-based workspace configuration for bc.
 type Config struct { //nolint:govet // field order matches JSON/API contract
@@ -185,7 +176,7 @@ func DefaultConfig() Config {
 			},
 		},
 		Logs: LogsConfig{
-			Path:     "",       // empty = StateDir/logs (supports ~/.bc/ layout)
+			Path:     "",       // empty = StateDir/logs (supports ~/.mycel/ layout)
 			MaxBytes: 10485760, // 10MB
 		},
 		UI: UIConfig{
@@ -198,12 +189,9 @@ func DefaultConfig() Config {
 
 // LoadConfig reads and parses a JSON config file.
 //
-// If path is a directory, LoadConfig treats it as a state dir and looks
-// for preferences.json first (M11c+), falling back to the legacy
-// settings.json. Loading never writes to disk (#3239): preferences.json
-// is only written when there is something new to record — a newer
-// settings.json overlay applied by workspace.Load, or an explicit
-// Save().
+// If path is a directory, LoadConfig treats it as a state dir and reads
+// <path>/preferences.json. Loading never writes to disk; preferences.json
+// is only written by an explicit Save().
 //
 // If path points at a file, it is read directly.
 func LoadConfig(path string) (*Config, error) {
@@ -217,19 +205,12 @@ func LoadConfig(path string) (*Config, error) {
 	return ParseConfig(data)
 }
 
-// loadConfigFromDir looks in stateDir for preferences.json first, then
-// falls back to settings.json. The legacy file is read in place; no
-// promotion write happens on read (#3239).
+// loadConfigFromDir reads <stateDir>/preferences.json.
 func loadConfigFromDir(stateDir string) (*Config, error) {
 	prefs := filepath.Join(stateDir, PreferencesFileName)
-	if data, err := os.ReadFile(prefs); err == nil { //nolint:gosec // callsite-constructed
-		return ParseConfig(data)
-	}
-	legacy := filepath.Join(stateDir, LegacySettingsFileName)
-	data, err := os.ReadFile(legacy) //nolint:gosec // callsite-constructed
+	data, err := os.ReadFile(prefs) //nolint:gosec // callsite-constructed
 	if err != nil {
-		return nil, fmt.Errorf("failed to read config (tried %s, %s): %w",
-			PreferencesFileName, LegacySettingsFileName, err)
+		return nil, fmt.Errorf("failed to read config %s: %w", prefs, err)
 	}
 	return ParseConfig(data)
 }
@@ -290,7 +271,7 @@ func (c *Config) Save(path string) error {
 	data = append(data, '\n')
 
 	// Write to temp file then rename for crash safety.
-	tmp, err := os.CreateTemp(dir, ".settings-*.json.tmp")
+	tmp, err := os.CreateTemp(dir, ".preferences-*.json.tmp")
 	if err != nil {
 		return fmt.Errorf("failed to create temp config: %w", err)
 	}
@@ -322,36 +303,12 @@ func (c *Config) Save(path string) error {
 	return nil
 }
 
-// ConfigPath returns the standard config file path for a workspace root.
-// Checks the global state dir first (preferences.json then settings.json),
-// then the legacy <rootDir>/.bc/ directory. When no file exists anywhere
-// yet, returns the canonical preferences.json path under the global dir
-// so callers writing a fresh config land in the right place.
-func ConfigPath(rootDir string) string {
-	if stateDir, err := GlobalStateDir(rootDir); err == nil {
-		prefs := filepath.Join(stateDir, PreferencesFileName)
-		if _, statErr := os.Stat(prefs); statErr == nil {
-			return prefs
-		}
-		legacy := filepath.Join(stateDir, LegacySettingsFileName)
-		if _, statErr := os.Stat(legacy); statErr == nil {
-			return legacy
-		}
-		// Nothing on disk yet — prefer the canonical name.
-		// Fall through to legacy-root check below in case caller is
-		// operating on a pre-M11 workspace.
+// ConfigPath returns the config file path for a workspace root:
+// <GlobalStateDir(rootDir)>/preferences.json.
+func ConfigPath(rootDir string) (string, error) {
+	stateDir, err := GlobalStateDir(rootDir)
+	if err != nil {
+		return "", err
 	}
-	legacyBC := filepath.Join(rootDir, ".bc", PreferencesFileName)
-	if _, err := os.Stat(legacyBC); err == nil {
-		return legacyBC
-	}
-	legacyBCSettings := filepath.Join(rootDir, ".bc", LegacySettingsFileName)
-	if _, err := os.Stat(legacyBCSettings); err == nil {
-		return legacyBCSettings
-	}
-	// Default for callers writing a fresh config — global dir if possible.
-	if stateDir, err := GlobalStateDir(rootDir); err == nil {
-		return filepath.Join(stateDir, PreferencesFileName)
-	}
-	return legacyBC
+	return filepath.Join(stateDir, PreferencesFileName), nil
 }

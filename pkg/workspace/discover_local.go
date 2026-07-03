@@ -19,6 +19,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 )
 
@@ -94,6 +95,10 @@ func ScanLocal(ctx context.Context, opts ScanOptions) ([]Candidate, error) {
 	root, err := filepath.Abs(opts.Root)
 	if err != nil {
 		return nil, fmt.Errorf("abs: %w", err)
+	}
+	root = filepath.Clean(root)
+	if strings.Contains(root, "..") {
+		return nil, fmt.Errorf("invalid scan root %q", opts.Root)
 	}
 	info, err := os.Stat(root)
 	if err != nil {
@@ -209,11 +214,27 @@ func githubURLFromRemote(remote string) string {
 	return ""
 }
 
+// validCloneURL restricts clone sources to the transports discovery
+// offers (https, ssh, scp-style git@host:path). Rejects option-shaped
+// values (leading "-") and exotic transports like ext:: that let a URL
+// execute commands.
+func validCloneURL(url string) bool {
+	if url == "" || strings.HasPrefix(url, "-") {
+		return false
+	}
+	if strings.HasPrefix(url, "https://") || strings.HasPrefix(url, "http://") || strings.HasPrefix(url, "ssh://") {
+		return true
+	}
+	return scpLikeURL.MatchString(url)
+}
+
+var scpLikeURL = regexp.MustCompile(`^[A-Za-z0-9._-]+@[A-Za-z0-9._-]+:[A-Za-z0-9._~/-]+$`)
+
 // Clone runs `git clone <url> <target>/<name>` to materialize a repository.
 // Returns the absolute path of the new checkout on success.
 func Clone(ctx context.Context, url, target, name string) (string, error) {
-	if url == "" {
-		return "", fmt.Errorf("url is required")
+	if !validCloneURL(url) {
+		return "", fmt.Errorf("invalid clone url %q", url)
 	}
 	if target == "" {
 		return "", fmt.Errorf("target is required")
@@ -221,6 +242,10 @@ func Clone(ctx context.Context, url, target, name string) (string, error) {
 	absTarget, err := filepath.Abs(target)
 	if err != nil {
 		return "", fmt.Errorf("abs target: %w", err)
+	}
+	absTarget = filepath.Clean(absTarget)
+	if strings.Contains(absTarget, "..") {
+		return "", fmt.Errorf("invalid clone target %q", target)
 	}
 	if info, err := os.Stat(absTarget); err != nil {
 		if err := os.MkdirAll(absTarget, 0o750); err != nil {
@@ -230,6 +255,9 @@ func Clone(ctx context.Context, url, target, name string) (string, error) {
 		return "", fmt.Errorf("target %s exists and is not a directory", absTarget)
 	}
 
+	if name != "" && (!filepath.IsLocal(name) || strings.ContainsAny(name, "/\\")) {
+		return "", fmt.Errorf("invalid checkout name %q", name)
+	}
 	if name == "" {
 		// Derive from URL basename.
 		base := strings.TrimSuffix(filepath.Base(url), ".git")
@@ -244,7 +272,7 @@ func Clone(ctx context.Context, url, target, name string) (string, error) {
 		return "", fmt.Errorf("destination %s already exists", dest)
 	}
 
-	cmd := exec.CommandContext(ctx, "git", "clone", url, dest) //nolint:gosec // caller-supplied URL + resolved dest
+	cmd := exec.CommandContext(ctx, "git", "clone", "--", url, dest) //nolint:gosec // url scheme-allowlisted, name IsLocal-checked above
 	if out, cErr := cmd.CombinedOutput(); cErr != nil {
 		return "", fmt.Errorf("git clone failed: %w: %s", cErr, strings.TrimSpace(string(out)))
 	}

@@ -9,7 +9,7 @@ import (
 
 func TestDataDir(t *testing.T) {
 	dir := t.TempDir()
-	withBCHome(t, dir)
+	withMycelHome(t, dir)
 
 	t.Run("valid-id", func(t *testing.T) {
 		got, err := DataDir("abcdef123456")
@@ -41,23 +41,23 @@ func TestDataDir(t *testing.T) {
 	})
 }
 
-// withBCHome sets BC_HOME for the duration of the test and restores it.
-func withBCHome(t *testing.T, dir string) {
+// withMycelHome sets MYCEL_HOME for the duration of the test and restores it.
+func withMycelHome(t *testing.T, dir string) {
 	t.Helper()
-	prev, had := os.LookupEnv("BC_HOME")
-	t.Setenv("BC_HOME", dir)
+	prev, had := os.LookupEnv("MYCEL_HOME")
+	t.Setenv("MYCEL_HOME", dir)
 	t.Cleanup(func() {
 		if had {
-			_ = os.Setenv("BC_HOME", prev)
+			_ = os.Setenv("MYCEL_HOME", prev)
 		} else {
-			_ = os.Unsetenv("BC_HOME")
+			_ = os.Unsetenv("MYCEL_HOME")
 		}
 	})
 }
 
-func TestGlobalPathsRespectBCHome(t *testing.T) {
+func TestGlobalPathsRespectMycelHome(t *testing.T) {
 	dir := t.TempDir()
-	withBCHome(t, dir)
+	withMycelHome(t, dir)
 
 	cases := []struct {
 		name string
@@ -87,7 +87,7 @@ func TestGlobalPathsRespectBCHome(t *testing.T) {
 
 func TestEnsureGlobalDirCreatesWithSafeMode(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "bc-home")
-	withBCHome(t, dir)
+	withMycelHome(t, dir)
 
 	home, err := EnsureGlobalDir()
 	if err != nil {
@@ -114,7 +114,7 @@ func TestEnsureGlobalDirCreatesWithSafeMode(t *testing.T) {
 
 func TestEnsureGlobalDirIdempotent(t *testing.T) {
 	dir := t.TempDir()
-	withBCHome(t, dir)
+	withMycelHome(t, dir)
 
 	if _, err := EnsureGlobalDir(); err != nil {
 		t.Fatalf("first EnsureGlobalDir: %v", err)
@@ -124,9 +124,9 @@ func TestEnsureGlobalDirIdempotent(t *testing.T) {
 	}
 }
 
-func TestGlobalPathsPlaceUnderBCHome(t *testing.T) {
+func TestGlobalPathsPlaceUnderMycelHome(t *testing.T) {
 	dir := t.TempDir()
-	withBCHome(t, dir)
+	withMycelHome(t, dir)
 
 	for _, fn := range []func() (string, error){
 		GlobalTemplatesDir, GlobalSecretsVault, GlobalMCPConfig, GlobalCostsDB, GlobalToolsConfig,

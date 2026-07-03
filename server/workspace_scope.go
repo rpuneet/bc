@@ -41,11 +41,6 @@ const (
 	ctxKeyWorkspaceServices               // *WorkspaceServices, loaded
 )
 
-// deprecationSunset is the date at which legacy compatibility surfaces
-// (legacy_scope, mcp_compat) will stop responding. Kept here as the
-// shared definition; matches proposal §9.3.
-const deprecationSunset = "Sun, 01 Nov 2026 00:00:00 GMT"
-
 // WorkspaceScope returns a middleware that resolves a per-request
 // workspace scope for flat /api/* routes, prefers an explicit
 // X-BC-Workspace header, falls back to the ?workspace=<id> query

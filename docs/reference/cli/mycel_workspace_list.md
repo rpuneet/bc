@@ -7,7 +7,7 @@ List discovered workspaces
 List all mycel workspaces on this machine.
 
 Searches:
-  - Global registry (~/.bc/workspaces.json)
+  - Global registry (~/.mycel/workspaces.json)
   - Common directories (~/Projects, ~/Developer, ~/dev, ~/code, ~/repos, ~/src)
   - Additional paths specified with --scan
 

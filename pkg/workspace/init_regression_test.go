@@ -15,9 +15,9 @@ func TestInit_FailsWhenRegistrySaveFails(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	bcHome := filepath.Join(home, ".bc")
-	t.Setenv("BC_HOME", bcHome)
+	t.Setenv("MYCEL_HOME", bcHome)
 
-	// Pre-create the state dir so Init's own mkdir/EnsureBCHome/config
+	// Pre-create the state dir so Init's own mkdir/EnsureMycelHome/config
 	// save steps succeed. Only then clamp ~/.bc/ read-only so the
 	// atomic rename in Registry.Save is the specific step that fails —
 	// otherwise this test would pass for the wrong reason.
@@ -46,7 +46,7 @@ func TestInit_FailsWhenRegistrySaveFails(t *testing.T) {
 func TestFind_SelfHealsAfterRegistryLoss(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
-	t.Setenv("BC_HOME", filepath.Join(home, ".bc"))
+	t.Setenv("MYCEL_HOME", filepath.Join(home, ".bc"))
 
 	proj := t.TempDir()
 	gitInitDir(t, proj)

@@ -12,7 +12,6 @@ import (
 
 	"github.com/rpuneet/mycel/pkg/log"
 	"github.com/rpuneet/mycel/pkg/ui"
-	"github.com/rpuneet/mycel/pkg/workspace"
 )
 
 var (
@@ -78,19 +77,11 @@ Environment Variables:
 
 Documentation: https://github.com/rpuneet/mycel
 Full CLI reference: https://github.com/rpuneet/mycel/docs/cli.md`,
-	// PersistentPreRun initializes logging based on flags and runs the
-	// one-time ~/.bc → ~/.mycel migration on real user invocations.
-	// Tests set MYCEL_HOME/BC_HOME so MigrateLegacyHome is a no-op for
-	// them.
-	PersistentPreRun: func(cmd *cobra.Command, args []string) {
+	// PersistentPreRun initializes logging based on flags.
+	PersistentPreRun: func(cmd *cobra.Command, _ []string) {
 		verbose, err := cmd.Flags().GetBool("verbose")
 		if err == nil {
 			log.SetVerbose(verbose)
-		}
-		if migrated, migErr := workspace.MigrateLegacyHome(); migErr != nil {
-			log.Warn("legacy ~/.bc migration failed; continuing with legacy path", "error", migErr)
-		} else if migrated {
-			_, _ = fmt.Fprintln(cmd.ErrOrStderr(), "mycel: migrated legacy ~/.bc → ~/.mycel")
 		}
 	},
 	// Run with no args: open home if initialized, else prompt for init

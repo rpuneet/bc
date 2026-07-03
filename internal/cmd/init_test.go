@@ -9,54 +9,41 @@ import (
 	"github.com/rpuneet/mycel/pkg/workspace"
 )
 
-func TestIsV1Workspace(t *testing.T) {
-	tmpDir := t.TempDir()
-
-	// Not a workspace
-	if isV1Workspace(tmpDir) {
-		t.Error("empty dir should not be v1 workspace")
-	}
-
-	// Create v1 structure
-	bcDir := filepath.Join(tmpDir, ".bc")
-	if err := os.MkdirAll(bcDir, 0750); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(bcDir, "config.json"), []byte("{}"), 0600); err != nil {
-		t.Fatal(err)
-	}
-
-	if !isV1Workspace(tmpDir) {
-		t.Error("dir with .bc/config.json should be v1 workspace")
-	}
-}
-
 func TestIsV2Workspace(t *testing.T) {
 	tmpDir := t.TempDir()
+	t.Setenv("MYCEL_HOME", filepath.Join(tmpDir, "home-mycel"))
+
+	projectDir := filepath.Join(tmpDir, "proj")
+	if err := os.MkdirAll(projectDir, 0750); err != nil {
+		t.Fatal(err)
+	}
 
 	// Not a workspace
-	if isV2Workspace(tmpDir) {
-		t.Error("empty dir should not be v2 workspace")
+	if isV2Workspace(projectDir) {
+		t.Error("empty dir should not be a workspace")
 	}
 
-	// Create v2 structure
-	bcDir := filepath.Join(tmpDir, ".bc")
-	if err := os.MkdirAll(bcDir, 0750); err != nil {
+	// Create preferences.json in the global state dir
+	stateDir, err := workspace.GlobalStateDir(projectDir)
+	if err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(bcDir, "settings.json"), []byte(`{"version":2,"providers":{"default":"claude","providers":{"claude":{"command":"claude"}}},"server":{"host":"127.0.0.1","port":9374,"cors_origin":"*"},"runtime":{"default":"tmux"},"ui":{"theme":"dark","mode":"auto"}}`), 0600); err != nil {
+	if err := os.MkdirAll(stateDir, 0750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(stateDir, workspace.PreferencesFileName), []byte(`{"version":2,"providers":{"default":"claude","providers":{"claude":{"command":"claude"}}},"server":{"host":"127.0.0.1","port":9374,"cors_origin":"*"},"runtime":{"default":"tmux"},"ui":{"theme":"dark","mode":"auto"}}`), 0600); err != nil {
 		t.Fatal(err)
 	}
 
-	if !isV2Workspace(tmpDir) {
-		t.Error("dir with .bc/settings.json should be v2 workspace")
+	if !isV2Workspace(projectDir) {
+		t.Error("dir with global preferences.json should be a workspace")
 	}
 }
 
 func TestInitV2Workspace(t *testing.T) {
 	tmpDir := t.TempDir()
 	bcHome := filepath.Join(tmpDir, "home-bc")
-	t.Setenv("BC_HOME", bcHome)
+	t.Setenv("MYCEL_HOME", bcHome)
 
 	projectDir := filepath.Join(tmpDir, "test-project")
 	if err := os.MkdirAll(projectDir, 0750); err != nil {
@@ -109,7 +96,7 @@ func TestInitV2Workspace(t *testing.T) {
 func TestInitV2WorkspaceIdempotent(t *testing.T) {
 	tmpDir := t.TempDir()
 	bcHome := filepath.Join(tmpDir, "home-bc")
-	t.Setenv("BC_HOME", bcHome)
+	t.Setenv("MYCEL_HOME", bcHome)
 
 	projectDir := filepath.Join(tmpDir, "test-project")
 	if err := os.MkdirAll(projectDir, 0750); err != nil {
@@ -128,32 +115,10 @@ func TestInitV2WorkspaceIdempotent(t *testing.T) {
 	}
 }
 
-func TestRunInitV1Detection(t *testing.T) {
-	tmpDir := t.TempDir()
-
-	// Create v1 structure
-	bcDir := filepath.Join(tmpDir, ".bc")
-	if err := os.MkdirAll(bcDir, 0750); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(bcDir, "config.json"), []byte("{}"), 0600); err != nil {
-		t.Fatal(err)
-	}
-
-	// Run init - should fail with v1 warning
-	err := runInit(nil, []string{tmpDir})
-	if err == nil {
-		t.Error("expected error when v1 workspace exists")
-	}
-	if !strings.Contains(err.Error(), "v1 workspace exists") {
-		t.Errorf("error should mention v1 workspace: %v", err)
-	}
-}
-
 func TestRunInitV2AlreadyInitialized(t *testing.T) {
 	tmpDir := t.TempDir()
 	bcHome := filepath.Join(tmpDir, "home-bc")
-	t.Setenv("BC_HOME", bcHome)
+	t.Setenv("MYCEL_HOME", bcHome)
 
 	projectDir := filepath.Join(tmpDir, "test-project")
 	if err := os.MkdirAll(projectDir, 0750); err != nil {
@@ -179,7 +144,7 @@ func TestRunInitV2AlreadyInitialized(t *testing.T) {
 func TestRunInitFreshDirectory(t *testing.T) {
 	tmpDir := t.TempDir()
 	bcHome := filepath.Join(tmpDir, "home-bc")
-	t.Setenv("BC_HOME", bcHome)
+	t.Setenv("MYCEL_HOME", bcHome)
 
 	projectDir := filepath.Join(tmpDir, "fresh-project")
 	if err := os.MkdirAll(projectDir, 0750); err != nil {

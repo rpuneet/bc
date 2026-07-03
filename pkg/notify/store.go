@@ -28,11 +28,6 @@ func OpenStore(workspacePath string) (*Store, error) {
 	if err := s.initSchema(); err != nil {
 		return nil, fmt.Errorf("init notify schema: %w", err)
 	}
-	// One-time normalization of legacy discord channel keys (see
-	// migrate_discord.go). Same ctx rationale as initSchema below.
-	if err := s.normalizeDiscordChannels(context.TODO()); err != nil {
-		return nil, fmt.Errorf("normalize discord channels: %w", err)
-	}
 	return s, nil
 }
 

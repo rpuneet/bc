@@ -28,17 +28,21 @@ func makeWorkspace(t *testing.T) string {
 	if out, err := exec.CommandContext(context.Background(), "git", "init", dir).CombinedOutput(); err != nil { //nolint:gosec // dir is a t.TempDir(), not user input
 		t.Fatalf("git init: %v\n%s", err, out)
 	}
-	bcDir := filepath.Join(dir, ".bc")
-	if err := os.MkdirAll(filepath.Join(bcDir, "roles"), 0750); err != nil {
+	t.Setenv("MYCEL_HOME", t.TempDir())
+	stateDir, sdErr := workspace.GlobalStateDir(dir)
+	if sdErr != nil {
+		t.Fatal(sdErr)
+	}
+	if err := os.MkdirAll(filepath.Join(stateDir, "roles"), 0750); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.MkdirAll(filepath.Join(bcDir, "agents"), 0750); err != nil {
+	if err := os.MkdirAll(filepath.Join(stateDir, "agents"), 0750); err != nil {
 		t.Fatal(err)
 	}
-	// Minimal TOML config satisfying workspace.Load validation:
+	// Minimal JSON config satisfying workspace.Load validation:
 	// version = 2 and at least one provider defined.
 	cfg := `{"version":2,"providers":{"default":"claude","providers":{"claude":{"command":"claude"}}},"server":{"host":"127.0.0.1","port":9374,"cors_origin":"*"},"runtime":{"default":"tmux"},"ui":{"theme":"dark","mode":"auto"}}`
-	if err := os.WriteFile(filepath.Join(bcDir, "settings.json"), []byte(cfg), 0600); err != nil {
+	if err := os.WriteFile(filepath.Join(stateDir, workspace.PreferencesFileName), []byte(cfg), 0600); err != nil {
 		t.Fatal(err)
 	}
 	return dir

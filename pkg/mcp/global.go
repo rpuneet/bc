@@ -14,7 +14,7 @@ import (
 type Scope string
 
 const (
-	// ScopeGlobal is the user-global MCP registry (~/.bc/mcps.json).
+	// ScopeGlobal is the user-global MCP registry (~/.mycel/mcps.json).
 	ScopeGlobal Scope = "global"
 	// ScopeWorkspace is a per-workspace override (SQLite mcp_servers
 	// table in the workspace state DB).
@@ -22,7 +22,7 @@ const (
 )
 
 // GlobalStore is a JSON-file-backed registry of user-trusted MCP
-// servers. It lives at ~/.bc/mcps.json and is shared across all bc
+// servers. It lives at ~/.mycel/mcps.json and is shared across all bc
 // workspaces. Concurrency is handled with a file read/write under a
 // mutex; a serving process that needs ticker-level freshness should
 // re-read on each access.
@@ -41,7 +41,7 @@ func NewGlobalStore(path string) *GlobalStore {
 // Path returns the on-disk path for the JSON file.
 func (g *GlobalStore) Path() string { return g.path }
 
-// globalRegistry is the on-disk shape of ~/.bc/mcps.json.
+// globalRegistry is the on-disk shape of ~/.mycel/mcps.json.
 type globalRegistry struct {
 	Servers []*ServerConfig `json:"servers"`
 	Version int             `json:"version"`
@@ -49,7 +49,7 @@ type globalRegistry struct {
 
 // load parses the JSON file; absent file returns an empty registry.
 func (g *GlobalStore) load() (*globalRegistry, error) {
-	data, err := os.ReadFile(g.path) //nolint:gosec // controlled path under ~/.bc
+	data, err := os.ReadFile(g.path) //nolint:gosec // controlled path under the mycel home
 	if os.IsNotExist(err) {
 		return &globalRegistry{Version: 1}, nil
 	}

@@ -4,7 +4,7 @@ Start all roster agents
 
 ### Synopsis
 
-Start all agents defined in [roster] of .bc/settings.json.
+Start all agents defined in [roster] of preferences.json.
 
 Agents that are already running are skipped. Missing role files are
 created from built-in defaults automatically.

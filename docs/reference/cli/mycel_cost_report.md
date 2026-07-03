@@ -4,7 +4,7 @@ Report cost totals across workspaces
 
 ### Synopsis
 
-Report cost totals from the user-global cost ledger (~/.bc/costs.db).
+Report cost totals from the user-global cost ledger (~/.mycel/costs.db).
 
 By default prints per-workspace breakdown. Use --by to change grouping:
 

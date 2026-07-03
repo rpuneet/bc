@@ -4,7 +4,7 @@ Manage workspace configuration
 
 ### Synopsis
 
-Manage workspace configuration (.bc/settings.json).
+Manage workspace configuration (preferences.json).
 
 Examples:
   mycel workspace config show                    # Show full config

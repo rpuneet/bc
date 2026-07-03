@@ -89,7 +89,7 @@ type Services struct {
 	// initialize and were left nil (see WorkspaceServices.Degraded).
 	// Surfaced by /api/health so degradation is loud, not silent.
 	Degraded map[string]string
-	// Registry is the global workspace registry (~/.bc/workspaces.json).
+	// Registry is the global workspace registry (~/.mycel/workspaces.json).
 	// Populated when bcd runs; exposed so the /api/workspaces handler can
 	// list / add / activate entries.
 	Registry *workspace.Registry
@@ -428,7 +428,7 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 		handlers.NewSettingsHandler(svc.WS).Register(mux)
 
 		// Templates — prefer the layered store from BuildWorkspaceServices
-		// (global ~/.bc/templates/ + per-workspace override). Fallback to
+		// (global ~/.mycel/templates/ + per-workspace override). Fallback to
 		// a single-layer workspace store for legacy test callers that
 		// assemble Services by hand.
 		tmplStore := svc.Templates
@@ -546,10 +546,6 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 	// /api/workspaces/{id}/agents and have it dispatch to the registered
 	// /api/agents handler once {id} is the active workspace.
 	var handler http.Handler = mux
-	// LegacyMCPCompat must wrap the mux (not WorkspaceScope) so its
-	// path rewrite reaches the /_mcp/ws/ dispatcher registered on the
-	// mux. WorkspaceScope only touches /api/ and is a no-op for MCP.
-	handler = LegacyMCPCompat(handler, svc.WorkspaceManager)
 	handler = WorkspaceScope(handler, svc.WorkspaceManager)
 	if cfg.CORS {
 		origin := cfg.CORSOrigin

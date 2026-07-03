@@ -33,7 +33,7 @@ import (
 func TestWorkspaceManager_IdleEviction(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Setenv("HOME", tmpDir)
-	t.Setenv("BC_HOME", filepath.Join(tmpDir, ".bc"))
+	t.Setenv("MYCEL_HOME", filepath.Join(tmpDir, ".bc"))
 
 	mkWS := func(name string) (string, string) {
 		dir := filepath.Join(tmpDir, name)
@@ -133,7 +133,7 @@ func TestWorkspaceManager_IdleEviction(t *testing.T) {
 func TestWorkspaceManager_SweepIdempotent(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Setenv("HOME", tmpDir)
-	t.Setenv("BC_HOME", filepath.Join(tmpDir, ".bc"))
+	t.Setenv("MYCEL_HOME", filepath.Join(tmpDir, ".bc"))
 
 	wsDir := filepath.Join(tmpDir, "ws")
 	if err := os.MkdirAll(wsDir, 0o750); err != nil {
@@ -193,7 +193,7 @@ func TestWorkspaceManager_SweepIdempotent(t *testing.T) {
 func TestWorkspaceManager_NotIdleYet(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Setenv("HOME", tmpDir)
-	t.Setenv("BC_HOME", filepath.Join(tmpDir, ".bc"))
+	t.Setenv("MYCEL_HOME", filepath.Join(tmpDir, ".bc"))
 
 	wsDir := filepath.Join(tmpDir, "ws")
 	if err := os.MkdirAll(wsDir, 0o750); err != nil {
