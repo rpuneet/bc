@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -15,6 +16,48 @@ import (
 	"github.com/rpuneet/mycel/pkg/gateway"
 	"github.com/rpuneet/mycel/pkg/log"
 )
+
+// slugify converts a guild or channel name to a stable, colon-safe slug:
+// lowercase, with runs of spaces, colons, and hyphens collapsed into a single
+// '-', other punctuation dropped, and no leading or trailing separators.
+func slugify(name string) string {
+	name = strings.ToLower(name)
+	var b strings.Builder
+	pendingSep := false
+	for _, r := range name {
+		switch {
+		case (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '_':
+			if pendingSep && b.Len() > 0 {
+				b.WriteByte('-')
+			}
+			pendingSep = false
+			b.WriteRune(r)
+		case r == ' ' || r == ':' || r == '-':
+			pendingSep = true
+		}
+		// All other runes are dropped.
+	}
+	return b.String()
+}
+
+// channelKey builds the canonical channel name "<guild>:<channel>" from raw
+// Discord names. The gateway manager prepends the "discord:" platform prefix,
+// yielding the canonical bc channel "discord:<guild>:<channel>".
+//
+// The guild is always included (even for single-guild bots) so keys stay
+// stable when the bot joins additional guilds, and the sidebar can show
+// server and channel separately. Returns "" when no usable channel slug can
+// be built; callers fall back to the raw channel ID.
+func channelKey(guildName, channelName string) string {
+	guild, channel := slugify(guildName), slugify(channelName)
+	if channel == "" {
+		return ""
+	}
+	if guild == "" {
+		return channel
+	}
+	return guild + ":" + channel
+}
 
 // Adapter implements gateway.NotificationAdapter for Discord.
 // It also supports outbound messaging via the Send method.
@@ -155,14 +198,48 @@ func (a *Adapter) handleReady(_ *discordgo.Session, r *discordgo.Ready) {
 		a.chatMu.Lock()
 		for _, ch := range channels {
 			if ch.Type == discordgo.ChannelTypeGuildText {
-				// Format: "guildName:channelName" — gateway manager keeps the
-				// separator so the sidebar shows server + channel separately.
-				a.guildChannels[ch.ID] = guildName + ":" + ch.Name
-				log.Info("discord: discovered channel", "channel", guildName+":"+ch.Name, "id", ch.ID)
+				// Canonical form "guild:channel" (slugified) — the gateway
+				// manager keeps the separator so the sidebar shows server +
+				// channel separately.
+				key := channelKey(guildName, ch.Name)
+				if key == "" {
+					key = ch.ID
+				}
+				a.guildChannels[ch.ID] = key
+				log.Info("discord: discovered channel", "channel", key, "id", ch.ID)
 			}
 		}
 		a.chatMu.Unlock()
 	}
+}
+
+// resolveChannelKey builds the canonical key for a channel missing from the
+// discovery cache. It resolves channel and guild names via session state
+// (falling back to the REST API), caches the result, and returns the raw
+// channel ID if resolution fails so the message is never dropped.
+func (a *Adapter) resolveChannelKey(s *discordgo.Session, channelID string) string {
+	ch, err := s.State.Channel(channelID)
+	if err != nil {
+		if ch, err = s.Channel(channelID); err != nil {
+			return channelID
+		}
+	}
+	guildName := ch.GuildID
+	if ch.GuildID != "" {
+		if g, err := s.State.Guild(ch.GuildID); err == nil && g.Name != "" {
+			guildName = g.Name
+		} else if g, err := s.Guild(ch.GuildID); err == nil && g.Name != "" {
+			guildName = g.Name
+		}
+	}
+	key := channelKey(guildName, ch.Name)
+	if key == "" {
+		return channelID
+	}
+	a.chatMu.Lock()
+	a.guildChannels[channelID] = key
+	a.chatMu.Unlock()
+	return key
 }
 
 // handleMessage processes incoming Discord messages.
@@ -182,12 +259,13 @@ func (a *Adapter) handleMessage(s *discordgo.Session, m *discordgo.MessageCreate
 		return
 	}
 
-	// Get channel name
+	// Get canonical channel name; on cache miss (e.g., channel created after
+	// startup), resolve it so inbound keys match the discovery scheme.
 	a.chatMu.RLock()
 	channelName, ok := a.guildChannels[m.ChannelID]
 	a.chatMu.RUnlock()
 	if !ok {
-		channelName = m.ChannelID
+		channelName = a.resolveChannelKey(s, m.ChannelID)
 	}
 
 	sender := m.Author.Username
