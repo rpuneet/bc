@@ -1,5 +1,5 @@
 import { lazy, Suspense } from "react";
-import { BrowserRouter, Routes, Route, Link } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Link, Navigate, useParams } from "react-router-dom";
 import { Layout } from "./components/Layout";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { ThemeProvider } from "./context/ThemeContext";
@@ -22,6 +22,11 @@ const About = lazy(() => import("./views/About").then((m) => ({ default: m.About
 
 function Loading() {
   return <div className="p-6 text-mycel-muted">Loading...</div>;
+}
+
+function LegacyWorkspaceRedirect() {
+  const params = useParams();
+  return <Navigate to={`/${params["*"] ?? ""}`} replace />;
 }
 
 function NotFound() {
@@ -70,6 +75,9 @@ export function App() {
                 <Route path="settings" element={wrap(<Settings />)} />
                 <Route path="about" element={wrap(<About />)} />
 
+                {/* Old builds 301'd /<page> → /w/<hash>/<page>; browsers
+                    cached that redirect, so route it back to flat URLs. */}
+                <Route path="w/:ws/*" element={<LegacyWorkspaceRedirect />} />
                 <Route path="*" element={<NotFound />} />
               </Route>
             </Routes>

@@ -481,8 +481,28 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 	if staticFiles != nil {
 		fileServer := http.FileServer(http.FS(staticFiles))
 		mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-			// Try serving the exact file first
+			// Unmatched API/hook paths must never fall through to the SPA:
+			// returning index.html with 200 makes client bugs (calls to
+			// endpoints that don't exist) silently unfixable.
 			path := r.URL.Path
+			if strings.HasPrefix(path, "/api/") || strings.HasPrefix(path, "/hooks/") || strings.HasPrefix(path, "/_mcp/") {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusNotFound)
+				_, _ = w.Write([]byte(`{"error":"not found"}`))
+				return
+			}
+			// Legacy workspace-prefixed URLs: browsers cached a 301
+			// /<page> → /w/<hash>/<page> from an old build; redirect
+			// back to the flat route so bookmarks and refreshes work.
+			if strings.HasPrefix(path, "/w/") {
+				rest := ""
+				if parts := strings.SplitN(strings.TrimPrefix(path, "/w/"), "/", 2); len(parts) == 2 {
+					rest = parts[1]
+				}
+				http.Redirect(w, r, "/"+rest, http.StatusMovedPermanently)
+				return
+			}
+			// Try serving the exact file first
 			if path != "/" {
 				if f, err := staticFiles.Open(path[1:]); err == nil {
 					_ = f.Close() //nolint:errcheck // best-effort close
