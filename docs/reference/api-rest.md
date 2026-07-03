@@ -1,611 +1,521 @@
 # REST API Reference
 
+The `mycel` server (started with `mycel up`) exposes an HTTP API used by the web UI, the CLI, and agents.
+
 **Base URL:** `http://127.0.0.1:9374`
 **Content-Type:** `application/json`
-**Authentication:** None (localhost-only)
-**Total endpoints:** 41 across 14 resource groups
+
+Source of truth: route registration in `server/server.go` and the handlers in `server/handlers/`.
+
+## Conventions
+
+### Authentication
+
+When the server is started with an API key configured, every request must carry it as a Bearer token:
+
+```
+Authorization: Bearer <key>
+```
+
+The `X-API-Key: <key>` header is accepted as an alternative. Without a configured key (the zero-config localhost default), authentication is disabled. Exempt paths that never require auth: `/health`, `/api/health`, `/healthz`, and everything under `/_mcp/`.
+
+### Rate limiting and body size
+
+- Global token-bucket rate limit: **100 requests/second with a burst of 200**. Exceeding it returns `429` with a `Retry-After: 1` header.
+- Request bodies are capped at **1 MB** (file uploads use their own multipart limit).
+
+### Workspace scoping
+
+The server can hold several workspaces open at once. Workspace-scoped resources live at flat `/api/<resource>` paths, and the target workspace is selected per request via:
+
+1. `X-BC-Workspace: <id>` header (the web UI sets this automatically), or
+2. `?workspace=<id>` query parameter (curl-friendly), or
+3. neither — the registry's **active** workspace is used.
+
+An unknown workspace id returns `404`. Registry self-routes (`/api/workspaces...`) and `/api/global/costs` are not workspace-scoped.
+
+### Pagination
+
+List endpoints that support pagination accept `?limit=` (default 50, max 1000) and `?offset=` (default 0).
+
+### Errors
+
+Errors are JSON objects: `{"error": "<message>"}` with an appropriate status code (`400`, `404`, `405`, `409`, `429`, `500`, `503`). Internal errors return the generic message `internal server error`; details are only logged server-side.
 
 ---
 
 ## Health
 
-### `GET /health`
-Liveness probe.
-
-**Response:** `200 OK`
-```json
-{
-  "status": "ok",
-  "addr": "127.0.0.1:9374"
-}
-```
-
-### `GET /health/ready`
-Readiness probe. Checks DB connectivity and agent runtime.
-
-**Response:** `200 OK`
-```json
-{
-  "status": "ok",
-  "checks": {
-    "db": "ok",
-    "agents": "23 total"
-  }
-}
-```
-
-> Returns `503 Service Unavailable` if status is `"degraded"`.
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/health` | Liveness probe. Returns `{"status":"ok","addr":...,"commit":...,"built_at":...}`. |
+| GET | `/api/health` | Health with a live DB round-trip (`SELECT 1`). Returns `{"status":"ok","db":"ok","version":...,"commit":...}`; `503` with `"status":"unhealthy"` on DB failure. |
+| GET | `/healthz` | Alias of `/api/health`. |
+| GET | `/health/ready` | Readiness probe. Returns `{"status":"ok"\|"degraded","checks":{...}}`; `503` when degraded. |
 
 ---
 
 ## Agents
 
-### `GET /api/agents`
-List all agents. Reconciles with live sessions before returning.
+### Collection and fleet operations
 
-**Query params:**
-| Param | Type | Description |
-|-------|------|-------------|
-| role | string | Filter by role |
-| state | string | Filter: running, stopped, error, starting |
-| team | string | Filter by team ID |
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/agents` | List agents. Query: `includeArchived=1`, `onlyArchived=1`, `workspace=<absolute path>` (filters by the workspace path the agent is bound to), `include=stats` (adds live resource metrics), `limit`, `offset`. |
+| POST | `/api/agents` | Create an agent. Body: `{"name","role","tool","runtime_backend","parent","template","avatar":{"variant","color"}}`. Role defaults to `base` when only a template is given. Returns `201` with the agent. |
+| GET | `/api/agents/generate-name` | Generate an unused agent name. Returns `{"name": "..."}`. |
+| POST | `/api/agents/broadcast` | Send a message to all running agents. Body: `{"message"}`. Returns `{"sent": <n>}`. |
+| POST | `/api/agents/send-role` | Send a message to all agents with a role. Body: `{"role","message"}`. |
+| POST | `/api/agents/send-pattern` | Send a message to agents whose name matches a pattern. Body: `{"pattern","message"}`. |
+| POST | `/api/agents/stop-all` | Stop all agents. Returns `{"stopped": <n>}`. |
+| POST | `/api/agents/sync` | Reconcile in-memory agent state with live runtime sessions. Returns `{"synced": <n>, "stopped": <n>}`. |
+| GET | `/api/agents/health` | Per-agent health report (`healthy`/`degraded`/`unhealthy`, tmux liveness, state freshness). Query: `timeout=<duration>` (default `60s`), `agent=<name>`. |
+| GET | `/api/agents/activity` | Recent activity events across all agents (Live page hydration). Query: `limit` (default 200, max 2000). |
 
-**Response:** `200 OK` — `AgentDTO[]`
+Agent objects include `name`, `role`, `state`, `task`, `tool`, `runtime_backend`, `session`, `session_id`, `parent_id`, `children`, `created_at`/`started_at`/`updated_at`/`stopped_at`/`archived_at`, `repo_root`, `workspace`, `total_cost_usd`, `total_tokens`, and optional `stats`, `avatar`, `mcp_servers`.
 
-### `POST /api/agents`
-Create and start a new agent.
+### Bulk operations
 
-**Body:**
-```json
-{
-  "name": "eng-01",
-  "role": "engineer",
-  "workspace": "~/repos/my-project",
-  "tool": "claude",
-  "runtime": "docker",
-  "team": "backend-team"
-}
-```
-- `name` — required, alphanumeric + hyphens/underscores
-- `role` — required, must exist in `roles` table
-- `workspace` — required if no team (inherits team workspace if omitted)
-- `tool` — optional, default from settings
-- `runtime` — optional, "tmux" or "docker"
-- `team` — optional, adds agent to team
+All bulk endpoints are `POST` and return `{"results": [{"agent","status":"ok"|"error","error?"}]}`.
 
-**Response:** `201 Created` — `AgentDTO`
+| Method | Path | Body |
+|--------|------|------|
+| POST | `/api/agents/bulk/start` | `{"agents": ["..."]}` |
+| POST | `/api/agents/bulk/stop` | `{"agents": ["..."]}` |
+| POST | `/api/agents/bulk/delete` | `{"agents": ["..."], "force": bool}` |
+| POST | `/api/agents/bulk/message` | `{"agents": ["..."], "message": "..."}` |
 
-### `GET /api/agents/{name}`
-**Response:** `200 OK` — `AgentDTO` | `404`
+### Per-agent
 
-### `DELETE /api/agents/{name}?force=true`
-Delete agent. Cleans up Docker container, git worktree, and branch.
-
-**Response:** `204 No Content`
-
-### `POST /api/agents/{name}/start`
-Start a stopped agent. Resumes Claude session if valid UUID exists.
-
-**Response:** `200 OK` — `AgentDTO`
-
-### `POST /api/agents/{name}/stop`
-**Response:** `200 OK` — `{"status": "stopped"}`
-
-### `POST /api/agents/{name}/send`
-Send text to agent's tmux/Docker session.
-
-**Body:** `{"message": "string"}`
-**Response:** `200 OK` — `{"status": "sent"}`
-
-### `POST /api/agents/{name}/hook`
-Receive Claude Code hook event. Updates agent state.
-
-**Body:** `{"event": "tool_use_start | tool_use_end | user_input_required | stop"}`
-**Response:** `200 OK` — `{"ok": true}`
-
-### `GET /api/agents/{name}/peek?lines=500`
-Read recent terminal output via `tmux capture-pane`. Returns readable formatted output.
-
-**Query params:** `lines` (int, default 500, max 10000)
-**Response:** `200 OK` — `{"output": "string"}`
-
-### `GET /api/agents/{name}/stats?limit=20`
-Docker resource stats (CPU, memory, network).
-
-**Response:** `200 OK` — `AgentStatsRecord[]`
-
-### `POST /api/agents/{name}/rename`
-**Body:** `{"new_name": "string"}`
-**Response:** `200 OK`
-
-### `GET /api/agents/{name}/sessions`
-Session history (current + archived UUIDs with timestamps).
-
-**Response:** `200 OK` — `SessionEntry[]`
-
-### `GET /api/agents/generate-name`
-**Response:** `200 OK` — `{"name": "witty-parrot"}`
-
-### `POST /api/agents/broadcast`
-Send to all running agents.
-
-**Body:** `{"message": "string", "team": "optional-team-id"}`
-- If `team` specified, sends only to agents in that team
-**Response:** `200 OK` — `{"sent": 3}`
-
-### `POST /api/agents/send-role`
-Send to all agents with a specific role.
-
-**Body:** `{"role": "engineer", "message": "string"}`
-**Response:** `200 OK` — `SendResult`
-
-### `POST /api/agents/stop-all`
-**Response:** `200 OK` — `{"stopped": 5}`
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/agents/{name}` | Get one agent. `404` if unknown. |
+| DELETE | `/api/agents/{name}` | Delete an agent. Query: `force=true`. Returns `204`. |
+| POST | `/api/agents/{name}/start` | Start the agent. Optional body: `{"runtime","resume_id"}`. |
+| POST | `/api/agents/{name}/stop` | Stop the agent. Returns `{"status":"stopped"}`. |
+| POST | `/api/agents/{name}/archive` | Archive the agent. Returns `{"status":"archived"}`. |
+| POST | `/api/agents/{name}/unarchive` | Unarchive. Returns `{"status":"active"}`. |
+| POST | `/api/agents/{name}/send` | Type a message into the agent's session. Body: strictly `{"message"}` — unknown fields and empty messages are rejected with `400`. |
+| POST | `/api/agents/{name}/rename` | Body: `{"new_name"}`. Returns `{"status":"renamed","name"}`. |
+| POST | `/api/agents/{name}/fork` | Fork the agent into a new one. Body: `{"name"}` (required). Returns `201` with the new agent. |
+| POST | `/api/agents/{name}/report` | Agent self-reports state. Body: `{"state","message"}`. |
+| POST | `/api/agents/{name}/hook` | Receive a Claude Code hook payload (state routing + event log + SSE fan-out). Body must include a known `event`; the raw body is persisted to the event log. |
+| GET | `/api/agents/{name}/activity` | Activity timeline for one agent, derived from the event store. |
+| GET | `/api/agents/{name}/events` | **SSE** stream of hook events (`event: hook` frames); replays the last 50 events, then tails. |
+| GET | `/api/agents/{name}/stats` | Recent runtime stats samples. Query: `limit` (default 20, max 1000). |
+| GET | `/api/agents/{name}/stats-computed` | Activity stats computed from hook events + live sampling (tool breakdown, tokens, cost, disk, CPU/mem). Works without TimescaleDB. |
+| GET | `/api/agents/{name}/peek` | Capture recent terminal output. Query: `lines` (default 500, max 10000). Returns `{"output"}`. |
+| GET | `/api/agents/{name}/last-terminal` | Last captured terminal output plus `state` and `stopped_at`. Query: `lines`. |
+| GET | `/api/agents/{name}/sessions` | List recorded provider sessions for the agent. |
+| GET | `/api/agents/{name}/output` | **SSE** stream of terminal output (initial snapshot, then `event: agent.output` frames with `{"output"}` deltas). |
+| GET | `/api/agents/{name}/terminal` | **WebSocket** bridge to the agent's session via a PTY. `501` when the terminal handler is unavailable. |
+| GET | `/api/agents/{name}/config` | Agent config: `{"worktree_path","system_prompt","runtime_backend","tool","session","mcp_servers"}`. The system prompt is read from the provider's prompt file (`CLAUDE.md`, `GEMINI.md`, `.cursorrules`, ...) in the worktree. |
+| PATCH | `/api/agents/{name}/config` | Update the system prompt. Body: `{"system_prompt"}`. Writes the provider prompt file into the worktree. |
+| GET | `/api/agents/{name}/mcps` | List MCP servers from the agent worktree's `.mcp.json`. |
+| POST | `/api/agents/{name}/mcps` | Add an MCP server. Body: `{"name","url","command","type","env"}`. Returns `201`. |
+| DELETE | `/api/agents/{name}/mcps/{mcp}` | Remove an MCP server from `.mcp.json`. Returns `204`. |
+| GET | `/api/agents/{name}/env` | Persisted env vars: `[{"key","value"}]`. |
+| PUT | `/api/agents/{name}/env` | Replace persisted env vars. Body: `[{"key","value"}]`. |
+| GET | `/api/agents/{name}/loop` | Loop config: `{"prompt","enabled"}`. |
+| PUT | `/api/agents/{name}/loop` | Set the loop config. When enabled, the server re-sends `prompt` each time the agent's turn ends (Stop / SessionEnd hooks). |
 
 ---
 
-## Teams
+## Channels & Notify
 
-### `GET /api/teams`
-List all teams as a flat list. Use `parent_id` to build tree client-side.
+Channels are inbound gateway sources (e.g. `slack:general`). Notification routing is subscription-based.
 
-**Response:** `200 OK` — `TeamDTO[]`
-```json
-[{
-  "id": "backend-team",
-  "name": "Backend",
-  "parent_id": "root-team",
-  "workspace": "~/repos/api",
-  "agents": ["eng-01", "eng-02"],
-  "children": ["db-team"],
-  "created_at": 1711000000000
-}]
-```
-
-### `POST /api/teams`
-**Body:** `{"id": "backend", "name": "Backend Team", "parent_id": "root", "workspace": "~/repos/api"}`
-**Response:** `201 Created` — `TeamDTO`
-
-### `GET /api/teams/{id}`
-### `PUT /api/teams/{id}`
-### `DELETE /api/teams/{id}`
-Deleting a team does NOT delete its agents.
-
-### `POST /api/teams/{id}/members`
-Add agent to team.
-
-**Body:** `{"agent_id": "eng-01"}`
-**Response:** `204 No Content`
-
-### `DELETE /api/teams/{id}/members?agent_id=eng-01`
-Remove agent from team.
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/channels` | List known gateway channels (discovered + subscribed) as `{name, description, members, member_count}`. |
+| GET | `/api/channels/{name}/history` | Message history from the notify store: `[{id, sender, content, created_at}]`. Query: `limit` (default 50, max 200), `before=<id>`. `/messages` suffix is accepted as an alias. |
+| GET | `/api/notify/subscriptions` | List all subscriptions. |
+| POST | `/api/notify/subscriptions` | Subscribe an agent to a channel. Body: `{"channel","agent","mention_only"}`. Returns `201`. |
+| GET | `/api/notify/subscriptions/{channel}` | List subscribers of a channel. |
+| PATCH | `/api/notify/subscriptions/{channel}` | Update a subscription. Body: `{"agent","mention_only"}`. |
+| DELETE | `/api/notify/subscriptions/{channel}?agent=<name>` | Unsubscribe an agent. |
+| GET | `/api/notify/activity/{channel}` | Delivery log entries for a channel. Query: `limit` (default 50, max 200). |
 
 ---
 
-## Roles
+## Gateways
 
-Roles are stored in the database. No markdown files on disk.
+Gateways bridge external platforms (Slack, Telegram, Discord, WhatsApp, webhook adapters, ...) into channels.
 
-### `GET /api/roles`
-List all roles (metadata only, no prompt bodies).
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/gateways` | List configured/registered platforms with `{platform, enabled, bot_name, channels, config}` (config exposes only mode/token-presence flags, never token values). |
+| GET | `/api/gateways/activity` | Recent delivery-log activity across all gateway channels. Query: `limit`. |
+| PATCH | `/api/gateways/{platform}` | Update a platform's gateway config (`telegram`, `telegram:<label>`, `discord`, `slack`). Body is the platform's config object; persisted to the workspace config. |
+| GET | `/api/gateways/{platform}/health` | Live adapter status: `{platform, connected, status, error, last_message_at}`. |
+| POST | `/api/gateways/{platform}/pair` | Start QR pairing (WhatsApp only). Returns pairing status incl. QR code. |
+| GET | `/api/gateways/{platform}/pair/status` | Current pairing state (WhatsApp only). |
+| GET | `/api/gateways/{platform}/channels` | Channels discovered for this platform: `[{channel_key, name, platform}]`. |
+| GET | `/api/gateways/{platform}/channels/{channel}` | Channel detail with its subscriptions. |
+| GET | `/api/gateways/{platform}/channels/{channel}/agents` | List agent subscriptions on the channel. |
+| POST | `/api/gateways/{platform}/channels/{channel}/agents` | Subscribe an agent. Body: `{"agent","mention_only"}`. Returns `201`. |
+| PATCH | `/api/gateways/{platform}/channels/{channel}/agents/{agent}` | Update `{"mention_only": bool}`. |
+| DELETE | `/api/gateways/{platform}/channels/{channel}/agents/{agent}` | Unsubscribe (agent may also be given as `?agent=`). |
+| GET | `/api/gateways/{platform}/channels/{channel}/activity` | Delivery log for the channel (same as `/api/notify/activity/{channel}`). |
+| ANY | `/api/gateways/{platform}/api/*` | Proxy to the adapter's own HTTP handler (`501` if the adapter has none, `404` if the adapter isn't registered). |
 
-### `POST /api/roles`
-Create role.
+There is **no** `/api/gateways/{platform}/channels/{channel}/send` endpoint — the old send route was removed and now returns `404`. Outbound messages go through the platform APIs directly.
 
-**Body:**
-```json
-{
-  "name": "engineer",
-  "description": "Implements features and fixes bugs",
-  "prompt": "You are a senior engineer...",
-  "settings": {"model": "opus"},
-  "commands": {"lint": "Run linting on the codebase"},
-  "mcp_servers": ["playwright", "github"],
-  "secrets": ["GITHUB_TOKEN"]
-}
-```
-**Response:** `201 Created`
+### Inbound webhooks
 
-### `GET /api/roles/{id}`
-Full role including prompt body and settings.
-
-### `PUT /api/roles/{id}`
-Update role.
-
-### `DELETE /api/roles/{id}`
-Delete role. Agents keep their current config.
-
----
-
-## Gateways & Channels
-
-Notification gateways bridge external platforms to bc agents. See [Channel Architecture](../architecture-notifications.md) for full design.
-
-### `GET /api/gateways`
-
-List all gateways with connection status.
-
-### `POST /api/gateways`
-
-Connect a new gateway.
-
-**Body:** `{"platform": "slack", "tokens": {"bot_token": "xoxb-...", "app_token": "xapp-..."}}`
-
-### `PATCH /api/gateways/{gateway}`
-
-Update gateway tokens/settings.
-
-### `DELETE /api/gateways/{gateway}`
-
-Disconnect and remove gateway.
-
-### `GET /api/gateways/{gateway}/health`
-
-Live connection probe.
-
-### `GET /api/gateways/{gateway}/channels`
-
-List discovered channels for a gateway.
-
-### `POST /api/gateways/{gateway}/channels/{channel}/agents`
-
-Subscribe an agent to a channel.
-
-**Body:** `{"agent": "eng-01", "mention_only": false}`
-
-### `DELETE /api/gateways/{gateway}/channels/{channel}/agents/{agent}`
-
-Unsubscribe agent from channel.
-
-### `PATCH /api/gateways/{gateway}/channels/{channel}/agents/{agent}`
-
-Update subscription settings (e.g., toggle mention_only).
-
-**Body:** `{"mention_only": true}`
-
-### `GET /api/gateways/{gateway}/channels/{channel}/activity`
-
-Recent delivery log entries for a channel.
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/hooks/{name}` | Inbound webhook receiver for webhook-type gateway adapters (e.g. `/hooks/github`, `/hooks/webhook`). One route is mounted per adapter that exposes an HTTP handler. |
 
 ---
 
 ## Costs
 
-### `GET /api/costs`
-Workspace cost summary with token breakdown.
-
-**Response:**
-```json
-{
-  "total_cost_usd": 12.50,
-  "input_tokens": 500000,
-  "output_tokens": 150000,
-  "cache_read_tokens": 300000,
-  "cache_creation_tokens": 50000,
-  "request_count": 250,
-  "period": "all_time"
-}
-```
-
-### `GET /api/costs/agents`
-Per-agent cost breakdown with token details.
-
-### `GET /api/costs/teams`
-Per-team cost aggregation.
-
-### `GET /api/costs/models`
-Per-model cost breakdown.
-
-### `GET /api/costs/daily?days=30`
-Daily cost time series (for graphs).
-
-**Response:** `200 OK`
-```json
-[
-  {"date": "2026-03-20", "cost_usd": 2.50, "input_tokens": 100000, "output_tokens": 30000, "requests": 45},
-  {"date": "2026-03-21", "cost_usd": 3.10, "input_tokens": 120000, "output_tokens": 35000, "requests": 52}
-]
-```
-
-### `GET /api/costs/agent/{name}?days=7`
-Single agent cost time series.
-
-### `POST /api/costs/sync`
-Trigger JSONL cost import from Claude session files.
-
----
-
-## Secrets
-
-Values are AES-256-GCM encrypted. API never returns values.
-
-### `GET /api/secrets`
-### `POST /api/secrets`
-**Body:** `{"name": "GITHUB_TOKEN", "value": "ghp_...", "description": "GitHub PAT"}`
-
-### `GET /api/secrets/{name}`
-Metadata only (no value).
-
-### `PUT /api/secrets/{name}`
-### `DELETE /api/secrets/{name}`
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/costs` | Workspace cost summary. |
+| GET | `/api/costs/agents` | Cost summaries grouped by agent. Paginated. |
+| GET | `/api/costs/teams` | Cost summaries grouped by team. Paginated. |
+| GET | `/api/costs/models` | Cost summaries grouped by model. Paginated. |
+| GET | `/api/costs/daily` | Daily cost series. Query: `days` (default 30, max 365). |
+| GET | `/api/costs/agent/{name}` | One agent's summary plus a 30-day daily breakdown: `{"summary", "daily"}`. |
+| GET | `/api/costs/project` | Cost projection. Query: `lookback_days` (default 30), `project_days` (default 30). |
+| POST | `/api/costs/sync` | Trigger a fresh import from provider JSONL usage files. Returns `{"imported": <n>}`. |
+| GET | `/api/costs/budgets` | List all budgets. |
+| POST | `/api/costs/budgets` | Set a budget. Body: `{"scope","period":"daily"\|"weekly"\|"monthly","limit_usd","alert_at","hard_stop"}`. |
+| GET | `/api/costs/budgets/{scope}` | Budget check status for a scope; `404` when no budget is configured. |
+| DELETE | `/api/costs/budgets/{scope}` | Delete a budget. Returns `204`. |
+| GET | `/api/global/costs` | **Cross-workspace** cost rollup from the user-global ledger. Query: `start=<RFC3339 or YYYY-MM-DD>` (default 30 days ago), `groupBy=workspace\|project`. Not workspace-scoped; `503` when no global ledger is wired. |
 
 ---
 
 ## Cron
 
-Scheduled bash commands that run on a timer. To prompt an agent, use a cron job that curls the agent send API.
-
-### `GET /api/cron`
-### `POST /api/cron`
-**Body:**
-```json
-{
-  "name": "nightly-lint",
-  "schedule": "0 2 * * *",
-  "command": "cd ~/repos/api && make lint",
-  "enabled": true
-}
-```
-
-### `GET /api/cron/{name}`
-### `DELETE /api/cron/{name}`
-### `POST /api/cron/{name}/enable`
-### `POST /api/cron/{name}/disable`
-### `POST /api/cron/{name}/run`
-Manual trigger.
-
-### `GET /api/cron/{name}/logs?last=20`
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/cron` | List jobs (enriched with live `running` state). Paginated. |
+| POST | `/api/cron` | Create a job. Body is a job object; `command` or `prompt` is required. Returns `201`. |
+| GET | `/api/cron/{name}` | Get one job. |
+| DELETE | `/api/cron/{name}` | Delete a job. Returns `204`. |
+| POST | `/api/cron/{name}/enable` | Enable. Returns `{"enabled": true}`. |
+| POST | `/api/cron/{name}/disable` | Disable. Returns `{"enabled": false}`. |
+| POST | `/api/cron/{name}/run` | Trigger a manual run (job must be enabled). Returns `{"status":"triggered"}`. |
+| GET | `/api/cron/{name}/logs` | Recent run logs. Query: `last` (default 20, max 1000). |
+| GET | `/api/cron/{name}/logs/live` | **SSE** tail of the live log file for a running job; sends `event: done` when the job finishes. |
 
 ---
 
-## Daemons
+## Secrets
 
-Long-running processes managed by bcd. Support tmux and Docker runtimes with restart policies.
+Secret **values are never returned** — only metadata.
 
-### `GET /api/daemons`
-List all daemons with pagination.
-
-**Query params:** `limit` (int, default 50), `offset` (int, default 0)
-
-**Response:** `200 OK` -- `Daemon[]`
-
-### `POST /api/daemons`
-Create and start a daemon.
-
-**Body:**
-```json
-{
-  "name": "db",
-  "cmd": "postgres -D /data",
-  "image": "postgres:17",
-  "runtime": "docker",
-  "restart": "always",
-  "env": ["POSTGRES_PASSWORD=secret"],
-  "ports": ["5432:5432"]
-}
-```
-- `name` -- required, unique identifier
-- `cmd` -- required, command to run
-- `image` -- Docker image (required if runtime is docker)
-- `runtime` -- "tmux" or "docker"
-- `restart` -- restart policy: "no", "always", "on-failure"
-- `env` -- environment variables as `KEY=VALUE` strings
-- `ports` -- port mappings as `HOST:CONTAINER` strings
-
-**Response:** `201 Created` -- `Daemon`
-
-### `GET /api/daemons/{name}`
-**Response:** `200 OK` -- `Daemon` | `404`
-
-### `POST /api/daemons/{name}/stop`
-**Response:** `200 OK` -- `{"status": "stopped"}`
-
-### `POST /api/daemons/{name}/restart`
-**Response:** `200 OK` -- `Daemon`
-
-### `DELETE /api/daemons/{name}`
-**Response:** `204 No Content`
-
----
-
-## Tools
-
-AI tool provider configurations.
-
-### `GET /api/tools`
-### `GET /api/tools/{name}`
-### `PUT /api/tools/{name}`
-### `DELETE /api/tools/{name}`
-### `POST /api/tools/{name}/enable`
-### `POST /api/tools/{name}/disable`
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/secrets` | List secret metadata. Paginated. |
+| POST | `/api/secrets` | Create/set a secret. Body: `{"name","value","description"}`. Returns `201` with metadata. |
+| GET | `/api/secrets/{name}` | Get metadata for one secret. |
+| PUT | `/api/secrets/{name}` | Update value/description. Body: `{"value","description"}`. |
+| DELETE | `/api/secrets/{name}` | Delete. Returns `204`. |
 
 ---
 
 ## MCP Servers
 
-External MCP server configurations for agents.
+Workspace-level MCP server registry (distinct from per-agent `.mcp.json`, see Agents).
 
-### `GET /api/mcp`
-### `POST /api/mcp`
-**Body:**
-```json
-{
-  "name": "playwright",
-  "transport": "sse",
-  "url": "http://localhost:3100/sse",
-  "env": {"BROWSER": "chromium"},
-  "enabled": true
-}
-```
-
-### `GET /api/mcp/{name}`
-### `DELETE /api/mcp/{name}`
-### `POST /api/mcp/{name}/enable`
-### `POST /api/mcp/{name}/disable`
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/mcp` | List MCP server configs. Paginated. |
+| POST | `/api/mcp` | Add a server. Body is an MCP server config (`name`, `transport`, `command`/`url`, `args`, `env`, `enabled`). Returns `201`. |
+| GET | `/api/mcp/{name}` | Get one server config. |
+| PATCH | `/api/mcp/{name}` | Update env vars. Body: `{"env": {"KEY":"VALUE"}}` (required). |
+| DELETE | `/api/mcp/{name}` | Remove. Returns `204`. |
+| POST | `/api/mcp/{name}/enable` | Enable. Returns `{"enabled": true}`. |
+| POST | `/api/mcp/{name}/disable` | Disable. Returns `{"enabled": false}`. |
 
 ---
 
-## Event Log
+## Tools
 
-### `GET /api/logs?tail=100`
-Recent events. Default: last 100.
-
-**Query params:** `tail` (int, default 100, max 10000), `type` (filter by event type)
-
-### `GET /api/logs/{agent}`
-Events for specific agent. Same params.
-
----
-
-## Doctor
-
-### `GET /api/doctor`
-Run all health checks.
-
-### `GET /api/doctor/{category}`
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/tools` | List tools. Query: repeatable `type=` filter (`cli`, `mcp`, ...). Paginated. |
+| POST | `/api/tools` | Add a tool. Returns `201`. |
+| POST | `/api/tools/check` | Health-check all tools (binary lookup per type). Returns `[{name, type, status, error?}]`. |
+| GET | `/api/tools/{name}` | Get one tool. |
+| PUT | `/api/tools/{name}` | Update a tool (name taken from the URL). |
+| DELETE | `/api/tools/{name}` | Delete. Returns `204`. |
+| POST | `/api/tools/{name}/enable` | Enable. |
+| POST | `/api/tools/{name}/disable` | Disable. |
+| GET | `/api/tools/unified` | Merged view of MCP servers + role CLI tools + tool-store entries with status/version: `[{name, type, status, transport?, command?, url?, version?, install_cmd?, upgrade_cmd?, required}]`. |
+| POST | `/api/tools/unified/check` | Run health checks across the unified tool set. |
 
 ---
 
-## SSE Events
+## Templates
 
-### `GET /api/events`
-Server-Sent Events stream.
+Agent templates (system prompt + MCPs + policies). Stored layered: global `~/.bc/templates/` with per-workspace overrides.
 
-**Event types:**
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/templates` | List templates. |
+| POST | `/api/templates` | Create. Body: `{"name" (required), "description", "system_prompt", "system_prompt_file", "mcps", "secrets", "plugins", "context_files", "tool_policies", "max_cost_usd", "stuck_timeout_min"}`. `409` on duplicate name. |
+| GET | `/api/templates/{name}` | Get a template including its rendered `system_prompt`. |
+| PUT | `/api/templates/{name}` | Update. Omitting `system_prompt` preserves the existing prompt; sending `""` clears it. |
+| DELETE | `/api/templates/{name}` | Delete. Returns `204`. |
 
-| Type | Payload | When |
-|------|---------|------|
-| `connected` | `{}` | Client connects |
-| `agent.created` | `{name, role, tool}` | Agent created |
-| `agent.started` | `{name, session_id}` | Agent started/restarted |
-| `agent.stopped` | `{name, reason}` | Agent stopped |
-| `agent.deleted` | `{name}` | Agent deleted |
-| `agent.state_changed` | `{name, state, task}` | State transition (idle/working/stuck) |
-| `gateway.message` | `{channel, platform, sender, content, mentions, timestamp}` | Inbound platform message |
-| `cost.updated` | `{agent, cost_usd, tokens}` | Cost import completed |
-| `team.updated` | `{team_id, action}` | Team membership changed |
+---
+
+## Providers
+
+AI provider registry (claude, gemini, cursor, ...).
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/providers` | List providers with install status, agent counts, and cost totals. |
+| GET | `/api/providers/{name}` | Provider detail: config, agent list, per-model cost breakdown. |
+| GET | `/api/providers/{name}/commands` | CLI commands available for the provider. |
+| GET | `/api/providers/{name}/mcps` | MCP servers configured for the provider (claude/cursor; empty for others). |
+| POST | `/api/providers/{name}/mcps` | Add an MCP server via the provider's config adapter. Body: `{"name","transport","url","command"}`. Returns `201`. |
+| POST | `/api/providers/{name}/install` | Returns the install hint command (does not execute it). |
+| POST | `/api/providers/{name}/update` | Returns the update hint command. |
+| POST | `/api/providers/{name}/check-update` | Version check. Returns `{current_version, latest_version, update_available, update_command}`. |
+| PATCH | `/api/providers/{name}/config` | Override the provider's launch command in workspace settings. Body: `{"command"}`. |
+
+---
+
+## Roles
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/roles` | All roles, resolved through inheritance (deduplicated by normalized name). |
+| POST | `/api/roles` | Create a role. Body includes `name` (required), `description`, `prompt`, `parent_roles`, `mcp_servers`, `secrets`, `plugins`, `cli_tools`, `rules`, `commands`, `skills`, `agents`, lifecycle prompts, `review`. `409` if it exists. |
+| GET | `/api/roles/{name}` | Resolved role. |
+| PUT | `/api/roles/{name}` | Create/update the role (URL name wins over body name). |
+| DELETE | `/api/roles/{name}` | Delete. Returns `204`. |
 
 ---
 
 ## Settings
 
-Workspace configuration management. See [settings.md](settings.md) for full details.
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/settings` | Full workspace configuration document. |
+| PATCH | `/api/settings` | Partial update. Body is an object whose top-level keys are config sections: `user`, `server`, `runtime`, `providers`, `gateways`, `cron`, `storage`, `logs`, `ui` (`version` is ignored; unknown sections are rejected with `400`). Each provided section **replaces** that section, except `gateways`, which is deep-merged per platform key. The merged config is validated before saving; the response echoes the saved config. |
 
-### `GET /api/settings`
-Returns the full workspace configuration.
+See [Settings API](api-settings.md) for the configuration schema.
 
-**Response:** `200 OK` -- full config object
+---
 
-### `PUT /api/settings`
-Partial update of the full configuration. Send only the sections you want to change.
+## Events, Logs & SSE
 
-**Body:** JSON object with one or more config sections.
+### Live event stream
 
-**Supported sections:** `user`, `providers`, `env`, `logs`, `runtime`, `performance`, `tui`, `workspace`, `roster`, `services`
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/events` | **SSE** hub stream for the web UI. Frames are `data: {"type": "<event>", "data": {...}}`. |
 
-**Response:** `200 OK` -- full updated config
+Event types published on the hub:
 
-### `PATCH /api/settings/{section}`
-Update a single config section. The request body is the section object directly (not wrapped in a parent key).
+- `connected` — sent once per connection
+- `agent.created`, `agent.started`, `agent.stopped`, `agent.deleted`, `agent.renamed`, `agent.forked`, `agent.state_changed` — agent lifecycle
+- `agent.hook` — raw hook payloads relayed from `POST /api/agents/{name}/hook`
+- `channel.message` — inbound gateway message (`{"channel","message":{"sender","content","type"}}`)
+- `gateway.message` — notify-service delivery event
 
-**Supported sections:** `user`, `tui`, `runtime`, `providers`, `services`, `logs`, `performance`, `env`, `roster`
+### Event log and history
 
-**Example:**
-```bash
-curl -X PATCH http://localhost:9374/api/settings/tui \
-  -H "Content-Type: application/json" \
-  -d '{ "theme": "matrix", "mode": "dark" }'
-```
-
-**Response:** `200 OK` -- full updated config
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/logs` | Read the persistent event log. Query: `tail` (default 100, max 10000). |
+| POST | `/api/logs` | Append an event to the log. |
+| GET | `/api/logs/{agent}` | Events for one agent. |
+| GET | `/api/events/history` | Paginated SSE-event history from the JSONL persistence file. Query: `limit` (default 100), `offset`. Returns `{"events", "total"}`. |
+| GET | `/api/tasks/current` | Current task list derived from TaskCreate/TaskUpdate events. |
 
 ---
 
 ## Stats
 
-System metrics and workspace summary.
+All timeseries endpoints accept `from`/`to` (RFC3339, default: last hour) and `interval` (default `5m`).
 
-### `GET /api/stats/system`
-System-level resource metrics.
+### Summaries
 
-**Response:** `200 OK`
-```json
-{
-  "hostname": "macbook",
-  "os": "darwin",
-  "arch": "arm64",
-  "cpus": 10,
-  "cpu_usage_percent": 23.5,
-  "memory_total_bytes": 17179869184,
-  "memory_used_bytes": 12884901888,
-  "memory_usage_percent": 75.0,
-  "disk_total_bytes": 500000000000,
-  "disk_used_bytes": 250000000000,
-  "disk_usage_percent": 50.0,
-  "go_version": "go1.25.4",
-  "uptime_seconds": 3600,
-  "goroutines": 42
-}
-```
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/stats/summary` | Workspace overview: agent counts, channel/message totals, cost, roles, tools, uptime. |
+| GET | `/api/stats/system` | Host snapshot: hostname, OS/arch, CPU, memory, disk, Go version, goroutines, uptime. |
+| GET | `/api/system/info` | Minimal host info: `{hostname, os, arch}`. |
 
-### `GET /api/stats/summary`
-Workspace-level summary counts.
+### Agent timeseries
 
-**Response:** `200 OK`
-```json
-{
-  "agents_total": 5,
-  "agents_running": 3,
-  "agents_stopped": 2,
-  "notification_sources_total": 4,
-  "notifications_total": 120,
-  "total_cost_usd": 12.50,
-  "roles_total": 3,
-  "tools_total": 2,
-  "uptime_seconds": 3600
-}
-```
+Filters: `agent` (comma-separated), `role`, `tool`, `runtime`.
 
-### `GET /api/stats/notifications`
-Notification-level statistics.
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/agents/stats/latest` | Most recent metric sample per agent. |
+| GET | `/api/agents/stats/cpu` | CPU timeseries. |
+| GET | `/api/agents/stats/mem` | Memory timeseries. |
+| GET | `/api/agents/stats/disk` | Disk I/O timeseries. |
+| GET | `/api/agents/stats/net` | Network timeseries. |
+| GET | `/api/agents/stats/tokens` | Token usage timeseries. |
+| GET | `/api/agents/stats/cost` | Cost timeseries. |
+| GET | `/api/agents/stats/summary/{name}` | Combined resource + token + cost summary for one agent. |
 
-**Response:** `200 OK`
+### System timeseries
+
+Filter: `system` (comma-separated).
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/system/stats/cpu` | Host CPU timeseries. |
+| GET | `/api/system/stats/mem` | Host memory timeseries. |
+| GET | `/api/system/stats/disk` | Host disk timeseries. |
+| GET | `/api/system/stats/net` | Host network timeseries. |
+
+### Channel timeseries
+
+Filter: `channel` (comma-separated).
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/channels/stats/messages` | Message counts. |
+| GET | `/api/channels/stats/members` | Member counts. |
+| GET | `/api/channels/stats/reactions` | Reaction counts. |
 
 ---
 
-## Workspace
+## Workspaces (registry)
 
-Workspace lifecycle management.
+Manages the multi-workspace registry itself. These routes are not workspace-scoped.
 
-### `GET /api/workspace`
-### `GET /api/workspace/status`
-Workspace status including agent counts, runtime info, and config.
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/workspaces` | List registered workspaces: `{"workspaces": [...], "active": "<id>"}`. |
+| POST | `/api/workspaces` | Register a workspace. Body: `{"path" (required, must exist), "name?", "alias?"}`. `409` on alias conflict. Returns `201`. |
+| GET | `/api/workspaces/{id}` | Detail (id, name, or alias accepted): `{"workspace", "worktrees", "agent_count?"}`. |
+| PATCH | `/api/workspaces/{id}` | Update `name`, `alias`, `github_url`, `github_full_name`. |
+| DELETE | `/api/workspaces/{id}` | Unregister (does **not** delete `.bc/`). Returns `204`. |
+| POST | `/api/workspaces/{id}/activate` | Set as the active workspace. |
 
-**Response:** `200 OK`
+### Discovery & GitHub auth
 
-### `GET /api/workspace/roles`
-List all available roles.
-
-**Response:** `200 OK`
-
-### `POST /api/workspace/up`
-Start the workspace (equivalent to `bc up`).
-
-**Response:** `200 OK`
-
-### `POST /api/workspace/down`
-Stop the workspace and all agents (equivalent to `bc down`).
-
-**Response:** `200 OK`
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/api/workspaces/discover/local` | Scan a filesystem root for git repos. Body: `{"root" (required), "depth?"}`. Returns `{"candidates": [...]}` annotated with `already_registered`. |
+| POST | `/api/workspaces/discover/github` | List the authenticated user's GitHub repos. Body: `{"query?"}`. `401` when not authenticated. |
+| POST | `/api/workspaces/clone` | Clone and register a repo. Body: `{"url","target","name?"}`. |
+| GET | `/api/auth/github` | GitHub auth status: `{"connected": bool, "login": "..."}`. |
+| POST | `/api/auth/github` | Store a token. Body: `{"token"}` (validated before saving). |
+| DELETE | `/api/auth/github` | Remove the stored token. |
 
 ---
 
-## MCP Protocol
+## Workspace (active workspace)
 
-### `GET /mcp/sse`
-MCP SSE transport -- server-to-client events.
+Reports on and controls the currently scoped workspace.
 
-### `POST /mcp/message`
-MCP JSON-RPC 2.0 -- client-to-server. 4MB body limit.
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/workspace` | Workspace status (alias of `/status`). |
+| GET | `/api/workspace/status` | Name, root/state dirs, agent counts, server/runtime/storage config, gateway enablement, version. |
+| GET | `/api/workspace/roles` | All roles resolved through inheritance. |
+| POST | `/api/workspace/up` | Create/start the `root` agent. Optional body: `{"tool","runtime"}`. Returns `{"status":"started","session"}` or `{"status":"already_running"}`. |
+| POST | `/api/workspace/down` | Stop all agents. Returns `{"stopped": <n>}`. |
 
-See [backend/mcp.md](../backend/mcp.md) for resources, tools, and notifications.
+---
+
+## Doctor
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/doctor` | Run all workspace health checks. |
+| GET | `/api/doctor/{category}` | Run one category; `404` for unknown categories. |
+
+---
+
+## Dependencies
+
+Optional service dependencies managed by the server (e.g. database, code server, browser containers). Mutating endpoints are **loopback-only** unless `BC_REMOTE=1` is set.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/deps` | List dependencies with status: `{"deps": [{id, name, description, state, error?, deprecated}]}`. |
+| GET | `/api/deps/{id}` | One dependency's detail. |
+| GET | `/api/deps/{id}/status` | Same as detail (compatibility route). |
+| POST | `/api/deps/{id}/start` | Start (loopback-only; `409` if deprecated). Returns `202`. |
+| POST | `/api/deps/{id}/stop` | Stop (loopback-only). Returns `202`. |
+| GET | `/api/deps/{id}/logs` | **SSE** stream of log lines (`event: log`). Query: `tail` (default 200, max 2000). |
+
+---
+
+## Files
+
+Attachment upload/download (channel attachments and shared screenshots).
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/api/files/upload` | Multipart upload. Fields: `file` (required), `channel` (required), `sender` (optional, default `web`). Returns `201` with file metadata. |
+| GET | `/api/files/{id}` | Download/serve a stored file (inline, cached for a day). |
+
+---
+
+## Code
+
+Read-only code browsing for agent worktrees. All endpoints take `worktree=<agent name>` to target an agent's worktree (resolved against the scoped workspace).
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/code/tree` | Directory listing. Query: `path`, `worktree`, `show_hidden=1`. Returns `[{name, path, is_dir, size?}]` (`.git` and `.bc` hidden at top level by default). |
+| GET | `/api/code/file` | File contents (max 2 MiB). Query: `path` (required), `worktree`. |
+| GET | `/api/code/diff` | `git diff main...HEAD` for the worktree as `text/plain`. Query: `worktree`, `path` (optional narrow). Empty body for the `main` worktree or missing `main` ref. |
+| GET | `/api/code/search` | ripgrep-backed search. Query: `q` (required, ≤1024 chars), `worktree`, `path` (subdir), `max` (default 500, max 2000), `case=1` (case-insensitive), `regex=1` (regex instead of literal). Returns `{"matches":[{path, line, col, text, before, after}], "truncated", "elapsed_ms"}`. |
+
+`GET /api/code` (no sub-path) returns `404` with a hint listing the sub-routes.
+
+---
+
+## MCP Protocol (agent-facing)
+
+The MCP server (SSE transport) that agents connect to for `send_message` / `report_status` / `query_costs` tools. These paths bypass API-key auth.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/_mcp/ws/{workspaceID}/{agent}/sse` | Canonical scoped SSE connection for an agent in a specific workspace. |
+| POST | `/_mcp/ws/{workspaceID}/{agent}/message` | JSON-RPC requests (responses are delivered over the SSE stream). |
+| GET | `/_mcp/{agent}/sse` | Legacy agent-scoped path — rewritten in-flight to the active workspace's scoped path, with `Deprecation`/`Sunset` headers. |
+| POST | `/_mcp/{agent}/message` | Legacy agent-scoped message path (same rewrite). |
+| GET | `/_mcp/sse` | Legacy un-scoped SSE (no agent identity), targeting the launch workspace. |
+| POST | `/_mcp/message` | Legacy un-scoped message endpoint. |
+
+Agent identity is carried by the path segment (injected as the `agent` query parameter internally).
+
+---
+
+## Endpoint Index
+
+| Resource | Endpoints |
+|----------|-----------|
+| Health | 4 |
+| Agents (collection + bulk + per-agent) | 43 |
+| Agent stats timeseries | 8 |
+| Channels & Notify | 8 |
+| Gateways (+ webhooks) | 15 |
+| Costs (incl. global) | 13 |
+| Cron | 9 |
+| Secrets | 5 |
+| MCP servers | 7 |
+| Tools (incl. unified) | 10 |
+| Templates | 5 |
+| Providers | 9 |
+| Roles | 5 |
+| Settings | 2 |
+| Events, Logs & SSE | 6 |
+| Stats (summaries + system + channels) | 10 |
+| Workspaces registry (+ discovery/auth) | 12 |
+| Workspace (active) | 5 |
+| Doctor | 2 |
+| Dependencies | 6 |
+| Files | 2 |
+| Code | 4 |
+| MCP protocol | 6 |
