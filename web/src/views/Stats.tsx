@@ -107,6 +107,67 @@ function AgentArea({
     />
   );
 }
+
+/**
+ * Interactive per-chart legend. Renders one chip per agent with the
+ * matching swatch + dash pattern; hover raises the paired chart series
+ * to full opacity via `hidden` set on siblings, and click toggles the
+ * series' visibility (persisted in `hidden` state). Passed as a
+ * <Panel actions={...} /> to sit inline with the panel title.
+ * #3205 v0.3.3 batch 9.
+ */
+function InteractiveLegend({
+  agents,
+  colors,
+  hovered,
+  hidden,
+  onHover,
+  onToggle,
+}: {
+  agents: string[];
+  colors: Record<string, string>;
+  hovered: string | null;
+  hidden: Set<string>;
+  onHover: (n: string | null) => void;
+  onToggle: (n: string) => void;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      {agents.map((n, i) => {
+        const isHidden = hidden.has(n);
+        const dash = DASH_PATTERNS[i % DASH_PATTERNS.length];
+        return (
+          <button
+            key={n}
+            type="button"
+            onClick={() => onToggle(n)}
+            onMouseEnter={() => onHover(n)}
+            onMouseLeave={() => onHover(null)}
+            className={`inline-flex items-center gap-1.5 rounded-md border px-1.5 py-0.5 text-[10px] font-mono transition-opacity ${
+              isHidden
+                ? "border-mycel-border opacity-40 text-mycel-muted"
+                : hovered && hovered !== n
+                  ? "border-mycel-border/40 opacity-50"
+                  : "border-mycel-border text-mycel-text"
+            }`}
+            aria-pressed={!isHidden}
+            title={isHidden ? `Show ${n}` : `Hide ${n}`}
+          >
+            <svg width="14" height="6" viewBox="0 0 14 6" aria-hidden>
+              <line
+                x1="0" y1="3" x2="14" y2="3"
+                stroke={colors[n] ?? COLORS[0]}
+                strokeWidth={2}
+                strokeDasharray={dash || undefined}
+              />
+            </svg>
+            <span className="truncate max-w-[110px]">{n}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 const RANGES = [
   { label: "1h", seconds: 3600 },
   { label: "6h", seconds: 21600 },
@@ -176,6 +237,18 @@ export function Stats() {
   const [range, setRange] = useState(0);
   const [sortKey, setSortKey] = useState<SortKey>("cost");
   const [sortAsc, setSortAsc] = useState(false);
+  // Interactive-legend state, shared by the CPU + Memory charts since
+  // they share an agent set. Hover raises the paired series; click
+  // toggles visibility. #3205 v0.3.3 batch 9.
+  const [hoveredAgent, setHoveredAgent] = useState<string | null>(null);
+  const [hiddenAgents, setHiddenAgents] = useState<Set<string>>(new Set());
+  const toggleAgent = useCallback((n: string) => {
+    setHiddenAgents((prev) => {
+      const next = new Set(prev);
+      if (next.has(n)) next.delete(n); else next.add(n);
+      return next;
+    });
+  }, []);
 
   useHeaderSlot({
     title: <TabHeaderTitle>Metrics</TabHeaderTitle>,
@@ -391,6 +464,20 @@ export function Stats() {
           Agents table's Name column immediately above. Interactive legend
           (hover-to-highlight, click-to-toggle) tracked as P2 on #3205. */}
 
+      {/* Interactive shared legend for the CPU + Memory charts. Hover
+          raises the paired series, click toggles visibility. Both charts
+          key off the same agent set so one legend controls both. */}
+      {(cpuChart.agents.length > 0 || memChart.agents.length > 0) && (
+        <InteractiveLegend
+          agents={cpuChart.agents.length > 0 ? cpuChart.agents : memChart.agents}
+          colors={agentColors}
+          hovered={hoveredAgent}
+          hidden={hiddenAgents}
+          onHover={setHoveredAgent}
+          onToggle={toggleAgent}
+        />
+      )}
+
       {/* Row 1: CPU + Memory */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <Panel title="CPU by Agent (%)">
@@ -410,9 +497,19 @@ export function Stats() {
                   tickFormatter={(v: number) => `${v.toFixed(v < 10 ? 1 : 0)}%`}
                 />
                 <Tooltip contentStyle={TT} formatter={(v, name) => [`${Number(v ?? 0).toFixed(2)}%`, name]} />
-                {cpuChart.agents.map((n, i) => (
-                  <AgentArea key={n} name={n} color={agentColors[n]} fillOpacity={0.08} dashIndex={i} />
-                ))}
+                {cpuChart.agents.filter(n => !hiddenAgents.has(n)).map((n) => {
+                  const i = cpuChart.agents.indexOf(n);
+                  const dim = hoveredAgent && hoveredAgent !== n;
+                  return (
+                    <AgentArea
+                      key={n}
+                      name={n}
+                      color={agentColors[n]}
+                      fillOpacity={dim ? 0.02 : 0.08}
+                      dashIndex={i}
+                    />
+                  );
+                })}
               </AreaChart>
             </ResponsiveContainer>
           )}
@@ -425,9 +522,20 @@ export function Stats() {
                 <XAxis dataKey="time" tick={TICK_STYLE} {...AX} />
                 <YAxis tick={TICK_STYLE} {...AX} />
                 <Tooltip contentStyle={TT} formatter={(v) => [`${Number(v ?? 0).toFixed(1)} MB`]} />
-                {memChart.agents.map((n, i) => (
-                  <AgentArea key={n} name={n} color={agentColors[n]} fillOpacity={0.20} stackId="mem" dashIndex={i} />
-                ))}
+                {memChart.agents.filter(n => !hiddenAgents.has(n)).map((n) => {
+                  const i = memChart.agents.indexOf(n);
+                  const dim = hoveredAgent && hoveredAgent !== n;
+                  return (
+                    <AgentArea
+                      key={n}
+                      name={n}
+                      color={agentColors[n]}
+                      fillOpacity={dim ? 0.05 : 0.20}
+                      stackId="mem"
+                      dashIndex={i}
+                    />
+                  );
+                })}
               </AreaChart>
             </ResponsiveContainer>
           )}
