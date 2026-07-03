@@ -3,7 +3,6 @@ package notify
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -101,12 +100,8 @@ CREATE TABLE IF NOT EXISTS notify_messages (
     channel   TEXT NOT NULL,
     sender    TEXT NOT NULL,
     content   TEXT NOT NULL,
-    reactions TEXT,  -- JSON array of {name, count} or NULL; #3075
     created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
 );
--- Additive migration for pre-#3075 installs; ignored if column exists.
--- SQLite doesn't support IF NOT EXISTS on ALTER TABLE ADD COLUMN, but
--- our initSchema logs and continues on error so a re-run is safe.
 
 CREATE TABLE IF NOT EXISTS notify_channels (
     bc_channel   TEXT PRIMARY KEY,
@@ -332,35 +327,18 @@ func (s *Store) TotalMessageCount(ctx context.Context) (int, error) {
 
 // MessageRecord is a stored inbound gateway message for the activity feed.
 type MessageRecord struct {
-	CreatedAt time.Time         `json:"created_at"`
-	Channel   string            `json:"channel"`
-	Sender    string            `json:"sender"`
-	Content   string            `json:"content"`
-	Reactions []MessageReaction `json:"reactions,omitempty"`
-	ID        int64             `json:"id"`
-}
-
-// MessageReaction is a per-emoji count on a message. Populated from the
-// inbound gateway payload when the platform exposes reactions (Slack,
-// Discord). Empty for platforms that don't.
-type MessageReaction struct {
-	Name  string `json:"name"`
-	Count int    `json:"count"`
+	CreatedAt time.Time `json:"created_at"`
+	Channel   string    `json:"channel"`
+	Sender    string    `json:"sender"`
+	Content   string    `json:"content"`
+	ID        int64     `json:"id"`
 }
 
 // SaveMessage stores an inbound gateway message for the activity feed.
-// Pass a nil `reactions` for platforms that don't surface them.
-func (s *Store) SaveMessage(ctx context.Context, channel, sender, content string, reactions []MessageReaction) error {
-	var reactionsJSON any
-	if len(reactions) > 0 {
-		b, mErr := json.Marshal(reactions)
-		if mErr == nil {
-			reactionsJSON = string(b)
-		}
-	}
+func (s *Store) SaveMessage(ctx context.Context, channel, sender, content string) error {
 	_, err := s.db.ExecContext(ctx, s.q(
-		`INSERT INTO notify_messages (channel, sender, content, reactions) VALUES (?, ?, ?, ?)`),
-		channel, sender, content, reactionsJSON)
+		`INSERT INTO notify_messages (channel, sender, content) VALUES (?, ?, ?)`),
+		channel, sender, content)
 	return err
 }
 
@@ -373,12 +351,12 @@ func (s *Store) GetMessages(ctx context.Context, channel string, limit int, befo
 	var err error
 	if before > 0 {
 		rows, err = s.db.QueryContext(ctx, s.q(
-			`SELECT id, channel, sender, content, reactions, created_at FROM notify_messages
+			`SELECT id, channel, sender, content, created_at FROM notify_messages
 			 WHERE channel = ? AND id < ? ORDER BY id DESC LIMIT ?`),
 			channel, before, limit)
 	} else {
 		rows, err = s.db.QueryContext(ctx, s.q(
-			`SELECT id, channel, sender, content, reactions, created_at FROM notify_messages
+			`SELECT id, channel, sender, content, created_at FROM notify_messages
 			 WHERE channel = ? ORDER BY id DESC LIMIT ?`),
 			channel, limit)
 	}
@@ -391,15 +369,10 @@ func (s *Store) GetMessages(ctx context.Context, channel string, limit int, befo
 	for rows.Next() {
 		var m MessageRecord
 		var createdStr string
-		var reactionsRaw sql.NullString
-		if err := rows.Scan(&m.ID, &m.Channel, &m.Sender, &m.Content, &reactionsRaw, &createdStr); err != nil {
+		if err := rows.Scan(&m.ID, &m.Channel, &m.Sender, &m.Content, &createdStr); err != nil {
 			return nil, err
 		}
 		m.CreatedAt, _ = time.Parse(time.RFC3339, createdStr) //nolint:errcheck // DB-written timestamp
-		if reactionsRaw.Valid && reactionsRaw.String != "" {
-			// Best-effort — malformed JSON just drops the reactions.
-			_ = json.Unmarshal([]byte(reactionsRaw.String), &m.Reactions) //nolint:errcheck
-		}
 		msgs = append(msgs, m)
 	}
 	return msgs, rows.Err()

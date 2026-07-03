@@ -114,25 +114,12 @@ export function MessageList({
               </time>
             </div>
             {group.messages.map((msg) => (
-              <div key={msg.id}>
-                <p className="mt-0.5 text-[13px] whitespace-pre-wrap break-words text-mycel-text/80 leading-[1.65]">
-                  <MessageContent content={msg.content} />
-                </p>
-                {msg.reactions && msg.reactions.length > 0 && (
-                  <div className="mt-1 flex flex-wrap gap-1">
-                    {msg.reactions.map((r) => (
-                      <span
-                        key={r.name}
-                        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full border border-mycel-border bg-mycel-surface text-[11px] text-mycel-muted"
-                        title={`:${r.name}: · ${String(r.count)}`}
-                      >
-                        <span>:{r.name}:</span>
-                        <span className="font-mono tabular-nums">{r.count}</span>
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </div>
+              <p
+                key={msg.id}
+                className="mt-0.5 text-[13px] whitespace-pre-wrap break-words text-mycel-text/80 leading-[1.65]"
+              >
+                <MessageContent content={msg.content} />
+              </p>
             ))}
           </div>
         </div>

@@ -634,34 +634,20 @@ func (h *GatewayHandler) legacyChannelHistory(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	// Convert to legacy format. Reactions optional — omitted from JSON when
-	// nil so clients that don't render them stay backward-compatible.
-	type reactionOut struct {
-		Name  string `json:"name"`
-		Count int    `json:"count"`
-	}
+	// Convert to legacy format
 	type legacyMessage struct {
-		Sender    string        `json:"sender"`
-		Content   string        `json:"content"`
-		CreatedAt string        `json:"created_at"`
-		Reactions []reactionOut `json:"reactions,omitempty"`
-		ID        int64         `json:"id"`
+		Sender    string `json:"sender"`
+		Content   string `json:"content"`
+		CreatedAt string `json:"created_at"`
+		ID        int64  `json:"id"`
 	}
 	result := make([]legacyMessage, len(msgs))
 	for i, m := range msgs {
-		var rs []reactionOut
-		if len(m.Reactions) > 0 {
-			rs = make([]reactionOut, len(m.Reactions))
-			for j, r := range m.Reactions {
-				rs[j] = reactionOut{Name: r.Name, Count: r.Count}
-			}
-		}
 		result[i] = legacyMessage{
 			ID:        m.ID,
 			Sender:    m.Sender,
 			Content:   m.Content,
 			CreatedAt: m.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
-			Reactions: rs,
 		}
 	}
 	writeJSON(w, http.StatusOK, result)

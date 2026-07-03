@@ -1089,7 +1089,7 @@ func TestMessageStorage(t *testing.T) {
 			ctx := context.Background()
 
 			for _, m := range tt.messages {
-				if err := store.SaveMessage(ctx, m.channel, m.sender, m.content, nil); err != nil {
+				if err := store.SaveMessage(ctx, m.channel, m.sender, m.content); err != nil {
 					t.Fatalf("SaveMessage: %v", err)
 				}
 			}
@@ -1135,7 +1135,7 @@ func TestMessageStorage_Before(t *testing.T) {
 
 	// Save 5 messages
 	for i := range 5 {
-		_ = store.SaveMessage(ctx, "slack:eng", "sender", "msg", nil)
+		_ = store.SaveMessage(ctx, "slack:eng", "sender", "msg")
 		_ = i // suppress unused warning
 	}
 
