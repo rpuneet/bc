@@ -209,15 +209,15 @@ export function ToolNodeRow({ node, depth = 0, searchQuery = "" }: { node: ToolN
         >
           {hasDetails ? "\u25B6" : "\u00B7"}
         </motion.span>
-        {/* Tool icon in rounded container */}
-        <span className="inline-flex items-center justify-center h-5 w-5 rounded bg-mycel-surface border border-mycel-border/60 shrink-0">
-          <ToolDot status={node.status} />
-        </span>
-        <span className="shrink-0">
+        {/* Status dot — inline, no border container. The chevron + this
+            dot together carry all the "row status" signal; the previous
+            bordered pill was one glyph too many per row. #3205 P1c. */}
+        <ToolDot status={node.status} />
+        <span className="shrink-0 font-semibold">
           <ToolNameDisplay toolName={node.toolName} searchQuery={searchQuery} />
         </span>
         {node.args && (
-          <span className="text-[12px] text-mycel-muted font-mono min-w-0 flex-1 break-words" title={redactSecrets(node.args)}>
+          <span className="text-[12px] text-mycel-muted/80 font-mono min-w-0 flex-1 break-words" title={redactSecrets(node.args)}>
             {searchQuery ? <SearchHighlight text={redactSecrets(node.args)} query={searchQuery} /> : redactSecrets(node.args)}
           </span>
         )}
@@ -433,22 +433,28 @@ export function AggregatedNodeRow({ node, searchQuery = "" }: { node: Aggregated
         <span className="text-mycel-muted text-xs select-none mt-[3px] shrink-0">
           {expanded ? "\u25BC" : "\u25B6"}
         </span>
-        <span className="inline-flex h-2 w-2 mt-[5px] shrink-0 rounded-full bg-mycel-success" />
+        <span className={`inline-flex h-2 w-2 mt-[5px] shrink-0 rounded-full ${
+          node.failCount > 0 ? "bg-mycel-warning" : "bg-mycel-success"
+        }`} />
         <ToolNameDisplay toolName={node.toolName} />
         <span className="text-[12px] font-mono font-semibold text-mycel-accent px-1.5 py-0 rounded bg-mycel-accent/10">
           &times;{node.count}
         </span>
+        {/* At-rest summary is intentionally sparse — total count + failure
+            call-out only. avg/total-duration/ok-ratio move behind the
+            expand chevron (#3205 P1c) so the log row reads as a scannable
+            line rather than a paragraph. */}
         <span className="text-[11px] text-mycel-muted font-mono tabular-nums flex-1 min-w-0">
           {node.count} total
-          {node.totalDuration > 0 && <> &middot; {elapsed(0, node.totalDuration)}</>}
-          {node.totalDuration > 0 && node.count > 1 && (
-            <> &middot; avg {elapsed(0, Math.round(node.totalDuration / node.count))}</>
-          )}
-          {node.totalTokens > 0 && <> &middot; {node.totalTokens.toLocaleString()} tok</>}
           {node.failCount > 0 && (
             <span className="text-mycel-error"> &middot; {node.failCount} failed</span>
           )}
-          <> &middot; {node.successCount}/{node.count} ok</>
+          {expanded && node.totalDuration > 0 && <> &middot; {elapsed(0, node.totalDuration)}</>}
+          {expanded && node.totalDuration > 0 && node.count > 1 && (
+            <> &middot; avg {elapsed(0, Math.round(node.totalDuration / node.count))}</>
+          )}
+          {expanded && node.totalTokens > 0 && <> &middot; {node.totalTokens.toLocaleString()} tok</>}
+          {expanded && <> &middot; {node.successCount}/{node.count} ok</>}
         </span>
       </button>
 
