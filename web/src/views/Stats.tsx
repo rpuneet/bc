@@ -301,8 +301,8 @@ export function Stats() {
                           : a.state === "error" ? "bg-mycel-error"
                           : "bg-mycel-muted"
                         }`} />
-                        <span className={a.state === "unknown" ? "text-mycel-muted italic" : ""}>
-                          {a.state === "unknown" ? "system" : a.state}
+                        <span className={(!a.state || a.state === "unknown") ? "text-mycel-muted italic" : ""}>
+                          {(!a.state || a.state === "unknown") ? "system" : a.state}
                         </span>
                       </span>
                     </td>
