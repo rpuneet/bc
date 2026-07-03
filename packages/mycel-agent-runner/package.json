@@ -1,6 +1,6 @@
 {
   "name": "@mycel/agent-runner",
-  "version": "0.3.4",
+  "version": "0.3.5",
   "description": "Thin HTTP wrapper around the Claude Agent SDK. Hosts a single Claude agent and exposes it over REST + SSE so bcd can drive it.",
   "license": "MIT",
   "type": "module",
