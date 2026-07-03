@@ -288,11 +288,22 @@ export function Stats() {
                     <td className="py-1.5 px-2 text-mycel-muted">{a.provider}</td>
                     <td className="py-1.5 px-2">
                       <span className="flex items-center gap-1.5">
+                        {/* Distinct semantic tokens per state so idle vs
+                            working vs running don't all collapse to the
+                            same green. Unknown → muted grey (rendered
+                            without a text label since it's usually
+                            infra like `server`). */}
                         <span className={`w-1.5 h-1.5 rounded-full ${
-                          a.state === "working" || a.state === "idle" || a.state === "running" ? "bg-green-500"
-                          : a.state === "stuck" ? "bg-orange-500" : "bg-mycel-muted"
+                          a.state === "working" ? "bg-mycel-success"
+                          : a.state === "idle" ? "bg-mycel-warning"
+                          : a.state === "running" ? "bg-mycel-info"
+                          : a.state === "stuck" ? "bg-mycel-warning"
+                          : a.state === "error" ? "bg-mycel-error"
+                          : "bg-mycel-muted"
                         }`} />
-                        {a.state}
+                        <span className={a.state === "unknown" ? "text-mycel-muted italic" : ""}>
+                          {a.state === "unknown" ? "system" : a.state}
+                        </span>
                       </span>
                     </td>
                     <td className="py-1.5 px-2 font-mono">{a.cpu.toFixed(1)}</td>
@@ -307,17 +318,9 @@ export function Stats() {
         </Panel>
       )}
 
-      {/* Sticky agent legend bar */}
-      {Object.keys(agentColors).length > 0 && (
-        <div className="sticky top-0 z-10 flex flex-wrap items-center gap-3 px-3 py-2 bg-mycel-bg/95 backdrop-blur-sm border-b border-mycel-border">
-          {Object.entries(agentColors).map(([name, color]) => (
-            <span key={name} className="flex items-center gap-1.5 text-xs text-mycel-muted">
-              <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: color }} />
-              {name}
-            </span>
-          ))}
-        </div>
-      )}
+      {/* Legend removed — agent names + swatches are already in the
+          Agents table's Name column immediately above. Interactive legend
+          (hover-to-highlight, click-to-toggle) tracked as P2 on #3205. */}
 
       {/* Row 1: CPU + Memory */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
