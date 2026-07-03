@@ -16,7 +16,39 @@ export function MessageContent({
   content: string;
   agentNames?: Set<string>;
 }) {
-  return <>{parseContent(content, agentNames)}</>;
+  return <>{parseContent(normalizePlatformMrkdwn(content), agentNames)}</>;
+}
+
+/**
+ * Rewrites Slack (and Slack-lookalike) mrkdwn angle-bracket syntax into a
+ * form the existing tokenizer can render:
+ *
+ *   <@U0AP1U92T3K>          → @user
+ *   <@U0AP1U92T3K|name>     → @name
+ *   <#C0BAJV8UXLL|general>  → #general
+ *   <#C0BAJV8UXLL>          → #channel
+ *   <https://foo|label>     → label (https://foo)  — kept as raw text so
+ *                             the URL still gets picked up by the URL
+ *                             matcher below without a proper link parser
+ *   <https://foo>           → https://foo
+ *
+ * Slack sends these tokens verbatim in the message payload, which looks
+ * broken in the UI (raw user IDs, unclickable channel refs). Fully
+ * resolving user IDs to display names needs a Slack users.info round
+ * trip and belongs on the server; this client-side pass at least
+ * strips the noise.
+ */
+function normalizePlatformMrkdwn(text: string): string {
+  return text
+    // <@USERID|label> → @label; <@USERID> → @user
+    .replace(/<@[A-Z0-9]+\|([^>]+)>/g, "@$1")
+    .replace(/<@[A-Z0-9]+>/g, "@user")
+    // <#CHANNELID|name> → #name; <#CHANNELID> → #channel
+    .replace(/<#[A-Z0-9]+\|([^>]+)>/g, "#$1")
+    .replace(/<#[A-Z0-9]+>/g, "#channel")
+    // <https://url|label> → label (https://url); <https://url> → https://url
+    .replace(/<(https?:\/\/[^|>]+)\|([^>]+)>/g, "$2 ($1)")
+    .replace(/<(https?:\/\/[^>]+)>/g, "$1");
 }
 
 const IMAGE_EXT = /\.(png|jpg|jpeg|gif|webp|svg)(\?|$)/i;
