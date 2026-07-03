@@ -57,12 +57,11 @@ markdown_extensions:
   - toc:
       permalink: true
 
-# Skip the parked notifications page (pygments NoneType filename bug
-# in one of its code fences) and any other underscore-prefixed archive
-# files until they can be rehabilitated.
+# Skip underscore-prefixed archive drafts (rehabilitated notifications
+# page has been renamed to architecture-notifications.md and is wired
+# into the nav below).
 exclude_docs: |
   _*
-  _archive-notifications.md
 
 nav:
   - Home: index.md
@@ -82,6 +81,7 @@ nav:
     - Terminal UI: explanation/tui.md
     - Design system: explanation/design-system.md
     - Networking: explanation/networking.md
+    - Notification architecture: architecture-notifications.md
     - Security: explanation/security.md
     - Deployment: explanation/deployment.md
     - CI / CD: explanation/ci-cd.md

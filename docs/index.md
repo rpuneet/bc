@@ -16,7 +16,7 @@ Step-by-step guides for getting started with bc.
 Practical guides for accomplishing specific tasks.
 
 - [Configure your workspace](how-to/configure-workspace.md) -- Settings, providers, and runtime backends
-- [Notification Architecture](architecture/notifications.md) -- Notification gateway, platform integrations, and subscriptions
+- [Notification Architecture](architecture-notifications.md) -- Notification gateway, platform integrations, and subscriptions
 - [Set Up Notifications](how-to/set-up-notifications.md) -- Connect platforms and subscribe agents
 - [Troubleshoot issues](how-to/troubleshoot.md) -- Common errors and fixes
 

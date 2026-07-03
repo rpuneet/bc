@@ -219,7 +219,7 @@ Delete role. Agents keep their current config.
 
 ## Gateways & Channels
 
-Notification gateways bridge external platforms to bc agents. See [Channel Architecture](../architecture/notifications.md) for full design.
+Notification gateways bridge external platforms to bc agents. See [Channel Architecture](../architecture-notifications.md) for full design.
 
 ### `GET /api/gateways`
 

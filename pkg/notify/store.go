@@ -332,12 +332,12 @@ func (s *Store) TotalMessageCount(ctx context.Context) (int, error) {
 
 // MessageRecord is a stored inbound gateway message for the activity feed.
 type MessageRecord struct {
-	CreatedAt time.Time     `json:"created_at"`
-	Channel   string        `json:"channel"`
-	Sender    string        `json:"sender"`
-	Content   string        `json:"content"`
+	CreatedAt time.Time         `json:"created_at"`
+	Channel   string            `json:"channel"`
+	Sender    string            `json:"sender"`
+	Content   string            `json:"content"`
 	Reactions []MessageReaction `json:"reactions,omitempty"`
-	ID        int64         `json:"id"`
+	ID        int64             `json:"id"`
 }
 
 // MessageReaction is a per-emoji count on a message. Populated from the
