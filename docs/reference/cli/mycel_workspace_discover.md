@@ -6,7 +6,7 @@ Discover and register workspaces
 
 Scan filesystem for mycel workspaces and add them to the registry.
 
-This updates ~/.bc/workspaces.json with newly found workspaces.
+This updates ~/.mycel/workspaces.json with newly found workspaces.
 
 Examples:
   mycel workspace discover                # Scan default locations
