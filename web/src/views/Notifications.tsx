@@ -10,7 +10,7 @@ import { ChannelStream } from "../components/notifications/ChannelStream";
 import { useHeaderSlot } from "../context/HeaderSlotContext";
 import { TabHeaderTitle } from "../components/Header";
 export function Notifications() {
-  // Set a default header; GatewayFeed overrides this when a channel is active.
+  // Set a default header; ChannelStream overrides this when a channel is active.
   // useMemo ensures stable references to avoid infinite re-render loops.
   const defaultTitle = useMemo(() => <TabHeaderTitle>Notifications</TabHeaderTitle>, []);
   useHeaderSlot({ title: defaultTitle });

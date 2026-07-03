@@ -10,6 +10,12 @@ import (
 	"github.com/rpuneet/mycel/pkg/log"
 )
 
+// agentOfflineRe matches the two well-known "agent isn't running" error
+// text patterns from pkg/agent — used to record delivery attempts to
+// offline agents as StatusSkipped rather than StatusFailed so the
+// failed-delivery count only reflects genuine send errors.
+var agentOfflineRe = regexp.MustCompile(`(?i)agent not running|is stopped`)
+
 // AgentSender is the interface for sending a message to an agent's tmux session.
 // Implemented by *agent.AgentService (Send method).
 type AgentSender interface {
@@ -146,12 +152,21 @@ func (s *Service) Dispatch(channel, platform, sender, senderID, content, message
 			sendErr := s.agents.Send(ctx, sub.Agent, string(payload))
 			status := StatusDelivered
 			errStr := ""
-			if sendErr != nil {
+			switch {
+			case sendErr == nil:
+				log.Info("notify: delivered", "agent", sub.Agent, "channel", channel)
+			case agentOfflineRe.MatchString(sendErr.Error()):
+				// Subscribed agent was offline when the message arrived
+				// — the routing decision was correct, delivery just
+				// wasn't attempted. Skip the delivery-log write entirely
+				// so the failed-delivery count only reflects genuine
+				// send errors, not routine offline-agent skips.
+				log.Debug("notify: delivery skipped (agent offline)", "agent", sub.Agent, "channel", channel)
+				continue
+			default:
 				status = StatusFailed
 				errStr = sendErr.Error()
 				log.Warn("notify: delivery failed", "agent", sub.Agent, "channel", channel, "error", sendErr)
-			} else {
-				log.Info("notify: delivered", "agent", sub.Agent, "channel", channel)
 			}
 
 			if logErr := s.store.LogDelivery(ctx, DeliveryEntry{
