@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAgentActivity } from "../hooks/useAgentActivity";
 import { EmptyState } from "../components/EmptyState";
 import type { FilterType } from "../components/live/liveTypes";
-import { nodeMatchesSearch } from "../components/live/liveHelpers";
+import { flattenNodes, nodeMatchesSearch } from "../components/live/liveHelpers";
 import { AgentCard, AgentDrillDown } from "../components/live/LiveRenderers";
 
 import { useHeaderSlot } from "../context/HeaderSlotContext";
@@ -201,7 +201,7 @@ export function Live() {
           const q = searchFilter.toLowerCase();
           const cardHay = `${a.name} ${a.role} ${a.task} ${a.tool}`.toLowerCase();
           if (cardHay.includes(q)) return true;
-          const hasMatchingNode = a.nodes.some((n) => nodeMatchesSearch(n, q));
+          const hasMatchingNode = flattenNodes(a.nodes).some((n) => nodeMatchesSearch(n, q));
           if (!hasMatchingNode) return false;
         }
         return true;
@@ -534,7 +534,6 @@ export function Live() {
                 isFilterActive={false}
                 searchTerm={searchFilter}
                 typeFilter={typeFilter}
-                isPaused={paused}
               />
             </div>
           ))

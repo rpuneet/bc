@@ -1,34 +1,25 @@
 import { useCallback, useEffect, useMemo, useState, memo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { Link } from "react-router-dom";
 import type {
   AgentActivity,
-  AggregatedNode,
-  DisplayNode,
   DrillDownTab,
   FilterType,
   RawEvent,
   TaskItem,
-  ToolNode,
 } from "./liveTypes";
-import { isAggregatedNode, AUTO_COLLAPSE_MS } from "./liveTypes";
 import {
-  aggregateNodes,
-  durationColorClass,
-  durationPillClass,
-  elapsed,
   estimateCost,
+  flattenNodes,
   idleDuration,
-  mcpBadgeColors,
-  mcpServerIcon,
   nodeMatchesSearch,
-  parseToolName,
-  redactSecrets,
   redactValue,
-  relativeTime,
-  sortNodes,
   stateBadgeClass,
-  toolIcon,
 } from "./liveHelpers";
+import { CopyButton, EventRow } from "./EventRow";
+
+// Shared row primitives live in EventRow.tsx; re-export for compatibility.
+export { CopyButton, ElapsedTimer, EventRow, RelativeTimestamp, SearchHighlight } from "./EventRow";
 
 /* ── State Dots ────────────────────────────────────────────────────── */
 
@@ -52,45 +43,6 @@ export function StateDot({ state }: { state: string }) {
   return <span className="inline-flex h-2.5 w-2.5 rounded-full bg-mycel-muted/40" />;
 }
 
-export function ToolDot({ status }: { status: ToolNode["status"] }) {
-  if (status === "running")
-    return (
-      <span className="relative flex h-2 w-2 mt-[5px] shrink-0">
-        <span className="absolute inline-flex h-full w-full animate-pulse rounded-full bg-mycel-accent opacity-75" />
-        <span className="relative inline-flex h-2 w-2 rounded-full bg-mycel-accent" />
-      </span>
-    );
-  if (status === "failed")
-    return <span className="inline-flex h-2 w-2 mt-[5px] shrink-0 rounded-full bg-mycel-error" />;
-  return <span className="inline-flex h-2 w-2 mt-[5px] shrink-0 rounded-full bg-mycel-success" />;
-}
-
-/* ── Elapsed Timer ─────────────────────────────────────────────────── */
-
-export function ElapsedTimer({ start }: { start: number }) {
-  const [, setTick] = useState(0);
-  useEffect(() => {
-    const id = setInterval(() => setTick((t) => t + 1), 200);
-    return () => clearInterval(id);
-  }, []);
-  return <>{elapsed(start)}</>;
-}
-
-/* ── Relative Timestamp ───────────────────────────────────────────── */
-
-export function RelativeTimestamp({ ts }: { ts: number }) {
-  const [, setTick] = useState(0);
-  useEffect(() => {
-    const id = setInterval(() => setTick((t) => t + 1), 1000);
-    return () => clearInterval(id);
-  }, []);
-  return (
-    <span title={new Date(ts).toISOString()} className="text-[10px] text-mycel-muted font-mono tabular-nums">
-      {relativeTime(ts)}
-    </span>
-  );
-}
-
 /* ── Idle Timer ───────────────────────────────────────────────────── */
 
 export function IdleTimer({ lastEventTime }: { lastEventTime: number }) {
@@ -100,382 +52,6 @@ export function IdleTimer({ lastEventTime }: { lastEventTime: number }) {
     return () => clearInterval(id);
   }, []);
   return <>{idleDuration(lastEventTime)}</>;
-}
-
-/* ── Copy Button ───────────────────────────────────────────────────── */
-
-export function CopyButton({ text }: { text: string }) {
-  const [copied, setCopied] = useState(false);
-  const handleCopy = useCallback(() => {
-    navigator.clipboard.writeText(text).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    }).catch(() => {});
-  }, [text]);
-
-  return (
-    <button
-      type="button"
-      onClick={(e) => { e.stopPropagation(); handleCopy(); }}
-      className="text-[10px] text-mycel-muted hover:text-mycel-text px-1.5 py-0.5 rounded border border-mycel-border/40 hover:border-mycel-accent transition-colors shrink-0"
-      aria-label="Copy to clipboard"
-    >
-      {copied ? "Copied" : "Copy"}
-    </button>
-  );
-}
-
-/* ── MCP Badge ─────────────────────────────────────────────────────── */
-
-export function McpBadge({ server, func }: { server: string; func: string }) {
-  return (
-    <span className="inline-flex items-center gap-1">
-      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-mono ${mcpBadgeColors(server)}`}>
-        <span aria-hidden="true">{mcpServerIcon(server)}</span>
-        <span>{server}</span>
-      </span>
-      <span className="font-mono text-[13px] text-mycel-text font-medium">{func}</span>
-    </span>
-  );
-}
-
-/* ── Search Highlight ──────────────────────────────────────────────── */
-
-export function SearchHighlight({ text, query }: { text: string; query: string }) {
-  if (!query || !text) return <>{text}</>;
-  const lower = text.toLowerCase();
-  const q = query.toLowerCase();
-  const idx = lower.indexOf(q);
-  if (idx === -1) return <>{text}</>;
-  return (
-    <>
-      {text.slice(0, idx)}
-      <mark className="bg-yellow-500/20 text-inherit rounded px-0.5">{text.slice(idx, idx + q.length)}</mark>
-      {text.slice(idx + q.length)}
-    </>
-  );
-}
-
-/* ── Tool Name Display ─────────────────────────────────────────────── */
-
-export function ToolNameDisplay({ toolName, searchQuery }: { toolName: string; searchQuery?: string }) {
-  const parsed = parseToolName(toolName);
-  if (parsed.type === "mcp" && parsed.mcpServer && parsed.mcpFunction) {
-    return <McpBadge server={parsed.mcpServer} func={parsed.mcpFunction} />;
-  }
-  return (
-    <span className="inline-flex items-center gap-1">
-      <span className="text-[12px]" aria-hidden="true">{toolIcon(toolName)}</span>
-      <span className="font-mono text-[13px] text-mycel-text font-semibold">
-        {searchQuery ? <SearchHighlight text={parsed.display} query={searchQuery} /> : parsed.display}
-      </span>
-    </span>
-  );
-}
-
-/* ── Tool Node Row ─────────────────────────────────────────────────── */
-
-export function ToolNodeRow({ node, depth = 0, searchQuery = "" }: { node: ToolNode; depth?: number; searchQuery?: string }) {
-  const [expanded, setExpanded] = useState(false);
-  const indent = depth * 20;
-  const hasDetails = !!(node.fullInput || node.fullOutput || node.children.length > 0);
-  const isSubagentSpawn = node.toolName === "Agent" || node.toolName.startsWith("Agent:");
-
-  // Subagent tree: use AgentTreeNode for nested rendering
-  if (isSubagentSpawn) {
-    return <AgentTreeNode node={node} depth={depth} />;
-  }
-
-  const inputJson = node.fullInput ? JSON.stringify(redactValue(node.fullInput), null, 2) : "";
-  const outputJson = node.fullOutput ? JSON.stringify(redactValue(node.fullOutput), null, 2) : "";
-
-  return (
-    <>
-      <button
-        type="button"
-        className={`group flex items-center gap-2 py-1.5 px-3 w-full text-left hover:bg-mycel-surface-hover cursor-pointer transition-colors focus-visible:ring-2 focus-visible:ring-mycel-accent ${node.status === "failed" ? "!bg-mycel-error/5 hover:!bg-mycel-error/10" : ""}`}
-        style={{ paddingLeft: `${indent + 12}px` }}
-        onClick={() => setExpanded(!expanded)}
-        aria-label={`${expanded ? "Collapse" : "Expand"} tool ${node.toolName}`}
-      >
-        <span className="text-mycel-muted text-xs select-none shrink-0">
-          {depth > 0 ? "\u251C\u2500" : ""}
-        </span>
-        {/* Animated chevron */}
-        <motion.span
-          className="text-mycel-muted text-[10px] select-none shrink-0 w-3 text-center group-hover:text-mycel-muted"
-          animate={{ rotate: hasDetails ? (expanded ? 90 : 0) : 0 }}
-          transition={{ duration: 0.15 }}
-        >
-          {hasDetails ? "\u25B6" : "\u00B7"}
-        </motion.span>
-        {/* Status dot — inline, no border container. The chevron + this
-            dot together carry all the "row status" signal; the previous
-            bordered pill was one glyph too many per row. #3205 P1c. */}
-        <ToolDot status={node.status} />
-        <span className="shrink-0 font-semibold">
-          <ToolNameDisplay toolName={node.toolName} searchQuery={searchQuery} />
-        </span>
-        {node.args && (
-          <span className="text-[12px] text-mycel-muted/80 font-mono min-w-0 flex-1 break-words" title={redactSecrets(node.args)}>
-            {searchQuery ? <SearchHighlight text={redactSecrets(node.args)} query={searchQuery} /> : redactSecrets(node.args)}
-          </span>
-        )}
-        <span className="flex items-center gap-2 shrink-0">
-          <RelativeTimestamp ts={node.startTime} />
-          {/* Duration pill with color-coded background — hidden for historical events without timing */}
-          {node.status === "running" ? (
-            <span className="text-[11px] tabular-nums font-mono px-1.5 py-0.5 rounded-md bg-mycel-muted/10 text-mycel-muted">
-              <ElapsedTimer start={node.startTime} />
-            </span>
-          ) : node.endTime != null ? (
-            <span className={`text-[11px] tabular-nums font-mono px-1.5 py-0.5 rounded-md ${durationPillClass(node.startTime, node.endTime)}`}>
-              {elapsed(node.startTime, node.endTime)}
-            </span>
-          ) : null}
-        </span>
-      </button>
-
-      {node.error && (
-        <div
-          className="text-[11px] text-mycel-error/80 font-mono px-3 py-0.5"
-          style={{ paddingLeft: `${indent + 40}px` }}
-        >
-          {redactSecrets(node.error.length > 120 ? node.error.slice(0, 117) + "..." : node.error)}
-        </div>
-      )}
-
-      {expanded && node.fullInput && (
-        <div
-          className="text-[11px] font-mono px-3 py-1 bg-mycel-surface mx-3 mb-1 rounded overflow-x-auto max-h-48 overflow-y-auto"
-          style={{ marginLeft: `${indent + 12}px` }}
-        >
-          <div className="flex items-center justify-between mb-1">
-            <span className="text-[10px] text-mycel-muted uppercase tracking-wide font-semibold">Input</span>
-            <CopyButton text={inputJson} />
-          </div>
-          <pre className="whitespace-pre-wrap break-all text-mycel-muted">
-            {inputJson}
-          </pre>
-        </div>
-      )}
-
-      {expanded && node.fullOutput && (
-        <div
-          className="text-[11px] font-mono px-3 py-1 bg-mycel-surface mx-3 mb-1 rounded overflow-x-auto max-h-48 overflow-y-auto"
-          style={{ marginLeft: `${indent + 12}px` }}
-        >
-          <div className="flex items-center justify-between mb-1">
-            <span className="text-[10px] text-mycel-success uppercase tracking-wide font-semibold">Output</span>
-            <CopyButton text={outputJson} />
-          </div>
-          <pre className="whitespace-pre-wrap break-all text-mycel-success/80">
-            {outputJson}
-          </pre>
-        </div>
-      )}
-
-      {node.children.map((child) => (
-        <ToolNodeRow key={child.id} node={child} depth={depth + 1} searchQuery={searchQuery} />
-      ))}
-    </>
-  );
-}
-
-/* ── Agent Tree Node (recursive subagent nesting) ──────────────────── */
-
-export function AgentTreeNode({ node, depth = 0 }: { node: ToolNode; depth?: number }) {
-  const [expanded, setExpanded] = useState(true);
-  const indent = depth * 16;
-  const duration = node.endTime ? elapsed(node.startTime, node.endTime) : undefined;
-  const childCount = node.children.length;
-
-  const subagentChildren = node.children.filter(
-    (c) => c.toolName === "Agent" || c.toolName.startsWith("Agent:"),
-  );
-  const toolChildren = node.children.filter(
-    (c) => c.toolName !== "Agent" && !c.toolName.startsWith("Agent:"),
-  );
-
-  return (
-    <div style={{ marginLeft: `${indent}px` }}>
-      {/* Subagent header */}
-      <button
-        type="button"
-        className="group flex items-start gap-2 py-1.5 px-3 w-full text-left hover:bg-mycel-surface-hover cursor-pointer transition-colors focus-visible:ring-2 focus-visible:ring-mycel-accent bg-blue-950/20 rounded-md my-0.5"
-        onClick={() => setExpanded(!expanded)}
-        aria-label={`${expanded ? "Collapse" : "Expand"} subagent ${node.toolName}`}
-      >
-        <span className="text-mycel-muted text-[10px] select-none mt-[3px] shrink-0 w-3 text-center group-hover:text-mycel-muted">
-          {childCount > 0 ? (expanded ? "\u25BC" : "\u25B6") : "\u00B7"}
-        </span>
-        <ToolDot status={node.status} />
-        <span className="text-[13px]" aria-hidden="true">{"\uD83E\uDD16"}</span>
-        <span className="font-mono text-[13px] text-mycel-text font-semibold">{node.toolName}</span>
-        {node.args && (
-          <span className="text-[12px] text-mycel-muted truncate max-w-[300px] font-mono italic">
-            &ldquo;{node.args}&rdquo;
-          </span>
-        )}
-        <span className="ml-auto flex items-center gap-2 shrink-0">
-          <RelativeTimestamp ts={node.startTime} />
-          {node.status === "running" ? (
-            <span className="text-[11px] text-blue-400 font-mono tabular-nums">
-              {"\u23F1"} <ElapsedTimer start={node.startTime} />
-            </span>
-          ) : duration ? (
-            <span className={`text-[11px] font-mono tabular-nums ${durationColorClass(node.startTime, node.endTime)}`}>
-              {"\u23F1"} {duration}
-            </span>
-          ) : null}
-          {node.status === "completed" && (
-            <span className="text-[10px] text-mycel-success font-mono">{"\u2713"}</span>
-          )}
-          {node.status === "failed" && (
-            <span className="text-[10px] text-mycel-error font-mono">{"\u2717"}</span>
-          )}
-        </span>
-      </button>
-
-      {/* Tree children with connector lines */}
-      {expanded && childCount > 0 && (
-        <div className="border-l-2 border-mycel-muted/30 ml-4 pl-3">
-          {toolChildren.map((child, idx) => {
-            const isLast = idx === toolChildren.length - 1 && subagentChildren.length === 0;
-            return (
-              <div key={child.id} className="flex items-start gap-0">
-                <span className="text-mycel-muted/30 text-xs select-none mt-[3px] shrink-0 w-4">
-                  {isLast ? "\u2514\u2500" : "\u251C\u2500"}
-                </span>
-                <div className="flex-1 min-w-0">
-                  <ToolNodeRow node={child} depth={0} />
-                </div>
-              </div>
-            );
-          })}
-
-          {/* Nested subagent children (recursive) */}
-          {subagentChildren.map((child, idx) => {
-            const isLast = idx === subagentChildren.length - 1;
-            return (
-              <div key={child.id} className="flex items-start gap-0">
-                <span className="text-mycel-muted/30 text-xs select-none mt-[3px] shrink-0 w-4">
-                  {isLast ? "\u2514\u2500" : "\u251C\u2500"}
-                </span>
-                <div className="flex-1 min-w-0">
-                  <AgentTreeNode node={child} depth={0} />
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
-
-/* ── Aggregated Node Row ───────────────────────────────────────────── */
-
-export function AggregatedChildRow({ child, searchQuery = "" }: { child: ToolNode; searchQuery?: string }) {
-  const [showRawJson, setShowRawJson] = useState(false);
-
-  const fullEventJson = JSON.stringify(redactValue({
-    id: child.id,
-    toolName: child.toolName,
-    args: child.args,
-    status: child.status,
-    startTime: child.startTime,
-    endTime: child.endTime,
-    error: child.error,
-    fullInput: child.fullInput,
-    fullOutput: child.fullOutput,
-  }), null, 2);
-
-  return (
-    <div>
-      <ToolNodeRow node={child} depth={1} searchQuery={searchQuery} />
-      {!!(child.fullInput || child.fullOutput) && (
-        <div className="ml-8 mb-1">
-          <button
-            type="button"
-            onClick={() => setShowRawJson(!showRawJson)}
-            className="text-[10px] text-mycel-muted hover:text-mycel-accent font-mono transition-colors px-2 py-0.5 rounded border border-mycel-border/40 hover:border-mycel-accent/50"
-          >
-            {showRawJson ? "Hide Raw JSON" : "Raw JSON"}
-          </button>
-          {showRawJson && (
-            <div className="mt-1 text-[11px] font-mono px-3 py-2 bg-mycel-bg rounded border border-mycel-border/40 overflow-x-auto max-h-64 overflow-y-auto">
-              <div className="flex justify-end mb-1">
-                <CopyButton text={fullEventJson} />
-              </div>
-              <pre className="whitespace-pre-wrap break-all text-mycel-muted">
-                {fullEventJson}
-              </pre>
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-export function AggregatedNodeRow({ node, searchQuery = "" }: { node: AggregatedNode; searchQuery?: string }) {
-  const [expanded, setExpanded] = useState(false);
-
-  return (
-    <>
-      <button
-        type="button"
-        className="group flex items-start gap-2 py-1 px-3 w-full text-left hover:bg-mycel-surface-hover cursor-pointer transition-colors focus-visible:ring-2 focus-visible:ring-mycel-accent bg-mycel-surface/50"
-        onClick={() => setExpanded(!expanded)}
-        aria-label={`${expanded ? "Collapse" : "Expand"} aggregated ${node.toolName} (${node.count} calls)`}
-      >
-        <span className="text-mycel-muted text-xs select-none mt-[3px] shrink-0">
-          {expanded ? "\u25BC" : "\u25B6"}
-        </span>
-        <span className={`inline-flex h-2 w-2 mt-[5px] shrink-0 rounded-full ${
-          node.failCount > 0 ? "bg-mycel-warning" : "bg-mycel-success"
-        }`} />
-        <ToolNameDisplay toolName={node.toolName} />
-        <span className="text-[12px] font-mono font-semibold text-mycel-accent px-1.5 py-0 rounded bg-mycel-accent/10">
-          &times;{node.count}
-        </span>
-        {/* At-rest summary is intentionally sparse — total count + failure
-            call-out only. avg/total-duration/ok-ratio move behind the
-            expand chevron (#3205 P1c) so the log row reads as a scannable
-            line rather than a paragraph. */}
-        <span className="text-[11px] text-mycel-muted font-mono tabular-nums flex-1 min-w-0">
-          {node.count} total
-          {node.failCount > 0 && (
-            <span className="text-mycel-error"> &middot; {node.failCount} failed</span>
-          )}
-          {expanded && node.totalDuration > 0 && <> &middot; {elapsed(0, node.totalDuration)}</>}
-          {expanded && node.totalDuration > 0 && node.count > 1 && (
-            <> &middot; avg {elapsed(0, Math.round(node.totalDuration / node.count))}</>
-          )}
-          {expanded && node.totalTokens > 0 && <> &middot; {node.totalTokens.toLocaleString()} tok</>}
-          {expanded && <> &middot; {node.successCount}/{node.count} ok</>}
-        </span>
-      </button>
-
-      {expanded && (
-        <div className="border-l-2 border-mycel-border/40 ml-6">
-          {node.children.map((child) => (
-            <AggregatedChildRow key={child.id} child={child} searchQuery={searchQuery} />
-          ))}
-        </div>
-      )}
-    </>
-  );
-}
-
-/* ── Display Node Row ──────────────────────────────────────────────── */
-
-export function DisplayNodeRow({ node, searchQuery = "" }: { node: DisplayNode; searchQuery?: string }) {
-  if (isAggregatedNode(node)) {
-    return <AggregatedNodeRow node={node} searchQuery={searchQuery} />;
-  }
-  return <ToolNodeRow node={node} searchQuery={searchQuery} />;
 }
 
 /* ── Agent Drill-Down View ─────────────────────────────────────────── */
@@ -507,9 +83,8 @@ export function DrillDownTasksSection({ tasks, agentName }: { tasks: Map<string,
         className="flex items-center gap-2 w-full px-4 py-2.5 text-left hover:bg-mycel-surface-hover transition-colors"
       >
         <span className="text-mycel-muted text-[10px] select-none w-3 text-center">
-          {collapsed ? "\u25B6" : "\u25BC"}
+          {collapsed ? "▶" : "▼"}
         </span>
-        <span className="text-[13px]">{"\u2705"}</span>
         <span className="text-sm font-semibold text-mycel-text">Tasks</span>
         <span className="text-xs text-mycel-muted font-mono tabular-nums">
           ({completedCount}/{total} complete)
@@ -562,83 +137,6 @@ export function DrillDownTasksSection({ tasks, agentName }: { tasks: Map<string,
   );
 }
 
-/* ── Drill-Down: Full-width individual event row ──────────────────── */
-
-export function DrillDownEventRow({ node }: { node: ToolNode }) {
-  const [expanded, setExpanded] = useState(false);
-  const hasDetails = !!(node.fullInput || node.fullOutput);
-  const inputJson = node.fullInput ? JSON.stringify(redactValue(node.fullInput), null, 2) : "";
-  const outputJson = node.fullOutput ? JSON.stringify(redactValue(node.fullOutput), null, 2) : "";
-
-  return (
-    <div className={`border-b border-mycel-border/40 ${node.status === "failed" ? "bg-mycel-error/5" : ""}`}>
-      <button
-        type="button"
-        className="group flex items-center gap-3 py-2.5 px-4 w-full text-left hover:bg-mycel-surface-hover cursor-pointer transition-colors"
-        onClick={() => setExpanded(!expanded)}
-        aria-label={`${expanded ? "Collapse" : "Expand"} ${node.toolName} event`}
-      >
-        {/* Animated chevron */}
-        <motion.span
-          className="text-mycel-muted text-[10px] select-none shrink-0 w-3 text-center group-hover:text-mycel-muted"
-          animate={{ rotate: hasDetails ? (expanded ? 90 : 0) : 0 }}
-          transition={{ duration: 0.15 }}
-        >
-          {hasDetails ? "\u25B6" : "\u00B7"}
-        </motion.span>
-        {/* Icon container */}
-        <span className="inline-flex items-center justify-center h-6 w-6 rounded-md bg-mycel-surface border border-mycel-border/60 shrink-0">
-          <ToolDot status={node.status} />
-        </span>
-        <span className="shrink-0">
-          <ToolNameDisplay toolName={node.toolName} />
-        </span>
-        <span className="text-[12px] text-mycel-muted font-mono min-w-0 flex-1 break-words">
-          {redactSecrets(node.args)}
-        </span>
-        <span className="flex items-center gap-2 shrink-0">
-          <RelativeTimestamp ts={node.startTime} />
-          {node.status === "running" ? (
-            <span className="text-[11px] tabular-nums font-mono px-1.5 py-0.5 rounded-md bg-mycel-muted/10 text-mycel-muted">
-              <ElapsedTimer start={node.startTime} />
-            </span>
-          ) : node.endTime != null ? (
-            <span className={`text-[11px] tabular-nums font-mono px-1.5 py-0.5 rounded-md ${durationPillClass(node.startTime, node.endTime)}`}>
-              {elapsed(node.startTime, node.endTime)}
-            </span>
-          ) : null}
-        </span>
-      </button>
-
-      {node.error && (
-        <div className="text-[11px] text-mycel-error/80 font-mono px-4 py-0.5 ml-8">
-          {redactSecrets(node.error.length > 200 ? node.error.slice(0, 197) + "..." : node.error)}
-        </div>
-      )}
-
-      {expanded && !!node.fullInput && (
-        <div className="text-[11px] font-mono px-4 py-2 bg-mycel-surface mx-4 mb-1 rounded overflow-x-auto max-h-64 overflow-y-auto">
-          <div className="flex items-center justify-between mb-1">
-            <span className="text-[10px] text-mycel-muted uppercase tracking-wide font-semibold">Input</span>
-            <CopyButton text={inputJson} />
-          </div>
-          <pre className="whitespace-pre-wrap break-all text-mycel-muted">{inputJson}</pre>
-        </div>
-      )}
-
-      {expanded && !!node.fullOutput && (
-        <div className="text-[11px] font-mono px-4 py-2 bg-mycel-surface mx-4 mb-1 rounded overflow-x-auto max-h-64 overflow-y-auto">
-          <div className="flex items-center justify-between mb-1">
-            <span className="text-[10px] text-mycel-success uppercase tracking-wide font-semibold">Output</span>
-            <CopyButton text={outputJson} />
-          </div>
-          <pre className="whitespace-pre-wrap break-all text-mycel-success/80">{outputJson}</pre>
-        </div>
-      )}
-    </div>
-  );
-}
-
 /* ── Drill-Down: Raw event type badge colors ──────────────────────── */
 
 export function rawEventBadgeColor(eventType: string): string {
@@ -670,9 +168,11 @@ export function AgentDrillDown({
 
   const cost = estimateCost(activity);
 
-  // Show ALL events individually in drill-down — no aggregation
+  // Show ALL events individually — flat, newest at top, no aggregation.
+  // Subagent child tool calls are flattened into the same stream so
+  // nothing hides inside a nested tree.
   const allNodes = useMemo(() => {
-    return [...activity.nodes].sort((a, b) => b.startTime - a.startTime);
+    return flattenNodes(activity.nodes).sort((a, b) => b.startTime - a.startTime);
   }, [activity.nodes]);
 
   const toggleRawExpanded = useCallback((key: string) => {
@@ -752,7 +252,7 @@ export function AgentDrillDown({
 
       {/* Tab content */}
       <div className="flex-1 overflow-y-auto min-h-0">
-        {/* Live Stream tab — ALL events individually, no aggregation */}
+        {/* Live Stream tab — flat rows, newest first */}
         {activeTab === "live" && (
           <div>
             {allNodes.length === 0 ? (
@@ -761,7 +261,7 @@ export function AgentDrillDown({
               </div>
             ) : (
               allNodes.map((node) => (
-                <DrillDownEventRow key={node.id} node={node} />
+                <EventRow key={node.id} node={node} />
               ))
             )}
           </div>
@@ -787,7 +287,7 @@ export function AgentDrillDown({
                       className="flex items-center gap-2 w-full px-3 py-1.5 text-left hover:bg-mycel-surface-hover transition-colors"
                     >
                       <span className="text-mycel-muted text-[10px] select-none w-3 text-center">
-                        {isOpen ? "\u25BC" : "\u25B6"}
+                        {isOpen ? "▼" : "▶"}
                       </span>
                       <span className="text-[10px] text-mycel-muted font-mono tabular-nums shrink-0">
                         {new Date(evt.timestamp).toISOString().replace("T", " ").slice(0, 23)}
@@ -828,6 +328,10 @@ export function AgentDrillDown({
 
 /* ── Agent Activity Card ───────────────────────────────────────────── */
 
+/** Cap on visible rows in a Live card — the full stream lives in the
+ *  agent detail page (linked below the stream). */
+export const LIVE_CARD_MAX_ROWS = 30;
+
 export const AgentCard = memo(function AgentCard({
   activity,
   onToggle,
@@ -835,7 +339,6 @@ export const AgentCard = memo(function AgentCard({
   isFilterActive,
   searchTerm,
   typeFilter,
-  isPaused,
 }: {
   activity: AgentActivity;
   onToggle: () => void;
@@ -843,23 +346,27 @@ export const AgentCard = memo(function AgentCard({
   isFilterActive: boolean;
   searchTerm: string;
   typeFilter: FilterType;
-  isPaused: boolean;
 }) {
-  const [collapseOld, setCollapseOld] = useState(true);
+  // Flat hook-event stream — same visual language as the agent detail
+  // page. Newest at top, stable keys, no aggregation, no reordering:
+  // a finished tool call updates in place, it never moves.
+  const flatNodes = useMemo(() => {
+    return flattenNodes(activity.nodes).sort((a, b) => b.startTime - a.startTime);
+  }, [activity.nodes]);
 
-  const visibleNodes = searchTerm
-    ? activity.nodes.filter((n) => nodeMatchesSearch(n, searchTerm.toLowerCase()))
-    : activity.nodes;
+  const visibleNodes = useMemo(() => {
+    if (!searchTerm) return flatNodes;
+    const q = searchTerm.toLowerCase();
+    return flatNodes.filter((n) => nodeMatchesSearch(n, q));
+  }, [flatNodes, searchTerm]);
 
-  const sortedNodes = sortNodes(visibleNodes);
+  const shownNodes = visibleNodes.slice(0, LIVE_CARD_MAX_ROWS);
+  const hiddenCount = visibleNodes.length - shownNodes.length;
 
-  const runningCount = sortedNodes.filter((n) => n.status === "running").length;
-  const errorCount = activity.nodes.filter((n) => n.status === "failed").length;
-  const displayNodes = aggregateNodes(sortedNodes, collapseOld ? AUTO_COLLAPSE_MS : undefined, activity.nodes.length);
+  const runningCount = flatNodes.filter((n) => n.status === "running").length;
+  const errorCount = flatNodes.filter((n) => n.status === "failed").length;
   const matchCount = searchTerm ? visibleNodes.length : 0;
   const showToolNodes = typeFilter !== "state";
-
-  const skipAnimation = isPaused || visibleNodes.length > 5;
 
   const monogram = (activity.name ?? "?").charAt(0).toUpperCase();
   const cost = estimateCost(activity);
@@ -977,52 +484,39 @@ export const AgentCard = memo(function AgentCard({
       </div>
 
       <AnimatePresence initial={false}>
-        {!activity.collapsed && showToolNodes && displayNodes.length > 0 && (
+        {!activity.collapsed && showToolNodes && shownNodes.length > 0 && (
           <motion.div
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: "auto", opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
             transition={{ duration: 0.2, ease: "easeOut" }}
-            className="border-t border-mycel-border/60 py-1 overflow-hidden"
+            className="border-t border-mycel-border/60 overflow-hidden"
           >
-            {visibleNodes.length > 3 && (
-              <div className="flex justify-end px-3 py-1">
-                <button
-                  type="button"
-                  onClick={() => setCollapseOld((prev) => !prev)}
-                  className="text-[10px] text-mycel-muted hover:text-mycel-accent font-mono transition-colors"
+            {/* Flat event stream — newest first. Rows are keyed by event
+                id and never animate position, so new events prepend
+                without reflowing everything below them. */}
+            {shownNodes.map((node) => (
+              <EventRow key={node.id} node={node} searchQuery={searchTerm} />
+            ))}
+            {hiddenCount > 0 && (
+              <div className="flex justify-center border-t border-mycel-border/40">
+                <Link
+                  to={`/agents/${activity.name}/live`}
+                  className="text-[11px] text-mycel-muted hover:text-mycel-accent font-mono py-1.5 px-3 transition-colors"
                 >
-                  {collapseOld ? "Show all" : "Collapse old"}
-                </button>
+                  {hiddenCount} more — view all in {activity.name} &rarr;
+                </Link>
               </div>
             )}
-            <AnimatePresence mode="popLayout" initial={false}>
-              {displayNodes.map((node) => {
-                const nodeKey = node.id;
-                if (skipAnimation) {
-                  return (
-                    <div key={nodeKey}>
-                      <DisplayNodeRow node={node} searchQuery={searchTerm} />
-                    </div>
-                  );
-                }
-                return (
-                  <motion.div
-                    key={nodeKey}
-                    initial={{ opacity: 0, y: -20, height: 0 }}
-                    animate={{ opacity: 1, y: 0, height: "auto" }}
-                    exit={{ opacity: 0, height: 0 }}
-                    transition={{ duration: 0.2, ease: "easeOut" }}
-                    layout
-                  >
-                    <DisplayNodeRow node={node} searchQuery={searchTerm} />
-                  </motion.div>
-                );
-              })}
-            </AnimatePresence>
           </motion.div>
         )}
       </AnimatePresence>
+
+      {!activity.collapsed && showToolNodes && visibleNodes.length === 0 && searchTerm && (
+        <div className="border-t border-mycel-border/60 py-3 px-4 text-[12px] text-mycel-muted italic">
+          No events match &ldquo;{searchTerm}&rdquo;
+        </div>
+      )}
 
       {!activity.collapsed && showToolNodes && visibleNodes.length === 0 && !searchTerm && (
         <div className="border-t border-mycel-border/60 py-3 px-4 text-[12px] text-mycel-muted italic flex items-center gap-2">

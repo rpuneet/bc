@@ -41,6 +41,29 @@ import {
   FLUSH_INTERVAL,
   MAX_NODES,
 } from "../components/live/liveTypes";
+// Close out any still-"running" nodes. Called when an agent's turn or
+// session ends (or its state flips to idle/stopped): without a matching
+// PostToolUse the node would stay "running" forever, leaving a stale
+// frozen snapshot with a ticking elapsed timer (#3267).
+function finalizeRunningNodes(nodes: ToolNode[], endTime: number): ToolNode[] {
+  let changed = false;
+  const result = nodes.map((n) => {
+    const children = n.children.length > 0 ? finalizeRunningNodes(n.children, endTime) : n.children;
+    if (n.status === "running") {
+      changed = true;
+      return { ...n, children, status: "completed" as const, endTime };
+    }
+    if (children !== n.children) {
+      changed = true;
+      return { ...n, children };
+    }
+    return n;
+  });
+  return changed ? result : nodes;
+}
+
+const TERMINAL_STATES = new Set(["idle", "stopped", "done", "error"]);
+
 import {
   findLastIdx,
   nextId,
@@ -373,9 +396,12 @@ export function useAgentActivity(agentName?: string): {
             });
             break;
 
-          case "SessionStart": activity.state = "idle"; break;
-          case "SessionEnd": case "Stop": activity.state = "idle"; break;
-          case "TaskCompleted": activity.state = "idle"; break;
+          case "SessionStart": case "SessionEnd": case "Stop": case "TaskCompleted":
+            // Turn/session boundary: whatever was still "running" is over.
+            activity.state = "idle";
+            activity.nodes = finalizeRunningNodes(activity.nodes, Date.now());
+            activity.activeSubagentIdx = undefined;
+            break;
         }
 
         if (activity.nodes.length > MAX_NODES) {
@@ -443,6 +469,12 @@ export function useAgentActivity(agentName?: string): {
           const updates: Partial<AgentActivity> = { state, lastEventTime: Date.now() };
           if (d.task) updates.task = d.task as string;
           if (d.role) updates.role = d.role as string;
+          // Agent went idle/stopped: age out stale "running" rows so the
+          // stream shows the real last events, not a frozen snapshot.
+          if (TERMINAL_STATES.has(state)) {
+            updates.nodes = finalizeRunningNodes(existing.nodes, Date.now());
+            updates.activeSubagentIdx = undefined;
+          }
           next.set(name, { ...existing, ...updates });
         }
         return next;

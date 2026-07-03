@@ -13,26 +13,6 @@ export interface ToolNode {
   children: ToolNode[];
 }
 
-export interface AggregatedNode {
-  type: "aggregate";
-  id: string;
-  toolName: string;
-  count: number;
-  children: ToolNode[];
-  totalDuration: number;
-  totalTokens: number;
-  successCount: number;
-  failCount: number;
-  startTime: number;
-  endTime: number;
-}
-
-export type DisplayNode = ToolNode | AggregatedNode;
-
-export function isAggregatedNode(node: DisplayNode): node is AggregatedNode {
-  return "type" in node && node.type === "aggregate";
-}
-
 export interface AgentActivity {
   name: string;
   state: string;
@@ -90,9 +70,6 @@ export interface RawEvent {
 export const MAX_NODES = 50;
 export const AUTO_COLLAPSE_MS = 30_000;
 export const FLUSH_INTERVAL = 150;
-export const AGGREGATION_WINDOW_MS = 5_000;
-export const FAILED_NEVER_AGGREGATE_MS = 120_000;
-export const MAX_INDIVIDUAL_NODES = 50;
 
 export const TASK_STATUS_MAP: Record<string, TaskItem["status"]> = {
   pending: "pending",
