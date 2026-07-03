@@ -1,16 +1,8 @@
 const BASE = "/api";
 
-// Extract workspace ID from the current URL path (/w/<wsId>/...).
-function activeWorkspaceId(): string | null {
-  const match = window.location.pathname.match(/^\/w\/([^/]+)/);
-  return match?.[1] ?? null;
-}
-
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const wsId = activeWorkspaceId();
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
-    ...(wsId ? { "X-BC-Workspace": wsId } : {}),
   };
   const res = await fetch(`${BASE}${path}`, {
     ...init,
@@ -92,20 +84,11 @@ export interface NotificationSource {
 /** @deprecated Use NotificationSource instead */
 export type Channel = NotificationSource;
 
-export interface ChannelReaction {
-  name: string;
-  count: number;
-}
-
 export interface ChannelMessage {
   id: number;
   sender: string;
   content: string;
   created_at: string;
-  /** Emoji reactions on the message. Undefined for older messages
-   *  stored before the reactions column was added, or for platforms
-   *  that don't surface reactions (Telegram / IRC / Matrix / …). */
-  reactions?: ChannelReaction[];
 }
 
 export interface NotifySubscription {
@@ -988,9 +971,7 @@ export const api = {
     form.append("file", file);
     form.append("channel", channel);
     form.append("sender", sender);
-    const wsId = activeWorkspaceId();
-    const headers: Record<string, string> = wsId ? { "X-BC-Workspace": wsId } : {};
-    const res = await fetch(`${BASE}/files/upload`, { method: "POST", body: form, headers });
+    const res = await fetch(`${BASE}/files/upload`, { method: "POST", body: form });
     if (!res.ok) throw new Error(`Upload failed: ${res.status}`);
     return res.json() as Promise<FileAttachment>;
   },

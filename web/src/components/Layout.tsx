@@ -12,20 +12,18 @@ import { PLATFORM_ICON_MAP } from "./notifications/PlatformIcons";
 import { Header } from "./Header";
 import { SidebarToggle, WorkspaceDropdown } from "./WorkspaceDropdown";
 import { HeaderSlotProvider, useHeaderSlotContext } from "../context/HeaderSlotContext";
-import { useWorkspace } from "../context/WorkspaceContext";
 
 const SIDEBAR_KEY = "bc-sidebar-collapsed";
 
 /* ── Route transition wrapper ────────────────────────────────────────
    Subtle 120ms fade + 4px lift on every route change so navigating
    between sidebar tabs feels intentional rather than abrupt. Keyed
-   on the route's first two segments (e.g. /w/:wsId) so deep links
-   under the same view (Agent detail tabs, channel selection) do not
-   retrigger the transition. Honors prefers-reduced-motion. */
+   on the route's first segment so deep links under the same view
+   (Agent detail tabs, channel selection) do not retrigger the
+   transition. Honors prefers-reduced-motion. */
 function RouteTransition({ children }: { children: React.ReactNode }) {
   const location = useLocation();
-  // /w/<wsId>/<tab> → key on "/w/<wsId>/<tab>". Deeper segments share a key.
-  const segments = location.pathname.split("/").filter(Boolean).slice(0, 3);
+  const segments = location.pathname.split("/").filter(Boolean).slice(0, 1);
   const key = "/" + segments.join("/");
   return (
     <AnimatePresence mode="wait" initial={false}>
@@ -305,8 +303,7 @@ function NotificationNavTree() {
     return `Disconnected${h.error ? ": " + h.error : ""}`;
   };
 
-  const { workspace } = useWorkspace();
-  const prefix = workspace ? `/w/${workspace.id}` : "";
+  const prefix = "";
 
   return (
     <div
@@ -441,9 +438,7 @@ const MAIN_NAV_ITEMS = [
   { to: "/cron", label: "Cron", icon: "cron" },
   { to: "/secrets", label: "Secrets", icon: "secrets" },
   { to: "/stats", label: "Metrics", icon: "metrics" },
-  // Costs is cross-workspace — bypasses the /w/<id>/ prefix (NavList
-  // reads the `global` flag when computing scopedTo).
-  { to: "/costs", label: "Costs", icon: "metrics", global: true },
+  { to: "/costs", label: "Costs", icon: "metrics" },
 ] as const;
 
 // Retained so external callers (TITLE_ITEMS, /settings header) that still
@@ -478,33 +473,21 @@ function NavList({
   isMobile,
   notificationsExpanded,
   onToggleNotifications,
-  global = false,
 }: {
   items: ReadonlyArray<{ to: string; label: string; icon: string; global?: boolean }>;
   collapsed: boolean;
   isMobile: boolean;
   notificationsExpanded?: boolean;
   onToggleNotifications?: () => void;
-  /** When true, render every item as global — skip the /w/<id>/ prefix.
-   *  Left for backward compat; per-item `global` on the item itself is
-   *  preferred going forward so a mixed list can have both workspace and
-   *  cross-workspace targets. */
-  global?: boolean;
 }) {
   const isIconOnly = collapsed && !isMobile;
   const showTree = !isIconOnly && notificationsExpanded;
-  // Workspace-scoped targets get /w/<id>/ prefixed at render time.
-  // Global items (list-level `global` or per-item `global`) skip the
-  // prefix so they hit top-level routes.
-  const { workspace } = useWorkspace();
-  const workspacePrefix = workspace ? `/w/${workspace.id}` : "";
 
   return (
     <>
-      {items.map(({ to, label, icon, global: itemGlobal }) => {
+      {items.map(({ to, label, icon }) => {
         const isNotifications = label === "Notifications";
-        const prefix = global || itemGlobal ? "" : workspacePrefix;
-        const scopedTo = `${prefix}${to}`;
+        const scopedTo = to;
         return (
           <li key={to}>
             <NavLink
@@ -575,11 +558,8 @@ export function Layout() {
 
   // Notification tree collapse state — defaults to expanded when on the
   // Notifications route, but the user can toggle it by clicking the nav item.
-  const scopedNotifications = useMatch("/w/:wsId/notifications/*");
-  const legacyNotifications = useMatch("/notifications/*");
-  const legacyChannelsRoute = useMatch("/channels/*");
-  const legacyChannelsScopedRoute = useMatch("/w/:wsId/channels/*");
-  const onNotifRoute = Boolean(scopedNotifications || legacyNotifications || legacyChannelsRoute || legacyChannelsScopedRoute);
+  const notificationsRoute = useMatch("/notifications/*");
+  const onNotifRoute = Boolean(notificationsRoute);
   const [notifManualToggle, setNotifManualToggle] = useState<boolean | null>(null);
   // Auto-expand when navigating to notifications, but respect manual toggle
   const notificationsExpanded = notifManualToggle !== null ? notifManualToggle : onNotifRoute;
@@ -593,12 +573,10 @@ export function Layout() {
 
   useEffect(() => { if (isMobile) setCollapsed(true); }, [isMobile]);
   useEffect(() => {
-    // Compare ONLY the first URL segment after an optional /w/<id> prefix
-    // so sub-routes such as /agents/<name>/live keep their parent ("Agents")
-    // title rather than incorrectly resolving to a same-named top-level
-    // tab ("Live").
-    const stripped = location.pathname.replace(/^\/w\/[^/]+/, "");
-    const firstSeg = stripped.replace(/^\//, "").split("/")[0] ?? "";
+    // Compare ONLY the first URL segment so sub-routes such as
+    // /agents/<name>/live keep their parent ("Agents") title rather than
+    // incorrectly resolving to a same-named top-level tab ("Live").
+    const firstSeg = location.pathname.replace(/^\//, "").split("/")[0] ?? "";
     const match = TITLE_ITEMS.find((item) => {
       const seg = item.to.replace(/^\//, "");
       return seg === firstSeg;

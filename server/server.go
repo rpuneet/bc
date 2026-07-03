@@ -509,9 +509,6 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 	// mux. WorkspaceScope only touches /api/ and is a no-op for MCP.
 	handler = LegacyMCPCompat(handler, svc.WorkspaceManager)
 	handler = WorkspaceScope(handler, svc.WorkspaceManager)
-	// Outside WorkspaceScope so that /live → /w/<active>/live happens
-	// before any /api/ scoping logic runs.
-	handler = LegacyUIScope(handler, svc.WorkspaceManager)
 	if cfg.CORS {
 		origin := cfg.CORSOrigin
 		if origin == "" {

@@ -76,51 +76,6 @@ func extractMentions(content string) []string {
 	return mentions
 }
 
-// extractReactions best-effort extracts emoji reactions from a raw
-// gateway payload. Supports Slack + Discord shapes:
-//
-//	Slack:   { "reactions": [ { "name": "eyes", "count": 2 }, ... ] }
-//	Discord: { "reactions": [ { "emoji": { "name": "eyes" }, "count": 2 }, ... ] }
-//
-// Returns nil for platforms that don't include reactions or when the raw
-// payload can't be parsed — the caller stores nil as SQL NULL. #3075.
-func extractReactions(raw json.RawMessage) []MessageReaction {
-	if len(raw) == 0 {
-		return nil
-	}
-	// Both shapes carry a `reactions` array — parse loosely.
-	var envelope struct {
-		Reactions []struct {
-			Name  string `json:"name"`
-			Emoji struct {
-				Name string `json:"name"`
-			} `json:"emoji"`
-			Count int `json:"count"`
-		} `json:"reactions"`
-	}
-	if err := json.Unmarshal(raw, &envelope); err != nil {
-		return nil
-	}
-	if len(envelope.Reactions) == 0 {
-		return nil
-	}
-	out := make([]MessageReaction, 0, len(envelope.Reactions))
-	for _, r := range envelope.Reactions {
-		name := r.Name
-		if name == "" {
-			name = r.Emoji.Name
-		}
-		if name == "" || r.Count <= 0 {
-			continue
-		}
-		out = append(out, MessageReaction{Name: name, Count: r.Count})
-	}
-	if len(out) == 0 {
-		return nil
-	}
-	return out
-}
-
 // Dispatch receives a normalized inbound message and delivers it to
 // subscribed agents only. Runs in its own goroutine — never blocks the adapter.
 func (s *Service) Dispatch(channel, platform, sender, senderID, content, messageID string, attachments []Attachment, raw json.RawMessage) {
@@ -133,11 +88,8 @@ func (s *Service) Dispatch(channel, platform, sender, senderID, content, message
 
 		ctx := s.ctx
 
-		// Store message for activity feed history. Reactions are extracted
-		// from the raw platform payload — Slack + Discord include them,
-		// other platforms return nil which SaveMessage stores as SQL NULL.
-		reactions := extractReactions(raw)
-		if saveErr := s.store.SaveMessage(ctx, channel, sender, content, reactions); saveErr != nil {
+		// Store message for activity feed history
+		if saveErr := s.store.SaveMessage(ctx, channel, sender, content); saveErr != nil {
 			log.Warn("notify: save message failed", "channel", channel, "error", saveErr)
 		}
 

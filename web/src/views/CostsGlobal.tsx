@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
 import { api } from "../api/client";
 import { formatCost } from "../utils/format";
 import { useHeaderSlot } from "../context/HeaderSlotContext";
@@ -138,11 +137,7 @@ export function CostsGlobal() {
                     key={r.key}
                     className="border-t border-mycel-border/40 hover:bg-mycel-surface/30 transition-colors"
                   >
-                    <td colSpan={3} className="p-0">
-                      <Link to={`/w/${r.key}/stats`} className="contents">
-                        <table className="w-full"><tbody><tr>{content}</tr></tbody></table>
-                      </Link>
-                    </td>
+                    {content}
                   </tr>
                 );
               }
