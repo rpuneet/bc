@@ -177,8 +177,6 @@ func (h *GatewayHandler) gatewayChannels(w http.ResponseWriter, r *http.Request,
 		// Delegate to existing activity handler
 		r.URL.Path = "/api/notify/activity/" + channelName
 		h.notifyActivity(w, r)
-	case channelRest == "send":
-		h.gatewayChannelSend(w, r, channelName)
 	default:
 		// GET /api/gateways/{platform}/channels/{channel} — channel detail
 		if h.notifySvc == nil {
@@ -200,72 +198,6 @@ func (h *GatewayHandler) gatewayChannels(w http.ResponseWriter, r *http.Request,
 			"subscriptions": subs,
 		})
 	}
-}
-
-// gatewayChannelSend handles POST /api/gateways/{platform}/channels/{channel}/send
-//
-// DEPRECATED (v0.3.1 → v0.4.0): outbound-to-platform is an agent responsibility.
-// Agents should call the platform's official SDK/API (chat.postMessage etc.)
-// directly with per-agent credentials so file uploads and posts attribute
-// correctly. See issue #3178. This endpoint will return 410 Gone in v0.4.0.
-//
-// Every response includes RFC 8594 Deprecation + Sunset headers so callers
-// can detect the deprecation programmatically without having to parse the body.
-func (h *GatewayHandler) gatewayChannelSend(w http.ResponseWriter, r *http.Request, channel string) {
-	// Always signal deprecation on this endpoint — even on error responses —
-	// so clients discover the deprecation on their next call regardless of
-	// input shape. RFC 8594 §3 (Deprecation) + §3 (Sunset). Sunset date is
-	// the projected v0.4.0 cut; adjust if the release slips.
-	w.Header().Set("Deprecation", "true")
-	w.Header().Set("Sunset", "Wed, 01 Jul 2026 00:00:00 GMT")
-	w.Header().Add("Link", `<https://github.com/rpuneet/mycel/issues/3178>; rel="deprecation"; type="text/html"`)
-	w.Header().Add("Warning", `299 - "Deprecated API: prefer per-agent platform SDKs. See issue #3178."`)
-
-	if !requireMethod(w, r, http.MethodPost) {
-		return
-	}
-	if h.gw == nil {
-		httpError(w, "gateway manager not available", http.StatusServiceUnavailable)
-		return
-	}
-
-	body, err := io.ReadAll(io.LimitReader(r.Body, 1<<20))
-	if err != nil {
-		httpError(w, "read body", http.StatusBadRequest)
-		return
-	}
-
-	var req struct {
-		Sender  string `json:"sender"`
-		Content string `json:"content"`
-	}
-	if unmarshalErr := json.Unmarshal(body, &req); unmarshalErr != nil {
-		httpError(w, "invalid JSON body", http.StatusBadRequest)
-		return
-	}
-	if req.Content == "" {
-		httpError(w, "content is required", http.StatusBadRequest)
-		return
-	}
-	if req.Sender == "" {
-		req.Sender = "api"
-	}
-
-	sent, err := h.gw.Send(r.Context(), channel, req.Sender, req.Content)
-	if err != nil {
-		httpInternalError(w, "send message", err)
-		return
-	}
-	if !sent {
-		httpError(w, "channel not found or not a gateway channel", http.StatusNotFound)
-		return
-	}
-
-	writeJSON(w, http.StatusOK, map[string]any{
-		"ok":      true,
-		"channel": channel,
-		"sender":  req.Sender,
-	})
 }
 
 // gatewayChannelAgents handles /api/gateways/{platform}/channels/{channel}/agents

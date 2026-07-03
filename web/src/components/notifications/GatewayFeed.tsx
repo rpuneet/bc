@@ -551,10 +551,8 @@ function EmojiPicker({
 
 function MessageActions({
   onEmojiSelect,
-  onReply,
 }: {
   onEmojiSelect: (emoji: string) => void;
-  onReply: () => void;
 }) {
   const [pickerOpen, setPickerOpen] = useState(false);
 
@@ -612,34 +610,6 @@ function MessageActions({
             />
           )}
         </div>
-
-        {/* Reply button */}
-        <button
-          type="button"
-          title="Reply"
-          onClick={(e) => {
-            e.stopPropagation();
-            onReply();
-          }}
-          className="hover:bg-mycel-surface-hover transition-colors"
-          style={{
-            width: 28,
-            height: 28,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            borderRadius: 4,
-            cursor: "pointer",
-            background: "none",
-            border: "none",
-            color: "var(--mycel-muted, #6b6b6b)",
-          }}
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="9 17 4 12 9 7" />
-            <path d="M20 18v-2a4 4 0 0 0-4-4H4" />
-          </svg>
-        </button>
 
         {/* Pin button — placeholder for future feature */}
         <button
@@ -769,9 +739,6 @@ export function GatewayFeed({
   const [filterOpen, setFilterOpen] = useState(false);
   const [filterAgent, setFilterAgent] = useState<string | null>(null);
   const [topicDismissed, setTopicDismissed] = useState(false);
-  const [composerText, setComposerText] = useState("");
-  const [composerSending, setComposerSending] = useState(false);
-  const composerRef = useRef<HTMLTextAreaElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
   const agentsPopoverRef = useRef<HTMLDivElement>(null);
@@ -903,33 +870,6 @@ export function GatewayFeed({
       await fetchAgents();
     } catch (e) { console.error("toggle mention failed:", e); }
     setAgentLoading(null);
-  };
-
-  const handleComposerSend = async () => {
-    const content = composerText.trim();
-    if (!content || composerSending) return;
-    setComposerSending(true);
-    try {
-      const sender = subscribedAgents[0]?.name ?? "api";
-      if (platform) {
-        // Send via gateway: POST /api/gateways/{platform}/channels/{channel}/send
-        const gw = platform;
-        const ch = channelLabel;
-        await fetch(`/api/gateways/${encodeURIComponent(gw)}/channels/${encodeURIComponent(ch)}/send`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ content, sender }),
-        });
-      } else {
-        // Fallback: send via agent send
-        await api.sendToAgent(sender, content);
-      }
-      setComposerText("");
-      if (composerRef.current) {
-        composerRef.current.style.height = "auto";
-      }
-    } catch (e) { console.error("composer send failed:", e); }
-    setComposerSending(false);
   };
 
   useEffect(() => {
@@ -1789,7 +1729,6 @@ export function GatewayFeed({
                               {/* Hover action toolbar */}
                               <MessageActions
                                 onEmojiSelect={(emoji) => toggleReaction(String(msg.id), emoji)}
-                                onReply={() => composerRef.current?.focus()}
                               />
                               <div
                                 className="rounded-md transition-colors duration-100 hover:bg-mycel-surface-hover"
@@ -1858,161 +1797,6 @@ export function GatewayFeed({
 
             {/* Bottom spacer */}
             <div className="h-2" />
-          </div>
-        </div>
-      </div>
-
-      {/* ── Message Composer ──────────────────────────────────── */}
-      <div
-        className="shrink-0"
-        style={{
-          padding: "10px 18px 14px",
-          borderTop: "1px solid var(--mycel-border, #222222)",
-          background: "var(--mycel-bg, #0d0d0d)",
-        }}
-      >
-        <div
-          style={{
-            background: "var(--mycel-surface, #151515)",
-            borderRadius: 8,
-            padding: "10px 12px",
-            display: "flex",
-            flexDirection: "column",
-            gap: 8,
-            border: "1px solid var(--mycel-border, #2a2a2a)",
-          }}
-        >
-          <textarea
-            ref={composerRef}
-            value={composerText}
-            onChange={(e) => {
-              setComposerText(e.target.value);
-              // Auto-resize
-              const el = e.target;
-              el.style.height = "auto";
-              el.style.height = Math.min(el.scrollHeight, 120) + "px";
-            }}
-            onKeyDown={(e) => {
-              if ((e.metaKey || e.ctrlKey) && e.key === "Enter" && composerText.trim() && !composerSending) {
-                e.preventDefault();
-                void handleComposerSend();
-              }
-            }}
-            placeholder={`Message #${channelLabel} as ${subscribedAgents[0]?.name ?? "agent"}`}
-            aria-label={`Message #${channelLabel}`}
-            rows={1}
-            style={{
-              background: "transparent",
-              border: "none",
-              outline: "none",
-              color: "var(--mycel-text, #e5e5e5)",
-              fontFamily: "inherit",
-              fontSize: 13.5,
-              resize: "none",
-              minHeight: 20,
-              maxHeight: 120,
-              lineHeight: 1.5,
-            }}
-          />
-          <div className="flex items-center" style={{ gap: 2, color: "var(--mycel-muted, #6b6b6b)" }}>
-            {/* Action icons — non-functional placeholders for future composer features */}
-            <button type="button" title="Attach files (coming soon)" aria-label="Attach files (coming soon)" disabled style={{ width: 26, height: 26, borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--mycel-muted, #4a4a4a)", cursor: "not-allowed", background: "none", border: "none", opacity: 0.5 }}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
-              </svg>
-            </button>
-            <button type="button" title="Slash commands (coming soon)" aria-label="Slash commands (coming soon)" disabled style={{ width: 26, height: 26, borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--mycel-muted, #4a4a4a)", cursor: "not-allowed", background: "none", border: "none", opacity: 0.5 }}>
-              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, lineHeight: 1 }}>/</span>
-            </button>
-            <button type="button" title="Mention agent (coming soon)" aria-label="Mention agent (coming soon)" disabled style={{ width: 26, height: 26, borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--mycel-muted, #4a4a4a)", cursor: "not-allowed", background: "none", border: "none", opacity: 0.5 }}>
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="4" /><path d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-3.92 7.94" />
-              </svg>
-            </button>
-            <button type="button" title="Emoji picker (coming soon)" aria-label="Emoji picker (coming soon)" disabled style={{ width: 26, height: 26, borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--mycel-muted, #4a4a4a)", cursor: "not-allowed", background: "none", border: "none", opacity: 0.5 }}>
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="10" /><path d="M8 14s1.5 2 4 2 4-2 4-2" /><line x1="9" y1="9" x2="9.01" y2="9" /><line x1="15" y1="9" x2="15.01" y2="9" />
-              </svg>
-            </button>
-
-            {/* Gateway indicator — clearer bordered chip so it reads
-                as a routing badge, not disposable meta text. */}
-            {platform && (
-              <span
-                className="inline-flex items-center gap-1.5"
-                style={{
-                  fontSize: 10.5,
-                  color: "var(--mycel-muted, #6b6b6b)",
-                  fontFamily: "'JetBrains Mono', monospace",
-                  padding: "3px 8px",
-                  background: "var(--mycel-surface-hover, #1a1a1a)",
-                  border: "1px solid var(--mycel-border, rgba(255,255,255,0.06))",
-                  borderRadius: 5,
-                  marginLeft: "auto",
-                }}
-                title="Outgoing messages route through the mycel gateway to the destination platform."
-              >
-                <span
-                  style={{
-                    width: 6,
-                    height: 6,
-                    borderRadius: 999,
-                    background: "#22c55e",
-                    boxShadow: "0 0 6px rgba(34,197,94,0.5)",
-                  }}
-                />
-                <span>routing via</span>
-                <span style={{ color: "var(--mycel-text, #cccccc)", fontWeight: 500 }}>{platform}</span>
-              </span>
-            )}
-            {!platform && <span style={{ marginLeft: "auto" }} />}
-
-            {/* Keyboard hint + Send button */}
-            <span
-              className="flex items-center"
-              style={{
-                marginLeft: platform ? 8 : "auto",
-                fontSize: 10.5,
-                color: "var(--mycel-muted, #6b6b6b)",
-                fontFamily: "'JetBrains Mono', monospace",
-                gap: 6,
-                whiteSpace: "nowrap",
-              }}
-            >
-              <span>
-                <span style={{ fontSize: 10, fontFamily: "'JetBrains Mono', monospace", padding: "1px 5px", background: "var(--mycel-surface-hover, #1a1a1a)", borderRadius: 3, color: "var(--mycel-muted, #a0a0a0)" }}>
-                  {"\u2318"}
-                </span>{" "}
-                <span style={{ fontSize: 10, fontFamily: "'JetBrains Mono', monospace", padding: "1px 5px", background: "var(--mycel-surface-hover, #1a1a1a)", borderRadius: 3, color: "var(--mycel-muted, #a0a0a0)" }}>
-                  {"\u21B5"}
-                </span>
-              </span>
-              <button
-                type="button"
-                onClick={() => void handleComposerSend()}
-                disabled={!composerText.trim() || composerSending}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 5,
-                  background: composerText.trim() && !composerSending ? "var(--mycel-accent, #f97316)" : "var(--mycel-surface-hover, #2a2a2a)",
-                  color: composerText.trim() && !composerSending ? "var(--mycel-bg, #0d0d0d)" : "var(--mycel-text, #e5e5e5)",
-                  padding: "4px 10px",
-                  borderRadius: 5,
-                  fontSize: 12,
-                  fontWeight: 600,
-                  cursor: composerText.trim() && !composerSending ? "pointer" : "default",
-                  border: composerText.trim() && !composerSending ? "none" : "1px solid var(--mycel-border, #333)",
-                  opacity: composerText.trim() && !composerSending ? 1 : 0.7,
-                  transition: "background 100ms, opacity 100ms",
-                }}
-              >
-                <span>{composerSending ? "Sending..." : "Send"}</span>
-                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="5" y1="12" x2="19" y2="12" /><polyline points="12 5 19 12 12 19" />
-                </svg>
-              </button>
-            </span>
           </div>
         </div>
       </div>

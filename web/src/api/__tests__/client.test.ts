@@ -56,14 +56,6 @@ describe("api.request", () => {
     expect(url).toBe("/api/agents/agent%20with%20spaces");
   });
 
-  it("sends POST with JSON body for sendToAgent", async () => {
-    fetchMock.mockReturnValue(jsonResponse(null));
-    await api.sendToAgent("bot", "hello");
-    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-    expect(init.method).toBe("POST");
-    expect(JSON.parse(init.body as string)).toEqual({ message: "hello" });
-  });
-
   it("passes query params for getLogs", async () => {
     fetchMock.mockReturnValue(jsonResponse([]));
     await api.getLogs(25);

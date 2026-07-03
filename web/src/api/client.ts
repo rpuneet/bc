@@ -672,12 +672,6 @@ export const api = {
   putAgentEnv: (name: string, vars: Array<{ key: string; value: string }>) =>
     request<Array<{ key: string; value: string }>>(`/agents/${encodeURIComponent(name)}/env`, { method: "PUT", body: JSON.stringify(vars) }),
 
-  sendToAgent: (name: string, message: string) =>
-    request<void>(`/agents/${encodeURIComponent(name)}/send`, {
-      method: "POST",
-      body: JSON.stringify({ message }),
-    }),
-
   listNotificationSources: () => request<NotificationSource[]>("/channels"),
   /** @deprecated Use listNotificationSources instead */
   listChannels: () => request<NotificationSource[]>("/channels"),
