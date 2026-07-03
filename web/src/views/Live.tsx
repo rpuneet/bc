@@ -426,27 +426,35 @@ export function Live() {
 
       {/* Filter Bar */}
       <div className="flex flex-wrap items-center gap-2 mb-4 sticky top-0 z-10 bg-mycel-bg py-2">
-        <select
-          value={agentFilter}
-          onChange={(e) => setAgentFilter(e.target.value)}
-          className="text-sm rounded-md border border-mycel-border bg-mycel-surface px-2.5 py-1.5 text-mycel-text focus:outline-none focus:ring-1 focus:ring-mycel-accent appearance-none pr-7"
-          style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%238c7e72' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")`, backgroundRepeat: "no-repeat", backgroundPosition: "right 8px center" }}
-        >
-          <option value="">All agents</option>
-          {agents.map((a) => (
-            <option key={a.name} value={a.name}>{a.name}</option>
-          ))}
-        </select>
-        <select
-          value={typeFilter}
-          onChange={(e) => setTypeFilter(e.target.value as FilterType)}
-          className="text-sm rounded-md border border-mycel-border bg-mycel-surface px-2.5 py-1.5 text-mycel-text focus:outline-none focus:ring-1 focus:ring-mycel-accent appearance-none pr-7"
-          style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%238c7e72' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")`, backgroundRepeat: "no-repeat", backgroundPosition: "right 8px center" }}
-        >
-          <option value="all">All</option>
-          <option value="tools">Tool Calls</option>
-          <option value="state">State Changes</option>
-        </select>
+        <label className="inline-flex items-center gap-1.5">
+          <span className="text-[10px] uppercase tracking-[0.1em] text-mycel-muted">Agent</span>
+          <select
+            value={agentFilter}
+            onChange={(e) => setAgentFilter(e.target.value)}
+            aria-label="Filter by agent"
+            className="text-sm rounded-md border border-mycel-border bg-mycel-surface px-2.5 py-1.5 text-mycel-text focus:outline-none focus:ring-1 focus:ring-mycel-accent appearance-none pr-7"
+            style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%238c7e72' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")`, backgroundRepeat: "no-repeat", backgroundPosition: "right 8px center" }}
+          >
+            <option value="">All</option>
+            {agents.map((a) => (
+              <option key={a.name} value={a.name}>{a.name}</option>
+            ))}
+          </select>
+        </label>
+        <label className="inline-flex items-center gap-1.5">
+          <span className="text-[10px] uppercase tracking-[0.1em] text-mycel-muted">Event</span>
+          <select
+            value={typeFilter}
+            onChange={(e) => setTypeFilter(e.target.value as FilterType)}
+            aria-label="Filter by event type"
+            className="text-sm rounded-md border border-mycel-border bg-mycel-surface px-2.5 py-1.5 text-mycel-text focus:outline-none focus:ring-1 focus:ring-mycel-accent appearance-none pr-7"
+            style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%238c7e72' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")`, backgroundRepeat: "no-repeat", backgroundPosition: "right 8px center" }}
+          >
+            <option value="all">All types</option>
+            <option value="tools">Tool calls</option>
+            <option value="state">State changes</option>
+          </select>
+        </label>
         {/* Search with magnifying glass icon */}
         <div className="relative">
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" className="absolute left-2.5 top-1/2 -translate-y-1/2 text-mycel-muted pointer-events-none">
