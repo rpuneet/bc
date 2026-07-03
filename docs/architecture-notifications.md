@@ -48,6 +48,117 @@ from `prefs.json` / the workspace secret store. Examples:
 - **Slack**: `chat.postMessage` via the Slack Web API using `$SLACK_BOT_TOKEN`
 - **WhatsApp**: `whatsmeow` library directly — the gateway only listens; agents send
 
+## Outbound cookbook
+
+The four platforms below all follow the same pattern: the agent reads a
+bot token from its own `.bc/agents/<name>/env.json` via `${secret:NAME}`
+refs, and posts to the platform's official REST API with the agent's
+own `Bash` / `WebFetch` tool. No mycel-side wrapper is needed — this
+is what agents can already do, formalized as a cookbook so every role
+knows the shape.
+
+### env.json — per-agent token slots
+
+Set once per agent. Values are `${secret:NAME}` refs; the actual
+secret lives in the workspace secret store (`.bc/secrets.json` or
+whichever backend the workspace is configured to use).
+
+```json
+{
+  "SLACK_BOT_TOKEN":     "${secret:SLACK_BOT_TOKEN}",
+  "TELEGRAM_BOT_TOKEN":  "${secret:TELEGRAM_BOT_TOKEN}",
+  "DISCORD_BOT_TOKEN":   "${secret:DISCORD_BOT_TOKEN}",
+  "WHATSAPP_BOT_TOKEN":  "${secret:WHATSAPP_BOT_TOKEN}"
+}
+```
+
+Only fill the platforms an agent actually needs — mycel doesn't care
+about the ones you leave out.
+
+### Slack — `chat.postMessage`
+
+```bash
+curl -s -X POST https://slack.com/api/chat.postMessage \
+  -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
+  -H "Content-Type: application/json; charset=utf-8" \
+  --data '{
+    "channel":     "C0123456789",
+    "text":        "hello from <agent-name>",
+    "username":    "<agent-name>",
+    "icon_emoji":  ":robot_face:"
+  }'
+```
+
+Set `username` + `icon_emoji` on every call — that's how you get the
+agent-specific attribution on Slack file uploads and reactions instead
+of the gateway bot's default identity. The alternative pattern
+(upload-then-post-permalink) is documented in the "Slack screenshot
+attribution" reference note.
+
+### Telegram — `sendMessage`
+
+```bash
+curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+  --data-urlencode "chat_id=<CHAT_ID>" \
+  --data-urlencode "text=hello from <agent-name>"
+```
+
+Telegram uses one bot token per bot; agents share a bot but distinguish
+themselves in the `text` prefix.
+
+### Discord — `webhooks` or bot REST
+
+Preferred: per-agent Discord webhooks (each agent has its own webhook
+URL, so username/avatar are fully agent-controlled).
+
+```bash
+curl -s -X POST "$DISCORD_WEBHOOK_URL" \
+  -H "Content-Type: application/json" \
+  --data '{
+    "content":     "hello from <agent-name>",
+    "username":    "<agent-name>",
+    "avatar_url":  "https://…"
+  }'
+```
+
+Falls back to `POST /channels/<id>/messages` with a bot token when the
+agent needs to post to a channel that doesn't have a webhook.
+
+### WhatsApp — `whatsmeow` HTTP shim
+
+The bcd `pkg/gateway/whatsapp` package exposes a **local-only** HTTP
+endpoint on the daemon for agents to post text. Agents call:
+
+```bash
+curl -s -X POST http://localhost:9374/api/gateways/whatsapp/send \
+  -H "Authorization: Bearer $WHATSAPP_BOT_TOKEN" \
+  --data '{"chat_id":"<JID>","text":"hello from <agent-name>"}'
+```
+
+This is the one platform where the pattern isn't a pure external API
+call — whatsmeow needs the persisted device session and is easiest to
+share via the daemon. Discussed further in
+[#3178](https://github.com/rpuneet/mycel/issues/3178).
+
+### Why not wrap these as mycel-side tools?
+
+The tempting shape is `pkg/tool/platform/slack.go` exposing
+`slack_post` as a first-class MCP tool. We deliberately don't:
+
+1. Every agent already has `Bash` / `WebFetch` — curl on `chat.postMessage`
+   is a one-liner, and the docs above are the whole spec.
+2. Wrappers would need a corresponding schema, versioning, and would
+   have to be updated for every new endpoint the platforms add
+   (uploads, reactions, threading). curl doesn't.
+3. Per-agent token isolation is already handled by `env.json` —
+   nothing about a wrapper would change that boundary.
+4. Removing the wrapper layer keeps the mycel surface smaller and the
+   platform API surface fully discoverable to the agent.
+
+The only exception is WhatsApp, where the persistent session lives
+inside the daemon and a local endpoint is more ergonomic than
+whatsmeow-in-agent-process.
+
 The existing `Send` methods on the Slack, Telegram, and Discord adapters
 are a **legacy convenience** used internally by bcd's notify dispatch
 path (e.g. when a local channel relays to an external platform via the

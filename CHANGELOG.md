@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Outbound cookbook** (#3178 phase 2) — per-agent Slack / Telegram / Discord / WhatsApp
+  outbound documented as a direct-API pattern: agents load bot tokens from their own
+  `env.json` (with `${secret:NAME}` refs) and call each platform's official REST endpoint
+  (`chat.postMessage`, `sendMessage`, webhook, local WhatsApp daemon) with per-agent
+  `username` / `icon_emoji`. Full recipe lives in
+  `docs/architecture-notifications.md#outbound-cookbook`; the how-to in
+  `docs/how-to/set-up-notifications.md` cross-links it. No mycel-side wrapper tools —
+  the daemon stays out of platform auth / rate-limit / retry.
+
+### Docs
+- **Notification architecture doc rehabilitated** — renamed
+  `docs/_architecture-notifications.md` → `docs/architecture-notifications.md`, wired
+  into mkdocs nav under Explanation, and fixed the stale
+  `../architecture/notifications.md` cross-links in `docs/explanation/networking.md`,
+  `docs/reference/api-rest.md`, `docs/README.md`, `docs/index.md`, and the notifications
+  how-to. `bc <verb>` → `mycel <verb>` sweep on the how-to (channel names like
+  `github:bc` / `slack:all-bc` left alone).
+
 ## [0.3.2] - 2026-07-03
 
 Six-batch UI polish pass on top of v0.3.1 driven by the 5-lead design
@@ -135,7 +154,7 @@ one server-side accuracy fix.
 - **`GatewayFeed` hover states** — five `hover:bg-white/[…]` sites invisible under Light theme; now `hover:bg-mycel-surface-hover` (#3202).
 
 ### Deferred to v0.3.2
-- **#3178 phase 2** — per-agent outbound tools (`slack_post`, `telegram_send`, `discord_send`, `whatsapp_send`).
+- **#3178 phase 2** — per-agent outbound integration. Landing in v0.3.3 as a docs-only cookbook (env.json + direct `chat.postMessage` / `sendMessage` / webhook curl recipes), not as mycel-side wrapper tools — keeps the daemon out of the platform auth / rate-limit / retry business and lets agents hit each platform's official REST API directly.
 - **#3205 P1c** — Live event row visual simplification (collapse dual status dots, defer avg/ok-ratio behind expand).
 - **#3205 P2 + P3** — chart palette rework, interactive legend, global focus-ring token, remaining opacity sprinkle cleanup.
 

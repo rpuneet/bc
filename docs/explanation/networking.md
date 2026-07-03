@@ -55,7 +55,7 @@ sequenceDiagram
     end
 ```
 
-See [Notification Architecture](../architecture/notifications.md) for the full notification system design.
+See [Notification Architecture](../architecture-notifications.md) for the full notification system design.
 
 ## Agent Hook Event Flow
 
