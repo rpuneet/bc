@@ -9,14 +9,26 @@ type ModelPricing struct {
 }
 
 // modelPrices maps model ID prefixes to pricing. Prefix matching is used so
-// minor version variants (e.g. claude-opus-4-6) hit the right tier.
+// minor version variants (e.g. claude-opus-4-6) hit the right tier. More
+// specific prefixes MUST come before shorter ones (walked in order).
+//
+// Cache pricing follows the standard Anthropic ratios: cache write (5m TTL)
+// = 1.25x input, cache read = 0.1x input.
 var modelPrices = []struct {
 	prefix  string
 	pricing ModelPricing
 }{
-	// Claude 4 Opus
+	// Claude Fable 5 / Mythos 5
+	{"claude-fable-5", ModelPricing{InputPerM: 10.00, OutputPerM: 50.00, CacheWritePerM: 12.50, CacheReadPerM: 1.00}},
+	{"claude-mythos-5", ModelPricing{InputPerM: 10.00, OutputPerM: 50.00, CacheWritePerM: 12.50, CacheReadPerM: 1.00}},
+	// Claude Opus 4.5 and later dropped to $5/$25 (before generic claude-opus-4)
+	{"claude-opus-4-5", ModelPricing{InputPerM: 5.00, OutputPerM: 25.00, CacheWritePerM: 6.25, CacheReadPerM: 0.50}},
+	{"claude-opus-4-6", ModelPricing{InputPerM: 5.00, OutputPerM: 25.00, CacheWritePerM: 6.25, CacheReadPerM: 0.50}},
+	{"claude-opus-4-7", ModelPricing{InputPerM: 5.00, OutputPerM: 25.00, CacheWritePerM: 6.25, CacheReadPerM: 0.50}},
+	{"claude-opus-4-8", ModelPricing{InputPerM: 5.00, OutputPerM: 25.00, CacheWritePerM: 6.25, CacheReadPerM: 0.50}},
+	// Claude Opus 4.0 / 4.1 (legacy $15/$75 tier)
 	{"claude-opus-4", ModelPricing{InputPerM: 15.00, OutputPerM: 75.00, CacheWritePerM: 18.75, CacheReadPerM: 1.50}},
-	// Claude 4 Sonnet / 4.5 Sonnet
+	// Claude 4 Sonnet / 4.5 / 4.6 Sonnet
 	{"claude-sonnet-4", ModelPricing{InputPerM: 3.00, OutputPerM: 15.00, CacheWritePerM: 3.75, CacheReadPerM: 0.30}},
 	// Claude 3.7 Sonnet
 	{"claude-3-7-sonnet", ModelPricing{InputPerM: 3.00, OutputPerM: 15.00, CacheWritePerM: 3.75, CacheReadPerM: 0.30}},
@@ -25,7 +37,7 @@ var modelPrices = []struct {
 	// Claude 3.5 Haiku
 	{"claude-3-5-haiku", ModelPricing{InputPerM: 0.80, OutputPerM: 4.00, CacheWritePerM: 1.00, CacheReadPerM: 0.08}},
 	// Claude Haiku 4.5
-	{"claude-haiku-4", ModelPricing{InputPerM: 0.80, OutputPerM: 4.00, CacheWritePerM: 1.00, CacheReadPerM: 0.08}},
+	{"claude-haiku-4", ModelPricing{InputPerM: 1.00, OutputPerM: 5.00, CacheWritePerM: 1.25, CacheReadPerM: 0.10}},
 	// Claude 3 Opus
 	{"claude-3-opus", ModelPricing{InputPerM: 15.00, OutputPerM: 75.00, CacheWritePerM: 18.75, CacheReadPerM: 1.50}},
 	// Claude 3 Sonnet

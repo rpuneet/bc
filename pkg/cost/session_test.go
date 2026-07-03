@@ -74,18 +74,31 @@ func TestParseSessionReader_TimestampParsed(t *testing.T) {
 }
 
 func TestCalcCost_KnownModel(t *testing.T) {
-	// claude-opus-4: $15/M input, $75/M output
+	// claude-opus-4-6: $5/M input, $25/M output
 	cost := CalcCost("claude-opus-4-6", 1_000_000, 0, 0, 0)
-	if cost < 14.9 || cost > 15.1 {
-		t.Errorf("want ~$15 for 1M input tokens on opus-4, got %.4f", cost)
+	if cost < 4.9 || cost > 5.1 {
+		t.Errorf("want ~$5 for 1M input tokens on opus-4-6, got %.4f", cost)
 	}
 }
 
 func TestCalcCost_CacheTokens(t *testing.T) {
-	// cache_write for opus-4: $18.75/M
+	// cache_write for opus-4-6: $6.25/M
 	cost := CalcCost("claude-opus-4-6", 0, 0, 1_000_000, 0)
-	if cost < 18.7 || cost > 18.8 {
-		t.Errorf("want ~$18.75 for 1M cache_write tokens on opus-4, got %.4f", cost)
+	if cost < 6.2 || cost > 6.3 {
+		t.Errorf("want ~$6.25 for 1M cache_write tokens on opus-4-6, got %.4f", cost)
+	}
+}
+
+func TestCalcCost_CacheReadCheaperThanInput(t *testing.T) {
+	// Cache reads are 0.1x input pricing — the $109k bug came from
+	// pricing 62B cache-read tokens at the legacy opus input rate.
+	models := []string{"claude-opus-4-6", "claude-opus-4-8", "claude-sonnet-4-6", "claude-haiku-4-5", "claude-fable-5"}
+	for _, m := range models {
+		input := CalcCost(m, 1_000_000, 0, 0, 0)
+		read := CalcCost(m, 0, 0, 0, 1_000_000)
+		if read >= input/5 {
+			t.Errorf("model %s: cache read $%.4f should be ~10x cheaper than input $%.4f", m, read, input)
+		}
 	}
 }
 
@@ -271,10 +284,23 @@ func TestPricingFor_Prefixes(t *testing.T) {
 		model     string
 		wantInput float64
 	}{
-		{"claude-opus-4-6", 15.00},
-		{"claude-opus-4-5-20250514", 15.00},
+		// Opus 4.5+ tier ($5/$25)
+		{"claude-opus-4-5-20251101", 5.00},
+		{"claude-opus-4-6", 5.00},
+		{"claude-opus-4-7", 5.00},
+		{"claude-opus-4-8", 5.00},
+		// Legacy Opus 4.0/4.1 tier ($15/$75)
+		{"claude-opus-4-20250514", 15.00},
+		{"claude-opus-4-1-20250805", 15.00},
+		// Fable / Mythos 5 ($10/$50)
+		{"claude-fable-5", 10.00},
+		{"claude-mythos-5", 10.00},
+		// Sonnet tier
 		{"claude-sonnet-4-5-20250514", 3.00},
-		{"claude-haiku-4-5-20251001", 0.80},
+		{"claude-sonnet-4-6", 3.00},
+		// Haiku 4.5 ($1/$5)
+		{"claude-haiku-4-5-20251001", 1.00},
+		// Claude 3.x legacy
 		{"claude-3-5-sonnet-20241022", 3.00},
 		{"claude-3-5-haiku-20241022", 0.80},
 		{"claude-3-opus-20240229", 15.00},

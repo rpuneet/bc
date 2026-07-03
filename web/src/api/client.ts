@@ -131,6 +131,9 @@ export interface GatewayHealth {
 export interface CostSummary {
   input_tokens: number;
   output_tokens: number;
+  /** Cache tokens are reported separately — total_tokens is input + output only. */
+  cache_read_tokens?: number;
+  cache_write_tokens?: number;
   total_tokens: number;
   total_cost_usd: number;
   record_count: number;
@@ -141,6 +144,8 @@ export interface AgentCostSummary {
   total_cost_usd: number;
   input_tokens: number;
   output_tokens: number;
+  cache_read_tokens?: number;
+  cache_write_tokens?: number;
   record_count: number;
 }
 
@@ -149,6 +154,9 @@ export interface ModelCostSummary {
   total_cost_usd: number;
   input_tokens: number;
   output_tokens: number;
+  cache_read_tokens?: number;
+  cache_write_tokens?: number;
+  /** input + output; cache tokens excluded. */
   total_tokens: number;
   record_count: number;
 }

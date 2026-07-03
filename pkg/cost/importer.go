@@ -172,8 +172,12 @@ func (imp *Importer) importFile(ctx context.Context, path string) (int, error) {
 	var inserted int
 	for _, ie := range toInsert {
 		e := ie.entry
-		total := e.InputTokens + e.OutputTokens + e.CacheCreationTokens + e.CacheReadTokens
+		// total_tokens = input + output. Cache tokens are stored in their
+		// own columns and reported separately — lumping them in here is
+		// what made /api/costs report tens of billions of "tokens".
+		total := e.InputTokens + e.OutputTokens
 
+		var res sql.Result
 		var insertErr error
 		// workspace_id lives as a nullable TEXT column (added by the
 		// importer schema migrations below). When no id is set, pass
@@ -182,43 +186,71 @@ func (imp *Importer) importFile(ctx context.Context, path string) (int, error) {
 		if imp.workspaceID != "" {
 			wsPtr = &imp.workspaceID
 		}
+		ts := e.Timestamp.UTC().Format(time.RFC3339Nano)
+		// The WHERE NOT EXISTS guard dedups identical usage entries that
+		// appear in more than one JSONL file. Claude Code writes compaction
+		// sidechain files (<session>/subagents/agent-acompact-*.jsonl) that
+		// replicate the parent session's assistant messages verbatim — same
+		// sessionId, timestamps and token counts — and the per-file
+		// watermark alone can't catch that.
 		if usePostgres {
 			// Postgres backend has not yet grown the workspace_id column
 			// — deferred to a follow-up. Keep the legacy insert so the
 			// backend continues to work without schema changes.
-			_, insertErr = tx.ExecContext(ctx,
+			res, insertErr = tx.ExecContext(ctx,
 				`INSERT INTO cost_records
 				 (agent_id, model, session_id, input_tokens, output_tokens, total_tokens,
 				  cache_creation_tokens, cache_read_tokens, cost_usd, timestamp)
-				 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+				 SELECT $1, $2, $3, $4, $5, $6, $7, $8, $9, $10
+				 WHERE NOT EXISTS (
+				   SELECT 1 FROM cost_records
+				   WHERE session_id = $11 AND timestamp = $12 AND model = $13
+				     AND input_tokens = $14 AND output_tokens = $15
+				     AND cache_creation_tokens = $16 AND cache_read_tokens = $17
+				 )`,
 				ie.agentID, e.Model, e.SessionID,
 				e.InputTokens, e.OutputTokens, total,
 				e.CacheCreationTokens, e.CacheReadTokens,
-				ie.costUSD,
-				e.Timestamp.UTC().Format(time.RFC3339Nano),
+				ie.costUSD, ts,
+				e.SessionID, ts, e.Model,
+				e.InputTokens, e.OutputTokens,
+				e.CacheCreationTokens, e.CacheReadTokens,
 			)
 		} else {
-			_, insertErr = tx.ExecContext(ctx,
+			res, insertErr = tx.ExecContext(ctx,
 				`INSERT INTO cost_records
 				 (agent_id, model, session_id, input_tokens, output_tokens, total_tokens,
 				  cache_creation_tokens, cache_read_tokens, cost_usd, timestamp, workspace_id)
-				 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				 SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+				 WHERE NOT EXISTS (
+				   SELECT 1 FROM cost_records
+				   WHERE session_id = ? AND timestamp = ? AND model = ?
+				     AND input_tokens = ? AND output_tokens = ?
+				     AND cache_creation_tokens = ? AND cache_read_tokens = ?
+				 )`,
 				ie.agentID, e.Model, e.SessionID,
 				e.InputTokens, e.OutputTokens, total,
 				e.CacheCreationTokens, e.CacheReadTokens,
-				ie.costUSD,
-				e.Timestamp.UTC().Format(time.RFC3339Nano),
-				wsPtr,
+				ie.costUSD, ts, wsPtr,
+				e.SessionID, ts, e.Model,
+				e.InputTokens, e.OutputTokens,
+				e.CacheCreationTokens, e.CacheReadTokens,
 			)
 		}
 		if insertErr != nil {
 			log.Warn("cost importer: failed to insert record", "session", e.SessionID, "error", insertErr)
 			continue
 		}
+		if n, raErr := res.RowsAffected(); raErr == nil && n == 0 {
+			continue // duplicate of an already-imported entry — skipped
+		}
 		inserted++
 	}
 
-	if inserted > 0 {
+	// Advance the watermark whenever new entries were parsed — even if they
+	// all turned out to be duplicates — so pure-duplicate files (compaction
+	// sidechains) aren't re-parsed on every scan.
+	if len(toInsert) > 0 {
 		var wmErr error
 		if usePostgres {
 			_, wmErr = tx.ExecContext(ctx,
@@ -307,6 +339,11 @@ func initImporterSchema(db *sql.DB) error {
 	for _, m := range migrations {
 		_, _ = db.ExecContext(ctx, m) // ignore "duplicate column" errors
 	}
+
+	// Backs the WHERE NOT EXISTS dedup guard in importFile.
+	// Must run after the session_id migration above.
+	_, _ = db.ExecContext(ctx,
+		`CREATE INDEX IF NOT EXISTS idx_cost_records_session_time ON cost_records(session_id, timestamp)`)
 	return nil
 }
 

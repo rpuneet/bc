@@ -328,14 +328,124 @@ func TestImporter_ImportFile_CacheTokens(t *testing.T) {
 		t.Fatalf("want 1 record imported, got %d", n)
 	}
 
-	// Verify total tokens include cache tokens.
+	// Cache tokens are reported separately — total is input + output only.
 	summary, err := s.WorkspaceSummary(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Total = input(100) + output(50) + cache_creation(300) + cache_read(200) = 650
-	if summary.TotalTokens != 650 {
-		t.Errorf("want 650 total tokens, got %d", summary.TotalTokens)
+	// Total = input(100) + output(50) = 150; cache tokens excluded.
+	if summary.TotalTokens != 150 {
+		t.Errorf("want 150 total tokens (input+output), got %d", summary.TotalTokens)
+	}
+	if summary.CacheWriteTokens != 300 {
+		t.Errorf("want 300 cache write tokens, got %d", summary.CacheWriteTokens)
+	}
+	if summary.CacheReadTokens != 200 {
+		t.Errorf("want 200 cache read tokens, got %d", summary.CacheReadTokens)
+	}
+}
+
+// TestImporter_DeduplicatesAcrossFiles covers the compaction-sidechain bug:
+// Claude Code writes <session>/subagents/agent-acompact-*.jsonl files that
+// replicate the parent session's assistant messages verbatim. The per-file
+// watermark can't catch that, so the insert-level dedup guard must.
+func TestImporter_DeduplicatesAcrossFiles(t *testing.T) {
+	s := openTestStore(t)
+	entry := `{"type":"assistant","sessionId":"dup1","timestamp":"2026-03-10T12:00:00Z","cwd":"/proj","message":{"model":"claude-opus-4-6","usage":{"input_tokens":100,"output_tokens":50,"cache_read_input_tokens":500}}}
+{"type":"assistant","sessionId":"dup1","timestamp":"2026-03-10T12:00:05Z","cwd":"/proj","message":{"model":"claude-opus-4-6","usage":{"input_tokens":200,"output_tokens":80}}}
+`
+	dir := t.TempDir()
+	parent := filepath.Join(dir, "dup1.jsonl")
+	if err := os.WriteFile(parent, []byte(entry), 0600); err != nil {
+		t.Fatal(err)
+	}
+	// Compaction sidechain file with identical content at a different path.
+	subDir := filepath.Join(dir, "dup1", "subagents")
+	if err := os.MkdirAll(subDir, 0750); err != nil {
+		t.Fatal(err)
+	}
+	sidechain := filepath.Join(subDir, "agent-acompact-abc123.jsonl")
+	if err := os.WriteFile(sidechain, []byte(entry), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	imp := &Importer{store: s, workspaceDir: t.TempDir()}
+
+	n1, err := imp.importFile(context.Background(), parent)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n1 != 2 {
+		t.Fatalf("want 2 records from parent file, got %d", n1)
+	}
+
+	n2, err := imp.importFile(context.Background(), sidechain)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n2 != 0 {
+		t.Errorf("want 0 records from duplicate sidechain file, got %d", n2)
+	}
+
+	summary, err := s.WorkspaceSummary(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if summary.RecordCount != 2 {
+		t.Errorf("want 2 records after dedup, got %d", summary.RecordCount)
+	}
+	if summary.InputTokens != 300 {
+		t.Errorf("want 300 input tokens after dedup, got %d", summary.InputTokens)
+	}
+
+	// Re-importing the sidechain must stay a no-op (watermark advanced even
+	// though nothing was inserted).
+	n3, err := imp.importFile(context.Background(), sidechain)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n3 != 0 {
+		t.Errorf("want 0 records on sidechain re-import, got %d", n3)
+	}
+}
+
+// TestImporter_DistinctEntriesSameSessionNotDeduped ensures legitimate
+// subagent usage (same sessionId, different timestamps/token counts) is
+// still imported.
+func TestImporter_DistinctEntriesSameSessionNotDeduped(t *testing.T) {
+	s := openTestStore(t)
+	dir := t.TempDir()
+	parent := filepath.Join(dir, "p1.jsonl")
+	if err := os.WriteFile(parent, []byte(
+		`{"type":"assistant","sessionId":"p1","timestamp":"2026-03-10T12:00:00Z","cwd":"/proj","message":{"model":"claude-opus-4-6","usage":{"input_tokens":100,"output_tokens":50}}}
+`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	sub := filepath.Join(dir, "sub.jsonl")
+	if err := os.WriteFile(sub, []byte(
+		`{"type":"assistant","sessionId":"p1","timestamp":"2026-03-10T12:00:03Z","cwd":"/proj","message":{"model":"claude-opus-4-6","usage":{"input_tokens":40,"output_tokens":10}}}
+`), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	imp := &Importer{store: s, workspaceDir: t.TempDir()}
+	if _, err := imp.importFile(context.Background(), parent); err != nil {
+		t.Fatal(err)
+	}
+	n, err := imp.importFile(context.Background(), sub)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != 1 {
+		t.Errorf("want 1 record from distinct subagent entry, got %d", n)
+	}
+
+	summary, err := s.WorkspaceSummary(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if summary.RecordCount != 2 {
+		t.Errorf("want 2 records, got %d", summary.RecordCount)
 	}
 }
 

@@ -43,6 +43,7 @@ func (s *PostgresStore) InitSchema() error {
 		`CREATE INDEX IF NOT EXISTS idx_cost_records_timestamp  ON cost_records(timestamp DESC)`,
 		`CREATE INDEX IF NOT EXISTS idx_cost_records_agent_time ON cost_records(agent_id, timestamp DESC)`,
 		`CREATE INDEX IF NOT EXISTS idx_cost_records_team_time  ON cost_records(team_id, timestamp DESC)`,
+		`CREATE INDEX IF NOT EXISTS idx_cost_records_session_time ON cost_records(session_id, timestamp)`,
 
 		`CREATE TABLE IF NOT EXISTS cost_budgets (
 			id         BIGSERIAL PRIMARY KEY,
@@ -239,7 +240,7 @@ func (s *PostgresStore) Clear(ctx context.Context) error {
 // SummaryByAgent returns aggregated costs per agent.
 func (s *PostgresStore) SummaryByAgent(ctx context.Context) ([]*Summary, error) {
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT agent_id, SUM(input_tokens), SUM(output_tokens), SUM(total_tokens), SUM(cost_usd), COUNT(*)
+		`SELECT agent_id, `+summaryAggregates+`
 		 FROM cost_records GROUP BY agent_id ORDER BY SUM(cost_usd) DESC`)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get summary by agent: %w", err)
@@ -249,7 +250,7 @@ func (s *PostgresStore) SummaryByAgent(ctx context.Context) ([]*Summary, error) 
 	var summaries []*Summary
 	for rows.Next() {
 		var sum Summary
-		if err := rows.Scan(&sum.AgentID, &sum.InputTokens, &sum.OutputTokens, &sum.TotalTokens, &sum.TotalCostUSD, &sum.RecordCount); err != nil {
+		if err := scanSummary(rows, &sum, &sum.AgentID); err != nil {
 			return nil, fmt.Errorf("failed to scan summary: %w", err)
 		}
 		summaries = append(summaries, &sum)
@@ -260,7 +261,7 @@ func (s *PostgresStore) SummaryByAgent(ctx context.Context) ([]*Summary, error) 
 // SummaryByTeam returns aggregated costs per team.
 func (s *PostgresStore) SummaryByTeam(ctx context.Context) ([]*Summary, error) {
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT team_id, SUM(input_tokens), SUM(output_tokens), SUM(total_tokens), SUM(cost_usd), COUNT(*)
+		`SELECT team_id, `+summaryAggregates+`
 		 FROM cost_records WHERE team_id IS NOT NULL GROUP BY team_id ORDER BY SUM(cost_usd) DESC`)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get summary by team: %w", err)
@@ -271,7 +272,7 @@ func (s *PostgresStore) SummaryByTeam(ctx context.Context) ([]*Summary, error) {
 	for rows.Next() {
 		var sum Summary
 		var teamID sql.NullString
-		if err := rows.Scan(&teamID, &sum.InputTokens, &sum.OutputTokens, &sum.TotalTokens, &sum.TotalCostUSD, &sum.RecordCount); err != nil {
+		if err := scanSummary(rows, &sum, &teamID); err != nil {
 			return nil, fmt.Errorf("failed to scan summary: %w", err)
 		}
 		sum.TeamID = teamID.String
@@ -283,7 +284,7 @@ func (s *PostgresStore) SummaryByTeam(ctx context.Context) ([]*Summary, error) {
 // SummaryByModel returns aggregated costs per model.
 func (s *PostgresStore) SummaryByModel(ctx context.Context) ([]*Summary, error) {
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT model, SUM(input_tokens), SUM(output_tokens), SUM(total_tokens), SUM(cost_usd), COUNT(*)
+		`SELECT model, `+summaryAggregates+`
 		 FROM cost_records GROUP BY model ORDER BY SUM(cost_usd) DESC`)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get summary by model: %w", err)
@@ -293,7 +294,7 @@ func (s *PostgresStore) SummaryByModel(ctx context.Context) ([]*Summary, error) 
 	var summaries []*Summary
 	for rows.Next() {
 		var sum Summary
-		if err := rows.Scan(&sum.Model, &sum.InputTokens, &sum.OutputTokens, &sum.TotalTokens, &sum.TotalCostUSD, &sum.RecordCount); err != nil {
+		if err := scanSummary(rows, &sum, &sum.Model); err != nil {
 			return nil, fmt.Errorf("failed to scan summary: %w", err)
 		}
 		summaries = append(summaries, &sum)
@@ -304,91 +305,53 @@ func (s *PostgresStore) SummaryByModel(ctx context.Context) ([]*Summary, error) 
 // WorkspaceSummary returns the total cost summary for the workspace.
 func (s *PostgresStore) WorkspaceSummary(ctx context.Context) (*Summary, error) {
 	row := s.db.QueryRowContext(ctx,
-		`SELECT SUM(input_tokens), SUM(output_tokens), SUM(total_tokens), SUM(cost_usd), COUNT(*)
+		`SELECT `+summaryAggregates+`
 		 FROM cost_records`)
 
 	var sum Summary
-	var inputTokens, outputTokens, totalTokens sql.NullInt64
-	var costUSD sql.NullFloat64
-	var recordCount sql.NullInt64
-
-	if err := row.Scan(&inputTokens, &outputTokens, &totalTokens, &costUSD, &recordCount); err != nil {
+	if err := scanSummary(row, &sum); err != nil {
 		return nil, fmt.Errorf("failed to scan workspace summary: %w", err)
 	}
-
-	sum.InputTokens = inputTokens.Int64
-	sum.OutputTokens = outputTokens.Int64
-	sum.TotalTokens = totalTokens.Int64
-	sum.TotalCostUSD = costUSD.Float64
-	sum.RecordCount = recordCount.Int64
-
 	return &sum, nil
 }
 
 // AgentSummary returns the cost summary for a specific agent.
 func (s *PostgresStore) AgentSummary(ctx context.Context, agentID string) (*Summary, error) {
 	row := s.db.QueryRowContext(ctx,
-		`SELECT SUM(input_tokens), SUM(output_tokens), SUM(total_tokens), SUM(cost_usd), COUNT(*)
+		`SELECT `+summaryAggregates+`
 		 FROM cost_records WHERE agent_id = $1`, agentID)
 
 	var sum Summary
-	var inputTokens, outputTokens, totalTokens sql.NullInt64
-	var costUSD sql.NullFloat64
-	var recordCount sql.NullInt64
-
-	if err := row.Scan(&inputTokens, &outputTokens, &totalTokens, &costUSD, &recordCount); err != nil {
+	if err := scanSummary(row, &sum); err != nil {
 		return nil, fmt.Errorf("failed to scan agent summary: %w", err)
 	}
-
 	sum.AgentID = agentID
-	sum.InputTokens = inputTokens.Int64
-	sum.OutputTokens = outputTokens.Int64
-	sum.TotalTokens = totalTokens.Int64
-	sum.TotalCostUSD = costUSD.Float64
-	sum.RecordCount = recordCount.Int64
-
 	return &sum, nil
 }
 
 // TeamSummary returns the cost summary for a specific team.
 func (s *PostgresStore) TeamSummary(ctx context.Context, teamID string) (*Summary, error) {
 	row := s.db.QueryRowContext(ctx,
-		`SELECT SUM(input_tokens), SUM(output_tokens), SUM(total_tokens), SUM(cost_usd), COUNT(*)
+		`SELECT `+summaryAggregates+`
 		 FROM cost_records WHERE team_id = $1`, teamID)
 
 	var sum Summary
-	var inputTokens, outputTokens, totalTokens sql.NullInt64
-	var costUSD sql.NullFloat64
-	var recordCount sql.NullInt64
-
-	if err := row.Scan(&inputTokens, &outputTokens, &totalTokens, &costUSD, &recordCount); err != nil {
+	if err := scanSummary(row, &sum); err != nil {
 		return nil, fmt.Errorf("failed to scan team summary: %w", err)
 	}
-
 	sum.TeamID = teamID
-	sum.InputTokens = inputTokens.Int64
-	sum.OutputTokens = outputTokens.Int64
-	sum.TotalTokens = totalTokens.Int64
-	sum.TotalCostUSD = costUSD.Float64
-	sum.RecordCount = recordCount.Int64
-
 	return &sum, nil
 }
 
 // GetSummarySince returns a summary of costs since the given time.
 func (s *PostgresStore) GetSummarySince(ctx context.Context, since time.Time) (*Summary, error) {
 	row := s.db.QueryRowContext(ctx,
-		`SELECT
-			COALESCE(SUM(input_tokens), 0),
-			COALESCE(SUM(output_tokens), 0),
-			COALESCE(SUM(total_tokens), 0),
-			COALESCE(SUM(cost_usd), 0),
-			COUNT(*)
+		`SELECT `+summaryAggregates+`
 		 FROM cost_records
 		 WHERE timestamp >= $1`, since)
 
 	var sum Summary
-	if err := row.Scan(&sum.InputTokens, &sum.OutputTokens, &sum.TotalTokens, &sum.TotalCostUSD, &sum.RecordCount); err != nil {
+	if err := scanSummary(row, &sum); err != nil {
 		return nil, fmt.Errorf("failed to scan summary: %w", err)
 	}
 	return &sum, nil
@@ -397,7 +360,7 @@ func (s *PostgresStore) GetSummarySince(ctx context.Context, since time.Time) (*
 // GetAgentSummarySince returns per-agent summaries since the given time.
 func (s *PostgresStore) GetAgentSummarySince(ctx context.Context, since time.Time) ([]*Summary, error) {
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT agent_id, SUM(input_tokens), SUM(output_tokens), SUM(total_tokens), SUM(cost_usd), COUNT(*)
+		`SELECT agent_id, `+summaryAggregates+`
 		 FROM cost_records
 		 WHERE timestamp >= $1
 		 GROUP BY agent_id
@@ -410,7 +373,7 @@ func (s *PostgresStore) GetAgentSummarySince(ctx context.Context, since time.Tim
 	var summaries []*Summary
 	for rows.Next() {
 		var sum Summary
-		if err := rows.Scan(&sum.AgentID, &sum.InputTokens, &sum.OutputTokens, &sum.TotalTokens, &sum.TotalCostUSD, &sum.RecordCount); err != nil {
+		if err := scanSummary(rows, &sum, &sum.AgentID); err != nil {
 			return nil, fmt.Errorf("failed to scan summary: %w", err)
 		}
 		summaries = append(summaries, &sum)
@@ -566,7 +529,7 @@ func (s *PostgresStore) GetDailyCosts(ctx context.Context, since time.Time) ([]*
 		`SELECT
 			DATE(timestamp) as day,
 			SUM(cost_usd) as cost,
-			SUM(total_tokens) as tokens,
+			SUM(input_tokens) + SUM(output_tokens) as tokens,
 			COUNT(*) as records,
 			SUM(input_tokens) as input,
 			SUM(output_tokens) as output
@@ -599,7 +562,7 @@ func (s *PostgresStore) GetAgentDailyCosts(ctx context.Context, since time.Time)
 			agent_id,
 			DATE(timestamp) as day,
 			SUM(cost_usd) as cost,
-			SUM(total_tokens) as tokens,
+			SUM(input_tokens) + SUM(output_tokens) as tokens,
 			COUNT(*) as records,
 			SUM(input_tokens) as input,
 			SUM(output_tokens) as output

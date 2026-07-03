@@ -103,15 +103,56 @@ type Record struct {
 }
 
 // Summary represents aggregated cost data.
+//
+// TotalTokens is input + output only. Cache tokens are reported separately
+// via CacheReadTokens / CacheWriteTokens — they are priced at a fraction of
+// input tokens and lumping them into the total makes it meaningless (cache
+// reads dominate by 1000x in agentic workloads).
 type Summary struct {
-	AgentID      string  `json:"agent_id,omitempty"`
-	TeamID       string  `json:"team_id,omitempty"`
-	Model        string  `json:"model,omitempty"`
-	InputTokens  int64   `json:"input_tokens"`
-	OutputTokens int64   `json:"output_tokens"`
-	TotalTokens  int64   `json:"total_tokens"`
-	TotalCostUSD float64 `json:"total_cost_usd"`
-	RecordCount  int64   `json:"record_count"`
+	AgentID          string  `json:"agent_id,omitempty"`
+	TeamID           string  `json:"team_id,omitempty"`
+	Model            string  `json:"model,omitempty"`
+	InputTokens      int64   `json:"input_tokens"`
+	OutputTokens     int64   `json:"output_tokens"`
+	CacheReadTokens  int64   `json:"cache_read_tokens"`
+	CacheWriteTokens int64   `json:"cache_write_tokens"`
+	TotalTokens      int64   `json:"total_tokens"`
+	TotalCostUSD     float64 `json:"total_cost_usd"`
+	RecordCount      int64   `json:"record_count"`
+}
+
+// summaryAggregates is the shared SELECT column list for Summary queries.
+// total_tokens is computed as input+output so that legacy rows (whose stored
+// total_tokens column included cache tokens) don't inflate the totals.
+// Works on both SQLite and Postgres.
+const summaryAggregates = `SUM(input_tokens), SUM(output_tokens),
+	 SUM(cache_read_tokens), SUM(cache_creation_tokens),
+	 SUM(input_tokens) + SUM(output_tokens), SUM(cost_usd), COUNT(*)`
+
+// summaryScanner is satisfied by both *sql.Row and *sql.Rows.
+type summaryScanner interface {
+	Scan(dest ...any) error
+}
+
+// scanSummary scans the seven summaryAggregates columns into sum. lead holds
+// destinations for any leading GROUP BY columns (agent_id, team_id, model).
+func scanSummary(row summaryScanner, sum *Summary, lead ...any) error {
+	var in, out, cacheRead, cacheWrite, total, count sql.NullInt64
+	var cost sql.NullFloat64
+	dest := make([]any, 0, len(lead)+7)
+	dest = append(dest, lead...)
+	dest = append(dest, &in, &out, &cacheRead, &cacheWrite, &total, &cost, &count)
+	if err := row.Scan(dest...); err != nil {
+		return err
+	}
+	sum.InputTokens = in.Int64
+	sum.OutputTokens = out.Int64
+	sum.CacheReadTokens = cacheRead.Int64
+	sum.CacheWriteTokens = cacheWrite.Int64
+	sum.TotalTokens = total.Int64
+	sum.TotalCostUSD = cost.Float64
+	sum.RecordCount = count.Int64
+	return nil
 }
 
 // Store provides cost tracking backed by SQLite or Postgres.
@@ -434,7 +475,7 @@ func (s *Store) SummaryByAgent(ctx context.Context) ([]*Summary, error) {
 	}
 
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT agent_id, SUM(input_tokens), SUM(output_tokens), SUM(total_tokens), SUM(cost_usd), COUNT(*)
+		`SELECT agent_id, `+summaryAggregates+`
 		 FROM cost_records GROUP BY agent_id ORDER BY SUM(cost_usd) DESC`,
 	)
 	if err != nil {
@@ -445,7 +486,7 @@ func (s *Store) SummaryByAgent(ctx context.Context) ([]*Summary, error) {
 	var summaries []*Summary
 	for rows.Next() {
 		var sum Summary
-		if err := rows.Scan(&sum.AgentID, &sum.InputTokens, &sum.OutputTokens, &sum.TotalTokens, &sum.TotalCostUSD, &sum.RecordCount); err != nil {
+		if err := scanSummary(rows, &sum, &sum.AgentID); err != nil {
 			return nil, fmt.Errorf("failed to scan summary: %w", err)
 		}
 		summaries = append(summaries, &sum)
@@ -460,7 +501,7 @@ func (s *Store) SummaryByTeam(ctx context.Context) ([]*Summary, error) {
 	}
 
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT team_id, SUM(input_tokens), SUM(output_tokens), SUM(total_tokens), SUM(cost_usd), COUNT(*)
+		`SELECT team_id, `+summaryAggregates+`
 		 FROM cost_records WHERE team_id IS NOT NULL GROUP BY team_id ORDER BY SUM(cost_usd) DESC`,
 	)
 	if err != nil {
@@ -472,7 +513,7 @@ func (s *Store) SummaryByTeam(ctx context.Context) ([]*Summary, error) {
 	for rows.Next() {
 		var sum Summary
 		var teamID sql.NullString
-		if err := rows.Scan(&teamID, &sum.InputTokens, &sum.OutputTokens, &sum.TotalTokens, &sum.TotalCostUSD, &sum.RecordCount); err != nil {
+		if err := scanSummary(rows, &sum, &teamID); err != nil {
 			return nil, fmt.Errorf("failed to scan summary: %w", err)
 		}
 		sum.TeamID = teamID.String
@@ -488,7 +529,7 @@ func (s *Store) SummaryByModel(ctx context.Context) ([]*Summary, error) {
 	}
 
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT model, SUM(input_tokens), SUM(output_tokens), SUM(total_tokens), SUM(cost_usd), COUNT(*)
+		`SELECT model, `+summaryAggregates+`
 		 FROM cost_records GROUP BY model ORDER BY SUM(cost_usd) DESC`,
 	)
 	if err != nil {
@@ -499,7 +540,7 @@ func (s *Store) SummaryByModel(ctx context.Context) ([]*Summary, error) {
 	var summaries []*Summary
 	for rows.Next() {
 		var sum Summary
-		if err := rows.Scan(&sum.Model, &sum.InputTokens, &sum.OutputTokens, &sum.TotalTokens, &sum.TotalCostUSD, &sum.RecordCount); err != nil {
+		if err := scanSummary(rows, &sum, &sum.Model); err != nil {
 			return nil, fmt.Errorf("failed to scan summary: %w", err)
 		}
 		summaries = append(summaries, &sum)
@@ -514,25 +555,14 @@ func (s *Store) WorkspaceSummary(ctx context.Context) (*Summary, error) {
 	}
 
 	row := s.db.QueryRowContext(ctx,
-		`SELECT SUM(input_tokens), SUM(output_tokens), SUM(total_tokens), SUM(cost_usd), COUNT(*)
+		`SELECT `+summaryAggregates+`
 		 FROM cost_records`,
 	)
 
 	var sum Summary
-	var inputTokens, outputTokens, totalTokens sql.NullInt64
-	var costUSD sql.NullFloat64
-	var recordCount sql.NullInt64
-
-	if err := row.Scan(&inputTokens, &outputTokens, &totalTokens, &costUSD, &recordCount); err != nil {
+	if err := scanSummary(row, &sum); err != nil {
 		return nil, fmt.Errorf("failed to scan workspace summary: %w", err)
 	}
-
-	sum.InputTokens = inputTokens.Int64
-	sum.OutputTokens = outputTokens.Int64
-	sum.TotalTokens = totalTokens.Int64
-	sum.TotalCostUSD = costUSD.Float64
-	sum.RecordCount = recordCount.Int64
-
 	return &sum, nil
 }
 
@@ -543,27 +573,16 @@ func (s *Store) AgentSummary(ctx context.Context, agentID string) (*Summary, err
 	}
 
 	row := s.db.QueryRowContext(ctx,
-		`SELECT SUM(input_tokens), SUM(output_tokens), SUM(total_tokens), SUM(cost_usd), COUNT(*)
+		`SELECT `+summaryAggregates+`
 		 FROM cost_records WHERE agent_id = ?`,
 		agentID,
 	)
 
 	var sum Summary
-	var inputTokens, outputTokens, totalTokens sql.NullInt64
-	var costUSD sql.NullFloat64
-	var recordCount sql.NullInt64
-
-	if err := row.Scan(&inputTokens, &outputTokens, &totalTokens, &costUSD, &recordCount); err != nil {
+	if err := scanSummary(row, &sum); err != nil {
 		return nil, fmt.Errorf("failed to scan agent summary: %w", err)
 	}
-
 	sum.AgentID = agentID
-	sum.InputTokens = inputTokens.Int64
-	sum.OutputTokens = outputTokens.Int64
-	sum.TotalTokens = totalTokens.Int64
-	sum.TotalCostUSD = costUSD.Float64
-	sum.RecordCount = recordCount.Int64
-
 	return &sum, nil
 }
 
@@ -574,27 +593,16 @@ func (s *Store) TeamSummary(ctx context.Context, teamID string) (*Summary, error
 	}
 
 	row := s.db.QueryRowContext(ctx,
-		`SELECT SUM(input_tokens), SUM(output_tokens), SUM(total_tokens), SUM(cost_usd), COUNT(*)
+		`SELECT `+summaryAggregates+`
 		 FROM cost_records WHERE team_id = ?`,
 		teamID,
 	)
 
 	var sum Summary
-	var inputTokens, outputTokens, totalTokens sql.NullInt64
-	var costUSD sql.NullFloat64
-	var recordCount sql.NullInt64
-
-	if err := row.Scan(&inputTokens, &outputTokens, &totalTokens, &costUSD, &recordCount); err != nil {
+	if err := scanSummary(row, &sum); err != nil {
 		return nil, fmt.Errorf("failed to scan team summary: %w", err)
 	}
-
 	sum.TeamID = teamID
-	sum.InputTokens = inputTokens.Int64
-	sum.OutputTokens = outputTokens.Int64
-	sum.TotalTokens = totalTokens.Int64
-	sum.TotalCostUSD = costUSD.Float64
-	sum.RecordCount = recordCount.Int64
-
 	return &sum, nil
 }
 
@@ -837,7 +845,7 @@ func (s *Store) GetDailyCosts(ctx context.Context, since time.Time) ([]*DailyCos
 		`SELECT
 			date(timestamp) as day,
 			SUM(cost_usd) as cost,
-			SUM(total_tokens) as tokens,
+			SUM(input_tokens) + SUM(output_tokens) as tokens,
 			COUNT(*) as records,
 			SUM(input_tokens) as input,
 			SUM(output_tokens) as output
@@ -874,7 +882,7 @@ func (s *Store) GetAgentDailyCosts(ctx context.Context, since time.Time) ([]*Age
 			agent_id,
 			date(timestamp) as day,
 			SUM(cost_usd) as cost,
-			SUM(total_tokens) as tokens,
+			SUM(input_tokens) + SUM(output_tokens) as tokens,
 			COUNT(*) as records,
 			SUM(input_tokens) as input,
 			SUM(output_tokens) as output
@@ -907,19 +915,14 @@ func (s *Store) GetSummarySince(ctx context.Context, since time.Time) (*Summary,
 	}
 
 	row := s.db.QueryRowContext(ctx,
-		`SELECT
-			COALESCE(SUM(input_tokens), 0),
-			COALESCE(SUM(output_tokens), 0),
-			COALESCE(SUM(total_tokens), 0),
-			COALESCE(SUM(cost_usd), 0),
-			COUNT(*)
+		`SELECT `+summaryAggregates+`
 		 FROM cost_records
 		 WHERE timestamp >= ?`,
 		since.Format(time.RFC3339),
 	)
 
 	var sum Summary
-	if err := row.Scan(&sum.InputTokens, &sum.OutputTokens, &sum.TotalTokens, &sum.TotalCostUSD, &sum.RecordCount); err != nil {
+	if err := scanSummary(row, &sum); err != nil {
 		return nil, fmt.Errorf("failed to scan summary: %w", err)
 	}
 	return &sum, nil
@@ -932,13 +935,7 @@ func (s *Store) GetAgentSummarySince(ctx context.Context, since time.Time) ([]*S
 	}
 
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT
-			agent_id,
-			SUM(input_tokens),
-			SUM(output_tokens),
-			SUM(total_tokens),
-			SUM(cost_usd),
-			COUNT(*)
+		`SELECT agent_id, `+summaryAggregates+`
 		 FROM cost_records
 		 WHERE timestamp >= ?
 		 GROUP BY agent_id
@@ -953,7 +950,7 @@ func (s *Store) GetAgentSummarySince(ctx context.Context, since time.Time) ([]*S
 	var summaries []*Summary
 	for rows.Next() {
 		var sum Summary
-		if err := rows.Scan(&sum.AgentID, &sum.InputTokens, &sum.OutputTokens, &sum.TotalTokens, &sum.TotalCostUSD, &sum.RecordCount); err != nil {
+		if err := scanSummary(rows, &sum, &sum.AgentID); err != nil {
 			return nil, fmt.Errorf("failed to scan summary: %w", err)
 		}
 		summaries = append(summaries, &sum)
