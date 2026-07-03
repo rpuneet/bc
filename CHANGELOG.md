@@ -7,6 +7,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.9] - 2026-07-04
+
+The clean-architecture release: every legacy fallback and in-tree
+migration is gone, the security backlog is cleared, and the Live page
+event stream was rebuilt around the agent-detail hook-stream UI.
+
+### Removed
+- **All legacy compatibility code.** Home resolution is `MYCEL_HOME` →
+  `~/.mycel`, period; `preferences.json` is the only config file
+  (settings.json readers, overlay merging, and save-on-read promotion
+  deleted); legacy daemon.addr/socket/secret-key/cost-ledger fallbacks,
+  tmux/container `bc-` prefixes, the `bc-agent-*` image fallback, MCP
+  legacy-URL shims, the `"sql"` storage alias, v1-workspace detection,
+  and completed one-shot store migrations are all removed.
+
+### Security
+- Resolved 86 CodeQL alerts with real taint barriers: path-injection
+  guards across agent/worktree/template/attachment/file handling, three
+  command-injection fixes (unvalidated worktree param reaching `git -C`;
+  clone URL scheme allowlist with `--` separation), separator-aware MCP
+  path containment, `edwards25519` CVE bump, and a bcd base-image
+  upgrade clearing ~1,700 stale container-scan CVEs.
+
+### Changed
+- **Live event stream v2.** Flat newest-first hook-event rows shared
+  with the agent-detail page: rich one-line summaries extracted from
+  event JSON (commands, file paths, subagent descriptions, durations),
+  monochrome glyphs instead of emoji, no aggregation buckets, stable
+  ordering with no reflow, and stale running-timers finalize when an
+  agent stops.
+- **Notifications drawer revamp.** Apps group their channels with real
+  brand icons, connection dots with human-readable failure reasons and
+  reconnect actions, discord guild sub-grouping, per-app activity times,
+  unread accents, and a channel filter.
+
+### Fixed
+- TUI test suite stabilized: tmux e2e tests run on an isolated socket,
+  config tests no longer race a spawned CLI, and the CI job fails fast
+  instead of hanging for hours.
+- `GithubTokenPath` was the last path still reading `~/.bc`.
+
 ## [0.3.8] - 2026-07-04
 
 The "nothing fails silently" release: the storage/config failure class
