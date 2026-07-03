@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -177,25 +178,21 @@ func generateID() string {
 	return hex.EncodeToString(b)
 }
 
+// attachmentIDRe matches attachment IDs: lowercase hex, 1-64 chars.
+var attachmentIDRe = regexp.MustCompile(`^[0-9a-f]{1,64}$`)
+
 // isValidID checks that an ID is a hex string (no path traversal).
 func isValidID(id string) bool {
-	if len(id) == 0 || len(id) > 64 {
-		return false
-	}
-	for _, c := range id {
-		if (c < '0' || c > '9') && (c < 'a' || c > 'f') {
-			return false
-		}
-	}
-	return true
+	return attachmentIDRe.MatchString(id)
 }
 
 // sanitizeFilename strips directory components and dangerous characters.
 func sanitizeFilename(name string) string {
 	// Take only the base name
 	name = filepath.Base(name)
-	// Remove null bytes and path separators
+	// Remove null bytes and traversal segments
 	name = strings.ReplaceAll(name, "\x00", "")
+	name = strings.ReplaceAll(name, "..", "")
 	// Limit length
 	if len(name) > 255 {
 		name = name[:255]

@@ -135,6 +135,13 @@ type claudeHook struct {
 // Uses curl to POST JSON payloads. Tool-aware hooks read stdin JSON via jq.
 // This is idempotent: if settings.json already exists the hooks section is merged.
 func WriteWorkspaceHookSettings(workspaceRoot string) error {
+	// workspaceRoot is derived from validated workspace/agent config, but
+	// reject traversal segments so hook settings can never be written
+	// outside the intended directory.
+	workspaceRoot = filepath.Clean(workspaceRoot)
+	if strings.Contains(workspaceRoot, "..") {
+		return fmt.Errorf("unsafe workspace root %q", workspaceRoot)
+	}
 	claudeDir := filepath.Join(workspaceRoot, ".claude")
 	if err := os.MkdirAll(claudeDir, 0750); err != nil {
 		return fmt.Errorf("create .claude dir: %w", err)

@@ -442,6 +442,13 @@ func (h *AgentHandler) byName(w http.ResponseWriter, r *http.Request) {
 		httpError(w, "agent name required", http.StatusBadRequest)
 		return
 	}
+	// Agent names are used to build filesystem paths (worktrees, env and
+	// loop config, logs) — reject anything that is not a valid agent name
+	// before it reaches any path construction.
+	if !agent.IsValidAgentName(name) {
+		httpError(w, "invalid agent name", http.StatusBadRequest)
+		return
+	}
 
 	switch {
 	case r.Method == http.MethodGet && action == "":
@@ -1170,6 +1177,10 @@ func (h *AgentHandler) applyTemplate(svc *agent.AgentService, a *agent.Agent, tm
 	if wtDir == "" {
 		return fmt.Errorf("worktree path not available for agent %q", a.Name)
 	}
+	wtDir = filepath.Clean(wtDir)
+	if strings.Contains(wtDir, "..") {
+		return fmt.Errorf("unsafe worktree path for agent %q", a.Name)
+	}
 
 	if err := os.MkdirAll(wtDir, 0750); err != nil {
 		return fmt.Errorf("ensure worktree dir: %w", err)
@@ -1254,6 +1265,11 @@ func (h *AgentHandler) agentMCPs(w http.ResponseWriter, r *http.Request, agentNa
 	wtDir := a.WorktreeDir
 	if wtDir == "" {
 		wtDir = svc.Manager().WorktreePath(agentName)
+	}
+	wtDir = filepath.Clean(wtDir)
+	if strings.Contains(wtDir, "..") {
+		httpError(w, "unsafe worktree path", http.StatusBadRequest)
+		return
 	}
 
 	switch {

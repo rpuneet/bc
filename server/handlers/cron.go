@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -223,6 +224,13 @@ func (h *CronHandler) liveLogs(w http.ResponseWriter, r *http.Request, name stri
 	}
 	if scheduler == nil {
 		serviceUnavailable(w, r, "cron", "scheduler not available")
+		return
+	}
+
+	// The job name becomes a log file path component — reject separators
+	// and traversal segments before building the path.
+	if !filepath.IsLocal(name) || strings.ContainsAny(name, `/\`) {
+		httpError(w, "invalid job name", http.StatusBadRequest)
 		return
 	}
 

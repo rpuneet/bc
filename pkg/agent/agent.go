@@ -59,6 +59,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"sort"
 	"strings"
@@ -99,26 +100,19 @@ const (
 	DefaultMaxLogBytes = 10 * 1024 * 1024 // 10MB
 )
 
+// agentNameRe matches valid agent names: alphanumeric characters, hyphens,
+// and underscores only (never path separators or ".."). Length is checked
+// separately so MaxAgentNameLength stays a named constant.
+var agentNameRe = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
+
 // IsValidAgentName validates that agent names contain only alphanumeric characters, hyphens, and underscores,
 // and are at most MaxAgentNameLength characters long.
 // This ensures agent names are safe for use in file paths, shell environments, and tmux sessions.
 func IsValidAgentName(name string) bool {
-	if name == "" {
-		return false
-	}
 	if len(name) > MaxAgentNameLength {
 		return false
 	}
-	for _, c := range name {
-		isLower := c >= 'a' && c <= 'z'
-		isUpper := c >= 'A' && c <= 'Z'
-		isDigit := c >= '0' && c <= '9'
-		isAllowed := isLower || isUpper || isDigit || c == '-' || c == '_'
-		if !isAllowed {
-			return false
-		}
-	}
-	return true
+	return agentNameRe.MatchString(name)
 }
 
 // Role defines the type of agent.
@@ -1385,6 +1379,14 @@ func truncateLogFile(path string, maxBytes int64) {
 	if maxBytes <= 0 {
 		return
 	}
+	// Defense in depth: log paths are built from validated agent names,
+	// but reject traversal segments so this can never touch files
+	// outside the workspace log directory.
+	path = filepath.Clean(path)
+	if strings.Contains(path, "..") {
+		log.Warn("refusing to truncate log with traversal path", "path", path)
+		return
+	}
 
 	info, err := os.Stat(path)
 	if err != nil || info.Size() <= maxBytes {
@@ -1550,6 +1552,12 @@ func findSessionIDFromTranscripts(stateDir, agentName string) string {
 // it in the session history directory alongside a timestamp.
 // Permissions are 0600 (session IDs may grant conversation access).
 func writeSessionIDFile(stateDir, agentName, sessionID string) {
+	// Agent names are validated at creation, but never allow a name to
+	// escape the agents directory via path separators or "..".
+	if !IsValidAgentName(agentName) {
+		log.Warn("refusing to write session_id for unsafe agent name", "agent", agentName)
+		return
+	}
 	agentDir := filepath.Join(stateDir, "agents", agentName)
 	if err := os.MkdirAll(agentDir, 0750); err != nil {
 		log.Warn("failed to create agent dir for session_id", "error", err)
@@ -1704,6 +1712,12 @@ func (m *Manager) DeleteAgent(ctx context.Context, name string) error {
 func (m *Manager) DeleteAgentWithOptions(ctx context.Context, name string, opts DeleteOptions) error {
 	log.Debug("deleting agent", "name", name)
 
+	// Deletion removes directories derived from the name — never let a
+	// crafted name (e.g. "../..") reach os.RemoveAll.
+	if !IsValidAgentName(name) {
+		return fmt.Errorf("invalid agent name %q", name)
+	}
+
 	// Phase 1: global lock — validate agent exists, snapshot references
 	m.mu.RLock()
 	agent, exists := m.agents[name]
@@ -1800,6 +1814,9 @@ func (m *Manager) DeleteAgentWithOptions(ctx context.Context, name string, opts 
 
 // RenameAgent renames an agent from oldName to newName.
 func (m *Manager) RenameAgent(ctx context.Context, oldName, newName string) error {
+	if !IsValidAgentName(oldName) {
+		return fmt.Errorf("agent name %q is invalid: use letters, numbers, dash, underscore (max %d chars)", oldName, MaxAgentNameLength)
+	}
 	if !IsValidAgentName(newName) {
 		return fmt.Errorf("agent name %q is invalid: use letters, numbers, dash, underscore (max %d chars)", newName, MaxAgentNameLength)
 	}
@@ -2915,6 +2932,14 @@ func gatewayPromptInstructions(cfg *workspace.GatewaysConfig) string {
 func appendGatewayPrompt(targetDir, toolName string, cfg *workspace.GatewaysConfig) {
 	instructions := gatewayPromptInstructions(cfg)
 	if instructions == "" {
+		return
+	}
+
+	// targetDir is an agent worktree path derived from validated names;
+	// reject traversal segments as defense in depth.
+	targetDir = filepath.Clean(targetDir)
+	if strings.Contains(targetDir, "..") {
+		log.Warn("refusing to append gateway prompt to traversal path", "dir", targetDir)
 		return
 	}
 

@@ -124,6 +124,11 @@ func (h *CodeHandler) resolveWorktreeRoot(r *http.Request) (wsRoot, wtRoot, work
 	if worktreeName == "main" {
 		return wsRoot, wsRoot, worktreeName, nil
 	}
+	// Worktree names are agent names — they become path components below
+	// and a git -C argument later, so reject separators and "..".
+	if !filepath.IsLocal(worktreeName) || strings.ContainsAny(worktreeName, `/\`) {
+		return wsRoot, "", worktreeName, errors.New("invalid worktree name")
+	}
 	wtRoot = agentWorktreePath(wsRoot, worktreeName)
 	info, statErr := os.Stat(wtRoot)
 	if statErr != nil || !info.IsDir() {
@@ -420,11 +425,14 @@ func (h *CodeHandler) diff(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		// Feed git a relative path so it's interpreted under wtRoot.
-		if rel, relErr := filepath.Rel(wtRoot, abs); relErr == nil {
-			args = append(args, "--", rel)
-		} else {
-			args = append(args, "--", relPath)
+		// SafeJoin guarantees abs is inside wtRoot, so Rel cannot fail;
+		// if it somehow does, reject rather than pass raw input to git.
+		rel, relErr := filepath.Rel(wtRoot, abs)
+		if relErr != nil {
+			httpError(w, "invalid path", http.StatusBadRequest)
+			return
 		}
+		args = append(args, "--", rel)
 	}
 
 	ctx, cancel := context.WithTimeout(r.Context(), diffTimeout)

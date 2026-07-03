@@ -72,6 +72,10 @@ func (m *Manager) Path(agentName string) string {
 // It prunes stale worktrees, removes any existing worktree at the path, and
 // creates a new detached worktree to avoid branch conflicts.
 func (m *Manager) Create(ctx context.Context, agentName string) (string, error) {
+	if !filepath.IsLocal(agentName) {
+		return "", fmt.Errorf("invalid agent name %q", agentName)
+	}
+
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -123,6 +127,10 @@ func (m *Manager) Create(ctx context.Context, agentName string) (string, error) 
 
 // Remove removes the git worktree for the given agent.
 func (m *Manager) Remove(ctx context.Context, agentName string) error {
+	if !filepath.IsLocal(agentName) {
+		return fmt.Errorf("invalid agent name %q", agentName)
+	}
+
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -152,6 +160,9 @@ func (m *Manager) Remove(ctx context.Context, agentName string) error {
 
 // Exists checks whether the worktree directory exists for the given agent.
 func (m *Manager) Exists(agentName string) bool {
+	if !filepath.IsLocal(agentName) {
+		return false
+	}
 	_, err := os.Stat(m.Path(agentName))
 	return err == nil
 }
@@ -178,6 +189,9 @@ func (m *Manager) ClaudeDir(agentName string) string {
 // EnsureClaudeDir creates the Claude home directory for the given agent if it
 // does not already exist.
 func (m *Manager) EnsureClaudeDir(agentName string) error {
+	if !filepath.IsLocal(agentName) {
+		return fmt.Errorf("invalid agent name %q", agentName)
+	}
 	dir := m.ClaudeDir(agentName)
 	if err := os.MkdirAll(dir, 0750); err != nil {
 		return fmt.Errorf("create claude dir: %w", err)

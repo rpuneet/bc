@@ -57,10 +57,19 @@ func SafeJoin(root, userPath string) (string, error) {
 		return "", fmt.Errorf("%w: absolute path %q", ErrPathEscape, userPath)
 	}
 
-	// Normalise empty / "." to "" so filepath.Join returns absRoot.
+	// filepath.Clean maps both "" and "." to "." — the caller wants root
+	// itself, which is trivially contained.
 	cleanUser := filepath.Clean(userPath)
 	if cleanUser == "." {
-		cleanUser = ""
+		return absRoot, nil
+	}
+
+	// Lexical containment check. cleanUser is already cleaned, so any
+	// remaining ".." segments are leading ones that would escape root.
+	// filepath.IsLocal rejects those (and absolute paths, and Windows
+	// reserved names) up-front.
+	if !filepath.IsLocal(cleanUser) {
+		return "", fmt.Errorf("%w: %q escapes root", ErrPathEscape, userPath)
 	}
 
 	joined := filepath.Join(absRoot, cleanUser)

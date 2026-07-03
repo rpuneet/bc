@@ -31,7 +31,10 @@ RUN CGO_ENABLED=1 go build -ldflags="-s -w" -o /mycel ./cmd/mycel
 
 # Stage 3: Runtime (includes dev toolchain for cron build jobs)
 FROM ubuntu:24.04
+# upgrade picks up OS security patches the base tag hasn't rolled up yet —
+# the container scan flags every unpatched CVE in the stale layer otherwise.
 RUN apt-get update && \
+    apt-get upgrade -y && \
     apt-get install -y --no-install-recommends \
         ca-certificates tmux git curl sqlite3 jq docker.io \
         make gcc libc6-dev python3 python3-pip unzip && \

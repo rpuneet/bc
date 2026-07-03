@@ -401,6 +401,11 @@ func readFrom(dir, name string) (*Template, string, error) {
 
 // writeTemplate writes <name>.json and <name>.md into dir.
 func writeTemplate(dir string, t Template, systemPrompt string) error {
+	// Template names come from API callers — never let one escape the
+	// templates directory.
+	if !filepath.IsLocal(t.Name) || strings.ContainsAny(t.Name, `/\`) {
+		return fmt.Errorf("invalid template name %q", t.Name)
+	}
 	if err := os.MkdirAll(dir, 0750); err != nil {
 		return fmt.Errorf("create templates dir: %w", err)
 	}
@@ -420,6 +425,9 @@ func writeTemplate(dir string, t Template, systemPrompt string) error {
 // removeTemplate deletes <name>.json + <name>.md from dir. Missing .md
 // is not an error.
 func removeTemplate(dir, name string) error {
+	if !filepath.IsLocal(name) || strings.ContainsAny(name, `/\`) {
+		return fmt.Errorf("invalid template name %q", name)
+	}
 	jsonPath := filepath.Join(dir, name+".json")
 	if err := os.Remove(jsonPath); err != nil {
 		return fmt.Errorf("delete template %q: %w", name, err)

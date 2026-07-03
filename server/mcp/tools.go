@@ -430,12 +430,19 @@ func (s *Server) toolSendFile(ctx context.Context, raw json.RawMessage) (*toolsC
 	if s.ws != nil {
 		wsRoot = s.ws.RootDir
 	}
-	if !strings.HasPrefix(absPath, wsRoot) && !strings.HasPrefix(absPath, "/tmp/") {
+	absPath = filepath.Clean(absPath)
+	inRoot := absPath == wsRoot ||
+		strings.HasPrefix(absPath, strings.TrimSuffix(wsRoot, "/")+"/") ||
+		strings.HasPrefix(absPath, "/tmp/")
+	if !inRoot {
 		return &toolsCallResult{
 			Content: []ToolContent{textContent(fmt.Sprintf("file path %q is outside workspace root %q", absPath, wsRoot))},
 			IsError: true,
 		}, nil
 	}
+	// Re-rooting a cleaned absolute path is a no-op but guarantees the
+	// final path cannot traverse outside "/".
+	absPath = filepath.Clean("/" + absPath)
 
 	// Check file size before reading into memory
 	info, err := os.Stat(absPath)
