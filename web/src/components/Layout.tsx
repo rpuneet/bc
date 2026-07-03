@@ -10,7 +10,7 @@ import { sourcePlatform } from "./notifications/messageUtils";
 import { SetupWizard, PlatformChooser, PLATFORM_MAP } from "./notifications/SetupWizard";
 import { PLATFORM_ICON_MAP } from "./notifications/PlatformIcons";
 import { Header } from "./Header";
-import { SidebarToggle, WorkspaceDropdown } from "./WorkspaceDropdown";
+import { SidebarToggle } from "./SidebarToggle";
 import { HeaderSlotProvider, useHeaderSlotContext } from "../context/HeaderSlotContext";
 
 const SIDEBAR_KEY = "bc-sidebar-collapsed";
@@ -629,9 +629,8 @@ export function Layout() {
               </span>
               <div className="min-w-0">
                 <p className="text-[13px] font-semibold text-mycel-text truncate" style={{ letterSpacing: -0.1 }}>
-                  {userName ? (userName.startsWith("@") ? userName : `@${userName}`) : "@mycel"}
+                  {userName ? (userName.startsWith("@") ? userName : `@${userName}`) : "mycel"}
                 </p>
-                <p className="text-[10px] text-mycel-muted -mt-0.5" style={{ fontFamily: "'JetBrains Mono', monospace" }}>workspace</p>
               </div>
             </div>
           ) : (
@@ -779,12 +778,6 @@ export function Layout() {
           </div>
         </main>
       </HeaderSlotProvider>
-      {/* WorkspaceDropdown owns the Cmd/Ctrl+Shift+W hotkey; keep it mounted
-          in a visually-hidden slot so the shortcut still opens the switcher
-          even though the header no longer renders the pill (#3205 P1b). */}
-      <div className="sr-only" aria-hidden>
-        <WorkspaceDropdown />
-      </div>
       <CommandPalette />
     </div>
   );

@@ -1,12 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { api } from "../api/client";
 import type { NotificationSource } from "../api/client";
 import { usePolling } from "../hooks/usePolling";
-import { AgentPeekPanel } from "../components/AgentPeekPanel";
 import { LoadingSkeleton } from "../components/LoadingSkeleton";
 import { EmptyState } from "../components/EmptyState";
-import { GatewayFeed } from "../components/notifications/GatewayFeed";
+import { ChannelStream } from "../components/notifications/ChannelStream";
 
 import { useHeaderSlot } from "../context/HeaderSlotContext";
 import { TabHeaderTitle } from "../components/Header";
@@ -23,7 +22,6 @@ export function Notifications() {
   const { data: sources, loading, error, refresh, timedOut } = usePolling(fetcher, 10000);
 
   const selected = paramSource ?? null;
-  const [peekAgent, setPeekAgent] = useState<string | null>(null);
 
   // Auto-select first gateway source if none selected
   useEffect(() => {
@@ -122,32 +120,19 @@ export function Notifications() {
 
   return (
     <div className="flex h-full">
-      {/* Activity feed — fills full width (channel tree is in main sidebar) */}
       <div className="flex-1 flex flex-col min-w-0">
         {selected ? (
-          <GatewayFeed
-            channelName={selected}
-            channel={selectedSource}
-            onPeekAgent={setPeekAgent}
-          />
+          <ChannelStream channelName={selected} channel={selectedSource} />
         ) : (
           <div className="flex-1 flex items-center justify-center">
             <EmptyState
               icon="#"
               title="Select a channel"
-              description="Choose a channel from the sidebar to view its activity feed."
+              description="Choose a channel from the sidebar to view its subscriptions and delivery log."
             />
           </div>
         )}
       </div>
-
-      {/* Agent peek overlay */}
-      {peekAgent && (
-        <AgentPeekPanel
-          agentName={peekAgent}
-          onClose={() => setPeekAgent(null)}
-        />
-      )}
     </div>
   );
 }

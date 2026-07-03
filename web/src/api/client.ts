@@ -61,6 +61,9 @@ export interface Agent {
   runtime_backend?: string;
   mcp_servers?: string[];
   repo_root?: string;
+  /** Absolute path of the workspace this agent belongs to. Grouping the
+   *  Agents page by workspace uses this. */
+  workspace?: string;
 }
 
 export interface AgentConfig {

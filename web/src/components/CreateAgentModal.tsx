@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { AgentIcon } from "./agent-ui";
 import type { AgentShape } from "./agent-ui";
 import { MONO } from "../utils/typography";
+import { useWorkspace } from "../context/WorkspaceContext";
 
 // ── Name generation ───────────────────────────────────────────────────────────
 
@@ -83,6 +84,7 @@ export function CreateAgentModal({
   existingAgents = [],
   defaultCloneFrom = "",
 }: CreateAgentModalProps) {
+  const { workspaces, workspace: activeWorkspace } = useWorkspace();
   const [name, setName] = useState(() => generateName(existingNames));
   const [shape, setShape] = useState<AgentShape>(
     () => SHAPES[Math.floor(Math.random() * SHAPES.length)] ?? "hexagon",
@@ -93,6 +95,7 @@ export function CreateAgentModal({
   const [runtime, setRuntime] = useState<Runtime>("docker");
   const [task, setTask] = useState("");
   const [cloneFrom, setCloneFrom] = useState("");
+  const [workspaceId, setWorkspaceId] = useState<string>(activeWorkspace?.id ?? "");
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -135,6 +138,7 @@ export function CreateAgentModal({
       // When opened from the Clone action, pre-select the source agent
       // so the clone-from effect populates provider/runtime automatically.
       setCloneFrom(defaultCloneFrom);
+      setWorkspaceId(activeWorkspace?.id ?? "");
       requestAnimationFrame(() => firstInputRef.current?.focus());
     }
     prevOpenRef.current = open;
@@ -179,10 +183,15 @@ export function CreateAgentModal({
       setSubmitError(`Agent "${trimmed}" already exists. Pick a different name.`);
       return;
     }
+    if (!workspaceId) {
+      setSubmitError("Workspace is required.");
+      return;
+    }
     setSubmitError(null);
     setSubmitting(true);
     try {
-      const res = await fetch("/api/agents", {
+      const url = `/api/agents?workspace=${encodeURIComponent(workspaceId)}`;
+      const res = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: trimmed, template, tool: provider, runtime_backend: runtime, task: task || undefined }),
@@ -194,14 +203,12 @@ export function CreateAgentModal({
         return;
       }
       onClose();
-      // Use SPA navigation; preserves workspace prefix when present.
-      const prefix = window.location.pathname.match(/^\/w\/[^/]+/)?.[0] ?? "";
-      navigate(`${prefix}/agents/${encodeURIComponent(trimmed)}`);
+      navigate(`/agents/${encodeURIComponent(trimmed)}`);
     } catch (e) {
       setSubmitError(e instanceof Error ? e.message : "Failed to create agent");
       setSubmitting(false);
     }
-  }, [name, template, provider, runtime, task, existingNames, onClose, navigate]);
+  }, [name, template, provider, runtime, task, workspaceId, existingNames, onClose, navigate]);
 
   if (!open) return null;
 
@@ -292,6 +299,29 @@ export function CreateAgentModal({
               <option value="hexagon">hexagon</option>
               <option value="circle">circle</option>
               <option value="square">square</option>
+            </select>
+          </div>
+
+          {/* Workspace — required. Workspace is a property on the
+              agent (workspace-as-property model), so every new agent
+              must be bound to one. */}
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-medium text-mycel-muted uppercase tracking-wider" style={{ fontFamily: MONO }}>
+              Workspace <span className="text-mycel-error">*</span>
+            </label>
+            <select
+              value={workspaceId}
+              onChange={(e) => setWorkspaceId(e.target.value)}
+              className={INPUT_CLS}
+              style={{ fontFamily: MONO }}
+              required
+            >
+              <option value="">— select workspace —</option>
+              {workspaces.map((ws) => (
+                <option key={ws.id} value={ws.id}>
+                  {ws.name || ws.path.split("/").pop() || ws.id}
+                </option>
+              ))}
             </select>
           </div>
 
