@@ -587,7 +587,13 @@ func CheckTools(ctx context.Context) CategoryReport {
 	}
 
 	// Check MCP servers from tool store
-	toolStore := tool.NewStore(filepath.Join(os.Getenv("HOME"), ".bc"))
+	// Tool store state lives under the mycel home (~/.mycel, with a
+	// built-in fallback to ~/.bc when only the legacy dir exists).
+	stateDir, homeErr := workspace.MycelHome()
+	if homeErr != nil {
+		stateDir = filepath.Join(os.Getenv("HOME"), ".bc")
+	}
+	toolStore := tool.NewStore(stateDir)
 	if err := toolStore.Open(); err == nil {
 		defer toolStore.Close() //nolint:errcheck
 		tools, listErr := toolStore.ListWithOptions(ctx, tool.ListOptions{Types: []string{tool.ToolTypeMCP}})

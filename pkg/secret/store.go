@@ -13,6 +13,8 @@ import (
 	"time"
 
 	"github.com/rpuneet/mycel/pkg/db"
+	"github.com/rpuneet/mycel/pkg/log"
+	"github.com/rpuneet/mycel/pkg/workspace"
 )
 
 // PassphraseEnvVar is the environment variable for the master passphrase.
@@ -41,28 +43,42 @@ type Store struct {
 }
 
 // Passphrase returns the passphrase for secret encryption.
-// Priority: BC_SECRET_PASSPHRASE env var > auto-generated key file at ~/.bc/secret-key.
+// Priority: BC_SECRET_PASSPHRASE env var > key file at <mycel home>/secret-key
+// (legacy ~/.bc/secret-key is migrated over once) > freshly generated key.
 // The key file is created with 0600 permissions on first use.
 func Passphrase() (string, error) {
 	if p := os.Getenv(PassphraseEnvVar); p != "" {
 		return p, nil
 	}
 
-	home, err := os.UserHomeDir()
+	keyDir, err := workspace.MycelHome()
 	if err != nil {
-		return "", fmt.Errorf("cannot determine home directory: %w", err)
+		return "", fmt.Errorf("cannot determine mycel home: %w", err)
 	}
-
-	keyDir := filepath.Join(home, ".bc")
 	keyPath := filepath.Join(keyDir, "secret-key")
 
-	data, err := os.ReadFile(keyPath) //nolint:gosec // known path under home dir
+	data, err := os.ReadFile(keyPath) //nolint:gosec // known path under mycel home
 	if err == nil {
 		return strings.TrimSpace(string(data)), nil
 	}
 
 	if !os.IsNotExist(err) {
 		return "", fmt.Errorf("read secret key file: %w", err)
+	}
+
+	// Legacy fallback: pre-rename installs kept the key at ~/.bc/secret-key.
+	// Losing this key would brick decryption of every stored secret, so it
+	// is copied into the canonical location once — and used even when the
+	// copy fails — before ever generating a fresh key.
+	if legacyKey, ok := legacySecretKey(keyPath); ok {
+		if mkErr := os.MkdirAll(keyDir, 0700); mkErr != nil {
+			log.Warn("secret key: cannot create mycel home — using legacy ~/.bc/secret-key in place", "error", mkErr)
+		} else if wrErr := os.WriteFile(keyPath, []byte(legacyKey+"\n"), 0600); wrErr != nil {
+			log.Warn("secret key: copy from legacy ~/.bc/secret-key failed — using it in place", "error", wrErr)
+		} else {
+			log.Info("secret key: migrated legacy ~/.bc/secret-key", "to", keyPath)
+		}
+		return legacyKey, nil
 	}
 
 	// Generate a random 32-byte key and write it
@@ -80,6 +96,26 @@ func Passphrase() (string, error) {
 	}
 
 	return key, nil
+}
+
+// legacySecretKey reads the pre-rename ~/.bc/secret-key. Returns false
+// when the file is absent/empty or when it is the same path as the
+// canonical key file (i.e. MycelHome already resolved to ~/.bc).
+func legacySecretKey(canonicalPath string) (string, bool) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", false
+	}
+	legacyPath := filepath.Join(home, ".bc", "secret-key")
+	if legacyPath == canonicalPath {
+		return "", false
+	}
+	data, err := os.ReadFile(legacyPath) //nolint:gosec // known path under home dir
+	if err != nil {
+		return "", false
+	}
+	key := strings.TrimSpace(string(data))
+	return key, key != ""
 }
 
 // NewStore creates a new secrets store for the given workspace path.

@@ -154,18 +154,31 @@ func OpenWorkspaceDBWithConfig(workspaceRoot string, cfg *StorageSettings) (*sql
 	}
 
 	// Priority 3: SQLite (default)
-	basePath := workspaceRoot
-	if cfg != nil && cfg.SQLite.Path != "" {
-		basePath = cfg.SQLite.Path
-	}
-	path := filepath.Join(basePath, ".bc", "bc.db")
+	//
+	// The default settings.json writes sqlite.path = ".bc", which used to
+	// resolve CWD-relative to ".bc/.bc/bc.db" (issue #3237). The default
+	// always means the canonical <workspaceRoot>/.bc/bc.db; custom paths
+	// resolve against the workspace root — never the process CWD.
+	path := BCDBPath(workspaceRoot)
 	if cfg != nil && cfg.SQLite.Path != "" && cfg.SQLite.Path != ".bc" {
-		// If a custom path is set, use it directly
-		path = filepath.Join(basePath, "bc.db")
+		base := cfg.SQLite.Path
+		if !filepath.IsAbs(base) {
+			base = filepath.Join(workspaceRoot, base)
+		}
+		path = filepath.Join(base, "bc.db")
 	}
 	d, err := Open(path)
 	if err != nil {
 		return nil, "", fmt.Errorf("open sqlite %s: %w", path, err)
+	}
+	if path == BCDBPath(workspaceRoot) {
+		// Recover rows written to the nested <ws>/.bc/.bc/bc.db that the
+		// #3237 bug created. Best-effort: a failed merge must not stop the
+		// daemon from opening its database; it retries on the next open.
+		if mergeErr := mergeLegacyNestedDB(d.DB, workspaceRoot); mergeErr != nil {
+			log.Warn("legacy nested db merge failed — will retry on next open",
+				"workspace", workspaceRoot, "error", mergeErr)
+		}
 	}
 	return d.DB, "sqlite", nil
 }
