@@ -8,7 +8,7 @@ import { api } from "../api/client";
 import type { NotificationSource, GatewayHealth, GatewayStatus, NotifySubscription } from "../api/client";
 import { sourcePlatform } from "./notifications/messageUtils";
 import { SetupWizard, PlatformChooser, PLATFORM_MAP } from "./notifications/SetupWizard";
-import { PLATFORM_ICON_MAP } from "./notifications/PlatformIcons";
+import { DefaultAppIcon, PLATFORM_ICON_MAP } from "./notifications/PlatformIcons";
 import { Header } from "./Header";
 import { SidebarToggle } from "./SidebarToggle";
 import { HeaderSlotProvider, useHeaderSlotContext } from "../context/HeaderSlotContext";
@@ -75,9 +75,9 @@ function getPlatformMeta(p: string) {
   // Handle compound keys like "telegram:gateway" — look up base platform
   const base = p.includes(":") ? (p.split(":")[0] ?? p) : p;
   const def = PLATFORM_MAP[base];
-  const IconComponent = PLATFORM_ICON_MAP[base] ?? null;
-  if (def) return { label: def.label, color: def.color, IconComponent };
-  return { label: p, color: "#8c7e72", IconComponent };
+  const IconComponent = PLATFORM_ICON_MAP[base] ?? DefaultAppIcon;
+  if (def) return { base, label: def.label, color: def.color, IconComponent };
+  return { base, label: p, color: "#8c7e72", IconComponent };
 }
 
 /** Extract display channel name (last segment after platform and optional server). */
@@ -97,86 +97,197 @@ function sourceGroup(name: string): string | null {
   return null;
 }
 
-/* ── Channel list with show more/less toggle ───────────────── */
+/* ── Channel list — guild sub-groups, unread accents, row cap ── */
 
-const SIDEBAR_CHANNEL_LIMIT = 15;
+/** Max channel rows shown per app before the "N more" expander. */
+const APP_CHANNEL_CAP = 8;
+/** Total channel count above which the drawer filter input appears. */
+const CHANNEL_FILTER_THRESHOLD = 15;
+
+function ChannelRow({
+  ch,
+  count,
+  unread,
+  prefix,
+  onView,
+}: {
+  ch: NotificationSource;
+  count: number;
+  unread: boolean;
+  prefix: string;
+  onView: (name: string) => void;
+}) {
+  const chName = displaySourceName(ch.name);
+  // Badge: agents subscribed when any; otherwise fall back to the source's
+  // member count so channels with data still read as populated.
+  const badge = count > 0 ? count : ch.member_count > 0 ? ch.member_count : 0;
+  return (
+    <NavLink
+      to={`${prefix}/notifications/${ch.name}`}
+      className="block"
+      title={count > 0 ? `${ch.name} · ${count} subscribed` : ch.name}
+      onClick={() => onView(ch.name)}
+      style={({ isActive }: { isActive: boolean }) => ({
+        display: "flex",
+        alignItems: "center",
+        gap: 8,
+        height: 24,
+        padding: "0 8px",
+        borderRadius: 5,
+        fontSize: 12.5,
+        color: isActive || unread ? "var(--mycel-text)" : count > 0 ? "var(--mycel-text-2)" : "var(--mycel-muted)",
+        background: isActive ? "color-mix(in srgb, var(--mycel-accent) 14%, transparent)" : "transparent",
+        fontWeight: isActive ? 600 : unread || count > 0 ? 500 : 400,
+        cursor: "pointer",
+        marginBottom: 1,
+        textDecoration: "none",
+      })}
+    >
+      <span
+        style={{
+          width: 12,
+          color: unread ? "var(--mycel-accent)" : "var(--mycel-muted)",
+          fontFamily: "'JetBrains Mono', monospace",
+          fontSize: 12,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          flexShrink: 0,
+        }}
+      >
+        #
+      </span>
+      <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        {chName}
+      </span>
+      {unread && (
+        <span
+          className="shrink-0"
+          style={{ width: 4, height: 4, borderRadius: 999, background: "var(--mycel-accent)" }}
+        />
+      )}
+      {badge > 0 && (
+        <span
+          style={{
+            fontSize: 10.5,
+            fontWeight: 600,
+            color: "var(--mycel-muted)",
+            fontFamily: "'JetBrains Mono', monospace",
+            padding: "1px 5px",
+            borderRadius: 999,
+            background: "var(--mycel-surface)",
+          }}
+        >
+          {badge}
+        </span>
+      )}
+    </NavLink>
+  );
+}
 
 function ChannelList({
   channels,
   subCountMap,
   prefix,
+  appLastMsg,
+  viewedMap,
+  onView,
+  filtering,
 }: {
   channels: NotificationSource[];
   subCountMap: Map<string, number>;
   prefix: string;
+  appLastMsg: number | null;
+  viewedMap: Record<string, number>;
+  onView: (name: string) => void;
+  filtering: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
-  const visible = expanded ? channels : channels.slice(0, SIDEBAR_CHANNEL_LIMIT);
-  const hasMore = channels.length > SIDEBAR_CHANNEL_LIMIT;
+  const showAll = expanded || filtering;
+
+  if (channels.length === 0) {
+    return (
+      <div style={{ padding: "3px 8px 5px", fontSize: 11, color: "var(--mycel-muted)", fontStyle: "italic" }}>
+        No channels yet
+      </div>
+    );
+  }
+
+  // Sub-group by server/guild — canonical keys are "discord:<guild>:<channel>".
+  const groupOrder: (string | null)[] = [];
+  const grouped = new Map<string | null, NotificationSource[]>();
+  for (const ch of channels) {
+    const g = sourceGroup(ch.name);
+    const list = grouped.get(g);
+    if (list) {
+      list.push(ch);
+    } else {
+      grouped.set(g, [ch]);
+      groupOrder.push(g);
+    }
+  }
+  groupOrder.sort((a, b) => (a ?? "").localeCompare(b ?? ""));
+  for (const list of grouped.values()) {
+    list.sort((a, b) => displaySourceName(a.name).localeCompare(displaySourceName(b.name)));
+  }
+  // Guild labels only earn a row when there is more than one group —
+  // a single server/bot is already named in the app header.
+  const showGroupLabels = groupOrder.length > 1;
+
+  const cap = showAll ? channels.length : APP_CHANNEL_CAP;
+  let rendered = 0;
+  const rows: JSX.Element[] = [];
+  for (const g of groupOrder) {
+    if (rendered >= cap) break;
+    const items = (grouped.get(g) ?? []).slice(0, cap - rendered);
+    if (items.length === 0) continue;
+    if (showGroupLabels && g !== null) {
+      rows.push(
+        <div
+          key={`group:${g}`}
+          className="truncate"
+          style={{
+            padding: "4px 8px 1px",
+            fontSize: 10,
+            color: "var(--mycel-muted)",
+            textTransform: "uppercase",
+            letterSpacing: 0.6,
+            fontWeight: 600,
+          }}
+        >
+          {g}
+        </div>,
+      );
+    }
+    for (const ch of items) {
+      const viewedAt = viewedMap[ch.name];
+      // Unread accent: app-level last activity newer than this channel's
+      // last-viewed timestamp. Channels never opened only light up for
+      // activity within the past hour so a fresh browser doesn't glow all over.
+      const unread =
+        appLastMsg !== null &&
+        appLastMsg > (viewedAt ?? 0) &&
+        (viewedAt !== undefined || Date.now() - appLastMsg < 3_600_000);
+      rows.push(
+        <ChannelRow
+          key={ch.name}
+          ch={ch}
+          count={subCountMap.get(ch.name) ?? 0}
+          unread={unread}
+          prefix={prefix}
+          onView={onView}
+        />,
+      );
+      rendered++;
+    }
+  }
+
+  const hidden = channels.length - rendered;
 
   return (
     <>
-      {visible.map((ch) => {
-        const count = subCountMap.get(ch.name) ?? 0;
-        const chName = displaySourceName(ch.name);
-        return (
-          <NavLink
-            key={ch.name}
-            to={`${prefix}/notifications/${ch.name}`}
-            className="block"
-            title={ch.name}
-            style={({ isActive }: { isActive: boolean }) => ({
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              height: 24,
-              padding: "0 8px",
-              borderRadius: 5,
-              fontSize: 12.5,
-              color: isActive ? "var(--mycel-text)" : count > 0 ? "var(--mycel-text)" : "var(--mycel-muted)",
-              background: isActive ? "color-mix(in srgb, var(--mycel-accent) 14%, transparent)" : "transparent",
-              fontWeight: isActive ? 600 : count > 0 ? 500 : 400,
-              cursor: "pointer",
-              marginBottom: 1,
-              textDecoration: "none",
-            })}
-          >
-            <span
-              style={{
-                width: 12,
-                color: "var(--mycel-muted)",
-                fontFamily: "'JetBrains Mono', monospace",
-                fontSize: 12,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                flexShrink: 0,
-              }}
-            >
-              #
-            </span>
-            <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-              {chName}
-            </span>
-            {count > 0 && (
-              <span
-                style={{
-                  fontSize: 10.5,
-                  fontWeight: 600,
-                  color: "var(--mycel-muted)",
-                  fontFamily: "'JetBrains Mono', monospace",
-                  padding: "1px 5px",
-                  borderRadius: 999,
-                  background: "var(--mycel-surface)",
-                }}
-              >
-                {count}
-              </span>
-            )}
-          </NavLink>
-        );
-      })}
-      {hasMore && (
+      {rows}
+      {!filtering && (hidden > 0 || expanded) && (
         <button
           type="button"
           onClick={() => setExpanded((prev) => !prev)}
@@ -192,10 +303,106 @@ function ChannelList({
             textAlign: "left",
           }}
         >
-          {expanded ? "show less" : `show ${channels.length - SIDEBAR_CHANNEL_LIMIT} more...`}
+          {expanded ? "less" : `${hidden} more`}
         </button>
       )}
     </>
+  );
+}
+
+/* ── Drawer state + gateway status helpers ───────────────────── */
+
+const NOTIF_COLLAPSED_KEY = "mycel-notif-collapsed-apps";
+const NOTIF_VIEWED_KEY = "mycel-notif-last-viewed";
+
+function readCollapsedApps(): Set<string> {
+  try {
+    const raw = localStorage.getItem(NOTIF_COLLAPSED_KEY);
+    const arr: unknown = raw ? JSON.parse(raw) : null;
+    return new Set(Array.isArray(arr) ? arr.filter((v): v is string => typeof v === "string") : []);
+  } catch {
+    return new Set();
+  }
+}
+
+function writeCollapsedApps(s: Set<string>) {
+  try { localStorage.setItem(NOTIF_COLLAPSED_KEY, JSON.stringify([...s])); } catch { /* */ }
+}
+
+function readViewedMap(): Record<string, number> {
+  try {
+    const raw = localStorage.getItem(NOTIF_VIEWED_KEY);
+    const obj: unknown = raw ? JSON.parse(raw) : null;
+    return obj && typeof obj === "object" && !Array.isArray(obj) ? (obj as Record<string, number>) : {};
+  } catch {
+    return {};
+  }
+}
+
+// Parse an ISO timestamp, guarding zero / unset / pre-2001 values that
+// produce nonsensical "17753690h ago" strings.
+function parseActivityTs(iso?: string): number | null {
+  if (!iso) return null;
+  const ts = new Date(iso).getTime();
+  return Number.isFinite(ts) && ts > 978307200000 ? ts : null;
+}
+
+/** Compact relative time: "now", "5m", "3h", "2d". */
+function formatAgoShort(ts: number): string {
+  const mins = Math.floor((Date.now() - ts) / 60000);
+  if (mins < 1) return "now";
+  if (mins < 60) return `${mins}m`;
+  if (mins < 1440) return `${Math.floor(mins / 60)}h`;
+  return `${Math.floor(mins / 1440)}d`;
+}
+
+type AppStatus = "connected" | "connecting" | "error" | "idle";
+
+function getAppStatus(gw?: GatewayStatus, h?: GatewayHealth): AppStatus {
+  if (h) {
+    if (h.connected) return "connected";
+    return h.status === "connecting" ? "connecting" : "error";
+  }
+  // Enabled gateway whose health has not reported yet reads as connecting.
+  if (gw?.enabled) return "connecting";
+  return "idle";
+}
+
+/** Map raw gateway errors to a short human-readable reason. */
+function disconnectReason(base: string, h?: GatewayHealth): string {
+  if (base === "whatsapp") return "Scan QR to re-pair";
+  const err = h?.error ?? "";
+  if (/\b402\b|payment required|quota/i.test(err)) return "API quota/payment required";
+  if (/\b401\b|unauthorized|invalid[ _-]?(auth|token|credentials)/i.test(err)) return "Invalid credentials";
+  if (/\b403\b|forbidden/i.test(err)) return "Access denied";
+  if (/\b429\b|rate[ _-]?limit/i.test(err)) return "Rate limited";
+  if (/timeout|timed out|refused|unreachable|network|no such host|dns/i.test(err)) return "Connection failed";
+  return err || "Disconnected";
+}
+
+const STATUS_DOT_TOKEN: Record<AppStatus, string> = {
+  connected: "var(--mycel-success)",
+  connecting: "var(--mycel-warning)",
+  error: "var(--mycel-error)",
+  idle: "var(--mycel-muted)",
+};
+
+/** 6px connection dot — the only status signal a healthy app shows. */
+function StatusDot({ status, title }: { status: AppStatus; title?: string }) {
+  const token = STATUS_DOT_TOKEN[status];
+  return (
+    <span
+      className="shrink-0"
+      title={title}
+      style={{
+        width: 6,
+        height: 6,
+        borderRadius: 999,
+        background: token,
+        opacity: status === "idle" ? 0.35 : 1,
+        boxShadow: status === "connected" ? `0 0 5px color-mix(in srgb, ${token} 50%, transparent)` : "none",
+      }}
+    />
   );
 }
 
@@ -206,8 +413,11 @@ function NotificationNavTree() {
   const [gateways, setGateways] = useState<GatewayStatus[]>([]);
   const [subs, setSubs] = useState<NotifySubscription[]>([]);
   const [health, setHealth] = useState<Map<string, GatewayHealth>>(new Map());
-  const [expandedGw, setExpandedGw] = useState<Set<string>>(new Set(["slack", "telegram", "discord"]));
+  const [collapsedApps, setCollapsedApps] = useState<Set<string>>(readCollapsedApps);
+  const [viewedMap, setViewedMap] = useState<Record<string, number>>(readViewedMap);
+  const [filter, setFilter] = useState("");
   const [setupPlatform, setSetupPlatform] = useState<string | null>(null);
+  const [showConnectMenu, setShowConnectMenu] = useState(false);
 
   const fetchData = useCallback(async () => {
     try {
@@ -220,20 +430,20 @@ function NotificationNavTree() {
       setGateways(gws ?? []);
       setSubs(subList ?? []);
 
-      // Fetch health for each enabled gateway
+      // Fetch health for each enabled gateway, keyed by the gateway's own
+      // platform key so compound keys ("telegram:trade_research") stay stable.
       const enabledGws = (gws ?? []).filter((g) => g.enabled);
-      if (enabledGws.length > 0) {
-        const healthResults = await Promise.all(
-          enabledGws.map((g) =>
-            api.getGatewayHealth(g.platform).catch(() => null),
-          ),
-        );
-        const hmap = new Map<string, GatewayHealth>();
-        for (const h of healthResults) {
-          if (h) hmap.set(h.platform, h);
-        }
-        setHealth(hmap);
+      const healthEntries = await Promise.all(
+        enabledGws.map(async (g) => {
+          const h = await api.getGatewayHealth(g.platform).catch(() => null);
+          return h ? ([g.platform, h] as const) : null;
+        }),
+      );
+      const hmap = new Map<string, GatewayHealth>();
+      for (const entry of healthEntries) {
+        if (entry) hmap.set(entry[0], entry[1]);
       }
+      setHealth(hmap);
     } catch { /* */ }
   }, []);
 
@@ -243,13 +453,22 @@ function NotificationNavTree() {
     return () => clearInterval(interval);
   }, [fetchData]);
 
-  const toggleGw = (p: string) => {
-    setExpandedGw((prev) => {
+  const toggleApp = (p: string) => {
+    setCollapsedApps((prev) => {
       const next = new Set(prev);
       if (next.has(p)) next.delete(p); else next.add(p);
+      writeCollapsedApps(next);
       return next;
     });
   };
+
+  const markViewed = useCallback((name: string) => {
+    setViewedMap((prev) => {
+      const next = { ...prev, [name]: Date.now() };
+      try { localStorage.setItem(NOTIF_VIEWED_KEY, JSON.stringify(next)); } catch { /* */ }
+      return next;
+    });
+  }, []);
 
   const subCountMap = new Map<string, number>();
   for (const sub of subs) subCountMap.set(sub.channel, (subCountMap.get(sub.channel) ?? 0) + 1);
@@ -273,35 +492,32 @@ function NotificationNavTree() {
     if (!bucketMap.has(gw.platform)) bucketMap.set(gw.platform, []);
   }
 
-  const [showConnectMenu, setShowConnectMenu] = useState(false);
+  let totalChannels = 0;
+  for (const list of bucketMap.values()) totalChannels += list.length;
 
-  const healthTooltip = (platform: string): string | undefined => {
-    const h = health.get(platform);
-    if (!h) return undefined;
-    if (h.connected) {
-      let tip = "Connected";
-      if (h.last_message_at) {
-        const ts = new Date(h.last_message_at).getTime();
-        // Guard against zero / unset / pre-2001 timestamps that produce
-        // nonsensical "17753690h ago" tooltips.
-        if (Number.isFinite(ts) && ts > 978307200000) {
-          const ago = Date.now() - ts;
-          const mins = Math.floor(ago / 60000);
-          if (mins < 1) tip += " · last message: just now";
-          else if (mins < 60) tip += ` · last message: ${mins}m ago`;
-          else if (mins < 1440) {
-            const hrs = Math.floor(mins / 60);
-            tip += ` · last message: ${hrs}h ago`;
-          } else {
-            const days = Math.floor(mins / 1440);
-            tip += ` · last message: ${days}d ago`;
-          }
-        }
-      }
-      return tip;
-    }
-    return `Disconnected${h.error ? ": " + h.error : ""}`;
-  };
+  const query = filter.trim().toLowerCase();
+  const filtering = query.length > 0;
+
+  // One visual system per app: brand icon + status dot, stable sort —
+  // connected apps first, then by platform name.
+  const apps = [...bucketMap.entries()]
+    .map(([platform, chs]) => {
+      const meta = getPlatformMeta(platform);
+      const gwStatus = gwMap.get(platform);
+      const gwHealth = health.get(platform);
+      const status = getAppStatus(gwStatus, gwHealth);
+      const visibleChs = filtering
+        ? chs.filter((c) => c.name.toLowerCase().includes(query))
+        : chs;
+      return { platform, chs, meta, gwStatus, gwHealth, status, visibleChs };
+    })
+    .filter((app) => !filtering || app.visibleChs.length > 0)
+    .sort((a, b) => {
+      const ra = a.status === "connected" ? 0 : 1;
+      const rb = b.status === "connected" ? 0 : 1;
+      if (ra !== rb) return ra - rb;
+      return a.meta.label.localeCompare(b.meta.label) || a.platform.localeCompare(b.platform);
+    });
 
   const prefix = "";
 
@@ -313,22 +529,81 @@ function NotificationNavTree() {
         borderLeft: "1px solid var(--mycel-border, rgba(255,255,255,0.08))",
         marginTop: 2,
         marginBottom: 4,
-        maxHeight: 280,
+        maxHeight: 320,
         overflowY: "auto",
       }}
     >
-      {[...bucketMap.entries()].map(([platform, chs]) => {
-        const meta = getPlatformMeta(platform);
-        const gwStatus = gwMap.get(platform);
-        const isConnected = (gwStatus?.enabled && (gwStatus?.channels?.length ?? 0) > 0) || chs.length > 0;
-        const isExpanded = expandedGw.has(platform);
+      {/* Channel filter — only earns its place when the tree is long */}
+      {totalChannels > CHANNEL_FILTER_THRESHOLD && (
+        <div style={{ position: "relative", margin: "4px 4px 3px" }}>
+          <svg
+            width="10"
+            height="10"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.2"
+            style={{
+              position: "absolute",
+              left: 8,
+              top: "50%",
+              transform: "translateY(-50%)",
+              color: "var(--mycel-muted)",
+              pointerEvents: "none",
+            }}
+          >
+            <circle cx="11" cy="11" r="7" />
+            <line x1="16.5" y1="16.5" x2="21" y2="21" strokeLinecap="round" />
+          </svg>
+          <input
+            type="text"
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+            placeholder="Filter channels"
+            aria-label="Filter channels"
+            style={{
+              width: "100%",
+              height: 24,
+              padding: "0 8px 0 24px",
+              fontSize: 11.5,
+              color: "var(--mycel-text)",
+              background: "var(--mycel-surface)",
+              border: "1px solid var(--mycel-border)",
+              borderRadius: 5,
+              outline: "none",
+            }}
+          />
+        </div>
+      )}
+
+      {filtering && apps.length === 0 && (
+        <div style={{ padding: "4px 8px", fontSize: 11, color: "var(--mycel-muted)", fontStyle: "italic" }}>
+          No matching channels
+        </div>
+      )}
+
+      {apps.map(({ platform, chs, meta, gwStatus, gwHealth, status, visibleChs }) => {
+        const isCollapsed = collapsedApps.has(platform) && !filtering;
+        const lastMsg = parseActivityTs(gwHealth?.last_message_at);
+        const ago = status === "connected" && lastMsg ? formatAgoShort(lastMsg) : null;
+        const tooltip =
+          status === "connected"
+            ? lastMsg
+              ? `Connected · last message ${ago === "now" ? "just now" : `${ago ?? ""} ago`}`
+              : "Connected"
+            : status === "connecting"
+              ? "Connecting…"
+              : status === "error"
+                ? `Disconnected${gwHealth?.error ? ": " + gwHealth.error : ""}`
+                : "Not connected";
+        const AppGlyph = meta.IconComponent;
 
         return (
           <div key={platform}>
-            {/* Platform header — icon + server/workspace name */}
+            {/* App header — brand icon + name, dot is the only healthy signal */}
             <button
               type="button"
-              onClick={() => toggleGw(platform)}
+              onClick={() => toggleApp(platform)}
               className="w-full flex items-center"
               style={{
                 gap: 6,
@@ -341,7 +616,7 @@ function NotificationNavTree() {
                 cursor: "pointer",
               }}
             >
-              {meta.IconComponent ? <meta.IconComponent size={12} /> : <span style={{ fontSize: 12 }}>{"📌"}</span>}
+              <AppGlyph size={12} />
               {(() => {
                 const subLabel = gwStatus?.bot_name || (chs.length > 0 ? sourceGroup(chs[0]?.name ?? "") : null);
                 // When a bot/server name is present, show platform + bot for clarity
@@ -357,26 +632,78 @@ function NotificationNavTree() {
                 }
                 return <span className="truncate">{meta.label}</span>;
               })()}
-              {isConnected && (
-                <span
-                  className="ml-auto shrink-0"
-                  title={healthTooltip(platform)}
-                  style={{
-                    width: 5,
-                    height: 5,
-                    borderRadius: 999,
-                    background: "var(--mycel-success)",
-                    boxShadow: "0 0 5px color-mix(in srgb, var(--mycel-success) 50%, transparent)",
-                  }}
-                />
-              )}
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ opacity: 0.4, transform: isExpanded ? "rotate(0deg)" : "rotate(-90deg)", transition: "transform 0.15s" }}>
-                <polyline points="6 9 12 15 18 9" />
-              </svg>
+              <span className="ml-auto shrink-0 flex items-center" style={{ gap: 6 }}>
+                {isCollapsed && chs.length > 0 && (
+                  <span
+                    style={{
+                      fontSize: 10,
+                      fontWeight: 600,
+                      color: "var(--mycel-muted)",
+                      fontFamily: "'JetBrains Mono', monospace",
+                    }}
+                  >
+                    {chs.length}
+                  </span>
+                )}
+                {!isCollapsed && ago && (
+                  <span style={{ fontSize: 10, color: "var(--mycel-muted)", fontVariantNumeric: "tabular-nums" }}>
+                    {ago}
+                  </span>
+                )}
+                <StatusDot status={status} title={tooltip} />
+                <svg
+                  width="10"
+                  height="10"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  style={{ opacity: 0.4, transform: isCollapsed ? "rotate(-90deg)" : "rotate(0deg)", transition: "transform 0.15s" }}
+                >
+                  <polyline points="6 9 12 15 18 9" />
+                </svg>
+              </span>
             </button>
 
+            {/* Disconnected apps get an action row, not a chip */}
+            {status === "error" && (
+              <button
+                type="button"
+                onClick={() => setSetupPlatform(meta.base)}
+                className="w-full flex items-center"
+                title={gwHealth?.error || undefined}
+                style={{
+                  gap: 5,
+                  padding: "1px 8px 3px 26px",
+                  fontSize: 11,
+                  color: "var(--mycel-error)",
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  textAlign: "left",
+                }}
+              >
+                <svg width="10" height="10" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" className="shrink-0">
+                  <path d="M7 1.5l6 11H1z" strokeLinejoin="round" />
+                  <path d="M7 6v3M7 10.8v.01" strokeLinecap="round" />
+                </svg>
+                <span className="truncate">{disconnectReason(meta.base, gwHealth)}</span>
+                <span style={{ marginLeft: "auto", flexShrink: 0, fontSize: 10, opacity: 0.7 }}>→</span>
+              </button>
+            )}
+
             {/* Channel rows */}
-            {isExpanded && <ChannelList channels={chs} subCountMap={subCountMap} prefix={prefix} />}
+            {!isCollapsed && (
+              <ChannelList
+                channels={filtering ? visibleChs : chs}
+                subCountMap={subCountMap}
+                prefix={prefix}
+                appLastMsg={lastMsg}
+                viewedMap={viewedMap}
+                onView={markViewed}
+                filtering={filtering}
+              />
+            )}
           </div>
         );
       })}

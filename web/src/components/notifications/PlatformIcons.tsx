@@ -83,6 +83,37 @@ export function RSSIcon({ size = 14, className }: IconProps) {
   );
 }
 
+export function XIcon({ size = 14, className }: IconProps) {
+  // X (Twitter) wordmark glyph — monochrome brand; currentColor keeps it
+  // legible across all three themes instead of hardcoding black/white.
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" className={className} fill="currentColor">
+      <path d="M18.901 1.153h3.68l-8.04 9.19L24 22.846h-7.406l-5.8-7.584-6.638 7.584H.474l8.6-9.83L0 1.153h7.594l5.243 6.932zM17.61 20.644h2.039L6.486 3.24H4.298z" />
+    </svg>
+  );
+}
+
+/** Neutral fallback for platforms without a brand glyph (replaces the old 📌 emoji). */
+export function DefaultAppIcon({ size = 14, className }: IconProps) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      className={className}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      opacity="0.7"
+    >
+      <circle cx="12" cy="12" r="8.5" />
+      <circle cx="12" cy="12" r="2.5" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
 /** Map from platform key to its SVG icon component. */
 export const PLATFORM_ICON_MAP: Record<string, (props: IconProps) => JSX.Element> = {
   slack: SlackIcon,
@@ -95,4 +126,6 @@ export const PLATFORM_ICON_MAP: Record<string, (props: IconProps) => JSX.Element
   mattermost: MattermostIcon,
   github: GitHubIcon,
   rss: RSSIcon,
+  twitter: XIcon,
+  x: XIcon,
 };
