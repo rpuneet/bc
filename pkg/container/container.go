@@ -143,10 +143,18 @@ func (b *Backend) containerName(name string) string {
 	return b.prefix + b.workspaceHash + "-" + name
 }
 
+// validContainerAgentName is the same identifier barrier pkg/agent
+// enforces; duplicated here (container cannot import agent) so tainted
+// names never reach path construction.
+var validContainerAgentName = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
+
 // containerAgentDir returns the agent's state directory inside the
 // container (bcd side). Prefers the M11 global runtime dir; falls back
 // to the legacy <root>/.bc/agents/<name>/ for pre-M11 workspaces.
 func (b *Backend) containerAgentDir(agentName string) string {
+	if !validContainerAgentName.MatchString(agentName) {
+		return ""
+	}
 	if globalDir, err := workspace.GlobalStateDir(b.workspacePath); err == nil {
 		candidate := filepath.Join(globalDir, "agents", agentName)
 		if _, statErr := os.Stat(candidate); statErr == nil {
@@ -271,6 +279,9 @@ func (b *Backend) CreateSessionWithCommand(ctx context.Context, name, dir, comma
 // Everything else (auth, plugins, MCP, settings) is managed by Claude inside
 // the container and persists in the .claude volume across restarts.
 func (b *Backend) CreateSessionWithEnv(ctx context.Context, name, dir, command string, env map[string]string) error {
+	if !validContainerAgentName.MatchString(name) {
+		return fmt.Errorf("invalid agent name %q", name)
+	}
 	// Validate workspace path — containers without a workspace mount will fail
 	// with "--worktree requires a git repository" inside the container.
 	if dir == "" {
