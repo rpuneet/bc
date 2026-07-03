@@ -141,10 +141,16 @@ func OpenWorkspaceDBWithConfig(workspaceRoot string, cfg *StorageSettings) (*sql
 	if cfg != nil && (cfg.Default == "timescale" || cfg.Default == "sql") {
 		dsn := cfg.Timescale.DSN()
 		db, err := OpenPostgres(dsn)
-		if err != nil {
-			return nil, "", fmt.Errorf("open timescale from config: %w", err)
+		if err == nil {
+			return db, "timescale", nil
 		}
-		return db, "timescale", nil
+		// A dead TimescaleDB must not take every store down with it —
+		// nil stores mean notifications, cron, MCP, tools, and events all
+		// silently vanish. Fall back to SQLite and keep the daemon usable;
+		// data written during the fallback stays in SQLite and does not
+		// sync back once TimescaleDB returns.
+		log.Warn("configured timescale database unreachable — falling back to sqlite",
+			"error", err)
 	}
 
 	// Priority 3: SQLite (default)

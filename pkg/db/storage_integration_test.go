@@ -388,20 +388,24 @@ func TestStorageConfigValidation(t *testing.T) {
 		}
 	})
 
-	t.Run("OpenWorkspaceDBWithConfig timescale without postgres returns error", func(t *testing.T) {
+	t.Run("OpenWorkspaceDBWithConfig timescale without postgres falls back to sqlite", func(t *testing.T) {
 		// Ensure DATABASE_URL is not set so it hits the config path.
 		t.Setenv("DATABASE_URL", "")
 
 		dir := t.TempDir()
-		_, _, err := db.OpenWorkspaceDBWithConfig(dir, &db.StorageSettings{
+		sqlDB, driver, err := db.OpenWorkspaceDBWithConfig(dir, &db.StorageSettings{
 			Default: "timescale",
 			Timescale: db.TimescaleSettings{
 				Host: "127.0.0.1",
 				Port: 59999, // non-existent port
 			},
 		})
-		if err == nil {
-			t.Fatal("expected error when postgres is unreachable")
+		if err != nil {
+			t.Fatalf("expected sqlite fallback when postgres is unreachable, got error: %v", err)
+		}
+		defer func() { _ = sqlDB.Close() }()
+		if driver != "sqlite" {
+			t.Errorf("driver = %q, want %q (fallback)", driver, "sqlite")
 		}
 	})
 
@@ -409,16 +413,20 @@ func TestStorageConfigValidation(t *testing.T) {
 		t.Setenv("DATABASE_URL", "")
 
 		dir := t.TempDir()
-		_, _, err := db.OpenWorkspaceDBWithConfig(dir, &db.StorageSettings{
+		sqlDB, driver, err := db.OpenWorkspaceDBWithConfig(dir, &db.StorageSettings{
 			Default: "sql",
 			Timescale: db.TimescaleSettings{
 				Host: "127.0.0.1",
 				Port: 59999,
 			},
 		})
-		// Should attempt timescale connection and fail (no Postgres running).
-		if err == nil {
-			t.Fatal("expected error for legacy 'sql' default with unreachable postgres")
+		// Should attempt timescale connection, fail, and fall back to SQLite.
+		if err != nil {
+			t.Fatalf("expected sqlite fallback for legacy 'sql' default with unreachable postgres, got error: %v", err)
+		}
+		defer func() { _ = sqlDB.Close() }()
+		if driver != "sqlite" {
+			t.Errorf("driver = %q, want %q (fallback)", driver, "sqlite")
 		}
 	})
 
