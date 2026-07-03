@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.6] - 2026-07-03
+
+Post-v0.3.5 cleanup pass.
+
+### Changed
+- **Delivery log — quiet offline-agent skips.** Sending to a stopped
+  subscriber used to be logged as `StatusFailed`, so a channel with
+  seven subscribers and six stopped agents rendered an alarming
+  `86 failed / 14 delivered`. The routing decision was correct; the
+  agent was just offline. Dispatch now detects the pkg/agent
+  "agent not running" / "is stopped" error text and skips the
+  `LogDelivery` call entirely (debug log only). Failed count on the
+  notifications page reflects genuine send errors again. No schema
+  change.
+
+### Removed
+- **`web/src/components/notifications/GatewayFeed.tsx`** — replaced
+  by `ChannelStream` in v0.3.5, no callers remained.
+- **`web/src/components/AgentPeekPanel.tsx`** — its only caller was
+  GatewayFeed's message-history surface.
+
 ## [0.3.5] - 2026-07-03
 
 Follow-through on the workspace-as-property and
