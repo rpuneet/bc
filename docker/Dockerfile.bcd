@@ -11,7 +11,7 @@ COPY web/ .
 RUN bun run build
 
 # Stage 2: Build Go binary
-FROM golang:1.25.9 AS go
+FROM golang:1.25.11 AS go
 WORKDIR /app
 
 # Cache Go modules (changes rarely)
