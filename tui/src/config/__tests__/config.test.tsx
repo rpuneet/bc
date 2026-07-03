@@ -26,6 +26,14 @@ import type { PerformanceConfig, TUIConfig } from '../../types';
 // The ConfigProvider already catches errors and returns default config,
 // which is what we're testing anyway.
 
+/** Wait until the rendered frame stops showing the loading state (max ~5s). */
+async function waitForLoaded(lastFrame: () => string | undefined): Promise<void> {
+  for (let i = 0; i < 50; i++) {
+    if (!(lastFrame() ?? '').includes('Loading')) return;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+}
+
 // Test component that uses config
 function ConfigConsumer() {
   const { performance, tui, loading } = useConfig();
@@ -61,7 +69,7 @@ describe('ConfigProvider', () => {
       </ConfigProvider>
     );
     // Wait for async loading
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    await waitForLoaded(lastFrame);
     expect(lastFrame()).toContain('Performance:');
     expect(lastFrame()).toContain('TUI:');
   });
