@@ -130,12 +130,15 @@ describe("Live — show-stopped toggle", () => {
     expect(agentCardVisible("carol")).toBe(false);
     expect(agentCardVisible("dave")).toBe(false);
 
-    // Badge reports the split.
+    // Badge reports active count; toggle exposes stopped count with the
+    // explicit "Include stopped" CTA (#3205 P1b).
     const badge = screen.getByTestId("live-state-badge");
     expect(badge.textContent).toContain("2");
     expect(badge.textContent).toContain("active");
-    expect(badge.textContent).toContain("stopped");
-    expect(badge.textContent).toContain("(show)");
+    const toggle = screen.getByTestId("toggle-show-stopped");
+    expect(toggle.textContent).toContain("Include stopped");
+    expect(toggle.textContent).toContain("2");
+    expect(toggle.getAttribute("aria-pressed")).toBe("false");
   });
 
   it("toggle reveals stopped agents when clicked", async () => {
@@ -157,8 +160,8 @@ describe("Live — show-stopped toggle", () => {
     await waitForAgentCard("carol");
     expect(agentCardVisible("dave")).toBe(true);
 
-    // Label flips to "(hide)".
-    expect(screen.getByTestId("toggle-show-stopped").textContent).toContain("hide");
+    // Toggle now announces the pressed state via aria-pressed.
+    expect(screen.getByTestId("toggle-show-stopped").getAttribute("aria-pressed")).toBe("true");
   });
 
   it("persists the toggle state in localStorage", async () => {
@@ -186,7 +189,7 @@ describe("Live — show-stopped toggle", () => {
     await waitForAgentCard("alice");
     // Stopped agent visible immediately on second mount — no toggle click needed.
     expect(agentCardVisible("carol")).toBe(true);
-    expect(screen.getByTestId("toggle-show-stopped").textContent).toContain("hide");
+    expect(screen.getByTestId("toggle-show-stopped").getAttribute("aria-pressed")).toBe("true");
   });
 
   it("reads existing localStorage value on first mount", async () => {

@@ -800,6 +800,12 @@ export function Layout() {
           </div>
         </main>
       </HeaderSlotProvider>
+      {/* WorkspaceDropdown owns the Cmd/Ctrl+Shift+W hotkey; keep it mounted
+          in a visually-hidden slot so the shortcut still opens the switcher
+          even though the header no longer renders the pill (#3205 P1b). */}
+      <div className="sr-only" aria-hidden>
+        <WorkspaceDropdown />
+      </div>
       <CommandPalette />
     </div>
   );
@@ -825,12 +831,7 @@ function LayoutHeader({
   if (slot.hidden) return null;
   return (
     <Header
-      left={
-        <>
-          <SidebarToggle collapsed={collapsed} onToggle={onToggleCollapsed} />
-          <WorkspaceDropdown />
-        </>
-      }
+      left={<SidebarToggle collapsed={collapsed} onToggle={onToggleCollapsed} />}
       center={slot.title}
       actions={slot.actions}
     />
