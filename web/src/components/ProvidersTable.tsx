@@ -2,7 +2,6 @@ import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type { ProviderInfo } from "../api/client";
 import { formatCost, formatTokens } from "../utils/format";
-import { useWorkspace } from "../context/WorkspaceContext";
 import { EmptyState } from "./EmptyState";
 import { ProviderCard } from "./ProviderCard";
 
@@ -93,10 +92,7 @@ export function ProvidersTable({ providers, search }: Props) {
   const [sortDir, setSortDir] = useState<SortDir>("asc");
   const [viewMode, setViewMode] = useState<ViewMode>("cards");
   const navigate = useNavigate();
-  const { workspace } = useWorkspace();
-  // Build workspace-scoped tools URL so clicks land on the scoped route
-  // directly rather than relying on a redirect.
-  const toolsBase = workspace ? `/w/${workspace.id}/tools` : "/tools";
+  const toolsBase = "/tools";
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase().trim();

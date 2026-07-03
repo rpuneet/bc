@@ -9,7 +9,6 @@
  */
 
 import { useEffect, useRef, useState } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
 import { MONO } from "../utils/typography";
 import { useWorkspace, type WorkspaceSummary } from "../context/WorkspaceContext";
 
@@ -32,11 +31,9 @@ export function WorkspaceDropdown({
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const navigate = useNavigate();
-  const location = useLocation();
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const { workspaces, loading } = useWorkspace();
+  const { workspaces, loading, activate } = useWorkspace();
 
   useEffect(() => {
     if (!open) return;
@@ -81,12 +78,7 @@ export function WorkspaceDropdown({
 
   const handleSelect = (ws: WorkspaceEntry) => {
     setOpen(false);
-    // Phase M5: bcd dispatches to any registered workspace per-request.
-    // No restart needed — the scoped URL /w/<id>/... routes directly to
-    // that workspace's services via the WorkspaceManager.
-    const match = /\/w\/[^/]+(\/.*)?$/.exec(location.pathname);
-    const rest = match?.[1] ?? "/agents";
-    navigate(`/w/${ws.id}${rest}`);
+    void activate(ws.id);
   };
 
   return (

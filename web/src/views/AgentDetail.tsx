@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, Link, useLocation, useNavigate } from "react-router-dom";
-import { useWorkspace } from "../context/WorkspaceContext";
 import { useHeaderSlot } from "../context/HeaderSlotContext";
 import { api } from "../api/client";
 import type { Agent, AgentConfig } from "../api/client";
@@ -981,9 +980,7 @@ export function AgentDetail() {
   const { name } = useParams<{ name: string }>();
   const navigate = useNavigate();
   const location = useLocation();
-  const { workspace } = useWorkspace();
-  // Workspace-scoped /agents URL so back-links don't bounce through a redirect.
-  const agentsUrl = workspace ? `/w/${workspace.id}/agents` : "/agents";
+  const agentsUrl = "/agents";
 
   // AgentDetail renders its own comprehensive HUD bar (back link + agent
   // icon + name + state + task + tabs), so the global LayoutHeader is

@@ -10,19 +10,19 @@
  */
 
 import { useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useWorkspace, type WorkspaceSummary } from "../context/WorkspaceContext";
 import { MONO } from "../utils/typography";
 
 export function WorkspacePicker() {
-  const { workspaces, loading, refresh } = useWorkspace();
+  const { workspaces, loading, refresh, activate } = useWorkspace();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const fromPath = searchParams.get("from");
   const [mode, setMode] = useState<"list" | "scan" | "github" | "manual">("list");
+  const fromPath: string | null = null;
 
-  const open = (ws: WorkspaceSummary) => {
-    navigate(`/w/${ws.id}/live`);
+  const open = async (ws: WorkspaceSummary) => {
+    await activate(ws.id);
+    navigate("/live");
   };
 
   return (
@@ -57,7 +57,7 @@ export function WorkspacePicker() {
                 <button
                   key={ws.id}
                   type="button"
-                  onClick={() => open(ws)}
+                  onClick={() => { void open(ws); }}
                   className="w-full flex items-center gap-3 px-3 py-2.5 rounded-md border border-mycel-border/40 bg-mycel-surface/20 hover:border-mycel-accent/50 hover:bg-mycel-accent/[0.04] transition-colors text-left"
                 >
                   <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${ws.active ? "bg-mycel-accent" : "bg-mycel-muted/30"}`} />

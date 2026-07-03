@@ -1,8 +1,0 @@
-This file is a placeholder kept in source control so the //go:embed
-directive in server/embed.go has at least one file to embed.
-
-When you build the web UI (`make build-local-web` or
-`cd web && bun run build`), the real dist artifacts land alongside this
-file and the server serves them. WebDist() in server/embed.go ignores
-this placeholder (and the historical .gitkeep) when deciding whether a
-real bundle is present.
