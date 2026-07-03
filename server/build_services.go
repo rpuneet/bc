@@ -61,10 +61,10 @@ type Globals struct {
 	Stats        *bcstats.Store     // nil when TSDB unavailable
 	Deps         *bcdeps.Registry   // optional dependencies registry (bc-db, etc.)
 	GlobalHub    *bcws.Hub          // fan-in SSE hub for cross-workspace /api/events
-	Templates    *bctemplate.Store  // user-global template store (~/.bc/templates/) — wrapped per-workspace
-	SecretsVault *bcsecret.Store    // user-global secrets vault (~/.bc/secrets.vault) — shared across workspaces
-	MCPGlobal    *bcmcp.GlobalStore // user-global MCP registry (~/.bc/mcps.json)
-	CostsGlobal  *cost.Store        // user-global cost ledger (~/.bc/costs.db) — shared across workspaces
+	Templates    *bctemplate.Store  // user-global template store (~/.mycel/templates/) — wrapped per-workspace
+	SecretsVault *bcsecret.Store    // user-global secrets vault (~/.mycel/secrets.vault) — shared across workspaces
+	MCPGlobal    *bcmcp.GlobalStore // user-global MCP registry (~/.mycel/mcps.json)
+	CostsGlobal  *cost.Store        // user-global cost ledger (~/.mycel/costs.db) — shared across workspaces
 	Build        BuildInfo
 }
 
@@ -169,7 +169,7 @@ func buildWorkspaceServicesFromWS(ctx context.Context, globals *Globals, ws *bcw
 	addCloser(func() error { agentMgr.StopToolHealthLoop(); return nil })
 
 	// Cost store + importer. Prefer the user-global ledger at
-	// ~/.bc/costs.db (M8e) when Globals.CostsGlobal is supplied — every
+	// ~/.mycel/costs.db (M8e) when Globals.CostsGlobal is supplied — every
 	// record is tagged with the workspace id via ScopedStore /
 	// Importer.SetWorkspaceID so cross-workspace analytics work out of
 	// the box. Fall back to the per-workspace store for legacy callers
@@ -229,7 +229,7 @@ func buildWorkspaceServicesFromWS(ctx context.Context, globals *Globals, ws *bcw
 		}()
 	}
 
-	// Secret store. Prefer the user-global vault (~/.bc/secrets.vault)
+	// Secret store. Prefer the user-global vault (~/.mycel/secrets.vault)
 	// supplied by Globals so a single secret set once is visible across
 	// every workspace. When Globals.SecretsVault is unset (legacy
 	// callers), fall back to the per-workspace <ws>/.bc/secrets.db.
@@ -272,7 +272,7 @@ func buildWorkspaceServicesFromWS(ctx context.Context, globals *Globals, ws *bcw
 		}
 	}
 
-	// Template store: user-global (~/.bc/templates/) with workspace
+	// Template store: user-global (~/.mycel/templates/) with workspace
 	// override. If globals.Templates is nil (legacy callers that did not
 	// initialize it), fall back to a workspace-local single-layer store
 	// so existing behavior is preserved.
@@ -423,7 +423,6 @@ func newAgentManager(ws *bcworkspace.Workspace) (*bcagent.Manager, *bccontainer.
 		}
 		return bcagent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir), nil, reason, nil
 	}
-	be = be.WithLegacyPrefix(bcagent.LegacySessionPrefix)
 	mgr := bcagent.NewWorkspaceManagerWithRuntime(ws.AgentsDir(), ws.RootDir, be, "docker")
 	return mgr, be, "", nil
 }

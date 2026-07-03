@@ -77,7 +77,7 @@ type WorkspaceServices struct {
 	Templates    *template.Store
 	Secrets      *secret.Store
 	MCP          *mcp.Store
-	MCPGlobal    *mcp.GlobalStore // user-global MCP registry (~/.bc/mcps.json) — shared across workspaces
+	MCPGlobal    *mcp.GlobalStore // user-global MCP registry (~/.mycel/mcps.json) — shared across workspaces
 	Tools        *tool.Store
 	Gateway      *gateway.Manager
 	Notify       *notify.Service

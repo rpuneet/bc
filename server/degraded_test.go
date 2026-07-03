@@ -96,7 +96,7 @@ func TestAPIHealthOKShapeUnchanged(t *testing.T) {
 // 2026-07-03 Slack-delivery outage), the factory records the reason in
 // Degraded instead of only logging a warning.
 func TestBuildWorkspaceServicesDegradedNotify(t *testing.T) {
-	t.Setenv("BC_HOME", t.TempDir())
+	t.Setenv("MYCEL_HOME", t.TempDir())
 	t.Setenv("BC_SECRET_PASSPHRASE", "unit-test")
 
 	// Force the shared DB to be absent so notify's OpenStore fails,

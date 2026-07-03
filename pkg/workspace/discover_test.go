@@ -29,34 +29,35 @@ func TestDefaultDiscoverOptions(t *testing.T) {
 }
 
 func TestIsV2Workspace(t *testing.T) {
-	// Create temp directory structure
 	tmpDir := t.TempDir()
+	t.Setenv("MYCEL_HOME", filepath.Join(tmpDir, "home-mycel"))
 
-	// Test non-workspace
-	if isV2Workspace(tmpDir) {
+	wsDir := filepath.Join(tmpDir, "proj")
+	if err := os.MkdirAll(wsDir, 0750); err != nil {
+		t.Fatalf("failed to create workspace dir: %v", err)
+	}
+
+	// Not a workspace without a global preferences.json
+	if isV2Workspace(wsDir) {
 		t.Error("expected non-workspace to return false")
 	}
 
-	// Create .bc directory
-	bcDir := filepath.Join(tmpDir, ".bc")
-	if err := os.MkdirAll(bcDir, 0750); err != nil {
-		t.Fatalf("failed to create .bc dir: %v", err)
+	// Create preferences.json in the global state dir
+	stateDir, err := GlobalStateDir(wsDir)
+	if err != nil {
+		t.Fatal(err)
 	}
-
-	// Still not v2 without settings.json
-	if isV2Workspace(tmpDir) {
-		t.Error("expected workspace without settings.json to return false")
+	if err := os.MkdirAll(stateDir, 0750); err != nil {
+		t.Fatal(err)
 	}
-
-	// Create settings.json
-	configPath := filepath.Join(bcDir, "settings.json")
+	configPath := filepath.Join(stateDir, PreferencesFileName)
 	if err := os.WriteFile(configPath, []byte(`{"version":2,"providers":{"default":"claude","providers":{"claude":{"command":"claude"}}},"server":{"host":"127.0.0.1","port":9374,"cors_origin":"*"},"runtime":{"default":"tmux"},"ui":{"theme":"dark","mode":"auto"}}`), 0600); err != nil {
-		t.Fatalf("failed to create settings.json: %v", err)
+		t.Fatalf("failed to create preferences.json: %v", err)
 	}
 
 	// Now it should be v2
-	if !isV2Workspace(tmpDir) {
-		t.Error("expected workspace with settings.json to return true")
+	if !isV2Workspace(wsDir) {
+		t.Error("expected workspace with global preferences.json to return true")
 	}
 }
 
@@ -82,6 +83,7 @@ func TestDiscoverWithEmptyOptions(t *testing.T) {
 func TestDiscoverWithScanPath(t *testing.T) {
 	// Create temp directory with a workspace
 	tmpDir := t.TempDir()
+	t.Setenv("MYCEL_HOME", filepath.Join(tmpDir, "home-mycel"))
 	wsDir := filepath.Join(tmpDir, "test-workspace")
 	bcDir := filepath.Join(wsDir, ".bc")
 
@@ -89,8 +91,15 @@ func TestDiscoverWithScanPath(t *testing.T) {
 		t.Fatalf("failed to create workspace dir: %v", err)
 	}
 
-	// Create minimal config
-	configPath := filepath.Join(bcDir, "settings.json")
+	// Create minimal config in the global state dir
+	stateDir, sdErr := GlobalStateDir(wsDir)
+	if sdErr != nil {
+		t.Fatal(sdErr)
+	}
+	if err := os.MkdirAll(stateDir, 0750); err != nil {
+		t.Fatal(err)
+	}
+	configPath := filepath.Join(stateDir, PreferencesFileName)
 	configContent := `{"version":2,"providers":{"default":"claude","providers":{"claude":{"command":"claude"}}},"server":{"host":"127.0.0.1","port":9374,"cors_origin":"*"},"runtime":{"default":"tmux"},"ui":{"theme":"dark","mode":"auto"}}`
 	if err := os.WriteFile(configPath, []byte(configContent), 0600); err != nil {
 		t.Fatalf("failed to create config: %v", err)
@@ -634,6 +643,7 @@ func TestDiscoverIncludeCached(t *testing.T) {
 
 	// Point HOME at tmpDir so LoadRegistry reads our custom registry
 	t.Setenv("HOME", tmpDir)
+	t.Setenv("MYCEL_HOME", filepath.Join(tmpDir, ".mycel"))
 
 	// Create a workspace that the registry will reference
 	wsDir := filepath.Join(tmpDir, "cached-ws")
@@ -641,12 +651,19 @@ func TestDiscoverIncludeCached(t *testing.T) {
 	if err := os.MkdirAll(bcDir, 0750); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(bcDir, "settings.json"), []byte(`{"version":2,"providers":{"default":"claude","providers":{"claude":{"command":"claude"}}},"server":{"host":"127.0.0.1","port":9374,"cors_origin":"*"},"runtime":{"default":"tmux"},"ui":{"theme":"dark","mode":"auto"}}`), 0600); err != nil {
+	stateDir, sdErr := GlobalStateDir(wsDir)
+	if sdErr != nil {
+		t.Fatal(sdErr)
+	}
+	if err := os.MkdirAll(stateDir, 0750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(stateDir, PreferencesFileName), []byte(`{"version":2,"providers":{"default":"claude","providers":{"claude":{"command":"claude"}}},"server":{"host":"127.0.0.1","port":9374,"cors_origin":"*"},"runtime":{"default":"tmux"},"ui":{"theme":"dark","mode":"auto"}}`), 0600); err != nil {
 		t.Fatal(err)
 	}
 
 	// Write a registry file pointing to that workspace
-	globalDir := filepath.Join(tmpDir, ".bc")
+	globalDir := filepath.Join(tmpDir, ".mycel")
 	if err := os.MkdirAll(globalDir, 0750); err != nil {
 		t.Fatal(err)
 	}
@@ -680,7 +697,7 @@ func TestDiscoverIncludeCached(t *testing.T) {
 				t.Errorf("cached workspace name = %q, want %q", ws.Name, "cached-ws")
 			}
 			if !ws.IsV2 {
-				t.Error("cached workspace should be V2 (has settings.json)")
+				t.Error("cached workspace should be V2 (has preferences.json)")
 			}
 		}
 	}

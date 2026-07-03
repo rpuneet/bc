@@ -63,7 +63,7 @@ Examples:
 var workspaceConfigCmd = &cobra.Command{
 	Use:   "config",
 	Short: "Manage workspace configuration",
-	Long: `Manage workspace configuration (.bc/settings.json).
+	Long: `Manage workspace configuration (preferences.json).
 
 Examples:
   mycel workspace config show                    # Show full config
@@ -114,7 +114,7 @@ var workspaceListCmd = &cobra.Command{
 	Long: `List all mycel workspaces on this machine.
 
 Searches:
-  - Global registry (~/.bc/workspaces.json)
+  - Global registry (~/.mycel/workspaces.json)
   - Common directories (~/Projects, ~/Developer, ~/dev, ~/code, ~/repos, ~/src)
   - Additional paths specified with --scan
 
@@ -132,7 +132,7 @@ var workspaceDiscoverCmd = &cobra.Command{
 	Short: "Discover and register workspaces",
 	Long: `Scan filesystem for mycel workspaces and add them to the registry.
 
-This updates ~/.bc/workspaces.json with newly found workspaces.
+This updates ~/.mycel/workspaces.json with newly found workspaces.
 
 Examples:
   mycel workspace discover                # Scan default locations
@@ -189,7 +189,7 @@ Examples:
 var workspaceUpCmd = &cobra.Command{
 	Use:   "up",
 	Short: "Start all roster agents",
-	Long: `Start all agents defined in [roster] of .bc/settings.json.
+	Long: `Start all agents defined in [roster] of preferences.json.
 
 Agents that are already running are skipped. Missing role files are
 created from built-in defaults automatically.

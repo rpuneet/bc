@@ -19,7 +19,6 @@ import (
 	"regexp"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/rpuneet/mycel/pkg/log"
 	"github.com/rpuneet/mycel/pkg/provider"
@@ -102,20 +101,11 @@ type Backend struct {
 	logCancels        map[string]context.CancelFunc
 	providerRegistry  *provider.Registry
 	prefix            string
-	legacyPrefix      string // Optional prior container-name prefix ("bc-") — reader-side fallback for pre-rename containers.
 	workspaceHash     string
 	workspacePath     string
 	hostWorkspacePath string // host path for Docker-in-Docker mounts (from BC_HOST_WORKSPACE)
 	cfg               Config
 	mu                sync.RWMutex
-}
-
-// WithLegacyPrefix configures a prior container-name prefix that ListSessions
-// should also recognize. Used during renames (v0.3.1: "bc-" → "mycel-") so
-// pre-upgrade containers remain discoverable for one cycle.
-func (b *Backend) WithLegacyPrefix(prefix string) *Backend {
-	b.legacyPrefix = prefix
-	return b
 }
 
 // NewBackend creates a Docker runtime backend.
@@ -175,7 +165,7 @@ func (b *Backend) containerAgentDir(agentName string) string {
 // hostAgentDir returns the host path that maps to the agent's state
 // directory, used on the -v mount flag. For bcd running on the host this
 // mirrors containerAgentDir; for Docker-in-Docker setups the BC_HOST_BC_HOME
-// env var (if set) translates the container's ~/.bc/ to the host's.
+// env var (if set) translates the container's ~/.mycel/ to the host's.
 func (b *Backend) hostAgentDir(agentName, hostRoot string) string {
 	containerDir := b.containerAgentDir(agentName)
 	// Only translate when the path is under BC_HOME (the M11 global dir).
@@ -196,11 +186,6 @@ func (b *Backend) hostAgentDir(agentName, hostRoot string) string {
 }
 
 // imageForTool returns the Docker image for a given agent tool name.
-//
-// Prefers the current mycel-agent-<tool>:latest tag. If only the legacy
-// bc-agent-<tool>:latest image is present locally, returns that instead so
-// pre-rename installs keep booting. The fallback is skipped when the caller
-// has no docker daemon available (probeImageExists returns false quickly).
 func (b *Backend) imageForTool(toolName string) string {
 	if toolName == "" {
 		return b.cfg.Image
@@ -214,34 +199,7 @@ func (b *Backend) imageForTool(toolName string) string {
 			}
 		}
 	}
-	return resolveImageWithLegacyFallback("mycel-agent-"+toolName+":latest", "bc-agent-"+toolName+":latest")
-}
-
-// resolveImageWithLegacyFallback returns preferred if it exists locally
-// (or if the local image inventory can't be probed), else fallback.
-// This exists solely to bridge the bc-agent-* → mycel-agent-* rename for
-// installs that were bootstrapped before v0.3.1. Remove after one cycle.
-func resolveImageWithLegacyFallback(preferred, fallback string) string {
-	if imageExistsLocally(preferred) {
-		return preferred
-	}
-	if imageExistsLocally(fallback) {
-		return fallback
-	}
-	return preferred
-}
-
-// imageExistsLocally returns true if `docker image inspect <ref>` succeeds.
-// Returns false on any error (including no docker daemon) so callers treat
-// "unknown" as "not present" and stick with the preferred name.
-func imageExistsLocally(ref string) bool {
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-	//nolint:gosec // trusted binary, ref built from constant prefixes
-	cmd := exec.CommandContext(ctx, "docker", "image", "inspect", ref)
-	cmd.Stdout = io.Discard
-	cmd.Stderr = io.Discard
-	return cmd.Run() == nil
+	return "mycel-agent-" + toolName + ":latest"
 }
 
 // SessionName returns the full session name with prefix.
@@ -415,7 +373,7 @@ func (b *Backend) CreateSessionWithEnv(ctx context.Context, name, dir, command s
 	// Use local (container) path for mkdir, host path for -v mount.
 	//
 	// M11: agent state lives at <DataDir>/agents/<name>/ where DataDir
-	// is ~/.bc/workspaces/<id>/. The host DataDir may differ from the
+	// is ~/.mycel/workspaces/<id>/. The host DataDir may differ from the
 	// container DataDir when bcd runs in Docker-in-Docker; honor
 	// BC_HOST_BC_HOME (if set) for the host-side BC_HOME.
 	localAgentDir := b.containerAgentDir(name)
@@ -628,10 +586,6 @@ func (b *Backend) ListSessions(ctx context.Context) ([]runtime.Session, error) {
 
 	var sessions []runtime.Session
 	fullPrefix := b.prefix + b.workspaceHash + "-"
-	var legacyFullPrefix string
-	if b.legacyPrefix != "" && b.legacyPrefix != b.prefix {
-		legacyFullPrefix = b.legacyPrefix + b.workspaceHash + "-"
-	}
 	for _, line := range strings.Split(strings.TrimSpace(string(output)), "\n") {
 		if line == "" {
 			continue
@@ -641,15 +595,10 @@ func (b *Backend) ListSessions(ctx context.Context) ([]runtime.Session, error) {
 			continue
 		}
 		n := parts[0]
-		matched := ""
-		switch {
-		case strings.HasPrefix(n, fullPrefix):
-			matched = fullPrefix
-		case legacyFullPrefix != "" && strings.HasPrefix(n, legacyFullPrefix):
-			matched = legacyFullPrefix
-		default:
+		if !strings.HasPrefix(n, fullPrefix) {
 			continue
 		}
+		matched := fullPrefix
 		sessions = append(sessions, runtime.Session{
 			Name:    strings.TrimPrefix(n, matched),
 			Created: parts[1],

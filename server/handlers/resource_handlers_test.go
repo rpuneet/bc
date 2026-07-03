@@ -25,7 +25,7 @@ import (
 
 // --- helpers for building test servers with real services ---
 
-// sandboxBCHome points BC_HOME (and HOME) at a per-test tempdir so any
+// sandboxBCHome points MYCEL_HOME (and HOME) at a per-test tempdir so any
 // global-registry writes land in a disposable sandbox instead of the
 // caller's real ~/.bc/workspaces.json. Without this, workspace.Init()
 // registers every t.TempDir() root in the user's production registry —
@@ -34,7 +34,7 @@ func sandboxBCHome(t *testing.T) {
 	t.Helper()
 	home := t.TempDir()
 	t.Setenv("HOME", home)
-	t.Setenv("BC_HOME", filepath.Join(home, ".bc"))
+	t.Setenv("MYCEL_HOME", filepath.Join(home, ".bc"))
 }
 
 func setupWorkspace(t *testing.T) string {

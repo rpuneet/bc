@@ -38,7 +38,7 @@ func TestCORS_WorkspaceScope_Coexist(t *testing.T) {
 	// Isolate state.
 	home := t.TempDir()
 	t.Setenv("HOME", home)
-	t.Setenv("BC_HOME", filepath.Join(home, ".bc"))
+	t.Setenv("MYCEL_HOME", filepath.Join(home, ".bc"))
 	t.Setenv("BC_SECRET_PASSPHRASE", "unit-test")
 
 	wsDir := filepath.Join(t.TempDir(), "ws")
@@ -149,7 +149,7 @@ func TestCORS_WorkspaceScope_Coexist(t *testing.T) {
 func TestCORS_Preflight_Scoped(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
-	t.Setenv("BC_HOME", filepath.Join(home, ".bc"))
+	t.Setenv("MYCEL_HOME", filepath.Join(home, ".bc"))
 	t.Setenv("BC_SECRET_PASSPHRASE", "unit-test")
 
 	wsDir := filepath.Join(t.TempDir(), "ws")

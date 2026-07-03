@@ -42,7 +42,7 @@ func RunServer(addr, wsRoot, corsOrigin, apiKey string) error {
 	}
 
 	// Multi-workspace registry: load (or create) the global registry at
-	// ~/.bc/workspaces.json, auto-register the workspace bcd was booted
+	// ~/.mycel/workspaces.json, auto-register the workspace bcd was booted
 	// against, and mark it active so legacy /api/ routes resolve correctly.
 	registry, regErr := bcworkspace.LoadRegistry()
 	if regErr != nil {
@@ -133,7 +133,7 @@ func RunServer(addr, wsRoot, corsOrigin, apiKey string) error {
 	depsRegistry.Register(bcCodeServer)
 	depsRegistry.Register(bcdeps.NewBCBrowser())
 
-	// User-global template store at ~/.bc/templates/. Seeded on first run;
+	// User-global template store at ~/.mycel/templates/. Seeded on first run;
 	// each workspace wraps this store with its own override directory.
 	var templatesStore *bctemplate.Store
 	if globalTmplDir, gtErr := bcworkspace.GlobalTemplatesDir(); gtErr != nil {
@@ -148,7 +148,7 @@ func RunServer(addr, wsRoot, corsOrigin, apiKey string) error {
 		templatesStore = bctemplate.NewStore(globalTmplDir)
 	}
 
-	// User-global secrets vault at ~/.bc/secrets.vault. A single vault
+	// User-global secrets vault at ~/.mycel/secrets.vault. A single vault
 	// keeps ANTHROPIC_API_KEY and friends visible across every workspace.
 	var globalVault *bcsecret.Store
 	if vaultPath, vpErr := bcworkspace.GlobalSecretsVault(); vpErr != nil {
@@ -162,7 +162,7 @@ func RunServer(addr, wsRoot, corsOrigin, apiKey string) error {
 		defer gv.Close() //nolint:errcheck // best-effort
 	}
 
-	// User-global MCP registry at ~/.bc/mcps.json. Workspaces still have
+	// User-global MCP registry at ~/.mycel/mcps.json. Workspaces still have
 	// their own SQLite-backed overrides; handlers and agent spawn logic
 	// compose the two at resolve time.
 	var mcpGlobal *bcmcp.GlobalStore
@@ -172,7 +172,7 @@ func RunServer(addr, wsRoot, corsOrigin, apiKey string) error {
 		mcpGlobal = bcmcp.NewGlobalStore(mcpPath)
 	}
 
-	// User-global cost ledger at ~/.bc/costs.db. Records carry
+	// User-global cost ledger at ~/.mycel/costs.db. Records carry
 	// workspace_id for cross-workspace analytics. When the ledger
 	// cannot be opened, per-workspace stores continue to work via the
 	// build_services.go fallback.
@@ -253,13 +253,8 @@ func RunServer(addr, wsRoot, corsOrigin, apiKey string) error {
 // updateAgentHookPorts rewrites agent hook settings to use the current bcd address.
 // This is necessary because existing tmux sessions don't inherit the BC_BCD_ADDR
 // environment variable that is set in the bcd process env.
-//
-// Phase M6: also rewrite MCP URLs from the legacy /_mcp/<agent>/ form to
-// the scoped /_mcp/ws/<wsID>/<agent>/ form so existing agents keep
-// reaching MCP after the URL scheme change.
 func updateAgentHookPorts(ws *bcworkspace.Workspace, listenAddr string) {
 	bcdURL := "http://" + listenAddr
-	wsID := bcworkspace.ComputeWorkspaceID(ws.RootDir)
 	agentsDir := filepath.Join(ws.StateDir(), "agents")
 	entries, err := os.ReadDir(agentsDir)
 	if err != nil {
@@ -281,14 +276,6 @@ func updateAgentHookPorts(ws *bcworkspace.Workspace, listenAddr string) {
 			content := string(data)
 			updated := strings.ReplaceAll(content, "http://127.0.0.1:9374", bcdURL)
 			updated = strings.ReplaceAll(updated, "${BC_BCD_ADDR:-http://127.0.0.1:9374}", bcdURL)
-
-			// Rewrite MCP URL: /_mcp/<agent>/sse → /_mcp/ws/<wsID>/<agent>/sse
-			// Only rewrite if the path is exactly the legacy form (no /ws/ prefix yet).
-			legacyMCP := "/_mcp/" + agentName + "/"
-			scopedMCP := "/_mcp/ws/" + wsID + "/" + agentName + "/"
-			if strings.Contains(updated, legacyMCP) && !strings.Contains(updated, scopedMCP) {
-				updated = strings.ReplaceAll(updated, legacyMCP, scopedMCP)
-			}
 
 			if updated != content {
 				if writeErr := os.WriteFile(settingsPath, []byte(updated), 0644); writeErr != nil { //nolint:gosec // agent settings file

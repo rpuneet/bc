@@ -137,8 +137,7 @@ func OpenWorkspaceDBWithConfig(workspaceRoot string, cfg *StorageSettings) (*sql
 	}
 
 	// Priority 2: settings.json storage config
-	// Accept both "timescale" and legacy "sql" for backward compatibility
-	if cfg != nil && (cfg.Default == "timescale" || cfg.Default == "sql") {
+	if cfg != nil && cfg.Default == "timescale" {
 		dsn := cfg.Timescale.DSN()
 		db, err := OpenPostgres(dsn)
 		if err == nil {
@@ -170,15 +169,6 @@ func OpenWorkspaceDBWithConfig(workspaceRoot string, cfg *StorageSettings) (*sql
 	d, err := Open(path)
 	if err != nil {
 		return nil, "", fmt.Errorf("open sqlite %s: %w", path, err)
-	}
-	if path == BCDBPath(workspaceRoot) {
-		// Recover rows written to the nested <ws>/.bc/.bc/bc.db that the
-		// #3237 bug created. Best-effort: a failed merge must not stop the
-		// daemon from opening its database; it retries on the next open.
-		if mergeErr := mergeLegacyNestedDB(d.DB, workspaceRoot); mergeErr != nil {
-			log.Warn("legacy nested db merge failed — will retry on next open",
-				"workspace", workspaceRoot, "error", mergeErr)
-		}
 	}
 	return d.DB, "sqlite", nil
 }

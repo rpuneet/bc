@@ -11,7 +11,6 @@ import (
 )
 
 // CurrentRegistryVersion is the current registry schema version.
-// v1 = legacy (no IDs). v2 = IDs + github_* + last_used_at.
 const CurrentRegistryVersion = 2
 
 // registryIDLength is the number of hex characters in a workspace ID.
@@ -22,11 +21,10 @@ const registryIDLength = 12
 // RegistryEntry represents a registered workspace.
 type RegistryEntry struct {
 	CreatedAt      time.Time `json:"created_at"`
-	LastAccessed   time.Time `json:"last_accessed,omitempty"` // legacy — mirrors LastUsedAt for backwards compat
-	LastUsedAt     time.Time `json:"last_used_at,omitempty"`  // canonical timestamp (v2+)
-	ID             string    `json:"id,omitempty"`            // stable 12-char hash of abs path (v2+)
-	Path           string    `json:"path"`                    // project root (pristine git repo)
-	DataDir        string    `json:"data_dir,omitempty"`      // runtime state dir (~/.bc/workspaces/<id>/); M11+
+	LastUsedAt     time.Time `json:"last_used_at,omitempty"` // last time the workspace was used
+	ID             string    `json:"id,omitempty"`           // stable 12-char hash of abs path
+	Path           string    `json:"path"`                   // project root (pristine git repo)
+	DataDir        string    `json:"data_dir,omitempty"`     // runtime state dir (~/.mycel/workspaces/<id>/); M11+
 	Name           string    `json:"name"`
 	Alias          string    `json:"alias,omitempty"`            // Short alias for quick access (#1218)
 	GithubURL      string    `json:"github_url,omitempty"`       // Optional GitHub remote URL (v2+)
@@ -58,7 +56,7 @@ func (e *RegistryEntry) GetDataDir() string {
 	return dd
 }
 
-// Registry manages the global list of workspaces at ~/.bc/workspaces.json.
+// Registry manages the global list of workspaces at ~/.mycel/workspaces.json.
 // Issue #1218: Multi-workspace orchestration support.
 type Registry struct {
 	path       string
@@ -83,9 +81,9 @@ func ComputeWorkspaceID(path string) string {
 	return hex.EncodeToString(sum[:])[:registryIDLength]
 }
 
-// GlobalDir returns the path to ~/.bc/. Honors BC_HOME so test isolation
+// GlobalDir returns the path to ~/.mycel/. Honors MYCEL_HOME so test isolation
 // (or power-user overrides) route every registry read/write through the
-// same sandbox — previously this ignored BC_HOME and always read the
+// same sandbox — previously this ignored MYCEL_HOME and always read the
 // host's real registry, which let tests corrupt production state.
 func GlobalDir() string {
 	home, err := MycelHome()
@@ -95,7 +93,7 @@ func GlobalDir() string {
 	return home
 }
 
-// RegistryPath returns the path to ~/.bc/workspaces.json (BC_HOME-aware
+// RegistryPath returns the path to ~/.mycel/workspaces.json (MYCEL_HOME-aware
 // via GlobalDir).
 func RegistryPath() string {
 	return filepath.Join(GlobalDir(), "workspaces.json")
@@ -103,7 +101,7 @@ func RegistryPath() string {
 
 // LoadRegistry loads the global workspace registry.
 // Returns an empty registry if the file doesn't exist.
-// Always runs Migrate() so callers see a v2 in-memory shape.
+// Always normalizes so callers see a fully-populated in-memory shape.
 func LoadRegistry() (*Registry, error) {
 	r := &Registry{path: RegistryPath()}
 
@@ -120,7 +118,7 @@ func LoadRegistry() (*Registry, error) {
 		return nil, err
 	}
 
-	r.Migrate()
+	r.normalize()
 	return r, nil
 }
 
@@ -180,41 +178,19 @@ func (r *Registry) Save() error {
 	return os.Rename(tmpName, r.path)
 }
 
-// Migrate bumps the registry to the current schema version.
-//   - v1 → v2: populate ID on every entry (sha256(path)[:12]) and ensure
-//     LastUsedAt is set (falls back to LastAccessed or CreatedAt).
-//
-// Returns true if any change was made. Safe to call multiple times.
-func (r *Registry) Migrate() bool {
+// normalize ensures every entry has an ID and DataDir set (defensive
+// against hand-edited registry files) and stamps the current schema
+// version. Returns true if any change was made. Safe to call multiple
+// times.
+func (r *Registry) normalize() bool {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
 	changed := false
-	if r.Version < 2 {
-		for i := range r.Workspaces {
-			if r.Workspaces[i].ID == "" {
-				r.Workspaces[i].ID = ComputeWorkspaceID(r.Workspaces[i].Path)
-			}
-			if r.Workspaces[i].LastUsedAt.IsZero() {
-				if !r.Workspaces[i].LastAccessed.IsZero() {
-					r.Workspaces[i].LastUsedAt = r.Workspaces[i].LastAccessed
-				} else {
-					r.Workspaces[i].LastUsedAt = r.Workspaces[i].CreatedAt
-				}
-			}
-			if r.Workspaces[i].DataDir == "" {
-				if dd, err := DataDir(r.Workspaces[i].ID); err == nil {
-					r.Workspaces[i].DataDir = dd
-				}
-			}
-		}
+	if r.Version != CurrentRegistryVersion {
 		r.Version = CurrentRegistryVersion
 		changed = true
-		return changed
 	}
-	// Already v2+ — still ensure IDs and DataDirs are set on any entries
-	// lacking them (defensive against hand-edited registry files, and
-	// to backfill DataDir on entries written before M11).
 	for i := range r.Workspaces {
 		if r.Workspaces[i].ID == "" {
 			r.Workspaces[i].ID = ComputeWorkspaceID(r.Workspaces[i].Path)
@@ -226,17 +202,13 @@ func (r *Registry) Migrate() bool {
 				changed = true
 			}
 		}
-		if r.Workspaces[i].LastUsedAt.IsZero() && !r.Workspaces[i].LastAccessed.IsZero() {
-			r.Workspaces[i].LastUsedAt = r.Workspaces[i].LastAccessed
-			changed = true
-		}
 	}
 	return changed
 }
 
 // Register adds or updates a workspace in the registry.
 func (r *Registry) Register(path, name string) {
-	_ = r.RegisterWithAlias(path, name, "") //nolint:errcheck // legacy function, alias conflict not possible with empty alias
+	_ = r.RegisterWithAlias(path, name, "") //nolint:errcheck // alias conflict not possible with empty alias
 }
 
 // RegisterWithAlias adds or updates a workspace with an optional alias.
@@ -262,7 +234,6 @@ func (r *Registry) RegisterWithAlias(path, name, alias string) error {
 	for i, w := range r.Workspaces {
 		if w.Path == path {
 			r.Workspaces[i].Name = name
-			r.Workspaces[i].LastAccessed = now
 			r.Workspaces[i].LastUsedAt = now
 			if r.Workspaces[i].ID == "" {
 				r.Workspaces[i].ID = ComputeWorkspaceID(path)
@@ -285,14 +256,13 @@ func (r *Registry) RegisterWithAlias(path, name, alias string) error {
 		dataDir = dd
 	}
 	r.Workspaces = append(r.Workspaces, RegistryEntry{
-		ID:           id,
-		Path:         path,
-		DataDir:      dataDir,
-		Name:         name,
-		Alias:        alias,
-		CreatedAt:    now,
-		LastAccessed: now,
-		LastUsedAt:   now,
+		ID:         id,
+		Path:       path,
+		DataDir:    dataDir,
+		Name:       name,
+		Alias:      alias,
+		CreatedAt:  now,
+		LastUsedAt: now,
 	})
 	return nil
 }
@@ -316,7 +286,6 @@ func (r *Registry) Touch(identifier string) {
 	now := time.Now()
 	for i, w := range r.Workspaces {
 		if w.Path == identifier || w.ID == identifier || w.Alias == identifier || w.Name == identifier {
-			r.Workspaces[i].LastAccessed = now
 			r.Workspaces[i].LastUsedAt = now
 			return
 		}
@@ -354,12 +323,12 @@ func (r *Registry) PruneStalePaths() int {
 }
 
 // Prune removes entries where the workspace no longer exists on disk.
-// Checks for .bc/ dir in project root OR state dir in ~/.bc/workspaces/<id>/.
+// Checks for .bc/ dir in project root OR state dir in ~/.mycel/workspaces/<id>/.
 func (r *Registry) Prune() int {
 	pruned := 0
 	valid := make([]RegistryEntry, 0, len(r.Workspaces))
 	for _, w := range r.Workspaces {
-		// Check legacy .bc/ marker
+		// Check .bc/ runtime marker (agent worktree layout)
 		if _, err := os.Stat(filepath.Join(w.Path, ".bc")); err == nil {
 			valid = append(valid, w)
 			continue

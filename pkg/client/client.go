@@ -24,26 +24,12 @@ import (
 )
 
 // DefaultSocketPath returns the default Unix socket path for bcd.
-// Prefers <mycel home>/bcd.sock; falls back to the legacy ~/.bc/bcd.sock
-// when only the legacy socket exists on disk.
 func DefaultSocketPath() string {
 	home, err := workspace.MycelHome()
 	if err != nil {
 		return "/tmp/bcd.sock"
 	}
-	sock := filepath.Join(home, "bcd.sock")
-	if _, statErr := os.Stat(sock); statErr == nil {
-		return sock
-	}
-	if userHome, uErr := os.UserHomeDir(); uErr == nil {
-		legacy := filepath.Join(userHome, ".bc", "bcd.sock")
-		if legacy != sock {
-			if _, statErr := os.Stat(legacy); statErr == nil {
-				return legacy
-			}
-		}
-	}
-	return sock
+	return filepath.Join(home, "bcd.sock")
 }
 
 // DefaultHTTPAddr is the fallback HTTP address for bcd.
@@ -142,7 +128,7 @@ func (c *Client) get(ctx context.Context, path string, result any) error {
 
 // discoverDaemon tries to find the daemon address.
 // Priority: BC_DAEMON_ADDR env > <mycel home>/daemon.addr (written by
-// `mycel up`) > legacy ~/.bc/daemon.addr > default HTTP address.
+// `mycel up`) > default HTTP address.
 func discoverDaemon() string {
 	if addr := os.Getenv("BC_DAEMON_ADDR"); addr != "" {
 		return addr
@@ -153,38 +139,24 @@ func discoverDaemon() string {
 	return DefaultHTTPAddr
 }
 
-// readDaemonAddrFile reads daemon.addr and returns a trimmed, non-empty
-// scheme+host:port string. `mycel up` writes <mycel home>/daemon.addr
-// (usually ~/.mycel), but pre-rename installs wrote ~/.bc/daemon.addr —
-// the canonical location is read first, the legacy one as fallback so
-// the CLI and the daemon never split-brain on the port. Returns "" when
-// no file exists (bcd never started). Real I/O errors — permission
-// denied, corrupted file — log a warning so users aren't silently
-// routed to the hardcoded default when their environment is broken.
+// readDaemonAddrFile reads <mycel home>/daemon.addr (written by
+// `mycel up`) and returns a trimmed, non-empty scheme+host:port string.
+// Returns "" when the file is absent (bcd never started). Real I/O
+// errors — permission denied, corrupted file — log a warning so users
+// aren't silently routed to the hardcoded default.
 func readDaemonAddrFile() string {
-	var paths []string
-	if p, err := workspace.DaemonAddrPath(); err == nil {
-		paths = append(paths, p)
+	path, err := workspace.DaemonAddrPath()
+	if err != nil {
+		return ""
 	}
-	if home, err := os.UserHomeDir(); err == nil {
-		legacy := filepath.Join(home, ".bc", "daemon.addr")
-		if len(paths) == 0 || paths[0] != legacy {
-			paths = append(paths, legacy)
+	data, err := os.ReadFile(path) //nolint:gosec // pinned under mycel home
+	if err != nil {
+		if !errors.Is(err, fs.ErrNotExist) {
+			log.Warn("daemon addr: read failed", "path", path, "error", err)
 		}
+		return ""
 	}
-	for _, path := range paths {
-		data, err := os.ReadFile(path) //nolint:gosec // pinned under mycel home / ~/.bc
-		if err != nil {
-			if !errors.Is(err, fs.ErrNotExist) {
-				log.Warn("daemon addr: read failed — trying fallback", "path", path, "error", err)
-			}
-			continue
-		}
-		if addr := strings.TrimSpace(string(data)); addr != "" {
-			return addr
-		}
-	}
-	return ""
+	return strings.TrimSpace(string(data))
 }
 
 // IsDaemonNotRunning returns true if the error indicates the daemon is not running.

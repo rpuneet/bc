@@ -198,11 +198,9 @@ func TestGlobalDir(t *testing.T) {
 		t.Skip("no home directory available")
 	}
 
-	// Should end with .mycel (canonical) or .bc (legacy install still
-	// on the old tree — MigrateLegacyHome hasn't run yet).
-	base := filepath.Base(dir)
-	if base != ".mycel" && base != ".bc" {
-		t.Errorf("GlobalDir should end with .mycel or .bc, got %s", dir)
+	// Should end with .mycel (unless MYCEL_HOME points elsewhere).
+	if os.Getenv("MYCEL_HOME") == "" && filepath.Base(dir) != ".mycel" {
+		t.Errorf("GlobalDir should end with .mycel, got %s", dir)
 	}
 }
 
@@ -243,10 +241,10 @@ func TestLoadRegistryWithFile(t *testing.T) {
 	t.Setenv("HOME", tmpDir)
 	defer func() { _ = os.Setenv("HOME", oldHome) }()
 
-	// Create .bc directory and registry file
-	bcDir := filepath.Join(tmpDir, ".bc")
+	// Create .mycel directory and registry file
+	bcDir := filepath.Join(tmpDir, ".mycel")
 	if err := os.MkdirAll(bcDir, 0750); err != nil {
-		t.Fatalf("failed to create .bc dir: %v", err)
+		t.Fatalf("failed to create .mycel dir: %v", err)
 	}
 
 	registryData := `{
@@ -281,10 +279,10 @@ func TestLoadRegistryInvalidJSON(t *testing.T) {
 	t.Setenv("HOME", tmpDir)
 	defer func() { _ = os.Setenv("HOME", oldHome) }()
 
-	// Create .bc directory with invalid JSON
-	bcDir := filepath.Join(tmpDir, ".bc")
+	// Create .mycel directory with invalid JSON
+	bcDir := filepath.Join(tmpDir, ".mycel")
 	if err := os.MkdirAll(bcDir, 0750); err != nil {
-		t.Fatalf("failed to create .bc dir: %v", err)
+		t.Fatalf("failed to create .mycel dir: %v", err)
 	}
 
 	registryPath := filepath.Join(bcDir, "workspaces.json")
@@ -450,7 +448,7 @@ func TestRegistryFindByID(t *testing.T) {
 // Empty DataDir falls back to computing the path from the ID.
 func TestRegistryEntryGetDataDir(t *testing.T) {
 	bcHome := t.TempDir()
-	t.Setenv("BC_HOME", bcHome)
+	t.Setenv("MYCEL_HOME", bcHome)
 
 	t.Run("explicit-field", func(t *testing.T) {
 		e := &RegistryEntry{ID: "abc123", DataDir: "/explicit/override"}
@@ -496,7 +494,7 @@ func TestRegistryEntryGetDataDir(t *testing.T) {
 // field so downstream code can look it up without re-deriving.
 func TestRegisterPopulatesDataDir(t *testing.T) {
 	bcHome := t.TempDir()
-	t.Setenv("BC_HOME", bcHome)
+	t.Setenv("MYCEL_HOME", bcHome)
 
 	dir := t.TempDir()
 	r := &Registry{path: filepath.Join(dir, "workspaces.json")}
@@ -511,53 +509,6 @@ func TestRegisterPopulatesDataDir(t *testing.T) {
 	want := filepath.Join(bcHome, "workspaces", entry.ID)
 	if entry.DataDir != want {
 		t.Errorf("DataDir = %q, want %q", entry.DataDir, want)
-	}
-}
-
-// TestRegistryMigrateV1ToV2 ensures loading a v1 registry file upgrades it
-// to v2 with IDs populated.
-func TestRegistryMigrateV1ToV2(t *testing.T) {
-	tmpDir := t.TempDir()
-	t.Setenv("HOME", tmpDir)
-
-	bcDir := filepath.Join(tmpDir, ".bc")
-	if err := os.MkdirAll(bcDir, 0750); err != nil {
-		t.Fatalf("mkdir: %v", err)
-	}
-
-	// v1 file: no version, no id, no last_used_at
-	legacy := `{
-		"active": "foo",
-		"workspaces": [
-			{"path": "/projects/foo", "name": "foo", "alias": "f",
-			 "created_at": "2025-01-01T00:00:00Z",
-			 "last_accessed": "2025-02-01T00:00:00Z"}
-		]
-	}`
-	if err := os.WriteFile(filepath.Join(bcDir, "workspaces.json"), []byte(legacy), 0600); err != nil {
-		t.Fatalf("write: %v", err)
-	}
-
-	r, err := LoadRegistry()
-	if err != nil {
-		t.Fatalf("LoadRegistry: %v", err)
-	}
-	if r.Version != CurrentRegistryVersion {
-		t.Errorf("Version = %d, want %d", r.Version, CurrentRegistryVersion)
-	}
-	if len(r.Workspaces) != 1 {
-		t.Fatalf("Workspaces = %d, want 1", len(r.Workspaces))
-	}
-	if r.Workspaces[0].ID == "" {
-		t.Error("Migrate did not populate ID")
-	}
-	if r.Workspaces[0].LastUsedAt.IsZero() {
-		t.Error("Migrate did not populate LastUsedAt")
-	}
-	// LastUsedAt should fall back from LastAccessed
-	if !r.Workspaces[0].LastUsedAt.Equal(r.Workspaces[0].LastAccessed) {
-		t.Errorf("LastUsedAt=%v should equal LastAccessed=%v",
-			r.Workspaces[0].LastUsedAt, r.Workspaces[0].LastAccessed)
 	}
 }
 

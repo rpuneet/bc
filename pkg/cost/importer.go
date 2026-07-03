@@ -85,7 +85,7 @@ func (imp *Importer) claudeProjectsDirs() []string {
 	}
 
 	// Per-agent Docker auth directories. M11 moved runtime state to
-	// ~/.bc/workspaces/<id>/agents/<name>/; scan both the global dir
+	// ~/.mycel/workspaces/<id>/agents/<name>/; scan both the global dir
 	// and the legacy sidecar so freshly-migrated and not-yet-migrated
 	// workspaces both work.
 	var agentsDirs []string

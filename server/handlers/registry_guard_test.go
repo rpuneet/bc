@@ -11,8 +11,8 @@ import (
 // TestMain snapshots the user's global ~/.bc/workspaces.json before the
 // test binary runs and fails the whole suite if any test caused new
 // entries to be appended. This is a safety net behind setupWorkspace's
-// BC_HOME sandboxing — if a future test bypasses the helper and calls
-// workspace.Init() directly without a BC_HOME override, the snapshot
+// MYCEL_HOME sandboxing — if a future test bypasses the helper and calls
+// workspace.Init() directly without a MYCEL_HOME override, the snapshot
 // hash will change and we catch it here instead of silently polluting
 // the real registry.
 func TestMain(m *testing.M) {
@@ -26,7 +26,7 @@ func TestMain(m *testing.M) {
 			fmt.Fprintf(os.Stderr,
 				"REGISTRY LEAK: user's %s was mutated by tests "+
 					"(hash changed). A test probably called "+
-					"workspace.Init() without sandboxing BC_HOME.\n",
+					"workspace.Init() without sandboxing MYCEL_HOME.\n",
 				beforePath)
 			if code == 0 {
 				code = 1
@@ -38,7 +38,7 @@ func TestMain(m *testing.M) {
 }
 
 // snapshotUserRegistry reads the user's *real* ~/.bc/workspaces.json
-// (intentionally NOT via workspace.BCHome(), which respects BC_HOME
+// (intentionally NOT via workspace.BCHome(), which respects MYCEL_HOME
 // overrides that individual tests set) and returns its SHA-256. Returns
 // ("", "") when the file is absent — in which case we skip the check.
 func snapshotUserRegistry() (string, string) {

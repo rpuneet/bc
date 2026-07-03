@@ -90,7 +90,6 @@ const (
 	// LegacySessionPrefix is the pre-v0.3.1 prefix. Reader-side fallbacks
 	// use this so agents/sessions created before the rename keep working
 	// for one release cycle. Remove after v0.3.2.
-	LegacySessionPrefix = tmux.LegacyPrefix
 
 	// DefaultProvider is the default AI provider for new agents.
 	DefaultProvider = "claude"
@@ -421,7 +420,7 @@ func LoadRoleMemory(workspacePath string, role Role) *AgentMemory {
 	}
 
 	// Load role via RoleManager. Prefer the M11 global runtime dir
-	// (~/.bc/workspaces/<id>/); fall back to the legacy <root>/.bc/
+	// (~/.mycel/workspaces/<id>/); fall back to the legacy <root>/.bc/
 	// sidecar when the global dir is missing or unavailable.
 	stateDir := workspaceStateDir(workspacePath)
 	rm := workspace.NewRoleManager(stateDir)
@@ -586,7 +585,7 @@ func normalizeRuntime(rt string) string {
 // NewManager creates a new agent manager with workspace-scoped tmux sessions.
 func NewManager(stateDir string) *Manager {
 	cmd, tool := defaultAgentCmd()
-	tmuxBe := runtime.NewTmuxBackend(tmux.NewManager(DefaultSessionPrefix).WithLegacyPrefix(LegacySessionPrefix))
+	tmuxBe := runtime.NewTmuxBackend(tmux.NewManager(DefaultSessionPrefix))
 	return &Manager{
 		agents:           make(map[string]*Agent),
 		agentLocks:       make(map[string]*sync.Mutex),
@@ -604,11 +603,11 @@ func NewManager(stateDir string) *Manager {
 // Session names will be unique per workspace to avoid collisions.
 //
 // stateDir is the per-workspace runtime directory (pre-M11: <project>/.bc/;
-// M11+: ~/.bc/workspaces/<id>/). Agents are written to <stateDir>/agents/
+// M11+: ~/.mycel/workspaces/<id>/). Agents are written to <stateDir>/agents/
 // and their worktrees at <stateDir>/agents/<name>/bc-<ws>-<name>/.
 func NewWorkspaceManager(stateDir, workspacePath string) *Manager {
 	cmd, tool := defaultAgentCmd()
-	tmuxBe := runtime.NewTmuxBackend(tmux.NewWorkspaceManager(DefaultSessionPrefix, workspacePath).WithLegacyPrefix(LegacySessionPrefix))
+	tmuxBe := runtime.NewTmuxBackend(tmux.NewWorkspaceManager(DefaultSessionPrefix, workspacePath))
 	return &Manager{
 		agents:           make(map[string]*Agent),
 		agentLocks:       make(map[string]*sync.Mutex),
@@ -631,7 +630,7 @@ func NewWorkspaceManagerWithRuntime(stateDir, workspacePath string, rt runtime.B
 	bes := map[string]runtime.Backend{rtName: rt}
 	// Always register a tmux backend so agents with RuntimeBackend="tmux" work
 	if rtName != "tmux" {
-		bes["tmux"] = runtime.NewTmuxBackend(tmux.NewWorkspaceManager(DefaultSessionPrefix, workspacePath).WithLegacyPrefix(LegacySessionPrefix))
+		bes["tmux"] = runtime.NewTmuxBackend(tmux.NewWorkspaceManager(DefaultSessionPrefix, workspacePath))
 	}
 	return &Manager{
 		agents:           make(map[string]*Agent),
@@ -664,7 +663,7 @@ func parentOfAgentsDir(stateDir string) string {
 }
 
 // workspaceStateDir returns the best-guess workspace runtime dir for a
-// project root. Prefers ~/.bc/workspaces/<id>/ (M11+); falls back to the
+// project root. Prefers ~/.mycel/workspaces/<id>/ (M11+); falls back to the
 // legacy <root>/.bc/ sidecar for pre-migration workspaces. Used by
 // package-level helpers that do not have access to a *Workspace.
 func workspaceStateDir(workspacePath string) string {

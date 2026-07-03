@@ -10,7 +10,7 @@ import (
 )
 
 // GlobalCostsHandler serves cross-workspace cost rollups from the
-// user-global ledger at ~/.bc/costs.db.
+// user-global ledger at ~/.mycel/costs.db.
 //
 // GET /api/global/costs?start=<RFC3339|YYYY-MM-DD>&groupBy=workspace|project
 //

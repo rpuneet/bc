@@ -15,7 +15,7 @@ import (
 )
 
 // githubTokenFile is the path where user's personal access token lives.
-// Consistent with other bc secrets: ~/.bc/github-token with 0600 perms.
+// Consistent with other bc secrets: ~/.mycel/github-token with 0600 perms.
 const githubTokenFile = "github-token"
 
 // githubAPIBase is the REST API base. Overridable in tests.
@@ -52,7 +52,7 @@ func ReadGithubToken() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	data, err := os.ReadFile(p) //nolint:gosec // well-known token path under ~/.bc
+	data, err := os.ReadFile(p) //nolint:gosec // well-known token path under the mycel home
 	if err != nil {
 		if os.IsNotExist(err) {
 			return "", nil
@@ -62,7 +62,7 @@ func ReadGithubToken() (string, error) {
 	return strings.TrimSpace(string(data)), nil
 }
 
-// WriteGithubToken persists the PAT to ~/.bc/github-token with 0600 perms.
+// WriteGithubToken persists the PAT to ~/.mycel/github-token with 0600 perms.
 // Empty token clears the file.
 func WriteGithubToken(token string) error {
 	p, err := GithubTokenPath()

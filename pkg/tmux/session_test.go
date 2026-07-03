@@ -186,9 +186,6 @@ func TestNewDefaultManager(t *testing.T) {
 	if m.SessionPrefix != "mycel-" {
 		t.Errorf("SessionPrefix = %q, want %q", m.SessionPrefix, "mycel-")
 	}
-	if m.LegacyPrefix != "bc-" {
-		t.Errorf("LegacyPrefix = %q, want %q", m.LegacyPrefix, "bc-")
-	}
 	if m.execCommand == nil {
 		t.Error("execCommand should not be nil")
 	}

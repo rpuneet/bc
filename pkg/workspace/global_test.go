@@ -41,16 +41,16 @@ func TestDataDir(t *testing.T) {
 	})
 }
 
-// withBCHome sets BC_HOME for the duration of the test and restores it.
+// withBCHome sets MYCEL_HOME for the duration of the test and restores it.
 func withBCHome(t *testing.T, dir string) {
 	t.Helper()
-	prev, had := os.LookupEnv("BC_HOME")
-	t.Setenv("BC_HOME", dir)
+	prev, had := os.LookupEnv("MYCEL_HOME")
+	t.Setenv("MYCEL_HOME", dir)
 	t.Cleanup(func() {
 		if had {
-			_ = os.Setenv("BC_HOME", prev)
+			_ = os.Setenv("MYCEL_HOME", prev)
 		} else {
-			_ = os.Unsetenv("BC_HOME")
+			_ = os.Unsetenv("MYCEL_HOME")
 		}
 	})
 }

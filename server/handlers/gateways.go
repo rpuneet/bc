@@ -32,7 +32,7 @@ func (h *GatewayHandler) SetNotifyService(svc *notify.Service) {
 
 // Register mounts gateway routes.
 func (h *GatewayHandler) Register(mux *http.ServeMux) {
-	// Legacy channel list endpoint — returns gateway channels in old format
+	// Channel list/history endpoints — primary API for the web UI and TUI.
 	mux.HandleFunc("/api/channels", h.legacyChannelList)
 	mux.HandleFunc("/api/channels/", h.legacyChannelHistory)
 	mux.HandleFunc("/api/gateways/activity", h.activity)
@@ -477,7 +477,7 @@ func (h *GatewayHandler) updatePlatform(w http.ResponseWriter, r *http.Request, 
 		return
 	}
 
-	if err := cfg.Save(workspace.ConfigPath(h.ws.RootDir)); err != nil {
+	if err := cfg.Save(h.ws.SettingsFile()); err != nil {
 		httpInternalError(w, "save config", err)
 		return
 	}

@@ -53,36 +53,15 @@ func init() {
 	initCmd.Flags().StringVar(&initPreset, "preset", "", "Use preset configuration (solo, small-team, full-team)")
 }
 
-// isV1Workspace checks if a directory has a v1 workspace (config.json).
-func isV1Workspace(dir string) bool {
-	configPath := filepath.Join(dir, ".bc", "config.json")
-	_, err := os.Stat(configPath)
-	return err == nil
-}
-
-// isV2Workspace checks if a directory has a v2 workspace (preferences.json,
-// settings.json, or legacy config.toml). Checks both the legacy
-// <dir>/.bc/ location and the M11+ global ~/.bc/workspaces/<id>/ dir.
+// isV2Workspace checks if a directory already has a workspace: a
+// preferences.json in the global ~/.mycel/workspaces/<id>/ dir.
 func isV2Workspace(dir string) bool {
-	bcDir := filepath.Join(dir, ".bc")
-	for _, name := range []string{workspace.PreferencesFileName, workspace.LegacySettingsFileName} {
-		if _, err := os.Stat(filepath.Join(bcDir, name)); err == nil {
-			return true
-		}
+	globalDir, err := workspace.GlobalStateDir(dir)
+	if err != nil {
+		return false
 	}
-	configPath := filepath.Join(bcDir, "config.toml")
-	if _, err := os.Stat(configPath); err == nil {
-		return true
-	}
-	// M11+ global location.
-	if globalDir, err := workspace.GlobalStateDir(dir); err == nil {
-		for _, name := range []string{workspace.PreferencesFileName, workspace.LegacySettingsFileName} {
-			if _, err := os.Stat(filepath.Join(globalDir, name)); err == nil {
-				return true
-			}
-		}
-	}
-	return false
+	_, err = os.Stat(filepath.Join(globalDir, workspace.PreferencesFileName))
+	return err == nil
 }
 
 func runInit(cmd *cobra.Command, args []string) error {
@@ -114,23 +93,10 @@ func runInit(cmd *cobra.Command, args []string) error {
 	}
 	log.Debug("resolved directory", "absDir", absDir)
 
-	// Check for existing v2 workspace
+	// Check for existing workspace
 	if isV2Workspace(absDir) {
-		log.Debug("v2 workspace already exists", "dir", absDir)
-		return fmt.Errorf("v2 workspace already initialized in %s", absDir)
-	}
-
-	// Check for existing v1 workspace
-	if isV1Workspace(absDir) {
-		log.Debug("v1 workspace detected", "dir", absDir)
-		fmt.Fprintln(os.Stderr, "Warning: Existing v1 workspace detected.")
-		fmt.Fprintln(os.Stderr, "mycel v2 is a clean break - v1 data will not be migrated.")
-		fmt.Fprintln(os.Stderr, "")
-		fmt.Fprintln(os.Stderr, "To proceed:")
-		fmt.Fprintln(os.Stderr, "  - Backup .bc/ if needed")
-		fmt.Fprintln(os.Stderr, "  - Remove .bc/ directory")
-		fmt.Fprintln(os.Stderr, "  - Run mycel init again")
-		return fmt.Errorf("cannot initialize: v1 workspace exists")
+		log.Debug("workspace already exists", "dir", absDir)
+		return fmt.Errorf("workspace already initialized in %s", absDir)
 	}
 
 	// Run interactive wizard
@@ -139,7 +105,7 @@ func runInit(cmd *cobra.Command, args []string) error {
 
 // initV2Workspace creates a new v2 workspace structure.
 func initV2Workspace(rootDir string) error {
-	// M11: runtime state lives at ~/.bc/workspaces/<id>/ — the project
+	// M11: runtime state lives at ~/.mycel/workspaces/<id>/ — the project
 	// directory stays a pristine git repo. Use the high-level Init()
 	// which creates the global dir, writes preferences.json, seeds
 	// roles, and registers the workspace.
@@ -166,7 +132,6 @@ func initV2Workspace(rootDir string) error {
 }
 
 // getWorkspace finds the current workspace.
-// Supports both v1 (config.json) and v2 (settings.json) workspaces.
 // Checks BC_WORKSPACE env var first (for agents in worktrees), then walks up directory tree.
 func getWorkspace() (*workspace.Workspace, error) {
 	// Check BC_WORKSPACE first (agents set this to point to main workspace)
@@ -234,14 +199,9 @@ func runInitInteractive(_ *cobra.Command, dir string) error {
 		return fmt.Errorf("failed to resolve directory: %w", err)
 	}
 
-	// Check for existing workspaces
+	// Check for existing workspace
 	if isV2Workspace(absDir) {
 		return fmt.Errorf("workspace already initialized in %s", absDir)
-	}
-	if isV1Workspace(absDir) {
-		fmt.Fprintln(os.Stderr, "Warning: Existing v1 workspace detected.")
-		fmt.Fprintln(os.Stderr, "Run 'mycel init' after removing .bc/ directory to migrate.")
-		return fmt.Errorf("cannot initialize: v1 workspace exists")
 	}
 
 	// Prompt for nickname
@@ -284,7 +244,7 @@ func promptNickname() (string, error) {
 }
 
 // initV2WorkspaceWithNickname creates a new v2 workspace with a custom nickname.
-// M11: runtime state is stored at ~/.bc/workspaces/<id>/ — the project
+// M11: runtime state is stored at ~/.mycel/workspaces/<id>/ — the project
 // directory is left as a pristine git repo.
 func initV2WorkspaceWithNickname(rootDir string, nickname string) error {
 	ws, err := workspace.Init(rootDir)

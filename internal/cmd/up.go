@@ -77,9 +77,9 @@ func runUp(cmd *cobra.Command, _ []string) error {
 		}
 	}
 
-	// Read server config from settings.json for defaults
+	// Read server config from preferences.json for defaults
 	if ws, loadErr := workspace.Load(wsRoot); loadErr == nil && ws.Config != nil {
-		// Use settings.json addr if --addr wasn't explicitly set
+		// Use preferences.json addr if --addr wasn't explicitly set
 		if !cmd.Flags().Changed("addr") {
 			host := ws.Config.Server.Host
 			if host == "" {
@@ -112,13 +112,13 @@ func runUp(cmd *cobra.Command, _ []string) error {
 		fmt.Printf("  BC_BCD_ADDR: %s\n", bcdAddr)
 	}
 
-	// Publish the listen address at ~/.bc/daemon.addr so the mycel CLI and
+	// Publish the listen address at ~/.mycel/daemon.addr so the mycel CLI and
 	// agents can find the daemon without BC_DAEMON_ADDR when it runs on
 	// a non-default port. Best-effort — failure to write is not fatal,
 	// but each failure mode must warn so users aren't silently routed
 	// back to the hardcoded :9374 default (the exact bug #43 fixed).
 	if _, ensureErr := workspace.EnsureGlobalDir(); ensureErr != nil {
-		log.Warn("daemon addr: ensure ~/.bc failed — CLI will fall back to default port", "error", ensureErr)
+		log.Warn("daemon addr: ensure ~/.mycel failed — CLI will fall back to default port", "error", ensureErr)
 	} else if addrPath, pathErr := workspace.DaemonAddrPath(); pathErr != nil {
 		log.Warn("daemon addr: resolve path failed — CLI will fall back to default port", "error", pathErr)
 	} else if writeErr := os.WriteFile(addrPath, []byte(bcdAddr+"\n"), 0o600); writeErr != nil {
@@ -147,7 +147,7 @@ func runUp(cmd *cobra.Command, _ []string) error {
 }
 
 // runUpDaemon starts bc up in the background by re-executing the mycel binary.
-// Logs go to ~/.bc/daemon.log, PID to ~/.bc/daemon.pid.
+// Logs go to ~/.mycel/daemon.log, PID to ~/.mycel/daemon.pid.
 func runUpDaemon(wsRoot string) error {
 	if _, err := workspace.Load(wsRoot); err != nil {
 		return fmt.Errorf("cannot load workspace: %w", err)

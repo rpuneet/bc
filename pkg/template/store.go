@@ -18,7 +18,7 @@ const (
 	// the global scope.
 	ScopeWorkspace Scope = "workspace"
 
-	// ScopeGlobal is the user-global directory (~/.bc/templates/). It is
+	// ScopeGlobal is the user-global directory (~/.mycel/templates/). It is
 	// the default for writes unless the caller asks for a workspace
 	// override explicitly.
 	ScopeGlobal Scope = "global"

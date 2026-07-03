@@ -14,13 +14,13 @@ import (
 	"github.com/rpuneet/mycel/pkg/workspace"
 )
 
-// costReportCmd rolls up the user-global cost ledger (~/.bc/costs.db)
+// costReportCmd rolls up the user-global cost ledger (~/.mycel/costs.db)
 // across workspaces. It is a direct-filesystem read — no daemon
 // required — so it works even when bcd is not running.
 var costReportCmd = &cobra.Command{
 	Use:   "report",
 	Short: "Report cost totals across workspaces",
-	Long: `Report cost totals from the user-global cost ledger (~/.bc/costs.db).
+	Long: `Report cost totals from the user-global cost ledger (~/.mycel/costs.db).
 
 By default prints per-workspace breakdown. Use --by to change grouping:
 

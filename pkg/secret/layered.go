@@ -13,7 +13,7 @@ import (
 type Scope string
 
 const (
-	// ScopeGlobal is the user-global vault (~/.bc/secrets.vault).
+	// ScopeGlobal is the user-global vault (~/.mycel/secrets.vault).
 	ScopeGlobal Scope = "global"
 	// ScopeWorkspace is the per-workspace override
 	// (<ws>/.bc/secrets.db).
@@ -22,7 +22,7 @@ const (
 
 // OpenVaultFile opens a Store using an explicit SQLite path instead of
 // the conventional "<workspacePath>/.bc/secrets.db". Used for the
-// user-global vault at ~/.bc/secrets.vault where there is no
+// user-global vault at ~/.mycel/secrets.vault where there is no
 // "workspace" to anchor against. Directory must exist.
 func OpenVaultFile(path, passphrase string) (*Store, error) {
 	if path == "" {

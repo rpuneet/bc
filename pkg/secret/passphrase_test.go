@@ -3,7 +3,6 @@ package secret
 import (
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 )
 
@@ -14,54 +13,8 @@ func setPassphraseTestHome(t *testing.T) string {
 	tmp := t.TempDir()
 	t.Setenv("HOME", tmp)
 	t.Setenv("MYCEL_HOME", "")
-	t.Setenv("BC_HOME", "")
 	t.Setenv(PassphraseEnvVar, "")
 	return tmp
-}
-
-// TestPassphrase_LegacyKeyMigrated is the "don't brick decryption" test:
-// with ~/.mycel present but the key still at the pre-rename
-// ~/.bc/secret-key, Passphrase must return the legacy key and copy it
-// into ~/.mycel/secret-key — never generate a fresh key.
-func TestPassphrase_LegacyKeyMigrated(t *testing.T) {
-	tmp := setPassphraseTestHome(t)
-	if err := os.MkdirAll(filepath.Join(tmp, ".mycel"), 0o700); err != nil {
-		t.Fatalf("mkdir .mycel: %v", err)
-	}
-	if err := os.MkdirAll(filepath.Join(tmp, ".bc"), 0o700); err != nil {
-		t.Fatalf("mkdir .bc: %v", err)
-	}
-	const legacyKey = "deadbeefcafe0123456789abcdef0123456789abcdef0123456789abcdef0123"
-	if err := os.WriteFile(filepath.Join(tmp, ".bc", "secret-key"), []byte(legacyKey+"\n"), 0o600); err != nil {
-		t.Fatalf("write legacy key: %v", err)
-	}
-
-	got, err := Passphrase()
-	if err != nil {
-		t.Fatalf("Passphrase: %v", err)
-	}
-	if got != legacyKey {
-		t.Fatalf("Passphrase = %q, want legacy key", got)
-	}
-
-	// The key must now also live at the canonical path.
-	canonical := filepath.Join(tmp, ".mycel", "secret-key")
-	data, readErr := os.ReadFile(canonical) //nolint:gosec // test path under temp HOME
-	if readErr != nil {
-		t.Fatalf("canonical key not written: %v", readErr)
-	}
-	if strings.TrimSpace(string(data)) != legacyKey {
-		t.Fatalf("canonical key = %q, want legacy key", strings.TrimSpace(string(data)))
-	}
-
-	// Second call reads the canonical copy and returns the same key.
-	again, err := Passphrase()
-	if err != nil {
-		t.Fatalf("Passphrase (second call): %v", err)
-	}
-	if again != legacyKey {
-		t.Fatalf("second Passphrase = %q, want legacy key", again)
-	}
 }
 
 // TestPassphrase_GeneratesFreshKey: with no key anywhere, a key is

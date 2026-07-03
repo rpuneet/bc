@@ -126,7 +126,7 @@ func (h *SettingsHandler) patch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := merged.Save(workspace.ConfigPath(ws.RootDir)); err != nil {
+	if err := merged.Save(ws.SettingsFile()); err != nil {
 		httpInternalError(w, "save config", err)
 		return
 	}
@@ -136,4 +136,4 @@ func (h *SettingsHandler) patch(w http.ResponseWriter, r *http.Request) {
 }
 
 // Gateway patches are deep-merged per platform key via
-// workspace.MergeGatewaysPatch (shared with the config overlay, #3239).
+// workspace.MergeGatewaysPatch.

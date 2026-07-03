@@ -201,16 +201,8 @@ func CheckWorkspace(ws *workspace.Workspace) CategoryReport {
 		Severity: SeverityOK,
 	})
 
-	// Preferences file (M11c+ preferences.json; M11b- settings.json).
+	// Preferences file (preferences.json).
 	configPath := filepath.Join(stateDir, workspace.PreferencesFileName)
-	if _, err := os.Stat(configPath); err != nil {
-		// Fall back to legacy settings.json so the item label matches
-		// what the user will actually find on disk.
-		legacyPath := filepath.Join(stateDir, workspace.LegacySettingsFileName)
-		if _, lerr := os.Stat(legacyPath); lerr == nil {
-			configPath = legacyPath
-		}
-	}
 	configName := filepath.Base(configPath)
 	if _, err := os.Stat(configPath); err != nil {
 		cat.Items = append(cat.Items, Item{
@@ -242,12 +234,6 @@ func CheckWorkspace(ws *workspace.Workspace) CategoryReport {
 				Severity: SeverityOK,
 			})
 		}
-	}
-
-	// Config drift (#3239): a legacy settings.json that differs from the
-	// active preferences.json means edits to it may not be live yet.
-	if driftItem := configDriftItem(ws); driftItem != nil {
-		cat.Items = append(cat.Items, *driftItem)
 	}
 
 	// Roles directory
@@ -306,59 +292,6 @@ func CheckWorkspace(ws *workspace.Workspace) CategoryReport {
 	}
 
 	return cat
-}
-
-// configDriftItem compares the active preferences.json with any legacy
-// settings.json still on disk (state dir or project .bc/) and reports
-// drift (#3239). A drifting settings.json means human edits to it are
-// not reflected in the active config until it becomes newer than
-// preferences.json. Returns nil when no preferences.json is active or
-// no settings.json exists anywhere.
-func configDriftItem(ws *workspace.Workspace) *Item {
-	stateDir := ws.StateDir()
-	prefsPath := filepath.Join(stateDir, workspace.PreferencesFileName)
-	if _, err := os.Stat(prefsPath); err != nil {
-		return nil
-	}
-
-	candidates := []string{filepath.Join(stateDir, workspace.LegacySettingsFileName)}
-	if projectPath := filepath.Join(ws.RootDir, ".bc", workspace.LegacySettingsFileName); projectPath != candidates[0] {
-		candidates = append(candidates, projectPath)
-	}
-
-	found := ""
-	for _, settingsPath := range candidates {
-		if _, err := os.Stat(settingsPath); err != nil {
-			continue
-		}
-		found = settingsPath
-		sections, err := workspace.ConfigDriftSections(prefsPath, settingsPath)
-		if err != nil {
-			return &Item{
-				Name:     "config drift",
-				Message:  fmt.Sprintf("cannot compare %s with %s: %v", settingsPath, workspace.PreferencesFileName, err),
-				Severity: SeverityWarn,
-				Fix:      fmt.Sprintf("fix or remove %s", settingsPath),
-			}
-		}
-		if len(sections) > 0 {
-			return &Item{
-				Name:     "config drift",
-				Message:  fmt.Sprintf("%s differs from active %s (sections: %s)", settingsPath, workspace.PreferencesFileName, strings.Join(sections, ", ")),
-				Severity: SeverityWarn,
-				Fix: fmt.Sprintf("touch %s so its values are merged on next load, or delete it to keep %s",
-					settingsPath, workspace.PreferencesFileName),
-			}
-		}
-	}
-	if found == "" {
-		return nil
-	}
-	return &Item{
-		Name:     "config drift",
-		Message:  fmt.Sprintf("%s matches active %s", filepath.Base(found), workspace.PreferencesFileName),
-		Severity: SeverityOK,
-	}
 }
 
 // ─── Database ────────────────────────────────────────────────────────────────
@@ -586,12 +519,11 @@ func CheckTools(ctx context.Context) CategoryReport {
 		cat.Items = append(cat.Items, item)
 	}
 
-	// Check MCP servers from tool store
-	// Tool store state lives under the mycel home (~/.mycel, with a
-	// built-in fallback to ~/.bc when only the legacy dir exists).
+	// Check MCP servers from tool store.
+	// Tool store state lives under the mycel home (~/.mycel).
 	stateDir, homeErr := workspace.MycelHome()
 	if homeErr != nil {
-		stateDir = filepath.Join(os.Getenv("HOME"), ".bc")
+		return cat
 	}
 	toolStore := tool.NewStore(stateDir)
 	if err := toolStore.Open(); err == nil {

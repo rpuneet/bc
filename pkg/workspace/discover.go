@@ -22,7 +22,7 @@ type DiscoverOptions struct {
 	ScanPaths []string
 	// MaxDepth maximum directory depth to scan (default 3)
 	MaxDepth int
-	// IncludeCached includes workspaces from the global registry (~/.bc/workspaces.json)
+	// IncludeCached includes workspaces from the global registry (~/.mycel/workspaces.json)
 	IncludeCached bool
 	// ScanHome scans ~/Projects and ~/Developer directories
 	ScanHome bool
@@ -164,16 +164,15 @@ func scanDir(dir string, maxDepth int, seen map[string]bool, workspaces *[]Disco
 	}
 }
 
-// isV2Workspace checks if a workspace uses v2 (JSON) config. Accepts
-// either the M11c preferences.json or the legacy settings.json name.
+// isV2Workspace checks if a workspace uses v2 (JSON) config: a
+// preferences.json in the global ~/.mycel/workspaces/<id>/ dir.
 func isV2Workspace(dir string) bool {
-	bcDir := filepath.Join(dir, ".bc")
-	for _, name := range []string{PreferencesFileName, LegacySettingsFileName} {
-		if _, err := os.Stat(filepath.Join(bcDir, name)); err == nil {
-			return true
-		}
+	globalDir, err := GlobalStateDir(dir)
+	if err != nil {
+		return false
 	}
-	return false
+	_, err = os.Stat(filepath.Join(globalDir, PreferencesFileName))
+	return err == nil
 }
 
 // DiscoverAndRegister discovers workspaces and adds new ones to the registry.

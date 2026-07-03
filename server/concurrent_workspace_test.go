@@ -57,7 +57,7 @@ func newConcurrentHarness(t *testing.T, n int) *concurrentHarness {
 
 	home := t.TempDir()
 	t.Setenv("HOME", home)
-	t.Setenv("BC_HOME", filepath.Join(home, ".bc"))
+	t.Setenv("MYCEL_HOME", filepath.Join(home, ".bc"))
 	t.Setenv("BC_SECRET_PASSPHRASE", "unit-test")
 
 	list := make([]wsSetup, n)

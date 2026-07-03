@@ -4,21 +4,14 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"os"
-	"path/filepath"
 
 	bcdb "github.com/rpuneet/mycel/pkg/db"
-	"github.com/rpuneet/mycel/pkg/log"
 )
 
 // OpenGlobalStore opens the user-global cost ledger at vaultPath (eg.
 // ~/.mycel/costs.db). Records inserted through ScopedTo(wsID) carry the
-// workspace id for cross-workspace analytics. When vaultPath does not
-// exist yet but a pre-rename ledger at ~/.bc/costs.db does, the legacy
-// file is copied over once so historical spend survives the ~/.bc →
-// ~/.mycel move.
+// workspace id for cross-workspace analytics.
 func OpenGlobalStore(vaultPath string) (*Store, error) {
-	migrateLegacyGlobalLedger(vaultPath)
 	d, err := bcdb.Open(vaultPath)
 	if err != nil {
 		return nil, fmt.Errorf("open global costs: %w", err)
@@ -37,43 +30,6 @@ func OpenGlobalStore(vaultPath string) (*Store, error) {
 		return nil, fmt.Errorf("init workspace_id column: %w", err)
 	}
 	return s, nil
-}
-
-// migrateLegacyGlobalLedger copies the pre-rename ~/.bc/costs.db to
-// vaultPath once, only when vaultPath does not exist yet. The WAL
-// sidecar is copied alongside so un-checkpointed records are recovered
-// on the next open. Best-effort: any failure leaves the legacy file
-// untouched and lets OpenGlobalStore create a fresh ledger.
-func migrateLegacyGlobalLedger(vaultPath string) {
-	if _, err := os.Stat(vaultPath); err == nil {
-		return // canonical ledger already exists
-	}
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return
-	}
-	legacy := filepath.Join(home, ".bc", "costs.db")
-	if legacy == vaultPath {
-		return // mycel home resolved to ~/.bc — nothing to move
-	}
-	data, err := os.ReadFile(legacy) //nolint:gosec // pinned to ~/.bc
-	if err != nil {
-		return // no legacy ledger (or unreadable) — start fresh
-	}
-	if err := os.MkdirAll(filepath.Dir(vaultPath), 0o750); err != nil {
-		log.Warn("global costs: cannot create ledger dir — starting fresh", "error", err)
-		return
-	}
-	if err := os.WriteFile(vaultPath, data, 0o600); err != nil {
-		log.Warn("global costs: copy of legacy ~/.bc/costs.db failed — starting fresh", "error", err)
-		return
-	}
-	if wal, walErr := os.ReadFile(legacy + "-wal"); walErr == nil { //nolint:gosec // pinned to ~/.bc
-		if err := os.WriteFile(vaultPath+"-wal", wal, 0o600); err != nil {
-			log.Warn("global costs: copy of legacy WAL failed — recent records may be missing", "error", err)
-		}
-	}
-	log.Info("global costs: copied legacy ledger", "from", legacy, "to", vaultPath)
 }
 
 // initWorkspaceIDSchema makes sure the workspace_id column exists on

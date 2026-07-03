@@ -53,14 +53,9 @@ func RunWizard(dir string) error {
 		return fmt.Errorf("failed to resolve directory: %w", err)
 	}
 
-	// Check for existing workspaces
+	// Check for existing workspace
 	if isV2Workspace(absDir) {
 		return fmt.Errorf("workspace already initialized in %s", absDir)
-	}
-	if isV1Workspace(absDir) {
-		fmt.Fprintln(os.Stderr, "Warning: Existing v1 workspace detected.")
-		fmt.Fprintln(os.Stderr, "Run 'mycel init' after removing .bc/ directory to migrate.")
-		return fmt.Errorf("cannot initialize: v1 workspace exists")
 	}
 
 	state := NewWizardState(absDir)
@@ -215,15 +210,17 @@ func createWorkspaceFromWizard(state *WizardState) error {
 	cfg.User.Name = state.Nickname
 	cfg.Providers.Default = state.Tool
 
-	configPath := workspace.ConfigPath(state.Dir)
-	if err := cfg.Save(configPath); err != nil {
+	configPath, err := workspace.ConfigPath(state.Dir)
+	if err != nil {
+		return fmt.Errorf("failed to resolve config path: %w", err)
+	}
+	if err = cfg.Save(configPath); err != nil {
 		return fmt.Errorf("failed to save config: %w", err)
 	}
 
 	// Create roles directory and default root.md
 	roleMgr := workspace.NewRoleManager(stateDir)
-	_, err := roleMgr.EnsureDefaultRoot()
-	if err != nil {
+	if _, err = roleMgr.EnsureDefaultRoot(); err != nil {
 		return fmt.Errorf("failed to create role files: %w", err)
 	}
 
@@ -247,11 +244,11 @@ func printWizardSuccess(state *WizardState) {
 	fmt.Println("  " + ui.GreenText("✓") + " Workspace initialized!")
 	fmt.Println()
 	fmt.Println("  Created:")
-	fmt.Println("    .bc/settings.json     # Workspace configuration")
-	fmt.Println("    .bc/agents/         # Agent state directory")
-	fmt.Println("    .bc/roles/          # Role definitions")
-	fmt.Println("    .bc/roles/root.md   # Root agent role")
-	fmt.Println("    .bc/bc.db            # Workspace database")
+	fmt.Println("    preferences.json    # Workspace configuration")
+	fmt.Println("    agents/             # Agent state directory")
+	fmt.Println("    roles/              # Role definitions")
+	fmt.Println("    roles/root.md       # Root agent role")
+	fmt.Println("    bc.db               # Workspace database")
 	fmt.Println()
 	fmt.Println("  Next steps:")
 	fmt.Println("    mycel       # Open the dashboard")
@@ -269,12 +266,9 @@ func InitWithPreset(dir string, preset WizardPreset) error {
 
 	log.Debug("init with preset", "dir", absDir, "preset", preset)
 
-	// Check for existing workspaces
+	// Check for existing workspace
 	if isV2Workspace(absDir) {
 		return fmt.Errorf("workspace already initialized in %s", absDir)
-	}
-	if isV1Workspace(absDir) {
-		return fmt.Errorf("cannot initialize: v1 workspace exists")
 	}
 
 	state := NewWizardState(absDir)
