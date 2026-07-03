@@ -108,17 +108,12 @@ function writeShowStopped(value: boolean): void {
 
 export function Live() {
   useHeaderSlot({
-    title: (
-      <TabHeaderTitle>
-        <span className="inline-flex items-center gap-2">
-          Live
-          <span className="relative flex h-2 w-2">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-mycel-error opacity-75" />
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-mycel-error" />
-          </span>
-        </span>
-      </TabHeaderTitle>
-    ),
+    // Title-only. Sidebar `Live` already carries a pulse dot for the
+    // not-in-focus signal, and the `Connected/Reconnecting/Disconnected`
+    // chip in the header actions bar is the source of truth for SSE
+    // health. A third pulse next to the page title was pure noise
+    // (#3205 v0.3.2).
+    title: <TabHeaderTitle>Live</TabHeaderTitle>,
   });
 
   const { activities, tasks, rawEventsRef, connected, reconnecting, eventCount } = useAgentActivity();

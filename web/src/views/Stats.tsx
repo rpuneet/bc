@@ -98,12 +98,32 @@ type SortKey = "name" | "role" | "provider" | "state" | "cpu" | "mem" | "tokens"
 // ── Main ────────────────────────────────────────────────────────────────────────
 
 export function Stats() {
-  useHeaderSlot({ title: <TabHeaderTitle>Metrics</TabHeaderTitle> });
+  // Slot the range picker directly into the page header actions area so
+  // it sits inline with the title instead of floating in a mostly-empty
+  // sub-row (#3205 v0.3.2). The picker component is defined below and
+  // reads/writes the local `range` state.
 
   const navigate = useNavigate();
   const [range, setRange] = useState(0);
   const [sortKey, setSortKey] = useState<SortKey>("cost");
   const [sortAsc, setSortAsc] = useState(false);
+
+  useHeaderSlot({
+    title: <TabHeaderTitle>Metrics</TabHeaderTitle>,
+    actions: (
+      <div className="flex gap-1">
+        {RANGES.map((r, i) => (
+          <button key={r.label} type="button" onClick={() => setRange(i)}
+            className={`px-2 py-0.5 text-[11px] rounded border transition-colors ${
+              i === range
+                ? "border-mycel-accent bg-mycel-accent/10 text-mycel-accent"
+                : "border-mycel-border text-mycel-muted hover:text-mycel-text hover:border-mycel-muted"
+            }`}
+          >{r.label}</button>
+        ))}
+      </div>
+    ),
+  });
 
   const from = useMemo(() => fromParam(RANGES[range]?.seconds ?? 3600), [range]);
 
@@ -226,21 +246,6 @@ export function Stats() {
 
   return (
     <div className="p-6 space-y-4">
-      {/* Time range selector (title lives in the top-bar chip) */}
-      <div className="flex items-center justify-end">
-        <div className="flex gap-1">
-          {RANGES.map((r, i) => (
-            <button key={r.label} type="button" onClick={() => setRange(i)}
-              className={`px-2.5 py-1 text-xs rounded border transition-colors ${
-                i === range
-                  ? "border-mycel-accent bg-mycel-accent/10 text-mycel-accent"
-                  : "border-mycel-border text-mycel-muted hover:text-mycel-text hover:border-mycel-muted"
-              }`}
-            >{r.label}</button>
-          ))}
-        </div>
-      </div>
-
       {/* Agent Table */}
       {agentTable.length > 0 && (
         <Panel title={`Agents (${agentTable.length})`}>
@@ -249,10 +254,18 @@ export function Stats() {
               <thead>
                 <tr className="text-mycel-muted text-left">
                   {colHeaders.map(h => (
-                    <th key={h.key} className="py-1.5 px-2 font-medium cursor-pointer hover:text-mycel-text select-none" onClick={(e) => { e.stopPropagation(); e.preventDefault(); handleSort(h.key); }}>
+                    <th key={h.key} className="py-1.5 px-2 font-medium cursor-pointer hover:text-mycel-text select-none group" onClick={(e) => { e.stopPropagation(); e.preventDefault(); handleSort(h.key); }}>
                       <div className="flex items-center">
                         {h.label}
-                        {sortKey === h.key && <span className="ml-1">{sortAsc ? "\u25B2" : "\u25BC"}</span>}
+                        {/* Neutral sort affordance surfaces on hover for every
+                            column so users see the option; active column shows
+                            the current direction in the accent color.
+                            (#3205 v0.3.2) */}
+                        <span className={`ml-1 text-[9px] leading-none tabular-nums ${
+                          sortKey === h.key ? "text-mycel-accent opacity-100" : "opacity-0 group-hover:opacity-60"
+                        }`}>
+                          {sortKey === h.key ? (sortAsc ? "\u25B2" : "\u25BC") : "\u25BE"}
+                        </span>
                       </div>
                       {h.agg && <div className="text-[10px] font-normal text-mycel-muted">{h.agg}</div>}
                     </th>
