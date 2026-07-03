@@ -429,7 +429,7 @@ export function Tools() {
           <h2 className="text-[11px] font-medium text-mycel-muted uppercase tracking-[0.14em]">
             AI Model Providers
           </h2>
-          <span className="text-[11px] text-mycel-muted/50 tabular-nums">
+          <span className="text-[11px] text-mycel-muted tabular-nums">
             {providerList.length}
           </span>
           <span className="flex-1 h-px bg-mycel-border/40 self-center" aria-hidden />
@@ -442,7 +442,7 @@ export function Tools() {
           <h2 className="text-[11px] font-medium text-mycel-muted uppercase tracking-[0.14em]">
             CLI Dependencies
           </h2>
-          <span className="text-[11px] text-mycel-muted/50 tabular-nums">
+          <span className="text-[11px] text-mycel-muted tabular-nums">
             {filteredCli.length}{searchLower ? `/${cliTools.length}` : ""}
           </span>
           <span className="flex-1 h-px bg-mycel-border/40 self-center" aria-hidden />

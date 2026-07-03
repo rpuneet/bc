@@ -109,7 +109,7 @@ export function MessageList({
                 {group.sender}
               </button>
               <RoleBadge role={role} />
-              <time className="text-[10px] text-mycel-muted/40 tabular-nums" title={new Date(group.timestamp).toLocaleString()}>
+              <time className="text-[10px] text-mycel-muted tabular-nums" title={new Date(group.timestamp).toLocaleString()}>
                 {formatRelativeTime(group.timestamp)}
               </time>
             </div>

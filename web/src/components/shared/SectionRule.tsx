@@ -20,7 +20,7 @@ export function SectionRule({
     <div className="flex items-center gap-3 py-2">
       {text && (
         <span
-          className="text-[10px] font-semibold text-mycel-muted/60 uppercase tracking-widest whitespace-nowrap"
+          className="text-[10px] font-semibold text-mycel-muted uppercase tracking-widest whitespace-nowrap"
           style={{ fontFamily: MONO }}
         >
           {text}

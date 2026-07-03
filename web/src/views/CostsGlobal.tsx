@@ -82,13 +82,13 @@ export function CostsGlobal() {
           open — the row can accept a donut / spark to its right
           later without another restructure. */}
       <div className="flex flex-col gap-1">
-        <span className="text-[10px] font-medium uppercase tracking-[0.14em] text-mycel-muted/60">
+        <span className="text-[10px] font-medium uppercase tracking-[0.14em] text-mycel-muted">
           Total
         </span>
         <span className="text-[28px] font-semibold text-mycel-text leading-none tabular-nums">
           {formatCost(total)}
         </span>
-        <span className="text-[11px] text-mycel-muted/60 tabular-nums">
+        <span className="text-[11px] text-mycel-muted tabular-nums">
           {/* Date repeats the value in the picker top-right; show the
               counter only to avoid the DD/MM ↔ ISO format mismatch. */}
           {rows?.length ?? 0} {(rows?.length ?? 0) === 1 ? (groupBy === "workspace" ? "workspace" : "project") : (groupBy === "workspace" ? "workspaces" : "projects")}
@@ -136,7 +136,7 @@ export function CostsGlobal() {
                 return (
                   <tr
                     key={r.key}
-                    className="border-t border-mycel-border/20 hover:bg-mycel-surface/30 transition-colors"
+                    className="border-t border-mycel-border/40 hover:bg-mycel-surface/30 transition-colors"
                   >
                     <td colSpan={3} className="p-0">
                       <Link to={`/w/${r.key}/stats`} className="contents">
@@ -147,7 +147,7 @@ export function CostsGlobal() {
                 );
               }
               return (
-                <tr key={r.key} className="border-t border-mycel-border/20">
+                <tr key={r.key} className="border-t border-mycel-border/40">
                   {content}
                 </tr>
               );

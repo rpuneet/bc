@@ -101,7 +101,7 @@ export function Notifications() {
               <button
                 key={p.name}
                 type="button"
-                className="p-4 border border-mycel-border/30 rounded-xl hover:border-mycel-border/60 hover:bg-mycel-surface/30 transition-all text-center group"
+                className="p-4 border border-mycel-border/40 rounded-xl hover:border-mycel-border/60 hover:bg-mycel-surface/30 transition-all text-center group"
               >
                 <div
                   className="w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold mx-auto mb-2"

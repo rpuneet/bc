@@ -16,7 +16,7 @@ export function SearchInput({
     <div className={`relative flex items-center ${className ?? ""}`}>
       {/* Magnifying glass icon */}
       <svg
-        className="absolute left-2.5 w-3.5 h-3.5 text-mycel-muted/50 pointer-events-none"
+        className="absolute left-2.5 w-3.5 h-3.5 text-mycel-muted pointer-events-none"
         viewBox="0 0 16 16"
         fill="none"
         stroke="currentColor"
@@ -33,7 +33,7 @@ export function SearchInput({
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         aria-label={placeholder}
-        className="w-full pl-8 pr-7 py-1.5 rounded border border-mycel-border/40 bg-mycel-surface text-sm text-mycel-text placeholder:text-mycel-muted/40 focus:outline-none focus:border-mycel-accent/50 transition-colors"
+        className="w-full pl-8 pr-7 py-1.5 rounded border border-mycel-border/40 bg-mycel-surface text-sm text-mycel-text placeholder:text-mycel-muted focus:outline-none focus:border-mycel-accent/50 transition-colors"
       />
 
       {/* Clear button */}
@@ -41,7 +41,7 @@ export function SearchInput({
         <button
           type="button"
           onClick={() => onChange("")}
-          className="absolute right-2 text-mycel-muted/50 hover:text-mycel-muted transition-colors leading-none"
+          className="absolute right-2 text-mycel-muted hover:text-mycel-muted transition-colors leading-none"
           aria-label="Clear search"
         >
           <svg

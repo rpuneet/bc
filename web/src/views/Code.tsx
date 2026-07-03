@@ -569,7 +569,7 @@ export function Code() {
             <div className="px-3 py-2 text-[11px] text-mycel-danger/70">{rootError}</div>
           )}
           {!rootLoading && !rootError && rootEntries.length === 0 && (
-            <div className="px-3 py-2 text-[11px] text-mycel-muted/50 italic">
+            <div className="px-3 py-2 text-[11px] text-mycel-muted italic">
               {worktree === "main"
                 ? "No files to display."
                 : "This agent's worktree does not exist or has no files."}
@@ -593,7 +593,7 @@ export function Code() {
         {/* Viewer pane */}
         <section className="flex-1 min-w-0 overflow-hidden relative">
           {!path && (
-            <div className="h-full flex items-center justify-center text-[11px] text-mycel-muted/50 italic">
+            <div className="h-full flex items-center justify-center text-[11px] text-mycel-muted italic">
               Select a file from the tree
             </div>
           )}
@@ -708,14 +708,14 @@ function TreeList({
                   : "text-mycel-text/80"
               }`}
             >
-              <span className="text-mycel-muted/40 shrink-0 w-3 text-center">{icon}</span>
+              <span className="text-mycel-muted shrink-0 w-3 text-center">{icon}</span>
               <span className="truncate">{node.name}</span>
             </button>
             {isExpanded && (
               <>
                 {childLoading && !childEntries && (
                   <div
-                    className="text-[10px] text-mycel-muted/50 italic py-0.5"
+                    className="text-[10px] text-mycel-muted italic py-0.5"
                     style={{ paddingLeft: 12 + (depth + 1) * 12 }}
                   >
                     loading…
@@ -736,7 +736,7 @@ function TreeList({
                 )}
                 {childEntries && childEntries.length === 0 && !childLoading && (
                   <div
-                    className="text-[10px] text-mycel-muted/40 italic py-0.5"
+                    className="text-[10px] text-mycel-muted italic py-0.5"
                     style={{ paddingLeft: 12 + (depth + 1) * 12 }}
                   >
                     (empty)

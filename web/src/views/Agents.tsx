@@ -22,7 +22,7 @@ import { MONO } from "../utils/typography";
  * tell "how it runs" from "what it runs" without reading the label.
  */
 function RuntimeChip({ runtime }: { runtime?: string | null }) {
-  if (!runtime) return <span className="text-mycel-muted/50">—</span>;
+  if (!runtime) return <span className="text-mycel-muted">—</span>;
   const isDocker = runtime === "docker";
   return (
     <span
@@ -64,7 +64,7 @@ const PROVIDER_DOTS: Record<string, string> = {
 };
 
 function ProviderChip({ tool }: { tool?: string | null }) {
-  if (!tool) return <span className="text-mycel-muted/50">—</span>;
+  if (!tool) return <span className="text-mycel-muted">—</span>;
   const dot = PROVIDER_DOTS[tool] ?? "bg-mycel-muted/50";
   return (
     <span
@@ -322,7 +322,7 @@ export function Agents() {
     title: <TabHeaderTitle>Agents</TabHeaderTitle>,
     actions: (
       <>
-        <span className="text-[10px] text-mycel-muted/40 tabular-nums" style={{ fontFamily: MONO }}>
+        <span className="text-[10px] text-mycel-muted tabular-nums" style={{ fontFamily: MONO }}>
           {agents ? `${String(agents.length)} total` : "\u2014"}
         </span>
         <button
@@ -829,7 +829,7 @@ export function Agents() {
                           .map((s) => s.replace(/^mcp__/, ""))
                           .filter((s) => s !== "bc" && s !== "mycel");
                         if (extras.length === 0) {
-                          return <span className="text-mycel-muted/40 text-[11px]">{"\u2014"}</span>;
+                          return <span className="text-mycel-muted text-[11px]">{"\u2014"}</span>;
                         }
                         const fullList = extras.join(", ");
                         if (extras.length <= 2) {

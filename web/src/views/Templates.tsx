@@ -223,7 +223,7 @@ function TemplateDetailPanel({
         >
           ← Templates
         </button>
-        <span className="text-mycel-muted/40">/</span>
+        <span className="text-mycel-muted">/</span>
         <h1
           className="text-xl font-bold text-mycel-text"
           style={{ fontFamily: MONO }}
@@ -748,7 +748,7 @@ export function Templates() {
         <div className="rounded border border-mycel-border bg-mycel-surface overflow-hidden">
           <table className="w-full">
             <thead>
-              <tr className="text-left text-[11px] font-medium text-mycel-muted/60 uppercase tracking-wide">
+              <tr className="text-left text-[11px] font-medium text-mycel-muted uppercase tracking-wide">
                 <th className="py-2.5 pl-4 pr-6 font-medium">Name</th>
                 <th className="py-2.5 px-4 font-medium">MCPs</th>
                 <th className="py-2.5 px-4 font-medium">Secrets</th>
