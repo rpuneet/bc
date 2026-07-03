@@ -182,21 +182,36 @@ func Load(rootDir string) (*Workspace, error) {
 		return nil, fmt.Errorf("failed to load workspace config: %w", loadErr)
 	}
 
-	// Promote legacy settings.json to preferences.json (idempotent).
-	// The legacy file is left on disk for the user to audit.
-	if filepath.Base(jsonPath) == LegacySettingsFileName {
-		prefsPath := filepath.Join(stateDir, PreferencesFileName)
-		if _, statErr := os.Stat(prefsPath); os.IsNotExist(statErr) {
-			if saveErr := cfg.Save(prefsPath); saveErr == nil {
-				log.Info("promoted settings.json to preferences.json", "state_dir", stateDir)
-			}
-		}
+	// #3239: preferences.json is the active config, but a human may have
+	// edited a legacy settings.json (state dir or project .bc/) since it
+	// was last written. When such a file is strictly newer (mtime),
+	// overlay it section-by-section so the edit takes effect instead of
+	// being silently shadowed.
+	overlayPath := ""
+	if filepath.Base(jsonPath) == PreferencesFileName {
+		overlayPath = applyNewerSettingsOverlay(cfg, jsonPath, stateDir, absRoot)
+	}
+	if overlayPath != "" {
+		log.Info("config: "+PreferencesFileName+" (+overlay from "+filepath.Base(overlayPath)+")",
+			"path", jsonPath, "overlay", overlayPath)
+	} else {
+		log.Info("config: "+filepath.Base(jsonPath), "path", jsonPath)
 	}
 
 	cfg.FillDefaults()
 
 	if valErr := cfg.Validate(); valErr != nil {
 		return nil, fmt.Errorf("invalid settings.json: %w", valErr)
+	}
+
+	// Persist the merged result so preferences.json reflects the overlay
+	// and becomes the newest file — subsequent loads skip the overlay.
+	// This is the only write Load performs: plain reads never save
+	// (the old save-on-read promotion is gone, #3239).
+	if overlayPath != "" {
+		if saveErr := cfg.Save(jsonPath); saveErr != nil {
+			log.Warn("failed to persist merged config", "path", jsonPath, "error", saveErr)
+		}
 	}
 
 	rm, closeStore, err := loadRoleManager(stateDir)

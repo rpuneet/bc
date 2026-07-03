@@ -128,7 +128,7 @@ func TestLoadUpdatesPathsIfMoved(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Write as settings.json to exercise the legacy fallback + promotion path.
+	// Write as settings.json to exercise the legacy fallback path (read-only, #3239).
 	if writeErr := os.WriteFile(filepath.Join(dstDir, LegacySettingsFileName), data, 0600); writeErr != nil {
 		t.Fatal(writeErr)
 	}

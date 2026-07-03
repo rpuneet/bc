@@ -89,7 +89,7 @@ func (h *SettingsHandler) patch(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		case "gateways":
-			if err := mergeGateways(&merged.Gateways, raw); err != nil {
+			if err := workspace.MergeGatewaysPatch(&merged.Gateways, raw); err != nil {
 				httpError(w, "invalid gateways config: "+err.Error(), http.StatusBadRequest)
 				return
 			}
@@ -135,35 +135,5 @@ func (h *SettingsHandler) patch(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, ws.Config)
 }
 
-// mergeGateways deep-merges the incoming gateway patch into the existing
-// GatewaysConfig. Each key in the patch is applied independently so that
-// sending {"discord": {...}} does not wipe existing Slack/Telegram config.
-func mergeGateways(dst *workspace.GatewaysConfig, raw json.RawMessage) error {
-	// First, marshal the existing config to get the current state as a map.
-	existing, err := json.Marshal(dst)
-	if err != nil {
-		return err
-	}
-	var base map[string]json.RawMessage
-	if unmarshalErr := json.Unmarshal(existing, &base); unmarshalErr != nil {
-		return unmarshalErr
-	}
-
-	// Parse the incoming patch as a map.
-	var patch map[string]json.RawMessage
-	if unmarshalErr := json.Unmarshal(raw, &patch); unmarshalErr != nil {
-		return unmarshalErr
-	}
-
-	// Merge: patch keys overwrite base keys, base keys not in patch are kept.
-	for k, v := range patch {
-		base[k] = v
-	}
-
-	// Re-serialize the merged map and unmarshal into the destination.
-	merged, err := json.Marshal(base)
-	if err != nil {
-		return err
-	}
-	return json.Unmarshal(merged, dst)
-}
+// Gateway patches are deep-merged per platform key via
+// workspace.MergeGatewaysPatch (shared with the config overlay, #3239).

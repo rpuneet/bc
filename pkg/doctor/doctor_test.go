@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	_ "github.com/mattn/go-sqlite3"
@@ -212,6 +213,96 @@ func TestCheckWorkspace_ValidStructure(t *testing.T) {
 	}
 	if ok == 0 {
 		t.Error("valid workspace: expected at least one ok item")
+	}
+}
+
+// findItem returns the first item with the given name, or nil.
+func findItem(cat CategoryReport, name string) *Item {
+	for i := range cat.Items {
+		if cat.Items[i].Name == name {
+			return &cat.Items[i]
+		}
+	}
+	return nil
+}
+
+func TestCheckWorkspace_ConfigDrift(t *testing.T) {
+	tests := []struct {
+		mutate       func(*workspace.Config) // nil = identical settings.json
+		name         string
+		wantContains string
+		wantSeverity Severity
+		writeLegacy  bool
+		wantItem     bool
+	}{
+		{
+			name:        "no settings.json: no drift item",
+			writeLegacy: false,
+			wantItem:    false,
+		},
+		{
+			name:         "settings.json matches preferences.json: ok",
+			writeLegacy:  true,
+			mutate:       nil,
+			wantItem:     true,
+			wantSeverity: SeverityOK,
+		},
+		{
+			name:        "settings.json drifts: warn with sections",
+			writeLegacy: true,
+			mutate: func(c *workspace.Config) {
+				c.Storage.Default = "timescale"
+				c.UI.Theme = "light"
+			},
+			wantItem:     true,
+			wantSeverity: SeverityWarn,
+			wantContains: "storage",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ws, dir := newMinimalWorkspace(t)
+			stateDir := filepath.Join(dir, ".bc")
+			if err := os.MkdirAll(stateDir, 0o750); err != nil {
+				t.Fatal(err)
+			}
+
+			cfg := workspace.DefaultConfig()
+			if err := cfg.Save(filepath.Join(stateDir, workspace.PreferencesFileName)); err != nil {
+				t.Fatal(err)
+			}
+			ws.Config = &cfg
+
+			if tt.writeLegacy {
+				legacy := workspace.DefaultConfig()
+				if tt.mutate != nil {
+					tt.mutate(&legacy)
+				}
+				if err := legacy.Save(filepath.Join(stateDir, workspace.LegacySettingsFileName)); err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			cat := CheckWorkspace(ws)
+			item := findItem(cat, "config drift")
+
+			if !tt.wantItem {
+				if item != nil {
+					t.Fatalf("unexpected config drift item: %+v", *item)
+				}
+				return
+			}
+			if item == nil {
+				t.Fatal("config drift item missing")
+			}
+			if item.Severity != tt.wantSeverity {
+				t.Errorf("severity = %s, want %s (message: %s)", item.Severity, tt.wantSeverity, item.Message)
+			}
+			if tt.wantContains != "" && !strings.Contains(item.Message, tt.wantContains) {
+				t.Errorf("message %q does not mention %q", item.Message, tt.wantContains)
+			}
+		})
 	}
 }
 

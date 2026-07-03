@@ -6,23 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-
-	"github.com/rpuneet/mycel/pkg/log"
 )
-
-// logConfigPromoteInfo is called when settings.json has been successfully
-// promoted to preferences.json. Kept as a small helper so test stubs can
-// replace it without noise.
-func logConfigPromoteInfo(stateDir string) {
-	log.Info("promoted settings.json to preferences.json", "state_dir", stateDir)
-}
-
-// logConfigPromoteWarn is called when a legacy settings.json could be
-// read but the preferences.json write failed. The legacy file remains
-// authoritative until the next successful save.
-func logConfigPromoteWarn(stateDir string, err error) {
-	log.Warn("failed to promote settings.json to preferences.json", "state_dir", stateDir, "error", err)
-}
 
 // ConfigVersion is the current config schema version.
 const ConfigVersion = 2
@@ -31,7 +15,8 @@ const ConfigVersion = 2
 //
 // Before M11c: every workspace stored its config at <StateDir>/settings.json.
 // From M11c onward the canonical filename is preferences.json; the legacy
-// file is read as a fallback and promoted on first write.
+// file is read as a fallback and, when it is newer than preferences.json,
+// overlaid on top of it and the merge persisted (#3239).
 const (
 	// PreferencesFileName is the canonical workspace preferences filename (M11c+).
 	PreferencesFileName = "preferences.json"
@@ -215,9 +200,10 @@ func DefaultConfig() Config {
 //
 // If path is a directory, LoadConfig treats it as a state dir and looks
 // for preferences.json first (M11c+), falling back to the legacy
-// settings.json. When only the legacy file is present it is read in
-// place; the caller is responsible for writing the promoted file via
-// Save() or LoadConfig's higher-level wrappers.
+// settings.json. Loading never writes to disk (#3239): preferences.json
+// is only written when there is something new to record — a newer
+// settings.json overlay applied by workspace.Load, or an explicit
+// Save().
 //
 // If path points at a file, it is read directly.
 func LoadConfig(path string) (*Config, error) {
@@ -232,10 +218,8 @@ func LoadConfig(path string) (*Config, error) {
 }
 
 // loadConfigFromDir looks in stateDir for preferences.json first, then
-// falls back to settings.json. When the legacy file is used it is
-// promoted: the parsed config is re-serialized to preferences.json so
-// subsequent reads find the canonical file. The legacy file is left on
-// disk for the user to audit and remove manually.
+// falls back to settings.json. The legacy file is read in place; no
+// promotion write happens on read (#3239).
 func loadConfigFromDir(stateDir string) (*Config, error) {
 	prefs := filepath.Join(stateDir, PreferencesFileName)
 	if data, err := os.ReadFile(prefs); err == nil { //nolint:gosec // callsite-constructed
@@ -247,20 +231,7 @@ func loadConfigFromDir(stateDir string) (*Config, error) {
 		return nil, fmt.Errorf("failed to read config (tried %s, %s): %w",
 			PreferencesFileName, LegacySettingsFileName, err)
 	}
-	cfg, parseErr := ParseConfig(data)
-	if parseErr != nil {
-		return nil, parseErr
-	}
-	// Promote: write preferences.json so future reads skip the fallback.
-	if saveErr := cfg.Save(prefs); saveErr != nil {
-		// Not fatal — the legacy file is still valid.
-		// We log here once; callers do not need to retry.
-		// (Use structured log; package log is already imported elsewhere.)
-		logConfigPromoteWarn(stateDir, saveErr)
-	} else {
-		logConfigPromoteInfo(stateDir)
-	}
-	return cfg, nil
+	return ParseConfig(data)
 }
 
 // ParseConfig parses JSON data into a Config.
