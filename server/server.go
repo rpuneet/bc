@@ -499,7 +499,10 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 				if parts := strings.SplitN(strings.TrimPrefix(path, "/w/"), "/", 2); len(parts) == 2 {
 					rest = parts[1]
 				}
-				http.Redirect(w, r, "/"+rest, http.StatusMovedPermanently)
+				// Same-origin path redirects only: collapse leading slashes
+				// so a crafted /w/x//evil.com can't become a protocol-relative
+				// redirect to another host.
+				http.Redirect(w, r, "/"+strings.TrimLeft(rest, "/"), http.StatusMovedPermanently)
 				return
 			}
 			// Try serving the exact file first
