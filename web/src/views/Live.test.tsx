@@ -130,13 +130,13 @@ describe("Live — show-stopped toggle", () => {
     expect(agentCardVisible("carol")).toBe(false);
     expect(agentCardVisible("dave")).toBe(false);
 
-    // Badge reports active count; toggle exposes stopped count with the
-    // explicit "Include stopped" CTA (#3205 P1b).
+    // The presence line reads as a sentence; stopped agents surface as a
+    // "N stopped (hidden)" toggle woven into it (#3254 calm redesign).
     const badge = screen.getByTestId("live-state-badge");
-    expect(badge.textContent).toContain("2");
-    expect(badge.textContent).toContain("active");
+    expect(badge.textContent).toContain("working");
     const toggle = screen.getByTestId("toggle-show-stopped");
-    expect(toggle.textContent).toContain("Include stopped");
+    expect(toggle.textContent).toContain("stopped");
+    expect(toggle.textContent).toContain("(hidden)");
     expect(toggle.textContent).toContain("2");
     expect(toggle.getAttribute("aria-pressed")).toBe("false");
   });
