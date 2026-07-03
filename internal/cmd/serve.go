@@ -84,7 +84,11 @@ func RunServer(addr, wsRoot, corsOrigin, apiKey string) error {
 	} else {
 		bcdb.SetShared(sharedDB, sharedDriver)
 		defer bcdb.CloseShared() //nolint:errcheck
-		log.Info("shared database ready", "driver", sharedDriver, "config_driver", ws.Config.Storage.Default)
+		configDriver := ""
+		if ws.Config != nil {
+			configDriver = ws.Config.Storage.Default
+		}
+		log.Info("shared database ready", "driver", sharedDriver, "config_driver", configDriver)
 	}
 
 	pidPath, pidErr := bcworkspace.DaemonPidPath()

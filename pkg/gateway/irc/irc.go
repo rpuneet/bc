@@ -61,8 +61,8 @@ func (a *Adapter) Start(ctx context.Context, handler func(gateway.Notification))
 		UseTLS:        a.cfg.UseTLS,
 		Password:      a.cfg.Password,
 		QuitMessage:   "mycel agent disconnecting",
-		KeepAlive:     30, // send PING every 30s to detect dead connections
-		ReconnectFreq: 10, // reconnect after 10s on drop
+		KeepAlive:     90 * time.Second, // send PING every 90s to detect dead connections (must be ≥ library Timeout of 60s)
+		ReconnectFreq: 10 * time.Second, // reconnect after 10s on drop
 	}
 
 	conn.AddConnectCallback(func(_ ircmsg.Message) {
