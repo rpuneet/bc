@@ -7,6 +7,60 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.8] - 2026-07-04
+
+The "nothing fails silently" release: the storage/config failure class
+behind the notifications outage is fixed end-to-end, lifetime costs were
+corrected (~5x overstated), the Live page was redesigned, and the entire
+documentation set was rewritten from source and now deploys reliably to
+bc-infra.com.
+
+### Fixed
+- **Storage resilience.** The daemon falls back to SQLite (with a loud
+  warning) when the configured TimescaleDB is unreachable, instead of
+  silently disabling notify/cron/MCP/tools/events.
+- **Config precedence.** A newer `settings.json` now overlays
+  `preferences.json` at load (section-replace, per-platform gateway
+  deep-merge); the save-on-read promotion that froze stale config is
+  gone. `mycel doctor` flags config drift.
+- **Cost accounting.** Corrected pricing tiers (Opus 4.5+ was billed at
+  the legacy 3x rate; Fable 5 was missing), deduplicated compaction
+  sidechain imports (29.7% of records), and separated cache tokens from
+  totals — lifetime cost corrected from $109k to ~$22k.
+- **Agent state consistency.** Lifecycle hooks no longer overwrite the
+  agent's reported task; the Agents table applies state-change events
+  live; "Last Active" no longer freezes on busy agents (events query read
+  the oldest window); agent-detail tab URLs no longer self-append.
+- **Discord channels deduplicated.** Canonical `discord:<guild>:<channel>`
+  keys with a one-time migration merging the three legacy naming schemes.
+- **Web routing.** Legacy `/w/<hash>/` URLs redirect back to flat routes
+  (fixes cached-redirect 404s on refresh/bookmarks, open-redirect safe);
+  unknown `/api/*` paths return JSON 404 instead of the SPA shell.
+- **IRC adapter** could never connect (integer timeouts read as
+  nanoseconds).
+- **Security.** Go 1.25.11 clears GO-2026-5039/5037/4971/4918.
+
+### Added
+- **Degraded-services surfacing.** `/api/health` reports failed stores
+  with reasons, 503s carry the cause, `mycel doctor` gains a daemon
+  check, and the web UI shows a degraded banner.
+- **Cloudflare Pages deploys from CI** (wrangler) — bc-infra.com tracks
+  main again after weeks of stale builds.
+- CI guard that fails when the generated CLI reference drifts from the
+  Cobra command tree.
+
+### Changed
+- **Live page redesigned** around a single presence line, search, and a
+  ⋯ menu — the stats grid, dual filter dropdowns, and five-button toolbar
+  are gone.
+- **Notifications are strictly stream-only**: the message composer, the
+  deprecated gateway send endpoint, and the reaction/pin hover
+  affordances are removed.
+- **Docs rewritten from source**: regenerated CLI reference (133 files),
+  REST API reference rebuilt from route registration (196 endpoints),
+  config/MCP/tutorials/troubleshoot and 12 architecture docs corrected;
+  104MB of internal screenshots removed from the published site.
+
 ## [0.3.7] - 2026-07-03
 
 Course-correct on the v0.3.6 notifications rewrite.
