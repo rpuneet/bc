@@ -27,6 +27,8 @@ function SummaryStat({
   accent,
   mono,
   first,
+  emphasis,
+  dim,
 }: {
   label: string;
   value: React.ReactNode;
@@ -34,18 +36,24 @@ function SummaryStat({
   mono?: boolean;
   /** When true, suppress the left divider (first cell in row). */
   first?: boolean;
+  /** Primary metric — largest type size. Only one per row should carry this. */
+  emphasis?: boolean;
+  /** When true, render the whole cell at reduced opacity — used for zero-value
+   *  metrics so they read as "nothing to see" rather than shouting alongside
+   *  active counts (#3205 P1d). */
+  dim?: boolean;
 }) {
   return (
     <div
       className={`relative flex flex-col justify-between gap-1.5 px-5 py-3 ${
         first ? "" : "sm:before:absolute sm:before:inset-y-3 sm:before:left-0 sm:before:w-px sm:before:bg-mycel-border/50 sm:before:content-['']"
-      }`}
+      } ${dim ? "opacity-60" : ""}`}
     >
-      <span className="text-[9px] uppercase tracking-[0.12em] text-mycel-muted/60 font-medium">
+      <span className="text-[10px] uppercase tracking-[0.10em] text-mycel-muted font-medium">
         {label}
       </span>
       <span
-        className={`text-[22px] leading-none tabular-nums ${
+        className={`${emphasis ? "text-[26px]" : "text-[20px]"} leading-none tabular-nums ${
           mono ? "font-mono" : "font-semibold"
         } ${accent ?? "text-mycel-text"}`}
       >
@@ -521,12 +529,26 @@ export function Live() {
           Rendered only when there is at least one agent so the page doesn't
           show a "0 / 0 / 0" header on the cold-start empty state. */}
       {activities.size > 0 && (
-        <div className="grid grid-cols-2 sm:grid-cols-5 rounded-lg border border-mycel-border bg-mycel-surface mb-4">
-          <SummaryStat label="Working" value={summary.working} accent="text-emerald-300" first />
-          <SummaryStat label="Idle" value={summary.idle} accent="text-amber-300" />
-          <SummaryStat label="Errored" value={summary.errored} accent={summary.errored > 0 ? "text-rose-300" : "text-mycel-muted/60"} />
-          <SummaryStat label="Tokens" value={formatTokens(summary.tokens)} mono />
-          <SummaryStat label="Last event" value={summary.lastEvent > 0 ? <RelTime ms={summary.lastEvent} /> : "—"} mono />
+        <div className={`grid grid-cols-2 ${summary.errored > 0 ? "sm:grid-cols-5" : "sm:grid-cols-4"} rounded-lg border border-mycel-border bg-mycel-surface mb-4`}>
+          <SummaryStat
+            label="Working"
+            value={summary.working}
+            accent="text-mycel-success"
+            first
+            emphasis
+            dim={summary.working === 0}
+          />
+          <SummaryStat
+            label="Idle"
+            value={summary.idle}
+            accent="text-mycel-warning"
+            dim={summary.idle === 0}
+          />
+          {summary.errored > 0 && (
+            <SummaryStat label="Errored" value={summary.errored} accent="text-mycel-error" />
+          )}
+          <SummaryStat label="Tokens" value={formatTokens(summary.tokens)} mono dim={summary.tokens === 0} />
+          <SummaryStat label="Last event" value={summary.lastEvent > 0 ? <RelTime ms={summary.lastEvent} /> : "—"} mono dim={summary.lastEvent === 0} />
         </div>
       )}
 
