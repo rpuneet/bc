@@ -1,21 +1,39 @@
 # Quick Start Guide
 
-Get bc running in 5 minutes.
+Get mycel running in 5 minutes.
 
 ## Prerequisites
 
-- **Go 1.25.4+** for building from source
-- **tmux** for agent session management
+- **tmux** for agent session management (or Docker for the container runtime)
 - **An AI agent tool** (Claude Code, Cursor, or similar)
+- **Go 1.25.4+** only if building from source
 
 ## Installation
+
+### Install Script (recommended)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/rpuneet/mycel/main/scripts/install.sh | bash
+```
+
+### Homebrew
+
+```bash
+brew install rpuneet/mycel/mycel
+```
+
+### Go Install
+
+```bash
+go install github.com/rpuneet/mycel/cmd/mycel@latest
+```
 
 ### From Source
 
 ```bash
 git clone https://github.com/rpuneet/mycel.git
-cd bc
-make build
+cd mycel
+make build-local-mycel
 make install  # Installs to $GOPATH/bin
 ```
 
@@ -36,43 +54,47 @@ cd your-project
 mycel init
 ```
 
-Or use the quick-start wizard:
+This launches an interactive wizard. To skip it and use defaults:
 
 ```bash
 mycel init --quick
 ```
 
-This creates a `.bc/` directory with:
-- `settings.json` - Workspace configuration
-- `agents/` - Agent state storage
-- `roles/` - Role definitions
+Workspace configuration lives outside your project directory, at
+`~/.mycel/workspaces/<id>/`:
 
-### Step 2: Start the Root Agent
+- `preferences.json` — workspace configuration
+- `roles/` — agent role definitions
+- `agents/` — per-agent state files
+
+Agent working copies (git worktrees) are created inside your project under
+`.bc/agents/<name>/`.
+
+### Step 2: Start the Server
 
 ```bash
-mycel up
+mycel up -d
 ```
 
-This spawns the root agent in a tmux session. The root agent can create and manage other agents.
+This starts the mycel server (API, web UI, MCP, agent management) as a
+background daemon on `127.0.0.1:9374`. Run `mycel up` without `-d` to keep it
+in the foreground instead.
 
-### Step 3: Check Status
+### Step 3: Create an Engineer
+
+```bash
+mycel agent create eng-01 --role engineer
+```
+
+### Step 4: Check Status
 
 ```bash
 mycel status
 ```
 
-Output:
 ```
-Workspace: my-project | Agents: 1 | Active: 1 | Working: 1
-
-AGENT   ROLE   STATE     UPTIME   TASK
-root    root   working   10s      Initializing...
-```
-
-### Step 4: Create an Engineer
-
-```bash
-mycel agent create eng-01 --role engineer
+AGENT     ROLE      STATE    UPTIME    TASK
+eng-01    engineer  idle     10s       -
 ```
 
 ### Step 5: Send Work
@@ -83,13 +105,13 @@ mycel agent send eng-01 "Implement the login feature per issue #42"
 
 ### Step 6: Monitor Progress
 
-Open the TUI dashboard:
+Run `mycel` with no arguments to open the TUI dashboard:
 
 ```bash
-mycel home
+mycel
 ```
 
-Or check specific agent output:
+Or check a specific agent's recent output:
 
 ```bash
 mycel agent peek eng-01
@@ -106,19 +128,22 @@ mycel down
 ### Notification Subscriptions
 
 ```bash
-# List available notification sources
-bc notify list
+# Show gateway connection status and subscriptions
+mycel notify status
+
+# List all agent subscriptions
+mycel notify list
 
 # Subscribe an agent to a Slack channel
-bc notify subscribe slack:engineering eng-01
+mycel notify subscribe slack:engineering eng-01
 
-# Check recent notifications
-bc notify history slack:engineering --last 10
+# Show recent delivery activity for a channel
+mycel notify activity slack:engineering --limit 10
 ```
 
 ### Agent Reporting
 
-Agents report their status:
+Agents report their own state from inside their sessions:
 
 ```bash
 mycel agent report working "Implementing login API"
@@ -126,12 +151,14 @@ mycel agent report done "Feature complete"
 mycel agent report stuck "Need database access"
 ```
 
+Valid states are `idle`, `working`, `done`, `stuck`, and `error`.
+
 ### Cost Tracking
 
 ```bash
-bc cost show           # Recent spending
-bc cost summary        # Aggregate stats
-bc cost dashboard      # Full view
+mycel cost show           # Recent cost records
+mycel cost summary        # Workspace cost overview
+mycel cost dashboard      # Rich cost dashboard
 ```
 
 ## Next Steps
@@ -145,7 +172,8 @@ bc cost dashboard      # Full view
 
 If you encounter issues:
 
-1. Check `mycel logs` for recent events
-2. Verify tmux is installed: `tmux -V`
-3. Ensure your AI tool is configured correctly
-4. See [Troubleshooting Guide](../how-to/troubleshoot.md) for common issues
+1. Run `mycel doctor` for a full health check
+2. Check `mycel logs` for recent events
+3. Verify tmux is installed: `tmux -V`
+4. Ensure your AI tool is configured correctly
+5. See the [Troubleshooting Guide](../how-to/troubleshoot.md) for common issues

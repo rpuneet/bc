@@ -1,28 +1,37 @@
 # Troubleshooting Guide
 
-Common issues and solutions for bc.
+Common issues and solutions for mycel.
+
+Start with the built-in health checks — they catch most problems automatically:
+
+```bash
+mycel doctor                 # Full health check (workspace, database, agents, tools, git)
+mycel doctor check agents    # Check a specific category
+mycel doctor fix             # Auto-fix fixable issues
+mycel doctor fix --dry-run   # Preview fixes first
+```
 
 ## Installation Issues
 
-### "command not found: bc"
+### "command not found: mycel"
 
-**Cause**: bc binary not in PATH.
+**Cause**: mycel binary not in PATH.
 
 **Solution**:
 ```bash
 # Check if installed
-ls $GOPATH/bin/bc
+ls $(go env GOPATH)/bin/mycel
 
 # Add to PATH
-export PATH=$PATH:$GOPATH/bin
+export PATH=$PATH:$(go env GOPATH)/bin
 
 # Or install to /usr/local/bin
-sudo cp $GOPATH/bin/bc /usr/local/bin/
+sudo cp $(go env GOPATH)/bin/mycel /usr/local/bin/
 ```
 
 ### "tmux: command not found"
 
-**Cause**: tmux is required but not installed.
+**Cause**: tmux is required for the tmux runtime but not installed.
 
 **Solution**:
 ```bash
@@ -45,56 +54,47 @@ sudo dnf install tmux
 # Check Go version (need 1.25.4+)
 go version
 
-# Update dependencies
-make build
+# Rebuild
+make build-local-mycel
 
 # Clean build
-make clean build
+make clean && make build-local-mycel
 ```
 
 ## Workspace Issues
 
-### "not in a bc workspace"
+### "not in a mycel workspace"
 
-**Cause**: Running bc command outside a workspace, or BC_WORKSPACE not set.
+**Cause**: Running a mycel command outside a workspace, or `BC_WORKSPACE` not set.
 
 **Solution**:
 ```bash
-# Initialize workspace
-bc init
+# Initialize a workspace in your project directory
+mycel init
 
-# Or set environment variable (for agents in worktrees)
+# Or set the environment variable (for agents in worktrees)
 export BC_WORKSPACE=/path/to/workspace
-```
-
-### "workspace already initialized"
-
-**Cause**: Trying to init in an existing workspace.
-
-**Solution**:
-```bash
-# Check for existing .bc directory
-ls -la .bc/
-
-# Remove and reinitialize (WARNING: loses data)
-rm -rf .bc/
-bc init
 ```
 
 ### Config File Errors
 
-**Cause**: Invalid TOML syntax in settings.json.
+**Cause**: Invalid JSON in `preferences.json` (workspace config lives at
+`~/.mycel/workspaces/<id>/preferences.json`; `settings.json` is the legacy
+fallback).
 
 **Solution**:
 ```bash
-# Validate TOML
-bc config show
+# Validate the configuration file
+mycel config validate
 
-# Check for syntax errors
-cat .bc/settings.json
+# Inspect current configuration
+mycel config show
 
-# Regenerate default config
-bc config reset
+# Open in your editor to fix syntax
+mycel config edit
+
+# Or regenerate the default config (WARNING: loses customizations)
+mycel config reset
 ```
 
 ## Agent Issues
@@ -108,20 +108,21 @@ bc config reset
 
 **Solutions**:
 ```bash
-# Check for existing session
+# Check for existing session (sessions are prefixed bc-)
 tmux list-sessions | grep bc-
 
 # Kill stale session
-tmux kill-session -t bc-workspace-agent
+tmux kill-session -t <session-name>
 
-# Check worktree
+# Check worktrees
 git worktree list
 
 # Remove corrupted worktree
-git worktree remove .bc/worktrees/agent-name --force
+git worktree remove .bc/agents/<name>/worktree --force
+git worktree prune
 
-# Restart agent
-bc agent start agent-name
+# Restart the agent
+mycel agent start <name>
 ```
 
 ### Agent Not Responding
@@ -130,69 +131,72 @@ bc agent start agent-name
 
 **Solution**:
 ```bash
-# Check agent status
-bc agent health agent-name
+# Check agent health
+mycel agent health <name>
 
 # View recent output
-bc agent peek agent-name
+mycel agent peek <name>
 
 # Attach to investigate
-bc agent attach agent-name
+mycel agent attach <name>
 
 # Force restart
-bc agent stop agent-name
-bc agent start agent-name
+mycel agent stop <name>
+mycel agent start <name>
 ```
 
 ### "BC_AGENT_ID not set"
 
-**Cause**: Running agent-only command outside agent session.
+**Cause**: Running an agent-only command outside an agent session.
+`mycel agent report` must be run from within an agent session, where
+`BC_AGENT_ID` is set automatically.
 
 **Solution**:
 ```bash
-# These commands only work inside agent sessions:
-bc agent report working "..."
-# Use agent send instead:
-bc agent send eng-01 "bc agent report working '...'"
+# Runs inside an agent session:
+mycel agent report working "implementing feature"
+
+# From outside, ask the agent to report instead:
+mycel agent send eng-01 "report your current status"
 ```
 
 ## Notification Issues
 
 ### Notifications Not Delivered
 
-**Cause**: Target agent not running, adapter disconnected, or subscription missing.
+**Cause**: Target agent not running, gateway disconnected, or subscription missing.
 
 **Solution**:
 
 ```bash
 # Check agent status
-bc status
+mycel status
 
-# Check adapter connection health
-bc notify status
+# Check gateway connection health
+mycel notify status
 
 # Verify subscriptions
-bc notify list
+mycel notify list
 
-# Check delivery log
-bc notify history slack:engineering --last 10
+# Check the delivery activity log
+mycel notify activity slack:engineering --limit 10
 ```
 
-### Adapter Disconnected
+### Gateway Disconnected
 
 **Cause**: Invalid credentials, network issue, or platform revoked access.
 
 **Solution**:
 
 ```bash
-# Check adapter status for error details
-bc notify status
+# Check gateway status for error details
+mycel notify status
 
-# Verify credentials
-bc secret list
+# Verify credentials are present (names only, values stay encrypted)
+mycel secret list
 
-# Restart bcd to reconnect adapters
-bc down && bc up
+# Restart the server to reconnect gateways
+mycel down && mycel up -d
 ```
 
 ### Database Locked
@@ -201,8 +205,8 @@ bc down && bc up
 
 **Solution**:
 ```bash
-# Check for running bc processes
-pgrep -f "bc "
+# Check for running mycel processes
+pgrep -f mycel
 
 # Wait a moment, then retry
 ```
@@ -211,19 +215,17 @@ pgrep -f "bc "
 
 ### TUI Won't Start
 
+The TUI opens when you run `mycel` with no arguments inside a workspace.
+
 **Causes**:
-1. Node.js not installed
-2. TUI not built
-3. Terminal too small
+1. Node.js or Bun not installed
+2. Terminal too small
 
 **Solutions**:
 ```bash
-# Check Node/Bun
+# Check for a JS runtime
 node --version
 bun --version
-
-# Rebuild TUI
-cd tui && bun install && bun run build
 
 # Check terminal size (need at least 80x24)
 echo "Columns: $COLUMNS, Lines: $LINES"
@@ -239,24 +241,23 @@ echo "Columns: $COLUMNS, Lines: $LINES"
 export TERM=xterm-256color
 
 # Disable colors if needed
-export NO_COLOR=1
-bc home
+NO_COLOR=1 mycel
 ```
 
 ### Keyboard Shortcuts Not Working
 
-**Cause**: Terminal capturing keys before bc.
+**Cause**: Terminal capturing keys before mycel.
 
 **Solution**:
 - Check if running inside tmux (prefix key conflicts)
-- Try different terminal emulator
-- Check keybinding documentation in TUI
+- Try a different terminal emulator
+- Check the keybinding help inside the TUI
 
 ## Git/Worktree Issues
 
 ### "worktree already exists"
 
-**Cause**: Stale worktree from crashed agent.
+**Cause**: Stale worktree from a crashed agent.
 
 **Solution**:
 ```bash
@@ -264,10 +265,13 @@ bc home
 git worktree list
 
 # Remove stale worktree
-git worktree remove .bc/worktrees/agent-name --force
+git worktree remove .bc/agents/<name>/worktree --force
 
 # Prune worktree references
 git worktree prune
+
+# Or let mycel fix it
+mycel doctor fix --category git
 ```
 
 ### "cannot create worktree"
@@ -292,10 +296,10 @@ git branch -a
 
 **Solution**:
 ```bash
-# Attach to agent
-bc agent attach agent-name
+# Attach to the agent
+mycel agent attach <name>
 
-# Inside agent session, resolve conflicts
+# Inside the agent session, resolve conflicts
 git status
 git merge --abort  # or resolve manually
 ```
@@ -304,23 +308,23 @@ git merge --abort  # or resolve manually
 
 ### Costs Not Recording
 
-**Cause**: Cost tracking disabled or database issue.
+**Cause**: Cost data missing or database issue.
 
 **Solution**:
 ```bash
 # Check cost data
-bc cost show
+mycel cost show
 
 # View per-agent breakdown
-bc cost agent
+mycel cost agent
 
-# Check database
-sqlite3 .bc/bc.db "SELECT * FROM costs LIMIT 5;"
+# Run the database health check
+mycel doctor check database
 ```
 
 ## Performance Issues
 
-### bc Commands Slow
+### Commands Slow
 
 **Cause**: Large workspace or database.
 
@@ -329,7 +333,7 @@ sqlite3 .bc/bc.db "SELECT * FROM costs LIMIT 5;"
 # Check database sizes
 du -sh .bc/*.db
 
-# Vacuum database
+# Vacuum the database
 sqlite3 .bc/bc.db "VACUUM;"
 ```
 
@@ -339,14 +343,14 @@ sqlite3 .bc/bc.db "VACUUM;"
 
 **Solution**:
 ```bash
-# Check which agent
-bc agent health
+# Check agent health
+mycel agent health
 
 # View recent activity
-bc logs --tail 50
+mycel logs --tail 50
 
-# Stop problematic agent
-bc agent stop agent-name
+# Stop the problematic agent
+mycel agent stop <name>
 ```
 
 ## Common Error Messages
@@ -365,30 +369,47 @@ ls -la .bc/
 sudo chown -R $USER:$USER .bc/
 ```
 
-### "connection refused"
+### "bcd is not running"
 
-**Cause**: MCP server not running or wrong port.
+**Cause**: A command needs the mycel server, but it isn't running.
 
 **Solution**:
 ```bash
-# Check MCP server status
-bc mcp list
+# Start the server as a background daemon
+mycel up -d
 
-# Restart servers
-bc mcp remove all
+# Verify it's healthy
+mycel doctor
+```
+
+### "connection refused" (MCP)
+
+**Cause**: An MCP server is misconfigured or unreachable.
+
+**Solution**:
+```bash
+# List configured MCP servers
+mycel mcp list
+
+# Inspect a server's configuration
+mycel mcp show <name>
+
+# Disable or remove a broken server
+mycel mcp disable <name>
+mycel mcp remove <name>
 ```
 
 ### "timeout waiting for response"
 
-**Cause**: Agent or server taking too long.
+**Cause**: Agent taking too long or stuck.
 
 **Solution**:
 ```bash
-# Increase timeout in config
-bc config set agent.timeout 120
+# Check if the agent is stuck
+mycel agent peek <name>
 
-# Check if agent is stuck
-bc agent peek agent-name
+# Run stuck detection with a longer work timeout
+mycel agent health <name> --detect-stuck --work-timeout 1h
 ```
 
 ## Getting Help
@@ -397,34 +418,34 @@ bc agent peek agent-name
 
 ```bash
 # View recent events
-bc logs
+mycel logs
 
 # Filter by agent
-bc logs --agent eng-01
+mycel logs --agent eng-01
 
 # Filter by type
-bc logs --type agent.report
+mycel logs --type agent.report
+
+# Last N events
+mycel logs --tail 100
 ```
 
 ### Debug Mode
 
 ```bash
-# Enable verbose output
-bc -v status
-
-# Enable debug logging
-BC_DEBUG=1 bc agent start eng-01
+# Enable verbose output on any command
+mycel -v status
 ```
 
 ### Reporting Issues
 
 When reporting issues, include:
 
-1. bc version: `bc version`
+1. mycel version: `mycel version`
 2. OS and version
-3. Go version: `go version`
-4. tmux version: `tmux -V`
-5. Relevant logs: `bc logs --tail 100`
-6. Config (without secrets): `bc config show`
+3. tmux version: `tmux -V`
+4. Health check output: `mycel doctor`
+5. Relevant logs: `mycel logs --tail 100`
+6. Config (without secrets): `mycel config show`
 
 File issues at: https://github.com/rpuneet/mycel/issues
