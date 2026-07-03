@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { render, screen, waitFor, fireEvent } from "@testing-library/react";
+import { MemoryRouter, Routes, Route, useLocation } from "react-router-dom";
 import { Agents } from "../Agents";
+import { AgentDetail } from "../AgentDetail";
 import { Notifications } from "../Notifications";
 import { Tools } from "../Tools";
 import { Live } from "../Live";
@@ -50,6 +51,65 @@ describe("Agents", () => {
     expectSkeletonLoading(container);
     await waitFor(() => {
       expect(screen.getByText("bot-1")).toBeInTheDocument();
+    });
+  });
+});
+
+describe("AgentDetail tab navigation", () => {
+  function LocationProbe() {
+    const location = useLocation();
+    return <div data-testid="location">{location.pathname}</div>;
+  }
+
+  it("uses absolute tab URLs — no segment appending across clicks (#3259)", async () => {
+    fetchMock.mockImplementation((url: RequestInfo | URL) => {
+      const u = String(url);
+      if (u.endsWith("/api/agents/bot-1")) {
+        return jsonResponse({
+          name: "bot-1",
+          role: "engineer",
+          tool: "claude",
+          state: "working",
+          cost_usd: 0,
+          created_at: "2026-07-01T00:00:00Z",
+          started_at: "2026-07-01T00:00:00Z",
+          updated_at: "2026-07-01T00:00:00Z",
+        });
+      }
+      return jsonResponse([]);
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/agents/bot-1"]}>
+        <Routes>
+          <Route path="agents/:name" element={<AgentDetail />} />
+          <Route path="agents/:name/*" element={<AgentDetail />} />
+        </Routes>
+        <LocationProbe />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("bot-1")).toBeInTheDocument();
+    });
+
+    // Attach (default) → Config
+    fireEvent.click(screen.getByRole("button", { name: "Config" }));
+    await waitFor(() => {
+      expect(screen.getByTestId("location")).toHaveTextContent("/agents/bot-1/config");
+    });
+
+    // Config → Metrics: the old relative builder produced
+    // /agents/bot-1/config/metrics here.
+    fireEvent.click(screen.getByRole("button", { name: "Metrics" }));
+    await waitFor(() => {
+      expect(screen.getByTestId("location").textContent).toBe("/agents/bot-1/metrics");
+    });
+
+    // Metrics → Code — still absolute.
+    fireEvent.click(screen.getByRole("button", { name: "Code" }));
+    await waitFor(() => {
+      expect(screen.getByTestId("location").textContent).toBe("/agents/bot-1/code");
     });
   });
 });

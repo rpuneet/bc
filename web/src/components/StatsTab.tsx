@@ -190,6 +190,12 @@ export function StatsTab({ agent }: { agent: Agent }) {
   const computed = data?.computed ?? null;
   const hasComputedData = (computed?.total_events ?? 0) > 0;
 
+  // Live-sampled resource data (ps aux / container stats) — works without
+  // TimescaleDB, so any "requires TimescaleDB" messaging must not sit on
+  // top of CPU/Mem cards populated from this source.
+  const hasLiveResource =
+    (computed?.cpu_percent ?? 0) > 0 || (computed?.mem_used_bytes ?? 0) > 0;
+
   const hasAnyData =
     hasTimescaleData ||
     hasComputedData ||
@@ -252,14 +258,6 @@ export function StatsTab({ agent }: { agent: Agent }) {
               The TimescaleDB stats collector samples every 30 seconds. Live metrics will appear here once the first sample lands.
             </>
           )}
-        </div>
-      )}
-
-      {/* Tmux-agent notice when we have cost/token data but no resource metrics */}
-      {!hasTimescaleData && hasAnyData && !loading && (
-        <div className="rounded border border-mycel-border/40 bg-mycel-surface/20 p-2.5 text-[10px] text-mycel-muted/70 leading-relaxed">
-          <span className="font-medium">CPU/Memory metrics require TimescaleDB.</span>{" "}
-          Showing token and cost data from agent session logs.
         </div>
       )}
 
@@ -360,6 +358,18 @@ export function StatsTab({ agent }: { agent: Agent }) {
         <StatCard label="Tokens" value={fmtTokens(totalIn + totalOut)} sub={`In: ${fmtTokens(totalIn)} / Out: ${fmtTokens(totalOut)}`} />
         <StatCard label="Cost" value={fmtCost(totalCost)} accent />
       </div>
+
+      {/* TimescaleDB notice — scoped to the historical charts section only.
+          The live sampler feeds the CPU/Mem cards above without TSDB, so
+          this must never sit on top of populated cards. */}
+      {!hasTimescaleData && hasAnyData && !loading && (
+        <div className="rounded border border-mycel-border/40 bg-mycel-surface/20 p-2.5 text-[10px] text-mycel-muted/70 leading-relaxed">
+          <span className="font-medium">Historical CPU/Memory charts require TimescaleDB.</span>{" "}
+          {hasLiveResource
+            ? "The CPU and Memory cards above show live sampled values."
+            : "Showing token and cost data from agent session logs."}
+        </div>
+      )}
 
       {/* Row 2: CPU + Memory charts — only shown when TSDB has data */}
       {(cpuChart.length >= 2 || memChart.length >= 2) && (

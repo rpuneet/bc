@@ -1739,6 +1739,65 @@ func TestUpdateAgentStateValidation(t *testing.T) {
 	}
 }
 
+// SetAgentState is the lifecycle-hook path: it must move state WITHOUT
+// overwriting the agent's reported task (#3259 — lifecycle strings like
+// "Turn complete"/"Session ended" were clobbering report_status tasks).
+func TestSetAgentState_PreservesReportedTask(t *testing.T) {
+	m := &Manager{
+		agents: make(map[string]*Agent),
+	}
+	m.agents["eng-1"] = &Agent{
+		Name:  "eng-1",
+		Role:  Role("engineer"),
+		State: StateIdle,
+		Task:  "implementing issue #3259",
+	}
+
+	// Lifecycle transition (UserPromptSubmit → working) keeps the task.
+	if err := m.SetAgentState(context.Background(), "eng-1", StateWorking); err != nil {
+		t.Fatalf("idle→working should be valid: %v", err)
+	}
+	if got := m.agents["eng-1"].Task; got != "implementing issue #3259" {
+		t.Errorf("task = %q, want reported task preserved", got)
+	}
+	if m.agents["eng-1"].State != StateWorking {
+		t.Errorf("state = %s, want working", m.agents["eng-1"].State)
+	}
+	if m.agents["eng-1"].UpdatedAt.IsZero() {
+		t.Error("UpdatedAt should be set")
+	}
+
+	// Stop (idle) at end of turn also keeps the task.
+	if err := m.SetAgentState(context.Background(), "eng-1", StateIdle); err != nil {
+		t.Fatalf("working→idle should be valid: %v", err)
+	}
+	if got := m.agents["eng-1"].Task; got != "implementing issue #3259" {
+		t.Errorf("task after idle = %q, want reported task preserved", got)
+	}
+
+	// SessionEnd (stopped) clears the task — a dead agent must not
+	// advertise a stale one.
+	if err := m.SetAgentState(context.Background(), "eng-1", StateStopped); err != nil {
+		t.Fatalf("idle→stopped should be valid: %v", err)
+	}
+	if got := m.agents["eng-1"].Task; got != "" {
+		t.Errorf("task after stopped = %q, want cleared", got)
+	}
+
+	// Invalid transition is rejected and leaves the agent untouched.
+	if err := m.SetAgentState(context.Background(), "eng-1", StateWorking); err == nil {
+		t.Error("stopped→working should be invalid")
+	}
+	if m.agents["eng-1"].State != StateStopped {
+		t.Errorf("state after rejected transition = %s, want stopped", m.agents["eng-1"].State)
+	}
+
+	// Unknown agent errors.
+	if err := m.SetAgentState(context.Background(), "nope", StateIdle); err == nil {
+		t.Error("should error for nonexistent agent")
+	}
+}
+
 func TestUpdateAgentState_SameStateMessageUpdate(t *testing.T) {
 	m := &Manager{
 		agents: make(map[string]*Agent),

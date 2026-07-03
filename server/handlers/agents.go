@@ -545,7 +545,6 @@ func (h *AgentHandler) byName(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Determine target state: explicit in payload > mapped from event > no change
-		task := payload.Task
 		targetState, hasState := agent.StateForHookEvent(payload.Event)
 		if payload.State != "" {
 			if agent.IsValidState(payload.State) {
@@ -555,7 +554,11 @@ func (h *AgentHandler) byName(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if hasState {
-			if err := svc.Manager().UpdateAgentState(r.Context(), name, targetState, task); err != nil {
+			// State-only update: lifecycle descriptions baked into hook
+			// commands ("Turn complete", "Session ended", "Processing
+			// prompt...") must NOT overwrite the agent's reported task.
+			// They still flow to the event log and SSE stream below.
+			if err := svc.Manager().SetAgentState(r.Context(), name, targetState); err != nil {
 				log.Debug("hook state update skipped", "agent", name, "error", err)
 				writeJSON(w, http.StatusOK, map[string]any{"ok": true, "skipped": true, "reason": err.Error()})
 				return

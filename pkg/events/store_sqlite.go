@@ -105,17 +105,29 @@ func (l *SQLiteLog) ReadLast(n int) ([]Event, error) {
 	return events, nil
 }
 
-// ReadByAgent returns events for a specific agent.
+// ReadByAgent returns events for a specific agent, oldest first.
+// The window is the NEWEST DefaultReadLimit events — long-lived agents
+// exceed the limit, and returning the oldest window froze derived stats
+// like "last active" at whatever the 1000th oldest event was.
 func (l *SQLiteLog) ReadByAgent(name string) ([]Event, error) {
 	rows, err := l.db.QueryContext(context.Background(),
-		"SELECT type, agent, message, data, timestamp FROM events WHERE agent = ? ORDER BY id ASC LIMIT 1000", name,
+		"SELECT type, agent, message, data, timestamp FROM events WHERE agent = ? ORDER BY id DESC LIMIT 1000", name,
 	)
 	if err != nil {
 		return nil, err
 	}
 	defer func() { _ = rows.Close() }()
 
-	return scanEventRows(rows)
+	events, err := scanEventRows(rows)
+	if err != nil {
+		return nil, err
+	}
+
+	// Reverse so oldest first — callers iterate from the end for "newest".
+	for i, j := 0, len(events)-1; i < j; i, j = i+1, j-1 {
+		events[i], events[j] = events[j], events[i]
+	}
+	return events, nil
 }
 
 // Prune deletes events older than maxAge and trims per-agent events to maxPerAgent.

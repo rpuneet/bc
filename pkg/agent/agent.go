@@ -1116,10 +1116,11 @@ func (m *Manager) startAgent(ctx context.Context, name string, opts SpawnOptions
 
 	if existing.State == StateStopped || existing.State == StateError {
 		existing.State = StateStarting
-		// Reset the task so the UI doesn't render the previous session's
-		// terminal task (e.g. "Session ended") next to a fresh "Starting"
-		// badge. The next hook fires within seconds and replaces this.
-		existing.Task = "Starting…"
+		// Clear the task so the UI doesn't render the previous session's
+		// stale task next to a fresh "starting" badge. Lifecycle progress
+		// ("Starting…") is conveyed by State, never by Task — Task holds
+		// only what the agent itself reports via bc report/report_status.
+		existing.Task = ""
 	}
 	existing.UpdatedAt = time.Now()
 
@@ -2162,6 +2163,52 @@ func (m *Manager) UpdateAgentState(ctx context.Context, name string, state State
 	prevState := agent.State
 	agent.State = state
 	agent.Task = task
+	agent.UpdatedAt = time.Now()
+	changed = prevState != state
+
+	if err := m.saveState(ctx); err != nil {
+		log.Warn("failed to save agent state", "error", err)
+	}
+	m.mu.Unlock()
+
+	// Notify outside the lock to avoid deadlocks with RLock in notifyStateChange.
+	if changed {
+		m.notifyStateChange(name, state, task)
+	}
+	return nil
+}
+
+// SetAgentState updates an agent's state from a lifecycle event while
+// preserving the agent's reported task. Lifecycle descriptions ("Turn
+// complete", "Session ended", …) belong in the activity/event stream, not
+// in the Task field — Task is reserved for the agent's own report
+// (bc report / report_status). The task is cleared when the agent stops
+// so a dead agent doesn't keep advertising a stale task.
+// Returns an error if the transition is invalid per the state machine.
+func (m *Manager) SetAgentState(ctx context.Context, name string, state State) error {
+	var (
+		changed bool
+		task    string
+	)
+
+	m.mu.Lock()
+	agent, exists := m.agents[name]
+	if !exists {
+		m.mu.Unlock()
+		return fmt.Errorf("agent %s: %w", name, ErrNotFound)
+	}
+
+	if err := ValidateTransition(agent.State, state); err != nil {
+		m.mu.Unlock()
+		return fmt.Errorf("agent %s: %w", name, err)
+	}
+
+	prevState := agent.State
+	agent.State = state
+	if state == StateStopped {
+		agent.Task = ""
+	}
+	task = agent.Task
 	agent.UpdatedAt = time.Now()
 	changed = prevState != state
 

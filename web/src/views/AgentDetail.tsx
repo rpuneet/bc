@@ -177,19 +177,9 @@ function AttachOverlay({
   onStart,
   onRetry,
 }: AttachOverlayProps) {
-  // Derive the sibling "live" tab URL from the current path so the link
-  // works under workspace-scoped routes (/w/:wsId/agents/:name/...).
-  const location = useLocation();
-  const livePath = (() => {
-    const parts = location.pathname.split("/").filter(Boolean);
-    // Strip any trailing tab segment (attach/live/config/metrics/code)
-    const tabs = new Set(["attach", "live", "config", "metrics", "code"]);
-    const last = parts[parts.length - 1];
-    if (last !== undefined && tabs.has(last)) {
-      parts.pop();
-    }
-    return "/" + parts.concat("live").join("/");
-  })();
+  // Routes are flat (/agents/<name>/<tab>) — link straight to the
+  // sibling "live" tab instead of parsing the current path.
+  const livePath = `/agents/${agent.name}/live`;
   return (
     <div
       role="status"
@@ -582,7 +572,13 @@ function ConfigTab({ agent, agentsUrl }: { agent: Agent; agentsUrl: string }) {
               {isDocker ? "docker" : "tmux"}
             </MetaCell>
             <MetaCell label="Session" mono>
-              {agent.session || config?.session || "\u2014"}
+              {/* Session name is the agent name by construction; fall back
+                  to it while the agent is running instead of rendering an
+                  em-dash next to a live state badge. */}
+              {agent.session
+                || config?.session
+                || (agent.state !== "stopped" && agent.state !== "error" ? agent.name : "")
+                || "\u2014"}
             </MetaCell>
             <MetaCell label="Created">
               <span className="tabular-nums">{formatTime(agent.created_at)}</span>
@@ -590,7 +586,11 @@ function ConfigTab({ agent, agentsUrl }: { agent: Agent; agentsUrl: string }) {
             <MetaCell label="Started">
               <span className="tabular-nums">{formatTime(agent.started_at)}</span>
             </MetaCell>
-            {agent.stopped_at && (
+            {/* Hide a stale stopped_at from a previous run \u2014 rendering
+                "Stopped" earlier than "Started" reads as a contradiction. */}
+            {agent.stopped_at
+              && (!agent.started_at
+                || new Date(agent.stopped_at).getTime() >= new Date(agent.started_at).getTime()) && (
               <MetaCell label="Stopped">
                 <span className="tabular-nums">{formatTime(agent.stopped_at)}</span>
               </MetaCell>
@@ -921,13 +921,9 @@ function ConfigTab({ agent, agentsUrl }: { agent: Agent; agentsUrl: string }) {
    ═══════════════════════════════════════════════════════════════════ */
 
 function CodeTabPlaceholder({ agent }: { agent: Agent }) {
-  // Defers to the top-level Code view — build an absolute path from the
-  // current pathname so we land at /w/<ws>/code regardless of nesting.
-  const { pathname } = useLocation();
-  const match = /^(\/w\/[^/]+)\//.test(pathname)
-    ? pathname.split("/").slice(0, 3).join("/")
-    : "";
-  const target = `${match}/code?worktree=${encodeURIComponent(agent.name)}&view=diff`;
+  // Defers to the top-level Code view. Routes are flat — no workspace
+  // prefix — so the target is simply /code with the worktree preselected.
+  const target = `/code?worktree=${encodeURIComponent(agent.name)}&view=diff`;
 
   return (
     <div className="flex-1 flex items-center justify-center p-6">
@@ -1006,17 +1002,18 @@ export function AgentDetail() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tabFromPath]);
 
-  // Clicking a tab updates both state and URL
+  // Clicking a tab updates both state and URL. Routes are flat
+  // (/agents/<name>/<tab>) — build the path absolutely instead of
+  // appending to the current one (the old relative slice logic grew
+  // /agents/x/config/metrics/code on every click), and replace history
+  // so Back leaves the detail page instead of replaying tab switches.
   const selectTab = useCallback(
     (tab: Tab) => {
       setActiveTab(tab);
       if (!name) return;
-      const parts = location.pathname.split("/").filter(Boolean);
-      // parts = ["w", wsId, "agents", name, maybeTab]
-      const base = parts.slice(0, 4).join("/");
-      navigate(`/${base}/${tab}`, { replace: false });
+      navigate(`/agents/${name}/${tab}`, { replace: true });
     },
-    [name, location.pathname, navigate],
+    [name, navigate],
   );
 
   const [loopOpen, setLoopOpen] = useState(false);

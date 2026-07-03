@@ -404,10 +404,35 @@ export function Agents() {
     }
   };
 
+  // Live state/task overrides from SSE — the same agent.state_changed
+  // stream the detail page consumes. The 5s poll can lag a transition by
+  // several seconds, which made the table contradict the detail view
+  // ("idle" here, "working" there). Events are applied to rows
+  // immediately; a poll whose row is at least as fresh wins.
+  const [liveStates, setLiveStates] = useState<
+    Map<string, { state: string; task?: string; at: number }>
+  >(new Map());
+
   // Refresh on agent lifecycle events via SSE
   useEffect(() => {
     const unsubs = [
-      subscribe("agent.state_changed", () => void refresh()),
+      subscribe("agent.state_changed", (ev) => {
+        const d = ev.data;
+        const name = (d.name ?? d.agent) as string | undefined;
+        const state = d.state as string | undefined;
+        if (name && state) {
+          setLiveStates((prev) => {
+            const next = new Map(prev);
+            next.set(name, {
+              state,
+              task: typeof d.task === "string" ? d.task : undefined,
+              at: Date.now(),
+            });
+            return next;
+          });
+        }
+        void refresh();
+      }),
       subscribe("agent.created", () => void refresh()),
       subscribe("agent.stopped", () => void refresh()),
       subscribe("agent.deleted", () => void refresh()),
@@ -432,8 +457,25 @@ export function Agents() {
     "",
   ] as const;
 
-  // Compute filter options from agent list
-  const allAgents = useMemo(() => agents ?? [], [agents]);
+  // Compute filter options from agent list.
+  // Merge live SSE overrides over polled rows: an override applies only
+  // while it is newer than the row's server-side updated_at (which moves
+  // on every state transition), so a fresh poll naturally supersedes it.
+  const allAgents = useMemo(() => {
+    const base = agents ?? [];
+    if (liveStates.size === 0) return base;
+    return base.map((a) => {
+      const live = liveStates.get(a.name);
+      if (!live) return a;
+      const fetchedAt = a.updated_at ? Date.parse(a.updated_at) : 0;
+      if (fetchedAt >= live.at) return a;
+      return {
+        ...a,
+        state: live.state,
+        task: live.task !== undefined ? live.task : a.task,
+      };
+    });
+  }, [agents, liveStates]);
   const runningCount = useMemo(
     () => allAgents.filter((a) => a.state !== "stopped" && a.state !== "error").length,
     [allAgents],
@@ -878,8 +920,10 @@ export function Agents() {
                       <StatusBadge status={a.state} />
                     </td>
                     <td className="px-4 py-2">
+                      {/* Task = the agent's own report (report_status).
+                          Lifecycle events live in the activity stream. */}
                       <span className="text-mycel-muted" title={a.task}>
-                        {a.task ? truncate(a.task, 50) : ""}
+                        {a.task ? truncate(a.task, 50) : "—"}
                       </span>
                     </td>
                     <td className="px-4 py-1.5 hidden md:table-cell">

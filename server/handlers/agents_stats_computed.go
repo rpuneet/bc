@@ -178,6 +178,13 @@ func (h *AgentHandler) agentComputedStats(w http.ResponseWriter, r *http.Request
 		sessionDurationSec = int64(lastTime.Sub(firstTime).Seconds())
 	}
 
+	// "Last active" must reflect the newest signal available. Hook events
+	// can lag or be pruned, so take the later of the newest hook event and
+	// the agent record's UpdatedAt (which moves on every state transition).
+	if a, aErr := svc.Get(r.Context(), name); aErr == nil && a != nil && a.UpdatedAt.After(lastTime) {
+		lastTime = a.UpdatedAt
+	}
+
 	lastActive := ""
 	if !lastTime.IsZero() {
 		lastActive = lastTime.UTC().Format(time.RFC3339)

@@ -109,6 +109,46 @@ func TestSQLiteLog_ReadByAgent(t *testing.T) {
 	}
 }
 
+// ReadByAgent must return the NEWEST window when an agent has more events
+// than DefaultReadLimit — the old ORDER BY id ASC froze derived stats like
+// "last active" at the 1000th oldest event (#3259).
+func TestSQLiteLog_ReadByAgent_NewestWindowOldestFirst(t *testing.T) {
+	setupSharedDB(t)
+	log, err := NewSQLiteLog("unused")
+	if err != nil {
+		t.Fatalf("NewSQLiteLog: %v", err)
+	}
+	defer func() { _ = log.Close() }()
+
+	base := time.Now().Add(-2 * time.Hour).Truncate(time.Second)
+	total := DefaultReadLimit + 5
+	for i := 0; i < total; i++ {
+		_ = log.Append(Event{
+			Type:      AgentReport,
+			Agent:     "eng-01",
+			Message:   "msg",
+			Timestamp: base.Add(time.Duration(i) * time.Second),
+		})
+	}
+
+	events, err := log.ReadByAgent("eng-01")
+	if err != nil {
+		t.Fatalf("ReadByAgent: %v", err)
+	}
+	if len(events) != DefaultReadLimit {
+		t.Fatalf("ReadByAgent returned %d, want %d", len(events), DefaultReadLimit)
+	}
+	// Oldest-first ordering preserved for callers.
+	if !events[0].Timestamp.Before(events[len(events)-1].Timestamp) {
+		t.Error("ReadByAgent should return events oldest first")
+	}
+	// The window must contain the newest event, not the oldest.
+	newest := base.Add(time.Duration(total-1) * time.Second)
+	if got := events[len(events)-1].Timestamp; !got.Equal(newest) {
+		t.Errorf("last event = %v, want newest %v (window must keep recent events)", got, newest)
+	}
+}
+
 func TestSQLiteLog_EventData(t *testing.T) {
 	setupSharedDB(t)
 	log, err := NewSQLiteLog("unused")
