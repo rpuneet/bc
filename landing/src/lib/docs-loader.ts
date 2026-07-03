@@ -49,12 +49,14 @@ function extractDescription(content: string): string {
 /**
  * Read all markdown files from a directory, skipping index.md.
  */
-function readDocsDir(dirPath: string): DocArticle[] {
+function readDocsDir(dirPath: string, exclude: string[] = []): DocArticle[] {
   if (!fs.existsSync(dirPath)) return [];
 
   const files = fs
     .readdirSync(dirPath)
-    .filter((f) => f.endsWith(".md") && f !== "index.md")
+    .filter(
+      (f) => f.endsWith(".md") && f !== "index.md" && !exclude.includes(f),
+    )
     .sort();
 
   return files.map((file) => {
@@ -76,6 +78,7 @@ const SECTIONS: {
   label: string;
   description: string;
   dir: string;
+  exclude?: string[];
 }[] = [
   {
     id: "tutorials",
@@ -104,6 +107,8 @@ const SECTIONS: {
     description:
       "In-depth technical explanations of architecture, design decisions, and internals.",
     dir: "explanation",
+    // Internal engineering docs — published on GitHub, not the marketing site.
+    exclude: ["design-system.md", "agent-lifecycle-redesign.md", "ci-cd.md"],
   },
 ];
 
@@ -118,6 +123,6 @@ export function loadAllDocs(): DocsSection[] {
     id: section.id,
     label: section.label,
     description: section.description,
-    articles: readDocsDir(path.join(docsRoot, section.dir)),
+    articles: readDocsDir(path.join(docsRoot, section.dir), section.exclude),
   }));
 }

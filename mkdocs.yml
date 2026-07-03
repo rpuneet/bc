@@ -62,10 +62,18 @@ markdown_extensions:
 # into the nav below).
 exclude_docs: |
   _*
+  README.md
+  screenshots/
+  proposals/
+  deps/
 
 nav:
   - Home: index.md
   - Overview: overview.md
+  - Tutorials:
+    - tutorials/index.md
+    - Getting started: tutorials/getting-started.md
+    - Your first agent: tutorials/first-agent.md
   - How To:
     - how-to/index.md
     - Configure workspace: how-to/configure-workspace.md

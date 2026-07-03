@@ -48,5 +48,4 @@ Deep dives into architecture, design decisions, and subsystem internals.
 ## Other
 
 - [Contributing: Testing](contributing/testing.md) -- How to run and write tests
-- [Screenshots](screenshots/) -- Dashboard and landing page screenshots
 - [System Overview](overview.md) -- Architecture layers, components, data flow diagrams
