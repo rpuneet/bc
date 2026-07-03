@@ -7,6 +7,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.4] - 2026-07-03
+
+Direction correction. Two decisions surfaced during the v0.3.3
+post-release audit:
+
+1. **Workspace is a property on the agent, not a route tenant** —
+   every SPA page is served at a flat top-level path. Global pages
+   (costs, tools, secrets, gateways, settings) carry no workspace
+   concept at all.
+2. **Notifications is a one-way inbound stream** routed to subscribed
+   agents — not a chat surface with reactions or persistent history.
+
+### Changed
+- **Flatten SPA routes** — dropped the `/w/<workspaceId>/…` URL
+  segment across the entire web UI. `/live`, `/agents`,
+  `/agents/:name`, `/notifications`, `/notifications/:src`,
+  `/templates`, `/tools`, `/tools/:provider`, `/cron`, `/secrets`,
+  `/stats`, `/metrics`, `/costs`, `/code`, `/settings`, `/about` all
+  render at their bare paths. Workspace switching is now a server-side
+  `POST /api/workspaces/<id>/activate` triggered by the dropdown; the
+  URL never changes. `WorkspaceContext` shed its route guard +
+  redirect helpers; server-side `LegacyUIScope` (which used to rewrite
+  flat paths → `/w/<id>/…`) deleted.
+
+### Removed
+- **`server/legacy_scope.go`** and its test.
+- **`web/src/context/WorkspaceContext.test.tsx`**, **`web/src/components/WorkspaceDropdown.test.tsx`**,
+  **`web/src/views/AgentDetail.test.tsx`** — all asserted the old
+  `/w/<id>/…` behavior.
+- **`useWorkspacePath`**, **`ActiveWorkspaceGuard`**,
+  **`RedirectToActiveWorkspace`** — no longer needed with flat routes.
+
+### Reverted
+- **Emoji reactions in notifications** (#3075, #3226 batch 12) —
+  wrong direction. Notifications don't need reactions, thread state,
+  or a chat rendering layer. The `reactions` column, `extractReactions()`
+  helper, `MessageReaction` type, `SaveMessage`/`GetMessages` reaction
+  plumbing, `legacyChannelHistory` reaction emission, `client.ts`
+  `ChannelReaction` type, and the (already-dead) `MessageList.tsx`
+  reaction rendering are all gone. Half-migrated installs keep an
+  orphan SQLite column harmlessly — no destructive drop.
+
 ## [0.3.3] - 2026-07-03
 
 Seven-batch continuation of the v0.3.2 design review pass — chart
