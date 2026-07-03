@@ -84,6 +84,19 @@ jobs:
           files: coverage.out
           fail_ci_if_error: false
 
+      - name: Check CLI reference docs are current
+        run: |
+          rm -f docs/reference/cli/mycel*.md
+          go run ./cmd/gendocs
+          if ! git diff --exit-code --stat docs/reference/cli/; then
+            echo "❌ docs/reference/cli is stale — run 'go run ./cmd/gendocs' and commit the result"
+            exit 1
+          fi
+          UNTRACKED=$(git ls-files --others --exclude-standard docs/reference/cli/)
+          if [ -n "$UNTRACKED" ]; then
+            echo "❌ gendocs produced uncommitted files:"; echo "$UNTRACKED"; exit 1
+          fi
+
   # ── Go: Full Tests (main only) ─────────────────────────────────────
   test-full:
     name: Test (full)

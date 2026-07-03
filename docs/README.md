@@ -26,7 +26,7 @@ Technical reference material for APIs, CLI commands, and configuration.
 
 - [REST API](reference/api-rest.md) -- All HTTP endpoints
 - [Settings API](reference/api-settings.md) -- Configuration endpoints
-- [CLI Reference](reference/cli/bc.md) -- Auto-generated command documentation
+- [CLI Reference](reference/cli/mycel.md) -- Auto-generated command documentation
 
 ## [Explanation](explanation/index.md) -- Understanding-oriented
 

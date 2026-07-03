@@ -4,7 +4,7 @@ Information-oriented technical reference material.
 
 ## CLI Reference
 
-Auto-generated command documentation. See [cli/bc.md](cli/bc.md) for the full command tree.
+Auto-generated command documentation. See [cli/mycel.md](cli/mycel.md) for the full command tree.
 
 ## API Reference
 
