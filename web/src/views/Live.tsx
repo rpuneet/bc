@@ -459,32 +459,45 @@ export function Live() {
             className="text-sm rounded-md border border-mycel-border bg-mycel-surface pl-8 pr-2.5 py-1.5 text-mycel-text placeholder:text-mycel-muted focus:outline-none focus:ring-1 focus:ring-mycel-accent w-56"
           />
         </div>
-        {/* Active/stopped count badge with toggle */}
+        {/* Active count badge (read-only) */}
         <span
           className="inline-flex items-center gap-1.5 whitespace-nowrap text-[11px] font-mono px-2 py-1 rounded-md border border-mycel-border bg-mycel-surface text-mycel-muted"
           data-testid="live-state-badge"
-          title={showStopped ? "Showing all agents" : "Stopped/errored agents hidden"}
         >
           <span className="text-mycel-success tabular-nums">{activeCount}</span>
           <span>active</span>
-          {stoppedCount > 0 && (
-            <>
-              <span className="text-mycel-border">&middot;</span>
-              <span className="tabular-nums">{stoppedCount}</span>
-              <span>stopped</span>
-              <button
-                type="button"
-                onClick={() => setShowStopped((prev) => !prev)}
-                className="text-mycel-accent hover:text-mycel-text underline decoration-dotted underline-offset-2 transition-colors"
-                aria-pressed={showStopped}
-                aria-label={showStopped ? "Hide stopped agents" : "Show stopped agents"}
-                data-testid="toggle-show-stopped"
-              >
-                ({showStopped ? "hide" : "show"})
-              </button>
-            </>
-          )}
         </span>
+        {/* Include-stopped toggle — surfaced as an explicit checkbox-style pill
+            rather than a hidden (show) link in caption text. #3205 P1b. */}
+        {stoppedCount > 0 && (
+          <button
+            type="button"
+            onClick={() => setShowStopped((prev) => !prev)}
+            aria-pressed={showStopped}
+            aria-label={showStopped ? "Hide stopped agents" : "Show stopped agents"}
+            data-testid="toggle-show-stopped"
+            className={`inline-flex items-center gap-1.5 whitespace-nowrap text-[11px] font-mono px-2 py-1 rounded-md border transition-colors ${
+              showStopped
+                ? "border-mycel-accent bg-mycel-accent/10 text-mycel-accent"
+                : "border-mycel-border bg-mycel-surface text-mycel-muted hover:text-mycel-text hover:border-mycel-muted"
+            }`}
+          >
+            <span
+              aria-hidden
+              className={`inline-flex items-center justify-center w-3 h-3 rounded-sm border ${
+                showStopped ? "bg-mycel-accent border-mycel-accent text-mycel-accent-fg" : "border-mycel-border"
+              }`}
+            >
+              {showStopped && (
+                <svg width="9" height="9" viewBox="0 0 10 10" fill="none">
+                  <path d="M2 5l2 2 4-4" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              )}
+            </span>
+            <span>Include stopped</span>
+            <span className="tabular-nums opacity-70">({stoppedCount})</span>
+          </button>
+        )}
         {/* Active filter pills */}
         {hasFilters && (
           <div className="flex items-center gap-1.5">
