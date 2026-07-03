@@ -187,7 +187,9 @@ func (r *Registry) normalize() bool {
 	defer r.mu.Unlock()
 
 	changed := false
-	if r.Version != CurrentRegistryVersion {
+	// Only bump forward — a newer build's registry must not be silently
+	// downgraded when an older binary saves it.
+	if r.Version < CurrentRegistryVersion {
 		r.Version = CurrentRegistryVersion
 		changed = true
 	}

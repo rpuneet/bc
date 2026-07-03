@@ -37,11 +37,11 @@ type Repo struct {
 // GithubTokenPath returns the filesystem location of the stored token.
 // The directory is created as 0700 on first write.
 func GithubTokenPath() (string, error) {
-	home, err := os.UserHomeDir()
+	home, err := MycelHome()
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(home, ".bc", githubTokenFile), nil
+	return filepath.Join(home, githubTokenFile), nil
 }
 
 // ReadGithubToken returns the stored PAT, or "" if none. Any read error

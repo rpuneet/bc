@@ -243,12 +243,10 @@ func createWorkspaceFromWizard(state *WizardState) error {
 func printWizardSuccess(state *WizardState) {
 	fmt.Println("  " + ui.GreenText("✓") + " Workspace initialized!")
 	fmt.Println()
-	fmt.Println("  Created:")
+	fmt.Println("  Created under ~/.mycel/workspaces/<id>/:")
 	fmt.Println("    preferences.json    # Workspace configuration")
 	fmt.Println("    agents/             # Agent state directory")
 	fmt.Println("    roles/              # Role definitions")
-	fmt.Println("    roles/root.md       # Root agent role")
-	fmt.Println("    bc.db               # Workspace database")
 	fmt.Println()
 	fmt.Println("  Next steps:")
 	fmt.Println("    mycel       # Open the dashboard")
