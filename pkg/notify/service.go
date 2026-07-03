@@ -92,10 +92,10 @@ func extractReactions(raw json.RawMessage) []MessageReaction {
 	var envelope struct {
 		Reactions []struct {
 			Name  string `json:"name"`
-			Count int    `json:"count"`
 			Emoji struct {
 				Name string `json:"name"`
 			} `json:"emoji"`
+			Count int `json:"count"`
 		} `json:"reactions"`
 	}
 	if err := json.Unmarshal(raw, &envelope); err != nil {
@@ -120,7 +120,6 @@ func extractReactions(raw json.RawMessage) []MessageReaction {
 	}
 	return out
 }
-
 
 // Dispatch receives a normalized inbound message and delivers it to
 // subscribed agents only. Runs in its own goroutine — never blocks the adapter.
