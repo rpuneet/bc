@@ -92,11 +92,20 @@ export interface NotificationSource {
 /** @deprecated Use NotificationSource instead */
 export type Channel = NotificationSource;
 
+export interface ChannelReaction {
+  name: string;
+  count: number;
+}
+
 export interface ChannelMessage {
   id: number;
   sender: string;
   content: string;
   created_at: string;
+  /** Emoji reactions on the message. Undefined for older messages
+   *  stored before the reactions column was added, or for platforms
+   *  that don't surface reactions (Telegram / IRC / Matrix / …). */
+  reactions?: ChannelReaction[];
 }
 
 export interface NotifySubscription {
