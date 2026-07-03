@@ -1,14 +1,12 @@
 /**
- * WorkspaceContext - Exposes the list of known workspaces and the currently
- * active one to any consumer that needs it (dropdown, agent filter, etc.).
+ * WorkspaceContext - Exposes the list of known workspaces (and, for
+ * convenience, the current daemon-side "active" one) to consumers that
+ * need it — the Agents page groups by workspace, the new-agent form
+ * needs a workspace select.
  *
- * Workspace is a **property on the agent**, not a URL segment. Every route
- * in the app is flat (`/agents`, `/notifications`, `/metrics`, ...). Global
- * pages (costs, tools, secrets, gateways, settings) don't care about the
- * active workspace at all.
- *
- * Switching workspace is a server-side activation call — the URL never
- * changes and no `/w/<id>/` prefix exists anywhere.
+ * Workspace is a **property on the agent**, not a route tenant or a
+ * global-state switcher. Every route is flat and there's no workspace
+ * dropdown / activate flow anywhere in the UI.
  */
 
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
@@ -27,7 +25,6 @@ interface WorkspaceContextValue {
   workspaces: WorkspaceSummary[];
   loading: boolean;
   refresh: () => void;
-  activate: (id: string) => Promise<void>;
 }
 
 const WorkspaceContext = createContext<WorkspaceContextValue>({
@@ -35,7 +32,6 @@ const WorkspaceContext = createContext<WorkspaceContextValue>({
   workspaces: [],
   loading: true,
   refresh: () => undefined,
-  activate: async () => undefined,
 });
 
 export function useWorkspace(): WorkspaceContextValue {
@@ -74,10 +70,6 @@ async function fetchWorkspaces(): Promise<WorkspaceSummary[]> {
   }
 }
 
-async function activateWorkspace(id: string): Promise<void> {
-  await fetch(`/api/workspaces/${encodeURIComponent(id)}/activate`, { method: "POST" });
-}
-
 export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const [workspaces, setWorkspaces] = useState<WorkspaceSummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -98,19 +90,12 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   }, [version]);
 
   const refresh = useMemo(() => () => setVersion((v) => v + 1), []);
-  const activate = useMemo(
-    () => async (id: string) => {
-      await activateWorkspace(id);
-      setVersion((v) => v + 1);
-    },
-    [],
-  );
 
   const active = workspaces.find((w) => w.active) ?? null;
 
   const value = useMemo<WorkspaceContextValue>(
-    () => ({ workspace: active, workspaces, loading, refresh, activate }),
-    [active, workspaces, loading, refresh, activate],
+    () => ({ workspace: active, workspaces, loading, refresh }),
+    [active, workspaces, loading, refresh],
   );
 
   return <WorkspaceContext.Provider value={value}>{children}</WorkspaceContext.Provider>;

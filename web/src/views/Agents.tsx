@@ -316,19 +316,22 @@ export function Agents() {
   const [peekAgent, setPeekAgent] = useState<string | null>(null);
   const [stoppingAll, setStoppingAll] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
-  // "Group by repo" — inserts a section header row every time the sorted
-  // list crosses a `repo_root` boundary. No-ops when every visible agent
-  // shares a repo (the common single-workspace case), so enabling the
-  // toggle is safe on any workspace. Persist across reloads. #3076.
-  const [groupByRepo, setGroupByRepo] = useState<boolean>(() => {
+  // "Group by workspace" — inserts a section header row every time the
+  // sorted list crosses a `workspace` boundary. Default ON: workspace is
+  // a property on every agent (workspace-as-property model), so grouping
+  // by it is the primary way users navigate a mixed fleet. No-ops when
+  // every visible agent shares one workspace (the common single-workspace
+  // case). Persist across reloads.
+  const [groupByWorkspace, setGroupByWorkspace] = useState<boolean>(() => {
     try {
-      return localStorage.getItem("bc-agents-group-by-repo") === "1";
-    } catch { return false; }
+      const v = localStorage.getItem("mycel-agents-group-by-workspace");
+      return v === null ? true : v === "1";
+    } catch { return true; }
   });
-  const toggleGroupByRepo = useCallback(() => {
-    setGroupByRepo(prev => {
+  const toggleGroupByWorkspace = useCallback(() => {
+    setGroupByWorkspace(prev => {
       const next = !prev;
-      try { localStorage.setItem("bc-agents-group-by-repo", next ? "1" : "0"); } catch { /* ignore */ }
+      try { localStorage.setItem("mycel-agents-group-by-workspace", next ? "1" : "0"); } catch { /* ignore */ }
       return next;
     });
   }, []);
@@ -463,26 +466,25 @@ export function Agents() {
   }, [allAgents, search, roleFilter, stateFilter, toolFilter]);
 
   // Sort: working first, then idle, then stopped/error.
-  // When `groupByRepo` is on we sort primarily by `repo_root` so the
+  // When `groupByWorkspace` is on we sort primarily by `workspace` so the
   // table can insert a section header at each boundary.
   const displayRows = useMemo(() => {
     const rank = (s: string) => (s === "working" || s === "starting" ? 0 : s === "idle" ? 1 : 2);
     return [...filteredAgents].sort((a, b) => {
-      if (groupByRepo) {
-        const ra = a.repo_root ?? "";
-        const rb = b.repo_root ?? "";
-        const cmp = ra.localeCompare(rb);
+      if (groupByWorkspace) {
+        const wa = a.workspace ?? "";
+        const wb = b.workspace ?? "";
+        const cmp = wa.localeCompare(wb);
         if (cmp !== 0) return cmp;
       }
       return rank(a.state) - rank(b.state) || a.name.localeCompare(b.name);
     });
-  }, [filteredAgents, groupByRepo]);
+  }, [filteredAgents, groupByWorkspace]);
 
-  // How many distinct repos are in view — the toggle collapses to a
-  // read-only info line when there's only one, so users know why
-  // enabling it doesn't change anything.
-  const distinctRepoCount = useMemo(() => {
-    return new Set(displayRows.map(a => a.repo_root ?? "").filter(Boolean)).size;
+  // How many distinct workspaces are in view — the toggle collapses to
+  // a read-only info line when there's only one.
+  const distinctWorkspaceCount = useMemo(() => {
+    return new Set(displayRows.map(a => a.workspace ?? "").filter(Boolean)).size;
   }, [displayRows]);
 
   // Clamp focusIndex when displayRows shrinks (e.g. after filtering).
@@ -737,22 +739,21 @@ export function Agents() {
               Clear
             </button>
           )}
-          {/* Group-by-repo toggle. Inserts a section header row per
-              `repo_root`. Disabled when every visible agent shares a
-              repo (nothing to group). Persists in localStorage. #3076. */}
+          {/* Group-by-workspace toggle. Default ON. Disabled + hidden
+              when every visible agent shares one workspace. */}
           <button
             type="button"
-            onClick={toggleGroupByRepo}
-            disabled={distinctRepoCount <= 1}
-            aria-pressed={groupByRepo}
+            onClick={toggleGroupByWorkspace}
+            disabled={distinctWorkspaceCount <= 1}
+            aria-pressed={groupByWorkspace}
             className={`px-2 py-1.5 text-xs rounded border transition-colors ${
-              groupByRepo && distinctRepoCount > 1
+              groupByWorkspace && distinctWorkspaceCount > 1
                 ? "border-mycel-accent text-mycel-accent"
                 : "border-mycel-border text-mycel-muted hover:text-mycel-text disabled:opacity-50 disabled:cursor-not-allowed"
             }`}
-            title={distinctRepoCount <= 1 ? "All agents share one repo — nothing to group" : `Group by repo (${distinctRepoCount} repos in view)`}
+            title={distinctWorkspaceCount <= 1 ? "All agents share one workspace — nothing to group" : `Group by workspace (${String(distinctWorkspaceCount)} workspaces in view)`}
           >
-            Group by repo
+            Group by workspace
           </button>
         </div>
       )}
@@ -811,18 +812,16 @@ export function Agents() {
             <tbody>
               {displayRows.map((a, rowIdx) => (
                 <Fragment key={a.name}>
-                  {/* Repo section header — rendered whenever the sorted
-                      list crosses a repo_root boundary and grouping is
-                      enabled. Header is a sticky-ish table row with an
-                      uppercase repo path caption so users can visually
-                      chunk agents by which project they belong to. */}
-                  {groupByRepo && distinctRepoCount > 1 &&
-                    (rowIdx === 0 || (displayRows[rowIdx - 1]!.repo_root ?? "") !== (a.repo_root ?? "")) && (
+                  {/* Workspace section header — rendered whenever the
+                      sorted list crosses a workspace boundary and
+                      grouping is enabled. */}
+                  {groupByWorkspace && distinctWorkspaceCount > 1 &&
+                    (rowIdx === 0 || (displayRows[rowIdx - 1]!.workspace ?? "") !== (a.workspace ?? "")) && (
                     <tr>
                       <td colSpan={columns.length} className="px-4 pt-4 pb-1 text-[10px] uppercase tracking-[0.12em] text-mycel-muted font-medium">
-                        {a.repo_root
-                          ? a.repo_root.replace(/^\/(?:Users|home)\/[^/]+/, "~")
-                          : "(no repo)"}
+                        {a.workspace
+                          ? a.workspace.replace(/^\/(?:Users|home)\/[^/]+/, "~")
+                          : "(no workspace)"}
                       </td>
                     </tr>
                   )}
