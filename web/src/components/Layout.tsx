@@ -740,9 +740,9 @@ export function Layout() {
               title={`Theme: ${THEME_LABELS[mode]}`}
               aria-label={`Switch theme — currently ${THEME_LABELS[mode]}`}
             >
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5">
-                <circle cx="7" cy="7" r="3" />
-                <path d="M7 1v2M7 11v2M1 7h2M11 7h2M2.5 2.5l1.5 1.5M10 10l1.5 1.5M2.5 11.5L4 10M10 4l1.5-1.5" strokeLinecap="round" />
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                <circle cx="7" cy="7" r="5" stroke="currentColor" strokeWidth="1.4" />
+                <path d="M7 2a5 5 0 010 10z" fill="currentColor" />
               </svg>
             </button>
           </div>
@@ -776,15 +776,16 @@ export function Layout() {
               <span className="truncate">About</span>
             </NavLink>
             <button type="button" onClick={toggle}
-              className="shrink-0 flex items-center gap-1.5 px-3 py-[9px] text-[10px] text-mycel-muted hover:text-mycel-text hover:bg-mycel-surface-hover border-l border-mycel-border/40 transition-colors"
+              className="shrink-0 flex items-center justify-center w-9 py-[9px] text-mycel-muted hover:text-mycel-text hover:bg-mycel-surface-hover border-l border-mycel-border/40 transition-colors"
               title={`Theme: ${THEME_LABELS[mode]} — click to switch`}
               aria-label={`Switch theme — currently ${THEME_LABELS[mode]}`}
             >
-              <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" className="opacity-80">
-                <circle cx="7" cy="7" r="3" />
-                <path d="M7 1v2M7 11v2M1 7h2M11 7h2M2.5 2.5l1.5 1.5M10 10l1.5 1.5M2.5 11.5L4 10M10 4l1.5-1.5" strokeLinecap="round" />
+              {/* Half-shaded circle — semantically "theme mode" (dark/light
+                  split), visually distinct from the gear (Settings) icon. */}
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                <circle cx="7" cy="7" r="5" stroke="currentColor" strokeWidth="1.4" />
+                <path d="M7 2a5 5 0 010 10z" fill="currentColor" />
               </svg>
-              <span className="hidden md:inline truncate">{THEME_LABELS[mode]}</span>
             </button>
           </div>
         )}

@@ -150,7 +150,11 @@ export function About() {
       label: "GitHub release",
       href: latest?.html_url,
       version: latestTag ?? undefined,
-      detail: latest?.published_at ? new Date(latest.published_at).toLocaleString() : undefined,
+      detail: latest?.published_at
+        ? new Date(latest.published_at).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) +
+          " · " +
+          new Date(latest.published_at).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })
+        : undefined,
       state: latest ? "ok" : "unknown",
     },
     {
@@ -200,11 +204,31 @@ export function About() {
           <span className="text-2xl font-semibold text-mycel-text font-mono tabular-nums">
             {health?.version ?? "—"}
           </span>
-          {latestTag && health && health.version !== latestTag && (
-            <span className="text-[10px] uppercase tracking-wider rounded px-1.5 py-0.5 bg-amber-500/15 text-amber-300 ring-1 ring-amber-500/30">
-              update available
-            </span>
-          )}
+          {/* Compare like-with-like. `latestTag` is a semver ("0.3.1"). The
+              daemon's version is either the same shape (release binaries) or
+              a `YYYY.MM.DD.<sha>` dev-build string. Only surface "update
+              available" when both look like semver — for dev builds render a
+              "dev build" chip instead. Fixes #3212. */}
+          {(() => {
+            if (!latestTag || !health?.version) return null;
+            // Semver = up to 3-digit major.minor.patch, optionally followed
+            // by a pre-release or metadata suffix. Rejects the date-hash
+            // dev-build format `YYYY.MM.DD.<sha>` since it starts with a
+            // 4-digit year.
+            const looksLikeSemver = /^\d{1,3}\.\d{1,3}\.\d{1,3}(?:[-+][A-Za-z0-9.]+)?$/.test(health.version);
+            if (!looksLikeSemver) {
+              return (
+                <span className="text-[10px] uppercase tracking-wider rounded px-1.5 py-0.5 bg-mycel-info/15 text-mycel-info ring-1 ring-mycel-info/30">
+                  dev build
+                </span>
+              );
+            }
+            return health.version !== latestTag ? (
+              <span className="text-[10px] uppercase tracking-wider rounded px-1.5 py-0.5 bg-mycel-warning/15 text-mycel-warning ring-1 ring-mycel-warning/30">
+                update available
+              </span>
+            ) : null;
+          })()}
         </div>
         <button
           type="button"

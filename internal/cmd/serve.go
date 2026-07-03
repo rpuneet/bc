@@ -191,7 +191,7 @@ func RunServer(addr, wsRoot, corsOrigin, apiKey string) error {
 		SecretsVault: globalVault,
 		MCPGlobal:    mcpGlobal,
 		CostsGlobal:  costsGlobal,
-		Build:        server.BuildInfo{Commit: commit, BuiltAt: date},
+		Build:        server.BuildInfo{Version: version, Commit: commit, BuiltAt: date},
 	}
 
 	// Build the launch workspace's services via the factory.
@@ -231,6 +231,7 @@ func RunServer(addr, wsRoot, corsOrigin, apiKey string) error {
 		log.Info("API key authentication enabled")
 	}
 	cfg.Build = server.BuildInfo{
+		Version: version,
 		Commit:  commit,
 		BuiltAt: date,
 	}

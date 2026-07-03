@@ -98,12 +98,32 @@ type SortKey = "name" | "role" | "provider" | "state" | "cpu" | "mem" | "tokens"
 // ── Main ────────────────────────────────────────────────────────────────────────
 
 export function Stats() {
-  useHeaderSlot({ title: <TabHeaderTitle>Metrics</TabHeaderTitle> });
+  // Slot the range picker directly into the page header actions area so
+  // it sits inline with the title instead of floating in a mostly-empty
+  // sub-row (#3205 v0.3.2). The picker component is defined below and
+  // reads/writes the local `range` state.
 
   const navigate = useNavigate();
   const [range, setRange] = useState(0);
   const [sortKey, setSortKey] = useState<SortKey>("cost");
   const [sortAsc, setSortAsc] = useState(false);
+
+  useHeaderSlot({
+    title: <TabHeaderTitle>Metrics</TabHeaderTitle>,
+    actions: (
+      <div className="flex gap-1">
+        {RANGES.map((r, i) => (
+          <button key={r.label} type="button" onClick={() => setRange(i)}
+            className={`px-2 py-0.5 text-[11px] rounded border transition-colors ${
+              i === range
+                ? "border-mycel-accent bg-mycel-accent/10 text-mycel-accent"
+                : "border-mycel-border text-mycel-muted hover:text-mycel-text hover:border-mycel-muted"
+            }`}
+          >{r.label}</button>
+        ))}
+      </div>
+    ),
+  });
 
   const from = useMemo(() => fromParam(RANGES[range]?.seconds ?? 3600), [range]);
 
@@ -226,21 +246,6 @@ export function Stats() {
 
   return (
     <div className="p-6 space-y-4">
-      {/* Time range selector (title lives in the top-bar chip) */}
-      <div className="flex items-center justify-end">
-        <div className="flex gap-1">
-          {RANGES.map((r, i) => (
-            <button key={r.label} type="button" onClick={() => setRange(i)}
-              className={`px-2.5 py-1 text-xs rounded border transition-colors ${
-                i === range
-                  ? "border-mycel-accent bg-mycel-accent/10 text-mycel-accent"
-                  : "border-mycel-border text-mycel-muted hover:text-mycel-text hover:border-mycel-muted"
-              }`}
-            >{r.label}</button>
-          ))}
-        </div>
-      </div>
-
       {/* Agent Table */}
       {agentTable.length > 0 && (
         <Panel title={`Agents (${agentTable.length})`}>
@@ -249,10 +254,18 @@ export function Stats() {
               <thead>
                 <tr className="text-mycel-muted text-left">
                   {colHeaders.map(h => (
-                    <th key={h.key} className="py-1.5 px-2 font-medium cursor-pointer hover:text-mycel-text select-none" onClick={(e) => { e.stopPropagation(); e.preventDefault(); handleSort(h.key); }}>
+                    <th key={h.key} className="py-1.5 px-2 font-medium cursor-pointer hover:text-mycel-text select-none group" onClick={(e) => { e.stopPropagation(); e.preventDefault(); handleSort(h.key); }}>
                       <div className="flex items-center">
                         {h.label}
-                        {sortKey === h.key && <span className="ml-1">{sortAsc ? "\u25B2" : "\u25BC"}</span>}
+                        {/* Neutral sort affordance surfaces on hover for every
+                            column so users see the option; active column shows
+                            the current direction in the accent color.
+                            (#3205 v0.3.2) */}
+                        <span className={`ml-1 text-[9px] leading-none tabular-nums ${
+                          sortKey === h.key ? "text-mycel-accent opacity-100" : "opacity-0 group-hover:opacity-60"
+                        }`}>
+                          {sortKey === h.key ? (sortAsc ? "\u25B2" : "\u25BC") : "\u25BE"}
+                        </span>
                       </div>
                       {h.agg && <div className="text-[10px] font-normal text-mycel-muted">{h.agg}</div>}
                     </th>
@@ -351,7 +364,7 @@ export function Stats() {
                 <YAxis tick={TICK_STYLE} {...AX} />
                 <Tooltip contentStyle={TT} formatter={(v) => [`${Number(v ?? 0).toFixed(1)} MB`]} />
                 {memChart.agents.map((n) => (
-                  <Area key={n} type="monotone" dataKey={n} stroke={agentColors[n] ?? COLORS[0]} fill={agentColors[n] ?? COLORS[0]} fillOpacity={0.12} strokeWidth={1.5} dot={false} stackId="mem" />
+                  <Area key={n} type="monotone" dataKey={n} stroke={agentColors[n] ?? COLORS[0]} fill={agentColors[n] ?? COLORS[0]} fillOpacity={0.20} strokeWidth={1.75} dot={false} stackId="mem" />
                 ))}
               </AreaChart>
             </ResponsiveContainer>
@@ -369,8 +382,8 @@ export function Stats() {
                 <XAxis dataKey="time" tick={TICK_STYLE} {...AX} />
                 <YAxis tick={TICK_STYLE} {...AX} tickFormatter={(v: number) => fmtTokens(v)} />
                 <Tooltip contentStyle={TT} formatter={(v, n) => [Number(v ?? 0).toLocaleString(), n === "input" ? "Input" : "Output"]} />
-                <Area type="monotone" dataKey="input" name="Input" stroke="#3B82F6" fill="#3B82F6" fillOpacity={0.12} strokeWidth={1.5} stackId="1" dot={false} />
-                <Area type="monotone" dataKey="output" name="Output" stroke={ACCENT} fill={ACCENT} fillOpacity={0.12} strokeWidth={1.5} stackId="1" dot={false} />
+                <Area type="monotone" dataKey="input" name="Input" stroke="#3B82F6" fill="#3B82F6" fillOpacity={0.20} strokeWidth={1.75} stackId="1" dot={false} />
+                <Area type="monotone" dataKey="output" name="Output" stroke={ACCENT} fill={ACCENT} fillOpacity={0.20} strokeWidth={1.75} stackId="1" dot={false} />
               </AreaChart>
             </ResponsiveContainer>
           )}
@@ -400,8 +413,8 @@ export function Stats() {
                 <XAxis dataKey="time" tick={TICK_STYLE} {...AX} />
                 <YAxis tick={TICK_STYLE} {...AX} tickFormatter={(v: number) => fmtBytes(v)} />
                 <Tooltip contentStyle={TT} formatter={(v) => [fmtBytes(Number(v ?? 0))]} />
-                <Area type="monotone" dataKey="rx" name="RX" stroke="#10B981" fill="#10B981" fillOpacity={0.12} strokeWidth={1.5} dot={false} />
-                <Area type="monotone" dataKey="tx" name="TX" stroke={ACCENT} fill={ACCENT} fillOpacity={0.12} strokeWidth={1.5} dot={false} />
+                <Area type="monotone" dataKey="rx" name="RX" stroke="#10B981" fill="#10B981" fillOpacity={0.20} strokeWidth={1.75} dot={false} />
+                <Area type="monotone" dataKey="tx" name="TX" stroke={ACCENT} fill={ACCENT} fillOpacity={0.20} strokeWidth={1.75} dot={false} />
               </AreaChart>
             </ResponsiveContainer>
           )}
@@ -414,8 +427,8 @@ export function Stats() {
                 <XAxis dataKey="time" tick={TICK_STYLE} {...AX} />
                 <YAxis tick={TICK_STYLE} {...AX} tickFormatter={(v: number) => fmtBytes(v)} />
                 <Tooltip contentStyle={TT} formatter={(v) => [fmtBytes(Number(v ?? 0))]} />
-                <Area type="monotone" dataKey="read" name="Read" stroke="#3B82F6" fill="#3B82F6" fillOpacity={0.12} strokeWidth={1.5} dot={false} />
-                <Area type="monotone" dataKey="write" name="Write" stroke="#A855F7" fill="#A855F7" fillOpacity={0.12} strokeWidth={1.5} dot={false} />
+                <Area type="monotone" dataKey="read" name="Read" stroke="#3B82F6" fill="#3B82F6" fillOpacity={0.20} strokeWidth={1.75} dot={false} />
+                <Area type="monotone" dataKey="write" name="Write" stroke="#A855F7" fill="#A855F7" fillOpacity={0.20} strokeWidth={1.75} dot={false} />
               </AreaChart>
             </ResponsiveContainer>
           )}
@@ -447,8 +460,8 @@ export function Stats() {
                 <XAxis dataKey="time" tick={TICK_STYLE} {...AX} />
                 <YAxis tick={TICK_STYLE} {...AX} tickFormatter={(v: number) => fmtTokens(v)} />
                 <Tooltip contentStyle={TT} formatter={(v, n) => [fmtTokens(Number(v ?? 0)), n === "cache_read" ? "Cache Read" : "Cache Create"]} />
-                <Area type="monotone" dataKey="cache_read" name="Cache Read" stroke="#10B981" fill="#10B981" fillOpacity={0.12} strokeWidth={1.5} dot={false} />
-                <Area type="monotone" dataKey="cache_create" name="Cache Create" stroke="#F59E0B" fill="#F59E0B" fillOpacity={0.12} strokeWidth={1.5} dot={false} />
+                <Area type="monotone" dataKey="cache_read" name="Cache Read" stroke="#10B981" fill="#10B981" fillOpacity={0.20} strokeWidth={1.75} dot={false} />
+                <Area type="monotone" dataKey="cache_create" name="Cache Create" stroke="#F59E0B" fill="#F59E0B" fillOpacity={0.20} strokeWidth={1.75} dot={false} />
               </AreaChart>
             </ResponsiveContainer>
           )}
