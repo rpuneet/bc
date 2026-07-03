@@ -84,6 +84,13 @@ type WorkspaceServices struct {
 	Hub          *ws.Hub
 	Stats        *stats.Store // global stats store — set by factory when Globals.Stats is available
 
+	// Degraded maps service name → human-readable reason for every
+	// service that failed to initialize and was left nil by the factory
+	// (warn-and-continue sites in build_services.go). Surfaced via
+	// /api/health, `mycel doctor`, and 503 responses so silent
+	// degradation becomes loud and diagnosable.
+	Degraded map[string]string
+
 	// cancel stops background goroutines started by the factory. It is
 	// optional — the closer is the ultimate resource-teardown call, but
 	// cancel is invoked first so goroutines can observe shutdown before
@@ -161,6 +168,7 @@ func workspaceViewFromServices(svc *WorkspaceServices) *handlers.WorkspaceView {
 		Notify:       svc.Notify,
 		Stats:        svc.Stats,
 		Hub:          svc.Hub,
+		Degraded:     svc.Degraded,
 	}
 }
 

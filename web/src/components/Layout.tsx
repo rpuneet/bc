@@ -539,6 +539,58 @@ function NavList({
   );
 }
 
+/* ── Degraded services banner ────────────────────────────────────────
+   Slim amber strip shown when /api/health reports degraded services
+   (stores that failed to initialize at daemon boot — notify, cron,
+   secrets, …). One line, service names only; full reasons live in the
+   hover tooltip and `mycel doctor`. Dismissible for the session. */
+export function DegradedBanner() {
+  const [degraded, setDegraded] = useState<Record<string, string> | null>(null);
+  const [dismissed, setDismissed] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/health")
+      .then((r) => r.json())
+      .then((d) => {
+        if (d?.status === "degraded" && d.degraded && Object.keys(d.degraded).length > 0) {
+          setDegraded(d.degraded as Record<string, string>);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  if (!degraded || dismissed) return null;
+  const names = Object.keys(degraded).sort().join(", ");
+  const detail = Object.entries(degraded)
+    .map(([name, reason]) => `${name}: ${reason}`)
+    .join("\n");
+  return (
+    <div
+      role="status"
+      title={detail}
+      className="flex items-center gap-2 px-3 py-1.5 text-[11px] bg-mycel-warning/10 border-b border-mycel-warning/30 text-mycel-warning"
+    >
+      <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" className="shrink-0">
+        <path d="M7 1.5l6 11H1z" strokeLinejoin="round" />
+        <path d="M7 6v3M7 10.8v.01" strokeLinecap="round" />
+      </svg>
+      <span className="truncate">
+        Degraded services: <span className="font-medium">{names}</span> — some features are unavailable, run mycel doctor for details
+      </span>
+      <button
+        type="button"
+        onClick={() => setDismissed(true)}
+        className="ml-auto shrink-0 p-0.5 rounded text-mycel-warning/70 hover:text-mycel-warning transition-colors"
+        aria-label="Dismiss degraded services banner"
+      >
+        <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5">
+          <path d="M3 3l8 8M11 3l-8 8" />
+        </svg>
+      </button>
+    </div>
+  );
+}
+
 /* ── Layout ──────────────────────────────────────────────────── */
 
 export function Layout() {
@@ -771,6 +823,7 @@ export function Layout() {
       <HeaderSlotProvider>
         <main className="flex-1 flex flex-col overflow-hidden bg-mycel-bg">
           <LayoutHeader collapsed={collapsed} onToggleCollapsed={toggleCollapsed} />
+          <DegradedBanner />
           <div className="flex-1 overflow-auto">
             <RouteTransition>
               <Outlet />

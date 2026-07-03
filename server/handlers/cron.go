@@ -221,8 +221,8 @@ func (h *CronHandler) liveLogs(w http.ResponseWriter, r *http.Request, name stri
 	if !requireMethod(w, r, http.MethodGet) {
 		return
 	}
-	if h.scheduler == nil {
-		httpError(w, "scheduler not available", http.StatusServiceUnavailable)
+	if scheduler == nil {
+		serviceUnavailable(w, r, "cron", "scheduler not available")
 		return
 	}
 

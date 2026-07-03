@@ -85,6 +85,10 @@ type Services struct {
 	WS            *workspace.Workspace
 	Gateway       *gateway.Manager
 	Notify        *notify.Service
+	// Degraded maps service name → reason for services that failed to
+	// initialize and were left nil (see WorkspaceServices.Degraded).
+	// Surfaced by /api/health so degradation is loud, not silent.
+	Degraded map[string]string
 	// Registry is the global workspace registry (~/.bc/workspaces.json).
 	// Populated when bcd runs; exposed so the /api/workspaces handler can
 	// list / add / activate entries.
@@ -161,6 +165,7 @@ func servicesFromWorkspace(ws *WorkspaceServices) Services {
 		WS:            ws.Workspace,
 		Gateway:       ws.Gateway,
 		Notify:        ws.Notify,
+		Degraded:      ws.Degraded,
 	}
 }
 
@@ -208,6 +213,20 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 		v := cfg.Build.Version
 		if v == "" || v == "dev" {
 			v = cfg.Build.Commit
+		}
+		// Services that failed to initialize at build time (see
+		// WorkspaceServices.Degraded) flip the status to "degraded" and
+		// are listed with their reasons so the outage is diagnosable
+		// from a single curl. The healthy "ok" shape is unchanged.
+		if len(svc.Degraded) > 0 {
+			_ = json.NewEncoder(w).Encode(map[string]any{ //nolint:errcheck // writing to response
+				"status":   "degraded",
+				"db":       "ok",
+				"version":  v,
+				"commit":   cfg.Build.Commit,
+				"degraded": svc.Degraded,
+			})
+			return
 		}
 		fmt.Fprintf(w, `{"status":"ok","db":"ok","version":%q,"commit":%q}`, v, cfg.Build.Commit) //nolint:errcheck
 	}

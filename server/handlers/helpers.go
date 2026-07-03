@@ -31,6 +31,21 @@ func httpError(w http.ResponseWriter, msg string, code int) {
 	_ = json.NewEncoder(w).Encode(map[string]string{"error": msg}) //nolint:errcheck // best-effort
 }
 
+// serviceUnavailable writes a 503 whose message includes the degradation
+// reason recorded at service-construction time (WorkspaceView.Degraded),
+// when one is available. Falls back to the generic message otherwise so
+// users see "notify service not available: notify store unavailable: …"
+// instead of a bare 503.
+func serviceUnavailable(w http.ResponseWriter, r *http.Request, service, fallback string) {
+	msg := fallback
+	if view := WorkspaceFromContext(r.Context()); view != nil {
+		if reason, ok := view.Degraded[service]; ok && reason != "" {
+			msg = fallback + ": " + reason
+		}
+	}
+	httpError(w, msg, http.StatusServiceUnavailable)
+}
+
 // httpInternalError logs the detailed error server-side and returns a generic
 // "internal server error" message to the client, preventing leakage of internal
 // paths, database details, or stack traces.

@@ -81,7 +81,7 @@ func (h *GatewayHandler) gatewayRouter(w http.ResponseWriter, r *http.Request) {
 // gatewayAPIProxy forwards requests to /api/gateways/{platform}/api/* to the adapter's HTTP handler.
 func (h *GatewayHandler) gatewayAPIProxy(w http.ResponseWriter, r *http.Request, platform, subpath string) {
 	if h.gw == nil {
-		httpError(w, "gateway manager not available", http.StatusServiceUnavailable)
+		serviceUnavailable(w, r, "gateway", "gateway manager not available")
 		return
 	}
 	adapter := h.gw.GetAdapter(platform)
@@ -105,7 +105,7 @@ func (h *GatewayHandler) gatewayHealth(w http.ResponseWriter, r *http.Request, p
 		return
 	}
 	if h.gw == nil {
-		httpError(w, "gateway manager not available", http.StatusServiceUnavailable)
+		serviceUnavailable(w, r, "gateway", "gateway manager not available")
 		return
 	}
 
@@ -186,7 +186,7 @@ func (h *GatewayHandler) gatewayChannels(w http.ResponseWriter, r *http.Request,
 			return
 		}
 		if h.notifySvc == nil {
-			httpError(w, "notify service not available", http.StatusServiceUnavailable)
+			serviceUnavailable(w, r, "notify", "notify service not available")
 			return
 		}
 		subs, err := h.notifySvc.ChannelSubscriptions(r.Context(), channelName)
@@ -209,7 +209,7 @@ func (h *GatewayHandler) gatewayChannels(w http.ResponseWriter, r *http.Request,
 // gatewayChannelAgents handles /api/gateways/{platform}/channels/{channel}/agents
 func (h *GatewayHandler) gatewayChannelAgents(w http.ResponseWriter, r *http.Request, channel, subpath string) {
 	if h.notifySvc == nil {
-		httpError(w, "notify service not available", http.StatusServiceUnavailable)
+		serviceUnavailable(w, r, "notify", "notify service not available")
 		return
 	}
 
@@ -642,7 +642,7 @@ func (h *GatewayHandler) activity(w http.ResponseWriter, r *http.Request) {
 // notifySubscriptions handles GET/POST /api/notify/subscriptions
 func (h *GatewayHandler) notifySubscriptions(w http.ResponseWriter, r *http.Request) {
 	if h.notifySvc == nil {
-		httpError(w, "notify service not available", http.StatusServiceUnavailable)
+		serviceUnavailable(w, r, "notify", "notify service not available")
 		return
 	}
 
@@ -691,7 +691,7 @@ func (h *GatewayHandler) notifySubscriptions(w http.ResponseWriter, r *http.Requ
 // PATCH  — update: {"agent": "eng-01", "mention_only": true}
 func (h *GatewayHandler) notifySubscriptionByChannel(w http.ResponseWriter, r *http.Request) {
 	if h.notifySvc == nil {
-		httpError(w, "notify service not available", http.StatusServiceUnavailable)
+		serviceUnavailable(w, r, "notify", "notify service not available")
 		return
 	}
 
@@ -758,7 +758,7 @@ func (h *GatewayHandler) notifyActivity(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	if h.notifySvc == nil {
-		httpError(w, "notify service not available", http.StatusServiceUnavailable)
+		serviceUnavailable(w, r, "notify", "notify service not available")
 		return
 	}
 
@@ -793,7 +793,7 @@ func (h *GatewayHandler) notifyActivity(w http.ResponseWriter, r *http.Request) 
 // returns the current pairing state.
 func (h *GatewayHandler) gatewayPair(w http.ResponseWriter, r *http.Request, platform, route string) {
 	if h.gw == nil {
-		httpError(w, "gateway manager not available", http.StatusServiceUnavailable)
+		serviceUnavailable(w, r, "gateway", "gateway manager not available")
 		return
 	}
 

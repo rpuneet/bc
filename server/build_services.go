@@ -21,6 +21,7 @@ import (
 	bccontainer "github.com/rpuneet/mycel/pkg/container"
 	"github.com/rpuneet/mycel/pkg/cost"
 	"github.com/rpuneet/mycel/pkg/cron"
+	bcdb "github.com/rpuneet/mycel/pkg/db"
 	bcdeps "github.com/rpuneet/mycel/pkg/deps"
 	bcevents "github.com/rpuneet/mycel/pkg/events"
 	bcgateway "github.com/rpuneet/mycel/pkg/gateway"
@@ -99,6 +100,30 @@ func buildWorkspaceServicesFromWS(ctx context.Context, globals *Globals, ws *bcw
 	var closers []func() error
 	addCloser := func(f func() error) { closers = append(closers, f) }
 
+	// Degraded services registry — every warn-and-continue site below
+	// records its failure here so /api/health, `mycel doctor`, and 503
+	// responses can surface WHY a service is missing instead of a bare
+	// "not available".
+	degraded := map[string]string{}
+
+	// Storage driver mismatch: pkg/db falls back to SQLite when the
+	// configured TimescaleDB is unreachable (db.OpenWorkspaceDBWithConfig
+	// logs "falling back to sqlite"). Compare the configured default
+	// against the driver actually in use so the mismatch is visible.
+	if ws.Config != nil {
+		configured := ws.Config.Storage.Default
+		if configured == "timescale" || configured == "sql" {
+			if active := bcdb.SharedDriver(); active != "timescale" {
+				if active == "" {
+					active = "none"
+				}
+				degraded["storage"] = fmt.Sprintf(
+					"configured %s database is not active (running on %s) — timescale unreachable, data is going to the fallback store and will not sync back",
+					configured, active)
+			}
+		}
+	}
+
 	// Events JSONL writer (append-only).
 	eventsJSONL := filepath.Join(ws.StateDir(), "events.jsonl")
 	eventWriter := bcevents.NewJSONLWriter(eventsJSONL, 0)
@@ -114,10 +139,13 @@ func buildWorkspaceServicesFromWS(ctx context.Context, globals *Globals, ws *bcw
 	addCloser(func() error { hub.Stop(); return nil })
 
 	// Agent manager + service.
-	agentMgr, containerBackend, agentErr := newAgentManager(ws)
+	agentMgr, containerBackend, runtimeReason, agentErr := newAgentManager(ws)
 	if agentErr != nil {
 		svcCancel()
 		return nil, fmt.Errorf("agent manager: %w", agentErr)
+	}
+	if runtimeReason != "" {
+		degraded["runtime"] = runtimeReason
 	}
 	if err := agentMgr.LoadState(); err != nil {
 		log.Warn("failed to load agent state", "error", err, "workspace", ws.RootDir)
@@ -161,6 +189,7 @@ func buildWorkspaceServicesFromWS(ctx context.Context, globals *Globals, ws *bcw
 		}()
 	} else if cs, err := cost.OpenStore(ws.RootDir); err != nil {
 		log.Warn("cost store unavailable", "error", err, "workspace", ws.RootDir)
+		degraded["costs"] = "cost store unavailable: " + err.Error()
 	} else {
 		costStore = cs
 		addCloser(func() error { return cs.Close() })
@@ -185,6 +214,7 @@ func buildWorkspaceServicesFromWS(ctx context.Context, globals *Globals, ws *bcw
 	var cronSched *cron.Scheduler
 	if cr, err := cron.Open(ws.RootDir); err != nil {
 		log.Warn("cron store unavailable", "error", err, "workspace", ws.RootDir)
+		degraded["cron"] = "cron store unavailable: " + err.Error()
 	} else {
 		cronStore = cr
 		addCloser(func() error { return cr.Close() })
@@ -210,8 +240,10 @@ func buildWorkspaceServicesFromWS(ctx context.Context, globals *Globals, ws *bcw
 		// populated Globals (typically RunServer).
 	} else if passphrase, passErr := bcsecret.Passphrase(); passErr != nil {
 		log.Warn("secret passphrase unavailable — secret store disabled", "error", passErr)
+		degraded["secrets"] = "secret passphrase unavailable: " + passErr.Error()
 	} else if ss, err := bcsecret.NewStore(ws.RootDir, passphrase); err != nil {
 		log.Warn("secret store unavailable", "error", err, "workspace", ws.RootDir)
+		degraded["secrets"] = "secret store unavailable: " + err.Error()
 	} else {
 		secretStore = ss
 		addCloser(func() error { return ss.Close() })
@@ -221,6 +253,7 @@ func buildWorkspaceServicesFromWS(ctx context.Context, globals *Globals, ws *bcw
 	var mcpStore *bcmcp.Store
 	if ms, err := bcmcp.NewStore(ws.RootDir); err != nil {
 		log.Warn("mcp store unavailable", "error", err, "workspace", ws.RootDir)
+		degraded["mcp"] = "mcp store unavailable: " + err.Error()
 	} else {
 		mcpStore = ms
 		addCloser(func() error { return ms.Close() })
@@ -232,6 +265,7 @@ func buildWorkspaceServicesFromWS(ctx context.Context, globals *Globals, ws *bcw
 		ts := bctool.NewStore(ws.StateDir())
 		if err := ts.Open(); err != nil {
 			log.Warn("tool store unavailable", "error", err, "workspace", ws.RootDir)
+			degraded["tools"] = "tool store unavailable: " + err.Error()
 		} else {
 			toolStore = ts
 			addCloser(func() error { return ts.Close() })
@@ -254,6 +288,7 @@ func buildWorkspaceServicesFromWS(ctx context.Context, globals *Globals, ws *bcw
 	var eventLog bcevents.EventStore
 	if el, err := bcevents.OpenLog(ws.RootDir, filepath.Join(ws.StateDir(), "state.db")); err != nil {
 		log.Warn("event log unavailable", "error", err, "workspace", ws.RootDir)
+		degraded["events"] = "event log unavailable: " + err.Error()
 	} else {
 		eventLog = el
 		addCloser(func() error { return el.Close() })
@@ -280,6 +315,7 @@ func buildWorkspaceServicesFromWS(ctx context.Context, globals *Globals, ws *bcw
 	var notifyService *bcnotify.Service
 	if ns, err := bcnotify.OpenStore(ws.RootDir); err != nil {
 		log.Warn("notify store unavailable", "error", err, "workspace", ws.RootDir)
+		degraded["notify"] = "notify store unavailable: " + err.Error()
 	} else {
 		notifyService = bcnotify.NewServiceWithContext(svcCtx, ns, agentSvc, hub)
 		wg.Add(1)
@@ -314,6 +350,7 @@ func buildWorkspaceServicesFromWS(ctx context.Context, globals *Globals, ws *bcw
 		Gateway:      gwManager,
 		Notify:       notifyService,
 		Hub:          hub,
+		Degraded:     degraded,
 		cancel:       svcCancel,
 		wg:           &wg,
 	}
@@ -364,20 +401,31 @@ func (ws *WorkspaceServices) MCPLayeredView() *bcmcp.LayeredView {
 }
 
 // newAgentManager mirrors the helper that used to live in serve.go.
-func newAgentManager(ws *bcworkspace.Workspace) (*bcagent.Manager, *bccontainer.Backend, error) {
+// The third return value is a non-empty degradation reason when the
+// docker runtime was expected but unavailable and agents silently fall
+// back to tmux.
+func newAgentManager(ws *bcworkspace.Workspace) (*bcagent.Manager, *bccontainer.Backend, string, error) {
 	var wsCfg bcworkspace.DockerRuntimeConfig
+	runtimeDefault := ""
 	if ws.Config != nil {
 		wsCfg = ws.Config.Runtime.Docker
+		runtimeDefault = ws.Config.Runtime.Default
 	}
 	dockerCfg := bccontainer.ConfigFromWorkspace(wsCfg)
 	be, err := bccontainer.NewBackend(dockerCfg, bcagent.DefaultSessionPrefix, ws.RootDir, provider.DefaultRegistry)
 	if err != nil {
 		log.Warn("Docker not available — agents will use tmux runtime only", "error", err, "workspace", ws.RootDir)
-		return bcagent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir), nil, nil
+		reason := ""
+		if runtimeDefault != "tmux" {
+			// Only flag degradation when tmux was NOT the configured
+			// runtime — an explicit tmux workspace is working as intended.
+			reason = fmt.Sprintf("docker runtime unavailable — agents fall back to tmux: %v", err)
+		}
+		return bcagent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir), nil, reason, nil
 	}
 	be = be.WithLegacyPrefix(bcagent.LegacySessionPrefix)
 	mgr := bcagent.NewWorkspaceManagerWithRuntime(ws.AgentsDir(), ws.RootDir, be, "docker")
-	return mgr, be, nil
+	return mgr, be, "", nil
 }
 
 // buildGatewayManager constructs the gateway.Manager from workspace config

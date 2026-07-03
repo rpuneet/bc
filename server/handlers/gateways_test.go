@@ -259,3 +259,52 @@ func TestGatewayListNoNullChannels(t *testing.T) {
 		t.Error("channels should never be null in JSON response, should be []")
 	}
 }
+
+// TestNotify503IncludesDegradedReason verifies that a nil notify service
+// produces a 503 whose message carries the construction-time failure
+// reason from WorkspaceView.Degraded instead of a bare "not available"
+// (issue #3240 — the 2026-07-03 Slack-delivery outage was undiagnosable
+// from the generic message).
+func TestNotify503IncludesDegradedReason(t *testing.T) {
+	SetWorkspaceFromContext(func(ctx context.Context) *WorkspaceView {
+		return &WorkspaceView{Degraded: map[string]string{
+			"notify": "notify store unavailable: notify store requires shared database",
+		}}
+	})
+	t.Cleanup(func() { SetWorkspaceFromContext(nil) })
+
+	h := &GatewayHandler{} // no notify service wired
+
+	req := httptest.NewRequest(http.MethodGet, "/api/notify/subscriptions", nil)
+	rr := httptest.NewRecorder()
+	h.notifySubscriptions(rr, req)
+
+	if rr.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d, want 503", rr.Code)
+	}
+	body := rr.Body.String()
+	if !strings.Contains(body, "notify service not available") {
+		t.Errorf("503 body lost the generic message: %s", body)
+	}
+	if !strings.Contains(body, "shared database") {
+		t.Errorf("503 body must include the degradation reason: %s", body)
+	}
+}
+
+// TestNotify503FallsBackWithoutReason verifies the generic message is kept
+// when no degradation reason was recorded.
+func TestNotify503FallsBackWithoutReason(t *testing.T) {
+	SetWorkspaceFromContext(nil)
+
+	h := &GatewayHandler{}
+	req := httptest.NewRequest(http.MethodGet, "/api/notify/subscriptions", nil)
+	rr := httptest.NewRecorder()
+	h.notifySubscriptions(rr, req)
+
+	if rr.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d, want 503", rr.Code)
+	}
+	if !strings.Contains(rr.Body.String(), "notify service not available") {
+		t.Errorf("unexpected 503 body: %s", rr.Body.String())
+	}
+}

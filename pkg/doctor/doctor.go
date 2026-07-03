@@ -140,6 +140,7 @@ func RunAll(ctx context.Context, ws *workspace.Workspace) *Report {
 		CheckAgents(ctx, ws),
 		CheckTools(ctx),
 		CheckGit(ctx, ws),
+		CheckDaemon(ctx),
 	}
 	return &Report{Categories: cats}
 }
@@ -163,6 +164,9 @@ func CategoryByName(ctx context.Context, ws *workspace.Workspace, name string) *
 	case "git":
 		c := CheckGit(ctx, ws)
 		return &c
+	case "daemon":
+		c := CheckDaemon(ctx)
+		return &c
 	default:
 		return nil
 	}
@@ -170,7 +174,7 @@ func CategoryByName(ctx context.Context, ws *workspace.Workspace, name string) *
 
 // ValidCategories returns the list of valid category names.
 func ValidCategories() []string {
-	return []string{"workspace", "database", "agents", "tools", "git"}
+	return []string{"workspace", "database", "agents", "tools", "git", "daemon"}
 }
 
 // ─── Workspace ───────────────────────────────────────────────────────────────

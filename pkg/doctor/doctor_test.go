@@ -99,6 +99,7 @@ func TestValidCategories(t *testing.T) {
 		"agents":    true,
 		"tools":     true,
 		"git":       true,
+		"daemon":    true,
 	}
 	for _, c := range cats {
 		if !want[c] {

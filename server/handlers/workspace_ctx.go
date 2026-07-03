@@ -50,6 +50,10 @@ type WorkspaceView struct {
 	Notify       *notify.Service
 	Stats        *stats.Store
 	Hub          *ws.Hub
+	// Degraded maps service name → reason for services that failed to
+	// initialize (populated by server/build_services.go). Lets 503
+	// responses explain WHY a service is missing.
+	Degraded map[string]string
 }
 
 // lookup holds the server-installed WorkspaceView resolver. Atomic.Pointer
