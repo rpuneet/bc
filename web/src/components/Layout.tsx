@@ -425,6 +425,12 @@ function NotificationNavTree() {
 
 /* ── Nav items ───────────────────────────────────────────────── */
 
+// Primary nav — workspace-scoped surfaces + one cross-workspace surface
+// (Costs). Section dividers previously wrapped a single item each, which
+// design + UX audit flagged as chrome-for-nothing (#3205 P1a). Settings
+// moved to the footer next to About + the theme toggle so all utility
+// affordances read as one row of chrome rather than three separate
+// nav groups.
 const MAIN_NAV_ITEMS = [
   { to: "/live", label: "Live", icon: "live" },
   { to: "/agents", label: "Agents", icon: "agents" },
@@ -435,19 +441,19 @@ const MAIN_NAV_ITEMS = [
   { to: "/cron", label: "Cron", icon: "cron" },
   { to: "/secrets", label: "Secrets", icon: "secrets" },
   { to: "/stats", label: "Metrics", icon: "metrics" },
+  // Costs is cross-workspace — bypasses the /w/<id>/ prefix (NavList
+  // reads the `global` flag when computing scopedTo).
+  { to: "/costs", label: "Costs", icon: "metrics", global: true },
 ] as const;
 
+// Retained so external callers (TITLE_ITEMS, /settings header) that still
+// walk a flat nav list keep working. Settings + Costs both appear here
+// even though they're rendered elsewhere in the sidebar chrome.
 const UTIL_NAV_ITEMS = [
   { to: "/settings", label: "Settings", icon: "settings" },
 ] as const;
 
-// Global (non-workspace-scoped) nav items — rendered below a separator
-// in the sidebar. Costs here aggregates across every workspace.
-const GLOBAL_NAV_ITEMS = [
-  { to: "/costs", label: "Costs", icon: "metrics" },
-] as const;
-
-const NAV_ITEMS = [...MAIN_NAV_ITEMS, ...UTIL_NAV_ITEMS, ...GLOBAL_NAV_ITEMS];
+const NAV_ITEMS = [...MAIN_NAV_ITEMS, ...UTIL_NAV_ITEMS];
 
 /**
  * TITLE_ITEMS — extends NAV_ITEMS with surfaces that resolve to a
@@ -464,30 +470,6 @@ function writeCollapsed(v: boolean) {
   try { localStorage.setItem(SIDEBAR_KEY, String(v)); } catch { /* */ }
 }
 
-/* ── Nav section divider ─────────────────────────────────────────
-   Small labeled caption (e.g. "Global", "System") between nav groups.
-   Collapses to a hairline rule when the sidebar is icon-only, so
-   collapsed mode stays compact but expanded mode communicates the
-   grouping semantics. */
-function NavSectionDivider({ label, collapsed }: { label: string; collapsed: boolean }) {
-  if (collapsed) {
-    return (
-      <li className="mx-2 my-2">
-        <div className="border-t border-mycel-border/20" />
-      </li>
-    );
-  }
-  return (
-    <li className="mt-4 mb-1 px-4">
-      <span
-        className="text-[10px] uppercase tracking-[0.12em] text-mycel-muted/80 font-medium"
-      >
-        {label}
-      </span>
-    </li>
-  );
-}
-
 /* ── Nav list ────────────────────────────────────────────────── */
 
 function NavList({
@@ -498,26 +480,30 @@ function NavList({
   onToggleNotifications,
   global = false,
 }: {
-  items: ReadonlyArray<{ to: string; label: string; icon: string }>;
+  items: ReadonlyArray<{ to: string; label: string; icon: string; global?: boolean }>;
   collapsed: boolean;
   isMobile: boolean;
   notificationsExpanded?: boolean;
   onToggleNotifications?: () => void;
-  /** When true, render links verbatim — skip the /w/<id>/ prefix.
-   *  Used for cross-workspace routes like /costs. */
+  /** When true, render every item as global — skip the /w/<id>/ prefix.
+   *  Left for backward compat; per-item `global` on the item itself is
+   *  preferred going forward so a mixed list can have both workspace and
+   *  cross-workspace targets. */
   global?: boolean;
 }) {
   const isIconOnly = collapsed && !isMobile;
   const showTree = !isIconOnly && notificationsExpanded;
   // Workspace-scoped targets get /w/<id>/ prefixed at render time.
-  // Global items skip the prefix so they hit top-level routes.
+  // Global items (list-level `global` or per-item `global`) skip the
+  // prefix so they hit top-level routes.
   const { workspace } = useWorkspace();
-  const prefix = !global && workspace ? `/w/${workspace.id}` : "";
+  const workspacePrefix = workspace ? `/w/${workspace.id}` : "";
 
   return (
     <>
-      {items.map(({ to, label, icon }) => {
+      {items.map(({ to, label, icon, global: itemGlobal }) => {
         const isNotifications = label === "Notifications";
+        const prefix = global || itemGlobal ? "" : workspacePrefix;
         const scopedTo = `${prefix}${to}`;
         return (
           <li key={to}>
@@ -717,10 +703,6 @@ export function Layout() {
             notificationsExpanded={notificationsExpanded}
             onToggleNotifications={toggleNotifications}
           />
-          <NavSectionDivider label="Global" collapsed={collapsed && !isMobile} />
-          <NavList items={GLOBAL_NAV_ITEMS} collapsed={collapsed} isMobile={isMobile} global />
-          <NavSectionDivider label="System" collapsed={collapsed && !isMobile} />
-          <NavList items={UTIL_NAV_ITEMS} collapsed={collapsed} isMobile={isMobile} />
         </ul>
 
         {/* Unified sidebar footer — About + Theme picker in a single
@@ -731,11 +713,20 @@ export function Layout() {
             right. Collapsed sidebar falls back to two stacked
             icon-only rows so both remain reachable. */}
         {collapsed && !isMobile ? (
-          <div className="border-t border-mycel-border/30 flex flex-col">
+          <div className="border-t border-mycel-border/40 flex flex-col">
+            <NavLink
+              to="/settings"
+              className={({ isActive }) =>
+                `flex items-center justify-center px-2 py-[9px] ${isActive ? "text-mycel-accent bg-mycel-surface-hover border-l-2 border-mycel-accent" : "text-mycel-muted hover:text-mycel-text hover:bg-mycel-surface-hover border-l-2 border-transparent"} transition-colors`
+              }
+              title="Settings"
+            >
+              <Icon name="settings" size={14} />
+            </NavLink>
             <NavLink
               to="/about"
               className={({ isActive }) =>
-                `flex items-center justify-center px-2 py-[9px] ${isActive ? "text-mycel-text bg-mycel-bg/30 border-l-2 border-mycel-accent" : "text-mycel-muted/70 hover:text-mycel-text hover:bg-mycel-bg/30 border-l-2 border-transparent"} transition-colors`
+                `flex items-center justify-center px-2 py-[9px] ${isActive ? "text-mycel-accent bg-mycel-surface-hover border-l-2 border-mycel-accent" : "text-mycel-muted hover:text-mycel-text hover:bg-mycel-surface-hover border-l-2 border-transparent"} transition-colors`
               }
               title="About / version"
             >
@@ -745,7 +736,7 @@ export function Layout() {
               </svg>
             </NavLink>
             <button type="button" onClick={toggle}
-              className="flex items-center justify-center px-2 py-[9px] text-mycel-muted/70 hover:text-mycel-text hover:bg-mycel-bg/30 border-l-2 border-transparent transition-colors"
+              className="flex items-center justify-center px-2 py-[9px] text-mycel-muted hover:text-mycel-text hover:bg-mycel-surface-hover border-l-2 border-transparent transition-colors"
               title={`Theme: ${THEME_LABELS[mode]}`}
               aria-label={`Switch theme — currently ${THEME_LABELS[mode]}`}
             >
@@ -756,11 +747,23 @@ export function Layout() {
             </button>
           </div>
         ) : (
-          <div className="border-t border-mycel-border/30 flex items-stretch">
+          <div className="border-t border-mycel-border/40 flex items-stretch">
+            <NavLink
+              to="/settings"
+              className={({ isActive }) =>
+                `flex items-center gap-2 pl-4 pr-2 py-[9px] text-[11px] ${isActive ? "text-mycel-accent bg-mycel-surface-hover border-l-2 border-mycel-accent" : "text-mycel-muted hover:text-mycel-text hover:bg-mycel-surface-hover border-l-2 border-transparent"} transition-colors`
+              }
+              title="Settings"
+            >
+              <span className="shrink-0 flex items-center justify-center w-4 opacity-80">
+                <Icon name="settings" size={14} />
+              </span>
+              <span className="truncate font-medium tracking-tight">Settings</span>
+            </NavLink>
             <NavLink
               to="/about"
               className={({ isActive }) =>
-                `flex-1 flex items-center gap-2.5 pl-4 pr-2 py-[9px] text-[11px] ${isActive ? "text-mycel-text bg-mycel-bg/30 border-l-2 border-mycel-accent" : "text-mycel-muted/75 hover:text-mycel-text hover:bg-mycel-bg/30 border-l-2 border-transparent"} transition-colors`
+                `flex-1 flex items-center gap-2 pl-3 pr-2 py-[9px] text-[11px] ${isActive ? "text-mycel-accent bg-mycel-surface-hover border-l border-mycel-border/40" : "text-mycel-muted hover:text-mycel-text hover:bg-mycel-surface-hover border-l border-mycel-border/40"} transition-colors`
               }
               title="About / version"
             >
@@ -770,10 +773,10 @@ export function Layout() {
                   <path d="M7 4.5v.01M6 6.5h1v3h1" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
               </span>
-              <span className="truncate font-medium tracking-tight">About</span>
+              <span className="truncate">About</span>
             </NavLink>
             <button type="button" onClick={toggle}
-              className="shrink-0 flex items-center gap-1.5 px-3 py-[9px] text-[10px] text-mycel-muted/75 hover:text-mycel-text hover:bg-mycel-bg/30 border-l border-mycel-border/30 transition-colors"
+              className="shrink-0 flex items-center gap-1.5 px-3 py-[9px] text-[10px] text-mycel-muted hover:text-mycel-text hover:bg-mycel-surface-hover border-l border-mycel-border/40 transition-colors"
               title={`Theme: ${THEME_LABELS[mode]} — click to switch`}
               aria-label={`Switch theme — currently ${THEME_LABELS[mode]}`}
             >
