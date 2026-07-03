@@ -155,7 +155,16 @@ func (h *GatewayHandler) gatewayChannels(w http.ResponseWriter, r *http.Request,
 
 	// /api/gateways/{platform}/channels/{channel}/...
 	channelParts := strings.SplitN(subpath, "/", 2)
-	channelName := platform + ":" + channelParts[0]
+	// Defensive against callers who pre-prefix the channel with the
+	// platform (e.g. `POST /api/gateways/slack/channels/slack:general/agents`).
+	// Without this guard the channel key gets written as
+	// `slack:slack:general` — silently indexed on the wrong key so
+	// inbound messages on `slack:general` bypass the subscription lookup
+	// and never reach the agent. That's how the notify subscriptions
+	// "vanished" after they were added earlier this session.
+	rawChannel := channelParts[0]
+	rawChannel = strings.TrimPrefix(rawChannel, platform+":")
+	channelName := platform + ":" + rawChannel
 	channelRest := ""
 	if len(channelParts) > 1 {
 		channelRest = channelParts[1]
