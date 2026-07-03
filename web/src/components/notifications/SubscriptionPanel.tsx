@@ -178,7 +178,7 @@ export function SubscriptionPanel({
   return (
     <aside
       className="w-56 shrink-0 border-l border-mycel-border/40 flex flex-col bg-mycel-bg"
-      style={{ scrollbarWidth: "thin", scrollbarColor: "rgba(255,255,255,0.04) transparent" }}
+      style={{ scrollbarWidth: "thin", scrollbarColor: "var(--mycel-scrollbar-thumb) transparent" }}
     >
       {/* Header */}
       <div className="px-3 py-3 border-b border-mycel-border/40">

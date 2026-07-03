@@ -185,7 +185,7 @@ export function RalphLoopModal({
       onClick={onClose}
       role="presentation"
     >
-      <div className="absolute inset-0 bg-black/60" />
+      <div className="absolute inset-0 bg-mycel-overlay" />
 
       <div
         className="relative w-full max-w-md rounded-lg border border-mycel-border bg-mycel-surface shadow-2xl"

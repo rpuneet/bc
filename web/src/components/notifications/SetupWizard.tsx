@@ -611,7 +611,7 @@ export function PlatformChooser({ onSelect, onClose }: { onSelect: (key: string)
     >
       {/* Backdrop */}
       <div
-        className="absolute inset-0 bg-black/80 backdrop-blur-md"
+        className="absolute inset-0 bg-mycel-overlay backdrop-blur-md"
         onClick={onClose}
       />
 
@@ -897,7 +897,7 @@ export function SetupWizard({
 
   if (!config) {
     return createPortal(
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-mycel-overlay backdrop-blur-sm">
         <div className="bg-mycel-bg border border-mycel-border/50 rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl">
           <p className="text-mycel-muted">Unknown platform: {platform}</p>
           <button type="button" onClick={onClose} className="mt-4 text-sm text-mycel-accent">
@@ -980,7 +980,7 @@ export function SetupWizard({
   };
 
   return createPortal(
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 backdrop-blur-sm" style={{ animation: 'fadeIn 120ms ease-out' }}>
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-mycel-overlay backdrop-blur-sm" style={{ animation: 'fadeIn 120ms ease-out' }}>
       <div className="bg-mycel-bg border border-mycel-border/50 rounded-xl max-w-lg w-full mx-4 max-h-[85vh] overflow-auto shadow-2xl">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-mycel-border">
