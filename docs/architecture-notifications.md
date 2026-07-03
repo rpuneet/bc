@@ -1,10 +1,10 @@
 # Notifications
 
-Notifications are inbound-only gateways that bridge external platforms (Slack, GitHub, Telegram, and 30+ others) to bc agents. bc routes platform events to subscribed agents, who respond directly using injected credentials and platform APIs.
+Notifications are inbound-only gateways that bridge external platforms (Slack, GitHub, Telegram, and 30+ others) to mycel agents. mycel routes platform events to subscribed agents, who respond directly using injected credentials and platform APIs.
 
 ## Architecture
 
-bc acts as a notification router, not a messaging proxy. External platforms push events into bc through adapter connections. bc dispatches those events to subscribed agents based on filtering rules. Agents call platform APIs themselves using environment variable credentials.
+mycel acts as a notification router, not a messaging proxy. External platforms push events into mycel through adapter connections. mycel dispatches those events to subscribed agents based on filtering rules. Agents call platform APIs themselves using environment variable credentials.
 
 ```mermaid
 flowchart LR
@@ -37,16 +37,16 @@ flowchart LR
 
 Gateway adapters in `pkg/gateway/<platform>/` exist to **receive** messages
 from external platforms (Slack, Telegram, Discord, WhatsApp, GitHub, etc.)
-and dispatch them into bcd's notification pipeline. They are **not** a
+and dispatch them into the server's notification pipeline. They are **not** a
 generic outbound abstraction.
 
 When an agent needs to **send** a message to an external platform, the
 agent talks to the platform's API directly using credentials injected
-from `prefs.json` / the workspace secret store. Examples:
+from `preferences.json` / the workspace secret store. Examples:
 
 - **Telegram**: `curl -H "Authorization: Bearer $TELEGRAM_BOT_TOKEN" https://api.telegram.org/bot.../sendMessage`
 - **Slack**: `chat.postMessage` via the Slack Web API using `$SLACK_BOT_TOKEN`
-- **WhatsApp**: `whatsmeow` library directly — the gateway only listens; agents send
+- **WhatsApp**: inbound-only today — the gateway listens via `whatsmeow`; there is no outbound path (see below)
 
 ## Outbound cookbook
 
@@ -60,7 +60,7 @@ knows the shape.
 ### env.json — per-agent token slots
 
 Set once per agent. Values are `${secret:NAME}` refs; the actual
-secret lives in the workspace secret store (`.bc/secrets.json` or
+secret lives in the workspace secret store (`.bc/secrets.db` or
 whichever backend the workspace is configured to use).
 
 ```json
@@ -124,20 +124,16 @@ curl -s -X POST "$DISCORD_WEBHOOK_URL" \
 Falls back to `POST /channels/<id>/messages` with a bot token when the
 agent needs to post to a channel that doesn't have a webhook.
 
-### WhatsApp — `whatsmeow` HTTP shim
+### WhatsApp — inbound-only (no outbound path today)
 
-The bcd `pkg/gateway/whatsapp` package exposes a **local-only** HTTP
-endpoint on the daemon for agents to post text. Agents call:
-
-```bash
-curl -s -X POST http://localhost:9374/api/gateways/whatsapp/send \
-  -H "Authorization: Bearer $WHATSAPP_BOT_TOKEN" \
-  --data '{"chat_id":"<JID>","text":"hello from <agent-name>"}'
-```
-
-This is the one platform where the pattern isn't a pure external API
-call — whatsmeow needs the persisted device session and is easiest to
-share via the daemon. Discussed further in
+WhatsApp is the one platform without an outbound recipe. The
+`pkg/gateway/whatsapp` adapter connects via the `whatsmeow` library and
+only **listens**: the persisted device session lives inside the server
+process, the adapter exposes no HTTP handler, and no send endpoint
+exists (the old daemon-side send route has been removed — unknown
+gateway sub-routes return `404`). Agents cannot call the WhatsApp
+personal API directly either, because the device session is not theirs
+to share. Outbound WhatsApp is tracked in
 [#3178](https://github.com/rpuneet/mycel/issues/3178).
 
 ### Why not wrap these as mycel-side tools?
@@ -156,36 +152,26 @@ The tempting shape is `pkg/tool/platform/slack.go` exposing
    platform API surface fully discoverable to the agent.
 
 The only exception is WhatsApp, where the persistent session lives
-inside the daemon and a local endpoint is more ergonomic than
-whatsmeow-in-agent-process.
+inside the server and no outbound path currently exists.
 
 The existing `Send` methods on the Slack, Telegram, and Discord adapters
-are a **legacy convenience** used internally by bcd's notify dispatch
-path (e.g. when a local channel relays to an external platform via the
-`POST /api/gateways/{platform}/channels/{channel}/send` endpoint). Do
-**not** add `Send` to new adapters. WhatsApp, Matrix, IRC, Signal, and
-the other 30+ adapters deliberately have no `Send` method — that is
-correct per this design, **not** a missing feature or a bug.
+are an **internal convenience** used by the MCP `send_message` tool when
+an agent posts to a gateway channel through the server. Do **not** add
+`Send` to new adapters. WhatsApp, Matrix, IRC, Signal, and the other
+30+ adapters deliberately have no `Send` method — that is correct per
+this design, **not** a missing feature or a bug.
 
-### `POST /api/gateways/{platform}/channels/{channel}/send` is deprecated
+### `POST /api/gateways/{platform}/channels/{channel}/send` is removed
 
-**Status: Deprecated since v0.3.1. Sunset: v0.4.0 (target 2026-07-01).**
+**Status: Removed.** (It was deprecated in v0.3.1 with RFC 8594
+Deprecation/Sunset headers and has since been deleted.)
 
-This endpoint violates the "notifications strictly inbound" principle
-above. It is retained as a legacy shim so pre-v0.3.1 integrations keep
-working during the transition. Every response now carries RFC 8594
-Deprecation + Sunset headers so callers can detect the deprecation
-programmatically:
+This endpoint violated the "notifications strictly inbound" principle
+above. The server no longer registers it — unknown gateway sub-routes,
+including `send`, return `404 Not Found`.
 
-```
-Deprecation: true
-Sunset: Wed, 01 Jul 2026 00:00:00 GMT
-Link: <https://github.com/rpuneet/mycel/issues/3178>; rel="deprecation"; type="text/html"
-Warning: 299 - "Deprecated API: prefer per-agent platform SDKs. See issue #3178."
-```
-
-The replacement pattern is already documented above: each agent calls the
-platform's official SDK directly with credentials from its own env, so
+The replacement pattern is documented above: each agent calls the
+platform's official API directly with credentials from its own env, so
 posts, file uploads, and reactions attribute correctly to the agent's own
 bot identity. Tracking issue: [#3178](https://github.com/rpuneet/mycel/issues/3178).
 
@@ -226,7 +212,7 @@ type NotificationAdapter interface {
 
     // Type returns the connection pattern. Determines how bc wires the adapter:
     //   socket  → goroutine running Start()
-    //   webhook → HTTPHandler() mounted on bcd HTTP mux at /hooks/{name}
+    //   webhook → HTTPHandler() mounted on the server HTTP mux at /hooks/{name}
     //   poll    → goroutine running Start() with internal ticker
     Type() AdapterType
 
@@ -240,7 +226,7 @@ type NotificationAdapter interface {
 
     // HTTPHandler returns an http.Handler for webhook-based adapters.
     // Socket and poll adapters return nil.
-    // The handler is mounted at /hooks/{name} on the bcd HTTP server.
+    // The handler is mounted at /hooks/{name} on the mycel HTTP server.
     HTTPHandler() http.Handler
 
     // Channels returns discovered channels/groups the bot has access to.
@@ -551,7 +537,7 @@ CREATE TABLE IF NOT EXISTS notify_channels (
 | `notify_messages` | Stores inbound messages for the web UI activity feed. |
 | `notify_delivery_log` | Records every delivery attempt per agent (delivered/failed/pending). |
 | `notify_gateways` | Persists gateway adapter state (enabled, connected) across restarts. |
-| `notify_channels` | Maps bc channel names to platform channel IDs for routing. |
+| `notify_channels` | Maps mycel channel names to platform channel IDs for routing. |
 
 ### Retention Policy
 
@@ -717,7 +703,7 @@ gatewayMgr.Register(adapter)
 
 ## API Reference
 
-All endpoints are served by bcd at `http://127.0.0.1:9374`. No authentication (localhost-only).
+All endpoints are served by the mycel server at `http://127.0.0.1:9374`. Localhost-only by default; Bearer auth applies when the server is started with `--api-key`/`BC_API_KEY`.
 
 ### Gateway Management
 
@@ -727,8 +713,12 @@ PATCH  /api/gateways/{platform}                                   -- update toke
 GET    /api/gateways/{platform}/health                            -- live connection probe
 GET    /api/gateways/{platform}/channels                          -- discovered channels
 GET    /api/gateways/{platform}/channels/{channel}                -- channel detail + subscribers
-POST   /api/gateways/{platform}/channels/{channel}/send           -- send outbound message
 ```
+
+There is no outbound send endpoint — `POST .../channels/{channel}/send`
+has been removed (unknown sub-routes return `404`). Outbound messages are
+sent by agents directly against each platform's API (see the
+[Outbound cookbook](#outbound-cookbook)).
 
 ### Agent Subscription Management
 

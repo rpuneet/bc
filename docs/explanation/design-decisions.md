@@ -1,7 +1,7 @@
 # Architecture Decision Records
 
-This document records the key architectural decisions in bc, their context,
-and the reasoning behind each choice.
+This document records the key architectural decisions in mycel, their
+context, and the reasoning behind each choice.
 
 ---
 
@@ -9,13 +9,13 @@ and the reasoning behind each choice.
 
 **Status:** Accepted
 
-**Context:** bc needs persistent storage for channels, costs, events, secrets,
-cron jobs, MCP servers, and tools. The storage must work out of the box for
-every developer without any setup steps.
+**Context:** mycel needs persistent storage for notifications, costs, events,
+secrets, cron jobs, MCP servers, and tools. The storage must work out of the
+box for every developer without any setup steps.
 
-**Decision:** Use SQLite for all persistent storage, with separate `.db` files
-per concern (e.g., `channels.db`, `costs.db`, `secrets.db`) stored in the
-`.bc/` workspace directory.
+**Decision:** Use SQLite for all persistent storage, with a small number of
+`.db` files per concern (e.g., the unified `bc.db`, plus `state.db` and
+`secrets.db`) stored in the workspace's `.bc/` / state directory.
 
 **Rationale:**
 
@@ -23,8 +23,8 @@ per concern (e.g., `channels.db`, `costs.db`, `secrets.db`) stored in the
 - **Embedded**: the database is a single file linked into the Go binary.
 - **Portable with workspace**: `.bc/` travels with the project (or is
   `.gitignore`-d for sensitive data). Copying a workspace copies all state.
-- **Concurrent-safe**: SQLite WAL mode handles the concurrency level bc needs
-  (one daemon, a few CLI readers).
+- **Concurrent-safe**: SQLite WAL mode handles the concurrency level mycel
+  needs (one server, a few CLI readers).
 - **Tables use `IF NOT EXISTS`**: schema is applied idempotently at startup,
   so there is no migration tooling to maintain.
 
@@ -110,24 +110,25 @@ WebSockets.
 
 **Status:** Accepted
 
-**Context:** bc ships a web dashboard for workspace management. It needs to
-be easy to deploy and use without a separate frontend server.
+**Context:** mycel ships a web dashboard for workspace management. It needs
+to be easy to deploy and use without a separate frontend server.
 
-**Decision:** Embed the compiled web UI (from `web/dist/`) into the bcd
-binary using Go's `embed.FS`, served as static files with SPA fallback.
+**Decision:** Embed the compiled web UI (from `server/web/dist/`) into the
+`mycel` binary using Go's `embed.FS`, served as static files with SPA
+fallback.
 
 **Rationale:**
 
-- **Single binary deployment**: `bcd` is one binary that contains the API
+- **Single binary deployment**: `mycel` is one binary that contains the API
   server, SSE hub, MCP server, and the complete web UI. No separate `npm
   start` or nginx configuration.
 - **SPA routing**: the server tries to serve the exact file path first; if
   the file does not exist, it falls back to `index.html` for client-side
   routing.
 - **Development mode**: during development, `make run-web` runs a Vite
-  dev server with hot reload, proxying API calls to bcd.
-- **Build pipeline**: `make build-local-bcd` runs `make build-local-web`
-  first to produce `web/dist/`, then embeds it into the Go binary.
+  dev server with hot reload, proxying API calls to the mycel server.
+- **Build pipeline**: `make build-local-mycel` runs `make build-local-web`
+  first to produce `server/web/dist/`, then embeds it into the Go binary.
 
 **Tradeoffs:**
 
@@ -141,9 +142,9 @@ binary using Go's `embed.FS`, served as static files with SPA fallback.
 
 **Status:** Accepted
 
-**Context:** bcd needs to know when agents transition between states
-(working, idle, stopped). Agents run inside tmux sessions or Docker
-containers, potentially without network access to bcd.
+**Context:** the mycel server needs to know when agents transition between
+states (working, idle, stopped). Agents run inside tmux sessions or Docker
+containers, potentially without network access to the server.
 
 **Decision:** Use file-based hooks where Claude Code lifecycle events
 (`PreToolUse`, `PostToolUse`, `Stop`) write the event name to a well-known
@@ -153,9 +154,10 @@ file path: `.bc/agents/<NAME>/hook_event`.
 
 - **Works in Docker**: containers mount the workspace directory, so
   file writes are visible to the host without network configuration.
-- **Survives restarts**: files on disk persist across bcd restarts. If bcd
-  is down when an event fires, the file is still there when bcd comes back.
-- **Stateless consumption**: bcd's `StatsCollector` reads and deletes the
+- **Survives restarts**: files on disk persist across server restarts. If
+  the server is down when an event fires, the file is still there when it
+  comes back.
+- **Stateless consumption**: the server's `StatsCollector` reads and deletes the
   hook event file on each poll cycle via `ConsumeHookEvent()`. No connection
   state to manage.
 - **Claude Code integration**: hooks are configured in
@@ -183,7 +185,7 @@ prompts, MCP servers, and secrets. The inheritance model must be simple and
 predictable.
 
 **Decision:** Use breadth-first search (BFS) for role inheritance resolution
-via the `parent_roles` field in role YAML frontmatter.
+via the `parent_roles` JSON column on the `roles` database table.
 
 **Rationale:**
 

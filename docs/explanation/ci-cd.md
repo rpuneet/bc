@@ -42,16 +42,17 @@ graph TD
 | Job | Duration | What | Blocks merge? |
 |-----|----------|------|---------------|
 | Lint | ~35s | `golangci-lint` (new issues only) | Yes |
-| Test | ~90s | Fast packages + race + 60% coverage | Yes |
+| Test | ~90s | Fast packages + race + 35% coverage threshold | Yes |
 | TUI | ~45s | `bun build + lint + test` | Yes |
-| Build | ~15s | `make release` + verify | Yes |
+| Web / Landing | ~45s | `bun lint + test + build` for each | Yes |
+| Build | ~15s | `make release-local-mycel` + verify binary runs | Yes |
 | PR Quality | ~5s | Title/description/issue checks | No |
 
 ### Excluded from PR (speed optimization)
-- `pkg/tmux` (89s — live tmux sessions)
-- `pkg/secret` (28s — PBKDF2 crypto)
-- `pkg/doctor` (15s — system checks)
-- `internal/cmd` (E2E — needs running bcd)
+- `pkg/tmux` (live tmux sessions)
+- `pkg/secret` (PBKDF2 crypto)
+- `pkg/doctor` (system checks)
+- `internal/cmd` (slow E2E command suite)
 - Security scanning (govulncheck + gitleaks)
 
 ## Main Pipeline (after merge, ~5m)
@@ -84,8 +85,10 @@ graph LR
 
 | Target | Trigger | Platform |
 |--------|---------|----------|
-| Docs | `docs/**` push to main | GitHub Pages (MkDocs) |
-| Landing | `landing/**` push to main | Cloudflare Pages (Next.js) |
+| Docs | `docs/**` push to main | GitHub Pages (MkDocs) via `pages.yml` |
+| Landing (with embedded docs) | Every push to main | Cloudflare Pages via `wrangler` in `cd-main.yml` |
+| Docker image | Every push to main | GHCR: `ghcr.io/rpuneet/mycel:main` (+ `:main-<sha>`) via `cd-main.yml` |
+| npm package | After a successful release (or manual) | npm via `cd-npm.yml` |
 
 ## Test Strategy
 
@@ -101,9 +104,9 @@ graph LR
 
 | Metric | Value |
 |--------|-------|
-| Current threshold | 60% |
+| Current threshold | 35% (fast test subset) |
 | Target | 90%+ |
-| Measured on | Fast tests (PR pipeline) |
+| Measured on | Fast tests (PR pipeline); full suite runs on main |
 | Reporting | Codecov |
 
 ## Caching
@@ -118,14 +121,19 @@ graph LR
 
 | Secret | Used By | Purpose |
 |--------|---------|---------|
-| `GITHUB_TOKEN` | All workflows | Checkout, releases, gitleaks |
+| `GITHUB_TOKEN` | All workflows | Checkout, releases, GHCR push, gitleaks |
 | `HOMEBREW_TAP_TOKEN` | Release | Push formula to tap repo |
+| `CLOUDFLARE_API_TOKEN` / `CLOUDFLARE_ACCOUNT_ID` | CD (main) | `wrangler pages deploy` for the landing site |
+| `NPM_TOKEN` | CD (npm) | Publish the npm package |
 
 ## Workflow Files
 
 | File | Trigger | Purpose |
 |------|---------|---------|
-| `ci.yml` | Push main, PRs | Core CI pipeline |
+| `ci.yml` | Push main, PRs | Core CI pipeline (lint, tests, TUI/web/landing, build; full tests + security + container scan on main) |
 | `pr-quality.yml` | PRs | Advisory quality checks |
-| `release.yml` | Tag `v*` | Build + publish releases |
-| `pages.yml` | Push main (docs paths) | Deploy docs to GitHub Pages |
+| `cd-main.yml` | Every push to main | Publish Docker `:main` images to GHCR + deploy landing (with embedded docs) to Cloudflare Pages via `wrangler` |
+| `cd-npm.yml` | After a successful Release run, or manual dispatch | Publish the npm package |
+| `release.yml` | Tag `v*` or manual dispatch | Build + publish releases (Linux GoReleaser, native macOS, Homebrew formula, SBOM) |
+| `pages.yml` | Push main (docs paths) | Build MkDocs site and deploy to GitHub Pages |
+| `security-nightly.yml` | Nightly cron (2 AM UTC) or manual | govulncheck, gitleaks, CodeQL, Trivy |

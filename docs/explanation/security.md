@@ -1,26 +1,28 @@
 # Security
 
 This document describes the security model, threat boundaries, and hardening
-measures in bc and its daemon server (bcd).
+measures in mycel and its server.
 
 ## Threat Model
 
-bc is a **local development tool**. The bcd server binds to `127.0.0.1:9374`
-by default and is only reachable from the local machine. There is no
-authentication layer — security relies on the localhost trust boundary.
+mycel is a **local development tool**. The server binds to `127.0.0.1:9374`
+by default and is only reachable from the local machine. Security relies
+primarily on the localhost trust boundary, with an optional API-key
+authentication layer (see [API Key Authentication](#api-key-authentication))
+for anything beyond that.
 
 **In scope:**
 
-- Protecting secrets at rest (API keys, tokens stored via `bc secret set`).
+- Protecting secrets at rest (API keys, tokens stored via `mycel secret set`).
 - Isolating Docker-based agents from each other and from the host filesystem.
 - Preventing information leakage through HTTP error responses.
 - Rate-limiting the API to mitigate local denial-of-service.
 
 **Out of scope (by design):**
 
-- Network authentication or TLS — bcd is not designed to be exposed to a
-  network. If you need remote access, put it behind an authenticating reverse
-  proxy.
+- TLS — the server is not designed to be exposed to a network directly. If
+  you need remote access, put it behind a TLS-terminating reverse proxy and
+  enable API-key authentication.
 - Multi-tenant isolation — a single workspace is used by one developer (or
   one CI job) at a time.
 
@@ -103,11 +105,25 @@ crafted key names.
 
 ### Middleware Chain
 
-The bcd server applies middleware in this order (outermost runs first):
+The mycel server applies middleware in this order (outermost runs first):
 
 ```
-RateLimit → RequestID → RequestLogger → Recovery → Gzip → MaxBodySize → CORS → Router
+RateLimit → APIKeyAuth → RequestID → RequestLogger → Recovery → Gzip → MaxBodySize → CORS → WorkspaceScope → Router
 ```
+
+### API Key Authentication
+
+Authentication is **optional** and disabled by default. Starting the server
+with `mycel up --api-key <key>` (or setting the `BC_API_KEY` environment
+variable) enables the `APIKeyAuth` middleware, which requires every request
+to carry either:
+
+- `Authorization: Bearer <key>`, or
+- an `X-API-Key: <key>` header.
+
+Requests without a valid key receive `401 Unauthorized`. When no key is
+configured, the middleware is a pass-through and the localhost trust
+boundary is the only protection.
 
 ### Rate Limiting
 
@@ -138,8 +154,8 @@ instead of crashing the server or exposing stack traces.
 
 ### CORS
 
-CORS is enabled by default with origin `*` (safe because bcd only listens
-on localhost). The origin can be restricted via `Config.CORSOrigin`.
+CORS is enabled by default with origin `*` (safe because the server only
+listens on localhost). The origin can be restricted via `Config.CORSOrigin`.
 
 ### Request IDs
 
@@ -148,20 +164,21 @@ client provides one, it is reused; otherwise a random hex ID is generated.
 
 ## MCP Security
 
-The MCP (Model Context Protocol) server is mounted at `/mcp/sse` and
-`/mcp/message` on the same bcd HTTP server. It inherits the same localhost
-trust model — no additional authentication is applied.
+The MCP (Model Context Protocol) server is mounted at `/_mcp/sse` and
+`/_mcp/message` on the same HTTP server. It inherits the same localhost
+trust model and the same optional API-key middleware as the REST API.
 
 MCP endpoints are protected by the same middleware chain (rate limiting,
 body size limit, recovery) as the REST API.
 
 ## Recommendations for Production-Like Deployments
 
-If you need to expose bcd beyond localhost (e.g., for remote agent
-coordination):
+If you need to expose the mycel server beyond localhost (e.g., for remote
+agent coordination):
 
-1. Place bcd behind an authenticating reverse proxy (nginx, Caddy, etc.).
-2. Use TLS termination at the proxy layer.
+1. Enable API-key authentication (`mycel up --api-key` or `BC_API_KEY`).
+2. Place the server behind a reverse proxy (nginx, Caddy, etc.) with TLS
+   termination.
 3. Restrict CORS origin to your specific domain.
 4. Set `BC_SECRET_PASSPHRASE` explicitly rather than relying on the
    auto-generated key file.

@@ -2,7 +2,7 @@
 
 ## System Design
 
-mycel is a CLI-first orchestration system for coordinating teams of AI coding agents. The system is split into two binaries: `bc` (thin CLI client) and `bcd` (long-running daemon). The daemon manages agents across multiple git repositories from a single global installation at `~/.bc/`.
+mycel is a CLI-first orchestration system for coordinating teams of AI coding agents. It ships as a single `mycel` binary that contains both the CLI and the server: `mycel up` starts the long-running server, and every other command talks to it over HTTP. The server manages agents across multiple git repositories from a single global installation at `~/.mycel/` (a legacy `~/.bc/` tree is migrated automatically).
 
 Key numbers:
 - **44 REST API endpoints** across 14 resource groups
@@ -14,7 +14,10 @@ Key numbers:
 
 ### Global Installation
 
-bc creates a per-project `.bc/` directory inside the workspace root:
+Per-workspace runtime state lives under `~/.mycel/workspaces/<id>/` — the
+canonical config file is `preferences.json` there, alongside `state.db`,
+`agents/`, and `logs/`. mycel also keeps a per-project `.bc/` directory
+inside the workspace root:
 
 ```
 project/
@@ -32,7 +35,7 @@ project/
     prompts/               # Default prompt templates
 ```
 
-`mycel init` initializes the per-project `.bc/` directory and starts bcd.
+`mycel init` creates the workspace (the `.bc/` directory and workspace registration); `mycel up` starts the server.
 
 ## Architecture Layers
 
@@ -45,7 +48,7 @@ graph TB
         AI[AI Agents<br/>Claude, Gemini, etc.]
     end
 
-    subgraph "bcd Daemon :9374"
+    subgraph "mycel server :9374"
         REST[REST API<br/>44 endpoints]
         SSE[SSE Hub<br/>real-time events]
         MCP[MCP Server<br/>JSON-RPC 2.0]
@@ -69,7 +72,7 @@ graph TB
     end
 
     subgraph Storage
-        DB[(~/.bc/bc.db<br/>SQLite WAL)]
+        DB[(.bc/bc.db<br/>SQLite WAL)]
     end
 
     CLI -->|HTTP/JSON| REST
@@ -93,9 +96,9 @@ graph TB
 
 Thin HTTP client. All commands are HTTP requests to the daemon -- no direct DB/filesystem access. Opens the TUI if a workspace exists, prompts init if not, shows help in non-interactive mode.
 
-### Daemon (`cmd/mycel/`, `server/`)
+### Server (`cmd/mycel/`, `server/`)
 
-Long-running HTTP server on `127.0.0.1:9374`. Single process managing all state.
+Long-running HTTP server on `127.0.0.1:9374`, started with `mycel up`. Single process managing all state.
 
 | Component | Path | Purpose |
 |-----------|------|---------|
@@ -105,11 +108,11 @@ Long-running HTTP server on `127.0.0.1:9374`. Single process managing all state.
 | Web UI | `/` | Embedded React dashboard (16 views) |
 | Health | `/health`, `/health/ready` | Liveness + readiness probes |
 
-Middleware chain: Recovery, RequestID, CORS, Gzip, MaxBody, Routes.
+Middleware chain (outermost first): RateLimit, APIKeyAuth (optional, via `--api-key`/`BC_API_KEY`), RequestID, RequestLogger, Recovery, Gzip, MaxBodySize (1 MB), CORS, WorkspaceScope, Routes.
 
 ### Web Dashboard
 
-React SPA with 16 views, embedded in the bcd binary via `server/web/dist/`:
+React SPA with 16 views, embedded in the `mycel` binary via `server/web/dist/`:
 
 - **Dashboard** -- workspace overview with agent/notification/cost summary
 - **Agents** -- list, create, start/stop, send messages, peek output
@@ -142,7 +145,7 @@ Built with Bun, compiled to CommonJS in `tui/dist/`.
 
 AI coding assistants running in isolated sessions. Each agent has:
 - A tmux session or Docker container (runtime backend)
-- A git worktree (created and managed by bc)
+- A git worktree (created and managed by mycel)
 - A role defining its prompt, MCP servers, and secrets
 - An associated workspace (git repo path)
 - Optional team membership for organizational grouping
@@ -190,7 +193,7 @@ Automatic import from Claude Code JSONL session files every 5 minutes. Per-agent
 
 ### Daemons
 
-Long-running processes managed by bcd. Support tmux and Docker runtimes with restart policies. Used for workspace infrastructure (databases, services, etc.).
+Long-running processes managed by the mycel server. Support tmux and Docker runtimes with restart policies. Used for workspace infrastructure (databases, services, etc.).
 
 ### Cron
 
@@ -207,7 +210,7 @@ System-level metrics (CPU, memory, disk, uptime, goroutines) and workspace summa
 ```mermaid
 sequenceDiagram
     participant CLI as mycel CLI
-    participant API as bcd API
+    participant API as mycel API
     participant Svc as Agent Service
     participant RT as Runtime
     participant DB as SQLite
@@ -251,7 +254,7 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     participant Claude as Claude Code
-    participant API as bcd API
+    participant API as mycel API
     participant DB as SQLite
     participant Hub as SSE Hub
 
@@ -268,14 +271,14 @@ sequenceDiagram
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
 | Per-project `.bc/` | Per-project directory | Each workspace has its own `.bc/` directory for config, agents, and state |
-| bc/bcd split | Thin CLI + daemon | CLI stays fast; daemon holds state and connections |
+| Single binary, CLI + server | `mycel up` runs the server | CLI stays fast; the server process holds state and connections |
 | SQLite WAL | Single database file | Zero-config, local-first, WAL for concurrent reads |
 | Embedded web UI | Single binary | No separate web server; version-locked to API |
 | SSE not WebSocket | Server-sent events | Simpler protocol, sufficient for one-way server push |
 | Teams as views | Decoupled, many-to-many | No lifecycle coupling; pure organization |
 | bc owns worktrees | All providers, uniform | Avoids nesting; consistent across Claude/Gemini/etc. |
 | tmux send-keys | Only delivery mechanism | Hooks are one-way; no other way into agent session |
-| No auth | Localhost only | Local dev tool; auth when remote access needed |
+| Auth optional | Localhost by default | Local dev tool; optional Bearer auth via `--api-key`/`BC_API_KEY` for anything beyond loopback |
 | MCP curated tools | Subset of API | Agents get key operations, not full admin |
 | INTEGER timestamps | Unix millis | Faster range queries, smaller storage than TEXT ISO8601 |
 | goose migrations | Versioned schema | Proper versioning, rollback support |

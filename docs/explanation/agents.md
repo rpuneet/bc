@@ -38,11 +38,13 @@ stateDiagram-v2
 
 ### Tmux
 
-Local tmux sessions. Named with random suffix to avoid collisions on restart:
+Local tmux sessions. Named with the `mycel-` prefix plus a short workspace
+hash for isolation between workspaces (sessions created before the rename
+under the legacy `bc-` prefix are still found via a reader-side fallback):
 
 ```
-bc-<random6>-<team>-<agent>
-Example: bc-a3f2c1-backend-eng-01
+mycel-<ws-hash6>-<agent>
+Example: mycel-a3f2c1-eng-01
 ```
 
 | Operation | Implementation |
@@ -60,12 +62,12 @@ Messages >500 chars use `load-buffer` + `paste-buffer`.
 Isolated containers with tmux inside. Same naming:
 
 ```
-bc-<random6>-<team>-<agent>
+mycel-<ws-hash6>-<agent>
 ```
 
 | Setting | Default |
 |---------|---------|
-| Image | `bc-agent-<tool>:latest` |
+| Image | `mycel-agent-<tool>:latest` (default: `mycel-agent-claude:latest`; legacy `bc-agent-*` images are used as a fallback) |
 | CPUs | 2.0 |
 | Memory | 2048 MB |
 | Network | bridge |
@@ -75,7 +77,13 @@ Communication: `docker exec ... tmux send-keys`.
 
 ## Worktree Management
 
-bc creates and manages git worktrees for ALL providers uniformly. No provider uses its own worktree flag (avoids nesting).
+mycel creates and manages git worktrees for ALL providers uniformly. No provider uses its own worktree flag (avoids nesting).
+
+Worktrees live under the workspace state directory at
+`agents/<name>/bc-<workspace>-<agent>/` (canonical:
+`~/.mycel/workspaces/<id>/agents/...`; legacy layouts keep them under the
+project's `.bc/agents/...`). They are created with `--detach`, so the agent
+checks out a detached HEAD and no branch is created for it.
 
 ### Flow
 
@@ -85,7 +93,7 @@ sequenceDiagram
     participant Git as git
     participant RT as Runtime
 
-    Svc->>Git: git worktree add ~/.bc/agents/<name>/worktree -b bc-<team>-<name>
+    Svc->>Git: git worktree add --detach <state-dir>/agents/<name>/bc-<workspace>-<name>
     Svc->>Svc: Write role files into worktree/.claude/
     Svc->>RT: cd <worktree> && <provider-command>
 ```
@@ -94,10 +102,10 @@ sequenceDiagram
 
 | Event | Worktree Action |
 |-------|-----------------|
-| Create | `git worktree add` from workspace repo |
+| Create | `git worktree prune` + `git worktree add --detach` from workspace repo |
 | Restart | `cd <existing-worktree> && <command>` (persists) |
 | Stop | Nothing — worktree stays |
-| Delete | `git worktree remove --force` + `git branch -D` |
+| Delete | `git worktree remove --force` (detached HEAD — no branch to delete) |
 
 ### Provider Commands
 
@@ -105,7 +113,7 @@ All started with `cd <worktree> && <command>`:
 
 | Provider | Command |
 |----------|---------|
-| Claude | `claude` (no `-w` — bc owns worktree) |
+| Claude | `claude` (no `-w` — mycel owns worktree) |
 | Gemini | `gemini` |
 | Cursor | `cursor-agent --force --print` |
 | Aider | `aider --yes` |
@@ -113,7 +121,7 @@ All started with `cd <worktree> && <command>`:
 
 ### Session Resume
 
-On stop, bc captures Claude's UUID from output (`claude --resume <uuid>` pattern). On restart:
+On stop, mycel captures Claude's UUID from output (`claude --resume <uuid>` pattern). On restart:
 
 ```
 cd <worktree> && claude --resume <uuid>
@@ -123,30 +131,34 @@ Validation: `len == 36 && sessionID[8] == '-'`.
 
 ## Roles
 
-Stored in `roles` table (SQLite). No markdown files on disk.
+Stored in the `roles` table. No markdown files on disk. The table is keyed
+by role name; MCP servers, parent roles, secrets, and plugins are JSON
+columns on the row itself (no join tables):
 
 ```mermaid
 erDiagram
-    roles ||--o{ role_mcp_servers : "has access to"
-    roles ||--o{ role_secrets : "can use"
     roles ||--o{ agents : "assigned to"
     roles {
-        text id PK
-        text name UK
-        blob prompt "CLAUDE.md content"
-        blob settings "JSON"
-        blob commands "JSON"
-        blob skills "JSON"
-        blob rules "JSON"
+        text name PK
+        text description
+        text prompt "CLAUDE.md content"
+        text mcp_servers "JSON array"
+        text parent_roles "JSON array (inheritance)"
+        text secrets "JSON array"
+        text plugins "JSON array"
     }
 ```
+
+Additional columns hold settings, rules, agents, skills, commands,
+lifecycle prompts (`prompt_create`/`prompt_start`/`prompt_stop`/
+`prompt_delete`), `review`, `cli_tools`, and timestamps.
 
 ### Role Setup on Agent Create
 
 1. Read role from DB
 2. Write CLAUDE.md from `roles.prompt` -> auth dir
 3. Write settings.json from `roles.settings` -> auth dir
-4. Write .mcp.json from `role_mcp_servers` -> auth dir
+4. Write .mcp.json from `roles.mcp_servers` -> auth dir
 5. Write command/skill/rule files from BLOBs -> worktree `.claude/`
 6. Resolve `${secret:NAME}` in MCP env vars
 
@@ -156,9 +168,9 @@ erDiagram
 |--------|------|--------|
 | POST | `/api/roles` | Create |
 | GET | `/api/roles` | List |
-| GET | `/api/roles/{id}` | Get with full prompt/settings |
-| PUT | `/api/roles/{id}` | Update |
-| DELETE | `/api/roles/{id}` | Delete (agents keep config) |
+| GET | `/api/roles/{name}` | Get with full prompt/settings |
+| PUT | `/api/roles/{name}` | Update |
+| DELETE | `/api/roles/{name}` | Delete (agents keep config) |
 
 ## Notification Delivery
 

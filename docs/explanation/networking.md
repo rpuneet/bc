@@ -4,12 +4,12 @@
 
 ```mermaid
 graph TB
-    CLI[mycel CLI] -->|HTTP REST| BCD[bcd :9374]
+    CLI[mycel CLI] -->|HTTP REST| BCD[mycel server :9374]
     WEB[Web UI] -->|HTTP + SSE| BCD
     TUI[TUI] -->|mycel CLI| CLI
     AGENT_MCP[AI Agents] -->|MCP stdio/SSE| BCD
 
-    BCD -->|SQL| DB[(~/.bc/bc.db)]
+    BCD -->|SQL| DB[(.bc/bc.db)]
     BCD -->|docker exec<br/>tmux send-keys| AGENTS[Agent Containers]
     BCD -->|SSE broadcast| WEB
     BCD -->|SSE broadcast| TUI
@@ -17,15 +17,15 @@ graph TB
     AGENTS -->|hook POST| BCD
 ```
 
-All communication flows through **bcd** as the central hub. No component talks directly to another.
+All communication flows through the **mycel server** as the central hub. No component talks directly to another.
 
 ## Protocol Reference
 
 | Interface | Protocol | Endpoint | Purpose |
 |-----------|----------|----------|---------|
-| REST API | HTTP/JSON | `/api/*` (68 endpoints) | CRUD for all resources |
+| REST API | HTTP/JSON | `/api/*` (see the [REST API reference](../reference/api-rest.md)) | CRUD for all resources |
 | SSE Events | HTTP SSE | `/api/events` | Real-time state updates |
-| MCP (stdio) | JSON-RPC 2.0 | stdin/stdout | Agent -> bcd integration |
+| MCP (stdio) | JSON-RPC 2.0 | stdin/stdout | Agent -> server integration |
 | MCP (SSE) | JSON-RPC 2.0 | `/mcp/sse` + `/mcp/message` | Remote MCP clients |
 | Health | HTTP | `/health` | Liveness probe |
 
@@ -65,7 +65,7 @@ Claude Code hooks fire on tool use start/stop, updating agent state:
 sequenceDiagram
     participant Claude as Claude Code
     participant Hook as Hook Script
-    participant API as bcd API
+    participant API as mycel API
     participant Hub as SSE Hub
     participant Web as Web UI
 
@@ -84,12 +84,12 @@ sequenceDiagram
 
 ## MCP Integration
 
-AI agents connect to bcd's MCP server to read workspace state and take actions:
+AI agents connect to the mycel server's MCP endpoint to read workspace state and take actions:
 
 ```mermaid
 sequenceDiagram
     participant Agent as Claude Code
-    participant MCP as bcd MCP Server
+    participant MCP as MCP Server
     participant Svc as Services
 
     Agent->>MCP: initialize (protocol handshake)
@@ -113,11 +113,13 @@ sequenceDiagram
 | **stdio** | `mycel mcp serve` via `.mcp.json` | Claude Code agents (local) |
 | **SSE** | `GET /_mcp/sse` + `POST /_mcp/message` (agent-scoped: `/_mcp/{agent}/sse\|message`) | Remote/browser MCP clients |
 
-Both have a 4MB message size limit.
+Messages sent over the SSE transport go through the server's global HTTP
+middleware, so they are subject to the **1 MB** request body cap
+(`MaxBodySize`). The stdio transport has no such cap.
 
 ## SSE Event System
 
-bcd maintains an in-memory SSE hub. All connected clients (web UI, TUI) receive real-time events.
+The mycel server maintains an in-memory SSE hub. All connected clients (web UI, TUI) receive real-time events.
 
 ```mermaid
 graph LR
@@ -181,7 +183,7 @@ All responses use `Content-Type: application/json`.
 - **Methods**: GET, POST, PUT, PATCH, DELETE, OPTIONS
 - **Headers**: Content-Type, Authorization
 
-Wildcard CORS is acceptable because bcd binds to `127.0.0.1` by default. When exposed beyond loopback (Docker `0.0.0.0`), CORS should be restricted.
+Wildcard CORS is acceptable because the server binds to `127.0.0.1` by default. When exposed beyond loopback (Docker `0.0.0.0`), CORS should be restricted and API-key auth enabled (`mycel up --api-key`).
 
 ## Connection Lifecycle
 
@@ -202,7 +204,7 @@ Wildcard CORS is acceptable because bcd binds to `127.0.0.1` by default. When ex
 
 | Port | Service | Binding |
 |------|---------|---------|
-| 9374 | bcd (REST + SSE + MCP + Web UI) | `127.0.0.1` (default) |
-| 5432 | bcdb (PostgreSQL) | `127.0.0.1` |
+| 9374 | mycel server (REST + SSE + MCP + Web UI) | `127.0.0.1` (default) |
+| 5432 | bc-db (TimescaleDB/Postgres, optional) | `127.0.0.1` |
 
-Single port for bcd serves everything: REST API, SSE events, MCP protocol, and embedded web UI (SPA with client-side routing).
+A single port serves everything: REST API, SSE events, MCP protocol, and embedded web UI (SPA with client-side routing).
