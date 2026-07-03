@@ -7,6 +7,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-07-03
+
+### Renamed
+- **Docker image tags**: `bc-agent-*` → `mycel-agent-*` (base/claude/gemini/codex/cursor/infra). Every agent build target dual-tags the produced image so pre-v0.3.1 configs that still reference `bc-agent-*` keep working for one release cycle (#3187 pt 1, #3197).
+- **tmux session + Docker container prefix**: `bc-<hash>-<name>` → `mycel-<hash>-<name>`. Reader-side legacy fallback (`Manager.HasSession` / `Manager.ListSessions` / `Backend.ListSessions`) still finds `bc-<hash>-*` sessions and containers, so upgraded workspaces don't lose pre-existing agents (#3187 pt 2, #3198).
+
+### Added
+- **RFC 8594 Deprecation headers** on `POST /api/gateways/{platform}/channels/{channel}/send` — signals the endpoint's sunset (target v0.4.0) so callers can migrate to per-agent platform SDKs. See #3178 for the tracking epic (#3201).
+- **Theme tokens** — `--mycel-accent-fg`, `--mycel-text-2`, `--mycel-live` per theme, wired through `tailwind.config.ts` so the brand tile stays readable across Solar Flare, Dark, and Light and the pulsing "live" indicator follows the theme (#3202).
+
+### Changed
+- **Web: consolidated 6 divergent time-format helpers** into `web/src/utils/time.ts` (`formatRelative` / `formatAbsolute` / `formatDuration`); 16 new colocated tests (#3181, #3199).
+- **Web: header + drawer alignment** — both use 48px min-height. Active nav item now uses `bg-mycel-surface-hover`; section labels + workspace caption bumped from 9px @ 40% opacity to 10px muted (#3203, #3202).
+- **Web: sidebar flattened** — `GLOBAL`/`SYSTEM` section headers removed. Costs merged into main nav; Settings moved to footer next to About + theme toggle (#3205 P1a, #3208).
+- **Web: workspace pill removed from header** on interior pages. `WorkspaceDropdown` stays mounted in a visually-hidden slot so `Cmd/Ctrl+Shift+W` still opens the switcher (#3205 P1b, #3209).
+- **Web: `(show) stopped` promoted** to an explicit `☐ Include stopped (N)` toggle pill with `aria-pressed` (#3205 P1b, #3209).
+- **Web: KPI row hierarchy** — Working at 26px, other cells 20px; Errored column hidden when 0; zero-value cells dimmed. Semantic tokens replace hard-coded Tailwind hues (#3205 P1d, #3210).
+- **Web: chart palette follows the theme accent** — replaced hard-coded solar-flare tangerine `#FF6B35` with `var(--mycel-accent)` in every chart (#3204).
+- **Web: `$0.00` cost cells muted** — accent only when `cost > 0` (#3205 P0.1, #3206).
+- **Web: CSS namespace sweep** — `Stats.tsx` + `StatsTab.tsx` corrected from incorrect `var(--color-mycel-*)` to canonical `--mycel-*` (#3205 P0.3, #3206).
+
+### Fixed
+- **Metrics CPU chart rendered empty despite data.** Two independent bugs: (a) `server/stats_collector.go` still keyed `isAgentContainer` / `isSystemContainer` / `extractAgentName` on the `bc-` prefix so docker-runtime agents stopped being classified post-rename; (b) `pivotAgentMetric` left `undefined` for agents with sample gaps, collapsing the stacked area to the baseline. Both fixed + unit tests (#3182, #3200).
+- **CPU chart y-axis + tooltip** — un-stacked, auto-scale with `min 5%`, per-agent tooltip (#3205 P0.2, #3207).
+- **npm CD pipeline** — `--allow-same-version` on `npm version` so the tag drives the publish, not the working tree (#3196).
+- **`Layout.tsx` hex fallbacks** — 15 inline styles dropped their `#rrggbb` fallbacks; the tokens are always defined so the fallback was silently painting Solar Flare hex under Dark for the first paint (#3205 P0.4, #3206).
+- **Stats INFRA filter** — includes `mycel-*` prefixes alongside legacy `bc-*` (#3205, #3206).
+- **`Live` SSE indicator** — dot color tokenized (`bg-mycel-success/warning/error`) instead of raw Tailwind hues (#3206).
+- **`GatewayFeed` hover states** — five `hover:bg-white/[…]` sites invisible under Light theme; now `hover:bg-mycel-surface-hover` (#3202).
+
+### Deferred to v0.3.2
+- **#3178 phase 2** — per-agent outbound tools (`slack_post`, `telegram_send`, `discord_send`, `whatsapp_send`).
+- **#3205 P1c** — Live event row visual simplification (collapse dual status dots, defer avg/ok-ratio behind expand).
+- **#3205 P2 + P3** — chart palette rework, interactive legend, global focus-ring token, remaining opacity sprinkle cleanup.
+
 ## [0.3.0] - 2026-07-02
 
 ### Renamed
