@@ -106,6 +106,35 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* ── Global keyboard focus ring — WCAG 2.4.7 ─────────────────────────
+   Every interactive element gets a visible focus ring on keyboard
+   focus. Uses `:focus-visible` so mouse-driven focus stays clean but
+   Tab / Shift+Tab traversal is always discoverable. Token pair:
+     - --mycel-focus-ring:        2px accent outline
+     - --mycel-focus-ring-offset: 1px offset so the ring reads even on
+                                  filled surfaces
+   #3205 P2. */
+:root {
+  --mycel-focus-ring: 0 0 0 2px var(--mycel-accent);
+  --mycel-focus-ring-offset: 0 0 0 3px var(--mycel-bg);
+}
+:focus {
+  outline: none;
+}
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[role="button"]:focus-visible,
+[role="link"]:focus-visible,
+[role="menuitem"]:focus-visible,
+[tabindex]:focus-visible {
+  outline: none;
+  box-shadow: var(--mycel-focus-ring-offset), var(--mycel-focus-ring);
+  border-radius: 4px;
+}
+
 /* Smooth theme transitions */
 *,
 *::before,

@@ -138,8 +138,19 @@ export function getRoleColor(role: string | undefined): { bg: string; text: stri
 }
 
 /**
- * Generate a consistent HSL color for an agent name.
- * Each agent gets a unique hue derived from their name hash.
+ * Generate a consistent color for an agent name.
+ *
+ * The first agent (by hash bucket 0) uses the *theme accent* so the
+ * chart's most prominent series feels native to whatever theme is
+ * active (tangerine under Solar Flare / Light, emerald under Dark).
+ * The remaining agents draw from a hue palette chosen to stay
+ * distinguishable across dark and light backgrounds — pastels are
+ * avoided since they collapse into the muted grays on light theme.
+ *
+ * Cache is intentionally global — two different renders should give
+ * the same agent the same color. Theme changes don't invalidate the
+ * cache since the theme-accent slot is a `var(--mycel-accent)` string,
+ * not a resolved hex.
  */
 const AGENT_COLOR_CACHE = new Map<string, string>();
 
@@ -157,14 +168,22 @@ function hashString(s: string): number {
 
 export function agentColor(name: string): string {
   if (AGENT_COLOR_CACHE.has(name)) return AGENT_COLOR_CACHE.get(name)!;
-  const hue = AGENT_HUES[hashString(name) % AGENT_HUES.length];
-  const color = `hsl(${hue}, 65%, 65%)`;
+  const bucket = hashString(name) % (AGENT_HUES.length + 1);
+  // Bucket 0 = theme accent so charts feel native to whichever theme is
+  // active. Any other bucket draws from the fixed hue palette.
+  const color = bucket === 0
+    ? "var(--mycel-accent)"
+    : `hsl(${AGENT_HUES[(bucket - 1) % AGENT_HUES.length]}, 65%, 65%)`;
   AGENT_COLOR_CACHE.set(name, color);
   return color;
 }
 
 export function agentColorMuted(name: string): string {
-  const hue = AGENT_HUES[hashString(name) % AGENT_HUES.length];
+  const bucket = hashString(name) % (AGENT_HUES.length + 1);
+  if (bucket === 0) {
+    return "color-mix(in srgb, var(--mycel-accent) 10%, transparent)";
+  }
+  const hue = AGENT_HUES[(bucket - 1) % AGENT_HUES.length];
   return `hsla(${hue}, 40%, 50%, 0.08)`;
 }
 
