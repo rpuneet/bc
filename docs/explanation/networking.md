@@ -100,8 +100,8 @@ sequenceDiagram
     Svc->>MCP: Agent data
     MCP->>Agent: JSON response
 
-    Agent->>MCP: tools/call create_agent
-    MCP->>Svc: Create + start agent
+    Agent->>MCP: tools/call send_message
+    MCP->>Svc: Send to gateway channel
     Svc->>MCP: Result
     MCP->>Agent: Tool result
 ```
@@ -110,8 +110,8 @@ sequenceDiagram
 
 | Transport | Connection | Use Case |
 |-----------|-----------|----------|
-| **stdio** | `bc mcp serve` via `.mcp.json` | Claude Code agents (local) |
-| **SSE** | `GET /mcp/sse` + `POST /mcp/message` | Remote/browser MCP clients |
+| **stdio** | `mycel mcp serve` via `.mcp.json` | Claude Code agents (local) |
+| **SSE** | `GET /_mcp/sse` + `POST /_mcp/message` (agent-scoped: `/_mcp/{agent}/sse\|message`) | Remote/browser MCP clients |
 
 Both have a 4MB message size limit.
 

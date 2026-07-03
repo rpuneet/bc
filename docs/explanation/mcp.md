@@ -2,7 +2,7 @@
 
 ## Overview
 
-bc exposes a Model Context Protocol (MCP) server so AI agents can read state and take actions. Protocol version: `2024-11-05`.
+mycel exposes a Model Context Protocol (MCP) server so AI agents can read workspace state and communicate through gateway channels. Protocol version: `2024-11-05`.
 
 ## Transports
 
@@ -24,83 +24,75 @@ graph LR
 
 | Transport | Entry | Limit | Use Case |
 |-----------|-------|-------|----------|
-| stdio | `bc mcp serve` | 4MB/line | Claude Code direct via .mcp.json |
-| SSE | `/mcp/sse` + `/mcp/message` | 4MB body | Browser clients, remote |
+| stdio | `mycel mcp serve` | 4MB/line | Claude Code direct via .mcp.json |
+| SSE (bcd) | `/_mcp/sse` + `/_mcp/message` | 4MB body | Browser clients, remote |
+| SSE (agent-scoped) | `/_mcp/{agent}/sse` + `/_mcp/{agent}/message` | 4MB body | Agents with server-side identity |
+| SSE (standalone) | `mycel mcp serve --sse` (default `:8811`) | 4MB body | Without a running bcd |
+
+## Sender Identity
+
+The sender identity for outbound tools (`send_message`, `send_file`) is derived server-side from the authenticated SSE connection — either the agent-scoped path `/_mcp/{agent}/...` or the `?agent=` query param on the SSE URL. A client-supplied `sender` value is advisory only: if it disagrees with the connection's agent identity, the server logs a warning and overrides it (spoofing fix, issue #2967). Only unauthenticated legacy connections fall back to the client value.
 
 ## Resources (read-only)
 
 | URI | Description |
 |-----|-------------|
-| `bc://agents` | All agents with state, role, tool, workspace |
-| `bc://agents/{name}` | Single agent detail + recent output |
-| `bc://teams` | Team hierarchy tree |
-| `bc://channels` | All channels with member counts |
-| `bc://channels/{name}/history` | Last 50 messages |
-| `bc://costs` | Workspace + per-agent + per-model breakdown |
-| `bc://roles` | Available roles with MCP/secret associations |
-| `bc://tools` | AI tools with availability check |
-| `bc://status` | System status summary |
+| `bc://workspace/status` | Workspace name, path, state dir, agents dir |
+| `bc://agents` | All agents with state, role, tool, team, worktree, session |
+| `bc://channels` | Channels (currently returns an empty list — channels are managed by pkg/notify) |
+| `bc://costs` | Workspace + per-agent cost/token breakdown |
+| `bc://roles` | Available roles with MCP server and secret associations |
+| `bc://tools` | AI tools (claude, gemini, cursor, codex) with PATH availability check |
 
-## Tools (curated actions)
-
-### Agent Management
-
-| Tool | Args | Description |
-|------|------|-------------|
-| `create_agent` | name, role, workspace, tool, team | Create and start agent |
-| `stop_agent` | name | Stop running agent |
-| `delete_agent` | name, force | Delete + cleanup worktree |
-| `send_to_agent` | name, message | Send text to session |
-| `list_agents` | role, state | List with filters |
+## Tools
 
 ### Communication
 
 | Tool | Args | Description |
 |------|------|-------------|
-| `send_message` | channel, message, sender | Post to channel, triggers delivery |
-| `list_channels` | — | List all channels |
-| `read_channel` | channel, limit | Read recent messages |
+| `send_message` | channel, message, sender? | Send text to a gateway channel (e.g., `slack:eng`); sender defaults to the authenticated agent identity |
+| `send_file` | channel, file_path, comment? | Upload a file (max 50MB, path must be under the workspace root or /tmp) to a gateway channel |
+| `list_channels` | — | List all gateway channels with platform |
+| `read_channel` | channel, limit? | Read recent messages (default 20) |
 
-### Status & Costs
-
-| Tool | Args | Description |
-|------|------|-------------|
-| `report_status` | agent, task | Update task description |
-| `query_costs` | agent, team, period | Query cost data |
-
-### Scheduling
+### Identity & Agents
 
 | Tool | Args | Description |
 |------|------|-------------|
-| `create_cron` | name, schedule, agent, prompt | Schedule recurring task |
-| `list_crons` | — | List scheduled jobs |
+| `whoami` | — | Current agent's identity, workspace, role, state, and task |
+| `list_agents` | role? | List workspace agents with status and role, optionally filtered by role |
+
+Tool arguments have per-field length caps enforced at handler entry (64KB for message/comment, 256B for channel/sender/role, 4KB for file_path) since the `/_mcp/*` routes are exempt from the global body-size middleware.
 
 ## Notifications
 
 | Method | Trigger |
 |--------|---------|
-| `notifications/message` | New channel message |
-| `notifications/agent_state` | Agent state change |
+| `notifications/message` | New channel message (channel, sender, message, time) |
 
-Channel polling uses message ID watermarks (not array length) to avoid the >100 message bug.
+Delivery is push-based: the notify service's `OnMessage` callback publishes directly to the SSE broker — there is no polling loop.
 
 ## External MCP Server Management
 
-bc manages MCP servers that agents connect to (Playwright, GitHub, etc.):
+mycel manages MCP servers that agents connect to (Playwright, GitHub, etc.):
 
-- Stored in `mcp_servers` table
-- Associated with roles via `role_mcp_servers`
+- Managed via `mycel mcp add|list|show|remove|enable|disable`
+- Stored in the `mcp_servers` table
+- Referenced by roles via the `mcp_servers` list in role metadata (`.bc/roles/*.md`)
 - Env vars support `${secret:NAME}`
 - Written to agent `.mcp.json` during role setup
+
+`mycel mcp register` adds mycel itself as an MCP server in the workspace preferences so agents automatically get the tools above (stdio by default, `--sse` for the SSE endpoint).
 
 ## Code Map
 
 | File | Purpose |
 |------|---------|
-| `server/mcp/server.go` | Server, dispatcher, polling |
+| `server/mcp/server.go` | Server, dispatcher, notifications |
 | `server/mcp/protocol.go` | JSON-RPC 2.0 types |
-| `server/mcp/tools.go` | Tool implementations |
+| `server/mcp/tools.go` | Tool definitions + implementations |
 | `server/mcp/resources.go` | Resource readers |
-| `server/mcp/sse.go` | SSE transport + broker |
+| `server/mcp/sse.go` | SSE transport + broker, agent-scoped routing |
 | `server/mcp/stdio.go` | stdio transport |
+| `internal/cmd/mcp.go` | `mycel mcp` CLI (add, serve, register, ...) |
 | `pkg/mcp/store.go` | External MCP config storage |

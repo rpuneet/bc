@@ -114,10 +114,12 @@ Resources exposed:
   bc://tools              Available AI agent tools
 
 Tools available:
-  create_agent     Create a new agent in the workspace
   send_message     Send a message to a channel
-  report_status    Update an agent's current task
-  query_costs      Query cost usage
+  send_file        Upload a file to a channel
+  list_channels    List all channels
+  read_channel     Read recent messages from a channel
+  list_agents      List agents in the workspace
+  whoami           Show the calling agent's identity
 
 Examples:
   mycel mcp serve                    # stdio — use in Claude Code settings.json
