@@ -7,6 +7,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.5] - 2026-07-03
+
+Follow-through on the workspace-as-property and
+notifications-are-a-stream arcs started in v0.3.4.
+
+### Removed
+- **WorkspaceDropdown / WorkspacePicker / activate flow** — workspace
+  is a property on the agent, not something the user "switches to",
+  so a switcher was a UX contradiction. Sidebar chip drops its
+  `workspace` subtitle. `Cmd/Ctrl+Shift+W` shortcut retired.
+- **`WorkspaceContext.activate()`** — the dropdown was its only
+  caller. Server-side `POST /api/workspaces/<id>/activate` remains
+  for external callers but is no longer invoked by the SPA.
+- **Client `X-BC-Workspace` header** — routing to a workspace uses
+  `?workspace=<id>` explicitly when needed (currently only for
+  `POST /api/agents` from the new-agent modal).
+
+### Changed
+- **Agents page — default group = workspace** (was: repo). Toggle
+  reads/writes `mycel-agents-group-by-workspace` in localStorage and
+  disables when every visible agent shares one workspace. Group
+  header caption is the workspace path (home-collapsed to `~/…`).
+- **New-agent modal — required Workspace select.** Populated from
+  `GET /api/workspaces`; defaults to the current active workspace;
+  submit hits `POST /api/agents?workspace=<selectedId>`. Can't
+  create an agent without picking a workspace.
+- **Notifications page — replaced `GatewayFeed` chat surface with
+  `ChannelStream`.** New page shows:
+  1. **Subscriptions** table — subscribed agents, `all messages` vs
+     `@-mentions only`, since-when, per-row unsubscribe.
+  2. **Delivery log** — most recent inbound-delivery attempts with
+     status dot (delivered/failed/pending), agent, error, content
+     preview, timestamp. Delivered / failed counts in the header.
+  3. **Outbound note** — link to the outbound cookbook, since mycel
+     does not proxy replies back to the platform.
+  No composer, no message-history threading, no reactions, no
+  avatars — this is a routing + observability surface.
+
 ## [0.3.4] - 2026-07-03
 
 Direction correction. Two decisions surfaced during the v0.3.3
