@@ -49,6 +49,7 @@ const defaultAddr = "127.0.0.1:9374"
 
 // BuildInfo holds build-time metadata injected via ldflags.
 type BuildInfo struct {
+	Version string // semantic version tag (e.g. "0.3.1"), or "dev" for source builds
 	Commit  string // short git commit hash
 	BuiltAt string // UTC build timestamp (RFC 3339)
 }
@@ -202,7 +203,13 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 				}
 			}
 		}
-		fmt.Fprintf(w, `{"status":"ok","db":"ok","version":%q}`, cfg.Build.Commit) //nolint:errcheck
+		// version = semver tag when available (release builds), else commit
+		// hash so source builds still round-trip a meaningful identifier.
+		v := cfg.Build.Version
+		if v == "" || v == "dev" {
+			v = cfg.Build.Commit
+		}
+		fmt.Fprintf(w, `{"status":"ok","db":"ok","version":%q,"commit":%q}`, v, cfg.Build.Commit) //nolint:errcheck
 	}
 	mux.HandleFunc("/api/health", apiHealth)
 	mux.HandleFunc("/healthz", apiHealth)

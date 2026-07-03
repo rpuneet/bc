@@ -351,7 +351,7 @@ export function Stats() {
                 <YAxis tick={TICK_STYLE} {...AX} />
                 <Tooltip contentStyle={TT} formatter={(v) => [`${Number(v ?? 0).toFixed(1)} MB`]} />
                 {memChart.agents.map((n) => (
-                  <Area key={n} type="monotone" dataKey={n} stroke={agentColors[n] ?? COLORS[0]} fill={agentColors[n] ?? COLORS[0]} fillOpacity={0.12} strokeWidth={1.5} dot={false} stackId="mem" />
+                  <Area key={n} type="monotone" dataKey={n} stroke={agentColors[n] ?? COLORS[0]} fill={agentColors[n] ?? COLORS[0]} fillOpacity={0.20} strokeWidth={1.75} dot={false} stackId="mem" />
                 ))}
               </AreaChart>
             </ResponsiveContainer>
@@ -369,8 +369,8 @@ export function Stats() {
                 <XAxis dataKey="time" tick={TICK_STYLE} {...AX} />
                 <YAxis tick={TICK_STYLE} {...AX} tickFormatter={(v: number) => fmtTokens(v)} />
                 <Tooltip contentStyle={TT} formatter={(v, n) => [Number(v ?? 0).toLocaleString(), n === "input" ? "Input" : "Output"]} />
-                <Area type="monotone" dataKey="input" name="Input" stroke="#3B82F6" fill="#3B82F6" fillOpacity={0.12} strokeWidth={1.5} stackId="1" dot={false} />
-                <Area type="monotone" dataKey="output" name="Output" stroke={ACCENT} fill={ACCENT} fillOpacity={0.12} strokeWidth={1.5} stackId="1" dot={false} />
+                <Area type="monotone" dataKey="input" name="Input" stroke="#3B82F6" fill="#3B82F6" fillOpacity={0.20} strokeWidth={1.75} stackId="1" dot={false} />
+                <Area type="monotone" dataKey="output" name="Output" stroke={ACCENT} fill={ACCENT} fillOpacity={0.20} strokeWidth={1.75} stackId="1" dot={false} />
               </AreaChart>
             </ResponsiveContainer>
           )}
@@ -400,8 +400,8 @@ export function Stats() {
                 <XAxis dataKey="time" tick={TICK_STYLE} {...AX} />
                 <YAxis tick={TICK_STYLE} {...AX} tickFormatter={(v: number) => fmtBytes(v)} />
                 <Tooltip contentStyle={TT} formatter={(v) => [fmtBytes(Number(v ?? 0))]} />
-                <Area type="monotone" dataKey="rx" name="RX" stroke="#10B981" fill="#10B981" fillOpacity={0.12} strokeWidth={1.5} dot={false} />
-                <Area type="monotone" dataKey="tx" name="TX" stroke={ACCENT} fill={ACCENT} fillOpacity={0.12} strokeWidth={1.5} dot={false} />
+                <Area type="monotone" dataKey="rx" name="RX" stroke="#10B981" fill="#10B981" fillOpacity={0.20} strokeWidth={1.75} dot={false} />
+                <Area type="monotone" dataKey="tx" name="TX" stroke={ACCENT} fill={ACCENT} fillOpacity={0.20} strokeWidth={1.75} dot={false} />
               </AreaChart>
             </ResponsiveContainer>
           )}
@@ -414,8 +414,8 @@ export function Stats() {
                 <XAxis dataKey="time" tick={TICK_STYLE} {...AX} />
                 <YAxis tick={TICK_STYLE} {...AX} tickFormatter={(v: number) => fmtBytes(v)} />
                 <Tooltip contentStyle={TT} formatter={(v) => [fmtBytes(Number(v ?? 0))]} />
-                <Area type="monotone" dataKey="read" name="Read" stroke="#3B82F6" fill="#3B82F6" fillOpacity={0.12} strokeWidth={1.5} dot={false} />
-                <Area type="monotone" dataKey="write" name="Write" stroke="#A855F7" fill="#A855F7" fillOpacity={0.12} strokeWidth={1.5} dot={false} />
+                <Area type="monotone" dataKey="read" name="Read" stroke="#3B82F6" fill="#3B82F6" fillOpacity={0.20} strokeWidth={1.75} dot={false} />
+                <Area type="monotone" dataKey="write" name="Write" stroke="#A855F7" fill="#A855F7" fillOpacity={0.20} strokeWidth={1.75} dot={false} />
               </AreaChart>
             </ResponsiveContainer>
           )}
@@ -447,8 +447,8 @@ export function Stats() {
                 <XAxis dataKey="time" tick={TICK_STYLE} {...AX} />
                 <YAxis tick={TICK_STYLE} {...AX} tickFormatter={(v: number) => fmtTokens(v)} />
                 <Tooltip contentStyle={TT} formatter={(v, n) => [fmtTokens(Number(v ?? 0)), n === "cache_read" ? "Cache Read" : "Cache Create"]} />
-                <Area type="monotone" dataKey="cache_read" name="Cache Read" stroke="#10B981" fill="#10B981" fillOpacity={0.12} strokeWidth={1.5} dot={false} />
-                <Area type="monotone" dataKey="cache_create" name="Cache Create" stroke="#F59E0B" fill="#F59E0B" fillOpacity={0.12} strokeWidth={1.5} dot={false} />
+                <Area type="monotone" dataKey="cache_read" name="Cache Read" stroke="#10B981" fill="#10B981" fillOpacity={0.20} strokeWidth={1.75} dot={false} />
+                <Area type="monotone" dataKey="cache_create" name="Cache Create" stroke="#F59E0B" fill="#F59E0B" fillOpacity={0.20} strokeWidth={1.75} dot={false} />
               </AreaChart>
             </ResponsiveContainer>
           )}
