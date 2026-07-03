@@ -14,6 +14,12 @@
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from 'bun:test';
 import { execSync, spawn, type ChildProcess } from 'child_process';
+
+// Isolated tmux server socket: without -L, tests attach to the developer's
+// running tmux server, whose client size overrides the -x/-y dimensions
+// requested here (80x24 sessions come back 184x48). A dedicated socket
+// gives the tests their own server with exactly the geometry they ask for.
+const TMUX_SOCKET = 'mycel-tui-tests';
 import { join } from 'path';
 
 // Test configuration
@@ -56,7 +62,7 @@ function generateSessionName(): string {
  * Create a tmux session with specific dimensions
  */
 function createSession(name: string, width: number, height: number): void {
-  execSync(`tmux new-session -d -s ${name} -x ${width} -y ${height}`, { stdio: 'pipe' });
+  execSync(`tmux -L ${TMUX_SOCKET} new-session -d -s ${name} -x ${width} -y ${height}`, { stdio: 'pipe' });
 }
 
 /**
@@ -64,7 +70,7 @@ function createSession(name: string, width: number, height: number): void {
  */
 function killSession(name: string): void {
   try {
-    execSync(`tmux kill-session -t ${name}`, { stdio: 'pipe' });
+    execSync(`tmux -L ${TMUX_SOCKET} kill-session -t ${name}`, { stdio: 'pipe' });
   } catch {
     // Session may already be dead
   }
@@ -76,7 +82,7 @@ function killSession(name: string): void {
 function runTuiInSession(name: string): ChildProcess {
   const tuiPath = join(__dirname, '../../..', 'dist', 'index.js');
   const cmd = `cd ${join(__dirname, '../../..')} && node ${tuiPath}`;
-  execSync(`tmux send-keys -t ${name} '${cmd}' Enter`, { stdio: 'pipe' });
+  execSync(`tmux -L ${TMUX_SOCKET} send-keys -t ${name} '${cmd}' Enter`, { stdio: 'pipe' });
 
   // Return dummy process for interface compatibility
   return spawn('sleep', ['0']);
@@ -88,14 +94,14 @@ function runTuiInSession(name: string): ChildProcess {
 function sendKeys(name: string, keys: string): void {
   // Escape special characters for tmux
   const escaped = keys.replace(/'/g, "'\"'\"'").replace(/\\/g, '\\\\');
-  execSync(`tmux send-keys -t ${name} '${escaped}'`, { stdio: 'pipe' });
+  execSync(`tmux -L ${TMUX_SOCKET} send-keys -t ${name} '${escaped}'`, { stdio: 'pipe' });
 }
 
 /**
  * Send a literal key (like Enter, Escape, etc)
  */
 function sendLiteralKey(name: string, key: string): void {
-  execSync(`tmux send-keys -t ${name} ${key}`, { stdio: 'pipe' });
+  execSync(`tmux -L ${TMUX_SOCKET} send-keys -t ${name} ${key}`, { stdio: 'pipe' });
 }
 
 /**
@@ -103,7 +109,7 @@ function sendLiteralKey(name: string, key: string): void {
  */
 function captureScreen(name: string): string {
   try {
-    return execSync(`tmux capture-pane -t ${name} -p`, { encoding: 'utf-8' });
+    return execSync(`tmux -L ${TMUX_SOCKET} capture-pane -t ${name} -p`, { encoding: 'utf-8' });
   } catch {
     return '';
   }
@@ -149,7 +155,7 @@ describe.skipIf(shouldSkip)('TUI tmux Integration', () => {
   describe('Session Setup', () => {
     it('creates tmux session with correct dimensions', () => {
       const info = execSync(
-        `tmux display-message -t ${sessionName} -p '#{window_width}x#{window_height}'`,
+        `tmux -L ${TMUX_SOCKET} display-message -t ${sessionName} -p '#{window_width}x#{window_height}'`,
         {
           encoding: 'utf-8',
         }
@@ -161,11 +167,11 @@ describe.skipIf(shouldSkip)('TUI tmux Integration', () => {
   describe('Keybinding Verification', () => {
     it('q key sends quit signal', async () => {
       // Start a simple shell process
-      execSync(`tmux send-keys -t ${sessionName} 'cat' Enter`, { stdio: 'pipe' });
+      execSync(`tmux -L ${TMUX_SOCKET} send-keys -t ${sessionName} 'cat' Enter`, { stdio: 'pipe' });
       await new Promise((r) => setTimeout(r, 100));
 
       // Send Ctrl+C to stop cat
-      execSync(`tmux send-keys -t ${sessionName} C-c`, { stdio: 'pipe' });
+      execSync(`tmux -L ${TMUX_SOCKET} send-keys -t ${sessionName} C-c`, { stdio: 'pipe' });
       await new Promise((r) => setTimeout(r, 100));
 
       const screen = captureScreen(sessionName);
@@ -175,7 +181,7 @@ describe.skipIf(shouldSkip)('TUI tmux Integration', () => {
 
     it('number keys are captured correctly', async () => {
       // Use cat to capture keystrokes
-      execSync(`tmux send-keys -t ${sessionName} 'cat' Enter`, { stdio: 'pipe' });
+      execSync(`tmux -L ${TMUX_SOCKET} send-keys -t ${sessionName} 'cat' Enter`, { stdio: 'pipe' });
       await new Promise((r) => setTimeout(r, 100));
 
       // Send number keys
@@ -186,12 +192,12 @@ describe.skipIf(shouldSkip)('TUI tmux Integration', () => {
       expect(screen).toContain('12345');
 
       // Cleanup
-      execSync(`tmux send-keys -t ${sessionName} C-c`, { stdio: 'pipe' });
+      execSync(`tmux -L ${TMUX_SOCKET} send-keys -t ${sessionName} C-c`, { stdio: 'pipe' });
     });
 
     it('j and k keys are captured correctly', async () => {
       // Use cat to capture keystrokes
-      execSync(`tmux send-keys -t ${sessionName} 'cat' Enter`, { stdio: 'pipe' });
+      execSync(`tmux -L ${TMUX_SOCKET} send-keys -t ${sessionName} 'cat' Enter`, { stdio: 'pipe' });
       await new Promise((r) => setTimeout(r, 100));
 
       sendKeys(sessionName, 'jjkkjk');
@@ -201,7 +207,7 @@ describe.skipIf(shouldSkip)('TUI tmux Integration', () => {
       expect(screen).toContain('jjkkjk');
 
       // Cleanup
-      execSync(`tmux send-keys -t ${sessionName} C-c`, { stdio: 'pipe' });
+      execSync(`tmux -L ${TMUX_SOCKET} send-keys -t ${sessionName} C-c`, { stdio: 'pipe' });
     });
   });
 
@@ -212,7 +218,7 @@ describe.skipIf(shouldSkip)('TUI tmux Integration', () => {
 
       try {
         const info = execSync(
-          `tmux display-message -t ${compactSession} -p '#{window_width}x#{window_height}'`,
+          `tmux -L ${TMUX_SOCKET} display-message -t ${compactSession} -p '#{window_width}x#{window_height}'`,
           {
             encoding: 'utf-8',
           }
@@ -229,7 +235,7 @@ describe.skipIf(shouldSkip)('TUI tmux Integration', () => {
 
       try {
         const info = execSync(
-          `tmux display-message -t ${wideSession} -p '#{window_width}x#{window_height}'`,
+          `tmux -L ${TMUX_SOCKET} display-message -t ${wideSession} -p '#{window_width}x#{window_height}'`,
           {
             encoding: 'utf-8',
           }
@@ -243,7 +249,7 @@ describe.skipIf(shouldSkip)('TUI tmux Integration', () => {
 
   describe('Paste Buffer', () => {
     it('handles short text via send-keys', async () => {
-      execSync(`tmux send-keys -t ${sessionName} 'cat' Enter`, { stdio: 'pipe' });
+      execSync(`tmux -L ${TMUX_SOCKET} send-keys -t ${sessionName} 'cat' Enter`, { stdio: 'pipe' });
       await new Promise((r) => setTimeout(r, 100));
 
       const shortText = 'Hello, World!';
@@ -253,7 +259,7 @@ describe.skipIf(shouldSkip)('TUI tmux Integration', () => {
       const screen = captureScreen(sessionName);
       expect(screen).toContain(shortText);
 
-      execSync(`tmux send-keys -t ${sessionName} C-c`, { stdio: 'pipe' });
+      execSync(`tmux -L ${TMUX_SOCKET} send-keys -t ${sessionName} C-c`, { stdio: 'pipe' });
     });
   });
 });
@@ -273,7 +279,7 @@ describe.skipIf(shouldSkip)('TUI Navigation Integration', () => {
   describe('Drawer Navigation', () => {
     it('j key moves highlight down (verified via keystroke capture)', async () => {
       // This test verifies the keystrokes are properly sent to tmux
-      execSync(`tmux send-keys -t ${sessionName} 'cat' Enter`, { stdio: 'pipe' });
+      execSync(`tmux -L ${TMUX_SOCKET} send-keys -t ${sessionName} 'cat' Enter`, { stdio: 'pipe' });
       await new Promise((r) => setTimeout(r, 100));
 
       // Simulate drawer navigation
@@ -283,11 +289,11 @@ describe.skipIf(shouldSkip)('TUI Navigation Integration', () => {
       const screen = captureScreen(sessionName);
       expect(screen).toContain('jjj');
 
-      execSync(`tmux send-keys -t ${sessionName} C-c`, { stdio: 'pipe' });
+      execSync(`tmux -L ${TMUX_SOCKET} send-keys -t ${sessionName} C-c`, { stdio: 'pipe' });
     });
 
     it('k key moves highlight up (verified via keystroke capture)', async () => {
-      execSync(`tmux send-keys -t ${sessionName} 'cat' Enter`, { stdio: 'pipe' });
+      execSync(`tmux -L ${TMUX_SOCKET} send-keys -t ${sessionName} 'cat' Enter`, { stdio: 'pipe' });
       await new Promise((r) => setTimeout(r, 100));
 
       sendKeys(sessionName, 'kkk');
@@ -296,11 +302,11 @@ describe.skipIf(shouldSkip)('TUI Navigation Integration', () => {
       const screen = captureScreen(sessionName);
       expect(screen).toContain('kkk');
 
-      execSync(`tmux send-keys -t ${sessionName} C-c`, { stdio: 'pipe' });
+      execSync(`tmux -L ${TMUX_SOCKET} send-keys -t ${sessionName} C-c`, { stdio: 'pipe' });
     });
 
     it('g key jumps to top (verified via keystroke capture)', async () => {
-      execSync(`tmux send-keys -t ${sessionName} 'cat' Enter`, { stdio: 'pipe' });
+      execSync(`tmux -L ${TMUX_SOCKET} send-keys -t ${sessionName} 'cat' Enter`, { stdio: 'pipe' });
       await new Promise((r) => setTimeout(r, 100));
 
       sendKeys(sessionName, 'jjjg'); // Move down then jump to top
@@ -309,11 +315,11 @@ describe.skipIf(shouldSkip)('TUI Navigation Integration', () => {
       const screen = captureScreen(sessionName);
       expect(screen).toContain('jjjg');
 
-      execSync(`tmux send-keys -t ${sessionName} C-c`, { stdio: 'pipe' });
+      execSync(`tmux -L ${TMUX_SOCKET} send-keys -t ${sessionName} C-c`, { stdio: 'pipe' });
     });
 
     it('G key jumps to bottom (verified via keystroke capture)', async () => {
-      execSync(`tmux send-keys -t ${sessionName} 'cat' Enter`, { stdio: 'pipe' });
+      execSync(`tmux -L ${TMUX_SOCKET} send-keys -t ${sessionName} 'cat' Enter`, { stdio: 'pipe' });
       await new Promise((r) => setTimeout(r, 100));
 
       sendKeys(sessionName, 'G');
@@ -322,13 +328,13 @@ describe.skipIf(shouldSkip)('TUI Navigation Integration', () => {
       const screen = captureScreen(sessionName);
       expect(screen).toContain('G');
 
-      execSync(`tmux send-keys -t ${sessionName} C-c`, { stdio: 'pipe' });
+      execSync(`tmux -L ${TMUX_SOCKET} send-keys -t ${sessionName} C-c`, { stdio: 'pipe' });
     });
   });
 
   describe('View Switching', () => {
     it('number keys 1-9 are properly sent', async () => {
-      execSync(`tmux send-keys -t ${sessionName} 'cat' Enter`, { stdio: 'pipe' });
+      execSync(`tmux -L ${TMUX_SOCKET} send-keys -t ${sessionName} 'cat' Enter`, { stdio: 'pipe' });
       await new Promise((r) => setTimeout(r, 100));
 
       // Test each number key
@@ -340,11 +346,11 @@ describe.skipIf(shouldSkip)('TUI Navigation Integration', () => {
       const screen = captureScreen(sessionName);
       expect(screen).toContain('123456789');
 
-      execSync(`tmux send-keys -t ${sessionName} C-c`, { stdio: 'pipe' });
+      execSync(`tmux -L ${TMUX_SOCKET} send-keys -t ${sessionName} C-c`, { stdio: 'pipe' });
     });
 
     it('M key (shift+m) is properly sent', async () => {
-      execSync(`tmux send-keys -t ${sessionName} 'cat' Enter`, { stdio: 'pipe' });
+      execSync(`tmux -L ${TMUX_SOCKET} send-keys -t ${sessionName} 'cat' Enter`, { stdio: 'pipe' });
       await new Promise((r) => setTimeout(r, 100));
 
       sendKeys(sessionName, 'M');
@@ -353,13 +359,13 @@ describe.skipIf(shouldSkip)('TUI Navigation Integration', () => {
       const screen = captureScreen(sessionName);
       expect(screen).toContain('M');
 
-      execSync(`tmux send-keys -t ${sessionName} C-c`, { stdio: 'pipe' });
+      execSync(`tmux -L ${TMUX_SOCKET} send-keys -t ${sessionName} C-c`, { stdio: 'pipe' });
     });
   });
 
   describe('Detail Pane Toggle', () => {
     it('i key toggles detail pane (verified via keystroke capture)', async () => {
-      execSync(`tmux send-keys -t ${sessionName} 'cat' Enter`, { stdio: 'pipe' });
+      execSync(`tmux -L ${TMUX_SOCKET} send-keys -t ${sessionName} 'cat' Enter`, { stdio: 'pipe' });
       await new Promise((r) => setTimeout(r, 100));
 
       sendKeys(sessionName, 'i'); // Toggle on
@@ -370,7 +376,7 @@ describe.skipIf(shouldSkip)('TUI Navigation Integration', () => {
       const screen = captureScreen(sessionName);
       expect(screen).toContain('ii');
 
-      execSync(`tmux send-keys -t ${sessionName} C-c`, { stdio: 'pipe' });
+      execSync(`tmux -L ${TMUX_SOCKET} send-keys -t ${sessionName} C-c`, { stdio: 'pipe' });
     });
   });
 });
@@ -391,7 +397,7 @@ describe.skipIf(shouldSkip)('TUI Resize Handling', () => {
     createSession(sessionName, 160, 40);
 
     let info = execSync(
-      `tmux display-message -t ${sessionName} -p '#{window_width}x#{window_height}'`,
+      `tmux -L ${TMUX_SOCKET} display-message -t ${sessionName} -p '#{window_width}x#{window_height}'`,
       {
         encoding: 'utf-8',
       }
@@ -399,10 +405,10 @@ describe.skipIf(shouldSkip)('TUI Resize Handling', () => {
     expect(info).toBe('160x40');
 
     // Resize to compact
-    execSync(`tmux resize-window -t ${sessionName} -x 80 -y 24`, { stdio: 'pipe' });
+    execSync(`tmux -L ${TMUX_SOCKET} resize-window -t ${sessionName} -x 80 -y 24`, { stdio: 'pipe' });
 
     info = execSync(
-      `tmux display-message -t ${sessionName} -p '#{window_width}x#{window_height}'`,
+      `tmux -L ${TMUX_SOCKET} display-message -t ${sessionName} -p '#{window_width}x#{window_height}'`,
       {
         encoding: 'utf-8',
       }
@@ -415,7 +421,7 @@ describe.skipIf(shouldSkip)('TUI Resize Handling', () => {
     createSession(sessionName, 80, 24);
 
     let info = execSync(
-      `tmux display-message -t ${sessionName} -p '#{window_width}x#{window_height}'`,
+      `tmux -L ${TMUX_SOCKET} display-message -t ${sessionName} -p '#{window_width}x#{window_height}'`,
       {
         encoding: 'utf-8',
       }
@@ -423,10 +429,10 @@ describe.skipIf(shouldSkip)('TUI Resize Handling', () => {
     expect(info).toBe('80x24');
 
     // Resize to wide
-    execSync(`tmux resize-window -t ${sessionName} -x 160 -y 40`, { stdio: 'pipe' });
+    execSync(`tmux -L ${TMUX_SOCKET} resize-window -t ${sessionName} -x 160 -y 40`, { stdio: 'pipe' });
 
     info = execSync(
-      `tmux display-message -t ${sessionName} -p '#{window_width}x#{window_height}'`,
+      `tmux -L ${TMUX_SOCKET} display-message -t ${sessionName} -p '#{window_width}x#{window_height}'`,
       {
         encoding: 'utf-8',
       }

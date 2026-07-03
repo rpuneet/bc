@@ -94,7 +94,7 @@ describe('80x24 Terminal - TabBar', () => {
     // At 80 cols, should show minimal mode (keys only) to fit 80x24
     expect(output).toContain('[dash]');
     expect(output).toContain('[ag]');
-    expect(output).toContain('[ch]');
+    expect(output).toContain('[no]');
     // Labels should NOT appear in minimal mode
     expect(output).not.toContain('Dashboard');
     expect(output).not.toContain('Dash');
@@ -108,7 +108,7 @@ describe('80x24 Terminal - TabBar', () => {
     const keys = [
       '[dash]',
       '[ag]',
-      '[ch]',
+      '[no]',
       '[co]',
       '[log]',
       '[ro]',
