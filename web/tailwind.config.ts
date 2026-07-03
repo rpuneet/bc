@@ -40,6 +40,7 @@ export default {
           error: 'var(--mycel-error)',
           live: 'var(--mycel-live)',
           info: 'var(--mycel-info)',
+          overlay: 'var(--mycel-overlay)',
         },
       },
       boxShadow: {

@@ -621,14 +621,14 @@ export function Layout() {
         </svg>
       </button>
 
-      {mobileOpen && <div className="fixed inset-0 z-40 bg-black/50 md:hidden" onClick={() => setMobileOpen(false)} />}
+      {mobileOpen && <div className="fixed inset-0 z-40 bg-mycel-overlay md:hidden" onClick={() => setMobileOpen(false)} />}
 
       {/* Sidebar */}
       <nav
         className={`fixed inset-y-0 left-0 z-50 ${sidebarWidth} shrink-0 border-r border-mycel-border/50 bg-mycel-surface shadow-mycel flex flex-col transition-all duration-200 md:relative md:translate-x-0 ${
           isMobile ? (mobileOpen ? "translate-x-0 w-48" : "-translate-x-full") : ""
         }`}
-        style={{ scrollbarWidth: "thin", scrollbarColor: "rgba(255,255,255,0.04) transparent" }}
+        style={{ scrollbarWidth: "thin", scrollbarColor: "var(--mycel-scrollbar-thumb) transparent" }}
       >
         {/* Header — heights kept in sync with Header.tsx compact mode (48px)
             so the drawer top-line aligns pixel-perfect with the main pane

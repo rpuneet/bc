@@ -83,7 +83,7 @@ export function CommandPalette() {
       role="presentation"
     >
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/50" />
+      <div className="absolute inset-0 bg-mycel-overlay" />
 
       {/* Palette */}
       <div

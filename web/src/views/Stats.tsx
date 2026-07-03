@@ -38,6 +38,39 @@ export function calculateCost(model: string, inputTokens: number, outputTokens: 
 // Dark). The rest are theme-agnostic hues that stay readable in all three.
 const ACCENT = "var(--mycel-accent)";
 const COLORS = [ACCENT, "#3B82F6", "#10B981", "#A855F7", "#F59E0B", "#EC4899", "#06B6D4", "#84CC16"];
+
+/**
+ * Per-agent Area chart series with the repeated stroke/fill/dot/connect
+ * boilerplate consolidated. `color` is optional — falls back to the
+ * theme-accented first palette slot when the agent has no assigned color
+ * (the empty state during first render). #3205 v0.3.3 batch 7.
+ */
+function AgentArea({
+  name,
+  color,
+  fillOpacity,
+  stackId,
+}: {
+  name: string;
+  color?: string;
+  fillOpacity: number;
+  stackId?: string;
+}) {
+  const c = color ?? COLORS[0];
+  return (
+    <Area
+      type="monotone"
+      dataKey={name}
+      stroke={c}
+      fill={c}
+      fillOpacity={fillOpacity}
+      strokeWidth={1.75}
+      dot={false}
+      connectNulls
+      stackId={stackId}
+    />
+  );
+}
 const RANGES = [
   { label: "1h", seconds: 3600 },
   { label: "6h", seconds: 21600 },
@@ -342,17 +375,7 @@ export function Stats() {
                 />
                 <Tooltip contentStyle={TT} formatter={(v, name) => [`${Number(v ?? 0).toFixed(2)}%`, name]} />
                 {cpuChart.agents.map((n) => (
-                  <Area
-                    key={n}
-                    type="monotone"
-                    dataKey={n}
-                    stroke={agentColors[n] ?? COLORS[0]}
-                    fill={agentColors[n] ?? COLORS[0]}
-                    fillOpacity={0.08}
-                    strokeWidth={1.75}
-                    dot={false}
-                    connectNulls
-                  />
+                  <AgentArea key={n} name={n} color={agentColors[n]} fillOpacity={0.08} />
                 ))}
               </AreaChart>
             </ResponsiveContainer>
@@ -367,7 +390,7 @@ export function Stats() {
                 <YAxis tick={TICK_STYLE} {...AX} />
                 <Tooltip contentStyle={TT} formatter={(v) => [`${Number(v ?? 0).toFixed(1)} MB`]} />
                 {memChart.agents.map((n) => (
-                  <Area key={n} type="monotone" dataKey={n} stroke={agentColors[n] ?? COLORS[0]} fill={agentColors[n] ?? COLORS[0]} fillOpacity={0.20} strokeWidth={1.75} dot={false} stackId="mem" />
+                  <AgentArea key={n} name={n} color={agentColors[n]} fillOpacity={0.20} stackId="mem" />
                 ))}
               </AreaChart>
             </ResponsiveContainer>
