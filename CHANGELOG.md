@@ -7,6 +7,103 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-07-03
+
+Six-batch UI polish pass on top of v0.3.1 driven by the 5-lead design
+review (design / a11y / dataviz / UX / FE-eng) tracked in #3205, plus
+one server-side accuracy fix.
+
+### Added
+- **Global keyboard focus ring** — WCAG 2.4.7. Two new tokens
+  `--mycel-focus-ring` + `--mycel-focus-ring-offset` in `tokens.css`
+  cascade from the theme accent; every interactive element gets a
+  visible ring on `:focus-visible`. `:focus` still resets to `none`
+  so mouse focus stays clean (#3205 batch 5, #3216).
+- **`/api/health` returns both `version` and `commit`** so About-page
+  update-detection can compare like-with-like (#3212, #3213).
+- **About-page `DEV BUILD` chip** for dev builds whose version string
+  matches the Makefile `YYYY.MM.DD.<sha>` format. `UPDATE AVAILABLE`
+  only fires when both installed and latestTag look like semver AND
+  differ (#3212, #3213).
+
+### Changed
+- **Theme-aware `agentColor()`** — hash bucket 0 uses `var(--mycel-accent)`
+  so the most-prominent chart series follows the theme accent
+  (emerald under Dark, tangerine under Solar Flare / Light) instead
+  of always the same hashed hue (#3205 batch 5, #3216).
+- **`server.BuildInfo.Version`** wired from the same ldflag `main.version`
+  the CLI already uses. About INSTALLED reads semver instead of the
+  commit hash (#3212, #3213).
+- **About release date** reformatted from `03/07/2026, 13:15:41`
+  (ambiguous DD/MM/YYYY) to `3 Jul 2026 · 13:15` (#3213).
+- **Sidebar footer theme toggle icon** swapped from a sun-with-rays
+  (visually collided with the Settings gear at 14px) to a half-shaded
+  circle. Trailing `Solar Flare` label dropped — icon + tooltip
+  suffice, and the label was overflowing on narrow sidebars (#3213).
+- **Chart fill opacity** `0.12 → 0.20` (+ stroke width `1.5 → 1.75`)
+  on 9 non-CPU Area series so Network / Disk / Token panels render
+  visibly at small-magnitude values (#3213).
+- **Live page** — dropped the pulse dot next to the `Live` title;
+  the sidebar `Live` pulse + the header `Connected/Reconnecting`
+  chip already carry the SSE signal. Third indicator was noise
+  (#3205 batch 2, #3213).
+- **Metrics range picker** moved from a floating full-width sub-row
+  into the page header actions slot. Reclaims ~80px of dead space
+  (#3205 batch 2, #3213).
+- **Agents-table sort affordance** — every header gets a neutral `▾`
+  glyph on hover; active column shows `▲`/`▼` in the accent. Was
+  arrow-only on Cost, implying only Cost was sortable
+  (#3205 batch 2, #3213).
+- **Live filter dropdowns** now have visible `AGENT` / `EVENT` captions
+  plus explicit `aria-label`s; `All` disambiguated to `All types`
+  (#3205 batch 3, #3214).
+- **State column color coding** — `working` → success (green),
+  `idle` → warning (amber), `running` → info (cyan), `stuck` →
+  warning, `error` → error, else muted. Was one green for three
+  meaningfully-different states (#3205 batch 3, #3214).
+- **Infra rows show `system`** in the state column instead of an
+  empty cell or the literal `unknown` string (#3205 batch 3 + 5,
+  #3214 + #3216).
+- **Metrics duplicate agent legend** below the table removed —
+  swatches + names were already in the Name column one row up.
+  Interactive legend deferred to a later batch (#3205 batch 3,
+  #3214).
+- **Live event row simplification (P1c)** — dropped the bordered
+  `h-5 w-5` container around `<ToolDot />` on individual rows;
+  tool verb bumped to `font-semibold` and metadata dimmed; on
+  aggregated rows `avg` / `total-duration` / token count /
+  `<succ>/<total> ok` all move behind the expand chevron so the
+  at-rest row reads as a scannable line. Aggregate status dot goes
+  amber when there are any failures (#3205 P1c, #3215).
+- **Muted-text contrast audit** — every `text-mycel-muted/40` +
+  `/50` bumped to full `text-mycel-muted`. `/60` bumped where paired
+  with `text-[10px]` or `text-[11px]` on the same span. WCAG AA at
+  small sizes (#3205 P2, #3217).
+- **Border opacity system** — `border-mycel-border/20` and `/30` (both
+  effectively invisible on dark surfaces) consolidated to `/40`.
+  Pair is now `border-mycel-border` (strong) + `/40` (soft).
+  11 files touched (#3205 batch 6, #3217).
+
+### Fixed
+- **About page `UPDATE AVAILABLE` false positive** — comparing the
+  daemon's commit hash to the release tag semver never matched.
+  Now compares like-with-like via the new `/api/health` `version`
+  field, and renders a `DEV BUILD` chip for source builds
+  (#3212, #3213).
+- **Robust `system` label for infra rows** — batch 3 only rewrote
+  `state === "unknown"`; the `server` container comes through with
+  a blank state string and rendered as an empty cell. Falsy states
+  now fall to the italic `system` label (#3205 batch 5, #3216).
+
+### Deferred to v0.3.3 (or later)
+- Interactive chart legend (hover-to-highlight, click-to-toggle).
+- Chart palette rework for 6+ distinct series that survive both
+  dark and light backgrounds.
+- Dash patterns / markers / direct labels on chart lines (a11y —
+  color-only encoding still).
+- `<AgentArea />` component extraction (fe-eng cleanup).
+- `bg-black/50` scrim + `rgba(255,255,255,0.04)` scrollbar tokens.
+
 ## [0.3.1] - 2026-07-03
 
 ### Renamed
