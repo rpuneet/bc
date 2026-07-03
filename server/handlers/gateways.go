@@ -177,8 +177,14 @@ func (h *GatewayHandler) gatewayChannels(w http.ResponseWriter, r *http.Request,
 		// Delegate to existing activity handler
 		r.URL.Path = "/api/notify/activity/" + channelName
 		h.notifyActivity(w, r)
+	case channelRest != "":
+		// Unknown sub-route (e.g. the removed "send" endpoint).
+		httpError(w, "not found", http.StatusNotFound)
 	default:
 		// GET /api/gateways/{platform}/channels/{channel} — channel detail
+		if !requireMethod(w, r, http.MethodGet) {
+			return
+		}
 		if h.notifySvc == nil {
 			httpError(w, "notify service not available", http.StatusServiceUnavailable)
 			return
