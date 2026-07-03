@@ -264,7 +264,7 @@ export function AgentActivityStream({
                   style={{ fontFamily: MONO }}
                 >
                   {agentTask ?? (
-                    <span className="text-mycel-muted/40 italic">none</span>
+                    <span className="text-mycel-muted italic">none</span>
                   )}
                 </p>
               </div>
@@ -300,7 +300,7 @@ export function AgentActivityStream({
               <span
                 className={`w-1.5 h-1.5 rounded-full ${isRunning ? "bg-green-500" : "bg-mycel-muted/40"}`}
               />
-              <span className={isRunning ? "text-green-400" : "text-mycel-muted/40"}>
+              <span className={isRunning ? "text-green-400" : "text-mycel-muted"}>
                 {isRunning ? "Live" : "Offline"}
               </span>
             </span>
@@ -316,7 +316,7 @@ export function AgentActivityStream({
                 className={`px-2 py-0.5 rounded border text-[10px] font-medium transition-colors ${
                   activeFilter === f.key
                     ? "border-mycel-accent/30 bg-mycel-accent/15 text-mycel-accent"
-                    : "border-mycel-border/30 text-mycel-muted/60 hover:text-mycel-muted hover:border-mycel-border/50"
+                    : "border-mycel-border/40 text-mycel-muted/60 hover:text-mycel-muted hover:border-mycel-border/50"
                 }`}
                 style={{ fontFamily: MONO }}
               >
@@ -326,7 +326,7 @@ export function AgentActivityStream({
           </div>
 
           {timeline.length === 0 ? (
-            <p className="text-xs text-mycel-muted/40 italic pl-1">
+            <p className="text-xs text-mycel-muted italic pl-1">
               {allTimeline.length === 0
                 ? "No activity recorded yet."
                 : "No events match this filter."}
@@ -361,7 +361,7 @@ export function AgentActivityStream({
                     </span>
                     {evt.timestamp && (
                       <span
-                        className="text-[10px] text-mycel-muted/60 tabular-nums shrink-0"
+                        className="text-[10px] text-mycel-muted tabular-nums shrink-0"
                         title={formatTime(evt.timestamp)}
                         style={{ fontFamily: MONO }}
                       >
@@ -383,7 +383,7 @@ export function AgentActivityStream({
         {/* Stopped note */}
         {isStopped && (
           <p
-            className="text-[10px] text-mycel-muted/40 italic pl-1"
+            className="text-[10px] text-mycel-muted italic pl-1"
             style={{ fontFamily: MONO }}
           >
             Agent is not running. Showing last known activity.

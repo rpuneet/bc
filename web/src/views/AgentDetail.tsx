@@ -542,7 +542,7 @@ function ConfigTab({ agent, agentsUrl }: { agent: Agent; agentsUrl: string }) {
                 {syncing ? "Syncing…" : "Sync"}
               </button>
             </div>
-            <p className="text-[10px] text-mycel-muted/40 mt-1 leading-relaxed" style={{ fontFamily: MONO }}>
+            <p className="text-[10px] text-mycel-muted mt-1 leading-relaxed" style={{ fontFamily: MONO }}>
               Re-apply template system prompt and MCP configuration
             </p>
           </section>
@@ -557,7 +557,7 @@ function ConfigTab({ agent, agentsUrl }: { agent: Agent; agentsUrl: string }) {
             onAdd={useLiveMcp ? handleMcpAdd : undefined}
             onRemove={useLiveMcp ? handleMcpRemove : undefined}
           />
-          <p className="mt-2 text-[10px] text-mycel-muted/40 leading-relaxed" style={{ fontFamily: MONO }}>
+          <p className="mt-2 text-[10px] text-mycel-muted leading-relaxed" style={{ fontFamily: MONO }}>
             {isTmux
               ? "For tmux agents, MCPs are managed via the Claude CLI. Changes here write to the agent\u2019s worktree."
               : "Changes write to .mcp.json in the container."}
@@ -612,14 +612,14 @@ function ConfigTab({ agent, agentsUrl }: { agent: Agent; agentsUrl: string }) {
 
           {/* Placeholder hint when no env vars are set */}
           {envVars.length === 0 && (
-            <p className="mb-3 text-[10px] text-mycel-muted/40 italic" style={{ fontFamily: MONO }}>
+            <p className="mb-3 text-[10px] text-mycel-muted italic" style={{ fontFamily: MONO }}>
               Common: ANTHROPIC_API_KEY, GITHUB_TOKEN, AWS_ACCESS_KEY_ID
             </p>
           )}
 
           {/* Existing env var rows */}
           {envVars.length > 0 && (
-            <div className="mb-3 rounded-md border border-mycel-border/30 overflow-hidden divide-y divide-mycel-border/20">
+            <div className="mb-3 rounded-md border border-mycel-border/40 overflow-hidden divide-y divide-mycel-border/20">
               {envVars.map((ev, i) => (
                 <div
                   key={i}
@@ -672,10 +672,10 @@ function ConfigTab({ agent, agentsUrl }: { agent: Agent; agentsUrl: string }) {
                 }
               }}
               placeholder="KEY"
-              className="w-32 rounded border border-mycel-border/40 bg-mycel-bg px-2.5 py-1 text-[11px] text-mycel-text/90 placeholder:text-mycel-muted/40 outline-none focus:border-mycel-accent/50 transition-colors"
+              className="w-32 rounded border border-mycel-border/40 bg-mycel-bg px-2.5 py-1 text-[11px] text-mycel-text/90 placeholder:text-mycel-muted outline-none focus:border-mycel-accent/50 transition-colors"
               style={{ fontFamily: MONO }}
             />
-            <span className="text-mycel-muted/40 text-[11px]" style={{ fontFamily: MONO }}>=</span>
+            <span className="text-mycel-muted text-[11px]" style={{ fontFamily: MONO }}>=</span>
             <input
               type="text"
               value={newValue}
@@ -690,7 +690,7 @@ function ConfigTab({ agent, agentsUrl }: { agent: Agent; agentsUrl: string }) {
                 }
               }}
               placeholder="value"
-              className="flex-1 max-w-[200px] rounded border border-mycel-border/40 bg-mycel-bg px-2.5 py-1 text-[11px] text-mycel-text/90 placeholder:text-mycel-muted/40 outline-none focus:border-mycel-accent/50 transition-colors"
+              className="flex-1 max-w-[200px] rounded border border-mycel-border/40 bg-mycel-bg px-2.5 py-1 text-[11px] text-mycel-text/90 placeholder:text-mycel-muted outline-none focus:border-mycel-accent/50 transition-colors"
               style={{ fontFamily: MONO }}
             />
             <button
@@ -711,23 +711,23 @@ function ConfigTab({ agent, agentsUrl }: { agent: Agent; agentsUrl: string }) {
             </button>
           </div>
 
-          <p className="mt-2 text-[10px] text-mycel-muted/40 leading-relaxed" style={{ fontFamily: MONO }}>
+          <p className="mt-2 text-[10px] text-mycel-muted leading-relaxed" style={{ fontFamily: MONO }}>
             {isTmux
               ? "Set via provider CLI environment · Env vars are applied on agent restart"
               : "Injected as container environment variables · Env vars are applied on agent restart"}
           </p>
           {agent.tool === "claude" && (
-            <div className="mt-2 text-[10px] text-mycel-muted/50" style={{ fontFamily: MONO }}>
+            <div className="mt-2 text-[10px] text-mycel-muted" style={{ fontFamily: MONO }}>
               <span className="font-medium">Claude requires:</span> ANTHROPIC_API_KEY
             </div>
           )}
           {agent.tool === "gemini" && (
-            <div className="mt-2 text-[10px] text-mycel-muted/50" style={{ fontFamily: MONO }}>
+            <div className="mt-2 text-[10px] text-mycel-muted" style={{ fontFamily: MONO }}>
               <span className="font-medium">Gemini requires:</span> GOOGLE_API_KEY
             </div>
           )}
           {agent.tool === "openai" && (
-            <div className="mt-2 text-[10px] text-mycel-muted/50" style={{ fontFamily: MONO }}>
+            <div className="mt-2 text-[10px] text-mycel-muted" style={{ fontFamily: MONO }}>
               <span className="font-medium">OpenAI requires:</span> OPENAI_API_KEY
             </div>
           )}
@@ -736,7 +736,7 @@ function ConfigTab({ agent, agentsUrl }: { agent: Agent; agentsUrl: string }) {
         {/* ── ACTIONS ── */}
         <section>
           <SectionRule>Actions</SectionRule>
-          <div className="rounded-md border border-mycel-border/30 bg-mycel-surface/20 px-4 py-3">
+          <div className="rounded-md border border-mycel-border/40 bg-mycel-surface/20 px-4 py-3">
             <div className="flex flex-wrap gap-2 items-center">
               {/* Clone — opens CreateAgentModal pre-seeded with this agent */}
               <button
@@ -933,7 +933,7 @@ function CodeTabPlaceholder({ agent }: { agent: Agent }) {
   return (
     <div className="flex-1 flex items-center justify-center p-6">
       <div className="max-w-md text-center space-y-4" style={{ fontFamily: MONO }}>
-        <p className="text-[11px] text-mycel-muted/50 uppercase tracking-wider">
+        <p className="text-[11px] text-mycel-muted uppercase tracking-wider">
           Agent code — diff view
         </p>
         <p className="text-sm text-mycel-muted leading-relaxed">
@@ -961,7 +961,7 @@ function MetricsTab({ agent }: { agent: Agent }) {
       <div className="max-w-4xl mx-auto space-y-4">
         {isStopped && (
           <p
-            className="text-[10px] text-mycel-muted/40 italic"
+            className="text-[10px] text-mycel-muted italic"
             style={{ fontFamily: MONO }}
           >
             Agent is not running. Stats show last known values.
@@ -1080,7 +1080,7 @@ export function AgentDetail() {
   if (loading && !agent) {
     return (
       <div className="flex items-center justify-center h-full">
-        <span className="text-sm text-mycel-muted/50" style={{ fontFamily: MONO }}>
+        <span className="text-sm text-mycel-muted" style={{ fontFamily: MONO }}>
           loading\u2026
         </span>
       </div>
@@ -1120,7 +1120,7 @@ export function AgentDetail() {
           {/* ── Identity ── */}
           <Link
             to={agentsUrl}
-            className="text-mycel-muted/50 hover:text-mycel-text transition-colors shrink-0"
+            className="text-mycel-muted hover:text-mycel-text transition-colors shrink-0"
             title="Back to agents"
             aria-label="Back to agents"
           >
@@ -1133,7 +1133,7 @@ export function AgentDetail() {
             {agent.name}
           </span>
           {agent.runtime_backend && (
-            <span className="shrink-0 text-mycel-muted/50" title={`Runtime: ${agent.runtime_backend}`}>
+            <span className="shrink-0 text-mycel-muted" title={`Runtime: ${agent.runtime_backend}`}>
               {agent.runtime_backend === "docker" ? (
                 <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
                   <rect x="1" y="4" width="12" height="8" rx="1" />
@@ -1191,7 +1191,7 @@ export function AgentDetail() {
 
           {lastSeen && (
             <span
-              className="text-[10px] text-mycel-muted/40 tabular-nums shrink-0"
+              className="text-[10px] text-mycel-muted tabular-nums shrink-0"
               title={formatTime(lastSeen)}
               style={{ fontFamily: MONO }}
             >

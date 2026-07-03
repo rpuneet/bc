@@ -85,7 +85,7 @@ export function RelativeTimestamp({ ts }: { ts: number }) {
     return () => clearInterval(id);
   }, []);
   return (
-    <span title={new Date(ts).toISOString()} className="text-[10px] text-mycel-muted/60 font-mono tabular-nums">
+    <span title={new Date(ts).toISOString()} className="text-[10px] text-mycel-muted font-mono tabular-nums">
       {relativeTime(ts)}
     </span>
   );
@@ -203,7 +203,7 @@ export function ToolNodeRow({ node, depth = 0, searchQuery = "" }: { node: ToolN
         </span>
         {/* Animated chevron */}
         <motion.span
-          className="text-mycel-muted/50 text-[10px] select-none shrink-0 w-3 text-center group-hover:text-mycel-muted"
+          className="text-mycel-muted text-[10px] select-none shrink-0 w-3 text-center group-hover:text-mycel-muted"
           animate={{ rotate: hasDetails ? (expanded ? 90 : 0) : 0 }}
           transition={{ duration: 0.15 }}
         >
@@ -306,7 +306,7 @@ export function AgentTreeNode({ node, depth = 0 }: { node: ToolNode; depth?: num
         onClick={() => setExpanded(!expanded)}
         aria-label={`${expanded ? "Collapse" : "Expand"} subagent ${node.toolName}`}
       >
-        <span className="text-mycel-muted/50 text-[10px] select-none mt-[3px] shrink-0 w-3 text-center group-hover:text-mycel-muted">
+        <span className="text-mycel-muted text-[10px] select-none mt-[3px] shrink-0 w-3 text-center group-hover:text-mycel-muted">
           {childCount > 0 ? (expanded ? "\u25BC" : "\u25B6") : "\u00B7"}
         </span>
         <ToolDot status={node.status} />
@@ -399,12 +399,12 @@ export function AggregatedChildRow({ child, searchQuery = "" }: { child: ToolNod
           <button
             type="button"
             onClick={() => setShowRawJson(!showRawJson)}
-            className="text-[10px] text-mycel-muted hover:text-mycel-accent font-mono transition-colors px-2 py-0.5 rounded border border-mycel-border/30 hover:border-mycel-accent/50"
+            className="text-[10px] text-mycel-muted hover:text-mycel-accent font-mono transition-colors px-2 py-0.5 rounded border border-mycel-border/40 hover:border-mycel-accent/50"
           >
             {showRawJson ? "Hide Raw JSON" : "Raw JSON"}
           </button>
           {showRawJson && (
-            <div className="mt-1 text-[11px] font-mono px-3 py-2 bg-mycel-bg rounded border border-mycel-border/30 overflow-x-auto max-h-64 overflow-y-auto">
+            <div className="mt-1 text-[11px] font-mono px-3 py-2 bg-mycel-bg rounded border border-mycel-border/40 overflow-x-auto max-h-64 overflow-y-auto">
               <div className="flex justify-end mb-1">
                 <CopyButton text={fullEventJson} />
               </div>
@@ -506,7 +506,7 @@ export function DrillDownTasksSection({ tasks, agentName }: { tasks: Map<string,
         onClick={() => setCollapsed(!collapsed)}
         className="flex items-center gap-2 w-full px-4 py-2.5 text-left hover:bg-mycel-surface-hover transition-colors"
       >
-        <span className="text-mycel-muted/50 text-[10px] select-none w-3 text-center">
+        <span className="text-mycel-muted text-[10px] select-none w-3 text-center">
           {collapsed ? "\u25B6" : "\u25BC"}
         </span>
         <span className="text-[13px]">{"\u2705"}</span>
@@ -571,7 +571,7 @@ export function DrillDownEventRow({ node }: { node: ToolNode }) {
   const outputJson = node.fullOutput ? JSON.stringify(redactValue(node.fullOutput), null, 2) : "";
 
   return (
-    <div className={`border-b border-mycel-border/30 ${node.status === "failed" ? "bg-mycel-error/5" : ""}`}>
+    <div className={`border-b border-mycel-border/40 ${node.status === "failed" ? "bg-mycel-error/5" : ""}`}>
       <button
         type="button"
         className="group flex items-center gap-3 py-2.5 px-4 w-full text-left hover:bg-mycel-surface-hover cursor-pointer transition-colors"
@@ -580,7 +580,7 @@ export function DrillDownEventRow({ node }: { node: ToolNode }) {
       >
         {/* Animated chevron */}
         <motion.span
-          className="text-mycel-muted/50 text-[10px] select-none shrink-0 w-3 text-center group-hover:text-mycel-muted"
+          className="text-mycel-muted text-[10px] select-none shrink-0 w-3 text-center group-hover:text-mycel-muted"
           animate={{ rotate: hasDetails ? (expanded ? 90 : 0) : 0 }}
           transition={{ duration: 0.15 }}
         >
@@ -786,7 +786,7 @@ export function AgentDrillDown({
                       onClick={() => toggleRawExpanded(evtKey)}
                       className="flex items-center gap-2 w-full px-3 py-1.5 text-left hover:bg-mycel-surface-hover transition-colors"
                     >
-                      <span className="text-mycel-muted/50 text-[10px] select-none w-3 text-center">
+                      <span className="text-mycel-muted text-[10px] select-none w-3 text-center">
                         {isOpen ? "\u25BC" : "\u25B6"}
                       </span>
                       <span className="text-[10px] text-mycel-muted font-mono tabular-nums shrink-0">
@@ -965,11 +965,11 @@ export const AgentCard = memo(function AgentCard({
             )}
             {/* Idle chip */}
             {isIdle && activity.lastEventTime > 0 && (
-              <span className="text-[10px] text-mycel-muted/60 font-mono px-1.5 py-0.5 rounded bg-mycel-muted/10">
+              <span className="text-[10px] text-mycel-muted font-mono px-1.5 py-0.5 rounded bg-mycel-muted/10">
                 <IdleTimer lastEventTime={activity.lastEventTime} />
               </span>
             )}
-            <span className="text-[11px] text-mycel-muted/60 group-hover:text-mycel-accent transition-colors hidden sm:inline">
+            <span className="text-[11px] text-mycel-muted group-hover:text-mycel-accent transition-colors hidden sm:inline">
               &rarr;
             </span>
           </span>

@@ -34,7 +34,7 @@ export function WorkspacePicker() {
             Pick a workspace to continue, or add a new one.
           </p>
           {fromPath && (
-            <p className="text-[11px] text-mycel-muted/60 italic">
+            <p className="text-[11px] text-mycel-muted italic">
               The URL {fromPath} is not associated with any known workspace.
             </p>
           )}
@@ -42,10 +42,10 @@ export function WorkspacePicker() {
 
         {/* Registered workspaces list */}
         <section>
-          <div className="text-[10px] text-mycel-muted/50 uppercase tracking-[0.2em] mb-2">
+          <div className="text-[10px] text-mycel-muted uppercase tracking-[0.2em] mb-2">
             Registered
           </div>
-          {loading && <p className="text-[12px] text-mycel-muted/50">loading…</p>}
+          {loading && <p className="text-[12px] text-mycel-muted">loading…</p>}
           {!loading && workspaces.length === 0 && (
             <p className="text-[12px] text-mycel-muted/60 italic">
               No workspaces registered yet. Add one below.
@@ -66,20 +66,20 @@ export function WorkspacePicker() {
                       <span className="text-[13px] font-semibold text-mycel-text">
                         {ws.name || ws.path.split("/").pop() || "unnamed"}
                       </span>
-                      <span className="text-[9px] text-mycel-muted/40 tabular-nums">
+                      <span className="text-[9px] text-mycel-muted tabular-nums">
                         [{ws.id.slice(0, 6)}]
                       </span>
                       {ws.alias && (
-                        <span className="text-[10px] text-mycel-muted/60">@{ws.alias}</span>
+                        <span className="text-[10px] text-mycel-muted">@{ws.alias}</span>
                       )}
                     </div>
-                    <div className="text-[10px] text-mycel-muted/50 truncate" title={ws.path}>
+                    <div className="text-[10px] text-mycel-muted truncate" title={ws.path}>
                       {ws.path}
                     </div>
                   </div>
                   {ws.github_url && (
                     <span
-                      className="text-[9px] text-mycel-muted/40 truncate max-w-[180px]"
+                      className="text-[9px] text-mycel-muted truncate max-w-[180px]"
                       title={ws.github_url}
                     >
                       {ws.github_url.replace(/^https?:\/\/github\.com\//, "gh:")}
@@ -93,7 +93,7 @@ export function WorkspacePicker() {
 
         {/* Add workspace options */}
         <section className="space-y-3">
-          <div className="text-[10px] text-mycel-muted/50 uppercase tracking-[0.2em]">
+          <div className="text-[10px] text-mycel-muted uppercase tracking-[0.2em]">
             Add workspace
           </div>
 
@@ -108,7 +108,7 @@ export function WorkspacePicker() {
               }`}
             >
               <div className="font-semibold mb-0.5">Scan local</div>
-              <div className="text-[10px] text-mycel-muted/60">Find .git repos on disk</div>
+              <div className="text-[10px] text-mycel-muted">Find .git repos on disk</div>
             </button>
             <button
               type="button"
@@ -120,7 +120,7 @@ export function WorkspacePicker() {
               }`}
             >
               <div className="font-semibold mb-0.5">From GitHub</div>
-              <div className="text-[10px] text-mycel-muted/60">List + clone your repos</div>
+              <div className="text-[10px] text-mycel-muted">List + clone your repos</div>
             </button>
             <button
               type="button"
@@ -132,7 +132,7 @@ export function WorkspacePicker() {
               }`}
             >
               <div className="font-semibold mb-0.5">Add manually</div>
-              <div className="text-[10px] text-mycel-muted/60">By absolute path</div>
+              <div className="text-[10px] text-mycel-muted">By absolute path</div>
             </button>
           </div>
 
@@ -245,7 +245,7 @@ function ScanPane({ onDone }: { onDone: () => void }) {
       {err && <p className="text-[11px] text-mycel-error">{err}</p>}
 
       {candidates && candidates.length === 0 && (
-        <p className="text-[11px] text-mycel-muted/60 italic">No repos found under {root}</p>
+        <p className="text-[11px] text-mycel-muted italic">No repos found under {root}</p>
       )}
 
       {candidates && candidates.length > 0 && (
@@ -270,11 +270,11 @@ function ScanPane({ onDone }: { onDone: () => void }) {
                   }}
                 />
                 <span className="font-semibold text-mycel-text/90">{c.name}</span>
-                <span className="text-mycel-muted/50 truncate" title={c.path}>
+                <span className="text-mycel-muted truncate" title={c.path}>
                   {c.path}
                 </span>
                 {c.already_registered && (
-                  <span className="ml-auto text-[9px] text-mycel-muted/40 uppercase">already added</span>
+                  <span className="ml-auto text-[9px] text-mycel-muted uppercase">already added</span>
                 )}
               </label>
             ))}
@@ -303,7 +303,7 @@ function GitHubPane({ onDone: _onDone }: { onDone: () => void }) {
         <span className="text-mycel-text font-semibold"> Scan local</span> or
         <span className="text-mycel-text font-semibold"> Add manually</span>.
       </p>
-      <p className="text-[10px] text-mycel-muted/50">
+      <p className="text-[10px] text-mycel-muted">
         Tracked in: docs/proposals/multi-workspace-and-code-tab.md \u00A7 4.4
       </p>
     </div>

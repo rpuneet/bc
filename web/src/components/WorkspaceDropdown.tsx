@@ -106,7 +106,7 @@ export function WorkspaceDropdown({
           {active ? (active.name || active.path.split("/").pop() || "unnamed") : (loading ? "…" : "no workspace")}
         </span>
         {active?.id && (
-          <span className="text-mycel-muted/40 text-[9px] tabular-nums">
+          <span className="text-mycel-muted text-[9px] tabular-nums">
             [{active.id.slice(0, 6)}]
           </span>
         )}
@@ -135,19 +135,19 @@ export function WorkspaceDropdown({
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search workspaces…"
-              className="w-full bg-mycel-bg border border-mycel-border/40 rounded px-2.5 py-1 text-[11px] text-mycel-text/90 placeholder:text-mycel-muted/40 outline-none focus:border-mycel-accent/50"
+              className="w-full bg-mycel-bg border border-mycel-border/40 rounded px-2.5 py-1 text-[11px] text-mycel-text/90 placeholder:text-mycel-muted outline-none focus:border-mycel-accent/50"
               style={{ fontFamily: MONO }}
             />
           </div>
 
           <div className="max-h-[320px] overflow-y-auto py-1">
             {loading && (
-              <div className="px-3 py-2 text-[11px] text-mycel-muted/50" style={{ fontFamily: MONO }}>
+              <div className="px-3 py-2 text-[11px] text-mycel-muted" style={{ fontFamily: MONO }}>
                 loading…
               </div>
             )}
             {!loading && filtered.length === 0 && (
-              <div className="px-3 py-2 text-[11px] text-mycel-muted/50 italic" style={{ fontFamily: MONO }}>
+              <div className="px-3 py-2 text-[11px] text-mycel-muted italic" style={{ fontFamily: MONO }}>
                 {workspaces.length === 0 ? "no workspaces registered" : "no matches"}
               </div>
             )}
@@ -165,10 +165,10 @@ export function WorkspaceDropdown({
                 <span className="text-[12px] font-semibold text-mycel-text/90 truncate">
                   {ws.name || ws.path.split("/").pop() || "unnamed"}
                 </span>
-                <span className="text-[9px] text-mycel-muted/40 tabular-nums">
+                <span className="text-[9px] text-mycel-muted tabular-nums">
                   [{ws.id.slice(0, 6)}]
                 </span>
-                <span className="ml-auto text-[10px] text-mycel-muted/40 truncate max-w-[160px]" title={ws.path}>
+                <span className="ml-auto text-[10px] text-mycel-muted truncate max-w-[160px]" title={ws.path}>
                   {shortenPath(ws.path)}
                 </span>
               </button>

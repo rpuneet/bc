@@ -130,9 +130,9 @@ export function SystemPromptEditor({
       </div>
 
       {loading ? (
-        <div className="rounded-md border border-mycel-border/30 bg-mycel-surface/20 p-4">
+        <div className="rounded-md border border-mycel-border/40 bg-mycel-surface/20 p-4">
           <p
-            className="text-xs text-mycel-muted/40 italic"
+            className="text-xs text-mycel-muted italic"
             style={{ fontFamily: MONO }}
           >
             Loading…

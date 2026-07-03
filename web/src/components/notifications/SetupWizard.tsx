@@ -544,7 +544,7 @@ export function PlatformChooser({ onSelect, onClose }: { onSelect: (key: string)
           relative flex flex-col p-4 rounded-xl border text-left
           transition-all duration-150 ease-out group
           ${isComingSoon
-            ? "border-mycel-border/20 opacity-40 cursor-not-allowed"
+            ? "border-mycel-border/40 opacity-40 cursor-not-allowed"
             : "border-mycel-border/40 cursor-pointer hover:border-mycel-accent/50 hover:scale-[1.02] hover:shadow-[0_0_20px_rgba(249,115,22,0.08)]"
           }
           ${isConnected ? "border-green-500/30 bg-green-500/[0.03]" : ""}
@@ -597,7 +597,7 @@ export function PlatformChooser({ onSelect, onClose }: { onSelect: (key: string)
             <span className="text-[10px] text-blue-400/60">Polling &middot; needs API token</span>
           )}
           {!isConnected && isComingSoon && (
-            <span className="text-[10px] text-mycel-muted/40">Coming soon</span>
+            <span className="text-[10px] text-mycel-muted">Coming soon</span>
           )}
         </div>
       </button>
@@ -639,7 +639,7 @@ export function PlatformChooser({ onSelect, onClose }: { onSelect: (key: string)
           {/* Search */}
           <div className="relative">
             <svg
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-mycel-muted/40"
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-mycel-muted"
               width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.3"
             >
               <circle cx="6" cy="6" r="4" />
@@ -651,7 +651,7 @@ export function PlatformChooser({ onSelect, onClose }: { onSelect: (key: string)
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search platforms..."
-              className="w-full pl-9 pr-3 py-2.5 text-sm rounded-lg border border-mycel-border/50 bg-mycel-surface/30 text-mycel-text placeholder:text-mycel-muted/40 focus:outline-none focus:ring-1 focus:ring-mycel-accent/50 focus:border-mycel-accent/30 transition-colors"
+              className="w-full pl-9 pr-3 py-2.5 text-sm rounded-lg border border-mycel-border/50 bg-mycel-surface/30 text-mycel-text placeholder:text-mycel-muted focus:outline-none focus:ring-1 focus:ring-mycel-accent/50 focus:border-mycel-accent/30 transition-colors"
             />
           </div>
         </div>
@@ -672,7 +672,7 @@ export function PlatformChooser({ onSelect, onClose }: { onSelect: (key: string)
           )}
 
           {connectedPlatforms.length > 0 && availablePlatforms.length > 0 && (
-            <div className="border-t border-mycel-border/20 my-5" />
+            <div className="border-t border-mycel-border/40 my-5" />
           )}
 
           {/* Categorized available platforms */}

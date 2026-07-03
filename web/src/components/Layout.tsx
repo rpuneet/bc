@@ -532,7 +532,7 @@ function NavList({
                 <button
                   type="button"
                   onClick={(e) => { e.preventDefault(); e.stopPropagation(); onToggleNotifications(); }}
-                  className="ml-auto shrink-0 p-0.5 rounded text-mycel-muted/40 hover:text-mycel-muted/70 transition-all"
+                  className="ml-auto shrink-0 p-0.5 rounded text-mycel-muted hover:text-mycel-muted/70 transition-all"
                   aria-label={notificationsExpanded ? "Collapse channels" : "Expand channels"}
                 >
                   <svg
@@ -673,7 +673,7 @@ export function Layout() {
           )}
           {isMobile ? (
             <button type="button" onClick={() => setMobileOpen(false)}
-              className="p-0.5 rounded text-mycel-muted/40 hover:text-mycel-text transition-colors" aria-label="Close navigation"
+              className="p-0.5 rounded text-mycel-muted hover:text-mycel-text transition-colors" aria-label="Close navigation"
             >
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5">
                 <path d="M3 3l8 8M11 3l-8 8" />

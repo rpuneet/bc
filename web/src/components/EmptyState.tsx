@@ -94,7 +94,7 @@ export function EmptyState({
   return (
     <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
       {iconNode && (
-        <span className="mb-3 text-mycel-muted/50" aria-hidden>
+        <span className="mb-3 text-mycel-muted" aria-hidden>
           {iconNode}
         </span>
       )}

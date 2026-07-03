@@ -102,7 +102,7 @@ export function MCPServerList({
   if (loading) {
     return (
       <p
-        className="text-xs text-mycel-muted/40 italic pl-1"
+        className="text-xs text-mycel-muted italic pl-1"
         style={{ fontFamily: MONO }}
       >
         Loading...
@@ -117,7 +117,7 @@ export function MCPServerList({
           {servers.map((s) => (
             <span
               key={s}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-mycel-border/30 bg-mycel-surface/30 text-[11px] text-mycel-text/80 font-medium"
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-mycel-border/40 bg-mycel-surface/30 text-[11px] text-mycel-text/80 font-medium"
               style={{ fontFamily: MONO }}
             >
               <span className="w-1.5 h-1.5 rounded-full bg-mycel-accent/60" />
@@ -127,7 +127,7 @@ export function MCPServerList({
                   type="button"
                   onClick={() => { handleRemove(s); }}
                   disabled={removing === s}
-                  className="ml-0.5 text-mycel-muted/50 hover:text-mycel-error transition-colors disabled:opacity-40 leading-none"
+                  className="ml-0.5 text-mycel-muted hover:text-mycel-error transition-colors disabled:opacity-40 leading-none"
                   title={`Remove ${s}`}
                   aria-label={`Remove MCP server ${s}`}
                 >
@@ -138,7 +138,7 @@ export function MCPServerList({
           ))}
         </div>
       ) : (
-        <p className="text-xs text-mycel-muted/40 italic pl-1">
+        <p className="text-xs text-mycel-muted italic pl-1">
           No MCP servers configured.
         </p>
       )}
@@ -160,7 +160,7 @@ export function MCPServerList({
               }}
               placeholder="Search or type a server name…"
               disabled={adding}
-              className="flex-1 max-w-[300px] rounded border border-mycel-border/40 bg-mycel-bg px-2.5 py-1 text-[11px] text-mycel-text/90 placeholder:text-mycel-muted/40 outline-none focus:border-mycel-accent/50 transition-colors disabled:opacity-40"
+              className="flex-1 max-w-[300px] rounded border border-mycel-border/40 bg-mycel-bg px-2.5 py-1 text-[11px] text-mycel-text/90 placeholder:text-mycel-muted outline-none focus:border-mycel-accent/50 transition-colors disabled:opacity-40"
               style={{ fontFamily: MONO }}
             />
             <button
@@ -202,7 +202,7 @@ export function MCPServerList({
                       {m.name}
                     </span>
                     <span
-                      className="block text-[10px] text-mycel-muted/60 truncate"
+                      className="block text-[10px] text-mycel-muted truncate"
                       style={{ fontFamily: MONO }}
                     >
                       {m.description}
@@ -213,7 +213,7 @@ export function MCPServerList({
             </div>
           )}
 
-          <p className="mt-1.5 text-[10px] text-mycel-muted/40" style={{ fontFamily: MONO }}>
+          <p className="mt-1.5 text-[10px] text-mycel-muted" style={{ fontFamily: MONO }}>
             Select from the list or press Enter to add a custom server name.
           </p>
         </div>

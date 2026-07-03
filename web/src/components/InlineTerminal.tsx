@@ -83,7 +83,7 @@ export function InlineTerminal({ agentName, lines = 10 }: InlineTerminalProps) {
   }, [outputLines]);
 
   return (
-    <div className="bg-mycel-bg border-t border-mycel-border/30 px-4 py-3">
+    <div className="bg-mycel-bg border-t border-mycel-border/40 px-4 py-3">
       <div
         ref={scrollRef}
         className="rounded bg-mycel-bg border border-mycel-border/40 p-3 font-mono text-xs leading-relaxed text-mycel-text max-h-48 overflow-auto whitespace-pre-wrap"

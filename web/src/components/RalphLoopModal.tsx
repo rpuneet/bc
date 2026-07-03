@@ -279,7 +279,7 @@ export function RalphLoopModal({
               className={`${INPUT_CLS} resize-none`}
               style={{ fontFamily: MONO }}
             />
-            <p className="text-[10px] text-mycel-muted/40">
+            <p className="text-[10px] text-mycel-muted">
               Sent to the agent each time it stops. Runs on the server — works
               even when you close the browser.
             </p>

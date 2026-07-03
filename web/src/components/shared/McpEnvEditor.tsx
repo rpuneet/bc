@@ -41,14 +41,14 @@ export function McpEnvEditor({ serverNames }: McpEnvEditorProps) {
 
   if (servers === null) {
     return (
-      <p className="text-[11px] text-mycel-muted/60" style={{ fontFamily: MONO }}>
+      <p className="text-[11px] text-mycel-muted" style={{ fontFamily: MONO }}>
         Loading MCP env…
       </p>
     );
   }
   if (servers.length === 0) {
     return (
-      <p className="text-[11px] text-mycel-muted/60" style={{ fontFamily: MONO }}>
+      <p className="text-[11px] text-mycel-muted" style={{ fontFamily: MONO }}>
         {serverNames.length === 0
           ? "No MCP servers attached."
           : "Attached servers aren't in the MCP registry yet."}
@@ -69,7 +69,7 @@ export function McpEnvEditor({ serverNames }: McpEnvEditorProps) {
         return (
           <div
             key={srv.name}
-            className="rounded border border-mycel-border/30 bg-mycel-surface/20"
+            className="rounded border border-mycel-border/40 bg-mycel-surface/20"
           >
             <button
               type="button"
@@ -81,11 +81,11 @@ export function McpEnvEditor({ serverNames }: McpEnvEditorProps) {
                   {srv.name}
                 </span>
                 {srv.enabled === false && (
-                  <span className="text-[10px] uppercase tracking-wide text-mycel-muted/60">
+                  <span className="text-[10px] uppercase tracking-wide text-mycel-muted">
                     disabled
                   </span>
                 )}
-                <span className="text-[10px] text-mycel-muted/60">
+                <span className="text-[10px] text-mycel-muted">
                   {envCount === 0 ? "no env" : `${envCount} env ${envCount === 1 ? "var" : "vars"}`}
                 </span>
               </span>
@@ -114,7 +114,7 @@ export function McpEnvEditor({ serverNames }: McpEnvEditorProps) {
           </div>
         );
       })}
-      <p className="text-[10px] text-mycel-muted/40 leading-relaxed" style={{ fontFamily: MONO }}>
+      <p className="text-[10px] text-mycel-muted leading-relaxed" style={{ fontFamily: MONO }}>
         MCP env is shared across every agent that uses the server. To override a
         value per-agent, set it in the agent's Environment section above.
       </p>
@@ -188,9 +188,9 @@ function EnvEditor({
   };
 
   return (
-    <div className="px-3 pb-3 border-t border-mycel-border/20">
+    <div className="px-3 pb-3 border-t border-mycel-border/40">
       {pairs.length === 0 && (
-        <p className="py-2 text-[11px] text-mycel-muted/60" style={{ fontFamily: MONO }}>
+        <p className="py-2 text-[11px] text-mycel-muted" style={{ fontFamily: MONO }}>
           No env variables set.
         </p>
       )}
@@ -211,7 +211,7 @@ function EnvEditor({
           <button
             type="button"
             onClick={() => remove(i)}
-            className="px-2 py-1 text-[11px] text-mycel-muted/60 hover:text-mycel-error"
+            className="px-2 py-1 text-[11px] text-mycel-muted hover:text-mycel-error"
             style={{ fontFamily: MONO }}
           >
             ✕
@@ -254,7 +254,7 @@ function EnvEditor({
             {saveError}
           </span>
         ) : (
-          <span className="text-[10px] text-mycel-muted/40" style={{ fontFamily: MONO }}>
+          <span className="text-[10px] text-mycel-muted" style={{ fontFamily: MONO }}>
             {dirty ? "Unsaved changes" : "Synced"}
           </span>
         )}

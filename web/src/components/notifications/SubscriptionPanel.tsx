@@ -77,7 +77,7 @@ function AgentRow({
               className={`text-[9px] px-2 py-0.5 rounded-md border transition-all duration-150 ${
                 sub.mention_only
                   ? "border-mycel-accent/30 bg-mycel-accent/8 text-mycel-accent"
-                  : "border-mycel-border/30 text-mycel-muted/50 hover:border-mycel-border/50 hover:text-mycel-muted"
+                  : "border-mycel-border/40 text-mycel-muted hover:border-mycel-border/50 hover:text-mycel-muted"
               }`}
             >
               {sub.mention_only ? "@ mentions" : "all msgs"}
@@ -181,7 +181,7 @@ export function SubscriptionPanel({
       style={{ scrollbarWidth: "thin", scrollbarColor: "rgba(255,255,255,0.04) transparent" }}
     >
       {/* Header */}
-      <div className="px-3 py-3 border-b border-mycel-border/30">
+      <div className="px-3 py-3 border-b border-mycel-border/40">
         <h3 className="text-[11px] font-bold text-mycel-muted/70 uppercase tracking-[0.12em]">
           Agents
         </h3>

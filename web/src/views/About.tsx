@@ -200,7 +200,7 @@ export function About() {
     <div className="p-6 flex flex-col gap-6 max-w-3xl mx-auto">
       <header className="flex items-baseline justify-between gap-3">
         <div className="flex items-baseline gap-3">
-          <span className="text-[11px] uppercase tracking-wider text-mycel-muted/60">Installed</span>
+          <span className="text-[11px] uppercase tracking-wider text-mycel-muted">Installed</span>
           <span className="text-2xl font-semibold text-mycel-text font-mono tabular-nums">
             {health?.version ?? "—"}
           </span>
@@ -255,7 +255,7 @@ go install github.com/rpuneet/mycel/cmd/mycel@latest    # from source`}
         </pre>
       </section>
 
-      <footer className="text-[10px] text-mycel-muted/60 font-mono">
+      <footer className="text-[10px] text-mycel-muted font-mono">
         Built from commit <span className="text-mycel-text">{health?.version ?? "?"}</span>.
         Live distribution checks hit github.com / registry.npmjs.org / raw.githubusercontent.com directly.
       </footer>
@@ -291,7 +291,7 @@ function ChannelTile({ channel }: { channel: ChannelStatus }) {
         )}
       </div>
       {channel.href && (
-        <span className="text-[10px] text-mycel-muted/50 shrink-0" aria-hidden>↗</span>
+        <span className="text-[10px] text-mycel-muted shrink-0" aria-hidden>↗</span>
       )}
     </div>
   );
