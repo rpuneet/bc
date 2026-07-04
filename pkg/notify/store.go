@@ -363,9 +363,11 @@ func (s *Store) ChannelStats(ctx context.Context) ([]ChannelStat, error) {
 		return cs
 	}
 
-	// Message counts + last activity per channel.
+	// Message counts + last activity per channel. created_at is TEXT on
+	// SQLite but TIMESTAMPTZ on Postgres, where pgx's binary mode can't
+	// scan it into a string — cast to text so both drivers agree.
 	msgRows, err := s.db.QueryContext(ctx,
-		`SELECT channel, COUNT(*), MAX(created_at) FROM notify_messages GROUP BY channel`)
+		`SELECT channel, COUNT(*), CAST(MAX(created_at) AS TEXT) FROM notify_messages GROUP BY channel`)
 	if err != nil {
 		return nil, err
 	}
@@ -378,7 +380,9 @@ func (s *Store) ChannelStats(ctx context.Context) ([]ChannelStat, error) {
 		}
 		cs := get(name)
 		cs.MessageCount = count
-		cs.LastActivity, _ = time.Parse(time.RFC3339, last) //nolint:errcheck // DB-written timestamp
+		if ts, parseErr := parseStoredTime(last); parseErr == nil {
+			cs.LastActivity = ts
+		}
 	}
 	if err = msgRows.Err(); err != nil {
 		return nil, err
@@ -540,4 +544,23 @@ func (s *Store) SaveChannel(ctx context.Context, bcChannel, platform, platformID
 		   updated_at = excluded.updated_at`),
 		bcChannel, platform, platformID, time.Now().UTC().Format(time.RFC3339))
 	return err
+}
+
+// parseStoredTime parses a created_at value as either driver returns it:
+// RFC3339 text (SQLite writes) or Postgres timestamp text
+// ("2006-01-02 15:04:05.999999+00") after the CAST(... AS TEXT).
+func parseStoredTime(s string) (time.Time, error) {
+	if t, err := time.Parse(time.RFC3339, s); err == nil {
+		return t, nil
+	}
+	for _, layout := range []string{
+		"2006-01-02 15:04:05.999999999-07",
+		"2006-01-02 15:04:05.999999999-07:00",
+		"2006-01-02 15:04:05.999999999",
+	} {
+		if t, err := time.Parse(layout, s); err == nil {
+			return t, nil
+		}
+	}
+	return time.Time{}, fmt.Errorf("unrecognized timestamp %q", s)
 }
