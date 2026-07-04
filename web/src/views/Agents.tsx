@@ -216,7 +216,7 @@ function AgentActions({ agent, onDone }: { agent: Agent; onDone: () => void }) {
           disabled={busy}
           title="Start agent"
           aria-label={`Start agent ${agent.name}`}
-          className="inline-flex items-center gap-1 h-8 px-3 text-xs font-medium rounded-md bg-mycel-accent text-mycel-accent-fg hover:bg-mycel-accent-hover shadow-mycel-sm disabled:opacity-50 transition-colors focus-visible:ring-2 focus-visible:ring-mycel-accent focus-visible:ring-offset-1 focus-visible:ring-offset-mycel-bg"
+          className="inline-flex items-center gap-1 h-8 px-3 text-xs font-medium rounded-md bg-mycel-accent-subtle text-mycel-accent hover:bg-mycel-accent hover:text-mycel-accent-fg disabled:opacity-50 transition-colors focus-visible:ring-2 focus-visible:ring-mycel-accent focus-visible:ring-offset-1 focus-visible:ring-offset-mycel-bg"
         >
           {busy ? "…" : "Start"}
         </button>
@@ -881,14 +881,19 @@ export function Agents() {
                     }}
                     role="link"
                     tabIndex={0}
-                    className={`border-b border-mycel-border cursor-pointer transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-mycel-accent focus-visible:ring-offset-1 focus-visible:ring-offset-mycel-bg ${
+                    className={`border-b border-mycel-border cursor-pointer transition-[background-color,opacity] duration-150 focus-visible:ring-2 focus-visible:ring-mycel-accent focus-visible:ring-offset-1 focus-visible:ring-offset-mycel-bg ${
                       rowIdx === focusIndex ? "ring-1 ring-inset ring-mycel-accent " : ""
                     }${
                       peekAgent === a.name ? "bg-mycel-surface-hover " : ""
                     }${
                       selected.has(a.name) ? "bg-mycel-accent-subtle" : "hover:bg-mycel-surface"
+                    }${
+                      // Stopped/error rows recede but come back to full
+                      // strength on hover so their actions stay legible.
+                      a.state === "stopped" || a.state === "error"
+                        ? " opacity-[0.55] hover:opacity-100"
+                        : ""
                     }`}
-                    style={(a.state === "stopped" || a.state === "error") ? { opacity: 0.55 } : undefined}
                   >
                     <td
                       className="px-2 py-2.5"
