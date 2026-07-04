@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { MemoryRouter, Routes, Route, useLocation } from "react-router-dom";
 import { Agents } from "../Agents";
-import { AgentDetail } from "../AgentDetail";
+import { AgentDetail, lifecycleDisabled } from "../AgentDetail";
 import { Notifications } from "../Notifications";
 import { Tools } from "../Tools";
 import { Live } from "../Live";
@@ -111,6 +111,76 @@ describe("AgentDetail tab navigation", () => {
     await waitFor(() => {
       expect(screen.getByTestId("location").textContent).toBe("/agents/bot-1/code");
     });
+  });
+});
+
+describe("AgentDetail lifecycle controls", () => {
+  it("disables Start when the agent is alive, Stop/Restart when stopped (#3283)", () => {
+    // Alive states — Start disabled, Stop/Restart enabled.
+    for (const state of ["working", "idle", "starting", "stuck", "done", "running"]) {
+      expect(lifecycleDisabled(state, false)).toEqual({
+        start: true,
+        stop: false,
+        restart: false,
+      });
+    }
+    // Dead states — Start enabled, Stop/Restart disabled.
+    for (const state of ["stopped", "error"]) {
+      expect(lifecycleDisabled(state, false)).toEqual({
+        start: false,
+        stop: true,
+        restart: true,
+      });
+    }
+    // In-flight request disables everything regardless of state.
+    expect(lifecycleDisabled("working", true)).toEqual({
+      start: true,
+      stop: true,
+      restart: true,
+    });
+    expect(lifecycleDisabled("stopped", true)).toEqual({
+      start: true,
+      stop: true,
+      restart: true,
+    });
+  });
+
+  it("renders Start/Stop/Restart controls in the detail header", async () => {
+    fetchMock.mockImplementation((url: RequestInfo | URL) => {
+      const u = String(url);
+      if (u.endsWith("/api/agents/bot-1")) {
+        return jsonResponse({
+          name: "bot-1",
+          role: "engineer",
+          tool: "claude",
+          state: "working",
+          cost_usd: 0,
+          created_at: "2026-07-01T00:00:00Z",
+        });
+      }
+      return jsonResponse([]);
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/agents/bot-1"]}>
+        <Routes>
+          <Route path="agents/:name" element={<AgentDetail />} />
+          <Route path="agents/:name/*" element={<AgentDetail />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("bot-1")).toBeInTheDocument();
+    });
+
+    const start = screen.getByRole("button", { name: "Start agent bot-1" });
+    const stop = screen.getByRole("button", { name: "Stop agent bot-1" });
+    const restart = screen.getByRole("button", { name: "Restart agent bot-1" });
+    // state=working → Start disabled, Stop/Restart enabled.
+    expect(start).toBeDisabled();
+    expect(stop).toBeEnabled();
+    expect(restart).toBeEnabled();
   });
 });
 

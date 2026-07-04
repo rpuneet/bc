@@ -671,10 +671,6 @@ export const api = {
     request<void>(`/agents/${encodeURIComponent(name)}/mcps`, { method: "POST", body: JSON.stringify({ name: mcpName }) }),
   removeAgentMcp: (name: string, mcpName: string) =>
     request<void>(`/agents/${encodeURIComponent(name)}/mcps/${encodeURIComponent(mcpName)}`, { method: "DELETE" }),
-  getAgentLoop: (name: string) =>
-    request<{ enabled: boolean; prompt: string }>(`/agents/${encodeURIComponent(name)}/loop`),
-  putAgentLoop: (name: string, config: { enabled: boolean; prompt: string }) =>
-    request<{ enabled: boolean; prompt: string }>(`/agents/${encodeURIComponent(name)}/loop`, { method: "PUT", body: JSON.stringify(config) }),
   getAgentEnv: (name: string) =>
     request<Array<{ key: string; value: string }>>(`/agents/${encodeURIComponent(name)}/env`),
   putAgentEnv: (name: string, vars: Array<{ key: string; value: string }>) =>
