@@ -2,6 +2,8 @@ import { useState, useCallback, useEffect, useRef, memo } from "react";
 import { useNavigate } from "react-router-dom";
 import { AgentIcon } from "./agent-ui";
 import type { AgentShape } from "./agent-ui";
+import { EnvVarsEditor, isValidEnvKey } from "./EnvVarsEditor";
+import type { EnvRow } from "./EnvVarsEditor";
 import { MONO } from "../utils/typography";
 
 // ── Name generation ───────────────────────────────────────────────────────────
@@ -107,6 +109,10 @@ export function CreateAgentModal({
   const [providerModels, setProviderModels] = useState<Record<string, string[]>>({});
   const [runtime, setRuntime] = useState<Runtime>("docker");
   const [task, setTask] = useState("");
+  // Environment variables — collapsed row editor. Values may hold
+  // ${secret:NAME} references resolved from the vault at spawn.
+  const [envOpen, setEnvOpen] = useState(false);
+  const [envRows, setEnvRows] = useState<EnvRow[]>([]);
   const [cloneFrom, setCloneFrom] = useState("");
   // Repo path the new agent binds to. Defaults to the daemon's default
   // repo (GET /api/repos) once loaded; known repos populate a dropdown.
@@ -196,6 +202,8 @@ export function CreateAgentModal({
       setModel("");
       setRuntime("docker");
       setTask("");
+      setEnvOpen(false);
+      setEnvRows([]);
       setSubmitError(null);
       setSubmitting(false);
       // When opened from the Clone action, pre-select the source agent
@@ -284,13 +292,34 @@ export function CreateAgentModal({
       setSubmitError("Repo path is required.");
       return;
     }
+    // Build the env map from filled rows; reject malformed names early
+    // (mirrors the API rule) instead of round-tripping for a 400.
+    const env: Record<string, string> = {};
+    for (const row of envRows) {
+      const key = row.key.trim();
+      if (key === "" && row.value === "") continue; // ignore blank rows
+      if (!isValidEnvKey(key)) {
+        setSubmitError(`Invalid env var name "${key}": use letters, digits, underscore; must not start with a digit.`);
+        return;
+      }
+      env[key] = row.value;
+    }
     setSubmitError(null);
     setSubmitting(true);
     try {
       const res = await fetch("/api/agents", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: trimmed, template, tool: provider, model: model || undefined, runtime_backend: runtime, repo: repoPath, task: task || undefined }),
+        body: JSON.stringify({
+          name: trimmed,
+          template,
+          tool: provider,
+          model: model || undefined,
+          runtime_backend: runtime,
+          repo: repoPath,
+          task: task || undefined,
+          env: Object.keys(env).length > 0 ? env : undefined,
+        }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({})) as { error?: string };
@@ -304,7 +333,7 @@ export function CreateAgentModal({
       setSubmitError(e instanceof Error ? e.message : "Failed to create agent");
       setSubmitting(false);
     }
-  }, [name, template, provider, model, runtime, task, repo, existingNames, onClose, navigate]);
+  }, [name, template, provider, model, runtime, task, repo, envRows, existingNames, onClose, navigate]);
 
   if (!open) return null;
 
@@ -612,6 +641,33 @@ export function CreateAgentModal({
                 ))}
               </select>
             </div>
+          </div>
+
+          {/* Environment — collapsible key/value editor with secret
+              reference autocomplete. Collapsed by default. */}
+          <div className="flex flex-col gap-1.5">
+            <button
+              type="button"
+              onClick={() => setEnvOpen((prev) => !prev)}
+              aria-expanded={envOpen}
+              className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted hover:text-mycel-text transition-colors w-fit"
+            >
+              <svg
+                width="8"
+                height="8"
+                viewBox="0 0 8 8"
+                fill="currentColor"
+                className={`transition-transform ${envOpen ? "rotate-90" : ""}`}
+                aria-hidden="true"
+              >
+                <path d="M2 0l4 4-4 4z" />
+              </svg>
+              Environment{" "}
+              <span className="normal-case font-normal">
+                (optional{envRows.some((r) => r.key.trim() !== "") ? ` · ${envRows.filter((r) => r.key.trim() !== "").length}` : ""})
+              </span>
+            </button>
+            {envOpen && <EnvVarsEditor rows={envRows} onChange={setEnvRows} />}
           </div>
 
           {/* Initial task */}

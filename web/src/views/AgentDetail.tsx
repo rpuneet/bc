@@ -14,6 +14,7 @@ import { SystemPromptEditor } from "../components/shared/SystemPromptEditor";
 import { SectionRule } from "../components/shared";
 import { AgentToolStream } from "../components/live/AgentToolStream";
 import { CreateAgentModal } from "../components/CreateAgentModal";
+import { SecretValueInput, isValidEnvKey } from "../components/EnvVarsEditor";
 import { formatAbsolute, formatRelative as sharedFormatRelative } from "../utils/time";
 import { MONO } from "../utils/typography";
 
@@ -810,14 +811,14 @@ function ConfigTab({ agent, agentsUrl }: { agent: Agent; agentsUrl: string }) {
             </div>
           )}
 
-          {/* Add row */}
+          {/* Add row — value input supports ${secret:NAME} autocomplete */}
           <div className="flex items-center gap-2">
             <input
               type="text"
               value={newKey}
               onChange={(e) => setNewKey(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === "Enter" && newKey.trim()) {
+                if (e.key === "Enter" && isValidEnvKey(newKey.trim())) {
                   const next = [...envVars, { key: newKey.trim(), value: newValue }];
                   setEnvVars(next);
                   saveEnvVars(next);
@@ -826,32 +827,21 @@ function ConfigTab({ agent, agentsUrl }: { agent: Agent; agentsUrl: string }) {
                 }
               }}
               placeholder="KEY"
-              className="w-32 rounded-md border border-mycel-border-strong bg-mycel-bg px-2.5 py-1 text-[11px] text-mycel-text placeholder:text-mycel-muted outline-none focus:border-mycel-accent transition-colors"
+              aria-invalid={newKey.trim() !== "" && !isValidEnvKey(newKey.trim())}
+              className={`w-32 rounded-md border bg-mycel-bg px-2.5 py-1 text-[11px] text-mycel-text placeholder:text-mycel-muted outline-none focus:border-mycel-accent transition-colors ${
+                newKey.trim() !== "" && !isValidEnvKey(newKey.trim())
+                  ? "border-mycel-error"
+                  : "border-mycel-border-strong"
+              }`}
               style={{ fontFamily: MONO }}
             />
             <span className="text-mycel-muted text-[11px]" style={{ fontFamily: MONO }}>=</span>
-            <input
-              type="text"
-              value={newValue}
-              onChange={(e) => setNewValue(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && newKey.trim()) {
-                  const next = [...envVars, { key: newKey.trim(), value: newValue }];
-                  setEnvVars(next);
-                  saveEnvVars(next);
-                  setNewKey("");
-                  setNewValue("");
-                }
-              }}
-              placeholder="value"
-              className="flex-1 max-w-[200px] rounded-md border border-mycel-border-strong bg-mycel-bg px-2.5 py-1 text-[11px] text-mycel-text placeholder:text-mycel-muted outline-none focus:border-mycel-accent transition-colors"
-              style={{ fontFamily: MONO }}
-            />
+            <SecretValueInput value={newValue} onChange={setNewValue} />
             <button
               type="button"
-              disabled={!newKey.trim()}
+              disabled={!isValidEnvKey(newKey.trim())}
               onClick={() => {
-                if (!newKey.trim()) return;
+                if (!isValidEnvKey(newKey.trim())) return;
                 const next = [...envVars, { key: newKey.trim(), value: newValue }];
                 setEnvVars(next);
                 saveEnvVars(next);
@@ -868,6 +858,9 @@ function ConfigTab({ agent, agentsUrl }: { agent: Agent; agentsUrl: string }) {
             {isTmux
               ? "Set via provider CLI environment · Env vars are applied on agent restart"
               : "Injected as container environment variables · Env vars are applied on agent restart"}
+            {" · "}Values may reference vault secrets as{" "}
+            <span style={{ fontFamily: MONO }}>{"${secret:NAME}"}</span> — resolved at spawn,
+            shown here as the reference.
           </p>
           {agent.tool === "claude" && (
             <div className="mt-2 text-xs text-mycel-muted">

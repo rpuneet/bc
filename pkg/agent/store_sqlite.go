@@ -59,6 +59,7 @@ func createAgentsTable(d *db.DB) error {
 			worktree_dir  TEXT,
 			log_file      TEXT,
 			env_file      TEXT,
+			env_vars      TEXT NOT NULL DEFAULT '',
 			hooked_work   TEXT,
 			children      TEXT,
 			is_root       INTEGER NOT NULL DEFAULT 0,
@@ -113,6 +114,10 @@ func (s *SQLiteStore) Save(ctx context.Context, a *Agent) error {
 	if err != nil {
 		return fmt.Errorf("marshal children: %w", err)
 	}
+	envVars, err := marshalEnv(a.Env)
+	if err != nil {
+		return fmt.Errorf("marshal env: %w", err)
+	}
 
 	now := time.Now()
 	createdAt := a.CreatedAt
@@ -122,15 +127,15 @@ func (s *SQLiteStore) Save(ctx context.Context, a *Agent) error {
 	_, err = s.db.ExecContext(ctx, `
 		INSERT OR REPLACE INTO agents
 		(name, role, state, tool, parent_id, team, task, session, workspace,
-		 worktree_dir, log_file, env_file, hooked_work, children,
+		 worktree_dir, log_file, env_file, env_vars, hooked_work, children,
 		 is_root, crash_count, last_crash_time, recovered_from,
 		 runtime_backend, session_id, created_at, stopped_at, deleted_at,
 		 started_at, updated_at, repo, model)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		a.Name, string(a.Role), string(a.State),
 		nullStr(a.Tool), nullStr(a.ParentID), nullStr(a.Team), nullStr(a.Task),
 		nullStr(a.Session), a.Workspace,
-		nullStr(a.WorktreeDir), nullStr(a.LogFile), nullStr(a.EnvFile),
+		nullStr(a.WorktreeDir), nullStr(a.LogFile), nullStr(a.EnvFile), envVars,
 		nullStr(a.HookedWork), string(children),
 		boolToInt(a.IsRoot), a.CrashCount,
 		nullTime(a.LastCrashTime), nullStr(a.RecoveredFrom),
@@ -259,11 +264,11 @@ func (s *SQLiteStore) SaveAll(ctx context.Context, agents map[string]*Agent) err
 	stmt, err := tx.PrepareContext(ctx, `
 		INSERT OR REPLACE INTO agents
 		(name, role, state, tool, parent_id, team, task, session, workspace,
-		 worktree_dir, log_file, env_file, hooked_work, children,
+		 worktree_dir, log_file, env_file, env_vars, hooked_work, children,
 		 is_root, crash_count, last_crash_time, recovered_from,
 		 runtime_backend, session_id, created_at, stopped_at, deleted_at,
 		 started_at, updated_at, repo, model)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
 	if err != nil {
 		return err
 	}
@@ -275,6 +280,10 @@ func (s *SQLiteStore) SaveAll(ctx context.Context, agents map[string]*Agent) err
 		if err != nil {
 			return fmt.Errorf("marshal children for %s: %w", a.Name, err)
 		}
+		envVars, err := marshalEnv(a.Env)
+		if err != nil {
+			return fmt.Errorf("marshal env for %s: %w", a.Name, err)
+		}
 		createdAt := a.CreatedAt
 		if createdAt.IsZero() {
 			createdAt = a.StartedAt
@@ -283,7 +292,7 @@ func (s *SQLiteStore) SaveAll(ctx context.Context, agents map[string]*Agent) err
 			a.Name, string(a.Role), string(a.State),
 			nullStr(a.Tool), nullStr(a.ParentID), nullStr(a.Team), nullStr(a.Task),
 			nullStr(a.Session), a.Workspace,
-			nullStr(a.WorktreeDir), nullStr(a.LogFile), nullStr(a.EnvFile),
+			nullStr(a.WorktreeDir), nullStr(a.LogFile), nullStr(a.EnvFile), envVars,
 			nullStr(a.HookedWork), string(children),
 			boolToInt(a.IsRoot), a.CrashCount,
 			nullTime(a.LastCrashTime), nullStr(a.RecoveredFrom),
@@ -348,7 +357,7 @@ func (s *SQLiteStore) Close() error {
 
 // agentSelectCols is the SELECT column list used by all Load* methods.
 const agentSelectCols = `SELECT name, role, state, tool, parent_id, team, task, session, workspace,
-	       worktree_dir, log_file, env_file, hooked_work, children,
+	       worktree_dir, log_file, env_file, env_vars, hooked_work, children,
 	       is_root, crash_count, last_crash_time, recovered_from,
 	       runtime_backend, session_id, created_at, stopped_at, deleted_at,
 	       started_at, updated_at, repo, model`
@@ -358,7 +367,7 @@ func scanAgentRow(s interface{ Scan(...any) error }) (*Agent, error) {
 	var role, state string
 	var tool, parentID, team, task, session, worktreeDir, logFile, envFile, hookedWork, childrenJSON *string
 	var lastCrashTime, recoveredFrom, runtimeBackend, sessionID *string
-	var repo, model string
+	var repo, model, envVars string
 	var createdAt, stoppedAt, deletedAt *string
 	var startedAt, updatedAt string
 	var isRoot, crashCount int
@@ -366,13 +375,16 @@ func scanAgentRow(s interface{ Scan(...any) error }) (*Agent, error) {
 	err := s.Scan(
 		&a.Name, &role, &state,
 		&tool, &parentID, &team, &task, &session, &a.Workspace,
-		&worktreeDir, &logFile, &envFile, &hookedWork, &childrenJSON,
+		&worktreeDir, &logFile, &envFile, &envVars, &hookedWork, &childrenJSON,
 		&isRoot, &crashCount, &lastCrashTime, &recoveredFrom,
 		&runtimeBackend, &sessionID, &createdAt, &stoppedAt, &deletedAt,
 		&startedAt, &updatedAt, &repo, &model,
 	)
 	if err != nil {
 		return nil, err
+	}
+	if envVars != "" {
+		_ = json.Unmarshal([]byte(envVars), &a.Env) //nolint:errcheck // best-effort
 	}
 
 	a.ID = a.Name
@@ -430,6 +442,19 @@ func scanAgentRow(s interface{ Scan(...any) error }) (*Agent, error) {
 }
 
 // --- value helpers ---
+
+// marshalEnv JSON-encodes an agent env map for the env_vars column.
+// Empty/nil maps store as the empty string (column is NOT NULL DEFAULT ”).
+func marshalEnv(env map[string]string) (string, error) {
+	if len(env) == 0 {
+		return "", nil
+	}
+	b, err := json.Marshal(env)
+	if err != nil {
+		return "", err
+	}
+	return string(b), nil
+}
 
 func nullStr(s string) *string {
 	if s == "" {

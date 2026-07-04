@@ -77,6 +77,10 @@ export interface Agent {
   /** Absolute path of the git repo this agent is bound to. Grouping
    *  the Agents page by repo uses this. */
   repo?: string;
+  /** Configured environment variables injected at spawn. Values with
+   *  `${secret:NAME}` references are returned as the reference — the
+   *  daemon never sends resolved secret values. */
+  env?: Record<string, string>;
 }
 
 export interface AgentConfig {
@@ -599,6 +603,9 @@ export const api = {
     tool?: string;
     model?: string;
     runtime?: string;
+    /** Environment variables for the agent. Values may hold
+     *  `${secret:NAME}` references resolved from the vault at spawn. */
+    env?: Record<string, string>;
   }) =>
     request<Agent>("/agents", {
       method: "POST",

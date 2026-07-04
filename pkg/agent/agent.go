@@ -114,6 +114,17 @@ func IsValidAgentName(name string) bool {
 	return agentNameRe.MatchString(name)
 }
 
+// envNameRe matches valid environment variable names: a letter or
+// underscore followed by letters, digits, or underscores.
+var envNameRe = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
+
+// IsValidEnvName reports whether name is a valid environment variable
+// name (^[A-Za-z_][A-Za-z0-9_]*$). Used by the API layer to reject
+// malformed keys in per-agent env configuration.
+func IsValidEnvName(name string) bool {
+	return envNameRe.MatchString(name)
+}
+
 // Role defines the type of agent.
 type Role string
 
@@ -353,14 +364,20 @@ type Agent struct {
 	// Archiving does NOT delete state; unarchive clears this field.
 	ArchivedAt *time.Time   `json:"archived_at,omitempty"`
 	RolePrompt *AgentMemory `json:"memory,omitempty"`
-	Workspace  string       `json:"workspace"`
-	Repo       string       `json:"repo,omitempty"`
-	ID         string       `json:"id"`
-	Name       string       `json:"name"`
-	Task       string       `json:"task,omitempty"`
-	Session    string       `json:"session"`
-	SessionID  string       `json:"session_id,omitempty"` // For session resume (#1939)
-	Tool       string       `json:"tool,omitempty"`
+	// Env holds user-configured environment variables injected into the
+	// agent's session at spawn time. Values may contain ${secret:NAME}
+	// references, which are stored verbatim and resolved against the
+	// secrets vault only when the session is created — never persisted
+	// or returned resolved.
+	Env       map[string]string `json:"env,omitempty"`
+	Workspace string            `json:"workspace"`
+	Repo      string            `json:"repo,omitempty"`
+	ID        string            `json:"id"`
+	Name      string            `json:"name"`
+	Task      string            `json:"task,omitempty"`
+	Session   string            `json:"session"`
+	SessionID string            `json:"session_id,omitempty"` // For session resume (#1939)
+	Tool      string            `json:"tool,omitempty"`
 	// Model is the provider model identifier the agent runs with (e.g.
 	// "fable" for claude). Empty means the provider default — no model
 	// flag is injected. Restarts reuse the stored value.
@@ -979,6 +996,9 @@ func ListAvailableTools() []string {
 
 // SpawnOptions holds all parameters for creating an agent.
 type SpawnOptions struct {
+	// Env holds user-configured environment variables. Values may contain
+	// ${secret:NAME} references resolved against the vault at spawn time.
+	Env       map[string]string
 	Name      string
 	Role      Role
 	Workspace string
@@ -1241,7 +1261,7 @@ func (m *Manager) startAgent(ctx context.Context, name string, opts SpawnOptions
 	if apiKey := os.Getenv("BC_API_KEY"); apiKey != "" {
 		env["BC_API_KEY"] = apiKey
 	}
-	injectEnv(env, wsPath, toolName, existing.EnvFile)
+	injectEnv(env, wsPath, name, existing.EnvFile, existing.Env)
 	injectGatewayEnv(env, m.gatewayConfig)
 
 	rt := m.runtimeForAgent(name)
@@ -1448,6 +1468,7 @@ func (m *Manager) createAgent(ctx context.Context, opts SpawnOptions) (*Agent, e
 		ParentID:       parentID,
 		Team:           opts.Team,
 		EnvFile:        opts.EnvFile,
+		Env:            opts.Env,
 		RuntimeBackend: agentRuntime,
 		Children:       []string{},
 		IsRoot:         role == RoleRoot,
@@ -1479,7 +1500,7 @@ func (m *Manager) createAgent(ctx context.Context, opts SpawnOptions) (*Agent, e
 	if apiKey := os.Getenv("BC_API_KEY"); apiKey != "" {
 		env["BC_API_KEY"] = apiKey
 	}
-	injectEnv(env, wsPath, effectiveTool, opts.EnvFile)
+	injectEnv(env, wsPath, name, opts.EnvFile, opts.Env)
 	injectGatewayEnv(env, m.gatewayConfig)
 
 	rt := m.runtimeForAgent(name)
@@ -2489,6 +2510,27 @@ func (m *Manager) RunningCount() int {
 	return count
 }
 
+// SetAgentEnv replaces an agent's configured environment variables.
+// Values may contain ${secret:NAME} references — they are stored verbatim
+// and resolved at spawn time, so changes (and rotated secrets) take effect
+// on the next restart.
+func (m *Manager) SetAgentEnv(ctx context.Context, name string, env map[string]string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	a, exists := m.agents[name]
+	if !exists {
+		return fmt.Errorf("agent %s: %w", name, ErrNotFound)
+	}
+	a.Env = env
+	a.UpdatedAt = time.Now()
+
+	if err := m.saveState(ctx); err != nil {
+		return fmt.Errorf("save agent state: %w", err)
+	}
+	return nil
+}
+
 // UpdateAgentState updates an agent's state and task.
 // Returns an error if the transition is invalid per the state machine.
 func (m *Manager) UpdateAgentState(ctx context.Context, name string, state State, task string) error {
@@ -3027,15 +3069,32 @@ func bcdAddrForRuntime(rt string) string {
 	return "http://127.0.0.1:9374"
 }
 
-// injectEnv merges environment variables from the agent env file
-// and resolves ${secret:NAME} references.
-func injectEnv(env map[string]string, workspacePath, _, envFile string) {
+// injectEnv merges environment variables from the agent env file and the
+// agent's configured env map, then resolves ${secret:NAME} references.
+// Merge order: env file first, then userEnv (explicit config wins over the
+// file), with BC_* system vars always protected via mergeUserEnv.
+func injectEnv(env map[string]string, workspacePath, agentName, envFile string, userEnv map[string]string) {
 	// Agent env file
 	if envFile != "" {
 		parseEnvFile(env, envFile)
 	}
+	// Per-agent configured env vars
+	mergeUserEnv(env, userEnv, agentName)
 	// Resolve ${secret:NAME} references in all env values
 	resolveSecretRefs(env, workspacePath)
+}
+
+// mergeUserEnv merges user-configured env vars into env. Keys starting
+// with "BC_" are reserved for the system (BC_AGENT_ID, BC_WORKSPACE, …)
+// and are skipped with a warning so user config can never clobber them.
+func mergeUserEnv(env, userEnv map[string]string, agentName string) {
+	for k, v := range userEnv {
+		if strings.HasPrefix(k, "BC_") {
+			log.Warn("skipping reserved env var from agent config", "agent", agentName, "key", k)
+			continue
+		}
+		env[k] = v
+	}
 }
 
 // gatewayPromptInstructions generates markdown instructions that tell an agent
