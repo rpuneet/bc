@@ -658,3 +658,47 @@ func TestFix_WorkspaceDir_Creates(t *testing.T) {
 		t.Errorf("agents/ should have been created: %v", err)
 	}
 }
+
+// TestCheckAgentImages covers the docker agent-image doctor check: a
+// provider without its mycel-agent image (or the legacy bc-agent name)
+// warns with a build hint; no docker → no items at all.
+func TestCheckAgentImages(t *testing.T) {
+	ctx := context.Background()
+	orig := listDockerImages
+	t.Cleanup(func() { listDockerImages = orig })
+
+	t.Run("no docker yields no items", func(t *testing.T) {
+		listDockerImages = func(context.Context) []string { return nil }
+		if items := checkAgentImages(ctx); items != nil {
+			t.Errorf("expected no items without docker, got %d", len(items))
+		}
+	})
+
+	t.Run("missing and present images", func(t *testing.T) {
+		listDockerImages = func(context.Context) []string {
+			return []string{"mycel-agent-claude:latest", "bc-agent-gemini:latest", "ubuntu:24.04"}
+		}
+		items := checkAgentImages(ctx)
+		if len(items) == 0 {
+			t.Fatal("expected one item per provider")
+		}
+		bySeverity := map[string]Severity{}
+		for _, it := range items {
+			bySeverity[it.Name] = it.Severity
+		}
+		if got := bySeverity["image:mycel-agent-claude:latest"]; got != SeverityOK {
+			t.Errorf("claude image severity = %v, want OK", got)
+		}
+		if got := bySeverity["image:mycel-agent-gemini:latest"]; got != SeverityOK {
+			t.Errorf("gemini legacy image severity = %v, want OK", got)
+		}
+		if got := bySeverity["image:mycel-agent-cursor:latest"]; got != SeverityWarn {
+			t.Errorf("cursor missing image severity = %v, want Warn", got)
+		}
+		for _, it := range items {
+			if it.Severity == SeverityWarn && it.Fix == "" {
+				t.Errorf("warn item %q has no fix hint", it.Name)
+			}
+		}
+	})
+}

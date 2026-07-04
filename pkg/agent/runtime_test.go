@@ -14,12 +14,14 @@ import (
 
 // mockBackend implements runtime.Backend for testing runtime routing.
 type mockBackend struct {
-	sessions map[string]bool
-	lastEnv  map[string]string
-	name     string
-	lastDir  string
-	sent     []string
-	mu       sync.Mutex
+	sessions  map[string]bool
+	lastEnv   map[string]string
+	onCreate  func()
+	createErr error
+	name      string
+	lastDir   string
+	sent      []string
+	mu        sync.Mutex
 }
 
 func newMockBackend(name string) *mockBackend {
@@ -44,6 +46,15 @@ func (m *mockBackend) CreateSessionWithCommand(_ context.Context, name, _, _ str
 	return nil
 }
 func (m *mockBackend) CreateSessionWithEnv(_ context.Context, name, dir, _ string, env map[string]string) error {
+	m.mu.Lock()
+	onCreate, createErr := m.onCreate, m.createErr
+	m.mu.Unlock()
+	if onCreate != nil {
+		onCreate()
+	}
+	if createErr != nil {
+		return createErr
+	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.sessions[name] = true

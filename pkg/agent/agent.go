@@ -550,6 +550,24 @@ func (m *Manager) getAgentLock(name string) *sync.Mutex {
 	return lock
 }
 
+// rollbackCreate undoes a failed createAgent: the in-memory entry AND the
+// store row both go. Background loops (tool health) snapshot m.agents to
+// the store while creation is still in flight, so the row may already be
+// persisted even though createAgent never saved it — without the store
+// delete the name stays reserved by a phantom 'starting' row forever.
+func (m *Manager) rollbackCreate(ctx context.Context, name string) {
+	m.mu.Lock()
+	delete(m.agents, name)
+	store := m.store
+	m.mu.Unlock()
+	if store == nil {
+		return
+	}
+	if err := store.Delete(ctx, name); err != nil {
+		log.Warn("rollback: failed to delete agent row after failed create", "agent", name, "error", err)
+	}
+}
+
 // runtime returns the default runtime backend.
 func (m *Manager) runtime() runtime.Backend {
 	return m.backends[m.defaultBackend]
@@ -1357,9 +1375,7 @@ func (m *Manager) createAgent(ctx context.Context, opts SpawnOptions) (*Agent, e
 	wtDir, wtErr := wtMgr.Create(ctx, name)
 	if wtErr != nil {
 		agentLock.Unlock()
-		m.mu.Lock()
-		delete(m.agents, name)
-		m.mu.Unlock()
+		m.rollbackCreate(ctx, name)
 		return nil, fmt.Errorf("create worktree: %w", wtErr)
 	}
 	agent.WorktreeDir = wtDir
@@ -1395,9 +1411,7 @@ func (m *Manager) createAgent(ctx context.Context, opts SpawnOptions) (*Agent, e
 	// Create session IN the worktree directory
 	if err := rt.CreateSessionWithEnv(ctx, name, wtDir, agentCmd, env); err != nil {
 		agentLock.Unlock()
-		m.mu.Lock()
-		delete(m.agents, name)
-		m.mu.Unlock()
+		m.rollbackCreate(ctx, name)
 		return nil, fmt.Errorf("failed to create session: %w", err)
 	}
 
