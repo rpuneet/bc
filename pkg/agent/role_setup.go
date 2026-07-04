@@ -51,8 +51,11 @@ func SetupAgentFromRole(ctx context.Context, workspacePath, agentName, roleName,
 }
 
 func setupAgentFromRole(ctx context.Context, workspacePath, agentName, roleName, targetDir, runtimeBackend, toolName string) error {
-	stateDir := workspaceStateDir(workspacePath)
-	rm := workspace.NewRoleManager(stateDir)
+	rm, err := workspace.NewGlobalRoleManager(workspaceStateDir(workspacePath))
+	if err != nil {
+		log.Warn("failed to open global role store, skipping setup", "role", roleName, "error", err)
+		return nil
+	}
 
 	resolved, err := rm.ResolveRole(roleName)
 	if err != nil {
@@ -490,8 +493,13 @@ func validateAgentTools(workspacePath, roleName string) []string {
 		return nil
 	}
 
-	stateDir := workspaceStateDir(workspacePath)
-	rm := workspace.NewRoleManager(stateDir)
+	// Roles live in the single global database, not in the target repo's
+	// local state dir — resolve them from the global store so agents created
+	// against any repo validate correctly.
+	rm, err := workspace.NewGlobalRoleManager(workspaceStateDir(workspacePath))
+	if err != nil {
+		return []string{fmt.Sprintf("role store unavailable: %v", err)}
+	}
 
 	resolved, err := rm.ResolveRole(roleName)
 	if err != nil {

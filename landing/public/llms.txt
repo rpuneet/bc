@@ -14,15 +14,12 @@
 
 ## Supported AI Tools
 
-mycel works with any CLI-based AI coding assistant:
+mycel ships built-in providers for:
 - Claude Code
+- Codex
 - Cursor
-- GitHub Copilot
 - Gemini
-- Aider
-- OpenCode
-- Cline
-- Any custom CLI tool
+- Pi
 
 ## Pages
 

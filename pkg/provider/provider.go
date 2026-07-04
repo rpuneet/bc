@@ -1,19 +1,17 @@
 // Package provider implements AI agent provider integrations.
-// Issue #1451: OpenCode support
-// Issue #1452: Cursor Agent support
-// Epic #1429: Multi-Agent Integration
 package provider
 
 import (
 	"context"
 	"fmt"
 	"os/exec"
+	"sort"
 	"strings"
 )
 
 // Provider represents an AI agent provider that can run in a bc workspace.
 type Provider interface {
-	// Name returns the provider's unique identifier (e.g., "opencode", "cursor")
+	// Name returns the provider's unique identifier (e.g., "claude", "cursor")
 	Name() string
 
 	// Description returns a human-readable description
@@ -126,6 +124,18 @@ func (r *Registry) List() []Provider {
 	return providers
 }
 
+// Names returns the sorted names of all registered providers. User-facing
+// provider lists (e.g., CLI flag help) derive from this so the registry
+// stays the single source of truth.
+func (r *Registry) Names() []string {
+	names := make([]string, 0, len(r.providers))
+	for name := range r.providers {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
+}
+
 // ListInstalled returns all installed providers.
 func (r *Registry) ListInstalled(ctx context.Context) []Provider {
 	var installed []Provider
@@ -141,7 +151,7 @@ func (r *Registry) ListInstalled(ctx context.Context) []Provider {
 var DefaultRegistry = NewRegistry()
 
 func init() {
-	// Register built-in providers (aider, opencode, openclaw removed per #2921)
+	// Register built-in providers.
 	DefaultRegistry.Register(NewClaudeProvider())
 	DefaultRegistry.Register(NewCodexProvider())
 	DefaultRegistry.Register(NewGeminiProvider())

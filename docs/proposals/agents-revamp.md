@@ -38,7 +38,7 @@ An agent is an isolated AI collaborator with:
 2. **A template instance** — materialized config: system prompt, MCPs, secrets, plugins
 3. **An avatar** — icon variant + accent color, persisted on creation
 4. **A runtime** — tmux (local) or Docker (isolated container)
-5. **A provider** — Claude, Gemini, Cursor, Codex, Aider, etc.
+5. **A provider** — Claude, Gemini, Cursor, Codex, or Pi
 
 ### 2.1 Templates Replace Roles
 
@@ -375,7 +375,6 @@ Pattern matching checks for provider-specific indicators:
 - Claude: `Waiting for input`, `Thinking...`, rate limit messages
 - Gemini: `quota` errors
 - Cursor: auth errors
-- Aider: `rate limit`
 
 ---
 

@@ -230,7 +230,7 @@ func TestAgentReportNoAgentID(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error when BC_AGENT_ID not set, got nil")
 	}
-	if !strings.Contains(err.Error(), "this command can only be run by agents in the bc system") {
+	if !strings.Contains(err.Error(), "this command can only be run by agents in the mycel system") {
 		t.Errorf("expected agent-only command error, got: %v", err)
 	}
 }

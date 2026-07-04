@@ -27,7 +27,7 @@ func getRepo() (*workspace.Workspace, error) {
 
 // errorAgentNotRunning returns an error message for commands that require BC_AGENT_ID.
 func errorAgentNotRunning(commandUsage string) error {
-	return fmt.Errorf("this command can only be run by agents in the bc system (use: bc agent send <agent-name> %q)", commandUsage)
+	return fmt.Errorf("this command can only be run by agents in the mycel system (use: mycel agent send <agent-name> %q)", commandUsage)
 }
 
 // newDaemonClient creates a client connected to the bcd daemon.

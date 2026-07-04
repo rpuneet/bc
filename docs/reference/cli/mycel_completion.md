@@ -4,18 +4,18 @@ Generate shell completion scripts
 
 ### Synopsis
 
-Generate shell completion scripts for bc.
+Generate shell completion scripts for mycel.
 
 To load completions:
 
 Bash:
-  $ source <(bc completion bash)
+  $ source <(mycel completion bash)
 
   # To load completions for each session, execute once:
   # Linux:
-  $ bc completion bash > /etc/bash_completion.d/bc
+  $ mycel completion bash > /etc/bash_completion.d/mycel
   # macOS:
-  $ bc completion bash > $(brew --prefix)/etc/bash_completion.d/bc
+  $ mycel completion bash > $(brew --prefix)/etc/bash_completion.d/mycel
 
 Zsh:
   # If shell completion is not already enabled in your environment,
@@ -23,21 +23,21 @@ Zsh:
   $ echo "autoload -U compinit; compinit" >> ~/.zshrc
 
   # To load completions for each session, execute once:
-  $ bc completion zsh > "${fpath[1]}/_bc"
+  $ mycel completion zsh > "${fpath[1]}/_mycel"
 
   # You will need to start a new shell for this setup to take effect.
 
 Fish:
-  $ bc completion fish | source
+  $ mycel completion fish | source
 
   # To load completions for each session, execute once:
-  $ bc completion fish > ~/.config/fish/completions/bc.fish
+  $ mycel completion fish > ~/.config/fish/completions/mycel.fish
 
 PowerShell:
-  PS> bc completion powershell | Out-String | Invoke-Expression
+  PS> mycel completion powershell | Out-String | Invoke-Expression
 
   # To load completions for every new session, run:
-  PS> bc completion powershell > bc.ps1
+  PS> mycel completion powershell > mycel.ps1
   # and source this file from your PowerShell profile.
 
 

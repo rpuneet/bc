@@ -4,7 +4,7 @@ Show the event log
 
 ### Synopsis
 
-View the bc event log showing agent spawns, stops, work assignments, and reports.
+View the mycel event log showing agent spawns, stops, work assignments, and reports.
 
 Examples:
   mycel logs                     # Show all events

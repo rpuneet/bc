@@ -21,7 +21,7 @@ var statusActivity bool
 var statusCmd = &cobra.Command{
 	Use:   "status",
 	Short: "Show agent status",
-	Long: `Show the status of all bc agents.
+	Long: `Show the status of all mycel agents.
 
 Examples:
   mycel status                   # Show all agents
@@ -189,9 +189,9 @@ func runStatus(cmd *cobra.Command, args []string) error {
 
 	fmt.Println()
 	fmt.Println("Commands:")
-	fmt.Println("  bc agent attach <agent>  # Attach to agent's session")
-	fmt.Println("  bc agent health    # Check agent health status")
-	fmt.Println("  bc down            # Stop all agents")
+	fmt.Println("  mycel agent attach <agent>  # Attach to agent's session")
+	fmt.Println("  mycel agent health    # Check agent health status")
+	fmt.Println("  mycel down            # Stop all agents")
 
 	return nil
 }

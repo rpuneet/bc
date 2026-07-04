@@ -122,7 +122,17 @@ type rolePayload struct {
 }
 
 func (s *Server) readRoles() (string, error) {
-	rm := workspace.NewRoleManager(s.ws.StateDir())
+	// Roles live in the single global database — reuse the workspace's role
+	// manager (already backed by the global store) rather than opening a
+	// per-workspace bc.db that holds no roles.
+	rm := s.ws.RoleManager
+	if rm == nil {
+		var err error
+		rm, err = workspace.NewGlobalRoleManager(s.ws.StateDir())
+		if err != nil {
+			return marshalJSON([]rolePayload{})
+		}
+	}
 	roles, err := rm.LoadAllRoles()
 	if err != nil {
 		return marshalJSON([]rolePayload{})

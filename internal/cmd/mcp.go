@@ -96,10 +96,10 @@ var mcpDisableCmd = &cobra.Command{
 // Issue #1985: bc-as-MCP-server commands
 var mcpServeCmd = &cobra.Command{
 	Use:   "serve",
-	Short: "Start bc as an MCP server",
-	Long: `Start bc as an MCP (Model Context Protocol) server.
+	Short: "Start mycel as an MCP server",
+	Long: `Start mycel as an MCP (Model Context Protocol) server.
 
-AI tools like Claude Code and Cursor can connect to bc via MCP to query
+AI tools like Claude Code and Cursor can connect to mycel via MCP to query
 workspace state and control agents natively.
 
 Default transport is stdio (newline-delimited JSON on stdin/stdout).
@@ -130,11 +130,11 @@ Examples:
 
 var mcpRegisterCmd = &cobra.Command{
 	Use:   "register",
-	Short: "Register bc as an MCP server in agent settings.json",
-	Long: `Automatically add bc to the Claude Code MCP server configuration.
+	Short: "Register mycel as an MCP server in agent settings.json",
+	Long: `Automatically add mycel to the Claude Code MCP server configuration.
 
 This writes (or updates) the mcp.servers entry in the workspace
-settings.json so that agents automatically have access to bc MCP tools.
+settings.json so that agents automatically have access to mycel MCP tools.
 
 Examples:
   mycel mcp register               # Register with stdio transport
@@ -481,9 +481,9 @@ func runMCPRegister(cmd *cobra.Command, _ []string) error {
 			"url":       sseURL,
 		}
 	} else {
-		bcPath, lookErr := exec.LookPath("bc")
+		bcPath, lookErr := exec.LookPath("mycel")
 		if lookErr != nil {
-			bcPath = "bc"
+			bcPath = "mycel"
 		}
 		mcpEntry = map[string]any{
 			"name":    "bc",
@@ -530,9 +530,9 @@ func runMCPRegister(cmd *cobra.Command, _ []string) error {
 	if mcpServeSSE {
 		transport = "sse (" + mcpServeAddr + ")"
 	}
-	fmt.Printf("✓ Registered bc MCP server in %s\n", settingsPath)
+	fmt.Printf("✓ Registered mycel MCP server in %s\n", settingsPath)
 	fmt.Printf("  Transport: %s\n", transport)
-	fmt.Println("\nAgents will automatically have access to bc MCP tools.")
+	fmt.Println("\nAgents will automatically have access to mycel MCP tools.")
 
 	return nil
 }
