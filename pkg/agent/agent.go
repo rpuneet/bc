@@ -669,6 +669,14 @@ func (m *Manager) worktreeManagerFor(repo string) *worktree.Manager {
 	if repo == "" || filepath.Clean(repo) == filepath.Clean(m.workspacePath) {
 		return m.worktreeMgr
 	}
+	// The repo value arrives from the create-agent API — clean it and
+	// require an absolute, traversal-free path before it touches the
+	// filesystem or anchors a worktree manager.
+	repo = filepath.Clean(repo)
+	if !filepath.IsAbs(repo) || strings.Contains(repo, "..") {
+		log.Warn("agent repo path is not absolute/safe — using boot repo for worktree", "repo", repo)
+		return m.worktreeMgr
+	}
 	if _, err := os.Stat(filepath.Join(repo, ".git")); err != nil {
 		log.Warn("agent repo is not a git repository — using boot repo for worktree", "repo", repo)
 		return m.worktreeMgr
