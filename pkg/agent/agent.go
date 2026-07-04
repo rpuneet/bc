@@ -617,8 +617,9 @@ func NewManager(stateDir string) *Manager {
 // Session names will be unique per workspace to avoid collisions.
 //
 // stateDir is the per-workspace runtime directory (pre-M11: <project>/.bc/;
-// M11+: ~/.mycel/workspaces/<id>/). Agents are written to <stateDir>/agents/
-// and their worktrees at <stateDir>/agents/<name>/bc-<ws>-<name>/.
+// M11+: ~/.mycel/workspaces/<id>/). New agents use the flat layout:
+// worktrees at <MycelHome>/worktrees/<name>/ and agent state at
+// <MycelHome>/agents/<name>/.
 func NewWorkspaceManager(stateDir, workspacePath string) *Manager {
 	cmd, tool := defaultAgentCmd()
 	tmuxBe := runtime.NewTmuxBackend(tmux.NewWorkspaceManager(DefaultSessionPrefix, workspacePath))
@@ -633,7 +634,7 @@ func NewWorkspaceManager(stateDir, workspacePath string) *Manager {
 		defaultTool:      tool,
 		workspacePath:    workspacePath,
 		maxLogBytes:      DefaultMaxLogBytes,
-		worktreeMgr:      worktree.NewManagerWithDataDir(workspacePath, parentOfAgentsDir(stateDir)),
+		worktreeMgr:      flatWorktreeManager(workspacePath, stateDir),
 	}
 }
 
@@ -657,8 +658,25 @@ func NewWorkspaceManagerWithRuntime(stateDir, workspacePath string, rt runtime.B
 		defaultTool:      tool,
 		workspacePath:    workspacePath,
 		maxLogBytes:      DefaultMaxLogBytes,
-		worktreeMgr:      worktree.NewManagerWithDataDir(workspacePath, parentOfAgentsDir(stateDir)),
+		worktreeMgr:      flatWorktreeManager(workspacePath, stateDir),
 	}
+}
+
+// flatWorktreeManager builds a worktree manager for the flat layout:
+// worktrees at <MycelHome>/worktrees/<name>/ and agent state (claude/,
+// claude.json, logs/) at <MycelHome>/agents/<name>/. Agent names are
+// globally unique (mycel.db primary key), so flat name-keyed dirs are
+// safe. Falls back to the nested per-workspace layout only when the
+// mycel home cannot be resolved.
+func flatWorktreeManager(repoRoot, stateDir string) *worktree.Manager {
+	home, err := workspace.MycelHome()
+	if err != nil {
+		log.Warn("cannot resolve mycel home — using nested worktree layout", "error", err)
+		return worktree.NewManagerWithDataDir(repoRoot, parentOfAgentsDir(stateDir))
+	}
+	return worktree.NewFlatManager(repoRoot,
+		filepath.Join(home, "worktrees"),
+		filepath.Join(home, "agents"))
 }
 
 // parentOfAgentsDir returns the workspace runtime data dir given an agents
@@ -701,7 +719,40 @@ func (m *Manager) worktreeManagerFor(repo string) *worktree.Manager {
 		log.Warn("agent repo is not a git repository — using boot repo for worktree", "repo", repo)
 		return m.worktreeMgr
 	}
-	return worktree.NewManagerWithDataDir(repo, parentOfAgentsDir(m.stateDir))
+	// Cross-repo managers share the same flat dirs — only repoRoot differs.
+	return flatWorktreeManager(repo, m.stateDir)
+}
+
+// seedHostClaudeTrust pre-trusts an agent's worktree in the claude.json a
+// host (tmux) claude agent will read — $HOME/.claude.json — so fresh
+// agents don't hang at Claude Code's interactive "trust this folder"
+// prompt. Docker agents are seeded separately with the container-side
+// path by the container backend.
+func seedHostClaudeTrust(tool, worktreeDir string) {
+	if tool != "claude" || worktreeDir == "" {
+		return
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		log.Warn("cannot resolve home dir for claude trust seeding", "error", err)
+		return
+	}
+	if err := container.SeedClaudeTrust(filepath.Join(home, ".claude.json"), worktreeDir); err != nil {
+		log.Warn("failed to seed claude trust", "worktree", worktreeDir, "error", err)
+	}
+}
+
+// storedWorktreeExists reports whether an existing agent's worktree is
+// present on disk. The stored worktreeDir (DB column) wins — agents
+// created under older layouts keep working from their old paths until
+// migrated. Only when no dir is recorded does the manager-computed path
+// serve as fallback.
+func storedWorktreeExists(worktreeDir string, wtMgr *worktree.Manager, name string) bool {
+	if worktreeDir != "" {
+		_, err := os.Stat(worktreeDir)
+		return err == nil
+	}
+	return wtMgr.Exists(name)
 }
 
 // workspaceStateDir returns the best-guess workspace runtime dir for a
@@ -1074,9 +1125,12 @@ func (m *Manager) startAgent(ctx context.Context, name string, opts SpawnOptions
 	isRealSessionID := len(sessionID) == 36 && sessionID[8] == '-'
 	resume := isRealSessionID
 
-	// Check if existing worktree can be reused for resume (tmux only)
+	// Check if existing worktree can be reused for resume (tmux only).
+	// Existing agents keep working from their stored WorktreeDir (which
+	// may predate the current flat layout) — only fall back to the
+	// manager-computed path when no dir is recorded.
 	agentRuntime := existing.RuntimeBackend
-	if wtMgr.Exists(name) && agentRuntime == "tmux" {
+	if storedWorktreeExists(existing.WorktreeDir, wtMgr, name) && agentRuntime == "tmux" {
 		// Worktree exists — check for active session conflict
 		for beName, be := range m.backends {
 			if be.HasSession(ctx, name) {
@@ -1113,13 +1167,19 @@ func (m *Manager) startAgent(ctx context.Context, name string, opts SpawnOptions
 		}
 	}
 
+	// Worktree name follows the stored dir for existing agents so the
+	// in-container tmux session name stays stable across layouts.
+	worktreeName := wtMgr.Name(name)
+	if existing.WorktreeDir != "" {
+		worktreeName = filepath.Base(existing.WorktreeDir)
+	}
 	env := map[string]string{
 		"BC_AGENT_ID":      name,
 		"BC_AGENT_ROLE":    string(existing.Role),
 		"BC_WORKSPACE":     wsPath,
 		"BC_AGENT_RUNTIME": agentRuntime,
 		"BC_BCD_ADDR":      bcdAddrForRuntime(agentRuntime),
-		"BC_WORKTREE_NAME": wtMgr.Name(name),
+		"BC_WORKTREE_NAME": worktreeName,
 	}
 	if toolName != "" {
 		env["BC_AGENT_TOOL"] = toolName
@@ -1144,8 +1204,11 @@ func (m *Manager) startAgent(ctx context.Context, name string, opts SpawnOptions
 
 	// Ensure worktree exists and is valid (may have been cleaned up, moved,
 	// or corrupted by runtime changes like Docker→localhost migration).
+	// The stored WorktreeDir is authoritative — never recompute it from
+	// the manager for an existing agent (pre-migration agents live at
+	// older paths). The stat checks below decide whether it is usable.
 	wtDir := existing.WorktreeDir
-	needsRecreate := wtDir == "" || !wtMgr.Exists(name)
+	needsRecreate := wtDir == ""
 
 	// Also check that the worktree has a valid .git reference
 	if !needsRecreate && wtDir != "" {
@@ -1178,6 +1241,12 @@ func (m *Manager) startAgent(ctx context.Context, name string, opts SpawnOptions
 		}
 		existing.WorktreeDir = wtDir
 		log.Info("worktree recreated", "agent", name, "path", wtDir)
+	}
+
+	// Pre-trust the worktree so a restarted tmux claude agent doesn't
+	// hang at the interactive trust prompt.
+	if agentRuntime == "tmux" {
+		seedHostClaudeTrust(toolName, wtDir)
 	}
 
 	// Write hook settings and role files to worktree (regenerate on every start
@@ -1385,6 +1454,13 @@ func (m *Manager) createAgent(ctx context.Context, opts SpawnOptions) (*Agent, e
 		log.Warn("failed to ensure Claude dir", "agent", name, "error", claudeErr)
 	}
 
+	// Pre-trust the worktree so a fresh tmux claude agent doesn't hang
+	// at the interactive trust prompt (docker agents are seeded with the
+	// container-side path by the container backend).
+	if agentRuntime == "tmux" {
+		seedHostClaudeTrust(effectiveTool, wtDir)
+	}
+
 	// Write hook settings to the worktree
 	if err := WriteWorkspaceHookSettings(wtDir); err != nil {
 		log.Warn("failed to write hook settings", "dir", wtDir, "error", err)
@@ -1444,18 +1520,26 @@ func (m *Manager) createAgent(ctx context.Context, opts SpawnOptions) (*Agent, e
 
 // setupLogPipe creates the logs directory and starts pipe-pane for the agent.
 // Returns the log file path.
-func (m *Manager) setupLogPipe(ctx context.Context, name, workspace string) string {
+func (m *Manager) setupLogPipe(ctx context.Context, name, wsPath string) string {
 	// The agent name becomes a filename below — never let a crafted
 	// name escape the logs directory.
 	if !IsValidAgentName(name) {
 		log.Warn("refusing to pipe logs for unsafe agent name", "agent", name)
 		return ""
 	}
-	base := workspaceStateDir(workspace)
-	if base == "" {
-		return ""
+	// Flat layout: logs live with the rest of the agent's state at
+	// <MycelHome>/agents/<name>/logs/. Fall back to the per-workspace
+	// logs dir only when the mycel home cannot be resolved.
+	var logsDir string
+	if home, err := workspace.MycelHome(); err == nil {
+		logsDir = filepath.Join(home, "agents", name, "logs")
+	} else {
+		base := workspaceStateDir(wsPath)
+		if base == "" {
+			return ""
+		}
+		logsDir = filepath.Join(base, "logs")
 	}
-	logsDir := filepath.Join(base, "logs")
 	if err := os.MkdirAll(logsDir, 0750); err != nil {
 		log.Warn("failed to create logs dir", "error", err)
 		return ""
@@ -1875,8 +1959,15 @@ func (m *Manager) DeleteAgentWithOptions(ctx context.Context, name string, opts 
 	}
 
 	// 4. Remove git worktree — via the repo the agent is bound to, so
-	// cross-repo agents unregister from THEIR repo's worktree list.
-	if err := m.worktreeManagerFor(agent.Repo).Remove(ctx, name); err != nil {
+	// cross-repo agents unregister from THEIR repo's worktree list. The
+	// stored WorktreeDir wins over the manager-computed path: agents
+	// created under older layouts live at their old dirs until migrated.
+	wtMgr := m.worktreeManagerFor(agent.Repo)
+	if agent.WorktreeDir != "" {
+		if err := wtMgr.RemoveAt(ctx, name, agent.WorktreeDir); err != nil {
+			log.Warn("failed to remove worktree", "agent", name, "error", err)
+		}
+	} else if err := wtMgr.Remove(ctx, name); err != nil {
 		log.Warn("failed to remove worktree", "agent", name, "error", err)
 	}
 
@@ -1897,12 +1988,31 @@ func (m *Manager) DeleteAgentWithOptions(ctx context.Context, name string, opts 
 		log.Warn("delete: failed to remove agent state dir", "agent", name, "path", agentStateDir, "error", err)
 	}
 
+	// 7. Remove flat-layout dirs: <MycelHome>/agents/<name>/ (state) and
+	// <MycelHome>/worktrees/<name>/ (worktree leftovers — git-level
+	// removal already happened in step 4).
+	if home, homeErr := workspace.MycelHome(); homeErr == nil {
+		for _, dir := range []string{
+			filepath.Join(home, "agents", name),
+			filepath.Join(home, "worktrees", name),
+		} {
+			dir = filepath.Clean(dir)
+			if strings.Contains(dir, "..") {
+				log.Warn("delete: refusing unsafe flat state path", "agent", name, "path", dir)
+				continue
+			}
+			if err := os.RemoveAll(dir); err != nil {
+				log.Warn("delete: failed to remove flat agent dir", "agent", name, "path", dir, "error", err)
+			}
+		}
+	}
+
 	agentLock.Unlock()
 
 	// Phase 3: global lock — update maps, orphan children, persist
 	m.mu.Lock()
 
-	// 7. Update children's ParentID to "" (orphan them cleanly)
+	// 8. Update children's ParentID to "" (orphan them cleanly)
 	for _, childName := range agent.Children {
 		if child, ok := m.agents[childName]; ok {
 			child.ParentID = ""
@@ -1910,10 +2020,10 @@ func (m *Manager) DeleteAgentWithOptions(ctx context.Context, name string, opts 
 		}
 	}
 
-	// 8. Remove from parent's children list
+	// 9. Remove from parent's children list
 	m.removeFromParent(name)
 
-	// 9. Soft-delete in SQLite first (set deleted_at) so the agent won't be
+	// 10. Soft-delete in SQLite first (set deleted_at) so the agent won't be
 	// resurrected by LoadAll even if bcd crashes before the hard delete.
 	if m.store != nil {
 		if err := m.store.SoftDelete(ctx, name); err != nil {
@@ -1921,7 +2031,7 @@ func (m *Manager) DeleteAgentWithOptions(ctx context.Context, name string, opts 
 		}
 	}
 
-	// 10. Delete from state map and clean up per-agent lock
+	// 11. Delete from state map and clean up per-agent lock
 	delete(m.agents, name)
 	delete(m.agentLocks, name)
 
@@ -1929,7 +2039,7 @@ func (m *Manager) DeleteAgentWithOptions(ctx context.Context, name string, opts 
 		log.Warn("delete: failed to save state", "agent", name, "error", err)
 	}
 
-	// 11. Hard-delete the row from SQLite. The soft-delete above already
+	// 12. Hard-delete the row from SQLite. The soft-delete above already
 	// prevents resurrection; this removes the row entirely for cleanliness.
 	if m.store != nil {
 		if err := m.store.Delete(ctx, name); err != nil {
@@ -1982,7 +2092,12 @@ func (m *Manager) RenameAgent(ctx context.Context, oldName, newName string) erro
 	if strings.Contains(wsPath, "..") || strings.Contains(stateDir, "..") {
 		return fmt.Errorf("rename: unsafe workspace paths")
 	}
-	oldPath := m.worktreeMgr.Path(oldName)
+	// The stored WorktreeDir wins for the source — pre-migration agents
+	// live at older layouts; the destination uses the current layout.
+	oldPath := filepath.Clean(agent.WorktreeDir)
+	if agent.WorktreeDir == "" {
+		oldPath = m.worktreeMgr.Path(oldName)
+	}
 	newPath := m.worktreeMgr.Path(newName)
 	if strings.Contains(oldPath, "..") || strings.Contains(newPath, "..") {
 		return fmt.Errorf("rename: unsafe worktree paths")
@@ -2032,7 +2147,7 @@ func (m *Manager) RenameAgent(ctx context.Context, oldName, newName string) erro
 		}
 	}
 
-	// Rename log file
+	// Rename log file (legacy shared logs dir)
 	oldLogDir := filepath.Join(workspaceStateDir(wsPath), "logs")
 	oldLogFile := filepath.Join(oldLogDir, oldName+".log")
 	newLogFile := filepath.Join(oldLogDir, newName+".log")
@@ -2040,11 +2155,28 @@ func (m *Manager) RenameAgent(ctx context.Context, oldName, newName string) erro
 		log.Warn("rename: failed to rename log file", "error", err)
 	}
 
-	// Rename agent state directory
+	// Rename agent state directory (legacy nested layout)
 	oldStateDir := filepath.Join(stateDir, "agents", oldName)
 	newStateDir := filepath.Join(stateDir, "agents", newName)
 	if err := os.Rename(oldStateDir, newStateDir); err != nil && !os.IsNotExist(err) {
 		log.Warn("rename: failed to rename state dir", "error", err)
+	}
+
+	// Rename flat-layout state dir (<MycelHome>/agents/<name>/) and the
+	// log file inside it, tracking the agent's recorded log path.
+	var flatOldLog, flatNewLog string
+	if home, homeErr := workspace.MycelHome(); homeErr == nil {
+		oldFlat := filepath.Join(home, "agents", oldName)
+		newFlat := filepath.Join(home, "agents", newName)
+		if err := os.Rename(oldFlat, newFlat); err != nil && !os.IsNotExist(err) {
+			log.Warn("rename: failed to rename flat state dir", "error", err)
+		}
+		flatOldLog = filepath.Join(oldFlat, "logs", oldName+".log")
+		flatNewLog = filepath.Join(newFlat, "logs", newName+".log")
+		movedLog := filepath.Join(newFlat, "logs", oldName+".log")
+		if err := os.Rename(movedLog, flatNewLog); err != nil && !os.IsNotExist(err) {
+			log.Warn("rename: failed to rename flat log file", "error", err)
+		}
 	}
 
 	agentLock.Unlock()
@@ -2063,6 +2195,8 @@ func (m *Manager) RenameAgent(ctx context.Context, oldName, newName string) erro
 	}
 	if agent.LogFile == oldLogFile {
 		agent.LogFile = newLogFile
+	} else if flatOldLog != "" && agent.LogFile == flatOldLog {
+		agent.LogFile = flatNewLog
 	}
 
 	// Update maps

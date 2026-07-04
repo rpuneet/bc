@@ -3643,9 +3643,14 @@ func TestWorktreeManagerFor_CreatesWorktreeFromAgentRepo(t *testing.T) {
 		t.Errorf("worktree HEAD = %s, want agent repo HEAD %s", got, want)
 	}
 
-	// The worktree still lands in the shared data-dir layout.
-	if !strings.HasPrefix(wtDir, stateDir) {
-		t.Errorf("worktree dir %q not under state dir %q", wtDir, stateDir)
+	// The worktree lands in the shared flat layout under the mycel home,
+	// keyed by bare agent name.
+	home, homeErr := workspace.MycelHome()
+	if homeErr != nil {
+		t.Fatalf("MycelHome: %v", homeErr)
+	}
+	if want := filepath.Join(home, "worktrees", "cross-repo-agent"); wtDir != want {
+		t.Errorf("worktree dir = %q, want %q", wtDir, want)
 	}
 }
 
@@ -3827,5 +3832,61 @@ func TestCreateAgent_FailedCreateRollsBackStoreRow(t *testing.T) {
 	docker.onCreate = nil
 	if err := m.RegisterStopped(&Agent{Name: "doomed", Role: Role("engineer"), Workspace: boot}); err != nil {
 		t.Fatalf("name not reusable after failed create: %v", err)
+	}
+}
+
+// Tmux runtime: trust is seeded into $HOME/.claude.json keyed by the
+// host-side worktree path.
+func TestSeedHostClaudeTrust_TmuxHostPath(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	wt := "/home/user/.mycel/worktrees/eng-01"
+	seedHostClaudeTrust("claude", wt)
+
+	data, err := os.ReadFile(filepath.Join(home, ".claude.json")) //nolint:gosec // test path
+	if err != nil {
+		t.Fatalf("claude.json not written: %v", err)
+	}
+	var root map[string]any
+	if err := json.Unmarshal(data, &root); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	projects, _ := root["projects"].(map[string]any)
+	entry, _ := projects[wt].(map[string]any)
+	if entry == nil {
+		t.Fatalf("worktree %q not in projects: %v", wt, root)
+	}
+	if accepted, _ := entry["hasTrustDialogAccepted"].(bool); !accepted {
+		t.Error("hasTrustDialogAccepted not true")
+	}
+}
+
+func TestSeedHostClaudeTrust_NonClaudeToolIsNoop(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	seedHostClaudeTrust("gemini", "/some/worktree")
+
+	if _, err := os.Stat(filepath.Join(home, ".claude.json")); !os.IsNotExist(err) {
+		t.Error("claude.json written for a non-claude tool")
+	}
+}
+
+// The flat worktree manager must root worktrees and state under the
+// mycel home, not the per-workspace state dir.
+func TestFlatWorktreeManagerLayout(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("MYCEL_HOME", home)
+
+	m := flatWorktreeManager("/repo", "/unused/agents")
+	if got, want := m.Path("eng-01"), filepath.Join(home, "worktrees", "eng-01"); got != want {
+		t.Errorf("Path() = %q, want %q", got, want)
+	}
+	if got, want := m.ClaudeDir("eng-01"), filepath.Join(home, "agents", "eng-01", "claude"); got != want {
+		t.Errorf("ClaudeDir() = %q, want %q", got, want)
+	}
+	if got, want := m.Name("eng-01"), "eng-01"; got != want {
+		t.Errorf("Name() = %q, want %q", got, want)
 	}
 }

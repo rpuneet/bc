@@ -246,3 +246,93 @@ func TestEnsureClaudeDir(t *testing.T) {
 		t.Fatalf("second EnsureClaudeDir() error: %v", err)
 	}
 }
+
+// --- flat layout ---
+
+func TestFlatManagerPaths(t *testing.T) {
+	wt := "/data/worktrees"
+	st := "/data/agents"
+	m := NewFlatManager("/repo", wt, st)
+
+	if got, want := m.Name("eng-01"), "eng-01"; got != want {
+		t.Errorf("Name() = %q, want %q", got, want)
+	}
+	if got, want := m.Path("eng-01"), filepath.Join(wt, "eng-01"); got != want {
+		t.Errorf("Path() = %q, want %q", got, want)
+	}
+	if got, want := m.ClaudeDir("eng-01"), filepath.Join(st, "eng-01", "claude"); got != want {
+		t.Errorf("ClaudeDir() = %q, want %q", got, want)
+	}
+}
+
+func TestFlatManagerCreateRemove(t *testing.T) {
+	repo := setupTestRepo(t)
+	base := t.TempDir()
+	m := NewFlatManager(repo, filepath.Join(base, "worktrees"), filepath.Join(base, "agents"))
+
+	ctx := context.Background()
+	path, err := m.Create(ctx, "eng-01")
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	if want := filepath.Join(base, "worktrees", "eng-01"); path != want {
+		t.Errorf("Create path = %q, want %q", path, want)
+	}
+	if !m.Exists("eng-01") {
+		t.Error("Exists() = false after Create")
+	}
+	if _, err := os.Stat(filepath.Join(path, ".git")); err != nil {
+		t.Errorf(".git missing in flat worktree: %v", err)
+	}
+
+	if err := m.Remove(ctx, "eng-01"); err != nil {
+		t.Fatalf("Remove: %v", err)
+	}
+	if m.Exists("eng-01") {
+		t.Error("Exists() = true after Remove")
+	}
+}
+
+func TestFlatManagerEnsureClaudeDir(t *testing.T) {
+	base := t.TempDir()
+	m := NewFlatManager("/repo", filepath.Join(base, "worktrees"), filepath.Join(base, "agents"))
+
+	if err := m.EnsureClaudeDir("eng-01"); err != nil {
+		t.Fatalf("EnsureClaudeDir: %v", err)
+	}
+	info, err := os.Stat(filepath.Join(base, "agents", "eng-01", "claude"))
+	if err != nil || !info.IsDir() {
+		t.Fatalf("claude dir not created: %v", err)
+	}
+}
+
+func TestManagerRemoveAt(t *testing.T) {
+	repo := setupTestRepo(t)
+	base := t.TempDir()
+	// Create with a nested manager, remove via a flat one using the
+	// stored path — mirrors deleting a pre-migration agent.
+	nested := NewManagerWithDataDir(repo, base)
+	ctx := context.Background()
+	oldPath, err := nested.Create(ctx, "eng-01")
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	flat := NewFlatManager(repo, filepath.Join(base, "worktrees"), filepath.Join(base, "agents"))
+	if err := flat.RemoveAt(ctx, "eng-01", oldPath); err != nil {
+		t.Fatalf("RemoveAt: %v", err)
+	}
+	if _, err := os.Stat(oldPath); !os.IsNotExist(err) {
+		t.Errorf("old worktree still present at %q", oldPath)
+	}
+}
+
+func TestManagerRemoveAtRejectsUnsafePaths(t *testing.T) {
+	m := NewFlatManager("/repo", "/data/worktrees", "/data/agents")
+	if err := m.RemoveAt(context.Background(), "eng-01", "relative/path"); err == nil {
+		t.Error("RemoveAt accepted a relative path")
+	}
+	if err := m.RemoveAt(context.Background(), "eng-01", "/data/../etc"); err == nil {
+		t.Error("RemoveAt accepted a traversal path")
+	}
+}

@@ -149,25 +149,36 @@ func (b *Backend) containerName(name string) string {
 var validContainerAgentName = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
 
 // containerAgentDir returns the agent's state directory inside the
-// container (bcd side). Prefers the M11 global runtime dir; falls back
-// to the legacy <root>/.bc/agents/<name>/ for pre-M11 workspaces.
+// container (bcd side). The flat layout at <MycelHome>/agents/<name>/
+// is canonical; agents whose state still lives at an older location
+// (nested per-workspace dir or the legacy <root>/.bc/ sidecar) keep
+// using it until migrated.
 func (b *Backend) containerAgentDir(agentName string) string {
 	if !validContainerAgentName.MatchString(agentName) {
 		return ""
 	}
+	var flat string
+	if home, err := workspace.MycelHome(); err == nil {
+		flat = filepath.Join(home, "agents", agentName)
+		if _, statErr := os.Stat(flat); statErr == nil {
+			return flat
+		}
+	}
+	// Existing agents may still live in older layouts.
 	if globalDir, err := workspace.GlobalStateDir(b.workspacePath); err == nil {
-		candidate := filepath.Join(globalDir, "agents", agentName)
-		if _, statErr := os.Stat(candidate); statErr == nil {
-			return candidate
+		nested := filepath.Join(globalDir, "agents", agentName)
+		if _, statErr := os.Stat(nested); statErr == nil {
+			return nested
 		}
-		// Global dir is the canonical location; use it even if empty.
-		legacy := filepath.Join(b.workspacePath, ".bc", "agents", agentName)
-		if _, legacyErr := os.Stat(legacy); legacyErr != nil {
-			return candidate
-		}
+	}
+	legacy := filepath.Join(b.workspacePath, ".bc", "agents", agentName)
+	if _, statErr := os.Stat(legacy); statErr == nil {
 		return legacy
 	}
-	return filepath.Join(b.workspacePath, ".bc", "agents", agentName)
+	if flat != "" {
+		return flat // canonical location for fresh agents
+	}
+	return legacy
 }
 
 // hostAgentDir returns the host path that maps to the agent's state
@@ -431,10 +442,11 @@ func (b *Backend) CreateSessionWithEnv(ctx context.Context, name, dir, command s
 	// Mount 2: Persistent Claude state (~/.claude/ dir)
 	// Use local (container) path for mkdir, host path for -v mount.
 	//
-	// M11: agent state lives at <DataDir>/agents/<name>/ where DataDir
-	// is ~/.mycel/workspaces/<id>/. The host DataDir may differ from the
-	// container DataDir when bcd runs in Docker-in-Docker; honor
-	// BC_HOST_BC_HOME (if set) for the host-side BC_HOME.
+	// Agent state lives at <MycelHome>/agents/<name>/ (flat layout);
+	// containerAgentDir keeps pre-migration agents on their older
+	// per-workspace dirs. The host path may differ when bcd runs in
+	// Docker-in-Docker; honor BC_HOST_BC_HOME (if set) for the
+	// host-side mycel home.
 	localAgentDir := b.containerAgentDir(name)
 	hostAgentDir := b.hostAgentDir(name, hostRoot)
 	if err := os.MkdirAll(filepath.Join(localAgentDir, "claude"), 0750); err != nil {
@@ -447,6 +459,11 @@ func (b *Backend) CreateSessionWithEnv(ctx context.Context, name, dir, command s
 	localClaudeJSON := filepath.Join(localAgentDir, "claude.json")
 	if _, statErr := os.Stat(localClaudeJSON); os.IsNotExist(statErr) {
 		_ = os.WriteFile(localClaudeJSON, []byte("{}"), 0600) //nolint:errcheck // best-effort
+	}
+	// Pre-trust the working directory (container-side path) so Claude
+	// Code never hangs at the interactive "trust this folder" prompt.
+	if err := SeedClaudeTrust(localClaudeJSON, containerWorkdir); err != nil {
+		log.Warn("failed to seed claude trust", "agent", name, "error", err)
 	}
 	args = append(args, "-v", filepath.Join(hostAgentDir, "claude.json")+":/home/agent/.claude.json")
 

@@ -1,8 +1,14 @@
 // Package worktree manages git worktree lifecycle for agent isolation.
-// Each agent gets its own worktree at <DataDir>/agents/<name>/bc-<ws>-<name>/.
-// Before M11 the worktrees lived under <repoRoot>/.bc/agents/...; after
-// M11 they move to ~/.mycel/workspaces/<id>/agents/... so the project
-// directory stays a pristine git repo.
+//
+// Two layouts are supported:
+//
+//   - Flat (current): worktrees at <worktreesDir>/<name>/ and Claude state
+//     at <stateDir>/<name>/claude/. Agent names are globally unique (DB
+//     primary key), so flat name-keyed directories are safe. The daemon
+//     uses ~/.mycel/worktrees/ and ~/.mycel/agents/ for these.
+//   - Nested (legacy): worktrees at <dataDir>/agents/<name>/bc-<ws>-<name>/
+//     with Claude state alongside at <dataDir>/agents/<name>/claude/.
+//     Kept so existing agents and tests keep working from their old paths.
 package worktree
 
 import (
@@ -11,6 +17,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"sync"
 
 	"github.com/rpuneet/mycel/pkg/log"
@@ -19,9 +26,12 @@ import (
 // Manager handles git worktree lifecycle for agent isolation.
 type Manager struct {
 	repoRoot     string
-	agentsDir    string
+	agentsDir    string // nested layout: worktrees under <agentsDir>/<name>/
+	worktreesDir string // flat layout: worktrees at <worktreesDir>/<name>/
+	stateDir     string // flat layout: Claude state at <stateDir>/<name>/claude/
 	hostBaseName string
 	mu           sync.Mutex
+	flat         bool
 }
 
 // NewManager creates a worktree manager whose worktrees live under the
@@ -56,15 +66,37 @@ func NewManagerWithDataDir(repoRoot, dataDir string) *Manager {
 	}
 }
 
-// Name returns the worktree name for an agent: bc-<hostBaseName>-<agentName>.
+// NewFlatManager creates a worktree manager using the flat layout:
+// worktrees at <worktreesDir>/<agent>/ and Claude state at
+// <stateDir>/<agent>/claude/. Agent names are globally unique, so the
+// directories are keyed by bare agent name. This is the layout the
+// daemon uses: worktreesDir = ~/.mycel/worktrees, stateDir =
+// ~/.mycel/agents.
+func NewFlatManager(repoRoot, worktreesDir, stateDir string) *Manager {
+	return &Manager{
+		repoRoot:     repoRoot,
+		worktreesDir: worktreesDir,
+		stateDir:     stateDir,
+		flat:         true,
+	}
+}
+
+// Name returns the worktree name for an agent. Flat layout uses the bare
+// agent name; the nested legacy layout uses bc-<hostBaseName>-<agentName>.
 func (m *Manager) Name(agentName string) string {
+	if m.flat {
+		return agentName
+	}
 	return fmt.Sprintf("bc-%s-%s", m.hostBaseName, agentName)
 }
 
-// Path returns the filesystem path for an agent's worktree.
-// The directory is named bc-<workspace>-<agent> so git's internal
-// worktree name matches the naming convention.
+// Path returns the filesystem path for an agent's worktree:
+// <worktreesDir>/<agent> in the flat layout, or the nested
+// <agentsDir>/<agent>/bc-<ws>-<agent> in the legacy layout.
 func (m *Manager) Path(agentName string) string {
+	if m.flat {
+		return filepath.Join(m.worktreesDir, agentName)
+	}
 	return filepath.Join(m.agentsDir, agentName, m.Name(agentName))
 }
 
@@ -130,11 +162,28 @@ func (m *Manager) Remove(ctx context.Context, agentName string) error {
 	if !filepath.IsLocal(agentName) {
 		return fmt.Errorf("invalid agent name %q", agentName)
 	}
+	return m.removeAt(ctx, agentName, m.Path(agentName))
+}
 
+// RemoveAt removes the git worktree at an explicit path — used for agents
+// whose stored WorktreeDir predates the current layout, so deletion targets
+// the directory the agent actually used instead of a recomputed path.
+func (m *Manager) RemoveAt(ctx context.Context, agentName, path string) error {
+	// ".." is checked on the raw value so traversal cannot be smuggled
+	// past filepath.Clean.
+	if strings.Contains(path, "..") {
+		return fmt.Errorf("invalid worktree path %q", path)
+	}
+	path = filepath.Clean(path)
+	if !filepath.IsAbs(path) {
+		return fmt.Errorf("invalid worktree path %q", path)
+	}
+	return m.removeAt(ctx, agentName, path)
+}
+
+func (m *Manager) removeAt(ctx context.Context, agentName, path string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-
-	path := m.Path(agentName)
 
 	//nolint:gosec // trusted paths
 	rm := exec.CommandContext(ctx, "git", "-C", m.repoRoot, "worktree", "remove", "--force", path)
@@ -181,8 +230,13 @@ func (m *Manager) Prune(ctx context.Context) error {
 	return nil
 }
 
-// ClaudeDir returns the path to the Claude home directory for the given agent.
+// ClaudeDir returns the path to the Claude home directory for the given
+// agent: <stateDir>/<agent>/claude in the flat layout, or the nested
+// <agentsDir>/<agent>/claude in the legacy layout.
 func (m *Manager) ClaudeDir(agentName string) string {
+	if m.flat {
+		return filepath.Join(m.stateDir, agentName, "claude")
+	}
 	return filepath.Join(m.agentsDir, agentName, "claude")
 }
 

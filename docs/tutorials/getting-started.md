@@ -65,7 +65,8 @@ All state lives outside your repos, under `~/.mycel/`:
 - `mycel.db` — the single global database (agents, roles, events,
   notifications, cron)
 - `costs.db` — cost ledger with per-repo attribution
-- per-agent directories holding each agent's files and git worktree
+- `worktrees/<agent-name>/` — each agent's git worktree
+- `agents/<agent-name>/` — each agent's state (Claude config, logs)
 
 Each agent is bound to a repo and works in its own git worktree checked
 out from that repo — your working copy stays pristine.
