@@ -9,7 +9,7 @@ export function SidebarToggle({
     <button
       type="button"
       onClick={onToggle}
-      className="shrink-0 w-7 h-7 flex items-center justify-center rounded text-mycel-muted hover:text-mycel-text hover:bg-mycel-surface-hover transition-colors"
+      className="shrink-0 w-7 h-7 flex items-center justify-center rounded-md text-mycel-muted hover:text-mycel-text hover:bg-mycel-surface-hover transition-colors"
       title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
       aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
     >

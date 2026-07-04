@@ -30,7 +30,7 @@ export function ConfirmButton({
             onConfirm();
           }}
           disabled={loading}
-          className={`px-3 py-1.5 rounded text-xs font-medium shadow-mycel-sm hover:opacity-90 disabled:opacity-50 transition-opacity focus-visible:ring-2 focus-visible:ring-mycel-accent focus-visible:ring-offset-1 focus-visible:ring-offset-mycel-bg ${
+          className={`h-8 px-3 inline-flex items-center rounded-md text-xs font-medium shadow-mycel-sm hover:opacity-90 disabled:opacity-50 transition-opacity focus-visible:ring-2 focus-visible:ring-mycel-accent focus-visible:ring-offset-1 focus-visible:ring-offset-mycel-bg ${
             variant === "danger"
               ? "bg-mycel-error text-white"
               : "bg-mycel-accent text-mycel-accent-fg"
@@ -42,7 +42,7 @@ export function ConfirmButton({
           type="button"
           onClick={() => setConfirming(false)}
           disabled={loading}
-          className="px-3 py-1.5 rounded border border-mycel-border text-mycel-muted text-xs hover:text-mycel-text transition-colors focus-visible:ring-2 focus-visible:ring-mycel-accent focus-visible:ring-offset-1 focus-visible:ring-offset-mycel-bg disabled:opacity-50"
+          className="h-8 px-3 inline-flex items-center rounded-md border border-mycel-border bg-mycel-surface text-mycel-text-2 text-xs hover:text-mycel-text hover:bg-mycel-surface-hover transition-colors focus-visible:ring-2 focus-visible:ring-mycel-accent focus-visible:ring-offset-1 focus-visible:ring-offset-mycel-bg disabled:opacity-50"
         >
           Cancel
         </button>
@@ -54,7 +54,11 @@ export function ConfirmButton({
     <button
       type="button"
       onClick={() => setConfirming(true)}
-      className={`px-3 py-1.5 rounded border border-mycel-border text-mycel-muted text-xs hover:text-mycel-error hover:border-mycel-error transition-colors focus-visible:ring-2 focus-visible:ring-mycel-accent focus-visible:ring-offset-1 focus-visible:ring-offset-mycel-bg ${className ?? ""}`}
+      className={`h-8 px-3 inline-flex items-center rounded-md border text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:ring-mycel-accent focus-visible:ring-offset-1 focus-visible:ring-offset-mycel-bg ${
+        variant === "danger"
+          ? "border-mycel-border text-mycel-error hover:bg-mycel-error-subtle hover:border-mycel-error"
+          : "border-mycel-border bg-mycel-surface text-mycel-text-2 hover:text-mycel-text hover:bg-mycel-surface-hover"
+      } ${className ?? ""}`}
     >
       {label}
     </button>

@@ -22,7 +22,7 @@ const STATUS_CONFIG: Record<string, { dot: string; label: string; textColor: str
   unknown:       { dot: "bg-mycel-muted",   label: "Unknown",       textColor: "text-mycel-muted" },
 };
 
-const inputCls = "w-full px-2 py-1.5 text-sm rounded border border-mycel-border bg-mycel-bg text-mycel-text focus:outline-none focus:ring-1 focus:ring-mycel-accent";
+const inputCls = "w-full px-2 py-1.5 text-sm rounded-md border border-mycel-border bg-mycel-bg text-mycel-text focus:outline-none focus:ring-1 focus:ring-mycel-accent";
 
 function getStatusConfig(s: string) { return STATUS_CONFIG[s] ?? STATUS_CONFIG.unknown!; }
 
@@ -57,47 +57,47 @@ function CLIDepsRow({ tool, onToggle, onRemove, toggling, removing, expanded, on
         className="border-b border-mycel-border hover:bg-mycel-surface-hover cursor-pointer transition-colors"
         onClick={onExpand}
       >
-        <td className="px-3 py-2 text-sm">
+        <td className="px-4 py-2.5 text-sm">
           <div className="flex items-center gap-2">
             <ChevronIcon expanded={expanded} />
             <span className="font-medium">{tool.name}</span>
           </div>
         </td>
-        <td className="px-3 py-2 text-sm">
+        <td className="px-4 py-2.5 text-sm">
           <span className="inline-flex items-center gap-1.5">
             <span className={`w-2 h-2 rounded-full ${cfg.dot}`} />
             <span className={`text-xs ${cfg.textColor}`}>{tool.version || cfg.label}</span>
           </span>
         </td>
-        <td className="px-3 py-2 text-xs text-mycel-muted font-mono max-w-[180px] truncate" title={tool.version || ""}>{tool.version || "\u2014"}</td>
-        <td className="px-3 py-2 text-xs">
+        <td className="px-4 py-2.5 text-xs text-mycel-muted font-mono max-w-[180px] truncate" title={tool.version || ""}>{tool.version || "\u2014"}</td>
+        <td className="px-4 py-2.5 text-xs">
           {tool.required ? (
-            <span className="px-1.5 py-0.5 rounded bg-mycel-accent-subtle text-mycel-accent text-[10px] font-medium">Yes</span>
+            <span className="px-1.5 py-0.5 rounded-md bg-mycel-accent-subtle text-mycel-accent text-[10px] font-medium">Yes</span>
           ) : (
             <span className="text-mycel-muted">No</span>
           )}
         </td>
-        <td className="px-3 py-2 text-right" onClick={(e) => e.stopPropagation()}>
+        <td className="px-4 py-2.5 text-right" onClick={(e) => e.stopPropagation()}>
           <div className="flex items-center justify-end gap-1.5">
             <button type="button" onClick={onToggle} disabled={toggling}
               role="switch" aria-checked={!isDisabled}
               aria-label={isDisabled ? `Enable ${tool.name}` : `Disable ${tool.name}`}
-              className={`text-[11px] px-2 py-0.5 rounded transition-colors focus-visible:ring-2 focus-visible:ring-mycel-accent disabled:opacity-50 ${isDisabled ? "bg-mycel-surface-hover text-mycel-text-2 hover:bg-mycel-border" : "bg-mycel-success-subtle text-mycel-success"}`}>
+              className={`text-[11px] px-2 py-0.5 rounded-md transition-colors focus-visible:ring-2 focus-visible:ring-mycel-accent disabled:opacity-50 ${isDisabled ? "bg-mycel-surface-hover text-mycel-text-2 hover:bg-mycel-border" : "bg-mycel-success-subtle text-mycel-success"}`}>
               {toggling ? "..." : isDisabled ? "Enable" : "Disable"}
             </button>
             {!tool.required && (
               confirmRemove ? (
                 <span className="inline-flex items-center gap-1">
                   <button type="button" onClick={() => { onRemove(); setConfirmRemove(false); }} disabled={removing}
-                    className="text-[11px] px-2 py-0.5 rounded bg-mycel-error-subtle text-mycel-error hover:bg-mycel-error hover:text-white disabled:opacity-50" aria-label="Confirm remove">
+                    className="text-[11px] px-2 py-0.5 rounded-md bg-mycel-error-subtle text-mycel-error hover:bg-mycel-error hover:text-white disabled:opacity-50" aria-label="Confirm remove">
                     {removing ? "..." : "Yes"}
                   </button>
                   <button type="button" onClick={() => setConfirmRemove(false)} disabled={removing}
-                    className="text-[11px] px-2 py-0.5 rounded border border-mycel-border text-mycel-muted" aria-label="Cancel remove">No</button>
+                    className="text-[11px] px-2 py-0.5 rounded-md border border-mycel-border text-mycel-muted" aria-label="Cancel remove">No</button>
                 </span>
               ) : (
                 <button type="button" onClick={() => setConfirmRemove(true)}
-                  className="text-[11px] px-2 py-0.5 rounded border border-mycel-border text-mycel-muted hover:text-mycel-error hover:border-mycel-error transition-colors"
+                  className="text-[11px] px-2 py-0.5 rounded-md border border-mycel-border text-mycel-error hover:bg-mycel-error-subtle hover:border-mycel-error transition-colors"
                   aria-label={`Remove ${tool.name}`}>Remove</button>
               )
             )}
@@ -119,7 +119,7 @@ function CLIDepsRow({ tool, onToggle, onRemove, toggling, removing, expanded, on
                   {tool.install_cmd && (
                     <div className="flex items-center gap-2">
                       <span className="text-xs text-mycel-muted shrink-0">Install:</span>
-                      <code className="flex-1 text-xs font-mono text-mycel-text bg-mycel-bg rounded px-2 py-1 border border-mycel-border">
+                      <code className="flex-1 text-xs font-mono text-mycel-text bg-mycel-bg rounded-md px-2 py-1 border border-mycel-border">
                         {tool.install_cmd}
                       </code>
                       <CopyButton text={tool.install_cmd} />
@@ -129,14 +129,14 @@ function CLIDepsRow({ tool, onToggle, onRemove, toggling, removing, expanded, on
                     <>
                       <div className="flex items-center gap-2">
                         <span className="text-xs text-mycel-muted shrink-0">Version cmd:</span>
-                        <code className="flex-1 text-xs font-mono text-mycel-text bg-mycel-bg rounded px-2 py-1 border border-mycel-border">
+                        <code className="flex-1 text-xs font-mono text-mycel-text bg-mycel-bg rounded-md px-2 py-1 border border-mycel-border">
                           {tool.command} --version
                         </code>
                         <CopyButton text={`${tool.command} --version`} />
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="text-xs text-mycel-muted shrink-0">Path:</span>
-                        <code className="flex-1 text-xs font-mono text-mycel-text bg-mycel-bg rounded px-2 py-1 border border-mycel-border">
+                        <code className="flex-1 text-xs font-mono text-mycel-text bg-mycel-bg rounded-md px-2 py-1 border border-mycel-border">
                           {tool.command}
                         </code>
                         <CopyButton text={tool.command} />
@@ -144,7 +144,7 @@ function CLIDepsRow({ tool, onToggle, onRemove, toggling, removing, expanded, on
                     </>
                   )}
                   {tool.error && (
-                    <div className="text-xs text-mycel-error bg-mycel-error-subtle rounded px-2 py-1 border border-mycel-error">
+                    <div className="text-xs text-mycel-error bg-mycel-error-subtle rounded-md px-2 py-1 border border-mycel-error">
                       Error: {tool.error}
                     </div>
                   )}
@@ -189,30 +189,30 @@ function AddCLIToolForm({ onClose, onAdded, onToast }: { onClose: () => void; on
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -8 }}
       transition={{ duration: 0.2 }}
-      className="rounded border border-mycel-accent bg-mycel-surface p-4 space-y-3"
+      className="rounded-lg border border-mycel-accent bg-mycel-surface p-4 space-y-3"
     >
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-medium">Add CLI Tool</h3>
+        <h3 className="text-base font-semibold">Add CLI Tool</h3>
         <button type="button" onClick={onClose} className="text-xs text-mycel-muted hover:text-mycel-text">Cancel</button>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <div>
-          <label className="text-xs text-mycel-muted block mb-1">Name</label>
+          <label className="text-sm text-mycel-text block mb-1">Name</label>
           <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="gh" className={inputCls} />
         </div>
         <div>
-          <label className="text-xs text-mycel-muted block mb-1">Command</label>
+          <label className="text-sm text-mycel-text block mb-1">Command</label>
           <input type="text" value={command} onChange={(e) => setCommand(e.target.value)} placeholder="gh" className={inputCls} />
         </div>
         <div className="md:col-span-2">
-          <label className="text-xs text-mycel-muted block mb-1">Install Command (optional)</label>
+          <label className="text-sm text-mycel-text block mb-1">Install Command (optional)</label>
           <input type="text" value={installCmd} onChange={(e) => setInstallCmd(e.target.value)}
             placeholder="apt-get install -y gh" className={inputCls} />
         </div>
       </div>
       {error && <p className="text-xs text-mycel-error">{error}</p>}
       <button type="button" onClick={() => void handleSubmit()} disabled={submitting || !name.trim()}
-        className="px-3 py-1.5 text-sm rounded bg-mycel-accent text-mycel-bg font-medium disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-mycel-accent">
+        className="inline-flex items-center h-9 px-3 text-sm rounded-md bg-mycel-accent text-mycel-accent-fg font-medium hover:bg-mycel-accent-hover shadow-mycel-sm disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-mycel-accent">
         {submitting ? "Adding..." : "Add CLI Tool"}
       </button>
     </motion.div>
@@ -302,7 +302,7 @@ export function Tools() {
   if (loading && !tools && providersLoading && !providers) {
     return (
       <div className="p-6 space-y-6">
-        <div className="h-6 w-32 animate-pulse rounded bg-mycel-surface-hover" />
+        <div className="h-6 w-32 animate-pulse rounded-md bg-mycel-surface-hover" />
         <LoadingSkeleton variant="cards" rows={4} />
       </div>
     );
@@ -392,7 +392,7 @@ export function Tools() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search tools..."
-              className="w-40 sm:w-52 pl-7 pr-7 py-1.5 text-sm rounded border border-mycel-border bg-mycel-bg text-mycel-text placeholder:text-mycel-muted focus:outline-none focus:ring-1 focus:ring-mycel-accent"
+              className="w-40 sm:w-52 pl-7 pr-7 py-1.5 text-sm rounded-md border border-mycel-border bg-mycel-bg text-mycel-text placeholder:text-mycel-muted focus:outline-none focus:ring-1 focus:ring-mycel-accent"
             />
             {search && (
               <button
@@ -406,12 +406,12 @@ export function Tools() {
             )}
           </div>
           <button type="button" onClick={() => void handleCheck()} disabled={checking}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded border border-mycel-border text-mycel-muted hover:text-mycel-text transition-colors disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-mycel-accent">
+            className="inline-flex items-center gap-1.5 h-9 px-3 text-sm rounded-md bg-mycel-surface border border-mycel-border text-mycel-text-2 hover:text-mycel-text hover:bg-mycel-surface-hover transition-colors disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-mycel-accent">
             {checking ? <Spinner /> : null}
             {checking ? "Checking..." : "Health Check"}
           </button>
           <button type="button" onClick={() => setShowAddForm(!showAddForm)}
-            className="px-3 py-1.5 text-sm rounded bg-mycel-info-subtle text-mycel-info transition-colors focus-visible:ring-2 focus-visible:ring-mycel-accent">
+            className="inline-flex items-center h-9 px-3 text-sm font-medium rounded-md bg-mycel-accent text-mycel-accent-fg hover:bg-mycel-accent-hover shadow-mycel-sm transition-colors focus-visible:ring-2 focus-visible:ring-mycel-accent">
             + CLI Tool
           </button>
         </div>
@@ -426,7 +426,7 @@ export function Tools() {
             "5 providers" chip elsewhere on the page. Keep it a quiet
             editorial rule + label. */}
         <div className="flex items-baseline gap-2 mb-3">
-          <h2 className="text-[11px] font-medium text-mycel-muted uppercase tracking-[0.14em]">
+          <h2 className="text-[11px] font-medium text-mycel-muted uppercase tracking-[0.08em]">
             AI Model Providers
           </h2>
           <span className="text-[11px] text-mycel-muted tabular-nums">
@@ -439,7 +439,7 @@ export function Tools() {
 
       <section>
         <div className="flex items-baseline gap-2 mb-3">
-          <h2 className="text-[11px] font-medium text-mycel-muted uppercase tracking-[0.14em]">
+          <h2 className="text-[11px] font-medium text-mycel-muted uppercase tracking-[0.08em]">
             CLI Dependencies
           </h2>
           <span className="text-[11px] text-mycel-muted tabular-nums">
@@ -450,15 +450,15 @@ export function Tools() {
         {filteredCli.length === 0 ? (
           <EmptyState icon=">" title={searchLower ? "No matching CLI tools" : "No CLI dependencies"} description={searchLower ? "Try a different search term." : "Add CLI tools like gh, aws, or wrangler."} />
         ) : (
-          <div className="rounded border border-mycel-border overflow-hidden">
+          <div className="rounded-lg border border-mycel-border overflow-hidden">
             <table className="w-full text-left">
               <thead>
-                <tr className="bg-mycel-surface border-b border-mycel-border text-[11px] text-mycel-muted uppercase tracking-wider">
-                  <th className="px-3 py-2 font-medium">Tool</th>
-                  <th className="px-3 py-2 font-medium">Status</th>
-                  <th className="px-3 py-2 font-medium">Version</th>
-                  <th className="px-3 py-2 font-medium">Required</th>
-                  <th className="px-3 py-2 font-medium text-right">Actions</th>
+                <tr className="bg-mycel-surface border-b border-mycel-border text-[11px] text-mycel-muted uppercase tracking-[0.08em]">
+                  <th className="px-4 py-2.5 font-medium">Tool</th>
+                  <th className="px-4 py-2.5 font-medium">Status</th>
+                  <th className="px-4 py-2.5 font-medium">Version</th>
+                  <th className="px-4 py-2.5 font-medium">Required</th>
+                  <th className="px-4 py-2.5 font-medium text-right">Actions</th>
                 </tr>
               </thead>
               <tbody>

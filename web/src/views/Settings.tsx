@@ -24,12 +24,12 @@ function deepEqual(a: unknown, b: unknown): boolean {
 /*  Shared components                                                   */
 /* ------------------------------------------------------------------ */
 
-const INPUT_CLS = "w-full px-2 py-0.5 text-xs rounded border border-mycel-border bg-mycel-bg text-mycel-text font-mono focus:outline-none focus:ring-1 focus:ring-mycel-accent";
+const INPUT_CLS = "w-full px-2 py-0.5 text-xs rounded-md border border-mycel-border bg-mycel-bg text-mycel-text font-mono focus:outline-none focus:ring-1 focus:ring-mycel-accent";
 
 function Field({ label, children, suffix }: { label: string; children: React.ReactNode; suffix?: string }) {
   return (
     <div className="flex items-center gap-2 min-h-[28px]">
-      <label className="text-[11px] text-mycel-muted w-24 shrink-0 text-right">{label}</label>
+      <label className="text-xs text-mycel-text-2 w-24 shrink-0 text-right">{label}</label>
       <div className="flex-1 flex items-center gap-1.5 min-w-0">
         {children}
         {suffix && <span className="text-[10px] text-mycel-muted shrink-0">{suffix}</span>}
@@ -117,7 +117,7 @@ function Section({
   const meta = SECTION_META[title];
 
   return (
-    <div className={`rounded border ${dirty ? "border-mycel-accent" : "border-mycel-border"} bg-mycel-surface shadow-mycel`}>
+    <div className={`rounded-lg border ${dirty ? "border-mycel-accent" : "border-mycel-border"} bg-mycel-surface shadow-mycel`}>
       <button
         type="button"
         onClick={() => setOpen(!open)}
@@ -126,7 +126,7 @@ function Section({
         <svg className="w-3.5 h-3.5 text-mycel-muted shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
           {meta?.icon}
         </svg>
-        <span className="text-[11px] font-semibold text-mycel-text uppercase tracking-wide">{title}</span>
+        <span className="text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-text">{title}</span>
         {meta?.desc && <span className="text-[10px] text-mycel-muted ml-auto mr-2 hidden sm:inline">{meta.desc}</span>}
         {dirty && <span className="w-1.5 h-1.5 rounded-full bg-mycel-accent" />}
         <svg className={`w-3 h-3 text-mycel-muted transition-transform ${open ? "rotate-90" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -366,7 +366,7 @@ export function Settings() {
           glyph so it reads as chrome, not as a subtitle competing
           with the page header above. */}
       <div className="flex items-center gap-2">
-        <span className="inline-flex items-center gap-1.5 text-[10px] font-mono px-2 py-1 rounded border border-mycel-border bg-mycel-surface-hover text-mycel-muted">
+        <span className="inline-flex items-center gap-1.5 text-[10px] font-mono px-2 py-1 rounded-md border border-mycel-border bg-mycel-surface-hover text-mycel-muted">
           <svg width="10" height="10" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
             <path d="M3 1.5h5l3 3v8H3z" />
             <path d="M8 1.5v3h3" />
@@ -378,14 +378,14 @@ export function Settings() {
       {/* Saved confirmation toast — visible briefly after a successful save
           when no other sections are dirty. */}
       {saveStatus === "saved" && dirtySections.length === 0 && (
-        <div className="fixed bottom-4 right-4 z-30 rounded border border-mycel-success bg-mycel-success-subtle px-3 py-2 text-xs text-mycel-success shadow-mycel-lg">
+        <div className="fixed bottom-4 right-4 z-30 rounded-lg border border-mycel-success bg-mycel-success-subtle px-3 py-2 text-xs text-mycel-success shadow-mycel-lg">
           Saved
         </div>
       )}
 
       {/* Floating save bar */}
       {dirtySections.length > 0 && (
-        <div className="sticky top-0 z-20 rounded border border-mycel-accent bg-mycel-accent-subtle backdrop-blur px-3 py-2 flex items-center justify-between gap-3 shadow-mycel">
+        <div className="sticky top-0 z-20 rounded-lg border border-mycel-accent bg-mycel-accent-subtle backdrop-blur px-3 py-2 flex items-center justify-between gap-3 shadow-mycel">
           <div className="text-xs text-mycel-text min-w-0">
             <span className="font-medium">Unsaved:</span>{" "}
             <span className="text-mycel-muted">{dirtySections.join(", ")}</span>
@@ -401,7 +401,7 @@ export function Settings() {
                 setSaveStatus("idle");
               }}
               disabled={saveStatus === "saving"}
-              className="px-3 py-1 rounded text-xs font-medium border border-mycel-border text-mycel-muted hover:text-mycel-text hover:border-mycel-muted transition-colors disabled:opacity-50"
+              className="inline-flex items-center h-8 px-3 rounded-md text-xs font-medium bg-mycel-surface border border-mycel-border text-mycel-text-2 hover:text-mycel-text hover:bg-mycel-surface-hover transition-colors disabled:opacity-50"
               title="Discard unsaved changes"
             >
               Discard
@@ -409,7 +409,7 @@ export function Settings() {
             <button
               onClick={handleSaveAll}
               disabled={saveStatus === "saving"}
-              className={`px-3 py-1 rounded text-xs font-medium transition-all disabled:opacity-50 ${
+              className={`inline-flex items-center h-8 px-3 rounded-md text-xs font-medium transition-all disabled:opacity-50 ${
                 saveStatus === "error"
                   ? "bg-mycel-error text-white hover:opacity-90 shadow-mycel-sm"
                   : "bg-mycel-accent text-mycel-accent-fg hover:bg-mycel-accent-hover shadow-mycel-sm"
@@ -422,13 +422,13 @@ export function Settings() {
       )}
 
       {saveStatus === "saved" && dirtySections.length === 0 && !restartWarning && (
-        <div className="rounded border border-mycel-success bg-mycel-success-subtle px-3 py-1.5 text-xs text-mycel-success">
+        <div className="rounded-md border border-mycel-success bg-mycel-success-subtle px-3 py-1.5 text-xs text-mycel-success">
           Changes saved.
         </div>
       )}
 
       {restartWarning && (
-        <div className="rounded border border-mycel-error bg-mycel-error-subtle px-3 py-1.5 text-xs text-mycel-error">
+        <div className="rounded-md border border-mycel-error bg-mycel-error-subtle px-3 py-1.5 text-xs text-mycel-error">
           Changes saved. Restart mycel to apply (<code className="font-mono">mycel down &amp;&amp; mycel up -d</code>)
         </div>
       )}

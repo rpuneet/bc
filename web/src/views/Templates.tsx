@@ -191,7 +191,7 @@ function TemplateDetailPanel({
   if (loading) {
     return (
       <div className="p-6 space-y-4">
-        <div className="h-5 w-24 animate-pulse rounded bg-mycel-surface-hover" />
+        <div className="h-5 w-24 animate-pulse rounded-md bg-mycel-surface-hover" />
         <LoadingSkeleton variant="text" rows={6} />
       </div>
     );
@@ -218,21 +218,18 @@ function TemplateDetailPanel({
         <button
           type="button"
           onClick={onBack}
-          className="text-xs text-mycel-muted hover:text-mycel-text transition-colors focus-visible:ring-2 focus-visible:ring-mycel-accent focus-visible:ring-offset-1 focus-visible:ring-offset-mycel-bg rounded"
+          className="text-xs text-mycel-muted hover:text-mycel-text transition-colors focus-visible:ring-2 focus-visible:ring-mycel-accent focus-visible:ring-offset-1 focus-visible:ring-offset-mycel-bg rounded-md"
           aria-label="Back to templates list"
         >
           ← Templates
         </button>
         <span className="text-mycel-muted">/</span>
-        <h1
-          className="text-xl font-bold text-mycel-text"
-          style={{ fontFamily: MONO }}
-        >
+        <h1 className="text-xl font-semibold tracking-tight text-mycel-text">
           {detail.name}
         </h1>
       </div>
 
-      <div className="rounded border border-mycel-border bg-mycel-surface p-5 space-y-5">
+      <div className="rounded-lg border border-mycel-border bg-mycel-surface p-5 space-y-5">
         {/* Description */}
         <div className="space-y-1">
           <SectionRule label="Description" />
@@ -241,7 +238,7 @@ function TemplateDetailPanel({
               type="text"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              className="w-full px-3 py-2 rounded border border-mycel-border bg-mycel-bg text-mycel-text text-sm focus:outline-none focus:ring-2 focus:ring-mycel-accent"
+              className="w-full px-3 py-2 rounded-md border border-mycel-border bg-mycel-bg text-mycel-text text-sm focus:outline-none focus:ring-2 focus:ring-mycel-accent"
               placeholder="Short description"
               aria-label="Description"
             />
@@ -259,14 +256,14 @@ function TemplateDetailPanel({
             <textarea
               value={systemPrompt}
               onChange={(e) => setSystemPrompt(e.target.value)}
-              className="w-full min-h-[200px] px-3 py-2 rounded border border-mycel-border bg-mycel-bg text-mycel-text text-sm resize-y focus:outline-none focus:ring-2 focus:ring-mycel-accent"
+              className="w-full min-h-[200px] px-3 py-2 rounded-md border border-mycel-border bg-mycel-bg text-mycel-text text-sm resize-y focus:outline-none focus:ring-2 focus:ring-mycel-accent"
               style={{ fontFamily: MONO }}
               placeholder="# Template Name&#10;&#10;System prompt instructions..."
               aria-label="System prompt"
             />
           ) : (
             <pre
-              className="text-xs bg-mycel-bg rounded p-3 whitespace-pre-wrap text-mycel-text-2 border border-mycel-border min-h-[80px]"
+              className="text-xs bg-mycel-bg rounded-md p-3 whitespace-pre-wrap text-mycel-text-2 border border-mycel-border min-h-[80px]"
               style={{ fontFamily: MONO }}
             >
               {detail.system_prompt?.trim() || (
@@ -284,7 +281,7 @@ function TemplateDetailPanel({
               type="text"
               value={mcpsRaw}
               onChange={(e) => setMcpsRaw(e.target.value)}
-              className="w-full px-3 py-2 rounded border border-mycel-border bg-mycel-bg text-mycel-text text-sm focus:outline-none focus:ring-2 focus:ring-mycel-accent"
+              className="w-full px-3 py-2 rounded-md border border-mycel-border bg-mycel-bg text-mycel-text text-sm focus:outline-none focus:ring-2 focus:ring-mycel-accent"
               placeholder="bc, github"
               aria-label="MCP servers (comma-separated)"
               style={{ fontFamily: MONO }}
@@ -302,7 +299,7 @@ function TemplateDetailPanel({
               type="text"
               value={secretsRaw}
               onChange={(e) => setSecretsRaw(e.target.value)}
-              className="w-full px-3 py-2 rounded border border-mycel-border bg-mycel-bg text-mycel-text text-sm focus:outline-none focus:ring-2 focus:ring-mycel-accent"
+              className="w-full px-3 py-2 rounded-md border border-mycel-border bg-mycel-bg text-mycel-text text-sm focus:outline-none focus:ring-2 focus:ring-mycel-accent"
               placeholder="GITHUB_TOKEN, OPENAI_KEY"
               aria-label="Secrets (comma-separated)"
               style={{ fontFamily: MONO }}
@@ -320,7 +317,7 @@ function TemplateDetailPanel({
               type="text"
               value={pluginsRaw}
               onChange={(e) => setPluginsRaw(e.target.value)}
-              className="w-full px-3 py-2 rounded border border-mycel-border bg-mycel-bg text-mycel-text text-sm focus:outline-none focus:ring-2 focus:ring-mycel-accent"
+              className="w-full px-3 py-2 rounded-md border border-mycel-border bg-mycel-bg text-mycel-text text-sm focus:outline-none focus:ring-2 focus:ring-mycel-accent"
               placeholder="frontend-design"
               aria-label="Plugins (comma-separated)"
               style={{ fontFamily: MONO }}
@@ -339,7 +336,7 @@ function TemplateDetailPanel({
                   type="button"
                   onClick={() => void handleSave()}
                   disabled={saveStatus.type === "saving"}
-                  className="px-4 py-2 rounded bg-mycel-accent text-mycel-accent-fg text-sm font-medium hover:bg-mycel-accent-hover shadow-mycel-sm disabled:opacity-50 transition-colors focus-visible:ring-2 focus-visible:ring-mycel-accent focus-visible:ring-offset-1 focus-visible:ring-offset-mycel-bg"
+                  className="inline-flex items-center h-9 px-3 rounded-md bg-mycel-accent text-mycel-accent-fg text-sm font-medium hover:bg-mycel-accent-hover shadow-mycel-sm disabled:opacity-50 transition-colors focus-visible:ring-2 focus-visible:ring-mycel-accent focus-visible:ring-offset-1 focus-visible:ring-offset-mycel-bg"
                 >
                   {saveStatus.type === "saving" ? "Saving..." : "Save"}
                 </button>
@@ -355,7 +352,7 @@ function TemplateDetailPanel({
                     setSecretsRaw((detail.secrets ?? []).join(", "));
                     setPluginsRaw((detail.plugins ?? []).join(", "));
                   }}
-                  className="px-3 py-2 rounded border border-mycel-border text-mycel-muted text-sm hover:text-mycel-text transition-colors focus-visible:ring-2 focus-visible:ring-mycel-accent focus-visible:ring-offset-1 focus-visible:ring-offset-mycel-bg"
+                  className="inline-flex items-center h-9 px-3 rounded-md bg-mycel-surface border border-mycel-border text-mycel-text-2 text-sm hover:text-mycel-text hover:bg-mycel-surface-hover transition-colors focus-visible:ring-2 focus-visible:ring-mycel-accent focus-visible:ring-offset-1 focus-visible:ring-offset-mycel-bg"
                 >
                   Cancel
                 </button>
@@ -372,7 +369,7 @@ function TemplateDetailPanel({
               <button
                 type="button"
                 onClick={() => setEditing(true)}
-                className="px-4 py-2 rounded border border-mycel-border text-mycel-muted text-sm hover:text-mycel-text transition-colors focus-visible:ring-2 focus-visible:ring-mycel-accent focus-visible:ring-offset-1 focus-visible:ring-offset-mycel-bg"
+                className="inline-flex items-center h-9 px-3 rounded-md bg-mycel-surface border border-mycel-border text-mycel-text-2 text-sm hover:text-mycel-text hover:bg-mycel-surface-hover transition-colors focus-visible:ring-2 focus-visible:ring-mycel-accent focus-visible:ring-offset-1 focus-visible:ring-offset-mycel-bg"
               >
                 Edit
               </button>
@@ -451,7 +448,7 @@ function CreateTemplateForm({ onCreated }: { onCreated: (name: string) => void }
         <button
           type="button"
           onClick={() => setExpanded(true)}
-          className="flex items-center gap-2 px-4 py-2 rounded-lg border border-dashed border-mycel-border text-sm text-mycel-muted hover:text-mycel-accent hover:border-mycel-accent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mycel-accent focus-visible:ring-offset-1 focus-visible:ring-offset-mycel-bg"
+          className="inline-flex items-center gap-2 h-9 px-3 rounded-md border border-dashed border-mycel-border text-sm text-mycel-muted hover:text-mycel-accent hover:border-mycel-accent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mycel-accent focus-visible:ring-offset-1 focus-visible:ring-offset-mycel-bg"
         >
           <span className="text-lg leading-none">+</span> Create Template
         </button>
@@ -465,16 +462,16 @@ function CreateTemplateForm({ onCreated }: { onCreated: (name: string) => void }
   return (
     <form
       onSubmit={(e) => void handleSubmit(e)}
-      className="rounded border border-mycel-border bg-mycel-surface p-5 space-y-4 shadow-mycel"
+      className="rounded-lg border border-mycel-border bg-mycel-surface p-5 space-y-4 shadow-mycel"
     >
       <div className="flex items-center justify-between">
-        <h2 className="text-sm font-semibold text-mycel-muted uppercase tracking-wide">
+        <h2 className="text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted">
           Create Template
         </h2>
         <button
           type="button"
           onClick={() => setExpanded(false)}
-          className="text-xs text-mycel-muted hover:text-mycel-text transition-colors focus-visible:ring-2 focus-visible:ring-mycel-accent focus-visible:ring-offset-1 focus-visible:ring-offset-mycel-bg rounded"
+          className="text-xs text-mycel-muted hover:text-mycel-text transition-colors focus-visible:ring-2 focus-visible:ring-mycel-accent focus-visible:ring-offset-1 focus-visible:ring-offset-mycel-bg rounded-md"
           aria-label="Cancel creating template"
         >
           Cancel
@@ -493,7 +490,7 @@ function CreateTemplateForm({ onCreated }: { onCreated: (name: string) => void }
             onChange={(e) => setName(e.target.value)}
             placeholder="my-template"
             required
-            className="w-full px-3 py-2 rounded border border-mycel-border bg-mycel-bg text-mycel-text text-sm focus:outline-none focus:ring-2 focus:ring-mycel-accent"
+            className="w-full px-3 py-2 rounded-md border border-mycel-border bg-mycel-bg text-mycel-text text-sm focus:outline-none focus:ring-2 focus:ring-mycel-accent"
             style={{ fontFamily: MONO }}
           />
         </div>
@@ -507,7 +504,7 @@ function CreateTemplateForm({ onCreated }: { onCreated: (name: string) => void }
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             placeholder="Short description"
-            className="w-full px-3 py-2 rounded border border-mycel-border bg-mycel-bg text-mycel-text text-sm focus:outline-none focus:ring-2 focus:ring-mycel-accent"
+            className="w-full px-3 py-2 rounded-md border border-mycel-border bg-mycel-bg text-mycel-text text-sm focus:outline-none focus:ring-2 focus:ring-mycel-accent"
           />
         </div>
         <div className="space-y-1">
@@ -520,7 +517,7 @@ function CreateTemplateForm({ onCreated }: { onCreated: (name: string) => void }
             value={mcpsRaw}
             onChange={(e) => setMcpsRaw(e.target.value)}
             placeholder="bc, github"
-            className="w-full px-3 py-2 rounded border border-mycel-border bg-mycel-bg text-mycel-text text-sm focus:outline-none focus:ring-2 focus:ring-mycel-accent"
+            className="w-full px-3 py-2 rounded-md border border-mycel-border bg-mycel-bg text-mycel-text text-sm focus:outline-none focus:ring-2 focus:ring-mycel-accent"
             style={{ fontFamily: MONO }}
           />
         </div>
@@ -534,7 +531,7 @@ function CreateTemplateForm({ onCreated }: { onCreated: (name: string) => void }
             value={secretsRaw}
             onChange={(e) => setSecretsRaw(e.target.value)}
             placeholder="GITHUB_TOKEN"
-            className="w-full px-3 py-2 rounded border border-mycel-border bg-mycel-bg text-mycel-text text-sm focus:outline-none focus:ring-2 focus:ring-mycel-accent"
+            className="w-full px-3 py-2 rounded-md border border-mycel-border bg-mycel-bg text-mycel-text text-sm focus:outline-none focus:ring-2 focus:ring-mycel-accent"
             style={{ fontFamily: MONO }}
           />
         </div>
@@ -548,7 +545,7 @@ function CreateTemplateForm({ onCreated }: { onCreated: (name: string) => void }
             value={pluginsRaw}
             onChange={(e) => setPluginsRaw(e.target.value)}
             placeholder="frontend-design"
-            className="w-full px-3 py-2 rounded border border-mycel-border bg-mycel-bg text-mycel-text text-sm focus:outline-none focus:ring-2 focus:ring-mycel-accent"
+            className="w-full px-3 py-2 rounded-md border border-mycel-border bg-mycel-bg text-mycel-text text-sm focus:outline-none focus:ring-2 focus:ring-mycel-accent"
             style={{ fontFamily: MONO }}
           />
         </div>
@@ -563,7 +560,7 @@ function CreateTemplateForm({ onCreated }: { onCreated: (name: string) => void }
           value={systemPrompt}
           onChange={(e) => setSystemPrompt(e.target.value)}
           placeholder="# Template Name&#10;&#10;System prompt instructions in Markdown..."
-          className="w-full min-h-[200px] px-3 py-2 rounded border border-mycel-border bg-mycel-bg text-mycel-text text-sm resize-y focus:outline-none focus:ring-2 focus:ring-mycel-accent"
+          className="w-full min-h-[200px] px-3 py-2 rounded-md border border-mycel-border bg-mycel-bg text-mycel-text text-sm resize-y focus:outline-none focus:ring-2 focus:ring-mycel-accent"
           style={{ fontFamily: MONO }}
         />
       </div>
@@ -572,7 +569,7 @@ function CreateTemplateForm({ onCreated }: { onCreated: (name: string) => void }
         <button
           type="submit"
           disabled={status.type === "saving" || !name.trim()}
-          className="px-4 py-2 rounded bg-mycel-accent text-mycel-accent-fg text-sm font-medium hover:bg-mycel-accent-hover shadow-mycel-sm disabled:opacity-50 transition-colors focus-visible:ring-2 focus-visible:ring-mycel-accent focus-visible:ring-offset-1 focus-visible:ring-offset-mycel-bg"
+          className="inline-flex items-center h-9 px-3 rounded-md bg-mycel-accent text-mycel-accent-fg text-sm font-medium hover:bg-mycel-accent-hover shadow-mycel-sm disabled:opacity-50 transition-colors focus-visible:ring-2 focus-visible:ring-mycel-accent focus-visible:ring-offset-1 focus-visible:ring-offset-mycel-bg"
         >
           {status.type === "saving" ? "Creating..." : "Create Template"}
         </button>
@@ -698,7 +695,7 @@ export function Templates() {
       {/* Loading */}
       {loading && !templates && (
         <div className="space-y-2">
-          <div className="h-5 w-24 animate-pulse rounded bg-mycel-surface-hover" />
+          <div className="h-5 w-24 animate-pulse rounded-md bg-mycel-surface-hover" />
           <LoadingSkeleton variant="text" rows={4} />
         </div>
       )}
@@ -745,10 +742,10 @@ export function Templates() {
 
       {/* Table */}
       {filteredTemplates !== null && filteredTemplates.length > 0 && (
-        <div className="rounded border border-mycel-border bg-mycel-surface overflow-hidden">
+        <div className="rounded-lg border border-mycel-border bg-mycel-surface overflow-hidden">
           <table className="w-full">
             <thead>
-              <tr className="text-left text-[11px] font-medium text-mycel-muted uppercase tracking-wide">
+              <tr className="text-left text-[11px] font-medium text-mycel-muted uppercase tracking-[0.08em]">
                 <th className="py-2.5 pl-4 pr-6 font-medium">Name</th>
                 <th className="py-2.5 px-4 font-medium">MCPs</th>
                 <th className="py-2.5 px-4 font-medium">Secrets</th>

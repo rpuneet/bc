@@ -104,12 +104,12 @@ export function AgentPeekPanel({ agentName, onClose }: AgentPeekPanelProps) {
       {/* Header */}
       <div className="px-4 py-2 border-b border-mycel-border bg-mycel-surface flex items-center justify-between">
         <div className="flex items-center gap-2 min-w-0">
-          <span className="font-medium truncate">{agentName}</span>
+          <span className="text-sm font-medium truncate">{agentName}</span>
           {agent && <StatusBadge status={agent.state} />}
         </div>
         <button
           onClick={onClose}
-          className="text-mycel-muted hover:text-mycel-text text-sm ml-2 shrink-0"
+          className="text-mycel-muted hover:text-mycel-text text-xs ml-2 shrink-0 transition-colors"
           aria-label="Close peek panel"
         >
           close

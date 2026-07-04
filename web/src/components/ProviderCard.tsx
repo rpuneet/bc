@@ -22,7 +22,7 @@ export function ProviderCard({ provider, onClick }: ProviderCardProps) {
       <div className="flex items-start gap-3">
         {/* Monogram */}
         <div className="flex-shrink-0 w-10 h-10 rounded-full bg-mycel-accent-subtle flex items-center justify-center">
-          <span className="text-sm font-bold text-mycel-accent">{letter}</span>
+          <span className="text-sm font-semibold text-mycel-accent">{letter}</span>
         </div>
 
         <div className="flex-1 min-w-0">
@@ -49,7 +49,7 @@ export function ProviderCard({ provider, onClick }: ProviderCardProps) {
 
           {/* Version badge */}
           {provider.version && (
-            <span className="inline-block mt-1 px-1.5 py-0.5 rounded text-xs font-mono bg-mycel-surface border border-mycel-border text-mycel-muted">
+            <span className="inline-block mt-1 px-1.5 py-0.5 rounded-md text-xs font-mono bg-mycel-surface border border-mycel-border text-mycel-muted">
               v{provider.version}
             </span>
           )}

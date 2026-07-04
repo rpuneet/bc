@@ -524,8 +524,11 @@ function NotificationNavTree() {
   return (
     <div
       style={{
+        // Indent rail sits under the nav icon column (pl-4 + w-4 icon —
+        // icon centre ≈ 26px with the 2px active rail) so the channel
+        // tree reads as a child of the Notifications item.
         paddingLeft: 10,
-        marginLeft: 9,
+        marginLeft: 25,
         borderLeft: "1px solid var(--mycel-border)",
         marginTop: 2,
         marginBottom: 4,
@@ -749,24 +752,44 @@ function NotificationNavTree() {
 
 /* ── Nav items ───────────────────────────────────────────────── */
 
-// Primary nav — repo-scoped surfaces + one cross-repo surface
-// (Costs). Section dividers previously wrapped a single item each, which
-// design + UX audit flagged as chrome-for-nothing (#3205 P1a). Settings
-// moved to the footer next to About + the theme toggle so all utility
-// affordances read as one row of chrome rather than three separate
-// nav groups.
-const MAIN_NAV_ITEMS = [
-  { to: "/live", label: "Live", icon: "live" },
-  { to: "/agents", label: "Agents", icon: "agents" },
-  { to: "/notifications", label: "Notifications", icon: "notifications" },
-  { to: "/code", label: "Code", icon: "code" },
-  { to: "/templates", label: "Templates", icon: "templates" },
-  { to: "/tools", label: "Tools", icon: "tools" },
-  { to: "/cron", label: "Cron", icon: "cron" },
-  { to: "/secrets", label: "Secrets", icon: "secrets" },
-  { to: "/stats", label: "Metrics", icon: "metrics" },
-  { to: "/costs", label: "Costs", icon: "metrics" },
-] as const;
+// Primary nav — repo-scoped surfaces + one cross-repo surface (Costs),
+// grouped into quiet labeled sections: the daily surfaces ride unlabeled
+// at the top, configuration surfaces under CONFIGURE, and read-only
+// analytics under INSIGHTS. Labels collapse away in icon-only mode.
+// Settings lives in the footer next to About + the theme toggle so all
+// utility affordances read as one group of chrome.
+type NavItem = { to: string; label: string; icon: string };
+type NavSection = { label: string | null; items: readonly NavItem[] };
+
+const NAV_SECTIONS: readonly NavSection[] = [
+  {
+    label: null,
+    items: [
+      { to: "/live", label: "Live", icon: "live" },
+      { to: "/agents", label: "Agents", icon: "agents" },
+      { to: "/notifications", label: "Notifications", icon: "notifications" },
+      { to: "/code", label: "Code", icon: "code" },
+    ],
+  },
+  {
+    label: "Configure",
+    items: [
+      { to: "/templates", label: "Templates", icon: "templates" },
+      { to: "/tools", label: "Tools", icon: "tools" },
+      { to: "/cron", label: "Cron", icon: "cron" },
+      { to: "/secrets", label: "Secrets", icon: "secrets" },
+    ],
+  },
+  {
+    label: "Insights",
+    items: [
+      { to: "/stats", label: "Metrics", icon: "metrics" },
+      { to: "/costs", label: "Costs", icon: "metrics" },
+    ],
+  },
+];
+
+const MAIN_NAV_ITEMS: readonly NavItem[] = NAV_SECTIONS.flatMap((s) => s.items);
 
 // Retained so external callers (TITLE_ITEMS, /settings header) that still
 // walk a flat nav list keep working. Settings + Costs both appear here
@@ -795,13 +818,16 @@ function writeCollapsed(v: boolean) {
 /* ── Nav list ────────────────────────────────────────────────── */
 
 function NavList({
-  items,
+  sections,
   collapsed,
   isMobile,
   notificationsExpanded,
   onToggleNotifications,
 }: {
-  items: ReadonlyArray<{ to: string; label: string; icon: string; global?: boolean }>;
+  sections: ReadonlyArray<{
+    label: string | null;
+    items: ReadonlyArray<{ to: string; label: string; icon: string; global?: boolean }>;
+  }>;
   collapsed: boolean;
   isMobile: boolean;
   notificationsExpanded?: boolean;
@@ -812,56 +838,71 @@ function NavList({
 
   return (
     <>
-      {items.map(({ to, label, icon }) => {
-        const isNotifications = label === "Notifications";
-        const scopedTo = to;
-        return (
-          <li key={to}>
-            <NavLink
-              to={scopedTo}
-              end={!isNotifications}
-              title={isIconOnly ? label : undefined}
-              className={({ isActive }) =>
-                `relative flex items-center gap-2.5 ${isIconOnly ? "justify-center px-2" : "pl-4 pr-3"} py-[7px] text-[13px] outline-none transition-colors duration-75 ${
-                  isActive
-                    ? "text-mycel-accent font-medium border-l-2 border-mycel-accent bg-mycel-surface-hover"
-                    : "text-mycel-muted hover:text-mycel-text hover:bg-mycel-surface-hover border-l-2 border-transparent"
-                }`
-              }
-            >
-              <span className="shrink-0 flex items-center justify-center w-4 opacity-60">
-                <Icon name={icon} size={14} />
-              </span>
-              {(!collapsed || isMobile) && (
-                <span className="truncate">{label}</span>
-              )}
-              {label === "Live" && (
-                <span className="w-1.5 h-1.5 rounded-full bg-mycel-live animate-pulse ml-auto" />
-              )}
-              {isNotifications && !isIconOnly && onToggleNotifications && (
-                <button
-                  type="button"
-                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); onToggleNotifications(); }}
-                  className="ml-auto shrink-0 p-0.5 rounded text-mycel-muted hover:text-mycel-muted transition-all"
-                  aria-label={notificationsExpanded ? "Collapse channels" : "Expand channels"}
-                >
-                  <svg
-                    width="12" height="12" viewBox="0 0 14 14" fill="none"
-                    stroke="currentColor" strokeWidth="1.5"
-                    style={{
-                      transform: notificationsExpanded ? "rotate(90deg)" : "rotate(0deg)",
-                      transition: "transform 150ms ease",
-                    }}
+      {sections.map((section, sectionIdx) => (
+        <li key={section.label ?? `section-${sectionIdx}`}>
+          {section.label !== null &&
+            (isIconOnly ? (
+              // Icon-only mode: the caption collapses to a bare hairline.
+              <div className="mx-3 my-2 border-t border-mycel-border" aria-hidden />
+            ) : (
+              <div className="px-4 pt-4 pb-1 text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted select-none">
+                {section.label}
+              </div>
+            ))}
+          <ul>
+            {section.items.map(({ to, label, icon }) => {
+              const isNotifications = label === "Notifications";
+              const scopedTo = to;
+              return (
+                <li key={to}>
+                  <NavLink
+                    to={scopedTo}
+                    end={!isNotifications}
+                    title={isIconOnly ? label : undefined}
+                    className={({ isActive }) =>
+                      `relative flex items-center gap-2.5 ${isIconOnly ? "justify-center px-2" : "pl-4 pr-3"} py-[7px] text-sm outline-none transition-colors duration-75 border-l-2 ${
+                        isActive
+                          ? "text-mycel-text font-medium border-mycel-accent bg-mycel-surface-hover"
+                          : "text-mycel-text-2 hover:text-mycel-text hover:bg-[color-mix(in_srgb,var(--mycel-surface-hover)_60%,transparent)] border-transparent"
+                      }`
+                    }
                   >
-                    <path d="M5 3l4 4-4 4" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                </button>
-              )}
-            </NavLink>
-            {isNotifications && showTree && <NotificationNavTree />}
-          </li>
-        );
-      })}
+                    <span className="shrink-0 flex items-center justify-center w-4 opacity-70">
+                      <Icon name={icon} size={16} />
+                    </span>
+                    {(!collapsed || isMobile) && (
+                      <span className="truncate">{label}</span>
+                    )}
+                    {label === "Live" && (
+                      <span className="w-1.5 h-1.5 rounded-full bg-mycel-live animate-pulse ml-auto" />
+                    )}
+                    {isNotifications && !isIconOnly && onToggleNotifications && (
+                      <button
+                        type="button"
+                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); onToggleNotifications(); }}
+                        className="ml-auto shrink-0 p-0.5 rounded-md text-mycel-muted hover:text-mycel-text transition-all"
+                        aria-label={notificationsExpanded ? "Collapse channels" : "Expand channels"}
+                      >
+                        <svg
+                          width="12" height="12" viewBox="0 0 14 14" fill="none"
+                          stroke="currentColor" strokeWidth="1.5"
+                          style={{
+                            transform: notificationsExpanded ? "rotate(90deg)" : "rotate(0deg)",
+                            transition: "transform 150ms ease",
+                          }}
+                        >
+                          <path d="M5 3l4 4-4 4" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      </button>
+                    )}
+                  </NavLink>
+                  {isNotifications && showTree && <NotificationNavTree />}
+                </li>
+              );
+            })}
+          </ul>
+        </li>
+      ))}
     </>
   );
 }
@@ -907,7 +948,7 @@ export function DegradedBanner() {
       <button
         type="button"
         onClick={() => setDismissed(true)}
-        className="ml-auto shrink-0 p-0.5 rounded text-mycel-warning hover:text-mycel-warning transition-colors"
+        className="ml-auto shrink-0 p-0.5 rounded-md text-mycel-warning hover:opacity-80 transition-colors"
         aria-label="Dismiss degraded services banner"
       >
         <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5">
@@ -924,13 +965,6 @@ export function Layout() {
   const location = useLocation();
   const { mode, toggle } = useTheme();
   const isMobile = useMediaQuery("(max-width: 767px)");
-
-  const [userName, setUserName] = useState("");
-  useEffect(() => {
-    fetch("/api/settings").then(r => r.json()).then(d => {
-      setUserName(d?.user?.name || "");
-    }).catch(() => {});
-  }, []);
 
   const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(readCollapsed);
@@ -970,7 +1004,7 @@ export function Layout() {
     <div className="flex h-screen">
       {/* Mobile hamburger */}
       <button type="button" onClick={() => setMobileOpen(true)}
-        className="fixed top-3 left-3 z-40 md:hidden p-2 rounded border border-mycel-border bg-mycel-surface text-mycel-muted hover:text-mycel-text transition-colors"
+        className="fixed top-3 left-3 z-40 md:hidden p-2 rounded-md border border-mycel-border bg-mycel-surface text-mycel-muted hover:text-mycel-text transition-colors"
         aria-label="Open navigation"
       >
         <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5">
@@ -994,9 +1028,8 @@ export function Layout() {
           {(!collapsed || isMobile) ? (
             <div className="flex items-center gap-2 overflow-hidden">
               <span
-                className="w-6 h-6 shrink-0 flex items-center justify-center font-bold"
+                className="w-6 h-6 shrink-0 flex items-center justify-center rounded-md font-semibold"
                 style={{
-                  borderRadius: 7,
                   background: "var(--mycel-accent)",
                   color: "var(--mycel-accent-fg)",
                   fontSize: 14,
@@ -1006,17 +1039,14 @@ export function Layout() {
               >
                 m
               </span>
-              <div className="min-w-0">
-                <p className="text-[13px] font-semibold text-mycel-text truncate" style={{ letterSpacing: -0.1 }}>
-                  {userName ? (userName.startsWith("@") ? userName : `@${userName}`) : "mycel"}
-                </p>
-              </div>
+              <span className="text-sm font-semibold tracking-tight text-mycel-text truncate">
+                mycel
+              </span>
             </div>
           ) : (
             <span
-              className="w-6 h-6 shrink-0 flex items-center justify-center font-bold"
+              className="w-6 h-6 shrink-0 flex items-center justify-center rounded-md font-semibold"
               style={{
-                borderRadius: 7,
                 background: "var(--mycel-accent)",
                 color: "var(--mycel-accent-fg)",
                 fontSize: 14,
@@ -1029,7 +1059,7 @@ export function Layout() {
           )}
           {isMobile ? (
             <button type="button" onClick={() => setMobileOpen(false)}
-              className="p-0.5 rounded text-mycel-muted hover:text-mycel-text transition-colors" aria-label="Close navigation"
+              className="p-0.5 rounded-md text-mycel-muted hover:text-mycel-text transition-colors" aria-label="Close navigation"
             >
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5">
                 <path d="M3 3l8 8M11 3l-8 8" />
@@ -1037,7 +1067,7 @@ export function Layout() {
             </button>
           ) : (
             <button type="button" onClick={toggleCollapsed}
-              className="p-0.5 rounded text-mycel-muted hover:text-mycel-muted transition-colors"
+              className="p-0.5 rounded-md text-mycel-muted hover:text-mycel-text transition-colors"
               aria-label={collapsed ? "Expand navigation" : "Collapse navigation"}
             >
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5">
@@ -1053,7 +1083,7 @@ export function Layout() {
             hairline when the sidebar is icon-only. */}
         <ul className="flex-1 py-2 overflow-y-auto" style={{ scrollbarWidth: "thin" }}>
           <NavList
-            items={MAIN_NAV_ITEMS}
+            sections={NAV_SECTIONS}
             collapsed={collapsed}
             isMobile={isMobile}
             notificationsExpanded={notificationsExpanded}
@@ -1061,70 +1091,68 @@ export function Layout() {
           />
         </ul>
 
-        {/* Unified sidebar footer — About + Theme picker in a single
-            row so the two utility affordances read as related chrome,
-            not two separate nav items competing for attention. The
-            About link takes the primary space (users care about
-            version); the theme toggle is a compact icon button on the
-            right. Collapsed sidebar falls back to two stacked
-            icon-only rows so both remain reachable. */}
+        {/* Unified sidebar footer — Settings, About and the theme toggle
+            as one group styled exactly like the nav items above, so the
+            utility affordances read as related chrome rather than three
+            competing patterns. Collapsed sidebar keeps stacked icon-only
+            rows so all three remain reachable. */}
         {collapsed && !isMobile ? (
           <div className="border-t border-mycel-border flex flex-col">
             <NavLink
               to="/settings"
               className={({ isActive }) =>
-                `flex items-center justify-center px-2 py-[9px] ${isActive ? "text-mycel-accent bg-mycel-surface-hover border-l-2 border-mycel-accent" : "text-mycel-muted hover:text-mycel-text hover:bg-mycel-surface-hover border-l-2 border-transparent"} transition-colors`
+                `flex items-center justify-center px-2 py-[7px] border-l-2 transition-colors ${isActive ? "text-mycel-text bg-mycel-surface-hover border-mycel-accent" : "text-mycel-text-2 hover:text-mycel-text hover:bg-[color-mix(in_srgb,var(--mycel-surface-hover)_60%,transparent)] border-transparent"}`
               }
               title="Settings"
             >
-              <Icon name="settings" size={14} />
+              <Icon name="settings" size={16} />
             </NavLink>
             <NavLink
               to="/about"
               className={({ isActive }) =>
-                `flex items-center justify-center px-2 py-[9px] ${isActive ? "text-mycel-accent bg-mycel-surface-hover border-l-2 border-mycel-accent" : "text-mycel-muted hover:text-mycel-text hover:bg-mycel-surface-hover border-l-2 border-transparent"} transition-colors`
+                `flex items-center justify-center px-2 py-[7px] border-l-2 transition-colors ${isActive ? "text-mycel-text bg-mycel-surface-hover border-mycel-accent" : "text-mycel-text-2 hover:text-mycel-text hover:bg-[color-mix(in_srgb,var(--mycel-surface-hover)_60%,transparent)] border-transparent"}`
               }
               title="About / version"
             >
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <svg width="16" height="16" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5">
                 <circle cx="7" cy="7" r="5.5" />
                 <path d="M7 4.5v.01M6 6.5h1v3h1" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </NavLink>
             <button type="button" onClick={toggle}
-              className="flex items-center justify-center px-2 py-[9px] text-mycel-muted hover:text-mycel-text hover:bg-mycel-surface-hover border-l-2 border-transparent transition-colors"
+              className="flex items-center justify-center px-2 py-[7px] border-l-2 border-transparent text-mycel-text-2 hover:text-mycel-text hover:bg-[color-mix(in_srgb,var(--mycel-surface-hover)_60%,transparent)] transition-colors"
               title={`Theme: ${THEME_LABELS[mode]}`}
               aria-label={`Switch theme — currently ${THEME_LABELS[mode]}`}
             >
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+              <svg width="16" height="16" viewBox="0 0 14 14" fill="none">
                 <circle cx="7" cy="7" r="5" stroke="currentColor" strokeWidth="1.4" />
                 <path d="M7 2a5 5 0 010 10z" fill="currentColor" />
               </svg>
             </button>
           </div>
         ) : (
-          <div className="border-t border-mycel-border flex items-stretch">
+          <div className="border-t border-mycel-border py-1 flex flex-col">
             <NavLink
               to="/settings"
               className={({ isActive }) =>
-                `flex items-center gap-2 pl-4 pr-2 py-[9px] text-[11px] ${isActive ? "text-mycel-accent bg-mycel-surface-hover border-l-2 border-mycel-accent" : "text-mycel-muted hover:text-mycel-text hover:bg-mycel-surface-hover border-l-2 border-transparent"} transition-colors`
+                `flex items-center gap-2.5 pl-4 pr-3 py-[7px] text-sm border-l-2 transition-colors ${isActive ? "text-mycel-text font-medium bg-mycel-surface-hover border-mycel-accent" : "text-mycel-text-2 hover:text-mycel-text hover:bg-[color-mix(in_srgb,var(--mycel-surface-hover)_60%,transparent)] border-transparent"}`
               }
               title="Settings"
             >
-              <span className="shrink-0 flex items-center justify-center w-4 opacity-80">
-                <Icon name="settings" size={14} />
+              <span className="shrink-0 flex items-center justify-center w-4 opacity-70">
+                <Icon name="settings" size={16} />
               </span>
-              <span className="truncate font-medium tracking-tight">Settings</span>
+              <span className="truncate">Settings</span>
             </NavLink>
             <NavLink
               to="/about"
               className={({ isActive }) =>
-                `flex-1 flex items-center gap-2 pl-3 pr-2 py-[9px] text-[11px] ${isActive ? "text-mycel-accent bg-mycel-surface-hover border-l border-mycel-border" : "text-mycel-muted hover:text-mycel-text hover:bg-mycel-surface-hover border-l border-mycel-border"} transition-colors`
+                `flex items-center gap-2.5 pl-4 pr-3 py-[7px] text-sm border-l-2 transition-colors ${isActive ? "text-mycel-text font-medium bg-mycel-surface-hover border-mycel-accent" : "text-mycel-text-2 hover:text-mycel-text hover:bg-[color-mix(in_srgb,var(--mycel-surface-hover)_60%,transparent)] border-transparent"}`
               }
               title="About / version"
             >
-              <span className="shrink-0 flex items-center justify-center w-4 opacity-80">
-                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <span className="shrink-0 flex items-center justify-center w-4 opacity-70">
+                <svg width="16" height="16" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5">
                   <circle cx="7" cy="7" r="5.5" />
                   <path d="M7 4.5v.01M6 6.5h1v3h1" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
@@ -1132,16 +1160,20 @@ export function Layout() {
               <span className="truncate">About</span>
             </NavLink>
             <button type="button" onClick={toggle}
-              className="shrink-0 flex items-center justify-center w-9 py-[9px] text-mycel-muted hover:text-mycel-text hover:bg-mycel-surface-hover border-l border-mycel-border transition-colors"
+              className="flex items-center gap-2.5 pl-4 pr-3 py-[7px] text-sm border-l-2 border-transparent text-mycel-text-2 hover:text-mycel-text hover:bg-[color-mix(in_srgb,var(--mycel-surface-hover)_60%,transparent)] transition-colors"
               title={`Theme: ${THEME_LABELS[mode]} — click to switch`}
               aria-label={`Switch theme — currently ${THEME_LABELS[mode]}`}
             >
               {/* Half-shaded circle — semantically "theme mode" (dark/light
                   split), visually distinct from the gear (Settings) icon. */}
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                <circle cx="7" cy="7" r="5" stroke="currentColor" strokeWidth="1.4" />
-                <path d="M7 2a5 5 0 010 10z" fill="currentColor" />
-              </svg>
+              <span className="shrink-0 flex items-center justify-center w-4 opacity-70">
+                <svg width="16" height="16" viewBox="0 0 14 14" fill="none">
+                  <circle cx="7" cy="7" r="5" stroke="currentColor" strokeWidth="1.4" />
+                  <path d="M7 2a5 5 0 010 10z" fill="currentColor" />
+                </svg>
+              </span>
+              <span className="truncate">Theme</span>
+              <span className="ml-auto text-xs text-mycel-muted">{THEME_LABELS[mode]}</span>
             </button>
           </div>
         )}

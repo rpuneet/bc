@@ -541,7 +541,7 @@ export function PlatformChooser({ onSelect, onClose }: { onSelect: (key: string)
         type="button"
         onClick={() => !isComingSoon && onSelect(p.key)}
         className={`
-          relative flex flex-col p-4 rounded-xl border text-left
+          relative flex flex-col p-4 rounded-lg border text-left
           transition-all duration-150 ease-out group
           ${isComingSoon
             ? "border-mycel-border opacity-40 cursor-not-allowed"
@@ -616,18 +616,18 @@ export function PlatformChooser({ onSelect, onClose }: { onSelect: (key: string)
       />
 
       {/* Modal */}
-      <div className="relative z-10 bg-mycel-surface-2 border border-mycel-border rounded-2xl shadow-mycel-lg flex flex-col w-[calc(100vw-48px)] max-w-[960px] max-h-[calc(100vh-48px)]">
+      <div className="relative z-10 bg-mycel-surface-2 border border-mycel-border rounded-lg shadow-mycel-lg flex flex-col w-[calc(100vw-48px)] max-w-[960px] max-h-[calc(100vh-48px)]">
         {/* Header */}
         <div className="px-6 pt-5 pb-4 border-b border-mycel-border shrink-0">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h2 className="text-lg font-bold text-mycel-text tracking-tight">Connect a platform</h2>
+              <h2 className="text-base font-semibold text-mycel-text tracking-tight">Connect a platform</h2>
               <p className="text-xs text-mycel-muted mt-0.5">Choose a service to receive notifications from</p>
             </div>
             <button
               type="button"
               onClick={onClose}
-              className="w-8 h-8 flex items-center justify-center rounded-lg text-mycel-muted hover:text-mycel-text hover:bg-mycel-surface-hover transition-colors"
+              className="w-8 h-8 flex items-center justify-center rounded-md text-mycel-muted hover:text-mycel-text hover:bg-mycel-surface-hover transition-colors"
               aria-label="Close"
             >
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
@@ -651,7 +651,7 @@ export function PlatformChooser({ onSelect, onClose }: { onSelect: (key: string)
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search platforms..."
-              className="w-full pl-9 pr-3 py-2.5 text-sm rounded-lg border border-mycel-border bg-mycel-surface text-mycel-text placeholder:text-mycel-muted focus:outline-none focus:ring-1 focus:ring-mycel-accent focus:border-mycel-accent transition-colors"
+              className="w-full pl-9 pr-3 py-2.5 text-sm rounded-md border border-mycel-border bg-mycel-surface text-mycel-text placeholder:text-mycel-muted focus:outline-none focus:ring-1 focus:ring-mycel-accent focus:border-mycel-accent transition-colors"
             />
           </div>
         </div>
@@ -661,7 +661,7 @@ export function PlatformChooser({ onSelect, onClose }: { onSelect: (key: string)
           {/* Connected section */}
           {connectedPlatforms.length > 0 && (
             <div className="mb-6">
-              <h3 className="text-[11px] font-bold text-mycel-success uppercase tracking-wider mb-3 flex items-center gap-2">
+              <h3 className="text-[11px] font-medium text-mycel-success uppercase tracking-[0.08em] mb-3 flex items-center gap-2">
                 <span className="w-1.5 h-1.5 rounded-full bg-mycel-success" />
                 Connected
               </h3>
@@ -681,7 +681,7 @@ export function PlatformChooser({ onSelect, onClose }: { onSelect: (key: string)
             if (items.length === 0) return null;
             return (
               <div key={cat} className="mb-6 last:mb-0">
-                <h3 className="text-[11px] font-bold text-mycel-muted uppercase tracking-wider mb-3">{cat}</h3>
+                <h3 className="text-[11px] font-medium text-mycel-muted uppercase tracking-[0.08em] mb-3">{cat}</h3>
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
                   {items.map(renderCard)}
                 </div>
@@ -695,7 +695,7 @@ export function PlatformChooser({ onSelect, onClose }: { onSelect: (key: string)
                 <circle cx="14" cy="14" r="9" />
                 <path d="M20.5 20.5l7 7" strokeLinecap="round" />
               </svg>
-              <p className="text-sm">No platforms match &ldquo;{search}&rdquo;</p>
+              <p className="text-sm font-medium">No platforms match &ldquo;{search}&rdquo;</p>
             </div>
           )}
         </div>
@@ -774,23 +774,23 @@ function AgentSubscriptionStep({
     <div>
       <div className="p-4 border-b border-mycel-border">
         <div className="flex items-center gap-2 mb-1">
-          <span className="text-[10px] font-bold text-mycel-accent bg-mycel-accent-subtle px-2 py-0.5 rounded-full uppercase tracking-wider">Step 2</span>
+          <span className="text-[10px] font-semibold text-mycel-accent bg-mycel-accent-subtle px-2 py-0.5 rounded-full uppercase tracking-wider">Step 2</span>
         </div>
-        <h3 className="text-[14px] font-semibold text-mycel-text">Add agents to {platformLabel}</h3>
-        <p className="text-[12px] text-mycel-muted mt-1">Select which agents should receive notifications from this platform.</p>
+        <h3 className="text-base font-semibold text-mycel-text">Add agents to {platformLabel}</h3>
+        <p className="text-xs text-mycel-muted mt-1">Select which agents should receive notifications from this platform.</p>
       </div>
 
       <div className="p-4 max-h-[300px] overflow-auto">
         {loading ? (
-          <div className="text-center py-6 text-mycel-muted text-[12px]">Loading agents...</div>
+          <div className="text-center py-6 text-mycel-muted text-xs">Loading agents...</div>
         ) : agents.length === 0 ? (
-          <div className="text-center py-6 text-mycel-muted text-[12px]">No agents found</div>
+          <div className="text-center py-6 text-mycel-muted text-xs">No agents found</div>
         ) : (
           <div className="space-y-1">
             {agents.filter((a) => !a.archived_at).map((agent) => (
               <label
                 key={agent.name}
-                className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-mycel-surface-hover cursor-pointer transition-colors"
+                className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-mycel-surface-hover cursor-pointer transition-colors"
               >
                 <input
                   type="checkbox"
@@ -803,7 +803,7 @@ function AgentSubscriptionStep({
                   style={{ backgroundColor: stateColor(agent.state) }}
                   title={agent.state}
                 />
-                <span className="text-[13px] text-mycel-text flex-1 min-w-0 truncate">{agent.name}</span>
+                <span className="text-sm text-mycel-text flex-1 min-w-0 truncate">{agent.name}</span>
                 {selected.has(agent.name) && (
                   <button
                     type="button"
@@ -826,12 +826,12 @@ function AgentSubscriptionStep({
       </div>
 
       <div className="flex justify-between items-center gap-2 p-4 border-t border-mycel-border">
-        <span className="text-[11px] text-mycel-muted">{selected.size} agent{selected.size !== 1 ? "s" : ""} selected</span>
+        <span className="text-xs text-mycel-text-2">{selected.size} agent{selected.size !== 1 ? "s" : ""} selected</span>
         <button
           type="button"
           onClick={handleDone}
           disabled={saving}
-          className="px-4 py-1.5 text-[12px] text-mycel-accent-fg bg-mycel-accent hover:bg-mycel-accent-hover shadow-mycel-sm rounded font-medium transition-colors disabled:opacity-50"
+          className="inline-flex items-center h-9 px-3 text-sm text-mycel-accent-fg bg-mycel-accent hover:bg-mycel-accent-hover shadow-mycel-sm rounded-md font-medium transition-colors disabled:opacity-50"
         >
           {saving ? "Saving..." : "Done"}
         </button>
@@ -898,7 +898,7 @@ export function SetupWizard({
   if (!config) {
     return createPortal(
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-mycel-overlay backdrop-blur-sm">
-        <div className="bg-mycel-surface-2 border border-mycel-border rounded-xl p-6 max-w-md w-full mx-4 shadow-mycel-lg">
+        <div className="bg-mycel-surface-2 border border-mycel-border rounded-lg p-6 max-w-md w-full mx-4 shadow-mycel-lg">
           <p className="text-mycel-muted">Unknown platform: {platform}</p>
           <button type="button" onClick={onClose} className="mt-4 text-sm text-mycel-accent">
             Close
@@ -981,10 +981,10 @@ export function SetupWizard({
 
   return createPortal(
     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-mycel-overlay backdrop-blur-sm" style={{ animation: 'fadeIn 120ms ease-out' }}>
-      <div className="bg-mycel-surface-2 border border-mycel-border rounded-xl max-w-lg w-full mx-4 max-h-[85vh] overflow-auto shadow-mycel-lg">
+      <div className="bg-mycel-surface-2 border border-mycel-border rounded-lg max-w-lg w-full mx-4 max-h-[85vh] overflow-auto shadow-mycel-lg">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-mycel-border">
-          <h2 className="text-[15px] font-semibold text-mycel-text flex items-center gap-2">
+          <h2 className="text-base font-semibold text-mycel-text flex items-center gap-2">
             {(() => {
               const WizIcon = PLATFORM_ICON_MAP[platform];
               return WizIcon
@@ -1008,7 +1008,7 @@ export function SetupWizard({
         {/* Step indicator */}
         <div className="px-4 pt-3 flex items-center gap-2">
           <span
-            className="text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider"
+            className="text-[10px] font-semibold px-2 py-0.5 rounded-full uppercase tracking-wider"
             style={{
               color: step === "credentials" ? "var(--mycel-accent)" : "var(--mycel-success)",
               background: step === "credentials" ? "var(--mycel-accent-subtle)" : "var(--mycel-success-subtle)",
@@ -1016,12 +1016,12 @@ export function SetupWizard({
           >
             Step 1
           </span>
-          <span className="text-[11px] text-mycel-muted">
+          <span className="text-xs text-mycel-muted">
             {step === "credentials" ? "Enter credentials" : "Connected"}
           </span>
           <span className="text-mycel-muted mx-1">&rarr;</span>
           <span
-            className="text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider"
+            className="text-[10px] font-semibold px-2 py-0.5 rounded-full uppercase tracking-wider"
             style={{
               color: step === "agents" ? "var(--mycel-accent)" : "var(--mycel-muted)",
               background: step === "agents" ? "var(--mycel-accent-subtle)" : "transparent",
@@ -1030,20 +1030,20 @@ export function SetupWizard({
           >
             Step 2
           </span>
-          <span className="text-[11px] text-mycel-muted">Add agents</span>
+          <span className="text-xs text-mycel-muted">Add agents</span>
         </div>
 
         {step === "credentials" ? (
           <>
             {/* Setup docs */}
             <div className="p-4 border-b border-mycel-border">
-              <h3 className="text-[11px] font-semibold text-mycel-muted uppercase tracking-widest mb-2">
+              <h3 className="text-[11px] font-medium text-mycel-muted uppercase tracking-[0.08em] mb-2">
                 Setup Steps
               </h3>
               <ol className="space-y-1.5">
                 {config.docs.map((docStep, i) => (
-                  <li key={i} className="flex gap-2 text-[12px] text-mycel-text-2">
-                    <span className="text-mycel-accent font-mono shrink-0">{i + 1}.</span>
+                  <li key={i} className="flex gap-2 text-xs text-mycel-text-2">
+                    <span className="text-mycel-accent tabular-nums shrink-0">{i + 1}.</span>
                     <span>{linkifyDoc(docStep)}</span>
                   </li>
                 ))}
@@ -1057,7 +1057,7 @@ export function SetupWizard({
                   <button
                     type="button"
                     onClick={startQRPairing}
-                    className="px-6 py-3 bg-[#25D366] hover:bg-[#20bd5a] text-white rounded-lg font-medium text-sm transition-colors"
+                    className="inline-flex items-center h-9 px-6 bg-[#25D366] hover:bg-[#20bd5a] text-white rounded-md font-medium text-sm shadow-mycel-sm transition-colors"
                   >
                     Generate QR Code
                   </button>
@@ -1089,7 +1089,7 @@ export function SetupWizard({
             <div className="p-4 space-y-3">
               {config.fields.map((field) => (
                 <div key={field.key}>
-                  <label className="block text-[11px] font-medium text-mycel-muted mb-1">
+                  <label className="block text-sm font-medium text-mycel-text-2 mb-1">
                     {field.label}
                     {field.required === false && <span className="text-mycel-muted ml-1">(optional)</span>}
                   </label>
@@ -1098,7 +1098,7 @@ export function SetupWizard({
                     value={values[field.key] ?? ""}
                     onChange={(e) => setValues((v) => ({ ...v, [field.key]: e.target.value }))}
                     placeholder={field.placeholder}
-                    className="w-full px-3 py-2 bg-mycel-surface border border-mycel-border rounded text-[13px] text-mycel-text placeholder:text-mycel-muted focus:border-mycel-accent focus:outline-none transition-colors"
+                    className="w-full px-3 py-2 bg-mycel-surface border border-mycel-border rounded-md text-sm text-mycel-text placeholder:text-mycel-muted focus:border-mycel-accent focus:outline-none transition-colors"
                   />
                 </div>
               ))}
@@ -1107,7 +1107,7 @@ export function SetupWizard({
 
             {/* Error */}
             {error && (
-              <div className="mx-4 mb-3 px-3 py-2 bg-mycel-error-subtle border border-mycel-error rounded text-[12px] text-mycel-error">
+              <div className="mx-4 mb-3 px-3 py-2 bg-mycel-error-subtle border border-mycel-error rounded-md text-xs text-mycel-error">
                 {error}
               </div>
             )}
@@ -1117,7 +1117,7 @@ export function SetupWizard({
               <button
                 type="button"
                 onClick={onClose}
-                className="px-4 py-1.5 text-[12px] text-mycel-muted hover:text-mycel-text border border-mycel-border rounded transition-colors"
+                className="inline-flex items-center h-9 px-3 text-sm bg-mycel-surface border border-mycel-border text-mycel-text-2 hover:text-mycel-text hover:bg-mycel-surface-hover rounded-md transition-colors"
               >
                 Cancel
               </button>
@@ -1125,7 +1125,7 @@ export function SetupWizard({
                 type="button"
                 onClick={handleSave}
                 disabled={saving}
-                className="px-4 py-1.5 text-[12px] text-mycel-accent-fg bg-mycel-accent hover:bg-mycel-accent-hover shadow-mycel-sm rounded font-medium transition-colors disabled:opacity-50"
+                className="inline-flex items-center h-9 px-3 text-sm text-mycel-accent-fg bg-mycel-accent hover:bg-mycel-accent-hover shadow-mycel-sm rounded-md font-medium transition-colors disabled:opacity-50"
               >
                 {saving ? "Connecting..." : "Connect"}
               </button>

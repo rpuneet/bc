@@ -57,10 +57,10 @@ const fromParam = (seconds: number) => new Date(Date.now() - seconds * 1000).toI
 
 function StatCard({ label, value, sub, accent }: { label: string; value: string; sub?: string; accent?: boolean }) {
   return (
-    <div className="rounded border border-mycel-border bg-mycel-surface p-3">
-      <p className="text-[11px] text-mycel-muted uppercase tracking-wider">{label}</p>
-      <p className={`mt-1 text-xl font-bold ${accent ? "text-mycel-accent" : ""}`}>{value}</p>
-      {sub && <p className="text-[10px] text-mycel-muted">{sub}</p>}
+    <div className="rounded-lg border border-mycel-border bg-mycel-surface p-4">
+      <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted">{label}</p>
+      <p className={`mt-1 text-xl font-bold tabular-nums ${accent ? "text-mycel-accent" : ""}`}>{value}</p>
+      {sub && <p className="text-xs text-mycel-muted">{sub}</p>}
     </div>
   );
 }
@@ -247,7 +247,7 @@ export function StatsTab({ agent }: { agent: Agent }) {
     <div className="space-y-4">
       {/* Empty-state banner when stats store is unreachable or agent never recorded data */}
       {!hasAnyData && !loading && (
-        <div className="rounded border border-mycel-border bg-mycel-surface p-3 text-[11px] text-mycel-muted leading-relaxed">
+        <div className="rounded-lg border border-mycel-border bg-mycel-surface p-4 text-xs text-mycel-muted leading-relaxed">
           {isStopped ? (
             <>
               <span className="font-medium text-mycel-muted">Stats unavailable for this agent.</span>{" "}
@@ -265,7 +265,7 @@ export function StatsTab({ agent }: { agent: Agent }) {
       {/* Hook-based stats — shown when TimescaleDB is empty but SQLite events exist */}
       {hasComputedData && !loading && (
         <div className="space-y-3">
-          <p className="text-[11px] font-medium text-mycel-muted uppercase tracking-wider">Activity (from hook events)</p>
+          <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted">Activity (from hook events)</p>
 
           {/* Summary cards */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -311,8 +311,8 @@ export function StatsTab({ agent }: { agent: Agent }) {
 
           {/* Tool breakdown */}
           {toolBreakdownData.length > 0 && (
-            <div className="rounded border border-mycel-border bg-mycel-surface p-3">
-              <p className="text-[11px] text-mycel-muted uppercase tracking-wider mb-2">Tool Breakdown</p>
+            <div className="rounded-lg border border-mycel-border bg-mycel-surface p-4">
+              <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted mb-2">Tool Breakdown</p>
               <div className="space-y-1.5">
                 {toolBreakdownData.map(({ name: toolName, count }, i) => {
                   const maxCount = toolBreakdownData[0]?.count ?? 1;
@@ -320,9 +320,9 @@ export function StatsTab({ agent }: { agent: Agent }) {
                   return (
                     <div key={toolName} className="flex items-center gap-2">
                       <span className="w-28 text-[11px] text-mycel-text truncate shrink-0 overflow-hidden text-ellipsis" title={toolName}>{toolName}</span>
-                      <div className="flex-1 h-1.5 rounded bg-mycel-surface-hover overflow-hidden">
+                      <div className="flex-1 h-1.5 rounded-full bg-mycel-surface-hover overflow-hidden">
                         <div
-                          className="h-full rounded"
+                          className="h-full rounded-full"
                           style={{ width: `${pct}%`, backgroundColor: COLORS[i % COLORS.length] }}
                         />
                       </div>
@@ -342,7 +342,7 @@ export function StatsTab({ agent }: { agent: Agent }) {
         <div className="flex gap-1">
           {RANGES.map((r, i) => (
             <button key={r.label} type="button" onClick={() => setRange(i)}
-              className={`px-2.5 py-1 text-xs rounded border transition-colors ${
+              className={`px-2.5 py-1 text-xs font-medium rounded-md border transition-colors ${
                 i === range
                   ? "border-mycel-accent text-mycel-accent"
                   : "border-mycel-border text-mycel-muted hover:text-mycel-text hover:border-mycel-muted"
@@ -364,7 +364,7 @@ export function StatsTab({ agent }: { agent: Agent }) {
           The live sampler feeds the CPU/Mem cards above without TSDB, so
           this must never sit on top of populated cards. */}
       {!hasTimescaleData && hasAnyData && !loading && (
-        <div className="rounded border border-mycel-border bg-mycel-surface p-2.5 text-[10px] text-mycel-muted leading-relaxed">
+        <div className="rounded-lg border border-mycel-border bg-mycel-surface p-2.5 text-xs text-mycel-muted leading-relaxed">
           <span className="font-medium">Historical CPU/Memory charts require TimescaleDB.</span>{" "}
           {hasLiveResource
             ? "The CPU and Memory cards above show live sampled values."
@@ -470,20 +470,20 @@ export function StatsTab({ agent }: { agent: Agent }) {
               <Panel title="I/O Summary">
                 <div className="grid grid-cols-2 gap-3 py-4">
                   <div className="text-center">
-                    <p className="text-[11px] text-mycel-muted uppercase">Net RX</p>
-                    <p className="text-lg font-bold text-[#10B981]">{fmtBytes(s.network?.rx_bytes ?? 0)}</p>
+                    <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted">Net RX</p>
+                    <p className="text-lg font-bold tabular-nums text-[#10B981]">{fmtBytes(s.network?.rx_bytes ?? 0)}</p>
                   </div>
                   <div className="text-center">
-                    <p className="text-[11px] text-mycel-muted uppercase">Net TX</p>
-                    <p className="text-lg font-bold text-mycel-accent">{fmtBytes(s.network?.tx_bytes ?? 0)}</p>
+                    <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted">Net TX</p>
+                    <p className="text-lg font-bold tabular-nums text-mycel-accent">{fmtBytes(s.network?.tx_bytes ?? 0)}</p>
                   </div>
                   <div className="text-center">
-                    <p className="text-[11px] text-mycel-muted uppercase">Disk Read</p>
-                    <p className="text-lg font-bold text-[#3B82F6]">{fmtBytes(s.disk?.read_bytes ?? 0)}</p>
+                    <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted">Disk Read</p>
+                    <p className="text-lg font-bold tabular-nums text-[#3B82F6]">{fmtBytes(s.disk?.read_bytes ?? 0)}</p>
                   </div>
                   <div className="text-center">
-                    <p className="text-[11px] text-mycel-muted uppercase">Disk Write</p>
-                    <p className="text-lg font-bold text-[#A855F7]">{fmtBytes(s.disk?.write_bytes ?? 0)}</p>
+                    <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted">Disk Write</p>
+                    <p className="text-lg font-bold tabular-nums text-[#A855F7]">{fmtBytes(s.disk?.write_bytes ?? 0)}</p>
                   </div>
                 </div>
               </Panel>

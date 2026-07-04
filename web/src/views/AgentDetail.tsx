@@ -49,14 +49,11 @@ function MetaCell({
 }) {
   return (
     <div className="space-y-1">
-      <dt
-        className="text-[9px] font-bold uppercase tracking-[0.2em] text-mycel-muted"
-        style={{ fontFamily: MONO }}
-      >
+      <dt className="text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted">
         {label}
       </dt>
       <dd
-        className="text-[13px] text-mycel-text leading-tight break-all"
+        className="text-sm text-mycel-text leading-tight break-all"
         style={mono ? { fontFamily: MONO } : undefined}
       >
         {children}
@@ -89,7 +86,7 @@ export function lifecycleDisabled(
 }
 
 const LIFECYCLE_BTN =
-  "inline-flex items-center justify-center w-[22px] h-[22px] rounded border border-mycel-border " +
+  "inline-flex items-center justify-center w-[22px] h-[22px] rounded-md border border-mycel-border " +
   "text-mycel-muted transition-colors disabled:opacity-30 disabled:pointer-events-none " +
   "focus-visible:ring-2 focus-visible:ring-mycel-accent focus-visible:ring-offset-1 focus-visible:ring-offset-mycel-bg";
 
@@ -215,9 +212,8 @@ function LifecycleControls({
       </button>
       {actionError && (
         <span
-          className="text-[10px] text-mycel-error truncate max-w-[140px]"
+          className="text-xs text-mycel-error truncate max-w-[140px]"
           title={actionError}
-          style={{ fontFamily: MONO }}
         >
           {actionError}
         </span>
@@ -348,10 +344,7 @@ function AttachOverlay({
       data-state={kind}
       className="absolute inset-0 z-10 flex items-center justify-center bg-mycel-overlay backdrop-blur-sm"
     >
-      <div
-        className="w-full max-w-[360px] rounded-lg border border-mycel-border bg-mycel-surface-2 px-5 py-4 shadow-mycel-lg"
-        style={{ fontFamily: MONO }}
-      >
+      <div className="w-full max-w-[360px] rounded-lg border border-mycel-border bg-mycel-surface-2 px-5 py-4 shadow-mycel-lg">
         {kind === "connecting" && (
           <div className="flex items-center gap-3">
             <span
@@ -359,7 +352,7 @@ function AttachOverlay({
               data-testid="attach-overlay-spinner"
               className="inline-block h-3 w-3 rounded-full border-2 border-mycel-accent border-t-transparent animate-spin"
             />
-            <span className="text-[12px] text-mycel-text">
+            <span className="text-sm text-mycel-text">
               Connecting to {agent.name}
               <span className="text-mycel-muted">…</span>
             </span>
@@ -369,12 +362,12 @@ function AttachOverlay({
         {kind === "stopped" && (
           <div className="flex flex-col gap-3">
             <div>
-              <p className="text-[12px] font-semibold text-mycel-text">Agent is stopped</p>
-              <p className="mt-1 text-[11px] leading-relaxed text-mycel-muted">
+              <p className="text-sm font-semibold text-mycel-text">Agent is stopped</p>
+              <p className="mt-1 text-xs leading-relaxed text-mycel-muted">
                 Start the agent to attach a live terminal.
               </p>
               {startError && (
-                <p className="mt-2 text-[11px] text-mycel-error break-words">{startError}</p>
+                <p className="mt-2 text-xs text-mycel-error break-words">{startError}</p>
               )}
             </div>
             <div className="flex items-center gap-2">
@@ -382,7 +375,7 @@ function AttachOverlay({
                 type="button"
                 onClick={onStart}
                 disabled={starting}
-                className="px-3 py-1.5 rounded-md bg-mycel-accent text-[11px] font-semibold text-mycel-accent-fg hover:bg-mycel-accent-hover shadow-mycel-sm transition-colors disabled:opacity-40"
+                className="inline-flex items-center h-9 px-3 rounded-md bg-mycel-accent text-xs font-medium text-mycel-accent-fg hover:bg-mycel-accent-hover shadow-mycel-sm transition-colors disabled:opacity-40"
               >
                 {starting ? "Starting…" : "Start agent"}
               </button>
@@ -393,26 +386,26 @@ function AttachOverlay({
         {kind === "error" && (
           <div className="flex flex-col gap-3">
             <div>
-              <p className="text-[12px] font-semibold text-mycel-text">Connection lost</p>
-              <p className="mt-1 text-[11px] leading-relaxed text-mycel-muted">
+              <p className="text-sm font-semibold text-mycel-text">Connection lost</p>
+              <p className="mt-1 text-xs leading-relaxed text-mycel-muted">
                 The terminal stream dropped.
                 {detail?.code ? ` (code ${String(detail.code)})` : ""}
               </p>
               {detail?.reason && (
-                <p className="mt-1 text-[11px] text-mycel-muted break-words">{detail.reason}</p>
+                <p className="mt-1 text-xs text-mycel-muted break-words">{detail.reason}</p>
               )}
             </div>
             <div className="flex items-center gap-3">
               <button
                 type="button"
                 onClick={onRetry}
-                className="px-3 py-1.5 rounded-md bg-mycel-accent text-[11px] font-semibold text-mycel-accent-fg hover:bg-mycel-accent-hover shadow-mycel-sm transition-colors"
+                className="inline-flex items-center h-9 px-3 rounded-md bg-mycel-accent text-xs font-medium text-mycel-accent-fg hover:bg-mycel-accent-hover shadow-mycel-sm transition-colors"
               >
                 Retry
               </button>
               <Link
                 to={livePath}
-                className="text-[11px] text-mycel-accent hover:text-mycel-accent-hover hover:underline"
+                className="text-xs text-mycel-accent hover:text-mycel-accent-hover hover:underline"
               >
                 View logs
               </Link>
@@ -665,7 +658,7 @@ function ConfigTab({ agent, agentsUrl }: { agent: Agent; agentsUrl: string }) {
             <div className="flex items-center justify-between mb-1">
               <SectionRule>Template</SectionRule>
               {syncDone && (
-                <span className="text-[10px] text-mycel-success transition-opacity" style={{ fontFamily: MONO }}>
+                <span className="text-xs text-mycel-success transition-opacity">
                   Synced
                 </span>
               )}
@@ -674,7 +667,7 @@ function ConfigTab({ agent, agentsUrl }: { agent: Agent; agentsUrl: string }) {
               <select
                 value={selectedTemplate}
                 onChange={(e) => setSelectedTemplate(e.target.value)}
-                className="flex-1 rounded border border-mycel-border-strong bg-mycel-bg px-2.5 py-1.5 text-[11px] text-mycel-text outline-none focus:border-mycel-accent transition-colors"
+                className="flex-1 rounded-md border border-mycel-border-strong bg-mycel-bg px-2.5 py-1.5 text-[11px] text-mycel-text outline-none focus:border-mycel-accent transition-colors"
                 style={{ fontFamily: MONO }}
               >
                 {templates.map((t) => (
@@ -685,13 +678,12 @@ function ConfigTab({ agent, agentsUrl }: { agent: Agent; agentsUrl: string }) {
                 type="button"
                 disabled={syncing || !selectedTemplate}
                 onClick={() => { void handleSync(); }}
-                className="px-3 py-1.5 rounded border border-mycel-accent bg-mycel-accent-subtle text-[11px] text-mycel-accent hover:bg-mycel-accent hover:text-mycel-accent-fg transition-colors disabled:opacity-40"
-                style={{ fontFamily: MONO }}
+                className="inline-flex items-center px-3 py-1.5 rounded-md border border-mycel-accent bg-mycel-accent-subtle text-xs font-medium text-mycel-accent hover:bg-mycel-accent hover:text-mycel-accent-fg transition-colors disabled:opacity-40"
               >
                 {syncing ? "Syncing…" : "Sync"}
               </button>
             </div>
-            <p className="text-[10px] text-mycel-muted mt-1 leading-relaxed" style={{ fontFamily: MONO }}>
+            <p className="text-xs text-mycel-muted mt-1 leading-relaxed">
               Re-apply template system prompt and MCP configuration
             </p>
           </section>
@@ -706,7 +698,7 @@ function ConfigTab({ agent, agentsUrl }: { agent: Agent; agentsUrl: string }) {
             onAdd={useLiveMcp ? handleMcpAdd : undefined}
             onRemove={useLiveMcp ? handleMcpRemove : undefined}
           />
-          <p className="mt-2 text-[10px] text-mycel-muted leading-relaxed" style={{ fontFamily: MONO }}>
+          <p className="mt-2 text-xs text-mycel-muted leading-relaxed">
             {isTmux
               ? "For tmux agents, MCPs are managed via the Claude CLI. Changes here write to the agent\u2019s worktree."
               : "Changes write to .mcp.json in the container."}
@@ -763,7 +755,7 @@ function ConfigTab({ agent, agentsUrl }: { agent: Agent; agentsUrl: string }) {
           <div className="flex items-center justify-between mb-1">
             <SectionRule>Environment</SectionRule>
             {envSaved && (
-              <span className="text-[10px] text-mycel-success transition-opacity" style={{ fontFamily: MONO }}>
+              <span className="text-xs text-mycel-success transition-opacity">
                 Saved
               </span>
             )}
@@ -771,7 +763,7 @@ function ConfigTab({ agent, agentsUrl }: { agent: Agent; agentsUrl: string }) {
 
           {/* Placeholder hint when no env vars are set */}
           {envVars.length === 0 && (
-            <p className="mb-3 text-[10px] text-mycel-muted italic" style={{ fontFamily: MONO }}>
+            <p className="mb-3 text-xs text-mycel-muted italic" style={{ fontFamily: MONO }}>
               Common: ANTHROPIC_API_KEY, GITHUB_TOKEN, AWS_ACCESS_KEY_ID
             </p>
           )}
@@ -831,7 +823,7 @@ function ConfigTab({ agent, agentsUrl }: { agent: Agent; agentsUrl: string }) {
                 }
               }}
               placeholder="KEY"
-              className="w-32 rounded border border-mycel-border-strong bg-mycel-bg px-2.5 py-1 text-[11px] text-mycel-text placeholder:text-mycel-muted outline-none focus:border-mycel-accent transition-colors"
+              className="w-32 rounded-md border border-mycel-border-strong bg-mycel-bg px-2.5 py-1 text-[11px] text-mycel-text placeholder:text-mycel-muted outline-none focus:border-mycel-accent transition-colors"
               style={{ fontFamily: MONO }}
             />
             <span className="text-mycel-muted text-[11px]" style={{ fontFamily: MONO }}>=</span>
@@ -849,7 +841,7 @@ function ConfigTab({ agent, agentsUrl }: { agent: Agent; agentsUrl: string }) {
                 }
               }}
               placeholder="value"
-              className="flex-1 max-w-[200px] rounded border border-mycel-border-strong bg-mycel-bg px-2.5 py-1 text-[11px] text-mycel-text placeholder:text-mycel-muted outline-none focus:border-mycel-accent transition-colors"
+              className="flex-1 max-w-[200px] rounded-md border border-mycel-border-strong bg-mycel-bg px-2.5 py-1 text-[11px] text-mycel-text placeholder:text-mycel-muted outline-none focus:border-mycel-accent transition-colors"
               style={{ fontFamily: MONO }}
             />
             <button
@@ -863,30 +855,29 @@ function ConfigTab({ agent, agentsUrl }: { agent: Agent; agentsUrl: string }) {
                 setNewKey("");
                 setNewValue("");
               }}
-              className="px-2.5 py-1 rounded border border-mycel-accent bg-mycel-accent-subtle text-[11px] text-mycel-accent hover:bg-mycel-accent hover:text-mycel-accent-fg transition-colors disabled:opacity-40"
-              style={{ fontFamily: MONO }}
+              className="inline-flex items-center px-2.5 py-1 rounded-md border border-mycel-accent bg-mycel-accent-subtle text-xs font-medium text-mycel-accent hover:bg-mycel-accent hover:text-mycel-accent-fg transition-colors disabled:opacity-40"
             >
               + Add
             </button>
           </div>
 
-          <p className="mt-2 text-[10px] text-mycel-muted leading-relaxed" style={{ fontFamily: MONO }}>
+          <p className="mt-2 text-xs text-mycel-muted leading-relaxed">
             {isTmux
               ? "Set via provider CLI environment · Env vars are applied on agent restart"
               : "Injected as container environment variables · Env vars are applied on agent restart"}
           </p>
           {agent.tool === "claude" && (
-            <div className="mt-2 text-[10px] text-mycel-muted" style={{ fontFamily: MONO }}>
+            <div className="mt-2 text-xs text-mycel-muted">
               <span className="font-medium">Claude requires:</span> ANTHROPIC_API_KEY
             </div>
           )}
           {agent.tool === "gemini" && (
-            <div className="mt-2 text-[10px] text-mycel-muted" style={{ fontFamily: MONO }}>
+            <div className="mt-2 text-xs text-mycel-muted">
               <span className="font-medium">Gemini requires:</span> GOOGLE_API_KEY
             </div>
           )}
           {agent.tool === "openai" && (
-            <div className="mt-2 text-[10px] text-mycel-muted" style={{ fontFamily: MONO }}>
+            <div className="mt-2 text-xs text-mycel-muted">
               <span className="font-medium">OpenAI requires:</span> OPENAI_API_KEY
             </div>
           )}
@@ -907,15 +898,14 @@ function ConfigTab({ agent, agentsUrl }: { agent: Agent; agentsUrl: string }) {
                     .catch(() => setAllAgents([agent]))
                     .finally(() => setCloneOpen(true));
                 }}
-                className="px-3 py-1.5 rounded-md text-[11px] font-medium border border-mycel-border text-mycel-muted hover:text-mycel-text hover:border-mycel-border-strong transition-colors"
-                style={{ fontFamily: MONO }}
+                className="inline-flex items-center px-3 py-1.5 rounded-md text-xs font-medium border border-mycel-border bg-mycel-surface text-mycel-text-2 hover:text-mycel-text hover:bg-mycel-surface-hover transition-colors"
               >
                 Clone
               </button>
 
               {/* Archive / Unarchive with confirm flow mirroring Delete */}
               {archiveError && (
-                <span className="text-[11px] text-mycel-error" style={{ fontFamily: MONO }}>
+                <span className="text-xs text-mycel-error">
                   {archiveError}
                 </span>
               )}
@@ -936,14 +926,13 @@ function ConfigTab({ agent, agentsUrl }: { agent: Agent; agentsUrl: string }) {
                         );
                       });
                   }}
-                  className="px-3 py-1.5 rounded-md text-[11px] font-medium border border-mycel-accent text-mycel-accent hover:bg-mycel-accent-subtle transition-colors disabled:opacity-40"
-                  style={{ fontFamily: MONO }}
+                  className="inline-flex items-center px-3 py-1.5 rounded-md text-xs font-medium border border-mycel-accent text-mycel-accent hover:bg-mycel-accent-subtle transition-colors disabled:opacity-40"
                 >
                   {archiving ? "Unarchiving…" : "Unarchive"}
                 </button>
               ) : confirmArchive ? (
                 <>
-                  <span className="text-[11px] text-mycel-muted" style={{ fontFamily: MONO }}>
+                  <span className="text-xs text-mycel-muted">
                     Archive this agent?
                   </span>
                   <button
@@ -963,8 +952,7 @@ function ConfigTab({ agent, agentsUrl }: { agent: Agent; agentsUrl: string }) {
                           );
                         });
                     }}
-                    className="px-3 py-1.5 rounded-md text-[11px] font-medium border border-mycel-accent bg-mycel-accent-subtle text-mycel-accent hover:bg-mycel-accent hover:text-mycel-accent-fg transition-colors disabled:opacity-40"
-                    style={{ fontFamily: MONO }}
+                    className="inline-flex items-center px-3 py-1.5 rounded-md text-xs font-medium border border-mycel-accent bg-mycel-accent-subtle text-mycel-accent hover:bg-mycel-accent hover:text-mycel-accent-fg transition-colors disabled:opacity-40"
                   >
                     {archiving ? "Archiving…" : "Confirm"}
                   </button>
@@ -972,8 +960,7 @@ function ConfigTab({ agent, agentsUrl }: { agent: Agent; agentsUrl: string }) {
                     type="button"
                     disabled={archiving}
                     onClick={() => setConfirmArchive(false)}
-                    className="px-3 py-1.5 rounded-md text-[11px] font-medium border border-mycel-border text-mycel-muted hover:text-mycel-text hover:border-mycel-border-strong transition-colors disabled:opacity-40"
-                    style={{ fontFamily: MONO }}
+                    className="inline-flex items-center px-3 py-1.5 rounded-md text-xs font-medium border border-mycel-border bg-mycel-surface text-mycel-text-2 hover:text-mycel-text hover:bg-mycel-surface-hover transition-colors disabled:opacity-40"
                   >
                     Cancel
                   </button>
@@ -982,8 +969,7 @@ function ConfigTab({ agent, agentsUrl }: { agent: Agent; agentsUrl: string }) {
                 <button
                   type="button"
                   onClick={() => setConfirmArchive(true)}
-                  className="px-3 py-1.5 rounded-md text-[11px] font-medium border border-mycel-border text-mycel-muted hover:text-mycel-text hover:border-mycel-border-strong transition-colors"
-                  style={{ fontFamily: MONO }}
+                  className="inline-flex items-center px-3 py-1.5 rounded-md text-xs font-medium border border-mycel-border bg-mycel-surface text-mycel-text-2 hover:text-mycel-text hover:bg-mycel-surface-hover transition-colors"
                 >
                   Archive
                 </button>
@@ -1005,7 +991,7 @@ function ConfigTab({ agent, agentsUrl }: { agent: Agent; agentsUrl: string }) {
           <SectionRule>Danger Zone</SectionRule>
           <div className="rounded-md border border-mycel-error bg-mycel-surface px-4 py-3 shadow-mycel">
             {deleteError && (
-              <p className="mb-2 text-[11px] text-mycel-error" style={{ fontFamily: MONO }}>
+              <p className="mb-2 text-xs text-mycel-error">
                 {deleteError}
               </p>
             )}
@@ -1013,10 +999,7 @@ function ConfigTab({ agent, agentsUrl }: { agent: Agent; agentsUrl: string }) {
               {/* Delete — with confirmation */}
               {confirmDelete ? (
                 <>
-                  <span
-                    className="text-[11px] text-mycel-error"
-                    style={{ fontFamily: MONO }}
-                  >
+                  <span className="text-xs text-mycel-error">
                     Are you sure?
                   </span>
                   <button
@@ -1036,8 +1019,7 @@ function ConfigTab({ agent, agentsUrl }: { agent: Agent; agentsUrl: string }) {
                           setDeleteError(err instanceof Error ? err.message : "Failed to delete agent");
                         });
                     }}
-                    className="px-3 py-1.5 rounded-md text-[11px] font-medium border border-mycel-error bg-mycel-error-subtle text-mycel-error hover:bg-mycel-error hover:text-white transition-colors disabled:opacity-40"
-                    style={{ fontFamily: MONO }}
+                    className="inline-flex items-center px-3 py-1.5 rounded-md text-xs font-medium border border-mycel-error bg-mycel-error-subtle text-mycel-error hover:bg-mycel-error hover:text-white transition-colors disabled:opacity-40"
                   >
                     {deleting ? "Deleting…" : "Confirm"}
                   </button>
@@ -1045,8 +1027,7 @@ function ConfigTab({ agent, agentsUrl }: { agent: Agent; agentsUrl: string }) {
                     type="button"
                     disabled={deleting}
                     onClick={() => setConfirmDelete(false)}
-                    className="px-3 py-1.5 rounded-md text-[11px] font-medium border border-mycel-border text-mycel-muted hover:text-mycel-text hover:border-mycel-border-strong transition-colors disabled:opacity-40"
-                    style={{ fontFamily: MONO }}
+                    className="inline-flex items-center px-3 py-1.5 rounded-md text-xs font-medium border border-mycel-border bg-mycel-surface text-mycel-text-2 hover:text-mycel-text hover:bg-mycel-surface-hover transition-colors disabled:opacity-40"
                   >
                     Cancel
                   </button>
@@ -1055,8 +1036,7 @@ function ConfigTab({ agent, agentsUrl }: { agent: Agent; agentsUrl: string }) {
                 <button
                   type="button"
                   onClick={() => setConfirmDelete(true)}
-                  className="px-3 py-1.5 rounded-md text-[11px] font-medium border border-mycel-error text-mycel-error hover:bg-mycel-error-subtle transition-colors"
-                  style={{ fontFamily: MONO }}
+                  className="inline-flex items-center px-3 py-1.5 rounded-md text-xs font-medium border border-mycel-border text-mycel-error hover:bg-mycel-error-subtle hover:border-mycel-error transition-colors"
                 >
                   Delete
                 </button>
@@ -1087,17 +1067,17 @@ function CodeTabPlaceholder({ agent }: { agent: Agent }) {
 
   return (
     <div className="flex-1 flex items-center justify-center p-6">
-      <div className="max-w-md text-center space-y-4" style={{ fontFamily: MONO }}>
-        <p className="text-[11px] text-mycel-muted uppercase tracking-wider">
+      <div className="max-w-md text-center space-y-4">
+        <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted">
           Agent code — diff view
         </p>
         <p className="text-sm text-mycel-muted leading-relaxed">
-          Open the Code view with <span className="text-mycel-text">{agent.name}</span>'s
+          Open the Code view with <span className="text-mycel-text" style={{ fontFamily: MONO }}>{agent.name}</span>'s
           worktree selected to see its uncommitted changes against the main repo.
         </p>
         <Link
           to={target}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-md border border-mycel-accent bg-mycel-accent-subtle text-mycel-accent hover:bg-mycel-accent hover:text-mycel-accent-fg transition-colors text-[12px] font-semibold"
+          className="inline-flex items-center gap-2 h-9 px-4 rounded-md border border-mycel-accent bg-mycel-accent-subtle text-mycel-accent hover:bg-mycel-accent hover:text-mycel-accent-fg transition-colors text-xs font-medium"
         >
           Open in Code view
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.6">
@@ -1115,10 +1095,7 @@ function MetricsTab({ agent }: { agent: Agent }) {
     <div className="flex-1 overflow-y-auto p-6">
       <div className="max-w-4xl mx-auto space-y-4">
         {isStopped && (
-          <p
-            className="text-[10px] text-mycel-muted italic"
-            style={{ fontFamily: MONO }}
-          >
+          <p className="text-xs text-mycel-muted italic">
             Agent is not running. Stats show last known values.
           </p>
         )}
@@ -1233,7 +1210,7 @@ export function AgentDetail() {
   if (loading && !agent) {
     return (
       <div className="flex items-center justify-center h-full">
-        <span className="text-sm text-mycel-muted" style={{ fontFamily: MONO }}>
+        <span className="text-sm text-mycel-muted">
           loading\u2026
         </span>
       </div>
@@ -1242,13 +1219,12 @@ export function AgentDetail() {
   if (error && !agent) {
     return (
       <div className="p-6 space-y-3">
-        <div className="text-sm text-mycel-error" style={{ fontFamily: MONO }}>
+        <div className="text-sm text-mycel-error">
           error: {error}
         </div>
         <Link
           to={agentsUrl}
           className="text-xs text-mycel-accent hover:underline"
-          style={{ fontFamily: MONO }}
         >
           \u2190 back to agents
         </Link>
@@ -1282,7 +1258,7 @@ export function AgentDetail() {
             </svg>
           </Link>
           <AgentIcon state={agent.state} size={28} tool={agent.tool} />
-          <span className="text-[14px] font-semibold text-mycel-text tracking-tight shrink-0">
+          <span className="text-lg font-semibold text-mycel-text tracking-tight shrink-0">
             {agent.name}
           </span>
           {agent.runtime_backend && (
@@ -1307,7 +1283,7 @@ export function AgentDetail() {
 
           {/* ── Status ── state chip + task line */}
           <span
-            className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-medium tracking-wide uppercase ring-1 ring-inset ring-mycel-border shrink-0 ${
+            className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-medium tracking-wide uppercase ring-1 ring-inset ring-mycel-border shrink-0 ${
               agent.state === "working" ? "bg-mycel-success-subtle text-mycel-success" :
               agent.state === "idle" ? "bg-mycel-warning-subtle text-mycel-warning" :
               agent.state === "stuck" ? "bg-mycel-warning-subtle text-mycel-warning" :
@@ -1335,7 +1311,7 @@ export function AgentDetail() {
 
           {agent.task && (
             <span
-              className="text-[11px] text-mycel-muted truncate min-w-0 flex-shrink"
+              className="text-xs text-mycel-text-2 truncate min-w-0 flex-shrink"
               title={agent.task}
             >
               {agent.task}
@@ -1344,9 +1320,8 @@ export function AgentDetail() {
 
           {lastSeen && (
             <span
-              className="text-[10px] text-mycel-muted tabular-nums shrink-0"
+              className="text-xs text-mycel-muted tabular-nums shrink-0"
               title={formatTime(lastSeen)}
-              style={{ fontFamily: MONO }}
             >
               {formatRelative(lastSeen)}
             </span>

@@ -26,7 +26,7 @@ function RuntimeChip({ runtime }: { runtime?: string | null }) {
   const isDocker = runtime === "docker";
   return (
     <span
-      className="inline-flex items-center gap-1.5 text-[11px] px-1.5 py-[3px] rounded border border-mycel-border bg-mycel-surface-hover text-mycel-muted"
+      className="inline-flex items-center gap-1.5 text-[11px] px-1.5 py-[3px] rounded-md border border-mycel-border bg-mycel-surface-hover text-mycel-muted"
       style={{ fontFamily: MONO }}
       title={`Runtime: ${runtime}`}
     >
@@ -65,7 +65,7 @@ function ProviderChip({ tool }: { tool?: string | null }) {
   const dot = PROVIDER_DOTS[tool] ?? "bg-mycel-muted";
   return (
     <span
-      className="inline-flex items-center gap-1.5 text-[11px] px-1.5 py-[3px] rounded border border-mycel-border bg-mycel-surface-hover text-mycel-text-2"
+      className="inline-flex items-center gap-1.5 text-[11px] px-1.5 py-[3px] rounded-md border border-mycel-border bg-mycel-surface-hover text-mycel-text-2"
       style={{ fontFamily: MONO }}
       title={`Provider: ${tool}`}
     >
@@ -125,7 +125,7 @@ function InlineAgentName({
         disabled={saving}
         autoFocus
         onClick={(e) => e.stopPropagation()}
-        className="px-1 py-0.5 text-sm font-medium rounded border border-mycel-accent bg-mycel-bg text-mycel-text focus:outline-none focus:ring-1 focus:ring-mycel-accent w-32"
+        className="px-1 py-0.5 text-sm font-medium rounded-md border border-mycel-accent bg-mycel-bg text-mycel-text focus:outline-none focus:ring-1 focus:ring-mycel-accent w-32"
         aria-label="Rename agent"
       />
     );
@@ -183,7 +183,7 @@ function AgentActions({ agent, onDone }: { agent: Agent; onDone: () => void }) {
             act(() => api.deleteAgent(agent.name));
           }}
           disabled={busy}
-          className="px-1.5 py-0.5 text-xs rounded bg-mycel-error-subtle text-mycel-error hover:bg-mycel-error hover:text-white disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-mycel-accent focus-visible:ring-offset-1 focus-visible:ring-offset-mycel-bg"
+          className="inline-flex items-center h-8 px-2.5 text-xs rounded-md bg-mycel-error-subtle text-mycel-error hover:bg-mycel-error hover:text-white disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-mycel-accent focus-visible:ring-offset-1 focus-visible:ring-offset-mycel-bg"
           aria-label={`Confirm delete agent ${agent.name}`}
         >
           {busy ? "..." : "Yes"}
@@ -194,7 +194,7 @@ function AgentActions({ agent, onDone }: { agent: Agent; onDone: () => void }) {
             setConfirming(null);
           }}
           aria-label="Cancel delete"
-          className="px-1.5 py-0.5 text-xs rounded bg-mycel-surface-hover text-mycel-muted hover:text-mycel-text focus-visible:ring-2 focus-visible:ring-mycel-accent focus-visible:ring-offset-1 focus-visible:ring-offset-mycel-bg"
+          className="inline-flex items-center h-8 px-2.5 text-xs rounded-md bg-mycel-surface-hover text-mycel-muted hover:text-mycel-text focus-visible:ring-2 focus-visible:ring-mycel-accent focus-visible:ring-offset-1 focus-visible:ring-offset-mycel-bg"
         >
           No
         </button>
@@ -216,7 +216,7 @@ function AgentActions({ agent, onDone }: { agent: Agent; onDone: () => void }) {
           disabled={busy}
           title="Start agent"
           aria-label={`Start agent ${agent.name}`}
-          className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-medium rounded bg-mycel-accent text-mycel-accent-fg hover:bg-mycel-accent-hover shadow-mycel-sm disabled:opacity-50 transition-colors focus-visible:ring-2 focus-visible:ring-mycel-accent focus-visible:ring-offset-1 focus-visible:ring-offset-mycel-bg"
+          className="inline-flex items-center gap-1 h-8 px-3 text-xs font-medium rounded-md bg-mycel-accent text-mycel-accent-fg hover:bg-mycel-accent-hover shadow-mycel-sm disabled:opacity-50 transition-colors focus-visible:ring-2 focus-visible:ring-mycel-accent focus-visible:ring-offset-1 focus-visible:ring-offset-mycel-bg"
         >
           {busy ? "…" : "Start"}
         </button>
@@ -230,7 +230,7 @@ function AgentActions({ agent, onDone }: { agent: Agent; onDone: () => void }) {
           disabled={busy}
           title="Stop agent"
           aria-label={`Stop agent ${agent.name}`}
-          className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-medium rounded bg-mycel-error-subtle text-mycel-error hover:bg-mycel-error hover:text-white disabled:opacity-50 transition-colors focus-visible:ring-2 focus-visible:ring-mycel-accent focus-visible:ring-offset-1 focus-visible:ring-offset-mycel-bg"
+          className="inline-flex items-center gap-1 h-8 px-3 text-xs font-medium rounded-md bg-mycel-error-subtle text-mycel-error hover:bg-mycel-error hover:text-white disabled:opacity-50 transition-colors focus-visible:ring-2 focus-visible:ring-mycel-accent focus-visible:ring-offset-1 focus-visible:ring-offset-mycel-bg"
         >
           {busy ? "…" : "Stop"}
         </button>
@@ -242,7 +242,7 @@ function AgentActions({ agent, onDone }: { agent: Agent; onDone: () => void }) {
         }}
         title="Delete agent"
         aria-label={`Delete agent ${agent.name}`}
-        className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-medium rounded border border-mycel-border bg-transparent text-mycel-muted hover:border-mycel-error hover:bg-mycel-error-subtle hover:text-mycel-error transition-colors focus-visible:ring-2 focus-visible:ring-mycel-accent focus-visible:ring-offset-1 focus-visible:ring-offset-mycel-bg"
+        className="inline-flex items-center gap-1 h-8 px-3 text-xs font-medium rounded-md border border-mycel-border bg-transparent text-mycel-error hover:border-mycel-error hover:bg-mycel-error-subtle transition-colors focus-visible:ring-2 focus-visible:ring-mycel-accent focus-visible:ring-offset-1 focus-visible:ring-offset-mycel-bg"
       >
         Delete
       </button>
@@ -337,14 +337,13 @@ export function Agents() {
     title: <TabHeaderTitle>Agents</TabHeaderTitle>,
     actions: (
       <>
-        <span className="text-[10px] text-mycel-muted tabular-nums" style={{ fontFamily: MONO }}>
+        <span className="text-xs text-mycel-text-2 tabular-nums">
           {agents ? `${String(agents.length)} total` : "\u2014"}
         </span>
         <button
           type="button"
           onClick={() => setCreateOpen(true)}
-          className="px-3 py-1 rounded text-[11px] font-medium border border-mycel-accent bg-mycel-accent-subtle text-mycel-accent hover:bg-mycel-accent hover:text-mycel-accent-fg transition-colors"
-          style={{ fontFamily: MONO }}
+          className="inline-flex items-center h-8 px-3 rounded-md text-xs font-medium bg-mycel-accent text-mycel-accent-fg hover:bg-mycel-accent-hover shadow-mycel-sm transition-colors"
         >
           + New agent
         </button>
@@ -711,7 +710,7 @@ export function Agents() {
       {/* Sub-toolbar: count summary + Stop All (title + Create live in the top-bar chip) */}
       {allAgents.length > 0 && (
         <div className="flex items-center justify-end gap-3">
-          <span className="text-sm text-mycel-muted">
+          <span className="text-xs text-mycel-text-2">
             {hasFilters
               ? `${String(filteredAgents.length)} of ${String(allAgents.length)} agents`
               : `${String(runningCount)} active`}
@@ -723,7 +722,7 @@ export function Agents() {
               type="button"
               onClick={handleStopAll}
               disabled={stoppingAll}
-              className="px-3 py-1.5 text-xs font-medium rounded border border-mycel-error bg-mycel-error-subtle text-mycel-error hover:bg-mycel-error hover:text-white disabled:opacity-50 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-mycel-error focus-visible:ring-offset-1 focus-visible:ring-offset-mycel-bg"
+              className="inline-flex items-center h-9 px-3 text-xs font-medium rounded-md border border-mycel-border text-mycel-error hover:bg-mycel-error-subtle hover:border-mycel-error disabled:opacity-50 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-mycel-error focus-visible:ring-offset-1 focus-visible:ring-offset-mycel-bg"
               aria-label="Stop all agents"
             >
               {stoppingAll ? "Stopping..." : "Stop All"}
@@ -742,14 +741,14 @@ export function Agents() {
               value={search}
               onChange={(e) => { setSearch(e.target.value); }}
               placeholder="Search by name or task...  (press / to focus)"
-              className="w-full px-3 py-1.5 text-sm rounded border border-mycel-border bg-mycel-bg text-mycel-text placeholder:text-mycel-muted focus:outline-none focus:ring-1 focus:ring-mycel-accent"
+              className="w-full px-3 py-1.5 text-sm rounded-md border border-mycel-border bg-mycel-bg text-mycel-text placeholder:text-mycel-muted focus:outline-none focus:ring-1 focus:ring-mycel-accent"
               aria-label="Search agents"
             />
           </div>
           <select
             value={stateFilter}
             onChange={(e) => { updateFilter("state", e.target.value); }}
-            className="px-2 py-1.5 text-sm rounded border border-mycel-border bg-mycel-bg text-mycel-text focus:outline-none focus:ring-1 focus:ring-mycel-accent"
+            className="px-2 py-1.5 text-sm rounded-md border border-mycel-border bg-mycel-bg text-mycel-text focus:outline-none focus:ring-1 focus:ring-mycel-accent"
             aria-label="Filter by state"
           >
             <option value="">All states</option>
@@ -760,7 +759,7 @@ export function Agents() {
           <select
             value={toolFilter}
             onChange={(e) => { updateFilter("tool", e.target.value); }}
-            className="px-2 py-1.5 text-sm rounded border border-mycel-border bg-mycel-bg text-mycel-text focus:outline-none focus:ring-1 focus:ring-mycel-accent"
+            className="px-2 py-1.5 text-sm rounded-md border border-mycel-border bg-mycel-bg text-mycel-text focus:outline-none focus:ring-1 focus:ring-mycel-accent"
             aria-label="Filter by tool"
           >
             <option value="">All tools</option>
@@ -771,7 +770,7 @@ export function Agents() {
           {hasFilters && (
             <button
               onClick={clearFilters}
-              className="px-2 py-1.5 text-xs text-mycel-muted hover:text-mycel-text border border-mycel-border rounded focus-visible:ring-2 focus-visible:ring-mycel-accent focus-visible:ring-offset-1 focus-visible:ring-offset-mycel-bg"
+              className="px-2 py-1.5 text-xs text-mycel-muted hover:text-mycel-text border border-mycel-border rounded-md focus-visible:ring-2 focus-visible:ring-mycel-accent focus-visible:ring-offset-1 focus-visible:ring-offset-mycel-bg"
               aria-label="Clear filters"
             >
               Clear
@@ -784,7 +783,7 @@ export function Agents() {
             onClick={toggleGroupByRepo}
             disabled={distinctRepoCount <= 1}
             aria-pressed={groupByRepo}
-            className={`px-2 py-1.5 text-xs rounded border transition-colors ${
+            className={`px-2 py-1.5 text-xs rounded-md border transition-colors ${
               groupByRepo && distinctRepoCount > 1
                 ? "border-mycel-accent text-mycel-accent"
                 : "border-mycel-border text-mycel-muted hover:text-mycel-text disabled:opacity-50 disabled:cursor-not-allowed"
@@ -798,7 +797,7 @@ export function Agents() {
 
       {/* Keyboard hints removed — shortcuts still work (/, j/k, Enter, space, x, a, Esc) */}
 
-      <div className="rounded border border-mycel-border overflow-x-auto">
+      <div className="rounded-lg border border-mycel-border overflow-x-auto">
         {loading && !agents ? (
           <AgentsTableSkeleton />
         ) : allAgents.length === 0 ? (
@@ -819,7 +818,7 @@ export function Agents() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-mycel-border text-left">
-                <th className="px-2 py-2 font-medium text-mycel-muted w-8">
+                <th className="px-2 py-2.5 text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted w-8">
                   <input
                     type="checkbox"
                     checked={allVisibleSelected}
@@ -828,23 +827,23 @@ export function Agents() {
                     aria-label="Select all visible agents"
                   />
                 </th>
-                <th className="px-4 py-2 font-medium text-mycel-muted">Name</th>
-                <th className="px-4 py-2 font-medium text-mycel-muted hidden sm:table-cell">
+                <th className="px-4 py-2.5 text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted">Name</th>
+                <th className="px-4 py-2.5 text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted hidden sm:table-cell">
                   Runtime
                 </th>
-                <th className="px-4 py-2 font-medium text-mycel-muted hidden sm:table-cell">
+                <th className="px-4 py-2.5 text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted hidden sm:table-cell">
                   Provider
                 </th>
-                <th className="px-4 py-2 font-medium text-mycel-muted">Status</th>
-                <th className="px-4 py-2 font-medium text-mycel-muted">Task</th>
+                <th className="px-4 py-2.5 text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted">Status</th>
+                <th className="px-4 py-2.5 text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted">Task</th>
                 <th
-                  className="px-4 py-2 font-medium text-mycel-muted hidden md:table-cell"
+                  className="px-4 py-2.5 text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted hidden md:table-cell"
                   title="MCP server configuration"
                 >
                   MCP
                 </th>
-                <th className="px-4 py-2 font-medium text-mycel-muted">Actions</th>
-                <th className="px-4 py-2 font-medium text-mycel-muted w-10"></th>
+                <th className="px-4 py-2.5 text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted">Actions</th>
+                <th className="px-4 py-2.5 text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted w-10"></th>
               </tr>
             </thead>
             <tbody>
@@ -859,7 +858,7 @@ export function Agents() {
                     <tr>
                       <td
                         colSpan={columns.length}
-                        className="px-4 pt-4 pb-1 text-[10px] uppercase tracking-[0.12em] text-mycel-muted font-medium"
+                        className="px-4 pt-4 pb-1 text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted"
                         title={a.repo ?? undefined}
                       >
                         {a.repo ? (a.repo.split("/").pop() ?? a.repo) : "(no repo)"}
@@ -892,7 +891,7 @@ export function Agents() {
                     style={(a.state === "stopped" || a.state === "error") ? { opacity: 0.55 } : undefined}
                   >
                     <td
-                      className="px-2 py-2"
+                      className="px-2 py-2.5"
                       onClick={(e) => { e.stopPropagation(); }}
                     >
                       <input
@@ -903,29 +902,29 @@ export function Agents() {
                         aria-label={`Select agent ${a.name}`}
                       />
                     </td>
-                    <td className="px-4 py-2">
+                    <td className="px-4 py-2.5">
                       <span className="inline-flex items-center gap-2">
                         <AgentIcon state={a.state} size={28} tool={a.tool} />
                         <InlineAgentName agent={a} onRenamed={refresh} />
                       </span>
                     </td>
-                    <td className="px-4 py-1.5 hidden sm:table-cell">
+                    <td className="px-4 py-2.5 hidden sm:table-cell">
                       <RuntimeChip runtime={a.runtime_backend} />
                     </td>
-                    <td className="px-4 py-1.5 hidden sm:table-cell">
+                    <td className="px-4 py-2.5 hidden sm:table-cell">
                       <ProviderChip tool={a.tool} />
                     </td>
-                    <td className="px-4 py-2">
+                    <td className="px-4 py-2.5">
                       <StatusBadge status={a.state} />
                     </td>
-                    <td className="px-4 py-2">
+                    <td className="px-4 py-2.5">
                       {/* Task = the agent's own report (report_status).
                           Lifecycle events live in the activity stream. */}
                       <span className="text-mycel-muted" title={a.task}>
                         {a.task ? truncate(a.task, 50) : "—"}
                       </span>
                     </td>
-                    <td className="px-4 py-1.5 hidden md:table-cell">
+                    <td className="px-4 py-2.5 hidden md:table-cell">
                       {(() => {
                         const servers = a.mcp_servers ?? [];
                         // Every agent has the built-in "mycel" (formerly
@@ -943,7 +942,7 @@ export function Agents() {
                           return (
                             <div className="flex flex-wrap gap-1" title={fullList}>
                               {extras.map((s) => (
-                                <span key={s} className="text-[10px] px-1.5 py-0.5 rounded bg-mycel-accent-subtle text-mycel-accent font-medium">
+                                <span key={s} className="text-[10px] px-1.5 py-0.5 rounded-md bg-mycel-accent-subtle text-mycel-accent font-medium">
                                   {s}
                                 </span>
                               ))}
@@ -953,11 +952,11 @@ export function Agents() {
                         const rest = extras.slice(1).join(", ");
                         return (
                           <div className="flex flex-wrap gap-1" title={fullList}>
-                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-mycel-accent-subtle text-mycel-accent font-medium">
+                            <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-mycel-accent-subtle text-mycel-accent font-medium">
                               {extras[0]}
                             </span>
                             <span
-                              className="text-[10px] px-1.5 py-0.5 rounded border border-mycel-border text-mycel-muted cursor-help"
+                              className="text-[10px] px-1.5 py-0.5 rounded-md border border-mycel-border text-mycel-muted cursor-help"
                               title={rest}
                             >
                               +{String(extras.length - 1)}
@@ -966,13 +965,13 @@ export function Agents() {
                         );
                       })()}
                     </td>
-                    <td className="px-4 py-2">
+                    <td className="px-4 py-2.5">
                       <AgentActions agent={a} onDone={refresh} />
                     </td>
-                    <td className="px-4 py-2 text-center">
+                    <td className="px-4 py-2.5 text-center">
                       <button
                         onClick={(e) => handlePeekToggle(a.name, e)}
-                        className={`inline-flex items-center justify-center w-7 h-7 rounded transition-colors focus:ring-2 focus:ring-mycel-accent focus:outline-none ${
+                        className={`inline-flex items-center justify-center w-7 h-7 rounded-md transition-colors focus:ring-2 focus:ring-mycel-accent focus:outline-none ${
                           peekAgent === a.name
                             ? "bg-mycel-accent-subtle text-mycel-accent"
                             : "text-mycel-muted hover:text-mycel-text hover:bg-mycel-surface"
@@ -1021,7 +1020,7 @@ export function Agents() {
               <button
                 onClick={handleBulkStart}
                 disabled={bulkBusy}
-                className="px-3 py-1.5 text-sm rounded bg-mycel-accent text-mycel-accent-fg hover:bg-mycel-accent-hover shadow-mycel-sm disabled:opacity-50 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-mycel-accent"
+                className="inline-flex items-center h-9 px-3 text-sm font-medium rounded-md bg-mycel-accent text-mycel-accent-fg hover:bg-mycel-accent-hover shadow-mycel-sm disabled:opacity-50 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-mycel-accent"
                 aria-label="Start selected agents"
               >
                 {bulkBusy ? "..." : "Start"}
@@ -1029,7 +1028,7 @@ export function Agents() {
               <button
                 onClick={handleBulkStop}
                 disabled={bulkBusy}
-                className="px-3 py-1.5 text-sm rounded bg-mycel-error-subtle text-mycel-error hover:bg-mycel-error hover:text-white disabled:opacity-50 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-mycel-accent"
+                className="inline-flex items-center h-9 px-3 text-sm font-medium rounded-md bg-mycel-error-subtle text-mycel-error hover:bg-mycel-error hover:text-white disabled:opacity-50 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-mycel-accent"
                 aria-label="Stop selected agents"
               >
                 {bulkBusy ? "..." : "Stop"}
@@ -1037,7 +1036,7 @@ export function Agents() {
               <button
                 onClick={handleBulkMessage}
                 disabled={bulkBusy}
-                className="px-3 py-1.5 text-sm rounded bg-mycel-accent-subtle text-mycel-accent hover:bg-mycel-accent hover:text-mycel-accent-fg disabled:opacity-50 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-mycel-accent"
+                className="inline-flex items-center h-9 px-3 text-sm font-medium rounded-md bg-mycel-accent-subtle text-mycel-accent hover:bg-mycel-accent hover:text-mycel-accent-fg disabled:opacity-50 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-mycel-accent"
                 aria-label="Send message to selected agents"
               >
                 {bulkBusy ? "..." : "Message"}
@@ -1045,7 +1044,7 @@ export function Agents() {
               <button
                 onClick={handleBulkDelete}
                 disabled={bulkBusy}
-                className="px-3 py-1.5 text-sm rounded bg-mycel-error text-white hover:opacity-90 shadow-mycel-sm disabled:opacity-50 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-mycel-accent"
+                className="inline-flex items-center h-9 px-3 text-sm font-medium rounded-md bg-mycel-error text-white hover:opacity-90 shadow-mycel-sm disabled:opacity-50 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-mycel-accent"
                 aria-label="Delete selected agents"
               >
                 {bulkBusy ? "..." : "Delete"}
@@ -1053,7 +1052,7 @@ export function Agents() {
               <button
                 onClick={clearSelection}
                 disabled={bulkBusy}
-                className="px-3 py-1.5 text-sm rounded border border-mycel-border text-mycel-muted hover:text-mycel-text disabled:opacity-50 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-mycel-accent"
+                className="inline-flex items-center h-9 px-3 text-sm font-medium rounded-md border border-mycel-border text-mycel-muted hover:text-mycel-text disabled:opacity-50 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-mycel-accent"
                 aria-label="Clear selection"
               >
                 Clear

@@ -192,8 +192,8 @@ export function NotificationSidebar({
                   fontSize: 11,
                   color: "var(--mycel-muted)",
                   textTransform: "uppercase",
-                  letterSpacing: 0.5,
-                  fontWeight: 600,
+                  letterSpacing: "0.08em",
+                  fontWeight: 500,
                   background: "none",
                   border: "none",
                   cursor: "pointer",
@@ -244,10 +244,10 @@ export function NotificationSidebar({
                         className="w-full flex items-center"
                         style={{
                           gap: 8,
-                          height: 24,
+                          height: 26,
                           padding: "0 8px",
-                          borderRadius: 5,
-                          fontSize: 12.5,
+                          borderRadius: 6,
+                          fontSize: 13,
                           color: isActive ? "var(--mycel-text)" : count > 0 ? "var(--mycel-text)" : "var(--mycel-text-2)",
                           background: isActive ? "var(--mycel-accent-subtle)" : "transparent",
                           fontWeight: isActive ? 600 : count > 0 ? 500 : 400,
@@ -273,9 +273,9 @@ export function NotificationSidebar({
                           <span
                             style={{
                               fontSize: 10.5,
-                              fontWeight: 600,
+                              fontWeight: 500,
                               color: "var(--mycel-text-2)",
-                              fontFamily: "'JetBrains Mono', ui-monospace, monospace",
+                              fontVariantNumeric: "tabular-nums",
                               padding: "1px 5px",
                               borderRadius: 999,
                               background: "var(--mycel-surface-hover)",
@@ -306,7 +306,7 @@ export function NotificationSidebar({
                   gap: 8,
                   height: 24,
                   padding: "0 8px",
-                  borderRadius: 5,
+                  borderRadius: 6,
                   fontSize: 11,
                   color: "var(--mycel-muted)",
                   cursor: "pointer",
@@ -316,7 +316,7 @@ export function NotificationSidebar({
                 }}
               >
                 <span style={{ width: 12, textAlign: "center" }}>+</span>
-                <span style={{ textTransform: "uppercase", letterSpacing: 0.5, fontWeight: 500 }}>
+                <span style={{ textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 500 }}>
                   {p.label}
                 </span>
               </button>
@@ -343,9 +343,9 @@ export function NotificationSidebar({
           className="w-full flex items-center"
           style={{
             gap: 8,
-            height: 26,
+            height: 28,
             padding: "0 8px",
-            borderRadius: 5,
+            borderRadius: 6,
             fontSize: 12,
             color: "var(--mycel-muted)",
             cursor: "pointer",

@@ -257,7 +257,7 @@ export function Stats() {
       <div className="flex gap-1">
         {RANGES.map((r, i) => (
           <button key={r.label} type="button" onClick={() => setRange(i)}
-            className={`px-2 py-0.5 text-[11px] rounded border transition-colors ${
+            className={`px-2 py-0.5 text-[11px] rounded-md border transition-colors ${
               /* Selected state uses accent text + border only — the
                  tinted accent bg was a triple-accent that competed
                  with the sidebar brand tile + active nav under Dark
@@ -401,7 +401,7 @@ export function Stats() {
               <thead>
                 <tr className="text-mycel-muted text-left">
                   {colHeaders.map(h => (
-                    <th key={h.key} className="py-1.5 px-2 font-medium cursor-pointer hover:text-mycel-text select-none group" onClick={(e) => { e.stopPropagation(); e.preventDefault(); handleSort(h.key); }}>
+                    <th key={h.key} className="py-2.5 px-3 font-medium cursor-pointer hover:text-mycel-text select-none group" onClick={(e) => { e.stopPropagation(); e.preventDefault(); handleSort(h.key); }}>
                       <div className="flex items-center">
                         {h.label}
                         {/* Neutral sort affordance surfaces on hover for every
@@ -425,15 +425,15 @@ export function Stats() {
                     className="border-t border-mycel-border hover:bg-mycel-surface-hover cursor-pointer transition-colors"
                     onClick={() => navigate(`/agents/${encodeURIComponent(a.name)}`)}
                   >
-                    <td className="py-1.5 px-2 font-medium">
+                    <td className="py-2.5 px-3 font-medium">
                       <span className="flex items-center gap-1.5">
                         <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: agentColors[a.name] ?? COLORS[0] }} />
                         {a.name}
                       </span>
                     </td>
-                    <td className="py-1.5 px-2 text-mycel-muted">{a.role}</td>
-                    <td className="py-1.5 px-2 text-mycel-muted">{a.provider}</td>
-                    <td className="py-1.5 px-2">
+                    <td className="py-2.5 px-3 text-mycel-muted">{a.role}</td>
+                    <td className="py-2.5 px-3 text-mycel-muted">{a.provider}</td>
+                    <td className="py-2.5 px-3">
                       <span className="flex items-center gap-1.5">
                         {/* Distinct semantic tokens per state so idle vs
                             working vs running don't all collapse to the
@@ -453,10 +453,10 @@ export function Stats() {
                         </span>
                       </span>
                     </td>
-                    <td className="py-1.5 px-2 font-mono">{a.cpu.toFixed(1)}</td>
-                    <td className="py-1.5 px-2 font-mono">{a.mem.toFixed(0)}</td>
-                    <td className="py-1.5 px-2 font-mono">{fmtTokens(a.tokens)}</td>
-                    <td className={`py-1.5 px-2 font-mono ${a.cost > 0 ? "text-mycel-accent" : "text-mycel-muted"}`}>${a.cost.toFixed(2)}</td>
+                    <td className="py-2.5 px-3 font-mono">{a.cpu.toFixed(1)}</td>
+                    <td className="py-2.5 px-3 font-mono">{a.mem.toFixed(0)}</td>
+                    <td className="py-2.5 px-3 font-mono">{fmtTokens(a.tokens)}</td>
+                    <td className={`py-2.5 px-3 font-mono ${a.cost > 0 ? "text-mycel-accent" : "text-mycel-muted"}`}>${a.cost.toFixed(2)}</td>
                   </tr>
                 ))}
               </tbody>

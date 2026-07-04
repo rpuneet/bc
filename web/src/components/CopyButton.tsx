@@ -25,7 +25,7 @@ export function CopyButton({ text, className = "" }: CopyButtonProps) {
         e.stopPropagation();
         void handleCopy();
       }}
-      className={`inline-flex items-center justify-center w-6 h-6 rounded transition-colors hover:bg-mycel-surface-hover focus-visible:ring-2 focus-visible:ring-mycel-accent ${className}`}
+      className={`inline-flex items-center justify-center w-6 h-6 rounded-md transition-colors hover:bg-mycel-surface-hover focus-visible:ring-2 focus-visible:ring-mycel-accent ${className}`}
       aria-label={copied ? "Copied" : "Copy to clipboard"}
     >
       {copied ? (

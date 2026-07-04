@@ -20,7 +20,7 @@ function SkeletonBar({
 
 function TableSkeleton({ rows }: { rows: number }) {
   return (
-    <div className="rounded border border-mycel-border overflow-hidden">
+    <div className="rounded-lg border border-mycel-border overflow-hidden">
       <div className="border-b border-mycel-border bg-mycel-surface px-4 py-2 flex gap-4">
         <SkeletonBar className="h-4 w-24" />
         <SkeletonBar className="h-4 w-20" />
@@ -48,7 +48,7 @@ function CardsSkeleton({ rows }: { rows: number }) {
       {Array.from({ length: rows }).map((_, i) => (
         <div
           key={i}
-          className="rounded border border-mycel-border bg-mycel-surface p-4 space-y-2"
+          className="rounded-lg border border-mycel-border bg-mycel-surface p-4 space-y-2"
         >
           <SkeletonBar className="h-3 w-16" />
           <SkeletonBar className="h-6 w-24" />

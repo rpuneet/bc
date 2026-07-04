@@ -100,12 +100,12 @@ export function EmptyState({
       )}
       <h3 className="text-sm font-medium text-mycel-text">{title}</h3>
       {description && (
-        <p className="mt-1 text-sm text-mycel-muted max-w-sm">{description}</p>
+        <p className="mt-1 text-xs text-mycel-muted max-w-sm">{description}</p>
       )}
       {actionLabel && onAction && (
         <button
           onClick={onAction}
-          className="mt-4 px-4 py-1.5 bg-mycel-accent text-mycel-bg rounded text-sm font-medium hover:opacity-90"
+          className="mt-4 h-9 px-3 inline-flex items-center bg-mycel-accent text-mycel-accent-fg rounded-md text-sm font-medium shadow-mycel-sm hover:bg-mycel-accent-hover transition-colors"
         >
           {actionLabel}
         </button>

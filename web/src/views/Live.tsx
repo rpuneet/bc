@@ -95,7 +95,7 @@ function PresenceLine({
 
   return (
     <div
-      className="flex items-center gap-2 text-[13px] min-w-0"
+      className="flex items-center gap-2 text-sm min-w-0"
       data-testid="live-state-badge"
     >
       <span className="relative flex h-2 w-2 shrink-0" title={dotTitle}>
@@ -105,7 +105,7 @@ function PresenceLine({
         <span className={`relative inline-flex h-2 w-2 rounded-full ${dotColor}${reconnecting ? " animate-pulse" : ""}`} />
       </span>
       {!connected && (
-        <span className={`text-[11px] font-mono ${reconnecting ? "text-mycel-warning" : "text-mycel-error"}`}>
+        <span className={`text-xs ${reconnecting ? "text-mycel-warning" : "text-mycel-error"}`}>
           {reconnecting ? "reconnecting" : "disconnected"}
         </span>
       )}
@@ -378,7 +378,7 @@ export function Live() {
           <button
             type="button"
             onClick={handleResume}
-            className="inline-flex items-center gap-1.5 text-[11px] font-mono px-2 py-0.5 rounded-md border border-mycel-warning bg-mycel-warning-subtle text-mycel-warning transition-colors"
+            className="inline-flex items-center gap-1.5 text-xs font-medium px-2 py-0.5 rounded-md border border-mycel-warning bg-mycel-warning-subtle text-mycel-warning transition-colors"
             title="Stream paused — click to resume"
           >
             <svg width="9" height="9" viewBox="0 0 10 10" fill="currentColor"><polygon points="1,0 10,5 1,10" /></svg>
@@ -401,7 +401,7 @@ export function Live() {
             onChange={(e) => setSearchFilter(e.target.value)}
             placeholder="Search  /"
             aria-label="Search events"
-            className="text-[13px] rounded-md border border-mycel-border bg-mycel-surface pl-8 pr-2.5 py-1.5 text-mycel-text placeholder:text-mycel-muted focus:outline-none focus:ring-1 focus:ring-mycel-accent w-40 focus:w-56 transition-[width] duration-150"
+            className="text-sm rounded-md border border-mycel-border bg-mycel-surface pl-8 pr-2.5 py-1.5 text-mycel-text placeholder:text-mycel-muted focus:outline-none focus:ring-1 focus:ring-mycel-accent w-40 focus:w-56 transition-[width] duration-150"
           />
         </div>
 
@@ -417,7 +417,7 @@ export function Live() {
             &#x22EF;
           </button>
           {menuOpen && (
-            <div className="absolute right-0 top-10 z-50 w-56 rounded-lg border border-mycel-border bg-mycel-surface-2 shadow-mycel-lg py-1.5 text-[13px]">
+            <div className="absolute right-0 top-10 z-50 w-56 rounded-lg border border-mycel-border bg-mycel-surface-2 shadow-mycel-lg py-1.5 text-sm">
               <button
                 type="button"
                 onClick={() => {
@@ -428,10 +428,10 @@ export function Live() {
                 className="flex w-full items-center justify-between px-3 py-1.5 text-mycel-text hover:bg-mycel-surface-hover transition-colors"
               >
                 <span>{paused ? "Resume stream" : "Pause stream"}</span>
-                {paused && pausedCount > 0 && <span className="text-[11px] font-mono text-mycel-warning tabular-nums">+{pausedCount}</span>}
+                {paused && pausedCount > 0 && <span className="text-[11px] text-mycel-warning tabular-nums">+{pausedCount}</span>}
               </button>
               <div className="my-1 border-t border-mycel-border" />
-              <div className="px-3 pt-1 pb-0.5 text-[10px] uppercase tracking-[0.1em] text-mycel-muted">Show</div>
+              <div className="px-3 pt-1 pb-0.5 text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted">Show</div>
               {([["all", "Everything"], ["tools", "Tool calls only"], ["state", "State changes only"]] as [FilterType, string][]).map(([value, label]) => (
                 <button
                   key={value}
@@ -545,12 +545,12 @@ export function Live() {
         <button
           type="button"
           onClick={jumpToLatest}
-          className="absolute bottom-8 right-8 z-20 inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-mycel-border bg-mycel-surface-2 text-mycel-text text-sm shadow-mycel-lg hover:border-mycel-accent hover:bg-mycel-surface-hover transition-colors"
+          className="absolute bottom-8 right-8 z-20 inline-flex items-center gap-2 px-3 py-2 rounded-md border border-mycel-border bg-mycel-surface-2 text-mycel-text text-sm font-medium shadow-mycel-lg hover:border-mycel-accent hover:bg-mycel-surface-hover transition-colors"
         >
           <span>&darr;</span>
           Jump to latest
           {newEventsSinceScroll > 0 && (
-            <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 text-[11px] font-bold text-mycel-accent-fg bg-mycel-accent rounded-full leading-none">
+            <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 text-[11px] font-semibold text-mycel-accent-fg bg-mycel-accent rounded-full leading-none">
               {newEventsSinceScroll}
             </span>
           )}

@@ -39,7 +39,7 @@ function SortDropdown({ sortKey, sortDir, onSort }: { sortKey: SortKey; sortDir:
     <select
       value={sortKey}
       onChange={(e) => onSort(e.target.value as SortKey)}
-      className="text-xs px-2 py-1 rounded border border-mycel-border bg-mycel-bg text-mycel-muted focus:outline-none focus:ring-1 focus:ring-mycel-accent"
+      className="text-xs px-2 py-1 rounded-md border border-mycel-border bg-mycel-bg text-mycel-muted focus:outline-none focus:ring-1 focus:ring-mycel-accent"
       aria-label="Sort providers"
     >
       {options.map((o) => (
@@ -54,7 +54,7 @@ function SortDropdown({ sortKey, sortDir, onSort }: { sortKey: SortKey; sortDir:
 /* ── View mode toggle icons ── */
 function ViewToggle({ mode, onChange }: { mode: ViewMode; onChange: (m: ViewMode) => void }) {
   return (
-    <div className="flex items-center border border-mycel-border rounded overflow-hidden">
+    <div className="flex items-center border border-mycel-border rounded-md overflow-hidden">
       <button
         type="button"
         onClick={() => onChange("cards")}
@@ -191,7 +191,7 @@ export function ProvidersTable({ providers, search }: Props) {
         </div>
       ) : (
         /* Table view */
-        <div className="rounded border border-mycel-border overflow-hidden">
+        <div className="rounded-lg border border-mycel-border overflow-hidden">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-mycel-border bg-mycel-surface">
@@ -226,20 +226,20 @@ export function ProvidersTable({ providers, search }: Props) {
                         <button
                           type="button"
                           onClick={() => navigate(`${toolsBase}/${encodeURIComponent(p.name)}`)}
-                          className="text-xs px-2 py-0.5 rounded bg-mycel-warning-subtle text-mycel-warning hover:bg-mycel-surface-hover transition-colors"
+                          className="text-xs font-medium px-2 py-0.5 rounded-md bg-mycel-warning-subtle text-mycel-warning hover:bg-mycel-surface-hover transition-colors"
                         >
                           Install
                         </button>
                       )}
                       {p.installed && p.install_hint && (
-                        <span className="text-xs px-2 py-0.5 rounded bg-mycel-info-subtle text-mycel-info">
+                        <span className="text-xs px-2 py-0.5 rounded-md bg-mycel-info-subtle text-mycel-info">
                           Update
                         </span>
                       )}
                       <button
                         type="button"
                         onClick={() => navigate(`${toolsBase}/${encodeURIComponent(p.name)}`)}
-                        className="text-xs px-1.5 py-0.5 rounded border border-mycel-border text-mycel-muted hover:text-mycel-text hover:border-mycel-accent transition-colors"
+                        className="text-xs px-1.5 py-0.5 rounded-md border border-mycel-border text-mycel-muted hover:text-mycel-text hover:border-mycel-accent transition-colors"
                         aria-label={`Configure ${p.name}`}
                       >
                         &#9881;

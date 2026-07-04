@@ -19,7 +19,7 @@ export function Chip({
   };
   return (
     <span
-      className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium ${palette[color] ?? palette.muted}`}
+      className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[10px] font-medium ${palette[color] ?? palette.muted}`}
       style={{ fontFamily: MONO }}
     >
       {label}

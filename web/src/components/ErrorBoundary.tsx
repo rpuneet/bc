@@ -30,13 +30,13 @@ export class ErrorBoundary extends Component<Props, State> {
       return (
         this.props.fallback ?? (
           <div className="p-6 text-mycel-error">
-            <p className="font-bold">Something went wrong</p>
+            <p className="text-base font-semibold">Something went wrong</p>
             <p className="text-sm mt-2 text-mycel-muted">
               {this.state.error?.message}
             </p>
             <button
               onClick={() => this.setState({ hasError: false, error: null })}
-              className="mt-4 px-3 py-1 bg-mycel-surface border border-mycel-border rounded text-sm"
+              className="mt-4 inline-flex items-center h-8 px-3 bg-mycel-surface border border-mycel-border rounded-md text-sm text-mycel-text-2 hover:text-mycel-text hover:bg-mycel-surface-hover transition-colors"
             >
               Try again
             </button>

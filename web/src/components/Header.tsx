@@ -47,7 +47,7 @@ export function Header({ left, center, actions, compact = true }: HeaderProps) {
         )}
 
         {/* Center slot — page title / status. Grows to fill; truncates cleanly. */}
-        <div className="flex-1 min-w-0 flex items-center gap-2 text-[13px] text-mycel-text">
+        <div className="flex-1 min-w-0 flex items-center gap-2 text-sm text-mycel-text">
           {center}
         </div>
 
@@ -66,19 +66,19 @@ export function Header({ left, center, actions, compact = true }: HeaderProps) {
 }
 
 /**
- * TabHeaderTitle — standard page title chip in the header center slot.
+ * TabHeaderTitle — standard page title in the header center slot.
  *
- * Geist Sans (not mono) at 14px semibold. The status pills on either
- * side already use mono; a mono h1 in the
- * middle blurred the visual hierarchy. Using Sans here gives the page
- * title clear prominence as the heading of the row.
+ * Geist Sans (not mono) at text-xl semibold. The status pills on either
+ * side already use mono; a mono h1 in the middle blurred the visual
+ * hierarchy. Sans at the top of the type scale gives the page title
+ * clear prominence as the heading of the view.
  */
 export function TabHeaderTitle({ children }: { children: ReactNode }) {
   // MONO import retained for callers that still reference it via prop.
   void MONO;
   return (
     <span
-      className="text-[14px] font-semibold text-mycel-text tracking-tight shrink-0"
+      className="text-xl font-semibold text-mycel-text tracking-tight shrink-0"
     >
       {children}
     </span>

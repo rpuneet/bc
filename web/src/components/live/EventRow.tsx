@@ -62,7 +62,7 @@ export function CopyButton({ text }: { text: string }) {
     <button
       type="button"
       onClick={(e) => { e.stopPropagation(); handleCopy(); }}
-      className="text-[10px] text-mycel-muted hover:text-mycel-text px-1.5 py-0.5 rounded border border-mycel-border hover:border-mycel-accent transition-colors shrink-0"
+      className="text-[10px] text-mycel-muted hover:text-mycel-text px-1.5 py-0.5 rounded-md border border-mycel-border hover:border-mycel-accent transition-colors shrink-0"
       aria-label="Copy to clipboard"
     >
       {copied ? "Copied" : "Copy"}
@@ -394,14 +394,14 @@ export function EventRow({ node, searchQuery = "" }: { node: ToolNode; searchQue
       </button>
 
       {expanded && node.error && (
-        <div className="text-[11px] font-mono px-3 py-2 bg-mycel-surface mx-3 mb-1 rounded overflow-x-auto max-h-48 overflow-y-auto">
+        <div className="text-[11px] font-mono px-3 py-2 bg-mycel-surface mx-3 mb-1 rounded-md overflow-x-auto max-h-48 overflow-y-auto">
           <span className="text-[10px] text-mycel-error uppercase tracking-wide font-semibold block mb-1">Error</span>
           <pre className="whitespace-pre-wrap break-all text-mycel-error">{redactSecrets(node.error)}</pre>
         </div>
       )}
 
       {expanded && !!node.fullInput && (
-        <div className="text-[11px] font-mono px-3 py-2 bg-mycel-surface mx-3 mb-1 rounded overflow-x-auto max-h-48 overflow-y-auto">
+        <div className="text-[11px] font-mono px-3 py-2 bg-mycel-surface mx-3 mb-1 rounded-md overflow-x-auto max-h-48 overflow-y-auto">
           <div className="flex items-center justify-between mb-1">
             <span className="text-[10px] text-mycel-muted uppercase tracking-wide font-semibold">Input</span>
             <CopyButton text={inputJson} />
@@ -411,7 +411,7 @@ export function EventRow({ node, searchQuery = "" }: { node: ToolNode; searchQue
       )}
 
       {expanded && !!node.fullOutput && (
-        <div className="text-[11px] font-mono px-3 py-2 bg-mycel-surface mx-3 mb-1 rounded overflow-x-auto max-h-48 overflow-y-auto">
+        <div className="text-[11px] font-mono px-3 py-2 bg-mycel-surface mx-3 mb-1 rounded-md overflow-x-auto max-h-48 overflow-y-auto">
           <div className="flex items-center justify-between mb-1">
             <span className="text-[10px] text-mycel-success uppercase tracking-wide font-semibold">Output</span>
             <CopyButton text={outputJson} />
