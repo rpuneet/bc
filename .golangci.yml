@@ -53,12 +53,6 @@ linters:
         linters:
           - gochecknoglobals
 
-      # TODO: re-evaluate after redesign — queue/beads packages have been removed;
-      # keep this exclusion pattern in case channels revamp (#2947) introduces new deprecations
-      # - linters:
-      #     - staticcheck
-      #   text: "SA1019.*pkg/(queue|beads)"
-
 formatters:
   enable:
     - gofmt

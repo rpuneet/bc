@@ -239,7 +239,7 @@ func runCronList(cmd *cobra.Command, args []string) error {
 	}
 
 	if len(jobs) == 0 {
-		fmt.Println("No cron jobs. Add one with: bc cron add NAME --schedule \"* * * * *\" --agent AGENT --prompt \"...\"")
+		fmt.Println("No cron jobs. Add one with: mycel cron add NAME --schedule \"* * * * *\" --agent AGENT --prompt \"...\"")
 		return nil
 	}
 

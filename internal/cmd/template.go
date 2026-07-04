@@ -19,9 +19,9 @@ var templateCmd = &cobra.Command{
 	Long: `Manage agent templates — reusable configurations for spawning agents.
 
 Templates are stored in ~/.mycel/templates/ (user-global) and each workspace
-may override a template by placing a file with the same name under
-<ws>/.bc/templates/. List/show/edit see the union; create defaults to
-writing the user-global copy.
+may override a template by placing a file with the same name under its
+state dir (~/.mycel/workspaces/<id>/templates/). List/show/edit see the
+union; create defaults to writing the user-global copy.
 
 Examples:
   mycel template list                    # List all templates (global + workspace overrides)

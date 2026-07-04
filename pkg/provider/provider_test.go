@@ -50,21 +50,16 @@ func TestRegistryList(t *testing.T) {
 }
 
 func TestDefaultRegistryHasProviders(t *testing.T) {
-	// Default registry should have built-in providers
-	if len(DefaultRegistry.providers) == 0 {
-		t.Error("expected default registry to have providers")
+	// The default registry holds exactly the built-in providers — nothing
+	// more, nothing less. Names() is sorted, so compare directly.
+	want := []string{"claude", "codex", "cursor", "gemini", "pi"}
+	got := DefaultRegistry.Names()
+	if len(got) != len(want) {
+		t.Fatalf("expected providers %v, got %v", want, got)
 	}
-
-	// Check for expected providers (aider, opencode, openclaw removed per #2921)
-	for _, name := range []string{"claude", "codex", "gemini", "cursor"} {
-		if _, ok := DefaultRegistry.Get(name); !ok {
-			t.Errorf("expected %s provider in default registry", name)
-		}
-	}
-	// Verify removed providers are gone
-	for _, name := range []string{"aider", "opencode", "openclaw"} {
-		if _, ok := DefaultRegistry.Get(name); ok {
-			t.Errorf("expected %s provider to be removed from default registry", name)
+	for i, name := range want {
+		if got[i] != name {
+			t.Fatalf("expected providers %v, got %v", want, got)
 		}
 	}
 }

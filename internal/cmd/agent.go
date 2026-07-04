@@ -326,8 +326,10 @@ var (
 )
 
 func init() {
-	// Create flags
-	agentCreateCmd.Flags().StringVar(&agentCreateTool, "tool", "", "Agent tool (claude, gemini, cursor, codex, opencode, openclaw, aider, pi)")
+	// Create flags — the --tool help derives from the provider registry so
+	// the listed tools always match what is actually registered.
+	agentCreateCmd.Flags().StringVar(&agentCreateTool, "tool", "",
+		fmt.Sprintf("Agent tool (%s)", strings.Join(provider.DefaultRegistry.Names(), ", ")))
 	agentCreateCmd.Flags().StringVar(&agentCreateRole, "role", "", "Agent role (default: base)")
 	agentCreateCmd.Flags().StringVar(&agentCreateTemplate, "template", "", "Template name from ~/.mycel/templates/ (e.g. base, engineer)")
 	agentCreateCmd.Flags().StringVar(&agentCreateCopy, "copy", "", "Copy settings from an existing agent")

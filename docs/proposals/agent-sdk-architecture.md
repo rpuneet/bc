@@ -423,7 +423,7 @@ CMD ["node", "/app/mycel-agent-runner/index.js"]
 - Delete terminal parsing regex
 - Delete tmux session management for SDK agents
 - Delete OAuth volume mount logic
-- Keep tmux for non-SDK providers (aider, opencode)
+- Keep tmux for non-SDK providers (gemini, cursor, codex, pi)
 
 ---
 

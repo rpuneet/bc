@@ -58,9 +58,6 @@ const PROVIDER_DOTS: Record<string, string> = {
   cursor:   "bg-fuchsia-400/70",
   codex:    "bg-emerald-400/70",
   pi:       "bg-teal-400/70",
-  aider:    "bg-amber-400/70",
-  opencode: "bg-indigo-400/70",
-  openclaw: "bg-rose-400/70",
 };
 
 function ProviderChip({ tool }: { tool?: string | null }) {

@@ -49,7 +49,8 @@ func DataDir(id string) (string, error) {
 // GlobalTemplatesDir returns the user-global templates directory
 // (~/.mycel/templates/). Templates here apply across all workspaces; each
 // workspace may override a template by placing a file with the same name
-// under <ws>/.bc/templates/.
+// under its state dir's templates/ directory
+// (~/.mycel/workspaces/<id>/templates/).
 func GlobalTemplatesDir() (string, error) {
 	return globalPath(globalTemplatesDirName)
 }

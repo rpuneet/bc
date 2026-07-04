@@ -305,6 +305,21 @@ func openRoleStore(cfg *Config) (*RoleStore, error) {
 	return NewRoleStoreFromDB(wsDB.DB, driver)
 }
 
+// NewGlobalRoleManager creates a role manager backed by the single global
+// database, where roles for every workspace live. stateDir is only used to
+// migrate any legacy filesystem roles under <stateDir>/roles into the store.
+// Package-level helpers that resolve roles without a *Workspace must use
+// this constructor — building a manager on a per-workspace bc.db reads the
+// wrong store and reports every role as missing.
+func NewGlobalRoleManager(stateDir string) (*RoleManager, error) {
+	store, err := openRoleStore(nil)
+	if err != nil {
+		return nil, err
+	}
+	_, _ = store.MigrateFromFiles(filepath.Join(stateDir, "roles")) //nolint:errcheck // best-effort
+	return NewRoleManagerWithStore(stateDir, store), nil
+}
+
 // initRoleManager creates a role manager with SQL store for workspace Init.
 // It creates the store, migrates defaults, and migrates any legacy filesystem
 // roles. Returns the manager plus a close function for the store.

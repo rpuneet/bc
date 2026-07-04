@@ -413,11 +413,13 @@ func LoadRoleMemory(workspacePath string, role Role) *AgentMemory {
 		}
 	}
 
-	// Load role via RoleManager. Prefer the M11 global runtime dir
-	// (~/.mycel/workspaces/<id>/); fall back to the legacy <root>/.bc/
-	// sidecar when the global dir is missing or unavailable.
-	stateDir := workspaceStateDir(workspacePath)
-	rm := workspace.NewRoleManager(stateDir)
+	// Load role via a RoleManager backed by the single global database —
+	// roles are global, not per-repo state.
+	rm, err := workspace.NewGlobalRoleManager(workspaceStateDir(workspacePath))
+	if err != nil {
+		log.Debug("failed to open global role store", "role", role, "error", err)
+		return nil
+	}
 	roleObj, err := rm.LoadRole(string(role))
 	if err != nil {
 		log.Debug("failed to load role prompt", "role", role, "error", err)
@@ -2654,15 +2656,6 @@ func (m *Manager) RuntimeForAgent(name string) runtime.Backend {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.runtimeForAgent(name)
-}
-
-// Tmux returns the underlying tmux manager if the default backend is tmux.
-// Deprecated: Use Runtime() instead. This is kept for backward compatibility.
-func (m *Manager) Tmux() *tmux.Manager {
-	if tb, ok := m.runtime().(*runtime.TmuxBackend); ok {
-		return tb.TmuxManager()
-	}
-	return nil
 }
 
 // QueryAgentStats returns up to limit recent stats records for the named agent.

@@ -541,7 +541,7 @@ func runToolStatus(cmd *cobra.Command, args []string) error {
 		fmt.Printf("%s %s is not installed\n", ui.RedText("✗"), name)
 		if t.InstallCmd != "" {
 			fmt.Printf("  Install: %s\n", ui.DimText(t.InstallCmd))
-			fmt.Printf("  Run:     bc tool setup %s\n", name)
+			fmt.Printf("  Run:     mycel tool setup %s\n", name)
 		}
 	}
 
@@ -680,7 +680,7 @@ func runToolSetup(cmd *cobra.Command, args []string) error {
 
 	// Step 2: run install command
 	if t.InstallCmd == "" {
-		return fmt.Errorf("no install command configured for %q; add one with: bc tool edit %s --install <cmd>", name, name)
+		return fmt.Errorf("no install command configured for %q; add one with: mycel tool edit %s --install <cmd>", name, name)
 	}
 
 	fmt.Printf("Installing %s...\n", name)
@@ -833,7 +833,7 @@ func runToolEdit(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	if t == nil {
-		return fmt.Errorf("tool %q not found — add it with: bc tool add %s", name, name)
+		return fmt.Errorf("tool %q not found — add it with: mycel tool add %s", name, name)
 	}
 
 	changed := false
@@ -896,7 +896,7 @@ func runToolDelete(cmd *cobra.Command, args []string) error {
 	apiTool, apiErr := c.Tools.Get(ctx, name)
 	if apiErr == nil && apiTool != nil {
 		if apiTool.Builtin {
-			return fmt.Errorf("cannot delete built-in tool %q — disable it instead: bc tool edit %s --enabled false", name, name)
+			return fmt.Errorf("cannot delete built-in tool %q — disable it instead: mycel tool edit %s --enabled false", name, name)
 		}
 		if delErr := c.Tools.Delete(ctx, name); delErr != nil {
 			return fmt.Errorf("failed to delete tool: %w", delErr)
@@ -920,7 +920,7 @@ func runToolDelete(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("tool %q not found", name)
 	}
 	if t.Builtin {
-		return fmt.Errorf("cannot delete built-in tool %q — disable it instead: bc tool edit %s --enabled false", name, name)
+		return fmt.Errorf("cannot delete built-in tool %q — disable it instead: mycel tool edit %s --enabled false", name, name)
 	}
 
 	if err := s.Delete(ctx, name); err != nil {

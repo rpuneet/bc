@@ -1,8 +1,9 @@
-// Package events provides an append-only event log for bc.
+// Package events provides an append-only event log for mycel.
 //
-// Events are stored as JSONL (one JSON object per line) at .bc/events.jsonl.
-// This provides an audit trail for agent spawns, stops, work assignments,
-// status reports, and messages.
+// Events are stored in the events table of the single global database
+// (see SQLiteLog); JSONLWriter additionally mirrors SSE events to a
+// per-workspace events.jsonl. This provides an audit trail for agent
+// spawns, stops, work assignments, status reports, and messages.
 package events
 
 import (
@@ -21,7 +22,6 @@ const (
 	WorkCompleted   EventType = "work.completed"
 	WorkFailed      EventType = "work.failed"
 	MessageSent     EventType = "message.sent"
-	QueueLoaded     EventType = "queue.loaded"
 	HealthCheck     EventType = "health.check"
 	HealthFailed    EventType = "health.failed"
 	HealthRecovered EventType = "health.recovered"
@@ -55,7 +55,7 @@ type Event struct {
 }
 
 // EventStore is the interface for reading and writing events.
-// Both the file-based Log and SQLiteLog implement this interface.
+// Implemented by SQLiteLog (and its Postgres variant).
 type EventStore interface {
 	Append(event Event) error
 	Read() ([]Event, error)
@@ -63,7 +63,3 @@ type EventStore interface {
 	ReadByAgent(name string) ([]Event, error)
 	Close() error
 }
-
-// Log manages the append-only event log file.
-// Deprecated: Log is retained for reference; use JSONLWriter or SQLiteLog instead.
-type Log struct{}

@@ -4,7 +4,7 @@ Show agent status
 
 ### Synopsis
 
-Show the status of all bc agents.
+Show the status of all mycel agents.
 
 Examples:
   mycel status                   # Show all agents

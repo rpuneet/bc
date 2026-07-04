@@ -32,7 +32,7 @@ mycel agent create [name] [flags]
       --runtime string    Runtime backend override: tmux or docker
       --team string       Team name (alphanumeric)
       --template string   Template name from ~/.mycel/templates/ (e.g. base, engineer)
-      --tool string       Agent tool (claude, gemini, cursor, codex, opencode, openclaw, aider, pi)
+      --tool string       Agent tool (claude, codex, cursor, gemini, pi)
 ```
 
 ### Options inherited from parent commands

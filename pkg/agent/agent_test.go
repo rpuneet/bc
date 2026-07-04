@@ -1181,10 +1181,6 @@ func TestRuntime(t *testing.T) {
 	if m.Runtime() == nil {
 		t.Error("Runtime() should not return nil")
 	}
-	// Tmux() should return the underlying tmux.Manager when backend is tmux
-	if m.Tmux() == nil {
-		t.Error("Tmux() should not return nil for tmux backend")
-	}
 }
 
 // --- UpdateAgentState with task update ---

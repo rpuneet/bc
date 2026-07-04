@@ -651,7 +651,7 @@ No wasted space. Single-column. Inline metrics. Activity fills the screen.
  ▸ claude       3.2.1      ✓ ready      8
    gemini       1.5.0      ✓ ready      2
    cursor       0.42       ✓ ready      1
-   aider        0.55.0     ✗ error      0
+   codex        0.42.0     ✗ error      0
 ```
 
 ### 10. Help View

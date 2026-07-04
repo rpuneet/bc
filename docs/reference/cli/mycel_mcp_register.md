@@ -1,13 +1,13 @@
 ## mycel mcp register
 
-Register bc as an MCP server in agent settings.json
+Register mycel as an MCP server in agent settings.json
 
 ### Synopsis
 
-Automatically add bc to the Claude Code MCP server configuration.
+Automatically add mycel to the Claude Code MCP server configuration.
 
 This writes (or updates) the mcp.servers entry in the workspace
-settings.json so that agents automatically have access to bc MCP tools.
+settings.json so that agents automatically have access to mycel MCP tools.
 
 Examples:
   mycel mcp register               # Register with stdio transport

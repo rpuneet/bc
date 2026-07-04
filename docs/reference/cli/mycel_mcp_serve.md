@@ -1,12 +1,12 @@
 ## mycel mcp serve
 
-Start bc as an MCP server
+Start mycel as an MCP server
 
 ### Synopsis
 
-Start bc as an MCP (Model Context Protocol) server.
+Start mycel as an MCP (Model Context Protocol) server.
 
-AI tools like Claude Code and Cursor can connect to bc via MCP to query
+AI tools like Claude Code and Cursor can connect to mycel via MCP to query
 workspace state and control agents natively.
 
 Default transport is stdio (newline-delimited JSON on stdin/stdout).
