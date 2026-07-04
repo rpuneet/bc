@@ -9,11 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.3.9] - 2026-07-04
 
-The clean-architecture release: every legacy fallback and in-tree
-migration is gone, the security backlog is cleared, and the Live page
-event stream was rebuilt around the agent-detail hook-stream UI.
+The clean-architecture release: `mycel init` is gone (install → `mycel up`
+is the whole story), every legacy fallback and in-tree migration is
+removed, the security backlog is cleared, and the Live page event stream
+was rebuilt around the agent-detail hook-stream UI.
 
 ### Removed
+- **`mycel init`.** `mycel up` bootstraps everything: run it inside a git
+  repo and the repo is adopted automatically; run it anywhere else and
+  the daemon serves the web UI with an add-repo flow. The wizard,
+  presets, and every "run mycel init" message are gone.
 - **All legacy compatibility code.** Home resolution is `MYCEL_HOME` →
   `~/.mycel`, period; `preferences.json` is the only config file
   (settings.json readers, overlay merging, and save-on-read promotion
@@ -43,6 +48,10 @@ event stream was rebuilt around the agent-detail hook-stream UI.
   unread accents, and a channel filter.
 
 ### Fixed
+- **Multi-workspace data bleed.** Every workspace now has its own database
+  connection (per-workspace registry with explicit store handles) — one
+  workspace's subscriptions, cron jobs, and events can no longer land in
+  another's database, and repos added at runtime come up fully online.
 - TUI test suite stabilized: tmux e2e tests run on an isolated socket,
   config tests no longer race a spawned CLI, and the CI job fails fast
   instead of hanging for hours.
