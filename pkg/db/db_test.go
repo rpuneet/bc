@@ -87,54 +87,53 @@ func TestDefaultConfig(t *testing.T) {
 }
 
 func TestRegistry(t *testing.T) {
-	t.Run("register and get", func(t *testing.T) {
+	t.Run("get opens lazily and caches", func(t *testing.T) {
 		dir := t.TempDir()
 		registry := NewRegistry()
 		t.Cleanup(func() { _ = registry.Close() })
 
-		dbPath := filepath.Join(dir, "test.db")
-		registry.Register("test", dbPath)
-
-		db, err := registry.Get("test")
+		d, driver, err := registry.Get(dir, nil)
 		if err != nil {
 			t.Fatalf("Get() error = %v", err)
 		}
+		if driver != "sqlite" {
+			t.Errorf("driver = %q, want sqlite", driver)
+		}
 
 		// Verify same instance is returned
-		db2, err := registry.Get("test")
+		d2, _, err := registry.Get(dir, nil)
 		if err != nil {
 			t.Fatalf("Get() second call error = %v", err)
 		}
-
-		if db != db2 {
+		if d != d2 {
 			t.Error("expected same database instance")
 		}
 	})
 
-	t.Run("get unregistered returns error", func(t *testing.T) {
+	t.Run("distinct roots open distinct connections", func(t *testing.T) {
 		registry := NewRegistry()
 		t.Cleanup(func() { _ = registry.Close() })
 
-		_, err := registry.Get("nonexistent")
-		if err == nil {
-			t.Error("expected error for unregistered database")
+		dA, _, err := registry.Get(t.TempDir(), nil)
+		if err != nil {
+			t.Fatalf("Get(A) error = %v", err)
+		}
+		dB, _, err := registry.Get(t.TempDir(), nil)
+		if err != nil {
+			t.Fatalf("Get(B) error = %v", err)
+		}
+		if dA == dB {
+			t.Error("expected distinct connections for distinct roots")
 		}
 	})
 
 	t.Run("close all", func(t *testing.T) {
-		dir := t.TempDir()
 		registry := NewRegistry()
 
-		registry.Register("db1", filepath.Join(dir, "db1.db"))
-		registry.Register("db2", filepath.Join(dir, "db2.db"))
-
-		// Open both
-		_, err := registry.Get("db1")
-		if err != nil {
+		if _, _, err := registry.Get(t.TempDir(), nil); err != nil {
 			t.Fatalf("Get(db1) error = %v", err)
 		}
-		_, err = registry.Get("db2")
-		if err != nil {
+		if _, _, err := registry.Get(t.TempDir(), nil); err != nil {
 			t.Fatalf("Get(db2) error = %v", err)
 		}
 
@@ -144,39 +143,32 @@ func TestRegistry(t *testing.T) {
 		}
 	})
 
-	t.Run("close one", func(t *testing.T) {
+	t.Run("close workspace then reopen", func(t *testing.T) {
 		dir := t.TempDir()
 		registry := NewRegistry()
 		t.Cleanup(func() { _ = registry.Close() })
 
-		registry.Register("test", filepath.Join(dir, "test.db"))
-
-		_, err := registry.Get("test")
-		if err != nil {
+		if _, _, err := registry.Get(dir, nil); err != nil {
 			t.Fatalf("Get() error = %v", err)
 		}
 
-		closeErr := registry.CloseOne("test")
-		if closeErr != nil {
-			t.Errorf("CloseOne() error = %v", closeErr)
+		if closeErr := registry.CloseWorkspace(dir); closeErr != nil {
+			t.Errorf("CloseWorkspace() error = %v", closeErr)
 		}
 
 		// Getting again should reopen
-		_, err = registry.Get("test")
-		if err != nil {
-			t.Errorf("Get() after CloseOne error = %v", err)
+		if _, _, err := registry.Get(dir, nil); err != nil {
+			t.Errorf("Get() after CloseWorkspace error = %v", err)
 		}
 	})
 
-	t.Run("close one not open is no-op", func(t *testing.T) {
+	t.Run("close workspace not open is no-op", func(t *testing.T) {
 		registry := NewRegistry()
 		t.Cleanup(func() { _ = registry.Close() })
 
-		registry.Register("test", "/tmp/test.db")
-
 		// Close without opening - should not error
-		if err := registry.CloseOne("test"); err != nil {
-			t.Errorf("CloseOne() error = %v", err)
+		if err := registry.CloseWorkspace(t.TempDir()); err != nil {
+			t.Errorf("CloseWorkspace() error = %v", err)
 		}
 	})
 }

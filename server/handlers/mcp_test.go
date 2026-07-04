@@ -18,12 +18,8 @@ func newTestMCPStore(t *testing.T) *mcp.Store {
 	if err != nil {
 		t.Fatalf("db.Open: %v", err)
 	}
-	db.SetShared(d.DB, "sqlite")
-	t.Cleanup(func() {
-		db.SetShared(nil, "")
-		_ = d.Close()
-	})
-	store, err := mcp.NewStore(dir)
+	t.Cleanup(func() { _ = d.Close() })
+	store, err := mcp.NewStore(d, "sqlite")
 	if err != nil {
 		t.Fatalf("NewStore: %v", err)
 	}

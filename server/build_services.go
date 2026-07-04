@@ -106,21 +106,31 @@ func buildWorkspaceServicesFromWS(ctx context.Context, globals *Globals, ws *bcw
 	// "not available".
 	degraded := map[string]string{}
 
+	// Per-workspace database: resolved from the process-wide registry so
+	// each workspace's stores land in that workspace's own bc.db (or its
+	// own TimescaleDB), never in the launch workspace's. The handle is
+	// cached in the registry and stays open across service eviction;
+	// stores borrow it and never close it.
+	wsDB, wsDriver, dbErr := bcdb.ForWorkspace(ws.RootDir, ws.Config.DBStorageSettings())
+	if dbErr != nil {
+		log.Warn("workspace database unavailable", "error", dbErr, "workspace", ws.RootDir)
+		degraded["storage"] = "workspace database unavailable: " + dbErr.Error()
+	}
+
 	// Storage driver mismatch: pkg/db falls back to SQLite when the
 	// configured TimescaleDB is unreachable (db.OpenWorkspaceDBWithConfig
 	// logs "falling back to sqlite"). Compare the configured default
 	// against the driver actually in use so the mismatch is visible.
-	if ws.Config != nil {
+	if ws.Config != nil && dbErr == nil {
 		configured := ws.Config.Storage.Default
-		if configured == "timescale" || configured == "sql" {
-			if active := bcdb.SharedDriver(); active != "timescale" {
-				if active == "" {
-					active = "none"
-				}
-				degraded["storage"] = fmt.Sprintf(
-					"configured %s database is not active (running on %s) — timescale unreachable, data is going to the fallback store and will not sync back",
-					configured, active)
+		if (configured == "timescale" || configured == "sql") && wsDriver != "timescale" {
+			active := wsDriver
+			if active == "" {
+				active = "none"
 			}
+			degraded["storage"] = fmt.Sprintf(
+				"configured %s database is not active (running on %s) — timescale unreachable, data is going to the fallback store and will not sync back",
+				configured, active)
 		}
 	}
 
@@ -187,7 +197,7 @@ func buildWorkspaceServicesFromWS(ctx context.Context, globals *Globals, ws *bcw
 			defer wg.Done()
 			runCostImportLoop(svcCtx, costImporter)
 		}()
-	} else if cs, err := cost.OpenStore(ws.RootDir); err != nil {
+	} else if cs, err := cost.OpenStore(wsDB, wsDriver, ws.RootDir); err != nil {
 		log.Warn("cost store unavailable", "error", err, "workspace", ws.RootDir)
 		degraded["costs"] = "cost store unavailable: " + err.Error()
 	} else {
@@ -212,7 +222,7 @@ func buildWorkspaceServicesFromWS(ctx context.Context, globals *Globals, ws *bcw
 	// Cron store + scheduler.
 	var cronStore *cron.Store
 	var cronSched *cron.Scheduler
-	if cr, err := cron.Open(ws.RootDir); err != nil {
+	if cr, err := cron.Open(wsDB, wsDriver); err != nil {
 		log.Warn("cron store unavailable", "error", err, "workspace", ws.RootDir)
 		degraded["cron"] = "cron store unavailable: " + err.Error()
 	} else {
@@ -251,7 +261,7 @@ func buildWorkspaceServicesFromWS(ctx context.Context, globals *Globals, ws *bcw
 
 	// MCP store.
 	var mcpStore *bcmcp.Store
-	if ms, err := bcmcp.NewStore(ws.RootDir); err != nil {
+	if ms, err := bcmcp.NewStore(wsDB, wsDriver); err != nil {
 		log.Warn("mcp store unavailable", "error", err, "workspace", ws.RootDir)
 		degraded["mcp"] = "mcp store unavailable: " + err.Error()
 	} else {
@@ -262,7 +272,7 @@ func buildWorkspaceServicesFromWS(ctx context.Context, globals *Globals, ws *bcw
 	// Tool store.
 	var toolStore *bctool.Store
 	{
-		ts := bctool.NewStore(ws.StateDir())
+		ts := bctool.NewStore(wsDB, wsDriver)
 		if err := ts.Open(); err != nil {
 			log.Warn("tool store unavailable", "error", err, "workspace", ws.RootDir)
 			degraded["tools"] = "tool store unavailable: " + err.Error()
@@ -286,7 +296,7 @@ func buildWorkspaceServicesFromWS(ctx context.Context, globals *Globals, ws *bcw
 
 	// Event log (SQLite) + pruning loop.
 	var eventLog bcevents.EventStore
-	if el, err := bcevents.OpenLog(ws.RootDir, filepath.Join(ws.StateDir(), "state.db")); err != nil {
+	if el, err := bcevents.OpenLog(wsDB, wsDriver); err != nil {
 		log.Warn("event log unavailable", "error", err, "workspace", ws.RootDir)
 		degraded["events"] = "event log unavailable: " + err.Error()
 	} else {
@@ -313,7 +323,7 @@ func buildWorkspaceServicesFromWS(ctx context.Context, globals *Globals, ws *bcw
 
 	// Notify service (channel subscriptions + delivery).
 	var notifyService *bcnotify.Service
-	if ns, err := bcnotify.OpenStore(ws.RootDir); err != nil {
+	if ns, err := bcnotify.OpenStore(wsDB, wsDriver); err != nil {
 		log.Warn("notify store unavailable", "error", err, "workspace", ws.RootDir)
 		degraded["notify"] = "notify store unavailable: " + err.Error()
 	} else {

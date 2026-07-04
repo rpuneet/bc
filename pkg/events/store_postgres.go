@@ -176,16 +176,15 @@ func pgNilStr(s string) *string {
 	return &s
 }
 
-// OpenLog opens the event log for the workspace using the shared database.
-// Uses the shared driver type to determine the backend (timescale or sqlite).
-func OpenLog(workspacePath string, dbPath string) (EventStore, error) {
-	driver := bcdb.SharedDriver()
+// OpenLog opens the event log on the given workspace database. The
+// handle is borrowed: callers (typically the per-workspace db registry)
+// own its lifecycle.
+func OpenLog(d *bcdb.DB, driver string) (EventStore, error) {
+	if d == nil {
+		return nil, fmt.Errorf("events store requires a workspace database (nil handle)")
+	}
 	if driver == "timescale" {
-		shared := bcdb.Shared()
-		if shared == nil {
-			return nil, fmt.Errorf("events store: shared timescale connection is nil")
-		}
-		pg := NewPostgresLog(shared)
+		pg := NewPostgresLog(d.DB)
 		if schemaErr := pg.InitSchema(); schemaErr != nil {
 			return nil, fmt.Errorf("events store: init timescale schema: %w", schemaErr)
 		}
@@ -193,6 +192,6 @@ func OpenLog(workspacePath string, dbPath string) (EventStore, error) {
 		return pg, nil
 	}
 
-	// SQLite via shared DB
-	return NewSQLiteLog(dbPath)
+	// SQLite
+	return NewSQLiteLog(d)
 }

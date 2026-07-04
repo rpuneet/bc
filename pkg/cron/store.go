@@ -17,27 +17,31 @@ type Store struct {
 	pg *PostgresStore // non-nil when using Postgres via OpenStore
 }
 
-// Open opens the cron store using the shared workspace database.
-// Returns an error if no shared database is available.
-func Open(workspacePath string) (*Store, error) {
-	shared := db.SharedWrapped()
-	if shared == nil {
-		return nil, fmt.Errorf("cron store requires shared database (none available for workspace %s)", workspacePath)
+// Open opens the cron store on the given workspace database. The handle
+// is borrowed: callers (typically the per-workspace db registry) own its
+// lifecycle.
+func Open(d *db.DB, driver string) (*Store, error) {
+	if d == nil {
+		return nil, fmt.Errorf("cron store requires a workspace database (nil handle)")
 	}
 
-	s := &Store{db: shared}
-	if db.SharedDriver() == "timescale" {
+	s := &Store{db: d}
+	if driver == "timescale" {
 		// Use PostgresStore for proper $1 placeholder queries.
-		s.pg = NewPostgresStore(db.Shared())
+		pg := NewPostgresStore(d.DB)
+		if schemaErr := pg.InitSchema(); schemaErr != nil {
+			return nil, fmt.Errorf("init cron schema on timescale: %w", schemaErr)
+		}
+		s.pg = pg
 	} else {
 		if err := s.initSchema(); err != nil {
-			return nil, fmt.Errorf("init cron schema on shared db: %w", err)
+			return nil, fmt.Errorf("init cron schema: %w", err)
 		}
 	}
 	return s, nil
 }
 
-// Close is a no-op — the shared DB is owned by the caller.
+// Close is a no-op — the workspace DB is owned by the caller.
 func (s *Store) Close() error {
 	if s.pg != nil {
 		return s.pg.Close()

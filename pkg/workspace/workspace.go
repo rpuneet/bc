@@ -102,7 +102,7 @@ func Init(rootDir string) (*Workspace, error) {
 		return nil, fmt.Errorf("failed to save config: %w", saveErr)
 	}
 
-	rm, closeStore, err := initRoleManager(stateDir)
+	rm, closeStore, err := initRoleManager(stateDir, absRoot, &cfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to init role manager: %w", err)
 	}
@@ -177,7 +177,7 @@ func Load(rootDir string) (*Workspace, error) {
 		return nil, fmt.Errorf("invalid %s: %w", PreferencesFileName, valErr)
 	}
 
-	rm, closeStore, err := loadRoleManager(stateDir)
+	rm, closeStore, err := loadRoleManager(stateDir, absRoot, cfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load roles: %w", err)
 	}
@@ -382,16 +382,24 @@ func (w *Workspace) GetRolePrompt(name string) string {
 	return role.Prompt
 }
 
-// openRoleStore creates a RoleStore using the shared database connection.
-// Uses the shared driver type to determine the backend (timescale or sqlite).
-func openRoleStore(stateDir string) (*RoleStore, error) {
-	driver := db.SharedDriver()
-	if driver == "timescale" {
-		shared := db.Shared()
-		if shared == nil {
-			return nil, fmt.Errorf("role store: shared timescale connection is nil")
+// openRoleStore creates a RoleStore for the workspace. When the
+// workspace is configured for TimescaleDB (or DATABASE_URL forces it),
+// the role store shares the per-workspace registry connection; in
+// SQLite mode it keeps its own file at <stateDir>/bc.db.
+func openRoleStore(stateDir, rootDir string, cfg *Config) (*RoleStore, error) {
+	settings := cfg.DBStorageSettings()
+	wantsTimescale := db.IsPostgresEnabled() ||
+		(settings != nil && settings.Default == "timescale")
+	if wantsTimescale {
+		wsDB, driver, err := db.ForWorkspace(rootDir, settings)
+		if err != nil {
+			return nil, fmt.Errorf("role store: open workspace db: %w", err)
 		}
-		return NewRoleStoreFromDB(shared, "timescale")
+		if driver == "timescale" {
+			return NewRoleStoreFromDB(wsDB.DB, "timescale")
+		}
+		// Timescale unreachable — the registry fell back to SQLite;
+		// keep roles in the local role db below as before.
 	}
 
 	dbPath := filepath.Join(stateDir, "bc.db")
@@ -401,8 +409,8 @@ func openRoleStore(stateDir string) (*RoleStore, error) {
 // initRoleManager creates a role manager with SQL store for workspace Init.
 // It creates the store, migrates defaults, and migrates any legacy filesystem
 // roles. Returns the manager plus a close function for the store.
-func initRoleManager(stateDir string) (*RoleManager, func() error, error) {
-	store, err := openRoleStore(stateDir)
+func initRoleManager(stateDir, rootDir string, cfg *Config) (*RoleManager, func() error, error) {
+	store, err := openRoleStore(stateDir, rootDir, cfg)
 	if err != nil {
 		return nil, nil, fmt.Errorf("open role store: %w", err)
 	}
@@ -434,8 +442,8 @@ func initRoleManager(stateDir string) (*RoleManager, func() error, error) {
 // loadRoleManager creates a role manager with SQL store for workspace Load.
 // It opens the store, migrates any new filesystem files, and loads all roles
 // into the cache.
-func loadRoleManager(stateDir string) (*RoleManager, func() error, error) {
-	store, err := openRoleStore(stateDir)
+func loadRoleManager(stateDir, rootDir string, cfg *Config) (*RoleManager, func() error, error) {
+	store, err := openRoleStore(stateDir, rootDir, cfg)
 	if err != nil {
 		return nil, nil, fmt.Errorf("open role store: %w", err)
 	}

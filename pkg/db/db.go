@@ -152,86 +152,106 @@ func applyPragmas(db *sql.DB, cfg Config) error {
 	return err
 }
 
-// Registry manages multiple named database connections.
-// Use this when you need to share connections across packages.
+// Registry caches one workspace database connection per workspace root.
+//
+// It is the replacement for the old process-global "shared" connection:
+// instead of every store writing into whichever workspace's bc.db the
+// daemon happened to launch with, each workspace root gets its own
+// connection, opened lazily on first use via OpenWorkspaceDBWithConfig
+// (SQLite at BCDBPath(root) by default, or that workspace's own
+// TimescaleDB with SQLite fallback).
+//
+// Lifecycle: connections stay cached for the life of the process even if
+// the workspace's services are evicted for idleness — a cached idle
+// SQLite handle is cheap (max one conn), and keeping it avoids reopen
+// churn plus use-after-close races with other holders of the handle.
+// Stores treat the handle as borrowed and never close it; only
+// CloseWorkspace / Close tear connections down (process shutdown, or
+// tests).
 type Registry struct {
-	dbs   map[string]*DB
-	paths map[string]string // Maps name to path
-	mu    sync.RWMutex
+	entries map[string]*registryEntry
+	mu      sync.Mutex
 }
 
-// NewRegistry creates a new database registry.
+type registryEntry struct {
+	db     *DB
+	driver string // "sqlite" or "timescale"
+}
+
+// NewRegistry creates a new empty database registry.
 func NewRegistry() *Registry {
-	return &Registry{
-		dbs:   make(map[string]*DB),
-		paths: make(map[string]string),
-	}
+	return &Registry{entries: make(map[string]*registryEntry)}
 }
 
-// Register registers a database path with a name.
-// The database is not opened until Get is called.
-func (r *Registry) Register(name, path string) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.paths[name] = path
-}
-
-// Get returns a database connection by name, opening it if needed.
-func (r *Registry) Get(name string) (*DB, error) {
-	r.mu.RLock()
-	if db, ok := r.dbs[name]; ok {
-		r.mu.RUnlock()
-		return db, nil
-	}
-	r.mu.RUnlock()
-
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	// Double-check after acquiring write lock
-	if db, ok := r.dbs[name]; ok {
-		return db, nil
-	}
-
-	path, ok := r.paths[name]
-	if !ok {
-		return nil, fmt.Errorf("database %q not registered", name)
-	}
-
-	db, err := Open(path)
+// registryKey normalizes a workspace root into a stable map key.
+func registryKey(root string) (string, error) {
+	abs, err := filepath.Abs(root)
 	if err != nil {
-		return nil, fmt.Errorf("open database %q: %w", name, err)
+		return "", fmt.Errorf("resolve workspace root %q: %w", root, err)
 	}
-
-	r.dbs[name] = db
-	return db, nil
+	return filepath.Clean(abs), nil
 }
 
-// Close closes all open database connections.
+// Get returns the database connection for the workspace rooted at root,
+// opening (and caching) it on first use. cfg is only consulted on the
+// first open for a given root; later calls return the cached handle and
+// its driver regardless of cfg.
+//
+// The lock is held across the open so concurrent callers for the same
+// root can never race two connections into existence.
+func (r *Registry) Get(root string, cfg *StorageSettings) (*DB, string, error) {
+	key, err := registryKey(root)
+	if err != nil {
+		return nil, "", err
+	}
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if e, ok := r.entries[key]; ok {
+		return e.db, e.driver, nil
+	}
+
+	sqlDB, driver, err := OpenWorkspaceDBWithConfig(root, cfg)
+	if err != nil {
+		return nil, "", fmt.Errorf("open workspace db %s: %w", root, err)
+	}
+
+	e := &registryEntry{db: &DB{DB: sqlDB}, driver: driver}
+	r.entries[key] = e
+	return e.db, e.driver, nil
+}
+
+// CloseWorkspace closes and evicts the cached connection for root, if
+// any. A subsequent Get reopens it.
+func (r *Registry) CloseWorkspace(root string) error {
+	key, err := registryKey(root)
+	if err != nil {
+		return err
+	}
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	e, ok := r.entries[key]
+	if !ok {
+		return nil // not open
+	}
+	delete(r.entries, key)
+	return e.db.Close()
+}
+
+// Close closes all cached connections and empties the registry.
 func (r *Registry) Close() error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
 	var firstErr error
-	for name, db := range r.dbs {
-		if err := db.Close(); err != nil && firstErr == nil {
-			firstErr = fmt.Errorf("close database %q: %w", name, err)
+	for key, e := range r.entries {
+		if err := e.db.Close(); err != nil && firstErr == nil {
+			firstErr = fmt.Errorf("close workspace db %q: %w", key, err)
 		}
 	}
-	r.dbs = make(map[string]*DB)
+	r.entries = make(map[string]*registryEntry)
 	return firstErr
-}
-
-// CloseOne closes a specific database connection by name.
-func (r *Registry) CloseOne(name string) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	db, ok := r.dbs[name]
-	if !ok {
-		return nil // Not open
-	}
-
-	delete(r.dbs, name)
-	return db.Close()
 }

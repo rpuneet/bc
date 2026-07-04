@@ -99,7 +99,7 @@ func runDoctor(cmd *cobra.Command, _ []string) error {
 		fmt.Println()
 		fmt.Println(ui.YellowText("⚠") + " No workspace found — running tools check only")
 		fmt.Println()
-		cat := doctor.CheckTools(ctx)
+		cat := doctor.CheckTools(ctx, nil)
 		printCategory(cat)
 		fmt.Println()
 		return nil
@@ -147,7 +147,7 @@ func runDoctorCheck(cmd *cobra.Command, args []string) error {
 
 	var cat *doctor.CategoryReport
 	if wsErr != nil {
-		c := doctor.CheckTools(ctx)
+		c := doctor.CheckTools(ctx, nil)
 		cat = &c
 	} else {
 		cat = doctor.CategoryByName(ctx, ws, name)

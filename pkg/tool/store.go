@@ -131,30 +131,35 @@ var builtinCLITools = []Tool{
 
 // Store provides tool management backed by SQLite or TimescaleDB (Postgres).
 type Store struct {
-	db *db.DB
-	pg *PostgresStore // non-nil when using Postgres via OpenStore
+	db     *db.DB
+	pg     *PostgresStore // non-nil when using the timescale driver
+	driver string         // "sqlite" or "timescale"
 }
 
-// NewStore creates a new tool store for the given workspace state directory.
-func NewStore(stateDir string) *Store {
-	return &Store{}
+// NewStore creates a new tool store on the given workspace database. The
+// handle is borrowed: callers (typically the per-workspace db registry)
+// own its lifecycle. Call Open to initialize the schema and seed
+// built-in tools.
+func NewStore(d *db.DB, driver string) *Store {
+	return &Store{db: d, driver: driver}
 }
 
-// Open initializes the database and seeds built-in tools.
-// Uses the shared workspace database; returns an error if unavailable.
+// Open initializes the database schema and seeds built-in tools.
+// Returns an error if the store was constructed without a database.
 func (s *Store) Open() error {
-	shared := db.SharedWrapped()
-	if shared == nil {
-		return fmt.Errorf("tool store requires shared database (none available)")
+	if s.db == nil {
+		return fmt.Errorf("tool store requires a workspace database (nil handle)")
 	}
 
-	s.db = shared
-
-	if db.SharedDriver() == "timescale" {
+	if s.driver == "timescale" {
 		// Use PostgresStore for proper $1 placeholder queries.
-		s.pg = NewPostgresStore(db.Shared())
+		pg := NewPostgresStore(s.db.DB)
+		if err := pg.InitSchema(); err != nil {
+			return fmt.Errorf("failed to initialize timescale schema: %w", err)
+		}
+		s.pg = pg
 	} else {
-		if err := initSchema(shared.DB); err != nil {
+		if err := initSchema(s.db.DB); err != nil {
 			return fmt.Errorf("failed to initialize schema: %w", err)
 		}
 	}
@@ -166,7 +171,7 @@ func (s *Store) Open() error {
 	return nil
 }
 
-// Close is a no-op — the shared DB is owned by the caller.
+// Close is a no-op — the workspace DB is owned by the caller.
 func (s *Store) Close() error {
 	if s.pg != nil {
 		return s.pg.Close()

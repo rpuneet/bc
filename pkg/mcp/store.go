@@ -57,21 +57,25 @@ func (s *Store) SetConfigLookup(fn ConfigLookupFunc) {
 	}
 }
 
-// NewStore creates a new MCP store for the given workspace path.
-// Uses the shared workspace database; returns an error if unavailable.
-func NewStore(workspacePath string) (*Store, error) {
-	shared := db.SharedWrapped()
-	if shared == nil {
-		return nil, fmt.Errorf("mcp store requires shared database (none available for workspace %s)", workspacePath)
+// NewStore creates a new MCP store on the given workspace database. The
+// handle is borrowed: callers (typically the per-workspace db registry)
+// own its lifecycle.
+func NewStore(d *db.DB, driver string) (*Store, error) {
+	if d == nil {
+		return nil, fmt.Errorf("mcp store requires a workspace database (nil handle)")
 	}
 
-	s := &Store{db: shared, shared: true}
-	if db.SharedDriver() == "timescale" {
+	s := &Store{db: d, shared: true}
+	if driver == "timescale" {
 		// Use PostgresStore for proper $1 placeholder queries.
-		s.pg = NewPostgresStore(db.Shared())
+		pg := NewPostgresStore(d.DB)
+		if schemaErr := pg.InitSchema(); schemaErr != nil {
+			return nil, fmt.Errorf("init mcp schema on timescale: %w", schemaErr)
+		}
+		s.pg = pg
 	} else {
 		if err := s.initSchema(); err != nil {
-			return nil, fmt.Errorf("init mcp schema on shared db: %w", err)
+			return nil, fmt.Errorf("init mcp schema: %w", err)
 		}
 	}
 	return s, nil
@@ -100,7 +104,8 @@ func (s *Store) initSchema() error {
 }
 
 // Close closes the database connection.
-// No-op when using shared bc.db — CloseShared() handles that.
+// No-op when using the borrowed workspace DB — its owner (the
+// per-workspace registry) handles closing.
 func (s *Store) Close() error {
 	if s.pg != nil {
 		return s.pg.Close()

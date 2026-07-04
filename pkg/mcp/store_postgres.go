@@ -7,9 +7,6 @@ import (
 	"fmt"
 	"strings"
 	"time"
-
-	bcdb "github.com/rpuneet/mycel/pkg/db"
-	"github.com/rpuneet/mycel/pkg/log"
 )
 
 // PostgresStore provides Postgres-backed MCP server config storage.
@@ -240,25 +237,4 @@ func pgScanMCPInto(sc scanner) (*ServerConfig, error) {
 	}
 
 	return &cfg, nil
-}
-
-// OpenStore opens the MCP store using the shared workspace database.
-// Uses the shared driver type to determine the backend (timescale or sqlite).
-func OpenStore(workspacePath string) (*Store, error) {
-	driver := bcdb.SharedDriver()
-	if driver == "timescale" {
-		shared := bcdb.Shared()
-		if shared == nil {
-			return nil, fmt.Errorf("mcp store: shared timescale connection is nil")
-		}
-		pg := NewPostgresStore(shared)
-		if schemaErr := pg.InitSchema(); schemaErr != nil {
-			return nil, fmt.Errorf("mcp store: init timescale schema: %w", schemaErr)
-		}
-		log.Debug("mcp store: using TimescaleDB backend")
-		return &Store{pg: pg}, nil
-	}
-
-	// SQLite via shared DB
-	return NewStore(workspacePath)
 }

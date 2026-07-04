@@ -9,6 +9,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -99,14 +101,16 @@ func TestBuildWorkspaceServicesDegradedNotify(t *testing.T) {
 	t.Setenv("MYCEL_HOME", t.TempDir())
 	t.Setenv("BC_SECRET_PASSPHRASE", "unit-test")
 
-	// Force the shared DB to be absent so notify's OpenStore fails,
-	// restoring whatever a previous test installed.
-	prevDB, prevDriver := bcdb.Shared(), bcdb.SharedDriver()
-	bcdb.SetShared(nil, "")
-	t.Cleanup(func() { bcdb.SetShared(prevDB, prevDriver) })
-
+	// Force the workspace DB open to fail: plant a regular FILE where
+	// the registry wants the .bc database directory, so SQLite's
+	// MkdirAll errors and every store depending on the workspace db
+	// comes up degraded.
 	wsDir := t.TempDir()
 	gitInitDir(t, wsDir)
+	if err := os.WriteFile(filepath.Join(wsDir, ".bc"), []byte("not a dir"), 0o600); err != nil {
+		t.Fatalf("plant .bc file: %v", err)
+	}
+	t.Cleanup(func() { _ = bcdb.CloseWorkspaceDB(wsDir) })
 	svc, err := BuildWorkspaceServices(context.Background(), &Globals{}, wsDir)
 	if err != nil {
 		t.Fatalf("build: %v", err)

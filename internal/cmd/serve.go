@@ -76,33 +76,23 @@ func RunServer(addr, wsRoot, corsOrigin, apiKey string) error {
 		}
 	}
 
-	// Set up shared database connection for all stores.
+	// Per-workspace databases are opened lazily through the pkg/db
+	// registry (BuildWorkspaceServices resolves each workspace's own
+	// connection) — including for a workspace-less boot where repos are
+	// added later via the API. Warm the launch workspace's connection
+	// eagerly so storage problems surface at boot, and close every
+	// registry connection at shutdown.
+	defer bcdb.CloseAllWorkspaceDBs() //nolint:errcheck
 	if ws != nil {
-		var storageCfg *bcdb.StorageSettings
-		if ws.Config != nil {
-			storageCfg = &bcdb.StorageSettings{
-				Default: ws.Config.Storage.Default,
-				SQLite:  bcdb.SQLiteSettings{Path: ws.Config.Storage.SQLite.Path},
-				Timescale: bcdb.TimescaleSettings{
-					Host:     ws.Config.Storage.Timescale.Host,
-					Port:     ws.Config.Storage.Timescale.Port,
-					User:     ws.Config.Storage.Timescale.User,
-					Password: ws.Config.Storage.Timescale.Password,
-					Database: ws.Config.Storage.Timescale.Database,
-				},
-			}
-		}
-		sharedDB, sharedDriver, dbErr := bcdb.OpenWorkspaceDBWithConfig(ws.RootDir, storageCfg)
+		_, driver, dbErr := bcdb.ForWorkspace(ws.RootDir, ws.Config.DBStorageSettings())
 		if dbErr != nil {
-			log.Warn("failed to open shared workspace db", "error", dbErr)
+			log.Warn("failed to open workspace db", "error", dbErr, "workspace", ws.RootDir)
 		} else {
-			bcdb.SetShared(sharedDB, sharedDriver)
-			defer bcdb.CloseShared() //nolint:errcheck
 			configDriver := ""
 			if ws.Config != nil {
 				configDriver = ws.Config.Storage.Default
 			}
-			log.Info("shared database ready", "driver", sharedDriver, "config_driver", configDriver)
+			log.Info("workspace database ready", "driver", driver, "config_driver", configDriver, "workspace", ws.RootDir)
 		}
 	}
 

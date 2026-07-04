@@ -60,12 +60,8 @@ func setupTestStore(t *testing.T) *Store {
 	if err != nil {
 		t.Fatal(err)
 	}
-	db.SetShared(d.DB, "sqlite")
-	t.Cleanup(func() {
-		db.SetShared(nil, "")
-		_ = d.Close()
-	})
-	store, err := OpenStore("/tmp/test-workspace")
+	t.Cleanup(func() { _ = d.Close() })
+	store, err := OpenStore(d, "sqlite")
 	if err != nil {
 		t.Fatal(err)
 	}

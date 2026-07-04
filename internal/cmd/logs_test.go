@@ -3,13 +3,13 @@ package cmd
 import (
 	"encoding/json"
 	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/spf13/pflag"
 
+	"github.com/rpuneet/mycel/pkg/db"
 	"github.com/rpuneet/mycel/pkg/events"
 	"github.com/rpuneet/mycel/pkg/ui"
 	"github.com/rpuneet/mycel/pkg/workspace"
@@ -47,7 +47,12 @@ func setupLogsWorkspace(t *testing.T) (string, func()) {
 // seedLogsEvents writes events to the workspace state.db SQLite database.
 func seedLogsEvents(t *testing.T, wsDir string, evts []events.Event) {
 	t.Helper()
-	evtLog, err := events.NewSQLiteLog(filepath.Join(wsDir, ".bc", "state.db"))
+	d, _, err := db.ForWorkspace(wsDir, nil)
+	if err != nil {
+		t.Fatalf("failed to open workspace db: %v", err)
+	}
+	t.Cleanup(func() { _ = db.CloseWorkspaceDB(wsDir) })
+	evtLog, err := events.NewSQLiteLog(d)
 	if err != nil {
 		t.Fatalf("failed to open event log: %v", err)
 	}

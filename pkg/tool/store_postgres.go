@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"time"
 
-	bcdb "github.com/rpuneet/mycel/pkg/db"
 	"github.com/rpuneet/mycel/pkg/log"
 )
 
@@ -268,32 +267,4 @@ func (p *PostgresStore) SetEnabled(ctx context.Context, name string, enabled boo
 		return fmt.Errorf("tool %q not found", name)
 	}
 	return nil
-}
-
-// OpenStore opens the tool store using the shared workspace database.
-// Uses the shared driver type to determine the backend (timescale or sqlite).
-func OpenStore(stateDir string) (*Store, error) {
-	driver := bcdb.SharedDriver()
-	if driver == "timescale" {
-		shared := bcdb.Shared()
-		if shared == nil {
-			return nil, fmt.Errorf("tool store: shared timescale connection is nil")
-		}
-		pg := NewPostgresStore(shared)
-		if schemaErr := pg.InitSchema(); schemaErr != nil {
-			return nil, fmt.Errorf("tool store: init timescale schema: %w", schemaErr)
-		}
-		if seedErr := pg.SeedBuiltins(context.Background()); seedErr != nil {
-			return nil, fmt.Errorf("tool store: seed builtins: %w", seedErr)
-		}
-		log.Debug("tool store: using TimescaleDB backend")
-		return &Store{pg: pg}, nil
-	}
-
-	// SQLite via shared DB
-	s := NewStore(stateDir)
-	if err := s.Open(); err != nil {
-		return nil, err
-	}
-	return s, nil
 }

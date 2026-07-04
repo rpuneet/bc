@@ -62,14 +62,13 @@ func newE2EServerWithWebUI(t *testing.T) *e2eServer {
 		t.Fatalf("workspace load: %v", err)
 	}
 
-	// Set up shared database for all stores
-	sharedDB, sharedDriver, dbErr := bcdb.OpenWorkspaceDBWithConfig(ws.RootDir, nil)
+	// Per-workspace database via the registry (production path).
+	wsDB, wsDriver, dbErr := bcdb.ForWorkspace(ws.RootDir, nil)
 	if dbErr != nil {
-		t.Fatalf("open shared db: %v", dbErr)
+		t.Fatalf("open workspace db: %v", dbErr)
 	}
-	bcdb.SetShared(sharedDB, sharedDriver)
 	t.Cleanup(func() {
-		_ = bcdb.CloseShared()
+		_ = bcdb.CloseWorkspaceDB(ws.RootDir)
 	})
 
 	hub := ws_hub(t)
@@ -85,26 +84,26 @@ func newE2EServerWithWebUI(t *testing.T) *e2eServer {
 	}
 
 	var cronStore *cron.Store
-	if cr, err := cron.Open(ws.RootDir); err == nil {
+	if cr, err := cron.Open(wsDB, wsDriver); err == nil {
 		cronStore = cr
 		t.Cleanup(func() { _ = cr.Close() })
 	}
 
 	var mcpStore *pkgmcp.Store
-	if ms, err := pkgmcp.NewStore(ws.RootDir); err == nil {
+	if ms, err := pkgmcp.NewStore(wsDB, wsDriver); err == nil {
 		mcpStore = ms
 		t.Cleanup(func() { _ = ms.Close() })
 	}
 
 	var toolStore *tool.Store
-	ts := tool.NewStore(ws.StateDir())
+	ts := tool.NewStore(wsDB, wsDriver)
 	if err := ts.Open(); err == nil {
 		toolStore = ts
 		t.Cleanup(func() { _ = ts.Close() })
 	}
 
 	var eventLog events.EventStore
-	if el, err := events.NewSQLiteLog(filepath.Join(ws.StateDir(), "state.db")); err == nil {
+	if el, err := events.NewSQLiteLog(wsDB); err == nil {
 		eventLog = el
 		t.Cleanup(func() { _ = el.Close() })
 	}

@@ -74,15 +74,12 @@ func newConcurrentHarness(t *testing.T, n int) *concurrentHarness {
 		list[i] = wsSetup{id: workspace.ComputeWorkspaceID(p), path: p}
 	}
 
-	// Shared bc.db anchored to ws0 (mirrors production boot).
-	sharedDB, sharedDriver, dbErr := bcdb.OpenWorkspaceDBWithConfig(list[0].path, nil)
-	if dbErr != nil {
-		t.Fatalf("open shared db: %v", dbErr)
-	}
-	bcdb.SetShared(sharedDB, sharedDriver)
+	// Each workspace's db is opened lazily by BuildWorkspaceServices via
+	// the per-workspace registry; release them after the test.
 	t.Cleanup(func() {
-		bcdb.SetShared(nil, "")
-		_ = bcdb.CloseShared()
+		for _, w := range list {
+			_ = bcdb.CloseWorkspaceDB(w.path)
+		}
 	})
 
 	reg, regErr := workspace.LoadRegistry()

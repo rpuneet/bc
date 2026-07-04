@@ -74,12 +74,8 @@ func setupStore(t *testing.T) *notify.Store {
 	if err != nil {
 		t.Fatalf("db.Open: %v", err)
 	}
-	db.SetShared(d.DB, "sqlite")
-	t.Cleanup(func() {
-		db.SetShared(nil, "")
-		_ = d.Close()
-	})
-	store, err := notify.OpenStore("/tmp/test-notify-api")
+	t.Cleanup(func() { _ = d.Close() })
+	store, err := notify.OpenStore(d, "sqlite")
 	if err != nil {
 		t.Fatalf("OpenStore: %v", err)
 	}

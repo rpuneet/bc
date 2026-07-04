@@ -15,12 +15,12 @@ type SQLiteLog struct {
 	db *db.DB
 }
 
-// NewSQLiteLog opens the events table using the shared workspace database.
-// Returns an error if no shared database is available.
-func NewSQLiteLog(dbPath string) (*SQLiteLog, error) {
-	d := db.SharedWrapped()
+// NewSQLiteLog opens the events table on the given workspace database.
+// The handle is borrowed: callers (typically the per-workspace db
+// registry) own its lifecycle.
+func NewSQLiteLog(d *db.DB) (*SQLiteLog, error) {
 	if d == nil {
-		return nil, fmt.Errorf("events store requires shared database (none available, path hint: %s)", dbPath)
+		return nil, fmt.Errorf("events store requires a workspace database (nil handle)")
 	}
 
 	schema := `
@@ -36,7 +36,6 @@ func NewSQLiteLog(dbPath string) (*SQLiteLog, error) {
 		CREATE INDEX IF NOT EXISTS idx_events_timestamp ON events(timestamp DESC);
 	`
 	if _, err := d.ExecContext(context.Background(), schema); err != nil {
-		_ = d.Close()
 		return nil, fmt.Errorf("create events table: %w", err)
 	}
 

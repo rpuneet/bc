@@ -245,16 +245,13 @@ func (s *Store) initSchema(db *sql.DB) error {
 	return nil
 }
 
-// OpenStore opens the cost store using the shared workspace database.
-// Uses the shared driver type to determine the backend (timescale or sqlite).
-func OpenStore(workspacePath string) (*Store, error) {
-	driver := bcdb.SharedDriver()
-	if driver == "timescale" {
-		shared := bcdb.Shared()
-		if shared == nil {
-			return nil, fmt.Errorf("cost store: shared timescale connection is nil")
-		}
-		pg := NewPostgresStore(shared)
+// OpenStore opens the cost store on the given workspace database. The
+// handle is borrowed: callers (typically the per-workspace db registry)
+// own its lifecycle. When d is nil (workspace DB unavailable), the store
+// falls back to a dedicated costs.db under workspacePath.
+func OpenStore(d *bcdb.DB, driver string, workspacePath string) (*Store, error) {
+	if d != nil && driver == "timescale" {
+		pg := NewPostgresStore(d.DB)
 		if schemaErr := pg.InitSchema(); schemaErr != nil {
 			return nil, fmt.Errorf("cost store: init timescale schema: %w", schemaErr)
 		}
@@ -262,28 +259,27 @@ func OpenStore(workspacePath string) (*Store, error) {
 		return &Store{backend: pg}, nil
 	}
 
-	// SQLite via shared DB — fall back to dedicated costs.db if shared DB is unavailable.
-	shared := bcdb.SharedWrapped()
-	if shared == nil {
-		log.Info("cost store: shared DB unavailable, falling back to dedicated costs.db")
+	// SQLite via workspace DB — fall back to dedicated costs.db if unavailable.
+	if d == nil {
+		log.Info("cost store: workspace DB unavailable, falling back to dedicated costs.db")
 		s := NewStore(workspacePath)
 		if err := s.Open(); err != nil {
 			return nil, fmt.Errorf("cost store: open dedicated costs.db: %w", err)
 		}
 		return s, nil
 	}
-	s := &Store{db: shared}
-	if err := s.initSchema(shared.DB); err != nil {
+	s := &Store{db: d}
+	if err := s.initSchema(d.DB); err != nil {
 		return nil, fmt.Errorf("cost store: init sqlite schema: %w", err)
 	}
-	if err := initImporterSchema(shared.DB); err != nil {
+	if err := initImporterSchema(d.DB); err != nil {
 		return nil, fmt.Errorf("cost store: init importer schema: %w", err)
 	}
 	return s, nil
 }
 
-// Close is a no-op — the shared DB is owned by the caller.
-// The Postgres backend also uses the shared connection now.
+// Close is a no-op — the workspace DB is owned by the caller.
+// The Postgres backend also uses the workspace connection.
 func (s *Store) Close() error {
 	return nil
 }
