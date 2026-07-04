@@ -2,33 +2,31 @@ package handlers
 
 import (
 	"net/http"
+	"path/filepath"
 	"sort"
 	"time"
 
 	"github.com/rpuneet/mycel/pkg/cost"
-	"github.com/rpuneet/mycel/pkg/workspace"
 )
 
-// GlobalCostsHandler serves cross-workspace cost rollups from the
-// user-global ledger at ~/.mycel/costs.db.
+// GlobalCostsHandler serves per-repo cost rollups from the user-global
+// ledger.
 //
 // GET /api/global/costs?start=<RFC3339|YYYY-MM-DD>&groupBy=workspace|project
 //
-//   - Mount OUTSIDE WorkspaceScope so the response spans every workspace.
 //   - `start` defaults to 30 days ago when omitted.
 //   - `end` is not honored because the underlying store only accepts a
 //     lower bound (`since`); callers that need a window should narrow on
 //     the client. TODO(#250): widen pkg/cost to accept a full range.
 type GlobalCostsHandler struct {
-	store    *cost.Store
-	registry *workspace.Registry
+	store *cost.Store
 }
 
 // NewGlobalCostsHandler builds a handler. If store is nil the endpoint
 // returns 503, keeping production test harnesses that don't wire a
 // global ledger from panicking.
-func NewGlobalCostsHandler(store *cost.Store, reg *workspace.Registry) *GlobalCostsHandler {
-	return &GlobalCostsHandler{store: store, registry: reg}
+func NewGlobalCostsHandler(store *cost.Store) *GlobalCostsHandler {
+	return &GlobalCostsHandler{store: store}
 }
 
 // CostRow is one row of the /api/global/costs response.
@@ -129,20 +127,14 @@ func (h *GlobalCostsHandler) rollup(r *http.Request, groupBy string, since time.
 	return out, nil
 }
 
-// resolveLabel maps a repo path to its registered name, falling back
-// to the path itself when no registry entry is found. Legacy rows
-// keyed by workspace id still resolve through entry.ID.
+// resolveLabel maps a repo path to a human-readable label: the repo
+// directory basename, or the path itself when it has no useful base.
 func (h *GlobalCostsHandler) resolveLabel(repo string) string {
-	if h.registry == nil || repo == "" {
+	if repo == "" {
 		return repo
 	}
-	for _, entry := range h.registry.List() {
-		if entry.Path == repo || entry.ID == repo {
-			if entry.Name != "" {
-				return entry.Name
-			}
-			return entry.Path
-		}
+	if base := filepath.Base(repo); base != "." && base != string(filepath.Separator) {
+		return base
 	}
 	return repo
 }

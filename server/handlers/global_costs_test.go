@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/rpuneet/mycel/pkg/cost"
-	"github.com/rpuneet/mycel/pkg/workspace"
 )
 
 func newTestGlobalStore(t *testing.T) *cost.Store {
@@ -32,7 +31,7 @@ func seedCost(t *testing.T, store *cost.Store, wsID, agentID string, usd float64
 }
 
 func TestGlobalCosts_NilStoreReturns503(t *testing.T) {
-	h := NewGlobalCostsHandler(nil, nil)
+	h := NewGlobalCostsHandler(nil)
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/global/costs", nil)
 	h.ServeHTTP(rec, req)
@@ -42,7 +41,7 @@ func TestGlobalCosts_NilStoreReturns503(t *testing.T) {
 }
 
 func TestGlobalCosts_MethodNotAllowed(t *testing.T) {
-	h := NewGlobalCostsHandler(newTestGlobalStore(t), nil)
+	h := NewGlobalCostsHandler(newTestGlobalStore(t))
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/api/global/costs", nil)
 	h.ServeHTTP(rec, req)
@@ -52,7 +51,7 @@ func TestGlobalCosts_MethodNotAllowed(t *testing.T) {
 }
 
 func TestGlobalCosts_InvalidGroupBy(t *testing.T) {
-	h := NewGlobalCostsHandler(newTestGlobalStore(t), nil)
+	h := NewGlobalCostsHandler(newTestGlobalStore(t))
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/global/costs?groupBy=garbage", nil)
 	h.ServeHTTP(rec, req)
@@ -62,7 +61,7 @@ func TestGlobalCosts_InvalidGroupBy(t *testing.T) {
 }
 
 func TestGlobalCosts_InvalidStart(t *testing.T) {
-	h := NewGlobalCostsHandler(newTestGlobalStore(t), nil)
+	h := NewGlobalCostsHandler(newTestGlobalStore(t))
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/global/costs?start=not-a-date", nil)
 	h.ServeHTTP(rec, req)
@@ -73,18 +72,12 @@ func TestGlobalCosts_InvalidStart(t *testing.T) {
 
 func TestGlobalCosts_GroupByWorkspace(t *testing.T) {
 	store := newTestGlobalStore(t)
-	seedCost(t, store, "ws-alpha", "a1", 1.25)
-	seedCost(t, store, "ws-alpha", "a2", 0.50)
-	seedCost(t, store, "ws-beta", "a3", 2.00)
+	seedCost(t, store, "/repos/alpha", "a1", 1.25)
+	seedCost(t, store, "/repos/alpha", "a2", 0.50)
+	seedCost(t, store, "/repos/beta", "a3", 2.00)
 	seedCost(t, store, "", "orphan", 0.10) // unattributed
 
-	// Build a registry so ws-alpha / ws-beta resolve to nice labels.
-	reg := &workspace.Registry{Workspaces: []workspace.RegistryEntry{
-		{ID: "ws-alpha", Name: "Alpha", Path: "/alpha"},
-		{ID: "ws-beta", Name: "Beta", Path: "/beta"},
-	}}
-
-	h := NewGlobalCostsHandler(store, reg)
+	h := NewGlobalCostsHandler(store)
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/global/costs", nil)
 	h.ServeHTTP(rec, req)
@@ -102,16 +95,16 @@ func TestGlobalCosts_GroupByWorkspace(t *testing.T) {
 	if len(rep.Rows) != 3 {
 		t.Fatalf("rows = %d, want 3; got %+v", len(rep.Rows), rep.Rows)
 	}
-	// Highest total first — ws-beta at 2.00
-	if rep.Rows[0].Key != "ws-beta" || rep.Rows[0].Label != "Beta" {
-		t.Errorf("first row = %+v, want Beta", rep.Rows[0])
+	// Highest total first — /repos/beta at 2.00, labeled by basename.
+	if rep.Rows[0].Key != "/repos/beta" || rep.Rows[0].Label != "beta" {
+		t.Errorf("first row = %+v, want /repos/beta labeled beta", rep.Rows[0])
 	}
 	if rep.Rows[0].Total != 2.00 {
 		t.Errorf("first row total = %v, want 2.00", rep.Rows[0].Total)
 	}
-	// ws-alpha second: 1.25 + 0.50 = 1.75
-	if rep.Rows[1].Key != "ws-alpha" || rep.Rows[1].Total != 1.75 {
-		t.Errorf("second row = %+v, want ws-alpha at 1.75", rep.Rows[1])
+	// /repos/alpha second: 1.25 + 0.50 = 1.75
+	if rep.Rows[1].Key != "/repos/alpha" || rep.Rows[1].Total != 1.75 {
+		t.Errorf("second row = %+v, want /repos/alpha at 1.75", rep.Rows[1])
 	}
 	// Unattributed last
 	if rep.Rows[2].Key != "unattributed" || rep.Rows[2].Label != "Unattributed" {
@@ -121,14 +114,10 @@ func TestGlobalCosts_GroupByWorkspace(t *testing.T) {
 
 func TestGlobalCosts_GroupByProject(t *testing.T) {
 	store := newTestGlobalStore(t)
-	seedCost(t, store, "ws-alpha", "a1", 1.00)
-	seedCost(t, store, "ws-beta", "a2", 3.00)
+	seedCost(t, store, "/repos/alpha", "a1", 1.00)
+	seedCost(t, store, "/repos/beta", "a2", 3.00)
 
-	reg := &workspace.Registry{Workspaces: []workspace.RegistryEntry{
-		{ID: "ws-alpha", Name: "Alpha", Path: "/alpha"},
-		{ID: "ws-beta", Name: "Beta", Path: "/beta"},
-	}}
-	h := NewGlobalCostsHandler(store, reg)
+	h := NewGlobalCostsHandler(store)
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/global/costs?groupBy=project", nil)
 	h.ServeHTTP(rec, req)
@@ -146,9 +135,9 @@ func TestGlobalCosts_GroupByProject(t *testing.T) {
 	if len(rep.Rows) != 2 {
 		t.Fatalf("rows = %d, want 2; got %+v", len(rep.Rows), rep.Rows)
 	}
-	// Rows sorted by total desc: Beta first
-	if rep.Rows[0].Label != "Beta" || rep.Rows[0].Total != 3.00 {
-		t.Errorf("first row = %+v, want Beta at 3.00", rep.Rows[0])
+	// Rows sorted by total desc: beta first (basename label)
+	if rep.Rows[0].Label != "beta" || rep.Rows[0].Total != 3.00 {
+		t.Errorf("first row = %+v, want beta at 3.00", rep.Rows[0])
 	}
 }
 
@@ -159,7 +148,7 @@ func TestGlobalCosts_StartBoundsRespected(t *testing.T) {
 	// Start far in the future — no records should match. Build a proper
 	// url.Values so the '+' offset doesn't get decoded as a space.
 	future := time.Now().Add(1 * time.Hour).UTC().Format(time.RFC3339)
-	h := NewGlobalCostsHandler(store, nil)
+	h := NewGlobalCostsHandler(store)
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/global/costs", nil)
 	q := req.URL.Query()

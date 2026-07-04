@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync/atomic"
 
 	"github.com/rpuneet/mycel/pkg/log"
 )
@@ -31,19 +32,49 @@ func httpError(w http.ResponseWriter, msg string, code int) {
 	_ = json.NewEncoder(w).Encode(map[string]string{"error": msg}) //nolint:errcheck // best-effort
 }
 
+// degradedInfo holds the service-name → reason map recorded at
+// service-construction time (Services.Degraded). Installed once at server
+// boot via SetDegraded; read lock-free on the 503 path.
+var degradedInfo atomic.Pointer[map[string]string]
+
+// SetDegraded installs the degradation-reason map surfaced by
+// serviceUnavailable. Passing nil clears it (useful for tests).
+func SetDegraded(m map[string]string) {
+	if m == nil {
+		degradedInfo.Store(nil)
+		return
+	}
+	degradedInfo.Store(&m)
+}
+
 // serviceUnavailable writes a 503 whose message includes the degradation
-// reason recorded at service-construction time (WorkspaceView.Degraded),
-// when one is available. Falls back to the generic message otherwise so
-// users see "notify service not available: notify store unavailable: …"
+// reason recorded at service-construction time (Services.Degraded), when
+// one is available. Falls back to the generic message otherwise so users
+// see "notify service not available: notify store unavailable: …"
 // instead of a bare 503.
-func serviceUnavailable(w http.ResponseWriter, r *http.Request, service, fallback string) {
+func serviceUnavailable(w http.ResponseWriter, _ *http.Request, service, fallback string) {
 	msg := fallback
-	if view := WorkspaceFromContext(r.Context()); view != nil {
-		if reason, ok := view.Degraded[service]; ok && reason != "" {
+	if m := degradedInfo.Load(); m != nil {
+		if reason, ok := (*m)[service]; ok && reason != "" {
 			msg = fallback + ": " + reason
 		}
 	}
 	httpError(w, msg, http.StatusServiceUnavailable)
+}
+
+// decodeJSONBody decodes r.Body into dst, tolerating an empty body (all
+// fields zero). Unknown fields are rejected.
+func decodeJSONBody(r *http.Request, dst any) error {
+	defer func() { _ = r.Body.Close() }() //nolint:errcheck
+	dec := json.NewDecoder(r.Body)
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(dst); err != nil {
+		if err == io.EOF {
+			return nil
+		}
+		return err
+	}
+	return nil
 }
 
 // httpInternalError logs the detailed error server-side and returns a generic

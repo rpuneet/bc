@@ -43,8 +43,8 @@ type agentConfigDTO struct { //nolint:govet // field order matches JSON/API cont
 
 // getAgentConfig handles GET /api/agents/{name}/config.
 func (h *AgentHandler) getAgentConfig(w http.ResponseWriter, r *http.Request, name string) {
-	svc := h.resolveSvc(r)
-	ws := h.resolveWS(r)
+	svc := h.svc
+	ws := h.ws
 	a, err := svc.Get(r.Context(), name)
 	if err != nil {
 		httpError(w, err.Error(), http.StatusNotFound)
@@ -88,8 +88,8 @@ func (h *AgentHandler) getAgentConfig(w http.ResponseWriter, r *http.Request, na
 
 // patchAgentConfig handles PATCH /api/agents/{name}/config.
 func (h *AgentHandler) patchAgentConfig(w http.ResponseWriter, r *http.Request, name string) {
-	svc := h.resolveSvc(r)
-	ws := h.resolveWS(r)
+	svc := h.svc
+	ws := h.ws
 	a, err := svc.Get(r.Context(), name)
 	if err != nil {
 		httpError(w, err.Error(), http.StatusNotFound)
@@ -168,8 +168,8 @@ func (h *AgentHandler) forkAgent(w http.ResponseWriter, r *http.Request, sourceN
 		return
 	}
 
-	svc := h.resolveSvc(r)
-	ws := h.resolveWS(r)
+	svc := h.svc
+	ws := h.ws
 	newAgent, err := svc.ForkAgent(r.Context(), sourceName, req.Name)
 	if err != nil {
 		httpError(w, err.Error(), http.StatusBadRequest)

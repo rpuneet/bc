@@ -18,20 +18,12 @@ import (
 )
 
 // fakeResolver is a tiny WorkspaceResolver that always returns the
-// same root. Sufficient for the handler's lookup logic since we
-// don't exercise multi-workspace scoping through the middleware here.
+// same root.
 type fakeResolver struct {
-	byID map[string]string
 	root string
 }
 
 func (f *fakeResolver) ActiveRoot() string { return f.root }
-func (f *fakeResolver) RootByID(id string) string {
-	if v, ok := f.byID[id]; ok {
-		return v
-	}
-	return ""
-}
 
 // codeHarness wires a CodeHandler on an httptest server rooted at tmp.
 func codeHarness(t *testing.T) (*httptest.Server, string) {

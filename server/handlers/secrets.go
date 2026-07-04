@@ -19,14 +19,6 @@ func NewSecretHandler(store *secret.Store) *SecretHandler {
 	return &SecretHandler{store: store}
 }
 
-// resolveStore returns the context-scoped secret store with closure fallback.
-func (h *SecretHandler) resolveStore(r *http.Request) *secret.Store {
-	if view := WorkspaceFromContext(r.Context()); view != nil && view.Secrets != nil {
-		return view.Secrets
-	}
-	return h.store
-}
-
 // Register mounts secret routes on mux.
 func (h *SecretHandler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/secrets", h.list)
@@ -34,7 +26,7 @@ func (h *SecretHandler) Register(mux *http.ServeMux) {
 }
 
 func (h *SecretHandler) list(w http.ResponseWriter, r *http.Request) {
-	store := h.resolveStore(r)
+	store := h.store
 	switch r.Method {
 	case http.MethodGet:
 		secrets, err := store.List()
@@ -80,7 +72,7 @@ func (h *SecretHandler) list(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *SecretHandler) byName(w http.ResponseWriter, r *http.Request) {
-	store := h.resolveStore(r)
+	store := h.store
 	name := strings.TrimPrefix(r.URL.Path, "/api/secrets/")
 	if name == "" {
 		httpError(w, "secret name required", http.StatusBadRequest)

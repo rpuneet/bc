@@ -1576,6 +1576,11 @@ func writeSessionIDFile(stateDir, agentName, sessionID string) {
 		log.Warn("refusing to write session_id for unsafe agent name", "agent", agentName)
 		return
 	}
+	stateDir = filepath.Clean(stateDir)
+	if strings.Contains(stateDir, "..") || !filepath.IsLocal(agentName) {
+		log.Warn("refusing to write session_id for unsafe path", "agent", agentName)
+		return
+	}
 	agentDir := filepath.Join(stateDir, "agents", agentName)
 	if err := os.MkdirAll(agentDir, 0750); err != nil {
 		log.Warn("failed to create agent dir for session_id", "error", err)
@@ -1749,6 +1754,14 @@ func (m *Manager) DeleteAgentWithOptions(ctx context.Context, name string, opts 
 	logFile := agent.LogFile
 	m.mu.RUnlock()
 
+	// Deletion recursively removes directories built from these paths —
+	// never let a traversal sequence reach os.RemoveAll.
+	workspacePath = filepath.Clean(workspacePath)
+	stateDir = filepath.Clean(stateDir)
+	if strings.Contains(workspacePath, "..") || strings.Contains(stateDir, "..") {
+		return fmt.Errorf("refusing to delete agent %s: unsafe workspace paths", name)
+	}
+
 	// Phase 2: per-agent lock — slow I/O (kill session, remove container, git cleanup)
 	agentLock := m.getAgentLock(name)
 	agentLock.Lock()
@@ -1838,6 +1851,11 @@ func (m *Manager) RenameAgent(ctx context.Context, oldName, newName string) erro
 	if !IsValidAgentName(newName) {
 		return fmt.Errorf("agent name %q is invalid: use letters, numbers, dash, underscore (max %d chars)", newName, MaxAgentNameLength)
 	}
+	// Renaming moves directories derived from these names — never let a
+	// traversal sequence reach the filesystem operations below.
+	if !filepath.IsLocal(oldName) || !filepath.IsLocal(newName) {
+		return fmt.Errorf("invalid agent name")
+	}
 
 	// Phase 1: validate under global lock, snapshot agent
 	m.mu.Lock()
@@ -1858,6 +1876,19 @@ func (m *Manager) RenameAgent(ctx context.Context, oldName, newName string) erro
 	rt := m.runtimeForAgent(oldName)
 	m.mu.Unlock()
 
+	// Snapshot and sanitize the paths the rename moves — never let a
+	// traversal sequence reach the os.Rename/os.MkdirAll calls below.
+	wsPath := filepath.Clean(m.workspacePath)
+	stateDir := filepath.Clean(m.stateDir)
+	if strings.Contains(wsPath, "..") || strings.Contains(stateDir, "..") {
+		return fmt.Errorf("rename: unsafe workspace paths")
+	}
+	oldPath := m.worktreeMgr.Path(oldName)
+	newPath := m.worktreeMgr.Path(newName)
+	if strings.Contains(oldPath, "..") || strings.Contains(newPath, "..") {
+		return fmt.Errorf("rename: unsafe worktree paths")
+	}
+
 	// Phase 2: slow I/O under per-agent lock
 	agentLock := m.getAgentLock(oldName)
 	agentLock.Lock()
@@ -1871,8 +1902,6 @@ func (m *Manager) RenameAgent(ctx context.Context, oldName, newName string) erro
 	}
 
 	// Move worktree directory to preserve content instead of Remove+Create
-	oldPath := m.worktreeMgr.Path(oldName)
-	newPath := m.worktreeMgr.Path(newName)
 	var newWorktreeDir string
 	if err := os.MkdirAll(filepath.Dir(newPath), 0750); err != nil {
 		log.Warn("rename: failed to create new agent dir", "error", err)
@@ -1895,7 +1924,6 @@ func (m *Manager) RenameAgent(ctx context.Context, oldName, newName string) erro
 	// Regenerate .mcp.json with the new agent name so MCP SSE URLs
 	// point to /_mcp/{newName}/sse instead of /_mcp/{oldName}/sse.
 	if newWorktreeDir != "" && agent.Role != "" {
-		wsPath := m.workspacePath
 		agentRuntime := agent.RuntimeBackend
 		if agentRuntime == "" {
 			agentRuntime = "tmux"
@@ -1906,7 +1934,7 @@ func (m *Manager) RenameAgent(ctx context.Context, oldName, newName string) erro
 	}
 
 	// Rename log file
-	oldLogDir := filepath.Join(workspaceStateDir(m.workspacePath), "logs")
+	oldLogDir := filepath.Join(workspaceStateDir(wsPath), "logs")
 	oldLogFile := filepath.Join(oldLogDir, oldName+".log")
 	newLogFile := filepath.Join(oldLogDir, newName+".log")
 	if err := os.Rename(oldLogFile, newLogFile); err != nil && !os.IsNotExist(err) {
@@ -1914,8 +1942,8 @@ func (m *Manager) RenameAgent(ctx context.Context, oldName, newName string) erro
 	}
 
 	// Rename agent state directory
-	oldStateDir := filepath.Join(m.stateDir, "agents", oldName)
-	newStateDir := filepath.Join(m.stateDir, "agents", newName)
+	oldStateDir := filepath.Join(stateDir, "agents", oldName)
+	newStateDir := filepath.Join(stateDir, "agents", newName)
 	if err := os.Rename(oldStateDir, newStateDir); err != nil && !os.IsNotExist(err) {
 		log.Warn("rename: failed to rename state dir", "error", err)
 	}
@@ -2512,6 +2540,31 @@ func (m *Manager) LoadState() error {
 	defer m.mu.Unlock()
 	m.agents = agents
 	return nil
+}
+
+// RepoCounts returns the number of agents per distinct repo path across
+// the whole global agents table (not just this manager's repo). Falls
+// back to the in-memory agents when no store is open (tests / standalone
+// managers). Errors degrade to the in-memory view — the caller renders a
+// list, not a diagnosis.
+func (m *Manager) RepoCounts(ctx context.Context) map[string]int {
+	m.mu.RLock()
+	store := m.store
+	m.mu.RUnlock()
+	if store != nil {
+		if counts, err := store.RepoCounts(ctx); err == nil {
+			return counts
+		}
+	}
+	counts := make(map[string]int)
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	for _, a := range m.agents {
+		if a.Repo != "" {
+			counts[a.Repo]++
+		}
+	}
+	return counts
 }
 
 // Runtime returns the default runtime backend for session management.

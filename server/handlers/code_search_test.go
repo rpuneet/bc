@@ -39,8 +39,7 @@ func writeSearchCorpus(t *testing.T, root string) {
 // touching the registry.
 type searchResolver struct{ root string }
 
-func (s *searchResolver) ActiveRoot() string       { return s.root }
-func (s *searchResolver) RootByID(_ string) string { return s.root }
+func (s *searchResolver) ActiveRoot() string { return s.root }
 
 func newSearchServer(t *testing.T) (*httptest.Server, string) {
 	t.Helper()

@@ -226,6 +226,28 @@ func (s *SQLiteStore) LoadByRepo(ctx context.Context, repo string) (map[string]*
 	return agents, rows.Err()
 }
 
+// RepoCounts returns the number of non-deleted agents per distinct
+// non-empty repo path, across all repos. Backs GET /api/repos.
+func (s *SQLiteStore) RepoCounts(ctx context.Context) (map[string]int, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT repo, COUNT(*) FROM agents WHERE deleted_at IS NULL AND repo != '' GROUP BY repo`)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	counts := make(map[string]int)
+	for rows.Next() {
+		var repo string
+		var n int
+		if scanErr := rows.Scan(&repo, &n); scanErr != nil {
+			return nil, scanErr
+		}
+		counts[repo] = n
+	}
+	return counts, rows.Err()
+}
+
 // LoadNames returns the names of every non-deleted agent in the global
 // table, across all repos. Used for global-uniqueness checks and
 // collision-free name generation.

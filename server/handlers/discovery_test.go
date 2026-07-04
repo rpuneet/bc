@@ -16,27 +16,19 @@ func TestDiscoverLocalHandler(t *testing.T) {
 	tmp := t.TempDir()
 	t.Setenv("HOME", tmp)
 	t.Setenv("MYCEL_HOME", filepath.Join(tmp, ".mycel"))
-	// Build a fake filesystem: one registered repo, one new repo.
-	registered := filepath.Join(tmp, "src", "registered")
-	fresh := filepath.Join(tmp, "src", "fresh")
-	for _, p := range []string{registered, fresh} {
-		if err := os.MkdirAll(filepath.Join(p, ".git"), 0o750); err != nil {
+	// Build a fake filesystem: two git repos under one root.
+	for _, name := range []string{"alpha", "fresh"} {
+		if err := os.MkdirAll(filepath.Join(tmp, "src", name, ".git"), 0o750); err != nil {
 			t.Fatalf("mkdir: %v", err)
 		}
 	}
 
-	reg, err := workspace.LoadRegistry()
-	if err != nil {
-		t.Fatalf("LoadRegistry: %v", err)
-	}
-	_ = reg.RegisterWithAlias(registered, "registered", "")
-
-	h := NewDiscoveryHandler(reg)
+	h := NewDiscoveryHandler()
 	mux := http.NewServeMux()
 	h.Register(mux)
 
 	body, _ := json.Marshal(map[string]any{"root": filepath.Join(tmp, "src"), "depth": 2})
-	req := httptest.NewRequest(http.MethodPost, "/api/workspaces/discover/local", bytes.NewReader(body))
+	req := httptest.NewRequest(http.MethodPost, "/api/repos/discover/local", bytes.NewReader(body))
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
 
@@ -52,26 +44,13 @@ func TestDiscoverLocalHandler(t *testing.T) {
 	if len(response.Candidates) != 2 {
 		t.Fatalf("candidates = %d, want 2", len(response.Candidates))
 	}
-	var sawRegistered bool
-	for _, c := range response.Candidates {
-		if filepath.Base(c.Path) == "registered" {
-			sawRegistered = true
-			if !c.AlreadyRegistered {
-				t.Error("registered repo not marked already_registered")
-			}
-		}
-	}
-	if !sawRegistered {
-		t.Error("expected registered candidate in response")
-	}
 }
 
 func TestDiscoverLocalMissingRoot(t *testing.T) {
-	reg := &workspace.Registry{}
-	h := NewDiscoveryHandler(reg)
+	h := NewDiscoveryHandler()
 	mux := http.NewServeMux()
 	h.Register(mux)
-	req := httptest.NewRequest(http.MethodPost, "/api/workspaces/discover/local", bytes.NewReader([]byte(`{}`)))
+	req := httptest.NewRequest(http.MethodPost, "/api/repos/discover/local", bytes.NewReader([]byte(`{}`)))
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
 	if rec.Code != http.StatusBadRequest {
@@ -82,8 +61,7 @@ func TestDiscoverLocalMissingRoot(t *testing.T) {
 func TestGithubAuthStatusDisconnected(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 
-	reg := &workspace.Registry{}
-	h := NewDiscoveryHandler(reg)
+	h := NewDiscoveryHandler()
 	mux := http.NewServeMux()
 	h.Register(mux)
 
@@ -120,8 +98,7 @@ func TestGithubAuthSetAndDelete(t *testing.T) {
 	restore := workspace.SetGithubAPIBase(srv.URL)
 	defer restore()
 
-	reg := &workspace.Registry{}
-	h := NewDiscoveryHandler(reg)
+	h := NewDiscoveryHandler()
 	mux := http.NewServeMux()
 	h.Register(mux)
 
@@ -167,12 +144,11 @@ func TestGithubAuthSetAndDelete(t *testing.T) {
 
 func TestDiscoverGithubUnauthenticated(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
-	reg := &workspace.Registry{}
-	h := NewDiscoveryHandler(reg)
+	h := NewDiscoveryHandler()
 	mux := http.NewServeMux()
 	h.Register(mux)
 
-	req := httptest.NewRequest(http.MethodPost, "/api/workspaces/discover/github", bytes.NewReader([]byte(`{}`)))
+	req := httptest.NewRequest(http.MethodPost, "/api/repos/discover/github", bytes.NewReader([]byte(`{}`)))
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
 
@@ -182,12 +158,11 @@ func TestDiscoverGithubUnauthenticated(t *testing.T) {
 }
 
 func TestCloneValidatesInput(t *testing.T) {
-	reg := &workspace.Registry{}
-	h := NewDiscoveryHandler(reg)
+	h := NewDiscoveryHandler()
 	mux := http.NewServeMux()
 	h.Register(mux)
 
-	req := httptest.NewRequest(http.MethodPost, "/api/workspaces/clone", bytes.NewReader([]byte(`{"url":""}`)))
+	req := httptest.NewRequest(http.MethodPost, "/api/repos/clone", bytes.NewReader([]byte(`{"url":""}`)))
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
 

@@ -9,25 +9,24 @@ import (
 	"github.com/rpuneet/mycel/pkg/workspace"
 )
 
-// DiscoveryHandler exposes the workspace-discovery endpoints proposed in
-// §4.4: local filesystem scan, GitHub repo list, clone + register, plus
+// DiscoveryHandler exposes the repo-discovery scanners used by the web
+// folder picker: local filesystem scan, GitHub repo list, clone, plus
 // the small GitHub auth surface (/api/auth/github) used to authorize the
-// repo-list call.
-type DiscoveryHandler struct {
-	registry *workspace.Registry
+// repo-list call. Discovery is list-only — adding a repo to mycel is done
+// by creating an agent with that repo path, so nothing is registered here.
+type DiscoveryHandler struct{}
+
+// NewDiscoveryHandler constructs the handler.
+func NewDiscoveryHandler() *DiscoveryHandler {
+	return &DiscoveryHandler{}
 }
 
-// NewDiscoveryHandler constructs the handler bound to a registry.
-func NewDiscoveryHandler(registry *workspace.Registry) *DiscoveryHandler {
-	return &DiscoveryHandler{registry: registry}
-}
-
-// Register mounts all /api/workspaces/discover/* and /api/auth/github
+// Register mounts all /api/repos/discover/* and /api/auth/github
 // routes on mux.
 func (h *DiscoveryHandler) Register(mux *http.ServeMux) {
-	mux.HandleFunc("/api/workspaces/discover/local", h.discoverLocal)
-	mux.HandleFunc("/api/workspaces/discover/github", h.discoverGithub)
-	mux.HandleFunc("/api/workspaces/clone", h.clone)
+	mux.HandleFunc("/api/repos/discover/local", h.discoverLocal)
+	mux.HandleFunc("/api/repos/discover/github", h.discoverGithub)
+	mux.HandleFunc("/api/repos/clone", h.clone)
 	mux.HandleFunc("/api/auth/github", h.githubAuth)
 }
 
@@ -58,19 +57,6 @@ func (h *DiscoveryHandler) discoverLocal(w http.ResponseWriter, r *http.Request)
 		http.Error(w, `{"error":"scan failed: `+err.Error()+`"}`, http.StatusBadRequest)
 		return
 	}
-	// Annotate with "already_registered" based on the registry.
-	seen := map[string]bool{}
-	if h.registry != nil {
-		for _, entry := range h.registry.List() {
-			seen[entry.Path] = true
-		}
-	}
-	for i := range cands {
-		abs, _ := filepath.Abs(cands[i].Path) //nolint:errcheck
-		if seen[abs] {
-			cands[i].AlreadyRegistered = true
-		}
-	}
 	writeJSON(w, http.StatusOK, map[string]any{"candidates": cands})
 }
 
@@ -100,7 +86,8 @@ func (h *DiscoveryHandler) discoverGithub(w http.ResponseWriter, r *http.Request
 	writeJSON(w, http.StatusOK, map[string]any{"repos": repos})
 }
 
-// clone clones a URL into target and registers the result.
+// clone clones a URL into target. The result is NOT registered anywhere —
+// the caller creates an agent with the returned path to bring the repo in.
 //
 // POST body: {"url": "...", "target": "/abs/parent", "name": "optional"}
 func (h *DiscoveryHandler) clone(w http.ResponseWriter, r *http.Request) {
@@ -129,22 +116,7 @@ func (h *DiscoveryHandler) clone(w http.ResponseWriter, r *http.Request) {
 	if name == "" {
 		name = filepath.Base(dest)
 	}
-	var id string
-	if h.registry != nil {
-		if rErr := h.registry.RegisterWithAlias(dest, name, ""); rErr != nil {
-			http.Error(w, `{"error":"register failed: `+rErr.Error()+`"}`, http.StatusConflict)
-			return
-		}
-		if sErr := h.registry.Save(); sErr != nil {
-			httpInternalError(w, "save registry", sErr)
-			return
-		}
-		if entry := h.registry.Find(dest); entry != nil {
-			id = entry.ID
-		}
-	}
 	writeJSON(w, http.StatusCreated, map[string]any{
-		"id":   id,
 		"path": dest,
 		"name": name,
 	})

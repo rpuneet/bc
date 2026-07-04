@@ -6,7 +6,7 @@ import (
 )
 
 // TestMain pins MYCEL_HOME to a throwaway dir so the single global
-// database created by workspace Init/Load and BuildWorkspaceServices
+// database created by workspace Init/Load and BuildServices
 // in tests never touches the developer's real ~/.mycel. Tests that
 // need a specific home still override it per-test via t.Setenv.
 func TestMain(m *testing.M) {

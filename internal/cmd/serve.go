@@ -25,14 +25,13 @@ import (
 )
 
 // RunServer starts the mycel server (formerly bcd) in the foreground.
-// It loads the workspace registry, constructs shared Globals, builds the
-// launch workspace's WorkspaceServices via the server-side factory, wires
-// handlers, and blocks until the context is canceled or a signal is
-// received.
+// bcd is single-tenant: it constructs shared Globals, builds the one
+// Services bundle via server.BuildServices, wires handlers, and blocks
+// until the context is canceled or a signal is received.
 //
-// wsRoot may be empty: the server then boots without a launch workspace
-// and serves the web UI + global APIs only. Repos can be added later via
-// POST /api/workspaces (or the web UI), which builds services on demand.
+// wsRoot is the repo the daemon anchors on — new agents default their
+// repo to it. It may be empty: the server then boots against MycelHome
+// only (web UI + global APIs; no agent runtime until a repo exists).
 // A non-empty wsRoot that isn't initialized yet is bootstrapped in place
 // via workspace.Init — there is no separate init step.
 func RunServer(addr, wsRoot, corsOrigin, apiKey string) error {
@@ -51,29 +50,7 @@ func RunServer(addr, wsRoot, corsOrigin, apiKey string) error {
 			log.Info("workspace bootstrapped", "root", ws.RootDir, "state", ws.StateDir())
 		}
 	} else {
-		log.Info("no workspace yet — add a repo from the web UI, or run 'mycel up' inside a git repo")
-	}
-
-	// Multi-workspace registry: load (or create) the global registry at
-	// ~/.mycel/workspaces.json, auto-register the workspace bcd was booted
-	// against, and mark it active so legacy /api/ routes resolve correctly.
-	registry, regErr := bcworkspace.LoadRegistry()
-	if regErr != nil {
-		log.Warn("workspace registry unavailable — multi-workspace routes disabled", "error", regErr)
-		registry = nil
-	}
-	if registry != nil && ws != nil {
-		if rErr := registry.RegisterWithAlias(ws.RootDir, ws.Name(), ""); rErr != nil {
-			log.Warn("workspace registry: register current failed", "error", rErr)
-		}
-		if registry.GetActive() == nil {
-			if sErr := registry.SetActive(ws.RootDir); sErr != nil {
-				log.Warn("workspace registry: set active failed", "error", sErr)
-			}
-		}
-		if sErr := registry.Save(); sErr != nil {
-			log.Warn("workspace registry: save failed", "error", sErr)
-		}
+		log.Info("no repo yet — run 'mycel up' inside a git repo to anchor the daemon")
 	}
 
 	// The single global database (<MycelHome>/mycel.db) is opened lazily
@@ -112,9 +89,8 @@ func RunServer(addr, wsRoot, corsOrigin, apiKey string) error {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	// Global fan-in SSE hub — phase M6 will connect per-workspace hubs to
-	// this one so /api/events shows cross-workspace activity. For now it
-	// is the same hub server.New() receives.
+	// The one SSE hub — the bundle publishes into it and server.New()
+	// mounts it at /api/events.
 	globalHub := bcws.NewHub()
 	go globalHub.Run()
 	defer globalHub.Stop()
@@ -197,10 +173,9 @@ func RunServer(addr, wsRoot, corsOrigin, apiKey string) error {
 	}
 
 	globals := &server.Globals{
-		Registry:     registry,
 		Stats:        statsStore,
 		Deps:         depsRegistry,
-		GlobalHub:    globalHub,
+		Hub:          globalHub,
 		Templates:    templatesStore,
 		SecretsVault: globalVault,
 		MCPGlobal:    mcpGlobal,
@@ -208,39 +183,18 @@ func RunServer(addr, wsRoot, corsOrigin, apiKey string) error {
 		Build:        server.BuildInfo{Version: version, Commit: commit, BuiltAt: date},
 	}
 
-	// Build the launch workspace's services via the factory (when a
-	// launch workspace exists — a workspace-less boot skips this and
-	// builds services lazily as repos are added).
-	var launchSvc *server.WorkspaceServices
+	// Build the single service bundle. A repo-less boot serves the web UI
+	// + global APIs only; everything else reports degraded until the
+	// daemon is restarted inside a repo.
+	svc := server.Services{Stats: statsStore, Deps: depsRegistry}
 	if ws != nil {
-		var buildErr error
-		launchSvc, buildErr = server.BuildWorkspaceServices(ctx, globals, ws.RootDir)
+		built, buildErr := server.BuildServices(ctx, globals, ws.RootDir)
 		if buildErr != nil {
-			return fmt.Errorf("build launch workspace services: %w", buildErr)
+			return fmt.Errorf("build services: %w", buildErr)
 		}
-		defer launchSvc.Close() //nolint:errcheck // best-effort
-	}
-
-	// Per-workspace services manager. Phase M5: the factory builds real
-	// services for ANY registered workspace on first access. The launch
-	// workspace's bundle is reused from the eager build above.
-	wsMgr := server.NewWorkspaceManager(registry, func(ctx context.Context, w *bcworkspace.Workspace) (*server.WorkspaceServices, error) {
-		if ws != nil && launchSvc != nil && w.RootDir == ws.RootDir {
-			bcCodeServer.SetWorkspaceRoot(w.RootDir)
-			return launchSvc, nil
-		}
-		return server.BuildWorkspaceServices(ctx, globals, w.RootDir)
-	})
-	// WorkspaceManager is wired into Services by NewWithManager, not here.
-
-	if registry != nil {
-		if registry.GetActive() != nil {
-			if _, loadErr := wsMgr.LoadActive(ctx); loadErr != nil {
-				log.Warn("workspace manager: eager load active failed", "error", loadErr)
-			}
-		}
-		wsMgr.StartEvictionLoop(ctx)
-		defer wsMgr.Close() //nolint:errcheck // best-effort
+		defer built.Close() //nolint:errcheck // best-effort
+		bcCodeServer.SetWorkspaceRoot(ws.RootDir)
+		svc = *built
 	}
 
 	cfg := server.DefaultConfig()
@@ -263,10 +217,7 @@ func RunServer(addr, wsRoot, corsOrigin, apiKey string) error {
 		updateAgentHookPorts(ws, cfg.Addr)
 	}
 
-	// Phase M4: use the manager-based constructor. The server no longer
-	// needs a flat Services bundle to function — everything is resolved
-	// per-request via the manager + context.
-	srv := server.NewWithManager(cfg, wsMgr, globals, server.WebDist())
+	srv := server.New(cfg, svc, globalHub, server.WebDist())
 	return srv.Start(ctx)
 }
 

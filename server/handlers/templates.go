@@ -18,14 +18,6 @@ func NewTemplateHandler(store *template.Store) *TemplateHandler {
 	return &TemplateHandler{store: store}
 }
 
-// resolveStore returns the context-scoped template store with closure fallback.
-func (h *TemplateHandler) resolveStore(r *http.Request) *template.Store {
-	if view := WorkspaceFromContext(r.Context()); view != nil && view.Templates != nil {
-		return view.Templates
-	}
-	return h.store
-}
-
 // Register mounts template routes on mux.
 func (h *TemplateHandler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/templates", h.list)
@@ -72,7 +64,7 @@ type templateResponse struct {
 
 // list handles GET /api/templates and POST /api/templates.
 func (h *TemplateHandler) list(w http.ResponseWriter, r *http.Request) {
-	store := h.resolveStore(r)
+	store := h.store
 	switch r.Method {
 	case http.MethodGet:
 		templates, err := store.List()
@@ -122,7 +114,7 @@ func (h *TemplateHandler) list(w http.ResponseWriter, r *http.Request) {
 
 // byName handles GET/PUT/DELETE /api/templates/{name}.
 func (h *TemplateHandler) byName(w http.ResponseWriter, r *http.Request) {
-	store := h.resolveStore(r)
+	store := h.store
 	name := strings.TrimPrefix(r.URL.Path, "/api/templates/")
 	if name == "" {
 		httpError(w, "template name required", http.StatusBadRequest)

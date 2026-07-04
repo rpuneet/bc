@@ -1,11 +1,9 @@
 // build_services_db_test.go — single global database.
 //
-// BuildWorkspaceServices resolves the ONE global mycel.db for every
-// workspace: two workspaces built in the same process share the same
-// database file, and isolation comes from data keys (agent name, repo
-// path) rather than from separate files. A workspace-less daemon boot
-// must still be able to add a repo later and get a fully-online
-// service bundle (lazy open).
+// BuildServices resolves the ONE global mycel.db: bundles built for two
+// repos in the same process share the same database file, and isolation
+// comes from data keys (agent name, repo path) rather than from separate
+// files.
 package server
 
 import (
@@ -19,11 +17,11 @@ import (
 	bcdb "github.com/rpuneet/mycel/pkg/db"
 )
 
-// TestBuildWorkspaceServices_SharedGlobalDB asserts the single-database
+// TestBuildServices_SharedGlobalDB asserts the single-database
 // semantics: two workspaces in one process share mycel.db (channel
 // subscriptions are global), agents are isolated by repo key, and a
 // duplicate agent name across repos is rejected.
-func TestBuildWorkspaceServices_SharedGlobalDB(t *testing.T) {
+func TestBuildServices_SharedGlobalDB(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("MYCEL_HOME", home)
 	t.Setenv("BC_SECRET_PASSPHRASE", "unit-test")
@@ -34,12 +32,12 @@ func TestBuildWorkspaceServices_SharedGlobalDB(t *testing.T) {
 	gitInitDir(t, wsA)
 	gitInitDir(t, wsB)
 
-	svcA, err := BuildWorkspaceServices(ctx, &Globals{}, wsA)
+	svcA, err := BuildServices(ctx, &Globals{}, wsA)
 	if err != nil {
 		t.Fatalf("build A: %v", err)
 	}
 	defer svcA.Close() //nolint:errcheck
-	svcB, err := BuildWorkspaceServices(ctx, &Globals{}, wsB)
+	svcB, err := BuildServices(ctx, &Globals{}, wsB)
 	if err != nil {
 		t.Fatalf("build B: %v", err)
 	}
@@ -111,12 +109,11 @@ func TestBuildWorkspaceServices_SharedGlobalDB(t *testing.T) {
 	}
 }
 
-// TestBuildWorkspaceServices_LazyGlobalDB simulates the workspace-less
-// boot path: no database exists anywhere until a repo is added
-// (BuildWorkspaceServices is what POST /api/workspaces invokes), at
-// which point the global mycel.db is opened lazily and the stores come
-// up online rather than degraded.
-func TestBuildWorkspaceServices_LazyGlobalDB(t *testing.T) {
+// TestBuildServices_LazyGlobalDB simulates a fresh boot: no database
+// exists anywhere until BuildServices runs, at which point the global
+// mycel.db is opened lazily and the stores come up online rather than
+// degraded.
+func TestBuildServices_LazyGlobalDB(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("MYCEL_HOME", home)
 	t.Setenv("BC_SECRET_PASSPHRASE", "unit-test")
@@ -131,7 +128,7 @@ func TestBuildWorkspaceServices_LazyGlobalDB(t *testing.T) {
 		t.Fatal("mycel.db must not exist before services are built")
 	}
 
-	svc, err := BuildWorkspaceServices(ctx, &Globals{}, wsDir)
+	svc, err := BuildServices(ctx, &Globals{}, wsDir)
 	if err != nil {
 		t.Fatalf("build: %v", err)
 	}
@@ -142,7 +139,7 @@ func TestBuildWorkspaceServices_LazyGlobalDB(t *testing.T) {
 		"cron":   svc.Cron != nil,
 		"mcp":    svc.MCP != nil,
 		"tools":  svc.Tools != nil,
-		"events": svc.Events != nil,
+		"events": svc.EventLog != nil,
 	} {
 		if !present {
 			t.Errorf("%s store not online after lazy add (degraded: %v)", name, svc.Degraded)

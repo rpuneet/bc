@@ -27,28 +27,11 @@ func (h *CostHandler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/costs/", h.byResource)
 }
 
-// resolveStore returns the context-scoped cost store with closure fallback.
-// Phase M3: both paths resolve to the same store today.
-func (h *CostHandler) resolveStore(r *http.Request) *cost.Store {
-	if view := WorkspaceFromContext(r.Context()); view != nil && view.Costs != nil {
-		return view.Costs
-	}
-	return h.store
-}
-
-// resolveImporter returns the context-scoped cost importer with closure fallback.
-func (h *CostHandler) resolveImporter(r *http.Request) *cost.Importer {
-	if view := WorkspaceFromContext(r.Context()); view != nil && view.CostImporter != nil {
-		return view.CostImporter
-	}
-	return h.importer
-}
-
 func (h *CostHandler) summary(w http.ResponseWriter, r *http.Request) {
 	if !requireMethod(w, r, http.MethodGet) {
 		return
 	}
-	store := h.resolveStore(r)
+	store := h.store
 	s, err := store.WorkspaceSummary(r.Context())
 	if err != nil {
 		httpInternalError(w, "workspace summary", err)
@@ -58,7 +41,7 @@ func (h *CostHandler) summary(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *CostHandler) byResource(w http.ResponseWriter, r *http.Request) {
-	store := h.resolveStore(r)
+	store := h.store
 	parts := strings.SplitN(strings.TrimPrefix(r.URL.Path, "/api/costs/"), "/", 3)
 	resource := parts[0]
 
@@ -145,7 +128,7 @@ func (h *CostHandler) byResource(w http.ResponseWriter, r *http.Request) {
 
 // daily handles GET /api/costs/daily?days=30
 func (h *CostHandler) daily(w http.ResponseWriter, r *http.Request) {
-	store := h.resolveStore(r)
+	store := h.store
 	if !requireMethod(w, r, http.MethodGet) {
 		return
 	}
@@ -173,7 +156,7 @@ func (h *CostHandler) sync(w http.ResponseWriter, r *http.Request) {
 	if !requireMethod(w, r, http.MethodPost) {
 		return
 	}
-	importer := h.resolveImporter(r)
+	importer := h.importer
 	if importer == nil {
 		httpError(w, "importer not configured", http.StatusServiceUnavailable)
 		return
@@ -188,7 +171,7 @@ func (h *CostHandler) sync(w http.ResponseWriter, r *http.Request) {
 
 // budgets handles /api/costs/budgets and /api/costs/budgets/{scope}.
 func (h *CostHandler) budgets(w http.ResponseWriter, r *http.Request, parts []string) {
-	store := h.resolveStore(r)
+	store := h.store
 	// Determine scope from path: /api/costs/budgets or /api/costs/budgets/{scope}
 	scope := ""
 	if len(parts) >= 2 && parts[1] != "" {
@@ -277,7 +260,7 @@ func (h *CostHandler) budgets(w http.ResponseWriter, r *http.Request, parts []st
 
 // project handles GET /api/costs/project?lookback_days=30&project_days=30
 func (h *CostHandler) project(w http.ResponseWriter, r *http.Request) {
-	store := h.resolveStore(r)
+	store := h.store
 	if !requireMethod(w, r, http.MethodGet) {
 		return
 	}
@@ -303,7 +286,7 @@ func (h *CostHandler) project(w http.ResponseWriter, r *http.Request) {
 
 // agentDetail handles GET /api/costs/agent/{name}
 func (h *CostHandler) agentDetail(w http.ResponseWriter, r *http.Request, parts []string) {
-	store := h.resolveStore(r)
+	store := h.store
 	if !requireMethod(w, r, http.MethodGet) {
 		return
 	}

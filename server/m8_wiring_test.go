@@ -12,7 +12,7 @@ import (
 	bctemplate "github.com/rpuneet/mycel/pkg/template"
 )
 
-// TestM8WiringTemplatesGlobalOverride verifies that BuildWorkspaceServices
+// TestM8WiringTemplatesGlobalOverride verifies that BuildServices
 // hands back a Templates store whose List() sees a user-global template
 // unioned with a per-workspace override.
 func TestM8WiringTemplatesGlobalOverride(t *testing.T) {
@@ -37,7 +37,7 @@ func TestM8WiringTemplatesGlobalOverride(t *testing.T) {
 
 	wsDir := t.TempDir()
 	gitInitDir(t, wsDir)
-	svc, err := BuildWorkspaceServices(context.Background(), globals, wsDir)
+	svc, err := BuildServices(context.Background(), globals, wsDir)
 	if err != nil {
 		t.Fatalf("build: %v", err)
 	}
@@ -101,7 +101,7 @@ func TestM8WiringSecretsPreferGlobalVault(t *testing.T) {
 	globals := &Globals{SecretsVault: vault}
 	wsDir := t.TempDir()
 	gitInitDir(t, wsDir)
-	svc, err := BuildWorkspaceServices(context.Background(), globals, wsDir)
+	svc, err := BuildServices(context.Background(), globals, wsDir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -135,7 +135,7 @@ func TestM8WiringMCPGlobalView(t *testing.T) {
 	globals := &Globals{MCPGlobal: gs}
 	wsDir := t.TempDir()
 	gitInitDir(t, wsDir)
-	svc, err := BuildWorkspaceServices(context.Background(), globals, wsDir)
+	svc, err := BuildServices(context.Background(), globals, wsDir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -176,7 +176,7 @@ func TestM8WiringCostsGlobalLedger(t *testing.T) {
 	globals := &Globals{CostsGlobal: costs}
 	wsDir := t.TempDir()
 	gitInitDir(t, wsDir)
-	svc, err := BuildWorkspaceServices(context.Background(), globals, wsDir)
+	svc, err := BuildServices(context.Background(), globals, wsDir)
 	if err != nil {
 		t.Fatal(err)
 	}
