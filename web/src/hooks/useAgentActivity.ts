@@ -142,33 +142,29 @@ export function useAgentActivity(agentName?: string): {
           });
         }).catch(() => { /* best effort */ });
       } else {
-        // Multi-agent view (Live page): hydrate from the cross-agent
-        // /api/agents/activity feed so cards aren't empty on reload (#3138).
-        api.getActivity(400).then((items) => {
-          if (items.length === 0) return;
-          const byAgent = new Map<string, AgentActivityItem[]>();
-          for (const it of items) {
-            const who = it.agent || "";
-            if (!who) continue;
-            const list = byAgent.get(who);
-            if (list) list.push(it);
-            else byAgent.set(who, [it]);
-          }
-          setActivities((prev) => {
-            const next = new Map(prev);
-            for (const [who, rows] of byAgent) {
-              const existing = next.get(who);
-              if (!existing || existing.nodes.length > 0) continue;
+        // Multi-agent view (Live page): hydrate each agent from its own
+        // activity feed. A single shared cross-agent fetch (the old
+        // getActivity(400)) collapses to minutes of history when one busy
+        // agent floods the event stream, leaving quieter agents' cards
+        // empty after a reload (#3279).
+        const active = agentList.filter((a) => a.state !== "stopped");
+        for (const a of active) {
+          api.getAgentActivity(a.name, 100).then((items) => {
+            if (items.length === 0) return;
+            setActivities((prev) => {
+              const next = new Map(prev);
+              const existing = next.get(a.name);
+              if (!existing || existing.nodes.length > 0) return prev;
               // Oldest-first inside each card; the REST feed is newest-first.
-              const nodes: ToolNode[] = rows
+              const nodes: ToolNode[] = items
                 .slice()
                 .reverse()
                 .map(activityItemToNode);
-              next.set(who, { ...existing, nodes });
-            }
-            return next;
-          });
-        }).catch(() => { /* best effort */ });
+              next.set(a.name, { ...existing, nodes });
+              return next;
+            });
+          }).catch(() => { /* best effort */ });
+        }
       }
     }).catch(() => {});
 
