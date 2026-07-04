@@ -32,7 +32,7 @@ type RoleInfo struct {
 // List returns all resolved roles.
 func (r *RolesClient) List(ctx context.Context) (map[string]*RoleInfo, error) {
 	var roles map[string]*RoleInfo
-	if err := r.client.get(ctx, "/api/workspace/roles", &roles); err != nil {
+	if err := r.client.get(ctx, "/api/roles", &roles); err != nil {
 		return nil, err
 	}
 	return roles, nil

@@ -1,29 +1,29 @@
-// Package workspace provides workspace and project management for bc.
+// Package workspace manages mycel-adopted repos and their state.
 //
-// A workspace represents a project directory whose configuration and
-// agent state live under ~/.mycel/workspaces/<id>/ (preferences.json,
-// state databases, agents/, logs/).
+// A Workspace represents a git repo whose configuration and agent
+// state live under ~/.mycel/workspaces/<id>/ (preferences.json, state
+// databases, agents/, logs/). The repo itself stays pristine.
 //
 // # Basic Usage
 //
-// Find the current workspace:
+// Find the enclosing adopted repo:
 //
 //	ws, err := workspace.Find(".")
 //	if err != nil {
-//	    log.Fatal("not in a mycel workspace")
+//	    log.Fatal("not in a mycel-adopted repo")
 //	}
-//	fmt.Println("Workspace:", ws.Name())
+//	fmt.Println("Repo:", ws.Name())
 //
-// Initialize a new workspace:
+// Adopt a new repo:
 //
-//	ws, err := workspace.Init("/path/to/project")
+//	ws, err := workspace.Init("/path/to/repo")
 //	if err != nil {
 //	    log.Fatal(err)
 //	}
 //
-// Load an existing workspace:
+// Load an already-adopted repo:
 //
-//	ws, err := workspace.Load("/path/to/project")
+//	ws, err := workspace.Load("/path/to/repo")
 //	if err != nil {
 //	    log.Fatal(err)
 //	}
@@ -143,7 +143,7 @@ func Load(rootDir string) (*Workspace, error) {
 	// Config is <stateDir>/preferences.json — the only config file bc reads.
 	jsonPath := filepath.Join(stateDir, PreferencesFileName)
 	if _, statErr := os.Stat(jsonPath); statErr != nil {
-		return nil, fmt.Errorf("not a mycel workspace (no %s found in %s); run 'mycel up' from your repo (or add one in the web UI)",
+		return nil, fmt.Errorf("not a mycel-adopted repo (no %s found in %s); run 'mycel up' from your repo (or add one in the web UI)",
 			PreferencesFileName, stateDir)
 	}
 
@@ -174,13 +174,12 @@ func Load(rootDir string) (*Workspace, error) {
 	}, nil
 }
 
-// Find searches for a workspace starting from dir and going up. A
-// directory is a workspace when its global state dir
+// Find searches for a mycel-adopted repo starting from dir and going
+// up. A directory qualifies when its global state dir
 // (~/.mycel/workspaces/<ComputeWorkspaceID(dir)>/preferences.json)
-// exists — i.e. the repo was adopted by `mycel up` — or when it carries
-// a .bc/ runtime marker (agent worktrees live under
-// <project>/.bc/agents/). There is no registry: the walk re-derives the
-// state dir by hashing each candidate path.
+// exists — i.e. the repo was adopted by `mycel up`. There is no
+// registry and no in-repo marker: the walk re-derives the state dir by
+// hashing each candidate path.
 func Find(dir string) (*Workspace, error) {
 	absDir, err := filepath.Abs(dir)
 	if err != nil {
@@ -189,7 +188,7 @@ func Find(dir string) (*Workspace, error) {
 
 	current := absDir
 	for {
-		// Global state dir: the repo was initialized by `mycel up`.
+		// Global state dir: the repo was adopted by `mycel up`.
 		id := ComputeWorkspaceID(current)
 		if stateDir, sdErr := DataDir(id); sdErr == nil {
 			prefs := filepath.Join(stateDir, PreferencesFileName)
@@ -197,13 +196,9 @@ func Find(dir string) (*Workspace, error) {
 				return Load(current)
 			}
 		}
-		// Runtime marker: .bc/ in the project dir (agent worktree layout).
-		if _, statErr := os.Stat(filepath.Join(current, ".bc")); statErr == nil {
-			return Load(current)
-		}
 		parent := filepath.Dir(current)
 		if parent == current {
-			return nil, fmt.Errorf("no workspace found (searched from %s to root)", absDir)
+			return nil, fmt.Errorf("no mycel-adopted repo found (searched from %s to root)", absDir)
 		}
 		current = parent
 	}
@@ -274,28 +269,6 @@ func (w *Workspace) EnsureDirs() error {
 	}
 
 	return nil
-}
-
-// IsWorkspace checks if a directory is a workspace.
-// Checks the .bc/ runtime marker and the global state dir
-// (~/.mycel/workspaces/<id>/).
-func IsWorkspace(dir string) bool {
-	// Check .bc/ runtime marker (agent worktree layout)
-	stateDir := filepath.Join(dir, ".bc")
-	if _, err := os.Stat(stateDir); err == nil {
-		return true
-	}
-	// Check global state dir exists on disk
-	absDir, err := filepath.Abs(dir)
-	if err != nil {
-		return false
-	}
-	if globalDir, gErr := GlobalStateDir(absDir); gErr == nil {
-		if _, statErr := os.Stat(globalDir); statErr == nil {
-			return true
-		}
-	}
-	return false
 }
 
 // GetRole returns a role by name, loading it if necessary.

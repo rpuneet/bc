@@ -26,7 +26,7 @@ Examples:
 var costBudgetSetCmd = &cobra.Command{
 	Use:   "set <amount>",
 	Short: "Set a cost budget",
-	Long: `Set a cost budget for the workspace, agent, or team.
+	Long: `Set a cost budget for the repo, agent, or team.
 
 Examples:
   mycel cost budget set 100.00                          # Set workspace budget to $100

@@ -4,7 +4,7 @@ Add an MCP server configuration
 
 ### Synopsis
 
-Add a new MCP server configuration to the workspace.
+Add a new MCP server configuration to the repo.
 
 For stdio transport (default), specify --command and optionally --args.
 For SSE transport, specify --transport sse and --url.

@@ -32,8 +32,8 @@ Examples:
 ### SEE ALSO
 
 * [mycel](mycel.md)	 - A simpler, more controllable agent orchestrator
-* [mycel tool add](mycel_tool_add.md)	 - Add a tool to the workspace
-* [mycel tool delete](mycel_tool_delete.md)	 - Remove a tool from the workspace
+* [mycel tool add](mycel_tool_add.md)	 - Add a tool to the repo
+* [mycel tool delete](mycel_tool_delete.md)	 - Remove a tool from the repo
 * [mycel tool edit](mycel_tool_edit.md)	 - Edit a tool's configuration
 * [mycel tool list](mycel_tool_list.md)	 - List all configured tools and their status
 * [mycel tool run](mycel_tool_run.md)	 - Run a tool directly

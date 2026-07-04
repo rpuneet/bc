@@ -185,29 +185,6 @@ func BenchmarkSave_V2(b *testing.B) {
 	}
 }
 
-// --- IsWorkspace benchmark ---
-
-func BenchmarkIsWorkspace_True(b *testing.B) {
-	dir := newBenchDir(b)
-	if _, err := Init(dir); err != nil {
-		b.Fatal(err)
-	}
-
-	b.ResetTimer()
-	for range b.N {
-		_ = IsWorkspace(dir)
-	}
-}
-
-func BenchmarkIsWorkspace_False(b *testing.B) {
-	dir := newBenchDir(b)
-
-	b.ResetTimer()
-	for range b.N {
-		_ = IsWorkspace(dir)
-	}
-}
-
 // --- EnsureDirs benchmark ---
 
 func BenchmarkEnsureDirs(b *testing.B) {

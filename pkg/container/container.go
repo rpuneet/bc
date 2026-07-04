@@ -680,6 +680,15 @@ func (b *Backend) SetEnvironment(_ context.Context, name, key, value string) err
 
 // PipePane streams container logs to a file.
 func (b *Backend) PipePane(ctx context.Context, name, logPath string) error {
+	// logPath is opened for append below — clean it and reject
+	// traversal sequences before it reaches the filesystem. Empty means
+	// "no piping" and must stay empty (Clean would turn it into ".").
+	if logPath != "" {
+		logPath = filepath.Clean(logPath)
+		if strings.Contains(logPath, "..") {
+			return fmt.Errorf("unsafe log path: %s", logPath)
+		}
+	}
 	cn := b.containerName(name)
 
 	b.mu.Lock()

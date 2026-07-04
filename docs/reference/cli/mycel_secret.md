@@ -4,7 +4,7 @@ Manage encrypted secrets
 
 ### Synopsis
 
-Manage encrypted secrets for the workspace.
+Manage encrypted secrets for the repo.
 
 Secrets store API keys and tokens used by tools, MCP servers, and agents.
 Values are encrypted at rest with AES-256-GCM. The API never exposes

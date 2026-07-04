@@ -4,7 +4,7 @@ Permanently delete an agent
 
 ### Synopsis
 
-Permanently delete an agent from the workspace.
+Permanently delete an agent from the repo.
 
 This removes the agent's tmux session, channel memberships,
 and agent state. Memory is preserved by default for recovery.

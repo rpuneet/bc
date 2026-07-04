@@ -28,7 +28,6 @@ export function createMockAgent(overrides?: Partial<Agent>): Agent {
     task: 'Waiting for next task',
     session: 'session-1',
     tool: undefined,
-    workspace: 'test-workspace',
     worktree_dir: '/tmp/bc/.worktrees/test-agent',
     memory_dir: '/tmp/bc/.agents/test-agent/memory',
     started_at: yesterday,

@@ -4,7 +4,7 @@ Health checks and diagnostics
 
 ### Synopsis
 
-Run health checks on your mycel workspace and dependencies.
+Run health checks on your mycel repo and dependencies.
 
 Checks workspace config, agent state, databases, tools, and git worktrees.
 

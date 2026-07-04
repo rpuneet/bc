@@ -200,7 +200,7 @@ func runTemplateCreate(_ *cobra.Command, args []string) error {
 	if templateCreateWorkspace {
 		scope = template.ScopeWorkspace
 		if store.WorkspaceDir() == "" {
-			return fmt.Errorf("--workspace requires being inside a mycel workspace")
+			return fmt.Errorf("--workspace requires being inside a mycel-adopted repo")
 		}
 	}
 	if scope == template.ScopeGlobal {

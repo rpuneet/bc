@@ -30,7 +30,7 @@ const (
 // workspace ID.
 //
 // Returns ~/.mycel/workspaces/<id>/ (respecting MYCEL_HOME). Pass the ID from
-// ComputeWorkspaceID(absRootDir) or from a RegistryEntry.
+// ComputeWorkspaceID(absRootDir).
 //
 // This path holds every piece of runtime state for the workspace:
 // preferences.json, state.db, cron.db, agents/, logs/ — nothing lives

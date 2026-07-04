@@ -1,0 +1,474 @@
+- generic [ref=f25e3]:
+  - navigation [ref=f25e4]:
+    - generic [ref=f25e5]:
+      - generic [ref=f25e6]:
+        - generic [ref=f25e7]: m
+        - paragraph [ref=f25e9]: "@bc"
+      - button "Collapse navigation" [ref=f25e10] [cursor=pointer]:
+        - img [ref=f25e11]
+    - list [ref=f25e13]:
+      - listitem [ref=f25e14]:
+        - link "Live" [ref=f25e15] [cursor=pointer]:
+          - /url: /live
+          - img [ref=f25e17]
+          - generic [ref=f25e20]: Live
+      - listitem [ref=f25e22]:
+        - link "Agents" [ref=f25e23] [cursor=pointer]:
+          - /url: /agents
+          - img [ref=f25e25]
+          - generic [ref=f25e27]: Agents
+      - listitem [ref=f25e28]:
+        - link "Notifications Expand channels" [ref=f25e29] [cursor=pointer]:
+          - /url: /notifications
+          - img [ref=f25e31]
+          - generic [ref=f25e33]: Notifications
+          - button "Expand channels" [ref=f25e34]:
+            - img [ref=f25e35]
+      - listitem [ref=f25e37]:
+        - link "Code" [ref=f25e38] [cursor=pointer]:
+          - /url: /code
+          - img [ref=f25e40]
+          - generic [ref=f25e43]: Code
+      - listitem [ref=f25e44]:
+        - link "Templates" [ref=f25e45] [cursor=pointer]:
+          - /url: /templates
+          - img [ref=f25e47]
+          - generic [ref=f25e50]: Templates
+      - listitem [ref=f25e51]:
+        - link "Tools" [ref=f25e52] [cursor=pointer]:
+          - /url: /tools
+          - img [ref=f25e54]
+          - generic [ref=f25e56]: Tools
+      - listitem [ref=f25e57]:
+        - link "Cron" [ref=f25e58] [cursor=pointer]:
+          - /url: /cron
+          - img [ref=f25e60]
+          - generic [ref=f25e63]: Cron
+      - listitem [ref=f25e64]:
+        - link "Secrets" [ref=f25e65] [cursor=pointer]:
+          - /url: /secrets
+          - img [ref=f25e67]
+          - generic [ref=f25e69]: Secrets
+      - listitem [ref=f25e70]:
+        - link "Metrics" [ref=f25e71] [cursor=pointer]:
+          - /url: /stats
+          - img [ref=f25e73]
+          - generic [ref=f25e75]: Metrics
+      - listitem [ref=f25e76]:
+        - link "Costs" [ref=f25e77] [cursor=pointer]:
+          - /url: /costs
+          - img [ref=f25e79]
+          - generic [ref=f25e81]: Costs
+    - generic [ref=f25e82]:
+      - link "Settings" [ref=f25e83] [cursor=pointer]:
+        - /url: /settings
+        - img [ref=f25e85]
+        - generic [ref=f25e88]: Settings
+      - link "About" [ref=f25e89] [cursor=pointer]:
+        - /url: /about
+        - img [ref=f25e91]
+        - generic [ref=f25e94]: About
+      - button "Switch theme — currently Solar Flare" [ref=f25e95] [cursor=pointer]:
+        - img [ref=f25e96]
+  - main [ref=f25e99]:
+    - generic [ref=f25e101]:
+      - button "Collapse sidebar" [ref=f25e103] [cursor=pointer]:
+        - img [ref=f25e104]
+      - generic [ref=f25e108]: Agents
+      - generic [ref=f25e110]:
+        - generic [ref=f25e111]: 12 total
+        - button "+ New agent" [ref=f25e112] [cursor=pointer]
+    - generic [ref=f25e115]:
+      - generic [ref=f25e238]:
+        - generic [ref=f25e239]: 1 active
+        - button "Stop all agents" [ref=f25e240] [cursor=pointer]: Stop All
+      - generic [ref=f25e241]:
+        - textbox "Search agents" [ref=f25e243]:
+          - /placeholder: Search by name or task...  (press / to focus)
+        - combobox "Filter by state" [ref=f25e244]:
+          - option "All states" [selected]
+          - option "stopped"
+          - option "working"
+        - combobox "Filter by tool" [ref=f25e245]:
+          - option "All tools" [selected]
+          - option "claude"
+          - option "cursor"
+          - option "gemini"
+          - option "pi"
+        - button "Group by repo" [disabled] [pressed] [ref=f25e246]
+      - table [ref=f25e247]:
+        - rowgroup [ref=f25e248]:
+          - row "Select all visible agents Name Runtime Provider Status Task MCP Actions" [ref=f25e249]:
+            - columnheader "Select all visible agents" [ref=f25e250]:
+              - checkbox "Select all visible agents" [ref=f25e251] [cursor=pointer]
+            - columnheader "Name" [ref=f25e252]
+            - columnheader "Runtime" [ref=f25e253]
+            - columnheader "Provider" [ref=f25e254]
+            - columnheader "Status" [ref=f25e255]
+            - columnheader "Task" [ref=f25e256]
+            - columnheader "MCP" [ref=f25e257]
+            - columnheader "Actions" [ref=f25e258]
+            - columnheader [ref=f25e259]
+        - rowgroup [ref=f25e260]:
+          - link "Select agent zen-zebra Agent zen-zebra (double-click to rename) tmux claude working — — Stop agent zen-zebra Delete agent zen-zebra Peek output" [ref=f25e261] [cursor=pointer]:
+            - cell "Select agent zen-zebra" [ref=f25e262]:
+              - checkbox "Select agent zen-zebra" [ref=f25e263]
+            - cell "Agent zen-zebra (double-click to rename)" [ref=f25e264]:
+              - generic [ref=f25e265]:
+                - img [ref=f25e267]:
+                  - generic [ref=f25e269]: A
+                - generic "Agent zen-zebra (double-click to rename)" [ref=f25e270]: zen-zebra
+            - cell "tmux" [ref=f25e271]:
+              - 'generic "Runtime: tmux" [ref=f25e272]':
+                - img [ref=f25e274]
+                - text: tmux
+            - cell "claude" [ref=f25e277]:
+              - 'generic "Provider: claude" [ref=f25e278]': claude
+            - cell "working" [ref=f25e280]:
+              - generic [ref=f25e281]: working
+            - cell "—" [ref=f25e282]
+            - cell "—" [ref=f25e283]
+            - cell "Stop agent zen-zebra Delete agent zen-zebra" [ref=f25e284]:
+              - generic [ref=f25e285]:
+                - button "Stop agent zen-zebra" [ref=f25e286]: Stop
+                - button "Delete agent zen-zebra" [ref=f25e287]: Delete
+            - cell "Peek output" [ref=f25e288]:
+              - button "Peek output" [ref=f25e289]: ⊕
+          - row [ref=f25e290]:
+            - cell [ref=f25e291]
+          - link "Select agent bold-falcon Agent bold-falcon (double-click to rename) tmux claude stopped Processing prompt... — Start agent bold-falcon Delete agent bold-falcon Peek output" [ref=f25e292] [cursor=pointer]:
+            - cell "Select agent bold-falcon" [ref=f25e293]:
+              - checkbox "Select agent bold-falcon" [ref=f25e294]
+            - cell "Agent bold-falcon (double-click to rename)" [ref=f25e295]:
+              - generic [ref=f25e296]:
+                - img [ref=f25e298]:
+                  - generic [ref=f25e300]: A
+                - generic "Agent bold-falcon (double-click to rename)" [ref=f25e301]: bold-falcon
+            - cell "tmux" [ref=f25e302]:
+              - 'generic "Runtime: tmux" [ref=f25e303]':
+                - img [ref=f25e305]
+                - text: tmux
+            - cell "claude" [ref=f25e308]:
+              - 'generic "Provider: claude" [ref=f25e309]': claude
+            - cell "stopped" [ref=f25e311]:
+              - generic [ref=f25e312]: stopped
+            - cell "Processing prompt..." [ref=f25e313]
+            - cell "—" [ref=f25e314]
+            - cell "Start agent bold-falcon Delete agent bold-falcon" [ref=f25e315]:
+              - generic [ref=f25e316]:
+                - button "Start agent bold-falcon" [ref=f25e317]: Start
+                - button "Delete agent bold-falcon" [ref=f25e318]: Delete
+            - cell "Peek output" [ref=f25e319]:
+              - button "Peek output" [ref=f25e320]: ⊕
+          - link "Select agent curious-otter Agent curious-otter (double-click to rename) tmux claude stopped Session started — Start agent curious-otter Delete agent curious-otter Peek output" [ref=f25e321] [cursor=pointer]:
+            - cell "Select agent curious-otter" [ref=f25e322]:
+              - checkbox "Select agent curious-otter" [ref=f25e323]
+            - cell "Agent curious-otter (double-click to rename)" [ref=f25e324]:
+              - generic [ref=f25e325]:
+                - img [ref=f25e327]:
+                  - generic [ref=f25e329]: A
+                - generic "Agent curious-otter (double-click to rename)" [ref=f25e330]: curious-otter
+            - cell "tmux" [ref=f25e331]:
+              - 'generic "Runtime: tmux" [ref=f25e332]':
+                - img [ref=f25e334]
+                - text: tmux
+            - cell "claude" [ref=f25e337]:
+              - 'generic "Provider: claude" [ref=f25e338]': claude
+            - cell "stopped" [ref=f25e340]:
+              - generic [ref=f25e341]: stopped
+            - cell "Session started" [ref=f25e342]
+            - cell "—" [ref=f25e343]
+            - cell "Start agent curious-otter Delete agent curious-otter" [ref=f25e344]:
+              - generic [ref=f25e345]:
+                - button "Start agent curious-otter" [ref=f25e346]: Start
+                - button "Delete agent curious-otter" [ref=f25e347]: Delete
+            - cell "Peek output" [ref=f25e348]:
+              - button "Peek output" [ref=f25e349]: ⊕
+          - link "Select agent easy-koala Agent easy-koala (double-click to rename) tmux gemini stopped Starting… — Start agent easy-koala Delete agent easy-koala Peek output" [ref=f25e350] [cursor=pointer]:
+            - cell "Select agent easy-koala" [ref=f25e351]:
+              - checkbox "Select agent easy-koala" [ref=f25e352]
+            - cell "Agent easy-koala (double-click to rename)" [ref=f25e353]:
+              - generic [ref=f25e354]:
+                - img [ref=f25e356]:
+                  - generic [ref=f25e358]: ✦
+                - generic "Agent easy-koala (double-click to rename)" [ref=f25e359]: easy-koala
+            - cell "tmux" [ref=f25e360]:
+              - 'generic "Runtime: tmux" [ref=f25e361]':
+                - img [ref=f25e363]
+                - text: tmux
+            - cell "gemini" [ref=f25e366]:
+              - 'generic "Provider: gemini" [ref=f25e367]': gemini
+            - cell "stopped" [ref=f25e369]:
+              - generic [ref=f25e370]: stopped
+            - cell "Starting…" [ref=f25e371]
+            - cell "—" [ref=f25e372]
+            - cell "Start agent easy-koala Delete agent easy-koala" [ref=f25e373]:
+              - generic [ref=f25e374]:
+                - button "Start agent easy-koala" [ref=f25e375]: Start
+                - button "Delete agent easy-koala" [ref=f25e376]: Delete
+            - cell "Peek output" [ref=f25e377]:
+              - button "Peek output" [ref=f25e378]: ⊕
+          - link "Select agent fierce-capybara Agent fierce-capybara (double-click to rename) tmux pi stopped Starting… — Start agent fierce-capybara Delete agent fierce-capybara Peek output" [ref=f25e379] [cursor=pointer]:
+            - cell "Select agent fierce-capybara" [ref=f25e380]:
+              - checkbox "Select agent fierce-capybara" [ref=f25e381]
+            - cell "Agent fierce-capybara (double-click to rename)" [ref=f25e382]:
+              - generic [ref=f25e383]:
+                - img [ref=f25e385]:
+                  - generic [ref=f25e387]: P
+                - generic "Agent fierce-capybara (double-click to rename)" [ref=f25e388]: fierce-capybara
+            - cell "tmux" [ref=f25e389]:
+              - 'generic "Runtime: tmux" [ref=f25e390]':
+                - img [ref=f25e392]
+                - text: tmux
+            - cell "pi" [ref=f25e395]:
+              - 'generic "Provider: pi" [ref=f25e396]': pi
+            - cell "stopped" [ref=f25e398]:
+              - generic [ref=f25e399]: stopped
+            - cell "Starting…" [ref=f25e400]
+            - cell "—" [ref=f25e401]
+            - cell "Start agent fierce-capybara Delete agent fierce-capybara" [ref=f25e402]:
+              - generic [ref=f25e403]:
+                - button "Start agent fierce-capybara" [ref=f25e404]: Start
+                - button "Delete agent fierce-capybara" [ref=f25e405]: Delete
+            - cell "Peek output" [ref=f25e406]:
+              - button "Peek output" [ref=f25e407]: ⊕
+          - link "Select agent fierce-osprey Agent fierce-osprey (double-click to rename) tmux pi stopped Starting… — Start agent fierce-osprey Delete agent fierce-osprey Peek output" [ref=f25e408] [cursor=pointer]:
+            - cell "Select agent fierce-osprey" [ref=f25e409]:
+              - checkbox "Select agent fierce-osprey" [ref=f25e410]
+            - cell "Agent fierce-osprey (double-click to rename)" [ref=f25e411]:
+              - generic [ref=f25e412]:
+                - img [ref=f25e414]:
+                  - generic [ref=f25e416]: P
+                - generic "Agent fierce-osprey (double-click to rename)" [ref=f25e417]: fierce-osprey
+            - cell "tmux" [ref=f25e418]:
+              - 'generic "Runtime: tmux" [ref=f25e419]':
+                - img [ref=f25e421]
+                - text: tmux
+            - cell "pi" [ref=f25e424]:
+              - 'generic "Provider: pi" [ref=f25e425]': pi
+            - cell "stopped" [ref=f25e427]:
+              - generic [ref=f25e428]: stopped
+            - cell "Starting…" [ref=f25e429]
+            - cell "—" [ref=f25e430]
+            - cell "Start agent fierce-osprey Delete agent fierce-osprey" [ref=f25e431]:
+              - generic [ref=f25e432]:
+                - button "Start agent fierce-osprey" [ref=f25e433]: Start
+                - button "Delete agent fierce-osprey" [ref=f25e434]: Delete
+            - cell "Peek output" [ref=f25e435]:
+              - button "Peek output" [ref=f25e436]: ⊕
+          - link "Select agent firm-buffalo Agent firm-buffalo (double-click to rename) tmux claude stopped Turn complete — Start agent firm-buffalo Delete agent firm-buffalo Peek output" [ref=f25e437] [cursor=pointer]:
+            - cell "Select agent firm-buffalo" [ref=f25e438]:
+              - checkbox "Select agent firm-buffalo" [ref=f25e439]
+            - cell "Agent firm-buffalo (double-click to rename)" [ref=f25e440]:
+              - generic [ref=f25e441]:
+                - img [ref=f25e443]:
+                  - generic [ref=f25e445]: A
+                - generic "Agent firm-buffalo (double-click to rename)" [ref=f25e446]: firm-buffalo
+            - cell "tmux" [ref=f25e447]:
+              - 'generic "Runtime: tmux" [ref=f25e448]':
+                - img [ref=f25e450]
+                - text: tmux
+            - cell "claude" [ref=f25e453]:
+              - 'generic "Provider: claude" [ref=f25e454]': claude
+            - cell "stopped" [ref=f25e456]:
+              - generic [ref=f25e457]: stopped
+            - cell "Turn complete" [ref=f25e458]
+            - cell "—" [ref=f25e459]
+            - cell "Start agent firm-buffalo Delete agent firm-buffalo" [ref=f25e460]:
+              - generic [ref=f25e461]:
+                - button "Start agent firm-buffalo" [ref=f25e462]: Start
+                - button "Delete agent firm-buffalo" [ref=f25e463]: Delete
+            - cell "Peek output" [ref=f25e464]:
+              - button "Peek output" [ref=f25e465]: ⊕
+          - link "Select agent ideal-lemur Agent ideal-lemur (double-click to rename) tmux claude stopped Turn complete — Start agent ideal-lemur Delete agent ideal-lemur Peek output" [ref=f25e466] [cursor=pointer]:
+            - cell "Select agent ideal-lemur" [ref=f25e467]:
+              - checkbox "Select agent ideal-lemur" [ref=f25e468]
+            - cell "Agent ideal-lemur (double-click to rename)" [ref=f25e469]:
+              - generic [ref=f25e470]:
+                - img [ref=f25e472]:
+                  - generic [ref=f25e474]: A
+                - generic "Agent ideal-lemur (double-click to rename)" [ref=f25e475]: ideal-lemur
+            - cell "tmux" [ref=f25e476]:
+              - 'generic "Runtime: tmux" [ref=f25e477]':
+                - img [ref=f25e479]
+                - text: tmux
+            - cell "claude" [ref=f25e482]:
+              - 'generic "Provider: claude" [ref=f25e483]': claude
+            - cell "stopped" [ref=f25e485]:
+              - generic [ref=f25e486]: stopped
+            - cell "Turn complete" [ref=f25e487]
+            - cell "—" [ref=f25e488]
+            - cell "Start agent ideal-lemur Delete agent ideal-lemur" [ref=f25e489]:
+              - generic [ref=f25e490]:
+                - button "Start agent ideal-lemur" [ref=f25e491]: Start
+                - button "Delete agent ideal-lemur" [ref=f25e492]: Delete
+            - cell "Peek output" [ref=f25e493]:
+              - button "Peek output" [ref=f25e494]: ⊕
+          - link "Select agent jolly-vulture Agent jolly-vulture (double-click to rename) tmux claude stopped Turn complete — Start agent jolly-vulture Delete agent jolly-vulture Peek output" [ref=f25e495] [cursor=pointer]:
+            - cell "Select agent jolly-vulture" [ref=f25e496]:
+              - checkbox "Select agent jolly-vulture" [ref=f25e497]
+            - cell "Agent jolly-vulture (double-click to rename)" [ref=f25e498]:
+              - generic [ref=f25e499]:
+                - img [ref=f25e501]:
+                  - generic [ref=f25e503]: A
+                - generic "Agent jolly-vulture (double-click to rename)" [ref=f25e504]: jolly-vulture
+            - cell "tmux" [ref=f25e505]:
+              - 'generic "Runtime: tmux" [ref=f25e506]':
+                - img [ref=f25e508]
+                - text: tmux
+            - cell "claude" [ref=f25e511]:
+              - 'generic "Provider: claude" [ref=f25e512]': claude
+            - cell "stopped" [ref=f25e514]:
+              - generic [ref=f25e515]: stopped
+            - cell "Turn complete" [ref=f25e516]
+            - cell "—" [ref=f25e517]
+            - cell "Start agent jolly-vulture Delete agent jolly-vulture" [ref=f25e518]:
+              - generic [ref=f25e519]:
+                - button "Start agent jolly-vulture" [ref=f25e520]: Start
+                - button "Delete agent jolly-vulture" [ref=f25e521]: Delete
+            - cell "Peek output" [ref=f25e522]:
+              - button "Peek output" [ref=f25e523]: ⊕
+          - link "Select agent lucid-meerkat Agent lucid-meerkat (double-click to rename) docker cursor stopped Session ended — Start agent lucid-meerkat Delete agent lucid-meerkat Peek output" [ref=f25e524] [cursor=pointer]:
+            - cell "Select agent lucid-meerkat" [ref=f25e525]:
+              - checkbox "Select agent lucid-meerkat" [ref=f25e526]
+            - cell "Agent lucid-meerkat (double-click to rename)" [ref=f25e527]:
+              - generic [ref=f25e528]:
+                - img [ref=f25e530]:
+                  - generic [ref=f25e532]: ▶
+                - generic "Agent lucid-meerkat (double-click to rename)" [ref=f25e533]: lucid-meerkat
+            - cell "docker" [ref=f25e534]:
+              - 'generic "Runtime: docker" [ref=f25e535]':
+                - img [ref=f25e537]
+                - text: docker
+            - cell "cursor" [ref=f25e540]:
+              - 'generic "Provider: cursor" [ref=f25e541]': cursor
+            - cell "stopped" [ref=f25e543]:
+              - generic [ref=f25e544]: stopped
+            - cell "Session ended" [ref=f25e545]
+            - cell "—" [ref=f25e546]
+            - cell "Start agent lucid-meerkat Delete agent lucid-meerkat" [ref=f25e547]:
+              - generic [ref=f25e548]:
+                - button "Start agent lucid-meerkat" [ref=f25e549]: Start
+                - button "Delete agent lucid-meerkat" [ref=f25e550]: Delete
+            - cell "Peek output" [ref=f25e551]:
+              - button "Peek output" [ref=f25e552]: ⊕
+          - link "Select agent noble-hyena Agent noble-hyena (double-click to rename) tmux cursor stopped Starting… — Start agent noble-hyena Delete agent noble-hyena Peek output" [ref=f25e553] [cursor=pointer]:
+            - cell "Select agent noble-hyena" [ref=f25e554]:
+              - checkbox "Select agent noble-hyena" [ref=f25e555]
+            - cell "Agent noble-hyena (double-click to rename)" [ref=f25e556]:
+              - generic [ref=f25e557]:
+                - img [ref=f25e559]:
+                  - generic [ref=f25e561]: ▶
+                - generic "Agent noble-hyena (double-click to rename)" [ref=f25e562]: noble-hyena
+            - cell "tmux" [ref=f25e563]:
+              - 'generic "Runtime: tmux" [ref=f25e564]':
+                - img [ref=f25e566]
+                - text: tmux
+            - cell "cursor" [ref=f25e569]:
+              - 'generic "Provider: cursor" [ref=f25e570]': cursor
+            - cell "stopped" [ref=f25e572]:
+              - generic [ref=f25e573]: stopped
+            - cell "Starting…" [ref=f25e574]
+            - cell "—" [ref=f25e575]
+            - cell "Start agent noble-hyena Delete agent noble-hyena" [ref=f25e576]:
+              - generic [ref=f25e577]:
+                - button "Start agent noble-hyena" [ref=f25e578]: Start
+                - button "Delete agent noble-hyena" [ref=f25e579]: Delete
+            - cell "Peek output" [ref=f25e580]:
+              - button "Peek output" [ref=f25e581]: ⊕
+          - link "Select agent noble-kestrel Agent noble-kestrel (double-click to rename) tmux pi stopped Starting… — Start agent noble-kestrel Delete agent noble-kestrel Peek output" [ref=f25e582] [cursor=pointer]:
+            - cell "Select agent noble-kestrel" [ref=f25e583]:
+              - checkbox "Select agent noble-kestrel" [ref=f25e584]
+            - cell "Agent noble-kestrel (double-click to rename)" [ref=f25e585]:
+              - generic [ref=f25e586]:
+                - img [ref=f25e588]:
+                  - generic [ref=f25e590]: P
+                - generic "Agent noble-kestrel (double-click to rename)" [ref=f25e591]: noble-kestrel
+            - cell "tmux" [ref=f25e592]:
+              - 'generic "Runtime: tmux" [ref=f25e593]':
+                - img [ref=f25e595]
+                - text: tmux
+            - cell "pi" [ref=f25e598]:
+              - 'generic "Provider: pi" [ref=f25e599]': pi
+            - cell "stopped" [ref=f25e601]:
+              - generic [ref=f25e602]: stopped
+            - cell "Starting…" [ref=f25e603]
+            - cell "—" [ref=f25e604]
+            - cell "Start agent noble-kestrel Delete agent noble-kestrel" [ref=f25e605]:
+              - generic [ref=f25e606]:
+                - button "Start agent noble-kestrel" [ref=f25e607]: Start
+                - button "Delete agent noble-kestrel" [ref=f25e608]: Delete
+            - cell "Peek output" [ref=f25e609]:
+              - button "Peek output" [ref=f25e610]: ⊕
+      - dialog "Create agent" [ref=f25e612]:
+        - generic [ref=f25e613]:
+          - heading "Create Agent" [level=2] [ref=f25e614]
+          - button "Close" [ref=f25e615] [cursor=pointer]:
+            - img [ref=f25e616]
+        - generic [ref=f25e618]:
+          - img [ref=f25e621]:
+            - generic [ref=f25e623]: A
+          - generic [ref=f25e624]:
+            - generic [ref=f25e625]: Name
+            - generic [ref=f25e626]:
+              - textbox "agent-name" [active] [ref=f25e627]: coral-bear
+              - button "Regenerate name" [ref=f25e628] [cursor=pointer]:
+                - img [ref=f25e629]
+          - generic [ref=f25e632]:
+            - generic [ref=f25e633]: Shape
+            - combobox [ref=f25e634]:
+              - option "hexagon"
+              - option "circle" [selected]
+              - option "square"
+          - generic [ref=f25e635]:
+            - generic [ref=f25e636]: Repo *
+            - generic [ref=f25e637]:
+              - textbox "/absolute/path/to/repo" [ref=f25e638]: /Users/puneetrai/Projects/bc
+              - button "Browse" [ref=f25e639] [cursor=pointer]
+            - combobox "Known repos" [ref=f25e640]:
+              - option "— known repos —"
+              - option "bc · /Users/puneetrai/Projects/bc (default)" [selected]
+          - generic [ref=f25e641]:
+            - generic [ref=f25e642]: Template
+            - combobox [ref=f25e643]:
+              - option "blank"
+              - option "feature-dev" [selected]
+              - option "manager"
+              - option "reviewer"
+          - generic [ref=f25e644]:
+            - generic [ref=f25e645]: Clone config from (optional)
+            - combobox [ref=f25e646]:
+              - option "— none —" [selected]
+              - option "bold-falcon · stopped"
+              - option "curious-otter · stopped"
+              - option "easy-koala · stopped"
+              - option "fierce-capybara · stopped"
+              - option "fierce-osprey · stopped"
+              - option "firm-buffalo · stopped"
+              - option "ideal-lemur · stopped"
+              - option "jolly-vulture · stopped"
+              - option "lucid-meerkat · stopped"
+              - option "noble-hyena · stopped"
+              - option "noble-kestrel · stopped"
+              - option "zen-zebra · working"
+          - generic [ref=f25e647]:
+            - generic [ref=f25e648]:
+              - generic [ref=f25e649]: Provider
+              - combobox [ref=f25e650]:
+                - option "claude" [selected]
+                - option "gemini"
+                - option "cursor"
+                - option "pi"
+                - option "codex"
+                - option "pi"
+            - generic [ref=f25e651]:
+              - generic [ref=f25e652]: Runtime
+              - combobox [ref=f25e653]:
+                - option "docker" [selected]
+                - option "tmux"
+          - generic [ref=f25e654]:
+            - generic [ref=f25e655]: Initial Task (optional)
+            - textbox "Describe the first task for this agent..." [ref=f25e656]
+        - generic [ref=f25e658]:
+          - button "Cancel" [ref=f25e659] [cursor=pointer]
+          - button "Create agent" [ref=f25e660] [cursor=pointer]

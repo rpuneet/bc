@@ -22,7 +22,6 @@ const mockAgents: Agent[] = [
     state: 'working',
     session: 'bc-eng-01',
     task: 'Implementing feature X',
-    workspace: '/path/to/workspace',
     worktree_dir: '/path/to/worktree/eng-01',
     memory_dir: '/path/to/memory/eng-01',
     started_at: '2024-01-15T10:00:00Z',
@@ -35,7 +34,6 @@ const mockAgents: Agent[] = [
     state: 'idle',
     session: 'bc-eng-02',
     task: '',
-    workspace: '/path/to/workspace',
     worktree_dir: '/path/to/worktree/eng-02',
     memory_dir: '/path/to/memory/eng-02',
     started_at: '2024-01-15T09:00:00Z',
@@ -48,7 +46,6 @@ const mockAgents: Agent[] = [
     state: 'working',
     session: 'bc-tl-01',
     task: 'Reviewing PR #123',
-    workspace: '/path/to/workspace',
     worktree_dir: '/path/to/worktree/tl-01',
     memory_dir: '/path/to/memory/tl-01',
     started_at: '2024-01-15T08:00:00Z',
@@ -60,7 +57,6 @@ const mockAgents: Agent[] = [
     role: 'qa',
     state: 'stopped',
     session: 'bc-qa-01',
-    workspace: '/path/to/workspace',
     worktree_dir: '/path/to/worktree/qa-01',
     memory_dir: '/path/to/memory/qa-01',
     started_at: '2024-01-14T10:00:00Z',
@@ -76,7 +72,6 @@ describe('AgentsView Data Model', () => {
     expect(agent).toHaveProperty('role');
     expect(agent).toHaveProperty('state');
     expect(agent).toHaveProperty('session');
-    expect(agent).toHaveProperty('workspace');
     expect(agent).toHaveProperty('worktree_dir');
     expect(agent).toHaveProperty('memory_dir');
   });

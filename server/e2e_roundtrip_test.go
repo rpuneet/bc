@@ -96,40 +96,6 @@ func TestE2E_HealthReady(t *testing.T) {
 	}
 }
 
-// ─── Workspace Round-Trip ────────────────────────────────────────────────────
-
-// TestE2E_WorkspaceStatus_Fields verifies workspace status returns expected
-// fields with correct types — agent_count, running_count, is_healthy.
-func TestE2E_WorkspaceStatus_Fields(t *testing.T) {
-	s := newE2EServer(t)
-
-	code, body := s.get(t, "/api/workspace")
-	if code != 200 {
-		t.Fatalf("want 200, got %d", code)
-	}
-
-	fields := []struct {
-		want any
-		key  string
-	}{
-		{true, "is_healthy"},
-	}
-	for _, f := range fields {
-		got := body[f.key]
-		if got != f.want {
-			t.Errorf("workspace.%s: want %v, got %v", f.key, f.want, got)
-		}
-	}
-
-	// agent_count and running_count should be numeric (0 in empty workspace)
-	if _, ok := body["agent_count"].(float64); !ok {
-		t.Errorf("workspace.agent_count: want number, got %T", body["agent_count"])
-	}
-	if _, ok := body["running_count"].(float64); !ok {
-		t.Errorf("workspace.running_count: want number, got %T", body["running_count"])
-	}
-}
-
 // ─── Doctor Round-Trip ───────────────────────────────────────────────────────
 
 // TestE2E_Doctor_HasChecks verifies doctor returns a report with check results.

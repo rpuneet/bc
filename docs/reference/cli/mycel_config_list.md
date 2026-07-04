@@ -4,7 +4,7 @@ List all configuration keys
 
 ### Synopsis
 
-List all available configuration keys in the workspace config.
+List all available configuration keys in the repo config.
 
 Examples:
   mycel config list
@@ -29,5 +29,5 @@ mycel config list [flags]
 
 ### SEE ALSO
 
-* [mycel config](mycel_config.md)	 - Manage workspace configuration
+* [mycel config](mycel_config.md)	 - Manage repo configuration
 

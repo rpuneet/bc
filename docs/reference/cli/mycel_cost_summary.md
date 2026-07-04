@@ -1,6 +1,6 @@
 ## mycel cost summary
 
-Show workspace cost overview
+Show repo cost overview
 
 ### Synopsis
 

@@ -4,7 +4,7 @@ Validate configuration file
 
 ### Synopsis
 
-Validate the workspace configuration file for errors.
+Validate the repo configuration file for errors.
 
 Checks for:
   - Valid TOML syntax
@@ -34,5 +34,5 @@ mycel config validate [flags]
 
 ### SEE ALSO
 
-* [mycel config](mycel_config.md)	 - Manage workspace configuration
+* [mycel config](mycel_config.md)	 - Manage repo configuration
 

@@ -1043,8 +1043,8 @@ func TestLogs_NoWorkspace(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for non-workspace dir")
 	}
-	if !strings.Contains(err.Error(), "workspace") {
-		t.Errorf("expected workspace error, got: %v", err)
+	if !strings.Contains(err.Error(), "repo") {
+		t.Errorf("expected repo error, got: %v", err)
 	}
 }
 

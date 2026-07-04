@@ -3584,3 +3584,91 @@ func TestGlobalAgentNameUniqueness(t *testing.T) {
 		t.Errorf("agent repo = %q, want %q", got.Repo, repoA)
 	}
 }
+
+// --- worktreeManagerFor: worktrees come from the agent's repo ---
+
+// TestWorktreeManagerFor_BootRepoUsesSharedManager verifies the shared
+// manager is reused for the boot repo (and for an empty repo).
+func TestWorktreeManagerFor_BootRepoUsesSharedManager(t *testing.T) {
+	boot := t.TempDir()
+	initGitRepo(t, boot)
+	stateDir := filepath.Join(t.TempDir(), "state")
+
+	m := NewWorkspaceManager(stateDir, boot)
+
+	if got := m.worktreeManagerFor(boot); got != m.worktreeMgr {
+		t.Error("boot repo must reuse the shared worktree manager")
+	}
+	if got := m.worktreeManagerFor(""); got != m.worktreeMgr {
+		t.Error("empty repo must reuse the shared worktree manager")
+	}
+	// A trailing slash or unclean path still means the boot repo.
+	if got := m.worktreeManagerFor(boot + string(filepath.Separator)); got != m.worktreeMgr {
+		t.Error("unclean boot repo path must reuse the shared worktree manager")
+	}
+}
+
+// TestWorktreeManagerFor_CreatesWorktreeFromAgentRepo verifies that an
+// agent bound to a repo other than the boot repo gets its worktree
+// checked out FROM that repo (regression: worktrees used to always come
+// from the boot repo, ignoring CreateOptions.Repo).
+func TestWorktreeManagerFor_CreatesWorktreeFromAgentRepo(t *testing.T) {
+	ctx := context.Background()
+	boot := t.TempDir()
+	other := t.TempDir()
+	initGitRepo(t, boot)
+	initGitRepo(t, other)
+
+	// Distinguish the repos by an extra commit in `other`.
+	marker := filepath.Join(other, "OTHER_REPO_MARKER")
+	if err := os.WriteFile(marker, []byte("other"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	for _, args := range [][]string{
+		{"git", "-C", other, "add", "OTHER_REPO_MARKER"},
+		{"git", "-C", other, "commit", "-m", "marker"},
+	} {
+		//nolint:gosec // test helper
+		if out, err := exec.CommandContext(ctx, args[0], args[1:]...).CombinedOutput(); err != nil {
+			t.Fatalf("git (%v): %s: %v", args, out, err)
+		}
+	}
+
+	stateDir := filepath.Join(t.TempDir(), "state")
+	m := NewWorkspaceManager(stateDir, boot)
+
+	wtMgr := m.worktreeManagerFor(other)
+	if wtMgr == m.worktreeMgr {
+		t.Fatal("non-boot repo must get its own worktree manager")
+	}
+
+	wtDir, err := wtMgr.Create(ctx, "cross-repo-agent")
+	if err != nil {
+		t.Fatalf("create worktree from agent repo: %v", err)
+	}
+	t.Cleanup(func() { _ = wtMgr.Remove(ctx, "cross-repo-agent") })
+
+	// The worktree must contain the marker file — i.e. it was checked
+	// out from `other`, not from the boot repo.
+	if _, err := os.Stat(filepath.Join(wtDir, "OTHER_REPO_MARKER")); err != nil {
+		t.Errorf("worktree was not created from the agent's repo: %v", err)
+	}
+
+	// And its HEAD must match the agent repo's HEAD.
+	revParse := func(dir string) string {
+		//nolint:gosec // test helper
+		out, err := exec.CommandContext(ctx, "git", "-C", dir, "rev-parse", "HEAD").CombinedOutput()
+		if err != nil {
+			t.Fatalf("rev-parse %s: %s: %v", dir, out, err)
+		}
+		return strings.TrimSpace(string(out))
+	}
+	if got, want := revParse(wtDir), revParse(other); got != want {
+		t.Errorf("worktree HEAD = %s, want agent repo HEAD %s", got, want)
+	}
+
+	// The worktree still lands in the shared data-dir layout.
+	if !strings.HasPrefix(wtDir, stateDir) {
+		t.Errorf("worktree dir %q not under state dir %q", wtDir, stateDir)
+	}
+}

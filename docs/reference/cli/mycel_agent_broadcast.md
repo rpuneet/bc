@@ -4,7 +4,7 @@ Send a message to all running agents
 
 ### Synopsis
 
-Broadcast a message to all running agents in the workspace.
+Broadcast a message to all running agents in the repo.
 
 Examples:
   mycel agent broadcast "run tests"

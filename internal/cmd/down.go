@@ -16,7 +16,7 @@ import (
 var downCmd = &cobra.Command{
 	Use:   "down",
 	Short: "Stop mycel services",
-	Long: `Stop the mycel daemon and database Docker containers for this workspace.
+	Long: `Stop the mycel daemon and database Docker containers for this repo.
 
 Examples:
   mycel down
@@ -37,7 +37,7 @@ func runDown(cmd *cobra.Command, _ []string) error {
 	if downWorkspace != "" {
 		ws, err = workspace.Load(downWorkspace)
 		if err != nil {
-			return fmt.Errorf("cannot load workspace at %s: %w", downWorkspace, err)
+			return fmt.Errorf("cannot load repo at %s: %w", downWorkspace, err)
 		}
 	} else {
 		ws, err = getRepo()

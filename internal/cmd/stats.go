@@ -15,7 +15,7 @@ import (
 
 var statsCmd = &cobra.Command{
 	Use:   "stats",
-	Short: "Show workspace statistics",
+	Short: "Show repo statistics",
 	Long: `Display statistics about the current repo's agents including work
 item metrics, agent utilization, and completion rates.
 
@@ -94,7 +94,7 @@ func runStatsFromAPI(ctx context.Context, c *client.Client, summary *client.Summ
 
 	system, sysErr := c.Stats.System(ctx)
 
-	fmt.Println(ui.BoldText("Workspace Stats"))
+	fmt.Println(ui.BoldText("Repo Stats"))
 	fmt.Println()
 	fmt.Printf("  Agents:   %d total, %d running, %d stopped\n",
 		summary.AgentsTotal, summary.AgentsRunning, summary.AgentsStopped)

@@ -23,7 +23,6 @@ function generateMockAgents(count: number): Agent[] {
     state: states[i % states.length],
     session: `bc-agent-${i}`,
     task: i % 2 === 0 ? `Working on task ${i}` : '',
-    workspace: '/path/to/workspace',
     worktree_dir: `/path/to/worktree/agent-${i}`,
     memory_dir: `/path/to/memory/agent-${i}`,
     started_at: new Date(Date.now() - i * 60000).toISOString(),

@@ -4,7 +4,7 @@ Reset configuration to defaults
 
 ### Synopsis
 
-Reset the workspace configuration to default values.
+Reset the repo configuration to default values.
 
 WARNING: This will overwrite your current config. Back up first if needed.
 
@@ -32,5 +32,5 @@ mycel config reset [flags]
 
 ### SEE ALSO
 
-* [mycel config](mycel_config.md)	 - Manage workspace configuration
+* [mycel config](mycel_config.md)	 - Manage repo configuration
 

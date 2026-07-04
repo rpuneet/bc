@@ -6,7 +6,7 @@ Manage user-level configuration (~/.bcrc)
 
 Manage user-level configuration stored in ~/.bcrc.
 
-User configuration provides defaults that apply across all mycel workspaces:
+User configuration provides defaults that apply across all mycel repos:
   - Your nickname for channel messages
   - Default role for new agents
   - Preferred AI tools
@@ -37,7 +37,7 @@ mycel config user [flags]
 
 ### SEE ALSO
 
-* [mycel config](mycel_config.md)	 - Manage workspace configuration
+* [mycel config](mycel_config.md)	 - Manage repo configuration
 * [mycel config user init](mycel_config_user_init.md)	 - Create user configuration file (~/.bcrc)
 * [mycel config user path](mycel_config_user_path.md)	 - Show user configuration file path
 * [mycel config user show](mycel_config_user_show.md)	 - Show user configuration

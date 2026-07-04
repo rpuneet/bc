@@ -1,6 +1,6 @@
 ## mycel tool delete
 
-Remove a tool from the workspace
+Remove a tool from the repo
 
 ```
 mycel tool delete <tool> [flags]

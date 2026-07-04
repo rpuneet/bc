@@ -415,52 +415,6 @@ func TestEnsureDirsIdempotent(t *testing.T) {
 	}
 }
 
-// --- IsWorkspace ---
-
-func TestIsWorkspace(t *testing.T) {
-	tests := []struct {
-		setup func(t *testing.T) string
-		name  string
-		want  bool
-	}{
-		{
-			func(t *testing.T) string {
-				dir := t.TempDir()
-				gitInitDir(t, dir)
-				if _, err := Init(dir); err != nil {
-					t.Fatal(err)
-				}
-				return dir
-			},
-			"initialized workspace",
-			true,
-		},
-		{
-			func(t *testing.T) string {
-				return t.TempDir()
-			},
-			"empty directory",
-			false,
-		},
-		{
-			func(t *testing.T) string {
-				return filepath.Join(t.TempDir(), "nonexistent")
-			},
-			"nonexistent directory",
-			false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			dir := tt.setup(t)
-			if got := IsWorkspace(dir); got != tt.want {
-				t.Errorf("IsWorkspace = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
 // =====================
 // V2 Workspace Tests
 // =====================

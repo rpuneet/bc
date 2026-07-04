@@ -1,6 +1,6 @@
 ## mycel stats
 
-Show workspace statistics
+Show repo statistics
 
 ### Synopsis
 

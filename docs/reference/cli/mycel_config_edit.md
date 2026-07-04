@@ -4,7 +4,7 @@ Edit configuration file
 
 ### Synopsis
 
-Open the workspace configuration file in your default editor.
+Open the repo configuration file in your default editor.
 
 Uses $EDITOR environment variable, falls back to 'nano' if not set.
 
@@ -30,5 +30,5 @@ mycel config edit [flags]
 
 ### SEE ALSO
 
-* [mycel config](mycel_config.md)	 - Manage workspace configuration
+* [mycel config](mycel_config.md)	 - Manage repo configuration
 

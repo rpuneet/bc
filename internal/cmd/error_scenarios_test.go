@@ -374,8 +374,8 @@ func TestNoWorkspace(t *testing.T) {
 				t.Errorf("expected workspace error for %v, got nil", tt.args)
 				return
 			}
-			if !strings.Contains(strings.ToLower(err.Error()), "workspace") {
-				t.Errorf("expected workspace-related error, got: %v", err)
+			if !strings.Contains(strings.ToLower(err.Error()), "repo") {
+				t.Errorf("expected repo-related error, got: %v", err)
 			}
 		})
 	}

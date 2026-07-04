@@ -66,7 +66,7 @@ mycel [flags]
 * [mycel agent](mycel_agent.md)	 - Manage mycel agents
 * [mycel channel](mycel_channel.md)	 - Manage communication channels
 * [mycel completion](mycel_completion.md)	 - Generate shell completion scripts
-* [mycel config](mycel_config.md)	 - Manage workspace configuration
+* [mycel config](mycel_config.md)	 - Manage repo configuration
 * [mycel cost](mycel_cost.md)	 - Show cost information
 * [mycel cron](mycel_cron.md)	 - Manage scheduled agent tasks
 * [mycel doctor](mycel_doctor.md)	 - Health checks and diagnostics
@@ -75,7 +75,7 @@ mycel [flags]
 * [mycel mcp](mycel_mcp.md)	 - Manage MCP server configurations
 * [mycel notify](mycel_notify.md)	 - Manage channel subscriptions and gateway notifications
 * [mycel secret](mycel_secret.md)	 - Manage encrypted secrets
-* [mycel stats](mycel_stats.md)	 - Show workspace statistics
+* [mycel stats](mycel_stats.md)	 - Show repo statistics
 * [mycel status](mycel_status.md)	 - Show agent status
 * [mycel template](mycel_template.md)	 - Manage agent templates
 * [mycel tool](mycel_tool.md)	 - Manage AI tool providers

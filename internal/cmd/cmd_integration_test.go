@@ -184,7 +184,7 @@ func TestAgentSendNoWorkspace(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error when not in workspace, got nil")
 	}
-	if !strings.Contains(err.Error(), "not in a mycel workspace") {
+	if !strings.Contains(err.Error(), "not in a mycel-adopted repo") {
 		t.Errorf("expected workspace error, got: %v", err)
 	}
 	if bcdHit {
@@ -268,7 +268,7 @@ func TestAgentReportNoWorkspace(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error when not in workspace, got nil")
 	}
-	if !strings.Contains(err.Error(), "not in a mycel workspace") {
+	if !strings.Contains(err.Error(), "not in a mycel-adopted repo") {
 		t.Errorf("expected workspace error, got: %v", err)
 	}
 }
@@ -334,7 +334,7 @@ func TestStatusNoWorkspace(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error when not in workspace, got nil")
 	}
-	if !strings.Contains(err.Error(), "not in a mycel workspace") {
+	if !strings.Contains(err.Error(), "not in a mycel-adopted repo") {
 		t.Errorf("expected workspace error, got: %v", err)
 	}
 }
@@ -355,8 +355,8 @@ func TestStatusEmptyWorkspace(t *testing.T) {
 	if !strings.Contains(stdout, "No agents configured") {
 		t.Errorf("expected 'No agents configured', got: %s", stdout)
 	}
-	if !strings.Contains(stdout, "Workspace:") {
-		t.Errorf("expected workspace path in output, got: %s", stdout)
+	if !strings.Contains(stdout, "Repo:") {
+		t.Errorf("expected repo name in output, got: %s", stdout)
 	}
 }
 
@@ -455,7 +455,7 @@ func TestLogsNoWorkspace(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error when not in workspace, got nil")
 	}
-	if !strings.Contains(err.Error(), "not in a mycel workspace") {
+	if !strings.Contains(err.Error(), "not in a mycel-adopted repo") {
 		t.Errorf("expected workspace error, got: %v", err)
 	}
 }
@@ -595,7 +595,7 @@ func TestStatsNoWorkspace(t *testing.T) {
 	_, _, err = executeIntegrationCmd("stats")
 	// When bcd is running, stats works via API even without a local workspace.
 	// When bcd is not running, should fail with workspace error.
-	if err != nil && !strings.Contains(err.Error(), "not in a mycel workspace") {
+	if err != nil && !strings.Contains(err.Error(), "not in a mycel-adopted repo") {
 		t.Errorf("expected either success (bcd running) or workspace error, got: %v", err)
 	}
 }

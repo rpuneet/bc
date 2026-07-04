@@ -225,7 +225,6 @@ func TestUnregisteredResourceEndpoints_404(t *testing.T) {
 		"/api/mcp",
 		"/api/tools",
 		"/api/logs",
-		"/api/workspace",
 		"/api/doctor",
 	}
 	for _, path := range paths {

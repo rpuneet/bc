@@ -4,7 +4,7 @@ Show configuration
 
 ### Synopsis
 
-Display the current workspace configuration.
+Display the current repo configuration.
 
 If a key is specified, shows only that section. Otherwise shows entire config.
 
@@ -33,5 +33,5 @@ mycel config show [key] [flags]
 
 ### SEE ALSO
 
-* [mycel config](mycel_config.md)	 - Manage workspace configuration
+* [mycel config](mycel_config.md)	 - Manage repo configuration
 

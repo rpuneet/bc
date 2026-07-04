@@ -4,7 +4,7 @@ Stop mycel services
 
 ### Synopsis
 
-Stop the mycel daemon and database Docker containers for this workspace.
+Stop the mycel daemon and database Docker containers for this repo.
 
 Examples:
   mycel down

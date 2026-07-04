@@ -4,7 +4,7 @@ Set a cost budget
 
 ### Synopsis
 
-Set a cost budget for the workspace, agent, or team.
+Set a cost budget for the repo, agent, or team.
 
 Examples:
   mycel cost budget set 100.00                          # Set workspace budget to $100

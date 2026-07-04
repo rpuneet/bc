@@ -39,7 +39,7 @@ export function AgentDetailsTab({ agent }: AgentDetailsTabProps): React.ReactEle
           Paths
         </Text>
       </Box>
-      <DetailRow label="Repo" value={agent.repo ?? agent.workspace} />
+      <DetailRow label="Repo" value={agent.repo ?? '—'} />
       <DetailRow label="Worktree" value={agent.worktree_dir} />
       <DetailRow label="Memory" value={agent.memory_dir} />
       {agent.log_file && <DetailRow label="Log File" value={agent.log_file} />}

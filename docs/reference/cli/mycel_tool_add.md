@@ -1,10 +1,10 @@
 ## mycel tool add
 
-Add a tool to the workspace
+Add a tool to the repo
 
 ### Synopsis
 
-Add a custom tool provider to the workspace.
+Add a custom tool provider to the repo.
 
 Examples:
   mycel tool add mytool --command "mytool --yes" --install "pip install mytool"

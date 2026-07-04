@@ -18,8 +18,8 @@ import (
 
 var configCmd = &cobra.Command{
 	Use:   "config",
-	Short: "Manage workspace configuration",
-	Long: `Commands for managing workspace configuration (preferences.json).
+	Short: "Manage repo configuration",
+	Long: `Commands for managing repo configuration (preferences.json).
 
 Configuration uses a hierarchical key structure with dot notation:
   workspace.name
@@ -40,7 +40,7 @@ Examples:
 var configShowCmd = &cobra.Command{
 	Use:   "show [key]",
 	Short: "Show configuration",
-	Long: `Display the current workspace configuration.
+	Long: `Display the current repo configuration.
 
 If a key is specified, shows only that section. Otherwise shows entire config.
 
@@ -86,7 +86,7 @@ Examples:
 var configListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List all configuration keys",
-	Long: `List all available configuration keys in the workspace config.
+	Long: `List all available configuration keys in the repo config.
 
 Examples:
   mycel config list
@@ -97,7 +97,7 @@ Examples:
 var configEditCmd = &cobra.Command{
 	Use:   "edit",
 	Short: "Edit configuration file",
-	Long: `Open the workspace configuration file in your default editor.
+	Long: `Open the repo configuration file in your default editor.
 
 Uses $EDITOR environment variable, falls back to 'nano' if not set.
 
@@ -109,7 +109,7 @@ Examples:
 var configValidateCmd = &cobra.Command{
 	Use:   "validate",
 	Short: "Validate configuration file",
-	Long: `Validate the workspace configuration file for errors.
+	Long: `Validate the repo configuration file for errors.
 
 Checks for:
   - Valid TOML syntax
@@ -125,7 +125,7 @@ Examples:
 var configResetCmd = &cobra.Command{
 	Use:   "reset",
 	Short: "Reset configuration to defaults",
-	Long: `Reset the workspace configuration to default values.
+	Long: `Reset the repo configuration to default values.
 
 WARNING: This will overwrite your current config. Back up first if needed.
 
@@ -142,7 +142,7 @@ var configUserCmd = &cobra.Command{
 	Short: "Manage user-level configuration (~/.bcrc)",
 	Long: `Manage user-level configuration stored in ~/.bcrc.
 
-User configuration provides defaults that apply across all mycel workspaces:
+User configuration provides defaults that apply across all mycel repos:
   - Your nickname for channel messages
   - Default role for new agents
   - Preferred AI tools
@@ -216,11 +216,11 @@ func init() {
 func loadWorkspaceConfig() (*workspace.Config, string, error) {
 	ws, err := getRepo()
 	if err != nil {
-		return nil, "", fmt.Errorf("not in a mycel workspace: %w", err)
+		return nil, "", fmt.Errorf("not in a mycel-adopted repo: %w", err)
 	}
 
 	if ws.Config == nil {
-		return nil, "", fmt.Errorf("workspace is using v1 config format. Run 'mycel up' from your repo to bootstrap v2 config")
+		return nil, "", fmt.Errorf("repo is using v1 config format. Run 'mycel up' from your repo to bootstrap v2 config")
 	}
 
 	return ws.Config, ws.SettingsFile(), nil
@@ -650,7 +650,7 @@ func listStructKeys(v reflect.Value, prefix string) []string {
 }
 
 func printConfig(cfg *workspace.Config) {
-	fmt.Println("Workspace Configuration")
+	fmt.Println("Repo Configuration")
 	fmt.Println(strings.Repeat("=", 60))
 	fmt.Println()
 

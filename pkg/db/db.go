@@ -32,6 +32,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	_ "github.com/mattn/go-sqlite3" // SQLite driver
@@ -83,6 +84,12 @@ func Open(path string) (*DB, error) {
 
 // OpenWithConfig opens a SQLite database with custom configuration.
 func OpenWithConfig(path string, cfg Config) (*DB, error) {
+	// The path feeds MkdirAll and the SQLite driver — clean it and
+	// reject traversal sequences before touching the filesystem.
+	path = filepath.Clean(path)
+	if strings.Contains(path, "..") {
+		return nil, fmt.Errorf("unsafe database path: %s", path)
+	}
 	// Create directory if needed
 	if !cfg.ReadOnly {
 		if err := os.MkdirAll(filepath.Dir(path), 0750); err != nil {

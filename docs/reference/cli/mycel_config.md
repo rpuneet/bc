@@ -1,10 +1,10 @@
 ## mycel config
 
-Manage workspace configuration
+Manage repo configuration
 
 ### Synopsis
 
-Commands for managing workspace configuration (preferences.json).
+Commands for managing repo configuration (preferences.json).
 
 Configuration uses a hierarchical key structure with dot notation:
   workspace.name
