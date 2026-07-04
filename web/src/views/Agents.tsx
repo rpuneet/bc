@@ -8,50 +8,15 @@ import { StatusBadge } from "../components/StatusBadge";
 import { EmptyState } from "../components/EmptyState";
 import { InlineTerminal } from "../components/InlineTerminal";
 import { truncate } from "../utils/text";
+import { formatAbsolute, formatRelative } from "../utils/time";
 import { AgentIcon } from "../components/agent-ui";
 import { CreateAgentModal } from "../components/CreateAgentModal";
 import { useHeaderSlot } from "../context/HeaderSlotContext";
 import { TabHeaderTitle } from "../components/Header";
 import { MONO } from "../utils/typography";
 
-/**
- * RuntimeChip / ProviderChip — visually distinguish two adjacent columns
- * whose text values (tmux/docker vs claude/gemini/cursor/pi/codex) used
- * to render as identical monospace pills. Runtime carries a shape glyph
- * (terminal for tmux, container for docker) so at-a-glance readers can
- * tell "how it runs" from "what it runs" without reading the label.
- */
-function RuntimeChip({ runtime }: { runtime?: string | null }) {
-  if (!runtime) return <span className="text-mycel-muted">—</span>;
-  const isDocker = runtime === "docker";
-  return (
-    <span
-      className="inline-flex items-center gap-1.5 text-[11px] px-1.5 py-[3px] rounded-md border border-mycel-border bg-mycel-surface-hover text-mycel-muted"
-      style={{ fontFamily: MONO }}
-      title={`Runtime: ${runtime}`}
-    >
-      <span className="opacity-70">
-        {isDocker ? (
-          <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.2">
-            <rect x="1" y="4" width="10" height="6" rx="0.5" />
-            <rect x="3" y="1.5" width="6" height="2" rx="0.4" />
-            <path d="M2.5 5.5h1M4.5 5.5h1M6.5 5.5h1M8.5 5.5h1" opacity="0.5" />
-          </svg>
-        ) : (
-          <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.2">
-            <rect x="1" y="1.5" width="10" height="9" rx="0.8" />
-            <path d="M3 5l1.5 1.5L3 8M5.5 8h3" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        )}
-      </span>
-      {runtime}
-    </span>
-  );
-}
-
-/** Per-provider hue as an accent dot so Provider chips differ from the
- *  Runtime chips beside them. Kept subtle — the dot is muted-hue at
- *  ~50% opacity, not a marketing swatch. */
+/** Per-provider hue as an accent dot on the provider pill. Kept subtle —
+ *  the dot is muted-hue at ~50% opacity, not a marketing swatch. */
 const PROVIDER_DOTS: Record<string, string> = {
   claude:   "bg-orange-400/70",
   gemini:   "bg-sky-400/70",
@@ -60,18 +25,84 @@ const PROVIDER_DOTS: Record<string, string> = {
   pi:       "bg-teal-400/70",
 };
 
-function ProviderChip({ tool }: { tool?: string | null }) {
-  if (!tool) return <span className="text-mycel-muted">—</span>;
-  const dot = PROVIDER_DOTS[tool] ?? "bg-mycel-muted";
+/** Backend glyph — container silhouette for docker, terminal for tmux —
+ *  so at-a-glance readers can tell "how it runs" without reading a label. */
+function BackendGlyph({ runtime }: { runtime: string }) {
+  return runtime === "docker" ? (
+    <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.2" aria-hidden>
+      <rect x="1" y="4" width="10" height="6" rx="0.5" />
+      <rect x="3" y="1.5" width="6" height="2" rx="0.4" />
+      <path d="M2.5 5.5h1M4.5 5.5h1M6.5 5.5h1M8.5 5.5h1" opacity="0.5" />
+    </svg>
+  ) : (
+    <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.2" aria-hidden>
+      <rect x="1" y="1.5" width="10" height="9" rx="0.8" />
+      <path d="M3 5l1.5 1.5L3 8M5.5 8h3" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+/**
+ * RuntimeCell — the merged Runtime + Provider column. One provider pill
+ * (colored dot + tool name) with the backend glyph + label sitting beside
+ * it in muted mono, replacing two near-identical pill columns with one
+ * compact cell.
+ */
+function RuntimeCell({ tool, runtime }: { tool?: string | null; runtime?: string | null }) {
+  if (!tool && !runtime) return <span className="text-mycel-muted">—</span>;
+  const dot = PROVIDER_DOTS[tool ?? ""] ?? "bg-mycel-muted";
   return (
-    <span
-      className="inline-flex items-center gap-1.5 text-[11px] px-1.5 py-[3px] rounded-md border border-mycel-border bg-mycel-surface-hover text-mycel-text-2"
-      style={{ fontFamily: MONO }}
-      title={`Provider: ${tool}`}
-    >
-      <span className={`inline-block w-1.5 h-1.5 rounded-full ${dot}`} aria-hidden />
-      {tool}
+    <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+      {tool && (
+        <span
+          className="inline-flex items-center gap-1.5 text-[11px] px-1.5 py-[3px] rounded-md border border-mycel-border bg-mycel-surface-hover text-mycel-text-2"
+          style={{ fontFamily: MONO }}
+          title={`Provider: ${tool}`}
+        >
+          <span className={`inline-block w-1.5 h-1.5 rounded-full ${dot}`} aria-hidden />
+          {tool}
+        </span>
+      )}
+      {runtime && (
+        <span
+          className="inline-flex items-center gap-1 text-[10px] text-mycel-muted"
+          style={{ fontFamily: MONO }}
+          title={`Runtime: ${runtime}`}
+        >
+          <span className="opacity-70"><BackendGlyph runtime={runtime} /></span>
+          {runtime}
+        </span>
+      )}
     </span>
+  );
+}
+
+// --- Action icons (14px, stroke style matching the backend glyphs) ---
+
+function PlayIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M5.5 3.5v9l7-4.5z" />
+    </svg>
+  );
+}
+
+function StopIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <rect x="4" y="4" width="8" height="8" rx="1" />
+    </svg>
+  );
+}
+
+function TrashIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M2.5 4.5h11" />
+      <path d="M6.5 4.5V3.25a1 1 0 0 1 1-1h1a1 1 0 0 1 1 1V4.5" />
+      <path d="M4 4.5l.55 8a1.4 1.4 0 0 0 1.4 1.3h4.1a1.4 1.4 0 0 0 1.4-1.3l.55-8" />
+      <path d="M6.6 7.2v3.8M9.4 7.2v3.8" />
+    </svg>
   );
 }
 
@@ -183,7 +214,7 @@ function AgentActions({ agent, onDone }: { agent: Agent; onDone: () => void }) {
             act(() => api.deleteAgent(agent.name));
           }}
           disabled={busy}
-          className="inline-flex items-center h-8 px-2.5 text-xs rounded-md bg-mycel-error-subtle text-mycel-error hover:bg-mycel-error hover:text-white disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-mycel-accent focus-visible:ring-offset-1 focus-visible:ring-offset-mycel-bg"
+          className="inline-flex items-center h-7 px-2.5 text-xs rounded-md bg-mycel-error-subtle text-mycel-error hover:bg-mycel-error hover:text-white disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-mycel-accent focus-visible:ring-offset-1 focus-visible:ring-offset-mycel-bg"
           aria-label={`Confirm delete agent ${agent.name}`}
         >
           {busy ? "..." : "Yes"}
@@ -194,7 +225,7 @@ function AgentActions({ agent, onDone }: { agent: Agent; onDone: () => void }) {
             setConfirming(null);
           }}
           aria-label="Cancel delete"
-          className="inline-flex items-center h-8 px-2.5 text-xs rounded-md bg-mycel-surface-hover text-mycel-muted hover:text-mycel-text focus-visible:ring-2 focus-visible:ring-mycel-accent focus-visible:ring-offset-1 focus-visible:ring-offset-mycel-bg"
+          className="inline-flex items-center h-7 px-2.5 text-xs rounded-md bg-mycel-surface-hover text-mycel-muted hover:text-mycel-text focus-visible:ring-2 focus-visible:ring-mycel-accent focus-visible:ring-offset-1 focus-visible:ring-offset-mycel-bg"
         >
           No
         </button>
@@ -202,6 +233,9 @@ function AgentActions({ agent, onDone }: { agent: Agent; onDone: () => void }) {
     );
   }
 
+  // Compact icon buttons — the aria-labels and titles are the contract
+  // (tests and screen readers query them); only the visual label moved
+  // from text to a 14px glyph.
   return (
     <span
       className="inline-flex items-center gap-1"
@@ -216,9 +250,9 @@ function AgentActions({ agent, onDone }: { agent: Agent; onDone: () => void }) {
           disabled={busy}
           title="Start agent"
           aria-label={`Start agent ${agent.name}`}
-          className="inline-flex items-center gap-1 h-8 px-3 text-xs font-medium rounded-md bg-mycel-accent-subtle text-mycel-accent hover:bg-mycel-accent hover:text-mycel-accent-fg disabled:opacity-50 transition-colors focus-visible:ring-2 focus-visible:ring-mycel-accent focus-visible:ring-offset-1 focus-visible:ring-offset-mycel-bg"
+          className="inline-flex items-center justify-center h-7 w-7 rounded-md bg-mycel-accent-subtle text-mycel-accent hover:bg-mycel-accent hover:text-mycel-accent-fg disabled:opacity-50 transition-colors focus-visible:ring-2 focus-visible:ring-mycel-accent focus-visible:ring-offset-1 focus-visible:ring-offset-mycel-bg"
         >
-          {busy ? "…" : "Start"}
+          <PlayIcon />
         </button>
       )}
       {isRunning && (
@@ -230,9 +264,9 @@ function AgentActions({ agent, onDone }: { agent: Agent; onDone: () => void }) {
           disabled={busy}
           title="Stop agent"
           aria-label={`Stop agent ${agent.name}`}
-          className="inline-flex items-center gap-1 h-8 px-3 text-xs font-medium rounded-md bg-mycel-error-subtle text-mycel-error hover:bg-mycel-error hover:text-white disabled:opacity-50 transition-colors focus-visible:ring-2 focus-visible:ring-mycel-accent focus-visible:ring-offset-1 focus-visible:ring-offset-mycel-bg"
+          className="inline-flex items-center justify-center h-7 w-7 rounded-md bg-mycel-error-subtle text-mycel-error hover:bg-mycel-error hover:text-white disabled:opacity-50 transition-colors focus-visible:ring-2 focus-visible:ring-mycel-accent focus-visible:ring-offset-1 focus-visible:ring-offset-mycel-bg"
         >
-          {busy ? "…" : "Stop"}
+          <StopIcon />
         </button>
       )}
       <button
@@ -242,9 +276,9 @@ function AgentActions({ agent, onDone }: { agent: Agent; onDone: () => void }) {
         }}
         title="Delete agent"
         aria-label={`Delete agent ${agent.name}`}
-        className="inline-flex items-center gap-1 h-8 px-3 text-xs font-medium rounded-md border border-mycel-border bg-transparent text-mycel-error hover:border-mycel-error hover:bg-mycel-error-subtle transition-colors focus-visible:ring-2 focus-visible:ring-mycel-accent focus-visible:ring-offset-1 focus-visible:ring-offset-mycel-bg"
+        className="inline-flex items-center justify-center h-7 w-7 rounded-md text-mycel-muted hover:text-mycel-error hover:bg-mycel-error-subtle transition-colors focus-visible:ring-2 focus-visible:ring-mycel-accent focus-visible:ring-offset-1 focus-visible:ring-offset-mycel-bg"
       >
-        Delete
+        <TrashIcon />
       </button>
     </span>
   );
@@ -260,10 +294,10 @@ function AgentsTableSkeleton() {
           <th className="px-2 py-2 w-8"><div className="h-3 w-3 rounded animate-pulse bg-mycel-surface-hover" /></th>
           <th className="px-4 py-2"><div className="h-3 w-16 rounded animate-pulse bg-mycel-surface-hover" /></th>
           <th className="px-4 py-2 hidden sm:table-cell"><div className="h-3 w-14 rounded animate-pulse bg-mycel-surface-hover" /></th>
-          <th className="px-4 py-2 hidden sm:table-cell"><div className="h-3 w-14 rounded animate-pulse bg-mycel-surface-hover" /></th>
           <th className="px-4 py-2"><div className="h-3 w-12 rounded animate-pulse bg-mycel-surface-hover" /></th>
           <th className="px-4 py-2"><div className="h-3 w-10 rounded animate-pulse bg-mycel-surface-hover" /></th>
-          <th className="px-4 py-2 hidden md:table-cell"><div className="h-3 w-8 rounded animate-pulse bg-mycel-surface-hover" /></th>
+          <th className="px-4 py-2 hidden md:table-cell"><div className="h-3 w-12 rounded animate-pulse bg-mycel-surface-hover" /></th>
+          <th className="px-4 py-2 hidden md:table-cell"><div className="h-3 w-8 rounded animate-pulse bg-mycel-surface-hover ml-auto" /></th>
           <th className="px-4 py-2"><div className="h-3 w-14 rounded animate-pulse bg-mycel-surface-hover" /></th>
           <th className="px-4 py-2 w-10" />
         </tr>
@@ -278,12 +312,12 @@ function AgentsTableSkeleton() {
                 <div className="h-3 rounded animate-pulse bg-mycel-surface-hover" style={{ width: `${60 + (i % 4) * 15}px` }} />
               </div>
             </td>
-            <td className="px-4 py-3 hidden sm:table-cell"><div className="h-3 w-12 rounded animate-pulse bg-mycel-surface-hover" /></td>
-            <td className="px-4 py-3 hidden sm:table-cell"><div className="h-3 w-14 rounded animate-pulse bg-mycel-surface-hover" /></td>
+            <td className="px-4 py-3 hidden sm:table-cell"><div className="h-3 w-16 rounded animate-pulse bg-mycel-surface-hover" /></td>
             <td className="px-4 py-3"><div className="h-4 w-16 rounded-full animate-pulse bg-mycel-surface-hover" /></td>
             <td className="px-4 py-3"><div className="h-3 rounded animate-pulse bg-mycel-surface-hover" style={{ width: `${80 + (i % 3) * 30}px` }} /></td>
-            <td className="px-4 py-3 hidden md:table-cell"><div className="h-4 w-10 rounded animate-pulse bg-mycel-surface-hover" /></td>
-            <td className="px-4 py-3"><div className="h-4 w-20 rounded animate-pulse bg-mycel-surface-hover" /></td>
+            <td className="px-4 py-3 hidden md:table-cell"><div className="h-3 w-10 rounded animate-pulse bg-mycel-surface-hover" /></td>
+            <td className="px-4 py-3 hidden md:table-cell"><div className="h-3 w-10 rounded animate-pulse bg-mycel-surface-hover ml-auto" /></td>
+            <td className="px-4 py-3"><div className="h-4 w-16 rounded animate-pulse bg-mycel-surface-hover" /></td>
             <td className="px-4 py-3" />
           </tr>
         ))}
@@ -444,10 +478,10 @@ export function Agents() {
     "Select",
     "Name",
     "Runtime",
-    "Provider",
     "Status",
     "Task",
-    "MCP",
+    "Activity",
+    "Cost",
     "Actions",
     "",
   ] as const;
@@ -831,16 +865,19 @@ export function Agents() {
                 <th className="px-4 py-2.5 text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted hidden sm:table-cell">
                   Runtime
                 </th>
-                <th className="px-4 py-2.5 text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted hidden sm:table-cell">
-                  Provider
-                </th>
                 <th className="px-4 py-2.5 text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted">Status</th>
                 <th className="px-4 py-2.5 text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted">Task</th>
                 <th
                   className="px-4 py-2.5 text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted hidden md:table-cell"
-                  title="MCP server configuration"
+                  title="Last state change"
                 >
-                  MCP
+                  Activity
+                </th>
+                <th
+                  className="px-4 py-2.5 text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted hidden md:table-cell text-right"
+                  title="Total spend"
+                >
+                  Cost
                 </th>
                 <th className="px-4 py-2.5 text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted">Actions</th>
                 <th className="px-4 py-2.5 text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted w-10"></th>
@@ -908,16 +945,26 @@ export function Agents() {
                       />
                     </td>
                     <td className="px-4 py-2.5">
-                      <span className="inline-flex items-center gap-2">
+                      <span className="inline-flex items-center gap-2 min-w-0">
                         <AgentIcon state={a.state} size={28} tool={a.tool} />
-                        <InlineAgentName agent={a} onRenamed={refresh} />
+                        <span className="flex flex-col leading-tight min-w-0">
+                          <InlineAgentName agent={a} onRenamed={refresh} />
+                          {/* Repo subtitle — only when the repo isn't already
+                              shown as a group header above the row. */}
+                          {!(groupByRepo && distinctRepoCount > 1) && a.repo && (
+                            <span
+                              className="text-xs text-mycel-muted truncate max-w-[180px]"
+                              style={{ fontFamily: MONO }}
+                              title={a.repo}
+                            >
+                              {a.repo.split("/").pop() ?? a.repo}
+                            </span>
+                          )}
+                        </span>
                       </span>
                     </td>
                     <td className="px-4 py-2.5 hidden sm:table-cell">
-                      <RuntimeChip runtime={a.runtime_backend} />
-                    </td>
-                    <td className="px-4 py-2.5 hidden sm:table-cell">
-                      <ProviderChip tool={a.tool} />
+                      <RuntimeCell tool={a.tool} runtime={a.runtime_backend} />
                     </td>
                     <td className="px-4 py-2.5">
                       <StatusBadge status={a.state} />
@@ -929,46 +976,22 @@ export function Agents() {
                         {a.task ? truncate(a.task, 50) : "—"}
                       </span>
                     </td>
-                    <td className="px-4 py-2.5 hidden md:table-cell">
-                      {(() => {
-                        const servers = a.mcp_servers ?? [];
-                        // Every agent has the built-in "mycel" (formerly
-                        // "bc") MCP server. Showing it on every row was
-                        // pure visual noise. Only surface EXTRA servers
-                        // beyond the default; render "\u2014" otherwise.
-                        const extras = servers
-                          .map((s) => s.replace(/^mcp__/, ""))
-                          .filter((s) => s !== "bc" && s !== "mycel");
-                        if (extras.length === 0) {
-                          return <span className="text-mycel-muted text-[11px]">{"\u2014"}</span>;
-                        }
-                        const fullList = extras.join(", ");
-                        if (extras.length <= 2) {
-                          return (
-                            <div className="flex flex-wrap gap-1" title={fullList}>
-                              {extras.map((s) => (
-                                <span key={s} className="text-[10px] px-1.5 py-0.5 rounded-md bg-mycel-accent-subtle text-mycel-accent font-medium">
-                                  {s}
-                                </span>
-                              ))}
-                            </div>
-                          );
-                        }
-                        const rest = extras.slice(1).join(", ");
-                        return (
-                          <div className="flex flex-wrap gap-1" title={fullList}>
-                            <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-mycel-accent-subtle text-mycel-accent font-medium">
-                              {extras[0]}
-                            </span>
-                            <span
-                              className="text-[10px] px-1.5 py-0.5 rounded-md border border-mycel-border text-mycel-muted cursor-help"
-                              title={rest}
-                            >
-                              +{String(extras.length - 1)}
-                            </span>
-                          </div>
-                        );
-                      })()}
+                    <td className="px-4 py-2.5 hidden md:table-cell whitespace-nowrap">
+                      <span
+                        className="text-xs text-mycel-text-2"
+                        title={a.updated_at ? formatAbsolute(a.updated_at) : undefined}
+                      >
+                        {formatRelative(a.updated_at)}
+                      </span>
+                    </td>
+                    <td className="px-4 py-2.5 hidden md:table-cell text-right whitespace-nowrap">
+                      <span
+                        className="text-xs text-mycel-text-2 tabular-nums"
+                        style={{ fontFamily: MONO }}
+                        title={a.cost_usd > 0 ? `$${a.cost_usd.toFixed(4)} total` : undefined}
+                      >
+                        {a.cost_usd > 0 ? `$${a.cost_usd.toFixed(2)}` : "\u2014"}
+                      </span>
                     </td>
                     <td className="px-4 py-2.5">
                       <AgentActions agent={a} onDone={refresh} />
@@ -976,7 +999,7 @@ export function Agents() {
                     <td className="px-4 py-2.5 text-center">
                       <button
                         onClick={(e) => handlePeekToggle(a.name, e)}
-                        className={`inline-flex items-center justify-center w-7 h-7 rounded-md transition-colors focus:ring-2 focus:ring-mycel-accent focus:outline-none ${
+                        className={`inline-flex items-center justify-center w-7 h-7 rounded-md transition-colors focus-visible:ring-2 focus-visible:ring-mycel-accent focus-visible:ring-offset-1 focus-visible:ring-offset-mycel-bg focus:outline-none ${
                           peekAgent === a.name
                             ? "bg-mycel-accent-subtle text-mycel-accent"
                             : "text-mycel-muted hover:text-mycel-text hover:bg-mycel-surface"
