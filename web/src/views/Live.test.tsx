@@ -16,6 +16,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, fireEvent, act } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { Live, SHOW_STOPPED_STORAGE_KEY } from "./Live";
+import { HeaderSlotProvider, useHeaderSlotContext } from "../context/HeaderSlotContext";
 
 const fetchMock = globalThis.fetch as ReturnType<typeof vi.fn>;
 
@@ -48,10 +49,25 @@ function mockAgentsApi(list: ReturnType<typeof agent>[]) {
   });
 }
 
+/** Renders the header-slot content the way Layout's full-width bar does —
+ *  Live's presence line + controls now live there, not in the page body. */
+function HeaderHost() {
+  const { slot } = useHeaderSlotContext();
+  return (
+    <div data-testid="header-host">
+      {slot.title}
+      {slot.actions}
+    </div>
+  );
+}
+
 function renderLive() {
   return render(
     <MemoryRouter>
-      <Live />
+      <HeaderSlotProvider>
+        <HeaderHost />
+        <Live />
+      </HeaderSlotProvider>
     </MemoryRouter>,
   );
 }

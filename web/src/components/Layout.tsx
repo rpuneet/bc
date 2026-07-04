@@ -11,6 +11,7 @@ import { SetupWizard, PlatformChooser, PLATFORM_MAP } from "./notifications/Setu
 import { DefaultAppIcon, PLATFORM_ICON_MAP } from "./notifications/PlatformIcons";
 import { Header } from "./Header";
 import { SidebarToggle } from "./SidebarToggle";
+import { BrandMark } from "./BrandMark";
 import { HeaderSlotProvider, useHeaderSlotContext } from "../context/HeaderSlotContext";
 
 const SIDEBAR_KEY = "bc-sidebar-collapsed";
@@ -845,7 +846,7 @@ function NavList({
               // Icon-only mode: the caption collapses to a bare hairline.
               <div className="mx-3 my-2 border-t border-mycel-border" aria-hidden />
             ) : (
-              <div className="px-4 pt-4 pb-1 text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted select-none">
+              <div className="px-4 pt-4 pb-1 text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted select-none mycel-fade-slide-in">
                 {section.label}
               </div>
             ))}
@@ -871,7 +872,7 @@ function NavList({
                       <Icon name={icon} size={16} />
                     </span>
                     {(!collapsed || isMobile) && (
-                      <span className="truncate">{label}</span>
+                      <span className="truncate mycel-fade-slide-in">{label}</span>
                     )}
                     {label === "Live" && (
                       <span className="w-1.5 h-1.5 rounded-full bg-mycel-live animate-pulse ml-auto" />
@@ -1000,78 +1001,53 @@ export function Layout() {
 
   const sidebarWidth = collapsed && !isMobile ? "w-14" : "w-48";
 
-  return (
-    <div className="flex h-screen">
-      {/* Mobile hamburger */}
-      <button type="button" onClick={() => setMobileOpen(true)}
-        className="fixed top-3 left-3 z-40 md:hidden p-2 rounded-md border border-mycel-border bg-mycel-surface text-mycel-muted hover:text-mycel-text transition-colors"
-        aria-label="Open navigation"
-      >
-        <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5">
-          <path d="M3 5h12M3 9h12M3 13h12" />
-        </svg>
-      </button>
+  // The header owns the ONE drawer toggle. On mobile it opens/closes the
+  // overlay drawer; on desktop it collapses/expands the rail.
+  const headerToggleCollapsed = isMobile ? !mobileOpen : collapsed;
+  const handleHeaderToggle = useCallback(() => {
+    if (isMobile) setMobileOpen((prev) => !prev);
+    else toggleCollapsed();
+  }, [isMobile, toggleCollapsed]);
 
+  return (
+    <HeaderSlotProvider>
+    <div className="flex flex-col h-screen">
+      {/* Full-width top bar — one continuous strip across the viewport.
+          The drawer sits BELOW it. */}
+      <LayoutHeader collapsed={headerToggleCollapsed} onToggleCollapsed={handleHeaderToggle} />
+      <DegradedBanner />
+
+      <div className="flex flex-1 min-h-0 relative">
       {mobileOpen && <div className="fixed inset-0 z-40 bg-mycel-overlay md:hidden" onClick={() => setMobileOpen(false)} />}
 
-      {/* Sidebar */}
+      {/* Drawer — collapses to an icon rail with a 200ms ease-out width
+          transition; labels fade/slide in via .mycel-fade-slide-in. */}
       <nav
-        className={`fixed inset-y-0 left-0 z-50 ${sidebarWidth} shrink-0 border-r border-mycel-border bg-mycel-surface shadow-mycel flex flex-col transition-all duration-200 md:relative md:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-50 ${sidebarWidth} shrink-0 border-r border-mycel-border bg-mycel-surface shadow-mycel flex flex-col transition-all duration-200 ease-out md:relative md:inset-y-auto md:translate-x-0 ${
           isMobile ? (mobileOpen ? "translate-x-0 w-48" : "-translate-x-full") : ""
         }`}
         style={{ scrollbarWidth: "thin", scrollbarColor: "var(--mycel-scrollbar-thumb) transparent" }}
       >
-        {/* Header — heights kept in sync with Header.tsx compact mode (48px)
-            so the drawer top-line aligns pixel-perfect with the main pane
-            header across the fold. */}
-        <div className="px-3 min-h-[48px] border-b border-mycel-border flex items-center justify-between">
-          {(!collapsed || isMobile) ? (
-            <div className="flex items-center gap-2 overflow-hidden">
-              <span
-                className="w-6 h-6 shrink-0 flex items-center justify-center rounded-md font-semibold"
-                style={{
-                  background: "var(--mycel-accent)",
-                  color: "var(--mycel-accent-fg)",
-                  fontSize: 14,
-                  fontFamily: "'JetBrains Mono', monospace",
-                  letterSpacing: -0.5,
-                }}
-              >
-                m
-              </span>
-              <span className="text-sm font-semibold tracking-tight text-mycel-text truncate">
+        {/* Brand row — BrandMark network glyph + wordmark when expanded,
+            mark-only when collapsed. The toggle does NOT live here: the
+            single toggle sits at the far left of the header above. */}
+        <div className={`px-3 min-h-[40px] flex items-center ${collapsed && !isMobile ? "justify-center" : "justify-between"}`}>
+          <div className={`flex items-center gap-2 overflow-hidden ${collapsed && !isMobile ? "justify-center" : ""}`}>
+            <span className="text-mycel-text flex items-center shrink-0">
+              <BrandMark />
+            </span>
+            {(!collapsed || isMobile) && (
+              <span className="text-sm font-semibold tracking-tight text-mycel-text truncate mycel-fade-slide-in">
                 mycel
               </span>
-            </div>
-          ) : (
-            <span
-              className="w-6 h-6 shrink-0 flex items-center justify-center rounded-md font-semibold"
-              style={{
-                background: "var(--mycel-accent)",
-                color: "var(--mycel-accent-fg)",
-                fontSize: 14,
-                fontFamily: "'JetBrains Mono', monospace",
-                letterSpacing: -0.5,
-              }}
-            >
-              m
-            </span>
-          )}
-          {isMobile ? (
+            )}
+          </div>
+          {isMobile && (
             <button type="button" onClick={() => setMobileOpen(false)}
               className="p-0.5 rounded-md text-mycel-muted hover:text-mycel-text transition-colors" aria-label="Close navigation"
             >
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5">
                 <path d="M3 3l8 8M11 3l-8 8" />
-              </svg>
-            </button>
-          ) : (
-            <button type="button" onClick={toggleCollapsed}
-              className="p-0.5 rounded-md text-mycel-muted hover:text-mycel-text transition-colors"
-              aria-label={collapsed ? "Expand navigation" : "Collapse navigation"}
-            >
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5">
-                {collapsed ? <path d="M5 3l4 4-4 4" /> : <path d="M9 3l-4 4 4 4" />}
               </svg>
             </button>
           )}
@@ -1142,7 +1118,7 @@ export function Layout() {
               <span className="shrink-0 flex items-center justify-center w-4 opacity-70">
                 <Icon name="settings" size={16} />
               </span>
-              <span className="truncate">Settings</span>
+              <span className="truncate mycel-fade-slide-in">Settings</span>
             </NavLink>
             <NavLink
               to="/about"
@@ -1157,7 +1133,7 @@ export function Layout() {
                   <path d="M7 4.5v.01M6 6.5h1v3h1" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
               </span>
-              <span className="truncate">About</span>
+              <span className="truncate mycel-fade-slide-in">About</span>
             </NavLink>
             <button type="button" onClick={toggle}
               className="flex items-center gap-2.5 pl-4 pr-3 py-[7px] text-sm border-l-2 border-transparent text-mycel-text-2 hover:text-mycel-text hover:bg-[color-mix(in_srgb,var(--mycel-surface-hover)_60%,transparent)] transition-colors"
@@ -1172,33 +1148,33 @@ export function Layout() {
                   <path d="M7 2a5 5 0 010 10z" fill="currentColor" />
                 </svg>
               </span>
-              <span className="truncate">Theme</span>
+              <span className="truncate mycel-fade-slide-in">Theme</span>
               <span className="ml-auto text-xs text-mycel-muted">{THEME_LABELS[mode]}</span>
             </button>
           </div>
         )}
       </nav>
 
-      <HeaderSlotProvider>
-        <main className="flex-1 flex flex-col overflow-hidden bg-mycel-bg">
-          <LayoutHeader collapsed={collapsed} onToggleCollapsed={toggleCollapsed} />
-          <DegradedBanner />
-          <div className="flex-1 overflow-auto">
-            <RouteTransition>
-              <Outlet />
-            </RouteTransition>
-          </div>
-        </main>
-      </HeaderSlotProvider>
+      <main className="flex-1 flex flex-col overflow-hidden bg-mycel-bg">
+        <div className="flex-1 overflow-auto">
+          <RouteTransition>
+            <Outlet />
+          </RouteTransition>
+        </div>
+      </main>
+      </div>
       <CommandPalette />
     </div>
+    </HeaderSlotProvider>
   );
 }
 
 /* ── LayoutHeader ───────────────────────────────────────────────
-   Renders the shared Header with the sidebar toggle on the left,
-   pulling per-page title/actions from HeaderSlotContext.
-──────────────────────────────────────────────────────────────── */
+   The full-width top bar. Owns the single drawer toggle at the far
+   left; per-view summary/search/actions arrive via HeaderSlotContext.
+   Views that render their own top band (AgentDetail's HUD bar) set
+   `hidden` — the bar stays (it is app chrome, and keeps the toggle
+   reachable) but carries no per-view content. */
 function LayoutHeader({
   collapsed,
   onToggleCollapsed,
@@ -1207,16 +1183,11 @@ function LayoutHeader({
   onToggleCollapsed: () => void;
 }) {
   const { slot } = useHeaderSlotContext();
-  // Pages that render their own self-contained top band (AgentDetail's
-  // HUD bar) opt out of the LayoutHeader entirely so we don't render an
-  // empty 42px row + border above their own header. The sidebar toggle
-  // still lives in the sidebar, so navigation is unaffected.
-  if (slot.hidden) return null;
   return (
     <Header
       left={<SidebarToggle collapsed={collapsed} onToggle={onToggleCollapsed} />}
-      center={slot.title}
-      actions={slot.actions}
+      center={slot.hidden ? undefined : slot.title}
+      actions={slot.hidden ? undefined : slot.actions}
     />
   );
 }

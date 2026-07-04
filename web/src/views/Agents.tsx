@@ -13,7 +13,6 @@ import { formatAbsolute, formatRelative } from "../utils/time";
 import { AgentIcon } from "../components/agent-ui";
 import { CreateAgentModal } from "../components/CreateAgentModal";
 import { useHeaderSlot } from "../context/HeaderSlotContext";
-import { TabHeaderTitle } from "../components/Header";
 import { MONO } from "../utils/typography";
 
 /** Per-provider hue as an accent dot on the provider pill. Kept subtle —
@@ -467,25 +466,6 @@ export function Agents() {
     });
   }, []);
 
-  // Header slot: title + "Create agent" action
-  useHeaderSlot({
-    title: <TabHeaderTitle>Agents</TabHeaderTitle>,
-    actions: (
-      <>
-        <span className="text-xs text-mycel-text-2 tabular-nums">
-          {agents ? `${String(agents.length)} total` : "\u2014"}
-        </span>
-        <button
-          type="button"
-          onClick={() => setCreateOpen(true)}
-          className="inline-flex items-center h-8 px-3 rounded-md text-xs font-medium bg-mycel-accent text-mycel-accent-fg hover:bg-mycel-accent-hover shadow-mycel-sm transition-colors"
-        >
-          + New agent
-        </button>
-      </>
-    ),
-  });
-
   // Search + filter + bulk state (URL-synced where useful)
   const [search, setSearch] = useState(searchParams.get("q") ?? "");
   const roleFilter = searchParams.get("role") ?? "";
@@ -827,6 +807,55 @@ export function Agents() {
   };
   const hasFilters = search !== "" || roleFilter !== "" || stateFilter !== "" || toolFilter !== "";
 
+  // Header slot — the full-width top bar carries this view's summary
+  // ("2 active · Stop All"), search box and primary CTA. No page title:
+  // the drawer's active nav item already names the section.
+  useHeaderSlot({
+    title:
+      allAgents.length > 0 ? (
+        <div className="flex items-center gap-3 min-w-0">
+          <span className="text-xs text-mycel-text-2 tabular-nums truncate">
+            {hasFilters
+              ? `${String(filteredAgents.length)} of ${String(allAgents.length)} agents`
+              : `${String(runningCount)} active`}
+          </span>
+          {allAgents.some((a) => a.state !== "stopped" && a.state !== "error") && (
+            <button
+              type="button"
+              onClick={handleStopAll}
+              disabled={stoppingAll}
+              className="inline-flex items-center h-7 px-2.5 text-xs font-medium rounded-md border border-mycel-border text-mycel-error hover:bg-mycel-error-subtle hover:border-mycel-error disabled:opacity-50 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-mycel-error focus-visible:ring-offset-1 focus-visible:ring-offset-mycel-bg"
+              aria-label="Stop all agents"
+            >
+              {stoppingAll ? "Stopping..." : "Stop All"}
+            </button>
+          )}
+        </div>
+      ) : undefined,
+    actions: (
+      <>
+        {allAgents.length > 0 && (
+          <input
+            ref={searchInputRef}
+            type="text"
+            value={search}
+            onChange={(e) => { setSearch(e.target.value); }}
+            placeholder="Search  /"
+            className="hidden sm:block w-44 focus:w-64 transition-[width] duration-150 px-3 py-1.5 text-sm rounded-md border border-mycel-border bg-mycel-surface text-mycel-text placeholder:text-mycel-muted focus:outline-none focus:ring-1 focus:ring-mycel-accent"
+            aria-label="Search agents"
+          />
+        )}
+        <button
+          type="button"
+          onClick={() => setCreateOpen(true)}
+          className="inline-flex items-center h-8 px-3 rounded-md text-xs font-medium bg-mycel-accent text-mycel-accent-fg hover:bg-mycel-accent-hover shadow-mycel-sm transition-colors"
+        >
+          + New agent
+        </button>
+      </>
+    ),
+  });
+
   if (timedOut && !agents) {
     return (
       <div className="p-6">
@@ -856,44 +885,10 @@ export function Agents() {
 
   return (
     <div className="p-6 space-y-4 pb-24">
-      {/* Sub-toolbar: count summary + Stop All (title + Create live in the top-bar chip) */}
+      {/* Summary, search and + New agent live in the full-width header;
+          this row keeps only the secondary filters. */}
       {allAgents.length > 0 && (
-        <div className="flex items-center justify-end gap-3">
-          <span className="text-xs text-mycel-text-2">
-            {hasFilters
-              ? `${String(filteredAgents.length)} of ${String(allAgents.length)} agents`
-              : `${String(runningCount)} active`}
-          </span>
-          {allAgents.some(
-            (a) => a.state !== "stopped" && a.state !== "error",
-          ) && (
-            <button
-              type="button"
-              onClick={handleStopAll}
-              disabled={stoppingAll}
-              className="inline-flex items-center h-9 px-3 text-xs font-medium rounded-md border border-mycel-border text-mycel-error hover:bg-mycel-error-subtle hover:border-mycel-error disabled:opacity-50 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-mycel-error focus-visible:ring-offset-1 focus-visible:ring-offset-mycel-bg"
-              aria-label="Stop all agents"
-            >
-              {stoppingAll ? "Stopping..." : "Stop All"}
-            </button>
-          )}
-        </div>
-      )}
-
-      {/* Search + filter toolbar */}
-      {allAgents.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="relative flex-1 min-w-[200px]">
-            <input
-              ref={searchInputRef}
-              type="text"
-              value={search}
-              onChange={(e) => { setSearch(e.target.value); }}
-              placeholder="Search by name or task...  (press / to focus)"
-              className="w-full px-3 py-1.5 text-sm rounded-md border border-mycel-border bg-mycel-bg text-mycel-text placeholder:text-mycel-muted focus:outline-none focus:ring-1 focus:ring-mycel-accent"
-              aria-label="Search agents"
-            />
-          </div>
+        <div className="flex flex-wrap items-center justify-end gap-2">
           <select
             value={stateFilter}
             onChange={(e) => { updateFilter("state", e.target.value); }}
@@ -953,7 +948,7 @@ export function Agents() {
           <EmptyState
             icon=">"
             title="No agents yet"
-            description="Create your first agent using the + Create Agent button."
+            description="Create your first agent with the + New agent button in the top bar."
           />
         ) : filteredAgents.length === 0 ? (
           <EmptyState

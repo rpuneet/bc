@@ -6,7 +6,6 @@ import { LoadingSkeleton } from "../components/LoadingSkeleton";
 import { EmptyState } from "../components/EmptyState";
 
 import { useHeaderSlot } from "../context/HeaderSlotContext";
-import { TabHeaderTitle } from "../components/Header";
 import { formatRelative } from "../utils/time";
 // ---------------------------------------------------------------------------
 // Helpers
@@ -611,7 +610,6 @@ export function Cron() {
   const [showCreateForm, setShowCreateForm] = useState(false);
 
   useHeaderSlot({
-    title: <TabHeaderTitle>Cron</TabHeaderTitle>,
     actions: (
       <>
         {jobs && (

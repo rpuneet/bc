@@ -10,8 +10,6 @@ import { CopyButton } from "../components/CopyButton";
 import { ToastContainer, useToast } from "../components/Toast";
 import type { ToastLevel } from "../components/Toast";
 
-import { useHeaderSlot } from "../context/HeaderSlotContext";
-import { TabHeaderTitle } from "../components/Header";
 const STATUS_CONFIG: Record<string, { dot: string; label: string; textColor: string }> = {
   connected:     { dot: "bg-mycel-success", label: "Connected",     textColor: "text-mycel-success" },
   configured:    { dot: "bg-mycel-success", label: "Configured",    textColor: "text-mycel-success" },
@@ -230,8 +228,6 @@ function Spinner() {
 }
 
 export function Tools() {
-  useHeaderSlot({ title: <TabHeaderTitle>Tools</TabHeaderTitle> });
-
   const providerFetcher = useCallback(() => api.listProviders(), []);
   const { data: providers, loading: providersLoading } = usePolling(providerFetcher, 10000);
 

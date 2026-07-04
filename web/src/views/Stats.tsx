@@ -15,7 +15,6 @@ import { EmptyState } from "../components/EmptyState";
 import { Panel, Empty, fmtTime, fmtBytes, fmtTokens } from "../components/shared/stats-primitives";
 
 import { useHeaderSlot } from "../context/HeaderSlotContext";
-import { TabHeaderTitle } from "../components/Header";
 // ── Model Pricing ───────────────────────────────────────────────────────────────
 
 const MODEL_PRICING: Record<string, { input: number; output: number }> = {
@@ -252,7 +251,6 @@ export function Stats() {
   }, []);
 
   useHeaderSlot({
-    title: <TabHeaderTitle>Metrics</TabHeaderTitle>,
     actions: (
       <div className="flex gap-1">
         {RANGES.map((r, i) => (

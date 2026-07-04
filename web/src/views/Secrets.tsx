@@ -6,7 +6,6 @@ import { LoadingSkeleton } from "../components/LoadingSkeleton";
 import { EmptyState } from "../components/EmptyState";
 
 import { useHeaderSlot } from "../context/HeaderSlotContext";
-import { TabHeaderTitle } from "../components/Header";
 import { formatRelative } from "../utils/time";
 
 const timeAgo = (dateStr: string): string => formatRelative(dateStr);
@@ -353,7 +352,6 @@ export function Secrets() {
   } = usePolling(fetcher, 30000);
 
   useHeaderSlot({
-    title: <TabHeaderTitle>Secrets</TabHeaderTitle>,
     actions: secrets ? (
       <span className="text-[11px] text-mycel-muted tabular-nums">
         {secrets.length}

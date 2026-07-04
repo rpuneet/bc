@@ -1119,11 +1119,9 @@ export function AgentDetail() {
   const agentsUrl = "/agents";
 
   // AgentDetail renders its own comprehensive HUD bar (back link + agent
-  // icon + name + state + task + tabs), so the global LayoutHeader is
-  // hidden entirely on this view — no empty 42px row + border above our
-  // own header. The sidebar still owns its own collapse arrow and the
-  // workspace dropdown is reachable from the sidebar header, so nothing
-  // navigation-critical is lost.
+  // icon + name + state + task + tabs). `hidden` keeps the full-width
+  // top bar as bare chrome (drawer toggle only) so no per-view slot
+  // content competes with our own header band.
   useHeaderSlot({ hidden: true });
 
   // Derive active tab from URL sub-path: /agents/<name>/<tab>

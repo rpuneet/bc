@@ -50,7 +50,6 @@ export function CostsGlobal() {
   }, [load]);
 
   useHeaderSlot({
-    title: "Costs across repos",
     actions: (
       <div className="flex items-center gap-2 text-[12px]">
         <label className="text-mycel-muted">Since</label>

@@ -6,7 +6,6 @@ import { ChipList, SectionRule, ConfirmButton, SearchInput } from "../components
 import { MONO } from "../utils/typography";
 
 import { useHeaderSlot } from "../context/HeaderSlotContext";
-import { TabHeaderTitle } from "../components/Header";
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 interface Template {
@@ -642,7 +641,6 @@ export function Templates() {
   } = usePolling(fetcher, 30000);
 
   useHeaderSlot({
-    title: <TabHeaderTitle>Templates</TabHeaderTitle>,
     actions:
       templates !== null ? (
         <span className="text-[11px] text-mycel-muted tabular-nums">

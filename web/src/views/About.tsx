@@ -1,6 +1,4 @@
 import { useCallback, useEffect, useState } from "react";
-import { useHeaderSlot } from "../context/HeaderSlotContext";
-import { TabHeaderTitle } from "../components/Header";
 
 /* ── Types ──────────────────────────────────────────────────────────── */
 
@@ -104,8 +102,6 @@ async function pingPages(): Promise<boolean> {
 /* ── View ──────────────────────────────────────────────────────────── */
 
 export function About() {
-  useHeaderSlot({ title: <TabHeaderTitle>About</TabHeaderTitle> });
-
   const [health, setHealth] = useState<Health | null>(null);
   const [latest, setLatest] = useState<GhRelease | null>(null);
   const [npm, setNpm] = useState<NpmInfo | null>(null);

@@ -194,3 +194,26 @@ textarea:focus-visible,
 ::-webkit-scrollbar-thumb:hover {
   background: var(--mycel-muted);
 }
+
+/* ── Drawer content reveal ────────────────────────────────────────────
+   Labels/captions fade + slide in when the drawer expands from the icon
+   rail (the rail's width already animates 200ms ease-out). Collapse
+   unmounts labels instantly while the width tween carries the motion. */
+@keyframes mycel-fade-slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.mycel-fade-slide-in {
+  animation: mycel-fade-slide-in 160ms ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .mycel-fade-slide-in {
+    animation: none;
+  }
+}

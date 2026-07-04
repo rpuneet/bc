@@ -6,7 +6,6 @@ import { flattenNodes, nodeMatchesSearch } from "../components/live/liveHelpers"
 import { AgentCard, AgentDrillDown } from "../components/live/LiveRenderers";
 
 import { useHeaderSlot } from "../context/HeaderSlotContext";
-import { TabHeaderTitle } from "../components/Header";
 
 /* ── Live ──────────────────────────────────────────────────────────────
  *
@@ -140,8 +139,6 @@ function PresenceLine({
 }
 
 export function Live() {
-  useHeaderSlot({ title: <TabHeaderTitle>Live</TabHeaderTitle> });
-
   const { activities, tasks, rawEventsRef, connected, reconnecting, eventCount } = useAgentActivity();
   const [typeFilter, setTypeFilter] = useState<FilterType>("all");
   const [searchFilter, setSearchFilter] = useState("");
@@ -347,23 +344,11 @@ export function Live() {
   const drillDownRawEvents = drillDownAgent ? (rawEventsRef.current.get(drillDownAgent) ?? []) : [];
   void rawEventsVersion;
 
-  if (drillDownAgent && drillDownActivity) {
-    return (
-      <div className="p-6 flex flex-col h-full relative">
-        <AgentDrillDown
-          activity={drillDownActivity}
-          rawEvents={drillDownRawEvents}
-          tasks={tasks}
-          onBack={() => setDrillDownAgent(null)}
-        />
-      </div>
-    );
-  }
-
-  return (
-    <div className="p-6 flex flex-col h-full relative">
-      {/* The whole control surface is one line: presence · search · ⋯ */}
-      <div className="flex items-center gap-3 mb-5">
+  // Header slot — the whole control surface lives in the full-width top
+  // bar: presence · search · ⋯. The drawer names the section, so no title.
+  useHeaderSlot({
+    title: (
+      <div className="flex items-center gap-3 min-w-0">
         <PresenceLine
           working={summary.working}
           idle={summary.idle}
@@ -385,9 +370,10 @@ export function Live() {
             paused{pausedCount > 0 && <span className="tabular-nums">+{pausedCount}</span>}
           </button>
         )}
-
-        <span className="flex-1" />
-
+      </div>
+    ),
+    actions: drillDownAgent ? undefined : (
+      <>
         {/* Search */}
         <div className="relative shrink-0">
           <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" className="absolute left-2.5 top-1/2 -translate-y-1/2 text-mycel-muted pointer-events-none">
@@ -464,7 +450,26 @@ export function Live() {
             </div>
           )}
         </div>
+      </>
+    ),
+  });
+
+  if (drillDownAgent && drillDownActivity) {
+    return (
+      <div className="p-6 flex flex-col h-full relative">
+        <AgentDrillDown
+          activity={drillDownActivity}
+          rawEvents={drillDownRawEvents}
+          tasks={tasks}
+          onBack={() => setDrillDownAgent(null)}
+        />
       </div>
+    );
+  }
+
+  return (
+    <div className="p-6 flex flex-col h-full relative">
+      {/* Controls live in the full-width header (presence · search · ⋯) */}
 
       {/* Keyboard Shortcuts Overlay */}
       {showShortcuts && (
