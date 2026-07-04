@@ -3652,3 +3652,132 @@ func TestWorktreeManagerFor_CreatesWorktreeFromAgentRepo(t *testing.T) {
 		t.Errorf("worktree dir %q not under state dir %q", wtDir, stateDir)
 	}
 }
+
+// --- Docker runtime: the agent's repo reaches the container backend ---
+
+// newDockerMockManager builds a Manager whose default runtime is a mock
+// docker backend, so tests can inspect the dir/env handed to
+// CreateSessionWithEnv without a real Docker daemon.
+func newDockerMockManager(t *testing.T, boot string) (*Manager, *mockBackend) {
+	t.Helper()
+	stateDir := filepath.Join(t.TempDir(), "state")
+	if err := os.MkdirAll(stateDir, 0750); err != nil {
+		t.Fatal(err)
+	}
+	store, err := NewSQLiteStore(filepath.Join(stateDir, "state.db"))
+	if err != nil {
+		t.Fatalf("NewSQLiteStore: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+	docker := newMockBackend("docker")
+	m := &Manager{
+		agents:         make(map[string]*Agent),
+		backends:       map[string]runtime.Backend{"docker": docker},
+		defaultBackend: "docker",
+		stateDir:       stateDir,
+		store:          store,
+		agentCmd:       "/bin/true",
+		workspacePath:  boot,
+		worktreeMgr:    worktree.NewManagerWithDataDir(boot, stateDir),
+	}
+	return m, docker
+}
+
+// addMarkerCommit commits a marker file so a repo is distinguishable
+// from the boot repo in worktree checkouts.
+func addMarkerCommit(t *testing.T, repo, marker string) {
+	t.Helper()
+	ctx := context.Background()
+	if err := os.WriteFile(filepath.Join(repo, marker), []byte("x"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	for _, args := range [][]string{
+		{"git", "-C", repo, "add", marker},
+		{"git", "-C", repo, "commit", "-m", "marker"},
+	} {
+		//nolint:gosec // test helper
+		if out, err := exec.CommandContext(ctx, args[0], args[1:]...).CombinedOutput(); err != nil {
+			t.Fatalf("git (%v): %s: %v", args, out, err)
+		}
+	}
+}
+
+// TestCreateAgent_DockerBackendReceivesAgentRepo verifies the values the
+// container backend uses to build the /workspace mount and workdir: the
+// session dir must be a worktree checked out from the AGENT's repo, and
+// env BC_WORKSPACE must carry that repo — never the boot repo
+// (regression: docker containers used to always mount the boot repo).
+// A boot-repo agent keeps the boot values unchanged.
+func TestCreateAgent_DockerBackendReceivesAgentRepo(t *testing.T) {
+	ctx := context.Background()
+	boot := t.TempDir()
+	other := t.TempDir()
+	initGitRepo(t, boot)
+	initGitRepo(t, other)
+	addMarkerCommit(t, other, "OTHER_REPO_MARKER")
+
+	tests := []struct {
+		name       string
+		agentName  string
+		repo       string // SpawnOptions.Workspace
+		wantRepo   string // expected Agent.Repo and env BC_WORKSPACE
+		wantMarker bool   // worktree checked out from `other`
+	}{
+		{
+			name:      "boot repo agent unchanged",
+			agentName: "boot-eng",
+			repo:      boot,
+			wantRepo:  boot,
+		},
+		{
+			name:       "cross-repo agent gets its own repo",
+			agentName:  "cross-eng",
+			repo:       other,
+			wantRepo:   other,
+			wantMarker: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m, docker := newDockerMockManager(t, boot)
+
+			a, err := m.createAgent(ctx, SpawnOptions{
+				Name:      tt.agentName,
+				Role:      Role("engineer"),
+				Workspace: tt.repo,
+				Runtime:   "docker",
+			})
+			if err != nil {
+				t.Fatalf("createAgent: %v", err)
+			}
+			t.Cleanup(func() {
+				_ = m.worktreeManagerFor(tt.repo).Remove(ctx, tt.agentName)
+			})
+
+			if a.Repo != tt.wantRepo {
+				t.Errorf("Agent.Repo = %q, want %q", a.Repo, tt.wantRepo)
+			}
+
+			dir, env := docker.lastSession()
+
+			// The container backend mounts env["BC_WORKSPACE"] at
+			// /workspace — it must be the agent's repo, not the boot repo.
+			if env["BC_WORKSPACE"] != tt.wantRepo {
+				t.Errorf("env BC_WORKSPACE = %q, want %q", env["BC_WORKSPACE"], tt.wantRepo)
+			}
+
+			// The session dir is the agent's worktree.
+			if dir != a.WorktreeDir {
+				t.Errorf("session dir = %q, want worktree %q", dir, a.WorktreeDir)
+			}
+			_, markerErr := os.Stat(filepath.Join(dir, "OTHER_REPO_MARKER"))
+			if tt.wantMarker && markerErr != nil {
+				t.Errorf("worktree %q not checked out from the agent's repo: %v", dir, markerErr)
+			}
+			if !tt.wantMarker && markerErr == nil {
+				t.Errorf("boot-repo worktree %q unexpectedly contains the cross-repo marker", dir)
+			}
+		})
+	}
+}
