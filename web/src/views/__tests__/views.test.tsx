@@ -53,6 +53,50 @@ describe("Agents", () => {
       expect(screen.getByText("bot-1")).toBeInTheDocument();
     });
   });
+
+  it("peek row shows the agent activity feed with a link to the full feed", async () => {
+    fetchMock.mockImplementation((url: RequestInfo | URL) => {
+      const u = String(url);
+      if (u.includes("/activity")) {
+        return jsonResponse([
+          {
+            timestamp: "2026-07-04T00:00:00.000Z",
+            event: "PreToolUse",
+            message: "Bash: git status",
+            data: { tool_name: "Bash", tool_input: { command: "git status" } },
+          },
+        ]);
+      }
+      return jsonResponse([
+        {
+          name: "bot-1",
+          role: "engineer",
+          tool: "claude",
+          state: "working",
+          total_cost_usd: 0.01,
+          started_at: "",
+        },
+      ]);
+    });
+    wrap(<Agents />);
+    await waitFor(() => {
+      expect(screen.getByText("bot-1")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Peek activity" }));
+    // Shared EventRow renders the tool name and its args summary.
+    await waitFor(() => {
+      expect(screen.getByText("Bash")).toBeInTheDocument();
+      expect(screen.getByText("git status")).toBeInTheDocument();
+    });
+    expect(screen.getByText("View all activity →")).toBeInTheDocument();
+
+    // Toggling again hides the feed.
+    fireEvent.click(screen.getByRole("button", { name: "Hide activity" }));
+    await waitFor(() => {
+      expect(screen.queryByText("View all activity →")).not.toBeInTheDocument();
+    });
+  });
 });
 
 describe("AgentDetail tab navigation", () => {

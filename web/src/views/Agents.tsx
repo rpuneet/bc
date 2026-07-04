@@ -1,12 +1,13 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { api } from "../api/client";
-import type { Agent, BulkResult } from "../api/client";
+import type { Agent, AgentActivityItem, BulkResult } from "../api/client";
 import { usePolling } from "../hooks/usePolling";
 import { useWebSocket } from "../hooks/useWebSocket";
 import { StatusBadge } from "../components/StatusBadge";
 import { EmptyState } from "../components/EmptyState";
-import { InlineTerminal } from "../components/InlineTerminal";
+import { EventRow } from "../components/live/EventRow";
+import type { ToolNode } from "../components/live/liveTypes";
 import { truncate } from "../utils/text";
 import { formatAbsolute, formatRelative } from "../utils/time";
 import { AgentIcon } from "../components/agent-ui";
@@ -103,6 +104,103 @@ function TrashIcon() {
       <path d="M4 4.5l.55 8a1.4 1.4 0 0 0 1.4 1.3h4.1a1.4 1.4 0 0 0 1.4-1.3l.55-8" />
       <path d="M6.6 7.2v3.8M9.4 7.2v3.8" />
     </svg>
+  );
+}
+
+/** Eye — peek row collapsed; clicking reveals the activity feed. */
+function EyeIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M1.5 8s2.4-4.5 6.5-4.5S14.5 8 14.5 8s-2.4 4.5-6.5 4.5S1.5 8 1.5 8z" />
+      <circle cx="8" cy="8" r="2" />
+    </svg>
+  );
+}
+
+/** Slashed eye — peek row expanded; clicking hides it again. */
+function EyeOffIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M2 2l12 12" />
+      <path d="M6.5 3.8A7.4 7.4 0 018 3.5c4.1 0 6.5 4.5 6.5 4.5a12.5 12.5 0 01-2.2 2.7M4 5.2A12.2 12.2 0 001.5 8s2.4 4.5 6.5 4.5c.85 0 1.64-.19 2.36-.5" />
+      <path d="M6.58 6.7a2 2 0 002.73 2.73" />
+    </svg>
+  );
+}
+
+// --- Peek activity feed ---
+
+/** Compact USD for group summaries: "$13.2k", "$42.10". */
+function formatCostCompact(n: number): string {
+  if (n >= 1000) return `$${(n / 1000).toFixed(1)}k`;
+  return `$${n.toFixed(2)}`;
+}
+
+const PEEK_EVENT_LIMIT = 12;
+
+/** Turn a persisted activity row into a ToolNode for the shared EventRow.
+ *  Same normalization the Live hydration path uses: tool_name from the
+ *  event data when present, message stripped of its "Tool: " prefix as
+ *  the summary, raw event data as the expandable input JSON. */
+function peekItemToNode(item: AgentActivityItem, idx: number): ToolNode {
+  const toolName =
+    typeof item.data?.tool_name === "string" && item.data.tool_name !== ""
+      ? item.data.tool_name
+      : item.event || "unknown";
+  let args = item.message ?? "";
+  if (args.startsWith(`${toolName}: `)) args = args.slice(toolName.length + 2);
+  else if (args === toolName) args = "";
+  const ts = item.timestamp ? Date.parse(item.timestamp) : NaN;
+  return {
+    id: `peek-${item.timestamp}-${String(idx)}`,
+    toolName,
+    args,
+    fullInput: item.data ?? null,
+    fullOutput: null,
+    status: "completed",
+    startTime: Number.isNaN(ts) ? Date.now() : ts,
+    endTime: undefined,
+    children: [],
+  };
+}
+
+/** The ⊕-row content: the agent's recent hook events rendered with the
+ *  same EventRow the Live page and agent-detail Live tab use, height-
+ *  capped, with a link through to the full feed. Refreshes on a light
+ *  5s poll (the old raw-terminal peek was live via SSE). */
+function PeekActivityFeed({ agentName }: { agentName: string }) {
+  const navigate = useNavigate();
+  const fetcher = useCallback(
+    () => api.getAgentActivity(agentName, PEEK_EVENT_LIMIT),
+    [agentName],
+  );
+  const { data: items, loading } = usePolling(fetcher, 5000);
+
+  const nodes = useMemo(
+    () => (items ?? []).slice(0, PEEK_EVENT_LIMIT).map(peekItemToNode),
+    [items],
+  );
+
+  return (
+    <div className="px-3 py-2">
+      <div className="rounded-lg bg-mycel-surface p-2 max-h-[320px] overflow-y-auto">
+        {loading && !items ? (
+          <p className="text-xs text-mycel-muted px-2 py-1.5">Loading activity…</p>
+        ) : nodes.length === 0 ? (
+          <p className="text-xs text-mycel-muted px-2 py-1.5">No recent activity</p>
+        ) : (
+          nodes.map((n) => <EventRow key={n.id} node={n} />)
+        )}
+      </div>
+      <button
+        type="button"
+        onClick={() => navigate(`/agents/${encodeURIComponent(agentName)}/live`)}
+        className="mt-1.5 text-xs text-mycel-accent hover:underline focus-visible:ring-2 focus-visible:ring-mycel-accent rounded-sm"
+        aria-label={`View all activity for ${agentName}`}
+      >
+        View all activity →
+      </button>
+    </div>
   );
 }
 
@@ -305,20 +403,20 @@ function AgentsTableSkeleton() {
       <tbody>
         {Array.from({ length: 5 }).map((_, i) => (
           <tr key={i} className="border-b border-mycel-border">
-            <td className="px-2 py-3"><div className="h-3 w-3 rounded animate-pulse bg-mycel-surface-hover" /></td>
-            <td className="px-4 py-3">
+            <td className="px-2 py-2"><div className="h-3 w-3 rounded animate-pulse bg-mycel-surface-hover" /></td>
+            <td className="px-4 py-2">
               <div className="flex items-center gap-2">
                 <div className="h-7 w-7 rounded-full animate-pulse bg-mycel-surface-hover shrink-0" />
                 <div className="h-3 rounded animate-pulse bg-mycel-surface-hover" style={{ width: `${60 + (i % 4) * 15}px` }} />
               </div>
             </td>
-            <td className="px-4 py-3 hidden sm:table-cell"><div className="h-3 w-16 rounded animate-pulse bg-mycel-surface-hover" /></td>
-            <td className="px-4 py-3"><div className="h-4 w-16 rounded-full animate-pulse bg-mycel-surface-hover" /></td>
-            <td className="px-4 py-3"><div className="h-3 rounded animate-pulse bg-mycel-surface-hover" style={{ width: `${80 + (i % 3) * 30}px` }} /></td>
-            <td className="px-4 py-3 hidden md:table-cell"><div className="h-3 w-10 rounded animate-pulse bg-mycel-surface-hover" /></td>
-            <td className="px-4 py-3 hidden md:table-cell"><div className="h-3 w-10 rounded animate-pulse bg-mycel-surface-hover ml-auto" /></td>
-            <td className="px-4 py-3"><div className="h-4 w-16 rounded animate-pulse bg-mycel-surface-hover" /></td>
-            <td className="px-4 py-3" />
+            <td className="px-4 py-2 hidden sm:table-cell"><div className="h-3 w-16 rounded animate-pulse bg-mycel-surface-hover" /></td>
+            <td className="px-4 py-2"><div className="h-4 w-16 rounded-full animate-pulse bg-mycel-surface-hover" /></td>
+            <td className="px-4 py-2"><div className="h-3 rounded animate-pulse bg-mycel-surface-hover" style={{ width: `${80 + (i % 3) * 30}px` }} /></td>
+            <td className="px-4 py-2 hidden md:table-cell"><div className="h-3 w-10 rounded animate-pulse bg-mycel-surface-hover" /></td>
+            <td className="px-4 py-2 hidden md:table-cell"><div className="h-3 w-10 rounded animate-pulse bg-mycel-surface-hover ml-auto" /></td>
+            <td className="px-4 py-2"><div className="h-4 w-16 rounded animate-pulse bg-mycel-surface-hover" /></td>
+            <td className="px-4 py-2" />
           </tr>
         ))}
       </tbody>
@@ -552,10 +650,24 @@ export function Agents() {
     });
   }, [filteredAgents, groupByRepo]);
 
-  // How many distinct repos are in view — the toggle collapses to a
-  // read-only info line when there's only one.
+  // How many distinct repo GROUPS are in view (agents without a repo form
+  // their own "(no repo)" group). With a single group the header band is
+  // pure whitespace, so grouping renders nothing and the toggle disables.
   const distinctRepoCount = useMemo(() => {
-    return new Set(displayRows.map(a => a.repo ?? "").filter(Boolean)).size;
+    return new Set(displayRows.map(a => a.repo ?? "")).size;
+  }, [displayRows]);
+
+  // Per-repo rollups for the group header band: agent count + summed cost.
+  const repoStats = useMemo(() => {
+    const stats = new Map<string, { count: number; cost: number }>();
+    for (const a of displayRows) {
+      const key = a.repo ?? "";
+      const s = stats.get(key) ?? { count: 0, cost: 0 };
+      s.count += 1;
+      s.cost += a.total_cost_usd > 0 ? a.total_cost_usd : 0;
+      stats.set(key, s);
+    }
+    return stats;
   }, [displayRows]);
 
   // Clamp focusIndex when displayRows shrinks (e.g. after filtering).
@@ -852,7 +964,7 @@ export function Agents() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-mycel-border text-left">
-                <th className="px-2 py-2.5 text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted w-8">
+                <th className="px-2 py-2 text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted w-8">
                   <input
                     type="checkbox"
                     checked={allVisibleSelected}
@@ -861,44 +973,69 @@ export function Agents() {
                     aria-label="Select all visible agents"
                   />
                 </th>
-                <th className="px-4 py-2.5 text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted">Name</th>
-                <th className="px-4 py-2.5 text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted hidden sm:table-cell">
+                <th className="px-4 py-2 text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted">Name</th>
+                <th className="px-4 py-2 text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted hidden sm:table-cell">
                   Runtime
                 </th>
-                <th className="px-4 py-2.5 text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted">Status</th>
-                <th className="px-4 py-2.5 text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted">Task</th>
+                <th className="px-4 py-2 text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted">Status</th>
+                <th className="px-4 py-2 text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted">Task</th>
                 <th
-                  className="px-4 py-2.5 text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted hidden md:table-cell"
+                  className="px-4 py-2 text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted hidden md:table-cell"
                   title="Last state change"
                 >
                   Activity
                 </th>
                 <th
-                  className="px-4 py-2.5 text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted hidden md:table-cell text-right"
+                  className="px-4 py-2 text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted hidden md:table-cell text-right"
                   title="Total spend"
                 >
                   Cost
                 </th>
-                <th className="px-4 py-2.5 text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted">Actions</th>
-                <th className="px-4 py-2.5 text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted w-10"></th>
+                <th className="px-4 py-2 text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted">Actions</th>
+                <th className="px-4 py-2 text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted w-10"></th>
               </tr>
             </thead>
             <tbody>
               {displayRows.map((a, rowIdx) => (
                 <Fragment key={a.name}>
                   {/* Repo section header — rendered whenever the sorted
-                      list crosses a repo boundary and grouping is
-                      enabled. Shows the repo basename; the full path
-                      lives in the tooltip. */}
+                      list crosses a repo boundary, grouping is enabled,
+                      AND there are 2+ groups in view (a lone group's
+                      label adds nothing). One compact band: repo
+                      basename, agent count, summed group cost. Full
+                      path lives in the tooltip. */}
                   {groupByRepo && distinctRepoCount > 1 &&
                     (rowIdx === 0 || (displayRows[rowIdx - 1]!.repo ?? "") !== (a.repo ?? "")) && (
                     <tr>
                       <td
                         colSpan={columns.length}
-                        className="px-4 pt-4 pb-1 text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted"
+                        className="px-4 py-1.5 bg-mycel-surface border-b border-mycel-border"
                         title={a.repo ?? undefined}
                       >
-                        {a.repo ? (a.repo.split("/").pop() ?? a.repo) : "(no repo)"}
+                        {(() => {
+                          const stats = repoStats.get(a.repo ?? "");
+                          return (
+                            <span className="flex items-center gap-2">
+                              <span className="text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-text-2">
+                                {a.repo ? (a.repo.split("/").pop() ?? a.repo) : "(no repo)"}
+                              </span>
+                              {stats && (
+                                <span className="text-[11px] text-mycel-muted">
+                                  {stats.count} agent{stats.count === 1 ? "" : "s"}
+                                </span>
+                              )}
+                              {stats && stats.cost > 0 && (
+                                <span
+                                  className="ml-auto text-[11px] text-mycel-text-2 tabular-nums"
+                                  style={{ fontFamily: MONO }}
+                                  title={`$${stats.cost.toFixed(2)} total for this repo`}
+                                >
+                                  {formatCostCompact(stats.cost)}
+                                </span>
+                              )}
+                            </span>
+                          );
+                        })()}
                       </td>
                     </tr>
                   )}
@@ -933,7 +1070,7 @@ export function Agents() {
                     }`}
                   >
                     <td
-                      className="px-2 py-2.5"
+                      className="px-2 py-2"
                       onClick={(e) => { e.stopPropagation(); }}
                     >
                       <input
@@ -944,13 +1081,15 @@ export function Agents() {
                         aria-label={`Select agent ${a.name}`}
                       />
                     </td>
-                    <td className="px-4 py-2.5">
+                    <td className="px-4 py-2">
                       <span className="inline-flex items-center gap-2 min-w-0">
                         <AgentIcon state={a.state} size={28} tool={a.tool} />
                         <span className="flex flex-col leading-tight min-w-0">
                           <InlineAgentName agent={a} onRenamed={refresh} />
-                          {/* Repo subtitle — only when the repo isn't already
-                              shown as a group header above the row. */}
+                          {/* Repo subtitle — shown exactly when no group
+                              header band is rendered (grouping off OR a
+                              single group in view), so the repo is always
+                              visible somewhere without being said twice. */}
                           {!(groupByRepo && distinctRepoCount > 1) && a.repo && (
                             <span
                               className="text-xs text-mycel-muted truncate max-w-[180px]"
@@ -963,20 +1102,20 @@ export function Agents() {
                         </span>
                       </span>
                     </td>
-                    <td className="px-4 py-2.5 hidden sm:table-cell">
+                    <td className="px-4 py-2 hidden sm:table-cell">
                       <RuntimeCell tool={a.tool} runtime={a.runtime_backend} />
                     </td>
-                    <td className="px-4 py-2.5">
+                    <td className="px-4 py-2">
                       <StatusBadge status={a.state} />
                     </td>
-                    <td className="px-4 py-2.5">
+                    <td className="px-4 py-2">
                       {/* Task = the agent's own report (report_status).
                           Lifecycle events live in the activity stream. */}
                       <span className="text-mycel-muted" title={a.task}>
                         {a.task ? truncate(a.task, 50) : "—"}
                       </span>
                     </td>
-                    <td className="px-4 py-2.5 hidden md:table-cell whitespace-nowrap">
+                    <td className="px-4 py-2 hidden md:table-cell whitespace-nowrap">
                       <span
                         className="text-xs text-mycel-text-2"
                         title={a.updated_at ? formatAbsolute(a.updated_at) : undefined}
@@ -984,7 +1123,7 @@ export function Agents() {
                         {formatRelative(a.updated_at)}
                       </span>
                     </td>
-                    <td className="px-4 py-2.5 hidden md:table-cell text-right whitespace-nowrap">
+                    <td className="px-4 py-2 hidden md:table-cell text-right whitespace-nowrap">
                       <span
                         className="text-xs text-mycel-text-2 tabular-nums"
                         style={{ fontFamily: MONO }}
@@ -993,25 +1132,25 @@ export function Agents() {
                         {a.total_cost_usd > 0 ? `$${a.total_cost_usd.toFixed(2)}` : "\u2014"}
                       </span>
                     </td>
-                    <td className="px-4 py-2.5">
+                    <td className="px-4 py-2">
                       <AgentActions agent={a} onDone={refresh} />
                     </td>
-                    <td className="px-4 py-2.5 text-center">
+                    <td className="px-4 py-2 text-center">
                       <button
                         onClick={(e) => handlePeekToggle(a.name, e)}
-                        className={`inline-flex items-center justify-center w-7 h-7 rounded-md transition-colors focus-visible:ring-2 focus-visible:ring-mycel-accent focus-visible:ring-offset-1 focus-visible:ring-offset-mycel-bg focus:outline-none ${
+                        className={`inline-flex items-center justify-center h-7 w-7 rounded-md transition-colors focus-visible:ring-2 focus-visible:ring-mycel-accent focus-visible:ring-offset-1 focus-visible:ring-offset-mycel-bg focus:outline-none ${
                           peekAgent === a.name
                             ? "bg-mycel-accent-subtle text-mycel-accent"
                             : "text-mycel-muted hover:text-mycel-text hover:bg-mycel-surface"
                         }`}
                         title={
-                          peekAgent === a.name ? "Hide output" : "Peek output"
+                          peekAgent === a.name ? "Hide activity" : "Peek activity"
                         }
                         aria-label={
-                          peekAgent === a.name ? "Hide output" : "Peek output"
+                          peekAgent === a.name ? "Hide activity" : "Peek activity"
                         }
                       >
-                        {peekAgent === a.name ? "\u2296" : "\u2295"}
+                        {peekAgent === a.name ? <EyeOffIcon /> : <EyeIcon />}
                       </button>
                     </td>
                   </tr>
@@ -1021,7 +1160,7 @@ export function Agents() {
                       className="border-b border-mycel-border"
                     >
                       <td colSpan={columns.length} className="p-0">
-                        <InlineTerminal agentName={a.name} lines={10} />
+                        <PeekActivityFeed agentName={a.name} />
                       </td>
                     </tr>
                   )}
