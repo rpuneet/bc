@@ -62,11 +62,11 @@ bc up            # bootstraps the workspace with defaults
    bc up
    ```
 
-2. Or copy a config manually first:
+2. Or copy a config into the workspace state dir first:
+
    ```bash
-   mkdir -p .bc
-   cp examples/configs/small-team.toml .bc/settings.json
-   bc up
+   cp examples/configs/small-team.json ~/.mycel/workspaces/<id>/preferences.json
+   mycel up
    ```
 
 ## User Defaults (~/.bcrc)

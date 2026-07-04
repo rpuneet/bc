@@ -91,7 +91,7 @@ const ERROR_PATTERNS: {
   },
   {
     pattern: /workspace.*not.*initialized/i,
-    message: "Workspace not initialized. Run 'bc up' from your repo (or add one in the web UI).",
+    message: "Workspace not initialized. Run 'mycel up' from your repo (or add one in the web UI).",
     recoverable: false,
     code: 'WORKSPACE_NOT_INIT',
   },

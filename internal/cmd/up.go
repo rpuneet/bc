@@ -232,12 +232,31 @@ func maybeBootstrapTimescale(wsRoot string) {
 		return
 	}
 
+	// Honor the configured connection settings; only bootstrap the local
+	// container for a localhost target — a remote Timescale is the user's.
+	ts := ws.Config.Storage.Timescale
+	host := ts.Host
+	if host == "" {
+		host = "localhost"
+	}
+	if host != "localhost" && host != "127.0.0.1" {
+		return
+	}
+	port := ts.Port
+	if port == 0 {
+		port = 5432
+	}
+	password := ts.Password
+	if password == "" {
+		password = "bc"
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
 	if err := dockerRun(ctx, "bc-db", []string{
-		"-p", "5432:5432",
-		"-e", "POSTGRES_PASSWORD=bc",
+		"-p", fmt.Sprintf("%d:5432", port),
+		"-e", "POSTGRES_PASSWORD=" + password,
 		"-v", "bc-db-data:/var/lib/postgresql/data",
 		"--restart", "always",
 		"bc-bcdb:latest",

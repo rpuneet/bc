@@ -7,18 +7,6 @@ import (
 )
 
 // chdir switches the working directory for the test and restores it on cleanup.
-func chdir(t *testing.T, dir string) {
-	t.Helper()
-	orig, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("getwd: %v", err)
-	}
-	if err := os.Chdir(dir); err != nil {
-		t.Fatalf("chdir %s: %v", dir, err)
-	}
-	t.Cleanup(func() { _ = os.Chdir(orig) })
-}
-
 func TestFindGitRoot(t *testing.T) {
 	tmpDir := t.TempDir()
 	repo := filepath.Join(tmpDir, "repo")
@@ -29,7 +17,7 @@ func TestFindGitRoot(t *testing.T) {
 	gitInitDir(t, repo)
 
 	// From a nested dir, findGitRoot walks up to the repo root.
-	chdir(t, nested)
+	t.Chdir(nested)
 	got := findGitRoot()
 	wantRepo, _ := filepath.EvalSymlinks(repo)
 	gotResolved, _ := filepath.EvalSymlinks(got)
@@ -51,7 +39,7 @@ func TestResolveUpWorkspace_AdoptsGitRoot(t *testing.T) {
 	gitInitDir(t, repo)
 
 	// An uninitialized git repo is adopted as the workspace root.
-	chdir(t, nested)
+	t.Chdir(nested)
 	got := resolveUpWorkspace()
 	wantRepo, _ := filepath.EvalSymlinks(repo)
 	gotResolved, _ := filepath.EvalSymlinks(got)
@@ -71,7 +59,7 @@ func TestResolveUpWorkspace_NoRepoEmptyRegistry(t *testing.T) {
 	if err := os.MkdirAll(plain, 0o750); err != nil {
 		t.Fatal(err)
 	}
-	chdir(t, plain)
+	t.Chdir(plain)
 	if got := resolveUpWorkspace(); got != "" {
 		t.Errorf("resolveUpWorkspace() = %q, want empty (workspace-less boot)", got)
 	}
