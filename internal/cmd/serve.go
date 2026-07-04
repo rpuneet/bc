@@ -45,7 +45,7 @@ func RunServer(addr, wsRoot, corsOrigin, apiKey string) error {
 		if err != nil {
 			ws, err = bcworkspace.Init(wsRoot)
 			if err != nil {
-				return fmt.Errorf("bootstrap workspace %s: %w", wsRoot, err)
+				return fmt.Errorf("bootstrap repo %s: %w", wsRoot, err)
 			}
 			log.Info("workspace bootstrapped", "root", ws.RootDir, "state", ws.StateDir())
 		}

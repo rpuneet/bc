@@ -38,7 +38,7 @@ func monthStartDate(today string) string {
 
 var costSummaryCmd = &cobra.Command{
 	Use:   "summary",
-	Short: "Show workspace cost overview",
+	Short: "Show repo cost overview",
 	Long: `Show cost summary with today, this week, this month, and all-time totals.
 
 Examples:

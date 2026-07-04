@@ -137,10 +137,10 @@ func (s *Store) SumByRepo(ctx context.Context, since interface{ Format(string) s
 	return out, rows.Err()
 }
 
-// RepoNameResolver converts a repo path to its human-readable name
-// (typically via *workspace.Registry). SumByProject uses it to group
-// by the repo's registered name; callers that don't need that grouping
-// can pass a resolver that returns the path unchanged.
+// RepoNameResolver converts a repo path to its human-readable name.
+// SumByProject uses it to group by the repo's display name; callers
+// that don't need that grouping can pass a resolver that returns the
+// path unchanged.
 type RepoNameResolver func(repo string) string
 
 // SumByProject returns total cost USD grouped by a project-level key

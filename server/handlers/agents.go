@@ -150,33 +150,30 @@ type avatarDTO struct {
 }
 
 type agentDTO struct { //nolint:govet // field order matches JSON/API contract
-	CreatedAt  time.Time      `json:"created_at"`
-	StartedAt  time.Time      `json:"started_at,omitempty"`
-	UpdatedAt  time.Time      `json:"updated_at"`
-	StoppedAt  *time.Time     `json:"stopped_at,omitempty"`
-	ArchivedAt *time.Time     `json:"archived_at,omitempty"`
-	Stats      *agentStatsDTO `json:"stats,omitempty"`
-	Avatar     *avatarDTO     `json:"avatar,omitempty"`
-	Tool       string         `json:"tool,omitempty"`
-	Session    string         `json:"session,omitempty"`
-	State      string         `json:"state"`
-	Task       string         `json:"task,omitempty"`
-	Team       string         `json:"team,omitempty"`
-	Name       string         `json:"name"`
-	Runtime    string         `json:"runtime_backend,omitempty"`
-	Role       string         `json:"role"`
-	Template   string         `json:"template,omitempty"`
-	SessionID  string         `json:"session_id,omitempty"`
-	ParentID   string         `json:"parent_id,omitempty"`
-	ID         string         `json:"id,omitempty"`
-	Repo       string         `json:"repo,omitempty"`
-	// Workspace is the absolute path the agent is bound to (#3079).
-	// Clients filter via /api/agents?workspace=<path>.
-	Workspace    string   `json:"workspace,omitempty"`
-	MCPServers   []string `json:"mcp_servers,omitempty"`
-	Children     []string `json:"children,omitempty"`
-	TotalCostUSD float64  `json:"total_cost_usd"`
-	TotalTokens  int64    `json:"total_tokens"`
+	CreatedAt    time.Time      `json:"created_at"`
+	StartedAt    time.Time      `json:"started_at,omitempty"`
+	UpdatedAt    time.Time      `json:"updated_at"`
+	StoppedAt    *time.Time     `json:"stopped_at,omitempty"`
+	ArchivedAt   *time.Time     `json:"archived_at,omitempty"`
+	Stats        *agentStatsDTO `json:"stats,omitempty"`
+	Avatar       *avatarDTO     `json:"avatar,omitempty"`
+	Tool         string         `json:"tool,omitempty"`
+	Session      string         `json:"session,omitempty"`
+	State        string         `json:"state"`
+	Task         string         `json:"task,omitempty"`
+	Team         string         `json:"team,omitempty"`
+	Name         string         `json:"name"`
+	Runtime      string         `json:"runtime_backend,omitempty"`
+	Role         string         `json:"role"`
+	Template     string         `json:"template,omitempty"`
+	SessionID    string         `json:"session_id,omitempty"`
+	ParentID     string         `json:"parent_id,omitempty"`
+	ID           string         `json:"id,omitempty"`
+	Repo         string         `json:"repo,omitempty"`
+	MCPServers   []string       `json:"mcp_servers,omitempty"`
+	Children     []string       `json:"children,omitempty"`
+	TotalCostUSD float64        `json:"total_cost_usd"`
+	TotalTokens  int64          `json:"total_tokens"`
 }
 
 // agentStatsDTO holds resource metrics included when ?include=stats is set.
@@ -211,7 +208,6 @@ func toDTO(a *agent.Agent) agentDTO {
 		StoppedAt:  a.StoppedAt,
 		ArchivedAt: a.ArchivedAt,
 		Repo:       a.Repo,
-		Workspace:  a.Workspace,
 	}
 }
 
@@ -243,20 +239,6 @@ func (h *AgentHandler) list(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			httpInternalError(w, "list agents", err)
 			return
-		}
-		// `?workspace=<absolute_path>` filter narrows results to agents
-		// bound to a single workspace (#3079). The value must be the
-		// workspace's absolute filesystem path — NOT its registry ID
-		// hash — because we compare directly against a.Workspace which
-		// stores the absolute path the agent was spawned in.
-		if wsFilter := q.Get("workspace"); wsFilter != "" {
-			filtered := agents[:0]
-			for _, a := range agents {
-				if a.Workspace == wsFilter {
-					filtered = append(filtered, a)
-				}
-			}
-			agents = filtered
 		}
 		dtos := make([]agentDTO, 0, len(agents))
 		for _, a := range agents {

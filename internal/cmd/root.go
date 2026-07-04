@@ -156,10 +156,10 @@ func runRoot(cmd *cobra.Command, args []string) error {
 	fmt.Println()
 	fmt.Printf("  %s\n", ui.BoldText("mycel - AI Agent Orchestration"))
 	fmt.Println()
-	fmt.Println("  No workspace found.")
+	fmt.Println("  No mycel-adopted repo found.")
 	fmt.Println()
 	fmt.Println("  Run 'mycel up' from your repo to start the server —")
-	fmt.Println("  it bootstraps the workspace automatically (state lives under ~/.mycel).")
+	fmt.Println("  it adopts the repo automatically (state lives under ~/.mycel).")
 	fmt.Println("  You can also add repos later from the web UI.")
 	fmt.Println()
 	return nil

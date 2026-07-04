@@ -371,24 +371,12 @@ func TestE2E_Events_List(t *testing.T) {
 	_ = events // empty is fine
 }
 
-// ─── Workspace ───────────────────────────────────────────────────────────────
+// ─── Roles ───────────────────────────────────────────────────────────────────
 
-func TestE2E_Workspace_Status(t *testing.T) {
+func TestE2E_Roles(t *testing.T) {
 	s := newE2EServer(t)
 
-	code, body := s.get(t, "/api/workspace")
-	if code != 200 {
-		t.Fatalf("want 200, got %d", code)
-	}
-	if body["name"] == nil || body["name"] == "" {
-		t.Fatalf("want non-empty name, got %v", body["name"])
-	}
-}
-
-func TestE2E_Workspace_Roles(t *testing.T) {
-	s := newE2EServer(t)
-
-	code, _ := s.getList(t, "/api/workspace/roles")
+	code, _ := s.get(t, "/api/roles")
 	if code != 200 {
 		t.Fatalf("want 200, got %d", code)
 	}

@@ -100,7 +100,7 @@ func findTUIRoot(wsRoot string) (string, error) {
 		return wsRoot, nil
 	}
 
-	return "", fmt.Errorf("TUI directory not found in cwd (%s) or workspace root (%s)", cwd, wsRoot)
+	return "", fmt.Errorf("TUI directory not found in cwd (%s) or repo root (%s)", cwd, wsRoot)
 }
 
 // resolveTUIEntry returns the path to the TUI entry point script and the

@@ -28,7 +28,7 @@ mycel ships as a single binary. `mycel <verb>` subcommands are thin HTTP clients
        |  Middleware (outermost first):                      |
        |    RateLimit > APIKeyAuth > RequestID >             |
        |    RequestLogger > Recovery > Gzip >                |
-       |    MaxBodySize(1MB) > CORS > WorkspaceScope > mux   |
+       |    MaxBodySize(1MB) > CORS > mux                    |
        |                                                     |
        |  +------------+  +-----------+  +----------------+  |
        |  | REST API   |  | SSE Hub   |  | MCP Server     |  |
@@ -86,7 +86,7 @@ The repo has two entry points under `cmd/`: `cmd/mycel` (the binary) and `cmd/ge
 ### Request Lifecycle
 
 1. **Client** (mycel CLI, Web UI, or TUI) sends an HTTP request to the server. Clients discover the address via `BC_DAEMON_ADDR`, the `~/.mycel/daemon.addr` file written by `mycel up`, or the `127.0.0.1:9374` default.
-2. **Middleware chain** processes (outermost first, from `server/server.go`): RateLimit (token bucket, 100 rps / burst 200) → APIKeyAuth (Bearer token, only when an API key is configured) → RequestID → RequestLogger → Recovery → Gzip → MaxBodySize (1 MB) → CORS → WorkspaceScope (rewrites `/api/workspaces/{id}/…` and resolves the workspace services for the request).
+2. **Middleware chain** processes (outermost first, from `server/server.go`): RateLimit (token bucket, 100 rps / burst 200) → APIKeyAuth (Bearer token, only when an API key is configured) → RequestID → RequestLogger → Recovery → Gzip → MaxBodySize (1 MB) → CORS → mux.
 3. **Handler** dispatches to the appropriate service method.
 4. **Service** performs business logic, interacts with runtime backends and the workspace database.
 5. **SSE Hub** broadcasts events to connected clients for real-time updates.

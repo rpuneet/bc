@@ -73,7 +73,7 @@ func TestSingleBundleBoot(t *testing.T) {
 
 	// The multi-tenant surface is gone: /api/workspaces 404s with JSON
 	// (not the SPA fallback), and the scoped MCP dispatch path is dead.
-	for _, path := range []string{"/api/workspaces", "/api/workspaces/abc123/agents", "/_mcp/ws/abc123/agent/sse"} {
+	for _, path := range []string{"/api/workspaces", "/api/workspaces/abc123/agents", "/_mcp/ws/abc123/agent/sse", "/api/workspace", "/api/workspace/status", "/api/workspace/up", "/api/workspace/down", "/api/workspace/roles"} {
 		status, body := getJSON(t, ts, path)
 		if status != http.StatusNotFound {
 			t.Errorf("%s = %d, want 404 (multi-tenant surface must be gone); body=%s", path, status, body)

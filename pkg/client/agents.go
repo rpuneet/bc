@@ -269,7 +269,7 @@ func (a *AgentsClient) Health(ctx context.Context, timeout string, agentName str
 // StopAll stops all running agents. Returns the number of agents stopped.
 func (a *AgentsClient) StopAll(ctx context.Context) (int, error) {
 	var result map[string]int
-	if err := a.client.post(ctx, "/api/workspace/down", nil, &result); err != nil {
+	if err := a.client.post(ctx, "/api/agents/stop-all", nil, &result); err != nil {
 		return 0, err
 	}
 	return result["stopped"], nil

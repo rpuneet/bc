@@ -656,11 +656,55 @@ func parentOfAgentsDir(stateDir string) string {
 	return stateDir
 }
 
+// worktreeManagerFor returns the worktree manager to use when spawning
+// an agent bound to repo. The boot repo (or an empty repo) uses the
+// shared manager. Any other repo gets a manager anchored at THAT repo
+// with the same data-dir layout, so the agent's worktree is checked out
+// from the repo it is bound to — not from the boot repo.
+//
+// A repo that is not a git repository falls back to the shared manager:
+// older agent rows may carry stale/synthetic workspace values, and the
+// boot repo is the only safe source for them.
+func (m *Manager) worktreeManagerFor(repo string) *worktree.Manager {
+	if repo == "" || filepath.Clean(repo) == filepath.Clean(m.workspacePath) {
+		return m.worktreeMgr
+	}
+	if _, err := os.Stat(filepath.Join(repo, ".git")); err != nil {
+		log.Warn("agent repo is not a git repository — using boot repo for worktree", "repo", repo)
+		return m.worktreeMgr
+	}
+	return worktree.NewManagerWithDataDir(repo, parentOfAgentsDir(m.stateDir))
+}
+
 // workspaceStateDir returns the best-guess workspace runtime dir for a
 // project root. Prefers ~/.mycel/workspaces/<id>/ (M11+); falls back to the
 // legacy <root>/.bc/ sidecar for pre-migration workspaces. Used by
 // package-level helpers that do not have access to a *Workspace.
+//
+// The result feeds MkdirAll/RemoveAll sinks, so the input is cleaned
+// and traversal sequences are rejected before any path is derived.
 func workspaceStateDir(workspacePath string) string {
+	workspacePath = filepath.Clean(workspacePath)
+	if strings.Contains(workspacePath, "..") {
+		log.Warn("refusing to derive state dir from unsafe workspace path", "path", workspacePath)
+		return ""
+	}
+	dir := stateDirCandidate(workspacePath)
+	// Re-validate the derived dir: GlobalStateDir honors env overrides
+	// (MYCEL_STATE_DIR), so the candidate is cleaned and traversal
+	// sequences rejected before it reaches any filesystem sink.
+	dir = filepath.Clean(dir)
+	if strings.Contains(dir, "..") {
+		log.Warn("refusing unsafe state dir", "path", dir)
+		return ""
+	}
+	return dir
+}
+
+// stateDirCandidate picks the state dir location for a cleaned project
+// root: the global dir when it exists (or when no legacy sidecar does),
+// the legacy <root>/.bc/ sidecar otherwise.
+func stateDirCandidate(workspacePath string) string {
 	if globalDir, err := workspace.GlobalStateDir(workspacePath); err == nil {
 		if _, statErr := os.Stat(globalDir); statErr == nil {
 			return globalDir
@@ -981,6 +1025,8 @@ func (m *Manager) startAgent(ctx context.Context, name string, opts SpawnOptions
 	m.mu.Lock()
 	existing := m.agents[name]
 	wsPath := opts.Workspace
+	// Worktrees come from the repo the agent is bound to, not the boot repo.
+	wtMgr := m.worktreeManagerFor(wsPath)
 
 	if opts.Runtime != "" {
 		existing.RuntimeBackend = normalizeRuntime(opts.Runtime)
@@ -997,7 +1043,7 @@ func (m *Manager) startAgent(ctx context.Context, name string, opts SpawnOptions
 
 	// Check if existing worktree can be reused for resume (tmux only)
 	agentRuntime := existing.RuntimeBackend
-	if m.worktreeMgr.Exists(name) && agentRuntime == "tmux" {
+	if wtMgr.Exists(name) && agentRuntime == "tmux" {
 		// Worktree exists — check for active session conflict
 		for beName, be := range m.backends {
 			if be.HasSession(ctx, name) {
@@ -1040,7 +1086,7 @@ func (m *Manager) startAgent(ctx context.Context, name string, opts SpawnOptions
 		"BC_WORKSPACE":     wsPath,
 		"BC_AGENT_RUNTIME": agentRuntime,
 		"BC_BCD_ADDR":      bcdAddrForRuntime(agentRuntime),
-		"BC_WORKTREE_NAME": m.worktreeMgr.Name(name),
+		"BC_WORKTREE_NAME": wtMgr.Name(name),
 	}
 	if toolName != "" {
 		env["BC_AGENT_TOOL"] = toolName
@@ -1066,7 +1112,7 @@ func (m *Manager) startAgent(ctx context.Context, name string, opts SpawnOptions
 	// Ensure worktree exists and is valid (may have been cleaned up, moved,
 	// or corrupted by runtime changes like Docker→localhost migration).
 	wtDir := existing.WorktreeDir
-	needsRecreate := wtDir == "" || !m.worktreeMgr.Exists(name)
+	needsRecreate := wtDir == "" || !wtMgr.Exists(name)
 
 	// Also check that the worktree has a valid .git reference
 	if !needsRecreate && wtDir != "" {
@@ -1090,9 +1136,9 @@ func (m *Manager) startAgent(ctx context.Context, name string, opts SpawnOptions
 
 	if needsRecreate {
 		// Remove stale worktree if it exists
-		_ = m.worktreeMgr.Remove(ctx, name) //nolint:errcheck
+		_ = wtMgr.Remove(ctx, name) //nolint:errcheck
 		var wtErr error
-		wtDir, wtErr = m.worktreeMgr.Create(ctx, name)
+		wtDir, wtErr = wtMgr.Create(ctx, name)
 		if wtErr != nil {
 			agentLock.Unlock()
 			return nil, fmt.Errorf("failed to create worktree for agent %s: %w", name, wtErr)
@@ -1156,6 +1202,8 @@ func (m *Manager) createAgent(ctx context.Context, opts SpawnOptions) (*Agent, e
 	wsPath := opts.Workspace
 	parentID := opts.ParentID
 	tool := opts.Tool
+	// Worktrees come from the repo the agent is bound to, not the boot repo.
+	wtMgr := m.worktreeManagerFor(wsPath)
 
 	// Phase 1: global lock — build command config, register agent in map
 	m.mu.Lock()
@@ -1266,7 +1314,7 @@ func (m *Manager) createAgent(ctx context.Context, opts SpawnOptions) (*Agent, e
 		"BC_WORKSPACE":     wsPath,
 		"BC_AGENT_RUNTIME": agentRuntime,
 		"BC_BCD_ADDR":      bcdAddrForRuntime(agentRuntime),
-		"BC_WORKTREE_NAME": m.worktreeMgr.Name(name),
+		"BC_WORKTREE_NAME": wtMgr.Name(name),
 	}
 	if effectiveTool != "" {
 		env["BC_AGENT_TOOL"] = effectiveTool
@@ -1289,8 +1337,9 @@ func (m *Manager) createAgent(ctx context.Context, opts SpawnOptions) (*Agent, e
 	agentLock := m.getAgentLock(name)
 	agentLock.Lock()
 
-	// Create worktree for this agent
-	wtDir, wtErr := m.worktreeMgr.Create(ctx, name)
+	// Create worktree for this agent — from the agent's repo (wtMgr),
+	// which may differ from the boot repo.
+	wtDir, wtErr := wtMgr.Create(ctx, name)
 	if wtErr != nil {
 		agentLock.Unlock()
 		m.mu.Lock()
@@ -1301,7 +1350,7 @@ func (m *Manager) createAgent(ctx context.Context, opts SpawnOptions) (*Agent, e
 	agent.WorktreeDir = wtDir
 
 	// Ensure Claude home dir exists
-	if claudeErr := m.worktreeMgr.EnsureClaudeDir(name); claudeErr != nil {
+	if claudeErr := wtMgr.EnsureClaudeDir(name); claudeErr != nil {
 		log.Warn("failed to ensure Claude dir", "agent", name, "error", claudeErr)
 	}
 
@@ -1367,7 +1416,17 @@ func (m *Manager) createAgent(ctx context.Context, opts SpawnOptions) (*Agent, e
 // setupLogPipe creates the logs directory and starts pipe-pane for the agent.
 // Returns the log file path.
 func (m *Manager) setupLogPipe(ctx context.Context, name, workspace string) string {
-	logsDir := filepath.Join(workspaceStateDir(workspace), "logs")
+	// The agent name becomes a filename below — never let a crafted
+	// name escape the logs directory.
+	if !IsValidAgentName(name) {
+		log.Warn("refusing to pipe logs for unsafe agent name", "agent", name)
+		return ""
+	}
+	base := workspaceStateDir(workspace)
+	if base == "" {
+		return ""
+	}
+	logsDir := filepath.Join(base, "logs")
 	if err := os.MkdirAll(logsDir, 0750); err != nil {
 		log.Warn("failed to create logs dir", "error", err)
 		return ""
@@ -1774,14 +1833,21 @@ func (m *Manager) DeleteAgentWithOptions(ctx context.Context, name string, opts 
 		_ = cb.RemoveSession(ctx, name) //nolint:errcheck // may not exist
 	}
 
-	// 3. Remove persistent volume (<DataDir>/volumes/<name>/)
-	volumeDir := filepath.Join(workspaceStateDir(workspacePath), "volumes", name)
-	if err := os.RemoveAll(volumeDir); err != nil {
-		log.Warn("delete: failed to remove agent volume", "agent", name, "error", err)
+	// 3. Remove persistent volume (<DataDir>/volumes/<name>/). The name
+	// is regexp-validated above and the base dir rejects traversal, but
+	// re-verify the composed path before the recursive delete.
+	if base := workspaceStateDir(workspacePath); base != "" {
+		volumeDir := filepath.Clean(filepath.Join(base, "volumes", name))
+		if strings.Contains(volumeDir, "..") {
+			log.Warn("delete: refusing unsafe volume path", "agent", name, "path", volumeDir)
+		} else if err := os.RemoveAll(volumeDir); err != nil {
+			log.Warn("delete: failed to remove agent volume", "agent", name, "error", err)
+		}
 	}
 
-	// 4. Remove git worktree
-	if err := m.worktreeMgr.Remove(ctx, name); err != nil {
+	// 4. Remove git worktree — via the repo the agent is bound to, so
+	// cross-repo agents unregister from THEIR repo's worktree list.
+	if err := m.worktreeManagerFor(agent.Repo).Remove(ctx, name); err != nil {
 		log.Warn("failed to remove worktree", "agent", name, "error", err)
 	}
 
@@ -1792,9 +1858,13 @@ func (m *Manager) DeleteAgentWithOptions(ctx context.Context, name string, opts 
 		}
 	}
 
-	// 6. Remove agent state directory (.bc/agents/<name>/ — auth, session history, etc.)
-	agentStateDir := filepath.Join(stateDir, "agents", name)
-	if err := os.RemoveAll(agentStateDir); err != nil {
+	// 6. Remove agent state directory (.bc/agents/<name>/ — auth, session
+	// history, etc.). stateDir is cleaned and the name regexp-validated
+	// above; re-verify the composed path before the recursive delete.
+	agentStateDir := filepath.Clean(filepath.Join(stateDir, "agents", name))
+	if strings.Contains(agentStateDir, "..") {
+		log.Warn("delete: refusing unsafe agent state path", "agent", name, "path", agentStateDir)
+	} else if err := os.RemoveAll(agentStateDir); err != nil {
 		log.Warn("delete: failed to remove agent state dir", "agent", name, "path", agentStateDir, "error", err)
 	}
 
@@ -1839,7 +1909,7 @@ func (m *Manager) DeleteAgentWithOptions(ctx context.Context, name string, opts 
 	}
 	m.mu.Unlock()
 
-	log.Debug("agent fully deleted", "agent", name, "volume", volumeDir)
+	log.Debug("agent fully deleted", "agent", name)
 	return nil
 }
 

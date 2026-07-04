@@ -102,7 +102,7 @@ func TestAgentLifecycle_CreateNoWorkspace(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for missing workspace")
 	}
-	if !strings.Contains(err.Error(), "not in a mycel workspace") {
+	if !strings.Contains(err.Error(), "not in a mycel-adopted repo") {
 		t.Errorf("expected workspace error, got: %v", err)
 	}
 }
@@ -551,7 +551,7 @@ func TestNoWorkspace_AgentList(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for missing workspace")
 	}
-	if !strings.Contains(err.Error(), "not in a mycel workspace") {
+	if !strings.Contains(err.Error(), "not in a mycel-adopted repo") {
 		t.Errorf("expected workspace error, got: %v", err)
 	}
 }
@@ -569,7 +569,7 @@ func TestNoWorkspace_AgentStop(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for missing workspace")
 	}
-	if !strings.Contains(err.Error(), "not in a mycel workspace") {
+	if !strings.Contains(err.Error(), "not in a mycel-adopted repo") {
 		t.Errorf("expected workspace error, got: %v", err)
 	}
 }
@@ -587,7 +587,7 @@ func TestNoWorkspace_AgentPeek(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for missing workspace")
 	}
-	if !strings.Contains(err.Error(), "not in a mycel workspace") {
+	if !strings.Contains(err.Error(), "not in a mycel-adopted repo") {
 		t.Errorf("expected workspace error, got: %v", err)
 	}
 }
@@ -605,7 +605,7 @@ func TestNoWorkspace_AgentSend(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for missing workspace")
 	}
-	if !strings.Contains(err.Error(), "not in a mycel workspace") {
+	if !strings.Contains(err.Error(), "not in a mycel-adopted repo") {
 		t.Errorf("expected workspace error, got: %v", err)
 	}
 }
@@ -623,7 +623,7 @@ func TestNoWorkspace_ChannelCreate(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for missing workspace")
 	}
-	if !strings.Contains(err.Error(), "not in a mycel workspace") {
+	if !strings.Contains(err.Error(), "not in a mycel-adopted repo") {
 		t.Errorf("expected workspace error, got: %v", err)
 	}
 }

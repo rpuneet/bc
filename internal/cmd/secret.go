@@ -19,7 +19,7 @@ var secretCmd = &cobra.Command{
 	Use:     "secret",
 	Aliases: []string{"sec"},
 	Short:   "Manage encrypted secrets",
-	Long: `Manage encrypted secrets for the workspace.
+	Long: `Manage encrypted secrets for the repo.
 
 Secrets store API keys and tokens used by tools, MCP servers, and agents.
 Values are encrypted at rest with AES-256-GCM. The API never exposes
@@ -201,7 +201,7 @@ func runSecretSet(cmd *cobra.Command, args []string) error {
 		if setErr := store.Set(name, value, secretSetDesc); setErr != nil {
 			return setErr
 		}
-		fmt.Printf("Secret %q saved (workspace scope)\n", name)
+		fmt.Printf("Secret %q saved (repo scope)\n", name)
 		return nil
 	}
 
@@ -351,7 +351,7 @@ func runSecretDelete(cmd *cobra.Command, args []string) error {
 		if delErr := store.Delete(name); delErr != nil {
 			return delErr
 		}
-		fmt.Printf("Deleted secret %q (workspace scope)\n", name)
+		fmt.Printf("Deleted secret %q (repo scope)\n", name)
 		return nil
 	}
 

@@ -26,7 +26,6 @@ export interface Agent {
   task: string;
   session: string;
   tool?: string;
-  workspace: string;
   /** Absolute path of the git repo the agent is bound to. */
   repo?: string;
   worktree_dir: string;

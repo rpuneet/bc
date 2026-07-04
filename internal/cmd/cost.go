@@ -237,7 +237,7 @@ func runCostShowJSON(cmd *cobra.Command, c *client.Client, agentID string) error
 
 	ws, err := c.Costs.WorkspaceSummary(cmd.Context())
 	if err != nil {
-		return fmt.Errorf("failed to get workspace summary: %w", err)
+		return fmt.Errorf("failed to get cost summary: %w", err)
 	}
 
 	response := &costShowResponse{

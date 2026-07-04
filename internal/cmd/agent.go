@@ -212,7 +212,7 @@ Examples:
 var agentDeleteCmd = &cobra.Command{
 	Use:   "delete <agent>",
 	Short: "Permanently delete an agent",
-	Long: `Permanently delete an agent from the workspace.
+	Long: `Permanently delete an agent from the repo.
 
 This removes the agent's tmux session, channel memberships,
 and agent state. Memory is preserved by default for recovery.
@@ -269,7 +269,7 @@ var agentSessionsJSON bool
 var agentBroadcastCmd = &cobra.Command{
 	Use:   "broadcast <message>",
 	Short: "Send a message to all running agents",
-	Long: `Broadcast a message to all running agents in the workspace.
+	Long: `Broadcast a message to all running agents in the repo.
 
 Examples:
   mycel agent broadcast "run tests"
@@ -1130,7 +1130,7 @@ Usage:
 		fmt.Printf("To authenticate agent %q:\n", agentName)
 		fmt.Printf("  1. Attach: mycel agent attach %s\n", agentName)
 		fmt.Printf("  2. Run /login inside Claude Code\n")
-		fmt.Printf("\nOr set ANTHROPIC_API_KEY in workspace env:\n")
+		fmt.Printf("\nOr set ANTHROPIC_API_KEY in the repo env:\n")
 		fmt.Printf("  mycel env set ANTHROPIC_API_KEY sk-ant-...\n")
 		return nil
 	},

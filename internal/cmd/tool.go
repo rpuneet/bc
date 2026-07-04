@@ -73,8 +73,8 @@ var toolStatusCmd = &cobra.Command{
 
 var toolAddCmd = &cobra.Command{
 	Use:   "add <name>",
-	Short: "Add a tool to the workspace",
-	Long: `Add a custom tool provider to the workspace.
+	Short: "Add a tool to the repo",
+	Long: `Add a custom tool provider to the repo.
 
 Examples:
   mycel tool add mytool --command "mytool --yes" --install "pip install mytool"
@@ -137,7 +137,7 @@ var (
 var toolDeleteCmd = &cobra.Command{
 	Use:     "delete <tool>",
 	Aliases: []string{"remove", "rm"},
-	Short:   "Remove a tool from the workspace",
+	Short:   "Remove a tool from the repo",
 	Args:    cobra.ExactArgs(1),
 	RunE:    runToolDelete,
 }

@@ -24,15 +24,9 @@ The `X-API-Key: <key>` header is accepted as an alternative. Without a configure
 - Global token-bucket rate limit: **100 requests/second with a burst of 200**. Exceeding it returns `429` with a `Retry-After: 1` header.
 - Request bodies are capped at **1 MB** (file uploads use their own multipart limit).
 
-### Workspace scoping
+### Single-tenant server
 
-The server can hold several workspaces open at once. Workspace-scoped resources live at flat `/api/<resource>` paths, and the target workspace is selected per request via:
-
-1. `X-BC-Workspace: <id>` header (the web UI sets this automatically), or
-2. `?workspace=<id>` query parameter (curl-friendly), or
-3. neither — the registry's **active** workspace is used.
-
-An unknown workspace id returns `404`. Registry self-routes (`/api/workspaces...`) and `/api/global/costs` are not workspace-scoped.
+Each `bcd` instance serves a single bundle anchored at one repo. All resources live at flat `/api/<resource>` paths — there is no per-request workspace selection. The former multi-tenant surfaces (`/api/workspaces...`, `X-BC-Workspace` header, `?workspace=` parameter) are gone and return `404`.
 
 ### Pagination
 
@@ -385,43 +379,24 @@ Filter: `channel` (comma-separated).
 
 ---
 
-## Workspaces (registry)
+## Repos
 
-Manages the multi-workspace registry itself. These routes are not workspace-scoped.
+Repos the agents can be bound to. The server itself is anchored at one repo.
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/api/workspaces` | List registered workspaces: `{"workspaces": [...], "active": "<id>"}`. |
-| POST | `/api/workspaces` | Register a workspace. Body: `{"path" (required, must exist), "name?", "alias?"}`. `409` on alias conflict. Returns `201`. |
-| GET | `/api/workspaces/{id}` | Detail (id, name, or alias accepted): `{"workspace", "worktrees", "agent_count?"}`. |
-| PATCH | `/api/workspaces/{id}` | Update `name`, `alias`, `github_url`, `github_full_name`. |
-| DELETE | `/api/workspaces/{id}` | Unregister (does **not** delete `.bc/`). Returns `204`. |
-| POST | `/api/workspaces/{id}/activate` | Set as the active workspace. |
+| GET | `/api/repos` | List known repos: `{"repos": [...], "default": "<path>"}`. |
 
 ### Discovery & GitHub auth
 
 | Method | Path | Description |
 |--------|------|-------------|
-| POST | `/api/workspaces/discover/local` | Scan a filesystem root for git repos. Body: `{"root" (required), "depth?"}`. Returns `{"candidates": [...]}` annotated with `already_registered`. |
-| POST | `/api/workspaces/discover/github` | List the authenticated user's GitHub repos. Body: `{"query?"}`. `401` when not authenticated. |
-| POST | `/api/workspaces/clone` | Clone and register a repo. Body: `{"url","target","name?"}`. |
+| POST | `/api/repos/discover/local` | Scan a filesystem root for git repos. Body: `{"root" (required), "depth?"}`. Returns `{"candidates": [...]}` annotated with `already_registered`. |
+| POST | `/api/repos/discover/github` | List the authenticated user's GitHub repos. Body: `{"query?"}`. `401` when not authenticated. |
+| POST | `/api/repos/clone` | Clone a repo. Body: `{"url","target","name?"}`. |
 | GET | `/api/auth/github` | GitHub auth status: `{"connected": bool, "login": "..."}`. |
 | POST | `/api/auth/github` | Store a token. Body: `{"token"}` (validated before saving). |
 | DELETE | `/api/auth/github` | Remove the stored token. |
-
----
-
-## Workspace (active workspace)
-
-Reports on and controls the currently scoped workspace.
-
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/api/workspace` | Workspace status (alias of `/status`). |
-| GET | `/api/workspace/status` | Name, root/state dirs, agent counts, server/runtime/storage config, gateway enablement, version. |
-| GET | `/api/workspace/roles` | All roles resolved through inheritance. |
-| POST | `/api/workspace/up` | Create/start the `root` agent. Optional body: `{"tool","runtime"}`. Returns `{"status":"started","session"}` or `{"status":"already_running"}`. |
-| POST | `/api/workspace/down` | Stop all agents. Returns `{"stopped": <n>}`. |
 
 ---
 

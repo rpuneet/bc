@@ -49,9 +49,9 @@ func newDaemonClient(ctx context.Context) (*client.Client, error) {
 // mycel-adopted repo.
 func errNoRepo(err error) error {
 	if err != nil {
-		return fmt.Errorf("not in a mycel workspace — run 'mycel up' from your repo (or add one in the web UI): %w", err)
+		return fmt.Errorf("not in a mycel-adopted repo — run 'mycel up' from your repo (or add one in the web UI): %w", err)
 	}
-	return fmt.Errorf("not in a mycel workspace. Run 'mycel up' from your repo (or add one in the web UI)")
+	return fmt.Errorf("not in a mycel-adopted repo. Run 'mycel up' from your repo (or add one in the web UI)")
 }
 
 // requireRepo returns the current repo's workspace state or an

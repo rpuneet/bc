@@ -80,10 +80,10 @@ func runUp(cmd *cobra.Command, _ []string) error {
 		// uninitialized repos via workspace.Init (idempotent).
 		abs, absErr := filepath.Abs(wsRoot)
 		if absErr != nil {
-			return fmt.Errorf("cannot resolve workspace path %s: %w", wsRoot, absErr)
+			return fmt.Errorf("cannot resolve repo path %s: %w", wsRoot, absErr)
 		}
 		if _, statErr := os.Stat(filepath.Join(abs, ".git")); statErr != nil {
-			return fmt.Errorf("workspace %s is not a git repository (mycel needs git for agent worktrees)", abs)
+			return fmt.Errorf("%s is not a git repository (mycel needs git for agent worktrees)", abs)
 		}
 		wsRoot = abs
 	}
@@ -118,7 +118,7 @@ func runUp(cmd *cobra.Command, _ []string) error {
 	if wsRoot != "" {
 		fmt.Printf("Starting mycel server in %s\n", wsRoot)
 	} else {
-		fmt.Println("Starting mycel server (no workspace yet — add a repo from the web UI, or run 'mycel up' inside a git repo)")
+		fmt.Println("Starting mycel server (no repo yet — add one from the web UI, or run 'mycel up' inside a git repo)")
 	}
 	fmt.Printf("  addr: %s\n\n", upAddr)
 

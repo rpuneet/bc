@@ -213,6 +213,39 @@ func TestE2E_WebUI_SPAFallback(t *testing.T) {
 	}
 }
 
+// TestE2E_WebUI_LegacyWorkspacePathServesSPA verifies that legacy
+// /w/<hash>/<page> URLs serve index.html directly, WITHOUT a server-side
+// redirect. Browsers that cached the old /agents -> /w/<hash>/agents 301
+// would otherwise loop forever (cached 301 -> server 301 -> cached 301).
+func TestE2E_WebUI_LegacyWorkspacePathServesSPA(t *testing.T) {
+	s := newE2EServerWithWebUI(t)
+
+	// Client that does NOT follow redirects, so any 301/302 fails loudly.
+	client := &http.Client{
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, s.URL+"/w/abc123def456/agents", nil)
+	if err != nil {
+		t.Fatalf("create request: %v", err)
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatalf("GET /w/abc123def456/agents: %v", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("want 200 (SPA served in place, no redirect), got %d (Location=%q)",
+			resp.StatusCode, resp.Header.Get("Location"))
+	}
+	body, _ := io.ReadAll(resp.Body)
+	if !strings.Contains(string(body), "<div id=\"root\">") {
+		t.Fatalf("legacy /w/ path did not serve index.html; body=%q", string(body)[:min(len(body), 120)])
+	}
+}
+
 // TestE2E_WebUI_StaticAssets verifies that static assets are served with
 // correct content types.
 func TestE2E_WebUI_StaticAssets(t *testing.T) {
@@ -263,7 +296,7 @@ func TestE2E_WebUI_APIEndpointsReturnJSON(t *testing.T) {
 	}{
 		{"/api/agents", "application/json"},
 		{"/api/costs", "application/json"},
-		{"/api/workspace", "application/json"},
+		{"/api/roles", "application/json"},
 		{"/api/doctor", "application/json"},
 		{"/health", "application/json"},
 		{"/health/ready", "application/json"},
@@ -318,7 +351,7 @@ func TestE2E_WebUI_CORSHeaders(t *testing.T) {
 	// Verify CORS headers on a regular GET (not just OPTIONS preflight).
 	// The e2e_test.go TestE2E_CORS_Headers covers OPTIONS; this covers
 	// actual API responses that the web UI will receive.
-	paths := []string{"/api/agents", "/api/workspace", "/health"}
+	paths := []string{"/api/agents", "/api/roles", "/health"}
 
 	for _, path := range paths {
 		t.Run(path, func(t *testing.T) {
@@ -338,17 +371,17 @@ func TestE2E_WebUI_CORSHeaders(t *testing.T) {
 // ─── Full Web Workflow ───────────────────────────────────────────────────────
 
 // TestE2E_WebUI_FullWorkflow exercises a complete web UI workflow:
-// workspace status → verify agents → verify workspace healthy.
+// health check → verify agents → verify server still healthy.
 func TestE2E_WebUI_FullWorkflow(t *testing.T) {
 	s := newE2EServer(t)
 
-	// 1. GET /api/workspace → verify workspace name
-	code, wsBody := s.get(t, "/api/workspace")
+	// 1. GET /health → verify the server reports healthy
+	code, healthBody := s.get(t, "/health")
 	if code != http.StatusOK {
-		t.Fatalf("workspace status: want 200, got %d", code)
+		t.Fatalf("health: want 200, got %d", code)
 	}
-	if wsBody["name"] == nil || wsBody["name"] == "" {
-		t.Fatalf("workspace name: want non-empty, got %v", wsBody["name"])
+	if healthBody["status"] == nil || healthBody["status"] == "" {
+		t.Fatalf("health status: want non-empty, got %v", healthBody["status"])
 	}
 
 	// 2. GET /api/agents → verify agents endpoint works
@@ -357,12 +390,9 @@ func TestE2E_WebUI_FullWorkflow(t *testing.T) {
 		t.Fatalf("agents list: want 200, got %d", code)
 	}
 
-	// 3. GET /api/workspace → verify workspace still healthy
-	code, wsBody = s.get(t, "/api/workspace")
+	// 3. GET /health → verify the server is still healthy
+	code, _ = s.get(t, "/health")
 	if code != http.StatusOK {
-		t.Fatalf("workspace status (final): want 200, got %d", code)
-	}
-	if wsBody["is_healthy"] != true {
-		t.Fatalf("workspace should be healthy, got is_healthy=%v", wsBody["is_healthy"])
+		t.Fatalf("health (final): want 200, got %d", code)
 	}
 }

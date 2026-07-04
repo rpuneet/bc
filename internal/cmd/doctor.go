@@ -15,7 +15,7 @@ var doctorCmd = &cobra.Command{
 	Use:     "doctor",
 	Aliases: []string{"dr"},
 	Short:   "Health checks and diagnostics",
-	Long: `Run health checks on your mycel workspace and dependencies.
+	Long: `Run health checks on your mycel repo and dependencies.
 
 Checks workspace config, agent state, databases, tools, and git worktrees.
 
@@ -97,7 +97,7 @@ func runDoctor(cmd *cobra.Command, _ []string) error {
 		fmt.Println("mycel doctor")
 		fmt.Println(strings.Repeat("─", 40))
 		fmt.Println()
-		fmt.Println(ui.YellowText("⚠") + " No workspace found — running tools check only")
+		fmt.Println(ui.YellowText("⚠") + " No mycel-adopted repo found — running tools check only")
 		fmt.Println()
 		cat := doctor.CheckTools(ctx, nil)
 		printCategory(cat)

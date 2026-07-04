@@ -108,7 +108,7 @@ func runStatus(cmd *cobra.Command, args []string) error {
 
 	// Summary header
 	wsName := filepath.Base(ws.RootDir)
-	fmt.Printf("Workspace: %s | Agents: %d | Active: %d | Working: %d\n", wsName, len(agentList), activeCount, workingCount)
+	fmt.Printf("Repo: %s | Agents: %d | Active: %d | Working: %d\n", wsName, len(agentList), activeCount, workingCount)
 	fmt.Println(strings.Repeat("─", 60))
 	fmt.Println()
 

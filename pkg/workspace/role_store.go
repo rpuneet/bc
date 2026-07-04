@@ -293,6 +293,12 @@ func (s *RoleStore) Close() error {
 // them into the database. Existing roles in the DB are not overwritten.
 // The source files are NOT deleted (kept as backup).
 func (s *RoleStore) MigrateFromFiles(rolesDir string) (int, error) {
+	// The dir is joined with entry names and read below — clean it and
+	// reject traversal sequences before touching the filesystem.
+	rolesDir = filepath.Clean(rolesDir)
+	if strings.Contains(rolesDir, "..") {
+		return 0, fmt.Errorf("unsafe roles directory: %s", rolesDir)
+	}
 	entries, err := os.ReadDir(rolesDir)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -306,6 +312,11 @@ func (s *RoleStore) MigrateFromFiles(rolesDir string) (int, error) {
 		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".md") {
 			continue
 		}
+		// Entry names become path components — never follow one that
+		// could escape the roles directory.
+		if !filepath.IsLocal(entry.Name()) || strings.ContainsAny(entry.Name(), `/\`) {
+			continue
+		}
 
 		name := strings.TrimSuffix(entry.Name(), ".md")
 
@@ -315,7 +326,7 @@ func (s *RoleStore) MigrateFromFiles(rolesDir string) (int, error) {
 		}
 
 		filePath := filepath.Join(rolesDir, entry.Name())
-		data, readErr := os.ReadFile(filePath) //nolint:gosec // path constructed from known roles dir
+		data, readErr := os.ReadFile(filePath) //nolint:gosec // rolesDir cleaned + ".."-rejected, entry name IsLocal-checked above
 		if readErr != nil {
 			return migrated, fmt.Errorf("read role file %s: %w", entry.Name(), readErr)
 		}

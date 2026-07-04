@@ -399,7 +399,6 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 	handlers.NewCodeHandler(handlers.NewStaticWorkspaceResolver(rootDir)).Register(mux)
 	if svc.WS != nil {
 		handlers.NewRolesHandler(svc.WS).Register(mux)
-		handlers.NewWorkspaceHandler(svc.Agents, svc.WS).Register(mux)
 		handlers.NewDoctorHandler(svc.WS).Register(mux)
 		handlers.NewSettingsHandler(svc.WS).Register(mux)
 
@@ -477,20 +476,13 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 				_, _ = w.Write([]byte(`{"error":"not found"}`))
 				return
 			}
-			// Legacy workspace-prefixed URLs: browsers cached a 301
-			// /<page> → /w/<hash>/<page> from an old build; redirect
-			// back to the flat route so bookmarks and refreshes work.
-			if strings.HasPrefix(path, "/w/") {
-				rest := ""
-				if parts := strings.SplitN(strings.TrimPrefix(path, "/w/"), "/", 2); len(parts) == 2 {
-					rest = parts[1]
-				}
-				// Same-origin path redirects only: collapse leading slashes
-				// so a crafted /w/x//evil.com can't become a protocol-relative
-				// redirect to another host.
-				http.Redirect(w, r, "/"+strings.TrimLeft(rest, "/"), http.StatusMovedPermanently)
-				return
-			}
+			// Legacy workspace-prefixed URLs (/w/<hash>/<page>) are NOT
+			// redirected server-side: browsers that cached the old
+			// /<page> → /w/<hash>/<page> 301 would loop forever
+			// (cached 301 → server 301 → cached 301 …). They fall
+			// through to index.html below, and the client-side
+			// LegacyWorkspaceRedirect route rewrites the URL in-app.
+			//
 			// Try serving the exact file first
 			if path != "/" {
 				if f, err := staticFiles.Open(path[1:]); err == nil {

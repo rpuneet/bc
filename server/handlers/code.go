@@ -21,6 +21,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -28,6 +29,11 @@ import (
 	"github.com/rpuneet/mycel/pkg/files"
 	"github.com/rpuneet/mycel/pkg/log"
 )
+
+// validWorktreeName allowlists worktree (agent) names: they become path
+// components and a `git -C` argument, so only identifier characters are
+// accepted — never separators, dots, or shell metacharacters.
+var validWorktreeName = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
 
 // WorkspaceResolver supplies the repo root the Code handler serves. It is
 // an interface so tests can supply lightweight implementations.
@@ -117,11 +123,18 @@ func (h *CodeHandler) resolveWorktreeRoot(r *http.Request) (wsRoot, wtRoot, work
 		return wsRoot, wsRoot, worktreeName, nil
 	}
 	// Worktree names are agent names — they become path components below
-	// and a git -C argument later, so reject separators and "..".
-	if !filepath.IsLocal(worktreeName) || strings.ContainsAny(worktreeName, `/\`) {
+	// and a git -C argument later, so allowlist identifier characters
+	// only (no separators, dots, or metacharacters).
+	if !validWorktreeName.MatchString(worktreeName) {
 		return wsRoot, "", worktreeName, errors.New("invalid worktree name")
 	}
 	wtRoot = agentWorktreePath(wsRoot, worktreeName)
+	// Defense in depth: the composed root must stay inside wsRoot after
+	// cleaning — reject anything else before it reaches git -C.
+	wtRoot = filepath.Clean(wtRoot)
+	if strings.Contains(wtRoot, "..") || !strings.HasPrefix(wtRoot, wsRoot+string(filepath.Separator)) {
+		return wsRoot, "", worktreeName, errors.New("invalid worktree path")
+	}
 	info, statErr := os.Stat(wtRoot)
 	if statErr != nil || !info.IsDir() {
 		return wsRoot, "", worktreeName, errors.New("worktree not found")
@@ -409,8 +422,8 @@ func (h *CodeHandler) diff(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), diffTimeout)
 	defer cancel()
 
-	//nolint:gosec // wtRoot / relPath are sanitized via SafeJoin; worktreeName
-	// is validated by the prior Stat.
+	//nolint:gosec // wtRoot is regexp-allowlisted + containment-checked in
+	// resolveWorktreeRoot; relPath is sanitized via SafeJoin.
 	cmd := exec.CommandContext(ctx, "git", args...)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
