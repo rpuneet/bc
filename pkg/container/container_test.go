@@ -541,3 +541,148 @@ func TestWorkspaceHashDeterministic(t *testing.T) {
 		t.Error("different workspace paths should produce different hashes")
 	}
 }
+
+func TestResolveRepoMount(t *testing.T) {
+	boot := "/host/boot-repo"
+	other := "/host/other-repo"
+
+	tests := []struct {
+		env         map[string]string
+		name        string
+		hostWS      string
+		dir         string
+		wantRepo    string
+		wantWorkdir string
+		wantErr     string
+	}{
+		{
+			name:        "boot repo, no env, dir is repo root",
+			dir:         boot,
+			wantRepo:    boot,
+			wantWorkdir: "/workspace",
+		},
+		{
+			name:        "boot repo, empty dir",
+			dir:         "",
+			wantRepo:    boot,
+			wantWorkdir: "/workspace",
+		},
+		{
+			name:        "boot repo, worktree under repo (legacy sidecar)",
+			dir:         boot + "/.bc/agents/zed/bc-boot-repo-zed",
+			wantRepo:    boot,
+			wantWorkdir: "/workspace/.bc/agents/zed/bc-boot-repo-zed",
+		},
+		{
+			name:        "boot repo, worktree outside repo (M11 data dir)",
+			dir:         "/home/user/.mycel/workspaces/ws1/agents/zed/bc-boot-repo-zed",
+			wantRepo:    boot,
+			wantWorkdir: "/workspace",
+		},
+		{
+			name:        "BC_WORKSPACE equal to boot repo behaves like boot",
+			env:         map[string]string{"BC_WORKSPACE": boot},
+			dir:         boot + "/.bc/agents/zed/wt",
+			wantRepo:    boot,
+			wantWorkdir: "/workspace/.bc/agents/zed/wt",
+		},
+		{
+			name:        "boot repo honors BC_HOST_WORKSPACE translation",
+			hostWS:      "/real/host/boot-repo",
+			dir:         boot,
+			wantRepo:    "/real/host/boot-repo",
+			wantWorkdir: "/workspace",
+		},
+		{
+			name:        "cross repo mounts the agent repo, not boot",
+			env:         map[string]string{"BC_WORKSPACE": other},
+			dir:         "/home/user/.mycel/workspaces/ws1/agents/zed/bc-other-repo-zed",
+			wantRepo:    other,
+			wantWorkdir: "/workspace",
+		},
+		{
+			name:        "cross repo with worktree under the agent repo",
+			env:         map[string]string{"BC_WORKSPACE": other},
+			dir:         other + "/.bc/agents/zed/bc-other-repo-zed",
+			wantRepo:    other,
+			wantWorkdir: "/workspace/.bc/agents/zed/bc-other-repo-zed",
+		},
+		{
+			name:        "cross repo ignores boot BC_HOST_WORKSPACE translation",
+			env:         map[string]string{"BC_WORKSPACE": other},
+			hostWS:      "/real/host/boot-repo",
+			dir:         other,
+			wantRepo:    other,
+			wantWorkdir: "/workspace",
+		},
+		{
+			name:    "cross repo rejects relative path",
+			env:     map[string]string{"BC_WORKSPACE": "relative/repo"},
+			dir:     boot,
+			wantErr: "absolute path",
+		},
+		{
+			name:    "cross repo rejects traversal",
+			env:     map[string]string{"BC_WORKSPACE": "/host/boot-repo/../../etc"},
+			dir:     boot,
+			wantErr: "absolute path",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			b := &Backend{
+				prefix:            "bc-",
+				workspaceHash:     "aabbcc",
+				workspacePath:     boot,
+				hostWorkspacePath: tt.hostWS,
+				cfg:               Config{Image: "mycel-agent-claude:latest"},
+				logCancels:        make(map[string]context.CancelFunc),
+			}
+			hostRepo, workdir, err := b.resolveRepoMount(tt.dir, tt.env)
+			if tt.wantErr != "" {
+				if err == nil {
+					t.Fatalf("resolveRepoMount() error = nil, want containing %q", tt.wantErr)
+				}
+				if !strings.Contains(err.Error(), tt.wantErr) {
+					t.Fatalf("resolveRepoMount() error = %q, want containing %q", err.Error(), tt.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("resolveRepoMount() unexpected error: %v", err)
+			}
+			if hostRepo != tt.wantRepo {
+				t.Errorf("hostRepo = %q, want %q", hostRepo, tt.wantRepo)
+			}
+			if workdir != tt.wantWorkdir {
+				t.Errorf("workdir = %q, want %q", workdir, tt.wantWorkdir)
+			}
+		})
+	}
+}
+
+func TestCreateSessionWithEnv_RejectsUnsafeAgentRepo(t *testing.T) {
+	// Worktree dir with .git so workspace validation passes.
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, ".git"), 0750); err != nil {
+		t.Fatal(err)
+	}
+
+	b := &Backend{
+		prefix:        "bc-",
+		workspaceHash: "aabbcc",
+		workspacePath: "/host/boot-repo",
+		cfg:           Config{Image: "mycel-agent-claude:latest", Network: "bridge", CPUs: 2.0, MemoryMB: 2048},
+		logCancels:    make(map[string]context.CancelFunc),
+	}
+
+	env := map[string]string{"BC_WORKSPACE": "not/absolute"}
+	err := b.CreateSessionWithEnv(context.Background(), "test-agent", dir, "bash", env)
+	if err == nil {
+		t.Fatal("expected error for relative agent repo path")
+	}
+	if !strings.Contains(err.Error(), "absolute path") {
+		t.Errorf("error = %q, want to contain 'absolute path'", err.Error())
+	}
+}

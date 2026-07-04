@@ -193,6 +193,53 @@ func (b *Backend) hostAgentDir(agentName, hostRoot string) string {
 	return filepath.Join(hostRoot, rel)
 }
 
+// resolveRepoMount picks the repository mounted at /workspace and the
+// container working directory for an agent session.
+//
+// The agent's repo arrives via env["BC_WORKSPACE"], which the agent
+// manager sets from Agent.Repo (mirroring worktreeManagerFor on the
+// tmux path). An empty value — or the boot workspace path itself —
+// means the boot repo. Any other repo is mounted instead, so agents
+// bound to a different repo get THEIR repo at /workspace, not the
+// boot repo.
+//
+// Returns the host-side mount source (for -v) and the container
+// workdir (for -w). dir is the agent's worktree as bcd sees it; when
+// it lives under the mounted repo, the workdir points at it.
+func (b *Backend) resolveRepoMount(dir string, env map[string]string) (hostRepo, workdir string, err error) {
+	// Boot repo defaults. BC_HOST_WORKSPACE (Docker-in-Docker) only
+	// translates the boot workspace path.
+	repoRoot := b.workspacePath
+	hostRepo = b.hostWorkspacePath
+	if hostRepo == "" {
+		hostRepo = b.workspacePath
+	}
+
+	if agentRepo := env["BC_WORKSPACE"]; agentRepo != "" && filepath.Clean(agentRepo) != filepath.Clean(b.workspacePath) {
+		// The repo value originates from the create-agent API — require
+		// an absolute, traversal-free path before it becomes a -v mount
+		// source. Like validateMount, ".." is checked on the raw value
+		// so traversal cannot be smuggled past filepath.Clean.
+		cleaned := filepath.Clean(agentRepo)
+		if !filepath.IsAbs(cleaned) || strings.Contains(agentRepo, "..") {
+			return "", "", fmt.Errorf("agent repo %q must be an absolute path without traversal", agentRepo)
+		}
+		repoRoot = cleaned
+		// Cross-repo paths are host paths already; no BC_HOST_WORKSPACE
+		// translation applies.
+		hostRepo = cleaned
+	}
+
+	workdir = "/workspace"
+	if dir != "" && dir != repoRoot {
+		// Agent has an isolated worktree — set working directory to it.
+		if rel, relErr := filepath.Rel(repoRoot, dir); relErr == nil && !strings.HasPrefix(rel, "..") {
+			workdir = filepath.Join("/workspace", rel)
+		}
+	}
+	return hostRepo, workdir, nil
+}
+
 // imageForTool returns the Docker image for a given agent tool name.
 func (b *Backend) imageForTool(toolName string) string {
 	if toolName == "" {
@@ -269,7 +316,7 @@ func (b *Backend) CreateSessionWithCommand(ctx context.Context, name, dir, comma
 // CreateSessionWithEnv creates a fully isolated Docker container for an agent.
 //
 // Mounts:
-//   - workspace dir → /workspace (project code)
+//   - agent's repo → /workspace (project code; env BC_WORKSPACE, boot workspace when unset)
 //   - .bc/volumes/<agent>/.claude → /home/agent/.claude (persistent Claude state)
 //   - bc-shared-tmp → /tmp/bc-shared (shared volume for cross-container file exchange)
 //
@@ -360,25 +407,26 @@ func (b *Backend) CreateSessionWithEnv(ctx context.Context, name, dir, command s
 	// Ensure host.docker.internal resolves on Linux (macOS/Windows get this automatically)
 	args = append(args, "--add-host=host.docker.internal:host-gateway")
 
-	// Mount 1: Project root at /workspace.
-	// The full project is mounted so git worktrees resolve naturally
+	// Mount 1: The agent's repo at /workspace.
+	// The full repo is mounted so git worktrees resolve naturally
 	// (worktree .git files can traverse back to .git/ for objects/refs).
-	// If the agent has an isolated worktree, we set -w to that subdirectory.
+	// Agents bound to a different repo (env BC_WORKSPACE) get that repo
+	// mounted — never the boot repo. If the agent has an isolated
+	// worktree under the repo, we set -w to that subdirectory.
+	hostRepo, containerWorkdir, mountErr := b.resolveRepoMount(dir, env)
+	if mountErr != nil {
+		return mountErr
+	}
+	args = append(args, "-v", hostRepo+":/workspace")
+	args = append(args, "-w", containerWorkdir)
+
+	// Agent state (Mounts 2–3) always lives in the BOOT workspace's data
+	// dir regardless of which repo the agent is bound to, so state-dir
+	// host translation keys off the boot host root, not the repo mount.
 	hostRoot := b.hostWorkspacePath
 	if hostRoot == "" {
 		hostRoot = b.workspacePath
 	}
-	args = append(args, "-v", hostRoot+":/workspace")
-
-	containerWorkdir := "/workspace"
-	if dir != "" && dir != b.workspacePath {
-		// Agent has an isolated worktree — set working directory to it.
-		rel, relErr := filepath.Rel(b.workspacePath, dir)
-		if relErr == nil && !strings.HasPrefix(rel, "..") {
-			containerWorkdir = filepath.Join("/workspace", rel)
-		}
-	}
-	args = append(args, "-w", containerWorkdir)
 
 	// Mount 2: Persistent Claude state (~/.claude/ dir)
 	// Use local (container) path for mkdir, host path for -v mount.
