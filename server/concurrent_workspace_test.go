@@ -74,13 +74,9 @@ func newConcurrentHarness(t *testing.T, n int) *concurrentHarness {
 		list[i] = wsSetup{id: workspace.ComputeWorkspaceID(p), path: p}
 	}
 
-	// Each workspace's db is opened lazily by BuildWorkspaceServices via
-	// the per-workspace registry; release them after the test.
-	t.Cleanup(func() {
-		for _, w := range list {
-			_ = bcdb.CloseWorkspaceDB(w.path)
-		}
-	})
+	// All workspaces share the single global mycel.db, opened lazily by
+	// BuildWorkspaceServices; release it after the test.
+	t.Cleanup(func() { _ = bcdb.CloseGlobal() })
 
 	reg, regErr := workspace.LoadRegistry()
 	if regErr != nil {

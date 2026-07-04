@@ -1,6 +1,7 @@
 package events
 
 import (
+	"context"
 	"path/filepath"
 	"testing"
 	"time"
@@ -174,4 +175,59 @@ func TestSQLiteLog_ImplementsEventStore(t *testing.T) {
 
 	// Verify it implements EventStore
 	var _ EventStore = log
+}
+
+// TestEventRepoAttribution covers the repo column added for the single
+// global database: explicit Event.Repo round-trips, and when the
+// writer doesn't know the repo the store best-effort resolves it from
+// the agents table living in the same database.
+func TestEventRepoAttribution(t *testing.T) {
+	d := setupSharedDB(t)
+	log, err := NewSQLiteLog(d)
+	if err != nil {
+		t.Fatalf("NewSQLiteLog: %v", err)
+	}
+	defer func() { _ = log.Close() }()
+
+	// Minimal agents table alongside events — in production both live
+	// in the one global mycel.db.
+	ctx := context.Background()
+	if _, execErr := d.ExecContext(ctx,
+		`CREATE TABLE agents (name TEXT PRIMARY KEY, repo TEXT NOT NULL DEFAULT '')`); execErr != nil {
+		t.Fatalf("create agents table: %v", execErr)
+	}
+	if _, execErr := d.ExecContext(ctx,
+		`INSERT INTO agents (name, repo) VALUES ('alice', '/repos/alpha')`); execErr != nil {
+		t.Fatalf("seed agent: %v", execErr)
+	}
+
+	// Explicit repo wins.
+	if appendErr := log.Append(Event{Type: AgentSpawned, Agent: "alice", Repo: "/repos/explicit"}); appendErr != nil {
+		t.Fatalf("append explicit: %v", appendErr)
+	}
+	// No repo supplied: resolved from the agents table.
+	if appendErr := log.Append(Event{Type: AgentReport, Agent: "alice"}); appendErr != nil {
+		t.Fatalf("append resolved: %v", appendErr)
+	}
+	// Unknown agent: repo stays empty.
+	if appendErr := log.Append(Event{Type: AgentReport, Agent: "ghost"}); appendErr != nil {
+		t.Fatalf("append unknown: %v", appendErr)
+	}
+
+	evts, err := log.Read()
+	if err != nil {
+		t.Fatalf("read: %v", err)
+	}
+	if len(evts) != 3 {
+		t.Fatalf("events = %d, want 3", len(evts))
+	}
+	if evts[0].Repo != "/repos/explicit" {
+		t.Errorf("explicit repo = %q, want /repos/explicit", evts[0].Repo)
+	}
+	if evts[1].Repo != "/repos/alpha" {
+		t.Errorf("resolved repo = %q, want /repos/alpha (from agents table)", evts[1].Repo)
+	}
+	if evts[2].Repo != "" {
+		t.Errorf("unknown agent repo = %q, want empty", evts[2].Repo)
+	}
 }

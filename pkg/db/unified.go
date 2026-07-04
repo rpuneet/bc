@@ -6,9 +6,13 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"sync"
 
 	"github.com/rpuneet/mycel/pkg/log"
 )
+
+// GlobalDBFileName is the file name of the single global database.
+const GlobalDBFileName = "mycel.db"
 
 // DefaultPassword returns the database password from BC_DB_PASSWORD env var,
 // falling back to "bc" for local development with a warning log.
@@ -21,40 +25,107 @@ func DefaultPassword() string {
 	return "bc"
 }
 
-// BCDBPath returns the path to the unified bc database for a workspace.
-func BCDBPath(workspaceRoot string) string {
-	return filepath.Join(workspaceRoot, ".bc", "bc.db")
+// mycelHome resolves the global mycel home directory: the MYCEL_HOME
+// env var when set (tests, containers), otherwise ~/.mycel. Kept local
+// to pkg/db to avoid an import cycle with pkg/workspace, which imports
+// this package for StorageSettings.
+func mycelHome() (string, error) {
+	if env := os.Getenv("MYCEL_HOME"); env != "" {
+		return env, nil
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("cannot determine home directory: %w", err)
+	}
+	return filepath.Join(home, ".mycel"), nil
 }
 
-// defaultRegistry is the process-wide per-workspace connection registry.
-// Unlike the old single "shared" connection (which pinned every store to
-// the LAUNCH workspace's bc.db), the registry keys connections by
-// workspace root, so workspace B's stores can never write into
-// workspace A's database.
-var defaultRegistry = NewRegistry()
+// GlobalDBPath returns the path of the single global database file:
+// <MycelHome>/mycel.db. Every store — agents, events, notify, cron,
+// mcp, tools, roles — lives in this one database; isolation between
+// repos comes from data keys (agent name, repo path), not from
+// separate files.
+func GlobalDBPath() (string, error) {
+	home, err := mycelHome()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(home, GlobalDBFileName), nil
+}
 
-// ForWorkspace returns the (lazily opened, cached) database connection
-// and driver ("sqlite" or "timescale") for the workspace rooted at root.
-// cfg is only consulted on the first open for that root; pass nil to use
+// globalConns caches the process-wide database handle(s), keyed by the
+// resolved mycel.db path. In production this holds exactly one entry —
+// THE global mycel.db — but keying by path keeps tests that point
+// MYCEL_HOME at different temp dirs isolated from each other.
+//
+// Lifecycle: the handle stays cached for the life of the process even
+// if a workspace's services are evicted for idleness — a cached idle
+// SQLite handle is cheap (max one conn), and keeping it avoids reopen
+// churn plus use-after-close races with other holders. Stores treat
+// the handle as borrowed and never close it; only CloseGlobal tears it
+// down (process shutdown, or tests).
+var globalConns = struct {
+	entries map[string]*globalEntry
+	mu      sync.Mutex
+}{entries: make(map[string]*globalEntry)}
+
+type globalEntry struct {
+	db     *DB
+	driver string // "sqlite" or "timescale"
+}
+
+// Global returns the process-wide database handle and driver ("sqlite"
+// or "timescale"), opening <MycelHome>/mycel.db lazily on first use.
+//
+// cfg selects the backend (DATABASE_URL env > cfg timescale > SQLite
+// at GlobalDBPath) and is only consulted on the first open; later
+// calls return the cached handle regardless of cfg. Pass nil to use
 // DATABASE_URL / SQLite defaults.
-func ForWorkspace(root string, cfg *StorageSettings) (*DB, string, error) {
-	return defaultRegistry.Get(root, cfg)
+//
+// The lock is held across the open so concurrent callers can never
+// race two connections into existence.
+func Global(cfg *StorageSettings) (*DB, string, error) {
+	path, err := GlobalDBPath()
+	if err != nil {
+		return nil, "", err
+	}
+
+	globalConns.mu.Lock()
+	defer globalConns.mu.Unlock()
+
+	if e, ok := globalConns.entries[path]; ok {
+		return e.db, e.driver, nil
+	}
+
+	sqlDB, driver, err := OpenGlobalDBWithConfig(path, cfg)
+	if err != nil {
+		return nil, "", fmt.Errorf("open global db %s: %w", path, err)
+	}
+
+	e := &globalEntry{db: &DB{DB: sqlDB, path: path}, driver: driver}
+	globalConns.entries[path] = e
+	return e.db, e.driver, nil
 }
 
-// CloseWorkspaceDB closes and evicts the cached connection for root from
-// the default registry. A later ForWorkspace reopens it.
-func CloseWorkspaceDB(root string) error {
-	return defaultRegistry.CloseWorkspace(root)
-}
+// CloseGlobal closes every cached global connection and empties the
+// cache. Call at process shutdown; a subsequent Global reopens.
+func CloseGlobal() error {
+	globalConns.mu.Lock()
+	defer globalConns.mu.Unlock()
 
-// CloseAllWorkspaceDBs closes every connection in the default registry.
-// Call at process shutdown.
-func CloseAllWorkspaceDBs() error {
-	return defaultRegistry.Close()
+	var firstErr error
+	for key, e := range globalConns.entries {
+		if err := e.db.Close(); err != nil && firstErr == nil {
+			firstErr = fmt.Errorf("close global db %q: %w", key, err)
+		}
+	}
+	globalConns.entries = make(map[string]*globalEntry)
+	return firstErr
 }
 
 // StorageSettings holds the storage configuration from settings.json.
-// Used by OpenWorkspaceDB to determine the database backend.
+// Used by Global / OpenGlobalDBWithConfig to determine the database
+// backend.
 type StorageSettings struct {
 	Default   string // "sqlite" or "timescale"
 	SQLite    SQLiteSettings
@@ -62,8 +133,13 @@ type StorageSettings struct {
 }
 
 // SQLiteSettings configures the SQLite database path.
+//
+// NOTE: with the single global mycel.db the per-workspace SQLite path
+// override is ignored — the database always lives at
+// <MycelHome>/mycel.db. The field is kept so existing settings.json
+// files still parse and map through DBStorageSettings.
 type SQLiteSettings struct {
-	Path string // base directory for bc.db (default: workspace .bc/ dir)
+	Path string
 }
 
 // TimescaleSettings configures the TimescaleDB (Postgres) connection.
@@ -100,16 +176,15 @@ func (p TimescaleSettings) DSN() string {
 	return fmt.Sprintf("postgres://%s:%s@%s:%d/%s", user, url.PathEscape(pw), host, port, db)
 }
 
-// OpenWorkspaceDB opens the workspace database based on configuration.
-// Priority: DATABASE_URL env var > settings.json storage config > SQLite default.
-func OpenWorkspaceDB(workspaceRoot string) (*sql.DB, string, error) {
-	return OpenWorkspaceDBWithConfig(workspaceRoot, nil)
-}
-
-// OpenWorkspaceDBWithConfig opens the workspace database using settings.json config.
-// If DATABASE_URL env var is set, it takes priority (for Docker/CI).
-// Otherwise, settings.json storage.default determines the backend.
-func OpenWorkspaceDBWithConfig(workspaceRoot string, cfg *StorageSettings) (*sql.DB, string, error) {
+// OpenGlobalDBWithConfig opens the global database at sqlitePath using
+// the given storage settings to choose the backend.
+// Priority: DATABASE_URL env var (Docker/CI) > cfg timescale > SQLite
+// at sqlitePath.
+//
+// Most callers should use Global instead; this is exported so the
+// backend-choice logic is testable without touching the process-wide
+// singleton.
+func OpenGlobalDBWithConfig(sqlitePath string, cfg *StorageSettings) (*sql.DB, string, error) {
 	// Priority 1: DATABASE_URL env var (Docker/CI override)
 	if IsPostgresEnabled() {
 		db, err := OpenPostgres(PostgresDSN())
@@ -135,23 +210,13 @@ func OpenWorkspaceDBWithConfig(workspaceRoot string, cfg *StorageSettings) (*sql
 			"error", err)
 	}
 
-	// Priority 3: SQLite (default)
-	//
-	// The default settings.json writes sqlite.path = ".bc", which used to
-	// resolve CWD-relative to ".bc/.bc/bc.db" (issue #3237). The default
-	// always means the canonical <workspaceRoot>/.bc/bc.db; custom paths
-	// resolve against the workspace root — never the process CWD.
-	path := BCDBPath(workspaceRoot)
-	if cfg != nil && cfg.SQLite.Path != "" && cfg.SQLite.Path != ".bc" {
-		base := cfg.SQLite.Path
-		if !filepath.IsAbs(base) {
-			base = filepath.Join(workspaceRoot, base)
-		}
-		path = filepath.Join(base, "bc.db")
-	}
-	d, err := Open(path)
+	// Priority 3: SQLite (default). The single global database always
+	// lives at sqlitePath (<MycelHome>/mycel.db for Global callers);
+	// the legacy per-workspace sqlite.path override is intentionally
+	// ignored — one process, one file.
+	d, err := Open(sqlitePath)
 	if err != nil {
-		return nil, "", fmt.Errorf("open sqlite %s: %w", path, err)
+		return nil, "", fmt.Errorf("open sqlite %s: %w", sqlitePath, err)
 	}
 	return d.DB, "sqlite", nil
 }

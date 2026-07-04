@@ -17,197 +17,126 @@ import (
 	"github.com/rpuneet/mycel/pkg/tool"
 )
 
-// setupSharedDB opens a temporary workspace database through the
-// per-workspace registry (the production path) and registers cleanup to
-// close it after the test. Returns the workspace root and the handle.
+// setupSharedDB opens the single global database (pinned to a per-test
+// MYCEL_HOME) through the production path and registers cleanup to
+// close it after the test. Returns the mycel home dir and the handle.
 func setupSharedDB(t *testing.T) (string, *db.DB) {
 	t.Helper()
-	dir := t.TempDir()
-	d, driver, err := db.ForWorkspace(dir, nil)
+	home := t.TempDir()
+	t.Setenv("MYCEL_HOME", home)
+	d, driver, err := db.Global(nil)
 	if err != nil {
-		t.Fatalf("db.ForWorkspace: %v", err)
+		t.Fatalf("db.Global: %v", err)
 	}
 	if driver != "sqlite" {
 		t.Fatalf("driver = %q, want sqlite", driver)
 	}
-	t.Cleanup(func() { _ = db.CloseWorkspaceDB(dir) })
-	return dir, d
+	t.Cleanup(func() { _ = db.CloseGlobal() })
+	return home, d
 }
 
 // ---------------------------------------------------------------------------
 // 1. Shared DB lifecycle
 // ---------------------------------------------------------------------------
 
-func TestStorageRegistryLifecycle(t *testing.T) {
-	t.Run("same root twice returns the same handle", func(t *testing.T) {
-		reg := db.NewRegistry()
-		t.Cleanup(func() { _ = reg.Close() })
-
-		dir := t.TempDir()
-		d1, driver1, err := reg.Get(dir, nil)
+func TestStorageGlobalLifecycle(t *testing.T) {
+	t.Run("same process shares one handle", func(t *testing.T) {
+		home, d1 := setupSharedDB(t)
+		d2, driver, err := db.Global(nil)
 		if err != nil {
-			t.Fatalf("Get: %v", err)
+			t.Fatalf("Global (second): %v", err)
 		}
-		if driver1 != "sqlite" {
-			t.Errorf("driver = %q, want sqlite", driver1)
-		}
-		d2, _, err := reg.Get(dir, nil)
-		if err != nil {
-			t.Fatalf("Get (second): %v", err)
+		if driver != "sqlite" {
+			t.Errorf("driver = %q, want sqlite", driver)
 		}
 		if d1 != d2 {
-			t.Error("expected the cached handle on second Get")
+			t.Error("expected the cached global handle on second Global")
+		}
+		if _, statErr := os.Stat(filepath.Join(home, db.GlobalDBFileName)); statErr != nil {
+			t.Errorf("mycel.db missing: %v", statErr)
 		}
 	})
 
-	t.Run("different roots get isolated databases", func(t *testing.T) {
-		reg := db.NewRegistry()
-		t.Cleanup(func() { _ = reg.Close() })
-
-		dirA, dirB := t.TempDir(), t.TempDir()
-		dA, _, err := reg.Get(dirA, nil)
-		if err != nil {
-			t.Fatalf("Get A: %v", err)
-		}
-		dB, _, err := reg.Get(dirB, nil)
-		if err != nil {
-			t.Fatalf("Get B: %v", err)
-		}
-		if dA == dB {
-			t.Fatal("expected distinct handles for distinct workspace roots")
-		}
-
-		ctx := context.Background()
-		if _, execErr := dA.ExecContext(ctx, "CREATE TABLE reg_probe (id INTEGER)"); execErr != nil {
-			t.Fatalf("create probe table in A: %v", execErr)
-		}
-		var n int
-		err = dB.QueryRowContext(ctx,
-			"SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='reg_probe'").Scan(&n)
-		if err != nil {
-			t.Fatalf("query B: %v", err)
-		}
-		if n != 0 {
-			t.Error("table created in workspace A leaked into workspace B's database")
-		}
-	})
-
-	t.Run("CloseWorkspace evicts and Get reopens", func(t *testing.T) {
-		reg := db.NewRegistry()
-		t.Cleanup(func() { _ = reg.Close() })
-
-		dir := t.TempDir()
-		d1, _, err := reg.Get(dir, nil)
-		if err != nil {
-			t.Fatalf("Get: %v", err)
-		}
-		if closeErr := reg.CloseWorkspace(dir); closeErr != nil {
-			t.Fatalf("CloseWorkspace: %v", closeErr)
+	t.Run("CloseGlobal evicts and Global reopens", func(t *testing.T) {
+		_, d1 := setupSharedDB(t)
+		if closeErr := db.CloseGlobal(); closeErr != nil {
+			t.Fatalf("CloseGlobal: %v", closeErr)
 		}
 		if pingErr := d1.Ping(); pingErr == nil {
-			t.Error("expected closed handle to fail Ping after CloseWorkspace")
+			t.Error("expected closed handle to fail Ping after CloseGlobal")
 		}
 		// Closing again is a no-op.
-		if closeErr := reg.CloseWorkspace(dir); closeErr != nil {
-			t.Errorf("second CloseWorkspace: %v", closeErr)
+		if closeErr := db.CloseGlobal(); closeErr != nil {
+			t.Errorf("second CloseGlobal: %v", closeErr)
 		}
 
-		d2, _, err := reg.Get(dir, nil)
+		d2, _, err := db.Global(nil)
 		if err != nil {
-			t.Fatalf("Get after CloseWorkspace: %v", err)
+			t.Fatalf("Global after CloseGlobal: %v", err)
 		}
 		if pingErr := d2.Ping(); pingErr != nil {
 			t.Errorf("reopened handle Ping: %v", pingErr)
 		}
 	})
-
-	t.Run("Close closes everything", func(t *testing.T) {
-		reg := db.NewRegistry()
-		dirA, dirB := t.TempDir(), t.TempDir()
-		dA, _, err := reg.Get(dirA, nil)
-		if err != nil {
-			t.Fatalf("Get A: %v", err)
-		}
-		dB, _, err := reg.Get(dirB, nil)
-		if err != nil {
-			t.Fatalf("Get B: %v", err)
-		}
-		if err := reg.Close(); err != nil {
-			t.Fatalf("Close: %v", err)
-		}
-		if dA.Ping() == nil || dB.Ping() == nil {
-			t.Error("expected all handles closed after registry Close")
-		}
-	})
 }
 
-// TestStorageWorkspaceIsolation is the multi-workspace bleed regression
-// test for issue #3238: stores built for two workspaces in the same
-// process must land in each workspace's own database. Notify
-// subscriptions were the observable symptom (workspace B's Slack
-// subscriptions showed up in workspace A).
-func TestStorageWorkspaceIsolation(t *testing.T) {
+// TestStorageSharedDBKeyIsolation replaces the old per-workspace file
+// isolation test (#3238/#3275): with the single global mycel.db, two
+// "workspaces" now SHARE one database. Isolation is provided by data
+// keys — channel names for subscriptions, globally-unique agent names,
+// and the repo column on agents — not by separate files.
+func TestStorageSharedDBKeyIsolation(t *testing.T) {
 	ctx := context.Background()
+	_, d := setupSharedDB(t)
 
-	wsA, wsB := t.TempDir(), t.TempDir()
-	for _, dir := range []string{wsA, wsB} {
-		t.Cleanup(func() { _ = db.CloseWorkspaceDB(dir) })
+	ns, err := notify.OpenStore(d, "sqlite")
+	if err != nil {
+		t.Fatalf("notify.OpenStore: %v", err)
 	}
 
-	openNotify := func(t *testing.T, root string) *notify.Store {
-		t.Helper()
-		d, driver, err := db.ForWorkspace(root, nil)
-		if err != nil {
-			t.Fatalf("ForWorkspace(%s): %v", root, err)
-		}
-		ns, err := notify.OpenStore(d, driver)
-		if err != nil {
-			t.Fatalf("notify.OpenStore(%s): %v", root, err)
-		}
-		return ns
+	// Subscriptions written by "workspace A" and "workspace B" land in
+	// the same table; they are distinguished by channel and agent keys.
+	if subErr := ns.Subscribe(ctx, "#engineering", "agent-a", false); subErr != nil {
+		t.Fatalf("Subscribe A: %v", subErr)
+	}
+	if subErr := ns.Subscribe(ctx, "#ops", "agent-b", false); subErr != nil {
+		t.Fatalf("Subscribe B: %v", subErr)
 	}
 
-	nsA := openNotify(t, wsA)
-	nsB := openNotify(t, wsB)
-
-	tests := []struct {
-		name    string
-		store   *notify.Store
-		other   *notify.Store
-		channel string
-		agent   string
-	}{
-		{"workspace A subscription stays in A", nsA, nsB, "#engineering", "agent-a"},
-		{"workspace B subscription stays in B", nsB, nsA, "#ops", "agent-b"},
+	eng, err := ns.Subscribers(ctx, "#engineering")
+	if err != nil {
+		t.Fatalf("Subscribers #engineering: %v", err)
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if err := tt.store.Subscribe(ctx, tt.channel, tt.agent, false); err != nil {
-				t.Fatalf("Subscribe: %v", err)
-			}
-			mine, err := tt.store.Subscribers(ctx, tt.channel)
-			if err != nil {
-				t.Fatalf("Subscribers (own): %v", err)
-			}
-			if len(mine) != 1 || mine[0].Agent != tt.agent {
-				t.Fatalf("own workspace subscribers = %+v, want [%s]", mine, tt.agent)
-			}
-			theirs, err := tt.other.Subscribers(ctx, tt.channel)
-			if err != nil {
-				t.Fatalf("Subscribers (other): %v", err)
-			}
-			if len(theirs) != 0 {
-				t.Errorf("subscription bled into the other workspace: %+v", theirs)
-			}
-		})
+	if len(eng) != 1 || eng[0].Agent != "agent-a" {
+		t.Errorf("#engineering subscribers = %+v, want [agent-a]", eng)
+	}
+	ops, err := ns.Subscribers(ctx, "#ops")
+	if err != nil {
+		t.Fatalf("Subscribers #ops: %v", err)
+	}
+	if len(ops) != 1 || ops[0].Agent != "agent-b" {
+		t.Errorf("#ops subscribers = %+v, want [agent-b]", ops)
 	}
 
-	// The two stores must genuinely sit on different database files.
-	if _, err := os.Stat(filepath.Join(wsA, ".bc", "bc.db")); err != nil {
-		t.Errorf("workspace A bc.db missing: %v", err)
+	// A second Global call from "another workspace" returns the SAME
+	// handle and sees the same data — the single-DB contract.
+	d2, _, err := db.Global(nil)
+	if err != nil {
+		t.Fatalf("Global (workspace B view): %v", err)
 	}
-	if _, err := os.Stat(filepath.Join(wsB, ".bc", "bc.db")); err != nil {
-		t.Errorf("workspace B bc.db missing: %v", err)
+	if d2 != d {
+		t.Fatal("expected both workspaces to share the one global handle")
+	}
+	ns2, err := notify.OpenStore(d2, "sqlite")
+	if err != nil {
+		t.Fatalf("notify.OpenStore (B): %v", err)
+	}
+	shared, err := ns2.Subscribers(ctx, "#engineering")
+	if err != nil {
+		t.Fatalf("Subscribers via B: %v", err)
+	}
+	if len(shared) != 1 || shared[0].Agent != "agent-a" {
+		t.Errorf("workspace B must see the shared subscription, got %+v", shared)
 	}
 }
 
@@ -451,9 +380,9 @@ func TestStorageIsolationConcurrent(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestStorageConfigValidation(t *testing.T) {
-	t.Run("OpenWorkspaceDBWithConfig sqlite default", func(t *testing.T) {
+	t.Run("OpenGlobalDBWithConfig sqlite default", func(t *testing.T) {
 		dir := t.TempDir()
-		sqlDB, driver, err := db.OpenWorkspaceDBWithConfig(dir, &db.StorageSettings{
+		sqlDB, driver, err := db.OpenGlobalDBWithConfig(filepath.Join(dir, db.GlobalDBFileName), &db.StorageSettings{
 			Default: "sqlite",
 		})
 		if err != nil {
@@ -469,9 +398,9 @@ func TestStorageConfigValidation(t *testing.T) {
 		}
 	})
 
-	t.Run("OpenWorkspaceDBWithConfig nil config defaults to sqlite", func(t *testing.T) {
+	t.Run("OpenGlobalDBWithConfig nil config defaults to sqlite", func(t *testing.T) {
 		dir := t.TempDir()
-		sqlDB, driver, err := db.OpenWorkspaceDBWithConfig(dir, nil)
+		sqlDB, driver, err := db.OpenGlobalDBWithConfig(filepath.Join(dir, db.GlobalDBFileName), nil)
 		if err != nil {
 			t.Fatalf("OpenWorkspaceDBWithConfig: %v", err)
 		}
@@ -482,12 +411,12 @@ func TestStorageConfigValidation(t *testing.T) {
 		}
 	})
 
-	t.Run("OpenWorkspaceDBWithConfig timescale without postgres falls back to sqlite", func(t *testing.T) {
+	t.Run("OpenGlobalDBWithConfig timescale without postgres falls back to sqlite", func(t *testing.T) {
 		// Ensure DATABASE_URL is not set so it hits the config path.
 		t.Setenv("DATABASE_URL", "")
 
 		dir := t.TempDir()
-		sqlDB, driver, err := db.OpenWorkspaceDBWithConfig(dir, &db.StorageSettings{
+		sqlDB, driver, err := db.OpenGlobalDBWithConfig(filepath.Join(dir, db.GlobalDBFileName), &db.StorageSettings{
 			Default: "timescale",
 			Timescale: db.TimescaleSettings{
 				Host: "127.0.0.1",
@@ -503,11 +432,11 @@ func TestStorageConfigValidation(t *testing.T) {
 		}
 	})
 
-	t.Run("OpenWorkspaceDBWithConfig legacy sql treated as timescale", func(t *testing.T) {
+	t.Run("OpenGlobalDBWithConfig legacy sql treated as timescale", func(t *testing.T) {
 		t.Setenv("DATABASE_URL", "")
 
 		dir := t.TempDir()
-		sqlDB, driver, err := db.OpenWorkspaceDBWithConfig(dir, &db.StorageSettings{
+		sqlDB, driver, err := db.OpenGlobalDBWithConfig(filepath.Join(dir, db.GlobalDBFileName), &db.StorageSettings{
 			Default: "sql",
 			Timescale: db.TimescaleSettings{
 				Host: "127.0.0.1",
@@ -877,14 +806,14 @@ func TestStorageEventsSmoke(t *testing.T) {
 }
 
 func TestStorageChannelSharedDBReady(t *testing.T) {
-	dir, d := setupSharedDB(t)
+	home, d := setupSharedDB(t)
 
-	// Verify the workspace DB infrastructure is set up correctly for
+	// Verify the global DB infrastructure is set up correctly for
 	// channel use. Full channel CRUD tests live in pkg/notify/*_test.go.
-	if _, err := os.Stat(filepath.Join(dir, ".bc", "bc.db")); err != nil {
-		t.Fatalf("workspace bc.db not created: %v", err)
+	if _, err := os.Stat(filepath.Join(home, db.GlobalDBFileName)); err != nil {
+		t.Fatalf("global mycel.db not created: %v", err)
 	}
 	if err := d.Ping(); err != nil {
-		t.Fatalf("workspace db Ping: %v", err)
+		t.Fatalf("global db Ping: %v", err)
 	}
 }

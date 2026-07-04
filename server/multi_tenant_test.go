@@ -5,7 +5,8 @@
 //
 //  1. GET /api/workspaces/<A>/agents only returns A's agents.
 //  2. GET /api/workspaces/<B>/agents only returns B's agents.
-//  3. A hook event appended to A's event store does not show up in B's.
+//  3. A hook event appended through A's services is visible through B's
+//     too — both share the single global mycel.db (events are agent-keyed).
 //  4. Evicting A releases its services; re-loading A preserves disk state.
 //
 // The test deliberately uses the real WorkspaceManager + factory so a
@@ -24,6 +25,7 @@ import (
 	"sort"
 	"testing"
 
+	bcdb "github.com/rpuneet/mycel/pkg/db"
 	bcevents "github.com/rpuneet/mycel/pkg/events"
 	"github.com/rpuneet/mycel/pkg/workspace"
 	"github.com/rpuneet/mycel/server"
@@ -53,9 +55,12 @@ func (h *multiTenantHarness) close() {
 func newMultiTenantHarness(t *testing.T) *multiTenantHarness {
 	t.Helper()
 
-	// Isolate HOME so the test's Registry lives in a fresh ~/.bc.
+	// Isolate HOME and MYCEL_HOME so the test's registry and global
+	// mycel.db live in a fresh sandbox.
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("MYCEL_HOME", filepath.Join(home, ".mycel"))
+	t.Cleanup(func() { _ = bcdb.CloseGlobal() })
 
 	wsA := filepath.Join(t.TempDir(), "wsA")
 	wsB := filepath.Join(t.TempDir(), "wsB")
@@ -229,9 +234,11 @@ func TestMultiTenant_AgentsIsolatedPerWorkspace(t *testing.T) {
 	}
 }
 
-// TestMultiTenant_EventsIsolatedPerWorkspace verifies a hook event written
-// to A's event store does not leak into B's.
-func TestMultiTenant_EventsIsolatedPerWorkspace(t *testing.T) {
+// TestMultiTenant_EventsSharedGlobalDB verifies the single-database
+// semantics for events: a hook event written through A's services is
+// visible through B's too, because both share the one global mycel.db.
+// Per-repo filtering happens via the agent/repo keys, not via files.
+func TestMultiTenant_EventsSharedGlobalDB(t *testing.T) {
 	h := newMultiTenantHarness(t)
 	defer h.close()
 
@@ -241,45 +248,47 @@ func TestMultiTenant_EventsIsolatedPerWorkspace(t *testing.T) {
 		t.Fatalf("expected both workspaces loaded, got A=%v B=%v", svcA, svcB)
 	}
 
-	// Count events in B before writing to A.
-	beforeB := 0
-	if svcB.Events != nil {
-		if evts, err := svcB.Events.ReadLast(1000); err == nil {
-			beforeB = len(evts)
-		}
-	}
-
-	// Append one event to A's event store.
+	// Append one event through A's event store.
 	if svcA.Events == nil {
-		t.Skip("event store not configured for wsA — cannot exercise isolation")
+		t.Skip("event store not configured for wsA — cannot exercise shared db")
 	}
 	err := svcA.Events.Append(bcevents.Event{
 		Type:    "hook.test",
 		Agent:   "alice",
-		Message: "isolation probe",
-		Data:    map[string]any{"note": "isolation probe"},
+		Message: "shared db probe",
+		Data:    map[string]any{"note": "shared db probe"},
 	})
 	if err != nil {
 		t.Fatalf("append to wsA events: %v", err)
 	}
 
-	// Verify A's count grew, B's did not.
-	afterA := 0
+	// A sees it.
+	foundA := false
 	if evts, err := svcA.Events.ReadLast(1000); err == nil {
-		afterA = len(evts)
-	}
-	afterB := beforeB
-	if svcB.Events != nil {
-		if evts, err := svcB.Events.ReadLast(1000); err == nil {
-			afterB = len(evts)
+		for _, ev := range evts {
+			if ev.Type == "hook.test" && ev.Agent == "alice" {
+				foundA = true
+			}
 		}
 	}
-
-	if afterA < 1 {
-		t.Errorf("wsA event count = %d, want >=1", afterA)
+	if !foundA {
+		t.Error("wsA does not see its own event")
 	}
-	if afterB != beforeB {
-		t.Errorf("wsB event count changed from %d to %d — cross-contamination", beforeB, afterB)
+
+	// B sees the SAME row — one events table for the whole process.
+	if svcB.Events == nil {
+		t.Skip("event store not configured for wsB")
+	}
+	foundB := false
+	if evts, err := svcB.Events.ReadLast(1000); err == nil {
+		for _, ev := range evts {
+			if ev.Type == "hook.test" && ev.Agent == "alice" {
+				foundB = true
+			}
+		}
+	}
+	if !foundB {
+		t.Error("shared DB: wsB must see the event appended through wsA's services")
 	}
 }
 

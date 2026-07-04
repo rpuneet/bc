@@ -12,8 +12,9 @@ import (
 )
 
 // SQLiteStore provides SQLite-backed persistence for agent state.
-// It replaces the JSON file-based storage (agents.json, root.json, per-agent JSONs)
-// with a single bc.db using WAL mode for safe concurrent access.
+// All agents live in the single global mycel.db; rows are keyed by the
+// globally-unique agent name and carry the agent's repo path so
+// per-repo managers can load only their own agents.
 type SQLiteStore struct {
 	db *db.DB
 }
@@ -36,6 +37,11 @@ func NewSQLiteStore(dbPath string) (*SQLiteStore, error) {
 
 func createAgentsTable(d *db.DB) error {
 	ctx := context.Background()
+	// Clean schema for the global mycel.db — the file starts empty and
+	// the one-time deploy consolidation fills it, so no ALTER-based
+	// migrations are carried here. The legacy `workspace` column is
+	// kept only because the Agent struct still round-trips it; `repo`
+	// (absolute cleaned repo path) is the attribution key.
 	schema := `
 		CREATE TABLE IF NOT EXISTS agents (
 			name          TEXT PRIMARY KEY,
@@ -46,7 +52,9 @@ func createAgentsTable(d *db.DB) error {
 			team          TEXT,
 			task          TEXT,
 			session       TEXT,
-			workspace     TEXT NOT NULL,
+			session_id    TEXT,
+			workspace     TEXT NOT NULL DEFAULT '',
+			repo          TEXT NOT NULL DEFAULT '',
 			worktree_dir  TEXT,
 			log_file      TEXT,
 			env_file      TEXT,
@@ -57,27 +65,22 @@ func createAgentsTable(d *db.DB) error {
 			last_crash_time TEXT,
 			recovered_from  TEXT,
 			runtime_backend TEXT,
+			ttl           INTEGER NOT NULL DEFAULT 0,
+			created_at    TEXT,
+			stopped_at    TEXT,
+			deleted_at    TEXT,
 			started_at    TEXT NOT NULL,
 			updated_at    TEXT NOT NULL
 		);
 		CREATE INDEX IF NOT EXISTS idx_agents_state ON agents(state);
 		CREATE INDEX IF NOT EXISTS idx_agents_role ON agents(role);
 		CREATE INDEX IF NOT EXISTS idx_agents_parent ON agents(parent_id);
+		CREATE INDEX IF NOT EXISTS idx_agents_repo ON agents(repo);
 	`
 	_, err := d.ExecContext(ctx, schema)
 	if err != nil {
 		return fmt.Errorf("create agents table: %w", err)
 	}
-
-	// Migrations: add columns for existing databases
-	_, _ = d.ExecContext(ctx, `ALTER TABLE agents ADD COLUMN runtime_backend TEXT`)           //nolint:errcheck // ignore if already exists
-	_, _ = d.ExecContext(ctx, `ALTER TABLE agents ADD COLUMN session_id TEXT`)                //nolint:errcheck // ignore if already exists
-	_, _ = d.ExecContext(ctx, `ALTER TABLE agents ADD COLUMN env_file TEXT`)                  //nolint:errcheck // ignore if already exists
-	_, _ = d.ExecContext(ctx, `ALTER TABLE agents ADD COLUMN ttl INTEGER NOT NULL DEFAULT 0`) //nolint:errcheck // ignore if already exists
-	_, _ = d.ExecContext(ctx, `ALTER TABLE agents ADD COLUMN created_at TEXT`)                //nolint:errcheck // ignore if already exists
-	_, _ = d.ExecContext(ctx, `ALTER TABLE agents ADD COLUMN stopped_at TEXT`)                //nolint:errcheck // ignore if already exists
-	_, _ = d.ExecContext(ctx, `ALTER TABLE agents ADD COLUMN deleted_at TEXT`)                //nolint:errcheck // ignore if already exists
-	_, _ = d.ExecContext(ctx, `ALTER TABLE agents ADD COLUMN repo_root TEXT DEFAULT ''`)      //nolint:errcheck // ignore if already exists
 
 	// agent_stats: time-series Docker resource samples.
 	statsSchema := `
@@ -121,7 +124,7 @@ func (s *SQLiteStore) Save(ctx context.Context, a *Agent) error {
 		 worktree_dir, log_file, env_file, hooked_work, children,
 		 is_root, crash_count, last_crash_time, recovered_from,
 		 runtime_backend, session_id, created_at, stopped_at, deleted_at,
-		 started_at, updated_at, repo_root)
+		 started_at, updated_at, repo)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		a.Name, string(a.Role), string(a.State),
 		nullStr(a.Tool), nullStr(a.ParentID), nullStr(a.Team), nullStr(a.Task),
@@ -132,7 +135,7 @@ func (s *SQLiteStore) Save(ctx context.Context, a *Agent) error {
 		nullTime(a.LastCrashTime), nullStr(a.RecoveredFrom),
 		nullStr(a.RuntimeBackend), nullStr(a.SessionID),
 		formatTime(createdAt), nullTime(a.StoppedAt), nullTime(a.DeletedAt),
-		formatTime(a.StartedAt), formatTime(now), nullStr(a.RepoRoot),
+		formatTime(a.StartedAt), formatTime(now), a.Repo,
 	)
 	return err
 }
@@ -201,6 +204,49 @@ func (s *SQLiteStore) LoadAll(ctx context.Context) (map[string]*Agent, error) {
 	return agents, rows.Err()
 }
 
+// LoadByRepo reads every non-deleted agent tagged with the given repo
+// path into a map keyed by name. Used by repo-scoped managers so they
+// only materialize their own agents out of the global agents table.
+func (s *SQLiteStore) LoadByRepo(ctx context.Context, repo string) (map[string]*Agent, error) {
+	rows, err := s.db.QueryContext(ctx,
+		agentSelectCols+` FROM agents WHERE deleted_at IS NULL AND repo = ?`, repo)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	agents := make(map[string]*Agent)
+	for rows.Next() {
+		a, err := scanAgentRow(rows)
+		if err != nil {
+			return nil, err
+		}
+		agents[a.Name] = a
+	}
+	return agents, rows.Err()
+}
+
+// LoadNames returns the names of every non-deleted agent in the global
+// table, across all repos. Used for global-uniqueness checks and
+// collision-free name generation.
+func (s *SQLiteStore) LoadNames(ctx context.Context) (map[string]bool, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT name FROM agents WHERE deleted_at IS NULL`)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	names := make(map[string]bool)
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return nil, err
+		}
+		names[name] = true
+	}
+	return names, rows.Err()
+}
+
 // SaveAll persists every agent in the map inside a single transaction.
 func (s *SQLiteStore) SaveAll(ctx context.Context, agents map[string]*Agent) error {
 	tx, err := s.db.BeginTx(ctx, nil)
@@ -215,7 +261,7 @@ func (s *SQLiteStore) SaveAll(ctx context.Context, agents map[string]*Agent) err
 		 worktree_dir, log_file, env_file, hooked_work, children,
 		 is_root, crash_count, last_crash_time, recovered_from,
 		 runtime_backend, session_id, created_at, stopped_at, deleted_at,
-		 started_at, updated_at, repo_root)
+		 started_at, updated_at, repo)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
 	if err != nil {
 		return err
@@ -242,7 +288,7 @@ func (s *SQLiteStore) SaveAll(ctx context.Context, agents map[string]*Agent) err
 			nullTime(a.LastCrashTime), nullStr(a.RecoveredFrom),
 			nullStr(a.RuntimeBackend), nullStr(a.SessionID),
 			formatTime(createdAt), nullTime(a.StoppedAt), nullTime(a.DeletedAt),
-			formatTime(a.StartedAt), formatTime(now), nullStr(a.RepoRoot),
+			formatTime(a.StartedAt), formatTime(now), a.Repo,
 		)
 		if err != nil {
 			return fmt.Errorf("save agent %s: %w", a.Name, err)
@@ -304,13 +350,14 @@ const agentSelectCols = `SELECT name, role, state, tool, parent_id, team, task, 
 	       worktree_dir, log_file, env_file, hooked_work, children,
 	       is_root, crash_count, last_crash_time, recovered_from,
 	       runtime_backend, session_id, created_at, stopped_at, deleted_at,
-	       started_at, updated_at, repo_root`
+	       started_at, updated_at, repo`
 
 func scanAgentRow(s interface{ Scan(...any) error }) (*Agent, error) {
 	var a Agent
 	var role, state string
 	var tool, parentID, team, task, session, worktreeDir, logFile, envFile, hookedWork, childrenJSON *string
-	var lastCrashTime, recoveredFrom, runtimeBackend, sessionID, repoRoot *string
+	var lastCrashTime, recoveredFrom, runtimeBackend, sessionID *string
+	var repo string
 	var createdAt, stoppedAt, deletedAt *string
 	var startedAt, updatedAt string
 	var isRoot, crashCount int
@@ -321,7 +368,7 @@ func scanAgentRow(s interface{ Scan(...any) error }) (*Agent, error) {
 		&worktreeDir, &logFile, &envFile, &hookedWork, &childrenJSON,
 		&isRoot, &crashCount, &lastCrashTime, &recoveredFrom,
 		&runtimeBackend, &sessionID, &createdAt, &stoppedAt, &deletedAt,
-		&startedAt, &updatedAt, &repoRoot,
+		&startedAt, &updatedAt, &repo,
 	)
 	if err != nil {
 		return nil, err
@@ -344,7 +391,7 @@ func scanAgentRow(s interface{ Scan(...any) error }) (*Agent, error) {
 	a.CrashCount = crashCount
 	a.RecoveredFrom = deref(recoveredFrom)
 	a.RuntimeBackend = deref(runtimeBackend)
-	a.RepoRoot = deref(repoRoot)
+	a.Repo = repo
 
 	if childrenJSON != nil && *childrenJSON != "" {
 		_ = json.Unmarshal([]byte(*childrenJSON), &a.Children) //nolint:errcheck // best-effort

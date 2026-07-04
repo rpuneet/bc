@@ -71,14 +71,12 @@ func newE2EServer(t *testing.T) *e2eServer {
 		t.Fatalf("workspace load: %v", err)
 	}
 
-	// Per-workspace database via the registry (production path).
-	wsDB, wsDriver, dbErr := bcdb.ForWorkspace(ws.RootDir, nil)
+	// Single global database (production path).
+	wsDB, wsDriver, dbErr := bcdb.Global(nil)
 	if dbErr != nil {
-		t.Fatalf("open workspace db: %v", dbErr)
+		t.Fatalf("open global db: %v", dbErr)
 	}
-	t.Cleanup(func() {
-		_ = bcdb.CloseWorkspaceDB(ws.RootDir)
-	})
+	t.Cleanup(func() { _ = bcdb.CloseGlobal() })
 
 	// SSE hub
 	hub := ws_hub(t)

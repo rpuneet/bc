@@ -51,11 +51,9 @@ func TestCORS_WorkspaceScope_Coexist(t *testing.T) {
 	}
 	wsID := workspace.ComputeWorkspaceID(wsDir)
 
-	// BuildWorkspaceServices resolves the workspace db lazily via the
-	// registry; just make sure it is released after the test.
-	t.Cleanup(func() {
-		_ = bcdb.CloseWorkspaceDB(wsDir)
-	})
+	// BuildWorkspaceServices resolves the global db lazily; just make
+	// sure it is released after the test.
+	t.Cleanup(func() { _ = bcdb.CloseGlobal() })
 
 	reg, err := workspace.LoadRegistry()
 	if err != nil {
@@ -157,9 +155,7 @@ func TestCORS_Preflight_Scoped(t *testing.T) {
 	}
 	wsID := workspace.ComputeWorkspaceID(wsDir)
 
-	t.Cleanup(func() {
-		_ = bcdb.CloseWorkspaceDB(wsDir)
-	})
+	t.Cleanup(func() { _ = bcdb.CloseGlobal() })
 
 	reg, err := workspace.LoadRegistry()
 	if err != nil {

@@ -60,7 +60,7 @@ export interface Agent {
   total_tokens?: number;
   runtime_backend?: string;
   mcp_servers?: string[];
-  repo_root?: string;
+  repo?: string;
   /** Absolute path of the workspace this agent belongs to. Grouping the
    *  Agents page by workspace uses this. */
   workspace?: string;

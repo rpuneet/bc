@@ -1,36 +1,38 @@
-// build_services_db_test.go — issue #3238: per-workspace databases.
+// build_services_db_test.go — single global database.
 //
-// BuildWorkspaceServices must resolve each workspace's OWN database from
-// the pkg/db registry so stores for workspace B never write into
-// workspace A's bc.db, and a workspace-less daemon boot must be able to
-// add a repo later and get a fully-online service bundle (lazy open).
+// BuildWorkspaceServices resolves the ONE global mycel.db for every
+// workspace: two workspaces built in the same process share the same
+// database file, and isolation comes from data keys (agent name, repo
+// path) rather than from separate files. A workspace-less daemon boot
+// must still be able to add a repo later and get a fully-online
+// service bundle (lazy open).
 package server
 
 import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
+	bcagent "github.com/rpuneet/mycel/pkg/agent"
 	bcdb "github.com/rpuneet/mycel/pkg/db"
 )
 
-// TestBuildWorkspaceServices_NotifyIsolation is the multi-workspace
-// bleed regression test at the factory level: two workspaces built in
-// the same process must keep notify subscriptions (and everything else
-// in bc.db) fully isolated.
-func TestBuildWorkspaceServices_NotifyIsolation(t *testing.T) {
-	t.Setenv("MYCEL_HOME", t.TempDir())
+// TestBuildWorkspaceServices_SharedGlobalDB asserts the single-database
+// semantics: two workspaces in one process share mycel.db (channel
+// subscriptions are global), agents are isolated by repo key, and a
+// duplicate agent name across repos is rejected.
+func TestBuildWorkspaceServices_SharedGlobalDB(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("MYCEL_HOME", home)
 	t.Setenv("BC_SECRET_PASSPHRASE", "unit-test")
+	t.Cleanup(func() { _ = bcdb.CloseGlobal() })
 	ctx := context.Background()
 
 	wsA, wsB := t.TempDir(), t.TempDir()
 	gitInitDir(t, wsA)
 	gitInitDir(t, wsB)
-	t.Cleanup(func() {
-		_ = bcdb.CloseWorkspaceDB(wsA)
-		_ = bcdb.CloseWorkspaceDB(wsB)
-	})
 
 	svcA, err := BuildWorkspaceServices(ctx, &Globals{}, wsA)
 	if err != nil {
@@ -48,10 +50,12 @@ func TestBuildWorkspaceServices_NotifyIsolation(t *testing.T) {
 			svcA.Degraded, svcB.Degraded)
 	}
 
+	// Channel subscriptions live in the ONE shared database: a
+	// subscription made through workspace A's services is visible
+	// through workspace B's — that is the single-DB contract.
 	if subErr := svcA.Notify.Store().Subscribe(ctx, "#engineering", "agent-a", false); subErr != nil {
 		t.Fatalf("subscribe in A: %v", subErr)
 	}
-
 	subsA, err := svcA.Notify.Store().Subscribers(ctx, "#engineering")
 	if err != nil {
 		t.Fatalf("subscribers A: %v", err)
@@ -59,40 +63,72 @@ func TestBuildWorkspaceServices_NotifyIsolation(t *testing.T) {
 	if len(subsA) != 1 || subsA[0].Agent != "agent-a" {
 		t.Fatalf("workspace A subscribers = %+v, want [agent-a]", subsA)
 	}
-
 	subsB, err := svcB.Notify.Store().Subscribers(ctx, "#engineering")
 	if err != nil {
 		t.Fatalf("subscribers B: %v", err)
 	}
-	if len(subsB) != 0 {
-		t.Errorf("workspace A's subscription bled into workspace B: %+v", subsB)
+	if len(subsB) != 1 || subsB[0].Agent != "agent-a" {
+		t.Errorf("shared DB: workspace B must see the same channel subscription, got %+v", subsB)
 	}
 
-	// Each workspace must have its own database file.
+	// Agents are isolated by repo key: an agent registered in A does
+	// not appear in B's manager.
+	if regErr := svcA.AgentMgr.RegisterStopped(&bcagent.Agent{
+		Name:      "shared-db-agent",
+		Role:      bcagent.Role("engineer"),
+		Workspace: wsA,
+		Repo:      wsA,
+	}); regErr != nil {
+		t.Fatalf("register agent in A: %v", regErr)
+	}
+	if got := svcB.AgentMgr.GetAgent("shared-db-agent"); got != nil {
+		t.Error("agent registered in workspace A must not be visible in workspace B's manager")
+	}
+
+	// Agent names are globally unique: reusing the name from another
+	// repo must be rejected with a helpful error.
+	dupErr := svcB.AgentMgr.RegisterStopped(&bcagent.Agent{
+		Name:      "shared-db-agent",
+		Role:      bcagent.Role("engineer"),
+		Workspace: wsB,
+		Repo:      wsB,
+	})
+	if dupErr == nil {
+		t.Fatal("duplicate agent name across repos must be rejected")
+	}
+	if msg := dupErr.Error(); !strings.Contains(msg, "shared-db-agent") || !strings.Contains(msg, "already in use") {
+		t.Errorf("duplicate-name error should identify the conflict, got: %v", dupErr)
+	}
+
+	// One database file at MYCEL_HOME — no per-workspace bc.db files.
+	if _, statErr := os.Stat(filepath.Join(home, "mycel.db")); statErr != nil {
+		t.Errorf("global mycel.db missing: %v", statErr)
+	}
 	for _, dir := range []string{wsA, wsB} {
-		if _, statErr := os.Stat(filepath.Join(dir, ".bc", "bc.db")); statErr != nil {
-			t.Errorf("bc.db missing for %s: %v", dir, statErr)
+		if _, statErr := os.Stat(filepath.Join(dir, ".bc", "bc.db")); statErr == nil {
+			t.Errorf("per-workspace bc.db must not be created anymore (%s)", dir)
 		}
 	}
 }
 
-// TestBuildWorkspaceServices_LazyWorkspaceDB simulates the
-// workspace-less boot path: no database exists anywhere until a repo is
-// added (BuildWorkspaceServices is what POST /api/workspaces invokes),
-// at which point the registry opens that workspace's DB lazily and the
-// stores come up online rather than degraded.
-func TestBuildWorkspaceServices_LazyWorkspaceDB(t *testing.T) {
-	t.Setenv("MYCEL_HOME", t.TempDir())
+// TestBuildWorkspaceServices_LazyGlobalDB simulates the workspace-less
+// boot path: no database exists anywhere until a repo is added
+// (BuildWorkspaceServices is what POST /api/workspaces invokes), at
+// which point the global mycel.db is opened lazily and the stores come
+// up online rather than degraded.
+func TestBuildWorkspaceServices_LazyGlobalDB(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("MYCEL_HOME", home)
 	t.Setenv("BC_SECRET_PASSPHRASE", "unit-test")
+	t.Cleanup(func() { _ = bcdb.CloseGlobal() })
 	ctx := context.Background()
 
 	wsDir := t.TempDir()
 	gitInitDir(t, wsDir)
-	t.Cleanup(func() { _ = bcdb.CloseWorkspaceDB(wsDir) })
 
-	// Nothing pre-opened: the db file must not exist yet.
-	if _, err := os.Stat(filepath.Join(wsDir, ".bc", "bc.db")); err == nil {
-		t.Fatal("bc.db must not exist before services are built")
+	// Nothing pre-opened: the global db file must not exist yet.
+	if _, err := os.Stat(filepath.Join(home, "mycel.db")); err == nil {
+		t.Fatal("mycel.db must not exist before services are built")
 	}
 
 	svc, err := BuildWorkspaceServices(ctx, &Globals{}, wsDir)
@@ -115,7 +151,7 @@ func TestBuildWorkspaceServices_LazyWorkspaceDB(t *testing.T) {
 	if reason, degraded := svc.Degraded["storage"]; degraded {
 		t.Errorf("storage degraded on lazy add: %s", reason)
 	}
-	if _, err := os.Stat(filepath.Join(wsDir, ".bc", "bc.db")); err != nil {
-		t.Errorf("bc.db not created lazily: %v", err)
+	if _, err := os.Stat(filepath.Join(home, "mycel.db")); err != nil {
+		t.Errorf("global mycel.db not created lazily: %v", err)
 	}
 }

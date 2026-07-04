@@ -64,11 +64,11 @@ func setupWorkspaceWithDB(t *testing.T) string {
 // given workspace root, mirroring how BuildWorkspaceServices resolves it.
 func openWSDB(t *testing.T, dir string) (*db.DB, string) {
 	t.Helper()
-	d, driver, err := db.ForWorkspace(dir, nil)
+	d, driver, err := db.Global(nil)
 	if err != nil {
 		t.Fatalf("open workspace db: %v", err)
 	}
-	t.Cleanup(func() { _ = db.CloseWorkspaceDB(dir) })
+	t.Cleanup(func() { _ = db.CloseGlobal() })
 	return d, driver
 }
 

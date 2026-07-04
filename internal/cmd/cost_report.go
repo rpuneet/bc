@@ -73,33 +73,32 @@ func runCostReport(cmd *cobra.Command, _ []string) error {
 }
 
 func printCostByWorkspace(ctx context.Context, store *cost.Store, since time.Time) error {
-	byWS, err := store.SumByWorkspace(ctx, since)
+	byRepo, err := store.SumByRepo(ctx, since)
 	if err != nil {
 		return err
 	}
 
-	// Resolve workspace ids to names via the registry for friendlier
+	// Resolve repo paths to names via the registry for friendlier
 	// output.
 	names := map[string]string{}
 	if reg, regErr := workspace.LoadRegistry(); regErr == nil && reg != nil {
 		for _, e := range reg.Workspaces {
-			id := workspace.ComputeWorkspaceID(e.Path)
-			names[id] = e.Name
+			names[e.Path] = e.Name
 		}
 	}
 
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-	_, _ = fmt.Fprintln(w, "WORKSPACE\tID\tTOTAL")
+	_, _ = fmt.Fprintln(w, "REPO\tPATH\tTOTAL")
 
-	keys := make([]string, 0, len(byWS))
-	for k := range byWS {
+	keys := make([]string, 0, len(byRepo))
+	for k := range byRepo {
 		keys = append(keys, k)
 	}
-	sort.Slice(keys, func(i, j int) bool { return byWS[keys[i]] > byWS[keys[j]] })
+	sort.Slice(keys, func(i, j int) bool { return byRepo[keys[i]] > byRepo[keys[j]] })
 
 	var grand float64
 	for _, k := range keys {
-		total := byWS[k]
+		total := byRepo[k]
 		grand += total
 		name := names[k]
 		if name == "" {
@@ -116,13 +115,13 @@ func printCostByWorkspace(ctx context.Context, store *cost.Store, since time.Tim
 }
 
 func printCostByProject(ctx context.Context, store *cost.Store, since time.Time) error {
-	resolve := func(wsID string) string {
+	resolve := func(repo string) string {
 		reg, err := workspace.LoadRegistry()
 		if err != nil || reg == nil {
 			return ""
 		}
 		for _, e := range reg.Workspaces {
-			if workspace.ComputeWorkspaceID(e.Path) == wsID {
+			if e.Path == repo {
 				return e.Name
 			}
 		}

@@ -113,9 +113,8 @@ type TimescaleStorageConfig struct {
 }
 
 // DBStorageSettings converts the workspace storage config into the
-// pkg/db settings shape consumed by the per-workspace connection
-// registry. Returns nil for a nil config so callers can pass it
-// straight to db.ForWorkspace.
+// pkg/db settings shape consumed by the global connection. Returns nil
+// for a nil config so callers can pass it straight to db.Global.
 func (c *Config) DBStorageSettings() *db.StorageSettings {
 	if c == nil {
 		return nil

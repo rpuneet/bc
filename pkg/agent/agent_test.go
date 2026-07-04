@@ -20,6 +20,14 @@ import (
 )
 
 func TestMain(m *testing.M) {
+	// Point the single global database (MYCEL_HOME/mycel.db) at a
+	// throwaway dir so tests never touch ~/.mycel.
+	var testHome string
+	if home, err := os.MkdirTemp("", "mycel-test-home-*"); err == nil {
+		testHome = home
+		_ = os.Setenv("MYCEL_HOME", home)
+	}
+
 	// Setup roles for tests
 	RoleCapabilities[Role("engineer")] = []Capability{CapImplementTasks}
 	RoleCapabilities[Role("manager")] = []Capability{CapAssignWork}
@@ -31,7 +39,11 @@ func TestMain(m *testing.M) {
 	RoleHierarchy[Role("product-manager")] = []Role{Role("manager")}
 	RoleHierarchy[RoleRoot] = []Role{Role("product-manager"), Role("manager"), Role("engineer"), Role("qa"), Role("worker")}
 
-	os.Exit(m.Run())
+	code := m.Run()
+	if testHome != "" {
+		_ = os.RemoveAll(testHome)
+	}
+	os.Exit(code)
 }
 
 // initGitRepo initializes a bare-minimum git repo in dir so worktree operations work.
@@ -3497,5 +3509,78 @@ func TestBcdAddrForRuntime_NormalizesEmptyHost(t *testing.T) {
 					tt.runtime, tt.envVal, got, tt.want)
 			}
 		})
+	}
+}
+
+// TestGlobalAgentNameUniqueness covers the single-database semantics:
+// all managers share one agents table (global mycel.db), agents are
+// loaded per repo, and a name taken by another repo is rejected on
+// both the register and spawn paths.
+func TestGlobalAgentNameUniqueness(t *testing.T) {
+	t.Setenv("MYCEL_HOME", t.TempDir())
+	ctx := context.Background()
+
+	repoA, repoB := t.TempDir(), t.TempDir()
+	mA := NewWorkspaceManager(filepath.Join(repoA, "agents"), repoA)
+	if err := mA.LoadState(); err != nil {
+		t.Fatalf("LoadState A: %v", err)
+	}
+	defer func() { _ = mA.Close() }()
+
+	if err := mA.RegisterStopped(&Agent{
+		Name:      "dup-check",
+		Role:      Role("engineer"),
+		Workspace: repoA,
+	}); err != nil {
+		t.Fatalf("RegisterStopped A: %v", err)
+	}
+
+	mB := NewWorkspaceManager(filepath.Join(repoB, "agents"), repoB)
+	if err := mB.LoadState(); err != nil {
+		t.Fatalf("LoadState B: %v", err)
+	}
+	defer func() { _ = mB.Close() }()
+
+	// Repo-key isolation: B's manager must not materialize A's agent.
+	if got := mB.GetAgent("dup-check"); got != nil {
+		t.Errorf("repo B manager loaded repo A's agent: %+v", got)
+	}
+
+	// RegisterStopped path rejects the taken name.
+	err := mB.RegisterStopped(&Agent{
+		Name:      "dup-check",
+		Role:      Role("engineer"),
+		Workspace: repoB,
+	})
+	if err == nil {
+		t.Fatal("expected duplicate name rejection on RegisterStopped")
+	}
+	if !strings.Contains(err.Error(), "already in use") || !strings.Contains(err.Error(), repoA) {
+		t.Errorf("error should mention the owning repo, got: %v", err)
+	}
+
+	// Spawn path rejects the taken name before touching any runtime.
+	_, err = mB.SpawnAgentWithOptions(ctx, SpawnOptions{
+		Name:      "dup-check",
+		Role:      Role("engineer"),
+		Workspace: repoB,
+	})
+	if err == nil {
+		t.Fatal("expected duplicate name rejection on spawn")
+	}
+	if !strings.Contains(err.Error(), "already in use") {
+		t.Errorf("spawn error should explain global uniqueness, got: %v", err)
+	}
+
+	// A restarted manager for repo A still loads its own agent.
+	mA2 := NewWorkspaceManager(filepath.Join(repoA, "agents"), repoA)
+	if err := mA2.LoadState(); err != nil {
+		t.Fatalf("LoadState A2: %v", err)
+	}
+	defer func() { _ = mA2.Close() }()
+	if got := mA2.GetAgent("dup-check"); got == nil {
+		t.Error("repo A manager must reload its own agent from the global table")
+	} else if got.Repo != repoA {
+		t.Errorf("agent repo = %q, want %q", got.Repo, repoA)
 	}
 }

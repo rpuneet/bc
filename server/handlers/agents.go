@@ -196,7 +196,7 @@ type agentDTO struct { //nolint:govet // field order matches JSON/API contract
 	SessionID  string         `json:"session_id,omitempty"`
 	ParentID   string         `json:"parent_id,omitempty"`
 	ID         string         `json:"id,omitempty"`
-	RepoRoot   string         `json:"repo_root,omitempty"`
+	Repo       string         `json:"repo,omitempty"`
 	// Workspace is the absolute path the agent is bound to (#3079).
 	// Clients filter via /api/agents?workspace=<path>.
 	Workspace    string   `json:"workspace,omitempty"`
@@ -237,7 +237,7 @@ func toDTO(a *agent.Agent) agentDTO {
 		UpdatedAt:  a.UpdatedAt,
 		StoppedAt:  a.StoppedAt,
 		ArchivedAt: a.ArchivedAt,
-		RepoRoot:   a.RepoRoot,
+		Repo:       a.Repo,
 		Workspace:  a.Workspace,
 	}
 }

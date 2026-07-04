@@ -46,6 +46,12 @@ type Event struct {
 	Type      EventType      `json:"type"`
 	Agent     string         `json:"agent,omitempty"`
 	Message   string         `json:"message,omitempty"`
+	// Repo is the absolute path of the repo the event belongs to, used
+	// for per-repo filtering in the single global database. Writers that
+	// know the repo set it; otherwise the SQLite store best-effort
+	// resolves it from the agents table (events are agent-keyed and both
+	// tables live in the same mycel.db).
+	Repo string `json:"repo,omitempty"`
 }
 
 // EventStore is the interface for reading and writing events.

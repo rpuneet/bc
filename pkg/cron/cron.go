@@ -6,7 +6,7 @@
 //
 // # Usage
 //
-//	wsDB, driver, err := db.ForWorkspace("/path/to/workspace", nil)
+//	wsDB, driver, err := db.Global(nil)
 //	if err != nil {
 //	    return err
 //	}

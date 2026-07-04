@@ -15,6 +15,7 @@ import (
 func TestDiscoverLocalHandler(t *testing.T) {
 	tmp := t.TempDir()
 	t.Setenv("HOME", tmp)
+	t.Setenv("MYCEL_HOME", filepath.Join(tmp, ".mycel"))
 	// Build a fake filesystem: one registered repo, one new repo.
 	registered := filepath.Join(tmp, "src", "registered")
 	fresh := filepath.Join(tmp, "src", "fresh")

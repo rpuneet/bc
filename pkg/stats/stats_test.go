@@ -164,19 +164,30 @@ func TestSummaryNoAgentStatsSection(t *testing.T) {
 	}
 }
 
-// seedAgentsFile writes agent data to the unified bc.db for the given workspace root.
-// The workspaceRoot is the parent of the .bc directory.
+// seedAgentsFile writes agent data to the single global mycel.db
+// (pinned to a per-test MYCEL_HOME) tagged with the given workspace
+// root so a repo-scoped manager loads exactly these agents.
 func seedAgentsFile(t *testing.T, workspaceRoot string, agents map[string]*agent.Agent) {
 	t.Helper()
+	t.Setenv("MYCEL_HOME", filepath.Join(workspaceRoot, ".mycel-home"))
 	bcDir := filepath.Join(workspaceRoot, ".bc")
 	if err := os.MkdirAll(filepath.Join(bcDir, "agents"), 0750); err != nil {
 		t.Fatalf("mkdir .bc/agents: %v", err)
 	}
-	store, err := agent.NewSQLiteStore(db.BCDBPath(workspaceRoot))
+	dbPath, err := db.GlobalDBPath()
+	if err != nil {
+		t.Fatalf("GlobalDBPath: %v", err)
+	}
+	store, err := agent.NewSQLiteStore(dbPath)
 	if err != nil {
 		t.Fatalf("NewSQLiteStore: %v", err)
 	}
 	defer func() { _ = store.Close() }()
+	for _, a := range agents {
+		if a.Repo == "" {
+			a.Repo = workspaceRoot
+		}
+	}
 	if err := store.SaveAll(context.Background(), agents); err != nil {
 		t.Fatalf("SaveAll: %v", err)
 	}

@@ -199,16 +199,16 @@ func completeToolNames(_ *cobra.Command, _ []string, _ string) ([]string, cobra.
 	return names, cobra.ShellCompDirectiveNoFileComp
 }
 
-// openToolStore opens the tool store for the current workspace, using
-// the per-workspace database registry (works offline, without bcd).
+// openToolStore opens the tool store on the single global database
+// (works offline, without bcd).
 func openToolStore() (*tool.Store, error) {
 	ws, err := getWorkspace()
 	if err != nil {
 		return nil, errNotInWorkspace(err)
 	}
-	wsDB, driver, dbErr := db.ForWorkspace(ws.RootDir, ws.Config.DBStorageSettings())
+	wsDB, driver, dbErr := db.Global(ws.Config.DBStorageSettings())
 	if dbErr != nil {
-		return nil, fmt.Errorf("failed to open workspace database: %w", dbErr)
+		return nil, fmt.Errorf("failed to open global database: %w", dbErr)
 	}
 	s := tool.NewStore(wsDB, driver)
 	if err := s.Open(); err != nil {

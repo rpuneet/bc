@@ -19,6 +19,9 @@ func newTestRegistry(t *testing.T) (*workspace.Registry, string, string) {
 	t.Helper()
 	tmpDir := t.TempDir()
 	t.Setenv("HOME", tmpDir)
+	// Fresh registry per test — MYCEL_HOME is otherwise pinned
+	// package-wide by TestMain, which would share aliases across tests.
+	t.Setenv("MYCEL_HOME", filepath.Join(tmpDir, ".mycel"))
 
 	a := filepath.Join(tmpDir, "a")
 	b := filepath.Join(tmpDir, "b")
@@ -88,6 +91,7 @@ func TestWorkspacesHandlerList(t *testing.T) {
 func TestWorkspacesHandlerAdd(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Setenv("HOME", tmpDir)
+	t.Setenv("MYCEL_HOME", filepath.Join(tmpDir, ".mycel"))
 
 	reg, err := workspace.LoadRegistry()
 	if err != nil {

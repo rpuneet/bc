@@ -63,8 +63,8 @@ func migrateJSONToSQLite(store *SQLiteStore, stateDir, workspace string) error {
 				if a.Workspace == "" {
 					a.Workspace = workspace
 				}
-				if a.RepoRoot == "" {
-					a.RepoRoot = a.Workspace
+				if a.Repo == "" {
+					a.Repo = cleanRepoPath(a.Workspace)
 				}
 				if a.StartedAt.IsZero() {
 					a.StartedAt = time.Now()

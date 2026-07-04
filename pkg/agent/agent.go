@@ -354,7 +354,7 @@ type Agent struct {
 	ArchivedAt     *time.Time   `json:"archived_at,omitempty"`
 	RolePrompt     *AgentMemory `json:"memory,omitempty"`
 	Workspace      string       `json:"workspace"`
-	RepoRoot       string       `json:"repo_root,omitempty"`
+	Repo           string       `json:"repo,omitempty"`
 	ID             string       `json:"id"`
 	Name           string       `json:"name"`
 	Task           string       `json:"task,omitempty"`
@@ -868,11 +868,21 @@ func (m *Manager) SpawnAgentWithOptions(ctx context.Context, opts SpawnOptions) 
 
 	m.mu.Lock()
 
-	// Auto-generate name if empty
+	// Auto-generate name if empty. Agent names are globally unique
+	// (name is the primary key of the global agents table), so seed the
+	// collision set with every name in the store, not just this
+	// manager's agents.
 	if name == "" {
 		existing := make(map[string]bool, len(m.agents))
 		for n := range m.agents {
 			existing[n] = true
+		}
+		if m.store != nil {
+			if global, namesErr := m.store.LoadNames(ctx); namesErr == nil {
+				for n := range global {
+					existing[n] = true
+				}
+			}
 		}
 		generated, genErr := names.GenerateUnique(existing, 100)
 		if genErr != nil {
@@ -948,6 +958,15 @@ func (m *Manager) SpawnAgentWithOptions(ctx context.Context, opts SpawnOptions) 
 		// Release global lock; startAgent handles its own locking.
 		m.mu.Unlock()
 		return m.startAgent(ctx, name, opts)
+	}
+
+	// Global uniqueness: the name is not in this manager's state, but it
+	// may belong to an agent from another repo — the agents table is
+	// global and keyed by name, so a blind create would silently
+	// overwrite that row. Reject with a pointer to the owner.
+	if err := m.checkNameAvailable(ctx, name); err != nil {
+		m.mu.Unlock()
+		return nil, err
 	}
 
 	// Fresh create — release global lock; createAgent handles its own locking.
@@ -1223,7 +1242,7 @@ func (m *Manager) createAgent(ctx context.Context, opts SpawnOptions) (*Agent, e
 		Role:           role,
 		State:          StateStarting,
 		Workspace:      wsPath,
-		RepoRoot:       wsPath,
+		Repo:           cleanRepoPath(wsPath),
 		Session:        name,
 		Tool:           effectiveTool,
 		ParentID:       parentID,
@@ -2446,11 +2465,18 @@ func (m *Manager) LoadState() error {
 		return nil
 	}
 
-	// Open SQLite store — use the unified bc.db when workspace path is known,
-	// otherwise fall back to state.db in the agents dir (tests / standalone).
+	// Open SQLite store — use the single global mycel.db when the
+	// workspace (repo) path is known, otherwise fall back to state.db in
+	// the agents dir (tests / standalone). Agents from every repo share
+	// the one database; this manager only materializes rows whose repo
+	// matches its own.
 	var dbPath string
 	if m.workspacePath != "" {
-		dbPath = db.BCDBPath(m.workspacePath)
+		p, pathErr := db.GlobalDBPath()
+		if pathErr != nil {
+			return fmt.Errorf("resolve global db path: %w", pathErr)
+		}
+		dbPath = p
 	} else {
 		dbPath = filepath.Join(m.stateDir, "state.db")
 	}
@@ -2468,8 +2494,16 @@ func (m *Manager) LoadState() error {
 		}
 	}
 
-	// Load all agents from SQLite
-	agents, err := store.LoadAll(context.Background())
+	// Load this manager's agents from SQLite. The agents table is
+	// global (one mycel.db for every repo), so a repo-scoped manager
+	// loads only rows tagged with its own repo path; a standalone
+	// manager (no workspace path) loads everything in its private db.
+	var agents map[string]*Agent
+	if m.workspacePath != "" {
+		agents, err = store.LoadByRepo(context.Background(), cleanRepoPath(m.workspacePath))
+	} else {
+		agents, err = store.LoadAll(context.Background())
+	}
 	if err != nil {
 		return fmt.Errorf("load agents: %w", err)
 	}
@@ -2565,9 +2599,15 @@ func (m *Manager) RegisterStopped(a *Agent) error {
 	if _, exists := m.agents[a.Name]; exists {
 		return fmt.Errorf("agent %q already exists", a.Name)
 	}
+	if err := m.checkNameAvailable(context.Background(), a.Name); err != nil {
+		return err
+	}
 
 	now := time.Now()
 	a.State = StateStopped
+	if a.Repo == "" {
+		a.Repo = cleanRepoPath(m.workspacePath)
+	}
 	if a.CreatedAt.IsZero() {
 		a.CreatedAt = now
 	}
@@ -2583,6 +2623,42 @@ func (m *Manager) RegisterStopped(a *Agent) error {
 		return fmt.Errorf("save state: %w", err)
 	}
 	return nil
+}
+
+// cleanRepoPath normalizes a repo path to an absolute cleaned path —
+// the canonical form of the global `repo` attribution key.
+func cleanRepoPath(p string) string {
+	if p == "" {
+		return ""
+	}
+	if abs, err := filepath.Abs(p); err == nil {
+		return filepath.Clean(abs)
+	}
+	return filepath.Clean(p)
+}
+
+// checkNameAvailable rejects names already taken in the global agents
+// table by an agent this manager does not know about. Agent names are
+// globally unique across every repo: the name is the primary key of
+// the single mycel.db agents table. Soft-deleted rows do not block
+// reuse. Best-effort: with no store (standalone managers, some tests)
+// the in-memory check in the caller is the only guard.
+func (m *Manager) checkNameAvailable(ctx context.Context, name string) error {
+	if m.store == nil {
+		return nil
+	}
+	other, err := m.store.Load(ctx, name)
+	if err != nil || other == nil || other.DeletedAt != nil {
+		return nil //nolint:nilerr // lookup failure must not block spawning
+	}
+	owner := other.Repo
+	if owner == "" {
+		owner = other.Workspace
+	}
+	if owner == "" {
+		owner = "another workspace"
+	}
+	return fmt.Errorf("agent name %q is already in use by an agent in %s — agent names are global, pick a different name or delete that agent first", name, owner)
 }
 
 // enforceRootSingleton checks if a root agent can be spawned.

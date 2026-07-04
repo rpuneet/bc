@@ -525,7 +525,7 @@ func CheckTools(ctx context.Context, ws *workspace.Workspace) CategoryReport {
 	// Check MCP servers from the workspace tool store (requires a workspace).
 	var toolStore *tool.Store
 	if ws != nil {
-		if wsDB, wsDriver, dbErr := db.ForWorkspace(ws.RootDir, ws.Config.DBStorageSettings()); dbErr == nil {
+		if wsDB, wsDriver, dbErr := db.Global(ws.Config.DBStorageSettings()); dbErr == nil {
 			toolStore = tool.NewStore(wsDB, wsDriver)
 		}
 	}

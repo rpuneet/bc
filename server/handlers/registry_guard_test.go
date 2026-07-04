@@ -18,7 +18,18 @@ import (
 func TestMain(m *testing.M) {
 	before, beforePath := snapshotUserRegistry()
 
+	// Default sandbox: pin MYCEL_HOME (and therefore the single global
+	// mycel.db) to a throwaway dir; individual tests may override it.
+	var testHome string
+	if home, err := os.MkdirTemp("", "mycel-test-home-*"); err == nil {
+		testHome = home
+		_ = os.Setenv("MYCEL_HOME", home)
+	}
+
 	code := m.Run()
+	if testHome != "" {
+		_ = os.RemoveAll(testHome)
+	}
 
 	if beforePath != "" {
 		after, _ := snapshotUserRegistry()
