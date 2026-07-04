@@ -3,7 +3,6 @@ import { BrowserRouter, Routes, Route, Link, Navigate, useParams } from "react-r
 import { Layout } from "./components/Layout";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { ThemeProvider } from "./context/ThemeContext";
-import { WorkspaceProvider } from "./context/WorkspaceContext";
 
 const Live = lazy(() => import("./views/Live").then((m) => ({ default: m.Live })));
 const Agents = lazy(() => import("./views/Agents").then((m) => ({ default: m.Agents })));
@@ -52,36 +51,34 @@ export function App() {
     <ErrorBoundary>
       <ThemeProvider>
         <BrowserRouter>
-          <WorkspaceProvider>
-            <Routes>
-              <Route element={<Layout />}>
-                <Route index element={wrap(<Live />)} />
-                <Route path="live" element={wrap(<Live />)} />
-                <Route path="agents" element={wrap(<Agents />)} />
-                <Route path="agents/:name" element={wrap(<AgentDetail />)} />
-                <Route path="agents/:name/*" element={wrap(<AgentDetail />)} />
-                <Route path="notifications" element={wrap(<Notifications />)} />
-                <Route path="notifications/:sourceName" element={wrap(<Notifications />)} />
-                <Route path="templates" element={wrap(<Templates />)} />
-                <Route path="tools" element={wrap(<Tools />)} />
-                <Route path="tools/:provider" element={wrap(<ProviderDetail />)} />
-                <Route path="cron" element={wrap(<Cron />)} />
-                <Route path="secrets" element={wrap(<Secrets />)} />
-                <Route path="stats" element={wrap(<Stats />)} />
-                <Route path="metrics" element={wrap(<Stats />)} />
-                <Route path="costs" element={wrap(<CostsGlobal />)} />
-                <Route path="code" element={wrap(<Code />)} />
-                <Route path="code/*" element={wrap(<Code />)} />
-                <Route path="settings" element={wrap(<Settings />)} />
-                <Route path="about" element={wrap(<About />)} />
+          <Routes>
+            <Route element={<Layout />}>
+              <Route index element={wrap(<Live />)} />
+              <Route path="live" element={wrap(<Live />)} />
+              <Route path="agents" element={wrap(<Agents />)} />
+              <Route path="agents/:name" element={wrap(<AgentDetail />)} />
+              <Route path="agents/:name/*" element={wrap(<AgentDetail />)} />
+              <Route path="notifications" element={wrap(<Notifications />)} />
+              <Route path="notifications/:sourceName" element={wrap(<Notifications />)} />
+              <Route path="templates" element={wrap(<Templates />)} />
+              <Route path="tools" element={wrap(<Tools />)} />
+              <Route path="tools/:provider" element={wrap(<ProviderDetail />)} />
+              <Route path="cron" element={wrap(<Cron />)} />
+              <Route path="secrets" element={wrap(<Secrets />)} />
+              <Route path="stats" element={wrap(<Stats />)} />
+              <Route path="metrics" element={wrap(<Stats />)} />
+              <Route path="costs" element={wrap(<CostsGlobal />)} />
+              <Route path="code" element={wrap(<Code />)} />
+              <Route path="code/*" element={wrap(<Code />)} />
+              <Route path="settings" element={wrap(<Settings />)} />
+              <Route path="about" element={wrap(<About />)} />
 
-                {/* Old builds 301'd /<page> → /w/<hash>/<page>; browsers
-                    cached that redirect, so route it back to flat URLs. */}
-                <Route path="w/:ws/*" element={<LegacyWorkspaceRedirect />} />
-                <Route path="*" element={<NotFound />} />
-              </Route>
-            </Routes>
-          </WorkspaceProvider>
+              {/* Old builds 301'd /<page> → /w/<hash>/<page>; browsers
+                  cached that redirect, so route it back to flat URLs. */}
+              <Route path="w/:ws/*" element={<LegacyWorkspaceRedirect />} />
+              <Route path="*" element={<NotFound />} />
+            </Route>
+          </Routes>
         </BrowserRouter>
       </ThemeProvider>
     </ErrorBoundary>

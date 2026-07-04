@@ -10,10 +10,11 @@
  *   - diff : Monaco DiffEditor, base = main repo, modified = agent worktree
  *           (default when a worktree other than main is selected)
  *
- * Backend endpoints used:
- *   GET /api/code/tree?path=&worktree=&show_hidden=&workspace=
- *   GET /api/code/file?path=&worktree=&workspace=
- *   GET /api/code/diff?worktree=&path=&workspace=
+ * Backend endpoints used (bcd is single-tenant — the handler is
+ * anchored at the boot repo root, no repo parameter needed):
+ *   GET /api/code/tree?path=&worktree=&show_hidden=
+ *   GET /api/code/file?path=&worktree=
+ *   GET /api/code/diff?worktree=&path=
  */
 
 import Editor, { DiffEditor } from "@monaco-editor/react";
@@ -21,7 +22,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { api } from "../api/client";
 import { useTheme } from "../context/ThemeContext";
-import { useWorkspace } from "../context/WorkspaceContext";
 import { languageFromPath } from "../utils/lang";
 import { MONO } from "../utils/typography";
 
@@ -79,7 +79,6 @@ function isHiddenEntry(name: string): boolean {
 }
 
 async function fetchTree(
-  wsId: string,
   path: string,
   worktree: string,
   showHidden: boolean,
@@ -87,9 +86,7 @@ async function fetchTree(
   const qs = new URLSearchParams({ path, worktree });
   if (showHidden) qs.set("show_hidden", "1");
   try {
-    const r = await fetch(
-      `/api/code/tree?${qs.toString()}&workspace=${encodeURIComponent(wsId)}`,
-    );
+    const r = await fetch(`/api/code/tree?${qs.toString()}`);
     if (!r.ok) return [];
     const data = (await r.json()) as unknown;
     if (!Array.isArray(data)) return [];
@@ -108,15 +105,12 @@ async function fetchTree(
 }
 
 async function fetchFile(
-  wsId: string,
   path: string,
   worktree: string,
 ): Promise<FileResult> {
   const qs = new URLSearchParams({ path, worktree });
   try {
-    const r = await fetch(
-      `/api/code/file?${qs.toString()}&workspace=${encodeURIComponent(wsId)}`,
-    );
+    const r = await fetch(`/api/code/file?${qs.toString()}`);
     if (r.status === 404) {
       return { content: "", binary: false, ok: true, notFound: true };
     }
@@ -132,14 +126,14 @@ async function fetchFile(
   }
 }
 
-function fileDownloadUrl(wsId: string, path: string, worktree: string): string {
+function fileDownloadUrl(path: string, worktree: string): string {
   const qs = new URLSearchParams({ path, worktree });
-  return `/api/code/file?${qs.toString()}&workspace=${encodeURIComponent(wsId)}`;
+  return `/api/code/file?${qs.toString()}`;
 }
 
-function patchDownloadUrl(wsId: string, path: string, worktree: string): string {
+function patchDownloadUrl(path: string, worktree: string): string {
   const qs = new URLSearchParams({ worktree, path });
-  return `/api/code/diff?${qs.toString()}&workspace=${encodeURIComponent(wsId)}`;
+  return `/api/code/diff?${qs.toString()}`;
 }
 
 async function fetchCodeServerStatus(): Promise<{ running: boolean; endpoint: string }> {
@@ -158,7 +152,6 @@ async function fetchCodeServerStatus(): Promise<{ running: boolean; endpoint: st
 }
 
 export function Code() {
-  const { workspace } = useWorkspace();
   const { mode: themeMode } = useTheme();
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -220,7 +213,6 @@ export function Code() {
 
   // -------- worktree options --------
   useEffect(() => {
-    if (!workspace) return;
     let cancelled = false;
     void api
       .listAgents()
@@ -241,30 +233,28 @@ export function Code() {
     return () => {
       cancelled = true;
     };
-  }, [workspace]);
+  }, []);
 
   // -------- tree fetching --------
   const loadDir = useCallback(
     async (dirPath: string) => {
-      if (!workspace) return;
       const key = `${worktree}|${dirPath}|${showHidden ? "1" : "0"}`;
       setTreeLoading((prev) => ({ ...prev, [key]: true }));
-      const entries = await fetchTree(workspace.id, dirPath, worktree, showHidden);
+      const entries = await fetchTree(dirPath, worktree, showHidden);
       const visible = showHidden ? entries : entries.filter((n) => !isHiddenEntry(n.name));
       setTreeCache((prev) => ({ ...prev, [key]: visible }));
       setTreeLoading((prev) => ({ ...prev, [key]: false }));
     },
-    [workspace, worktree, showHidden],
+    [worktree, showHidden],
   );
 
   // Load root whenever worktree/showHidden changes
   useEffect(() => {
-    if (!workspace) return;
     let cancelled = false;
     setRootLoading(true);
     setRootError(null);
     const key = `${worktree}||${showHidden ? "1" : "0"}`;
-    void fetchTree(workspace.id, "", worktree, showHidden).then((entries) => {
+    void fetchTree("", worktree, showHidden).then((entries) => {
       if (cancelled) return;
       const visible = showHidden ? entries : entries.filter((n) => !isHiddenEntry(n.name));
       setTreeCache((prev) => ({ ...prev, [key]: visible }));
@@ -274,7 +264,7 @@ export function Code() {
     return () => {
       cancelled = true;
     };
-  }, [workspace, worktree, showHidden]);
+  }, [worktree, showHidden]);
 
   // Reset expanded when worktree changes
   useEffect(() => {
@@ -299,22 +289,22 @@ export function Code() {
 
   // -------- file content fetching --------
   useEffect(() => {
-    if (!workspace || !path) {
+    if (!path) {
       setFileContent(EMPTY_FILE);
       setBaseContent(EMPTY_FILE);
       return;
     }
-    const key = `${workspace.id}|${worktree}|${path}|${viewMode}`;
+    const key = `${worktree}|${path}|${viewMode}`;
     if (lastFetchRef.current === key) return;
     lastFetchRef.current = key;
     let cancelled = false;
     setContentLoading(true);
     setFileError(null);
 
-    const headPromise = fetchFile(workspace.id, path, worktree);
+    const headPromise = fetchFile(path, worktree);
     const basePromise =
       viewMode === "diff" && worktree !== "main"
-        ? fetchFile(workspace.id, path, "main")
+        ? fetchFile(path, "main")
         : Promise.resolve(EMPTY_FILE);
 
     void Promise.all([headPromise, basePromise]).then(([head, base]) => {
@@ -330,7 +320,7 @@ export function Code() {
     return () => {
       cancelled = true;
     };
-  }, [workspace, path, worktree, viewMode]);
+  }, [path, worktree, viewMode]);
 
   // -------- URL helpers --------
   const updateParams = useCallback(
@@ -390,8 +380,8 @@ export function Code() {
   }, [showHidden, updateParams]);
 
   const downloadPatch = useCallback(() => {
-    if (!workspace || !path) return;
-    const url = patchDownloadUrl(workspace.id, path, worktree);
+    if (!path) return;
+    const url = patchDownloadUrl(path, worktree);
     const link = document.createElement("a");
     link.href = url;
     const filename = path.replace(/[\\/]/g, "_");
@@ -399,7 +389,7 @@ export function Code() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-  }, [workspace, path, worktree]);
+  }, [path, worktree]);
 
   // -------- breadcrumb --------
   const breadcrumbs = useMemo(() => {
@@ -410,14 +400,6 @@ export function Code() {
       path: segments.slice(0, idx + 1).join("/"),
     }));
   }, [path]);
-
-  if (!workspace) {
-    return (
-      <div className="flex-1 flex items-center justify-center text-mycel-muted">
-        No workspace selected.
-      </div>
-    );
-  }
 
   const rootKey = `${worktree}||${showHidden ? "1" : "0"}`;
   const rootEntries = treeCache[rootKey] ?? [];
@@ -534,7 +516,7 @@ export function Code() {
                 ? "bg-mycel-accent/20 text-mycel-accent border-mycel-accent/50"
                 : "text-mycel-muted border-mycel-border/40 hover:text-mycel-text hover:border-mycel-muted"
             }`}
-            title="Open workspace in code-server (VS Code in the browser)"
+            title="Open the repo in code-server (VS Code in the browser)"
           >
             {vscodeMode ? "Exit VS Code" : "Edit in VS Code"}
           </button>
@@ -547,7 +529,7 @@ export function Code() {
           <div className="shrink-0 px-6 py-1.5 bg-mycel-warning/10 border-b border-mycel-warning/30 text-[10px] text-mycel-warning/90 flex items-center gap-2" style={{ fontFamily: MONO }}>
             <span>⚠</span>
             <span>
-              VS Code has <strong>write access</strong> to the workspace.
+              VS Code has <strong>write access</strong> to the repo.
               Changes made here are saved directly to disk.
             </span>
           </div>
@@ -607,7 +589,7 @@ export function Code() {
             <div className="h-full flex flex-col items-center justify-center gap-2 text-[11px] text-mycel-muted">
               <div>Binary file</div>
               <a
-                href={fileDownloadUrl(workspace.id, path, worktree)}
+                href={fileDownloadUrl(path, worktree)}
                 download
                 className="text-mycel-accent hover:underline"
               >

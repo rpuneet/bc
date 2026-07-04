@@ -214,7 +214,7 @@ func init() {
 }
 
 func loadWorkspaceConfig() (*workspace.Config, string, error) {
-	ws, err := getWorkspace()
+	ws, err := getRepo()
 	if err != nil {
 		return nil, "", fmt.Errorf("not in a mycel workspace: %w", err)
 	}
@@ -427,9 +427,9 @@ func runConfigValidate(cmd *cobra.Command, _ []string) error {
 }
 
 func runConfigReset(cmd *cobra.Command, args []string) error {
-	ws, err := getWorkspace()
+	ws, err := getRepo()
 	if err != nil {
-		return errNotInWorkspace(err)
+		return errNoRepo(err)
 	}
 
 	configPath := ws.SettingsFile()

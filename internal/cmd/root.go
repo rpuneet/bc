@@ -51,7 +51,7 @@ Command Groups (with short aliases):
   agent                        Manage agents
   channel (ch)                 Communication channels
   cost (co)                    Cost tracking and budgets
-  workspace (ws)               Workspace management
+  config                       Configuration management
   doctor (dr)                  Health checks
   cron (cr)                    Scheduled tasks
 
@@ -145,7 +145,7 @@ func runRoot(cmd *cobra.Command, args []string) error {
 	}
 
 	// Try to find workspace
-	ws, err := getWorkspace()
+	ws, err := getRepo()
 	if err == nil && ws != nil {
 		// Workspace exists - open TUI home
 		log.Debug("workspace found, opening home", "root", ws.RootDir)

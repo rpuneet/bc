@@ -223,7 +223,7 @@ describe('errorHandling - handleApiError', () => {
   test('detects workspace not initialized error', () => {
     const error = new Error('workspace not initialized');
     const result = handleApiError(error);
-    expect(result.message).toBe("Workspace not initialized. Run 'bc up' from your repo (or add one in the web UI).");
+    expect(result.message).toBe("Workspace not initialized. Run 'mycel up' from your repo (or add one in the web UI).");
     expect(result.recoverable).toBe(false);
     expect(result.code).toBe('WORKSPACE_NOT_INIT');
   });

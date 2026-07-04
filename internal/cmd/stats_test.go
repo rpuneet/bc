@@ -18,7 +18,7 @@ func TestStats_Basic(t *testing.T) {
 	defer resetStatsFlags()
 
 	// Stats should work in a workspace (even with no data)
-	_, err := executeCmd("workspace", "stats")
+	_, err := executeCmd("stats")
 	if err != nil {
 		t.Fatalf("workspace stats error: %v", err)
 	}
@@ -30,7 +30,7 @@ func TestStats_JSON(t *testing.T) {
 	defer resetStatsFlags()
 
 	// Stats --json should work
-	_, err := executeCmd("workspace", "stats", "--json")
+	_, err := executeCmd("stats", "--json")
 	if err != nil {
 		t.Fatalf("workspace stats --json error: %v", err)
 	}
@@ -42,7 +42,7 @@ func TestStats_Save(t *testing.T) {
 	defer resetStatsFlags()
 
 	// Stats --save should work
-	_, err := executeCmd("workspace", "stats", "--save")
+	_, err := executeCmd("stats", "--save")
 	if err != nil {
 		t.Fatalf("workspace stats --save error: %v", err)
 	}
@@ -54,7 +54,7 @@ func TestStats_JSONAndSave(t *testing.T) {
 	defer resetStatsFlags()
 
 	// Both flags together should work
-	_, err := executeCmd("workspace", "stats", "--json", "--save")
+	_, err := executeCmd("stats", "--json", "--save")
 	if err != nil {
 		t.Fatalf("workspace stats --json --save error: %v", err)
 	}
@@ -63,7 +63,7 @@ func TestStats_JSONAndSave(t *testing.T) {
 // --- Stats Command Flags Tests ---
 
 func TestStatsCommandFlags(t *testing.T) {
-	flags := workspaceStatsCmd.Flags()
+	flags := statsCmd.Flags()
 
 	if flags.Lookup("json") == nil {
 		t.Error("expected --json flag on workspace stats")

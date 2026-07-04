@@ -13,16 +13,16 @@ import (
 	"github.com/rpuneet/mycel/pkg/ui"
 )
 
-var workspaceStatsCmd = &cobra.Command{
+var statsCmd = &cobra.Command{
 	Use:   "stats",
 	Short: "Show workspace statistics",
-	Long: `Display statistics about the current workspace including work item
-metrics, agent utilization, and completion rates.
+	Long: `Display statistics about the current repo's agents including work
+item metrics, agent utilization, and completion rates.
 
 Examples:
-  mycel workspace stats             # human-readable summary
-  mycel workspace stats --json      # JSON output for scripting
-  mycel workspace stats --save      # save stats snapshot to .bc/stats.json`,
+  mycel stats             # human-readable summary
+  mycel stats --json      # JSON output for scripting
+  mycel stats --save      # save stats snapshot to the state dir`,
 	RunE: runStats,
 }
 
@@ -32,9 +32,9 @@ var (
 )
 
 func init() {
-	workspaceStatsCmd.Flags().BoolVar(&statsJSON, "json", false, "Output as JSON")
-	workspaceStatsCmd.Flags().BoolVar(&statsSave, "save", false, "Save stats snapshot to disk")
-	workspaceCmd.AddCommand(workspaceStatsCmd)
+	statsCmd.Flags().BoolVar(&statsJSON, "json", false, "Output as JSON")
+	statsCmd.Flags().BoolVar(&statsSave, "save", false, "Save stats snapshot to disk")
+	rootCmd.AddCommand(statsCmd)
 }
 
 func runStats(cmd *cobra.Command, _ []string) error {
@@ -50,9 +50,9 @@ func runStats(cmd *cobra.Command, _ []string) error {
 	}
 
 	// Fallback: direct pkg/stats access
-	ws, err := getWorkspace()
+	ws, err := getRepo()
 	if err != nil {
-		return errNotInWorkspace(err)
+		return errNoRepo(err)
 	}
 
 	s, err := stats.Load(ws.StateDir())

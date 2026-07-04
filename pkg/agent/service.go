@@ -50,6 +50,9 @@ type CreateOptions struct {
 	Runtime string
 	Parent  string
 	Team    string
+	// Repo is the absolute path of the git repo the agent is bound to.
+	// Empty means "the repo bcd was booted against" (the default repo).
+	Repo string
 }
 
 // StartOptions configures agent start behavior.
@@ -192,10 +195,14 @@ func matchesStatus(state State, status string) bool {
 
 // Create creates a new agent.
 func (s *AgentService) Create(ctx context.Context, opts CreateOptions) (*Agent, error) {
+	repo := opts.Repo
+	if repo == "" {
+		repo = s.manager.workspacePath
+	}
 	a, err := s.manager.SpawnAgentWithOptions(ctx, SpawnOptions{
 		Name:      opts.Name,
 		Role:      opts.Role,
-		Workspace: s.manager.workspacePath,
+		Workspace: repo,
 		ParentID:  opts.Parent,
 		Tool:      opts.Tool,
 		EnvFile:   opts.EnvFile,
@@ -234,10 +241,15 @@ func (s *AgentService) Start(ctx context.Context, name string, opts StartOptions
 		}
 	}
 
+	// Respawn in the repo the agent is bound to, not the boot repo.
+	repo := existing.Repo
+	if repo == "" {
+		repo = s.manager.workspacePath
+	}
 	a, err := s.manager.SpawnAgentWithOptions(ctx, SpawnOptions{
 		Name:      name,
 		Role:      existing.Role,
-		Workspace: s.manager.workspacePath,
+		Workspace: repo,
 		ParentID:  existing.ParentID,
 		Tool:      existing.Tool,
 		EnvFile:   existing.EnvFile,

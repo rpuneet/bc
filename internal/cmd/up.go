@@ -158,7 +158,7 @@ func runUp(cmd *cobra.Command, _ []string) error {
 //     (the server runs workspace.Init, which is idempotent)
 //  3. "" — boot against MycelHome only; new agents must name a repo
 func resolveUpWorkspace() string {
-	if ws, err := getWorkspace(); err == nil && ws != nil {
+	if ws, err := getRepo(); err == nil && ws != nil {
 		return ws.RootDir
 	}
 	if root := findGitRoot(); root != "" {

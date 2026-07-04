@@ -56,6 +56,24 @@ describe("api.request", () => {
     expect(url).toBe("/api/agents/agent%20with%20spaces");
   });
 
+  it("hits the flat /api/repos surface for getRepos", async () => {
+    fetchMock.mockReturnValue(
+      jsonResponse({ repos: [{ path: "/r/a", name: "a", agent_count: 1 }], default: "/r/a" }),
+    );
+    const resp = await api.getRepos();
+    const [url] = fetchMock.mock.calls[0] as [string];
+    expect(url).toBe("/api/repos");
+    expect(resp.default).toBe("/r/a");
+    expect(resp.repos[0]?.name).toBe("a");
+  });
+
+  it("lists agents globally — no workspace query param", async () => {
+    fetchMock.mockReturnValue(jsonResponse([]));
+    await api.listAgents();
+    const [url] = fetchMock.mock.calls[0] as [string];
+    expect(url).toBe("/api/agents");
+  });
+
   it("passes query params for getLogs", async () => {
     fetchMock.mockReturnValue(jsonResponse([]));
     await api.getLogs(25);

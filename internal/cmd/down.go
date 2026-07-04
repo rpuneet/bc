@@ -40,9 +40,9 @@ func runDown(cmd *cobra.Command, _ []string) error {
 			return fmt.Errorf("cannot load workspace at %s: %w", downWorkspace, err)
 		}
 	} else {
-		ws, err = getWorkspace()
+		ws, err = getRepo()
 		if err != nil {
-			return errNotInWorkspace(err)
+			return errNoRepo(err)
 		}
 	}
 

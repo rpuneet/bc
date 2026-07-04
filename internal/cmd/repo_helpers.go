@@ -9,10 +9,11 @@ import (
 	"github.com/rpuneet/mycel/pkg/workspace"
 )
 
-// getWorkspace finds the current workspace.
-// Checks BC_WORKSPACE env var first (for agents in worktrees), then walks up directory tree.
-func getWorkspace() (*workspace.Workspace, error) {
-	// Check BC_WORKSPACE first (agents set this to point to main workspace)
+// getRepo resolves the enclosing mycel-adopted git repo. Checks
+// BC_WORKSPACE env var first (for agents in worktrees), then walks up
+// the directory tree probing each candidate's global state dir.
+func getRepo() (*workspace.Workspace, error) {
+	// Check BC_WORKSPACE first (agents set this to point to the main repo)
 	if wsPath := os.Getenv("BC_WORKSPACE"); wsPath != "" {
 		return workspace.Load(wsPath)
 	}
@@ -31,11 +32,11 @@ func errorAgentNotRunning(commandUsage string) error {
 
 // newDaemonClient creates a client connected to the bcd daemon.
 // Returns an error if the daemon is not running.
-// Checks for a valid workspace first to provide clear error messages.
+// Checks for a mycel-adopted repo first to provide clear error messages.
 func newDaemonClient(ctx context.Context) (*client.Client, error) {
-	// Verify we're in a workspace before trying to connect to daemon
-	if _, err := getWorkspace(); err != nil {
-		return nil, errNotInWorkspace(err)
+	// Verify we're in an adopted repo before trying to connect to daemon
+	if _, err := getRepo(); err != nil {
+		return nil, errNoRepo(err)
 	}
 	c := client.New("")
 	if err := c.Ping(ctx); err != nil {
@@ -44,20 +45,22 @@ func newDaemonClient(ctx context.Context) (*client.Client, error) {
 	return c, nil
 }
 
-// errNotInWorkspace returns an actionable error for commands that require a mycel workspace.
-func errNotInWorkspace(err error) error {
+// errNoRepo returns an actionable error for commands that require a
+// mycel-adopted repo.
+func errNoRepo(err error) error {
 	if err != nil {
 		return fmt.Errorf("not in a mycel workspace — run 'mycel up' from your repo (or add one in the web UI): %w", err)
 	}
 	return fmt.Errorf("not in a mycel workspace. Run 'mycel up' from your repo (or add one in the web UI)")
 }
 
-// requireWorkspace returns the current workspace or an actionable error.
-// This is a convenience wrapper around getWorkspace() with standard error handling.
-func requireWorkspace() (*workspace.Workspace, error) {
-	ws, err := getWorkspace()
+// requireRepo returns the current repo's workspace state or an
+// actionable error. Convenience wrapper around getRepo() with standard
+// error handling.
+func requireRepo() (*workspace.Workspace, error) {
+	ws, err := getRepo()
 	if err != nil {
-		return nil, errNotInWorkspace(err)
+		return nil, errNoRepo(err)
 	}
 	return ws, nil
 }

@@ -25,7 +25,7 @@ Command Groups (with short aliases):
   agent                        Manage agents
   channel (ch)                 Communication channels
   cost (co)                    Cost tracking and budgets
-  workspace (ws)               Workspace management
+  config                       Configuration management
   doctor (dr)                  Health checks
   cron (cr)                    Scheduled tasks
 
@@ -75,10 +75,10 @@ mycel [flags]
 * [mycel mcp](mycel_mcp.md)	 - Manage MCP server configurations
 * [mycel notify](mycel_notify.md)	 - Manage channel subscriptions and gateway notifications
 * [mycel secret](mycel_secret.md)	 - Manage encrypted secrets
+* [mycel stats](mycel_stats.md)	 - Show workspace statistics
 * [mycel status](mycel_status.md)	 - Show agent status
 * [mycel template](mycel_template.md)	 - Manage agent templates
 * [mycel tool](mycel_tool.md)	 - Manage AI tool providers
 * [mycel up](mycel_up.md)	 - Start mycel server
 * [mycel version](mycel_version.md)	 - Print version information
-* [mycel workspace](mycel_workspace.md)	 - Manage mycel workspaces
 

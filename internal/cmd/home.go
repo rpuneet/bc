@@ -21,9 +21,9 @@ func runHome(cmd *cobra.Command, args []string) error {
 	log.Debug("home command started")
 
 	// Find workspace
-	ws, err := getWorkspace()
+	ws, err := getRepo()
 	if err != nil {
-		return errNotInWorkspace(err)
+		return errNoRepo(err)
 	}
 
 	tuiEntry, tuiRoot, err := resolveTUIEntry(ws.RootDir)

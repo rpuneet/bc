@@ -3,7 +3,7 @@ import { api } from "../api/client";
 import { formatCost } from "../utils/format";
 import { useHeaderSlot } from "../context/HeaderSlotContext";
 
-type GroupBy = "workspace" | "project";
+type GroupBy = "repo" | "project";
 
 interface CostRow {
   key: string;
@@ -20,7 +20,7 @@ function defaultStart(): string {
 
 export function CostsGlobal() {
   const [start, setStart] = useState<string>(defaultStart);
-  const groupBy: GroupBy = "workspace";
+  const groupBy: GroupBy = "repo";
   const [rows, setRows] = useState<CostRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -50,7 +50,7 @@ export function CostsGlobal() {
   }, [load]);
 
   useHeaderSlot({
-    title: "Costs across workspaces",
+    title: "Costs across repos",
     actions: (
       <div className="flex items-center gap-2 text-[12px]">
         <label className="text-mycel-muted">Since</label>
@@ -61,7 +61,7 @@ export function CostsGlobal() {
           className="bg-mycel-bg border border-mycel-border rounded px-2 py-1 text-mycel-text outline-none focus:border-mycel-accent"
         />
         {/* "By project" toggle removed: project labels currently resolve to
-            the same workspace name, producing identical rows. Re-add when a
+            the same repo name, producing identical rows. Re-add when a
             distinct project axis exists in the data model. */}
       </div>
     ),
@@ -90,7 +90,7 @@ export function CostsGlobal() {
         <span className="text-[11px] text-mycel-muted tabular-nums">
           {/* Date repeats the value in the picker top-right; show the
               counter only to avoid the DD/MM ↔ ISO format mismatch. */}
-          {rows?.length ?? 0} {(rows?.length ?? 0) === 1 ? (groupBy === "workspace" ? "workspace" : "project") : (groupBy === "workspace" ? "workspaces" : "projects")}
+          {rows?.length ?? 0} {(rows?.length ?? 0) === 1 ? (groupBy === "repo" ? "repo" : "project") : (groupBy === "repo" ? "repos" : "projects")}
         </span>
       </div>
 
@@ -99,7 +99,7 @@ export function CostsGlobal() {
           <thead className="bg-mycel-surface/40 text-mycel-muted">
             <tr>
               <th className="text-left font-normal px-3 py-2">
-                {groupBy === "workspace" ? "Workspace" : "Project"}
+                {groupBy === "repo" ? "Repo" : "Project"}
               </th>
               <th className="text-right font-normal px-3 py-2">Cost</th>
               <th className="text-right font-normal px-3 py-2 w-24">Share</th>
@@ -129,12 +129,13 @@ export function CostsGlobal() {
                   <td className="px-3 py-2 text-right text-mycel-muted">{share.toFixed(1)}%</td>
                 </>
               );
-              // Only workspace rows deep-link; project grouping rolls up
-              // several workspaces under one label and lacks a single target.
-              if (groupBy === "workspace" && r.key !== "unattributed") {
+              // Repo rows show the full path in the tooltip; project
+              // grouping rolls several repos under one label.
+              if (groupBy === "repo" && r.key !== "unattributed") {
                 return (
                   <tr
                     key={r.key}
+                    title={r.key}
                     className="border-t border-mycel-border/40 hover:bg-mycel-surface/30 transition-colors"
                   >
                     {content}

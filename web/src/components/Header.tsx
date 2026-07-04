@@ -2,7 +2,7 @@
  * Header.tsx — Shared top bar rendered above every tab.
  *
  * Slots:
- *   left     : sidebar collapse/expand button + WorkspaceDropdown (caller passes these)
+ *   left     : sidebar collapse/expand button (caller passes this)
  *   center   : per-tab title / breadcrumb / status
  *   actions  : per-tab primary CTA(s) — filter pills, "Create" button, etc.
  *
@@ -16,7 +16,7 @@ import type { ReactNode } from "react";
 import { MONO } from "../utils/typography";
 
 export interface HeaderProps {
-  /** Left slot — owned by Layout. Typically sidebar toggle + WorkspaceDropdown. */
+  /** Left slot — owned by Layout. Typically the sidebar toggle. */
   left?: ReactNode;
   /** Center slot — per-page title / breadcrumb / inline status. */
   center?: ReactNode;
@@ -34,7 +34,7 @@ export function Header({ left, center, actions, compact = true }: HeaderProps) {
           compact ? "sm:min-h-[48px]" : "sm:min-h-[56px]"
         }`}
       >
-        {/* Left slot — sidebar toggle + workspace switcher */}
+        {/* Left slot — sidebar toggle */}
         {left && (
           <div className="flex items-center gap-2 shrink-0">
             {left}
@@ -68,8 +68,8 @@ export function Header({ left, center, actions, compact = true }: HeaderProps) {
 /**
  * TabHeaderTitle — standard page title chip in the header center slot.
  *
- * Geist Sans (not mono) at 14px semibold. The workspace switcher and
- * status pills on either side already use mono; a mono h1 in the
+ * Geist Sans (not mono) at 14px semibold. The status pills on either
+ * side already use mono; a mono h1 in the
  * middle blurred the visual hierarchy. Using Sans here gives the page
  * title clear prominence as the heading of the row.
  */

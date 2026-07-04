@@ -89,7 +89,7 @@ func openTemplateStore() (*template.Store, error) {
 	}
 	// Workspace override is best-effort — absence is fine.
 	overrideDir := ""
-	if ws, wsErr := getWorkspace(); wsErr == nil && ws != nil {
+	if ws, wsErr := getRepo(); wsErr == nil && ws != nil {
 		overrideDir = filepath.Join(ws.StateDir(), "templates")
 	}
 	return template.NewLayeredStore(globalDir, overrideDir), nil

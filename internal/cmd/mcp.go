@@ -354,7 +354,7 @@ func runMCPRemove(cmd *cobra.Command, args []string) error {
 	}
 
 	// Clean stale references from role files
-	ws, wsErr := getWorkspace()
+	ws, wsErr := getRepo()
 	if wsErr == nil && ws != nil {
 		rm := ws.RoleManager
 		roles, loadErr := rm.LoadAllRoles()
@@ -421,7 +421,7 @@ func runMCPDisable(cmd *cobra.Command, args []string) error {
 func runMCPServe(cmd *cobra.Command, _ []string) error {
 	ctx := cmd.Context()
 
-	ws, err := requireWorkspace()
+	ws, err := requireRepo()
 	if err != nil {
 		return err
 	}
@@ -449,7 +449,7 @@ func runMCPServe(cmd *cobra.Command, _ []string) error {
 // ─── bc mcp register (#1985) ──────────────────────────────────────────────────
 
 func runMCPRegister(cmd *cobra.Command, _ []string) error {
-	ws, err := requireWorkspace()
+	ws, err := requireRepo()
 	if err != nil {
 		return err
 	}

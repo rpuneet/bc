@@ -82,7 +82,7 @@ describe('handleApiError', () => {
   it('recognizes workspace not initialized errors', () => {
     const result = handleApiError(new Error('workspace not initialized'));
 
-    expect(result.message).toBe("Workspace not initialized. Run 'bc up' from your repo (or add one in the web UI).");
+    expect(result.message).toBe("Workspace not initialized. Run 'mycel up' from your repo (or add one in the web UI).");
     expect(result.code).toBe('WORKSPACE_NOT_INIT');
   });
 });

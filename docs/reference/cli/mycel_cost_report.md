@@ -1,16 +1,16 @@
 ## mycel cost report
 
-Report cost totals across workspaces
+Report cost totals across repos
 
 ### Synopsis
 
 Report cost totals from the user-global cost ledger (~/.mycel/costs.db).
 
-By default prints per-workspace breakdown. Use --by to change grouping:
+By default prints per-repo breakdown. Use --by to change grouping:
 
-  mycel cost report                  # per-workspace totals
-  mycel cost report --by workspace   # per-workspace totals
-  mycel cost report --by project     # per-project totals (workspace name grouping)
+  mycel cost report                  # per-repo totals
+  mycel cost report --by repo        # per-repo totals
+  mycel cost report --by project     # per-project totals (repo name grouping)
   mycel cost report --since 30d      # only include records from last 30 days
 
 ```
@@ -20,7 +20,7 @@ mycel cost report [flags]
 ### Options
 
 ```
-      --by string      Grouping: workspace | project (default "workspace")
+      --by string      Grouping: repo | project (default "repo")
   -h, --help           help for report
       --since string   Include records since (e.g. 7d, 30d, 2026-01-01)
 ```

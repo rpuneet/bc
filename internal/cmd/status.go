@@ -55,9 +55,9 @@ func init() {
 func runStatus(cmd *cobra.Command, args []string) error {
 	log.Debug("status command started")
 
-	ws, err := getWorkspace()
+	ws, err := getRepo()
 	if err != nil {
-		return errNotInWorkspace(err)
+		return errNoRepo(err)
 	}
 
 	c, err := newDaemonClient(cmd.Context())

@@ -70,7 +70,7 @@ func TestGlobalCosts_InvalidStart(t *testing.T) {
 	}
 }
 
-func TestGlobalCosts_GroupByWorkspace(t *testing.T) {
+func TestGlobalCosts_GroupByRepo(t *testing.T) {
 	store := newTestGlobalStore(t)
 	seedCost(t, store, "/repos/alpha", "a1", 1.25)
 	seedCost(t, store, "/repos/alpha", "a2", 0.50)
@@ -89,8 +89,8 @@ func TestGlobalCosts_GroupByWorkspace(t *testing.T) {
 	if err := json.NewDecoder(rec.Body).Decode(&rep); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	if rep.GroupBy != "workspace" {
-		t.Errorf("groupBy = %q, want workspace", rep.GroupBy)
+	if rep.GroupBy != "repo" {
+		t.Errorf("groupBy = %q, want repo", rep.GroupBy)
 	}
 	if len(rep.Rows) != 3 {
 		t.Fatalf("rows = %d, want 3; got %+v", len(rep.Rows), rep.Rows)
