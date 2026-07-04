@@ -522,6 +522,10 @@ func CheckTools(ctx context.Context, ws *workspace.Workspace) CategoryReport {
 		cat.Items = append(cat.Items, item)
 	}
 
+	// Docker agent images — the default runtime is docker, so a provider
+	// without its mycel-agent-<name> image fails at container creation.
+	cat.Items = append(cat.Items, checkAgentImages(ctx)...)
+
 	// Check MCP servers from the workspace tool store (requires a workspace).
 	var toolStore *tool.Store
 	if ws != nil {
@@ -594,6 +598,55 @@ func checkEnvVar(name string) Item {
 		masked = value[:4] + "..." + value[len(value)-4:]
 	}
 	return Item{Name: name, Message: masked, Severity: SeverityOK}
+}
+
+// listDockerImages returns the local docker image refs, or nil when docker
+// is unavailable. Overridable in tests.
+var listDockerImages = func(ctx context.Context) []string {
+	if _, err := exec.LookPath("docker"); err != nil {
+		return nil
+	}
+	out, err := exec.CommandContext(ctx, "docker", "images", "--format", "{{.Repository}}:{{.Tag}}").Output()
+	if err != nil {
+		return nil
+	}
+	return strings.Fields(string(out))
+}
+
+// checkAgentImages warns for each registered provider whose agent image
+// (mycel-agent-<name>, or the legacy bc-agent-<name>) is missing locally.
+// No docker → no items; tmux-only setups shouldn't fail doctor over it.
+func checkAgentImages(ctx context.Context) []Item {
+	images := listDockerImages(ctx)
+	if images == nil {
+		return nil
+	}
+	have := make(map[string]bool, len(images))
+	for _, img := range images {
+		have[img] = true
+	}
+
+	var items []Item
+	for _, p := range provider.ListProviders() {
+		name := p.Name()
+		modern := "mycel-agent-" + name + ":latest"
+		legacy := "bc-agent-" + name + ":latest"
+		item := Item{Name: "image:" + modern}
+		switch {
+		case have[modern]:
+			item.Message = "present"
+			item.Severity = SeverityOK
+		case have[legacy]:
+			item.Message = fmt.Sprintf("using legacy %s", legacy)
+			item.Severity = SeverityOK
+		default:
+			item.Message = "missing — docker agents with this tool cannot start"
+			item.Severity = SeverityWarn
+			item.Fix = "make build-docker-agents  (or make build-docker-agent for claude only)"
+		}
+		items = append(items, item)
+	}
+	return items
 }
 
 // checkBinary checks whether a binary is in PATH.

@@ -89,3 +89,31 @@ func TestRewriteDockerURL(t *testing.T) {
 		})
 	}
 }
+
+// TestBcSelfURL verifies the bc MCP endpoint is derived from the live
+// daemon address per runtime — never from the mcp_servers store, whose
+// single static URL can't be right for both tmux and docker at once.
+func TestBcSelfURL(t *testing.T) {
+	tests := []struct {
+		name    string
+		bcdAddr string // BC_BCD_ADDR of the daemon process
+		runtime string
+		agent   string
+		want    string
+	}{
+		{"tmux uses host loopback", "http://127.0.0.1:8080", "tmux", "zeta", "http://127.0.0.1:8080/_mcp/zeta/sse"},
+		{"docker rewrites loopback", "http://127.0.0.1:8080", "docker", "zeta", "http://host.docker.internal:8080/_mcp/zeta/sse"},
+		{"docker rewrites localhost", "http://localhost:9000", "docker", "a1", "http://host.docker.internal:9000/_mcp/a1/sse"},
+		{"empty hostname normalized", "http://:8080", "tmux", "a1", "http://127.0.0.1:8080/_mcp/a1/sse"},
+		{"no env falls back to default port tmux", "", "tmux", "a1", "http://127.0.0.1:9374/_mcp/a1/sse"},
+		{"no env falls back to default port docker", "", "docker", "a1", "http://host.docker.internal:9374/_mcp/a1/sse"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("BC_BCD_ADDR", tt.bcdAddr)
+			if got := bcSelfURL(tt.runtime, tt.agent); got != tt.want {
+				t.Errorf("bcSelfURL(%q, %q) = %q, want %q", tt.runtime, tt.agent, got, tt.want)
+			}
+		})
+	}
+}

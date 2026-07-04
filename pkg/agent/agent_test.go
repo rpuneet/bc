@@ -3777,3 +3777,55 @@ func TestCreateAgent_DockerBackendReceivesAgentRepo(t *testing.T) {
 		})
 	}
 }
+
+// TestCreateAgent_FailedCreateRollsBackStoreRow covers the orphan-row bug:
+// a background loop (tool health) snapshots m.agents to the store while
+// creation is still in flight; when session creation then fails, the
+// in-memory entry was removed but the persisted row survived — leaving a
+// phantom 'starting' agent that reserved the name forever.
+func TestCreateAgent_FailedCreateRollsBackStoreRow(t *testing.T) {
+	ctx := context.Background()
+	boot := t.TempDir()
+	initGitRepo(t, boot)
+	m, docker := newDockerMockManager(t, boot)
+
+	// Fail session creation, and persist the half-created agent first —
+	// exactly what the periodic tool-health save does mid-creation.
+	docker.createErr = fmt.Errorf("image missing")
+	docker.onCreate = func() {
+		snapshot := map[string]*Agent{
+			"doomed": {ID: "doomed", Name: "doomed", Role: Role("engineer"), State: StateStarting, Workspace: boot, Repo: boot},
+		}
+		if err := m.store.SaveAll(ctx, snapshot); err != nil {
+			t.Errorf("mid-create SaveAll: %v", err)
+		}
+	}
+
+	_, err := m.SpawnAgentWithOptions(ctx, SpawnOptions{
+		Name:      "doomed",
+		Role:      Role("engineer"),
+		Workspace: boot,
+	})
+	if err == nil {
+		t.Fatal("expected create failure")
+	}
+
+	// The persisted row must be rolled back with the in-memory entry.
+	row, loadErr := m.store.Load(ctx, "doomed")
+	if loadErr != nil {
+		t.Fatalf("Load: %v", loadErr)
+	}
+	if row != nil {
+		t.Fatalf("store row survived failed create: %+v", row)
+	}
+	if got := m.GetAgent("doomed"); got != nil {
+		t.Fatalf("in-memory agent survived failed create: %+v", got)
+	}
+
+	// The name is immediately reusable.
+	docker.createErr = nil
+	docker.onCreate = nil
+	if err := m.RegisterStopped(&Agent{Name: "doomed", Role: Role("engineer"), Workspace: boot}); err != nil {
+		t.Fatalf("name not reusable after failed create: %v", err)
+	}
+}
