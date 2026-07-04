@@ -69,6 +69,7 @@ func (h *StatsHandler) Register(mux *http.ServeMux) {
 	// Legacy summary endpoints
 	mux.HandleFunc("/api/stats/system", h.system)
 	mux.HandleFunc("/api/stats/summary", h.summary)
+	mux.HandleFunc("/api/stats/channels", h.statsChannels)
 
 	// System info endpoint
 	mux.HandleFunc("/api/system/info", h.systemInfo)

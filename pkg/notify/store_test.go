@@ -70,3 +70,129 @@ func TestSaveChannel_FillsEmptyPlatformID(t *testing.T) {
 		t.Fatalf("platform_id not filled: got %q, want %q", got, "C0123ABC")
 	}
 }
+
+// TestChannelStats exercises the /api/stats/channels aggregation: message
+// counts, member counts, top senders, ordering, and the subscription-only
+// channel case.
+func TestChannelStats(t *testing.T) {
+	type msg struct{ channel, sender string }
+	type sub struct{ channel, agent string }
+
+	tests := []struct {
+		name string
+		msgs []msg
+		subs []sub
+		want []ChannelStat
+	}{
+		{
+			name: "empty store",
+			want: []ChannelStat{},
+		},
+		{
+			name: "messages only, sorted by count desc then name",
+			msgs: []msg{
+				{"slack:eng", "alice"},
+				{"slack:eng", "alice"},
+				{"slack:eng", "bob"},
+				{"telegram:ops", "carol"},
+			},
+			want: []ChannelStat{
+				{
+					Name:         "slack:eng",
+					MessageCount: 3,
+					TopSenders:   []TopSender{{Sender: "alice", Count: 2}, {Sender: "bob", Count: 1}},
+				},
+				{
+					Name:         "telegram:ops",
+					MessageCount: 1,
+					TopSenders:   []TopSender{{Sender: "carol", Count: 1}},
+				},
+			},
+		},
+		{
+			name: "subscription-only channel appears with zero messages",
+			msgs: []msg{{"slack:eng", "alice"}},
+			subs: []sub{
+				{"slack:eng", "eng-01"},
+				{"slack:eng", "eng-02"},
+				{"discord:quiet", "ops-01"},
+			},
+			want: []ChannelStat{
+				{
+					Name:         "slack:eng",
+					MessageCount: 1,
+					MemberCount:  2,
+					TopSenders:   []TopSender{{Sender: "alice", Count: 1}},
+				},
+				{
+					Name:        "discord:quiet",
+					MemberCount: 1,
+				},
+			},
+		},
+		{
+			name: "top senders capped at five",
+			msgs: []msg{
+				{"slack:eng", "s1"}, {"slack:eng", "s1"}, {"slack:eng", "s1"},
+				{"slack:eng", "s2"}, {"slack:eng", "s2"},
+				{"slack:eng", "s3"}, {"slack:eng", "s4"},
+				{"slack:eng", "s5"}, {"slack:eng", "s6"},
+			},
+			want: []ChannelStat{
+				{
+					Name:         "slack:eng",
+					MessageCount: 9,
+					TopSenders: []TopSender{
+						{Sender: "s1", Count: 3}, {Sender: "s2", Count: 2},
+						{Sender: "s3", Count: 1}, {Sender: "s4", Count: 1},
+						{Sender: "s5", Count: 1},
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			store := setupTestStore(t)
+			ctx := context.Background()
+			for _, m := range tt.msgs {
+				if err := store.SaveMessage(ctx, m.channel, m.sender, "hi"); err != nil {
+					t.Fatalf("SaveMessage: %v", err)
+				}
+			}
+			for _, s := range tt.subs {
+				if err := store.Subscribe(ctx, s.channel, s.agent, false); err != nil {
+					t.Fatalf("Subscribe: %v", err)
+				}
+			}
+
+			got, err := store.ChannelStats(ctx)
+			if err != nil {
+				t.Fatalf("ChannelStats: %v", err)
+			}
+			if len(got) != len(tt.want) {
+				t.Fatalf("got %d channels, want %d: %+v", len(got), len(tt.want), got)
+			}
+			for i, w := range tt.want {
+				g := got[i]
+				if g.Name != w.Name || g.MessageCount != w.MessageCount || g.MemberCount != w.MemberCount {
+					t.Errorf("channel[%d] = {%s %d msgs %d members}, want {%s %d msgs %d members}",
+						i, g.Name, g.MessageCount, g.MemberCount, w.Name, w.MessageCount, w.MemberCount)
+				}
+				if len(g.TopSenders) != len(w.TopSenders) {
+					t.Errorf("channel[%d] top_senders = %+v, want %+v", i, g.TopSenders, w.TopSenders)
+					continue
+				}
+				for j, ws := range w.TopSenders {
+					if g.TopSenders[j] != ws {
+						t.Errorf("channel[%d] top_senders[%d] = %+v, want %+v", i, j, g.TopSenders[j], ws)
+					}
+				}
+				if g.MessageCount > 0 && g.LastActivity.IsZero() {
+					t.Errorf("channel[%d] %s: last_activity is zero despite %d messages", i, g.Name, g.MessageCount)
+				}
+			}
+		})
+	}
+}

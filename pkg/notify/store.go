@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -324,6 +325,119 @@ func (s *Store) TotalMessageCount(ctx context.Context) (int, error) {
 	var count int
 	err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM notify_messages`).Scan(&count)
 	return count, err
+}
+
+// TopSender is a sender ranked by message count within a channel.
+type TopSender struct {
+	Sender string `json:"sender"`
+	Count  int    `json:"count"`
+}
+
+// ChannelStat aggregates per-channel notification activity for the
+// /api/stats/channels endpoint: message volume, subscriber count, last
+// activity, and the most active senders.
+type ChannelStat struct {
+	LastActivity time.Time   `json:"last_activity"`
+	Name         string      `json:"name"`
+	TopSenders   []TopSender `json:"top_senders"`
+	MessageCount int         `json:"message_count"`
+	MemberCount  int         `json:"member_count"`
+}
+
+// channelStatsTopSenders caps the per-channel top_senders list.
+const channelStatsTopSenders = 5
+
+// ChannelStats returns aggregated per-channel activity: message counts and
+// last activity from notify_messages, subscriber counts from
+// notify_subscriptions, and the top senders per channel. Channels with
+// subscriptions but no messages are included with a zero message count.
+// Results are sorted by message count (descending), then by name.
+func (s *Store) ChannelStats(ctx context.Context) ([]ChannelStat, error) {
+	byName := make(map[string]*ChannelStat)
+	get := func(name string) *ChannelStat {
+		cs, ok := byName[name]
+		if !ok {
+			cs = &ChannelStat{Name: name}
+			byName[name] = cs
+		}
+		return cs
+	}
+
+	// Message counts + last activity per channel.
+	msgRows, err := s.db.QueryContext(ctx,
+		`SELECT channel, COUNT(*), MAX(created_at) FROM notify_messages GROUP BY channel`)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = msgRows.Close() }()
+	for msgRows.Next() {
+		var name, last string
+		var count int
+		if err = msgRows.Scan(&name, &count, &last); err != nil {
+			return nil, err
+		}
+		cs := get(name)
+		cs.MessageCount = count
+		cs.LastActivity, _ = time.Parse(time.RFC3339, last) //nolint:errcheck // DB-written timestamp
+	}
+	if err = msgRows.Err(); err != nil {
+		return nil, err
+	}
+
+	// Subscriber counts per channel.
+	subRows, err := s.db.QueryContext(ctx,
+		`SELECT channel, COUNT(*) FROM notify_subscriptions GROUP BY channel`)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = subRows.Close() }()
+	for subRows.Next() {
+		var name string
+		var count int
+		if err = subRows.Scan(&name, &count); err != nil {
+			return nil, err
+		}
+		get(name).MemberCount = count
+	}
+	if err = subRows.Err(); err != nil {
+		return nil, err
+	}
+
+	// Top senders per channel: rows arrive ordered by count, so the first
+	// channelStatsTopSenders rows per channel are its top senders.
+	senderRows, err := s.db.QueryContext(ctx,
+		`SELECT channel, sender, COUNT(*) AS c FROM notify_messages
+		 GROUP BY channel, sender ORDER BY c DESC, sender ASC`)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = senderRows.Close() }()
+	for senderRows.Next() {
+		var name, sender string
+		var count int
+		if err = senderRows.Scan(&name, &sender, &count); err != nil {
+			return nil, err
+		}
+		cs := get(name)
+		if len(cs.TopSenders) < channelStatsTopSenders {
+			cs.TopSenders = append(cs.TopSenders, TopSender{Sender: sender, Count: count})
+		}
+	}
+	if err = senderRows.Err(); err != nil {
+		return nil, err
+	}
+
+	out := make([]ChannelStat, 0, len(byName))
+	for _, cs := range byName {
+		out = append(out, *cs)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].MessageCount != out[j].MessageCount {
+			return out[i].MessageCount > out[j].MessageCount
+		}
+		return out[i].Name < out[j].Name
+	})
+	return out, nil
 }
 
 // MessageRecord is a stored inbound gateway message for the activity feed.
