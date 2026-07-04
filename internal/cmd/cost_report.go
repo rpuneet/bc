@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"sort"
 	"text/tabwriter"
 	"time"
@@ -15,18 +16,18 @@ import (
 )
 
 // costReportCmd rolls up the user-global cost ledger (~/.mycel/costs.db)
-// across workspaces. It is a direct-filesystem read — no daemon
-// required — so it works even when bcd is not running.
+// across repos. It is a direct-filesystem read — no daemon required —
+// so it works even when bcd is not running.
 var costReportCmd = &cobra.Command{
 	Use:   "report",
-	Short: "Report cost totals across workspaces",
+	Short: "Report cost totals across repos",
 	Long: `Report cost totals from the user-global cost ledger (~/.mycel/costs.db).
 
-By default prints per-workspace breakdown. Use --by to change grouping:
+By default prints per-repo breakdown. Use --by to change grouping:
 
-  mycel cost report                  # per-workspace totals
-  mycel cost report --by workspace   # per-workspace totals
-  mycel cost report --by project     # per-project totals (workspace name grouping)
+  mycel cost report                  # per-repo totals
+  mycel cost report --by repo        # per-repo totals
+  mycel cost report --by project     # per-project totals (repo name grouping)
   mycel cost report --since 30d      # only include records from last 30 days`,
 	RunE: runCostReport,
 }
@@ -37,7 +38,7 @@ var (
 )
 
 func init() {
-	costReportCmd.Flags().StringVar(&costReportBy, "by", "workspace", "Grouping: workspace | project")
+	costReportCmd.Flags().StringVar(&costReportBy, "by", "repo", "Grouping: repo | project")
 	costReportCmd.Flags().StringVar(&costReportSince, "since", "", "Include records since (e.g. 7d, 30d, 2026-01-01)")
 	costCmd.AddCommand(costReportCmd)
 }
@@ -63,28 +64,19 @@ func runCostReport(cmd *cobra.Command, _ []string) error {
 	}
 
 	switch costReportBy {
-	case "workspace", "":
-		return printCostByWorkspace(cmd.Context(), store, since)
+	case "repo", "":
+		return printCostByRepo(cmd.Context(), store, since)
 	case "project":
 		return printCostByProject(cmd.Context(), store, since)
 	default:
-		return fmt.Errorf("unknown --by %q (want: workspace, project)", costReportBy)
+		return fmt.Errorf("unknown --by %q (want: repo, project)", costReportBy)
 	}
 }
 
-func printCostByWorkspace(ctx context.Context, store *cost.Store, since time.Time) error {
+func printCostByRepo(ctx context.Context, store *cost.Store, since time.Time) error {
 	byRepo, err := store.SumByRepo(ctx, since)
 	if err != nil {
 		return err
-	}
-
-	// Resolve repo paths to names via the registry for friendlier
-	// output.
-	names := map[string]string{}
-	if reg, regErr := workspace.LoadRegistry(); regErr == nil && reg != nil {
-		for _, e := range reg.Workspaces {
-			names[e.Path] = e.Name
-		}
 	}
 
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
@@ -100,32 +92,31 @@ func printCostByWorkspace(ctx context.Context, store *cost.Store, since time.Tim
 	for _, k := range keys {
 		total := byRepo[k]
 		grand += total
-		name := names[k]
-		if name == "" {
-			if k == "" {
-				name = "(unattributed)"
-			} else {
-				name = "(unknown)"
-			}
-		}
+		name := repoLabel(k)
 		_, _ = fmt.Fprintf(w, "%s\t%s\t$%.4f\n", name, k, total)
 	}
 	_, _ = fmt.Fprintf(w, "TOTAL\t\t$%.4f\n", grand)
 	return w.Flush()
 }
 
+// repoLabel maps a repo path to a human-readable label: the repo
+// directory basename, or "(unattributed)" for empty paths.
+func repoLabel(repo string) string {
+	if repo == "" {
+		return "(unattributed)"
+	}
+	if base := filepath.Base(repo); base != "." && base != string(filepath.Separator) {
+		return base
+	}
+	return repo
+}
+
 func printCostByProject(ctx context.Context, store *cost.Store, since time.Time) error {
 	resolve := func(repo string) string {
-		reg, err := workspace.LoadRegistry()
-		if err != nil || reg == nil {
+		if repo == "" {
 			return ""
 		}
-		for _, e := range reg.Workspaces {
-			if e.Path == repo {
-				return e.Name
-			}
-		}
-		return ""
+		return repoLabel(repo)
 	}
 	byProj, err := store.SumByProject(ctx, since, resolve)
 	if err != nil {

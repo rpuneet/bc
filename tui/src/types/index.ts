@@ -27,6 +27,8 @@ export interface Agent {
   session: string;
   tool?: string;
   workspace: string;
+  /** Absolute path of the git repo the agent is bound to. */
+  repo?: string;
   worktree_dir: string;
   memory_dir: string;
   log_file?: string;
@@ -275,19 +277,6 @@ export interface Role {
 // Response from bc role list --json
 export interface RolesResponse {
   roles: Role[];
-}
-
-// Workspace types for workspace selector (#922)
-export interface DiscoveredWorkspace {
-  path: string;
-  name: string;
-  is_v2: boolean;
-  from_cache: boolean;
-}
-
-// Response from bc workspace list --json
-export interface WorkspacesResponse {
-  workspaces: DiscoveredWorkspace[];
 }
 
 // Performance configuration for polling intervals and cache TTLs

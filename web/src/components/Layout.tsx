@@ -749,7 +749,7 @@ function NotificationNavTree() {
 
 /* ── Nav items ───────────────────────────────────────────────── */
 
-// Primary nav — workspace-scoped surfaces + one cross-workspace surface
+// Primary nav — repo-scoped surfaces + one cross-repo surface
 // (Costs). Section dividers previously wrapped a single item each, which
 // design + UX audit flagged as chrome-for-nothing (#3205 P1a). Settings
 // moved to the footer next to About + the theme toggle so all utility
@@ -1048,7 +1048,7 @@ export function Layout() {
         </div>
 
         {/* Nav — sectioned. Labeled captions replace the anonymous
-            dividers so the grouping (workspace items vs global items vs
+            dividers so the grouping (fleet items vs global items vs
             system items) is explicit; the captions collapse to a bare
             hairline when the sidebar is icon-only. */}
         <ul className="flex-1 py-2 overflow-y-auto" style={{ scrollbarWidth: "thin" }}>
@@ -1164,8 +1164,8 @@ export function Layout() {
 }
 
 /* ── LayoutHeader ───────────────────────────────────────────────
-   Renders the shared Header with workspace dropdown + sidebar toggle
-   on the left, pulling per-page title/actions from HeaderSlotContext.
+   Renders the shared Header with the sidebar toggle on the left,
+   pulling per-page title/actions from HeaderSlotContext.
 ──────────────────────────────────────────────────────────────── */
 function LayoutHeader({
   collapsed,
@@ -1177,9 +1177,8 @@ function LayoutHeader({
   const { slot } = useHeaderSlotContext();
   // Pages that render their own self-contained top band (AgentDetail's
   // HUD bar) opt out of the LayoutHeader entirely so we don't render an
-  // empty 42px row + border above their own header. Sidebar toggle +
-  // workspace dropdown still live in the sidebar, so navigation is
-  // unaffected.
+  // empty 42px row + border above their own header. The sidebar toggle
+  // still lives in the sidebar, so navigation is unaffected.
   if (slot.hidden) return null;
   return (
     <Header

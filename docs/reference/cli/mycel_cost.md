@@ -44,7 +44,7 @@ mycel cost [flags]
 * [mycel cost daily](mycel_cost_daily.md)	 - Show daily cost totals
 * [mycel cost dashboard](mycel_cost_dashboard.md)	 - Show rich cost dashboard
 * [mycel cost model](mycel_cost_model.md)	 - Show per-model cost breakdown
-* [mycel cost report](mycel_cost_report.md)	 - Report cost totals across workspaces
+* [mycel cost report](mycel_cost_report.md)	 - Report cost totals across repos
 * [mycel cost show](mycel_cost_show.md)	 - Show cost records
 * [mycel cost summary](mycel_cost_summary.md)	 - Show workspace cost overview
 * [mycel cost usage](mycel_cost_usage.md)	 - Show Claude Code token usage via ccusage

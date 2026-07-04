@@ -108,27 +108,9 @@ func Init(rootDir string) (*Workspace, error) {
 	}
 	_ = closeStore // store stays open for workspace lifetime
 
-	// Register in global registry so Find()/IsWorkspace() work — M11+
-	// workspaces live at ~/.mycel/workspaces/<id>/ with NO .bc/ marker in
-	// the project directory, so the registry is the ONLY thing that
-	// makes `bc <cmd>` resolve after init. If we can't persist it, init
-	// must fail loudly (#3173) — silently succeeding here leaves the
-	// user with a phantom workspace that every subsequent command
-	// rejects as "not in a mycel workspace".
-	reg, regErr := LoadRegistry()
-	if regErr != nil {
-		if closeStore != nil {
-			_ = closeStore() //nolint:errcheck // best-effort cleanup on error path
-		}
-		return nil, fmt.Errorf("failed to load workspace registry (%s): %w", RegistryPath(), regErr)
-	}
-	reg.Register(absRoot, cfg.User.Name)
-	if saveErr := reg.Save(); saveErr != nil {
-		if closeStore != nil {
-			_ = closeStore() //nolint:errcheck // best-effort cleanup on error path
-		}
-		return nil, fmt.Errorf("failed to persist workspace registry (%s): %w", RegistryPath(), saveErr)
-	}
+	// No registry: the state dir at ~/.mycel/workspaces/<id>/ (keyed by
+	// ComputeWorkspaceID of the repo path) is the only marker. Find()
+	// re-derives it by walking up from cwd and hashing each candidate.
 
 	return &Workspace{
 		RootDir:     absRoot,
@@ -192,77 +174,33 @@ func Load(rootDir string) (*Workspace, error) {
 	}, nil
 }
 
-// Find searches for a workspace starting from dir and going up.
-// It checks the registry first, then falls back to a .bc/ directory
-// marker walk (agent worktrees live under <project>/.bc/agents/).
+// Find searches for a workspace starting from dir and going up. A
+// directory is a workspace when its global state dir
+// (~/.mycel/workspaces/<ComputeWorkspaceID(dir)>/preferences.json)
+// exists — i.e. the repo was adopted by `mycel up` — or when it carries
+// a .bc/ runtime marker (agent worktrees live under
+// <project>/.bc/agents/). There is no registry: the walk re-derives the
+// state dir by hashing each candidate path.
 func Find(dir string) (*Workspace, error) {
 	absDir, err := filepath.Abs(dir)
 	if err != nil {
 		return nil, err
 	}
 
-	// Registry-first: check if any registered workspace matches this dir or a parent.
-	if reg, regErr := LoadRegistry(); regErr == nil {
-		current := absDir
-		for {
-			if entry := reg.Find(current); entry != nil {
-				return Load(current)
-			}
-			parent := filepath.Dir(current)
-			if parent == current {
-				break
-			}
-			current = parent
-		}
-	}
-
-	// Self-heal (#3173): if the registry says nothing matches but a
-	// state directory exists at ~/.mycel/workspaces/<id>/ where
-	// <id> == ComputeWorkspaceID(walked-path), the workspace was
-	// initialized but the registry file got out of sync — most often
-	// because Init's Save() failed on a fresh HOME, or the user hand-
-	// deleted workspaces.json. Register the entry on the fly so the
-	// next `bc` call sees a healed registry.
 	current := absDir
 	for {
+		// Global state dir: the repo was initialized by `mycel up`.
 		id := ComputeWorkspaceID(current)
-		stateDir, sdErr := DataDir(id)
-		if sdErr == nil {
+		if stateDir, sdErr := DataDir(id); sdErr == nil {
 			prefs := filepath.Join(stateDir, PreferencesFileName)
 			if _, statErr := os.Stat(prefs); statErr == nil {
-				// Preserve the configured user name when re-registering so
-				// the self-heal doesn't clobber it with an empty string.
-				name := ""
-				if cfg, cfgErr := LoadConfig(prefs); cfgErr == nil && cfg != nil {
-					name = cfg.User.Name
-				}
-				if reg, regErr := LoadRegistry(); regErr == nil {
-					reg.Register(current, name)
-					if saveErr := reg.Save(); saveErr != nil {
-						log.Warn("workspace registry: self-heal save failed", "path", current, "error", saveErr)
-					} else {
-						log.Info("workspace registry: self-healed on find", "id", id, "path", current)
-					}
-				}
 				return Load(current)
 			}
 		}
-		parent := filepath.Dir(current)
-		if parent == current {
-			break
-		}
-		current = parent
-	}
-
-	// Fallback: walk up looking for a .bc/ directory marker (runtime
-	// layout — agent worktrees live under <project>/.bc/agents/).
-	current = absDir
-	for {
-		stateDir := filepath.Join(current, ".bc")
-		if _, err := os.Stat(stateDir); err == nil {
+		// Runtime marker: .bc/ in the project dir (agent worktree layout).
+		if _, statErr := os.Stat(filepath.Join(current, ".bc")); statErr == nil {
 			return Load(current)
 		}
-
 		parent := filepath.Dir(current)
 		if parent == current {
 			return nil, fmt.Errorf("no workspace found (searched from %s to root)", absDir)

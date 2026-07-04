@@ -3,7 +3,6 @@ import { useNavigate } from "react-router-dom";
 import { AgentIcon } from "./agent-ui";
 import type { AgentShape } from "./agent-ui";
 import { MONO } from "../utils/typography";
-import { useWorkspace } from "../context/WorkspaceContext";
 
 // ── Name generation ───────────────────────────────────────────────────────────
 
@@ -59,6 +58,17 @@ interface CreateAgentModalProps {
   defaultCloneFrom?: string;
 }
 
+interface RepoOption {
+  path: string;
+  name: string;
+  agent_count: number;
+}
+
+interface RepoCandidate {
+  path: string;
+  name: string;
+}
+
 type Provider = "claude" | "gemini" | "cursor" | "codex";
 type Runtime = "docker" | "tmux";
 
@@ -84,7 +94,6 @@ export function CreateAgentModal({
   existingAgents = [],
   defaultCloneFrom = "",
 }: CreateAgentModalProps) {
-  const { workspaces, workspace: activeWorkspace } = useWorkspace();
   const [name, setName] = useState(() => generateName(existingNames));
   const [shape, setShape] = useState<AgentShape>(
     () => SHAPES[Math.floor(Math.random() * SHAPES.length)] ?? "hexagon",
@@ -95,7 +104,18 @@ export function CreateAgentModal({
   const [runtime, setRuntime] = useState<Runtime>("docker");
   const [task, setTask] = useState("");
   const [cloneFrom, setCloneFrom] = useState("");
-  const [workspaceId, setWorkspaceId] = useState<string>(activeWorkspace?.id ?? "");
+  // Repo path the new agent binds to. Defaults to the daemon's default
+  // repo (GET /api/repos) once loaded; known repos populate a dropdown.
+  const [repo, setRepo] = useState("");
+  const [knownRepos, setKnownRepos] = useState<RepoOption[]>([]);
+  const [defaultRepo, setDefaultRepo] = useState("");
+  // Browse: scan a base directory for git repos via
+  // POST /api/repos/discover/local and present a simple picker list.
+  const [browseOpen, setBrowseOpen] = useState(false);
+  const [browseRoot, setBrowseRoot] = useState("");
+  const [scanning, setScanning] = useState(false);
+  const [scanError, setScanError] = useState<string | null>(null);
+  const [candidates, setCandidates] = useState<RepoCandidate[] | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -119,6 +139,24 @@ export function CreateAgentModal({
       });
   }, []);
 
+  // Fetch known repos + the default repo whenever the modal opens.
+  useEffect(() => {
+    if (!open) return;
+    fetch("/api/repos")
+      .then((r) => r.json())
+      .then((data: { repos?: RepoOption[]; default?: string }) => {
+        const list = Array.isArray(data.repos) ? data.repos : [];
+        setKnownRepos(list);
+        const def = typeof data.default === "string" ? data.default : "";
+        setDefaultRepo(def);
+        // Only fill the field if the user hasn't typed a path yet.
+        setRepo((prev) => (prev === "" ? def : prev));
+      })
+      .catch(() => {
+        /* repos list is a convenience — the text input still works */
+      });
+  }, [open]);
+
   // Reset form only when the modal is first opened (open transitions to true).
   // We use a ref to track the previous open state so that changes to
   // existingNames or defaultCloneFrom while the modal is already open
@@ -138,7 +176,10 @@ export function CreateAgentModal({
       // When opened from the Clone action, pre-select the source agent
       // so the clone-from effect populates provider/runtime automatically.
       setCloneFrom(defaultCloneFrom);
-      setWorkspaceId(activeWorkspace?.id ?? "");
+      setRepo(defaultRepo);
+      setBrowseOpen(false);
+      setCandidates(null);
+      setScanError(null);
       requestAnimationFrame(() => firstInputRef.current?.focus());
     }
     prevOpenRef.current = open;
@@ -173,6 +214,36 @@ export function CreateAgentModal({
     setName(generateName(existingNames));
   }, [existingNames]);
 
+  // Scan browseRoot for git repos (POST /api/repos/discover/local).
+  const handleScan = useCallback(async () => {
+    const root = browseRoot.trim();
+    if (!root) {
+      setScanError("Enter a directory to scan.");
+      return;
+    }
+    setScanning(true);
+    setScanError(null);
+    setCandidates(null);
+    try {
+      const res = await fetch("/api/repos/discover/local", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ root }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({})) as { error?: string };
+        setScanError(err.error ?? "Scan failed");
+        return;
+      }
+      const data = await res.json() as { candidates?: RepoCandidate[] };
+      setCandidates(Array.isArray(data.candidates) ? data.candidates : []);
+    } catch (e) {
+      setScanError(e instanceof Error ? e.message : "Scan failed");
+    } finally {
+      setScanning(false);
+    }
+  }, [browseRoot]);
+
   const handleCreate = useCallback(async () => {
     const trimmed = name.trim();
     if (!trimmed) {
@@ -183,18 +254,18 @@ export function CreateAgentModal({
       setSubmitError(`Agent "${trimmed}" already exists. Pick a different name.`);
       return;
     }
-    if (!workspaceId) {
-      setSubmitError("Workspace is required.");
+    const repoPath = repo.trim();
+    if (!repoPath) {
+      setSubmitError("Repo path is required.");
       return;
     }
     setSubmitError(null);
     setSubmitting(true);
     try {
-      const url = `/api/agents?workspace=${encodeURIComponent(workspaceId)}`;
-      const res = await fetch(url, {
+      const res = await fetch("/api/agents", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: trimmed, template, tool: provider, runtime_backend: runtime, task: task || undefined }),
+        body: JSON.stringify({ name: trimmed, template, tool: provider, runtime_backend: runtime, repo: repoPath, task: task || undefined }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({})) as { error?: string };
@@ -208,7 +279,7 @@ export function CreateAgentModal({
       setSubmitError(e instanceof Error ? e.message : "Failed to create agent");
       setSubmitting(false);
     }
-  }, [name, template, provider, runtime, task, workspaceId, existingNames, onClose, navigate]);
+  }, [name, template, provider, runtime, task, repo, existingNames, onClose, navigate]);
 
   if (!open) return null;
 
@@ -302,27 +373,126 @@ export function CreateAgentModal({
             </select>
           </div>
 
-          {/* Workspace — required. Workspace is a property on the
-              agent (workspace-as-property model), so every new agent
-              must be bound to one. */}
+          {/* Repo — required. The repo is a property on the agent:
+              every new agent binds to a git repo path. Defaults to the
+              repo bcd was booted against. */}
           <div className="flex flex-col gap-1.5">
             <label className="text-xs font-medium text-mycel-muted uppercase tracking-wider" style={{ fontFamily: MONO }}>
-              Workspace <span className="text-mycel-error">*</span>
+              Repo <span className="text-mycel-error">*</span>
             </label>
-            <select
-              value={workspaceId}
-              onChange={(e) => setWorkspaceId(e.target.value)}
-              className={INPUT_CLS}
-              style={{ fontFamily: MONO }}
-              required
-            >
-              <option value="">— select workspace —</option>
-              {workspaces.map((ws) => (
-                <option key={ws.id} value={ws.id}>
-                  {ws.name || ws.path.split("/").pop() || ws.id}
-                </option>
-              ))}
-            </select>
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                value={repo}
+                onChange={(e) => setRepo(e.target.value)}
+                className={INPUT_CLS}
+                style={{ fontFamily: MONO }}
+                placeholder="/absolute/path/to/repo"
+                spellCheck={false}
+                autoComplete="off"
+                required
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  setBrowseOpen((prev) => !prev);
+                  // Seed the scan root with the parent of the current
+                  // path so one Scan click usually finds siblings.
+                  if (!browseOpen && browseRoot === "" && repo) {
+                    setBrowseRoot(repo.replace(/\/[^/]*$/, "") || "/");
+                  }
+                }}
+                aria-pressed={browseOpen}
+                className={`shrink-0 px-2.5 h-8 rounded border text-xs transition-colors ${
+                  browseOpen
+                    ? "border-mycel-accent text-mycel-accent bg-mycel-bg"
+                    : "border-mycel-border bg-mycel-bg text-mycel-muted hover:text-mycel-accent hover:border-mycel-accent"
+                }`}
+                style={{ fontFamily: MONO }}
+              >
+                Browse
+              </button>
+            </div>
+            {knownRepos.length > 0 && (
+              <select
+                value={knownRepos.some((r) => r.path === repo) ? repo : ""}
+                onChange={(e) => {
+                  if (e.target.value) setRepo(e.target.value);
+                }}
+                className={INPUT_CLS}
+                style={{ fontFamily: MONO }}
+                aria-label="Known repos"
+              >
+                <option value="">— known repos —</option>
+                {knownRepos.map((r) => (
+                  <option key={r.path} value={r.path}>
+                    {r.name} · {r.path}
+                    {r.path === defaultRepo ? " (default)" : ""}
+                  </option>
+                ))}
+              </select>
+            )}
+            {browseOpen && (
+              <div className="flex flex-col gap-2 rounded border border-mycel-border bg-mycel-bg p-2">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={browseRoot}
+                    onChange={(e) => setBrowseRoot(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        void handleScan();
+                      }
+                    }}
+                    className={INPUT_CLS}
+                    style={{ fontFamily: MONO }}
+                    placeholder="/directory/to/scan"
+                    spellCheck={false}
+                    autoComplete="off"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => { void handleScan(); }}
+                    disabled={scanning}
+                    className="shrink-0 px-2.5 h-8 rounded border border-mycel-border bg-mycel-surface text-xs text-mycel-muted hover:text-mycel-accent hover:border-mycel-accent transition-colors disabled:opacity-50"
+                    style={{ fontFamily: MONO }}
+                  >
+                    {scanning ? "Scanning..." : "Scan"}
+                  </button>
+                </div>
+                {scanError && (
+                  <div className="text-xs text-mycel-error" style={{ fontFamily: MONO }}>
+                    {scanError}
+                  </div>
+                )}
+                {candidates && candidates.length === 0 && (
+                  <div className="text-xs text-mycel-muted" style={{ fontFamily: MONO }}>
+                    No git repos found under that directory.
+                  </div>
+                )}
+                {candidates && candidates.length > 0 && (
+                  <ul className="max-h-36 overflow-y-auto flex flex-col">
+                    {candidates.map((c) => (
+                      <li key={c.path}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setRepo(c.path);
+                            setBrowseOpen(false);
+                          }}
+                          className="w-full text-left px-2 py-1 rounded text-xs text-mycel-text hover:bg-mycel-surface hover:text-mycel-accent transition-colors truncate"
+                          style={{ fontFamily: MONO }}
+                          title={c.path}
+                        >
+                          {c.name} <span className="text-mycel-muted">{c.path}</span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Template */}

@@ -20,7 +20,6 @@ import type {
   Role,
   RolesResponse,
   Worktree,
-  WorkspacesResponse,
   ToolInfo,
   CostUsageDailyResponse,
   CostUsageMonthlyResponse,
@@ -89,7 +88,6 @@ const DEFAULT_TTLS: Record<string, number> = {
   'demon:list': 10000, // 10s - demons stable
   logs: 2000, // 2s - logs update frequently
   'worktree:list': 30000, // 30s - worktrees stable
-  'workspace:list': 60000, // 60s - workspaces very stable
 };
 
 /**
@@ -820,24 +818,6 @@ export async function deleteRole(name: string): Promise<void> {
  */
 export async function validateRoles(): Promise<string> {
   return await execBc(['role', 'validate']);
-}
-
-/**
- * Get list of discovered workspaces
- * @param scanPaths - Additional paths to scan
- */
-export async function getWorkspaces(scanPaths?: string[]): Promise<WorkspacesResponse> {
-  try {
-    const args = ['workspace', 'list'];
-    if (scanPaths) {
-      for (const path of scanPaths) {
-        args.push('--scan', path);
-      }
-    }
-    return await execBcJson<WorkspacesResponse>(args);
-  } catch {
-    return { workspaces: [] };
-  }
 }
 
 // ============================================================================

@@ -12,7 +12,7 @@ import (
 // GlobalCostsHandler serves per-repo cost rollups from the user-global
 // ledger.
 //
-// GET /api/global/costs?start=<RFC3339|YYYY-MM-DD>&groupBy=workspace|project
+// GET /api/global/costs?start=<RFC3339|YYYY-MM-DD>&groupBy=repo|project
 //
 //   - `start` defaults to 30 days ago when omitted.
 //   - `end` is not honored because the underlying store only accepts a
@@ -31,7 +31,7 @@ func NewGlobalCostsHandler(store *cost.Store) *GlobalCostsHandler {
 
 // CostRow is one row of the /api/global/costs response.
 type CostRow struct {
-	Key   string  `json:"key"`   // workspace id or project label
+	Key   string  `json:"key"`   // repo path or project label
 	Label string  `json:"label"` // human-readable name
 	Total float64 `json:"total"` // USD
 }
@@ -59,10 +59,10 @@ func (h *GlobalCostsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	groupBy := q.Get("groupBy")
 	if groupBy == "" {
-		groupBy = "workspace"
+		groupBy = "repo"
 	}
-	if groupBy != "workspace" && groupBy != "project" {
-		httpError(w, "groupBy must be 'workspace' or 'project'", http.StatusBadRequest)
+	if groupBy != "repo" && groupBy != "project" {
+		httpError(w, "groupBy must be 'repo' or 'project'", http.StatusBadRequest)
 		return
 	}
 
@@ -92,11 +92,11 @@ func (h *GlobalCostsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, report)
 }
 
-// rollup returns rows keyed either by workspace id or project name.
+// rollup returns rows keyed either by repo path or project name.
 func (h *GlobalCostsHandler) rollup(r *http.Request, groupBy string, since time.Time) ([]CostRow, error) {
 	sinceArg := sinceFormatter{t: since}
 
-	if groupBy == "workspace" {
+	if groupBy == "repo" {
 		byRepo, err := h.store.SumByRepo(r.Context(), sinceArg)
 		if err != nil {
 			return nil, err

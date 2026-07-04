@@ -62,7 +62,7 @@ func setupIntegrationWorkspace(t *testing.T) (string, func()) {
 		t.Fatalf("failed to ensure dirs: %v", err)
 	}
 
-	// Point BC_WORKSPACE at the temp workspace so getWorkspace() finds it
+	// Point BC_WORKSPACE at the temp workspace so getRepo() finds it
 	// regardless of cwd races between parallel tests.
 	t.Setenv("BC_WORKSPACE", tmpDir)
 
@@ -592,7 +592,7 @@ func TestStatsNoWorkspace(t *testing.T) {
 	}
 	defer func() { _ = os.Chdir(origDir) }()
 
-	_, _, err = executeIntegrationCmd("workspace", "stats")
+	_, _, err = executeIntegrationCmd("stats")
 	// When bcd is running, stats works via API even without a local workspace.
 	// When bcd is not running, should fail with workspace error.
 	if err != nil && !strings.Contains(err.Error(), "not in a mycel workspace") {
@@ -613,7 +613,7 @@ func TestStatsEmptyWorkspace(t *testing.T) {
 	statsJSON = false
 	statsSave = false
 
-	stdout, _, err := executeIntegrationCmd("workspace", "stats")
+	stdout, _, err := executeIntegrationCmd("stats")
 	if err != nil {
 		t.Fatalf("workspace stats returned error: %v", err)
 	}
@@ -634,7 +634,7 @@ func TestStatsSave(t *testing.T) {
 	statsJSON = false
 	defer func() { statsSave = false }()
 
-	stdout, _, err := executeIntegrationCmd("workspace", "stats", "--save")
+	stdout, _, err := executeIntegrationCmd("stats", "--save")
 	if err != nil {
 		t.Fatalf("workspace stats --save returned error: %v", err)
 	}
@@ -822,7 +822,7 @@ func TestStatsJSON(t *testing.T) {
 	statsSave = false
 	defer func() { statsJSON = false }()
 
-	stdout, _, err := executeIntegrationCmd("workspace", "stats", "--json")
+	stdout, _, err := executeIntegrationCmd("stats", "--json")
 	if err != nil {
 		t.Fatalf("stats --json returned error: %v", err)
 	}

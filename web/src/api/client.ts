@@ -24,6 +24,18 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+export interface RepoView {
+  path: string;
+  name: string;
+  agent_count: number;
+}
+
+export interface ReposResponse {
+  repos: RepoView[];
+  /** The repo bcd was booted against — new agents default to it. */
+  default: string;
+}
+
 export interface BulkResult {
   agent: string;
   status: "ok" | "error";
@@ -60,10 +72,9 @@ export interface Agent {
   total_tokens?: number;
   runtime_backend?: string;
   mcp_servers?: string[];
+  /** Absolute path of the git repo this agent is bound to. Grouping
+   *  the Agents page by repo uses this. */
   repo?: string;
-  /** Absolute path of the workspace this agent belongs to. Grouping the
-   *  Agents page by workspace uses this. */
-  workspace?: string;
 }
 
 export interface AgentConfig {
@@ -406,14 +417,6 @@ export interface SystemStats {
   goroutines: number;
 }
 
-export interface WorkspaceInfo {
-  name: string;
-  nickname: string;
-  agent_count: number;
-  running_count: number;
-  is_healthy: boolean;
-}
-
 export interface StatsSummary {
   agents_total: number;
   agents_running: number;
@@ -569,13 +572,9 @@ function splitChannel(channel: string): { gw: string; ch: string } {
 }
 
 export const api = {
-  /** List agents. Pass `workspace` to filter to a single workspace path
-   *  via the flat /api/agents?workspace= surface (#3079). Omit to list
-   *  every workspace's agents (cross-workspace view). */
-  listAgents: (workspace?: string) =>
-    request<Agent[]>(
-      workspace ? `/agents?workspace=${encodeURIComponent(workspace)}` : "/agents",
-    ),
+  /** List all agents. bcd is single-tenant: agents carry their repo as
+   *  a property, so the list is always global. */
+  listAgents: () => request<Agent[]>("/agents"),
   getAgent: (name: string) =>
     request<Agent>(`/agents/${encodeURIComponent(name)}`),
   getAgentPeek: (name: string, lines = 50) =>
@@ -616,15 +615,15 @@ export const api = {
   unarchiveAgent: (name: string) =>
     request<void>(`/agents/${encodeURIComponent(name)}/unarchive`, { method: "POST" }),
 
-  // Cross-workspace cost rollup (outside workspace scope).
-  globalCosts: (opts: { start?: string; groupBy?: "workspace" | "project" } = {}) => {
+  // Cross-repo cost rollup.
+  globalCosts: (opts: { start?: string; groupBy?: "repo" | "project" } = {}) => {
     const q = new URLSearchParams();
     if (opts.start) q.set("start", opts.start);
     if (opts.groupBy) q.set("groupBy", opts.groupBy);
     const qs = q.toString();
     return request<{
       range: { start: string };
-      groupBy: "workspace" | "project";
+      groupBy: "repo" | "project";
       rows: Array<{ key: string; label: string; total: number }>;
     }>(`/global/costs${qs ? "?" + qs : ""}`);
   },
@@ -932,11 +931,9 @@ export const api = {
     }),
   deleteSecret: (name: string) =>
     request<void>(`/secrets/${encodeURIComponent(name)}`, { method: "DELETE" }),
-  getWorkspace: () => request<WorkspaceInfo>("/workspace"),
-  getWorkspaceStatus: () =>
-    request<Record<string, unknown>>("/workspace/status"),
-  workspaceUp: () => request<void>("/workspace/up", { method: "POST" }),
-  workspaceDown: () => request<void>("/workspace/down", { method: "POST" }),
+  /** List repos known to the daemon (every repo referenced by an agent
+   *  plus the boot repo) and the default repo for new agents. */
+  getRepos: () => request<ReposResponse>("/repos"),
 
   getStatsSystem: () => request<SystemStats>("/stats/system"),
   getStatsSummary: () => request<StatsSummary>("/stats/summary"),

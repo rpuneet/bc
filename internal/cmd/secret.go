@@ -137,9 +137,9 @@ func openSecretStore() (*secret.Store, error) {
 // openWorkspaceSecretStore opens the per-workspace secrets store at
 // <ws>/.bc/secrets.db, used for workspace-scoped overrides.
 func openWorkspaceSecretStore() (*secret.Store, error) {
-	ws, err := getWorkspace()
+	ws, err := getRepo()
 	if err != nil {
-		return nil, errNotInWorkspace(err)
+		return nil, errNoRepo(err)
 	}
 	passphrase, err := secret.Passphrase()
 	if err != nil {

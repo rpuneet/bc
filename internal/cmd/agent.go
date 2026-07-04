@@ -596,9 +596,9 @@ func runAgentList(cmd *cobra.Command, args []string) error {
 func runAgentAttach(cmd *cobra.Command, args []string) error {
 	agentName := args[0]
 
-	ws, err := getWorkspace()
+	ws, err := getRepo()
 	if err != nil {
-		return errNotInWorkspace(err)
+		return errNoRepo(err)
 	}
 
 	mgr := newAgentManager(ws)
@@ -619,9 +619,9 @@ func runAgentPeek(cmd *cobra.Command, args []string) error {
 
 	// --follow mode: keep local tmux access
 	if agentPeekFollow {
-		ws, err := getWorkspace()
+		ws, err := getRepo()
 		if err != nil {
-			return errNotInWorkspace(err)
+			return errNoRepo(err)
 		}
 
 		mgr := newAgentManager(ws)
@@ -877,7 +877,7 @@ func runAgentDelete(cmd *cobra.Command, args []string) error {
 
 	// Purge memory directory if requested (local file operation)
 	if agentDeletePurge {
-		ws, wsErr := getWorkspace()
+		ws, wsErr := getRepo()
 		if wsErr == nil {
 			memDir := filepath.Join(ws.StateDir(), "memory", agentName)
 			if purgeErr := os.RemoveAll(memDir); purgeErr != nil {

@@ -349,6 +349,9 @@ func (h *AgentHandler) list(w http.ResponseWriter, r *http.Request) {
 			Runtime  string     `json:"runtime_backend"`
 			Parent   string     `json:"parent"`
 			Template string     `json:"template,omitempty"`
+			// Repo is the absolute path of the git repo the agent binds
+			// to. Empty defaults to the repo bcd was booted against.
+			Repo string `json:"repo,omitempty"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			httpError(w, "invalid request body", http.StatusBadRequest)
@@ -365,6 +368,7 @@ func (h *AgentHandler) list(w http.ResponseWriter, r *http.Request) {
 			Tool:    req.Tool,
 			Runtime: req.Runtime,
 			Parent:  req.Parent,
+			Repo:    req.Repo,
 		})
 		if err != nil {
 			httpError(w, err.Error(), http.StatusBadRequest)

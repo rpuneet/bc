@@ -202,9 +202,9 @@ func completeToolNames(_ *cobra.Command, _ []string, _ string) ([]string, cobra.
 // openToolStore opens the tool store on the single global database
 // (works offline, without bcd).
 func openToolStore() (*tool.Store, error) {
-	ws, err := getWorkspace()
+	ws, err := getRepo()
 	if err != nil {
-		return nil, errNotInWorkspace(err)
+		return nil, errNoRepo(err)
 	}
 	wsDB, driver, dbErr := db.Global(ws.Config.DBStorageSettings())
 	if dbErr != nil {

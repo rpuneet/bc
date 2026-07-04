@@ -91,7 +91,7 @@ func runDoctor(cmd *cobra.Command, _ []string) error {
 	}
 
 	// Offline fallback: use direct pkg/doctor
-	ws, err := getWorkspace()
+	ws, err := getRepo()
 	if err != nil {
 		// No workspace: run tools-only check
 		fmt.Println("mycel doctor")
@@ -138,11 +138,11 @@ func runDoctorCheck(cmd *cobra.Command, args []string) error {
 	}
 
 	// Offline fallback
-	ws, wsErr := getWorkspace()
+	ws, wsErr := getRepo()
 
 	// Tools check works without a workspace
 	if wsErr != nil && name != "tools" {
-		return errNotInWorkspace(wsErr)
+		return errNoRepo(wsErr)
 	}
 
 	var cat *doctor.CategoryReport
@@ -180,7 +180,7 @@ func runDoctorFix(cmd *cobra.Command, _ []string) error {
 	}
 
 	// Fix always uses direct pkg/doctor (requires local workspace access)
-	ws, wsErr := requireWorkspace()
+	ws, wsErr := requireRepo()
 	if wsErr != nil {
 		return wsErr
 	}
