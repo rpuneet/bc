@@ -7,6 +7,69 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.10] - 2026-07-04
+
+The single-tenant release: the workspace concept is gone. One global
+`~/.mycel/mycel.db`, agents bound to a repo instead of a workspace,
+flat name-keyed state, and an agent create path that survives every
+failure mode we could find.
+
+### Removed
+- **The workspace concept.** Per-workspace databases, registries,
+  service bundles, idle eviction, `/w/` URLs, and workspace-scoped
+  API surfaces are all deleted. bcd is single-tenant: one `Services`
+  bundle for the process lifetime, one global database, and `repo` is
+  just a column on the agent. Workspace-scoped issues #3241, #3242,
+  and #3243 closed as designed-away.
+- **The Ralph loop**, replaced by Start/Stop/Restart lifecycle
+  controls in the agent header.
+
+### Added
+- **Repo as the unit of work.** The create-agent modal grows a
+  required Repo field (known-repos dropdown + local discovery), the
+  agents list groups by repo, and `GET /api/repos` lists every repo
+  with agent counts. Worktrees are checked out from the agent's own
+  repo — tmux and docker both.
+- **Flat state layout.** New worktrees land at
+  `~/.mycel/worktrees/<agent>/` and agent state (claude config, logs)
+  at `~/.mycel/agents/<agent>/` — no hash-keyed directories. Existing
+  agents keep working from their recorded paths;
+  `scripts/migrate-worktree-layout.sh` moves them (dry-run first,
+  skips running agents, repairs git worktree links).
+- **Trust pre-seeding.** Fresh claude agents no longer hang at the
+  interactive "trust this folder" prompt: the worktree is pre-trusted
+  in the agent's claude config for both runtimes.
+- `GET /api/stats/channels` backs the Metrics notification panel with
+  real per-channel message, member, and top-sender data.
+- `mycel doctor` flags missing `mycel-agent-*` docker images per
+  provider, with the build command.
+
+### Fixed
+- **Agents survive daemon restarts regardless of repo.** The manager
+  loaded only boot-repo agents at startup, orphaning everything else
+  (row and tmux session alive, API blind). It now loads the whole
+  global table, and restarts always bind to the agent's own repo.
+- **Failed creates roll back completely.** A failed docker create
+  could leave a phantom `starting` row that reserved the agent name
+  forever; creation now rolls back both the in-memory entry and the
+  store row.
+- **The bc MCP endpoint is derived, not stored.** A static
+  `mcp_servers` row can't be right for tmux and docker at once and
+  pinned a stale port — agents now get the live daemon address per
+  runtime, and the phantom `tool validation` warning is gone (roles
+  also resolve from the global store on every path).
+- **Shutdown hygiene.** Gateway adapters get a graceful `Stop` before
+  stores close, and in-flight notify dispatches drain instead of
+  racing teardown.
+- The CLI `--tool` help now derives from the provider registry (the
+  honest five), `mycel mcp register` no longer looks up the Unix `bc`
+  calculator, and the last `bc` → `mycel` help strings are fixed.
+
+### Documentation
+- Every page realigned with the repo-era architecture and verified
+  against source — tutorials, how-to, reference, and explanation.
+  `mkdocs build --strict` passes clean.
+
 ## [0.3.9] - 2026-07-04
 
 The clean-architecture release: `mycel init` is gone (install → `mycel up`
