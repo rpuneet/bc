@@ -4,8 +4,7 @@ This tutorial walks you through creating, running, and communicating with your f
 
 ## Prerequisites
 
-- A mycel workspace initialized (`mycel init` completed)
-- The mycel server running (`mycel up -d`)
+- The mycel server running (`mycel up -d` from your repo — this bootstraps the workspace)
 - An AI provider configured (e.g., Claude Code or Gemini)
 
 ## Step 1: Create an agent

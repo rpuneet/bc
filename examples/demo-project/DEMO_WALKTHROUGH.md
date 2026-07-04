@@ -35,7 +35,7 @@ This demo showcases a complete bug fix workflow:
 cd examples/demo-project
 
 # Initialize bc workspace (if not already done)
-bc init
+bc up            # bootstraps the workspace
 
 # Show workspace structure
 ls -la .bc/

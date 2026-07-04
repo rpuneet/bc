@@ -66,7 +66,7 @@ func Init(rootDir string) (*Workspace, error) {
 	// Verify this is a git repository — bc requires git for agent worktrees.
 	gitDir := filepath.Join(absRoot, ".git")
 	if _, statErr := os.Stat(gitDir); os.IsNotExist(statErr) {
-		return nil, fmt.Errorf("not a git repository: %s\nRun 'git init' first, then 'mycel init'", absRoot)
+		return nil, fmt.Errorf("not a git repository: %s\nRun 'git init' first, then 'mycel up'", absRoot)
 	}
 
 	if homeErr := EnsureMycelHome(); homeErr != nil {
@@ -161,7 +161,7 @@ func Load(rootDir string) (*Workspace, error) {
 	// Config is <stateDir>/preferences.json — the only config file bc reads.
 	jsonPath := filepath.Join(stateDir, PreferencesFileName)
 	if _, statErr := os.Stat(jsonPath); statErr != nil {
-		return nil, fmt.Errorf("not a mycel workspace (no %s found in %s); run 'mycel init'",
+		return nil, fmt.Errorf("not a mycel workspace (no %s found in %s); run 'mycel up' from your repo (or add one in the web UI)",
 			PreferencesFileName, stateDir)
 	}
 

@@ -7,8 +7,8 @@ import (
 )
 
 // bcDBContainer is the Docker container name used for the bc-db TimescaleDB
-// service. It matches the container bootstrapped by `bc init`
-// (see internal/cmd/init_bootstrap.go) so start/stop interact with the
+// service. It matches the container lazy-started by `mycel up` for timescale storage
+// (see internal/cmd/up.go) so start/stop interact with the
 // already-running instance if any.
 const bcDBContainer = "bc-db"
 

@@ -10,7 +10,7 @@ Minimal setup for individual developers working alone.
 
 ```bash
 cp examples/configs/solo-developer.toml .bc/settings.json
-bc init
+bc up            # bootstraps the workspace
 ```
 
 **Features:**
@@ -27,7 +27,7 @@ Balanced setup for small development teams (2-5 developers).
 
 ```bash
 cp examples/configs/small-team.toml .bc/settings.json
-bc init
+bc up            # bootstraps the workspace
 ```
 
 **Features:**
@@ -44,7 +44,7 @@ Optimized for automated pipelines and continuous integration.
 
 ```bash
 cp examples/configs/ci-cd.toml .bc/settings.json
-bc init --quick
+bc up            # bootstraps the workspace with defaults
 ```
 
 **Features:**
@@ -57,23 +57,16 @@ bc init --quick
 
 ## Quick Start
 
-1. Initialize a new workspace:
+1. Start the server from your repo — it bootstraps the workspace:
    ```bash
-   bc init
+   bc up
    ```
 
-2. Or use a preset:
-   ```bash
-   bc init --preset solo      # Solo developer
-   bc init --preset small-team  # Small team
-   bc init --preset full-team   # Full team
-   ```
+2. Or copy a config into the workspace state dir first:
 
-3. Or copy a config manually:
    ```bash
-   mkdir -p .bc
-   cp examples/configs/small-team.toml .bc/settings.json
-   bc init
+   cp examples/configs/small-team.json ~/.mycel/workspaces/<id>/preferences.json
+   mycel up
    ```
 
 ## User Defaults (~/.bcrc)

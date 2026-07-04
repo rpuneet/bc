@@ -831,51 +831,15 @@ func TestStatsJSON(t *testing.T) {
 	}
 }
 
-// --- Init command tests ---
+// --- Init command removal (epic #3265: `mycel up` bootstraps everything) ---
 
-func TestInitNewDirectory(t *testing.T) {
-	origDir, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("failed to get cwd: %v", err)
-	}
-
-	tmpDir := t.TempDir()
-	targetDir := filepath.Join(tmpDir, "myproject")
-	if err = os.MkdirAll(targetDir, 0750); err != nil {
-		t.Fatalf("failed to create target dir: %v", err)
-	}
-	if err = os.Chdir(targetDir); err != nil {
-		t.Fatalf("failed to chdir: %v", err)
-	}
-	defer func() { _ = os.Chdir(origDir) }()
-
-	// Use --quick flag to skip interactive wizard in tests
-	stdout, _, err := executeIntegrationCmd("init", "--quick")
-	if err != nil {
-		t.Fatalf("init returned error: %v", err)
-	}
-	if !strings.Contains(stdout, "Workspace initialized") {
-		t.Errorf("expected initialization message, got: %s", stdout)
-	}
-
-	// Verify .bc directory was created
-	if _, err := os.Stat(filepath.Join(targetDir, ".bc")); os.IsNotExist(err) {
-		t.Error(".bc directory was not created")
-	}
-}
-
-func TestInitAlreadyInitialized(t *testing.T) {
-	// setupIntegrationWorkspace creates a workspace, re-init should error
-	_, cleanup := setupIntegrationWorkspace(t)
-	defer cleanup()
-
+func TestInitCommandRemoved(t *testing.T) {
 	_, _, err := executeIntegrationCmd("init")
 	if err == nil {
-		t.Fatal("expected error for already initialized workspace, got nil")
+		t.Fatal("expected unknown-command error for removed 'init' command, got nil")
 	}
-	// workspace already initialized
-	if !strings.Contains(err.Error(), "already initialized") {
-		t.Errorf("expected 'already initialized' error, got: %v", err)
+	if !strings.Contains(err.Error(), "unknown command") {
+		t.Errorf("expected 'unknown command' error, got: %v", err)
 	}
 }
 

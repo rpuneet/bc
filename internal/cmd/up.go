@@ -7,7 +7,9 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -33,6 +35,13 @@ var upCmd = &cobra.Command{
 	Use:   "up",
 	Short: "Start mycel server",
 	Long: `Start the mycel server (API, web UI, MCP, agent management).
+
+Bootstraps everything on first run — no separate init step:
+  - inside a git repo: the repo root is adopted as a workspace
+    (state lives under ~/.mycel, the repo stays pristine)
+  - outside a git repo: the server starts against the registry's
+    active workspace, or with no workspace at all — add repos from
+    the web UI
 
 By default the server runs in the foreground (for Docker/Railway).
 Use -d to run as a background daemon.
@@ -65,31 +74,36 @@ func init() {
 func runUp(cmd *cobra.Command, _ []string) error {
 	wsRoot := upWorkspace
 	if wsRoot == "" {
-		ws, err := getWorkspace()
-		if err != nil {
-			return errNotInWorkspace(err)
-		}
-		wsRoot = ws.RootDir
+		wsRoot = resolveUpWorkspace()
 	} else {
-		// Validate the workspace path
-		if _, err := workspace.Load(wsRoot); err != nil {
-			return fmt.Errorf("cannot load workspace at %s: %w", wsRoot, err)
+		// Validate the workspace path: it must exist and be a git repo.
+		// It does NOT need to be initialized — the server bootstraps
+		// uninitialized repos via workspace.Init (idempotent).
+		abs, absErr := filepath.Abs(wsRoot)
+		if absErr != nil {
+			return fmt.Errorf("cannot resolve workspace path %s: %w", wsRoot, absErr)
 		}
+		if _, statErr := os.Stat(filepath.Join(abs, ".git")); statErr != nil {
+			return fmt.Errorf("workspace %s is not a git repository (mycel needs git for agent worktrees)", abs)
+		}
+		wsRoot = abs
 	}
 
 	// Read server config from preferences.json for defaults
-	if ws, loadErr := workspace.Load(wsRoot); loadErr == nil && ws.Config != nil {
-		// Use preferences.json addr if --addr wasn't explicitly set
-		if !cmd.Flags().Changed("addr") {
-			host := ws.Config.Server.Host
-			if host == "" {
-				host = "127.0.0.1"
+	if wsRoot != "" {
+		if ws, loadErr := workspace.Load(wsRoot); loadErr == nil && ws.Config != nil {
+			// Use preferences.json addr if --addr wasn't explicitly set
+			if !cmd.Flags().Changed("addr") {
+				host := ws.Config.Server.Host
+				if host == "" {
+					host = "127.0.0.1"
+				}
+				port := 9374
+				if ws.Config.Server.Port > 0 {
+					port = ws.Config.Server.Port
+				}
+				upAddr = fmt.Sprintf("%s:%d", host, port)
 			}
-			port := 9374
-			if ws.Config.Server.Port > 0 {
-				port = ws.Config.Server.Port
-			}
-			upAddr = fmt.Sprintf("%s:%d", host, port)
 		}
 	}
 
@@ -102,8 +116,16 @@ func runUp(cmd *cobra.Command, _ []string) error {
 	}
 
 	// Foreground mode: run server directly
-	fmt.Printf("Starting mycel server in %s\n", wsRoot)
+	if wsRoot != "" {
+		fmt.Printf("Starting mycel server in %s\n", wsRoot)
+	} else {
+		fmt.Println("Starting mycel server (no workspace yet — add a repo from the web UI, or run 'mycel up' inside a git repo)")
+	}
 	fmt.Printf("  addr: %s\n\n", upAddr)
+
+	// Lazy-start the bc-db container when the workspace is configured
+	// for TimescaleDB storage. SQLite (the default) needs nothing.
+	maybeBootstrapTimescale(wsRoot)
 
 	// Set BC_BCD_ADDR so agents inherit the correct server address for hooks.
 	// Without this, agents default to :9374 even when bcd runs on a different port.
@@ -146,13 +168,108 @@ func runUp(cmd *cobra.Command, _ []string) error {
 	return RunServer(upAddr, wsRoot, upCORS, upAPIKey)
 }
 
+// resolveUpWorkspace picks the workspace root for `mycel up`:
+//
+//  1. BC_WORKSPACE or an already-registered workspace enclosing cwd
+//  2. the enclosing git repo root — adopted as a new workspace
+//     (the server runs workspace.Init, which is idempotent, and
+//     registers + activates it)
+//  3. the registry's active (or most recently registered) workspace
+//  4. "" — boot with no workspace; add repos from the web UI
+func resolveUpWorkspace() string {
+	if ws, err := getWorkspace(); err == nil && ws != nil {
+		return ws.RootDir
+	}
+	if root := findGitRoot(); root != "" {
+		return root
+	}
+	if reg, err := workspace.LoadRegistry(); err == nil {
+		if active := reg.GetActive(); active != nil {
+			if _, statErr := os.Stat(active.Path); statErr == nil {
+				return active.Path
+			}
+		}
+		// No active workspace set — fall back to any registered
+		// workspace whose path still exists.
+		for _, entry := range reg.List() {
+			if _, statErr := os.Stat(entry.Path); statErr == nil {
+				return entry.Path
+			}
+		}
+	}
+	return ""
+}
+
+// findGitRoot walks up from cwd looking for a .git entry (dir for normal
+// repos, file for worktrees/submodules). Returns "" when cwd is not
+// inside a git repository.
+func findGitRoot() string {
+	dir, err := os.Getwd()
+	if err != nil {
+		return ""
+	}
+	for {
+		if _, statErr := os.Stat(filepath.Join(dir, ".git")); statErr == nil {
+			return dir
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return ""
+		}
+		dir = parent
+	}
+}
+
+// maybeBootstrapTimescale starts the bc-db (TimescaleDB) container when
+// the workspace's storage.default is "timescale". Non-fatal: warns if
+// Docker is unavailable. SQLite workspaces (the default) skip this.
+func maybeBootstrapTimescale(wsRoot string) {
+	if wsRoot == "" {
+		return
+	}
+	ws, err := workspace.Load(wsRoot)
+	if err != nil || ws.Config == nil || ws.Config.Storage.Default != "timescale" {
+		return
+	}
+
+	// Honor the configured connection settings; only bootstrap the local
+	// container for a localhost target — a remote Timescale is the user's.
+	ts := ws.Config.Storage.Timescale
+	host := ts.Host
+	if host == "" {
+		host = "localhost"
+	}
+	if host != "localhost" && host != "127.0.0.1" {
+		return
+	}
+	port := ts.Port
+	if port == 0 {
+		port = 5432
+	}
+	password := ts.Password
+	if password == "" {
+		password = "bc"
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	if err := dockerRun(ctx, "bc-db", []string{
+		"-p", fmt.Sprintf("%d:5432", port),
+		"-e", "POSTGRES_PASSWORD=" + password,
+		"-v", "bc-db-data:/var/lib/postgresql/data",
+		"--restart", "always",
+		"bc-bcdb:latest",
+	}); err != nil {
+		fmt.Printf("  %s bc-db: %v\n", ui.YellowText("warning"), err)
+		return
+	}
+	fmt.Printf("  %s database ready\n\n", ui.GreenText("ok"))
+}
+
 // runUpDaemon starts bc up in the background by re-executing the mycel binary.
 // Logs go to ~/.mycel/daemon.log, PID to ~/.mycel/daemon.pid.
 func runUpDaemon(wsRoot string) error {
-	if _, err := workspace.Load(wsRoot); err != nil {
-		return fmt.Errorf("cannot load workspace: %w", err)
-	}
-
 	if _, err := workspace.EnsureGlobalDir(); err != nil {
 		return fmt.Errorf("ensure bc home: %w", err)
 	}
@@ -188,8 +305,10 @@ func runUpDaemon(wsRoot string) error {
 	args := []string{
 		"up",
 		"--addr", upAddr,
-		"--workspace", wsRoot,
 		"--cors-origin", upCORS,
+	}
+	if wsRoot != "" {
+		args = append(args, "--workspace", wsRoot)
 	}
 	if upAPIKey != "" {
 		args = append(args, "--api-key", upAPIKey)

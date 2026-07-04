@@ -15,7 +15,7 @@ go test -v
 
 ```bash
 # Initialize bc workspace
-bc init
+bc up            # bootstraps the workspace
 
 # Start the orchestration
 bc up

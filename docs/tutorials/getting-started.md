@@ -45,20 +45,20 @@ mycel version
 
 ## Your First Workspace
 
-### Step 1: Initialize
+### Step 1: Start the Server
 
-Navigate to your project directory and run:
+Navigate to your project directory (any git repo) and run:
 
 ```bash
 cd your-project
-mycel init
+mycel up -d
 ```
 
-This launches an interactive wizard. To skip it and use defaults:
-
-```bash
-mycel init --quick
-```
+This starts the mycel server (API, web UI, MCP, agent management) as a
+background daemon on `127.0.0.1:9374` and bootstraps the workspace
+automatically — there is no separate init step. Run `mycel up` without `-d`
+to keep it in the foreground instead. Running `mycel up` outside a git repo
+starts the server without a workspace; add repos from the web UI.
 
 Workspace configuration lives outside your project directory, at
 `~/.mycel/workspaces/<id>/`:
@@ -70,23 +70,13 @@ Workspace configuration lives outside your project directory, at
 Agent working copies (git worktrees) are created inside your project under
 `.bc/agents/<name>/`.
 
-### Step 2: Start the Server
-
-```bash
-mycel up -d
-```
-
-This starts the mycel server (API, web UI, MCP, agent management) as a
-background daemon on `127.0.0.1:9374`. Run `mycel up` without `-d` to keep it
-in the foreground instead.
-
-### Step 3: Create an Engineer
+### Step 2: Create an Engineer
 
 ```bash
 mycel agent create eng-01 --role engineer
 ```
 
-### Step 4: Check Status
+### Step 3: Check Status
 
 ```bash
 mycel status
@@ -97,13 +87,13 @@ AGENT     ROLE      STATE    UPTIME    TASK
 eng-01    engineer  idle     10s       -
 ```
 
-### Step 5: Send Work
+### Step 4: Send Work
 
 ```bash
 mycel agent send eng-01 "Implement the login feature per issue #42"
 ```
 
-### Step 6: Monitor Progress
+### Step 5: Monitor Progress
 
 Run `mycel` with no arguments to open the TUI dashboard:
 
@@ -117,7 +107,7 @@ Or check a specific agent's recent output:
 mycel agent peek eng-01
 ```
 
-### Step 7: Stop When Done
+### Step 6: Stop When Done
 
 ```bash
 mycel down

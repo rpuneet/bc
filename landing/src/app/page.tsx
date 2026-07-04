@@ -164,8 +164,6 @@ export default function Home() {
                 {/* Then run */}
                 <p className="mt-3 text-sm text-on-surface-variant font-body">
                   Then run:{" "}
-                  <code className="text-primary font-label">mycel init</code>
-                  {" && "}
                   <code className="text-primary font-label">mycel up</code>
                 </p>
               </div>
@@ -220,15 +218,9 @@ export default function Home() {
               <div className="space-y-3 text-[13px] leading-7">
                 <div>
                   <span className="text-terminal-prompt">~ $ </span>
-                  <span className="text-terminal-text">mycel init</span>
-                </div>
-                <div className="text-terminal-success">&#10003; Workspace initialized (.mycel/)</div>
-                <div className="text-terminal-success">&#10003; Ready to create agents</div>
-
-                <div className="mt-2">
-                  <span className="text-terminal-prompt">~ $ </span>
                   <span className="text-terminal-text">mycel up</span>
                 </div>
+                <div className="text-terminal-success">&#10003; Workspace bootstrapped (~/.mycel)</div>
                 <div className="text-terminal-muted">
                   Server running on <span className="text-primary">http://localhost:9374</span>
                 </div>

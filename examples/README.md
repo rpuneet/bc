@@ -13,7 +13,7 @@ Minimal setup for individual developers:
 
 ```bash
 cp examples/solo-developer.toml .bc/settings.json
-bc init
+bc up            # bootstraps the workspace
 ```
 
 ### team-workspace.toml
@@ -26,7 +26,7 @@ Full-featured setup for teams:
 
 ```bash
 cp examples/team-workspace.toml .bc/settings.json
-bc init
+bc up            # bootstraps the workspace
 bc agent create eng-01 --role engineer
 bc agent create eng-02 --role engineer
 ```
@@ -43,8 +43,7 @@ Optimized for CI/CD pipelines:
 ```bash
 # In your CI pipeline:
 cp examples/ci-cd-integration.toml .bc/settings.json
-bc init --quick
-bc up --headless
+bc up --headless # bootstraps the workspace with defaults
 bc agent send eng-01 "run tests and report results"
 ```
 
@@ -70,7 +69,7 @@ User settings are merged with workspace settings, with workspace taking preceden
 
 1. Choose a configuration that matches your use case
 2. Copy it to your project's `.bc/settings.json`
-3. Initialize the workspace with `bc init`
+3. Start the server with `bc up` — it bootstraps the workspace
 4. Start working with `bc up`
 
 ## Customization

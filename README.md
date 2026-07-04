@@ -30,8 +30,7 @@ git clone https://github.com/rpuneet/mycel && cd mycel && make install-local-myc
 ## Quick Start
 
 ```bash
-mycel init                    # Initialize workspace
-mycel up                      # Start server + web UI on localhost:9374
+mycel up                      # Start server + web UI on localhost:9374 (bootstraps the workspace)
 mycel agent create eng-01 \
   --role engineer \
   --tool claude               # Spawn an agent
@@ -73,8 +72,7 @@ Open **http://localhost:9374** for the web dashboard.
 | Command | Description |
 |---------|-------------|
 | `mycel` | Open TUI dashboard |
-| `mycel init` | Initialize workspace |
-| `mycel up` | Start server (foreground) |
+| `mycel up` | Start server (foreground); bootstraps the workspace |
 | `mycel up -d` | Start server (daemon) |
 | `mycel down` | Stop server |
 | `mycel status` | Show agent status |
