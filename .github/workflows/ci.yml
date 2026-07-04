@@ -249,7 +249,10 @@ jobs:
           image-ref: bc-daemon:latest
           format: sarif
           output: trivy-results.sarif
-          severity: CRITICAL,HIGH
+          # Full severity list: analyses must report every level or alerts from
+          # older full scans (1,467 medium + 152 low) can never be superseded
+          # and auto-closed - they linger open forever.
+          severity: CRITICAL,HIGH,MEDIUM,LOW
       - name: Upload SARIF
         uses: github/codeql-action/upload-sarif@v4
         if: always()
