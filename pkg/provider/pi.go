@@ -2,7 +2,6 @@ package provider
 
 import (
 	"context"
-	"fmt"
 	"regexp"
 	"strings"
 )
@@ -66,12 +65,12 @@ func (p *PiProvider) InstallHint() string {
 
 // BuildCommand returns the full command for a given runtime context.
 // For pi, we start with base command and add session flags as needed.
-// SessionID is quoted to prevent potential shell injection issues.
+// The session ID is spliced into a shell command line — double quotes
+// don't stop `$()` expansion, so unsafe values are dropped instead.
 func (p *PiProvider) BuildCommand(opts CommandOpts) string {
 	cmd := p.Command()
-	if opts.SessionID != "" {
-		// Quote SessionID to handle potential spaces/special chars
-		cmd += fmt.Sprintf(" --session \"%s\"", opts.SessionID)
+	if SafeSessionID(opts.SessionID) {
+		cmd += " --session " + opts.SessionID
 	}
 	if opts.Resume {
 		cmd += " --continue"
