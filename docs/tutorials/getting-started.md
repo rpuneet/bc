@@ -43,7 +43,7 @@ make install  # Installs to $GOPATH/bin
 mycel version
 ```
 
-## Your First Workspace
+## Your First Agent
 
 ### Step 1: Start the Server
 
@@ -55,25 +55,25 @@ mycel up -d
 ```
 
 This starts the mycel server (API, web UI, MCP, agent management) as a
-background daemon on `127.0.0.1:9374` and bootstraps the workspace
-automatically — there is no separate init step. Run `mycel up` without `-d`
-to keep it in the foreground instead. Running `mycel up` outside a git repo
-starts the server without a workspace; add repos from the web UI.
+background daemon on `127.0.0.1:9374` — there is no separate init step.
+Run `mycel up` without `-d` to keep it in the foreground instead. Running
+`mycel up` inside a git repo makes that repo immediately available for
+agents; add more repos at any time from the web UI.
 
-Workspace configuration lives outside your project directory, at
-`~/.mycel/workspaces/<id>/`:
+All state lives outside your repos, under `~/.mycel/`:
 
-- `preferences.json` — workspace configuration
-- `roles/` — agent role definitions
-- `agents/` — per-agent state files
+- `mycel.db` — the single global database (agents, roles, events,
+  notifications, cron)
+- `costs.db` — cost ledger with per-repo attribution
+- per-agent directories holding each agent's files and git worktree
 
-Agent working copies (git worktrees) are created inside your project under
-`.bc/agents/<name>/`.
+Each agent is bound to a repo and works in its own git worktree checked
+out from that repo — your working copy stays pristine.
 
 ### Step 2: Create an Engineer
 
 ```bash
-mycel agent create eng-01 --role engineer
+mycel agent create eng-01 --template engineer
 ```
 
 ### Step 3: Check Status
@@ -147,14 +147,14 @@ Valid states are `idle`, `working`, `done`, `stuck`, and `error`.
 
 ```bash
 mycel cost show           # Recent cost records
-mycel cost summary        # Workspace cost overview
+mycel cost summary        # Cost overview across agents and repos
 mycel cost dashboard      # Rich cost dashboard
 ```
 
 ## Next Steps
 
 - Learn about the [Architecture](../overview.md) to understand the system
-- Configure [Settings](../how-to/configure-workspace.md) for your workspace
+- [Configure mycel](../how-to/configure-workspace.md) — providers, runtimes, budgets
 - Set up [Notifications](../how-to/set-up-notifications.md) for platform event routing
 - Explore the [REST API](../reference/api-rest.md) for programmatic access
 

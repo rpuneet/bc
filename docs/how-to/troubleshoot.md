@@ -61,26 +61,25 @@ make build-local-mycel
 make clean && make build-local-mycel
 ```
 
-## Workspace Issues
+## Repo & Configuration Issues
 
 ### "not in a mycel workspace"
 
-**Cause**: Running a mycel command outside a workspace, or `BC_WORKSPACE` not set.
+**Cause**: Running a repo-scoped mycel command outside a git repo that mycel knows about, or `BC_WORKSPACE` not set.
 
 **Solution**:
 ```bash
-# Start the server from your project directory — it bootstraps the workspace
+# Start the server from your repo (or add the repo in the web UI)
 mycel up
 
-# Or set the environment variable (for agents in worktrees)
-export BC_WORKSPACE=/path/to/workspace
+# Or point at the repo explicitly (for agents in worktrees)
+export BC_WORKSPACE=/path/to/repo
 ```
 
 ### Config File Errors
 
-**Cause**: Invalid JSON in `preferences.json` (workspace config lives at
-`~/.mycel/workspaces/<id>/preferences.json`; `settings.json` is the legacy
-fallback).
+**Cause**: Invalid JSON in `preferences.json` (config lives at
+`~/.mycel/workspaces/<id>/preferences.json`).
 
 **Solution**:
 ```bash
@@ -108,17 +107,17 @@ mycel config reset
 
 **Solutions**:
 ```bash
-# Check for existing session (sessions are prefixed bc-)
-tmux list-sessions | grep bc-
+# Check for existing session (sessions are prefixed mycel-)
+tmux list-sessions | grep mycel-
 
 # Kill stale session
 tmux kill-session -t <session-name>
 
-# Check worktrees
+# Check worktrees (run from the agent's repo)
 git worktree list
 
-# Remove corrupted worktree
-git worktree remove .bc/agents/<name>/worktree --force
+# Remove the corrupted worktree (path from `git worktree list`)
+git worktree remove <worktree-path> --force
 git worktree prune
 
 # Restart the agent
@@ -215,7 +214,7 @@ pgrep -f mycel
 
 ### TUI Won't Start
 
-The TUI opens when you run `mycel` with no arguments inside a workspace.
+The TUI opens when you run `mycel` with no arguments and a server is reachable.
 
 **Causes**:
 1. Node.js or Bun not installed
@@ -264,8 +263,8 @@ NO_COLOR=1 mycel
 # List worktrees
 git worktree list
 
-# Remove stale worktree
-git worktree remove .bc/agents/<name>/worktree --force
+# Remove the stale worktree (path from `git worktree list`)
+git worktree remove <worktree-path> --force
 
 # Prune worktree references
 git worktree prune
@@ -326,15 +325,15 @@ mycel doctor check database
 
 ### Commands Slow
 
-**Cause**: Large workspace or database.
+**Cause**: Large database.
 
 **Solution**:
 ```bash
 # Check database sizes
-du -sh .bc/*.db
+du -sh ~/.mycel/*.db
 
 # Vacuum the database
-sqlite3 .bc/bc.db "VACUUM;"
+sqlite3 ~/.mycel/mycel.db "VACUUM;"
 ```
 
 ### High CPU Usage
@@ -361,12 +360,12 @@ mycel agent stop <name>
 
 **Solution**:
 ```bash
-# Fix .bc directory permissions
-chmod -R u+rw .bc/
+# Fix ~/.mycel directory permissions
+chmod -R u+rw ~/.mycel/
 
 # Check for root-owned files
-ls -la .bc/
-sudo chown -R $USER:$USER .bc/
+ls -la ~/.mycel/
+sudo chown -R $USER:$USER ~/.mycel/
 ```
 
 ### "bcd is not running"

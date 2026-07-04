@@ -1,6 +1,6 @@
 # Settings API
 
-The Settings API reads and updates the workspace configuration via the bcd HTTP server. The configuration is a JSON document persisted to `preferences.json` in the workspace state directory (`~/.mycel/workspaces/<id>/`).
+The Settings API reads and updates mycel configuration via the bcd HTTP server. The configuration is a JSON document persisted to `preferences.json` in the per-repo runtime state directory (`~/.mycel/workspaces/<id>/`).
 
 Base URL: `http://localhost:9374`
 
@@ -8,7 +8,7 @@ Base URL: `http://localhost:9374`
 
 ### GET /api/settings
 
-Returns the full workspace configuration.
+Returns the full configuration.
 
 **Response:** `200 OK`
 

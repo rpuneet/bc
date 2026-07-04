@@ -23,12 +23,12 @@ for anything beyond that.
 - TLS — the server is not designed to be exposed to a network directly. If
   you need remote access, put it behind a TLS-terminating reverse proxy and
   enable API-key authentication.
-- Multi-tenant isolation — a single workspace is used by one developer (or
-  one CI job) at a time.
+- Multi-tenant isolation — the server is single-tenant, used by one
+  developer (or one CI job) at a time.
 
 ## Secret Management
 
-Secrets are stored in an SQLite database at `.bc/secrets.db` and encrypted
+Secrets are stored in an SQLite vault at `~/.mycel/secrets.vault` and encrypted
 with **AES-256-GCM**. The encryption key is derived from a master passphrase
 using **PBKDF2-SHA256** with 600,000 iterations (per OWASP 2023 guidance) and
 a random 16-byte salt.
@@ -39,7 +39,7 @@ The passphrase is resolved in priority order:
 
 1. **`BC_SECRET_PASSPHRASE` environment variable** — set this in CI or when
    you want explicit control.
-2. **Auto-generated key file at `~/.bc/secret-key`** — created on first use
+2. **Auto-generated key file at `~/.mycel/secret-key`** — created on first use
    with 32 random bytes (hex-encoded), file permissions `0600`, directory
    permissions `0700`.
 
@@ -66,29 +66,30 @@ with the following isolation measures.
 
 Containers receive exactly two mounts by default:
 
-1. **Workspace directory** → `/workspace` (project source code).
+1. **Agent's repo** → `/workspace` (project source code).
 2. **Persistent Claude state** → `/home/agent/.claude` (auth, plugins,
-   sessions). Stored at `.bc/volumes/<agent>/.claude` on the host.
+   sessions). Stored at `~/.mycel/workspaces/<id>/agents/<name>/claude/` on
+   the host.
 
 ### Mount Validation
 
-Extra mounts (configured via `[runtime.docker] extra_mounts`) are validated
+Extra mounts (configured via `runtime.docker.extra_mounts`) are validated
 by `validateMount()` before being passed to `docker run`:
 
 - **Format check**: must be `src:dst` or `src:dst:opts`.
 - **Path traversal rejection**: source paths containing `..` are rejected.
 - **Absolute path requirement**: source must be an absolute path.
 - **Symlink resolution**: source is resolved via `filepath.EvalSymlinks` to
-  prevent symlink-based escapes (e.g., a symlink inside the workspace
-  pointing to `/etc`).
-- **Workspace containment**: the resolved source path must be within or equal
-  to the workspace root directory.
+  prevent symlink-based escapes (e.g., a symlink inside the repo pointing
+  to `/etc`).
+- **Repo containment**: the resolved source path must be within or equal
+  to the repo root directory.
 
 ### Network
 
-The default Docker network is `bridge`. Network configuration is set via
-`[runtime.docker] network` in `settings.json`. To fully isolate agents from
-the network, set `network = "none"`.
+The default Docker network is `bc-net` (`runtime.docker.network` in
+`preferences.json`; the backend falls back to `bridge` when unset). To fully
+isolate agents from the network, set the network to `none`.
 
 ### Resource Limits
 
@@ -108,7 +109,7 @@ crafted key names.
 The mycel server applies middleware in this order (outermost runs first):
 
 ```
-RateLimit → APIKeyAuth → RequestID → RequestLogger → Recovery → Gzip → MaxBodySize → CORS → WorkspaceScope → Router
+RateLimit → APIKeyAuth → RequestID → RequestLogger → Recovery → Gzip → MaxBodySize → CORS → Router
 ```
 
 ### API Key Authentication

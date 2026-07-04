@@ -66,8 +66,6 @@ graph TD
 | `mycel-bcdb` | `docker/Dockerfile.bcdb` | TimescaleDB (`POSTGRES_USER=bc`, `POSTGRES_DB=bc`, password at runtime), seeds `docker/bcdb/init.sql` |
 | `bc-playwright` | `docker/Dockerfile.playwright` | Playwright MCP server (built separately) |
 
-Agent images are also tagged with the legacy `bc-agent-*` names for one release cycle (v0.3.x rename fallback).
-
 ### Base Image (`docker/Dockerfile.base`)
 
 | Component | Purpose |
@@ -84,10 +82,10 @@ Runs as non-root user `agent` with `WORKDIR /workspace`.
 ### Container Naming
 
 ```
-mycel-<workspace-hash6>-<agent>
+mycel-<repo-hash6>-<agent>
 ```
 
-`workspace-hash6` is the first 6 hex characters of the SHA-256 of the host workspace path (`pkg/container/container.go`). Example: `mycel-a1b2c3-alice`. Containers created under the pre-rename `bc-` prefix remain discoverable via a legacy-prefix fallback.
+`repo-hash6` is the first 6 hex characters of the SHA-256 of the agent's repo path (`pkg/container/container.go`). Example: `mycel-a1b2c3-alice`.
 
 ### Container Lifecycle
 
@@ -102,21 +100,21 @@ stateDiagram-v2
 
 ## Volume Mounts
 
-Ground truth: `pkg/container/container.go`. Agent state lives at `~/.mycel/workspaces/<id>/agents/<name>/` on the host (legacy fallback: `<workspace>/.bc/agents/<name>/`).
+Ground truth: `pkg/container/container.go`. Agent state lives at `~/.mycel/workspaces/<id>/agents/<name>/` on the host.
 
 | Mount | Container path | Purpose |
 |-------|---------------|---------|
-| Host project root | `/workspace` | Full repo mounted so git worktrees resolve (`-w` is set to the agent's worktree subdirectory) |
+| Agent's repo | `/workspace` | Full repo mounted so git worktrees resolve (`-w` is set to the agent's worktree subdirectory) |
 | `<agent-dir>/claude/` | `/home/agent/.claude` | Persistent provider state across restarts |
 | `<agent-dir>/claude.json` | `/home/agent/.claude.json` | Provider app config (OAuth account — auth persistence) |
 | Named volume `bc-shared-tmp` | `/tmp/bc-shared` | Cross-container file exchange (e.g. Playwright screenshots) |
-| `runtime.docker.extra_mounts` | as specified | User-defined mounts, validated against the workspace root |
+| `runtime.docker.extra_mounts` | as specified | User-defined mounts, validated against the repo root |
 
 When the server itself runs in Docker (Docker-in-Docker), `BC_HOST_WORKSPACE` supplies the host-side path so `-v` mounts resolve correctly.
 
 ## Network Topology
 
-Default: the **`bc-net`** Docker network (`runtime.docker.network` in settings.json; the backend falls back to `bridge` when unset).
+Default: the **`bc-net`** Docker network (`runtime.docker.network` in preferences.json; the backend falls back to `bridge` when unset).
 
 | Service | Port | Protocol |
 |---------|------|----------|
@@ -144,4 +142,4 @@ Defaults from `pkg/workspace/config.go`:
 
 ## Local Dev (tmux mode)
 
-Set `runtime.default = "tmux"` in settings.json — agents run as tmux sessions on the host (prefix `mycel-`), no Docker needed, SQLite for all storage. This is the local development fallback; `docker` is the default runtime.
+Set `runtime.default = "tmux"` in preferences.json — agents run as tmux sessions on the host (prefix `mycel-`), no Docker needed, SQLite for all storage. This is the local development fallback; `docker` is the default runtime.

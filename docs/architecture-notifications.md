@@ -746,12 +746,12 @@ GET    /api/channels/{name}/history                               -- legacy mess
 
 | Package | Purpose |
 |---------|---------|
-| [`pkg/gateway/`](../../pkg/gateway/README.md) | Adapter interface, Manager, platform adapters (Slack, Telegram, Discord) |
-| [`pkg/notify/`](../../pkg/notify/README.md) | Notification types, Store (SQLite/Postgres), Service (dispatch + subscription management) |
+| [`pkg/gateway/`](https://github.com/rpuneet/mycel/tree/main/pkg/gateway) | Adapter interface, Manager, platform adapters (Slack, Telegram, Discord) |
+| [`pkg/notify/`](https://github.com/rpuneet/mycel/tree/main/pkg/notify) | Notification types, Store (SQLite/Postgres), Service (dispatch + subscription management) |
 | `pkg/secret/` | AES-256-GCM encrypted credential storage |
 | `server/handlers/` | REST API handlers for gateway and subscription management |
 
 ## What's Next
 
-- [Agent Lifecycle](../explanation/agents.md) -- how agents start, receive credentials, and run
-- [MCP Protocol](../explanation/mcp.md) -- Model Context Protocol integration
+- [Agent Lifecycle](explanation/agents.md) -- how agents start, receive credentials, and run
+- [MCP Protocol](explanation/mcp.md) -- Model Context Protocol integration

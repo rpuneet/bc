@@ -4,35 +4,36 @@
 
 mycel uses two storage backends behind a single abstraction:
 
-- **SQLite** (default) — zero-configuration, local-first. The shared workspace database lives at `<workspace>/.bc/bc.db`.
+- **SQLite** (default) — zero-configuration, local-first. The single global database lives at `~/.mycel/mycel.db`.
 - **TimescaleDB** (Postgres 17) — implemented and shipping as the `mycel-bcdb` Docker image (`timescale/timescaledb:2.19.1-pg17`). Selected via config or environment (see below).
 
-There is deliberately no single global database. Data is split by scope:
+There is one global database. Isolation between repos comes from data keys (agent name, repo path), not from separate files:
 
 | Scope | Location | Contents |
 |-------|----------|----------|
-| Workspace | `<workspace>/.bc/bc.db` | Shared workspace DB: notifications, cron, MCP servers, tools, events, roles |
-| Per-workspace runtime | `~/.mycel/workspaces/<id>/` | Agent state dirs, per-workspace `costs.db` |
-| User-global | `~/.mycel/` | `secrets.vault` (SQLite vault), `costs.db` (cross-workspace ledger), `workspaces.json` registry, `mcps.json`, `tools.json`, `daemon.{pid,log,addr}` |
+| Global database | `~/.mycel/mycel.db` | Agents, roles, notifications, cron, MCP servers, tools, events |
+| Cost ledger | `~/.mycel/costs.db` | Cost records with per-repo attribution |
+| Secrets | `~/.mycel/secrets.vault` | SQLite vault with encrypted values |
+| Per-repo runtime | `~/.mycel/workspaces/<id>/` | `preferences.json`, agent files, git worktrees, logs |
 
-`~/.mycel/` is resolved by `pkg/workspace.MycelHome()`: `MYCEL_HOME` env var, then `BC_HOME` (deprecated), then `~/.mycel/`, with a one-time migration from a legacy `~/.bc/` tree. Known consolidation work is tracked in issues #3237 and #3238 (folding the remaining per-concern DB files into the shared workspace DB).
+`~/.mycel/` is resolved by `pkg/workspace.MycelHome()`: the `MYCEL_HOME` env var when set, otherwise `~/.mycel/`.
 
 ## Backend Selection
 
-`pkg/db/unified.go` (`OpenWorkspaceDBWithConfig`) picks the backend at startup:
+`pkg/db/unified.go` (`OpenGlobalDBWithConfig`) picks the backend at startup:
 
 1. **`DATABASE_URL` env var** — Postgres/TimescaleDB override for Docker and CI.
-2. **`settings.json` `storage.default`** — `"timescale"` (legacy value `"sql"` also accepted) connects using `storage.timescale.{host,port,user,password,database}`; the password falls back to `BC_DB_PASSWORD`. If TimescaleDB is unreachable, the daemon logs a warning and falls back to SQLite rather than starting with nil stores.
-3. **SQLite default** — `<workspace>/.bc/bc.db` (path overridable via `storage.sqlite.path`).
+2. **`preferences.json` `storage.default`** — `"timescale"` connects using `storage.timescale.{host,port,user,password,database}`; the password falls back to `BC_DB_PASSWORD`. If TimescaleDB is unreachable, the daemon logs a warning and falls back to SQLite rather than starting with nil stores.
+3. **SQLite default** — `~/.mycel/mycel.db`. One process, one file: the `storage.sqlite.path` field is accepted for parsing but the database always lives at the global path.
 
 ## Shared Connection
 
-One connection is opened at startup and registered via `db.SetShared(db, driver)`; the driver string is `"sqlite"` or `"timescale"`. Stores (`pkg/notify`, `pkg/cron`, `pkg/mcp`, `pkg/tool`, `pkg/events`, `pkg/workspace` roles, `pkg/cost`) retrieve it with `db.Shared()` / `db.SharedWrapped()` and never open the same file twice. Stores fall back to opening a dedicated file only when no shared connection is set (e.g., short-lived CLI paths).
+`db.Global(cfg)` opens the process-wide handle lazily on first use and returns it together with the driver string (`"sqlite"` or `"timescale"`). Stores (`pkg/notify`, `pkg/cron`, `pkg/mcp`, `pkg/tool`, `pkg/events`, roles, `pkg/cost`) all share this handle and never open the same file twice; the connection is cached for the life of the process and torn down only by `db.CloseGlobal()` at shutdown.
 
 ```mermaid
 graph LR
     subgraph "mycel process"
-        S["db.SetShared() at startup"]
+        S["db.Global() — lazy, cached"]
         N[notify store]
         C[cron store]
         M[mcp store]
@@ -40,8 +41,8 @@ graph LR
         E[events store]
         R[role store]
     end
-    S --> DB["<workspace>/.bc/bc.db (SQLite WAL)<br/>or TimescaleDB"]
-    N & C & M & T & E & R -->|db.Shared()| S
+    S --> DB["~/.mycel/mycel.db (SQLite WAL)<br/>or TimescaleDB"]
+    N & C & M & T & E & R -->|db.Global()| S
 ```
 
 ## SQLite Connection Settings
@@ -79,7 +80,7 @@ roles(
 )
 ```
 
-The same JSON-column pattern applies elsewhere (provider settings, tool metadata). This keeps reads single-row and writes atomic at the cost of not being able to query membership relationally — acceptable at workspace scale.
+The same JSON-column pattern applies elsewhere (provider settings, tool metadata). This keeps reads single-row and writes atomic at the cost of not being able to query membership relationally — acceptable at single-user scale.
 
 ## Main Table Groups
 
@@ -91,14 +92,14 @@ The same JSON-column pattern applies elsewhere (provider settings, tool metadata
 | Tools | `pkg/tool` | tool registry tables |
 | Events | `pkg/events` | event log |
 | Roles | `pkg/workspace` | `roles` |
-| Costs | `pkg/cost` | cost records (shared DB on TimescaleDB; dedicated `costs.db` fallback on SQLite) |
+| Costs | `pkg/cost` | cost records (hypertable on TimescaleDB; `~/.mycel/costs.db` ledger on SQLite) |
 | Secrets | `pkg/secret` | encrypted secret rows in `~/.mycel/secrets.vault` |
 
 Timestamp conventions vary by store: most tables use `INTEGER` Unix milliseconds; the notification tables use `TEXT` ISO 8601 on SQLite and `TIMESTAMPTZ` on TimescaleDB.
 
 ## TimescaleDB Backend
 
-Postgres support is not planned — it exists:
+Postgres support is fully implemented:
 
 - `pkg/db/postgres.go` — connection handling, `DATABASE_URL` / DSN construction.
 - Per-store Postgres implementations: `pkg/cost/store_postgres.go`, `pkg/cron/store_postgres.go`, `pkg/events/store_postgres.go`, `pkg/mcp/store_postgres.go`, `pkg/secret/store_postgres.go`, `pkg/tool/store_postgres.go`; the role store switches dialect on the shared driver string.
@@ -108,24 +109,20 @@ Postgres support is not planned — it exists:
 ## Filesystem Layout
 
 ```
-~/.mycel/                       # MycelHome (MYCEL_HOME overrides; legacy ~/.bc/ honored)
-  workspaces.json               # Workspace registry
-  secrets.vault                 # User-global secret vault (SQLite, encrypted values)
-  costs.db                      # Cross-workspace cost ledger (records tagged workspace_id)
-  mcps.json                     # User-global MCP server config
-  tools.json                    # User-global tool registry
-  templates/                    # User-global templates
+~/.mycel/                       # MycelHome (MYCEL_HOME overrides)
+  mycel.db                      # THE database: agents, roles, events, notify, cron, mcp, tools
+  costs.db                      # Cost ledger (per-repo attribution)
+  secrets.vault                 # Secret vault (SQLite, encrypted values)
+  mcps.json                     # Global MCP server config
+  tools.json                    # Global tool registry
+  templates/                    # Global agent templates
   daemon.pid / daemon.log / daemon.addr   # Server process state
-  workspaces/<id>/              # Per-workspace runtime dir (pkg/workspace.DataDir)
+  workspaces/<id>/              # Per-repo runtime dir (id = sha256(repo path)[:12])
+    preferences.json            # The one config file mycel reads
     agents/<name>/
       claude/                   # Provider state (mounted into containers as ~/.claude)
       claude.json               # Provider app config (auth persistence)
-    costs.db                    # Per-workspace cost data (SQLite mode)
-
-<workspace>/.bc/                # Workspace sidecar (checked-out project)
-  settings.json                 # Workspace config (v2 JSON)
-  bc.db                         # Shared workspace database
-  templates/                    # Workspace-scoped templates
+    logs/
 ```
 
 ## Secret Encryption
@@ -154,4 +151,4 @@ graph LR
     API --> WEB[Web/TUI dashboards]
 ```
 
-The importer scans agent provider state for session JSONL files, extracts token usage, applies model pricing, and inserts with watermark dedup. On TimescaleDB, cost records go to the shared DB (hypertable); on SQLite they live in the per-workspace `costs.db`, with the user-global `~/.mycel/costs.db` serving cross-workspace rollups.
+The importer scans agent provider state for session JSONL files, extracts token usage, applies model pricing, and inserts with watermark dedup. On TimescaleDB, cost records go to the shared DB (hypertable); on SQLite they live in the `~/.mycel/costs.db` ledger, where every record carries a repo tag so costs roll up per repo and per agent.

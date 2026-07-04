@@ -16,8 +16,8 @@ graph TD
     subgraph Server["mycel server (mycel up)"]
         API["REST API\n/api/*"]
         SSE["SSE Endpoint\n/api/events"]
-        DB["Workspace DB\n<workspace>/.bc/bc.db"]
-        Config["Workspace Config\n<workspace>/.bc/settings.json"]
+        DB["Global DB\n~/.mycel/mycel.db"]
+        Config["Config\npreferences.json"]
     end
 
     TUI -->|"HTTP + SSE"| API
@@ -37,7 +37,7 @@ graph TD
 - The TUI calls the server, not the CLI. The CLI is a sibling client, not an intermediary.
 - All four clients share the same REST contract. A feature available in one client can be built in any other without backend changes.
 - Real-time updates (agent state transitions, notifications, cost ticks) arrive via SSE; polling remains as fallback for data without SSE coverage.
-- Workspace configuration lives at `<workspace>/.bc/settings.json`. User-global state (daemon address file, registry, templates) lives under `~/.mycel/`.
+- Configuration lives in `preferences.json` under `~/.mycel/`, alongside the global database, daemon address file, and templates.
 
 ### Tech Stack
 
@@ -281,7 +281,7 @@ An `EventSource` connection to `GET /api/events` receives server-pushed events. 
 | `UnreadContext` | `hooks/UnreadContext.tsx` | Per-source unread counts (provider + consumer hook) |
 | `useCosts` | `hooks/useCosts.ts` | Fetches cost summary data |
 | `useLogs` | `hooks/useLogs.ts` | Fetches event logs with severity and agent filtering |
-| `useStatus` | `hooks/useStatus.ts` | Workspace status summary with agent counts by state |
+| `useStatus` | `hooks/useStatus.ts` | Status summary with agent counts by state |
 | `useDashboard` | `hooks/useDashboard.ts` | Aggregates status + notifications + costs in parallel |
 | `usePolling` | `hooks/usePolling.ts` | Message/agent change detection, coordinated dashboard tick |
 | `useAdaptivePolling` | `hooks/useAdaptivePolling.ts` | 4-mode adaptive intervals: fast/normal/slow/backoff |
@@ -425,7 +425,7 @@ Built-in dark and light themes map semantic slots to ANSI names:
 - Auto-detection via `detectColorScheme.ts` which reads the `COLORFGBG` env var to determine if the terminal background is dark or light.
 - `useTheme()` hook provides: `theme` object, `mode`, `themeName`, `isDark` flag, `color(key)` accessor, `toggleTheme()`, `cycleTheme()`, `setMode()`, `setThemeName()`.
 - `useThemeColor(key)` for single color access, `useThemeColors(keys)` for batch access.
-- `applyOverrides(theme, overrides)` merges custom color patches from workspace config.
+- `applyOverrides(theme, overrides)` merges custom color patches from config.
 
 **Hardcoded color constants (`constants/colors.ts`):**
 - `ROLE_COLORS` -- maps role names to ANSI colors (root=magenta, engineer=green, tech-lead=cyan, manager=yellow, pm=yellow, ux=blue, qa=red).
@@ -521,7 +521,7 @@ The TUI centralizes magic numbers into `tui/src/constants/`:
 | `limits.ts` | `TRUNCATION` lengths, `DISPLAY_LIMITS`, `COLUMN_WIDTHS` |
 | `colors.ts` | `ROLE_COLORS`, `ROLE_PREFIXES`, `ROLE_EMOJIS`, helper functions |
 
-**Runtime-configurable values** come from the server via `ConfigContext` (`GET /api/config`) and can be tuned in the workspace `settings.json` performance section: per-data-type poll intervals plus the adaptive polling tiers (fast/normal/slow/max backoff).
+**Runtime-configurable values** come from the server via `ConfigContext` (`GET /api/config`) and can be tuned in the `preferences.json` performance section: per-data-type poll intervals plus the adaptive polling tiers (fast/normal/slow/max backoff).
 
 ---
 

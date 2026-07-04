@@ -1,12 +1,12 @@
 # mycel Design System: Solar Flare
 
-> Unified visual language for all bc frontends and CLI output.
+> Unified visual language for all mycel frontends and CLI output.
 
 ---
 
 ## 1. Overview
 
-**Solar Flare** is the design system for bc. It defines a single visual language -- warm blacks, deep oranges, sky blue accent -- shared across every surface where bc presents itself to users.
+**Solar Flare** is the design system for mycel. It defines a single visual language -- warm blacks, deep oranges, sky blue accent -- shared across every surface where mycel presents itself to users.
 
 ### Consumers
 
@@ -509,7 +509,7 @@ The ANSI 16 mapping serves as a fallback for restricted environments. Runtime de
 
 ## 10. Shared Component Library (`@bc/ui`)
 
-The shared component library provides platform-agnostic component interfaces with platform-specific renderers. Web and TUI share the same component API, ensuring visual and behavioral consistency.
+This section is the design specification for a platform-agnostic component library: shared component interfaces with platform-specific renderers, so web and TUI share the same component API. Today the frontends implement these components locally (only `@bc/design-tokens` is shared under `packages/`); the spec below defines the target API and rendering rules they follow.
 
 ### 10.1 Architecture
 

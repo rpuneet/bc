@@ -2,7 +2,7 @@
 
 ## What is an Agent?
 
-An AI coding assistant running in an isolated tmux session or Docker container with its own git worktree. Each agent has a role (defining its prompt and tool access), a workspace (git repo), and optionally belongs to teams.
+An AI coding assistant running in an isolated tmux session or Docker container with its own git worktree. Each agent has a globally unique name, a role (defining its prompt and tool access), a repo (the absolute path of the git repository it works on), and optionally belongs to teams.
 
 ## State Machine
 
@@ -38,12 +38,11 @@ stateDiagram-v2
 
 ### Tmux
 
-Local tmux sessions. Named with the `mycel-` prefix plus a short workspace
-hash for isolation between workspaces (sessions created before the rename
-under the legacy `bc-` prefix are still found via a reader-side fallback):
+Local tmux sessions. Named with the `mycel-` prefix plus a short hash of
+the repo path, so agents on different repos never collide:
 
 ```
-mycel-<ws-hash6>-<agent>
+mycel-<repo-hash6>-<agent>
 Example: mycel-a3f2c1-eng-01
 ```
 
@@ -62,16 +61,16 @@ Messages >500 chars use `load-buffer` + `paste-buffer`.
 Isolated containers with tmux inside. Same naming:
 
 ```
-mycel-<ws-hash6>-<agent>
+mycel-<repo-hash6>-<agent>
 ```
 
 | Setting | Default |
 |---------|---------|
-| Image | `mycel-agent-<tool>:latest` (default: `mycel-agent-claude:latest`; legacy `bc-agent-*` images are used as a fallback) |
+| Image | `mycel-agent-<tool>:latest` (default: `mycel-agent-claude:latest`) |
 | CPUs | 2.0 |
 | Memory | 2048 MB |
 | Network | bridge |
-| Volumes | workspace (rw), auth dir -> `/home/agent/.claude/` |
+| Volumes | repo (rw), auth dir -> `/home/agent/.claude/` |
 
 Communication: `docker exec ... tmux send-keys`.
 
@@ -79,10 +78,9 @@ Communication: `docker exec ... tmux send-keys`.
 
 mycel creates and manages git worktrees for ALL providers uniformly. No provider uses its own worktree flag (avoids nesting).
 
-Worktrees live under the workspace state directory at
-`agents/<name>/bc-<workspace>-<agent>/` (canonical:
-`~/.mycel/workspaces/<id>/agents/...`; legacy layouts keep them under the
-project's `.bc/agents/...`). They are created with `--detach`, so the agent
+Worktrees live under the per-repo runtime directory at
+`~/.mycel/workspaces/<id>/agents/<name>/bc-<repo>-<agent>/`, checked out
+from the agent's repo. They are created with `--detach`, so the agent
 checks out a detached HEAD and no branch is created for it.
 
 ### Flow
@@ -93,7 +91,7 @@ sequenceDiagram
     participant Git as git
     participant RT as Runtime
 
-    Svc->>Git: git worktree add --detach <state-dir>/agents/<name>/bc-<workspace>-<name>
+    Svc->>Git: git worktree add --detach <state-dir>/agents/<name>/bc-<repo>-<name>
     Svc->>Svc: Write role files into worktree/.claude/
     Svc->>RT: cd <worktree> && <provider-command>
 ```
@@ -102,7 +100,7 @@ sequenceDiagram
 
 | Event | Worktree Action |
 |-------|-----------------|
-| Create | `git worktree prune` + `git worktree add --detach` from workspace repo |
+| Create | `git worktree prune` + `git worktree add --detach` from the agent's repo |
 | Restart | `cd <existing-worktree> && <command>` (persists) |
 | Stop | Nothing — worktree stays |
 | Delete | `git worktree remove --force` (detached HEAD — no branch to delete) |
@@ -113,11 +111,11 @@ All started with `cd <worktree> && <command>`:
 
 | Provider | Command |
 |----------|---------|
-| Claude | `claude` (no `-w` — mycel owns worktree) |
-| Gemini | `gemini` |
-| Cursor | `cursor-agent --force --print` |
-| Aider | `aider --yes` |
+| Claude | `claude --dangerously-skip-permissions` (no `-w` — mycel owns the worktree) |
+| Gemini | `gemini --yolo` |
+| Cursor | `cursor-agent` |
 | Codex | `codex --full-auto` |
+| Pi | `pi` |
 
 ### Session Resume
 

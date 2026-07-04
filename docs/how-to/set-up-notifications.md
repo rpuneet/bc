@@ -98,8 +98,8 @@ After subscribing, verify that notifications are flowing:
 # Check adapter connection health
 mycel notify status
 
-# View recent notifications for a source
-mycel notify history slack:engineering --last 10
+# View recent delivery activity for a source
+mycel notify activity slack:engineering --limit 10
 
 # Check agent output for received notifications
 mycel agent peek eng-01
@@ -162,11 +162,6 @@ directly with a bot token loaded from its own `env.json`. See the
 [**Outbound cookbook**](../architecture-notifications.md#outbound-cookbook)
 in the Notification architecture doc for the exact curl invocations
 and the `env.json` template.
-
-The legacy `POST /api/gateways/{platform}/channels/{channel}/send`
-endpoint is deprecated (RFC 8594 headers on every response) and will
-return `410 Gone` in v0.4.0 — new integrations should use the
-per-agent cookbook pattern.
 
 ## Next Steps
 

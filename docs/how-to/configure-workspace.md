@@ -1,16 +1,16 @@
-# Configure a Workspace
+# Configure mycel
 
-This guide shows how to view and change workspace configuration: the config file, the `mycel config` CLI, the HTTP API, and the web UI.
+This guide shows how to view and change mycel configuration: the config file, the `mycel config` CLI, the HTTP API, and the web UI.
 
 ## Where Configuration Lives
 
-Each workspace stores its configuration as JSON in `preferences.json` inside the workspace state directory:
+Configuration is JSON in `preferences.json`, stored in the per-repo runtime state directory under `~/.mycel/`:
 
 ```
-~/.mycel/workspaces/<workspace-id>/preferences.json
+~/.mycel/workspaces/<id>/preferences.json
 ```
 
-The workspace ID is a 12-character hash derived from the workspace root path. If the state directory contains only a `settings.json`, it is read and promoted to `preferences.json` on first load.
+The `<id>` is a 12-character hash derived from the repo path (`sha256(repo path)[:12]`).
 
 You can change configuration four ways:
 
@@ -186,7 +186,7 @@ Validation checks the schema version (`2`), that `providers.default` references 
 
 ## User-Level Configuration
 
-User-level defaults that apply across all workspaces live in `~/.bcrc`:
+User-level defaults that apply everywhere live in `~/.bcrc`:
 
 ```bash
 mycel config user init          # Create ~/.bcrc with guided prompts
@@ -195,7 +195,7 @@ mycel config user show          # Display current user config
 mycel config user path          # Show the file path
 ```
 
-Workspace configuration always takes precedence over user-level defaults.
+`preferences.json` always takes precedence over user-level defaults.
 
 ## Full Example
 
