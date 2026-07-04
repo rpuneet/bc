@@ -10,11 +10,9 @@ Coordinate multiple AI agents with predictable behavior and cost awareness.
 Supports Claude Code, Cursor, Codex, and other AI coding tools.
 
 Getting Started:
-  mycel init                                 # Initialize workspace
-  mycel up                                   # Start root agent
+  mycel up                                   # Start the server (bootstraps the workspace)
   mycel agent create eng-01 --role engineer  # Create engineer agent
   mycel status                               # View agent status
-  mycel up                                   # Start server
 
 Common Workflows:
   Start working:    mycel up && mycel status
@@ -73,7 +71,6 @@ mycel [flags]
 * [mycel cron](mycel_cron.md)	 - Manage scheduled agent tasks
 * [mycel doctor](mycel_doctor.md)	 - Health checks and diagnostics
 * [mycel down](mycel_down.md)	 - Stop mycel services
-* [mycel init](mycel_init.md)	 - Initialize a new mycel v2 workspace
 * [mycel logs](mycel_logs.md)	 - Show the event log
 * [mycel mcp](mycel_mcp.md)	 - Manage MCP server configurations
 * [mycel notify](mycel_notify.md)	 - Manage channel subscriptions and gateway notifications

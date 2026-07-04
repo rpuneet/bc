@@ -220,7 +220,7 @@ func loadWorkspaceConfig() (*workspace.Config, string, error) {
 	}
 
 	if ws.Config == nil {
-		return nil, "", fmt.Errorf("workspace is using v1 config format. Run 'mycel init' to upgrade to v2")
+		return nil, "", fmt.Errorf("workspace is using v1 config format. Run 'mycel up' from your repo to bootstrap v2 config")
 	}
 
 	return ws.Config, ws.SettingsFile(), nil

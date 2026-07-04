@@ -235,7 +235,6 @@ export function InstallSection() {
             <CodeBlock
               id="after"
               lines={[
-                "mycel init          # Initialize workspace",
                 "mycel up            # Start server + web UI on localhost:9374",
                 "mycel agent create  # Spawn an AI agent",
               ]}

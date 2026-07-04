@@ -9,8 +9,7 @@ This project is **mycel** - an AI agent orchestration platform. Previously calle
 Initialize and run mycel:
 
 ```bash
-mycel init                    # Initialize workspace
-mycel up                      # Start server + web UI on localhost:9374
+mycel up                      # Start server + web UI on localhost:9374 (bootstraps the workspace)
 mycel agent create <name> \
   --role engineer \
   --tool claude              # Spawn an agent

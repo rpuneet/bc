@@ -29,16 +29,29 @@ import (
 // launch workspace's WorkspaceServices via the server-side factory, wires
 // handlers, and blocks until the context is canceled or a signal is
 // received.
+//
+// wsRoot may be empty: the server then boots without a launch workspace
+// and serves the web UI + global APIs only. Repos can be added later via
+// POST /api/workspaces (or the web UI), which builds services on demand.
+// A non-empty wsRoot that isn't initialized yet is bootstrapped in place
+// via workspace.Init — there is no separate init step.
 func RunServer(addr, wsRoot, corsOrigin, apiKey string) error {
 	// Normalize addr: ":8080" → "127.0.0.1:8080"
 	addr = normalizeAddr(addr)
 
-	ws, err := bcworkspace.Load(wsRoot)
-	if err != nil {
-		ws, err = bcworkspace.Init(wsRoot)
+	var ws *bcworkspace.Workspace
+	if wsRoot != "" {
+		var err error
+		ws, err = bcworkspace.Load(wsRoot)
 		if err != nil {
-			return fmt.Errorf("init workspace %s: %w", wsRoot, err)
+			ws, err = bcworkspace.Init(wsRoot)
+			if err != nil {
+				return fmt.Errorf("bootstrap workspace %s: %w", wsRoot, err)
+			}
+			log.Info("workspace bootstrapped", "root", ws.RootDir, "state", ws.StateDir())
 		}
+	} else {
+		log.Info("no workspace yet — add a repo from the web UI, or run 'mycel up' inside a git repo")
 	}
 
 	// Multi-workspace registry: load (or create) the global registry at
@@ -49,7 +62,7 @@ func RunServer(addr, wsRoot, corsOrigin, apiKey string) error {
 		log.Warn("workspace registry unavailable — multi-workspace routes disabled", "error", regErr)
 		registry = nil
 	}
-	if registry != nil {
+	if registry != nil && ws != nil {
 		if rErr := registry.RegisterWithAlias(ws.RootDir, ws.Name(), ""); rErr != nil {
 			log.Warn("workspace registry: register current failed", "error", rErr)
 		}
@@ -64,31 +77,33 @@ func RunServer(addr, wsRoot, corsOrigin, apiKey string) error {
 	}
 
 	// Set up shared database connection for all stores.
-	var storageCfg *bcdb.StorageSettings
-	if ws.Config != nil {
-		storageCfg = &bcdb.StorageSettings{
-			Default: ws.Config.Storage.Default,
-			SQLite:  bcdb.SQLiteSettings{Path: ws.Config.Storage.SQLite.Path},
-			Timescale: bcdb.TimescaleSettings{
-				Host:     ws.Config.Storage.Timescale.Host,
-				Port:     ws.Config.Storage.Timescale.Port,
-				User:     ws.Config.Storage.Timescale.User,
-				Password: ws.Config.Storage.Timescale.Password,
-				Database: ws.Config.Storage.Timescale.Database,
-			},
-		}
-	}
-	sharedDB, sharedDriver, dbErr := bcdb.OpenWorkspaceDBWithConfig(ws.RootDir, storageCfg)
-	if dbErr != nil {
-		log.Warn("failed to open shared workspace db", "error", dbErr)
-	} else {
-		bcdb.SetShared(sharedDB, sharedDriver)
-		defer bcdb.CloseShared() //nolint:errcheck
-		configDriver := ""
+	if ws != nil {
+		var storageCfg *bcdb.StorageSettings
 		if ws.Config != nil {
-			configDriver = ws.Config.Storage.Default
+			storageCfg = &bcdb.StorageSettings{
+				Default: ws.Config.Storage.Default,
+				SQLite:  bcdb.SQLiteSettings{Path: ws.Config.Storage.SQLite.Path},
+				Timescale: bcdb.TimescaleSettings{
+					Host:     ws.Config.Storage.Timescale.Host,
+					Port:     ws.Config.Storage.Timescale.Port,
+					User:     ws.Config.Storage.Timescale.User,
+					Password: ws.Config.Storage.Timescale.Password,
+					Database: ws.Config.Storage.Timescale.Database,
+				},
+			}
 		}
-		log.Info("shared database ready", "driver", sharedDriver, "config_driver", configDriver)
+		sharedDB, sharedDriver, dbErr := bcdb.OpenWorkspaceDBWithConfig(ws.RootDir, storageCfg)
+		if dbErr != nil {
+			log.Warn("failed to open shared workspace db", "error", dbErr)
+		} else {
+			bcdb.SetShared(sharedDB, sharedDriver)
+			defer bcdb.CloseShared() //nolint:errcheck
+			configDriver := ""
+			if ws.Config != nil {
+				configDriver = ws.Config.Storage.Default
+			}
+			log.Info("shared database ready", "driver", sharedDriver, "config_driver", configDriver)
+		}
 	}
 
 	pidPath, pidErr := bcworkspace.DaemonPidPath()
@@ -128,7 +143,11 @@ func RunServer(addr, wsRoot, corsOrigin, apiKey string) error {
 
 	// Optional dependencies registry (bc-db, bc-code-server, bc-browser).
 	depsRegistry := bcdeps.NewRegistry()
-	bcCodeServer := bcdeps.NewBCCodeServer(ws.RootDir)
+	codeServerRoot := ""
+	if ws != nil {
+		codeServerRoot = ws.RootDir
+	}
+	bcCodeServer := bcdeps.NewBCCodeServer(codeServerRoot)
 	depsRegistry.Register(bcdeps.NewBCDB())
 	depsRegistry.Register(bcCodeServer)
 	depsRegistry.Register(bcdeps.NewBCBrowser())
@@ -198,18 +217,24 @@ func RunServer(addr, wsRoot, corsOrigin, apiKey string) error {
 		Build:        server.BuildInfo{Version: version, Commit: commit, BuiltAt: date},
 	}
 
-	// Build the launch workspace's services via the factory.
-	launchSvc, buildErr := server.BuildWorkspaceServices(ctx, globals, ws.RootDir)
-	if buildErr != nil {
-		return fmt.Errorf("build launch workspace services: %w", buildErr)
+	// Build the launch workspace's services via the factory (when a
+	// launch workspace exists — a workspace-less boot skips this and
+	// builds services lazily as repos are added).
+	var launchSvc *server.WorkspaceServices
+	if ws != nil {
+		var buildErr error
+		launchSvc, buildErr = server.BuildWorkspaceServices(ctx, globals, ws.RootDir)
+		if buildErr != nil {
+			return fmt.Errorf("build launch workspace services: %w", buildErr)
+		}
+		defer launchSvc.Close() //nolint:errcheck // best-effort
 	}
-	defer launchSvc.Close() //nolint:errcheck // best-effort
 
 	// Per-workspace services manager. Phase M5: the factory builds real
 	// services for ANY registered workspace on first access. The launch
 	// workspace's bundle is reused from the eager build above.
 	wsMgr := server.NewWorkspaceManager(registry, func(ctx context.Context, w *bcworkspace.Workspace) (*server.WorkspaceServices, error) {
-		if w.RootDir == ws.RootDir {
+		if ws != nil && launchSvc != nil && w.RootDir == ws.RootDir {
 			bcCodeServer.SetWorkspaceRoot(w.RootDir)
 			return launchSvc, nil
 		}
@@ -218,8 +243,10 @@ func RunServer(addr, wsRoot, corsOrigin, apiKey string) error {
 	// WorkspaceManager is wired into Services by NewWithManager, not here.
 
 	if registry != nil {
-		if _, loadErr := wsMgr.LoadActive(ctx); loadErr != nil {
-			log.Warn("workspace manager: eager load active failed", "error", loadErr)
+		if registry.GetActive() != nil {
+			if _, loadErr := wsMgr.LoadActive(ctx); loadErr != nil {
+				log.Warn("workspace manager: eager load active failed", "error", loadErr)
+			}
 		}
 		wsMgr.StartEvictionLoop(ctx)
 		defer wsMgr.Close() //nolint:errcheck // best-effort
@@ -241,7 +268,9 @@ func RunServer(addr, wsRoot, corsOrigin, apiKey string) error {
 	}
 
 	// Rewrite agent hook settings to point at the actual bcd address.
-	updateAgentHookPorts(ws, cfg.Addr)
+	if ws != nil {
+		updateAgentHookPorts(ws, cfg.Addr)
+	}
 
 	// Phase M4: use the manager-based constructor. The server no longer
 	// needs a flat Services bundle to function — everything is resolved

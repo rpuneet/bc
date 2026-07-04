@@ -449,10 +449,6 @@ export default function Product() {
                   </div>
                   <div>
                     <span className="text-[var(--terminal-prompt)]">$ </span>
-                    <span className="text-[var(--terminal-command)]">mycel init</span>
-                  </div>
-                  <div>
-                    <span className="text-[var(--terminal-prompt)]">$ </span>
                     <span className="text-[var(--terminal-command)]">mycel up</span>
                   </div>
                   <div className="mt-1">

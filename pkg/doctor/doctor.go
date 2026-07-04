@@ -191,7 +191,7 @@ func CheckWorkspace(ws *workspace.Workspace) CategoryReport {
 			Name:     ".bc/ directory",
 			Message:  "missing",
 			Severity: SeverityFail,
-			Fix:      "run 'mycel init' to initialize the workspace",
+			Fix:      "run 'mycel up' from your repo to bootstrap the workspace",
 		})
 		return cat
 	}
@@ -209,7 +209,7 @@ func CheckWorkspace(ws *workspace.Workspace) CategoryReport {
 			Name:     configName,
 			Message:  "missing",
 			Severity: SeverityFail,
-			Fix:      "run 'mycel init' to initialize the workspace",
+			Fix:      "run 'mycel up' from your repo to bootstrap the workspace",
 		})
 	} else {
 		if ws.Config != nil {
@@ -243,7 +243,7 @@ func CheckWorkspace(ws *workspace.Workspace) CategoryReport {
 			Name:     "roles/",
 			Message:  "missing",
 			Severity: SeverityWarn,
-			Fix:      "run 'mycel init' to recreate role files",
+			Fix:      "run 'mycel up' from your repo to recreate role files",
 		})
 	} else {
 		entries, err := os.ReadDir(rolesDir)
@@ -281,7 +281,7 @@ func CheckWorkspace(ws *workspace.Workspace) CategoryReport {
 			Name:     "agents/",
 			Message:  "missing",
 			Severity: SeverityWarn,
-			Fix:      "run 'mycel init' to recreate directory structure",
+			Fix:      "run 'mycel up' from your repo to recreate directory structure",
 		})
 	} else {
 		cat.Items = append(cat.Items, Item{

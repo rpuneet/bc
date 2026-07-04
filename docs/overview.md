@@ -35,7 +35,7 @@ project/
     prompts/               # Default prompt templates
 ```
 
-`mycel init` creates the workspace (the `.bc/` directory and workspace registration); `mycel up` starts the server.
+`mycel up` starts the server and bootstraps the workspace (state directory and workspace registration) automatically — there is no separate init step.
 
 ## Architecture Layers
 

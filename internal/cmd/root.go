@@ -2,10 +2,8 @@
 package cmd
 
 import (
-	"bufio"
 	"fmt"
 	"os"
-	"strings"
 
 	"github.com/charmbracelet/x/term"
 	"github.com/spf13/cobra"
@@ -38,11 +36,9 @@ Coordinate multiple AI agents with predictable behavior and cost awareness.
 Supports Claude Code, Cursor, Codex, and other AI coding tools.
 
 Getting Started:
-  mycel init                                 # Initialize workspace
-  mycel up                                   # Start root agent
+  mycel up                                   # Start the server (bootstraps the workspace)
   mycel agent create eng-01 --role engineer  # Create engineer agent
   mycel status                               # View agent status
-  mycel up                                   # Start server
 
 Common Workflows:
   Start working:    mycel up && mycel status
@@ -132,7 +128,7 @@ func Root() *cobra.Command {
 
 // runRoot handles the default bc command (no subcommand).
 // If workspace is initialized → open TUI home
-// If not initialized → prompt to init
+// If not initialized → point at `mycel up` (which bootstraps everything)
 // In non-interactive mode → show help
 func runRoot(cmd *cobra.Command, args []string) error {
 	// Check for version flag
@@ -156,49 +152,15 @@ func runRoot(cmd *cobra.Command, args []string) error {
 		return runHome(cmd, args)
 	}
 
-	// No workspace - prompt to initialize
-	return promptInit(cmd)
-}
-
-// promptInit displays an interactive prompt to initialize a new workspace.
-func promptInit(cmd *cobra.Command) error {
+	// No workspace yet — `mycel up` bootstraps everything, so just point there.
 	fmt.Println()
 	fmt.Printf("  %s\n", ui.BoldText("mycel - AI Agent Orchestration"))
 	fmt.Println()
-	fmt.Println("  No workspace found in current directory.")
+	fmt.Println("  No workspace found.")
 	fmt.Println()
-	fmt.Print("  Would you like to initialize a new workspace? [Y/n]: ")
-
-	reader := bufio.NewReader(os.Stdin)
-	input, err := reader.ReadString('\n')
-	if err != nil {
-		return fmt.Errorf("failed to read input: %w", err)
-	}
-
-	input = strings.TrimSpace(strings.ToLower(input))
-
-	// Default to yes if empty or 'y'
-	if input == "" || input == "y" || input == "yes" {
-		return runInteractiveInit(cmd)
-	}
-
-	// User said no - show help
+	fmt.Println("  Run 'mycel up' from your repo to start the server —")
+	fmt.Println("  it bootstraps the workspace automatically (state lives under ~/.mycel).")
+	fmt.Println("  You can also add repos later from the web UI.")
 	fmt.Println()
-	return cmd.Help()
-}
-
-// runInteractiveInit runs an interactive workspace initialization.
-func runInteractiveInit(cmd *cobra.Command) error {
-	fmt.Println()
-	fmt.Println("  Initializing mycel workspace...")
-	fmt.Println()
-
-	// Get current directory
-	cwd, err := os.Getwd()
-	if err != nil {
-		return fmt.Errorf("failed to get current directory: %w", err)
-	}
-
-	// Run init with interactive nickname prompt
-	return runInitInteractive(cmd, cwd)
+	return nil
 }

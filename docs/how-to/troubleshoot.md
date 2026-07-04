@@ -69,8 +69,8 @@ make clean && make build-local-mycel
 
 **Solution**:
 ```bash
-# Initialize a workspace in your project directory
-mycel init
+# Start the server from your project directory — it bootstraps the workspace
+mycel up
 
 # Or set the environment variable (for agents in worktrees)
 export BC_WORKSPACE=/path/to/workspace

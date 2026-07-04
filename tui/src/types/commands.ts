@@ -210,13 +210,6 @@ export const COMMAND_REGISTRY: CommandCategory[] = [
         usage: 'bc help [command]',
         readOnly: true,
       },
-      {
-        name: 'init',
-        category: 'Utilities',
-        description: 'Initialize a new bc workspace',
-        usage: 'bc init <workspace-name>',
-        readOnly: false,
-      },
     ],
   },
   {

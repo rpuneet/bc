@@ -20,10 +20,7 @@ bunx mycel-cli init
 ## Quick start
 
 ```bash
-# Initialize a workspace in your project
-mycel init
-
-# Start the daemon
+# Start the daemon from your project — it bootstraps the workspace
 mycel up
 
 # Create an agent
