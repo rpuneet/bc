@@ -545,20 +545,26 @@ export function Live() {
         )}
       </div>
 
-      {/* Jump to Latest Button */}
+      {/* Back-to-latest pill. The feed is newest-first, so "latest" is at
+          the TOP — the pill floats top-center (like chat apps' new-message
+          pills) and the arrow points up. It turns accent when events
+          arrived while scrolled away. */}
       {showJumpToLatest && (
         <button
           type="button"
           onClick={jumpToLatest}
-          className="absolute bottom-8 right-8 z-20 inline-flex items-center gap-2 px-3 py-2 rounded-md border border-mycel-border bg-mycel-surface-2 text-mycel-text text-sm font-medium shadow-mycel-lg hover:border-mycel-accent hover:bg-mycel-surface-hover transition-colors"
+          className={`absolute top-3 left-1/2 -translate-x-1/2 z-20 inline-flex items-center gap-1.5 h-8 px-3.5 rounded-full text-xs font-medium shadow-mycel-lg transition-colors ${
+            newEventsSinceScroll > 0
+              ? "bg-mycel-accent text-mycel-accent-fg hover:bg-mycel-accent-hover"
+              : "border border-mycel-border bg-mycel-surface-2 text-mycel-text-2 hover:text-mycel-text hover:bg-mycel-surface-hover"
+          }`}
         >
-          <span>&darr;</span>
-          Jump to latest
-          {newEventsSinceScroll > 0 && (
-            <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 text-[11px] font-semibold text-mycel-accent-fg bg-mycel-accent rounded-full leading-none">
-              {newEventsSinceScroll}
-            </span>
-          )}
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+            <path d="M8 13V3M3.5 7.5L8 3l4.5 4.5" />
+          </svg>
+          {newEventsSinceScroll > 0
+            ? `${newEventsSinceScroll} new event${newEventsSinceScroll === 1 ? "" : "s"}`
+            : "Back to latest"}
         </button>
       )}
     </div>
