@@ -253,6 +253,10 @@ jobs:
           # older full scans (1,467 medium + 152 low) can never be superseded
           # and auto-closed - they linger open forever.
           severity: CRITICAL,HIGH,MEDIUM,LOW
+          # Only alert on CVEs with an available fix — Ubuntu base images
+          # carry hundreds of unfixed-upstream CVEs that no image rebuild
+          # can remove; alerting on them is permanent noise.
+          ignore-unfixed: true
       - name: Upload SARIF
         uses: github/codeql-action/upload-sarif@v4
         if: always()
