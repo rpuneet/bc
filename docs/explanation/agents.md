@@ -78,10 +78,17 @@ Communication: `docker exec ... tmux send-keys`.
 
 mycel creates and manages git worktrees for ALL providers uniformly. No provider uses its own worktree flag (avoids nesting).
 
-Worktrees live under the per-repo runtime directory at
-`~/.mycel/workspaces/<id>/agents/<name>/bc-<repo>-<agent>/`, checked out
-from the agent's repo. They are created with `--detach`, so the agent
-checks out a detached HEAD and no branch is created for it.
+Worktrees live at `~/.mycel/worktrees/<agent-name>/`, checked out from
+the agent's repo. Agent state (Claude config, session logs) lives
+separately at `~/.mycel/agents/<agent-name>/`. Agent names are globally
+unique (database primary key), so flat name-keyed directories are safe.
+Worktrees are created with `--detach`, so the agent checks out a
+detached HEAD and no branch is created for it.
+
+Agents created under the previous nested layout
+(`~/.mycel/workspaces/<id>/agents/<name>/bc-<repo>-<agent>/`) keep
+working from their stored worktree path until migrated with
+`scripts/migrate-worktree-layout.sh`.
 
 ### Flow
 
@@ -91,7 +98,7 @@ sequenceDiagram
     participant Git as git
     participant RT as Runtime
 
-    Svc->>Git: git worktree add --detach <state-dir>/agents/<name>/bc-<repo>-<name>
+    Svc->>Git: git worktree add --detach ~/.mycel/worktrees/<name>
     Svc->>Svc: Write role files into worktree/.claude/
     Svc->>RT: cd <worktree> && <provider-command>
 ```
