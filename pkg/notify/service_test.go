@@ -270,3 +270,44 @@ func TestTruncate(t *testing.T) {
 		t.Errorf("truncate('hi', 5) = %q, want 'hi'", got)
 	}
 }
+
+// slowSender blocks each Send until released, so tests can hold a
+// dispatch in flight deterministically.
+type slowSender struct {
+	release chan struct{}
+}
+
+func (s *slowSender) Send(_ context.Context, _, _ string) error {
+	<-s.release
+	return nil
+}
+
+func (s *slowSender) SendAll(_ context.Context, _ string) (int, error) { return 0, nil }
+
+// TestDrainDispatches covers shutdown draining: DrainDispatches must wait
+// for in-flight dispatch goroutines (they used to be fire-and-forget and
+// could hit the store mid-teardown) and report a timeout when one is stuck.
+func TestDrainDispatches(t *testing.T) {
+	store := setupTestStore(t)
+	ctx := context.Background()
+
+	sender := &slowSender{release: make(chan struct{})}
+	svc := NewService(store, sender, nil)
+
+	if err := store.Subscribe(ctx, "slack:eng", "eng-01", false); err != nil {
+		t.Fatal(err)
+	}
+
+	svc.Dispatch("slack:eng", "slack", "user", "U1", "hello", "m1", nil, nil)
+
+	// The dispatch is blocked inside Send — draining must time out.
+	if svc.DrainDispatches(50 * time.Millisecond) {
+		t.Fatal("DrainDispatches returned true while a dispatch was in flight")
+	}
+
+	// Release the sender; draining must now complete.
+	close(sender.release)
+	if !svc.DrainDispatches(5 * time.Second) {
+		t.Fatal("DrainDispatches timed out after the dispatch was released")
+	}
+}
