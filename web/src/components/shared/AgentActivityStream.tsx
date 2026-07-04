@@ -247,20 +247,20 @@ export function AgentActivityStream({
           <div
             className={`rounded-md border px-4 py-3 transition-colors ${
               isStopped
-                ? "border-mycel-border/40 bg-mycel-surface/30"
-                : "border-mycel-accent/20 bg-mycel-accent/[0.04]"
+                ? "border-mycel-border bg-mycel-surface"
+                : "border-mycel-accent bg-mycel-accent-subtle"
             }`}
           >
             <div className="flex items-start justify-between gap-4">
               <div className="flex-1 min-w-0">
                 <div
-                  className="text-[9px] font-bold uppercase tracking-[0.2em] text-mycel-muted/60 mb-1"
+                  className="text-[9px] font-bold uppercase tracking-[0.2em] text-mycel-muted mb-1"
                   style={{ fontFamily: MONO }}
                 >
                   {isStopped ? "last task" : "current task"}
                 </div>
                 <p
-                  className="text-sm text-mycel-text/90 break-words leading-relaxed"
+                  className="text-sm text-mycel-text break-words leading-relaxed"
                   style={{ fontFamily: MONO }}
                 >
                   {agentTask ?? (
@@ -286,21 +286,21 @@ export function AgentActivityStream({
           {/* Section header with live indicator */}
           <div className="mb-4 flex items-center gap-3">
             <span
-              className="text-[10px] font-bold uppercase tracking-[0.2em] text-mycel-muted/70"
+              className="text-[10px] font-bold uppercase tracking-[0.2em] text-mycel-muted"
               style={{ fontFamily: MONO }}
             >
               Event Stream
             </span>
-            <span className="flex-1 h-px bg-gradient-to-r from-mycel-border/50 to-transparent" />
+            <span className="flex-1 h-px bg-gradient-to-r from-mycel-border to-transparent" />
             {/* Live indicator */}
             <span
               className="flex items-center gap-1 text-[10px] tabular-nums"
               style={{ fontFamily: MONO }}
             >
               <span
-                className={`w-1.5 h-1.5 rounded-full ${isRunning ? "bg-green-500" : "bg-mycel-muted/40"}`}
+                className={`w-1.5 h-1.5 rounded-full ${isRunning ? "bg-mycel-success" : "bg-mycel-muted"}`}
               />
-              <span className={isRunning ? "text-green-400" : "text-mycel-muted"}>
+              <span className={isRunning ? "text-mycel-success" : "text-mycel-muted"}>
                 {isRunning ? "Live" : "Offline"}
               </span>
             </span>
@@ -315,8 +315,8 @@ export function AgentActivityStream({
                 onClick={() => setActiveFilter(f.key)}
                 className={`px-2 py-0.5 rounded border text-[10px] font-medium transition-colors ${
                   activeFilter === f.key
-                    ? "border-mycel-accent/30 bg-mycel-accent/15 text-mycel-accent"
-                    : "border-mycel-border/40 text-mycel-muted/60 hover:text-mycel-muted hover:border-mycel-border/50"
+                    ? "border-mycel-accent bg-mycel-accent-subtle text-mycel-accent"
+                    : "border-mycel-border text-mycel-muted hover:text-mycel-text-2 hover:border-mycel-border-strong"
                 }`}
                 style={{ fontFamily: MONO }}
               >
@@ -336,7 +336,7 @@ export function AgentActivityStream({
               {/* Vertical rail */}
               <span
                 aria-hidden
-                className="absolute left-[3.5px] top-2.5 bottom-2.5 w-px bg-mycel-border/40"
+                className="absolute left-[3.5px] top-2.5 bottom-2.5 w-px bg-mycel-border"
               />
               {timeline.map((evt) => (
                 <li key={evt.key} className="relative pl-7 pb-5 last:pb-0">
@@ -345,14 +345,14 @@ export function AgentActivityStream({
                     aria-hidden
                     className={`absolute left-0 top-[7px] w-2 h-2 rounded-full border-[1.5px] transition-colors ${
                       evt.active
-                        ? "bg-mycel-accent border-mycel-accent shadow-[0_0_6px_rgba(var(--mycel-accent-rgb,255,165,0),0.4)]"
-                        : "bg-mycel-bg border-mycel-muted/50"
+                        ? "bg-mycel-accent border-mycel-accent shadow-[0_0_6px_var(--mycel-accent)]"
+                        : "bg-mycel-bg border-mycel-muted"
                     }`}
                   />
                   <div className="flex items-baseline justify-between gap-4">
                     <span
                       className={`text-[13px] font-semibold ${
-                        evt.active ? "text-mycel-accent" : "text-mycel-text/80"
+                        evt.active ? "text-mycel-accent" : "text-mycel-text-2"
                       }`}
                       style={{ fontFamily: MONO }}
                     >
@@ -370,7 +370,7 @@ export function AgentActivityStream({
                     )}
                   </div>
                   {evt.detail && (
-                    <p className="mt-1 text-xs text-mycel-muted/70 break-words leading-relaxed">
+                    <p className="mt-1 text-xs text-mycel-muted break-words leading-relaxed">
                       {evt.detail}
                     </p>
                   )}

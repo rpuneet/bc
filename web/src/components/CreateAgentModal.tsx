@@ -292,7 +292,7 @@ export function CreateAgentModal({
       <div className="absolute inset-0 bg-mycel-overlay" />
 
       <div
-        className="relative w-full max-w-md rounded-lg border border-mycel-border bg-mycel-surface shadow-2xl max-h-[90vh] overflow-y-auto"
+        className="relative w-full max-w-md rounded-lg border border-mycel-border bg-mycel-surface-2 shadow-mycel-lg max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
@@ -517,7 +517,7 @@ export function CreateAgentModal({
             <div className="flex flex-col gap-1.5">
               <label className="text-xs font-medium text-mycel-muted uppercase tracking-wider" style={{ fontFamily: MONO }}>
                 Clone config from{" "}
-                <span className="normal-case font-normal text-mycel-muted/70">(optional)</span>
+                <span className="normal-case font-normal text-mycel-muted">(optional)</span>
               </label>
               <select
                 value={cloneFrom}
@@ -575,7 +575,7 @@ export function CreateAgentModal({
           <div className="flex flex-col gap-1.5">
             <label className="text-xs font-medium text-mycel-muted uppercase tracking-wider" style={{ fontFamily: MONO }}>
               Initial Task{" "}
-              <span className="normal-case font-normal text-mycel-muted/70">(optional)</span>
+              <span className="normal-case font-normal text-mycel-muted">(optional)</span>
             </label>
             <textarea
               value={task}
@@ -593,7 +593,7 @@ export function CreateAgentModal({
           {submitError && (
             <div
               role="alert"
-              className="rounded border border-mycel-error/40 bg-mycel-error/10 px-3 py-2 text-xs text-mycel-error"
+              className="rounded border border-mycel-border bg-mycel-error-subtle px-3 py-2 text-xs text-mycel-error"
               style={{ fontFamily: MONO }}
             >
               {submitError}

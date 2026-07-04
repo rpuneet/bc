@@ -46,10 +46,10 @@ export function parseToolName(name: string): ParsedTool {
 }
 
 export function mcpBadgeColors(server: string): string {
-  if (server === "playwright" || server === "playwright2") return "bg-purple-900/50 text-purple-300";
-  if (server === "github") return "bg-gray-700 text-gray-300";
-  if (server === "bc") return "bg-blue-900/50 text-blue-300";
-  return "bg-zinc-700 text-zinc-300";
+  if (server === "playwright" || server === "playwright2") return "bg-mycel-info-subtle text-mycel-info";
+  if (server === "github") return "bg-mycel-surface-hover text-mycel-text-2";
+  if (server === "bc") return "bg-mycel-accent-subtle text-mycel-accent";
+  return "bg-mycel-surface-hover text-mycel-text-2";
 }
 
 /* ── Secret redaction ──────────────────────────────────────────────── */
@@ -161,17 +161,17 @@ export function elapsed(start: number, end?: number): string {
 
 export function durationPillClass(start: number, end?: number): string {
   const ms = (end ?? Date.now()) - start;
-  if (ms < 500) return "bg-mycel-success/15 text-mycel-success";
-  if (ms < 2000) return "bg-mycel-warning/15 text-mycel-warning";
-  if (ms < 10000) return "bg-mycel-accent/15 text-mycel-accent";
-  return "bg-mycel-error/15 text-mycel-error";
+  if (ms < 500) return "bg-mycel-success-subtle text-mycel-success";
+  if (ms < 2000) return "bg-mycel-warning-subtle text-mycel-warning";
+  if (ms < 10000) return "bg-mycel-accent-subtle text-mycel-accent";
+  return "bg-mycel-error-subtle text-mycel-error";
 }
 
 export function stateBadgeClass(state: string): string {
-  if (state === "working") return "bg-mycel-success/15 text-mycel-success";
-  if (state === "stuck") return "bg-mycel-warning/15 text-mycel-warning";
-  if (state === "error" || state === "stopped") return "bg-mycel-error/15 text-mycel-error";
-  return "bg-mycel-muted/15 text-mycel-muted";
+  if (state === "working") return "bg-mycel-success-subtle text-mycel-success";
+  if (state === "stuck") return "bg-mycel-warning-subtle text-mycel-warning";
+  if (state === "error" || state === "stopped") return "bg-mycel-error-subtle text-mycel-error";
+  return "bg-mycel-surface-hover text-mycel-text-2";
 }
 
 export function relativeTime(ts: number): string {

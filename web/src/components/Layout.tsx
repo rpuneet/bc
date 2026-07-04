@@ -77,7 +77,7 @@ function getPlatformMeta(p: string) {
   const def = PLATFORM_MAP[base];
   const IconComponent = PLATFORM_ICON_MAP[base] ?? DefaultAppIcon;
   if (def) return { base, label: def.label, color: def.color, IconComponent };
-  return { base, label: p, color: "#8c7e72", IconComponent };
+  return { base, label: p, color: "var(--mycel-muted)", IconComponent };
 }
 
 /** Extract display channel name (last segment after platform and optional server). */
@@ -526,7 +526,7 @@ function NotificationNavTree() {
       style={{
         paddingLeft: 10,
         marginLeft: 9,
-        borderLeft: "1px solid var(--mycel-border, rgba(255,255,255,0.08))",
+        borderLeft: "1px solid var(--mycel-border)",
         marginTop: 2,
         marginBottom: 4,
         maxHeight: 320,
@@ -842,7 +842,7 @@ function NavList({
                 <button
                   type="button"
                   onClick={(e) => { e.preventDefault(); e.stopPropagation(); onToggleNotifications(); }}
-                  className="ml-auto shrink-0 p-0.5 rounded text-mycel-muted hover:text-mycel-muted/70 transition-all"
+                  className="ml-auto shrink-0 p-0.5 rounded text-mycel-muted hover:text-mycel-muted transition-all"
                   aria-label={notificationsExpanded ? "Collapse channels" : "Expand channels"}
                 >
                   <svg
@@ -895,7 +895,7 @@ export function DegradedBanner() {
     <div
       role="status"
       title={detail}
-      className="flex items-center gap-2 px-3 py-1.5 text-[11px] bg-mycel-warning/10 border-b border-mycel-warning/30 text-mycel-warning"
+      className="flex items-center gap-2 px-3 py-1.5 text-[11px] bg-mycel-warning-subtle border-b border-mycel-warning text-mycel-warning"
     >
       <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" className="shrink-0">
         <path d="M7 1.5l6 11H1z" strokeLinejoin="round" />
@@ -907,7 +907,7 @@ export function DegradedBanner() {
       <button
         type="button"
         onClick={() => setDismissed(true)}
-        className="ml-auto shrink-0 p-0.5 rounded text-mycel-warning/70 hover:text-mycel-warning transition-colors"
+        className="ml-auto shrink-0 p-0.5 rounded text-mycel-warning hover:text-mycel-warning transition-colors"
         aria-label="Dismiss degraded services banner"
       >
         <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5">
@@ -982,7 +982,7 @@ export function Layout() {
 
       {/* Sidebar */}
       <nav
-        className={`fixed inset-y-0 left-0 z-50 ${sidebarWidth} shrink-0 border-r border-mycel-border/50 bg-mycel-surface shadow-mycel flex flex-col transition-all duration-200 md:relative md:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-50 ${sidebarWidth} shrink-0 border-r border-mycel-border bg-mycel-surface shadow-mycel flex flex-col transition-all duration-200 md:relative md:translate-x-0 ${
           isMobile ? (mobileOpen ? "translate-x-0 w-48" : "-translate-x-full") : ""
         }`}
         style={{ scrollbarWidth: "thin", scrollbarColor: "var(--mycel-scrollbar-thumb) transparent" }}
@@ -990,7 +990,7 @@ export function Layout() {
         {/* Header — heights kept in sync with Header.tsx compact mode (48px)
             so the drawer top-line aligns pixel-perfect with the main pane
             header across the fold. */}
-        <div className="px-3 min-h-[48px] border-b border-mycel-border/40 flex items-center justify-between">
+        <div className="px-3 min-h-[48px] border-b border-mycel-border flex items-center justify-between">
           {(!collapsed || isMobile) ? (
             <div className="flex items-center gap-2 overflow-hidden">
               <span
@@ -998,7 +998,7 @@ export function Layout() {
                 style={{
                   borderRadius: 7,
                   background: "var(--mycel-accent)",
-                  color: "#0d0d0d",
+                  color: "var(--mycel-accent-fg)",
                   fontSize: 14,
                   fontFamily: "'JetBrains Mono', monospace",
                   letterSpacing: -0.5,
@@ -1037,7 +1037,7 @@ export function Layout() {
             </button>
           ) : (
             <button type="button" onClick={toggleCollapsed}
-              className="p-0.5 rounded text-mycel-muted/30 hover:text-mycel-muted/70 transition-colors"
+              className="p-0.5 rounded text-mycel-muted hover:text-mycel-muted transition-colors"
               aria-label={collapsed ? "Expand navigation" : "Collapse navigation"}
             >
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5">
@@ -1069,7 +1069,7 @@ export function Layout() {
             right. Collapsed sidebar falls back to two stacked
             icon-only rows so both remain reachable. */}
         {collapsed && !isMobile ? (
-          <div className="border-t border-mycel-border/40 flex flex-col">
+          <div className="border-t border-mycel-border flex flex-col">
             <NavLink
               to="/settings"
               className={({ isActive }) =>
@@ -1103,7 +1103,7 @@ export function Layout() {
             </button>
           </div>
         ) : (
-          <div className="border-t border-mycel-border/40 flex items-stretch">
+          <div className="border-t border-mycel-border flex items-stretch">
             <NavLink
               to="/settings"
               className={({ isActive }) =>
@@ -1119,7 +1119,7 @@ export function Layout() {
             <NavLink
               to="/about"
               className={({ isActive }) =>
-                `flex-1 flex items-center gap-2 pl-3 pr-2 py-[9px] text-[11px] ${isActive ? "text-mycel-accent bg-mycel-surface-hover border-l border-mycel-border/40" : "text-mycel-muted hover:text-mycel-text hover:bg-mycel-surface-hover border-l border-mycel-border/40"} transition-colors`
+                `flex-1 flex items-center gap-2 pl-3 pr-2 py-[9px] text-[11px] ${isActive ? "text-mycel-accent bg-mycel-surface-hover border-l border-mycel-border" : "text-mycel-muted hover:text-mycel-text hover:bg-mycel-surface-hover border-l border-mycel-border"} transition-colors`
               }
               title="About / version"
             >
@@ -1132,7 +1132,7 @@ export function Layout() {
               <span className="truncate">About</span>
             </NavLink>
             <button type="button" onClick={toggle}
-              className="shrink-0 flex items-center justify-center w-9 py-[9px] text-mycel-muted hover:text-mycel-text hover:bg-mycel-surface-hover border-l border-mycel-border/40 transition-colors"
+              className="shrink-0 flex items-center justify-center w-9 py-[9px] text-mycel-muted hover:text-mycel-text hover:bg-mycel-surface-hover border-l border-mycel-border transition-colors"
               title={`Theme: ${THEME_LABELS[mode]} — click to switch`}
               aria-label={`Switch theme — currently ${THEME_LABELS[mode]}`}
             >

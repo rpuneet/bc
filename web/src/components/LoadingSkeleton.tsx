@@ -12,7 +12,7 @@ function SkeletonBar({
 }) {
   return (
     <div
-      className={`animate-pulse rounded bg-mycel-border/50 ${className}`}
+      className={`animate-pulse rounded bg-mycel-border ${className}`}
       style={style}
     />
   );
@@ -30,7 +30,7 @@ function TableSkeleton({ rows }: { rows: number }) {
       {Array.from({ length: rows }).map((_, i) => (
         <div
           key={i}
-          className="border-b border-mycel-border/50 px-4 py-3 flex gap-4"
+          className="border-b border-mycel-border px-4 py-3 flex gap-4"
         >
           <SkeletonBar className="h-3 w-28" />
           <SkeletonBar className="h-3 w-20" />

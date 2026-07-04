@@ -161,8 +161,8 @@ function parseContent(text: string, agentNames?: Set<string>): ReactNode[] {
           href={`/agents/${name}`}
           className={
             isKnown
-              ? "text-mycel-accent font-medium hover:underline bg-mycel-accent/10 rounded px-0.5"
-              : "text-mycel-muted/60 font-medium hover:underline"
+              ? "text-mycel-accent font-medium hover:underline bg-mycel-accent-subtle rounded px-0.5"
+              : "text-mycel-muted font-medium hover:underline"
           }
         >
           {full}

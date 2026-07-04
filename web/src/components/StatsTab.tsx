@@ -22,11 +22,12 @@ const RANGES = [
 ] as const;
 
 const TT: React.CSSProperties = {
-  backgroundColor: "var(--mycel-surface)", border: "1px solid var(--mycel-border)",
+  backgroundColor: "var(--mycel-surface-2)", border: "1px solid var(--mycel-border)",
   borderRadius: "6px", color: "var(--mycel-text)", fontSize: "12px",
+  boxShadow: "var(--mycel-shadow-lg)",
 };
 const AX = { axisLine: false as const, tickLine: false as const };
-const TICK = { fill: "var(--mycel-muted)", fontSize: 10 };
+const TICK = { fill: "var(--mycel-text-2)", fontSize: 10 };
 
 // ── Helpers ──────────────────────────────────────────────────────────────────────
 
@@ -246,7 +247,7 @@ export function StatsTab({ agent }: { agent: Agent }) {
     <div className="space-y-4">
       {/* Empty-state banner when stats store is unreachable or agent never recorded data */}
       {!hasAnyData && !loading && (
-        <div className="rounded border border-mycel-border/60 bg-mycel-surface/30 p-3 text-[11px] text-mycel-muted/80 leading-relaxed">
+        <div className="rounded border border-mycel-border bg-mycel-surface p-3 text-[11px] text-mycel-muted leading-relaxed">
           {isStopped ? (
             <>
               <span className="font-medium text-mycel-muted">Stats unavailable for this agent.</span>{" "}
@@ -319,7 +320,7 @@ export function StatsTab({ agent }: { agent: Agent }) {
                   return (
                     <div key={toolName} className="flex items-center gap-2">
                       <span className="w-28 text-[11px] text-mycel-text truncate shrink-0 overflow-hidden text-ellipsis" title={toolName}>{toolName}</span>
-                      <div className="flex-1 h-1.5 rounded bg-mycel-border/40 overflow-hidden">
+                      <div className="flex-1 h-1.5 rounded bg-mycel-surface-hover overflow-hidden">
                         <div
                           className="h-full rounded"
                           style={{ width: `${pct}%`, backgroundColor: COLORS[i % COLORS.length] }}
@@ -363,7 +364,7 @@ export function StatsTab({ agent }: { agent: Agent }) {
           The live sampler feeds the CPU/Mem cards above without TSDB, so
           this must never sit on top of populated cards. */}
       {!hasTimescaleData && hasAnyData && !loading && (
-        <div className="rounded border border-mycel-border/40 bg-mycel-surface/20 p-2.5 text-[10px] text-mycel-muted/70 leading-relaxed">
+        <div className="rounded border border-mycel-border bg-mycel-surface p-2.5 text-[10px] text-mycel-muted leading-relaxed">
           <span className="font-medium">Historical CPU/Memory charts require TimescaleDB.</span>{" "}
           {hasLiveResource
             ? "The CPU and Memory cards above show live sampled values."

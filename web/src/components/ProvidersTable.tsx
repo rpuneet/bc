@@ -58,7 +58,7 @@ function ViewToggle({ mode, onChange }: { mode: ViewMode; onChange: (m: ViewMode
       <button
         type="button"
         onClick={() => onChange("cards")}
-        className={`p-1.5 transition-colors ${mode === "cards" ? "bg-mycel-accent/10 text-mycel-accent" : "text-mycel-muted hover:text-mycel-text"}`}
+        className={`p-1.5 transition-colors ${mode === "cards" ? "bg-mycel-accent-subtle text-mycel-accent" : "text-mycel-muted hover:text-mycel-text"}`}
         aria-label="Card view"
       >
         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -71,7 +71,7 @@ function ViewToggle({ mode, onChange }: { mode: ViewMode; onChange: (m: ViewMode
       <button
         type="button"
         onClick={() => onChange("table")}
-        className={`p-1.5 transition-colors ${mode === "table" ? "bg-mycel-accent/10 text-mycel-accent" : "text-mycel-muted hover:text-mycel-text"}`}
+        className={`p-1.5 transition-colors ${mode === "table" ? "bg-mycel-accent-subtle text-mycel-accent" : "text-mycel-muted hover:text-mycel-text"}`}
         aria-label="Table view"
       >
         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -212,7 +212,7 @@ export function ProvidersTable({ providers, search }: Props) {
                 <tr
                   key={p.name}
                   onClick={() => navigate(`${toolsBase}/${encodeURIComponent(p.name)}`)}
-                  className="border-b border-mycel-border/50 cursor-pointer hover:bg-mycel-surface transition-colors"
+                  className="border-b border-mycel-border cursor-pointer hover:bg-mycel-surface transition-colors"
                 >
                   <td className="px-4 py-2.5 font-medium">{p.name}</td>
                   <td className="px-4 py-2.5 text-xs"><StatusDot provider={p} /></td>
@@ -226,20 +226,20 @@ export function ProvidersTable({ providers, search }: Props) {
                         <button
                           type="button"
                           onClick={() => navigate(`${toolsBase}/${encodeURIComponent(p.name)}`)}
-                          className="text-xs px-2 py-0.5 rounded bg-mycel-warning/10 text-mycel-warning hover:bg-mycel-warning/20 transition-colors"
+                          className="text-xs px-2 py-0.5 rounded bg-mycel-warning-subtle text-mycel-warning hover:bg-mycel-surface-hover transition-colors"
                         >
                           Install
                         </button>
                       )}
                       {p.installed && p.install_hint && (
-                        <span className="text-xs px-2 py-0.5 rounded bg-mycel-info/10 text-mycel-info">
+                        <span className="text-xs px-2 py-0.5 rounded bg-mycel-info-subtle text-mycel-info">
                           Update
                         </span>
                       )}
                       <button
                         type="button"
                         onClick={() => navigate(`${toolsBase}/${encodeURIComponent(p.name)}`)}
-                        className="text-xs px-1.5 py-0.5 rounded border border-mycel-border text-mycel-muted hover:text-mycel-text hover:border-mycel-accent/50 transition-colors"
+                        className="text-xs px-1.5 py-0.5 rounded border border-mycel-border text-mycel-muted hover:text-mycel-text hover:border-mycel-accent transition-colors"
                         aria-label={`Configure ${p.name}`}
                       >
                         &#9881;

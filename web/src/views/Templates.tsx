@@ -191,7 +191,7 @@ function TemplateDetailPanel({
   if (loading) {
     return (
       <div className="p-6 space-y-4">
-        <div className="h-5 w-24 animate-pulse rounded bg-mycel-border/50" />
+        <div className="h-5 w-24 animate-pulse rounded bg-mycel-surface-hover" />
         <LoadingSkeleton variant="text" rows={6} />
       </div>
     );
@@ -247,7 +247,7 @@ function TemplateDetailPanel({
             />
           ) : (
             <p className="text-sm text-mycel-muted">
-              {detail.description || <span className="text-mycel-muted/30">—</span>}
+              {detail.description || <span className="text-mycel-muted">—</span>}
             </p>
           )}
         </div>
@@ -266,11 +266,11 @@ function TemplateDetailPanel({
             />
           ) : (
             <pre
-              className="text-xs bg-mycel-bg rounded p-3 whitespace-pre-wrap text-mycel-text/80 border border-mycel-border min-h-[80px]"
+              className="text-xs bg-mycel-bg rounded p-3 whitespace-pre-wrap text-mycel-text-2 border border-mycel-border min-h-[80px]"
               style={{ fontFamily: MONO }}
             >
               {detail.system_prompt?.trim() || (
-                <span className="text-mycel-muted/30">No system prompt defined.</span>
+                <span className="text-mycel-muted">No system prompt defined.</span>
               )}
             </pre>
           )}
@@ -339,7 +339,7 @@ function TemplateDetailPanel({
                   type="button"
                   onClick={() => void handleSave()}
                   disabled={saveStatus.type === "saving"}
-                  className="px-4 py-2 rounded bg-mycel-accent text-white text-sm font-medium hover:opacity-90 disabled:opacity-50 transition-opacity focus-visible:ring-2 focus-visible:ring-mycel-accent focus-visible:ring-offset-1 focus-visible:ring-offset-mycel-bg"
+                  className="px-4 py-2 rounded bg-mycel-accent text-mycel-accent-fg text-sm font-medium hover:bg-mycel-accent-hover shadow-mycel-sm disabled:opacity-50 transition-colors focus-visible:ring-2 focus-visible:ring-mycel-accent focus-visible:ring-offset-1 focus-visible:ring-offset-mycel-bg"
                 >
                   {saveStatus.type === "saving" ? "Saving..." : "Save"}
                 </button>
@@ -451,7 +451,7 @@ function CreateTemplateForm({ onCreated }: { onCreated: (name: string) => void }
         <button
           type="button"
           onClick={() => setExpanded(true)}
-          className="flex items-center gap-2 px-4 py-2 rounded-lg border border-dashed border-mycel-border text-sm text-mycel-muted hover:text-mycel-accent hover:border-mycel-accent/50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mycel-accent focus-visible:ring-offset-1 focus-visible:ring-offset-mycel-bg"
+          className="flex items-center gap-2 px-4 py-2 rounded-lg border border-dashed border-mycel-border text-sm text-mycel-muted hover:text-mycel-accent hover:border-mycel-accent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mycel-accent focus-visible:ring-offset-1 focus-visible:ring-offset-mycel-bg"
         >
           <span className="text-lg leading-none">+</span> Create Template
         </button>
@@ -465,7 +465,7 @@ function CreateTemplateForm({ onCreated }: { onCreated: (name: string) => void }
   return (
     <form
       onSubmit={(e) => void handleSubmit(e)}
-      className="rounded border border-mycel-border bg-mycel-surface p-5 space-y-4"
+      className="rounded border border-mycel-border bg-mycel-surface p-5 space-y-4 shadow-mycel"
     >
       <div className="flex items-center justify-between">
         <h2 className="text-sm font-semibold text-mycel-muted uppercase tracking-wide">
@@ -572,7 +572,7 @@ function CreateTemplateForm({ onCreated }: { onCreated: (name: string) => void }
         <button
           type="submit"
           disabled={status.type === "saving" || !name.trim()}
-          className="px-4 py-2 rounded bg-mycel-accent text-white text-sm font-medium hover:opacity-90 disabled:opacity-50 transition-opacity focus-visible:ring-2 focus-visible:ring-mycel-accent focus-visible:ring-offset-1 focus-visible:ring-offset-mycel-bg"
+          className="px-4 py-2 rounded bg-mycel-accent text-mycel-accent-fg text-sm font-medium hover:bg-mycel-accent-hover shadow-mycel-sm disabled:opacity-50 transition-colors focus-visible:ring-2 focus-visible:ring-mycel-accent focus-visible:ring-offset-1 focus-visible:ring-offset-mycel-bg"
         >
           {status.type === "saving" ? "Creating..." : "Create Template"}
         </button>
@@ -598,7 +598,7 @@ function TemplateRow({
 }) {
   return (
     <tr
-      className="border-t border-mycel-border/40 hover:bg-mycel-surface/60 transition-colors cursor-pointer"
+      className="border-t border-mycel-border hover:bg-mycel-surface-hover transition-colors cursor-pointer"
       onClick={onClick}
       role="button"
       tabIndex={0}
@@ -623,7 +623,7 @@ function TemplateRow({
         <ChipList items={template.secrets ?? []} color="yellow" />
       </td>
       <td className="py-3 px-4 text-sm text-mycel-muted">
-        {template.description || <span className="text-mycel-muted/30">{"\u2014"}</span>}
+        {template.description || <span className="text-mycel-muted">{"\u2014"}</span>}
       </td>
     </tr>
   );
@@ -698,7 +698,7 @@ export function Templates() {
       {/* Loading */}
       {loading && !templates && (
         <div className="space-y-2">
-          <div className="h-5 w-24 animate-pulse rounded bg-mycel-border/50" />
+          <div className="h-5 w-24 animate-pulse rounded bg-mycel-surface-hover" />
           <LoadingSkeleton variant="text" rows={4} />
         </div>
       )}

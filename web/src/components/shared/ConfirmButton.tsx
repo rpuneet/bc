@@ -30,10 +30,10 @@ export function ConfirmButton({
             onConfirm();
           }}
           disabled={loading}
-          className={`px-3 py-1.5 rounded text-xs font-medium hover:opacity-90 disabled:opacity-50 transition-opacity focus-visible:ring-2 focus-visible:ring-mycel-accent focus-visible:ring-offset-1 focus-visible:ring-offset-mycel-bg ${
+          className={`px-3 py-1.5 rounded text-xs font-medium shadow-mycel-sm hover:opacity-90 disabled:opacity-50 transition-opacity focus-visible:ring-2 focus-visible:ring-mycel-accent focus-visible:ring-offset-1 focus-visible:ring-offset-mycel-bg ${
             variant === "danger"
-              ? "bg-mycel-error text-mycel-bg"
-              : "bg-mycel-accent text-white"
+              ? "bg-mycel-error text-white"
+              : "bg-mycel-accent text-mycel-accent-fg"
           } ${className ?? ""}`}
         >
           {loading ? `${confirmLabel}…` : confirmLabel}
@@ -54,7 +54,7 @@ export function ConfirmButton({
     <button
       type="button"
       onClick={() => setConfirming(true)}
-      className={`px-3 py-1.5 rounded border border-mycel-border text-mycel-muted text-xs hover:text-mycel-error hover:border-mycel-error/50 transition-colors focus-visible:ring-2 focus-visible:ring-mycel-accent focus-visible:ring-offset-1 focus-visible:ring-offset-mycel-bg ${className ?? ""}`}
+      className={`px-3 py-1.5 rounded border border-mycel-border text-mycel-muted text-xs hover:text-mycel-error hover:border-mycel-error transition-colors focus-visible:ring-2 focus-visible:ring-mycel-accent focus-visible:ring-offset-1 focus-visible:ring-offset-mycel-bg ${className ?? ""}`}
     >
       {label}
     </button>

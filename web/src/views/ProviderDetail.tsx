@@ -56,7 +56,7 @@ function ProviderHeader({
           &larr; Tools
         </Link>
         {/* Monogram */}
-        <div className="w-9 h-9 rounded-full bg-mycel-accent/20 flex items-center justify-center shrink-0">
+        <div className="w-9 h-9 rounded-full bg-mycel-accent-subtle flex items-center justify-center shrink-0">
           <span className="text-sm font-bold text-mycel-accent">
             {provider.name.charAt(0).toUpperCase()}
           </span>
@@ -79,7 +79,7 @@ function ProviderHeader({
             type="button"
             onClick={onInstall}
             disabled={installing}
-            className="px-3 py-1.5 text-sm rounded bg-mycel-warning/10 text-mycel-warning hover:bg-mycel-warning/20 transition-colors disabled:opacity-50"
+            className="px-3 py-1.5 text-sm rounded bg-mycel-warning-subtle text-mycel-warning transition-colors disabled:opacity-50"
           >
             {installing ? "Installing..." : "Install"}
           </button>
@@ -89,7 +89,7 @@ function ProviderHeader({
             type="button"
             onClick={onUpdate}
             disabled={updating}
-            className="px-3 py-1.5 text-sm rounded bg-mycel-info/10 text-mycel-info hover:bg-mycel-info/20 transition-colors disabled:opacity-50"
+            className="px-3 py-1.5 text-sm rounded bg-mycel-info-subtle text-mycel-info transition-colors disabled:opacity-50"
           >
             {updating ? "Checking..." : "Check for Update"}
           </button>
@@ -97,8 +97,8 @@ function ProviderHeader({
         <span
           className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-medium ${
             provider.enabled
-              ? "bg-mycel-success/10 text-mycel-success"
-              : "bg-mycel-muted/10 text-mycel-muted"
+              ? "bg-mycel-success-subtle text-mycel-success"
+              : "bg-mycel-surface-hover text-mycel-text-2"
           }`}
         >
           <span
@@ -153,7 +153,7 @@ function ConfigPanel({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="text-xs text-mycel-muted block mb-1">Binary</label>
-            <div className="text-sm font-mono text-mycel-text/80 px-2.5 py-1.5 rounded bg-mycel-bg border border-mycel-border/50">
+            <div className="text-sm font-mono text-mycel-text-2 px-2.5 py-1.5 rounded bg-mycel-bg border border-mycel-border">
               {provider.binary || "\u2014"}
             </div>
           </div>
@@ -171,14 +171,14 @@ function ConfigPanel({
           </div>
           <div>
             <label className="text-xs text-mycel-muted block mb-1">Description</label>
-            <div className="text-sm text-mycel-text/80 px-2.5 py-1.5 rounded bg-mycel-bg border border-mycel-border/50">
+            <div className="text-sm text-mycel-text-2 px-2.5 py-1.5 rounded bg-mycel-bg border border-mycel-border">
               {provider.description || "\u2014"}
             </div>
           </div>
           <div>
             <label className="text-xs text-mycel-muted block mb-1">Install Hint</label>
             <div className="flex items-center gap-1">
-              <div className="flex-1 text-sm font-mono text-mycel-text/80 px-2.5 py-1.5 rounded bg-mycel-bg border border-mycel-border/50 truncate">
+              <div className="flex-1 text-sm font-mono text-mycel-text-2 px-2.5 py-1.5 rounded bg-mycel-bg border border-mycel-border truncate">
                 {provider.install_hint || "\u2014"}
               </div>
               {provider.install_hint && <CopyButton text={provider.install_hint} />}
@@ -219,9 +219,9 @@ type MCPHealthStatus = "connected" | "error" | "unknown";
 
 function MCPHealthBadge({ status, error }: { status: MCPHealthStatus; error?: string }) {
   const styles: Record<MCPHealthStatus, { bg: string; text: string; dot: string; label: string }> = {
-    connected: { bg: "bg-mycel-success/15", text: "text-mycel-success", dot: "bg-mycel-success", label: "Connected" },
-    error:     { bg: "bg-mycel-error/15",   text: "text-mycel-error",   dot: "bg-mycel-error",   label: "Error" },
-    unknown:   { bg: "bg-mycel-warning/15", text: "text-mycel-warning", dot: "bg-mycel-warning", label: "Unknown" },
+    connected: { bg: "bg-mycel-success-subtle", text: "text-mycel-success", dot: "bg-mycel-success", label: "Connected" },
+    error:     { bg: "bg-mycel-error-subtle",   text: "text-mycel-error",   dot: "bg-mycel-error",   label: "Error" },
+    unknown:   { bg: "bg-mycel-warning-subtle", text: "text-mycel-warning", dot: "bg-mycel-warning", label: "Unknown" },
   };
   const s = styles[status];
   return (
@@ -352,7 +352,7 @@ function MCPSection({
               type="button"
               onClick={() => void handleCheckAll()}
               disabled={checking}
-              className="text-xs px-2 py-1 rounded bg-mycel-accent/10 text-mycel-accent hover:bg-mycel-accent/20 transition-colors disabled:opacity-50"
+              className="text-xs px-2 py-1 rounded bg-mycel-accent-subtle text-mycel-accent hover:bg-mycel-accent hover:text-mycel-accent-fg transition-colors disabled:opacity-50"
             >
               {checking ? "Checking..." : "Check All MCPs"}
             </button>
@@ -360,7 +360,7 @@ function MCPSection({
           <button
             type="button"
             onClick={() => setShowAdd(!showAdd)}
-            className="text-xs px-2 py-1 rounded bg-mycel-info/10 text-mycel-info hover:bg-mycel-info/20 transition-colors"
+            className="text-xs px-2 py-1 rounded bg-mycel-info-subtle text-mycel-info transition-colors"
           >
             {showAdd ? "Cancel" : "+ Add MCP"}
           </button>
@@ -438,7 +438,7 @@ function MCPSection({
               {servers.map((s) => {
                 const health = resolveMCPHealth(s, healthMap);
                 return (
-                  <tr key={s.name} className="border-b border-mycel-border/50 hover:bg-mycel-surface/50 transition-colors">
+                  <tr key={s.name} className="border-b border-mycel-border hover:bg-mycel-surface-hover transition-colors">
                     <td className="px-4 py-2.5 font-medium">{s.name}</td>
                     <td className="px-4 py-2.5">
                       <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-mycel-surface border border-mycel-border">
@@ -581,7 +581,7 @@ function AgentsSidebar({
               <Link
                 key={a.name}
                 to={`/agents/${encodeURIComponent(a.name)}`}
-                className="group flex items-center gap-2 px-3 py-2 rounded border border-mycel-border hover:border-mycel-accent/40 hover:bg-mycel-surface-hover transition-colors"
+                className="group flex items-center gap-2 px-3 py-2 rounded border border-mycel-border hover:border-mycel-accent hover:bg-mycel-surface-hover transition-colors"
               >
                 {/* Pulse dot */}
                 <span className="relative flex h-2 w-2 shrink-0">
@@ -645,12 +645,12 @@ function CommandsSection({ commands }: { commands: ProviderCommand[] }) {
               {commands.map((c) => {
                 const fullCmd = c.args ? `${c.command} ${c.args}` : c.command;
                 return (
-                  <tr key={c.name} className="border-b border-mycel-border/50 hover:bg-mycel-surface/50 transition-colors">
+                  <tr key={c.name} className="border-b border-mycel-border hover:bg-mycel-surface-hover transition-colors">
                     <td className="px-4 py-2.5 font-medium">{c.name}</td>
                     <td className="px-4 py-2.5 text-mycel-muted">{c.description}</td>
                     <td className="px-4 py-2.5">
                       <div className="flex items-center gap-1">
-                        <code className="font-mono text-xs text-mycel-text/80">
+                        <code className="font-mono text-xs text-mycel-text-2">
                           {c.command}
                           {c.args && <span className="text-mycel-muted ml-1">{c.args}</span>}
                         </code>
@@ -745,7 +745,7 @@ export function ProviderDetail() {
   if (loading && !provider) {
     return (
       <div className="p-6 space-y-6">
-        <div className="h-6 w-48 animate-pulse rounded bg-mycel-border/50" />
+        <div className="h-6 w-48 animate-pulse rounded bg-mycel-surface-hover" />
         <LoadingSkeleton variant="cards" rows={3} />
       </div>
     );

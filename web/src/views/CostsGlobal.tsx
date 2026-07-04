@@ -70,7 +70,7 @@ export function CostsGlobal() {
   return (
     <div className="p-6 flex flex-col gap-4 max-w-4xl mx-auto">
       {error && (
-        <div className="rounded border border-mycel-error/40 bg-mycel-error/5 px-3 py-2 text-[12px] text-mycel-error">
+        <div className="rounded border border-mycel-error bg-mycel-error-subtle px-3 py-2 text-[12px] text-mycel-error">
           {error}
         </div>
       )}
@@ -94,9 +94,9 @@ export function CostsGlobal() {
         </span>
       </div>
 
-      <div className="rounded-md border border-mycel-border/40 overflow-hidden">
+      <div className="rounded-md border border-mycel-border overflow-hidden shadow-mycel">
         <table className="w-full text-[13px]">
-          <thead className="bg-mycel-surface/40 text-mycel-muted">
+          <thead className="bg-mycel-surface text-mycel-muted">
             <tr>
               <th className="text-left font-normal px-3 py-2">
                 {groupBy === "repo" ? "Repo" : "Project"}
@@ -136,14 +136,14 @@ export function CostsGlobal() {
                   <tr
                     key={r.key}
                     title={r.key}
-                    className="border-t border-mycel-border/40 hover:bg-mycel-surface/30 transition-colors"
+                    className="border-t border-mycel-border hover:bg-mycel-surface-hover transition-colors"
                   >
                     {content}
                   </tr>
                 );
               }
               return (
-                <tr key={r.key} className="border-t border-mycel-border/40">
+                <tr key={r.key} className="border-t border-mycel-border">
                   {content}
                 </tr>
               );

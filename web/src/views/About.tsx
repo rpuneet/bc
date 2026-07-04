@@ -218,13 +218,13 @@ export function About() {
             const looksLikeSemver = /^\d{1,3}\.\d{1,3}\.\d{1,3}(?:[-+][A-Za-z0-9.]+)?$/.test(health.version);
             if (!looksLikeSemver) {
               return (
-                <span className="text-[10px] uppercase tracking-wider rounded px-1.5 py-0.5 bg-mycel-info/15 text-mycel-info ring-1 ring-mycel-info/30">
+                <span className="text-[10px] uppercase tracking-wider rounded px-1.5 py-0.5 bg-mycel-info-subtle text-mycel-info ring-1 ring-inset ring-mycel-border">
                   dev build
                 </span>
               );
             }
             return health.version !== latestTag ? (
-              <span className="text-[10px] uppercase tracking-wider rounded px-1.5 py-0.5 bg-mycel-warning/15 text-mycel-warning ring-1 ring-mycel-warning/30">
+              <span className="text-[10px] uppercase tracking-wider rounded px-1.5 py-0.5 bg-mycel-warning-subtle text-mycel-warning ring-1 ring-inset ring-mycel-border">
                 update available
               </span>
             ) : null;
@@ -240,13 +240,13 @@ export function About() {
         </button>
       </header>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-px rounded-md border border-mycel-border bg-mycel-border/40 overflow-hidden">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-px rounded-md border border-mycel-border bg-mycel-border overflow-hidden shadow-mycel">
         {channels.map((c) => (
           <ChannelTile key={c.label} channel={c} />
         ))}
       </div>
 
-      <section className="rounded-md border border-mycel-border/60 bg-mycel-surface px-4 py-3 text-[12px] leading-relaxed text-mycel-muted">
+      <section className="rounded-md border border-mycel-border bg-mycel-surface px-4 py-3 text-[12px] leading-relaxed text-mycel-muted shadow-mycel">
         <p className="text-mycel-text mb-1.5 font-medium">Install or upgrade</p>
         <pre className="font-mono text-[11px] text-mycel-text whitespace-pre-wrap">
 {`brew tap rpuneet/mycel && brew install mycel    # macOS / Linux
@@ -266,11 +266,11 @@ go install github.com/rpuneet/mycel/cmd/mycel@latest    # from source`}
 /* ── Channel tile ──────────────────────────────────────────────────── */
 
 const STATE_DOT: Record<ChannelStatus["state"], string> = {
-  ok: "bg-emerald-400",
-  stale: "bg-amber-400",
+  ok: "bg-mycel-success",
+  stale: "bg-mycel-warning",
   loading: "bg-mycel-muted animate-pulse",
-  unknown: "bg-mycel-muted/40",
-  error: "bg-rose-400",
+  unknown: "bg-mycel-muted",
+  error: "bg-mycel-error",
 };
 
 function ChannelTile({ channel }: { channel: ChannelStatus }) {
@@ -285,7 +285,7 @@ function ChannelTile({ channel }: { channel: ChannelStatus }) {
           )}
         </div>
         {channel.detail && (
-          <p className="mt-0.5 text-[10px] text-mycel-muted/70 truncate" title={channel.detail}>
+          <p className="mt-0.5 text-[10px] text-mycel-muted truncate" title={channel.detail}>
             {channel.detail}
           </p>
         )}

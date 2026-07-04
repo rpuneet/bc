@@ -408,7 +408,7 @@ export function Code() {
   return (
     <div className="flex flex-col h-full" style={{ fontFamily: MONO }}>
       {/* Header */}
-      <header className="shrink-0 border-b border-mycel-border/40 px-6 h-[42px] flex items-center gap-3">
+      <header className="shrink-0 border-b border-mycel-border px-6 h-[42px] flex items-center gap-3">
         <span className="text-[11px] font-bold text-mycel-text uppercase tracking-[0.2em]">
           Code
         </span>
@@ -417,7 +417,7 @@ export function Code() {
         <select
           value={worktree}
           onChange={(e) => setWorktree(e.target.value)}
-          className="rounded border border-mycel-border/40 bg-mycel-surface/20 text-mycel-text/90 text-[11px] px-2 py-1 outline-none focus:border-mycel-accent/50"
+          className="rounded border border-mycel-border-strong bg-mycel-surface text-mycel-text text-[11px] px-2 py-1 outline-none focus:border-mycel-accent"
         >
           {worktrees.map((wt) => (
             <option key={wt.value} value={wt.value}>
@@ -428,13 +428,13 @@ export function Code() {
 
         {/* View mode toggle (only when worktree !== main) */}
         {worktree !== "main" && (
-          <div className="flex items-center rounded border border-mycel-border/40 overflow-hidden text-[10px]">
+          <div className="flex items-center rounded border border-mycel-border overflow-hidden text-[10px]">
             <button
               type="button"
               onClick={() => setViewMode("diff")}
               className={`px-2 py-1 uppercase tracking-wider transition-colors ${
                 viewMode === "diff"
-                  ? "bg-mycel-accent/20 text-mycel-accent"
+                  ? "bg-mycel-accent-subtle text-mycel-accent"
                   : "text-mycel-muted hover:text-mycel-text"
               }`}
             >
@@ -443,9 +443,9 @@ export function Code() {
             <button
               type="button"
               onClick={() => setViewMode("plain")}
-              className={`px-2 py-1 uppercase tracking-wider transition-colors border-l border-mycel-border/40 ${
+              className={`px-2 py-1 uppercase tracking-wider transition-colors border-l border-mycel-border ${
                 viewMode === "plain"
-                  ? "bg-mycel-accent/20 text-mycel-accent"
+                  ? "bg-mycel-accent-subtle text-mycel-accent"
                   : "text-mycel-muted hover:text-mycel-text"
               }`}
             >
@@ -455,7 +455,7 @@ export function Code() {
         )}
 
         {/* Breadcrumb */}
-        <div className="flex-1 min-w-0 flex items-center gap-1 text-[11px] text-mycel-muted/70 truncate">
+        <div className="flex-1 min-w-0 flex items-center gap-1 text-[11px] text-mycel-muted truncate">
           <button
             type="button"
             onClick={() => updateParams({ path: "" })}
@@ -472,7 +472,7 @@ export function Code() {
               >
                 {b.label}
               </button>
-              <span className="text-mycel-muted/30">/</span>
+              <span className="text-mycel-muted">/</span>
             </span>
           ))}
         </div>
@@ -513,8 +513,8 @@ export function Code() {
             }}
             className={`text-[10px] uppercase tracking-wider transition-colors border px-2 py-1 rounded ${
               vscodeMode
-                ? "bg-mycel-accent/20 text-mycel-accent border-mycel-accent/50"
-                : "text-mycel-muted border-mycel-border/40 hover:text-mycel-text hover:border-mycel-muted"
+                ? "bg-mycel-accent-subtle text-mycel-accent border-mycel-accent"
+                : "text-mycel-muted border-mycel-border hover:text-mycel-text hover:border-mycel-muted"
             }`}
             title="Open the repo in code-server (VS Code in the browser)"
           >
@@ -526,7 +526,7 @@ export function Code() {
       {/* VS Code iframe mode — replaces body when toggled on */}
       {vscodeMode && codeServer.running && (
         <div className="flex-1 min-h-0 flex flex-col">
-          <div className="shrink-0 px-6 py-1.5 bg-mycel-warning/10 border-b border-mycel-warning/30 text-[10px] text-mycel-warning/90 flex items-center gap-2" style={{ fontFamily: MONO }}>
+          <div className="shrink-0 px-6 py-1.5 bg-mycel-warning-subtle border-b border-mycel-warning text-[10px] text-mycel-warning flex items-center gap-2" style={{ fontFamily: MONO }}>
             <span>⚠</span>
             <span>
               VS Code has <strong>write access</strong> to the repo.
@@ -545,10 +545,10 @@ export function Code() {
       {/* Body: tree + viewer */}
       {!vscodeMode && <div className="flex-1 min-h-0 flex">
         {/* Tree pane */}
-        <aside className="w-64 shrink-0 border-r border-mycel-border/40 overflow-y-auto">
+        <aside className="w-64 shrink-0 border-r border-mycel-border overflow-y-auto">
           {rootLoading && <TreeSkeleton />}
           {!rootLoading && rootError && (
-            <div className="px-3 py-2 text-[11px] text-mycel-danger/70">{rootError}</div>
+            <div className="px-3 py-2 text-[11px] text-mycel-error">{rootError}</div>
           )}
           {!rootLoading && !rootError && rootEntries.length === 0 && (
             <div className="px-3 py-2 text-[11px] text-mycel-muted italic">
@@ -581,7 +581,7 @@ export function Code() {
           )}
           {path && contentLoading && <EditorShimmer />}
           {path && !contentLoading && fileError && (
-            <div className="h-full flex items-center justify-center text-[11px] text-mycel-danger/70">
+            <div className="h-full flex items-center justify-center text-[11px] text-mycel-error">
               {fileError}
             </div>
           )}
@@ -684,10 +684,10 @@ function TreeList({
               type="button"
               onClick={() => onSelect(node)}
               style={{ paddingLeft: 12 + depth * 12 }}
-              className={`w-full flex items-center gap-1.5 pr-3 py-1 text-left text-[11px] hover:bg-mycel-accent/[0.06] transition-colors ${
+              className={`w-full flex items-center gap-1.5 pr-3 py-1 text-left text-[11px] hover:bg-mycel-surface-hover transition-colors ${
                 selectedPath === node.path
-                  ? "bg-mycel-accent/[0.08] text-mycel-accent"
-                  : "text-mycel-text/80"
+                  ? "bg-mycel-accent-subtle text-mycel-accent"
+                  : "text-mycel-text-2"
               }`}
             >
               <span className="text-mycel-muted shrink-0 w-3 text-center">{icon}</span>
@@ -739,7 +739,7 @@ function TreeSkeleton() {
       {Array.from({ length: 8 }).map((_, i) => (
         <div
           key={i}
-          className="h-3 animate-pulse rounded bg-mycel-border/40"
+          className="h-3 animate-pulse rounded bg-mycel-surface-hover"
           style={{ width: `${50 + ((i * 13) % 40)}%` }}
         />
       ))}
@@ -753,7 +753,7 @@ function EditorShimmer() {
       {Array.from({ length: 14 }).map((_, i) => (
         <div
           key={i}
-          className="h-3 animate-pulse rounded bg-mycel-border/30"
+          className="h-3 animate-pulse rounded bg-mycel-surface-hover"
           style={{ width: `${40 + ((i * 17) % 55)}%` }}
         />
       ))}

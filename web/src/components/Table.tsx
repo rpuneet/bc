@@ -60,7 +60,7 @@ export function Table<T>({
             <React.Fragment key={keyFn(row)}>
               <tr
                 onClick={onRowClick ? () => onRowClick(row) : undefined}
-                className={`border-b border-mycel-border/50 ${
+                className={`border-b border-mycel-border ${
                   onRowClick ? "cursor-pointer hover:bg-mycel-surface" : ""
                 }`}
               >

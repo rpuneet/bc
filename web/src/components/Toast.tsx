@@ -15,17 +15,17 @@ let nextId = 1;
 // at a glance without painting the whole toast a single brand color.
 const LEVEL_STYLES: Record<ToastLevel, { surface: string; rail: string; icon: string }> = {
   error: {
-    surface: "bg-mycel-surface text-mycel-text border border-mycel-border ring-1 ring-rose-500/30",
-    rail: "bg-rose-500",
-    icon: "text-rose-400",
+    surface: "bg-mycel-surface-2 text-mycel-text border border-mycel-border ring-1 ring-mycel-error-subtle",
+    rail: "bg-mycel-error",
+    icon: "text-mycel-error",
   },
   success: {
-    surface: "bg-mycel-surface text-mycel-text border border-mycel-border ring-1 ring-emerald-500/30",
-    rail: "bg-emerald-500",
-    icon: "text-emerald-400",
+    surface: "bg-mycel-surface-2 text-mycel-text border border-mycel-border ring-1 ring-mycel-success-subtle",
+    rail: "bg-mycel-success",
+    icon: "text-mycel-success",
   },
   info: {
-    surface: "bg-mycel-surface text-mycel-text border border-mycel-border ring-1 ring-mycel-accent/30",
+    surface: "bg-mycel-surface-2 text-mycel-text border border-mycel-border ring-1 ring-mycel-accent-subtle",
     rail: "bg-mycel-accent",
     icon: "text-mycel-accent",
   },
@@ -54,7 +54,7 @@ function ToastItem({ toast, onDismiss }: { toast: ToastMessage; onDismiss: (id: 
       exit={{ opacity: 0, y: -8, scale: 0.96, transition: { duration: 0.15 } }}
       transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
       layout
-      className={`relative flex items-center gap-2.5 pl-3.5 pr-2 py-2 rounded-lg shadow-lg text-[13px] max-w-sm overflow-hidden ${style.surface}`}
+      className={`relative flex items-center gap-2.5 pl-3.5 pr-2 py-2 rounded-lg shadow-mycel-lg text-[13px] max-w-sm overflow-hidden ${style.surface}`}
     >
       <span className={`absolute left-0 top-0 bottom-0 w-1 ${style.rail}`} aria-hidden />
       <LevelIcon level={toast.level} className={`shrink-0 ${style.icon}`} />
@@ -62,7 +62,7 @@ function ToastItem({ toast, onDismiss }: { toast: ToastMessage; onDismiss: (id: 
       <button
         type="button"
         onClick={() => onDismiss(toast.id)}
-        className="shrink-0 opacity-60 hover:opacity-100 text-mycel-muted hover:text-mycel-text rounded p-0.5 focus-visible:ring-2 focus-visible:ring-mycel-accent/40 transition-opacity"
+        className="shrink-0 opacity-60 hover:opacity-100 text-mycel-muted hover:text-mycel-text rounded p-0.5 focus-visible:ring-2 focus-visible:ring-mycel-accent transition-opacity"
         aria-label="Dismiss notification"
       >
         <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"><path d="M3 3l6 6M9 3l-6 6" /></svg>

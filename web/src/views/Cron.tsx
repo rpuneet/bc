@@ -202,7 +202,7 @@ function CreateJobForm({ onCreated, onCancel }: { onCreated: () => void; onCance
             !schedule.trim() ||
             !command.trim()
           }
-          className="px-4 py-2 rounded bg-mycel-accent text-white text-sm font-medium hover:opacity-90 disabled:opacity-50 transition-opacity focus-visible:ring-2 focus-visible:ring-mycel-accent focus-visible:ring-offset-1 focus-visible:ring-offset-mycel-bg"
+          className="px-4 py-2 rounded bg-mycel-accent text-mycel-accent-fg text-sm font-medium hover:bg-mycel-accent-hover shadow-mycel-sm disabled:opacity-50 transition-colors focus-visible:ring-2 focus-visible:ring-mycel-accent focus-visible:ring-offset-1 focus-visible:ring-offset-mycel-bg"
         >
           {status.type === "saving" ? "Creating..." : "Create"}
         </button>
@@ -255,14 +255,14 @@ function LiveLogs({ name }: { name: string }) {
   }, [output]);
 
   return (
-    <div className="rounded border border-blue-500/30 bg-blue-950/20 p-3">
-      <div className="flex items-center gap-2 text-xs text-blue-400 mb-2">
-        <span className="inline-block w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
+    <div className="rounded border border-mycel-info bg-mycel-info-subtle p-3">
+      <div className="flex items-center gap-2 text-xs text-mycel-info mb-2">
+        <span className="inline-block w-2 h-2 rounded-full bg-mycel-info animate-pulse" />
         <span className="font-medium">Live Output</span>
       </div>
       <pre
         ref={preRef}
-        className="text-xs text-mycel-text/80 whitespace-pre-wrap max-h-48 overflow-y-auto font-mono bg-mycel-bg rounded p-3"
+        className="text-xs text-mycel-text-2 whitespace-pre-wrap max-h-48 overflow-y-auto font-mono bg-mycel-bg rounded p-3"
       >
         {output || "Waiting for output..."}
       </pre>
@@ -285,7 +285,7 @@ function RunDetail({ log }: { log: CronLogEntry }) {
           {log.status}
         </span>
       </div>
-      <pre className="text-xs text-mycel-text/80 whitespace-pre-wrap max-h-64 overflow-y-auto font-mono bg-mycel-bg rounded p-3">
+      <pre className="text-xs text-mycel-text-2 whitespace-pre-wrap max-h-64 overflow-y-auto font-mono bg-mycel-bg rounded p-3">
         {log.output || "(no output)"}
       </pre>
     </div>
@@ -333,8 +333,8 @@ function JobRuns({ name, running }: { name: string; running: boolean }) {
                 }
                 className={`w-full flex items-center gap-4 text-xs px-3 py-2 rounded transition-colors text-left ${
                   isSelected
-                    ? "bg-mycel-accent/10 text-mycel-accent"
-                    : "hover:bg-mycel-bg/50"
+                    ? "bg-mycel-accent-subtle text-mycel-accent"
+                    : "hover:bg-mycel-surface-hover"
                 }`}
               >
                 <span className="text-mycel-muted whitespace-nowrap w-36">
@@ -345,10 +345,10 @@ function JobRuns({ name, running }: { name: string; running: boolean }) {
                 <span
                   className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase ${
                     log.status === "success"
-                      ? "bg-mycel-success/15 text-mycel-success"
+                      ? "bg-mycel-success-subtle text-mycel-success"
                       : log.status === "failed"
-                        ? "bg-mycel-error/15 text-mycel-error"
-                        : "bg-mycel-warning/15 text-mycel-warning"
+                        ? "bg-mycel-error-subtle text-mycel-error"
+                        : "bg-mycel-warning-subtle text-mycel-warning"
                   }`}
                 >
                   {log.status}
@@ -385,14 +385,14 @@ function DeleteConfirm({
   onCancel: () => void;
 }) {
   return (
-    <div className="flex items-center gap-2 bg-mycel-error/10 border border-mycel-error/30 rounded px-3 py-2">
+    <div className="flex items-center gap-2 bg-mycel-error-subtle border border-mycel-error rounded px-3 py-2">
       <span className="text-xs text-mycel-error">
         Delete <strong>{jobName}</strong>?
       </span>
       <button
         type="button"
         onClick={onConfirm}
-        className="px-2 py-0.5 rounded text-xs font-medium bg-mycel-error text-white hover:opacity-90 transition-opacity focus-visible:ring-2 focus-visible:ring-mycel-error"
+        className="px-2 py-0.5 rounded text-xs font-medium bg-mycel-error text-white hover:opacity-90 shadow-mycel-sm transition-opacity focus-visible:ring-2 focus-visible:ring-mycel-error"
       >
         Confirm
       </button>
@@ -439,18 +439,18 @@ function JobCard({
 
   // Left bar color
   const barColor = job.running
-    ? "bg-blue-400 animate-pulse"
+    ? "bg-mycel-info animate-pulse"
     : job.enabled
       ? "bg-mycel-success"
-      : "bg-mycel-muted/40";
+      : "bg-mycel-border";
 
   const humanSchedule = describeCron(job.schedule);
   const isHuman = humanSchedule !== job.schedule;
 
   return (
     <div
-      className={`rounded border border-mycel-border bg-mycel-surface overflow-hidden transition-colors ${
-        expanded ? "ring-1 ring-mycel-accent/30" : ""
+      className={`rounded border border-mycel-border bg-mycel-surface shadow-mycel overflow-hidden transition-colors ${
+        expanded ? "ring-1 ring-mycel-accent" : ""
       }`}
     >
       {/* Card body — clickable to expand */}
@@ -484,8 +484,8 @@ function JobCard({
 
             {/* Running indicator in top right */}
             {job.running && (
-              <span className="flex items-center gap-1.5 text-xs text-blue-400 shrink-0">
-                <span className="inline-block w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
+              <span className="flex items-center gap-1.5 text-xs text-mycel-info shrink-0">
+                <span className="inline-block w-1.5 h-1.5 rounded-full bg-mycel-info animate-pulse" />
                 Running...
               </span>
             )}
@@ -493,7 +493,7 @@ function JobCard({
 
           {/* Command preview */}
           <div className="mt-2">
-            <code className="text-xs text-mycel-text/70 font-mono bg-mycel-bg rounded px-2 py-1 inline-block max-w-full truncate">
+            <code className="text-xs text-mycel-text-2 font-mono bg-mycel-bg rounded px-2 py-1 inline-block max-w-full truncate">
               {job.command}
             </code>
           </div>
@@ -533,8 +533,8 @@ function JobCard({
           }
           className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-mycel-accent focus-visible:ring-offset-1 focus-visible:ring-offset-mycel-bg ${
             job.enabled
-              ? "bg-mycel-success/15 text-mycel-success hover:bg-mycel-success/25"
-              : "bg-mycel-muted/15 text-mycel-muted hover:bg-mycel-muted/25"
+              ? "bg-mycel-success-subtle text-mycel-success"
+              : "bg-mycel-surface-hover text-mycel-text-2"
           }`}
         >
           {busy === "toggle"
@@ -551,7 +551,7 @@ function JobCard({
             onClick={() => act("run", () => api.runCron(job.name))}
             disabled={busy !== null}
             aria-label={`Run cron job ${job.name} now`}
-            className="px-3 py-1 rounded text-xs font-medium bg-mycel-accent/15 text-mycel-accent hover:bg-mycel-accent/25 transition-colors disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-mycel-accent focus-visible:ring-offset-1 focus-visible:ring-offset-mycel-bg"
+            className="px-3 py-1 rounded text-xs font-medium bg-mycel-accent-subtle text-mycel-accent hover:bg-mycel-accent hover:text-mycel-accent-fg transition-colors disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-mycel-accent focus-visible:ring-offset-1 focus-visible:ring-offset-mycel-bg"
           >
             {busy === "run" ? "..." : "Run Now"}
           </button>
@@ -564,7 +564,7 @@ function JobCard({
             onClick={() => setConfirmingDelete(true)}
             disabled={busy !== null}
             aria-label={`Delete cron job ${job.name}`}
-            className="px-3 py-1 rounded text-xs font-medium bg-mycel-error/10 text-mycel-error hover:bg-mycel-error/20 transition-colors disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-mycel-accent focus-visible:ring-offset-1 focus-visible:ring-offset-mycel-bg"
+            className="px-3 py-1 rounded text-xs font-medium bg-mycel-error-subtle text-mycel-error hover:bg-mycel-error hover:text-white transition-colors disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-mycel-accent focus-visible:ring-offset-1 focus-visible:ring-offset-mycel-bg"
           >
             {busy === "delete" ? "..." : "Delete"}
           </button>
@@ -582,7 +582,7 @@ function JobCard({
 
       {/* Expanded panel: execution logs */}
       {expanded && (
-        <div className="border-t border-mycel-border bg-mycel-surface/50 px-5 py-4">
+        <div className="border-t border-mycel-border bg-mycel-bg px-5 py-4">
           <JobRuns name={job.name} running={job.running} />
         </div>
       )}
@@ -615,14 +615,14 @@ export function Cron() {
     actions: (
       <>
         {jobs && (
-          <span className="inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded-full bg-mycel-accent/15 text-mycel-accent text-[11px] font-semibold tabular-nums">
+          <span className="inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded-full bg-mycel-accent-subtle text-mycel-accent text-[11px] font-semibold tabular-nums">
             {jobs.length}
           </span>
         )}
         <button
           type="button"
           onClick={() => setShowCreateForm((v) => !v)}
-          className="px-3 py-1 rounded text-[11px] font-medium border border-mycel-accent/40 bg-mycel-accent/10 text-mycel-accent hover:bg-mycel-accent/20 transition-colors"
+          className="px-3 py-1 rounded text-[11px] font-medium border border-mycel-accent bg-mycel-accent-subtle text-mycel-accent hover:bg-mycel-accent hover:text-mycel-accent-fg transition-colors"
           aria-label="Create new cron job"
         >
           + New Job
@@ -644,7 +644,7 @@ export function Cron() {
   if (loading && !jobs) {
     return (
       <div className="p-6 space-y-4">
-        <div className="h-6 w-28 animate-pulse rounded bg-mycel-border/50" />
+        <div className="h-6 w-28 animate-pulse rounded bg-mycel-surface-hover" />
         <LoadingSkeleton variant="table" rows={3} />
       </div>
     );

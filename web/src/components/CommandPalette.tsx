@@ -87,7 +87,7 @@ export function CommandPalette() {
 
       {/* Palette */}
       <div
-        className="relative w-full max-w-lg rounded-lg border border-mycel-border bg-mycel-surface shadow-2xl"
+        className="relative w-full max-w-lg rounded-lg border border-mycel-border bg-mycel-surface-2 shadow-mycel-lg"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
@@ -142,8 +142,8 @@ export function CommandPalette() {
                     onMouseEnter={() => setActiveIndex(itemIndex)}
                     className={`flex w-full items-center gap-3 px-4 py-2 text-left text-sm transition-colors ${
                       itemIndex === activeIndex
-                        ? "bg-mycel-accent/10 text-mycel-accent"
-                        : "text-mycel-text hover:bg-mycel-bg"
+                        ? "bg-mycel-accent-subtle text-mycel-accent"
+                        : "text-mycel-text hover:bg-mycel-surface-hover"
                     }`}
                   >
                     <span className="w-5 text-center font-mono text-xs text-mycel-muted">

@@ -33,25 +33,25 @@ export function calculateCost(model: string, inputTokens: number, outputTokens: 
 
 // ── Constants ───────────────────────────────────────────────────────────────────
 
-// Chart palette. First entry uses the theme accent so charts feel like they
-// belong to the current theme (tangerine in Solar Flare / Light, emerald in
-// Dark). The rest are theme-agnostic hues that stay readable in all three.
+// Chart palette. First entry uses the theme accent token so charts feel
+// like they belong to the current theme (mycel orange in both Dark and
+// Light). The rest are theme-agnostic hues that stay readable in both.
 const ACCENT = "var(--mycel-accent)";
 // Categorical palette chosen for six-plus-series distinguishability
-// across all three themes. First slot follows the theme accent; the
+// across both themes. First slot follows the theme accent; the
 // rest are picked from the Radix + Tailwind categorical palettes so
 // adjacent series never collide. Deuteranopia-checked pairs:
 // cobalt/emerald safe, rose/violet safe, amber/tangerine handled by
 // dash pattern rotation below.
 const COLORS = [
-  ACCENT,      // theme accent — tangerine (Solar Flare / Light) or emerald (Dark)
+  ACCENT,      // theme accent — var(--mycel-accent), orange in both themes
   "#3B82F6",   // cobalt
   "#EC4899",   // rose
   "#F59E0B",   // amber
   "#A855F7",   // violet
   "#06B6D4",   // cyan
   "#84CC16",   // lime
-  "#F97316",   // tangerine (only conflicts with accent under Solar Flare / Light — kicked to slot 7)
+  "#F97316",   // tangerine (only conflicts with the orange accent — kicked to slot 7)
 ];
 
 // Dash-pattern palette for a11y — color-only encoding fails deuteranopia
@@ -147,7 +147,7 @@ function InteractiveLegend({
               isHidden
                 ? "border-mycel-border opacity-40 text-mycel-muted"
                 : hovered && hovered !== n
-                  ? "border-mycel-border/40 opacity-50"
+                  ? "border-mycel-border opacity-50"
                   : "border-mycel-border text-mycel-text"
             }`}
             aria-pressed={!isHidden}
@@ -187,8 +187,9 @@ const INFRA = [
 const isInfra = (n: string) => INFRA.some(p => n === p || n.startsWith(p + "-")) || n.length <= 3;
 
 const TT: React.CSSProperties = {
-  backgroundColor: "var(--mycel-surface)", border: "1px solid var(--mycel-border)",
+  backgroundColor: "var(--mycel-surface-2)", border: "1px solid var(--mycel-border)",
   borderRadius: "6px", color: "var(--mycel-text)", fontSize: "12px",
+  boxShadow: "var(--mycel-shadow-lg)",
 };
 const AX = { axisLine: false as const, tickLine: false as const };
 const TICK_STYLE = { fill: "var(--mycel-muted)", fontSize: 10 };
@@ -421,7 +422,7 @@ export function Stats() {
               <tbody>
                 {agentTable.map(a => (
                   <tr key={a.name}
-                    className="border-t border-mycel-border/50 hover:bg-mycel-bg/50 cursor-pointer transition-colors"
+                    className="border-t border-mycel-border hover:bg-mycel-surface-hover cursor-pointer transition-colors"
                     onClick={() => navigate(`/agents/${encodeURIComponent(a.name)}`)}
                   >
                     <td className="py-1.5 px-2 font-medium">

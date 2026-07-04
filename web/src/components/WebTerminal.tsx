@@ -188,7 +188,7 @@ export function WebTerminal({
   return (
     <div
       ref={containerRef}
-      className="w-full h-full min-h-[300px] rounded-lg border border-mycel-border/50 overflow-hidden"
+      className="w-full h-full min-h-[300px] rounded-lg border border-mycel-border overflow-hidden"
     />
   );
 }

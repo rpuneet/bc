@@ -33,7 +33,7 @@ export function SearchInput({
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         aria-label={placeholder}
-        className="w-full pl-8 pr-7 py-1.5 rounded border border-mycel-border/40 bg-mycel-surface text-sm text-mycel-text placeholder:text-mycel-muted focus:outline-none focus:border-mycel-accent/50 transition-colors"
+        className="w-full pl-8 pr-7 py-1.5 rounded border border-mycel-border bg-mycel-surface text-sm text-mycel-text placeholder:text-mycel-muted focus:outline-none focus:border-mycel-accent transition-colors"
       />
 
       {/* Clear button */}

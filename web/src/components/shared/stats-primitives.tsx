@@ -17,7 +17,7 @@ export function Panel({
     <div
       className={`rounded border border-mycel-border bg-mycel-surface overflow-hidden ${className ?? ""}`}
     >
-      <div className="flex items-center justify-between px-3 py-1.5 border-b border-mycel-border bg-mycel-bg/50">
+      <div className="flex items-center justify-between px-3 py-1.5 border-b border-mycel-border bg-mycel-bg">
         <span className="text-[11px] font-medium text-mycel-muted uppercase tracking-wider">
           {title}
         </span>

@@ -41,11 +41,11 @@ function stateColor(state: string, deprecated: boolean): string {
   if (deprecated) return "bg-mycel-muted";
   switch (state) {
     case "running":
-      return "bg-green-500";
+      return "bg-mycel-success";
     case "starting":
-      return "bg-amber-500";
+      return "bg-mycel-warning";
     case "stopping":
-      return "bg-amber-500";
+      return "bg-mycel-warning";
     case "error":
       return "bg-mycel-error";
     case "stopped":
@@ -185,7 +185,7 @@ function DepCard({ dep, onRefresh }: { dep: DepView; onRefresh: () => void }) {
           <div className="flex items-center gap-2">
             <span className="text-[13px] font-semibold text-mycel-text truncate">{dep.name}</span>
             {dep.deprecated && (
-              <span className="text-[10px] px-1.5 py-0.5 rounded bg-mycel-muted/20 text-mycel-muted uppercase tracking-wide">
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-mycel-surface-hover text-mycel-muted uppercase tracking-wide">
                 Deprecated
               </span>
             )}
@@ -288,7 +288,7 @@ export function DependenciesSection() {
 function DeprecatedSection({ deps, onRefresh }: { deps: DepView[]; onRefresh: () => void }) {
   const [open, setOpen] = useState(false);
   return (
-    <div className="rounded border border-mycel-border/40 bg-mycel-bg/30">
+    <div className="rounded border border-mycel-border bg-mycel-bg">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
@@ -298,7 +298,7 @@ function DeprecatedSection({ deps, onRefresh }: { deps: DepView[]; onRefresh: ()
           <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
         </svg>
         <span className="uppercase tracking-wide">Deprecated</span>
-        <span className="text-mycel-muted/60">({deps.length})</span>
+        <span className="text-mycel-muted">({deps.length})</span>
       </button>
       {open && (
         <div className="px-2 pb-2 space-y-2">

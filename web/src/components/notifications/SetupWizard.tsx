@@ -544,18 +544,18 @@ export function PlatformChooser({ onSelect, onClose }: { onSelect: (key: string)
           relative flex flex-col p-4 rounded-xl border text-left
           transition-all duration-150 ease-out group
           ${isComingSoon
-            ? "border-mycel-border/40 opacity-40 cursor-not-allowed"
-            : "border-mycel-border/40 cursor-pointer hover:border-mycel-accent/50 hover:scale-[1.02] hover:shadow-[0_0_20px_rgba(249,115,22,0.08)]"
+            ? "border-mycel-border opacity-40 cursor-not-allowed"
+            : "border-mycel-border cursor-pointer hover:border-mycel-accent hover:scale-[1.02] hover:shadow-mycel"
           }
-          ${isConnected ? "border-green-500/30 bg-green-500/[0.03]" : ""}
+          ${isConnected ? "border-mycel-success bg-mycel-success-subtle" : ""}
         `}
       >
         {/* Connected badge */}
         {isConnected && (
           <div className="absolute top-2.5 right-2.5">
             <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-              <circle cx="9" cy="9" r="8" fill="#22c55e" opacity="0.15" />
-              <path d="M5.5 9l2.5 2.5 4.5-4.5" stroke="#22c55e" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+              <circle cx="9" cy="9" r="8" fill="var(--mycel-success)" opacity="0.15" />
+              <path d="M5.5 9l2.5 2.5 4.5-4.5" stroke="var(--mycel-success)" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </div>
         )}
@@ -579,22 +579,22 @@ export function PlatformChooser({ onSelect, onClose }: { onSelect: (key: string)
         {/* Status tag */}
         <div className="mt-2.5">
           {isConnected && (
-            <span className="inline-flex items-center gap-1 text-[10px] font-medium text-green-500/80">
-              <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
+            <span className="inline-flex items-center gap-1 text-[10px] font-medium text-mycel-success">
+              <span className="w-1.5 h-1.5 rounded-full bg-mycel-success" />
               Connected
             </span>
           )}
           {!isConnected && p.status === "webhook" && (
-            <span className="text-[10px] text-amber-500/60">Webhook &middot; requires public URL</span>
+            <span className="text-[10px] text-mycel-warning">Webhook &middot; requires public URL</span>
           )}
           {!isConnected && p.status === "ready" && (
-            <span className="inline-flex items-center gap-1 text-[10px] text-mycel-accent/60">
+            <span className="inline-flex items-center gap-1 text-[10px] text-mycel-accent">
               <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: p.color, opacity: 0.7 }} />
               Ready to connect
             </span>
           )}
           {!isConnected && p.status === "poll" && (
-            <span className="text-[10px] text-blue-400/60">Polling &middot; needs API token</span>
+            <span className="text-[10px] text-mycel-info">Polling &middot; needs API token</span>
           )}
           {!isConnected && isComingSoon && (
             <span className="text-[10px] text-mycel-muted">Coming soon</span>
@@ -616,9 +616,9 @@ export function PlatformChooser({ onSelect, onClose }: { onSelect: (key: string)
       />
 
       {/* Modal */}
-      <div className="relative z-10 bg-mycel-bg border border-mycel-border rounded-2xl shadow-2xl flex flex-col w-[calc(100vw-48px)] max-w-[960px] max-h-[calc(100vh-48px)]">
+      <div className="relative z-10 bg-mycel-surface-2 border border-mycel-border rounded-2xl shadow-mycel-lg flex flex-col w-[calc(100vw-48px)] max-w-[960px] max-h-[calc(100vh-48px)]">
         {/* Header */}
-        <div className="px-6 pt-5 pb-4 border-b border-mycel-border/50 shrink-0">
+        <div className="px-6 pt-5 pb-4 border-b border-mycel-border shrink-0">
           <div className="flex items-center justify-between mb-4">
             <div>
               <h2 className="text-lg font-bold text-mycel-text tracking-tight">Connect a platform</h2>
@@ -627,7 +627,7 @@ export function PlatformChooser({ onSelect, onClose }: { onSelect: (key: string)
             <button
               type="button"
               onClick={onClose}
-              className="w-8 h-8 flex items-center justify-center rounded-lg text-mycel-muted hover:text-mycel-text hover:bg-mycel-surface transition-colors"
+              className="w-8 h-8 flex items-center justify-center rounded-lg text-mycel-muted hover:text-mycel-text hover:bg-mycel-surface-hover transition-colors"
               aria-label="Close"
             >
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
@@ -651,18 +651,18 @@ export function PlatformChooser({ onSelect, onClose }: { onSelect: (key: string)
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search platforms..."
-              className="w-full pl-9 pr-3 py-2.5 text-sm rounded-lg border border-mycel-border/50 bg-mycel-surface/30 text-mycel-text placeholder:text-mycel-muted focus:outline-none focus:ring-1 focus:ring-mycel-accent/50 focus:border-mycel-accent/30 transition-colors"
+              className="w-full pl-9 pr-3 py-2.5 text-sm rounded-lg border border-mycel-border bg-mycel-surface text-mycel-text placeholder:text-mycel-muted focus:outline-none focus:ring-1 focus:ring-mycel-accent focus:border-mycel-accent transition-colors"
             />
           </div>
         </div>
 
         {/* Grid content */}
-        <div className="flex-1 overflow-auto px-6 py-5" style={{ scrollbarWidth: "thin", scrollbarColor: "rgba(255,255,255,0.06) transparent" }}>
+        <div className="flex-1 overflow-auto px-6 py-5" style={{ scrollbarWidth: "thin", scrollbarColor: "var(--mycel-border) transparent" }}>
           {/* Connected section */}
           {connectedPlatforms.length > 0 && (
             <div className="mb-6">
-              <h3 className="text-[11px] font-bold text-green-500/80 uppercase tracking-wider mb-3 flex items-center gap-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
+              <h3 className="text-[11px] font-bold text-mycel-success uppercase tracking-wider mb-3 flex items-center gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-mycel-success" />
                 Connected
               </h3>
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
@@ -672,7 +672,7 @@ export function PlatformChooser({ onSelect, onClose }: { onSelect: (key: string)
           )}
 
           {connectedPlatforms.length > 0 && availablePlatforms.length > 0 && (
-            <div className="border-t border-mycel-border/40 my-5" />
+            <div className="border-t border-mycel-border my-5" />
           )}
 
           {/* Categorized available platforms */}
@@ -765,16 +765,16 @@ function AgentSubscriptionStep({
   };
 
   const stateColor = (state: string) => {
-    if (state === "working" || state === "running") return "#22c55e";
-    if (state === "idle") return "#eab308";
-    return "#6b7280";
+    if (state === "working" || state === "running") return "var(--mycel-success)";
+    if (state === "idle") return "var(--mycel-warning)";
+    return "var(--mycel-muted)";
   };
 
   return (
     <div>
-      <div className="p-4 border-b border-mycel-border/50">
+      <div className="p-4 border-b border-mycel-border">
         <div className="flex items-center gap-2 mb-1">
-          <span className="text-[10px] font-bold text-mycel-accent bg-mycel-accent/10 px-2 py-0.5 rounded-full uppercase tracking-wider">Step 2</span>
+          <span className="text-[10px] font-bold text-mycel-accent bg-mycel-accent-subtle px-2 py-0.5 rounded-full uppercase tracking-wider">Step 2</span>
         </div>
         <h3 className="text-[14px] font-semibold text-mycel-text">Add agents to {platformLabel}</h3>
         <p className="text-[12px] text-mycel-muted mt-1">Select which agents should receive notifications from this platform.</p>
@@ -790,7 +790,7 @@ function AgentSubscriptionStep({
             {agents.filter((a) => !a.archived_at).map((agent) => (
               <label
                 key={agent.name}
-                className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-mycel-surface/50 cursor-pointer transition-colors"
+                className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-mycel-surface-hover cursor-pointer transition-colors"
               >
                 <input
                   type="checkbox"
@@ -810,9 +810,9 @@ function AgentSubscriptionStep({
                     onClick={(e) => { e.preventDefault(); e.stopPropagation(); toggleMention(agent.name); }}
                     className="shrink-0 text-[10px] px-2 py-0.5 rounded-full border transition-colors"
                     style={{
-                      borderColor: mentionOnly.has(agent.name) ? "rgba(249,115,22,0.4)" : "var(--mycel-border, #333)",
-                      color: mentionOnly.has(agent.name) ? "rgb(249,115,22)" : "var(--mycel-muted, #888)",
-                      background: mentionOnly.has(agent.name) ? "rgba(249,115,22,0.1)" : "transparent",
+                      borderColor: mentionOnly.has(agent.name) ? "color-mix(in oklab, var(--mycel-accent) 40%, transparent)" : "var(--mycel-border)",
+                      color: mentionOnly.has(agent.name) ? "var(--mycel-accent)" : "var(--mycel-muted)",
+                      background: mentionOnly.has(agent.name) ? "var(--mycel-accent-subtle)" : "transparent",
                     }}
                     title={mentionOnly.has(agent.name) ? "Mention only: ON" : "Mention only: OFF"}
                   >
@@ -831,7 +831,7 @@ function AgentSubscriptionStep({
           type="button"
           onClick={handleDone}
           disabled={saving}
-          className="px-4 py-1.5 text-[12px] text-mycel-bg bg-mycel-accent hover:bg-mycel-accent-hover rounded font-medium transition-colors disabled:opacity-50"
+          className="px-4 py-1.5 text-[12px] text-mycel-accent-fg bg-mycel-accent hover:bg-mycel-accent-hover shadow-mycel-sm rounded font-medium transition-colors disabled:opacity-50"
         >
           {saving ? "Saving..." : "Done"}
         </button>
@@ -848,7 +848,7 @@ function linkifyDoc(text: string): React.ReactNode {
   if (parts.length === 1) return text;
   return parts.map((part, i) =>
     /^https?:\/\//.test(part) ? (
-      <a key={i} href={part} target="_blank" rel="noopener noreferrer" style={{ color: "var(--mycel-accent, #f97316)", textDecoration: "underline" }}>
+      <a key={i} href={part} target="_blank" rel="noopener noreferrer" style={{ color: "var(--mycel-accent)", textDecoration: "underline" }}>
         {part.replace(/^https?:\/\//, "")}
       </a>
     ) : (
@@ -898,7 +898,7 @@ export function SetupWizard({
   if (!config) {
     return createPortal(
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-mycel-overlay backdrop-blur-sm">
-        <div className="bg-mycel-bg border border-mycel-border/50 rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl">
+        <div className="bg-mycel-surface-2 border border-mycel-border rounded-xl p-6 max-w-md w-full mx-4 shadow-mycel-lg">
           <p className="text-mycel-muted">Unknown platform: {platform}</p>
           <button type="button" onClick={onClose} className="mt-4 text-sm text-mycel-accent">
             Close
@@ -981,7 +981,7 @@ export function SetupWizard({
 
   return createPortal(
     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-mycel-overlay backdrop-blur-sm" style={{ animation: 'fadeIn 120ms ease-out' }}>
-      <div className="bg-mycel-bg border border-mycel-border/50 rounded-xl max-w-lg w-full mx-4 max-h-[85vh] overflow-auto shadow-2xl">
+      <div className="bg-mycel-surface-2 border border-mycel-border rounded-xl max-w-lg w-full mx-4 max-h-[85vh] overflow-auto shadow-mycel-lg">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-mycel-border">
           <h2 className="text-[15px] font-semibold text-mycel-text flex items-center gap-2">
@@ -996,7 +996,7 @@ export function SetupWizard({
           <button
             type="button"
             onClick={onClose}
-            className="w-8 h-8 flex items-center justify-center rounded-lg text-mycel-muted hover:text-mycel-text hover:bg-mycel-surface transition-colors"
+            className="w-8 h-8 flex items-center justify-center rounded-lg text-mycel-muted hover:text-mycel-text hover:bg-mycel-surface-hover transition-colors"
             aria-label="Close"
           >
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
@@ -1010,8 +1010,8 @@ export function SetupWizard({
           <span
             className="text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider"
             style={{
-              color: step === "credentials" ? "rgb(249,115,22)" : "#22c55e",
-              background: step === "credentials" ? "rgba(249,115,22,0.1)" : "rgba(34,197,94,0.1)",
+              color: step === "credentials" ? "var(--mycel-accent)" : "var(--mycel-success)",
+              background: step === "credentials" ? "var(--mycel-accent-subtle)" : "var(--mycel-success-subtle)",
             }}
           >
             Step 1
@@ -1019,13 +1019,13 @@ export function SetupWizard({
           <span className="text-[11px] text-mycel-muted">
             {step === "credentials" ? "Enter credentials" : "Connected"}
           </span>
-          <span className="text-mycel-muted/30 mx-1">&rarr;</span>
+          <span className="text-mycel-muted mx-1">&rarr;</span>
           <span
             className="text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider"
             style={{
-              color: step === "agents" ? "rgb(249,115,22)" : "var(--mycel-muted, #888)",
-              background: step === "agents" ? "rgba(249,115,22,0.1)" : "transparent",
-              border: step === "agents" ? "none" : "1px solid var(--mycel-border, #333)",
+              color: step === "agents" ? "var(--mycel-accent)" : "var(--mycel-muted)",
+              background: step === "agents" ? "var(--mycel-accent-subtle)" : "transparent",
+              border: step === "agents" ? "none" : "1px solid var(--mycel-border)",
             }}
           >
             Step 2
@@ -1036,13 +1036,13 @@ export function SetupWizard({
         {step === "credentials" ? (
           <>
             {/* Setup docs */}
-            <div className="p-4 border-b border-mycel-border/50">
+            <div className="p-4 border-b border-mycel-border">
               <h3 className="text-[11px] font-semibold text-mycel-muted uppercase tracking-widest mb-2">
                 Setup Steps
               </h3>
               <ol className="space-y-1.5">
                 {config.docs.map((docStep, i) => (
-                  <li key={i} className="flex gap-2 text-[12px] text-mycel-text/70">
+                  <li key={i} className="flex gap-2 text-[12px] text-mycel-text-2">
                     <span className="text-mycel-accent font-mono shrink-0">{i + 1}.</span>
                     <span>{linkifyDoc(docStep)}</span>
                   </li>
@@ -1073,13 +1073,13 @@ export function SetupWizard({
                       Scan this QR code with your phone
                     </p>
                     <div className="flex items-center gap-2 text-xs text-mycel-muted">
-                      <span className="w-2 h-2 bg-amber-400 rounded-full animate-pulse" />
+                      <span className="w-2 h-2 bg-mycel-warning rounded-full animate-pulse" />
                       Waiting for scan...
                     </div>
                   </div>
                 )}
                 {pairState === "connected" && (
-                  <div className="flex items-center gap-2 text-sm text-green-400">
+                  <div className="flex items-center gap-2 text-sm text-mycel-success">
                     <span className="text-lg">✓</span> WhatsApp connected!
                   </div>
                 )}
@@ -1091,14 +1091,14 @@ export function SetupWizard({
                 <div key={field.key}>
                   <label className="block text-[11px] font-medium text-mycel-muted mb-1">
                     {field.label}
-                    {field.required === false && <span className="text-mycel-muted/30 ml-1">(optional)</span>}
+                    {field.required === false && <span className="text-mycel-muted ml-1">(optional)</span>}
                   </label>
                   <input
                     type={field.type === "url" ? "url" : field.type === "number" ? "text" : "password"}
                     value={values[field.key] ?? ""}
                     onChange={(e) => setValues((v) => ({ ...v, [field.key]: e.target.value }))}
                     placeholder={field.placeholder}
-                    className="w-full px-3 py-2 bg-mycel-surface border border-mycel-border rounded text-[13px] text-mycel-text placeholder:text-mycel-muted/30 focus:border-mycel-accent focus:outline-none transition-colors"
+                    className="w-full px-3 py-2 bg-mycel-surface border border-mycel-border rounded text-[13px] text-mycel-text placeholder:text-mycel-muted focus:border-mycel-accent focus:outline-none transition-colors"
                   />
                 </div>
               ))}
@@ -1107,7 +1107,7 @@ export function SetupWizard({
 
             {/* Error */}
             {error && (
-              <div className="mx-4 mb-3 px-3 py-2 bg-mycel-error/10 border border-mycel-error/20 rounded text-[12px] text-mycel-error">
+              <div className="mx-4 mb-3 px-3 py-2 bg-mycel-error-subtle border border-mycel-error rounded text-[12px] text-mycel-error">
                 {error}
               </div>
             )}
@@ -1125,7 +1125,7 @@ export function SetupWizard({
                 type="button"
                 onClick={handleSave}
                 disabled={saving}
-                className="px-4 py-1.5 text-[12px] text-mycel-bg bg-mycel-accent hover:bg-mycel-accent-hover rounded font-medium transition-colors disabled:opacity-50"
+                className="px-4 py-1.5 text-[12px] text-mycel-accent-fg bg-mycel-accent hover:bg-mycel-accent-hover shadow-mycel-sm rounded font-medium transition-colors disabled:opacity-50"
               >
                 {saving ? "Connecting..." : "Connect"}
               </button>

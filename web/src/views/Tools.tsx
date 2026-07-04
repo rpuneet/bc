@@ -54,7 +54,7 @@ function CLIDepsRow({ tool, onToggle, onRemove, toggling, removing, expanded, on
   return (
     <>
       <tr
-        className="border-b border-mycel-border hover:bg-mycel-surface/50 cursor-pointer transition-colors"
+        className="border-b border-mycel-border hover:bg-mycel-surface-hover cursor-pointer transition-colors"
         onClick={onExpand}
       >
         <td className="px-3 py-2 text-sm">
@@ -72,7 +72,7 @@ function CLIDepsRow({ tool, onToggle, onRemove, toggling, removing, expanded, on
         <td className="px-3 py-2 text-xs text-mycel-muted font-mono max-w-[180px] truncate" title={tool.version || ""}>{tool.version || "\u2014"}</td>
         <td className="px-3 py-2 text-xs">
           {tool.required ? (
-            <span className="px-1.5 py-0.5 rounded bg-mycel-accent/10 text-mycel-accent text-[10px] font-medium">Yes</span>
+            <span className="px-1.5 py-0.5 rounded bg-mycel-accent-subtle text-mycel-accent text-[10px] font-medium">Yes</span>
           ) : (
             <span className="text-mycel-muted">No</span>
           )}
@@ -82,14 +82,14 @@ function CLIDepsRow({ tool, onToggle, onRemove, toggling, removing, expanded, on
             <button type="button" onClick={onToggle} disabled={toggling}
               role="switch" aria-checked={!isDisabled}
               aria-label={isDisabled ? `Enable ${tool.name}` : `Disable ${tool.name}`}
-              className={`text-[11px] px-2 py-0.5 rounded transition-colors focus-visible:ring-2 focus-visible:ring-mycel-accent disabled:opacity-50 ${isDisabled ? "bg-mycel-border text-mycel-muted hover:bg-mycel-border/80" : "bg-mycel-success/10 text-mycel-success hover:bg-mycel-success/20"}`}>
+              className={`text-[11px] px-2 py-0.5 rounded transition-colors focus-visible:ring-2 focus-visible:ring-mycel-accent disabled:opacity-50 ${isDisabled ? "bg-mycel-surface-hover text-mycel-text-2 hover:bg-mycel-border" : "bg-mycel-success-subtle text-mycel-success"}`}>
               {toggling ? "..." : isDisabled ? "Enable" : "Disable"}
             </button>
             {!tool.required && (
               confirmRemove ? (
                 <span className="inline-flex items-center gap-1">
                   <button type="button" onClick={() => { onRemove(); setConfirmRemove(false); }} disabled={removing}
-                    className="text-[11px] px-2 py-0.5 rounded bg-mycel-error/20 text-mycel-error disabled:opacity-50" aria-label="Confirm remove">
+                    className="text-[11px] px-2 py-0.5 rounded bg-mycel-error-subtle text-mycel-error hover:bg-mycel-error hover:text-white disabled:opacity-50" aria-label="Confirm remove">
                     {removing ? "..." : "Yes"}
                   </button>
                   <button type="button" onClick={() => setConfirmRemove(false)} disabled={removing}
@@ -97,7 +97,7 @@ function CLIDepsRow({ tool, onToggle, onRemove, toggling, removing, expanded, on
                 </span>
               ) : (
                 <button type="button" onClick={() => setConfirmRemove(true)}
-                  className="text-[11px] px-2 py-0.5 rounded border border-mycel-border text-mycel-muted hover:text-mycel-error hover:border-mycel-error/50 transition-colors"
+                  className="text-[11px] px-2 py-0.5 rounded border border-mycel-border text-mycel-muted hover:text-mycel-error hover:border-mycel-error transition-colors"
                   aria-label={`Remove ${tool.name}`}>Remove</button>
               )
             )}
@@ -113,13 +113,13 @@ function CLIDepsRow({ tool, onToggle, onRemove, toggling, removing, expanded, on
                 animate={{ height: "auto", opacity: 1 }}
                 exit={{ height: 0, opacity: 0 }}
                 transition={{ duration: 0.2, ease: "easeOut" }}
-                className="overflow-hidden bg-mycel-surface/30"
+                className="overflow-hidden bg-mycel-surface"
               >
                 <div className="px-8 py-3 space-y-2">
                   {tool.install_cmd && (
                     <div className="flex items-center gap-2">
                       <span className="text-xs text-mycel-muted shrink-0">Install:</span>
-                      <code className="flex-1 text-xs font-mono text-mycel-text bg-mycel-bg rounded px-2 py-1 border border-mycel-border/50">
+                      <code className="flex-1 text-xs font-mono text-mycel-text bg-mycel-bg rounded px-2 py-1 border border-mycel-border">
                         {tool.install_cmd}
                       </code>
                       <CopyButton text={tool.install_cmd} />
@@ -129,14 +129,14 @@ function CLIDepsRow({ tool, onToggle, onRemove, toggling, removing, expanded, on
                     <>
                       <div className="flex items-center gap-2">
                         <span className="text-xs text-mycel-muted shrink-0">Version cmd:</span>
-                        <code className="flex-1 text-xs font-mono text-mycel-text bg-mycel-bg rounded px-2 py-1 border border-mycel-border/50">
+                        <code className="flex-1 text-xs font-mono text-mycel-text bg-mycel-bg rounded px-2 py-1 border border-mycel-border">
                           {tool.command} --version
                         </code>
                         <CopyButton text={`${tool.command} --version`} />
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="text-xs text-mycel-muted shrink-0">Path:</span>
-                        <code className="flex-1 text-xs font-mono text-mycel-text bg-mycel-bg rounded px-2 py-1 border border-mycel-border/50">
+                        <code className="flex-1 text-xs font-mono text-mycel-text bg-mycel-bg rounded px-2 py-1 border border-mycel-border">
                           {tool.command}
                         </code>
                         <CopyButton text={tool.command} />
@@ -144,7 +144,7 @@ function CLIDepsRow({ tool, onToggle, onRemove, toggling, removing, expanded, on
                     </>
                   )}
                   {tool.error && (
-                    <div className="text-xs text-mycel-error bg-mycel-error/5 rounded px-2 py-1 border border-mycel-error/20">
+                    <div className="text-xs text-mycel-error bg-mycel-error-subtle rounded px-2 py-1 border border-mycel-error">
                       Error: {tool.error}
                     </div>
                   )}
@@ -302,7 +302,7 @@ export function Tools() {
   if (loading && !tools && providersLoading && !providers) {
     return (
       <div className="p-6 space-y-6">
-        <div className="h-6 w-32 animate-pulse rounded bg-mycel-border/50" />
+        <div className="h-6 w-32 animate-pulse rounded bg-mycel-surface-hover" />
         <LoadingSkeleton variant="cards" rows={4} />
       </div>
     );
@@ -411,7 +411,7 @@ export function Tools() {
             {checking ? "Checking..." : "Health Check"}
           </button>
           <button type="button" onClick={() => setShowAddForm(!showAddForm)}
-            className="px-3 py-1.5 text-sm rounded bg-mycel-info/10 text-mycel-info hover:bg-mycel-info/20 transition-colors focus-visible:ring-2 focus-visible:ring-mycel-accent">
+            className="px-3 py-1.5 text-sm rounded bg-mycel-info-subtle text-mycel-info transition-colors focus-visible:ring-2 focus-visible:ring-mycel-accent">
             + CLI Tool
           </button>
         </div>
@@ -432,7 +432,7 @@ export function Tools() {
           <span className="text-[11px] text-mycel-muted tabular-nums">
             {providerList.length}
           </span>
-          <span className="flex-1 h-px bg-mycel-border/40 self-center" aria-hidden />
+          <span className="flex-1 h-px bg-mycel-border self-center" aria-hidden />
         </div>
         <ProvidersTable providers={providerList} search={search} />
       </section>
@@ -445,7 +445,7 @@ export function Tools() {
           <span className="text-[11px] text-mycel-muted tabular-nums">
             {filteredCli.length}{searchLower ? `/${cliTools.length}` : ""}
           </span>
-          <span className="flex-1 h-px bg-mycel-border/40 self-center" aria-hidden />
+          <span className="flex-1 h-px bg-mycel-border self-center" aria-hidden />
         </div>
         {filteredCli.length === 0 ? (
           <EmptyState icon=">" title={searchLower ? "No matching CLI tools" : "No CLI dependencies"} description={searchLower ? "Try a different search term." : "Add CLI tools like gh, aws, or wrangler."} />

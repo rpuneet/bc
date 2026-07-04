@@ -6,13 +6,13 @@ interface AgentStatusBadgeProps {
 const STATE_COLORS: Record<string, { dot: string; text: string }> = {
   running: { dot: "bg-mycel-success", text: "text-mycel-success" },
   working: { dot: "bg-mycel-success", text: "text-mycel-success" },
-  idle: { dot: "bg-mycel-success", text: "text-mycel-success" },
+  idle: { dot: "bg-mycel-warning", text: "text-mycel-warning" },
   stuck: { dot: "bg-mycel-warning", text: "text-mycel-warning" },
   error: { dot: "bg-mycel-error", text: "text-mycel-error" },
   stopped: { dot: "bg-mycel-muted", text: "text-mycel-muted" },
-  done: { dot: "bg-mycel-success", text: "text-mycel-success" },
-  waiting: { dot: "bg-purple-500", text: "text-purple-400" },
-  starting: { dot: "bg-mycel-info", text: "text-mycel-info" },
+  done: { dot: "bg-mycel-info", text: "text-mycel-info" },
+  waiting: { dot: "bg-mycel-warning", text: "text-mycel-warning" },
+  starting: { dot: "bg-mycel-success", text: "text-mycel-success" },
 };
 
 const DEFAULT_COLORS = { dot: "bg-mycel-muted", text: "text-mycel-muted" };

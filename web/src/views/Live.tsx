@@ -123,7 +123,7 @@ function PresenceLine({
             aria-pressed={showStopped}
             aria-label={showStopped ? "Hide stopped agents" : "Show stopped agents"}
             data-testid="toggle-show-stopped"
-            className="inline-flex items-center gap-1.5 text-mycel-muted/80 hover:text-mycel-text transition-colors"
+            className="inline-flex items-center gap-1.5 text-mycel-muted hover:text-mycel-text transition-colors"
           >
             <span className="text-mycel-border select-none">·</span>
             <span>
@@ -378,7 +378,7 @@ export function Live() {
           <button
             type="button"
             onClick={handleResume}
-            className="inline-flex items-center gap-1.5 text-[11px] font-mono px-2 py-0.5 rounded-md border border-mycel-warning/60 bg-mycel-warning/10 text-mycel-warning hover:bg-mycel-warning/20 transition-colors"
+            className="inline-flex items-center gap-1.5 text-[11px] font-mono px-2 py-0.5 rounded-md border border-mycel-warning bg-mycel-warning-subtle text-mycel-warning transition-colors"
             title="Stream paused — click to resume"
           >
             <svg width="9" height="9" viewBox="0 0 10 10" fill="currentColor"><polygon points="1,0 10,5 1,10" /></svg>
@@ -401,7 +401,7 @@ export function Live() {
             onChange={(e) => setSearchFilter(e.target.value)}
             placeholder="Search  /"
             aria-label="Search events"
-            className="text-[13px] rounded-md border border-mycel-border bg-mycel-surface pl-8 pr-2.5 py-1.5 text-mycel-text placeholder:text-mycel-muted/70 focus:outline-none focus:ring-1 focus:ring-mycel-accent w-40 focus:w-56 transition-[width] duration-150"
+            className="text-[13px] rounded-md border border-mycel-border bg-mycel-surface pl-8 pr-2.5 py-1.5 text-mycel-text placeholder:text-mycel-muted focus:outline-none focus:ring-1 focus:ring-mycel-accent w-40 focus:w-56 transition-[width] duration-150"
           />
         </div>
 
@@ -417,7 +417,7 @@ export function Live() {
             &#x22EF;
           </button>
           {menuOpen && (
-            <div className="absolute right-0 top-10 z-50 w-56 rounded-lg border border-mycel-border bg-mycel-surface shadow-lg py-1.5 text-[13px]">
+            <div className="absolute right-0 top-10 z-50 w-56 rounded-lg border border-mycel-border bg-mycel-surface-2 shadow-mycel-lg py-1.5 text-[13px]">
               <button
                 type="button"
                 onClick={() => {
@@ -430,7 +430,7 @@ export function Live() {
                 <span>{paused ? "Resume stream" : "Pause stream"}</span>
                 {paused && pausedCount > 0 && <span className="text-[11px] font-mono text-mycel-warning tabular-nums">+{pausedCount}</span>}
               </button>
-              <div className="my-1 border-t border-mycel-border/60" />
+              <div className="my-1 border-t border-mycel-border" />
               <div className="px-3 pt-1 pb-0.5 text-[10px] uppercase tracking-[0.1em] text-mycel-muted">Show</div>
               {([["all", "Everything"], ["tools", "Tool calls only"], ["state", "State changes only"]] as [FilterType, string][]).map(([value, label]) => (
                 <button
@@ -445,7 +445,7 @@ export function Live() {
                   {label}
                 </button>
               ))}
-              <div className="my-1 border-t border-mycel-border/60" />
+              <div className="my-1 border-t border-mycel-border" />
               <button
                 type="button"
                 onClick={() => { exportEvents(); setMenuOpen(false); }}
@@ -468,7 +468,7 @@ export function Live() {
 
       {/* Keyboard Shortcuts Overlay */}
       {showShortcuts && (
-        <div className="absolute top-16 right-6 z-50 bg-mycel-surface border border-mycel-border rounded-lg shadow-lg p-4 w-64">
+        <div className="absolute top-16 right-6 z-50 bg-mycel-surface-2 border border-mycel-border rounded-lg shadow-mycel-lg p-4 w-64">
           <div className="flex items-center justify-between mb-3">
             <span className="text-sm font-semibold text-mycel-text">Keyboard Shortcuts</span>
             <button
@@ -545,12 +545,12 @@ export function Live() {
         <button
           type="button"
           onClick={jumpToLatest}
-          className="absolute bottom-8 right-8 z-20 inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-mycel-border bg-mycel-surface text-mycel-text text-sm shadow-lg hover:border-mycel-accent hover:bg-mycel-surface-hover transition-colors"
+          className="absolute bottom-8 right-8 z-20 inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-mycel-border bg-mycel-surface-2 text-mycel-text text-sm shadow-mycel-lg hover:border-mycel-accent hover:bg-mycel-surface-hover transition-colors"
         >
           <span>&darr;</span>
           Jump to latest
           {newEventsSinceScroll > 0 && (
-            <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 text-[11px] font-bold text-white bg-mycel-accent rounded-full leading-none">
+            <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 text-[11px] font-bold text-mycel-accent-fg bg-mycel-accent rounded-full leading-none">
               {newEventsSinceScroll}
             </span>
           )}

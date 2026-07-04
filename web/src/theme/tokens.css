@@ -43,6 +43,14 @@
   --mycel-live: #e5484d;           /* red9                           */
   --mycel-info: #00a2c7;           /* cyan9                          */
 
+  /* Semantic tints (Radix *Dark step 3) — badge/pill backgrounds.
+     Tailwind 3 cannot alpha-modify var() colors, so the step-3 tint
+     is a first-class token, mirroring --mycel-accent-subtle. */
+  --mycel-success-subtle: #1b2a1e; /* grass3                         */
+  --mycel-warning-subtle: #302008; /* amber3                         */
+  --mycel-error-subtle: #3b1219;   /* red3                           */
+  --mycel-info-subtle: #082c36;    /* cyan3                          */
+
   /* Elevation — layered, key + ambient */
   --mycel-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.45);
   --mycel-shadow:
@@ -100,6 +108,12 @@ html.light {
   --mycel-error: #ce2c31;          /* red11                          */
   --mycel-live: #ce2c31;           /* red11                          */
   --mycel-info: #107d98;           /* cyan11                         */
+
+  /* Semantic tints (Radix step 3) — badge/pill backgrounds          */
+  --mycel-success-subtle: #e9f6e9; /* grass3                         */
+  --mycel-warning-subtle: #fff7c2; /* amber3                         */
+  --mycel-error-subtle: #feebec;   /* red3                           */
+  --mycel-info-subtle: #def7f9;    /* cyan3                          */
 
   /* Elevation — soft warm ambient (shadow color is sand12)          */
   --mycel-shadow-sm: 0 1px 2px rgba(33, 32, 28, 0.07);

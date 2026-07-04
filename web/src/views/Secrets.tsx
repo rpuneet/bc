@@ -24,7 +24,7 @@ function CopyButton({ text }: { text: string }) {
       type="button"
       onClick={handleCopy}
       title="Copy to clipboard"
-      className="ml-1 px-1.5 py-0.5 rounded text-[10px] border border-mycel-border text-mycel-muted hover:text-mycel-accent hover:border-mycel-accent/50 transition-colors"
+      className="ml-1 px-1.5 py-0.5 rounded text-[10px] border border-mycel-border text-mycel-muted hover:text-mycel-accent hover:border-mycel-accent transition-colors"
     >
       {copied ? "Copied" : "Copy"}
     </button>
@@ -73,7 +73,7 @@ function AddSecretForm({ onCreated }: { onCreated: () => void }) {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="flex items-center gap-2 px-4 py-2 rounded-lg border border-dashed border-mycel-border text-sm text-mycel-muted hover:text-mycel-accent hover:border-mycel-accent/50 transition-colors"
+        className="flex items-center gap-2 px-4 py-2 rounded-lg border border-dashed border-mycel-border text-sm text-mycel-muted hover:text-mycel-accent hover:border-mycel-accent transition-colors"
       >
         <span className="text-lg leading-none">+</span> Add Secret
       </button>
@@ -83,7 +83,7 @@ function AddSecretForm({ onCreated }: { onCreated: () => void }) {
   return (
     <form
       onSubmit={handleSubmit}
-      className="rounded-lg border border-mycel-border bg-mycel-surface p-5 space-y-4"
+      className="rounded-lg border border-mycel-border bg-mycel-surface p-5 space-y-4 shadow-mycel"
     >
       <div className="flex items-center justify-between">
         <h2 className="text-sm font-semibold text-mycel-text">New Secret</h2>
@@ -134,7 +134,7 @@ function AddSecretForm({ onCreated }: { onCreated: () => void }) {
 
         <div className="space-y-1">
           <label className="block text-xs font-medium text-mycel-muted uppercase tracking-wide">
-            Description <span className="text-mycel-muted/60 normal-case">(optional)</span>
+            Description <span className="text-mycel-muted normal-case">(optional)</span>
           </label>
           <input
             type="text"
@@ -153,7 +153,7 @@ function AddSecretForm({ onCreated }: { onCreated: () => void }) {
       <button
         type="submit"
         disabled={saving || !name.trim() || !value.trim()}
-        className="px-4 py-2 rounded-md bg-mycel-accent text-white text-sm font-medium hover:opacity-90 disabled:opacity-50 transition-opacity"
+        className="px-4 py-2 rounded-md bg-mycel-accent text-mycel-accent-fg text-sm font-medium hover:bg-mycel-accent-hover shadow-mycel-sm disabled:opacity-50 transition-colors"
       >
         {saving ? "Creating..." : "Create Secret"}
       </button>
@@ -275,7 +275,7 @@ function SecretCard({ secret, onChanged }: { secret: Secret; onChanged: () => vo
               type="button"
               onClick={handleUpdate}
               disabled={saving || !newValue.trim()}
-              className="px-3 py-1.5 rounded-md bg-mycel-accent text-white text-xs font-medium hover:opacity-90 disabled:opacity-50 transition-opacity"
+              className="px-3 py-1.5 rounded-md bg-mycel-accent text-mycel-accent-fg text-xs font-medium hover:bg-mycel-accent-hover shadow-mycel-sm disabled:opacity-50 transition-colors"
             >
               {saving ? "Saving..." : "Save"}
             </button>
@@ -302,7 +302,7 @@ function SecretCard({ secret, onChanged }: { secret: Secret; onChanged: () => vo
           <button
             type="button"
             onClick={() => setEditing(true)}
-            className="px-3 py-1.5 rounded-md border border-mycel-border text-xs text-mycel-muted hover:text-mycel-accent hover:border-mycel-accent/50 transition-colors"
+            className="px-3 py-1.5 rounded-md border border-mycel-border text-xs text-mycel-muted hover:text-mycel-accent hover:border-mycel-accent transition-colors"
           >
             Update Value
           </button>
@@ -312,7 +312,7 @@ function SecretCard({ secret, onChanged }: { secret: Secret; onChanged: () => vo
                 type="button"
                 onClick={handleDelete}
                 disabled={deleting}
-                className="px-3 py-1.5 rounded-md bg-mycel-error text-mycel-bg text-xs font-medium hover:opacity-90 disabled:opacity-50 transition-opacity"
+                className="px-3 py-1.5 rounded-md bg-mycel-error text-white text-xs font-medium hover:opacity-90 shadow-mycel-sm disabled:opacity-50 transition-opacity"
               >
                 {deleting ? "Deleting..." : "Confirm Delete"}
               </button>
@@ -329,7 +329,7 @@ function SecretCard({ secret, onChanged }: { secret: Secret; onChanged: () => vo
             <button
               type="button"
               onClick={() => setConfirming(true)}
-              className="px-3 py-1.5 rounded-md border border-mycel-border text-xs text-mycel-muted hover:text-mycel-error hover:border-red-400/50 transition-colors"
+              className="px-3 py-1.5 rounded-md border border-mycel-border text-xs text-mycel-muted hover:text-mycel-error hover:border-mycel-error transition-colors"
             >
               Delete
             </button>
@@ -364,7 +364,7 @@ export function Secrets() {
   if (loading && !secrets) {
     return (
       <div className="p-6 space-y-4">
-        <div className="h-6 w-32 animate-pulse rounded bg-mycel-border/50" />
+        <div className="h-6 w-32 animate-pulse rounded bg-mycel-surface-hover" />
         <LoadingSkeleton variant="table" rows={3} />
       </div>
     );

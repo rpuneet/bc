@@ -37,7 +37,7 @@ export function Notifications() {
   if (loading && !sources) {
     return (
       <div className="p-6 space-y-4">
-        <div className="h-6 w-28 animate-pulse rounded bg-mycel-border/50" />
+        <div className="h-6 w-28 animate-pulse rounded bg-mycel-surface-hover" />
         <LoadingSkeleton variant="text" rows={5} />
       </div>
     );
@@ -84,7 +84,7 @@ export function Notifications() {
         <div className="max-w-lg text-center px-6">
           <div className="text-4xl mb-4 opacity-40">#</div>
           <h2 className="text-xl font-semibold text-mycel-text mb-2">Connect your first app</h2>
-          <p className="text-sm text-mycel-muted/60 mb-8">
+          <p className="text-sm text-mycel-muted mb-8">
             Link Slack, Telegram, or Discord to start receiving messages in your agents.
           </p>
         </div>

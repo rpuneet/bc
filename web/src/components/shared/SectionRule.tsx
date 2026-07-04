@@ -26,7 +26,7 @@ export function SectionRule({
           {text}
         </span>
       )}
-      <div className="flex-1 h-px bg-gradient-to-r from-mycel-border/60 to-transparent" />
+      <div className="flex-1 h-px bg-gradient-to-r from-mycel-border to-transparent" />
       {trailing && <div className="flex items-center gap-2">{trailing}</div>}
     </div>
   );

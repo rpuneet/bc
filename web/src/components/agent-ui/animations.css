@@ -44,10 +44,10 @@
   filter: hue-rotate(-60deg) saturate(2);
 }
 
-/* Waiting: purple glow pulse */
+/* Waiting: warning glow pulse */
 @keyframes agent-glow {
   0%, 100% { transform: scale(1); filter: drop-shadow(0 0 0 transparent); }
-  50% { transform: scale(1.1); filter: drop-shadow(0 0 6px rgba(168, 85, 247, 0.6)); }
+  50% { transform: scale(1.1); filter: drop-shadow(0 0 6px var(--mycel-warning)); }
 }
 .agent-anim-waiting {
   animation: agent-glow 1.5s ease-in-out infinite;

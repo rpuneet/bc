@@ -28,7 +28,7 @@ export interface HeaderProps {
 
 export function Header({ left, center, actions, compact = true }: HeaderProps) {
   return (
-    <header className="shrink-0 border-b border-mycel-border/40 bg-mycel-surface/40 backdrop-blur-sm">
+    <header className="shrink-0 border-b border-mycel-border bg-[color-mix(in_srgb,var(--mycel-surface)_70%,transparent)] backdrop-blur-sm">
       <div
         className={`flex items-center min-w-0 px-4 sm:px-6 flex-wrap sm:flex-nowrap py-2 sm:py-0 ${
           compact ? "sm:min-h-[48px]" : "sm:min-h-[56px]"
@@ -43,11 +43,11 @@ export function Header({ left, center, actions, compact = true }: HeaderProps) {
 
         {/* Hairline separator between left and center — only when both slots are populated */}
         {left && center && (
-          <span className="hidden sm:block mx-3 h-4 w-px bg-mycel-border/50 shrink-0" aria-hidden />
+          <span className="hidden sm:block mx-3 h-4 w-px bg-mycel-border shrink-0" aria-hidden />
         )}
 
         {/* Center slot — page title / status. Grows to fill; truncates cleanly. */}
-        <div className="flex-1 min-w-0 flex items-center gap-2 text-[13px] text-mycel-text/90">
+        <div className="flex-1 min-w-0 flex items-center gap-2 text-[13px] text-mycel-text">
           {center}
         </div>
 
@@ -55,7 +55,7 @@ export function Header({ left, center, actions, compact = true }: HeaderProps) {
         {actions && (
           <>
             {center && (
-              <span className="hidden sm:block mx-3 h-4 w-px bg-mycel-border/50 shrink-0" aria-hidden />
+              <span className="hidden sm:block mx-3 h-4 w-px bg-mycel-border shrink-0" aria-hidden />
             )}
             <div className="flex items-center gap-2 shrink-0">{actions}</div>
           </>

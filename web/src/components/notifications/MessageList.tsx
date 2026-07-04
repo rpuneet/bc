@@ -85,7 +85,7 @@ export function MessageList({
       const nameColor = agentColor(group.sender);
 
       return (
-        <div className="flex gap-3 py-1.5 px-1 hover:bg-mycel-surface/30 rounded transition-colors" role="listitem">
+        <div className="flex gap-3 py-1.5 px-1 hover:bg-mycel-surface rounded transition-colors" role="listitem">
           {/* Colored avatar circle with sender initial */}
           <span
             className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0"
@@ -116,7 +116,7 @@ export function MessageList({
             {group.messages.map((msg) => (
               <p
                 key={msg.id}
-                className="mt-0.5 text-[13px] whitespace-pre-wrap break-words text-mycel-text/80 leading-[1.65]"
+                className="mt-0.5 text-[13px] whitespace-pre-wrap break-words text-mycel-text-2 leading-[1.65]"
               >
                 <MessageContent content={msg.content} />
               </p>
