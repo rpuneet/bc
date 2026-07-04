@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/rpuneet/mycel/pkg/log"
@@ -37,7 +38,8 @@ type Service struct {
 	store      *Store
 	agents     AgentSender
 	hub        Broadcaster
-	pruneEvery int // prune delivery log when entries exceed this per channel
+	dispatches sync.WaitGroup // in-flight Dispatch goroutines
+	pruneEvery int            // prune delivery log when entries exceed this per channel
 }
 
 // NewService creates a new notify service.
@@ -56,6 +58,23 @@ func NewServiceWithContext(ctx context.Context, store *Store, agents AgentSender
 		agents:     agents,
 		hub:        hub,
 		pruneEvery: 1000,
+	}
+}
+
+// DrainDispatches blocks until every in-flight Dispatch goroutine has
+// finished, or the timeout elapses. Returns false on timeout. Called at
+// shutdown so deliveries don't race store teardown.
+func (s *Service) DrainDispatches(timeout time.Duration) bool {
+	done := make(chan struct{})
+	go func() {
+		s.dispatches.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+		return true
+	case <-time.After(timeout):
+		return false
 	}
 }
 
@@ -85,7 +104,9 @@ func extractMentions(content string) []string {
 // Dispatch receives a normalized inbound message and delivers it to
 // subscribed agents only. Runs in its own goroutine — never blocks the adapter.
 func (s *Service) Dispatch(channel, platform, sender, senderID, content, messageID string, attachments []Attachment, raw json.RawMessage) {
+	s.dispatches.Add(1)
 	go func() {
+		defer s.dispatches.Done()
 		defer func() {
 			if r := recover(); r != nil {
 				log.Error("notify: dispatch panic", "recover", r)

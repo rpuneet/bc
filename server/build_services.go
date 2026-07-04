@@ -335,8 +335,24 @@ func buildServicesFromWS(ctx context.Context, globals *Globals, ws *bcworkspace.
 		}()
 	}
 
+	if notifyService != nil {
+		svcNotify := notifyService
+		addCloser(func() error {
+			if !svcNotify.DrainDispatches(3 * time.Second) {
+				log.Warn("notify: dispatch goroutines still running at shutdown")
+			}
+			return nil
+		})
+	}
+
 	// Gateway manager (Telegram/Discord/Slack adapters).
 	gwManager := buildGatewayManager(svcCtx, ws, notifyService, &wg)
+	if gwManager != nil {
+		// Registered after the notify closer so it runs BEFORE it (closers
+		// run in reverse): adapters stop feeding messages, then in-flight
+		// dispatches drain, then stores close.
+		addCloser(func() error { gwManager.Stop(context.Background()); return nil })
+	}
 
 	// Provider registry is global but we keep it referenced for parity.
 	_ = provider.DefaultRegistry
