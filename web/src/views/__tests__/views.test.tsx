@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { MemoryRouter, Routes, Route, useLocation } from "react-router-dom";
+import { HeaderSlotProvider, useHeaderSlotContext } from "../../context/HeaderSlotContext";
 import { Agents } from "../Agents";
 import { AgentDetail, lifecycleDisabled } from "../AgentDetail";
 import { Notifications } from "../Notifications";
@@ -95,6 +96,61 @@ describe("Agents", () => {
     fireEvent.click(screen.getByRole("button", { name: "Hide activity" }));
     await waitFor(() => {
       expect(screen.queryByText("View all activity →")).not.toBeInTheDocument();
+    });
+  });
+
+  it("moves the filter controls into the header's Filters popover", async () => {
+    fetchMock.mockReturnValue(
+      jsonResponse([
+        { name: "bot-1", role: "engineer", tool: "claude", state: "working", total_cost_usd: 0, started_at: "" },
+        { name: "bot-2", role: "engineer", tool: "gemini", state: "stopped", total_cost_usd: 0, started_at: "" },
+      ]),
+    );
+
+    // Render the header slot the way Layout's full-width bar does.
+    function HeaderHost() {
+      const { slot } = useHeaderSlotContext();
+      return (
+        <div data-testid="header-host">
+          {slot.title}
+          {slot.actions}
+        </div>
+      );
+    }
+    render(
+      <MemoryRouter>
+        <HeaderSlotProvider>
+          <HeaderHost />
+          <Agents />
+        </HeaderSlotProvider>
+      </MemoryRouter>,
+    );
+    await waitFor(() => {
+      expect(screen.getByText("bot-1")).toBeInTheDocument();
+    });
+
+    // The body carries no filter row — the selects live behind the chip.
+    expect(screen.queryByLabelText("Filter by state")).not.toBeInTheDocument();
+
+    // Open the Filters chip: selects + group-by-repo appear in the popover.
+    const chip = screen.getByRole("button", { name: "Filters" });
+    fireEvent.click(chip);
+    expect(screen.getByTestId("agents-filters-popover")).toBeInTheDocument();
+    expect(screen.getByLabelText("Filter by state")).toBeInTheDocument();
+    expect(screen.getByLabelText("Filter by tool")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Group by repo" })).toBeInTheDocument();
+
+    // Selecting a state filters the table and lights the chip badge.
+    fireEvent.change(screen.getByLabelText("Filter by state"), { target: { value: "working" } });
+    await waitFor(() => {
+      expect(screen.queryByText("bot-2")).not.toBeInTheDocument();
+    });
+    expect(screen.getByRole("button", { name: "Filters" }).textContent).toContain("1");
+
+    // Escape closes the popover.
+    fireEvent.keyDown(document, { key: "Escape" });
+    await waitFor(() => {
+      expect(screen.queryByTestId("agents-filters-popover")).not.toBeInTheDocument();
     });
   });
 });

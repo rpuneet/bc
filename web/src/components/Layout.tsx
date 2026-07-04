@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { NavLink, Outlet, useLocation, useMatch } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useTheme, THEME_LABELS } from "../context/ThemeContext";
@@ -757,8 +757,8 @@ function NotificationNavTree() {
 // grouped into quiet labeled sections: the daily surfaces ride unlabeled
 // at the top, configuration surfaces under CONFIGURE, and read-only
 // analytics under INSIGHTS. Labels collapse away in icon-only mode.
-// Settings lives in the footer next to About + the theme toggle so all
-// utility affordances read as one group of chrome.
+// Settings, About and the theme toggle live in the header's utility
+// menu (UtilityMenu), so the drawer stays pure nav.
 type NavItem = { to: string; label: string; icon: string };
 type NavSection = { label: string | null; items: readonly NavItem[] };
 
@@ -964,7 +964,6 @@ export function DegradedBanner() {
 
 export function Layout() {
   const location = useLocation();
-  const { mode, toggle } = useTheme();
   const isMobile = useMediaQuery("(max-width: 767px)");
 
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -1028,31 +1027,8 @@ export function Layout() {
         }`}
         style={{ scrollbarWidth: "thin", scrollbarColor: "var(--mycel-scrollbar-thumb) transparent" }}
       >
-        {/* Brand row — BrandMark network glyph + wordmark when expanded,
-            mark-only when collapsed. The toggle does NOT live here: the
-            single toggle sits at the far left of the header above. */}
-        <div className={`px-3 min-h-[40px] flex items-center ${collapsed && !isMobile ? "justify-center" : "justify-between"}`}>
-          <div className={`flex items-center gap-2 overflow-hidden ${collapsed && !isMobile ? "justify-center" : ""}`}>
-            <span className="text-mycel-text flex items-center shrink-0">
-              <BrandMark />
-            </span>
-            {(!collapsed || isMobile) && (
-              <span className="text-sm font-semibold tracking-tight text-mycel-text truncate mycel-fade-slide-in">
-                mycel
-              </span>
-            )}
-          </div>
-          {isMobile && (
-            <button type="button" onClick={() => setMobileOpen(false)}
-              className="p-0.5 rounded-md text-mycel-muted hover:text-mycel-text transition-colors" aria-label="Close navigation"
-            >
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5">
-                <path d="M3 3l8 8M11 3l-8 8" />
-              </svg>
-            </button>
-          )}
-        </div>
-
+        {/* Pure nav — the brand moved into the full-width header, so the
+            groups start right at the top of the drawer. */}
         {/* Nav — sectioned. Labeled captions replace the anonymous
             dividers so the grouping (fleet items vs global items vs
             system items) is explicit; the captions collapse to a bare
@@ -1067,92 +1043,8 @@ export function Layout() {
           />
         </ul>
 
-        {/* Unified sidebar footer — Settings, About and the theme toggle
-            as one group styled exactly like the nav items above, so the
-            utility affordances read as related chrome rather than three
-            competing patterns. Collapsed sidebar keeps stacked icon-only
-            rows so all three remain reachable. */}
-        {collapsed && !isMobile ? (
-          <div className="border-t border-mycel-border flex flex-col">
-            <NavLink
-              to="/settings"
-              className={({ isActive }) =>
-                `flex items-center justify-center px-2 py-[7px] border-l-2 transition-colors ${isActive ? "text-mycel-text bg-mycel-surface-hover border-mycel-accent" : "text-mycel-text-2 hover:text-mycel-text hover:bg-[color-mix(in_srgb,var(--mycel-surface-hover)_60%,transparent)] border-transparent"}`
-              }
-              title="Settings"
-            >
-              <Icon name="settings" size={16} />
-            </NavLink>
-            <NavLink
-              to="/about"
-              className={({ isActive }) =>
-                `flex items-center justify-center px-2 py-[7px] border-l-2 transition-colors ${isActive ? "text-mycel-text bg-mycel-surface-hover border-mycel-accent" : "text-mycel-text-2 hover:text-mycel-text hover:bg-[color-mix(in_srgb,var(--mycel-surface-hover)_60%,transparent)] border-transparent"}`
-              }
-              title="About / version"
-            >
-              <svg width="16" height="16" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5">
-                <circle cx="7" cy="7" r="5.5" />
-                <path d="M7 4.5v.01M6 6.5h1v3h1" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </NavLink>
-            <button type="button" onClick={toggle}
-              className="flex items-center justify-center px-2 py-[7px] border-l-2 border-transparent text-mycel-text-2 hover:text-mycel-text hover:bg-[color-mix(in_srgb,var(--mycel-surface-hover)_60%,transparent)] transition-colors"
-              title={`Theme: ${THEME_LABELS[mode]}`}
-              aria-label={`Switch theme — currently ${THEME_LABELS[mode]}`}
-            >
-              <svg width="16" height="16" viewBox="0 0 14 14" fill="none">
-                <circle cx="7" cy="7" r="5" stroke="currentColor" strokeWidth="1.4" />
-                <path d="M7 2a5 5 0 010 10z" fill="currentColor" />
-              </svg>
-            </button>
-          </div>
-        ) : (
-          <div className="border-t border-mycel-border py-1 flex flex-col">
-            <NavLink
-              to="/settings"
-              className={({ isActive }) =>
-                `flex items-center gap-2.5 pl-4 pr-3 py-[7px] text-sm border-l-2 transition-colors ${isActive ? "text-mycel-text font-medium bg-mycel-surface-hover border-mycel-accent" : "text-mycel-text-2 hover:text-mycel-text hover:bg-[color-mix(in_srgb,var(--mycel-surface-hover)_60%,transparent)] border-transparent"}`
-              }
-              title="Settings"
-            >
-              <span className="shrink-0 flex items-center justify-center w-4 opacity-70">
-                <Icon name="settings" size={16} />
-              </span>
-              <span className="truncate mycel-fade-slide-in">Settings</span>
-            </NavLink>
-            <NavLink
-              to="/about"
-              className={({ isActive }) =>
-                `flex items-center gap-2.5 pl-4 pr-3 py-[7px] text-sm border-l-2 transition-colors ${isActive ? "text-mycel-text font-medium bg-mycel-surface-hover border-mycel-accent" : "text-mycel-text-2 hover:text-mycel-text hover:bg-[color-mix(in_srgb,var(--mycel-surface-hover)_60%,transparent)] border-transparent"}`
-              }
-              title="About / version"
-            >
-              <span className="shrink-0 flex items-center justify-center w-4 opacity-70">
-                <svg width="16" height="16" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5">
-                  <circle cx="7" cy="7" r="5.5" />
-                  <path d="M7 4.5v.01M6 6.5h1v3h1" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              </span>
-              <span className="truncate mycel-fade-slide-in">About</span>
-            </NavLink>
-            <button type="button" onClick={toggle}
-              className="flex items-center gap-2.5 pl-4 pr-3 py-[7px] text-sm border-l-2 border-transparent text-mycel-text-2 hover:text-mycel-text hover:bg-[color-mix(in_srgb,var(--mycel-surface-hover)_60%,transparent)] transition-colors"
-              title={`Theme: ${THEME_LABELS[mode]} — click to switch`}
-              aria-label={`Switch theme — currently ${THEME_LABELS[mode]}`}
-            >
-              {/* Half-shaded circle — semantically "theme mode" (dark/light
-                  split), visually distinct from the gear (Settings) icon. */}
-              <span className="shrink-0 flex items-center justify-center w-4 opacity-70">
-                <svg width="16" height="16" viewBox="0 0 14 14" fill="none">
-                  <circle cx="7" cy="7" r="5" stroke="currentColor" strokeWidth="1.4" />
-                  <path d="M7 2a5 5 0 010 10z" fill="currentColor" />
-                </svg>
-              </span>
-              <span className="truncate mycel-fade-slide-in">Theme</span>
-              <span className="ml-auto text-xs text-mycel-muted">{THEME_LABELS[mode]}</span>
-            </button>
-          </div>
-        )}
+        {/* No footer — Settings, About and the theme toggle live in the
+            header's utility menu (UtilityMenu), so the drawer is pure nav. */}
       </nav>
 
       <main className="flex-1 flex flex-col overflow-hidden bg-mycel-bg">
@@ -1169,12 +1061,106 @@ export function Layout() {
   );
 }
 
+/* ── UtilityMenu ────────────────────────────────────────────────
+   The app-level utility dropdown at the far right of the header:
+   theme toggle (showing the current mode), Settings and About links.
+   These moved out of the drawer footer so the drawer is pure nav.
+   Styled like the other popovers (bg-mycel-surface-2, shadow-mycel-lg,
+   rounded-lg); closes on outside click, Escape and navigation. The
+   theme toggle keeps the menu open so the switch is observable. */
+function UtilityMenu() {
+  const { mode, toggle } = useTheme();
+  const [open, setOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onMouseDown = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", onMouseDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", onMouseDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [open]);
+
+  const itemClass =
+    "flex w-full items-center gap-2.5 px-3 py-1.5 text-sm text-mycel-text hover:bg-mycel-surface-hover transition-colors";
+
+  return (
+    <div className="relative shrink-0" ref={menuRef}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-label="Utilities"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        title="Theme, Settings, About"
+        className={`inline-flex items-center justify-center h-8 w-8 rounded-md transition-colors ${
+          open
+            ? "text-mycel-text bg-mycel-surface-hover"
+            : "text-mycel-muted hover:text-mycel-text hover:bg-mycel-surface-hover"
+        }`}
+      >
+        <Icon name="settings" size={16} />
+      </button>
+      {open && (
+        <div
+          role="menu"
+          className="absolute right-0 top-full mt-1.5 z-50 w-52 rounded-lg border border-mycel-border bg-mycel-surface-2 shadow-mycel-lg py-1.5"
+        >
+          <button
+            type="button"
+            role="menuitem"
+            onClick={toggle}
+            className={itemClass}
+            title={`Theme: ${THEME_LABELS[mode]} — click to switch`}
+            aria-label={`Switch theme — currently ${THEME_LABELS[mode]}`}
+          >
+            {/* Half-shaded circle — semantically "theme mode". */}
+            <span className="shrink-0 flex items-center justify-center w-4 opacity-70">
+              <svg width="15" height="15" viewBox="0 0 14 14" fill="none">
+                <circle cx="7" cy="7" r="5" stroke="currentColor" strokeWidth="1.4" />
+                <path d="M7 2a5 5 0 010 10z" fill="currentColor" />
+              </svg>
+            </span>
+            <span>Theme</span>
+            <span className="ml-auto text-xs text-mycel-muted">{THEME_LABELS[mode]}</span>
+          </button>
+          <div className="my-1 border-t border-mycel-border" />
+          <NavLink to="/settings" role="menuitem" onClick={() => setOpen(false)} className={itemClass}>
+            <span className="shrink-0 flex items-center justify-center w-4 opacity-70">
+              <Icon name="settings" size={15} />
+            </span>
+            Settings
+          </NavLink>
+          <NavLink to="/about" role="menuitem" onClick={() => setOpen(false)} className={itemClass}>
+            <span className="shrink-0 flex items-center justify-center w-4 opacity-70">
+              <svg width="15" height="15" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <circle cx="7" cy="7" r="5.5" />
+                <path d="M7 4.5v.01M6 6.5h1v3h1" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </span>
+            About
+          </NavLink>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ── LayoutHeader ───────────────────────────────────────────────
-   The full-width top bar. Owns the single drawer toggle at the far
-   left; per-view summary/search/actions arrive via HeaderSlotContext.
-   Views that render their own top band (AgentDetail's HUD bar) set
-   `hidden` — the bar stays (it is app chrome, and keeps the toggle
-   reachable) but carries no per-view content. */
+   The full-width top bar. Owns the far-left cluster (drawer toggle +
+   BrandMark wordmark) and the far-right utility menu; per-view
+   summary/search/actions arrive via HeaderSlotContext. Views that
+   render their own top band (AgentDetail's HUD bar) set `hidden` —
+   the bar stays (it is app chrome: toggle, brand, utilities) but
+   carries no per-view content. */
 function LayoutHeader({
   collapsed,
   onToggleCollapsed,
@@ -1185,9 +1171,28 @@ function LayoutHeader({
   const { slot } = useHeaderSlotContext();
   return (
     <Header
-      left={<SidebarToggle collapsed={collapsed} onToggle={onToggleCollapsed} />}
+      left={
+        <>
+          <SidebarToggle collapsed={collapsed} onToggle={onToggleCollapsed} />
+          <NavLink
+            to="/"
+            aria-label="mycel home"
+            className="flex items-center gap-2 select-none text-mycel-text"
+          >
+            <BrandMark />
+            <span className="text-sm font-semibold tracking-tight hidden sm:inline">
+              mycel
+            </span>
+          </NavLink>
+        </>
+      }
       center={slot.hidden ? undefined : slot.title}
-      actions={slot.hidden ? undefined : slot.actions}
+      actions={
+        <>
+          {!slot.hidden && slot.actions}
+          <UtilityMenu />
+        </>
+      }
     />
   );
 }

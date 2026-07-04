@@ -374,8 +374,8 @@ export function Live() {
     ),
     actions: drillDownAgent ? undefined : (
       <>
-        {/* Search */}
-        <div className="relative shrink-0">
+        {/* Search — grows into the free header space, capped at max-w-lg */}
+        <div className="relative flex-1 min-w-0 max-w-lg">
           <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" className="absolute left-2.5 top-1/2 -translate-y-1/2 text-mycel-muted pointer-events-none">
             <circle cx="6" cy="6" r="4.5" />
             <path d="M9.5 9.5L13 13" />
@@ -387,7 +387,7 @@ export function Live() {
             onChange={(e) => setSearchFilter(e.target.value)}
             placeholder="Search  /"
             aria-label="Search events"
-            className="text-sm rounded-md border border-mycel-border bg-mycel-surface pl-8 pr-2.5 py-1.5 text-mycel-text placeholder:text-mycel-muted focus:outline-none focus:ring-1 focus:ring-mycel-accent w-40 focus:w-56 transition-[width] duration-150"
+            className="w-full h-9 text-sm rounded-md border border-mycel-border bg-mycel-surface pl-8 pr-2.5 text-mycel-text placeholder:text-mycel-muted focus:outline-none focus:ring-1 focus:ring-mycel-accent"
           />
         </div>
 
@@ -403,7 +403,10 @@ export function Live() {
             &#x22EF;
           </button>
           {menuOpen && (
-            <div className="absolute right-0 top-10 z-50 w-56 rounded-lg border border-mycel-border bg-mycel-surface-2 shadow-mycel-lg py-1.5 text-sm">
+            <div
+              data-testid="live-more-menu"
+              className="absolute right-0 top-full mt-1.5 z-50 w-56 rounded-lg border border-mycel-border bg-mycel-surface-2 shadow-mycel-lg py-1.5 text-sm"
+            >
               <button
                 type="button"
                 onClick={() => {
