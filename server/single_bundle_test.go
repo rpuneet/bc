@@ -7,6 +7,7 @@ package server_test
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -25,9 +26,11 @@ func getJSON(t *testing.T, ts *httptest.Server, path string) (int, []byte) {
 		t.Fatal(err)
 	}
 	defer resp.Body.Close() //nolint:errcheck
-	var buf [1 << 16]byte
-	n, _ := resp.Body.Read(buf[:]) //nolint:errcheck // best-effort body read
-	return resp.StatusCode, buf[:n]
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("read body: %v", err)
+	}
+	return resp.StatusCode, body
 }
 
 func TestSingleBundleBoot(t *testing.T) {

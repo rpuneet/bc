@@ -360,8 +360,7 @@ func buildServicesFromWS(ctx context.Context, globals *Globals, ws *bcworkspace.
 		Notify:        notifyService,
 		Hub:           hub,
 		Degraded:      degraded,
-		cancel:        svcCancel,
-		wg:            &wg,
+		lifecycle:     &serviceLifecycle{cancel: svcCancel, wg: &wg},
 	}
 
 	// Propagate global-scoped stores onto the bundle so handlers can
@@ -373,7 +372,7 @@ func buildServicesFromWS(ctx context.Context, globals *Globals, ws *bcworkspace.
 
 	// Closer runs addCloser funcs in reverse order. cancel+wg.Wait are
 	// handled by Services.Close() itself before invoking this.
-	svc.closer = func() error {
+	svc.lifecycle.closer = func() error {
 		var firstErr error
 		for i := len(closers) - 1; i >= 0; i-- {
 			if err := closers[i](); err != nil && firstErr == nil {

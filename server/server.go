@@ -103,11 +103,20 @@ type Services struct {
 	// cancel stops background goroutines started by BuildServices. It is
 	// invoked first so goroutines can observe shutdown before their
 	// underlying stores close.
-	cancel context.CancelFunc
+	// lifecycle carries teardown state behind a pointer so Services can be
+	// copied by value; sync.Once makes Close idempotent and concurrent-safe.
+	lifecycle *serviceLifecycle
 	// wg lets Close wait for background goroutines to exit.
-	wg *sync.WaitGroup
-	// closer tears down stores in reverse construction order.
+}
+
+// serviceLifecycle owns the background-goroutine teardown for one built
+// service bundle: cancel stops the goroutines, wg waits for them, closer
+// tears down stores in reverse construction order.
+type serviceLifecycle struct {
+	cancel context.CancelFunc
+	wg     *sync.WaitGroup
 	closer func() error
+	once   sync.Once
 }
 
 // Close stops background goroutines started by BuildServices, waits for
@@ -118,23 +127,23 @@ type Services struct {
 // borrow it from pkg/db, which keeps it cached process-wide. It is closed
 // at process shutdown via db.CloseGlobal.
 func (s *Services) Close() error {
-	cancel := s.cancel
-	wg := s.wg
-	c := s.closer
-	s.cancel = nil
-	s.wg = nil
-	s.closer = nil
-
-	if cancel != nil {
-		cancel()
-	}
-	if wg != nil {
-		wg.Wait()
-	}
-	if c == nil {
+	lc := s.lifecycle
+	if lc == nil {
 		return nil
 	}
-	return c()
+	var err error
+	lc.once.Do(func() {
+		if lc.cancel != nil {
+			lc.cancel()
+		}
+		if lc.wg != nil {
+			lc.wg.Wait()
+		}
+		if lc.closer != nil {
+			err = lc.closer()
+		}
+	})
+	return err
 }
 
 // Server is the bcd HTTP server.

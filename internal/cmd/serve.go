@@ -186,7 +186,13 @@ func RunServer(addr, wsRoot, corsOrigin, apiKey string) error {
 	// Build the single service bundle. A repo-less boot serves the web UI
 	// + global APIs only; everything else reports degraded until the
 	// daemon is restarted inside a repo.
-	svc := server.Services{Stats: statsStore, Deps: depsRegistry}
+	svc := server.Services{
+		Stats: statsStore,
+		Deps:  depsRegistry,
+		Degraded: map[string]string{
+			"repos": "no repo adopted yet — run 'mycel up' inside a git repo, or create an agent with a repo path",
+		},
+	}
 	if ws != nil {
 		built, buildErr := server.BuildServices(ctx, globals, ws.RootDir)
 		if buildErr != nil {

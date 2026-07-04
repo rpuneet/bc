@@ -7,11 +7,10 @@ Start mycel server
 Start the mycel server (API, web UI, MCP, agent management).
 
 Bootstraps everything on first run — no separate init step:
-  - inside a git repo: the repo root is adopted as a workspace
-    (state lives under ~/.mycel, the repo stays pristine)
-  - outside a git repo: the server starts against the registry's
-    active workspace, or with no workspace at all — add repos from
-    the web UI
+  - inside a git repo: the repo root is adopted as the anchor repo
+    (state lives under ~/.mycel, the repo stays pristine) and new
+    agents default their repo to it
+  - outside a git repo: the server boots against MycelHome only
 
 By default the server runs in the foreground (for Docker/Railway).
 Use -d to run as a background daemon.

@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/rpuneet/mycel/pkg/agent"
@@ -100,11 +101,9 @@ func TestRepos_NilServiceEmptyList(t *testing.T) {
 	if len(resp.Repos) != 0 {
 		t.Errorf("repos = %+v, want empty", resp.Repos)
 	}
-	if resp.Repos == nil {
-		// JSON shape check: "repos" must be [] not null.
-		if body := rec.Body.String(); !json.Valid([]byte(body)) {
-			t.Errorf("invalid body: %s", body)
-		}
+	// JSON shape check: "repos" must serialize as [] and never null.
+	if body := rec.Body.String(); strings.Contains(body, `"repos":null`) {
+		t.Errorf("repos serialized as null, want []: %s", body)
 	}
 }
 
