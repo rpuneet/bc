@@ -184,7 +184,7 @@ function makeAgent(state: string) {
     role: "engineer",
     tool: "claude",
     state,
-    cost_usd: 0,
+    total_cost_usd: 0,
     started_at: "2025-01-01T00:00:00Z",
     created_at: "2025-01-01T00:00:00Z",
     updated_at: "2025-01-01T00:00:00Z",

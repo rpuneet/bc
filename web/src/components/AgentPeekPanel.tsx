@@ -121,8 +121,8 @@ export function AgentPeekPanel({ agentName, onClose }: AgentPeekPanelProps) {
         <div className="px-4 py-1.5 border-b border-mycel-border text-xs text-mycel-muted flex gap-3">
           <span>Role: {agent.role}</span>
           <span>Tool: {agent.tool || "\u2014"}</span>
-          {agent.cost_usd != null && (
-            <span>Cost: ${agent.cost_usd.toFixed(4)}</span>
+          {agent.total_cost_usd != null && (
+            <span>Cost: ${agent.total_cost_usd.toFixed(4)}</span>
           )}
         </div>
       )}

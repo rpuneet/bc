@@ -224,6 +224,25 @@ func buildCostMap(ctx context.Context, store *cost.Store) map[string]*cost.Summa
 	return m
 }
 
+// costForAgent aggregates ledger summaries for an agent name. The ledger
+// keys agent_id by session/worktree name — historically `bc-<repo>-<name>`,
+// bare `<name>` under the flat layout — so a bare-name lookup alone finds
+// nothing for older agents. Sum the exact key plus every `*-<name>` key.
+func costForAgent(costMap map[string]*cost.Summary, name string) (costUSD float64, tokens int64, found bool) {
+	if name == "" {
+		return 0, 0, false
+	}
+	suffix := "-" + name
+	for id, s := range costMap {
+		if id == name || strings.HasSuffix(id, suffix) {
+			costUSD += s.TotalCostUSD
+			tokens += s.TotalTokens
+			found = true
+		}
+	}
+	return costUSD, tokens, found
+}
+
 func (h *AgentHandler) list(w http.ResponseWriter, r *http.Request) {
 	svc := h.svc
 	costs := h.costs
@@ -249,9 +268,9 @@ func (h *AgentHandler) list(w http.ResponseWriter, r *http.Request) {
 		if costs != nil {
 			costMap := buildCostMap(r.Context(), costs)
 			for i := range dtos {
-				if summary, ok := costMap[dtos[i].Name]; ok {
-					dtos[i].TotalCostUSD = summary.TotalCostUSD
-					dtos[i].TotalTokens = summary.TotalTokens
+				if costUSD, tokens, ok := costForAgent(costMap, dtos[i].Name); ok {
+					dtos[i].TotalCostUSD = costUSD
+					dtos[i].TotalTokens = tokens
 				}
 			}
 		}

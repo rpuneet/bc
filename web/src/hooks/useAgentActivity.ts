@@ -108,7 +108,7 @@ export function useAgentActivity(agentName?: string): {
           if (agentName && a.name !== agentName) continue;
           if (!next.has(a.name)) {
             const updatedAt = a.updated_at ? new Date(a.updated_at).getTime() : 0;
-            const agentCost = a.cost_usd ?? (a as unknown as Record<string, unknown>).total_cost_usd as number ?? 0;
+            const agentCost = a.total_cost_usd ?? 0;
             next.set(a.name, {
               name: a.name,
               state: a.state,

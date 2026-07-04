@@ -138,7 +138,7 @@ export function StatsTab({ agent }: { agent: Agent }) {
     ? summaryTotalUSD
     : (isFinite(computedCostUSD) && computedCostUSD > 0)
       ? computedCostUSD
-      : isFinite(agent.cost_usd ?? 0) ? (agent.cost_usd ?? 0) : 0;
+      : isFinite(agent.total_cost_usd ?? 0) ? (agent.total_cost_usd ?? 0) : 0;
 
   // ── Derived chart data ───────────────────────────────────────────────────────
 

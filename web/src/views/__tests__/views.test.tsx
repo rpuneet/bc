@@ -42,7 +42,7 @@ describe("Agents", () => {
           role: "engineer",
           tool: "claude",
           state: "running",
-          cost_usd: 0.01,
+          total_cost_usd: 0.01,
           started_at: "",
         },
       ]),
@@ -70,7 +70,7 @@ describe("AgentDetail tab navigation", () => {
           role: "engineer",
           tool: "claude",
           state: "working",
-          cost_usd: 0,
+          total_cost_usd: 0,
           created_at: "2026-07-01T00:00:00Z",
           started_at: "2026-07-01T00:00:00Z",
           updated_at: "2026-07-01T00:00:00Z",
@@ -154,7 +154,7 @@ describe("AgentDetail lifecycle controls", () => {
           role: "engineer",
           tool: "claude",
           state: "working",
-          cost_usd: 0,
+          total_cost_usd: 0,
           created_at: "2026-07-01T00:00:00Z",
         });
       }

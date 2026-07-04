@@ -58,7 +58,7 @@ export interface Agent {
   role: string;
   tool: string;
   state: string;
-  cost_usd: number;
+  total_cost_usd: number;
   started_at: string;
   created_at: string;
   updated_at: string;
@@ -226,7 +226,7 @@ export interface FileAttachment {
 
 export interface DailyCost {
   date: string;
-  cost_usd: number;
+  total_cost_usd: number;
   total_tokens: number;
   record_count: number;
   input_tokens: number;
@@ -503,7 +503,7 @@ export interface TokenMetricTS {
   output_tokens: number;
   cache_read: number;
   cache_create: number;
-  cost_usd: number;
+  total_cost_usd: number;
 }
 
 export interface ChannelMetricTS {

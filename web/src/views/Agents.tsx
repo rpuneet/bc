@@ -988,9 +988,9 @@ export function Agents() {
                       <span
                         className="text-xs text-mycel-text-2 tabular-nums"
                         style={{ fontFamily: MONO }}
-                        title={a.cost_usd > 0 ? `$${a.cost_usd.toFixed(4)} total` : undefined}
+                        title={a.total_cost_usd > 0 ? `$${a.total_cost_usd.toFixed(4)} total` : undefined}
                       >
-                        {a.cost_usd > 0 ? `$${a.cost_usd.toFixed(2)}` : "\u2014"}
+                        {a.total_cost_usd > 0 ? `$${a.total_cost_usd.toFixed(2)}` : "\u2014"}
                       </span>
                     </td>
                     <td className="px-4 py-2.5">

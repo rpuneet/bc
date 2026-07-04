@@ -34,7 +34,7 @@ function agent(name: string, state: string) {
     role: "engineer",
     tool: "claude",
     state,
-    cost_usd: 0,
+    total_cost_usd: 0,
     started_at: "",
     created_at: "",
     updated_at: "",
