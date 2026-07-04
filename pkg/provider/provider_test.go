@@ -705,3 +705,26 @@ func TestClaudeHasResumableSession(t *testing.T) {
 		t.Error("empty dir must report false")
 	}
 }
+
+// TestSafeSessionID covers the shell-splice guard, including argument
+// injection via a leading dash.
+func TestSafeSessionID(t *testing.T) {
+	tests := []struct {
+		id   string
+		want bool
+	}{
+		{"cc78cadf-89ce-4820-ab6e-950afd2b6838", true},
+		{"session_1.2", true},
+		{"", false},
+		{"$(rm -rf /)", false},
+		{"a b", false},
+		{"-continue", false},
+		{"--dangerously-skip-permissions", false},
+		{"a-b-c", true},
+	}
+	for _, tt := range tests {
+		if got := SafeSessionID(tt.id); got != tt.want {
+			t.Errorf("SafeSessionID(%q) = %v, want %v", tt.id, got, tt.want)
+		}
+	}
+}

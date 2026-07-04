@@ -202,8 +202,10 @@ func ListInstalledProviders(ctx context.Context) []Provider {
 // safeSessionIDPattern is the conservative charset allowed in a session
 // ID that gets spliced into a provider command line (which runs under
 // `bash -c`). Quoting alone is not enough — `$()` expands inside double
-// quotes — so anything outside this shape is dropped, not escaped.
-var safeSessionIDPattern = regexp.MustCompile(`^[A-Za-z0-9._-]+$`)
+// quotes — so anything outside this shape is dropped, not escaped. The
+// first character must not be a dash, or the value would be parsed
+// as another flag (argument injection).
+var safeSessionIDPattern = regexp.MustCompile(`^[A-Za-z0-9._][A-Za-z0-9._-]*$`)
 
 // SafeSessionID reports whether a session ID is safe to interpolate
 // into a shell command line.

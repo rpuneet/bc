@@ -857,10 +857,10 @@ func (m *Manager) getAgentCommand(toolName, agentName string, resume bool, sessi
 // alone can't stop `$()` expansion — unsafe IDs are dropped.
 func appendSessionFlags(base string, opts provider.CommandOpts) string {
 	cmd := base
+	// Mirror provider priority: an explicit session wins over --continue.
 	if provider.SafeSessionID(opts.SessionID) {
 		cmd += " --session " + opts.SessionID
-	}
-	if opts.Resume {
+	} else if opts.Resume {
 		cmd += " --continue"
 	}
 	return cmd
@@ -1164,7 +1164,14 @@ func (m *Manager) startAgent(ctx context.Context, name string, opts SpawnOptions
 			if wtPath == "" {
 				wtPath = wtMgr.Path(name)
 			}
-			if m.toolHasResumableSession(existing.Tool, wtPath) {
+			// Resolve the tool the same way command construction does —
+			// an empty Tool falls back to the default, and passing ""
+			// to the detector would skip the check entirely.
+			resumeTool := existing.Tool
+			if resumeTool == "" {
+				resumeTool = m.defaultTool
+			}
+			if m.toolHasResumableSession(resumeTool, wtPath) {
 				resume = true
 				log.Debug("prior session found, will use --continue", "agent", name)
 			} else {
