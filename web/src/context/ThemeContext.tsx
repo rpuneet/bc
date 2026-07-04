@@ -6,7 +6,7 @@ import {
   useState,
 } from "react";
 
-export type ThemeMode = "solar-flare" | "dark" | "light";
+export type ThemeMode = "dark" | "light";
 
 interface ThemeContextValue {
   mode: ThemeMode;
@@ -15,16 +15,14 @@ interface ThemeContextValue {
 }
 
 const ThemeContext = createContext<ThemeContextValue>({
-  mode: "solar-flare",
+  mode: "dark",
   setTheme: () => {},
   toggle: () => {},
 });
 
 const STORAGE_KEY = "bc-theme";
-const CYCLE: ThemeMode[] = ["solar-flare", "dark", "light"];
 
 const LABELS: Record<ThemeMode, string> = {
-  "solar-flare": "Solar Flare",
   dark: "Dark",
   light: "Light",
 };
@@ -32,23 +30,19 @@ const LABELS: Record<ThemeMode, string> = {
 function readStored(): ThemeMode {
   try {
     const val = localStorage.getItem(STORAGE_KEY);
-    if (val === "solar-flare" || val === "dark" || val === "light") return val;
-    // Migrate old "system" preference
-    if (val === "system") return "solar-flare";
+    if (val === "dark" || val === "light") return val;
+    // Retired modes ("solar-flare", "system") map to the dark default.
   } catch {
     // localStorage unavailable
   }
-  return "solar-flare";
+  return "dark";
 }
 
 function applyTheme(mode: ThemeMode) {
   const el = document.documentElement;
-  // Remove all theme classes
+  // Dark is the :root default; light is the only theme class.
   el.classList.remove("dark", "light");
-  // Apply the right class (solar-flare uses :root defaults, no class needed)
-  if (mode === "dark") {
-    el.classList.add("dark");
-  } else if (mode === "light") {
+  if (mode === "light") {
     el.classList.add("light");
   }
 }
@@ -70,11 +64,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const toggle = useCallback(() => {
-    setMode((prev) => {
-      const idx = CYCLE.indexOf(prev);
-      const next = CYCLE[(idx + 1) % CYCLE.length];
-      return next ?? "solar-flare";
-    });
+    setMode((prev) => (prev === "dark" ? "light" : "dark"));
   }, []);
 
   return (

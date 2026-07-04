@@ -4,35 +4,57 @@
 
 /* ═══════════════════════════════════════════════════════════════════════
    mycel Design System — Theme Tokens
-   Three themes: Solar Flare (default), Dark, Light
+   Two themes: Dark (default) and Light.
+
+   Palette: Radix Colors (https://www.radix-ui.com/colors) — Sand
+   neutrals for mycel's warm identity, Orange as the brand accent, and
+   the 9/11 semantic steps (grass/amber/red/cyan) tuned per theme for
+   contrast. Every color below is an exact Radix scale value, not an
+   ad-hoc pick.
+
+   Elevation: three layered shadow steps per theme. Dark builds depth
+   with deeper blacks; light with soft warm ambient shadows. Raised
+   surfaces additionally step up one neutral (surface → surface-2).
    ═══════════════════════════════════════════════════════════════════════ */
 
-/* ── Solar Flare (default) ──────────────────────────────────────────── */
-/* Warm charcoal + neon tangerine — elevated surfaces, subtle glow      */
-/* Inspired by Vercel/Linear dark with warm undertones                  */
+/* ── Dark (default) — Sand Dark + Orange Dark ────────────────────────── */
 :root {
-  --mycel-bg: #0c0a09;
-  --mycel-surface: #1c1917;
-  --mycel-surface-hover: #292524;
-  --mycel-border: #44403c;
-  --mycel-text: #fafaf9;
-  --mycel-text-2: #d6d3d1;
-  --mycel-muted: #a8a29e;
-  --mycel-accent: #f97316;
-  --mycel-accent-hover: #fb923c;
-  --mycel-accent-fg: #0d0d0d;
-  --mycel-success: #4ade80;
-  --mycel-warning: #fbbf24;
-  --mycel-error: #f87171;
-  --mycel-live: #ef4444;
-  --mycel-info: #22d3ee;
-  --mycel-shadow: 0 1px 3px rgba(0,0,0,0.4), 0 1px 2px rgba(0,0,0,0.3);
-  --mycel-shadow-lg: 0 4px 12px rgba(0,0,0,0.5), 0 2px 4px rgba(0,0,0,0.3);
-  /* Overlay tokens — modal scrims + scrollbar tracks. Both were rgba
-     literals sprinkled inline (`bg-black/50`, `rgba(255,255,255,0.04)`);
-     now they follow the theme. */
-  --mycel-overlay: rgba(0,0,0,0.55);
-  --mycel-scrollbar-thumb: rgba(250,250,249,0.08);
+  /* Neutrals (Radix sandDark) */
+  --mycel-bg: #111110;             /* sand1  — app canvas            */
+  --mycel-surface: #191918;        /* sand2  — cards, panels         */
+  --mycel-surface-2: #222221;      /* sand3  — modals, popovers      */
+  --mycel-surface-hover: #2a2a28;  /* sand4  — hover on surfaces     */
+  --mycel-border: #3b3a37;         /* sand6  — hairlines             */
+  --mycel-border-strong: #494844;  /* sand7  — inputs, emphasis      */
+  --mycel-text: #eeeeec;           /* sand12 — primary text          */
+  --mycel-text-2: #b5b3ad;         /* sand11 — secondary text        */
+  --mycel-muted: #7c7b74;          /* sand10 — placeholders, hints   */
+
+  /* Brand accent (Radix orangeDark) */
+  --mycel-accent: #f76b15;         /* orange9  — actions, selection  */
+  --mycel-accent-hover: #ff801f;   /* orange10                       */
+  --mycel-accent-subtle: #331e0b;  /* orange3  — selected/badge bg   */
+  --mycel-accent-fg: #ffffff;      /* text on accent fills           */
+
+  /* Semantics (Radix *Dark step 9) */
+  --mycel-success: #46a758;        /* grass9                         */
+  --mycel-warning: #ffc53d;        /* amber9                         */
+  --mycel-error: #e5484d;          /* red9                           */
+  --mycel-live: #e5484d;           /* red9                           */
+  --mycel-info: #00a2c7;           /* cyan9                          */
+
+  /* Elevation — layered, key + ambient */
+  --mycel-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.45);
+  --mycel-shadow:
+    0 2px 8px rgba(0, 0, 0, 0.4),
+    0 1px 2px rgba(0, 0, 0, 0.35);
+  --mycel-shadow-lg:
+    0 16px 40px rgba(0, 0, 0, 0.55),
+    0 4px 12px rgba(0, 0, 0, 0.4);
+
+  /* Scrims + scrollbars follow the theme */
+  --mycel-overlay: rgba(0, 0, 0, 0.6);
+  --mycel-scrollbar-thumb: rgba(238, 238, 236, 0.09);
 
   /* Geist Sans for body copy; falls back to ui-sans-serif so the
      dashboard stays readable if @fontsource fails to load. JetBrains
@@ -52,57 +74,44 @@ samp {
   font-family: "Geist Mono", "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
 }
 
-/* ── Dark ────────────────────────────────────────────────────────────── */
-/* Zinc palette + emerald accent — Catppuccin Mocha inspired            */
-html.dark {
-  /* Overlay tokens deepen slightly for dark's inkier surface. */
-  --mycel-overlay: rgba(0,0,0,0.65);
-  --mycel-scrollbar-thumb: rgba(250,250,250,0.10);
-  --mycel-bg: #09090b;
-  --mycel-surface: #18181b;
-  --mycel-surface-hover: #27272a;
-  --mycel-border: #3f3f46;
-  --mycel-text: #fafafa;
-  --mycel-text-2: #d4d4d8;
-  --mycel-muted: #a1a1aa;
-  --mycel-accent: #10b981;
-  --mycel-accent-hover: #34d399;
-  --mycel-accent-fg: #052e1f;
-  --mycel-success: #4ade80;
-  --mycel-warning: #fbbf24;
-  --mycel-error: #f87171;
-  --mycel-live: #ef4444;
-  --mycel-info: #67e8f9;
-  --mycel-shadow: 0 1px 3px rgba(0,0,0,0.5), 0 1px 2px rgba(0,0,0,0.4);
-  --mycel-shadow-lg: 0 4px 12px rgba(0,0,0,0.6), 0 2px 4px rgba(0,0,0,0.4);
-
-  color-scheme: dark;
-}
-
-/* ── Light ───────────────────────────────────────────────────────────── */
-/* Stone palette + tangerine — Radix Sand inspired, high contrast       */
+/* ── Light — Sand + Orange ───────────────────────────────────────────── */
 html.light {
-  /* Light theme scrim/scrollbar: a very soft warm tint so the modal
-     scrim reads without going pure black over a white page. */
-  --mycel-overlay: rgba(12,10,9,0.40);
-  --mycel-scrollbar-thumb: rgba(12,10,9,0.14);
-  --mycel-bg: #f5f5f4;
-  --mycel-surface: #ffffff;
-  --mycel-surface-hover: #f3f4f6;
-  --mycel-border: #d6d3d1;
-  --mycel-text: #0c0a09;
-  --mycel-text-2: #44403c;
-  --mycel-muted: #57534e;
-  --mycel-accent: #ea580c;
-  --mycel-accent-hover: #c2410c;
+  /* Neutrals (Radix sand). Canvas is sand2 so white cards read as
+     raised surfaces under the light shadow scale. */
+  --mycel-bg: #f9f9f8;             /* sand2                          */
+  --mycel-surface: #ffffff;        /* white — cards, panels          */
+  --mycel-surface-2: #ffffff;      /* white — modals, popovers       */
+  --mycel-surface-hover: #f1f0ef;  /* sand3                          */
+  --mycel-border: #dad9d6;         /* sand6                          */
+  --mycel-border-strong: #cfceca;  /* sand7                          */
+  --mycel-text: #21201c;           /* sand12                         */
+  --mycel-text-2: #63635e;         /* sand11                         */
+  --mycel-muted: #8d8d86;          /* sand9                          */
+
+  /* Brand accent — orange10/11 for AA contrast on light             */
+  --mycel-accent: #ef5f00;         /* orange10                       */
+  --mycel-accent-hover: #cc4e00;   /* orange11                       */
+  --mycel-accent-subtle: #ffefd6;  /* orange3                        */
   --mycel-accent-fg: #ffffff;
-  --mycel-success: #16a34a;
-  --mycel-warning: #d97706;
-  --mycel-error: #dc2626;
-  --mycel-live: #dc2626;
-  --mycel-info: #0891b2;
-  --mycel-shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.06);
-  --mycel-shadow-lg: 0 4px 12px rgba(0,0,0,0.1), 0 2px 4px rgba(0,0,0,0.06);
+
+  /* Semantics (Radix step 11 — text-grade contrast on light)        */
+  --mycel-success: #2a7e3b;        /* grass11                        */
+  --mycel-warning: #ab6400;        /* amber11                        */
+  --mycel-error: #ce2c31;          /* red11                          */
+  --mycel-live: #ce2c31;           /* red11                          */
+  --mycel-info: #107d98;           /* cyan11                         */
+
+  /* Elevation — soft warm ambient (shadow color is sand12)          */
+  --mycel-shadow-sm: 0 1px 2px rgba(33, 32, 28, 0.07);
+  --mycel-shadow:
+    0 4px 12px rgba(33, 32, 28, 0.08),
+    0 1px 3px rgba(33, 32, 28, 0.06);
+  --mycel-shadow-lg:
+    0 16px 48px rgba(33, 32, 28, 0.16),
+    0 4px 12px rgba(33, 32, 28, 0.08);
+
+  --mycel-overlay: rgba(33, 32, 28, 0.4);
+  --mycel-scrollbar-thumb: rgba(33, 32, 28, 0.14);
 
   color-scheme: light;
 }
@@ -156,7 +165,7 @@ textarea:focus-visible,
   transition-timing-function: ease;
 }
 
-/* Scrollbar styling for dark themes */
+/* Scrollbar styling */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
