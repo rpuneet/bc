@@ -3,6 +3,8 @@ package provider
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 )
@@ -61,11 +63,18 @@ func (p *ClaudeProvider) InstallHint() string {
 func (p *ClaudeProvider) BuildCommand(opts CommandOpts) string {
 	cmd := "claude --dangerously-skip-permissions"
 	switch {
-	case opts.SessionID != "":
+	case claudeSessionIDPattern.MatchString(opts.SessionID):
 		cmd += " --resume " + opts.SessionID
+	case opts.Resume:
+		cmd += " --continue"
 	}
 	return cmd
 }
+
+// claudeSessionIDPattern is the full-string UUID shape of a Claude session
+// ID. The ID is spliced into a shell command line, so anything else —
+// including an empty string — is rejected rather than quoted.
+var claudeSessionIDPattern = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
 
 // AdjustSessionCommand is a no-op for native tmux sessions.
 // Claude auto-detects the tmux environment when running inside a bc-managed tmux session.
@@ -132,6 +141,33 @@ var claudeResumePattern = regexp.MustCompile(`claude --resume ([0-9a-f]{8}-[0-9a
 
 // SupportsResume reports that Claude Code supports resuming sessions by ID.
 func (p *ClaudeProvider) SupportsResume() bool { return true }
+
+// claudeHomeDir is overridable in tests.
+var claudeHomeDir = os.UserHomeDir
+
+// HasResumableSession reports whether Claude Code has a prior session
+// transcript for the given working directory. `claude --continue` EXITS
+// (instead of starting fresh) when the project has no session, so the
+// flag must only be passed when a transcript exists. Claude keys
+// transcripts by the project path with `/` and `.` replaced by `-`:
+// ~/.claude/projects/<encoded>/<session-uuid>.jsonl.
+func (p *ClaudeProvider) HasResumableSession(dir string) bool {
+	home, err := claudeHomeDir()
+	if err != nil || dir == "" {
+		return false
+	}
+	encoded := strings.NewReplacer("/", "-", ".", "-").Replace(dir)
+	entries, err := os.ReadDir(filepath.Join(home, ".claude", "projects", encoded))
+	if err != nil {
+		return false
+	}
+	for _, e := range entries {
+		if !e.IsDir() && strings.HasSuffix(e.Name(), ".jsonl") {
+			return true
+		}
+	}
+	return false
+}
 
 // ParseSessionID scans tool output for Claude's resume hint and returns the session UUID.
 // Returns "" if no session ID is found.

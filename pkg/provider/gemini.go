@@ -51,10 +51,11 @@ func (p *GeminiProvider) InstallHint() string {
 }
 
 // BuildCommand returns the full command for a given runtime context.
-// Supports --resume with session ID for session continuation.
+// Supports --resume with session ID for session continuation. The ID is
+// spliced into a shell command line, so unsafe values are dropped.
 func (p *GeminiProvider) BuildCommand(opts CommandOpts) string {
 	cmd := p.command
-	if opts.SessionID != "" {
+	if SafeSessionID(opts.SessionID) {
 		cmd += " --resume " + opts.SessionID
 	}
 	return cmd

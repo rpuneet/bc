@@ -853,18 +853,35 @@ func (m *Manager) getAgentCommand(toolName, agentName string, resume bool, sessi
 // appendSessionFlags adds the same --continue / --session flags the
 // provider's BuildCommand would, but to an arbitrary base command. We
 // keep the logic in one place so workspace overrides cooperate with
-// resume cleanly.
+// resume cleanly. Session IDs land in a `bash -c` line, where quoting
+// alone can't stop `$()` expansion — unsafe IDs are dropped.
 func appendSessionFlags(base string, opts provider.CommandOpts) string {
 	cmd := base
-	if opts.SessionID != "" {
-		// Quote SessionID to handle potential spaces / special chars,
-		// matching PiProvider.BuildCommand's approach.
-		cmd += fmt.Sprintf(" --session %q", opts.SessionID)
+	if provider.SafeSessionID(opts.SessionID) {
+		cmd += " --session " + opts.SessionID
 	}
 	if opts.Resume {
 		cmd += " --continue"
 	}
 	return cmd
+}
+
+// toolHasResumableSession consults the tool's provider about whether the
+// working directory holds a session a bare continue flag would pick up.
+// Providers without a detector keep the permissive default.
+func (m *Manager) toolHasResumableSession(toolName, dir string) bool {
+	if m.providerRegistry == nil {
+		return true
+	}
+	p, ok := m.providerRegistry.Get(toolName)
+	if !ok {
+		return true
+	}
+	det, ok := p.(provider.ResumableSessionDetector)
+	if !ok {
+		return true
+	}
+	return det.HasResumableSession(dir)
 }
 
 // listAvailableTools returns tool names from the manager's provider registry.
@@ -1138,10 +1155,21 @@ func (m *Manager) startAgent(ctx context.Context, name string, opts SpawnOptions
 				return nil, fmt.Errorf("worktree for %s is already in use by active session on %s backend", name, beName)
 			}
 		}
-		// Worktree exists with no active session — enable resume
+		// Worktree exists with no active session — enable resume, but
+		// only when the tool actually has a session to continue: some
+		// tools (Claude Code) exit instead of starting fresh when the
+		// continue flag finds nothing.
 		if !resume && sessionID == "" {
-			resume = true
-			log.Debug("worktree exists, will use --continue", "agent", name)
+			wtPath := existing.WorktreeDir
+			if wtPath == "" {
+				wtPath = wtMgr.Path(name)
+			}
+			if m.toolHasResumableSession(existing.Tool, wtPath) {
+				resume = true
+				log.Debug("prior session found, will use --continue", "agent", name)
+			} else {
+				log.Debug("no prior session transcript — starting fresh", "agent", name, "worktree", wtPath)
+			}
 		}
 	}
 

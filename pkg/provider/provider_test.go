@@ -2,6 +2,8 @@ package provider
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -626,16 +628,33 @@ func TestClaudeBuildCommandSessionID(t *testing.T) {
 			want: "claude --dangerously-skip-permissions --resume cc78cadf-89ce-4820-ab6e-950afd2b6838",
 		},
 		{
-			name: "resume flag without session ID — no special flag",
+			name: "resume flag without session ID — continue last session",
 			opts: CommandOpts{
 				AgentName: "eng-01",
 				Resume:    true,
 			},
-			want: "claude --dangerously-skip-permissions",
+			want: "claude --dangerously-skip-permissions --continue",
 		},
 		{
 			name: "no resume flags — fresh session",
 			opts: CommandOpts{AgentName: "eng-01"},
+			want: "claude --dangerously-skip-permissions",
+		},
+		{
+			name: "malformed session ID is dropped, resume flag wins",
+			opts: CommandOpts{
+				AgentName: "eng-01",
+				SessionID: "$(rm -rf /)",
+				Resume:    true,
+			},
+			want: "claude --dangerously-skip-permissions --continue",
+		},
+		{
+			name: "malformed session ID without resume — fresh session",
+			opts: CommandOpts{
+				AgentName: "eng-01",
+				SessionID: "not-a-uuid-shape!",
+			},
 			want: "claude --dangerously-skip-permissions",
 		},
 	}
@@ -647,5 +666,42 @@ func TestClaudeBuildCommandSessionID(t *testing.T) {
 				t.Errorf("BuildCommand() = %q, want %q", got, tt.want)
 			}
 		})
+	}
+}
+
+// TestClaudeHasResumableSession covers the --continue gate: Claude Code
+// exits instead of starting fresh when the project has no session, so
+// the detector must only report true when a transcript exists.
+func TestClaudeHasResumableSession(t *testing.T) {
+	p := NewClaudeProvider()
+	home := t.TempDir()
+	orig := claudeHomeDir
+	claudeHomeDir = func() (string, error) { return home, nil }
+	t.Cleanup(func() { claudeHomeDir = orig })
+
+	wt := "/Users/u/.mycel/worktrees/eng-01"
+	encoded := "-Users-u--mycel-worktrees-eng-01"
+	projDir := filepath.Join(home, ".claude", "projects", encoded)
+
+	if p.HasResumableSession(wt) {
+		t.Error("no projects dir — must report false")
+	}
+
+	if err := os.MkdirAll(projDir, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	if p.HasResumableSession(wt) {
+		t.Error("empty projects dir — must report false")
+	}
+
+	if err := os.WriteFile(filepath.Join(projDir, "cc78cadf-89ce-4820-ab6e-950afd2b6838.jsonl"), []byte("{}"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if !p.HasResumableSession(wt) {
+		t.Error("transcript present — must report true")
+	}
+
+	if p.HasResumableSession("") {
+		t.Error("empty dir must report false")
 	}
 }

@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"os/exec"
+	"regexp"
 	"sort"
 	"strings"
 )
@@ -196,4 +197,25 @@ func ListProviders() []Provider {
 // ListInstalledProviders returns all installed providers.
 func ListInstalledProviders(ctx context.Context) []Provider {
 	return DefaultRegistry.ListInstalled(ctx)
+}
+
+// safeSessionIDPattern is the conservative charset allowed in a session
+// ID that gets spliced into a provider command line (which runs under
+// `bash -c`). Quoting alone is not enough — `$()` expands inside double
+// quotes — so anything outside this shape is dropped, not escaped.
+var safeSessionIDPattern = regexp.MustCompile(`^[A-Za-z0-9._-]+$`)
+
+// SafeSessionID reports whether a session ID is safe to interpolate
+// into a shell command line.
+func SafeSessionID(id string) bool {
+	return safeSessionIDPattern.MatchString(id)
+}
+
+// ResumableSessionDetector is optionally implemented by providers that
+// can tell whether a working directory holds a prior session that a
+// bare continue flag would pick up. Callers must not emit a "continue
+// last session" flag when the detector reports false — some tools
+// (Claude Code) exit instead of starting fresh.
+type ResumableSessionDetector interface {
+	HasResumableSession(dir string) bool
 }
