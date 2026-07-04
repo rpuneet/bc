@@ -233,6 +233,12 @@ func (s *Service) ChannelMessages(ctx context.Context, channel string, limit int
 	return s.store.GetMessages(ctx, channel, limit, before)
 }
 
+// ChannelStats returns aggregated per-channel activity stats (message
+// counts, member counts, last activity, top senders).
+func (s *Service) ChannelStats(ctx context.Context) ([]ChannelStat, error) {
+	return s.store.ChannelStats(ctx)
+}
+
 // PruneOldActivity removes old delivery log entries for every channel,
 // keeping the most recent keepPerChannel entries in each.
 func (s *Service) PruneOldActivity(ctx context.Context, keepPerChannel int) error {

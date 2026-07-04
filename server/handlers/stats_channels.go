@@ -3,8 +3,32 @@ package handlers
 import (
 	"net/http"
 
+	"github.com/rpuneet/mycel/pkg/notify"
 	"github.com/rpuneet/mycel/pkg/stats"
 )
+
+// statsChannels serves GET /api/stats/channels — per-channel notification
+// activity (message counts, member counts, last activity, top senders)
+// aggregated from the notify store. Powers the Metrics page notification
+// panel in the web UI.
+func (h *StatsHandler) statsChannels(w http.ResponseWriter, r *http.Request) {
+	if !requireMethod(w, r, http.MethodGet) {
+		return
+	}
+	if h.notifySvc == nil {
+		writeJSON(w, http.StatusOK, []notify.ChannelStat{})
+		return
+	}
+	channelStats, err := h.notifySvc.ChannelStats(r.Context())
+	if err != nil {
+		httpInternalError(w, "channel stats", err)
+		return
+	}
+	if channelStats == nil {
+		channelStats = []notify.ChannelStat{}
+	}
+	writeJSON(w, http.StatusOK, channelStats)
+}
 
 // RegisterChannelStats mounts channel stats routes on the mux.
 func (h *StatsHandler) RegisterChannelStats(mux *http.ServeMux) {
