@@ -51,15 +51,10 @@ func TestCORS_WorkspaceScope_Coexist(t *testing.T) {
 	}
 	wsID := workspace.ComputeWorkspaceID(wsDir)
 
-	// Open the shared db (required by BuildWorkspaceServices).
-	sharedDB, sharedDriver, dbErr := bcdb.OpenWorkspaceDBWithConfig(wsDir, nil)
-	if dbErr != nil {
-		t.Fatalf("open shared db: %v", dbErr)
-	}
-	bcdb.SetShared(sharedDB, sharedDriver)
+	// BuildWorkspaceServices resolves the workspace db lazily via the
+	// registry; just make sure it is released after the test.
 	t.Cleanup(func() {
-		bcdb.SetShared(nil, "")
-		_ = bcdb.CloseShared()
+		_ = bcdb.CloseWorkspaceDB(wsDir)
 	})
 
 	reg, err := workspace.LoadRegistry()
@@ -162,14 +157,8 @@ func TestCORS_Preflight_Scoped(t *testing.T) {
 	}
 	wsID := workspace.ComputeWorkspaceID(wsDir)
 
-	sharedDB, sharedDriver, dbErr := bcdb.OpenWorkspaceDBWithConfig(wsDir, nil)
-	if dbErr != nil {
-		t.Fatalf("open shared db: %v", dbErr)
-	}
-	bcdb.SetShared(sharedDB, sharedDriver)
 	t.Cleanup(func() {
-		bcdb.SetShared(nil, "")
-		_ = bcdb.CloseShared()
+		_ = bcdb.CloseWorkspaceDB(wsDir)
 	})
 
 	reg, err := workspace.LoadRegistry()

@@ -6,7 +6,6 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"sync"
 
 	"github.com/rpuneet/mycel/pkg/log"
 )
@@ -27,47 +26,31 @@ func BCDBPath(workspaceRoot string) string {
 	return filepath.Join(workspaceRoot, ".bc", "bc.db")
 }
 
-// shared holds the workspace-wide database connection.
-// Set via SetShared() at app startup, used by all stores.
-var (
-	sharedDB     *sql.DB
-	sharedDriver string // "sqlite" or "timescale"
-	sharedMu     sync.RWMutex
-)
+// defaultRegistry is the process-wide per-workspace connection registry.
+// Unlike the old single "shared" connection (which pinned every store to
+// the LAUNCH workspace's bc.db), the registry keys connections by
+// workspace root, so workspace B's stores can never write into
+// workspace A's database.
+var defaultRegistry = NewRegistry()
 
-// SetShared sets the shared workspace database connection.
-// Call once at startup (in cmd/bcd or CLI init).
-func SetShared(db *sql.DB, driver string) {
-	sharedMu.Lock()
-	defer sharedMu.Unlock()
-	sharedDB = db
-	sharedDriver = driver
+// ForWorkspace returns the (lazily opened, cached) database connection
+// and driver ("sqlite" or "timescale") for the workspace rooted at root.
+// cfg is only consulted on the first open for that root; pass nil to use
+// DATABASE_URL / SQLite defaults.
+func ForWorkspace(root string, cfg *StorageSettings) (*DB, string, error) {
+	return defaultRegistry.Get(root, cfg)
 }
 
-// Shared returns the shared workspace database connection.
-// Returns nil if not set (stores should fall back to opening their own).
-func Shared() *sql.DB {
-	sharedMu.RLock()
-	defer sharedMu.RUnlock()
-	return sharedDB
+// CloseWorkspaceDB closes and evicts the cached connection for root from
+// the default registry. A later ForWorkspace reopens it.
+func CloseWorkspaceDB(root string) error {
+	return defaultRegistry.CloseWorkspace(root)
 }
 
-// SharedWrapped returns the shared database as a *DB wrapper.
-// Returns nil if no shared connection is set.
-func SharedWrapped() *DB {
-	sharedMu.RLock()
-	defer sharedMu.RUnlock()
-	if sharedDB == nil {
-		return nil
-	}
-	return &DB{DB: sharedDB}
-}
-
-// SharedDriver returns "sqlite" or "timescale".
-func SharedDriver() string {
-	sharedMu.RLock()
-	defer sharedMu.RUnlock()
-	return sharedDriver
+// CloseAllWorkspaceDBs closes every connection in the default registry.
+// Call at process shutdown.
+func CloseAllWorkspaceDBs() error {
+	return defaultRegistry.Close()
 }
 
 // StorageSettings holds the storage configuration from settings.json.
@@ -171,16 +154,4 @@ func OpenWorkspaceDBWithConfig(workspaceRoot string, cfg *StorageSettings) (*sql
 		return nil, "", fmt.Errorf("open sqlite %s: %w", path, err)
 	}
 	return d.DB, "sqlite", nil
-}
-
-// CloseShared closes the shared connection.
-func CloseShared() error {
-	sharedMu.Lock()
-	defer sharedMu.Unlock()
-	if sharedDB != nil {
-		err := sharedDB.Close()
-		sharedDB = nil
-		return err
-	}
-	return nil
 }

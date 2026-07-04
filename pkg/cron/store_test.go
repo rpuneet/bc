@@ -8,23 +8,19 @@ import (
 	"github.com/rpuneet/mycel/pkg/db"
 )
 
-func setupSharedDB(t *testing.T) {
+func setupSharedDB(t *testing.T) *db.DB {
 	t.Helper()
 	dir := t.TempDir()
 	d, err := db.Open(dir + "/bc.db")
 	if err != nil {
 		t.Fatalf("open test db: %v", err)
 	}
-	db.SetShared(d.DB, "sqlite")
-	t.Cleanup(func() {
-		db.SetShared(nil, "")
-		_ = d.Close()
-	})
+	t.Cleanup(func() { _ = d.Close() })
+	return d
 }
 
 func TestStore_AddGetList(t *testing.T) {
-	setupSharedDB(t)
-	store, err := Open("")
+	store, err := Open(setupSharedDB(t), "sqlite")
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -85,8 +81,7 @@ func TestStore_AddGetList(t *testing.T) {
 }
 
 func TestStore_SetEnabled(t *testing.T) {
-	setupSharedDB(t)
-	store, err := Open("")
+	store, err := Open(setupSharedDB(t), "sqlite")
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -134,8 +129,7 @@ func TestStore_SetEnabled(t *testing.T) {
 }
 
 func TestStore_Delete(t *testing.T) {
-	setupSharedDB(t)
-	store, err := Open("")
+	store, err := Open(setupSharedDB(t), "sqlite")
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -168,8 +162,7 @@ func TestStore_Delete(t *testing.T) {
 }
 
 func TestStore_RecordManualTrigger(t *testing.T) {
-	setupSharedDB(t)
-	store, err := Open("")
+	store, err := Open(setupSharedDB(t), "sqlite")
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -201,8 +194,7 @@ func TestStore_RecordManualTrigger(t *testing.T) {
 }
 
 func TestStore_GetLogs(t *testing.T) {
-	setupSharedDB(t)
-	store, err := Open("")
+	store, err := Open(setupSharedDB(t), "sqlite")
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}

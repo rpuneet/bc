@@ -13,6 +13,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/rpuneet/mycel/pkg/client"
+	"github.com/rpuneet/mycel/pkg/db"
 	"github.com/rpuneet/mycel/pkg/provider"
 	"github.com/rpuneet/mycel/pkg/tool"
 	"github.com/rpuneet/mycel/pkg/ui"
@@ -198,13 +199,18 @@ func completeToolNames(_ *cobra.Command, _ []string, _ string) ([]string, cobra.
 	return names, cobra.ShellCompDirectiveNoFileComp
 }
 
-// openToolStore opens the tool store for the current workspace.
+// openToolStore opens the tool store for the current workspace, using
+// the per-workspace database registry (works offline, without bcd).
 func openToolStore() (*tool.Store, error) {
 	ws, err := getWorkspace()
 	if err != nil {
 		return nil, errNotInWorkspace(err)
 	}
-	s := tool.NewStore(ws.StateDir())
+	wsDB, driver, dbErr := db.ForWorkspace(ws.RootDir, ws.Config.DBStorageSettings())
+	if dbErr != nil {
+		return nil, fmt.Errorf("failed to open workspace database: %w", dbErr)
+	}
+	s := tool.NewStore(wsDB, driver)
 	if err := s.Open(); err != nil {
 		return nil, fmt.Errorf("failed to open tool store: %w", err)
 	}

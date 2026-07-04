@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	pkgdb "github.com/rpuneet/mycel/pkg/db"
 	"github.com/rpuneet/mycel/pkg/log"
 	pkgmcp "github.com/rpuneet/mycel/pkg/mcp"
 	"github.com/rpuneet/mycel/pkg/provider"
@@ -157,15 +158,26 @@ func writeMCPJSON(ctx context.Context, workspacePath, agentName string, resolved
 	isDocker := runtimeBackend == "docker"
 	cfg := mcpConfig{MCPServers: make(map[string]mcpServerEntry)}
 
+	// Resolve this workspace's database from the per-workspace registry
+	// (cached when the daemon already opened it with full storage config).
+	wsDB, wsDriver, dbErr := pkgdb.ForWorkspace(workspacePath, nil)
+
 	// Try unified tool store first for MCP server configs, fall back to mcp.Store.
-	toolStore := pkgtool.NewStore(workspaceStateDir(workspacePath))
+	var toolStore *pkgtool.Store
 	var toolStoreOpen bool
-	if openErr := toolStore.Open(); openErr == nil {
-		toolStoreOpen = true
-		defer toolStore.Close() //nolint:errcheck
+	if dbErr == nil {
+		toolStore = pkgtool.NewStore(wsDB, wsDriver)
+		if openErr := toolStore.Open(); openErr == nil {
+			toolStoreOpen = true
+			defer toolStore.Close() //nolint:errcheck
+		}
 	}
 
-	mcpStore, mcpErr := pkgmcp.NewStore(workspacePath)
+	var mcpStore *pkgmcp.Store
+	mcpErr := dbErr
+	if dbErr == nil {
+		mcpStore, mcpErr = pkgmcp.NewStore(wsDB, wsDriver)
+	}
 	if mcpErr != nil && !toolStoreOpen {
 		log.Debug("both tool and MCP stores unavailable", "error", mcpErr)
 		return writeJSONFile(targetDir, ".mcp.json", cfg)
@@ -496,7 +508,11 @@ func validateAgentTools(workspacePath, roleName string) []string {
 	}
 
 	// Check MCP servers from role config — verify definition exists and health check
-	mcpStore, mcpErr := pkgmcp.NewStore(workspacePath)
+	var mcpStore *pkgmcp.Store
+	wsDB, wsDriver, mcpErr := pkgdb.ForWorkspace(workspacePath, nil)
+	if mcpErr == nil {
+		mcpStore, mcpErr = pkgmcp.NewStore(wsDB, wsDriver)
+	}
 	if mcpErr != nil {
 		issues = append(issues, fmt.Sprintf("MCP store unavailable: %v", mcpErr))
 		return issues

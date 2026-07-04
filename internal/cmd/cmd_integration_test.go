@@ -14,6 +14,7 @@ import (
 	"github.com/spf13/pflag"
 
 	"github.com/rpuneet/mycel/pkg/agent"
+	"github.com/rpuneet/mycel/pkg/db"
 	"github.com/rpuneet/mycel/pkg/events"
 	"github.com/rpuneet/mycel/pkg/ui"
 	"github.com/rpuneet/mycel/pkg/workspace"
@@ -422,7 +423,12 @@ func TestColorStateStr_Default(t *testing.T) {
 // seedEvents writes events to the workspace state.db SQLite database.
 func seedEvents(t *testing.T, wsDir string, evts []events.Event) {
 	t.Helper()
-	evtLog, err := events.NewSQLiteLog(filepath.Join(wsDir, ".bc", "state.db"))
+	d, _, err := db.ForWorkspace(wsDir, nil)
+	if err != nil {
+		t.Fatalf("failed to open workspace db: %v", err)
+	}
+	t.Cleanup(func() { _ = db.CloseWorkspaceDB(wsDir) })
+	evtLog, err := events.NewSQLiteLog(d)
 	if err != nil {
 		t.Fatalf("failed to open event log: %v", err)
 	}
@@ -697,7 +703,12 @@ func TestReportDoneInWorkspace(t *testing.T) {
 	}
 
 	// Verify event was logged
-	evtLog, err := events.NewSQLiteLog(filepath.Join(wsDir, ".bc", "state.db"))
+	d, _, err := db.ForWorkspace(wsDir, nil)
+	if err != nil {
+		t.Fatalf("failed to open workspace db: %v", err)
+	}
+	t.Cleanup(func() { _ = db.CloseWorkspaceDB(wsDir) })
+	evtLog, err := events.NewSQLiteLog(d)
 	if err != nil {
 		t.Fatalf("failed to open event log: %v", err)
 	}

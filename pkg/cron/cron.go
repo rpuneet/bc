@@ -6,7 +6,11 @@
 //
 // # Usage
 //
-//	store, err := cron.Open("/path/to/workspace")
+//	wsDB, driver, err := db.ForWorkspace("/path/to/workspace", nil)
+//	if err != nil {
+//	    return err
+//	}
+//	store, err := cron.Open(wsDB, driver)
 //	if err != nil {
 //	    return err
 //	}

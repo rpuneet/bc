@@ -9,8 +9,8 @@ import (
 	"github.com/rpuneet/mycel/pkg/db"
 )
 
-// setupSharedDB creates a temporary SQLite shared database for tests.
-func setupSharedDB(t *testing.T) {
+// setupSharedDB creates a temporary SQLite workspace database for tests.
+func setupSharedDB(t *testing.T) *db.DB {
 	t.Helper()
 	dir := t.TempDir()
 	dbPath := filepath.Join(dir, "bc.db")
@@ -18,16 +18,12 @@ func setupSharedDB(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open test db: %v", err)
 	}
-	db.SetShared(d.DB, "sqlite")
-	t.Cleanup(func() {
-		db.SetShared(nil, "")
-		_ = d.Close()
-	})
+	t.Cleanup(func() { _ = d.Close() })
+	return d
 }
 
 func TestStore_CRUD(t *testing.T) {
-	setupSharedDB(t)
-	s := NewStore("")
+	s := NewStore(setupSharedDB(t), "sqlite")
 	if err := s.Open(); err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -158,11 +154,11 @@ func TestStore_CRUD(t *testing.T) {
 }
 
 func TestStore_SeededOnce(t *testing.T) {
-	setupSharedDB(t)
+	d := setupSharedDB(t)
 
 	// Open twice — built-ins should not duplicate
 	for i := range 2 {
-		s := NewStore("")
+		s := NewStore(d, "sqlite")
 		if err := s.Open(); err != nil {
 			t.Fatalf("Open %d: %v", i, err)
 		}
@@ -187,8 +183,7 @@ func TestStore_SeededOnce(t *testing.T) {
 }
 
 func TestStore_ListOrdering(t *testing.T) {
-	setupSharedDB(t)
-	s := NewStore("")
+	s := NewStore(setupSharedDB(t), "sqlite")
 	if err := s.Open(); err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -220,8 +215,7 @@ func TestStore_ListOrdering(t *testing.T) {
 }
 
 func TestStore_RequiredFields(t *testing.T) {
-	setupSharedDB(t)
-	s := NewStore("")
+	s := NewStore(setupSharedDB(t), "sqlite")
 	if err := s.Open(); err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -238,16 +232,15 @@ func TestStore_RequiredFields(t *testing.T) {
 }
 
 func TestStore_SharedDBRequired(t *testing.T) {
-	// Without a shared DB, Open should return an error
-	db.SetShared(nil, "")
-	s := NewStore("")
+	// Without a workspace DB handle, Open should return an error
+	s := NewStore(nil, "")
 	if err := s.Open(); err == nil {
-		t.Error("expected error when shared DB is not available")
+		t.Error("expected error when no workspace DB is provided")
 	}
 }
 
 func TestTool_JSONSerialization(t *testing.T) {
-	setupSharedDB(t)
+	d := setupSharedDB(t)
 	original := &Tool{
 		Name:       "test",
 		Command:    "test --yes",
@@ -260,7 +253,7 @@ func TestTool_JSONSerialization(t *testing.T) {
 		CreatedAt:  time.Now().Truncate(time.Second),
 	}
 
-	s := NewStore("")
+	s := NewStore(d, "sqlite")
 	if err := s.Open(); err != nil {
 		t.Fatalf("Open: %v", err)
 	}

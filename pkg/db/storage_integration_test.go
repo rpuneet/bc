@@ -13,106 +13,202 @@ import (
 	"github.com/rpuneet/mycel/pkg/db"
 	"github.com/rpuneet/mycel/pkg/events"
 	"github.com/rpuneet/mycel/pkg/mcp"
+	"github.com/rpuneet/mycel/pkg/notify"
 	"github.com/rpuneet/mycel/pkg/tool"
 )
 
-// setupSharedDB opens a temporary SQLite database and sets it as the shared DB.
-// It registers cleanup to reset the shared state after the test.
-func setupSharedDB(t *testing.T) string {
+// setupSharedDB opens a temporary workspace database through the
+// per-workspace registry (the production path) and registers cleanup to
+// close it after the test. Returns the workspace root and the handle.
+func setupSharedDB(t *testing.T) (string, *db.DB) {
 	t.Helper()
 	dir := t.TempDir()
-	dbPath := filepath.Join(dir, "bc.db")
-	d, err := db.Open(dbPath)
+	d, driver, err := db.ForWorkspace(dir, nil)
 	if err != nil {
-		t.Fatalf("open test db: %v", err)
+		t.Fatalf("db.ForWorkspace: %v", err)
 	}
-	db.SetShared(d.DB, "sqlite")
-	t.Cleanup(func() {
-		db.SetShared(nil, "")
-		_ = d.Close()
-	})
-	return dir
+	if driver != "sqlite" {
+		t.Fatalf("driver = %q, want sqlite", driver)
+	}
+	t.Cleanup(func() { _ = db.CloseWorkspaceDB(dir) })
+	return dir, d
 }
 
 // ---------------------------------------------------------------------------
 // 1. Shared DB lifecycle
 // ---------------------------------------------------------------------------
 
-func TestStorageSharedLifecycle(t *testing.T) {
-	t.Run("SetShared and Shared return expected values", func(t *testing.T) {
+func TestStorageRegistryLifecycle(t *testing.T) {
+	t.Run("same root twice returns the same handle", func(t *testing.T) {
+		reg := db.NewRegistry()
+		t.Cleanup(func() { _ = reg.Close() })
+
 		dir := t.TempDir()
-		d, err := db.Open(filepath.Join(dir, "lifecycle.db"))
+		d1, driver1, err := reg.Get(dir, nil)
 		if err != nil {
-			t.Fatalf("open: %v", err)
+			t.Fatalf("Get: %v", err)
 		}
-		defer func() { _ = d.Close() }()
-
-		// Before setting, should be nil.
-		db.SetShared(nil, "")
-		if got := db.Shared(); got != nil {
-			t.Error("expected Shared() to be nil before SetShared")
+		if driver1 != "sqlite" {
+			t.Errorf("driver = %q, want sqlite", driver1)
 		}
-
-		db.SetShared(d.DB, "sqlite")
-		defer db.SetShared(nil, "")
-
-		if got := db.Shared(); got == nil {
-			t.Fatal("expected Shared() to be non-nil after SetShared")
+		d2, _, err := reg.Get(dir, nil)
+		if err != nil {
+			t.Fatalf("Get (second): %v", err)
 		}
-		if got := db.SharedDriver(); got != "sqlite" {
-			t.Errorf("SharedDriver() = %q, want %q", got, "sqlite")
+		if d1 != d2 {
+			t.Error("expected the cached handle on second Get")
 		}
 	})
 
-	t.Run("SharedWrapped returns nil when no shared DB", func(t *testing.T) {
-		db.SetShared(nil, "")
-		if got := db.SharedWrapped(); got != nil {
-			t.Error("expected SharedWrapped() to return nil when no shared DB")
+	t.Run("different roots get isolated databases", func(t *testing.T) {
+		reg := db.NewRegistry()
+		t.Cleanup(func() { _ = reg.Close() })
+
+		dirA, dirB := t.TempDir(), t.TempDir()
+		dA, _, err := reg.Get(dirA, nil)
+		if err != nil {
+			t.Fatalf("Get A: %v", err)
+		}
+		dB, _, err := reg.Get(dirB, nil)
+		if err != nil {
+			t.Fatalf("Get B: %v", err)
+		}
+		if dA == dB {
+			t.Fatal("expected distinct handles for distinct workspace roots")
+		}
+
+		ctx := context.Background()
+		if _, execErr := dA.ExecContext(ctx, "CREATE TABLE reg_probe (id INTEGER)"); execErr != nil {
+			t.Fatalf("create probe table in A: %v", execErr)
+		}
+		var n int
+		err = dB.QueryRowContext(ctx,
+			"SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='reg_probe'").Scan(&n)
+		if err != nil {
+			t.Fatalf("query B: %v", err)
+		}
+		if n != 0 {
+			t.Error("table created in workspace A leaked into workspace B's database")
 		}
 	})
 
-	t.Run("SharedWrapped returns wrapper when shared DB set", func(t *testing.T) {
+	t.Run("CloseWorkspace evicts and Get reopens", func(t *testing.T) {
+		reg := db.NewRegistry()
+		t.Cleanup(func() { _ = reg.Close() })
+
 		dir := t.TempDir()
-		d, err := db.Open(filepath.Join(dir, "wrapped.db"))
+		d1, _, err := reg.Get(dir, nil)
 		if err != nil {
-			t.Fatalf("open: %v", err)
+			t.Fatalf("Get: %v", err)
 		}
-		defer func() { _ = d.Close() }()
-
-		db.SetShared(d.DB, "sqlite")
-		defer db.SetShared(nil, "")
-
-		wrapped := db.SharedWrapped()
-		if wrapped == nil {
-			t.Fatal("expected SharedWrapped() to return non-nil")
+		if closeErr := reg.CloseWorkspace(dir); closeErr != nil {
+			t.Fatalf("CloseWorkspace: %v", closeErr)
 		}
-		if wrapped.DB != d.DB {
-			t.Error("wrapped.DB should point to the same *sql.DB")
+		if pingErr := d1.Ping(); pingErr == nil {
+			t.Error("expected closed handle to fail Ping after CloseWorkspace")
+		}
+		// Closing again is a no-op.
+		if closeErr := reg.CloseWorkspace(dir); closeErr != nil {
+			t.Errorf("second CloseWorkspace: %v", closeErr)
+		}
+
+		d2, _, err := reg.Get(dir, nil)
+		if err != nil {
+			t.Fatalf("Get after CloseWorkspace: %v", err)
+		}
+		if pingErr := d2.Ping(); pingErr != nil {
+			t.Errorf("reopened handle Ping: %v", pingErr)
 		}
 	})
 
-	t.Run("CloseShared cleans up", func(t *testing.T) {
-		dir := t.TempDir()
-		d, err := db.Open(filepath.Join(dir, "closeshared.db"))
+	t.Run("Close closes everything", func(t *testing.T) {
+		reg := db.NewRegistry()
+		dirA, dirB := t.TempDir(), t.TempDir()
+		dA, _, err := reg.Get(dirA, nil)
 		if err != nil {
-			t.Fatalf("open: %v", err)
+			t.Fatalf("Get A: %v", err)
 		}
-
-		db.SetShared(d.DB, "sqlite")
-
-		if err := db.CloseShared(); err != nil {
-			t.Fatalf("CloseShared() error: %v", err)
+		dB, _, err := reg.Get(dirB, nil)
+		if err != nil {
+			t.Fatalf("Get B: %v", err)
 		}
-
-		if got := db.Shared(); got != nil {
-			t.Error("expected Shared() to be nil after CloseShared")
+		if err := reg.Close(); err != nil {
+			t.Fatalf("Close: %v", err)
 		}
-
-		// Calling CloseShared again should be a no-op.
-		if err := db.CloseShared(); err != nil {
-			t.Errorf("second CloseShared() error: %v", err)
+		if dA.Ping() == nil || dB.Ping() == nil {
+			t.Error("expected all handles closed after registry Close")
 		}
 	})
+}
+
+// TestStorageWorkspaceIsolation is the multi-workspace bleed regression
+// test for issue #3238: stores built for two workspaces in the same
+// process must land in each workspace's own database. Notify
+// subscriptions were the observable symptom (workspace B's Slack
+// subscriptions showed up in workspace A).
+func TestStorageWorkspaceIsolation(t *testing.T) {
+	ctx := context.Background()
+
+	wsA, wsB := t.TempDir(), t.TempDir()
+	for _, dir := range []string{wsA, wsB} {
+		t.Cleanup(func() { _ = db.CloseWorkspaceDB(dir) })
+	}
+
+	openNotify := func(t *testing.T, root string) *notify.Store {
+		t.Helper()
+		d, driver, err := db.ForWorkspace(root, nil)
+		if err != nil {
+			t.Fatalf("ForWorkspace(%s): %v", root, err)
+		}
+		ns, err := notify.OpenStore(d, driver)
+		if err != nil {
+			t.Fatalf("notify.OpenStore(%s): %v", root, err)
+		}
+		return ns
+	}
+
+	nsA := openNotify(t, wsA)
+	nsB := openNotify(t, wsB)
+
+	tests := []struct {
+		name    string
+		store   *notify.Store
+		other   *notify.Store
+		channel string
+		agent   string
+	}{
+		{"workspace A subscription stays in A", nsA, nsB, "#engineering", "agent-a"},
+		{"workspace B subscription stays in B", nsB, nsA, "#ops", "agent-b"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := tt.store.Subscribe(ctx, tt.channel, tt.agent, false); err != nil {
+				t.Fatalf("Subscribe: %v", err)
+			}
+			mine, err := tt.store.Subscribers(ctx, tt.channel)
+			if err != nil {
+				t.Fatalf("Subscribers (own): %v", err)
+			}
+			if len(mine) != 1 || mine[0].Agent != tt.agent {
+				t.Fatalf("own workspace subscribers = %+v, want [%s]", mine, tt.agent)
+			}
+			theirs, err := tt.other.Subscribers(ctx, tt.channel)
+			if err != nil {
+				t.Fatalf("Subscribers (other): %v", err)
+			}
+			if len(theirs) != 0 {
+				t.Errorf("subscription bled into the other workspace: %+v", theirs)
+			}
+		})
+	}
+
+	// The two stores must genuinely sit on different database files.
+	if _, err := os.Stat(filepath.Join(wsA, ".bc", "bc.db")); err != nil {
+		t.Errorf("workspace A bc.db missing: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(wsB, ".bc", "bc.db")); err != nil {
+		t.Errorf("workspace B bc.db missing: %v", err)
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -120,29 +216,30 @@ func TestStorageSharedLifecycle(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestStorageCrossStoreIntegration(t *testing.T) {
-	dir := setupSharedDB(t)
+	dir, d := setupSharedDB(t)
+	_ = dir
 	ctx := context.Background()
 
-	// Initialize all stores against the shared DB.
-	cronStore, err := cron.Open(dir)
+	// Initialize all stores against the workspace DB.
+	cronStore, err := cron.Open(d, "sqlite")
 	if err != nil {
 		t.Fatalf("cron.Open: %v", err)
 	}
 	t.Cleanup(func() { _ = cronStore.Close() })
 
-	mcpStore, err := mcp.NewStore(dir)
+	mcpStore, err := mcp.NewStore(d, "sqlite")
 	if err != nil {
 		t.Fatalf("mcp.NewStore: %v", err)
 	}
 	t.Cleanup(func() { _ = mcpStore.Close() })
 
-	toolStore := tool.NewStore(dir)
+	toolStore := tool.NewStore(d, "sqlite")
 	if openErr := toolStore.Open(); openErr != nil {
 		t.Fatalf("tool.Open: %v", openErr)
 	}
 	t.Cleanup(func() { _ = toolStore.Close() })
 
-	eventsStore, err := events.NewSQLiteLog(filepath.Join(dir, "events.db"))
+	eventsStore, err := events.NewSQLiteLog(d)
 	if err != nil {
 		t.Fatalf("events.NewSQLiteLog: %v", err)
 	}
@@ -227,13 +324,9 @@ func TestStorageCrossStoreIntegration(t *testing.T) {
 	_ = toolStore.Close()
 	_ = eventsStore.Close()
 
-	// The shared DB should still be usable after store Close calls.
-	shared := db.Shared()
-	if shared == nil {
-		t.Fatal("shared DB should still be set after store Close calls")
-	}
-	if err := shared.Ping(); err != nil {
-		t.Fatalf("shared DB should still be pingable after store Close calls: %v", err)
+	// The workspace DB should still be usable after store Close calls.
+	if err := d.Ping(); err != nil {
+		t.Fatalf("workspace DB should still be pingable after store Close calls: %v", err)
 	}
 }
 
@@ -242,22 +335,23 @@ func TestStorageCrossStoreIntegration(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestStorageIsolationConcurrent(t *testing.T) {
-	dir := setupSharedDB(t)
+	dir, d := setupSharedDB(t)
+	_ = dir
 	ctx := context.Background()
 
-	cronStore, err := cron.Open(dir)
+	cronStore, err := cron.Open(d, "sqlite")
 	if err != nil {
 		t.Fatalf("cron.Open: %v", err)
 	}
 	t.Cleanup(func() { _ = cronStore.Close() })
 
-	mcpStore, err := mcp.NewStore(dir)
+	mcpStore, err := mcp.NewStore(d, "sqlite")
 	if err != nil {
 		t.Fatalf("mcp.NewStore: %v", err)
 	}
 	t.Cleanup(func() { _ = mcpStore.Close() })
 
-	eventsStore, err := events.NewSQLiteLog(filepath.Join(dir, "events.db"))
+	eventsStore, err := events.NewSQLiteLog(d)
 	if err != nil {
 		t.Fatalf("events.NewSQLiteLog: %v", err)
 	}
@@ -477,10 +571,10 @@ func TestStorageConfigValidation(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestStorageCronSmoke(t *testing.T) {
-	dir := setupSharedDB(t)
+	_, d := setupSharedDB(t)
 	ctx := context.Background()
 
-	store, err := cron.Open(dir)
+	store, err := cron.Open(d, "sqlite")
 	if err != nil {
 		t.Fatalf("cron.Open: %v", err)
 	}
@@ -582,9 +676,9 @@ func TestStorageCronSmoke(t *testing.T) {
 }
 
 func TestStorageMCPSmoke(t *testing.T) {
-	dir := setupSharedDB(t)
+	_, d := setupSharedDB(t)
 
-	store, err := mcp.NewStore(dir)
+	store, err := mcp.NewStore(d, "sqlite")
 	if err != nil {
 		t.Fatalf("mcp.NewStore: %v", err)
 	}
@@ -650,10 +744,10 @@ func TestStorageMCPSmoke(t *testing.T) {
 }
 
 func TestStorageToolSmoke(t *testing.T) {
-	dir := setupSharedDB(t)
+	_, d := setupSharedDB(t)
 	ctx := context.Background()
 
-	store := tool.NewStore(dir)
+	store := tool.NewStore(d, "sqlite")
 	if err := store.Open(); err != nil {
 		t.Fatalf("tool.Open: %v", err)
 	}
@@ -722,9 +816,9 @@ func TestStorageToolSmoke(t *testing.T) {
 }
 
 func TestStorageEventsSmoke(t *testing.T) {
-	dir := setupSharedDB(t)
+	_, d := setupSharedDB(t)
 
-	store, err := events.NewSQLiteLog(filepath.Join(dir, "events.db"))
+	store, err := events.NewSQLiteLog(d)
 	if err != nil {
 		t.Fatalf("events.NewSQLiteLog: %v", err)
 	}
@@ -783,24 +877,14 @@ func TestStorageEventsSmoke(t *testing.T) {
 }
 
 func TestStorageChannelSharedDBReady(t *testing.T) {
-	dir := setupSharedDB(t)
+	dir, d := setupSharedDB(t)
 
-	// Channel SQLiteStore opens its own connection to .bc/bc.db.
-	// Verify the shared DB infrastructure is set up correctly for channel use.
-	// Full channel CRUD tests live in pkg/notify/*_test.go.
-	bcDir := filepath.Join(dir, ".bc")
-	if mkErr := os.MkdirAll(bcDir, 0750); mkErr != nil {
-		t.Fatalf("mkdir .bc: %v", mkErr)
+	// Verify the workspace DB infrastructure is set up correctly for
+	// channel use. Full channel CRUD tests live in pkg/notify/*_test.go.
+	if _, err := os.Stat(filepath.Join(dir, ".bc", "bc.db")); err != nil {
+		t.Fatalf("workspace bc.db not created: %v", err)
 	}
-
-	shared := db.Shared()
-	if shared == nil {
-		t.Fatal("Shared() should be non-nil for channel store")
-	}
-	if db.SharedDriver() != "sqlite" {
-		t.Errorf("SharedDriver() = %q, want %q", db.SharedDriver(), "sqlite")
-	}
-	if err := shared.Ping(); err != nil {
-		t.Fatalf("shared.Ping: %v", err)
+	if err := d.Ping(); err != nil {
+		t.Fatalf("workspace db Ping: %v", err)
 	}
 }

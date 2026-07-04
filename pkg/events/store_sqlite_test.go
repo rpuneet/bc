@@ -9,7 +9,7 @@ import (
 )
 
 // setupSharedDB creates a temporary SQLite shared database for tests.
-func setupSharedDB(t *testing.T) {
+func setupSharedDB(t *testing.T) *db.DB {
 	t.Helper()
 	dir := t.TempDir()
 	dbPath := filepath.Join(dir, "bc.db")
@@ -17,16 +17,12 @@ func setupSharedDB(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open test db: %v", err)
 	}
-	db.SetShared(d.DB, "sqlite")
-	t.Cleanup(func() {
-		db.SetShared(nil, "")
-		_ = d.Close()
-	})
+	t.Cleanup(func() { _ = d.Close() })
+	return d
 }
 
 func TestSQLiteLog_AppendAndRead(t *testing.T) {
-	setupSharedDB(t)
-	log, err := NewSQLiteLog("unused")
+	log, err := NewSQLiteLog(setupSharedDB(t))
 	if err != nil {
 		t.Fatalf("NewSQLiteLog: %v", err)
 	}
@@ -59,8 +55,7 @@ func TestSQLiteLog_AppendAndRead(t *testing.T) {
 }
 
 func TestSQLiteLog_ReadLast(t *testing.T) {
-	setupSharedDB(t)
-	log, err := NewSQLiteLog("unused")
+	log, err := NewSQLiteLog(setupSharedDB(t))
 	if err != nil {
 		t.Fatalf("NewSQLiteLog: %v", err)
 	}
@@ -89,8 +84,7 @@ func TestSQLiteLog_ReadLast(t *testing.T) {
 }
 
 func TestSQLiteLog_ReadByAgent(t *testing.T) {
-	setupSharedDB(t)
-	log, err := NewSQLiteLog("unused")
+	log, err := NewSQLiteLog(setupSharedDB(t))
 	if err != nil {
 		t.Fatalf("NewSQLiteLog: %v", err)
 	}
@@ -113,8 +107,7 @@ func TestSQLiteLog_ReadByAgent(t *testing.T) {
 // than DefaultReadLimit — the old ORDER BY id ASC froze derived stats like
 // "last active" at the 1000th oldest event (#3259).
 func TestSQLiteLog_ReadByAgent_NewestWindowOldestFirst(t *testing.T) {
-	setupSharedDB(t)
-	log, err := NewSQLiteLog("unused")
+	log, err := NewSQLiteLog(setupSharedDB(t))
 	if err != nil {
 		t.Fatalf("NewSQLiteLog: %v", err)
 	}
@@ -150,8 +143,7 @@ func TestSQLiteLog_ReadByAgent_NewestWindowOldestFirst(t *testing.T) {
 }
 
 func TestSQLiteLog_EventData(t *testing.T) {
-	setupSharedDB(t)
-	log, err := NewSQLiteLog("unused")
+	log, err := NewSQLiteLog(setupSharedDB(t))
 	if err != nil {
 		t.Fatalf("NewSQLiteLog: %v", err)
 	}
@@ -174,8 +166,7 @@ func TestSQLiteLog_EventData(t *testing.T) {
 }
 
 func TestSQLiteLog_ImplementsEventStore(t *testing.T) {
-	setupSharedDB(t)
-	log, err := NewSQLiteLog("unused")
+	log, err := NewSQLiteLog(setupSharedDB(t))
 	if err != nil {
 		t.Fatalf("NewSQLiteLog: %v", err)
 	}

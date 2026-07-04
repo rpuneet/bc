@@ -53,23 +53,31 @@ func setupWorkspace(t *testing.T) string {
 	return dir
 }
 
-// setupWorkspaceWithDB sets up a workspace with a shared SQLite database,
-// required for stores that use db.SharedWrapped() (cron, mcp, etc.).
+// setupWorkspaceWithDB sets up a workspace whose database is opened
+// lazily via the per-workspace registry (see openWSDB).
 func setupWorkspaceWithDB(t *testing.T) string {
 	t.Helper()
-	dir := setupWorkspace(t)
-	d, err := db.Open(filepath.Join(dir, "bc.db"))
+	return setupWorkspace(t)
+}
+
+// openWSDB returns the per-workspace database handle + driver for the
+// given workspace root, mirroring how BuildWorkspaceServices resolves it.
+func openWSDB(t *testing.T, dir string) (*db.DB, string) {
+	t.Helper()
+	d, driver, err := db.ForWorkspace(dir, nil)
 	if err != nil {
-		t.Fatalf("open shared db: %v", err)
+		t.Fatalf("open workspace db: %v", err)
 	}
-	db.SetShared(d.DB, "sqlite")
-	t.Cleanup(func() {
-		db.SetShared(nil, "")
-		if closeErr := d.Close(); closeErr != nil {
-			t.Errorf("close shared db: %v", closeErr)
-		}
-	})
-	return dir
+	t.Cleanup(func() { _ = db.CloseWorkspaceDB(dir) })
+	return d, driver
+}
+
+// openWSSQLite returns just the SQLite handle for stores that take a
+// bare *db.DB (events).
+func openWSSQLite(t *testing.T, dir string) *db.DB {
+	t.Helper()
+	d, _ := openWSDB(t, dir)
+	return d
 }
 
 func buildTestServerWithServices(t *testing.T, svc server.Services) *httptest.Server {
@@ -349,7 +357,7 @@ func TestCostHandler_BudgetNotFound(t *testing.T) {
 
 func TestCronHandler_ListEmpty(t *testing.T) {
 	dir := setupWorkspaceWithDB(t)
-	store, err := cron.Open(dir)
+	store, err := cron.Open(openWSDB(t, dir))
 	if err != nil {
 		t.Fatalf("open cron store: %v", err)
 	}
@@ -369,7 +377,7 @@ func TestCronHandler_ListEmpty(t *testing.T) {
 
 func TestCronHandler_CreateAndGet(t *testing.T) {
 	dir := setupWorkspaceWithDB(t)
-	store, err := cron.Open(dir)
+	store, err := cron.Open(openWSDB(t, dir))
 	if err != nil {
 		t.Fatalf("open cron store: %v", err)
 	}
@@ -400,7 +408,7 @@ func TestCronHandler_CreateAndGet(t *testing.T) {
 
 func TestCronHandler_CreateMissingCommandAndPrompt(t *testing.T) {
 	dir := setupWorkspaceWithDB(t)
-	store, err := cron.Open(dir)
+	store, err := cron.Open(openWSDB(t, dir))
 	if err != nil {
 		t.Fatalf("open cron store: %v", err)
 	}
@@ -417,7 +425,7 @@ func TestCronHandler_CreateMissingCommandAndPrompt(t *testing.T) {
 
 func TestCronHandler_CreateInvalidBody(t *testing.T) {
 	dir := setupWorkspaceWithDB(t)
-	store, err := cron.Open(dir)
+	store, err := cron.Open(openWSDB(t, dir))
 	if err != nil {
 		t.Fatalf("open cron store: %v", err)
 	}
@@ -433,7 +441,7 @@ func TestCronHandler_CreateInvalidBody(t *testing.T) {
 
 func TestCronHandler_Delete(t *testing.T) {
 	dir := setupWorkspaceWithDB(t)
-	store, err := cron.Open(dir)
+	store, err := cron.Open(openWSDB(t, dir))
 	if err != nil {
 		t.Fatalf("open cron store: %v", err)
 	}
@@ -453,7 +461,7 @@ func TestCronHandler_Delete(t *testing.T) {
 
 func TestCronHandler_EnableDisable(t *testing.T) {
 	dir := setupWorkspaceWithDB(t)
-	store, err := cron.Open(dir)
+	store, err := cron.Open(openWSDB(t, dir))
 	if err != nil {
 		t.Fatalf("open cron store: %v", err)
 	}
@@ -487,7 +495,7 @@ func TestCronHandler_EnableDisable(t *testing.T) {
 
 func TestCronHandler_RunDisabledJob(t *testing.T) {
 	dir := setupWorkspaceWithDB(t)
-	store, err := cron.Open(dir)
+	store, err := cron.Open(openWSDB(t, dir))
 	if err != nil {
 		t.Fatalf("open cron store: %v", err)
 	}
@@ -509,7 +517,7 @@ func TestCronHandler_RunDisabledJob(t *testing.T) {
 
 func TestCronHandler_RunEnabledJob(t *testing.T) {
 	dir := setupWorkspaceWithDB(t)
-	store, err := cron.Open(dir)
+	store, err := cron.Open(openWSDB(t, dir))
 	if err != nil {
 		t.Fatalf("open cron store: %v", err)
 	}
@@ -535,7 +543,7 @@ func TestCronHandler_RunEnabledJob(t *testing.T) {
 
 func TestCronHandler_RunNonexistent(t *testing.T) {
 	dir := setupWorkspaceWithDB(t)
-	store, err := cron.Open(dir)
+	store, err := cron.Open(openWSDB(t, dir))
 	if err != nil {
 		t.Fatalf("open cron store: %v", err)
 	}
@@ -551,7 +559,7 @@ func TestCronHandler_RunNonexistent(t *testing.T) {
 
 func TestCronHandler_Logs(t *testing.T) {
 	dir := setupWorkspaceWithDB(t)
-	store, err := cron.Open(dir)
+	store, err := cron.Open(openWSDB(t, dir))
 	if err != nil {
 		t.Fatalf("open cron store: %v", err)
 	}
@@ -576,7 +584,7 @@ func TestCronHandler_Logs(t *testing.T) {
 
 func TestCronHandler_MethodNotAllowed(t *testing.T) {
 	dir := setupWorkspaceWithDB(t)
-	store, err := cron.Open(dir)
+	store, err := cron.Open(openWSDB(t, dir))
 	if err != nil {
 		t.Fatalf("open cron store: %v", err)
 	}
@@ -592,7 +600,7 @@ func TestCronHandler_MethodNotAllowed(t *testing.T) {
 
 func TestCronHandler_EmptyName(t *testing.T) {
 	dir := setupWorkspaceWithDB(t)
-	store, err := cron.Open(dir)
+	store, err := cron.Open(openWSDB(t, dir))
 	if err != nil {
 		t.Fatalf("open cron store: %v", err)
 	}
@@ -608,7 +616,7 @@ func TestCronHandler_EmptyName(t *testing.T) {
 
 func TestCronHandler_UnknownSub(t *testing.T) {
 	dir := setupWorkspaceWithDB(t)
-	store, err := cron.Open(dir)
+	store, err := cron.Open(openWSDB(t, dir))
 	if err != nil {
 		t.Fatalf("open cron store: %v", err)
 	}
@@ -628,7 +636,7 @@ func TestCronHandler_UnknownSub(t *testing.T) {
 
 func TestCronHandler_JobMethodNotAllowed(t *testing.T) {
 	dir := setupWorkspaceWithDB(t)
-	store, err := cron.Open(dir)
+	store, err := cron.Open(openWSDB(t, dir))
 	if err != nil {
 		t.Fatalf("open cron store: %v", err)
 	}
@@ -648,7 +656,7 @@ func TestCronHandler_JobMethodNotAllowed(t *testing.T) {
 
 func TestCronHandler_EnableMethodNotAllowed(t *testing.T) {
 	dir := setupWorkspaceWithDB(t)
-	store, err := cron.Open(dir)
+	store, err := cron.Open(openWSDB(t, dir))
 	if err != nil {
 		t.Fatalf("open cron store: %v", err)
 	}
@@ -668,7 +676,7 @@ func TestCronHandler_EnableMethodNotAllowed(t *testing.T) {
 
 func TestCronHandler_RunMethodNotAllowed(t *testing.T) {
 	dir := setupWorkspaceWithDB(t)
-	store, err := cron.Open(dir)
+	store, err := cron.Open(openWSDB(t, dir))
 	if err != nil {
 		t.Fatalf("open cron store: %v", err)
 	}
@@ -684,7 +692,7 @@ func TestCronHandler_RunMethodNotAllowed(t *testing.T) {
 
 func TestCronHandler_LogsMethodNotAllowed(t *testing.T) {
 	dir := setupWorkspaceWithDB(t)
-	store, err := cron.Open(dir)
+	store, err := cron.Open(openWSDB(t, dir))
 	if err != nil {
 		t.Fatalf("open cron store: %v", err)
 	}
@@ -867,7 +875,7 @@ func TestSecretHandler_ByNameMethodNotAllowed(t *testing.T) {
 
 func TestMCPHandler_ListEmpty(t *testing.T) {
 	dir := setupWorkspaceWithDB(t)
-	store, err := mcp.NewStore(dir)
+	store, err := mcp.NewStore(openWSDB(t, dir))
 	if err != nil {
 		t.Fatalf("create mcp store: %v", err)
 	}
@@ -887,7 +895,7 @@ func TestMCPHandler_ListEmpty(t *testing.T) {
 
 func TestMCPHandler_CRUD(t *testing.T) {
 	dir := setupWorkspaceWithDB(t)
-	store, err := mcp.NewStore(dir)
+	store, err := mcp.NewStore(openWSDB(t, dir))
 	if err != nil {
 		t.Fatalf("create mcp store: %v", err)
 	}
@@ -940,7 +948,7 @@ func TestMCPHandler_CRUD(t *testing.T) {
 
 func TestMCPHandler_GetNotFound(t *testing.T) {
 	dir := setupWorkspaceWithDB(t)
-	store, err := mcp.NewStore(dir)
+	store, err := mcp.NewStore(openWSDB(t, dir))
 	if err != nil {
 		t.Fatalf("create mcp store: %v", err)
 	}
@@ -956,7 +964,7 @@ func TestMCPHandler_GetNotFound(t *testing.T) {
 
 func TestMCPHandler_MethodNotAllowed(t *testing.T) {
 	dir := setupWorkspaceWithDB(t)
-	store, err := mcp.NewStore(dir)
+	store, err := mcp.NewStore(openWSDB(t, dir))
 	if err != nil {
 		t.Fatalf("create mcp store: %v", err)
 	}
@@ -972,7 +980,7 @@ func TestMCPHandler_MethodNotAllowed(t *testing.T) {
 
 func TestMCPHandler_EmptyName(t *testing.T) {
 	dir := setupWorkspaceWithDB(t)
-	store, err := mcp.NewStore(dir)
+	store, err := mcp.NewStore(openWSDB(t, dir))
 	if err != nil {
 		t.Fatalf("create mcp store: %v", err)
 	}
@@ -988,7 +996,7 @@ func TestMCPHandler_EmptyName(t *testing.T) {
 
 func TestMCPHandler_UnknownSub(t *testing.T) {
 	dir := setupWorkspaceWithDB(t)
-	store, err := mcp.NewStore(dir)
+	store, err := mcp.NewStore(openWSDB(t, dir))
 	if err != nil {
 		t.Fatalf("create mcp store: %v", err)
 	}
@@ -1008,7 +1016,7 @@ func TestMCPHandler_UnknownSub(t *testing.T) {
 
 func TestMCPHandler_CreateInvalidBody(t *testing.T) {
 	dir := setupWorkspaceWithDB(t)
-	store, err := mcp.NewStore(dir)
+	store, err := mcp.NewStore(openWSDB(t, dir))
 	if err != nil {
 		t.Fatalf("create mcp store: %v", err)
 	}
@@ -1024,7 +1032,7 @@ func TestMCPHandler_CreateInvalidBody(t *testing.T) {
 
 func TestMCPHandler_ServerMethodNotAllowed(t *testing.T) {
 	dir := setupWorkspaceWithDB(t)
-	store, err := mcp.NewStore(dir)
+	store, err := mcp.NewStore(openWSDB(t, dir))
 	if err != nil {
 		t.Fatalf("create mcp store: %v", err)
 	}
@@ -1046,7 +1054,7 @@ func TestMCPHandler_ServerMethodNotAllowed(t *testing.T) {
 
 func TestMCPHandler_EnableMethodNotAllowed(t *testing.T) {
 	dir := setupWorkspaceWithDB(t)
-	store, err := mcp.NewStore(dir)
+	store, err := mcp.NewStore(openWSDB(t, dir))
 	if err != nil {
 		t.Fatalf("create mcp store: %v", err)
 	}
@@ -1064,8 +1072,7 @@ func TestMCPHandler_EnableMethodNotAllowed(t *testing.T) {
 
 func TestToolHandler_List(t *testing.T) {
 	dir := setupWorkspaceWithDB(t)
-	stateDir := filepath.Join(dir, ".bc")
-	store := tool.NewStore(stateDir)
+	store := tool.NewStore(openWSDB(t, dir))
 	if err := store.Open(); err != nil {
 		t.Fatalf("open tool store: %v", err)
 	}
@@ -1083,8 +1090,7 @@ func TestToolHandler_List(t *testing.T) {
 
 func TestToolHandler_GetNotFound(t *testing.T) {
 	dir := setupWorkspaceWithDB(t)
-	stateDir := filepath.Join(dir, ".bc")
-	store := tool.NewStore(stateDir)
+	store := tool.NewStore(openWSDB(t, dir))
 	if err := store.Open(); err != nil {
 		t.Fatalf("open tool store: %v", err)
 	}
@@ -1100,8 +1106,7 @@ func TestToolHandler_GetNotFound(t *testing.T) {
 
 func TestToolHandler_MethodNotAllowed(t *testing.T) {
 	dir := setupWorkspaceWithDB(t)
-	stateDir := filepath.Join(dir, ".bc")
-	store := tool.NewStore(stateDir)
+	store := tool.NewStore(openWSDB(t, dir))
 	if err := store.Open(); err != nil {
 		t.Fatalf("open tool store: %v", err)
 	}
@@ -1119,8 +1124,7 @@ func TestToolHandler_MethodNotAllowed(t *testing.T) {
 
 func TestToolHandler_EmptyName(t *testing.T) {
 	dir := setupWorkspaceWithDB(t)
-	stateDir := filepath.Join(dir, ".bc")
-	store := tool.NewStore(stateDir)
+	store := tool.NewStore(openWSDB(t, dir))
 	if err := store.Open(); err != nil {
 		t.Fatalf("open tool store: %v", err)
 	}
@@ -1136,8 +1140,7 @@ func TestToolHandler_EmptyName(t *testing.T) {
 
 func TestToolHandler_UnknownSub(t *testing.T) {
 	dir := setupWorkspaceWithDB(t)
-	stateDir := filepath.Join(dir, ".bc")
-	store := tool.NewStore(stateDir)
+	store := tool.NewStore(openWSDB(t, dir))
 	if err := store.Open(); err != nil {
 		t.Fatalf("open tool store: %v", err)
 	}
@@ -1153,8 +1156,7 @@ func TestToolHandler_UnknownSub(t *testing.T) {
 
 func TestToolHandler_EnableDisableMethodNotAllowed(t *testing.T) {
 	dir := setupWorkspaceWithDB(t)
-	stateDir := filepath.Join(dir, ".bc")
-	store := tool.NewStore(stateDir)
+	store := tool.NewStore(openWSDB(t, dir))
 	if err := store.Open(); err != nil {
 		t.Fatalf("open tool store: %v", err)
 	}
@@ -1170,8 +1172,7 @@ func TestToolHandler_EnableDisableMethodNotAllowed(t *testing.T) {
 
 func TestToolHandler_PutInvalidBody(t *testing.T) {
 	dir := setupWorkspaceWithDB(t)
-	stateDir := filepath.Join(dir, ".bc")
-	store := tool.NewStore(stateDir)
+	store := tool.NewStore(openWSDB(t, dir))
 	if err := store.Open(); err != nil {
 		t.Fatalf("open tool store: %v", err)
 	}
@@ -1187,8 +1188,7 @@ func TestToolHandler_PutInvalidBody(t *testing.T) {
 
 func TestToolHandler_ToolMethodNotAllowed(t *testing.T) {
 	dir := setupWorkspaceWithDB(t)
-	stateDir := filepath.Join(dir, ".bc")
-	store := tool.NewStore(stateDir)
+	store := tool.NewStore(openWSDB(t, dir))
 	if err := store.Open(); err != nil {
 		t.Fatalf("open tool store: %v", err)
 	}
@@ -1208,8 +1208,7 @@ func TestToolHandler_ToolMethodNotAllowed(t *testing.T) {
 
 func TestEventHandler_ListEmpty(t *testing.T) {
 	dir := setupWorkspaceWithDB(t)
-	logPath := filepath.Join(dir, ".bc", "events.db")
-	store, _ := events.NewSQLiteLog(logPath)
+	store, _ := events.NewSQLiteLog(openWSSQLite(t, dir))
 	t.Cleanup(func() { _ = store.Close() })
 
 	ts := buildTestServerWithServices(t, server.Services{EventLog: store})
@@ -1226,8 +1225,7 @@ func TestEventHandler_ListEmpty(t *testing.T) {
 
 func TestEventHandler_AppendAndList(t *testing.T) {
 	dir := setupWorkspaceWithDB(t)
-	logPath := filepath.Join(dir, ".bc", "events.db")
-	store, _ := events.NewSQLiteLog(logPath)
+	store, _ := events.NewSQLiteLog(openWSSQLite(t, dir))
 	t.Cleanup(func() { _ = store.Close() })
 
 	ts := buildTestServerWithServices(t, server.Services{EventLog: store})
@@ -1255,8 +1253,7 @@ func TestEventHandler_AppendAndList(t *testing.T) {
 
 func TestEventHandler_ByAgent(t *testing.T) {
 	dir := setupWorkspaceWithDB(t)
-	logPath := filepath.Join(dir, ".bc", "events.db")
-	store, _ := events.NewSQLiteLog(logPath)
+	store, _ := events.NewSQLiteLog(openWSSQLite(t, dir))
 	t.Cleanup(func() { _ = store.Close() })
 
 	ts := buildTestServerWithServices(t, server.Services{EventLog: store})
@@ -1283,8 +1280,7 @@ func TestEventHandler_ByAgent(t *testing.T) {
 
 func TestEventHandler_MethodNotAllowed(t *testing.T) {
 	dir := setupWorkspaceWithDB(t)
-	logPath := filepath.Join(dir, ".bc", "events.db")
-	store, _ := events.NewSQLiteLog(logPath)
+	store, _ := events.NewSQLiteLog(openWSSQLite(t, dir))
 	t.Cleanup(func() { _ = store.Close() })
 
 	ts := buildTestServerWithServices(t, server.Services{EventLog: store})
@@ -1297,8 +1293,7 @@ func TestEventHandler_MethodNotAllowed(t *testing.T) {
 
 func TestEventHandler_AppendInvalidBody(t *testing.T) {
 	dir := setupWorkspaceWithDB(t)
-	logPath := filepath.Join(dir, ".bc", "events.db")
-	store, _ := events.NewSQLiteLog(logPath)
+	store, _ := events.NewSQLiteLog(openWSSQLite(t, dir))
 	t.Cleanup(func() { _ = store.Close() })
 
 	ts := buildTestServerWithServices(t, server.Services{EventLog: store})
@@ -1311,8 +1306,7 @@ func TestEventHandler_AppendInvalidBody(t *testing.T) {
 
 func TestEventHandler_EmptyAgentName(t *testing.T) {
 	dir := setupWorkspaceWithDB(t)
-	logPath := filepath.Join(dir, ".bc", "events.db")
-	store, _ := events.NewSQLiteLog(logPath)
+	store, _ := events.NewSQLiteLog(openWSSQLite(t, dir))
 	t.Cleanup(func() { _ = store.Close() })
 
 	ts := buildTestServerWithServices(t, server.Services{EventLog: store})
@@ -1325,8 +1319,7 @@ func TestEventHandler_EmptyAgentName(t *testing.T) {
 
 func TestEventHandler_ByAgentMethodNotAllowed(t *testing.T) {
 	dir := setupWorkspaceWithDB(t)
-	logPath := filepath.Join(dir, ".bc", "events.db")
-	store, _ := events.NewSQLiteLog(logPath)
+	store, _ := events.NewSQLiteLog(openWSSQLite(t, dir))
 	t.Cleanup(func() { _ = store.Close() })
 
 	ts := buildTestServerWithServices(t, server.Services{EventLog: store})
@@ -1686,8 +1679,7 @@ func TestStatsHandler_SummaryWithServices(t *testing.T) {
 	t.Cleanup(func() { _ = costStore.Close() })
 
 	// Set up tools
-	stateDir := filepath.Join(dir, ".bc")
-	toolStore := tool.NewStore(stateDir)
+	toolStore := tool.NewStore(openWSDB(t, dir))
 	if err := toolStore.Open(); err != nil {
 		t.Fatalf("open tool store: %v", err)
 	}
@@ -2539,8 +2531,7 @@ func TestWorkspaceHandler_UpInvalidBody(t *testing.T) {
 
 func TestToolHandler_CRUD(t *testing.T) {
 	dir := setupWorkspaceWithDB(t)
-	stateDir := filepath.Join(dir, ".bc")
-	store := tool.NewStore(stateDir)
+	store := tool.NewStore(openWSDB(t, dir))
 	if err := store.Open(); err != nil {
 		t.Fatalf("open tool store: %v", err)
 	}
@@ -2780,7 +2771,7 @@ func TestAgentHandler_CreateAgent(t *testing.T) {
 
 func TestCronHandler_GetNotFound(t *testing.T) {
 	dir := setupWorkspaceWithDB(t)
-	store, err := cron.Open(dir)
+	store, err := cron.Open(openWSDB(t, dir))
 	if err != nil {
 		t.Fatalf("open cron store: %v", err)
 	}

@@ -253,17 +253,13 @@ func findIndex(s, substr string) int {
 	return -1
 }
 
-// OpenStore opens the secrets store using the shared workspace database.
-// Uses the shared driver type to determine the backend (timescale or sqlite).
-// The secret store keeps encryption isolation — its own salt and key derivation.
-func OpenStore(workspacePath, passphrase string) (*Store, error) {
-	driver := bcdb.SharedDriver()
-	if driver == "timescale" {
-		shared := bcdb.Shared()
-		if shared == nil {
-			return nil, fmt.Errorf("secrets store: shared timescale connection is nil")
-		}
-		pg := NewPostgresStore(shared)
+// OpenStore opens the secrets store on the given workspace database.
+// The handle is borrowed: callers own its lifecycle. The secret store
+// keeps encryption isolation — its own salt and key derivation. In
+// SQLite mode it still uses its own file under workspacePath.
+func OpenStore(d *bcdb.DB, driver, workspacePath, passphrase string) (*Store, error) {
+	if d != nil && driver == "timescale" {
+		pg := NewPostgresStore(d.DB)
 		if schemaErr := pg.InitSchema(); schemaErr != nil {
 			return nil, fmt.Errorf("secrets store: init timescale schema: %w", schemaErr)
 		}

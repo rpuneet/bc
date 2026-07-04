@@ -404,7 +404,7 @@ func createTestDB(t *testing.T, path string, tables ...string) error {
 
 func TestCheckTools_ReturnsItems(t *testing.T) {
 	ctx := context.Background()
-	cat := CheckTools(ctx)
+	cat := CheckTools(ctx, nil)
 
 	if cat.Name != "Tools" {
 		t.Errorf("category name = %q, want %q", cat.Name, "Tools")
@@ -439,7 +439,7 @@ func TestCheckTools_ReturnsItems(t *testing.T) {
 func TestCheckTools_ANTHROPICAPIKey_Warn(t *testing.T) {
 	t.Setenv("ANTHROPIC_API_KEY", "")
 	ctx := context.Background()
-	cat := CheckTools(ctx)
+	cat := CheckTools(ctx, nil)
 
 	for _, item := range cat.Items {
 		if item.Name == "ANTHROPIC_API_KEY" {
@@ -455,7 +455,7 @@ func TestCheckTools_ANTHROPICAPIKey_Warn(t *testing.T) {
 func TestCheckTools_ANTHROPICAPIKey_OK(t *testing.T) {
 	t.Setenv("ANTHROPIC_API_KEY", "sk-ant-test-1234567890abcdef")
 	ctx := context.Background()
-	cat := CheckTools(ctx)
+	cat := CheckTools(ctx, nil)
 
 	for _, item := range cat.Items {
 		if item.Name == "ANTHROPIC_API_KEY" {

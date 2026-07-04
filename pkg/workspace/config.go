@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"github.com/rpuneet/mycel/pkg/db"
 )
 
 // ConfigVersion is the current config schema version.
@@ -108,6 +110,27 @@ type TimescaleStorageConfig struct {
 	Password string `json:"password"`
 	Database string `json:"database"`
 	Port     int    `json:"port"`
+}
+
+// DBStorageSettings converts the workspace storage config into the
+// pkg/db settings shape consumed by the per-workspace connection
+// registry. Returns nil for a nil config so callers can pass it
+// straight to db.ForWorkspace.
+func (c *Config) DBStorageSettings() *db.StorageSettings {
+	if c == nil {
+		return nil
+	}
+	return &db.StorageSettings{
+		Default: c.Storage.Default,
+		SQLite:  db.SQLiteSettings{Path: c.Storage.SQLite.Path},
+		Timescale: db.TimescaleSettings{
+			Host:     c.Storage.Timescale.Host,
+			Port:     c.Storage.Timescale.Port,
+			User:     c.Storage.Timescale.User,
+			Password: c.Storage.Timescale.Password,
+			Database: c.Storage.Timescale.Database,
+		},
+	}
 }
 
 // LogsConfig configures persistent session log streaming.

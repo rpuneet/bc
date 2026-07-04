@@ -7,7 +7,6 @@ import (
 	"strings"
 	"time"
 
-	bcdb "github.com/rpuneet/mycel/pkg/db"
 	"github.com/rpuneet/mycel/pkg/log"
 )
 
@@ -270,23 +269,3 @@ func (p *PostgresStore) GetLogs(ctx context.Context, jobName string, last int) (
 }
 
 // scanJob, nullStr, nullTime reuse the shared helpers from store.go.
-
-// OpenStore opens the cron store using the shared workspace database.
-// Uses the shared driver type to determine the backend (timescale or sqlite).
-func OpenStore(workspacePath string) (*Store, error) {
-	driver := bcdb.SharedDriver()
-	if driver == "timescale" {
-		shared := bcdb.Shared()
-		if shared == nil {
-			return nil, fmt.Errorf("cron store: shared timescale connection is nil")
-		}
-		pg := NewPostgresStore(shared)
-		if schemaErr := pg.InitSchema(); schemaErr != nil {
-			return nil, fmt.Errorf("cron store: init timescale schema: %w", schemaErr)
-		}
-		log.Debug("cron store: using TimescaleDB backend")
-		return &Store{pg: pg}, nil
-	}
-
-	return Open(workspacePath)
-}

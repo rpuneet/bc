@@ -18,12 +18,8 @@ func openTestStore(t *testing.T) *Store {
 	if err != nil {
 		t.Fatalf("open test db: %v", err)
 	}
-	db.SetShared(d.DB, "sqlite")
-	t.Cleanup(func() {
-		db.SetShared(nil, "")
-		_ = d.Close()
-	})
-	store, err := Open("")
+	t.Cleanup(func() { _ = d.Close() })
+	store, err := Open(d, "sqlite")
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}

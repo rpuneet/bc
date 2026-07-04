@@ -33,6 +33,7 @@ import (
 	_ "github.com/mattn/go-sqlite3" // SQLite driver
 
 	"github.com/rpuneet/mycel/pkg/agent"
+	"github.com/rpuneet/mycel/pkg/db"
 	"github.com/rpuneet/mycel/pkg/provider"
 	"github.com/rpuneet/mycel/pkg/tool"
 	"github.com/rpuneet/mycel/pkg/workspace"
@@ -138,7 +139,7 @@ func RunAll(ctx context.Context, ws *workspace.Workspace) *Report {
 		CheckWorkspace(ws),
 		CheckDatabase(ctx, ws),
 		CheckAgents(ctx, ws),
-		CheckTools(ctx),
+		CheckTools(ctx, ws),
 		CheckGit(ctx, ws),
 		CheckDaemon(ctx),
 	}
@@ -159,7 +160,7 @@ func CategoryByName(ctx context.Context, ws *workspace.Workspace, name string) *
 		c := CheckAgents(ctx, ws)
 		return &c
 	case "tools", "tool":
-		c := CheckTools(ctx)
+		c := CheckTools(ctx, ws)
 		return &c
 	case "git":
 		c := CheckGit(ctx, ws)
@@ -483,7 +484,9 @@ func CheckAgents(ctx context.Context, ws *workspace.Workspace) CategoryReport {
 // ─── Tools ───────────────────────────────────────────────────────────────────
 
 // CheckTools checks binary installations: tmux, git, registered providers, and env vars.
-func CheckTools(ctx context.Context) CategoryReport {
+// ws may be nil (tools-only check outside a workspace) — the MCP server
+// section is skipped in that case since it needs the workspace database.
+func CheckTools(ctx context.Context, ws *workspace.Workspace) CategoryReport {
 	cat := CategoryReport{Name: "Tools"}
 
 	// Required tools
@@ -519,14 +522,14 @@ func CheckTools(ctx context.Context) CategoryReport {
 		cat.Items = append(cat.Items, item)
 	}
 
-	// Check MCP servers from tool store.
-	// Tool store state lives under the mycel home (~/.mycel).
-	stateDir, homeErr := workspace.MycelHome()
-	if homeErr != nil {
-		return cat
+	// Check MCP servers from the workspace tool store (requires a workspace).
+	var toolStore *tool.Store
+	if ws != nil {
+		if wsDB, wsDriver, dbErr := db.ForWorkspace(ws.RootDir, ws.Config.DBStorageSettings()); dbErr == nil {
+			toolStore = tool.NewStore(wsDB, wsDriver)
+		}
 	}
-	toolStore := tool.NewStore(stateDir)
-	if err := toolStore.Open(); err == nil {
+	if toolStore != nil && toolStore.Open() == nil {
 		defer toolStore.Close() //nolint:errcheck
 		tools, listErr := toolStore.ListWithOptions(ctx, tool.ListOptions{Types: []string{tool.ToolTypeMCP}})
 		if listErr == nil {

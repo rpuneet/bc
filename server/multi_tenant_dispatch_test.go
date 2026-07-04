@@ -107,24 +107,13 @@ func newDispatchHarness(t *testing.T) *dispatchHarness {
 	wsAID := workspace.ComputeWorkspaceID(wsA)
 	wsBID := workspace.ComputeWorkspaceID(wsB)
 
-	// Share one SQLite DB across both workspaces so stores that require
-	// db.SharedWrapped() (cron, mcp, tool, events SQLite) come online.
-	// This mirrors production: bcd opens ONE shared DB for the active
-	// workspace; stores from every workspace route through it. Complete
-	// per-workspace isolation for those tables is a known gap (no
-	// workspace_id column) tracked for a future phase. Our dispatch
-	// tests below assert that routing works and that where a store
-	// does have workspace scoping (cost_records.workspace_id,
-	// per-workspace templates dir, per-workspace events.jsonl) the
-	// isolation holds.
-	sharedDB, sharedDriver, dbErr := bcdb.OpenWorkspaceDBWithConfig(wsA, nil)
-	if dbErr != nil {
-		t.Fatalf("open shared db: %v", dbErr)
-	}
-	bcdb.SetShared(sharedDB, sharedDriver)
+	// Each workspace gets its OWN database via the per-workspace
+	// registry (issue #3238): cron/mcp/tool/events/notify rows written
+	// through workspace A's services can never appear in workspace B's
+	// stores. BuildWorkspaceServices opens the connections lazily.
 	t.Cleanup(func() {
-		bcdb.SetShared(nil, "")
-		_ = bcdb.CloseShared()
+		_ = bcdb.CloseWorkspaceDB(wsA)
+		_ = bcdb.CloseWorkspaceDB(wsB)
 	})
 
 	reg, loadErr := workspace.LoadRegistry()
@@ -302,11 +291,9 @@ func TestDispatch_Secrets(t *testing.T) {
 // ---------------- Cron (routing + basic CRUD through scoped URL) --
 
 // TestDispatch_Cron verifies that cron CRUD routes through the scoped
-// URL into the handler. Because the cron_jobs table has no
-// workspace_id column today, two workspaces sharing the bc.db see the
-// same rows — strict data isolation is a known gap. The assertion
-// here is routing: both scoped URLs serve the cron handler without
-// error, and an entry created via wsA is reachable via its key.
+// URL into the handler AND that jobs are isolated per workspace: each
+// workspace has its own database (issue #3238), so a job created via
+// wsA must not be visible through wsB.
 func TestDispatch_Cron(t *testing.T) {
 	h := newDispatchHarness(t)
 	defer h.close()
@@ -329,11 +316,16 @@ func TestDispatch_Cron(t *testing.T) {
 	status, resp = h.api(t, http.MethodGet, "/api/workspaces/"+h.wsAID+"/cron/job-shared", nil)
 	requireStatus(t, http.StatusOK, status, "GET wsA", resp)
 
-	// wsB's scoped URL also reaches the cron handler. Data isolation for
-	// cron_jobs is a known gap; we assert the handler responds and the
-	// route does not collide with a different resource.
+	// wsB's scoped URL also reaches the cron handler.
 	status, resp = h.api(t, http.MethodGet, "/api/workspaces/"+h.wsBID+"/cron", nil)
 	requireStatus(t, http.StatusOK, status, "list wsB", resp)
+
+	// Isolation: the job created under wsA must NOT exist under wsB —
+	// each workspace persists to its own database (issue #3238).
+	status, _ = h.api(t, http.MethodGet, "/api/workspaces/"+h.wsBID+"/cron/job-shared", nil)
+	if status != http.StatusNotFound {
+		t.Errorf("wsA's cron job visible via wsB (status=%d, want 404) — workspace db bleed", status)
+	}
 
 	// Cross-scope fetch for a nonexistent key returns 404.
 	status, _ = h.api(t, http.MethodGet, "/api/workspaces/"+h.wsBID+"/cron/nonexistent-xyz", nil)
@@ -408,10 +400,8 @@ func TestDispatch_Tools(t *testing.T) {
 // ---------------- Events / Logs (routing) ----------------
 
 // TestDispatch_Events verifies GET /api/logs routes through the scoped
-// URL. Like cron/mcp/tool, the events table in bc.db is shared across
-// workspaces today. Per-workspace isolation exists at the JSONL writer
-// level (events.jsonl under each ws.StateDir) but the SQLite
-// EventStore is a single table — we only assert routing here.
+// URL and that the SQLite event stores are isolated per workspace
+// (each workspace's events table lives in its own bc.db, issue #3238).
 func TestDispatch_Events(t *testing.T) {
 	h := newDispatchHarness(t)
 	defer h.close()
@@ -428,6 +418,18 @@ func TestDispatch_Events(t *testing.T) {
 
 	if err := svcA.Events.Append(bcevents.Event{Type: "probe.shared", Agent: "alice"}); err != nil {
 		t.Fatalf("append A: %v", err)
+	}
+
+	// Isolation: the event appended via wsA's store must not appear in
+	// wsB's store.
+	evtsB, readErr := svcB.Events.Read()
+	if readErr != nil {
+		t.Fatalf("read B: %v", readErr)
+	}
+	for _, ev := range evtsB {
+		if ev.Type == "probe.shared" {
+			t.Errorf("event appended in wsA visible in wsB — workspace db bleed")
+		}
 	}
 
 	// Scoped URL reaches the handler for both workspaces.
