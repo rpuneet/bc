@@ -1,13 +1,10 @@
-// build_services.go — factory for per-workspace WorkspaceServices.
+// build_services.go — factory for the single bcd service bundle.
 //
-// Extracted from internal/cmd/serve.go as part of multi-tenant bcd phase M2.
-// A single call to BuildWorkspaceServices(ctx, globals, wsRoot) produces a
-// fully-initialized WorkspaceServices bundle including background
-// goroutines. Its Close() cancels those goroutines and closes each store.
-//
-// The factory depends ONLY on Globals + a workspace root path, so it can
-// be invoked at any time for any registered workspace — which is the
-// substrate for multi-workspace dispatch (phases M5-M6).
+// bcd is single-tenant: one Services bundle is built at boot against the
+// one global database (db.Global) and lives for the process lifetime.
+// A single call to BuildServices(ctx, globals, wsRoot) produces the
+// fully-initialized bundle including background goroutines. Its Close()
+// cancels those goroutines and closes each store.
 package server
 
 import (
@@ -53,29 +50,29 @@ import (
 	bcws "github.com/rpuneet/mycel/server/ws"
 )
 
-// Globals holds dependencies that are truly workspace-agnostic and shared
-// across all per-workspace services. bcd builds one Globals at boot and
-// reuses it for every workspace the WorkspaceManager materializes.
+// Globals holds dependencies that are process-wide and independent of the
+// bundle's anchor repo. bcd builds one Globals at boot and hands it to
+// BuildServices exactly once.
 type Globals struct {
-	Registry     *bcworkspace.Registry
 	Stats        *bcstats.Store     // nil when TSDB unavailable
 	Deps         *bcdeps.Registry   // optional dependencies registry (bc-db, etc.)
-	GlobalHub    *bcws.Hub          // fan-in SSE hub for cross-workspace /api/events
-	Templates    *bctemplate.Store  // user-global template store (~/.mycel/templates/) — wrapped per-workspace
-	SecretsVault *bcsecret.Store    // user-global secrets vault (~/.mycel/secrets.vault) — shared across workspaces
+	Hub          *bcws.Hub          // the one SSE hub for /api/events (owned by the caller)
+	Templates    *bctemplate.Store  // user-global template store (~/.mycel/templates/)
+	SecretsVault *bcsecret.Store    // user-global secrets vault (~/.mycel/secrets.vault)
 	MCPGlobal    *bcmcp.GlobalStore // user-global MCP registry (~/.mycel/mcps.json)
-	CostsGlobal  *cost.Store        // user-global cost ledger (~/.mycel/costs.db) — shared across workspaces
+	CostsGlobal  *cost.Store        // user-global cost ledger — shared process-wide
 	Build        BuildInfo
 }
 
-// BuildWorkspaceServices constructs a fully-initialized WorkspaceServices
-// for the workspace rooted at wsRoot. All background goroutines are
-// started under an internal context that Close() cancels.
+// BuildServices constructs the single fully-initialized Services bundle
+// anchored at wsRoot (the repo bcd was booted against — new agents default
+// their repo to it). All background goroutines are started under an
+// internal context that Close() cancels.
 //
-// The returned *WorkspaceServices has its closer field set to a function
-// that stops goroutines and closes stores. The caller (WorkspaceManager)
-// will invoke Close() on eviction / shutdown.
-func BuildWorkspaceServices(ctx context.Context, globals *Globals, wsRoot string) (*WorkspaceServices, error) {
+// The returned *Services has its closer field set to a function that stops
+// goroutines and closes stores. The caller (RunServer) invokes Close() at
+// shutdown.
+func BuildServices(ctx context.Context, globals *Globals, wsRoot string) (*Services, error) {
 	ws, err := bcworkspace.Load(wsRoot)
 	if err != nil {
 		ws, err = bcworkspace.Init(wsRoot)
@@ -83,14 +80,14 @@ func BuildWorkspaceServices(ctx context.Context, globals *Globals, wsRoot string
 			return nil, fmt.Errorf("init workspace %s: %w", wsRoot, err)
 		}
 	}
-	return buildWorkspaceServicesFromWS(ctx, globals, ws)
+	return buildServicesFromWS(ctx, globals, ws)
 }
 
-// buildWorkspaceServicesFromWS is the inner factory used when callers
-// already hold a loaded *workspace.Workspace (e.g. from the registry).
+// buildServicesFromWS is the inner factory used when the caller already
+// holds a loaded *workspace.Workspace.
 //
 //nolint:gocyclo // Linear dependency chain; splitting obscures the flow.
-func buildWorkspaceServicesFromWS(ctx context.Context, globals *Globals, ws *bcworkspace.Workspace) (*WorkspaceServices, error) {
+func buildServicesFromWS(ctx context.Context, globals *Globals, ws *bcworkspace.Workspace) (*Services, error) {
 	// Child context + waitgroup so Close() can stop every goroutine spawned
 	// below and wait for them to exit.
 	svcCtx, svcCancel := context.WithCancel(ctx)
@@ -139,15 +136,18 @@ func buildWorkspaceServicesFromWS(ctx context.Context, globals *Globals, ws *bcw
 	eventsJSONL := filepath.Join(ws.StateDir(), "events.jsonl")
 	eventWriter := bcevents.NewJSONLWriter(eventsJSONL, 0)
 
-	// Per-workspace SSE hub. Phase M6: also forward every event to the
-	// global fan-in hub (if configured) so /api/events returns events
-	// across all loaded workspaces, annotated with workspace_id.
-	hub := bcws.NewHub()
-	go hub.Run()
-	if globals != nil && globals.GlobalHub != nil {
-		hub.ForwardTo(globals.GlobalHub, bcworkspace.ComputeWorkspaceID(ws.RootDir))
+	// The one SSE hub. bcd is single-tenant, so the bundle publishes
+	// straight into the process-wide hub supplied via Globals (owned by
+	// the caller — no closer). Legacy callers/tests that don't wire a
+	// hub get a private one that the closer tears down.
+	var hub *bcws.Hub
+	if globals != nil && globals.Hub != nil {
+		hub = globals.Hub
+	} else {
+		hub = bcws.NewHub()
+		go hub.Run()
+		addCloser(func() error { hub.Stop(); return nil })
 	}
-	addCloser(func() error { hub.Stop(); return nil })
 
 	// Agent manager + service.
 	agentMgr, containerBackend, runtimeReason, agentErr := newAgentManager(ws)
@@ -341,40 +341,38 @@ func buildWorkspaceServicesFromWS(ctx context.Context, globals *Globals, ws *bcw
 	// Provider registry is global but we keep it referenced for parity.
 	_ = provider.DefaultRegistry
 
-	svc := &WorkspaceServices{
-		Workspace:    ws,
-		Agents:       agentSvc,
-		AgentMgr:     agentMgr,
-		Channels:     notifyService, // same service powers channels for now
-		Events:       eventLog,
-		EventWriter:  eventWriter,
-		Costs:        costStore,
-		CostImporter: costImporter,
-		Cron:         cronStore,
-		CronSched:    cronSched,
-		Secrets:      secretStore,
-		MCP:          mcpStore,
-		MCPGlobal:    globalMCPStore(globals),
-		Tools:        toolStore,
-		Templates:    tmplStore,
-		Gateway:      gwManager,
-		Notify:       notifyService,
-		Hub:          hub,
-		Degraded:     degraded,
-		cancel:       svcCancel,
-		wg:           &wg,
+	svc := &Services{
+		WS:            ws,
+		Agents:        agentSvc,
+		AgentMgr:      agentMgr,
+		EventLog:      eventLog,
+		EventWriter:   eventWriter,
+		Costs:         costStore,
+		CostImporter:  costImporter,
+		Cron:          cronStore,
+		CronScheduler: cronSched,
+		Secrets:       secretStore,
+		MCP:           mcpStore,
+		MCPGlobal:     globalMCPStore(globals),
+		Tools:         toolStore,
+		Templates:     tmplStore,
+		Gateway:       gwManager,
+		Notify:        notifyService,
+		Hub:           hub,
+		Degraded:      degraded,
+		lifecycle:     &serviceLifecycle{cancel: svcCancel, wg: &wg},
 	}
 
-	// Propagate global-scoped stores onto the per-workspace bundle so
-	// that projections (e.g. workspaceViewFromServices, NewWithManager)
-	// can reach them without a separate Globals reference.
+	// Propagate global-scoped stores onto the bundle so handlers can
+	// reach them without a separate Globals reference.
 	if globals != nil {
 		svc.Stats = globals.Stats
+		svc.Deps = globals.Deps
 	}
 
 	// Closer runs addCloser funcs in reverse order. cancel+wg.Wait are
-	// handled by WorkspaceServices.Close() itself before invoking this.
-	svc.closer = func() error {
+	// handled by Services.Close() itself before invoking this.
+	svc.lifecycle.closer = func() error {
 		var firstErr error
 		for i := len(closers) - 1; i >= 0; i-- {
 			if err := closers[i](); err != nil && firstErr == nil {
@@ -388,7 +386,7 @@ func buildWorkspaceServicesFromWS(ctx context.Context, globals *Globals, ws *bcw
 
 // globalMCPStore returns the Globals.MCPGlobal pointer, or nil when
 // globals itself is nil. Kept as a helper so the composite literal in
-// BuildWorkspaceServices stays compact.
+// BuildServices stays compact.
 func globalMCPStore(g *Globals) *bcmcp.GlobalStore {
 	if g == nil {
 		return nil
@@ -396,18 +394,18 @@ func globalMCPStore(g *Globals) *bcmcp.GlobalStore {
 	return g.MCPGlobal
 }
 
-// MCPLayeredView returns a read-oriented composite of global + workspace
-// MCP registries for the given WorkspaceServices. Callers use it to
-// list / resolve servers with workspace-overrides winning. Returns nil
-// when neither layer is available.
-func (ws *WorkspaceServices) MCPLayeredView() *bcmcp.LayeredView {
-	if ws == nil {
+// MCPLayeredView returns a read-oriented composite of global + local MCP
+// registries for the bundle. Callers use it to list / resolve servers
+// with local overrides winning. Returns nil when neither layer is
+// available.
+func (s *Services) MCPLayeredView() *bcmcp.LayeredView {
+	if s == nil {
 		return nil
 	}
-	if ws.MCPGlobal == nil && ws.MCP == nil {
+	if s.MCPGlobal == nil && s.MCP == nil {
 		return nil
 	}
-	return &bcmcp.LayeredView{Global: ws.MCPGlobal, Workspace: ws.MCP}
+	return &bcmcp.LayeredView{Global: s.MCPGlobal, Workspace: s.MCP}
 }
 
 // newAgentManager mirrors the helper that used to live in serve.go.

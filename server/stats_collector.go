@@ -2,7 +2,7 @@
 //
 // Split out of internal/cmd/serve.go in phase M2 so the factory in
 // build_services.go can start these goroutines as part of a
-// WorkspaceServices lifecycle. Behavior is identical to the prior
+// Services bundle lifecycle. Behavior is identical to the prior
 // implementation; only the package boundary changed.
 package server
 

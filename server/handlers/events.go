@@ -25,22 +25,6 @@ func (h *EventHandler) SetWriter(w *events.JSONLWriter) {
 	h.writer = w
 }
 
-// resolveStore returns the context-scoped event store with closure fallback.
-func (h *EventHandler) resolveStore(r *http.Request) events.EventStore {
-	if view := WorkspaceFromContext(r.Context()); view != nil && view.Events != nil {
-		return view.Events
-	}
-	return h.store
-}
-
-// resolveWriter returns the context-scoped event writer with closure fallback.
-func (h *EventHandler) resolveWriter(r *http.Request) *events.JSONLWriter {
-	if view := WorkspaceFromContext(r.Context()); view != nil && view.EventWriter != nil {
-		return view.EventWriter
-	}
-	return h.writer
-}
-
 // Register mounts event log routes on mux.
 func (h *EventHandler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/logs", h.logs)
@@ -61,7 +45,7 @@ func (h *EventHandler) logs(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *EventHandler) list(w http.ResponseWriter, r *http.Request) {
-	store := h.resolveStore(r)
+	store := h.store
 	tail := 100
 	if s := r.URL.Query().Get("tail"); s != "" {
 		if n, err := strconv.Atoi(s); err == nil && n > 0 {
@@ -93,7 +77,7 @@ func (h *EventHandler) byAgent(w http.ResponseWriter, r *http.Request) {
 		httpError(w, "agent name required", http.StatusBadRequest)
 		return
 	}
-	store := h.resolveStore(r)
+	store := h.store
 	if store == nil {
 		writeJSON(w, http.StatusOK, []events.Event{})
 		return
@@ -118,7 +102,7 @@ func (h *EventHandler) appendEvent(w http.ResponseWriter, r *http.Request) {
 		httpError(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
-	store := h.resolveStore(r)
+	store := h.store
 	if store == nil {
 		httpError(w, "event store not configured", http.StatusInternalServerError)
 		return
@@ -136,7 +120,7 @@ func (h *EventHandler) currentTasks(w http.ResponseWriter, r *http.Request) {
 	if !requireMethod(w, r, http.MethodGet) {
 		return
 	}
-	writer := h.resolveWriter(r)
+	writer := h.writer
 	if writer == nil {
 		httpError(w, "event history not configured", http.StatusServiceUnavailable)
 		return
@@ -157,7 +141,7 @@ func (h *EventHandler) history(w http.ResponseWriter, r *http.Request) {
 	if !requireMethod(w, r, http.MethodGet) {
 		return
 	}
-	writer := h.resolveWriter(r)
+	writer := h.writer
 	if writer == nil {
 		httpError(w, "event history not configured", http.StatusServiceUnavailable)
 		return

@@ -78,7 +78,7 @@ func (h *AgentHandler) bulkStart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	svc := h.resolveSvc(r)
+	svc := h.svc
 	results := runBulk(r.Context(), req.Agents, func(ctx context.Context, name string) error {
 		_, err := svc.Start(ctx, name, agent.StartOptions{})
 		return err
@@ -102,7 +102,7 @@ func (h *AgentHandler) bulkStop(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	svc := h.resolveSvc(r)
+	svc := h.svc
 	results := runBulk(r.Context(), req.Agents, svc.Stop)
 	writeJSON(w, http.StatusOK, map[string]any{"results": results})
 }
@@ -127,7 +127,7 @@ func (h *AgentHandler) bulkDelete(w http.ResponseWriter, r *http.Request) {
 	}
 
 	force := req.Force
-	svc := h.resolveSvc(r)
+	svc := h.svc
 	results := runBulk(r.Context(), req.Agents, func(ctx context.Context, name string) error {
 		return svc.Delete(ctx, name, force)
 	})
@@ -151,7 +151,7 @@ func (h *AgentHandler) bulkMessage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	msg := req.Message
-	svc := h.resolveSvc(r)
+	svc := h.svc
 	results := runBulk(r.Context(), req.Agents, func(ctx context.Context, name string) error {
 		return svc.Send(ctx, name, msg)
 	})

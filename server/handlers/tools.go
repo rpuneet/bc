@@ -19,14 +19,6 @@ func NewToolHandler(store *tool.Store) *ToolHandler {
 	return &ToolHandler{store: store}
 }
 
-// resolveStore returns the context-scoped tool store with closure fallback.
-func (h *ToolHandler) resolveStore(r *http.Request) *tool.Store {
-	if view := WorkspaceFromContext(r.Context()); view != nil && view.Tools != nil {
-		return view.Tools
-	}
-	return h.store
-}
-
 // Register mounts tool routes on mux.
 func (h *ToolHandler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/tools/check", h.checkAll)
@@ -35,7 +27,7 @@ func (h *ToolHandler) Register(mux *http.ServeMux) {
 }
 
 func (h *ToolHandler) list(w http.ResponseWriter, r *http.Request) {
-	store := h.resolveStore(r)
+	store := h.store
 	switch r.Method {
 	case http.MethodGet:
 		// Support ?type=cli&type=mcp filtering
@@ -86,7 +78,7 @@ func (h *ToolHandler) list(w http.ResponseWriter, r *http.Request) {
 
 // checkAll runs health checks on all tools.
 func (h *ToolHandler) checkAll(w http.ResponseWriter, r *http.Request) {
-	store := h.resolveStore(r)
+	store := h.store
 	if !requireMethod(w, r, http.MethodPost) {
 		return
 	}
@@ -160,7 +152,7 @@ func (h *ToolHandler) byName(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *ToolHandler) tool(w http.ResponseWriter, r *http.Request, name string) {
-	store := h.resolveStore(r)
+	store := h.store
 	switch r.Method {
 	case http.MethodGet:
 		t, err := store.Get(r.Context(), name)
@@ -205,7 +197,7 @@ func (h *ToolHandler) tool(w http.ResponseWriter, r *http.Request, name string) 
 }
 
 func (h *ToolHandler) setEnabled(w http.ResponseWriter, r *http.Request, name string, enabled bool) {
-	store := h.resolveStore(r)
+	store := h.store
 	if !requireMethod(w, r, http.MethodPost) {
 		return
 	}

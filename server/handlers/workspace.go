@@ -20,22 +20,6 @@ func NewWorkspaceHandler(svc *agent.AgentService, ws *workspace.Workspace) *Work
 	return &WorkspaceHandler{svc: svc, ws: ws}
 }
 
-// resolveSvc returns the context-scoped agent service with closure fallback.
-func (h *WorkspaceHandler) resolveSvc(r *http.Request) *agent.AgentService {
-	if view := WorkspaceFromContext(r.Context()); view != nil && view.Agents != nil {
-		return view.Agents
-	}
-	return h.svc
-}
-
-// resolveWS returns the context-scoped workspace with closure fallback.
-func (h *WorkspaceHandler) resolveWS(r *http.Request) *workspace.Workspace {
-	if view := WorkspaceFromContext(r.Context()); view != nil && view.Workspace != nil {
-		return view.Workspace
-	}
-	return h.ws
-}
-
 // Register mounts workspace routes on mux.
 func (h *WorkspaceHandler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/workspace", h.status) // root = status
@@ -49,8 +33,8 @@ func (h *WorkspaceHandler) status(w http.ResponseWriter, r *http.Request) {
 	if !requireMethod(w, r, http.MethodGet) {
 		return
 	}
-	svc := h.resolveSvc(r)
-	ws := h.resolveWS(r)
+	svc := h.svc
+	ws := h.ws
 	agents, err := svc.List(r.Context(), agent.ListOptions{})
 	if err != nil {
 		httpInternalError(w, "list agents", err)
@@ -112,7 +96,7 @@ func (h *WorkspaceHandler) status(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *WorkspaceHandler) roles(w http.ResponseWriter, r *http.Request) {
-	ws := h.resolveWS(r)
+	ws := h.ws
 	if !requireMethod(w, r, http.MethodGet) {
 		return
 	}
@@ -134,7 +118,7 @@ func (h *WorkspaceHandler) roles(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *WorkspaceHandler) up(w http.ResponseWriter, r *http.Request) {
-	svc := h.resolveSvc(r)
+	svc := h.svc
 	if !requireMethod(w, r, http.MethodPost) {
 		return
 	}
@@ -166,7 +150,7 @@ func (h *WorkspaceHandler) up(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *WorkspaceHandler) down(w http.ResponseWriter, r *http.Request) {
-	svc := h.resolveSvc(r)
+	svc := h.svc
 	if !requireMethod(w, r, http.MethodPost) {
 		return
 	}

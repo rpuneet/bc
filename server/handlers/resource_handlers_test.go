@@ -61,7 +61,7 @@ func setupWorkspaceWithDB(t *testing.T) string {
 }
 
 // openWSDB returns the per-workspace database handle + driver for the
-// given workspace root, mirroring how BuildWorkspaceServices resolves it.
+// given workspace root, mirroring how BuildServices resolves it.
 func openWSDB(t *testing.T, dir string) (*db.DB, string) {
 	t.Helper()
 	d, driver, err := db.Global(nil)

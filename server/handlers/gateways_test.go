@@ -262,16 +262,14 @@ func TestGatewayListNoNullChannels(t *testing.T) {
 
 // TestNotify503IncludesDegradedReason verifies that a nil notify service
 // produces a 503 whose message carries the construction-time failure
-// reason from WorkspaceView.Degraded instead of a bare "not available"
+// reason from Services.Degraded instead of a bare "not available"
 // (issue #3240 — the 2026-07-03 Slack-delivery outage was undiagnosable
 // from the generic message).
 func TestNotify503IncludesDegradedReason(t *testing.T) {
-	SetWorkspaceFromContext(func(ctx context.Context) *WorkspaceView {
-		return &WorkspaceView{Degraded: map[string]string{
-			"notify": "notify store unavailable: notify store requires shared database",
-		}}
+	SetDegraded(map[string]string{
+		"notify": "notify store unavailable: notify store requires shared database",
 	})
-	t.Cleanup(func() { SetWorkspaceFromContext(nil) })
+	t.Cleanup(func() { SetDegraded(nil) })
 
 	h := &GatewayHandler{} // no notify service wired
 
@@ -294,7 +292,7 @@ func TestNotify503IncludesDegradedReason(t *testing.T) {
 // TestNotify503FallsBackWithoutReason verifies the generic message is kept
 // when no degradation reason was recorded.
 func TestNotify503FallsBackWithoutReason(t *testing.T) {
-	SetWorkspaceFromContext(nil)
+	SetDegraded(nil)
 
 	h := &GatewayHandler{}
 	req := httptest.NewRequest(http.MethodGet, "/api/notify/subscriptions", nil)

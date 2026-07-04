@@ -5,10 +5,8 @@
 //	GET /api/code/diff?worktree=[&path=]
 //
 // The routes are registered at /api/code/ and dispatched by ServeHTTP
-// based on the first path segment. The WorkspaceScope middleware resolves
-// the target workspace from the X-BC-Workspace header or ?workspace=<id>
-// query param (falling back to the active workspace) and stashes the
-// resolved *WorkspaceServices in the request context.
+// based on the first path segment. bcd is single-tenant: the handler is
+// anchored at the one bundle repo root supplied at construction time.
 //
 // Every filesystem read is sandboxed via pkg/files.SafeJoin; .git/
 // and .bc/ subdirs are hidden by default; file reads cap at 2 MiB.
@@ -29,20 +27,14 @@ import (
 
 	"github.com/rpuneet/mycel/pkg/files"
 	"github.com/rpuneet/mycel/pkg/log"
-	"github.com/rpuneet/mycel/pkg/workspace"
 )
 
-// WorkspaceResolver is the minimal slice of the server's workspace manager
-// that the Code handler needs. It is defined as an interface so tests and
-// server.go can supply lightweight implementations without importing the
-// full WorkspaceManager type.
+// WorkspaceResolver supplies the repo root the Code handler serves. It is
+// an interface so tests can supply lightweight implementations.
 type WorkspaceResolver interface {
-	// ActiveRoot returns the filesystem root of the currently-active
-	// workspace (used for legacy /api/code/* requests), or "" if none.
+	// ActiveRoot returns the filesystem root of the bundle repo, or ""
+	// when the daemon booted without one.
 	ActiveRoot() string
-	// RootByID returns the filesystem root for the workspace with the
-	// given registry ID, or "" if the ID is unknown.
-	RootByID(id string) string
 }
 
 // CodeHandler serves the read-only Code tab endpoints.
@@ -89,22 +81,22 @@ func (h *CodeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 // ------------------------------------------------------------------ root resolution
 
-// resolveWorkspaceRoot returns the absolute workspace root for this
-// request. The WorkspaceScope middleware stashes the scoped workspace
-// ID in the context; if absent we fall back to the active workspace.
-func (h *CodeHandler) resolveWorkspaceRoot(r *http.Request) (string, error) {
+// resolveWorkspaceRoot returns the absolute repo root for this request.
+// The root comes from boot configuration, but it is cleaned and traversal
+// segments are rejected so nothing built on it can escape sideways.
+func (h *CodeHandler) resolveWorkspaceRoot(_ *http.Request) (string, error) {
 	if h.resolver == nil {
 		return "", errors.New("workspace resolver not configured")
 	}
-	if id := workspaceIDFromRequest(r); id != "" {
-		if root := h.resolver.RootByID(id); root != "" {
-			return root, nil
-		}
+	root := h.resolver.ActiveRoot()
+	if root == "" {
+		return "", errors.New("no workspace available")
 	}
-	if root := h.resolver.ActiveRoot(); root != "" {
-		return root, nil
+	root = filepath.Clean(root)
+	if strings.Contains(root, "..") {
+		return "", errors.New("invalid workspace root")
 	}
-	return "", errors.New("no workspace available")
+	return root, nil
 }
 
 // resolveWorktreeRoot resolves the user-supplied worktree name onto a
@@ -148,27 +140,6 @@ func agentWorktreePath(wsRoot, agentName string) string {
 	}
 	name := "bc-" + hostBase + "-" + agentName
 	return filepath.Join(wsRoot, ".bc", "agents", agentName, name)
-}
-
-// workspaceIDFromRequest pulls the scoped workspace ID out of the
-// request context. Returns "" if the scope middleware did not fire.
-func workspaceIDFromRequest(r *http.Request) string {
-	return workspaceIDFromContextShim(r.Context())
-}
-
-// workspaceIDFromContextShim is assigned in a small companion file
-// (server/handlers/code_ctx.go) to avoid an import cycle between this
-// handlers package and the parent server package. It is populated at
-// init time by the server.
-var workspaceIDFromContextShim = func(_ context.Context) string { return "" }
-
-// SetWorkspaceIDFromContext lets the server plug the real
-// WorkspaceIDFromContext lookup in without introducing an import
-// cycle. Must be called once during server startup.
-func SetWorkspaceIDFromContext(fn func(context.Context) string) {
-	if fn != nil {
-		workspaceIDFromContextShim = fn
-	}
 }
 
 // ------------------------------------------------------------------ /tree
@@ -497,44 +468,16 @@ func itoa(n int64) string {
 	return string(b[i:])
 }
 
-// registryWorkspaceResolver is a concrete WorkspaceResolver backed by a
-// workspace.Registry + an optional "active" *workspace.Workspace so
-// legacy /api/code/* requests find a root. server.go uses this to
-// construct the handler without pulling in the server package here.
-type registryWorkspaceResolver struct {
-	registry *workspace.Registry
-	active   *workspace.Workspace
+// staticWorkspaceResolver is a WorkspaceResolver pinned to one root —
+// the single-bundle repo bcd was booted against.
+type staticWorkspaceResolver struct {
+	root string
 }
 
-// NewRegistryWorkspaceResolver builds a resolver out of the registry
-// and the active workspace; either may be nil.
-func NewRegistryWorkspaceResolver(registry *workspace.Registry, active *workspace.Workspace) WorkspaceResolver {
-	return &registryWorkspaceResolver{registry: registry, active: active}
+// NewStaticWorkspaceResolver builds a resolver pinned to root (may be "").
+func NewStaticWorkspaceResolver(root string) WorkspaceResolver {
+	return &staticWorkspaceResolver{root: root}
 }
 
-// ActiveRoot returns the root of the active workspace or "".
-func (r *registryWorkspaceResolver) ActiveRoot() string {
-	if r.active != nil && r.active.RootDir != "" {
-		return r.active.RootDir
-	}
-	if r.registry != nil {
-		if a := r.registry.GetActive(); a != nil {
-			return a.Path
-		}
-	}
-	return ""
-}
-
-// RootByID returns the registered workspace root for id, or "".
-func (r *registryWorkspaceResolver) RootByID(id string) string {
-	if id == "" || r.registry == nil {
-		return ""
-	}
-	if entry := r.registry.FindByID(id); entry != nil {
-		return entry.Path
-	}
-	if entry := r.registry.Resolve(id); entry != nil {
-		return entry.Path
-	}
-	return ""
-}
+// ActiveRoot returns the pinned root or "".
+func (r *staticWorkspaceResolver) ActiveRoot() string { return r.root }

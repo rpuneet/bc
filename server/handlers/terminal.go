@@ -58,17 +58,9 @@ func NewTerminalHandler(svc *agent.AgentService, corsOrigin string) *TerminalHan
 	}
 }
 
-// resolveSvc returns the context-scoped agent service with closure fallback.
-func (h *TerminalHandler) resolveSvc(r *http.Request) *agent.AgentService {
-	if view := WorkspaceFromContext(r.Context()); view != nil && view.Agents != nil {
-		return view.Agents
-	}
-	return h.svc
-}
-
 // HandleTerminal upgrades an HTTP request to a WebSocket and bridges it to a tmux session.
 func (h *TerminalHandler) HandleTerminal(w http.ResponseWriter, r *http.Request, agentName string) {
-	svc := h.resolveSvc(r)
+	svc := h.svc
 	mgr := svc.Manager()
 
 	// Verify agent exists and is active

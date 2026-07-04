@@ -111,33 +111,6 @@ func (h *AgentHandler) SetTemplateStore(store *template.Store) {
 	h.tmplStore = store
 }
 
-// resolveSvc returns the per-request *agent.AgentService, preferring the
-// workspace scope middleware's context view over the closure captured at
-// construction time. Phase M3: both paths resolve to the same services
-// today; phase M4 deletes the closure fallback entirely.
-func (h *AgentHandler) resolveSvc(r *http.Request) *agent.AgentService {
-	if view := WorkspaceFromContext(r.Context()); view != nil && view.Agents != nil {
-		return view.Agents
-	}
-	return h.svc
-}
-
-// resolveCosts returns the per-request *cost.Store (see resolveSvc).
-func (h *AgentHandler) resolveCosts(r *http.Request) *cost.Store {
-	if view := WorkspaceFromContext(r.Context()); view != nil && view.Costs != nil {
-		return view.Costs
-	}
-	return h.costs
-}
-
-// resolveWS returns the per-request workspace (see resolveSvc).
-func (h *AgentHandler) resolveWS(r *http.Request) *workspace.Workspace {
-	if view := WorkspaceFromContext(r.Context()); view != nil && view.Workspace != nil {
-		return view.Workspace
-	}
-	return h.ws
-}
-
 // SetStatsStore sets the stats store for resource metrics enrichment.
 func (h *AgentHandler) SetStatsStore(s *stats.Store) {
 	h.statsStore = s
@@ -256,9 +229,9 @@ func buildCostMap(ctx context.Context, store *cost.Store) map[string]*cost.Summa
 }
 
 func (h *AgentHandler) list(w http.ResponseWriter, r *http.Request) {
-	svc := h.resolveSvc(r)
-	costs := h.resolveCosts(r)
-	wsRef := h.resolveWS(r)
+	svc := h.svc
+	costs := h.costs
+	wsRef := h.ws
 	switch r.Method {
 	case http.MethodGet:
 		// State is driven by hooks — no polling or reconciler needed.
@@ -431,7 +404,7 @@ func agentHTTPStatus(err error) int {
 }
 
 func (h *AgentHandler) byName(w http.ResponseWriter, r *http.Request) {
-	svc := h.resolveSvc(r)
+	svc := h.svc
 	parts := strings.SplitN(strings.TrimPrefix(r.URL.Path, "/api/agents/"), "/", 2)
 	name := parts[0]
 	action := ""
@@ -656,21 +629,7 @@ func (h *AgentHandler) byName(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		// Ralph Loop: when a turn completes (Stop → idle) or session ends,
-		// check for a loop config and auto-send the prompt.
-		// Stop fires at end of every turn (agent goes back to ❯ prompt).
-		// SessionEnd fires when the Claude Code process exits.
-		if payload.Event == agent.HookStop || payload.Event == agent.HookSessionEnd {
-			go h.maybeRalphLoop(h.resolveSvc(r), name)
-		}
-
 		writeJSON(w, http.StatusOK, map[string]any{"ok": true})
-
-	case r.Method == http.MethodGet && action == "loop":
-		h.getLoop(w, name)
-
-	case r.Method == http.MethodPut && action == "loop":
-		h.putLoop(w, r, name)
 
 	case r.Method == http.MethodGet && action == "events":
 		h.streamHookEvents(w, r, name)
@@ -794,7 +753,7 @@ func (h *AgentHandler) byName(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *AgentHandler) generateName(w http.ResponseWriter, r *http.Request) {
-	svc := h.resolveSvc(r)
+	svc := h.svc
 	if !requireMethod(w, r, http.MethodGet) {
 		return
 	}
@@ -807,7 +766,7 @@ func (h *AgentHandler) generateName(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *AgentHandler) broadcast(w http.ResponseWriter, r *http.Request) {
-	svc := h.resolveSvc(r)
+	svc := h.svc
 	if !requireMethod(w, r, http.MethodPost) {
 		return
 	}
@@ -827,7 +786,7 @@ func (h *AgentHandler) broadcast(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *AgentHandler) sendRole(w http.ResponseWriter, r *http.Request) {
-	svc := h.resolveSvc(r)
+	svc := h.svc
 	if !requireMethod(w, r, http.MethodPost) {
 		return
 	}
@@ -848,7 +807,7 @@ func (h *AgentHandler) sendRole(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *AgentHandler) sendPattern(w http.ResponseWriter, r *http.Request) {
-	svc := h.resolveSvc(r)
+	svc := h.svc
 	if !requireMethod(w, r, http.MethodPost) {
 		return
 	}
@@ -869,7 +828,7 @@ func (h *AgentHandler) sendPattern(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *AgentHandler) stopAll(w http.ResponseWriter, r *http.Request) {
-	svc := h.resolveSvc(r)
+	svc := h.svc
 	if !requireMethod(w, r, http.MethodPost) {
 		return
 	}
@@ -884,7 +843,7 @@ func (h *AgentHandler) stopAll(w http.ResponseWriter, r *http.Request) {
 // syncSessions reconciles in-memory agent state with actual runtime sessions.
 // POST /api/agents/sync
 func (h *AgentHandler) syncSessions(w http.ResponseWriter, r *http.Request) {
-	svc := h.resolveSvc(r)
+	svc := h.svc
 	if !requireMethod(w, r, http.MethodPost) {
 		return
 	}
@@ -905,7 +864,7 @@ type AgentHealthInfo struct {
 }
 
 func (h *AgentHandler) health(w http.ResponseWriter, r *http.Request) {
-	svc := h.resolveSvc(r)
+	svc := h.svc
 	if !requireMethod(w, r, http.MethodGet) {
 		return
 	}
@@ -987,7 +946,7 @@ func buildHookSSEMessage(ts time.Time, payload map[string]any) ([]byte, error) {
 // It replays the last 50 hook events from the event store, then tails new
 // events as they arrive via the per-agent broker.
 func (h *AgentHandler) streamHookEvents(w http.ResponseWriter, r *http.Request, name string) {
-	svc := h.resolveSvc(r)
+	svc := h.svc
 	flusher, ok := w.(http.Flusher)
 	if !ok {
 		httpError(w, "streaming not supported", http.StatusInternalServerError)
@@ -1069,7 +1028,7 @@ func (h *AgentHandler) streamHookEvents(w http.ResponseWriter, r *http.Request, 
 // It returns the last captured terminal output for an agent, which is useful
 // for inspecting the final state of stopped agents.
 func (h *AgentHandler) lastTerminal(w http.ResponseWriter, r *http.Request, name string) {
-	svc := h.resolveSvc(r)
+	svc := h.svc
 	if !requireMethod(w, r, http.MethodGet) {
 		return
 	}
@@ -1104,7 +1063,7 @@ func (h *AgentHandler) lastTerminal(w http.ResponseWriter, r *http.Request, name
 // streamOutput streams agent terminal output as SSE events.
 // Polls capture-pane every second and sends new lines as events.
 func (h *AgentHandler) streamOutput(w http.ResponseWriter, r *http.Request, name string) {
-	svc := h.resolveSvc(r)
+	svc := h.svc
 	flusher, ok := w.(http.Flusher)
 	if !ok {
 		httpError(w, "streaming not supported", http.StatusInternalServerError)
@@ -1249,7 +1208,7 @@ type agentMCPEntry struct {
 // agentMCPs dispatches GET/POST /api/agents/{name}/mcps and
 // DELETE /api/agents/{name}/mcps/{mcp}.
 func (h *AgentHandler) agentMCPs(w http.ResponseWriter, r *http.Request, agentName, action string) {
-	svc := h.resolveSvc(r)
+	svc := h.svc
 	// action is either "mcps" or "mcps/<mcp-server-name>"
 	mcpName := strings.TrimPrefix(action, "mcps/")
 	if mcpName == "mcps" {
@@ -1466,10 +1425,25 @@ type envVarEntry struct {
 
 // envPath returns the path to env.json for the named agent.
 func (h *AgentHandler) envPath(agentName string) string {
+	return h.agentStateFile(agentName, "env.json")
+}
+
+// agentStateFile builds <stateDir>/agents/<agentName>/<file>, rejecting
+// any input that could step outside the agents directory. agentName
+// arrives from the URL, so it must be a plain local segment; the state
+// dir is cleaned and traversal segments are rejected outright.
+func (h *AgentHandler) agentStateFile(agentName, file string) string {
 	if h.ws == nil {
 		return ""
 	}
-	return filepath.Join(h.ws.StateDir(), "agents", agentName, "env.json")
+	if !filepath.IsLocal(agentName) || strings.ContainsAny(agentName, `/\`) {
+		return ""
+	}
+	stateDir := filepath.Clean(h.ws.StateDir())
+	if strings.Contains(stateDir, "..") {
+		return ""
+	}
+	return filepath.Join(stateDir, "agents", agentName, file)
 }
 
 // getAgentEnv handles GET /api/agents/{name}/env.
@@ -1532,107 +1506,4 @@ func (h *AgentHandler) putAgentEnv(w http.ResponseWriter, r *http.Request, agent
 	}
 
 	writeJSON(w, http.StatusOK, vars)
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// Ralph Loop — server-side auto-reprompt on agent stop
-// ═══════════════════════════════════════════════════════════════════════════
-
-type loopConfig struct {
-	Prompt  string `json:"prompt"`
-	Enabled bool   `json:"enabled"`
-}
-
-func (h *AgentHandler) loopPath(agentName string) string {
-	if h.ws == nil {
-		return ""
-	}
-	return filepath.Join(h.ws.StateDir(), "agents", agentName, "loop.json")
-}
-
-func (h *AgentHandler) readLoop(agentName string) loopConfig {
-	p := h.loopPath(agentName)
-	if p == "" {
-		return loopConfig{}
-	}
-	data, err := os.ReadFile(p) //nolint:gosec // p is built from h.loopPath(agentName) under the workspace data dir
-	if err != nil {
-		return loopConfig{}
-	}
-	var cfg loopConfig
-	if err := json.Unmarshal(data, &cfg); err != nil {
-		return loopConfig{}
-	}
-	return cfg
-}
-
-func (h *AgentHandler) getLoop(w http.ResponseWriter, agentName string) {
-	writeJSON(w, http.StatusOK, h.readLoop(agentName))
-}
-
-func (h *AgentHandler) putLoop(w http.ResponseWriter, r *http.Request, agentName string) {
-	var cfg loopConfig
-	if err := json.NewDecoder(r.Body).Decode(&cfg); err != nil {
-		httpError(w, "invalid request body", http.StatusBadRequest)
-		return
-	}
-
-	p := h.loopPath(agentName)
-	if p == "" {
-		httpError(w, "workspace not available", http.StatusInternalServerError)
-		return
-	}
-
-	if err := os.MkdirAll(filepath.Dir(p), 0o750); err != nil {
-		httpInternalError(w, "create loop dir", err)
-		return
-	}
-
-	data, err := json.MarshalIndent(cfg, "", "  ")
-	if err != nil {
-		httpInternalError(w, "marshal loop config", err)
-		return
-	}
-	if err := os.WriteFile(p, data, 0o600); err != nil {
-		httpInternalError(w, "write loop config", err)
-		return
-	}
-
-	writeJSON(w, http.StatusOK, cfg)
-}
-
-// maybeRalphLoop checks if the agent has a loop enabled and sends the prompt.
-// Called asynchronously after a stop/session-end hook. svc is the per-request
-// resolved agent service captured at the hook call site (Track A: must not
-// use h.svc closure, which is scoped to the launch-time workspace).
-func (h *AgentHandler) maybeRalphLoop(svc *agent.AgentService, agentName string) {
-	cfg := h.readLoop(agentName)
-	if !cfg.Enabled || strings.TrimSpace(cfg.Prompt) == "" {
-		return
-	}
-	if svc == nil {
-		log.Warn("ralph loop: no agent service resolved", "agent", agentName)
-		return
-	}
-
-	// Small delay — let the agent fully settle before re-prompting.
-	time.Sleep(3 * time.Second)
-
-	ctx := context.Background()
-	if err := svc.Send(ctx, agentName, cfg.Prompt); err != nil {
-		log.Warn("ralph loop: send failed", "agent", agentName, "error", err)
-		return
-	}
-
-	log.Info("ralph loop: re-prompted agent", "agent", agentName)
-
-	// Log the loop event.
-	if h.events != nil {
-		_ = h.events.Append(events.Event{ //nolint:errcheck
-			Timestamp: time.Now(),
-			Type:      "ralph.loop",
-			Agent:     agentName,
-			Message:   cfg.Prompt,
-		})
-	}
 }

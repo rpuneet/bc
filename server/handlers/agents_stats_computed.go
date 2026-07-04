@@ -66,7 +66,7 @@ func (h *AgentHandler) agentComputedStats(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	svc := h.resolveSvc(r)
+	svc := h.svc
 
 	// Compute disk usage from the agent's worktree regardless of events.
 	wtPath := svc.Manager().WorktreePath(name)

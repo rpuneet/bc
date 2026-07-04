@@ -11,8 +11,6 @@ import (
 
 	"github.com/rpuneet/mycel/pkg/agent"
 	"github.com/rpuneet/mycel/server"
-	"github.com/rpuneet/mycel/server/handlers"
-	"github.com/rpuneet/mycel/server/ws"
 )
 
 // TestAgentHandler_GetConfig verifies GET /api/agents/{name}/config returns
@@ -91,73 +89,6 @@ func TestAgentHandler_GetConfig(t *testing.T) {
 	// We just assert the field type is consistent (i.e. decoded as array, not scalar).
 	if len(dto.MCPServers) != 0 {
 		t.Errorf("mcp_servers unexpected content: %v", dto.MCPServers)
-	}
-}
-
-// TestAgentHandler_GetConfigReadsFromContext verifies the scoped-workspace
-// path: getAgentConfig must resolve the agent through the per-request svc
-// from the context WorkspaceView, NOT the launch-time closure. This is the
-// regression that caused /api/agents/zen-zebra/config to 404 in prod when
-// the launch workspace had no such agent but the scoped one did.
-//
-// Mirrors the pattern in context_read_test.go for template/secret/cost
-// handlers. Without the fix this test returns 404 (launch svc doesn't
-// know about zen-zebra); with the fix it returns 200 using ctx svc.
-func TestAgentHandler_GetConfigReadsFromContext(t *testing.T) {
-	// Launch workspace: empty (no agents).
-	launchDir := t.TempDir()
-	launchStateDir := filepath.Join(launchDir, ".bc")
-	if err := os.MkdirAll(filepath.Join(launchStateDir, "agents"), 0750); err != nil {
-		t.Fatalf("mkdir launch agents: %v", err)
-	}
-	launchMgr := agent.NewManager(launchStateDir)
-	launchSvc := agent.NewAgentService(launchMgr, nil, nil)
-
-	// Ctx workspace: has zen-zebra.
-	ctxDir := t.TempDir()
-	ctxStateDir := filepath.Join(ctxDir, ".bc")
-	if err := os.MkdirAll(filepath.Join(ctxStateDir, "agents"), 0750); err != nil {
-		t.Fatalf("mkdir ctx agents: %v", err)
-	}
-	wtDir := filepath.Join(ctxDir, "wt", "zen-zebra")
-	if err := os.MkdirAll(wtDir, 0750); err != nil {
-		t.Fatalf("mkdir worktree: %v", err)
-	}
-	const prompt = "ctx-only zen-zebra prompt"
-	if err := os.WriteFile(filepath.Join(wtDir, "CLAUDE.md"), []byte(prompt), 0600); err != nil {
-		t.Fatalf("write CLAUDE.md: %v", err)
-	}
-	ctxMgr := agent.NewManager(ctxStateDir)
-	ctxSvc := agent.NewAgentService(ctxMgr, nil, nil)
-	if err := ctxMgr.RegisterStopped(&agent.Agent{
-		Name:           "zen-zebra",
-		Role:           agent.Role("engineer"),
-		Workspace:      ctxDir,
-		Tool:           "claude",
-		RuntimeBackend: "tmux",
-		WorktreeDir:    wtDir,
-	}); err != nil {
-		t.Fatalf("register ctx agent: %v", err)
-	}
-
-	// Wire handler with the *launch* svc, but install a ctx resolver that
-	// returns the ctx svc. A correct handler must use ctx svc.
-	hub := ws.NewHub()
-	go hub.Run()
-	t.Cleanup(hub.Stop)
-
-	h := handlers.NewAgentHandler(launchSvc, nil, nil, hub)
-	mux := http.NewServeMux()
-	h.Register(mux)
-
-	withCtxView(t, &handlers.WorkspaceView{Agents: ctxSvc})
-
-	status, body := doJSON(t, mux, http.MethodGet, "/api/agents/zen-zebra/config", nil)
-	if status != http.StatusOK {
-		t.Fatalf("status=%d body=%s (handler likely using stale launch closure)", status, body)
-	}
-	if !strings.Contains(string(body), prompt) {
-		t.Errorf("response missing ctx prompt %q, body=%s", prompt, body)
 	}
 }
 

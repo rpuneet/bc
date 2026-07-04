@@ -37,11 +37,10 @@ var upCmd = &cobra.Command{
 	Long: `Start the mycel server (API, web UI, MCP, agent management).
 
 Bootstraps everything on first run — no separate init step:
-  - inside a git repo: the repo root is adopted as a workspace
-    (state lives under ~/.mycel, the repo stays pristine)
-  - outside a git repo: the server starts against the registry's
-    active workspace, or with no workspace at all — add repos from
-    the web UI
+  - inside a git repo: the repo root is adopted as the anchor repo
+    (state lives under ~/.mycel, the repo stays pristine) and new
+    agents default their repo to it
+  - outside a git repo: the server boots against MycelHome only
 
 By default the server runs in the foreground (for Docker/Railway).
 Use -d to run as a background daemon.
@@ -147,55 +146,23 @@ func runUp(cmd *cobra.Command, _ []string) error {
 		log.Warn("daemon addr: write failed — CLI will fall back to default port", "path", addrPath, "error", writeErr)
 	}
 
-	// One-shot prune of stale registry entries. Go tests that write to
-	// the user-global workspaces.json without a sandbox leave phantom
-	// tmpdir entries; dropping them on every bcd boot keeps the
-	// registry accurate without requiring a separate maintenance
-	// command. Errors are best-effort — a failure to save is non-fatal
-	// and pointed at with a warn.
-	if reg, regErr := workspace.LoadRegistry(); regErr == nil {
-		if pruned := reg.PruneStalePaths(); pruned > 0 {
-			if saveErr := reg.Save(); saveErr != nil {
-				log.Warn("registry: prune save failed", "pruned", pruned, "error", saveErr)
-			} else {
-				log.Info("registry: pruned stale entries", "count", pruned)
-			}
-		}
-	} else {
-		log.Warn("registry: load for prune failed", "error", regErr)
-	}
-
 	return RunServer(upAddr, wsRoot, upCORS, upAPIKey)
 }
 
-// resolveUpWorkspace picks the workspace root for `mycel up`:
+// resolveUpWorkspace picks the anchor repo for `mycel up`. The daemon is
+// single-tenant and only needs MycelHome to boot; the repo is the default
+// that new agents bind to:
 //
-//  1. BC_WORKSPACE or an already-registered workspace enclosing cwd
-//  2. the enclosing git repo root — adopted as a new workspace
-//     (the server runs workspace.Init, which is idempotent, and
-//     registers + activates it)
-//  3. the registry's active (or most recently registered) workspace
-//  4. "" — boot with no workspace; add repos from the web UI
+//  1. BC_WORKSPACE or a known workspace enclosing cwd
+//  2. the enclosing git repo root — adopted as the anchor repo
+//     (the server runs workspace.Init, which is idempotent)
+//  3. "" — boot against MycelHome only; new agents must name a repo
 func resolveUpWorkspace() string {
 	if ws, err := getWorkspace(); err == nil && ws != nil {
 		return ws.RootDir
 	}
 	if root := findGitRoot(); root != "" {
 		return root
-	}
-	if reg, err := workspace.LoadRegistry(); err == nil {
-		if active := reg.GetActive(); active != nil {
-			if _, statErr := os.Stat(active.Path); statErr == nil {
-				return active.Path
-			}
-		}
-		// No active workspace set — fall back to any registered
-		// workspace whose path still exists.
-		for _, entry := range reg.List() {
-			if _, statErr := os.Stat(entry.Path); statErr == nil {
-				return entry.Path
-			}
-		}
 	}
 	return ""
 }

@@ -19,10 +19,10 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"strings"
-	"time"
-
 	"path/filepath"
+	"strings"
+	"sync"
+	"time"
 
 	"github.com/rpuneet/mycel/pkg/agent"
 	"github.com/rpuneet/mycel/pkg/attachment"
@@ -69,14 +69,18 @@ func DefaultConfig() Config {
 }
 
 // Services bundles all service/store dependencies for the handlers.
+// bcd is single-tenant: exactly one Services value is built at boot
+// (see BuildServices) and lives for the process lifetime.
 type Services struct {
 	Agents        *agent.AgentService
+	AgentMgr      *agent.Manager
 	Costs         *cost.Store
 	CostImporter  *cost.Importer
 	Cron          *cron.Store
 	CronScheduler *cron.Scheduler
 	Secrets       *secret.Store
 	MCP           *mcp.Store
+	MCPGlobal     *mcp.GlobalStore // user-global MCP registry (~/.mycel/mcps.json)
 	Tools         *tool.Store
 	Templates     *template.Store
 	Stats         *stats.Store
@@ -85,21 +89,61 @@ type Services struct {
 	WS            *workspace.Workspace
 	Gateway       *gateway.Manager
 	Notify        *notify.Service
+	// Hub is the process-wide SSE hub the bundle publishes into.
+	Hub *ws.Hub
 	// Degraded maps service name → reason for services that failed to
-	// initialize and were left nil (see WorkspaceServices.Degraded).
+	// initialize and were left nil (see BuildServices).
 	// Surfaced by /api/health so degradation is loud, not silent.
 	Degraded map[string]string
-	// Registry is the global workspace registry (~/.mycel/workspaces.json).
-	// Populated when bcd runs; exposed so the /api/workspaces handler can
-	// list / add / activate entries.
-	Registry *workspace.Registry
-	// WorkspaceManager lazy-loads per-workspace services for scoped routes
-	// at /api/workspaces/{id}/... — may be nil in tests.
-	WorkspaceManager *WorkspaceManager
 	// Deps is the optional dependencies registry (bc-db, bc-code-server,
 	// bc-browser). May be nil in tests; when nil the /api/deps handler
 	// returns an empty list and 404 for detail routes.
 	Deps *deps.Registry
+
+	// cancel stops background goroutines started by BuildServices. It is
+	// invoked first so goroutines can observe shutdown before their
+	// underlying stores close.
+	// lifecycle carries teardown state behind a pointer so Services can be
+	// copied by value; sync.Once makes Close idempotent and concurrent-safe.
+	lifecycle *serviceLifecycle
+	// wg lets Close wait for background goroutines to exit.
+}
+
+// serviceLifecycle owns the background-goroutine teardown for one built
+// service bundle: cancel stops the goroutines, wg waits for them, closer
+// tears down stores in reverse construction order.
+type serviceLifecycle struct {
+	cancel context.CancelFunc
+	wg     *sync.WaitGroup
+	closer func() error
+	once   sync.Once
+}
+
+// Close stops background goroutines started by BuildServices, waits for
+// them to exit, then invokes the factory-supplied closer to tear down
+// stores. Safe to call multiple times and on a hand-assembled Services.
+//
+// The global database connection is deliberately NOT closed here: stores
+// borrow it from pkg/db, which keeps it cached process-wide. It is closed
+// at process shutdown via db.CloseGlobal.
+func (s *Services) Close() error {
+	lc := s.lifecycle
+	if lc == nil {
+		return nil
+	}
+	var err error
+	lc.once.Do(func() {
+		if lc.cancel != nil {
+			lc.cancel()
+		}
+		if lc.wg != nil {
+			lc.wg.Wait()
+		}
+		if lc.closer != nil {
+			err = lc.closer()
+		}
+	})
+	return err
 }
 
 // Server is the bcd HTTP server.
@@ -107,66 +151,6 @@ type Server struct {
 	httpServer *http.Server
 	handler    http.Handler
 	addr       string
-}
-
-// NewWithManager creates a bcd server using the multi-workspace primitives.
-// It projects the active workspace's named fields into a flat Services
-// struct for the handler constructors, then wires the manager into the
-// scope middleware. `New` remains for tests that assemble Services directly.
-func NewWithManager(cfg Config, mgr *WorkspaceManager, globals *Globals, staticFiles fs.FS) *Server {
-	if mgr == nil {
-		// Caller error — but surface quickly via a Services-only constructor.
-		return New(cfg, Services{}, nil, staticFiles)
-	}
-	active := mgr.Active()
-	var svc Services
-	var hub *ws.Hub
-	if active != nil {
-		svc = servicesFromWorkspace(active)
-		svc.WorkspaceManager = mgr
-		hub = active.Hub
-	} else {
-		svc.WorkspaceManager = mgr
-	}
-	if globals != nil {
-		if svc.Registry == nil {
-			svc.Registry = globals.Registry
-		}
-		if svc.Deps == nil {
-			svc.Deps = globals.Deps
-		}
-		if svc.Stats == nil {
-			svc.Stats = globals.Stats
-		}
-		if cfg.Build.Commit == "" {
-			cfg.Build = globals.Build
-		}
-	}
-	return New(cfg, svc, hub, staticFiles)
-}
-
-// servicesFromWorkspace projects a *WorkspaceServices onto the flat Services
-// struct consumed by handler constructors. This is the single point of
-// translation between the two representations.
-func servicesFromWorkspace(ws *WorkspaceServices) Services {
-	return Services{
-		Agents:        ws.Agents,
-		Costs:         ws.Costs,
-		CostImporter:  ws.CostImporter,
-		Cron:          ws.Cron,
-		CronScheduler: ws.CronSched,
-		Secrets:       ws.Secrets,
-		MCP:           ws.MCP,
-		Tools:         ws.Tools,
-		Templates:     ws.Templates,
-		Stats:         ws.Stats,
-		EventLog:      ws.Events,
-		EventWriter:   ws.EventWriter,
-		WS:            ws.Workspace,
-		Gateway:       ws.Gateway,
-		Notify:        ws.Notify,
-		Degraded:      ws.Degraded,
-	}
 }
 
 // New creates a bcd server with the given config, services, SSE hub, and optional static files.
@@ -215,7 +199,7 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 			v = cfg.Build.Commit
 		}
 		// Services that failed to initialize at build time (see
-		// WorkspaceServices.Degraded) flip the status to "degraded" and
+		// Services.Degraded) flip the status to "degraded" and
 		// are listed with their reasons so the outage is diagnosable
 		// from a single curl. The healthy "ok" shape is unchanged.
 		if len(svc.Degraded) > 0 {
@@ -287,7 +271,7 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 			ah.SetStatsStore(svc.Stats)
 		}
 		if svc.WS != nil {
-			// Prefer the layered store populated by BuildWorkspaceServices;
+			// Prefer the layered store populated by BuildServices;
 			// fall back to a single-layer per-workspace store for callers
 			// that construct Services manually (eg. legacy tests).
 			if svc.Templates != nil {
@@ -392,42 +376,34 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 		}
 		gh.Register(mux)
 	}
-	if svc.Registry != nil {
-		handlers.NewWorkspacesHandler(svc.Registry, svc.Agents).Register(mux)
-		handlers.NewDiscoveryHandler(svc.Registry).Register(mux)
+	// Repo listing + discovery scanners for the folder picker. The repos
+	// handler is nil-safe (empty list without an agent service); adding a
+	// repo IS creating an agent with that repo path, so there is no
+	// registration surface.
+	rootDir := ""
+	if svc.WS != nil {
+		rootDir = svc.WS.RootDir
 	}
+	handlers.NewReposHandler(svc.Agents, rootDir).Register(mux)
+	handlers.NewDiscoveryHandler().Register(mux)
 	// Optional dependencies manager (bc-db, bc-code-server, bc-browser).
 	// Always registered so the UI can render an empty list when no deps
 	// are configured; the handler is nil-safe internally.
 	handlers.NewDepsHandler(svc.Deps).Register(mux)
-	// Cross-workspace cost rollup — lives outside WorkspaceScope so the
-	// response spans every workspace in the registry. Handler is nil-safe
-	// and returns 503 when the global ledger isn't wired.
-	mux.Handle("/api/global/costs", handlers.NewGlobalCostsHandler(svc.Costs, svc.Registry))
-	// Code tab endpoints — resolves workspaces via the registry + active
-	// workspace shim. The context-lookup shim is wired here to avoid an
-	// import cycle between server and server/handlers.
-	handlers.SetWorkspaceIDFromContext(WorkspaceIDFromContext)
-	// Install the per-request workspace resolver so handlers can pull
-	// their per-workspace dependencies from context (phase M3). The
-	// resolver reads ctxKeyWorkspaceServices which the WorkspaceScope
-	// middleware stashes on both scoped (/api/workspaces/{id}/…) and
-	// legacy (/api/…) paths.
-	handlers.SetWorkspaceFromContext(func(ctx context.Context) *handlers.WorkspaceView {
-		svc := WorkspaceServicesFromContext(ctx)
-		if svc == nil {
-			return nil
-		}
-		return workspaceViewFromServices(svc)
-	})
-	handlers.NewCodeHandler(handlers.NewRegistryWorkspaceResolver(svc.Registry, svc.WS)).Register(mux)
+	// Per-repo cost rollup. Handler is nil-safe and returns 503 when the
+	// global ledger isn't wired.
+	mux.Handle("/api/global/costs", handlers.NewGlobalCostsHandler(svc.Costs))
+	// Degradation reasons for 503 responses (see serviceUnavailable).
+	handlers.SetDegraded(svc.Degraded)
+	// Code tab endpoints — anchored at the single bundle's repo root.
+	handlers.NewCodeHandler(handlers.NewStaticWorkspaceResolver(rootDir)).Register(mux)
 	if svc.WS != nil {
 		handlers.NewRolesHandler(svc.WS).Register(mux)
 		handlers.NewWorkspaceHandler(svc.Agents, svc.WS).Register(mux)
 		handlers.NewDoctorHandler(svc.WS).Register(mux)
 		handlers.NewSettingsHandler(svc.WS).Register(mux)
 
-		// Templates — prefer the layered store from BuildWorkspaceServices
+		// Templates — prefer the layered store from BuildServices
 		// (global ~/.mycel/templates/ + per-workspace override). Fallback to
 		// a single-layer workspace store for legacy test callers that
 		// assemble Services by hand.
@@ -460,13 +436,8 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 	}
 	sh.Register(mux)
 
-	// MCP protocol server (SSE transport).
-	//
-	// Legacy mount at /_mcp/<agent>/{sse,message} targets the launch
-	// workspace — kept so agents spawned before phase M6 keep working.
-	// Scoped mount at /_mcp/<wsID>/<agent>/{sse,message} dispatches via
-	// the WorkspaceManager so any loaded workspace can expose MCP to its
-	// agents.
+	// MCP protocol server (SSE transport), mounted at
+	// /_mcp/<agent>/{sse,message}.
 	if svc.WS != nil {
 		mcpCfg := servermcp.Config{Workspace: svc.WS, Costs: svc.Costs}
 		if svc.Agents != nil {
@@ -489,10 +460,6 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 				broker.SetCORSOrigin(cfg.CORSOrigin)
 			}
 		}
-	}
-	// Scoped MCP dispatcher — per-workspace path.
-	if svc.WorkspaceManager != nil {
-		mux.HandleFunc("/_mcp/ws/", scopedMCPDispatch(svc.WorkspaceManager, cfg.CORSOrigin))
 	}
 
 	// Static web UI with SPA fallback — serves files if they exist,
@@ -539,14 +506,8 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 	}
 
 	// Middleware chain (outermost runs first):
-	// RateLimit → APIKeyAuth → RequestID → RequestLogger → Recovery → Gzip → MaxBodySize → CORS → WorkspaceScope → mux
-	//
-	// WorkspaceScope sits innermost so it can rewrite the request URL
-	// before the mux routes it to a handler. That lets a client hit
-	// /api/workspaces/{id}/agents and have it dispatch to the registered
-	// /api/agents handler once {id} is the active workspace.
+	// RateLimit → APIKeyAuth → RequestID → RequestLogger → Recovery → Gzip → MaxBodySize → CORS → mux
 	var handler http.Handler = mux
-	handler = WorkspaceScope(handler, svc.WorkspaceManager)
 	if cfg.CORS {
 		origin := cfg.CORSOrigin
 		if origin == "" {

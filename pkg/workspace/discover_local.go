@@ -255,9 +255,6 @@ func Clone(ctx context.Context, url, target, name string) (string, error) {
 		return "", fmt.Errorf("target %s exists and is not a directory", absTarget)
 	}
 
-	if name != "" && (!filepath.IsLocal(name) || strings.ContainsAny(name, "/\\")) {
-		return "", fmt.Errorf("invalid checkout name %q", name)
-	}
 	if name == "" {
 		// Derive from URL basename.
 		base := strings.TrimSuffix(filepath.Base(url), ".git")
@@ -266,6 +263,11 @@ func Clone(ctx context.Context, url, target, name string) (string, error) {
 			return "", fmt.Errorf("unable to derive name from url %q", url)
 		}
 		name = base
+	}
+	// Validate unconditionally — a derived basename can still be ".." or
+	// otherwise escape absTarget.
+	if !filepath.IsLocal(name) || strings.ContainsAny(name, "/\\") {
+		return "", fmt.Errorf("invalid checkout name %q", name)
 	}
 	dest := filepath.Join(absTarget, name)
 	if _, err := os.Stat(dest); err == nil {
