@@ -13,16 +13,17 @@ context, and the reasoning behind each choice.
 secrets, cron jobs, MCP servers, and tools. The storage must work out of the
 box for every developer without any setup steps.
 
-**Decision:** Use SQLite for all persistent storage, with a small number of
-`.db` files per concern (e.g., the unified `bc.db`, plus `state.db` and
-`secrets.db`) stored in the workspace's `.bc/` / state directory.
+**Decision:** Use SQLite for all persistent storage: one global database at
+`~/.mycel/mycel.db` for every store (agents, roles, events, notifications,
+cron, MCP servers, tools), plus a `costs.db` ledger and a `secrets.vault`
+alongside it.
 
 **Rationale:**
 
 - **Zero configuration**: no database server to install, configure, or manage.
 - **Embedded**: the database is a single file linked into the Go binary.
-- **Portable with workspace**: `.bc/` travels with the project (or is
-  `.gitignore`-d for sensitive data). Copying a workspace copies all state.
+- **Repos stay pristine**: all state lives under `~/.mycel/`, never inside
+  the project. State survives repo moves and clones.
 - **Concurrent-safe**: SQLite WAL mode handles the concurrency level mycel
   needs (one server, a few CLI readers).
 - **Tables use `IF NOT EXISTS`**: schema is applied idempotently at startup,
@@ -44,8 +45,8 @@ box for every developer without any setup steps.
 tools (Claude Code, Gemini, etc.) that expect a terminal. The system must
 work for local development and for isolated, reproducible builds.
 
-**Decision:** Support two runtime backends — tmux (local) and Docker
-(isolated) — selectable via `[runtime] backend` in `settings.json`.
+**Decision:** Support two runtime backends — Docker (isolated, the default)
+and tmux (local) — selectable via `runtime.default` in `preferences.json`.
 
 **Rationale:**
 
@@ -110,8 +111,9 @@ WebSockets.
 
 **Status:** Accepted
 
-**Context:** mycel ships a web dashboard for workspace management. It needs
-to be easy to deploy and use without a separate frontend server.
+**Context:** mycel ships a web dashboard for managing agents, repos, and
+costs. It needs to be easy to deploy and use without a separate frontend
+server.
 
 **Decision:** Embed the compiled web UI (from `server/web/dist/`) into the
 `mycel` binary using Go's `embed.FS`, served as static files with SPA
@@ -138,39 +140,40 @@ fallback.
 
 ---
 
-## ADR-5: File-Based Hooks for Agent State Detection
+## ADR-5: HTTP Hooks for Agent State Detection
 
 **Status:** Accepted
 
 **Context:** the mycel server needs to know when agents transition between
-states (working, idle, stopped). Agents run inside tmux sessions or Docker
-containers, potentially without network access to the server.
+states (working, idle, stuck, stopped). Agents run inside tmux sessions or
+Docker containers.
 
-**Decision:** Use file-based hooks where Claude Code lifecycle events
-(`PreToolUse`, `PostToolUse`, `Stop`) write the event name to a well-known
-file path: `.bc/agents/<NAME>/hook_event`.
+**Decision:** Use HTTP hooks: Claude Code lifecycle events (`SessionStart`,
+`UserPromptSubmit`, `PreToolUse`, `Stop`, and others) POST a JSON payload to
+the server's `/api/agents/{name}/hook` endpoint. The server address comes
+from the `BC_BCD_ADDR` env var set per agent.
 
 **Rationale:**
 
-- **Works in Docker**: containers mount the workspace directory, so
-  file writes are visible to the host without network configuration.
-- **Survives restarts**: files on disk persist across server restarts. If
-  the server is down when an event fires, the file is still there when it
-  comes back.
-- **Stateless consumption**: the server's `StatsCollector` reads and deletes the
-  hook event file on each poll cycle via `ConsumeHookEvent()`. No connection
-  state to manage.
+- **Instant updates**: state changes reach the server the moment the event
+  fires — no poll cycle. The server updates `mycel.db` and broadcasts over
+  SSE, so the web UI and TUI stay live.
+- **Full payload preserved**: the hook command reads Claude's raw stdin
+  JSON, merges in mycel's `event`/`state`/`task` fields with `jq`, and
+  POSTs everything — tool names, tool input, and session IDs included.
+- **Works in Docker**: containers reach the host server over the network
+  via `BC_BCD_ADDR`; no shared-filesystem tricks needed.
+- **Fire-and-forget**: each hook ends in `|| true`, so a down or slow
+  server never blocks or breaks the agent.
 - **Claude Code integration**: hooks are configured in
   `.claude/settings.json` using Claude Code's native hook system. The
   `WriteWorkspaceHookSettings()` function generates the settings
   idempotently, merging with any existing user hooks.
-- **Simple command**: each hook runs a single `printf` command to write the
-  event name to the file. No dependencies, no network calls.
 
 **Tradeoffs:**
 
-- Polling-based (not instant) — there is a short delay between the event
-  and detection. Acceptable for status display purposes.
+- Events fired while the server is down are lost; state re-syncs on the
+  next event.
 - Only works with Claude Code's hook system. Other AI tools need different
   state detection mechanisms.
 
@@ -196,7 +199,7 @@ via the `parent_roles` JSON column on the `roles` database table.
 - **No diamond problem**: BFS with visited-set tracking naturally handles
   cases where two parents share a common ancestor. Each role is visited only
   once, and the first encounter wins.
-- **Flat hierarchy in practice**: most workspaces use 2-3 levels at most
+- **Flat hierarchy in practice**: most setups use 2-3 levels at most
   (e.g., `engineer` inherits from `base`, `lead` inherits from `engineer`).
 
 **Tradeoffs:**

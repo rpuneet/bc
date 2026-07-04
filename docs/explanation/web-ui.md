@@ -25,8 +25,8 @@ graph TB
     end
 
     subgraph Storage ["Storage Layer"]
-        DB["Workspace DB<br/>&lt;workspace&gt;/.bc/bc.db (SQLite)<br/>or TimescaleDB"]
-        FS["Filesystem<br/>~/.mycel/ global tree,<br/>workspace .bc/ dir"]
+        DB["Global DB<br/>~/.mycel/mycel.db (SQLite)<br/>or TimescaleDB"]
+        FS["Filesystem<br/>~/.mycel/ global tree"]
     end
 
     CLI -->|"HTTP GET/POST"| REST
@@ -71,15 +71,14 @@ graph TB
 ErrorBoundary
 └── ThemeProvider            (3 themes, localStorage persistence)
     └── BrowserRouter
-        └── WorkspaceProvider (active workspace context — routes stay flat)
-            └── Routes
-                └── Layout    (sidebar + header + <Outlet/>)
-                    └── per-route: Suspense → ErrorBoundary → lazy view
+        └── Routes
+            └── Layout    (sidebar + header + <Outlet/>)
+                └── per-route: Suspense → ErrorBoundary → lazy view
 ```
 
 Every view is lazy-loaded (`React.lazy`) and wrapped in its own `Suspense` + `ErrorBoundary` via the `wrap()` helper, so a crash in one view does not take down the shell. A root-level `ErrorBoundary` wraps everything as a last resort.
 
-`WorkspaceProvider` makes the active workspace a piece of context rather than a URL segment — routes are flat (`/agents`, not `/w/<id>/agents`).
+Routes are flat (`/agents`, not `/w/<id>/agents`) — the repo is a property of each agent, not a URL segment.
 
 ### 2.2 Route Map
 
@@ -89,7 +88,7 @@ Ground truth: `web/src/App.tsx`.
 |---|---|---|
 | `/` (index) | `Live` | Live activity feed (default view) |
 | `/live` | `Live` | Same as index |
-| `/agents` | `Agents` | Agent list with actions |
+| `/agents` | `Agents` | Agent list, grouped by repo, with actions |
 | `/agents/:name`, `/agents/:name/*` | `AgentDetail` | Terminal, activity, cost, files per agent |
 | `/notifications` | `Notifications` | Inbound notification stream |
 | `/notifications/:sourceName` | `Notifications` | Filtered to one source |
@@ -100,7 +99,7 @@ Ground truth: `web/src/App.tsx`.
 | `/secrets` | `Secrets` | Secret metadata |
 | `/stats` | `Stats` | Metrics and usage statistics |
 | `/metrics` | `Stats` | Alias for `/stats` |
-| `/costs` | `CostsGlobal` | Cross-workspace cost rollup |
+| `/costs` | `CostsGlobal` | Cost rollup across agents and repos |
 | `/code`, `/code/*` | `Code` | Repository/code browsing |
 | `/settings` | `Settings` | Server and UI settings |
 | `/about` | `About` | Version and build info |
@@ -131,7 +130,7 @@ All components are local to `web/src/components/` — there is no shared cross-f
 | `WebTerminal.tsx`, `InlineTerminal.tsx` | Terminal rendering for agent sessions |
 | `AgentPeekPanel.tsx` | Quick agent inspection panel |
 | `CommandPalette.tsx` (+ `useCommandPalette`) | Keyboard-driven navigation/actions |
-| `CreateAgentModal.tsx`, `RalphLoopModal.tsx` | Modal flows |
+| `CreateAgentModal.tsx` | Agent creation flow — required Repo field with known-repos dropdown and a Browse picker (`POST /api/repos/discover/local`) |
 | `EmptyState.tsx`, `LoadingSkeleton.tsx`, `CopyButton.tsx`, `MessageContent.tsx` | Presentation utilities |
 | `ProviderCard.tsx`, `ProvidersTable.tsx`, `StatsTab.tsx` | Feature-specific pieces |
 | `agent-ui/`, `live/`, `notifications/`, `settings/`, `shared/` | Feature-scoped component subdirectories |
@@ -216,7 +215,7 @@ There is no global data store (no Redux/Zustand/react-query). State falls into t
 |---|---|---|
 | **Server state** (agents, notifications, costs, stats, ...) | Per-view `usePolling` + SSE-triggered refresh | Server is source of truth; no client cache beyond the current fetch |
 | **UI state** (selected row, expanded sections, form input, filters) | Local `useState` in views | Ephemeral, resets on navigation |
-| **Infrastructure state** | Contexts: `ThemeProvider` (theme, `localStorage`), `WorkspaceProvider` (active workspace), react-router (route params), sidebar collapsed (`localStorage`) | Cross-cutting, survives navigation |
+| **Infrastructure state** | Contexts: `ThemeProvider` (theme, `localStorage`), `HeaderSlotContext` (per-view header content), react-router (route params), sidebar collapsed (`localStorage`) | Cross-cutting, survives navigation |
 
 Views that mutate data (start/stop agent, create template, ...) refetch after the mutation or rely on the resulting SSE event.
 
@@ -293,7 +292,7 @@ web/src/  --vite build-->  web/dist/  --cp-->  server/web/dist/  --go:embed-->  
 | `web/src/components/Layout.tsx` | App shell: sidebar nav (`MAIN_NAV_ITEMS`, `UTIL_NAV_ITEMS`) + content outlet |
 | `web/src/components/ErrorBoundary.tsx` | React error boundary with retry UI |
 | `web/src/context/ThemeContext.tsx` | 3-theme provider, `localStorage("bc-theme")` |
-| `web/src/context/WorkspaceContext.tsx` | Active-workspace context (flat routes) |
+| `web/src/context/HeaderSlotContext.tsx` | Lets views render content into the shared header |
 | `web/src/api/client.ts` | REST API client (`request<T>` on `/api`) |
 | `web/src/api/types.ts` | API response and SSE event types |
 | `web/src/hooks/usePolling.ts` | Polling hook (interval + abort + timeout) |

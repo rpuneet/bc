@@ -9,7 +9,7 @@ graph TB
     TUI[TUI] -->|mycel CLI| CLI
     AGENT_MCP[AI Agents] -->|MCP stdio/SSE| BCD
 
-    BCD -->|SQL| DB[(.bc/bc.db)]
+    BCD -->|SQL| DB[(~/.mycel/mycel.db)]
     BCD -->|docker exec<br/>tmux send-keys| AGENTS[Agent Containers]
     BCD -->|SSE broadcast| WEB
     BCD -->|SSE broadcast| TUI
@@ -26,7 +26,7 @@ All communication flows through the **mycel server** as the central hub. No comp
 | REST API | HTTP/JSON | `/api/*` (see the [REST API reference](../reference/api-rest.md)) | CRUD for all resources |
 | SSE Events | HTTP SSE | `/api/events` | Real-time state updates |
 | MCP (stdio) | JSON-RPC 2.0 | stdin/stdout | Agent -> server integration |
-| MCP (SSE) | JSON-RPC 2.0 | `/mcp/sse` + `/mcp/message` | Remote MCP clients |
+| MCP (SSE) | JSON-RPC 2.0 | `/_mcp/sse` + `/_mcp/message` | Remote MCP clients |
 | Health | HTTP | `/health` | Liveness probe |
 
 ## Notification Delivery Flow
@@ -84,7 +84,7 @@ sequenceDiagram
 
 ## MCP Integration
 
-AI agents connect to the mycel server's MCP endpoint to read workspace state and take actions:
+AI agents connect to the mycel server's MCP endpoint to read system state and take actions:
 
 ```mermaid
 sequenceDiagram

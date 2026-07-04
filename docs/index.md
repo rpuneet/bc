@@ -1,51 +1,53 @@
 # mycel Documentation
 
-mycel is a CLI-first orchestration system for coordinating teams of AI coding agents across multiple repositories.
+mycel orchestrates teams of AI coding agents across your git repositories. One binary runs the CLI and the server; agents work in isolated sessions with their own git worktrees, and you steer everything from the CLI, the web UI, or the terminal UI.
 
-This documentation is organized following the [Diataxis framework](https://diataxis.fr) into four categories:
+## Start here
 
-## [Tutorials](tutorials/index.md) -- Learning-oriented
+| I want to... | Go to |
+|--------------|-------|
+| Install mycel and bring the server up | [Getting started](tutorials/getting-started.md) |
+| Create and talk to my first agent | [Your first agent](tutorials/first-agent.md) |
+| Route Slack or Telegram messages to agents | [Set up notifications](how-to/set-up-notifications.md) |
+| Understand how the pieces fit together | [Architecture](explanation/architecture.md) |
+| Fix something that broke | [Troubleshoot](how-to/troubleshoot.md) |
 
-Step-by-step guides for getting started with bc.
+## Tutorials — learn by doing
 
-- [Getting Started](tutorials/getting-started.md) -- Install and run your first workspace
-- [Your First Agent](tutorials/first-agent.md) -- Create, monitor, and communicate with an agent
+Step-by-step lessons that take you from zero to a working agent team.
 
-## [How-To Guides](how-to/index.md) -- Task-oriented
+- [Getting started](tutorials/getting-started.md) — install mycel, run `mycel up`, open the dashboard
+- [Your first agent](tutorials/first-agent.md) — create, monitor, and message an agent
 
-Practical guides for accomplishing specific tasks.
+## How-to guides — get things done
 
-- [Configure your workspace](how-to/configure-workspace.md) -- Settings, providers, and runtime backends
-- [Notification Architecture](architecture-notifications.md) -- Notification gateway, platform integrations, and subscriptions
-- [Set Up Notifications](how-to/set-up-notifications.md) -- Connect platforms and subscribe agents
-- [Troubleshoot issues](how-to/troubleshoot.md) -- Common errors and fixes
+Focused recipes for specific tasks.
 
-## [Reference](reference/index.md) -- Information-oriented
+- [Configure mycel](how-to/configure-workspace.md) — preferences, providers, and runtime backends
+- [Set up notifications](how-to/set-up-notifications.md) — connect platforms and subscribe agents
+- [Troubleshoot](how-to/troubleshoot.md) — common errors and their fixes
 
-Technical reference material for APIs, CLI commands, and configuration.
+## Reference — look things up
 
-- [REST API](reference/api-rest.md) -- All HTTP endpoints
-- [Settings API](reference/api-settings.md) -- Configuration endpoints
-- [CLI Reference](reference/cli/mycel.md) -- Auto-generated command documentation
+Exact, verifiable descriptions of every interface.
 
-## [Explanation](explanation/index.md) -- Understanding-oriented
+- [REST API](reference/api-rest.md) — every HTTP endpoint
+- [Settings API](reference/api-settings.md) — configuration shape and endpoints
+- [CLI reference](reference/cli/mycel.md) — every command, auto-generated
 
-Deep dives into architecture, design decisions, and subsystem internals.
+## Explanation — understand the design
 
-- [Architecture](explanation/architecture.md) -- Component diagram, data flow, package dependencies
-- [Design Decisions](explanation/design-decisions.md) -- ADRs for key technical choices
-- [Agents](explanation/agents.md) -- State machine, runtimes, worktrees, roles
-- [MCP Server](explanation/mcp.md) -- Resources, tools, transports, notifications
-- [Database](explanation/database.md) -- Schema, ER diagram, migrations
-- [Web Dashboard](explanation/web-ui.md) -- React SPA architecture
-- [TUI](explanation/tui.md) -- Terminal UI architecture
-- [Design System](explanation/design-system.md) -- Solar Flare palette and tokens
-- [Networking](explanation/networking.md) -- Protocols, SSE, CORS
-- [CI/CD](explanation/ci-cd.md) -- Pipelines and release workflow
-- [Deployment](explanation/deployment.md) -- Docker, networking, volumes
-- [Security](explanation/security.md) -- Threat model, encryption, isolation
+How mycel works under the hood and why it is built this way.
 
-## Other
+- [Architecture](explanation/architecture.md) — the server, clients, and data flow
+- [Agents](explanation/agents.md) — lifecycle, repos, worktrees, and roles
+- [Database](explanation/database.md) — the global store and cost ledger
+- [Notifications](architecture-notifications.md) — gateways, subscriptions, delivery
+- [Web UI](explanation/web-ui.md) · [Terminal UI](explanation/tui.md) · [MCP](explanation/mcp.md)
+- [Networking](explanation/networking.md) · [Security](explanation/security.md) · [Deployment](explanation/deployment.md)
+- [Design decisions](explanation/design-decisions.md) — the reasoning behind key choices
 
-- [Contributing: Testing](contributing/testing.md) -- How to run and write tests
-- [System Overview](overview.md) -- Architecture layers, components, data flow diagrams
+## Contributing
+
+- [Testing guide](contributing/testing.md) — run and write tests
+- [System overview](overview.md) — a condensed tour of components and flows

@@ -76,7 +76,7 @@ nav:
     - Your first agent: tutorials/first-agent.md
   - How To:
     - how-to/index.md
-    - Configure workspace: how-to/configure-workspace.md
+    - Configure mycel: how-to/configure-workspace.md
     - Set up notifications: how-to/set-up-notifications.md
     - Troubleshoot: how-to/troubleshoot.md
   - Explanation:

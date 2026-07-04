@@ -1,6 +1,6 @@
 # Explanation
 
-Understanding-oriented documentation that explains how and why bc works the way it does.
+Understanding-oriented documentation that explains how and why mycel works the way it does.
 
 ## Architecture
 
@@ -16,7 +16,7 @@ Understanding-oriented documentation that explains how and why bc works the way 
 |----------|-------------|
 | [Agents](agents.md) | Agent state machine, runtime backends, worktree management, and roles |
 | [MCP Server](mcp.md) | Resources, tools, transports, and notifications |
-| [Database](database.md) | Schema, ER diagram, indexes, migrations, encryption, and filesystem layout |
+| [Database](database.md) | Storage backends, schema management, encryption, and filesystem layout |
 | [Networking](networking.md) | Client-server communication protocols, SSE events, MCP transports |
 
 ## Frontend

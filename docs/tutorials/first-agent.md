@@ -4,7 +4,7 @@ This tutorial walks you through creating, running, and communicating with your f
 
 ## Prerequisites
 
-- The mycel server running (`mycel up -d` from your repo — this bootstraps the workspace)
+- The mycel server running (`mycel up -d` from your repo)
 - An AI provider configured (e.g., Claude Code or Gemini)
 
 ## Step 1: Create an agent
@@ -12,12 +12,12 @@ This tutorial walks you through creating, running, and communicating with your f
 Create an engineer agent named `eng-01`:
 
 ```bash
-mycel agent create eng-01 --role engineer
+mycel agent create eng-01 --template engineer
 ```
 
 This creates:
-- A git worktree at `.bc/agents/eng-01/worktree/`
-- A tmux session (or Docker container) for the agent
+- A git worktree under `~/.mycel/`, checked out from the agent's repo
+- A Docker container (or tmux session) for the agent
 - Role-specific configuration files (CLAUDE.md, .mcp.json)
 
 ## Step 2: Verify the agent is running
@@ -100,7 +100,7 @@ mycel agent delete eng-01
 
 ## Next steps
 
-- Learn how to [configure your workspace](../how-to/configure-workspace.md) with providers, runtime backends, and polling settings
+- Learn how to [configure mycel](../how-to/configure-workspace.md) with providers, runtime backends, and polling settings
 - Set up [notifications from external platforms](../how-to/set-up-notifications.md)
 - Read about the [agent lifecycle and state machine](../explanation/agents.md)
 - Browse the [CLI reference](../reference/cli/mycel.md)

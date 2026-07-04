@@ -1,284 +1,189 @@
-# Architecture Overview
+# System Overview
 
-## System Design
+This page gives you a condensed tour of mycel: the components, where state lives, and how the main flows move through the system. For the full treatment, see [Architecture](explanation/architecture.md).
 
-mycel is a CLI-first orchestration system for coordinating teams of AI coding agents. It ships as a single `mycel` binary that contains both the CLI and the server: `mycel up` starts the long-running server, and every other command talks to it over HTTP. The server manages agents across multiple git repositories from a single global installation at `~/.mycel/` (a legacy `~/.bc/` tree is migrated automatically).
+## System design
 
-Key numbers:
-- **44 REST API endpoints** across 14 resource groups
-- **SQLite WAL** database with goose migrations
-- **16 web dashboard views** with Cmd+K command palette
-- **13 TUI views** with k9s-style keyboard navigation
-- **MCP server** with JSON-RPC 2.0 over SSE + stdio transports
-- **7 supported AI providers**: Claude, Gemini, Cursor, Aider, Codex, OpenCode, OpenClaw
-
-### Global Installation
-
-Per-workspace runtime state lives under `~/.mycel/workspaces/<id>/` — the
-canonical config file is `preferences.json` there, alongside `state.db`,
-`agents/`, and `logs/`. mycel also keeps a per-project `.bc/` directory
-inside the workspace root:
-
-```
-project/
-  .bc/
-    settings.json          # Workspace config (providers, runtime, defaults)
-    agents/
-      <name>/
-        .claude/            # Claude config (mounted into containers)
-          CLAUDE.md         # Role prompt
-          settings.json     # Claude Code settings + hooks
-          .mcp.json         # MCP server configs
-        worktree/           # Git worktree checkout
-    roles/                 # Role definitions
-    notifications/         # Notification data
-    prompts/               # Default prompt templates
-```
-
-`mycel up` starts the server and bootstraps the workspace (state directory and workspace registration) automatically — there is no separate init step.
-
-## Architecture Layers
+mycel is a CLI-first orchestration system for teams of AI coding agents. It ships as a single `mycel` binary containing both the CLI and the server: `mycel up` starts the long-running server, and every other command talks to it over HTTP. Agents bind to git repositories — run `mycel up` inside a repo and that repo becomes the anchor; add more repos at any time and place agents on any of them.
 
 ```mermaid
 graph TB
     subgraph Clients
         CLI[mycel CLI<br/>thin HTTP client]
-        WebUI[Web Dashboard<br/>16 views + Cmd+K]
-        TUI[TUI<br/>13 views, k9s-style]
-        AI[AI Agents<br/>Claude, Gemini, etc.]
+        WebUI[Web dashboard]
+        TUI[Terminal UI]
     end
 
     subgraph "mycel server :9374"
-        REST[REST API<br/>44 endpoints]
-        SSE[SSE Hub<br/>real-time events]
-        MCP[MCP Server<br/>JSON-RPC 2.0]
+        REST[REST API<br/>/api/*]
+        SSE[SSE hub<br/>/api/events]
+        MCP[MCP server<br/>JSON-RPC 2.0]
     end
 
-    subgraph Services
-        AgentSvc[Agent Service]
-        NotifySvc[Notify Service]
-        TeamSvc[Team Service]
-        CostSvc[Cost Service]
-        SecretSvc[Secret Service]
-        CronSvc[Cron Service]
-        DaemonSvc[Daemon Manager]
-        EventSvc[Event Log]
-        StatsSvc[Stats Service]
+    subgraph "Agent sessions"
+        A1[agent · tmux<br/>mycel-hash-name]
+        A2[agent · Docker<br/>container]
     end
 
-    subgraph "Runtime Backends"
-        Tmux[Tmux Runtime<br/>local sessions]
-        Docker[Docker Runtime<br/>isolated containers]
+    subgraph "Repos"
+        R1[(repo A)]
+        R2[(repo B)]
     end
 
-    subgraph Storage
-        DB[(.bc/bc.db<br/>SQLite WAL)]
+    subgraph "~/.mycel"
+        DB[(mycel.db<br/>SQLite WAL)]
+        Costs[(costs.db<br/>cost ledger)]
+        Prefs[preferences.json]
     end
 
     CLI -->|HTTP/JSON| REST
     WebUI -->|HTTP + SSE| REST
     TUI -->|HTTP/JSON| REST
-    AI -->|stdio / SSE| MCP
+    A1 & A2 -->|stdio / SSE| MCP
 
-    REST --> AgentSvc & NotifySvc & TeamSvc & CostSvc & SecretSvc & CronSvc & DaemonSvc & EventSvc & StatsSvc
-    MCP --> AgentSvc & NotifySvc & CostSvc
-
-    AgentSvc --> Tmux & Docker
-    DaemonSvc --> Tmux & Docker
-    AgentSvc & NotifySvc & TeamSvc & CostSvc & SecretSvc & CronSvc & DaemonSvc & EventSvc --> DB
-
-    Tmux & Docker --> AI
+    REST --> DB
+    REST --> Costs
+    A1 -->|worktree of| R1
+    A2 -->|worktree of| R2
 ```
+
+Key properties:
+
+- **Single-tenant server** — one instance, flat `/api/<resource>` routes, no per-request scoping.
+- **One state home** — everything lives under `~/.mycel`; your repos stay pristine.
+- **One database** — `~/.mycel/mycel.db` (SQLite WAL) holds every store: agents, roles, events, notifications, cron, and more. `~/.mycel/costs.db` is a separate cost ledger with per-repo attribution.
+- **Repo-bound agents** — each agent carries a `repo` (absolute path) and works in its own git worktree checked out from that repo.
+- **Globally unique agent names** — the name is the database primary key across all repos.
+
+## State on disk
+
+```
+~/.mycel/
+  mycel.db                    # THE database: agents, roles, events, notify, cron, ...
+  costs.db                    # cost ledger (per-repo attribution)
+  daemon.addr                 # server address, written by `mycel up`
+  templates/                  # global agent templates
+  workspaces/<id>/            # per-repo runtime state (id = sha256(repo path)[:12])
+    preferences.json          # the one config file mycel reads
+    agents/<name>/            # agent files + git worktree checkout
+    logs/
+```
+
+`mycel up` bootstraps all of this on first run — there is no separate init step.
 
 ## Components
 
-### mycel CLI (`cmd/mycel/`)
+### CLI (`cmd/mycel`)
 
-Thin HTTP client. All commands are HTTP requests to the daemon -- no direct DB/filesystem access. Opens the TUI if a workspace exists, prompts init if not, shows help in non-interactive mode.
+Thin HTTP client; commands never touch the database or filesystem state directly. The bare `mycel` command opens the TUI when a server is reachable. Clients discover the server via `BC_DAEMON_ADDR`, then `~/.mycel/daemon.addr`, then the `127.0.0.1:9374` default.
 
-### Server (`cmd/mycel/`, `server/`)
+### Server (`server/`)
 
-Long-running HTTP server on `127.0.0.1:9374`, started with `mycel up`. Single process managing all state.
+Long-running HTTP server started by `mycel up` (foreground by default, `-d` for a background daemon).
 
-| Component | Path | Purpose |
-|-----------|------|---------|
-| REST API | `/api/*` | CRUD for all resources (44 endpoints) |
-| SSE Hub | `/api/events` | Real-time event stream |
-| MCP Server | `/mcp/*` | AI agent integration (JSON-RPC 2.0 over SSE + stdio) |
-| Web UI | `/` | Embedded React dashboard (16 views) |
-| Health | `/health`, `/health/ready` | Liveness + readiness probes |
+| Surface | Path | Purpose |
+|---------|------|---------|
+| REST API | `/api/*` | CRUD for all resources |
+| SSE hub | `/api/events` | Real-time event stream |
+| MCP server | `/mcp/*` | Agent integration (JSON-RPC 2.0 over SSE + stdio) |
+| Web UI | `/` | Embedded React dashboard |
+| Health | `/api/health`, `/health/ready` | Liveness + readiness probes |
 
-Middleware chain (outermost first): RateLimit, APIKeyAuth (optional, via `--api-key`/`BC_API_KEY`), RequestID, RequestLogger, Recovery, Gzip, MaxBodySize (1 MB), CORS, WorkspaceScope, Routes.
-
-### Web Dashboard
-
-React SPA with 16 views, embedded in the `mycel` binary via `server/web/dist/`:
-
-- **Dashboard** -- workspace overview with agent/notification/cost summary
-- **Agents** -- list, create, start/stop, send messages, peek output
-- **Agent Detail** -- per-agent terminal output, metrics, sessions
-- **Notifications** -- notification sources, subscriptions, delivery feed
-- **Costs** -- per-agent, per-team, per-model breakdown with daily charts
-- **Cron** -- scheduled jobs with enable/disable, manual trigger, logs
-- **Daemons** -- long-running process management
-- **Doctor** -- health checks and diagnostics
-- **Logs** -- event log with type filtering
-- **MCP** -- external MCP server configuration
-- **Roles** -- role CRUD with prompt editor
-- **Secrets** -- encrypted secret management
-- **Settings** -- workspace configuration editor
-- **Stats** -- system metrics (CPU, memory, disk) and workspace summary
-- **Tools** -- AI tool provider configuration
-
-Features: Cmd+K command palette, dark/light theming, responsive layout, SSE real-time updates, inline terminal output.
-
-### TUI
-
-React Ink terminal UI with 13 views and k9s-style keyboard navigation:
-
-- Dashboard, Agents, Agent Detail, Notifications, Costs, Logs, MCP
-- Processes, Roles, Secrets, Tools, Worktrees, Help
-
-Built with Bun, compiled to CommonJS in `tui/dist/`.
+Middleware chain (outermost first): RateLimit → APIKeyAuth (optional, `--api-key`/`BC_API_KEY`) → RequestID → RequestLogger → Recovery → Gzip → MaxBodySize (1 MB) → CORS → mux.
 
 ### Agents
 
-AI coding assistants running in isolated sessions. Each agent has:
-- A tmux session or Docker container (runtime backend)
-- A git worktree (created and managed by mycel)
-- A role defining its prompt, MCP servers, and secrets
-- An associated workspace (git repo path)
-- Optional team membership for organizational grouping
+AI coding assistants in isolated sessions. Each agent has:
 
-See [explanation/agents.md](explanation/agents.md) for lifecycle, state machine, and runtime details.
+- a **repo** — the absolute path of the git repository it works on
+- a **git worktree** — created and managed by mycel under `~/.mycel/workspaces/<id>/agents/<name>/`
+- a **runtime** — a tmux session (`mycel-<hash>-<name>`) or a Docker container
+- a **role and template** — prompt, MCP servers, and secrets
+- a **provider** — claude, codex, gemini, cursor, or pi
 
-### Teams
+You control the lifecycle from the agent header in the web UI (Start / Stop / Restart) or with `mycel agent start|stop`. See [Agents](explanation/agents.md).
 
-Hierarchical organizational groups for visualizing agents. Decoupled from agent lifecycle:
+### Repos
 
-```mermaid
-graph TD
-    Root[root-team<br/>workspace: ~/repos/main] --> Backend[backend-team<br/>workspace: ~/repos/api]
-    Root --> Frontend[frontend-team<br/>workspace: ~/repos/web]
-    Backend --> E1[eng-01]
-    Backend --> E2[eng-02]
-    Frontend --> E3[eng-03]
-    E5[devops-01<br/>workspace: ~/repos/infra] -.->|member of| Root
-    E5 -.->|member of| Backend
-```
-
-- Teams are **views**, not ownership -- agents exist independently
-- Agents can appear in **multiple teams** (many-to-many via `team_members`)
-- Teams form a tree via `parent_id`
-- Teams can have a default workspace; agents inherit it but can override
-- Deleting a team does NOT delete its agents
+The server tracks the repos agents are bound to. `GET /api/repos` lists them; the web UI adds repos via a folder picker, local filesystem discovery, or GitHub clone (`/api/repos/discover/*`, `/api/repos/clone`).
 
 ### Notifications
 
-Inbound-only gateway that bridges external platforms (Slack, Telegram, GitHub, and others) to agents:
-- Gateway adapters connect via socket, webhook, or polling patterns
-- Agents subscribe to notification sources (`platform:channel`)
-- Mention-only filtering for noisy channels
-- Delivery via `tmux send-keys` with JSON payload
-- Delivery logging with retry for failed dispatches
-- Self-skip filtering prevents agents from receiving their own echoed messages
+Inbound-only gateway bridging external platforms (Slack, Telegram, Discord, webhooks) to agents. Agents subscribe to sources (`platform:channel`); deliveries are injected into the agent session with mention filtering, self-skip, and delivery logging. See [Notification architecture](architecture-notifications.md).
 
 ### Secrets
 
-AES-256-GCM encrypted secret store. Referenced in agent env vars as `${secret:NAME}`, resolved at runtime. Key derived via PBKDF2-SHA256 (600k iterations).
+AES-256-GCM encrypted store. Reference secrets in agent env vars as `${secret:NAME}`; mycel resolves them at runtime.
 
-### Cost Tracking
+### Costs
 
-Automatic import from Claude Code JSONL session files every 5 minutes. Per-agent, per-team, per-model breakdown with budget enforcement.
+Automatic import from Claude Code JSONL session logs, recorded in the global ledger with per-repo and per-agent attribution. Budgets enforce spending limits; `GET /api/global/costs` rolls costs up per repo.
 
-### Daemons
+### Cron, stats, and tools
 
-Long-running processes managed by the mycel server. Support tmux and Docker runtimes with restart policies. Used for workspace infrastructure (databases, services, etc.).
+Scheduled commands with execution history (`/api/cron`), system and per-agent metrics (`/api/stats/*`, `/api/system/*`), and a registry of MCP servers and CLI tools agents can use (`/api/mcp`, `/api/tools`).
 
-### Cron
+## Data flow
 
-Scheduled bash commands that run on a timer. Supports enable/disable, manual trigger, and execution log history.
-
-### Stats
-
-System-level metrics (CPU, memory, disk, uptime, goroutines) and workspace summary (agent counts, notification source counts, cost totals, role/tool counts).
-
-## Data Flow
-
-### Agent Creation
+### Agent creation
 
 ```mermaid
 sequenceDiagram
-    participant CLI as mycel CLI
+    participant C as Client (CLI / web UI)
     participant API as mycel API
-    participant Svc as Agent Service
+    participant Svc as Agent service
     participant RT as Runtime
-    participant DB as SQLite
+    participant DB as mycel.db
 
-    CLI->>API: POST /api/agents
-    API->>Svc: Create(name, role, workspace, team)
-    Svc->>DB: INSERT INTO agents
-    Svc->>RT: git worktree add
-    Svc->>RT: Write role files (CLAUDE.md, .mcp.json)
-    Svc->>RT: Create tmux session / Docker container
-    Svc->>RT: cd worktree && provider-command
-    RT-->>Svc: Session alive
-    Svc->>DB: state = idle
-    Svc-->>CLI: 201 Created
+    C->>API: POST /api/agents {name, repo, ...}
+    API->>Svc: Create
+    Svc->>DB: INSERT agent (repo = absolute path)
+    Svc->>RT: git worktree add (from the agent's repo)
+    Svc->>RT: write role files (CLAUDE.md, .mcp.json)
+    Svc->>RT: create tmux session / Docker container
+    RT-->>Svc: session alive
+    Svc-->>C: 201 Created
 ```
 
-### Notification Delivery
+### Notification delivery
 
 ```mermaid
 sequenceDiagram
-    participant Platform as External Platform
-    participant Adapter as Gateway Adapter
-    participant Notify as notify.Service
-    participant DB as SQLite
-    participant Hub as SSE Hub
-    participant Agent as Subscribed Agent
+    participant P as External platform
+    participant G as Gateway adapter
+    participant N as Notify service
+    participant DB as mycel.db
+    participant A as Subscribed agent
 
-    Platform->>Adapter: Inbound event
-    Adapter->>Notify: Dispatch(channel, sender, content)
-    Notify->>DB: Save to notification_log
-    Notify->>DB: Query subscribers
-    loop Each subscriber (with self-skip + mention filter)
-        Notify->>Agent: tmux send-keys (JSON payload)
-        Notify->>DB: Log delivery status
+    P->>G: inbound event
+    G->>N: Dispatch(channel, sender, content)
+    N->>DB: log notification, query subscribers
+    loop each subscriber (mention filter + self-skip)
+        N->>A: inject into session (JSON payload)
+        N->>DB: log delivery status
     end
-    Notify->>Hub: Publish gateway.message SSE event
+    N-->>P: SSE event published for the web UI
 ```
 
-### Agent State via Hooks
+### Agent state via hooks
 
-```mermaid
-sequenceDiagram
-    participant Claude as Claude Code
-    participant API as mycel API
-    participant DB as SQLite
-    participant Hub as SSE Hub
+Provider hooks report tool activity to the API; the server updates agent state in `mycel.db` and broadcasts `agent.state_changed` over SSE, which keeps the web UI and TUI live without polling.
 
-    Claude->>API: POST /api/agents/{name}/hook (tool_use_start)
-    API->>DB: state = working
-    API->>Hub: agent.state_changed
-    Claude->>API: POST /api/agents/{name}/hook (tool_use_end)
-    API->>DB: state = idle
-    API->>Hub: agent.state_changed
-```
-
-## Key Design Decisions
+## Key design decisions
 
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
-| Per-project `.bc/` | Per-project directory | Each workspace has its own `.bc/` directory for config, agents, and state |
-| Single binary, CLI + server | `mycel up` runs the server | CLI stays fast; the server process holds state and connections |
-| SQLite WAL | Single database file | Zero-config, local-first, WAL for concurrent reads |
-| Embedded web UI | Single binary | No separate web server; version-locked to API |
-| SSE not WebSocket | Server-sent events | Simpler protocol, sufficient for one-way server push |
-| Teams as views | Decoupled, many-to-many | No lifecycle coupling; pure organization |
-| bc owns worktrees | All providers, uniform | Avoids nesting; consistent across Claude/Gemini/etc. |
-| tmux send-keys | Only delivery mechanism | Hooks are one-way; no other way into agent session |
-| Auth optional | Localhost by default | Local dev tool; optional Bearer auth via `--api-key`/`BC_API_KEY` for anything beyond loopback |
-| MCP curated tools | Subset of API | Agents get key operations, not full admin |
-| INTEGER timestamps | Unix millis | Faster range queries, smaller storage than TEXT ISO8601 |
-| goose migrations | Versioned schema | Proper versioning, rollback support |
+| One state home | Everything under `~/.mycel` | Repos stay pristine; state survives repo moves and clones |
+| Single binary | `mycel up` runs the server | CLI stays fast; one process holds state and connections |
+| Single-tenant server | Flat routes, no request scoping | One server per machine is simpler to reason about and secure |
+| One global database | `mycel.db`, SQLite WAL | Zero-config, local-first, concurrent reads |
+| Separate cost ledger | `costs.db` with repo attribution | Cost history outlives agents and repos |
+| Repo-bound agents | `repo` field, globally unique names | An agent's identity and its checkout are unambiguous |
+| mycel owns worktrees | All providers, uniform | Avoids nesting; consistent across providers |
+| Embedded web UI | Served from the binary | No separate web server; version-locked to the API |
+| SSE, not WebSocket | Server-sent events | Simpler protocol; one-way server push is all that's needed |
+| Session injection delivery | Runtime send-keys | Hooks are one-way; the session is the only way in |
+| Auth optional | Localhost by default | Local-first tool; Bearer auth for anything beyond loopback |
+| MCP curated tools | Subset of the API | Agents get key operations, not full admin |
+
+See [Design decisions](explanation/design-decisions.md) for the full reasoning.

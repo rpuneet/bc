@@ -30,7 +30,7 @@ sequenceDiagram
     Note over API,RT: CREATE (persist only)
     API->>Svc: Create(opts)
     Svc->>Mgr: createAgent(opts)
-    Mgr->>Mgr: validate name, role, workspace
+    Mgr->>Mgr: validate name, role, repo
     Mgr->>DB: INSERT INTO agents
     Mgr->>Mgr: git worktree add
     Mgr->>Mgr: write role files (CLAUDE.md, .mcp.json)
@@ -60,8 +60,8 @@ func (m *Manager) deleteAgent(name string, force bool) error {
     // 3. Kill Docker container (docker rm -f)
     // 4. Remove git worktree (git worktree remove --force)
     // 5. Delete worktree branch (git branch -D)
-    // 6. Remove agent state dir (~/.bc/agents/<name>/)
-    // 7. Remove log file (~/.bc/logs/<name>.log)
+    // 6. Remove agent state dir (~/.mycel/workspaces/<id>/agents/<name>/)
+    // 7. Remove log file (~/.mycel/workspaces/<id>/logs/<name>.log)
     // 8. Update children's ParentID to ""
     // 9. Remove from parent's Children list
     // 10. DELETE FROM agents WHERE name = ?
