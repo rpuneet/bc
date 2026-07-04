@@ -76,23 +76,24 @@ func RunServer(addr, wsRoot, corsOrigin, apiKey string) error {
 		}
 	}
 
-	// Per-workspace databases are opened lazily through the pkg/db
-	// registry (BuildWorkspaceServices resolves each workspace's own
-	// connection) — including for a workspace-less boot where repos are
-	// added later via the API. Warm the launch workspace's connection
-	// eagerly so storage problems surface at boot, and close every
-	// registry connection at shutdown.
-	defer bcdb.CloseAllWorkspaceDBs() //nolint:errcheck
-	if ws != nil {
-		_, driver, dbErr := bcdb.ForWorkspace(ws.RootDir, ws.Config.DBStorageSettings())
-		if dbErr != nil {
-			log.Warn("failed to open workspace db", "error", dbErr, "workspace", ws.RootDir)
+	// The single global database (<MycelHome>/mycel.db) is opened lazily
+	// through pkg/db — including for a workspace-less boot where repos
+	// are added later via the API. Warm the connection eagerly so
+	// storage problems surface at boot, and close it at shutdown.
+	defer bcdb.CloseGlobal() //nolint:errcheck
+	{
+		var cfg *bcdb.StorageSettings
+		if ws != nil {
+			cfg = ws.Config.DBStorageSettings()
+		}
+		if _, driver, dbErr := bcdb.Global(cfg); dbErr != nil {
+			log.Warn("failed to open global db", "error", dbErr)
 		} else {
 			configDriver := ""
-			if ws.Config != nil {
+			if ws != nil && ws.Config != nil {
 				configDriver = ws.Config.Storage.Default
 			}
-			log.Info("workspace database ready", "driver", driver, "config_driver", configDriver, "workspace", ws.RootDir)
+			log.Info("global database ready", "driver", driver, "config_driver", configDriver)
 		}
 	}
 
@@ -181,8 +182,8 @@ func RunServer(addr, wsRoot, corsOrigin, apiKey string) error {
 		mcpGlobal = bcmcp.NewGlobalStore(mcpPath)
 	}
 
-	// User-global cost ledger at ~/.mycel/costs.db. Records carry
-	// workspace_id for cross-workspace analytics. When the ledger
+	// User-global cost ledger at ~/.mycel/costs.db. Records carry the
+	// repo path for cross-repo analytics. When the ledger
 	// cannot be opened, per-workspace stores continue to work via the
 	// build_services.go fallback.
 	var costsGlobal *bccost.Store

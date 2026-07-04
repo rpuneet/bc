@@ -33,9 +33,12 @@ func (p *PostgresLog) InitSchema() error {
 			agent     TEXT,
 			message   TEXT,
 			data      TEXT,
+			repo      TEXT DEFAULT '',
 			timestamp TIMESTAMPTZ NOT NULL DEFAULT NOW()
 		)`,
+		`ALTER TABLE events ADD COLUMN IF NOT EXISTS repo TEXT DEFAULT ''`,
 		`CREATE INDEX IF NOT EXISTS idx_events_agent     ON events(agent)`,
+		`CREATE INDEX IF NOT EXISTS idx_events_repo      ON events(repo)`,
 		`CREATE INDEX IF NOT EXISTS idx_events_timestamp ON events(timestamp DESC)`,
 	}
 
@@ -64,11 +67,12 @@ func (p *PostgresLog) Append(event Event) error {
 	}
 
 	_, err := p.db.ExecContext(context.Background(),
-		"INSERT INTO events (type, agent, message, data, timestamp) VALUES ($1, $2, $3, $4, $5)",
+		"INSERT INTO events (type, agent, message, data, repo, timestamp) VALUES ($1, $2, $3, $4, $5, $6)",
 		string(event.Type),
 		pgNilStr(event.Agent),
 		pgNilStr(event.Message),
 		dataJSON,
+		event.Repo,
 		event.Timestamp,
 	)
 	return err
@@ -77,7 +81,7 @@ func (p *PostgresLog) Append(event Event) error {
 // Read returns all events ordered by timestamp.
 func (p *PostgresLog) Read() ([]Event, error) {
 	rows, err := p.db.QueryContext(context.Background(),
-		"SELECT type, agent, message, data, timestamp FROM events ORDER BY id ASC LIMIT 1000",
+		"SELECT type, agent, message, data, repo, timestamp FROM events ORDER BY id ASC LIMIT 1000",
 	)
 	if err != nil {
 		return nil, fmt.Errorf("read events: %w", err)
@@ -90,7 +94,7 @@ func (p *PostgresLog) Read() ([]Event, error) {
 // ReadLast returns the last n events.
 func (p *PostgresLog) ReadLast(n int) ([]Event, error) {
 	rows, err := p.db.QueryContext(context.Background(),
-		"SELECT type, agent, message, data, timestamp FROM events ORDER BY id DESC LIMIT $1", n,
+		"SELECT type, agent, message, data, repo, timestamp FROM events ORDER BY id DESC LIMIT $1", n,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("read last events: %w", err)
@@ -115,7 +119,7 @@ func (p *PostgresLog) ReadLast(n int) ([]Event, error) {
 // like "last active" at whatever the 1000th oldest event was.
 func (p *PostgresLog) ReadByAgent(name string) ([]Event, error) {
 	rows, err := p.db.QueryContext(context.Background(),
-		"SELECT type, agent, message, data, timestamp FROM events WHERE agent = $1 ORDER BY id DESC LIMIT 1000", name,
+		"SELECT type, agent, message, data, repo, timestamp FROM events WHERE agent = $1 ORDER BY id DESC LIMIT 1000", name,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("read events by agent: %w", err)
@@ -146,16 +150,19 @@ func pgScanEventRows(rows *sql.Rows) ([]Event, error) {
 	for rows.Next() {
 		var ev Event
 		var evType string
-		var agent, message, dataJSON *string
+		var agent, message, dataJSON, repo *string
 		var ts time.Time
 
-		if err := rows.Scan(&evType, &agent, &message, &dataJSON, &ts); err != nil {
+		if err := rows.Scan(&evType, &agent, &message, &dataJSON, &repo, &ts); err != nil {
 			return nil, fmt.Errorf("scan event: %w", err)
 		}
 
 		ev.Type = EventType(evType)
 		if agent != nil {
 			ev.Agent = *agent
+		}
+		if repo != nil {
+			ev.Repo = *repo
 		}
 		if message != nil {
 			ev.Message = *message
@@ -176,12 +183,12 @@ func pgNilStr(s string) *string {
 	return &s
 }
 
-// OpenLog opens the event log on the given workspace database. The
-// handle is borrowed: callers (typically the per-workspace db registry)
-// own its lifecycle.
+// OpenLog opens the event log on the given database handle (the single
+// global mycel.db, or its TimescaleDB equivalent). The handle is
+// borrowed: callers own its lifecycle.
 func OpenLog(d *bcdb.DB, driver string) (EventStore, error) {
 	if d == nil {
-		return nil, fmt.Errorf("events store requires a workspace database (nil handle)")
+		return nil, fmt.Errorf("events store requires a database handle (nil handle)")
 	}
 	if driver == "timescale" {
 		pg := NewPostgresLog(d.DB)

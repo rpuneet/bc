@@ -19,11 +19,11 @@ import (
 type Importer struct {
 	store        *Store
 	workspaceDir string
-	// workspaceID, when non-empty, is written into the workspace_id
-	// column of each cost_records row inserted by this Importer. Used
-	// with the user-global cost ledger (M8e) so imports get attributed
-	// to the right workspace.
-	workspaceID string
+	// repo, when non-empty, is written into the repo column of each
+	// cost_records row inserted by this Importer. Used with the
+	// user-global cost ledger so imports get attributed to the right
+	// repo.
+	repo string
 }
 
 // NewImporter creates an Importer for the given workspace.
@@ -31,11 +31,11 @@ func NewImporter(store *Store, workspaceDir string) *Importer {
 	return &Importer{store: store, workspaceDir: workspaceDir}
 }
 
-// SetWorkspaceID sets the workspace id tagged onto every record
-// imported by this Importer. Pass the empty string to revert to the
-// legacy behavior (untagged rows).
-func (imp *Importer) SetWorkspaceID(wsID string) {
-	imp.workspaceID = wsID
+// SetRepo sets the repo path tagged onto every record imported by this
+// Importer. Pass the empty string to revert to the legacy behavior
+// (untagged rows).
+func (imp *Importer) SetRepo(repo string) {
+	imp.repo = repo
 }
 
 // ImportAll scans all known Claude projects directories and imports new sessions.
@@ -179,12 +179,12 @@ func (imp *Importer) importFile(ctx context.Context, path string) (int, error) {
 
 		var res sql.Result
 		var insertErr error
-		// workspace_id lives as a nullable TEXT column (added by the
-		// importer schema migrations below). When no id is set, pass
-		// nil so pre-M8e rows stay NULL.
-		var wsPtr *string
-		if imp.workspaceID != "" {
-			wsPtr = &imp.workspaceID
+		// repo lives as a nullable TEXT column (added by the importer
+		// schema migrations below). When no repo is set, pass nil so
+		// untagged rows stay NULL.
+		var repoPtr *string
+		if imp.repo != "" {
+			repoPtr = &imp.repo
 		}
 		ts := e.Timestamp.UTC().Format(time.RFC3339Nano)
 		// The WHERE NOT EXISTS guard dedups identical usage entries that
@@ -194,8 +194,8 @@ func (imp *Importer) importFile(ctx context.Context, path string) (int, error) {
 		// sessionId, timestamps and token counts — and the per-file
 		// watermark alone can't catch that.
 		if usePostgres {
-			// Postgres backend has not yet grown the workspace_id column
-			// — deferred to a follow-up. Keep the legacy insert so the
+			// Postgres backend has not yet grown the repo column —
+			// deferred to a follow-up. Keep the legacy insert so the
 			// backend continues to work without schema changes.
 			res, insertErr = tx.ExecContext(ctx,
 				`INSERT INTO cost_records
@@ -220,7 +220,7 @@ func (imp *Importer) importFile(ctx context.Context, path string) (int, error) {
 			res, insertErr = tx.ExecContext(ctx,
 				`INSERT INTO cost_records
 				 (agent_id, model, session_id, input_tokens, output_tokens, total_tokens,
-				  cache_creation_tokens, cache_read_tokens, cost_usd, timestamp, workspace_id)
+				  cache_creation_tokens, cache_read_tokens, cost_usd, timestamp, repo)
 				 SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
 				 WHERE NOT EXISTS (
 				   SELECT 1 FROM cost_records
@@ -231,7 +231,7 @@ func (imp *Importer) importFile(ctx context.Context, path string) (int, error) {
 				ie.agentID, e.Model, e.SessionID,
 				e.InputTokens, e.OutputTokens, total,
 				e.CacheCreationTokens, e.CacheReadTokens,
-				ie.costUSD, ts, wsPtr,
+				ie.costUSD, ts, repoPtr,
 				e.SessionID, ts, e.Model,
 				e.InputTokens, e.OutputTokens,
 				e.CacheCreationTokens, e.CacheReadTokens,
@@ -332,9 +332,9 @@ func initImporterSchema(db *sql.DB) error {
 		`ALTER TABLE cost_records ADD COLUMN session_id TEXT`,
 		`ALTER TABLE cost_records ADD COLUMN cache_creation_tokens INTEGER NOT NULL DEFAULT 0`,
 		`ALTER TABLE cost_records ADD COLUMN cache_read_tokens INTEGER NOT NULL DEFAULT 0`,
-		// M8e: workspace_id tags each row with the owning workspace so
-		// the user-global ledger can roll up cross-workspace spend.
-		`ALTER TABLE cost_records ADD COLUMN workspace_id TEXT`,
+		// repo tags each row with the owning repo path so the
+		// user-global ledger can roll up cross-repo spend.
+		`ALTER TABLE cost_records ADD COLUMN repo TEXT`,
 	}
 	for _, m := range migrations {
 		_, _ = db.ExecContext(ctx, m) // ignore "duplicate column" errors

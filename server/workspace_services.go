@@ -123,12 +123,12 @@ func (ws *WorkspaceServices) LastAccess() time.Time {
 // to exit, then invokes the factory-supplied closer to tear down stores.
 // Safe to call multiple times.
 //
-// The per-workspace database connection is deliberately NOT closed here:
-// stores borrow it from the pkg/db registry, which keeps it cached so an
+// The global database connection is deliberately NOT closed here:
+// stores borrow it from pkg/db, which keeps it cached so an
 // evicted-then-reloaded workspace reuses the same handle (an idle SQLite
 // connection is one pooled conn — cheap) and so other holders (role
-// store, CLI helpers) never see a use-after-close. Registry connections
-// are closed at process shutdown via db.CloseAllWorkspaceDBs.
+// store, CLI helpers) never see a use-after-close. The connection is
+// closed at process shutdown via db.CloseGlobal.
 func (ws *WorkspaceServices) Close() error {
 	ws.mu.Lock()
 	cancel := ws.cancel

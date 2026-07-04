@@ -24,7 +24,7 @@ func TestOpenGlobalStoreCreatesSchema(t *testing.T) {
 		t.Fatal("store db nil")
 	}
 
-	// The workspace_id column must exist.
+	// The repo column must exist.
 	rows, err := s.db.QueryContext(context.Background(), `PRAGMA table_info(cost_records)`)
 	if err != nil {
 		t.Fatal(err)
@@ -39,19 +39,19 @@ func TestOpenGlobalStoreCreatesSchema(t *testing.T) {
 		if scanErr := rows.Scan(&cid, &name, &ctype, &notnull, &dflt, &pk); scanErr != nil {
 			t.Fatal(scanErr)
 		}
-		if name == "workspace_id" {
+		if name == "repo" {
 			found = true
 		}
 	}
 	if !found {
-		t.Error("workspace_id column not created")
+		t.Error("repo column not created")
 	}
 }
 
-func TestScopedRecordTagsWorkspace(t *testing.T) {
+func TestScopedRecordTagsRepo(t *testing.T) {
 	s := mkGlobalStore(t)
 	ctx := context.Background()
-	scoped := s.ScopedTo("ws-alpha")
+	scoped := s.ScopedTo("/repos/alpha")
 
 	if _, err := scoped.Record(ctx, "agent1", "", "claude-3", 100, 50, 0.01); err != nil {
 		t.Fatal(err)
@@ -60,24 +60,24 @@ func TestScopedRecordTagsWorkspace(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	scopedB := s.ScopedTo("ws-beta")
+	scopedB := s.ScopedTo("/repos/beta")
 	if _, err := scopedB.Record(ctx, "agent2", "", "claude-3", 200, 100, 0.05); err != nil {
 		t.Fatal(err)
 	}
 
-	byWS, err := s.SumByWorkspace(ctx, time.Time{})
+	byRepo, err := s.SumByRepo(ctx, time.Time{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := byWS["ws-alpha"]; got < 0.0299 || got > 0.0301 {
-		t.Errorf("ws-alpha total = %f, want ~0.03", got)
+	if got := byRepo["/repos/alpha"]; got < 0.0299 || got > 0.0301 {
+		t.Errorf("/repos/alpha total = %f, want ~0.03", got)
 	}
-	if got := byWS["ws-beta"]; got < 0.0499 || got > 0.0501 {
-		t.Errorf("ws-beta total = %f, want ~0.05", got)
+	if got := byRepo["/repos/beta"]; got < 0.0499 || got > 0.0501 {
+		t.Errorf("/repos/beta total = %f, want ~0.05", got)
 	}
 }
 
-func TestSumByWorkspaceIncludesUnattributed(t *testing.T) {
+func TestSumByRepoIncludesUnattributed(t *testing.T) {
 	s := mkGlobalStore(t)
 	ctx := context.Background()
 
@@ -85,20 +85,20 @@ func TestSumByWorkspaceIncludesUnattributed(t *testing.T) {
 	if _, err := scoped.Record(ctx, "a", "", "m", 1, 1, 0.1); err != nil {
 		t.Fatal(err)
 	}
-	scopedA := s.ScopedTo("ws-a")
+	scopedA := s.ScopedTo("/repos/a")
 	if _, err := scopedA.Record(ctx, "a", "", "m", 1, 1, 0.2); err != nil {
 		t.Fatal(err)
 	}
 
-	byWS, err := s.SumByWorkspace(ctx, time.Time{})
+	byRepo, err := s.SumByRepo(ctx, time.Time{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := byWS[""]; got < 0.099 || got > 0.101 {
+	if got := byRepo[""]; got < 0.099 || got > 0.101 {
 		t.Errorf("unattributed total = %f", got)
 	}
-	if got := byWS["ws-a"]; got < 0.199 || got > 0.201 {
-		t.Errorf("ws-a total = %f", got)
+	if got := byRepo["/repos/a"]; got < 0.199 || got > 0.201 {
+		t.Errorf("/repos/a total = %f", got)
 	}
 }
 
@@ -106,8 +106,8 @@ func TestSumByProjectUsesResolver(t *testing.T) {
 	s := mkGlobalStore(t)
 	ctx := context.Background()
 
-	sA := s.ScopedTo("wsid-a")
-	sB := s.ScopedTo("wsid-b")
+	sA := s.ScopedTo("/repos/trade-prod")
+	sB := s.ScopedTo("/repos/trade-paper")
 	if _, err := sA.Record(ctx, "x", "", "m", 1, 1, 1.0); err != nil {
 		t.Fatal(err)
 	}
@@ -115,8 +115,8 @@ func TestSumByProjectUsesResolver(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	names := map[string]string{"wsid-a": "trade-prod", "wsid-b": "trade-paper"}
-	resolve := func(wsID string) string { return names[wsID] }
+	names := map[string]string{"/repos/trade-prod": "trade-prod", "/repos/trade-paper": "trade-paper"}
+	resolve := func(repo string) string { return names[repo] }
 
 	got, err := s.SumByProject(ctx, time.Time{}, resolve)
 	if err != nil {

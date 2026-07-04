@@ -63,13 +63,11 @@ func newE2EServerWithWebUI(t *testing.T) *e2eServer {
 	}
 
 	// Per-workspace database via the registry (production path).
-	wsDB, wsDriver, dbErr := bcdb.ForWorkspace(ws.RootDir, nil)
+	wsDB, wsDriver, dbErr := bcdb.Global(nil)
 	if dbErr != nil {
 		t.Fatalf("open workspace db: %v", dbErr)
 	}
-	t.Cleanup(func() {
-		_ = bcdb.CloseWorkspaceDB(ws.RootDir)
-	})
+	t.Cleanup(func() { _ = bcdb.CloseGlobal() })
 
 	hub := ws_hub(t)
 	mgr := agent.NewWorkspaceManager(ws.StateDir(), ws.RootDir)

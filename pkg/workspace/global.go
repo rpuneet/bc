@@ -69,7 +69,7 @@ func GlobalMCPConfig() (string, error) {
 }
 
 // GlobalCostsDB returns the path to the user-global cost ledger
-// (~/.mycel/costs.db). Every cost record is tagged with a workspace_id so
+// (~/.mycel/costs.db). Every cost record is tagged with a repo path so
 // cross-workspace analytics work without data duplication.
 func GlobalCostsDB() (string, error) {
 	return globalPath(globalCostsFileName)

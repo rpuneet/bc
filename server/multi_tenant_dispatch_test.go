@@ -107,14 +107,10 @@ func newDispatchHarness(t *testing.T) *dispatchHarness {
 	wsAID := workspace.ComputeWorkspaceID(wsA)
 	wsBID := workspace.ComputeWorkspaceID(wsB)
 
-	// Each workspace gets its OWN database via the per-workspace
-	// registry (issue #3238): cron/mcp/tool/events/notify rows written
-	// through workspace A's services can never appear in workspace B's
-	// stores. BuildWorkspaceServices opens the connections lazily.
-	t.Cleanup(func() {
-		_ = bcdb.CloseWorkspaceDB(wsA)
-		_ = bcdb.CloseWorkspaceDB(wsB)
-	})
+	// Both workspaces share the single global mycel.db: cron/mcp/tool/
+	// events/notify rows all land in one database, isolated by data
+	// keys. BuildWorkspaceServices opens the connection lazily.
+	t.Cleanup(func() { _ = bcdb.CloseGlobal() })
 
 	reg, loadErr := workspace.LoadRegistry()
 	if loadErr != nil {
@@ -291,9 +287,9 @@ func TestDispatch_Secrets(t *testing.T) {
 // ---------------- Cron (routing + basic CRUD through scoped URL) --
 
 // TestDispatch_Cron verifies that cron CRUD routes through the scoped
-// URL into the handler AND that jobs are isolated per workspace: each
-// workspace has its own database (issue #3238), so a job created via
-// wsA must not be visible through wsB.
+// URL into the handler AND the single-database semantics: cron jobs
+// live in the one global mycel.db, so a job created via wsA is visible
+// through wsB too (no per-workspace files anymore).
 func TestDispatch_Cron(t *testing.T) {
 	h := newDispatchHarness(t)
 	defer h.close()
@@ -320,11 +316,11 @@ func TestDispatch_Cron(t *testing.T) {
 	status, resp = h.api(t, http.MethodGet, "/api/workspaces/"+h.wsBID+"/cron", nil)
 	requireStatus(t, http.StatusOK, status, "list wsB", resp)
 
-	// Isolation: the job created under wsA must NOT exist under wsB —
-	// each workspace persists to its own database (issue #3238).
+	// Shared DB: the job created under wsA IS visible under wsB — cron
+	// jobs live in the single global mycel.db.
 	status, _ = h.api(t, http.MethodGet, "/api/workspaces/"+h.wsBID+"/cron/job-shared", nil)
-	if status != http.StatusNotFound {
-		t.Errorf("wsA's cron job visible via wsB (status=%d, want 404) — workspace db bleed", status)
+	if status != http.StatusOK {
+		t.Errorf("cron job must be shared across workspaces (status=%d, want 200)", status)
 	}
 
 	// Cross-scope fetch for a nonexistent key returns 404.
@@ -400,8 +396,8 @@ func TestDispatch_Tools(t *testing.T) {
 // ---------------- Events / Logs (routing) ----------------
 
 // TestDispatch_Events verifies GET /api/logs routes through the scoped
-// URL and that the SQLite event stores are isolated per workspace
-// (each workspace's events table lives in its own bc.db, issue #3238).
+// URL and the single-database semantics: both workspaces read the same
+// events table in the global mycel.db.
 func TestDispatch_Events(t *testing.T) {
 	h := newDispatchHarness(t)
 	defer h.close()
@@ -420,16 +416,20 @@ func TestDispatch_Events(t *testing.T) {
 		t.Fatalf("append A: %v", err)
 	}
 
-	// Isolation: the event appended via wsA's store must not appear in
-	// wsB's store.
+	// Shared DB: the event appended via wsA's store IS visible through
+	// wsB's store — one events table for the whole process.
 	evtsB, readErr := svcB.Events.Read()
 	if readErr != nil {
 		t.Fatalf("read B: %v", readErr)
 	}
+	found := false
 	for _, ev := range evtsB {
 		if ev.Type == "probe.shared" {
-			t.Errorf("event appended in wsA visible in wsB — workspace db bleed")
+			found = true
 		}
+	}
+	if !found {
+		t.Errorf("event appended in wsA must be visible in wsB — single global database")
 	}
 
 	// Scoped URL reaches the handler for both workspaces.
@@ -444,12 +444,11 @@ func TestDispatch_Events(t *testing.T) {
 
 // TestDispatch_Cost verifies cost CRUD routes through the scoped URL.
 // WorkspaceSummary today does SELECT SUM over every row regardless of
-// workspace_id (pkg/cost/cost.go) so strict per-workspace totals via
-// the /api/costs summary endpoint do not hold. What DOES hold is that
-// the cost store at the SQL level can aggregate by workspace_id via
-// SumByWorkspace — this is asserted separately in
-// pkg/cost/global_test.go TestScopedRecordTagsWorkspace. Here we just
-// assert routing + non-error responses.
+// repo (pkg/cost/cost.go) so strict per-repo totals via the /api/costs
+// summary endpoint do not hold. What DOES hold is that the cost store
+// at the SQL level can aggregate by repo via SumByRepo — this is
+// asserted separately in pkg/cost/global_test.go. Here we just assert
+// routing + non-error responses.
 func TestDispatch_Cost(t *testing.T) {
 	h := newDispatchHarness(t)
 	defer h.close()
@@ -463,15 +462,15 @@ func TestDispatch_Cost(t *testing.T) {
 		t.Skip("cost store not configured — cannot exercise dispatch")
 	}
 
-	// Record scoped to each workspace via the global ledger's ScopedTo.
+	// Record scoped to each repo via the global ledger's ScopedTo.
 	// The per-request svc.Costs pointer is the global store (not yet
-	// pre-scoped) so direct Record() would tag with workspace_id="".
-	// We scope explicitly here to verify the SQL schema supports
-	// per-workspace aggregation; the handler-level summary endpoint
-	// still uses SUM across all rows (known limitation).
+	// pre-scoped) so direct Record() would tag with repo="". We scope
+	// explicitly here to verify the SQL schema supports per-repo
+	// aggregation; the handler-level summary endpoint still uses SUM
+	// across all rows (known limitation).
 	ctx := context.Background()
-	scopedA := svcA.Costs.ScopedTo(h.wsAID)
-	scopedB := svcB.Costs.ScopedTo(h.wsBID)
+	scopedA := svcA.Costs.ScopedTo(h.wsADir)
+	scopedB := svcB.Costs.ScopedTo(h.wsBDir)
 	if _, err := scopedA.Record(ctx, "alice", "", "m", 10, 5, 1.11); err != nil {
 		t.Fatalf("record A: %v", err)
 	}
@@ -488,16 +487,16 @@ func TestDispatch_Cost(t *testing.T) {
 	requireStatus(t, http.StatusOK, status, "summary B", resp)
 	_ = mustFloat(t, resp, "total_cost_usd")
 
-	// SumByWorkspace on the underlying global ledger separates the two.
-	byWS, err := svcA.Costs.SumByWorkspace(ctx, time.Time{})
+	// SumByRepo on the underlying global ledger separates the two.
+	byRepo, err := svcA.Costs.SumByRepo(ctx, time.Time{})
 	if err != nil {
-		t.Fatalf("SumByWorkspace: %v", err)
+		t.Fatalf("SumByRepo: %v", err)
 	}
-	if byWS[h.wsAID] <= 0 {
-		t.Errorf("wsA missing from ledger: %+v", byWS)
+	if byRepo[h.wsADir] <= 0 {
+		t.Errorf("wsA missing from ledger: %+v", byRepo)
 	}
-	if byWS[h.wsBID] <= 0 {
-		t.Errorf("wsB missing from ledger: %+v", byWS)
+	if byRepo[h.wsBDir] <= 0 {
+		t.Errorf("wsB missing from ledger: %+v", byRepo)
 	}
 }
 

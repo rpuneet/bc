@@ -221,6 +221,7 @@ func TestLoadRegistryNotFound(t *testing.T) {
 	tmpDir := t.TempDir()
 	oldHome := os.Getenv("HOME")
 	t.Setenv("HOME", tmpDir)
+	t.Setenv("MYCEL_HOME", "") // fall back to $HOME/.mycel despite TestMain sandbox
 	defer func() { _ = os.Setenv("HOME", oldHome) }()
 
 	r, err := LoadRegistry()
@@ -239,6 +240,7 @@ func TestLoadRegistryWithFile(t *testing.T) {
 	tmpDir := t.TempDir()
 	oldHome := os.Getenv("HOME")
 	t.Setenv("HOME", tmpDir)
+	t.Setenv("MYCEL_HOME", "") // fall back to $HOME/.mycel despite TestMain sandbox
 	defer func() { _ = os.Setenv("HOME", oldHome) }()
 
 	// Create .mycel directory and registry file
@@ -277,6 +279,7 @@ func TestLoadRegistryInvalidJSON(t *testing.T) {
 	tmpDir := t.TempDir()
 	oldHome := os.Getenv("HOME")
 	t.Setenv("HOME", tmpDir)
+	t.Setenv("MYCEL_HOME", "") // fall back to $HOME/.mycel despite TestMain sandbox
 	defer func() { _ = os.Setenv("HOME", oldHome) }()
 
 	// Create .mycel directory with invalid JSON

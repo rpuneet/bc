@@ -423,11 +423,10 @@ func TestColorStateStr_Default(t *testing.T) {
 // seedEvents writes events to the workspace state.db SQLite database.
 func seedEvents(t *testing.T, wsDir string, evts []events.Event) {
 	t.Helper()
-	d, _, err := db.ForWorkspace(wsDir, nil)
+	d, _, err := db.Global(nil)
 	if err != nil {
-		t.Fatalf("failed to open workspace db: %v", err)
+		t.Fatalf("failed to open global db: %v", err)
 	}
-	t.Cleanup(func() { _ = db.CloseWorkspaceDB(wsDir) })
 	evtLog, err := events.NewSQLiteLog(d)
 	if err != nil {
 		t.Fatalf("failed to open event log: %v", err)
@@ -703,11 +702,10 @@ func TestReportDoneInWorkspace(t *testing.T) {
 	}
 
 	// Verify event was logged
-	d, _, err := db.ForWorkspace(wsDir, nil)
+	d, _, err := db.Global(nil)
 	if err != nil {
-		t.Fatalf("failed to open workspace db: %v", err)
+		t.Fatalf("failed to open global db: %v", err)
 	}
-	t.Cleanup(func() { _ = db.CloseWorkspaceDB(wsDir) })
 	evtLog, err := events.NewSQLiteLog(d)
 	if err != nil {
 		t.Fatalf("failed to open event log: %v", err)

@@ -10,7 +10,6 @@ import (
 	bcmcp "github.com/rpuneet/mycel/pkg/mcp"
 	bcsecret "github.com/rpuneet/mycel/pkg/secret"
 	bctemplate "github.com/rpuneet/mycel/pkg/template"
-	bcworkspace "github.com/rpuneet/mycel/pkg/workspace"
 )
 
 // TestM8WiringTemplatesGlobalOverride verifies that BuildWorkspaceServices
@@ -187,32 +186,32 @@ func TestM8WiringCostsGlobalLedger(t *testing.T) {
 	if svc.Costs != costs {
 		t.Errorf("svc.Costs does not reference Globals.CostsGlobal")
 	}
-	// The importer should have picked up the workspace id.
-	wsID := bcworkspace.ComputeWorkspaceID(wsDir)
+	// The importer should have picked up the repo path.
 	if svc.CostImporter == nil {
 		t.Fatal("CostImporter nil")
 	}
-	// We can't reach imp.workspaceID directly; indirect verification via
+	// We can't reach imp.repo directly; indirect verification via
 	// inserting a scoped record and rolling up.
-	scoped := svc.Costs.ScopedTo(wsID)
+	scoped := svc.Costs.ScopedTo(wsDir)
 	if _, recErr := scoped.Record(context.Background(), "agent", "", "model", 1, 1, 0.50); recErr != nil {
 		t.Fatalf("Record: %v", recErr)
 	}
-	byWS, err := svc.Costs.SumByWorkspace(context.Background(), timeZero())
+	byRepo, err := svc.Costs.SumByRepo(context.Background(), timeZero())
 	if err != nil {
 		t.Fatal(err)
 	}
 	// The importer may sweep in unrelated JSONL files from the developer's
 	// host ~/.claude directory — we only assert that the scoped record
-	// landed under wsID, not the exact total (host import amplifies it).
-	if _, ok := byWS[wsID]; !ok {
-		t.Errorf("ledger did not attribute scoped record: %+v", byWS)
+	// landed under the repo path, not the exact total (host import
+	// amplifies it).
+	if _, ok := byRepo[wsDir]; !ok {
+		t.Errorf("ledger did not attribute scoped record: %+v", byRepo)
 	}
 }
 
 func timeZero() interface{ Format(string) string } {
 	// A tiny helper so the test can pass an always-before time to
-	// SumByWorkspace without importing "time" at the test call site.
+	// SumByRepo without importing "time" at the test call site.
 	return zeroTime{}
 }
 

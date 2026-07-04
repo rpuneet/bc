@@ -86,89 +86,90 @@ func TestDefaultConfig(t *testing.T) {
 	}
 }
 
-func TestRegistry(t *testing.T) {
-	t.Run("get opens lazily and caches", func(t *testing.T) {
-		dir := t.TempDir()
-		registry := NewRegistry()
-		t.Cleanup(func() { _ = registry.Close() })
+func TestGlobalSingleton(t *testing.T) {
+	t.Run("global open is a singleton", func(t *testing.T) {
+		t.Setenv("MYCEL_HOME", t.TempDir())
+		t.Cleanup(func() { _ = CloseGlobal() })
 
-		d, driver, err := registry.Get(dir, nil)
+		d1, driver, err := Global(nil)
 		if err != nil {
-			t.Fatalf("Get() error = %v", err)
+			t.Fatalf("Global() error = %v", err)
 		}
 		if driver != "sqlite" {
 			t.Errorf("driver = %q, want sqlite", driver)
 		}
 
-		// Verify same instance is returned
-		d2, _, err := registry.Get(dir, nil)
+		d2, _, err := Global(nil)
 		if err != nil {
-			t.Fatalf("Get() second call error = %v", err)
+			t.Fatalf("Global() second call error = %v", err)
 		}
-		if d != d2 {
-			t.Error("expected same database instance")
+		if d1 != d2 {
+			t.Error("expected the same handle on every Global() call")
 		}
-	})
 
-	t.Run("distinct roots open distinct connections", func(t *testing.T) {
-		registry := NewRegistry()
-		t.Cleanup(func() { _ = registry.Close() })
-
-		dA, _, err := registry.Get(t.TempDir(), nil)
+		path, err := GlobalDBPath()
 		if err != nil {
-			t.Fatalf("Get(A) error = %v", err)
+			t.Fatalf("GlobalDBPath() error = %v", err)
 		}
-		dB, _, err := registry.Get(t.TempDir(), nil)
+		if d1.Path() != path {
+			t.Errorf("handle path = %q, want %q", d1.Path(), path)
+		}
+		if _, statErr := os.Stat(path); statErr != nil {
+			t.Errorf("mycel.db not created at %s: %v", path, statErr)
+		}
+	})
+
+	t.Run("cfg only consulted on first open", func(t *testing.T) {
+		t.Setenv("MYCEL_HOME", t.TempDir())
+		t.Cleanup(func() { _ = CloseGlobal() })
+
+		d1, _, err := Global(nil)
 		if err != nil {
-			t.Fatalf("Get(B) error = %v", err)
+			t.Fatalf("Global() error = %v", err)
 		}
-		if dA == dB {
-			t.Error("expected distinct connections for distinct roots")
+		// Later calls with a different cfg still return the cached handle.
+		d2, driver, err := Global(&StorageSettings{Default: "timescale"})
+		if err != nil {
+			t.Fatalf("Global(cfg) error = %v", err)
 		}
-	})
-
-	t.Run("close all", func(t *testing.T) {
-		registry := NewRegistry()
-
-		if _, _, err := registry.Get(t.TempDir(), nil); err != nil {
-			t.Fatalf("Get(db1) error = %v", err)
-		}
-		if _, _, err := registry.Get(t.TempDir(), nil); err != nil {
-			t.Fatalf("Get(db2) error = %v", err)
-		}
-
-		// Close all
-		if err := registry.Close(); err != nil {
-			t.Errorf("Close() error = %v", err)
+		if d1 != d2 || driver != "sqlite" {
+			t.Error("cfg must be ignored after first open")
 		}
 	})
 
-	t.Run("close workspace then reopen", func(t *testing.T) {
-		dir := t.TempDir()
-		registry := NewRegistry()
-		t.Cleanup(func() { _ = registry.Close() })
+	t.Run("CloseGlobal then Global reopens", func(t *testing.T) {
+		t.Setenv("MYCEL_HOME", t.TempDir())
+		t.Cleanup(func() { _ = CloseGlobal() })
 
-		if _, _, err := registry.Get(dir, nil); err != nil {
-			t.Fatalf("Get() error = %v", err)
+		ctx := context.Background()
+		d1, _, err := Global(nil)
+		if err != nil {
+			t.Fatalf("Global() error = %v", err)
 		}
-
-		if closeErr := registry.CloseWorkspace(dir); closeErr != nil {
-			t.Errorf("CloseWorkspace() error = %v", closeErr)
+		if closeErr := CloseGlobal(); closeErr != nil {
+			t.Fatalf("CloseGlobal() error = %v", closeErr)
 		}
-
-		// Getting again should reopen
-		if _, _, err := registry.Get(dir, nil); err != nil {
-			t.Errorf("Get() after CloseWorkspace error = %v", err)
+		if pingErr := d1.PingContext(ctx); pingErr == nil {
+			t.Error("expected closed handle to fail Ping after CloseGlobal")
+		}
+		d2, _, err := Global(nil)
+		if err != nil {
+			t.Fatalf("Global() after CloseGlobal error = %v", err)
+		}
+		if pingErr := d2.PingContext(ctx); pingErr != nil {
+			t.Errorf("reopened handle Ping: %v", pingErr)
 		}
 	})
 
-	t.Run("close workspace not open is no-op", func(t *testing.T) {
-		registry := NewRegistry()
-		t.Cleanup(func() { _ = registry.Close() })
-
-		// Close without opening - should not error
-		if err := registry.CloseWorkspace(t.TempDir()); err != nil {
-			t.Errorf("CloseWorkspace() error = %v", err)
+	t.Run("GlobalDBPath honors MYCEL_HOME", func(t *testing.T) {
+		home := t.TempDir()
+		t.Setenv("MYCEL_HOME", home)
+		path, err := GlobalDBPath()
+		if err != nil {
+			t.Fatalf("GlobalDBPath() error = %v", err)
+		}
+		if want := filepath.Join(home, GlobalDBFileName); path != want {
+			t.Errorf("GlobalDBPath() = %q, want %q", path, want)
 		}
 	})
 }

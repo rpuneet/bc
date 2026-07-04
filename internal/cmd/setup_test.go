@@ -75,6 +75,14 @@ func TestMain(m *testing.M) {
 	_ = os.Unsetenv("BC_WORKSPACE")
 	_ = os.Unsetenv("BC_AGENT_WORKTREE")
 
+	// Point the single global database (and everything else under
+	// MYCEL_HOME) at a throwaway dir so tests never touch ~/.mycel.
+	var testHome string
+	if home, homeErr := os.MkdirTemp("", "mycel-test-home-*"); homeErr == nil {
+		testHome = home
+		_ = os.Setenv("MYCEL_HOME", home)
+	}
+
 	// Setup roles for tests - mirrors pkg/agent/agent_test.go TestMain
 	agent.RoleCapabilities[agent.Role("engineer")] = []agent.Capability{agent.CapImplementTasks}
 	agent.RoleCapabilities[agent.Role("manager")] = []agent.Capability{agent.CapAssignWork, agent.CapCreateAgents}
@@ -101,5 +109,9 @@ func TestMain(m *testing.M) {
 		agent.Role("tech-lead"),
 	}
 
-	os.Exit(m.Run())
+	code := m.Run()
+	if testHome != "" {
+		_ = os.RemoveAll(testHome)
+	}
+	os.Exit(code)
 }

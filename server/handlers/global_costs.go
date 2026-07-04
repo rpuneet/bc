@@ -99,15 +99,15 @@ func (h *GlobalCostsHandler) rollup(r *http.Request, groupBy string, since time.
 	sinceArg := sinceFormatter{t: since}
 
 	if groupBy == "workspace" {
-		byWS, err := h.store.SumByWorkspace(r.Context(), sinceArg)
+		byRepo, err := h.store.SumByRepo(r.Context(), sinceArg)
 		if err != nil {
 			return nil, err
 		}
-		out := make([]CostRow, 0, len(byWS))
-		for wsID, total := range byWS {
-			key := wsID
-			label := h.resolveLabel(wsID)
-			if wsID == "" {
+		out := make([]CostRow, 0, len(byRepo))
+		for repo, total := range byRepo {
+			key := repo
+			label := h.resolveLabel(repo)
+			if repo == "" {
 				key = "unattributed"
 				label = "Unattributed"
 			}
@@ -116,8 +116,8 @@ func (h *GlobalCostsHandler) rollup(r *http.Request, groupBy string, since time.
 		return out, nil
 	}
 
-	// groupBy=project: resolver collapses by workspace name.
-	resolve := func(wsID string) string { return h.resolveLabel(wsID) }
+	// groupBy=project: resolver collapses by repo name.
+	resolve := func(repo string) string { return h.resolveLabel(repo) }
 	byProj, err := h.store.SumByProject(r.Context(), sinceArg, resolve)
 	if err != nil {
 		return nil, err
@@ -129,21 +129,22 @@ func (h *GlobalCostsHandler) rollup(r *http.Request, groupBy string, since time.
 	return out, nil
 }
 
-// resolveLabel maps a workspace id to its registered name, falling
-// back to the id itself when no registry entry is found.
-func (h *GlobalCostsHandler) resolveLabel(wsID string) string {
-	if h.registry == nil || wsID == "" {
-		return wsID
+// resolveLabel maps a repo path to its registered name, falling back
+// to the path itself when no registry entry is found. Legacy rows
+// keyed by workspace id still resolve through entry.ID.
+func (h *GlobalCostsHandler) resolveLabel(repo string) string {
+	if h.registry == nil || repo == "" {
+		return repo
 	}
 	for _, entry := range h.registry.List() {
-		if entry.ID == wsID {
+		if entry.Path == repo || entry.ID == repo {
 			if entry.Name != "" {
 				return entry.Name
 			}
 			return entry.Path
 		}
 	}
-	return wsID
+	return repo
 }
 
 // parseCostStart parses start=... into a time. Accepts RFC3339 or
@@ -168,7 +169,7 @@ type httpErr struct{ Msg string }
 func (e *httpErr) Error() string { return e.Msg }
 
 // sinceFormatter adapts time.Time to the interface{Format(string) string}
-// parameter required by (*cost.Store).SumByWorkspace / SumByProject.
+// parameter required by (*cost.Store).SumByRepo / SumByProject.
 type sinceFormatter struct{ t time.Time }
 
 func (s sinceFormatter) Format(layout string) string { return s.t.Format(layout) }

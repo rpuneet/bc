@@ -106,19 +106,20 @@ func buildWorkspaceServicesFromWS(ctx context.Context, globals *Globals, ws *bcw
 	// "not available".
 	degraded := map[string]string{}
 
-	// Per-workspace database: resolved from the process-wide registry so
-	// each workspace's stores land in that workspace's own bc.db (or its
-	// own TimescaleDB), never in the launch workspace's. The handle is
-	// cached in the registry and stays open across service eviction;
-	// stores borrow it and never close it.
-	wsDB, wsDriver, dbErr := bcdb.ForWorkspace(ws.RootDir, ws.Config.DBStorageSettings())
+	// Single global database: every workspace's stores share the one
+	// mycel.db at <MycelHome>/mycel.db (or the global TimescaleDB).
+	// Isolation between repos comes from data keys (agent name, repo
+	// path), not from separate files. The handle is cached process-wide
+	// and stays open across service eviction; stores borrow it and
+	// never close it.
+	wsDB, wsDriver, dbErr := bcdb.Global(ws.Config.DBStorageSettings())
 	if dbErr != nil {
-		log.Warn("workspace database unavailable", "error", dbErr, "workspace", ws.RootDir)
-		degraded["storage"] = "workspace database unavailable: " + dbErr.Error()
+		log.Warn("global database unavailable", "error", dbErr, "workspace", ws.RootDir)
+		degraded["storage"] = "global database unavailable: " + dbErr.Error()
 	}
 
 	// Storage driver mismatch: pkg/db falls back to SQLite when the
-	// configured TimescaleDB is unreachable (db.OpenWorkspaceDBWithConfig
+	// configured TimescaleDB is unreachable (db.OpenGlobalDBWithConfig
 	// logs "falling back to sqlite"). Compare the configured default
 	// against the driver actually in use so the mismatch is visible.
 	if ws.Config != nil && dbErr == nil {
@@ -179,19 +180,18 @@ func buildWorkspaceServicesFromWS(ctx context.Context, globals *Globals, ws *bcw
 	addCloser(func() error { agentMgr.StopToolHealthLoop(); return nil })
 
 	// Cost store + importer. Prefer the user-global ledger at
-	// ~/.mycel/costs.db (M8e) when Globals.CostsGlobal is supplied — every
-	// record is tagged with the workspace id via ScopedStore /
-	// Importer.SetWorkspaceID so cross-workspace analytics work out of
-	// the box. Fall back to the per-workspace store for legacy callers
-	// / tests that assemble Globals by hand without the global ledger.
+	// ~/.mycel/costs.db when Globals.CostsGlobal is supplied — every
+	// record is tagged with the repo path via ScopedStore /
+	// Importer.SetRepo so cross-repo analytics work out of the box.
+	// Fall back to the per-workspace store for legacy callers / tests
+	// that assemble Globals by hand without the global ledger.
 	var costStore *cost.Store
 	var costImporter *cost.Importer
 	if globals != nil && globals.CostsGlobal != nil {
 		costStore = globals.CostsGlobal
 		// Ownership stays with whoever populated Globals; no closer.
-		wsID := bcworkspace.ComputeWorkspaceID(ws.RootDir)
 		costImporter = cost.NewImporter(costStore, ws.RootDir)
-		costImporter.SetWorkspaceID(wsID)
+		costImporter.SetRepo(ws.RootDir)
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -804,10 +804,16 @@ func runCostImportLoop(ctx context.Context, imp *cost.Importer) {
 	}
 }
 
-// runEventPruneLoop prunes stale events (TTL 24h, max 5000 per agent)
-// every hour.
+// eventPruneMaxPerAgent caps retained events per agent. 5,000 was too
+// small — a busy agent burned through it in about an hour and the Live
+// page lost history (#3279). The 24h TTL is the real bound; the cap is
+// a safety net against runaway writers.
+const eventPruneMaxPerAgent = 50000
+
+// runEventPruneLoop prunes stale events (TTL 24h, max
+// eventPruneMaxPerAgent per agent) every hour.
 func runEventPruneLoop(ctx context.Context, prunable *bcevents.SQLiteLog) {
-	if n, err := prunable.Prune(24*time.Hour, 5000); err != nil {
+	if n, err := prunable.Prune(24*time.Hour, eventPruneMaxPerAgent); err != nil {
 		log.Warn("event prune failed", "error", err)
 	} else if n > 0 {
 		log.Info("event prune: deleted stale events", "count", n)
@@ -817,7 +823,7 @@ func runEventPruneLoop(ctx context.Context, prunable *bcevents.SQLiteLog) {
 	for {
 		select {
 		case <-ticker.C:
-			if n, err := prunable.Prune(24*time.Hour, 5000); err != nil {
+			if n, err := prunable.Prune(24*time.Hour, eventPruneMaxPerAgent); err != nil {
 				log.Warn("event prune failed", "error", err)
 			} else if n > 0 {
 				log.Info("event prune: deleted stale events", "count", n)

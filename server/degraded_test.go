@@ -93,42 +93,49 @@ func TestAPIHealthOKShapeUnchanged(t *testing.T) {
 	}
 }
 
-// TestBuildWorkspaceServicesDegradedNotify verifies that when the notify
-// store cannot open (no shared database — the exact failure behind the
-// 2026-07-03 Slack-delivery outage), the factory records the reason in
-// Degraded instead of only logging a warning.
-func TestBuildWorkspaceServicesDegradedNotify(t *testing.T) {
-	t.Setenv("MYCEL_HOME", t.TempDir())
+// TestBuildWorkspaceServicesGlobalDBFailure verifies that when the
+// single global database cannot open (broken MYCEL_HOME), the factory
+// fails loudly instead of silently coming up with nil stores. With the
+// per-workspace databases gone, a dead mycel.db is fatal for the
+// workspace bundle — workspace init itself needs the roles table.
+func TestBuildWorkspaceServicesGlobalDBFailure(t *testing.T) {
 	t.Setenv("BC_SECRET_PASSPHRASE", "unit-test")
 
-	// Force the workspace DB open to fail: plant a regular FILE where
-	// the registry wants the .bc database directory, so SQLite's
-	// MkdirAll errors and every store depending on the workspace db
-	// comes up degraded.
+	// Plant a regular FILE at the MYCEL_HOME path so MkdirAll (and
+	// therefore the global mycel.db open) fails.
+	tmp := t.TempDir()
+	homeFile := filepath.Join(tmp, "mycel-home")
+	if err := os.WriteFile(homeFile, []byte("not a dir"), 0o600); err != nil {
+		t.Fatalf("plant home file: %v", err)
+	}
+	t.Setenv("MYCEL_HOME", homeFile)
+	t.Cleanup(func() { _ = bcdb.CloseGlobal() })
+
 	wsDir := t.TempDir()
 	gitInitDir(t, wsDir)
-	if err := os.WriteFile(filepath.Join(wsDir, ".bc"), []byte("not a dir"), 0o600); err != nil {
-		t.Fatalf("plant .bc file: %v", err)
+	if _, err := BuildWorkspaceServices(context.Background(), &Globals{}, wsDir); err == nil {
+		t.Fatal("expected BuildWorkspaceServices to fail when the global database cannot open")
 	}
-	t.Cleanup(func() { _ = bcdb.CloseWorkspaceDB(wsDir) })
+}
+
+// TestDegradedMapProjection verifies the Degraded map recorded by the
+// factory flows through the projections consumed by handlers.
+func TestDegradedMapProjection(t *testing.T) {
+	t.Setenv("MYCEL_HOME", t.TempDir())
+	t.Setenv("BC_SECRET_PASSPHRASE", "unit-test")
+	t.Cleanup(func() { _ = bcdb.CloseGlobal() })
+
+	wsDir := t.TempDir()
+	gitInitDir(t, wsDir)
 	svc, err := BuildWorkspaceServices(context.Background(), &Globals{}, wsDir)
 	if err != nil {
 		t.Fatalf("build: %v", err)
 	}
 	defer svc.Close() //nolint:errcheck
 
-	if svc.Notify != nil {
-		t.Fatal("expected nil Notify service without a shared database")
-	}
-	reason, ok := svc.Degraded["notify"]
-	if !ok || reason == "" {
-		t.Fatalf("Degraded[notify] not populated: %#v", svc.Degraded)
-	}
-	if !strings.Contains(reason, "notify store unavailable") {
-		t.Errorf("Degraded[notify] = %q, want it to explain the store failure", reason)
-	}
+	reason := "notify store unavailable: injected for projection test"
+	svc.Degraded["notify"] = reason
 
-	// The projection consumed by handlers must carry the map through.
 	view := workspaceViewFromServices(svc)
 	if view.Degraded["notify"] != reason {
 		t.Errorf("workspaceViewFromServices dropped Degraded: %#v", view.Degraded)

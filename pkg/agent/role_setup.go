@@ -158,9 +158,9 @@ func writeMCPJSON(ctx context.Context, workspacePath, agentName string, resolved
 	isDocker := runtimeBackend == "docker"
 	cfg := mcpConfig{MCPServers: make(map[string]mcpServerEntry)}
 
-	// Resolve this workspace's database from the per-workspace registry
-	// (cached when the daemon already opened it with full storage config).
-	wsDB, wsDriver, dbErr := pkgdb.ForWorkspace(workspacePath, nil)
+	// Resolve the single global database (cached when the daemon already
+	// opened it with full storage config).
+	wsDB, wsDriver, dbErr := pkgdb.Global(nil)
 
 	// Try unified tool store first for MCP server configs, fall back to mcp.Store.
 	var toolStore *pkgtool.Store
@@ -509,7 +509,7 @@ func validateAgentTools(workspacePath, roleName string) []string {
 
 	// Check MCP servers from role config — verify definition exists and health check
 	var mcpStore *pkgmcp.Store
-	wsDB, wsDriver, mcpErr := pkgdb.ForWorkspace(workspacePath, nil)
+	wsDB, wsDriver, mcpErr := pkgdb.Global(nil)
 	if mcpErr == nil {
 		mcpStore, mcpErr = pkgmcp.NewStore(wsDB, wsDriver)
 	}
