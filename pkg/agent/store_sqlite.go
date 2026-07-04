@@ -204,28 +204,6 @@ func (s *SQLiteStore) LoadAll(ctx context.Context) (map[string]*Agent, error) {
 	return agents, rows.Err()
 }
 
-// LoadByRepo reads every non-deleted agent tagged with the given repo
-// path into a map keyed by name. Used by repo-scoped managers so they
-// only materialize their own agents out of the global agents table.
-func (s *SQLiteStore) LoadByRepo(ctx context.Context, repo string) (map[string]*Agent, error) {
-	rows, err := s.db.QueryContext(ctx,
-		agentSelectCols+` FROM agents WHERE deleted_at IS NULL AND repo = ?`, repo)
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = rows.Close() }()
-
-	agents := make(map[string]*Agent)
-	for rows.Next() {
-		a, err := scanAgentRow(rows)
-		if err != nil {
-			return nil, err
-		}
-		agents[a.Name] = a
-	}
-	return agents, rows.Err()
-}
-
 // RepoCounts returns the number of non-deleted agents per distinct
 // non-empty repo path, across all repos. Backs GET /api/repos.
 func (s *SQLiteStore) RepoCounts(ctx context.Context) (map[string]int, error) {

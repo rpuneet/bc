@@ -1032,8 +1032,13 @@ func (m *Manager) startAgent(ctx context.Context, name string, opts SpawnOptions
 	// Phase 1: global lock — read agent state and build command config
 	m.mu.Lock()
 	existing := m.agents[name]
-	wsPath := opts.Workspace
-	// Worktrees come from the repo the agent is bound to, not the boot repo.
+	// Restarts happen in the repo the agent is bound to, never the
+	// caller's boot repo — opts.Workspace only fills in when the row
+	// has no repo recorded.
+	wsPath := existing.Repo
+	if wsPath == "" {
+		wsPath = opts.Workspace
+	}
 	wtMgr := m.worktreeManagerFor(wsPath)
 
 	if opts.Runtime != "" {
@@ -2600,16 +2605,10 @@ func (m *Manager) LoadState() error {
 		}
 	}
 
-	// Load this manager's agents from SQLite. The agents table is
-	// global (one mycel.db for every repo), so a repo-scoped manager
-	// loads only rows tagged with its own repo path; a standalone
-	// manager (no workspace path) loads everything in its private db.
-	var agents map[string]*Agent
-	if m.workspacePath != "" {
-		agents, err = store.LoadByRepo(context.Background(), cleanRepoPath(m.workspacePath))
-	} else {
-		agents, err = store.LoadAll(context.Background())
-	}
+	// Load every agent from the global agents table. The manager is
+	// single-tenant: the boot repo is only the default for new agents,
+	// so agents created against other repos must survive a restart.
+	agents, err := store.LoadAll(context.Background())
 	if err != nil {
 		return fmt.Errorf("load agents: %w", err)
 	}
