@@ -22,6 +22,7 @@ func TestSQLiteStore_SaveLoadDelete(t *testing.T) {
 		Role:      Role("engineer"),
 		State:     StateIdle,
 		Tool:      "claude",
+		Model:     "fable",
 		Workspace: "/tmp/ws",
 		CreatedAt: now,
 		StartedAt: now,
@@ -50,6 +51,9 @@ func TestSQLiteStore_SaveLoadDelete(t *testing.T) {
 	}
 	if loaded.Tool != "claude" {
 		t.Errorf("Tool = %q, want claude", loaded.Tool)
+	}
+	if loaded.Model != "fable" {
+		t.Errorf("Model = %q, want fable", loaded.Model)
 	}
 	if len(loaded.Children) != 2 {
 		t.Errorf("Children len = %d, want 2", len(loaded.Children))

@@ -49,7 +49,7 @@ function BackendGlyph({ runtime }: { runtime: string }) {
  * it in muted mono, replacing two near-identical pill columns with one
  * compact cell.
  */
-function RuntimeCell({ tool, runtime }: { tool?: string | null; runtime?: string | null }) {
+function RuntimeCell({ tool, runtime, model }: { tool?: string | null; runtime?: string | null; model?: string | null }) {
   if (!tool && !runtime) return <span className="text-mycel-muted">—</span>;
   const dot = PROVIDER_DOTS[tool ?? ""] ?? "bg-mycel-muted";
   return (
@@ -58,10 +58,13 @@ function RuntimeCell({ tool, runtime }: { tool?: string | null; runtime?: string
         <span
           className="inline-flex items-center gap-1.5 text-[11px] px-1.5 py-[3px] rounded-md border border-mycel-border bg-mycel-surface-hover text-mycel-text-2"
           style={{ fontFamily: MONO }}
-          title={`Provider: ${tool}`}
+          title={model ? `Provider: ${tool} · Model: ${model}` : `Provider: ${tool}`}
         >
           <span className={`inline-block w-1.5 h-1.5 rounded-full ${dot}`} aria-hidden />
           {tool}
+          {model && (
+            <span className="text-[10px] text-mycel-muted">· {model}</span>
+          )}
         </span>
       )}
       {runtime && (
@@ -1103,7 +1106,7 @@ export function Agents() {
                       </span>
                     </td>
                     <td className="px-4 py-2 hidden sm:table-cell">
-                      <RuntimeCell tool={a.tool} runtime={a.runtime_backend} />
+                      <RuntimeCell tool={a.tool} runtime={a.runtime_backend} model={a.model} />
                     </td>
                     <td className="px-4 py-2">
                       <StatusBadge status={a.state} />

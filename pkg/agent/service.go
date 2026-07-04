@@ -46,6 +46,7 @@ type CreateOptions struct {
 	Name    string
 	Role    Role
 	Tool    string
+	Model   string // provider model identifier; empty uses the provider default
 	EnvFile string
 	Runtime string
 	Parent  string
@@ -205,6 +206,7 @@ func (s *AgentService) Create(ctx context.Context, opts CreateOptions) (*Agent, 
 		Workspace: repo,
 		ParentID:  opts.Parent,
 		Tool:      opts.Tool,
+		Model:     opts.Model,
 		EnvFile:   opts.EnvFile,
 		Runtime:   opts.Runtime,
 		Team:      opts.Team,
@@ -252,6 +254,7 @@ func (s *AgentService) Start(ctx context.Context, name string, opts StartOptions
 		Workspace: repo,
 		ParentID:  existing.ParentID,
 		Tool:      existing.Tool,
+		Model:     existing.Model,
 		EnvFile:   existing.EnvFile,
 		Runtime:   opts.Runtime,
 		SessionID: opts.ResumeID,

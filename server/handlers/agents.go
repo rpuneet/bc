@@ -158,6 +158,7 @@ type agentDTO struct { //nolint:govet // field order matches JSON/API contract
 	Stats        *agentStatsDTO `json:"stats,omitempty"`
 	Avatar       *avatarDTO     `json:"avatar,omitempty"`
 	Tool         string         `json:"tool,omitempty"`
+	Model        string         `json:"model,omitempty"`
 	Session      string         `json:"session,omitempty"`
 	State        string         `json:"state"`
 	Task         string         `json:"task,omitempty"`
@@ -197,6 +198,7 @@ func toDTO(a *agent.Agent) agentDTO {
 		Task:       a.Task,
 		Team:       a.Team,
 		Tool:       a.Tool,
+		Model:      a.Model,
 		Runtime:    a.RuntimeBackend,
 		Session:    a.Session,
 		SessionID:  a.SessionID,
@@ -347,6 +349,7 @@ func (h *AgentHandler) list(w http.ResponseWriter, r *http.Request) {
 			Name     string     `json:"name"`
 			Role     string     `json:"role"`
 			Tool     string     `json:"tool"`
+			Model    string     `json:"model,omitempty"`
 			Runtime  string     `json:"runtime_backend"`
 			Parent   string     `json:"parent"`
 			Template string     `json:"template,omitempty"`
@@ -367,6 +370,7 @@ func (h *AgentHandler) list(w http.ResponseWriter, r *http.Request) {
 			Name:    req.Name,
 			Role:    agent.Role(role),
 			Tool:    req.Tool,
+			Model:   req.Model,
 			Runtime: req.Runtime,
 			Parent:  req.Parent,
 			Repo:    req.Repo,

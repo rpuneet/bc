@@ -69,11 +69,11 @@ interface RepoCandidate {
   name: string;
 }
 
-type Provider = "claude" | "gemini" | "cursor" | "codex";
+type Provider = "claude" | "gemini" | "cursor" | "codex" | "pi";
 type Runtime = "docker" | "tmux";
 
 const DEFAULT_TEMPLATES = ["feature-dev", "reviewer", "manager", "blank"];
-const VALID_PROVIDERS = new Set<string>(["claude", "gemini", "cursor", "codex"]);
+const VALID_PROVIDERS = new Set<string>(["claude", "gemini", "cursor", "codex", "pi"]);
 const VALID_RUNTIMES = new Set<string>(["docker", "tmux"]);
 
 const SHAPES: AgentShape[] = ["hexagon", "circle", "square"];
@@ -101,6 +101,10 @@ export function CreateAgentModal({
   const [template, setTemplate] = useState("feature-dev");
   const [templates, setTemplates] = useState<string[]>(DEFAULT_TEMPLATES);
   const [provider, setProvider] = useState<Provider>("claude");
+  // Model for the selected provider. "" = provider default (no flag).
+  const [model, setModel] = useState("");
+  // Curated model lists per provider, from GET /api/providers.
+  const [providerModels, setProviderModels] = useState<Record<string, string[]>>({});
   const [runtime, setRuntime] = useState<Runtime>("docker");
   const [task, setTask] = useState("");
   const [cloneFrom, setCloneFrom] = useState("");
@@ -139,6 +143,26 @@ export function CreateAgentModal({
       });
   }, []);
 
+  // Fetch per-provider model lists whenever the modal opens.
+  useEffect(() => {
+    if (!open) return;
+    fetch("/api/providers")
+      .then((r) => r.json())
+      .then((list: unknown) => {
+        if (!Array.isArray(list)) return;
+        const map: Record<string, string[]> = {};
+        for (const p of list as Array<{ name?: unknown; models?: unknown }>) {
+          if (typeof p.name === "string" && Array.isArray(p.models)) {
+            map[p.name] = p.models.filter((m): m is string => typeof m === "string");
+          }
+        }
+        setProviderModels(map);
+      })
+      .catch(() => {
+        /* model list is a convenience — "default" always works */
+      });
+  }, [open]);
+
   // Fetch known repos + the default repo whenever the modal opens.
   useEffect(() => {
     if (!open) return;
@@ -169,6 +193,7 @@ export function CreateAgentModal({
       setShape(SHAPES[Math.floor(Math.random() * SHAPES.length)] ?? "hexagon");
       setTemplate("feature-dev");
       setProvider("claude");
+      setModel("");
       setRuntime("docker");
       setTask("");
       setSubmitError(null);
@@ -265,7 +290,7 @@ export function CreateAgentModal({
       const res = await fetch("/api/agents", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: trimmed, template, tool: provider, runtime_backend: runtime, repo: repoPath, task: task || undefined }),
+        body: JSON.stringify({ name: trimmed, template, tool: provider, model: model || undefined, runtime_backend: runtime, repo: repoPath, task: task || undefined }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({})) as { error?: string };
@@ -279,7 +304,7 @@ export function CreateAgentModal({
       setSubmitError(e instanceof Error ? e.message : "Failed to create agent");
       setSubmitting(false);
     }
-  }, [name, template, provider, runtime, task, repo, existingNames, onClose, navigate]);
+  }, [name, template, provider, model, runtime, task, repo, existingNames, onClose, navigate]);
 
   if (!open) return null;
 
@@ -538,14 +563,17 @@ export function CreateAgentModal({
               </label>
               <select
                 value={provider}
-                onChange={(e) => setProvider(e.target.value as Provider)}
+                onChange={(e) => {
+                  setProvider(e.target.value as Provider);
+                  // Model lists are per-provider — reset to default.
+                  setModel("");
+                }}
                 className={INPUT_CLS}
                 style={{ fontFamily: MONO }}
               >
                 <option value="claude">claude</option>
                 <option value="gemini">gemini</option>
                 <option value="cursor">cursor</option>
-                <option value="pi">pi</option>
                 <option value="codex">codex</option>
                 <option value="pi">pi</option>
               </select>
@@ -562,6 +590,26 @@ export function CreateAgentModal({
               >
                 <option value="docker">docker</option>
                 <option value="tmux">tmux</option>
+              </select>
+            </div>
+            {/* Model — third grid cell lands directly under Provider.
+                "default" (empty) means the provider default: no model
+                flag is injected. Options repopulate per provider. */}
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted">
+                Model
+              </label>
+              <select
+                value={model}
+                onChange={(e) => setModel(e.target.value)}
+                className={INPUT_CLS}
+                style={{ fontFamily: MONO }}
+                aria-label="Model"
+              >
+                <option value="">default</option>
+                {(providerModels[provider] ?? []).map((m) => (
+                  <option key={m} value={m}>{m}</option>
+                ))}
               </select>
             </div>
           </div>

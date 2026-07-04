@@ -719,6 +719,9 @@ function ConfigTab({ agent, agentsUrl }: { agent: Agent; agentsUrl: string }) {
           <dl className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-4">
             <MetaCell label="Provider" mono>
               {agent.tool || "\u2014"}
+              {agent.model && (
+                <span className="text-mycel-muted"> \u00b7 {agent.model}</span>
+              )}
             </MetaCell>
             <MetaCell label="Backend" mono>
               {isDocker ? "docker" : "tmux"}

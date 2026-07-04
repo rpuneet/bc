@@ -351,30 +351,34 @@ type Agent struct {
 	// default listing via POST /api/agents/{name}/archive. A non-nil
 	// value hides the agent from List() unless IncludeArchived is set.
 	// Archiving does NOT delete state; unarchive clears this field.
-	ArchivedAt     *time.Time   `json:"archived_at,omitempty"`
-	RolePrompt     *AgentMemory `json:"memory,omitempty"`
-	Workspace      string       `json:"workspace"`
-	Repo           string       `json:"repo,omitempty"`
-	ID             string       `json:"id"`
-	Name           string       `json:"name"`
-	Task           string       `json:"task,omitempty"`
-	Session        string       `json:"session"`
-	SessionID      string       `json:"session_id,omitempty"` // For session resume (#1939)
-	Tool           string       `json:"tool,omitempty"`
-	ParentID       string       `json:"parent_id,omitempty"`
-	HookedWork     string       `json:"hooked_work,omitempty"`
-	WorktreeDir    string       `json:"worktree_dir,omitempty"`
-	LogFile        string       `json:"log_file,omitempty"`
-	Team           string       `json:"team,omitempty"`
-	RecoveredFrom  string       `json:"recovered_from,omitempty"`
-	EnvFile        string       `json:"env_file,omitempty"`
-	RuntimeBackend string       `json:"runtime_backend,omitempty"`
-	LastCrashTime  *time.Time   `json:"last_crash_time,omitempty"`
-	Role           Role         `json:"role"`
-	State          State        `json:"state"`
-	Children       []string     `json:"children,omitempty"`
-	CrashCount     int          `json:"crash_count,omitempty"`
-	IsRoot         bool         `json:"is_root,omitempty"`
+	ArchivedAt *time.Time   `json:"archived_at,omitempty"`
+	RolePrompt *AgentMemory `json:"memory,omitempty"`
+	Workspace  string       `json:"workspace"`
+	Repo       string       `json:"repo,omitempty"`
+	ID         string       `json:"id"`
+	Name       string       `json:"name"`
+	Task       string       `json:"task,omitempty"`
+	Session    string       `json:"session"`
+	SessionID  string       `json:"session_id,omitempty"` // For session resume (#1939)
+	Tool       string       `json:"tool,omitempty"`
+	// Model is the provider model identifier the agent runs with (e.g.
+	// "fable" for claude). Empty means the provider default — no model
+	// flag is injected. Restarts reuse the stored value.
+	Model          string     `json:"model,omitempty"`
+	ParentID       string     `json:"parent_id,omitempty"`
+	HookedWork     string     `json:"hooked_work,omitempty"`
+	WorktreeDir    string     `json:"worktree_dir,omitempty"`
+	LogFile        string     `json:"log_file,omitempty"`
+	Team           string     `json:"team,omitempty"`
+	RecoveredFrom  string     `json:"recovered_from,omitempty"`
+	EnvFile        string     `json:"env_file,omitempty"`
+	RuntimeBackend string     `json:"runtime_backend,omitempty"`
+	LastCrashTime  *time.Time `json:"last_crash_time,omitempty"`
+	Role           Role       `json:"role"`
+	State          State      `json:"state"`
+	Children       []string   `json:"children,omitempty"`
+	CrashCount     int        `json:"crash_count,omitempty"`
+	IsRoot         bool       `json:"is_root,omitempty"`
 }
 
 // HasCapability checks if this agent has a specific capability.
@@ -826,7 +830,7 @@ func defaultAgentCmd() (string, string) {
 // (--continue / --session) are appended even when the workspace
 // overrides the base command so resume still works.
 // SessionID takes priority over the resume flag when non-empty.
-func (m *Manager) getAgentCommand(toolName, agentName string, resume bool, sessionID string) (string, bool) {
+func (m *Manager) getAgentCommand(toolName, agentName string, resume bool, sessionID, model string) (string, bool) {
 	if m.providerRegistry == nil {
 		return "", false
 	}
@@ -838,6 +842,7 @@ func (m *Manager) getAgentCommand(toolName, agentName string, resume bool, sessi
 		AgentName: agentName,
 		Resume:    resume,
 		SessionID: sessionID,
+		Model:     model,
 	}
 	// Apply workspace-level command override when present. We rebuild
 	// the session flags via the provider so we don't lose --continue
@@ -850,13 +855,19 @@ func (m *Manager) getAgentCommand(toolName, agentName string, resume bool, sessi
 	return p.BuildCommand(opts), true
 }
 
-// appendSessionFlags adds the same --continue / --session flags the
-// provider's BuildCommand would, but to an arbitrary base command. We
-// keep the logic in one place so workspace overrides cooperate with
-// resume cleanly. Session IDs land in a `bash -c` line, where quoting
-// alone can't stop `$()` expansion — unsafe IDs are dropped.
+// appendSessionFlags adds the same --continue / --session / --model
+// flags the provider's BuildCommand would, but to an arbitrary base
+// command. We keep the logic in one place so workspace overrides
+// cooperate with resume and model selection cleanly. Both values land
+// in a `bash -c` line, where quoting alone can't stop `$()` expansion —
+// unsafe values are dropped. The model flag is a generic --model here
+// because the override command is arbitrary and we can't consult the
+// provider's own flag spelling.
 func appendSessionFlags(base string, opts provider.CommandOpts) string {
 	cmd := base
+	if provider.SafeModelName(opts.Model) {
+		cmd += " --model " + opts.Model
+	}
 	// Mirror provider priority: an explicit session wins over --continue.
 	if provider.SafeSessionID(opts.SessionID) {
 		cmd += " --session " + opts.SessionID
@@ -973,6 +984,7 @@ type SpawnOptions struct {
 	Workspace string
 	ParentID  string
 	Tool      string
+	Model     string // provider model identifier; empty uses the provider default
 	EnvFile   string
 	Runtime   string // override runtime backend ("tmux" or "docker"); empty uses manager default
 	Team      string // optional team assignment
@@ -1186,7 +1198,9 @@ func (m *Manager) startAgent(ctx context.Context, name string, opts SpawnOptions
 	}
 	agentCmd := m.agentCmd
 	if toolName != "" {
-		if cmd, ok := m.getAgentCommand(toolName, name, resume, sessionID); ok {
+		// Restarts use the STORED model so the agent keeps running on
+		// the model it was created with.
+		if cmd, ok := m.getAgentCommand(toolName, name, resume, sessionID, existing.Model); ok {
 			agentCmd = cmd
 		}
 	}
@@ -1371,7 +1385,7 @@ func (m *Manager) createAgent(ctx context.Context, opts SpawnOptions) (*Agent, e
 	// Determine the command to use
 	agentCmd := m.agentCmd
 	if effectiveTool != "" {
-		if cmd, ok := m.getAgentCommand(effectiveTool, name, false, ""); ok {
+		if cmd, ok := m.getAgentCommand(effectiveTool, name, false, "", opts.Model); ok {
 			agentCmd = cmd
 		} else if tool != "" {
 			m.mu.Unlock()
@@ -1430,6 +1444,7 @@ func (m *Manager) createAgent(ctx context.Context, opts SpawnOptions) (*Agent, e
 		Repo:           cleanRepoPath(wsPath),
 		Session:        name,
 		Tool:           effectiveTool,
+		Model:          opts.Model,
 		ParentID:       parentID,
 		Team:           opts.Team,
 		EnvFile:        opts.EnvFile,

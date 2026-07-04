@@ -50,14 +50,24 @@ func (p *CursorProvider) InstallHint() string {
 }
 
 // BuildCommand returns the full command for a given runtime context.
-// Supports --resume with session ID for session continuation. The ID is
-// spliced into a shell command line, so unsafe values are dropped.
+// Supports --resume with session ID for session continuation, and
+// --model <m> for model selection. Both values are spliced into a shell
+// command line, so unsafe values are dropped.
 func (p *CursorProvider) BuildCommand(opts CommandOpts) string {
 	cmd := p.command
+	if SafeModelName(opts.Model) {
+		cmd += " --model " + opts.Model
+	}
 	if SafeSessionID(opts.SessionID) {
 		cmd += " --resume " + opts.SessionID
 	}
 	return cmd
+}
+
+// Models returns the curated model list for the Cursor Agent CLI,
+// taken from `cursor-agent --list-models`.
+func (p *CursorProvider) Models() []string {
+	return []string{"auto", "gpt-5.3-codex", "gpt-5.3-codex-high", "gpt-5.2", "sonnet-4-thinking"}
 }
 
 // IsInstalled checks if the provider binary is available.
@@ -134,3 +144,4 @@ func (p *CursorProvider) DetectState(output string) State {
 
 // Ensure CursorProvider implements Provider interface.
 var _ Provider = (*CursorProvider)(nil)
+var _ ModelLister = (*CursorProvider)(nil)

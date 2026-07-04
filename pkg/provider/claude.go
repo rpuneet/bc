@@ -60,8 +60,13 @@ func (p *ClaudeProvider) InstallHint() string {
 // --tmux is NOT included here — it's added by AdjustSessionCommand for Docker only.
 // For native tmux, claude auto-detects the tmux environment.
 // Resume priority: SessionID (--resume <id>) > Resume flag (--continue).
+// Model priority: opts.Model is injected as --model <m> when it passes
+// SafeModelName; unsafe values are dropped, never escaped.
 func (p *ClaudeProvider) BuildCommand(opts CommandOpts) string {
 	cmd := "claude --dangerously-skip-permissions"
+	if SafeModelName(opts.Model) {
+		cmd += " --model " + opts.Model
+	}
 	switch {
 	case claudeSessionIDPattern.MatchString(opts.SessionID):
 		cmd += " --resume " + opts.SessionID
@@ -69,6 +74,11 @@ func (p *ClaudeProvider) BuildCommand(opts CommandOpts) string {
 		cmd += " --continue"
 	}
 	return cmd
+}
+
+// Models returns the curated model list for the Claude Code CLI.
+func (p *ClaudeProvider) Models() []string {
+	return []string{"fable", "opus", "opusplan", "sonnet", "haiku"}
 }
 
 // claudeSessionIDPattern is the full-string UUID shape of a Claude session
@@ -182,6 +192,7 @@ func (p *ClaudeProvider) ParseSessionID(output string) string {
 
 // Ensure ClaudeProvider implements all declared interfaces.
 var _ Provider = (*ClaudeProvider)(nil)
+var _ ModelLister = (*ClaudeProvider)(nil)
 var _ ContainerCustomizer = (*ClaudeProvider)(nil)
 var _ SessionCustomizer = (*ClaudeProvider)(nil)
 var _ SessionResumer = (*ClaudeProvider)(nil)

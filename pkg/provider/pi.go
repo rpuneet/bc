@@ -64,11 +64,14 @@ func (p *PiProvider) InstallHint() string {
 }
 
 // BuildCommand returns the full command for a given runtime context.
-// For pi, we start with base command and add session flags as needed.
-// The session ID is spliced into a shell command line — double quotes
-// don't stop `$()` expansion, so unsafe values are dropped instead.
+// For pi, we start with base command and add model/session flags as
+// needed. Both values are spliced into a shell command line — double
+// quotes don't stop `$()` expansion, so unsafe values are dropped.
 func (p *PiProvider) BuildCommand(opts CommandOpts) string {
 	cmd := p.Command()
+	if SafeModelName(opts.Model) {
+		cmd += " --model " + opts.Model
+	}
 	if SafeSessionID(opts.SessionID) {
 		cmd += " --session " + opts.SessionID
 	}
@@ -76,6 +79,12 @@ func (p *PiProvider) BuildCommand(opts CommandOpts) string {
 		cmd += " --continue"
 	}
 	return cmd
+}
+
+// Models returns the curated model list for the pi CLI. pi's --model
+// takes a "provider/id" pattern with an optional ":<thinking>" suffix.
+func (p *PiProvider) Models() []string {
+	return []string{"google/gemini-2.5-pro", "anthropic/claude-sonnet-4-6", "openai/gpt-5.2"}
 }
 
 // IsInstalled checks if the provider binary is available.
@@ -173,3 +182,4 @@ func (p *PiProvider) DetectState(output string) State {
 
 // Ensure PiProvider implements Provider interface.
 var _ Provider = (*PiProvider)(nil)
+var _ ModelLister = (*PiProvider)(nil)

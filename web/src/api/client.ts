@@ -57,6 +57,8 @@ export interface Agent {
   name: string;
   role: string;
   tool: string;
+  /** Provider model identifier (e.g. "fable"); empty/absent = provider default. */
+  model?: string;
   state: string;
   total_cost_usd: number;
   started_at: string;
@@ -303,6 +305,8 @@ export interface ProviderInfo {
   install_hint: string;
   version: string;
   status: string;
+  /** Curated model list for UI pickers; empty = no model selection. */
+  models?: string[];
   total_cost_usd: number;
   total_tokens: number;
   agent_count: number;
@@ -593,6 +597,7 @@ export const api = {
     name?: string;
     role: string;
     tool?: string;
+    model?: string;
     runtime?: string;
   }) =>
     request<Agent>("/agents", {
