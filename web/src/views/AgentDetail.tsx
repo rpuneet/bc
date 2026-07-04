@@ -8,7 +8,6 @@ import { useWebSocket } from "../hooks/useWebSocket";
 import { StatsTab as StatsTabComponent } from "../components/StatsTab";
 import { WebTerminal, type TerminalConnectionState, type TerminalConnectionDetail } from "../components/WebTerminal";
 import { AgentIcon } from "../components/agent-ui";
-import { LoopIconButton, RalphLoopModal } from "../components/RalphLoopModal";
 import { MCPServerList } from "../components/shared/MCPServerList";
 import { McpEnvEditor } from "../components/shared/McpEnvEditor";
 import { SystemPromptEditor } from "../components/shared/SystemPromptEditor";
@@ -63,6 +62,167 @@ function MetaCell({
         {children}
       </dd>
     </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   Lifecycle controls — Start / Stop / Restart in the detail header
+   (#3283)
+   ═══════════════════════════════════════════════════════════════════ */
+
+type LifecycleAction = "start" | "stop" | "restart";
+
+/** Pure disabled-state logic, exported for tests. Start is only
+ *  available when the agent session is not alive (stopped/error);
+ *  Stop and Restart require a live session. Everything is disabled
+ *  while a lifecycle request is in flight. */
+export function lifecycleDisabled(
+  state: string,
+  pending: boolean,
+): Record<LifecycleAction, boolean> {
+  const stopped = state === "stopped" || state === "error";
+  return {
+    start: pending || !stopped,
+    stop: pending || stopped,
+    restart: pending || stopped,
+  };
+}
+
+const LIFECYCLE_BTN =
+  "inline-flex items-center justify-center w-[22px] h-[22px] rounded border border-mycel-border/40 " +
+  "text-mycel-muted transition-colors disabled:opacity-30 disabled:pointer-events-none " +
+  "focus-visible:ring-2 focus-visible:ring-mycel-accent focus-visible:ring-offset-1 focus-visible:ring-offset-mycel-bg";
+
+function LifecycleSpinner() {
+  return (
+    <svg
+      className="animate-spin"
+      width="11"
+      height="11"
+      viewBox="0 0 14 14"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      aria-hidden
+    >
+      <path d="M7 1.5A5.5 5.5 0 1 1 1.5 7" />
+    </svg>
+  );
+}
+
+function LifecycleControls({
+  agent,
+  onAction,
+}: {
+  agent: Agent;
+  onAction?: () => void;
+}) {
+  const [pending, setPending] = useState<LifecycleAction | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const disabled = lifecycleDisabled(agent.state, pending !== null);
+
+  const run = useCallback(
+    async (action: LifecycleAction) => {
+      if (action === "stop" && !window.confirm(`Stop agent ${agent.name}?`)) {
+        return;
+      }
+      setPending(action);
+      setActionError(null);
+      try {
+        if (action === "start") {
+          await api.startAgent(agent.name);
+        } else if (action === "stop") {
+          await api.stopAgent(agent.name);
+        } else {
+          // No dedicated /restart endpoint — stop, then start. The SSE
+          // agent.state_changed stream flips the header state chip.
+          await api.stopAgent(agent.name);
+          await api.startAgent(agent.name);
+        }
+        onAction?.();
+      } catch (err) {
+        setActionError(
+          err instanceof Error ? err.message : `Failed to ${action} agent`,
+        );
+      } finally {
+        setPending(null);
+      }
+    },
+    [agent.name, onAction],
+  );
+
+  return (
+    <span className="inline-flex items-center gap-1 shrink-0">
+      <button
+        type="button"
+        onClick={() => void run("start")}
+        disabled={disabled.start}
+        title="Start agent"
+        aria-label={`Start agent ${agent.name}`}
+        className={`${LIFECYCLE_BTN} hover:text-emerald-300 hover:border-emerald-500/40 hover:bg-emerald-500/10`}
+      >
+        {pending === "start" ? (
+          <LifecycleSpinner />
+        ) : (
+          <svg width="11" height="11" viewBox="0 0 14 14" fill="currentColor" aria-hidden>
+            <path d="M4 2.5l7.5 4.5L4 11.5z" />
+          </svg>
+        )}
+      </button>
+      <button
+        type="button"
+        onClick={() => void run("stop")}
+        disabled={disabled.stop}
+        title="Stop agent"
+        aria-label={`Stop agent ${agent.name}`}
+        className={`${LIFECYCLE_BTN} hover:text-amber-300 hover:border-amber-500/40 hover:bg-amber-500/10`}
+      >
+        {pending === "stop" ? (
+          <LifecycleSpinner />
+        ) : (
+          <svg width="11" height="11" viewBox="0 0 14 14" fill="currentColor" aria-hidden>
+            <rect x="3" y="3" width="8" height="8" rx="1" />
+          </svg>
+        )}
+      </button>
+      <button
+        type="button"
+        onClick={() => void run("restart")}
+        disabled={disabled.restart}
+        title="Restart agent (stop, then start)"
+        aria-label={`Restart agent ${agent.name}`}
+        className={`${LIFECYCLE_BTN} hover:text-sky-300 hover:border-sky-500/40 hover:bg-sky-500/10`}
+      >
+        {pending === "restart" ? (
+          <LifecycleSpinner />
+        ) : (
+          <svg
+            width="11"
+            height="11"
+            viewBox="0 0 14 14"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden
+          >
+            <path d="M11 3.5A5 5 0 1 0 12 7" />
+            <path d="M8 3.5h3V.5" />
+          </svg>
+        )}
+      </button>
+      {actionError && (
+        <span
+          className="text-[10px] text-mycel-error truncate max-w-[140px]"
+          title={actionError}
+          style={{ fontFamily: MONO }}
+        >
+          {actionError}
+        </span>
+      )}
+    </span>
   );
 }
 
@@ -1016,7 +1176,6 @@ export function AgentDetail() {
     [name, navigate],
   );
 
-  const [loopOpen, setLoopOpen] = useState(false);
   const { subscribe } = useWebSocket();
 
   const agentFetcher = useCallback(async () => {
@@ -1172,7 +1331,7 @@ export function AgentDetail() {
             {agent.state}
           </span>
 
-          <LoopIconButton agentName={agent.name} agentState={agent.state} onClick={() => setLoopOpen(true)} />
+          <LifecycleControls agent={agent} onAction={() => void refresh()} />
 
           {agent.task && (
             <span
@@ -1253,12 +1412,6 @@ export function AgentDetail() {
         {activeTab === "code" && <CodeTabPlaceholder agent={agent} />}
       </div>
 
-      {/* Ralph Loop modal */}
-      <RalphLoopModal
-        open={loopOpen}
-        agentName={agent.name}
-        onClose={() => setLoopOpen(false)}
-      />
     </div>
   );
 }
