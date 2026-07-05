@@ -8,6 +8,7 @@ const Live = lazy(() => import("./views/Live").then((m) => ({ default: m.Live })
 const Agents = lazy(() => import("./views/Agents").then((m) => ({ default: m.Agents })));
 const AgentDetail = lazy(() => import("./views/AgentDetail").then((m) => ({ default: m.AgentDetail })));
 const Notifications = lazy(() => import("./views/Notifications").then((m) => ({ default: m.Notifications })));
+const NotificationActivity = lazy(() => import("./views/NotificationActivity").then((m) => ({ default: m.NotificationActivity })));
 const Templates = lazy(() => import("./views/Templates").then((m) => ({ default: m.Templates })));
 const Tools = lazy(() => import("./views/Tools").then((m) => ({ default: m.Tools })));
 const ProviderDetail = lazy(() => import("./views/ProviderDetail").then((m) => ({ default: m.ProviderDetail })));
@@ -59,6 +60,7 @@ export function AppRoutes() {
         <Route path="agents/:name" element={wrap(<AgentDetail />)} />
         <Route path="agents/:name/*" element={wrap(<AgentDetail />)} />
         <Route path="notifications" element={wrap(<Notifications />)} />
+        <Route path="notifications/activity" element={wrap(<NotificationActivity />)} />
         <Route path="notifications/:sourceName" element={wrap(<Notifications />)} />
         <Route path="templates" element={wrap(<Templates />)} />
         <Route path="tools" element={wrap(<Tools />)} />
