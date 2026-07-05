@@ -116,6 +116,7 @@ func (a *Adapter) Channels() []gateway.ChannelInfo {
 			ID:       id,
 			Name:     name,
 			Platform: "slack",
+			Kind:     gateway.ChannelKindChannel,
 		})
 	}
 	return channels

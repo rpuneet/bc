@@ -873,6 +873,10 @@ func (p *channelPersister) SaveChannel(ctx context.Context, bcChannel, platform,
 	return p.store.SaveChannel(ctx, bcChannel, platform, platformID)
 }
 
+func (p *channelPersister) UpdateChannelPlatformID(ctx context.Context, bcChannel, platformID string) error {
+	return p.store.UpdateChannelPlatformID(ctx, bcChannel, platformID)
+}
+
 func (p *channelPersister) LoadChannels(ctx context.Context) ([]bcgateway.PersistedChannel, error) {
 	ncs, err := p.store.LoadChannels(ctx)
 	if err != nil {
@@ -881,12 +885,19 @@ func (p *channelPersister) LoadChannels(ctx context.Context) ([]bcgateway.Persis
 	result := make([]bcgateway.PersistedChannel, len(ncs))
 	for i, c := range ncs {
 		result[i] = bcgateway.PersistedChannel{
-			BCChannel:  c.BCChannel,
-			Platform:   c.Platform,
-			PlatformID: c.PlatformID,
+			BCChannel:        c.BCChannel,
+			Platform:         c.Platform,
+			PlatformID:       c.PlatformID,
+			DisplayName:      c.DisplayName,
+			Kind:             c.Kind,
+			ParticipantCount: c.ParticipantCount,
 		}
 	}
 	return result, nil
+}
+
+func (p *channelPersister) UpsertChannelMeta(ctx context.Context, bcChannel, displayName, kind string, participantCount int) error {
+	return p.store.UpsertChannelMeta(ctx, bcChannel, displayName, kind, participantCount)
 }
 
 // costStoreAdapter bridges cost.Store → bcagent.CostQuerier.

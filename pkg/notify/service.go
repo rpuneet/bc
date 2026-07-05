@@ -260,6 +260,12 @@ func (s *Service) ChannelStats(ctx context.Context) ([]ChannelStat, error) {
 	return s.store.ChannelStats(ctx)
 }
 
+// Channels returns all persisted gateway channel mappings with their
+// resolved display metadata (name, kind, participant count).
+func (s *Service) Channels(ctx context.Context) ([]PersistedChannel, error) {
+	return s.store.LoadChannels(ctx)
+}
+
 // PruneOldActivity removes old delivery log entries for every channel,
 // keeping the most recent keepPerChannel entries in each.
 func (s *Service) PruneOldActivity(ctx context.Context, keepPerChannel int) error {

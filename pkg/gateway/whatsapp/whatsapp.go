@@ -46,6 +46,10 @@ type Adapter struct { //nolint:govet
 	// qrChan receives QR codes during pairing.
 	qrChan     chan string
 	groupCache map[string]string
+	// idClient overrides the whatsmeow-backed identity client in tests.
+	idClient  identityClient
+	metaMu    sync.Mutex
+	metaCache map[string]cachedMeta
 }
 
 func init() {
@@ -384,6 +388,7 @@ func (a *Adapter) handleMessage(msg *events.Message) {
 		raw, _ := json.Marshal(msg) //nolint:errcheck
 		a.handler(gateway.Notification{
 			Channel:   channel,
+			ChannelID: msg.Info.Chat.String(), // native JID so identity resolution works
 			Platform:  "whatsapp",
 			Sender:    sender,
 			Content:   content,

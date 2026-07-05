@@ -43,6 +43,11 @@ func (h *GatewayHandler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/notify/subscriptions/", h.notifySubscriptionByChannel)
 	mux.HandleFunc("/api/notify/activity/", h.notifyActivity)
 
+	// Notifications home: connected apps + channels with resolved identities.
+	mux.HandleFunc("/api/notifications/overview", h.notificationsOverview)
+	// Manual re-resolution of channel display metadata (names, kinds).
+	mux.HandleFunc("/api/gateways/channels/refresh", h.refreshChannelMeta)
+
 	// Gateway-scoped routes (proposal-aligned)
 	mux.HandleFunc("/api/gateways/", h.gatewayRouter)
 }

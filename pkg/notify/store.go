@@ -109,6 +109,9 @@ CREATE TABLE IF NOT EXISTS notify_channels (
     bc_channel   TEXT PRIMARY KEY,
     platform     TEXT NOT NULL,
     platform_id  TEXT NOT NULL,
+    display_name TEXT NOT NULL DEFAULT '',
+    kind         TEXT NOT NULL DEFAULT '',
+    participant_count INTEGER NOT NULL DEFAULT 0,
     updated_at   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
 );
 
@@ -158,6 +161,9 @@ CREATE TABLE IF NOT EXISTS notify_channels (
     bc_channel   TEXT PRIMARY KEY,
     platform     TEXT NOT NULL,
     platform_id  TEXT NOT NULL,
+    display_name TEXT NOT NULL DEFAULT '',
+    kind         TEXT NOT NULL DEFAULT '',
+    participant_count INTEGER NOT NULL DEFAULT 0,
     updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -497,17 +503,21 @@ func (s *Store) GetMessages(ctx context.Context, channel string, limit int, befo
 	return msgs, rows.Err()
 }
 
-// PersistedChannel is a saved bc_channel → platform_id mapping.
+// PersistedChannel is a saved bc_channel → platform_id mapping with
+// resolved display metadata.
 type PersistedChannel struct {
-	BCChannel  string
-	Platform   string
-	PlatformID string
+	BCChannel        string
+	Platform         string
+	PlatformID       string
+	DisplayName      string
+	Kind             string // group | person | channel | feed | other
+	ParticipantCount int
 }
 
 // LoadChannels returns all persisted channel mappings.
 func (s *Store) LoadChannels(ctx context.Context) ([]PersistedChannel, error) {
 	rows, err := s.db.QueryContext(ctx, s.q(
-		`SELECT bc_channel, platform, platform_id FROM notify_channels`))
+		`SELECT bc_channel, platform, platform_id, display_name, kind, participant_count FROM notify_channels`))
 	if err != nil {
 		return nil, err
 	}
@@ -516,7 +526,7 @@ func (s *Store) LoadChannels(ctx context.Context) ([]PersistedChannel, error) {
 	var channels []PersistedChannel
 	for rows.Next() {
 		var c PersistedChannel
-		if err := rows.Scan(&c.BCChannel, &c.Platform, &c.PlatformID); err != nil {
+		if err := rows.Scan(&c.BCChannel, &c.Platform, &c.PlatformID, &c.DisplayName, &c.Kind, &c.ParticipantCount); err != nil {
 			return nil, err
 		}
 		channels = append(channels, c)
@@ -530,6 +540,16 @@ func (s *Store) LoadChannels(ctx context.Context) ([]PersistedChannel, error) {
 // non-empty value. This prevents a later event with a fallback platform_id
 // (e.g., the channel name when a numeric chat_id couldn't be extracted from
 // the raw payload) from clobbering a previously-stored real platform_id.
+// UpdateChannelPlatformID force-overwrites a channel's platform id.
+// SaveChannel deliberately preserves existing non-empty ids; this is the
+// explicit upgrade path for fallback→native id promotions.
+func (s *Store) UpdateChannelPlatformID(ctx context.Context, bcChannel, platformID string) error {
+	_, err := s.db.ExecContext(ctx, s.q(
+		`UPDATE notify_channels SET platform_id = ?, updated_at = ? WHERE bc_channel = ?`),
+		platformID, time.Now().UTC().Format(time.RFC3339), bcChannel)
+	return err
+}
+
 func (s *Store) SaveChannel(ctx context.Context, bcChannel, platform, platformID string) error {
 	_, err := s.db.ExecContext(ctx, s.q(
 		`INSERT INTO notify_channels (bc_channel, platform, platform_id, updated_at)
@@ -543,6 +563,37 @@ func (s *Store) SaveChannel(ctx context.Context, bcChannel, platform, platformID
 		   END,
 		   updated_at = excluded.updated_at`),
 		bcChannel, platform, platformID, time.Now().UTC().Format(time.RFC3339))
+	return err
+}
+
+// UpsertChannelMeta stores resolved display metadata for a channel. The row
+// is created if the mapping does not exist yet (platform derived from the
+// bc_channel prefix); existing platform/platform_id values are never touched.
+// Empty display_name/kind and a zero participant_count never clobber
+// previously-resolved values.
+func (s *Store) UpsertChannelMeta(ctx context.Context, bcChannel, displayName, kind string, participantCount int) error {
+	platform := bcChannel
+	if i := strings.Index(bcChannel, ":"); i > 0 {
+		platform = bcChannel[:i]
+	}
+	_, err := s.db.ExecContext(ctx, s.q(
+		`INSERT INTO notify_channels (bc_channel, platform, platform_id, display_name, kind, participant_count, updated_at)
+		 VALUES (?, ?, '', ?, ?, ?, ?)
+		 ON CONFLICT(bc_channel) DO UPDATE SET
+		   display_name = CASE
+		     WHEN excluded.display_name = '' THEN notify_channels.display_name
+		     ELSE excluded.display_name
+		   END,
+		   kind = CASE
+		     WHEN excluded.kind = '' THEN notify_channels.kind
+		     ELSE excluded.kind
+		   END,
+		   participant_count = CASE
+		     WHEN excluded.participant_count = 0 THEN notify_channels.participant_count
+		     ELSE excluded.participant_count
+		   END,
+		   updated_at = excluded.updated_at`),
+		bcChannel, platform, displayName, kind, participantCount, time.Now().UTC().Format(time.RFC3339))
 	return err
 }
 
