@@ -334,11 +334,24 @@ func (a *Adapter) Send(ctx context.Context, channelID, _, content string) error 
 		return err
 	}
 
+	// Bound the send so a stalled network round-trip can't block the caller
+	// indefinitely. Only apply the fallback when the caller's context carries
+	// no deadline of its own, so an explicit deadline is always respected.
+	if _, ok := ctx.Deadline(); !ok {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, sendTimeout)
+		defer cancel()
+	}
+
 	if _, err := client.SendMessage(ctx, jid, &waE2E.Message{Conversation: proto.String(content)}); err != nil {
 		return fmt.Errorf("whatsapp: send to %s: %w", jid, err)
 	}
 	return nil
 }
+
+// sendTimeout bounds a single outbound WhatsApp send when the caller supplies
+// no deadline of its own.
+const sendTimeout = 30 * time.Second
 
 // parseSendJID converts a stored channel id into a routable JID. Bare ids
 // without a server part are ambiguous between phone-number and hidden-lid
