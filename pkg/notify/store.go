@@ -540,6 +540,16 @@ func (s *Store) LoadChannels(ctx context.Context) ([]PersistedChannel, error) {
 // non-empty value. This prevents a later event with a fallback platform_id
 // (e.g., the channel name when a numeric chat_id couldn't be extracted from
 // the raw payload) from clobbering a previously-stored real platform_id.
+// UpdateChannelPlatformID force-overwrites a channel's platform id.
+// SaveChannel deliberately preserves existing non-empty ids; this is the
+// explicit upgrade path for fallback→native id promotions.
+func (s *Store) UpdateChannelPlatformID(ctx context.Context, bcChannel, platformID string) error {
+	_, err := s.db.ExecContext(ctx, s.q(
+		`UPDATE notify_channels SET platform_id = ?, updated_at = ? WHERE bc_channel = ?`),
+		platformID, time.Now().UTC().Format(time.RFC3339), bcChannel)
+	return err
+}
+
 func (s *Store) SaveChannel(ctx context.Context, bcChannel, platform, platformID string) error {
 	_, err := s.db.ExecContext(ctx, s.q(
 		`INSERT INTO notify_channels (bc_channel, platform, platform_id, updated_at)

@@ -34,6 +34,10 @@ func (p *notifyStoreChannelStore) SaveChannel(ctx context.Context, bcChannel, pl
 	return p.store.SaveChannel(ctx, bcChannel, platform, platformID)
 }
 
+func (p *notifyStoreChannelStore) UpdateChannelPlatformID(ctx context.Context, bcChannel, platformID string) error {
+	return p.store.UpdateChannelPlatformID(ctx, bcChannel, platformID)
+}
+
 func (p *notifyStoreChannelStore) LoadChannels(ctx context.Context) ([]gateway.PersistedChannel, error) {
 	ncs, err := p.store.LoadChannels(ctx)
 	if err != nil {

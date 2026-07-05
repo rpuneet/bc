@@ -30,6 +30,10 @@ type ChannelStore interface {
 	SaveChannel(ctx context.Context, bcChannel, platform, platformID string) error
 	LoadChannels(ctx context.Context) ([]PersistedChannel, error)
 	UpsertChannelMeta(ctx context.Context, bcChannel, displayName, kind string, participantCount int) error
+	// UpdateChannelPlatformID force-overwrites a channel's platform id —
+	// used when a fallback route is upgraded to a native id (SaveChannel
+	// deliberately preserves existing non-empty ids).
+	UpdateChannelPlatformID(ctx context.Context, bcChannel, platformID string) error
 }
 
 // messageSender is checked at runtime for adapters that support outbound messaging.
@@ -457,7 +461,11 @@ func (m *Manager) RefreshChannelMeta(ctx context.Context) (int, error) {
 		if !ok {
 			continue
 		}
-		meta, err := resolver.ResolveChannel(ctx, e.route.ChannelID)
+		// Per-channel timeout: one stuck adapter call must not hold the
+		// whole refresh (mirrors persistChannelMeta's bound).
+		resolveCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
+		meta, err := resolver.ResolveChannel(resolveCtx, e.route.ChannelID)
+		cancel()
 		if err != nil || meta == (ChannelMeta{}) {
 			continue
 		}
@@ -516,6 +524,7 @@ func (m *Manager) handleNotification(platform string, n Notification) {
 	m.mu.Lock()
 	route, exists := m.channelMap[bcChannel]
 	needMeta := false
+	upgradedID := ""
 	if !exists {
 		route = channelRoute{
 			Platform:  platform,
@@ -529,11 +538,23 @@ func (m *Manager) handleNotification(platform string, n Notification) {
 		route.ChannelID = n.ChannelID
 		m.channelMap[bcChannel] = route
 		needMeta = true
+		upgradedID = n.ChannelID
 		log.Info("gateway: upgraded channel route to native id", "bc_channel", bcChannel, "channel_id", n.ChannelID)
 	}
 	m.mu.Unlock()
 	if !exists {
 		m.persistChannel(bcChannel, platform, channelID)
+	}
+	if upgradedID != "" && m.channelStore != nil {
+		// Persist the upgrade — without this a quiet channel reloads the
+		// stale fallback id after restart and identity resolution breaks.
+		go func(bc, id string) {
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			if err := m.channelStore.UpdateChannelPlatformID(ctx, bc, id); err != nil {
+				log.Warn("gateway: failed to persist upgraded channel id", "channel", bc, "error", err)
+			}
+		}(bcChannel, upgradedID)
 	}
 	if needMeta {
 		m.persistChannelMeta(route.Adapter, bcChannel, route.ChannelID, ChannelMeta{})

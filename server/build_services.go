@@ -873,6 +873,10 @@ func (p *channelPersister) SaveChannel(ctx context.Context, bcChannel, platform,
 	return p.store.SaveChannel(ctx, bcChannel, platform, platformID)
 }
 
+func (p *channelPersister) UpdateChannelPlatformID(ctx context.Context, bcChannel, platformID string) error {
+	return p.store.UpdateChannelPlatformID(ctx, bcChannel, platformID)
+}
+
 func (p *channelPersister) LoadChannels(ctx context.Context) ([]bcgateway.PersistedChannel, error) {
 	ncs, err := p.store.LoadChannels(ctx)
 	if err != nil {

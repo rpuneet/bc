@@ -181,6 +181,16 @@ func (f *fakeChannelStore) UpsertChannelMeta(_ context.Context, bcChannel, displ
 	return nil
 }
 
+func (f *fakeChannelStore) UpdateChannelPlatformID(_ context.Context, bcChannel, platformID string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if c, ok := f.saved[bcChannel]; ok {
+		c.PlatformID = platformID
+		f.saved[bcChannel] = c
+	}
+	return nil
+}
+
 func (f *fakeChannelStore) get(bcChannel string) (PersistedChannel, bool) {
 	f.mu.Lock()
 	defer f.mu.Unlock()

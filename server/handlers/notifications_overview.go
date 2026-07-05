@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"net/http"
 	"sort"
 	"strings"
@@ -149,7 +150,11 @@ func (h *GatewayHandler) refreshChannelMeta(w http.ResponseWriter, r *http.Reque
 		serviceUnavailable(w, r, "gateway", "gateway manager not available")
 		return
 	}
-	n, err := h.gw.RefreshChannelMeta(r.Context())
+	// Bound the whole refresh — a slow adapter must not pin the request
+	// past a sane ceiling even with per-channel timeouts underneath.
+	refreshCtx, cancel := context.WithTimeout(r.Context(), 60*time.Second)
+	defer cancel()
+	n, err := h.gw.RefreshChannelMeta(refreshCtx)
 	if err != nil {
 		httpInternalError(w, "refresh channel meta", err)
 		return
