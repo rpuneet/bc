@@ -3,8 +3,11 @@
  * pane. One continuous strip across the whole viewport, single h-12 row.
  *
  * Slots:
- *   left     : mobile-only drawer opener (owned by Layout; empty on
- *              desktop — brand + drawer toggle live inside the drawer)
+ *   left     : the brand / drawer column — mycel mark + wordmark + the
+ *              drawer toggle, sized to match the drawer's width and
+ *              collapsing with it. Owned by Layout, rendered flush so its
+ *              right border lines up with the drawer's. On mobile it is
+ *              just the drawer opener while the overlay drawer is closed.
  *   center   : per-view summary / presence line / breadcrumb — NOT a
  *              page title; the drawer's active nav item already names
  *              the section
@@ -36,23 +39,32 @@ export interface HeaderProps {
 export function Header({ left, center, actions }: HeaderProps) {
   return (
     <header className="relative z-30 shrink-0 border-b border-mycel-border bg-[color-mix(in_srgb,var(--mycel-surface)_70%,transparent)] backdrop-blur-sm">
-      <div className="flex items-center min-w-0 gap-3 px-3 sm:px-4 h-12">
-        {/* Left slot — mobile-only drawer opener */}
-        {left && <div className="flex items-center gap-2 shrink-0">{left}</div>}
+      {/* items-stretch so the brand column's right border spans the full
+          row height and continues the drawer's border below it. */}
+      <div className="flex items-stretch h-12">
+        {/* Left slot — the brand/drawer column. Rendered FLUSH (no row
+            padding) and self-contained: it brings its own width, padding
+            and right border so it sits directly above the drawer and
+            shares its edge. */}
+        {left}
 
-        {/* Center slot — per-view summary / presence. */}
-        <div className="flex-1 min-w-0 flex items-center gap-2 text-sm text-mycel-text">
-          {center}
-        </div>
-
-        {/* Right slot — per-view actions. flex-1 so search inputs inside
-            can flex-grow toward their max-w caps; justify-end keeps
-            button-only views pinned right. */}
-        {actions && (
-          <div className="flex flex-1 items-center justify-end gap-2 min-w-0">
-            {actions}
+        {/* Per-view region — everything the drawer column doesn't own.
+            Padded so its content aligns above the main pane. */}
+        <div className="flex flex-1 items-center min-w-0 gap-3 px-3 sm:px-4">
+          {/* Center slot — per-view summary / presence. */}
+          <div className="flex-1 min-w-0 flex items-center gap-2 text-sm text-mycel-text">
+            {center}
           </div>
-        )}
+
+          {/* Right slot — per-view actions. flex-1 so search inputs inside
+              can flex-grow toward their max-w caps; justify-end keeps
+              button-only views pinned right. */}
+          {actions && (
+            <div className="flex flex-1 items-center justify-end gap-2 min-w-0">
+              {actions}
+            </div>
+          )}
+        </div>
       </div>
     </header>
   );

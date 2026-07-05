@@ -155,6 +155,19 @@ describe("Agents", () => {
   });
 });
 
+/** Renders the header slot the way Layout's full-width bar does, so
+ *  content a view contributes via useHeaderSlot (AgentDetail's identity,
+ *  lifecycle controls and tabs) is present in the DOM under test. */
+function HeaderSlotHost() {
+  const { slot } = useHeaderSlotContext();
+  return (
+    <div data-testid="header-host">
+      {slot.title}
+      {slot.actions}
+    </div>
+  );
+}
+
 describe("AgentDetail tab navigation", () => {
   function LocationProbe() {
     const location = useLocation();
@@ -181,11 +194,14 @@ describe("AgentDetail tab navigation", () => {
 
     render(
       <MemoryRouter initialEntries={["/agents/bot-1"]}>
-        <Routes>
-          <Route path="agents/:name" element={<AgentDetail />} />
-          <Route path="agents/:name/*" element={<AgentDetail />} />
-        </Routes>
-        <LocationProbe />
+        <HeaderSlotProvider>
+          <HeaderSlotHost />
+          <Routes>
+            <Route path="agents/:name" element={<AgentDetail />} />
+            <Route path="agents/:name/*" element={<AgentDetail />} />
+          </Routes>
+          <LocationProbe />
+        </HeaderSlotProvider>
       </MemoryRouter>,
     );
 
@@ -263,10 +279,13 @@ describe("AgentDetail lifecycle controls", () => {
 
     render(
       <MemoryRouter initialEntries={["/agents/bot-1"]}>
-        <Routes>
-          <Route path="agents/:name" element={<AgentDetail />} />
-          <Route path="agents/:name/*" element={<AgentDetail />} />
-        </Routes>
+        <HeaderSlotProvider>
+          <HeaderSlotHost />
+          <Routes>
+            <Route path="agents/:name" element={<AgentDetail />} />
+            <Route path="agents/:name/*" element={<AgentDetail />} />
+          </Routes>
+        </HeaderSlotProvider>
       </MemoryRouter>,
     );
 

@@ -769,6 +769,33 @@ function writeCollapsed(v: boolean) {
   try { localStorage.setItem(SIDEBAR_KEY, String(v)); } catch { /* */ }
 }
 
+/* ── Drawer width (user-resizable) ───────────────────────────────
+   The expanded drawer can be dragged wider so long agent names /
+   channel labels aren't clipped. Width is clamped and persisted; the
+   header's brand column mirrors it so the two stay edge-aligned. The
+   collapsed icon rail (RAIL_WIDTH) and the mobile overlay use fixed
+   widths and ignore this value. */
+const DRAWER_WIDTH_KEY = "mycel-drawer-width";
+const DRAWER_MIN = 176;
+const DRAWER_MAX = 400;
+const DRAWER_DEFAULT = 208;
+const RAIL_WIDTH = 56; // matches the collapsed w-14 rail
+const MOBILE_WIDTH = 208;
+
+function clampDrawerWidth(px: number): number {
+  if (Number.isNaN(px)) return DRAWER_DEFAULT;
+  return Math.min(DRAWER_MAX, Math.max(DRAWER_MIN, Math.round(px)));
+}
+function readDrawerWidth(): number {
+  try {
+    const raw = localStorage.getItem(DRAWER_WIDTH_KEY);
+    return raw ? clampDrawerWidth(parseInt(raw, 10)) : DRAWER_DEFAULT;
+  } catch { return DRAWER_DEFAULT; }
+}
+function writeDrawerWidth(px: number) {
+  try { localStorage.setItem(DRAWER_WIDTH_KEY, String(px)); } catch { /* */ }
+}
+
 /* ── Nav list ────────────────────────────────────────────────── */
 
 function NavList({
@@ -929,6 +956,36 @@ export function Layout() {
     setCollapsed((prev) => { const next = !prev; writeCollapsed(next); return next; });
   }, []);
 
+  // Resizable drawer — drag the right edge to widen the expanded drawer
+  // so long names aren't clipped. Width persists; the header brand column
+  // mirrors it. Tracked on the document so the drag survives the cursor
+  // leaving the thin handle.
+  const [drawerWidth, setDrawerWidth] = useState(readDrawerWidth);
+  const [resizing, setResizing] = useState(false);
+  const startResize = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    setResizing(true);
+    const prevCursor = document.body.style.cursor;
+    const prevSelect = document.body.style.userSelect;
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+    const onMove = (ev: MouseEvent) => {
+      // Drawer's left edge is the viewport edge on desktop, so clientX is
+      // the width directly.
+      setDrawerWidth(clampDrawerWidth(ev.clientX));
+    };
+    const onUp = () => {
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+      document.body.style.cursor = prevCursor;
+      document.body.style.userSelect = prevSelect;
+      setResizing(false);
+      setDrawerWidth((w) => { writeDrawerWidth(w); return w; });
+    };
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+  }, []);
+
   // Host machine name for the /tools nav item — resolved from the daemon
   // (/api/system/info carries os.Hostname()); "Host" until it arrives.
   const [hostLabel, setHostLabel] = useState(HOST_LABEL_FALLBACK);
@@ -951,7 +1008,10 @@ export function Layout() {
   useEffect(() => { setMobileOpen(false); }, [location.pathname]);
 
   const isIconOnly = collapsed && !isMobile;
-  const sidebarWidth = isIconOnly ? "w-14" : "w-48";
+  // Pixel width the drawer (and the header's brand column) occupies in the
+  // current state: fixed rail when collapsed, fixed overlay on mobile,
+  // otherwise the user-resized width.
+  const drawerPx = isIconOnly ? RAIL_WIDTH : isMobile ? MOBILE_WIDTH : drawerWidth;
 
   // The drawer owns its own toggle (top-right of the brand row when
   // expanded, top of the icon rail when collapsed). On mobile the same
@@ -968,8 +1028,13 @@ export function Layout() {
       {/* Full-width top bar — one continuous strip across the viewport.
           The drawer sits BELOW it. */}
       <LayoutHeader
+        isMobile={isMobile}
         showMobileToggle={isMobile && !mobileOpen}
         onOpenMobile={() => setMobileOpen(true)}
+        brandWidth={drawerPx}
+        iconOnly={isIconOnly}
+        resizing={resizing}
+        onToggle={handleDrawerToggle}
       />
       <DegradedBanner />
 
@@ -977,27 +1042,25 @@ export function Layout() {
       {mobileOpen && <div className="fixed inset-0 z-40 bg-mycel-overlay md:hidden" onClick={() => setMobileOpen(false)} />}
 
       {/* Drawer — collapses to an icon rail with a 200ms ease-out width
-          transition; labels fade/slide in via .mycel-fade-slide-in. */}
+          transition; labels fade/slide in via .mycel-fade-slide-in. The
+          brand + toggle now live in the header's brand column (desktop);
+          the drawer starts straight at the nav. Width is driven inline so
+          it can be dragged; the transition is suppressed mid-drag. */}
       <nav
-        className={`fixed inset-y-0 left-0 z-50 ${sidebarWidth} shrink-0 border-r border-mycel-border bg-mycel-surface shadow-mycel flex flex-col transition-all duration-200 ease-out md:relative md:inset-y-auto md:translate-x-0 ${
-          isMobile ? (mobileOpen ? "translate-x-0 w-48" : "-translate-x-full") : ""
-        }`}
-        style={{ scrollbarWidth: "thin", scrollbarColor: "var(--mycel-scrollbar-thumb) transparent" }}
+        className={`fixed inset-y-0 left-0 z-50 shrink-0 border-r border-mycel-border bg-mycel-surface shadow-mycel flex flex-col md:relative md:inset-y-auto md:translate-x-0 ${
+          resizing ? "" : "transition-all duration-200 ease-out"
+        } ${isMobile ? (mobileOpen ? "translate-x-0" : "-translate-x-full") : ""}`}
+        style={{
+          width: drawerPx,
+          scrollbarWidth: "thin",
+          scrollbarColor: "var(--mycel-scrollbar-thumb) transparent",
+        }}
       >
-        {/* Brand row — first row of the drawer. Mark + wordmark sit on
-            the nav items' icon grid (border-l-2 + pl-4); the drawer
-            toggle rides top-right of the same row. Collapsed rail:
-            mark on top, explicit toggle below it (the mark itself is
-            NOT the toggle — it stays the home link). */}
-        {isIconOnly ? (
-          <div className="shrink-0 flex flex-col items-center gap-1 pt-3 pb-1">
-            <NavLink to="/" aria-label="mycel home" className="flex items-center justify-center h-7 text-mycel-text">
-              <BrandMark />
-            </NavLink>
-            <SidebarToggle collapsed onToggle={handleDrawerToggle} />
-          </div>
-        ) : (
-          <div className="shrink-0 flex items-center h-12 border-l-2 border-transparent pl-4 pr-2">
+        {/* Mobile-only brand row — the overlay drawer keeps its own brand
+            since the mobile header shows only the opener. On desktop the
+            brand lives in the header's brand column. */}
+        {isMobile && (
+          <div className="shrink-0 flex items-center h-12 pl-4 pr-2 border-b border-mycel-border">
             <NavLink
               to="/"
               aria-label="mycel home"
@@ -1006,9 +1069,7 @@ export function Layout() {
               <span className="shrink-0 flex items-center justify-center w-4">
                 <BrandMark size={18} />
               </span>
-              <span className="text-sm font-semibold tracking-tight truncate mycel-fade-slide-in">
-                mycel
-              </span>
+              <span className="text-sm font-semibold tracking-tight truncate">mycel</span>
             </NavLink>
             <span className="ml-auto">
               <SidebarToggle collapsed={false} onToggle={handleDrawerToggle} />
@@ -1030,6 +1091,28 @@ export function Layout() {
         {/* Footer — Theme toggle, Settings and About pinned at the
             bottom behind a top divider; icon-only in the rail. */}
         <DrawerFooter iconOnly={isIconOnly} />
+
+        {/* Resize handle — drag the right edge to widen the expanded
+            drawer. Desktop + expanded only; the rail and mobile overlay
+            use fixed widths. A wider invisible hit area sits over a thin
+            hairline that lights up on hover / during a drag. */}
+        {!isIconOnly && !isMobile && (
+          <div
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Resize sidebar"
+            onMouseDown={startResize}
+            onDoubleClick={() => { setDrawerWidth(DRAWER_DEFAULT); writeDrawerWidth(DRAWER_DEFAULT); }}
+            title="Drag to resize · double-click to reset"
+            className="group absolute inset-y-0 right-0 w-2 translate-x-1/2 cursor-col-resize z-10"
+          >
+            <span
+              className={`absolute inset-y-0 right-1 w-px transition-colors ${
+                resizing ? "bg-mycel-accent" : "bg-transparent group-hover:bg-mycel-accent/60"
+              }`}
+            />
+          </div>
+        )}
       </nav>
 
       <main className="flex-1 flex flex-col overflow-hidden bg-mycel-bg">
@@ -1105,31 +1188,100 @@ function DrawerFooter({ iconOnly }: { iconOnly: boolean }) {
 }
 
 /* ── LayoutHeader ───────────────────────────────────────────────
-   The full-width top bar. Brand + drawer toggle moved INTO the drawer,
-   so the header carries only per-view content (summary/search/actions
-   via HeaderSlotContext) — plus, on <md when the overlay drawer is
-   closed, a small opener at the far left so the drawer stays
-   reachable. Views that render their own top band (AgentDetail's HUD
-   bar) set `hidden` — the bar stays but carries no per-view content. */
+   The full-width top bar. Its left region is the brand / drawer column:
+   mycel mark + wordmark + drawer toggle, sized to the drawer's current
+   width so the two share an edge and collapse together. The rest of the
+   header is per-view content (summary/search/actions via
+   HeaderSlotContext) contributed by whichever page is mounted. On <md the
+   brand column becomes a bare opener while the overlay drawer is closed.
+   Views that render their own top band set `hidden`. */
 function LayoutHeader({
+  isMobile,
   showMobileToggle,
   onOpenMobile,
+  brandWidth,
+  iconOnly,
+  resizing,
+  onToggle,
 }: {
+  isMobile: boolean;
   showMobileToggle: boolean;
   onOpenMobile: () => void;
+  brandWidth: number;
+  iconOnly: boolean;
+  resizing: boolean;
+  onToggle: () => void;
 }) {
   const { slot } = useHeaderSlotContext();
   return (
     <Header
       left={
-        showMobileToggle ? (
-          <span className="md:hidden">
-            <SidebarToggle collapsed onToggle={onOpenMobile} />
-          </span>
-        ) : undefined
+        isMobile ? (
+          showMobileToggle ? (
+            <div className="flex items-center h-12 pl-2 pr-1 md:hidden">
+              <SidebarToggle collapsed onToggle={onOpenMobile} />
+            </div>
+          ) : undefined
+        ) : (
+          <BrandColumn
+            widthPx={brandWidth}
+            iconOnly={iconOnly}
+            resizing={resizing}
+            onToggle={onToggle}
+          />
+        )
       }
       center={slot.hidden ? undefined : slot.title}
       actions={slot.hidden ? undefined : slot.actions}
     />
+  );
+}
+
+/* ── BrandColumn ─────────────────────────────────────────────────
+   The header's left region, aligned above the drawer. Expanded: mycel
+   mark + wordmark (home link) with the drawer toggle pinned right.
+   Collapsed rail: just the toggle, centered — the wordmark goes away and
+   nothing spills past the rail edge. Width mirrors the drawer and only
+   animates when the user isn't actively dragging the resize handle. */
+function BrandColumn({
+  widthPx,
+  iconOnly,
+  resizing,
+  onToggle,
+}: {
+  widthPx: number;
+  iconOnly: boolean;
+  resizing: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <div
+      className={`flex items-center h-12 shrink-0 border-r border-mycel-border overflow-hidden ${
+        resizing ? "" : "transition-all duration-200 ease-out"
+      }`}
+      style={{ width: widthPx }}
+    >
+      {iconOnly ? (
+        <div className="flex items-center justify-center w-full">
+          <SidebarToggle collapsed onToggle={onToggle} />
+        </div>
+      ) : (
+        <>
+          <NavLink
+            to="/"
+            aria-label="mycel home"
+            className="flex items-center gap-2.5 select-none text-mycel-text min-w-0 pl-4"
+          >
+            <span className="shrink-0 flex items-center justify-center w-4">
+              <BrandMark size={18} />
+            </span>
+            <span className="text-sm font-semibold tracking-tight truncate">mycel</span>
+          </NavLink>
+          <span className="ml-auto pr-2">
+            <SidebarToggle collapsed={false} onToggle={onToggle} />
+          </span>
+        </>
+      )}
+    </div>
   );
 }
