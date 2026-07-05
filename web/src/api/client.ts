@@ -263,7 +263,9 @@ export interface FileAttachment {
 
 export interface DailyCost {
   date: string;
-  total_cost_usd: number;
+  // The /costs/daily endpoint emits this as `cost_usd` (unlike the agent /
+  // model summaries, which use total_cost_usd).
+  cost_usd: number;
   total_tokens: number;
   record_count: number;
   input_tokens: number;

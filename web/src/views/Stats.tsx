@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import {
   AreaChart, Area, BarChart, Bar, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -7,7 +7,7 @@ import {
 import { api } from "../api/client";
 import type {
   SystemStats, StatsSummary, CostSummary, ModelCostSummary, AgentCostSummary,
-  AgentMetricTS, TokenMetricTS, ChannelStats,
+  AgentMetricTS, TokenMetricTS, ChannelStats, DailyCost,
 } from "../api/client";
 import { usePolling } from "../hooks/usePolling";
 import { LoadingSkeleton } from "../components/LoadingSkeleton";
@@ -203,6 +203,18 @@ import { formatCost } from "../utils/format";
 const fmtCost = (n: number) => formatCost(n);
 const trunc = (s: string, n: number) => s.length > n ? s.slice(0, n) + "\u2026" : s;
 
+// Cost-ledger agent ids are namespaced "bc-<workspace>-<agent>" (e.g.
+// "bc-bc-zen-zebra"). Drop the "bc-" prefix and the workspace segment to
+// show the bare agent name ("zen-zebra"); fall back to the raw id if that
+// leaves nothing.
+function stripAgentPrefix(id: string): string {
+  if (id.startsWith("bc-")) {
+    const rest = id.split("-").slice(2).join("-");
+    return rest || id;
+  }
+  return id;
+}
+
 function fromParam(seconds: number): string {
   return new Date(Date.now() - seconds * 1000).toISOString();
 }
@@ -221,9 +233,67 @@ interface StatsData {
   agentDisk: AgentMetricTS[];
   tokenMetrics: TokenMetricTS[];
   notificationStats: ChannelStats[];
+  costDaily: DailyCost[];
 }
 
 type SortKey = "name" | "role" | "provider" | "state" | "cpu" | "mem" | "tokens" | "cost";
+
+// ── Dashboard chrome ──────────────────────────────────────────────────────────────
+
+// Single-page dashboard sections. Order drives both the sticky anchor-nav
+// and the on-page render order. Each id is the scroll target for its pill.
+const SECTIONS = [
+  { id: "agents", label: "Agents" },
+  { id: "cost", label: "Cost" },
+  { id: "usage", label: "Usage" },
+  { id: "system", label: "System" },
+  { id: "activity", label: "Activity" },
+] as const;
+
+// States that count as a live agent for the "Active agents" KPI.
+const ALIVE_STATES = new Set(["working", "idle", "running", "starting"]);
+
+/** Sticky anchor-nav — quiet pills that smooth-scroll to each section. */
+function AnchorNav() {
+  return (
+    <div className="sticky top-0 z-10 -mx-6 px-6 py-2 bg-mycel-bg/80 backdrop-blur-sm border-b border-mycel-border flex items-center gap-1.5 flex-wrap">
+      {SECTIONS.map((s) => (
+        <button
+          key={s.id}
+          type="button"
+          onClick={() => document.getElementById(s.id)?.scrollIntoView({ behavior: "smooth", block: "start" })}
+          className="px-2.5 py-1 text-[11px] font-medium rounded-full border border-mycel-border text-mycel-muted hover:text-mycel-text hover:border-mycel-muted transition-colors"
+        >
+          {s.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** Section header matching the Tools.tsx pattern: label + count + rule. */
+function SectionHeader({ label, count }: { label: string; count: number | string }) {
+  return (
+    <div className="flex items-baseline gap-2 mb-3">
+      <h2 className="text-[11px] font-medium text-mycel-muted uppercase tracking-[0.08em]">{label}</h2>
+      <span className="text-[11px] text-mycel-muted tabular-nums">{count}</span>
+      <span className="flex-1 h-px bg-mycel-border self-center" aria-hidden />
+    </div>
+  );
+}
+
+/** Compact KPI tile for the top strip; a Link when `to` is provided. */
+function KpiTile({ label, value, sub, to }: { label: string; value: React.ReactNode; sub?: string; to?: string }) {
+  const cls = `block bg-mycel-surface border border-mycel-border rounded-lg shadow-mycel-sm p-3${to ? " hover:border-mycel-accent transition-colors" : ""}`;
+  const body = (
+    <>
+      <div className="text-[10px] font-medium text-mycel-muted uppercase tracking-[0.08em] truncate">{label}</div>
+      <div className="mt-1 text-lg font-semibold tabular-nums text-mycel-text truncate">{value}</div>
+      {sub && <div className="text-[10px] text-mycel-muted truncate">{sub}</div>}
+    </>
+  );
+  return to ? <Link to={to} className={cls}>{body}</Link> : <div className={cls}>{body}</div>;
+}
 
 // ── Main ────────────────────────────────────────────────────────────────────────
 
@@ -271,10 +341,16 @@ export function Stats() {
   });
 
   const from = useMemo(() => fromParam(RANGES[range]?.seconds ?? 3600), [range]);
+  // Daily cost ledger window sized to the selected range: sub-day ranges
+  // still pull a single day so the fallback chart has something to show.
+  const daysForRange = useMemo(
+    () => Math.max(1, Math.ceil((RANGES[range]?.seconds ?? 3600) / 86400)),
+    [range],
+  );
 
   const fetcher = useCallback(async (): Promise<StatsData> => {
     const p = { from };
-    const [r0, r1, r2, r3, r4, r5, r6, r7, r8, r9, r10] = await Promise.allSettled([
+    const [r0, r1, r2, r3, r4, r5, r6, r7, r8, r9, r10, r11] = await Promise.allSettled([
       api.getStatsSystem(),
       api.getStatsSummary(),
       api.getCostSummary(),
@@ -286,6 +362,7 @@ export function Stats() {
       api.getAgentStats("disk", p),
       api.getAgentTokenStats(p),
       api.getStatsChannels(),
+      api.getCostDaily(daysForRange),
     ]);
     return {
       system: r0.status === "fulfilled" ? r0.value : null,
@@ -299,8 +376,9 @@ export function Stats() {
       agentDisk: r8.status === "fulfilled" ? (r8.value ?? []) : [],
       tokenMetrics: r9.status === "fulfilled" ? (r9.value ?? []) : [],
       notificationStats: r10.status === "fulfilled" ? (r10.value ?? []) : [],
+      costDaily: r11.status === "fulfilled" && Array.isArray(r11.value) ? r11.value : [],
     };
-  }, [from]);
+  }, [from, daysForRange]);
 
   const { data, loading, error, refresh, timedOut } = usePolling(fetcher, 10000);
 
@@ -314,6 +392,25 @@ export function Stats() {
   const costOverTime = useMemo(() => pivotCostOverTime(data?.tokenMetrics ?? []), [data?.tokenMetrics]);
   const tokensByAgent = useMemo(() => pivotTokensByAgent(data?.tokenMetrics ?? []), [data?.tokenMetrics]);
   const tokensByModel = useMemo(() => pivotTokensByModel(data?.tokenMetrics ?? []), [data?.tokenMetrics]);
+
+  // Cost-ledger fallbacks: when the token-metric timeseries is empty the
+  // derived charts above collapse to "No cost data", so fall back to the
+  // all-time cost ledger (/costs/*) which is populated independently.
+  const costOverTimeData = useMemo(() => {
+    if (costOverTime.length) return costOverTime;
+    return (data?.costDaily ?? []).map(d => ({ time: d.date, cost: d.cost_usd }));
+  }, [costOverTime, data?.costDaily]);
+
+  const costByAgentData = useMemo(() => {
+    if (tokensByAgent.length) {
+      return tokensByAgent.slice(0, 8).map(a => ({ name: trunc(a.name, 20), cost: parseFloat(a.cost.toFixed(4)) }));
+    }
+    return (data?.costByAgent ?? [])
+      .map(a => ({ name: stripAgentPrefix(a.agent_id), cost: a.total_cost_usd }))
+      .filter(a => a.cost > 0)
+      .sort((a, b) => b.cost - a.cost)
+      .slice(0, 8);
+  }, [tokensByAgent, data?.costByAgent]);
 
   // Time-range-filtered cost from token metrics
   const timeRangeCost = useMemo(() => {
@@ -342,15 +439,21 @@ export function Stats() {
     return [...(data?.notificationStats ?? [])]
       .sort((a, b) => b.message_count - a.message_count)
       .slice(0, 10)
-      .map(c => ({ name: trunc(c.name, 16), messages: c.message_count }));
+      .map(c => ({ name: trunc(c.name, 16), fullName: c.name, messages: c.message_count }));
   }, [data?.notificationStats]);
 
   const costByModelBar = useMemo(() => {
-    return tokensByModel
+    const fromTokens = tokensByModel
       .filter(m => m.cost > 0)
       .slice(0, 8)
       .map(m => ({ name: trunc(m.name, 24), cost: parseFloat(m.cost.toFixed(4)) }));
-  }, [tokensByModel]);
+    if (fromTokens.length) return fromTokens;
+    // Fallback to the all-time model cost ledger when the timeseries is empty.
+    return (data?.costByModel ?? [])
+      .map(m => ({ name: trunc(m.model, 24), cost: m.total_cost_usd }))
+      .filter(m => m.cost > 0)
+      .slice(0, 8);
+  }, [tokensByModel, data?.costByModel]);
 
   const agentTable = useMemo(() => buildAgentTable(data, sortKey, sortAsc), [data, sortKey, sortAsc]);
 
@@ -365,6 +468,41 @@ export function Stats() {
   const avgCpu = agentTable.length > 0 ? agentTable.reduce((s, a) => s + a.cpu, 0) / agentTable.length : 0;
   const totalMem = agentTable.reduce((s, a) => s + a.mem, 0);
   const totalTokens = agentTable.reduce((s, a) => s + a.tokens, 0);
+
+  // ── KPI strip values ─────────────────────────────────────────────────────────
+  const aliveCount = agentTable.filter((a) => ALIVE_STATES.has(a.state)).length;
+  const rangeHours = (RANGES[range]?.seconds ?? 0) / 3600;
+  // Range-scoped spend from the daily cost ledger (used when the per-minute
+  // token timeseries is empty on this deployment). Daily granularity means
+  // sub-day ranges resolve to "today".
+  const rangeSpend = useMemo(
+    () => (data?.costDaily ?? []).reduce((s, d) => s + (d.cost_usd ?? 0), 0),
+    [data?.costDaily],
+  );
+  // Prefer the timeseries-derived spend/tokens; else the range-scoped daily
+  // ledger; else the all-time ledger total as a last resort.
+  const displaySpend =
+    timeRangeCost > 0 ? timeRangeCost : rangeSpend > 0 ? rangeSpend : (data?.costSummary?.total_cost_usd ?? 0);
+  const kpiTokens = totalTokens > 0 ? totalTokens : (data?.costSummary?.total_tokens ?? 0);
+  // Burn rate is spend over the window it actually covers: the token
+  // timeseries spans rangeHours; the daily fallback spans daysForRange*24h.
+  // With only an all-time total (no daily data), a rate is meaningless → "—".
+  const burnHours = timeRangeCost > 0 ? rangeHours : rangeSpend > 0 ? daysForRange * 24 : 0;
+  const burnBase = timeRangeCost > 0 ? timeRangeCost : rangeSpend;
+  const burnRate = burnHours > 0 ? burnBase / burnHours : null;
+  const topCostDriver = agentTable.reduce<AgentRow | null>(
+    (top, a) => (a.cost > 0 && (!top || a.cost > top.cost) ? a : top),
+    null,
+  );
+  const topDriverFallback = (data?.costByAgent ?? []).reduce<AgentCostSummary | null>(
+    (top, a) => (a.total_cost_usd > 0 && (!top || a.total_cost_usd > top.total_cost_usd) ? a : top),
+    null,
+  );
+  const topDriver = topCostDriver && topCostDriver.cost > 0
+    ? { name: topCostDriver.name, cost: topCostDriver.cost }
+    : topDriverFallback
+      ? { name: stripAgentPrefix(topDriverFallback.agent_id), cost: topDriverFallback.total_cost_usd }
+      : null;
 
   // ── Render ──────────────────────────────────────────────────────────────────
 
@@ -390,7 +528,31 @@ export function Stats() {
   ];
 
   return (
-    <div className="p-6 space-y-4">
+    <div className="p-6 space-y-6">
+      {/* KPI strip — compact derived tiles across the top of the dashboard. */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+        <KpiTile label="Spend (this range)" value={fmtCost(displaySpend)} />
+        <KpiTile label="Tokens" value={fmtTokens(kpiTokens)} />
+        <KpiTile label="Active agents" value={`${aliveCount} / ${agentTable.length}`} />
+        <KpiTile label="Burn rate" value={burnRate === null ? "—" : `$${burnRate.toFixed(2)}/hr`} />
+        {topDriver ? (
+          <KpiTile
+            label="Top cost driver"
+            value={topDriver.name}
+            sub={`$${topDriver.cost.toFixed(2)}`}
+            to={`/agents/${encodeURIComponent(topDriver.name)}`}
+          />
+        ) : (
+          <KpiTile label="Top cost driver" value="—" />
+        )}
+      </div>
+
+      {/* Sticky anchor-nav — smooth-scrolls to each section. */}
+      <AnchorNav />
+
+      {/* ── Agents ── */}
+      <section id="agents" className="scroll-mt-16">
+        <SectionHeader label="Agents" count={agentTable.length} />
       {/* Agent Table */}
       {agentTable.length > 0 && (
         <Panel title={`Agents (${agentTable.length})`}>
@@ -463,26 +625,141 @@ export function Stats() {
         </Panel>
       )}
 
-      {/* Legend removed — agent names + swatches are already in the
-          Agents table's Name column immediately above. Interactive legend
-          (hover-to-highlight, click-to-toggle) tracked as P2 on #3205. */}
+      </section>
 
-      {/* Interactive shared legend for the CPU + Memory charts. Hover
-          raises the paired series, click toggles visibility. Both charts
-          key off the same agent set so one legend controls both. */}
-      {(cpuChart.agents.length > 0 || memChart.agents.length > 0) && (
-        <InteractiveLegend
-          agents={cpuChart.agents.length > 0 ? cpuChart.agents : memChart.agents}
-          colors={agentColors}
-          hovered={hoveredAgent}
-          hidden={hiddenAgents}
-          onHover={setHoveredAgent}
-          onToggle={toggleAgent}
-        />
-      )}
+      {/* ── Cost ── */}
+      <section id="cost" className="scroll-mt-16">
+        <SectionHeader label="Cost" count={3} />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <Panel title="Cost Over Time">
+          {costOverTimeData.length === 0 ? <Empty msg="No cost data" /> : (
+            <ResponsiveContainer width="100%" height={200}>
+              <AreaChart data={costOverTimeData} margin={{ top: 4, right: 8, left: -8, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--mycel-border)" vertical={false} />
+                <XAxis dataKey="time" tick={TICK_STYLE} {...AX} />
+                <YAxis tick={TICK_STYLE} {...AX} tickFormatter={(v: number) => `$${v.toFixed(2)}`} />
+                <Tooltip contentStyle={TT} formatter={(v) => [`$${Number(v ?? 0).toFixed(4)}`]} />
+                <Area type="monotone" dataKey="cost" name="Cost" stroke={ACCENT} fill={ACCENT} fillOpacity={0.15} strokeWidth={1.5} dot={false} />
+              </AreaChart>
+            </ResponsiveContainer>
+          )}
+        </Panel>
+        <Panel title="Cost by Agent">
+          {costByAgentData.length === 0 ? <Empty msg="No cost data" /> : (
+            <ResponsiveContainer width="100%" height={200}>
+              <BarChart layout="vertical" data={costByAgentData} margin={{ top: 0, right: 8, left: 4, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--mycel-border)" horizontal={false} />
+                <XAxis type="number" tick={TICK_STYLE} {...AX} tickFormatter={(v: number) => `$${v}`} />
+                <YAxis type="category" dataKey="name" tick={{ ...TICK_STYLE, fill: "var(--mycel-text)", fontSize: 9 }} {...AX} width={100} />
+                <Tooltip contentStyle={TT} formatter={(v) => [`$${Number(v ?? 0).toFixed(4)}`]} />
+                <Bar dataKey="cost" radius={[0, 3, 3, 0]}>
+                  {costByAgentData.map((a, i) => <Cell key={i} fill={agentColors[a.name] ?? COLORS[i % COLORS.length]} />)}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </Panel>
+        <Panel title="Cost by Model">
+          {costByModelBar.length === 0 ? <Empty msg="No cost data" /> : (
+            <ResponsiveContainer width="100%" height={200}>
+              <BarChart layout="vertical" data={costByModelBar} margin={{ top: 0, right: 8, left: 4, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--mycel-border)" horizontal={false} />
+                <XAxis type="number" tick={TICK_STYLE} {...AX} tickFormatter={(v: number) => `$${v}`} />
+                <YAxis type="category" dataKey="name" tick={{ ...TICK_STYLE, fill: "var(--mycel-text)", fontSize: 9 }} {...AX} width={120} />
+                <Tooltip contentStyle={TT} formatter={(v) => [`$${Number(v ?? 0).toFixed(4)}`]} />
+                <Bar dataKey="cost" radius={[0, 3, 3, 0]}>
+                  {costByModelBar.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </Panel>
+        </div>
+      </section>
 
-      {/* Row 1: CPU + Memory */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+      {/* ── Usage ── */}
+      <section id="usage" className="scroll-mt-16">
+        <SectionHeader label="Usage" count={4} />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <Panel title="Token Throughput">
+          {tokenChart.length === 0 ? <Empty msg="No token data" /> : (
+            <ResponsiveContainer width="100%" height={200}>
+              <AreaChart data={tokenChart} margin={{ top: 4, right: 8, left: -8, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--mycel-border)" vertical={false} />
+                <XAxis dataKey="time" tick={TICK_STYLE} {...AX} />
+                <YAxis tick={TICK_STYLE} {...AX} tickFormatter={(v: number) => fmtTokens(v)} />
+                <Tooltip contentStyle={TT} formatter={(v, n) => [Number(v ?? 0).toLocaleString(), n === "input" ? "Input" : "Output"]} />
+                <Area type="monotone" dataKey="input" name="Input" stroke="#3B82F6" fill="#3B82F6" fillOpacity={0.20} strokeWidth={1.75} stackId="1" dot={false} />
+                <Area type="monotone" dataKey="output" name="Output" stroke={ACCENT} fill={ACCENT} fillOpacity={0.20} strokeWidth={1.75} stackId="1" dot={false} />
+              </AreaChart>
+            </ResponsiveContainer>
+          )}
+        </Panel>
+        <Panel title="Model Usage (Tokens)">
+          {tokensByModel.length === 0 ? <Empty msg="No model data" /> : (
+            <ResponsiveContainer width="100%" height={200}>
+              <BarChart layout="vertical" data={tokensByModel.slice(0, 8).map(m => ({ name: trunc(m.name, 24), tokens: m.tokens }))} margin={{ top: 0, right: 8, left: 4, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--mycel-border)" horizontal={false} />
+                <XAxis type="number" tick={TICK_STYLE} {...AX} tickFormatter={(v: number) => fmtTokens(v)} />
+                <YAxis type="category" dataKey="name" tick={{ ...TICK_STYLE, fill: "var(--mycel-text)", fontSize: 9 }} {...AX} width={120} />
+                <Tooltip contentStyle={TT} formatter={(v) => [fmtTokens(Number(v ?? 0))]} />
+                <Bar dataKey="tokens" radius={[0, 3, 3, 0]}>
+                  {tokensByModel.slice(0, 8).map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </Panel>
+        <Panel title="Cache Efficiency">
+          {!hasCacheData ? <Empty msg="Cache data — coming soon" /> : (
+            <ResponsiveContainer width="100%" height={200}>
+              <AreaChart data={cacheChart} margin={{ top: 4, right: 8, left: -8, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--mycel-border)" vertical={false} />
+                <XAxis dataKey="time" tick={TICK_STYLE} {...AX} />
+                <YAxis tick={TICK_STYLE} {...AX} tickFormatter={(v: number) => fmtTokens(v)} />
+                <Tooltip contentStyle={TT} formatter={(v, n) => [fmtTokens(Number(v ?? 0)), n === "cache_read" ? "Cache Read" : "Cache Create"]} />
+                <Area type="monotone" dataKey="cache_read" name="Cache Read" stroke="#10B981" fill="#10B981" fillOpacity={0.20} strokeWidth={1.75} dot={false} />
+                <Area type="monotone" dataKey="cache_create" name="Cache Create" stroke="#F59E0B" fill="#F59E0B" fillOpacity={0.20} strokeWidth={1.75} dot={false} />
+              </AreaChart>
+            </ResponsiveContainer>
+          )}
+        </Panel>
+        <Panel title="Agent Token Breakdown">
+          {tokensByAgent.length === 0 ? <Empty msg="No token data" /> : (
+            <ResponsiveContainer width="100%" height={200}>
+              <BarChart data={tokensByAgent.slice(0, 8).map(a => ({ name: trunc(a.name, 12), input: a.input, output: a.output }))} margin={{ top: 4, right: 8, left: -8, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--mycel-border)" vertical={false} />
+                <XAxis dataKey="name" tick={{ ...TICK_STYLE, fontSize: 9 }} {...AX} />
+                <YAxis tick={TICK_STYLE} {...AX} tickFormatter={(v: number) => fmtTokens(v)} />
+                <Tooltip contentStyle={TT} formatter={(v, n) => [fmtTokens(Number(v ?? 0)), n === "input" ? "Input" : "Output"]} />
+                <Bar dataKey="input" name="Input" fill="#3B82F6" radius={[3, 3, 0, 0]} />
+                <Bar dataKey="output" name="Output" fill={ACCENT} radius={[3, 3, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </Panel>
+        </div>
+      </section>
+
+      {/* ── System ── */}
+      <section id="system" className="scroll-mt-16">
+        <SectionHeader label="System" count={4} />
+        {/* Interactive shared legend for the CPU + Memory charts. Hover
+            raises the paired series, click toggles visibility. Both charts
+            key off the same agent set so one legend controls both. */}
+        {(cpuChart.agents.length > 0 || memChart.agents.length > 0) && (
+          <div className="mb-3">
+            <InteractiveLegend
+              agents={cpuChart.agents.length > 0 ? cpuChart.agents : memChart.agents}
+              colors={agentColors}
+              hovered={hoveredAgent}
+              hidden={hiddenAgents}
+              onHover={setHoveredAgent}
+              onToggle={toggleAgent}
+            />
+          </div>
+        )}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <Panel title="CPU by Agent (%)">
           {cpuChart.data.length === 0 ? <Empty msg="No CPU data" /> : (
             <ResponsiveContainer width="100%" height={200}>
@@ -543,41 +820,6 @@ export function Stats() {
             </ResponsiveContainer>
           )}
         </Panel>
-      </div>
-
-      {/* Row 2: Token Flow */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <Panel title="Token Throughput">
-          {tokenChart.length === 0 ? <Empty msg="No token data" /> : (
-            <ResponsiveContainer width="100%" height={200}>
-              <AreaChart data={tokenChart} margin={{ top: 4, right: 8, left: -8, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--mycel-border)" vertical={false} />
-                <XAxis dataKey="time" tick={TICK_STYLE} {...AX} />
-                <YAxis tick={TICK_STYLE} {...AX} tickFormatter={(v: number) => fmtTokens(v)} />
-                <Tooltip contentStyle={TT} formatter={(v, n) => [Number(v ?? 0).toLocaleString(), n === "input" ? "Input" : "Output"]} />
-                <Area type="monotone" dataKey="input" name="Input" stroke="#3B82F6" fill="#3B82F6" fillOpacity={0.20} strokeWidth={1.75} stackId="1" dot={false} />
-                <Area type="monotone" dataKey="output" name="Output" stroke={ACCENT} fill={ACCENT} fillOpacity={0.20} strokeWidth={1.75} stackId="1" dot={false} />
-              </AreaChart>
-            </ResponsiveContainer>
-          )}
-        </Panel>
-        <Panel title="Cost Over Time">
-          {costOverTime.length === 0 ? <Empty msg="No cost data" /> : (
-            <ResponsiveContainer width="100%" height={200}>
-              <AreaChart data={costOverTime} margin={{ top: 4, right: 8, left: -8, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--mycel-border)" vertical={false} />
-                <XAxis dataKey="time" tick={TICK_STYLE} {...AX} />
-                <YAxis tick={TICK_STYLE} {...AX} tickFormatter={(v: number) => `$${v.toFixed(2)}`} />
-                <Tooltip contentStyle={TT} formatter={(v) => [`$${Number(v ?? 0).toFixed(4)}`]} />
-                <Area type="monotone" dataKey="cost" name="Cost" stroke={ACCENT} fill={ACCENT} fillOpacity={0.15} strokeWidth={1.5} dot={false} />
-              </AreaChart>
-            </ResponsiveContainer>
-          )}
-        </Panel>
-      </div>
-
-      {/* Row 3: I/O */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <Panel title="Network I/O">
           {netChart.length === 0 ? <Empty msg="No network data" /> : (
             <ResponsiveContainer width="100%" height={200}>
@@ -606,43 +848,13 @@ export function Stats() {
             </ResponsiveContainer>
           )}
         </Panel>
-      </div>
+        </div>
+      </section>
 
-      {/* Row 4: Model & Cache */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <Panel title="Model Usage (Tokens)">
-          {tokensByModel.length === 0 ? <Empty msg="No model data" /> : (
-            <ResponsiveContainer width="100%" height={200}>
-              <BarChart layout="vertical" data={tokensByModel.slice(0, 8).map(m => ({ name: trunc(m.name, 24), tokens: m.tokens }))} margin={{ top: 0, right: 8, left: 4, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--mycel-border)" horizontal={false} />
-                <XAxis type="number" tick={TICK_STYLE} {...AX} tickFormatter={(v: number) => fmtTokens(v)} />
-                <YAxis type="category" dataKey="name" tick={{ ...TICK_STYLE, fill: "var(--mycel-text)", fontSize: 9 }} {...AX} width={120} />
-                <Tooltip contentStyle={TT} formatter={(v) => [fmtTokens(Number(v ?? 0))]} />
-                <Bar dataKey="tokens" radius={[0, 3, 3, 0]}>
-                  {tokensByModel.slice(0, 8).map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          )}
-        </Panel>
-        <Panel title="Cache Efficiency">
-          {!hasCacheData ? <Empty msg="Cache data — coming soon" /> : (
-            <ResponsiveContainer width="100%" height={200}>
-              <AreaChart data={cacheChart} margin={{ top: 4, right: 8, left: -8, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--mycel-border)" vertical={false} />
-                <XAxis dataKey="time" tick={TICK_STYLE} {...AX} />
-                <YAxis tick={TICK_STYLE} {...AX} tickFormatter={(v: number) => fmtTokens(v)} />
-                <Tooltip contentStyle={TT} formatter={(v, n) => [fmtTokens(Number(v ?? 0)), n === "cache_read" ? "Cache Read" : "Cache Create"]} />
-                <Area type="monotone" dataKey="cache_read" name="Cache Read" stroke="#10B981" fill="#10B981" fillOpacity={0.20} strokeWidth={1.75} dot={false} />
-                <Area type="monotone" dataKey="cache_create" name="Cache Create" stroke="#F59E0B" fill="#F59E0B" fillOpacity={0.20} strokeWidth={1.75} dot={false} />
-              </AreaChart>
-            </ResponsiveContainer>
-          )}
-        </Panel>
-      </div>
-
-      {/* Row 5: Notifications & Cost Breakdown */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+      {/* ── Activity ── */}
+      <section id="activity" className="scroll-mt-16">
+        <SectionHeader label="Activity" count={notificationBarData.length} />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <Panel title="Notification Activity (Top 10)">
           {notificationBarData.length === 0 ? <Empty msg="No notification data" /> : (
             <ResponsiveContainer width="100%" height={200}>
@@ -651,62 +863,25 @@ export function Stats() {
                 <XAxis type="number" tick={TICK_STYLE} {...AX} />
                 <YAxis type="category" dataKey="name" tick={{ ...TICK_STYLE, fill: "var(--mycel-text)", fontSize: 9 }} {...AX} width={100} />
                 <Tooltip contentStyle={TT} formatter={(v) => [Number(v ?? 0).toLocaleString(), "Messages"]} />
-                <Bar dataKey="messages" radius={[0, 3, 3, 0]}>
+                {/* Bars drill into the channel's notification feed, matching
+                    the agents table → agent detail pattern. */}
+                <Bar
+                  dataKey="messages"
+                  radius={[0, 3, 3, 0]}
+                  cursor="pointer"
+                  onClick={(entry) => {
+                    const full = (entry as { fullName?: string }).fullName;
+                    if (full) navigate(`/notifications/${encodeURIComponent(full)}`);
+                  }}
+                >
                   {notificationBarData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
           )}
         </Panel>
-        <Panel title="Cost by Agent">
-          {tokensByAgent.length === 0 ? <Empty msg="No cost data" /> : (
-            <ResponsiveContainer width="100%" height={200}>
-              <BarChart layout="vertical" data={tokensByAgent.slice(0, 8).map(a => ({ name: trunc(a.name, 20), cost: parseFloat(a.cost.toFixed(4)) }))} margin={{ top: 0, right: 8, left: 4, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--mycel-border)" horizontal={false} />
-                <XAxis type="number" tick={TICK_STYLE} {...AX} tickFormatter={(v: number) => `$${v}`} />
-                <YAxis type="category" dataKey="name" tick={{ ...TICK_STYLE, fill: "var(--mycel-text)", fontSize: 9 }} {...AX} width={100} />
-                <Tooltip contentStyle={TT} formatter={(v) => [`$${Number(v ?? 0).toFixed(4)}`]} />
-                <Bar dataKey="cost" radius={[0, 3, 3, 0]}>
-                  {tokensByAgent.slice(0, 8).map((a, i) => <Cell key={i} fill={agentColors[a.name] ?? COLORS[i % COLORS.length]} />)}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          )}
-        </Panel>
-      </div>
-
-      {/* Row 6: Agent Tokens & Cost by Model */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <Panel title="Agent Token Breakdown">
-          {tokensByAgent.length === 0 ? <Empty msg="No token data" /> : (
-            <ResponsiveContainer width="100%" height={200}>
-              <BarChart data={tokensByAgent.slice(0, 8).map(a => ({ name: trunc(a.name, 12), input: a.input, output: a.output }))} margin={{ top: 4, right: 8, left: -8, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--mycel-border)" vertical={false} />
-                <XAxis dataKey="name" tick={{ ...TICK_STYLE, fontSize: 9 }} {...AX} />
-                <YAxis tick={TICK_STYLE} {...AX} tickFormatter={(v: number) => fmtTokens(v)} />
-                <Tooltip contentStyle={TT} formatter={(v, n) => [fmtTokens(Number(v ?? 0)), n === "input" ? "Input" : "Output"]} />
-                <Bar dataKey="input" name="Input" fill="#3B82F6" radius={[3, 3, 0, 0]} />
-                <Bar dataKey="output" name="Output" fill={ACCENT} radius={[3, 3, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          )}
-        </Panel>
-        <Panel title="Cost by Model">
-          {costByModelBar.length === 0 ? <Empty msg="No cost data" /> : (
-            <ResponsiveContainer width="100%" height={200}>
-              <BarChart layout="vertical" data={costByModelBar} margin={{ top: 0, right: 8, left: 4, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--mycel-border)" horizontal={false} />
-                <XAxis type="number" tick={TICK_STYLE} {...AX} tickFormatter={(v: number) => `$${v}`} />
-                <YAxis type="category" dataKey="name" tick={{ ...TICK_STYLE, fill: "var(--mycel-text)", fontSize: 9 }} {...AX} width={120} />
-                <Tooltip contentStyle={TT} formatter={(v) => [`$${Number(v ?? 0).toFixed(4)}`]} />
-                <Bar dataKey="cost" radius={[0, 3, 3, 0]}>
-                  {costByModelBar.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          )}
-        </Panel>
-      </div>
+        </div>
+      </section>
     </div>
   );
 }

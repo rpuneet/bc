@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor, fireEvent } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, useLocation } from "react-router-dom";
 import { Insights } from "../Insights";
 import { AppRoutes } from "../../App";
@@ -17,13 +17,10 @@ function jsonResponse(body: unknown) {
   } as Response);
 }
 
-/** Route-aware API mock covering both the Stats and Costs tab data. */
+/** Route-aware API mock for the single-page Stats dashboard. */
 function mockApi() {
   fetchMock.mockImplementation((url: RequestInfo | URL) => {
     const u = String(url);
-    if (u.includes("/api/global/costs")) {
-      return jsonResponse({ range: { start: "2026-06-05T00:00:00Z" }, groupBy: "repo", rows: [] });
-    }
     if (u.includes("/api/costs/agents") || u.includes("/api/costs/models")) {
       return jsonResponse([]);
     }
@@ -66,37 +63,36 @@ beforeEach(() => {
 });
 
 describe("Insights", () => {
-  it("defaults to the Metrics tab and renders the Stats view", async () => {
+  it("renders one dashboard with no tab bar", async () => {
     renderInsights();
 
-    expect(screen.getByRole("tab", { name: "Metrics" })).toHaveAttribute("aria-selected", "true");
-    expect(screen.getByRole("tab", { name: "Costs" })).toHaveAttribute("aria-selected", "false");
-    // Stats view content (empty-data panels) arrives once polling settles.
+    // The old Metrics/Costs tab bar is gone.
+    expect(screen.queryByRole("tablist")).not.toBeInTheDocument();
+    expect(screen.queryByRole("tab")).not.toBeInTheDocument();
+
+    // Chart panels arrive once polling settles.
     await waitFor(() => expect(screen.getByText("No CPU data")).toBeInTheDocument());
   });
 
-  it("renders the Costs view (with token stats) on ?tab=costs", async () => {
-    renderInsights("/insights?tab=costs");
-
-    expect(screen.getByRole("tab", { name: "Costs" })).toHaveAttribute("aria-selected", "true");
-    await waitFor(() => expect(screen.getByText("No cost data in range.")).toBeInTheDocument());
-    // Token usage presented alongside dollar costs.
-    await waitFor(() => expect(screen.getByText("Total tokens")).toBeInTheDocument());
-    expect(screen.getByText("1.5M")).toBeInTheDocument();
-    expect(screen.getByText("Input tokens")).toBeInTheDocument();
-    expect(screen.getByText("Output tokens")).toBeInTheDocument();
-  });
-
-  it("switches tabs on click", async () => {
+  it("shows the KPI strip", async () => {
     renderInsights();
 
-    fireEvent.click(screen.getByRole("tab", { name: "Costs" }));
-    expect(screen.getByRole("tab", { name: "Costs" })).toHaveAttribute("aria-selected", "true");
-    await waitFor(() => expect(screen.getByText("No cost data in range.")).toBeInTheDocument());
+    // The dashboard mounts once the first poll settles (a skeleton shows
+    // until then), so wait for a KPI tile label to appear.
+    await waitFor(() => expect(screen.getByText("Spend (this range)")).toBeInTheDocument());
+    expect(screen.getByText("Active agents")).toBeInTheDocument();
+    expect(screen.getByText("Burn rate")).toBeInTheDocument();
+  });
 
-    fireEvent.click(screen.getByRole("tab", { name: "Metrics" }));
-    expect(screen.getByRole("tab", { name: "Metrics" })).toHaveAttribute("aria-selected", "true");
+  it("renders the grouped section headers", async () => {
+    renderInsights();
+
+    // Section headers double as anchor-nav targets; the pill labels and
+    // the headers share text, so each label appears at least once.
     await waitFor(() => expect(screen.getByText("No CPU data")).toBeInTheDocument());
+    for (const label of ["Cost", "Usage", "System", "Activity"]) {
+      expect(screen.getAllByText(label).length).toBeGreaterThan(0);
+    }
   });
 });
 
@@ -112,23 +108,23 @@ describe("Insights redirects", () => {
     );
   }
 
-  it("redirects /costs to /insights?tab=costs", async () => {
+  it("redirects /costs to /insights", async () => {
     renderApp("/costs");
     await waitFor(() =>
-      expect(screen.getByTestId("loc")).toHaveTextContent("/insights?tab=costs"),
+      expect(screen.getByTestId("loc")).toHaveTextContent("/insights"),
     );
   });
 
-  it("redirects /stats and /metrics to /insights?tab=metrics", async () => {
+  it("redirects /stats and /metrics to /insights", async () => {
     const { unmount } = renderApp("/stats");
     await waitFor(() =>
-      expect(screen.getByTestId("loc")).toHaveTextContent("/insights?tab=metrics"),
+      expect(screen.getByTestId("loc")).toHaveTextContent("/insights"),
     );
     unmount();
 
     renderApp("/metrics");
     await waitFor(() =>
-      expect(screen.getByTestId("loc")).toHaveTextContent("/insights?tab=metrics"),
+      expect(screen.getByTestId("loc")).toHaveTextContent("/insights"),
     );
   });
 });

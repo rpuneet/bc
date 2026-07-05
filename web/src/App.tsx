@@ -66,10 +66,11 @@ export function AppRoutes() {
         <Route path="cron" element={wrap(<Cron />)} />
         <Route path="secrets" element={wrap(<Secrets />)} />
         <Route path="insights" element={wrap(<Insights />)} />
-        {/* Metrics + Costs merged into /insights — old links redirect. */}
-        <Route path="stats" element={<Navigate to="/insights?tab=metrics" replace />} />
-        <Route path="metrics" element={<Navigate to="/insights?tab=metrics" replace />} />
-        <Route path="costs" element={<Navigate to="/insights?tab=costs" replace />} />
+        {/* Metrics + Costs merged into the single /insights dashboard —
+            old links redirect. */}
+        <Route path="stats" element={<Navigate to="/insights" replace />} />
+        <Route path="metrics" element={<Navigate to="/insights" replace />} />
+        <Route path="costs" element={<Navigate to="/insights" replace />} />
         <Route path="code" element={wrap(<Code />)} />
         <Route path="code/*" element={wrap(<Code />)} />
         <Route path="settings" element={wrap(<Settings />)} />
