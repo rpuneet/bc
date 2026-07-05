@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -150,30 +151,35 @@ type avatarDTO struct {
 }
 
 type agentDTO struct { //nolint:govet // field order matches JSON/API contract
-	CreatedAt    time.Time      `json:"created_at"`
-	StartedAt    time.Time      `json:"started_at,omitempty"`
-	UpdatedAt    time.Time      `json:"updated_at"`
-	StoppedAt    *time.Time     `json:"stopped_at,omitempty"`
-	ArchivedAt   *time.Time     `json:"archived_at,omitempty"`
-	Stats        *agentStatsDTO `json:"stats,omitempty"`
-	Avatar       *avatarDTO     `json:"avatar,omitempty"`
-	Tool         string         `json:"tool,omitempty"`
-	Session      string         `json:"session,omitempty"`
-	State        string         `json:"state"`
-	Task         string         `json:"task,omitempty"`
-	Team         string         `json:"team,omitempty"`
-	Name         string         `json:"name"`
-	Runtime      string         `json:"runtime_backend,omitempty"`
-	Role         string         `json:"role"`
-	Template     string         `json:"template,omitempty"`
-	SessionID    string         `json:"session_id,omitempty"`
-	ParentID     string         `json:"parent_id,omitempty"`
-	ID           string         `json:"id,omitempty"`
-	Repo         string         `json:"repo,omitempty"`
-	MCPServers   []string       `json:"mcp_servers,omitempty"`
-	Children     []string       `json:"children,omitempty"`
-	TotalCostUSD float64        `json:"total_cost_usd"`
-	TotalTokens  int64          `json:"total_tokens"`
+	CreatedAt  time.Time      `json:"created_at"`
+	StartedAt  time.Time      `json:"started_at,omitempty"`
+	UpdatedAt  time.Time      `json:"updated_at"`
+	StoppedAt  *time.Time     `json:"stopped_at,omitempty"`
+	ArchivedAt *time.Time     `json:"archived_at,omitempty"`
+	Stats      *agentStatsDTO `json:"stats,omitempty"`
+	Avatar     *avatarDTO     `json:"avatar,omitempty"`
+	// Env holds the agent's configured environment variables. Values
+	// with ${secret:NAME} references are returned as the reference —
+	// resolved values never leave the daemon.
+	Env          map[string]string `json:"env,omitempty"`
+	Tool         string            `json:"tool,omitempty"`
+	Model        string            `json:"model,omitempty"`
+	Session      string            `json:"session,omitempty"`
+	State        string            `json:"state"`
+	Task         string            `json:"task,omitempty"`
+	Team         string            `json:"team,omitempty"`
+	Name         string            `json:"name"`
+	Runtime      string            `json:"runtime_backend,omitempty"`
+	Role         string            `json:"role"`
+	Template     string            `json:"template,omitempty"`
+	SessionID    string            `json:"session_id,omitempty"`
+	ParentID     string            `json:"parent_id,omitempty"`
+	ID           string            `json:"id,omitempty"`
+	Repo         string            `json:"repo,omitempty"`
+	MCPServers   []string          `json:"mcp_servers,omitempty"`
+	Children     []string          `json:"children,omitempty"`
+	TotalCostUSD float64           `json:"total_cost_usd"`
+	TotalTokens  int64             `json:"total_tokens"`
 }
 
 // agentStatsDTO holds resource metrics included when ?include=stats is set.
@@ -197,6 +203,7 @@ func toDTO(a *agent.Agent) agentDTO {
 		Task:       a.Task,
 		Team:       a.Team,
 		Tool:       a.Tool,
+		Model:      a.Model,
 		Runtime:    a.RuntimeBackend,
 		Session:    a.Session,
 		SessionID:  a.SessionID,
@@ -208,6 +215,7 @@ func toDTO(a *agent.Agent) agentDTO {
 		StoppedAt:  a.StoppedAt,
 		ArchivedAt: a.ArchivedAt,
 		Repo:       a.Repo,
+		Env:        a.Env,
 	}
 }
 
@@ -222,6 +230,29 @@ func buildCostMap(ctx context.Context, store *cost.Store) map[string]*cost.Summa
 		m[s.AgentID] = s
 	}
 	return m
+}
+
+// costForAgent aggregates ledger summaries for an agent. The ledger keys
+// agent_id by the worktree/session name the transcripts were imported
+// under: bare `<name>` (flat layout) or the legacy `bc-<repoBase>-<name>`.
+// Both candidates are derived exactly from the agent's own name and repo —
+// no suffix scanning, so `web` can never absorb `other-web`'s costs.
+func costForAgent(costMap map[string]*cost.Summary, name, repo string) (costUSD float64, tokens int64, found bool) {
+	if name == "" {
+		return 0, 0, false
+	}
+	candidates := []string{name}
+	if repo != "" {
+		candidates = append(candidates, "bc-"+filepath.Base(repo)+"-"+name)
+	}
+	for _, id := range candidates {
+		if s, ok := costMap[id]; ok {
+			costUSD += s.TotalCostUSD
+			tokens += s.TotalTokens
+			found = true
+		}
+	}
+	return costUSD, tokens, found
 }
 
 func (h *AgentHandler) list(w http.ResponseWriter, r *http.Request) {
@@ -249,9 +280,9 @@ func (h *AgentHandler) list(w http.ResponseWriter, r *http.Request) {
 		if costs != nil {
 			costMap := buildCostMap(r.Context(), costs)
 			for i := range dtos {
-				if summary, ok := costMap[dtos[i].Name]; ok {
-					dtos[i].TotalCostUSD = summary.TotalCostUSD
-					dtos[i].TotalTokens = summary.TotalTokens
+				if costUSD, tokens, ok := costForAgent(costMap, dtos[i].Name, dtos[i].Repo); ok {
+					dtos[i].TotalCostUSD = costUSD
+					dtos[i].TotalTokens = tokens
 				}
 			}
 		}
@@ -324,13 +355,18 @@ func (h *AgentHandler) list(w http.ResponseWriter, r *http.Request) {
 
 	case http.MethodPost:
 		var req struct {
-			Avatar   *avatarDTO `json:"avatar,omitempty"`
-			Name     string     `json:"name"`
-			Role     string     `json:"role"`
-			Tool     string     `json:"tool"`
-			Runtime  string     `json:"runtime_backend"`
-			Parent   string     `json:"parent"`
-			Template string     `json:"template,omitempty"`
+			Avatar *avatarDTO `json:"avatar,omitempty"`
+			// Env holds user-configured environment variables. Values may
+			// contain ${secret:NAME} references, stored verbatim and
+			// resolved against the vault at spawn time.
+			Env      map[string]string `json:"env,omitempty"`
+			Name     string            `json:"name"`
+			Role     string            `json:"role"`
+			Tool     string            `json:"tool"`
+			Model    string            `json:"model,omitempty"`
+			Runtime  string            `json:"runtime_backend"`
+			Parent   string            `json:"parent"`
+			Template string            `json:"template,omitempty"`
 			// Repo is the absolute path of the git repo the agent binds
 			// to. Empty defaults to the repo bcd was booted against.
 			Repo string `json:"repo,omitempty"`
@@ -338,6 +374,12 @@ func (h *AgentHandler) list(w http.ResponseWriter, r *http.Request) {
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			httpError(w, "invalid request body", http.StatusBadRequest)
 			return
+		}
+		for k := range req.Env {
+			if !agent.IsValidEnvName(k) {
+				httpError(w, fmt.Sprintf("invalid env var name %q: must match ^[A-Za-z_][A-Za-z0-9_]*$", k), http.StatusBadRequest)
+				return
+			}
 		}
 		// Default role to "base" when template is provided without explicit role.
 		role := req.Role
@@ -348,9 +390,11 @@ func (h *AgentHandler) list(w http.ResponseWriter, r *http.Request) {
 			Name:    req.Name,
 			Role:    agent.Role(role),
 			Tool:    req.Tool,
+			Model:   req.Model,
 			Runtime: req.Runtime,
 			Parent:  req.Parent,
 			Repo:    req.Repo,
+			Env:     req.Env,
 		})
 		if err != nil {
 			httpError(w, err.Error(), http.StatusBadRequest)
@@ -728,7 +772,7 @@ func (h *AgentHandler) byName(w http.ResponseWriter, r *http.Request) {
 		h.agentComputedStats(w, r, name)
 
 	case r.Method == http.MethodGet && action == "env":
-		h.getAgentEnv(w, name)
+		h.getAgentEnv(w, r, name)
 
 	case r.Method == http.MethodPut && action == "env":
 		h.putAgentEnv(w, r, name)
@@ -1404,92 +1448,55 @@ func (h *AgentHandler) deleteAgentMCP(w http.ResponseWriter, _ *http.Request, wt
 // ── Env var persistence ───────────────────────────────────────────────────────
 
 // envVarEntry is a single key/value environment variable entry.
+// Values holding ${secret:NAME} references travel as the reference —
+// resolved values never leave the daemon.
 type envVarEntry struct {
 	Key   string `json:"key"`
 	Value string `json:"value"`
 }
 
-// envPath returns the path to env.json for the named agent.
-func (h *AgentHandler) envPath(agentName string) string {
-	return h.agentStateFile(agentName, "env.json")
+// envEntries converts an agent env map to a stable key-sorted list.
+func envEntries(env map[string]string) []envVarEntry {
+	vars := make([]envVarEntry, 0, len(env))
+	for k, v := range env {
+		vars = append(vars, envVarEntry{Key: k, Value: v})
+	}
+	sort.Slice(vars, func(i, j int) bool { return vars[i].Key < vars[j].Key })
+	return vars
 }
 
-// agentStateFile builds <stateDir>/agents/<agentName>/<file>, rejecting
-// any input that could step outside the agents directory. agentName
-// arrives from the URL, so it must be a plain local segment; the state
-// dir is cleaned and traversal segments are rejected outright.
-func (h *AgentHandler) agentStateFile(agentName, file string) string {
-	if h.ws == nil {
-		return ""
-	}
-	if !filepath.IsLocal(agentName) || strings.ContainsAny(agentName, `/\`) {
-		return ""
-	}
-	stateDir := filepath.Clean(h.ws.StateDir())
-	if strings.Contains(stateDir, "..") {
-		return ""
-	}
-	return filepath.Join(stateDir, "agents", agentName, file)
-}
-
-// getAgentEnv handles GET /api/agents/{name}/env.
-func (h *AgentHandler) getAgentEnv(w http.ResponseWriter, agentName string) {
-	p := h.envPath(agentName)
-	if p == "" {
-		writeJSON(w, http.StatusOK, []envVarEntry{})
-		return
-	}
-	data, err := os.ReadFile(p) //nolint:gosec // p is constructed from trusted workspace StateDir + agent name
+// getAgentEnv handles GET /api/agents/{name}/env. Returns the agent's
+// configured env vars from the store (the same map injected at spawn).
+func (h *AgentHandler) getAgentEnv(w http.ResponseWriter, r *http.Request, agentName string) {
+	a, err := h.svc.Get(r.Context(), agentName)
 	if err != nil {
-		if os.IsNotExist(err) {
-			writeJSON(w, http.StatusOK, []envVarEntry{})
-			return
-		}
-		httpInternalError(w, "read env config", err)
+		httpError(w, err.Error(), agentHTTPStatus(err))
 		return
 	}
-	var vars []envVarEntry
-	if jsonErr := json.Unmarshal(data, &vars); jsonErr != nil {
-		writeJSON(w, http.StatusOK, []envVarEntry{})
-		return
-	}
-	if vars == nil {
-		vars = []envVarEntry{}
-	}
-	writeJSON(w, http.StatusOK, vars)
+	writeJSON(w, http.StatusOK, envEntries(a.Env))
 }
 
-// putAgentEnv handles PUT /api/agents/{name}/env.
+// putAgentEnv handles PUT /api/agents/{name}/env. Replaces the agent's
+// configured env vars; changes are injected on the next restart.
 func (h *AgentHandler) putAgentEnv(w http.ResponseWriter, r *http.Request, agentName string) {
 	var vars []envVarEntry
 	if err := json.NewDecoder(r.Body).Decode(&vars); err != nil {
 		httpError(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
-	if vars == nil {
-		vars = []envVarEntry{}
+
+	env := make(map[string]string, len(vars))
+	for _, v := range vars {
+		if !agent.IsValidEnvName(v.Key) {
+			httpError(w, fmt.Sprintf("invalid env var name %q: must match ^[A-Za-z_][A-Za-z0-9_]*$", v.Key), http.StatusBadRequest)
+			return
+		}
+		env[v.Key] = v.Value
 	}
 
-	p := h.envPath(agentName)
-	if p == "" {
-		httpError(w, "workspace not available", http.StatusInternalServerError)
+	if err := h.svc.SetEnv(r.Context(), agentName, env); err != nil {
+		httpError(w, err.Error(), agentHTTPStatus(err))
 		return
 	}
-
-	if err := os.MkdirAll(filepath.Dir(p), 0o750); err != nil { //nolint:gosec // trusted workspace path
-		httpInternalError(w, "create env dir", err)
-		return
-	}
-
-	data, err := json.MarshalIndent(vars, "", "  ")
-	if err != nil {
-		httpInternalError(w, "marshal env config", err)
-		return
-	}
-	if writeErr := os.WriteFile(p, data, 0o600); writeErr != nil { //nolint:gosec // trusted workspace path
-		httpInternalError(w, "write env config", writeErr)
-		return
-	}
-
-	writeJSON(w, http.StatusOK, vars)
+	writeJSON(w, http.StatusOK, envEntries(env))
 }

@@ -88,7 +88,7 @@ function parseContent(text: string, agentNames?: Set<string>): ReactNode[] {
           <img
             src={fileUrl}
             alt="attachment"
-            className="max-w-sm max-h-64 rounded border border-mycel-border"
+            className="max-w-sm max-h-64 rounded-md border border-mycel-border"
             loading="lazy"
             onError={(e) => {
               // If not an image, show as download link
@@ -108,7 +108,7 @@ function parseContent(text: string, agentNames?: Set<string>): ReactNode[] {
       if (IMAGE_EXT.test(url)) {
         nodes.push(
           <a key={key} href={url} target="_blank" rel="noopener noreferrer" className="inline-block my-1">
-            <img src={url} alt="" className="max-w-sm max-h-64 rounded border border-mycel-border" loading="lazy" />
+            <img src={url} alt="" className="max-w-sm max-h-64 rounded-md border border-mycel-border" loading="lazy" />
           </a>,
         );
       } else {
@@ -161,8 +161,8 @@ function parseContent(text: string, agentNames?: Set<string>): ReactNode[] {
           href={`/agents/${name}`}
           className={
             isKnown
-              ? "text-mycel-accent font-medium hover:underline bg-mycel-accent/10 rounded px-0.5"
-              : "text-mycel-muted/60 font-medium hover:underline"
+              ? "text-mycel-accent font-medium hover:underline bg-mycel-accent-subtle rounded px-0.5"
+              : "text-mycel-muted font-medium hover:underline"
           }
         >
           {full}

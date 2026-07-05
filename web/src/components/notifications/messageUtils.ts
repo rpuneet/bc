@@ -130,7 +130,7 @@ export const ROLE_COLORS: Record<string, { bg: string; text: string }> = {
   base: { bg: "bg-slate-500/20", text: "text-slate-400" },
 };
 
-export const DEFAULT_ROLE_COLOR = { bg: "bg-mycel-muted/20", text: "text-mycel-muted" };
+export const DEFAULT_ROLE_COLOR = { bg: "bg-mycel-surface-hover", text: "text-mycel-muted" };
 
 export function getRoleColor(role: string | undefined): { bg: string; text: string } {
   if (!role) return DEFAULT_ROLE_COLOR;
@@ -142,7 +142,7 @@ export function getRoleColor(role: string | undefined): { bg: string; text: stri
  *
  * The first agent (by hash bucket 0) uses the *theme accent* so the
  * chart's most prominent series feels native to whatever theme is
- * active (tangerine under Solar Flare / Light, emerald under Dark).
+ * active (the mycel orange accent in both dark and light themes).
  * The remaining agents draw from a hue palette chosen to stay
  * distinguishable across dark and light backgrounds — pastels are
  * avoided since they collapse into the muted grays on light theme.

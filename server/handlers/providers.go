@@ -18,18 +18,21 @@ import (
 
 // ProviderInfo represents a provider with usage stats.
 type ProviderInfo struct { //nolint:govet // field order matches JSON/API contract
-	Name         string  `json:"name"`
-	Description  string  `json:"description"`
-	Binary       string  `json:"binary"`
-	Command      string  `json:"command"`
-	InstallHint  string  `json:"install_hint"`
-	Version      string  `json:"version"`
-	Status       string  `json:"status"`
-	TotalCostUSD float64 `json:"total_cost_usd"`
-	TotalTokens  int64   `json:"total_tokens"`
-	AgentCount   int     `json:"agent_count"`
-	Installed    bool    `json:"installed"`
-	Enabled      bool    `json:"enabled"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Binary      string `json:"binary"`
+	Command     string `json:"command"`
+	InstallHint string `json:"install_hint"`
+	Version     string `json:"version"`
+	Status      string `json:"status"`
+	// Models is the provider's curated model list for UI pickers.
+	// Empty means the provider has no model selection.
+	Models       []string `json:"models"`
+	TotalCostUSD float64  `json:"total_cost_usd"`
+	TotalTokens  int64    `json:"total_tokens"`
+	AgentCount   int      `json:"agent_count"`
+	Installed    bool     `json:"installed"`
+	Enabled      bool     `json:"enabled"`
 }
 
 // ProviderDetail extends ProviderInfo with per-model cost breakdown and agent list.
@@ -431,6 +434,11 @@ func (h *ProviderHandler) buildProviderInfo(
 		}
 	}
 
+	models := []string{}
+	if ml, ok := p.(provider.ModelLister); ok {
+		models = ml.Models()
+	}
+
 	info := ProviderInfo{
 		Name:        p.Name(),
 		Description: p.Description(),
@@ -439,6 +447,7 @@ func (h *ProviderHandler) buildProviderInfo(
 		InstallHint: p.InstallHint(),
 		Version:     version,
 		Status:      status,
+		Models:      models,
 		AgentCount:  agentCounts[p.Name()],
 		Installed:   installed,
 		Enabled:     enabled,

@@ -16,6 +16,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, fireEvent, act } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { Live, SHOW_STOPPED_STORAGE_KEY } from "./Live";
+import { HeaderSlotProvider, useHeaderSlotContext } from "../context/HeaderSlotContext";
 
 const fetchMock = globalThis.fetch as ReturnType<typeof vi.fn>;
 
@@ -34,7 +35,7 @@ function agent(name: string, state: string) {
     role: "engineer",
     tool: "claude",
     state,
-    cost_usd: 0,
+    total_cost_usd: 0,
     started_at: "",
     created_at: "",
     updated_at: "",
@@ -48,10 +49,25 @@ function mockAgentsApi(list: ReturnType<typeof agent>[]) {
   });
 }
 
+/** Renders the header-slot content the way Layout's full-width bar does —
+ *  Live's presence line + controls now live there, not in the page body. */
+function HeaderHost() {
+  const { slot } = useHeaderSlotContext();
+  return (
+    <div data-testid="header-host">
+      {slot.title}
+      {slot.actions}
+    </div>
+  );
+}
+
 function renderLive() {
   return render(
     <MemoryRouter>
-      <Live />
+      <HeaderSlotProvider>
+        <HeaderHost />
+        <Live />
+      </HeaderSlotProvider>
     </MemoryRouter>,
   );
 }
@@ -204,5 +220,45 @@ describe("Live — show-stopped toggle", () => {
     await waitForAgentCard("alice");
     // Stopped agent is visible because localStorage said so.
     expect(agentCardVisible("carol")).toBe(true);
+  });
+});
+
+describe("Live — header ⋯ menu", () => {
+  it("opens, fires actions, and closes on outside click and Escape", async () => {
+    mockAgentsApi([agent("alice", "working")]);
+
+    renderLive();
+    await waitForAgentCard("alice");
+
+    const moreButton = screen.getByRole("button", { name: "More options" });
+
+    // Open — the dropdown renders inside the header host.
+    fireEvent.click(moreButton);
+    expect(screen.getByTestId("live-more-menu")).toBeInTheDocument();
+    expect(moreButton.getAttribute("aria-expanded")).toBe("true");
+
+    // An action fires: Pause stream → the paused pill appears in the
+    // header title and the menu closes.
+    fireEvent.click(screen.getByRole("button", { name: /Pause stream/ }));
+    expect(screen.queryByTestId("live-more-menu")).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByTitle("Stream paused — click to resume")).toBeInTheDocument();
+    });
+
+    // Reopen, then Escape closes.
+    fireEvent.click(screen.getByRole("button", { name: "More options" }));
+    expect(screen.getByTestId("live-more-menu")).toBeInTheDocument();
+    fireEvent.keyDown(document, { key: "Escape" });
+    await waitFor(() => {
+      expect(screen.queryByTestId("live-more-menu")).not.toBeInTheDocument();
+    });
+
+    // Reopen, then a mousedown outside the menu closes.
+    fireEvent.click(screen.getByRole("button", { name: "More options" }));
+    expect(screen.getByTestId("live-more-menu")).toBeInTheDocument();
+    fireEvent.mouseDown(document.body);
+    await waitFor(() => {
+      expect(screen.queryByTestId("live-more-menu")).not.toBeInTheDocument();
+    });
   });
 });

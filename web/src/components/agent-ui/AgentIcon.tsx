@@ -10,7 +10,7 @@ interface AgentIconProps {
   tool?: string;
 }
 
-const ACCENT = "var(--mycel-accent, #f97316)";
+const ACCENT = "var(--mycel-accent)";
 
 function stateClass(state: string): string {
   switch (state) {

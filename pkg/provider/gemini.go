@@ -51,14 +51,23 @@ func (p *GeminiProvider) InstallHint() string {
 }
 
 // BuildCommand returns the full command for a given runtime context.
-// Supports --resume with session ID for session continuation. The ID is
-// spliced into a shell command line, so unsafe values are dropped.
+// Supports --resume with session ID for session continuation, and
+// -m <model> for model selection. Both values are spliced into a shell
+// command line, so unsafe values are dropped.
 func (p *GeminiProvider) BuildCommand(opts CommandOpts) string {
 	cmd := p.command
+	if SafeModelName(opts.Model) {
+		cmd += " -m " + opts.Model
+	}
 	if SafeSessionID(opts.SessionID) {
 		cmd += " --resume " + opts.SessionID
 	}
 	return cmd
+}
+
+// Models returns the curated model list for the Gemini CLI.
+func (p *GeminiProvider) Models() []string {
+	return []string{"gemini-2.5-pro", "gemini-2.5-flash"}
 }
 
 // IsInstalled checks if the provider binary is available.
@@ -134,3 +143,4 @@ func (p *GeminiProvider) DetectState(output string) State {
 
 // Ensure GeminiProvider implements Provider interface.
 var _ Provider = (*GeminiProvider)(nil)
+var _ ModelLister = (*GeminiProvider)(nil)

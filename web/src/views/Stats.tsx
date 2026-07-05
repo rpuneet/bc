@@ -15,7 +15,6 @@ import { EmptyState } from "../components/EmptyState";
 import { Panel, Empty, fmtTime, fmtBytes, fmtTokens } from "../components/shared/stats-primitives";
 
 import { useHeaderSlot } from "../context/HeaderSlotContext";
-import { TabHeaderTitle } from "../components/Header";
 // ── Model Pricing ───────────────────────────────────────────────────────────────
 
 const MODEL_PRICING: Record<string, { input: number; output: number }> = {
@@ -33,25 +32,25 @@ export function calculateCost(model: string, inputTokens: number, outputTokens: 
 
 // ── Constants ───────────────────────────────────────────────────────────────────
 
-// Chart palette. First entry uses the theme accent so charts feel like they
-// belong to the current theme (tangerine in Solar Flare / Light, emerald in
-// Dark). The rest are theme-agnostic hues that stay readable in all three.
+// Chart palette. First entry uses the theme accent token so charts feel
+// like they belong to the current theme (mycel orange in both Dark and
+// Light). The rest are theme-agnostic hues that stay readable in both.
 const ACCENT = "var(--mycel-accent)";
 // Categorical palette chosen for six-plus-series distinguishability
-// across all three themes. First slot follows the theme accent; the
+// across both themes. First slot follows the theme accent; the
 // rest are picked from the Radix + Tailwind categorical palettes so
 // adjacent series never collide. Deuteranopia-checked pairs:
 // cobalt/emerald safe, rose/violet safe, amber/tangerine handled by
 // dash pattern rotation below.
 const COLORS = [
-  ACCENT,      // theme accent — tangerine (Solar Flare / Light) or emerald (Dark)
+  ACCENT,      // theme accent — var(--mycel-accent), orange in both themes
   "#3B82F6",   // cobalt
   "#EC4899",   // rose
   "#F59E0B",   // amber
   "#A855F7",   // violet
   "#06B6D4",   // cyan
   "#84CC16",   // lime
-  "#F97316",   // tangerine (only conflicts with accent under Solar Flare / Light — kicked to slot 7)
+  "#F97316",   // tangerine (only conflicts with the orange accent — kicked to slot 7)
 ];
 
 // Dash-pattern palette for a11y — color-only encoding fails deuteranopia
@@ -147,7 +146,7 @@ function InteractiveLegend({
               isHidden
                 ? "border-mycel-border opacity-40 text-mycel-muted"
                 : hovered && hovered !== n
-                  ? "border-mycel-border/40 opacity-50"
+                  ? "border-mycel-border opacity-50"
                   : "border-mycel-border text-mycel-text"
             }`}
             aria-pressed={!isHidden}
@@ -187,8 +186,9 @@ const INFRA = [
 const isInfra = (n: string) => INFRA.some(p => n === p || n.startsWith(p + "-")) || n.length <= 3;
 
 const TT: React.CSSProperties = {
-  backgroundColor: "var(--mycel-surface)", border: "1px solid var(--mycel-border)",
+  backgroundColor: "var(--mycel-surface-2)", border: "1px solid var(--mycel-border)",
   borderRadius: "6px", color: "var(--mycel-text)", fontSize: "12px",
+  boxShadow: "var(--mycel-shadow-lg)",
 };
 const AX = { axisLine: false as const, tickLine: false as const };
 const TICK_STYLE = { fill: "var(--mycel-muted)", fontSize: 10 };
@@ -251,12 +251,11 @@ export function Stats() {
   }, []);
 
   useHeaderSlot({
-    title: <TabHeaderTitle>Metrics</TabHeaderTitle>,
     actions: (
       <div className="flex gap-1">
         {RANGES.map((r, i) => (
           <button key={r.label} type="button" onClick={() => setRange(i)}
-            className={`px-2 py-0.5 text-[11px] rounded border transition-colors ${
+            className={`px-2 py-0.5 text-[11px] rounded-md border transition-colors ${
               /* Selected state uses accent text + border only — the
                  tinted accent bg was a triple-accent that competed
                  with the sidebar brand tile + active nav under Dark
@@ -400,7 +399,7 @@ export function Stats() {
               <thead>
                 <tr className="text-mycel-muted text-left">
                   {colHeaders.map(h => (
-                    <th key={h.key} className="py-1.5 px-2 font-medium cursor-pointer hover:text-mycel-text select-none group" onClick={(e) => { e.stopPropagation(); e.preventDefault(); handleSort(h.key); }}>
+                    <th key={h.key} className="py-2.5 px-3 font-medium cursor-pointer hover:text-mycel-text select-none group" onClick={(e) => { e.stopPropagation(); e.preventDefault(); handleSort(h.key); }}>
                       <div className="flex items-center">
                         {h.label}
                         {/* Neutral sort affordance surfaces on hover for every
@@ -421,18 +420,18 @@ export function Stats() {
               <tbody>
                 {agentTable.map(a => (
                   <tr key={a.name}
-                    className="border-t border-mycel-border/50 hover:bg-mycel-bg/50 cursor-pointer transition-colors"
+                    className="border-t border-mycel-border hover:bg-mycel-surface-hover cursor-pointer transition-colors"
                     onClick={() => navigate(`/agents/${encodeURIComponent(a.name)}`)}
                   >
-                    <td className="py-1.5 px-2 font-medium">
+                    <td className="py-2.5 px-3 font-medium">
                       <span className="flex items-center gap-1.5">
                         <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: agentColors[a.name] ?? COLORS[0] }} />
                         {a.name}
                       </span>
                     </td>
-                    <td className="py-1.5 px-2 text-mycel-muted">{a.role}</td>
-                    <td className="py-1.5 px-2 text-mycel-muted">{a.provider}</td>
-                    <td className="py-1.5 px-2">
+                    <td className="py-2.5 px-3 text-mycel-muted">{a.role}</td>
+                    <td className="py-2.5 px-3 text-mycel-muted">{a.provider}</td>
+                    <td className="py-2.5 px-3">
                       <span className="flex items-center gap-1.5">
                         {/* Distinct semantic tokens per state so idle vs
                             working vs running don't all collapse to the
@@ -452,10 +451,10 @@ export function Stats() {
                         </span>
                       </span>
                     </td>
-                    <td className="py-1.5 px-2 font-mono">{a.cpu.toFixed(1)}</td>
-                    <td className="py-1.5 px-2 font-mono">{a.mem.toFixed(0)}</td>
-                    <td className="py-1.5 px-2 font-mono">{fmtTokens(a.tokens)}</td>
-                    <td className={`py-1.5 px-2 font-mono ${a.cost > 0 ? "text-mycel-accent" : "text-mycel-muted"}`}>${a.cost.toFixed(2)}</td>
+                    <td className="py-2.5 px-3 font-mono">{a.cpu.toFixed(1)}</td>
+                    <td className="py-2.5 px-3 font-mono">{a.mem.toFixed(0)}</td>
+                    <td className="py-2.5 px-3 font-mono">{fmtTokens(a.tokens)}</td>
+                    <td className={`py-2.5 px-3 font-mono ${a.cost > 0 ? "text-mycel-accent" : "text-mycel-muted"}`}>${a.cost.toFixed(2)}</td>
                   </tr>
                 ))}
               </tbody>

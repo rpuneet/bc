@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { api } from "../api/client";
 import type { NotificationSource } from "../api/client";
@@ -8,14 +8,9 @@ import { LoadingSkeleton } from "../components/LoadingSkeleton";
 import { EmptyState } from "../components/EmptyState";
 import { GatewayFeed } from "../components/notifications/GatewayFeed";
 
-import { useHeaderSlot } from "../context/HeaderSlotContext";
-import { TabHeaderTitle } from "../components/Header";
 export function Notifications() {
-  // Set a default header; GatewayFeed overrides this when a channel is active.
-  // useMemo ensures stable references to avoid infinite re-render loops.
-  const defaultTitle = useMemo(() => <TabHeaderTitle>Notifications</TabHeaderTitle>, []);
-  useHeaderSlot({ title: defaultTitle });
-
+  // No page title in the header — the drawer names the section.
+  // GatewayFeed contributes its channel breadcrumb when a channel is active.
   const { sourceName: paramSource } = useParams<{ sourceName: string }>();
   const navigate = useNavigate();
 
@@ -37,7 +32,7 @@ export function Notifications() {
   if (loading && !sources) {
     return (
       <div className="p-6 space-y-4">
-        <div className="h-6 w-28 animate-pulse rounded bg-mycel-border/50" />
+        <div className="h-6 w-28 animate-pulse rounded bg-mycel-surface-hover" />
         <LoadingSkeleton variant="text" rows={5} />
       </div>
     );
@@ -84,7 +79,7 @@ export function Notifications() {
         <div className="max-w-lg text-center px-6">
           <div className="text-4xl mb-4 opacity-40">#</div>
           <h2 className="text-xl font-semibold text-mycel-text mb-2">Connect your first app</h2>
-          <p className="text-sm text-mycel-muted/60 mb-8">
+          <p className="text-sm text-mycel-muted mb-8">
             Link Slack, Telegram, or Discord to start receiving messages in your agents.
           </p>
         </div>

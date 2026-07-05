@@ -1,0 +1,123 @@
+package agent
+
+import (
+	"context"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"github.com/rpuneet/mycel/pkg/provider"
+	"github.com/rpuneet/mycel/pkg/workspace"
+)
+
+// TestGetAgentCommandModel verifies the model reaches the provider's
+// BuildCommand and that unsafe values are dropped before the command
+// line is assembled.
+func TestGetAgentCommandModel(t *testing.T) {
+	m := &Manager{providerRegistry: provider.DefaultRegistry}
+
+	tests := []struct {
+		name       string
+		tool       string
+		model      string
+		wantFlag   string
+		wantAbsent string
+	}{
+		{"claude model injected", "claude", "fable", " --model fable", ""},
+		{"gemini model injected", "gemini", "gemini-2.5-flash", " -m gemini-2.5-flash", ""},
+		{"empty model no flag", "claude", "", "", "--model"},
+		{"unsafe model dropped", "claude", "$(id)", "", "id"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cmd, ok := m.getAgentCommand(tt.tool, "test-agent", false, "", tt.model)
+			if !ok {
+				t.Fatalf("getAgentCommand(%q) not ok", tt.tool)
+			}
+			if tt.wantFlag != "" && !strings.Contains(cmd, tt.wantFlag) {
+				t.Errorf("command %q missing %q", cmd, tt.wantFlag)
+			}
+			if tt.wantFlag == "" && tt.wantAbsent != "" && strings.Contains(cmd, tt.wantAbsent) {
+				t.Errorf("command %q must not contain %q", cmd, tt.wantAbsent)
+			}
+		})
+	}
+}
+
+// TestGetAgentCommandModelWithOverride verifies the workspace command
+// override path still injects a generic --model flag (gated on
+// SafeModelName) via appendSessionFlags.
+func TestGetAgentCommandModelWithOverride(t *testing.T) {
+	m := &Manager{
+		providerRegistry: provider.DefaultRegistry,
+		providersConfig: &workspace.ProvidersConfig{
+			Providers: map[string]workspace.ProviderConfig{
+				"pi": {Command: "pi --provider amazon-bedrock"},
+			},
+		},
+	}
+
+	cmd, ok := m.getAgentCommand("pi", "test-agent", false, "", "anthropic/claude-sonnet-4-6")
+	if !ok {
+		t.Fatal("getAgentCommand(pi) not ok")
+	}
+	if !strings.HasPrefix(cmd, "pi --provider amazon-bedrock") {
+		t.Errorf("override base lost: %q", cmd)
+	}
+	if !strings.Contains(cmd, " --model anthropic/claude-sonnet-4-6") {
+		t.Errorf("command %q missing generic --model flag", cmd)
+	}
+
+	// Unsafe model must be dropped on the override path too.
+	cmd, _ = m.getAgentCommand("pi", "test-agent", false, "", "a b; rm")
+	if strings.Contains(cmd, "rm") || strings.Contains(cmd, "--model") {
+		t.Errorf("unsafe model leaked into override command: %q", cmd)
+	}
+}
+
+// TestRestartCommandUsesStoredModel verifies the model survives a store
+// round-trip (simulating a daemon restart) and that the command built
+// from the reloaded agent — the same call startAgent makes — carries
+// the stored model.
+func TestRestartCommandUsesStoredModel(t *testing.T) {
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "state.db")
+
+	store, err := NewSQLiteStore(dbPath)
+	if err != nil {
+		t.Fatalf("NewSQLiteStore: %v", err)
+	}
+	a := &Agent{Name: "model-keeper", ID: "model-keeper", Role: Role("engineer"),
+		State: StateStopped, Tool: "claude", Model: "opusplan"}
+	if saveErr := store.Save(context.Background(), a); saveErr != nil {
+		t.Fatalf("Save: %v", saveErr)
+	}
+	if closeErr := store.Close(); closeErr != nil {
+		t.Fatalf("Close: %v", closeErr)
+	}
+
+	// Fresh store = fresh daemon. The reloaded agent must still know
+	// its model, and the restart command must include it.
+	store2, err := NewSQLiteStore(dbPath)
+	if err != nil {
+		t.Fatalf("NewSQLiteStore (reopen): %v", err)
+	}
+	defer func() { _ = store2.Close() }()
+
+	loaded, err := store2.Load(context.Background(), "model-keeper")
+	if err != nil || loaded == nil {
+		t.Fatalf("Load after reopen: agent=%v err=%v", loaded, err)
+	}
+	if loaded.Model != "opusplan" {
+		t.Fatalf("Model after reopen = %q, want opusplan", loaded.Model)
+	}
+
+	m := &Manager{providerRegistry: provider.DefaultRegistry}
+	cmd, ok := m.getAgentCommand(loaded.Tool, loaded.Name, false, "", loaded.Model)
+	if !ok {
+		t.Fatal("getAgentCommand not ok")
+	}
+	if !strings.Contains(cmd, " --model opusplan") {
+		t.Errorf("restart command %q missing stored model", cmd)
+	}
+}

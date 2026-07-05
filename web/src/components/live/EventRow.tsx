@@ -62,7 +62,7 @@ export function CopyButton({ text }: { text: string }) {
     <button
       type="button"
       onClick={(e) => { e.stopPropagation(); handleCopy(); }}
-      className="text-[10px] text-mycel-muted hover:text-mycel-text px-1.5 py-0.5 rounded border border-mycel-border/40 hover:border-mycel-accent transition-colors shrink-0"
+      className="text-[10px] text-mycel-muted hover:text-mycel-text px-1.5 py-0.5 rounded-md border border-mycel-border hover:border-mycel-accent transition-colors shrink-0"
       aria-label="Copy to clipboard"
     >
       {copied ? "Copied" : "Copy"}
@@ -81,7 +81,7 @@ export function SearchHighlight({ text, query }: { text: string; query: string }
   return (
     <>
       {text.slice(0, idx)}
-      <mark className="bg-mycel-warning/20 text-inherit rounded px-0.5">{text.slice(idx, idx + q.length)}</mark>
+      <mark className="bg-mycel-warning-subtle text-inherit rounded px-0.5">{text.slice(idx, idx + q.length)}</mark>
       {text.slice(idx + q.length)}
     </>
   );
@@ -268,7 +268,7 @@ function PathSummary({ path, query }: { path: string; query: string }) {
   const { dir, base } = compactPath(path);
   return (
     <span className="font-mono text-[12px] min-w-0 truncate" title={path}>
-      <span className="text-mycel-muted/70">{dir}</span>
+      <span className="text-mycel-muted">{dir}</span>
       <span className="text-mycel-text">{base}</span>
     </span>
   );
@@ -293,7 +293,7 @@ function EventSummary({ node, kind, query }: { node: ToolNode; kind: EventKind; 
   }
   if (kind === "prompt") {
     return (
-      <span className="text-[12px] text-mycel-text/90 min-w-0 truncate" title={args}>
+      <span className="text-[12px] text-mycel-text min-w-0 truncate" title={args}>
         <SearchHighlight text={args} query={query} />
       </span>
     );
@@ -354,7 +354,7 @@ export function EventRow({ node, searchQuery = "" }: { node: ToolNode; searchQue
   const outputJson = node.fullOutput ? JSON.stringify(redactValue(node.fullOutput), null, 2) : "";
 
   return (
-    <div className={`border-b border-mycel-border/40 last:border-b-0 ${node.status === "failed" ? "bg-mycel-error/5" : ""}`}>
+    <div className={`border-b border-mycel-border last:border-b-0 ${node.status === "failed" ? "bg-mycel-error-subtle" : ""}`}>
       <button
         type="button"
         className="group flex items-center gap-2.5 py-1.5 px-3 w-full text-left hover:bg-mycel-surface-hover cursor-pointer transition-colors focus-visible:ring-2 focus-visible:ring-mycel-accent"
@@ -364,7 +364,7 @@ export function EventRow({ node, searchQuery = "" }: { node: ToolNode; searchQue
       >
         {/* Expand affordance — dot when there is nothing to expand */}
         <motion.span
-          className="text-mycel-muted/70 text-[9px] select-none shrink-0 w-2.5 text-center"
+          className="text-mycel-muted text-[9px] select-none shrink-0 w-2.5 text-center"
           animate={{ rotate: hasDetails && expanded ? 90 : 0 }}
           transition={{ duration: 0.15 }}
         >
@@ -382,7 +382,7 @@ export function EventRow({ node, searchQuery = "" }: { node: ToolNode; searchQue
         <span className="flex items-center gap-2 shrink-0 ml-auto pl-2">
           <RelativeTimestamp ts={node.startTime} />
           {node.status === "running" ? (
-            <span className="text-[11px] tabular-nums font-mono px-1.5 py-0.5 rounded-md bg-mycel-accent/10 text-mycel-accent">
+            <span className="text-[11px] tabular-nums font-mono px-1.5 py-0.5 rounded-md bg-mycel-accent-subtle text-mycel-accent">
               <ElapsedTimer start={node.startTime} />
             </span>
           ) : node.endTime != null ? (
@@ -394,14 +394,14 @@ export function EventRow({ node, searchQuery = "" }: { node: ToolNode; searchQue
       </button>
 
       {expanded && node.error && (
-        <div className="text-[11px] font-mono px-3 py-2 bg-mycel-surface mx-3 mb-1 rounded overflow-x-auto max-h-48 overflow-y-auto">
+        <div className="text-[11px] font-mono px-3 py-2 bg-mycel-surface mx-3 mb-1 rounded-md overflow-x-auto max-h-48 overflow-y-auto">
           <span className="text-[10px] text-mycel-error uppercase tracking-wide font-semibold block mb-1">Error</span>
-          <pre className="whitespace-pre-wrap break-all text-mycel-error/90">{redactSecrets(node.error)}</pre>
+          <pre className="whitespace-pre-wrap break-all text-mycel-error">{redactSecrets(node.error)}</pre>
         </div>
       )}
 
       {expanded && !!node.fullInput && (
-        <div className="text-[11px] font-mono px-3 py-2 bg-mycel-surface mx-3 mb-1 rounded overflow-x-auto max-h-48 overflow-y-auto">
+        <div className="text-[11px] font-mono px-3 py-2 bg-mycel-surface mx-3 mb-1 rounded-md overflow-x-auto max-h-48 overflow-y-auto">
           <div className="flex items-center justify-between mb-1">
             <span className="text-[10px] text-mycel-muted uppercase tracking-wide font-semibold">Input</span>
             <CopyButton text={inputJson} />
@@ -411,12 +411,12 @@ export function EventRow({ node, searchQuery = "" }: { node: ToolNode; searchQue
       )}
 
       {expanded && !!node.fullOutput && (
-        <div className="text-[11px] font-mono px-3 py-2 bg-mycel-surface mx-3 mb-1 rounded overflow-x-auto max-h-48 overflow-y-auto">
+        <div className="text-[11px] font-mono px-3 py-2 bg-mycel-surface mx-3 mb-1 rounded-md overflow-x-auto max-h-48 overflow-y-auto">
           <div className="flex items-center justify-between mb-1">
             <span className="text-[10px] text-mycel-success uppercase tracking-wide font-semibold">Output</span>
             <CopyButton text={outputJson} />
           </div>
-          <pre className="whitespace-pre-wrap break-all text-mycel-success/80">{outputJson}</pre>
+          <pre className="whitespace-pre-wrap break-all text-mycel-success">{outputJson}</pre>
         </div>
       )}
     </div>

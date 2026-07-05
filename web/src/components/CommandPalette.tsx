@@ -87,7 +87,7 @@ export function CommandPalette() {
 
       {/* Palette */}
       <div
-        className="relative w-full max-w-lg rounded-lg border border-mycel-border bg-mycel-surface shadow-2xl"
+        className="relative w-full max-w-lg rounded-lg border border-mycel-border bg-mycel-surface-2 shadow-mycel-lg"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
@@ -117,7 +117,7 @@ export function CommandPalette() {
             className="flex-1 bg-transparent text-sm text-mycel-text placeholder:text-mycel-muted outline-none"
             aria-label="Search commands"
           />
-          <kbd className="hidden sm:inline-block rounded border border-mycel-border px-1.5 py-0.5 text-[10px] text-mycel-muted">
+          <kbd className="hidden sm:inline-block rounded-md border border-mycel-border px-1.5 py-0.5 text-[10px] text-mycel-muted">
             ESC
           </kbd>
         </div>
@@ -142,8 +142,8 @@ export function CommandPalette() {
                     onMouseEnter={() => setActiveIndex(itemIndex)}
                     className={`flex w-full items-center gap-3 px-4 py-2 text-left text-sm transition-colors ${
                       itemIndex === activeIndex
-                        ? "bg-mycel-accent/10 text-mycel-accent"
-                        : "text-mycel-text hover:bg-mycel-bg"
+                        ? "bg-mycel-accent-subtle text-mycel-accent"
+                        : "text-mycel-text hover:bg-mycel-surface-hover"
                     }`}
                   >
                     <span className="w-5 text-center font-mono text-xs text-mycel-muted">
@@ -162,7 +162,7 @@ export function CommandPalette() {
               flatIndex += items.length;
               return (
                 <div key={section}>
-                  <div className="px-4 py-1.5 text-xs font-medium text-mycel-muted">
+                  <div className="px-4 py-1.5 text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted">
                     {section}
                   </div>
                   {sectionItems}
@@ -175,19 +175,19 @@ export function CommandPalette() {
         {/* Footer hint */}
         <div className="flex items-center gap-3 border-t border-mycel-border px-4 py-2 text-[10px] text-mycel-muted">
           <span>
-            <kbd className="rounded border border-mycel-border px-1 py-0.5">
+            <kbd className="rounded-md border border-mycel-border px-1 py-0.5">
               &uarr;&darr;
             </kbd>{" "}
             navigate
           </span>
           <span>
-            <kbd className="rounded border border-mycel-border px-1 py-0.5">
+            <kbd className="rounded-md border border-mycel-border px-1 py-0.5">
               &crarr;
             </kbd>{" "}
             select
           </span>
           <span>
-            <kbd className="rounded border border-mycel-border px-1 py-0.5">
+            <kbd className="rounded-md border border-mycel-border px-1 py-0.5">
               esc
             </kbd>{" "}
             close

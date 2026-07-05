@@ -2,6 +2,8 @@ import { useState, useCallback, useEffect, useRef, memo } from "react";
 import { useNavigate } from "react-router-dom";
 import { AgentIcon } from "./agent-ui";
 import type { AgentShape } from "./agent-ui";
+import { EnvVarsEditor, isValidEnvKey } from "./EnvVarsEditor";
+import type { EnvRow } from "./EnvVarsEditor";
 import { MONO } from "../utils/typography";
 
 // ── Name generation ───────────────────────────────────────────────────────────
@@ -69,11 +71,11 @@ interface RepoCandidate {
   name: string;
 }
 
-type Provider = "claude" | "gemini" | "cursor" | "codex";
+type Provider = "claude" | "gemini" | "cursor" | "codex" | "pi";
 type Runtime = "docker" | "tmux";
 
 const DEFAULT_TEMPLATES = ["feature-dev", "reviewer", "manager", "blank"];
-const VALID_PROVIDERS = new Set<string>(["claude", "gemini", "cursor", "codex"]);
+const VALID_PROVIDERS = new Set<string>(["claude", "gemini", "cursor", "codex", "pi"]);
 const VALID_RUNTIMES = new Set<string>(["docker", "tmux"]);
 
 const SHAPES: AgentShape[] = ["hexagon", "circle", "square"];
@@ -82,7 +84,7 @@ const SHAPES: AgentShape[] = ["hexagon", "circle", "square"];
 const MemoAgentIcon = memo(AgentIcon);
 
 const INPUT_CLS =
-  "w-full bg-mycel-bg border border-mycel-border rounded px-3 py-2 text-sm text-mycel-text " +
+  "w-full bg-mycel-bg border border-mycel-border rounded-md px-3 py-2 text-sm text-mycel-text " +
   "placeholder:text-mycel-muted outline-none focus:border-mycel-accent transition-colors";
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -101,8 +103,16 @@ export function CreateAgentModal({
   const [template, setTemplate] = useState("feature-dev");
   const [templates, setTemplates] = useState<string[]>(DEFAULT_TEMPLATES);
   const [provider, setProvider] = useState<Provider>("claude");
+  // Model for the selected provider. "" = provider default (no flag).
+  const [model, setModel] = useState("");
+  // Curated model lists per provider, from GET /api/providers.
+  const [providerModels, setProviderModels] = useState<Record<string, string[]>>({});
   const [runtime, setRuntime] = useState<Runtime>("docker");
   const [task, setTask] = useState("");
+  // Environment variables — collapsed row editor. Values may hold
+  // ${secret:NAME} references resolved from the vault at spawn.
+  const [envOpen, setEnvOpen] = useState(false);
+  const [envRows, setEnvRows] = useState<EnvRow[]>([]);
   const [cloneFrom, setCloneFrom] = useState("");
   // Repo path the new agent binds to. Defaults to the daemon's default
   // repo (GET /api/repos) once loaded; known repos populate a dropdown.
@@ -139,6 +149,26 @@ export function CreateAgentModal({
       });
   }, []);
 
+  // Fetch per-provider model lists whenever the modal opens.
+  useEffect(() => {
+    if (!open) return;
+    fetch("/api/providers")
+      .then((r) => r.json())
+      .then((list: unknown) => {
+        if (!Array.isArray(list)) return;
+        const map: Record<string, string[]> = {};
+        for (const p of list as Array<{ name?: unknown; models?: unknown }>) {
+          if (typeof p.name === "string" && Array.isArray(p.models)) {
+            map[p.name] = p.models.filter((m): m is string => typeof m === "string");
+          }
+        }
+        setProviderModels(map);
+      })
+      .catch(() => {
+        /* model list is a convenience — "default" always works */
+      });
+  }, [open]);
+
   // Fetch known repos + the default repo whenever the modal opens.
   useEffect(() => {
     if (!open) return;
@@ -169,8 +199,11 @@ export function CreateAgentModal({
       setShape(SHAPES[Math.floor(Math.random() * SHAPES.length)] ?? "hexagon");
       setTemplate("feature-dev");
       setProvider("claude");
+      setModel("");
       setRuntime("docker");
       setTask("");
+      setEnvOpen(false);
+      setEnvRows([]);
       setSubmitError(null);
       setSubmitting(false);
       // When opened from the Clone action, pre-select the source agent
@@ -259,13 +292,34 @@ export function CreateAgentModal({
       setSubmitError("Repo path is required.");
       return;
     }
+    // Build the env map from filled rows; reject malformed names early
+    // (mirrors the API rule) instead of round-tripping for a 400.
+    const env: Record<string, string> = {};
+    for (const row of envRows) {
+      const key = row.key.trim();
+      if (key === "" && row.value === "") continue; // ignore blank rows
+      if (!isValidEnvKey(key)) {
+        setSubmitError(`Invalid env var name "${key}": use letters, digits, underscore; must not start with a digit.`);
+        return;
+      }
+      env[key] = row.value;
+    }
     setSubmitError(null);
     setSubmitting(true);
     try {
       const res = await fetch("/api/agents", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: trimmed, template, tool: provider, runtime_backend: runtime, repo: repoPath, task: task || undefined }),
+        body: JSON.stringify({
+          name: trimmed,
+          template,
+          tool: provider,
+          model: model || undefined,
+          runtime_backend: runtime,
+          repo: repoPath,
+          task: task || undefined,
+          env: Object.keys(env).length > 0 ? env : undefined,
+        }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({})) as { error?: string };
@@ -279,7 +333,7 @@ export function CreateAgentModal({
       setSubmitError(e instanceof Error ? e.message : "Failed to create agent");
       setSubmitting(false);
     }
-  }, [name, template, provider, runtime, task, repo, existingNames, onClose, navigate]);
+  }, [name, template, provider, model, runtime, task, repo, envRows, existingNames, onClose, navigate]);
 
   if (!open) return null;
 
@@ -292,7 +346,7 @@ export function CreateAgentModal({
       <div className="absolute inset-0 bg-mycel-overlay" />
 
       <div
-        className="relative w-full max-w-md rounded-lg border border-mycel-border bg-mycel-surface shadow-2xl max-h-[90vh] overflow-y-auto"
+        className="relative w-full max-w-md rounded-lg border border-mycel-border bg-mycel-surface-2 shadow-mycel-lg max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
@@ -300,16 +354,13 @@ export function CreateAgentModal({
       >
         {/* Header */}
         <div className="flex items-center justify-between border-b border-mycel-border px-5 py-4">
-          <h2
-            className="text-sm font-semibold text-mycel-text tracking-wide uppercase"
-            style={{ fontFamily: MONO }}
-          >
+          <h2 className="text-base font-semibold text-mycel-text">
             Create Agent
           </h2>
           <button
             type="button"
             onClick={onClose}
-            className="text-mycel-muted hover:text-mycel-text transition-colors rounded p-1 -mr-1"
+            className="text-mycel-muted hover:text-mycel-text transition-colors rounded-md p-1 -mr-1"
             aria-label="Close"
           >
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
@@ -327,7 +378,7 @@ export function CreateAgentModal({
 
           {/* Name + regen */}
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-medium text-mycel-muted uppercase tracking-wider" style={{ fontFamily: MONO }}>
+            <label className="text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted">
               Name
             </label>
             <div className="flex items-center gap-2">
@@ -346,7 +397,7 @@ export function CreateAgentModal({
                 type="button"
                 onClick={handleRegenerate}
                 title="Regenerate name"
-                className="shrink-0 flex items-center justify-center w-8 h-8 rounded border border-mycel-border bg-mycel-bg text-mycel-muted hover:text-mycel-accent hover:border-mycel-accent transition-colors"
+                className="shrink-0 flex items-center justify-center w-8 h-8 rounded-md border border-mycel-border bg-mycel-bg text-mycel-muted hover:text-mycel-accent hover:border-mycel-accent transition-colors"
               >
                 <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M11.5 2A6 6 0 1 0 12 6.5" />
@@ -358,7 +409,7 @@ export function CreateAgentModal({
 
           {/* Shape dropdown */}
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-medium text-mycel-muted uppercase tracking-wider" style={{ fontFamily: MONO }}>
+            <label className="text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted">
               Shape
             </label>
             <select
@@ -377,7 +428,7 @@ export function CreateAgentModal({
               every new agent binds to a git repo path. Defaults to the
               repo bcd was booted against. */}
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-medium text-mycel-muted uppercase tracking-wider" style={{ fontFamily: MONO }}>
+            <label className="text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted">
               Repo <span className="text-mycel-error">*</span>
             </label>
             <div className="flex items-center gap-2">
@@ -403,12 +454,11 @@ export function CreateAgentModal({
                   }
                 }}
                 aria-pressed={browseOpen}
-                className={`shrink-0 px-2.5 h-8 rounded border text-xs transition-colors ${
+                className={`shrink-0 inline-flex items-center px-3 h-8 rounded-md border text-xs font-medium transition-colors ${
                   browseOpen
                     ? "border-mycel-accent text-mycel-accent bg-mycel-bg"
                     : "border-mycel-border bg-mycel-bg text-mycel-muted hover:text-mycel-accent hover:border-mycel-accent"
                 }`}
-                style={{ fontFamily: MONO }}
               >
                 Browse
               </button>
@@ -433,7 +483,7 @@ export function CreateAgentModal({
               </select>
             )}
             {browseOpen && (
-              <div className="flex flex-col gap-2 rounded border border-mycel-border bg-mycel-bg p-2">
+              <div className="flex flex-col gap-2 rounded-md border border-mycel-border bg-mycel-bg p-2">
                 <div className="flex items-center gap-2">
                   <input
                     type="text"
@@ -455,19 +505,18 @@ export function CreateAgentModal({
                     type="button"
                     onClick={() => { void handleScan(); }}
                     disabled={scanning}
-                    className="shrink-0 px-2.5 h-8 rounded border border-mycel-border bg-mycel-surface text-xs text-mycel-muted hover:text-mycel-accent hover:border-mycel-accent transition-colors disabled:opacity-50"
-                    style={{ fontFamily: MONO }}
+                    className="shrink-0 inline-flex items-center px-3 h-8 rounded-md border border-mycel-border bg-mycel-surface text-xs font-medium text-mycel-muted hover:text-mycel-accent hover:border-mycel-accent transition-colors disabled:opacity-50"
                   >
                     {scanning ? "Scanning..." : "Scan"}
                   </button>
                 </div>
                 {scanError && (
-                  <div className="text-xs text-mycel-error" style={{ fontFamily: MONO }}>
+                  <div className="text-xs text-mycel-error">
                     {scanError}
                   </div>
                 )}
                 {candidates && candidates.length === 0 && (
-                  <div className="text-xs text-mycel-muted" style={{ fontFamily: MONO }}>
+                  <div className="text-xs text-mycel-muted">
                     No git repos found under that directory.
                   </div>
                 )}
@@ -481,7 +530,7 @@ export function CreateAgentModal({
                             setRepo(c.path);
                             setBrowseOpen(false);
                           }}
-                          className="w-full text-left px-2 py-1 rounded text-xs text-mycel-text hover:bg-mycel-surface hover:text-mycel-accent transition-colors truncate"
+                          className="w-full text-left px-2 py-1 rounded-md text-xs text-mycel-text hover:bg-mycel-surface hover:text-mycel-accent transition-colors truncate"
                           style={{ fontFamily: MONO }}
                           title={c.path}
                         >
@@ -497,7 +546,7 @@ export function CreateAgentModal({
 
           {/* Template */}
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-medium text-mycel-muted uppercase tracking-wider" style={{ fontFamily: MONO }}>
+            <label className="text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted">
               Template
             </label>
             <select
@@ -515,9 +564,9 @@ export function CreateAgentModal({
           {/* Clone from existing agent */}
           {existingAgents.length > 0 && (
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-medium text-mycel-muted uppercase tracking-wider" style={{ fontFamily: MONO }}>
+              <label className="text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted">
                 Clone config from{" "}
-                <span className="normal-case font-normal text-mycel-muted/70">(optional)</span>
+                <span className="normal-case font-normal text-mycel-muted">(optional)</span>
               </label>
               <select
                 value={cloneFrom}
@@ -538,25 +587,28 @@ export function CreateAgentModal({
           {/* Provider + Runtime */}
           <div className="grid grid-cols-2 gap-3">
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-medium text-mycel-muted uppercase tracking-wider" style={{ fontFamily: MONO }}>
+              <label className="text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted">
                 Provider
               </label>
               <select
                 value={provider}
-                onChange={(e) => setProvider(e.target.value as Provider)}
+                onChange={(e) => {
+                  setProvider(e.target.value as Provider);
+                  // Model lists are per-provider — reset to default.
+                  setModel("");
+                }}
                 className={INPUT_CLS}
                 style={{ fontFamily: MONO }}
               >
                 <option value="claude">claude</option>
                 <option value="gemini">gemini</option>
                 <option value="cursor">cursor</option>
-                <option value="pi">pi</option>
                 <option value="codex">codex</option>
                 <option value="pi">pi</option>
               </select>
             </div>
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-medium text-mycel-muted uppercase tracking-wider" style={{ fontFamily: MONO }}>
+              <label className="text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted">
                 Runtime
               </label>
               <select
@@ -569,13 +621,60 @@ export function CreateAgentModal({
                 <option value="tmux">tmux</option>
               </select>
             </div>
+            {/* Model — third grid cell lands directly under Provider.
+                "default" (empty) means the provider default: no model
+                flag is injected. Options repopulate per provider. */}
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted">
+                Model
+              </label>
+              <select
+                value={model}
+                onChange={(e) => setModel(e.target.value)}
+                className={INPUT_CLS}
+                style={{ fontFamily: MONO }}
+                aria-label="Model"
+              >
+                <option value="">default</option>
+                {(providerModels[provider] ?? []).map((m) => (
+                  <option key={m} value={m}>{m}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Environment — collapsible key/value editor with secret
+              reference autocomplete. Collapsed by default. */}
+          <div className="flex flex-col gap-1.5">
+            <button
+              type="button"
+              onClick={() => setEnvOpen((prev) => !prev)}
+              aria-expanded={envOpen}
+              className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted hover:text-mycel-text transition-colors w-fit"
+            >
+              <svg
+                width="8"
+                height="8"
+                viewBox="0 0 8 8"
+                fill="currentColor"
+                className={`transition-transform ${envOpen ? "rotate-90" : ""}`}
+                aria-hidden="true"
+              >
+                <path d="M2 0l4 4-4 4z" />
+              </svg>
+              Environment{" "}
+              <span className="normal-case font-normal">
+                (optional{envRows.some((r) => r.key.trim() !== "") ? ` · ${envRows.filter((r) => r.key.trim() !== "").length}` : ""})
+              </span>
+            </button>
+            {envOpen && <EnvVarsEditor rows={envRows} onChange={setEnvRows} />}
           </div>
 
           {/* Initial task */}
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-medium text-mycel-muted uppercase tracking-wider" style={{ fontFamily: MONO }}>
+            <label className="text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted">
               Initial Task{" "}
-              <span className="normal-case font-normal text-mycel-muted/70">(optional)</span>
+              <span className="normal-case font-normal text-mycel-muted">(optional)</span>
             </label>
             <textarea
               value={task}
@@ -583,7 +682,6 @@ export function CreateAgentModal({
               rows={3}
               placeholder="Describe the first task for this agent..."
               className={`${INPUT_CLS} resize-none`}
-              style={{ fontFamily: MONO }}
             />
           </div>
         </div>
@@ -593,8 +691,7 @@ export function CreateAgentModal({
           {submitError && (
             <div
               role="alert"
-              className="rounded border border-mycel-error/40 bg-mycel-error/10 px-3 py-2 text-xs text-mycel-error"
-              style={{ fontFamily: MONO }}
+              className="rounded-md border border-mycel-border bg-mycel-error-subtle px-3 py-2 text-xs text-mycel-error"
             >
               {submitError}
             </div>
@@ -604,8 +701,7 @@ export function CreateAgentModal({
               type="button"
               onClick={onClose}
               disabled={submitting}
-              className="px-4 py-2 rounded text-sm text-mycel-muted hover:text-mycel-text border border-mycel-border hover:border-mycel-muted bg-mycel-bg transition-colors disabled:opacity-50"
-              style={{ fontFamily: MONO }}
+              className="inline-flex items-center h-9 px-3 rounded-md text-sm bg-mycel-surface border border-mycel-border text-mycel-text-2 hover:text-mycel-text hover:bg-mycel-surface-hover transition-colors disabled:opacity-50"
             >
               Cancel
             </button>
@@ -613,8 +709,7 @@ export function CreateAgentModal({
               type="button"
               onClick={() => { void handleCreate(); }}
               disabled={submitting || !name.trim()}
-              className="px-4 py-2 rounded text-sm font-medium bg-mycel-accent text-mycel-bg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
-              style={{ fontFamily: MONO }}
+              className="inline-flex items-center h-9 px-3 rounded-md text-sm font-medium bg-mycel-accent text-mycel-accent-fg hover:bg-mycel-accent-hover shadow-mycel-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {submitting ? "Creating..." : "Create agent"}
             </button>

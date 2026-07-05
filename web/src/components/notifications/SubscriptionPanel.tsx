@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { api } from "../../api/client";
 import type { Agent, NotifySubscription } from "../../api/client";
-import { getRoleColor, agentColor } from "./messageUtils";
+import { getRoleColor, agentColorMuted, agentColor } from "./messageUtils";
 
 function AgentRow({
   agent,
@@ -31,16 +31,14 @@ function AgentRow({
       animate={{ opacity: 1, x: 0 }}
       exit={{ opacity: 0, x: -8 }}
       transition={{ duration: 0.12 }}
-      className={`px-3 py-2 transition-colors duration-100 ${
-        sub ? "hover:bg-mycel-surface/30" : "hover:bg-mycel-surface/15"
-      } ${isStopped && !sub ? "opacity-50" : ""}`}
+      className={`px-3 py-2 transition-colors duration-100 hover:bg-mycel-surface-hover ${isStopped && !sub ? "opacity-50" : ""}`}
     >
       <div className="flex items-center gap-2">
         {/* Avatar initial */}
         <span
-          className="w-5 h-5 rounded-md flex items-center justify-center text-[9px] font-bold shrink-0"
+          className="w-5 h-5 rounded-md flex items-center justify-center text-[9px] font-semibold shrink-0"
           style={{
-            backgroundColor: `${nameColor}12`,
+            backgroundColor: agentColorMuted(agent.name),
             color: nameColor,
           }}
         >
@@ -51,10 +49,10 @@ function AgentRow({
         <div className="flex-1 min-w-0 flex items-center gap-1.5">
           <span
             className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-              isOnline ? "bg-mycel-success" : isStopped ? "bg-mycel-muted/20" : "bg-amber-400"
+              isOnline ? "bg-mycel-success" : isStopped ? "bg-mycel-muted" : "bg-mycel-warning"
             }`}
           />
-          <span className="text-[12px] text-mycel-text/90 truncate font-medium">
+          <span className="text-sm text-mycel-text truncate font-medium">
             {agent.name}
           </span>
         </div>
@@ -74,10 +72,10 @@ function AgentRow({
             <button
               type="button"
               onClick={onToggleMention}
-              className={`text-[9px] px-2 py-0.5 rounded-md border transition-all duration-150 ${
+              className={`text-[10px] px-2 py-0.5 rounded-md border transition-all duration-150 ${
                 sub.mention_only
-                  ? "border-mycel-accent/30 bg-mycel-accent/8 text-mycel-accent"
-                  : "border-mycel-border/40 text-mycel-muted hover:border-mycel-border/50 hover:text-mycel-muted"
+                  ? "border-mycel-accent bg-mycel-accent-subtle text-mycel-accent"
+                  : "border-mycel-border text-mycel-muted hover:border-mycel-border-strong"
               }`}
             >
               {sub.mention_only ? "@ mentions" : "all msgs"}
@@ -86,7 +84,7 @@ function AgentRow({
               type="button"
               onClick={onUnsubscribe}
               disabled={loading}
-              className="text-[9px] text-mycel-muted/25 hover:text-mycel-error/60 transition-colors ml-auto"
+              className="text-[10px] text-mycel-muted hover:text-mycel-error transition-colors ml-auto"
             >
               remove
             </button>
@@ -96,7 +94,7 @@ function AgentRow({
             type="button"
             onClick={onSubscribe}
             disabled={loading}
-            className="text-[9px] text-mycel-muted/30 hover:text-mycel-accent transition-colors"
+            className="text-[10px] text-mycel-muted hover:text-mycel-accent transition-colors"
           >
             + subscribe
           </button>
@@ -177,12 +175,12 @@ export function SubscriptionPanel({
 
   return (
     <aside
-      className="w-56 shrink-0 border-l border-mycel-border/40 flex flex-col bg-mycel-bg"
+      className="w-56 shrink-0 border-l border-mycel-border flex flex-col bg-mycel-bg"
       style={{ scrollbarWidth: "thin", scrollbarColor: "var(--mycel-scrollbar-thumb) transparent" }}
     >
       {/* Header */}
-      <div className="px-3 py-3 border-b border-mycel-border/40">
-        <h3 className="text-[11px] font-bold text-mycel-muted/70 uppercase tracking-[0.12em]">
+      <div className="px-3 py-3 border-b border-mycel-border">
+        <h3 className="text-[11px] font-medium text-mycel-muted uppercase tracking-[0.08em]">
           Agents
         </h3>
       </div>
@@ -195,7 +193,7 @@ export function SubscriptionPanel({
               <div className="px-3 pt-3 pb-1">
                 <div className="flex items-center gap-1.5">
                   <span className="w-1 h-1 rounded-full bg-mycel-success" />
-                  <span className="text-[9px] font-bold text-mycel-success/70 uppercase tracking-[0.1em]">
+                  <span className="text-[10px] font-medium text-mycel-success uppercase tracking-[0.08em]">
                     Listening ({subscribedAgents.length})
                   </span>
                 </div>
@@ -221,14 +219,14 @@ export function SubscriptionPanel({
 
           {/* Divider */}
           {subscribedAgents.length > 0 && availableAgents.length > 0 && (
-            <div className="mx-3 my-2 border-t border-mycel-border/15" />
+            <div className="mx-3 my-2 border-t border-mycel-border" />
           )}
 
           {/* Available */}
           {availableAgents.length > 0 && (
             <div>
               <div className="px-3 pt-2 pb-1">
-                <span className="text-[9px] font-bold text-mycel-muted/30 uppercase tracking-[0.1em]">
+                <span className="text-[10px] font-medium text-mycel-muted uppercase tracking-[0.08em]">
                   Available ({availableAgents.length})
                 </span>
               </div>
@@ -247,7 +245,7 @@ export function SubscriptionPanel({
         </AnimatePresence>
 
         {agents.length === 0 && (
-          <div className="p-6 text-center text-[11px] text-mycel-muted/25">
+          <div className="p-6 text-center text-xs text-mycel-muted">
             No agents
           </div>
         )}

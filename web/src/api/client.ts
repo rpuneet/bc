@@ -57,8 +57,10 @@ export interface Agent {
   name: string;
   role: string;
   tool: string;
+  /** Provider model identifier (e.g. "fable"); empty/absent = provider default. */
+  model?: string;
   state: string;
-  cost_usd: number;
+  total_cost_usd: number;
   started_at: string;
   created_at: string;
   updated_at: string;
@@ -75,6 +77,10 @@ export interface Agent {
   /** Absolute path of the git repo this agent is bound to. Grouping
    *  the Agents page by repo uses this. */
   repo?: string;
+  /** Configured environment variables injected at spawn. Values with
+   *  `${secret:NAME}` references are returned as the reference — the
+   *  daemon never sends resolved secret values. */
+  env?: Record<string, string>;
 }
 
 export interface AgentConfig {
@@ -226,7 +232,7 @@ export interface FileAttachment {
 
 export interface DailyCost {
   date: string;
-  cost_usd: number;
+  total_cost_usd: number;
   total_tokens: number;
   record_count: number;
   input_tokens: number;
@@ -303,6 +309,8 @@ export interface ProviderInfo {
   install_hint: string;
   version: string;
   status: string;
+  /** Curated model list for UI pickers; empty = no model selection. */
+  models?: string[];
   total_cost_usd: number;
   total_tokens: number;
   agent_count: number;
@@ -503,7 +511,7 @@ export interface TokenMetricTS {
   output_tokens: number;
   cache_read: number;
   cache_create: number;
-  cost_usd: number;
+  total_cost_usd: number;
 }
 
 export interface ChannelMetricTS {
@@ -593,7 +601,11 @@ export const api = {
     name?: string;
     role: string;
     tool?: string;
+    model?: string;
     runtime?: string;
+    /** Environment variables for the agent. Values may hold
+     *  `${secret:NAME}` references resolved from the vault at spawn. */
+    env?: Record<string, string>;
   }) =>
     request<Agent>("/agents", {
       method: "POST",

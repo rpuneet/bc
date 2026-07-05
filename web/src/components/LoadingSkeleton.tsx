@@ -12,7 +12,7 @@ function SkeletonBar({
 }) {
   return (
     <div
-      className={`animate-pulse rounded bg-mycel-border/50 ${className}`}
+      className={`animate-pulse rounded bg-mycel-border ${className}`}
       style={style}
     />
   );
@@ -20,7 +20,7 @@ function SkeletonBar({
 
 function TableSkeleton({ rows }: { rows: number }) {
   return (
-    <div className="rounded border border-mycel-border overflow-hidden">
+    <div className="rounded-lg border border-mycel-border overflow-hidden">
       <div className="border-b border-mycel-border bg-mycel-surface px-4 py-2 flex gap-4">
         <SkeletonBar className="h-4 w-24" />
         <SkeletonBar className="h-4 w-20" />
@@ -30,7 +30,7 @@ function TableSkeleton({ rows }: { rows: number }) {
       {Array.from({ length: rows }).map((_, i) => (
         <div
           key={i}
-          className="border-b border-mycel-border/50 px-4 py-3 flex gap-4"
+          className="border-b border-mycel-border px-4 py-3 flex gap-4"
         >
           <SkeletonBar className="h-3 w-28" />
           <SkeletonBar className="h-3 w-20" />
@@ -48,7 +48,7 @@ function CardsSkeleton({ rows }: { rows: number }) {
       {Array.from({ length: rows }).map((_, i) => (
         <div
           key={i}
-          className="rounded border border-mycel-border bg-mycel-surface p-4 space-y-2"
+          className="rounded-lg border border-mycel-border bg-mycel-surface p-4 space-y-2"
         >
           <SkeletonBar className="h-3 w-16" />
           <SkeletonBar className="h-6 w-24" />

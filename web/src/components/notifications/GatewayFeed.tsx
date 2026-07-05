@@ -121,20 +121,20 @@ function FileAttachmentCard({ attachment }: { attachment: FileAttachmentInfo }) 
         gap: 6,
         padding: "3px 8px",
         marginTop: 4,
-        borderRadius: 5,
-        background: "var(--mycel-surface-hover, #1a1a1a)",
-        border: "1px solid var(--mycel-border, #2a2a2a)",
+        borderRadius: 6,
+        background: "var(--mycel-surface-hover)",
+        border: "1px solid var(--mycel-border)",
         fontSize: 11,
-        color: "var(--mycel-muted, #a0a0a0)",
+        color: "var(--mycel-text-2)",
         fontFamily: "'JetBrains Mono', monospace",
       }}
     >
-      <span style={{ color: "var(--mycel-muted, #6b6b6b)", display: "flex" }}>
+      <span style={{ color: "var(--mycel-muted)", display: "flex" }}>
         {iconMap[attachment.icon] ?? iconMap.file}
       </span>
-      <span style={{ color: "var(--mycel-text, #e5e5e5)" }}>{attachment.name}</span>
+      <span style={{ color: "var(--mycel-text)" }}>{attachment.name}</span>
       {attachment.size && (
-        <span style={{ color: "var(--mycel-muted, #6b6b6b)", fontSize: 10 }}>({attachment.size})</span>
+        <span style={{ color: "var(--mycel-muted)", fontSize: 10 }}>({attachment.size})</span>
       )}
     </div>
   );
@@ -204,7 +204,7 @@ const PLATFORM_GLYPHS: Record<string, React.FC<{ size?: number }>> = {
 
 function GitHubGlyph({ size = 11 }: { size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 16 16" fill="currentColor" style={{ flexShrink: 0, color: "var(--mycel-muted, #6b6b6b)" }}>
+    <svg width={size} height={size} viewBox="0 0 16 16" fill="currentColor" style={{ flexShrink: 0, color: "var(--mycel-muted)" }}>
       <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z" />
     </svg>
   );
@@ -217,9 +217,10 @@ function GitHubCardView({ card }: { card: GitHubCard }) {
       <div
         className="mt-1.5 max-w-lg overflow-hidden"
         style={{
-          background: "var(--mycel-surface, #151515)",
-          borderRadius: 6,
-          borderLeft: "2px solid #3b82f6",
+          background: "var(--mycel-surface)",
+          borderRadius: 8,
+          borderLeft: "2px solid var(--mycel-info)",
+          boxShadow: "var(--mycel-shadow)",
         }}
       >
         <div
@@ -228,7 +229,7 @@ function GitHubCardView({ card }: { card: GitHubCard }) {
             padding: "8px 12px 6px",
             gap: 7,
             fontSize: 10.5,
-            color: "var(--mycel-muted, #6b6b6b)",
+            color: "var(--mycel-muted)",
             fontFamily: "'JetBrains Mono', monospace",
           }}
         >
@@ -239,8 +240,8 @@ function GitHubCardView({ card }: { card: GitHubCard }) {
               fontFamily: "'JetBrains Mono', monospace",
               padding: "1px 5px",
               borderRadius: 3,
-              background: "var(--mycel-surface-hover, #1a1a1a)",
-              color: "var(--mycel-muted, #a0a0a0)",
+              background: "var(--mycel-surface-hover)",
+              color: "var(--mycel-text-2)",
               textTransform: "uppercase",
               letterSpacing: 0.5,
               fontWeight: 600,
@@ -248,18 +249,18 @@ function GitHubCardView({ card }: { card: GitHubCard }) {
           >
             push
           </span>
-          {card.repo && <span style={{ color: "var(--mycel-muted, #6b6b6b)" }}>{card.repo}</span>}
-          {card.branch && <span style={{ color: "var(--mycel-muted, #a0a0a0)", fontWeight: 500 }}>{card.branch}</span>}
+          {card.repo && <span style={{ color: "var(--mycel-muted)" }}>{card.repo}</span>}
+          {card.branch && <span style={{ color: "var(--mycel-text-2)", fontWeight: 500 }}>{card.branch}</span>}
         </div>
         <div style={{ padding: "2px 12px 10px" }}>
-          <div style={{ fontSize: 13, fontWeight: 500, color: "var(--mycel-text, #e5e5e5)", lineHeight: 1.4 }}>
+          <div style={{ fontSize: 13, fontWeight: 500, color: "var(--mycel-text)", lineHeight: 1.4 }}>
             {card.title}
           </div>
           <div
             className="flex flex-wrap"
             style={{
               fontSize: 11,
-              color: "var(--mycel-muted, #6b6b6b)",
+              color: "var(--mycel-muted)",
               fontFamily: "'JetBrains Mono', monospace",
               marginTop: 4,
               gap: 10,
@@ -269,10 +270,10 @@ function GitHubCardView({ card }: { card: GitHubCard }) {
               <span>{card.changedFiles} file{card.changedFiles !== 1 ? "s" : ""}</span>
             )}
             {card.additions !== undefined && (
-              <span style={{ color: "#22c55e" }}>+{card.additions}</span>
+              <span style={{ color: "var(--mycel-success)" }}>+{card.additions}</span>
             )}
             {card.deletions !== undefined && (
-              <span style={{ color: "#ef4444" }}>-{card.deletions}</span>
+              <span style={{ color: "var(--mycel-error)" }}>-{card.deletions}</span>
             )}
           </div>
         </div>
@@ -281,16 +282,17 @@ function GitHubCardView({ card }: { card: GitHubCard }) {
   }
 
   // PR / Issue card — colored left border based on state
-  const stateColor = card.status === "MERGED" ? "#a855f7" : card.status === "CLOSED" ? "#ef4444" : "#22c55e";
+  const stateColor = card.status === "MERGED" ? "#a855f7" : card.status === "CLOSED" ? "var(--mycel-error)" : "var(--mycel-success)";
   const stateLabel = (card.status ?? "").replace(/_/g, " ");
 
   return (
     <div
       className="mt-1.5 max-w-lg overflow-hidden"
       style={{
-        background: "var(--mycel-surface, #151515)",
-        borderRadius: 6,
+        background: "var(--mycel-surface)",
+        borderRadius: 8,
         borderLeft: `2px solid ${stateColor}`,
+        boxShadow: "var(--mycel-shadow)",
       }}
     >
       {/* Card header with event type badge */}
@@ -300,7 +302,7 @@ function GitHubCardView({ card }: { card: GitHubCard }) {
           padding: "8px 12px 6px",
           gap: 7,
           fontSize: 10.5,
-          color: "var(--mycel-muted, #6b6b6b)",
+          color: "var(--mycel-muted)",
           fontFamily: "'JetBrains Mono', monospace",
         }}
       >
@@ -311,8 +313,8 @@ function GitHubCardView({ card }: { card: GitHubCard }) {
             fontFamily: "'JetBrains Mono', monospace",
             padding: "1px 5px",
             borderRadius: 3,
-            background: "var(--mycel-surface-hover, #1a1a1a)",
-            color: "var(--mycel-muted, #a0a0a0)",
+            background: "var(--mycel-surface-hover)",
+            color: "var(--mycel-text-2)",
             textTransform: "uppercase",
             letterSpacing: 0.5,
             fontWeight: 600,
@@ -320,8 +322,8 @@ function GitHubCardView({ card }: { card: GitHubCard }) {
         >
           {card.type === "pr" ? "pull_request" : card.type}
         </span>
-        {card.repo && <span style={{ color: "var(--mycel-muted, #6b6b6b)" }}>{card.repo}</span>}
-        {card.number != null && <span style={{ color: "var(--mycel-muted, #a0a0a0)", fontWeight: 500 }}>#{card.number}</span>}
+        {card.repo && <span style={{ color: "var(--mycel-muted)" }}>{card.repo}</span>}
+        {card.number != null && <span style={{ color: "var(--mycel-text-2)", fontWeight: 500 }}>#{card.number}</span>}
         {card.status && (
           <span
             style={{
@@ -342,14 +344,14 @@ function GitHubCardView({ card }: { card: GitHubCard }) {
       </div>
       {/* Card body */}
       <div style={{ padding: "2px 12px 10px" }}>
-        <div style={{ fontSize: 13, fontWeight: 500, color: "var(--mycel-text, #e5e5e5)", lineHeight: 1.4 }}>
+        <div style={{ fontSize: 13, fontWeight: 500, color: "var(--mycel-text)", lineHeight: 1.4 }}>
           {card.url ? (
             <a
               href={card.url}
               target="_blank"
               rel="noopener noreferrer"
               className="hover:underline"
-              style={{ color: "var(--mycel-text, #e5e5e5)", textDecoration: "none" }}
+              style={{ color: "var(--mycel-text)", textDecoration: "none" }}
             >
               {card.title}
             </a>
@@ -362,7 +364,7 @@ function GitHubCardView({ card }: { card: GitHubCard }) {
             className="flex flex-wrap"
             style={{
               fontSize: 11,
-              color: "var(--mycel-muted, #6b6b6b)",
+              color: "var(--mycel-muted)",
               fontFamily: "'JetBrains Mono', monospace",
               marginTop: 4,
               gap: 10,
@@ -372,10 +374,10 @@ function GitHubCardView({ card }: { card: GitHubCard }) {
               <span>{card.changedFiles} file{card.changedFiles !== 1 ? "s" : ""}</span>
             )}
             {card.additions !== undefined && (
-              <span style={{ color: "#22c55e" }}>+{card.additions}</span>
+              <span style={{ color: "var(--mycel-success)" }}>+{card.additions}</span>
             )}
             {card.deletions !== undefined && (
-              <span style={{ color: "#ef4444" }}>-{card.deletions}</span>
+              <span style={{ color: "var(--mycel-error)" }}>-{card.deletions}</span>
             )}
           </div>
         )}
@@ -390,18 +392,18 @@ function RSSCardView({ card }: { card: RSSCard }) {
   const pubDateLabel = card.pubDate && !isNaN(new Date(card.pubDate).getTime())
     ? formatRelativeTime(card.pubDate) : null;
   return (
-    <div className="mt-1.5 max-w-lg overflow-hidden" style={{ background: "var(--mycel-surface, #151515)", borderRadius: 6, borderLeft: "2px solid #F78422" }}>
-      <div className="flex items-center" style={{ padding: "8px 12px 4px", gap: 7, fontSize: 10.5, color: "var(--mycel-muted, #6b6b6b)", fontFamily: "'JetBrains Mono', monospace" }}>
+    <div className="mt-1.5 max-w-lg overflow-hidden" style={{ background: "var(--mycel-surface)", borderRadius: 8, borderLeft: "2px solid #F78422", boxShadow: "var(--mycel-shadow)" }}>
+      <div className="flex items-center" style={{ padding: "8px 12px 4px", gap: 7, fontSize: 10.5, color: "var(--mycel-muted)", fontFamily: "'JetBrains Mono', monospace" }}>
         <RSSGlyph size={11} />
-        <span style={{ fontSize: 9.5, padding: "1px 5px", borderRadius: 3, background: "var(--mycel-surface-hover, #1a1a1a)", color: "var(--mycel-muted, #a0a0a0)", textTransform: "uppercase", letterSpacing: 0.5, fontWeight: 600 }}>feed</span>
+        <span style={{ fontSize: 9.5, padding: "1px 5px", borderRadius: 3, background: "var(--mycel-surface-hover)", color: "var(--mycel-text-2)", textTransform: "uppercase", letterSpacing: 0.5, fontWeight: 600 }}>feed</span>
         {card.source && <span>{card.source}</span>}
         {pubDateLabel && <span style={{ marginLeft: "auto" }}>{pubDateLabel}</span>}
       </div>
       <div style={{ padding: "4px 12px 10px" }}>
-        <div style={{ fontSize: 13, fontWeight: 500, color: "var(--mycel-text, #e5e5e5)", lineHeight: 1.4 }}>
-          {card.link ? (<a href={card.link} target="_blank" rel="noopener noreferrer" className="hover:underline" style={{ color: "var(--mycel-text, #e5e5e5)", textDecoration: "none" }}>{card.title}</a>) : card.title}
+        <div style={{ fontSize: 13, fontWeight: 500, color: "var(--mycel-text)", lineHeight: 1.4 }}>
+          {card.link ? (<a href={card.link} target="_blank" rel="noopener noreferrer" className="hover:underline" style={{ color: "var(--mycel-text)", textDecoration: "none" }}>{card.title}</a>) : card.title}
         </div>
-        {card.description && <div style={{ fontSize: 12, color: "var(--mycel-muted, #a0a0a0)", marginTop: 4, lineHeight: 1.4, maxHeight: 60, overflow: "hidden" }}>{card.description.slice(0, 200)}</div>}
+        {card.description && <div style={{ fontSize: 12, color: "var(--mycel-text-2)", marginTop: 4, lineHeight: 1.4, maxHeight: 60, overflow: "hidden" }}>{card.description.slice(0, 200)}</div>}
       </div>
     </div>
   );
@@ -414,17 +416,17 @@ function WebhookCardView({ card }: { card: WebhookCard }) {
   const preview = useMemo(() => JSON.stringify(card.payload, null, 2), [card.payload]);
   const short = preview.slice(0, 200);
   return (
-    <div className="mt-1.5 max-w-lg overflow-hidden" style={{ background: "var(--mycel-surface, #151515)", borderRadius: 6, borderLeft: "2px solid #6B7280" }}>
-      <div className="flex items-center" style={{ padding: "8px 12px 4px", gap: 7, fontSize: 10.5, color: "var(--mycel-muted, #6b6b6b)", fontFamily: "'JetBrains Mono', monospace" }}>
-        {card.event && <span style={{ fontSize: 9.5, padding: "1px 5px", borderRadius: 3, background: "var(--mycel-surface-hover, #1a1a1a)", color: "var(--mycel-muted, #a0a0a0)", textTransform: "uppercase", letterSpacing: 0.5, fontWeight: 600 }}>{card.event}</span>}
-        {card.action && <span style={{ color: "var(--mycel-muted, #a0a0a0)", fontWeight: 500 }}>{card.action}</span>}
+    <div className="mt-1.5 max-w-lg overflow-hidden" style={{ background: "var(--mycel-surface)", borderRadius: 8, borderLeft: "2px solid var(--mycel-muted)", boxShadow: "var(--mycel-shadow)" }}>
+      <div className="flex items-center" style={{ padding: "8px 12px 4px", gap: 7, fontSize: 10.5, color: "var(--mycel-muted)", fontFamily: "'JetBrains Mono', monospace" }}>
+        {card.event && <span style={{ fontSize: 9.5, padding: "1px 5px", borderRadius: 3, background: "var(--mycel-surface-hover)", color: "var(--mycel-text-2)", textTransform: "uppercase", letterSpacing: 0.5, fontWeight: 600 }}>{card.event}</span>}
+        {card.action && <span style={{ color: "var(--mycel-text-2)", fontWeight: 500 }}>{card.action}</span>}
       </div>
       <div style={{ padding: "4px 12px 10px" }}>
-        <pre style={{ fontSize: 11, color: "var(--mycel-muted, #a0a0a0)", fontFamily: "'JetBrains Mono', monospace", lineHeight: 1.4, whiteSpace: "pre-wrap", wordBreak: "break-all", maxHeight: expanded ? "none" : 80, overflow: "hidden", margin: 0 }}>
+        <pre style={{ fontSize: 11, color: "var(--mycel-text-2)", fontFamily: "'JetBrains Mono', monospace", lineHeight: 1.4, whiteSpace: "pre-wrap", wordBreak: "break-all", maxHeight: expanded ? "none" : 80, overflow: "hidden", margin: 0 }}>
           {expanded ? preview : short}
         </pre>
         {preview.length > 200 && (
-          <button type="button" onClick={() => setExpanded((v) => !v)} style={{ fontSize: 10, color: "var(--mycel-accent, #f97316)", background: "none", border: "none", cursor: "pointer", padding: "4px 0 0", fontFamily: "'JetBrains Mono', monospace" }}>
+          <button type="button" onClick={() => setExpanded((v) => !v)} style={{ fontSize: 11, fontWeight: 500, color: "var(--mycel-accent)", background: "none", border: "none", cursor: "pointer", padding: "4px 0 0" }}>
             {expanded ? "collapse" : "expand JSON..."}
           </button>
         )}
@@ -772,7 +774,7 @@ export function GatewayFeed({
             width: 22,
             height: 22,
             borderRadius: 5,
-            color: "var(--mycel-muted, #6b6b6b)",
+            color: "var(--mycel-muted)",
             cursor: "pointer",
             background: "none",
             border: "none",
@@ -783,11 +785,11 @@ export function GatewayFeed({
             <polyline points="15 18 9 12 15 6" />
           </svg>
         </button>
-        <span className="shrink-0" style={{ color: "var(--mycel-muted, #6b6b6b)", fontSize: 13 }}>#</span>
+        <span className="shrink-0" style={{ color: "var(--mycel-muted)", fontSize: 13 }}>#</span>
         <span
           className="truncate min-w-0"
           title={channelLabel}
-          style={{ fontSize: 13, fontWeight: 600, color: "var(--mycel-text, #e5e5e5)" }}
+          style={{ fontSize: 13, fontWeight: 600, color: "var(--mycel-text)" }}
         >
           {channelLabel}
         </span>
@@ -797,10 +799,10 @@ export function GatewayFeed({
             style={{
               gap: 4,
               padding: "1px 6px",
-              background: "var(--mycel-surface-hover, #1a1a1a)",
+              background: "var(--mycel-surface-hover)",
               borderRadius: 4,
               fontSize: 10,
-              color: "var(--mycel-muted, #a0a0a0)",
+              color: "var(--mycel-text-2)",
               fontWeight: 500,
             }}
           >
@@ -811,9 +813,9 @@ export function GatewayFeed({
         <span
           className="hidden sm:inline shrink-0"
           style={{
-            color: "var(--mycel-muted, #6b6b6b)",
-            fontSize: 10.5,
-            fontFamily: "'JetBrains Mono', monospace",
+            color: "var(--mycel-muted)",
+            fontSize: 11,
+            fontVariantNumeric: "tabular-nums",
           }}
         >
           {messages.length} msgs
@@ -837,12 +839,13 @@ export function GatewayFeed({
             style={{
               gap: 5,
               padding: "3px 8px 3px 6px",
-              borderRadius: 5,
+              borderRadius: 6,
               fontSize: 10.5,
-              color: showAgents ? "var(--mycel-text, #e5e5e5)" : "var(--mycel-muted, #a0a0a0)",
-              background: showAgents ? "var(--mycel-surface-hover, #212121)" : "var(--mycel-surface-hover, #1a1a1a)",
+              fontWeight: 500,
+              color: showAgents ? "var(--mycel-text)" : "var(--mycel-text-2)",
+              background: "var(--mycel-surface-hover)",
               cursor: "pointer",
-              fontFamily: "'JetBrains Mono', monospace",
+              fontVariantNumeric: "tabular-nums",
               userSelect: "none",
               whiteSpace: "nowrap",
               border: "none",
@@ -861,10 +864,10 @@ export function GatewayFeed({
                       borderRadius: 3,
                       background: agentColor(a.name),
                       marginLeft: i === 0 ? 0 : -4,
-                      border: "1px solid var(--mycel-bg, #0d0d0d)",
+                      border: "1px solid var(--mycel-bg)",
                       fontSize: 7.5,
                       fontWeight: 700,
-                      color: "var(--mycel-bg, #0d0d0d)",
+                      color: "var(--mycel-bg)",
                       fontFamily: "'JetBrains Mono', monospace",
                     }}
                   >
@@ -875,9 +878,9 @@ export function GatewayFeed({
             )}
             <span>{liveCount}/{subscribedAgents.length + availableAgents.length} agents</span>
             {subscribedAgents.some(a => a.state === "running" || a.state === "working") && (
-              <span style={{ width: 5, height: 5, borderRadius: 999, background: "#22c55e", boxShadow: "0 0 5px rgba(34,197,94,0.6)" }} />
+              <span style={{ width: 5, height: 5, borderRadius: 999, background: "var(--mycel-success)", boxShadow: "0 0 5px color-mix(in oklab, var(--mycel-success) 60%, transparent)" }} />
             )}
-            <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: "var(--mycel-muted, #6b6b6b)" }}>
+            <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: "var(--mycel-muted)" }}>
               <polyline points="6 9 12 15 18 9" />
             </svg>
           </button>
@@ -892,9 +895,9 @@ export function GatewayFeed({
             width: 26,
             height: 26,
             borderRadius: 6,
-            color: searchOpen ? "var(--mycel-accent, #f97316)" : "var(--mycel-muted, #6b6b6b)",
+            color: searchOpen ? "var(--mycel-accent)" : "var(--mycel-muted)",
             cursor: "pointer",
-            background: searchOpen ? "rgba(249,115,22,0.1)" : "none",
+            background: searchOpen ? "var(--mycel-accent-subtle)" : "none",
             border: "none",
           }}
           title="Search messages"
@@ -914,9 +917,9 @@ export function GatewayFeed({
               width: 26,
               height: 26,
               borderRadius: 6,
-              color: filterAgent ? "var(--mycel-accent, #f97316)" : filterOpen ? "var(--mycel-text, #e5e5e5)" : "var(--mycel-muted, #6b6b6b)",
+              color: filterAgent ? "var(--mycel-accent)" : filterOpen ? "var(--mycel-text)" : "var(--mycel-muted)",
               cursor: "pointer",
-              background: filterAgent ? "rgba(249,115,22,0.1)" : "none",
+              background: filterAgent ? "var(--mycel-accent-subtle)" : "none",
               border: "none",
             }}
             title="Filter messages"
@@ -935,7 +938,7 @@ export function GatewayFeed({
   useHeaderSlot({ title: headerTitle, actions: headerActions });
 
   return (
-    <div className="flex flex-col h-full relative" style={{ background: "var(--mycel-bg, #0d0d0d)" }}>
+    <div className="flex flex-col h-full relative" style={{ background: "var(--mycel-bg)" }}>
       {/* ── Agents popover (overlays feed) ────────────────────── */}
       {showAgents && (
         <div
@@ -945,9 +948,9 @@ export function GatewayFeed({
             top: 4,
             right: 16,
             width: 420,
-            background: "var(--mycel-surface-hover, #1a1a1a)",
-            borderRadius: 10,
-            boxShadow: "0 20px 60px rgba(0,0,0,0.6), 0 0 0 1px var(--mycel-border, #2a2a2a)",
+            background: "var(--mycel-surface-2)",
+            borderRadius: 8,
+            boxShadow: "var(--mycel-shadow-lg), 0 0 0 1px var(--mycel-border)",
             zIndex: 50,
             overflow: "hidden",
             display: "flex",
@@ -960,12 +963,12 @@ export function GatewayFeed({
           {/* Popover header */}
           <div
             className="flex items-center"
-            style={{ padding: "12px 14px 10px", borderBottom: "1px solid var(--mycel-border, #222222)", gap: 8 }}
+            style={{ padding: "12px 14px 10px", borderBottom: "1px solid var(--mycel-border)", gap: 8 }}
           >
-            <span style={{ fontSize: 13, fontWeight: 600, color: "var(--mycel-text, #e5e5e5)" }}>Subscribed agents</span>
-            <span className="flex items-center ml-auto" style={{ gap: 5, fontSize: 11, color: "var(--mycel-muted, #6b6b6b)", fontFamily: "'JetBrains Mono', monospace" }}>
+            <span style={{ fontSize: 13, fontWeight: 600, color: "var(--mycel-text)" }}>Subscribed agents</span>
+            <span className="flex items-center ml-auto" style={{ gap: 5, fontSize: 11, color: "var(--mycel-muted)", fontVariantNumeric: "tabular-nums" }}>
               {subscribedAgents.some(a => a.state === "running" || a.state === "working") && (
-                <span style={{ width: 6, height: 6, borderRadius: 999, background: "#22c55e", boxShadow: "0 0 5px rgba(34,197,94,0.6)" }} />
+                <span style={{ width: 6, height: 6, borderRadius: 999, background: "var(--mycel-success)", boxShadow: "0 0 5px color-mix(in oklab, var(--mycel-success) 60%, transparent)" }} />
               )}
               <span>{liveCount} live · {agents.length} total</span>
             </span>
@@ -976,22 +979,22 @@ export function GatewayFeed({
             <div className="p-3 space-y-3 animate-pulse">
               {[...Array(4)].map((_, i) => (
                 <div key={i} className="flex items-center gap-2">
-                  <div className="w-7 h-7 rounded-md" style={{ background: "var(--mycel-surface-hover, #212121)" }} />
-                  <div className="h-3 rounded" style={{ background: "var(--mycel-surface-hover, #212121)", width: `${50 + i * 12}%` }} />
+                  <div className="w-7 h-7 rounded-md" style={{ background: "var(--mycel-surface-hover)" }} />
+                  <div className="h-3 rounded" style={{ background: "var(--mycel-surface-hover)", width: `${50 + i * 12}%` }} />
                 </div>
               ))}
             </div>
           )}
 
           {/* Agent list */}
-          <div className="flex-1 overflow-auto" style={{ padding: "4px 0 8px", scrollbarWidth: "thin", scrollbarColor: "var(--mycel-border, #2a2a2a) transparent" }}>
+          <div className="flex-1 overflow-auto" style={{ padding: "4px 0 8px", scrollbarWidth: "thin", scrollbarColor: "var(--mycel-border) transparent" }}>
             <AnimatePresence>
               {subscribedAgents.length > 0 && (
                 <div>
-                  <div className="flex items-center" style={{ padding: "10px 14px 4px", fontSize: 10, color: "var(--mycel-muted, #6b6b6b)", textTransform: "uppercase", letterSpacing: 0.6, fontWeight: 600, gap: 6 }}>
-                    <span style={{ width: 5, height: 5, borderRadius: 999, background: "#22c55e" }} />
+                  <div className="flex items-center" style={{ padding: "10px 14px 4px", fontSize: 11, color: "var(--mycel-muted)", textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 500, gap: 6 }}>
+                    <span style={{ width: 5, height: 5, borderRadius: 999, background: "var(--mycel-success)" }} />
                     <span>Listening</span>
-                    <span className="ml-auto" style={{ color: "var(--mycel-muted, #4a4a4a)", fontFamily: "'JetBrains Mono', monospace", fontWeight: 400 }}>{subscribedAgents.length}</span>
+                    <span className="ml-auto" style={{ color: "var(--mycel-muted)", fontVariantNumeric: "tabular-nums", fontWeight: 400 }}>{subscribedAgents.length}</span>
                   </div>
                   {subscribedAgents.map((agent) => {
                     const sub = subMap.get(agent.name);
@@ -1000,22 +1003,22 @@ export function GatewayFeed({
                     return (
                       <motion.div key={agent.name} layout initial={{ opacity: 0, x: 8 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -8 }} transition={{ duration: 0.12 }} className="flex" style={{ gap: 10, padding: "8px 14px", cursor: "pointer" }}>
                         <div className="relative" style={{ width: 28, height: 28, minWidth: 28 }}>
-                          <span className="flex items-center justify-center" style={{ width: 28, height: 28, borderRadius: 6, background: color, color: "var(--mycel-bg, #0d0d0d)", fontWeight: 700, fontSize: 10.5, fontFamily: "'JetBrains Mono', monospace" }}>
+                          <span className="flex items-center justify-center" style={{ width: 28, height: 28, borderRadius: 6, background: color, color: "var(--mycel-bg)", fontWeight: 700, fontSize: 10.5, fontFamily: "'JetBrains Mono', monospace" }}>
                             {agent.name.slice(0, 2).toUpperCase()}
                           </span>
-                          <span style={{ position: "absolute", bottom: -1, right: -1, width: 8, height: 8, borderRadius: 999, background: isOnline ? "#22c55e" : agent.state === "idle" ? "#f59e0b" : "var(--mycel-muted, #4a4a4a)", border: "2px solid var(--mycel-surface-hover, #1a1a1a)", boxSizing: "content-box" }} />
+                          <span style={{ position: "absolute", bottom: -1, right: -1, width: 8, height: 8, borderRadius: 999, background: isOnline ? "var(--mycel-success)" : agent.state === "idle" ? "var(--mycel-warning)" : "var(--mycel-muted)", border: "2px solid var(--mycel-surface-2)", boxSizing: "content-box" }} />
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-baseline" style={{ gap: 6 }}>
-                            <span style={{ fontSize: 12.5, fontWeight: 600, color: "var(--mycel-text, #e5e5e5)", fontFamily: "'JetBrains Mono', monospace" }}>{agent.name}</span>
-                            <span style={{ fontSize: 10, color: "var(--mycel-muted, #6b6b6b)", fontFamily: "'JetBrains Mono', monospace", padding: "0 5px", background: "var(--mycel-surface-hover, #212121)", borderRadius: 3, lineHeight: "14px" }}>{agent.role}</span>
-                            <span className="ml-auto" style={{ fontSize: 10.5, color: "var(--mycel-muted, #6b6b6b)", fontFamily: "'JetBrains Mono', monospace" }}>{agent.state}</span>
+                            <span style={{ fontSize: 12.5, fontWeight: 600, color: "var(--mycel-text)", fontFamily: "'JetBrains Mono', monospace" }}>{agent.name}</span>
+                            <span style={{ fontSize: 10, color: "var(--mycel-muted)", padding: "0 5px", background: "var(--mycel-surface-hover)", borderRadius: 3, lineHeight: "14px" }}>{agent.role}</span>
+                            <span className="ml-auto" style={{ fontSize: 10.5, color: "var(--mycel-muted)" }}>{agent.state}</span>
                           </div>
                           <div className="flex items-center mt-1" style={{ gap: 6 }}>
-                            <button type="button" onClick={() => handleToggleMention(agent.name, sub?.mention_only ?? false)} disabled={agentLoading !== null} className="transition-all" style={{ fontSize: 9.5, padding: "1px 6px", borderRadius: 3, border: sub?.mention_only ? "1px solid rgba(249,115,22,0.3)" : "1px solid var(--mycel-border, #2a2a2a)", background: sub?.mention_only ? "rgba(249,115,22,0.08)" : "transparent", color: sub?.mention_only ? "var(--mycel-accent, #f97316)" : "var(--mycel-muted, #6b6b6b)", cursor: agentLoading === agent.name ? "wait" : "pointer", fontFamily: "'JetBrains Mono', monospace" }}>
+                            <button type="button" onClick={() => handleToggleMention(agent.name, sub?.mention_only ?? false)} disabled={agentLoading !== null} className="transition-all" style={{ fontSize: 10, fontWeight: 500, padding: "1px 6px", borderRadius: 6, border: sub?.mention_only ? "1px solid color-mix(in oklab, var(--mycel-accent) 30%, transparent)" : "1px solid var(--mycel-border)", background: sub?.mention_only ? "var(--mycel-accent-subtle)" : "transparent", color: sub?.mention_only ? "var(--mycel-accent)" : "var(--mycel-muted)", cursor: agentLoading === agent.name ? "wait" : "pointer" }}>
                               {agentLoading === agent.name ? <span className="inline-block w-3 h-3 border border-current border-t-transparent rounded-full animate-spin" /> : sub?.mention_only ? "@ mentions" : "all msgs"}
                             </button>
-                            <button type="button" onClick={() => handleUnsubscribe(agent.name)} disabled={agentLoading !== null} style={{ fontSize: 9.5, color: "var(--mycel-muted, #4a4a4a)", cursor: agentLoading === agent.name ? "wait" : "pointer", background: "none", border: "none", marginLeft: "auto", fontFamily: "'JetBrains Mono', monospace" }} className="hover:text-red-400 transition-colors">
+                            <button type="button" onClick={() => handleUnsubscribe(agent.name)} disabled={agentLoading !== null} style={{ fontSize: 10, fontWeight: 500, color: "var(--mycel-muted)", cursor: agentLoading === agent.name ? "wait" : "pointer", background: "none", border: "none", marginLeft: "auto" }} className="hover:text-mycel-error transition-colors">
                               {agentLoading === agent.name ? <span className="inline-block w-2.5 h-2.5 border border-current border-t-transparent rounded-full animate-spin" /> : "remove"}
                             </button>
                           </div>
@@ -1026,14 +1029,14 @@ export function GatewayFeed({
                 </div>
               )}
               {subscribedAgents.length > 0 && availableAgents.length > 0 && (
-                <div style={{ margin: "4px 14px", borderTop: "1px solid var(--mycel-border, #222222)" }} />
+                <div style={{ margin: "4px 14px", borderTop: "1px solid var(--mycel-border)" }} />
               )}
               {availableAgents.length > 0 && (
                 <div>
-                  <div className="flex items-center" style={{ padding: "10px 14px 4px", fontSize: 10, color: "var(--mycel-muted, #6b6b6b)", textTransform: "uppercase", letterSpacing: 0.6, fontWeight: 600, gap: 6 }}>
-                    <span style={{ width: 5, height: 5, borderRadius: 999, background: "var(--mycel-muted, #4a4a4a)" }} />
+                  <div className="flex items-center" style={{ padding: "10px 14px 4px", fontSize: 11, color: "var(--mycel-muted)", textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 500, gap: 6 }}>
+                    <span style={{ width: 5, height: 5, borderRadius: 999, background: "var(--mycel-muted)" }} />
                     <span>Available</span>
-                    <span className="ml-auto" style={{ color: "var(--mycel-muted, #4a4a4a)", fontFamily: "'JetBrains Mono', monospace", fontWeight: 400 }}>{availableAgents.length}</span>
+                    <span className="ml-auto" style={{ color: "var(--mycel-muted)", fontVariantNumeric: "tabular-nums", fontWeight: 400 }}>{availableAgents.length}</span>
                   </div>
                   {availableAgents.map((agent) => {
                     const isOnline = agent.state === "running" || agent.state === "working";
@@ -1041,18 +1044,18 @@ export function GatewayFeed({
                     return (
                       <motion.div key={agent.name} layout initial={{ opacity: 0, x: 8 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -8 }} transition={{ duration: 0.12 }} className="flex items-center hover:bg-mycel-surface-hover transition-colors" style={{ gap: 10, padding: "8px 14px", cursor: "pointer" }}>
                         <div className="relative" style={{ width: 28, height: 28, minWidth: 28 }}>
-                          <span className="flex items-center justify-center" style={{ width: 28, height: 28, borderRadius: 6, background: `${color}40`, color: color, fontWeight: 700, fontSize: 10.5, fontFamily: "'JetBrains Mono', monospace" }}>
+                          <span className="flex items-center justify-center" style={{ width: 28, height: 28, borderRadius: 6, background: `color-mix(in srgb, ${color} 25%, transparent)`, color: color, fontWeight: 700, fontSize: 10.5, fontFamily: "'JetBrains Mono', monospace" }}>
                             {agent.name.slice(0, 2).toUpperCase()}
                           </span>
-                          <span style={{ position: "absolute", bottom: -1, right: -1, width: 8, height: 8, borderRadius: 999, background: isOnline ? "#22c55e" : agent.state === "idle" ? "#f59e0b" : "var(--mycel-muted, #4a4a4a)", border: "2px solid var(--mycel-surface-hover, #1a1a1a)", boxSizing: "content-box" }} />
+                          <span style={{ position: "absolute", bottom: -1, right: -1, width: 8, height: 8, borderRadius: 999, background: isOnline ? "var(--mycel-success)" : agent.state === "idle" ? "var(--mycel-warning)" : "var(--mycel-muted)", border: "2px solid var(--mycel-surface-2)", boxSizing: "content-box" }} />
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-baseline" style={{ gap: 6 }}>
-                            <span style={{ fontSize: 12.5, fontWeight: 600, color: "var(--mycel-muted, #a0a0a0)", fontFamily: "'JetBrains Mono', monospace" }}>{agent.name}</span>
-                            <span style={{ fontSize: 10, color: "var(--mycel-muted, #6b6b6b)", fontFamily: "'JetBrains Mono', monospace", padding: "0 5px", background: "var(--mycel-surface-hover, #212121)", borderRadius: 3, lineHeight: "14px" }}>{agent.role}</span>
+                            <span style={{ fontSize: 12.5, fontWeight: 600, color: "var(--mycel-text-2)", fontFamily: "'JetBrains Mono', monospace" }}>{agent.name}</span>
+                            <span style={{ fontSize: 10, color: "var(--mycel-muted)", padding: "0 5px", background: "var(--mycel-surface-hover)", borderRadius: 3, lineHeight: "14px" }}>{agent.role}</span>
                           </div>
                         </div>
-                        <button type="button" onClick={() => handleSubscribe(agent.name)} disabled={agentLoading !== null} style={{ fontSize: 9.5, color: "var(--mycel-muted, #4a4a4a)", cursor: agentLoading === agent.name ? "wait" : "pointer", background: "none", border: "none", fontFamily: "'JetBrains Mono', monospace" }} className="hover:text-orange-400 transition-colors">
+                        <button type="button" onClick={() => handleSubscribe(agent.name)} disabled={agentLoading !== null} style={{ fontSize: 10, fontWeight: 500, color: "var(--mycel-muted)", cursor: agentLoading === agent.name ? "wait" : "pointer", background: "none", border: "none" }} className="hover:text-mycel-accent transition-colors">
                           {agentLoading === agent.name ? <span className="inline-block w-2.5 h-2.5 border border-current border-t-transparent rounded-full animate-spin" /> : "+ add"}
                         </button>
                       </motion.div>
@@ -1062,7 +1065,7 @@ export function GatewayFeed({
               )}
             </AnimatePresence>
             {agents.length === 0 && !popoverLoading && (
-              <div className="p-6 text-center" style={{ fontSize: 11, color: "var(--mycel-muted, #4a4a4a)" }}>No agents</div>
+              <div className="p-6 text-center" style={{ fontSize: 11, color: "var(--mycel-muted)" }}>No agents</div>
             )}
           </div>
 
@@ -1077,25 +1080,25 @@ export function GatewayFeed({
             top: 4,
             right: 60,
             width: 220,
-            background: "var(--mycel-surface-hover, #1a1a1a)",
+            background: "var(--mycel-surface-2)",
             borderRadius: 8,
-            boxShadow: "0 12px 40px rgba(0,0,0,0.5), 0 0 0 1px var(--mycel-border, #2a2a2a)",
+            boxShadow: "var(--mycel-shadow-lg), 0 0 0 1px var(--mycel-border)",
             zIndex: 50,
             overflow: "hidden",
             animation: "fadeIn 120ms ease-out",
           }}
           onClick={(e) => e.stopPropagation()}
         >
-          <div style={{ padding: "10px 12px 6px", fontSize: 11, fontWeight: 600, color: "var(--mycel-muted, #a0a0a0)", textTransform: "uppercase", letterSpacing: 0.5 }}>
+          <div style={{ padding: "10px 12px 6px", fontSize: 11, fontWeight: 600, color: "var(--mycel-text-2)", textTransform: "uppercase", letterSpacing: 0.5 }}>
             Filter by sender
           </div>
-          <div style={{ maxHeight: 200, overflowY: "auto", padding: "0 6px 8px", scrollbarWidth: "thin", scrollbarColor: "var(--mycel-border, #2a2a2a) transparent" }}>
+          <div style={{ maxHeight: 200, overflowY: "auto", padding: "0 6px 8px", scrollbarWidth: "thin", scrollbarColor: "var(--mycel-border) transparent" }}>
             <button
               type="button"
               onClick={() => { setFilterAgent(null); setFilterOpen(false); }}
               style={{
                 display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "6px 8px", borderRadius: 5,
-                fontSize: 12, color: !filterAgent ? "var(--mycel-accent, #f97316)" : "var(--mycel-muted, #a0a0a0)", background: !filterAgent ? "rgba(249,115,22,0.08)" : "transparent",
+                fontSize: 12, color: !filterAgent ? "var(--mycel-accent)" : "var(--mycel-text-2)", background: !filterAgent ? "var(--mycel-accent-subtle)" : "transparent",
                 border: "none", cursor: "pointer", textAlign: "left",
               }}
             >
@@ -1108,14 +1111,14 @@ export function GatewayFeed({
                 onClick={() => { setFilterAgent(sender); setFilterOpen(false); }}
                 style={{
                   display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "6px 8px", borderRadius: 5,
-                  fontSize: 12, color: filterAgent === sender ? "var(--mycel-accent, #f97316)" : "var(--mycel-muted, #a0a0a0)", background: filterAgent === sender ? "rgba(249,115,22,0.08)" : "transparent",
+                  fontSize: 12, color: filterAgent === sender ? "var(--mycel-accent)" : "var(--mycel-text-2)", background: filterAgent === sender ? "var(--mycel-accent-subtle)" : "transparent",
                   border: "none", cursor: "pointer", textAlign: "left",
                   fontFamily: "'JetBrains Mono', monospace",
                 }}
               >
                 <span
                   className="flex items-center justify-center shrink-0"
-                  style={{ width: 18, height: 18, borderRadius: 4, background: agentColor(sender), color: "var(--mycel-bg, #0d0d0d)", fontWeight: 700, fontSize: 8, fontFamily: "'JetBrains Mono', monospace" }}
+                  style={{ width: 18, height: 18, borderRadius: 4, background: agentColor(sender), color: "var(--mycel-bg)", fontWeight: 700, fontSize: 8, fontFamily: "'JetBrains Mono', monospace" }}
                 >
                   {senderInitials(sender)}
                 </span>
@@ -1132,12 +1135,12 @@ export function GatewayFeed({
           className="shrink-0 flex items-center"
           style={{
             padding: "6px 16px",
-            borderBottom: "1px solid var(--mycel-border, #222222)",
-            background: "var(--mycel-surface, #151515)",
+            borderBottom: "1px solid var(--mycel-border)",
+            background: "var(--mycel-surface)",
             gap: 8,
           }}
         >
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--mycel-muted, #6b6b6b)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--mycel-muted)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
             <circle cx="11" cy="11" r="7" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
           </svg>
           <input
@@ -1152,20 +1155,20 @@ export function GatewayFeed({
               background: "none",
               border: "none",
               outline: "none",
-              color: "var(--mycel-text, #e5e5e5)",
+              color: "var(--mycel-text)",
               fontSize: 12,
               fontFamily: "'JetBrains Mono', monospace",
             }}
           />
           {searchQuery && (
-            <span style={{ fontSize: 10, color: "var(--mycel-muted, #6b6b6b)", fontFamily: "'JetBrains Mono', monospace", whiteSpace: "nowrap" }}>
+            <span style={{ fontSize: 10, color: "var(--mycel-muted)", fontFamily: "'JetBrains Mono', monospace", whiteSpace: "nowrap" }}>
               {filteredMessages.length} result{filteredMessages.length !== 1 ? "s" : ""}
             </span>
           )}
           <button
             type="button"
             onClick={() => { setSearchOpen(false); setSearchQuery(""); }}
-            style={{ background: "none", border: "none", color: "var(--mycel-muted, #6b6b6b)", cursor: "pointer", padding: 2 }}
+            style={{ background: "none", border: "none", color: "var(--mycel-muted)", cursor: "pointer", padding: 2 }}
           >
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
@@ -1180,19 +1183,19 @@ export function GatewayFeed({
           className="shrink-0 flex items-center"
           style={{
             padding: "4px 16px",
-            borderBottom: "1px solid var(--mycel-border, #222222)",
-            background: "var(--mycel-surface, #151515)",
+            borderBottom: "1px solid var(--mycel-border)",
+            background: "var(--mycel-surface)",
             gap: 6,
             fontSize: 11,
-            color: "var(--mycel-muted, #a0a0a0)",
+            color: "var(--mycel-text-2)",
           }}
         >
-          <span style={{ color: "var(--mycel-muted, #6b6b6b)" }}>Filtered by:</span>
-          <span style={{ color: "var(--mycel-accent, #f97316)", fontFamily: "'JetBrains Mono', monospace" }}>{cleanSender(filterAgent)}</span>
+          <span style={{ color: "var(--mycel-muted)" }}>Filtered by:</span>
+          <span style={{ color: "var(--mycel-accent)", fontFamily: "'JetBrains Mono', monospace" }}>{cleanSender(filterAgent)}</span>
           <button
             type="button"
             onClick={() => setFilterAgent(null)}
-            style={{ background: "none", border: "none", color: "var(--mycel-muted, #6b6b6b)", cursor: "pointer", padding: 2, marginLeft: "auto" }}
+            style={{ background: "none", border: "none", color: "var(--mycel-muted)", cursor: "pointer", padding: 2, marginLeft: "auto" }}
             title="Clear filter"
           >
             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -1209,14 +1212,14 @@ export function GatewayFeed({
           style={{
             padding: "10px 18px",
             fontSize: 12,
-            color: "var(--mycel-muted, #6b6b6b)",
+            color: "var(--mycel-muted)",
             lineHeight: 1.55,
-            borderBottom: "1px solid var(--mycel-border, #222222)",
-            background: "var(--mycel-surface, #151515)",
+            borderBottom: "1px solid var(--mycel-border)",
+            background: "var(--mycel-surface)",
             gap: 10,
           }}
         >
-          <svg width="11" height="11" viewBox="0 0 24 24" fill="var(--mycel-accent, #f97316)" stroke="none" style={{ marginTop: 1, flexShrink: 0 }}>
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="var(--mycel-accent)" stroke="none" style={{ marginTop: 1, flexShrink: 0 }}>
             <path d="M12 17v5M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z" />
           </svg>
           <span style={{ flex: 1 }}>
@@ -1224,12 +1227,12 @@ export function GatewayFeed({
               ? channel.description
               : (<>
                   Coordination feed for{" "}
-                  <span style={{ color: "var(--mycel-muted, #a0a0a0)", fontFamily: "'JetBrains Mono', monospace" }}>
+                  <span style={{ color: "var(--mycel-text-2)", fontFamily: "'JetBrains Mono', monospace" }}>
                     #{channelLabel}
                   </span>
                   . Agents posting here are managed via{" "}
                   <span
-                    style={{ color: "var(--mycel-accent, #f97316)", cursor: "pointer" }}
+                    style={{ color: "var(--mycel-accent)", cursor: "pointer" }}
                     onClick={() => setShowAgents(true)}
                   >
                     agent subscriptions
@@ -1238,7 +1241,7 @@ export function GatewayFeed({
                   {platform && (
                     <>
                       {" "}Attachments are raw{" "}
-                      <span style={{ color: "var(--mycel-muted, #a0a0a0)", fontFamily: "'JetBrains Mono', monospace" }}>
+                      <span style={{ color: "var(--mycel-text-2)", fontFamily: "'JetBrains Mono', monospace" }}>
                         {platform}
                       </span>{" "}
                       webhook payloads.
@@ -1253,7 +1256,7 @@ export function GatewayFeed({
             style={{
               background: "none",
               border: "none",
-              color: "var(--mycel-muted, #4a4a4a)",
+              color: "var(--mycel-muted)",
               cursor: "pointer",
               padding: 2,
               flexShrink: 0,
@@ -1275,7 +1278,7 @@ export function GatewayFeed({
           className="absolute inset-0 overflow-auto"
           style={{
             scrollbarWidth: "thin",
-            scrollbarColor: "var(--mycel-border, #2a2a2a) transparent",
+            scrollbarColor: "var(--mycel-border) transparent",
           }}
         >
           <div style={{ padding: "14px 0 8px", display: "flex", flexDirection: "column", marginTop: "auto" }}>
@@ -1283,13 +1286,13 @@ export function GatewayFeed({
               <div className="space-y-4 py-4 px-5 animate-pulse">
                 {[...Array(5)].map((_, i) => (
                   <div key={i} className="flex items-start gap-3">
-                    <div className="w-7 h-7 rounded-md flex-shrink-0" style={{ background: "var(--mycel-surface-hover, #212121)" }} />
+                    <div className="w-7 h-7 rounded-md flex-shrink-0" style={{ background: "var(--mycel-surface-hover)" }} />
                     <div className="flex-1 space-y-2">
                       <div className="flex items-center gap-2">
-                        <div className="h-3 w-20 rounded" style={{ background: "var(--mycel-surface-hover, #1a1a1a)" }} />
-                        <div className="h-2 w-12 rounded" style={{ background: "var(--mycel-surface, #151515)" }} />
+                        <div className="h-3 w-20 rounded" style={{ background: "var(--mycel-surface-hover)" }} />
+                        <div className="h-2 w-12 rounded" style={{ background: "var(--mycel-surface)" }} />
                       </div>
-                      <div className="h-3 rounded" style={{ background: "var(--mycel-surface, #151515)", width: `${60 + (i * 7) % 30}%` }} />
+                      <div className="h-3 rounded" style={{ background: "var(--mycel-surface)", width: `${60 + (i * 7) % 30}%` }} />
                     </div>
                   </div>
                 ))}
@@ -1297,14 +1300,14 @@ export function GatewayFeed({
             )}
             {!initialLoading && messages.length === 0 && (
               <div className="flex flex-col items-center justify-center py-24 text-center">
-                <svg width="32" height="32" viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="1.2" style={{ color: "var(--mycel-muted, #4a4a4a)" }} className="mb-4">
+                <svg width="32" height="32" viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="1.2" style={{ color: "var(--mycel-muted)" }} className="mb-4">
                   <path d="M4 16h6m12 0h6M16 4v6m0 12v6" strokeLinecap="round" />
                   <circle cx="16" cy="16" r="3" />
                 </svg>
-                <h3 style={{ fontSize: 14, fontWeight: 500, color: "var(--mycel-muted, #6b6b6b)", marginBottom: 4 }}>
+                <h3 style={{ fontSize: 14, fontWeight: 500, color: "var(--mycel-muted)", marginBottom: 4 }}>
                   Waiting for messages
                 </h3>
-                <p style={{ fontSize: 12, color: "var(--mycel-muted, #4a4a4a)" }}>
+                <p style={{ fontSize: 12, color: "var(--mycel-muted)" }}>
                   Activity from {platform ?? "this channel"} will stream here in real-time.
                 </p>
               </div>
@@ -1313,28 +1316,28 @@ export function GatewayFeed({
             {/* Beginning of history */}
             {!hasMore && messages.length > 0 && (
               <div className="flex items-center py-6 px-5" style={{ gap: 10 }}>
-                <div className="flex-1" style={{ height: 1, background: "var(--mycel-border, #222222)" }} />
+                <div className="flex-1" style={{ height: 1, background: "var(--mycel-border)" }} />
                 <span
                   style={{
                     fontSize: 11,
                     fontWeight: 600,
-                    color: "var(--mycel-muted, #a0a0a0)",
-                    background: "var(--mycel-surface-hover, #1a1a1a)",
+                    color: "var(--mycel-text-2)",
+                    background: "var(--mycel-surface-hover)",
                     padding: "3px 10px",
                     borderRadius: 999,
                   }}
                 >
                   Beginning of history
                 </span>
-                <div className="flex-1" style={{ height: 1, background: "var(--mycel-border, #222222)" }} />
+                <div className="flex-1" style={{ height: 1, background: "var(--mycel-border)" }} />
               </div>
             )}
             {hasMore && (
               <div ref={sentinelRef} className="py-4 text-center">
                 {loadingMore ? (
-                  <span style={{ fontSize: 10, color: "var(--mycel-muted, #4a4a4a)" }}>Loading older messages...</span>
+                  <span style={{ fontSize: 10, color: "var(--mycel-muted)" }}>Loading older messages...</span>
                 ) : (
-                  <span style={{ fontSize: 10, color: "var(--mycel-muted, #4a4a4a)" }}>Scroll up for more</span>
+                  <span style={{ fontSize: 10, color: "var(--mycel-muted)" }}>Scroll up for more</span>
                 )}
               </div>
             )}
@@ -1356,24 +1359,24 @@ export function GatewayFeed({
                         padding: "14px 18px",
                         position: "sticky",
                         top: 0,
-                        background: "linear-gradient(var(--mycel-bg, #0d0d0d) 40%, transparent)",
+                        background: "linear-gradient(var(--mycel-bg) 40%, transparent)",
                         zIndex: 2,
                       }}
                     >
-                      <div className="flex-1" style={{ height: 1, background: "var(--mycel-border, #222222)" }} />
+                      <div className="flex-1" style={{ height: 1, background: "var(--mycel-border)" }} />
                       <div
                         style={{
                           fontSize: 11,
                           fontWeight: 600,
-                          color: "var(--mycel-muted, #a0a0a0)",
-                          background: "var(--mycel-surface-hover, #1a1a1a)",
+                          color: "var(--mycel-text-2)",
+                          background: "var(--mycel-surface-hover)",
                           padding: "3px 10px",
                           borderRadius: 999,
                         }}
                       >
                         {formatDayLabel(group.timestamp)}
                       </div>
-                      <div className="flex-1" style={{ height: 1, background: "var(--mycel-border, #222222)" }} />
+                      <div className="flex-1" style={{ height: 1, background: "var(--mycel-border)" }} />
                     </div>
                   )}
 
@@ -1390,7 +1393,7 @@ export function GatewayFeed({
                           minWidth: 30,
                           borderRadius: 6,
                           background: agentColor(group.sender),
-                          color: "var(--mycel-bg, #0d0d0d)",
+                          color: "var(--mycel-bg)",
                           fontWeight: 700,
                           fontSize: 10.5,
                           fontFamily: "'JetBrains Mono', monospace",
@@ -1409,7 +1412,7 @@ export function GatewayFeed({
                             style={{
                               fontSize: 13.5,
                               fontWeight: 600,
-                              color: "var(--mycel-text, #e5e5e5)",
+                              color: "var(--mycel-text)",
                               fontFamily: "'JetBrains Mono', monospace",
                               background: "none",
                               border: "none",
@@ -1421,7 +1424,7 @@ export function GatewayFeed({
                           <span
                             style={{
                               fontSize: 11,
-                              color: "var(--mycel-muted, #6b6b6b)",
+                              color: "var(--mycel-muted)",
                               fontFamily: "'JetBrains Mono', monospace",
                             }}
                             title={new Date(group.timestamp).toLocaleString()}
@@ -1462,7 +1465,7 @@ export function GatewayFeed({
                                     className="whitespace-pre-wrap break-words"
                                     style={{
                                       fontSize: 13.5,
-                                      color: "var(--mycel-text, #e5e5e5)",
+                                      color: "var(--mycel-text)",
                                       lineHeight: 1.55,
                                       wordBreak: "break-word",
                                     }}
@@ -1484,12 +1487,12 @@ export function GatewayFeed({
                                 {hasDelivery && (
                                   <div className="hidden group-hover/msg:flex items-center gap-3 mt-0.5" style={{ fontSize: 9 }}>
                                     {delivered.length > 0 && (
-                                      <span style={{ color: "rgba(34,197,94,0.5)" }} title={delivered.map((d) => d.agent).join(", ")}>
+                                      <span style={{ color: "color-mix(in oklab, var(--mycel-success) 50%, transparent)" }} title={delivered.map((d) => d.agent).join(", ")}>
                                         → {delivered.map((d) => d.agent).join(", ")}
                                       </span>
                                     )}
                                     {failed.length > 0 && (
-                                      <span style={{ color: "rgba(239,68,68,0.5)" }} title={failed.map((d) => `${d.agent}: ${d.error ?? "failed"}`).join(", ")}>
+                                      <span style={{ color: "color-mix(in oklab, var(--mycel-error) 50%, transparent)" }} title={failed.map((d) => `${d.agent}: ${d.error ?? "failed"}`).join(", ")}>
                                         ✗ {failed.map((d) => d.agent).join(", ")}
                                       </span>
                                     )}

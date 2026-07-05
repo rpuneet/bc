@@ -55,8 +55,19 @@ func (p *CodexProvider) InstallHint() string {
 }
 
 // BuildCommand returns the full command for a given runtime context.
-func (p *CodexProvider) BuildCommand(_ CommandOpts) string {
-	return p.command
+// Supports --model <m> for model selection; the value is spliced into a
+// shell command line, so unsafe values are dropped.
+func (p *CodexProvider) BuildCommand(opts CommandOpts) string {
+	cmd := p.command
+	if SafeModelName(opts.Model) {
+		cmd += " --model " + opts.Model
+	}
+	return cmd
+}
+
+// Models returns the curated model list for the Codex CLI.
+func (p *CodexProvider) Models() []string {
+	return []string{"gpt-5.3-codex", "gpt-5.2-codex", "gpt-5.2"}
 }
 
 // IsInstalled checks if the provider binary is available.
@@ -145,3 +156,4 @@ func (p *CodexProvider) DetectState(output string) State {
 
 // Ensure CodexProvider implements Provider interface.
 var _ Provider = (*CodexProvider)(nil)
+var _ ModelLister = (*CodexProvider)(nil)

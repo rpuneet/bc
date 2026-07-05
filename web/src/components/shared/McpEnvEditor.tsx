@@ -69,12 +69,12 @@ export function McpEnvEditor({ serverNames }: McpEnvEditorProps) {
         return (
           <div
             key={srv.name}
-            className="rounded border border-mycel-border/40 bg-mycel-surface/20"
+            className="rounded border border-mycel-border bg-mycel-surface"
           >
             <button
               type="button"
               onClick={() => setExpanded(isOpen ? null : srv.name)}
-              className="w-full flex items-center justify-between px-3 py-2 text-left hover:bg-mycel-surface/40 transition-colors"
+              className="w-full flex items-center justify-between px-3 py-2 text-left hover:bg-mycel-surface-hover transition-colors"
             >
               <span className="flex items-center gap-2">
                 <span className="font-medium text-mycel-text text-[12px]" style={{ fontFamily: MONO }}>
@@ -188,7 +188,7 @@ function EnvEditor({
   };
 
   return (
-    <div className="px-3 pb-3 border-t border-mycel-border/40">
+    <div className="px-3 pb-3 border-t border-mycel-border">
       {pairs.length === 0 && (
         <p className="py-2 text-[11px] text-mycel-muted" style={{ fontFamily: MONO }}>
           No env variables set.
@@ -200,13 +200,13 @@ function EnvEditor({
             type="text"
             value={p.key}
             onChange={(e) => update(i, "key", e.target.value)}
-            className="flex-1 bg-mycel-bg border border-mycel-border/40 rounded px-2 py-1 text-[12px] text-mycel-text font-mono outline-none focus:border-mycel-accent"
+            className="flex-1 bg-mycel-bg border border-mycel-border rounded px-2 py-1 text-[12px] text-mycel-text font-mono outline-none focus:border-mycel-accent"
           />
           <input
             type="text"
             value={p.value}
             onChange={(e) => update(i, "value", e.target.value)}
-            className="flex-1 bg-mycel-bg border border-mycel-border/40 rounded px-2 py-1 text-[12px] text-mycel-text font-mono outline-none focus:border-mycel-accent"
+            className="flex-1 bg-mycel-bg border border-mycel-border rounded px-2 py-1 text-[12px] text-mycel-text font-mono outline-none focus:border-mycel-accent"
           />
           <button
             type="button"
@@ -219,13 +219,13 @@ function EnvEditor({
         </div>
       ))}
 
-      <div className="flex gap-2 mt-2 pt-2 border-t border-mycel-border/15">
+      <div className="flex gap-2 mt-2 pt-2 border-t border-mycel-border">
         <input
           type="text"
           value={newKey}
           onChange={(e) => setNewKey(e.target.value)}
           placeholder="KEY"
-          className="flex-1 bg-mycel-bg border border-mycel-border/40 rounded px-2 py-1 text-[12px] text-mycel-muted font-mono outline-none focus:border-mycel-accent"
+          className="flex-1 bg-mycel-bg border border-mycel-border rounded px-2 py-1 text-[12px] text-mycel-muted font-mono outline-none focus:border-mycel-accent"
         />
         <input
           type="text"
@@ -235,13 +235,13 @@ function EnvEditor({
             if (e.key === "Enter") addNew();
           }}
           placeholder="value"
-          className="flex-1 bg-mycel-bg border border-mycel-border/40 rounded px-2 py-1 text-[12px] text-mycel-muted font-mono outline-none focus:border-mycel-accent"
+          className="flex-1 bg-mycel-bg border border-mycel-border rounded px-2 py-1 text-[12px] text-mycel-muted font-mono outline-none focus:border-mycel-accent"
         />
         <button
           type="button"
           onClick={addNew}
           disabled={!newKey.trim()}
-          className="px-3 py-1 text-[11px] rounded border border-mycel-border/40 text-mycel-muted hover:text-mycel-text hover:border-mycel-border disabled:opacity-30"
+          className="px-3 py-1 text-[11px] rounded border border-mycel-border text-mycel-muted hover:text-mycel-text hover:border-mycel-border disabled:opacity-30"
           style={{ fontFamily: MONO }}
         >
           Add
@@ -262,7 +262,7 @@ function EnvEditor({
           type="button"
           onClick={save}
           disabled={!dirty || saving}
-          className="px-3 py-1 text-[11px] rounded border border-mycel-accent/40 text-mycel-accent hover:bg-mycel-accent/10 disabled:opacity-30"
+          className="px-3 py-1 text-[11px] rounded border border-mycel-accent text-mycel-accent hover:bg-mycel-accent-subtle disabled:opacity-30"
           style={{ fontFamily: MONO }}
         >
           {saving ? "Saving…" : "Save"}

@@ -43,9 +43,14 @@ type ListOptions struct {
 
 // CreateOptions holds parameters for creating an agent via the service.
 type CreateOptions struct {
+	// Env holds user-configured environment variables for the agent.
+	// Values may contain ${secret:NAME} references; they are stored
+	// verbatim and resolved against the vault at spawn time.
+	Env     map[string]string
 	Name    string
 	Role    Role
 	Tool    string
+	Model   string // provider model identifier; empty uses the provider default
 	EnvFile string
 	Runtime string
 	Parent  string
@@ -205,7 +210,9 @@ func (s *AgentService) Create(ctx context.Context, opts CreateOptions) (*Agent, 
 		Workspace: repo,
 		ParentID:  opts.Parent,
 		Tool:      opts.Tool,
+		Model:     opts.Model,
 		EnvFile:   opts.EnvFile,
+		Env:       opts.Env,
 		Runtime:   opts.Runtime,
 		Team:      opts.Team,
 	})
@@ -252,6 +259,7 @@ func (s *AgentService) Start(ctx context.Context, name string, opts StartOptions
 		Workspace: repo,
 		ParentID:  existing.ParentID,
 		Tool:      existing.Tool,
+		Model:     existing.Model,
 		EnvFile:   existing.EnvFile,
 		Runtime:   opts.Runtime,
 		SessionID: opts.ResumeID,
@@ -398,6 +406,26 @@ func (s *AgentService) Broadcast(ctx context.Context, message string) (int, erro
 		sent++
 	}
 	return sent, nil
+}
+
+// SetEnv replaces an agent's configured environment variables. Values
+// with ${secret:NAME} references are stored verbatim; they resolve at
+// spawn, so edits apply on the agent's next restart.
+func (s *AgentService) SetEnv(ctx context.Context, name string, env map[string]string) error {
+	if err := s.manager.SetAgentEnv(ctx, name, env); err != nil {
+		return err
+	}
+	// Publish keys only — env values may hold sensitive material.
+	keys := make([]string, 0, len(env))
+	for k := range env {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	s.publishEvent("agent.env_updated", map[string]any{
+		"name": name,
+		"keys": keys,
+	})
+	return nil
 }
 
 // Get returns a single agent by name.

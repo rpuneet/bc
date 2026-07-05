@@ -46,7 +46,7 @@ export function Table<T>({
           {columns.map((col) => (
             <th
               key={col.key}
-              className={`px-4 py-2 font-medium text-mycel-muted ${col.className ?? ""}`}
+              className={`px-4 py-2 text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted ${col.className ?? ""}`}
             >
               {col.label}
             </th>
@@ -60,14 +60,14 @@ export function Table<T>({
             <React.Fragment key={keyFn(row)}>
               <tr
                 onClick={onRowClick ? () => onRowClick(row) : undefined}
-                className={`border-b border-mycel-border/50 ${
+                className={`border-b border-mycel-border ${
                   onRowClick ? "cursor-pointer hover:bg-mycel-surface" : ""
                 }`}
               >
                 {columns.map((col) => (
                   <td
                     key={col.key}
-                    className={`px-4 py-2 ${col.className ?? ""}`}
+                    className={`px-4 py-3 ${col.className ?? ""}`}
                   >
                     {col.render(row)}
                   </td>

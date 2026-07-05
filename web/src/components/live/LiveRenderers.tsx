@@ -40,7 +40,7 @@ export function StateDot({ state }: { state: string }) {
     );
   if (state === "error" || state === "stopped")
     return <span className="inline-flex h-2.5 w-2.5 rounded-full bg-mycel-error" />;
-  return <span className="inline-flex h-2.5 w-2.5 rounded-full bg-mycel-muted/40" />;
+  return <span className="inline-flex h-2.5 w-2.5 rounded-full bg-mycel-muted" />;
 }
 
 /* ── Idle Timer ───────────────────────────────────────────────────── */
@@ -98,7 +98,7 @@ export function DrillDownTasksSection({ tasks, agentName }: { tasks: Map<string,
       </button>
 
       {!collapsed && (
-        <div className="border-t border-mycel-border/60 px-4 py-2 space-y-1.5">
+        <div className="border-t border-mycel-border px-4 py-2 space-y-1.5">
           {agentTasks.map((task) => {
             const isBlocked = task.blockedBy && task.blockedBy.length > 0 && task.status !== "completed";
             const borderColor = task.status === "completed" ? "border-l-mycel-success" :
@@ -109,22 +109,22 @@ export function DrillDownTasksSection({ tasks, agentName }: { tasks: Map<string,
               <div key={task.id} className={`flex items-center gap-2 py-1.5 px-2.5 rounded-md bg-mycel-bg border-l-2 ${borderColor} ${isBlocked ? "opacity-50" : ""}`}>
                 <span className="text-[11px] text-mycel-muted font-mono shrink-0">#{task.id}</span>
                 <span className={`text-sm font-mono min-w-0 ${
-                  task.status === "completed" ? "line-through text-mycel-muted/60" :
+                  task.status === "completed" ? "line-through text-mycel-muted" :
                   task.status === "in_progress" ? "text-mycel-accent font-semibold" :
                   "text-mycel-text"
                 }`}>
                   {task.subject.length > 80 ? task.subject.slice(0, 77) + "..." : task.subject}
                 </span>
                 {isBlocked && (
-                  <span className="text-[10px] text-mycel-warning/80 font-mono shrink-0">
+                  <span className="text-[10px] text-mycel-warning font-mono shrink-0">
                     Blocked by {task.blockedBy!.map((b) => `#${b}`).join(", ")}
                   </span>
                 )}
                 <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono capitalize shrink-0 ml-auto ${
-                  task.status === "completed" ? "bg-mycel-success/15 text-mycel-success" :
-                  task.status === "in_progress" ? "bg-mycel-accent/15 text-mycel-accent" :
-                  task.status === "pending" ? "bg-mycel-muted/15 text-mycel-muted" :
-                  "bg-mycel-error/15 text-mycel-error"
+                  task.status === "completed" ? "bg-mycel-success-subtle text-mycel-success" :
+                  task.status === "in_progress" ? "bg-mycel-accent-subtle text-mycel-accent" :
+                  task.status === "pending" ? "bg-mycel-surface-hover text-mycel-text-2" :
+                  "bg-mycel-error-subtle text-mycel-error"
                 }`}>
                   {task.status.replace("_", " ")}
                 </span>
@@ -140,14 +140,14 @@ export function DrillDownTasksSection({ tasks, agentName }: { tasks: Map<string,
 /* ── Drill-Down: Raw event type badge colors ──────────────────────── */
 
 export function rawEventBadgeColor(eventType: string): string {
-  if (eventType === "PreToolUse") return "bg-blue-900/40 text-blue-300";
-  if (eventType === "PostToolUse") return "bg-emerald-900/40 text-emerald-300";
-  if (eventType === "PostToolUseFailure") return "bg-red-900/40 text-red-300";
-  if (eventType === "UserPromptSubmit") return "bg-purple-900/40 text-purple-300";
-  if (eventType.startsWith("Subagent")) return "bg-amber-900/40 text-amber-300";
-  if (eventType === "PermissionRequest" || eventType === "Elicitation") return "bg-yellow-900/40 text-yellow-300";
-  if (eventType === "SessionStart" || eventType === "SessionEnd") return "bg-zinc-700 text-zinc-300";
-  return "bg-zinc-800 text-zinc-400";
+  if (eventType === "PreToolUse") return "bg-mycel-info-subtle text-mycel-info";
+  if (eventType === "PostToolUse") return "bg-mycel-success-subtle text-mycel-success";
+  if (eventType === "PostToolUseFailure") return "bg-mycel-error-subtle text-mycel-error";
+  if (eventType === "UserPromptSubmit") return "bg-mycel-accent-subtle text-mycel-accent";
+  if (eventType.startsWith("Subagent")) return "bg-mycel-warning-subtle text-mycel-warning";
+  if (eventType === "PermissionRequest" || eventType === "Elicitation") return "bg-mycel-warning-subtle text-mycel-warning";
+  if (eventType === "SessionStart" || eventType === "SessionEnd") return "bg-mycel-surface-hover text-mycel-text-2";
+  return "bg-mycel-surface-hover text-mycel-muted";
 }
 
 export function AgentDrillDown({
@@ -280,7 +280,7 @@ export function AgentDrillDown({
                 const isOpen = rawExpanded.has(evtKey);
                 const jsonStr = JSON.stringify(redactValue(evt.raw), null, 2);
                 return (
-                  <div key={evtKey} className="border border-mycel-border/40 rounded bg-mycel-surface overflow-hidden">
+                  <div key={evtKey} className="border border-mycel-border rounded bg-mycel-surface overflow-hidden">
                     <button
                       type="button"
                       onClick={() => toggleRawExpanded(evtKey)}
@@ -300,14 +300,14 @@ export function AgentDrillDown({
                       </span>
                     </button>
                     {isOpen && (
-                      <div className="border-t border-mycel-border/40 px-3 py-2 bg-mycel-bg">
+                      <div className="border-t border-mycel-border px-3 py-2 bg-mycel-bg">
                         <div className="flex justify-end mb-1">
                           <CopyButton text={jsonStr} />
                         </div>
                         <pre className="text-[11px] font-mono text-mycel-muted whitespace-pre-wrap break-all max-h-64 overflow-y-auto">
                           {jsonStr.split("\n").map((line, i) => (
                             <span key={i} className="flex">
-                              <span className="select-none text-mycel-muted/30 w-8 text-right pr-3 shrink-0 tabular-nums">{i + 1}</span>
+                              <span className="select-none text-mycel-muted w-8 text-right pr-3 shrink-0 tabular-nums">{i + 1}</span>
                               <span>{line}</span>
                               {"\n"}
                             </span>
@@ -374,7 +374,7 @@ export const AgentCard = memo(function AgentCard({
 
   return (
     <motion.div
-      className={`rounded-lg border bg-mycel-surface overflow-hidden transition-colors ${isFilterActive ? "border-mycel-accent ring-1 ring-mycel-accent/30" : "border-mycel-border"}`}
+      className={`rounded-lg border bg-mycel-surface overflow-hidden transition-colors ${isFilterActive ? "border-mycel-accent ring-1 ring-mycel-accent" : "border-mycel-border"}`}
       whileHover={{ y: -1 }}
       transition={{ duration: 0.15 }}
     >
@@ -405,7 +405,7 @@ export const AgentCard = memo(function AgentCard({
           title={`Open ${activity.name} detail view`}
         >
           {/* Monogram circle */}
-          <span className="inline-flex items-center justify-center h-8 w-8 rounded-full bg-mycel-accent/20 text-mycel-accent font-bold text-sm shrink-0">
+          <span className="inline-flex items-center justify-center h-8 w-8 rounded-full bg-mycel-accent-subtle text-mycel-accent font-bold text-sm shrink-0">
             {monogram}
           </span>
 
@@ -418,7 +418,7 @@ export const AgentCard = memo(function AgentCard({
               <StateDot state={activity.state} />
               {errorCount > 0 && (
                 <span
-                  className="inline-flex items-center gap-1 pl-1 pr-1.5 h-[18px] text-[10px] font-mono font-medium text-mycel-error border border-mycel-error/40 bg-mycel-error/10 rounded leading-none"
+                  className="inline-flex items-center gap-1 pl-1 pr-1.5 h-[18px] text-[10px] font-mono font-medium text-mycel-error border border-mycel-border bg-mycel-error-subtle rounded leading-none"
                   title={`${errorCount} failed tool ${errorCount === 1 ? "call" : "calls"} in this session`}
                   aria-label={`${errorCount} failed tool ${errorCount === 1 ? "call" : "calls"}`}
                 >
@@ -460,7 +460,7 @@ export const AgentCard = memo(function AgentCard({
             )}
             {/* Cost -- prominent */}
             {cost > 0 && (
-              <span className="text-xs font-semibold text-mycel-success font-mono tabular-nums px-1.5 py-0.5 rounded bg-mycel-success/10" title={activity.costUsd > 0 ? "From API" : "Estimated from tokens"}>
+              <span className="text-xs font-semibold text-mycel-success font-mono tabular-nums px-1.5 py-0.5 rounded bg-mycel-success-subtle" title={activity.costUsd > 0 ? "From API" : "Estimated from tokens"}>
                 ${cost.toFixed(2)}
               </span>
             )}
@@ -472,7 +472,7 @@ export const AgentCard = memo(function AgentCard({
             )}
             {/* Idle chip */}
             {isIdle && activity.lastEventTime > 0 && (
-              <span className="text-[10px] text-mycel-muted font-mono px-1.5 py-0.5 rounded bg-mycel-muted/10">
+              <span className="text-[10px] text-mycel-muted font-mono px-1.5 py-0.5 rounded bg-mycel-surface-hover">
                 <IdleTimer lastEventTime={activity.lastEventTime} />
               </span>
             )}
@@ -490,7 +490,7 @@ export const AgentCard = memo(function AgentCard({
             animate={{ height: "auto", opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
             transition={{ duration: 0.2, ease: "easeOut" }}
-            className="border-t border-mycel-border/60 overflow-hidden"
+            className="border-t border-mycel-border overflow-hidden"
           >
             {/* Flat event stream — newest first. Rows are keyed by event
                 id and never animate position, so new events prepend
@@ -499,7 +499,7 @@ export const AgentCard = memo(function AgentCard({
               <EventRow key={node.id} node={node} searchQuery={searchTerm} />
             ))}
             {hiddenCount > 0 && (
-              <div className="flex justify-center border-t border-mycel-border/40">
+              <div className="flex justify-center border-t border-mycel-border">
                 <Link
                   to={`/agents/${activity.name}/live`}
                   className="text-[11px] text-mycel-muted hover:text-mycel-accent font-mono py-1.5 px-3 transition-colors"
@@ -513,13 +513,13 @@ export const AgentCard = memo(function AgentCard({
       </AnimatePresence>
 
       {!activity.collapsed && showToolNodes && visibleNodes.length === 0 && searchTerm && (
-        <div className="border-t border-mycel-border/60 py-3 px-4 text-[12px] text-mycel-muted italic">
+        <div className="border-t border-mycel-border py-3 px-4 text-[12px] text-mycel-muted italic">
           No events match &ldquo;{searchTerm}&rdquo;
         </div>
       )}
 
       {!activity.collapsed && showToolNodes && visibleNodes.length === 0 && !searchTerm && (
-        <div className="border-t border-mycel-border/60 py-3 px-4 text-[12px] text-mycel-muted italic flex items-center gap-2">
+        <div className="border-t border-mycel-border py-3 px-4 text-[12px] text-mycel-muted italic flex items-center gap-2">
           {activity.lastEventTime > 0 ? (
             <>
               <span>No recent events</span>
@@ -533,7 +533,7 @@ export const AgentCard = memo(function AgentCard({
       )}
 
       {!activity.collapsed && typeFilter === "state" && (
-        <div className="border-t border-mycel-border/60 py-3 px-4 text-[12px] text-mycel-muted">
+        <div className="border-t border-mycel-border py-3 px-4 text-[12px] text-mycel-muted">
           <span className="capitalize font-medium text-mycel-text">{activity.state}</span>
           {activity.task && <span className="ml-2">--- {activity.task}</span>}
           {activity.tokens > 0 && (

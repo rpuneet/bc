@@ -44,8 +44,20 @@ type Provider interface {
 type CommandOpts struct {
 	AgentName string
 	SessionID string
-	Docker    bool
-	Resume    bool
+	// Model is the model identifier to pass to the provider CLI
+	// (e.g. "fable" for claude, "gemini-2.5-pro" for gemini). Values
+	// that fail SafeModelName are dropped, never escaped — the command
+	// runs under `bash -c`.
+	Model  string
+	Docker bool
+	Resume bool
+}
+
+// ModelLister is optionally implemented by providers that expose a
+// curated list of model identifiers for UI pickers. An empty list means
+// the provider has no model selection (e.g. pi).
+type ModelLister interface {
+	Models() []string
 }
 
 // ContainerCustomizer is optionally implemented by providers needing
@@ -211,6 +223,21 @@ var safeSessionIDPattern = regexp.MustCompile(`^[A-Za-z0-9._][A-Za-z0-9._-]*$`)
 // into a shell command line.
 func SafeSessionID(id string) bool {
 	return safeSessionIDPattern.MatchString(id)
+}
+
+// safeModelNamePattern is the conservative charset allowed in a model
+// name that gets spliced into a provider command line (which runs under
+// `bash -c`). Same approach as safeSessionIDPattern: anything outside
+// this shape is dropped, not escaped. Colons and slashes are allowed
+// for namespaced model IDs (pi's "provider/id[:thinking]" form,
+// Bedrock-style "anthropic.claude-…:0"); the first character must not
+// be a dash to prevent argument injection.
+var safeModelNamePattern = regexp.MustCompile(`^[A-Za-z0-9._:/][A-Za-z0-9._:/-]*$`)
+
+// SafeModelName reports whether a model name is safe to interpolate
+// into a shell command line.
+func SafeModelName(model string) bool {
+	return safeModelNamePattern.MatchString(model)
 }
 
 // ResumableSessionDetector is optionally implemented by providers that

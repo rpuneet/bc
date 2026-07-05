@@ -17,12 +17,12 @@ export function ProviderCard({ provider, onClick }: ProviderCardProps) {
       whileHover={{ y: -1 }}
       transition={{ type: "spring", stiffness: 400, damping: 25 }}
       onClick={onClick}
-      className="group rounded-lg border border-mycel-border bg-mycel-surface p-4 cursor-pointer hover:border-mycel-accent/40 hover:bg-mycel-surface-hover transition-colors"
+      className="group rounded-lg border border-mycel-border bg-mycel-surface shadow-mycel p-4 cursor-pointer hover:border-mycel-accent hover:bg-mycel-surface-hover transition-colors"
     >
       <div className="flex items-start gap-3">
         {/* Monogram */}
-        <div className="flex-shrink-0 w-10 h-10 rounded-full bg-mycel-accent/20 flex items-center justify-center">
-          <span className="text-sm font-bold text-mycel-accent">{letter}</span>
+        <div className="flex-shrink-0 w-10 h-10 rounded-full bg-mycel-accent-subtle flex items-center justify-center">
+          <span className="text-sm font-semibold text-mycel-accent">{letter}</span>
         </div>
 
         <div className="flex-1 min-w-0">
@@ -49,7 +49,7 @@ export function ProviderCard({ provider, onClick }: ProviderCardProps) {
 
           {/* Version badge */}
           {provider.version && (
-            <span className="inline-block mt-1 px-1.5 py-0.5 rounded text-xs font-mono bg-mycel-surface border border-mycel-border text-mycel-muted">
+            <span className="inline-block mt-1 px-1.5 py-0.5 rounded-md text-xs font-mono bg-mycel-surface border border-mycel-border text-mycel-muted">
               v{provider.version}
             </span>
           )}
@@ -69,16 +69,16 @@ export function ProviderCard({ provider, onClick }: ProviderCardProps) {
 
       {/* Chips row */}
       <div className="flex items-center gap-2 mt-3 flex-wrap">
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-mycel-accent/10 text-mycel-accent">
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-mycel-accent-subtle text-mycel-accent">
           <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
           </svg>
           {provider.agent_count}
         </span>
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-mycel-info/10 text-mycel-info tabular-nums">
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-mycel-info-subtle text-mycel-info tabular-nums">
           {formatTokens(provider.total_tokens)} tok
         </span>
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-mycel-success/10 text-mycel-success tabular-nums">
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-mycel-success-subtle text-mycel-success tabular-nums">
           {formatCost(provider.total_cost_usd)}
         </span>
       </div>
