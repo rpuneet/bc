@@ -57,37 +57,47 @@ describe("prettifyHostname", () => {
 });
 
 describe("Layout chrome", () => {
-  it("puts the brand and the drawer toggle inside the drawer, not the header", async () => {
+  it("puts the brand and the drawer toggle in the header, above the drawer", async () => {
     mockApi("test-host");
     renderLayout();
 
-    const nav = screen.getByRole("navigation");
-    // Brand row is the drawer's first row.
-    expect(within(nav).getByText("mycel")).toBeInTheDocument();
-    // Explicit toggle button lives in the drawer.
-    expect(within(nav).getByRole("button", { name: "Collapse sidebar" })).toBeInTheDocument();
-
-    // Header carries no brand, no toggle, no utility menu.
+    // Brand + toggle now live in the header's brand column, sized to the
+    // drawer so the two share an edge.
     const header = screen.getByRole("banner");
-    expect(within(header).queryByText("mycel")).not.toBeInTheDocument();
-    expect(within(header).queryByRole("button", { name: /sidebar/i })).not.toBeInTheDocument();
-    expect(within(header).queryByRole("button", { name: "Utilities" })).not.toBeInTheDocument();
+    expect(within(header).getByText("mycel")).toBeInTheDocument();
+    expect(within(header).getByRole("button", { name: "Collapse sidebar" })).toBeInTheDocument();
+
+    // The desktop drawer no longer carries its own brand row.
+    const nav = screen.getByRole("navigation");
+    expect(within(nav).queryByText("mycel")).not.toBeInTheDocument();
 
     await waitFor(() => expect(screen.getByText("test-host")).toBeInTheDocument());
   });
 
-  it("collapses to an icon rail via the drawer toggle; toggle stays available", async () => {
+  it("collapses to an icon rail via the header toggle; the wordmark hides", async () => {
     mockApi("test-host");
     renderLayout();
 
-    const nav = screen.getByRole("navigation");
-    within(nav).getByRole("button", { name: "Collapse sidebar" }).click();
+    const header = screen.getByRole("banner");
+    within(header).getByRole("button", { name: "Collapse sidebar" }).click();
     await waitFor(() =>
-      expect(within(nav).getByRole("button", { name: "Expand sidebar" })).toBeInTheDocument(),
+      expect(within(header).getByRole("button", { name: "Expand sidebar" })).toBeInTheDocument(),
     );
-    // Wordmark hides in the rail; the mark (home link) stays.
-    expect(within(nav).queryByText("mycel")).not.toBeInTheDocument();
-    expect(within(nav).getByRole("link", { name: "mycel home" })).toBeInTheDocument();
+    // Collapsed rail: the mycel wordmark goes away, leaving just the toggle.
+    expect(within(header).queryByText("mycel")).not.toBeInTheDocument();
+  });
+
+  it("exposes a drawer resize handle when expanded, hidden when collapsed", async () => {
+    mockApi("test-host");
+    renderLayout();
+
+    expect(screen.getByRole("separator", { name: "Resize sidebar" })).toBeInTheDocument();
+
+    const header = screen.getByRole("banner");
+    within(header).getByRole("button", { name: "Collapse sidebar" }).click();
+    await waitFor(() =>
+      expect(screen.queryByRole("separator", { name: "Resize sidebar" })).not.toBeInTheDocument(),
+    );
   });
 
   it("renders the flattened nav: Marketplace + Insights, no group captions", async () => {
