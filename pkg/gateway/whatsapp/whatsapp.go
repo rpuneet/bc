@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -25,6 +26,7 @@ import (
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
 	waLog "go.mau.fi/whatsmeow/util/log"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/rpuneet/mycel/pkg/gateway"
 	"github.com/rpuneet/mycel/pkg/log"
@@ -310,6 +312,50 @@ func (a *Adapter) Stop() error {
 	a.connected = false
 	a.mu.Unlock()
 	return nil
+}
+
+// Send delivers an outbound text message to a WhatsApp chat. channelID must
+// be a platform-native JID (e.g. "1234@s.whatsapp.net", "1234@lid" or
+// "1234@g.us"); the gateway manager stores it on the channel route from
+// inbound messages. The sender name is ignored — messages go out from the
+// paired personal account, so callers should attribute the author in the
+// content itself.
+func (a *Adapter) Send(ctx context.Context, channelID, _, content string) error {
+	a.mu.Lock()
+	client := a.client
+	connected := a.connected
+	a.mu.Unlock()
+	if client == nil || !connected {
+		return fmt.Errorf("whatsapp: not connected")
+	}
+
+	jid, err := parseSendJID(channelID)
+	if err != nil {
+		return err
+	}
+
+	if _, err := client.SendMessage(ctx, jid, &waE2E.Message{Conversation: proto.String(content)}); err != nil {
+		return fmt.Errorf("whatsapp: send to %s: %w", jid, err)
+	}
+	return nil
+}
+
+// parseSendJID converts a stored channel id into a routable JID. Bare ids
+// without a server part are ambiguous between phone-number and hidden-lid
+// chats, so they are rejected: the route upgrades to a native JID on the
+// next inbound message from that chat.
+func parseSendJID(channelID string) (types.JID, error) {
+	if !strings.Contains(channelID, "@") {
+		return types.JID{}, fmt.Errorf("whatsapp: channel id %q has no JID server — wait for an inbound message to upgrade the route", channelID)
+	}
+	jid, err := types.ParseJID(channelID)
+	if err != nil {
+		return types.JID{}, fmt.Errorf("whatsapp: invalid JID %q: %w", channelID, err)
+	}
+	if jid.User == "" {
+		return types.JID{}, fmt.Errorf("whatsapp: invalid JID %q: empty user", channelID)
+	}
+	return jid, nil
 }
 
 // Channels returns discovered chats (empty until connected).
