@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "../api/client";
-import { formatCost } from "../utils/format";
+import type { CostSummary, AgentCostSummary, ModelCostSummary } from "../api/client";
+import { formatCost, formatTokens } from "../utils/format";
 import { useHeaderSlot } from "../context/HeaderSlotContext";
 
 type GroupBy = "repo" | "project";
@@ -18,12 +19,40 @@ function defaultStart(): string {
   return d.toISOString().slice(0, 10); // YYYY-MM-DD
 }
 
+/** Small stat cell for the token/cost summary strip. */
+function Stat({ label, value, title }: { label: string; value: string; title?: string }) {
+  return (
+    <div className="flex flex-col gap-0.5" title={title}>
+      <span className="text-[10px] font-medium uppercase tracking-[0.14em] text-mycel-muted">
+        {label}
+      </span>
+      <span className="text-[18px] font-semibold text-mycel-text leading-tight tabular-nums">
+        {value}
+      </span>
+    </div>
+  );
+}
+
+const thLeft = "text-left font-normal px-3 py-2";
+const thRight = "text-right font-normal px-3 py-2";
+const tdMono = "px-3 py-2 text-right font-mono";
+
 export function CostsGlobal() {
   const [start, setStart] = useState<string>(defaultStart);
   const groupBy: GroupBy = "repo";
   const [rows, setRows] = useState<CostRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  // Ledger summaries — costs are computed FROM tokens, so token usage is
+  // shown alongside every dollar figure. These endpoints (/costs,
+  // /costs/agents, /costs/models) carry input/output token fields; the
+  // cross-repo rollup (/api/global/costs) does NOT expose tokens per
+  // repo row, so the repo table stays dollars-only (noted, not an API
+  // change in this pass).
+  const [summary, setSummary] = useState<CostSummary | null>(null);
+  const [byAgent, setByAgent] = useState<AgentCostSummary[]>([]);
+  const [byModel, setByModel] = useState<ModelCostSummary[]>([]);
 
   const total = useMemo(
     () => (rows ? rows.reduce((acc, r) => acc + r.total, 0) : 0),
@@ -48,6 +77,34 @@ export function CostsGlobal() {
   useEffect(() => {
     load();
   }, [load]);
+
+  // Token-bearing ledger summaries load independently of the repo rollup —
+  // a failure here degrades to the dollars-only view instead of erroring.
+  useEffect(() => {
+    let cancelled = false;
+    void Promise.allSettled([
+      api.getCostSummary(),
+      api.getCostByAgent(),
+      api.getCostByModel(),
+    ]).then(([s, a, m]) => {
+      if (cancelled) return;
+      if (s.status === "fulfilled") setSummary(s.value);
+      if (a.status === "fulfilled") setByAgent(a.value ?? []);
+      if (m.status === "fulfilled") setByModel(m.value ?? []);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const agentRows = useMemo(
+    () => [...byAgent].sort((a, b) => b.total_cost_usd - a.total_cost_usd),
+    [byAgent],
+  );
+  const modelRows = useMemo(
+    () => [...byModel].sort((a, b) => b.total_cost_usd - a.total_cost_usd),
+    [byModel],
+  );
 
   useHeaderSlot({
     actions: (
@@ -93,15 +150,43 @@ export function CostsGlobal() {
         </span>
       </div>
 
+      {/* Token usage strip — costs derive from tokens, so the ledger's
+          token totals sit right beside the dollar headline. All-time
+          ledger figures (the /costs summary has no range parameter). */}
+      {summary && (
+        <div className="rounded-md border border-mycel-border bg-mycel-surface px-4 py-3 grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <Stat
+            label="Total tokens"
+            value={formatTokens(summary.total_tokens)}
+            title={`${summary.total_tokens.toLocaleString()} tokens (input + output, all time)`}
+          />
+          <Stat
+            label="Input tokens"
+            value={formatTokens(summary.input_tokens)}
+            title={`${summary.input_tokens.toLocaleString()} input tokens`}
+          />
+          <Stat
+            label="Output tokens"
+            value={formatTokens(summary.output_tokens)}
+            title={`${summary.output_tokens.toLocaleString()} output tokens`}
+          />
+          <Stat
+            label="Ledger cost"
+            value={formatCost(summary.total_cost_usd)}
+            title="All-time cost computed from the token ledger"
+          />
+        </div>
+      )}
+
       <div className="rounded-md border border-mycel-border overflow-hidden shadow-mycel">
         <table className="w-full text-[13px]">
           <thead className="bg-mycel-surface text-mycel-muted">
             <tr>
-              <th className="text-left font-normal px-3 py-2">
+              <th className={thLeft}>
                 {groupBy === "repo" ? "Repo" : "Project"}
               </th>
-              <th className="text-right font-normal px-3 py-2">Cost</th>
-              <th className="text-right font-normal px-3 py-2 w-24">Share</th>
+              <th className={thRight}>Cost</th>
+              <th className={`${thRight} w-24`}>Share</th>
             </tr>
           </thead>
           <tbody>
@@ -150,6 +235,74 @@ export function CostsGlobal() {
           </tbody>
         </table>
       </div>
+
+      {/* By agent — token columns beside every dollar figure. */}
+      {agentRows.length > 0 && (
+        <div className="rounded-md border border-mycel-border overflow-hidden shadow-mycel">
+          <table className="w-full text-[13px]">
+            <thead className="bg-mycel-surface text-mycel-muted">
+              <tr>
+                <th className={thLeft}>Agent</th>
+                <th className={thRight}>Input</th>
+                <th className={thRight}>Output</th>
+                <th className={thRight}>Tokens</th>
+                <th className={thRight}>Cost</th>
+              </tr>
+            </thead>
+            <tbody>
+              {agentRows.map((a) => (
+                <tr key={a.agent_id} className="border-t border-mycel-border hover:bg-mycel-surface-hover transition-colors">
+                  <td className="px-3 py-2 text-mycel-text truncate max-w-[40%]">{a.agent_id}</td>
+                  <td className={`${tdMono} text-mycel-text-2`} title={a.input_tokens.toLocaleString()}>
+                    {formatTokens(a.input_tokens)}
+                  </td>
+                  <td className={`${tdMono} text-mycel-text-2`} title={a.output_tokens.toLocaleString()}>
+                    {formatTokens(a.output_tokens)}
+                  </td>
+                  <td className={`${tdMono} text-mycel-text`} title={(a.input_tokens + a.output_tokens).toLocaleString()}>
+                    {formatTokens(a.input_tokens + a.output_tokens)}
+                  </td>
+                  <td className={`${tdMono} text-mycel-text`}>{formatCost(a.total_cost_usd)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* By model — same token-beside-cost treatment. */}
+      {modelRows.length > 0 && (
+        <div className="rounded-md border border-mycel-border overflow-hidden shadow-mycel">
+          <table className="w-full text-[13px]">
+            <thead className="bg-mycel-surface text-mycel-muted">
+              <tr>
+                <th className={thLeft}>Model</th>
+                <th className={thRight}>Input</th>
+                <th className={thRight}>Output</th>
+                <th className={thRight}>Tokens</th>
+                <th className={thRight}>Cost</th>
+              </tr>
+            </thead>
+            <tbody>
+              {modelRows.map((m) => (
+                <tr key={m.model} className="border-t border-mycel-border hover:bg-mycel-surface-hover transition-colors">
+                  <td className="px-3 py-2 text-mycel-text truncate max-w-[40%]">{m.model}</td>
+                  <td className={`${tdMono} text-mycel-text-2`} title={m.input_tokens.toLocaleString()}>
+                    {formatTokens(m.input_tokens)}
+                  </td>
+                  <td className={`${tdMono} text-mycel-text-2`} title={m.output_tokens.toLocaleString()}>
+                    {formatTokens(m.output_tokens)}
+                  </td>
+                  <td className={`${tdMono} text-mycel-text`} title={m.total_tokens.toLocaleString()}>
+                    {formatTokens(m.total_tokens)}
+                  </td>
+                  <td className={`${tdMono} text-mycel-text`}>{formatCost(m.total_cost_usd)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }

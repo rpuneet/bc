@@ -3,15 +3,15 @@
  * pane. One continuous strip across the whole viewport, single h-12 row.
  *
  * Slots:
- *   left     : drawer toggle + brand (owned by Layout)
+ *   left     : mobile-only drawer opener (owned by Layout; empty on
+ *              desktop — brand + drawer toggle live inside the drawer)
  *   center   : per-view summary / presence line / breadcrumb — NOT a
  *              page title; the drawer's active nav item already names
  *              the section
  *   actions  : per-view controls (search box, filters, primary CTA)
- *              plus the app-level utility menu appended by Layout
  *
  * Views contribute center/actions through HeaderSlotContext; the left
- * slot is owned by the Layout so toggle + brand stay consistent.
+ * slot is owned by the Layout.
  *
  * `relative z-30` is load-bearing: `backdrop-blur` forces a stacking
  * context, and without an explicit z-index the positioned content
@@ -37,7 +37,7 @@ export function Header({ left, center, actions }: HeaderProps) {
   return (
     <header className="relative z-30 shrink-0 border-b border-mycel-border bg-[color-mix(in_srgb,var(--mycel-surface)_70%,transparent)] backdrop-blur-sm">
       <div className="flex items-center min-w-0 gap-3 px-3 sm:px-4 h-12">
-        {/* Left slot — drawer toggle + brand, far left */}
+        {/* Left slot — mobile-only drawer opener */}
         {left && <div className="flex items-center gap-2 shrink-0">{left}</div>}
 
         {/* Center slot — per-view summary / presence. */}
