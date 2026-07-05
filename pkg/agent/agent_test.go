@@ -3250,11 +3250,10 @@ func TestFollowOutput_AgentNotFound(t *testing.T) {
 
 // mockProvider implements provider.Provider for testing.
 type mockProvider struct {
-	detectState provider.State
-	name        string
-	version     string
-	command     string
-	installed   bool
+	name      string
+	version   string
+	command   string
+	installed bool
 }
 
 func (m mockProvider) Name() string        { return m.name }
@@ -3273,9 +3272,8 @@ func (m mockProvider) BuildCommand(opts provider.CommandOpts) string {
 	}
 	return m.name
 }
-func (m mockProvider) IsInstalled(_ context.Context) bool  { return m.installed }
-func (m mockProvider) Version(_ context.Context) string    { return m.version }
-func (m mockProvider) DetectState(_ string) provider.State { return m.detectState }
+func (m mockProvider) IsInstalled(_ context.Context) bool { return m.installed }
+func (m mockProvider) Version(_ context.Context) string   { return m.version }
 
 func newTestManagerWithProvider(t *testing.T, p provider.Provider) *Manager {
 	t.Helper()

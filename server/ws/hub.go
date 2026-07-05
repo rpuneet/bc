@@ -122,7 +122,7 @@ func (h *Hub) Publish(eventType string, data map[string]any) {
 	h.mu.RUnlock()
 	if fwd != nil && fwd.hub != nil {
 		// Clone the data map and annotate with workspace_id.
-		annotated := make(map[string]any, len(redacted)+1)
+		annotated := make(map[string]any, len(redacted))
 		for k, v := range redacted {
 			annotated[k] = v
 		}

@@ -88,6 +88,11 @@ type AgentService struct {
 	manager *Manager
 	events  EventPublisher
 	costs   CostQuerier
+	// hookStore persists ingested hook events (see IngestHookEvent).
+	hookStore HookEventAppender
+	// onHookEvent is invoked after each successfully ingested hook event
+	// with the SSE-shaped payload (see SetOnHookEvent).
+	onHookEvent func(agentName string, ts time.Time, payload map[string]any)
 }
 
 // NewAgentService creates a new agent service wrapping the given manager.

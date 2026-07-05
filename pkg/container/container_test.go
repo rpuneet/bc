@@ -175,7 +175,6 @@ func (m *mockProvider) InstallHint() string                        { return "ins
 func (m *mockProvider) BuildCommand(_ provider.CommandOpts) string { return "mock" }
 func (m *mockProvider) IsInstalled(_ context.Context) bool         { return true }
 func (m *mockProvider) Version(_ context.Context) string           { return "1.0.0" }
-func (m *mockProvider) DetectState(_ string) provider.State        { return provider.StateUnknown }
 func (m *mockProvider) DockerImage() string                        { return m.dockerImage }
 func (m *mockProvider) AdjustContainerCommand(cmd string) string   { return cmd }
 

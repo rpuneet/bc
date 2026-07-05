@@ -3,7 +3,6 @@ package provider
 import (
 	"context"
 	"regexp"
-	"strings"
 )
 
 // PiProvider implements the Provider interface for pi CLI.
@@ -102,82 +101,6 @@ func (p *PiProvider) Version(ctx context.Context) string {
 		return m
 	}
 	return raw
-}
-
-// DetectState analyzes output to determine agent state.
-// Pi outputs state information when using appropriate flags.
-func (p *PiProvider) DetectState(output string) State {
-	lines := strings.Split(strings.TrimSpace(output), "\n")
-	if len(lines) == 0 {
-		return StateUnknown
-	}
-
-	// Check last few lines for state indicators
-	for i := len(lines) - 1; i >= 0 && i >= len(lines)-5; i-- {
-		line := strings.TrimSpace(lines[i])
-		lineLower := strings.ToLower(line)
-
-		// Working indicators
-		if strings.Contains(lineLower, "thinking") ||
-			strings.Contains(lineLower, "processing") ||
-			strings.Contains(lineLower, "executing") ||
-			strings.Contains(lineLower, "running") ||
-			strings.Contains(lineLower, "generating") ||
-			strings.Contains(lineLower, "analyzing") ||
-			strings.Contains(lineLower, "planning") {
-			return StateWorking
-		}
-
-		// Tool call indicators
-		if strings.Contains(lineLower, "tool call") ||
-			strings.Contains(lineLower, "calling tool") ||
-			strings.Contains(lineLower, "running command") {
-			return StateWorking
-		}
-
-		// Done indicators
-		if strings.Contains(lineLower, "complete") ||
-			strings.Contains(lineLower, "finished") ||
-			strings.Contains(lineLower, "done") ||
-			strings.Contains(lineLower, "success") ||
-			strings.Contains(line, "✓") ||
-			strings.Contains(line, "✔") {
-			return StateDone
-		}
-
-		// Error indicators
-		if strings.Contains(lineLower, "error") ||
-			strings.Contains(lineLower, "failed") ||
-			strings.Contains(lineLower, "exception") ||
-			strings.Contains(line, "✗") ||
-			strings.Contains(line, "✘") {
-			return StateError
-		}
-
-		// Stuck indicators
-		if strings.Contains(lineLower, "timeout") ||
-			strings.Contains(lineLower, "rate limit") ||
-			strings.Contains(lineLower, "quota exceeded") ||
-			strings.Contains(lineLower, "blocked") {
-			return StateStuck
-		}
-
-		// Idle indicators - pi specific markers
-		if strings.Contains(lineLower, "ready") ||
-			strings.Contains(lineLower, "awaiting") ||
-			strings.Contains(lineLower, "prompt") ||
-			strings.Contains(lineLower, "waiting") ||
-			strings.Contains(lineLower, "listening") {
-			return StateIdle
-		}
-	}
-
-	// If we see the prompt indicator, we're idle
-	if strings.Contains(output, ">") || strings.Contains(output, "$") {
-		return StateIdle
-	}
-
-	return StateUnknown
 }
 
 // Ensure PiProvider implements Provider interface.

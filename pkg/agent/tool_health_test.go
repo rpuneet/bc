@@ -22,7 +22,6 @@ func (s *stubProvider) InstallHint() string                        { return "ins
 func (s *stubProvider) BuildCommand(_ provider.CommandOpts) string { return s.binary }
 func (s *stubProvider) IsInstalled(_ context.Context) bool         { return s.installed }
 func (s *stubProvider) Version(_ context.Context) string           { return "1.0" }
-func (s *stubProvider) DetectState(_ string) provider.State        { return "" }
 
 func TestCheckToolHealth_Installed(t *testing.T) {
 	reg := provider.NewRegistry()

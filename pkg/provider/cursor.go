@@ -2,7 +2,6 @@ package provider
 
 import (
 	"context"
-	"strings"
 )
 
 // CursorProvider implements the Provider interface for Cursor Agent.
@@ -78,68 +77,6 @@ func (p *CursorProvider) IsInstalled(ctx context.Context) bool {
 // Version returns the installed version.
 func (p *CursorProvider) Version(ctx context.Context) string {
 	return getBinaryVersion(ctx, p.binary, "--version")
-}
-
-// DetectState analyzes output to determine agent state.
-// Cursor Agent uses specific output patterns for state detection.
-func (p *CursorProvider) DetectState(output string) State {
-	lines := strings.Split(strings.TrimSpace(output), "\n")
-	if len(lines) == 0 {
-		return StateUnknown
-	}
-
-	for i := len(lines) - 1; i >= 0 && i >= len(lines)-5; i-- {
-		line := strings.TrimSpace(lines[i])
-		lineLower := strings.ToLower(line)
-
-		// Done indicators (check before working to avoid keyword overlap)
-		if strings.Contains(line, "✓") ||
-			strings.Contains(line, "✔") ||
-			strings.Contains(lineLower, "complete") ||
-			strings.Contains(lineLower, "finished") ||
-			strings.Contains(lineLower, "applied") {
-			return StateDone
-		}
-
-		// Stuck indicators (check before working/error)
-		if strings.Contains(lineLower, "rate limit") ||
-			strings.Contains(lineLower, "quota") ||
-			strings.Contains(lineLower, "timeout") ||
-			strings.Contains(lineLower, "connection refused") {
-			return StateStuck
-		}
-
-		// Error indicators (check before working)
-		if strings.Contains(lineLower, "error") ||
-			strings.Contains(lineLower, "failed") ||
-			strings.Contains(line, "✗") ||
-			strings.Contains(line, "❌") {
-			return StateError
-		}
-
-		// Working indicators — Cursor activity patterns
-		if strings.HasPrefix(line, "⠋") ||
-			strings.HasPrefix(line, "⠙") ||
-			strings.HasPrefix(line, "⠹") ||
-			strings.HasPrefix(line, "⠸") ||
-			strings.Contains(lineLower, "thinking") ||
-			strings.Contains(lineLower, "generating") ||
-			strings.Contains(lineLower, "processing") ||
-			strings.Contains(lineLower, "applying") {
-			return StateWorking
-		}
-
-		// Idle/prompt indicators
-		if strings.HasPrefix(line, ">") ||
-			strings.HasPrefix(line, "$") ||
-			strings.HasPrefix(line, "cursor>") ||
-			strings.Contains(lineLower, "ready") ||
-			strings.Contains(lineLower, "awaiting") {
-			return StateIdle
-		}
-	}
-
-	return StateUnknown
 }
 
 // Ensure CursorProvider implements Provider interface.

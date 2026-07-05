@@ -3,7 +3,6 @@ package provider
 import (
 	"context"
 	"regexp"
-	"strings"
 )
 
 // CodexProvider implements the Provider interface for OpenAI Codex CLI.
@@ -86,72 +85,6 @@ func (p *CodexProvider) Version(ctx context.Context) string {
 		return m
 	}
 	return raw
-}
-
-// DetectState analyzes output to determine agent state.
-// Codex uses specific output patterns for state detection.
-func (p *CodexProvider) DetectState(output string) State {
-	lines := strings.Split(strings.TrimSpace(output), "\n")
-	if len(lines) == 0 {
-		return StateUnknown
-	}
-
-	// Check last few lines for state indicators
-	for i := len(lines) - 1; i >= 0 && i >= len(lines)-5; i-- {
-		line := strings.TrimSpace(lines[i])
-		lineLower := strings.ToLower(line)
-
-		// Working indicators - Codex spinner patterns
-		if strings.HasPrefix(line, "\u280b") ||
-			strings.HasPrefix(line, "\u2819") ||
-			strings.HasPrefix(line, "\u2839") ||
-			strings.HasPrefix(line, "\u2838") ||
-			strings.HasPrefix(line, "\u283c") ||
-			strings.HasPrefix(line, "\u2834") ||
-			strings.Contains(lineLower, "generating") ||
-			strings.Contains(lineLower, "thinking") ||
-			strings.Contains(lineLower, "processing") ||
-			strings.Contains(lineLower, "executing") {
-			return StateWorking
-		}
-
-		// Done indicators
-		if strings.Contains(line, "\u2713") ||
-			strings.Contains(line, "\u2714") ||
-			strings.Contains(lineLower, "complete") ||
-			strings.Contains(lineLower, "finished") ||
-			strings.Contains(lineLower, "done") ||
-			strings.Contains(lineLower, "success") {
-			return StateDone
-		}
-
-		// Error indicators
-		if strings.Contains(lineLower, "error") ||
-			strings.Contains(lineLower, "failed") ||
-			strings.Contains(lineLower, "exception") ||
-			strings.Contains(line, "\u2717") ||
-			strings.Contains(line, "\u2716") {
-			return StateError
-		}
-
-		// Stuck indicators
-		if strings.Contains(lineLower, "timeout") ||
-			strings.Contains(lineLower, "rate limit") ||
-			strings.Contains(lineLower, "quota exceeded") {
-			return StateStuck
-		}
-
-		// Idle/prompt indicators
-		if strings.HasPrefix(line, ">") ||
-			strings.HasPrefix(line, "$") ||
-			strings.HasPrefix(line, "codex>") ||
-			strings.Contains(lineLower, "ready") ||
-			strings.Contains(lineLower, "awaiting") {
-			return StateIdle
-		}
-	}
-
-	return StateUnknown
 }
 
 // Ensure CodexProvider implements Provider interface.

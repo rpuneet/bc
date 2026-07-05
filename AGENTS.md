@@ -83,7 +83,8 @@ mycel uses a provider-based architecture where different AI agent CLIs (Claude, 
 
 - Starting agents with provider-specific commands
 - Session resumption (for providers that support it)
-- State detection (idle, working, done, error)
 - Version detection
+
+Providers declare additional capabilities via optional interfaces (`ActivitySource`, `CostSource`, `ModelLister`, `ResumableSessionDetector`). Agent state (idle, working, done, error) is not detected by providers: it is derived in `pkg/agent` from ingested hook/transcript events; providers only declare how their activity is sourced via `ActivitySource.ActivityMode()`.
 
 See `pkg/provider/` for provider implementations.

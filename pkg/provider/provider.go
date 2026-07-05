@@ -35,9 +35,6 @@ type Provider interface {
 
 	// Version returns the installed version, or empty string if not installed
 	Version(ctx context.Context) string
-
-	// DetectState analyzes output to determine agent state (working, idle, done, etc.)
-	DetectState(output string) State
 }
 
 // CommandOpts configures how a provider builds its command.
@@ -87,18 +84,6 @@ type SessionResumer interface {
 	// Claude prints "claude --resume <uuid>" on graceful exit.
 	ParseSessionID(output string) string
 }
-
-// State represents the detected state of a provider's agent.
-type State string
-
-const (
-	StateUnknown State = "unknown"
-	StateIdle    State = "idle"
-	StateWorking State = "working"
-	StateDone    State = "done"
-	StateError   State = "error"
-	StateStuck   State = "stuck"
-)
 
 // Registry holds all registered providers.
 type Registry struct {

@@ -104,7 +104,18 @@ type AgentHandler struct {
 // NewAgentHandler creates an AgentHandler.
 // costs, ws, hub, and eventStore may be nil; enrichment fields will be omitted when unavailable.
 func NewAgentHandler(svc *agent.AgentService, costs *cost.Store, ws *workspace.Workspace, hub *ws.Hub) *AgentHandler {
-	return &AgentHandler{svc: svc, costs: costs, ws: ws, hub: hub, broker: newAgentEventBroker()}
+	h := &AgentHandler{svc: svc, costs: costs, ws: ws, hub: hub, broker: newAgentEventBroker()}
+	if svc != nil {
+		// The per-agent SSE broker stays handler-owned; the service invokes
+		// this callback after each successfully ingested hook event so
+		// GET /api/agents/{name}/events subscribers receive it.
+		svc.SetOnHookEvent(func(agentName string, ts time.Time, payload map[string]any) {
+			if msg, err := buildHookSSEMessage(ts, payload); err == nil {
+				h.broker.publish(agentName, msg)
+			}
+		})
+	}
+	return h
 }
 
 // SetTemplateStore sets the template store used during agent creation.
@@ -118,8 +129,13 @@ func (h *AgentHandler) SetStatsStore(s *stats.Store) {
 }
 
 // SetEventStore sets the event store for persisting hook events.
+// It is kept on the handler for SSE replay (streamHookEvents) and forwarded
+// to the agent service, which owns hook-event persistence (IngestHookEvent).
 func (h *AgentHandler) SetEventStore(es events.EventStore) {
 	h.events = es
+	if h.svc != nil {
+		h.svc.SetHookEventStore(es)
+	}
 }
 
 // SetTerminalHandler sets the terminal handler for WebSocket terminal access.
@@ -549,114 +565,18 @@ func (h *AgentHandler) byName(w http.ResponseWriter, r *http.Request) {
 			httpError(w, "invalid request body", http.StatusBadRequest)
 			return
 		}
-		if !agent.IsKnownEvent(payload.Event) {
-			httpError(w, "unknown event: "+string(payload.Event), http.StatusBadRequest)
-			return
-		}
 
-		// Determine target state: explicit in payload > mapped from event > no change
-		targetState, hasState := agent.StateForHookEvent(payload.Event)
-		if payload.State != "" {
-			if agent.IsValidState(payload.State) {
-				targetState = agent.State(payload.State)
-				hasState = true
-			}
-		}
-
-		if hasState {
-			// State-only update: lifecycle descriptions baked into hook
-			// commands ("Turn complete", "Session ended", "Processing
-			// prompt...") must NOT overwrite the agent's reported task.
-			// They still flow to the event log and SSE stream below.
-			if err := svc.Manager().SetAgentState(r.Context(), name, targetState); err != nil {
-				log.Debug("hook state update skipped", "agent", name, "error", err)
-				writeJSON(w, http.StatusOK, map[string]any{"ok": true, "skipped": true, "reason": err.Error()})
+		// The transport-independent core (state transition, event
+		// persistence, broadcast) lives in the agent service so HTTP
+		// hooks and future transcript tailers share one ingest path.
+		if err := svc.IngestHookEvent(r.Context(), name, payload, rawBody); err != nil {
+			var skipped *agent.HookStateSkippedError
+			if errors.As(err, &skipped) {
+				writeJSON(w, http.StatusOK, map[string]any{"ok": true, "skipped": true, "reason": skipped.Err.Error()})
 				return
 			}
-		}
-
-		// Build structured data map from rich payload fields for the event store.
-		eventData := map[string]any{
-			"event": string(payload.Event),
-		}
-		if payload.ToolName != "" {
-			eventData["tool_name"] = payload.ToolName
-		}
-		if payload.ToolInput != nil {
-			eventData["tool_input"] = payload.ToolInput
-		}
-		if payload.Error != "" {
-			eventData["error"] = payload.Error
-		}
-		if payload.Task != "" {
-			eventData["task"] = payload.Task
-		}
-		if payload.TaskID != "" {
-			eventData["task_id"] = payload.TaskID
-		}
-		if payload.TaskTitle != "" {
-			eventData["task_title"] = payload.TaskTitle
-		}
-		if payload.Message != "" {
-			eventData["message"] = payload.Message
-		}
-		if len(payload.Metadata) > 0 {
-			eventData["metadata"] = payload.Metadata
-		}
-
-		// Persist raw JSON body to event log — raw body in Message for full
-		// observability; structured fields in Data for typed queries.
-		now := time.Now()
-		if h.events != nil {
-			_ = h.events.Append(events.Event{ //nolint:errcheck // best-effort logging
-				Timestamp: now,
-				Type:      events.EventType("hook." + string(payload.Event)),
-				Agent:     name,
-				Message:   string(rawBody),
-				Data:      eventData,
-			})
-		}
-
-		// Build the SSE data payload for per-agent subscribers.
-		ssePayload := map[string]any{
-			"event":     string(payload.Event),
-			"timestamp": now.UTC().Format(time.RFC3339Nano),
-			"agent":     name,
-		}
-		if payload.ToolName != "" {
-			ssePayload["tool_name"] = payload.ToolName
-		}
-		if payload.ToolInput != nil {
-			ssePayload["tool_input"] = payload.ToolInput
-		}
-		if payload.Error != "" {
-			ssePayload["error"] = payload.Error
-		}
-		if payload.Task != "" {
-			ssePayload["task"] = payload.Task
-		}
-		if payload.TaskID != "" {
-			ssePayload["task_id"] = payload.TaskID
-		}
-		if payload.TaskTitle != "" {
-			ssePayload["task_title"] = payload.TaskTitle
-		}
-		if len(payload.Metadata) > 0 {
-			ssePayload["metadata"] = payload.Metadata
-		}
-
-		// Publish to per-agent SSE subscribers (GET /api/agents/{name}/events).
-		if sseMsg, encErr := buildHookSSEMessage(now, ssePayload); encErr == nil {
-			h.broker.publish(name, sseMsg)
-		}
-
-		// Publish raw hook JSON via SSE for web UI — same format as event log.
-		if h.hub != nil {
-			var raw map[string]any
-			if err := json.Unmarshal(rawBody, &raw); err == nil {
-				raw["agent"] = name
-				h.hub.Publish("agent.hook", raw)
-			}
+			httpError(w, err.Error(), http.StatusBadRequest)
+			return
 		}
 
 		writeJSON(w, http.StatusOK, map[string]any{"ok": true})
