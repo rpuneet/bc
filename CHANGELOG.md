@@ -7,6 +7,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.12] - 2026-07-05
+
+One header, real numbers. The web UI converges on a single shared header
+every page drives, the analytics page becomes a real dashboard wired to
+the cost ledger, and agents can now talk back over WhatsApp.
+
+### Added
+- **Outbound WhatsApp.** Agents can reply on WhatsApp — the gateway
+  adapter implements `Send()` over the paired whatsmeow session, routed
+  by native JID with a bounded send timeout (#3314).
+- **Notifications home.** A full notifications hub — connected apps,
+  channels, and recent activity in one place (#3311), with WhatsApp
+  channels resolved to real display names instead of raw ids (#3312).
+- **Resizable drawer.** Drag the drawer's right edge to widen it (bounds
+  remembered; double-click resets) so long agent and channel names stop
+  clipping (#3317).
+
+### Changed
+- **One shared header.** The mycel brand + drawer toggle move into the
+  header as a column that resizes with the drawer and collapses to an
+  icon rail; every page — agent detail, Tools, Code, Secrets, Insights —
+  feeds its title and controls into that single header instead of
+  rendering its own bar (#3317, #3319).
+- **Insights is a single-page dashboard.** Tabs are gone; a KPI strip
+  (spend, tokens, active agents, burn rate, top cost driver) sits above
+  grouped Cost / Usage / System / Activity sections with a sticky
+  anchor-nav and drill-downs into agents and channels (#3313, #3321).
+- **Cost and token analytics read the ledger.** Every cost/token view —
+  the dashboard charts, the agents table columns, and the KPIs — now
+  sources from the cost ledger (`/api/costs/*`), which carries real
+  per-agent, per-model, and daily dollars and tokens, including a cache
+  hit-ratio readout (#3321).
+- **`BC_*` environment variables are now `MYCEL_*`.** Agent env injection
+  and the reserved-prefix guard use the `MYCEL_` namespace (#3308).
+- **Provider capabilities.** Hook-event ingestion is extracted behind a
+  transport-agnostic seam and providers declare capabilities through
+  optional interfaces; agent state is derived from ingested events
+  rather than provider-side detection (#3309).
+
+### Removed
+- **Dead stats-store token/cost path.** The per-agent token/cost
+  timeseries (`/api/agents/stats/{tokens,cost}`, the misrouted collector
+  block, and the `token_metrics` table with its query/record code) is
+  deleted — it never recorded cost and always returned empty. The cost
+  ledger is the single source of truth (#3321).
+
 ## [0.3.11] - 2026-07-05
 
 The visual release: the entire web UI rebuilt on a real design system,
