@@ -945,6 +945,24 @@ func (m *Manager) SetAgentByName(name string) bool {
 	return true
 }
 
+// writeActivityConfig writes the provider's activity configuration (hook
+// settings) into the agent worktree. Providers that implement
+// provider.ActivitySource in hooks mode own their config; everything else
+// falls back to the Claude hook settings — today every agent gets Claude
+// hook settings regardless of tool (claude-compatible sessions), and this
+// refactor preserves that behavior exactly. Per-provider activity sources
+// land in follow-up PRs.
+func (m *Manager) writeActivityConfig(toolName, wtDir, agentName string) error {
+	if toolName != "" && m.providerRegistry != nil {
+		if p, ok := m.providerRegistry.Get(toolName); ok {
+			if src, ok := p.(provider.ActivitySource); ok && src.ActivityMode() == provider.ActivityModeHooks {
+				return src.WriteHookConfig(wtDir, "", agentName)
+			}
+		}
+	}
+	return provider.WriteClaudeHookSettings(wtDir)
+}
+
 // SetBootstrapDelay sets the delay before sending bootstrap prompts.
 func (m *Manager) SetBootstrapDelay(d time.Duration) {
 	m.mu.Lock()
@@ -1320,7 +1338,7 @@ func (m *Manager) startAgent(ctx context.Context, name string, opts SpawnOptions
 
 	// Write hook settings and role files to worktree (regenerate on every start
 	// so config changes like MCP URLs take effect without manual intervention).
-	if err := WriteWorkspaceHookSettings(wtDir); err != nil {
+	if err := m.writeActivityConfig(toolName, wtDir, name); err != nil {
 		log.Error("failed to write hook settings", "dir", wtDir, "error", err)
 	}
 	if setupErr := SetupAgentFromRoleWithRuntime(ctx, wsPath, name, string(existing.Role), wtDir, agentRuntime, existing.Tool); setupErr != nil {
@@ -1533,7 +1551,7 @@ func (m *Manager) createAgent(ctx context.Context, opts SpawnOptions) (*Agent, e
 	}
 
 	// Write hook settings to the worktree
-	if err := WriteWorkspaceHookSettings(wtDir); err != nil {
+	if err := m.writeActivityConfig(effectiveTool, wtDir, name); err != nil {
 		log.Warn("failed to write hook settings", "dir", wtDir, "error", err)
 	}
 

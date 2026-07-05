@@ -111,40 +111,6 @@ func (p *ClaudeProvider) Version(ctx context.Context) string {
 	return getBinaryVersion(ctx, p.binary, "--version")
 }
 
-// DetectState analyzes output to determine agent state.
-// Claude uses specific spinner and prompt symbols.
-func (p *ClaudeProvider) DetectState(output string) State {
-	lines := strings.Split(strings.TrimSpace(output), "\n")
-	if len(lines) == 0 {
-		return StateUnknown
-	}
-
-	// Check last few lines for state indicators
-	for i := len(lines) - 1; i >= 0 && i >= len(lines)-5; i-- {
-		line := strings.TrimSpace(lines[i])
-
-		// Working indicators - Claude's spinner symbols
-		if strings.HasPrefix(line, "✻") ||
-			strings.HasPrefix(line, "✳") ||
-			strings.HasPrefix(line, "✽") ||
-			strings.HasPrefix(line, "·") {
-			return StateWorking
-		}
-
-		// Tool call indicator
-		if strings.HasPrefix(line, "⏺") {
-			return StateWorking
-		}
-
-		// Idle/prompt indicator
-		if strings.HasPrefix(line, "❯") {
-			return StateIdle
-		}
-	}
-
-	return StateUnknown
-}
-
 // claudeResumePattern matches Claude's "Resume this session with: claude --resume <uuid>" output.
 // The UUID format is standard 8-4-4-4-12 hex.
 var claudeResumePattern = regexp.MustCompile(`claude --resume ([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})`)
@@ -190,9 +156,35 @@ func (p *ClaudeProvider) ParseSessionID(output string) string {
 	return m[1]
 }
 
+// ActivityMode reports that Claude Code emits activity via lifecycle hooks
+// (configured in .claude/settings.json) that POST to bcd's hook endpoint.
+func (p *ClaudeProvider) ActivityMode() string { return ActivityModeHooks }
+
+// WriteHookConfig writes Claude Code hook settings into the agent worktree.
+// daemonAddr and agentID are unused: the generated hook commands resolve the
+// daemon address and agent identity at runtime via the MYCEL_DAEMON_ADDR and
+// MYCEL_AGENT_ID environment variables set on the agent session.
+func (p *ClaudeProvider) WriteHookConfig(worktreeDir, _, _ string) error {
+	return WriteClaudeHookSettings(worktreeDir)
+}
+
+// TranscriptGlobs returns glob patterns matching Claude Code session
+// transcripts for an agent working in cwd. Claude keys transcripts by the
+// project path with `/` and `.` replaced by `-`:
+// ~/.claude/projects/<encoded>/<session-uuid>.jsonl.
+func (p *ClaudeProvider) TranscriptGlobs(cwd string) []string {
+	home, err := claudeHomeDir()
+	if err != nil || cwd == "" {
+		return nil
+	}
+	encoded := strings.NewReplacer("/", "-", ".", "-").Replace(cwd)
+	return []string{filepath.Join(home, ".claude", "projects", encoded, "*.jsonl")}
+}
+
 // Ensure ClaudeProvider implements all declared interfaces.
 var _ Provider = (*ClaudeProvider)(nil)
 var _ ModelLister = (*ClaudeProvider)(nil)
 var _ ContainerCustomizer = (*ClaudeProvider)(nil)
 var _ SessionCustomizer = (*ClaudeProvider)(nil)
 var _ SessionResumer = (*ClaudeProvider)(nil)
+var _ ActivitySource = (*ClaudeProvider)(nil)

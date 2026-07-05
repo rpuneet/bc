@@ -311,6 +311,12 @@ func buildServicesFromWS(ctx context.Context, globals *Globals, ws *bcworkspace.
 		}
 	}
 
+	// Hook-event persistence is service-owned: IngestHookEvent (shared by
+	// the HTTP hook endpoint and future transcript tailers) appends here.
+	if eventLog != nil {
+		agentSvc.SetHookEventStore(eventLog)
+	}
+
 	// Stats collector — only runs if a TSDB stats store is configured
 	// globally. Uses the current workspace's agentSvc.
 	if globals != nil && globals.Stats != nil {
