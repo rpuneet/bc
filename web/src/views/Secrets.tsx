@@ -349,12 +349,17 @@ export function Secrets() {
   } = usePolling(fetcher, 30000);
   const [addOpen, setAddOpen] = useState(false);
 
-  // Header slot — count summary center-left, primary CTA right,
-  // following the Agents pattern.
+  // Header slot — count + encryption note center-left, primary CTA
+  // right, following the Agents pattern. The encryption note moved up
+  // here from the page body so the header carries the full context.
   useHeaderSlot({
     title: secrets ? (
-      <span className="text-xs text-mycel-text-2 tabular-nums truncate">
-        {String(secrets.length)} secrets
+      <span className="flex items-center gap-2 min-w-0 text-xs text-mycel-text-2">
+        <span className="tabular-nums shrink-0">{String(secrets.length)} secrets</span>
+        <span className="hidden sm:inline-flex items-center gap-2 text-mycel-muted min-w-0">
+          <span className="h-3 w-px bg-mycel-border shrink-0" aria-hidden />
+          <span className="truncate">AES-256-GCM encrypted · values never exposed via API</span>
+        </span>
       </span>
     ) : undefined,
     actions: (
@@ -410,12 +415,8 @@ export function Secrets() {
 
   return (
     <div className="p-6 space-y-5">
-      {/* Page note (title + count live in the top-bar chip) */}
-      <p className="text-xs text-mycel-muted">
-        AES-256-GCM encrypted &middot; values never exposed via API
-      </p>
-
-      {/* Add form — opened from the + Add Secret button in the top bar */}
+      {/* Add form — opened from the + Add Secret button in the top bar.
+          Title, count and the encryption note all live in the header. */}
       <AddSecretForm
         open={addOpen}
         onClose={() => setAddOpen(false)}
