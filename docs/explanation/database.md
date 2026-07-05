@@ -23,7 +23,7 @@ There is one global database. Isolation between repos comes from data keys (agen
 `pkg/db/unified.go` (`OpenGlobalDBWithConfig`) picks the backend at startup:
 
 1. **`DATABASE_URL` env var** — Postgres/TimescaleDB override for Docker and CI.
-2. **`preferences.json` `storage.default`** — `"timescale"` connects using `storage.timescale.{host,port,user,password,database}`; the password falls back to `BC_DB_PASSWORD`. If TimescaleDB is unreachable, the daemon logs a warning and falls back to SQLite rather than starting with nil stores.
+2. **`preferences.json` `storage.default`** — `"timescale"` connects using `storage.timescale.{host,port,user,password,database}`; the password falls back to `MYCEL_DB_PASSWORD`. If TimescaleDB is unreachable, the daemon logs a warning and falls back to SQLite rather than starting with nil stores.
 3. **SQLite default** — `~/.mycel/mycel.db`. One process, one file: the `storage.sqlite.path` field is accepted for parsing but the database always lives at the global path.
 
 ## Shared Connection

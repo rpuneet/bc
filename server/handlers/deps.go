@@ -18,7 +18,7 @@ import (
 // DepsHandler exposes the optional dependencies manager (see pkg/deps).
 //
 // Security: Start/Stop can spawn arbitrary docker commands, so we require
-// the request to originate from loopback unless BC_REMOTE=1 is explicitly
+// the request to originate from loopback unless MYCEL_REMOTE=1 is explicitly
 // set by the operator.
 type DepsHandler struct {
 	registry *deps.Registry
@@ -254,9 +254,9 @@ func (h *DepsHandler) logs(w http.ResponseWriter, r *http.Request, d deps.Depend
 }
 
 // checkLoopback enforces that mutating dep endpoints only accept requests
-// from 127.0.0.1 / ::1 unless BC_REMOTE=1 is set.
+// from 127.0.0.1 / ::1 unless MYCEL_REMOTE=1 is set.
 func checkLoopback(w http.ResponseWriter, r *http.Request) bool {
-	if os.Getenv("BC_REMOTE") == "1" {
+	if os.Getenv("MYCEL_REMOTE") == "1" {
 		return true
 	}
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
@@ -276,6 +276,6 @@ func checkLoopback(w http.ResponseWriter, r *http.Request) bool {
 	if ip.IsLoopback() {
 		return true
 	}
-	httpError(w, "forbidden: loopback required (set BC_REMOTE=1 to override)", http.StatusForbidden)
+	httpError(w, "forbidden: loopback required (set MYCEL_REMOTE=1 to override)", http.StatusForbidden)
 	return false
 }

@@ -114,7 +114,7 @@ func TestDepsStartDeprecatedReturns409(t *testing.T) {
 }
 
 func TestDepsStartNonLoopbackReturns403(t *testing.T) {
-	t.Setenv("BC_REMOTE", "")
+	t.Setenv("MYCEL_REMOTE", "")
 	reg := deps.NewRegistry()
 	reg.Register(&fakeDep{id: "alpha"})
 	mux := newDepsMux(t, reg)
@@ -130,7 +130,7 @@ func TestDepsStartNonLoopbackReturns403(t *testing.T) {
 }
 
 func TestDepsStartRemoteAllowedWithEnv(t *testing.T) {
-	t.Setenv("BC_REMOTE", "1")
+	t.Setenv("MYCEL_REMOTE", "1")
 	reg := deps.NewRegistry()
 	reg.Register(&fakeDep{id: "alpha"})
 	mux := newDepsMux(t, reg)
@@ -141,7 +141,7 @@ func TestDepsStartRemoteAllowedWithEnv(t *testing.T) {
 	mux.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusAccepted {
-		t.Errorf("status = %d, want 202 (BC_REMOTE=1 allows non-loopback)", rec.Code)
+		t.Errorf("status = %d, want 202 (MYCEL_REMOTE=1 allows non-loopback)", rec.Code)
 	}
 }
 

@@ -142,12 +142,12 @@ export function getCostIndicator(status: CostStatus): {
 
 /**
  * Check if high contrast mode is enabled
- * Supports: BC_HIGH_CONTRAST env var, config tui.high_contrast
+ * Supports: MYCEL_HIGH_CONTRAST env var, config tui.high_contrast
  * #1220: Colorblind-friendly visual cues
  */
 export function isHighContrastEnabled(): boolean {
   // Check environment variable
-  const envValue = process.env.BC_HIGH_CONTRAST;
+  const envValue = process.env.MYCEL_HIGH_CONTRAST;
   return envValue === '1' || envValue === 'true';
 }
 

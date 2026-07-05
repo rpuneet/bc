@@ -38,12 +38,12 @@ func resetFlags(cmd *cobra.Command) {
 
 // setupIntegrationWorkspace creates a temporary bc workspace and changes into it.
 // Returns the workspace root path and a cleanup function that restores
-// the original working directory and BC_WORKSPACE env var.
+// the original working directory and MYCEL_WORKSPACE env var.
 func setupIntegrationWorkspace(t *testing.T) (string, func()) {
 	t.Helper()
 
-	if os.Getenv("BC_TEST_DAEMON") == "" {
-		t.Skip("skipping: requires BC_TEST_DAEMON=1 (dedicated test bcd instance)")
+	if os.Getenv("MYCEL_TEST_DAEMON") == "" {
+		t.Skip("skipping: requires MYCEL_TEST_DAEMON=1 (dedicated test bcd instance)")
 	}
 
 	origDir, err := os.Getwd()
@@ -62,9 +62,9 @@ func setupIntegrationWorkspace(t *testing.T) (string, func()) {
 		t.Fatalf("failed to ensure dirs: %v", err)
 	}
 
-	// Point BC_WORKSPACE at the temp workspace so getRepo() finds it
+	// Point MYCEL_WORKSPACE at the temp workspace so getRepo() finds it
 	// regardless of cwd races between parallel tests.
-	t.Setenv("BC_WORKSPACE", tmpDir)
+	t.Setenv("MYCEL_WORKSPACE", tmpDir)
 
 	if err := os.Chdir(tmpDir); err != nil {
 		t.Fatalf("failed to chdir to temp workspace: %v", err)
@@ -83,7 +83,7 @@ func setupIntegrationWorkspace(t *testing.T) (string, func()) {
 //
 // Prefer this over executeIntegrationCmd when a test wants to assert
 // against bcd responses (e.g. a successful agent send). Otherwise the
-// plain executeIntegrationCmd is fine — TestMain pins BC_DAEMON_ADDR
+// plain executeIntegrationCmd is fine — TestMain pins MYCEL_DAEMON_ADDR
 // at the fake server for the whole test process.
 func executeIntegrationCmdT(t *testing.T, handler http.HandlerFunc, args ...string) (string, string, error) {
 	t.Helper()
@@ -98,7 +98,7 @@ func executeIntegrationCmdT(t *testing.T, handler http.HandlerFunc, args ...stri
 // os.Stdout to a pipe to capture output. Returns captured stdout and any error.
 //
 // All callers are automatically isolated from the production bcd: TestMain
-// starts a fake httptest.Server and pins BC_DAEMON_ADDR to it for the
+// starts a fake httptest.Server and pins MYCEL_DAEMON_ADDR to it for the
 // entire test process.
 func executeIntegrationCmd(args ...string) (string, string, error) {
 	// Save and redirect os.Stdout
@@ -215,20 +215,20 @@ func TestAgentSendRequiresArgs(t *testing.T) {
 // --- Agent Report command tests ---
 
 func TestAgentReportNoAgentID(t *testing.T) {
-	// Ensure BC_AGENT_ID is not set
-	orig := os.Getenv("BC_AGENT_ID")
-	if err := os.Unsetenv("BC_AGENT_ID"); err != nil {
+	// Ensure MYCEL_AGENT_ID is not set
+	orig := os.Getenv("MYCEL_AGENT_ID")
+	if err := os.Unsetenv("MYCEL_AGENT_ID"); err != nil {
 		t.Fatalf("failed to unsetenv: %v", err)
 	}
 	defer func() {
 		if orig != "" {
-			_ = os.Setenv("BC_AGENT_ID", orig)
+			_ = os.Setenv("MYCEL_AGENT_ID", orig)
 		}
 	}()
 
 	_, _, err := executeIntegrationCmd("agent", "report", "working", "testing")
 	if err == nil {
-		t.Fatal("expected error when BC_AGENT_ID not set, got nil")
+		t.Fatal("expected error when MYCEL_AGENT_ID not set, got nil")
 	}
 	if !strings.Contains(err.Error(), "this command can only be run by agents in the mycel system") {
 		t.Errorf("expected agent-only command error, got: %v", err)
@@ -236,7 +236,7 @@ func TestAgentReportNoAgentID(t *testing.T) {
 }
 
 func TestAgentReportInvalidState(t *testing.T) {
-	t.Setenv("BC_AGENT_ID", "test-agent")
+	t.Setenv("MYCEL_AGENT_ID", "test-agent")
 
 	_, _, err := executeIntegrationCmd("agent", "report", "invalid-state")
 	if err == nil {
@@ -260,9 +260,9 @@ func TestAgentReportNoWorkspace(t *testing.T) {
 	defer func() { _ = os.Chdir(origDir) }()
 
 	// Clear workspace env vars to ensure workspace lookup fails (#1668)
-	t.Setenv("BC_WORKSPACE", "")
-	t.Setenv("BC_AGENT_WORKTREE", "")
-	t.Setenv("BC_AGENT_ID", "test-agent")
+	t.Setenv("MYCEL_WORKSPACE", "")
+	t.Setenv("MYCEL_AGENT_WORKTREE", "")
+	t.Setenv("MYCEL_AGENT_ID", "test-agent")
 
 	_, _, err = executeIntegrationCmd("agent", "report", "working", "testing")
 	if err == nil {
@@ -278,9 +278,9 @@ func TestAgentReportValidStates(t *testing.T) {
 
 	for _, state := range validStates {
 		t.Run(state, func(t *testing.T) {
-			t.Setenv("BC_AGENT_ID", "test-agent")
-			t.Setenv("BC_WORKSPACE", "")      // Clear workspace env to test cwd-based discovery
-			t.Setenv("BC_AGENT_WORKTREE", "") // Clear worktree env to avoid spurious warnings (#1668)
+			t.Setenv("MYCEL_AGENT_ID", "test-agent")
+			t.Setenv("MYCEL_WORKSPACE", "")      // Clear workspace env to test cwd-based discovery
+			t.Setenv("MYCEL_AGENT_WORKTREE", "") // Clear worktree env to avoid spurious warnings (#1668)
 
 			// State validation happens before workspace lookup, but
 			// invalid states are rejected. Valid states proceed to
@@ -317,7 +317,7 @@ func TestAgentReportRequiresArgs(t *testing.T) {
 // --- Status command tests ---
 
 func TestStatusNoWorkspace(t *testing.T) {
-	t.Setenv("BC_WORKSPACE", "") // Clear workspace env to test cwd-based discovery
+	t.Setenv("MYCEL_WORKSPACE", "") // Clear workspace env to test cwd-based discovery
 
 	origDir, err := os.Getwd()
 	if err != nil {
@@ -665,7 +665,7 @@ func TestReportWorkingInWorkspace(t *testing.T) {
 		},
 	})
 
-	t.Setenv("BC_AGENT_ID", "test-agent")
+	t.Setenv("MYCEL_AGENT_ID", "test-agent")
 
 	stdout, _, err := executeIntegrationCmd("agent", "report", "working", "fixing auth bug")
 	if err != nil {
@@ -691,7 +691,7 @@ func TestReportDoneInWorkspace(t *testing.T) {
 		},
 	})
 
-	t.Setenv("BC_AGENT_ID", "test-agent")
+	t.Setenv("MYCEL_AGENT_ID", "test-agent")
 
 	stdout, _, err := executeIntegrationCmd("agent", "report", "done", "auth bug fixed")
 	if err != nil {
@@ -745,7 +745,7 @@ func TestReportStuckInWorkspace(t *testing.T) {
 		},
 	})
 
-	t.Setenv("BC_AGENT_ID", "test-agent")
+	t.Setenv("MYCEL_AGENT_ID", "test-agent")
 
 	stdout, _, err := executeIntegrationCmd("agent", "report", "stuck", "need database credentials")
 	if err != nil {

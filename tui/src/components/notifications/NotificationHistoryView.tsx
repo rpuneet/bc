@@ -253,7 +253,7 @@ export function NotificationHistoryView({
                 sender={msg.sender}
                 message={msg.message}
                 timestamp={msg.time}
-                currentUser={process.env.BC_AGENT_ID}
+                currentUser={process.env.MYCEL_AGENT_ID}
                 maxBubbleWidth={maxBubbleWidth}
                 compact={isNarrow}
               />

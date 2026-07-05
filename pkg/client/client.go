@@ -127,10 +127,10 @@ func (c *Client) get(ctx context.Context, path string, result any) error {
 }
 
 // discoverDaemon tries to find the daemon address.
-// Priority: BC_DAEMON_ADDR env > <mycel home>/daemon.addr (written by
+// Priority: MYCEL_DAEMON_ADDR env > <mycel home>/daemon.addr (written by
 // `mycel up`) > default HTTP address.
 func discoverDaemon() string {
-	if addr := os.Getenv("BC_DAEMON_ADDR"); addr != "" {
+	if addr := os.Getenv("MYCEL_DAEMON_ADDR"); addr != "" {
 		return addr
 	}
 	if addr := readDaemonAddrFile(); addr != "" {

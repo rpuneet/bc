@@ -16,7 +16,7 @@
 
 // Set test environment variables
 process.env.NODE_ENV = 'test';
-process.env.BC_WORKSPACE = 'test-workspace';
+process.env.MYCEL_WORKSPACE = 'test-workspace';
 process.env.NO_COLOR = '1'; // Disable colors in tests
 
 // ============================================================================

@@ -23,7 +23,7 @@ Examples:
   mycel channel delete workers            # Delete the channel
   mycel channel status                    # Overview of all channels
 
-Agent Commands (require BC_AGENT_ID):
+Agent Commands (require MYCEL_AGENT_ID):
   mycel channel join workers              # Join a channel (current agent)
   mycel channel leave workers             # Leave a channel (current agent)
 

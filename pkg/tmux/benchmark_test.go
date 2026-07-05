@@ -60,7 +60,7 @@ func BenchmarkUserFriendlyTmuxError_CantFindPane(b *testing.B) {
 }
 
 func BenchmarkValidEnvVarName_Valid(b *testing.B) {
-	name := "BC_AGENT_ID"
+	name := "MYCEL_AGENT_ID"
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		_ = validEnvVarName.MatchString(name)

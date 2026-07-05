@@ -262,7 +262,7 @@ This ensures:
 
 **After:** `/_mcp/<wsID>/<agent>/sse` and `/_mcp/<wsID>/<agent>/message`.
 
-- `BC_AGENT_MCP_URL` env set on the agent at spawn uses the wsID-prefixed path
+- `MYCEL_AGENT_MCP_URL` env set on the agent at spawn uses the wsID-prefixed path
 - Agents inside workspaces post MCP messages to their scoped endpoint
 - No collision between same-named agents in different workspaces
 
@@ -276,7 +276,7 @@ that file on bcd startup; extend it to also rewrite MCP paths.
 
 **New:**
 - Primary path: `POST /api/workspaces/{wsID}/agents/{name}/hook`
-- Agent's `.claude/settings.json` hook commands include `BC_WORKSPACE` env
+- Agent's `.claude/settings.json` hook commands include `MYCEL_WORKSPACE` env
   so the body also carries the wsID for cross-check
 - Legacy `/api/agents/{name}/hook` returns 410 Gone with a pointer to the
   scoped URL (not 404 so users can see the error)

@@ -297,7 +297,7 @@ func rewriteDockerURL(u string) string {
 // host.docker.internal) nor track the actual bind port, so the self
 // endpoint is always derived from the live daemon address.
 func bcSelfURL(runtimeBackend, agentName string) string {
-	return bcdAddrForRuntime(runtimeBackend) + "/_mcp/" + agentName + "/sse"
+	return daemonAddrForRuntime(runtimeBackend) + "/_mcp/" + agentName + "/sse"
 }
 
 // ── Secrets ─────────────────────────────────────────────────────────────────
@@ -538,7 +538,7 @@ func validateAgentTools(workspacePath, roleName string) []string {
 		// will actually be given (derived per runtime), not the store row.
 		// From the daemon's own process the tmux-shaped address applies.
 		if name == "bc" {
-			if err := checkSSEEndpoint(bcdAddrForRuntime("tmux") + "/_mcp/sse"); err != nil {
+			if err := checkSSEEndpoint(daemonAddrForRuntime("tmux") + "/_mcp/sse"); err != nil {
 				issues = append(issues, fmt.Sprintf("bc MCP endpoint unreachable: %v", err))
 			}
 			continue

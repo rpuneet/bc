@@ -244,7 +244,7 @@ The TUI fetches all data from the server REST API over HTTP and receives real-ti
 
 ### Service Layer: `tui/src/services/bc.ts`
 
-The service layer is an HTTP client that calls the REST API using `fetch()`. The base URL comes from the `BC_DAEMON_ADDR` environment variable, defaulting to `http://127.0.0.1:9374`.
+The service layer is an HTTP client that calls the REST API using `fetch()`. The base URL comes from the `MYCEL_DAEMON_ADDR` environment variable, defaulting to `http://127.0.0.1:9374`.
 
 **Key characteristics:**
 

@@ -114,7 +114,7 @@ The Python script (`scripts/configure-hooks.py`) already handles this. The Go fu
 
 Likely causes:
 1. If Docker: hooks can't reach bcd (issue #1)
-2. If tmux: check `BC_AGENT_ID` env var is set, check `.claude/settings.json` exists in worktree
+2. If tmux: check `MYCEL_AGENT_ID` env var is set, check `.claude/settings.json` exists in worktree
 3. Hook scripts may not be configured in the agent's worktree
 
 ### 4. sharp-wolf Working But No Frontend Updates

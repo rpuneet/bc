@@ -6,7 +6,7 @@ set -e
 
 # Configuration
 REPO="rpuneet/mycel"
-INSTALL_DIR="${MYCEL_INSTALL_DIR:-${BC_INSTALL_DIR:-/usr/local/bin}}"
+INSTALL_DIR="${MYCEL_INSTALL_DIR:-/usr/local/bin}"
 BINARY_NAME="mycel"
 
 # Colors

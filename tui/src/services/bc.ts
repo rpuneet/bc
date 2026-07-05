@@ -243,9 +243,9 @@ export async function execBc(args: string[]): Promise<string> {
       finalArgs.push('--json');
     }
 
-    // Use BC_BIN if set, otherwise fall back to 'bc' in PATH (#1612: Validate env vars)
-    const bcBin = process.env.MYCEL_BIN ?? process.env.BC_BIN ?? 'mycel';
-    const bcRoot = process.env.BC_ROOT ?? process.cwd();
+    // Use MYCEL_BIN if set, otherwise fall back to 'mycel' in PATH (#1612: Validate env vars)
+    const bcBin = process.env.MYCEL_BIN ?? 'mycel';
+    const bcRoot = process.env.MYCEL_ROOT ?? process.cwd();
 
     // Validate bcRoot exists before spawning
     // Note: We don't validate bcBin here as spawn error will handle missing executable
@@ -359,10 +359,10 @@ export async function execBcJsonCached<T>(args: string[], ttl?: number): Promise
 
 /**
  * Get the bcd daemon base URL.
- * Reads BC_DAEMON_ADDR env var or defaults to http://127.0.0.1:9374.
+ * Reads MYCEL_DAEMON_ADDR env var or defaults to http://127.0.0.1:9374.
  */
 export function getBcdUrl(): string {
-  const addr = process.env.BC_DAEMON_ADDR;
+  const addr = process.env.MYCEL_DAEMON_ADDR;
   if (addr) {
     // Normalise: strip trailing slash
     return addr.replace(/\/$/, '');
@@ -773,7 +773,7 @@ export async function pruneWorktrees(force = false): Promise<string> {
  * @throws Error if session doesn't exist or attachment fails
  */
 export function attachToAgentSession(agentName: string): void {
-  const bcBin = process.env.MYCEL_BIN ?? process.env.BC_BIN ?? 'mycel';
+  const bcBin = process.env.MYCEL_BIN ?? 'mycel';
   spawnSync(bcBin, ['agent', 'attach', agentName], {
     stdio: 'inherit',
   });

@@ -20,8 +20,8 @@ import (
 func setupLogsWorkspace(t *testing.T) (string, func()) {
 	t.Helper()
 
-	if os.Getenv("BC_TEST_DAEMON") == "" {
-		t.Skip("skipping: requires BC_TEST_DAEMON=1 (dedicated test bcd instance)")
+	if os.Getenv("MYCEL_TEST_DAEMON") == "" {
+		t.Skip("skipping: requires MYCEL_TEST_DAEMON=1 (dedicated test bcd instance)")
 	}
 
 	origDir, err := os.Getwd()
@@ -1036,8 +1036,8 @@ func TestLogs_NoWorkspace(t *testing.T) {
 	_ = os.Chdir(tmpDir)
 	defer func() { _ = os.Chdir(origDir) }()
 
-	// Ensure BC_WORKSPACE doesn't bypass the workspace check
-	t.Setenv("BC_WORKSPACE", "")
+	// Ensure MYCEL_WORKSPACE doesn't bypass the workspace check
+	t.Setenv("MYCEL_WORKSPACE", "")
 
 	_, err := runLogsCmd(t, "logs")
 	if err == nil {

@@ -12,7 +12,7 @@ export type AgentState =
 
 export interface QueryRequest {
   prompt: string;
-  // Optional system-prompt override; falls back to BC_ROLE_PROMPT env var.
+  // Optional system-prompt override; falls back to MYCEL_ROLE_PROMPT env var.
   system_prompt?: string;
   // Hard cap on conversation turns for this query.
   max_turns?: number;
@@ -20,7 +20,7 @@ export interface QueryRequest {
   max_budget_usd?: number;
   // Resume a prior session by id (returned from a previous query).
   resume_session?: string;
-  // Override allowed-tools list for this query. Falls back to BC_ALLOWED_TOOLS.
+  // Override allowed-tools list for this query. Falls back to MYCEL_ALLOWED_TOOLS.
   allowed_tools?: string[];
   // Override permission mode for this query.
   permission_mode?: "default" | "acceptEdits" | "bypassPermissions" | "plan";

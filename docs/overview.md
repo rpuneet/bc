@@ -75,7 +75,7 @@ Key properties:
 
 ### CLI (`cmd/mycel`)
 
-Thin HTTP client; commands never touch the database or filesystem state directly. The bare `mycel` command opens the TUI when a server is reachable. Clients discover the server via `BC_DAEMON_ADDR`, then `~/.mycel/daemon.addr`, then the `127.0.0.1:9374` default.
+Thin HTTP client; commands never touch the database or filesystem state directly. The bare `mycel` command opens the TUI when a server is reachable. Clients discover the server via `MYCEL_DAEMON_ADDR`, then `~/.mycel/daemon.addr`, then the `127.0.0.1:9374` default.
 
 ### Server (`server/`)
 
@@ -89,7 +89,7 @@ Long-running HTTP server started by `mycel up` (foreground by default, `-d` for 
 | Web UI | `/` | Embedded React dashboard |
 | Health | `/api/health`, `/health/ready` | Liveness + readiness probes |
 
-Middleware chain (outermost first): RateLimit → APIKeyAuth (optional, `--api-key`/`BC_API_KEY`) → RequestID → RequestLogger → Recovery → Gzip → MaxBodySize (1 MB) → CORS → mux.
+Middleware chain (outermost first): RateLimit → APIKeyAuth (optional, `--api-key`/`MYCEL_API_KEY`) → RequestID → RequestLogger → Recovery → Gzip → MaxBodySize (1 MB) → CORS → mux.
 
 ### Agents
 

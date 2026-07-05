@@ -10,11 +10,11 @@ import (
 )
 
 // getRepo resolves the enclosing mycel-adopted git repo. Checks
-// BC_WORKSPACE env var first (for agents in worktrees), then walks up
+// MYCEL_WORKSPACE env var first (for agents in worktrees), then walks up
 // the directory tree probing each candidate's global state dir.
 func getRepo() (*workspace.Workspace, error) {
-	// Check BC_WORKSPACE first (agents set this to point to the main repo)
-	if wsPath := os.Getenv("BC_WORKSPACE"); wsPath != "" {
+	// Check MYCEL_WORKSPACE first (agents set this to point to the main repo)
+	if wsPath := os.Getenv("MYCEL_WORKSPACE"); wsPath != "" {
 		return workspace.Load(wsPath)
 	}
 
@@ -25,7 +25,7 @@ func getRepo() (*workspace.Workspace, error) {
 	return workspace.Find(cwd)
 }
 
-// errorAgentNotRunning returns an error message for commands that require BC_AGENT_ID.
+// errorAgentNotRunning returns an error message for commands that require MYCEL_AGENT_ID.
 func errorAgentNotRunning(commandUsage string) error {
 	return fmt.Errorf("this command can only be run by agents in the mycel system (use: mycel agent send <agent-name> %q)", commandUsage)
 }

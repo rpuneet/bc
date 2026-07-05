@@ -101,7 +101,7 @@ func DaemonLogPath() (string, error) {
 // DaemonAddrPath returns the path to the user-global bcd address file
 // (~/.mycel/daemon.addr). `mycel up` writes the currently-listening address
 // (scheme + host:port, e.g. "http://127.0.0.1:8080") so the CLI and
-// agents can locate the daemon without requiring BC_DAEMON_ADDR to be
+// agents can locate the daemon without requiring MYCEL_DAEMON_ADDR to be
 // set when the daemon runs on a non-default port.
 func DaemonAddrPath() (string, error) {
 	return globalPath(globalDaemonAddrName)

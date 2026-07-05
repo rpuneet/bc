@@ -37,7 +37,7 @@ a random 16-byte salt.
 
 The passphrase is resolved in priority order:
 
-1. **`BC_SECRET_PASSPHRASE` environment variable** — set this in CI or when
+1. **`MYCEL_SECRET_PASSPHRASE` environment variable** — set this in CI or when
    you want explicit control.
 2. **Auto-generated key file at `~/.mycel/secret-key`** — created on first use
    with 32 random bytes (hex-encoded), file permissions `0600`, directory
@@ -115,7 +115,7 @@ RateLimit → APIKeyAuth → RequestID → RequestLogger → Recovery → Gzip �
 ### API Key Authentication
 
 Authentication is **optional** and disabled by default. Starting the server
-with `mycel up --api-key <key>` (or setting the `BC_API_KEY` environment
+with `mycel up --api-key <key>` (or setting the `MYCEL_API_KEY` environment
 variable) enables the `APIKeyAuth` middleware, which requires every request
 to carry either:
 
@@ -177,10 +177,10 @@ body size limit, recovery) as the REST API.
 If you need to expose the mycel server beyond localhost (e.g., for remote
 agent coordination):
 
-1. Enable API-key authentication (`mycel up --api-key` or `BC_API_KEY`).
+1. Enable API-key authentication (`mycel up --api-key` or `MYCEL_API_KEY`).
 2. Place the server behind a reverse proxy (nginx, Caddy, etc.) with TLS
    termination.
 3. Restrict CORS origin to your specific domain.
-4. Set `BC_SECRET_PASSPHRASE` explicitly rather than relying on the
+4. Set `MYCEL_SECRET_PASSPHRASE` explicitly rather than relying on the
    auto-generated key file.
 5. Use `network = "none"` for Docker agents that do not need outbound access.

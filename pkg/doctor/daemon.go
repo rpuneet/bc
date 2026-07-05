@@ -24,7 +24,7 @@ const daemonHealthTimeout = 3 * time.Second
 
 // CheckDaemon queries the running daemon's /api/health endpoint and
 // reports degraded services. The daemon address is auto-discovered the
-// same way the CLI does (BC_DAEMON_ADDR env > daemon.addr file > default).
+// same way the CLI does (MYCEL_DAEMON_ADDR env > daemon.addr file > default).
 func CheckDaemon(ctx context.Context) CategoryReport {
 	return CheckDaemonAt(ctx, client.New("").BaseURL)
 }

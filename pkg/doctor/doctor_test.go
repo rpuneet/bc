@@ -115,8 +115,8 @@ func TestValidCategories(t *testing.T) {
 // ─── checkEnvVar ─────────────────────────────────────────────────────────────
 
 func TestCheckEnvVar_NotSet(t *testing.T) {
-	t.Setenv("BC_TEST_ENV_NOTSET", "")
-	item := checkEnvVar("BC_TEST_ENV_NOTSET")
+	t.Setenv("MYCEL_TEST_ENV_NOTSET", "")
+	item := checkEnvVar("MYCEL_TEST_ENV_NOTSET")
 	if item.Severity != SeverityWarn {
 		t.Errorf("unset env var: severity = %s, want warn", item.Severity)
 	}
@@ -126,8 +126,8 @@ func TestCheckEnvVar_NotSet(t *testing.T) {
 }
 
 func TestCheckEnvVar_Set(t *testing.T) {
-	t.Setenv("BC_TEST_ENV_SET", "sk-ant-12345678901234567890abcd")
-	item := checkEnvVar("BC_TEST_ENV_SET")
+	t.Setenv("MYCEL_TEST_ENV_SET", "sk-ant-12345678901234567890abcd")
+	item := checkEnvVar("MYCEL_TEST_ENV_SET")
 	if item.Severity != SeverityOK {
 		t.Errorf("set env var: severity = %s, want ok", item.Severity)
 	}
@@ -142,8 +142,8 @@ func TestCheckEnvVar_Set(t *testing.T) {
 
 func TestCheckEnvVar_ShortValue(t *testing.T) {
 	// Values shorter than 8 chars: shown as-is (no masking)
-	t.Setenv("BC_TEST_SHORT", "abc")
-	item := checkEnvVar("BC_TEST_SHORT")
+	t.Setenv("MYCEL_TEST_SHORT", "abc")
+	item := checkEnvVar("MYCEL_TEST_SHORT")
 	if item.Severity != SeverityOK {
 		t.Errorf("short set env var: severity = %s, want ok", item.Severity)
 	}

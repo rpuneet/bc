@@ -429,7 +429,7 @@ Identity instructions are injected into the agent's system prompt at startup:
 ## Platform Credentials
 You have access to these platform credentials via environment variables:
 - SLACK_BOT_TOKEN: Use Slack API. Set `username` param to your agent name
-  (available as BC_AGENT_ID env var) for identity.
+  (available as MYCEL_AGENT_ID env var) for identity.
 - TELEGRAM_BOT_TOKEN: Use Telegram Bot API. Prefix messages with your agent name.
 ```
 
@@ -703,7 +703,7 @@ gatewayMgr.Register(adapter)
 
 ## API Reference
 
-All endpoints are served by the mycel server at `http://127.0.0.1:9374`. Localhost-only by default; Bearer auth applies when the server is started with `--api-key`/`BC_API_KEY`.
+All endpoints are served by the mycel server at `http://127.0.0.1:9374`. Localhost-only by default; Bearer auth applies when the server is started with `--api-key`/`MYCEL_API_KEY`.
 
 ### Gateway Management
 

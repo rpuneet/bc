@@ -228,7 +228,7 @@ func RunServer(addr, wsRoot, corsOrigin, apiKey string) error {
 }
 
 // updateAgentHookPorts rewrites agent hook settings to use the current bcd address.
-// This is necessary because existing tmux sessions don't inherit the BC_BCD_ADDR
+// This is necessary because existing tmux sessions don't inherit the MYCEL_DAEMON_ADDR
 // environment variable that is set in the bcd process env.
 func updateAgentHookPorts(ws *bcworkspace.Workspace, listenAddr string) {
 	bcdURL := "http://" + listenAddr
@@ -252,7 +252,7 @@ func updateAgentHookPorts(ws *bcworkspace.Workspace, listenAddr string) {
 			}
 			content := string(data)
 			updated := strings.ReplaceAll(content, "http://127.0.0.1:9374", bcdURL)
-			updated = strings.ReplaceAll(updated, "${BC_BCD_ADDR:-http://127.0.0.1:9374}", bcdURL)
+			updated = strings.ReplaceAll(updated, "${MYCEL_DAEMON_ADDR:-http://127.0.0.1:9374}", bcdURL)
 
 			if updated != content {
 				if writeErr := os.WriteFile(settingsPath, []byte(updated), 0644); writeErr != nil { //nolint:gosec // agent settings file

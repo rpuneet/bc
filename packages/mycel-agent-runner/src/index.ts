@@ -3,7 +3,7 @@
 //
 // One process per agent. Reads its identity, working directory, and policy
 // from environment variables (set by bcd when it spawns the runner) and
-// exposes the agent over an HTTP API on BC_AGENT_RUNNER_PORT (default 8080).
+// exposes the agent over an HTTP API on MYCEL_AGENT_RUNNER_PORT (default 8080).
 
 import { createRequire } from "node:module";
 
@@ -71,25 +71,25 @@ function readSdkVersion(): string {
 }
 
 async function main(): Promise<void> {
-  const agentName = requireEnv("BC_AGENT_NAME");
-  const workingDir = optionalEnv("BC_AGENT_WORKING_DIR") ?? process.cwd();
-  const port = parseIntEnv("BC_AGENT_RUNNER_PORT") ?? 8080;
-  const host = optionalEnv("BC_AGENT_RUNNER_HOST") ?? "0.0.0.0";
+  const agentName = requireEnv("MYCEL_AGENT_NAME");
+  const workingDir = optionalEnv("MYCEL_AGENT_WORKING_DIR") ?? process.cwd();
+  const port = parseIntEnv("MYCEL_AGENT_RUNNER_PORT") ?? 8080;
+  const host = optionalEnv("MYCEL_AGENT_RUNNER_HOST") ?? "0.0.0.0";
 
   const hub = new SseHub();
   const runner = new AgentRunner(
     {
       agentName,
       workingDir,
-      defaultSystemPrompt: optionalEnv("BC_ROLE_PROMPT"),
+      defaultSystemPrompt: optionalEnv("MYCEL_ROLE_PROMPT"),
       defaultAllowedTools: parseJsonEnv<string[] | undefined>(
-        "BC_ALLOWED_TOOLS",
+        "MYCEL_ALLOWED_TOOLS",
         undefined,
       ),
-      defaultMaxTurns: parseIntEnv("BC_MAX_TURNS"),
-      defaultMaxBudgetUsd: parseFloatEnv("BC_MAX_BUDGET_USD"),
+      defaultMaxTurns: parseIntEnv("MYCEL_MAX_TURNS"),
+      defaultMaxBudgetUsd: parseFloatEnv("MYCEL_MAX_BUDGET_USD"),
       mcpServers: parseJsonEnv<Record<string, unknown> | undefined>(
-        "BC_MCP_SERVERS",
+        "MYCEL_MCP_SERVERS",
         undefined,
       ),
     },

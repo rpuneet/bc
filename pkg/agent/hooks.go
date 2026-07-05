@@ -147,16 +147,16 @@ func WriteWorkspaceHookSettings(workspaceRoot string) error {
 		return fmt.Errorf("create .claude dir: %w", err)
 	}
 
-	// Hook commands use $BC_BCD_ADDR env var (set per-agent based on runtime).
+	// Hook commands use $MYCEL_DAEMON_ADDR env var (set per-agent based on runtime).
 	// Falls back to localhost for backward compat.
-	bcdAddr := "${BC_BCD_ADDR:-http://127.0.0.1:9374}"
+	bcdAddr := "${MYCEL_DAEMON_ADDR:-http://127.0.0.1:9374}"
 
 	// hookCmd reads the full raw JSON from Claude Code's stdin, merges in
 	// our event/state fields, and POSTs the complete payload to bcd.
 	// This preserves all fields Claude sends (tool_name, tool_input, session_id, etc.)
 	hookCmd := func(event HookEvent, stateTarget State, taskDesc string) string {
 		return fmt.Sprintf(
-			`bash -c 'RAW=$(cat); PAYLOAD=$(echo "$RAW" | jq -c ". + {event:\"%s\",state:\"%s\",task:\"%s\"}" 2>/dev/null || echo "{\"event\":\"%s\",\"state\":\"%s\",\"task\":\"%s\"}"); curl -sX POST %s/api/agents/${BC_AGENT_ID}/hook -H "Content-Type: application/json" -d "$PAYLOAD" 2>/dev/null || true'`,
+			`bash -c 'RAW=$(cat); PAYLOAD=$(echo "$RAW" | jq -c ". + {event:\"%s\",state:\"%s\",task:\"%s\"}" 2>/dev/null || echo "{\"event\":\"%s\",\"state\":\"%s\",\"task\":\"%s\"}"); curl -sX POST %s/api/agents/${MYCEL_AGENT_ID}/hook -H "Content-Type: application/json" -d "$PAYLOAD" 2>/dev/null || true'`,
 			event, stateTarget, taskDesc, event, stateTarget, taskDesc, bcdAddr,
 		)
 	}

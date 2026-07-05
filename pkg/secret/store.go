@@ -17,7 +17,7 @@ import (
 )
 
 // PassphraseEnvVar is the environment variable for the master passphrase.
-const PassphraseEnvVar = "BC_SECRET_PASSPHRASE" //nolint:gosec // not a credential, env var name constant
+const PassphraseEnvVar = "MYCEL_SECRET_PASSPHRASE" //nolint:gosec // not a credential, env var name constant
 
 // SecretMeta holds secret metadata (never includes the value).
 //
@@ -42,7 +42,7 @@ type Store struct {
 }
 
 // Passphrase returns the passphrase for secret encryption.
-// Priority: BC_SECRET_PASSPHRASE env var > key file at <mycel home>/secret-key
+// Priority: MYCEL_SECRET_PASSPHRASE env var > key file at <mycel home>/secret-key
 // > freshly generated key.
 // The key file is created with 0600 permissions on first use.
 func Passphrase() (string, error) {

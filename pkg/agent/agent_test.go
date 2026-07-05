@@ -3495,13 +3495,13 @@ func TestBcdAddrForRuntime_NormalizesEmptyHost(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if tt.envVal != "" {
-				t.Setenv("BC_BCD_ADDR", tt.envVal)
+				t.Setenv("MYCEL_DAEMON_ADDR", tt.envVal)
 			} else {
-				t.Setenv("BC_BCD_ADDR", "")
+				t.Setenv("MYCEL_DAEMON_ADDR", "")
 			}
-			got := bcdAddrForRuntime(tt.runtime)
+			got := daemonAddrForRuntime(tt.runtime)
 			if got != tt.want {
-				t.Errorf("bcdAddrForRuntime(%q) with BC_BCD_ADDR=%q = %q, want %q",
+				t.Errorf("daemonAddrForRuntime(%q) with MYCEL_DAEMON_ADDR=%q = %q, want %q",
 					tt.runtime, tt.envVal, got, tt.want)
 			}
 		})
@@ -3706,7 +3706,7 @@ func addMarkerCommit(t *testing.T, repo, marker string) {
 // TestCreateAgent_DockerBackendReceivesAgentRepo verifies the values the
 // container backend uses to build the /workspace mount and workdir: the
 // session dir must be a worktree checked out from the AGENT's repo, and
-// env BC_WORKSPACE must carry that repo — never the boot repo
+// env MYCEL_WORKSPACE must carry that repo — never the boot repo
 // (regression: docker containers used to always mount the boot repo).
 // A boot-repo agent keeps the boot values unchanged.
 func TestCreateAgent_DockerBackendReceivesAgentRepo(t *testing.T) {
@@ -3721,7 +3721,7 @@ func TestCreateAgent_DockerBackendReceivesAgentRepo(t *testing.T) {
 		name       string
 		agentName  string
 		repo       string // SpawnOptions.Workspace
-		wantRepo   string // expected Agent.Repo and env BC_WORKSPACE
+		wantRepo   string // expected Agent.Repo and env MYCEL_WORKSPACE
 		wantMarker bool   // worktree checked out from `other`
 	}{
 		{
@@ -3762,10 +3762,10 @@ func TestCreateAgent_DockerBackendReceivesAgentRepo(t *testing.T) {
 
 			dir, env := docker.lastSession()
 
-			// The container backend mounts env["BC_WORKSPACE"] at
+			// The container backend mounts env["MYCEL_WORKSPACE"] at
 			// /workspace — it must be the agent's repo, not the boot repo.
-			if env["BC_WORKSPACE"] != tt.wantRepo {
-				t.Errorf("env BC_WORKSPACE = %q, want %q", env["BC_WORKSPACE"], tt.wantRepo)
+			if env["MYCEL_WORKSPACE"] != tt.wantRepo {
+				t.Errorf("env MYCEL_WORKSPACE = %q, want %q", env["MYCEL_WORKSPACE"], tt.wantRepo)
 			}
 
 			// The session dir is the agent's worktree.

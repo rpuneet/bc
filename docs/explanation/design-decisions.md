@@ -151,7 +151,7 @@ Docker containers.
 **Decision:** Use HTTP hooks: Claude Code lifecycle events (`SessionStart`,
 `UserPromptSubmit`, `PreToolUse`, `Stop`, and others) POST a JSON payload to
 the server's `/api/agents/{name}/hook` endpoint. The server address comes
-from the `BC_BCD_ADDR` env var set per agent.
+from the `MYCEL_DAEMON_ADDR` env var set per agent.
 
 **Rationale:**
 
@@ -162,7 +162,7 @@ from the `BC_BCD_ADDR` env var set per agent.
   JSON, merges in mycel's `event`/`state`/`task` fields with `jq`, and
   POSTs everything — tool names, tool input, and session IDs included.
 - **Works in Docker**: containers reach the host server over the network
-  via `BC_BCD_ADDR`; no shared-filesystem tricks needed.
+  via `MYCEL_DAEMON_ADDR`; no shared-filesystem tricks needed.
 - **Fire-and-forget**: each hook ends in `|| true`, so a down or slow
   server never blocks or breaks the agent.
 - **Claude Code integration**: hooks are configured in

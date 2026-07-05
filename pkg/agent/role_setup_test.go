@@ -96,7 +96,7 @@ func TestRewriteDockerURL(t *testing.T) {
 func TestBcSelfURL(t *testing.T) {
 	tests := []struct {
 		name    string
-		bcdAddr string // BC_BCD_ADDR of the daemon process
+		bcdAddr string // MYCEL_DAEMON_ADDR of the daemon process
 		runtime string
 		agent   string
 		want    string
@@ -110,7 +110,7 @@ func TestBcSelfURL(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Setenv("BC_BCD_ADDR", tt.bcdAddr)
+			t.Setenv("MYCEL_DAEMON_ADDR", tt.bcdAddr)
 			if got := bcSelfURL(tt.runtime, tt.agent); got != tt.want {
 				t.Errorf("bcSelfURL(%q, %q) = %q, want %q", tt.runtime, tt.agent, got, tt.want)
 			}

@@ -143,12 +143,12 @@ func (h *CodeHandler) resolveWorktreeRoot(r *http.Request) (wsRoot, wtRoot, work
 }
 
 // agentWorktreePath mirrors pkg/worktree.Manager.Path for the given
-// agent, honoring BC_HOST_WORKSPACE if set. Accepting the workspace
+// agent, honoring MYCEL_HOST_WORKSPACE if set. Accepting the workspace
 // root as an argument keeps this logic testable without building a
 // full Manager.
 func agentWorktreePath(wsRoot, agentName string) string {
 	hostBase := filepath.Base(wsRoot)
-	if hp := os.Getenv("BC_HOST_WORKSPACE"); hp != "" {
+	if hp := os.Getenv("MYCEL_HOST_WORKSPACE"); hp != "" {
 		hostBase = filepath.Base(hp)
 	}
 	name := "bc-" + hostBase + "-" + agentName

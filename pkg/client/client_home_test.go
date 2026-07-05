@@ -13,7 +13,7 @@ func setTestHome(t *testing.T) string {
 	tmp := t.TempDir()
 	t.Setenv("HOME", tmp)
 	t.Setenv("MYCEL_HOME", "")
-	os.Unsetenv("BC_DAEMON_ADDR") //nolint:errcheck
+	os.Unsetenv("MYCEL_DAEMON_ADDR") //nolint:errcheck
 	return tmp
 }
 

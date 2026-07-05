@@ -37,12 +37,12 @@ Key Features:
   • Hierarchical agent roles (product-manager, manager, engineer)
 
 Environment Variables:
-  BC_AGENT_ID       Current agent name (set automatically in agent sessions)
-  BC_AGENT_ROLE     Current agent role
-  BC_WORKSPACE      Path to workspace root
-  BC_AGENT_WORKTREE Path to agent's worktree
-  BC_BIN            Path to mycel binary (default: mycel in PATH)
-  BC_ROOT           Workspace root directory
+  MYCEL_AGENT_ID       Current agent name (set automatically in agent sessions)
+  MYCEL_AGENT_ROLE     Current agent role
+  MYCEL_WORKSPACE      Path to workspace root
+  MYCEL_AGENT_WORKTREE Path to agent's worktree
+  MYCEL_BIN            Path to mycel binary (default: mycel in PATH)
+  MYCEL_ROOT           Workspace root directory
   NO_COLOR          Disable colored output
 
 Documentation: https://github.com/rpuneet/mycel

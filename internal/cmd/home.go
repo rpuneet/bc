@@ -56,8 +56,8 @@ func runHome(cmd *cobra.Command, args []string) error {
 	// Get the current executable path so TUI can call bc
 	bcBin, _ := os.Executable()
 	tuiCmd.Env = append(os.Environ(),
-		fmt.Sprintf("BC_ROOT=%s", ws.RootDir),
-		fmt.Sprintf("BC_BIN=%s", bcBin),
+		fmt.Sprintf("MYCEL_ROOT=%s", ws.RootDir),
+		fmt.Sprintf("MYCEL_BIN=%s", bcBin),
 	)
 
 	return tuiCmd.Run()

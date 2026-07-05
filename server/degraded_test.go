@@ -99,7 +99,7 @@ func TestAPIHealthOKShapeUnchanged(t *testing.T) {
 // per-workspace databases gone, a dead mycel.db is fatal for the
 // workspace bundle — workspace init itself needs the roles table.
 func TestBuildServicesGlobalDBFailure(t *testing.T) {
-	t.Setenv("BC_SECRET_PASSPHRASE", "unit-test")
+	t.Setenv("MYCEL_SECRET_PASSPHRASE", "unit-test")
 
 	// Plant a regular FILE at the MYCEL_HOME path so MkdirAll (and
 	// therefore the global mycel.db open) fails.
@@ -122,7 +122,7 @@ func TestBuildServicesGlobalDBFailure(t *testing.T) {
 // the factory is the same map /api/health surfaces on the wired server.
 func TestDegradedMapSurfacedByHealth(t *testing.T) {
 	t.Setenv("MYCEL_HOME", t.TempDir())
-	t.Setenv("BC_SECRET_PASSPHRASE", "unit-test")
+	t.Setenv("MYCEL_SECRET_PASSPHRASE", "unit-test")
 	t.Cleanup(func() { _ = bcdb.CloseGlobal() })
 
 	wsDir := t.TempDir()

@@ -110,7 +110,7 @@ Ground truth: `pkg/container/container.go`. Agent state lives at `~/.mycel/works
 | Named volume `bc-shared-tmp` | `/tmp/bc-shared` | Cross-container file exchange (e.g. Playwright screenshots) |
 | `runtime.docker.extra_mounts` | as specified | User-defined mounts, validated against the repo root |
 
-When the server itself runs in Docker (Docker-in-Docker), `BC_HOST_WORKSPACE` supplies the host-side path so `-v` mounts resolve correctly.
+When the server itself runs in Docker (Docker-in-Docker), `MYCEL_HOST_WORKSPACE` supplies the host-side path so `-v` mounts resolve correctly.
 
 ## Network Topology
 

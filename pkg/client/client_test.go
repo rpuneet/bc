@@ -98,7 +98,7 @@ func TestNew_EmptyAddr(t *testing.T) {
 	// With no env var AND no addr file, should use default.
 	// Point HOME at an empty tempdir so the test doesn't see the
 	// developer's live ~/.mycel/daemon.addr.
-	os.Unsetenv("BC_DAEMON_ADDR") //nolint:errcheck
+	os.Unsetenv("MYCEL_DAEMON_ADDR") //nolint:errcheck
 	t.Setenv("HOME", t.TempDir())
 	c := New("")
 	if c.BaseURL != DefaultHTTPAddr {
@@ -107,7 +107,7 @@ func TestNew_EmptyAddr(t *testing.T) {
 }
 
 func TestNew_EnvAddr(t *testing.T) {
-	t.Setenv("BC_DAEMON_ADDR", "http://custom:1234")
+	t.Setenv("MYCEL_DAEMON_ADDR", "http://custom:1234")
 	c := New("")
 	if c.BaseURL != "http://custom:1234" {
 		t.Errorf("BaseURL = %q, want http://custom:1234", c.BaseURL)
@@ -118,7 +118,7 @@ func TestNew_EnvAddr(t *testing.T) {
 // writes. Pins the round-trip: a file containing "http://127.0.0.1:8080\n"
 // must resolve to exactly that URL (trailing newline trimmed).
 func TestNew_DaemonAddrFile(t *testing.T) {
-	os.Unsetenv("BC_DAEMON_ADDR") //nolint:errcheck
+	os.Unsetenv("MYCEL_DAEMON_ADDR") //nolint:errcheck
 	tmp := t.TempDir()
 	t.Setenv("HOME", tmp)
 	bcDir := filepath.Join(tmp, ".mycel")
@@ -135,7 +135,7 @@ func TestNew_DaemonAddrFile(t *testing.T) {
 	}
 }
 
-// TestNew_EnvWinsOverFile pins the precedence: BC_DAEMON_ADDR must beat
+// TestNew_EnvWinsOverFile pins the precedence: MYCEL_DAEMON_ADDR must beat
 // the addr file so a developer with a stale ~/.mycel/daemon.addr can still
 // override via env without deleting the file.
 func TestNew_EnvWinsOverFile(t *testing.T) {
@@ -148,7 +148,7 @@ func TestNew_EnvWinsOverFile(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(bcDir, "daemon.addr"), []byte("http://stale:1\n"), 0o600); err != nil {
 		t.Fatalf("write addr: %v", err)
 	}
-	t.Setenv("BC_DAEMON_ADDR", "http://env-wins:2")
+	t.Setenv("MYCEL_DAEMON_ADDR", "http://env-wins:2")
 	c := New("")
 	if c.BaseURL != "http://env-wins:2" {
 		t.Errorf("BaseURL = %q, want http://env-wins:2 (env must beat file)", c.BaseURL)

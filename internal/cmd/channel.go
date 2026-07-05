@@ -38,7 +38,7 @@ Examples:
   mycel channel delete workers            # Delete the channel
   mycel channel status                    # Overview of all channels
 
-Agent Commands (require BC_AGENT_ID):
+Agent Commands (require MYCEL_AGENT_ID):
   mycel channel join workers              # Join a channel (current agent)
   mycel channel leave workers             # Leave a channel (current agent)
 
@@ -459,7 +459,7 @@ func runChannelDelete(cmd *cobra.Command, args []string) error {
 }
 
 func runChannelJoin(cmd *cobra.Command, args []string) error {
-	agentID := os.Getenv("BC_AGENT_ID")
+	agentID := os.Getenv("MYCEL_AGENT_ID")
 	if agentID == "" {
 		return errorAgentNotRunning(fmt.Sprintf("mycel channel join %s", args[0]))
 	}
@@ -484,7 +484,7 @@ func runChannelJoin(cmd *cobra.Command, args []string) error {
 }
 
 func runChannelLeave(cmd *cobra.Command, args []string) error {
-	agentID := os.Getenv("BC_AGENT_ID")
+	agentID := os.Getenv("MYCEL_AGENT_ID")
 	if agentID == "" {
 		return errorAgentNotRunning(fmt.Sprintf("mycel channel leave %s", args[0]))
 	}
@@ -885,11 +885,11 @@ func parseTimestamp(s string) (time.Time, error) {
 const defaultNickname = "@bc"
 
 // getUserSenderCtx returns the sender identity for channel messages.
-// If running as an agent, returns BC_AGENT_ID.
+// If running as an agent, returns MYCEL_AGENT_ID.
 // Otherwise, queries the daemon settings API for user.nickname.
 func getUserSenderCtx(ctx context.Context) string {
 	// Check if running as an agent
-	if agentID := os.Getenv("BC_AGENT_ID"); agentID != "" {
+	if agentID := os.Getenv("MYCEL_AGENT_ID"); agentID != "" {
 		return agentID
 	}
 
