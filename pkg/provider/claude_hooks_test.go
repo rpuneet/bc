@@ -4,6 +4,7 @@ package provider
 // WriteClaudeHookSettings.
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -138,5 +139,62 @@ func TestWriteClaudeHookSettings_RemovesInvalidKeys(t *testing.T) {
 	// PreToolUse should be overwritten with new bc hook, not preserved as "old"
 	if strings.Contains(content, `"old"`) {
 		t.Error("old hook commands should have been overwritten")
+	}
+}
+
+// The hook merge must round-trip unknown top-level settings keys —
+// permissions, env, model etc. survive a rewrite untouched.
+func TestWriteClaudeHookSettingsPreservesUnknownKeys(t *testing.T) {
+	dir := t.TempDir()
+	claudeDir := filepath.Join(dir, ".claude")
+	if err := os.MkdirAll(claudeDir, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	existing := `{
+  "permissions": {"allow": ["Bash(ls:*)"]},
+  "model": "opus",
+  "env": {"FOO": "bar"},
+  "hooks": {"SessionStart": [{"hooks": [{"type": "command", "command": "echo user-hook"}]}]}
+}`
+	path := filepath.Join(claudeDir, "settings.json")
+	if err := os.WriteFile(path, []byte(existing), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := WriteClaudeHookSettings(dir); err != nil {
+		t.Fatalf("WriteClaudeHookSettings: %v", err)
+	}
+
+	data, err := os.ReadFile(path) //nolint:gosec // t.TempDir()-derived test path
+	if err != nil {
+		t.Fatal(err)
+	}
+	var full map[string]json.RawMessage
+	if err := json.Unmarshal(data, &full); err != nil {
+		t.Fatalf("result not valid JSON: %v", err)
+	}
+	for _, key := range []string{"permissions", "model", "env", "hooks"} {
+		if _, ok := full[key]; !ok {
+			t.Errorf("top-level key %q was dropped by the hook merge", key)
+		}
+	}
+	if got := string(full["model"]); got != `"opus"` {
+		t.Errorf("model = %s, want \"opus\"", got)
+	}
+	// The user's own SessionStart hook survives alongside the bc hook.
+	var hooks map[string][]claudeHookMatcher
+	if err := json.Unmarshal(full["hooks"], &hooks); err != nil {
+		t.Fatal(err)
+	}
+	foundUser := false
+	for _, m := range hooks["SessionStart"] {
+		for _, h := range m.Hooks {
+			if h.Command == "echo user-hook" {
+				foundUser = true
+			}
+		}
+	}
+	if !foundUser {
+		t.Error("user SessionStart hook was dropped by the merge")
 	}
 }

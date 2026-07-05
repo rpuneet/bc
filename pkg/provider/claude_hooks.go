@@ -89,14 +89,32 @@ func WriteClaudeHookSettings(workspaceRoot string) error {
 
 	settingsPath := filepath.Join(claudeDir, "settings.json")
 
-	// Merge if file already exists so we don't clobber user customizations.
-	if existing, err := loadClaudeSettings(settingsPath); err == nil {
-		mergeHooks(existing, settings.Hooks)
-		data, marshalErr := json.MarshalIndent(existing, "", "  ")
-		if marshalErr != nil {
-			return fmt.Errorf("marshal hook settings: %w", marshalErr)
+	// Merge if the file already exists — round-tripping every top-level
+	// key (permissions, env, model, …) untouched so only the hooks
+	// section is rewritten. Modeling just `hooks` in a struct would drop
+	// everything else on re-marshal.
+	if raw, err := os.ReadFile(settingsPath); err == nil { //nolint:gosec // workspace-relative
+		var full map[string]json.RawMessage
+		if err := json.Unmarshal(raw, &full); err == nil {
+			existing := &claudeSettings{}
+			if h, ok := full["hooks"]; ok {
+				// Best-effort: an unparseable hooks section is rebuilt.
+				_ = json.Unmarshal(h, &existing.Hooks) //nolint:errcheck
+			}
+			mergeHooks(existing, settings.Hooks)
+			hooksJSON, marshalErr := json.Marshal(existing.Hooks)
+			if marshalErr != nil {
+				return fmt.Errorf("marshal hook settings: %w", marshalErr)
+			}
+			full["hooks"] = hooksJSON
+			data, marshalErr := json.MarshalIndent(full, "", "  ")
+			if marshalErr != nil {
+				return fmt.Errorf("marshal hook settings: %w", marshalErr)
+			}
+			return os.WriteFile(settingsPath, data, 0600)
 		}
-		return os.WriteFile(settingsPath, data, 0600)
+		// Unparseable file: fall through and rewrite fresh (previous
+		// behavior — a corrupt settings.json would break Claude anyway).
 	}
 
 	data, err := json.MarshalIndent(settings, "", "  ")
@@ -104,18 +122,6 @@ func WriteClaudeHookSettings(workspaceRoot string) error {
 		return fmt.Errorf("marshal hook settings: %w", err)
 	}
 	return os.WriteFile(settingsPath, data, 0600)
-}
-
-func loadClaudeSettings(path string) (*claudeSettings, error) {
-	data, err := os.ReadFile(path) //nolint:gosec // workspace-relative
-	if err != nil {
-		return nil, err
-	}
-	var s claudeSettings
-	if err := json.Unmarshal(data, &s); err != nil {
-		return nil, err
-	}
-	return &s, nil
 }
 
 // invalidHookKeys are Claude Code hook event names that bc has generated in the
