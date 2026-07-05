@@ -32,8 +32,15 @@ function CopyButton({ text }: { text: string }) {
 
 // --- Add Secret Form ---
 
-function AddSecretForm({ onCreated }: { onCreated: () => void }) {
-  const [open, setOpen] = useState(false);
+function AddSecretForm({
+  open,
+  onClose,
+  onCreated,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onCreated: () => void;
+}) {
   const [name, setName] = useState("");
   const [value, setValue] = useState("");
   const [description, setDescription] = useState("");
@@ -58,7 +65,7 @@ function AddSecretForm({ onCreated }: { onCreated: () => void }) {
       setValue("");
       setDescription("");
       setShowValue(false);
-      setOpen(false);
+      onClose();
       onCreated();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create secret");
@@ -67,17 +74,7 @@ function AddSecretForm({ onCreated }: { onCreated: () => void }) {
     }
   };
 
-  if (!open) {
-    return (
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="inline-flex items-center gap-2 h-9 px-3 rounded-md border border-dashed border-mycel-border text-sm text-mycel-muted hover:text-mycel-accent hover:border-mycel-accent transition-colors"
-      >
-        <span className="text-lg leading-none">+</span> Add Secret
-      </button>
-    );
-  }
+  if (!open) return null;
 
   return (
     <form
@@ -88,7 +85,7 @@ function AddSecretForm({ onCreated }: { onCreated: () => void }) {
         <h2 className="text-base font-semibold text-mycel-text">New Secret</h2>
         <button
           type="button"
-          onClick={() => { setOpen(false); setError(null); }}
+          onClick={() => { onClose(); setError(null); }}
           className="px-3 py-1 rounded-md text-xs text-mycel-muted hover:text-mycel-text border border-mycel-border hover:border-mycel-muted bg-mycel-bg transition-colors"
         >
           Cancel
@@ -350,13 +347,26 @@ export function Secrets() {
     refresh,
     timedOut,
   } = usePolling(fetcher, 30000);
+  const [addOpen, setAddOpen] = useState(false);
 
+  // Header slot — count summary center-left, primary CTA right,
+  // following the Agents pattern.
   useHeaderSlot({
-    actions: secrets ? (
-      <span className="text-[11px] text-mycel-muted tabular-nums">
-        {secrets.length}
+    title: secrets ? (
+      <span className="text-xs text-mycel-text-2 tabular-nums truncate">
+        {String(secrets.length)} secrets
       </span>
     ) : undefined,
+    actions: (
+      <button
+        type="button"
+        onClick={() => setAddOpen((v) => !v)}
+        className="shrink-0 inline-flex items-center h-8 px-3 rounded-md text-xs font-medium bg-mycel-accent text-mycel-accent-fg hover:bg-mycel-accent-hover shadow-mycel-sm transition-colors"
+        aria-label="Add new secret"
+      >
+        + Add Secret
+      </button>
+    ),
   });
 
   if (loading && !secrets) {
@@ -405,15 +415,19 @@ export function Secrets() {
         AES-256-GCM encrypted &middot; values never exposed via API
       </p>
 
-      {/* Add form */}
-      <AddSecretForm onCreated={refresh} />
+      {/* Add form — opened from the + Add Secret button in the top bar */}
+      <AddSecretForm
+        open={addOpen}
+        onClose={() => setAddOpen(false)}
+        onCreated={refresh}
+      />
 
       {/* Secret cards */}
       {list.length === 0 ? (
         <EmptyState
           icon="*"
           title="No secrets stored"
-          description="Click '+ Add Secret' above or run 'mycel secret set <name> --value <value>'."
+          description="Click '+ Add Secret' in the top bar or run 'mycel secret set <name> --value <value>'."
         />
       ) : (
         <div className="grid gap-3">

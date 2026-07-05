@@ -236,7 +236,7 @@ export function About() {
         </button>
       </header>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-px rounded-md border border-mycel-border bg-mycel-border overflow-hidden shadow-mycel">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-px rounded-md border border-mycel-border bg-mycel-border overflow-hidden shadow-mycel [&>*:last-child:nth-child(odd)]:sm:col-span-2">
         {channels.map((c) => (
           <ChannelTile key={c.label} channel={c} />
         ))}

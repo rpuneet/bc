@@ -417,7 +417,7 @@ export function Code() {
         <select
           value={worktree}
           onChange={(e) => setWorktree(e.target.value)}
-          className="rounded border border-mycel-border-strong bg-mycel-surface text-mycel-text text-[11px] px-2 py-1 outline-none focus:border-mycel-accent"
+          className="appearance-none rounded-md border border-mycel-border-strong bg-mycel-surface text-mycel-text text-[11px] px-2 py-1 pr-6 outline-none focus:border-mycel-accent bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2210%22 height=%2210%22 viewBox=%220 0 16 16%22 fill=%22none%22 stroke=%22%237c7b74%22 stroke-width=%222%22%3E%3Cpath d=%22M4 6l4 4 4-4%22/%3E%3C/svg%3E')] bg-no-repeat bg-[right_6px_center]"
         >
           {worktrees.map((wt) => (
             <option key={wt.value} value={wt.value}>

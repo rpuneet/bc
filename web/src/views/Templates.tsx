@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { LoadingSkeleton } from "../components/LoadingSkeleton";
 import { EmptyState } from "../components/EmptyState";
 import { usePolling } from "../hooks/usePolling";
-import { ChipList, SectionRule, ConfirmButton, SearchInput } from "../components/shared";
+import { ChipList, SectionRule, ConfirmButton } from "../components/shared";
 import { MONO } from "../utils/typography";
 
 import { useHeaderSlot } from "../context/HeaderSlotContext";
@@ -391,8 +391,15 @@ function TemplateDetailPanel({
 
 // ─── Create form ─────────────────────────────────────────────────────────────
 
-function CreateTemplateForm({ onCreated }: { onCreated: (name: string) => void }) {
-  const [expanded, setExpanded] = useState(false);
+function CreateTemplateForm({
+  open,
+  onClose,
+  onCreated,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onCreated: (name: string) => void;
+}) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [systemPrompt, setSystemPrompt] = useState("");
@@ -428,7 +435,7 @@ function CreateTemplateForm({ onCreated }: { onCreated: (name: string) => void }
       setMcpsRaw("bc");
       setSecretsRaw("");
       setPluginsRaw("");
-      setExpanded(false);
+      onClose();
       setStatus({ type: "success" });
       setTimeout(() => setStatus({ type: "idle" }), 2000);
       onCreated(t.name);
@@ -441,22 +448,7 @@ function CreateTemplateForm({ onCreated }: { onCreated: (name: string) => void }
     }
   };
 
-  if (!expanded) {
-    return (
-      <div className="flex items-center gap-3">
-        <button
-          type="button"
-          onClick={() => setExpanded(true)}
-          className="inline-flex items-center gap-2 h-9 px-3 rounded-md border border-dashed border-mycel-border text-sm text-mycel-muted hover:text-mycel-accent hover:border-mycel-accent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mycel-accent focus-visible:ring-offset-1 focus-visible:ring-offset-mycel-bg"
-        >
-          <span className="text-lg leading-none">+</span> Create Template
-        </button>
-        {status.type === "success" && (
-          <span className="text-xs text-mycel-success">Template created</span>
-        )}
-      </div>
-    );
-  }
+  if (!open) return null;
 
   return (
     <form
@@ -469,7 +461,7 @@ function CreateTemplateForm({ onCreated }: { onCreated: (name: string) => void }
         </h2>
         <button
           type="button"
-          onClick={() => setExpanded(false)}
+          onClick={onClose}
           className="text-xs text-mycel-muted hover:text-mycel-text transition-colors focus-visible:ring-2 focus-visible:ring-mycel-accent focus-visible:ring-offset-1 focus-visible:ring-offset-mycel-bg rounded-md"
           aria-label="Cancel creating template"
         >
@@ -630,6 +622,7 @@ function TemplateRow({
 export function Templates() {
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [createOpen, setCreateOpen] = useState(false);
 
   const fetcher = useCallback(() => fetchTemplates(), []);
   const {
@@ -640,15 +633,6 @@ export function Templates() {
     timedOut,
   } = usePolling(fetcher, 30000);
 
-  useHeaderSlot({
-    actions:
-      templates !== null ? (
-        <span className="text-[11px] text-mycel-muted tabular-nums">
-          {templates.length}
-        </span>
-      ) : undefined,
-  });
-
   const filteredTemplates = templates
     ? templates.filter(
         (t) =>
@@ -656,6 +640,40 @@ export function Templates() {
           (t.description ?? "").toLowerCase().includes(search.toLowerCase()),
       )
     : null;
+
+  // Header slot — count summary center-left, search + primary CTA right,
+  // following the Agents pattern. Cleared while a detail panel is open.
+  useHeaderSlot({
+    title:
+      selectedTemplate === null && templates !== null ? (
+        <span className="text-xs text-mycel-text-2 tabular-nums truncate">
+          {search
+            ? `${String(filteredTemplates?.length ?? 0)} of ${String(templates.length)} templates`
+            : `${String(templates.length)} templates`}
+        </span>
+      ) : undefined,
+    actions:
+      selectedTemplate === null ? (
+        <>
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search templates..."
+            className="hidden sm:block flex-1 min-w-0 max-w-md h-9 px-3 text-sm rounded-md border border-mycel-border bg-mycel-surface text-mycel-text placeholder:text-mycel-muted focus:outline-none focus:ring-1 focus:ring-mycel-accent"
+            aria-label="Search templates"
+          />
+          <button
+            type="button"
+            onClick={() => setCreateOpen((v) => !v)}
+            className="shrink-0 inline-flex items-center h-8 px-3 rounded-md text-xs font-medium bg-mycel-accent text-mycel-accent-fg hover:bg-mycel-accent-hover shadow-mycel-sm transition-colors"
+            aria-label="Create new template"
+          >
+            + New template
+          </button>
+        </>
+      ) : undefined,
+  });
 
   // If a template is selected, show detail view
   if (selectedTemplate !== null) {
@@ -674,16 +692,10 @@ export function Templates() {
   // List view
   return (
     <div className="p-6 space-y-4">
-      {/* Search */}
-      <SearchInput
-        value={search}
-        onChange={setSearch}
-        placeholder="Search templates..."
-        className="w-full max-w-sm"
-      />
-
-      {/* Create form */}
+      {/* Create form — opened from the + New template button in the top bar */}
       <CreateTemplateForm
+        open={createOpen}
+        onClose={() => setCreateOpen(false)}
         onCreated={(name) => {
           refresh();
           setSelectedTemplate(name);
