@@ -232,17 +232,21 @@ func buildCostMap(ctx context.Context, store *cost.Store) map[string]*cost.Summa
 	return m
 }
 
-// costForAgent aggregates ledger summaries for an agent name. The ledger
-// keys agent_id by session/worktree name — historically `bc-<repo>-<name>`,
-// bare `<name>` under the flat layout — so a bare-name lookup alone finds
-// nothing for older agents. Sum the exact key plus every `*-<name>` key.
-func costForAgent(costMap map[string]*cost.Summary, name string) (costUSD float64, tokens int64, found bool) {
+// costForAgent aggregates ledger summaries for an agent. The ledger keys
+// agent_id by the worktree/session name the transcripts were imported
+// under: bare `<name>` (flat layout) or the legacy `bc-<repoBase>-<name>`.
+// Both candidates are derived exactly from the agent's own name and repo —
+// no suffix scanning, so `web` can never absorb `other-web`'s costs.
+func costForAgent(costMap map[string]*cost.Summary, name, repo string) (costUSD float64, tokens int64, found bool) {
 	if name == "" {
 		return 0, 0, false
 	}
-	suffix := "-" + name
-	for id, s := range costMap {
-		if id == name || strings.HasSuffix(id, suffix) {
+	candidates := []string{name}
+	if repo != "" {
+		candidates = append(candidates, "bc-"+filepath.Base(repo)+"-"+name)
+	}
+	for _, id := range candidates {
+		if s, ok := costMap[id]; ok {
 			costUSD += s.TotalCostUSD
 			tokens += s.TotalTokens
 			found = true
@@ -276,7 +280,7 @@ func (h *AgentHandler) list(w http.ResponseWriter, r *http.Request) {
 		if costs != nil {
 			costMap := buildCostMap(r.Context(), costs)
 			for i := range dtos {
-				if costUSD, tokens, ok := costForAgent(costMap, dtos[i].Name); ok {
+				if costUSD, tokens, ok := costForAgent(costMap, dtos[i].Name, dtos[i].Repo); ok {
 					dtos[i].TotalCostUSD = costUSD
 					dtos[i].TotalTokens = tokens
 				}

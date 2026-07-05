@@ -3731,6 +3731,13 @@ func parseEnvFile(env map[string]string, path string) {
 		if !ok {
 			continue
 		}
-		env[strings.TrimSpace(k)] = strings.TrimSpace(v)
+		key := strings.TrimSpace(k)
+		// The BC_* namespace is reserved for the system — an env file
+		// must not clobber BC_AGENT_ID etc. any more than agent config.
+		if strings.HasPrefix(key, "BC_") {
+			log.Warn("skipping reserved env var from env file", "path", path, "key", key)
+			continue
+		}
+		env[key] = strings.TrimSpace(v)
 	}
 }

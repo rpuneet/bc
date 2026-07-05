@@ -862,7 +862,7 @@ export function Agents() {
             value={search}
             onChange={(e) => { setSearch(e.target.value); }}
             placeholder="Search  /"
-            className="hidden sm:block flex-1 min-w-0 max-w-md h-9 px-3 text-sm rounded-md border border-mycel-border bg-mycel-surface text-mycel-text placeholder:text-mycel-muted focus:outline-none focus:ring-1 focus:ring-mycel-accent"
+            className="flex-1 min-w-[96px] max-w-md h-9 px-3 text-sm rounded-md border border-mycel-border bg-mycel-surface text-mycel-text placeholder:text-mycel-muted focus:outline-none focus:ring-1 focus:ring-mycel-accent"
             aria-label="Search agents"
           />
         )}
