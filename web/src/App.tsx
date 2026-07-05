@@ -13,10 +13,9 @@ const Tools = lazy(() => import("./views/Tools").then((m) => ({ default: m.Tools
 const ProviderDetail = lazy(() => import("./views/ProviderDetail").then((m) => ({ default: m.ProviderDetail })));
 const Cron = lazy(() => import("./views/Cron").then((m) => ({ default: m.Cron })));
 const Secrets = lazy(() => import("./views/Secrets").then((m) => ({ default: m.Secrets })));
-const Stats = lazy(() => import("./views/Stats").then((m) => ({ default: m.Stats })));
+const Insights = lazy(() => import("./views/Insights").then((m) => ({ default: m.Insights })));
 const Settings = lazy(() => import("./views/Settings").then((m) => ({ default: m.Settings })));
 const Code = lazy(() => import("./views/Code").then((m) => ({ default: m.Code })));
-const CostsGlobal = lazy(() => import("./views/CostsGlobal").then((m) => ({ default: m.CostsGlobal })));
 const About = lazy(() => import("./views/About").then((m) => ({ default: m.About })));
 
 function Loading() {
@@ -46,39 +45,51 @@ const wrap = (node: React.ReactNode) => (
   </Suspense>
 );
 
+/**
+ * AppRoutes — the route table, split from App so tests can mount it
+ * inside a MemoryRouter (App owns the BrowserRouter).
+ */
+export function AppRoutes() {
+  return (
+    <Routes>
+      <Route element={<Layout />}>
+        <Route index element={wrap(<Live />)} />
+        <Route path="live" element={wrap(<Live />)} />
+        <Route path="agents" element={wrap(<Agents />)} />
+        <Route path="agents/:name" element={wrap(<AgentDetail />)} />
+        <Route path="agents/:name/*" element={wrap(<AgentDetail />)} />
+        <Route path="notifications" element={wrap(<Notifications />)} />
+        <Route path="notifications/:sourceName" element={wrap(<Notifications />)} />
+        <Route path="templates" element={wrap(<Templates />)} />
+        <Route path="tools" element={wrap(<Tools />)} />
+        <Route path="tools/:provider" element={wrap(<ProviderDetail />)} />
+        <Route path="cron" element={wrap(<Cron />)} />
+        <Route path="secrets" element={wrap(<Secrets />)} />
+        <Route path="insights" element={wrap(<Insights />)} />
+        {/* Metrics + Costs merged into /insights — old links redirect. */}
+        <Route path="stats" element={<Navigate to="/insights?tab=metrics" replace />} />
+        <Route path="metrics" element={<Navigate to="/insights?tab=metrics" replace />} />
+        <Route path="costs" element={<Navigate to="/insights?tab=costs" replace />} />
+        <Route path="code" element={wrap(<Code />)} />
+        <Route path="code/*" element={wrap(<Code />)} />
+        <Route path="settings" element={wrap(<Settings />)} />
+        <Route path="about" element={wrap(<About />)} />
+
+        {/* Old builds 301'd /<page> → /w/<hash>/<page>; browsers
+            cached that redirect, so route it back to flat URLs. */}
+        <Route path="w/:ws/*" element={<LegacyWorkspaceRedirect />} />
+        <Route path="*" element={<NotFound />} />
+      </Route>
+    </Routes>
+  );
+}
+
 export function App() {
   return (
     <ErrorBoundary>
       <ThemeProvider>
         <BrowserRouter>
-          <Routes>
-            <Route element={<Layout />}>
-              <Route index element={wrap(<Live />)} />
-              <Route path="live" element={wrap(<Live />)} />
-              <Route path="agents" element={wrap(<Agents />)} />
-              <Route path="agents/:name" element={wrap(<AgentDetail />)} />
-              <Route path="agents/:name/*" element={wrap(<AgentDetail />)} />
-              <Route path="notifications" element={wrap(<Notifications />)} />
-              <Route path="notifications/:sourceName" element={wrap(<Notifications />)} />
-              <Route path="templates" element={wrap(<Templates />)} />
-              <Route path="tools" element={wrap(<Tools />)} />
-              <Route path="tools/:provider" element={wrap(<ProviderDetail />)} />
-              <Route path="cron" element={wrap(<Cron />)} />
-              <Route path="secrets" element={wrap(<Secrets />)} />
-              <Route path="stats" element={wrap(<Stats />)} />
-              <Route path="metrics" element={wrap(<Stats />)} />
-              <Route path="costs" element={wrap(<CostsGlobal />)} />
-              <Route path="code" element={wrap(<Code />)} />
-              <Route path="code/*" element={wrap(<Code />)} />
-              <Route path="settings" element={wrap(<Settings />)} />
-              <Route path="about" element={wrap(<About />)} />
-
-              {/* Old builds 301'd /<page> → /w/<hash>/<page>; browsers
-                  cached that redirect, so route it back to flat URLs. */}
-              <Route path="w/:ws/*" element={<LegacyWorkspaceRedirect />} />
-              <Route path="*" element={<NotFound />} />
-            </Route>
-          </Routes>
+          <AppRoutes />
         </BrowserRouter>
       </ThemeProvider>
     </ErrorBoundary>

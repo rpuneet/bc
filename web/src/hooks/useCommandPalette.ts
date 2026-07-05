@@ -45,12 +45,14 @@ export function useCommandPalette() {
       { id: "nav-agents", label: "Agents", section: "Navigate", icon: "A", action: () => navigate("/agents") },
       { id: "nav-notifications", label: "Notifications", section: "Navigate", icon: "N", action: () => navigate("/notifications") },
       { id: "nav-code", label: "Code", section: "Navigate", icon: "<", action: () => navigate("/code") },
-      { id: "nav-templates", label: "Templates", section: "Navigate", icon: "T", action: () => navigate("/templates") },
-      { id: "nav-tools", label: "Tools", section: "Navigate", icon: "t", action: () => navigate("/tools") },
+      { id: "nav-templates", label: "Marketplace", section: "Navigate", icon: "T", action: () => navigate("/templates") },
+      // Host tools — the sidebar shows the host machine's name; the
+      // palette keeps a static label since it doesn't fetch system info.
+      { id: "nav-tools", label: "Host", section: "Navigate", icon: "t", action: () => navigate("/tools") },
       { id: "nav-cron", label: "Cron", section: "Navigate", icon: "@", action: () => navigate("/cron") },
       { id: "nav-secrets", label: "Secrets", section: "Navigate", icon: "#", action: () => navigate("/secrets") },
-      { id: "nav-metrics", label: "Metrics", section: "Navigate", icon: "M", action: () => navigate("/metrics") },
-      { id: "nav-costs", label: "Costs", section: "Navigate", icon: "$", action: () => navigate("/costs") },
+      { id: "nav-metrics", label: "Insights: Metrics", section: "Navigate", icon: "M", action: () => navigate("/insights?tab=metrics") },
+      { id: "nav-costs", label: "Insights: Costs", section: "Navigate", icon: "$", action: () => navigate("/insights?tab=costs") },
       { id: "nav-settings", label: "Settings", section: "Navigate", icon: "\u2699", action: () => navigate("/settings") },
       // Actions
       { id: "act-create-agent", label: "Create Agent", section: "Action", icon: "+", action: () => navigate("/agents?action=create") },

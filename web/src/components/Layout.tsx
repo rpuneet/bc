@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { NavLink, Outlet, useLocation, useMatch } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useTheme, THEME_LABELS } from "../context/ThemeContext";
@@ -753,61 +753,61 @@ function NotificationNavTree() {
 
 /* ── Nav items ───────────────────────────────────────────────── */
 
-// Primary nav — repo-scoped surfaces + one cross-repo surface (Costs),
-// grouped into quiet labeled sections: the daily surfaces ride unlabeled
-// at the top, configuration surfaces under CONFIGURE, and read-only
-// analytics under INSIGHTS. Labels collapse away in icon-only mode.
-// Settings, About and the theme toggle live in the header's utility
-// menu (UtilityMenu), so the drawer stays pure nav.
+// Primary nav — divider-separated groups, no captions. Group 1 holds the
+// daily surfaces; group 2 the configuration surfaces (Marketplace, the
+// host machine's tools, Cron, Secrets); group 3 the read-only analytics
+// (Metrics + Costs merged behind one "Insights" item). The /tools item
+// is labeled with the daemon host machine's name, resolved at runtime
+// from /api/system/info (fallback "Host" while loading/unavailable).
+// Settings, About and the theme toggle live in the drawer footer.
 type NavItem = { to: string; label: string; icon: string };
-type NavSection = { label: string | null; items: readonly NavItem[] };
 
-const NAV_SECTIONS: readonly NavSection[] = [
-  {
-    label: null,
-    items: [
+const HOST_LABEL_FALLBACK = "Host";
+
+/** Strip noisy mDNS suffixes ("Foo.local" → "Foo"); otherwise keep as-is. */
+export function prettifyHostname(h: string): string {
+  return h.replace(/\.(local|lan)$/i, "");
+}
+
+function buildNavGroups(hostLabel: string): readonly (readonly NavItem[])[] {
+  return [
+    [
       { to: "/live", label: "Live", icon: "live" },
       { to: "/agents", label: "Agents", icon: "agents" },
       { to: "/notifications", label: "Notifications", icon: "notifications" },
       { to: "/code", label: "Code", icon: "code" },
     ],
-  },
-  {
-    label: "Configure",
-    items: [
-      { to: "/templates", label: "Templates", icon: "templates" },
-      { to: "/tools", label: "Tools", icon: "tools" },
+    [
+      { to: "/templates", label: "Marketplace", icon: "templates" },
+      { to: "/tools", label: hostLabel, icon: "tools" },
       { to: "/cron", label: "Cron", icon: "cron" },
       { to: "/secrets", label: "Secrets", icon: "secrets" },
     ],
-  },
-  {
-    label: "Insights",
-    items: [
-      { to: "/stats", label: "Metrics", icon: "metrics" },
-      { to: "/costs", label: "Costs", icon: "metrics" },
-    ],
-  },
-];
-
-const MAIN_NAV_ITEMS: readonly NavItem[] = NAV_SECTIONS.flatMap((s) => s.items);
-
-// Retained so external callers (TITLE_ITEMS, /settings header) that still
-// walk a flat nav list keep working. Settings + Costs both appear here
-// even though they're rendered elsewhere in the sidebar chrome.
-const UTIL_NAV_ITEMS = [
-  { to: "/settings", label: "Settings", icon: "settings" },
-] as const;
-
-const NAV_ITEMS = [...MAIN_NAV_ITEMS, ...UTIL_NAV_ITEMS];
+    [{ to: "/insights", label: "Insights", icon: "metrics" }],
+  ];
+}
 
 /**
- * TITLE_ITEMS — extends NAV_ITEMS with surfaces that resolve to a
- * document title but live outside the sidebar nav lists (e.g. /about
- * sits in the sidebar footer next to the theme toggle, not in any
- * NavList). Keep this list in sync with non-nav top-level routes.
+ * Resolve the document title for a pathname. Covers every nav group
+ * plus the non-nav top-level routes (Settings/About in the drawer
+ * footer, and the /stats /metrics /costs redirects into /insights).
  */
-const TITLE_ITEMS = [...NAV_ITEMS, { to: "/about", label: "About" }];
+function titleFor(pathname: string, hostLabel: string): string {
+  // Compare ONLY the first URL segment so sub-routes such as
+  // /agents/<name>/live keep their parent ("Agents") title rather than
+  // incorrectly resolving to a same-named top-level tab ("Live").
+  const firstSeg = pathname.replace(/^\//, "").split("/")[0] ?? "";
+  const items = [
+    ...buildNavGroups(hostLabel).flat(),
+    { to: "/settings", label: "Settings" },
+    { to: "/about", label: "About" },
+    { to: "/stats", label: "Insights" },
+    { to: "/metrics", label: "Insights" },
+    { to: "/costs", label: "Insights" },
+  ];
+  const match = items.find((item) => item.to.replace(/^\//, "") === firstSeg);
+  return match ? `${match.label} — mycel` : "mycel";
+}
 
 function readCollapsed(): boolean {
   try { return localStorage.getItem(SIDEBAR_KEY) === "true"; } catch { return false; }
@@ -819,16 +819,13 @@ function writeCollapsed(v: boolean) {
 /* ── Nav list ────────────────────────────────────────────────── */
 
 function NavList({
-  sections,
+  groups,
   collapsed,
   isMobile,
   notificationsExpanded,
   onToggleNotifications,
 }: {
-  sections: ReadonlyArray<{
-    label: string | null;
-    items: ReadonlyArray<{ to: string; label: string; icon: string; global?: boolean }>;
-  }>;
+  groups: ReadonlyArray<ReadonlyArray<NavItem>>;
   collapsed: boolean;
   isMobile: boolean;
   notificationsExpanded?: boolean;
@@ -839,19 +836,14 @@ function NavList({
 
   return (
     <>
-      {sections.map((section, sectionIdx) => (
-        <li key={section.label ?? `section-${sectionIdx}`}>
-          {section.label !== null &&
-            (isIconOnly ? (
-              // Icon-only mode: the caption collapses to a bare hairline.
-              <div className="mx-3 my-2 border-t border-mycel-border" aria-hidden />
-            ) : (
-              <div className="px-4 pt-4 pb-1 text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted select-none mycel-fade-slide-in">
-                {section.label}
-              </div>
-            ))}
+      {groups.map((items, groupIdx) => (
+        <li key={`group-${groupIdx}`}>
+          {/* Groups separate with a bare hairline — no captions. */}
+          {groupIdx > 0 && (
+            <div className="mx-3 my-2 border-t border-mycel-border" aria-hidden />
+          )}
           <ul>
-            {section.items.map(({ to, label, icon }) => {
+            {items.map(({ to, label, icon }) => {
               const isNotifications = label === "Notifications";
               const scopedTo = to;
               return (
@@ -984,27 +976,36 @@ export function Layout() {
     setCollapsed((prev) => { const next = !prev; writeCollapsed(next); return next; });
   }, []);
 
+  // Host machine name for the /tools nav item — resolved from the daemon
+  // (/api/system/info carries os.Hostname()); "Host" until it arrives.
+  const [hostLabel, setHostLabel] = useState(HOST_LABEL_FALLBACK);
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .getSystemInfo()
+      .then((info) => {
+        if (!cancelled && info?.hostname) setHostLabel(prettifyHostname(info.hostname));
+      })
+      .catch(() => { /* keep fallback label */ });
+    return () => { cancelled = true; };
+  }, []);
+  const navGroups = useMemo(() => buildNavGroups(hostLabel), [hostLabel]);
+
   useEffect(() => { if (isMobile) setCollapsed(true); }, [isMobile]);
   useEffect(() => {
-    // Compare ONLY the first URL segment so sub-routes such as
-    // /agents/<name>/live keep their parent ("Agents") title rather than
-    // incorrectly resolving to a same-named top-level tab ("Live").
-    const firstSeg = location.pathname.replace(/^\//, "").split("/")[0] ?? "";
-    const match = TITLE_ITEMS.find((item) => {
-      const seg = item.to.replace(/^\//, "");
-      return seg === firstSeg;
-    });
-    document.title = match ? `${match.label} \u2014 mycel` : "mycel";
-  }, [location.pathname]);
+    document.title = titleFor(location.pathname, hostLabel);
+  }, [location.pathname, hostLabel]);
   useEffect(() => { setMobileOpen(false); }, [location.pathname]);
 
-  const sidebarWidth = collapsed && !isMobile ? "w-14" : "w-48";
+  const isIconOnly = collapsed && !isMobile;
+  const sidebarWidth = isIconOnly ? "w-14" : "w-48";
 
-  // The header owns the ONE drawer toggle. On mobile it opens/closes the
-  // overlay drawer; on desktop it collapses/expands the rail.
-  const headerToggleCollapsed = isMobile ? !mobileOpen : collapsed;
-  const handleHeaderToggle = useCallback(() => {
-    if (isMobile) setMobileOpen((prev) => !prev);
+  // The drawer owns its own toggle (top-right of the brand row when
+  // expanded, top of the icon rail when collapsed). On mobile the same
+  // button closes the overlay drawer; the header only shows an opener
+  // on <md while the drawer is hidden.
+  const handleDrawerToggle = useCallback(() => {
+    if (isMobile) setMobileOpen(false);
     else toggleCollapsed();
   }, [isMobile, toggleCollapsed]);
 
@@ -1013,7 +1014,10 @@ export function Layout() {
     <div className="flex flex-col h-screen">
       {/* Full-width top bar — one continuous strip across the viewport.
           The drawer sits BELOW it. */}
-      <LayoutHeader collapsed={headerToggleCollapsed} onToggleCollapsed={handleHeaderToggle} />
+      <LayoutHeader
+        showMobileToggle={isMobile && !mobileOpen}
+        onOpenMobile={() => setMobileOpen(true)}
+      />
       <DegradedBanner />
 
       <div className="flex flex-1 min-h-0 relative">
@@ -1027,15 +1031,42 @@ export function Layout() {
         }`}
         style={{ scrollbarWidth: "thin", scrollbarColor: "var(--mycel-scrollbar-thumb) transparent" }}
       >
-        {/* Pure nav — the brand moved into the full-width header, so the
-            groups start right at the top of the drawer. */}
-        {/* Nav — sectioned. Labeled captions replace the anonymous
-            dividers so the grouping (fleet items vs global items vs
-            system items) is explicit; the captions collapse to a bare
-            hairline when the sidebar is icon-only. */}
+        {/* Brand row — first row of the drawer. Mark + wordmark sit on
+            the nav items' icon grid (border-l-2 + pl-4); the drawer
+            toggle rides top-right of the same row. Collapsed rail:
+            mark on top, explicit toggle below it (the mark itself is
+            NOT the toggle — it stays the home link). */}
+        {isIconOnly ? (
+          <div className="shrink-0 flex flex-col items-center gap-1 pt-3 pb-1">
+            <NavLink to="/" aria-label="mycel home" className="flex items-center justify-center h-7 text-mycel-text">
+              <BrandMark />
+            </NavLink>
+            <SidebarToggle collapsed onToggle={handleDrawerToggle} />
+          </div>
+        ) : (
+          <div className="shrink-0 flex items-center h-12 border-l-2 border-transparent pl-4 pr-2">
+            <NavLink
+              to="/"
+              aria-label="mycel home"
+              className="flex items-center gap-2.5 select-none text-mycel-text min-w-0"
+            >
+              <span className="shrink-0 flex items-center justify-center w-4">
+                <BrandMark size={18} />
+              </span>
+              <span className="text-sm font-semibold tracking-tight truncate mycel-fade-slide-in">
+                mycel
+              </span>
+            </NavLink>
+            <span className="ml-auto">
+              <SidebarToggle collapsed={false} onToggle={handleDrawerToggle} />
+            </span>
+          </div>
+        )}
+
+        {/* Nav — divider-separated groups, captions gone. */}
         <ul className="flex-1 py-2 overflow-y-auto" style={{ scrollbarWidth: "thin" }}>
           <NavList
-            sections={NAV_SECTIONS}
+            groups={navGroups}
             collapsed={collapsed}
             isMobile={isMobile}
             notificationsExpanded={notificationsExpanded}
@@ -1043,8 +1074,9 @@ export function Layout() {
           />
         </ul>
 
-        {/* No footer — Settings, About and the theme toggle live in the
-            header's utility menu (UtilityMenu), so the drawer is pure nav. */}
+        {/* Footer — Theme toggle, Settings and About pinned at the
+            bottom behind a top divider; icon-only in the rail. */}
+        <DrawerFooter iconOnly={isIconOnly} />
       </nav>
 
       <main className="flex-1 flex flex-col overflow-hidden bg-mycel-bg">
@@ -1061,138 +1093,90 @@ export function Layout() {
   );
 }
 
-/* ── UtilityMenu ────────────────────────────────────────────────
-   The app-level utility dropdown at the far right of the header:
-   theme toggle (showing the current mode), Settings and About links.
-   These moved out of the drawer footer so the drawer is pure nav.
-   Styled like the other popovers (bg-mycel-surface-2, shadow-mycel-lg,
-   rounded-lg); closes on outside click, Escape and navigation. The
-   theme toggle keeps the menu open so the switch is observable. */
-function UtilityMenu() {
+/* ── DrawerFooter ───────────────────────────────────────────────
+   Theme toggle (showing the current mode), Settings and About, pinned
+   at the bottom of the drawer behind a top divider. Styled exactly
+   like the nav items (icon column + label on the border-l-2/pl-4
+   grid, same hover treatment); icon-only in the collapsed rail. */
+function DrawerFooter({ iconOnly }: { iconOnly: boolean }) {
   const { mode, toggle } = useTheme();
-  const [open, setOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    if (!open) return;
-    const onMouseDown = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setOpen(false);
-    };
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
-    };
-    document.addEventListener("mousedown", onMouseDown);
-    document.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.removeEventListener("mousedown", onMouseDown);
-      document.removeEventListener("keydown", onKeyDown);
-    };
-  }, [open]);
-
-  const itemClass =
-    "flex w-full items-center gap-2.5 px-3 py-1.5 text-sm text-mycel-text hover:bg-mycel-surface-hover transition-colors";
+  const linkClass = ({ isActive }: { isActive: boolean }) =>
+    `relative flex items-center gap-2.5 ${iconOnly ? "justify-center px-2" : "pl-4 pr-3"} py-[7px] text-sm outline-none transition-colors duration-75 border-l-2 ${
+      isActive
+        ? "text-mycel-text font-medium border-mycel-accent bg-mycel-surface-hover"
+        : "text-mycel-text-2 hover:text-mycel-text hover:bg-[color-mix(in_srgb,var(--mycel-surface-hover)_60%,transparent)] border-transparent"
+    }`;
+  const buttonClass = `w-full relative flex items-center gap-2.5 ${iconOnly ? "justify-center px-2" : "pl-4 pr-3"} py-[7px] text-sm outline-none transition-colors duration-75 border-l-2 border-transparent text-mycel-text-2 hover:text-mycel-text hover:bg-[color-mix(in_srgb,var(--mycel-surface-hover)_60%,transparent)]`;
 
   return (
-    <div className="relative shrink-0" ref={menuRef}>
+    <div className="shrink-0 border-t border-mycel-border py-2">
       <button
         type="button"
-        onClick={() => setOpen((v) => !v)}
-        aria-label="Utilities"
-        aria-haspopup="menu"
-        aria-expanded={open}
-        title="Theme, Settings, About"
-        className={`inline-flex items-center justify-center h-8 w-8 rounded-md transition-colors ${
-          open
-            ? "text-mycel-text bg-mycel-surface-hover"
-            : "text-mycel-muted hover:text-mycel-text hover:bg-mycel-surface-hover"
-        }`}
+        onClick={toggle}
+        className={buttonClass}
+        title={`Theme: ${THEME_LABELS[mode]} — click to switch`}
+        aria-label={`Switch theme — currently ${THEME_LABELS[mode]}`}
       >
-        <Icon name="settings" size={16} />
-      </button>
-      {open && (
-        <div
-          role="menu"
-          className="absolute right-0 top-full mt-1.5 z-50 w-52 rounded-lg border border-mycel-border bg-mycel-surface-2 shadow-mycel-lg py-1.5"
-        >
-          <button
-            type="button"
-            role="menuitem"
-            onClick={toggle}
-            className={itemClass}
-            title={`Theme: ${THEME_LABELS[mode]} — click to switch`}
-            aria-label={`Switch theme — currently ${THEME_LABELS[mode]}`}
-          >
-            {/* Half-shaded circle — semantically "theme mode". */}
-            <span className="shrink-0 flex items-center justify-center w-4 opacity-70">
-              <svg width="15" height="15" viewBox="0 0 14 14" fill="none">
-                <circle cx="7" cy="7" r="5" stroke="currentColor" strokeWidth="1.4" />
-                <path d="M7 2a5 5 0 010 10z" fill="currentColor" />
-              </svg>
-            </span>
-            <span>Theme</span>
+        {/* Half-shaded circle — semantically "theme mode". */}
+        <span className="shrink-0 flex items-center justify-center w-4 opacity-70">
+          <svg width="15" height="15" viewBox="0 0 14 14" fill="none">
+            <circle cx="7" cy="7" r="5" stroke="currentColor" strokeWidth="1.4" />
+            <path d="M7 2a5 5 0 010 10z" fill="currentColor" />
+          </svg>
+        </span>
+        {!iconOnly && (
+          <>
+            <span className="truncate mycel-fade-slide-in">Theme</span>
             <span className="ml-auto text-xs text-mycel-muted">{THEME_LABELS[mode]}</span>
-          </button>
-          <div className="my-1 border-t border-mycel-border" />
-          <NavLink to="/settings" role="menuitem" onClick={() => setOpen(false)} className={itemClass}>
-            <span className="shrink-0 flex items-center justify-center w-4 opacity-70">
-              <Icon name="settings" size={15} />
-            </span>
-            Settings
-          </NavLink>
-          <NavLink to="/about" role="menuitem" onClick={() => setOpen(false)} className={itemClass}>
-            <span className="shrink-0 flex items-center justify-center w-4 opacity-70">
-              <svg width="15" height="15" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5">
-                <circle cx="7" cy="7" r="5.5" />
-                <path d="M7 4.5v.01M6 6.5h1v3h1" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </span>
-            About
-          </NavLink>
-        </div>
-      )}
+          </>
+        )}
+      </button>
+      <NavLink to="/settings" className={linkClass} title={iconOnly ? "Settings" : undefined}>
+        <span className="shrink-0 flex items-center justify-center w-4 opacity-70">
+          <Icon name="settings" size={15} />
+        </span>
+        {!iconOnly && <span className="truncate mycel-fade-slide-in">Settings</span>}
+      </NavLink>
+      <NavLink to="/about" className={linkClass} title={iconOnly ? "About" : undefined}>
+        <span className="shrink-0 flex items-center justify-center w-4 opacity-70">
+          <svg width="15" height="15" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5">
+            <circle cx="7" cy="7" r="5.5" />
+            <path d="M7 4.5v.01M6 6.5h1v3h1" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </span>
+        {!iconOnly && <span className="truncate mycel-fade-slide-in">About</span>}
+      </NavLink>
     </div>
   );
 }
 
 /* ── LayoutHeader ───────────────────────────────────────────────
-   The full-width top bar. Owns the far-left cluster (drawer toggle +
-   BrandMark wordmark) and the far-right utility menu; per-view
-   summary/search/actions arrive via HeaderSlotContext. Views that
-   render their own top band (AgentDetail's HUD bar) set `hidden` —
-   the bar stays (it is app chrome: toggle, brand, utilities) but
-   carries no per-view content. */
+   The full-width top bar. Brand + drawer toggle moved INTO the drawer,
+   so the header carries only per-view content (summary/search/actions
+   via HeaderSlotContext) — plus, on <md when the overlay drawer is
+   closed, a small opener at the far left so the drawer stays
+   reachable. Views that render their own top band (AgentDetail's HUD
+   bar) set `hidden` — the bar stays but carries no per-view content. */
 function LayoutHeader({
-  collapsed,
-  onToggleCollapsed,
+  showMobileToggle,
+  onOpenMobile,
 }: {
-  collapsed: boolean;
-  onToggleCollapsed: () => void;
+  showMobileToggle: boolean;
+  onOpenMobile: () => void;
 }) {
   const { slot } = useHeaderSlotContext();
   return (
     <Header
       left={
-        <>
-          <SidebarToggle collapsed={collapsed} onToggle={onToggleCollapsed} />
-          <NavLink
-            to="/"
-            aria-label="mycel home"
-            className="flex items-center gap-2 select-none text-mycel-text"
-          >
-            <BrandMark />
-            <span className="text-sm font-semibold tracking-tight hidden sm:inline">
-              mycel
-            </span>
-          </NavLink>
-        </>
+        showMobileToggle ? (
+          <span className="md:hidden">
+            <SidebarToggle collapsed onToggle={onOpenMobile} />
+          </span>
+        ) : undefined
       }
       center={slot.hidden ? undefined : slot.title}
-      actions={
-        <>
-          {!slot.hidden && slot.actions}
-          <UtilityMenu />
-        </>
-      }
+      actions={slot.hidden ? undefined : slot.actions}
     />
   );
 }
