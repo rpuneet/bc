@@ -14,8 +14,6 @@ func (h *StatsHandler) RegisterAgentStats(mux *http.ServeMux) {
 	mux.HandleFunc("/api/agents/stats/mem", h.agentMem)
 	mux.HandleFunc("/api/agents/stats/disk", h.agentDisk)
 	mux.HandleFunc("/api/agents/stats/net", h.agentNet)
-	mux.HandleFunc("/api/agents/stats/tokens", h.agentTokens)
-	mux.HandleFunc("/api/agents/stats/cost", h.agentCost)
 	mux.HandleFunc("/api/agents/stats/summary/", h.agentSummary)
 }
 
@@ -173,56 +171,6 @@ func (h *StatsHandler) agentNet(w http.ResponseWriter, r *http.Request) {
 	}
 	if metrics == nil {
 		metrics = []stats.AgentMetric{}
-	}
-	writeJSON(w, http.StatusOK, metrics)
-}
-
-func (h *StatsHandler) agentTokens(w http.ResponseWriter, r *http.Request) {
-	if !requireMethod(w, r, http.MethodGet) {
-		return
-	}
-	sq := parseStatsQuery(r, "agent", "model")
-	f := stats.AgentFilter{
-		Agent: sq.Filters["agent"],
-	}
-
-	if h.statsStore == nil {
-		writeJSON(w, http.StatusOK, []stats.TokenMetric{})
-		return
-	}
-
-	metrics, err := h.statsStore.QueryAgentTokens(r.Context(), f, sq.TimeRange)
-	if err != nil {
-		httpInternalError(w, "query agent tokens", err)
-		return
-	}
-	if metrics == nil {
-		metrics = []stats.TokenMetric{}
-	}
-	writeJSON(w, http.StatusOK, metrics)
-}
-
-func (h *StatsHandler) agentCost(w http.ResponseWriter, r *http.Request) {
-	if !requireMethod(w, r, http.MethodGet) {
-		return
-	}
-	sq := parseStatsQuery(r, "agent", "team")
-	f := stats.AgentFilter{
-		Agent: sq.Filters["agent"],
-	}
-
-	if h.statsStore == nil {
-		writeJSON(w, http.StatusOK, []stats.TokenMetric{})
-		return
-	}
-
-	metrics, err := h.statsStore.QueryAgentCost(r.Context(), f, sq.TimeRange)
-	if err != nil {
-		httpInternalError(w, "query agent cost", err)
-		return
-	}
-	if metrics == nil {
-		metrics = []stats.TokenMetric{}
 	}
 	writeJSON(w, http.StatusOK, metrics)
 }

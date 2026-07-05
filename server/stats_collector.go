@@ -12,7 +12,6 @@ import (
 	"context"
 	"encoding/json"
 	"os/exec"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -21,8 +20,6 @@ import (
 	bccontainer "github.com/rpuneet/mycel/pkg/container"
 	"github.com/rpuneet/mycel/pkg/log"
 	bcstats "github.com/rpuneet/mycel/pkg/stats"
-	bctoken "github.com/rpuneet/mycel/pkg/token"
-	bcworkspace "github.com/rpuneet/mycel/pkg/workspace"
 )
 
 // tmuxSampler is shared across sampling ticks so the one-time
@@ -44,11 +41,9 @@ type dockerStatsEntry struct {
 // runStatsCollector periodically samples system and agent metrics into TimescaleDB.
 //
 //nolint:gocyclo // Single pass over docker stats output; splitting obscures flow.
-func runStatsCollector(ctx context.Context, ss *bcstats.Store, agents *bcagent.AgentService, ws *bcworkspace.Workspace) {
+func runStatsCollector(ctx context.Context, ss *bcstats.Store, agents *bcagent.AgentService) {
 	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
-
-	tokenWatermarks := make(map[string]time.Time)
 
 	agentLookup := func() map[string]*bcagent.Agent {
 		if agents == nil {
@@ -138,37 +133,6 @@ func runStatsCollector(ctx context.Context, ss *bcstats.Store, agents *bcagent.A
 				}
 				if err := ss.RecordAgent(ctx, *metric); err != nil {
 					log.Debug("stats: record tmux agent metric", "agent", agentName, "error", err)
-				}
-			}
-
-			if ws != nil {
-				agentsDir := filepath.Join(ws.RootDir, ".bc", "agents")
-				for agentName := range agentsByName {
-					entries, tokenErr := bctoken.CollectAgentSince(agentsDir, agentName, tokenWatermarks[agentName])
-					if tokenErr != nil || len(entries) == 0 {
-						continue
-					}
-					var latestSuccess time.Time
-					for _, e := range entries {
-						if err := ss.RecordToken(ctx, bcstats.TokenMetric{
-							Time:         e.Timestamp,
-							AgentName:    e.AgentName,
-							Model:        e.Model,
-							InputTokens:  e.InputTokens,
-							OutputTokens: e.OutputTokens,
-							CacheRead:    e.CacheRead,
-							CacheCreate:  e.CacheCreate,
-						}); err != nil {
-							log.Debug("stats: record token metric", "agent", agentName, "error", err)
-							continue
-						}
-						if e.Timestamp.After(latestSuccess) {
-							latestSuccess = e.Timestamp
-						}
-					}
-					if !latestSuccess.IsZero() {
-						tokenWatermarks[agentName] = latestSuccess
-					}
 				}
 			}
 
