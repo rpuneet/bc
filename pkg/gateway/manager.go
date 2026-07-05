@@ -13,11 +13,15 @@ import (
 	"github.com/rpuneet/mycel/pkg/log"
 )
 
-// PersistedChannel is a saved bc_channel → platform_id mapping.
+// PersistedChannel is a saved bc_channel → platform_id mapping with
+// optional display metadata.
 type PersistedChannel struct {
-	BCChannel  string
-	Platform   string
-	PlatformID string
+	BCChannel        string
+	Platform         string
+	PlatformID       string
+	DisplayName      string
+	Kind             string
+	ParticipantCount int
 }
 
 // ChannelStore persists channel mappings so they survive server restarts.
@@ -25,6 +29,7 @@ type PersistedChannel struct {
 type ChannelStore interface {
 	SaveChannel(ctx context.Context, bcChannel, platform, platformID string) error
 	LoadChannels(ctx context.Context) ([]PersistedChannel, error)
+	UpsertChannelMeta(ctx context.Context, bcChannel, displayName, kind string, participantCount int) error
 }
 
 // messageSender is checked at runtime for adapters that support outbound messaging.
@@ -152,7 +157,10 @@ func (m *Manager) restorePersistedChannels(ctx context.Context) {
 // discoverChannels discovers channels from an adapter.
 func (m *Manager) discoverChannels(a NotificationAdapter) {
 	channels := a.Channels()
-	type discovered struct{ bc, platform, id string }
+	type discovered struct {
+		bc, platform, id string
+		meta             ChannelMeta
+	}
 	toPersist := make([]discovered, 0, len(channels))
 	m.mu.Lock()
 	for _, ch := range channels {
@@ -162,12 +170,13 @@ func (m *Manager) discoverChannels(a NotificationAdapter) {
 			ChannelID: ch.ID,
 			Adapter:   a,
 		}
-		toPersist = append(toPersist, discovered{bcName, a.Name(), ch.ID})
+		toPersist = append(toPersist, discovered{bcName, a.Name(), ch.ID, ChannelMeta{DisplayName: ch.Name, Kind: ch.Kind}})
 		log.Info("gateway: discovered channel", "bc_channel", bcName, "platform_id", ch.ID)
 	}
 	m.mu.Unlock()
 	for _, d := range toPersist {
 		m.persistChannel(d.bc, d.platform, d.id)
+		m.persistChannelMeta(a, d.bc, d.id, d.meta)
 	}
 }
 
@@ -188,7 +197,10 @@ func (m *Manager) lateDiscovery(ctx context.Context) {
 
 	for _, a := range adapterList {
 		channels := a.Channels()
-		type lateDiscovered struct{ bc, platform, id string }
+		type lateDiscovered struct {
+			bc, platform, id string
+			meta             ChannelMeta
+		}
 		var latePersist []lateDiscovered
 		m.mu.Lock()
 		for _, ch := range channels {
@@ -199,14 +211,49 @@ func (m *Manager) lateDiscovery(ctx context.Context) {
 					ChannelID: ch.ID,
 					Adapter:   a,
 				}
-				latePersist = append(latePersist, lateDiscovered{bcName, a.Name(), ch.ID})
+				latePersist = append(latePersist, lateDiscovered{bcName, a.Name(), ch.ID, ChannelMeta{DisplayName: ch.Name, Kind: ch.Kind}})
 				log.Info("gateway: late-discovered channel", "bc_channel", bcName, "platform_id", ch.ID)
 			}
 		}
 		m.mu.Unlock()
 		for _, d := range latePersist {
 			m.persistChannel(d.bc, d.platform, d.id)
+			m.persistChannelMeta(a, d.bc, d.id, d.meta)
 		}
+	}
+
+	// Backfill display metadata for restored channels that predate identity
+	// resolution (rows persisted without a display_name). Runs synchronously
+	// in this goroutine so platform lookups stay sequential — WhatsApp rate
+	// limits info queries.
+	m.resolveMissingMeta(ctx)
+}
+
+// resolveMissingMeta resolves display metadata for persisted channels that
+// lack a display name, using adapters that implement ChannelIdentity.
+func (m *Manager) resolveMissingMeta(ctx context.Context) {
+	if m.channelStore == nil {
+		return
+	}
+	saved, err := m.channelStore.LoadChannels(ctx)
+	if err != nil {
+		log.Warn("gateway: failed to load channels for meta backfill", "error", err)
+		return
+	}
+	for _, ch := range saved {
+		if ch.DisplayName != "" || ctx.Err() != nil {
+			continue
+		}
+		m.mu.RLock()
+		route, ok := m.channelMap[ch.BCChannel]
+		m.mu.RUnlock()
+		if !ok {
+			continue
+		}
+		if _, isResolver := route.Adapter.(ChannelIdentity); !isResolver {
+			continue
+		}
+		m.resolveAndStoreMeta(ctx, route.Adapter, ch.BCChannel, route.ChannelID, ChannelMeta{})
 	}
 }
 
@@ -329,6 +376,100 @@ func (m *Manager) persistChannel(bcChannel, platform, platformID string) {
 	}()
 }
 
+// persistChannelMeta resolves and saves display metadata for a channel
+// (non-blocking, best-effort). If the adapter implements ChannelIdentity the
+// resolved values win; otherwise the fallback (from discovery) is stored.
+func (m *Manager) persistChannelMeta(a NotificationAdapter, bcChannel, platformID string, fallback ChannelMeta) {
+	if m.channelStore == nil {
+		return
+	}
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancel()
+		m.resolveAndStoreMeta(ctx, a, bcChannel, platformID, fallback)
+	}()
+}
+
+// resolveAndStoreMeta synchronously resolves channel metadata and upserts it.
+func (m *Manager) resolveAndStoreMeta(ctx context.Context, a NotificationAdapter, bcChannel, platformID string, fallback ChannelMeta) {
+	meta := m.resolveChannelMeta(ctx, a, platformID, fallback)
+	if meta == (ChannelMeta{}) {
+		return
+	}
+	if err := m.channelStore.UpsertChannelMeta(ctx, bcChannel, meta.DisplayName, meta.Kind, meta.ParticipantCount); err != nil {
+		log.Warn("gateway: failed to persist channel meta", "channel", bcChannel, "error", err)
+	}
+}
+
+// resolveChannelMeta asks the adapter for channel identity, falling back to
+// discovery-time metadata when the adapter cannot resolve.
+func (m *Manager) resolveChannelMeta(ctx context.Context, a NotificationAdapter, platformID string, fallback ChannelMeta) ChannelMeta {
+	meta := fallback
+	if a == nil {
+		return meta
+	}
+	resolver, ok := a.(ChannelIdentity)
+	if !ok {
+		return meta
+	}
+	resolved, err := resolver.ResolveChannel(ctx, platformID)
+	if err != nil {
+		log.Debug("gateway: channel identity resolution failed", "adapter", a.Name(), "platform_id", platformID, "error", err)
+		return meta
+	}
+	if resolved.DisplayName != "" {
+		meta.DisplayName = resolved.DisplayName
+	}
+	if resolved.Kind != "" {
+		meta.Kind = resolved.Kind
+	}
+	if resolved.ParticipantCount > 0 {
+		meta.ParticipantCount = resolved.ParticipantCount
+	}
+	return meta
+}
+
+// RefreshChannelMeta re-resolves display metadata for all known channels
+// whose adapter implements ChannelIdentity, and persists the results.
+// Returns the number of channels refreshed.
+func (m *Manager) RefreshChannelMeta(ctx context.Context) (int, error) {
+	if m.channelStore == nil {
+		return 0, nil
+	}
+
+	type entry struct {
+		bc    string
+		route channelRoute
+	}
+	m.mu.RLock()
+	entries := make([]entry, 0, len(m.channelMap))
+	for bc, route := range m.channelMap {
+		entries = append(entries, entry{bc, route})
+	}
+	m.mu.RUnlock()
+
+	refreshed := 0
+	for _, e := range entries {
+		if err := ctx.Err(); err != nil {
+			return refreshed, err
+		}
+		resolver, ok := e.route.Adapter.(ChannelIdentity)
+		if !ok {
+			continue
+		}
+		meta, err := resolver.ResolveChannel(ctx, e.route.ChannelID)
+		if err != nil || meta == (ChannelMeta{}) {
+			continue
+		}
+		if err := m.channelStore.UpsertChannelMeta(ctx, e.bc, meta.DisplayName, meta.Kind, meta.ParticipantCount); err != nil {
+			log.Warn("gateway: failed to refresh channel meta", "channel", e.bc, "error", err)
+			continue
+		}
+		refreshed++
+	}
+	return refreshed, nil
+}
+
 // DiscoveredSources returns all discovered external channels.
 func (m *Manager) DiscoveredSources() []string {
 	m.mu.RLock()
@@ -348,38 +489,54 @@ func (m *Manager) handleNotification(platform string, n Notification) {
 	}
 	bcChannel := platform + ":" + sanitizeChannelName(channelName)
 
-	// Determine the channel ID for routing. For platforms that need a
-	// numeric ID (e.g., Telegram chat_id), extract it from the raw payload.
-	// Fall back to the channel name if extraction fails.
-	channelID := channelName
-	if len(n.Raw) > 0 {
-		var rawMsg struct {
-			Message struct {
-				Chat struct {
-					ID int64 `json:"id"`
-				} `json:"chat"`
-			} `json:"message"`
-		}
-		if err := json.Unmarshal(n.Raw, &rawMsg); err == nil && rawMsg.Message.Chat.ID != 0 {
-			channelID = strconv.FormatInt(rawMsg.Message.Chat.ID, 10)
+	// Determine the channel ID for routing. Prefer the platform-native id
+	// supplied by the adapter (e.g., WhatsApp JID). Otherwise, for platforms
+	// that need a numeric ID (e.g., Telegram chat_id), extract it from the
+	// raw payload. Fall back to the channel name if extraction fails.
+	channelID := n.ChannelID
+	if channelID == "" {
+		channelID = channelName
+		if len(n.Raw) > 0 {
+			var rawMsg struct {
+				Message struct {
+					Chat struct {
+						ID int64 `json:"id"`
+					} `json:"chat"`
+				} `json:"message"`
+			}
+			if err := json.Unmarshal(n.Raw, &rawMsg); err == nil && rawMsg.Message.Chat.ID != 0 {
+				channelID = strconv.FormatInt(rawMsg.Message.Chat.ID, 10)
+			}
 		}
 	}
 
-	// Ensure channel is in the map — only persist when first created
+	// Ensure channel is in the map — only persist when first created. An
+	// adapter-supplied native id also upgrades a route that was created (or
+	// restored) with a fallback id, so identity resolution can work.
 	m.mu.Lock()
-	_, exists := m.channelMap[bcChannel]
+	route, exists := m.channelMap[bcChannel]
+	needMeta := false
 	if !exists {
-		adapter := m.adapters[platform]
-		m.channelMap[bcChannel] = channelRoute{
+		route = channelRoute{
 			Platform:  platform,
 			ChannelID: channelID,
-			Adapter:   adapter,
+			Adapter:   m.adapters[platform],
 		}
+		m.channelMap[bcChannel] = route
+		needMeta = true
 		log.Info("gateway: dynamically mapped notification channel", "bc_channel", bcChannel, "platform", platform, "channel_id", channelID)
+	} else if n.ChannelID != "" && route.ChannelID != n.ChannelID {
+		route.ChannelID = n.ChannelID
+		m.channelMap[bcChannel] = route
+		needMeta = true
+		log.Info("gateway: upgraded channel route to native id", "bc_channel", bcChannel, "channel_id", n.ChannelID)
 	}
 	m.mu.Unlock()
 	if !exists {
 		m.persistChannel(bcChannel, platform, channelID)
+	}
+	if needMeta {
+		m.persistChannelMeta(route.Adapter, bcChannel, route.ChannelID, ChannelMeta{})
 	}
 
 	sender := fmt.Sprintf("[%s] %s", platform, n.Sender)

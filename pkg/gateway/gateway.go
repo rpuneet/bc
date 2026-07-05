@@ -55,6 +55,7 @@ type Notification struct {
 	Timestamp time.Time       `json:"timestamp"`
 	Raw       json.RawMessage `json:"raw"`
 	Channel   string          `json:"channel"`
+	ChannelID string          `json:"channel_id,omitempty"` // platform-native channel id (e.g. WhatsApp JID), if known
 	Platform  string          `json:"platform"`
 	Sender    string          `json:"sender"`
 	Content   string          `json:"content"` // human-readable text for display/storage
@@ -66,6 +67,30 @@ type ChannelInfo struct {
 	ID       string `json:"id"`
 	Name     string `json:"name"`
 	Platform string `json:"platform"`
+	Kind     string `json:"kind,omitempty"` // group | person | channel | feed | other
+}
+
+// Channel kind values stored in channel metadata.
+const (
+	ChannelKindGroup   = "group"
+	ChannelKindPerson  = "person"
+	ChannelKindChannel = "channel"
+	ChannelKindFeed    = "feed"
+	ChannelKindOther   = "other"
+)
+
+// ChannelMeta is human-readable display metadata for a platform channel.
+type ChannelMeta struct {
+	DisplayName      string
+	Kind             string // group | person | channel | feed | other
+	ParticipantCount int
+}
+
+// ChannelIdentity is optionally implemented by adapters that can resolve
+// human-readable channel metadata (names, kinds) from their platform.
+type ChannelIdentity interface {
+	// ResolveChannel returns display metadata for a platform channel id.
+	ResolveChannel(ctx context.Context, platformID string) (ChannelMeta, error)
 }
 
 // AdapterStatus reports connection state for the web UI.

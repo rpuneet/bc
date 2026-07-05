@@ -881,12 +881,19 @@ func (p *channelPersister) LoadChannels(ctx context.Context) ([]bcgateway.Persis
 	result := make([]bcgateway.PersistedChannel, len(ncs))
 	for i, c := range ncs {
 		result[i] = bcgateway.PersistedChannel{
-			BCChannel:  c.BCChannel,
-			Platform:   c.Platform,
-			PlatformID: c.PlatformID,
+			BCChannel:        c.BCChannel,
+			Platform:         c.Platform,
+			PlatformID:       c.PlatformID,
+			DisplayName:      c.DisplayName,
+			Kind:             c.Kind,
+			ParticipantCount: c.ParticipantCount,
 		}
 	}
 	return result, nil
+}
+
+func (p *channelPersister) UpsertChannelMeta(ctx context.Context, bcChannel, displayName, kind string, participantCount int) error {
+	return p.store.UpsertChannelMeta(ctx, bcChannel, displayName, kind, participantCount)
 }
 
 // costStoreAdapter bridges cost.Store → bcagent.CostQuerier.

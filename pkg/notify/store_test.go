@@ -196,3 +196,128 @@ func TestChannelStats(t *testing.T) {
 		})
 	}
 }
+
+// TestUpsertChannelMeta_RoundTrip asserts that resolved display metadata is
+// stored, survives empty re-writes, and can be updated with new values.
+func TestUpsertChannelMeta_RoundTrip(t *testing.T) {
+	store := setupTestStore(t)
+	ctx := context.Background()
+
+	const bcChannel = "whatsapp:family-group"
+	if err := store.SaveChannel(ctx, bcChannel, "whatsapp", "1234@g.us"); err != nil {
+		t.Fatalf("SaveChannel: %v", err)
+	}
+	if err := store.UpsertChannelMeta(ctx, bcChannel, "Family Group", "group", 12); err != nil {
+		t.Fatalf("UpsertChannelMeta: %v", err)
+	}
+
+	channels, err := store.LoadChannels(ctx)
+	if err != nil {
+		t.Fatalf("LoadChannels: %v", err)
+	}
+	if len(channels) != 1 {
+		t.Fatalf("expected 1 channel, got %d", len(channels))
+	}
+	got := channels[0]
+	if got.DisplayName != "Family Group" || got.Kind != "group" || got.ParticipantCount != 12 {
+		t.Fatalf("meta round-trip failed: %+v", got)
+	}
+	if got.PlatformID != "1234@g.us" {
+		t.Fatalf("platform_id clobbered by meta upsert: %q", got.PlatformID)
+	}
+
+	// Empty values must not clobber previously-resolved metadata.
+	if upErr := store.UpsertChannelMeta(ctx, bcChannel, "", "", 0); upErr != nil {
+		t.Fatalf("UpsertChannelMeta (empty): %v", upErr)
+	}
+	channels, err = store.LoadChannels(ctx)
+	if err != nil {
+		t.Fatalf("LoadChannels: %v", err)
+	}
+	if got := channels[0]; got.DisplayName != "Family Group" || got.Kind != "group" || got.ParticipantCount != 12 {
+		t.Fatalf("empty upsert clobbered meta: %+v", got)
+	}
+
+	// New values replace old ones.
+	if upErr := store.UpsertChannelMeta(ctx, bcChannel, "Renamed Group", "group", 13); upErr != nil {
+		t.Fatalf("UpsertChannelMeta (update): %v", upErr)
+	}
+	channels, err = store.LoadChannels(ctx)
+	if err != nil {
+		t.Fatalf("LoadChannels: %v", err)
+	}
+	if got := channels[0]; got.DisplayName != "Renamed Group" || got.ParticipantCount != 13 {
+		t.Fatalf("meta update failed: %+v", got)
+	}
+}
+
+// TestUpsertChannelMeta_InsertsMissingRow asserts that meta for a channel
+// with no prior mapping creates the row, deriving platform from the prefix.
+func TestUpsertChannelMeta_InsertsMissingRow(t *testing.T) {
+	store := setupTestStore(t)
+	ctx := context.Background()
+
+	if err := store.UpsertChannelMeta(ctx, "slack:general", "general", "channel", 0); err != nil {
+		t.Fatalf("UpsertChannelMeta: %v", err)
+	}
+	channels, err := store.LoadChannels(ctx)
+	if err != nil {
+		t.Fatalf("LoadChannels: %v", err)
+	}
+	if len(channels) != 1 {
+		t.Fatalf("expected 1 channel, got %d", len(channels))
+	}
+	got := channels[0]
+	if got.Platform != "slack" || got.DisplayName != "general" || got.Kind != "channel" {
+		t.Fatalf("inserted row wrong: %+v", got)
+	}
+
+	// A later SaveChannel fills the platform_id without touching meta.
+	if saveErr := store.SaveChannel(ctx, "slack:general", "slack", "C0123ABC"); saveErr != nil {
+		t.Fatalf("SaveChannel: %v", saveErr)
+	}
+	channels, err = store.LoadChannels(ctx)
+	if err != nil {
+		t.Fatalf("LoadChannels: %v", err)
+	}
+	got = channels[0]
+	if got.PlatformID != "C0123ABC" || got.DisplayName != "general" || got.Kind != "channel" {
+		t.Fatalf("SaveChannel disturbed meta: %+v", got)
+	}
+}
+
+// TestUpsertChannelMeta_PreservesMessages asserts that storing metadata
+// never disturbs the channel's stored messages or subscriptions.
+func TestUpsertChannelMeta_PreservesMessages(t *testing.T) {
+	store := setupTestStore(t)
+	ctx := context.Background()
+
+	const bcChannel = "whatsapp:1234"
+	for _, msg := range []string{"hello", "world"} {
+		if err := store.SaveMessage(ctx, bcChannel, "alice", msg); err != nil {
+			t.Fatalf("SaveMessage: %v", err)
+		}
+	}
+	if err := store.Subscribe(ctx, bcChannel, "eng-01", false); err != nil {
+		t.Fatalf("Subscribe: %v", err)
+	}
+
+	if err := store.UpsertChannelMeta(ctx, bcChannel, "Alice", "person", 0); err != nil {
+		t.Fatalf("UpsertChannelMeta: %v", err)
+	}
+
+	msgs, err := store.GetMessages(ctx, bcChannel, 10, 0)
+	if err != nil {
+		t.Fatalf("GetMessages: %v", err)
+	}
+	if len(msgs) != 2 {
+		t.Fatalf("expected 2 messages after meta upsert, got %d", len(msgs))
+	}
+	subs, err := store.Subscribers(ctx, bcChannel)
+	if err != nil {
+		t.Fatalf("Subscribers: %v", err)
+	}
+	if len(subs) != 1 {
+		t.Fatalf("expected 1 subscription after meta upsert, got %d", len(subs))
+	}
+}

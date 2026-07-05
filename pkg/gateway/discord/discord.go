@@ -141,6 +141,7 @@ func (a *Adapter) Channels() []gateway.ChannelInfo {
 			ID:       id,
 			Name:     name,
 			Platform: "discord",
+			Kind:     gateway.ChannelKindChannel,
 		})
 	}
 	return channels

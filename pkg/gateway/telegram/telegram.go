@@ -198,10 +198,17 @@ func (a *Adapter) Channels() []gateway.ChannelInfo {
 
 	channels := make([]gateway.ChannelInfo, 0, len(a.chatMap))
 	for id, name := range a.chatMap {
+		// Telegram group/supergroup/channel chat ids are negative; positive
+		// ids are private chats with a person.
+		kind := gateway.ChannelKindPerson
+		if id < 0 {
+			kind = gateway.ChannelKindGroup
+		}
 		channels = append(channels, gateway.ChannelInfo{
 			ID:       strconv.FormatInt(id, 10),
 			Name:     name,
 			Platform: a.name,
+			Kind:     kind,
 		})
 	}
 	return channels
