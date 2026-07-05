@@ -323,7 +323,7 @@ func buildServicesFromWS(ctx context.Context, globals *Globals, ws *bcworkspace.
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			runStatsCollector(svcCtx, globals.Stats, agentSvc, ws)
+			runStatsCollector(svcCtx, globals.Stats, agentSvc)
 		}()
 	}
 

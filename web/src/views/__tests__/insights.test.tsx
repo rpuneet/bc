@@ -21,13 +21,67 @@ function jsonResponse(body: unknown) {
 function mockApi() {
   fetchMock.mockImplementation((url: RequestInfo | URL) => {
     const u = String(url);
-    if (u.includes("/api/costs/agents") || u.includes("/api/costs/models")) {
-      return jsonResponse([]);
+    // Per-agent cost ledger — the single source of truth for the agents
+    // table token/cost columns, Cost by Agent, and Agent Token Breakdown.
+    if (u.includes("/api/costs/agents")) {
+      return jsonResponse([
+        {
+          agent_id: "bc-bc-bot-1",
+          total_cost_usd: 8.5,
+          input_tokens: 800_000,
+          output_tokens: 200_000,
+          cache_read_tokens: 400_000,
+          cache_write_tokens: 50_000,
+          total_tokens: 1_000_000,
+          record_count: 30,
+        },
+        {
+          agent_id: "bc-bc-bot-2",
+          total_cost_usd: 3.84,
+          input_tokens: 400_000,
+          output_tokens: 100_000,
+          cache_read_tokens: 100_000,
+          cache_write_tokens: 20_000,
+          total_tokens: 500_000,
+          record_count: 12,
+        },
+      ]);
     }
+    // Per-model cost ledger — Cost by Model + Model Usage (Tokens).
+    if (u.includes("/api/costs/models")) {
+      return jsonResponse([
+        {
+          model: "claude-opus-4-6",
+          total_cost_usd: 10.0,
+          input_tokens: 900_000,
+          output_tokens: 250_000,
+          total_tokens: 1_150_000,
+          record_count: 24,
+        },
+        {
+          model: "claude-sonnet-4-6",
+          total_cost_usd: 2.34,
+          input_tokens: 300_000,
+          output_tokens: 50_000,
+          total_tokens: 350_000,
+          record_count: 18,
+        },
+      ]);
+    }
+    // Daily cost ledger — Cost Over Time, Token Throughput, Spend/Tokens/Burn.
+    if (u.includes("/api/costs/daily")) {
+      return jsonResponse([
+        { date: "2026-07-04", cost_usd: 5.0, total_tokens: 700_000, input_tokens: 560_000, output_tokens: 140_000, record_count: 20 },
+        { date: "2026-07-05", cost_usd: 7.34, total_tokens: 800_000, input_tokens: 640_000, output_tokens: 160_000, record_count: 22 },
+      ]);
+    }
+    // Cost summary — cache efficiency headline + totals.
     if (u.includes("/api/costs")) {
       return jsonResponse({
         input_tokens: 1_200_000,
         output_tokens: 300_000,
+        cache_read_tokens: 500_000,
+        cache_write_tokens: 70_000,
         total_tokens: 1_500_000,
         total_cost_usd: 12.34,
         record_count: 42,
@@ -82,6 +136,16 @@ describe("Insights", () => {
     await waitFor(() => expect(screen.getByText("Spend (this range)")).toBeInTheDocument());
     expect(screen.getByText("Active agents")).toBeInTheDocument();
     expect(screen.getByText("Burn rate")).toBeInTheDocument();
+  });
+
+  it("wires KPIs off the cost ledger", async () => {
+    renderInsights();
+
+    // Spend sums the daily ledger (5.00 + 7.34 = 12.34); the top cost driver
+    // is the biggest per-agent spender with its "bc-bc-" prefix stripped.
+    await waitFor(() => expect(screen.getByText("Top cost driver")).toBeInTheDocument());
+    expect(screen.getByText("bot-1")).toBeInTheDocument();
+    expect(screen.getByText("$12.34")).toBeInTheDocument();
   });
 
   it("renders the grouped section headers", async () => {

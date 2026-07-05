@@ -194,6 +194,8 @@ export interface AgentCostSummary {
   output_tokens: number;
   cache_read_tokens?: number;
   cache_write_tokens?: number;
+  /** input + output; cache tokens excluded. */
+  total_tokens: number;
   record_count: number;
 }
 
@@ -534,17 +536,6 @@ export interface AgentMetricTS {
   net_tx_bytes: number;
   disk_read_bytes: number;
   disk_write_bytes: number;
-}
-
-export interface TokenMetricTS {
-  time: string;
-  agent_name: string;
-  model: string;
-  input_tokens: number;
-  output_tokens: number;
-  cache_read: number;
-  cache_create: number;
-  total_cost_usd: number;
 }
 
 export interface ChannelMetricTS {
@@ -996,10 +987,6 @@ export const api = {
     request<AgentMetricTS[]>(`/agents/stats/${metric}${qs(params)}`),
   getAgentStatsLatest: () =>
     request<AgentMetricTS[]>("/agents/stats/latest"),
-  getAgentTokenStats: (params?: Record<string, string>) =>
-    request<TokenMetricTS[]>(`/agents/stats/tokens${qs(params)}`),
-  getAgentCostStats: (params?: Record<string, string>) =>
-    request<TokenMetricTS[]>(`/agents/stats/cost${qs(params)}`),
   getChannelStats: (metric: string, params?: Record<string, string>) =>
     request<ChannelMetricTS[]>(`/channels/stats/${metric}${qs(params)}`),
 

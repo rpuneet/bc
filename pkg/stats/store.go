@@ -102,20 +102,6 @@ func (s *Store) ensureSchema(ctx context.Context) error {
 			disk_read_bytes BIGINT NOT NULL DEFAULT 0,
 			disk_write_bytes BIGINT NOT NULL DEFAULT 0
 		)`,
-		// Token metrics — per-agent token consumption from JSONL
-		// UNIQUE constraint on (time, agent_name, model) makes inserts
-		// idempotent so bcd restarts don't duplicate historical entries.
-		`CREATE TABLE IF NOT EXISTS token_metrics (
-			time          TIMESTAMPTZ NOT NULL,
-			agent_name    TEXT NOT NULL DEFAULT '',
-			model         TEXT NOT NULL DEFAULT '',
-			input_tokens  BIGINT NOT NULL DEFAULT 0,
-			output_tokens BIGINT NOT NULL DEFAULT 0,
-			cache_read    BIGINT NOT NULL DEFAULT 0,
-			cache_create  BIGINT NOT NULL DEFAULT 0,
-			cost_usd      DOUBLE PRECISION NOT NULL DEFAULT 0,
-			UNIQUE (time, agent_name, model)
-		)`,
 		// Channel metrics — message/member/reaction counts
 		`CREATE TABLE IF NOT EXISTS channel_metrics (
 			time           TIMESTAMPTZ NOT NULL,
@@ -135,7 +121,6 @@ func (s *Store) ensureSchema(ctx context.Context) error {
 	hypertables := []string{
 		`SELECT create_hypertable('system_metrics', 'time', if_not_exists => TRUE)`,
 		`SELECT create_hypertable('agent_metrics', 'time', if_not_exists => TRUE)`,
-		`SELECT create_hypertable('token_metrics', 'time', if_not_exists => TRUE)`,
 		`SELECT create_hypertable('channel_metrics', 'time', if_not_exists => TRUE)`,
 	}
 
@@ -206,18 +191,6 @@ type AgentMetric struct {
 	DiskWriteBytes int64     `json:"disk_write_bytes"`
 }
 
-// TokenMetric represents token consumption at a point in time.
-type TokenMetric struct {
-	Time         time.Time `json:"time"`
-	AgentName    string    `json:"agent_name"`
-	Model        string    `json:"model"`
-	InputTokens  int64     `json:"input_tokens"`
-	OutputTokens int64     `json:"output_tokens"`
-	CacheRead    int64     `json:"cache_read"`
-	CacheCreate  int64     `json:"cache_create"`
-	CostUSD      float64   `json:"cost_usd"`
-}
-
 // ChannelMetric represents channel activity at a point in time.
 type ChannelMetric struct {
 	Time          time.Time `json:"time"`
@@ -238,7 +211,6 @@ func (s *Store) migrateStaleSchemas(ctx context.Context) error {
 	}{
 		{"system_metrics", "system_name"},
 		{"agent_metrics", "tool"},
-		{"token_metrics", "cache_read"},
 		{"channel_metrics", "message_count"},
 	}
 

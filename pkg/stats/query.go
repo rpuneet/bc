@@ -146,49 +146,6 @@ func (s *Store) queryAgent(ctx context.Context, f AgentFilter, tr TimeRange) ([]
 	return result, rows.Err()
 }
 
-// QueryAgentTokens returns token usage metrics for agents.
-func (s *Store) QueryAgentTokens(ctx context.Context, f AgentFilter, tr TimeRange) ([]TokenMetric, error) {
-	query := `SELECT time_bucket($1::interval, time) AS bucket,
-		agent_name, MAX(model),
-		SUM(input_tokens), SUM(output_tokens), SUM(cache_read), SUM(cache_create), SUM(cost_usd)
-	FROM token_metrics
-	WHERE time >= $2 AND time < $3`
-
-	args := []any{tr.PGInterval(), tr.From, tr.To}
-
-	if len(f.Agent) > 0 {
-		ph := make([]string, len(f.Agent))
-		for i, a := range f.Agent {
-			args = append(args, a)
-			ph[i] = fmt.Sprintf("$%d", len(args))
-		}
-		query += ` AND agent_name IN (` + strings.Join(ph, ",") + `)`
-	}
-
-	query += ` GROUP BY bucket, agent_name ORDER BY bucket`
-
-	rows, err := s.db.QueryContext(ctx, query, args...)
-	if err != nil {
-		return nil, fmt.Errorf("query token metrics: %w", err)
-	}
-	defer rows.Close() //nolint:errcheck
-
-	var result []TokenMetric
-	for rows.Next() {
-		var m TokenMetric
-		if err := rows.Scan(&m.Time, &m.AgentName, &m.Model, &m.InputTokens, &m.OutputTokens, &m.CacheRead, &m.CacheCreate, &m.CostUSD); err != nil {
-			return nil, fmt.Errorf("scan token metric: %w", err)
-		}
-		result = append(result, m)
-	}
-	return result, rows.Err()
-}
-
-// QueryAgentCost returns cost metrics for agents.
-func (s *Store) QueryAgentCost(ctx context.Context, f AgentFilter, tr TimeRange) ([]TokenMetric, error) {
-	return s.QueryAgentTokens(ctx, f, tr) // same data, different view
-}
-
 // ChannelFilter specifies which channels to query.
 type ChannelFilter struct {
 	Channel []string
@@ -312,8 +269,10 @@ type ModelCostBreakdown struct {
 	OutputTokens int64   `json:"output_tokens"`
 }
 
-// QueryAgentSummary returns a combined resource + token + cost summary for a single agent.
-// It runs two queries: one for resource metrics (avg/max over period) and one for token totals.
+// QueryAgentSummary returns a resource-metrics summary (avg/max over period)
+// for a single agent. Token and cost totals are sourced from the cost ledger
+// (pkg/cost, /api/costs/*) rather than the stats store, so the Tokens, Cost,
+// and Models fields are left zero-valued here.
 func (s *Store) QueryAgentSummary(ctx context.Context, agentName string, tr TimeRange) (*AgentSummary, error) {
 	summary := &AgentSummary{AgentName: agentName}
 
@@ -336,46 +295,6 @@ func (s *Store) QueryAgentSummary(ctx context.Context, agentName string, tr Time
 	)
 	if err != nil {
 		return nil, fmt.Errorf("query agent resource summary: %w", err)
-	}
-
-	// Query token totals (aggregated over period)
-	usageQuery := `SELECT
-		COALESCE(SUM(input_tokens), 0), COALESCE(SUM(output_tokens), 0),
-		COALESCE(SUM(cache_read), 0), COALESCE(SUM(cache_create), 0),
-		COALESCE(SUM(cost_usd), 0)
-	FROM token_metrics
-	WHERE agent_name = $1 AND time >= $2 AND time < $3`
-
-	err = s.db.QueryRowContext(ctx, usageQuery, agentName, tr.From, tr.To).Scan(
-		&summary.Tokens.Input, &summary.Tokens.Output,
-		&summary.Tokens.CacheRead, &summary.Tokens.CacheCreate,
-		&summary.Cost.TotalUSD,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("query agent token summary: %w", err)
-	}
-
-	// Query per-model cost breakdown
-	modelQuery := `SELECT model, SUM(cost_usd), SUM(input_tokens), SUM(output_tokens)
-	FROM token_metrics
-	WHERE agent_name = $1 AND time >= $2 AND time < $3
-	GROUP BY model ORDER BY SUM(cost_usd) DESC`
-
-	rows, err := s.db.QueryContext(ctx, modelQuery, agentName, tr.From, tr.To)
-	if err != nil {
-		return nil, fmt.Errorf("query agent model breakdown: %w", err)
-	}
-	defer rows.Close() //nolint:errcheck
-
-	for rows.Next() {
-		var m ModelCostBreakdown
-		if err := rows.Scan(&m.Model, &m.CostUSD, &m.InputTokens, &m.OutputTokens); err != nil {
-			return nil, fmt.Errorf("scan model breakdown: %w", err)
-		}
-		summary.Models = append(summary.Models, m)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
 	}
 
 	return summary, nil

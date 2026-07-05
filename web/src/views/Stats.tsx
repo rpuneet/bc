@@ -7,7 +7,7 @@ import {
 import { api } from "../api/client";
 import type {
   SystemStats, StatsSummary, CostSummary, ModelCostSummary, AgentCostSummary,
-  AgentMetricTS, TokenMetricTS, ChannelStats, DailyCost,
+  AgentMetricTS, ChannelStats, DailyCost,
 } from "../api/client";
 import { usePolling } from "../hooks/usePolling";
 import { LoadingSkeleton } from "../components/LoadingSkeleton";
@@ -231,7 +231,6 @@ interface StatsData {
   agentMem: AgentMetricTS[];
   agentNet: AgentMetricTS[];
   agentDisk: AgentMetricTS[];
-  tokenMetrics: TokenMetricTS[];
   notificationStats: ChannelStats[];
   costDaily: DailyCost[];
 }
@@ -350,7 +349,7 @@ export function Stats() {
 
   const fetcher = useCallback(async (): Promise<StatsData> => {
     const p = { from };
-    const [r0, r1, r2, r3, r4, r5, r6, r7, r8, r9, r10, r11] = await Promise.allSettled([
+    const [r0, r1, r2, r3, r4, r5, r6, r7, r8, r9, r10] = await Promise.allSettled([
       api.getStatsSystem(),
       api.getStatsSummary(),
       api.getCostSummary(),
@@ -360,7 +359,6 @@ export function Stats() {
       api.getAgentStats("mem", p),
       api.getAgentStats("net", p),
       api.getAgentStats("disk", p),
-      api.getAgentTokenStats(p),
       api.getStatsChannels(),
       api.getCostDaily(daysForRange),
     ]);
@@ -374,9 +372,8 @@ export function Stats() {
       agentMem: r6.status === "fulfilled" ? (r6.value ?? []) : [],
       agentNet: r7.status === "fulfilled" ? (r7.value ?? []) : [],
       agentDisk: r8.status === "fulfilled" ? (r8.value ?? []) : [],
-      tokenMetrics: r9.status === "fulfilled" ? (r9.value ?? []) : [],
-      notificationStats: r10.status === "fulfilled" ? (r10.value ?? []) : [],
-      costDaily: r11.status === "fulfilled" && Array.isArray(r11.value) ? r11.value : [],
+      notificationStats: r9.status === "fulfilled" ? (r9.value ?? []) : [],
+      costDaily: r10.status === "fulfilled" && Array.isArray(r10.value) ? r10.value : [],
     };
   }, [from, daysForRange]);
 
@@ -388,52 +385,81 @@ export function Stats() {
   const memChart = useMemo(() => pivotAgentMetric(data?.agentMem ?? [], "mem_mb"), [data?.agentMem]);
   const netChart = useMemo(() => pivotNetOrDisk(data?.agentNet ?? [], "net"), [data?.agentNet]);
   const diskChart = useMemo(() => pivotNetOrDisk(data?.agentDisk ?? [], "disk"), [data?.agentDisk]);
-  const tokenChart = useMemo(() => pivotTokens(data?.tokenMetrics ?? []), [data?.tokenMetrics]);
-  const costOverTime = useMemo(() => pivotCostOverTime(data?.tokenMetrics ?? []), [data?.tokenMetrics]);
-  const tokensByAgent = useMemo(() => pivotTokensByAgent(data?.tokenMetrics ?? []), [data?.tokenMetrics]);
-  const tokensByModel = useMemo(() => pivotTokensByModel(data?.tokenMetrics ?? []), [data?.tokenMetrics]);
+  // ── Cost + token charts (cost ledger is the single source of truth) ──────────
+  // The stats-store token timeseries (/agents/stats/tokens) is vestigial and
+  // always empty, so every cost/token view derives directly from the cost
+  // ledger: /costs (summary), /costs/agents, /costs/models, /costs/daily.
 
-  // Cost-ledger fallbacks: when the token-metric timeseries is empty the
-  // derived charts above collapse to "No cost data", so fall back to the
-  // all-time cost ledger (/costs/*) which is populated independently.
-  const costOverTimeData = useMemo(() => {
-    if (costOverTime.length) return costOverTime;
-    return (data?.costDaily ?? []).map(d => ({ time: d.date, cost: d.cost_usd }));
-  }, [costOverTime, data?.costDaily]);
+  // Cost Over Time — daily ledger, one point per day.
+  const costOverTimeData = useMemo(
+    () => (data?.costDaily ?? []).map(d => ({ time: d.date, cost: d.cost_usd })),
+    [data?.costDaily],
+  );
 
-  const costByAgentData = useMemo(() => {
-    if (tokensByAgent.length) {
-      return tokensByAgent.slice(0, 8).map(a => ({ name: trunc(a.name, 20), cost: parseFloat(a.cost.toFixed(4)) }));
-    }
-    return (data?.costByAgent ?? [])
+  // Token Throughput over time — daily ledger, input/output stacked.
+  const tokenChart = useMemo(
+    () => (data?.costDaily ?? []).map(d => ({ time: d.date, input: d.input_tokens, output: d.output_tokens })),
+    [data?.costDaily],
+  );
+
+  // Cost by Agent — per-agent ledger, top 8 by spend.
+  const costByAgentData = useMemo(
+    () => (data?.costByAgent ?? [])
       .map(a => ({ name: stripAgentPrefix(a.agent_id), cost: a.total_cost_usd }))
       .filter(a => a.cost > 0)
       .sort((a, b) => b.cost - a.cost)
-      .slice(0, 8);
-  }, [tokensByAgent, data?.costByAgent]);
+      .slice(0, 8),
+    [data?.costByAgent],
+  );
 
-  // Time-range-filtered cost from token metrics
-  const timeRangeCost = useMemo(() => {
-    let total = 0;
-    for (const t of data?.tokenMetrics ?? []) {
-      total += calculateCost(t.model, t.input_tokens, t.output_tokens);
-    }
-    return total;
-  }, [data?.tokenMetrics]);
+  // Cost by Model — per-model ledger, top 8 by spend.
+  const costByModelBar = useMemo(
+    () => (data?.costByModel ?? [])
+      .map(m => ({ name: trunc(m.model, 24), cost: m.total_cost_usd }))
+      .filter(m => m.cost > 0)
+      .sort((a, b) => b.cost - a.cost)
+      .slice(0, 8),
+    [data?.costByModel],
+  );
 
-  const hasCacheData = useMemo(() => (data?.tokenMetrics ?? []).some(t => t.cache_read > 0 || t.cache_create > 0), [data?.tokenMetrics]);
-  const cacheChart = useMemo(() => {
-    if (!hasCacheData) return [];
-    const buckets = new Map<string, { time: string; cache_read: number; cache_create: number }>();
-    for (const t of data?.tokenMetrics ?? []) {
-      const k = fmtTime(t.time);
-      const b = buckets.get(k) ?? { time: k, cache_read: 0, cache_create: 0 };
-      b.cache_read += t.cache_read;
-      b.cache_create += t.cache_create;
-      buckets.set(k, b);
-    }
-    return Array.from(buckets.values());
-  }, [data?.tokenMetrics, hasCacheData]);
+  // Model Usage (Tokens) — per-model ledger, top 8 by total tokens.
+  const tokensByModel = useMemo(
+    () => (data?.costByModel ?? [])
+      .map(m => ({ name: trunc(m.model, 24), tokens: m.total_tokens }))
+      .filter(m => m.tokens > 0)
+      .sort((a, b) => b.tokens - a.tokens)
+      .slice(0, 8),
+    [data?.costByModel],
+  );
+
+  // Agent Token Breakdown — per-agent ledger, input/output split, top 8.
+  const tokensByAgent = useMemo(
+    () => (data?.costByAgent ?? [])
+      .map(a => ({ name: stripAgentPrefix(a.agent_id), input: a.input_tokens, output: a.output_tokens, total: a.total_tokens }))
+      .filter(a => a.total > 0)
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 8),
+    [data?.costByAgent],
+  );
+
+  // Cache Efficiency — the ledger exposes only aggregate cache totals (no
+  // per-time series), so this is a summary view: read vs write tokens plus a
+  // hit ratio = cache_read / (cache_read + input_tokens).
+  const cacheStats = useMemo(() => {
+    const s = data?.costSummary;
+    const read = s?.cache_read_tokens ?? 0;
+    const write = s?.cache_write_tokens ?? 0;
+    const input = s?.input_tokens ?? 0;
+    const ratio = read + input > 0 ? read / (read + input) : 0;
+    return { read, write, ratio, hasData: read > 0 || write > 0 };
+  }, [data?.costSummary]);
+  const cacheBar = useMemo(
+    () => [
+      { name: "Read", tokens: cacheStats.read },
+      { name: "Write", tokens: cacheStats.write },
+    ],
+    [cacheStats],
+  );
 
   const notificationBarData = useMemo(() => {
     return [...(data?.notificationStats ?? [])]
@@ -441,19 +467,6 @@ export function Stats() {
       .slice(0, 10)
       .map(c => ({ name: trunc(c.name, 16), fullName: c.name, messages: c.message_count }));
   }, [data?.notificationStats]);
-
-  const costByModelBar = useMemo(() => {
-    const fromTokens = tokensByModel
-      .filter(m => m.cost > 0)
-      .slice(0, 8)
-      .map(m => ({ name: trunc(m.name, 24), cost: parseFloat(m.cost.toFixed(4)) }));
-    if (fromTokens.length) return fromTokens;
-    // Fallback to the all-time model cost ledger when the timeseries is empty.
-    return (data?.costByModel ?? [])
-      .map(m => ({ name: trunc(m.model, 24), cost: m.total_cost_usd }))
-      .filter(m => m.cost > 0)
-      .slice(0, 8);
-  }, [tokensByModel, data?.costByModel]);
 
   const agentTable = useMemo(() => buildAgentTable(data, sortKey, sortAsc), [data, sortKey, sortAsc]);
 
@@ -468,41 +481,33 @@ export function Stats() {
   const avgCpu = agentTable.length > 0 ? agentTable.reduce((s, a) => s + a.cpu, 0) / agentTable.length : 0;
   const totalMem = agentTable.reduce((s, a) => s + a.mem, 0);
   const totalTokens = agentTable.reduce((s, a) => s + a.tokens, 0);
+  const totalCost = agentTable.reduce((s, a) => s + a.cost, 0);
 
   // ── KPI strip values ─────────────────────────────────────────────────────────
+  // Every KPI is range-scoped off the cost ledger. Spend and tokens sum the
+  // daily ledger for the selected window; burn is that spend over the window's
+  // hours; the top cost driver is the per-agent ledger's biggest spender.
   const aliveCount = agentTable.filter((a) => ALIVE_STATES.has(a.state)).length;
-  const rangeHours = (RANGES[range]?.seconds ?? 0) / 3600;
-  // Range-scoped spend from the daily cost ledger (used when the per-minute
-  // token timeseries is empty on this deployment). Daily granularity means
-  // sub-day ranges resolve to "today".
   const rangeSpend = useMemo(
     () => (data?.costDaily ?? []).reduce((s, d) => s + (d.cost_usd ?? 0), 0),
     [data?.costDaily],
   );
-  // Prefer the timeseries-derived spend/tokens; else the range-scoped daily
-  // ledger; else the all-time ledger total as a last resort.
-  const displaySpend =
-    timeRangeCost > 0 ? timeRangeCost : rangeSpend > 0 ? rangeSpend : (data?.costSummary?.total_cost_usd ?? 0);
-  const kpiTokens = totalTokens > 0 ? totalTokens : (data?.costSummary?.total_tokens ?? 0);
-  // Burn rate is spend over the window it actually covers: the token
-  // timeseries spans rangeHours; the daily fallback spans daysForRange*24h.
-  // With only an all-time total (no daily data), a rate is meaningless → "—".
-  const burnHours = timeRangeCost > 0 ? rangeHours : rangeSpend > 0 ? daysForRange * 24 : 0;
-  const burnBase = timeRangeCost > 0 ? timeRangeCost : rangeSpend;
-  const burnRate = burnHours > 0 ? burnBase / burnHours : null;
-  const topCostDriver = agentTable.reduce<AgentRow | null>(
-    (top, a) => (a.cost > 0 && (!top || a.cost > top.cost) ? a : top),
-    null,
+  const rangeTokens = useMemo(
+    () => (data?.costDaily ?? []).reduce((s, d) => s + (d.total_tokens ?? 0), 0),
+    [data?.costDaily],
   );
-  const topDriverFallback = (data?.costByAgent ?? []).reduce<AgentCostSummary | null>(
-    (top, a) => (a.total_cost_usd > 0 && (!top || a.total_cost_usd > top.total_cost_usd) ? a : top),
-    null,
-  );
-  const topDriver = topCostDriver && topCostDriver.cost > 0
-    ? { name: topCostDriver.name, cost: topCostDriver.cost }
-    : topDriverFallback
-      ? { name: stripAgentPrefix(topDriverFallback.agent_id), cost: topDriverFallback.total_cost_usd }
-      : null;
+  const displaySpend = rangeSpend;
+  const kpiTokens = rangeTokens;
+  // Burn rate = range spend over the window the daily ledger covers
+  // (daysForRange * 24h). With no spend a rate is meaningless → "—".
+  const burnRate = rangeSpend > 0 ? rangeSpend / (daysForRange * 24) : null;
+  const topDriver = useMemo(() => {
+    const top = (data?.costByAgent ?? []).reduce<AgentCostSummary | null>(
+      (t, a) => (a.total_cost_usd > 0 && (!t || a.total_cost_usd > t.total_cost_usd) ? a : t),
+      null,
+    );
+    return top ? { name: stripAgentPrefix(top.agent_id), cost: top.total_cost_usd } : null;
+  }, [data?.costByAgent]);
 
   // ── Render ──────────────────────────────────────────────────────────────────
 
@@ -524,7 +529,7 @@ export function Stats() {
     { key: "cpu", label: "CPU%", agg: `avg ${avgCpu.toFixed(1)}` },
     { key: "mem", label: "Mem MB", agg: `total ${totalMem >= 1024 ? `${(totalMem / 1024).toFixed(1)}G` : `${totalMem.toFixed(0)}M`}` },
     { key: "tokens", label: "Tokens", agg: fmtTokens(totalTokens) },
-    { key: "cost", label: "Cost", agg: fmtCost(timeRangeCost) },
+    { key: "cost", label: "Cost", agg: fmtCost(totalCost) },
   ];
 
   return (
@@ -698,30 +703,51 @@ export function Stats() {
         <Panel title="Model Usage (Tokens)">
           {tokensByModel.length === 0 ? <Empty msg="No model data" /> : (
             <ResponsiveContainer width="100%" height={200}>
-              <BarChart layout="vertical" data={tokensByModel.slice(0, 8).map(m => ({ name: trunc(m.name, 24), tokens: m.tokens }))} margin={{ top: 0, right: 8, left: 4, bottom: 0 }}>
+              <BarChart layout="vertical" data={tokensByModel} margin={{ top: 0, right: 8, left: 4, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--mycel-border)" horizontal={false} />
                 <XAxis type="number" tick={TICK_STYLE} {...AX} tickFormatter={(v: number) => fmtTokens(v)} />
                 <YAxis type="category" dataKey="name" tick={{ ...TICK_STYLE, fill: "var(--mycel-text)", fontSize: 9 }} {...AX} width={120} />
                 <Tooltip contentStyle={TT} formatter={(v) => [fmtTokens(Number(v ?? 0))]} />
                 <Bar dataKey="tokens" radius={[0, 3, 3, 0]}>
-                  {tokensByModel.slice(0, 8).map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                  {tokensByModel.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
           )}
         </Panel>
         <Panel title="Cache Efficiency">
-          {!hasCacheData ? <Empty msg="Cache data — coming soon" /> : (
-            <ResponsiveContainer width="100%" height={200}>
-              <AreaChart data={cacheChart} margin={{ top: 4, right: 8, left: -8, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--mycel-border)" vertical={false} />
-                <XAxis dataKey="time" tick={TICK_STYLE} {...AX} />
-                <YAxis tick={TICK_STYLE} {...AX} tickFormatter={(v: number) => fmtTokens(v)} />
-                <Tooltip contentStyle={TT} formatter={(v, n) => [fmtTokens(Number(v ?? 0)), n === "cache_read" ? "Cache Read" : "Cache Create"]} />
-                <Area type="monotone" dataKey="cache_read" name="Cache Read" stroke="#10B981" fill="#10B981" fillOpacity={0.20} strokeWidth={1.75} dot={false} />
-                <Area type="monotone" dataKey="cache_create" name="Cache Create" stroke="#F59E0B" fill="#F59E0B" fillOpacity={0.20} strokeWidth={1.75} dot={false} />
-              </AreaChart>
-            </ResponsiveContainer>
+          {!cacheStats.hasData ? <Empty msg="No cache data" /> : (
+            <div className="flex flex-col gap-3">
+              {/* Cache hit ratio headline + read/write token totals. The ledger
+                  reports only aggregate cache counts (no per-time series), so
+                  this is a summary rather than a time chart. */}
+              <div className="flex items-baseline gap-6 px-1">
+                <div>
+                  <div className="text-[10px] font-medium text-mycel-muted uppercase tracking-[0.08em]">Hit ratio</div>
+                  <div className="mt-0.5 text-2xl font-semibold tabular-nums text-mycel-accent">{(cacheStats.ratio * 100).toFixed(1)}%</div>
+                </div>
+                <div>
+                  <div className="text-[10px] font-medium text-mycel-muted uppercase tracking-[0.08em]">Cache read</div>
+                  <div className="mt-0.5 text-lg font-semibold tabular-nums text-mycel-text">{fmtTokens(cacheStats.read)}</div>
+                </div>
+                <div>
+                  <div className="text-[10px] font-medium text-mycel-muted uppercase tracking-[0.08em]">Cache write</div>
+                  <div className="mt-0.5 text-lg font-semibold tabular-nums text-mycel-text">{fmtTokens(cacheStats.write)}</div>
+                </div>
+              </div>
+              <ResponsiveContainer width="100%" height={120}>
+                <BarChart layout="vertical" data={cacheBar} margin={{ top: 0, right: 8, left: 4, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--mycel-border)" horizontal={false} />
+                  <XAxis type="number" tick={TICK_STYLE} {...AX} tickFormatter={(v: number) => fmtTokens(v)} />
+                  <YAxis type="category" dataKey="name" tick={{ ...TICK_STYLE, fill: "var(--mycel-text)", fontSize: 9 }} {...AX} width={60} />
+                  <Tooltip contentStyle={TT} formatter={(v) => [fmtTokens(Number(v ?? 0))]} />
+                  <Bar dataKey="tokens" radius={[0, 3, 3, 0]}>
+                    <Cell fill="#10B981" />
+                    <Cell fill="#F59E0B" />
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
           )}
         </Panel>
         <Panel title="Agent Token Breakdown">
@@ -924,52 +950,6 @@ function pivotNetOrDisk(metrics: AgentMetricTS[], kind: "net" | "disk") {
   return Array.from(buckets.values());
 }
 
-function pivotTokens(tokens: TokenMetricTS[]) {
-  const buckets = new Map<string, { time: string; input: number; output: number }>();
-  for (const t of tokens) {
-    const k = fmtTime(t.time);
-    const b = buckets.get(k) ?? { time: k, input: 0, output: 0 };
-    b.input += t.input_tokens;
-    b.output += t.output_tokens;
-    buckets.set(k, b);
-  }
-  return Array.from(buckets.values());
-}
-
-function pivotCostOverTime(tokens: TokenMetricTS[]) {
-  const buckets = new Map<string, { time: string; cost: number }>();
-  for (const t of tokens) {
-    const k = fmtTime(t.time);
-    const b = buckets.get(k) ?? { time: k, cost: 0 };
-    b.cost += calculateCost(t.model, t.input_tokens, t.output_tokens);
-    buckets.set(k, b);
-  }
-  return Array.from(buckets.values());
-}
-
-function pivotTokensByAgent(tokens: TokenMetricTS[]) {
-  const agents = new Map<string, { name: string; input: number; output: number; cost: number }>();
-  for (const t of tokens) {
-    const a = agents.get(t.agent_name) ?? { name: t.agent_name, input: 0, output: 0, cost: 0 };
-    a.input += t.input_tokens;
-    a.output += t.output_tokens;
-    a.cost += calculateCost(t.model, t.input_tokens, t.output_tokens);
-    agents.set(t.agent_name, a);
-  }
-  return Array.from(agents.values()).sort((a, b) => b.cost - a.cost);
-}
-
-function pivotTokensByModel(tokens: TokenMetricTS[]) {
-  const models = new Map<string, { name: string; tokens: number; cost: number }>();
-  for (const t of tokens) {
-    const m = models.get(t.model) ?? { name: t.model, tokens: 0, cost: 0 };
-    m.tokens += t.input_tokens + t.output_tokens;
-    m.cost += calculateCost(t.model, t.input_tokens, t.output_tokens);
-    models.set(t.model, m);
-  }
-  return Array.from(models.values()).sort((a, b) => b.cost - a.cost);
-}
-
 interface AgentRow { name: string; role: string; provider: string; state: string; cpu: number; mem: number; tokens: number; cost: number }
 
 function buildAgentTable(data: StatsData | null, sortKey: SortKey, sortAsc: boolean): AgentRow[] {
@@ -977,23 +957,25 @@ function buildAgentTable(data: StatsData | null, sortKey: SortKey, sortAsc: bool
   const latest = new Map<string, AgentMetricTS>();
   for (const m of data.agentCpu) { if (!isInfra(m.agent_name)) latest.set(m.agent_name, m); }
 
-  // Cost from time-range-filtered token metrics (not all-time costByAgent)
-  const costMap = new Map<string, number>();
-  for (const t of data.tokenMetrics) {
-    costMap.set(t.agent_name, (costMap.get(t.agent_name) ?? 0) + calculateCost(t.model, t.input_tokens, t.output_tokens));
+  // Per-agent tokens + cost come straight from the cost ledger. Ledger ids are
+  // namespaced ("bc-bc-zen-zebra") while the metrics agent_name is the bare
+  // name ("zen-zebra"), so key the lookup by stripAgentPrefix(agent_id).
+  const ledgerByName = new Map<string, { tokens: number; cost: number }>();
+  for (const a of data.costByAgent) {
+    ledgerByName.set(stripAgentPrefix(a.agent_id), { tokens: a.total_tokens, cost: a.total_cost_usd });
   }
-
-  const tokenMap = new Map<string, number>();
-  for (const t of data.tokenMetrics) tokenMap.set(t.agent_name, (tokenMap.get(t.agent_name) ?? 0) + t.input_tokens + t.output_tokens);
 
   const memLatest = new Map<string, number>();
   for (const m of data.agentMem) { if (!isInfra(m.agent_name)) memLatest.set(m.agent_name, m.mem_used_bytes / 1024 / 1024); }
 
-  const rows: AgentRow[] = Array.from(latest.values()).map(m => ({
-    name: m.agent_name, role: m.role, provider: m.tool || "unknown", state: m.state,
-    cpu: m.cpu_percent, mem: memLatest.get(m.agent_name) ?? 0,
-    tokens: tokenMap.get(m.agent_name) ?? 0, cost: costMap.get(m.agent_name) ?? 0,
-  }));
+  const rows: AgentRow[] = Array.from(latest.values()).map(m => {
+    const ledger = ledgerByName.get(m.agent_name);
+    return {
+      name: m.agent_name, role: m.role, provider: m.tool || "unknown", state: m.state,
+      cpu: m.cpu_percent, mem: memLatest.get(m.agent_name) ?? 0,
+      tokens: ledger?.tokens ?? 0, cost: ledger?.cost ?? 0,
+    };
+  });
 
   const dir = sortAsc ? 1 : -1;
   rows.sort((a, b) => {

@@ -1,12 +1,11 @@
 import { useCallback, useMemo, useState } from "react";
 import {
-  AreaChart, Area, BarChart, Bar, Cell,
+  AreaChart, Area,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
 import { api } from "../api/client";
-import type { Agent, AgentStatsSummary, AgentMetricTS, TokenMetricTS, ComputedStats } from "../api/client";
+import type { Agent, AgentStatsSummary, AgentMetricTS, ComputedStats } from "../api/client";
 import { usePolling } from "../hooks/usePolling";
-import { calculateCost } from "../views/Stats";
 import { Panel, fmtTime, fmtBytes, fmtTokens } from "./shared/stats-primitives";
 
 // ── Constants ────────────────────────────────────────────────────────────────────
@@ -50,7 +49,6 @@ const fmtCost = (v: number): string => {
   if (!isFinite(v)) return "$0.00";
   return formatCost(v);
 };
-const trunc = (s: string, n: number) => s.length > n ? s.slice(0, n) + "\u2026" : s;
 const fromParam = (seconds: number) => new Date(Date.now() - seconds * 1000).toISOString();
 
 // ── Primitives ───────────────────────────────────────────────────────────────────
@@ -73,7 +71,6 @@ interface TabData {
   cpu: AgentMetricTS[];
   mem: AgentMetricTS[];
   net: AgentMetricTS[];
-  tokens: TokenMetricTS[];
 }
 
 // ── Component ────────────────────────────────────────────────────────────────────
@@ -84,12 +81,11 @@ export function StatsTab({ agent }: { agent: Agent }) {
 
   const fetcher = useCallback(async (): Promise<TabData> => {
     const p = { from, agent: agent.name };
-    const [r0, r1, r2, r3, r4, r5] = await Promise.allSettled([
+    const [r0, r1, r2, r3, r4] = await Promise.allSettled([
       api.getAgentStatsSummary(agent.name, { from }),
       api.getAgentStats("cpu", p),
       api.getAgentStats("mem", p),
       api.getAgentStats("net", p),
-      api.getAgentTokenStats(p),
       api.getAgentComputedStats(agent.name),
     ]);
     return {
@@ -97,8 +93,7 @@ export function StatsTab({ agent }: { agent: Agent }) {
       cpu: r1.status === "fulfilled" ? (r1.value ?? []) : [],
       mem: r2.status === "fulfilled" ? (r2.value ?? []) : [],
       net: r3.status === "fulfilled" ? (r3.value ?? []) : [],
-      tokens: r4.status === "fulfilled" ? (r4.value ?? []) : [],
-      computed: r5.status === "fulfilled" ? r5.value : null,
+      computed: r4.status === "fulfilled" ? r4.value : null,
     };
   }, [agent.name, from]);
 
@@ -157,30 +152,6 @@ export function StatsTab({ agent }: { agent: Agent }) {
     [data?.net],
   );
 
-  const tokenChart = useMemo(() => {
-    const buckets = new Map<string, { time: string; input: number; output: number }>();
-    for (const t of data?.tokens ?? []) {
-      const k = fmtTime(t.time);
-      const b = buckets.get(k) ?? { time: k, input: 0, output: 0 };
-      b.input += t.input_tokens;
-      b.output += t.output_tokens;
-      buckets.set(k, b);
-    }
-    return Array.from(buckets.values());
-  }, [data?.tokens]);
-
-  const costBarData = useMemo(() =>
-    (s?.models ?? [])
-      .map(m => ({
-        name: trunc(m.model || "unknown", 24),
-        cost: parseFloat(calculateCost(m.model, m.input_tokens, m.output_tokens).toFixed(4)),
-      }))
-      .filter(d => d.cost > 0)
-      .sort((a, b) => b.cost - a.cost)
-      .slice(0, 8),
-    [s?.models],
-  );
-
   // Has any live data? Used to show a helpful banner when the stats store
   // is empty (e.g. TimescaleDB not configured, or agent never ran).
   const hasTimescaleData =
@@ -200,7 +171,6 @@ export function StatsTab({ agent }: { agent: Agent }) {
   const hasAnyData =
     hasTimescaleData ||
     hasComputedData ||
-    tokenChart.length > 0 ||
     totalIn > 0 ||
     totalOut > 0 ||
     totalCost > 0;
@@ -404,41 +374,25 @@ export function StatsTab({ agent }: { agent: Agent }) {
         </div>
       )}
 
-      {/* Row 3: Network I/O + Token Usage — only shown when data exists */}
-      {(netChart.length >= 2 || tokenChart.length >= 2) && (
+      {/* Row 3: Network I/O — only shown when data exists */}
+      {netChart.length >= 2 && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {netChart.length >= 2 && (
-            <Panel title="Network I/O">
-              <ResponsiveContainer width="100%" height={200}>
-                <AreaChart data={netChart} margin={{ top: 4, right: 8, left: -10, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--mycel-border)" vertical={false} />
-                  <XAxis dataKey="time" tick={TICK} {...AX} />
-                  <YAxis tick={TICK} {...AX} tickFormatter={(v: number) => fmtBytes(v)} />
-                  <Tooltip contentStyle={TT} formatter={(v) => [fmtBytes(Number(v ?? 0))]} />
-                  <Area type="monotone" dataKey="rx" name="RX" stroke="#10B981" fill="#10B981" fillOpacity={0.12} strokeWidth={1.5} dot={false} />
-                  <Area type="monotone" dataKey="tx" name="TX" stroke={ACCENT} fill={ACCENT} fillOpacity={0.12} strokeWidth={1.5} dot={false} />
-                </AreaChart>
-              </ResponsiveContainer>
-            </Panel>
-          )}
-          {tokenChart.length >= 2 && (
-            <Panel title="Token Usage">
-              <ResponsiveContainer width="100%" height={200}>
-                <AreaChart data={tokenChart} margin={{ top: 4, right: 8, left: -8, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--mycel-border)" vertical={false} />
-                  <XAxis dataKey="time" tick={TICK} {...AX} />
-                  <YAxis tick={TICK} {...AX} tickFormatter={(v: number) => fmtTokens(v)} />
-                  <Tooltip contentStyle={TT} formatter={(v, n) => [Number(v ?? 0).toLocaleString(), n === "input" ? "Input" : "Output"]} />
-                  <Area type="monotone" dataKey="input" name="Input" stroke="#3B82F6" fill="#3B82F6" fillOpacity={0.12} strokeWidth={1.5} stackId="1" dot={false} />
-                  <Area type="monotone" dataKey="output" name="Output" stroke={ACCENT} fill={ACCENT} fillOpacity={0.12} strokeWidth={1.5} stackId="1" dot={false} />
-                </AreaChart>
-              </ResponsiveContainer>
-            </Panel>
-          )}
+          <Panel title="Network I/O">
+            <ResponsiveContainer width="100%" height={200}>
+              <AreaChart data={netChart} margin={{ top: 4, right: 8, left: -10, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--mycel-border)" vertical={false} />
+                <XAxis dataKey="time" tick={TICK} {...AX} />
+                <YAxis tick={TICK} {...AX} tickFormatter={(v: number) => fmtBytes(v)} />
+                <Tooltip contentStyle={TT} formatter={(v) => [fmtBytes(Number(v ?? 0))]} />
+                <Area type="monotone" dataKey="rx" name="RX" stroke="#10B981" fill="#10B981" fillOpacity={0.12} strokeWidth={1.5} dot={false} />
+                <Area type="monotone" dataKey="tx" name="TX" stroke={ACCENT} fill={ACCENT} fillOpacity={0.12} strokeWidth={1.5} dot={false} />
+              </AreaChart>
+            </ResponsiveContainer>
+          </Panel>
         </div>
       )}
 
-      {/* Row 4: Cost by Model + I/O Summary — only shown when data exists */}
+      {/* Row 4: I/O Summary — only shown when data exists */}
       {(() => {
         const hasIoData = s && (
           (s.network?.rx_bytes ?? 0) > 0 ||
@@ -446,28 +400,10 @@ export function StatsTab({ agent }: { agent: Agent }) {
           (s.disk?.read_bytes ?? 0) > 0 ||
           (s.disk?.write_bytes ?? 0) > 0
         );
-        const showCost = costBarData.length > 0;
-        const showIo = hasIoData;
-        if (!showCost && !showIo) return null;
+        if (!hasIoData || !s) return null;
         return (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {showCost && (
-              <Panel title="Cost by Model">
-                <ResponsiveContainer width="100%" height={200}>
-                  <BarChart layout="vertical" data={costBarData} margin={{ top: 0, right: 8, left: 4, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="var(--mycel-border)" horizontal={false} />
-                    <XAxis type="number" tick={TICK} {...AX} tickFormatter={(v: number) => `$${v}`} />
-                    <YAxis type="category" dataKey="name" tick={{ ...TICK, fill: "var(--mycel-text)", fontSize: 9 }} {...AX} width={120} />
-                    <Tooltip contentStyle={TT} formatter={(v) => [`$${Number(v ?? 0).toFixed(4)}`]} />
-                    <Bar dataKey="cost" radius={[0, 3, 3, 0]}>
-                      {costBarData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </Panel>
-            )}
-            {showIo && s && (
-              <Panel title="I/O Summary">
+            <Panel title="I/O Summary">
                 <div className="grid grid-cols-2 gap-3 py-4">
                   <div className="text-center">
                     <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted">Net RX</p>
@@ -486,8 +422,7 @@ export function StatsTab({ agent }: { agent: Agent }) {
                     <p className="text-lg font-bold tabular-nums text-[#A855F7]">{fmtBytes(s.disk?.write_bytes ?? 0)}</p>
                   </div>
                 </div>
-              </Panel>
-            )}
+            </Panel>
           </div>
         );
       })()}
