@@ -211,14 +211,17 @@ describe("NotificationsHome", () => {
       expect(screen.getByText("Family Group")).toBeInTheDocument();
     });
 
-    // Apps strip: one card per app, connection state + reconnect where broken.
-    const waCard = screen.getByTestId("app-card-whatsapp");
-    expect(within(waCard).getByText("Connected")).toBeInTheDocument();
-    const slackCard = screen.getByTestId("app-card-slack");
-    expect(within(slackCard).getByText("Invalid credentials")).toBeInTheDocument();
-    expect(within(slackCard).getByRole("button", { name: "Reconnect" })).toBeInTheDocument();
+    // Apps strip: one compact pill per app. "Connected"/"N channels" text is
+    // dropped — the status dot + aria-label carry it. Broken apps show their
+    // reason inline and click straight through to reconnect.
+    const waPill = screen.getByTestId("app-pill-whatsapp");
+    expect(waPill).toHaveAttribute("aria-label", expect.stringContaining("connected"));
+    expect(within(waPill).queryByText("Connected")).not.toBeInTheDocument();
+    const slackPill = screen.getByTestId("app-pill-slack");
+    expect(within(slackPill).getByText("Invalid credentials")).toBeInTheDocument();
+    expect(slackPill).toHaveAttribute("aria-label", expect.stringContaining("reconnect"));
 
-    // Connect-an-app card reuses the existing setup flow.
+    // Connect pill reuses the existing setup flow.
     expect(screen.getByRole("button", { name: /Connect an app/ })).toBeInTheDocument();
 
     // Channel rows show resolved display names and counts.
@@ -301,5 +304,15 @@ describe("NotificationsHome", () => {
     });
     // Sender is cleaned of its platform prefix.
     expect(screen.getByText("Mom")).toBeInTheDocument();
+  });
+
+  it("links recent activity out to the full activity page", async () => {
+    mockRoutes();
+    renderHome();
+    await waitFor(() => {
+      expect(screen.getByText("Family Group")).toBeInTheDocument();
+    });
+    const viewAll = screen.getByRole("link", { name: /View all activity/i });
+    expect(viewAll).toHaveAttribute("href", "/notifications/activity");
   });
 });

@@ -16,7 +16,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { api } from "../../api/client";
 import type {
   ChannelMessage,
@@ -624,54 +624,59 @@ export function NotificationsHome() {
   return (
     <div className="h-full overflow-y-auto">
       <div className="p-6 pb-24 space-y-6">
-        {/* ── Apps strip ─────────────────────────────────────── */}
-        <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))" }}>
+        {/* ── Apps strip — compact pills ─────────────────────── */}
+        <div className="flex flex-wrap gap-2">
           {apps.map((app) => {
             const ago = app.lastActivity !== null ? formatRelative(app.lastActivity) : null;
+            const selected = appSel.has(app.key);
+            const isError = app.status === "error";
+            const name = app.botName ?? app.label;
+            const statusLabel =
+              app.status === "connected" ? "connected"
+                : app.status === "connecting" ? "connecting"
+                : app.status === "error" ? "disconnected"
+                : "idle";
+            // Icon carries the platform, so the label text is dropped — the
+            // aria-label restores platform + name + status for screen readers.
+            const aria = isError
+              ? `${app.label}${app.botName ? ` (${app.botName})` : ""} — ${app.reason ?? "disconnected"}, reconnect`
+              : `${app.label}${app.botName ? ` (${app.botName})` : ""} — ${statusLabel}${ago ? `, active ${ago}` : ""}`;
             return (
-              <div key={app.key} data-testid={`app-card-${app.key}`} className="rounded-lg border border-mycel-border bg-mycel-surface shadow-mycel-sm p-3 flex flex-col gap-1.5 min-w-0">
-                <div className="flex items-center gap-2 min-w-0">
-                  <AppIcon base={app.base} size={15} />
-                  <span className="truncate text-[13px] font-semibold text-mycel-text">{app.label}</span>
-                  {app.botName && (
-                    <span className="truncate text-[10.5px] text-mycel-muted">· {app.botName}</span>
-                  )}
-                  <span className="ml-auto shrink-0 flex items-center">
-                    <StatusDot status={app.status} title={app.status} />
-                  </span>
-                </div>
-                {app.status === "error" ? (
-                  <div className="flex items-center gap-2 min-w-0">
-                    <span className="truncate text-[11px] text-mycel-error">{app.reason}</span>
-                    <button
-                      type="button"
-                      onClick={() => { setSetupPlatform(app.base); }}
-                      className="ml-auto shrink-0 inline-flex items-center h-6 px-2 text-[11px] font-medium rounded-md border border-mycel-border text-mycel-text-2 hover:text-mycel-text hover:border-mycel-accent transition-colors"
-                    >
-                      Reconnect
-                    </button>
-                  </div>
-                ) : (
-                  <span className="text-[11px] text-mycel-muted">
-                    {app.status === "connected" ? "Connected" : app.status === "connecting" ? "Connecting…" : "Not connected"}
-                  </span>
-                )}
-                <span className="text-[11px] text-mycel-muted tabular-nums">
-                  {String(app.channelCount)} channel{app.channelCount === 1 ? "" : "s"}
-                  {ago ? ` · active ${ago}` : ""}
-                </span>
-              </div>
+              <button
+                key={app.key}
+                type="button"
+                data-testid={`app-pill-${app.key}`}
+                onClick={() => { if (isError) { setSetupPlatform(app.base); } else { toggleApp(app.key); } }}
+                aria-label={aria}
+                aria-pressed={selected}
+                title={aria}
+                className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm transition-colors ${
+                  selected
+                    ? "border-mycel-accent bg-mycel-surface-hover text-mycel-text"
+                    : "border-mycel-border bg-mycel-surface hover:bg-mycel-surface-hover text-mycel-text"
+                }`}
+              >
+                <StatusDot status={app.status} title={statusLabel} />
+                <AppIcon base={app.base} size={15} />
+                <span className="truncate max-w-[160px] font-medium">{name}</span>
+                {isError ? (
+                  <span className="truncate max-w-[180px] text-[12px] text-mycel-error">{app.reason}</span>
+                ) : ago ? (
+                  <span className="text-[12px] text-mycel-muted tabular-nums">{ago}</span>
+                ) : null}
+              </button>
             );
           })}
           <button
             type="button"
             onClick={() => { setChooserOpen(true); }}
-            className="rounded-lg border border-dashed border-mycel-border p-3 flex items-center justify-center gap-2 text-xs text-mycel-muted hover:text-mycel-text hover:border-mycel-accent transition-colors min-h-[72px]"
+            aria-label="Connect an app"
+            className="inline-flex items-center gap-1.5 rounded-full border border-dashed border-mycel-border bg-mycel-surface px-3 py-1.5 text-sm text-mycel-muted hover:text-mycel-text hover:border-mycel-accent hover:bg-mycel-surface-hover transition-colors"
           >
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden>
               <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
             </svg>
-            Connect an app
+            Connect
           </button>
         </div>
 
@@ -692,9 +697,12 @@ export function NotificationsHome() {
               return (
                 <section key={app.key} aria-label={`${app.label} channels`}>
                   <div className="flex items-center gap-2 mb-1.5">
+                    {/* Icon conveys the platform — the redundant platform word
+                        is dropped; the section aria-label keeps it for a11y. */}
                     <AppIcon base={app.base} size={13} />
                     <h3 className="text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted">
-                      {app.label}{app.botName ? ` · ${app.botName}` : ""}
+                      <span className="sr-only">{app.label}</span>
+                      {app.botName ? <span>{app.botName}</span> : null}
                     </h3>
                     <span className="text-[11px] text-mycel-muted tabular-nums">{chs.length}</span>
                   </div>
@@ -731,9 +739,14 @@ export function NotificationsHome() {
 
           {/* Right rail — recent activity across all channels */}
           <aside className="rounded-lg border border-mycel-border bg-mycel-surface overflow-hidden" aria-label="Recent activity">
-            <div className="px-3 py-2 border-b border-mycel-border">
+            <Link
+              to="/notifications/activity"
+              className="flex items-center gap-2 px-3 py-2 border-b border-mycel-border hover:bg-mycel-surface-hover transition-colors"
+              aria-label="View all activity"
+            >
               <h3 className="text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted">Recent activity</h3>
-            </div>
+              <span className="ml-auto text-[11px] font-medium text-mycel-accent">View all →</span>
+            </Link>
             <div className="divide-y divide-mycel-border">
               {recent.length === 0 && (
                 <div className="px-3 py-6 text-center text-xs text-mycel-muted">No messages yet</div>
