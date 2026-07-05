@@ -291,7 +291,7 @@ func TestAgentNoWorkspace(t *testing.T) {
 	}
 	defer func() { _ = os.Chdir(origDir) }()
 
-	// Clear BC_WORKSPACE to test directory-based workspace detection
+	// Clear MYCEL_WORKSPACE to test directory-based workspace detection
 	restoreEnv := clearWorkspaceEnv(t)
 	defer restoreEnv()
 

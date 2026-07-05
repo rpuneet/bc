@@ -65,7 +65,7 @@ The current React TUI bundle (`internal/cmd/tui-bundle/`) will be **deprecated**
 | Q1 | Should `bc up` require running bcd, or start it? | **Start it.** `bc up` is a lifecycle command (§1) — it writes `~/.bc/daemon.{pid,log,addr}` and begins the listener. |
 | Q2 | bcd-unreachable fallback for non-lifecycle commands? | **Clear error + hint.** `bc agent list` with bcd down exits non-zero with `bcd is not running — start it with 'bc up'`. Do not auto-start (surprising side effect) and do not serve from disk read-only (adds a second code path that can drift). |
 | Q3 | Does `--json` apply to `--help`? | **Yes.** `bc agent send --help --json` emits the JSON Schema for the subcommand. Useful for shell completion generators and documentation pipelines. |
-| Q4 | Does `bc tunnel` (#3000) piggyback on this? | **Yes.** `bc tunnel` exposes the same `/api/...` surface over the relay. A remote CLI connects by pointing `BC_DAEMON_ADDR` at the relay URL — no new protocol. |
+| Q4 | Does `bc tunnel` (#3000) piggyback on this? | **Yes.** `bc tunnel` exposes the same `/api/...` surface over the relay. A remote CLI connects by pointing `MYCEL_DAEMON_ADDR` at the relay URL — no new protocol. |
 | Q5 | Keep the React TUI bundle? | **Deprecate after parity.** Keep rendering the dashboard via the current bundle until the Go bubbletea path handles the live view; then drop the Node embed and reclaim ~3 MB from the binary. |
 
 ## Migration plan

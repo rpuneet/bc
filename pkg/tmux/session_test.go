@@ -1089,7 +1089,7 @@ func TestCreateSessionWithEnv_ValidKeys(t *testing.T) {
 		{"underscore and numbers", "_FOO_123_BAR"},
 		{"single letter", "X"},
 		{"single underscore", "_"},
-		{"path style", "BC_AGENT_WORKTREE"},
+		{"path style", "MYCEL_AGENT_WORKTREE"},
 	}
 
 	for _, tt := range tests {
@@ -1151,7 +1151,7 @@ func TestSetEnvironment_ValidKeys(t *testing.T) {
 		{"with underscore", "FOO_BAR"},
 		{"starts with underscore", "_FOO"},
 		{"with numbers", "FOO123"},
-		{"bc agent vars", "BC_AGENT_ID"},
+		{"bc agent vars", "MYCEL_AGENT_ID"},
 	}
 
 	for _, tt := range tests {

@@ -171,7 +171,7 @@ Status: DONE | PARTIAL | TODO | BROKEN.
 | 69 | 10 ws × 20 ag <60 s boot | mws item 117 | — | TODO | |
 | 70 | <20 MB per idle ws | mws item 118 | — | TODO | |
 | 71 | VS Code iframe sandbox/CSP | mws §10.4 ln 1059–1065 | `48b5cb2c` | PARTIAL | attrs/frame-src unverified (items 77,78) |
-| 72 | Deps loopback guard + BC_REMOTE bypass | mws §10.5, item 88 | — | TODO | |
+| 72 | Deps loopback guard + MYCEL_REMOTE bypass | mws §10.5, item 88 | — | TODO | |
 | 73 | Deps SSE logs pause/resume | mws item 84 | `522c306d` | PARTIAL | polling exists; SSE unverified |
 | 74 | bc-browser 409 + Deprecated badge | mws items 85,86 | `bc_browser.go` | PARTIAL | 409 + badge unverified |
 | 75 | Registry atomic write on SIGKILL | mws item 12 | `7ec66b52` | PARTIAL | test fixture missing |
@@ -192,7 +192,7 @@ Sizes: XS ≤ 30 min, S 1–2 h, M half-day, L day+.
 5. **(S)** Legacy URL shim `server/middleware/legacy_scope.go` with 301s + Deprecation/Sunset for `/live`, `/agents`, `/channels`, `/metrics`, `/tools`, `/workspace` (gap #24, covers #2999 items 23–36).
 6. **(S)** MCP SSE compat redirect `/_mcp/{agent}/sse` → `/_mcp/{wsId}/{agent}/sse` (gap #52, #2999 item 36).
 7. **(S)** Ripgrep search endpoint + debounce (gap #64, items 61–62).
-8. **(XS)** Deps Start/Stop loopback guard with `BC_REMOTE=1` bypass (gap #72).
+8. **(XS)** Deps Start/Stop loopback guard with `MYCEL_REMOTE=1` bypass (gap #72).
 9. **(XS)** bc-browser 409 on start + Deprecated badge (gap #74).
 10. **(M)** Run 122-item #2999 verification on macOS; post results as PR comment with screenshots.
 11. **(M)** Load/soak: 10 ws × 20 agents boot time; 1 h goroutine soak; memory (gaps #68–70). Defer if approved.
@@ -200,7 +200,7 @@ Sizes: XS ≤ 30 min, S 1–2 h, M half-day, L day+.
 13. **(XS)** Rebase/squash to reduce file count, re-request CodeRabbit.
 14. **(XS)** Await Puneet's explicit "merge it" (memory rule).
 
-Items likely missing from current TaskList #1–#43: #4 GitHub OAuth, #5 legacy URL shim, #6 MCP compat redirect, #8 BC_REMOTE guard, #9 bc-browser 409+badge, #10 full verification run, #11 load/soak, #12 Layout-v2 deferral note.
+Items likely missing from current TaskList #1–#43: #4 GitHub OAuth, #5 legacy URL shim, #6 MCP compat redirect, #8 MYCEL_REMOTE guard, #9 bc-browser 409+badge, #10 full verification run, #11 load/soak, #12 Layout-v2 deferral note.
 
 ---
 

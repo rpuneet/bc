@@ -144,7 +144,7 @@ function ServerSection({ data, onChange }: { data: Record<string, unknown>; onCh
   const s = (data.server ?? {}) as Record<string, unknown>;
   const configuredPort = Number(s.port ?? 0);
   // The Settings page renders the *configured* port from settings.json,
-  // but the daemon may be running on an override (BC_BCD_ADDR, --addr flag,
+  // but the daemon may be running on an override (MYCEL_DAEMON_ADDR, --addr flag,
   // or the legacy 9374 default if neither is set). Surface the actual
   // listen port from the browser's connection so users see the live
   // value alongside the editable config value.

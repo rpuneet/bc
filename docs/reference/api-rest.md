@@ -411,7 +411,7 @@ Repos the agents can be bound to. The server itself is anchored at one repo.
 
 ## Dependencies
 
-Optional service dependencies managed by the server (e.g. database, code server, browser containers). Mutating endpoints are **loopback-only** unless `BC_REMOTE=1` is set.
+Optional service dependencies managed by the server (e.g. database, code server, browser containers). Mutating endpoints are **loopback-only** unless `MYCEL_REMOTE=1` is set.
 
 | Method | Path | Description |
 |--------|------|-------------|

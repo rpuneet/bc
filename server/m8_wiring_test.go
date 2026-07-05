@@ -18,7 +18,7 @@ import (
 func TestM8WiringTemplatesGlobalOverride(t *testing.T) {
 	bcHome := t.TempDir()
 	t.Setenv("MYCEL_HOME", bcHome)
-	t.Setenv("BC_SECRET_PASSPHRASE", "unit-test")
+	t.Setenv("MYCEL_SECRET_PASSPHRASE", "unit-test")
 
 	// Seed one user-global template directly on disk.
 	globalDir := filepath.Join(bcHome, "templates")
@@ -87,7 +87,7 @@ func TestM8WiringTemplatesGlobalOverride(t *testing.T) {
 func TestM8WiringSecretsPreferGlobalVault(t *testing.T) {
 	bcHome := t.TempDir()
 	t.Setenv("MYCEL_HOME", bcHome)
-	t.Setenv("BC_SECRET_PASSPHRASE", "unit-test")
+	t.Setenv("MYCEL_SECRET_PASSPHRASE", "unit-test")
 
 	vault, err := bcsecret.OpenVaultFile(filepath.Join(bcHome, "secrets.vault"), "unit-test")
 	if err != nil {
@@ -124,7 +124,7 @@ func TestM8WiringSecretsPreferGlobalVault(t *testing.T) {
 func TestM8WiringMCPGlobalView(t *testing.T) {
 	bcHome := t.TempDir()
 	t.Setenv("MYCEL_HOME", bcHome)
-	t.Setenv("BC_SECRET_PASSPHRASE", "unit-test")
+	t.Setenv("MYCEL_SECRET_PASSPHRASE", "unit-test")
 
 	mcpPath := filepath.Join(bcHome, "mcps.json")
 	gs := bcmcp.NewGlobalStore(mcpPath)
@@ -165,7 +165,7 @@ func TestM8WiringMCPGlobalView(t *testing.T) {
 func TestM8WiringCostsGlobalLedger(t *testing.T) {
 	bcHome := t.TempDir()
 	t.Setenv("MYCEL_HOME", bcHome)
-	t.Setenv("BC_SECRET_PASSPHRASE", "unit-test")
+	t.Setenv("MYCEL_SECRET_PASSPHRASE", "unit-test")
 
 	costs, err := bccost.OpenGlobalStore(filepath.Join(bcHome, "costs.db"))
 	if err != nil {

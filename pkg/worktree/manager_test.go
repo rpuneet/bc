@@ -40,7 +40,7 @@ func setupTestRepo(t *testing.T) string {
 }
 
 func TestNewManager(t *testing.T) {
-	t.Setenv("BC_HOST_WORKSPACE", "")
+	t.Setenv("MYCEL_HOST_WORKSPACE", "")
 
 	dir := t.TempDir()
 	m := NewManager(dir)
@@ -60,7 +60,7 @@ func TestNewManager(t *testing.T) {
 }
 
 func TestNewManagerWithEnv(t *testing.T) {
-	t.Setenv("BC_HOST_WORKSPACE", "my-project")
+	t.Setenv("MYCEL_HOST_WORKSPACE", "my-project")
 
 	m := NewManager(t.TempDir())
 
@@ -70,7 +70,7 @@ func TestNewManagerWithEnv(t *testing.T) {
 }
 
 func TestName(t *testing.T) {
-	t.Setenv("BC_HOST_WORKSPACE", "myrepo")
+	t.Setenv("MYCEL_HOST_WORKSPACE", "myrepo")
 
 	m := NewManager("/tmp/myrepo")
 

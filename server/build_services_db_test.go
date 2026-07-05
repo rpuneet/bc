@@ -24,7 +24,7 @@ import (
 func TestBuildServices_SharedGlobalDB(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("MYCEL_HOME", home)
-	t.Setenv("BC_SECRET_PASSPHRASE", "unit-test")
+	t.Setenv("MYCEL_SECRET_PASSPHRASE", "unit-test")
 	t.Cleanup(func() { _ = bcdb.CloseGlobal() })
 	ctx := context.Background()
 
@@ -116,7 +116,7 @@ func TestBuildServices_SharedGlobalDB(t *testing.T) {
 func TestBuildServices_LazyGlobalDB(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("MYCEL_HOME", home)
-	t.Setenv("BC_SECRET_PASSPHRASE", "unit-test")
+	t.Setenv("MYCEL_SECRET_PASSPHRASE", "unit-test")
 	t.Cleanup(func() { _ = bcdb.CloseGlobal() })
 	ctx := context.Background()
 

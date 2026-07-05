@@ -43,7 +43,7 @@ forced to:
 
 - Run one `bcd` per workspace, each on its own port
 - Switch browser tabs or shells to change context
-- Manually juggle `BC_WORKSPACE` / `cd` into the right folder
+- Manually juggle `MYCEL_WORKSPACE` / `cd` into the right folder
 
 This friction compounds with every new project. It also blocks several features
 that naturally cross the workspace boundary, such as:
@@ -1069,7 +1069,7 @@ Unit tests in `pkg/files/safepath_test.go` cover every case with
 ### 10.5 Dependencies manager
 
 - `Start` and `Stop` endpoints require a local-only check (bcd refuses on
-  non-loopback origins unless `BC_REMOTE=1` is set).
+  non-loopback origins unless `MYCEL_REMOTE=1` is set).
 - Docker socket access is gated; a missing Docker returns `503` with a clear
   message instead of crashing.
 
@@ -1300,7 +1300,7 @@ regressions introduced by this proposal.
 - [ ] 85. bc-browser is visible but marked "Deprecated"
 - [ ] 86. bc-browser start returns 409 with a clear reason
 - [ ] 87. Missing Docker returns 503 from `/api/deps/bc-db/start`
-- [ ] 88. Non-loopback request to `/start` is refused unless `BC_REMOTE=1`
+- [ ] 88. Non-loopback request to `/start` is refused unless `MYCEL_REMOTE=1`
 - [ ] 89. Per-workspace code-server endpoint reports the correct port
 - [ ] 90. Settings → Dependencies page reflects live status via polling
 

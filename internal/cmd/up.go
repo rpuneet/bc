@@ -66,7 +66,7 @@ func init() {
 	upCmd.Flags().StringVar(&upWorkspace, "workspace", "", "Workspace directory (defaults to current workspace)")
 	upCmd.Flags().BoolVarP(&upDaemon, "daemon", "d", false, "Run as background daemon")
 	upCmd.Flags().StringVar(&upCORS, "cors-origin", "*", "CORS allowed origin")
-	upCmd.Flags().StringVar(&upAPIKey, "api-key", os.Getenv("BC_API_KEY"), "API key for Bearer token auth (or set BC_API_KEY)")
+	upCmd.Flags().StringVar(&upAPIKey, "api-key", os.Getenv("MYCEL_API_KEY"), "API key for Bearer token auth (or set MYCEL_API_KEY)")
 	rootCmd.AddCommand(upCmd)
 }
 
@@ -126,15 +126,15 @@ func runUp(cmd *cobra.Command, _ []string) error {
 	// for TimescaleDB storage. SQLite (the default) needs nothing.
 	maybeBootstrapTimescale(wsRoot)
 
-	// Set BC_BCD_ADDR so agents inherit the correct server address for hooks.
+	// Set MYCEL_DAEMON_ADDR so agents inherit the correct server address for hooks.
 	// Without this, agents default to :9374 even when bcd runs on a different port.
 	bcdAddr := "http://" + upAddr
-	if err := os.Setenv("BC_BCD_ADDR", bcdAddr); err == nil {
-		fmt.Printf("  BC_BCD_ADDR: %s\n", bcdAddr)
+	if err := os.Setenv("MYCEL_DAEMON_ADDR", bcdAddr); err == nil {
+		fmt.Printf("  MYCEL_DAEMON_ADDR: %s\n", bcdAddr)
 	}
 
 	// Publish the listen address at ~/.mycel/daemon.addr so the mycel CLI and
-	// agents can find the daemon without BC_DAEMON_ADDR when it runs on
+	// agents can find the daemon without MYCEL_DAEMON_ADDR when it runs on
 	// a non-default port. Best-effort — failure to write is not fatal,
 	// but each failure mode must warn so users aren't silently routed
 	// back to the hardcoded :9374 default (the exact bug #43 fixed).
@@ -153,7 +153,7 @@ func runUp(cmd *cobra.Command, _ []string) error {
 // single-tenant and only needs MycelHome to boot; the repo is the default
 // that new agents bind to:
 //
-//  1. BC_WORKSPACE or a known workspace enclosing cwd
+//  1. MYCEL_WORKSPACE or a known workspace enclosing cwd
 //  2. the enclosing git repo root — adopted as the anchor repo
 //     (the server runs workspace.Init, which is idempotent)
 //  3. "" — boot against MycelHome only; new agents must name a repo

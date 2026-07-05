@@ -1243,23 +1243,23 @@ func (m *Manager) startAgent(ctx context.Context, name string, opts SpawnOptions
 		worktreeName = filepath.Base(existing.WorktreeDir)
 	}
 	env := map[string]string{
-		"BC_AGENT_ID":      name,
-		"BC_AGENT_ROLE":    string(existing.Role),
-		"BC_WORKSPACE":     wsPath,
-		"BC_AGENT_RUNTIME": agentRuntime,
-		"BC_BCD_ADDR":      bcdAddrForRuntime(agentRuntime),
-		"BC_WORKTREE_NAME": worktreeName,
+		"MYCEL_AGENT_ID":      name,
+		"MYCEL_AGENT_ROLE":    string(existing.Role),
+		"MYCEL_WORKSPACE":     wsPath,
+		"MYCEL_AGENT_RUNTIME": agentRuntime,
+		"MYCEL_DAEMON_ADDR":   daemonAddrForRuntime(agentRuntime),
+		"MYCEL_WORKTREE_NAME": worktreeName,
 	}
 	if toolName != "" {
-		env["BC_AGENT_TOOL"] = toolName
+		env["MYCEL_AGENT_TOOL"] = toolName
 	}
 	if existing.ParentID != "" {
-		env["BC_PARENT_ID"] = existing.ParentID
+		env["MYCEL_PARENT_ID"] = existing.ParentID
 	}
-	// Pass through BC_API_KEY from the host environment so agents inside
+	// Pass through MYCEL_API_KEY from the host environment so agents inside
 	// containers can authenticate back to bcd when --api-key is enabled.
-	if apiKey := os.Getenv("BC_API_KEY"); apiKey != "" {
-		env["BC_API_KEY"] = apiKey
+	if apiKey := os.Getenv("MYCEL_API_KEY"); apiKey != "" {
+		env["MYCEL_API_KEY"] = apiKey
 	}
 	injectEnv(env, wsPath, name, existing.EnvFile, existing.Env)
 	injectGatewayEnv(env, m.gatewayConfig)
@@ -1482,23 +1482,23 @@ func (m *Manager) createAgent(ctx context.Context, opts SpawnOptions) (*Agent, e
 
 	// Build env vars so the spawned process sees them immediately
 	env := map[string]string{
-		"BC_AGENT_ID":      name,
-		"BC_AGENT_ROLE":    string(role),
-		"BC_WORKSPACE":     wsPath,
-		"BC_AGENT_RUNTIME": agentRuntime,
-		"BC_BCD_ADDR":      bcdAddrForRuntime(agentRuntime),
-		"BC_WORKTREE_NAME": wtMgr.Name(name),
+		"MYCEL_AGENT_ID":      name,
+		"MYCEL_AGENT_ROLE":    string(role),
+		"MYCEL_WORKSPACE":     wsPath,
+		"MYCEL_AGENT_RUNTIME": agentRuntime,
+		"MYCEL_DAEMON_ADDR":   daemonAddrForRuntime(agentRuntime),
+		"MYCEL_WORKTREE_NAME": wtMgr.Name(name),
 	}
 	if effectiveTool != "" {
-		env["BC_AGENT_TOOL"] = effectiveTool
+		env["MYCEL_AGENT_TOOL"] = effectiveTool
 	}
 	if parentID != "" {
-		env["BC_PARENT_ID"] = parentID
+		env["MYCEL_PARENT_ID"] = parentID
 	}
-	// Pass through BC_API_KEY from the host environment so agents inside
+	// Pass through MYCEL_API_KEY from the host environment so agents inside
 	// containers can authenticate back to bcd when --api-key is enabled.
-	if apiKey := os.Getenv("BC_API_KEY"); apiKey != "" {
-		env["BC_API_KEY"] = apiKey
+	if apiKey := os.Getenv("MYCEL_API_KEY"); apiKey != "" {
+		env["MYCEL_API_KEY"] = apiKey
 	}
 	injectEnv(env, wsPath, name, opts.EnvFile, opts.Env)
 	injectGatewayEnv(env, m.gatewayConfig)
@@ -3045,12 +3045,12 @@ func (m *Manager) enforceRootSingleton(_ string) error {
 	return nil
 }
 
-// bcdAddrForRuntime returns the bcd server address for the given runtime.
+// daemonAddrForRuntime returns the bcd server address for the given runtime.
 // Docker containers reach the host via host.docker.internal.
-// If BC_BCD_ADDR is set in the environment, it is used as the base address
+// If MYCEL_DAEMON_ADDR is set in the environment, it is used as the base address
 // (with host.docker.internal substituted for Docker runtimes).
-func bcdAddrForRuntime(rt string) string {
-	if addr := os.Getenv("BC_BCD_ADDR"); addr != "" {
+func daemonAddrForRuntime(rt string) string {
+	if addr := os.Getenv("MYCEL_DAEMON_ADDR"); addr != "" {
 		// Normalize empty hostname: "http://:8080" → "http://127.0.0.1:8080"
 		if u, parseErr := url.Parse(addr); parseErr == nil && u.Hostname() == "" && u.Port() != "" {
 			u.Host = net.JoinHostPort("127.0.0.1", u.Port())
@@ -3072,7 +3072,7 @@ func bcdAddrForRuntime(rt string) string {
 // injectEnv merges environment variables from the agent env file and the
 // agent's configured env map, then resolves ${secret:NAME} references.
 // Merge order: env file first, then userEnv (explicit config wins over the
-// file), with BC_* system vars always protected via mergeUserEnv.
+// file), with MYCEL_* system vars always protected via mergeUserEnv.
 func injectEnv(env map[string]string, workspacePath, agentName, envFile string, userEnv map[string]string) {
 	// Agent env file
 	if envFile != "" {
@@ -3085,11 +3085,11 @@ func injectEnv(env map[string]string, workspacePath, agentName, envFile string, 
 }
 
 // mergeUserEnv merges user-configured env vars into env. Keys starting
-// with "BC_" are reserved for the system (BC_AGENT_ID, BC_WORKSPACE, …)
+// with "MYCEL_" are reserved for the system (MYCEL_AGENT_ID, MYCEL_WORKSPACE, …)
 // and are skipped with a warning so user config can never clobber them.
 func mergeUserEnv(env, userEnv map[string]string, agentName string) {
 	for k, v := range userEnv {
-		if strings.HasPrefix(k, "BC_") {
+		if strings.HasPrefix(k, "MYCEL_") {
 			log.Warn("skipping reserved env var from agent config", "agent", agentName, "key", k)
 			continue
 		}
@@ -3107,10 +3107,10 @@ func gatewayPromptInstructions(cfg *workspace.GatewaysConfig) string {
 
 	var lines []string
 	if cfg.Slack != nil && cfg.Slack.Enabled && cfg.Slack.BotToken != "" {
-		lines = append(lines, "- SLACK_BOT_TOKEN: Use Slack API (`chat.postMessage`, etc.). Set `username` param to your agent name (BC_AGENT_ID env var) for identity.")
+		lines = append(lines, "- SLACK_BOT_TOKEN: Use Slack API (`chat.postMessage`, etc.). Set `username` param to your agent name (MYCEL_AGENT_ID env var) for identity.")
 	}
 	if cfg.Discord != nil && cfg.Discord.Enabled && cfg.Discord.BotToken != "" {
-		lines = append(lines, "- DISCORD_BOT_TOKEN: Use Discord API. Set `username` param to your agent name (BC_AGENT_ID env var) for identity.")
+		lines = append(lines, "- DISCORD_BOT_TOKEN: Use Discord API. Set `username` param to your agent name (MYCEL_AGENT_ID env var) for identity.")
 	}
 	for label, tc := range cfg.Telegrams {
 		if tc.Enabled && tc.BotToken != "" {
@@ -3378,7 +3378,7 @@ func gatewayPromptInstructions(cfg *workspace.GatewaysConfig) string {
 		sb.WriteString(l)
 		sb.WriteString("\n")
 	}
-	sb.WriteString("\nYour agent name is available as the `BC_AGENT_ID` environment variable.\n")
+	sb.WriteString("\nYour agent name is available as the `MYCEL_AGENT_ID` environment variable.\n")
 	return sb.String()
 }
 
@@ -3732,9 +3732,9 @@ func parseEnvFile(env map[string]string, path string) {
 			continue
 		}
 		key := strings.TrimSpace(k)
-		// The BC_* namespace is reserved for the system — an env file
-		// must not clobber BC_AGENT_ID etc. any more than agent config.
-		if strings.HasPrefix(key, "BC_") {
+		// The MYCEL_* namespace is reserved for the system — an env file
+		// must not clobber MYCEL_AGENT_ID etc. any more than agent config.
+		if strings.HasPrefix(key, "MYCEL_") {
 			log.Warn("skipping reserved env var from env file", "path", path, "key", key)
 			continue
 		}

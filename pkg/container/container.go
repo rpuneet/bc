@@ -103,7 +103,7 @@ type Backend struct {
 	prefix            string
 	workspaceHash     string
 	workspacePath     string
-	hostWorkspacePath string // host path for Docker-in-Docker mounts (from BC_HOST_WORKSPACE)
+	hostWorkspacePath string // host path for Docker-in-Docker mounts (from MYCEL_HOST_WORKSPACE)
 	cfg               Config
 	mu                sync.RWMutex
 }
@@ -120,9 +120,9 @@ func NewBackend(cfg Config, prefix, workspacePath string, registry *provider.Reg
 	}
 
 	// Use host workspace path for volume mounts in Docker-in-Docker setups.
-	// BC_HOST_WORKSPACE is set by `bc up` when the daemon runs in Docker.
+	// MYCEL_HOST_WORKSPACE is set by `bc up` when the daemon runs in Docker.
 	hostPath := workspacePath
-	if hp := os.Getenv("BC_HOST_WORKSPACE"); hp != "" {
+	if hp := os.Getenv("MYCEL_HOST_WORKSPACE"); hp != "" {
 		hostPath = hp
 	}
 
@@ -183,14 +183,14 @@ func (b *Backend) containerAgentDir(agentName string) string {
 
 // hostAgentDir returns the host path that maps to the agent's state
 // directory, used on the -v mount flag. For bcd running on the host this
-// mirrors containerAgentDir; for Docker-in-Docker setups the BC_HOST_BC_HOME
+// mirrors containerAgentDir; for Docker-in-Docker setups the MYCEL_HOST_HOME
 // env var (if set) translates the container's ~/.mycel/ to the host's.
 func (b *Backend) hostAgentDir(agentName, hostRoot string) string {
 	containerDir := b.containerAgentDir(agentName)
-	// Only translate when the path is under BC_HOME (the M11 global dir).
+	// Only translate when the path is under MYCEL_HOME (the M11 global dir).
 	bcHome, err := workspace.MycelHome()
 	if err == nil && strings.HasPrefix(containerDir, bcHome+string(filepath.Separator)) {
-		if hostBCHome := os.Getenv("BC_HOST_BC_HOME"); hostBCHome != "" {
+		if hostBCHome := os.Getenv("MYCEL_HOST_HOME"); hostBCHome != "" {
 			rel := strings.TrimPrefix(containerDir, bcHome)
 			return filepath.Join(hostBCHome, rel)
 		}
@@ -207,7 +207,7 @@ func (b *Backend) hostAgentDir(agentName, hostRoot string) string {
 // resolveRepoMount picks the repository mounted at /workspace and the
 // container working directory for an agent session.
 //
-// The agent's repo arrives via env["BC_WORKSPACE"], which the agent
+// The agent's repo arrives via env["MYCEL_WORKSPACE"], which the agent
 // manager sets from Agent.Repo (mirroring worktreeManagerFor on the
 // tmux path). An empty value — or the boot workspace path itself —
 // means the boot repo. Any other repo is mounted instead, so agents
@@ -218,7 +218,7 @@ func (b *Backend) hostAgentDir(agentName, hostRoot string) string {
 // workdir (for -w). dir is the agent's worktree as bcd sees it; when
 // it lives under the mounted repo, the workdir points at it.
 func (b *Backend) resolveRepoMount(dir string, env map[string]string) (hostRepo, workdir string, err error) {
-	// Boot repo defaults. BC_HOST_WORKSPACE (Docker-in-Docker) only
+	// Boot repo defaults. MYCEL_HOST_WORKSPACE (Docker-in-Docker) only
 	// translates the boot workspace path.
 	repoRoot := b.workspacePath
 	hostRepo = b.hostWorkspacePath
@@ -226,7 +226,7 @@ func (b *Backend) resolveRepoMount(dir string, env map[string]string) (hostRepo,
 		hostRepo = b.workspacePath
 	}
 
-	if agentRepo := env["BC_WORKSPACE"]; agentRepo != "" && filepath.Clean(agentRepo) != filepath.Clean(b.workspacePath) {
+	if agentRepo := env["MYCEL_WORKSPACE"]; agentRepo != "" && filepath.Clean(agentRepo) != filepath.Clean(b.workspacePath) {
 		// The repo value originates from the create-agent API — require
 		// an absolute, traversal-free path before it becomes a -v mount
 		// source. Like validateMount, ".." is checked on the raw value
@@ -236,7 +236,7 @@ func (b *Backend) resolveRepoMount(dir string, env map[string]string) (hostRepo,
 			return "", "", fmt.Errorf("agent repo %q must be an absolute path without traversal", agentRepo)
 		}
 		repoRoot = cleaned
-		// Cross-repo paths are host paths already; no BC_HOST_WORKSPACE
+		// Cross-repo paths are host paths already; no MYCEL_HOST_WORKSPACE
 		// translation applies.
 		hostRepo = cleaned
 	}
@@ -327,12 +327,12 @@ func (b *Backend) CreateSessionWithCommand(ctx context.Context, name, dir, comma
 // CreateSessionWithEnv creates a fully isolated Docker container for an agent.
 //
 // Mounts:
-//   - agent's repo → /workspace (project code; env BC_WORKSPACE, boot workspace when unset)
+//   - agent's repo → /workspace (project code; env MYCEL_WORKSPACE, boot workspace when unset)
 //   - .bc/volumes/<agent>/.claude → /home/agent/.claude (persistent Claude state)
 //   - bc-shared-tmp → /tmp/bc-shared (shared volume for cross-container file exchange)
 //
 // Env vars:
-//   - From the env map (BC_AGENT_ID, BC_AGENT_ROLE, role secrets via bc env)
+//   - From the env map (MYCEL_AGENT_ID, MYCEL_AGENT_ROLE, role secrets via bc env)
 //
 // Everything else (auth, plugins, MCP, settings) is managed by Claude inside
 // the container and persists in the .claude volume across restarts.
@@ -355,13 +355,13 @@ func (b *Backend) CreateSessionWithEnv(ctx context.Context, name, dir, command s
 	// Resolve image once per session — avoids double docker probe
 	// (validation below + docker run selection at the end).
 	image := b.cfg.Image
-	if toolName, ok := env["BC_AGENT_TOOL"]; ok && toolName != "" {
+	if toolName, ok := env["MYCEL_AGENT_TOOL"]; ok && toolName != "" {
 		image = b.imageForTool(toolName)
 	}
 
 	// Validate tool/image consistency — catch mismatches like running "gemini"
 	// command inside a "bc-agent-claude" image (Exit 127).
-	if toolName, ok := env["BC_AGENT_TOOL"]; ok && toolName != "" {
+	if toolName, ok := env["MYCEL_AGENT_TOOL"]; ok && toolName != "" {
 		cmdBin := strings.Fields(command)
 		if len(cmdBin) > 0 {
 			bin := cmdBin[0]
@@ -421,7 +421,7 @@ func (b *Backend) CreateSessionWithEnv(ctx context.Context, name, dir, command s
 	// Mount 1: The agent's repo at /workspace.
 	// The full repo is mounted so git worktrees resolve naturally
 	// (worktree .git files can traverse back to .git/ for objects/refs).
-	// Agents bound to a different repo (env BC_WORKSPACE) get that repo
+	// Agents bound to a different repo (env MYCEL_WORKSPACE) get that repo
 	// mounted — never the boot repo. If the agent has an isolated
 	// worktree under the repo, we set -w to that subdirectory.
 	hostRepo, containerWorkdir, mountErr := b.resolveRepoMount(dir, env)
@@ -445,7 +445,7 @@ func (b *Backend) CreateSessionWithEnv(ctx context.Context, name, dir, command s
 	// Agent state lives at <MycelHome>/agents/<name>/ (flat layout);
 	// containerAgentDir keeps pre-migration agents on their older
 	// per-workspace dirs. The host path may differ when bcd runs in
-	// Docker-in-Docker; honor BC_HOST_BC_HOME (if set) for the
+	// Docker-in-Docker; honor MYCEL_HOST_HOME (if set) for the
 	// host-side mycel home.
 	localAgentDir := b.containerAgentDir(name)
 	hostAgentDir := b.hostAgentDir(name, hostRoot)
@@ -488,7 +488,7 @@ func (b *Backend) CreateSessionWithEnv(ctx context.Context, name, dir, command s
 	}
 
 	// Environment variables — only from the env map.
-	// The env map contains BC_* identity vars and role secrets resolved
+	// The env map contains MYCEL_* identity vars and role secrets resolved
 	// from bc env by the agent manager's injectEnv().
 	for k, v := range env {
 		if !validEnvVarName.MatchString(k) {

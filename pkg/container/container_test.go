@@ -284,7 +284,7 @@ func TestCreateSessionWithEnv_ToolImageMismatch(t *testing.T) {
 	}
 
 	// Command starts with "gemini" but tool resolves to claude image
-	env := map[string]string{"BC_AGENT_TOOL": "claude"}
+	env := map[string]string{"MYCEL_AGENT_TOOL": "claude"}
 	err := b.CreateSessionWithEnv(context.Background(), "test-agent", dir, "gemini --some-flag", env)
 	if err == nil {
 		t.Fatal("expected error for tool/image mismatch")
@@ -311,7 +311,7 @@ func TestCreateSessionWithEnv_ToolImageMatch(t *testing.T) {
 
 	// Command starts with "claude" matching the claude image — should pass validation
 	// (will fail at docker run since docker isn't available, but that's expected)
-	env := map[string]string{"BC_AGENT_TOOL": "claude"}
+	env := map[string]string{"MYCEL_AGENT_TOOL": "claude"}
 	err := b.CreateSessionWithEnv(context.Background(), "test-agent", dir, "claude --tmux", env)
 	// Should NOT fail with tool/image mismatch — may fail with docker error
 	if err != nil && strings.Contains(err.Error(), "tool/image mismatch") {
@@ -339,7 +339,7 @@ func TestCreateSessionWithEnv_InvalidEnvVar(t *testing.T) {
 	}{
 		{
 			name:    "valid env var",
-			env:     map[string]string{"BC_AGENT_ID": "alice"},
+			env:     map[string]string{"MYCEL_AGENT_ID": "alice"},
 			wantErr: false,
 		},
 		{
@@ -401,7 +401,7 @@ func TestCreateSessionWithEnv_InvalidEnvVar(t *testing.T) {
 }
 
 func TestValidEnvVarNameRegex(t *testing.T) {
-	valid := []string{"FOO", "BAR_BAZ", "_PRIVATE", "a", "A1B2", "BC_AGENT_ID"}
+	valid := []string{"FOO", "BAR_BAZ", "_PRIVATE", "a", "A1B2", "MYCEL_AGENT_ID"}
 	for _, name := range valid {
 		if !validEnvVarName.MatchString(name) {
 			t.Errorf("validEnvVarName rejected valid name %q", name)
@@ -580,14 +580,14 @@ func TestResolveRepoMount(t *testing.T) {
 			wantWorkdir: "/workspace",
 		},
 		{
-			name:        "BC_WORKSPACE equal to boot repo behaves like boot",
-			env:         map[string]string{"BC_WORKSPACE": boot},
+			name:        "MYCEL_WORKSPACE equal to boot repo behaves like boot",
+			env:         map[string]string{"MYCEL_WORKSPACE": boot},
 			dir:         boot + "/.bc/agents/zed/wt",
 			wantRepo:    boot,
 			wantWorkdir: "/workspace/.bc/agents/zed/wt",
 		},
 		{
-			name:        "boot repo honors BC_HOST_WORKSPACE translation",
+			name:        "boot repo honors MYCEL_HOST_WORKSPACE translation",
 			hostWS:      "/real/host/boot-repo",
 			dir:         boot,
 			wantRepo:    "/real/host/boot-repo",
@@ -595,21 +595,21 @@ func TestResolveRepoMount(t *testing.T) {
 		},
 		{
 			name:        "cross repo mounts the agent repo, not boot",
-			env:         map[string]string{"BC_WORKSPACE": other},
+			env:         map[string]string{"MYCEL_WORKSPACE": other},
 			dir:         "/home/user/.mycel/workspaces/ws1/agents/zed/bc-other-repo-zed",
 			wantRepo:    other,
 			wantWorkdir: "/workspace",
 		},
 		{
 			name:        "cross repo with worktree under the agent repo",
-			env:         map[string]string{"BC_WORKSPACE": other},
+			env:         map[string]string{"MYCEL_WORKSPACE": other},
 			dir:         other + "/.bc/agents/zed/bc-other-repo-zed",
 			wantRepo:    other,
 			wantWorkdir: "/workspace/.bc/agents/zed/bc-other-repo-zed",
 		},
 		{
-			name:        "cross repo ignores boot BC_HOST_WORKSPACE translation",
-			env:         map[string]string{"BC_WORKSPACE": other},
+			name:        "cross repo ignores boot MYCEL_HOST_WORKSPACE translation",
+			env:         map[string]string{"MYCEL_WORKSPACE": other},
 			hostWS:      "/real/host/boot-repo",
 			dir:         other,
 			wantRepo:    other,
@@ -617,13 +617,13 @@ func TestResolveRepoMount(t *testing.T) {
 		},
 		{
 			name:    "cross repo rejects relative path",
-			env:     map[string]string{"BC_WORKSPACE": "relative/repo"},
+			env:     map[string]string{"MYCEL_WORKSPACE": "relative/repo"},
 			dir:     boot,
 			wantErr: "absolute path",
 		},
 		{
 			name:    "cross repo rejects traversal",
-			env:     map[string]string{"BC_WORKSPACE": "/host/boot-repo/../../etc"},
+			env:     map[string]string{"MYCEL_WORKSPACE": "/host/boot-repo/../../etc"},
 			dir:     boot,
 			wantErr: "absolute path",
 		},
@@ -677,7 +677,7 @@ func TestCreateSessionWithEnv_RejectsUnsafeAgentRepo(t *testing.T) {
 		logCancels:    make(map[string]context.CancelFunc),
 	}
 
-	env := map[string]string{"BC_WORKSPACE": "not/absolute"}
+	env := map[string]string{"MYCEL_WORKSPACE": "not/absolute"}
 	err := b.CreateSessionWithEnv(context.Background(), "test-agent", dir, "bash", env)
 	if err == nil {
 		t.Fatal("expected error for relative agent repo path")

@@ -61,9 +61,9 @@ RUN curl -fsSL https://bun.sh/install | bash && \
 COPY --from=go /mycel /usr/local/bin/mycel
 
 # Workspace architecture: project source is mounted at /workspace, while
-# workspace state lives under BC_HOME (default ~/.bc/). The BC_STATE_DIR
+# workspace state lives under MYCEL_HOME (default ~/.bc/). The MYCEL_STATE_DIR
 # env var can override the per-workspace state path at runtime.
-ENV BC_HOME=/home/agent/.bc
+ENV MYCEL_HOME=/home/agent/.bc
 
 # Runs as root because bc needs access to the Docker socket
 # (/var/run/docker.sock) to manage agent containers.

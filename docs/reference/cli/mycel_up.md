@@ -29,7 +29,7 @@ mycel up [flags]
 
 ```
       --addr string          Listen address (host:port) (default "127.0.0.1:9374")
-      --api-key string       API key for Bearer token auth (or set BC_API_KEY)
+      --api-key string       API key for Bearer token auth (or set MYCEL_API_KEY)
       --cors-origin string   CORS allowed origin (default "*")
   -d, --daemon               Run as background daemon
   -h, --help                 help for up

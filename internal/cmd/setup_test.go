@@ -17,7 +17,7 @@ import (
 // reaching a real bcd.
 //
 // IMPORTANT: this server protects production bcd from `go test` runs.
-// Without it, executeIntegrationCmd would resolve BC_DAEMON_ADDR to the
+// Without it, executeIntegrationCmd would resolve MYCEL_DAEMON_ADDR to the
 // real daemon at 127.0.0.1:9374 and hammer it during CI / dev test runs.
 var testBcdHandler atomic.Value // stores http.HandlerFunc
 
@@ -65,15 +65,15 @@ func TestMain(m *testing.M) {
 	defer srv.Close()
 
 	// Force the bc client to talk to our fake server, not the real bcd.
-	_ = os.Setenv("BC_DAEMON_ADDR", srv.URL)
+	_ = os.Setenv("MYCEL_DAEMON_ADDR", srv.URL)
 
 	// Clear workspace env vars inherited from the dev's shell so tests
 	// that intentionally chdir to a tmpDir (and expect "not in a bc
-	// workspace") don't accidentally pick up the developer's BC_WORKSPACE
+	// workspace") don't accidentally pick up the developer's MYCEL_WORKSPACE
 	// pointing at the bc repo. Tests that need a workspace set this
 	// explicitly via t.Setenv in setupIntegrationWorkspace.
-	_ = os.Unsetenv("BC_WORKSPACE")
-	_ = os.Unsetenv("BC_AGENT_WORKTREE")
+	_ = os.Unsetenv("MYCEL_WORKSPACE")
+	_ = os.Unsetenv("MYCEL_AGENT_WORKTREE")
 
 	// Point the single global database (and everything else under
 	// MYCEL_HOME) at a throwaway dir so tests never touch ~/.mycel.

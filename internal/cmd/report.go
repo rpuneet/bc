@@ -47,7 +47,7 @@ func init() {
 }
 
 func runReport(cmd *cobra.Command, args []string) error {
-	agentID := os.Getenv("BC_AGENT_ID")
+	agentID := os.Getenv("MYCEL_AGENT_ID")
 	if agentID == "" {
 		return errorAgentNotRunning(fmt.Sprintf("mycel agent report %s", args[0]))
 	}

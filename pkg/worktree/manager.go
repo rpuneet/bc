@@ -49,11 +49,11 @@ func NewManager(repoRoot string) *Manager {
 // This is the M11 constructor: dataDir is the per-workspace runtime
 // directory (~/.mycel/workspaces/<id>/) and repoRoot stays untouched.
 //
-// Reads BC_HOST_WORKSPACE to determine the host base name for worktree
+// Reads MYCEL_HOST_WORKSPACE to determine the host base name for worktree
 // naming so containers mounting the host repo get the expected label.
 func NewManagerWithDataDir(repoRoot, dataDir string) *Manager {
 	hostBase := filepath.Base(repoRoot)
-	if hp := os.Getenv("BC_HOST_WORKSPACE"); hp != "" {
+	if hp := os.Getenv("MYCEL_HOST_WORKSPACE"); hp != "" {
 		hostBase = filepath.Base(hp)
 	}
 	if dataDir == "" {

@@ -38,7 +38,7 @@ See `src/types.ts` for the full request/response shapes.
 ```json
 {
   "prompt": "implement the auth refactor",
-  "system_prompt": "(optional override of BC_ROLE_PROMPT)",
+  "system_prompt": "(optional override of MYCEL_ROLE_PROMPT)",
   "max_turns": 50,
   "max_budget_usd": 5.0,
   "resume_session": "(optional session id to resume)",
@@ -54,16 +54,16 @@ from environment variables.
 
 | Var | Required | Description |
 |-----|----------|-------------|
-| `BC_AGENT_NAME` | yes | Agent identity used in logs and `/status`. |
+| `MYCEL_AGENT_NAME` | yes | Agent identity used in logs and `/status`. |
 | `ANTHROPIC_API_KEY` | yes | Forwarded to the Claude SDK. |
-| `BC_AGENT_RUNNER_PORT` | no (`8080`) | HTTP listener port. |
-| `BC_AGENT_RUNNER_HOST` | no (`0.0.0.0`) | HTTP listener bind address. |
-| `BC_AGENT_WORKING_DIR` | no (`cwd`) | Directory the agent operates in (worktree path inside the container). |
-| `BC_ROLE_PROMPT` | no | Default system prompt for queries. |
-| `BC_ALLOWED_TOOLS` | no | JSON array of allowed tool names (default = SDK default). |
-| `BC_MAX_TURNS` | no | Default `maxTurns` for queries. |
-| `BC_MAX_BUDGET_USD` | no | Default budget cap for queries. |
-| `BC_MCP_SERVERS` | no | JSON object of MCP server configs forwarded to the SDK. |
+| `MYCEL_AGENT_RUNNER_PORT` | no (`8080`) | HTTP listener port. |
+| `MYCEL_AGENT_RUNNER_HOST` | no (`0.0.0.0`) | HTTP listener bind address. |
+| `MYCEL_AGENT_WORKING_DIR` | no (`cwd`) | Directory the agent operates in (worktree path inside the container). |
+| `MYCEL_ROLE_PROMPT` | no | Default system prompt for queries. |
+| `MYCEL_ALLOWED_TOOLS` | no | JSON array of allowed tool names (default = SDK default). |
+| `MYCEL_MAX_TURNS` | no | Default `maxTurns` for queries. |
+| `MYCEL_MAX_BUDGET_USD` | no | Default budget cap for queries. |
+| `MYCEL_MCP_SERVERS` | no | JSON object of MCP server configs forwarded to the SDK. |
 
 ## Running locally
 
@@ -72,8 +72,8 @@ cd packages/mycel-agent-runner
 bun install
 bun run build
 ANTHROPIC_API_KEY=sk-... \
-BC_AGENT_NAME=local-test \
-BC_AGENT_WORKING_DIR=/tmp/scratch \
+MYCEL_AGENT_NAME=local-test \
+MYCEL_AGENT_WORKING_DIR=/tmp/scratch \
 node dist/index.js
 ```
 

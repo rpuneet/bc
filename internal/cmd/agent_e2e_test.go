@@ -85,12 +85,12 @@ func TestAgentLifecycle_CreateNoWorkspace(t *testing.T) {
 	_ = os.Chdir(tmpDir)
 	defer func() { _ = os.Chdir(origDir) }()
 
-	// Clear BC_WORKSPACE env var so workspace detection falls back to directory walking
-	origBCWorkspace := os.Getenv("BC_WORKSPACE")
-	_ = os.Unsetenv("BC_WORKSPACE")
+	// Clear MYCEL_WORKSPACE env var so workspace detection falls back to directory walking
+	origBCWorkspace := os.Getenv("MYCEL_WORKSPACE")
+	_ = os.Unsetenv("MYCEL_WORKSPACE")
 	defer func() {
 		if origBCWorkspace != "" {
-			_ = os.Setenv("BC_WORKSPACE", origBCWorkspace)
+			_ = os.Setenv("MYCEL_WORKSPACE", origBCWorkspace)
 		}
 	}()
 
@@ -270,15 +270,15 @@ func TestChannelWorkflow_JoinWithoutAgentID(t *testing.T) {
 	})
 
 	// Use t.Setenv with empty string to unset (t.Setenv handles cleanup)
-	t.Setenv("BC_AGENT_ID", "")
+	t.Setenv("MYCEL_AGENT_ID", "")
 
-	// Try to join - should fail without BC_AGENT_ID (now has user-friendly error message)
+	// Try to join - should fail without MYCEL_AGENT_ID (now has user-friendly error message)
 	_, err = executeCmd("channel", "join", ch)
 	if err == nil {
 		t.Error("expected error for join without agent context")
 	}
 	// Check for user-friendly error message that explains the issue and how to fix it
-	if err != nil && !strings.Contains(err.Error(), "can only be run by agents") && !strings.Contains(err.Error(), "BC_AGENT_ID") {
+	if err != nil && !strings.Contains(err.Error(), "can only be run by agents") && !strings.Contains(err.Error(), "MYCEL_AGENT_ID") {
 		t.Errorf("expected agent-only error message, got: %v", err)
 	}
 }
@@ -296,8 +296,8 @@ func TestChannelWorkflow_JoinWithAgentID(t *testing.T) {
 		_, _ = executeCmd("channel", "delete", ch)
 	})
 
-	// Set BC_AGENT_ID using t.Setenv (handles cleanup automatically)
-	t.Setenv("BC_AGENT_ID", "test-agent-01")
+	// Set MYCEL_AGENT_ID using t.Setenv (handles cleanup automatically)
+	t.Setenv("MYCEL_AGENT_ID", "test-agent-01")
 
 	// Join channel (should succeed)
 	_, err = executeCmd("channel", "join", ch)
@@ -324,8 +324,8 @@ func TestChannelWorkflow_LeaveChannel(t *testing.T) {
 		t.Fatalf("failed to add member: %v", err)
 	}
 
-	// Set BC_AGENT_ID using t.Setenv (handles cleanup automatically)
-	t.Setenv("BC_AGENT_ID", "leaving-agent")
+	// Set MYCEL_AGENT_ID using t.Setenv (handles cleanup automatically)
+	t.Setenv("MYCEL_AGENT_ID", "leaving-agent")
 
 	// Leave channel (should succeed)
 	_, err = executeCmd("channel", "leave", ch)
@@ -543,7 +543,7 @@ func TestNoWorkspace_AgentList(t *testing.T) {
 	_ = os.Chdir(tmpDir)
 	defer func() { _ = os.Chdir(origDir) }()
 
-	// Clear BC_WORKSPACE env var to test directory-based workspace detection
+	// Clear MYCEL_WORKSPACE env var to test directory-based workspace detection
 	restoreEnv := clearWorkspaceEnv(t)
 	defer restoreEnv()
 

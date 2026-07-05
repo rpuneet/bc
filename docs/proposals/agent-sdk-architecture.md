@@ -262,14 +262,14 @@ import { ClaudeAgent } from '@anthropic-ai/claude-agent-sdk'
 import express from 'express'
 
 const app = express()
-const AGENT_NAME = process.env.BC_AGENT_NAME
-const BCD_URL = process.env.BC_BCD_URL
+const AGENT_NAME = process.env.MYCEL_AGENT_NAME
+const BCD_URL = process.env.MYCEL_DAEMON_ADDR
 
 const agent = new ClaudeAgent({
-  systemPrompt: process.env.BC_ROLE_PROMPT,
+  systemPrompt: process.env.MYCEL_ROLE_PROMPT,
   workingDir: '/workspace',
-  mcpServers: JSON.parse(process.env.BC_MCP_SERVERS || '[]'),
-  allowedTools: JSON.parse(process.env.BC_ALLOWED_TOOLS || '[]'),
+  mcpServers: JSON.parse(process.env.MYCEL_MCP_SERVERS || '[]'),
+  allowedTools: JSON.parse(process.env.MYCEL_ALLOWED_TOOLS || '[]'),
   permissionMode: "none",
   fileCheckpointing: true,
   hooks: {
@@ -408,9 +408,9 @@ CMD ["node", "/app/mycel-agent-runner/index.js"]
 
 ### Phase 3: Update role_setup for SDK (SMALL)
 - Instead of writing files, pass config as env vars:
-  - BC_ROLE_PROMPT (system prompt)
-  - BC_MCP_SERVERS (JSON array of MCP configs)
-  - BC_ALLOWED_TOOLS (JSON array)
+  - MYCEL_ROLE_PROMPT (system prompt)
+  - MYCEL_MCP_SERVERS (JSON array of MCP configs)
+  - MYCEL_ALLOWED_TOOLS (JSON array)
 - ConfigAdapter already exists from #2852 — add SdkAdapter
 
 ### Phase 4: Dashboard integration (MEDIUM)

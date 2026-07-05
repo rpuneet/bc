@@ -11,19 +11,19 @@ import (
 func TestReport_NoAgentID(t *testing.T) {
 	setupTestWorkspace(t)
 
-	// Clear BC_AGENT_ID env var
-	origAgentID := os.Getenv("BC_AGENT_ID")
-	_ = os.Unsetenv("BC_AGENT_ID")
+	// Clear MYCEL_AGENT_ID env var
+	origAgentID := os.Getenv("MYCEL_AGENT_ID")
+	_ = os.Unsetenv("MYCEL_AGENT_ID")
 	defer func() {
 		if origAgentID != "" {
-			_ = os.Setenv("BC_AGENT_ID", origAgentID)
+			_ = os.Setenv("MYCEL_AGENT_ID", origAgentID)
 		}
 	}()
 
-	// Report without BC_AGENT_ID should fail
+	// Report without MYCEL_AGENT_ID should fail
 	_, err := executeCmd("agent", "report", "working", "test message")
 	if err == nil {
-		t.Error("expected error when BC_AGENT_ID not set")
+		t.Error("expected error when MYCEL_AGENT_ID not set")
 	}
 	if err != nil && !strings.Contains(err.Error(), "this command can only be run by agents in the bc system") {
 		t.Errorf("expected agent-only command error, got: %v", err)
@@ -33,14 +33,14 @@ func TestReport_NoAgentID(t *testing.T) {
 func TestReport_InvalidState(t *testing.T) {
 	setupTestWorkspace(t)
 
-	// Set BC_AGENT_ID
-	origAgentID := os.Getenv("BC_AGENT_ID")
-	_ = os.Setenv("BC_AGENT_ID", "test-agent")
+	// Set MYCEL_AGENT_ID
+	origAgentID := os.Getenv("MYCEL_AGENT_ID")
+	_ = os.Setenv("MYCEL_AGENT_ID", "test-agent")
 	defer func() {
 		if origAgentID != "" {
-			_ = os.Setenv("BC_AGENT_ID", origAgentID)
+			_ = os.Setenv("MYCEL_AGENT_ID", origAgentID)
 		} else {
-			_ = os.Unsetenv("BC_AGENT_ID")
+			_ = os.Unsetenv("MYCEL_AGENT_ID")
 		}
 	}()
 

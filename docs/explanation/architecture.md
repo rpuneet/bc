@@ -85,7 +85,7 @@ The repo has two entry points under `cmd/`: `cmd/mycel` (the binary) and `cmd/ge
 
 ### Request Lifecycle
 
-1. **Client** (mycel CLI, Web UI, or TUI) sends an HTTP request to the server. Clients discover the address via `BC_DAEMON_ADDR`, the `~/.mycel/daemon.addr` file written by `mycel up`, or the `127.0.0.1:9374` default.
+1. **Client** (mycel CLI, Web UI, or TUI) sends an HTTP request to the server. Clients discover the address via `MYCEL_DAEMON_ADDR`, the `~/.mycel/daemon.addr` file written by `mycel up`, or the `127.0.0.1:9374` default.
 2. **Middleware chain** processes (outermost first, from `server/server.go`): RateLimit (token bucket, 100 rps / burst 200) → APIKeyAuth (Bearer token, only when an API key is configured) → RequestID → RequestLogger → Recovery → Gzip → MaxBodySize (1 MB) → CORS → mux.
 3. **Handler** dispatches to the appropriate service method.
 4. **Service** performs business logic, interacts with runtime backends and the workspace database.

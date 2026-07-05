@@ -161,7 +161,7 @@ export const AgentDetailView: React.FC<AgentDetailViewProps> = ({ agent, onBack 
           dispatch({ type: 'TOGGLE_INPUT_MODE', enabled: true });
         } else if (input === 'a') {
           // #1691: Attach to agent's tmux session directly
-          const bcBin = process.env.BC_BIN ?? 'bc';
+          const bcBin = process.env.MYCEL_BIN ?? 'bc';
           spawnSync(bcBin, ['agent', 'attach', agent.name], {
             stdio: 'inherit',
           });

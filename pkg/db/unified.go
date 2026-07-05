@@ -14,14 +14,14 @@ import (
 // GlobalDBFileName is the file name of the single global database.
 const GlobalDBFileName = "mycel.db"
 
-// DefaultPassword returns the database password from BC_DB_PASSWORD env var,
+// DefaultPassword returns the database password from MYCEL_DB_PASSWORD env var,
 // falling back to "bc" for local development with a warning log.
-// Production deployments should always set BC_DB_PASSWORD.
+// Production deployments should always set MYCEL_DB_PASSWORD.
 func DefaultPassword() string {
-	if pw := os.Getenv("BC_DB_PASSWORD"); pw != "" {
+	if pw := os.Getenv("MYCEL_DB_PASSWORD"); pw != "" {
 		return pw
 	}
-	log.Warn("BC_DB_PASSWORD not set — using default password (not suitable for production)")
+	log.Warn("MYCEL_DB_PASSWORD not set — using default password (not suitable for production)")
 	return "bc"
 }
 

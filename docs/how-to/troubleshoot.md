@@ -65,7 +65,7 @@ make clean && make build-local-mycel
 
 ### "not in a mycel workspace"
 
-**Cause**: Running a repo-scoped mycel command outside a git repo that mycel knows about, or `BC_WORKSPACE` not set.
+**Cause**: Running a repo-scoped mycel command outside a git repo that mycel knows about, or `MYCEL_WORKSPACE` not set.
 
 **Solution**:
 ```bash
@@ -73,7 +73,7 @@ make clean && make build-local-mycel
 mycel up
 
 # Or point at the repo explicitly (for agents in worktrees)
-export BC_WORKSPACE=/path/to/repo
+export MYCEL_WORKSPACE=/path/to/repo
 ```
 
 ### Config File Errors
@@ -144,11 +144,11 @@ mycel agent stop <name>
 mycel agent start <name>
 ```
 
-### "BC_AGENT_ID not set"
+### "MYCEL_AGENT_ID not set"
 
 **Cause**: Running an agent-only command outside an agent session.
 `mycel agent report` must be run from within an agent session, where
-`BC_AGENT_ID` is set automatically.
+`MYCEL_AGENT_ID` is set automatically.
 
 **Solution**:
 ```bash

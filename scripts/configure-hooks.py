@@ -182,7 +182,7 @@ def build_hook_command(event_name: str, hook_config: dict, bcd_addr: str) -> str
         f'bash -c \''
         f'HOOK_INPUT=$(cat); '
         f'PAYLOAD={extract}; '
-        f'curl -sX POST {bcd_addr}/api/agents/${{BC_AGENT_ID}}/hook '
+        f'curl -sX POST {bcd_addr}/api/agents/${{MYCEL_AGENT_ID}}/hook '
         f'-H "Content-Type: application/json" '
         f'-d "$PAYLOAD" 2>/dev/null || true'
         f'\''

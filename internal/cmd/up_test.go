@@ -29,7 +29,7 @@ func TestFindGitRoot(t *testing.T) {
 func TestResolveUpWorkspace_AdoptsGitRoot(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Setenv("MYCEL_HOME", filepath.Join(tmpDir, "home-mycel"))
-	t.Setenv("BC_WORKSPACE", "")
+	t.Setenv("MYCEL_WORKSPACE", "")
 
 	repo := filepath.Join(tmpDir, "repo")
 	nested := filepath.Join(repo, "sub")
@@ -51,7 +51,7 @@ func TestResolveUpWorkspace_AdoptsGitRoot(t *testing.T) {
 func TestResolveUpWorkspace_NoRepoEmptyRegistry(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Setenv("MYCEL_HOME", filepath.Join(tmpDir, "home-mycel"))
-	t.Setenv("BC_WORKSPACE", "")
+	t.Setenv("MYCEL_WORKSPACE", "")
 
 	// Not a git repo, empty registry → no workspace ("" means the
 	// server boots workspace-less and repos are added via the web UI).

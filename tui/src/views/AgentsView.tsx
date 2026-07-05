@@ -309,7 +309,7 @@ export const AgentsView: React.FC<AgentsViewProps> = () => {
             `Agent ${selectedAgent.name} is not running`
           );
         } else {
-          const bcBin = process.env.BC_BIN ?? 'bc';
+          const bcBin = process.env.MYCEL_BIN ?? 'bc';
           spawnSync(bcBin, ['agent', 'attach', selectedAgent.name], {
             stdio: 'inherit',
           });

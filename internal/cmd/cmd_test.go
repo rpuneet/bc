@@ -13,15 +13,15 @@ import (
 
 // --- Test helpers ---
 
-// clearWorkspaceEnv clears BC_WORKSPACE env var and returns a cleanup function.
+// clearWorkspaceEnv clears MYCEL_WORKSPACE env var and returns a cleanup function.
 // Use this in tests that expect no workspace to be found.
 func clearWorkspaceEnv(t *testing.T) func() {
 	t.Helper()
-	origBCWorkspace := os.Getenv("BC_WORKSPACE")
-	_ = os.Unsetenv("BC_WORKSPACE")
+	origBCWorkspace := os.Getenv("MYCEL_WORKSPACE")
+	_ = os.Unsetenv("MYCEL_WORKSPACE")
 	return func() {
 		if origBCWorkspace != "" {
-			_ = os.Setenv("BC_WORKSPACE", origBCWorkspace)
+			_ = os.Setenv("MYCEL_WORKSPACE", origBCWorkspace)
 		}
 	}
 }
@@ -59,9 +59,9 @@ func setupTestWorkspace(t *testing.T) string {
 	// These tests use the global rootCmd which connects to bcd at :9374.
 	// They can't work reliably: if bcd is running they hit the live instance,
 	// if not they fail with "daemon not running". Skip unless a test-specific
-	// daemon is available (indicated by BC_TEST_DAEMON=1).
-	if os.Getenv("BC_TEST_DAEMON") == "" {
-		t.Skip("skipping: requires BC_TEST_DAEMON=1 (dedicated test bcd instance)")
+	// daemon is available (indicated by MYCEL_TEST_DAEMON=1).
+	if os.Getenv("MYCEL_TEST_DAEMON") == "" {
+		t.Skip("skipping: requires MYCEL_TEST_DAEMON=1 (dedicated test bcd instance)")
 	}
 
 	origDir, err := os.Getwd()
@@ -69,12 +69,12 @@ func setupTestWorkspace(t *testing.T) string {
 		t.Fatalf("failed to get cwd: %v", err)
 	}
 
-	// Clear BC_WORKSPACE to ensure tests use the temp workspace, not outer workspace
-	origBCWorkspace := os.Getenv("BC_WORKSPACE")
-	_ = os.Unsetenv("BC_WORKSPACE")
+	// Clear MYCEL_WORKSPACE to ensure tests use the temp workspace, not outer workspace
+	origBCWorkspace := os.Getenv("MYCEL_WORKSPACE")
+	_ = os.Unsetenv("MYCEL_WORKSPACE")
 	t.Cleanup(func() {
 		if origBCWorkspace != "" {
-			_ = os.Setenv("BC_WORKSPACE", origBCWorkspace)
+			_ = os.Setenv("MYCEL_WORKSPACE", origBCWorkspace)
 		}
 	})
 

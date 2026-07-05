@@ -108,21 +108,21 @@ func TestSQLiteStore_EnvEmpty(t *testing.T) {
 
 func TestMergeUserEnv_ReservedBCKeysWin(t *testing.T) {
 	env := map[string]string{
-		"BC_AGENT_ID":  "real-agent",
-		"BC_WORKSPACE": "/real/ws",
+		"MYCEL_AGENT_ID":  "real-agent",
+		"MYCEL_WORKSPACE": "/real/ws",
 	}
 	mergeUserEnv(env, map[string]string{
-		"BC_AGENT_ID": "spoofed",
-		"BC_EVIL":     "1",
-		"FOO":         "bar",
-		"PATH_EXTRA":  "/opt/bin",
+		"MYCEL_AGENT_ID": "spoofed",
+		"MYCEL_EVIL":     "1",
+		"FOO":            "bar",
+		"PATH_EXTRA":     "/opt/bin",
 	}, "test-agent")
 
-	if env["BC_AGENT_ID"] != "real-agent" {
-		t.Errorf("BC_AGENT_ID clobbered by user env: %q", env["BC_AGENT_ID"])
+	if env["MYCEL_AGENT_ID"] != "real-agent" {
+		t.Errorf("MYCEL_AGENT_ID clobbered by user env: %q", env["MYCEL_AGENT_ID"])
 	}
-	if _, ok := env["BC_EVIL"]; ok {
-		t.Error("user-supplied BC_ key must be skipped entirely")
+	if _, ok := env["MYCEL_EVIL"]; ok {
+		t.Error("user-supplied MYCEL_ key must be skipped entirely")
 	}
 	if env["FOO"] != "bar" || env["PATH_EXTRA"] != "/opt/bin" {
 		t.Errorf("non-reserved user env not merged: %#v", env)
@@ -136,7 +136,7 @@ func TestInjectEnv_UserEnvWinsOverEnvFile(t *testing.T) {
 		t.Fatalf("write env file: %v", err)
 	}
 
-	env := map[string]string{"BC_AGENT_ID": "a1"}
+	env := map[string]string{"MYCEL_AGENT_ID": "a1"}
 	injectEnv(env, dir, "a1", envFile, map[string]string{"FOO": "from-config"})
 
 	if env["FOO"] != "from-config" {
@@ -150,7 +150,7 @@ func TestInjectEnv_UserEnvWinsOverEnvFile(t *testing.T) {
 // --- secret resolution at spawn ---
 
 // seedVault creates a secrets vault under wsPath/.bc and stores the given
-// secret. The passphrase is pinned via BC_SECRET_PASSPHRASE so the spawn
+// secret. The passphrase is pinned via MYCEL_SECRET_PASSPHRASE so the spawn
 // path opens the same vault.
 func seedVault(t *testing.T, wsPath, name, value string) {
 	t.Helper()
@@ -169,7 +169,7 @@ func TestInjectEnv_ResolvesSecretRefs(t *testing.T) {
 	ws := t.TempDir()
 	seedVault(t, ws, "MY_TOKEN", "s3cr3t-value")
 
-	env := map[string]string{"BC_AGENT_ID": "a1"}
+	env := map[string]string{"MYCEL_AGENT_ID": "a1"}
 	injectEnv(env, ws, "a1", "", map[string]string{
 		"API_KEY": "${secret:MY_TOKEN}",
 		"PLAIN":   "not-a-ref",
@@ -205,7 +205,7 @@ func gitInit(t *testing.T) string {
 
 // TestCreateAgent_StoresAndInjectsEnv verifies the fresh-create path: the
 // configured env map is persisted verbatim on the agent (secret refs
-// unresolved) while the session env receives resolved values, with BC_*
+// unresolved) while the session env receives resolved values, with MYCEL_*
 // system vars protected.
 func TestCreateAgent_StoresAndInjectsEnv(t *testing.T) {
 	t.Setenv("MYCEL_HOME", t.TempDir())
@@ -220,9 +220,9 @@ func TestCreateAgent_StoresAndInjectsEnv(t *testing.T) {
 		Role:      Role("engineer"),
 		Workspace: repo,
 		Env: map[string]string{
-			"FOO":         "bar",
-			"API_KEY":     "${secret:SPAWN_TOKEN}",
-			"BC_AGENT_ID": "spoofed",
+			"FOO":            "bar",
+			"API_KEY":        "${secret:SPAWN_TOKEN}",
+			"MYCEL_AGENT_ID": "spoofed",
 		},
 	})
 	if err != nil {
@@ -244,8 +244,8 @@ func TestCreateAgent_StoresAndInjectsEnv(t *testing.T) {
 	if sessEnv["API_KEY"] != "resolved-at-spawn" {
 		t.Errorf("secret ref not resolved in session env: API_KEY=%q", sessEnv["API_KEY"])
 	}
-	if sessEnv["BC_AGENT_ID"] != "env-create" {
-		t.Errorf("BC_AGENT_ID must not be clobbered: %q", sessEnv["BC_AGENT_ID"])
+	if sessEnv["MYCEL_AGENT_ID"] != "env-create" {
+		t.Errorf("MYCEL_AGENT_ID must not be clobbered: %q", sessEnv["MYCEL_AGENT_ID"])
 	}
 
 	// Persisted: round-trips through the store with the reference intact.
@@ -310,7 +310,7 @@ func TestStartAgent_ReinjectsStoredEnv(t *testing.T) {
 	if sessEnv["API_KEY"] != "rotated-value" {
 		t.Errorf("restart must resolve secret refs fresh: API_KEY=%q", sessEnv["API_KEY"])
 	}
-	if sessEnv["BC_AGENT_ID"] != "env-restart" {
-		t.Errorf("BC_AGENT_ID wrong on restart: %q", sessEnv["BC_AGENT_ID"])
+	if sessEnv["MYCEL_AGENT_ID"] != "env-restart" {
+		t.Errorf("MYCEL_AGENT_ID wrong on restart: %q", sessEnv["MYCEL_AGENT_ID"])
 	}
 }
