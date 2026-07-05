@@ -37,16 +37,16 @@ export function Footer() {
                 Home
               </Link>
               <Link
-                href="/product"
+                href="/#product"
                 className="hover:text-on-surface transition-colors"
               >
                 Features
               </Link>
               <Link
-                href="/method"
+                href="/#install"
                 className="hover:text-on-surface transition-colors"
               >
-                Method
+                Install
               </Link>
             </nav>
           </div>

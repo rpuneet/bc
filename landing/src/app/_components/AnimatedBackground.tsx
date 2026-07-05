@@ -27,7 +27,7 @@ export function AnimatedBackground() {
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
 
     // Particle configuration
-    const PARTICLE_COUNT = 40;
+    const PARTICLE_COUNT = 54;
     const CONNECTION_DISTANCE = 120;
     const GRID_CELL_SIZE = CONNECTION_DISTANCE;
     const MOUSE_RADIUS = 200;
@@ -96,6 +96,24 @@ export function AnimatedBackground() {
       ctx!.clearRect(0, 0, width, height);
 
       const isDark = document.documentElement.classList.contains("dark");
+
+      // Soft radial glow behind the node network — gives the hero warmth
+      // and depth so the particle field reads as a lit sphere rather than
+      // scattered dots. Sits centred a touch above the fold; drawn before
+      // the particles so they float over it. Kept low-opacity and static.
+      {
+        const gx = width * 0.5;
+        const gy = height * 0.38;
+        const gr = Math.max(width, height) * 0.62;
+        const glow = ctx!.createRadialGradient(gx, gy, 0, gx, gy, gr);
+        const peak = isDark ? 0.1 : 0.05;
+        glow.addColorStop(0, `rgba(234, 88, 12, ${peak})`);
+        glow.addColorStop(0.45, `rgba(234, 88, 12, ${peak * 0.4})`);
+        glow.addColorStop(1, "rgba(234, 88, 12, 0)");
+        ctx!.fillStyle = glow;
+        ctx!.fillRect(0, 0, width, height);
+      }
+
       const particleColor = isDark ? "rgba(234, 88, 12," : "rgba(234, 88, 12,";
       const lineColor = isDark ? "rgba(251, 146, 60," : "rgba(234, 88, 12,";
 

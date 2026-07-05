@@ -59,6 +59,88 @@ interface TocHeading {
 }
 
 /* ═══════════════════════════════════════════════════════════════════
+   INLINE ARTICLES (authored in-page, rendered via MarkdownContent)
+   ═══════════════════════════════════════════════════════════════════ */
+
+const CONTRIBUTING_DESCRIPTION =
+  "How to build mycel from source and open a pull request.";
+
+const CONTRIBUTING_CONTENT = `# Contributing
+
+${CONTRIBUTING_DESCRIPTION}
+
+mycel is written in Go with a TypeScript/React TUI and web UI. Contributions are welcome — bug reports, docs, and pull requests all help.
+
+## Prerequisites
+
+- **Go** 1.25.4 or newer
+- **tmux** (for the default local runtime backend)
+- **golangci-lint** and **make**
+- **Bun** (only needed to build the TUI and web UI)
+
+## Clone and build
+
+\`\`\`bash
+git clone https://github.com/rpuneet/mycel.git
+cd mycel
+make build-local        # build the bc/bcd binaries + TUI + web UI
+\`\`\`
+
+Targets follow a \`make <verb>-<runtime>-<component>\` convention, where *verb* is one of \`build | test | run | release | install | clean\`, *runtime* is \`local\` or \`docker\`, and *component* is \`bc\`, \`bcd\`, \`tui\`, \`web\`, or \`landing\`.
+
+## Common tasks
+
+| Command | What it does |
+|---------|--------------|
+| \`make build-local\` | Build all local binaries and front-ends |
+| \`make test\` | Run the full Go + TypeScript test suite |
+| \`make test-go\` | Run Go tests with the race detector |
+| \`make lint\` | Run every linter (golangci-lint + TS) |
+| \`make check\` | Full quality gate — gen, fmt, vet, lint, test |
+| \`make run-web\` | Web UI dev server with hot reload |
+
+## Before you commit
+
+- Run \`make check\` — it must pass before a PR is merged.
+- Use **conventional commits** (\`feat:\`, \`fix:\`, \`docs:\`, \`chore:\`).
+- Branch names carry the same prefix: \`feat/\`, \`fix/\`, \`docs/\`.
+- Errors are never ignored — handle them explicitly or annotate with a justified \`//nolint:errcheck\`.
+
+## Pull requests
+
+Open your PR against \`main\`. CI runs the same \`make check\` gate plus the Docker image builds. Keep changes focused, describe the behaviour change, and link any related issue.
+
+> Tip: the full engineering documentation — architecture, database, security, and design decisions — lives under [docs/explanation](https://github.com/rpuneet/mycel/tree/main/docs/explanation) in the repository.`;
+
+const RELEASE_NOTES_DESCRIPTION =
+  "What changed in the most recent mycel releases.";
+
+const RELEASE_NOTES_CONTENT = `# Release Notes
+
+${RELEASE_NOTES_DESCRIPTION}
+
+For the complete, versioned history see the [full changelog](https://github.com/rpuneet/mycel/blob/main/CHANGELOG.md) on GitHub.
+
+## 0.3.12 — One header, real numbers
+
+- **Outbound WhatsApp.** Agents can reply on WhatsApp — the gateway adapter sends over the paired whatsmeow session, routed by native JID.
+- **Notifications home.** A full notifications hub gathers connected apps, channels, and recent activity in one place, with WhatsApp channels resolved to real display names.
+- **Insights is a single-page dashboard.** Tabs are gone; a KPI strip (spend, tokens, active agents, burn rate, top cost driver) sits above grouped Cost / Usage / System / Activity sections with a sticky anchor-nav.
+- **Cost and token analytics read the ledger.** Every cost and token view now sources from the cost ledger (\`/api/costs/*\`), carrying real per-agent, per-model, and daily dollars and tokens, plus a cache hit-ratio readout.
+- **\`BC_*\` environment variables are now \`MYCEL_*\`.** Agent env injection and the reserved-prefix guard use the \`MYCEL_\` namespace.
+
+## 0.3.11 — The visual release
+
+- **A real design system.** The entire web UI was rebuilt on Radix color scales (Sand neutrals + Orange accent) with dark and light themes, a proper type hierarchy, and semantic tokens.
+- **Model as an agent parameter.** A per-provider model dropdown in the create modal, stored on the agent and injected with the right flag per provider.
+- **Per-agent environment variables** with \`\${secret:NAME}\` vault references, resolved only at spawn.
+
+## 0.3.10 — Single-tenant
+
+- **The workspace concept is gone.** One global \`~/.mycel/mycel.db\`, agents bound to a repo instead of a workspace, and flat name-keyed state.
+- **Repo as the unit of work.** The create-agent flow, the agents list, and \`GET /api/repos\` all pivot on the agent's repository.`;
+
+/* ═══════════════════════════════════════════════════════════════════
    COPY BUTTON
    ═══════════════════════════════════════════════════════════════════ */
 
@@ -1259,7 +1341,7 @@ export default function DocsContent({
       });
     }
 
-    // Placeholder sections
+    // Contributing (authored in-page)
     result.push({
       id: "contributing",
       label: "Contributing",
@@ -1268,12 +1350,15 @@ export default function DocsContent({
         {
           id: "contributing/guide",
           label: "Contributing Guide",
-          type: "placeholder" as const,
+          type: "article" as const,
           sectionId: "contributing",
+          content: CONTRIBUTING_CONTENT,
+          description: CONTRIBUTING_DESCRIPTION,
         },
       ],
     });
 
+    // Release Notes (authored in-page)
     result.push({
       id: "release-notes",
       label: "Release Notes",
@@ -1282,8 +1367,10 @@ export default function DocsContent({
         {
           id: "release-notes/latest",
           label: "Latest Release",
-          type: "placeholder" as const,
+          type: "article" as const,
           sectionId: "release-notes",
+          content: RELEASE_NOTES_CONTENT,
+          description: RELEASE_NOTES_DESCRIPTION,
         },
       ],
     });
@@ -1496,7 +1583,7 @@ export default function DocsContent({
             <div className="mb-5 flex items-center gap-2">
               <SporeLogo size={24} />
               <span className="font-headline text-sm font-bold tracking-tight text-foreground">mycel</span>
-              <span className="ml-auto rounded-full border border-border bg-muted px-2 py-0.5 font-mono text-[10px] text-muted-foreground">v0.1.0</span>
+              <span className="ml-auto rounded-full border border-border bg-muted px-2 py-0.5 font-mono text-[10px] text-muted-foreground">v0.3.12</span>
             </div>
             {/* Search */}
             <div className="relative mb-5 group/search">

@@ -1,4 +1,5 @@
 import { Metadata } from "next";
+import { absoluteUrl } from "../../lib/site";
 
 export const metadata: Metadata = {
   title: "Join the Waitlist - mycel",
@@ -11,12 +12,12 @@ export const metadata: Metadata = {
     title: "mycel Waitlist — Multi-Agent Orchestration",
     description:
       "Join the waitlist for mycel Cloud. Orchestrate AI agents from your terminal.",
-    url: "https://mycel.dev/waitlist",
+    url: absoluteUrl("/waitlist"),
     siteName: "mycel",
     type: "website",
     images: [
       {
-        url: "https://mycel.dev/og-image.png",
+        url: absoluteUrl("/og-image.png"),
         width: 1200,
         height: 630,
         alt: "mycel - Multi-Agent Orchestration Platform",
@@ -28,7 +29,7 @@ export const metadata: Metadata = {
     title: "mycel Waitlist — Multi-Agent Orchestration",
     description:
       "Join the waitlist for mycel Cloud. Orchestrate AI agents from your terminal.",
-    images: ["https://mycel.dev/og-image.png"],
+    images: [absoluteUrl("/og-image.png")],
     creator: "@mycel_dev",
   },
 };

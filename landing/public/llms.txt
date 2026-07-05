@@ -4,31 +4,30 @@
 
 ## Key Features
 
-- **Multi-Agent Orchestration**: Run 5-10 AI coding agents in parallel, each on its own isolated git worktree branch
-- **Channel Communication**: Slack-like channels (#eng, #pr, #standup) for structured agent-to-agent coordination
-- **Persistent Memory**: Agents accumulate learnings and experiences that persist across sessions
+- **Multi-Agent Orchestration**: Run 5-10 AI coding agents in parallel, each in its own isolated git worktree plus a tmux or Docker sandbox
+- **Channel Communication**: Structured channels for agent-to-agent coordination, plus a notifications hub that bridges Slack, Telegram, Discord, and WhatsApp (agents can reply from your phone)
+- **Insights Dashboard**: Real-time cost and token observability — live spend, burn rate, active agents, and top cost driver, broken down per agent and per model, read straight from the cost ledger
 - **Cost Controls**: Per-agent token tracking, budgets, alerts, and automatic hard stops
-- **Scheduled Tasks (Demons)**: Cron-powered automation for tests, deploys, and reports
-- **14-View TUI Dashboard**: Real-time monitoring of agents, channels, costs, memory, and queues
-- **55 CLI Commands**: Full lifecycle management across 9 categories
+- **Encrypted Secrets**: Per-agent secrets encrypted at rest, injected as MYCEL_ environment variables at spawn
+- **Scheduled Tasks**: Cron-powered automation for tests, deploys, and reports
+- **Web Dashboard**: Real-time monitoring of agents, channels, costs, secrets, and providers at localhost:9374
 
 ## Supported AI Tools
 
 mycel ships built-in providers for:
 - Claude Code
+- Gemini
 - Codex
 - Cursor
-- Gemini
-- Pi
+- Aider
 
 ## Pages
 
-- [Home](https://mycel.dev/): Overview and product introduction
-- [Product](https://mycel.dev/product): Detailed feature breakdown with 55 commands across 9 categories
-- [Documentation](https://mycel.dev/docs): CLI reference, configuration, and quick start guide
-- [Waitlist](https://mycel.dev/waitlist): Sign up for early access to the open beta
-- [Privacy Policy](https://mycel.dev/privacy): Data collection and usage practices
-- [Terms of Service](https://mycel.dev/terms): Usage terms and conditions
+- [Home](https://bc-infra.com/): Single-page overview, the six-principle product showcase, and install guide
+- [Documentation](https://bc-infra.com/docs): CLI reference, configuration, and quick start guide
+- [Waitlist](https://bc-infra.com/waitlist): Sign up for early access to the open beta
+- [Privacy Policy](https://bc-infra.com/privacy): Data collection and usage practices
+- [Terms of Service](https://bc-infra.com/terms): Usage terms and conditions
 
 ## Quick Start
 

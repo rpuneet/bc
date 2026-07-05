@@ -6,6 +6,7 @@ import {
   WebsiteSchema,
   ProductSchema,
 } from "./_components/StructuredData";
+import { SITE_URL, absoluteUrl } from "../lib/site";
 
 export const viewport = {
   width: "device-width",
@@ -22,7 +23,7 @@ export const metadata = {
     "Orchestrate AI agents from your terminal. Isolated worktrees, shared channels, cost controls.",
   keywords:
     "AI agents, agent orchestration, Claude Code, multi-agent development, git worktrees, persistent memory, cost-aware AI, software development",
-  metadataBase: new URL("https://mycel.dev"),
+  metadataBase: new URL(SITE_URL),
   alternates: {
     canonical: "/",
   },
@@ -40,14 +41,14 @@ export const metadata = {
   openGraph: {
     type: "website",
     locale: "en_US",
-    url: "https://mycel.dev",
+    url: SITE_URL,
     title: "mycel — AI in a Box",
     description:
       "Orchestrate AI agents from your terminal. Isolated worktrees, shared channels, cost controls.",
     siteName: "mycel",
     images: [
       {
-        url: "https://mycel.dev/og-image.png",
+        url: absoluteUrl("/og-image.png"),
         width: 1200,
         height: 630,
         alt: "mycel — AI in a Box",
@@ -59,7 +60,7 @@ export const metadata = {
     title: "mycel — AI in a Box",
     description:
       "Orchestrate AI agents from your terminal. Isolated worktrees, shared channels, cost controls.",
-    images: ["https://mycel.dev/og-image.png"],
+    images: [absoluteUrl("/og-image.png")],
     creator: "@mycel_dev",
   },
   authors: [

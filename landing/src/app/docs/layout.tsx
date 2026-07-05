@@ -1,23 +1,24 @@
 import { Metadata } from "next";
 import { BreadcrumbSchema } from "../_components/StructuredData";
+import { SITE_URL, absoluteUrl } from "../../lib/site";
 
 export const metadata: Metadata = {
   title: "Documentation — mycel | Quick Start, CLI Reference & Guides",
   description:
-    "Complete mycel documentation: installation, quick start, all 55 CLI commands, configuration, presets, and environment variables. CLI-first multi-agent orchestration.",
+    "Complete mycel documentation: installation, quick start, agents and runtimes, channels and notifications, cost tracking, the full CLI reference, configuration, and MYCEL_* environment variables. CLI-first multi-agent orchestration.",
   alternates: {
     canonical: "/docs",
   },
   openGraph: {
     title: "mycel Documentation — Quick Start, CLI Reference & Guides",
     description:
-      "Complete mycel documentation: installation, quick start, all 55 CLI commands, configuration, presets, and environment variables.",
-    url: "https://mycel.dev/docs",
+      "Complete mycel documentation: installation, quick start, agents and runtimes, channels and notifications, cost tracking, the full CLI reference, and configuration.",
+    url: absoluteUrl("/docs"),
     siteName: "mycel",
     type: "website",
     images: [
       {
-        url: "https://mycel.dev/og-image.png",
+        url: absoluteUrl("/og-image.png"),
         width: 1200,
         height: 630,
         alt: "mycel - Multi-Agent Orchestration Platform",
@@ -28,8 +29,8 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "mycel Documentation — Quick Start, CLI Reference & Guides",
     description:
-      "Complete mycel documentation: installation, quick start, all 55 CLI commands, configuration, presets, and environment variables.",
-    images: ["https://mycel.dev/og-image.png"],
+      "Complete mycel documentation: installation, quick start, agents and runtimes, channels and notifications, cost tracking, the full CLI reference, and configuration.",
+    images: [absoluteUrl("/og-image.png")],
     creator: "@mycel_dev",
   },
 };
@@ -42,8 +43,8 @@ export default function DocsLayout({
   return (
     <>
       {BreadcrumbSchema([
-        { name: "Home", url: "https://mycel.dev" },
-        { name: "Documentation", url: "https://mycel.dev/docs" },
+        { name: "Home", url: SITE_URL },
+        { name: "Documentation", url: absoluteUrl("/docs") },
       ])}
       {children}
     </>

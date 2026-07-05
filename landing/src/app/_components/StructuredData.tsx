@@ -1,9 +1,10 @@
+import { SITE_URL } from "../../lib/site";
 export function OrganizationSchema() {
   const schema = {
     "@context": "https://schema.org",
     "@type": "Organization",
     name: "mycel",
-    url: "https://mycel.dev",
+    url: SITE_URL,
     description:
       "Orchestrate AI agents from your terminal. Isolated worktrees, shared channels, cost controls.",
     sameAs: [
@@ -32,7 +33,7 @@ export function WebsiteSchema() {
     "@context": "https://schema.org",
     "@type": "WebSite",
     name: "mycel",
-    url: "https://mycel.dev",
+    url: SITE_URL,
   };
 
   return (
@@ -69,7 +70,7 @@ export function ProductSchema() {
     "@type": "SoftwareApplication",
     name: "mycel",
     applicationCategory: "DeveloperApplication",
-    url: "https://mycel.dev",
+    url: SITE_URL,
     description:
       "Multi-agent orchestration system for AI coding agents with persistent memory, zero conflicts, and cost-aware scaling.",
     operatingSystem: "Any",
