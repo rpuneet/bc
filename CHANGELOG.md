@@ -7,6 +7,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.11] - 2026-07-05
+
+The visual release: the entire web UI rebuilt on a real design system,
+plus model and environment as first-class agent parameters.
+
+### Changed
+- **Two themes, one palette.** Dark (default) and light, every color an
+  exact Radix scale step (Sand neutrals + Orange accent); Solar Flare
+  retired with stored preferences migrating. Three-step layered
+  elevation, semantic tint tokens for badges — replacing ~200 alpha
+  classes that silently compiled to nothing.
+- **Typography and component systems.** Real type hierarchy, one radius
+  system, primary/secondary/danger buttons, monospace reserved for
+  identifiers.
+- **Chrome.** Full-width header owning the brand (new mycelium
+  connected-nodes mark), per-view controls (summary, wide search,
+  Filters chip, primary action), a utility menu (theme/Settings/About),
+  and a pure-nav drawer with smooth collapse. Page titles and the
+  duplicate drawer toggle are gone.
+- **Information-rich agents table.** Icon actions, merged provider·model
+  runtime cell, live Activity and real Cost columns (the dead MCP column
+  removed), compact repo bands with group cost, activity-feed peek (eye
+  toggle) replacing the raw-terminal peek.
+- **Live.** Back-to-latest is a chat-style top-center pill matching the
+  newest-first feed.
+
+### Added
+- **Model as an agent parameter.** Per-provider dropdown in the create
+  modal (lists verified against each live CLI), stored on the agent,
+  injected with the right flag per provider, preserved across restarts,
+  shown in the table and detail.
+- **Per-agent environment variables** with `${secret:NAME}` vault
+  references — autocomplete in a key/value editor at create and detail;
+  references stored, resolved only at spawn; `BC_*` system variables
+  protected from both config and env files.
+
+### Fixed
+- **Per-agent cost was broken end-to-end**: the client read a field the
+  server never sent, and the server looked up the ledger by bare agent
+  name while entries key by session name. Costs are real everywhere now
+  (table, peek, stats), with exact-candidate matching.
+- The Live overflow menu opened invisibly behind the page (stacking
+  context); mobile search regressions; agent-detail environment editor
+  previously wrote a file nothing read — now store-backed and injected
+  at restart.
+
 ## [0.3.10] - 2026-07-04
 
 The single-tenant release: the workspace concept is gone. One global
