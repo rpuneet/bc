@@ -21,6 +21,7 @@ import Editor, { DiffEditor } from "@monaco-editor/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { api } from "../api/client";
+import { useHeaderSlot } from "../context/HeaderSlotContext";
 import { useTheme } from "../context/ThemeContext";
 import { languageFromPath } from "../utils/lang";
 import { MONO } from "../utils/typography";
@@ -405,14 +406,11 @@ export function Code() {
   const rootEntries = treeCache[rootKey] ?? [];
   const language = languageFromPath(path);
 
-  return (
-    <div className="flex flex-col h-full" style={{ fontFamily: MONO }}>
-      {/* Header */}
-      <header className="shrink-0 border-b border-mycel-border px-6 h-[42px] flex items-center gap-3">
-        <span className="text-[11px] font-bold text-mycel-text uppercase tracking-[0.2em]">
-          Code
-        </span>
-
+  // Contribute the CODE band (repo selector + breadcrumb, and the
+  // show-hidden / edit-in-vscode controls) to the single shared Header.
+  useHeaderSlot({
+    title: (
+      <>
         {/* Worktree dropdown */}
         <select
           value={worktree}
@@ -476,7 +474,10 @@ export function Code() {
             </span>
           ))}
         </div>
-
+      </>
+    ),
+    actions: (
+      <>
         {/* Download patch (diff mode, path set, worktree != main) */}
         {worktree !== "main" && viewMode === "diff" && path && (
           <button
@@ -511,7 +512,7 @@ export function Code() {
               else next.set("mode", "vscode");
               setSearchParams(next);
             }}
-            className={`text-[10px] uppercase tracking-wider transition-colors border px-2 py-1 rounded ${
+            className={`h-8 inline-flex items-center text-[10px] uppercase tracking-wider transition-colors border px-2 rounded ${
               vscodeMode
                 ? "bg-mycel-accent-subtle text-mycel-accent border-mycel-accent"
                 : "text-mycel-muted border-mycel-border hover:text-mycel-text hover:border-mycel-muted"
@@ -521,8 +522,12 @@ export function Code() {
             {vscodeMode ? "Exit VS Code" : "Edit in VS Code"}
           </button>
         )}
-      </header>
+      </>
+    ),
+  });
 
+  return (
+    <div className="flex flex-col h-full" style={{ fontFamily: MONO }}>
       {/* VS Code iframe mode — replaces body when toggled on */}
       {vscodeMode && codeServer.running && (
         <div className="flex-1 min-h-0 flex flex-col">

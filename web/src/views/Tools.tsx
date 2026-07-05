@@ -9,6 +9,7 @@ import { ProvidersTable } from "../components/ProvidersTable";
 import { CopyButton } from "../components/CopyButton";
 import { ToastContainer, useToast } from "../components/Toast";
 import type { ToastLevel } from "../components/Toast";
+import { useHeaderSlot } from "../context/HeaderSlotContext";
 
 const STATUS_CONFIG: Record<string, { dot: string; label: string; textColor: string }> = {
   connected:     { dot: "bg-mycel-success", label: "Connected",     textColor: "text-mycel-success" },
@@ -295,6 +296,63 @@ export function Tools() {
 
   const providerList = providers ?? [];
 
+  const totalCount = providerList.length + allTools.length;
+  const matchCount = providerList.filter((p) => !searchLower || p.name.toLowerCase().includes(searchLower)).length + filteredCli.length;
+
+  useHeaderSlot({
+    title: (
+      <span className="text-xs text-mycel-text-2 tabular-nums truncate">
+        {searchLower
+          ? `${matchCount} of ${totalCount} tools`
+          : <>{providerList.length} Providers &middot; {cliTools.length} CLI{checkedTools && " · checked"}</>
+        }
+      </span>
+    ),
+    actions: (
+      <div className="flex items-center gap-2">
+        {/* Search with magnifying glass icon */}
+        <div className="relative">
+          <svg
+            className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-mycel-muted pointer-events-none"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2}
+          >
+            <circle cx="11" cy="11" r="8" />
+            <path strokeLinecap="round" d="M21 21l-4.35-4.35" />
+          </svg>
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search tools..."
+            className="w-40 sm:w-52 pl-7 pr-7 py-1.5 text-sm rounded-md border border-mycel-border bg-mycel-bg text-mycel-text placeholder:text-mycel-muted focus:outline-none focus:ring-1 focus:ring-mycel-accent"
+          />
+          {search && (
+            <button
+              type="button"
+              onClick={() => setSearch("")}
+              className="absolute right-1.5 top-1/2 -translate-y-1/2 text-mycel-muted hover:text-mycel-text text-sm leading-none px-1"
+              aria-label="Clear search"
+            >
+              &times;
+            </button>
+          )}
+        </div>
+        <button type="button" onClick={() => void handleCheck()} disabled={checking}
+          className="inline-flex items-center gap-1.5 h-8 px-3 text-sm rounded-md bg-mycel-surface border border-mycel-border text-mycel-text-2 hover:text-mycel-text hover:bg-mycel-surface-hover transition-colors disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-mycel-accent">
+          {checking ? <Spinner /> : null}
+          {checking ? "Checking..." : "Health Check"}
+        </button>
+        <button type="button" onClick={() => setShowAddForm(!showAddForm)}
+          className="inline-flex items-center h-8 px-3 text-sm font-medium rounded-md bg-mycel-accent text-mycel-accent-fg hover:bg-mycel-accent-hover shadow-mycel-sm transition-colors focus-visible:ring-2 focus-visible:ring-mycel-accent">
+          + CLI Tool
+        </button>
+      </div>
+    ),
+  });
+
   if (loading && !tools && providersLoading && !providers) {
     return (
       <div className="p-6 space-y-6">
@@ -309,9 +367,6 @@ export function Tools() {
   if (error && !tools) {
     return <div className="p-6"><EmptyState icon="!" title="Failed to load tools" description={error} actionLabel="Retry" onAction={refresh} /></div>;
   }
-
-  const totalCount = providerList.length + allTools.length;
-  const matchCount = providerList.filter((p) => !searchLower || p.name.toLowerCase().includes(searchLower)).length + filteredCli.length;
 
   const handleToggle = async (tool: Tool) => {
     const wasDisabled = tool.status === "disabled" || tool.status === "not_installed";
@@ -363,56 +418,6 @@ export function Tools() {
 
   return (
     <div className="p-6 space-y-8">
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-xs text-mycel-muted hidden sm:block">
-          {searchLower
-            ? `${matchCount} of ${totalCount} tools`
-            : <>{providerList.length} Providers &middot; {cliTools.length} CLI{checkedTools && " \u00b7 checked"}</>
-          }
-        </p>
-        <div className="flex items-center gap-2">
-          {/* Search with magnifying glass icon */}
-          <div className="relative">
-            <svg
-              className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-mycel-muted pointer-events-none"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={2}
-            >
-              <circle cx="11" cy="11" r="8" />
-              <path strokeLinecap="round" d="M21 21l-4.35-4.35" />
-            </svg>
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search tools..."
-              className="w-40 sm:w-52 pl-7 pr-7 py-1.5 text-sm rounded-md border border-mycel-border bg-mycel-bg text-mycel-text placeholder:text-mycel-muted focus:outline-none focus:ring-1 focus:ring-mycel-accent"
-            />
-            {search && (
-              <button
-                type="button"
-                onClick={() => setSearch("")}
-                className="absolute right-1.5 top-1/2 -translate-y-1/2 text-mycel-muted hover:text-mycel-text text-sm leading-none px-1"
-                aria-label="Clear search"
-              >
-                &times;
-              </button>
-            )}
-          </div>
-          <button type="button" onClick={() => void handleCheck()} disabled={checking}
-            className="inline-flex items-center gap-1.5 h-9 px-3 text-sm rounded-md bg-mycel-surface border border-mycel-border text-mycel-text-2 hover:text-mycel-text hover:bg-mycel-surface-hover transition-colors disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-mycel-accent">
-            {checking ? <Spinner /> : null}
-            {checking ? "Checking..." : "Health Check"}
-          </button>
-          <button type="button" onClick={() => setShowAddForm(!showAddForm)}
-            className="inline-flex items-center h-9 px-3 text-sm font-medium rounded-md bg-mycel-accent text-mycel-accent-fg hover:bg-mycel-accent-hover shadow-mycel-sm transition-colors focus-visible:ring-2 focus-visible:ring-mycel-accent">
-            + CLI Tool
-          </button>
-        </div>
-      </div>
-
       <AnimatePresence>
         {showAddForm && <AddCLIToolForm onClose={() => setShowAddForm(false)} onAdded={() => { setCheckedTools(null); refresh(); }} onToast={addToast} />}
       </AnimatePresence>
