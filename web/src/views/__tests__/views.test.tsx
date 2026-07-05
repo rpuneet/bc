@@ -296,18 +296,31 @@ describe("Notifications", () => {
     });
   });
 
-  it("renders empty state for gateway notification sources", async () => {
-    // Simulate a slack gateway source — the frontend renders a feed view.
-    fetchMock.mockReturnValue(
-      jsonResponse([
-        { name: "slack:general", description: "Gateway channel", members: [], member_count: 0 },
-      ]),
-    );
+  it("renders the notifications home hub when no channel is selected", async () => {
+    // Simulate a slack gateway source — the hub lists it grouped by app.
+    fetchMock.mockImplementation((url: RequestInfo | URL) => {
+      const u = String(url);
+      if (u.includes("/notifications/overview")) {
+        return Promise.resolve({
+          ok: false,
+          status: 404,
+          statusText: "Not Found",
+          json: () => Promise.resolve({ error: "not found" }),
+        } as Response);
+      }
+      if (u.includes("/api/channels") && !u.includes("/history")) {
+        return jsonResponse([
+          { name: "slack:general", description: "Gateway channel", members: [], member_count: 0 },
+        ]);
+      }
+      return jsonResponse([]);
+    });
     wrap(<Notifications />);
     await waitFor(() => {
-      // When a gateway source exists but none is selected, shows "Select a channel".
-      expect(screen.getByText("Select a channel")).toBeInTheDocument();
+      // The hub renders the channel row (leaf name) and the connect card.
+      expect(screen.getByText("general")).toBeInTheDocument();
     });
+    expect(screen.getByRole("button", { name: /Connect an app/ })).toBeInTheDocument();
   });
 });
 

@@ -145,6 +145,37 @@ export interface GatewayHealth {
   last_message_at?: string;
 }
 
+/** One connected/configured app on the notifications overview (#3310). */
+export interface OverviewApp {
+  name: string;
+  platform: string;
+  connected: boolean;
+  disconnect_reason?: string;
+  channel_count: number;
+  last_activity?: string;
+}
+
+/** One channel row on the notifications overview, enriched with the
+ *  display metadata resolved by the platform adapter (#3310). All
+ *  metadata fields are optional — the page degrades to raw channel ids
+ *  when the backend has not resolved identities yet. */
+export interface OverviewChannel {
+  bc_channel: string;
+  platform: string;
+  display_name?: string;
+  /** "group" | "person" when the adapter could classify the channel. */
+  kind?: string;
+  participant_count?: number;
+  subscriber_count?: number;
+  message_count?: number;
+  last_activity?: string;
+}
+
+export interface NotificationsOverview {
+  apps?: OverviewApp[];
+  channels?: OverviewChannel[];
+}
+
 export interface CostSummary {
   input_tokens: number;
   output_tokens: number;
@@ -760,6 +791,11 @@ export const api = {
     request<GatewayStatus[]>("/gateways"),
   getGatewayHealth: (platform: string) =>
     request<GatewayHealth>(`/gateways/${encodeURIComponent(platform)}/health`),
+  /** Aggregated apps + channels for the notifications home (#3310).
+   *  Callers must tolerate the endpoint being absent and fall back to
+   *  composing the same data from the individual endpoints. */
+  getNotificationsOverview: () =>
+    request<NotificationsOverview>("/notifications/overview"),
 
   getCostSummary: () => request<CostSummary>("/costs"),
   getCostByAgent: () => request<AgentCostSummary[]>("/costs/agents"),
