@@ -5,10 +5,14 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/rpuneet/mycel/pkg/gateway"
+	"github.com/rpuneet/mycel/pkg/secret"
+	"github.com/rpuneet/mycel/pkg/workspace"
 )
 
 // stubAdapter implements gateway.NotificationAdapter for testing.
@@ -304,5 +308,150 @@ func TestNotify503FallsBackWithoutReason(t *testing.T) {
 	}
 	if !strings.Contains(rr.Body.String(), "notify service not available") {
 		t.Errorf("unexpected 503 body: %s", rr.Body.String())
+	}
+}
+
+// --- Vault write tests ---
+
+// openTestVault creates a temporary secrets vault for testing and returns it
+// along with a cleanup function.
+func openTestVault(t *testing.T) *secret.Store {
+	t.Helper()
+	vaultPath := filepath.Join(t.TempDir(), "secrets.vault")
+	v, err := secret.OpenVaultFile(vaultPath, "test-passphrase")
+	if err != nil {
+		t.Fatalf("open test vault: %v", err)
+	}
+	t.Cleanup(func() { _ = v.Close() })
+	return v
+}
+
+// setupTestWorkspace creates a minimal workspace directory suitable for
+// gateway config updates. Uses a sandboxed MYCEL_HOME to avoid polluting the
+// caller's real registry.
+func setupTestWorkspace(t *testing.T) *workspace.Workspace {
+	t.Helper()
+	// Sandbox global state so workspace.Init doesn't write to the real registry.
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("MYCEL_HOME", filepath.Join(home, ".bc"))
+
+	dir := t.TempDir()
+	// workspace.Init requires a git repository.
+	if err := os.MkdirAll(filepath.Join(dir, ".git"), 0o750); err != nil {
+		t.Fatalf("create .git: %v", err)
+	}
+	wks, err := workspace.Init(dir)
+	if err != nil {
+		t.Fatalf("workspace.Init: %v", err)
+	}
+	return wks
+}
+
+// TestUpdatePlatformSlackWritesVault verifies that a Slack PATCH persists
+// SLACK_BOT_TOKEN and SLACK_APP_TOKEN in the vault.
+func TestUpdatePlatformSlackWritesVault(t *testing.T) {
+	wks := setupTestWorkspace(t)
+	vault := openTestVault(t)
+
+	h := &GatewayHandler{ws: wks, vault: vault}
+
+	body := `{"bot_token":"xoxb-bot-token","app_token":"xapp-app-token","enabled":true}`
+	req := httptest.NewRequest(http.MethodPatch, "/api/gateways/slack", strings.NewReader(body))
+	rr := httptest.NewRecorder()
+	h.updatePlatform(rr, req, "slack")
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body = %s", rr.Code, rr.Body.String())
+	}
+
+	if got, err := vault.GetValue("SLACK_BOT_TOKEN"); err != nil || got != "xoxb-bot-token" {
+		t.Errorf("SLACK_BOT_TOKEN = %q (err %v), want %q", got, err, "xoxb-bot-token")
+	}
+	if got, err := vault.GetValue("SLACK_APP_TOKEN"); err != nil || got != "xapp-app-token" {
+		t.Errorf("SLACK_APP_TOKEN = %q (err %v), want %q", got, err, "xapp-app-token")
+	}
+}
+
+// TestUpdatePlatformDiscordWritesVault verifies that a Discord PATCH persists
+// DISCORD_BOT_TOKEN in the vault.
+func TestUpdatePlatformDiscordWritesVault(t *testing.T) {
+	wks := setupTestWorkspace(t)
+	vault := openTestVault(t)
+
+	h := &GatewayHandler{ws: wks, vault: vault}
+
+	body := `{"bot_token":"discord-bot-token","enabled":true}`
+	req := httptest.NewRequest(http.MethodPatch, "/api/gateways/discord", strings.NewReader(body))
+	rr := httptest.NewRecorder()
+	h.updatePlatform(rr, req, "discord")
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body = %s", rr.Code, rr.Body.String())
+	}
+
+	if got, err := vault.GetValue("DISCORD_BOT_TOKEN"); err != nil || got != "discord-bot-token" {
+		t.Errorf("DISCORD_BOT_TOKEN = %q (err %v), want %q", got, err, "discord-bot-token")
+	}
+}
+
+// TestUpdatePlatformTelegramWritesVault verifies that a plain Telegram PATCH
+// persists TELEGRAM_BOT_TOKEN in the vault.
+func TestUpdatePlatformTelegramWritesVault(t *testing.T) {
+	wks := setupTestWorkspace(t)
+	vault := openTestVault(t)
+
+	h := &GatewayHandler{ws: wks, vault: vault}
+
+	body := `{"bot_token":"tg-bot-token","enabled":true}`
+	req := httptest.NewRequest(http.MethodPatch, "/api/gateways/telegram", strings.NewReader(body))
+	rr := httptest.NewRecorder()
+	h.updatePlatform(rr, req, "telegram")
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body = %s", rr.Code, rr.Body.String())
+	}
+
+	if got, err := vault.GetValue("TELEGRAM_BOT_TOKEN"); err != nil || got != "tg-bot-token" {
+		t.Errorf("TELEGRAM_BOT_TOKEN = %q (err %v), want %q", got, err, "tg-bot-token")
+	}
+}
+
+// TestUpdatePlatformTelegramLabelWritesVault verifies that a labeled Telegram
+// PATCH persists TELEGRAM_BOT_TOKEN_<LABEL> in the vault.
+func TestUpdatePlatformTelegramLabelWritesVault(t *testing.T) {
+	wks := setupTestWorkspace(t)
+	vault := openTestVault(t)
+
+	h := &GatewayHandler{ws: wks, vault: vault}
+
+	body := `{"bot_token":"tg-label-token","enabled":true}`
+	req := httptest.NewRequest(http.MethodPatch, "/api/gateways/telegram:mybot", strings.NewReader(body))
+	rr := httptest.NewRecorder()
+	h.updatePlatform(rr, req, "telegram:mybot")
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body = %s", rr.Code, rr.Body.String())
+	}
+
+	if got, err := vault.GetValue("TELEGRAM_BOT_TOKEN_MYBOT"); err != nil || got != "tg-label-token" {
+		t.Errorf("TELEGRAM_BOT_TOKEN_MYBOT = %q (err %v), want %q", got, err, "tg-label-token")
+	}
+}
+
+// TestUpdatePlatformNoVaultIsNoop verifies that updatePlatform succeeds and
+// does not panic when no vault is wired.
+func TestUpdatePlatformNoVaultIsNoop(t *testing.T) {
+	wks := setupTestWorkspace(t)
+
+	h := &GatewayHandler{ws: wks} // no vault
+
+	body := `{"bot_token":"xoxb-no-vault","app_token":"xapp-no-vault","enabled":true}`
+	req := httptest.NewRequest(http.MethodPatch, "/api/gateways/slack", strings.NewReader(body))
+	rr := httptest.NewRecorder()
+	h.updatePlatform(rr, req, "slack")
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body = %s", rr.Code, rr.Body.String())
 	}
 }

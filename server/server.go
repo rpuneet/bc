@@ -374,6 +374,9 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 		if svc.Notify != nil {
 			gh.SetNotifyService(svc.Notify)
 		}
+		if svc.Secrets != nil {
+			gh.SetSecretStore(svc.Secrets)
+		}
 		gh.Register(mux)
 	}
 	// Repo listing + discovery scanners for the folder picker. The repos
