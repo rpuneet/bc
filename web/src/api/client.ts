@@ -1031,4 +1031,12 @@ export const api = {
       body: JSON.stringify(patch),
     }),
 
+  getInjectedInstructions: () =>
+    request<{ injected_instructions: string }>("/settings/injected-instructions"),
+  updateInjectedInstructions: (text: string) =>
+    request<{ injected_instructions: string }>("/settings/injected-instructions", {
+      method: "PUT",
+      body: JSON.stringify({ injected_instructions: text }),
+    }),
+
 };

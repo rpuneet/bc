@@ -100,6 +100,10 @@ const SECTION_META: Record<string, { icon: React.ReactNode; desc: string }> = {
     icon: <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />,
     desc: "Optional supporting services",
   },
+  "injected instructions": {
+    icon: <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.129.166 2.27.293 3.423.379.35.026.67.21.865.501L12 21l2.755-4.133a1.14 1.14 0 01.865-.501 48.172 48.172 0 003.423-.379c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018z" />,
+    desc: "Sent to every agent at spawn",
+  },
 };
 
 function Section({
@@ -272,6 +276,76 @@ function LogsSection({ data, onChange }: { data: Record<string, unknown>; onChan
       <Field label="Path"><input className={INPUT_CLS} value={String(l.path ?? "")} onChange={(e) => onChange(["logs", "path"], e.target.value)} /></Field>
       <Field label="Max Size" suffix="MB"><input className={INPUT_CLS} type="number" value={maxMB} onChange={(e) => onChange(["logs", "max_bytes"], Number(e.target.value) * 1048576)} /></Field>
     </>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Injected instructions — mycel-authored text pushed to every agent   */
+/* ------------------------------------------------------------------ */
+
+function InjectedInstructionsSection() {
+  const [text, setText] = useState("");
+  const [original, setOriginal] = useState("");
+  const [status, setStatus] = useState<SaveStatus>("idle");
+
+  useEffect(() => {
+    let alive = true;
+    api.getInjectedInstructions()
+      .then((res) => {
+        if (!alive) return;
+        setText(res.injected_instructions ?? "");
+        setOriginal(res.injected_instructions ?? "");
+      })
+      .catch(() => { /* leave empty on load failure */ });
+    return () => { alive = false; };
+  }, []);
+
+  const dirty = text !== original;
+
+  const handleSave = async () => {
+    setStatus("saving");
+    try {
+      const res = await api.updateInjectedInstructions(text);
+      const saved = res.injected_instructions ?? "";
+      setText(saved);
+      setOriginal(saved);
+      setStatus("saved");
+      setTimeout(() => setStatus("idle"), 2000);
+    } catch {
+      setStatus("error");
+    }
+  };
+
+  return (
+    <div className="space-y-2">
+      <p className="text-[11px] text-mycel-muted">
+        Appended to every agent&apos;s prompt file at spawn, followed by an
+        auto-generated summary of its available MCP servers and credential
+        env var names. Secret values are never included.
+      </p>
+      <textarea
+        className={`${INPUT_CLS} h-40 resize-y leading-relaxed`}
+        placeholder="e.g. Always report status before and after work. Prefer small PRs."
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+      />
+      <div className="flex items-center justify-end gap-2">
+        {status === "saved" && (
+          <span className="text-xs text-mycel-success">Saved</span>
+        )}
+        {status === "error" && (
+          <span className="text-xs text-mycel-error">Save failed</span>
+        )}
+        <button
+          type="button"
+          onClick={handleSave}
+          disabled={status === "saving" || !dirty}
+          className="inline-flex items-center h-8 px-3 rounded-md text-xs font-medium bg-mycel-accent text-mycel-accent-fg hover:bg-mycel-accent-hover shadow-mycel-sm transition-all disabled:opacity-50"
+        >
+          {status === "saving" ? "Saving..." : "Save"}
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -459,7 +533,12 @@ export function Settings() {
         </Section>
       </div>
 
-      {/* Row 4: Optional dependencies (bc-db, bc-code-server, bc-browser) */}
+      {/* Row 4: Injected instructions (sent to every agent) */}
+      <Section title="injected instructions" dirty={false}>
+        <InjectedInstructionsSection />
+      </Section>
+
+      {/* Row 5: Optional dependencies (bc-db, bc-code-server, bc-browser) */}
       <Section title="dependencies" dirty={false}>
         <DependenciesSection />
       </Section>

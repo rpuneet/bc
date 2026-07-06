@@ -29,7 +29,10 @@ type Config struct { //nolint:govet // field order matches JSON/API contract
 	Cron      CronConfig      `json:"cron"`
 	Logs      LogsConfig      `json:"logs"`
 	UI        UIConfig        `json:"ui"`
-	Version   int             `json:"version"`
+	// InjectedInstructions is mycel-authored guidance appended to every
+	// agent's prompt file at spawn time. Never contains secret values.
+	InjectedInstructions string `json:"injected_instructions"`
+	Version              int    `json:"version"`
 }
 
 // UserConfig holds user identity settings.

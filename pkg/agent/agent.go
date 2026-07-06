@@ -503,6 +503,11 @@ type Manager struct { //nolint:govet // field order is intentional for readabili
 	// gatewayConfig holds gateway credentials for injection into agent env vars.
 	gatewayConfig *workspace.GatewaysConfig
 
+	// wsConfig points at the live workspace config so spawn paths can read
+	// mycel-authored injected instructions. It is the same pointer the
+	// settings API mutates in place, so edits take effect on the next spawn.
+	wsConfig *workspace.Config
+
 	// providersConfig holds the workspace's provider command overrides
 	// (preferences.json `providers.<tool>.command`). Used by
 	// getAgentCommand to layer a user-supplied command on top of the
@@ -542,6 +547,7 @@ func (m *Manager) ApplyWorkspaceConfig(cfg *workspace.Config) {
 	}
 	m.gatewayConfig = &cfg.Gateways
 	m.providersConfig = &cfg.Providers
+	m.wsConfig = cfg
 }
 
 // notifyStateChange calls the onStateChange callback if set.
@@ -1282,7 +1288,7 @@ func (m *Manager) startAgent(ctx context.Context, name string, opts SpawnOptions
 	injectEnv(env, wsPath, name, existing.EnvFile, existing.Env)
 	injectGatewayEnv(env, m.gatewayConfig)
 	injectProviderEnv(env, toolName, m.providerRegistry)
-	injectVaultSecrets(env, wsPath, resolveRoleSecrets(wsPath, string(existing.Role)))
+	secretEnvKeys := injectVaultSecrets(env, wsPath, resolveRoleSecrets(wsPath, string(existing.Role)))
 
 	rt := m.runtimeForAgent(name)
 	m.mu.Unlock()
@@ -1347,6 +1353,10 @@ func (m *Manager) startAgent(ctx context.Context, name string, opts SpawnOptions
 		log.Warn("role setup failed on restart", "agent", name, "error", setupErr)
 	}
 	appendGatewayPrompt(wtDir, existing.Tool, m.gatewayConfig)
+	if err := appendInjectedInstructions(ctx, injectedPromptFile(wtDir, existing.Tool), m.wsConfig,
+		resolveRoleMCPServers(wsPath, string(existing.Role)), secretEnvKeys); err != nil {
+		log.Warn("failed to append injected instructions", "agent", name, "error", err)
+	}
 
 	if err := rt.CreateSessionWithEnv(ctx, name, wtDir, agentCmd, env); err != nil {
 		agentLock.Unlock()
@@ -1523,7 +1533,7 @@ func (m *Manager) createAgent(ctx context.Context, opts SpawnOptions) (*Agent, e
 	injectEnv(env, wsPath, name, opts.EnvFile, opts.Env)
 	injectGatewayEnv(env, m.gatewayConfig)
 	injectProviderEnv(env, effectiveTool, m.providerRegistry)
-	injectVaultSecrets(env, wsPath, resolveRoleSecrets(wsPath, string(role)))
+	secretEnvKeys := injectVaultSecrets(env, wsPath, resolveRoleSecrets(wsPath, string(role)))
 
 	rt := m.runtimeForAgent(name)
 	m.mu.Unlock()
@@ -1567,6 +1577,10 @@ func (m *Manager) createAgent(ctx context.Context, opts SpawnOptions) (*Agent, e
 
 	// Append platform credential instructions to the agent's prompt file
 	appendGatewayPrompt(wtDir, effectiveTool, m.gatewayConfig)
+	if err := appendInjectedInstructions(ctx, injectedPromptFile(wtDir, effectiveTool), m.wsConfig,
+		resolveRoleMCPServers(wsPath, string(role)), secretEnvKeys); err != nil {
+		log.Warn("failed to append injected instructions", "agent", name, "error", err)
+	}
 
 	// Validate required tools before starting — fail fast with clear errors.
 	if toolErrs := validateAgentTools(wsPath, string(role)); len(toolErrs) > 0 {
@@ -3433,6 +3447,64 @@ func appendGatewayPrompt(targetDir, toolName string, cfg *workspace.GatewaysConf
 	}
 }
 
+// injectedPromptFile resolves the prompt file path (CLAUDE.md or the
+// provider-equivalent) inside an agent worktree for the given tool.
+func injectedPromptFile(targetDir, toolName string) string {
+	adapter := resolveConfigAdapter(toolName)
+	return filepath.Join(targetDir, adapter.PromptFile())
+}
+
+// appendInjectedInstructions appends the mycel-authored injected-instructions
+// block to an agent's prompt file. The block carries the authored text plus an
+// auto-generated summary of the MCP servers and credential env var NAMES the
+// agent has access to. Secret VALUES are never written — only key names.
+//
+// It is a no-op (returns nil) when no instructions are configured.
+func appendInjectedInstructions(ctx context.Context, promptFile string, cfg *workspace.Config, mcpServers, secretEnvKeys []string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if cfg == nil || strings.TrimSpace(cfg.InjectedInstructions) == "" {
+		return nil
+	}
+
+	// promptFile is derived from a validated agent worktree path; reject
+	// traversal segments as defense in depth.
+	cleaned := filepath.Clean(promptFile)
+	if strings.Contains(cleaned, "..") {
+		return fmt.Errorf("refusing to write injected instructions to traversal path %q", promptFile)
+	}
+
+	var sb strings.Builder
+	sb.WriteString("\n## mycel instructions\n\n")
+	sb.WriteString(strings.TrimSpace(cfg.InjectedInstructions))
+	sb.WriteString("\n\n### Available resources\n")
+	sb.WriteString("MCP servers: " + summarizeNames(mcpServers) + "\n")
+	sb.WriteString("Credential env vars: " + summarizeNames(secretEnvKeys) + "\n")
+
+	f, err := os.OpenFile(cleaned, os.O_APPEND|os.O_WRONLY, 0600) //nolint:gosec // controlled agent workspace path
+	if err != nil {
+		return fmt.Errorf("open prompt file: %w", err)
+	}
+	defer f.Close() //nolint:errcheck
+	if _, err := f.WriteString(sb.String()); err != nil {
+		return fmt.Errorf("write injected instructions: %w", err)
+	}
+	return nil
+}
+
+// summarizeNames renders a sorted, comma-separated list of names, or the
+// literal "none" when the list is empty. Used to summarize MCP servers and
+// credential env var NAMES for injected instructions — never values.
+func summarizeNames(names []string) string {
+	if len(names) == 0 {
+		return "none"
+	}
+	sorted := append([]string(nil), names...)
+	sort.Strings(sorted)
+	return strings.Join(sorted, ", ")
+}
+
 // injectGatewayEnv injects platform credentials from gateway config into agent
 // environment variables so agents can call platform APIs directly.
 func injectGatewayEnv(env map[string]string, gw *workspace.GatewaysConfig) {
@@ -3786,18 +3858,24 @@ func openLayeredStore(wsPath, passphrase string) (ls *secret.LayeredStore, close
 // both GITHUB_TOKEN and GH_TOKEN so git/gh tooling works without manual wiring.
 //
 // Secret VALUES are never logged.
-func injectVaultSecrets(env map[string]string, wsPath string, roleSecrets []string) {
+//
+// The returned slice holds the NAMES of env keys populated from the vault
+// (never their values) so callers can summarize available credentials to the
+// agent without ever exposing the secrets themselves.
+func injectVaultSecrets(env map[string]string, wsPath string, roleSecrets []string) []string {
 	passphrase, err := secret.Passphrase()
 	if err != nil {
 		log.Warn("vault injection skipped: cannot read passphrase", "error", err)
-		return
+		return nil
 	}
 
 	ls, closeLS := openLayeredStore(wsPath, passphrase)
 	if ls == nil {
-		return
+		return nil
 	}
 	defer closeLS()
+
+	var injected []string
 
 	// injectIfAbsent sets env[key] from the vault secret "name" only when the
 	// key is not already present. Values are intentionally not logged.
@@ -3810,6 +3888,7 @@ func injectVaultSecrets(env map[string]string, wsPath string, roleSecrets []stri
 			return
 		}
 		env[key] = val
+		injected = append(injected, key)
 		log.Debug("injected vault secret into agent env", "key", key)
 	}
 
@@ -3834,14 +3913,18 @@ func injectVaultSecrets(env map[string]string, wsPath string, roleSecrets []stri
 		}
 		if _, exists := env["GITHUB_TOKEN"]; !exists {
 			env["GITHUB_TOKEN"] = val
+			injected = append(injected, "GITHUB_TOKEN")
 			log.Debug("injected vault secret into agent env", "key", "GITHUB_TOKEN")
 		}
 		if _, exists := env["GH_TOKEN"]; !exists {
 			env["GH_TOKEN"] = val
+			injected = append(injected, "GH_TOKEN")
 			log.Debug("injected vault secret into agent env", "key", "GH_TOKEN")
 		}
 		break // first source wins; don't double-process
 	}
+
+	return injected
 }
 
 // resolveRoleSecrets returns the Secrets list for a named role via BFS
@@ -3859,6 +3942,30 @@ func resolveRoleSecrets(wsPath, roleName string) []string {
 		return nil
 	}
 	return resolved.Secrets
+}
+
+// resolveRoleMCPServers returns the effective MCP server names an agent of the
+// named role receives. It mirrors role_setup: the resolved role's MCPServers
+// plus the always-present "bc" self server. Returns just "bc" when the role
+// cannot be loaded so the summary is never empty for a live agent.
+func resolveRoleMCPServers(wsPath, roleName string) []string {
+	names := []string{"bc"}
+	rm, err := workspace.NewGlobalRoleManager(workspaceStateDir(wsPath))
+	if err != nil {
+		log.Debug("resolveRoleMCPServers: cannot open role manager", "error", err)
+		return names
+	}
+	resolved, err := rm.ResolveRole(roleName)
+	if err != nil {
+		log.Debug("resolveRoleMCPServers: cannot resolve role", "role", roleName, "error", err)
+		return names
+	}
+	for _, n := range resolved.MCPServers {
+		if n != "bc" {
+			names = append(names, n)
+		}
+	}
+	return names
 }
 
 // resolveSecretRefs resolves ${secret:NAME} references in env values using the
