@@ -298,17 +298,21 @@ func TestDedupeByID(t *testing.T) {
 		{ID: "mcp-registry:ai.bowmark/bowmark", Name: "bowmark"}, // dup version
 		{ID: "mcp-registry:ai.bowmark/bowmark", Name: "bowmark"}, // dup version
 		{ID: "github:foo/bar", Name: "bar"},
-		{ID: "", Name: "no-id-a"}, // empty IDs are kept as-is
+		{ID: "", Name: "no-id-a"}, // empty-ID items are dropped (cannot be deduped/installed)
 		{ID: "", Name: "no-id-b"},
 	}
 	out := dedupeByID(in)
-	if len(out) != 4 {
-		t.Fatalf("expected 4 items after dedup, got %d", len(out))
+	// bowmark×3 → 1; github:foo/bar → 1; two empty-ID items → dropped.
+	if len(out) != 2 {
+		t.Fatalf("expected 2 items after dedup, got %d", len(out))
 	}
 	var bowmark int
 	for _, it := range out {
 		if it.ID == "mcp-registry:ai.bowmark/bowmark" {
 			bowmark++
+		}
+		if it.ID == "" {
+			t.Errorf("unexpected empty-ID item %q in output", it.Name)
 		}
 	}
 	if bowmark != 1 {
