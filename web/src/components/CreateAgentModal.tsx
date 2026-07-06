@@ -71,11 +71,11 @@ interface RepoCandidate {
   name: string;
 }
 
-type Provider = "claude" | "gemini" | "cursor" | "codex" | "pi";
+type Provider = "claude" | "agy" | "cursor" | "codex" | "pi";
 type Runtime = "docker" | "tmux";
 
 const DEFAULT_TEMPLATES = ["feature-dev", "reviewer", "manager", "blank"];
-const VALID_PROVIDERS = new Set<string>(["claude", "gemini", "cursor", "codex", "pi"]);
+const VALID_PROVIDERS = new Set<string>(["claude", "agy", "cursor", "codex", "pi"]);
 const VALID_RUNTIMES = new Set<string>(["docker", "tmux"]);
 
 const SHAPES: AgentShape[] = ["hexagon", "circle", "square"];
@@ -601,7 +601,7 @@ export function CreateAgentModal({
                 style={{ fontFamily: MONO }}
               >
                 <option value="claude">claude</option>
-                <option value="gemini">gemini</option>
+                <option value="agy">agy</option>
                 <option value="cursor">cursor</option>
                 <option value="codex">codex</option>
                 <option value="pi">pi</option>

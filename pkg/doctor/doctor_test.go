@@ -676,7 +676,7 @@ func TestCheckAgentImages(t *testing.T) {
 
 	t.Run("missing and present images", func(t *testing.T) {
 		listDockerImages = func(context.Context) []string {
-			return []string{"mycel-agent-claude:latest", "bc-agent-gemini:latest", "ubuntu:24.04"}
+			return []string{"mycel-agent-claude:latest", "bc-agent-agy:latest", "ubuntu:24.04"}
 		}
 		items := checkAgentImages(ctx)
 		if len(items) == 0 {
@@ -689,8 +689,8 @@ func TestCheckAgentImages(t *testing.T) {
 		if got := bySeverity["image:mycel-agent-claude:latest"]; got != SeverityOK {
 			t.Errorf("claude image severity = %v, want OK", got)
 		}
-		if got := bySeverity["image:mycel-agent-gemini:latest"]; got != SeverityOK {
-			t.Errorf("gemini legacy image severity = %v, want OK", got)
+		if got := bySeverity["image:mycel-agent-agy:latest"]; got != SeverityOK {
+			t.Errorf("agy legacy image severity = %v, want OK", got)
 		}
 		if got := bySeverity["image:mycel-agent-cursor:latest"]; got != SeverityWarn {
 			t.Errorf("cursor missing image severity = %v, want Warn", got)

@@ -110,7 +110,7 @@ func TestMigrateJSONToSQLite_PerAgentJSON(t *testing.T) {
 		Role:      "engineer",
 		State:     StateWorking,
 		StartedAt: time.Now(),
-		Tool:      "gemini",
+		Tool:      "agy",
 	}
 	data, _ := json.MarshalIndent(state, "", "  ")
 	_ = os.WriteFile(filepath.Join(agentsDir, "solo.json"), data, 0600)
@@ -129,8 +129,8 @@ func TestMigrateJSONToSQLite_PerAgentJSON(t *testing.T) {
 	if solo == nil {
 		t.Fatal("solo agent not found after migration")
 	}
-	if solo.Tool != "gemini" {
-		t.Errorf("Tool = %q, want gemini", solo.Tool)
+	if solo.Tool != "agy" {
+		t.Errorf("Tool = %q, want agy", solo.Tool)
 	}
 
 	// Verify file was renamed

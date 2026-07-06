@@ -311,7 +311,7 @@ func TestResourceRead_Tools(t *testing.T) {
 	for _, tool := range tools {
 		names[tool.Name] = true
 	}
-	for _, want := range []string{"claude", "gemini", "cursor"} {
+	for _, want := range []string{"claude", "agy", "cursor"} {
 		if !names[want] {
 			t.Errorf("bc://tools: missing tool %q", want)
 		}

@@ -53,7 +53,7 @@ func DefaultUserRCConfig() UserRCConfig {
 			AutoStartRoot: true,
 		},
 		Tools: UserRCToolsConfig{
-			Preferred: []string{"claude-code", "gemini"},
+			Preferred: []string{"claude-code", "agy"},
 		},
 	}
 }

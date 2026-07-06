@@ -29,6 +29,17 @@ const (
 	HookElicitationResult  HookEvent = "ElicitationResult"
 )
 
+// ── Antigravity CLI (agy) lifecycle hook events (configured in .agents/hooks.json) ──
+//
+// agy's tool events (PreToolUse, PostToolUse) and loop-termination event (Stop)
+// reuse the Claude event names above. These two are agy-specific: they wrap the
+// model invocation, so PreInvocation marks the agent as working and
+// PostInvocation is informational.
+const (
+	HookPreInvocation  HookEvent = "PreInvocation"
+	HookPostInvocation HookEvent = "PostInvocation"
+)
+
 // ── bc-internal events (POSTed by bcd Go code, not Claude Code hooks) ──
 
 const (
@@ -47,6 +58,7 @@ var hookEventStateMap = map[HookEvent]State{
 	HookSessionStart:      StateIdle,
 	HookSessionEnd:        StateStopped,
 	HookUserPromptSubmit:  StateWorking,
+	HookPreInvocation:     StateWorking,
 	HookPermissionRequest: StateStuck,
 	HookElicitation:       StateStuck,
 	HookElicitationResult: StateWorking,
@@ -69,6 +81,7 @@ func IsKnownEvent(ev HookEvent) bool {
 	// Events that are known but don't change agent state (logged for activity tracking)
 	switch ev {
 	case HookPreToolUse, HookPostToolUse, HookPostToolUseFailure,
+		HookPostInvocation,
 		HookSubagentStart, HookSubagentStop,
 		HookWorktreeCreate, HookPreCompact, HookPostCompact,
 		HookNotification, HookTeammateIdle, HookInstructionsLoaded,

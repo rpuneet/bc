@@ -176,7 +176,7 @@ func DefaultConfig() Config {
 			Default: "claude",
 			Providers: map[string]ProviderConfig{
 				"claude": {Command: "claude --dangerously-skip-permissions"},
-				"gemini": {Command: "gemini --yolo"},
+				"agy":    {Command: "agy --dangerously-skip-permissions"},
 			},
 		},
 		Gateways: GatewaysConfig{},

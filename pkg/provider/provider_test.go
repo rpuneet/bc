@@ -43,7 +43,7 @@ func TestRegistryGetNotFound(t *testing.T) {
 func TestRegistryList(t *testing.T) {
 	r := NewRegistry()
 	r.Register(NewClaudeProvider())
-	r.Register(NewGeminiProvider())
+	r.Register(NewAgyProvider())
 
 	list := r.List()
 	if len(list) != 2 {
@@ -54,7 +54,7 @@ func TestRegistryList(t *testing.T) {
 func TestDefaultRegistryHasProviders(t *testing.T) {
 	// The default registry holds exactly the built-in providers — nothing
 	// more, nothing less. Names() is sorted, so compare directly.
-	want := []string{"claude", "codex", "cursor", "gemini", "pi"}
+	want := []string{"agy", "claude", "codex", "cursor", "pi"}
 	got := DefaultRegistry.Names()
 	if len(got) != len(want) {
 		t.Fatalf("expected providers %v, got %v", want, got)
@@ -159,7 +159,7 @@ func TestProviderIsInstalled(t *testing.T) {
 	providers := []Provider{
 		NewClaudeProvider(),
 		NewCodexProvider(),
-		NewGeminiProvider(),
+		NewAgyProvider(),
 		NewCursorProvider(),
 	}
 
@@ -179,7 +179,7 @@ func TestProviderVersion(t *testing.T) {
 	providers := []Provider{
 		NewClaudeProvider(),
 		NewCodexProvider(),
-		NewGeminiProvider(),
+		NewAgyProvider(),
 		NewCursorProvider(),
 	}
 
@@ -201,7 +201,7 @@ func TestRegistryListInstalled(t *testing.T) {
 
 	// Register some providers
 	r.Register(NewClaudeProvider())
-	r.Register(NewGeminiProvider())
+	r.Register(NewAgyProvider())
 
 	// Test ListInstalled - result depends on what's actually installed
 	installed := r.ListInstalled(ctx)
@@ -235,17 +235,20 @@ func TestListInstalledProviders(t *testing.T) {
 	}
 }
 
-func TestGeminiProvider(t *testing.T) {
-	p := NewGeminiProvider()
+func TestAgyProvider(t *testing.T) {
+	p := NewAgyProvider()
 
-	if p.Name() != "gemini" {
-		t.Errorf("expected name 'gemini', got %q", p.Name())
+	if p.Name() != "agy" {
+		t.Errorf("expected name 'agy', got %q", p.Name())
 	}
 	if p.Description() == "" {
 		t.Error("expected non-empty description")
 	}
-	if p.Command() != "gemini --yolo" {
-		t.Errorf("expected command 'gemini --yolo', got %q", p.Command())
+	if p.Command() != "agy --dangerously-skip-permissions" {
+		t.Errorf("expected command 'agy --dangerously-skip-permissions', got %q", p.Command())
+	}
+	if p.Binary() != "agy" {
+		t.Errorf("expected binary 'agy', got %q", p.Binary())
 	}
 }
 
@@ -271,7 +274,7 @@ func TestProviderBinaryAndInstallHint(t *testing.T) {
 		installHint string
 	}{
 		{"claude", NewClaudeProvider(), "claude", "npx -y @anthropic-ai/claude-code"},
-		{"gemini", NewGeminiProvider(), "gemini", "pip install google-generativeai"},
+		{"agy", NewAgyProvider(), "agy", "curl -fsSL https://antigravity.google/install.sh | sh"},
 		{"cursor", NewCursorProvider(), "cursor-agent", "https://cursor.sh"},
 		{"codex", NewCodexProvider(), "codex", "npm install -g @openai/codex"},
 	}
@@ -297,8 +300,8 @@ func TestProviderBuildCommand(t *testing.T) {
 	}{
 		{"claude no opts", "claude --dangerously-skip-permissions", NewClaudeProvider(), CommandOpts{}},
 		{"claude with agent", "claude --dangerously-skip-permissions", NewClaudeProvider(), CommandOpts{AgentName: "eng-01"}},
-		{"gemini no opts", "gemini --yolo", NewGeminiProvider(), CommandOpts{}},
-		{"gemini with agent", "gemini --yolo", NewGeminiProvider(), CommandOpts{AgentName: "eng-01"}},
+		{"agy no opts", "agy --dangerously-skip-permissions", NewAgyProvider(), CommandOpts{}},
+		{"agy with agent", "agy --dangerously-skip-permissions", NewAgyProvider(), CommandOpts{AgentName: "eng-01"}},
 		{"codex no opts", "codex --full-auto", NewCodexProvider(), CommandOpts{}},
 	}
 
@@ -335,10 +338,10 @@ func TestContainerCustomizer(t *testing.T) {
 		t.Errorf("DockerImage() = %q, want empty", img)
 	}
 
-	// Gemini does NOT implement ContainerCustomizer
-	gemini := NewGeminiProvider()
-	if _, ok := interface{}(gemini).(ContainerCustomizer); ok {
-		t.Error("GeminiProvider should not implement ContainerCustomizer")
+	// Codex does NOT implement ContainerCustomizer (uses the generic adapter)
+	codex := NewCodexProvider()
+	if _, ok := interface{}(codex).(ContainerCustomizer); ok {
+		t.Error("CodexProvider should not implement ContainerCustomizer")
 	}
 }
 

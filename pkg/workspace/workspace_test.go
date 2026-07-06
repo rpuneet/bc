@@ -567,7 +567,7 @@ func TestWorkspaceDefaultProvider(t *testing.T) {
 	dir := t.TempDir()
 	gitInitDir(t, dir)
 
-	// v2 workspace - default provider is gemini (minimal root-only startup)
+	// v2 workspace - default provider is claude (minimal root-only startup)
 	ws, err := Init(dir)
 	if err != nil {
 		t.Fatal(err)

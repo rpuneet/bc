@@ -140,10 +140,10 @@ func TestImageForTool_Convention(t *testing.T) {
 	}
 
 	// Unknown tool without registry falls back to convention
-	got := b.imageForTool("gemini")
-	want := "mycel-agent-gemini:latest"
+	got := b.imageForTool("agy")
+	want := "mycel-agent-agy:latest"
 	if got != want {
-		t.Errorf("imageForTool(\"gemini\") = %q, want %q", got, want)
+		t.Errorf("imageForTool(\"agy\") = %q, want %q", got, want)
 	}
 }
 
@@ -282,9 +282,9 @@ func TestCreateSessionWithEnv_ToolImageMismatch(t *testing.T) {
 		logCancels:    make(map[string]context.CancelFunc),
 	}
 
-	// Command starts with "gemini" but tool resolves to claude image
+	// Command starts with "agy" but tool resolves to claude image
 	env := map[string]string{"MYCEL_AGENT_TOOL": "claude"}
-	err := b.CreateSessionWithEnv(context.Background(), "test-agent", dir, "gemini --some-flag", env)
+	err := b.CreateSessionWithEnv(context.Background(), "test-agent", dir, "agy --some-flag", env)
 	if err == nil {
 		t.Fatal("expected error for tool/image mismatch")
 	}

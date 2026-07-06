@@ -833,7 +833,7 @@ func runConfigUserInitWizard() (workspace.UserRCConfig, error) {
 	}
 
 	// Preferred tools
-	fmt.Printf("Preferred tools (comma-separated) [claude-code, gemini]: ")
+	fmt.Printf("Preferred tools (comma-separated) [claude-code, agy]: ")
 	if _, err := fmt.Scanln(&input); err == nil && input != "" {
 		tools := strings.Split(input, ",")
 		for i := range tools {

@@ -359,7 +359,7 @@ func (b *Backend) CreateSessionWithEnv(ctx context.Context, name, dir, command s
 		image = b.imageForTool(toolName)
 	}
 
-	// Validate tool/image consistency — catch mismatches like running "gemini"
+	// Validate tool/image consistency — catch mismatches like running "agy"
 	// command inside a "bc-agent-claude" image (Exit 127).
 	if toolName, ok := env["MYCEL_AGENT_TOOL"]; ok && toolName != "" {
 		cmdBin := strings.Fields(command)
@@ -378,7 +378,7 @@ func (b *Backend) CreateSessionWithEnv(ctx context.Context, name, dir, command s
 			if imageTool != "" {
 				if bin != imageTool && bin != "bash" && bin != "sh" {
 					// Only warn if the binary name looks like a different tool
-					for _, knownTool := range []string{"claude", "gemini", "cursor", "codex"} {
+					for _, knownTool := range []string{"claude", "agy", "cursor", "codex"} {
 						if bin == knownTool && bin != imageTool {
 							return fmt.Errorf("tool/image mismatch: command %q will not be found in image %q (expected %q binary)", bin, image, imageTool)
 						}

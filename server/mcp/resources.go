@@ -162,7 +162,7 @@ func (s *Server) readTools() (string, error) {
 	// Report the known AI agent tools; check basic availability via PATH.
 	tools := []toolInfoPayload{
 		{Name: "claude", Description: "Claude Code (Anthropic)", Configured: commandExists("claude")},
-		{Name: "gemini", Description: "Gemini CLI (Google)", Configured: commandExists("gemini")},
+		{Name: "agy", Description: "Antigravity CLI (Google Gemini)", Configured: commandExists("agy")},
 		{Name: "cursor", Description: "Cursor (terminal mode)", Configured: commandExists("cursor")},
 		{Name: "codex", Description: "Codex CLI (OpenAI)", Configured: commandExists("codex")},
 	}

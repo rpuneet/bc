@@ -28,7 +28,7 @@ func BenchmarkRegistryGet(b *testing.B) {
 	r := NewRegistry()
 	r.Register(NewClaudeProvider())
 	r.Register(NewCodexProvider())
-	r.Register(NewGeminiProvider())
+	r.Register(NewAgyProvider())
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -52,7 +52,7 @@ func BenchmarkRegistryList(b *testing.B) {
 	r := NewRegistry()
 	r.Register(NewClaudeProvider())
 	r.Register(NewCodexProvider())
-	r.Register(NewGeminiProvider())
+	r.Register(NewAgyProvider())
 	r.Register(NewCursorProvider())
 
 	b.ResetTimer()
@@ -125,7 +125,7 @@ func BenchmarkRegistryGetConcurrent(b *testing.B) {
 	r := NewRegistry()
 	r.Register(NewClaudeProvider())
 	r.Register(NewCodexProvider())
-	r.Register(NewGeminiProvider())
+	r.Register(NewAgyProvider())
 
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {

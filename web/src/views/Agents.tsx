@@ -19,7 +19,7 @@ import { MONO } from "../utils/typography";
  *  the dot is muted-hue at ~50% opacity, not a marketing swatch. */
 const PROVIDER_DOTS: Record<string, string> = {
   claude:   "bg-orange-400/70",
-  gemini:   "bg-sky-400/70",
+  agy:      "bg-sky-400/70",
   cursor:   "bg-fuchsia-400/70",
   codex:    "bg-emerald-400/70",
   pi:       "bg-teal-400/70",
