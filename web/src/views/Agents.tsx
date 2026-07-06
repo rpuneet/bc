@@ -54,16 +54,17 @@ function RuntimeCell({ tool, runtime, model }: { tool?: string | null; runtime?:
   return (
     <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
       {tool && (
+        /* Fix #6: Model names like "amazon-bedrock/deepseek-r1-..." overflow the
+           pill and read as garbled output. Show only the provider name in the
+           badge; the full provider/model string is in the tooltip for those who
+           need it. Runtime label beside it provides the execution context. */
         <span
           className="inline-flex items-center gap-1.5 text-[11px] px-1.5 py-[3px] rounded-md border border-mycel-border bg-mycel-surface-hover text-mycel-text-2"
           style={{ fontFamily: MONO }}
-          title={model ? `Provider: ${tool} · Model: ${model}` : `Provider: ${tool}`}
+          title={model ? `${tool} · ${model}` : tool}
         >
           <span className={`inline-block w-1.5 h-1.5 rounded-full ${dot}`} aria-hidden />
           {tool}
-          {model && (
-            <span className="text-[10px] text-mycel-muted">· {model}</span>
-          )}
         </span>
       )}
       {runtime && (
@@ -415,7 +416,6 @@ function AgentsTableSkeleton() {
           <th className="px-4 py-2"><div className="h-3 w-16 rounded animate-pulse bg-mycel-surface-hover" /></th>
           <th className="px-4 py-2 hidden sm:table-cell"><div className="h-3 w-14 rounded animate-pulse bg-mycel-surface-hover" /></th>
           <th className="px-4 py-2"><div className="h-3 w-12 rounded animate-pulse bg-mycel-surface-hover" /></th>
-          <th className="px-4 py-2"><div className="h-3 w-10 rounded animate-pulse bg-mycel-surface-hover" /></th>
           <th className="px-4 py-2 hidden md:table-cell"><div className="h-3 w-12 rounded animate-pulse bg-mycel-surface-hover" /></th>
           <th className="px-4 py-2 hidden md:table-cell"><div className="h-3 w-8 rounded animate-pulse bg-mycel-surface-hover ml-auto" /></th>
           <th className="px-4 py-2"><div className="h-3 w-14 rounded animate-pulse bg-mycel-surface-hover" /></th>
@@ -434,7 +434,6 @@ function AgentsTableSkeleton() {
             </td>
             <td className="px-4 py-2 hidden sm:table-cell"><div className="h-3 w-16 rounded animate-pulse bg-mycel-surface-hover" /></td>
             <td className="px-4 py-2"><div className="h-4 w-16 rounded-full animate-pulse bg-mycel-surface-hover" /></td>
-            <td className="px-4 py-2"><div className="h-3 rounded animate-pulse bg-mycel-surface-hover" style={{ width: `${80 + (i % 3) * 30}px` }} /></td>
             <td className="px-4 py-2 hidden md:table-cell"><div className="h-3 w-10 rounded animate-pulse bg-mycel-surface-hover" /></td>
             <td className="px-4 py-2 hidden md:table-cell"><div className="h-3 w-10 rounded animate-pulse bg-mycel-surface-hover ml-auto" /></td>
             <td className="px-4 py-2"><div className="h-4 w-16 rounded animate-pulse bg-mycel-surface-hover" /></td>
@@ -609,12 +608,13 @@ export function Agents() {
     setPeekAgent((prev) => (prev === agentName ? null : agentName));
   };
 
+  // Fix #7: TASK column removed — most stopped agents show "—", wasting width.
+  // Task is now shown as a muted secondary line in the NAME cell when present.
   const columns = [
     "Select",
     "Name",
     "Runtime",
     "Status",
-    "Task",
     "Activity",
     "Cost",
     "Actions",
@@ -1085,7 +1085,6 @@ export function Agents() {
                   Runtime
                 </th>
                 <th className="px-4 py-2 text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted">Status</th>
-                <th className="px-4 py-2 text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted">Task</th>
                 <th
                   className="px-4 py-2 text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted hidden md:table-cell"
                   title="Last state change"
@@ -1235,11 +1234,18 @@ export function Agents() {
                         <AgentIcon state={a.state} size={28} tool={a.tool} />
                         <span className="flex flex-col leading-tight min-w-0">
                           <InlineAgentName agent={a} onRenamed={refresh} />
-                          {/* Repo subtitle — shown exactly when no group
-                              header band is rendered (grouping off OR a
-                              single group in view), so the repo is always
-                              visible somewhere without being said twice. */}
-                          {!(groupByRepo && distinctRepoCount > 1) && a.repo && (
+                          {/* Fix #7: Task folded here as a secondary muted line so the
+                              TASK column doesn't waste a whole column of "—" for stopped
+                              agents. Shows when present; falls back to repo subtitle. */}
+                          {a.task ? (
+                            <span
+                              className="text-xs text-mycel-muted truncate max-w-[200px]"
+                              title={a.task}
+                            >
+                              {truncate(a.task, 60)}
+                            </span>
+                          ) : !(groupByRepo && distinctRepoCount > 1) && a.repo ? (
+                            /* Repo subtitle — shown when no group header band is rendered. */
                             <span
                               className="text-xs text-mycel-muted truncate max-w-[180px]"
                               style={{ fontFamily: MONO }}
@@ -1247,7 +1253,7 @@ export function Agents() {
                             >
                               {a.repo.split("/").pop() ?? a.repo}
                             </span>
-                          )}
+                          ) : null}
                         </span>
                       </span>
                     </td>
@@ -1256,13 +1262,6 @@ export function Agents() {
                     </td>
                     <td className="px-4 py-2">
                       <StatusBadge status={a.state} />
-                    </td>
-                    <td className="px-4 py-2">
-                      {/* Task = the agent's own report (report_status).
-                          Lifecycle events live in the activity stream. */}
-                      <span className="text-mycel-muted" title={a.task}>
-                        {a.task ? truncate(a.task, 50) : "—"}
-                      </span>
                     </td>
                     <td className="px-4 py-2 hidden md:table-cell whitespace-nowrap">
                       <span

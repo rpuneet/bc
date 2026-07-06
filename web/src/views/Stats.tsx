@@ -540,11 +540,15 @@ export function Stats() {
         <KpiTile label="Tokens" value={fmtTokens(kpiTokens)} />
         <KpiTile label="Active agents" value={`${aliveCount} / ${agentTable.length}`} />
         <KpiTile label="Burn rate" value={burnRate === null ? "—" : `$${burnRate.toFixed(2)}/hr`} />
+        {/* Fix #3: sub-label clarifies this is ALL-TIME, not range-scoped.
+            The per-agent cost ledger sums the full lifetime so this KPI can
+            read 20× the adjacent "Spend (this range)" tile — the "all-time"
+            qualifier makes the discrepancy immediately legible. */}
         {topDriver ? (
           <KpiTile
             label="Top cost driver"
             value={topDriver.name}
-            sub={`$${topDriver.cost.toFixed(2)}`}
+            sub={`$${topDriver.cost.toFixed(2)} · all-time`}
             to={`/agents/${encodeURIComponent(topDriver.name)}`}
           />
         ) : (
@@ -637,7 +641,18 @@ export function Stats() {
         <SectionHeader label="Cost" count={3} />
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <Panel title="Cost Over Time">
-          {costOverTimeData.length === 0 ? <Empty msg="No cost data" /> : (
+          {costOverTimeData.length === 0 ? <Empty msg="No cost data" /> : costOverTimeData.length < 2 ? (
+            /* Fix #5: A single data point renders as a lone disconnected dot.
+               Show a compact text summary instead — legible and accurate. */
+            <div className="flex flex-col items-center justify-center h-[200px] gap-1">
+              <span className="text-2xl font-semibold tabular-nums text-mycel-text">
+                {fmtCost(costOverTimeData[0]?.cost ?? 0)}
+              </span>
+              <span className="text-xs text-mycel-muted">
+                {costOverTimeData[0]?.time ?? "today"}
+              </span>
+            </div>
+          ) : (
             <ResponsiveContainer width="100%" height={200}>
               <AreaChart data={costOverTimeData} margin={{ top: 4, right: 8, left: -8, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--mycel-border)" vertical={false} />
@@ -968,14 +983,20 @@ function buildAgentTable(data: StatsData | null, sortKey: SortKey, sortAsc: bool
   const memLatest = new Map<string, number>();
   for (const m of data.agentMem) { if (!isInfra(m.agent_name)) memLatest.set(m.agent_name, m.mem_used_bytes / 1024 / 1024); }
 
-  const rows: AgentRow[] = Array.from(latest.values()).map(m => {
-    const ledger = ledgerByName.get(m.agent_name);
-    return {
-      name: m.agent_name, role: m.role, provider: m.tool || "unknown", state: m.state,
-      cpu: m.cpu_percent, mem: memLatest.get(m.agent_name) ?? 0,
-      tokens: ledger?.tokens ?? 0, cost: ledger?.cost ?? 0,
-    };
-  });
+  // Fix #4: Filter out background system processes (e.g. "server") that appear
+  // in the metrics stream but are not real user agents. An entry is a system
+  // process when its state is "system" or when it has no role AND no known
+  // provider tool — the combination uniquely identifies infra containers.
+  const rows: AgentRow[] = Array.from(latest.values())
+    .filter(m => m.state !== "system" && !((!m.role || m.role === "") && (!m.tool || m.tool === "")))
+    .map(m => {
+      const ledger = ledgerByName.get(m.agent_name);
+      return {
+        name: m.agent_name, role: m.role, provider: m.tool || "unknown", state: m.state,
+        cpu: m.cpu_percent, mem: memLatest.get(m.agent_name) ?? 0,
+        tokens: ledger?.tokens ?? 0, cost: ledger?.cost ?? 0,
+      };
+    });
 
   const dir = sortAsc ? 1 : -1;
   rows.sort((a, b) => {
