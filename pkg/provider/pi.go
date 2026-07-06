@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -114,9 +115,48 @@ func (p *PiProvider) Models() []string {
 	return []string{}
 }
 
+// piAWSPointerEnv returns the AWS pointer env vars ("KEY=VALUE") to append to
+// the pi --list-models command environment so Bedrock models (e.g. Kimi 2.5)
+// appear in the Providers UI. Returns nil when injection is not needed:
+//   - any AWS_* key is already set in the daemon's process environment
+//   - ~/.aws directory does not exist on the host
+//
+// Only the two non-secret pointer vars (AWS_PROFILE, AWS_REGION) are returned;
+// secret key material is never fabricated here.
+func piAWSPointerEnv() []string {
+	// Respect any AWS_* already present in the daemon's environment.
+	for _, e := range os.Environ() {
+		if strings.HasPrefix(e, "AWS_") {
+			return nil
+		}
+	}
+	home, err := piUserHomeDir()
+	if err != nil {
+		return nil
+	}
+	awsDir := filepath.Join(home, ".aws")
+	if _, err := os.Stat(awsDir); err != nil { //nolint:gosec // awsDir is derived from UserHomeDir, not user input
+		return nil
+	}
+	result := []string{"AWS_PROFILE=default"}
+	if region := readAWSDefaultRegion(home); region != "" {
+		result = append(result, "AWS_REGION="+region)
+	} else if region = os.Getenv("AWS_DEFAULT_REGION"); region != "" {
+		result = append(result, "AWS_REGION="+region)
+	}
+	return result
+}
+
 // piListModels is overridable in tests.
 var piListModels = func(ctx context.Context) (string, error) {
-	return runProviderCommand(ctx, "pi", "--list-models")
+	//nolint:gosec // "pi" is a trusted provider binary name, not user input
+	cmd := exec.CommandContext(ctx, "pi", "--list-models")
+	cmd.Env = append(os.Environ(), piAWSPointerEnv()...)
+	out, err := cmd.Output()
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(out)), nil
 }
 
 // ListModels queries `pi --list-models` and returns models in "provider/model"
