@@ -47,7 +47,8 @@ func TestBuildCommandModelFlag(t *testing.T) {
 		{"agy injects quoted --model", NewAgyProvider(), "Gemini 3 Flash", " --model 'Gemini 3 Flash'", ""},
 		{"cursor injects --model", NewCursorProvider(), "sonnet-4-thinking", " --model sonnet-4-thinking", ""},
 		{"codex injects --model", NewCodexProvider(), "gpt-5.3-codex", " --model gpt-5.3-codex", ""},
-		{"pi injects --model slash form", NewPiProvider(), "anthropic/claude-sonnet-4-6", " --model anthropic/claude-sonnet-4-6", ""},
+		// pi splits "provider/model" into separate --provider + --model flags for unambiguous routing.
+		{"pi injects --model slash form", NewPiProvider(), "anthropic/claude-sonnet-4-6", " --provider anthropic --model claude-sonnet-4-6", ""},
 		{"claude drops unsafe model", NewClaudeProvider(), "$(id)", "", "id"},
 		{"agy drops unsafe model", NewAgyProvider(), "a$(id)", "", "id"},
 		{"cursor drops leading dash", NewCursorProvider(), "--yolo", "", "--yolo"},
@@ -78,7 +79,8 @@ func TestProviderModels(t *testing.T) {
 		{"claude", NewClaudeProvider(), []string{"fable", "opus", "opusplan", "sonnet", "haiku"}},
 		{"cursor", NewCursorProvider(), []string{"auto", "gpt-5.3-codex", "gpt-5.3-codex-high", "gpt-5.2", "sonnet-4-thinking"}},
 		{"codex", NewCodexProvider(), []string{"gpt-5.3-codex", "gpt-5.2-codex", "gpt-5.2"}},
-		{"pi", NewPiProvider(), []string{"google/gemini-2.5-pro", "anthropic/claude-sonnet-4-6", "openai/gpt-5.2"}},
+		// pi has no static curated list — ListModels (DynamicModelLister) provides the live list from pi --list-models.
+		{"pi", NewPiProvider(), []string{}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
