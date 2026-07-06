@@ -900,7 +900,7 @@ func (h *GatewayHandler) notifyActivity(w http.ResponseWriter, r *http.Request) 
 //	  "sender_jid": "<platform_sender>", // required by WhatsApp; omit for other platforms
 //	  "emoji":      "👍"                 // empty string removes the reaction
 //	}
-func (h *GatewayHandler) gatewayReact(w http.ResponseWriter, r *http.Request, _ string) {
+func (h *GatewayHandler) gatewayReact(w http.ResponseWriter, r *http.Request, platform string) {
 	if !requireMethod(w, r, http.MethodPost) {
 		return
 	}
@@ -923,14 +923,17 @@ func (h *GatewayHandler) gatewayReact(w http.ResponseWriter, r *http.Request, _ 
 		httpError(w, "channel is required", http.StatusBadRequest)
 		return
 	}
+	// Validate that the channel belongs to the platform in the URL path.
+	if !strings.HasPrefix(req.Channel, platform+":") {
+		httpError(w, "channel does not belong to platform "+platform, http.StatusBadRequest)
+		return
+	}
 	if req.MessageID == "" {
 		httpError(w, "message_id is required", http.StatusBadRequest)
 		return
 	}
-	if req.Emoji == "" {
-		httpError(w, "emoji is required", http.StatusBadRequest)
-		return
-	}
+	// Note: empty emoji is intentional — it removes an existing reaction
+	// (whatsmeow BuildReaction("", ...) sends a removal).
 
 	sent, err := h.gw.SendReaction(r.Context(), req.Channel, req.SenderJID, req.MessageID, req.Emoji)
 	if err != nil {
