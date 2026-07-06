@@ -27,7 +27,7 @@ const INPUT_CLS = "w-full px-2 py-0.5 text-xs rounded-md border border-mycel-bor
 function Field({ label, children, suffix }: { label: string; children: React.ReactNode; suffix?: string }) {
   return (
     <div className="flex items-center gap-2 min-h-[28px]">
-      <label className="text-xs text-mycel-text-2 w-24 shrink-0 text-right">{label}</label>
+      <label className="text-xs text-mycel-text-2 w-28 shrink-0 truncate" title={label}>{label}</label>
       <div className="flex-1 flex items-center gap-1.5 min-w-0">
         {children}
         {suffix && <span className="text-[10px] text-mycel-muted shrink-0">{suffix}</span>}
@@ -248,9 +248,13 @@ function ProvidersSection({ data, onChange }: { data: Record<string, unknown>; o
       </Field>
       {providerKeys.map((k) => (
         <Field key={k} label={k}>
-          <input className={INPUT_CLS} value={String(providers[k]?.command ?? "")}
+          <input
+            className={INPUT_CLS}
+            value={String(providers[k]?.command ?? "")}
+            title={String(providers[k]?.command ?? "") || "command"}
             onChange={(e) => onChange(["providers", "providers", k, "command"], e.target.value)}
-            placeholder="command" />
+            placeholder="command"
+          />
         </Field>
       ))}
     </div>
