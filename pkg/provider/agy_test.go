@@ -373,7 +373,7 @@ func TestAgyConfigAdapter(t *testing.T) {
 	// SetupMCP writes agy-native mcp_config.json (serverUrl for SSE).
 	dir := t.TempDir()
 	err := a.SetupMCP(context.Background(), dir, "eng-01", map[string]MCPEntry{
-		"bc":     {URL: "http://127.0.0.1:9374/_mcp/eng-01/sse", Transport: "sse"},
+		"bc":     {URL: "http://127.0.0.1:9374/mcp/sse", Transport: "sse"},
 		"github": {Command: "github-mcp-server", Args: []string{"--stdio"}},
 	})
 	if err != nil {

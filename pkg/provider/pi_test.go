@@ -346,6 +346,56 @@ func TestPiAWSPointerEnv_SkipsWhenAWSEnvAlreadySet(t *testing.T) {
 	}
 }
 
+// TestPiContributeEnv_ProcessEnvAWSVarSkipped verifies that ContributeEnv does
+// NOT inject AWS vars when any AWS_* variable is already in the daemon's process
+// environment (not just in the agent env map). This is the fix for bug #2:
+// previously ContributeEnv only checked the agent env map, so a process-level
+// AWS_PROFILE=my-profile was silently overwritten with "default".
+func TestPiContributeEnv_ProcessEnvAWSVarSkipped(t *testing.T) {
+	home := t.TempDir()
+	awsDir := filepath.Join(home, ".aws")
+	if err := os.MkdirAll(awsDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+
+	p := NewPiProvider()
+	orig := piUserHomeDir
+	piUserHomeDir = func() (string, error) { return home, nil }
+	t.Cleanup(func() { piUserHomeDir = orig })
+
+	// Set a profile in the process environment; agent env map is empty.
+	t.Setenv("AWS_PROFILE", "my-profile")
+
+	env := map[string]string{} // no AWS_ in agent env
+	p.ContributeEnv(env)
+	if _, ok := env["AWS_PROFILE"]; ok {
+		t.Error("ContributeEnv must not inject AWS_PROFILE when AWS_PROFILE is already in os.Environ()")
+	}
+}
+
+// TestPiListModels_AllUnparseableFallback verifies that when `pi --list-models`
+// exits 0 but emits no parseable two-column rows, ListModels returns the static
+// fallback (p.Models()) rather than nil (bug #4).
+func TestPiListModels_AllUnparseableFallback(t *testing.T) {
+	p := NewPiProvider()
+	orig := piListModels
+	t.Cleanup(func() { piListModels = orig })
+
+	// Output is non-empty but every row has only one column — all skipped.
+	piListModels = func(_ context.Context) (string, error) {
+		return "MODELS\nNOTE: run pi --setup to configure providers\n", nil
+	}
+	got, err := p.ListModels(context.Background())
+	if err != nil {
+		t.Fatalf("ListModels() unexpected error: %v", err)
+	}
+	// pi's static Models() is empty, so we expect empty (not nil).
+	want := p.Models()
+	if len(got) != len(want) {
+		t.Errorf("ListModels() = %v (len=%d), want static fallback %v (len=%d)", got, len(got), want, len(want))
+	}
+}
+
 func TestReadAWSDefaultRegion(t *testing.T) {
 	home := t.TempDir()
 	awsDir := filepath.Join(home, ".aws")

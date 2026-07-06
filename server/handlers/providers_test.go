@@ -1,10 +1,13 @@
 package handlers_test
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/rpuneet/mycel/pkg/provider"
 	"github.com/rpuneet/mycel/server/handlers"
@@ -112,5 +115,100 @@ func TestProvidersModelsUnknownProvider(t *testing.T) {
 
 	if rec.Code != http.StatusNotFound {
 		t.Errorf("status = %d, want 404", rec.Code)
+	}
+}
+
+// TestProvidersListParallelCorrectness verifies that the parallel list handler
+// returns all registered providers sorted by name without dropping or duplicating
+// entries. This is the regression gate for the parallelisation introduced to fix
+// the cold-cache serial hang (bugs #1).
+func TestProvidersListParallelCorrectness(t *testing.T) {
+	reg := provider.NewRegistry()
+	reg.Register(provider.NewClaudeProvider())
+	reg.Register(provider.NewAgyProvider())
+	mux := newProvidersMux(t, reg)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/providers", nil)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	var provs []struct {
+		Name   string `json:"name"`
+		Models []struct {
+			ID string `json:"id"`
+		} `json:"models"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &provs); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(provs) != 2 {
+		t.Fatalf("want 2 providers, got %d: %v", len(provs), provs)
+	}
+	// Response must be alphabetically sorted regardless of dispatch order.
+	if provs[0].Name > provs[1].Name {
+		t.Errorf("providers not sorted: %q > %q", provs[0].Name, provs[1].Name)
+	}
+	// Each provider must include its model list (even if empty).
+	for _, p := range provs {
+		if p.Models == nil {
+			t.Errorf("provider %q: models must not be null", p.Name)
+		}
+	}
+}
+
+// fakeSlowProvider is a minimal Provider + DynamicModelLister that records how
+// many times ListModels is invoked and returns after a short delay. It is used
+// to verify singleflight deduplication (bug #3).
+type fakeSlowProvider struct {
+	calls atomic.Int32
+	delay time.Duration
+}
+
+func (f *fakeSlowProvider) Name() string                               { return "fake-slow" }
+func (f *fakeSlowProvider) Description() string                        { return "test" }
+func (f *fakeSlowProvider) Command() string                            { return "fake" }
+func (f *fakeSlowProvider) Binary() string                             { return "fake" }
+func (f *fakeSlowProvider) InstallHint() string                        { return "" }
+func (f *fakeSlowProvider) BuildCommand(_ provider.CommandOpts) string { return "fake" }
+func (f *fakeSlowProvider) IsInstalled(_ context.Context) bool         { return false }
+func (f *fakeSlowProvider) Version(_ context.Context) string           { return "" }
+func (f *fakeSlowProvider) ListModels(_ context.Context) ([]string, error) {
+	f.calls.Add(1)
+	time.Sleep(f.delay)
+	return []string{"model-a"}, nil
+}
+
+// TestProvidersModelsFetchSingleflight verifies that concurrent requests for the
+// same provider's model list result in only one CLI invocation (singleflight, bug #3).
+func TestProvidersModelsFetchSingleflight(t *testing.T) {
+	fake := &fakeSlowProvider{delay: 30 * time.Millisecond}
+
+	reg := provider.NewRegistry()
+	reg.Register(fake)
+	mux := newProvidersMux(t, reg)
+
+	const concurrency = 5
+	done := make(chan int, concurrency)
+	for range concurrency {
+		go func() {
+			req := httptest.NewRequest(http.MethodGet, "/api/providers/fake-slow/models", nil)
+			rec := httptest.NewRecorder()
+			mux.ServeHTTP(rec, req)
+			done <- rec.Code
+		}()
+	}
+	for range concurrency {
+		if code := <-done; code != http.StatusOK {
+			t.Errorf("concurrent request: status = %d, want 200", code)
+		}
+	}
+
+	// With singleflight the in-flight requests share one shell-out; allow up to 2
+	// (one real + one possible cache miss race) but never 5.
+	if got := fake.calls.Load(); got > 2 {
+		t.Errorf("ListModels called %d times for %d concurrent requests; want ≤2 (singleflight)", got, concurrency)
 	}
 }

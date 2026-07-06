@@ -186,6 +186,11 @@ func (p *PiProvider) ListModels(ctx context.Context) ([]string, error) {
 		}
 		models = append(models, combined)
 	}
+	// Mirror the error-path fallback: if the CLI exited cleanly but produced no
+	// parseable rows, return the static model list rather than nil.
+	if len(models) == 0 {
+		return p.Models(), nil
+	}
 	return models, nil
 }
 
@@ -215,9 +220,17 @@ var piUserHomeDir = os.UserHomeDir
 // only the profile name and region pointer are injected.
 //
 // Injection is skipped when:
+//   - any AWS_* key is already set in the daemon's process environment
 //   - any AWS_* key is already set in env (user-provided config wins)
 //   - ~/.aws directory does not exist on the host
 func (p *PiProvider) ContributeEnv(env map[string]string) {
+	// Respect any AWS_* already present in the daemon's process environment
+	// (e.g. AWS_PROFILE inherited from the shell that launched bcd).
+	for _, e := range os.Environ() {
+		if strings.HasPrefix(e, "AWS_") {
+			return
+		}
+	}
 	// Respect any AWS env already set by the user (via agent Env or env file).
 	for k := range env {
 		if strings.HasPrefix(k, "AWS_") {
