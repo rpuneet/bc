@@ -3,6 +3,7 @@ package workspace
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -642,6 +643,327 @@ func TestRoleManager_DeleteRole_NotFound(t *testing.T) {
 	err := rm.DeleteRole("nonexistent")
 	if err == nil {
 		t.Error("DeleteRole should fail for nonexistent role")
+	}
+}
+
+// TestResolveRole_NoParents verifies a role with no parents is returned unchanged
+// (single-role resolved prompt equals the raw role prompt).
+func TestResolveRole_NoParents(t *testing.T) {
+	rm := newTestRoleManager(t)
+
+	role := &Role{
+		Metadata: RoleMetadata{
+			Name:       "standalone",
+			MCPServers: []string{"bc"},
+			Secrets:    []string{"MY_SECRET"},
+		},
+		Prompt: "# Standalone\n\nI have no parents.",
+	}
+	if err := rm.store.Save(role); err != nil {
+		t.Fatal(err)
+	}
+
+	resolved, err := rm.ResolveRole("standalone")
+	if err != nil {
+		t.Fatalf("ResolveRole: %v", err)
+	}
+
+	if resolved.Prompt != role.Prompt {
+		t.Errorf("Prompt = %q, want %q", resolved.Prompt, role.Prompt)
+	}
+	if len(resolved.MCPServers) != 1 || resolved.MCPServers[0] != "bc" {
+		t.Errorf("MCPServers = %v, want [bc]", resolved.MCPServers)
+	}
+	if len(resolved.Secrets) != 1 || resolved.Secrets[0] != "MY_SECRET" {
+		t.Errorf("Secrets = %v, want [MY_SECRET]", resolved.Secrets)
+	}
+}
+
+// TestResolveRole_DefaultRootInheritsBase ensures the default root role, which has
+// parent_roles: [base], inherits the base prompt, bc MCP server, and no duplicate secrets.
+func TestResolveRole_DefaultRootInheritsBase(t *testing.T) {
+	rm := newTestRoleManager(t)
+
+	if _, err := rm.EnsureDefaultRoot(); err != nil {
+		t.Fatalf("EnsureDefaultRoot: %v", err)
+	}
+
+	resolved, err := rm.ResolveRole("root")
+	if err != nil {
+		t.Fatalf("ResolveRole(root): %v", err)
+	}
+
+	// Prompt must contain a distinctive base-role substring.
+	const baseSubstr = "bc Agent"
+	if !strings.Contains(resolved.Prompt, baseSubstr) {
+		t.Errorf("resolved root prompt missing base substring %q", baseSubstr)
+	}
+
+	// Prompt must also contain a distinctive root substring.
+	const rootSubstr = "Root Agent"
+	if !strings.Contains(resolved.Prompt, rootSubstr) {
+		t.Errorf("resolved root prompt missing root substring %q", rootSubstr)
+	}
+
+	// Base prompt must come BEFORE root prompt (parent first).
+	baseIdx := strings.Index(resolved.Prompt, baseSubstr)
+	rootIdx := strings.Index(resolved.Prompt, rootSubstr)
+	if baseIdx >= rootIdx {
+		t.Errorf("base prompt section (idx %d) should precede root prompt section (idx %d)", baseIdx, rootIdx)
+	}
+
+	// MCPServers must include "bc" (from base) and "github" (from root) — unioned.
+	hasBc, hasGithub := false, false
+	for _, s := range resolved.MCPServers {
+		if s == "bc" {
+			hasBc = true
+		}
+		if s == "github" {
+			hasGithub = true
+		}
+	}
+	if !hasBc {
+		t.Errorf("MCPServers missing 'bc' (from base); got %v", resolved.MCPServers)
+	}
+	if !hasGithub {
+		t.Errorf("MCPServers missing 'github' (from root); got %v", resolved.MCPServers)
+	}
+
+	// Secrets must include GITHUB_PERSONAL_ACCESS_TOKEN (from root).
+	hasToken := false
+	for _, s := range resolved.Secrets {
+		if s == "GITHUB_PERSONAL_ACCESS_TOKEN" {
+			hasToken = true
+		}
+	}
+	if !hasToken {
+		t.Errorf("Secrets missing GITHUB_PERSONAL_ACCESS_TOKEN; got %v", resolved.Secrets)
+	}
+
+	// No duplicates in MCPServers or Secrets.
+	mcpCount := make(map[string]int)
+	for _, s := range resolved.MCPServers {
+		mcpCount[s]++
+		if mcpCount[s] > 1 {
+			t.Errorf("duplicate MCP server %q in resolved.MCPServers", s)
+		}
+	}
+	secretCount := make(map[string]int)
+	for _, s := range resolved.Secrets {
+		secretCount[s]++
+		if secretCount[s] > 1 {
+			t.Errorf("duplicate secret %q in resolved.Secrets", s)
+		}
+	}
+}
+
+// TestResolveRole_DeepInheritance verifies multi-level inheritance merges correctly.
+// Chain: child -> mid -> grandparent
+func TestResolveRole_DeepInheritance(t *testing.T) {
+	rm := newTestRoleManager(t)
+
+	grandparent := &Role{
+		Metadata: RoleMetadata{
+			Name:       "grandparent",
+			MCPServers: []string{"gp-mcp"},
+			Secrets:    []string{"GP_SECRET"},
+		},
+		Prompt: "# Grandparent\n\nRoot context.",
+	}
+	mid := &Role{
+		Metadata: RoleMetadata{
+			Name:        "mid",
+			ParentRoles: []string{"grandparent"},
+			MCPServers:  []string{"mid-mcp"},
+		},
+		Prompt: "# Mid\n\nMid context.",
+	}
+	child := &Role{
+		Metadata: RoleMetadata{
+			Name:        "child",
+			ParentRoles: []string{"mid"},
+			MCPServers:  []string{"child-mcp"},
+		},
+		Prompt: "# Child\n\nChild context.",
+	}
+
+	for _, r := range []*Role{grandparent, mid, child} {
+		if err := rm.store.Save(r); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	resolved, err := rm.ResolveRole("child")
+	if err != nil {
+		t.Fatalf("ResolveRole(child): %v", err)
+	}
+
+	// All prompts must appear; grandparent text must come before child text.
+	for _, substr := range []string{"Grandparent", "Mid", "Child"} {
+		if !strings.Contains(resolved.Prompt, substr) {
+			t.Errorf("resolved prompt missing %q; full prompt: %q", substr, resolved.Prompt)
+		}
+	}
+	gpIdx := strings.Index(resolved.Prompt, "Grandparent")
+	childIdx := strings.Index(resolved.Prompt, "Child context")
+	if gpIdx >= childIdx {
+		t.Errorf("grandparent section should precede child section")
+	}
+
+	// MCPServers must be union of all three levels, deduped.
+	wantMCP := map[string]bool{"gp-mcp": true, "mid-mcp": true, "child-mcp": true}
+	if len(resolved.MCPServers) != len(wantMCP) {
+		t.Errorf("MCPServers = %v, want %v", resolved.MCPServers, wantMCP)
+	}
+	for _, s := range resolved.MCPServers {
+		if !wantMCP[s] {
+			t.Errorf("unexpected MCP server %q", s)
+		}
+	}
+
+	// Secrets from grandparent must flow through to child.
+	hasGPSecret := false
+	for _, s := range resolved.Secrets {
+		if s == "GP_SECRET" {
+			hasGPSecret = true
+		}
+	}
+	if !hasGPSecret {
+		t.Errorf("Secrets missing GP_SECRET from grandparent; got %v", resolved.Secrets)
+	}
+}
+
+// TestResolveRole_CycleDoesNotHang verifies that a role referencing itself
+// (or a mutual cycle) does not cause an infinite loop.
+func TestResolveRole_CycleDoesNotHang(t *testing.T) {
+	rm := newTestRoleManager(t)
+
+	// A -> B -> A  (mutual cycle)
+	roleA := &Role{
+		Metadata: RoleMetadata{
+			Name:        "cycle-a",
+			ParentRoles: []string{"cycle-b"},
+			MCPServers:  []string{"mcp-a"},
+		},
+		Prompt: "Cycle A.",
+	}
+	roleB := &Role{
+		Metadata: RoleMetadata{
+			Name:        "cycle-b",
+			ParentRoles: []string{"cycle-a"},
+			MCPServers:  []string{"mcp-b"},
+		},
+		Prompt: "Cycle B.",
+	}
+
+	for _, r := range []*Role{roleA, roleB} {
+		if err := rm.store.Save(r); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// Must terminate without hanging.
+	resolved, err := rm.ResolveRole("cycle-a")
+	if err != nil {
+		t.Fatalf("ResolveRole(cycle-a): %v", err)
+	}
+
+	// Both prompts should appear exactly once despite the cycle.
+	if !strings.Contains(resolved.Prompt, "Cycle A") {
+		t.Error("resolved prompt missing 'Cycle A'")
+	}
+	if !strings.Contains(resolved.Prompt, "Cycle B") {
+		t.Error("resolved prompt missing 'Cycle B'")
+	}
+}
+
+// TestResolveRole_MissingParentSkipped verifies that a missing parent role is
+// skipped gracefully rather than causing an error.
+func TestResolveRole_MissingParentSkipped(t *testing.T) {
+	rm := newTestRoleManager(t)
+
+	role := &Role{
+		Metadata: RoleMetadata{
+			Name:        "orphan",
+			ParentRoles: []string{"does-not-exist"},
+			MCPServers:  []string{"mcp-own"},
+		},
+		Prompt: "# Orphan\n\nMy parent is missing.",
+	}
+	if err := rm.store.Save(role); err != nil {
+		t.Fatal(err)
+	}
+
+	// Must not error out because of the missing parent.
+	resolved, err := rm.ResolveRole("orphan")
+	if err != nil {
+		t.Fatalf("ResolveRole(orphan) should succeed even with missing parent: %v", err)
+	}
+
+	if !strings.Contains(resolved.Prompt, "Orphan") {
+		t.Errorf("resolved prompt = %q, want it to contain 'Orphan'", resolved.Prompt)
+	}
+	if len(resolved.MCPServers) != 1 || resolved.MCPServers[0] != "mcp-own" {
+		t.Errorf("MCPServers = %v, want [mcp-own]", resolved.MCPServers)
+	}
+}
+
+// TestResolveRole_MapInheritance verifies that map fields (Rules, Commands, Settings)
+// are merged with child values overriding parent values for the same key.
+func TestResolveRole_MapInheritance(t *testing.T) {
+	rm := newTestRoleManager(t)
+
+	parent := &Role{
+		Metadata: RoleMetadata{
+			Name: "map-parent",
+			Rules: map[string]string{
+				"shared-rule": "parent version",
+				"parent-only": "only in parent",
+			},
+			Commands: map[string]string{
+				"status": "parent status command",
+			},
+		},
+		Prompt: "Parent prompt.",
+	}
+	child := &Role{
+		Metadata: RoleMetadata{
+			Name:        "map-child",
+			ParentRoles: []string{"map-parent"},
+			Rules: map[string]string{
+				"shared-rule": "child version",
+				"child-only":  "only in child",
+			},
+		},
+		Prompt: "Child prompt.",
+	}
+
+	for _, r := range []*Role{parent, child} {
+		if err := rm.store.Save(r); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	resolved, err := rm.ResolveRole("map-child")
+	if err != nil {
+		t.Fatalf("ResolveRole(map-child): %v", err)
+	}
+
+	// Child value overrides parent for shared key.
+	if resolved.Rules["shared-rule"] != "child version" {
+		t.Errorf("Rules[shared-rule] = %q, want 'child version'", resolved.Rules["shared-rule"])
+	}
+	// Parent-only key is inherited.
+	if resolved.Rules["parent-only"] != "only in parent" {
+		t.Errorf("Rules[parent-only] = %q, want 'only in parent'", resolved.Rules["parent-only"])
+	}
+	// Child-only key is present.
+	if resolved.Rules["child-only"] != "only in child" {
+		t.Errorf("Rules[child-only] = %q, want 'only in child'", resolved.Rules["child-only"])
+	}
+	// Commands from parent are inherited.
+	if resolved.Commands["status"] != "parent status command" {
+		t.Errorf("Commands[status] = %q, want 'parent status command'", resolved.Commands["status"])
 	}
 }
 
