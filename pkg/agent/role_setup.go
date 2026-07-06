@@ -190,13 +190,6 @@ func writeMCPJSON(ctx context.Context, workspacePath, agentName string, resolved
 	}
 
 	for _, name := range resolved.MCPServers {
-		// The bc server is this daemon itself — its address depends on the
-		// live bind address and the agent's runtime, never on the store.
-		if name == "bc" {
-			cfg.MCPServers["bc"] = mcpServerEntry{URL: bcSelfURL(runtimeBackend, agentName), Type: "sse"}
-			continue
-		}
-
 		// Try unified tool store first
 		var transport, command, url string
 		var args []string
@@ -246,9 +239,6 @@ func writeMCPJSON(ctx context.Context, workspacePath, agentName string, resolved
 		if isDocker && entry.URL != "" {
 			entry.URL = rewriteDockerURL(entry.URL)
 		}
-		if entry.URL != "" && strings.Contains(entry.URL, "/_mcp/sse") {
-			entry.URL = strings.Replace(entry.URL, "/_mcp/sse", "/_mcp/"+agentName+"/sse", 1)
-		}
 		if transport == "sse" {
 			entry.Type = "sse"
 		}
@@ -264,12 +254,6 @@ func writeMCPJSON(ctx context.Context, workspacePath, agentName string, resolved
 			}
 		}
 		cfg.MCPServers[name] = entry
-	}
-
-	// Always ensure the bc MCP server is included with agent-scoped URL.
-	// This is required for send_message, report_status, and other bc tools.
-	if _, hasBc := cfg.MCPServers["bc"]; !hasBc {
-		cfg.MCPServers["bc"] = mcpServerEntry{URL: bcSelfURL(runtimeBackend, agentName), Type: "sse"}
 	}
 
 	// Prefer claude CLI for MCP setup; fall back to .mcp.json file write.
@@ -289,15 +273,6 @@ func rewriteDockerURL(u string) string {
 	u = strings.Replace(u, "localhost", "host.docker.internal", 1)
 	u = strings.Replace(u, "127.0.0.1", "host.docker.internal", 1)
 	return u
-}
-
-// bcSelfURL returns this daemon's agent-scoped MCP SSE endpoint for the
-// given runtime. A URL stored in mcp_servers can't be right for both
-// runtimes at once (tmux needs 127.0.0.1, docker needs
-// host.docker.internal) nor track the actual bind port, so the self
-// endpoint is always derived from the live daemon address.
-func bcSelfURL(runtimeBackend, agentName string) string {
-	return daemonAddrForRuntime(runtimeBackend) + "/_mcp/" + agentName + "/sse"
 }
 
 // ── Secrets ─────────────────────────────────────────────────────────────────
@@ -547,16 +522,6 @@ func validateAgentTools(workspacePath, roleName string) []string {
 	defer mcpStore.Close() //nolint:errcheck
 
 	for _, name := range resolved.MCPServers {
-		// The bc server is this daemon — health-check the address agents
-		// will actually be given (derived per runtime), not the store row.
-		// From the daemon's own process the tmux-shaped address applies.
-		if name == "bc" {
-			if err := checkSSEEndpoint(daemonAddrForRuntime("tmux") + "/_mcp/sse"); err != nil {
-				issues = append(issues, fmt.Sprintf("bc MCP endpoint unreachable: %v", err))
-			}
-			continue
-		}
-
 		def, getErr := mcpStore.Get(name)
 		if getErr != nil || def == nil {
 			issues = append(issues, fmt.Sprintf("MCP server %q not defined in store", name))

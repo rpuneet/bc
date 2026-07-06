@@ -42,7 +42,6 @@ import (
 	"github.com/rpuneet/mycel/pkg/tool"
 	"github.com/rpuneet/mycel/pkg/workspace"
 	"github.com/rpuneet/mycel/server/handlers"
-	servermcp "github.com/rpuneet/mycel/server/mcp"
 	"github.com/rpuneet/mycel/server/ws"
 )
 
@@ -449,32 +448,6 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 	}
 	sh.Register(mux)
 
-	// MCP protocol server (SSE transport), mounted at
-	// /_mcp/<agent>/{sse,message}.
-	if svc.WS != nil {
-		mcpCfg := servermcp.Config{Workspace: svc.WS, Costs: svc.Costs}
-		if svc.Agents != nil {
-			mcpCfg.Agents = svc.Agents.Manager()
-		}
-		if svc.Gateway != nil {
-			mcpCfg.Gateway = svc.Gateway
-		}
-		if svc.Notify != nil {
-			mcpCfg.Notify = svc.Notify
-		}
-		mcpSrv, mcpErr := servermcp.New(mcpCfg)
-		if mcpErr != nil {
-			log.Warn("MCP server unavailable", "error", mcpErr)
-		} else {
-			broker := servermcp.MountOn(mux, mcpSrv, "/_mcp")
-			// Mirror the API CORS policy onto the MCP SSE transport so MCP
-			// cannot bypass the configured origin policy (#2960).
-			if cfg.CORSOrigin != "" {
-				broker.SetCORSOrigin(cfg.CORSOrigin)
-			}
-		}
-	}
-
 	// Static web UI with SPA fallback — serves files if they exist,
 	// otherwise falls back to index.html for client-side routing.
 	if staticFiles != nil {
@@ -484,7 +457,7 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 			// returning index.html with 200 makes client bugs (calls to
 			// endpoints that don't exist) silently unfixable.
 			path := r.URL.Path
-			if strings.HasPrefix(path, "/api/") || strings.HasPrefix(path, "/hooks/") || strings.HasPrefix(path, "/_mcp/") {
+			if strings.HasPrefix(path, "/api/") || strings.HasPrefix(path, "/hooks/") {
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusNotFound)
 				_, _ = w.Write([]byte(`{"error":"not found"}`))

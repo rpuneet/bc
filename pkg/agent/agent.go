@@ -2242,8 +2242,7 @@ func (m *Manager) RenameAgent(ctx context.Context, oldName, newName string) erro
 		newWorktreeDir = newPath
 	}
 
-	// Regenerate .mcp.json with the new agent name so MCP SSE URLs
-	// point to /_mcp/{newName}/sse instead of /_mcp/{oldName}/sse.
+	// Regenerate role files (CLAUDE.md, .mcp.json) with the new agent name.
 	if newWorktreeDir != "" && agent.Role != "" {
 		agentRuntime := agent.RuntimeBackend
 		if agentRuntime == "" {

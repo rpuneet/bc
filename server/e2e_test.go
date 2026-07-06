@@ -423,44 +423,6 @@ func TestE2E_MethodNotAllowed(t *testing.T) {
 	}
 }
 
-// ─── MCP SSE ─────────────────────────────────────────────────────────────────
-
-func TestE2E_MCP_SSE_ContentType(t *testing.T) {
-	s := newE2EServer(t)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	req, _ := http.NewRequestWithContext(ctx, "GET", s.URL+"/_mcp/sse", nil)
-	req.Header.Set("Accept", "text/event-stream")
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		t.Fatalf("GET /mcp/sse: %v", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode != 200 {
-		t.Fatalf("want 200, got %d", resp.StatusCode)
-	}
-
-	ct := resp.Header.Get("Content-Type")
-	if ct != "text/event-stream" {
-		t.Fatalf("want Content-Type text/event-stream, got %q", ct)
-	}
-
-	// Read the first event — should be the endpoint event
-	buf := make([]byte, 512)
-	n, readErr := resp.Body.Read(buf)
-	if readErr != nil {
-		t.Fatalf("reading SSE body: %v", readErr)
-	}
-	data := string(buf[:n])
-	if !bytes.Contains(buf[:n], []byte("event: endpoint")) {
-		t.Fatalf("expected endpoint event, got: %s", data)
-	}
-}
-
 // ─── Settings PATCH ──────────────────────────────────────────────────────────
 
 func TestE2E_Settings_PatchUser(t *testing.T) {

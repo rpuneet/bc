@@ -3,9 +3,6 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
-	"os"
-	"os/exec"
-	"path/filepath"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -13,8 +10,6 @@ import (
 	"github.com/rpuneet/mycel/pkg/client"
 	"github.com/rpuneet/mycel/pkg/log"
 	"github.com/rpuneet/mycel/pkg/ui"
-	bcworkspace "github.com/rpuneet/mycel/pkg/workspace"
-	srvmcp "github.com/rpuneet/mycel/server/mcp"
 )
 
 var mcpCmd = &cobra.Command{
@@ -93,55 +88,6 @@ var mcpDisableCmd = &cobra.Command{
 	RunE:  runMCPDisable,
 }
 
-// Issue #1985: bc-as-MCP-server commands
-var mcpServeCmd = &cobra.Command{
-	Use:   "serve",
-	Short: "Start mycel as an MCP server",
-	Long: `Start mycel as an MCP (Model Context Protocol) server.
-
-AI tools like Claude Code and Cursor can connect to mycel via MCP to query
-workspace state and control agents natively.
-
-Default transport is stdio (newline-delimited JSON on stdin/stdout).
-Use --sse to start an HTTP server instead.
-
-Resources exposed:
-  bc://workspace/status   Workspace name, path, and config
-  bc://agents             All agents with state, role, and worktree info
-  bc://channels           All channels with members and message counts
-  bc://costs              Workspace and per-agent cost summaries
-  bc://roles              Role definitions with capabilities
-  bc://tools              Available AI agent tools
-
-Tools available:
-  send_message     Send a message to a channel
-  send_file        Upload a file to a channel
-  list_channels    List all channels
-  read_channel     Read recent messages from a channel
-  list_agents      List agents in the workspace
-  whoami           Show the calling agent's identity
-
-Examples:
-  mycel mcp serve                    # stdio — use in Claude Code settings.json
-  mycel mcp serve --sse              # SSE on :8811
-  mycel mcp serve --sse --addr :9000 # SSE on custom port`,
-	RunE: runMCPServe,
-}
-
-var mcpRegisterCmd = &cobra.Command{
-	Use:   "register",
-	Short: "Register mycel as an MCP server in agent settings.json",
-	Long: `Automatically add mycel to the Claude Code MCP server configuration.
-
-This writes (or updates) the mcp.servers entry in the workspace
-settings.json so that agents automatically have access to mycel MCP tools.
-
-Examples:
-  mycel mcp register               # Register with stdio transport
-  mycel mcp register --sse         # Register with SSE transport`,
-	RunE: runMCPRegister,
-}
-
 // Flags for mcp add.
 var (
 	mcpAddTransport string
@@ -151,12 +97,6 @@ var (
 	mcpAddEnv       []string
 )
 
-// Flags for mcp serve / register.
-var (
-	mcpServeSSE  bool
-	mcpServeAddr string
-)
-
 func init() {
 	mcpAddCmd.Flags().StringVar(&mcpAddTransport, "transport", "stdio", "Transport type (stdio or sse)")
 	mcpAddCmd.Flags().StringVar(&mcpAddCommand, "command", "", "Command to run (for stdio transport)")
@@ -164,20 +104,12 @@ func init() {
 	mcpAddCmd.Flags().StringVar(&mcpAddURL, "url", "", "Server URL (for sse transport)")
 	mcpAddCmd.Flags().StringArrayVar(&mcpAddEnv, "env", nil, "Environment variables (KEY=VALUE, repeatable)")
 
-	mcpServeCmd.Flags().BoolVar(&mcpServeSSE, "sse", false, "Use SSE transport instead of stdio")
-	mcpServeCmd.Flags().StringVar(&mcpServeAddr, "addr", ":8811", "Address to listen on (SSE mode only)")
-
-	mcpRegisterCmd.Flags().BoolVar(&mcpServeSSE, "sse", false, "Register SSE transport endpoint")
-	mcpRegisterCmd.Flags().StringVar(&mcpServeAddr, "addr", ":8811", "SSE server address to register")
-
 	mcpCmd.AddCommand(mcpAddCmd)
 	mcpCmd.AddCommand(mcpListCmd)
 	mcpCmd.AddCommand(mcpShowCmd)
 	mcpCmd.AddCommand(mcpRemoveCmd)
 	mcpCmd.AddCommand(mcpEnableCmd)
 	mcpCmd.AddCommand(mcpDisableCmd)
-	mcpCmd.AddCommand(mcpServeCmd)
-	mcpCmd.AddCommand(mcpRegisterCmd)
 	rootCmd.AddCommand(mcpCmd)
 }
 
@@ -413,126 +345,5 @@ func runMCPDisable(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Printf("Disabled MCP server %q\n", name)
-	return nil
-}
-
-// ─── bc mcp serve (#1985) ─────────────────────────────────────────────────────
-
-func runMCPServe(cmd *cobra.Command, _ []string) error {
-	ctx := cmd.Context()
-
-	ws, err := requireRepo()
-	if err != nil {
-		return err
-	}
-
-	srv, err := srvmcp.New(srvmcp.Config{
-		Workspace: ws,
-		Version:   version,
-	})
-	if err != nil {
-		return fmt.Errorf("failed to create MCP server: %w", err)
-	}
-	defer srv.Close() //nolint:errcheck
-
-	if mcpServeSSE {
-		fmt.Fprintf(os.Stderr, "mycel MCP server listening on %s (SSE transport)\n", mcpServeAddr)
-		fmt.Fprintf(os.Stderr, "  Connect via: http://%s/sse\n", mcpServeAddr)
-		return srv.ServeSSE(ctx, mcpServeAddr)
-	}
-
-	// stdio transport — don't write to stdout (it's the protocol stream)
-	fmt.Fprintf(os.Stderr, "mycel MCP server ready (stdio transport)\n")
-	return srv.ServeStdio(ctx)
-}
-
-// ─── bc mcp register (#1985) ──────────────────────────────────────────────────
-
-func runMCPRegister(cmd *cobra.Command, _ []string) error {
-	ws, err := requireRepo()
-	if err != nil {
-		return err
-	}
-
-	// The workspace config file is <StateDir>/preferences.json.
-	settingsPath := ws.SettingsFile()
-
-	// Load or create settings
-	settings := map[string]any{}
-	if data, readErr := os.ReadFile(settingsPath); readErr == nil { //nolint:gosec // known path
-		if jsonErr := json.Unmarshal(data, &settings); jsonErr != nil {
-			return fmt.Errorf("failed to parse %s: %w", filepath.Base(settingsPath), jsonErr)
-		}
-	}
-
-	// Build MCP server entry
-	var mcpEntry map[string]any
-	if mcpServeSSE {
-		sseURL := mcpServeAddr
-		if !strings.HasPrefix(sseURL, "http://") && !strings.HasPrefix(sseURL, "https://") {
-			sseURL = "http://" + sseURL
-		}
-		if !strings.HasSuffix(sseURL, "/sse") {
-			sseURL += "/sse"
-		}
-		mcpEntry = map[string]any{
-			"name":      "bc",
-			"transport": "sse",
-			"url":       sseURL,
-		}
-	} else {
-		bcPath, lookErr := exec.LookPath("mycel")
-		if lookErr != nil {
-			bcPath = "mycel"
-		}
-		mcpEntry = map[string]any{
-			"name":    "bc",
-			"command": bcPath,
-			"args":    []string{"mcp", "serve"},
-		}
-	}
-
-	// Update mcp.servers in settings
-	mcpSection, _ := settings["mcp"].(map[string]any)
-	if mcpSection == nil {
-		mcpSection = map[string]any{}
-	}
-
-	servers, _ := mcpSection["servers"].([]any)
-	updated := false
-	for i, s := range servers {
-		if m, ok := s.(map[string]any); ok && m["name"] == "bc" {
-			servers[i] = mcpEntry
-			updated = true
-			break
-		}
-	}
-	if !updated {
-		servers = append(servers, mcpEntry)
-	}
-
-	mcpSection["servers"] = servers
-	settings["mcp"] = mcpSection
-
-	data, err := json.MarshalIndent(settings, "", "  ")
-	if err != nil {
-		return fmt.Errorf("failed to marshal settings: %w", err)
-	}
-
-	// Write back to the canonical preferences.json.
-	prefsPath := filepath.Join(ws.StateDir(), bcworkspace.PreferencesFileName)
-	if writeErr := os.WriteFile(prefsPath, data, 0600); writeErr != nil { //nolint:gosec // 0600 is correct
-		return fmt.Errorf("failed to write %s: %w", bcworkspace.PreferencesFileName, writeErr)
-	}
-	settingsPath = prefsPath
-
-	transport := "stdio"
-	if mcpServeSSE {
-		transport = "sse (" + mcpServeAddr + ")"
-	}
-	fmt.Printf("✓ Registered mycel MCP server in %s\n", settingsPath)
-	fmt.Printf("  Transport: %s\n", transport)
-	fmt.Println("\nAgents will automatically have access to mycel MCP tools.")
-
 	return nil
 }
