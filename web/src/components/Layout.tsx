@@ -732,7 +732,7 @@ function buildNavGroups(hostLabel: string): readonly (readonly NavItem[])[] {
       { to: "/code", label: "Code", icon: "code" },
     ],
     [
-      { to: "/templates", label: "Marketplace", icon: "templates" },
+      { to: "/marketplace", label: "Marketplace", icon: "templates" },
       { to: "/providers", label: "Providers", icon: "providers" },
       { to: "/tools", label: hostLabel, icon: "tools" },
       { to: "/cron", label: "Cron", icon: "cron" },

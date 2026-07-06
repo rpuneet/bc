@@ -1104,28 +1104,42 @@ func (h *AgentHandler) applyTemplate(svc *agent.AgentService, a *agent.Agent, tm
 		log.Debug("template CLAUDE.md written", "agent", a.Name, "template", tmplName)
 	}
 
-	// Write .mcp.json from template's MCPs list.
+	// Merge template's MCPs into any existing .mcp.json.
+	// The previous behavior emitted empty {url:"",type:""} stubs that
+	// clobbered the role-generated config.  Instead we:
+	//   1. Read the existing file (if any) to preserve real entries.
+	//   2. Insert stub entries only for names that are not already present.
+	// This way the role-generated MCP config is never wiped.
 	if len(tmpl.MCPs) > 0 {
-		type mcpEntry struct {
-			URL  string `json:"url,omitempty"`
-			Type string `json:"type,omitempty"`
+		mcpPath := filepath.Join(wtDir, ".mcp.json")
+
+		// Read existing config; ignore missing file.
+		existing := agentMCPFile{MCPServers: make(map[string]agentMCPEntry)}
+		if raw, readErr := os.ReadFile(mcpPath); readErr == nil { //nolint:gosec // trusted workspace path
+			// Best-effort parse; ignore corrupt files.
+			_ = json.Unmarshal(raw, &existing)
+			if existing.MCPServers == nil {
+				existing.MCPServers = make(map[string]agentMCPEntry)
+			}
 		}
-		type mcpFile struct {
-			MCPServers map[string]mcpEntry `json:"mcpServers"`
+
+		// Add stub entries only for names not already configured.
+		added := 0
+		for _, mcpName := range tmpl.MCPs {
+			if _, ok := existing.MCPServers[mcpName]; !ok {
+				existing.MCPServers[mcpName] = agentMCPEntry{}
+				added++
+			}
 		}
-		cfg := mcpFile{MCPServers: make(map[string]mcpEntry, len(tmpl.MCPs))}
-		for _, name := range tmpl.MCPs {
-			cfg.MCPServers[name] = mcpEntry{}
-		}
-		b, marshalErr := json.MarshalIndent(cfg, "", "  ")
+
+		b, marshalErr := json.MarshalIndent(existing, "", "  ")
 		if marshalErr != nil {
 			return fmt.Errorf("marshal .mcp.json: %w", marshalErr)
 		}
-		mcpPath := filepath.Join(wtDir, ".mcp.json")
 		if writeErr := os.WriteFile(mcpPath, b, 0600); writeErr != nil { //nolint:gosec // trusted workspace path
 			return fmt.Errorf("write .mcp.json: %w", writeErr)
 		}
-		log.Debug("template .mcp.json written", "agent", a.Name, "template", tmplName, "mcps", len(tmpl.MCPs))
+		log.Debug("template .mcp.json merged", "agent", a.Name, "template", tmplName, "added", added, "total", len(existing.MCPServers))
 	}
 
 	return nil

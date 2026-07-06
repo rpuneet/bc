@@ -32,6 +32,7 @@ import (
 	"github.com/rpuneet/mycel/pkg/events"
 	"github.com/rpuneet/mycel/pkg/gateway"
 	"github.com/rpuneet/mycel/pkg/log"
+	"github.com/rpuneet/mycel/pkg/marketplace"
 	"github.com/rpuneet/mycel/pkg/mcp"
 	"github.com/rpuneet/mycel/pkg/notify"
 	"github.com/rpuneet/mycel/pkg/provider"
@@ -421,6 +422,9 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 			log.Warn("migrate roles to templates", "error", migrErr)
 		}
 		handlers.NewTemplateHandler(tmplStore).Register(mux)
+
+		// Marketplace — live catalog aggregating MCP registry, GitHub, and local templates.
+		handlers.NewMarketplaceHandler(marketplace.NewAggregator(tmplStore, nil)).Register(mux)
 
 		// File upload/download for channel attachments + shared screenshots
 		fileStore := attachment.NewStore(svc.WS.StateDir())
