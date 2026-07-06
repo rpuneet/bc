@@ -164,6 +164,9 @@ func buildServicesFromWS(ctx context.Context, globals *Globals, ws *bcworkspace.
 	if ws.RoleManager != nil {
 		agentMgr.SetRoleManager(ws.RoleManager)
 	}
+	if ws.Config != nil {
+		agentMgr.ApplyWorkspaceConfig(ws.Config)
+	}
 	addCloser(func() error { return agentMgr.Close() })
 
 	// Background container metrics collector (Docker backend only).

@@ -15,7 +15,7 @@ import (
 // ToolType classifies a tool.
 const (
 	ToolTypeCLI      = "cli"      // CLI binary (gh, aws, wrangler)
-	ToolTypeMCP      = "mcp"      // MCP server (bc, playwright, github)
+	ToolTypeMCP      = "mcp"      // MCP server (playwright, github, etc.)
 	ToolTypeProvider = "provider" // AI provider (claude, agy, cursor)
 )
 
@@ -84,14 +84,6 @@ var builtinTools = []Tool{
 
 // builtinMCPServers contains default MCP server definitions.
 var builtinMCPServers = []Tool{
-	{
-		Name:      "bc",
-		Type:      ToolTypeMCP,
-		Transport: "sse",
-		URL:       "http://host.docker.internal:9374/_mcp/sse",
-		Enabled:   true,
-		Builtin:   true,
-	},
 	{
 		Name:       "playwright",
 		Type:       ToolTypeMCP,

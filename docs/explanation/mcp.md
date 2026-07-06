@@ -24,10 +24,9 @@ graph LR
 
 | Transport | Entry | Limit | Use Case |
 |-----------|-------|-------|----------|
-| stdio | `mycel mcp serve` | 4MB/line | Claude Code direct via .mcp.json |
-| SSE (bcd) | `/_mcp/sse` + `/_mcp/message` | 4MB body | Browser clients, remote |
+| stdio | bcd stdio proxy | 4MB/line | Claude Code direct via .mcp.json |
 | SSE (agent-scoped) | `/_mcp/{agent}/sse` + `/_mcp/{agent}/message` | 4MB body | Agents with server-side identity |
-| SSE (standalone) | `mycel mcp serve --sse` (default `:8811`) | 4MB body | Without a running bcd |
+| SSE (workspace-scoped) | `/_mcp/{wsID}/{agent}/sse` + `/_mcp/{wsID}/{agent}/message` | 4MB body | Multi-workspace bcd instances |
 
 ## Sender Identity
 
@@ -82,7 +81,7 @@ mycel manages MCP servers that agents connect to (Playwright, GitHub, etc.):
 - Env vars support `${secret:NAME}`
 - Written to agent `.mcp.json` during role setup
 
-`mycel mcp register` adds mycel itself as an MCP server in `preferences.json` so agents automatically get the tools above (stdio by default, `--sse` for the SSE endpoint).
+MCP servers declared in a role's `mcp_servers` list are automatically written to the agent's `.mcp.json` on spawn — no manual registration step is needed.
 
 ## Code Map
 
@@ -94,5 +93,5 @@ mycel manages MCP servers that agents connect to (Playwright, GitHub, etc.):
 | `server/mcp/resources.go` | Resource readers |
 | `server/mcp/sse.go` | SSE transport + broker, agent-scoped routing |
 | `server/mcp/stdio.go` | stdio transport |
-| `internal/cmd/mcp.go` | `mycel mcp` CLI (add, serve, register, ...) |
+| `internal/cmd/mcp.go` | `mycel mcp` CLI (add, list, show, remove, enable, disable) |
 | `pkg/mcp/store.go` | External MCP config storage |

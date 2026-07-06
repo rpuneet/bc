@@ -680,7 +680,7 @@ func TestResolveRole_NoParents(t *testing.T) {
 }
 
 // TestResolveRole_DefaultRootInheritsBase ensures the default root role, which has
-// parent_roles: [base], inherits the base prompt, bc MCP server, and no duplicate secrets.
+// parent_roles: [base], inherits the base prompt and github MCP server, and no duplicate secrets.
 func TestResolveRole_DefaultRootInheritsBase(t *testing.T) {
 	rm := newTestRoleManager(t)
 
@@ -712,18 +712,16 @@ func TestResolveRole_DefaultRootInheritsBase(t *testing.T) {
 		t.Errorf("base prompt section (idx %d) should precede root prompt section (idx %d)", baseIdx, rootIdx)
 	}
 
-	// MCPServers must include "bc" (from base) and "github" (from root) — unioned.
-	hasBc, hasGithub := false, false
+	// MCPServers must include "github" (from root). The base role no longer
+	// declares any MCP servers — the old "bc" server was removed.
+	hasGithub := false
 	for _, s := range resolved.MCPServers {
-		if s == "bc" {
-			hasBc = true
-		}
 		if s == "github" {
 			hasGithub = true
 		}
-	}
-	if !hasBc {
-		t.Errorf("MCPServers missing 'bc' (from base); got %v", resolved.MCPServers)
+		if s == "bc" {
+			t.Errorf("MCPServers must not contain removed 'bc' server; got %v", resolved.MCPServers)
+		}
 	}
 	if !hasGithub {
 		t.Errorf("MCPServers missing 'github' (from root); got %v", resolved.MCPServers)
