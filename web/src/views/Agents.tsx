@@ -109,6 +109,26 @@ function TrashIcon() {
   );
 }
 
+/** Chevron — rotates 90° when the stopped-agents section is expanded. */
+function ChevronRightIcon({ expanded }: { expanded: boolean }) {
+  return (
+    <svg
+      width="12"
+      height="12"
+      viewBox="0 0 12 12"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+      className={`transition-transform duration-150 shrink-0${expanded ? " rotate-90" : ""}`}
+    >
+      <path d="M4 2.5l4 3.5-4 3.5" />
+    </svg>
+  );
+}
+
 /** Eye — peek row collapsed; clicking reveals the activity feed. */
 function EyeIcon() {
   return (
@@ -466,6 +486,19 @@ export function Agents() {
     });
   }, []);
 
+  // Per-repo stopped-section expand state.
+  // Default: empty set = all stopped sections collapsed.
+  // Add a repo key to reveal its stopped agents.
+  const [expandedStoppedRepos, setExpandedStoppedRepos] = useState<Set<string>>(new Set());
+  const toggleStoppedExpanded = useCallback((repoKey: string) => {
+    setExpandedStoppedRepos(prev => {
+      const next = new Set(prev);
+      if (next.has(repoKey)) next.delete(repoKey);
+      else next.add(repoKey);
+      return next;
+    });
+  }, []);
+
   // Search + filter + bulk state (URL-synced where useful)
   const [search, setSearch] = useState(searchParams.get("q") ?? "");
   const roleFilter = searchParams.get("role") ?? "";
@@ -672,6 +705,18 @@ export function Agents() {
       stats.set(key, s);
     }
     return stats;
+  }, [displayRows]);
+
+  // Stopped-agent count per repo group — drives the "N stopped" toggle label.
+  const stoppedCountByRepo = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const a of displayRows) {
+      if (a.state === "stopped" || a.state === "error") {
+        const k = a.repo ?? "";
+        m.set(k, (m.get(k) ?? 0) + 1);
+      }
+    }
+    return m;
   }, [displayRows]);
 
   // Clamp focusIndex when displayRows shrinks (e.g. after filtering).
@@ -1101,8 +1146,50 @@ export function Agents() {
                       </td>
                     </tr>
                   )}
-                  {/* Subtle divider between active and stopped groups */}
-                  {rowIdx > 0 &&
+                  {/* Stopped-agents collapse toggle (groupByRepo mode).
+                      Appears at the start of the stopped section within
+                      each repo group. Default: collapsed. */}
+                  {(() => {
+                    if (!groupByRepo) return null;
+                    const repoKey = a.repo ?? "";
+                    const isStopped = a.state === "stopped" || a.state === "error";
+                    if (!isStopped) return null;
+                    const prevRow = displayRows[rowIdx - 1];
+                    const prevStopped = prevRow
+                      ? prevRow.state === "stopped" || prevRow.state === "error"
+                      : false;
+                    const prevRepoKey = prevRow ? (prevRow.repo ?? "") : "";
+                    // Show toggle at the boundary: active→stopped OR new group starting with stopped.
+                    const isFirstStoppedInGroup = !prevStopped || prevRepoKey !== repoKey;
+                    if (!isFirstStoppedInGroup) return null;
+                    const count = stoppedCountByRepo.get(repoKey) ?? 0;
+                    const expanded = expandedStoppedRepos.has(repoKey);
+                    return (
+                      <tr>
+                        <td colSpan={columns.length} className="px-4 py-0 border-b border-mycel-border">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleStoppedExpanded(repoKey);
+                            }}
+                            aria-expanded={expanded}
+                            aria-label={expanded ? `Collapse stopped agents` : `Expand ${String(count)} stopped agent${count === 1 ? "" : "s"}`}
+                            className="flex items-center gap-1.5 w-full py-1.5 text-[11px] text-mycel-muted hover:text-mycel-text-2 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-mycel-accent rounded-sm"
+                          >
+                            <ChevronRightIcon expanded={expanded} />
+                            <span>{count} stopped</span>
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })()}
+                  {/* When groupByRepo is on, skip stopped rows that are collapsed. */}
+                  {groupByRepo && (a.state === "stopped" || a.state === "error") && !expandedStoppedRepos.has(a.repo ?? "") ? null : (
+                  <>
+                  {/* Subtle divider between active and stopped groups — only
+                      when groupByRepo is OFF (the toggle row replaces it). */}
+                  {!groupByRepo && rowIdx > 0 &&
                     (a.state === "stopped" || a.state === "error") &&
                     displayRows[rowIdx - 1]!.state !== "stopped" &&
                     displayRows[rowIdx - 1]!.state !== "error" && (
@@ -1225,6 +1312,8 @@ export function Agents() {
                         <PeekActivityFeed agentName={a.name} />
                       </td>
                     </tr>
+                  )}
+                  </>
                   )}
                 </Fragment>
               ))}
