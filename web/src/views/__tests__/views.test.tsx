@@ -399,6 +399,43 @@ describe("Tools", () => {
       expect(screen.getByText("my-tool")).toBeInTheDocument();
     });
   });
+
+  it("provider card shows model count and expands model list on click", async () => {
+    fetchMock.mockImplementation((url: string) => {
+      if (url.includes("/providers")) {
+        return jsonResponse([
+          {
+            name: "claude",
+            installed: true,
+            agent_count: 1,
+            total_tokens: 1000,
+            total_cost_usd: 0.01,
+            models: [
+              { id: "claude-opus-4", available: true },
+              { id: "claude-sonnet-4", available: false },
+            ],
+          },
+        ]);
+      }
+      if (url.includes("/tools/check")) return jsonResponse([]);
+      return jsonResponse([]);
+    });
+    wrap(<Tools />);
+    await waitFor(() => {
+      expect(screen.getByText("claude")).toBeInTheDocument();
+    });
+    // Model count affordance should be visible
+    const modelsBtn = screen.getByRole("button", { name: /Show models for claude/i });
+    expect(modelsBtn).toBeInTheDocument();
+    // Model list is hidden initially
+    expect(screen.queryByText("claude-opus-4")).not.toBeInTheDocument();
+    // Expand
+    fireEvent.click(modelsBtn);
+    await waitFor(() => {
+      expect(screen.getByText("claude-opus-4")).toBeInTheDocument();
+      expect(screen.getByText("claude-sonnet-4")).toBeInTheDocument();
+    });
+  });
 });
 
 describe("Live", () => {

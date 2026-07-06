@@ -1,6 +1,20 @@
-import { motion } from "framer-motion";
+import { useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import type { ProviderInfo } from "../api/client";
 import { formatCost, formatTokens } from "../utils/format";
+
+function AvailabilityBadge({ available }: { available: boolean }) {
+  return available ? (
+    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-medium bg-mycel-success-subtle text-mycel-success">
+      <span className="w-1.5 h-1.5 rounded-full bg-mycel-success inline-block" />
+      live
+    </span>
+  ) : (
+    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-medium bg-mycel-surface border border-mycel-border text-mycel-muted">
+      static
+    </span>
+  );
+}
 
 interface ProviderCardProps {
   provider: ProviderInfo;
@@ -8,9 +22,11 @@ interface ProviderCardProps {
 }
 
 export function ProviderCard({ provider, onClick }: ProviderCardProps) {
+  const [modelsOpen, setModelsOpen] = useState(false);
   const letter = provider.name.charAt(0).toUpperCase();
   const isActive = provider.installed && provider.agent_count > 0;
   const isInstalled = provider.installed;
+  const models = provider.models ?? [];
 
   return (
     <motion.div
@@ -82,6 +98,56 @@ export function ProviderCard({ provider, onClick }: ProviderCardProps) {
           {formatCost(provider.total_cost_usd)}
         </span>
       </div>
+
+      {/* Models affordance — stop propagation so clicking expand doesn't navigate */}
+      {models.length > 0 && (
+        <div className="mt-2" onClick={(e) => e.stopPropagation()}>
+          <button
+            type="button"
+            onClick={() => setModelsOpen((o) => !o)}
+            className="inline-flex items-center gap-1 text-[11px] text-mycel-muted hover:text-mycel-text transition-colors"
+            aria-expanded={modelsOpen}
+            aria-label={`${modelsOpen ? "Hide" : "Show"} models for ${provider.name}`}
+          >
+            <motion.svg
+              animate={{ rotate: modelsOpen ? 90 : 0 }}
+              transition={{ type: "spring", stiffness: 300, damping: 20 }}
+              className="w-3 h-3"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2.5}
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+            </motion.svg>
+            {models.length} model{models.length !== 1 ? "s" : ""}
+          </button>
+          <AnimatePresence initial={false}>
+            {modelsOpen && (
+              <motion.div
+                key="models"
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                className="overflow-hidden"
+              >
+                <div className="mt-1.5 space-y-0.5 max-h-40 overflow-y-auto">
+                  {models.map((m) => (
+                    <div
+                      key={m.id}
+                      className="flex items-center justify-between px-1.5 py-1 hover:bg-mycel-surface-hover rounded-md transition-colors"
+                    >
+                      <span className="font-mono text-[10px] text-mycel-text truncate mr-2">{m.id}</span>
+                      <AvailabilityBadge available={m.available} />
+                    </div>
+                  ))}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      )}
     </motion.div>
   );
 }
