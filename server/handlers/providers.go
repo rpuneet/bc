@@ -12,6 +12,8 @@ import (
 	"sync"
 	"time"
 
+	"golang.org/x/sync/singleflight"
+
 	"github.com/rpuneet/mycel/pkg/agent"
 	"github.com/rpuneet/mycel/pkg/cost"
 	"github.com/rpuneet/mycel/pkg/provider"
@@ -44,11 +46,11 @@ type ProviderInfo struct { //nolint:govet // field order matches JSON/API contra
 }
 
 // ProviderDetail extends ProviderInfo with per-model cost breakdown and agent list.
-type ProviderDetail struct { //nolint:govet // field order matches JSON/API contract
-	ProviderInfo
+type ProviderDetail struct {
 	Config      map[string]string `json:"config"`
 	Agents      []AgentSummary    `json:"agents"`
 	CostByModel []ModelCost       `json:"cost_by_model"`
+	ProviderInfo
 }
 
 // AgentSummary is a lightweight agent reference.
@@ -98,6 +100,7 @@ type modelCacheEntry struct {
 
 // ProviderHandler handles /api/providers routes.
 type ProviderHandler struct {
+	sf         singleflight.Group
 	registry   *provider.Registry
 	agents     *agent.AgentService
 	costs      *cost.Store
@@ -119,6 +122,8 @@ func (h *ProviderHandler) Register(mux *http.ServeMux) {
 
 // fetchModels returns models for provider p, using DynamicModelLister when available.
 // Results are cached for 60 seconds. Available=true means live from CLI.
+// Concurrent callers for the same provider share a single in-flight shell-out
+// (singleflight), preventing the TOCTOU race that caused duplicate CLI invocations.
 func (h *ProviderHandler) fetchModels(ctx context.Context, p provider.Provider) []ModelInfo {
 	const ttl = 60 * time.Second
 	const timeout = 10 * time.Second
@@ -130,36 +135,56 @@ func (h *ProviderHandler) fetchModels(ctx context.Context, p provider.Provider) 
 	}
 	h.modelMu.Unlock()
 
-	var models []ModelInfo
+	// singleflight deduplicates concurrent fetches for the same provider so only
+	// one shell-out fires per TTL window even under concurrent requests.
+	raw, _, _ := h.sf.Do(p.Name(), func() (any, error) { //nolint:errcheck // sf.Do error is forwarded; closure never returns non-nil
+		// Re-check cache inside the flight: a concurrent Do may have already
+		// populated it while this goroutine was waiting.
+		h.modelMu.Lock()
+		if e, ok := h.modelCache[p.Name()]; ok && time.Since(e.at) < ttl {
+			h.modelMu.Unlock()
+			return e.models, nil
+		}
+		h.modelMu.Unlock()
 
-	if dl, ok := p.(provider.DynamicModelLister); ok {
-		tctx, cancel := context.WithTimeout(ctx, timeout)
-		defer cancel()
-		if ids, err := dl.ListModels(tctx); err == nil && len(ids) > 0 {
-			models = make([]ModelInfo, len(ids))
-			for i, id := range ids {
-				models[i] = ModelInfo{ID: id, Available: true}
+		var models []ModelInfo
+
+		if dl, ok := p.(provider.DynamicModelLister); ok {
+			tctx, cancel := context.WithTimeout(ctx, timeout)
+			defer cancel()
+			if ids, err := dl.ListModels(tctx); err == nil && len(ids) > 0 {
+				models = make([]ModelInfo, len(ids))
+				for i, id := range ids {
+					models[i] = ModelInfo{ID: id, Available: true}
+				}
 			}
 		}
-	}
 
-	// Static fallback if dynamic yielded nothing.
-	if len(models) == 0 {
-		if ml, ok := p.(provider.ModelLister); ok {
-			for _, id := range ml.Models() {
-				models = append(models, ModelInfo{ID: id, Available: false})
+		// Static fallback if dynamic yielded nothing.
+		if len(models) == 0 {
+			if ml, ok := p.(provider.ModelLister); ok {
+				for _, id := range ml.Models() {
+					models = append(models, ModelInfo{ID: id, Available: false})
+				}
 			}
 		}
-	}
 
-	if models == nil {
-		models = []ModelInfo{}
-	}
+		if models == nil {
+			models = []ModelInfo{}
+		}
 
-	h.modelMu.Lock()
-	h.modelCache[p.Name()] = modelCacheEntry{models: models, at: time.Now()}
-	h.modelMu.Unlock()
-	return models
+		h.modelMu.Lock()
+		h.modelCache[p.Name()] = modelCacheEntry{models: models, at: time.Now()}
+		h.modelMu.Unlock()
+
+		return models, nil
+	})
+	// The closure always returns []ModelInfo; the two-value assertion is a safe guard.
+	ms, ok := raw.([]ModelInfo)
+	if !ok {
+		return []ModelInfo{}
+	}
+	return ms
 }
 
 // listModels returns live models for a provider (with caching).
@@ -174,6 +199,9 @@ func (h *ProviderHandler) listModels(w http.ResponseWriter, r *http.Request, nam
 }
 
 // list returns all providers with agent counts and cost stats.
+// Each provider's buildProviderInfo (which may shell out via fetchModels) runs
+// concurrently so a full cold-cache load stays bounded by the slowest single
+// provider rather than the sum of all providers.
 func (h *ProviderHandler) list(w http.ResponseWriter, r *http.Request) {
 	if !requireMethod(w, r, http.MethodGet) {
 		return
@@ -183,11 +211,18 @@ func (h *ProviderHandler) list(w http.ResponseWriter, r *http.Request) {
 	agentCounts := h.countAgents(r.Context())
 	costByProvider := h.aggregateCostsByProvider(r.Context())
 
-	infos := make([]ProviderInfo, 0, len(providers))
-	for _, p := range providers {
-		info := h.buildProviderInfo(r.Context(), p, agentCounts, costByProvider)
-		infos = append(infos, info)
+	// Pre-allocate by index so each goroutine writes to its own slot — no mutex needed.
+	infos := make([]ProviderInfo, len(providers))
+	var wg sync.WaitGroup
+	wg.Add(len(providers))
+	for i, p := range providers {
+		i, p := i, p
+		go func() {
+			defer wg.Done()
+			infos[i] = h.buildProviderInfo(r.Context(), p, agentCounts, costByProvider)
+		}()
 	}
+	wg.Wait()
 
 	sort.Slice(infos, func(i, j int) bool {
 		return infos[i].Name < infos[j].Name
