@@ -180,6 +180,93 @@ function StarCount({ stars }: { stars: number }) {
   );
 }
 
+// ─── Custom Filter Select ─────────────────────────────────────────────────────
+// Replaces native <select> so the dropdown chrome matches the dark theme.
+
+interface FilterSelectProps {
+  value: string;
+  options: Array<{ value: string; label: string }>;
+  onChange: (val: string) => void;
+}
+
+function FilterSelect({ value, options, onChange }: FilterSelectProps) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const current = options.find((o) => o.value === value) ?? options[0];
+
+  useEffect(() => {
+    if (!open) return;
+    const onMouse = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node))
+        setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", onMouse);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onMouse);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        className="flex items-center gap-1.5 px-2 py-1.5 text-sm rounded-md border border-mycel-border bg-mycel-bg text-mycel-text focus:outline-none focus:ring-1 focus:ring-mycel-accent hover:border-mycel-border-strong transition-colors whitespace-nowrap"
+      >
+        <span>{current?.label}</span>
+        <svg
+          viewBox="0 0 16 16"
+          width="12"
+          height="12"
+          fill="currentColor"
+          className="text-mycel-muted shrink-0"
+          aria-hidden
+        >
+          <path d="M4.427 7.427l3.396 3.396a.25.25 0 00.354 0l3.396-3.396A.25.25 0 0011.396 7H4.604a.25.25 0 00-.177.427z" />
+        </svg>
+      </button>
+      <AnimatePresence>
+        {open && (
+          <motion.ul
+            role="listbox"
+            initial={{ opacity: 0, y: -4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -4 }}
+            transition={{ duration: 0.1 }}
+            className="absolute left-0 top-full mt-1 z-20 min-w-full rounded-lg border border-mycel-border bg-mycel-surface shadow-xl py-1"
+          >
+            {options.map((o) => (
+              <li key={o.value} role="option" aria-selected={o.value === value}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onChange(o.value);
+                    setOpen(false);
+                  }}
+                  className={`w-full text-left px-3 py-1.5 text-sm transition-colors hover:bg-mycel-surface-hover ${
+                    o.value === value
+                      ? "text-mycel-accent"
+                      : "text-mycel-text"
+                  }`}
+                >
+                  {o.label}
+                </button>
+              </li>
+            ))}
+          </motion.ul>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
 // ─── Inline Agent Dropdown ────────────────────────────────────────────────────
 
 interface InlineAgentPickerProps {
@@ -252,6 +339,14 @@ function InlineAgentPicker({
       transition={{ duration: 0.1 }}
       className="absolute right-0 top-full mt-1 z-20 w-56 rounded-lg border border-mycel-border bg-mycel-surface shadow-xl"
     >
+      {/* Heading */}
+      <div className="px-3 pt-2.5 pb-1.5 border-b border-mycel-border">
+        <p className="text-xs font-semibold text-mycel-text">Send to agent(s)</p>
+        <p className="text-[10px] text-mycel-muted mt-0.5">
+          Selected agents get an install instruction.
+        </p>
+      </div>
+
       {/* Agent list */}
       <div className="px-3 py-2 max-h-44 overflow-y-auto">
         {loading && (
@@ -306,6 +401,11 @@ function InlineAgentPicker({
 
 // ─── Item Card ────────────────────────────────────────────────────────────────
 
+// Returns true when a string is a bare URL (no real description text).
+function isRawUrl(s: string): boolean {
+  return /^https?:\/\//.test(s.trim());
+}
+
 function ItemCard({ item }: { item: MarketplaceItem }) {
   const [showPicker, setShowPicker] = useState(false);
   const [sentCount, setSentCount] = useState<number | null>(null);
@@ -316,6 +416,11 @@ function ItemCard({ item }: { item: MarketplaceItem }) {
     // Clear confirmation after 4 s so the button is reusable.
     setTimeout(() => setSentCount(null), 4000);
   }
+
+  // Only render a description when there is meaningful text (not a raw URL —
+  // the source badge already implies the repo).
+  const showDescription =
+    !!item.description && !isRawUrl(item.description);
 
   return (
     <motion.div
@@ -342,7 +447,7 @@ function ItemCard({ item }: { item: MarketplaceItem }) {
               className={SOURCE_COLORS[item.source] ?? "bg-mycel-border text-mycel-muted"}
             />
           </div>
-          {item.description && (
+          {showDescription && (
             <p className="mt-1 text-xs text-mycel-muted line-clamp-2">
               {item.description}
             </p>
@@ -376,23 +481,25 @@ function ItemCard({ item }: { item: MarketplaceItem }) {
         </div>
       </div>
 
-      {/* Footer row */}
-      <div className="flex items-center gap-3 mt-auto">
-        {typeof item.stars === "number" && item.stars > 0 && (
-          <StarCount stars={item.stars} />
-        )}
-        {item.url && (
-          <a
-            href={item.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-xs text-mycel-muted hover:text-mycel-accent transition-colors truncate"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {item.url.replace(/^https?:\/\//, "")}
-          </a>
-        )}
-      </div>
+      {/* Footer row — only rendered when there's content */}
+      {(typeof item.stars === "number" && item.stars > 0 || !!item.url) && (
+        <div className="flex items-center gap-3 mt-auto">
+          {typeof item.stars === "number" && item.stars > 0 && (
+            <StarCount stars={item.stars} />
+          )}
+          {item.url && (
+            <a
+              href={item.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-mycel-muted hover:text-mycel-accent transition-colors truncate"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {item.url.replace(/^https?:\/\//, "")}
+            </a>
+          )}
+        </div>
+      )}
     </motion.div>
   );
 }
@@ -435,8 +542,6 @@ export function Marketplace() {
 
   const inputCls =
     "px-2 py-1.5 text-sm rounded-md border border-mycel-border bg-mycel-bg text-mycel-text placeholder:text-mycel-muted focus:outline-none focus:ring-1 focus:ring-mycel-accent";
-  const selectCls =
-    "px-2 py-1.5 text-sm rounded-md border border-mycel-border bg-mycel-bg text-mycel-text focus:outline-none focus:ring-1 focus:ring-mycel-accent";
 
   return (
     <div className="flex flex-col gap-4 p-4 max-w-4xl mx-auto w-full">
@@ -449,28 +554,16 @@ export function Marketplace() {
           onChange={(e) => setQuery(e.target.value)}
           className={`${inputCls} flex-1 min-w-[180px]`}
         />
-        <select
+        <FilterSelect
           value={typeFilter}
-          onChange={(e) => setTypeFilter(e.target.value)}
-          className={selectCls}
-        >
-          {ALL_TYPES.map((o) => (
-            <option key={o.value} value={o.value}>
-              {o.label}
-            </option>
-          ))}
-        </select>
-        <select
+          options={ALL_TYPES}
+          onChange={setTypeFilter}
+        />
+        <FilterSelect
           value={sourceFilter}
-          onChange={(e) => setSourceFilter(e.target.value)}
-          className={selectCls}
-        >
-          {ALL_SOURCES.map((o) => (
-            <option key={o.value} value={o.value}>
-              {o.label}
-            </option>
-          ))}
-        </select>
+          options={ALL_SOURCES}
+          onChange={setSourceFilter}
+        />
       </div>
 
       {/* Content */}

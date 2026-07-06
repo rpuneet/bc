@@ -74,7 +74,17 @@ export function formatAbsolute(input: TimeInput, opts: FormatAbsoluteOptions = {
   const emptyLabel = opts.emptyLabel ?? "—";
   const d = toDate(input);
   if (!d) return emptyLabel;
-  return opts.dateOnly ? d.toLocaleDateString() : d.toLocaleString();
+  if (opts.dateOnly) {
+    // Use a readable, consistent format ("Feb 5, 2026") instead of the
+    // locale-default short form ("2/5/2026") so it pairs well with the
+    // relative style ("3d ago", "just now") used elsewhere in the UI.
+    return d.toLocaleDateString(undefined, {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+  }
+  return d.toLocaleString();
 }
 
 export interface FormatDurationOptions {
