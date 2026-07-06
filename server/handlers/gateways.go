@@ -101,6 +101,8 @@ func (h *GatewayHandler) gatewayRouter(w http.ResponseWriter, r *http.Request) {
 		h.gatewayChannels(w, r, platform, strings.TrimPrefix(rest, "channels"))
 	case rest == "api" || strings.HasPrefix(rest, "api/"):
 		h.gatewayAPIProxy(w, r, platform, strings.TrimPrefix(rest, "api"))
+	case rest == "react":
+		h.gatewayReact(w, r, platform)
 	default:
 		// Existing: PATCH /api/gateways/{platform}
 		h.byPlatform(w, r)
@@ -840,6 +842,61 @@ func (h *GatewayHandler) notifyActivity(w http.ResponseWriter, r *http.Request) 
 		entries = []notify.DeliveryEntry{}
 	}
 	writeJSON(w, http.StatusOK, entries)
+}
+
+// gatewayReact handles POST /api/gateways/{platform}/react — sends an emoji
+// reaction to a specific message via the gateway adapter.
+//
+// Request body:
+//
+//	{
+//	  "channel":    "whatsapp:family",  // bc channel key
+//	  "message_id": "<platform_msg_id>",
+//	  "sender_jid": "<platform_sender>", // required by WhatsApp; omit for other platforms
+//	  "emoji":      "👍"                 // empty string removes the reaction
+//	}
+func (h *GatewayHandler) gatewayReact(w http.ResponseWriter, r *http.Request, _ string) {
+	if !requireMethod(w, r, http.MethodPost) {
+		return
+	}
+	if h.gw == nil {
+		serviceUnavailable(w, r, "gateway", "gateway manager not available")
+		return
+	}
+
+	var req struct {
+		Channel   string `json:"channel"`
+		MessageID string `json:"message_id"`
+		SenderJID string `json:"sender_jid"`
+		Emoji     string `json:"emoji"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		httpError(w, "invalid body", http.StatusBadRequest)
+		return
+	}
+	if req.Channel == "" {
+		httpError(w, "channel is required", http.StatusBadRequest)
+		return
+	}
+	if req.MessageID == "" {
+		httpError(w, "message_id is required", http.StatusBadRequest)
+		return
+	}
+	if req.Emoji == "" {
+		httpError(w, "emoji is required", http.StatusBadRequest)
+		return
+	}
+
+	sent, err := h.gw.SendReaction(r.Context(), req.Channel, req.SenderJID, req.MessageID, req.Emoji)
+	if err != nil {
+		httpInternalError(w, "send reaction", err)
+		return
+	}
+	if !sent {
+		httpError(w, "channel not found or adapter does not support reactions", http.StatusNotFound)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok", "channel": req.Channel})
 }
 
 // gatewayPair handles QR-code-based pairing for adapters that support it

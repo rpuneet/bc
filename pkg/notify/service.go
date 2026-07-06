@@ -103,7 +103,10 @@ func extractMentions(content string) []string {
 
 // Dispatch receives a normalized inbound message and delivers it to
 // subscribed agents only. Runs in its own goroutine — never blocks the adapter.
-func (s *Service) Dispatch(channel, platform, sender, senderID, content, messageID string, attachments []Attachment, raw json.RawMessage) {
+// extraMentions carries pre-extracted platform mentions (e.g. WhatsApp JID user
+// parts) that the text-based mention regex cannot capture; they are merged with
+// the standard @name extraction from content.
+func (s *Service) Dispatch(channel, platform, sender, senderID, content, messageID string, extraMentions []string, attachments []Attachment, raw json.RawMessage) {
 	s.dispatches.Add(1)
 	go func() {
 		defer s.dispatches.Done()
@@ -120,8 +123,26 @@ func (s *Service) Dispatch(channel, platform, sender, senderID, content, message
 			log.Warn("notify: save message failed", "channel", channel, "error", saveErr)
 		}
 
-		// Build notification
-		mentions := extractMentions(content)
+		// Build mention set: text-extracted names plus any pre-supplied platform
+		// identifiers (e.g. WhatsApp JID user parts). Lowercase + deduplicate.
+		textMentions := extractMentions(content)
+		mentions := textMentions
+		if len(extraMentions) > 0 {
+			seen := make(map[string]bool, len(textMentions)+len(extraMentions))
+			for _, m := range textMentions {
+				seen[m] = true
+			}
+			merged := make([]string, len(textMentions), len(textMentions)+len(extraMentions))
+			copy(merged, textMentions)
+			for _, m := range extraMentions {
+				lm := strings.ToLower(m)
+				if !seen[lm] {
+					seen[lm] = true
+					merged = append(merged, lm)
+				}
+			}
+			mentions = merged
+		}
 		n := Notification{
 			Raw:         raw,
 			Timestamp:   time.Now().UTC().Format(time.RFC3339),

@@ -196,7 +196,7 @@ func TestDispatchMentionFilter(t *testing.T) {
 	}
 
 	// Message mentions eng-01 only — eng-02 (mention_only) should be skipped
-	svc.Dispatch("slack:eng", "slack", "alice", "U123", "hey @eng-01 review this", "msg1", nil, nil)
+	svc.Dispatch("slack:eng", "slack", "alice", "U123", "hey @eng-01 review this", "msg1", nil, nil, nil)
 
 	time.Sleep(100 * time.Millisecond)
 
@@ -224,7 +224,7 @@ func TestDispatchSelfSkip(t *testing.T) {
 	}
 
 	// eng-01 sends — should NOT be delivered back to eng-01
-	svc.Dispatch("slack:eng", "slack", "[slack] eng-01", "U456", "I just pushed a fix", "msg2", nil, nil)
+	svc.Dispatch("slack:eng", "slack", "[slack] eng-01", "U456", "I just pushed a fix", "msg2", nil, nil, nil)
 
 	time.Sleep(100 * time.Millisecond)
 
@@ -259,6 +259,78 @@ func TestDeliveryLog(t *testing.T) {
 	}
 	if len(entries) != 3 {
 		t.Fatalf("expected 3 entries (limit), got %d", len(entries))
+	}
+}
+
+// TestMentionOnlyModeSwitch proves that toggling mention_only false→true→false
+// takes effect immediately on the next Dispatch — no restart required.
+func TestMentionOnlyModeSwitch(t *testing.T) {
+	store := setupTestStore(t)
+	ctx := context.Background()
+
+	sender := &mockSender{}
+	svc := NewService(store, sender, nil)
+
+	// Start as mention-only.
+	if err := store.Subscribe(ctx, "whatsapp:family", "zen-zebra", true); err != nil {
+		t.Fatal(err)
+	}
+
+	// A message with no mention — zen-zebra must NOT receive it.
+	svc.Dispatch("whatsapp:family", "whatsapp", "alice", "", "good morning everyone", "m1", nil, nil, nil)
+	time.Sleep(80 * time.Millisecond)
+	if calls := sender.getCalls(); len(calls) != 0 {
+		t.Fatalf("mention-only mode: expected 0 deliveries, got %d", len(calls))
+	}
+
+	// Switch to all-messages — change persists immediately.
+	if err := store.SetMentionOnly(ctx, "whatsapp:family", "zen-zebra", false); err != nil {
+		t.Fatal(err)
+	}
+
+	// Same message without @mention must now be delivered.
+	svc.Dispatch("whatsapp:family", "whatsapp", "alice", "", "good morning everyone", "m2", nil, nil, nil)
+	time.Sleep(80 * time.Millisecond)
+	calls := sender.getCalls()
+	if len(calls) != 1 {
+		t.Fatalf("all-messages mode: expected 1 delivery, got %d: %v", len(calls), calls)
+	}
+	if calls[0].Name != "zen-zebra" {
+		t.Errorf("expected delivery to zen-zebra, got %s", calls[0].Name)
+	}
+}
+
+// TestDispatchExtraMentions proves that pre-supplied platform mentions
+// (e.g. WhatsApp JID user parts) are added to the mention set and cause
+// a mention-only subscriber to receive the message.
+func TestDispatchExtraMentions(t *testing.T) {
+	store := setupTestStore(t)
+	ctx := context.Background()
+
+	sender := &mockSender{}
+	svc := NewService(store, sender, nil)
+
+	// zen-zebra is mention-only; its WhatsApp JID user part is "918051005416".
+	if err := store.Subscribe(ctx, "whatsapp:family", "918051005416", true); err != nil {
+		t.Fatal(err)
+	}
+
+	// Message content has no @name mention — but the platform supplies the JID.
+	svc.Dispatch("whatsapp:family", "whatsapp", "alice", "",
+		"hey look at this", // no text @mention
+		"m1",
+		[]string{"918051005416"}, // pre-extracted from ContextInfo.MentionedJID
+		nil,
+		nil,
+	)
+	time.Sleep(80 * time.Millisecond)
+
+	calls := sender.getCalls()
+	if len(calls) != 1 {
+		t.Fatalf("expected 1 delivery via extraMentions, got %d: %v", len(calls), calls)
+	}
+	if calls[0].Name != "918051005416" {
+		t.Errorf("expected delivery to 918051005416, got %s", calls[0].Name)
 	}
 }
 
@@ -298,7 +370,7 @@ func TestDrainDispatches(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	svc.Dispatch("slack:eng", "slack", "user", "U1", "hello", "m1", nil, nil)
+	svc.Dispatch("slack:eng", "slack", "user", "U1", "hello", "m1", nil, nil, nil)
 
 	// The dispatch is blocked inside Send — draining must time out.
 	if svc.DrainDispatches(50 * time.Millisecond) {

@@ -371,6 +371,42 @@ func parseSendJID(channelID string) (types.JID, error) {
 	return jid, nil
 }
 
+// SendReaction sends a reaction emoji to a previously-received message.
+// channelID is the chat JID (from Notification.ChannelID), senderJID is the
+// JID of the original message author (from Notification.SenderID), messageID
+// is the platform message ID (from Notification.MessageID), and emoji is the
+// reaction character (empty string removes any existing reaction).
+func (a *Adapter) SendReaction(ctx context.Context, channelID, senderJID, messageID, emoji string) error {
+	a.mu.Lock()
+	client := a.client
+	connected := a.connected
+	a.mu.Unlock()
+	if client == nil || !connected {
+		return fmt.Errorf("whatsapp: not connected")
+	}
+
+	chat, err := parseSendJID(channelID)
+	if err != nil {
+		return err
+	}
+	msgSender, err := types.ParseJID(senderJID)
+	if err != nil {
+		return fmt.Errorf("whatsapp: invalid sender JID %q: %w", senderJID, err)
+	}
+
+	if _, ok := ctx.Deadline(); !ok {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, sendTimeout)
+		defer cancel()
+	}
+
+	reaction := client.BuildReaction(chat, msgSender, messageID, emoji)
+	if _, err := client.SendMessage(ctx, chat, reaction); err != nil {
+		return fmt.Errorf("whatsapp: send reaction to %s: %w", chat, err)
+	}
+	return nil
+}
+
 // Channels returns discovered chats (empty until connected).
 func (a *Adapter) Channels() []gateway.ChannelInfo {
 	return []gateway.ChannelInfo{{ID: "messages", Name: "messages", Platform: "whatsapp"}}
@@ -450,11 +486,48 @@ func (a *Adapter) handleMessage(msg *events.Message) {
 			ChannelID: msg.Info.Chat.String(), // native JID so identity resolution works
 			Platform:  "whatsapp",
 			Sender:    sender,
+			SenderID:  msg.Info.Sender.String(), // native JID for reactions
 			Content:   content,
+			MessageID: msg.Info.ID,
+			Mentions:  extractWAMentions(msg.Message),
 			Timestamp: now,
 			Raw:       raw,
 		})
 	}
+}
+
+// extractWAMentions returns the JID user parts from a WhatsApp message's ContextInfo.
+// WhatsApp stores @mention targets in ContextInfo.MentionedJID as full JID strings
+// (e.g. "1234567890@s.whatsapp.net"); we return the user part (phone number) so the
+// notify layer can match them against subscriber identities.
+func extractWAMentions(msg *waE2E.Message) []string {
+	if msg == nil {
+		return nil
+	}
+	var ci *waE2E.ContextInfo
+	switch {
+	case msg.ExtendedTextMessage != nil:
+		ci = msg.ExtendedTextMessage.ContextInfo
+	case msg.ImageMessage != nil:
+		ci = msg.ImageMessage.ContextInfo
+	case msg.VideoMessage != nil:
+		ci = msg.VideoMessage.ContextInfo
+	case msg.DocumentMessage != nil:
+		ci = msg.DocumentMessage.ContextInfo
+	case msg.AudioMessage != nil:
+		ci = msg.AudioMessage.ContextInfo
+	}
+	if ci == nil || len(ci.MentionedJID) == 0 {
+		return nil
+	}
+	mentions := make([]string, 0, len(ci.MentionedJID))
+	for _, raw := range ci.MentionedJID {
+		j, err := types.ParseJID(raw)
+		if err == nil && j.User != "" {
+			mentions = append(mentions, j.User)
+		}
+	}
+	return mentions
 }
 
 // formatSender returns a display name for the message sender.

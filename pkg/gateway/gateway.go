@@ -58,7 +58,9 @@ type Notification struct {
 	ChannelID string          `json:"channel_id,omitempty"` // platform-native channel id (e.g. WhatsApp JID), if known
 	Platform  string          `json:"platform"`
 	Sender    string          `json:"sender"`
-	Content   string          `json:"content"` // human-readable text for display/storage
+	SenderID  string          `json:"sender_id,omitempty"`  // platform-native sender id (e.g. WhatsApp JID)
+	Content   string          `json:"content"`              // human-readable text for display/storage
+	MessageID string          `json:"message_id,omitempty"` // platform-native message id (for reactions, threading)
 	Mentions  []string        `json:"mentions"`
 }
 
