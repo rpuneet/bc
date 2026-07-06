@@ -160,15 +160,35 @@ func composeInstallMessage(req installRequest) string {
 
 	switch marketplace.ItemType(req.ItemType) {
 	case marketplace.TypeMCP:
-		spec := req.ItemSourceURL
-		if spec == "" {
-			spec = req.ItemID
+		if marketplace.Source(req.ItemSource) == marketplace.SourceGlama {
+			// Glama's listing API does not expose the server's runnable endpoint or
+			// command — only the listing-page URL. Emitting "claude mcp add <listing-url>"
+			// would create a broken stdio entry pointing at an HTML page, not a server.
+			// Emit an honest instruction so the agent is not handed a command that fails.
+			listingURL := req.ItemSourceURL
+			if listingURL == "" {
+				listingURL = "https://glama.ai/mcp/servers"
+			}
+			sb.WriteString("  Glama's catalog API does not expose the server's runnable\n")
+			sb.WriteString("  endpoint, so a ready-made install command cannot be composed.\n")
+			sb.WriteString(fmt.Sprintf("  1. Open %s\n", listingURL))
+			sb.WriteString("  2. Find the server's install command (npx/uvx invocation or HTTP/SSE URL).\n")
+			sb.WriteString(fmt.Sprintf("  3. Run: claude mcp add %q <command-or-url>\n", req.ItemName))
+		} else {
+			spec := req.ItemSourceURL
+			if spec == "" {
+				spec = req.ItemID
+			}
+			sb.WriteString(fmt.Sprintf("  claude mcp add %q %q\n", req.ItemName, spec))
 		}
-		sb.WriteString(fmt.Sprintf("  claude mcp add %q %q\n", req.ItemName, spec))
 	case marketplace.TypeSkill:
 		switch marketplace.Source(req.ItemSource) {
 		case marketplace.SourceOpenclaw:
-			sb.WriteString(fmt.Sprintf("  clawhub install %q\n", req.ItemID))
+			// The correct CLI is the openclaw CLI, not the non-existent "clawhub" binary.
+			// Command: openclaw skills install <slug>
+			// The item ID may carry an "openclaw:" prefix; strip it to get the bare slug.
+			slug := strings.TrimPrefix(req.ItemID, "openclaw:")
+			sb.WriteString(fmt.Sprintf("  openclaw skills install %q\n", slug))
 		default:
 			repoURL := req.ItemSourceURL
 			if repoURL == "" {
