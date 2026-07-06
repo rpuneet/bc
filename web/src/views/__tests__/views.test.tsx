@@ -177,16 +177,17 @@ describe("Agents", () => {
     const toggles = screen.getAllByRole("button", { name: /stopped/ });
     expect(toggles.length).toBeGreaterThanOrEqual(1);
 
-    // Expanding repo-a's stopped section reveals stopped-1.
+    // Expanding repo-a's stopped section reveals stopped-1. Assert the
+    // collapsed toggle exists first so a regression that stops emitting it
+    // fails the test rather than silently skipping the reveal check.
     const repoAToggle = toggles.find((b) => b.getAttribute("aria-expanded") === "false");
-    if (repoAToggle) {
-      fireEvent.click(repoAToggle);
-      await waitFor(() => {
-        // At least one stopped agent is now visible.
-        const visible = screen.queryByText("stopped-1") ?? screen.queryByText("stopped-2");
-        expect(visible).toBeInTheDocument();
-      });
-    }
+    expect(repoAToggle).toBeDefined();
+    fireEvent.click(repoAToggle!);
+    await waitFor(() => {
+      // At least one stopped agent is now visible.
+      const visible = screen.queryByText("stopped-1") ?? screen.queryByText("stopped-2");
+      expect(visible).toBeInTheDocument();
+    });
   });
 });
 
