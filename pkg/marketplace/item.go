@@ -21,6 +21,9 @@ const (
 	SourceClaude      Source = "claude"       // github.com/anthropics/skills
 	SourceOpenclaw    Source = "openclaw"     // clawhub.ai/api/v1/skills
 	SourceGemini      Source = "gemini"       // github.com/orgs/gemini-cli-extensions
+	SourceGlama       Source = "glama"        // glama.ai/api/mcp/v1/servers
+	SourceSmithery    Source = "smithery"     // registry.smithery.ai/servers
+	// SourcePulseMCP is intentionally absent: pulsemcp.com has no public machine-readable API.
 )
 
 // GitHubStarsThreshold is the minimum star count for a GitHub repo to

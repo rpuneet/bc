@@ -104,6 +104,8 @@ func (a *Aggregator) aggregate(ctx context.Context) ([]Item, error) {
 		{SourceClaude, a.fetchClaude},
 		{SourceOpenclaw, a.fetchOpenclaw},
 		{SourceGemini, a.fetchGemini},
+		{SourceGlama, a.fetchGlama},
+		{SourceSmithery, a.fetchSmithery},
 	}
 
 	ch := make(chan result, len(sources))
