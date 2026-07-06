@@ -261,6 +261,91 @@ func TestPiContributeEnv_ExistingAWSVarSkipped(t *testing.T) {
 	}
 }
 
+// TestPiAWSPointerEnv_NoAWSDir verifies no env vars are injected when ~/.aws is absent.
+func TestPiAWSPointerEnv_NoAWSDir(t *testing.T) {
+	orig := piUserHomeDir
+	piUserHomeDir = func() (string, error) { return t.TempDir(), nil }
+	t.Cleanup(func() { piUserHomeDir = orig })
+
+	// Ensure no AWS_* vars bleed in from the test runner's environment.
+	for _, key := range []string{"AWS_PROFILE", "AWS_REGION", "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_DEFAULT_REGION"} {
+		t.Setenv(key, "")
+		t.Cleanup(func() { os.Unsetenv(key) }) //nolint:errcheck // cleanup only
+	}
+
+	got := piAWSPointerEnv()
+	if got != nil {
+		t.Errorf("piAWSPointerEnv() = %v, want nil when ~/.aws absent", got)
+	}
+}
+
+// TestPiAWSPointerEnv_WithAWSDir verifies AWS_PROFILE and AWS_REGION are injected
+// when ~/.aws exists and no AWS_* vars are set in the environment.
+func TestPiAWSPointerEnv_WithAWSDir(t *testing.T) {
+	home := t.TempDir()
+	awsDir := filepath.Join(home, ".aws")
+	if err := os.MkdirAll(awsDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	cfgContent := "[default]\nregion = us-east-1\noutput = json\n"
+	if err := os.WriteFile(filepath.Join(awsDir, "config"), []byte(cfgContent), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	orig := piUserHomeDir
+	piUserHomeDir = func() (string, error) { return home, nil }
+	t.Cleanup(func() { piUserHomeDir = orig })
+
+	// Clear any ambient AWS_* from the test environment.
+	for _, key := range []string{"AWS_PROFILE", "AWS_REGION", "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_DEFAULT_REGION"} {
+		os.Unsetenv(key) //nolint:errcheck
+	}
+
+	got := piAWSPointerEnv()
+	if len(got) == 0 {
+		t.Fatal("piAWSPointerEnv() = nil, want non-empty slice when ~/.aws present")
+	}
+	wantProfile := "AWS_PROFILE=default"
+	wantRegion := "AWS_REGION=us-east-1"
+	hasProfile, hasRegion := false, false
+	for _, e := range got {
+		if e == wantProfile {
+			hasProfile = true
+		}
+		if e == wantRegion {
+			hasRegion = true
+		}
+	}
+	if !hasProfile {
+		t.Errorf("piAWSPointerEnv() missing %q; got %v", wantProfile, got)
+	}
+	if !hasRegion {
+		t.Errorf("piAWSPointerEnv() missing %q; got %v", wantRegion, got)
+	}
+}
+
+// TestPiAWSPointerEnv_SkipsWhenAWSEnvAlreadySet verifies no injection occurs
+// when the daemon process already has an AWS_* variable set.
+func TestPiAWSPointerEnv_SkipsWhenAWSEnvAlreadySet(t *testing.T) {
+	home := t.TempDir()
+	awsDir := filepath.Join(home, ".aws")
+	if err := os.MkdirAll(awsDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+
+	orig := piUserHomeDir
+	piUserHomeDir = func() (string, error) { return home, nil }
+	t.Cleanup(func() { piUserHomeDir = orig })
+
+	// Pre-set an AWS env var — injection must be skipped.
+	t.Setenv("AWS_PROFILE", "prod")
+
+	got := piAWSPointerEnv()
+	if got != nil {
+		t.Errorf("piAWSPointerEnv() = %v, want nil when AWS_PROFILE already set", got)
+	}
+}
+
 func TestReadAWSDefaultRegion(t *testing.T) {
 	home := t.TempDir()
 	awsDir := filepath.Join(home, ".aws")
