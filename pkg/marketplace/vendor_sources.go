@@ -316,7 +316,12 @@ func (a *Aggregator) fetchSmithery(ctx context.Context) ([]Item, error) {
 			})
 		}
 
-		if page >= resp.Pagination.TotalPages {
+		// Stop if the page was empty (covers TotalPages==0 / omitted).
+		if len(resp.Servers) == 0 {
+			break
+		}
+		// Stop when TotalPages is known and we've reached the last page.
+		if resp.Pagination.TotalPages > 0 && page >= resp.Pagination.TotalPages {
 			break
 		}
 	}

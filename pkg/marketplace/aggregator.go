@@ -31,7 +31,8 @@ type Fetcher interface {
 // Aggregator fetches catalog items from all registered sources and
 // caches the result for cacheTTL.
 type Aggregator struct { //nolint:govet // readability over fieldalignment here
-	mu         sync.Mutex
+	mu         sync.RWMutex // protects cached, cachedAt, hasCache (short critical sections only)
+	refreshMu  sync.Mutex   // serializes concurrent cache refreshes; held across aggregate()
 	cached     []Item
 	cachedAt   time.Time
 	tmplStore  *template.Store // may be nil
@@ -62,26 +63,58 @@ func (a *Aggregator) List(ctx context.Context, typeFilter, sourceFilter, query s
 }
 
 // catalog returns the cached catalog, refreshing it if stale.
+//
+// Design: mu is held only for short read/write critical sections so that
+// concurrent callers can always read the stale cache while a single refresh
+// runs. refreshMu serializes concurrent refreshes so at most one aggregate()
+// executes at a time; a second caller that arrives while a refresh is in
+// progress will re-check the cache after refreshMu is free and serve the
+// freshly-written result without running aggregate() a second time.
 func (a *Aggregator) catalog(ctx context.Context) ([]Item, error) {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-
+	// Fast path: serve from cache without blocking writers.
+	a.mu.RLock()
 	if a.hasCache && time.Since(a.cachedAt) < cacheTTL {
-		return a.cached, nil
+		items := a.cached
+		a.mu.RUnlock()
+		return items, nil
 	}
+	// Capture stale snapshot so we can serve it if the refresh fails.
+	stale := a.hasCache
+	var staleItems []Item
+	if stale {
+		staleItems = a.cached
+	}
+	a.mu.RUnlock()
+
+	// Slow path: serialize refreshes; mu is NOT held here so concurrent
+	// readers continue to receive the stale cache unblocked.
+	a.refreshMu.Lock()
+	defer a.refreshMu.Unlock()
+
+	// Re-check: another goroutine may have refreshed while we waited.
+	a.mu.RLock()
+	if a.hasCache && time.Since(a.cachedAt) < cacheTTL {
+		items := a.cached
+		a.mu.RUnlock()
+		return items, nil
+	}
+	a.mu.RUnlock()
 
 	items, err := a.aggregate(ctx)
 	if err != nil {
 		// Return stale data rather than an error when we have a prior result.
-		if a.hasCache {
+		if stale {
 			log.Warn("marketplace: refresh failed, serving stale cache", "error", err)
-			return a.cached, nil
+			return staleItems, nil
 		}
 		return nil, err
 	}
+
+	a.mu.Lock()
 	a.cached = items
 	a.cachedAt = time.Now()
 	a.hasCache = true
+	a.mu.Unlock()
 	return items, nil
 }
 
@@ -134,16 +167,20 @@ func (a *Aggregator) aggregate(ctx context.Context) ([]Item, error) {
 // The MCP registry (and others) can return one row per published version of a
 // server, so a popular server would otherwise appear as dozens of identical
 // cards; this guarantees one catalog entry per unique item across all sources.
+//
+// Items with an empty ID are dropped: they cannot be reliably deduplicated,
+// and an ID is required for the install flow to identify the item.
 func dedupeByID(items []Item) []Item {
 	seen := make(map[string]struct{}, len(items))
 	out := make([]Item, 0, len(items))
 	for _, it := range items {
-		if it.ID != "" {
-			if _, dup := seen[it.ID]; dup {
-				continue
-			}
-			seen[it.ID] = struct{}{}
+		if it.ID == "" {
+			continue // no stable identity; skip
 		}
+		if _, dup := seen[it.ID]; dup {
+			continue
+		}
+		seen[it.ID] = struct{}{}
 		out = append(out, it)
 	}
 	return out
@@ -364,10 +401,13 @@ func (a *Aggregator) getJSON(ctx context.Context, rawURL string, out interface{}
 // filter applies optional type, source, and text filters to items.
 func filter(items []Item, typeStr, sourceStr, query string) []Item {
 	if typeStr == "" && sourceStr == "" && query == "" {
-		return items
+		// Return a defensive copy so callers cannot mutate the cached slice.
+		out := make([]Item, len(items))
+		copy(out, items)
+		return out
 	}
 	q := strings.ToLower(query)
-	out := items[:0:0] // share backing array but start empty
+	out := make([]Item, 0, len(items)) // fresh allocation; does not alias the cache
 	for _, it := range items {
 		if typeStr != "" && string(it.Type) != typeStr {
 			continue

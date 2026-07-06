@@ -69,9 +69,13 @@ type installRequest struct { //nolint:govet // field order matches JSON/API cont
 	ItemSource    string   `json:"item_source"`
 }
 
-// installResponse is returned on success.
-type installResponse struct {
-	Dispatched int `json:"dispatched"`
+// installResponse is returned on success (HTTP 200).
+// Errors lists per-agent failures so the caller can surface which agents were
+// not reached; a non-empty Errors slice alongside Dispatched>0 indicates a
+// partial success.
+type installResponse struct { //nolint:govet // field order matches API contract
+	Dispatched int      `json:"dispatched"`
+	Errors     []string `json:"errors,omitempty"`
 }
 
 // install handles POST /api/marketplace/install.
@@ -108,19 +112,33 @@ func (h *MarketplaceHandler) install(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Strip newline characters to prevent injection into the structured message.
+	newlineReplacer := strings.NewReplacer("\n", "", "\r", "")
+	req.ItemName = newlineReplacer.Replace(req.ItemName)
+	req.ItemSourceURL = newlineReplacer.Replace(req.ItemSourceURL)
+	req.ItemID = newlineReplacer.Replace(req.ItemID)
+
 	msg := composeInstallMessage(req)
 
 	dispatched := 0
+	var sendErrs []string
 	for _, agentName := range req.Agents {
 		if err := h.sender.Send(r.Context(), agentName, msg); err != nil {
-			// Log and continue — other agents should still receive the message.
-			httpError(w, fmt.Sprintf("send to agent %q: %s", agentName, err.Error()), http.StatusBadRequest)
-			return
+			// Collect the error and continue — other agents should still receive the message.
+			sendErrs = append(sendErrs, fmt.Sprintf("agent %q: %s", agentName, err.Error()))
+			continue
 		}
 		dispatched++
 	}
 
-	writeJSON(w, http.StatusOK, installResponse{Dispatched: dispatched})
+	// If no agents were reached at all, surface it as a server-side error (the
+	// agents are the remote resource; caller request was valid).
+	if dispatched == 0 && len(sendErrs) > 0 {
+		httpError(w, "no agents reached: "+strings.Join(sendErrs, "; "), http.StatusBadGateway)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, installResponse{Dispatched: dispatched, Errors: sendErrs})
 }
 
 // composeInstallMessage builds the human-readable install instruction sent to
@@ -146,20 +164,20 @@ func composeInstallMessage(req installRequest) string {
 		if spec == "" {
 			spec = req.ItemID
 		}
-		sb.WriteString(fmt.Sprintf("  claude mcp add %q %s\n", req.ItemName, spec))
+		sb.WriteString(fmt.Sprintf("  claude mcp add %q %q\n", req.ItemName, spec))
 	case marketplace.TypeSkill:
 		switch marketplace.Source(req.ItemSource) {
 		case marketplace.SourceOpenclaw:
-			sb.WriteString(fmt.Sprintf("  clawhub install %s\n", req.ItemID))
+			sb.WriteString(fmt.Sprintf("  clawhub install %q\n", req.ItemID))
 		default:
 			spec := req.ItemSourceURL
 			if spec == "" {
 				spec = req.ItemID
 			}
-			sb.WriteString(fmt.Sprintf("  claude skill install %s\n", spec))
+			sb.WriteString(fmt.Sprintf("  claude skill install %q\n", spec))
 		}
 	case marketplace.TypeTemplate:
-		sb.WriteString(fmt.Sprintf("  bc template import %s\n", req.ItemName))
+		sb.WriteString(fmt.Sprintf("  bc template import %q\n", req.ItemName))
 	default:
 		sb.WriteString("  Consult the item URL above for installation instructions.\n")
 	}
