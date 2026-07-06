@@ -1,6 +1,7 @@
 package provider
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -29,6 +30,9 @@ func TestPiInterfaces(t *testing.T) {
 	var p Provider = NewPiProvider()
 	if _, ok := p.(ModelLister); !ok {
 		t.Error("pi must implement ModelLister")
+	}
+	if _, ok := p.(DynamicModelLister); !ok {
+		t.Error("pi must implement DynamicModelLister")
 	}
 	if _, ok := p.(EnvContributor); !ok {
 		t.Error("pi must implement EnvContributor")
@@ -136,19 +140,63 @@ func TestPiBuildCommand(t *testing.T) {
 
 func TestPiModels(t *testing.T) {
 	p := NewPiProvider()
+	// Static Models() returns empty — live list comes from ListModels.
+	// Mycel must not bake in model choices; the user picks from what pi reports.
 	models := p.Models()
-	if len(models) == 0 {
-		t.Fatal("Models() must return at least one model")
+	if len(models) != 0 {
+		t.Errorf("Models() = %v, want empty static list (use ListModels for live list)", models)
 	}
-	// Bedrock Kimi model must be first (recommended default)
-	if models[0] != "amazon-bedrock/moonshotai.kimi-k2.5" {
-		t.Errorf("first model = %q, want amazon-bedrock/moonshotai.kimi-k2.5", models[0])
+}
+
+func TestPiListModels(t *testing.T) {
+	p := NewPiProvider()
+	orig := piListModels
+	t.Cleanup(func() { piListModels = orig })
+
+	tests := []struct {
+		name   string
+		output string
+		want   []string
+	}{
+		{
+			name: "two-column rows joined with slash",
+			output: "groq           llama-3.3-70b-versatile\n" +
+				"anthropic      claude-sonnet-4-6\n" +
+				"amazon-bedrock moonshotai.kimi-k2.5\n",
+			want: []string{
+				"groq/llama-3.3-70b-versatile",
+				"anthropic/claude-sonnet-4-6",
+				"amazon-bedrock/moonshotai.kimi-k2.5",
+			},
+		},
+		{
+			name:   "empty output returns empty list",
+			output: "",
+			want:   []string{},
+		},
+		{
+			name:   "single-column rows are skipped",
+			output: "header\ngroq  llama-3.3-70b-versatile\n",
+			want:   []string{"groq/llama-3.3-70b-versatile"},
+		},
 	}
-	// All models must pass SafePiModelName
-	for _, m := range models {
-		if !SafePiModelName(m) {
-			t.Errorf("model %q fails SafePiModelName", m)
-		}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			captured := tt.output
+			piListModels = func(_ context.Context) (string, error) { return captured, nil }
+			got, err := p.ListModels(t.Context())
+			if err != nil {
+				t.Fatalf("ListModels() error = %v", err)
+			}
+			if len(got) != len(tt.want) {
+				t.Fatalf("ListModels() = %v, want %v", got, tt.want)
+			}
+			for i := range got {
+				if got[i] != tt.want[i] {
+					t.Errorf("ListModels()[%d] = %q, want %q", i, got[i], tt.want[i])
+				}
+			}
+		})
 	}
 }
 

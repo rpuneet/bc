@@ -85,6 +85,8 @@ func SafePiModelName(model string) bool {
 // explicit --provider + --model split, which this function uses when a slash
 // is present so the provider routing is unambiguous. Both values are spliced
 // into a shell command line — unsafe values are dropped, never escaped.
+// When no model is given, pi uses its own configured default — mycel does
+// not override that default.
 func (p *PiProvider) BuildCommand(opts CommandOpts) string {
 	cmd := p.Command()
 	if SafePiModelName(opts.Model) {
@@ -105,15 +107,46 @@ func (p *PiProvider) BuildCommand(opts CommandOpts) string {
 	return cmd
 }
 
-// Models returns the curated model list for the pi CLI. The Bedrock Kimi
-// model is listed first as the recommended default when AWS creds are present.
-// pi's --model flag accepts a "provider/model" string or a bare model id.
+// Models returns an empty static fallback: the live list comes from ListModels
+// (DynamicModelLister) which queries `pi --list-models` at runtime. This keeps
+// mycel free of baked-in model choices — the user picks from whatever pi reports.
 func (p *PiProvider) Models() []string {
-	return []string{
-		"amazon-bedrock/moonshotai.kimi-k2.5",
-		"groq/llama-3.3-70b-versatile",
-		"groq/llama-3.1-8b-instant",
+	return []string{}
+}
+
+// piListModels is overridable in tests.
+var piListModels = func(ctx context.Context) (string, error) {
+	return runProviderCommand(ctx, "pi", "--list-models")
+}
+
+// ListModels queries `pi --list-models` and returns models in "provider/model"
+// form. pi prints two-column rows ("provider  model"); this function joins them
+// with a slash so the result is a valid BuildCommand input. Only rows whose
+// joined form passes SafePiModelName are included — all others are silently
+// skipped. When the CLI is unavailable the empty static list is returned.
+func (p *PiProvider) ListModels(ctx context.Context) ([]string, error) {
+	out, err := piListModels(ctx)
+	if err != nil {
+		return p.Models(), nil
 	}
+	var models []string
+	for _, line := range strings.Split(out, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		// "provider  model" — split on any run of whitespace.
+		fields := strings.Fields(line)
+		if len(fields) < 2 { //nolint:mnd // 2 is the expected column count, not a magic number
+			continue
+		}
+		combined := fields[0] + "/" + fields[1]
+		if !SafePiModelName(combined) {
+			continue
+		}
+		models = append(models, combined)
+	}
+	return models, nil
 }
 
 // IsInstalled checks if the provider binary is available.
@@ -211,4 +244,5 @@ func readAWSDefaultRegion(home string) string {
 // Ensure PiProvider implements all declared interfaces.
 var _ Provider = (*PiProvider)(nil)
 var _ ModelLister = (*PiProvider)(nil)
+var _ DynamicModelLister = (*PiProvider)(nil)
 var _ EnvContributor = (*PiProvider)(nil)

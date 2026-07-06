@@ -79,7 +79,8 @@ func TestProviderModels(t *testing.T) {
 		{"claude", NewClaudeProvider(), []string{"fable", "opus", "opusplan", "sonnet", "haiku"}},
 		{"cursor", NewCursorProvider(), []string{"auto", "gpt-5.3-codex", "gpt-5.3-codex-high", "gpt-5.2", "sonnet-4-thinking"}},
 		{"codex", NewCodexProvider(), []string{"gpt-5.3-codex", "gpt-5.2-codex", "gpt-5.2"}},
-		{"pi", NewPiProvider(), []string{"amazon-bedrock/moonshotai.kimi-k2.5", "groq/llama-3.3-70b-versatile", "groq/llama-3.1-8b-instant"}},
+		// pi has no static curated list — ListModels (DynamicModelLister) provides the live list from pi --list-models.
+		{"pi", NewPiProvider(), []string{}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
