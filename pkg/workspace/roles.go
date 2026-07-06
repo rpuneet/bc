@@ -556,32 +556,177 @@ type ResolvedRole struct { //nolint:govet // field order matches API contract
 	Description  string            // Human-readable role description
 }
 
-// ResolveRole loads a role directly from the store. No inheritance — each role
-// is self-contained with all its own MCP servers, secrets, plugins, etc.
+// ResolveRole returns a fully resolved role after BFS inheritance merge.
+// It walks ParentRoles breadth-first, collecting all ancestors, then merges
+// them in ancestor-first order so the target role's values take precedence:
+//   - Prompt: parent prompts first, child prompt appended last (blank-line separated).
+//   - Lists (MCPServers, Secrets, Plugins, CLITools): parent ∪ child, deduped, stable order.
+//   - Maps (Settings, Rules, Agents, Skills, Commands): child keys override parent keys.
+//   - Lifecycle strings (PromptCreate/Start/Stop/Delete): child wins if non-empty, else nearest ancestor.
+//   - Name, Description, Review: target role always wins.
+//
+// Missing parent roles are skipped silently. Cycles are guarded — no infinite loop.
 func (rm *RoleManager) ResolveRole(name string) (*ResolvedRole, error) {
-	role, err := rm.LoadRole(name)
+	root, err := rm.LoadRole(name)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load role %q: %w", name, err)
 	}
 
+	// BFS from the target role outward through ParentRoles.
+	// visited keys are normalised role names.
+	visited := make(map[string]bool)
+	queue := []*Role{root}
+	var order []*Role
+
+	visited[NormalizeRoleName(root.Metadata.Name)] = true
+
+	for len(queue) > 0 {
+		cur := queue[0]
+		queue = queue[1:]
+		order = append(order, cur)
+
+		for _, parentName := range cur.Metadata.ParentRoles {
+			pn := NormalizeRoleName(parentName)
+			if visited[pn] {
+				continue // already queued or visited — cycle/dup guard
+			}
+			visited[pn] = true
+			parent, loadErr := rm.LoadRole(pn)
+			if loadErr != nil {
+				// Missing parent role: skip silently rather than fail.
+				continue
+			}
+			queue = append(queue, parent)
+		}
+	}
+
+	// Reverse so deepest ancestors come first; target role comes last.
+	// This gives us "parent text first, child text last" merge order.
+	for i, j := 0, len(order)-1; i < j; i, j = i+1, j-1 {
+		order[i], order[j] = order[j], order[i]
+	}
+
+	// Merge all roles ancestor-first, target-last.
+	var prompts []string
+
+	mcpSeen := make(map[string]bool)
+	var mcpServers []string
+
+	secretSeen := make(map[string]bool)
+	var secrets []string
+
+	pluginSeen := make(map[string]bool)
+	var plugins []string
+
+	cliToolSeen := make(map[string]bool)
+	var cliTools []string
+
+	var settings map[string]any
+	var rules map[string]string
+	var agents map[string]string
+	var skills map[string]string
+	var commands map[string]string
+
+	var promptCreate, promptStart, promptStop, promptDelete, review string
+
+	for _, r := range order {
+		if r.Prompt != "" {
+			prompts = append(prompts, r.Prompt)
+		}
+
+		for _, s := range r.Metadata.MCPServers {
+			if !mcpSeen[s] {
+				mcpSeen[s] = true
+				mcpServers = append(mcpServers, s)
+			}
+		}
+		for _, s := range r.Metadata.Secrets {
+			if !secretSeen[s] {
+				secretSeen[s] = true
+				secrets = append(secrets, s)
+			}
+		}
+		for _, p := range r.Metadata.Plugins {
+			if !pluginSeen[p] {
+				pluginSeen[p] = true
+				plugins = append(plugins, p)
+			}
+		}
+		for _, t := range r.Metadata.CLITools {
+			if !cliToolSeen[t] {
+				cliToolSeen[t] = true
+				cliTools = append(cliTools, t)
+			}
+		}
+
+		// Maps: later (child) entries override earlier (parent) entries.
+		for k, v := range r.Metadata.Settings {
+			if settings == nil {
+				settings = make(map[string]any)
+			}
+			settings[k] = v
+		}
+		for k, v := range r.Metadata.Rules {
+			if rules == nil {
+				rules = make(map[string]string)
+			}
+			rules[k] = v
+		}
+		for k, v := range r.Metadata.Agents {
+			if agents == nil {
+				agents = make(map[string]string)
+			}
+			agents[k] = v
+		}
+		for k, v := range r.Metadata.Skills {
+			if skills == nil {
+				skills = make(map[string]string)
+			}
+			skills[k] = v
+		}
+		for k, v := range r.Metadata.Commands {
+			if commands == nil {
+				commands = make(map[string]string)
+			}
+			commands[k] = v
+		}
+
+		// Lifecycle strings: last non-empty wins (child comes last so child overrides parent).
+		if r.Metadata.PromptCreate != "" {
+			promptCreate = r.Metadata.PromptCreate
+		}
+		if r.Metadata.PromptStart != "" {
+			promptStart = r.Metadata.PromptStart
+		}
+		if r.Metadata.PromptStop != "" {
+			promptStop = r.Metadata.PromptStop
+		}
+		if r.Metadata.PromptDelete != "" {
+			promptDelete = r.Metadata.PromptDelete
+		}
+		if r.Metadata.Review != "" {
+			review = r.Metadata.Review
+		}
+	}
+
 	return &ResolvedRole{
-		Name:         role.Metadata.Name,
-		Prompt:       role.Prompt,
-		MCPServers:   append([]string{}, role.Metadata.MCPServers...),
-		Secrets:      append([]string{}, role.Metadata.Secrets...),
-		Plugins:      append([]string{}, role.Metadata.Plugins...),
-		CLITools:     append([]string{}, role.Metadata.CLITools...),
-		Description:  role.Metadata.Description,
-		PromptCreate: role.Metadata.PromptCreate,
-		PromptStart:  role.Metadata.PromptStart,
-		PromptStop:   role.Metadata.PromptStop,
-		PromptDelete: role.Metadata.PromptDelete,
-		Settings:     role.Metadata.Settings,
-		Commands:     role.Metadata.Commands,
-		Skills:       role.Metadata.Skills,
-		Agents:       role.Metadata.Agents,
-		Rules:        role.Metadata.Rules,
-		Review:       role.Metadata.Review,
+		Name:         root.Metadata.Name,
+		Description:  root.Metadata.Description,
+		Prompt:       strings.Join(prompts, "\n\n"),
+		MCPServers:   mcpServers,
+		Secrets:      secrets,
+		Plugins:      plugins,
+		CLITools:     cliTools,
+		Settings:     settings,
+		Rules:        rules,
+		Agents:       agents,
+		Skills:       skills,
+		Commands:     commands,
+		PromptCreate: promptCreate,
+		PromptStart:  promptStart,
+		PromptStop:   promptStop,
+		PromptDelete: promptDelete,
+		Review:       review,
 	}, nil
 }
 
