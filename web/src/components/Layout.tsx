@@ -63,6 +63,7 @@ function Icon({ name, size = 14 }: { name: string; size?: number }) {
     roles: <path d="M7 2.5l4.5 2.5v3.5L7 11 2.5 8.5V5z" />,
     templates: <><rect x="2.5" y="2.5" width="9" height="9" rx="1" /><path d="M5 5.5h4M5 7.5h4M5 9.5h2" opacity="0.5" /></>,
     tools: <path d="M9.5 2.5l3 3-7 7H2.5v-3z" />,
+    providers: <><circle cx="7" cy="7" r="1.5" fill="currentColor" /><circle cx="3" cy="7" r="1.5" fill="currentColor" opacity="0.5" /><circle cx="11" cy="7" r="1.5" fill="currentColor" opacity="0.5" /><path d="M3 4v6M7 4v6M11 4v6" opacity="0.25" /></>,
     cron: <><circle cx="7" cy="7" r="4.5" /><path d="M7 4.5v2.5l1.5 1.5" /></>,
     secrets: <path d="M7 2.5a2 2 0 00-2 2V6H4v4.5h6V6H9V4.5a2 2 0 00-2-2zm0 5.5a.75.75 0 110 1.5.75.75 0 010-1.5z" />,
     metrics: <path d="M2 10l2.5-3.5 2 1.5L10 3" strokeLinecap="round" strokeLinejoin="round" />,
@@ -732,6 +733,7 @@ function buildNavGroups(hostLabel: string): readonly (readonly NavItem[])[] {
     ],
     [
       { to: "/templates", label: "Marketplace", icon: "templates" },
+      { to: "/providers", label: "Providers", icon: "providers" },
       { to: "/tools", label: hostLabel, icon: "tools" },
       { to: "/cron", label: "Cron", icon: "cron" },
       { to: "/secrets", label: "Secrets", icon: "secrets" },
@@ -752,6 +754,7 @@ function titleFor(pathname: string, hostLabel: string): string {
   const firstSeg = pathname.replace(/^\//, "").split("/")[0] ?? "";
   const items = [
     ...buildNavGroups(hostLabel).flat(),
+    { to: "/providers", label: "Providers" },
     { to: "/settings", label: "Settings" },
     { to: "/about", label: "About" },
     { to: "/stats", label: "Insights" },

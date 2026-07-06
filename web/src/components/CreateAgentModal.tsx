@@ -106,7 +106,7 @@ export function CreateAgentModal({
   // Model for the selected provider. "" = provider default (no flag).
   const [model, setModel] = useState("");
   // Curated model lists per provider, from GET /api/providers.
-  const [providerModels, setProviderModels] = useState<Record<string, string[]>>({});
+  const [providerModels, setProviderModels] = useState<Record<string, import("../api/client").ModelInfo[]>>({});
   const [runtime, setRuntime] = useState<Runtime>("docker");
   const [task, setTask] = useState("");
   // Environment variables — collapsed row editor. Values may hold
@@ -156,10 +156,13 @@ export function CreateAgentModal({
       .then((r) => r.json())
       .then((list: unknown) => {
         if (!Array.isArray(list)) return;
-        const map: Record<string, string[]> = {};
+        const map: Record<string, import("../api/client").ModelInfo[]> = {};
         for (const p of list as Array<{ name?: unknown; models?: unknown }>) {
           if (typeof p.name === "string" && Array.isArray(p.models)) {
-            map[p.name] = p.models.filter((m): m is string => typeof m === "string");
+            map[p.name] = p.models.filter(
+              (m): m is import("../api/client").ModelInfo =>
+                typeof m === "object" && m !== null && typeof (m as { id?: unknown }).id === "string",
+            );
           }
         }
         setProviderModels(map);
@@ -637,9 +640,15 @@ export function CreateAgentModal({
               >
                 <option value="">default</option>
                 {(providerModels[provider] ?? []).map((m) => (
-                  <option key={m} value={m}>{m}</option>
+                  <option key={m.id} value={m.id}>{m.available ? `✓ ${m.id}` : m.id}</option>
                 ))}
               </select>
+              {(providerModels[provider] ?? []).length > 0 && (
+                <span className="text-[10px] text-mycel-muted">
+                  {(providerModels[provider] ?? []).filter((m) => m.available).length} live ·{" "}
+                  {(providerModels[provider] ?? []).length} total
+                </span>
+              )}
             </div>
           </div>
 
