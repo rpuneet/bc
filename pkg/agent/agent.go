@@ -1282,6 +1282,7 @@ func (m *Manager) startAgent(ctx context.Context, name string, opts SpawnOptions
 	injectEnv(env, wsPath, name, existing.EnvFile, existing.Env)
 	injectGatewayEnv(env, m.gatewayConfig)
 	injectProviderEnv(env, toolName, m.providerRegistry)
+	injectVaultSecrets(env, wsPath, resolveRoleSecrets(wsPath, string(existing.Role)))
 
 	rt := m.runtimeForAgent(name)
 	m.mu.Unlock()
@@ -1522,6 +1523,7 @@ func (m *Manager) createAgent(ctx context.Context, opts SpawnOptions) (*Agent, e
 	injectEnv(env, wsPath, name, opts.EnvFile, opts.Env)
 	injectGatewayEnv(env, m.gatewayConfig)
 	injectProviderEnv(env, effectiveTool, m.providerRegistry)
+	injectVaultSecrets(env, wsPath, resolveRoleSecrets(wsPath, string(role)))
 
 	rt := m.runtimeForAgent(name)
 	m.mu.Unlock()
@@ -3717,8 +3719,151 @@ func injectProviderEnv(env map[string]string, toolName string, registry *provide
 	}
 }
 
+// wellKnownVaultTokens lists vault secret names that are automatically injected
+// as agent env vars when present, without requiring explicit role declaration.
+// These are integration/gateway tokens that agents commonly need.
+//
+//nolint:gochecknoglobals // package-level constant slice — read-only
+var wellKnownVaultTokens = []string{
+	"SLACK_BOT_TOKEN",
+	"SLACK_APP_TOKEN",
+	"TELEGRAM_BOT_TOKEN",
+	"DISCORD_BOT_TOKEN",
+}
+
+// openLayeredStore opens the global + workspace vault layers and returns a
+// LayeredStore along with a closer function (never nil when ls != nil).
+// Either layer may be missing/unopenable; at least one must succeed or ls is nil.
+// The caller is responsible for calling closeFunc() when done.
+func openLayeredStore(wsPath, passphrase string) (ls *secret.LayeredStore, closeFunc func()) {
+	globalVaultPath, err := workspace.GlobalSecretsVault()
+	if err != nil {
+		log.Debug("vault injection: global vault path unavailable", "error", err)
+	}
+
+	var globalStore *secret.Store
+	if globalVaultPath != "" {
+		if gs, e := secret.OpenVaultFile(globalVaultPath, passphrase); e == nil {
+			globalStore = gs
+		} else {
+			log.Debug("vault injection: global vault unavailable", "error", e)
+		}
+	}
+
+	var wsStore *secret.Store
+	if wsPath != "" {
+		if ws, e := secret.NewStore(wsPath, passphrase); e == nil {
+			wsStore = ws
+		} else {
+			log.Debug("vault injection: workspace vault unavailable", "error", e)
+		}
+	}
+
+	if globalStore == nil && wsStore == nil {
+		return nil, nil
+	}
+
+	ls = secret.NewLayeredStore(globalStore, wsStore)
+	closeFunc = func() { _ = ls.Close() }
+	return ls, closeFunc
+}
+
+// injectVaultSecrets injects vault secrets into the agent env map.
+//
+// Precedence (highest → lowest):
+//  1. Existing value in env (set by agent env-file, injectGatewayEnv, or injectProviderEnv)
+//  2. Vault value (global ~/.mycel/secrets.vault + workspace <ws>/.bc/secrets.db, workspace wins)
+//
+// Call AFTER injectEnv + injectGatewayEnv + injectProviderEnv so that
+// gateway-config tokens are never overwritten by vault copies.
+//
+// Role-scoped secrets (roleSecrets from ResolvedRole.Secrets) act as an
+// allowlist: vault values are not sprayed across every agent indiscriminately.
+// Well-known integration tokens (SLACK_BOT_TOKEN etc.) are also exported when
+// present as a convenience for agents that don't declare them in their role.
+//
+// GITHUB_PERSONAL_ACCESS_TOKEN and GITHUB_TOKEN in the vault are aliased to
+// both GITHUB_TOKEN and GH_TOKEN so git/gh tooling works without manual wiring.
+//
+// Secret VALUES are never logged.
+func injectVaultSecrets(env map[string]string, wsPath string, roleSecrets []string) {
+	passphrase, err := secret.Passphrase()
+	if err != nil {
+		log.Warn("vault injection skipped: cannot read passphrase", "error", err)
+		return
+	}
+
+	ls, closeLS := openLayeredStore(wsPath, passphrase)
+	if ls == nil {
+		return
+	}
+	defer closeLS()
+
+	// injectIfAbsent sets env[key] from the vault secret "name" only when the
+	// key is not already present. Values are intentionally not logged.
+	injectIfAbsent := func(key, name string) {
+		if _, exists := env[key]; exists {
+			return // existing value wins
+		}
+		val, e := ls.GetValue(name)
+		if e != nil || val == "" {
+			return
+		}
+		env[key] = val
+		log.Debug("injected vault secret into agent env", "key", key)
+	}
+
+	// 1. Role-declared secrets — scoped allowlist so each role controls which
+	//    vault entries it receives.
+	for _, name := range roleSecrets {
+		injectIfAbsent(name, name)
+	}
+
+	// 2. Well-known integration tokens — convenience auto-export regardless of
+	//    role declaration so "connect once → agents have it" works out of the box.
+	for _, name := range wellKnownVaultTokens {
+		injectIfAbsent(name, name)
+	}
+
+	// 3. GitHub PAT aliases: vault GITHUB_PERSONAL_ACCESS_TOKEN or GITHUB_TOKEN
+	//    is exported as both GITHUB_TOKEN and GH_TOKEN so git/gh commands work.
+	for _, src := range []string{"GITHUB_PERSONAL_ACCESS_TOKEN", "GITHUB_TOKEN"} {
+		val, e := ls.GetValue(src)
+		if e != nil || val == "" {
+			continue
+		}
+		if _, exists := env["GITHUB_TOKEN"]; !exists {
+			env["GITHUB_TOKEN"] = val
+			log.Debug("injected vault secret into agent env", "key", "GITHUB_TOKEN")
+		}
+		if _, exists := env["GH_TOKEN"]; !exists {
+			env["GH_TOKEN"] = val
+			log.Debug("injected vault secret into agent env", "key", "GH_TOKEN")
+		}
+		break // first source wins; don't double-process
+	}
+}
+
+// resolveRoleSecrets returns the Secrets list for a named role via BFS
+// inheritance merge. Returns nil (no error) when the role cannot be loaded
+// so callers can proceed with an empty allowlist.
+func resolveRoleSecrets(wsPath, roleName string) []string {
+	rm, err := workspace.NewGlobalRoleManager(workspaceStateDir(wsPath))
+	if err != nil {
+		log.Debug("resolveRoleSecrets: cannot open role manager", "error", err)
+		return nil
+	}
+	resolved, err := rm.ResolveRole(roleName)
+	if err != nil {
+		log.Debug("resolveRoleSecrets: cannot resolve role", "role", roleName, "error", err)
+		return nil
+	}
+	return resolved.Secrets
+}
+
 // resolveSecretRefs resolves ${secret:NAME} references in env values using the
-// workspace secret store. If the store cannot be opened, references are left as-is.
+// layered vault (global + workspace). If neither vault can be opened, references
+// are left as-is.
 func resolveSecretRefs(env map[string]string, workspacePath string) {
 	// Check if any values contain secret references before opening the store
 	hasRefs := false
@@ -3738,14 +3883,14 @@ func resolveSecretRefs(env map[string]string, workspacePath string) {
 		return
 	}
 
-	store, err := secret.NewStore(workspacePath, passphrase)
-	if err != nil {
-		log.Warn("failed to open secret store for env resolution", "error", err)
+	ls, closeLS := openLayeredStore(workspacePath, passphrase)
+	if ls == nil {
+		log.Warn("failed to open secret store for env resolution")
 		return
 	}
-	defer func() { _ = store.Close() }()
+	defer closeLS()
 
-	resolved := store.ResolveEnv(env)
+	resolved := ls.ResolveEnv(env)
 	for k, v := range resolved {
 		env[k] = v
 	}
