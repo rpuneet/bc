@@ -387,8 +387,17 @@ func TestComposeInstallMessage_ClaudeSkill(t *testing.T) {
 		Agents:        []string{"a"},
 	}
 	msg := composeInstallMessage(req)
-	if !contains(msg, "claude skill install") {
-		t.Errorf("Claude skill message should contain 'claude skill install', got:\n%s", msg)
+	// Step 1: register the marketplace via the correct plugin command.
+	if !contains(msg, "claude plugin marketplace add") {
+		t.Errorf("Claude skill message should contain 'claude plugin marketplace add', got:\n%s", msg)
+	}
+	// Step 2: install the specific plugin.
+	if !contains(msg, "claude plugin install") {
+		t.Errorf("Claude skill message should contain 'claude plugin install', got:\n%s", msg)
+	}
+	// The plugin install reference should be scoped to the marketplace (name@marketplace).
+	if !contains(msg, "pdf@skills") {
+		t.Errorf("Claude skill message should contain 'pdf@skills', got:\n%s", msg)
 	}
 }
 
@@ -452,8 +461,8 @@ func TestComposeInstallMessage_Template(t *testing.T) {
 		Agents:     []string{"a"},
 	}
 	msg := composeInstallMessage(req)
-	if !contains(msg, "bc template import") {
-		t.Errorf("template message should contain 'bc template import', got:\n%s", msg)
+	if !contains(msg, "mycel template import") {
+		t.Errorf("template message should contain 'mycel template import', got:\n%s", msg)
 	}
 }
 
