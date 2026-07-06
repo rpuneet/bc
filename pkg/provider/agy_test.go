@@ -306,7 +306,7 @@ func TestWriteAgyHookSettings(t *testing.T) {
 	if err := WriteAgyHookSettings(wt); err != nil {
 		t.Fatal(err)
 	}
-	raw, err := os.ReadFile(filepath.Join(wt, ".agents", "hooks.json"))
+	raw, err := os.ReadFile(filepath.Join(wt, ".agents", "hooks.json")) //nolint:gosec // test reads a path under t.TempDir()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -346,7 +346,7 @@ func TestWriteAgyHookSettings(t *testing.T) {
 	if err := WriteAgyHookSettings(wt); err != nil {
 		t.Fatal(err)
 	}
-	raw, _ = os.ReadFile(filepath.Join(wt, ".agents", "hooks.json"))
+	raw, _ = os.ReadFile(filepath.Join(wt, ".agents", "hooks.json")) //nolint:gosec // test reads a path under t.TempDir()
 	if err := json.Unmarshal(raw, &hooks); err != nil {
 		t.Fatal(err)
 	}
@@ -379,7 +379,7 @@ func TestAgyConfigAdapter(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	raw, err := os.ReadFile(filepath.Join(dir, ".agents", "mcp_config.json"))
+	raw, err := os.ReadFile(filepath.Join(dir, ".agents", "mcp_config.json")) //nolint:gosec // test reads a path under t.TempDir()
 	if err != nil {
 		t.Fatal(err)
 	}

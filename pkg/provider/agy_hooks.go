@@ -1,6 +1,6 @@
 package provider
 
-// Antigravity CLI (`agy`) lifecycle-hook writer. This is the agy analogue of
+// Antigravity CLI (`agy`) lifecycle-hook writer. This is the agy analog of
 // claude_hooks.go: it writes .agents/hooks.json so an agy agent reports its
 // lifecycle to bcd's /api/agents/{name}/hook endpoint. The event and state
 // names embedded in the generated commands are the wire vocabulary of that

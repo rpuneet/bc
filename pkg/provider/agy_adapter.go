@@ -31,8 +31,8 @@ func (a *AgyConfigAdapter) SupportsSkills() bool   { return true }
 type agyMCPServerEntry struct {
 	Env       map[string]string `json:"env,omitempty"`
 	Command   string            `json:"command,omitempty"`
-	Args      []string          `json:"args,omitempty"`
 	ServerURL string            `json:"serverUrl,omitempty"`
+	Args      []string          `json:"args,omitempty"`
 }
 
 // SetupMCP writes agy's .agents/mcp_config.json for the given MCP servers.
