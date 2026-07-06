@@ -154,7 +154,6 @@ AI Agent (Claude Code)             mycel MCP Server
 HTTP transport is mounted under `/_mcp/`:
 - `/_mcp/<agent>/{sse,message}` — SSE stream plus client-request endpoint, agent identity in the path
 - `/_mcp/<wsID>/<agent>/…` — workspace-scoped form, dispatched via the WorkspaceManager
-- A compatibility shim (`server/mcp_compat.go`) keeps older `/_mcp` URL shapes working
 
 stdio transport is used by locally launched agent tooling.
 

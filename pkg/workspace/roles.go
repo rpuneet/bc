@@ -67,38 +67,29 @@ type RoleManager struct {
 }
 
 // DefaultBaseRole is the foundational role all other roles inherit from.
-// It provides the bc MCP server so every agent can communicate with the workspace.
+// It provides shared channel etiquette and commands to all agents.
 const DefaultBaseRole = `---
 name: base
-description: Base role — provides bc MCP server, workspace communication, and shared commands to all agents
-mcp_servers:
-  - bc
+description: Base role — shared channel etiquette and commands for all agents
 prompt_create: |
   You have been created as a new agent in a mycel workspace.
-  Use the report_status MCP tool to set your initial task.
-  Check #all and #engineering channels for context.
+  Check #all and #engineering channels for context and your initial assignment.
 prompt_start: |
-  You are online. Use report_status to update your current task.
-  Check channels for any messages sent while you were offline.
+  You are online. Check channels for any messages sent while you were offline.
 prompt_stop: |
   You are being stopped. Save any important state.
   Post a status update to #engineering if you have work in progress.
 commands:
   status: |
     Check all channels for recent messages addressed to you.
-    Report your current task using the report_status MCP tool.
-    Query workspace costs using query_costs.
+    Summarize your current task and any blockers.
   notify: |
     Check recent notifications across all subscribed channels.
     Summarize any messages that are relevant to your current work.
   announce: |
-    Send an announcement to the #all channel using send_message.
+    Send an announcement to the #all channel.
     Include your agent name as the sender.
 rules:
-  workspace-communication: |
-    All workspace operations MUST use bc MCP tools. Never use mycel CLI commands directly.
-    Available MCP tools: send_message, report_status, query_costs.
-    Always include your agent name as sender when sending messages.
   channel-etiquette: |
     Use the right channel for the right purpose:
     - #all for broadcast announcements only
@@ -113,16 +104,6 @@ rules:
 
 You are an agent in a **bc** workspace — a CLI-first AI agent orchestration system.
 
-## MCP Tools
-
-All workspace operations use bc MCP tools (never CLI commands):
-
-| Tool | Purpose | Parameters |
-|------|---------|------------|
-| **send_message** | Send messages to channels | {channel, message, sender} |
-| **report_status** | Update your current task | {agent, task} |
-| **query_costs** | Check workspace costs | {agent?} |
-
 ## Channels
 
 - **#all** — Broadcast announcements
@@ -133,7 +114,6 @@ All workspace operations use bc MCP tools (never CLI commands):
 
 ## Guidelines
 
-- Report your status when starting or finishing work
 - Post to the appropriate channel, not #all, for routine updates
 - Use #merge when a PR is ready for review
 - Check channels for messages before starting new work
@@ -151,15 +131,11 @@ secrets:
   - GITHUB_PERSONAL_ACCESS_TOKEN
 prompt_start: |
   You are back online. Check #all channel for any messages you missed.
-  Report your status using the report_status MCP tool.
 ---
 
 # Root Agent
 
 You are the root agent for this mycel workspace.
-
-## Additional MCP Tools
-- **create_agent**: Create new agents {name, role, tool}
 
 ## Responsibilities
 - Oversee all workspace operations
@@ -707,6 +683,12 @@ func (rm *RoleManager) ResolveRole(name string) (*ResolvedRole, error) {
 		if r.Metadata.Review != "" {
 			review = r.Metadata.Review
 		}
+	}
+
+	// Review: target role always wins (per docstring). Override the
+	// ancestor-last-non-empty-wins value with the root's own Review field.
+	if root.Metadata.Review != "" {
+		review = root.Metadata.Review
 	}
 
 	return &ResolvedRole{

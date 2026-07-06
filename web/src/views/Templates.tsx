@@ -403,7 +403,7 @@ function CreateTemplateForm({
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [systemPrompt, setSystemPrompt] = useState("");
-  const [mcpsRaw, setMcpsRaw] = useState("bc");
+  const [mcpsRaw, setMcpsRaw] = useState("");
   const [secretsRaw, setSecretsRaw] = useState("");
   const [pluginsRaw, setPluginsRaw] = useState("");
   const [status, setStatus] = useState<SaveStatus>({ type: "idle" });

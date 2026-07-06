@@ -3800,6 +3800,7 @@ var wellKnownVaultTokens = []string{
 	"SLACK_APP_TOKEN",
 	"TELEGRAM_BOT_TOKEN",
 	"DISCORD_BOT_TOKEN",
+	"WHATSAPP_SESSION",
 }
 
 // openLayeredStore opens the global + workspace vault layers and returns a
@@ -3944,27 +3945,20 @@ func resolveRoleSecrets(wsPath, roleName string) []string {
 }
 
 // resolveRoleMCPServers returns the effective MCP server names an agent of the
-// named role receives. It mirrors role_setup: the resolved role's MCPServers
-// plus the always-present "bc" self server. Returns just "bc" when the role
-// cannot be loaded so the summary is never empty for a live agent.
+// named role receives. It returns the resolved role's MCPServers list only —
+// no implicit servers are added. Returns nil when the role cannot be loaded.
 func resolveRoleMCPServers(wsPath, roleName string) []string {
-	names := []string{"bc"}
 	rm, err := workspace.NewGlobalRoleManager(workspaceStateDir(wsPath))
 	if err != nil {
 		log.Debug("resolveRoleMCPServers: cannot open role manager", "error", err)
-		return names
+		return nil
 	}
 	resolved, err := rm.ResolveRole(roleName)
 	if err != nil {
 		log.Debug("resolveRoleMCPServers: cannot resolve role", "role", roleName, "error", err)
-		return names
+		return nil
 	}
-	for _, n := range resolved.MCPServers {
-		if n != "bc" {
-			names = append(names, n)
-		}
-	}
-	return names
+	return resolved.MCPServers
 }
 
 // resolveSecretRefs resolves ${secret:NAME} references in env values using the

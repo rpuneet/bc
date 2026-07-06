@@ -212,7 +212,7 @@ func runTemplateCreate(_ *cobra.Command, args []string) error {
 	t := template.Template{
 		Name:        name,
 		Description: "",
-		MCPs:        []string{"bc"},
+		MCPs:        []string{},
 	}
 	if err := store.Create(t, "", scope); err != nil {
 		return err

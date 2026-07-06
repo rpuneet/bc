@@ -26,7 +26,7 @@ All communication flows through the **mycel server** as the central hub. No comp
 | REST API | HTTP/JSON | `/api/*` (see the [REST API reference](../reference/api-rest.md)) | CRUD for all resources |
 | SSE Events | HTTP SSE | `/api/events` | Real-time state updates |
 | MCP (stdio) | JSON-RPC 2.0 | stdin/stdout | Agent -> server integration |
-| MCP (SSE) | JSON-RPC 2.0 | `/_mcp/sse` + `/_mcp/message` | Remote MCP clients |
+| MCP (SSE) | JSON-RPC 2.0 | `/_mcp/{agent}/sse` + `/_mcp/{agent}/message` | Agent MCP clients |
 | Health | HTTP | `/health` | Liveness probe |
 
 ## Notification Delivery Flow
@@ -110,8 +110,8 @@ sequenceDiagram
 
 | Transport | Connection | Use Case |
 |-----------|-----------|----------|
-| **stdio** | `mycel mcp serve` via `.mcp.json` | Claude Code agents (local) |
-| **SSE** | `GET /_mcp/sse` + `POST /_mcp/message` (agent-scoped: `/_mcp/{agent}/sse\|message`) | Remote/browser MCP clients |
+| **stdio** | bcd stdio proxy via `.mcp.json` | Claude Code agents (local) |
+| **SSE** | `GET /_mcp/{agent}/sse` + `POST /_mcp/{agent}/message` | Remote/browser MCP clients |
 
 Messages sent over the SSE transport go through the server's global HTTP
 middleware, so they are subject to the **1 MB** request body cap
