@@ -9,12 +9,20 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/rpuneet/mycel/pkg/agent"
 	"github.com/rpuneet/mycel/pkg/cost"
 	"github.com/rpuneet/mycel/pkg/provider"
 	"github.com/rpuneet/mycel/pkg/workspace"
 )
+
+// ModelInfo describes a single provider model with its availability status.
+type ModelInfo struct { //nolint:govet // field order matches JSON/API contract
+	ID        string `json:"id"`
+	Available bool   `json:"available"`
+}
 
 // ProviderInfo represents a provider with usage stats.
 type ProviderInfo struct { //nolint:govet // field order matches JSON/API contract
@@ -27,12 +35,12 @@ type ProviderInfo struct { //nolint:govet // field order matches JSON/API contra
 	Status      string `json:"status"`
 	// Models is the provider's curated model list for UI pickers.
 	// Empty means the provider has no model selection.
-	Models       []string `json:"models"`
-	TotalCostUSD float64  `json:"total_cost_usd"`
-	TotalTokens  int64    `json:"total_tokens"`
-	AgentCount   int      `json:"agent_count"`
-	Installed    bool     `json:"installed"`
-	Enabled      bool     `json:"enabled"`
+	Models       []ModelInfo `json:"models"`
+	TotalCostUSD float64     `json:"total_cost_usd"`
+	TotalTokens  int64       `json:"total_tokens"`
+	AgentCount   int         `json:"agent_count"`
+	Installed    bool        `json:"installed"`
+	Enabled      bool        `json:"enabled"`
 }
 
 // ProviderDetail extends ProviderInfo with per-model cost breakdown and agent list.
@@ -82,23 +90,87 @@ type UpdateCheck struct {
 	UpdateAvailable bool   `json:"update_available"`
 }
 
+// modelCacheEntry caches DynamicModelLister results to avoid shelling out per request.
+type modelCacheEntry struct {
+	at     time.Time
+	models []ModelInfo
+}
+
 // ProviderHandler handles /api/providers routes.
 type ProviderHandler struct {
-	registry *provider.Registry
-	agents   *agent.AgentService
-	costs    *cost.Store
-	ws       *workspace.Workspace
+	registry   *provider.Registry
+	agents     *agent.AgentService
+	costs      *cost.Store
+	ws         *workspace.Workspace
+	modelCache map[string]modelCacheEntry
+	modelMu    sync.Mutex
 }
 
 // NewProviderHandler creates a ProviderHandler.
 func NewProviderHandler(registry *provider.Registry, agents *agent.AgentService, costs *cost.Store, ws *workspace.Workspace) *ProviderHandler {
-	return &ProviderHandler{registry: registry, agents: agents, costs: costs, ws: ws}
+	return &ProviderHandler{registry: registry, agents: agents, costs: costs, ws: ws, modelCache: make(map[string]modelCacheEntry)}
 }
 
 // Register mounts provider routes on mux.
 func (h *ProviderHandler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/providers", h.list)
 	mux.HandleFunc("/api/providers/", h.byName)
+}
+
+// fetchModels returns models for provider p, using DynamicModelLister when available.
+// Results are cached for 60 seconds. Available=true means live from CLI.
+func (h *ProviderHandler) fetchModels(ctx context.Context, p provider.Provider) []ModelInfo {
+	const ttl = 60 * time.Second
+	const timeout = 10 * time.Second
+
+	h.modelMu.Lock()
+	if e, ok := h.modelCache[p.Name()]; ok && time.Since(e.at) < ttl {
+		h.modelMu.Unlock()
+		return e.models
+	}
+	h.modelMu.Unlock()
+
+	var models []ModelInfo
+
+	if dl, ok := p.(provider.DynamicModelLister); ok {
+		tctx, cancel := context.WithTimeout(ctx, timeout)
+		defer cancel()
+		if ids, err := dl.ListModels(tctx); err == nil && len(ids) > 0 {
+			models = make([]ModelInfo, len(ids))
+			for i, id := range ids {
+				models[i] = ModelInfo{ID: id, Available: true}
+			}
+		}
+	}
+
+	// Static fallback if dynamic yielded nothing.
+	if len(models) == 0 {
+		if ml, ok := p.(provider.ModelLister); ok {
+			for _, id := range ml.Models() {
+				models = append(models, ModelInfo{ID: id, Available: false})
+			}
+		}
+	}
+
+	if models == nil {
+		models = []ModelInfo{}
+	}
+
+	h.modelMu.Lock()
+	h.modelCache[p.Name()] = modelCacheEntry{models: models, at: time.Now()}
+	h.modelMu.Unlock()
+	return models
+}
+
+// listModels returns live models for a provider (with caching).
+func (h *ProviderHandler) listModels(w http.ResponseWriter, r *http.Request, name string) {
+	p, ok := h.registry.Get(name)
+	if !ok {
+		httpError(w, "unknown provider: "+name, http.StatusNotFound)
+		return
+	}
+	models := h.fetchModels(r.Context(), p)
+	writeJSON(w, http.StatusOK, models)
 }
 
 // list returns all providers with agent counts and cost stats.
@@ -140,6 +212,8 @@ func (h *ProviderHandler) byName(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case r.Method == http.MethodGet && action == "":
 		h.detail(w, r, name)
+	case r.Method == http.MethodGet && action == "models":
+		h.listModels(w, r, name)
 	case r.Method == http.MethodGet && action == "commands":
 		h.commands(w, r, name)
 	case r.Method == http.MethodGet && action == "mcps":
@@ -434,10 +508,7 @@ func (h *ProviderHandler) buildProviderInfo(
 		}
 	}
 
-	models := []string{}
-	if ml, ok := p.(provider.ModelLister); ok {
-		models = ml.Models()
-	}
+	models := h.fetchModels(ctx, p)
 
 	info := ProviderInfo{
 		Name:        p.Name(),

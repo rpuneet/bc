@@ -336,6 +336,13 @@ export interface Tool {
   upgrade_cmd?: string;
 }
 
+/** A provider model with live availability status. */
+export interface ModelInfo {
+  id: string;
+  /** true = confirmed live from provider CLI; false = static fallback (auth unverified). */
+  available: boolean;
+}
+
 export interface ProviderInfo {
   name: string;
   description: string;
@@ -345,7 +352,7 @@ export interface ProviderInfo {
   version: string;
   status: string;
   /** Curated model list for UI pickers; empty = no model selection. */
-  models?: string[];
+  models?: ModelInfo[];
   total_cost_usd: number;
   total_tokens: number;
   agent_count: number;
@@ -860,6 +867,8 @@ export const api = {
   listProviders: () => request<ProviderInfo[]>("/providers"),
   getProvider: (name: string) =>
     request<ProviderDetailResponse>(`/providers/${encodeURIComponent(name)}`),
+  getProviderModels: (name: string) =>
+    request<ModelInfo[]>(`/providers/${encodeURIComponent(name)}/models`),
   getProviderCommands: (name: string) =>
     request<ProviderCommand[]>(`/providers/${encodeURIComponent(name)}/commands`),
   getProviderMCPs: (name: string) =>

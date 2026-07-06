@@ -12,6 +12,7 @@ const NotificationActivity = lazy(() => import("./views/NotificationActivity").t
 const Templates = lazy(() => import("./views/Templates").then((m) => ({ default: m.Templates })));
 const Tools = lazy(() => import("./views/Tools").then((m) => ({ default: m.Tools })));
 const ProviderDetail = lazy(() => import("./views/ProviderDetail").then((m) => ({ default: m.ProviderDetail })));
+const Providers = lazy(() => import("./views/Providers").then((m) => ({ default: m.Providers })));
 const Cron = lazy(() => import("./views/Cron").then((m) => ({ default: m.Cron })));
 const Secrets = lazy(() => import("./views/Secrets").then((m) => ({ default: m.Secrets })));
 const Insights = lazy(() => import("./views/Insights").then((m) => ({ default: m.Insights })));
@@ -65,6 +66,7 @@ export function AppRoutes() {
         <Route path="templates" element={wrap(<Templates />)} />
         <Route path="tools" element={wrap(<Tools />)} />
         <Route path="tools/:provider" element={wrap(<ProviderDetail />)} />
+        <Route path="providers" element={wrap(<Providers />)} />
         <Route path="cron" element={wrap(<Cron />)} />
         <Route path="secrets" element={wrap(<Secrets />)} />
         <Route path="insights" element={wrap(<Insights />)} />
