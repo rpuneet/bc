@@ -622,8 +622,7 @@ export function NotificationsHome() {
   const sectionApps = apps.filter((a) => (channelsByApp.get(a.key) ?? []).length > 0);
 
   return (
-    <div className="h-full overflow-y-auto">
-      <div className="p-6 pb-24 space-y-6">
+    <div className="p-6 pb-10 space-y-6">
         {/* ── Apps strip — compact pills ─────────────────────── */}
         <div className="flex flex-wrap gap-2">
           {apps.map((app) => {
@@ -774,7 +773,6 @@ export function NotificationsHome() {
             </div>
           </aside>
         </div>
-      </div>
 
       {/* Connect / reconnect flows — the existing setup components */}
       {chooserOpen && (
