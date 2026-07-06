@@ -46,6 +46,11 @@ type fileSender interface {
 	SendFile(ctx context.Context, channelID, sender, filename string, data []byte, mimeType string) error
 }
 
+// reactionSender is checked at runtime for adapters that support outbound reactions.
+type reactionSender interface {
+	SendReaction(ctx context.Context, channelID, senderJID, messageID, emoji string) error
+}
+
 // Manager orchestrates all gateway adapters and routes messages.
 type Manager struct {
 	// adapters holds all registered NotificationAdapter instances.
@@ -54,7 +59,7 @@ type Manager struct {
 	channelMap map[string]channelRoute
 	// onInbound is called when a message arrives from an external platform.
 	// Typically wired to ChannelService.Send + SSE hub.
-	onInbound    func(bcChannel, sender, content string, raw json.RawMessage)
+	onInbound    func(bcChannel, sender, content, messageID string, mentions []string, raw json.RawMessage)
 	channelStore ChannelStore
 	mu           sync.RWMutex
 }
@@ -79,7 +84,10 @@ func (m *Manager) SetChannelStore(store ChannelStore) {
 }
 
 // SetInboundHandler sets the callback for inbound messages from external platforms.
-func (m *Manager) SetInboundHandler(fn func(bcChannel, sender, content string, raw json.RawMessage)) {
+// The callback receives the bc channel name, sender display name, text content,
+// platform-native message ID, pre-extracted mentions (e.g. WhatsApp JID user parts),
+// and the raw platform payload.
+func (m *Manager) SetInboundHandler(fn func(bcChannel, sender, content, messageID string, mentions []string, raw json.RawMessage)) {
 	m.onInbound = fn
 }
 
@@ -358,6 +366,33 @@ func (m *Manager) SendFile(ctx context.Context, bcChannel, sender, filename stri
 	return true, nil
 }
 
+// SendReaction routes an emoji reaction to a specific message in a gateway channel.
+// senderJID is the platform-native id of the original message author (required by some
+// platforms, e.g. WhatsApp); pass empty string for platforms that don't need it.
+// Returns true if the channel is a gateway channel and the adapter handled the call.
+func (m *Manager) SendReaction(ctx context.Context, bcChannel, senderJID, messageID, emoji string) (bool, error) {
+	m.mu.RLock()
+	route, ok := m.channelMap[bcChannel]
+	m.mu.RUnlock()
+	if !ok {
+		return false, nil // not a gateway channel
+	}
+
+	if route.Adapter == nil {
+		return true, fmt.Errorf("gateway react to %s: no adapter", bcChannel)
+	}
+
+	rs, ok := route.Adapter.(reactionSender)
+	if !ok {
+		return true, fmt.Errorf("gateway react to %s: adapter does not support reactions", bcChannel)
+	}
+
+	if err := rs.SendReaction(ctx, route.ChannelID, senderJID, messageID, emoji); err != nil {
+		return true, fmt.Errorf("gateway react to %s: %w", bcChannel, err)
+	}
+	return true, nil
+}
+
 // IsGatewayChannel returns true if the channel name belongs to an external gateway.
 func (m *Manager) IsGatewayChannel(name string) bool {
 	m.mu.RLock()
@@ -568,7 +603,7 @@ func (m *Manager) handleNotification(platform string, n Notification) {
 		content = string(n.Raw)
 	}
 	if m.onInbound != nil {
-		m.onInbound(bcChannel, sender, content, n.Raw)
+		m.onInbound(bcChannel, sender, content, n.MessageID, n.Mentions, n.Raw)
 	}
 }
 

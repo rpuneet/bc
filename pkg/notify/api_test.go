@@ -1196,7 +1196,7 @@ func TestDispatchMentionFilter_ViaHTTP(t *testing.T) {
 		sender.mu.Unlock()
 
 		svc.Dispatch("slack:eng", "slack", "external-user", "U001",
-			"hey everyone, new deployment done", "msg-no-mention", nil, nil)
+			"hey everyone, new deployment done", "msg-no-mention", nil, nil, nil)
 		time.Sleep(150 * time.Millisecond)
 
 		calls := sender.getCalls()
@@ -1214,7 +1214,7 @@ func TestDispatchMentionFilter_ViaHTTP(t *testing.T) {
 		sender.mu.Unlock()
 
 		svc.Dispatch("slack:eng", "slack", "external-user", "U001",
-			"@eng-02 please review the PR", "msg-with-mention", nil, nil)
+			"@eng-02 please review the PR", "msg-with-mention", nil, nil, nil)
 		time.Sleep(150 * time.Millisecond)
 
 		calls := sender.getCalls()
@@ -1267,7 +1267,7 @@ func TestSelfSkip_ViaHTTP(t *testing.T) {
 
 	// eng-01 sends — should NOT receive it back (self-skip)
 	svc.Dispatch("slack:eng", "slack", "[slack] eng-01", "U001",
-		"I just pushed a fix", "msg-self", nil, nil)
+		"I just pushed a fix", "msg-self", nil, nil, nil)
 	time.Sleep(150 * time.Millisecond)
 
 	calls := sender.getCalls()
