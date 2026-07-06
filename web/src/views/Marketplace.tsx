@@ -1,4 +1,10 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { usePolling } from "../hooks/usePolling";
 import { LoadingSkeleton } from "../components/LoadingSkeleton";
@@ -14,7 +20,9 @@ type ItemSource =
   | "mycel"
   | "claude"
   | "openclaw"
-  | "gemini";
+  | "gemini"
+  | "glama"
+  | "smithery";
 
 interface MarketplaceItem {
   id: string;
@@ -40,6 +48,8 @@ const SOURCE_LABELS: Record<ItemSource, string> = {
   claude: "Claude skills",
   openclaw: "openclaw",
   gemini: "Google",
+  glama: "Glama",
+  smithery: "Smithery",
 };
 
 const SOURCE_COLORS: Record<ItemSource, string> = {
@@ -49,6 +59,8 @@ const SOURCE_COLORS: Record<ItemSource, string> = {
   claude: "bg-mycel-accent-subtle text-mycel-accent",
   openclaw: "bg-mycel-success-subtle text-mycel-success",
   gemini: "bg-mycel-border text-mycel-muted",
+  glama: "bg-mycel-accent-subtle text-mycel-accent",
+  smithery: "bg-mycel-success-subtle text-mycel-success",
 };
 
 const TYPE_LABELS: Record<ItemType, string> = {
@@ -73,6 +85,8 @@ const ALL_TYPES: Array<{ value: string; label: string }> = [
 const ALL_SOURCES: Array<{ value: string; label: string }> = [
   { value: "", label: "All sources" },
   { value: "mcp-registry", label: "MCP Registry" },
+  { value: "glama", label: "Glama" },
+  { value: "smithery", label: "Smithery" },
   { value: "claude", label: "Claude skills" },
   { value: "openclaw", label: "openclaw" },
   { value: "gemini", label: "Google" },
@@ -166,21 +180,25 @@ function StarCount({ stars }: { stars: number }) {
   );
 }
 
-// ─── Agent Picker ─────────────────────────────────────────────────────────────
+// ─── Inline Agent Dropdown ────────────────────────────────────────────────────
 
-interface AgentPickerProps {
+interface InlineAgentPickerProps {
   item: MarketplaceItem;
   onDismiss: () => void;
+  onSent: (count: number) => void;
 }
 
-function AgentPicker({ item, onDismiss }: AgentPickerProps) {
+function InlineAgentPicker({
+  item,
+  onDismiss,
+  onSent,
+}: InlineAgentPickerProps) {
   const [agents, setAgents] = useState<Agent[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
-  const [toast, setToast] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const overlayRef = useRef<HTMLDivElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     void fetchAgents()
@@ -192,7 +210,10 @@ function AgentPicker({ item, onDismiss }: AgentPickerProps) {
   // Close on outside click.
   useEffect(() => {
     const handler = (e: MouseEvent) => {
-      if (overlayRef.current && e.target === overlayRef.current) {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(e.target as Node)
+      ) {
         onDismiss();
       }
     };
@@ -215,115 +236,87 @@ function AgentPicker({ item, onDismiss }: AgentPickerProps) {
     setError(null);
     try {
       const result = await sendInstall(item, Array.from(selected));
-      setToast(`Instruction sent to ${result.dispatched} agent${result.dispatched !== 1 ? "s" : ""}`);
-      setTimeout(onDismiss, 1800);
+      onSent(result.dispatched);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Unknown error");
-    } finally {
       setSending(false);
     }
   }
 
   return (
-    <div
-      ref={overlayRef}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+    <motion.div
+      ref={dropdownRef}
+      initial={{ opacity: 0, y: -4 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -4 }}
+      transition={{ duration: 0.1 }}
+      className="absolute right-0 top-full mt-1 z-20 w-56 rounded-lg border border-mycel-border bg-mycel-surface shadow-xl"
     >
-      <motion.div
-        initial={{ opacity: 0, scale: 0.96 }}
-        animate={{ opacity: 1, scale: 1 }}
-        exit={{ opacity: 0, scale: 0.96 }}
-        transition={{ duration: 0.1 }}
-        className="w-72 rounded-lg border border-mycel-border bg-mycel-surface shadow-xl"
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-mycel-border">
-          <span className="text-sm font-semibold text-mycel-text truncate">
-            Send to agent
-          </span>
+      {/* Agent list */}
+      <div className="px-3 py-2 max-h-44 overflow-y-auto">
+        {loading && (
+          <p className="text-xs text-mycel-muted py-1">Loading agents…</p>
+        )}
+        {!loading && agents.length === 0 && !error && (
+          <p className="text-xs text-mycel-muted py-1">No agents found.</p>
+        )}
+        {!loading &&
+          agents.map((a) => (
+            <label
+              key={a.name}
+              className="flex items-center gap-2 py-1.5 cursor-pointer group"
+            >
+              <input
+                type="checkbox"
+                className="accent-mycel-accent"
+                checked={selected.has(a.name)}
+                onChange={() => toggle(a.name)}
+              />
+              <span className="text-xs text-mycel-text group-hover:text-mycel-accent transition-colors truncate">
+                {a.name}
+              </span>
+            </label>
+          ))}
+      </div>
+
+      {/* Footer */}
+      <div className="px-3 py-2 border-t border-mycel-border flex flex-col gap-1.5">
+        {error && <p className="text-[10px] text-mycel-error">{error}</p>}
+        <div className="flex gap-1.5">
           <button
             onClick={onDismiss}
-            className="text-mycel-muted hover:text-mycel-text transition-colors ml-2 shrink-0"
-            aria-label="Close"
+            className="flex-1 px-2 py-1 text-xs rounded border border-mycel-border text-mycel-muted hover:bg-mycel-bg transition-colors"
           >
-            ✕
+            Cancel
+          </button>
+          <button
+            onClick={() => void handleSend()}
+            disabled={selected.size === 0 || sending}
+            className="flex-1 px-2 py-1 text-xs rounded bg-mycel-accent text-mycel-accent-fg hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed transition-opacity"
+          >
+            {sending
+              ? "Sending…"
+              : `Send${selected.size > 0 ? ` (${selected.size})` : ""}`}
           </button>
         </div>
-
-        {/* Item summary */}
-        <div className="px-4 py-2 border-b border-mycel-border bg-mycel-bg/50">
-          <p className="text-xs text-mycel-muted truncate">
-            <span className="font-medium text-mycel-text">{item.name}</span>
-            {" · "}
-            {SOURCE_LABELS[item.source] ?? item.source}
-          </p>
-        </div>
-
-        {/* Agent list */}
-        <div className="px-4 py-3 max-h-56 overflow-y-auto">
-          {loading && (
-            <p className="text-xs text-mycel-muted">Loading agents…</p>
-          )}
-          {!loading && agents.length === 0 && !error && (
-            <p className="text-xs text-mycel-muted">No agents found.</p>
-          )}
-          {!loading &&
-            agents.map((a) => (
-              <label
-                key={a.name}
-                className="flex items-center gap-2 py-1.5 cursor-pointer group"
-              >
-                <input
-                  type="checkbox"
-                  className="accent-mycel-accent"
-                  checked={selected.has(a.name)}
-                  onChange={() => toggle(a.name)}
-                />
-                <span className="text-sm text-mycel-text group-hover:text-mycel-accent transition-colors truncate">
-                  {a.name}
-                </span>
-              </label>
-            ))}
-        </div>
-
-        {/* Footer */}
-        <div className="px-4 py-3 border-t border-mycel-border flex flex-col gap-2">
-          {error && (
-            <p className="text-xs text-mycel-error">{error}</p>
-          )}
-          {toast && (
-            <p className="text-xs text-mycel-success">{toast}</p>
-          )}
-          <div className="flex gap-2">
-            <button
-              onClick={onDismiss}
-              className="flex-1 px-3 py-1.5 text-xs rounded-md border border-mycel-border text-mycel-muted hover:bg-mycel-bg transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={() => void handleSend()}
-              disabled={selected.size === 0 || sending}
-              className="flex-1 px-3 py-1.5 text-xs rounded-md bg-mycel-accent text-mycel-accent-fg hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed transition-opacity"
-            >
-              {sending ? "Sending…" : `Send${selected.size > 0 ? ` (${selected.size})` : ""}`}
-            </button>
-          </div>
-        </div>
-      </motion.div>
-    </div>
+      </div>
+    </motion.div>
   );
 }
 
 // ─── Item Card ────────────────────────────────────────────────────────────────
 
-function ItemCard({
-  item,
-  onInstall,
-}: {
-  item: MarketplaceItem;
-  onInstall: (item: MarketplaceItem) => void;
-}) {
+function ItemCard({ item }: { item: MarketplaceItem }) {
+  const [showPicker, setShowPicker] = useState(false);
+  const [sentCount, setSentCount] = useState<number | null>(null);
+
+  function handleSent(count: number) {
+    setShowPicker(false);
+    setSentCount(count);
+    // Clear confirmation after 4 s so the button is reusable.
+    setTimeout(() => setSentCount(null), 4000);
+  }
+
   return (
     <motion.div
       layout
@@ -355,14 +348,32 @@ function ItemCard({
             </p>
           )}
         </div>
-        {/* Add button */}
-        <button
-          onClick={() => onInstall(item)}
-          className="shrink-0 px-2.5 py-1 text-xs rounded-md border border-mycel-border text-mycel-muted hover:bg-mycel-accent hover:text-mycel-accent-fg hover:border-mycel-accent transition-colors"
-          title="Send install instruction to an agent"
-        >
-          Add
-        </button>
+
+        {/* Add button + inline picker */}
+        <div className="relative shrink-0">
+          {sentCount !== null ? (
+            <span className="text-[10px] text-mycel-success whitespace-nowrap">
+              Sent to {sentCount} agent{sentCount !== 1 ? "s" : ""}
+            </span>
+          ) : (
+            <button
+              onClick={() => setShowPicker((v) => !v)}
+              className="px-2.5 py-1 text-xs rounded-md border border-mycel-border text-mycel-muted hover:bg-mycel-accent hover:text-mycel-accent-fg hover:border-mycel-accent transition-colors"
+              title="Send install instruction to an agent"
+            >
+              Add
+            </button>
+          )}
+          <AnimatePresence>
+            {showPicker && (
+              <InlineAgentPicker
+                item={item}
+                onDismiss={() => setShowPicker(false)}
+                onSent={handleSent}
+              />
+            )}
+          </AnimatePresence>
+        </div>
       </div>
 
       {/* Footer row */}
@@ -392,9 +403,6 @@ export function Marketplace() {
   const [typeFilter, setTypeFilter] = useState("");
   const [sourceFilter, setSourceFilter] = useState("");
   const [query, setQuery] = useState("");
-  const [pendingInstall, setPendingInstall] = useState<MarketplaceItem | null>(
-    null,
-  );
 
   const fetcher = useCallback(
     () => fetchMarketplace(typeFilter, sourceFilter, query),
@@ -496,26 +504,12 @@ export function Marketplace() {
           <AnimatePresence mode="popLayout">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {items.map((item) => (
-                <ItemCard
-                  key={item.id}
-                  item={item}
-                  onInstall={setPendingInstall}
-                />
+                <ItemCard key={item.id} item={item} />
               ))}
             </div>
           </AnimatePresence>
         </>
       )}
-
-      {/* Agent picker modal */}
-      <AnimatePresence>
-        {pendingInstall && (
-          <AgentPicker
-            item={pendingInstall}
-            onDismiss={() => setPendingInstall(null)}
-          />
-        )}
-      </AnimatePresence>
     </div>
   );
 }
