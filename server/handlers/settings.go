@@ -21,6 +21,56 @@ func NewSettingsHandler(ws *workspace.Workspace) *SettingsHandler {
 // Register mounts settings routes on mux.
 func (h *SettingsHandler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/settings", h.handle)
+	mux.HandleFunc("/api/settings/injected-instructions", h.handleInjected)
+}
+
+// injectedInstructionsBody is the request/response shape for the
+// injected-instructions endpoint.
+type injectedInstructionsBody struct {
+	InjectedInstructions string `json:"injected_instructions"`
+}
+
+func (h *SettingsHandler) handleInjected(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		writeJSON(w, http.StatusOK, injectedInstructionsBody{
+			InjectedInstructions: h.ws.Config.InjectedInstructions,
+		})
+	case http.MethodPut:
+		h.putInjected(w, r)
+	default:
+		methodNotAllowed(w)
+	}
+}
+
+func (h *SettingsHandler) putInjected(w http.ResponseWriter, r *http.Request) {
+	body, err := io.ReadAll(io.LimitReader(r.Body, 1<<20))
+	if err != nil {
+		httpError(w, "failed to read body", http.StatusBadRequest)
+		return
+	}
+
+	var req injectedInstructionsBody
+	if err := json.Unmarshal(body, &req); err != nil {
+		httpError(w, "invalid JSON: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	merged := *h.ws.Config
+	merged.InjectedInstructions = req.InjectedInstructions
+	if err := merged.Validate(); err != nil {
+		httpError(w, "validation failed: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+	if err := merged.Save(h.ws.SettingsFile()); err != nil {
+		httpInternalError(w, "save config", err)
+		return
+	}
+	*h.ws.Config = merged
+
+	writeJSON(w, http.StatusOK, injectedInstructionsBody{
+		InjectedInstructions: h.ws.Config.InjectedInstructions,
+	})
 }
 
 func (h *SettingsHandler) handle(w http.ResponseWriter, r *http.Request) {
@@ -103,6 +153,11 @@ func (h *SettingsHandler) patch(w http.ResponseWriter, r *http.Request) {
 		case "ui":
 			if err := json.Unmarshal(raw, &merged.UI); err != nil {
 				httpError(w, "invalid ui config: "+err.Error(), http.StatusBadRequest)
+				return
+			}
+		case "injected_instructions":
+			if err := json.Unmarshal(raw, &merged.InjectedInstructions); err != nil {
+				httpError(w, "invalid injected_instructions: "+err.Error(), http.StatusBadRequest)
 				return
 			}
 		case "version":
