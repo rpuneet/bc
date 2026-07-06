@@ -41,7 +41,7 @@ type Adapter struct { //nolint:govet
 	name                string
 	stateDir            string
 	lastError           string
-	mu                  sync.Mutex
+	mu                  sync.RWMutex
 	connected           bool
 	includeSelfMessages bool
 	messageCount        atomic.Int64
@@ -321,10 +321,10 @@ func (a *Adapter) Stop() error {
 // paired personal account, so callers should attribute the author in the
 // content itself.
 func (a *Adapter) Send(ctx context.Context, channelID, _, content string) error {
-	a.mu.Lock()
+	a.mu.RLock()
 	client := a.client
 	connected := a.connected
-	a.mu.Unlock()
+	a.mu.RUnlock()
 	if client == nil || !connected {
 		return fmt.Errorf("whatsapp: not connected")
 	}
@@ -377,10 +377,10 @@ func parseSendJID(channelID string) (types.JID, error) {
 // is the platform message ID (from Notification.MessageID), and emoji is the
 // reaction character (empty string removes any existing reaction).
 func (a *Adapter) SendReaction(ctx context.Context, channelID, senderJID, messageID, emoji string) error {
-	a.mu.Lock()
+	a.mu.RLock()
 	client := a.client
 	connected := a.connected
-	a.mu.Unlock()
+	a.mu.RUnlock()
 	if client == nil || !connected {
 		return fmt.Errorf("whatsapp: not connected")
 	}
@@ -496,10 +496,16 @@ func (a *Adapter) handleMessage(msg *events.Message) {
 	}
 }
 
-// extractWAMentions returns the JID user parts from a WhatsApp message's ContextInfo.
-// WhatsApp stores @mention targets in ContextInfo.MentionedJID as full JID strings
-// (e.g. "1234567890@s.whatsapp.net"); we return the user part (phone number) so the
-// notify layer can match them against subscriber identities.
+// extractWAMentions returns the JID user parts (phone numbers) from a WhatsApp
+// message's ContextInfo.MentionedJID (e.g. "1234567890@s.whatsapp.net" → "1234567890").
+//
+// These phone numbers are passed as extraMentions to notify.Dispatch but will NOT
+// match bc agent names in the mention_only gate — agent names are strings like
+// "zen-zebra", not phone numbers. Agent mention filtering uses the text @name
+// extraction path (extractMentions in notify/service.go), which parses typed
+// "@agentname" tokens from the message content. The JID user parts are included in
+// the merged mention set for any future use cases where a subscriber is registered
+// under a phone-number identity.
 func extractWAMentions(msg *waE2E.Message) []string {
 	if msg == nil {
 		return nil

@@ -114,6 +114,8 @@ type reactMissingFieldCase struct {
 }
 
 // TestGatewayReact_MissingFields verifies 400 on missing required fields.
+// Note: empty emoji is intentionally NOT a validation error — empty string
+// is the documented way to remove a reaction (whatsmeow BuildReaction(..., "")).
 func TestGatewayReact_MissingFields(t *testing.T) {
 	mgr := gateway.NewManager()
 	h := NewGatewayHandler(mgr, nil)
@@ -123,16 +125,68 @@ func TestGatewayReact_MissingFields(t *testing.T) {
 	tests := []reactMissingFieldCase{
 		{map[string]any{"message_id": "mid", "emoji": "👍"}, "missing channel"},
 		{map[string]any{"channel": "whatsapp:family", "emoji": "👍"}, "missing message_id"},
-		{map[string]any{"channel": "whatsapp:family", "message_id": "mid"}, "missing emoji"},
+		{map[string]any{"channel": "whatsapp:family", "message_id": "mid", "emoji": "👍"}, "platform mismatch"},
 	}
+	// Override URL for the platform-mismatch case: POST to /api/gateways/telegram/react
+	// while body says channel="whatsapp:family".
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			var req *http.Request
+			if tt.name == "platform mismatch" {
+				b, _ := json.Marshal(tt.body) //nolint:errcheck
+				req = httptest.NewRequest(http.MethodPost, "/api/gateways/telegram/react", bytes.NewReader(b))
+				req.Header.Set("Content-Type", "application/json")
+			} else {
+				req = buildReactRequest(t, tt.body)
+			}
 			rr := httptest.NewRecorder()
-			mux.ServeHTTP(rr, buildReactRequest(t, tt.body))
+			mux.ServeHTTP(rr, req)
 			if rr.Code != http.StatusBadRequest {
-				t.Errorf("%s: status = %d, want 400", tt.name, rr.Code)
+				t.Errorf("%s: status = %d, want 400; body: %s", tt.name, rr.Code, rr.Body.String())
 			}
 		})
+	}
+}
+
+// TestGatewayReact_RemoveReaction verifies that an empty emoji (reaction removal) is
+// accepted and forwarded to the adapter — it must NOT be rejected with 400.
+func TestGatewayReact_RemoveReaction(t *testing.T) {
+	stub := &reactionStub{
+		stubAdapter: stubAdapter{name: "whatsapp"},
+	}
+
+	mgr := gateway.NewManager()
+	mgr.Register(stub)
+	mgr.HandleNotification("whatsapp", gateway.Notification{
+		Channel:   "family",
+		ChannelID: "1234@g.us",
+		Platform:  "whatsapp",
+		Sender:    "alice",
+		Content:   "hi",
+	})
+
+	h := NewGatewayHandler(mgr, nil)
+	mux := http.NewServeMux()
+	h.Register(mux)
+
+	req := buildReactRequest(t, map[string]any{
+		"channel":    "whatsapp:family",
+		"message_id": "msg-abc-123",
+		"sender_jid": "9876543210@s.whatsapp.net",
+		"emoji":      "", // empty = remove reaction
+	})
+	rr := httptest.NewRecorder()
+	mux.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("remove reaction: status = %d, want 200; body: %s", rr.Code, rr.Body.String())
+	}
+	calls := stub.getCalls()
+	if len(calls) != 1 {
+		t.Fatalf("expected 1 SendReaction call, got %d", len(calls))
+	}
+	if calls[0].Emoji != "" {
+		t.Errorf("emoji = %q, want empty string for removal", calls[0].Emoji)
 	}
 }
 

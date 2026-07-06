@@ -334,6 +334,52 @@ func TestDispatchExtraMentions(t *testing.T) {
 	}
 }
 
+// TestMentionOnlyTextName proves that a mention_only subscriber IS delivered a message
+// when the agent name appears as a typed "@agentname" token in the content.
+// This is the primary agent-mention path — WhatsApp JID user parts (phone numbers)
+// are phone numbers that never match agent names like "zen-zebra".
+func TestMentionOnlyTextName(t *testing.T) {
+	store := setupTestStore(t)
+	ctx := context.Background()
+
+	sender := &mockSender{}
+	svc := NewService(store, sender, nil)
+
+	// zen-zebra is mention-only; helper-bot receives all messages.
+	if err := store.Subscribe(ctx, "whatsapp:family", "zen-zebra", true); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Subscribe(ctx, "whatsapp:family", "helper-bot", false); err != nil {
+		t.Fatal(err)
+	}
+
+	// Message with no @mention — zen-zebra must be skipped, helper-bot delivered.
+	svc.Dispatch("whatsapp:family", "whatsapp", "alice", "", "good morning", "m1", nil, nil, nil)
+	time.Sleep(80 * time.Millisecond)
+	calls := sender.getCalls()
+	if len(calls) != 1 || calls[0].Name != "helper-bot" {
+		t.Fatalf("no-mention: expected only helper-bot, got %v", calls)
+	}
+
+	// Message with typed "@zen-zebra" — both must be delivered.
+	svc.Dispatch("whatsapp:family", "whatsapp", "alice", "", "hey @zen-zebra check this", "m2", nil, nil, nil)
+	time.Sleep(80 * time.Millisecond)
+	calls = sender.getCalls()
+	// Expect 2 more calls (total 3): helper-bot and zen-zebra for m2.
+	if len(calls) != 3 {
+		t.Fatalf("typed @mention: expected 3 total deliveries, got %d: %v", len(calls), calls)
+	}
+	hasZenZebra := false
+	for _, c := range calls[1:] {
+		if c.Name == "zen-zebra" {
+			hasZenZebra = true
+		}
+	}
+	if !hasZenZebra {
+		t.Errorf("expected zen-zebra to receive m2 via typed @mention, got calls: %v", calls)
+	}
+}
+
 func TestTruncate(t *testing.T) {
 	if got := truncate("hello world", 5); got != "hello..." {
 		t.Errorf("truncate('hello world', 5) = %q, want 'hello...'", got)

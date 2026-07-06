@@ -59,7 +59,9 @@ type Manager struct {
 	channelMap map[string]channelRoute
 	// onInbound is called when a message arrives from an external platform.
 	// Typically wired to ChannelService.Send + SSE hub.
-	onInbound    func(bcChannel, sender, content, messageID string, mentions []string, raw json.RawMessage)
+	// senderID carries the platform-native sender identifier (e.g. WhatsApp JID)
+	// so callers can use it for follow-up operations such as reactions.
+	onInbound    func(bcChannel, sender, senderID, content, messageID string, mentions []string, raw json.RawMessage)
 	channelStore ChannelStore
 	mu           sync.RWMutex
 }
@@ -84,10 +86,11 @@ func (m *Manager) SetChannelStore(store ChannelStore) {
 }
 
 // SetInboundHandler sets the callback for inbound messages from external platforms.
-// The callback receives the bc channel name, sender display name, text content,
+// The callback receives the bc channel name, sender display name, platform-native
+// sender id (e.g. WhatsApp JID — used for follow-up reactions), text content,
 // platform-native message ID, pre-extracted mentions (e.g. WhatsApp JID user parts),
 // and the raw platform payload.
-func (m *Manager) SetInboundHandler(fn func(bcChannel, sender, content, messageID string, mentions []string, raw json.RawMessage)) {
+func (m *Manager) SetInboundHandler(fn func(bcChannel, sender, senderID, content, messageID string, mentions []string, raw json.RawMessage)) {
 	m.onInbound = fn
 }
 
@@ -603,7 +606,7 @@ func (m *Manager) handleNotification(platform string, n Notification) {
 		content = string(n.Raw)
 	}
 	if m.onInbound != nil {
-		m.onInbound(bcChannel, sender, content, n.MessageID, n.Mentions, n.Raw)
+		m.onInbound(bcChannel, sender, n.SenderID, content, n.MessageID, n.Mentions, n.Raw)
 	}
 }
 
