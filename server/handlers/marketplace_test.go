@@ -216,14 +216,14 @@ func TestMarketplaceHandler_Install_ComposesCorrectMCPMessage(t *testing.T) {
 	}
 }
 
-func TestMarketplaceHandler_Install_OpenclawSkillUsesClawhub(t *testing.T) {
+func TestMarketplaceHandler_Install_OpenclawSkillUsesOpenclawCLI(t *testing.T) {
 	sender := &fakeAgentSender{}
 	h := NewMarketplaceHandler(newTestAggregator(t, nil), sender)
 	mux := http.NewServeMux()
 	h.Register(mux)
 
 	body := `{
-		"item_id":     "couponclaw",
+		"item_id":     "openclaw:couponclaw",
 		"item_name":   "CouponClaw",
 		"item_type":   "skill",
 		"item_source": "openclaw",
@@ -238,8 +238,12 @@ func TestMarketplaceHandler_Install_OpenclawSkillUsesClawhub(t *testing.T) {
 		t.Fatalf("want 200, got %d: %s", rec.Code, rec.Body.String())
 	}
 	msg := sender.calls[0].message
-	if !contains(msg, "clawhub install") {
-		t.Errorf("openclaw install message should contain 'clawhub install', got: %s", msg)
+	if !contains(msg, "openclaw skills install") {
+		t.Errorf("openclaw install message should contain 'openclaw skills install', got: %s", msg)
+	}
+	// Must NOT contain the non-existent clawhub binary.
+	if contains(msg, "clawhub install") {
+		t.Errorf("openclaw install message must NOT use clawhub (binary does not exist), got: %s", msg)
 	}
 }
 
@@ -402,17 +406,48 @@ func TestComposeInstallMessage_ClaudeSkill(t *testing.T) {
 }
 
 func TestComposeInstallMessage_OpenclawSkill(t *testing.T) {
+	// Item IDs from the aggregator carry an "openclaw:" prefix; the install
+	// command must use the bare slug and the real openclaw CLI binary.
 	req := installRequest{
-		ItemID:     "couponclaw",
+		ItemID:     "openclaw:couponclaw",
 		ItemName:   "CouponClaw",
 		ItemType:   "skill",
 		ItemSource: "openclaw",
 		Agents:     []string{"a"},
 	}
 	msg := composeInstallMessage(req)
-	// ItemID is quoted with %q, so the command contains the quoted identifier.
-	if !contains(msg, `clawhub install "couponclaw"`) {
-		t.Errorf("openclaw message should contain 'clawhub install \"couponclaw\"', got:\n%s", msg)
+	// Prefix must be stripped; command must use the real openclaw CLI.
+	if !contains(msg, `openclaw skills install "couponclaw"`) {
+		t.Errorf("openclaw message should contain 'openclaw skills install \"couponclaw\"', got:\n%s", msg)
+	}
+	if contains(msg, "clawhub") {
+		t.Errorf("openclaw message must NOT reference clawhub (binary does not exist), got:\n%s", msg)
+	}
+}
+
+func TestComposeInstallMessage_GlamaMCP(t *testing.T) {
+	// Glama's listing API does not expose a runnable server endpoint/command,
+	// so we must emit an honest instruction rather than a broken "claude mcp add <listing-url>".
+	req := installRequest{
+		ItemID:        "glama:modelcontextprotocol/brave-search",
+		ItemName:      "brave-search",
+		ItemSourceURL: "https://glama.ai/mcp/servers/brave-search",
+		ItemType:      "mcp",
+		ItemSource:    "glama",
+		Agents:        []string{"a"},
+	}
+	msg := composeInstallMessage(req)
+	// Must NOT emit a broken "claude mcp add <listing-page-url>".
+	if contains(msg, `claude mcp add "brave-search" "https://glama.ai`) {
+		t.Errorf("glama MCP message must not emit 'claude mcp add <listing-url>' (listing page is not a server endpoint), got:\n%s", msg)
+	}
+	// Must contain the listing URL so the agent knows where to look.
+	if !contains(msg, "https://glama.ai/mcp/servers/brave-search") {
+		t.Errorf("glama MCP message should contain the listing URL, got:\n%s", msg)
+	}
+	// Must instruct the agent to find the real install command.
+	if !contains(msg, "claude mcp add") {
+		t.Errorf("glama MCP message should still reference 'claude mcp add' as the next step, got:\n%s", msg)
 	}
 }
 
