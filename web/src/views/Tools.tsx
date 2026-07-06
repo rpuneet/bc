@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { api } from "../api/client";
 import type { Tool } from "../api/client";
@@ -229,6 +230,7 @@ function Spinner() {
 }
 
 export function Tools() {
+  const navigate = useNavigate();
   const providerFetcher = useCallback(() => api.listProviders(), []);
   const { data: providers, loading: providersLoading } = usePolling(providerFetcher, 10000);
 
@@ -430,12 +432,30 @@ export function Tools() {
           <h2 className="text-[11px] font-medium text-mycel-muted uppercase tracking-[0.08em]">
             AI Model Providers
           </h2>
-          <span className="text-[11px] text-mycel-muted tabular-nums">
-            {providerList.length}
-          </span>
+          {/* Only show count when data has arrived — avoids "0" flashing during load. */}
+          {providers !== null && providers !== undefined && (
+            <span className="text-[11px] text-mycel-muted tabular-nums">
+              {providerList.length}
+            </span>
+          )}
           <span className="flex-1 h-px bg-mycel-border self-center" aria-hidden />
         </div>
-        <ProvidersTable providers={providerList} search={search} />
+        {/* Fix #1: Show loading skeleton while fetching; only show empty state after data arrives.
+            Previously, providerList defaulted to [] even while loading, rendering a false
+            "No providers" state during the initial fetch. */}
+        {providersLoading && providers == null ? (
+          <LoadingSkeleton variant="cards" rows={2} />
+        ) : providerList.length === 0 && !search ? (
+          <EmptyState
+            icon="*"
+            title="No AI providers configured"
+            description="Connect Claude, Gemini, Cursor or another provider to start spinning up agents."
+            actionLabel="Configure in Settings →"
+            onAction={() => navigate("/settings")}
+          />
+        ) : (
+          <ProvidersTable providers={providerList} search={search} />
+        )}
       </section>
 
       <section>
@@ -449,7 +469,16 @@ export function Tools() {
           <span className="flex-1 h-px bg-mycel-border self-center" aria-hidden />
         </div>
         {filteredCli.length === 0 ? (
-          <EmptyState icon=">" title={searchLower ? "No matching CLI tools" : "No CLI dependencies"} description={searchLower ? "Try a different search term." : "Add CLI tools like gh, aws, or wrangler."} />
+          searchLower ? (
+            <EmptyState icon=">" title="No matching CLI tools" description="Try a different search term." />
+          ) : (
+            /* Fix #2: Actionable empty state with install-command hint. */
+            <EmptyState
+              icon=">"
+              title="No CLI dependencies tracked"
+              description='Run "bc tool add <name>" or use the "+ CLI Tool" button above to register tools like gh, aws, or wrangler.'
+            />
+          )
         ) : (
           <div className="rounded-lg border border-mycel-border overflow-hidden">
             <table className="w-full text-left">
