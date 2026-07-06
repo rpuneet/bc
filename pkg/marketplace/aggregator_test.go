@@ -291,3 +291,27 @@ func TestItemIDFormat(t *testing.T) {
 		t.Errorf("empty store should yield 0 items, got %d", len(items))
 	}
 }
+
+func TestDedupeByID(t *testing.T) {
+	in := []Item{
+		{ID: "mcp-registry:ai.bowmark/bowmark", Name: "bowmark"},
+		{ID: "mcp-registry:ai.bowmark/bowmark", Name: "bowmark"}, // dup version
+		{ID: "mcp-registry:ai.bowmark/bowmark", Name: "bowmark"}, // dup version
+		{ID: "github:foo/bar", Name: "bar"},
+		{ID: "", Name: "no-id-a"}, // empty IDs are kept as-is
+		{ID: "", Name: "no-id-b"},
+	}
+	out := dedupeByID(in)
+	if len(out) != 4 {
+		t.Fatalf("expected 4 items after dedup, got %d", len(out))
+	}
+	var bowmark int
+	for _, it := range out {
+		if it.ID == "mcp-registry:ai.bowmark/bowmark" {
+			bowmark++
+		}
+	}
+	if bowmark != 1 {
+		t.Errorf("bowmark should collapse to 1 entry, got %d", bowmark)
+	}
+}

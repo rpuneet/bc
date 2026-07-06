@@ -127,7 +127,26 @@ func (a *Aggregator) aggregate(ctx context.Context) ([]Item, error) {
 		log.Info("marketplace: source loaded", "source", r.source, "count", len(r.items))
 		all = append(all, r.items...)
 	}
-	return all, nil
+	return dedupeByID(all), nil
+}
+
+// dedupeByID collapses items that share an ID, keeping the first occurrence.
+// The MCP registry (and others) can return one row per published version of a
+// server, so a popular server would otherwise appear as dozens of identical
+// cards; this guarantees one catalog entry per unique item across all sources.
+func dedupeByID(items []Item) []Item {
+	seen := make(map[string]struct{}, len(items))
+	out := make([]Item, 0, len(items))
+	for _, it := range items {
+		if it.ID != "" {
+			if _, dup := seen[it.ID]; dup {
+				continue
+			}
+			seen[it.ID] = struct{}{}
+		}
+		out = append(out, it)
+	}
+	return out
 }
 
 // ── MCP registry ──────────────────────────────────────────────────────────────
