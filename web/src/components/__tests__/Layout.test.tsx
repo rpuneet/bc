@@ -104,7 +104,7 @@ describe("Layout chrome", () => {
     mockApi("test-host");
     renderLayout();
 
-    expect(screen.getByRole("link", { name: /Marketplace/ })).toHaveAttribute("href", "/templates");
+    expect(screen.getByRole("link", { name: /Marketplace/ })).toHaveAttribute("href", "/marketplace");
     expect(screen.getByRole("link", { name: /Insights/ })).toHaveAttribute("href", "/insights");
     // Old separate items and captions are gone.
     expect(screen.queryByText("Configure")).not.toBeInTheDocument();
