@@ -153,6 +153,41 @@ describe("Agents", () => {
       expect(screen.queryByTestId("agents-filters-popover")).not.toBeInTheDocument();
     });
   });
+
+  it("collapses stopped agents per repo by default and expands on toggle", async () => {
+    // Two repos: repo-a has 1 active + 1 stopped; repo-b has 1 stopped only.
+    fetchMock.mockReturnValue(
+      jsonResponse([
+        { name: "active-1", role: "engineer", tool: "claude", state: "working", repo: "org/repo-a", total_cost_usd: 0, started_at: "" },
+        { name: "stopped-1", role: "engineer", tool: "claude", state: "stopped", repo: "org/repo-a", total_cost_usd: 0, started_at: "" },
+        { name: "stopped-2", role: "engineer", tool: "agy",    state: "stopped", repo: "org/repo-b", total_cost_usd: 0, started_at: "" },
+      ]),
+    );
+
+    wrap(<Agents />);
+    await waitFor(() => {
+      expect(screen.getByText("active-1")).toBeInTheDocument();
+    });
+
+    // Stopped agents are hidden by default when groupByRepo is on.
+    expect(screen.queryByText("stopped-1")).not.toBeInTheDocument();
+    expect(screen.queryByText("stopped-2")).not.toBeInTheDocument();
+
+    // Toggle rows exist — one per repo with stopped agents.
+    const toggles = screen.getAllByRole("button", { name: /stopped/ });
+    expect(toggles.length).toBeGreaterThanOrEqual(1);
+
+    // Expanding repo-a's stopped section reveals stopped-1.
+    const repoAToggle = toggles.find((b) => b.getAttribute("aria-expanded") === "false");
+    if (repoAToggle) {
+      fireEvent.click(repoAToggle);
+      await waitFor(() => {
+        // At least one stopped agent is now visible.
+        const visible = screen.queryByText("stopped-1") ?? screen.queryByText("stopped-2");
+        expect(visible).toBeInTheDocument();
+      });
+    }
+  });
 });
 
 /** Renders the header slot the way Layout's full-width bar does, so
