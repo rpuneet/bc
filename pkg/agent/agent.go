@@ -1281,6 +1281,7 @@ func (m *Manager) startAgent(ctx context.Context, name string, opts SpawnOptions
 	}
 	injectEnv(env, wsPath, name, existing.EnvFile, existing.Env)
 	injectGatewayEnv(env, m.gatewayConfig)
+	injectProviderEnv(env, toolName, m.providerRegistry)
 
 	rt := m.runtimeForAgent(name)
 	m.mu.Unlock()
@@ -1520,6 +1521,7 @@ func (m *Manager) createAgent(ctx context.Context, opts SpawnOptions) (*Agent, e
 	}
 	injectEnv(env, wsPath, name, opts.EnvFile, opts.Env)
 	injectGatewayEnv(env, m.gatewayConfig)
+	injectProviderEnv(env, effectiveTool, m.providerRegistry)
 
 	rt := m.runtimeForAgent(name)
 	m.mu.Unlock()
@@ -3695,6 +3697,23 @@ func injectGatewayEnv(env map[string]string, gw *workspace.GatewaysConfig) {
 			}
 			env[key] = gc.Password
 		}
+	}
+}
+
+// injectProviderEnv calls the EnvContributor hook for the named tool so
+// providers can inject additional env vars (e.g. AWS pointer vars for pi).
+// It is a no-op when toolName is empty, the registry is nil, or the provider
+// does not implement EnvContributor.
+func injectProviderEnv(env map[string]string, toolName string, registry *provider.Registry) {
+	if toolName == "" || registry == nil {
+		return
+	}
+	p, ok := registry.Get(toolName)
+	if !ok {
+		return
+	}
+	if ec, ok := p.(provider.EnvContributor); ok {
+		ec.ContributeEnv(env)
 	}
 }
 

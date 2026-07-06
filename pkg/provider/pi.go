@@ -1,8 +1,12 @@
 package provider
 
 import (
+	"bufio"
 	"context"
+	"os"
+	"path/filepath"
 	"regexp"
+	"strings"
 )
 
 // PiProvider implements the Provider interface for pi CLI.
@@ -62,14 +66,35 @@ func (p *PiProvider) InstallHint() string {
 	return "npm install -g @earendil-works/pi-coding-agent"
 }
 
+// safePiModelPattern is the charset allowed in a pi model name. pi's model
+// identifiers follow the "provider/id" form (e.g. "amazon-bedrock/moonshotai.kimi-k2.5",
+// "groq/llama-3.3-70b-versatile"). The charset covers letters, digits, dots,
+// hyphens, and slashes — no spaces or shell metacharacters. The first character
+// must be alphanumeric to prevent argument injection via a leading dash.
+var safePiModelPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._/-]*$`)
+
+// SafePiModelName reports whether a pi model name is safe to interpolate
+// into a shell command line.
+func SafePiModelName(model string) bool {
+	return safePiModelPattern.MatchString(model)
+}
+
 // BuildCommand returns the full command for a given runtime context.
-// For pi, we start with base command and add model/session flags as
-// needed. Both values are spliced into a shell command line — double
-// quotes don't stop `$()` expansion, so unsafe values are dropped.
+// When opts.Model is set and passes SafePiModelName, it is appended as flags.
+// pi accepts "provider/model" as a single --model value, but also supports
+// explicit --provider + --model split, which this function uses when a slash
+// is present so the provider routing is unambiguous. Both values are spliced
+// into a shell command line — unsafe values are dropped, never escaped.
 func (p *PiProvider) BuildCommand(opts CommandOpts) string {
 	cmd := p.Command()
-	if SafeModelName(opts.Model) {
-		cmd += " --model " + opts.Model
+	if SafePiModelName(opts.Model) {
+		if idx := strings.Index(opts.Model, "/"); idx > 0 {
+			providerPart := opts.Model[:idx]
+			modelPart := opts.Model[idx+1:]
+			cmd += " --provider " + providerPart + " --model " + modelPart
+		} else {
+			cmd += " --model " + opts.Model
+		}
 	}
 	if SafeSessionID(opts.SessionID) {
 		cmd += " --session " + opts.SessionID
@@ -80,10 +105,15 @@ func (p *PiProvider) BuildCommand(opts CommandOpts) string {
 	return cmd
 }
 
-// Models returns the curated model list for the pi CLI. pi's --model
-// takes a "provider/id" pattern with an optional ":<thinking>" suffix.
+// Models returns the curated model list for the pi CLI. The Bedrock Kimi
+// model is listed first as the recommended default when AWS creds are present.
+// pi's --model flag accepts a "provider/model" string or a bare model id.
 func (p *PiProvider) Models() []string {
-	return []string{"google/gemini-2.5-pro", "anthropic/claude-sonnet-4-6", "openai/gpt-5.2"}
+	return []string{
+		"amazon-bedrock/moonshotai.kimi-k2.5",
+		"groq/llama-3.3-70b-versatile",
+		"groq/llama-3.1-8b-instant",
+	}
 }
 
 // IsInstalled checks if the provider binary is available.
@@ -103,6 +133,82 @@ func (p *PiProvider) Version(ctx context.Context) string {
 	return raw
 }
 
-// Ensure PiProvider implements Provider interface.
+// piUserHomeDir is overridable in tests.
+var piUserHomeDir = os.UserHomeDir
+
+// ContributeEnv injects AWS pointer env vars (AWS_PROFILE, AWS_REGION) so
+// pi's AWS SDK can locate credentials in ~/.aws without embedding secret
+// key values in the agent session. Real key material stays in ~/.aws/credentials;
+// only the profile name and region pointer are injected.
+//
+// Injection is skipped when:
+//   - any AWS_* key is already set in env (user-provided config wins)
+//   - ~/.aws directory does not exist on the host
+func (p *PiProvider) ContributeEnv(env map[string]string) {
+	// Respect any AWS env already set by the user (via agent Env or env file).
+	for k := range env {
+		if strings.HasPrefix(k, "AWS_") {
+			return
+		}
+	}
+	home, err := piUserHomeDir()
+	if err != nil {
+		return
+	}
+	awsDir := filepath.Join(home, ".aws")
+	if _, err := os.Stat(awsDir); err != nil { //nolint:gosec // awsDir is derived from UserHomeDir, not user input
+		return
+	}
+	env["AWS_PROFILE"] = "default"
+	// Read region from ~/.aws/config; fall back to AWS_DEFAULT_REGION from
+	// the host process environment.
+	if region := readAWSDefaultRegion(home); region != "" {
+		env["AWS_REGION"] = region
+	} else if region = os.Getenv("AWS_DEFAULT_REGION"); region != "" {
+		env["AWS_REGION"] = region
+	}
+}
+
+// readAWSDefaultRegion reads the region for the [default] profile from
+// ~/.aws/config and returns it, or "" if the file is absent or unparseable.
+func readAWSDefaultRegion(home string) string {
+	cfgPath := filepath.Join(home, ".aws", "config")
+	//nolint:gosec // cfgPath is derived from UserHomeDir, not user input
+	f, err := os.Open(cfgPath)
+	if err != nil {
+		return ""
+	}
+	defer f.Close() //nolint:errcheck
+
+	inDefault := false
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || strings.HasPrefix(line, "#") || strings.HasPrefix(line, ";") {
+			continue
+		}
+		if line == "[default]" {
+			inDefault = true
+			continue
+		}
+		if strings.HasPrefix(line, "[") {
+			if inDefault {
+				// Exited the [default] section without finding a region.
+				break
+			}
+			continue
+		}
+		if inDefault {
+			parts := strings.SplitN(line, "=", 2)
+			if len(parts) == 2 && strings.TrimSpace(parts[0]) == "region" {
+				return strings.TrimSpace(parts[1])
+			}
+		}
+	}
+	return ""
+}
+
+// Ensure PiProvider implements all declared interfaces.
 var _ Provider = (*PiProvider)(nil)
 var _ ModelLister = (*PiProvider)(nil)
+var _ EnvContributor = (*PiProvider)(nil)

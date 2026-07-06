@@ -55,3 +55,16 @@ type CostSource interface {
 type DynamicModelLister interface {
 	ListModels(ctx context.Context) ([]string, error)
 }
+
+// EnvContributor is optionally implemented by providers that need to inject
+// additional environment variables into the agent session beyond the standard
+// MYCEL_* and gateway vars. Typical use: AWS credential pointer vars for
+// cloud-SDK providers (e.g. pi + AWS Bedrock). Implementations must NOT
+// inject secret key material — only pointer values (profile names, region
+// names) that direct the SDK to credentials stored on disk.
+//
+// ContributeEnv must be idempotent: check whether the key is already set
+// before writing so that user-configured env always wins.
+type EnvContributor interface {
+	ContributeEnv(env map[string]string)
+}
