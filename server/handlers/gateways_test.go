@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"net/http"
@@ -453,5 +454,117 @@ func TestUpdatePlatformNoVaultIsNoop(t *testing.T) {
 
 	if rr.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200; body = %s", rr.Code, rr.Body.String())
+	}
+}
+
+// ─── channelSend ─────────────────────────────────────────────────────────────
+
+// sendStub extends stubAdapter with outbound Send support.
+//
+//nolint:govet // fieldalignment: test-only struct
+type sendStub struct {
+	stubAdapter
+	calls []sendCall
+	err   error
+}
+
+type sendCall struct {
+	ChannelID string
+	Sender    string
+	Content   string
+}
+
+func (s *sendStub) Send(_ context.Context, channelID, sender, content string) error {
+	s.calls = append(s.calls, sendCall{channelID, sender, content})
+	return s.err
+}
+
+// TestChannelSend_OK verifies that POST /api/channels/send delivers via gateway.
+func TestChannelSend_OK(t *testing.T) {
+	stub := &sendStub{stubAdapter: stubAdapter{name: "slack"}}
+
+	mgr := gateway.NewManager()
+	mgr.Register(stub)
+	// Seed the channel route via an inbound notification so Send can resolve it.
+	mgr.HandleNotification("slack", gateway.Notification{
+		Channel:   "general",
+		ChannelID: "C1234",
+		Platform:  "slack",
+		Sender:    "bot",
+		Content:   "hello",
+	})
+
+	h := NewGatewayHandler(mgr, nil)
+	mux := http.NewServeMux()
+	h.Register(mux)
+
+	body, _ := json.Marshal(map[string]string{ //nolint:errcheck
+		"channel": "slack:general",
+		"message": "hello world",
+		"sender":  "alice",
+	})
+	req := httptest.NewRequest(http.MethodPost, "/api/channels/send", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+	mux.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body: %s", rr.Code, rr.Body.String())
+	}
+
+	var resp map[string]bool
+	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
+	if !resp["sent"] {
+		t.Error("expected sent=true")
+	}
+	if len(stub.calls) != 1 {
+		t.Fatalf("expected 1 Send call, got %d", len(stub.calls))
+	}
+	if stub.calls[0].ChannelID != "C1234" {
+		t.Errorf("ChannelID = %q, want C1234", stub.calls[0].ChannelID)
+	}
+	if stub.calls[0].Sender != "alice" {
+		t.Errorf("Sender = %q, want alice", stub.calls[0].Sender)
+	}
+	if stub.calls[0].Content != "hello world" {
+		t.Errorf("Content = %q, want hello world", stub.calls[0].Content)
+	}
+}
+
+// TestChannelSend_NoGateway verifies 503 when the gateway is not wired.
+func TestChannelSend_NoGateway(t *testing.T) {
+	h := &GatewayHandler{}
+	body, _ := json.Marshal(map[string]string{"channel": "slack:general", "message": "hi"}) //nolint:errcheck
+	req := httptest.NewRequest(http.MethodPost, "/api/channels/send", bytes.NewReader(body))
+	rr := httptest.NewRecorder()
+	h.channelSend(rr, req)
+	if rr.Code != http.StatusServiceUnavailable {
+		t.Errorf("status = %d, want 503", rr.Code)
+	}
+}
+
+// TestChannelSend_MissingFields verifies 400 for missing channel or message.
+func TestChannelSend_MissingFields(t *testing.T) {
+	mgr := gateway.NewManager()
+	h := NewGatewayHandler(mgr, nil)
+
+	cases := []struct {
+		name string
+		body string
+	}{
+		{"missing channel", `{"message":"hi"}`},
+		{"missing message", `{"channel":"slack:general"}`},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodPost, "/api/channels/send", strings.NewReader(tc.body))
+			rr := httptest.NewRecorder()
+			h.channelSend(rr, req)
+			if rr.Code != http.StatusBadRequest {
+				t.Errorf("status = %d, want 400", rr.Code)
+			}
+		})
 	}
 }

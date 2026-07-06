@@ -40,8 +40,6 @@ Examples:
 * [mycel mcp disable](mycel_mcp_disable.md)	 - Disable an MCP server configuration
 * [mycel mcp enable](mycel_mcp_enable.md)	 - Enable an MCP server configuration
 * [mycel mcp list](mycel_mcp_list.md)	 - List MCP server configurations
-* [mycel mcp register](mycel_mcp_register.md)	 - Register mycel as an MCP server in agent settings.json
 * [mycel mcp remove](mycel_mcp_remove.md)	 - Remove an MCP server configuration
-* [mycel mcp serve](mycel_mcp_serve.md)	 - Start mycel as an MCP server
 * [mycel mcp show](mycel_mcp_show.md)	 - Show MCP server configuration details
 

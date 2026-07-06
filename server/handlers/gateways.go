@@ -58,6 +58,7 @@ func (h *GatewayHandler) writeVaultSecret(key, value string) {
 func (h *GatewayHandler) Register(mux *http.ServeMux) {
 	// Channel list/history endpoints — primary API for the web UI and TUI.
 	mux.HandleFunc("/api/channels", h.legacyChannelList)
+	mux.HandleFunc("/api/channels/send", h.channelSend)
 	mux.HandleFunc("/api/channels/", h.legacyChannelHistory)
 	mux.HandleFunc("/api/gateways/activity", h.activity)
 	mux.HandleFunc("/api/gateways", h.list)
@@ -544,6 +545,50 @@ func (h *GatewayHandler) updatePlatform(w http.ResponseWriter, r *http.Request, 
 
 // legacyChannelList returns gateway channels in the old Channel format
 // so the frontend's listChannels() call still works after pkg/channel deletion.
+// channelSend handles POST /api/channels/send — routes a text message from a
+// named sender through the gateway to an external platform channel.
+// Body: {"channel": "...", "message": "...", "sender": "..."} (sender defaults to "api").
+// Returns 200 {"sent":true} when the gateway delivered the message, or
+// 200 {"sent":false} when no route is configured (not an error).
+func (h *GatewayHandler) channelSend(w http.ResponseWriter, r *http.Request) {
+	if !requireMethod(w, r, http.MethodPost) {
+		return
+	}
+	if h.gw == nil {
+		httpError(w, "gateway not available", http.StatusServiceUnavailable)
+		return
+	}
+
+	var req struct {
+		Channel string `json:"channel"`
+		Message string `json:"message"`
+		Sender  string `json:"sender"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		httpError(w, "invalid JSON body", http.StatusBadRequest)
+		return
+	}
+	if req.Channel == "" {
+		httpError(w, "channel is required", http.StatusBadRequest)
+		return
+	}
+	if req.Message == "" {
+		httpError(w, "message is required", http.StatusBadRequest)
+		return
+	}
+	if req.Sender == "" {
+		req.Sender = "api"
+	}
+
+	sent, err := h.gw.Send(r.Context(), req.Channel, req.Sender, req.Message)
+	if err != nil {
+		log.Warn("channel send failed", "channel", req.Channel, "sender", req.Sender, "error", err)
+		httpError(w, err.Error(), http.StatusBadGateway)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"sent": sent})
+}
+
 func (h *GatewayHandler) legacyChannelList(w http.ResponseWriter, r *http.Request) {
 	if !requireMethod(w, r, http.MethodGet) {
 		return
