@@ -12,7 +12,7 @@ func TestSafeModelName(t *testing.T) {
 		want  bool
 	}{
 		{"simple alias", "fable", true},
-		{"dotted version", "gemini-2.5-pro", true},
+		{"dotted version", "claude-sonnet-4.5", true},
 		{"namespaced with colon", "anthropic.claude-sonnet-4:0", true},
 		{"provider slash form", "anthropic/claude-sonnet-4-6", true},
 		{"slash with thinking suffix", "openai/gpt-5.2:high", true},
@@ -44,12 +44,12 @@ func TestBuildCommandModelFlag(t *testing.T) {
 		wantAbsent string // substring the command must NOT contain
 	}{
 		{"claude injects --model", NewClaudeProvider(), "fable", " --model fable", ""},
-		{"gemini injects -m", NewGeminiProvider(), "gemini-2.5-pro", " -m gemini-2.5-pro", ""},
+		{"agy injects quoted --model", NewAgyProvider(), "Gemini 3 Flash", " --model 'Gemini 3 Flash'", ""},
 		{"cursor injects --model", NewCursorProvider(), "sonnet-4-thinking", " --model sonnet-4-thinking", ""},
 		{"codex injects --model", NewCodexProvider(), "gpt-5.3-codex", " --model gpt-5.3-codex", ""},
 		{"pi injects --model slash form", NewPiProvider(), "anthropic/claude-sonnet-4-6", " --model anthropic/claude-sonnet-4-6", ""},
 		{"claude drops unsafe model", NewClaudeProvider(), "$(id)", "", "id"},
-		{"gemini drops unsafe model", NewGeminiProvider(), "a b", "", "a b"},
+		{"agy drops unsafe model", NewAgyProvider(), "a$(id)", "", "id"},
 		{"cursor drops leading dash", NewCursorProvider(), "--yolo", "", "--yolo"},
 		{"codex drops unsafe model", NewCodexProvider(), "x;y", "", ";"},
 		{"pi drops unsafe model", NewPiProvider(), "$(id)", "", "id"},
@@ -76,7 +76,6 @@ func TestProviderModels(t *testing.T) {
 		want     []string
 	}{
 		{"claude", NewClaudeProvider(), []string{"fable", "opus", "opusplan", "sonnet", "haiku"}},
-		{"gemini", NewGeminiProvider(), []string{"gemini-2.5-pro", "gemini-2.5-flash"}},
 		{"cursor", NewCursorProvider(), []string{"auto", "gpt-5.3-codex", "gpt-5.3-codex-high", "gpt-5.2", "sonnet-4-thinking"}},
 		{"codex", NewCodexProvider(), []string{"gpt-5.3-codex", "gpt-5.2-codex", "gpt-5.2"}},
 		{"pi", NewPiProvider(), []string{"google/gemini-2.5-pro", "anthropic/claude-sonnet-4-6", "openai/gpt-5.2"}},

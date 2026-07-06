@@ -93,9 +93,9 @@ func TestAgentHandler_GetConfig(t *testing.T) {
 }
 
 // TestPatchAgentConfig verifies PATCH /api/agents/{name}/config writes the
-// system prompt to the correct file based on the agent's tool. A gemini
-// agent must land in GEMINI.md (via provider ConfigAdapter fallback), NOT
-// the previously-hardcoded CLAUDE.md; a claude agent still writes CLAUDE.md.
+// system prompt to the correct file based on the agent's tool. An agy agent
+// must land in AGENTS.md (via the provider ConfigAdapter), NOT the
+// previously-hardcoded CLAUDE.md; a claude agent still writes CLAUDE.md.
 func TestPatchAgentConfig(t *testing.T) {
 	cases := []struct {
 		name      string
@@ -103,8 +103,8 @@ func TestPatchAgentConfig(t *testing.T) {
 		wantFile  string
 		wrongFile string
 	}{
-		{"claude", "claude", "CLAUDE.md", "GEMINI.md"},
-		{"gemini", "gemini", "Gemini.md", "CLAUDE.md"},
+		{"claude", "claude", "CLAUDE.md", "AGENTS.md"},
+		{"agy", "agy", "AGENTS.md", "CLAUDE.md"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

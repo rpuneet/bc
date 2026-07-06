@@ -75,7 +75,7 @@ function providerIcon(tool: string | undefined, size: number): React.ReactNode {
           A
         </text>
       );
-    case "gemini":
+    case "agy":
       return (
         <text
           x={cx}

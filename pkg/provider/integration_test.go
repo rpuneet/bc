@@ -11,10 +11,10 @@ import (
 
 // expectedProviders is the canonical list of providers that must be in DefaultRegistry.
 var expectedProviders = []string{
+	"agy",
 	"claude",
 	"codex",
 	"cursor",
-	"gemini",
 	"pi",
 }
 
@@ -56,7 +56,7 @@ func TestProviderConfigRoundtrip(t *testing.T) {
 		Providers: workspace.ProvidersConfig{
 			Providers: map[string]workspace.ProviderConfig{
 				"claude": {Command: "claude --dangerously-skip-permissions"},
-				"gemini": {Command: "gemini --yolo"},
+				"agy":    {Command: "agy --dangerously-skip-permissions"},
 				"cursor": {Command: "cursor --force"},
 				"codex":  {Command: "codex --auto"},
 				"pi":     {Command: "pi"},
@@ -105,14 +105,14 @@ func TestGetAgentCommandFromConfig_RealConfigs(t *testing.T) {
 			wantOk:  true,
 		},
 		{
-			name: "workspace gemini override",
-			tool: "gemini",
+			name: "workspace agy override",
+			tool: "agy",
 			cfg: &workspace.Config{
 				Providers: workspace.ProvidersConfig{
-					Providers: map[string]workspace.ProviderConfig{"gemini": {Command: "gemini --safe-mode"}},
+					Providers: map[string]workspace.ProviderConfig{"agy": {Command: "agy --sandbox"}},
 				},
 			},
-			wantCmd: "gemini --safe-mode",
+			wantCmd: "agy --sandbox",
 			wantOk:  true,
 		},
 		{
@@ -165,7 +165,7 @@ func TestConfigProviderRegistrySync(t *testing.T) {
 		name string
 	}{
 		{cfg.GetProvider("claude"), "claude"},
-		{cfg.GetProvider("gemini"), "gemini"},
+		{cfg.GetProvider("agy"), "agy"},
 	}
 
 	for _, cp := range configProviders {

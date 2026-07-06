@@ -3864,7 +3864,7 @@ func TestSeedHostClaudeTrust_NonClaudeToolIsNoop(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 
-	seedHostClaudeTrust("gemini", "/some/worktree")
+	seedHostClaudeTrust("agy", "/some/worktree")
 
 	if _, err := os.Stat(filepath.Join(home, ".claude.json")); !os.IsNotExist(err) {
 		t.Error("claude.json written for a non-claude tool")

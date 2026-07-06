@@ -152,7 +152,7 @@ func init() {
 	// Register built-in providers.
 	DefaultRegistry.Register(NewClaudeProvider())
 	DefaultRegistry.Register(NewCodexProvider())
-	DefaultRegistry.Register(NewGeminiProvider())
+	DefaultRegistry.Register(NewAgyProvider())
 	DefaultRegistry.Register(NewCursorProvider())
 	DefaultRegistry.Register(NewPiProvider())
 }
@@ -175,6 +175,17 @@ func getBinaryVersion(ctx context.Context, name string, args ...string) string {
 		return lines[0]
 	}
 	return ""
+}
+
+// runProviderCommand runs a trusted provider CLI command and returns its
+// combined stdout, trimmed. Used for runtime model enumeration.
+func runProviderCommand(ctx context.Context, name string, args ...string) (string, error) {
+	cmd := exec.CommandContext(ctx, name, args...) //nolint:gosec // args are trusted provider names
+	output, err := cmd.Output()
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(output)), nil
 }
 
 // GetProvider returns a provider by name from the default registry.

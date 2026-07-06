@@ -103,7 +103,7 @@ describe("Agents", () => {
     fetchMock.mockReturnValue(
       jsonResponse([
         { name: "bot-1", role: "engineer", tool: "claude", state: "working", total_cost_usd: 0, started_at: "" },
-        { name: "bot-2", role: "engineer", tool: "gemini", state: "stopped", total_cost_usd: 0, started_at: "" },
+        { name: "bot-2", role: "engineer", tool: "agy", state: "stopped", total_cost_usd: 0, started_at: "" },
       ]),
     );
 

@@ -167,7 +167,7 @@ This resurrects the agent's tmux session and memory.
 The agent must have been previously created and stopped.
 By default, resumes the previous session if available.
 
-The agent's tool (claude, gemini, cursor, etc.) is fixed at creation time
+The agent's tool (claude, agy, cursor, etc.) is fixed at creation time
 and cannot be changed on restart. Use --runtime to switch infrastructure
 backends (tmux vs docker) without changing the agent's identity.
 

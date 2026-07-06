@@ -1499,7 +1499,7 @@ func TestRoles_Get_NotFound(t *testing.T) {
 func TestTools_List(t *testing.T) {
 	tools := []*ToolInfo{
 		{Name: "claude", Enabled: true, Builtin: true},
-		{Name: "gemini", Enabled: false},
+		{Name: "agy", Enabled: false},
 	}
 	ts := mockServer(t, jsonHandler(200, tools))
 	c := New(ts.URL)

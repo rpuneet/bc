@@ -100,8 +100,8 @@ func TestMergeWithUserRC(t *testing.T) {
 }
 func TestHasProviderDefined(t *testing.T) {
 	cfg := DefaultConfig()
-	if !cfg.HasProviderDefined("gemini") {
-		t.Error("expected gemini to be available")
+	if !cfg.HasProviderDefined("agy") {
+		t.Error("expected agy to be available")
 	}
 	if !cfg.HasProviderDefined("claude") {
 		t.Error("expected claude to be available")
@@ -142,10 +142,10 @@ func TestHasProviderDefinedAllTypes(t *testing.T) {
 			want: true,
 		},
 		{
-			name:         "gemini defined",
-			providerName: "gemini",
+			name:         "agy defined",
+			providerName: "agy",
 			cfg: Config{
-				Providers: ProvidersConfig{Providers: map[string]ProviderConfig{"gemini": {Command: "gemini"}}},
+				Providers: ProvidersConfig{Providers: map[string]ProviderConfig{"agy": {Command: "agy"}}},
 			},
 			want: true,
 		},
@@ -261,7 +261,7 @@ func TestGetPreferredTool(t *testing.T) {
 			name: "no preferred providers available",
 			cfg: Config{
 				Providers: ProvidersConfig{
-					Default: "gemini",
+					Default: "agy",
 				},
 			},
 			rc: &UserRCConfig{
@@ -269,7 +269,7 @@ func TestGetPreferredTool(t *testing.T) {
 					Preferred: []string{"cursor", "claude"},
 				},
 			},
-			expected: "gemini",
+			expected: "agy",
 		},
 	}
 	for _, tt := range tests {

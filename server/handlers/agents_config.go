@@ -12,7 +12,7 @@ import (
 )
 
 // promptFileForTool returns the filename the given tool writes its system
-// prompt to (CLAUDE.md for claude, GEMINI.md for gemini, .cursorrules for
+// prompt to (CLAUDE.md for claude, AGENTS.md for agy, .cursorrules for
 // cursor, etc.), resolved via the provider registry's ConfigAdapter. Falls
 // back to "CLAUDE.md" with a warning when the tool is empty or unknown.
 func promptFileForTool(tool string) string {

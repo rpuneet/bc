@@ -867,9 +867,9 @@ function ConfigTab({ agent, agentsUrl }: { agent: Agent; agentsUrl: string }) {
               <span className="font-medium">Claude requires:</span> ANTHROPIC_API_KEY
             </div>
           )}
-          {agent.tool === "gemini" && (
+          {agent.tool === "agy" && (
             <div className="mt-2 text-xs text-mycel-muted">
-              <span className="font-medium">Gemini requires:</span> GOOGLE_API_KEY
+              <span className="font-medium">agy requires:</span> a signed-in Google account (run <code>agy</code> once to authenticate)
             </div>
           )}
           {agent.tool === "openai" && (

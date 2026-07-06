@@ -16,7 +16,7 @@ import (
 const (
 	ToolTypeCLI      = "cli"      // CLI binary (gh, aws, wrangler)
 	ToolTypeMCP      = "mcp"      // MCP server (bc, playwright, github)
-	ToolTypeProvider = "provider" // AI provider (claude, gemini, cursor)
+	ToolTypeProvider = "provider" // AI provider (claude, agy, cursor)
 )
 
 // Tool represents a configured tool in the workspace (CLI, MCP server, or AI provider).
@@ -63,10 +63,10 @@ var builtinTools = []Tool{
 		Type:       ToolTypeProvider,
 	},
 	{
-		Name:       "gemini",
-		Command:    "gemini",
-		InstallCmd: "npm install -g @google/gemini-cli",
-		SlashCmds:  []string{"/help", "/quit"},
+		Name:       "agy",
+		Command:    "agy --dangerously-skip-permissions",
+		InstallCmd: "curl -fsSL https://antigravity.google/install.sh | sh",
+		SlashCmds:  []string{"/help", "/model", "/resume", "/exit"},
 		Enabled:    true,
 		Builtin:    true,
 		Type:       ToolTypeProvider,

@@ -24,7 +24,7 @@ func TestGetAgentCommandModel(t *testing.T) {
 		wantAbsent string
 	}{
 		{"claude model injected", "claude", "fable", " --model fable", ""},
-		{"gemini model injected", "gemini", "gemini-2.5-flash", " -m gemini-2.5-flash", ""},
+		{"agy model injected", "agy", "Gemini 3 Flash", " --model 'Gemini 3 Flash'", ""},
 		{"empty model no flag", "claude", "", "", "--model"},
 		{"unsafe model dropped", "claude", "$(id)", "", "id"},
 	}
