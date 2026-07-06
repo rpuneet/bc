@@ -302,18 +302,31 @@ func bcSelfURL(runtimeBackend, agentName string) string {
 
 // ── Secrets ─────────────────────────────────────────────────────────────────
 
+// loadSecrets fetches secret values by name from the layered vault
+// (global ~/.mycel/secrets.vault + workspace <ws>/.bc/secrets.db, workspace wins).
+// Uses the real passphrase so encrypted vaults are readable; an empty passphrase
+// was the previous bug that caused MCP ${secret:NAME} references to silently fail.
 func loadSecrets(workspacePath string, names []string) map[string]string {
 	m := make(map[string]string)
 	if len(names) == 0 {
 		return m
 	}
-	ss, err := secret.NewStore(workspacePath, "")
+	passphrase, err := secret.Passphrase()
 	if err != nil {
+		log.Warn("loadSecrets: cannot read passphrase", "error", err)
 		return m
 	}
-	defer ss.Close() //nolint:errcheck
+
+	ls, closeLS := openLayeredStore(workspacePath, passphrase)
+	if closeLS != nil {
+		defer closeLS()
+	}
+	if ls == nil {
+		return m
+	}
+
 	for _, n := range names {
-		if v, e := ss.GetValue(n); e == nil {
+		if v, e := ls.GetValue(n); e == nil {
 			m[n] = v
 		}
 	}
