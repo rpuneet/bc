@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../api/client";
 import type { Secret } from "../api/client";
 import { usePolling } from "../hooks/usePolling";
@@ -167,6 +167,26 @@ function SecretCard({ secret, onChanged }: { secret: Secret; onChanged: () => vo
   const [saveError, setSaveError] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // Close the actions menu when clicking outside.
+  useEffect(() => {
+    if (!menuOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node))
+        setMenuOpen(false);
+    };
+    const keyHandler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMenuOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    document.addEventListener("keydown", keyHandler);
+    return () => {
+      document.removeEventListener("mousedown", handler);
+      document.removeEventListener("keydown", keyHandler);
+    };
+  }, [menuOpen]);
 
   const handleUpdate = async () => {
     const trimmed = newValue.trim();
@@ -220,6 +240,46 @@ function SecretCard({ secret, onChanged }: { secret: Secret; onChanged: () => vo
             </svg>
             Encrypted
           </span>
+          {/* Three-dot actions menu */}
+          {!editing && (
+            <div ref={menuRef} className="relative">
+              <button
+                type="button"
+                onClick={() => setMenuOpen((v) => !v)}
+                aria-label="Secret actions"
+                aria-haspopup="menu"
+                aria-expanded={menuOpen}
+                className="inline-flex items-center justify-center w-6 h-6 rounded-md text-mycel-muted hover:text-mycel-text hover:bg-mycel-surface-hover transition-colors focus:outline-none focus:ring-1 focus:ring-mycel-accent"
+              >
+                <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor" aria-hidden>
+                  <path d="M8 9a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3ZM1.5 9a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Zm13 0a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Z" />
+                </svg>
+              </button>
+              {menuOpen && (
+                <div
+                  role="menu"
+                  className="absolute right-0 top-full mt-1 z-20 w-40 rounded-lg border border-mycel-border bg-mycel-surface shadow-xl py-1"
+                >
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => { setMenuOpen(false); setEditing(true); }}
+                    className="w-full text-left px-3 py-1.5 text-sm text-mycel-text hover:bg-mycel-surface-hover transition-colors"
+                  >
+                    Update value
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => { setMenuOpen(false); setConfirming(true); }}
+                    className="w-full text-left px-3 py-1.5 text-sm text-mycel-error hover:bg-mycel-error-subtle transition-colors"
+                  >
+                    Delete
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
@@ -292,44 +352,25 @@ function SecretCard({ secret, onChanged }: { secret: Secret; onChanged: () => vo
         </div>
       )}
 
-      {/* Actions */}
-      {!editing && (
+      {/* Confirm-delete row — shown when the three-dot menu triggers deletion. */}
+      {!editing && confirming && (
         <div className="flex items-center gap-2 pt-1">
           <button
             type="button"
-            onClick={() => setEditing(true)}
-            className="inline-flex items-center h-8 px-3 rounded-md bg-mycel-surface border border-mycel-border text-xs text-mycel-text-2 hover:text-mycel-text hover:bg-mycel-surface-hover transition-colors"
+            onClick={handleDelete}
+            disabled={deleting}
+            className="inline-flex items-center h-8 px-3 rounded-md bg-mycel-error text-white text-xs font-medium hover:opacity-90 shadow-mycel-sm disabled:opacity-50 transition-opacity"
           >
-            Update Value
+            {deleting ? "Deleting..." : "Confirm Delete"}
           </button>
-          {confirming ? (
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={handleDelete}
-                disabled={deleting}
-                className="inline-flex items-center h-8 px-3 rounded-md bg-mycel-error text-white text-xs font-medium hover:opacity-90 shadow-mycel-sm disabled:opacity-50 transition-opacity"
-              >
-                {deleting ? "Deleting..." : "Confirm Delete"}
-              </button>
-              <button
-                type="button"
-                onClick={() => setConfirming(false)}
-                disabled={deleting}
-                className="inline-flex items-center h-8 px-3 rounded-md bg-mycel-surface border border-mycel-border text-mycel-text-2 text-xs hover:text-mycel-text hover:bg-mycel-surface-hover transition-colors"
-              >
-                Cancel
-              </button>
-            </div>
-          ) : (
-            <button
-              type="button"
-              onClick={() => setConfirming(true)}
-              className="inline-flex items-center h-8 px-3 rounded-md text-xs text-mycel-error border border-mycel-border hover:bg-mycel-error-subtle hover:border-mycel-error transition-colors"
-            >
-              Delete
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => setConfirming(false)}
+            disabled={deleting}
+            className="inline-flex items-center h-8 px-3 rounded-md bg-mycel-surface border border-mycel-border text-mycel-text-2 text-xs hover:text-mycel-text hover:bg-mycel-surface-hover transition-colors"
+          >
+            Cancel
+          </button>
         </div>
       )}
     </div>

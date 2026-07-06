@@ -46,12 +46,16 @@ describe("formatRelative", () => {
     const long = new Date(NOW.getTime() - 45 * 86_400_000);
     const result = formatRelative(long);
     expect(result).not.toContain("ago");
-    expect(result).toBe(long.toLocaleDateString());
+    expect(result).toBe(
+      long.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }),
+    );
   });
 
   it("respects a custom maxDays", () => {
     const week = new Date(NOW.getTime() - 8 * 86_400_000);
-    expect(formatRelative(week, { maxDays: 7 })).toBe(week.toLocaleDateString());
+    expect(formatRelative(week, { maxDays: 7 })).toBe(
+      week.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }),
+    );
   });
 
   it("collapses future dates to 'just now' by default", () => {
@@ -81,8 +85,10 @@ describe("formatAbsolute", () => {
     expect(formatAbsolute(NOW)).toBe(NOW.toLocaleString());
   });
 
-  it("returns toLocaleDateString when dateOnly is set", () => {
-    expect(formatAbsolute(NOW, { dateOnly: true })).toBe(NOW.toLocaleDateString());
+  it("returns a short-form date when dateOnly is set", () => {
+    expect(formatAbsolute(NOW, { dateOnly: true })).toBe(
+      NOW.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }),
+    );
   });
 });
 
