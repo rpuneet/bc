@@ -476,7 +476,7 @@ export function Tools() {
             <EmptyState
               icon=">"
               title="No CLI dependencies tracked"
-              description='Run "bc tool add <name>" or use the "+ CLI Tool" button above to register tools like gh, aws, or wrangler.'
+              description='Run "mycel tool add <name>" or use the "+ CLI Tool" button above to register tools like gh, aws, or wrangler.'
             />
           )
         ) : (

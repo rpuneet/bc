@@ -170,17 +170,36 @@ func composeInstallMessage(req installRequest) string {
 		case marketplace.SourceOpenclaw:
 			sb.WriteString(fmt.Sprintf("  clawhub install %q\n", req.ItemID))
 		default:
-			spec := req.ItemSourceURL
-			if spec == "" {
-				spec = req.ItemID
+			repoURL := req.ItemSourceURL
+			if repoURL == "" {
+				repoURL = req.ItemID
 			}
-			sb.WriteString(fmt.Sprintf("  claude skill install %q\n", spec))
+			marketplaceName := marketplaceNameFromURL(repoURL)
+			sb.WriteString("Step 1 — register the marketplace (first time only):\n")
+			sb.WriteString(fmt.Sprintf("  claude plugin marketplace add %q\n", repoURL))
+			sb.WriteString("Step 2 — install the plugin:\n")
+			sb.WriteString(fmt.Sprintf("  claude plugin install %q\n", req.ItemName+"@"+marketplaceName))
 		}
 	case marketplace.TypeTemplate:
-		sb.WriteString(fmt.Sprintf("  bc template import %q\n", req.ItemName))
+		sb.WriteString(fmt.Sprintf("  mycel template import %q\n", req.ItemName))
 	default:
 		sb.WriteString("  Consult the item URL above for installation instructions.\n")
 	}
 
 	return sb.String()
+}
+
+// marketplaceNameFromURL extracts the GitHub repository name from a URL such as
+// https://github.com/owner/repo[/tree/…] → "repo".
+// Falls back to the full rawURL when the pattern is not recognized.
+func marketplaceNameFromURL(rawURL string) string {
+	// Strip scheme + host, then split on "/" to get path segments.
+	u := strings.TrimPrefix(rawURL, "https://")
+	u = strings.TrimPrefix(u, "http://")
+	// Segments: ["github.com", "owner", "repo", …]
+	parts := strings.SplitN(u, "/", 4)
+	if len(parts) >= 3 && parts[2] != "" {
+		return parts[2]
+	}
+	return rawURL
 }
