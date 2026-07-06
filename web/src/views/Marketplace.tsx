@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { usePolling } from "../hooks/usePolling";
 import { LoadingSkeleton } from "../components/LoadingSkeleton";
@@ -8,7 +8,13 @@ import { useHeaderSlot } from "../context/HeaderSlotContext";
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 type ItemType = "mcp" | "skill" | "template";
-type ItemSource = "mcp-registry" | "github" | "mycel";
+type ItemSource =
+  | "mcp-registry"
+  | "github"
+  | "mycel"
+  | "claude"
+  | "openclaw"
+  | "gemini";
 
 interface MarketplaceItem {
   id: string;
@@ -21,18 +27,28 @@ interface MarketplaceItem {
   install_spec?: string;
 }
 
+interface Agent {
+  name: string;
+}
+
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const SOURCE_LABELS: Record<ItemSource, string> = {
   "mcp-registry": "MCP Registry",
   github: "GitHub",
   mycel: "mycel",
+  claude: "Claude skills",
+  openclaw: "openclaw",
+  gemini: "Google",
 };
 
 const SOURCE_COLORS: Record<ItemSource, string> = {
   "mcp-registry": "bg-mycel-accent-subtle text-mycel-accent",
   github: "bg-mycel-success-subtle text-mycel-success",
   mycel: "bg-mycel-error-subtle text-mycel-error",
+  claude: "bg-mycel-accent-subtle text-mycel-accent",
+  openclaw: "bg-mycel-success-subtle text-mycel-success",
+  gemini: "bg-mycel-border text-mycel-muted",
 };
 
 const TYPE_LABELS: Record<ItemType, string> = {
@@ -57,6 +73,9 @@ const ALL_TYPES: Array<{ value: string; label: string }> = [
 const ALL_SOURCES: Array<{ value: string; label: string }> = [
   { value: "", label: "All sources" },
   { value: "mcp-registry", label: "MCP Registry" },
+  { value: "claude", label: "Claude skills" },
+  { value: "openclaw", label: "openclaw" },
+  { value: "gemini", label: "Google" },
   { value: "github", label: "GitHub" },
   { value: "mycel", label: "mycel" },
 ];
@@ -76,6 +95,38 @@ async function fetchMarketplace(
   const res = await fetch(`/api/marketplace${qs ? `?${qs}` : ""}`);
   if (!res.ok) throw new Error(`API error: ${res.status}`);
   return res.json() as Promise<MarketplaceItem[]>;
+}
+
+async function fetchAgents(): Promise<Agent[]> {
+  const res = await fetch("/api/agents");
+  if (!res.ok) throw new Error(`API error: ${res.status}`);
+  const data = (await res.json()) as { agents?: Agent[] } | Agent[];
+  // Handle both {agents: [...]} and [...] shapes.
+  if (Array.isArray(data)) return data;
+  return (data as { agents?: Agent[] }).agents ?? [];
+}
+
+async function sendInstall(
+  item: MarketplaceItem,
+  agents: string[],
+): Promise<{ dispatched: number }> {
+  const res = await fetch("/api/marketplace/install", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      item_id: item.id,
+      item_name: item.name,
+      item_source_url: item.url ?? "",
+      item_type: item.type,
+      item_source: item.source,
+      agents,
+    }),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || `API error: ${res.status}`);
+  }
+  return res.json() as Promise<{ dispatched: number }>;
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -114,6 +165,157 @@ function StarCount({ stars }: { stars: number }) {
     </span>
   );
 }
+
+// ─── Agent Picker ─────────────────────────────────────────────────────────────
+
+interface AgentPickerProps {
+  item: MarketplaceItem;
+  onDismiss: () => void;
+}
+
+function AgentPicker({ item, onDismiss }: AgentPickerProps) {
+  const [agents, setAgents] = useState<Agent[]>([]);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [loading, setLoading] = useState(true);
+  const [sending, setSending] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const overlayRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    void fetchAgents()
+      .then(setAgents)
+      .catch((e: Error) => setError(e.message))
+      .finally(() => setLoading(false));
+  }, []);
+
+  // Close on outside click.
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (overlayRef.current && e.target === overlayRef.current) {
+        onDismiss();
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [onDismiss]);
+
+  function toggle(name: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      return next;
+    });
+  }
+
+  async function handleSend() {
+    if (selected.size === 0) return;
+    setSending(true);
+    setError(null);
+    try {
+      const result = await sendInstall(item, Array.from(selected));
+      setToast(`Instruction sent to ${result.dispatched} agent${result.dispatched !== 1 ? "s" : ""}`);
+      setTimeout(onDismiss, 1800);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Unknown error");
+    } finally {
+      setSending(false);
+    }
+  }
+
+  return (
+    <div
+      ref={overlayRef}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+    >
+      <motion.div
+        initial={{ opacity: 0, scale: 0.96 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.96 }}
+        transition={{ duration: 0.1 }}
+        className="w-72 rounded-lg border border-mycel-border bg-mycel-surface shadow-xl"
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-4 py-3 border-b border-mycel-border">
+          <span className="text-sm font-semibold text-mycel-text truncate">
+            Send to agent
+          </span>
+          <button
+            onClick={onDismiss}
+            className="text-mycel-muted hover:text-mycel-text transition-colors ml-2 shrink-0"
+            aria-label="Close"
+          >
+            ✕
+          </button>
+        </div>
+
+        {/* Item summary */}
+        <div className="px-4 py-2 border-b border-mycel-border bg-mycel-bg/50">
+          <p className="text-xs text-mycel-muted truncate">
+            <span className="font-medium text-mycel-text">{item.name}</span>
+            {" · "}
+            {SOURCE_LABELS[item.source] ?? item.source}
+          </p>
+        </div>
+
+        {/* Agent list */}
+        <div className="px-4 py-3 max-h-56 overflow-y-auto">
+          {loading && (
+            <p className="text-xs text-mycel-muted">Loading agents…</p>
+          )}
+          {!loading && agents.length === 0 && !error && (
+            <p className="text-xs text-mycel-muted">No agents found.</p>
+          )}
+          {!loading &&
+            agents.map((a) => (
+              <label
+                key={a.name}
+                className="flex items-center gap-2 py-1.5 cursor-pointer group"
+              >
+                <input
+                  type="checkbox"
+                  className="accent-mycel-accent"
+                  checked={selected.has(a.name)}
+                  onChange={() => toggle(a.name)}
+                />
+                <span className="text-sm text-mycel-text group-hover:text-mycel-accent transition-colors truncate">
+                  {a.name}
+                </span>
+              </label>
+            ))}
+        </div>
+
+        {/* Footer */}
+        <div className="px-4 py-3 border-t border-mycel-border flex flex-col gap-2">
+          {error && (
+            <p className="text-xs text-mycel-error">{error}</p>
+          )}
+          {toast && (
+            <p className="text-xs text-mycel-success">{toast}</p>
+          )}
+          <div className="flex gap-2">
+            <button
+              onClick={onDismiss}
+              className="flex-1 px-3 py-1.5 text-xs rounded-md border border-mycel-border text-mycel-muted hover:bg-mycel-bg transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={() => void handleSend()}
+              disabled={selected.size === 0 || sending}
+              className="flex-1 px-3 py-1.5 text-xs rounded-md bg-mycel-accent text-mycel-accent-fg hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed transition-opacity"
+            >
+              {sending ? "Sending…" : `Send${selected.size > 0 ? ` (${selected.size})` : ""}`}
+            </button>
+          </div>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
+// ─── Item Card ────────────────────────────────────────────────────────────────
 
 function ItemCard({
   item,
@@ -157,7 +359,7 @@ function ItemCard({
         <button
           onClick={() => onInstall(item)}
           className="shrink-0 px-2.5 py-1 text-xs rounded-md border border-mycel-border text-mycel-muted hover:bg-mycel-accent hover:text-mycel-accent-fg hover:border-mycel-accent transition-colors"
-          title="Add to agent"
+          title="Send install instruction to an agent"
         >
           Add
         </button>
@@ -180,37 +382,6 @@ function ItemCard({
           </a>
         )}
       </div>
-    </motion.div>
-  );
-}
-
-function InstallNotice({
-  item,
-  onDismiss,
-}: {
-  item: MarketplaceItem;
-  onDismiss: () => void;
-}) {
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: 8 }}
-      className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-4 py-3 rounded-lg border border-mycel-border bg-mycel-surface shadow-lg text-sm text-mycel-text"
-    >
-      <span>
-        Deep install wiring for{" "}
-        <strong className="font-semibold">{item.name}</strong> is coming in a
-        follow-up release. For now, add it manually via{" "}
-        <code className="font-mono text-xs">bc template edit</code>.
-      </span>
-      <button
-        onClick={onDismiss}
-        className="text-mycel-muted hover:text-mycel-text transition-colors ml-1"
-        aria-label="Dismiss"
-      >
-        ✕
-      </button>
     </motion.div>
   );
 }
@@ -336,10 +507,10 @@ export function Marketplace() {
         </>
       )}
 
-      {/* Install notice toast */}
+      {/* Agent picker modal */}
       <AnimatePresence>
         {pendingInstall && (
-          <InstallNotice
+          <AgentPicker
             item={pendingInstall}
             onDismiss={() => setPendingInstall(null)}
           />
