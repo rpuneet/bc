@@ -1,7 +1,10 @@
 package handlers
 
 import (
+	"bytes"
+	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -33,9 +36,25 @@ func newTestAggregator(t *testing.T, tmplNames []string) *marketplace.Aggregator
 	return marketplace.NewAggregator(store, &fakeFetcherHandler{})
 }
 
+// fakeAgentSender records Send calls for assertion in tests.
+type fakeAgentSender struct {
+	err   error // if non-nil, returned on every Send; before slice for fieldalignment
+	calls []struct{ name, message string }
+}
+
+func (f *fakeAgentSender) Send(_ context.Context, name, message string) error {
+	if f.err != nil {
+		return f.err
+	}
+	f.calls = append(f.calls, struct{ name, message string }{name, message})
+	return nil
+}
+
+// ── list endpoint ─────────────────────────────────────────────────────────────
+
 func TestMarketplaceHandler_List(t *testing.T) {
 	agg := newTestAggregator(t, []string{"reviewer", "feature-dev"})
-	h := NewMarketplaceHandler(agg)
+	h := NewMarketplaceHandler(agg, nil)
 	mux := http.NewServeMux()
 	h.Register(mux)
 
@@ -58,7 +77,7 @@ func TestMarketplaceHandler_List(t *testing.T) {
 
 func TestMarketplaceHandler_FilterByType(t *testing.T) {
 	agg := newTestAggregator(t, []string{"reviewer"})
-	h := NewMarketplaceHandler(agg)
+	h := NewMarketplaceHandler(agg, nil)
 	mux := http.NewServeMux()
 	h.Register(mux)
 
@@ -82,7 +101,7 @@ func TestMarketplaceHandler_FilterByType(t *testing.T) {
 
 func TestMarketplaceHandler_MethodNotAllowed(t *testing.T) {
 	agg := newTestAggregator(t, nil)
-	h := NewMarketplaceHandler(agg)
+	h := NewMarketplaceHandler(agg, nil)
 	mux := http.NewServeMux()
 	h.Register(mux)
 
@@ -98,7 +117,7 @@ func TestMarketplaceHandler_MethodNotAllowed(t *testing.T) {
 func TestMarketplaceHandler_EmptyResultIsArray(t *testing.T) {
 	// type=mcp with no MCP sources → should return [] not null.
 	agg := newTestAggregator(t, []string{"reviewer"})
-	h := NewMarketplaceHandler(agg)
+	h := NewMarketplaceHandler(agg, nil)
 	mux := http.NewServeMux()
 	h.Register(mux)
 
@@ -113,4 +132,238 @@ func TestMarketplaceHandler_EmptyResultIsArray(t *testing.T) {
 	if body == "" || body[0] != '[' {
 		t.Errorf("want JSON array, got %q", body)
 	}
+}
+
+// ── install endpoint ──────────────────────────────────────────────────────────
+
+func TestMarketplaceHandler_Install_DispatchesToAgents(t *testing.T) {
+	sender := &fakeAgentSender{}
+	agg := newTestAggregator(t, nil)
+	h := NewMarketplaceHandler(agg, sender)
+	mux := http.NewServeMux()
+	h.Register(mux)
+
+	body := `{
+		"item_id":         "claude:fetch-tool",
+		"item_name":       "fetch-tool",
+		"item_source_url": "https://github.com/anthropics/skills/tree/main/skills/fetch",
+		"item_type":       "skill",
+		"item_source":     "claude",
+		"agents":          ["alpha", "beta"]
+	}`
+	req := httptest.NewRequest(http.MethodPost, "/api/marketplace/install", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var resp installResponse
+	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if resp.Dispatched != 2 {
+		t.Errorf("want dispatched=2, got %d", resp.Dispatched)
+	}
+	if len(sender.calls) != 2 {
+		t.Fatalf("want 2 Send calls, got %d", len(sender.calls))
+	}
+	if sender.calls[0].name != "alpha" {
+		t.Errorf("first Send: want agent 'alpha', got %q", sender.calls[0].name)
+	}
+	if sender.calls[1].name != "beta" {
+		t.Errorf("second Send: want agent 'beta', got %q", sender.calls[1].name)
+	}
+	// Message should contain the item name.
+	for _, c := range sender.calls {
+		if !contains(c.message, "fetch-tool") {
+			t.Errorf("expected message to contain item name 'fetch-tool', got: %s", c.message)
+		}
+	}
+}
+
+func TestMarketplaceHandler_Install_ComposesCorrectMCPMessage(t *testing.T) {
+	sender := &fakeAgentSender{}
+	h := NewMarketplaceHandler(newTestAggregator(t, nil), sender)
+	mux := http.NewServeMux()
+	h.Register(mux)
+
+	body := `{
+		"item_id":         "mcp-registry:brave-search",
+		"item_name":       "brave-search",
+		"item_source_url": "https://github.com/modelcontextprotocol/servers",
+		"item_type":       "mcp",
+		"item_source":     "mcp-registry",
+		"agents":          ["my-agent"]
+	}`
+	req := httptest.NewRequest(http.MethodPost, "/api/marketplace/install", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if len(sender.calls) != 1 {
+		t.Fatalf("want 1 Send call, got %d", len(sender.calls))
+	}
+	msg := sender.calls[0].message
+	if !contains(msg, "claude mcp add") {
+		t.Errorf("MCP install message should contain 'claude mcp add', got: %s", msg)
+	}
+}
+
+func TestMarketplaceHandler_Install_OpenclawSkillUsesClawhub(t *testing.T) {
+	sender := &fakeAgentSender{}
+	h := NewMarketplaceHandler(newTestAggregator(t, nil), sender)
+	mux := http.NewServeMux()
+	h.Register(mux)
+
+	body := `{
+		"item_id":     "couponclaw",
+		"item_name":   "CouponClaw",
+		"item_type":   "skill",
+		"item_source": "openclaw",
+		"agents":      ["my-agent"]
+	}`
+	req := httptest.NewRequest(http.MethodPost, "/api/marketplace/install", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	msg := sender.calls[0].message
+	if !contains(msg, "clawhub install") {
+		t.Errorf("openclaw install message should contain 'clawhub install', got: %s", msg)
+	}
+}
+
+func TestMarketplaceHandler_Install_NoSender(t *testing.T) {
+	h := NewMarketplaceHandler(newTestAggregator(t, nil), nil)
+	mux := http.NewServeMux()
+	h.Register(mux)
+
+	body := `{"item_name":"foo","agents":["a"]}`
+	req := httptest.NewRequest(http.MethodPost, "/api/marketplace/install", bytes.NewBufferString(body))
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Errorf("want 503 when sender is nil, got %d", rec.Code)
+	}
+}
+
+func TestMarketplaceHandler_Install_EmptyAgents(t *testing.T) {
+	h := NewMarketplaceHandler(newTestAggregator(t, nil), &fakeAgentSender{})
+	mux := http.NewServeMux()
+	h.Register(mux)
+
+	body := `{"item_name":"foo","agents":[]}`
+	req := httptest.NewRequest(http.MethodPost, "/api/marketplace/install", bytes.NewBufferString(body))
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("want 400 for empty agents, got %d", rec.Code)
+	}
+}
+
+func TestMarketplaceHandler_Install_SenderError(t *testing.T) {
+	sender := &fakeAgentSender{err: fmt.Errorf("agent not running")}
+	h := NewMarketplaceHandler(newTestAggregator(t, nil), sender)
+	mux := http.NewServeMux()
+	h.Register(mux)
+
+	body := `{"item_name":"foo","item_type":"mcp","agents":["stopped-agent"]}`
+	req := httptest.NewRequest(http.MethodPost, "/api/marketplace/install", bytes.NewBufferString(body))
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("want 400 when sender returns error, got %d", rec.Code)
+	}
+}
+
+func TestMarketplaceHandler_Install_MethodNotAllowed(t *testing.T) {
+	h := NewMarketplaceHandler(newTestAggregator(t, nil), nil)
+	mux := http.NewServeMux()
+	h.Register(mux)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/marketplace/install", nil)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusMethodNotAllowed {
+		t.Errorf("want 405, got %d", rec.Code)
+	}
+}
+
+// ── composeInstallMessage ─────────────────────────────────────────────────────
+
+func TestComposeInstallMessage_MCP(t *testing.T) {
+	req := installRequest{
+		ItemID:        "mcp-registry:brave-search",
+		ItemName:      "brave-search",
+		ItemSourceURL: "https://github.com/anthropics/brave",
+		ItemType:      "mcp",
+		ItemSource:    "mcp-registry",
+		Agents:        []string{"a"},
+	}
+	msg := composeInstallMessage(req)
+	if !contains(msg, "claude mcp add") {
+		t.Errorf("MCP message should contain 'claude mcp add', got:\n%s", msg)
+	}
+	if !contains(msg, "brave-search") {
+		t.Errorf("message should contain item name, got:\n%s", msg)
+	}
+}
+
+func TestComposeInstallMessage_ClaudeSkill(t *testing.T) {
+	req := installRequest{
+		ItemName:      "pdf",
+		ItemSourceURL: "https://github.com/anthropics/skills/tree/main/skills/pdf",
+		ItemType:      "skill",
+		ItemSource:    "claude",
+		Agents:        []string{"a"},
+	}
+	msg := composeInstallMessage(req)
+	if !contains(msg, "claude skill install") {
+		t.Errorf("Claude skill message should contain 'claude skill install', got:\n%s", msg)
+	}
+}
+
+func TestComposeInstallMessage_OpenclawSkill(t *testing.T) {
+	req := installRequest{
+		ItemID:     "couponclaw",
+		ItemName:   "CouponClaw",
+		ItemType:   "skill",
+		ItemSource: "openclaw",
+		Agents:     []string{"a"},
+	}
+	msg := composeInstallMessage(req)
+	if !contains(msg, "clawhub install couponclaw") {
+		t.Errorf("openclaw message should contain 'clawhub install couponclaw', got:\n%s", msg)
+	}
+}
+
+func TestComposeInstallMessage_Template(t *testing.T) {
+	req := installRequest{
+		ItemName:   "engineer",
+		ItemType:   "template",
+		ItemSource: "mycel",
+		Agents:     []string{"a"},
+	}
+	msg := composeInstallMessage(req)
+	if !contains(msg, "bc template import") {
+		t.Errorf("template message should contain 'bc template import', got:\n%s", msg)
+	}
+}
+
+// contains is a helper for substring checks.
+func contains(s, sub string) bool {
+	return bytes.Contains([]byte(s), []byte(sub))
 }

@@ -18,6 +18,9 @@ const (
 	SourceMCPRegistry Source = "mcp-registry" // registry.modelcontextprotocol.io
 	SourceGitHub      Source = "github"       // GitHub search (stars-gated)
 	SourceMycel       Source = "mycel"        // local mycel template store
+	SourceClaude      Source = "claude"       // github.com/anthropics/skills
+	SourceOpenclaw    Source = "openclaw"     // clawhub.ai/api/v1/skills
+	SourceGemini      Source = "gemini"       // github.com/orgs/gemini-cli-extensions
 )
 
 // GitHubStarsThreshold is the minimum star count for a GitHub repo to

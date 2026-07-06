@@ -101,6 +101,9 @@ func (a *Aggregator) aggregate(ctx context.Context) ([]Item, error) {
 		{SourceMCPRegistry, a.fetchMCPRegistry},
 		{SourceGitHub, a.fetchGitHub},
 		{SourceMycel, a.fetchMycel},
+		{SourceClaude, a.fetchClaude},
+		{SourceOpenclaw, a.fetchOpenclaw},
+		{SourceGemini, a.fetchGemini},
 	}
 
 	ch := make(chan result, len(sources))
