@@ -9,7 +9,9 @@ import (
 
 	"github.com/rpuneet/mycel/pkg/gateway"
 	bcwhatsapp "github.com/rpuneet/mycel/pkg/gateway/whatsapp"
+	"github.com/rpuneet/mycel/pkg/log"
 	"github.com/rpuneet/mycel/pkg/notify"
+	"github.com/rpuneet/mycel/pkg/secret"
 	"github.com/rpuneet/mycel/pkg/workspace"
 )
 
@@ -18,6 +20,7 @@ type GatewayHandler struct {
 	gw        *gateway.Manager
 	ws        *workspace.Workspace
 	notifySvc *notify.Service
+	vault     *secret.Store
 }
 
 // NewGatewayHandler creates a GatewayHandler.
@@ -28,6 +31,27 @@ func NewGatewayHandler(gw *gateway.Manager, ws *workspace.Workspace) *GatewayHan
 // SetNotifyService sets the notification service for subscription management.
 func (h *GatewayHandler) SetNotifyService(svc *notify.Service) {
 	h.notifySvc = svc
+}
+
+// SetSecretStore wires the secrets vault so that gateway credentials are
+// mirrored into the vault under canonical env-var names whenever a platform
+// is connected or updated. The vault write is additive — preferences.json
+// continues to be written for backward compatibility.
+func (h *GatewayHandler) SetSecretStore(s *secret.Store) {
+	h.vault = s
+}
+
+// writeVaultSecret stores key=value in the vault (no-op when no vault is
+// wired or when value is empty). Values are intentionally not logged.
+func (h *GatewayHandler) writeVaultSecret(key, value string) {
+	if h.vault == nil || value == "" {
+		return
+	}
+	if err := h.vault.Set(key, value, "gateway credential"); err != nil {
+		log.Warn("gateway: failed to write secret to vault", "key", key, "error", err)
+		return
+	}
+	log.Debug("gateway: wrote credential to vault", "key", key)
 }
 
 // Register mounts gateway routes.
@@ -487,6 +511,32 @@ func (h *GatewayHandler) updatePlatform(w http.ResponseWriter, r *http.Request, 
 		return
 	}
 
+	// Mirror credentials into the secrets vault under canonical env names so
+	// injectVaultSecrets can pick them up when spinning up a new agent.
+	// Vault write is additive — preferences.json is still the authoritative
+	// source for the gateway manager.
+	switch {
+	case platform == "telegram":
+		if cfg.Gateways.Telegram != nil {
+			h.writeVaultSecret("TELEGRAM_BOT_TOKEN", cfg.Gateways.Telegram.BotToken)
+		}
+	case strings.HasPrefix(platform, "telegram:"):
+		label := strings.TrimPrefix(platform, "telegram:")
+		if tc := cfg.Gateways.Telegrams[label]; tc != nil {
+			key := "TELEGRAM_BOT_TOKEN_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
+			h.writeVaultSecret(key, tc.BotToken)
+		}
+	case platform == "discord":
+		if cfg.Gateways.Discord != nil {
+			h.writeVaultSecret("DISCORD_BOT_TOKEN", cfg.Gateways.Discord.BotToken)
+		}
+	case platform == "slack":
+		if cfg.Gateways.Slack != nil {
+			h.writeVaultSecret("SLACK_BOT_TOKEN", cfg.Gateways.Slack.BotToken)
+			h.writeVaultSecret("SLACK_APP_TOKEN", cfg.Gateways.Slack.AppToken)
+		}
+	}
+
 	writeJSON(w, http.StatusOK, map[string]string{"status": "updated", "platform": platform})
 }
 
@@ -848,6 +898,12 @@ func (h *GatewayHandler) whatsappPair(w http.ResponseWriter, r *http.Request, ro
 		if err != nil {
 			httpError(w, err.Error(), http.StatusInternalServerError)
 			return
+		}
+		// When pairing completes synchronously (device already paired / reconnect),
+		// write the authenticated JID (phone number) into the vault so agents can
+		// reference the session. Values are never logged.
+		if status.State == "connected" && status.Phone != "" {
+			h.writeVaultSecret("WHATSAPP_SESSION", status.Phone)
 		}
 		writeJSON(w, http.StatusOK, status)
 
