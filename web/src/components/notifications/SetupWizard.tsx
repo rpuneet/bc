@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { api } from "../../api/client";
 import type { Agent, GatewayStatus } from "../../api/client";
@@ -724,11 +724,12 @@ function AgentSubscriptionStep({
   const [mentionOnly, setMentionOnly] = useState<Set<string>>(new Set());
   const [channels, setChannels] = useState<string[]>([]);
   const [selectedChannels, setSelectedChannels] = useState<Set<string>>(new Set());
+  const knownChannelsRef = useRef<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshingChannels, setRefreshingChannels] = useState(false);
 
-  const loadChannels = async () => {
+  const loadChannels = useCallback(async () => {
     try {
       const gws = await api.listGateways();
       const gw = (gws ?? []).find((g) => g.platform === platform);
@@ -737,18 +738,25 @@ function AgentSubscriptionStep({
       );
       setChannels(discovered);
       setSelectedChannels((prev) => {
-        if (prev.size > 0) {
-          // Keep prior picks that still exist; auto-select new ones.
-          const next = new Set([...prev].filter((c) => discovered.includes(c)));
-          for (const c of discovered) next.add(c);
-          return next;
+        const known = knownChannelsRef.current;
+        if (prev.size === 0 && known.length === 0) {
+          // First load: select everything discovered.
+          return new Set(discovered);
         }
-        return new Set(discovered);
+        // Keep prior picks that still exist; only auto-select *new* channels
+        // so a user deselect + Refresh does not re-check deselected ones.
+        const knownSet = new Set(known);
+        const next = new Set([...prev].filter((c) => discovered.includes(c)));
+        for (const c of discovered) {
+          if (!knownSet.has(c)) next.add(c);
+        }
+        return next;
       });
+      knownChannelsRef.current = discovered;
     } catch {
       setChannels([]);
     }
-  };
+  }, [platform]);
 
   useEffect(() => {
     let cancelled = false;
@@ -765,7 +773,7 @@ function AgentSubscriptionStep({
       if (!cancelled) setLoading(false);
     })();
     return () => { cancelled = true; };
-  }, [platform, isTelegram]);
+  }, [platform, isTelegram, loadChannels]);
 
   const toggleAgent = (name: string) => {
     setSelected((prev) => {
@@ -865,7 +873,11 @@ function AgentSubscriptionStep({
                 {refreshingChannels ? "Refreshing…" : "Refresh"}
               </button>
             </div>
-            {channels.length === 0 ? (
+            {loading ? (
+              <div className="text-xs text-mycel-muted bg-mycel-surface-hover border border-mycel-border rounded-md px-3 py-2">
+                Loading channels…
+              </div>
+            ) : channels.length === 0 ? (
               <div className="text-xs text-mycel-muted bg-mycel-surface-hover border border-mycel-border rounded-md px-3 py-2">
                 No Telegram chats discovered yet. Message the bot in a DM (or a group),
                 then click Refresh. Agents subscribed to a fake <code className="text-mycel-text-2">telegram:general</code> channel

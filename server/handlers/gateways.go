@@ -585,9 +585,12 @@ func (h *GatewayHandler) ensureTelegramAdapter(label string) error {
 	if label != "" {
 		adapterName = "telegram:" + label
 	}
-	// Already registered and (hopefully) running — StartAdapter is idempotent.
-	if existing := h.gw.GetAdapter(adapterName); existing != nil {
-		return h.gw.StartAdapter(existing)
+	// Always build a new adapter from the saved token. Reusing GetAdapter would
+	// keep a stale bot token after rotation (token is fixed at NewNamed time).
+	if h.gw.GetAdapter(adapterName) != nil {
+		if err := h.gw.StopAdapter(adapterName); err != nil {
+			log.Warn("gateway: stop existing telegram adapter", "name", adapterName, "error", err)
+		}
 	}
 
 	adapter := bctelegram.NewNamed(adapterName, tc.BotToken, tc.Mode)

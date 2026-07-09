@@ -179,8 +179,8 @@ func (m *Manager) Start(ctx context.Context) error {
 // with no adapters at boot, and PATCH only persisted config).
 //
 // If an adapter with the same name is already running, this is a no-op and
-// returns nil. Callers that need to swap credentials should Stop the old
-// adapter first (future work).
+// returns nil. Callers that need to swap credentials should StopAdapter the
+// old one first, then StartAdapter with a new instance.
 func (m *Manager) StartAdapter(adapter NotificationAdapter) error {
 	if adapter == nil {
 		return fmt.Errorf("gateway: nil adapter")
@@ -197,6 +197,11 @@ func (m *Manager) StartAdapter(adapter NotificationAdapter) error {
 	if ctx == nil {
 		return fmt.Errorf("gateway: manager not started")
 	}
+	// Refuse hot-starts once the manager lifetime context is canceled so we
+	// never adapterWG.Add after Start has begun waiting on shutdown.
+	if ctx.Err() != nil {
+		return fmt.Errorf("gateway: manager shutting down")
+	}
 	if already {
 		log.Info("gateway: adapter already running", "name", name)
 		return nil
@@ -207,6 +212,11 @@ func (m *Manager) StartAdapter(adapter NotificationAdapter) error {
 
 	if !m.markRunning(name) {
 		return nil
+	}
+	// Re-check after markRunning: shutdown may have begun while we held no lock.
+	if ctx.Err() != nil {
+		m.clearRunning(name)
+		return fmt.Errorf("gateway: manager shutting down")
 	}
 	m.adapterWG.Add(1)
 	go func() {
@@ -221,6 +231,35 @@ func (m *Manager) StartAdapter(adapter NotificationAdapter) error {
 	}()
 	log.Info("gateway: hot-started adapter", "name", name)
 	return nil
+}
+
+// StopAdapter stops a single registered adapter and removes it from the
+// registry so a subsequent StartAdapter can install a replacement (e.g. after
+// bot token rotation). It blocks briefly until the Start loop clears the
+// running flag.
+func (m *Manager) StopAdapter(name string) error {
+	m.mu.Lock()
+	a, ok := m.adapters[name]
+	if ok {
+		delete(m.adapters, name)
+	}
+	m.mu.Unlock()
+	if !ok {
+		return nil
+	}
+	err := a.Stop()
+	// Wait for the Start/StartAdapter goroutine to observe Stop and clearRunning.
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		m.mu.RLock()
+		running := m.running[name]
+		m.mu.RUnlock()
+		if !running {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	return err
 }
 
 // markRunning records that name is starting. Returns false if already running.

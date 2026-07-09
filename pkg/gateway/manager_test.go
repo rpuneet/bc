@@ -376,15 +376,34 @@ func TestRefreshChannelMeta(t *testing.T) {
 	}
 }
 
-// blockingAdapter Start blocks until ctx is cancelled — models a real poll loop.
+// blockingAdapter Start blocks until ctx is cancelled or Stop is called.
 type blockingAdapter struct {
 	mockNotifAdapter
 	started chan struct{}
+	stop    chan struct{}
 }
 
 func (b *blockingAdapter) Start(ctx context.Context, _ func(Notification)) error {
+	if b.stop == nil {
+		b.stop = make(chan struct{})
+	}
 	close(b.started)
-	<-ctx.Done()
+	select {
+	case <-ctx.Done():
+	case <-b.stop:
+	}
+	return nil
+}
+
+func (b *blockingAdapter) Stop() error {
+	if b.stop == nil {
+		b.stop = make(chan struct{})
+	}
+	select {
+	case <-b.stop:
+	default:
+		close(b.stop)
+	}
 	return nil
 }
 
@@ -441,5 +460,76 @@ func TestStartAdapterRequiresContext(t *testing.T) {
 	err := m.StartAdapter(&mockNotifAdapter{name: "telegram"})
 	if err == nil {
 		t.Fatal("expected error when manager has no start context")
+	}
+}
+
+func TestStartAdapterRejectsAfterShutdown(t *testing.T) {
+	m := NewManager()
+	ctx, cancel := context.WithCancel(context.Background())
+	m.SetStartContext(ctx)
+
+	done := make(chan struct{})
+	go func() {
+		_ = m.Start(ctx)
+		close(done)
+	}()
+	time.Sleep(20 * time.Millisecond)
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("Start did not return")
+	}
+
+	err := m.StartAdapter(&mockNotifAdapter{name: "telegram"})
+	if err == nil {
+		t.Fatal("expected error after shutdown")
+	}
+}
+
+func TestStopAdapterAllowsRestart(t *testing.T) {
+	m := NewManager()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	m.SetStartContext(ctx)
+
+	go func() { _ = m.Start(ctx) }()
+	time.Sleep(20 * time.Millisecond)
+
+	started1 := make(chan struct{})
+	a1 := &blockingAdapter{
+		mockNotifAdapter: mockNotifAdapter{name: "telegram"},
+		started:          started1,
+		stop:             make(chan struct{}),
+	}
+	if err := m.StartAdapter(a1); err != nil {
+		t.Fatalf("StartAdapter: %v", err)
+	}
+	select {
+	case <-started1:
+	case <-time.After(2 * time.Second):
+		t.Fatal("first adapter did not start")
+	}
+
+	if err := m.StopAdapter("telegram"); err != nil {
+		t.Fatalf("StopAdapter: %v", err)
+	}
+	if m.GetAdapter("telegram") != nil {
+		t.Fatal("expected adapter removed after StopAdapter")
+	}
+
+	started2 := make(chan struct{})
+	a2 := &blockingAdapter{
+		mockNotifAdapter: mockNotifAdapter{name: "telegram"},
+		started:          started2,
+		stop:             make(chan struct{}),
+	}
+	if err := m.StartAdapter(a2); err != nil {
+		t.Fatalf("restart StartAdapter: %v", err)
+	}
+	select {
+	case <-started2:
+	case <-time.After(2 * time.Second):
+		t.Fatal("replacement adapter did not start")
 	}
 }
