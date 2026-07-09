@@ -167,6 +167,22 @@ func (s *Service) Dispatch(channel, platform, sender, senderID, content, message
 			return
 		}
 
+		// Setup wizard historically subscribed agents to "{platform}:general"
+		// even when no such channel exists (Telegram DMs arrive as
+		// telegram:<username|chat_id>). Copy placeholder subscriptions onto
+		// the first real channel so legacy installs self-heal.
+		if len(subs) == 0 && platform != "" {
+			if n, mErr := s.migratePlaceholderSubs(ctx, platform, channel); mErr != nil {
+				log.Warn("notify: placeholder migration failed", "platform", platform, "channel", channel, "error", mErr)
+			} else if n > 0 {
+				subs, subErr = s.store.Subscribers(ctx, channel)
+				if subErr != nil {
+					log.Warn("notify: failed to get subscribers after migration", "channel", channel, "error", subErr)
+					return
+				}
+			}
+		}
+
 		log.Info("notify: dispatch", "channel", channel, "sender", sender, "subscribers", len(subs))
 
 		mentionSet := make(map[string]bool, len(mentions))
@@ -238,6 +254,43 @@ func (s *Service) Dispatch(channel, platform, sender, senderID, content, message
 			log.Warn("notify: prune failed", "channel", channel, "error", err)
 		}
 	}()
+}
+
+// migratePlaceholderSubs copies subscriptions from "{platform}:general" onto
+// the real channel when the placeholder still has subscribers and the real
+// channel has none. Returns the number of agents copied. The placeholder row
+// is left in place (copy, not rewrite) so operators can clean it up later.
+func (s *Service) migratePlaceholderSubs(ctx context.Context, platform, realChannel string) (int, error) {
+	placeholder := platform + ":general"
+	if realChannel == "" || realChannel == placeholder {
+		return 0, nil
+	}
+	// Only migrate onto channels for this platform.
+	prefix := platform + ":"
+	if !strings.HasPrefix(realChannel, prefix) {
+		return 0, nil
+	}
+
+	legacy, err := s.store.Subscribers(ctx, placeholder)
+	if err != nil {
+		return 0, err
+	}
+	if len(legacy) == 0 {
+		return 0, nil
+	}
+
+	copied := 0
+	for _, sub := range legacy {
+		if err := s.store.Subscribe(ctx, realChannel, sub.Agent, sub.MentionOnly); err != nil {
+			return copied, err
+		}
+		copied++
+	}
+	if copied > 0 {
+		log.Info("notify: migrated placeholder subscriptions",
+			"from", placeholder, "to", realChannel, "agents", copied)
+	}
+	return copied, nil
 }
 
 // Subscribe adds an agent to a channel.
