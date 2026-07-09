@@ -35,20 +35,32 @@ curl -X POST http://localhost:9374/api/gateways \
 
 1. Message [@BotFather](https://t.me/BotFather) on Telegram and create a new bot with `/newbot`.
 2. Copy the bot token.
-3. Add the bot to your Telegram groups.
+3. Open a DM with the bot and/or add it to Telegram groups.
 4. Optionally disable privacy mode so the bot can read all group messages (not just commands).
 
 ```bash
 mycel secret set TELEGRAM_BOT_TOKEN "123456:ABC-..."
 ```
 
-Connect via the web UI or API:
+Connect via the web UI (Settings → Notifications → Connect Telegram) or:
 
 ```bash
-curl -X POST http://localhost:9374/api/gateways \
+# Persist + hot-start long-polling (no daemon restart required)
+curl -X PATCH http://localhost:9374/api/gateways/telegram \
   -H "Content-Type: application/json" \
-  -d '{"platform": "telegram", "tokens": {"bot_token": "123456:ABC-..."}}'
+  -d '{"bot_token":"123456:ABC-...","enabled":true,"mode":"polling"}'
 ```
+
+**Channel keys:** inbound chats are named `telegram:<username>`, `telegram:<chat_id>`,
+or `telegram:<group-title>` — not `telegram:general`. After the first message, subscribe
+agents to the discovered channel:
+
+```bash
+mycel notify subscribe telegram:your_username eng-01
+```
+
+If agents were previously subscribed to the bogus `telegram:general` placeholder, the
+first real inbound message copies those subscriptions onto the real channel automatically.
 
 ### GitHub
 

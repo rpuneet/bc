@@ -47,7 +47,9 @@ export const PLATFORMS: PlatformDef[] = [
     fields: [{ key: "bot_token", label: "Bot Token", placeholder: "1234567890:AAH..." }],
     docs: [
       "Message @BotFather on Telegram → https://t.me/BotFather — send /newbot.",
-      "Copy the bot token and add the bot to your group.",
+      "Copy the bot token. Message the bot in a DM or add it to a group.",
+      "Channels appear after the first inbound message (telegram:<username|chat_id|group>).",
+      "Do not subscribe to telegram:general — that key is not a real Telegram chat.",
     ],
   },
   {
@@ -716,18 +718,54 @@ function AgentSubscriptionStep({
   platformLabel: string;
   onDone: () => void;
 }) {
+  const isTelegram = platform === "telegram" || platform.startsWith("telegram:");
   const [agents, setAgents] = useState<Agent[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [mentionOnly, setMentionOnly] = useState<Set<string>>(new Set());
+  const [channels, setChannels] = useState<string[]>([]);
+  const [selectedChannels, setSelectedChannels] = useState<Set<string>>(new Set());
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [refreshingChannels, setRefreshingChannels] = useState(false);
+
+  const loadChannels = async () => {
+    try {
+      const gws = await api.listGateways();
+      const gw = (gws ?? []).find((g) => g.platform === platform);
+      const discovered = (gw?.channels ?? []).filter(
+        (ch) => ch && !ch.endsWith(":general"),
+      );
+      setChannels(discovered);
+      setSelectedChannels((prev) => {
+        if (prev.size > 0) {
+          // Keep prior picks that still exist; auto-select new ones.
+          const next = new Set([...prev].filter((c) => discovered.includes(c)));
+          for (const c of discovered) next.add(c);
+          return next;
+        }
+        return new Set(discovered);
+      });
+    } catch {
+      setChannels([]);
+    }
+  };
 
   useEffect(() => {
-    api.listAgents().then((list) => {
-      setAgents(list ?? []);
-      setLoading(false);
-    }).catch(() => setLoading(false));
-  }, []);
+    let cancelled = false;
+    (async () => {
+      try {
+        const list = await api.listAgents();
+        if (!cancelled) setAgents(list ?? []);
+      } catch {
+        if (!cancelled) setAgents([]);
+      }
+      if (isTelegram) {
+        await loadChannels();
+      }
+      if (!cancelled) setLoading(false);
+    })();
+    return () => { cancelled = true; };
+  }, [platform, isTelegram]);
 
   const toggleAgent = (name: string) => {
     setSelected((prev) => {
@@ -750,15 +788,39 @@ function AgentSubscriptionStep({
     });
   };
 
+  const toggleChannel = (channel: string) => {
+    setSelectedChannels((prev) => {
+      const next = new Set(prev);
+      if (next.has(channel)) next.delete(channel); else next.add(channel);
+      return next;
+    });
+  };
+
+  const handleRefreshChannels = async () => {
+    setRefreshingChannels(true);
+    await loadChannels();
+    setRefreshingChannels(false);
+  };
+
   const handleDone = async () => {
     setSaving(true);
     try {
-      const channel = `${platform}:general`;
-      await Promise.all(
-        [...selected].map((agent) =>
-          api.subscribe(channel, agent, mentionOnly.has(agent)).catch(() => {}),
-        ),
-      );
+      // Telegram: only subscribe to real discovered channels. Never invent
+      // telegram:general — DMs arrive as telegram:<username|chat_id>.
+      // Other platforms keep the historical platform:general default for now.
+      const targets = isTelegram
+        ? [...selectedChannels]
+        : [`${platform}:general`];
+
+      if (targets.length > 0 && selected.size > 0) {
+        await Promise.all(
+          targets.flatMap((channel) =>
+            [...selected].map((agent) =>
+              api.subscribe(channel, agent, mentionOnly.has(agent)).catch(() => {}),
+            ),
+          ),
+        );
+      }
     } catch { /* best effort */ }
     setSaving(false);
     onDone();
@@ -770,6 +832,11 @@ function AgentSubscriptionStep({
     return "var(--mycel-muted)";
   };
 
+  const channelLeaf = (ch: string) => {
+    const i = ch.lastIndexOf(":");
+    return i >= 0 ? ch.slice(i + 1) : ch;
+  };
+
   return (
     <div>
       <div className="p-4 border-b border-mycel-border">
@@ -777,56 +844,112 @@ function AgentSubscriptionStep({
           <span className="text-[10px] font-semibold text-mycel-accent bg-mycel-accent-subtle px-2 py-0.5 rounded-full uppercase tracking-wider">Step 2</span>
         </div>
         <h3 className="text-base font-semibold text-mycel-text">Add agents to {platformLabel}</h3>
-        <p className="text-xs text-mycel-muted mt-1">Select which agents should receive notifications from this platform.</p>
+        <p className="text-xs text-mycel-muted mt-1">
+          {isTelegram
+            ? "Select agents and the Telegram chats that should deliver to them."
+            : "Select which agents should receive notifications from this platform."}
+        </p>
       </div>
 
-      <div className="p-4 max-h-[300px] overflow-auto">
+      <div className="p-4 max-h-[340px] overflow-auto space-y-4">
+        {isTelegram && (
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-mycel-muted">Channels</span>
+              <button
+                type="button"
+                onClick={handleRefreshChannels}
+                disabled={refreshingChannels}
+                className="text-[11px] text-mycel-accent hover:underline disabled:opacity-50"
+              >
+                {refreshingChannels ? "Refreshing…" : "Refresh"}
+              </button>
+            </div>
+            {channels.length === 0 ? (
+              <div className="text-xs text-mycel-muted bg-mycel-surface-hover border border-mycel-border rounded-md px-3 py-2">
+                No Telegram chats discovered yet. Message the bot in a DM (or a group),
+                then click Refresh. Agents subscribed to a fake <code className="text-mycel-text-2">telegram:general</code> channel
+                never receive real traffic — first message also auto-migrates legacy
+                <code className="text-mycel-text-2"> :general</code> subscriptions.
+              </div>
+            ) : (
+              <div className="space-y-1">
+                {channels.map((ch) => (
+                  <label
+                    key={ch}
+                    className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-mycel-surface-hover cursor-pointer transition-colors"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedChannels.has(ch)}
+                      onChange={() => toggleChannel(ch)}
+                      className="shrink-0 accent-[var(--mycel-accent)]"
+                    />
+                    <span className="text-sm text-mycel-text flex-1 min-w-0 truncate" title={ch}>
+                      {channelLeaf(ch)}
+                    </span>
+                    <span className="text-[10px] text-mycel-muted font-mono truncate max-w-[40%]">{ch}</span>
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         {loading ? (
           <div className="text-center py-6 text-mycel-muted text-xs">Loading agents...</div>
         ) : agents.length === 0 ? (
           <div className="text-center py-6 text-mycel-muted text-xs">No agents found</div>
         ) : (
-          <div className="space-y-1">
-            {agents.filter((a) => !a.archived_at).map((agent) => (
-              <label
-                key={agent.name}
-                className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-mycel-surface-hover cursor-pointer transition-colors"
-              >
-                <input
-                  type="checkbox"
-                  checked={selected.has(agent.name)}
-                  onChange={() => toggleAgent(agent.name)}
-                  className="shrink-0 accent-[var(--mycel-accent)]"
-                />
-                <span
-                  className="shrink-0 w-2 h-2 rounded-full"
-                  style={{ backgroundColor: stateColor(agent.state) }}
-                  title={agent.state}
-                />
-                <span className="text-sm text-mycel-text flex-1 min-w-0 truncate">{agent.name}</span>
-                {selected.has(agent.name) && (
-                  <button
-                    type="button"
-                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); toggleMention(agent.name); }}
-                    className="shrink-0 text-[10px] px-2 py-0.5 rounded-full border transition-colors"
-                    style={{
-                      borderColor: mentionOnly.has(agent.name) ? "color-mix(in oklab, var(--mycel-accent) 40%, transparent)" : "var(--mycel-border)",
-                      color: mentionOnly.has(agent.name) ? "var(--mycel-accent)" : "var(--mycel-muted)",
-                      background: mentionOnly.has(agent.name) ? "var(--mycel-accent-subtle)" : "transparent",
-                    }}
-                    title={mentionOnly.has(agent.name) ? "Mention only: ON" : "Mention only: OFF"}
-                  >
-                    @mention only
-                  </button>
-                )}
-              </label>
-            ))}
+          <div>
+            {isTelegram && (
+              <div className="text-[11px] font-semibold uppercase tracking-wider text-mycel-muted mb-2">Agents</div>
+            )}
+            <div className="space-y-1">
+              {agents.filter((a) => !a.archived_at).map((agent) => (
+                <label
+                  key={agent.name}
+                  className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-mycel-surface-hover cursor-pointer transition-colors"
+                >
+                  <input
+                    type="checkbox"
+                    checked={selected.has(agent.name)}
+                    onChange={() => toggleAgent(agent.name)}
+                    className="shrink-0 accent-[var(--mycel-accent)]"
+                  />
+                  <span
+                    className="shrink-0 w-2 h-2 rounded-full"
+                    style={{ backgroundColor: stateColor(agent.state) }}
+                    title={agent.state}
+                  />
+                  <span className="text-sm text-mycel-text flex-1 min-w-0 truncate">{agent.name}</span>
+                  {selected.has(agent.name) && (
+                    <button
+                      type="button"
+                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); toggleMention(agent.name); }}
+                      className="shrink-0 text-[10px] px-2 py-0.5 rounded-full border transition-colors"
+                      style={{
+                        borderColor: mentionOnly.has(agent.name) ? "color-mix(in oklab, var(--mycel-accent) 40%, transparent)" : "var(--mycel-border)",
+                        color: mentionOnly.has(agent.name) ? "var(--mycel-accent)" : "var(--mycel-muted)",
+                        background: mentionOnly.has(agent.name) ? "var(--mycel-accent-subtle)" : "transparent",
+                      }}
+                      title={mentionOnly.has(agent.name) ? "Mention only: ON" : "Mention only: OFF"}
+                    >
+                      @mention only
+                    </button>
+                  )}
+                </label>
+              ))}
+            </div>
           </div>
         )}
       </div>
 
       <div className="flex justify-between items-center gap-2 p-4 border-t border-mycel-border">
-        <span className="text-xs text-mycel-text-2">{selected.size} agent{selected.size !== 1 ? "s" : ""} selected</span>
+        <span className="text-xs text-mycel-text-2">
+          {selected.size} agent{selected.size !== 1 ? "s" : ""}
+          {isTelegram ? ` · ${selectedChannels.size} channel${selectedChannels.size !== 1 ? "s" : ""}` : ""} selected
+        </span>
         <button
           type="button"
           onClick={handleDone}
