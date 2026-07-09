@@ -375,3 +375,71 @@ func TestRefreshChannelMeta(t *testing.T) {
 		t.Fatalf("alice meta not refreshed: %+v", ch)
 	}
 }
+
+// blockingAdapter Start blocks until ctx is cancelled — models a real poll loop.
+type blockingAdapter struct {
+	mockNotifAdapter
+	started chan struct{}
+}
+
+func (b *blockingAdapter) Start(ctx context.Context, _ func(Notification)) error {
+	close(b.started)
+	<-ctx.Done()
+	return nil
+}
+
+func TestStartAdapterHotStart(t *testing.T) {
+	m := NewManager()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	m.SetStartContext(ctx)
+
+	// Boot with zero adapters (the empty-manager path).
+	done := make(chan struct{})
+	go func() {
+		_ = m.Start(ctx)
+		close(done)
+	}()
+
+	// Give Start a moment to park on ctx.Done.
+	time.Sleep(20 * time.Millisecond)
+
+	started := make(chan struct{})
+	adapter := &blockingAdapter{
+		mockNotifAdapter: mockNotifAdapter{name: "telegram"},
+		started:          started,
+	}
+	if err := m.StartAdapter(adapter); err != nil {
+		t.Fatalf("StartAdapter: %v", err)
+	}
+
+	select {
+	case <-started:
+	case <-time.After(2 * time.Second):
+		t.Fatal("adapter Start was not invoked")
+	}
+
+	if got := m.GetAdapter("telegram"); got == nil {
+		t.Fatal("expected telegram adapter registered")
+	}
+
+	// Idempotent: second StartAdapter must not error.
+	if err := m.StartAdapter(adapter); err != nil {
+		t.Fatalf("second StartAdapter: %v", err)
+	}
+
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("Manager.Start did not return after cancel")
+	}
+}
+
+func TestStartAdapterRequiresContext(t *testing.T) {
+	m := NewManager()
+	err := m.StartAdapter(&mockNotifAdapter{name: "telegram"})
+	if err == nil {
+		t.Fatal("expected error when manager has no start context")
+	}
+}

@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/rpuneet/mycel/pkg/gateway"
+	bctelegram "github.com/rpuneet/mycel/pkg/gateway/telegram"
 	bcwhatsapp "github.com/rpuneet/mycel/pkg/gateway/whatsapp"
 	"github.com/rpuneet/mycel/pkg/log"
 	"github.com/rpuneet/mycel/pkg/notify"
@@ -474,6 +475,11 @@ func (h *GatewayHandler) updatePlatform(w http.ResponseWriter, r *http.Request, 
 			httpError(w, "invalid telegram config: "+err.Error(), http.StatusBadRequest)
 			return
 		}
+		// Keep Telegrams map in sync — buildGatewayManager / hot-start iterate it.
+		if cfg.Gateways.Telegrams == nil {
+			cfg.Gateways.Telegrams = make(map[string]*workspace.TelegramGatewayConfig)
+		}
+		cfg.Gateways.Telegrams[""] = cfg.Gateways.Telegram
 	case strings.HasPrefix(platform, "telegram:"):
 		label := strings.TrimPrefix(platform, "telegram:")
 		if cfg.Gateways.Telegrams == nil {
@@ -523,11 +529,19 @@ func (h *GatewayHandler) updatePlatform(w http.ResponseWriter, r *http.Request, 
 		if cfg.Gateways.Telegram != nil {
 			h.writeVaultSecret("TELEGRAM_BOT_TOKEN", cfg.Gateways.Telegram.BotToken)
 		}
+		if err := h.ensureTelegramAdapter(""); err != nil {
+			log.Warn("gateway: failed to hot-start telegram adapter", "error", err)
+			// Config is saved; surface a soft warning rather than failing the
+			// PATCH — operator can still restart if start fails (bad token etc).
+		}
 	case strings.HasPrefix(platform, "telegram:"):
 		label := strings.TrimPrefix(platform, "telegram:")
 		if tc := cfg.Gateways.Telegrams[label]; tc != nil {
 			key := "TELEGRAM_BOT_TOKEN_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
 			h.writeVaultSecret(key, tc.BotToken)
+		}
+		if err := h.ensureTelegramAdapter(label); err != nil {
+			log.Warn("gateway: failed to hot-start telegram adapter", "label", label, "error", err)
 		}
 	case platform == "discord":
 		if cfg.Gateways.Discord != nil {
@@ -541,6 +555,50 @@ func (h *GatewayHandler) updatePlatform(w http.ResponseWriter, r *http.Request, 
 	}
 
 	writeJSON(w, http.StatusOK, map[string]string{"status": "updated", "platform": platform})
+}
+
+// ensureTelegramAdapter registers and starts a Telegram long-poll adapter
+// when credentials are saved while the daemon is already running.
+// label "" is the default bot (adapter name "telegram").
+func (h *GatewayHandler) ensureTelegramAdapter(label string) error {
+	if h.gw == nil {
+		return nil // no manager (should not happen after always-on manager)
+	}
+	if h.ws == nil || h.ws.Config == nil {
+		return nil
+	}
+
+	var tc *workspace.TelegramGatewayConfig
+	if label == "" {
+		tc = h.ws.Config.Gateways.Telegram
+		if tc == nil && h.ws.Config.Gateways.Telegrams != nil {
+			tc = h.ws.Config.Gateways.Telegrams[""]
+		}
+	} else if h.ws.Config.Gateways.Telegrams != nil {
+		tc = h.ws.Config.Gateways.Telegrams[label]
+	}
+	if tc == nil || !tc.Enabled || tc.BotToken == "" {
+		return nil
+	}
+
+	adapterName := "telegram"
+	if label != "" {
+		adapterName = "telegram:" + label
+	}
+	// Already registered and (hopefully) running — StartAdapter is idempotent.
+	if existing := h.gw.GetAdapter(adapterName); existing != nil {
+		return h.gw.StartAdapter(existing)
+	}
+
+	adapter := bctelegram.NewNamed(adapterName, tc.BotToken, tc.Mode)
+	if err := adapter.DiscoverViaUpdate(); err != nil {
+		log.Warn("telegram: discovery failed during hot-start", "adapter", adapterName, "error", err)
+	}
+	if err := h.gw.StartAdapter(adapter); err != nil {
+		return err
+	}
+	log.Info("gateway: telegram adapter registered", "name", adapterName)
+	return nil
 }
 
 // legacyChannelList returns gateway channels in the old Channel format
