@@ -376,11 +376,11 @@ func TestRefreshChannelMeta(t *testing.T) {
 	}
 }
 
-// blockingAdapter Start blocks until ctx is cancelled or Stop is called.
+// blockingAdapter Start blocks until ctx is canceled or Stop is called.
 type blockingAdapter struct {
-	mockNotifAdapter
 	started chan struct{}
 	stop    chan struct{}
+	mockNotifAdapter
 }
 
 func (b *blockingAdapter) Start(ctx context.Context, _ func(Notification)) error {
