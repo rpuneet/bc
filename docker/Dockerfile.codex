@@ -8,7 +8,11 @@ RUN bun install -g @openai/codex
 FROM mycel-agent-base:latest
 USER root
 COPY --from=builder /root/.bun/install/global/node_modules /usr/local/lib/node_modules
-RUN for f in /usr/local/lib/node_modules/.bin/*; do ln -sf "$f" /usr/local/bin/ 2>/dev/null || true; done
+# bun links top-level global bins into ~/.bun/bin (not node_modules/.bin),
+# so the package's declared bin must be linked explicitly.
+RUN ln -sf /usr/local/lib/node_modules/@openai/codex/bin/codex.js /usr/local/bin/codex \
+    && chmod +x /usr/local/lib/node_modules/@openai/codex/bin/codex.js \
+    && for f in /usr/local/lib/node_modules/.bin/*; do ln -sf "$f" /usr/local/bin/ 2>/dev/null || true; done
 USER agent
 WORKDIR /workspace
 ENTRYPOINT ["bash", "-c"]
