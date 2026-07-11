@@ -429,3 +429,76 @@ func TestDrainDispatches(t *testing.T) {
 		t.Fatal("DrainDispatches timed out after the dispatch was released")
 	}
 }
+
+func TestMigratePlaceholderSubsOnDispatch(t *testing.T) {
+	store := setupTestStore(t)
+	sender := &mockSender{}
+	svc := NewService(store, sender, &mockHub{})
+	ctx := context.Background()
+
+	// Legacy wizard subscription on telegram:general only.
+	if err := store.Subscribe(ctx, "telegram:general", "mdrndr-manager", false); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Subscribe(ctx, "telegram:general", "mdrndr-tui", false); err != nil {
+		t.Fatal(err)
+	}
+
+	svc.Dispatch("telegram:ab010300", "telegram", "[telegram] Agni", "", "ping", "", nil, nil, nil)
+
+	if !svc.DrainDispatches(2 * time.Second) {
+		t.Fatal("dispatch did not finish")
+	}
+
+	subs, err := store.Subscribers(ctx, "telegram:ab010300")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(subs) != 2 {
+		t.Fatalf("expected 2 migrated subscribers, got %d", len(subs))
+	}
+	// Placeholder remains (copy, not rewrite).
+	legacy, err := store.Subscribers(ctx, "telegram:general")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(legacy) != 2 {
+		t.Fatalf("expected placeholder to remain, got %d", len(legacy))
+	}
+
+	calls := sender.getCalls()
+	if len(calls) != 2 {
+		t.Fatalf("expected 2 deliveries, got %d: %+v", len(calls), calls)
+	}
+}
+
+func TestMigratePlaceholderSubsNoOpWhenRealHasSubs(t *testing.T) {
+	store := setupTestStore(t)
+	sender := &mockSender{}
+	svc := NewService(store, sender, &mockHub{})
+	ctx := context.Background()
+
+	if err := store.Subscribe(ctx, "telegram:general", "legacy-agent", false); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Subscribe(ctx, "telegram:ab010300", "real-agent", false); err != nil {
+		t.Fatal(err)
+	}
+
+	svc.Dispatch("telegram:ab010300", "telegram", "user", "", "hi", "", nil, nil, nil)
+	if !svc.DrainDispatches(2 * time.Second) {
+		t.Fatal("dispatch timeout")
+	}
+
+	subs, err := store.Subscribers(ctx, "telegram:ab010300")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(subs) != 1 || subs[0].Agent != "real-agent" {
+		t.Fatalf("expected only real-agent, got %+v", subs)
+	}
+	calls := sender.getCalls()
+	if len(calls) != 1 || calls[0].Name != "real-agent" {
+		t.Fatalf("expected delivery only to real-agent, got %+v", calls)
+	}
+}

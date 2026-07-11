@@ -565,15 +565,47 @@ func buildGatewayManager(ctx context.Context, ws *bcworkspace.Workspace, notifyS
 		}
 	}
 
-	if tgCount == 0 && !dcEnabled && !slEnabled && ghCount == 0 && whCount == 0 && rssCount == 0 &&
-		notionCount == 0 && waCount == 0 && matrixCount == 0 &&
-		mmCount == 0 && ircCount == 0 && mqttCount == 0 && twitterCount == 0 && redditCount == 0 {
-		return nil
+	// Count enabled Signal poll adapters.
+	var signalCount int
+	for _, c := range gw.Signals {
+		if c.Enabled && c.APIURL != "" {
+			signalCount++
+		}
 	}
 
+	// Count enabled iMessage poll adapters.
+	var imessageCount int
+	for _, c := range gw.IMessages {
+		if c.Enabled && c.APIURL != "" {
+			imessageCount++
+		}
+	}
+
+	// Always construct a manager (even with zero adapters) so:
+	//  1. health endpoints never return "gateway manager not available" solely
+	//     because nothing was configured at boot, and
+	//  2. PATCH /api/gateways/{platform} can hot-start adapters without a
+	//     daemon restart (see GatewayHandler.ensureTelegramAdapter).
 	m := bcgateway.NewManager()
+	m.SetStartContext(ctx)
 	if notifyService != nil {
 		m.SetChannelStore(&channelPersister{store: notifyService.Store()})
+	}
+
+	if tgCount == 0 && !dcEnabled && !slEnabled && ghCount == 0 && whCount == 0 && rssCount == 0 &&
+		notionCount == 0 && waCount == 0 && matrixCount == 0 &&
+		mmCount == 0 && ircCount == 0 && mqttCount == 0 && twitterCount == 0 && redditCount == 0 &&
+		signalCount == 0 && imessageCount == 0 {
+		// Empty manager still needs Start so StartAdapter can share the
+		// process lifetime context.
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if err := m.Start(ctx); err != nil && ctx.Err() == nil {
+				log.Error("gateway manager stopped", "error", err)
+			}
+		}()
+		return m
 	}
 
 	// Register Telegram adapters. Label "" → adapter name "telegram",

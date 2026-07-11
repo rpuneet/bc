@@ -55,6 +55,12 @@ type reactionSender interface {
 type Manager struct {
 	// adapters holds all registered NotificationAdapter instances.
 	adapters map[string]NotificationAdapter
+	// running tracks adapters whose Start loop is already live so hot-start
+	// does not spawn a second poll/socket for the same name.
+	running map[string]bool
+	// startCtx is the context passed to Start; used by StartAdapter to bind
+	// late-registered adapters to the same lifetime.
+	startCtx context.Context
 	// channelMap maps "telegram:<group_name>" → channelRoute
 	channelMap map[string]channelRoute
 	// onInbound is called when a message arrives from an external platform.
@@ -64,6 +70,9 @@ type Manager struct {
 	onInbound    func(bcChannel, sender, senderID, content, messageID string, mentions []string, raw json.RawMessage)
 	channelStore ChannelStore
 	mu           sync.RWMutex
+	// adapterWG tracks boot-time and hot-started adapter goroutines so Stop/
+	// Start can wait for clean shutdown of both.
+	adapterWG sync.WaitGroup
 }
 
 type channelRoute struct {
@@ -76,7 +85,20 @@ type channelRoute struct {
 func NewManager() *Manager {
 	return &Manager{
 		adapters:   make(map[string]NotificationAdapter),
+		running:    make(map[string]bool),
 		channelMap: make(map[string]channelRoute),
+	}
+}
+
+// SetStartContext stores the process lifetime context used by StartAdapter
+// before Start's goroutine runs. Without this, a PATCH that hot-starts an
+// adapter can race Start and see a nil context.
+func (m *Manager) SetStartContext(ctx context.Context) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.startCtx = ctx
+	if m.running == nil {
+		m.running = make(map[string]bool)
 	}
 }
 
@@ -102,13 +124,19 @@ func (m *Manager) Register(adapter NotificationAdapter) {
 }
 
 // Start discovers channels from all adapters and begins receiving messages.
+// It is safe to call with zero adapters; later StartAdapter calls share this
+// context and wire into the same inbound pipeline.
 func (m *Manager) Start(ctx context.Context) error {
-	m.mu.RLock()
+	m.mu.Lock()
+	m.startCtx = ctx
+	if m.running == nil {
+		m.running = make(map[string]bool)
+	}
 	adapterList := make([]NotificationAdapter, 0, len(m.adapters))
 	for _, a := range m.adapters {
 		adapterList = append(adapterList, a)
 	}
-	m.mu.RUnlock()
+	m.mu.Unlock()
 
 	// Restore persisted channel mappings so Send works immediately after restart.
 	m.restorePersistedChannels(ctx)
@@ -119,11 +147,14 @@ func (m *Manager) Start(ctx context.Context) error {
 	}
 
 	// Start all adapters in goroutines
-	var wg sync.WaitGroup
 	for _, a := range adapterList {
-		wg.Add(1)
+		if !m.markRunning(a.Name()) {
+			continue // already started (e.g. via StartAdapter race)
+		}
+		m.adapterWG.Add(1)
 		go func(adapter NotificationAdapter) {
-			defer wg.Done()
+			defer m.adapterWG.Done()
+			defer m.clearRunning(adapter.Name())
 			platformName := adapter.Name()
 			handler := func(n Notification) {
 				m.handleNotification(platformName, n)
@@ -138,8 +169,117 @@ func (m *Manager) Start(ctx context.Context) error {
 	go m.lateDiscovery(ctx)
 
 	<-ctx.Done()
-	wg.Wait()
+	m.adapterWG.Wait()
 	return nil
+}
+
+// StartAdapter registers and starts an adapter after Manager.Start is running.
+// Used when a platform is connected via the API while the daemon is already up
+// (previously required a full restart because buildGatewayManager returned nil
+// with no adapters at boot, and PATCH only persisted config).
+//
+// If an adapter with the same name is already running, this is a no-op and
+// returns nil. Callers that need to swap credentials should StopAdapter the
+// old one first, then StartAdapter with a new instance.
+func (m *Manager) StartAdapter(adapter NotificationAdapter) error {
+	if adapter == nil {
+		return fmt.Errorf("gateway: nil adapter")
+	}
+	name := adapter.Name()
+	if name == "" {
+		return fmt.Errorf("gateway: adapter has empty name")
+	}
+
+	m.mu.RLock()
+	ctx := m.startCtx
+	already := m.running[name]
+	m.mu.RUnlock()
+	if ctx == nil {
+		return fmt.Errorf("gateway: manager not started")
+	}
+	// Refuse hot-starts once the manager lifetime context is canceled so we
+	// never adapterWG.Add after Start has begun waiting on shutdown.
+	if ctx.Err() != nil {
+		return fmt.Errorf("gateway: manager shutting down")
+	}
+	if already {
+		log.Info("gateway: adapter already running", "name", name)
+		return nil
+	}
+
+	m.Register(adapter)
+	m.discoverChannels(adapter)
+
+	if !m.markRunning(name) {
+		return nil
+	}
+	// Re-check after markRunning: shutdown may have begun while we held no lock.
+	if ctx.Err() != nil {
+		m.clearRunning(name)
+		return fmt.Errorf("gateway: manager shutting down")
+	}
+	m.adapterWG.Add(1)
+	go func() {
+		defer m.adapterWG.Done()
+		defer m.clearRunning(name)
+		handler := func(n Notification) {
+			m.handleNotification(name, n)
+		}
+		if err := adapter.Start(ctx, handler); err != nil && ctx.Err() == nil {
+			log.Error("gateway: adapter stopped with error", "adapter", name, "error", err)
+		}
+	}()
+	log.Info("gateway: hot-started adapter", "name", name)
+	return nil
+}
+
+// StopAdapter stops a single registered adapter and removes it from the
+// registry so a subsequent StartAdapter can install a replacement (e.g. after
+// bot token rotation). It blocks briefly until the Start loop clears the
+// running flag.
+func (m *Manager) StopAdapter(name string) error {
+	m.mu.Lock()
+	a, ok := m.adapters[name]
+	if ok {
+		delete(m.adapters, name)
+	}
+	m.mu.Unlock()
+	if !ok {
+		return nil
+	}
+	err := a.Stop()
+	// Wait for the Start/StartAdapter goroutine to observe Stop and clearRunning.
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		m.mu.RLock()
+		running := m.running[name]
+		m.mu.RUnlock()
+		if !running {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	return err
+}
+
+// markRunning records that name is starting. Returns false if already running.
+func (m *Manager) markRunning(name string) bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.running == nil {
+		m.running = make(map[string]bool)
+	}
+	if m.running[name] {
+		return false
+	}
+	m.running[name] = true
+	return true
+}
+
+func (m *Manager) clearRunning(name string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	delete(m.running, name)
 }
 
 // restorePersistedChannels loads saved channel mappings from the store.
