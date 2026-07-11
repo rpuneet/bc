@@ -155,6 +155,7 @@ func init() {
 	DefaultRegistry.Register(NewAgyProvider())
 	DefaultRegistry.Register(NewCursorProvider())
 	DefaultRegistry.Register(NewPiProvider())
+	DefaultRegistry.Register(NewOpenclawProvider())
 }
 
 // checkBinaryExists checks if a binary exists in PATH.

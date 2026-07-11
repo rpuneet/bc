@@ -58,7 +58,7 @@ GO ?= go
 REGISTRY ?= mycel
 LEGACY_REGISTRY ?= bc
 IMAGE_TAG ?= latest
-AGENT_PROVIDERS := claude gemini codex cursor
+AGENT_PROVIDERS := claude gemini codex cursor openclaw
 
 LDFLAGS_VERSION = -X main.version=$(VERSION) -X main.commit=$(COMMIT) -X main.date=$(DATE)
 LDFLAGS_RELEASE = -s -w $(LDFLAGS_VERSION)

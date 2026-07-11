@@ -15,6 +15,7 @@ var expectedProviders = []string{
 	"claude",
 	"codex",
 	"cursor",
+	"openclaw",
 	"pi",
 }
 
@@ -55,11 +56,12 @@ func TestProviderConfigRoundtrip(t *testing.T) {
 	cfg := workspace.Config{
 		Providers: workspace.ProvidersConfig{
 			Providers: map[string]workspace.ProviderConfig{
-				"claude": {Command: "claude --dangerously-skip-permissions"},
-				"agy":    {Command: "agy --dangerously-skip-permissions"},
-				"cursor": {Command: "cursor --force"},
-				"codex":  {Command: "codex --auto"},
-				"pi":     {Command: "pi"},
+				"claude":   {Command: "claude --dangerously-skip-permissions"},
+				"agy":      {Command: "agy --dangerously-skip-permissions"},
+				"cursor":   {Command: "cursor --force"},
+				"codex":    {Command: "codex --auto"},
+				"pi":       {Command: "pi"},
+				"openclaw": {Command: "openclaw tui --local"},
 			},
 		},
 	}
