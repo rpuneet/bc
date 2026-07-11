@@ -99,7 +99,7 @@ AI coding assistants in isolated sessions. Each agent has:
 - a **git worktree** — created and managed by mycel under `~/.mycel/workspaces/<id>/agents/<name>/`
 - a **runtime** — a tmux session (`mycel-<hash>-<name>`) or a Docker container
 - a **role and template** — prompt, MCP servers, and secrets
-- a **provider** — claude, codex, gemini, cursor, or pi
+- a **provider** — claude, codex, gemini, cursor, pi, or openclaw
 
 You control the lifecycle from the agent header in the web UI (Start / Stop / Restart) or with `mycel agent start|stop`. See [Agents](explanation/agents.md).
 

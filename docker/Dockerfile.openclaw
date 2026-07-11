@@ -1,17 +1,22 @@
-# OpenAI Codex agent image
+# OpenClaw agent image
 # Requires: mycel-agent-base:latest
 # Base images pinned — update versions in Dependabot PRs or manually.
+#
+# OpenClaw is an npm-published CLI (package `openclaw`, bin `openclaw`).
+# Installed the same way as codex: a bun builder stage installs the global
+# package, then the resolved node_modules are copied into the shared base
+# image and the bin symlinks are exposed on PATH.
 
 FROM oven/bun:1.2 AS builder
-RUN bun install -g @openai/codex
+RUN bun install -g openclaw
 
 FROM mycel-agent-base:latest
 USER root
 COPY --from=builder /root/.bun/install/global/node_modules /usr/local/lib/node_modules
 # bun links top-level global bins into ~/.bun/bin (not node_modules/.bin),
 # so the package's declared bin must be linked explicitly.
-RUN ln -sf /usr/local/lib/node_modules/@openai/codex/bin/codex.js /usr/local/bin/codex \
-    && chmod +x /usr/local/lib/node_modules/@openai/codex/bin/codex.js \
+RUN ln -sf /usr/local/lib/node_modules/openclaw/openclaw.mjs /usr/local/bin/openclaw \
+    && chmod +x /usr/local/lib/node_modules/openclaw/openclaw.mjs \
     && for f in /usr/local/lib/node_modules/.bin/*; do ln -sf "$f" /usr/local/bin/ 2>/dev/null || true; done
 USER agent
 WORKDIR /workspace

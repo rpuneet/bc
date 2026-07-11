@@ -54,7 +54,7 @@ func TestRegistryList(t *testing.T) {
 func TestDefaultRegistryHasProviders(t *testing.T) {
 	// The default registry holds exactly the built-in providers — nothing
 	// more, nothing less. Names() is sorted, so compare directly.
-	want := []string{"agy", "claude", "codex", "cursor", "pi"}
+	want := []string{"agy", "claude", "codex", "cursor", "openclaw", "pi"}
 	got := DefaultRegistry.Names()
 	if len(got) != len(want) {
 		t.Fatalf("expected providers %v, got %v", want, got)
