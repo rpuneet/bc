@@ -135,6 +135,7 @@ build-local-tui: ## Build TUI
 
 build-local-web: ## Build web UI → server/web/dist/
 	cd web && bun install && bun run build
+	@mkdir -p server/web
 	@rm -rf server/web/dist
 	@cp -r web/dist server/web/dist
 
