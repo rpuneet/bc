@@ -1583,7 +1583,7 @@ export default function DocsContent({
             <div className="mb-5 flex items-center gap-2">
               <SporeLogo size={24} />
               <span className="font-headline text-sm font-bold tracking-tight text-foreground">mycel</span>
-              <span className="ml-auto rounded-full border border-border bg-muted px-2 py-0.5 font-mono text-[10px] text-muted-foreground">v0.3.12</span>
+              <span className="ml-auto rounded-full border border-border bg-muted px-2 py-0.5 font-mono text-[10px] text-muted-foreground">v0.3.13</span>
             </div>
             {/* Search */}
             <div className="relative mb-5 group/search">

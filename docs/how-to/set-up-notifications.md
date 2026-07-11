@@ -6,6 +6,19 @@ This guide walks through connecting external platforms to mycel and routing noti
 
 mycel routes inbound events from external platforms (Slack, Telegram, GitHub, and others) to subscribed agents. Agents receive notifications as JSON payloads in their tmux or Docker sessions and respond using platform APIs directly.
 
+## Connect from the Web UI
+
+The fastest path is the setup wizard in the web UI at `http://localhost:9374`. Pick a platform from the connect grid and a two-step modal walks you through it:
+
+1. **Credentials** — enter the platform's tokens (for example a Slack bot token and app token). The tokens are saved to your encrypted vault as secrets and wired into the gateway; nothing is written in plain text.
+2. **Add agents** — choose which agents subscribe to the platform's channels, optionally with mention-only filtering per agent.
+
+Slack, Telegram, Discord, and WhatsApp connect this way, alongside additional platforms such as Matrix, Mattermost, IRC, RSS, and MQTT.
+
+### WhatsApp pairs by QR code
+
+WhatsApp needs no token. Click **Connect** and the wizard generates a QR code; scan it from **WhatsApp → Linked Devices** on your phone. The wizard polls for the pairing to complete and the session persists across restarts, so you scan once. Everything below can also be driven from the CLI and API if you prefer.
+
 ## 1. Add a Notification Source
 
 ### Slack
