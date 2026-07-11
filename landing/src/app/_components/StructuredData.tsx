@@ -6,7 +6,7 @@ export function OrganizationSchema() {
     name: "mycel",
     url: SITE_URL,
     description:
-      "Orchestrate AI agents from your terminal. Isolated worktrees, shared channels, cost controls.",
+      "A CLI-first system to orchestrate teams of AI coding agents in parallel, each in its own git worktree and runtime.",
     sameAs: [
       "https://github.com/rpuneet",
       "https://twitter.com/mycel_dev",
@@ -72,7 +72,7 @@ export function ProductSchema() {
     applicationCategory: "DeveloperApplication",
     url: SITE_URL,
     description:
-      "Multi-agent orchestration system for AI coding agents with persistent memory, zero conflicts, and cost-aware scaling.",
+      "Orchestrate teams of AI coding agents from the terminal: parallel agents in isolated worktrees, live models from source, a skills and MCP marketplace, encrypted secrets, cross-channel notifications, and per-agent cost tracking.",
     operatingSystem: "Any",
   };
 

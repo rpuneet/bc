@@ -1,18 +1,22 @@
 "use client";
 
-import { useState, useSyncExternalStore, useRef } from "react";
+import { useState, useSyncExternalStore, useRef, type ReactNode } from "react";
 import Link from "next/link";
-import Image from "next/image";
 import { motion, useInView } from "framer-motion";
-import { Copy, Check, ExternalLink, ArrowRight } from "lucide-react";
+import { Copy, Check, ArrowRight, Github } from "lucide-react";
 import { Nav } from "./_components/Nav";
 import { Footer } from "./_components/Footer";
 import { InstallSection } from "./_components/InstallSection";
-import { TerminalWindow } from "./_components/TerminalComponents";
+import {
+  TerminalWindow,
+  StatusTable,
+  ChannelView,
+  CostTable,
+} from "./_components/TerminalComponents";
 import { RevealSection, FadeUp } from "./_components/Motion";
 import { AnimatedBackground } from "./_components/AnimatedBackground";
 
-/* ── Install commands by platform ── */
+/* ── Install commands by platform (hero) ── */
 const installCommands = {
   macOS: "curl -fsSL https://raw.githubusercontent.com/rpuneet/mycel/main/scripts/install.sh | bash",
   Linux: "curl -fsSL https://raw.githubusercontent.com/rpuneet/mycel/main/scripts/install.sh | bash",
@@ -40,9 +44,13 @@ function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = async () => {
-    await navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // clipboard unavailable — no-op
+    }
   };
 
   return (
@@ -52,177 +60,181 @@ function CopyButton({ text }: { text: string }) {
       className="shrink-0 rounded p-1.5 text-on-surface-variant hover:text-on-surface transition-colors"
       aria-label="Copy to clipboard"
     >
-      {copied ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
+      {copied ? <Check className="h-4 w-4 text-terminal-success" /> : <Copy className="h-4 w-4" />}
     </button>
   );
 }
 
-/* ── Slide-in variants for alternating showcase blocks ── */
-const slideFromLeft = {
-  hidden: { opacity: 0, x: -60 },
-  visible: { opacity: 1, x: 0, transition: { duration: 0.7, ease: "easeOut" as const } },
-};
-const slideFromRight = {
-  hidden: { opacity: 0, x: 60 },
-  visible: { opacity: 1, x: 0, transition: { duration: 0.7, ease: "easeOut" as const } },
-};
-
-/* ── Reusable browser-chrome screenshot frame ── */
-function ScreenshotFrame({
-  src,
-  alt,
-  className = "",
+/* ── A compact code line block for panel artifacts ── */
+function CmdLine({
+  cmd,
+  out,
 }: {
-  src: string;
-  alt: string;
-  className?: string;
+  cmd?: string;
+  out?: { text: string; tone?: "muted" | "ok" | "flare" | "text" };
 }) {
-  return (
-    <div
-      className={`group relative overflow-hidden rounded-xl border border-outline-variant/20 transition-transform duration-500 ease-out hover:scale-[1.01] ${className}`}
-      style={{
-        boxShadow:
-          "0 0 60px rgba(234, 88, 12, 0.06), 0 25px 50px -12px rgba(0, 0, 0, 0.4)",
-      }}
-    >
-      {/* Browser chrome bar */}
-      <div className="flex items-center gap-2 border-b border-outline-variant/20 bg-[var(--terminal-header-bg)] px-4 py-2">
-        <div className="flex gap-1.5" aria-hidden="true">
-          <span className="h-2.5 w-2.5 rounded-full bg-[var(--traffic-red)]" />
-          <span className="h-2.5 w-2.5 rounded-full bg-[var(--traffic-yellow)]" />
-          <span className="h-2.5 w-2.5 rounded-full bg-[var(--traffic-green)]" />
-        </div>
-        <div className="mx-auto rounded-md bg-[rgba(255,255,255,0.04)] px-8 py-1 text-[10px] font-label text-[var(--terminal-muted)] tracking-wide">
-          localhost:9374
-        </div>
-        <div className="w-[52px]" />
+  const toneClass = {
+    muted: "text-terminal-muted",
+    ok: "text-terminal-success",
+    flare: "text-terminal-command",
+    text: "text-terminal-text",
+  } as const;
+  if (cmd) {
+    return (
+      <div>
+        <span className="text-terminal-prompt">$ </span>
+        <span className="text-terminal-text">{cmd}</span>
       </div>
-      <Image
-        src={src}
-        alt={alt}
-        width={1280}
-        height={800}
-        className="w-full h-auto"
-        loading="lazy"
-      />
-    </div>
+    );
+  }
+  return (
+    <div className={toneClass[out?.tone ?? "muted"]}>{out?.text}</div>
   );
 }
 
-/* ── CLI command display ── */
-function CLICommands({ commands }: { commands: string[] }) {
-  return (
-    <div className="mt-8 overflow-hidden rounded-lg border border-outline-variant/20 bg-[var(--terminal-bg)]">
-      <div className="flex items-center gap-2 border-b border-outline-variant/10 px-4 py-2">
-        <div className="flex gap-1.5" aria-hidden="true">
-          <span className="h-2 w-2 rounded-full bg-[var(--traffic-red)]" />
-          <span className="h-2 w-2 rounded-full bg-[var(--traffic-yellow)]" />
-          <span className="h-2 w-2 rounded-full bg-[var(--traffic-green)]" />
-        </div>
-        <span className="ml-2 font-label text-[9px] font-bold uppercase tracking-[0.2em] text-[var(--terminal-muted)]">
-          terminal
-        </span>
-      </div>
-      <div className="p-4 space-y-1.5 font-label text-[13px] leading-relaxed text-[var(--terminal-text)]">
-        {commands.map((cmd) => (
-          <div key={cmd}>
-            <span className="text-[var(--terminal-prompt)]">$ </span>
-            <span className="text-[var(--terminal-command)]">{cmd}</span>
-          </div>
-        ))}
-        <div className="mt-1">
-          <span className="text-[var(--terminal-prompt)]">$ </span>
-          <span className="inline-block h-4 w-[7px] bg-[var(--terminal-prompt)] animate-[blink_1s_step-end_infinite] align-middle" />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ── Showcase block: one principle → one feature → one screenshot ── */
-function ShowcaseBlock({
-  id,
-  number,
-  label,
+/* ── One deck panel: numbered principle → thesis → live artifact ── */
+function DeckPanel({
+  index,
+  eyebrow,
   title,
-  description,
-  commands,
-  screenshot,
-  screenshotAlt,
+  body,
+  artifact,
   imageFirst = false,
+  last = false,
 }: {
-  id: string;
-  number: string;
-  label: string;
-  title: string;
-  description: string;
-  commands: string[];
-  screenshot: string;
-  screenshotAlt: string;
+  index: string;
+  eyebrow: string;
+  title: ReactNode;
+  body: ReactNode;
+  artifact: ReactNode;
   imageFirst?: boolean;
+  last?: boolean;
 }) {
   const ref = useRef(null);
-  const inView = useInView(ref, { once: true, margin: "-100px" });
+  const inView = useInView(ref, { once: true, margin: "-90px" });
 
-  const textVariant = imageFirst ? slideFromRight : slideFromLeft;
-  const imageVariant = imageFirst ? slideFromLeft : slideFromRight;
-
-  const textContent = (
+  const text = (
     <motion.div
-      variants={textVariant}
-      initial="hidden"
-      animate={inView ? "visible" : "hidden"}
-      className={imageFirst ? "order-1 lg:order-2" : ""}
+      initial={{ opacity: 0, x: imageFirst ? 40 : -40 }}
+      animate={inView ? { opacity: 1, x: 0 } : {}}
+      transition={{ duration: 0.7, ease: "easeOut" }}
+      className={imageFirst ? "lg:order-2" : ""}
     >
-      <span className="inline-flex items-center gap-2 font-label text-[11px] font-bold uppercase tracking-[0.25em] text-primary/80 border-b border-primary/20 pb-1">
-        <span className="text-primary/40">{number}</span>
-        {label}
-      </span>
-      <h3 className="mt-5 text-3xl font-bold tracking-tight sm:text-4xl leading-[1.15] font-headline text-on-background">
+      <div className="flex items-baseline gap-4">
+        <span className="deck-index text-5xl sm:text-6xl">{index}</span>
+        <span className="deck-eyebrow pb-1">{eyebrow}</span>
+      </div>
+      <h3 className="mt-6 font-headline text-3xl font-bold leading-[1.1] tracking-tight text-on-background sm:text-4xl lg:text-[2.75rem]">
         {title}
       </h3>
-      <p className="mt-5 text-on-surface-variant leading-[1.8] text-[15px] font-body">
-        {description}
+      <p className="mt-5 max-w-xl font-body text-[15px] leading-[1.8] text-on-surface-variant">
+        {body}
       </p>
-      <CLICommands commands={commands} />
     </motion.div>
   );
 
-  const imageContent = (
+  const art = (
     <motion.div
-      variants={imageVariant}
-      initial="hidden"
-      animate={inView ? "visible" : "hidden"}
-      className={imageFirst ? "order-2 lg:order-1" : ""}
+      initial={{ opacity: 0, y: 32 }}
+      animate={inView ? { opacity: 1, y: 0 } : {}}
+      transition={{ duration: 0.7, ease: "easeOut", delay: 0.12 }}
+      className={imageFirst ? "lg:order-1" : ""}
     >
-      <ScreenshotFrame
-        src={screenshot}
-        alt={screenshotAlt}
-        className="rotate-[0.5deg] hover:rotate-0 transition-transform duration-500"
-      />
+      <div className="deck-artifact rounded-xl">{artifact}</div>
     </motion.div>
   );
 
   return (
-    <section
-      ref={ref}
-      id={id}
-      className="py-14 lg:py-16 border-t border-outline-variant/20"
-    >
-      <div className="grid items-center gap-12 lg:grid-cols-2 lg:gap-20">
+    <div ref={ref} className="relative">
+      {/* Ember-rail node marker (desktop) */}
+      <span
+        aria-hidden="true"
+        className="ember-node absolute left-1/2 top-16 hidden h-3 w-3 -translate-x-1/2 rounded-full bg-primary lg:block"
+      />
+      <div className="grid items-center gap-10 py-16 sm:py-20 lg:grid-cols-2 lg:gap-20">
         {imageFirst ? (
           <>
-            {imageContent}
-            {textContent}
+            {art}
+            {text}
           </>
         ) : (
           <>
-            {textContent}
-            {imageContent}
+            {text}
+            {art}
           </>
         )}
       </div>
-    </section>
+      {!last && (
+        <div
+          aria-hidden="true"
+          className="ember-rail absolute left-1/2 bottom-0 hidden h-16 w-px -translate-x-1/2 lg:block"
+        />
+      )}
+    </div>
+  );
+}
+
+/* ── Artifact: provider / model catalog fetched from source ── */
+function ProviderArtifact() {
+  return (
+    <TerminalWindow title="mycel model list" ariaLabel="Terminal listing providers and models fetched live from each CLI">
+      <div className="space-y-1.5 text-[12.5px] leading-6">
+        <CmdLine cmd="mycel model list" />
+        <div className="mt-2 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1">
+          <span className="text-terminal-command">claude</span>
+          <span className="text-terminal-muted">claude-opus · claude-sonnet · claude-haiku</span>
+          <span className="text-terminal-command">pi → bedrock</span>
+          <span className="text-terminal-muted">kimi-k2 · deepseek-v3 · qwen3-coder</span>
+          <span className="text-terminal-command">agy</span>
+          <span className="text-terminal-muted">gemini-pro · gemini-flash</span>
+          <span className="text-terminal-command">codex</span>
+          <span className="text-terminal-muted">gpt-5-codex</span>
+        </div>
+        <div className="mt-2 text-terminal-comment">
+          fetched live from each tool&rsquo;s CLI &middot; no hardcoded catalog
+        </div>
+      </div>
+    </TerminalWindow>
+  );
+}
+
+/* ── Artifact: marketplace install-by-dispatch ── */
+function MarketplaceArtifact() {
+  return (
+    <TerminalWindow title="mycel skill install" ariaLabel="Terminal installing a skill from a registry by dispatching an instruction to an agent">
+      <div className="space-y-1.5 text-[12.5px] leading-6">
+        <CmdLine cmd="mycel skill search postgres" />
+        <CmdLine out={{ text: "mcp-registry   postgres-mcp        official", tone: "muted" }} />
+        <CmdLine out={{ text: "smithery       supabase            verified", tone: "muted" }} />
+        <CmdLine out={{ text: "glama          neon-serverless     community", tone: "muted" }} />
+        <div className="mt-2">
+          <CmdLine cmd='mycel skill install postgres-mcp --agent db-eng' />
+        </div>
+        <CmdLine out={{ text: "→ dispatched to db-eng · installing", tone: "flare" }} />
+        <CmdLine out={{ text: "✓ postgres-mcp available to db-eng", tone: "ok" }} />
+      </div>
+    </TerminalWindow>
+  );
+}
+
+/* ── Artifact: secrets → env injection ── */
+function SecretsArtifact() {
+  return (
+    <TerminalWindow title="mycel secret" ariaLabel="Terminal storing a secret and injecting it into an agent's environment">
+      <div className="space-y-1.5 text-[12.5px] leading-6">
+        <CmdLine cmd="mycel secret set STRIPE_API_KEY" />
+        <CmdLine out={{ text: "✓ stored · encrypted at rest", tone: "ok" }} />
+        <div className="mt-2">
+          <CmdLine cmd="mycel connect github" />
+        </div>
+        <CmdLine out={{ text: "✓ connected · available to every agent", tone: "ok" }} />
+        <div className="mt-2">
+          <CmdLine cmd="mycel agent create pay-eng --tool claude" />
+        </div>
+        <CmdLine out={{ text: "env → STRIPE_API_KEY, GITHUB_TOKEN injected", tone: "flare" }} />
+        <CmdLine out={{ text: "agent pay-eng is online", tone: "muted" }} />
+      </div>
+    </TerminalWindow>
   );
 }
 
@@ -239,49 +251,53 @@ export default function Home() {
 
   return (
     <main className="min-h-screen overflow-x-hidden">
-      {/* Spore network background — fixed, covers entire page */}
+      {/* Living mycelium network background — fixed, covers the page */}
       <AnimatedBackground />
-      {/* Subtle radial gradient overlay */}
+      {/* Warm radial wash above the fold */}
       <div className="pointer-events-none fixed inset-0 z-[1] bg-[radial-gradient(ellipse_80%_60%_at_50%_-20%,rgba(234,88,12,0.10),transparent)]" />
 
       <div className="relative z-[2]">
         <Nav />
 
         {/* ════════════════════════════════════════
-           Section 1: Hero
+           Hero — the thesis
            ════════════════════════════════════════ */}
-        <section className="pt-24 pb-12 sm:pt-32 sm:pb-16">
-          <div className="mx-auto max-w-4xl px-4 sm:px-6 text-center">
+        <section className="pt-28 pb-14 sm:pt-36 sm:pb-20">
+          <div className="mx-auto max-w-4xl px-4 text-center sm:px-6">
             <FadeUp>
-              <span className="font-label text-xs tracking-[0.15em] uppercase text-primary">
-                CLI-first &middot; Agent-agnostic &middot; Open source
+              <span className="deck-eyebrow">
+                CLI-first &middot; Any agent &middot; Open source
               </span>
             </FadeUp>
 
             <FadeUp delay={0.1}>
-              <h1 className="mt-6 text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight text-on-background font-headline leading-tight">
-                Orchestrate AI agent teams<br className="hidden sm:block" /> from your terminal.
+              <h1 className="mt-6 font-headline text-4xl font-bold leading-[1.05] tracking-tight text-on-background md:text-6xl lg:text-[4.25rem]">
+                Run a team of AI agents
+                <br className="hidden sm:block" />{" "}
+                like you run a{" "}
+                <span className="text-primary">codebase.</span>
               </h1>
             </FadeUp>
 
             <FadeUp delay={0.15}>
-              <p className="mt-5 text-lg md:text-xl text-on-surface-variant max-w-2xl mx-auto leading-relaxed font-body">
-                Coordinate Claude, Gemini, Codex, and Cursor agents on a single codebase.
-                Isolated worktrees. Shared channels. Real-time cost controls.
+              <p className="mx-auto mt-6 max-w-2xl font-body text-lg leading-relaxed text-on-surface-variant md:text-xl">
+                mycel orchestrates Claude Code, pi, Cursor, Gemini, and Codex
+                agents in parallel &mdash; each in its own git worktree and
+                runtime. One binary. One command. Your terminal stays the
+                control plane.
               </p>
             </FadeUp>
 
-            {/* Install command */}
+            {/* Hero install */}
             <FadeUp delay={0.2}>
-              <div className="mt-10 mx-auto max-w-xl">
-                {/* Platform tabs */}
-                <div className="flex items-center justify-center gap-1 mb-3">
+              <div className="mx-auto mt-10 max-w-xl">
+                <div className="mb-3 flex items-center justify-center gap-1">
                   {tabs.map((t) => (
                     <button
                       key={t}
                       type="button"
                       onClick={() => setPlatform(t)}
-                      className={`px-3 py-1.5 rounded text-xs font-label font-medium transition-colors ${
+                      className={`rounded px-3 py-1.5 font-label text-xs font-medium transition-colors ${
                         platform === t
                           ? "bg-surface-container-high text-on-surface"
                           : "text-on-surface-variant hover:text-on-surface"
@@ -292,67 +308,57 @@ export default function Home() {
                   ))}
                 </div>
 
-                {/* Command box */}
                 <div className="flex items-center gap-2 rounded-lg border border-outline-variant/30 bg-surface-container px-4 py-3 shadow-[0_0_60px_rgba(234,88,12,0.08),0_0_20px_rgba(234,88,12,0.04)]">
-                  <span className="text-on-surface-variant select-none font-label">$</span>
-                  <code className="flex-1 text-sm text-on-surface overflow-x-auto whitespace-nowrap scrollbar-none font-label">
+                  <span className="select-none font-label text-on-surface-variant">$</span>
+                  <code className="scrollbar-none flex-1 overflow-x-auto whitespace-nowrap font-label text-sm text-on-surface">
                     {installCommands[platform]}
                   </code>
                   <CopyButton text={installCommands[platform]} />
                 </div>
 
-                {/* Then run */}
-                <p className="mt-3 text-sm text-on-surface-variant font-body">
+                <p className="mt-3 font-body text-sm text-on-surface-variant">
                   Then run:{" "}
-                  <code className="text-primary font-label">mycel up</code>
+                  <code className="font-label text-primary">mycel up</code>
                 </p>
               </div>
             </FadeUp>
 
-            {/* CTA buttons */}
+            {/* CTAs */}
             <FadeUp delay={0.25}>
-              <div className="mt-8 flex flex-col items-center gap-4">
+              <div className="mt-8 flex flex-col items-center gap-5">
                 <div className="flex items-center gap-4">
                   <Link
                     href="/docs"
                     className="inline-flex h-11 items-center gap-2 rounded-lg bg-primary px-6 text-sm font-semibold text-primary-foreground shadow-[var(--btn-shadow)] transition-all hover:shadow-lg active:scale-[0.97]"
                   >
-                    View Docs
-                    <ExternalLink className="h-3.5 w-3.5" />
+                    Read the docs
+                    <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
                   </Link>
                   <Link
                     href="https://github.com/rpuneet/mycel"
-                    className="inline-flex h-11 items-center gap-2 rounded-lg border border-outline-variant/20 px-6 text-sm font-medium text-on-surface-variant transition-colors hover:bg-surface-container hover:border-primary/30 hover:text-primary active:scale-[0.97] font-body"
+                    className="inline-flex h-11 items-center gap-2 rounded-lg border border-outline-variant/20 px-6 font-body text-sm font-medium text-on-surface-variant transition-colors hover:border-primary/30 hover:bg-surface-container hover:text-primary active:scale-[0.97]"
                   >
-                    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
-                      <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z" />
-                    </svg>
+                    <Github className="h-4 w-4" aria-hidden="true" />
                     GitHub
                   </Link>
                 </div>
-                {/* GitHub badges */}
-                <div className="flex items-center gap-2 flex-wrap justify-center">
+                <div className="flex flex-wrap items-center justify-center gap-2">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src="https://img.shields.io/github/stars/rpuneet/mycel?style=flat-square&color=ea580c&labelColor=1e1b18" alt="GitHub stars" className="h-5" />
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src="https://img.shields.io/github/license/rpuneet/mycel?style=flat-square&color=ea580c&labelColor=1e1b18" alt="License" className="h-5" />
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src="https://img.shields.io/github/last-commit/rpuneet/mycel?style=flat-square&color=ea580c&labelColor=1e1b18" alt="Last commit" className="h-5" />
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src="https://img.shields.io/github/go-mod/go-version/rpuneet/mycel?style=flat-square&color=ea580c&labelColor=1e1b18" alt="Go version" className="h-5" />
                 </div>
               </div>
             </FadeUp>
           </div>
         </section>
 
-        {/* Section separator */}
-        <div className="mx-auto max-w-5xl px-6"><div className="section-separator" /></div>
-
         {/* ════════════════════════════════════════
-           Section 2: Terminal Demo
+           Live terminal — proof it's real
            ════════════════════════════════════════ */}
-        <RevealSection className="py-12 sm:py-16">
+        <RevealSection className="pb-8 sm:pb-12">
           <div className="mx-auto max-w-3xl px-4 sm:px-6">
             <TerminalWindow title="terminal" className="terminal-glow">
               <div className="space-y-3 text-[13px] leading-7">
@@ -360,16 +366,13 @@ export default function Home() {
                   <span className="text-terminal-prompt">~ $ </span>
                   <span className="text-terminal-text">mycel up</span>
                 </div>
-                <div className="text-terminal-success">&#10003; Workspace bootstrapped (~/.mycel)</div>
-                <div className="text-terminal-muted">
-                  Server running on <span className="text-primary">http://localhost:9374</span>
-                </div>
+                <div className="text-terminal-success">&#10003; Ready &middot; console at <span className="text-primary">http://localhost:9374</span></div>
 
                 <div className="mt-2">
                   <span className="text-terminal-prompt">~ $ </span>
                   <span className="text-terminal-text">mycel agent create eng-01 --role engineer --tool claude</span>
                 </div>
-                <div className="text-terminal-muted">Created worktree .mycel/agents/eng-01/worktree</div>
+                <div className="text-terminal-muted">Worktree checked out at .mycel/agents/eng-01</div>
                 <div className="text-terminal-muted">
                   Agent <span className="text-primary">eng-01</span> is online.
                 </div>
@@ -378,12 +381,12 @@ export default function Home() {
                   <span className="text-terminal-prompt">~ $ </span>
                   <span className="text-terminal-text">mycel status</span>
                 </div>
-                <div className="text-terminal-comment mt-1 font-label">
+                <div className="mt-1 font-label text-terminal-comment">
                   <div className="text-primary/70">AGENT     ROLE       STATE     UPTIME</div>
                   <div className="text-terminal-text">eng-01    engineer   <span className="text-terminal-success">working</span>   2m</div>
                   <div className="text-terminal-text">eng-02    engineer   <span className="text-terminal-success">working</span>   1m</div>
                 </div>
-                <div className="inline-block w-2 h-[18px] bg-primary/80 animate-pulse" />
+                <div className="inline-block h-[18px] w-2 animate-pulse bg-primary/80" />
               </div>
             </TerminalWindow>
           </div>
@@ -393,122 +396,173 @@ export default function Home() {
         <div className="mx-auto max-w-5xl px-6"><div className="section-separator" /></div>
 
         {/* ════════════════════════════════════════
-           Section 3: Product Showcase — the method,
-           six principles paired with real features.
+           The deck — one capability per panel
            ════════════════════════════════════════ */}
-        <section id="product" className="scroll-mt-24 py-12 sm:py-16">
+        <section id="product" className="deck-veil scroll-mt-24 py-14 sm:py-20">
           <div className="mx-auto max-w-7xl px-4 sm:px-6">
-            <FadeUp className="text-center mb-4">
-              <span className="font-label text-xs tracking-[0.2em] uppercase text-primary">
-                The mycel method
-              </span>
-              <h2 className="mt-4 text-2xl md:text-4xl font-bold tracking-tight text-on-background font-headline">
-                Six principles for running an agent team.
+            <FadeUp className="mb-6 text-center">
+              <span className="deck-eyebrow">What it does</span>
+              <h2 className="mx-auto mt-4 max-w-3xl font-headline text-3xl font-bold tracking-tight text-on-background md:text-5xl">
+                A control plane for AI agents,
+                <br className="hidden sm:block" />{" "}
+                built for people who live in the terminal.
               </h2>
-              <p className="mt-4 text-on-surface-variant text-lg max-w-2xl mx-auto font-body">
-                Each one is a working feature you can see in the dashboard at
-                localhost:9374 &mdash; not a promise.
+              <p className="mx-auto mt-5 max-w-2xl font-body text-lg text-on-surface-variant">
+                Six capabilities, one binary. Everything below runs on your
+                machine today.
               </p>
             </FadeUp>
 
-            {/* 01 · Isolation → agent detail (worktree + sandbox) */}
-            <ShowcaseBlock
-              id="isolation"
-              number="01"
-              label="Isolation"
-              title="Every agent in its own sandbox."
-              description="Two agents editing the same file will overwrite each other. mycel gives each agent its own git worktree and an isolated tmux or Docker sandbox — so ten agents can work the same codebase with zero merge conflicts. Open any agent to watch its live stream, tools, and cost."
-              commands={[
-                "mycel agent create eng-01 --role engineer --tool claude",
-                'mycel agent send eng-01 "Build the auth module"',
-                "mycel agent peek eng-01",
-              ]}
-              screenshot="/screenshots/agent-detail.png"
-              screenshotAlt="mycel agent detail view showing the agent header, tabs, and a live output stream"
-            />
+            <div className="relative">
+              {/* 01 — Multi-agent orchestration */}
+              <DeckPanel
+                index="01"
+                eyebrow="Orchestration"
+                title="Ten agents, one codebase, zero collisions."
+                body={
+                  <>
+                    Spawn as many agents as the work needs. Each gets its own
+                    git worktree and its own tmux or Docker runtime, so they
+                    build in parallel without stepping on each other. Watch
+                    every one&rsquo;s state, task, and output from a single
+                    view.
+                  </>
+                }
+                artifact={
+                  <TerminalWindow title="mycel status" ariaLabel="Live agent roster showing parallel agents and their states">
+                    <StatusTable
+                      agents={[
+                        { name: "api-eng", role: "engineer", state: "working", detail: "Wiring the billing webhook" },
+                        { name: "web-eng", role: "engineer", state: "working", detail: "Refactoring the dashboard" },
+                        { name: "qa-01", role: "qa", state: "tool", detail: "Running the e2e suite" },
+                        { name: "reviewer", role: "manager", state: "idle", detail: "Waiting on PR #214" },
+                        { name: "db-eng", role: "engineer", state: "done", detail: "Schema change merged" },
+                      ]}
+                    />
+                  </TerminalWindow>
+                }
+              />
 
-            {/* 02 · Communication → notifications hub */}
-            <ShowcaseBlock
-              id="communication"
-              number="02"
-              label="Communication"
-              title="Coordinate without being the bottleneck."
-              description="Agents @mention each other across structured channels to hand off work and converge — every message logged and searchable. Wire in Slack, Telegram, Discord, or WhatsApp, and your agents can reach you (and reply) straight from your phone."
-              commands={[
-                'mycel channel send engineering "@eng-01 review PR #42"',
-                "mycel notify connect slack",
-                "mycel channel history engineering --last 20",
-              ]}
-              screenshot="/screenshots/notifications.png"
-              screenshotAlt="mycel notifications hub showing connected apps, channels, and recent activity"
-              imageFirst
-            />
+              {/* 02 — Any model, from source */}
+              <DeckPanel
+                index="02"
+                eyebrow="Providers"
+                title="Any model, pulled straight from the tool."
+                body={
+                  <>
+                    mycel reads providers and models live from each CLI it
+                    drives &mdash; Claude Code, pi reaching AWS Bedrock for
+                    Kimi, DeepSeek and Qwen, Gemini, Codex. Nothing is
+                    hardcoded, so the catalog is whatever your tools expose
+                    right now. Mix models across agents on the same project.
+                  </>
+                }
+                artifact={<ProviderArtifact />}
+                imageFirst
+              />
 
-            {/* 03 · Visibility → Insights cost dashboard (standout) */}
-            <ShowcaseBlock
-              id="visibility"
-              number="03"
-              label="Visibility"
-              title="Real cost and tokens, in real time."
-              description="You can't trust what you can't see. The Insights dashboard reads straight from the cost ledger — live spend, token throughput, burn rate, active agents, and your top cost driver — broken down per agent and per model. Set budgets with hard stops and agents pause themselves when they hit the limit."
-              commands={[
-                "mycel cost show",
-                "mycel cost budget set 50.00 --agent eng-01 --alert-at 0.8",
-                "mycel cost usage",
-              ]}
-              screenshot="/screenshots/insights.png"
-              screenshotAlt="mycel Insights dashboard showing spend, tokens, active agents, burn rate, top cost driver, and a per-agent cost table"
-            />
+              {/* 03 — Skills & MCP marketplace */}
+              <DeckPanel
+                index="03"
+                eyebrow="Marketplace"
+                title="Install skills and MCP servers by name."
+                body={
+                  <>
+                    Search the official MCP registry, Glama, and Smithery
+                    alongside vendor skill repos from Anthropic, Google, and
+                    openclaw &mdash; or your own templates. Pick one and mycel
+                    dispatches the install straight to the agent that needs it.
+                  </>
+                }
+                artifact={<MarketplaceArtifact />}
+              />
 
-            {/* 04 · Control → agents fleet table */}
-            <ShowcaseBlock
-              id="control"
-              number="04"
-              label="Control"
-              title="Create, command, observe, stop."
-              description="Spawn an agent in one command, send it work, watch its output, or stop it — all from the CLI or the browser. The Agents table shows every agent's state, provider, and cost at a glance, and role permissions scope exactly what each one can touch."
-              commands={[
-                "mycel agent list",
-                'mycel agent send eng-01 "Ship the fix"',
-                "mycel agent stop eng-01",
-              ]}
-              screenshot="/screenshots/agents.png"
-              screenshotAlt="mycel Agents table showing agents with their states, providers, and costs"
-              imageFirst
-            />
+              {/* 04 — Secrets → env */}
+              <DeckPanel
+                index="04"
+                eyebrow="Secrets"
+                title="Store a key once. Every agent gets it."
+                body={
+                  <>
+                    Keys live in an encrypted vault and land in each
+                    agent&rsquo;s environment as variables the moment it
+                    spawns. Connect an app once &mdash; GitHub, Stripe, your
+                    own API &mdash; and it&rsquo;s wired everywhere, no copying
+                    tokens between sessions.
+                  </>
+                }
+                artifact={<SecretsArtifact />}
+                imageFirst
+              />
 
-            {/* 05 · Persistence → encrypted secrets */}
-            <ShowcaseBlock
-              id="persistence"
-              number="05"
-              label="Persistence"
-              title="State that survives restarts."
-              description="Agents crash, machines reboot — mycel doesn't lose your work. Everything lives under ~/.mycel: worktrees, channel history, cost records, and per-agent config. Secrets are encrypted at rest and injected as MYCEL_ environment variables when an agent spawns."
-              commands={[
-                "mycel secret set OPENAI_API_KEY",
-                "mycel secret list",
-                "mycel agent start eng-01 --resume",
-              ]}
-              screenshot="/screenshots/secrets.png"
-              screenshotAlt="mycel encrypted secrets manager showing stored secrets and their scopes"
-            />
+              {/* 05 — Notifications across channels */}
+              <DeckPanel
+                index="05"
+                eyebrow="Channels"
+                title="Your agents reach you where you already are."
+                body={
+                  <>
+                    Bridge WhatsApp, Slack, Telegram, and Discord. Agents post
+                    updates, hand work to each other with @mentions, and answer
+                    when you reply &mdash; from your phone, in the thread you
+                    were already in.
+                  </>
+                }
+                artifact={
+                  <TerminalWindow title="#engineering" ariaLabel="A channel view showing agents coordinating with mentions across bridged apps">
+                    <ChannelView
+                      name="engineering"
+                      members={5}
+                      messages={[
+                        { time: "09:14", agent: "api-eng", role: "engineer", message: "Billing webhook is green. Opening PR #214." },
+                        { time: "09:15", agent: "reviewer", role: "manager", message: "@qa-01 run the payment path before I merge." },
+                        { time: "09:16", agent: "qa-01", role: "qa", message: "On it — e2e suite running now." },
+                        { time: "09:19", agent: "you", role: "you", message: "Ship it once QA is green. (via Slack)" },
+                      ]}
+                    />
+                  </TerminalWindow>
+                }
+              />
 
-            {/* 06 · Simplicity → providers / tools */}
-            <ShowcaseBlock
-              id="simplicity"
-              number="06"
-              label="Simplicity"
-              title="One binary. Many providers."
-              description="No runtime dependencies, no cloud account, no YAML. One Go binary and two commands stand up your agent team. Mix providers on the same project — Claude, Gemini, Codex, Cursor, Aider — and switch anytime. Build anything with make <verb>-<runtime>-<component>."
-              commands={[
-                "brew install rpuneet/mycel/mycel",
-                "mycel up",
-                "mycel agent create eng-01 --tool gemini",
-              ]}
-              screenshot="/screenshots/tools.png"
-              screenshotAlt="mycel providers and tools page showing available AI providers and their tools"
-              imageFirst
-            />
+              {/* 06 — Cost visibility */}
+              <DeckPanel
+                index="06"
+                eyebrow="Cost"
+                title="See the bill before it surprises you."
+                body={
+                  <>
+                    Every token is tracked per agent, per model, and per day.
+                    Read live spend and set budgets with hard stops &mdash; an
+                    agent pauses itself the moment it hits the limit you gave
+                    it.
+                  </>
+                }
+                artifact={
+                  <TerminalWindow title="mycel cost show" ariaLabel="A cost table breaking down spend and budget per agent">
+                    <CostTable
+                      rows={[
+                        { agent: "api-eng", tokensIn: "1.2M", tokensOut: "312K", cost: "$4.18", budget: "$8.00", percent: 52 },
+                        { agent: "web-eng", tokensIn: "880K", tokensOut: "205K", cost: "$2.94", budget: "$8.00", percent: 37 },
+                        { agent: "qa-01", tokensIn: "410K", tokensOut: "96K", cost: "$1.31", budget: "$4.00", percent: 33 },
+                        { agent: "db-eng", tokensIn: "1.6M", tokensOut: "298K", cost: "$5.02", budget: "$6.00", percent: 84 },
+                      ]}
+                      total={{ cost: "$13.45", budget: "$26.00" }}
+                    />
+                  </TerminalWindow>
+                }
+                imageFirst
+                last
+              />
+            </div>
+
+            {/* Connective serif accent */}
+            <FadeUp className="mx-auto mt-8 max-w-2xl text-center">
+              <p className="deck-serif text-2xl leading-snug text-on-surface-variant sm:text-3xl">
+                One control plane. Every model, secret, and channel your team
+                already uses &mdash;{" "}
+                <span className="text-primary">wired in once.</span>
+              </p>
+            </FadeUp>
           </div>
         </section>
 
@@ -516,36 +570,34 @@ export default function Home() {
         <div className="mx-auto max-w-5xl px-6"><div className="section-separator" /></div>
 
         {/* ════════════════════════════════════════
-           Section 4: Install
+           Install
            ════════════════════════════════════════ */}
         <InstallSection />
 
         {/* ════════════════════════════════════════
-           Section 5: Open Source CTA
+           Open-source CTA
            ════════════════════════════════════════ */}
-        <RevealSection className="py-12 sm:py-16">
-          <div className="mx-auto max-w-3xl px-4 sm:px-6 text-center">
-            <h2 className="text-2xl md:text-4xl font-bold tracking-tight text-on-background font-headline">
-              Free. Open source. No cloud required.
+        <RevealSection className="py-14 sm:py-20">
+          <div className="mx-auto max-w-3xl px-4 text-center sm:px-6">
+            <h2 className="font-headline text-2xl font-bold tracking-tight text-on-background md:text-4xl">
+              Free, open source, and yours to run.
             </h2>
-            <p className="mt-3 text-on-surface-variant text-lg font-body">
-              MIT licensed. Run it on your machine.
+            <p className="mt-3 font-body text-lg text-on-surface-variant">
+              MIT licensed. No cloud account. It runs on your machine.
             </p>
-            <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-4">
+            <div className="mt-8 flex flex-col items-center justify-center gap-4 sm:flex-row">
               <Link
                 href="https://github.com/rpuneet/mycel"
                 className="inline-flex h-11 items-center gap-2 rounded-lg bg-primary px-8 text-sm font-semibold text-primary-foreground shadow-[var(--btn-shadow)] transition-all hover:shadow-[0_0_20px_rgba(234,88,12,0.3)] active:scale-[0.97]"
               >
-                <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z" />
-                </svg>
+                <Github className="h-5 w-5" aria-hidden="true" />
                 View on GitHub
               </Link>
               <Link
                 href="/docs"
-                className="inline-flex h-11 items-center gap-2 rounded-lg border border-outline-variant/20 px-8 text-sm font-medium text-on-surface-variant transition-colors hover:bg-surface-container hover:text-on-surface active:scale-[0.97] font-body"
+                className="inline-flex h-11 items-center gap-2 rounded-lg border border-outline-variant/20 px-8 font-body text-sm font-medium text-on-surface-variant transition-colors hover:bg-surface-container hover:text-on-surface active:scale-[0.97]"
               >
-                Browse CLI Reference
+                Browse the CLI reference
                 <ArrowRight className="h-4 w-4" aria-hidden="true" />
               </Link>
             </div>

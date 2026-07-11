@@ -83,10 +83,10 @@ mycel is written in Go with a TypeScript/React TUI and web UI. Contributions are
 \`\`\`bash
 git clone https://github.com/rpuneet/mycel.git
 cd mycel
-make build-local        # build the bc/bcd binaries + TUI + web UI
+make build-local        # build the mycel/myceld binaries + TUI + web UI
 \`\`\`
 
-Targets follow a \`make <verb>-<runtime>-<component>\` convention, where *verb* is one of \`build | test | run | release | install | clean\`, *runtime* is \`local\` or \`docker\`, and *component* is \`bc\`, \`bcd\`, \`tui\`, \`web\`, or \`landing\`.
+Targets follow a \`make <verb>-<runtime>-<component>\` convention, where *verb* is one of \`build | test | run | release | install | clean\`, *runtime* is \`local\` or \`docker\`, and *component* is \`mycel\`, \`myceld\`, \`tui\`, \`web\`, or \`landing\`.
 
 ## Common tasks
 

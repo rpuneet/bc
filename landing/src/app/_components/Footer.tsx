@@ -13,8 +13,8 @@ export function Footer() {
               <span className="font-headline text-lg font-bold tracking-tight text-on-background">mycel</span>
             </div>
             <p className="text-sm text-on-surface-variant max-w-xs leading-relaxed">
-              Multi-agent orchestration for AI coding assistants. CLI-first.
-              Agent-agnostic. Open source.
+              Orchestrate teams of AI coding agents from your terminal.
+              CLI-first. Any agent. Open source.
             </p>
             <p className="text-xs text-on-surface-variant/60">
               &copy; {new Date().getFullYear()} mycel

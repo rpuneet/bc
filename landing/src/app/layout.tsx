@@ -18,9 +18,9 @@ export const viewport = {
 };
 
 export const metadata = {
-  title: "mycel — AI in a Box",
+  title: "mycel — orchestrate teams of AI coding agents",
   description:
-    "Orchestrate AI agents from your terminal. Isolated worktrees, shared channels, cost controls.",
+    "Run Claude Code, pi, Cursor, Gemini, and Codex agents in parallel from your terminal — isolated worktrees, live models, secrets, channels, and cost tracking.",
   keywords:
     "AI agents, agent orchestration, Claude Code, multi-agent development, git worktrees, persistent memory, cost-aware AI, software development",
   metadataBase: new URL(SITE_URL),
@@ -42,24 +42,24 @@ export const metadata = {
     type: "website",
     locale: "en_US",
     url: SITE_URL,
-    title: "mycel — AI in a Box",
+    title: "mycel — orchestrate teams of AI coding agents",
     description:
-      "Orchestrate AI agents from your terminal. Isolated worktrees, shared channels, cost controls.",
+      "Run Claude Code, pi, Cursor, Gemini, and Codex agents in parallel from your terminal — isolated worktrees, live models, secrets, channels, and cost tracking.",
     siteName: "mycel",
     images: [
       {
         url: absoluteUrl("/og-image.png"),
         width: 1200,
         height: 630,
-        alt: "mycel — AI in a Box",
+        alt: "mycel — orchestrate teams of AI coding agents",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "mycel — AI in a Box",
+    title: "mycel — orchestrate teams of AI coding agents",
     description:
-      "Orchestrate AI agents from your terminal. Isolated worktrees, shared channels, cost controls.",
+      "Run Claude Code, pi, Cursor, Gemini, and Codex agents in parallel from your terminal — isolated worktrees, live models, secrets, channels, and cost tracking.",
     images: [absoluteUrl("/og-image.png")],
     creator: "@mycel_dev",
   },
@@ -96,7 +96,7 @@ export default function RootLayout({
           href="https://fonts.gstatic.com"
           crossOrigin="anonymous"
         />
-        <script dangerouslySetInnerHTML={{ __html: `try{var t=localStorage.getItem('mycel-theme')||localStorage.getItem('bc-theme')||'dark';if(t==='dark'||(t==='system'&&window.matchMedia('(prefers-color-scheme:dark)').matches)){document.documentElement.classList.add('dark')}}catch(e){}` }} />
+        <script dangerouslySetInnerHTML={{ __html: `try{var t=localStorage.getItem('mycel-theme')||'dark';if(t==='dark'||(t==='system'&&window.matchMedia('(prefers-color-scheme:dark)').matches)){document.documentElement.classList.add('dark')}}catch(e){}` }} />
         {/* eslint-disable-next-line @next/next/no-page-custom-font */}
         <link
           href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500&family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap"

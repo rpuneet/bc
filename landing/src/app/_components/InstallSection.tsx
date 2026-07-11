@@ -17,7 +17,7 @@ function useLatestVersion() {
   return version;
 }
 
-type Method = {
+type InstallOption = {
   id: string;
   label: string;
   icon: React.ComponentType<{ className?: string }>;
@@ -25,7 +25,7 @@ type Method = {
   commands: string[];
 };
 
-function getMethods(version: string): Method[] {
+function getInstallOptions(version: string): InstallOption[] {
   return [
     {
       id: "curl",
@@ -132,9 +132,9 @@ function CodeBlock({ lines, id }: { lines: string[]; id: string }) {
 
 export function InstallSection() {
   const version = useLatestVersion();
-  const methods = getMethods(version);
+  const options = getInstallOptions(version);
   const [active, setActive] = useState("curl");
-  const current = methods.find((m) => m.id === active) ?? methods[0];
+  const current = options.find((m) => m.id === active) ?? options[0];
 
   return (
     <section
@@ -173,16 +173,16 @@ export function InstallSection() {
           className="mt-8"
         >
           {/* Mobile select */}
-          <label htmlFor="install-method-select" className="sr-only">
-            Install method
+          <label htmlFor="install-option-select" className="sr-only">
+            Install option
           </label>
           <select
-            id="install-method-select"
+            id="install-option-select"
             value={active}
             onChange={(e) => setActive(e.target.value)}
             className="block w-full rounded-lg border border-border bg-card px-4 py-3 font-mono text-sm text-foreground sm:hidden"
           >
-            {methods.map((m) => (
+            {options.map((m) => (
               <option key={m.id} value={m.id}>
                 {m.label}
               </option>
@@ -191,7 +191,7 @@ export function InstallSection() {
 
           {/* Desktop tabs */}
           <div className="hidden flex-wrap gap-2 sm:flex">
-            {methods.map((m) => {
+            {options.map((m) => {
               const Icon = m.icon;
               const isActive = m.id === active;
               return (
