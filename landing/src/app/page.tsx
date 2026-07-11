@@ -310,7 +310,7 @@ export default function Home() {
 
                 <div className="flex items-center gap-2 rounded-lg border border-outline-variant/30 bg-surface-container px-4 py-3 shadow-[0_0_60px_rgba(234,88,12,0.08),0_0_20px_rgba(234,88,12,0.04)]">
                   <span className="select-none font-label text-on-surface-variant">$</span>
-                  <code className="scrollbar-none flex-1 overflow-x-auto whitespace-nowrap font-label text-sm text-on-surface">
+                  <code className="scrollbar-none block min-w-0 flex-1 overflow-x-auto whitespace-nowrap font-label text-sm text-on-surface">
                     {installCommands[platform]}
                   </code>
                   <CopyButton text={installCommands[platform]} />

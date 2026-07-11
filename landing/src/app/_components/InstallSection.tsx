@@ -121,7 +121,10 @@ function CodeBlock({ lines, id }: { lines: string[]; id: string }) {
       </button>
       <pre className="overflow-x-auto text-[13px] leading-relaxed text-[#c9d1d9]">
         {lines.map((line, i) => (
-          <div key={`${id}-${i}`} className={line.startsWith("#") ? "text-[#8b949e]" : ""}>
+          <div
+            key={`${id}-${i}`}
+            className={`w-max min-w-full whitespace-pre ${line.startsWith("#") ? "text-[#8b949e]" : ""}`}
+          >
             {line.startsWith("#") ? line : <><span className="text-primary">$</span>{" "}{line}</>}
           </div>
         ))}

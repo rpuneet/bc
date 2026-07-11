@@ -1,6 +1,27 @@
 "use client";
 
 import { motion } from "framer-motion";
+import { useEffect, useState } from "react";
+
+/**
+ * Returns true once the component has mounted in the browser.
+ *
+ * Reveal animations start from `opacity: 0`, so a section stays invisible until
+ * its viewport trigger fires. If hydration never runs or the trigger misfires,
+ * the content would be permanently blank. Gating the hidden `initial` state on
+ * mount keeps the server-rendered markup fully visible and treats the animation
+ * as a pure enhancement: content first, motion second.
+ */
+function useMounted(): boolean {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    // Flip on the next tick rather than synchronously in the effect body,
+    // which the React compiler's set-state-in-effect rule flags.
+    const id = setTimeout(() => setMounted(true), 0);
+    return () => clearTimeout(id);
+  }, []);
+  return mounted;
+}
 
 /** Fade-in on scroll using whileInView */
 export function RevealSection({
@@ -12,9 +33,10 @@ export function RevealSection({
   className?: string;
   delay?: number;
 }) {
+  const mounted = useMounted();
   return (
     <motion.section
-      initial={{ opacity: 0 }}
+      initial={mounted ? { opacity: 0 } : false}
       whileInView={{ opacity: 1 }}
       viewport={{ once: true, margin: "-80px" }}
       transition={{ duration: 0.6, ease: "easeOut", delay }}
@@ -37,9 +59,10 @@ export function FadeUp({
   delay?: number;
   distance?: number;
 }) {
+  const mounted = useMounted();
   return (
     <motion.div
-      initial={{ opacity: 0, y: distance }}
+      initial={mounted ? { opacity: 0, y: distance } : false}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, margin: "-80px" }}
       transition={{ duration: 0.6, ease: "easeOut", delay }}
@@ -66,9 +89,10 @@ export function StaggerChildren({
   stagger?: number;
   delay?: number;
 }) {
+  const mounted = useMounted();
   return (
     <motion.div
-      initial="hidden"
+      initial={mounted ? "hidden" : false}
       whileInView="visible"
       viewport={{ once: true, margin: "-60px" }}
       variants={{
@@ -124,9 +148,10 @@ export function SlideIn({
   distance?: number;
 }) {
   const x = direction === "left" ? -distance : distance;
+  const mounted = useMounted();
   return (
     <motion.div
-      initial={{ opacity: 0, x }}
+      initial={mounted ? { opacity: 0, x } : false}
       whileInView={{ opacity: 1, x: 0 }}
       viewport={{ once: true, margin: "-60px" }}
       transition={{ duration: 0.6, ease: "easeOut", delay }}
