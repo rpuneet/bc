@@ -1,11 +1,9 @@
 package provider
 
 import (
-	"bufio"
 	"context"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"regexp"
 	"strings"
 )
@@ -115,43 +113,11 @@ func (p *PiProvider) Models() []string {
 	return []string{}
 }
 
-// piAWSPointerEnv returns the AWS pointer env vars ("KEY=VALUE") to append to
-// the pi --list-models command environment so Bedrock models (e.g. Kimi 2.5)
-// appear in the Providers UI. Returns nil when injection is not needed:
-//   - any AWS_* key is already set in the daemon's process environment
-//   - ~/.aws directory does not exist on the host
-//
-// Only the two non-secret pointer vars (AWS_PROFILE, AWS_REGION) are returned;
-// secret key material is never fabricated here.
-func piAWSPointerEnv() []string {
-	// Respect any AWS_* already present in the daemon's environment.
-	for _, e := range os.Environ() {
-		if strings.HasPrefix(e, "AWS_") {
-			return nil
-		}
-	}
-	home, err := piUserHomeDir()
-	if err != nil {
-		return nil
-	}
-	awsDir := filepath.Join(home, ".aws")
-	if _, err := os.Stat(awsDir); err != nil { //nolint:gosec // awsDir is derived from UserHomeDir, not user input
-		return nil
-	}
-	result := []string{"AWS_PROFILE=default"}
-	if region := readAWSDefaultRegion(home); region != "" {
-		result = append(result, "AWS_REGION="+region)
-	} else if region = os.Getenv("AWS_DEFAULT_REGION"); region != "" {
-		result = append(result, "AWS_REGION="+region)
-	}
-	return result
-}
-
 // piListModels is overridable in tests.
 var piListModels = func(ctx context.Context) (string, error) {
 	//nolint:gosec // "pi" is a trusted provider binary name, not user input
 	cmd := exec.CommandContext(ctx, "pi", "--list-models")
-	cmd.Env = append(os.Environ(), piAWSPointerEnv()...)
+	cmd.Env = os.Environ()
 	out, err := cmd.Output()
 	if err != nil {
 		return "", err
@@ -211,91 +177,7 @@ func (p *PiProvider) Version(ctx context.Context) string {
 	return raw
 }
 
-// piUserHomeDir is overridable in tests.
-var piUserHomeDir = os.UserHomeDir
-
-// ContributeEnv injects AWS pointer env vars (AWS_PROFILE, AWS_REGION) so
-// pi's AWS SDK can locate credentials in ~/.aws without embedding secret
-// key values in the agent session. Real key material stays in ~/.aws/credentials;
-// only the profile name and region pointer are injected.
-//
-// Injection is skipped when:
-//   - any AWS_* key is already set in the daemon's process environment
-//   - any AWS_* key is already set in env (user-provided config wins)
-//   - ~/.aws directory does not exist on the host
-func (p *PiProvider) ContributeEnv(env map[string]string) {
-	// Respect any AWS_* already present in the daemon's process environment
-	// (e.g. AWS_PROFILE inherited from the shell that launched bcd).
-	for _, e := range os.Environ() {
-		if strings.HasPrefix(e, "AWS_") {
-			return
-		}
-	}
-	// Respect any AWS env already set by the user (via agent Env or env file).
-	for k := range env {
-		if strings.HasPrefix(k, "AWS_") {
-			return
-		}
-	}
-	home, err := piUserHomeDir()
-	if err != nil {
-		return
-	}
-	awsDir := filepath.Join(home, ".aws")
-	if _, err := os.Stat(awsDir); err != nil { //nolint:gosec // awsDir is derived from UserHomeDir, not user input
-		return
-	}
-	env["AWS_PROFILE"] = "default"
-	// Read region from ~/.aws/config; fall back to AWS_DEFAULT_REGION from
-	// the host process environment.
-	if region := readAWSDefaultRegion(home); region != "" {
-		env["AWS_REGION"] = region
-	} else if region = os.Getenv("AWS_DEFAULT_REGION"); region != "" {
-		env["AWS_REGION"] = region
-	}
-}
-
-// readAWSDefaultRegion reads the region for the [default] profile from
-// ~/.aws/config and returns it, or "" if the file is absent or unparseable.
-func readAWSDefaultRegion(home string) string {
-	cfgPath := filepath.Join(home, ".aws", "config")
-	//nolint:gosec // cfgPath is derived from UserHomeDir, not user input
-	f, err := os.Open(cfgPath)
-	if err != nil {
-		return ""
-	}
-	defer f.Close() //nolint:errcheck
-
-	inDefault := false
-	scanner := bufio.NewScanner(f)
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if line == "" || strings.HasPrefix(line, "#") || strings.HasPrefix(line, ";") {
-			continue
-		}
-		if line == "[default]" {
-			inDefault = true
-			continue
-		}
-		if strings.HasPrefix(line, "[") {
-			if inDefault {
-				// Exited the [default] section without finding a region.
-				break
-			}
-			continue
-		}
-		if inDefault {
-			parts := strings.SplitN(line, "=", 2)
-			if len(parts) == 2 && strings.TrimSpace(parts[0]) == "region" {
-				return strings.TrimSpace(parts[1])
-			}
-		}
-	}
-	return ""
-}
-
 // Ensure PiProvider implements all declared interfaces.
 var _ Provider = (*PiProvider)(nil)
 var _ ModelLister = (*PiProvider)(nil)
 var _ DynamicModelLister = (*PiProvider)(nil)
-var _ EnvContributor = (*PiProvider)(nil)
