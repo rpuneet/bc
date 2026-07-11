@@ -8,11 +8,11 @@ import { useState, useRef, useEffect } from "react";
 import { Menu, X, Copy, Check, Apple, Monitor, Container } from "lucide-react";
 import { ThemeToggle } from "./ThemeToggle";
 
+// Single-page site: the logo is Home and the page IS the product, so no
+// Home/Product tabs. Only cross-destinations remain.
 const links = [
-  { href: "/", label: "Home" },
-  { href: "/product", label: "Product" },
-  { href: "/method", label: "Method" },
   { href: "/docs", label: "Docs" },
+  { href: "https://github.com/rpuneet/mycel", label: "GitHub" },
 ];
 
 function Logo() {

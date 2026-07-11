@@ -69,6 +69,11 @@
   --terminal-command: #fb923c;
   --terminal-comment: #5c524a;
 
+  /* ── Traffic-light dots (terminal chrome) ── */
+  --traffic-red: #ff5f57;
+  --traffic-yellow: #febc2e;
+  --traffic-green: #28c840;
+
   /* ── Navigation ── */
   --nav-bg: rgba(251, 247, 242, 0.85);
 
@@ -568,4 +573,86 @@ input:focus-visible,
   transform: translateY(-2px);
   box-shadow: 0 8px 30px rgba(234, 88, 12, 0.1);
   border-color: rgba(234, 88, 12, 0.15);
+}
+
+/* ═══════════════════════════════════════════
+   DECK — slide-panel showcase
+   ═══════════════════════════════════════════ */
+
+/* Oversized panel index numeral — mono, hollow, structural */
+.deck-index {
+  font-family: var(--font-label);
+  font-weight: 700;
+  line-height: 0.8;
+  letter-spacing: -0.04em;
+  color: transparent;
+  -webkit-text-stroke: 1px rgba(234, 88, 12, 0.32);
+  text-stroke: 1px rgba(234, 88, 12, 0.32);
+}
+
+/* Panel eyebrow label */
+.deck-eyebrow {
+  font-family: var(--font-label);
+  font-weight: 700;
+  font-size: 0.6875rem;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--primary);
+}
+
+/* Editorial serif accent for connective pull-quotes */
+.deck-serif {
+  font-family: var(--font-accent);
+  font-style: italic;
+  letter-spacing: -0.01em;
+}
+
+/* Ember rail — vertical spine linking the deck panels */
+.ember-rail {
+  background: linear-gradient(
+    to bottom,
+    transparent 0%,
+    rgba(234, 88, 12, 0.28) 8%,
+    rgba(234, 88, 12, 0.28) 92%,
+    transparent 100%
+  );
+}
+
+/* Pulsing node on the ember rail */
+@keyframes node-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(234, 88, 12, 0.45);
+    opacity: 0.9;
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(234, 88, 12, 0);
+    opacity: 1;
+  }
+}
+.ember-node {
+  animation: node-pulse 2.8s ease-in-out infinite;
+}
+
+/* Panel artifact frame — soft ember lift */
+.deck-artifact {
+  box-shadow:
+    0 0 0 1px rgba(234, 88, 12, 0.08),
+    0 30px 60px -30px rgba(0, 0, 0, 0.6),
+    0 0 80px -20px rgba(234, 88, 12, 0.12);
+}
+
+/* Grain / atmosphere veil for deck backdrop */
+.deck-veil {
+  background:
+    radial-gradient(
+      60% 40% at 15% 0%,
+      rgba(234, 88, 12, 0.05),
+      transparent 70%
+    ),
+    radial-gradient(
+      50% 40% at 90% 100%,
+      rgba(251, 146, 60, 0.04),
+      transparent 70%
+    );
 }

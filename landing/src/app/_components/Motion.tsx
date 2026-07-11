@@ -51,7 +51,7 @@ export function FadeUp({
   );
 }
 
-/** Legacy alias */
+/** Alias — FadeIn reads better at some call sites */
 export const FadeIn = FadeUp;
 
 /** Stagger child animations */

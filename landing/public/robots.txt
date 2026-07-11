@@ -18,4 +18,4 @@ Allow: /
 Crawl-delay: 1
 
 # Sitemap location
-Sitemap: https://mycel.dev/sitemap.xml
+Sitemap: https://bc-infra.com/sitemap.xml

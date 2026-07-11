@@ -38,13 +38,6 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   // Initialize theme
   useEffect(() => {
     const initializeTheme = () => {
-      // One-time migration from old "bc-theme" key
-      const oldStored = localStorage.getItem("bc-theme");
-      if (oldStored) {
-        localStorage.setItem(STORAGE_KEY, oldStored);
-        localStorage.removeItem("bc-theme");
-      }
-
       // Get stored preference
       const stored = localStorage.getItem(STORAGE_KEY) as Theme | null;
       const preferredTheme = stored || "dark";
