@@ -177,6 +177,45 @@ lifecycle prompts (`prompt_create`/`prompt_start`/`prompt_stop`/
 | PUT | `/api/roles/{name}` | Update |
 | DELETE | `/api/roles/{name}` | Delete (agents keep config) |
 
+## Per-Agent Environment Variables
+
+Each agent has a configurable `env` map that is injected into its session at spawn time.
+Values support `${secret:NAME}` placeholders: resolved from the secrets vault at spawn, never stored in plain text.
+
+### Priority order (highest → lowest)
+
+1. MYCEL_* system vars — always protected, user config cannot clobber them
+2. Per-agent `env` map (configured via `POST /api/agents` or `PUT /api/agents/{name}/env`)
+3. Agent env-file (legacy `.env` file path stored on agent)
+4. Gateway credential vars (injected by injectGatewayEnv)
+5. Vault-declared role secrets (injected by injectVaultSecrets)
+
+### Secret references
+
+Set a value to `${secret:MY_SECRET_NAME}` to reference a vault secret.
+At spawn, mycel resolves the reference from the layered vault
+(global `~/.mycel/secrets.vault` + workspace `.bc/secrets.db`; workspace wins).
+The reference is stored verbatim — the resolved value never persists to disk.
+
+### Cloud provider credentials (e.g. AWS Bedrock)
+
+There is no special-case AWS injection in mycel. To use a cloud provider:
+1. Store credentials in `~/.aws/credentials` or set `AWS_PROFILE`/`AWS_REGION` in the host environment before starting `bcd`.
+2. Or configure them per-agent via the env map: set `AWS_PROFILE` and `AWS_REGION` in the agent's environment variables panel in the web UI (or via the API).
+
+This works for any cloud provider — AWS, Azure, GCP — without any provider-specific code in mycel.
+
+### API
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/agents/{name}/env` | List configured env vars (references shown verbatim) |
+| PUT | `/api/agents/{name}/env` | Replace env vars; takes effect on next restart |
+
+### Web UI
+
+The **Create Agent** modal and the **Agent Detail** settings panel both include an environment variable editor with secret autocomplete. Typing `${` in a value field opens a dropdown of vault secret names; selecting one inserts the reference.
+
 ## Notification Delivery
 
 Agents receive notifications from external platforms via `tmux send-keys` -- the only mechanism to inject into a running session. Notifications are delivered as JSON payloads containing both normalized fields (`channel`, `platform`, `sender`, `content`, `mentions`) and a `raw` field with the complete platform-specific JSON payload as received from the gateway adapter.

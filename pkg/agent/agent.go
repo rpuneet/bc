@@ -1287,7 +1287,6 @@ func (m *Manager) startAgent(ctx context.Context, name string, opts SpawnOptions
 	}
 	injectEnv(env, wsPath, name, existing.EnvFile, existing.Env)
 	injectGatewayEnv(env, m.gatewayConfig)
-	injectProviderEnv(env, toolName, m.providerRegistry)
 	secretEnvKeys := injectVaultSecrets(env, wsPath, resolveRoleSecrets(wsPath, string(existing.Role)))
 
 	rt := m.runtimeForAgent(name)
@@ -1532,7 +1531,6 @@ func (m *Manager) createAgent(ctx context.Context, opts SpawnOptions) (*Agent, e
 	}
 	injectEnv(env, wsPath, name, opts.EnvFile, opts.Env)
 	injectGatewayEnv(env, m.gatewayConfig)
-	injectProviderEnv(env, effectiveTool, m.providerRegistry)
 	secretEnvKeys := injectVaultSecrets(env, wsPath, resolveRoleSecrets(wsPath, string(role)))
 
 	rt := m.runtimeForAgent(name)
@@ -3773,23 +3771,6 @@ func injectGatewayEnv(env map[string]string, gw *workspace.GatewaysConfig) {
 	}
 }
 
-// injectProviderEnv calls the EnvContributor hook for the named tool so
-// providers can inject additional env vars (e.g. AWS pointer vars for pi).
-// It is a no-op when toolName is empty, the registry is nil, or the provider
-// does not implement EnvContributor.
-func injectProviderEnv(env map[string]string, toolName string, registry *provider.Registry) {
-	if toolName == "" || registry == nil {
-		return
-	}
-	p, ok := registry.Get(toolName)
-	if !ok {
-		return
-	}
-	if ec, ok := p.(provider.EnvContributor); ok {
-		ec.ContributeEnv(env)
-	}
-}
-
 // wellKnownVaultTokens lists vault secret names that are automatically injected
 // as agent env vars when present, without requiring explicit role declaration.
 // These are integration/gateway tokens that agents commonly need.
@@ -3843,11 +3824,11 @@ func openLayeredStore(wsPath, passphrase string) (ls *secret.LayeredStore, close
 // injectVaultSecrets injects vault secrets into the agent env map.
 //
 // Precedence (highest → lowest):
-//  1. Existing value in env (set by agent env-file, injectGatewayEnv, or injectProviderEnv)
+//  1. Existing value in env (set by agent env-file or injectGatewayEnv)
 //  2. Vault value (global ~/.mycel/secrets.vault + workspace <ws>/.bc/secrets.db, workspace wins)
 //
-// Call AFTER injectEnv + injectGatewayEnv + injectProviderEnv so that
-// gateway-config tokens are never overwritten by vault copies.
+// Call AFTER injectEnv + injectGatewayEnv so that gateway-config tokens
+// are never overwritten by vault copies.
 //
 // Role-scoped secrets (roleSecrets from ResolvedRole.Secrets) act as an
 // allowlist: vault values are not sprayed across every agent indiscriminately.
