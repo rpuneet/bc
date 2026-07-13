@@ -42,6 +42,7 @@ import (
 	"github.com/rpuneet/mycel/pkg/tool"
 	"github.com/rpuneet/mycel/pkg/workspace"
 	"github.com/rpuneet/mycel/server/handlers"
+	servermcp "github.com/rpuneet/mycel/server/mcp"
 	"github.com/rpuneet/mycel/server/ws"
 )
 
@@ -448,6 +449,26 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 	}
 	sh.Register(mux)
 
+	// Agent-facing MCP server (streamable HTTP), mounted at /_mcp/{agent}.
+	// The path segment is the trusted sender identity for agent tools.
+	if svc.WS != nil {
+		mcpCfg := servermcp.Config{
+			Workspace: svc.WS,
+			Costs:     svc.Costs,
+			Gateway:   svc.Gateway,
+			Notify:    svc.Notify,
+			Version:   cfg.Build.Version,
+		}
+		if svc.Agents != nil {
+			mcpCfg.Agents = svc.Agents.Manager()
+		}
+		if mcpSrv, mcpErr := servermcp.New(mcpCfg); mcpErr != nil {
+			log.Warn("MCP server unavailable", "error", mcpErr)
+		} else {
+			mcpSrv.Register(mux)
+		}
+	}
+
 	// Static web UI with SPA fallback — serves files if they exist,
 	// otherwise falls back to index.html for client-side routing.
 	if staticFiles != nil {
@@ -457,7 +478,7 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 			// returning index.html with 200 makes client bugs (calls to
 			// endpoints that don't exist) silently unfixable.
 			path := r.URL.Path
-			if strings.HasPrefix(path, "/api/") || strings.HasPrefix(path, "/hooks/") {
+			if strings.HasPrefix(path, "/api/") || strings.HasPrefix(path, "/hooks/") || strings.HasPrefix(path, "/_mcp/") {
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusNotFound)
 				_, _ = w.Write([]byte(`{"error":"not found"}`))

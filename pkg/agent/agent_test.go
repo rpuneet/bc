@@ -1219,6 +1219,45 @@ func TestUpdateAgentState_TaskUpdate(t *testing.T) {
 	}
 }
 
+// --- SetAgentTask (MCP report_status write path) ---
+
+func TestSetAgentTask(t *testing.T) {
+	m := newTestManager(t)
+	m.agents["eng-1"] = &Agent{
+		Name:  "eng-1",
+		Role:  Role("engineer"),
+		State: StateIdle,
+	}
+
+	if err := m.SetAgentTask(context.Background(), "eng-1", "reviewing PR"); err != nil {
+		t.Fatalf("SetAgentTask failed: %v", err)
+	}
+
+	a := m.agents["eng-1"]
+	if a.Task != "reviewing PR" {
+		t.Errorf("task = %q, want %q", a.Task, "reviewing PR")
+	}
+	// Unlike UpdateAgentState, the lifecycle state must be untouched.
+	if a.State != StateIdle {
+		t.Errorf("state = %q, want %q (SetAgentTask must not change state)", a.State, StateIdle)
+	}
+	if a.UpdatedAt.IsZero() {
+		t.Error("UpdatedAt should be set")
+	}
+
+	loaded, err := m.store.Load(context.Background(), "eng-1")
+	if err != nil {
+		t.Fatalf("store.Load: %v", err)
+	}
+	if loaded == nil || loaded.Task != "reviewing PR" {
+		t.Errorf("persisted task = %v, want %q", loaded, "reviewing PR")
+	}
+
+	if err := m.SetAgentTask(context.Background(), "ghost", "x"); err == nil {
+		t.Error("SetAgentTask on unknown agent should error")
+	}
+}
+
 // --- removeFromParent tests ---
 
 func TestRemoveFromParent(t *testing.T) {
