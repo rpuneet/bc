@@ -273,12 +273,10 @@ func TestValidateFilePath_SymlinkEscape(t *testing.T) {
 		t.Errorf("in-workspace file rejected: %v", err)
 	}
 
-	// A secret outside every allowed root, reachable only via a symlink
-	// planted inside the workspace — must be rejected.
-	outside := filepath.Join(t.TempDir(), "secret.txt")
-	if err := os.WriteFile(outside, []byte("s3cret"), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	// A file outside every allowed root, reachable only via a symlink planted
+	// inside the workspace — must be rejected. t.TempDir() can live under
+	// /tmp (an allowed root) on Linux, so use /etc/passwd as the target.
+	const outside = "/etc/passwd"
 	link := filepath.Join(ws.RootDir, "innocent.txt")
 	if err := os.Symlink(outside, link); err != nil {
 		t.Fatal(err)
