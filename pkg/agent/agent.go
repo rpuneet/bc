@@ -2599,6 +2599,24 @@ func (m *Manager) UpdateAgentState(ctx context.Context, name string, state State
 	return nil
 }
 
+// SetAgentTask updates an agent's task line without touching its lifecycle
+// state, so a status report never has to satisfy the state machine. This is
+// the write path for the MCP report_status tool.
+func (m *Manager) SetAgentTask(ctx context.Context, name, task string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	agent, exists := m.agents[name]
+	if !exists {
+		return fmt.Errorf("agent %s: %w", name, ErrNotFound)
+	}
+	agent.Task = task
+	agent.UpdatedAt = time.Now()
+	if err := m.saveState(ctx); err != nil {
+		log.Warn("failed to save agent state", "error", err)
+	}
+	return nil
+}
+
 // SetAgentState updates an agent's state from a lifecycle event while
 // preserving the agent's reported task. Lifecycle descriptions ("Turn
 // complete", "Session ended", …) belong in the activity/event stream, not

@@ -190,6 +190,13 @@ func writeMCPJSON(ctx context.Context, workspacePath, agentName string, resolved
 	}
 
 	for _, name := range resolved.MCPServers {
+		// The bc server is this daemon itself — its address depends on the
+		// live bind address and the agent's runtime, never on the store.
+		if name == "bc" {
+			cfg.MCPServers["bc"] = mcpServerEntry{URL: bcSelfURL(runtimeBackend, agentName), Type: "http"}
+			continue
+		}
+
 		// Try unified tool store first
 		var transport, command, url string
 		var args []string
@@ -229,7 +236,7 @@ func writeMCPJSON(ctx context.Context, workspacePath, agentName string, resolved
 		}
 		// Docker agents can't use stdio-transport MCP servers (no access to
 		// host processes). Skip with warning — use tmux runtime for full MCP.
-		if isDocker && transport != "sse" {
+		if isDocker && transport != "sse" && transport != "http" {
 			log.Warn("skipping stdio MCP server for Docker agent (unreachable)",
 				"agent", agentName, "mcp", name,
 				"hint", "use tmux runtime for stdio MCP servers")
@@ -239,8 +246,11 @@ func writeMCPJSON(ctx context.Context, workspacePath, agentName string, resolved
 		if isDocker && entry.URL != "" {
 			entry.URL = rewriteDockerURL(entry.URL)
 		}
-		if transport == "sse" {
+		switch transport {
+		case "sse":
 			entry.Type = "sse"
+		case "http":
+			entry.Type = "http"
 		}
 		if len(env) > 0 {
 			entry.Env = make(map[string]string, len(env))
@@ -256,6 +266,12 @@ func writeMCPJSON(ctx context.Context, workspacePath, agentName string, resolved
 		cfg.MCPServers[name] = entry
 	}
 
+	// Always ensure the bc MCP server is included with an agent-scoped URL.
+	// It carries send_message, report_status, and the other agent tools.
+	if _, hasBc := cfg.MCPServers["bc"]; !hasBc {
+		cfg.MCPServers["bc"] = mcpServerEntry{URL: bcSelfURL(runtimeBackend, agentName), Type: "http"}
+	}
+
 	// Prefer claude CLI for MCP setup; fall back to .mcp.json file write.
 	if len(cfg.MCPServers) > 0 && setupMCPViaCLI(ctx, targetDir, agentName, cfg.MCPServers) {
 		log.Debug("MCP servers configured via claude CLI", "agent", agentName, "count", len(cfg.MCPServers))
@@ -264,6 +280,15 @@ func writeMCPJSON(ctx context.Context, workspacePath, agentName string, resolved
 
 	// Fallback: write .mcp.json directly (for non-Claude providers or if CLI unavailable)
 	return writeJSONFile(targetDir, ".mcp.json", cfg)
+}
+
+// bcSelfURL returns this daemon's agent-scoped MCP endpoint (streamable
+// HTTP) for the given runtime. A URL stored in mcp_servers can't be right
+// for both runtimes at once (tmux needs 127.0.0.1, docker needs
+// host.docker.internal) nor track the actual bind port, so the self
+// endpoint is always derived from the live daemon address.
+func bcSelfURL(runtimeBackend, agentName string) string {
+	return daemonAddrForRuntime(runtimeBackend) + "/_mcp/" + agentName
 }
 
 // rewriteDockerURL rewrites localhost URLs to host.docker.internal so Docker
@@ -606,8 +631,12 @@ func setupMCPViaCLI(ctx context.Context, targetDir, agentName string, servers ma
 		args := []string{"mcp", "add", "--scope", "project"}
 
 		if entry.Type == "sse" || entry.URL != "" {
-			// SSE/HTTP transport
-			args = append(args, "--transport", "sse")
+			// Remote transport — streamable HTTP unless the entry says SSE.
+			transport := "http"
+			if entry.Type == "sse" {
+				transport = "sse"
+			}
+			args = append(args, "--transport", transport)
 
 			// Add env vars
 			for k, v := range entry.Env {
