@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -253,6 +255,41 @@ func TestHTTP_InvalidPaths404(t *testing.T) {
 		if ct := resp.Header.Get("Content-Type"); !strings.Contains(ct, "application/json") {
 			t.Errorf("GET %s content-type = %q, want JSON", path, ct)
 		}
+	}
+}
+
+// TestValidateFilePath_SymlinkEscape ensures a symlink inside the workspace
+// cannot point send_file at a host file outside the allowed roots.
+func TestValidateFilePath_SymlinkEscape(t *testing.T) {
+	ws := testWorkspace(t)
+	cfg := Config{Workspace: ws}
+
+	// A real file inside the workspace passes.
+	inside := filepath.Join(ws.RootDir, "ok.txt")
+	if err := os.WriteFile(inside, []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := validateFilePath(cfg, inside); err != nil {
+		t.Errorf("in-workspace file rejected: %v", err)
+	}
+
+	// A secret outside every allowed root, reachable only via a symlink
+	// planted inside the workspace — must be rejected.
+	outside := filepath.Join(t.TempDir(), "secret.txt")
+	if err := os.WriteFile(outside, []byte("s3cret"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(ws.RootDir, "innocent.txt")
+	if err := os.Symlink(outside, link); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := validateFilePath(cfg, link); err == nil {
+		t.Error("symlink escaping the workspace root was accepted")
+	}
+
+	// A direct path outside the roots is rejected too.
+	if _, err := validateFilePath(cfg, outside); err == nil {
+		t.Error("path outside workspace root was accepted")
 	}
 }
 

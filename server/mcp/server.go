@@ -40,7 +40,7 @@ type Handler struct {
 	servers map[string]*sdk.Server
 	http    http.Handler
 	cfg     Config
-	mu      sync.Mutex
+	mu      sync.RWMutex
 }
 
 // New creates a Handler. Workspace is required; every other dependency is
@@ -86,12 +86,19 @@ func (h *Handler) serverForRequest(r *http.Request) *sdk.Server {
 		return nil
 	}
 
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	if s, ok := h.servers[name]; ok {
+	h.mu.RLock()
+	s, ok := h.servers[name]
+	h.mu.RUnlock()
+	if ok {
 		return s
 	}
-	s := sdk.NewServer(&sdk.Implementation{Name: "mycel", Version: h.cfg.Version}, nil)
+
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if s, ok = h.servers[name]; ok {
+		return s
+	}
+	s = sdk.NewServer(&sdk.Implementation{Name: "mycel", Version: h.cfg.Version}, nil)
 	addTools(s, h.cfg, name)
 	h.servers[name] = s
 	return s

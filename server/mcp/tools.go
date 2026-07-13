@@ -24,7 +24,12 @@ const (
 	maxTaskLen    = 1024      // report_status task line
 	maxPathLen    = 4 * 1024  // file_path on send_file (typical PATH_MAX)
 	maxFileSize   = 50 * 1024 * 1024
+	maxReadLimit  = 200 // read_channel page size cap
 )
+
+// readOnly marks tools with no side effects so MCP clients can skip
+// confirmation prompts for them.
+var readOnly = &sdk.ToolAnnotations{ReadOnlyHint: true}
 
 // addTools registers every tool on s. Handlers close over agentName — the
 // identity derived from the authenticated /_mcp/{agent} path — which is the
@@ -33,6 +38,7 @@ func addTools(s *sdk.Server, cfg Config, agentName string) {
 	sdk.AddTool(s, &sdk.Tool{
 		Name:        "whoami",
 		Description: "Returns the current agent's identity, role, state, and workspace",
+		Annotations: readOnly,
 	}, func(ctx context.Context, _ *sdk.CallToolRequest, _ emptyIn) (*sdk.CallToolResult, whoamiOut, error) {
 		return nil, whoami(cfg, agentName), nil
 	})
@@ -40,6 +46,7 @@ func addTools(s *sdk.Server, cfg Config, agentName string) {
 	sdk.AddTool(s, &sdk.Tool{
 		Name:        "list_agents",
 		Description: "List all agents in the workspace with their status and role",
+		Annotations: readOnly,
 	}, func(ctx context.Context, _ *sdk.CallToolRequest, in listAgentsIn) (*sdk.CallToolResult, listAgentsOut, error) {
 		return listAgents(cfg, in)
 	})
@@ -47,6 +54,7 @@ func addTools(s *sdk.Server, cfg Config, agentName string) {
 	sdk.AddTool(s, &sdk.Tool{
 		Name:        "list_channels",
 		Description: "List all gateway channels (e.g., slack:eng, telegram:trade) messages can be sent to",
+		Annotations: readOnly,
 	}, func(ctx context.Context, _ *sdk.CallToolRequest, _ emptyIn) (*sdk.CallToolResult, listChannelsOut, error) {
 		return listChannels(cfg)
 	})
@@ -54,6 +62,7 @@ func addTools(s *sdk.Server, cfg Config, agentName string) {
 	sdk.AddTool(s, &sdk.Tool{
 		Name:        "read_channel",
 		Description: "Read recent messages from a gateway channel",
+		Annotations: readOnly,
 	}, func(ctx context.Context, _ *sdk.CallToolRequest, in readChannelIn) (*sdk.CallToolResult, readChannelOut, error) {
 		return readChannel(ctx, cfg, in)
 	})
@@ -82,6 +91,7 @@ func addTools(s *sdk.Server, cfg Config, agentName string) {
 	sdk.AddTool(s, &sdk.Tool{
 		Name:        "query_costs",
 		Description: "Query token usage and cost, for one agent or the whole workspace",
+		Annotations: readOnly,
 	}, func(ctx context.Context, _ *sdk.CallToolRequest, in queryCostsIn) (*sdk.CallToolResult, queryCostsOut, error) {
 		return queryCosts(ctx, cfg, in)
 	})
@@ -209,6 +219,9 @@ func readChannel(ctx context.Context, cfg Config, in readChannelIn) (*sdk.CallTo
 	if limit <= 0 {
 		limit = 20
 	}
+	if limit > maxReadLimit {
+		limit = maxReadLimit
+	}
 	msgs, err := cfg.Notify.Store().GetMessages(ctx, in.Channel, limit, 0)
 	if err != nil {
 		return nil, out, fmt.Errorf("read failed: %w", err)
@@ -332,23 +345,35 @@ func sendFile(ctx context.Context, cfg Config, agentName string, in sendFileIn) 
 	return nil, out, nil
 }
 
-// validateFilePath resolves p and ensures it stays under the workspace root
-// or /tmp, preventing the tool from exfiltrating arbitrary host files.
+// validateFilePath resolves p — including symlinks, so a link inside an
+// allowed root can't point the read at a file outside it — and ensures it
+// stays under the workspace root or /tmp, preventing the tool from
+// exfiltrating arbitrary host files.
 func validateFilePath(cfg Config, p string) (string, error) {
 	absPath, err := filepath.Abs(p)
 	if err != nil {
 		return "", fmt.Errorf("invalid file path: %w", err)
 	}
-	absPath = filepath.Clean(absPath)
-	wsRoot := cfg.Workspace.RootDir
-	inRoot := absPath == wsRoot ||
-		strings.HasPrefix(absPath, strings.TrimSuffix(wsRoot, "/")+"/") ||
-		strings.HasPrefix(absPath, "/tmp/") ||
-		strings.HasPrefix(absPath, "/private/tmp/")
-	if !inRoot {
-		return "", fmt.Errorf("file path %q is outside workspace root %q", absPath, wsRoot)
+	resolved, err := filepath.EvalSymlinks(absPath)
+	if err != nil {
+		return "", fmt.Errorf("file not found: %w", err)
 	}
-	return absPath, nil
+	// Resolve the root too (macOS /tmp and /var are themselves symlinks).
+	wsRoot := cfg.Workspace.RootDir
+	if r, err := filepath.EvalSymlinks(wsRoot); err == nil {
+		wsRoot = r
+	}
+	if !underDir(resolved, wsRoot) && !underDir(resolved, "/tmp") && !underDir(resolved, "/private/tmp") {
+		return "", fmt.Errorf("file path %q is outside workspace root %q", resolved, wsRoot)
+	}
+	return resolved, nil
+}
+
+// underDir reports whether path is dir or lexically contained in it. Both
+// arguments must already be symlink-resolved absolute paths.
+func underDir(path, dir string) bool {
+	dir = strings.TrimSuffix(dir, "/")
+	return path == dir || strings.HasPrefix(path, dir+"/")
 }
 
 // detectMIME sniffs content and falls back to extension for common types
