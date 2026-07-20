@@ -70,7 +70,7 @@ jobs:
         with:
           fetch-depth: 0
           ref: ${{ needs.prepare.outputs.tag }}
-      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: true
@@ -120,7 +120,7 @@ jobs:
         with:
           fetch-depth: 0
           ref: ${{ needs.prepare.outputs.tag }}
-      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: true
@@ -156,7 +156,7 @@ jobs:
           cd dist && shasum -a 256 *.tar.gz > checksums-macos.txt
 
       - name: Upload to release
-        uses: softprops/action-gh-release@718ea10b132b3b2eba29c1007bb80653f286566b # v2
+        uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v2
         with:
           tag_name: ${{ needs.prepare.outputs.tag }}
           files: |
@@ -259,7 +259,7 @@ jobs:
           output-file: sbom.spdx.json
 
       - name: Upload SBOM to release
-        uses: softprops/action-gh-release@718ea10b132b3b2eba29c1007bb80653f286566b # v2
+        uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v2
         with:
           tag_name: ${{ needs.prepare.outputs.tag }}
           files: sbom.spdx.json
