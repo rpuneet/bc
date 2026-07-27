@@ -19,7 +19,7 @@
   "dependencies": {
     "ink": "^4.4.1",
     "ink-text-input": "^5.0.1",
-    "react": "^18.2.0",
+    "react": "^19.2.8",
     "react-devtools-core": "^7.0.1"
   },
   "devDependencies": {
