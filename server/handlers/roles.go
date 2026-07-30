@@ -5,17 +5,17 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/rpuneet/mycel/pkg/workspace"
+	"github.com/rpuneet/mycel/pkg/home"
 )
 
 // RolesHandler handles /api/roles routes.
 type RolesHandler struct {
-	ws *workspace.Workspace
+	h *home.Home
 }
 
 // NewRolesHandler creates a RolesHandler.
-func NewRolesHandler(ws *workspace.Workspace) *RolesHandler {
-	return &RolesHandler{ws: ws}
+func NewRolesHandler(h *home.Home) *RolesHandler {
+	return &RolesHandler{h: h}
 }
 
 // Register mounts roles routes on mux.
@@ -45,10 +45,10 @@ type roleRequest struct {
 	CLITools     []string          `json:"cli_tools"`
 }
 
-func (req *roleRequest) toRole() *workspace.Role {
-	return &workspace.Role{
+func (req *roleRequest) toRole() *home.Role {
+	return &home.Role{
 		Prompt: req.Prompt,
-		Metadata: workspace.RoleMetadata{
+		Metadata: home.RoleMetadata{
 			Name:         req.Name,
 			Description:  req.Description,
 			ParentRoles:  req.ParentRoles,
@@ -73,7 +73,7 @@ func (req *roleRequest) toRole() *workspace.Role {
 func (h *RolesHandler) list(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
-		roles, err := h.ws.RoleManager.LoadAllRoles()
+		roles, err := h.h.RoleManager.LoadAllRoles()
 		if err != nil {
 			httpInternalError(w, "list roles", err)
 			return
@@ -81,13 +81,13 @@ func (h *RolesHandler) list(w http.ResponseWriter, r *http.Request) {
 
 		// Deduplicate roles by normalized name to prevent duplicates
 		// like "product_manager" vs "product-manager".
-		resolved := make(map[string]*workspace.ResolvedRole, len(roles))
+		resolved := make(map[string]*home.ResolvedRole, len(roles))
 		for name := range roles {
-			normalized := workspace.NormalizeRoleName(name)
+			normalized := home.NormalizeRoleName(name)
 			if _, exists := resolved[normalized]; exists {
 				continue // already have this role under normalized name
 			}
-			if res, resolveErr := h.ws.RoleManager.ResolveRole(name); resolveErr == nil {
+			if res, resolveErr := h.h.RoleManager.ResolveRole(name); resolveErr == nil {
 				resolved[normalized] = res
 			}
 		}
@@ -103,18 +103,18 @@ func (h *RolesHandler) list(w http.ResponseWriter, r *http.Request) {
 			httpError(w, "role name is required", http.StatusBadRequest)
 			return
 		}
-		if h.ws.RoleManager.HasRole(req.Name) {
+		if h.h.RoleManager.HasRole(req.Name) {
 			httpError(w, "role already exists: "+req.Name, http.StatusConflict)
 			return
 		}
 
 		role := req.toRole()
-		if err := h.ws.RoleManager.WriteRole(role); err != nil {
+		if err := h.h.RoleManager.WriteRole(role); err != nil {
 			httpInternalError(w, "create role", err)
 			return
 		}
 
-		resolved, err := h.ws.RoleManager.ResolveRole(req.Name)
+		resolved, err := h.h.RoleManager.ResolveRole(req.Name)
 		if err != nil {
 			httpInternalError(w, "resolve role", err)
 			return
@@ -136,7 +136,7 @@ func (h *RolesHandler) byName(w http.ResponseWriter, r *http.Request) {
 
 	switch r.Method {
 	case http.MethodGet:
-		resolved, err := h.ws.RoleManager.ResolveRole(name)
+		resolved, err := h.h.RoleManager.ResolveRole(name)
 		if err != nil {
 			httpError(w, "role not found: "+err.Error(), http.StatusNotFound)
 			return
@@ -153,12 +153,12 @@ func (h *RolesHandler) byName(w http.ResponseWriter, r *http.Request) {
 		req.Name = name
 
 		role := req.toRole()
-		if err := h.ws.RoleManager.WriteRole(role); err != nil {
+		if err := h.h.RoleManager.WriteRole(role); err != nil {
 			httpInternalError(w, "update role", err)
 			return
 		}
 
-		resolved, err := h.ws.RoleManager.ResolveRole(name)
+		resolved, err := h.h.RoleManager.ResolveRole(name)
 		if err != nil {
 			httpInternalError(w, "resolve role", err)
 			return
@@ -166,7 +166,7 @@ func (h *RolesHandler) byName(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, resolved)
 
 	case http.MethodDelete:
-		if err := h.ws.RoleManager.DeleteRole(name); err != nil {
+		if err := h.h.RoleManager.DeleteRole(name); err != nil {
 			httpError(w, err.Error(), http.StatusBadRequest)
 			return
 		}

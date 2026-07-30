@@ -22,7 +22,7 @@ func BenchmarkSessionName_NoHash(b *testing.B) {
 }
 
 func BenchmarkSessionName_WithHash(b *testing.B) {
-	m := NewWorkspaceManager("bc-", "/path/to/workspace")
+	m := NewManagerWithRepo("bc-", "/path/to/workspace")
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		_ = m.SessionName("test-agent")
@@ -89,9 +89,9 @@ func BenchmarkNewManager(b *testing.B) {
 	}
 }
 
-func BenchmarkNewWorkspaceManager(b *testing.B) {
+func BenchmarkNewManagerWithRepo(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		_ = NewWorkspaceManager("bc-", "/path/to/workspace")
+		_ = NewManagerWithRepo("bc-", "/path/to/workspace")
 	}
 }
 

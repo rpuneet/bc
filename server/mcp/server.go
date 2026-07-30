@@ -18,19 +18,19 @@ import (
 	"github.com/rpuneet/mycel/pkg/agent"
 	"github.com/rpuneet/mycel/pkg/cost"
 	"github.com/rpuneet/mycel/pkg/gateway"
+	"github.com/rpuneet/mycel/pkg/home"
 	"github.com/rpuneet/mycel/pkg/notify"
-	"github.com/rpuneet/mycel/pkg/workspace"
 )
 
 // Config holds the daemon-owned dependencies the tool handlers dispatch to.
 // All stores are shared with bcd; the MCP layer owns no connections.
 type Config struct {
-	Workspace *workspace.Workspace
-	Agents    *agent.Manager
-	Costs     *cost.Service
-	Gateway   *gateway.Manager
-	Notify    *notify.Service
-	Version   string
+	Home    *home.Home
+	Agents  *agent.Manager
+	Costs   *cost.Service
+	Gateway *gateway.Manager
+	Notify  *notify.Service
+	Version string
 }
 
 // Handler serves the agent-scoped MCP endpoints. It lazily builds one
@@ -43,11 +43,11 @@ type Handler struct {
 	mu      sync.RWMutex
 }
 
-// New creates a Handler. Workspace is required; every other dependency is
+// New creates a Handler. Home is required; every other dependency is
 // optional and the corresponding tools degrade with a tool error.
 func New(cfg Config) (*Handler, error) {
-	if cfg.Workspace == nil {
-		return nil, fmt.Errorf("workspace is required")
+	if cfg.Home == nil {
+		return nil, fmt.Errorf("home is required")
 	}
 	h := &Handler{cfg: cfg, servers: make(map[string]*sdk.Server)}
 	// Stateless: every POST is self-contained, so long-running daemons never

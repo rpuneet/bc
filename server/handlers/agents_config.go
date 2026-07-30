@@ -44,14 +44,14 @@ type agentConfigDTO struct { //nolint:govet // field order matches JSON/API cont
 // getAgentConfig handles GET /api/agents/{name}/config.
 func (h *AgentHandler) getAgentConfig(w http.ResponseWriter, r *http.Request, name string) {
 	svc := h.svc
-	ws := h.ws
+	hm := h.home
 	a, err := svc.Get(r.Context(), name)
 	if err != nil {
 		httpError(w, err.Error(), http.StatusNotFound)
 		return
 	}
 
-	// Determine worktree path: use stored WorktreeDir or compute from workspace root.
+	// Determine worktree path: use stored WorktreeDir or compute from repo root.
 	wtDir := a.WorktreeDir
 	if wtDir == "" {
 		wtDir = svc.Manager().WorktreePath(name)
@@ -67,7 +67,7 @@ func (h *AgentHandler) getAgentConfig(w http.ResponseWriter, r *http.Request, na
 
 	// Read the per-tool prompt file (CLAUDE.md / GEMINI.md / .cursorrules / ...)
 	// from the agent's worktree. Reject traversal segments so a corrupt
-	// worktree path can never read outside the workspace.
+	// worktree path can never read outside the repo.
 	wtDir = filepath.Clean(wtDir)
 	if wtDir != "." && !strings.Contains(wtDir, "..") {
 		promptPath := filepath.Join(wtDir, promptFileForTool(a.Tool))
@@ -77,8 +77,8 @@ func (h *AgentHandler) getAgentConfig(w http.ResponseWriter, r *http.Request, na
 	}
 
 	// Resolve MCP servers from the agent's role via the role manager.
-	if ws != nil && ws.RoleManager != nil && string(a.Role) != "" {
-		if resolved, resolveErr := ws.RoleManager.ResolveRole(string(a.Role)); resolveErr == nil && len(resolved.MCPServers) > 0 {
+	if hm != nil && hm.RoleManager != nil && string(a.Role) != "" {
+		if resolved, resolveErr := hm.RoleManager.ResolveRole(string(a.Role)); resolveErr == nil && len(resolved.MCPServers) > 0 {
 			dto.MCPServers = resolved.MCPServers
 		}
 	}
@@ -89,7 +89,7 @@ func (h *AgentHandler) getAgentConfig(w http.ResponseWriter, r *http.Request, na
 // patchAgentConfig handles PATCH /api/agents/{name}/config.
 func (h *AgentHandler) patchAgentConfig(w http.ResponseWriter, r *http.Request, name string) {
 	svc := h.svc
-	ws := h.ws
+	hm := h.home
 	a, err := svc.Get(r.Context(), name)
 	if err != nil {
 		httpError(w, err.Error(), http.StatusNotFound)
@@ -104,7 +104,7 @@ func (h *AgentHandler) patchAgentConfig(w http.ResponseWriter, r *http.Request, 
 		return
 	}
 
-	// Determine worktree path: use stored WorktreeDir or compute from workspace root.
+	// Determine worktree path: use stored WorktreeDir or compute from repo root.
 	wtDir := a.WorktreeDir
 	if wtDir == "" {
 		wtDir = svc.Manager().WorktreePath(name)
@@ -127,7 +127,7 @@ func (h *AgentHandler) patchAgentConfig(w http.ResponseWriter, r *http.Request, 
 
 	promptFile := promptFileForTool(a.Tool)
 	promptPath := filepath.Join(wtDir, promptFile)
-	//nolint:gosec // trusted path under workspace root
+	//nolint:gosec // trusted path under repo root
 	if writeErr := os.WriteFile(promptPath, []byte(req.SystemPrompt), 0600); writeErr != nil {
 		httpInternalError(w, "write "+promptFile, writeErr)
 		return
@@ -142,8 +142,8 @@ func (h *AgentHandler) patchAgentConfig(w http.ResponseWriter, r *http.Request, 
 		SystemPrompt:   req.SystemPrompt,
 		MCPServers:     []string{},
 	}
-	if ws != nil && ws.RoleManager != nil && string(a.Role) != "" {
-		if resolved, resolveErr := ws.RoleManager.ResolveRole(string(a.Role)); resolveErr == nil && len(resolved.MCPServers) > 0 {
+	if hm != nil && hm.RoleManager != nil && string(a.Role) != "" {
+		if resolved, resolveErr := hm.RoleManager.ResolveRole(string(a.Role)); resolveErr == nil && len(resolved.MCPServers) > 0 {
 			dto.MCPServers = resolved.MCPServers
 		}
 	}
@@ -169,7 +169,7 @@ func (h *AgentHandler) forkAgent(w http.ResponseWriter, r *http.Request, sourceN
 	}
 
 	svc := h.svc
-	ws := h.ws
+	hm := h.home
 	newAgent, err := svc.ForkAgent(r.Context(), sourceName, req.Name)
 	if err != nil {
 		httpError(w, err.Error(), http.StatusBadRequest)
@@ -179,8 +179,8 @@ func (h *AgentHandler) forkAgent(w http.ResponseWriter, r *http.Request, sourceN
 	dto := toDTO(newAgent)
 
 	// Enrich with MCP servers from role.
-	if ws != nil && ws.RoleManager != nil && dto.Role != "" {
-		if resolved, resolveErr := ws.RoleManager.ResolveRole(dto.Role); resolveErr == nil {
+	if hm != nil && hm.RoleManager != nil && dto.Role != "" {
+		if resolved, resolveErr := hm.RoleManager.ResolveRole(dto.Role); resolveErr == nil {
 			dto.MCPServers = resolved.MCPServers
 		}
 	}

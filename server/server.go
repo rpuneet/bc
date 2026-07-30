@@ -1,6 +1,6 @@
 // Package server implements the bcd HTTP API server.
 //
-// The server exposes workspace state over HTTP so the bc CLI can operate as a
+// The server exposes mycel state over HTTP so the bc CLI can operate as a
 // thin client. It binds to localhost only by default and serves:
 //
 //   - REST API at /api/…  (JSON, one handler file per resource)
@@ -30,6 +30,7 @@ import (
 	"github.com/rpuneet/mycel/pkg/deps"
 	"github.com/rpuneet/mycel/pkg/events"
 	"github.com/rpuneet/mycel/pkg/gateway"
+	"github.com/rpuneet/mycel/pkg/home"
 	"github.com/rpuneet/mycel/pkg/log"
 	"github.com/rpuneet/mycel/pkg/marketplace"
 	"github.com/rpuneet/mycel/pkg/mcp"
@@ -39,7 +40,6 @@ import (
 	"github.com/rpuneet/mycel/pkg/stats"
 	"github.com/rpuneet/mycel/pkg/template"
 	"github.com/rpuneet/mycel/pkg/tool"
-	"github.com/rpuneet/mycel/pkg/workspace"
 	"github.com/rpuneet/mycel/server/handlers"
 	servermcp "github.com/rpuneet/mycel/server/mcp"
 	"github.com/rpuneet/mycel/server/ws"
@@ -85,7 +85,7 @@ type Services struct {
 	Stats       *stats.Store
 	EventLog    events.EventStore
 	EventWriter *events.JSONLWriter
-	WS          *workspace.Workspace
+	Home        *home.Home
 	Gateway     *gateway.Manager
 	Notify      *notify.Service
 	// Hub is the process-wide SSE hub the bundle publishes into.
@@ -215,7 +215,7 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 
 		// Check database connectivity
 		if svc.Costs != nil {
-			if _, err := svc.Costs.WorkspaceSummary(r.Context()); err != nil {
+			if _, err := svc.Costs.TotalSummary(r.Context()); err != nil {
 				checks["db"] = "error: " + err.Error()
 				status = "degraded"
 			} else {
@@ -250,21 +250,21 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 
 	// Resource handlers (only registered when service is available)
 	if svc.Agents != nil {
-		ah := handlers.NewAgentHandler(svc.Agents, svc.Costs, svc.WS, hub)
+		ah := handlers.NewAgentHandler(svc.Agents, svc.Costs, svc.Home, hub)
 		if svc.EventLog != nil {
 			ah.SetEventStore(svc.EventLog)
 		}
 		if svc.Stats != nil {
 			ah.SetStatsStore(svc.Stats)
 		}
-		if svc.WS != nil {
+		if svc.Home != nil {
 			// Prefer the layered store populated by BuildServices;
-			// fall back to a single-layer per-workspace store for callers
+			// fall back to a single-layer repo-scoped store for callers
 			// that construct Services manually (eg. legacy tests).
 			if svc.Templates != nil {
 				ah.SetTemplateStore(svc.Templates)
 			} else {
-				templatesDir := filepath.Join(svc.WS.StateDir(), "templates")
+				templatesDir := filepath.Join(svc.Home.StateDir(), "templates")
 				ah.SetTemplateStore(template.NewStore(templatesDir))
 			}
 		}
@@ -333,10 +333,10 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 		handlers.NewToolHandler(svc.Tools).Register(mux)
 	}
 	// Unified tools endpoint (MCP + CLI) — always registered
-	handlers.NewUnifiedToolsHandler(svc.MCP, svc.Tools, svc.Agents, svc.WS).Register(mux)
+	handlers.NewUnifiedToolsHandler(svc.MCP, svc.Tools, svc.Agents, svc.Home).Register(mux)
 
 	// Provider registry endpoint — always registered
-	handlers.NewProviderHandler(provider.DefaultRegistry, svc.Agents, svc.Costs, svc.WS).Register(mux)
+	handlers.NewProviderHandler(provider.DefaultRegistry, svc.Agents, svc.Costs, svc.Home).Register(mux)
 	if svc.EventLog != nil || svc.EventWriter != nil {
 		eh := handlers.NewEventHandler(svc.EventLog)
 		if svc.EventWriter != nil {
@@ -352,9 +352,9 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 	}
 	// Register gateway handler when a gateway manager is present OR when notify
 	// service is available — notify subscription routes must be accessible even
-	// in workspaces without an active gateway adapter.
+	// when no gateway adapter is active.
 	if svc.Gateway != nil || svc.Notify != nil {
-		gh := handlers.NewGatewayHandler(svc.Gateway, svc.WS)
+		gh := handlers.NewGatewayHandler(svc.Gateway, svc.Home)
 		if svc.Notify != nil {
 			gh.SetNotifyService(svc.Notify)
 		}
@@ -362,7 +362,7 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 		// The gateway handler serves the channel/subscription surface
 		// (/api/apps/channels*, /api/notify/*) and the per-instance
 		// routes the apps router delegates to.
-		handlers.NewAppsHandler(gh, svc.Gateway, svc.WS, svc.Secrets).Register(mux)
+		handlers.NewAppsHandler(gh, svc.Gateway, svc.Home, svc.Secrets).Register(mux)
 		gh.Register(mux)
 	}
 	// Repo listing + discovery scanners for the folder picker. The repos
@@ -370,8 +370,8 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 	// repo IS creating an agent with that repo path, so there is no
 	// registration surface.
 	rootDir := ""
-	if svc.WS != nil {
-		rootDir = svc.WS.RootDir
+	if svc.Home != nil {
+		rootDir = svc.Home.RootDir
 	}
 	handlers.NewReposHandler(svc.Agents, rootDir).Register(mux)
 	handlers.NewDiscoveryHandler().Register(mux)
@@ -385,25 +385,25 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 	// Degradation reasons for 503 responses (see serviceUnavailable).
 	handlers.SetDegraded(svc.Degraded)
 	// Code tab endpoints — anchored at the single bundle's repo root.
-	handlers.NewCodeHandler(handlers.NewStaticWorkspaceResolver(rootDir)).Register(mux)
-	if svc.WS != nil {
-		handlers.NewRolesHandler(svc.WS).Register(mux)
-		handlers.NewDoctorHandler(svc.WS).Register(mux)
-		handlers.NewSettingsHandler(svc.WS).Register(mux)
+	handlers.NewCodeHandler(handlers.NewStaticRepoResolver(rootDir)).Register(mux)
+	if svc.Home != nil {
+		handlers.NewRolesHandler(svc.Home).Register(mux)
+		handlers.NewDoctorHandler(svc.Home).Register(mux)
+		handlers.NewSettingsHandler(svc.Home).Register(mux)
 
 		// Templates — prefer the layered store from BuildServices
-		// (global ~/.mycel/templates/ + per-workspace override). Fallback to
-		// a single-layer workspace store for legacy test callers that
+		// (global ~/.mycel/templates/ + repo-scoped override). Fallback to
+		// a single-layer store for legacy test callers that
 		// assemble Services by hand.
 		tmplStore := svc.Templates
-		templatesDir := filepath.Join(svc.WS.StateDir(), "templates")
+		templatesDir := filepath.Join(svc.Home.StateDir(), "templates")
 		if tmplStore == nil {
 			tmplStore = template.NewStore(templatesDir)
 			if seedErr := template.SeedDefaults(templatesDir); seedErr != nil {
 				log.Warn("seed default templates", "error", seedErr)
 			}
 		}
-		if migrErr := migrateRolesToTemplates(svc.WS.RolesDir(), templatesDir); migrErr != nil {
+		if migrErr := migrateRolesToTemplates(svc.Home.RolesDir(), templatesDir); migrErr != nil {
 			log.Warn("migrate roles to templates", "error", migrErr)
 		}
 		handlers.NewTemplateHandler(tmplStore).Register(mux)
@@ -419,13 +419,13 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 		handlers.NewMarketplaceHandler(marketplace.NewAggregator(tmplStore, nil), mktSender).Register(mux)
 
 		// File upload/download for channel attachments + shared screenshots
-		fileStore := attachment.NewStore(svc.WS.StateDir())
+		fileStore := attachment.NewStore(svc.Home.StateDir())
 		fileStore.AddSharedDir("/tmp/bc-shared")
 		handlers.NewFileHandler(fileStore).Register(mux)
 	}
 
 	// Stats endpoints (always registered; nil-safe internally)
-	sh := handlers.NewStatsHandler(svc.Agents, svc.Costs, svc.Tools, svc.WS, svc.Stats)
+	sh := handlers.NewStatsHandler(svc.Agents, svc.Costs, svc.Tools, svc.Home, svc.Stats)
 	if svc.Gateway != nil {
 		sh.SetGateway(svc.Gateway)
 	}
@@ -436,13 +436,13 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 
 	// Agent-facing MCP server (streamable HTTP), mounted at /_mcp/{agent}.
 	// The path segment is the trusted sender identity for agent tools.
-	if svc.WS != nil {
+	if svc.Home != nil {
 		mcpCfg := servermcp.Config{
-			Workspace: svc.WS,
-			Costs:     svc.Costs,
-			Gateway:   svc.Gateway,
-			Notify:    svc.Notify,
-			Version:   cfg.Build.Version,
+			Home:    svc.Home,
+			Costs:   svc.Costs,
+			Gateway: svc.Gateway,
+			Notify:  svc.Notify,
+			Version: cfg.Build.Version,
 		}
 		if svc.Agents != nil {
 			mcpCfg.Agents = svc.Agents.Manager()

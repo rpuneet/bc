@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"path/filepath"
 
-	"github.com/rpuneet/mycel/pkg/workspace"
+	"github.com/rpuneet/mycel/pkg/home"
 )
 
 // DiscoveryHandler exposes the repo-discovery scanners used by the web
@@ -49,7 +49,7 @@ func (h *DiscoveryHandler) discoverLocal(w http.ResponseWriter, r *http.Request)
 		http.Error(w, `{"error":"root is required"}`, http.StatusBadRequest)
 		return
 	}
-	cands, err := workspace.ScanLocal(r.Context(), workspace.ScanOptions{
+	cands, err := home.ScanLocal(r.Context(), home.ScanOptions{
 		Root:  body.Root,
 		Depth: body.Depth,
 	})
@@ -74,9 +74,9 @@ func (h *DiscoveryHandler) discoverGithub(w http.ResponseWriter, r *http.Request
 		http.Error(w, `{"error":"invalid json body"}`, http.StatusBadRequest)
 		return
 	}
-	repos, err := workspace.ListGithubRepos(r.Context(), body.Query)
+	repos, err := home.ListGithubRepos(r.Context(), body.Query)
 	if err != nil {
-		if errors.Is(err, workspace.ErrGithubNotAuthenticated) {
+		if errors.Is(err, home.ErrGithubNotAuthenticated) {
 			http.Error(w, `{"error":"github not authenticated"}`, http.StatusUnauthorized)
 			return
 		}
@@ -107,7 +107,7 @@ func (h *DiscoveryHandler) clone(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, `{"error":"url and target are required"}`, http.StatusBadRequest)
 		return
 	}
-	dest, err := workspace.Clone(r.Context(), body.URL, body.Target, body.Name)
+	dest, err := home.Clone(r.Context(), body.URL, body.Target, body.Name)
 	if err != nil {
 		http.Error(w, `{"error":"clone failed: `+err.Error()+`"}`, http.StatusBadRequest)
 		return
@@ -141,7 +141,7 @@ func (h *DiscoveryHandler) githubAuth(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *DiscoveryHandler) githubAuthStatus(w http.ResponseWriter, _ *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]any{"connected": workspace.GithubConnected()})
+	writeJSON(w, http.StatusOK, map[string]any{"connected": home.GithubConnected()})
 }
 
 func (h *DiscoveryHandler) githubAuthSet(w http.ResponseWriter, r *http.Request) {
@@ -157,16 +157,16 @@ func (h *DiscoveryHandler) githubAuthSet(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	// Validate before persisting so we don't store a garbage token.
-	login, err := workspace.ValidateGithubToken(r.Context(), body.Token)
+	login, err := home.ValidateGithubToken(r.Context(), body.Token)
 	if err != nil {
-		if errors.Is(err, workspace.ErrGithubNotAuthenticated) {
+		if errors.Is(err, home.ErrGithubNotAuthenticated) {
 			http.Error(w, `{"error":"token rejected by github"}`, http.StatusUnauthorized)
 			return
 		}
 		http.Error(w, `{"error":"validate failed: `+err.Error()+`"}`, http.StatusBadGateway)
 		return
 	}
-	if wErr := workspace.WriteGithubToken(body.Token); wErr != nil {
+	if wErr := home.WriteGithubToken(body.Token); wErr != nil {
 		httpInternalError(w, "write token", wErr)
 		return
 	}
@@ -174,7 +174,7 @@ func (h *DiscoveryHandler) githubAuthSet(w http.ResponseWriter, r *http.Request)
 }
 
 func (h *DiscoveryHandler) githubAuthDelete(w http.ResponseWriter, _ *http.Request) {
-	if err := workspace.DeleteGithubToken(); err != nil {
+	if err := home.DeleteGithubToken(); err != nil {
 		httpInternalError(w, "delete token", err)
 		return
 	}

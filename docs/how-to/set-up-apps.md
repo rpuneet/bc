@@ -1,6 +1,6 @@
-# Set Up Notifications
+# Set Up Apps
 
-This guide walks through connecting external platforms to mycel and routing notifications to agents.
+This guide walks through connecting apps — external platform integrations — to mycel and routing their notifications to agents.
 
 ## Overview
 
@@ -10,7 +10,7 @@ mycel routes inbound events from external platforms (Slack, Telegram, GitHub, an
 
 The fastest path is the setup wizard in the web UI at `http://localhost:9374`. Pick a platform from the connect grid and a two-step modal walks you through it:
 
-1. **Credentials** — enter the platform's tokens (for example a Slack bot token and app token). The tokens are saved to your encrypted vault as secrets and wired into the gateway; nothing is written in plain text.
+1. **Credentials** — enter the platform's tokens (for example a Slack bot token and app token). The tokens are saved to your encrypted vault as `app:<instance>:<key>` secrets and wired into the adapter; nothing is written in plain text.
 2. **Add agents** — choose which agents subscribe to the platform's channels, optionally with mention-only filtering per agent.
 
 Slack, Telegram, Discord, and WhatsApp connect this way, alongside additional platforms such as Matrix, Mattermost, IRC, RSS, and MQTT.
@@ -28,7 +28,7 @@ WhatsApp needs no token. Click **Connect** and the wizard generates a QR code; s
 3. Add OAuth scopes: `channels:read`, `chat:write`, `connections:write`.
 4. Install the app to your workspace and copy the **Bot Token** (`xoxb-...`) and **App Token** (`xapp-...`).
 5. Invite the bot to the channels you want to monitor.
-6. Connect the gateway:
+6. Connect the app:
 
 ```bash
 # Store credentials
@@ -39,9 +39,9 @@ mycel secret set SLACK_APP_TOKEN "xapp-..."
 Use the web UI at `http://localhost:9374` to connect the Slack gateway, or call the API directly:
 
 ```bash
-curl -X POST http://localhost:9374/api/gateways \
+curl -X POST http://localhost:9374/api/apps/slack \
   -H "Content-Type: application/json" \
-  -d '{"platform": "slack", "tokens": {"bot_token": "xoxb-...", "app_token": "xapp-..."}}'
+  -d '{"app": "slack", "enabled": true, "config": {"mode": "socket", "bot_token": "xoxb-...", "app_token": "xapp-..."}}'
 ```
 
 ### Telegram
@@ -55,13 +55,13 @@ curl -X POST http://localhost:9374/api/gateways \
 mycel secret set TELEGRAM_BOT_TOKEN "123456:ABC-..."
 ```
 
-Connect via the web UI (Settings → Notifications → Connect Telegram) or:
+Connect via the web UI (Apps → Connect Telegram) or:
 
 ```bash
 # Persist + hot-start long-polling (no daemon restart required)
-curl -X PATCH http://localhost:9374/api/gateways/telegram \
+curl -X POST http://localhost:9374/api/apps/telegram \
   -H "Content-Type: application/json" \
-  -d '{"bot_token":"123456:ABC-...","enabled":true,"mode":"polling"}'
+  -d '{"app": "telegram", "enabled": true, "config": {"mode": "polling", "bot_token": "123456:ABC-..."}}'
 ```
 
 **Channel keys:** inbound chats are named `telegram:<username>`, `telegram:<chat_id>`,
@@ -89,7 +89,7 @@ mycel secret set GITHUB_WEBHOOK_SECRET "whsec_..."
 
 ## 2. Subscribe Agents
 
-Once a gateway is connected and sources are discovered, subscribe agents to receive notifications.
+Once an app is connected and sources are discovered, subscribe agents to receive notifications.
 
 ```bash
 # List available notification sources
@@ -166,7 +166,7 @@ If an adapter shows disconnected:
 
 ### Self-skip filtering
 
-Agents do not receive notifications they themselves sent. If an agent posts a message to Slack via the Slack API, that message is filtered out when it echoes back through the gateway. This is expected behavior.
+Agents do not receive notifications they themselves sent. If an agent posts a message to Slack via the Slack API, that message is filtered out when it echoes back through the app. This is expected behavior.
 
 ### Duplicate notifications
 
@@ -191,4 +191,4 @@ and the `env.json` template.
 ## Next Steps
 
 - Read the [Notifications architecture](../architecture-notifications.md) for the full system design + outbound cookbook.
-- See the [REST API reference](../reference/api-rest.md) for gateway and subscription endpoints.
+- See the [REST API reference](../reference/api-rest.md) for app and subscription endpoints.

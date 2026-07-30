@@ -9,20 +9,20 @@ import (
 
 	"github.com/spf13/pflag"
 
-	"github.com/rpuneet/mycel/pkg/workspace"
+	"github.com/rpuneet/mycel/pkg/home"
 )
 
 // --- Test helpers ---
 
-// clearWorkspaceEnv clears MYCEL_WORKSPACE env var and returns a cleanup function.
-// Use this in tests that expect no workspace to be found.
-func clearWorkspaceEnv(t *testing.T) func() {
+// clearRepoEnv clears MYCEL_WORKSPACE env var and returns a cleanup function.
+// Use this in tests that expect no repo to be found.
+func clearRepoEnv(t *testing.T) func() {
 	t.Helper()
-	origBCWorkspace := os.Getenv("MYCEL_WORKSPACE")
+	origRepoEnv := os.Getenv("MYCEL_WORKSPACE")
 	_ = os.Unsetenv("MYCEL_WORKSPACE")
 	return func() {
-		if origBCWorkspace != "" {
-			_ = os.Setenv("MYCEL_WORKSPACE", origBCWorkspace)
+		if origRepoEnv != "" {
+			_ = os.Setenv("MYCEL_WORKSPACE", origRepoEnv)
 		}
 	}
 }
@@ -52,10 +52,10 @@ func executeCmd(args ...string) (string, error) {
 	return buf.String(), err
 }
 
-// setupTestWorkspace creates an isolated MYCEL_HOME plus a temporary
-// git repo, bootstraps the global mycel state via workspace.Open, and
+// setupTestHome creates an isolated MYCEL_HOME plus a temporary
+// git repo, bootstraps the global mycel state via home.Open, and
 // changes into the repo. Returns the repo root directory path.
-func setupTestWorkspace(t *testing.T) string {
+func setupTestHome(t *testing.T) string {
 	t.Helper()
 
 	// These tests use the global rootCmd which connects to bcd at :9374.
@@ -76,8 +76,8 @@ func setupTestWorkspace(t *testing.T) string {
 
 	tmpDir := t.TempDir()
 	gitInitDir(t, tmpDir)
-	if _, openErr := workspace.Open(tmpDir); openErr != nil {
-		t.Fatalf("failed to open workspace: %v", openErr)
+	if _, openErr := home.Open(tmpDir); openErr != nil {
+		t.Fatalf("failed to open home: %v", openErr)
 	}
 	t.Setenv("MYCEL_WORKSPACE", tmpDir)
 
@@ -191,17 +191,17 @@ func TestSetVersionInfo(t *testing.T) {
 
 // --- Channel command tests ---
 
-func TestChannelCommand_NoWorkspace(t *testing.T) {
+func TestChannelCommand_NoRepo(t *testing.T) {
 	origDir, _ := os.Getwd()
 	tmpDir := t.TempDir()
 	_ = os.Chdir(tmpDir)
 	defer func() { _ = os.Chdir(origDir) }()
 
-	restoreEnv := clearWorkspaceEnv(t)
+	restoreEnv := clearRepoEnv(t)
 	defer restoreEnv()
 
 	_, err := executeCmd("channel", "list")
 	if err == nil {
-		t.Fatal("expected error for missing workspace")
+		t.Fatal("expected error for a missing repo")
 	}
 }

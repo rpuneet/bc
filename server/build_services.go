@@ -2,7 +2,7 @@
 //
 // bcd is single-tenant: one Services bundle is built at boot against the
 // one global database (db.Global) and lives for the process lifetime.
-// A single call to BuildServices(ctx, globals, wsRoot) produces the
+// A single call to BuildServices(ctx, globals, repoRoot) produces the
 // fully-initialized bundle including background goroutines. Its Close()
 // cancels those goroutines and closes each store.
 package server
@@ -27,6 +27,7 @@ import (
 	bcdeps "github.com/rpuneet/mycel/pkg/deps"
 	bcevents "github.com/rpuneet/mycel/pkg/events"
 	bcgateway "github.com/rpuneet/mycel/pkg/gateway"
+	"github.com/rpuneet/mycel/pkg/home"
 	"github.com/rpuneet/mycel/pkg/log"
 	bcmcp "github.com/rpuneet/mycel/pkg/mcp"
 	bcnotify "github.com/rpuneet/mycel/pkg/notify"
@@ -35,7 +36,6 @@ import (
 	bcstats "github.com/rpuneet/mycel/pkg/stats"
 	bctemplate "github.com/rpuneet/mycel/pkg/template"
 	bctool "github.com/rpuneet/mycel/pkg/tool"
-	bcworkspace "github.com/rpuneet/mycel/pkg/workspace"
 	bcws "github.com/rpuneet/mycel/server/ws"
 )
 
@@ -53,30 +53,30 @@ type Globals struct {
 }
 
 // BuildServices constructs the single fully-initialized Services bundle
-// anchored at wsRoot (the repo bcd was booted against — new agents default
+// anchored at repoRoot (the repo bcd was booted against — new agents default
 // their repo to it). All background goroutines are started under an
 // internal context that Close() cancels.
 //
 // The returned *Services has its closer field set to a function that stops
 // goroutines and closes stores. The caller (RunServer) invokes Close() at
 // shutdown.
-func BuildServices(ctx context.Context, globals *Globals, wsRoot string) (*Services, error) {
+func BuildServices(ctx context.Context, globals *Globals, repoRoot string) (*Services, error) {
 	// Open is idempotent: it bootstraps ~/.mycel (prefs.json, dirs) on
-	// first run and loads the existing config afterwards. wsRoot may be
+	// first run and loads the existing config afterwards. repoRoot may be
 	// empty — the daemon then boots without an anchor repo and agents
 	// carry their own repo paths.
-	ws, err := bcworkspace.Open(wsRoot)
+	h, err := home.Open(repoRoot)
 	if err != nil {
-		return nil, fmt.Errorf("open workspace %q: %w", wsRoot, err)
+		return nil, fmt.Errorf("open home for repo %q: %w", repoRoot, err)
 	}
-	return buildServicesFromWS(ctx, globals, ws)
+	return buildServicesFromHome(ctx, globals, h)
 }
 
-// buildServicesFromWS is the inner factory used when the caller already
-// holds a loaded *workspace.Workspace.
+// buildServicesFromHome is the inner factory used when the caller already
+// holds a loaded *home.Home.
 //
 //nolint:gocyclo // Linear dependency chain; splitting obscures the flow.
-func buildServicesFromWS(ctx context.Context, globals *Globals, ws *bcworkspace.Workspace) (*Services, error) {
+func buildServicesFromHome(ctx context.Context, globals *Globals, h *home.Home) (*Services, error) {
 	// Child context + waitgroup so Close() can stop every goroutine spawned
 	// below and wait for them to exit.
 	svcCtx, svcCancel := context.WithCancel(ctx)
@@ -92,15 +92,15 @@ func buildServicesFromWS(ctx context.Context, globals *Globals, ws *bcworkspace.
 	// "not available".
 	degraded := map[string]string{}
 
-	// Single global database: every workspace's stores share the one
+	// Single global database: every repo's stores share the one
 	// mycel.db at <MycelHome>/mycel.db (or the global TimescaleDB).
 	// Isolation between repos comes from data keys (agent name, repo
 	// path), not from separate files. The handle is cached process-wide
 	// and stays open across service eviction; stores borrow it and
 	// never close it.
-	wsDB, wsDriver, dbErr := bcdb.Global(ws.Config.DBStorageSettings())
+	wsDB, wsDriver, dbErr := bcdb.Global(h.Config.DBStorageSettings())
 	if dbErr != nil {
-		log.Warn("global database unavailable", "error", dbErr, "workspace", ws.RootDir)
+		log.Warn("global database unavailable", "error", dbErr, "repo", h.RootDir)
 		degraded["storage"] = "global database unavailable: " + dbErr.Error()
 	}
 
@@ -108,8 +108,8 @@ func buildServicesFromWS(ctx context.Context, globals *Globals, ws *bcworkspace.
 	// configured TimescaleDB is unreachable (db.OpenGlobalDBWithConfig
 	// logs "falling back to sqlite"). Compare the configured default
 	// against the driver actually in use so the mismatch is visible.
-	if ws.Config != nil && dbErr == nil {
-		configured := ws.Config.Storage.Default
+	if h.Config != nil && dbErr == nil {
+		configured := h.Config.Storage.Default
 		if (configured == "timescale" || configured == "sql") && wsDriver != "timescale" {
 			active := wsDriver
 			if active == "" {
@@ -123,7 +123,7 @@ func buildServicesFromWS(ctx context.Context, globals *Globals, ws *bcworkspace.
 
 	// Events JSONL writer (append-only) — lives with the other process
 	// logs at ~/.mycel/logs/.
-	eventsJSONL := filepath.Join(ws.LogsDir(), "events.jsonl")
+	eventsJSONL := filepath.Join(h.LogsDir(), "events.jsonl")
 	eventWriter := bcevents.NewJSONLWriter(eventsJSONL, 0)
 
 	// The one SSE hub. bcd is single-tenant, so the bundle publishes
@@ -140,7 +140,7 @@ func buildServicesFromWS(ctx context.Context, globals *Globals, ws *bcworkspace.
 	}
 
 	// Agent manager + service.
-	agentMgr, containerBackend, runtimeReason, agentErr := newAgentManager(ws)
+	agentMgr, containerBackend, runtimeReason, agentErr := newAgentManager(h)
 	if agentErr != nil {
 		svcCancel()
 		return nil, fmt.Errorf("agent manager: %w", agentErr)
@@ -149,13 +149,13 @@ func buildServicesFromWS(ctx context.Context, globals *Globals, ws *bcworkspace.
 		degraded["runtime"] = runtimeReason
 	}
 	if err := agentMgr.LoadState(); err != nil {
-		log.Warn("failed to load agent state", "error", err, "workspace", ws.RootDir)
+		log.Warn("failed to load agent state", "error", err, "repo", h.RootDir)
 	}
-	if ws.RoleManager != nil {
-		agentMgr.SetRoleManager(ws.RoleManager)
+	if h.RoleManager != nil {
+		agentMgr.SetRoleManager(h.RoleManager)
 	}
-	if ws.Config != nil {
-		agentMgr.ApplyWorkspaceConfig(ws.Config)
+	if h.Config != nil {
+		agentMgr.ApplyConfig(h.Config)
 	}
 	addCloser(func() error { return agentMgr.Close() })
 
@@ -182,16 +182,16 @@ func buildServicesFromWS(ctx context.Context, globals *Globals, ws *bcworkspace.
 	}
 	costSvc := cost.NewService(provider.DefaultRegistry, cost.Options{
 		Home:      userHome,
-		AgentsDir: ws.AgentsDir(),
-	}, &prefsBudgetStore{ws: ws})
+		AgentsDir: h.AgentsDir(),
+	}, &prefsBudgetStore{h: h})
 
 	// Wire cost querier into agent service.
 	agentSvc := bcagent.NewAgentService(agentMgr, hub, &costServiceAdapter{svc: costSvc})
 
 	// Secret store. Prefer the user-global vault (~/.mycel/secrets.vault)
 	// supplied by Globals so a single secret set once is visible across
-	// every workspace. When Globals.SecretsVault is unset (legacy
-	// callers), fall back to the per-workspace <ws>/.bc/secrets.db.
+	// every repo. When Globals.SecretsVault is unset (legacy
+	// callers), fall back to the repo-scoped <repo>/.bc/secrets.db.
 	var secretStore *bcsecret.Store
 	if globals != nil && globals.SecretsVault != nil {
 		secretStore = globals.SecretsVault
@@ -200,8 +200,8 @@ func buildServicesFromWS(ctx context.Context, globals *Globals, ws *bcworkspace.
 	} else if passphrase, passErr := bcsecret.Passphrase(); passErr != nil {
 		log.Warn("secret passphrase unavailable — secret store disabled", "error", passErr)
 		degraded["secrets"] = "secret passphrase unavailable: " + passErr.Error()
-	} else if ss, err := bcsecret.NewStore(ws.RootDir, passphrase); err != nil {
-		log.Warn("secret store unavailable", "error", err, "workspace", ws.RootDir)
+	} else if ss, err := bcsecret.NewStore(h.RootDir, passphrase); err != nil {
+		log.Warn("secret store unavailable", "error", err, "repo", h.RootDir)
 		degraded["secrets"] = "secret store unavailable: " + err.Error()
 	} else {
 		secretStore = ss
@@ -211,7 +211,7 @@ func buildServicesFromWS(ctx context.Context, globals *Globals, ws *bcworkspace.
 	// MCP store.
 	var mcpStore *bcmcp.Store
 	if ms, err := bcmcp.NewStore(wsDB, wsDriver); err != nil {
-		log.Warn("mcp store unavailable", "error", err, "workspace", ws.RootDir)
+		log.Warn("mcp store unavailable", "error", err, "repo", h.RootDir)
 		degraded["mcp"] = "mcp store unavailable: " + err.Error()
 	} else {
 		mcpStore = ms
@@ -223,7 +223,7 @@ func buildServicesFromWS(ctx context.Context, globals *Globals, ws *bcworkspace.
 	{
 		ts := bctool.NewStore(wsDB, wsDriver)
 		if err := ts.Open(); err != nil {
-			log.Warn("tool store unavailable", "error", err, "workspace", ws.RootDir)
+			log.Warn("tool store unavailable", "error", err, "repo", h.RootDir)
 			degraded["tools"] = "tool store unavailable: " + err.Error()
 		} else {
 			toolStore = ts
@@ -236,13 +236,13 @@ func buildServicesFromWS(ctx context.Context, globals *Globals, ws *bcworkspace.
 	if globals != nil && globals.Templates != nil {
 		tmplStore = globals.Templates
 	} else {
-		tmplStore = bctemplate.NewStore(filepath.Join(ws.StateDir(), "templates"))
+		tmplStore = bctemplate.NewStore(filepath.Join(h.StateDir(), "templates"))
 	}
 
 	// Event log (SQLite) + pruning loop.
 	var eventLog bcevents.EventStore
 	if el, err := bcevents.OpenLog(wsDB, wsDriver); err != nil {
-		log.Warn("event log unavailable", "error", err, "workspace", ws.RootDir)
+		log.Warn("event log unavailable", "error", err, "repo", h.RootDir)
 		degraded["events"] = "event log unavailable: " + err.Error()
 	} else {
 		eventLog = el
@@ -263,7 +263,7 @@ func buildServicesFromWS(ctx context.Context, globals *Globals, ws *bcworkspace.
 	}
 
 	// Stats collector — only runs if a TSDB stats store is configured
-	// globally. Uses the current workspace's agentSvc.
+	// globally. Uses the current agentSvc.
 	if globals != nil && globals.Stats != nil {
 		wg.Add(1)
 		go func() {
@@ -275,7 +275,7 @@ func buildServicesFromWS(ctx context.Context, globals *Globals, ws *bcworkspace.
 	// Notify service (channel subscriptions + delivery).
 	var notifyService *bcnotify.Service
 	if ns, err := bcnotify.OpenStore(wsDB, wsDriver); err != nil {
-		log.Warn("notify store unavailable", "error", err, "workspace", ws.RootDir)
+		log.Warn("notify store unavailable", "error", err, "repo", h.RootDir)
 		degraded["notify"] = "notify store unavailable: " + err.Error()
 	} else {
 		notifyService = bcnotify.NewServiceWithContext(svcCtx, ns, agentSvc, hub)
@@ -298,7 +298,7 @@ func buildServicesFromWS(ctx context.Context, globals *Globals, ws *bcworkspace.
 
 	// Gateway manager: one adapter per enabled app instance in cfg.Apps,
 	// built through the app plugin registry with vault-backed secrets.
-	gwManager := buildGatewayManager(svcCtx, ws, notifyService, secretStore, degraded, &wg)
+	gwManager := buildGatewayManager(svcCtx, h, notifyService, secretStore, degraded, &wg)
 	if gwManager != nil {
 		// Registered after the notify closer so it runs BEFORE it (closers
 		// run in reverse): adapters stop feeding messages, then in-flight
@@ -310,7 +310,7 @@ func buildServicesFromWS(ctx context.Context, globals *Globals, ws *bcworkspace.
 	_ = provider.DefaultRegistry
 
 	svc := &Services{
-		WS:          ws,
+		Home:        h,
 		Agents:      agentSvc,
 		AgentMgr:    agentMgr,
 		EventLog:    eventLog,
@@ -370,38 +370,38 @@ func (s *Services) MCPLayeredView() *bcmcp.LayeredView {
 	if s.MCPGlobal == nil && s.MCP == nil {
 		return nil
 	}
-	return &bcmcp.LayeredView{Global: s.MCPGlobal, Workspace: s.MCP}
+	return &bcmcp.LayeredView{Global: s.MCPGlobal, DB: s.MCP}
 }
 
 // newAgentManager mirrors the helper that used to live in serve.go.
 // The third return value is a non-empty degradation reason when the
 // docker runtime was expected but unavailable and agents silently fall
 // back to tmux.
-func newAgentManager(ws *bcworkspace.Workspace) (*bcagent.Manager, *bccontainer.Backend, string, error) {
-	var wsCfg bcworkspace.DockerRuntimeConfig
+func newAgentManager(h *home.Home) (*bcagent.Manager, *bccontainer.Backend, string, error) {
+	var homeCfg home.DockerRuntimeConfig
 	runtimeDefault := ""
-	if ws.Config != nil {
-		wsCfg = ws.Config.Runtime.Docker
-		runtimeDefault = ws.Config.Runtime.Default
+	if h.Config != nil {
+		homeCfg = h.Config.Runtime.Docker
+		runtimeDefault = h.Config.Runtime.Default
 	}
-	dockerCfg := bccontainer.ConfigFromWorkspace(wsCfg)
-	be, err := bccontainer.NewBackend(dockerCfg, bcagent.DefaultSessionPrefix, ws.RootDir, provider.DefaultRegistry)
+	dockerCfg := bccontainer.ConfigFromHome(homeCfg)
+	be, err := bccontainer.NewBackend(dockerCfg, bcagent.DefaultSessionPrefix, h.RootDir, provider.DefaultRegistry)
 	if err != nil {
-		log.Warn("Docker not available — agents will use tmux runtime only", "error", err, "workspace", ws.RootDir)
+		log.Warn("Docker not available — agents will use tmux runtime only", "error", err, "repo", h.RootDir)
 		reason := ""
 		if runtimeDefault != "tmux" {
 			// Only flag degradation when tmux was NOT the configured
-			// runtime — an explicit tmux workspace is working as intended.
+			// runtime — an explicit tmux default is working as intended.
 			reason = fmt.Sprintf("docker runtime unavailable — agents fall back to tmux: %v", err)
 		}
-		return bcagent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir), nil, reason, nil
+		return bcagent.NewManagerWithRepo(h.AgentsDir(), h.RootDir), nil, reason, nil
 	}
-	mgr := bcagent.NewWorkspaceManagerWithRuntime(ws.AgentsDir(), ws.RootDir, be, "docker")
+	mgr := bcagent.NewManagerWithRuntime(h.AgentsDir(), h.RootDir, be, "docker")
 	return mgr, be, "", nil
 }
 
 // buildGatewayManager constructs the gateway.Manager and registers an
-// adapter for every enabled app instance in the workspace's "apps"
+// adapter for every enabled app instance in the global "apps"
 // config. Each instance resolves its plugin from the app registry,
 // validates its config against the descriptor, resolves secret fields
 // from the vault, and Builds the live adapter. Unknown apps, invalid
@@ -412,14 +412,14 @@ func newAgentManager(ws *bcworkspace.Workspace) (*bcagent.Manager, *bccontainer.
 //  1. health endpoints never report "gateway manager not available"
 //     solely because nothing was configured at boot, and
 //  2. POST /api/apps/{name} can hot-start adapters without a restart.
-func buildGatewayManager(ctx context.Context, ws *bcworkspace.Workspace, notifyService *bcnotify.Service, vault *bcsecret.Store, degraded map[string]string, wg *sync.WaitGroup) *bcgateway.Manager {
+func buildGatewayManager(ctx context.Context, h *home.Home, notifyService *bcnotify.Service, vault *bcsecret.Store, degraded map[string]string, wg *sync.WaitGroup) *bcgateway.Manager {
 	m := bcgateway.NewManager()
 	m.SetStartContext(ctx)
 	if notifyService != nil {
 		m.SetChannelStore(&channelPersister{store: notifyService.Store()})
 	}
 
-	for name, ic := range ws.Config.Apps {
+	for name, ic := range h.Config.Apps {
 		if !ic.Enabled {
 			continue
 		}
@@ -437,7 +437,7 @@ func buildGatewayManager(ctx context.Context, ws *bcworkspace.Workspace, notifyS
 			secrets = bcapp.VaultSecrets{Store: vault, Instance: name}
 		}
 		inst := bcapp.ResolveInstance(name, ic, secrets)
-		adapter, err := plugin.Build(inst, bcapp.Env{StateDir: appStateDir(ws, name)})
+		adapter, err := plugin.Build(inst, bcapp.Env{StateDir: appStateDir(h, name)})
 		if err != nil {
 			degraded["app:"+name] = "build failed: " + err.Error()
 			continue
@@ -458,8 +458,8 @@ func buildGatewayManager(ctx context.Context, ws *bcworkspace.Workspace, notifyS
 
 // appStateDir returns the per-instance state directory for stateful apps
 // (WhatsApp session DB, caches): <state>/apps/<instance-name>/.
-func appStateDir(ws *bcworkspace.Workspace, instance string) string {
-	return filepath.Join(ws.StateDir(), "apps", instance)
+func appStateDir(h *home.Home, instance string) string {
+	return filepath.Join(h.StateDir(), "apps", instance)
 }
 
 // eventPruneMaxPerAgent caps retained events per agent. 5,000 was too
@@ -565,17 +565,17 @@ func (a *costServiceAdapter) AgentCostSummary(agentID string) (*bcagent.CostSumm
 }
 
 // prefsBudgetStore persists budget thresholds in the global prefs
-// (~/.mycel/prefs.json) via the workspace config.
+// (~/.mycel/prefs.json) via the global config.
 type prefsBudgetStore struct {
-	ws *bcworkspace.Workspace
+	h  *home.Home
 	mu sync.Mutex
 }
 
 func (p *prefsBudgetStore) All() (map[string]cost.BudgetConfig, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	out := make(map[string]cost.BudgetConfig, len(p.ws.Config.Budgets))
-	for scope, cfg := range p.ws.Config.Budgets {
+	out := make(map[string]cost.BudgetConfig, len(p.h.Config.Budgets))
+	for scope, cfg := range p.h.Config.Budgets {
 		out[scope] = cfg
 	}
 	return out, nil
@@ -584,19 +584,19 @@ func (p *prefsBudgetStore) All() (map[string]cost.BudgetConfig, error) {
 func (p *prefsBudgetStore) Set(scope string, b cost.BudgetConfig) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	if p.ws.Config.Budgets == nil {
-		p.ws.Config.Budgets = map[string]cost.BudgetConfig{}
+	if p.h.Config.Budgets == nil {
+		p.h.Config.Budgets = map[string]cost.BudgetConfig{}
 	}
-	p.ws.Config.Budgets[scope] = b
-	return p.ws.Save()
+	p.h.Config.Budgets[scope] = b
+	return p.h.Save()
 }
 
 func (p *prefsBudgetStore) Delete(scope string) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	if _, ok := p.ws.Config.Budgets[scope]; !ok {
+	if _, ok := p.h.Config.Budgets[scope]; !ok {
 		return fmt.Errorf("budget not found for scope %q", scope)
 	}
-	delete(p.ws.Config.Budgets, scope)
-	return p.ws.Save()
+	delete(p.h.Config.Budgets, scope)
+	return p.h.Save()
 }

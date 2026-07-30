@@ -16,7 +16,7 @@ import (
 // keys that don't match ^[A-Za-z_][A-Za-z0-9_]*$ with a 400 before any
 // spawn is attempted.
 func TestAgentCreate_InvalidEnvName(t *testing.T) {
-	dir := setupWorkspace(t)
+	dir := setupHome(t)
 	stateDir := filepath.Join(dir, ".bc")
 
 	mgr := agent.NewManager(stateDir)
@@ -48,7 +48,7 @@ func TestAgentCreate_InvalidEnvName(t *testing.T) {
 // replaces the store-backed env map and GET returns it (references
 // verbatim), and that invalid keys are rejected with 400.
 func TestAgentEnvEndpoint_RoundTrip(t *testing.T) {
-	dir := setupWorkspace(t)
+	dir := setupHome(t)
 	stateDir := filepath.Join(dir, ".bc")
 
 	mgr := agent.NewManager(stateDir)
@@ -98,7 +98,7 @@ func TestAgentEnvEndpoint_RoundTrip(t *testing.T) {
 // TestAgentGet_EnvReturnsReferences verifies the agent DTO returns secret
 // references verbatim — never resolved values.
 func TestAgentGet_EnvReturnsReferences(t *testing.T) {
-	dir := setupWorkspace(t)
+	dir := setupHome(t)
 	stateDir := filepath.Join(dir, ".bc")
 
 	mgr := agent.NewManager(stateDir)

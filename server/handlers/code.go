@@ -35,9 +35,9 @@ import (
 // accepted — never separators, dots, or shell metacharacters.
 var validWorktreeName = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
 
-// WorkspaceResolver supplies the repo root the Code handler serves. It is
+// RepoResolver supplies the repo root the Code handler serves. It is
 // an interface so tests can supply lightweight implementations.
-type WorkspaceResolver interface {
+type RepoResolver interface {
 	// ActiveRoot returns the filesystem root of the bundle repo, or ""
 	// when the daemon booted without one.
 	ActiveRoot() string
@@ -45,11 +45,11 @@ type WorkspaceResolver interface {
 
 // CodeHandler serves the read-only Code tab endpoints.
 type CodeHandler struct {
-	resolver WorkspaceResolver
+	resolver RepoResolver
 }
 
-// NewCodeHandler constructs a CodeHandler bound to a workspace resolver.
-func NewCodeHandler(resolver WorkspaceResolver) *CodeHandler {
+// NewCodeHandler constructs a CodeHandler bound to a repo resolver.
+func NewCodeHandler(resolver RepoResolver) *CodeHandler {
 	return &CodeHandler{resolver: resolver}
 }
 
@@ -87,31 +87,31 @@ func (h *CodeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 // ------------------------------------------------------------------ root resolution
 
-// resolveWorkspaceRoot returns the absolute repo root for this request.
+// resolveRepoRoot returns the absolute repo root for this request.
 // The root comes from boot configuration, but it is cleaned and traversal
 // segments are rejected so nothing built on it can escape sideways.
-func (h *CodeHandler) resolveWorkspaceRoot(_ *http.Request) (string, error) {
+func (h *CodeHandler) resolveRepoRoot(_ *http.Request) (string, error) {
 	if h.resolver == nil {
-		return "", errors.New("workspace resolver not configured")
+		return "", errors.New("repo resolver not configured")
 	}
 	root := h.resolver.ActiveRoot()
 	if root == "" {
-		return "", errors.New("no workspace available")
+		return "", errors.New("no repo available")
 	}
 	root = filepath.Clean(root)
 	if strings.Contains(root, "..") {
-		return "", errors.New("invalid workspace root")
+		return "", errors.New("invalid repo root")
 	}
 	return root, nil
 }
 
 // resolveWorktreeRoot resolves the user-supplied worktree name onto a
-// filesystem path. "main" (the default) maps to the workspace root;
+// filesystem path. "main" (the default) maps to the repo root;
 // any other value is treated as an agent name and maps to
-// <wsRoot>/.bc/agents/<name>/bc-<ws-basename>-<name>/ — the same path
+// <repoRoot>/.bc/agents/<name>/bc-<h-basename>-<name>/ — the same path
 // layout that pkg/worktree.Manager uses.
-func (h *CodeHandler) resolveWorktreeRoot(r *http.Request) (wsRoot, wtRoot, worktreeName string, err error) {
-	wsRoot, err = h.resolveWorkspaceRoot(r)
+func (h *CodeHandler) resolveWorktreeRoot(r *http.Request) (repoRoot, wtRoot, worktreeName string, err error) {
+	repoRoot, err = h.resolveRepoRoot(r)
 	if err != nil {
 		return "", "", "", err
 	}
@@ -120,39 +120,39 @@ func (h *CodeHandler) resolveWorktreeRoot(r *http.Request) (wsRoot, wtRoot, work
 		worktreeName = "main"
 	}
 	if worktreeName == "main" {
-		return wsRoot, wsRoot, worktreeName, nil
+		return repoRoot, repoRoot, worktreeName, nil
 	}
 	// Worktree names are agent names — they become path components below
 	// and a git -C argument later, so allowlist identifier characters
 	// only (no separators, dots, or metacharacters).
 	if !validWorktreeName.MatchString(worktreeName) {
-		return wsRoot, "", worktreeName, errors.New("invalid worktree name")
+		return repoRoot, "", worktreeName, errors.New("invalid worktree name")
 	}
-	wtRoot = agentWorktreePath(wsRoot, worktreeName)
-	// Defense in depth: the composed root must stay inside wsRoot after
+	wtRoot = agentWorktreePath(repoRoot, worktreeName)
+	// Defense in depth: the composed root must stay inside repoRoot after
 	// cleaning — reject anything else before it reaches git -C.
 	wtRoot = filepath.Clean(wtRoot)
-	if strings.Contains(wtRoot, "..") || !strings.HasPrefix(wtRoot, wsRoot+string(filepath.Separator)) {
-		return wsRoot, "", worktreeName, errors.New("invalid worktree path")
+	if strings.Contains(wtRoot, "..") || !strings.HasPrefix(wtRoot, repoRoot+string(filepath.Separator)) {
+		return repoRoot, "", worktreeName, errors.New("invalid worktree path")
 	}
 	info, statErr := os.Stat(wtRoot)
 	if statErr != nil || !info.IsDir() {
-		return wsRoot, "", worktreeName, errors.New("worktree not found")
+		return repoRoot, "", worktreeName, errors.New("worktree not found")
 	}
-	return wsRoot, wtRoot, worktreeName, nil
+	return repoRoot, wtRoot, worktreeName, nil
 }
 
 // agentWorktreePath mirrors pkg/worktree.Manager.Path for the given
 // agent, honoring MYCEL_HOST_WORKSPACE if set. Accepting the workspace
 // root as an argument keeps this logic testable without building a
 // full Manager.
-func agentWorktreePath(wsRoot, agentName string) string {
-	hostBase := filepath.Base(wsRoot)
+func agentWorktreePath(repoRoot, agentName string) string {
+	hostBase := filepath.Base(repoRoot)
 	if hp := os.Getenv("MYCEL_HOST_WORKSPACE"); hp != "" {
 		hostBase = filepath.Base(hp)
 	}
 	name := "bc-" + hostBase + "-" + agentName
-	return filepath.Join(wsRoot, ".bc", "agents", agentName, name)
+	return filepath.Join(repoRoot, ".bc", "agents", agentName, name)
 }
 
 // ------------------------------------------------------------------ /tree
@@ -481,16 +481,16 @@ func itoa(n int64) string {
 	return string(b[i:])
 }
 
-// staticWorkspaceResolver is a WorkspaceResolver pinned to one root —
+// staticRepoResolver is a RepoResolver pinned to one root —
 // the single-bundle repo bcd was booted against.
-type staticWorkspaceResolver struct {
+type staticRepoResolver struct {
 	root string
 }
 
-// NewStaticWorkspaceResolver builds a resolver pinned to root (may be "").
-func NewStaticWorkspaceResolver(root string) WorkspaceResolver {
-	return &staticWorkspaceResolver{root: root}
+// NewStaticRepoResolver builds a resolver pinned to root (may be "").
+func NewStaticRepoResolver(root string) RepoResolver {
+	return &staticRepoResolver{root: root}
 }
 
 // ActiveRoot returns the pinned root or "".
-func (r *staticWorkspaceResolver) ActiveRoot() string { return r.root }
+func (r *staticRepoResolver) ActiveRoot() string { return r.root }

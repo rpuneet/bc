@@ -44,7 +44,7 @@ The resource summary is generated per agent, so each agent sees the servers and 
 Injected instructions and role prompts are separate mechanisms that compose:
 
 - **Role prompt** — authored per role, inherited and merged across parent roles, and written first.
-- **Injected instructions** — one workspace-wide text, appended after the role prompt so it applies to every agent.
+- **Injected instructions** — one global text, appended after the role prompt so it applies to every agent.
 
 Use role prompts for what a *kind* of agent should do, and injected instructions for the house rules that hold across your whole fleet.
 

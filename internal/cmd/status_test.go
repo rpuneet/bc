@@ -7,9 +7,9 @@ import (
 // --- Status Command Unit Tests ---
 
 func TestStatus_Basic(t *testing.T) {
-	setupTestWorkspace(t)
+	setupTestHome(t)
 
-	// Status should work in a workspace (even with no agents)
+	// Status should work in a repo (even with no agents)
 	_, err := executeCmd("status")
 	if err != nil {
 		t.Fatalf("status error: %v", err)
@@ -17,7 +17,7 @@ func TestStatus_Basic(t *testing.T) {
 }
 
 func TestStatus_JSON(t *testing.T) {
-	setupTestWorkspace(t)
+	setupTestHome(t)
 
 	// Status --json should work
 	_, err := executeCmd("status", "--json")

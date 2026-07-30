@@ -30,7 +30,7 @@ Examples:
   mycel cost budget show                  # Show budget status
 
 See Also:
-  mycel home           TUI dashboard with cost overview
+  Web UI (http://localhost:9374)  Costs dashboard
   mycel status         Agent status (includes cost info)`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: runCostShow,
@@ -165,7 +165,7 @@ func enrichWithCCUsage(resp *costShowResponse, report *ccusageDailyReport) {
 				modelSeen[m] = true
 			}
 		}
-		// Add models with zero cost — signals to TUI which models are in use
+		// Add models with zero cost — signals to the web UI which models are in use
 		for m := range modelSeen {
 			resp.ByModel[m] = 0
 		}
@@ -198,7 +198,7 @@ func runCostShow(cmd *cobra.Command, args []string) error {
 		return runCostShowJSON(cmd, c, agentID)
 	}
 
-	// For table output, use the agent or workspace summary
+	// For table output, use the agent or total summary
 	if agentID != "" {
 		return runCostShowAgent(cmd, c, agentID)
 	}
@@ -235,7 +235,7 @@ func runCostShowJSON(cmd *cobra.Command, c *client.Client, agentID string) error
 		byModel[s.Model] = s.TotalCostUSD
 	}
 
-	ws, err := c.Costs.WorkspaceSummary(cmd.Context())
+	h, err := c.Costs.TotalSummary(cmd.Context())
 	if err != nil {
 		return fmt.Errorf("failed to get cost summary: %w", err)
 	}
@@ -244,9 +244,9 @@ func runCostShowJSON(cmd *cobra.Command, c *client.Client, agentID string) error
 		ByAgent:           byAgent,
 		ByTeam:            byTeam,
 		ByModel:           byModel,
-		TotalInputTokens:  ws.InputTokens,
-		TotalOutputTokens: ws.OutputTokens,
-		TotalCost:         ws.TotalCostUSD,
+		TotalInputTokens:  h.InputTokens,
+		TotalOutputTokens: h.OutputTokens,
+		TotalCost:         h.TotalCostUSD,
 	}
 
 	// Enrich with ccusage data (graceful — nil if unavailable)

@@ -1,4 +1,4 @@
-package workspace
+package home
 
 import (
 	"os"
@@ -83,8 +83,8 @@ func TestUserRCConfigSaveAndLoad(t *testing.T) {
 	}
 }
 func TestMergeWithUserRC(t *testing.T) {
-	// Create a workspace config with default nickname
-	wsCfg := DefaultConfig()
+	// Create a global config with default nickname
+	homeCfg := DefaultConfig()
 	// Create a user config with custom nickname
 	rcCfg := &UserRCConfig{
 		User: UserRCUserConfig{
@@ -92,10 +92,10 @@ func TestMergeWithUserRC(t *testing.T) {
 		},
 	}
 	// Merge
-	wsCfg.MergeWithUserRC(rcCfg)
-	// User RC nickname should be used since workspace has default
-	if wsCfg.User.Name != "@custom" {
-		t.Errorf("expected merged nickname '@custom', got: %s", wsCfg.User.Name)
+	homeCfg.MergeWithUserRC(rcCfg)
+	// User RC nickname should be used since the global config has default
+	if homeCfg.User.Name != "@custom" {
+		t.Errorf("expected merged nickname '@custom', got: %s", homeCfg.User.Name)
 	}
 }
 func TestHasProviderDefined(t *testing.T) {
@@ -304,18 +304,18 @@ func TestMergeWithUserRCNil(t *testing.T) {
 		t.Errorf("MergeWithUserRC(nil) changed name from %q to %q", originalName, cfg.User.Name)
 	}
 }
-func TestMergeWithUserRCPreserveWorkspace(t *testing.T) {
+func TestMergeWithUserRCPreserveHome(t *testing.T) {
 	cfg := DefaultConfig()
-	cfg.User.Name = "@workspace-user"
+	cfg.User.Name = "@config-user"
 	rc := &UserRCConfig{
 		User: UserRCUserConfig{
 			Nickname: "@rc-user",
 		},
 	}
 	cfg.MergeWithUserRC(rc)
-	// Workspace name should be preserved
-	if cfg.User.Name != "@workspace-user" {
-		t.Errorf("MergeWithUserRC changed workspace name to %q", cfg.User.Name)
+	// Home name should be preserved
+	if cfg.User.Name != "@config-user" {
+		t.Errorf("MergeWithUserRC changed the configured name to %q", cfg.User.Name)
 	}
 }
 func TestParseUserRCConfigInvalidTOML(t *testing.T) {

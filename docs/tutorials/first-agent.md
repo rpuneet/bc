@@ -100,7 +100,7 @@ mycel agent delete eng-01
 
 ## Next steps
 
-- Learn how to [configure mycel](../how-to/configure-workspace.md) with providers, runtime backends, and polling settings
-- Set up [notifications from external platforms](../how-to/set-up-notifications.md)
+- Learn how to [configure mycel](../how-to/configure.md) with providers, runtime backends, and polling settings
+- Set up [notifications from external platforms](../how-to/set-up-apps.md)
 - Read about the [agent lifecycle and state machine](../explanation/agents.md)
 - Browse the [CLI reference](../reference/cli/mycel.md)

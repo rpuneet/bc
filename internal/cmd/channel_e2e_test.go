@@ -28,7 +28,7 @@ func uniqueChannelName(t *testing.T, suffix string) string {
 // --- Channel Lifecycle E2E Tests ---
 
 func TestChannelLifecycle_ListEmpty(t *testing.T) {
-	setupTestWorkspace(t)
+	setupTestHome(t)
 
 	// Channel list should succeed even with no channels
 	_, err := executeCmd("channel", "list")
@@ -38,7 +38,7 @@ func TestChannelLifecycle_ListEmpty(t *testing.T) {
 }
 
 func TestChannelLifecycle_ListJSON(t *testing.T) {
-	setupTestWorkspace(t)
+	setupTestHome(t)
 
 	// Channel list --json should succeed even with no channels
 	_, err := executeCmd("channel", "list", "--json")
@@ -48,7 +48,7 @@ func TestChannelLifecycle_ListJSON(t *testing.T) {
 }
 
 func TestChannelLifecycle_CreateAndList(t *testing.T) {
-	setupTestWorkspace(t)
+	setupTestHome(t)
 
 	ch := uniqueChannelName(t, "")
 	// Create a channel
@@ -68,7 +68,7 @@ func TestChannelLifecycle_CreateAndList(t *testing.T) {
 }
 
 func TestChannelLifecycle_CreateDuplicate(t *testing.T) {
-	setupTestWorkspace(t)
+	setupTestHome(t)
 
 	ch := uniqueChannelName(t, "")
 	// Create a channel
@@ -91,7 +91,7 @@ func TestChannelLifecycle_CreateDuplicate(t *testing.T) {
 }
 
 func TestChannelLifecycle_CreateEmptyName(t *testing.T) {
-	setupTestWorkspace(t)
+	setupTestHome(t)
 
 	// Create with empty name should fail
 	_, err := executeCmd("channel", "create", "")
@@ -101,7 +101,7 @@ func TestChannelLifecycle_CreateEmptyName(t *testing.T) {
 }
 
 func TestChannelLifecycle_AddMember(t *testing.T) {
-	setupTestWorkspace(t)
+	setupTestHome(t)
 
 	ch := uniqueChannelName(t, "")
 	// Create a channel
@@ -121,7 +121,7 @@ func TestChannelLifecycle_AddMember(t *testing.T) {
 }
 
 func TestChannelLifecycle_AddMemberToNonexistent(t *testing.T) {
-	setupTestWorkspace(t)
+	setupTestHome(t)
 
 	// Add member to non-existent channel prints a warning but doesn't error
 	// Command returns success but with 0 members added
@@ -132,7 +132,7 @@ func TestChannelLifecycle_AddMemberToNonexistent(t *testing.T) {
 }
 
 func TestChannelLifecycle_RemoveMember(t *testing.T) {
-	setupTestWorkspace(t)
+	setupTestHome(t)
 
 	ch := uniqueChannelName(t, "")
 	// Create a channel and add a member
@@ -157,7 +157,7 @@ func TestChannelLifecycle_RemoveMember(t *testing.T) {
 }
 
 func TestChannelLifecycle_RemoveMemberNotInChannel(t *testing.T) {
-	setupTestWorkspace(t)
+	setupTestHome(t)
 
 	ch := uniqueChannelName(t, "")
 	// Create a channel
@@ -177,7 +177,7 @@ func TestChannelLifecycle_RemoveMemberNotInChannel(t *testing.T) {
 }
 
 func TestChannelLifecycle_Delete(t *testing.T) {
-	setupTestWorkspace(t)
+	setupTestHome(t)
 
 	ch := uniqueChannelName(t, "")
 	// Create a channel
@@ -194,7 +194,7 @@ func TestChannelLifecycle_Delete(t *testing.T) {
 }
 
 func TestChannelLifecycle_DeleteNonexistent(t *testing.T) {
-	setupTestWorkspace(t)
+	setupTestHome(t)
 
 	// Delete non-existent channel should fail
 	_, err := executeCmd("channel", "delete", "nonexistent-e2e-xyz")
@@ -207,7 +207,7 @@ func TestChannelLifecycle_DeleteNonexistent(t *testing.T) {
 }
 
 func TestChannelLifecycle_History(t *testing.T) {
-	setupTestWorkspace(t)
+	setupTestHome(t)
 
 	ch := uniqueChannelName(t, "")
 	// Create a channel
@@ -227,7 +227,7 @@ func TestChannelLifecycle_History(t *testing.T) {
 }
 
 func TestChannelLifecycle_HistoryNonexistent(t *testing.T) {
-	setupTestWorkspace(t)
+	setupTestHome(t)
 
 	// History of non-existent channel should fail
 	_, err := executeCmd("channel", "history", "nonexistent-e2e-xyz")

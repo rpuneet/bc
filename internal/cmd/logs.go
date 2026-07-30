@@ -42,7 +42,7 @@ Output:
 
 See Also:
   mycel status    Quick agent status overview
-  mycel home      TUI with activity timeline`,
+  Web UI (http://localhost:9374)  Activity timeline`,
 	RunE: runLogs,
 }
 

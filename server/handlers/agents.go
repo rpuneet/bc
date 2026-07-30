@@ -19,11 +19,11 @@ import (
 	"github.com/rpuneet/mycel/pkg/agent"
 	"github.com/rpuneet/mycel/pkg/cost"
 	"github.com/rpuneet/mycel/pkg/events"
+	"github.com/rpuneet/mycel/pkg/home"
 	"github.com/rpuneet/mycel/pkg/log"
 	"github.com/rpuneet/mycel/pkg/stats"
 	"github.com/rpuneet/mycel/pkg/template"
 	"github.com/rpuneet/mycel/pkg/token"
-	"github.com/rpuneet/mycel/pkg/workspace"
 	"github.com/rpuneet/mycel/server/ws"
 )
 
@@ -92,7 +92,7 @@ func (b *agentEventBroker) publish(agentName string, msg []byte) {
 type AgentHandler struct {
 	svc        *agent.AgentService
 	costs      *cost.Service
-	ws         *workspace.Workspace
+	home       *home.Home
 	hub        *ws.Hub
 	events     events.EventStore
 	terminal   *TerminalHandler
@@ -102,9 +102,9 @@ type AgentHandler struct {
 }
 
 // NewAgentHandler creates an AgentHandler.
-// costs, ws, hub, and eventStore may be nil; enrichment fields will be omitted when unavailable.
-func NewAgentHandler(svc *agent.AgentService, costs *cost.Service, ws *workspace.Workspace, hub *ws.Hub) *AgentHandler {
-	h := &AgentHandler{svc: svc, costs: costs, ws: ws, hub: hub, broker: newAgentEventBroker()}
+// costs, home, hub, and eventStore may be nil; enrichment fields will be omitted when unavailable.
+func NewAgentHandler(svc *agent.AgentService, costs *cost.Service, home *home.Home, hub *ws.Hub) *AgentHandler {
+	h := &AgentHandler{svc: svc, costs: costs, home: home, hub: hub, broker: newAgentEventBroker()}
 	if svc != nil {
 		// The per-agent SSE broker stays handler-owned; the service invokes
 		// this callback after each successfully ingested hook event so
@@ -274,7 +274,7 @@ func costForAgent(costMap map[string]*cost.Summary, name, repo string) (costUSD 
 func (h *AgentHandler) list(w http.ResponseWriter, r *http.Request) {
 	svc := h.svc
 	costs := h.costs
-	wsRef := h.ws
+	homeRef := h.home
 	switch r.Method {
 	case http.MethodGet:
 		// State is driven by hooks — no polling or reconciler needed.
@@ -304,8 +304,8 @@ func (h *AgentHandler) list(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Enrich with token usage from agent JSONL session files.
-		if wsRef != nil {
-			agentsDir := filepath.Join(wsRef.RootDir, ".bc", "agents")
+		if homeRef != nil {
+			agentsDir := filepath.Join(homeRef.RootDir, ".bc", "agents")
 			usages, tokenErr := token.CollectAll(agentsDir)
 			if tokenErr == nil {
 				// Sum per agent across models
@@ -347,10 +347,10 @@ func (h *AgentHandler) list(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Enrich with resolved MCP servers from the agent's role.
-		if wsRef != nil && wsRef.RoleManager != nil {
+		if homeRef != nil && homeRef.RoleManager != nil {
 			for i := range dtos {
 				if dtos[i].Role != "" {
-					resolved, resolveErr := wsRef.RoleManager.ResolveRole(dtos[i].Role)
+					resolved, resolveErr := homeRef.RoleManager.ResolveRole(dtos[i].Role)
 					if resolveErr == nil && len(resolved.MCPServers) > 0 {
 						dtos[i].MCPServers = resolved.MCPServers
 					}
@@ -1098,7 +1098,7 @@ func (h *AgentHandler) applyTemplate(svc *agent.AgentService, a *agent.Agent, tm
 	// Write system prompt as CLAUDE.md when the template has one.
 	if prompt != "" {
 		claudePath := filepath.Join(wtDir, "CLAUDE.md")
-		if writeErr := os.WriteFile(claudePath, []byte(prompt), 0600); writeErr != nil { //nolint:gosec // trusted workspace path
+		if writeErr := os.WriteFile(claudePath, []byte(prompt), 0600); writeErr != nil { //nolint:gosec // trusted repo path
 			return fmt.Errorf("write CLAUDE.md: %w", writeErr)
 		}
 		log.Debug("template CLAUDE.md written", "agent", a.Name, "template", tmplName)
@@ -1115,7 +1115,7 @@ func (h *AgentHandler) applyTemplate(svc *agent.AgentService, a *agent.Agent, tm
 
 		// Read existing config; ignore missing file.
 		existing := agentMCPFile{MCPServers: make(map[string]agentMCPEntry)}
-		if raw, readErr := os.ReadFile(mcpPath); readErr == nil { //nolint:gosec // trusted workspace path
+		if raw, readErr := os.ReadFile(mcpPath); readErr == nil { //nolint:gosec // trusted repo path
 			// Best-effort parse; ignore corrupt files.
 			_ = json.Unmarshal(raw, &existing)
 			if existing.MCPServers == nil {
@@ -1136,7 +1136,7 @@ func (h *AgentHandler) applyTemplate(svc *agent.AgentService, a *agent.Agent, tm
 		if marshalErr != nil {
 			return fmt.Errorf("marshal .mcp.json: %w", marshalErr)
 		}
-		if writeErr := os.WriteFile(mcpPath, b, 0600); writeErr != nil { //nolint:gosec // trusted workspace path
+		if writeErr := os.WriteFile(mcpPath, b, 0600); writeErr != nil { //nolint:gosec // trusted repo path
 			return fmt.Errorf("write .mcp.json: %w", writeErr)
 		}
 		log.Debug("template .mcp.json merged", "agent", a.Name, "template", tmplName, "added", added, "total", len(existing.MCPServers))
@@ -1217,7 +1217,7 @@ func readMCPFile(wtDir string) (agentMCPFile, error) {
 	cfg.MCPServers = make(map[string]agentMCPEntry)
 
 	mcpPath := filepath.Join(wtDir, ".mcp.json")
-	data, err := os.ReadFile(mcpPath) //nolint:gosec // trusted workspace path
+	data, err := os.ReadFile(mcpPath) //nolint:gosec // trusted repo path
 	if err != nil {
 		if os.IsNotExist(err) {
 			return cfg, nil
@@ -1271,8 +1271,8 @@ func (h *AgentHandler) listAgentMCPs(w http.ResponseWriter, _ *http.Request, a *
 	}
 
 	// Fall back to role-resolved MCP servers if .mcp.json is empty.
-	if len(servers) == 0 && h.ws != nil && h.ws.RoleManager != nil && string(a.Role) != "" {
-		if resolved, resolveErr := h.ws.RoleManager.ResolveRole(string(a.Role)); resolveErr == nil {
+	if len(servers) == 0 && h.home != nil && h.home.RoleManager != nil && string(a.Role) != "" {
+		if resolved, resolveErr := h.home.RoleManager.ResolveRole(string(a.Role)); resolveErr == nil {
 			for _, name := range resolved.MCPServers {
 				servers = append(servers, mcpServerDTO{Name: name})
 			}

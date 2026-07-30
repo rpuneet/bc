@@ -12,8 +12,8 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/rpuneet/mycel/pkg/cost"
+	"github.com/rpuneet/mycel/pkg/home"
 	"github.com/rpuneet/mycel/pkg/provider"
-	"github.com/rpuneet/mycel/pkg/workspace"
 )
 
 // costReportCmd rolls up costs across repos, computed directly from
@@ -45,7 +45,7 @@ func init() {
 }
 
 func runCostReport(cmd *cobra.Command, _ []string) error {
-	agentsDir, err := workspace.AgentsDir()
+	agentsDir, err := home.AgentsDir()
 	if err != nil {
 		return fmt.Errorf("resolve agents dir: %w", err)
 	}

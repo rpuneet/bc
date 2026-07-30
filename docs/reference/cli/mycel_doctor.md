@@ -6,10 +6,10 @@ Health checks and diagnostics
 
 Run health checks on your mycel repo and dependencies.
 
-Checks workspace config, agent state, databases, tools, and git worktrees.
+Checks the global config, agent state, databases, tools, and git worktrees.
 
 Categories:
-  workspace   state directory, preferences.json, role files
+  home        ~/.mycel state, prefs.json, roles
   database    SQLite integrity and table existence
   agents      Running agents, stale sessions, missing worktrees
   tools       tmux, git, and AI provider installations
@@ -17,7 +17,7 @@ Categories:
 
 Examples:
   mycel doctor                          # Full health check
-  mycel doctor check workspace          # Check specific category
+  mycel doctor check home               # Check specific category
   mycel doctor fix                      # Auto-fix fixable issues
   mycel doctor fix --dry-run            # Preview fixes
   mycel doctor fix --category git       # Fix specific category

@@ -9,7 +9,7 @@ import (
 // --- Report Command Unit Tests ---
 
 func TestReport_NoAgentID(t *testing.T) {
-	setupTestWorkspace(t)
+	setupTestHome(t)
 
 	// Clear MYCEL_AGENT_ID env var
 	origAgentID := os.Getenv("MYCEL_AGENT_ID")
@@ -31,7 +31,7 @@ func TestReport_NoAgentID(t *testing.T) {
 }
 
 func TestReport_InvalidState(t *testing.T) {
-	setupTestWorkspace(t)
+	setupTestHome(t)
 
 	// Set MYCEL_AGENT_ID
 	origAgentID := os.Getenv("MYCEL_AGENT_ID")

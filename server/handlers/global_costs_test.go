@@ -182,7 +182,7 @@ func TestGlobalCosts_GroupByProject(t *testing.T) {
 
 func TestGlobalCosts_StartBoundsRespected(t *testing.T) {
 	svc, home := newTestCostService(t)
-	seedUsage(t, home, "/repos/ws", 100_000, 5_000, time.Now())
+	seedUsage(t, home, "/repos/h", 100_000, 5_000, time.Now())
 
 	// Start far in the future — no entries should match. Build a proper
 	// url.Values so the '+' offset doesn't get decoded as a space.

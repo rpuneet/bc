@@ -18,7 +18,7 @@ import (
 )
 
 // TestBuildServices_SharedGlobalDB asserts the single-database
-// semantics: two workspaces in one process share mycel.db (channel
+// semantics: two repos in one process share mycel.db (channel
 // subscriptions are global), agents are isolated by repo key, and a
 // duplicate agent name across repos is rejected.
 func TestBuildServices_SharedGlobalDB(t *testing.T) {
@@ -49,8 +49,8 @@ func TestBuildServices_SharedGlobalDB(t *testing.T) {
 	}
 
 	// Channel subscriptions live in the ONE shared database: a
-	// subscription made through workspace A's services is visible
-	// through workspace B's — that is the single-DB contract.
+	// subscription made through repo A's services is visible
+	// through repo B's — that is the single-DB contract.
 	if subErr := svcA.Notify.Store().Subscribe(ctx, "#engineering", "agent-a", false); subErr != nil {
 		t.Fatalf("subscribe in A: %v", subErr)
 	}
@@ -59,14 +59,14 @@ func TestBuildServices_SharedGlobalDB(t *testing.T) {
 		t.Fatalf("subscribers A: %v", err)
 	}
 	if len(subsA) != 1 || subsA[0].Agent != "agent-a" {
-		t.Fatalf("workspace A subscribers = %+v, want [agent-a]", subsA)
+		t.Fatalf("repo A subscribers = %+v, want [agent-a]", subsA)
 	}
 	subsB, err := svcB.Notify.Store().Subscribers(ctx, "#engineering")
 	if err != nil {
 		t.Fatalf("subscribers B: %v", err)
 	}
 	if len(subsB) != 1 || subsB[0].Agent != "agent-a" {
-		t.Errorf("shared DB: workspace B must see the same channel subscription, got %+v", subsB)
+		t.Errorf("shared DB: repo B must see the same channel subscription, got %+v", subsB)
 	}
 
 	// Agents are isolated by repo key: an agent registered in A does
@@ -80,7 +80,7 @@ func TestBuildServices_SharedGlobalDB(t *testing.T) {
 		t.Fatalf("register agent in A: %v", regErr)
 	}
 	if got := svcB.AgentMgr.GetAgent("shared-db-agent"); got != nil {
-		t.Error("agent registered in workspace A must not be visible in workspace B's manager")
+		t.Error("agent registered in repo A must not be visible in repo B's manager")
 	}
 
 	// Agent names are globally unique: reusing the name from another
@@ -98,13 +98,13 @@ func TestBuildServices_SharedGlobalDB(t *testing.T) {
 		t.Errorf("duplicate-name error should identify the conflict, got: %v", dupErr)
 	}
 
-	// One database file at MYCEL_HOME — no per-workspace bc.db files.
+	// One database file at MYCEL_HOME — no per-repo bc.db files.
 	if _, statErr := os.Stat(filepath.Join(home, "mycel.db")); statErr != nil {
 		t.Errorf("global mycel.db missing: %v", statErr)
 	}
 	for _, dir := range []string{wsA, wsB} {
 		if _, statErr := os.Stat(filepath.Join(dir, ".bc", "bc.db")); statErr == nil {
-			t.Errorf("per-workspace bc.db must not be created anymore (%s)", dir)
+			t.Errorf("per-repo bc.db must not be created anymore (%s)", dir)
 		}
 	}
 }

@@ -13,7 +13,7 @@ import (
 // testBcdHandler is the handler used by the package-level fake bcd server.
 // Tests can swap it via setTestBcdHandler / resetTestBcdHandler to assert
 // against bcd interactions; the default returns 404 for every path so that
-// "no agent found" / "not in workspace" code paths are exercised without
+// "no agent found" / "not in a repo" code paths are exercised without
 // reaching a real bcd.
 //
 // IMPORTANT: this server protects production bcd from `go test` runs.
@@ -24,7 +24,7 @@ var testBcdHandler atomic.Value // stores http.HandlerFunc
 func defaultTestBcdHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// /health must succeed so newDaemonClient.Ping() doesn't fail
-		// before workspace checks complete.
+		// before repo checks complete.
 		if r.URL.Path == "/health" {
 			w.WriteHeader(http.StatusOK)
 			_, _ = w.Write([]byte(`{"status":"ok"}`))
@@ -67,11 +67,11 @@ func TestMain(m *testing.M) {
 	// Force the bc client to talk to our fake server, not the real bcd.
 	_ = os.Setenv("MYCEL_DAEMON_ADDR", srv.URL)
 
-	// Clear workspace env vars inherited from the dev's shell so tests
+	// Clear repo env vars inherited from the dev's shell so tests
 	// that intentionally chdir to a tmpDir (and expect "not in a bc
 	// workspace") don't accidentally pick up the developer's MYCEL_WORKSPACE
-	// pointing at the bc repo. Tests that need a workspace set this
-	// explicitly via t.Setenv in setupIntegrationWorkspace.
+	// pointing at the bc repo. Tests that need a repo set this
+	// explicitly via t.Setenv in setupIntegrationHome.
 	_ = os.Unsetenv("MYCEL_WORKSPACE")
 	_ = os.Unsetenv("MYCEL_AGENT_WORKTREE")
 

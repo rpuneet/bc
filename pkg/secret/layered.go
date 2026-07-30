@@ -15,13 +15,13 @@ type Scope string
 const (
 	// ScopeGlobal is the user-global vault (~/.mycel/secrets.vault).
 	ScopeGlobal Scope = "global"
-	// ScopeWorkspace is the per-workspace override
-	// (<ws>/.bc/secrets.db).
+	// ScopeWorkspace is the repo-scoped override
+	// (<h>/.bc/secrets.db).
 	ScopeWorkspace Scope = "workspace"
 )
 
 // OpenVaultFile opens a Store using an explicit SQLite path instead of
-// the conventional "<workspacePath>/.bc/secrets.db". Used for the
+// the conventional "<repo>/.bc/secrets.db". Used for the
 // user-global vault at ~/.mycel/secrets.vault where there is no
 // "workspace" to anchor against. Directory must exist.
 func OpenVaultFile(path, passphrase string) (*Store, error) {
@@ -49,9 +49,9 @@ func OpenVaultFile(path, passphrase string) (*Store, error) {
 }
 
 // LayeredStore composes a user-global vault with an optional
-// workspace-local Store. Reads check workspace first, falling back to
+// repo-local Store. Reads check the repo layer first, falling back to
 // global. Writes default to the global vault; callers can target the
-// workspace layer with the *Workspace methods or SetWithScope.
+// repo layer with the *Workspace methods or SetWithScope.
 //
 // Each underlying Store keeps its own encryption key (derived from the
 // same passphrase + a per-vault salt) so the two files stay
@@ -59,29 +59,29 @@ func OpenVaultFile(path, passphrase string) (*Store, error) {
 // Close() which closes both underlying Stores; ownership flows through
 // the wrapper.
 type LayeredStore struct {
-	global    *Store
-	workspace *Store // may be nil when no workspace override is configured
+	global *Store
+	repo   *Store // may be nil when no repo-scoped override is configured
 }
 
-// NewLayeredStore wraps a global vault and an optional workspace Store.
+// NewLayeredStore wraps a global vault and an optional repo-scoped Store.
 // Either argument may be nil, but at least one must be non-nil or every
 // call will error.
-func NewLayeredStore(global, workspace *Store) *LayeredStore {
-	return &LayeredStore{global: global, workspace: workspace}
+func NewLayeredStore(global, repo *Store) *LayeredStore {
+	return &LayeredStore{global: global, repo: repo}
 }
 
 // Global returns the underlying user-global Store (never nil when the
 // LayeredStore was constructed correctly).
 func (l *LayeredStore) Global() *Store { return l.global }
 
-// Workspace returns the optional per-workspace override Store.
-func (l *LayeredStore) Workspace() *Store { return l.workspace }
+// Workspace returns the optional repo-scoped override Store.
+func (l *LayeredStore) Workspace() *Store { return l.repo }
 
 // Close closes both underlying stores, returning the first error.
 func (l *LayeredStore) Close() error {
 	var firstErr error
-	if l.workspace != nil {
-		if err := l.workspace.Close(); err != nil {
+	if l.repo != nil {
+		if err := l.repo.Close(); err != nil {
 			firstErr = err
 		}
 	}
@@ -93,10 +93,10 @@ func (l *LayeredStore) Close() error {
 	return firstErr
 }
 
-// GetValue returns the decrypted value, preferring the workspace scope.
+// GetValue returns the decrypted value, preferring the repo scope.
 func (l *LayeredStore) GetValue(name string) (string, error) {
-	if l.workspace != nil {
-		if v, err := l.workspace.GetValue(name); err == nil {
+	if l.repo != nil {
+		if v, err := l.repo.GetValue(name); err == nil {
 			return v, nil
 		}
 	}
@@ -107,11 +107,11 @@ func (l *LayeredStore) GetValue(name string) (string, error) {
 }
 
 // GetMeta returns the metadata from whichever layer owns the name,
-// with the workspace override winning. The returned meta's Scope field
+// with the repo-scoped override winning. The returned meta's Scope field
 // is populated to reflect the owning layer.
 func (l *LayeredStore) GetMeta(name string) (*SecretMeta, error) {
-	if l.workspace != nil {
-		if m, err := l.workspace.GetMeta(name); err == nil && m != nil {
+	if l.repo != nil {
+		if m, err := l.repo.GetMeta(name); err == nil && m != nil {
 			m.Scope = ScopeWorkspace
 			return m, nil
 		}
@@ -127,7 +127,7 @@ func (l *LayeredStore) GetMeta(name string) (*SecretMeta, error) {
 }
 
 // List returns metadata for every secret in both layers. When a name
-// exists in both, the workspace entry wins and scope is reported as
+// exists in both, the repo entry wins and scope is reported as
 // "workspace".
 func (l *LayeredStore) List() ([]*SecretMeta, error) {
 	byName := map[string]*SecretMeta{}
@@ -144,12 +144,12 @@ func (l *LayeredStore) List() ([]*SecretMeta, error) {
 			order = append(order, m.Name)
 		}
 	}
-	if l.workspace != nil {
-		ws, err := l.workspace.List()
+	if l.repo != nil {
+		h, err := l.repo.List()
 		if err != nil {
 			return nil, err
 		}
-		for _, m := range ws {
+		for _, m := range h {
 			m.Scope = ScopeWorkspace
 			if _, seen := byName[m.Name]; !seen {
 				order = append(order, m.Name)
@@ -166,7 +166,7 @@ func (l *LayeredStore) List() ([]*SecretMeta, error) {
 }
 
 // Set writes to the user-global vault (the default for bc secret add
-// KEY=VAL). Use SetWorkspace for per-workspace overrides.
+// KEY=VAL). Use SetWorkspace for repo-scoped overrides.
 func (l *LayeredStore) Set(name, value, description string) error {
 	if l.global == nil {
 		return fmt.Errorf("no global vault configured")
@@ -174,16 +174,16 @@ func (l *LayeredStore) Set(name, value, description string) error {
 	return l.global.Set(name, value, description)
 }
 
-// SetWorkspace writes to the per-workspace override store.
+// SetWorkspace writes to the repo-scoped override store.
 func (l *LayeredStore) SetWorkspace(name, value, description string) error {
-	if l.workspace == nil {
-		return fmt.Errorf("no workspace override store configured")
+	if l.repo == nil {
+		return fmt.Errorf("no repo-scoped override store configured")
 	}
-	return l.workspace.Set(name, value, description)
+	return l.repo.Set(name, value, description)
 }
 
 // SetWithScope chooses a layer explicitly; empty scope defaults to
-// global when it exists, else workspace.
+// global when it exists, else the repo layer.
 func (l *LayeredStore) SetWithScope(scope Scope, name, value, description string) error {
 	switch scope {
 	case ScopeWorkspace:
@@ -201,10 +201,10 @@ func (l *LayeredStore) SetWithScope(scope Scope, name, value, description string
 }
 
 // Delete removes from whichever layer owns the name, preferring
-// workspace. Returns an error when the secret exists in neither.
+// the repo layer. Returns an error when the secret exists in neither.
 func (l *LayeredStore) Delete(name string) error {
-	if l.workspace != nil {
-		if err := l.workspace.Delete(name); err == nil {
+	if l.repo != nil {
+		if err := l.repo.Delete(name); err == nil {
 			return nil
 		}
 	}
@@ -219,10 +219,10 @@ func (l *LayeredStore) Delete(name string) error {
 func (l *LayeredStore) DeleteScoped(scope Scope, name string) error {
 	switch scope {
 	case ScopeWorkspace:
-		if l.workspace == nil {
-			return fmt.Errorf("no workspace override configured")
+		if l.repo == nil {
+			return fmt.Errorf("no repo-scoped override configured")
 		}
-		return l.workspace.Delete(name)
+		return l.repo.Delete(name)
 	case ScopeGlobal:
 		if l.global == nil {
 			return fmt.Errorf("no global vault configured")
@@ -236,7 +236,7 @@ func (l *LayeredStore) DeleteScoped(scope Scope, name string) error {
 }
 
 // ResolveEnv substitutes ${secret:NAME} in each value. Names are
-// resolved with workspace-over-global precedence.
+// resolved with repo-over-global precedence.
 func (l *LayeredStore) ResolveEnv(env map[string]string) map[string]string {
 	resolved := make(map[string]string, len(env))
 	for k, v := range env {
@@ -246,7 +246,7 @@ func (l *LayeredStore) ResolveEnv(env map[string]string) map[string]string {
 }
 
 // resolveValueLayered mirrors Store.resolveValue but uses the layered
-// GetValue so workspace overrides take precedence.
+// GetValue so config overrides take precedence.
 func resolveValueLayered(l *LayeredStore, v string) string {
 	const prefix = "${secret:"
 	const suffix = "}"

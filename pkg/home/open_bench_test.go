@@ -1,4 +1,4 @@
-package workspace
+package home
 
 import (
 	"os"
@@ -8,18 +8,18 @@ import (
 
 // --- Benchmark helpers ---
 
-// setupBenchWorkspace bootstraps a workspace in an isolated MYCEL_HOME
+// setupBenchHome bootstraps a home in an isolated MYCEL_HOME
 // anchored on a fresh git-repo dir and returns both.
-func setupBenchWorkspace(b *testing.B) (*Workspace, string) {
+func setupBenchHome(b *testing.B) (*Home, string) {
 	b.Helper()
 	b.Setenv("MYCEL_HOME", b.TempDir())
 	dir := b.TempDir()
 	gitInitDir(b, dir)
-	ws, err := Open(dir)
+	h, err := Open(dir)
 	if err != nil {
 		b.Fatal(err)
 	}
-	return ws, dir
+	return h, dir
 }
 
 // --- Open benchmarks ---
@@ -40,7 +40,7 @@ func BenchmarkOpen(b *testing.B) {
 // --- Load benchmarks ---
 
 func BenchmarkLoad(b *testing.B) {
-	_, dir := setupBenchWorkspace(b)
+	_, dir := setupBenchHome(b)
 
 	b.ResetTimer()
 	for range b.N {
@@ -53,7 +53,7 @@ func BenchmarkLoad(b *testing.B) {
 // --- Find benchmarks ---
 
 func BenchmarkFind_Immediate(b *testing.B) {
-	_, dir := setupBenchWorkspace(b)
+	_, dir := setupBenchHome(b)
 
 	b.ResetTimer()
 	for range b.N {
@@ -64,7 +64,7 @@ func BenchmarkFind_Immediate(b *testing.B) {
 }
 
 func BenchmarkFind_OneLevel(b *testing.B) {
-	_, dir := setupBenchWorkspace(b)
+	_, dir := setupBenchHome(b)
 	subdir := filepath.Join(dir, "subdir")
 	if err := os.MkdirAll(subdir, 0750); err != nil {
 		b.Fatal(err)
@@ -79,7 +79,7 @@ func BenchmarkFind_OneLevel(b *testing.B) {
 }
 
 func BenchmarkFind_ThreeLevels(b *testing.B) {
-	_, dir := setupBenchWorkspace(b)
+	_, dir := setupBenchHome(b)
 	subdir := filepath.Join(dir, "a", "b", "c")
 	if err := os.MkdirAll(subdir, 0750); err != nil {
 		b.Fatal(err)
@@ -96,11 +96,11 @@ func BenchmarkFind_ThreeLevels(b *testing.B) {
 // --- Save benchmark ---
 
 func BenchmarkSave(b *testing.B) {
-	ws, _ := setupBenchWorkspace(b)
+	h, _ := setupBenchHome(b)
 
 	b.ResetTimer()
 	for range b.N {
-		if err := ws.Save(); err != nil {
+		if err := h.Save(); err != nil {
 			b.Fatal(err)
 		}
 	}
@@ -109,82 +109,82 @@ func BenchmarkSave(b *testing.B) {
 // --- Directory accessor benchmarks ---
 
 func BenchmarkStateDir(b *testing.B) {
-	ws, _ := setupBenchWorkspace(b)
+	h, _ := setupBenchHome(b)
 
 	b.ResetTimer()
 	for range b.N {
-		_ = ws.StateDir()
+		_ = h.StateDir()
 	}
 }
 
 func BenchmarkAgentsDir(b *testing.B) {
-	ws, _ := setupBenchWorkspace(b)
+	h, _ := setupBenchHome(b)
 
 	b.ResetTimer()
 	for range b.N {
-		_ = ws.AgentsDir()
+		_ = h.AgentsDir()
 	}
 }
 
 // --- RoleManager benchmarks ---
 
 func BenchmarkRoleManager_LoadRole(b *testing.B) {
-	ws, _ := setupBenchWorkspace(b)
+	h, _ := setupBenchHome(b)
 
 	b.ResetTimer()
 	for range b.N {
 		// Clear cache to force reload
-		ws.RoleManager.roles = make(map[string]*Role)
-		if _, err := ws.RoleManager.LoadRole("root"); err != nil {
+		h.RoleManager.roles = make(map[string]*Role)
+		if _, err := h.RoleManager.LoadRole("root"); err != nil {
 			b.Fatal(err)
 		}
 	}
 }
 
 func BenchmarkRoleManager_LoadRole_Cached(b *testing.B) {
-	ws, _ := setupBenchWorkspace(b)
+	h, _ := setupBenchHome(b)
 	// Pre-load to cache
-	if _, err := ws.RoleManager.LoadRole("root"); err != nil {
+	if _, err := h.RoleManager.LoadRole("root"); err != nil {
 		b.Fatal(err)
 	}
 
 	b.ResetTimer()
 	for range b.N {
-		if _, err := ws.RoleManager.LoadRole("root"); err != nil {
+		if _, err := h.RoleManager.LoadRole("root"); err != nil {
 			b.Fatal(err)
 		}
 	}
 }
 
 func BenchmarkRoleManager_LoadAllRoles(b *testing.B) {
-	ws, _ := setupBenchWorkspace(b)
+	h, _ := setupBenchHome(b)
 
 	b.ResetTimer()
 	for range b.N {
 		// Clear cache to force reload
-		ws.RoleManager.roles = make(map[string]*Role)
-		if _, err := ws.RoleManager.LoadAllRoles(); err != nil {
+		h.RoleManager.roles = make(map[string]*Role)
+		if _, err := h.RoleManager.LoadAllRoles(); err != nil {
 			b.Fatal(err)
 		}
 	}
 }
 
 func BenchmarkGetRole(b *testing.B) {
-	ws, _ := setupBenchWorkspace(b)
+	h, _ := setupBenchHome(b)
 
 	b.ResetTimer()
 	for range b.N {
-		if _, err := ws.GetRole("root"); err != nil {
+		if _, err := h.GetRole("root"); err != nil {
 			b.Fatal(err)
 		}
 	}
 }
 
 func BenchmarkGetRolePrompt(b *testing.B) {
-	ws, _ := setupBenchWorkspace(b)
+	h, _ := setupBenchHome(b)
 
 	b.ResetTimer()
 	for range b.N {
-		_ = ws.GetRolePrompt("root")
+		_ = h.GetRolePrompt("root")
 	}
 }

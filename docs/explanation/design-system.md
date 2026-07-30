@@ -14,7 +14,6 @@
 |----------|-------|-----------------|--------------|
 | **Landing** (`landing/`) | Next.js + Tailwind | Browser (HTML/CSS) | CSS custom properties |
 | **Web** (`web/`) | Vite + React + Tailwind | Browser (HTML/CSS) | CSS custom properties |
-| **TUI** (`tui/`) | React Ink | Terminal (ANSI/truecolor) | TypeScript constants |
 | **CLI** (`pkg/ui/`) | Go (`pkg/ui`) | Terminal (ANSI escape codes) | Go constants |
 
 ### Design Principles
@@ -227,8 +226,6 @@ flowchart LR
 
     CSS --> LANDING["Landing\n(globals.css import)"]
     CSS --> WEB["Web\n(tokens.css import)"]
-    TS --> TUI_HEX["TUI\n(truecolor path)"]
-    ANSI --> TUI_ANSI["TUI\n(ANSI fallback)"]
     ANSI --> CLI["CLI\n(pkg/ui constants)"]
     GO --> CLI
 ```
@@ -237,13 +234,13 @@ flowchart LR
 
 Both web frontends consume tokens as CSS custom properties. The build generates a `tokens.css` file with `:root` (light) and `.dark` blocks. Each frontend imports this file and maps values through its Tailwind config.
 
-### 4.2 TypeScript Constants (TUI)
+### 4.2 TypeScript Constants
 
-The TUI runs in a terminal and cannot use CSS. The shared package exports a TypeScript module with both hex values (for truecolor terminals) and ANSI color name mappings (for 16-color fallback). The TUI's `themes.ts` imports these constants.
+The shared `@bc/design-tokens` package exports a TypeScript module with both hex values (for truecolor terminals) and ANSI color name mappings (for 16-color fallback), for any TypeScript consumer that renders outside the browser.
 
 ### 4.3 Go Constants (CLI)
 
-The CLI's `pkg/ui/color.go` defines ANSI escape sequences for terminal output. These constants are aligned to the Solar Flare ANSI mapping so that CLI status messages, tables, and badges use the same visual language as the TUI.
+The CLI's `pkg/ui/color.go` defines ANSI escape sequences for terminal output. These constants are aligned to the Solar Flare ANSI mapping so that CLI status messages, tables, and badges share the Solar Flare visual language.
 
 ---
 
@@ -325,7 +322,7 @@ Based on a 1.25 ratio, rem-based for accessibility:
 
 ### 6.3 Terminal Typography
 
-The TUI and CLI use the terminal's configured monospace font. Web type scale tokens do not apply. Text differentiation is achieved through:
+The CLI uses the terminal's configured monospace font. Web type scale tokens do not apply. Text differentiation is achieved through:
 
 | Attribute | ANSI Code | Usage |
 |-----------|----------|-------|
@@ -360,7 +357,7 @@ This aligns with Tailwind's default spacing scale.
 
 ### 7.1 Terminal Spacing
 
-Terminal layout uses character cells. The TUI spacing constants map to cell counts:
+Terminal layout uses character cells. Terminal spacing constants map to cell counts:
 
 | Token | Value (cells) | Usage |
 |-------|--------------|-------|
@@ -428,7 +425,7 @@ outline: 2px solid var(--ring);  /* #EA580C */
 outline-offset: 2px;
 ```
 
-In the TUI, focused elements use `borderFocused` color on the panel border. In the CLI, focus is not applicable.
+In the CLI, focus is not applicable.
 
 ### 8.6 Touch Targets
 
@@ -443,7 +440,7 @@ min-width: 2.75rem;
 
 ## 9. Terminal Color Mapping
 
-The TUI and CLI operate in terminal environments. This section defines how Solar Flare hex values map to ANSI colors.
+The CLI operates in terminal environments. This section defines how Solar Flare hex values map to ANSI colors.
 
 ```mermaid
 flowchart LR
@@ -500,7 +497,6 @@ flowchart LR
 ### Truecolor Fallback
 
 When the terminal supports truecolor (24-bit), consumers should prefer hex values directly:
-- **TUI:** Ink's `color` prop accepts hex strings (e.g., `color="#EA580C"`).
 - **CLI:** Go can emit `\033[38;2;R;G;Bm` escape sequences.
 
 The ANSI 16 mapping serves as a fallback for restricted environments. Runtime detection determines which path to use.
@@ -509,7 +505,7 @@ The ANSI 16 mapping serves as a fallback for restricted environments. Runtime de
 
 ## 10. Shared Component Library (`@bc/ui`)
 
-This section is the design specification for a platform-agnostic component library: shared component interfaces with platform-specific renderers, so web and TUI share the same component API. Today the frontends implement these components locally (only `@bc/design-tokens` is shared under `packages/`); the spec below defines the target API and rendering rules they follow.
+This section is the design specification for a platform-agnostic component library: shared component interfaces with platform-specific renderers, so every surface shares the same component API. Today the frontends implement these components locally (only `@bc/design-tokens` is shared under `packages/`); the spec below defines the target API and rendering rules they follow.
 
 ### 10.1 Architecture
 
@@ -585,7 +581,6 @@ packages/
       Toast.tsx
       Spinner.tsx
       index.ts
-  ui-ink/            # React Ink renderers (TUI)
     src/
       Button.tsx
       Input.tsx
@@ -613,8 +608,6 @@ packages/
 
 **Web rendering:** `<button>` with CSS classes derived from variant. Uses `background: var(--primary)`, `border-radius: var(--radius-md)`, `box-shadow: var(--btn-shadow)`. Disabled state applies `opacity: 0.5` and `pointer-events: none`.
 
-**TUI rendering:** `<Box>` + `<Text>` with Ink color props. Primary uses `color="redBright"` (Tangerine ANSI). Ghost uses `dimColor`. Disabled applies `dimColor` attribute. Focus shows `borderStyle="single" borderColor="redBright"`.
-
 #### Input
 
 | Prop | Type | Default | Description |
@@ -626,8 +619,6 @@ packages/
 | `error` | `string \| undefined` | -- | Error message (shows destructive styling) |
 
 **Web rendering:** `<input>` with `border: 1px solid var(--input)`, `border-radius: var(--radius-md)`, `background: var(--background)`. Focus applies `outline: 2px solid var(--ring)`. Error state applies `border-color: var(--destructive)`.
-
-**TUI rendering:** Ink `<TextInput>` wrapped in a `<Box>` with `borderStyle="single"`. Border color is `gray` by default, `redBright` on focus, `red` on error. Placeholder text rendered with `dimColor`.
 
 #### Table
 
@@ -642,8 +633,6 @@ packages/
 
 **Web rendering:** `<table>` with `border-collapse: collapse`. Header row uses `font-weight: 600`, `color: var(--muted-foreground)`. Selected row uses `background: var(--accent)`. Hover uses `background: var(--muted)`.
 
-**TUI rendering:** `<Box flexDirection="column">` grid. Header text uses `bold dimColor`. Selected row prefixed with `▸` in `cyan`/`redBright` (Solar Flare primary ANSI). Virtualization via `scrollOffset` prop.
-
 #### Badge
 
 | Prop | Type | Default | Description |
@@ -653,8 +642,6 @@ packages/
 | `icon` | `string \| undefined` | -- | Optional leading icon/symbol |
 
 **Web rendering:** `<span>` with `border-radius: var(--radius-sm)`, `font-size: var(--text-xs)`, `padding: var(--space-0.5) var(--space-2)`. Variant determines background/foreground from semantic tokens.
-
-**TUI rendering:** `<Text>` with color set to the variant's ANSI mapping. Icon symbols prepended when present (e.g., `✓` for success, `✗` for error). Uses bold for emphasis.
 
 #### Panel
 
@@ -669,8 +656,6 @@ packages/
 
 **Web rendering:** `<div>` with `border: 1px solid var(--border)`, `border-radius: var(--radius-lg)`, `background: var(--card)`, `box-shadow: var(--card-shadow)`. Focused state applies `border-color: var(--ring)`. Title rendered as `<h3>` with `font-weight: 600`.
 
-**TUI rendering:** `<Box borderStyle="single">` with `borderColor="gray"` default. Focused applies `borderColor` from theme's `borderFocused` token. Title rendered as `<Text bold>`. Minimum height ensures title + content visibility.
-
 #### Modal
 
 | Prop | Type | Default | Description |
@@ -681,8 +666,6 @@ packages/
 | `onClose` | `() => void` | -- | Close handler |
 
 **Web rendering:** `<dialog>` with glass effect backdrop. Content uses `background: var(--card)`, `border-radius: var(--radius-lg)`, `box-shadow: var(--card-shadow)`. Close on Escape key.
-
-**TUI rendering:** Absolute-positioned `<Box>` overlay with `borderStyle="double"`. Background cleared with spaces. Close on Escape key via Ink `useInput`.
 
 #### Toast
 
@@ -695,8 +678,6 @@ packages/
 
 **Web rendering:** Fixed-position `<div>` at bottom-right. Uses variant semantic token for left border accent. Glass effect background. Animate in/out with CSS transitions.
 
-**TUI rendering:** `<Text>` rendered at the bottom of the viewport with variant color. Auto-dismisses via `setTimeout`. Symbol prefix matches status semantics (`✓`, `✗`, `⚠`, `→`).
-
 #### Spinner
 
 | Prop | Type | Default | Description |
@@ -706,8 +687,6 @@ packages/
 | `color` | `string` | `'primary'` | Color token |
 
 **Web rendering:** CSS `@keyframes spin` animation on an SVG circle. Size maps to `16px` / `24px` / `32px`. Color from semantic token.
-
-**TUI rendering:** Ink `<Spinner>` component with `type="dots"`. Label rendered as `<Text>` adjacent to spinner. Color from ANSI mapping of specified token.
 
 ---
 

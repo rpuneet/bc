@@ -915,14 +915,14 @@ func TestChannels_Status(t *testing.T) {
 
 // --- Costs tests ---
 
-func TestCosts_WorkspaceSummary(t *testing.T) {
+func TestCosts_TotalSummary(t *testing.T) {
 	summary := CostSummary{TotalCostUSD: 42.5, TotalTokens: 1000}
 	ts := mockServer(t, jsonHandler(200, summary))
 	c := New(ts.URL)
 
-	result, err := c.Costs.WorkspaceSummary(context.Background())
+	result, err := c.Costs.TotalSummary(context.Background())
 	if err != nil {
-		t.Fatalf("WorkspaceSummary() error = %v", err)
+		t.Fatalf("TotalSummary() error = %v", err)
 	}
 	if result.TotalCostUSD != 42.5 {
 		t.Errorf("TotalCostUSD = %v, want 42.5", result.TotalCostUSD)

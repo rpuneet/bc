@@ -26,7 +26,7 @@ func TestFindGitRoot(t *testing.T) {
 	}
 }
 
-func TestResolveUpWorkspace_AdoptsGitRoot(t *testing.T) {
+func TestResolveUpRepo_AdoptsGitRoot(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Setenv("MYCEL_HOME", filepath.Join(tmpDir, "home-mycel"))
 	t.Setenv("MYCEL_WORKSPACE", "")
@@ -38,30 +38,30 @@ func TestResolveUpWorkspace_AdoptsGitRoot(t *testing.T) {
 	}
 	gitInitDir(t, repo)
 
-	// An uninitialized git repo is adopted as the workspace root.
+	// An uninitialized git repo is adopted as the repo root.
 	t.Chdir(nested)
-	got := resolveUpWorkspace()
+	got := resolveUpRepo()
 	wantRepo, _ := filepath.EvalSymlinks(repo)
 	gotResolved, _ := filepath.EvalSymlinks(got)
 	if gotResolved != wantRepo {
-		t.Errorf("resolveUpWorkspace() = %q, want git root %q", gotResolved, wantRepo)
+		t.Errorf("resolveUpRepo() = %q, want git root %q", gotResolved, wantRepo)
 	}
 }
 
-func TestResolveUpWorkspace_NoRepoEmptyRegistry(t *testing.T) {
+func TestResolveUpRepo_NoRepoEmptyRegistry(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Setenv("MYCEL_HOME", filepath.Join(tmpDir, "home-mycel"))
 	t.Setenv("MYCEL_WORKSPACE", "")
 
-	// Not a git repo, empty registry → no workspace ("" means the
-	// server boots workspace-less and repos are added via the web UI).
+	// Not a git repo, empty registry → no repo ("" means the
+	// server boots repo-less and repos are added via the web UI).
 	plain := filepath.Join(tmpDir, "plain")
 	if err := os.MkdirAll(plain, 0o750); err != nil {
 		t.Fatal(err)
 	}
 	t.Chdir(plain)
-	if got := resolveUpWorkspace(); got != "" {
-		t.Errorf("resolveUpWorkspace() = %q, want empty (workspace-less boot)", got)
+	if got := resolveUpRepo(); got != "" {
+		t.Errorf("resolveUpRepo() = %q, want empty (repo-less boot)", got)
 	}
 }
 

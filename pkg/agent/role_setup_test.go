@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	pkgdb "github.com/rpuneet/mycel/pkg/db"
-	"github.com/rpuneet/mycel/pkg/workspace"
+	"github.com/rpuneet/mycel/pkg/home"
 )
 
 // TestValidateAgentToolsResolvesGlobalRoles is a regression test for the
@@ -20,11 +20,11 @@ func TestValidateAgentToolsResolvesGlobalRoles(t *testing.T) {
 	if err != nil {
 		t.Fatalf("db.Global: %v", err)
 	}
-	store, err := workspace.NewRoleStoreFromDB(wsDB.DB, driver)
+	store, err := home.NewRoleStoreFromDB(wsDB.DB, driver)
 	if err != nil {
 		t.Fatalf("NewRoleStoreFromDB: %v", err)
 	}
-	if err := store.Save(&workspace.Role{Metadata: workspace.RoleMetadata{Name: "base"}}); err != nil {
+	if err := store.Save(&home.Role{Metadata: home.RoleMetadata{Name: "base"}}); err != nil {
 		t.Fatalf("save role: %v", err)
 	}
 

@@ -7,17 +7,17 @@ import (
 	"net/http"
 
 	"github.com/rpuneet/mycel/pkg/app"
-	"github.com/rpuneet/mycel/pkg/workspace"
+	"github.com/rpuneet/mycel/pkg/home"
 )
 
 // SettingsHandler handles /api/settings routes.
 type SettingsHandler struct {
-	ws *workspace.Workspace
+	home *home.Home
 }
 
 // NewSettingsHandler creates a SettingsHandler.
-func NewSettingsHandler(ws *workspace.Workspace) *SettingsHandler {
-	return &SettingsHandler{ws: ws}
+func NewSettingsHandler(h *home.Home) *SettingsHandler {
+	return &SettingsHandler{home: h}
 }
 
 // Register mounts settings routes on mux.
@@ -36,7 +36,7 @@ func (h *SettingsHandler) handleInjected(w http.ResponseWriter, r *http.Request)
 	switch r.Method {
 	case http.MethodGet:
 		writeJSON(w, http.StatusOK, injectedInstructionsBody{
-			InjectedInstructions: h.ws.Config.InjectedInstructions,
+			InjectedInstructions: h.home.Config.InjectedInstructions,
 		})
 	case http.MethodPut:
 		h.putInjected(w, r)
@@ -58,20 +58,20 @@ func (h *SettingsHandler) putInjected(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	merged := *h.ws.Config
+	merged := *h.home.Config
 	merged.InjectedInstructions = req.InjectedInstructions
 	if err := merged.Validate(); err != nil {
 		httpError(w, "validation failed: "+err.Error(), http.StatusBadRequest)
 		return
 	}
-	if err := merged.Save(h.ws.SettingsFile()); err != nil {
+	if err := merged.Save(h.home.SettingsFile()); err != nil {
 		httpInternalError(w, "save config", err)
 		return
 	}
-	*h.ws.Config = merged
+	*h.home.Config = merged
 
 	writeJSON(w, http.StatusOK, injectedInstructionsBody{
-		InjectedInstructions: h.ws.Config.InjectedInstructions,
+		InjectedInstructions: h.home.Config.InjectedInstructions,
 	})
 }
 
@@ -87,14 +87,14 @@ func (h *SettingsHandler) handle(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *SettingsHandler) get(w http.ResponseWriter, r *http.Request) {
-	ws := h.ws
-	writeJSON(w, http.StatusOK, ws.Config)
+	hm := h.home
+	writeJSON(w, http.StatusOK, hm.Config)
 }
 
 // patch applies a partial update to the config. The body is a JSON object
 // with top-level keys matching Config fields (user, server, runtime, etc.).
 func (h *SettingsHandler) patch(w http.ResponseWriter, r *http.Request) {
-	ws := h.ws
+	hm := h.home
 	body, err := io.ReadAll(io.LimitReader(r.Body, 1<<20))
 	if err != nil {
 		httpError(w, "failed to read body", http.StatusBadRequest)
@@ -108,7 +108,7 @@ func (h *SettingsHandler) patch(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Copy current config to avoid corrupting on error.
-	merged := *ws.Config
+	merged := *hm.Config
 
 	for key, raw := range rawPatch {
 		switch key {
@@ -170,13 +170,13 @@ func (h *SettingsHandler) patch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := merged.Save(ws.SettingsFile()); err != nil {
+	if err := merged.Save(hm.SettingsFile()); err != nil {
 		httpInternalError(w, "save config", err)
 		return
 	}
-	*ws.Config = merged
+	*hm.Config = merged
 
-	writeJSON(w, http.StatusOK, ws.Config)
+	writeJSON(w, http.StatusOK, hm.Config)
 }
 
 // mergeAppsPatch merges an "apps" settings patch per instance key so a
@@ -185,7 +185,7 @@ func (h *SettingsHandler) patch(w http.ResponseWriter, r *http.Request) {
 // unknown apps, unknown config keys, and secret-typed fields are all
 // rejected: secrets never travel through /api/settings, they go through
 // POST /api/apps/{name} into the vault.
-func mergeAppsPatch(merged *workspace.Config, raw json.RawMessage) error {
+func mergeAppsPatch(merged *home.Config, raw json.RawMessage) error {
 	var patch map[string]app.InstanceConfig
 	if err := json.Unmarshal(raw, &patch); err != nil {
 		return err

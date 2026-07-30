@@ -384,7 +384,7 @@ func TestAgentStopFlags(t *testing.T) {
 // --- Integration Tests using executeCmd ---
 
 func TestAgentListEmpty(t *testing.T) {
-	setupTestWorkspace(t)
+	setupTestHome(t)
 
 	// Command should succeed even with no agents
 	_, err := executeCmd("agent", "list")
@@ -394,7 +394,7 @@ func TestAgentListEmpty(t *testing.T) {
 }
 
 func TestAgentListJSON(t *testing.T) {
-	setupTestWorkspace(t)
+	setupTestHome(t)
 
 	// Command should succeed with --json flag
 	_, err := executeCmd("agent", "list", "--json")
@@ -404,7 +404,7 @@ func TestAgentListJSON(t *testing.T) {
 }
 
 func TestAgentStopNonexistent(t *testing.T) {
-	setupTestWorkspace(t)
+	setupTestHome(t)
 
 	_, err := executeCmd("agent", "stop", "nonexistent-agent")
 	if err == nil {
@@ -416,7 +416,7 @@ func TestAgentStopNonexistent(t *testing.T) {
 }
 
 func TestAgentSendNonexistent(t *testing.T) {
-	setupTestWorkspace(t)
+	setupTestHome(t)
 
 	_, err := executeCmd("agent", "send", "nonexistent-agent", "hello")
 	if err == nil {
@@ -428,7 +428,7 @@ func TestAgentSendNonexistent(t *testing.T) {
 }
 
 func TestAgentPeekNonexistent(t *testing.T) {
-	setupTestWorkspace(t)
+	setupTestHome(t)
 
 	_, err := executeCmd("agent", "peek", "nonexistent-agent")
 	if err == nil {
@@ -437,7 +437,7 @@ func TestAgentPeekNonexistent(t *testing.T) {
 }
 
 func TestAgentAttachNonexistent(t *testing.T) {
-	setupTestWorkspace(t)
+	setupTestHome(t)
 
 	_, err := executeCmd("agent", "attach", "nonexistent-agent")
 	if err == nil {
@@ -446,7 +446,7 @@ func TestAgentAttachNonexistent(t *testing.T) {
 }
 
 func TestAgentListWithRoleFilter(t *testing.T) {
-	setupTestWorkspace(t)
+	setupTestHome(t)
 
 	// Should succeed with valid role filter
 	_, err := executeCmd("agent", "list", "--role", "engineer")
@@ -456,7 +456,7 @@ func TestAgentListWithRoleFilter(t *testing.T) {
 }
 
 func TestAgentListInvalidRole(t *testing.T) {
-	setupTestWorkspace(t)
+	setupTestHome(t)
 
 	// Only truly invalid role names (format) should error
 	// "invalid-role" is valid now (all roles are custom)
@@ -527,7 +527,7 @@ func TestAgentSendPattern_InsufficientArgs(t *testing.T) {
 }
 
 func TestAgentBroadcast_NoAgents(t *testing.T) {
-	setupTestWorkspace(t)
+	setupTestHome(t)
 
 	// Should succeed with no agents
 	_, err := executeCmd("agent", "broadcast", "hello")
@@ -537,7 +537,7 @@ func TestAgentBroadcast_NoAgents(t *testing.T) {
 }
 
 func TestAgentSendPattern_NoMatches(t *testing.T) {
-	setupTestWorkspace(t)
+	setupTestHome(t)
 
 	// Should succeed with no matching agents (no error)
 	_, err := executeCmd("agent", "send-pattern", "nonexistent-*", "hello")
@@ -614,7 +614,7 @@ func TestAgentHealthFlags(t *testing.T) {
 }
 
 func TestAgentHealthAlertRequiresDetectStuck(t *testing.T) {
-	setupTestWorkspace(t)
+	setupTestHome(t)
 
 	// Set alert without detect-stuck
 	agentHealthAlert = "engineering"
@@ -634,7 +634,7 @@ func TestAgentHealthAlertRequiresDetectStuck(t *testing.T) {
 }
 
 func TestAgentHealthNoAgents(t *testing.T) {
-	setupTestWorkspace(t)
+	setupTestHome(t)
 
 	// Should succeed with no agents
 	_, err := executeCmd("agent", "health")
@@ -644,7 +644,7 @@ func TestAgentHealthNoAgents(t *testing.T) {
 }
 
 func TestAgentHealthJSON(t *testing.T) {
-	setupTestWorkspace(t)
+	setupTestHome(t)
 
 	// Should succeed with --json flag
 	_, err := executeCmd("agent", "health", "--json")
@@ -750,7 +750,7 @@ func TestAgentDelete_RequiresName(t *testing.T) {
 }
 
 func TestAgentDelete_NonexistentAgent(t *testing.T) {
-	setupTestWorkspace(t)
+	setupTestHome(t)
 
 	_, err := executeCmd("agent", "delete", "nonexistent-agent", "--force")
 	if err == nil {
@@ -811,7 +811,7 @@ func TestAgentRename_RunEValidation(t *testing.T) {
 
 func TestAgentCreate_RejectsRootRole(t *testing.T) {
 	// Test that root role cannot be created via bc agent create
-	setupTestWorkspace(t)
+	setupTestHome(t)
 
 	// Reset flags to prevent leaking state from previous tests
 	agentCreateTeam = ""
@@ -833,7 +833,7 @@ func TestAgentCreate_RejectsRootRole(t *testing.T) {
 
 func TestAgentCreate_NonExistentTeam(t *testing.T) {
 	// Test that agent create fails if team doesn't exist
-	setupTestWorkspace(t)
+	setupTestHome(t)
 
 	// Create engineer role file in the global roles migration dir
 	// (~/.mycel/roles); the role store picks it up on load.

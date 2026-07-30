@@ -173,8 +173,8 @@ func TestNewManager(t *testing.T) {
 	if m.SessionPrefix != "test-" {
 		t.Errorf("SessionPrefix = %q, want %q", m.SessionPrefix, "test-")
 	}
-	if m.workspaceHash != "" {
-		t.Errorf("workspaceHash = %q, want empty", m.workspaceHash)
+	if m.repoHash != "" {
+		t.Errorf("repoHash = %q, want empty", m.repoHash)
 	}
 	if m.execCommand == nil {
 		t.Error("execCommand should not be nil")
@@ -191,31 +191,31 @@ func TestNewDefaultManager(t *testing.T) {
 	}
 }
 
-func TestNewWorkspaceManager(t *testing.T) {
-	m := NewWorkspaceManager("bc-", "/some/workspace")
+func TestNewManagerWithRepo(t *testing.T) {
+	m := NewManagerWithRepo("bc-", "/some/repo")
 	if m.SessionPrefix != "bc-" {
 		t.Errorf("SessionPrefix = %q, want %q", m.SessionPrefix, "bc-")
 	}
-	if m.workspaceHash == "" {
-		t.Error("workspaceHash should not be empty")
+	if m.repoHash == "" {
+		t.Error("repoHash should not be empty")
 	}
 	if m.execCommand == nil {
 		t.Error("execCommand should not be nil")
 	}
 }
 
-func TestNewWorkspaceManager_DifferentPaths(t *testing.T) {
-	m1 := NewWorkspaceManager("bc-", "/path/one")
-	m2 := NewWorkspaceManager("bc-", "/path/two")
-	if m1.workspaceHash == m2.workspaceHash {
+func TestNewManagerWithRepo_DifferentPaths(t *testing.T) {
+	m1 := NewManagerWithRepo("bc-", "/path/one")
+	m2 := NewManagerWithRepo("bc-", "/path/two")
+	if m1.repoHash == m2.repoHash {
 		t.Error("different paths should produce different hashes")
 	}
 }
 
-func TestNewWorkspaceManager_SamePath(t *testing.T) {
-	m1 := NewWorkspaceManager("bc-", "/same/path")
-	m2 := NewWorkspaceManager("bc-", "/same/path")
-	if m1.workspaceHash != m2.workspaceHash {
+func TestNewManagerWithRepo_SamePath(t *testing.T) {
+	m1 := NewManagerWithRepo("bc-", "/same/path")
+	m2 := NewManagerWithRepo("bc-", "/same/path")
+	if m1.repoHash != m2.repoHash {
 		t.Error("same paths should produce same hash")
 	}
 }
@@ -358,10 +358,10 @@ func TestSessionName(t *testing.T) {
 			want:  "bc-agent1",
 		},
 		{
-			name:  "workspace manager",
-			mgr:   NewWorkspaceManager("bc-", "/some/path"),
+			name:  "repo-scoped manager",
+			mgr:   NewManagerWithRepo("bc-", "/some/path"),
 			input: "agent1",
-			want:  "bc-" + NewWorkspaceManager("bc-", "/some/path").workspaceHash + "-agent1",
+			want:  "bc-" + NewManagerWithRepo("bc-", "/some/path").repoHash + "-agent1",
 		},
 	}
 	for _, tt := range tests {
@@ -382,8 +382,8 @@ func TestSessionName_EmptyName(t *testing.T) {
 	}
 }
 
-func TestSessionName_WorkspacePrefix(t *testing.T) {
-	m := NewWorkspaceManager("bc-", "/workspace")
+func TestSessionName_RepoHashPrefix(t *testing.T) {
+	m := NewManagerWithRepo("bc-", "/repo")
 	name := m.SessionName("agent1")
 	if !strings.HasPrefix(name, "bc-") {
 		t.Errorf("session name should start with prefix: %s", name)
@@ -391,8 +391,8 @@ func TestSessionName_WorkspacePrefix(t *testing.T) {
 	if !strings.HasSuffix(name, "-agent1") {
 		t.Errorf("session name should end with -agent1: %s", name)
 	}
-	if !strings.Contains(name, m.workspaceHash) {
-		t.Errorf("session name should contain workspace hash: %s", name)
+	if !strings.Contains(name, m.repoHash) {
+		t.Errorf("session name should contain the repo hash: %s", name)
 	}
 }
 
@@ -454,7 +454,7 @@ func TestCreateSession_Success(t *testing.T) {
 	mock, records := recordingMock("")
 	m := newTestManager("bc-", mock)
 
-	err := m.CreateSession(testCtx(), "agent1", "/workspace")
+	err := m.CreateSession(testCtx(), "agent1", "/repo")
 	if err != nil {
 		t.Fatalf("CreateSession failed: %v", err)
 	}
@@ -472,7 +472,7 @@ func TestCreateSession_Success(t *testing.T) {
 	if !slices.Contains(rec.args, "bc-agent1") {
 		t.Error("expected session name in args")
 	}
-	if !slices.Contains(rec.args, "/workspace") {
+	if !slices.Contains(rec.args, "/repo") {
 		t.Error("expected directory in args")
 	}
 }
@@ -492,7 +492,7 @@ func TestCreateSession_NoDir(t *testing.T) {
 
 func TestCreateSession_Error(t *testing.T) {
 	m := newTestManager("bc-", mockCmd("", "duplicate session", 1))
-	err := m.CreateSession(testCtx(), "agent1", "/workspace")
+	err := m.CreateSession(testCtx(), "agent1", "/repo")
 	if err == nil {
 		t.Error("expected error when tmux fails")
 	}
@@ -507,14 +507,14 @@ func TestCreateSession_Error(t *testing.T) {
 
 func TestCreateSessionWithCommand_Success(t *testing.T) {
 	m := newTestManager("bc-", mockCmd("", "", 0))
-	if err := m.CreateSessionWithCommand(testCtx(), "agent1", "/workspace", "echo hello"); err != nil {
+	if err := m.CreateSessionWithCommand(testCtx(), "agent1", "/repo", "echo hello"); err != nil {
 		t.Fatalf("CreateSessionWithCommand failed: %v", err)
 	}
 }
 
 func TestCreateSessionWithCommand_Error(t *testing.T) {
 	m := newTestManager("bc-", mockCmd("", "error", 1))
-	err := m.CreateSessionWithCommand(testCtx(), "agent1", "/workspace", "echo hello")
+	err := m.CreateSessionWithCommand(testCtx(), "agent1", "/repo", "echo hello")
 	if err == nil {
 		t.Error("expected error")
 	}
@@ -529,7 +529,7 @@ func TestCreateSessionWithEnv_Success(t *testing.T) {
 	m := newTestManager("bc-", mock)
 
 	env := map[string]string{"FOO": "bar"}
-	err := m.CreateSessionWithEnv(testCtx(), "agent1", "/workspace", "echo hello", env)
+	err := m.CreateSessionWithEnv(testCtx(), "agent1", "/repo", "echo hello", env)
 	if err != nil {
 		t.Fatalf("CreateSessionWithEnv failed: %v", err)
 	}
@@ -544,7 +544,7 @@ func TestCreateSessionWithEnv_Success(t *testing.T) {
 
 func TestCreateSessionWithEnv_NilEnv(t *testing.T) {
 	m := newTestManager("bc-", mockCmd("", "", 0))
-	if err := m.CreateSessionWithEnv(testCtx(), "agent1", "/workspace", "echo hello", nil); err != nil {
+	if err := m.CreateSessionWithEnv(testCtx(), "agent1", "/repo", "echo hello", nil); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
@@ -572,7 +572,7 @@ func TestCreateSessionWithEnv_NoDir(t *testing.T) {
 
 func TestCreateSessionWithEnv_Error(t *testing.T) {
 	m := newTestManager("bc-", mockCmd("", "error", 1))
-	err := m.CreateSessionWithEnv(testCtx(), "agent1", "/workspace", "echo", nil)
+	err := m.CreateSessionWithEnv(testCtx(), "agent1", "/repo", "echo", nil)
 	if err == nil {
 		t.Error("expected error")
 	}
@@ -855,7 +855,7 @@ func TestCapture_Error(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestListSessions_Success(t *testing.T) {
-	sessionOutput := "bc-agent1|Thu Jan  1 00:00:00 2025|0|1|/workspace\nbc-agent2|Thu Jan  1 00:00:01 2025|1|2|/workspace\nother-session|Thu Jan  1 00:00:02 2025|0|1|/other\n"
+	sessionOutput := "bc-agent1|Thu Jan  1 00:00:00 2025|0|1|/repo\nbc-agent2|Thu Jan  1 00:00:01 2025|1|2|/repo\nother-session|Thu Jan  1 00:00:02 2025|0|1|/other\n"
 	m := newTestManager("bc-", mockCmd(sessionOutput, "", 0))
 
 	sessions, err := m.ListSessions(testCtx())
@@ -879,8 +879,8 @@ func TestListSessions_Success(t *testing.T) {
 	if sessions[0].Attached {
 		t.Error("sessions[0] should not be attached (field was '0')")
 	}
-	if sessions[0].Directory != "/workspace" {
-		t.Errorf("sessions[0].Directory = %q, want %q", sessions[0].Directory, "/workspace")
+	if sessions[0].Directory != "/repo" {
+		t.Errorf("sessions[0].Directory = %q, want %q", sessions[0].Directory, "/repo")
 	}
 	if sessions[0].Windows != 1 {
 		t.Errorf("sessions[0].Windows = %d, want %d", sessions[0].Windows, 1)
@@ -890,9 +890,9 @@ func TestListSessions_Success(t *testing.T) {
 	}
 }
 
-func TestListSessions_WorkspaceIsolation(t *testing.T) {
-	m := NewWorkspaceManager("bc-", "/workspace/one")
-	hash := m.workspaceHash
+func TestListSessions_RepoIsolation(t *testing.T) {
+	m := NewManagerWithRepo("bc-", "/workspace/one")
+	hash := m.repoHash
 	sessionOutput := fmt.Sprintf("bc-%s-agent1|Thu Jan  1|0|1|/workspace\nbc-otheragent2|Thu Jan  1|0|1|/workspace\n", hash)
 	m.execCommand = mockCmd(sessionOutput, "", 0)
 
@@ -986,7 +986,7 @@ func TestAttachCmd(t *testing.T) {
 }
 
 func TestAttachCmd_WorkspaceManager(t *testing.T) {
-	m := NewWorkspaceManager("bc-", "/workspace")
+	m := NewManagerWithRepo("bc-", "/repo")
 	m.execCommand = exec.Command
 	cmd := m.AttachCmd(testCtx(), "agent1")
 	expectedName := m.SessionName("agent1")
@@ -1096,7 +1096,7 @@ func TestCreateSessionWithEnv_ValidKeys(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			m := newTestManager("bc-", mockCmd("", "", 0))
 			env := map[string]string{tt.key: "value"}
-			err := m.CreateSessionWithEnv(testCtx(), "agent1", "/workspace", "echo", env)
+			err := m.CreateSessionWithEnv(testCtx(), "agent1", "/repo", "echo", env)
 			if err != nil {
 				t.Errorf("expected valid key %q to be accepted, got error: %v", tt.key, err)
 			}
@@ -1130,7 +1130,7 @@ func TestCreateSessionWithEnv_InvalidKeys_ShellInjection(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			m := newTestManager("bc-", mockCmd("", "", 0))
 			env := map[string]string{tt.key: "value"}
-			err := m.CreateSessionWithEnv(testCtx(), "agent1", "/workspace", "echo", env)
+			err := m.CreateSessionWithEnv(testCtx(), "agent1", "/repo", "echo", env)
 			if err == nil {
 				t.Errorf("expected invalid key %q to be rejected", tt.key)
 			}
@@ -1457,7 +1457,7 @@ func TestHasSession_CacheInvalidatedOnCreateSession(t *testing.T) {
 	}
 
 	// Create a new session (should invalidate cache)
-	if err := m.CreateSession(testCtx(), "agent2", "/workspace"); err != nil {
+	if err := m.CreateSession(testCtx(), "agent2", "/repo"); err != nil {
 		t.Fatalf("CreateSession failed: %v", err)
 	}
 
@@ -1573,7 +1573,7 @@ func TestListSessions_CacheInvalidatedOnCreateSession(t *testing.T) {
 	}
 
 	// Create session (should invalidate cache)
-	_ = m.CreateSession(testCtx(), "agent2", "/workspace") //nolint:errcheck // test: verifying cache invalidation
+	_ = m.CreateSession(testCtx(), "agent2", "/repo") //nolint:errcheck // test: verifying cache invalidation
 
 	// ListSessions should query tmux again
 	_, _ = m.ListSessions(testCtx()) //nolint:errcheck // test: verifying call count

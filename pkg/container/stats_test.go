@@ -172,8 +172,8 @@ func TestParseStats_Name(t *testing.T) {
 
 func TestBackendAgentStats_ContainerName(t *testing.T) {
 	b := &Backend{
-		prefix:        "bc-",
-		workspaceHash: "aabbcc",
+		prefix:   "bc-",
+		repoHash: "aabbcc",
 	}
 
 	// Verify the container name used for stats lookup matches the convention

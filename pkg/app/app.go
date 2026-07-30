@@ -123,7 +123,7 @@ type SecretSource interface {
 // SecretValueStore resolves vault values by secret name. *secret.Store
 // and secret.LayeredStore implement it. Declared here as a minimal
 // interface so pkg/app does not import pkg/secret (which imports
-// pkg/workspace — pkg/workspace holds the Apps config and imports
+// pkg/home — pkg/home holds the Apps config and imports
 // pkg/app, so a direct dependency would cycle).
 type SecretValueStore interface {
 	GetValue(name string) (string, error)

@@ -4,13 +4,13 @@ This guide shows how to view and change mycel configuration: the config file, th
 
 ## Where Configuration Lives
 
-Configuration is JSON in `preferences.json`, stored in the per-repo runtime state directory under `~/.mycel/`:
+Configuration is JSON in one global file:
 
 ```
-~/.mycel/workspaces/<id>/preferences.json
+~/.mycel/prefs.json
 ```
 
-The `<id>` is a 12-character hash derived from the repo path (`sha256(repo path)[:12]`).
+There is exactly one config — mycel state is global, not per-repo.
 
 You can change configuration four ways:
 
@@ -163,9 +163,9 @@ mycel config set user.name alice
 
 Maximum 30 characters.
 
-### Connect notification gateways
+### Connect apps
 
-Gateways (Slack, Telegram, GitHub, and others) live under the `gateways` section. Configure them through the web UI or the gateways API rather than by hand — see [Set Up Notifications](set-up-notifications.md).
+Apps (Slack, Telegram, GitHub, and 25+ others) live under the `apps` section, keyed by instance name (`"slack"`, `"telegram:alerts"`). Configure them through the web UI or the `/api/apps` surface rather than by hand — secret fields go to the encrypted vault, never into `prefs.json`. See [Set Up Apps](set-up-apps.md).
 
 ## Edit, Validate, Reset
 
@@ -188,11 +188,11 @@ mycel config user show          # Display current user config
 mycel config user path          # Show the file path
 ```
 
-`preferences.json` always takes precedence over user-level defaults.
+`prefs.json` always takes precedence over user-level defaults.
 
 ## Full Example
 
-A complete `preferences.json`:
+A complete `prefs.json`:
 
 ```json
 {
@@ -206,7 +206,7 @@ A complete `preferences.json`:
       "gemini": { "command": "gemini --yolo" }
     }
   },
-  "gateways": {},
+  "apps": {},
   "runtime": {
     "default": "docker",
     "docker": {

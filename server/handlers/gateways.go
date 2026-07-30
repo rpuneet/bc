@@ -7,9 +7,9 @@ import (
 	"strings"
 
 	"github.com/rpuneet/mycel/pkg/gateway"
+	"github.com/rpuneet/mycel/pkg/home"
 	"github.com/rpuneet/mycel/pkg/log"
 	"github.com/rpuneet/mycel/pkg/notify"
-	"github.com/rpuneet/mycel/pkg/workspace"
 )
 
 // GatewayHandler handles the channel, subscription, and activity
@@ -19,13 +19,13 @@ import (
 // that AppsHandler delegates here for /api/apps/{name}/...
 type GatewayHandler struct {
 	gw        *gateway.Manager
-	ws        *workspace.Workspace
+	h         *home.Home
 	notifySvc *notify.Service
 }
 
 // NewGatewayHandler creates a GatewayHandler.
-func NewGatewayHandler(gw *gateway.Manager, ws *workspace.Workspace) *GatewayHandler {
-	return &GatewayHandler{gw: gw, ws: ws}
+func NewGatewayHandler(gw *gateway.Manager, h *home.Home) *GatewayHandler {
+	return &GatewayHandler{gw: gw, h: h}
 }
 
 // SetNotifyService sets the notification service for subscription management.
@@ -42,8 +42,7 @@ func (h *GatewayHandler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/apps/channels/send", h.channelSend)
 	mux.HandleFunc("/api/apps/channels/", h.channelHistory)
 
-	// Same handlers at the historical paths — the Go CLI client and TUI
-	// still call /api/channels*.
+	// Same handlers at the historical paths — the Go CLI client still calls /api/channels*.
 	mux.HandleFunc("/api/channels", h.channelList)
 	mux.HandleFunc("/api/channels/send", h.channelSend)
 	mux.HandleFunc("/api/channels/", h.channelHistory)

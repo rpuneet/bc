@@ -24,7 +24,6 @@ Understanding-oriented documentation that explains how and why mycel works the w
 | Document | Description |
 |----------|-------------|
 | [Web Dashboard](web-ui.md) | React SPA architecture, component tree, routing, and state management |
-| [TUI](tui.md) | React Ink terminal UI, navigation, hooks, and tech stack |
 | [Design System](design-system.md) | Solar Flare palette, design tokens, and shared component library |
 
 ## Infrastructure

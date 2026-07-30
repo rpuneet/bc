@@ -96,8 +96,8 @@ func TestAPIHealthOKShapeUnchanged(t *testing.T) {
 // TestBuildServicesGlobalDBFailure verifies that when the
 // single global database cannot open (broken MYCEL_HOME), the factory
 // fails loudly instead of silently coming up with nil stores. With the
-// per-workspace databases gone, a dead mycel.db is fatal for the
-// workspace bundle — workspace init itself needs the roles table.
+// per-repo databases gone, a dead mycel.db is fatal for the
+// service bundle — home init itself needs the roles table.
 func TestBuildServicesGlobalDBFailure(t *testing.T) {
 	t.Setenv("MYCEL_SECRET_PASSPHRASE", "unit-test")
 

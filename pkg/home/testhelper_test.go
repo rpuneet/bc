@@ -1,4 +1,4 @@
-package workspace
+package home
 
 import (
 	"os"
@@ -33,15 +33,15 @@ func newTestRepo(t testing.TB) string {
 	return dir
 }
 
-// openTestWorkspace bootstraps a workspace in an isolated MYCEL_HOME
-// anchored on a fresh git repo. Returns the workspace and the repo dir.
-func openTestWorkspace(t testing.TB) (*Workspace, string) {
+// openTestHome bootstraps a home in an isolated MYCEL_HOME
+// anchored on a fresh git repo. Returns the Home and the repo dir.
+func openTestHome(t testing.TB) (*Home, string) {
 	t.Helper()
 	setTestHome(t)
 	dir := newTestRepo(t)
-	ws, err := Open(dir)
+	h, err := Open(dir)
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
-	return ws, dir
+	return h, dir
 }

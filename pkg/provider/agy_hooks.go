@@ -75,7 +75,7 @@ func agyHandler(event, state, task, stdout string) agyHookHandler {
 // agy CLI reports lifecycle transitions to bcd. It is idempotent: the bc hook
 // entry is overwritten while any other user-defined hooks are preserved.
 func WriteAgyHookSettings(worktreeRoot string) error {
-	// worktreeRoot is derived from validated workspace/agent config, but reject
+	// worktreeRoot is derived from validated agent config, but reject
 	// traversal segments so hook settings can never be written outside the
 	// intended directory.
 	worktreeRoot = filepath.Clean(worktreeRoot)
@@ -107,7 +107,7 @@ func WriteAgyHookSettings(worktreeRoot string) error {
 	// Merge into an existing hooks.json if present, replacing only the
 	// bc-managed entry and round-tripping every other named hook untouched.
 	hooks := map[string]json.RawMessage{}
-	if raw, err := os.ReadFile(hooksPath); err == nil { //nolint:gosec // workspace-relative
+	if raw, err := os.ReadFile(hooksPath); err == nil { //nolint:gosec // worktree-relative
 		if err := json.Unmarshal(raw, &hooks); err != nil {
 			// Unparseable file: rewrite fresh rather than fail the agent.
 			hooks = map[string]json.RawMessage{}

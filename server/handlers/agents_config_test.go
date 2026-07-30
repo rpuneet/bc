@@ -16,9 +16,9 @@ import (
 // TestAgentHandler_GetConfig verifies GET /api/agents/{name}/config returns
 // 200 + an AgentConfig DTO for a known agent. This is a regression test for
 // the bug where getAgentConfig used the stale h.svc closure instead of the
-// per-request resolved svc, causing 404s on non-launch workspaces.
+// per-request resolved svc, causing 404s on non-launch repos.
 func TestAgentHandler_GetConfig(t *testing.T) {
-	dir := setupWorkspace(t)
+	dir := setupHome(t)
 	stateDir := filepath.Join(dir, ".bc")
 	if err := os.MkdirAll(filepath.Join(stateDir, "agents"), 0750); err != nil {
 		t.Fatalf("mkdir agents: %v", err)
@@ -108,7 +108,7 @@ func TestPatchAgentConfig(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			dir := setupWorkspace(t)
+			dir := setupHome(t)
 			stateDir := filepath.Join(dir, ".bc")
 			if err := os.MkdirAll(filepath.Join(stateDir, "agents"), 0750); err != nil {
 				t.Fatalf("mkdir agents: %v", err)
@@ -169,7 +169,7 @@ func TestPatchAgentConfig(t *testing.T) {
 // TestAgentHandler_GetConfigNotFound verifies /config returns 404 for an
 // unknown agent (not a generic handler 404 leak).
 func TestAgentHandler_GetConfigNotFound(t *testing.T) {
-	dir := setupWorkspace(t)
+	dir := setupHome(t)
 	stateDir := filepath.Join(dir, ".bc")
 	if err := os.MkdirAll(filepath.Join(stateDir, "agents"), 0750); err != nil {
 		t.Fatalf("mkdir agents: %v", err)

@@ -4,11 +4,12 @@ Stop mycel services
 
 ### Synopsis
 
-Stop the mycel daemon and database Docker containers for this repo.
+Stop the mycel daemon and database Docker containers.
+
+The daemon is user-scoped — 'mycel down' works from any directory.
 
 Examples:
   mycel down
-  mycel down --workspace /path/to/workspace
 
 ```
 mycel down [flags]
@@ -17,8 +18,7 @@ mycel down [flags]
 ### Options
 
 ```
-  -h, --help               help for down
-      --workspace string   Workspace directory (defaults to current workspace)
+  -h, --help   help for down
 ```
 
 ### Options inherited from parent commands

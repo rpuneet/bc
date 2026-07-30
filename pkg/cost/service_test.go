@@ -51,9 +51,9 @@ func sampleEntries() []provider.CostEntry {
 	}
 }
 
-func TestWorkspaceSummaryAggregates(t *testing.T) {
+func TestTotalSummaryAggregates(t *testing.T) {
 	svc, _ := newStubService(sampleEntries(), nil)
-	sum, err := svc.WorkspaceSummary(context.Background())
+	sum, err := svc.TotalSummary(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -215,12 +215,12 @@ func TestBudgetLifecycleAndCheck(t *testing.T) {
 		t.Fatalf("GetAllBudgets: %v %+v", err, all)
 	}
 
-	ws, err := svc.CheckBudget(ctx, "workspace")
+	h, err := svc.CheckBudget(ctx, "workspace")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if math.Abs(ws.CurrentSpend-9.0) > 1e-9 || !ws.IsNearLimit || ws.IsOverBudget {
-		t.Errorf("workspace status wrong: %+v", ws)
+	if math.Abs(h.CurrentSpend-9.0) > 1e-9 || !h.IsNearLimit || h.IsOverBudget {
+		t.Errorf("workspace status wrong: %+v", h)
 	}
 
 	ag, err := svc.CheckBudget(ctx, "agent:a1")

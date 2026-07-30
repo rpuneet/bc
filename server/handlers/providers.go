@@ -13,8 +13,8 @@ import (
 
 	"github.com/rpuneet/mycel/pkg/agent"
 	"github.com/rpuneet/mycel/pkg/cost"
+	"github.com/rpuneet/mycel/pkg/home"
 	"github.com/rpuneet/mycel/pkg/provider"
-	"github.com/rpuneet/mycel/pkg/workspace"
 )
 
 // ModelInfo describes a single provider model with its availability status.
@@ -101,14 +101,14 @@ type ProviderHandler struct {
 	registry   *provider.Registry
 	agents     *agent.AgentService
 	costs      *cost.Service
-	ws         *workspace.Workspace
+	h          *home.Home
 	modelCache map[string]modelCacheEntry
 	modelMu    sync.Mutex
 }
 
 // NewProviderHandler creates a ProviderHandler.
-func NewProviderHandler(registry *provider.Registry, agents *agent.AgentService, costs *cost.Service, ws *workspace.Workspace) *ProviderHandler {
-	return &ProviderHandler{registry: registry, agents: agents, costs: costs, ws: ws, modelCache: make(map[string]modelCacheEntry)}
+func NewProviderHandler(registry *provider.Registry, agents *agent.AgentService, costs *cost.Service, h *home.Home) *ProviderHandler {
+	return &ProviderHandler{registry: registry, agents: agents, costs: costs, h: h, modelCache: make(map[string]modelCacheEntry)}
 }
 
 // Register mounts provider routes on mux.
@@ -335,8 +335,8 @@ func (h *ProviderHandler) listMCPs(w http.ResponseWriter, r *http.Request, name 
 	servers := []MCPServer{}
 	if mr, ok := p.(provider.MCPConfigReader); ok {
 		rootDir := ""
-		if h.ws != nil {
-			rootDir = h.ws.RootDir
+		if h.h != nil {
+			rootDir = h.h.RootDir
 		}
 		for _, s := range mr.ReadMCPs(r.Context(), rootDir) {
 			servers = append(servers, MCPServer{
@@ -379,8 +379,8 @@ func (h *ProviderHandler) addMCP(w http.ResponseWriter, r *http.Request, name st
 		return
 	}
 
-	if h.ws == nil {
-		httpError(w, "workspace not available", http.StatusServiceUnavailable)
+	if h.h == nil {
+		httpError(w, "global config not available", http.StatusServiceUnavailable)
 		return
 	}
 
@@ -407,7 +407,7 @@ func (h *ProviderHandler) addMCP(w http.ResponseWriter, r *http.Request, name st
 		URL:       req.URL,
 		Command:   req.Command,
 	}
-	if err := adapter.SetupMCP(r.Context(), h.ws.RootDir, "", map[string]provider.MCPEntry{req.Name: entry}); err != nil {
+	if err := adapter.SetupMCP(r.Context(), h.h.RootDir, "", map[string]provider.MCPEntry{req.Name: entry}); err != nil {
 		httpInternalError(w, "add mcp server", err)
 		return
 	}
@@ -475,10 +475,10 @@ func (h *ProviderHandler) hintResponse(w http.ResponseWriter, name, action strin
 	})
 }
 
-// patchConfig updates the provider's command in workspace settings.
+// patchConfig updates the provider's command in the global settings.
 func (h *ProviderHandler) patchConfig(w http.ResponseWriter, r *http.Request, name string) {
-	if h.ws == nil || h.ws.Config == nil {
-		httpError(w, "workspace not available", http.StatusServiceUnavailable)
+	if h.h == nil || h.h.Config == nil {
+		httpError(w, "global config not available", http.StatusServiceUnavailable)
 		return
 	}
 
@@ -496,12 +496,12 @@ func (h *ProviderHandler) patchConfig(w http.ResponseWriter, r *http.Request, na
 		return
 	}
 
-	if h.ws.Config.Providers.Providers == nil {
-		h.ws.Config.Providers.Providers = make(map[string]workspace.ProviderConfig)
+	if h.h.Config.Providers.Providers == nil {
+		h.h.Config.Providers.Providers = make(map[string]home.ProviderConfig)
 	}
-	h.ws.Config.Providers.Providers[name] = workspace.ProviderConfig{Command: req.Command}
+	h.h.Config.Providers.Providers[name] = home.ProviderConfig{Command: req.Command}
 
-	if err := h.ws.Save(); err != nil {
+	if err := h.h.Save(); err != nil {
 		httpInternalError(w, "save config", err)
 		return
 	}
@@ -528,15 +528,15 @@ func (h *ProviderHandler) buildProviderInfo(
 	}
 
 	command := p.Command()
-	if h.ws != nil && h.ws.Config != nil {
-		if cfg := h.ws.Config.GetProvider(p.Name()); cfg != nil {
+	if h.h != nil && h.h.Config != nil {
+		if cfg := h.h.Config.GetProvider(p.Name()); cfg != nil {
 			command = cfg.Command
 		}
 	}
 
 	enabled := installed
-	if h.ws != nil && h.ws.Config != nil {
-		_, enabled = h.ws.Config.Providers.Providers[p.Name()]
+	if h.h != nil && h.h.Config != nil {
+		_, enabled = h.h.Config.Providers.Providers[p.Name()]
 		if !enabled {
 			enabled = installed
 		}
@@ -675,18 +675,18 @@ func (h *ProviderHandler) costByModelForProvider(ctx context.Context, name strin
 	return models
 }
 
-// providerConfig returns the workspace config for a provider as a string map.
+// providerConfig returns the global config for a provider as a string map.
 func (h *ProviderHandler) providerConfig(name string) map[string]string {
 	cfg := make(map[string]string)
-	if h.ws == nil || h.ws.Config == nil {
+	if h.h == nil || h.h.Config == nil {
 		return cfg
 	}
 
-	if p := h.ws.Config.GetProvider(name); p != nil {
+	if p := h.h.Config.GetProvider(name); p != nil {
 		cfg["command"] = p.Command
 	}
 
-	if h.ws.Config.Providers.Default == name {
+	if h.h.Config.Providers.Default == name {
 		cfg["default"] = "true"
 	}
 

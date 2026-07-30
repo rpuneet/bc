@@ -19,42 +19,42 @@ const bcCodeServerImage = "codercom/code-server:latest"
 const bcCodeServerPort = "8100"
 
 // BCCodeServer wraps a code-server container that mounts the currently
-// active workspace root at /home/coder/workspace.
+// active repo root at /home/coder/workspace.
 //
-// The workspaceRoot is mutable because the active workspace can change while
-// bcd is running — callers update it via SetWorkspaceRoot.
+// The repoRoot is mutable because the active repo can change while
+// bcd is running — callers update it via SetRepoRoot.
 type BCCodeServer struct {
-	runner        execRunner
-	workspaceRoot string
-	mu            sync.RWMutex
+	runner   execRunner
+	repoRoot string
+	mu       sync.RWMutex
 }
 
-// NewBCCodeServer constructs the dependency bound to workspaceRoot.
-func NewBCCodeServer(workspaceRoot string) *BCCodeServer {
-	return &BCCodeServer{runner: defaultExec, workspaceRoot: workspaceRoot}
+// NewBCCodeServer constructs the dependency bound to repoRoot.
+func NewBCCodeServer(repoRoot string) *BCCodeServer {
+	return &BCCodeServer{runner: defaultExec, repoRoot: repoRoot}
 }
 
 // NewBCCodeServerWithRunner is used by tests.
-func NewBCCodeServerWithRunner(workspaceRoot string, r execRunner) *BCCodeServer {
+func NewBCCodeServerWithRunner(repoRoot string, r execRunner) *BCCodeServer {
 	if r == nil {
 		r = defaultExec
 	}
-	return &BCCodeServer{runner: r, workspaceRoot: workspaceRoot}
+	return &BCCodeServer{runner: r, repoRoot: repoRoot}
 }
 
-// SetWorkspaceRoot updates the directory that will be bind-mounted on the
+// SetRepoRoot updates the directory that will be bind-mounted on the
 // next Start. It does NOT restart an already-running container.
-func (d *BCCodeServer) SetWorkspaceRoot(path string) {
+func (d *BCCodeServer) SetRepoRoot(path string) {
 	d.mu.Lock()
-	d.workspaceRoot = path
+	d.repoRoot = path
 	d.mu.Unlock()
 }
 
-// WorkspaceRoot returns the currently configured workspace root.
-func (d *BCCodeServer) WorkspaceRoot() string {
+// RepoRoot returns the currently configured repo root.
+func (d *BCCodeServer) RepoRoot() string {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
-	return d.workspaceRoot
+	return d.repoRoot
 }
 
 // ID implements Dependency.
@@ -65,7 +65,7 @@ func (*BCCodeServer) DisplayName() string { return "bc-code-server" }
 
 // Description implements Dependency.
 func (*BCCodeServer) Description() string {
-	return "VS Code in the browser, bind-mounted to the active workspace"
+	return "VS Code in the browser, bind-mounted to the active repo"
 }
 
 // Deprecated implements Dependency.
@@ -93,12 +93,12 @@ func (d *BCCodeServer) Status(ctx context.Context) (State, error) {
 
 // Start launches (or re-creates) the code-server container.
 //
-// Since the bind-mounted directory depends on the active workspace, any
+// Since the bind-mounted directory depends on the active repo, any
 // existing container is removed so the new mount takes effect.
 func (d *BCCodeServer) Start(ctx context.Context) error {
-	root := d.WorkspaceRoot()
+	root := d.RepoRoot()
 	if root == "" {
-		return errors.New("bc-code-server: workspace root not configured")
+		return errors.New("bc-code-server: repo root not configured")
 	}
 
 	// Remove any prior container so a stale mount doesn't linger.
@@ -126,7 +126,7 @@ func (d *BCCodeServer) Stop(ctx context.Context) error {
 			return fmt.Errorf("docker stop: %w (%s)", err, strings.TrimSpace(string(out)))
 		}
 	}
-	// Remove so a later Start can remount if the workspace changed.
+	// Remove so a later Start can remount if the repo changed.
 	_, _ = d.runner.Run(ctx, "docker", "rm", bcCodeServerContainer)
 	return nil
 }

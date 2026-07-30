@@ -1,6 +1,7 @@
 # Apps: the plugin platform for external integrations
 
-Status: approved direction (2026-07-30 owner directive) · Wave 1 of the plugin-era program
+Status: **shipped** (Waves 1–3 of the plugin-era program) — this page is the
+design record, updated where the implementation deviated.
 
 Notifications, gateway credentials, and the standalone secrets concept merge
 into one product surface: **Apps**. You connect an app (Slack, GitHub,
@@ -8,17 +9,16 @@ WhatsApp, Telegram, …); the app owns its credentials, its transport, its
 channels, and its per-agent wiring. Adding a new integration to mycel means
 writing one self-contained plugin package — no central switch statements.
 
-## Why
+## Why (the pre-Apps state this replaced)
 
-Today the pieces exist but aren't a platform:
+Before Apps, the pieces existed but weren't a platform:
 
-- `server/build_services.go` constructs every adapter in a ~300-line
+- `server/build_services.go` constructed every adapter in a ~300-line
   hand-written chain — one block per platform, 28 constructor calls.
-- `pkg/workspace/config_gateways.go` declares 34 per-platform config structs
-  (981 lines) with custom JSON marshaling, all carrying **plaintext tokens
-  inside preferences.json**.
-- `pkg/secret` is a clean encrypted vault, but gateway credentials bypass it.
-- Platform-specific behavior leaks into handlers
+- A 981-line config file declared 34 per-platform config structs with custom
+  JSON marshaling, all carrying **plaintext tokens inside the config file**.
+- `pkg/secret` was a clean encrypted vault, but gateway credentials bypassed it.
+- Platform-specific behavior leaked into handlers
   (`gateways.go: switch platform` for pairing, per-platform PATCH cases).
 
 ## The App plugin contract (`pkg/app`)
@@ -133,7 +133,7 @@ vault and hot-starts the adapter.
 
 ## Config: generic instances, secrets in the vault
 
-`preferences.json` `gateways` section is replaced by `apps`:
+The old `gateways` config section is replaced by `apps` in `prefs.json`:
 
 ```json
 {
@@ -148,10 +148,13 @@ vault and hot-starts the adapter.
 - **No secret ever lands in prefs.** Fields marked `Secret` write to the
   vault under `app:<instance>:<key>` (e.g. `app:slack:bot_token`); the
   server resolves them at Build time via `SecretSource`.
-- `pkg/workspace/config_gateways.go` (34 structs + custom marshal) is
-  deleted. `PATCH /api/settings {"apps": ...}` merges generically.
-- One-time migration of the owner's live preferences.json is an ops step on
-  the deployment machine, not shipped compatibility code.
+- The per-platform config structs (34 structs + custom marshal) are
+  deleted. `PATCH /api/settings {"apps": ...}` merges generically per
+  instance key, validated against each app's descriptor.
+- Agent sessions receive app credentials as env vars named by convention:
+  `UPPER(app)_UPPER(field)`, with the instance label appended for labeled
+  instances (`app.EnvKey`: `github` + `token` → `GITHUB_TOKEN`;
+  `telegram:alerts` + `bot_token` → `TELEGRAM_BOT_TOKEN_ALERTS`).
 
 ## Server wiring
 
@@ -183,26 +186,23 @@ HTTP surface (replaces `/api/gateways/*`, keeps `gateway.Manager` runtime):
 unchanged in W1 except the merged `Notification` type moves to one
 definition.
 
-## Migration order
+## How it landed
 
-1. `pkg/app` core: types, registry, instance resolution, vault-backed
-   `SecretSource`, tests.
-2. Reference plugins proving each AuthKind: **slack** (token, multi-field),
-   **telegram** (token, Multi), **webhook** (webhook-secret, Multi),
-   **rss** (none), **whatsapp** (qr, stateful Env).
-3. Data-driven `buildGatewayManager` + `/api/apps` handlers; delete the
-   hardcoded chain, `config_gateways.go`, and per-platform handler switches.
-4. Port the remaining adapters (mechanical: descriptor + Build wrapping the
-   existing constructor). Which of the 34 survive is an open product call;
-   the port order starts with the core set (discord, github, gitlab, signal,
-   matrix, mattermost, msteams, googlechat, irc, sentry, pagerduty…).
-5. OAuth: GitHub device flow first (fully local), Discord localhost
-   callback next. Slack stays token-paste until a hosted relay exists.
-6. Web UI (Wave 2): `/apps` home, connect flow driven entirely by
-   descriptors, per-agent app wiring in New Agent + agent Config.
+1. `pkg/app` core shipped as designed: types, registry, instance resolution,
+   vault-backed `SecretSource` (`VaultSecrets`), tests.
+2. **28 built-in plugins** are registered via side-effect imports in
+   `pkg/app/builtin/builtin.go` — bitbucket, datadog, discord, github,
+   gitlab, grafana, imessage, irc, jira, line, linear, matrix, mattermost,
+   mqtt, netlify, notion, pagerduty, reddit, rss, sentry, signal, slack,
+   stripe, telegram, twitch, vercel, webhook, whatsapp.
+3. `buildGatewayManager` is data-driven over `prefs.json` `apps`; the
+   hardcoded chain, per-platform config structs, and handler switches are
+   gone. `/api/apps` serves the catalog, instance CRUD, and auth flows.
+4. `QRPairer` is asserted on the **built adapter** (pairing state lives on
+   the running adapter), exactly as specced above.
+5. `pkg/notify` remains the fan-out layer, unchanged.
 
-## Non-goals (W1)
+## Non-goals (still true)
 
 - No hosted OAuth relay.
 - No change to notify subscription semantics or delivery.
-- No TUI changes.

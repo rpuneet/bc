@@ -12,19 +12,19 @@ import (
 )
 
 // Store is the SQLite/Postgres-backed persistence layer for subscriptions
-// and the delivery log. It borrows the workspace database handle passed
+// and the delivery log. It borrows the global database handle passed
 // to OpenStore and never closes it.
 type Store struct {
 	db     *db.DB
 	driver string // "sqlite" or "timescale"
 }
 
-// OpenStore opens the notify store on the given workspace database.
-// The handle is borrowed: callers (typically the per-workspace db
+// OpenStore opens the notify store on the given database.
+// The handle is borrowed: callers (typically the global db
 // registry) own its lifecycle.
 func OpenStore(d *db.DB, driver string) (*Store, error) {
 	if d == nil {
-		return nil, fmt.Errorf("notify store requires a workspace database (nil handle)")
+		return nil, fmt.Errorf("notify store requires a database (nil handle)")
 	}
 	s := &Store{db: d, driver: driver}
 	if err := s.initSchema(); err != nil {
@@ -33,7 +33,7 @@ func OpenStore(d *db.DB, driver string) (*Store, error) {
 	return s, nil
 }
 
-// Close is a no-op — the workspace DB is owned by the caller.
+// Close is a no-op — the global DB is owned by the caller.
 func (s *Store) Close() error { return nil }
 
 // q converts ? placeholders to $1, $2, ... for Postgres. No-op for SQLite.

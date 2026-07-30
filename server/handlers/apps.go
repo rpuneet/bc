@@ -17,9 +17,9 @@ import (
 
 	"github.com/rpuneet/mycel/pkg/app"
 	"github.com/rpuneet/mycel/pkg/gateway"
+	"github.com/rpuneet/mycel/pkg/home"
 	"github.com/rpuneet/mycel/pkg/log"
 	"github.com/rpuneet/mycel/pkg/secret"
-	"github.com/rpuneet/mycel/pkg/workspace"
 )
 
 // AppsHandler handles /api/apps routes: the descriptor catalog, instance
@@ -28,15 +28,15 @@ import (
 type AppsHandler struct {
 	gh    *GatewayHandler
 	gw    *gateway.Manager
-	ws    *workspace.Workspace
+	h     *home.Home
 	vault *secret.Store
 }
 
 // NewAppsHandler creates an AppsHandler. The gateway handler serves the
 // shared per-instance routes (health, channels, proxy, reactions) that
 // the apps router delegates to.
-func NewAppsHandler(gh *GatewayHandler, gw *gateway.Manager, ws *workspace.Workspace, vault *secret.Store) *AppsHandler {
-	return &AppsHandler{gh: gh, gw: gw, ws: ws, vault: vault}
+func NewAppsHandler(gh *GatewayHandler, gw *gateway.Manager, h *home.Home, vault *secret.Store) *AppsHandler {
+	return &AppsHandler{gh: gh, gw: gw, h: h, vault: vault}
 }
 
 // Register mounts apps routes.
@@ -141,14 +141,14 @@ func (h *AppsHandler) catalog(w http.ResponseWriter, r *http.Request) {
 
 	instances := make([]appInstanceJSON, 0)
 	seen := make(map[string]bool)
-	if h.ws != nil && h.ws.Config != nil {
-		names := make([]string, 0, len(h.ws.Config.Apps))
-		for name := range h.ws.Config.Apps {
+	if h.h != nil && h.h.Config != nil {
+		names := make([]string, 0, len(h.h.Config.Apps))
+		for name := range h.h.Config.Apps {
 			names = append(names, name)
 		}
 		sort.Strings(names)
 		for _, name := range names {
-			ic := h.ws.Config.Apps[name]
+			ic := h.h.Config.Apps[name]
 			seen[name] = true
 			cfg := make(map[string]any, len(ic.Config))
 			for k, v := range ic.Config {
@@ -266,19 +266,19 @@ func (h *AppsHandler) hasSecret(instance, key string) bool {
 
 // stateDir returns the per-instance state directory.
 func (h *AppsHandler) stateDir(instance string) string {
-	if h.ws == nil {
+	if h.h == nil {
 		return ""
 	}
-	return filepath.Join(h.ws.StateDir(), "apps", instance)
+	return filepath.Join(h.h.StateDir(), "apps", instance)
 }
 
 // update handles POST /api/apps/{name} — connect or update an instance.
 // Submitted config values are split by the descriptor: secret fields go
 // to the vault under app:<name>:<key>, plain fields persist in the
-// workspace config. The adapter is then hot-(re)started.
+// global config. The adapter is then hot-(re)started.
 func (h *AppsHandler) update(w http.ResponseWriter, r *http.Request, name string) {
-	if h.ws == nil || h.ws.Config == nil {
-		serviceUnavailable(w, r, "workspace", "workspace not available")
+	if h.h == nil || h.h.Config == nil {
+		serviceUnavailable(w, r, "home", "global config not available")
 		return
 	}
 
@@ -317,7 +317,7 @@ func (h *AppsHandler) update(w http.ResponseWriter, r *http.Request, name string
 
 	// Start from the existing plain config so partial updates don't wipe
 	// unrelated fields.
-	cfg := h.ws.Config
+	cfg := h.h.Config
 	existing, exists := cfg.Apps[name]
 	plain := make(map[string]string, len(req.Config))
 	for k, v := range existing.Config {
@@ -374,7 +374,7 @@ func (h *AppsHandler) update(w http.ResponseWriter, r *http.Request, name string
 		cfg.Apps = make(map[string]app.InstanceConfig)
 	}
 	cfg.Apps[name] = app.InstanceConfig{App: d.ID, Enabled: enabled, Config: plain}
-	if err := cfg.Save(h.ws.SettingsFile()); err != nil {
+	if err := cfg.Save(h.h.SettingsFile()); err != nil {
 		httpInternalError(w, "save config", err)
 		return
 	}
@@ -391,7 +391,7 @@ func (h *AppsHandler) update(w http.ResponseWriter, r *http.Request, name string
 // Returns a warning message instead of failing the request — config is
 // already persisted, and a bad token should be visible, not fatal.
 func (h *AppsHandler) restartAdapter(name string, enabled bool) string {
-	if h.gw == nil || h.ws == nil || h.ws.Config == nil {
+	if h.gw == nil || h.h == nil || h.h.Config == nil {
 		return ""
 	}
 	if err := h.gw.StopAdapter(name); err != nil {
@@ -414,7 +414,7 @@ func (h *AppsHandler) restartAdapter(name string, enabled bool) string {
 // buildAdapter builds the live adapter for a configured instance using
 // its plugin and the vault-backed secret source.
 func (h *AppsHandler) buildAdapter(name string) (gateway.NotificationAdapter, error) {
-	ic := h.ws.Config.Apps[name]
+	ic := h.h.Config.Apps[name]
 	plugin, _ := app.Get(ic.App)
 	var secrets app.SecretSource
 	if h.vault != nil {
@@ -427,11 +427,11 @@ func (h *AppsHandler) buildAdapter(name string) (gateway.NotificationAdapter, er
 // delete handles DELETE /api/apps/{name} — stop the adapter, drop the
 // config entry, purge app:<name>:* vault keys, and remove the state dir.
 func (h *AppsHandler) delete(w http.ResponseWriter, r *http.Request, name string) {
-	if h.ws == nil || h.ws.Config == nil {
-		serviceUnavailable(w, r, "workspace", "workspace not available")
+	if h.h == nil || h.h.Config == nil {
+		serviceUnavailable(w, r, "home", "global config not available")
 		return
 	}
-	cfg := h.ws.Config
+	cfg := h.h.Config
 	if _, ok := cfg.Apps[name]; !ok {
 		httpError(w, "app instance not found: "+name, http.StatusNotFound)
 		return
@@ -444,7 +444,7 @@ func (h *AppsHandler) delete(w http.ResponseWriter, r *http.Request, name string
 	}
 
 	delete(cfg.Apps, name)
-	if err := cfg.Save(h.ws.SettingsFile()); err != nil {
+	if err := cfg.Save(h.h.SettingsFile()); err != nil {
 		httpInternalError(w, "save config", err)
 		return
 	}
@@ -545,8 +545,8 @@ func (h *AppsHandler) ensurePairer(w http.ResponseWriter, r *http.Request, name 
 		serviceUnavailable(w, r, "gateway", "gateway manager not available")
 		return nil, false
 	}
-	if h.ws == nil || h.ws.Config == nil {
-		serviceUnavailable(w, r, "workspace", "workspace not available")
+	if h.h == nil || h.h.Config == nil {
+		serviceUnavailable(w, r, "home", "global config not available")
 		return nil, false
 	}
 
@@ -556,7 +556,7 @@ func (h *AppsHandler) ensurePairer(w http.ResponseWriter, r *http.Request, name 
 		return nil, false
 	}
 
-	cfg := h.ws.Config
+	cfg := h.h.Config
 	if _, exists := cfg.Apps[name]; !exists {
 		// Pair-first flow (e.g. WhatsApp): create the instance so the
 		// paired session survives daemon restarts.
@@ -564,7 +564,7 @@ func (h *AppsHandler) ensurePairer(w http.ResponseWriter, r *http.Request, name 
 			cfg.Apps = make(map[string]app.InstanceConfig)
 		}
 		cfg.Apps[name] = app.InstanceConfig{App: appID, Enabled: true}
-		if err := cfg.Save(h.ws.SettingsFile()); err != nil {
+		if err := cfg.Save(h.h.SettingsFile()); err != nil {
 			httpInternalError(w, "save config", err)
 			return nil, false
 		}

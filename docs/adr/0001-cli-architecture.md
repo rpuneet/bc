@@ -1,9 +1,16 @@
 # ADR 0001: CLI architecture — API-backed subcommands, single Go binary
 
-- **Status:** Accepted
+- **Status:** Accepted — implemented; superseded in part by later work
 - **Date:** 2026-04-17
 - **Issue:** #3002
 - **Related:** #3000 (bc tunnel), PR #3003 (agents revamp)
+
+> **Outcome note (2026-07):** the API-backed single-binary direction shipped.
+> Reality diverged from two details below: the terminal UI was removed
+> entirely rather than rebuilt in bubbletea (the embedded web UI is the only
+> rich surface), and the workspace registry / `~/.bc/settings.json` layout was
+> replaced by the entity-scoped `~/.mycel` home (`prefs.json`, one `mycel.db`).
+> The text below is preserved as the historical record.
 
 ## Context
 

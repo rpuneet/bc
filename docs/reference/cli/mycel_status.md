@@ -26,7 +26,7 @@ Agent States:
 See Also:
   mycel agent list   List agents with more detail
   mycel logs         View agent event logs
-  mycel home         Open TUI dashboard
+  Web UI (http://localhost:9374)  Live dashboard
 
 ```
 mycel status [flags]

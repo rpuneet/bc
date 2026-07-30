@@ -15,11 +15,11 @@ import (
 	"github.com/rpuneet/mycel/pkg/cost"
 	"github.com/rpuneet/mycel/pkg/db"
 	"github.com/rpuneet/mycel/pkg/events"
+	"github.com/rpuneet/mycel/pkg/home"
 	"github.com/rpuneet/mycel/pkg/mcp"
 	"github.com/rpuneet/mycel/pkg/provider"
 	"github.com/rpuneet/mycel/pkg/secret"
 	"github.com/rpuneet/mycel/pkg/tool"
-	"github.com/rpuneet/mycel/pkg/workspace"
 	"github.com/rpuneet/mycel/server"
 	"github.com/rpuneet/mycel/server/ws"
 )
@@ -36,17 +36,17 @@ func sandboxBCHome(t *testing.T) {
 	t.Setenv("MYCEL_HOME", filepath.Join(home, ".mycel"))
 }
 
-func setupWorkspace(t *testing.T) string {
+func setupHome(t *testing.T) string {
 	t.Helper()
 	sandboxBCHome(t)
 	dir := t.TempDir()
-	// workspace.Open requires a non-empty root to be a git repo
+	// home.Open requires a non-empty root to be a git repo
 	if out, err := exec.CommandContext(context.Background(), "git", "init", dir).CombinedOutput(); err != nil { //nolint:gosec // dir is a t.TempDir(), not user input
 		t.Fatalf("git init: %v\n%s", err, out)
 	}
-	wks, err := workspace.Open(dir)
+	wks, err := home.Open(dir)
 	if err != nil {
-		t.Fatalf("open workspace: %v", err)
+		t.Fatalf("open home: %v", err)
 	}
 	_ = wks
 	return dir
@@ -124,20 +124,20 @@ func writeClaudeSession(t *testing.T, path string, lines ...string) {
 	}
 }
 
-// setupWorkspaceWithDB sets up a workspace whose database is opened
-// lazily via the per-workspace registry (see openWSDB).
-func setupWorkspaceWithDB(t *testing.T) string {
+// setupHomeWithDB sets up a home whose database is opened
+// lazily via the db registry (see openWSDB).
+func setupHomeWithDB(t *testing.T) string {
 	t.Helper()
-	return setupWorkspace(t)
+	return setupHome(t)
 }
 
-// openWSDB returns the per-workspace database handle + driver for the
-// given workspace root, mirroring how BuildServices resolves it.
+// openWSDB returns the database handle + driver for the
+// given repo root, mirroring how BuildServices resolves it.
 func openWSDB(t *testing.T, dir string) (*db.DB, string) {
 	t.Helper()
 	d, driver, err := db.Global(nil)
 	if err != nil {
-		t.Fatalf("open workspace db: %v", err)
+		t.Fatalf("open db: %v", err)
 	}
 	t.Cleanup(func() { _ = db.CloseGlobal() })
 	return d, driver
@@ -398,7 +398,7 @@ func TestCostHandler_BudgetNotFound(t *testing.T) {
 // --- Secret handler tests ---
 
 func TestSecretHandler_ListEmpty(t *testing.T) {
-	dir := setupWorkspace(t)
+	dir := setupHome(t)
 	store, err := secret.NewStore(dir, "test-passphrase")
 	if err != nil {
 		t.Fatalf("create secret store: %v", err)
@@ -418,7 +418,7 @@ func TestSecretHandler_ListEmpty(t *testing.T) {
 }
 
 func TestSecretHandler_CRUD(t *testing.T) {
-	dir := setupWorkspace(t)
+	dir := setupHome(t)
 	store, err := secret.NewStore(dir, "test-passphrase")
 	if err != nil {
 		t.Fatalf("create secret store: %v", err)
@@ -465,7 +465,7 @@ func TestSecretHandler_CRUD(t *testing.T) {
 }
 
 func TestSecretHandler_GetNotFound(t *testing.T) {
-	dir := setupWorkspace(t)
+	dir := setupHome(t)
 	store, err := secret.NewStore(dir, "test-passphrase")
 	if err != nil {
 		t.Fatalf("create secret store: %v", err)
@@ -481,7 +481,7 @@ func TestSecretHandler_GetNotFound(t *testing.T) {
 }
 
 func TestSecretHandler_MethodNotAllowed(t *testing.T) {
-	dir := setupWorkspace(t)
+	dir := setupHome(t)
 	store, err := secret.NewStore(dir, "test-passphrase")
 	if err != nil {
 		t.Fatalf("create secret store: %v", err)
@@ -497,7 +497,7 @@ func TestSecretHandler_MethodNotAllowed(t *testing.T) {
 }
 
 func TestSecretHandler_EmptyName(t *testing.T) {
-	dir := setupWorkspace(t)
+	dir := setupHome(t)
 	store, err := secret.NewStore(dir, "test-passphrase")
 	if err != nil {
 		t.Fatalf("create secret store: %v", err)
@@ -513,7 +513,7 @@ func TestSecretHandler_EmptyName(t *testing.T) {
 }
 
 func TestSecretHandler_CreateInvalidBody(t *testing.T) {
-	dir := setupWorkspace(t)
+	dir := setupHome(t)
 	store, err := secret.NewStore(dir, "test-passphrase")
 	if err != nil {
 		t.Fatalf("create secret store: %v", err)
@@ -529,7 +529,7 @@ func TestSecretHandler_CreateInvalidBody(t *testing.T) {
 }
 
 func TestSecretHandler_UpdateInvalidBody(t *testing.T) {
-	dir := setupWorkspace(t)
+	dir := setupHome(t)
 	store, err := secret.NewStore(dir, "test-passphrase")
 	if err != nil {
 		t.Fatalf("create secret store: %v", err)
@@ -545,7 +545,7 @@ func TestSecretHandler_UpdateInvalidBody(t *testing.T) {
 }
 
 func TestSecretHandler_ByNameMethodNotAllowed(t *testing.T) {
-	dir := setupWorkspace(t)
+	dir := setupHome(t)
 	store, err := secret.NewStore(dir, "test-passphrase")
 	if err != nil {
 		t.Fatalf("create secret store: %v", err)
@@ -563,7 +563,7 @@ func TestSecretHandler_ByNameMethodNotAllowed(t *testing.T) {
 // --- MCP handler tests ---
 
 func TestMCPHandler_ListEmpty(t *testing.T) {
-	dir := setupWorkspaceWithDB(t)
+	dir := setupHomeWithDB(t)
 	store, err := mcp.NewStore(openWSDB(t, dir))
 	if err != nil {
 		t.Fatalf("create mcp store: %v", err)
@@ -583,7 +583,7 @@ func TestMCPHandler_ListEmpty(t *testing.T) {
 }
 
 func TestMCPHandler_CRUD(t *testing.T) {
-	dir := setupWorkspaceWithDB(t)
+	dir := setupHomeWithDB(t)
 	store, err := mcp.NewStore(openWSDB(t, dir))
 	if err != nil {
 		t.Fatalf("create mcp store: %v", err)
@@ -636,7 +636,7 @@ func TestMCPHandler_CRUD(t *testing.T) {
 }
 
 func TestMCPHandler_GetNotFound(t *testing.T) {
-	dir := setupWorkspaceWithDB(t)
+	dir := setupHomeWithDB(t)
 	store, err := mcp.NewStore(openWSDB(t, dir))
 	if err != nil {
 		t.Fatalf("create mcp store: %v", err)
@@ -652,7 +652,7 @@ func TestMCPHandler_GetNotFound(t *testing.T) {
 }
 
 func TestMCPHandler_MethodNotAllowed(t *testing.T) {
-	dir := setupWorkspaceWithDB(t)
+	dir := setupHomeWithDB(t)
 	store, err := mcp.NewStore(openWSDB(t, dir))
 	if err != nil {
 		t.Fatalf("create mcp store: %v", err)
@@ -668,7 +668,7 @@ func TestMCPHandler_MethodNotAllowed(t *testing.T) {
 }
 
 func TestMCPHandler_EmptyName(t *testing.T) {
-	dir := setupWorkspaceWithDB(t)
+	dir := setupHomeWithDB(t)
 	store, err := mcp.NewStore(openWSDB(t, dir))
 	if err != nil {
 		t.Fatalf("create mcp store: %v", err)
@@ -684,7 +684,7 @@ func TestMCPHandler_EmptyName(t *testing.T) {
 }
 
 func TestMCPHandler_UnknownSub(t *testing.T) {
-	dir := setupWorkspaceWithDB(t)
+	dir := setupHomeWithDB(t)
 	store, err := mcp.NewStore(openWSDB(t, dir))
 	if err != nil {
 		t.Fatalf("create mcp store: %v", err)
@@ -704,7 +704,7 @@ func TestMCPHandler_UnknownSub(t *testing.T) {
 }
 
 func TestMCPHandler_CreateInvalidBody(t *testing.T) {
-	dir := setupWorkspaceWithDB(t)
+	dir := setupHomeWithDB(t)
 	store, err := mcp.NewStore(openWSDB(t, dir))
 	if err != nil {
 		t.Fatalf("create mcp store: %v", err)
@@ -720,7 +720,7 @@ func TestMCPHandler_CreateInvalidBody(t *testing.T) {
 }
 
 func TestMCPHandler_ServerMethodNotAllowed(t *testing.T) {
-	dir := setupWorkspaceWithDB(t)
+	dir := setupHomeWithDB(t)
 	store, err := mcp.NewStore(openWSDB(t, dir))
 	if err != nil {
 		t.Fatalf("create mcp store: %v", err)
@@ -742,7 +742,7 @@ func TestMCPHandler_ServerMethodNotAllowed(t *testing.T) {
 }
 
 func TestMCPHandler_EnableMethodNotAllowed(t *testing.T) {
-	dir := setupWorkspaceWithDB(t)
+	dir := setupHomeWithDB(t)
 	store, err := mcp.NewStore(openWSDB(t, dir))
 	if err != nil {
 		t.Fatalf("create mcp store: %v", err)
@@ -760,7 +760,7 @@ func TestMCPHandler_EnableMethodNotAllowed(t *testing.T) {
 // --- Tool handler tests ---
 
 func TestToolHandler_List(t *testing.T) {
-	dir := setupWorkspaceWithDB(t)
+	dir := setupHomeWithDB(t)
 	store := tool.NewStore(openWSDB(t, dir))
 	if err := store.Open(); err != nil {
 		t.Fatalf("open tool store: %v", err)
@@ -778,7 +778,7 @@ func TestToolHandler_List(t *testing.T) {
 }
 
 func TestToolHandler_GetNotFound(t *testing.T) {
-	dir := setupWorkspaceWithDB(t)
+	dir := setupHomeWithDB(t)
 	store := tool.NewStore(openWSDB(t, dir))
 	if err := store.Open(); err != nil {
 		t.Fatalf("open tool store: %v", err)
@@ -794,7 +794,7 @@ func TestToolHandler_GetNotFound(t *testing.T) {
 }
 
 func TestToolHandler_MethodNotAllowed(t *testing.T) {
-	dir := setupWorkspaceWithDB(t)
+	dir := setupHomeWithDB(t)
 	store := tool.NewStore(openWSDB(t, dir))
 	if err := store.Open(); err != nil {
 		t.Fatalf("open tool store: %v", err)
@@ -812,7 +812,7 @@ func TestToolHandler_MethodNotAllowed(t *testing.T) {
 }
 
 func TestToolHandler_EmptyName(t *testing.T) {
-	dir := setupWorkspaceWithDB(t)
+	dir := setupHomeWithDB(t)
 	store := tool.NewStore(openWSDB(t, dir))
 	if err := store.Open(); err != nil {
 		t.Fatalf("open tool store: %v", err)
@@ -828,7 +828,7 @@ func TestToolHandler_EmptyName(t *testing.T) {
 }
 
 func TestToolHandler_UnknownSub(t *testing.T) {
-	dir := setupWorkspaceWithDB(t)
+	dir := setupHomeWithDB(t)
 	store := tool.NewStore(openWSDB(t, dir))
 	if err := store.Open(); err != nil {
 		t.Fatalf("open tool store: %v", err)
@@ -844,7 +844,7 @@ func TestToolHandler_UnknownSub(t *testing.T) {
 }
 
 func TestToolHandler_EnableDisableMethodNotAllowed(t *testing.T) {
-	dir := setupWorkspaceWithDB(t)
+	dir := setupHomeWithDB(t)
 	store := tool.NewStore(openWSDB(t, dir))
 	if err := store.Open(); err != nil {
 		t.Fatalf("open tool store: %v", err)
@@ -860,7 +860,7 @@ func TestToolHandler_EnableDisableMethodNotAllowed(t *testing.T) {
 }
 
 func TestToolHandler_PutInvalidBody(t *testing.T) {
-	dir := setupWorkspaceWithDB(t)
+	dir := setupHomeWithDB(t)
 	store := tool.NewStore(openWSDB(t, dir))
 	if err := store.Open(); err != nil {
 		t.Fatalf("open tool store: %v", err)
@@ -876,7 +876,7 @@ func TestToolHandler_PutInvalidBody(t *testing.T) {
 }
 
 func TestToolHandler_ToolMethodNotAllowed(t *testing.T) {
-	dir := setupWorkspaceWithDB(t)
+	dir := setupHomeWithDB(t)
 	store := tool.NewStore(openWSDB(t, dir))
 	if err := store.Open(); err != nil {
 		t.Fatalf("open tool store: %v", err)
@@ -896,7 +896,7 @@ func TestToolHandler_ToolMethodNotAllowed(t *testing.T) {
 // --- Event handler tests ---
 
 func TestEventHandler_ListEmpty(t *testing.T) {
-	dir := setupWorkspaceWithDB(t)
+	dir := setupHomeWithDB(t)
 	store, _ := events.NewSQLiteLog(openWSSQLite(t, dir))
 	t.Cleanup(func() { _ = store.Close() })
 
@@ -913,7 +913,7 @@ func TestEventHandler_ListEmpty(t *testing.T) {
 }
 
 func TestEventHandler_AppendAndList(t *testing.T) {
-	dir := setupWorkspaceWithDB(t)
+	dir := setupHomeWithDB(t)
 	store, _ := events.NewSQLiteLog(openWSSQLite(t, dir))
 	t.Cleanup(func() { _ = store.Close() })
 
@@ -941,7 +941,7 @@ func TestEventHandler_AppendAndList(t *testing.T) {
 }
 
 func TestEventHandler_ByAgent(t *testing.T) {
-	dir := setupWorkspaceWithDB(t)
+	dir := setupHomeWithDB(t)
 	store, _ := events.NewSQLiteLog(openWSSQLite(t, dir))
 	t.Cleanup(func() { _ = store.Close() })
 
@@ -968,7 +968,7 @@ func TestEventHandler_ByAgent(t *testing.T) {
 }
 
 func TestEventHandler_MethodNotAllowed(t *testing.T) {
-	dir := setupWorkspaceWithDB(t)
+	dir := setupHomeWithDB(t)
 	store, _ := events.NewSQLiteLog(openWSSQLite(t, dir))
 	t.Cleanup(func() { _ = store.Close() })
 
@@ -981,7 +981,7 @@ func TestEventHandler_MethodNotAllowed(t *testing.T) {
 }
 
 func TestEventHandler_AppendInvalidBody(t *testing.T) {
-	dir := setupWorkspaceWithDB(t)
+	dir := setupHomeWithDB(t)
 	store, _ := events.NewSQLiteLog(openWSSQLite(t, dir))
 	t.Cleanup(func() { _ = store.Close() })
 
@@ -994,7 +994,7 @@ func TestEventHandler_AppendInvalidBody(t *testing.T) {
 }
 
 func TestEventHandler_EmptyAgentName(t *testing.T) {
-	dir := setupWorkspaceWithDB(t)
+	dir := setupHomeWithDB(t)
 	store, _ := events.NewSQLiteLog(openWSSQLite(t, dir))
 	t.Cleanup(func() { _ = store.Close() })
 
@@ -1007,7 +1007,7 @@ func TestEventHandler_EmptyAgentName(t *testing.T) {
 }
 
 func TestEventHandler_ByAgentMethodNotAllowed(t *testing.T) {
-	dir := setupWorkspaceWithDB(t)
+	dir := setupHomeWithDB(t)
 	store, _ := events.NewSQLiteLog(openWSSQLite(t, dir))
 	t.Cleanup(func() { _ = store.Close() })
 
@@ -1022,13 +1022,13 @@ func TestEventHandler_ByAgentMethodNotAllowed(t *testing.T) {
 // --- Doctor handler tests ---
 
 func TestDoctorHandler_RunAll(t *testing.T) {
-	dir := setupWorkspace(t)
-	wks, err := workspace.Load(dir)
+	dir := setupHome(t)
+	wks, err := home.Load(dir)
 	if err != nil {
-		t.Fatalf("load workspace: %v", err)
+		t.Fatalf("load home: %v", err)
 	}
 
-	ts := buildTestServerWithServices(t, server.Services{WS: wks})
+	ts := buildTestServerWithServices(t, server.Services{Home: wks})
 	defer ts.Close()
 
 	resp := get(t, ts.URL+"/api/doctor")
@@ -1041,28 +1041,28 @@ func TestDoctorHandler_RunAll(t *testing.T) {
 }
 
 func TestDoctorHandler_ByCategory(t *testing.T) {
-	dir := setupWorkspace(t)
-	wks, err := workspace.Load(dir)
+	dir := setupHome(t)
+	wks, err := home.Load(dir)
 	if err != nil {
-		t.Fatalf("load workspace: %v", err)
+		t.Fatalf("load home: %v", err)
 	}
 
-	ts := buildTestServerWithServices(t, server.Services{WS: wks})
+	ts := buildTestServerWithServices(t, server.Services{Home: wks})
 	defer ts.Close()
 
-	resp := get(t, ts.URL+"/api/doctor/workspace")
+	resp := get(t, ts.URL+"/api/doctor/home")
 	assertStatus(t, resp, http.StatusOK)
 	_ = resp.Body.Close()
 }
 
 func TestDoctorHandler_UnknownCategory(t *testing.T) {
-	dir := setupWorkspace(t)
-	wks, err := workspace.Load(dir)
+	dir := setupHome(t)
+	wks, err := home.Load(dir)
 	if err != nil {
-		t.Fatalf("load workspace: %v", err)
+		t.Fatalf("load home: %v", err)
 	}
 
-	ts := buildTestServerWithServices(t, server.Services{WS: wks})
+	ts := buildTestServerWithServices(t, server.Services{Home: wks})
 	defer ts.Close()
 
 	resp := get(t, ts.URL+"/api/doctor/nonexistent")
@@ -1071,13 +1071,13 @@ func TestDoctorHandler_UnknownCategory(t *testing.T) {
 }
 
 func TestDoctorHandler_EmptyCategory(t *testing.T) {
-	dir := setupWorkspace(t)
-	wks, err := workspace.Load(dir)
+	dir := setupHome(t)
+	wks, err := home.Load(dir)
 	if err != nil {
-		t.Fatalf("load workspace: %v", err)
+		t.Fatalf("load home: %v", err)
 	}
 
-	ts := buildTestServerWithServices(t, server.Services{WS: wks})
+	ts := buildTestServerWithServices(t, server.Services{Home: wks})
 	defer ts.Close()
 
 	resp := get(t, ts.URL+"/api/doctor/")
@@ -1086,13 +1086,13 @@ func TestDoctorHandler_EmptyCategory(t *testing.T) {
 }
 
 func TestDoctorHandler_MethodNotAllowed(t *testing.T) {
-	dir := setupWorkspace(t)
-	wks, err := workspace.Load(dir)
+	dir := setupHome(t)
+	wks, err := home.Load(dir)
 	if err != nil {
-		t.Fatalf("load workspace: %v", err)
+		t.Fatalf("load home: %v", err)
 	}
 
-	ts := buildTestServerWithServices(t, server.Services{WS: wks})
+	ts := buildTestServerWithServices(t, server.Services{Home: wks})
 	defer ts.Close()
 
 	resp := post(t, ts.URL+"/api/doctor", "application/json", `{}`)
@@ -1101,16 +1101,16 @@ func TestDoctorHandler_MethodNotAllowed(t *testing.T) {
 }
 
 func TestDoctorHandler_ByCategoryMethodNotAllowed(t *testing.T) {
-	dir := setupWorkspace(t)
-	wks, err := workspace.Load(dir)
+	dir := setupHome(t)
+	wks, err := home.Load(dir)
 	if err != nil {
-		t.Fatalf("load workspace: %v", err)
+		t.Fatalf("load home: %v", err)
 	}
 
-	ts := buildTestServerWithServices(t, server.Services{WS: wks})
+	ts := buildTestServerWithServices(t, server.Services{Home: wks})
 	defer ts.Close()
 
-	resp := post(t, ts.URL+"/api/doctor/workspace", "application/json", `{}`)
+	resp := post(t, ts.URL+"/api/doctor/home", "application/json", `{}`)
 	assertStatus(t, resp, http.StatusMethodNotAllowed)
 	_ = resp.Body.Close()
 }
@@ -1118,13 +1118,13 @@ func TestDoctorHandler_ByCategoryMethodNotAllowed(t *testing.T) {
 // --- Roles handler tests ---
 
 func TestRolesHandler_ListRoles(t *testing.T) {
-	dir := setupWorkspace(t)
-	wks, err := workspace.Load(dir)
+	dir := setupHome(t)
+	wks, err := home.Load(dir)
 	if err != nil {
-		t.Fatalf("load workspace: %v", err)
+		t.Fatalf("load home: %v", err)
 	}
 
-	ts := buildTestServerWithServices(t, server.Services{WS: wks})
+	ts := buildTestServerWithServices(t, server.Services{Home: wks})
 	defer ts.Close()
 
 	resp := get(t, ts.URL+"/api/roles")
@@ -1133,13 +1133,13 @@ func TestRolesHandler_ListRoles(t *testing.T) {
 }
 
 func TestRolesHandler_CreateAndGetRole(t *testing.T) {
-	dir := setupWorkspace(t)
-	wks, err := workspace.Load(dir)
+	dir := setupHome(t)
+	wks, err := home.Load(dir)
 	if err != nil {
-		t.Fatalf("load workspace: %v", err)
+		t.Fatalf("load home: %v", err)
 	}
 
-	ts := buildTestServerWithServices(t, server.Services{WS: wks})
+	ts := buildTestServerWithServices(t, server.Services{Home: wks})
 	defer ts.Close()
 
 	// Create
@@ -1166,13 +1166,13 @@ func TestRolesHandler_CreateAndGetRole(t *testing.T) {
 }
 
 func TestRolesHandler_CreateDuplicate(t *testing.T) {
-	dir := setupWorkspace(t)
-	wks, err := workspace.Load(dir)
+	dir := setupHome(t)
+	wks, err := home.Load(dir)
 	if err != nil {
-		t.Fatalf("load workspace: %v", err)
+		t.Fatalf("load home: %v", err)
 	}
 
-	ts := buildTestServerWithServices(t, server.Services{WS: wks})
+	ts := buildTestServerWithServices(t, server.Services{Home: wks})
 	defer ts.Close()
 
 	resp := post(t, ts.URL+"/api/roles", "application/json",
@@ -1187,13 +1187,13 @@ func TestRolesHandler_CreateDuplicate(t *testing.T) {
 }
 
 func TestRolesHandler_CreateMissingName(t *testing.T) {
-	dir := setupWorkspace(t)
-	wks, err := workspace.Load(dir)
+	dir := setupHome(t)
+	wks, err := home.Load(dir)
 	if err != nil {
-		t.Fatalf("load workspace: %v", err)
+		t.Fatalf("load home: %v", err)
 	}
 
-	ts := buildTestServerWithServices(t, server.Services{WS: wks})
+	ts := buildTestServerWithServices(t, server.Services{Home: wks})
 	defer ts.Close()
 
 	resp := post(t, ts.URL+"/api/roles", "application/json",
@@ -1203,13 +1203,13 @@ func TestRolesHandler_CreateMissingName(t *testing.T) {
 }
 
 func TestRolesHandler_GetNotFound(t *testing.T) {
-	dir := setupWorkspace(t)
-	wks, err := workspace.Load(dir)
+	dir := setupHome(t)
+	wks, err := home.Load(dir)
 	if err != nil {
-		t.Fatalf("load workspace: %v", err)
+		t.Fatalf("load home: %v", err)
 	}
 
-	ts := buildTestServerWithServices(t, server.Services{WS: wks})
+	ts := buildTestServerWithServices(t, server.Services{Home: wks})
 	defer ts.Close()
 
 	resp := get(t, ts.URL+"/api/roles/nonexistent")
@@ -1218,13 +1218,13 @@ func TestRolesHandler_GetNotFound(t *testing.T) {
 }
 
 func TestRolesHandler_MethodNotAllowed(t *testing.T) {
-	dir := setupWorkspace(t)
-	wks, err := workspace.Load(dir)
+	dir := setupHome(t)
+	wks, err := home.Load(dir)
 	if err != nil {
-		t.Fatalf("load workspace: %v", err)
+		t.Fatalf("load home: %v", err)
 	}
 
-	ts := buildTestServerWithServices(t, server.Services{WS: wks})
+	ts := buildTestServerWithServices(t, server.Services{Home: wks})
 	defer ts.Close()
 
 	resp := doRequest(t, http.MethodPatch, ts.URL+"/api/roles", "application/json", `{}`)
@@ -1233,13 +1233,13 @@ func TestRolesHandler_MethodNotAllowed(t *testing.T) {
 }
 
 func TestRolesHandler_EmptyName(t *testing.T) {
-	dir := setupWorkspace(t)
-	wks, err := workspace.Load(dir)
+	dir := setupHome(t)
+	wks, err := home.Load(dir)
 	if err != nil {
-		t.Fatalf("load workspace: %v", err)
+		t.Fatalf("load home: %v", err)
 	}
 
-	ts := buildTestServerWithServices(t, server.Services{WS: wks})
+	ts := buildTestServerWithServices(t, server.Services{Home: wks})
 	defer ts.Close()
 
 	resp := get(t, ts.URL+"/api/roles/")
@@ -1248,13 +1248,13 @@ func TestRolesHandler_EmptyName(t *testing.T) {
 }
 
 func TestRolesHandler_CreateInvalidBody(t *testing.T) {
-	dir := setupWorkspace(t)
-	wks, err := workspace.Load(dir)
+	dir := setupHome(t)
+	wks, err := home.Load(dir)
 	if err != nil {
-		t.Fatalf("load workspace: %v", err)
+		t.Fatalf("load home: %v", err)
 	}
 
-	ts := buildTestServerWithServices(t, server.Services{WS: wks})
+	ts := buildTestServerWithServices(t, server.Services{Home: wks})
 	defer ts.Close()
 
 	resp := post(t, ts.URL+"/api/roles", "application/json", `{invalid}`)
@@ -1263,13 +1263,13 @@ func TestRolesHandler_CreateInvalidBody(t *testing.T) {
 }
 
 func TestRolesHandler_PutInvalidBody(t *testing.T) {
-	dir := setupWorkspace(t)
-	wks, err := workspace.Load(dir)
+	dir := setupHome(t)
+	wks, err := home.Load(dir)
 	if err != nil {
-		t.Fatalf("load workspace: %v", err)
+		t.Fatalf("load home: %v", err)
 	}
 
-	ts := buildTestServerWithServices(t, server.Services{WS: wks})
+	ts := buildTestServerWithServices(t, server.Services{Home: wks})
 	defer ts.Close()
 
 	// Create the role first
@@ -1283,13 +1283,13 @@ func TestRolesHandler_PutInvalidBody(t *testing.T) {
 }
 
 func TestRolesHandler_ByNameMethodNotAllowed(t *testing.T) {
-	dir := setupWorkspace(t)
-	wks, err := workspace.Load(dir)
+	dir := setupHome(t)
+	wks, err := home.Load(dir)
 	if err != nil {
-		t.Fatalf("load workspace: %v", err)
+		t.Fatalf("load home: %v", err)
 	}
 
-	ts := buildTestServerWithServices(t, server.Services{WS: wks})
+	ts := buildTestServerWithServices(t, server.Services{Home: wks})
 	defer ts.Close()
 
 	resp := doRequest(t, http.MethodPatch, ts.URL+"/api/roles/test", "application/json", `{}`)
@@ -1358,7 +1358,7 @@ func TestStatsHandler_SummaryMethodNotAllowed(t *testing.T) {
 }
 
 func TestStatsHandler_SummaryWithServices(t *testing.T) {
-	dir := setupWorkspaceWithDB(t)
+	dir := setupHomeWithDB(t)
 
 	// Set up costs (source-direct service over empty sources)
 	costStore := newCostService(t)
@@ -1370,16 +1370,16 @@ func TestStatsHandler_SummaryWithServices(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = toolStore.Close() })
 
-	// Set up workspace
-	wks, err := workspace.Load(dir)
+	// Set up home
+	wks, err := home.Load(dir)
 	if err != nil {
-		t.Fatalf("load workspace: %v", err)
+		t.Fatalf("load home: %v", err)
 	}
 
 	ts := buildTestServerWithServices(t, server.Services{
 		Costs: costStore,
 		Tools: toolStore,
-		WS:    wks,
+		Home:  wks,
 	})
 	defer ts.Close()
 
@@ -1387,20 +1387,20 @@ func TestStatsHandler_SummaryWithServices(t *testing.T) {
 	defer func() { _ = resp.Body.Close() }()
 	assertStatus(t, resp, http.StatusOK)
 	body := readJSON(t, resp)
-	// All counts should be 0 for fresh workspace
+	// All counts should be 0 for a fresh home
 	if body["agents_total"] != float64(0) {
 		t.Fatalf("expected agents_total=0, got %v", body["agents_total"])
 	}
 }
 
-func TestStatsHandler_SystemWithWorkspace(t *testing.T) {
-	dir := setupWorkspace(t)
-	wks, err := workspace.Load(dir)
+func TestStatsHandler_SystemWithRepo(t *testing.T) {
+	dir := setupHome(t)
+	wks, err := home.Load(dir)
 	if err != nil {
-		t.Fatalf("load workspace: %v", err)
+		t.Fatalf("load home: %v", err)
 	}
 
-	ts := buildTestServerWithServices(t, server.Services{WS: wks})
+	ts := buildTestServerWithServices(t, server.Services{Home: wks})
 	defer ts.Close()
 
 	resp := get(t, ts.URL+"/api/stats/system")
@@ -1415,7 +1415,7 @@ func TestStatsHandler_SystemWithWorkspace(t *testing.T) {
 // --- Agent handler tests (limited, since AgentService needs real tmux) ---
 
 func TestAgentHandler_ListEmpty(t *testing.T) {
-	dir := setupWorkspace(t)
+	dir := setupHome(t)
 	stateDir := filepath.Join(dir, ".bc")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
@@ -1435,7 +1435,7 @@ func TestAgentHandler_ListEmpty(t *testing.T) {
 }
 
 func TestAgentHandler_MethodNotAllowed(t *testing.T) {
-	dir := setupWorkspace(t)
+	dir := setupHome(t)
 	stateDir := filepath.Join(dir, ".bc")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
@@ -1451,7 +1451,7 @@ func TestAgentHandler_MethodNotAllowed(t *testing.T) {
 }
 
 func TestAgentHandler_CreateInvalidBody(t *testing.T) {
-	dir := setupWorkspace(t)
+	dir := setupHome(t)
 	stateDir := filepath.Join(dir, ".bc")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
@@ -1467,7 +1467,7 @@ func TestAgentHandler_CreateInvalidBody(t *testing.T) {
 }
 
 func TestAgentHandler_GetNotFound(t *testing.T) {
-	dir := setupWorkspace(t)
+	dir := setupHome(t)
 	stateDir := filepath.Join(dir, ".bc")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
@@ -1483,7 +1483,7 @@ func TestAgentHandler_GetNotFound(t *testing.T) {
 }
 
 func TestAgentHandler_EmptyName(t *testing.T) {
-	dir := setupWorkspace(t)
+	dir := setupHome(t)
 	stateDir := filepath.Join(dir, ".bc")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
@@ -1499,7 +1499,7 @@ func TestAgentHandler_EmptyName(t *testing.T) {
 }
 
 func TestAgentHandler_UnknownAction(t *testing.T) {
-	dir := setupWorkspace(t)
+	dir := setupHome(t)
 	stateDir := filepath.Join(dir, ".bc")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
@@ -1515,7 +1515,7 @@ func TestAgentHandler_UnknownAction(t *testing.T) {
 }
 
 func TestAgentHandler_GenerateName(t *testing.T) {
-	dir := setupWorkspace(t)
+	dir := setupHome(t)
 	stateDir := filepath.Join(dir, ".bc")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
@@ -1535,7 +1535,7 @@ func TestAgentHandler_GenerateName(t *testing.T) {
 }
 
 func TestAgentHandler_GenerateNameMethodNotAllowed(t *testing.T) {
-	dir := setupWorkspace(t)
+	dir := setupHome(t)
 	stateDir := filepath.Join(dir, ".bc")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
@@ -1551,7 +1551,7 @@ func TestAgentHandler_GenerateNameMethodNotAllowed(t *testing.T) {
 }
 
 func TestAgentHandler_BroadcastMethodNotAllowed(t *testing.T) {
-	dir := setupWorkspace(t)
+	dir := setupHome(t)
 	stateDir := filepath.Join(dir, ".bc")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
@@ -1567,7 +1567,7 @@ func TestAgentHandler_BroadcastMethodNotAllowed(t *testing.T) {
 }
 
 func TestAgentHandler_BroadcastInvalidBody(t *testing.T) {
-	dir := setupWorkspace(t)
+	dir := setupHome(t)
 	stateDir := filepath.Join(dir, ".bc")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
@@ -1583,7 +1583,7 @@ func TestAgentHandler_BroadcastInvalidBody(t *testing.T) {
 }
 
 func TestAgentHandler_SendRoleMethodNotAllowed(t *testing.T) {
-	dir := setupWorkspace(t)
+	dir := setupHome(t)
 	stateDir := filepath.Join(dir, ".bc")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
@@ -1599,7 +1599,7 @@ func TestAgentHandler_SendRoleMethodNotAllowed(t *testing.T) {
 }
 
 func TestAgentHandler_SendRoleInvalidBody(t *testing.T) {
-	dir := setupWorkspace(t)
+	dir := setupHome(t)
 	stateDir := filepath.Join(dir, ".bc")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
@@ -1615,7 +1615,7 @@ func TestAgentHandler_SendRoleInvalidBody(t *testing.T) {
 }
 
 func TestAgentHandler_SendPatternMethodNotAllowed(t *testing.T) {
-	dir := setupWorkspace(t)
+	dir := setupHome(t)
 	stateDir := filepath.Join(dir, ".bc")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
@@ -1631,7 +1631,7 @@ func TestAgentHandler_SendPatternMethodNotAllowed(t *testing.T) {
 }
 
 func TestAgentHandler_SendPatternInvalidBody(t *testing.T) {
-	dir := setupWorkspace(t)
+	dir := setupHome(t)
 	stateDir := filepath.Join(dir, ".bc")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
@@ -1647,7 +1647,7 @@ func TestAgentHandler_SendPatternInvalidBody(t *testing.T) {
 }
 
 func TestAgentHandler_StopAllMethodNotAllowed(t *testing.T) {
-	dir := setupWorkspace(t)
+	dir := setupHome(t)
 	stateDir := filepath.Join(dir, ".bc")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
@@ -1663,7 +1663,7 @@ func TestAgentHandler_StopAllMethodNotAllowed(t *testing.T) {
 }
 
 func TestAgentHandler_StopAll(t *testing.T) {
-	dir := setupWorkspace(t)
+	dir := setupHome(t)
 	stateDir := filepath.Join(dir, ".bc")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
@@ -1683,7 +1683,7 @@ func TestAgentHandler_StopAll(t *testing.T) {
 }
 
 func TestAgentHandler_Broadcast(t *testing.T) {
-	dir := setupWorkspace(t)
+	dir := setupHome(t)
 	stateDir := filepath.Join(dir, ".bc")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
@@ -1703,7 +1703,7 @@ func TestAgentHandler_Broadcast(t *testing.T) {
 }
 
 func TestAgentHandler_SendOnNonexistent(t *testing.T) {
-	dir := setupWorkspace(t)
+	dir := setupHome(t)
 	stateDir := filepath.Join(dir, ".bc")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
@@ -1719,7 +1719,7 @@ func TestAgentHandler_SendOnNonexistent(t *testing.T) {
 }
 
 func TestAgentHandler_SendInvalidBody(t *testing.T) {
-	dir := setupWorkspace(t)
+	dir := setupHome(t)
 	stateDir := filepath.Join(dir, ".bc")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
@@ -1735,7 +1735,7 @@ func TestAgentHandler_SendInvalidBody(t *testing.T) {
 }
 
 func TestAgentHandler_HealthMethodNotAllowed(t *testing.T) {
-	dir := setupWorkspace(t)
+	dir := setupHome(t)
 	stateDir := filepath.Join(dir, ".bc")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
@@ -1751,7 +1751,7 @@ func TestAgentHandler_HealthMethodNotAllowed(t *testing.T) {
 }
 
 func TestAgentHandler_HealthEmpty(t *testing.T) {
-	dir := setupWorkspace(t)
+	dir := setupHome(t)
 	stateDir := filepath.Join(dir, ".bc")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
@@ -1771,7 +1771,7 @@ func TestAgentHandler_HealthEmpty(t *testing.T) {
 }
 
 func TestAgentHandler_HealthWithTimeout(t *testing.T) {
-	dir := setupWorkspace(t)
+	dir := setupHome(t)
 	stateDir := filepath.Join(dir, ".bc")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
@@ -1787,7 +1787,7 @@ func TestAgentHandler_HealthWithTimeout(t *testing.T) {
 }
 
 func TestAgentHandler_StartNonexistent(t *testing.T) {
-	dir := setupWorkspace(t)
+	dir := setupHome(t)
 	stateDir := filepath.Join(dir, ".bc")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
@@ -1803,7 +1803,7 @@ func TestAgentHandler_StartNonexistent(t *testing.T) {
 }
 
 func TestAgentHandler_StopNonexistent(t *testing.T) {
-	dir := setupWorkspace(t)
+	dir := setupHome(t)
 	stateDir := filepath.Join(dir, ".bc")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
@@ -1819,7 +1819,7 @@ func TestAgentHandler_StopNonexistent(t *testing.T) {
 }
 
 func TestAgentHandler_DeleteNonexistent(t *testing.T) {
-	dir := setupWorkspace(t)
+	dir := setupHome(t)
 	stateDir := filepath.Join(dir, ".bc")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
@@ -1835,7 +1835,7 @@ func TestAgentHandler_DeleteNonexistent(t *testing.T) {
 }
 
 func TestAgentHandler_PeekNonexistent(t *testing.T) {
-	dir := setupWorkspace(t)
+	dir := setupHome(t)
 	stateDir := filepath.Join(dir, ".bc")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
@@ -1851,7 +1851,7 @@ func TestAgentHandler_PeekNonexistent(t *testing.T) {
 }
 
 func TestAgentHandler_SessionsNonexistent(t *testing.T) {
-	dir := setupWorkspace(t)
+	dir := setupHome(t)
 	stateDir := filepath.Join(dir, ".bc")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
@@ -1867,7 +1867,7 @@ func TestAgentHandler_SessionsNonexistent(t *testing.T) {
 }
 
 func TestAgentHandler_RenameInvalidBody(t *testing.T) {
-	dir := setupWorkspace(t)
+	dir := setupHome(t)
 	stateDir := filepath.Join(dir, ".bc")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
@@ -1883,7 +1883,7 @@ func TestAgentHandler_RenameInvalidBody(t *testing.T) {
 }
 
 func TestAgentHandler_HookInvalidBody(t *testing.T) {
-	dir := setupWorkspace(t)
+	dir := setupHome(t)
 	stateDir := filepath.Join(dir, ".bc")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
@@ -1899,7 +1899,7 @@ func TestAgentHandler_HookInvalidBody(t *testing.T) {
 }
 
 func TestAgentHandler_HookUnknownEvent(t *testing.T) {
-	dir := setupWorkspace(t)
+	dir := setupHome(t)
 	stateDir := filepath.Join(dir, ".bc")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
@@ -1915,7 +1915,7 @@ func TestAgentHandler_HookUnknownEvent(t *testing.T) {
 }
 
 func TestAgentHandler_ReportInvalidBody(t *testing.T) {
-	dir := setupWorkspace(t)
+	dir := setupHome(t)
 	stateDir := filepath.Join(dir, ".bc")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
@@ -1931,7 +1931,7 @@ func TestAgentHandler_ReportInvalidBody(t *testing.T) {
 }
 
 func TestAgentHandler_ReportInvalidState(t *testing.T) {
-	dir := setupWorkspace(t)
+	dir := setupHome(t)
 	stateDir := filepath.Join(dir, ".bc")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
@@ -1955,7 +1955,7 @@ func TestAgentHandler_ReportInvalidState(t *testing.T) {
 // --- Agent handler with cost enrichment ---
 
 func TestAgentHandler_ListWithCosts(t *testing.T) {
-	dir := setupWorkspace(t)
+	dir := setupHome(t)
 	stateDir := filepath.Join(dir, ".bc")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
@@ -1972,20 +1972,20 @@ func TestAgentHandler_ListWithCosts(t *testing.T) {
 	_ = resp.Body.Close()
 }
 
-func TestAgentHandler_ListWithWorkspace(t *testing.T) {
-	dir := setupWorkspace(t)
+func TestAgentHandler_ListWithRepo(t *testing.T) {
+	dir := setupHome(t)
 	stateDir := filepath.Join(dir, ".bc")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
-	wks, err := workspace.Load(dir)
+	wks, err := home.Load(dir)
 	if err != nil {
-		t.Fatalf("load workspace: %v", err)
+		t.Fatalf("load home: %v", err)
 	}
 
 	mgr := agent.NewManager(stateDir)
 	svc := agent.NewAgentService(mgr, nil, nil)
 
-	ts := buildTestServerWithServices(t, server.Services{Agents: svc, WS: wks})
+	ts := buildTestServerWithServices(t, server.Services{Agents: svc, Home: wks})
 	defer ts.Close()
 
 	resp := get(t, ts.URL+"/api/agents")
@@ -1994,7 +1994,7 @@ func TestAgentHandler_ListWithWorkspace(t *testing.T) {
 }
 
 func TestAgentHandler_ListPagination(t *testing.T) {
-	dir := setupWorkspace(t)
+	dir := setupHome(t)
 	stateDir := filepath.Join(dir, ".bc")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
@@ -2016,7 +2016,7 @@ func TestAgentHandler_ListPagination(t *testing.T) {
 // --- Tool CRUD via API ---
 
 func TestToolHandler_CRUD(t *testing.T) {
-	dir := setupWorkspaceWithDB(t)
+	dir := setupHomeWithDB(t)
 	store := tool.NewStore(openWSDB(t, dir))
 	if err := store.Open(); err != nil {
 		t.Fatalf("open tool store: %v", err)
@@ -2088,7 +2088,7 @@ func TestCostHandler_Budgets_AllPeriods(t *testing.T) {
 // --- Agent handler: stats endpoint ---
 
 func TestAgentHandler_StatsNonexistent(t *testing.T) {
-	dir := setupWorkspace(t)
+	dir := setupHome(t)
 	stateDir := filepath.Join(dir, ".bc")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
@@ -2107,7 +2107,7 @@ func TestAgentHandler_StatsNonexistent(t *testing.T) {
 }
 
 func TestAgentHandler_StatsWithLimit(t *testing.T) {
-	dir := setupWorkspace(t)
+	dir := setupHome(t)
 	stateDir := filepath.Join(dir, ".bc")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
@@ -2125,7 +2125,7 @@ func TestAgentHandler_StatsWithLimit(t *testing.T) {
 // --- Agent health with agent filter ---
 
 func TestAgentHandler_HealthWithFilter(t *testing.T) {
-	dir := setupWorkspace(t)
+	dir := setupHome(t)
 	stateDir := filepath.Join(dir, ".bc")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
@@ -2168,12 +2168,12 @@ func TestCORSMiddlewareDefault(t *testing.T) {
 // --- Agent handler: create agent (exercises success paths) ---
 
 func TestAgentHandler_CreateAgent(t *testing.T) {
-	dir := setupWorkspace(t)
+	dir := setupHome(t)
 	stateDir := filepath.Join(dir, ".bc")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
-	// Use NewWorkspaceManager so worktreeMgr is initialized and doesn't panic.
-	mgr := agent.NewWorkspaceManager(stateDir, dir)
+	// Use NewManagerWithRepo so worktreeMgr is initialized and doesn't panic.
+	mgr := agent.NewManagerWithRepo(stateDir, dir)
 	svc := agent.NewAgentService(mgr, nil, nil)
 
 	ts := buildTestServerWithServices(t, server.Services{Agents: svc})

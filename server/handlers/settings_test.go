@@ -10,38 +10,38 @@ import (
 	"testing"
 
 	"github.com/rpuneet/mycel/pkg/app"
-	"github.com/rpuneet/mycel/pkg/workspace"
+	"github.com/rpuneet/mycel/pkg/home"
 )
 
-func newTestWorkspace(t *testing.T) *workspace.Workspace {
+func newTestHome(t *testing.T) *home.Home {
 	t.Helper()
 	dir := t.TempDir()
 	stateDir := filepath.Join(dir, ".bc")
 	if err := os.MkdirAll(stateDir, 0o750); err != nil {
 		t.Fatal(err)
 	}
-	cfg := &workspace.Config{
-		Version: workspace.ConfigVersion,
-		Providers: workspace.ProvidersConfig{
+	cfg := &home.Config{
+		Version: home.ConfigVersion,
+		Providers: home.ProvidersConfig{
 			Default:   "claude",
-			Providers: map[string]workspace.ProviderConfig{"claude": {Command: "claude"}},
+			Providers: map[string]home.ProviderConfig{"claude": {Command: "claude"}},
 		},
-		Runtime: workspace.RuntimeConfig{Default: "tmux"},
-		Server:  workspace.ServerConfig{Host: "127.0.0.1", Port: 9374, CORSOrigin: "*"},
-		UI:      workspace.UIConfig{Theme: "dark", Mode: "auto"},
+		Runtime: home.RuntimeConfig{Default: "tmux"},
+		Server:  home.ServerConfig{Host: "127.0.0.1", Port: 9374, CORSOrigin: "*"},
+		UI:      home.UIConfig{Theme: "dark", Mode: "auto"},
 	}
-	return &workspace.Workspace{
+	return &home.Home{
 		Config:  cfg,
 		RootDir: dir,
 	}
 }
 
 func TestSettingsPatchSection(t *testing.T) {
-	ws := newTestWorkspace(t)
-	h := NewSettingsHandler(ws)
+	h := newTestHome(t)
+	sh := NewSettingsHandler(h)
 
 	mux := http.NewServeMux()
-	h.Register(mux)
+	sh.Register(mux)
 
 	tests := []struct {
 		body       string
@@ -119,11 +119,11 @@ func TestSettingsPatchSection(t *testing.T) {
 }
 
 func TestSettingsPatchUpdatesConfig(t *testing.T) {
-	ws := newTestWorkspace(t)
-	h := NewSettingsHandler(ws)
+	h := newTestHome(t)
+	sh := NewSettingsHandler(h)
 
 	mux := http.NewServeMux()
-	h.Register(mux)
+	sh.Register(mux)
 
 	body := `{"user":{"name":"bob"}}`
 	req := httptest.NewRequest(http.MethodPatch, "/api/settings", strings.NewReader(body))
@@ -141,21 +141,21 @@ func TestSettingsPatchUpdatesConfig(t *testing.T) {
 		t.Fatalf("failed to decode response: %v", err)
 	}
 
-	if ws.Config.User.Name != "bob" {
-		t.Errorf("config.User.Name = %q, want %q", ws.Config.User.Name, "bob")
+	if h.Config.User.Name != "bob" {
+		t.Errorf("config.User.Name = %q, want %q", h.Config.User.Name, "bob")
 	}
 }
 
 // TestSettingsAppsPatchMerges verifies the per-instance merge: patching
 // one instance never wipes the others.
 func TestSettingsAppsPatchMerges(t *testing.T) {
-	ws := newTestWorkspace(t)
-	ws.Config.Apps = map[string]app.InstanceConfig{
+	h := newTestHome(t)
+	h.Config.Apps = map[string]app.InstanceConfig{
 		"fakeqr": {App: "fakeqr", Enabled: true},
 	}
-	h := NewSettingsHandler(ws)
+	sh := NewSettingsHandler(h)
 	mux := http.NewServeMux()
-	h.Register(mux)
+	sh.Register(mux)
 
 	body := `{"apps":{"fakeapp:ci":{"app":"fakeapp","enabled":true,"config":{"region":"eu"}}}}`
 	req := httptest.NewRequest(http.MethodPatch, "/api/settings", strings.NewReader(body))
@@ -165,20 +165,20 @@ func TestSettingsAppsPatchMerges(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200; body = %s", rec.Code, rec.Body.String())
 	}
-	if _, ok := ws.Config.Apps["fakeqr"]; !ok {
+	if _, ok := h.Config.Apps["fakeqr"]; !ok {
 		t.Error("existing instance wiped by unrelated patch")
 	}
-	if ic := ws.Config.Apps["fakeapp:ci"]; ic.App != "fakeapp" || ic.Config["region"] != "eu" {
+	if ic := h.Config.Apps["fakeapp:ci"]; ic.App != "fakeapp" || ic.Config["region"] != "eu" {
 		t.Errorf("patched instance = %+v", ic)
 	}
 }
 
 func TestSettingsPatchMethodNotAllowed(t *testing.T) {
-	ws := newTestWorkspace(t)
-	h := NewSettingsHandler(ws)
+	h := newTestHome(t)
+	sh := NewSettingsHandler(h)
 
 	mux := http.NewServeMux()
-	h.Register(mux)
+	sh.Register(mux)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/settings", nil)
 	rec := httptest.NewRecorder()
@@ -190,11 +190,11 @@ func TestSettingsPatchMethodNotAllowed(t *testing.T) {
 }
 
 func TestSettingsPatchAllSections(t *testing.T) {
-	ws := newTestWorkspace(t)
-	h := NewSettingsHandler(ws)
+	h := newTestHome(t)
+	sh := NewSettingsHandler(h)
 
 	mux := http.NewServeMux()
-	h.Register(mux)
+	sh.Register(mux)
 
 	body := `{
 		"user": {"name": "test"},
@@ -211,13 +211,13 @@ func TestSettingsPatchAllSections(t *testing.T) {
 		t.Fatalf("status = %d, want %d; body = %s", rec.Code, http.StatusOK, rec.Body.String())
 	}
 
-	if ws.Config.User.Name != "test" {
-		t.Errorf("User.Name = %q, want %q", ws.Config.User.Name, "test")
+	if h.Config.User.Name != "test" {
+		t.Errorf("User.Name = %q, want %q", h.Config.User.Name, "test")
 	}
-	if ws.Config.Server.Port != 8080 {
-		t.Errorf("Server.Port = %d, want %d", ws.Config.Server.Port, 8080)
+	if h.Config.Server.Port != 8080 {
+		t.Errorf("Server.Port = %d, want %d", h.Config.Server.Port, 8080)
 	}
-	if ws.Config.UI.Theme != "light" {
-		t.Errorf("UI.Theme = %q, want %q", ws.Config.UI.Theme, "light")
+	if h.Config.UI.Theme != "light" {
+		t.Errorf("UI.Theme = %q, want %q", h.Config.UI.Theme, "light")
 	}
 }

@@ -7,7 +7,7 @@ Manage MCP server configurations
 Manage Model Context Protocol (MCP) server configurations.
 
 MCP servers provide tools and resources to AI agents. Configurations are
-stored per-workspace and can be referenced by roles.
+stored in the global registry and can be referenced by roles.
 
 Examples:
   mycel mcp list                                     # List all MCP servers

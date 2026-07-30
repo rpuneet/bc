@@ -9,9 +9,7 @@ mycel template delete <name> [flags]
 ### Options
 
 ```
-      --global      Delete the user-global template
-  -h, --help        help for delete
-      --workspace   Delete only the workspace override
+  -h, --help   help for delete
 ```
 
 ### Options inherited from parent commands

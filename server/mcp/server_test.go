@@ -14,7 +14,7 @@ import (
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/rpuneet/mycel/pkg/gateway"
-	"github.com/rpuneet/mycel/pkg/workspace"
+	"github.com/rpuneet/mycel/pkg/home"
 )
 
 func TestAgentFromPath(t *testing.T) {
@@ -40,9 +40,9 @@ func TestAgentFromPath(t *testing.T) {
 	}
 }
 
-func TestNewRequiresWorkspace(t *testing.T) {
+func TestNewRequiresRepo(t *testing.T) {
 	if _, err := New(Config{}); err == nil {
-		t.Fatal("New with no workspace should error")
+		t.Fatal("New with no home should error")
 	}
 }
 
@@ -99,7 +99,7 @@ func newTestSession(t *testing.T, cfg Config, agentName string) (*sdk.ClientSess
 	return session, srv
 }
 
-func testWorkspace(t *testing.T) *workspace.Workspace {
+func testRepo(t *testing.T) *home.Home {
 	t.Helper()
 	// Isolate global state (~/.mycel prefs + db) per test.
 	t.Setenv("MYCEL_HOME", t.TempDir())
@@ -108,15 +108,15 @@ func testWorkspace(t *testing.T) *workspace.Workspace {
 	if out, err := exec.CommandContext(t.Context(), "git", "init", dir).CombinedOutput(); err != nil {
 		t.Fatalf("git init: %v: %s", err, out)
 	}
-	ws, err := workspace.Open(dir)
+	h, err := home.Open(dir)
 	if err != nil {
-		t.Fatalf("workspace.Open: %v", err)
+		t.Fatalf("home.Open: %v", err)
 	}
-	return ws
+	return h
 }
 
 func TestE2E_ListTools(t *testing.T) {
-	session, _ := newTestSession(t, Config{Workspace: testWorkspace(t)}, "test-agent")
+	session, _ := newTestSession(t, Config{Home: testRepo(t)}, "test-agent")
 
 	res, err := session.ListTools(t.Context(), nil)
 	if err != nil {
@@ -141,7 +141,7 @@ func TestE2E_ListTools(t *testing.T) {
 }
 
 func TestE2E_Whoami(t *testing.T) {
-	session, _ := newTestSession(t, Config{Workspace: testWorkspace(t)}, "zen-zebra")
+	session, _ := newTestSession(t, Config{Home: testRepo(t)}, "zen-zebra")
 
 	res, err := session.CallTool(t.Context(), &sdk.CallToolParams{Name: "whoami"})
 	if err != nil {
@@ -169,7 +169,7 @@ func TestE2E_SendMessage_IdentityEnforced(t *testing.T) {
 		Content:   "hello",
 	})
 
-	session, _ := newTestSession(t, Config{Workspace: testWorkspace(t), Gateway: mgr}, "zen-zebra")
+	session, _ := newTestSession(t, Config{Home: testRepo(t), Gateway: mgr}, "zen-zebra")
 
 	// The client claims to be someone else — the path identity must win.
 	res, err := session.CallTool(t.Context(), &sdk.CallToolParams{
@@ -198,7 +198,7 @@ func TestE2E_SendMessage_IdentityEnforced(t *testing.T) {
 }
 
 func TestE2E_SendMessage_NonGatewayChannel(t *testing.T) {
-	session, _ := newTestSession(t, Config{Workspace: testWorkspace(t), Gateway: gateway.NewManager()}, "zen-zebra")
+	session, _ := newTestSession(t, Config{Home: testRepo(t), Gateway: gateway.NewManager()}, "zen-zebra")
 
 	res, err := session.CallTool(t.Context(), &sdk.CallToolParams{
 		Name:      "send_message",
@@ -215,7 +215,7 @@ func TestE2E_SendMessage_NonGatewayChannel(t *testing.T) {
 func TestE2E_ToolErrorsWhenDependencyMissing(t *testing.T) {
 	// No gateway, notify, agents, or costs configured — every dependent tool
 	// must degrade to a tool error, never a transport failure.
-	session, _ := newTestSession(t, Config{Workspace: testWorkspace(t)}, "zen-zebra")
+	session, _ := newTestSession(t, Config{Home: testRepo(t)}, "zen-zebra")
 
 	for _, call := range []*sdk.CallToolParams{
 		{Name: "list_channels"},
@@ -236,7 +236,7 @@ func TestE2E_ToolErrorsWhenDependencyMissing(t *testing.T) {
 }
 
 func TestHTTP_InvalidPaths404(t *testing.T) {
-	h, err := New(Config{Workspace: testWorkspace(t)})
+	h, err := New(Config{Home: testRepo(t)})
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
@@ -260,36 +260,36 @@ func TestHTTP_InvalidPaths404(t *testing.T) {
 	}
 }
 
-// TestValidateFilePath_SymlinkEscape ensures a symlink inside the workspace
+// TestValidateFilePath_SymlinkEscape ensures a symlink inside the repo
 // cannot point send_file at a host file outside the allowed roots.
 func TestValidateFilePath_SymlinkEscape(t *testing.T) {
-	ws := testWorkspace(t)
-	cfg := Config{Workspace: ws}
+	h := testRepo(t)
+	cfg := Config{Home: h}
 
-	// A real file inside the workspace passes.
-	inside := filepath.Join(ws.RootDir, "ok.txt")
+	// A real file inside the repo passes.
+	inside := filepath.Join(h.RootDir, "ok.txt")
 	if err := os.WriteFile(inside, []byte("x"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := validateFilePath(cfg, inside); err != nil {
-		t.Errorf("in-workspace file rejected: %v", err)
+		t.Errorf("in-repo file rejected: %v", err)
 	}
 
 	// A file outside every allowed root, reachable only via a symlink planted
-	// inside the workspace — must be rejected. t.TempDir() can live under
+	// inside the repo — must be rejected. t.TempDir() can live under
 	// /tmp (an allowed root) on Linux, so use /etc/passwd as the target.
 	const outside = "/etc/passwd"
-	link := filepath.Join(ws.RootDir, "innocent.txt")
+	link := filepath.Join(h.RootDir, "innocent.txt")
 	if err := os.Symlink(outside, link); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := validateFilePath(cfg, link); err == nil {
-		t.Error("symlink escaping the workspace root was accepted")
+		t.Error("symlink escaping the repo root was accepted")
 	}
 
 	// A direct path outside the roots is rejected too.
 	if _, err := validateFilePath(cfg, outside); err == nil {
-		t.Error("path outside workspace root was accepted")
+		t.Error("path outside repo root was accepted")
 	}
 }
 

@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/rpuneet/mycel/pkg/workspace"
+	"github.com/rpuneet/mycel/pkg/home"
 )
 
 func TestDiscoverLocalHandler(t *testing.T) {
@@ -36,7 +36,7 @@ func TestDiscoverLocalHandler(t *testing.T) {
 		t.Fatalf("status = %d, body=%s", rec.Code, rec.Body.String())
 	}
 	var response struct {
-		Candidates []workspace.Candidate `json:"candidates"`
+		Candidates []home.Candidate `json:"candidates"`
 	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
 		t.Fatalf("unmarshal: %v", err)
@@ -95,7 +95,7 @@ func TestGithubAuthSetAndDelete(t *testing.T) {
 		w.WriteHeader(http.StatusUnauthorized)
 	}))
 	defer srv.Close()
-	restore := workspace.SetGithubAPIBase(srv.URL)
+	restore := home.SetGithubAPIBase(srv.URL)
 	defer restore()
 
 	h := NewDiscoveryHandler()
@@ -137,7 +137,7 @@ func TestGithubAuthSetAndDelete(t *testing.T) {
 	if rec.Code != http.StatusNoContent {
 		t.Errorf("DELETE status = %d, want 204", rec.Code)
 	}
-	if workspace.GithubConnected() {
+	if home.GithubConnected() {
 		t.Error("should be disconnected after DELETE")
 	}
 }

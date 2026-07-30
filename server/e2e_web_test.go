@@ -20,10 +20,10 @@ import (
 	"github.com/rpuneet/mycel/pkg/cost"
 	bcdb "github.com/rpuneet/mycel/pkg/db"
 	"github.com/rpuneet/mycel/pkg/events"
+	"github.com/rpuneet/mycel/pkg/home"
 	pkgmcp "github.com/rpuneet/mycel/pkg/mcp"
 	"github.com/rpuneet/mycel/pkg/provider"
 	"github.com/rpuneet/mycel/pkg/tool"
-	"github.com/rpuneet/mycel/pkg/workspace"
 	"github.com/rpuneet/mycel/server"
 )
 
@@ -34,16 +34,16 @@ func newE2EServerWithWebUI(t *testing.T) *e2eServer {
 	t.Helper()
 
 	dir := t.TempDir()
-	// workspace.Open requires a non-empty root to be a git repo
+	// home.Open requires a non-empty root to be a git repo
 	if out, err := exec.CommandContext(context.Background(), "git", "init", dir).CombinedOutput(); err != nil { //nolint:gosec // dir is a t.TempDir(), not user input
 		t.Fatalf("git init: %v\n%s", err, out)
 	}
 	// Isolate global state under a throwaway MYCEL_HOME.
 	t.Setenv("MYCEL_HOME", t.TempDir())
 
-	ws, err := workspace.Open(dir)
+	h, err := home.Open(dir)
 	if err != nil {
-		t.Fatalf("workspace open: %v", err)
+		t.Fatalf("home open: %v", err)
 	}
 
 	// Single global database (production path).
@@ -54,14 +54,14 @@ func newE2EServerWithWebUI(t *testing.T) *e2eServer {
 	t.Cleanup(func() { _ = bcdb.CloseGlobal() })
 
 	hub := ws_hub(t)
-	mgr := agent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
+	mgr := agent.NewManagerWithRepo(h.AgentsDir(), h.RootDir)
 	_ = mgr.LoadState()
 	agentSvc := agent.NewAgentService(mgr, hub, nil)
 
 	// Source-direct cost service over the sandboxed sources.
 	costSvc := cost.NewService(provider.DefaultRegistry, cost.Options{
 		Home:      t.TempDir(),
-		AgentsDir: ws.AgentsDir(),
+		AgentsDir: h.AgentsDir(),
 	}, nil)
 
 	var mcpStore *pkgmcp.Store
@@ -89,7 +89,7 @@ func newE2EServerWithWebUI(t *testing.T) *e2eServer {
 		MCP:      mcpStore,
 		Tools:    toolStore,
 		EventLog: eventLog,
-		WS:       ws,
+		Home:     h,
 	}
 
 	// Synthetic web UI filesystem for SPA testing
@@ -100,7 +100,7 @@ func newE2EServerWithWebUI(t *testing.T) *e2eServer {
 	ts2 := httptest.NewServer(srv.Handler())
 	t.Cleanup(ts2.Close)
 
-	return &e2eServer{Server: ts2, ws: ws}
+	return &e2eServer{Server: ts2, h: h}
 }
 
 // syntheticWebUI returns an in-memory filesystem that mimics a built web UI.

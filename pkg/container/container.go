@@ -20,10 +20,10 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/rpuneet/mycel/pkg/home"
 	"github.com/rpuneet/mycel/pkg/log"
 	"github.com/rpuneet/mycel/pkg/provider"
 	"github.com/rpuneet/mycel/pkg/runtime"
-	"github.com/rpuneet/mycel/pkg/workspace"
 )
 
 // validEnvVarName matches valid POSIX environment variable names:
@@ -33,8 +33,8 @@ var validEnvVarName = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 
 // validateMount checks that a Docker mount spec (src:dst[:opts]) has a safe
 // source path. It rejects path traversal (../) and absolute paths outside
-// the workspace root. workspaceRoot must be an absolute, cleaned path.
-func validateMount(mount, workspaceRoot string) error {
+// the repo root. repoRoot must be an absolute, cleaned path.
+func validateMount(mount, repoRoot string) error {
 	parts := strings.SplitN(mount, ":", 2)
 	if len(parts) < 2 {
 		return fmt.Errorf("invalid mount format %q: expected src:dst", mount)
@@ -47,14 +47,14 @@ func validateMount(mount, workspaceRoot string) error {
 	if !filepath.IsAbs(cleaned) {
 		return fmt.Errorf("mount source %q must be an absolute path", src)
 	}
-	// Resolve symlinks to prevent bypass (e.g., workspace/escape -> /etc)
+	// Resolve symlinks to prevent bypass (e.g., repo/escape -> /etc)
 	resolved, err := filepath.EvalSymlinks(cleaned)
 	if err != nil {
 		// Path may not exist yet — fall back to cleaned path check
 		resolved = cleaned
 	}
-	if !strings.HasPrefix(resolved, workspaceRoot+string(filepath.Separator)) && resolved != workspaceRoot {
-		return fmt.Errorf("mount source %q resolves outside workspace root %q", src, workspaceRoot)
+	if !strings.HasPrefix(resolved, repoRoot+string(filepath.Separator)) && resolved != repoRoot {
+		return fmt.Errorf("mount source %q resolves outside repo root %q", src, repoRoot)
 	}
 	return nil
 }
@@ -71,8 +71,8 @@ type Config struct {
 	MemoryMB    int64
 }
 
-// ConfigFromWorkspace converts workspace DockerRuntimeConfig to container Config.
-func ConfigFromWorkspace(dcfg workspace.DockerRuntimeConfig) Config {
+// ConfigFromHome converts the global DockerRuntimeConfig to container Config.
+func ConfigFromHome(dcfg home.DockerRuntimeConfig) Config {
 	cfg := Config{
 		Image:       dcfg.Image,
 		Network:     dcfg.Network,
@@ -98,19 +98,19 @@ func ConfigFromWorkspace(dcfg workspace.DockerRuntimeConfig) Config {
 // Backend manages Docker containers as agent sessions.
 // Each container runs tmux internally for interactive session management.
 type Backend struct {
-	logCancels        map[string]context.CancelFunc
-	providerRegistry  *provider.Registry
-	prefix            string
-	workspaceHash     string
-	workspacePath     string
-	hostWorkspacePath string // host path for Docker-in-Docker mounts (from MYCEL_HOST_WORKSPACE)
-	cfg               Config
-	mu                sync.RWMutex
+	logCancels       map[string]context.CancelFunc
+	providerRegistry *provider.Registry
+	prefix           string
+	repoHash         string
+	repoPath         string
+	hostRepoPath     string // host path for Docker-in-Docker mounts (from MYCEL_HOST_WORKSPACE)
+	cfg              Config
+	mu               sync.RWMutex
 }
 
 // NewBackend creates a Docker runtime backend.
 // Returns an error if the Docker daemon is not reachable.
-func NewBackend(cfg Config, prefix, workspacePath string, registry *provider.Registry) (*Backend, error) {
+func NewBackend(cfg Config, prefix, repoPath string, registry *provider.Registry) (*Backend, error) {
 	ctx := context.Background()
 	cmd := exec.CommandContext(ctx, "docker", "info") //nolint:gosec // trusted binary
 	cmd.Stdout = io.Discard
@@ -119,28 +119,28 @@ func NewBackend(cfg Config, prefix, workspacePath string, registry *provider.Reg
 		return nil, fmt.Errorf("docker daemon not available: %w", err)
 	}
 
-	// Use host workspace path for volume mounts in Docker-in-Docker setups.
+	// Use host repo path for volume mounts in Docker-in-Docker setups.
 	// MYCEL_HOST_WORKSPACE is set by `bc up` when the daemon runs in Docker.
-	hostPath := workspacePath
+	hostPath := repoPath
 	if hp := os.Getenv("MYCEL_HOST_WORKSPACE"); hp != "" {
 		hostPath = hp
 	}
 
 	h := sha256.Sum256([]byte(hostPath))
 	return &Backend{
-		cfg:               cfg,
-		prefix:            prefix,
-		workspaceHash:     fmt.Sprintf("%x", h[:3]),
-		workspacePath:     workspacePath,
-		hostWorkspacePath: hostPath,
-		providerRegistry:  registry,
-		logCancels:        make(map[string]context.CancelFunc),
+		cfg:              cfg,
+		prefix:           prefix,
+		repoHash:         fmt.Sprintf("%x", h[:3]),
+		repoPath:         repoPath,
+		hostRepoPath:     hostPath,
+		providerRegistry: registry,
+		logCancels:       make(map[string]context.CancelFunc),
 	}, nil
 }
 
 // containerName returns the Docker container name for an agent.
 func (b *Backend) containerName(name string) string {
-	return b.prefix + b.workspaceHash + "-" + name
+	return b.prefix + b.repoHash + "-" + name
 }
 
 // validContainerAgentName is the same identifier barrier pkg/agent
@@ -155,7 +155,7 @@ func (b *Backend) agentSessionDir(agentName string) string {
 	if !validContainerAgentName.MatchString(agentName) {
 		return ""
 	}
-	dir, err := workspace.AgentSessionDir(agentName)
+	dir, err := home.AgentSessionDir(agentName)
 	if err != nil {
 		return ""
 	}
@@ -168,7 +168,7 @@ func (b *Backend) agentSessionDir(agentName string) string {
 // env var (if set) translates the container's ~/.mycel/ to the host's.
 func (b *Backend) hostSessionDir(agentName string) string {
 	sessionDir := b.agentSessionDir(agentName)
-	bcHome, err := workspace.MycelHome()
+	bcHome, err := home.MycelHome()
 	if err == nil && strings.HasPrefix(sessionDir, bcHome+string(filepath.Separator)) {
 		if hostBCHome := os.Getenv("MYCEL_HOST_HOME"); hostBCHome != "" {
 			rel := strings.TrimPrefix(sessionDir, bcHome)
@@ -183,7 +183,7 @@ func (b *Backend) hostSessionDir(agentName string) string {
 //
 // The agent's repo arrives via env["MYCEL_WORKSPACE"], which the agent
 // manager sets from Agent.Repo (mirroring worktreeManagerFor on the
-// tmux path). An empty value — or the boot workspace path itself —
+// tmux path). An empty value — or the boot repo path itself —
 // means the boot repo. Any other repo is mounted instead, so agents
 // bound to a different repo get THEIR repo at /workspace, not the
 // boot repo.
@@ -193,14 +193,14 @@ func (b *Backend) hostSessionDir(agentName string) string {
 // it lives under the mounted repo, the workdir points at it.
 func (b *Backend) resolveRepoMount(dir string, env map[string]string) (hostRepo, workdir string, err error) {
 	// Boot repo defaults. MYCEL_HOST_WORKSPACE (Docker-in-Docker) only
-	// translates the boot workspace path.
-	repoRoot := b.workspacePath
-	hostRepo = b.hostWorkspacePath
+	// translates the boot repo path.
+	repoRoot := b.repoPath
+	hostRepo = b.hostRepoPath
 	if hostRepo == "" {
-		hostRepo = b.workspacePath
+		hostRepo = b.repoPath
 	}
 
-	if agentRepo := env["MYCEL_WORKSPACE"]; agentRepo != "" && filepath.Clean(agentRepo) != filepath.Clean(b.workspacePath) {
+	if agentRepo := env["MYCEL_WORKSPACE"]; agentRepo != "" && filepath.Clean(agentRepo) != filepath.Clean(b.repoPath) {
 		// The repo value originates from the create-agent API — require
 		// an absolute, traversal-free path before it becomes a -v mount
 		// source. Like validateMount, ".." is checked on the raw value
@@ -301,7 +301,7 @@ func (b *Backend) CreateSessionWithCommand(ctx context.Context, name, dir, comma
 // CreateSessionWithEnv creates a fully isolated Docker container for an agent.
 //
 // Mounts:
-//   - agent's repo → /workspace (project code; env MYCEL_WORKSPACE, boot workspace when unset)
+//   - agent's repo → /workspace (project code; env MYCEL_WORKSPACE, boot repo when unset)
 //   - ~/.mycel/agents/<agent>/session/claude → /home/agent/.claude (persistent Claude state)
 //   - bc-shared-tmp → /tmp/bc-shared (shared volume for cross-container file exchange)
 //
@@ -314,16 +314,16 @@ func (b *Backend) CreateSessionWithEnv(ctx context.Context, name, dir, command s
 	if !validContainerAgentName.MatchString(name) {
 		return fmt.Errorf("invalid agent name %q", name)
 	}
-	// Validate workspace path — containers without a workspace mount will fail
+	// Validate repo path — containers without a repo mount will fail
 	// with "--worktree requires a git repository" inside the container.
 	if dir == "" {
-		return fmt.Errorf("workspace path is required for container %q: empty dir would leave container with no git state", name)
+		return fmt.Errorf("repo path is required for container %q: empty dir would leave container with no git state", name)
 	}
 
 	// Verify dir contains a git repository (regular .git dir or worktree .git file)
 	gitPath := filepath.Join(dir, ".git")
 	if _, err := os.Stat(gitPath); err != nil {
-		return fmt.Errorf("workspace %q is not a git repository (no .git found): %w", dir, err)
+		return fmt.Errorf("repo %q is not a git repository (no .git found): %w", dir, err)
 	}
 
 	// Resolve image once per session — avoids double docker probe
@@ -372,7 +372,7 @@ func (b *Backend) CreateSessionWithEnv(ctx context.Context, name, dir, command s
 		"run", "-d", "-t",
 		"--name", cn,
 		"--label", "bc.managed=true",
-		"--label", "bc.workspace=" + b.workspaceHash,
+		"--label", "bc.workspace=" + b.repoHash,
 		"--label", "bc.agent=" + name,
 	}
 
@@ -440,10 +440,10 @@ func (b *Backend) CreateSessionWithEnv(ctx context.Context, name, dir, command s
 	// Uses a named Docker volume so all agent containers and the Playwright container share the same data.
 	args = append(args, "-v", "bc-shared-tmp:/tmp/bc-shared")
 
-	// Extra mounts from workspace config (e.g., shared caches, tool binaries).
+	// Extra mounts from global config (e.g., shared caches, tool binaries).
 	// Validate each mount source to prevent arbitrary host filesystem access.
 	for _, mount := range b.cfg.ExtraMounts {
-		if err := validateMount(mount, b.workspacePath); err != nil {
+		if err := validateMount(mount, b.repoPath); err != nil {
 			return fmt.Errorf("extra mount rejected: %w", err)
 		}
 		args = append(args, "-v", mount)
@@ -615,12 +615,12 @@ func (b *Backend) Capture(ctx context.Context, name string, lines int) (string, 
 	return string(output), nil
 }
 
-// ListSessions lists RUNNING BC-managed containers for this workspace.
+// ListSessions lists RUNNING BC-managed containers for this daemon.
 func (b *Backend) ListSessions(ctx context.Context) ([]runtime.Session, error) {
 	//nolint:gosec // all args are trusted internal values
 	cmd := exec.CommandContext(ctx, "docker", "ps",
 		"--filter", "label=bc.managed=true",
-		"--filter", "label=bc.workspace="+b.workspaceHash,
+		"--filter", "label=bc.workspace="+b.repoHash,
 		"--filter", "status=running",
 		"--format", "{{.Names}}|{{.CreatedAt}}|{{.Status}}")
 
@@ -630,7 +630,7 @@ func (b *Backend) ListSessions(ctx context.Context) ([]runtime.Session, error) {
 	}
 
 	var sessions []runtime.Session
-	fullPrefix := b.prefix + b.workspaceHash + "-"
+	fullPrefix := b.prefix + b.repoHash + "-"
 	for _, line := range strings.Split(strings.TrimSpace(string(output)), "\n") {
 		if line == "" {
 			continue
@@ -669,12 +669,12 @@ func (b *Backend) IsRunning(ctx context.Context) bool {
 	return cmd.Run() == nil
 }
 
-// KillServer stops and removes all BC containers for this workspace.
+// KillServer stops and removes all BC containers for this daemon.
 func (b *Backend) KillServer(ctx context.Context) error {
 	//nolint:gosec // all args are trusted internal values
 	cmd := exec.CommandContext(ctx, "docker", "ps", "-aq",
 		"--filter", "label=bc.managed=true",
-		"--filter", "label=bc.workspace="+b.workspaceHash)
+		"--filter", "label=bc.workspace="+b.repoHash)
 
 	output, err := cmd.Output()
 	if err != nil {

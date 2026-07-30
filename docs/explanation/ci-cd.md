@@ -12,17 +12,17 @@ graph TD
     subgraph FAST[PR Pipeline]
         LINT[Go Lint]
         TEST[Fast Tests + Coverage]
-        TUI[TUI Build + Lint + Test]
+        WEB[Web + Landing Build + Lint + Test]
         BUILD[Build Gate]
         LINT --> BUILD
         TEST --> BUILD
-        TUI --> BUILD
+        WEB --> BUILD
     end
 
     subgraph FULL[Main Pipeline]
         F_LINT[Go Lint]
         F_TEST[Fast Tests]
-        F_TUI[TUI]
+        F_WEB[Web + Landing]
         F_BUILD[Build Gate]
         F_FULL_TEST[Full Tests - all packages]
         F_SECURITY[Security Scanning]
@@ -43,7 +43,6 @@ graph TD
 |-----|----------|------|---------------|
 | Lint | ~35s | `golangci-lint` (new issues only) | Yes |
 | Test | ~90s | Fast packages + race + 35% coverage threshold | Yes |
-| TUI | ~45s | `bun build + lint + test` | Yes |
 | Web / Landing | ~45s | `bun lint + test + build` for each | Yes |
 | Build | ~15s | `make release-local-mycel` + verify binary runs | Yes |
 | PR Quality | ~5s | Title/description/issue checks | No |
@@ -95,7 +94,7 @@ graph LR
 | Tier | Packages | When | Duration |
 |------|----------|------|----------|
 | Fast unit | All except slow | Every PR | ~90s |
-| TUI | TypeScript tests | Every PR | ~30s |
+| Web / Landing | TypeScript tests (vitest) | Every PR | ~45s |
 | Full | All packages | Main only | ~5m |
 | Security | govulncheck + gitleaks | Main only | ~3m |
 | E2E | Live agents (future) | Main only | ~10m |
@@ -130,10 +129,10 @@ graph LR
 
 | File | Trigger | Purpose |
 |------|---------|---------|
-| `ci.yml` | Push main, PRs | Core CI pipeline (lint, tests, TUI/web/landing, build; full tests + security + container scan on main) |
+| `ci.yml` | Push main, PRs | Core CI pipeline (lint, tests, web/landing, build; full tests + security + container scan on main) |
 | `pr-quality.yml` | PRs | Advisory quality checks |
 | `cd-main.yml` | Every push to main | Publish Docker `:main` images to GHCR + deploy landing (with embedded docs) to Cloudflare Pages via `wrangler` |
 | `cd-npm.yml` | After a successful Release run, or manual dispatch | Publish the npm package |
 | `release.yml` | Tag `v*` or manual dispatch | Build + publish releases (Linux GoReleaser, native macOS, Homebrew formula, SBOM) |
 | `pages.yml` | Push main (docs paths) | Build MkDocs site and deploy to GitHub Pages |
-| `security-nightly.yml` | Nightly cron (2 AM UTC) or manual | govulncheck, gitleaks, CodeQL, Trivy |
+| `security-nightly.yml` | Nightly schedule (2 AM UTC) or manual | govulncheck, gitleaks, CodeQL, Trivy |

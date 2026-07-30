@@ -8,7 +8,7 @@ Attempt to automatically repair fixable issues found by 'mycel doctor'.
 
 Fixable issues include:
   - Orphaned git worktrees
-  - Missing workspace directories
+  - Missing ~/.mycel directories
 
 Use --dry-run to preview actions without making changes.
 

@@ -85,11 +85,6 @@ unique (database primary key), so flat name-keyed directories are safe.
 Worktrees are created with `--detach`, so the agent checks out a
 detached HEAD and no branch is created for it.
 
-Agents created under the previous nested layout
-(`~/.mycel/workspaces/<id>/agents/<name>/bc-<repo>-<agent>/`) keep
-working from their stored worktree path until migrated with
-`scripts/migrate-worktree-layout.sh`.
-
 ### Flow
 
 ```mermaid
@@ -194,7 +189,7 @@ Values support `${secret:NAME}` placeholders: resolved from the secrets vault at
 
 Set a value to `${secret:MY_SECRET_NAME}` to reference a vault secret.
 At spawn, mycel resolves the reference from the layered vault
-(global `~/.mycel/secrets.vault` + workspace `.bc/secrets.db`; workspace wins).
+(global `~/.mycel/secrets.vault` + repo-scoped `<repo>/.bc/secrets.db`; the repo layer wins).
 The reference is stored verbatim — the resolved value never persists to disk.
 
 ### Cloud provider credentials (e.g. AWS Bedrock)

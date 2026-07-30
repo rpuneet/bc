@@ -8,9 +8,9 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/rpuneet/mycel/pkg/home"
 	"github.com/rpuneet/mycel/pkg/log"
 	"github.com/rpuneet/mycel/pkg/ui"
-	"github.com/rpuneet/mycel/pkg/workspace"
 )
 
 var downCmd = &cobra.Command{
@@ -36,7 +36,7 @@ func runDown(cmd *cobra.Command, _ []string) error {
 
 	// Stop local daemon if running via PID file. The daemon is
 	// user-scoped, so no repo/CWD is required.
-	pidPath, pidErr := workspace.DaemonPidPath()
+	pidPath, pidErr := home.DaemonPidPath()
 	if pidErr != nil {
 		log.Warn("failed to resolve daemon pid path", "error", pidErr)
 	}

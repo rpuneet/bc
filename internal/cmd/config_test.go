@@ -7,11 +7,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/rpuneet/mycel/pkg/workspace"
+	"github.com/rpuneet/mycel/pkg/home"
 )
 
 func TestConfigShow(t *testing.T) {
-	_ = setupTestWorkspace(t)
+	_ = setupTestHome(t)
 
 	stdout, _, err := executeIntegrationCmd("config", "show")
 	if err != nil {
@@ -32,7 +32,7 @@ func TestConfigShow(t *testing.T) {
 }
 
 func TestConfigShowSection(t *testing.T) {
-	_ = setupTestWorkspace(t)
+	_ = setupTestHome(t)
 
 	stdout, _, err := executeIntegrationCmd("config", "show", "providers")
 	if err != nil {
@@ -48,7 +48,7 @@ func TestConfigShowSection(t *testing.T) {
 }
 
 func TestConfigShowJSON(t *testing.T) {
-	_ = setupTestWorkspace(t)
+	_ = setupTestHome(t)
 
 	stdout, _, err := executeIntegrationCmd("config", "show", "providers", "--json")
 	if err != nil {
@@ -68,7 +68,7 @@ func TestConfigShowJSON(t *testing.T) {
 }
 
 func TestConfigGet(t *testing.T) {
-	_ = setupTestWorkspace(t)
+	_ = setupTestHome(t)
 
 	tests := []struct {
 		key      string
@@ -94,7 +94,7 @@ func TestConfigGet(t *testing.T) {
 }
 
 func TestConfigGetInvalidKey(t *testing.T) {
-	_ = setupTestWorkspace(t)
+	_ = setupTestHome(t)
 
 	_, _, err := executeIntegrationCmd("config", "get", "invalid.key")
 	if err == nil {
@@ -107,7 +107,7 @@ func TestConfigGetInvalidKey(t *testing.T) {
 }
 
 func TestConfigSet(t *testing.T) {
-	_ = setupTestWorkspace(t)
+	_ = setupTestHome(t)
 
 	// Set user.name (safe key that doesn't trigger provider validation issues)
 	stdout, _, err := executeIntegrationCmd("config", "set", "user.name", "newname")
@@ -132,7 +132,7 @@ func TestConfigSet(t *testing.T) {
 }
 
 func TestConfigSetInvalidValue(t *testing.T) {
-	_ = setupTestWorkspace(t)
+	_ = setupTestHome(t)
 
 	tests := []struct {
 		key   string
@@ -153,7 +153,7 @@ func TestConfigSetInvalidValue(t *testing.T) {
 }
 
 func TestConfigList(t *testing.T) {
-	_ = setupTestWorkspace(t)
+	_ = setupTestHome(t)
 
 	stdout, _, err := executeIntegrationCmd("config", "list")
 	if err != nil {
@@ -174,7 +174,7 @@ func TestConfigList(t *testing.T) {
 }
 
 func TestConfigListJSON(t *testing.T) {
-	_ = setupTestWorkspace(t)
+	_ = setupTestHome(t)
 
 	stdout, _, err := executeIntegrationCmd("config", "list", "--json")
 	if err != nil {
@@ -205,7 +205,7 @@ func TestConfigListJSON(t *testing.T) {
 }
 
 func TestConfigValidate(t *testing.T) {
-	_ = setupTestWorkspace(t)
+	_ = setupTestHome(t)
 
 	stdout, _, err := executeIntegrationCmd("config", "validate")
 	if err != nil {
@@ -218,10 +218,10 @@ func TestConfigValidate(t *testing.T) {
 }
 
 func TestConfigValidateInvalid(t *testing.T) {
-	setupTestWorkspace(t)
+	setupTestHome(t)
 
 	// Break the global config (~/.mycel/prefs.json) with an invalid version
-	prefsPath, ppErr := workspace.PrefsPath()
+	prefsPath, ppErr := home.PrefsPath()
 	if ppErr != nil {
 		t.Fatal(ppErr)
 	}

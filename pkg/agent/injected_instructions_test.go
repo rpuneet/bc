@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/rpuneet/mycel/pkg/workspace"
+	"github.com/rpuneet/mycel/pkg/home"
 )
 
 // writeEmptyPromptFile creates an empty prompt file so appendInjectedInstructions
@@ -24,7 +24,7 @@ func writeEmptyPromptFile(t *testing.T) string {
 
 func TestAppendInjectedInstructions_AppendsBlock(t *testing.T) {
 	p := writeEmptyPromptFile(t)
-	cfg := &workspace.Config{
+	cfg := &home.Config{
 		InjectedInstructions: "Always report status before and after work.",
 	}
 
@@ -64,7 +64,7 @@ func TestAppendInjectedInstructions_AppendsBlock(t *testing.T) {
 // never reach the prompt because the function only ever receives names.
 func TestAppendInjectedInstructions_NoSecretValues(t *testing.T) {
 	p := writeEmptyPromptFile(t)
-	cfg := &workspace.Config{InjectedInstructions: "Do the thing."}
+	cfg := &home.Config{InjectedInstructions: "Do the thing."}
 
 	const secretValue = "xoxb-super-secret-token-value" //nolint:gosec // fake token used to assert non-leakage
 
@@ -104,7 +104,7 @@ func TestAppendInjectedInstructions_EmptyIsNoop(t *testing.T) {
 	}
 
 	// Empty / whitespace-only instructions must not touch the file.
-	for _, cfg := range []*workspace.Config{
+	for _, cfg := range []*home.Config{
 		nil,
 		{InjectedInstructions: ""},
 		{InjectedInstructions: "   \n\t "},

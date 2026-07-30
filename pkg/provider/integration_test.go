@@ -5,8 +5,8 @@ import (
 	"testing"
 
 	"github.com/rpuneet/mycel/pkg/agent"
+	"github.com/rpuneet/mycel/pkg/home"
 	"github.com/rpuneet/mycel/pkg/provider"
-	"github.com/rpuneet/mycel/pkg/workspace"
 )
 
 // expectedProviders is the canonical list of providers that must be in DefaultRegistry.
@@ -53,9 +53,9 @@ func TestRegistryCompleteness(t *testing.T) {
 
 func TestProviderConfigRoundtrip(t *testing.T) {
 	// Build a Config with all providers enabled
-	cfg := workspace.Config{
-		Providers: workspace.ProvidersConfig{
-			Providers: map[string]workspace.ProviderConfig{
+	cfg := home.Config{
+		Providers: home.ProvidersConfig{
+			Providers: map[string]home.ProviderConfig{
 				"claude":   {Command: "claude --dangerously-skip-permissions"},
 				"agy":      {Command: "agy --dangerously-skip-permissions"},
 				"cursor":   {Command: "cursor --force"},
@@ -91,16 +91,16 @@ func TestGetAgentCommandFromConfig_RealConfigs(t *testing.T) {
 	tests := []struct {
 		name    string
 		tool    string
-		cfg     *workspace.Config
+		cfg     *home.Config
 		wantCmd string
 		wantOk  bool
 	}{
 		{
 			name: "workspace claude override",
 			tool: "claude",
-			cfg: &workspace.Config{
-				Providers: workspace.ProvidersConfig{
-					Providers: map[string]workspace.ProviderConfig{"claude": {Command: "claude --model opus"}},
+			cfg: &home.Config{
+				Providers: home.ProvidersConfig{
+					Providers: map[string]home.ProviderConfig{"claude": {Command: "claude --model opus"}},
 				},
 			},
 			wantCmd: "claude --model opus",
@@ -109,9 +109,9 @@ func TestGetAgentCommandFromConfig_RealConfigs(t *testing.T) {
 		{
 			name: "workspace agy override",
 			tool: "agy",
-			cfg: &workspace.Config{
-				Providers: workspace.ProvidersConfig{
-					Providers: map[string]workspace.ProviderConfig{"agy": {Command: "agy --sandbox"}},
+			cfg: &home.Config{
+				Providers: home.ProvidersConfig{
+					Providers: map[string]home.ProviderConfig{"agy": {Command: "agy --sandbox"}},
 				},
 			},
 			wantCmd: "agy --sandbox",
@@ -120,9 +120,9 @@ func TestGetAgentCommandFromConfig_RealConfigs(t *testing.T) {
 		{
 			name: "providers config",
 			tool: "codex",
-			cfg: &workspace.Config{
-				Providers: workspace.ProvidersConfig{
-					Providers: map[string]workspace.ProviderConfig{"codex": {Command: "codex --new-flag"}},
+			cfg: &home.Config{
+				Providers: home.ProvidersConfig{
+					Providers: map[string]home.ProviderConfig{"codex": {Command: "codex --new-flag"}},
 				},
 			},
 			wantCmd: "codex --new-flag",
@@ -159,11 +159,11 @@ func TestGetAgentCommandFromConfig_RealConfigs(t *testing.T) {
 
 func TestConfigProviderRegistrySync(t *testing.T) {
 	// Load settings.json defaults and verify they match DefaultRegistry
-	cfg := workspace.DefaultConfig()
+	cfg := home.DefaultConfig()
 
 	// Every provider in config should be in the registry
 	configProviders := []struct {
-		cfg  *workspace.ProviderConfig
+		cfg  *home.ProviderConfig
 		name string
 	}{
 		{cfg.GetProvider("claude"), "claude"},

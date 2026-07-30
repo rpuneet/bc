@@ -115,7 +115,7 @@ func TestClaudeReadMCPsFileFallback(t *testing.T) {
 	}
 }
 
-func TestClaudeReadMCPsNoWorkspace(t *testing.T) {
+func TestClaudeReadMCPsNoRepo(t *testing.T) {
 	forceCLIUnavailable(t)
 
 	got := NewClaudeProvider().ReadMCPs(context.Background(), "")

@@ -35,7 +35,7 @@ type RepoView struct {
 type ReposHandler struct {
 	svc *agent.AgentService
 	// defaultRepo is the repo bcd was booted against — new agents default
-	// their repo to it. May be empty (workspace-less boot).
+	// their repo to it. May be empty (repo-less boot).
 	defaultRepo string
 }
 

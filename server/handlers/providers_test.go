@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/rpuneet/mycel/pkg/home"
 	"github.com/rpuneet/mycel/pkg/provider"
-	"github.com/rpuneet/mycel/pkg/workspace"
 	"github.com/rpuneet/mycel/server/handlers"
 )
 
@@ -214,12 +214,12 @@ func TestProvidersModelsFetchSingleflight(t *testing.T) {
 	}
 }
 
-// newProvidersMuxWithWS builds a provider mux with a workspace attached so
-// handlers that pass the workspace root through can be verified.
-func newProvidersMuxWithWS(t *testing.T, reg *provider.Registry, ws *workspace.Workspace) http.Handler {
+// newProvidersMuxWithWS builds a provider mux with a home attached so
+// handlers that pass the repo root through can be verified.
+func newProvidersMuxWithWS(t *testing.T, reg *provider.Registry, h *home.Home) http.Handler {
 	t.Helper()
 	mux := http.NewServeMux()
-	handlers.NewProviderHandler(reg, nil, nil, ws).Register(mux)
+	handlers.NewProviderHandler(reg, nil, nil, h).Register(mux)
 	return mux
 }
 
@@ -309,7 +309,7 @@ func TestProvidersMCPsCapability(t *testing.T) {
 	stub := &stubMCPProvider{}
 	reg := provider.NewRegistry()
 	reg.Register(stub)
-	mux := newProvidersMuxWithWS(t, reg, &workspace.Workspace{RootDir: "/ws/root"})
+	mux := newProvidersMuxWithWS(t, reg, &home.Home{RootDir: "/h/root"})
 
 	req := httptest.NewRequest(http.MethodGet, "/api/providers/stub-mcp/mcps", nil)
 	rec := httptest.NewRecorder()
@@ -334,8 +334,8 @@ func TestProvidersMCPsCapability(t *testing.T) {
 	if s.Name != "bcd" || s.Transport != "sse" || s.URL != "http://localhost:9374/mcp/sse" || !s.Enabled {
 		t.Errorf("server = %+v", s)
 	}
-	if got := stub.gotRootDir.Load(); got != "/ws/root" {
-		t.Errorf("rootDir passed to ReadMCPs = %v, want /ws/root", got)
+	if got := stub.gotRootDir.Load(); got != "/h/root" {
+		t.Errorf("rootDir passed to ReadMCPs = %v, want /h/root", got)
 	}
 }
 

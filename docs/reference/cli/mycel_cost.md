@@ -16,7 +16,7 @@ Examples:
   mycel cost budget show                  # Show budget status
 
 See Also:
-  mycel home           TUI dashboard with cost overview
+  Web UI (http://localhost:9374)  Costs dashboard
   mycel status         Agent status (includes cost info)
 
 ```

@@ -26,7 +26,7 @@ type AgentState struct {
 }
 
 // ToAgent converts a legacy AgentState to the current Agent struct.
-func (s *AgentState) ToAgent(workspace string) *Agent {
+func (s *AgentState) ToAgent(repo string) *Agent {
 	return &Agent{
 		Name:        s.Name,
 		ID:          s.Name,
@@ -36,7 +36,7 @@ func (s *AgentState) ToAgent(workspace string) *Agent {
 		State:       s.State,
 		WorktreeDir: s.Worktree,
 		Session:     s.Session,
-		Workspace:   workspace,
+		Workspace:   repo,
 		StartedAt:   s.StartedAt,
 		UpdatedAt:   s.UpdatedAt,
 	}
@@ -47,7 +47,7 @@ const rootFileName = "root.json"
 // migrateJSONToSQLite migrates agent state from JSON files to SQLite.
 // It reads agents.json, root.json, and per-agent JSON files, saves each
 // to the SQLite store, then renames the processed files to .migrated.
-func migrateJSONToSQLite(store *SQLiteStore, stateDir, workspace string) error {
+func migrateJSONToSQLite(store *SQLiteStore, stateDir, repo string) error {
 	agentsDir := filepath.Join(stateDir, "agents")
 
 	migrated := false
@@ -61,7 +61,7 @@ func migrateJSONToSQLite(store *SQLiteStore, stateDir, workspace string) error {
 				a.Name = name
 				a.ID = name
 				if a.Workspace == "" {
-					a.Workspace = workspace
+					a.Workspace = repo
 				}
 				if a.Repo == "" {
 					a.Repo = cleanRepoPath(a.Workspace)
@@ -84,7 +84,7 @@ func migrateJSONToSQLite(store *SQLiteStore, stateDir, workspace string) error {
 	if data, readErr := os.ReadFile(rootFile); readErr == nil { //nolint:gosec // known path
 		var state AgentState
 		if parseErr := json.Unmarshal(data, &state); parseErr == nil {
-			a := state.ToAgent(workspace)
+			a := state.ToAgent(repo)
 			a.IsRoot = true
 			if a.Name == "" {
 				a.Name = "root"
@@ -129,7 +129,7 @@ func migrateJSONToSQLite(store *SQLiteStore, stateDir, workspace string) error {
 			// Only save if not already in DB (agents.json merge took priority)
 			existing, _ := store.Load(context.Background(), agentName)
 			if existing == nil {
-				a := state.ToAgent(workspace)
+				a := state.ToAgent(repo)
 				if err := store.Save(context.Background(), a); err != nil {
 					log.Warn("migrate: failed to save per-agent state", "agent", agentName, "error", err)
 				} else {

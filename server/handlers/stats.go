@@ -10,10 +10,10 @@ import (
 	"github.com/rpuneet/mycel/pkg/agent"
 	"github.com/rpuneet/mycel/pkg/cost"
 	"github.com/rpuneet/mycel/pkg/gateway"
+	"github.com/rpuneet/mycel/pkg/home"
 	"github.com/rpuneet/mycel/pkg/notify"
 	"github.com/rpuneet/mycel/pkg/stats"
 	"github.com/rpuneet/mycel/pkg/tool"
-	"github.com/rpuneet/mycel/pkg/workspace"
 )
 
 // systemMetrics holds platform-dependent system resource metrics.
@@ -35,7 +35,7 @@ type StatsHandler struct {
 	agents     *agent.AgentService
 	costs      *cost.Service
 	tools      *tool.Store
-	ws         *workspace.Workspace
+	h          *home.Home
 	statsStore *stats.Store
 	gw         *gateway.Manager
 	notifySvc  *notify.Service
@@ -46,14 +46,14 @@ func NewStatsHandler(
 	agents *agent.AgentService,
 	costs *cost.Service,
 	tools *tool.Store,
-	ws *workspace.Workspace,
+	h *home.Home,
 	statsStore *stats.Store,
 ) *StatsHandler {
 	return &StatsHandler{
 		agents:     agents,
 		costs:      costs,
 		tools:      tools,
-		ws:         ws,
+		h:          h,
 		statsStore: statsStore,
 	}
 }
@@ -88,8 +88,8 @@ func (h *StatsHandler) system(w http.ResponseWriter, r *http.Request) {
 	hostname, _ := os.Hostname() //nolint:errcheck // best-effort
 
 	rootDir := "/"
-	if h.ws != nil {
-		rootDir = h.ws.RootDir
+	if h.h != nil {
+		rootDir = h.h.RootDir
 	}
 
 	metrics := getSystemMetrics(r.Context(), rootDir)
@@ -152,7 +152,7 @@ func (h *StatsHandler) summary(w http.ResponseWriter, r *http.Request) {
 
 	var totalCostUSD float64
 	if h.costs != nil {
-		summary, err := h.costs.WorkspaceSummary(ctx)
+		summary, err := h.costs.TotalSummary(ctx)
 		if err != nil {
 			httpInternalError(w, "cost summary", err)
 			return
@@ -163,8 +163,8 @@ func (h *StatsHandler) summary(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var rolesTotal int
-	if h.ws != nil {
-		roles, err := h.ws.RoleManager.LoadAllRoles()
+	if h.h != nil {
+		roles, err := h.h.RoleManager.LoadAllRoles()
 		if err == nil {
 			rolesTotal = len(roles)
 		}

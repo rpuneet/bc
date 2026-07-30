@@ -34,15 +34,15 @@ type claudeHook struct {
 //
 // Uses curl to POST JSON payloads. Tool-aware hooks read stdin JSON via jq.
 // This is idempotent: if settings.json already exists the hooks section is merged.
-func WriteClaudeHookSettings(workspaceRoot string) error {
-	// workspaceRoot is derived from validated workspace/agent config, but
+func WriteClaudeHookSettings(repoRoot string) error {
+	// repoRoot is derived from validated agent config, but
 	// reject traversal segments so hook settings can never be written
 	// outside the intended directory.
-	workspaceRoot = filepath.Clean(workspaceRoot)
-	if strings.Contains(workspaceRoot, "..") {
-		return fmt.Errorf("unsafe workspace root %q", workspaceRoot)
+	repoRoot = filepath.Clean(repoRoot)
+	if strings.Contains(repoRoot, "..") {
+		return fmt.Errorf("unsafe worktree root %q", repoRoot)
 	}
-	claudeDir := filepath.Join(workspaceRoot, ".claude")
+	claudeDir := filepath.Join(repoRoot, ".claude")
 	if err := os.MkdirAll(claudeDir, 0750); err != nil {
 		return fmt.Errorf("create .claude dir: %w", err)
 	}
@@ -93,7 +93,7 @@ func WriteClaudeHookSettings(workspaceRoot string) error {
 	// key (permissions, env, model, …) untouched so only the hooks
 	// section is rewritten. Modeling just `hooks` in a struct would drop
 	// everything else on re-marshal.
-	if raw, err := os.ReadFile(settingsPath); err == nil { //nolint:gosec // workspace-relative
+	if raw, err := os.ReadFile(settingsPath); err == nil { //nolint:gosec // worktree-relative
 		var full map[string]json.RawMessage
 		if err := json.Unmarshal(raw, &full); err == nil {
 			existing := &claudeSettings{}

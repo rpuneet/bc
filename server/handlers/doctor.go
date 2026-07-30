@@ -5,17 +5,17 @@ import (
 	"strings"
 
 	"github.com/rpuneet/mycel/pkg/doctor"
-	"github.com/rpuneet/mycel/pkg/workspace"
+	"github.com/rpuneet/mycel/pkg/home"
 )
 
 // DoctorHandler handles /api/doctor routes.
 type DoctorHandler struct {
-	ws *workspace.Workspace
+	h *home.Home
 }
 
 // NewDoctorHandler creates a DoctorHandler.
-func NewDoctorHandler(ws *workspace.Workspace) *DoctorHandler {
-	return &DoctorHandler{ws: ws}
+func NewDoctorHandler(h *home.Home) *DoctorHandler {
+	return &DoctorHandler{h: h}
 }
 
 // Register mounts doctor routes on mux.
@@ -28,7 +28,7 @@ func (h *DoctorHandler) runAll(w http.ResponseWriter, r *http.Request) {
 	if !requireMethod(w, r, http.MethodGet) {
 		return
 	}
-	report := doctor.RunAll(r.Context(), h.ws)
+	report := doctor.RunAll(r.Context(), h.h)
 	writeJSON(w, http.StatusOK, report)
 }
 
@@ -41,7 +41,7 @@ func (h *DoctorHandler) byCategory(w http.ResponseWriter, r *http.Request) {
 		httpError(w, "category required", http.StatusBadRequest)
 		return
 	}
-	report := doctor.CategoryByName(r.Context(), h.ws, category)
+	report := doctor.CategoryByName(r.Context(), h.h, category)
 	if report == nil {
 		httpError(w, "unknown category", http.StatusNotFound)
 		return

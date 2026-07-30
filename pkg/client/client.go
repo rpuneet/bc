@@ -19,13 +19,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/rpuneet/mycel/pkg/home"
 	"github.com/rpuneet/mycel/pkg/log"
-	"github.com/rpuneet/mycel/pkg/workspace"
 )
 
 // DefaultSocketPath returns the default Unix socket path for bcd.
 func DefaultSocketPath() string {
-	home, err := workspace.MycelHome()
+	home, err := home.MycelHome()
 	if err != nil {
 		return "/tmp/bcd.sock"
 	}
@@ -143,7 +143,7 @@ func discoverDaemon() string {
 // errors — permission denied, corrupted file — log a warning so users
 // aren't silently routed to the hardcoded default.
 func readDaemonAddrFile() string {
-	path, err := workspace.DaemonAddrPath()
+	path, err := home.DaemonAddrPath()
 	if err != nil {
 		return ""
 	}

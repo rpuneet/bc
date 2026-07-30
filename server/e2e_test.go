@@ -20,11 +20,11 @@ import (
 	bcdb "github.com/rpuneet/mycel/pkg/db"
 
 	"github.com/rpuneet/mycel/pkg/events"
+	"github.com/rpuneet/mycel/pkg/home"
 	pkgmcp "github.com/rpuneet/mycel/pkg/mcp"
 	"github.com/rpuneet/mycel/pkg/notify"
 	"github.com/rpuneet/mycel/pkg/provider"
 	"github.com/rpuneet/mycel/pkg/tool"
-	"github.com/rpuneet/mycel/pkg/workspace"
 	"github.com/rpuneet/mycel/server"
 	"github.com/rpuneet/mycel/server/ws"
 )
@@ -34,7 +34,7 @@ import (
 // e2eServer is a fully wired bcd test server backed by real stores.
 type e2eServer struct {
 	*httptest.Server
-	ws *workspace.Workspace
+	h *home.Home
 }
 
 // newE2EServer creates a bcd server with all services wired to a
@@ -43,7 +43,7 @@ func newE2EServer(t *testing.T) *e2eServer {
 	t.Helper()
 
 	dir := t.TempDir()
-	// workspace.Open requires a non-empty root to be a git repo
+	// home.Open requires a non-empty root to be a git repo
 	if out, err := exec.CommandContext(context.Background(), "git", "init", dir).CombinedOutput(); err != nil { //nolint:gosec // dir is a t.TempDir(), not user input
 		t.Fatalf("git init: %v\n%s", err, out)
 	}
@@ -52,9 +52,9 @@ func newE2EServer(t *testing.T) *e2eServer {
 	t.Setenv("MYCEL_HOME", t.TempDir())
 
 	// Open bootstraps ~/.mycel (prefs.json with defaults, agents/, logs/).
-	ws, err := workspace.Open(dir)
+	h, err := home.Open(dir)
 	if err != nil {
-		t.Fatalf("workspace open: %v", err)
+		t.Fatalf("home open: %v", err)
 	}
 
 	// Single global database (production path).
@@ -68,14 +68,14 @@ func newE2EServer(t *testing.T) *e2eServer {
 	hub := ws_hub(t)
 
 	// Agent service (no runtime backend — just state management)
-	mgr := agent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
+	mgr := agent.NewManagerWithRepo(h.AgentsDir(), h.RootDir)
 	_ = mgr.LoadState()
 	agentSvc := agent.NewAgentService(mgr, hub, nil)
 
 	// Source-direct cost service over the sandboxed sources.
 	costSvc := cost.NewService(provider.DefaultRegistry, cost.Options{
 		Home:      t.TempDir(),
-		AgentsDir: ws.AgentsDir(),
+		AgentsDir: h.AgentsDir(),
 	}, nil)
 
 	// MCP store
@@ -113,7 +113,7 @@ func newE2EServer(t *testing.T) *e2eServer {
 		Tools:    toolStore,
 		EventLog: eventLog,
 		Notify:   notifySvc,
-		WS:       ws,
+		Home:     h,
 	}
 
 	srvCfg := server.Config{Addr: "127.0.0.1:0", CORS: true}
@@ -121,7 +121,7 @@ func newE2EServer(t *testing.T) *e2eServer {
 	ts2 := httptest.NewServer(srv.Handler())
 	t.Cleanup(ts2.Close)
 
-	return &e2eServer{Server: ts2, ws: ws}
+	return &e2eServer{Server: ts2, h: h}
 }
 
 func ws_hub(t *testing.T) *ws.Hub {
@@ -288,7 +288,7 @@ func TestE2E_Costs_Summary(t *testing.T) {
 	if code != 200 {
 		t.Fatalf("want 200, got %d", code)
 	}
-	// Empty workspace — should return valid structure with zero costs
+	// Fresh home — should return valid structure with zero costs
 	if body == nil {
 		t.Fatal("expected cost summary body")
 	}
@@ -303,7 +303,7 @@ func TestE2E_Tools_List(t *testing.T) {
 	if code != 200 {
 		t.Fatalf("want 200, got %d", code)
 	}
-	// Default workspace has provider tools registered
+	// Default install has provider tools registered
 	_ = tools // may be empty or populated depending on config
 }
 

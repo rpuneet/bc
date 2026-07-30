@@ -163,7 +163,7 @@ type jsonlUsage struct {
 }
 
 func parseSessionFile(agentName, path string) ([]Entry, error) {
-	f, err := os.Open(path) //nolint:gosec // path from workspace dir
+	f, err := os.Open(path) //nolint:gosec // path from the mycel home
 	if err != nil {
 		return nil, err
 	}

@@ -1,6 +1,6 @@
 # mycel Documentation
 
-mycel orchestrates teams of AI coding agents across your git repositories. One binary runs the CLI and the server; agents work in isolated sessions with their own git worktrees, and you steer everything from the CLI, the web UI, or the terminal UI.
+mycel orchestrates teams of AI coding agents across your git repositories. One binary runs the CLI and the server; agents work in isolated sessions with their own git worktrees, and you steer everything from the CLI, the web UI, or the desktop app.
 
 ## Start here
 
@@ -8,7 +8,7 @@ mycel orchestrates teams of AI coding agents across your git repositories. One b
 |--------------|-------|
 | Install mycel and bring the server up | [Getting started](tutorials/getting-started.md) |
 | Create and talk to my first agent | [Your first agent](tutorials/first-agent.md) |
-| Route Slack or Telegram messages to agents | [Set up notifications](how-to/set-up-notifications.md) |
+| Connect Slack, Telegram, or GitHub to agents | [Set up apps](how-to/set-up-apps.md) |
 | Understand how the pieces fit together | [Architecture](explanation/architecture.md) |
 | Fix something that broke | [Troubleshoot](how-to/troubleshoot.md) |
 
@@ -23,8 +23,8 @@ Step-by-step lessons that take you from zero to a working agent team.
 
 Focused recipes for specific tasks.
 
-- [Configure mycel](how-to/configure-workspace.md) — preferences, providers, and runtime backends
-- [Set up notifications](how-to/set-up-notifications.md) — connect platforms and subscribe agents
+- [Configure mycel](how-to/configure.md) — prefs.json, providers, and runtime backends
+- [Set up apps](how-to/set-up-apps.md) — connect platforms and subscribe agents
 - [Troubleshoot](how-to/troubleshoot.md) — common errors and their fixes
 
 ## Reference — look things up
@@ -42,8 +42,8 @@ How mycel works under the hood and why it is built this way.
 - [Architecture](explanation/architecture.md) — the server, clients, and data flow
 - [Agents](explanation/agents.md) — lifecycle, repos, worktrees, and roles
 - [Database](explanation/database.md) — the global store and cost ledger
-- [Notifications](architecture-notifications.md) — gateways, subscriptions, delivery
-- [Web UI](explanation/web-ui.md) · [Terminal UI](explanation/tui.md) · [MCP](explanation/mcp.md)
+- [Notifications](architecture-notifications.md) — apps, subscriptions, delivery
+- [Web UI](explanation/web-ui.md) · [MCP](explanation/mcp.md)
 - [Networking](explanation/networking.md) · [Security](explanation/security.md) · [Deployment](explanation/deployment.md)
 - [Design decisions](explanation/design-decisions.md) — the reasoning behind key choices
 

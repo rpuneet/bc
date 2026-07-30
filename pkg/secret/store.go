@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/rpuneet/mycel/pkg/db"
-	"github.com/rpuneet/mycel/pkg/workspace"
+	"github.com/rpuneet/mycel/pkg/home"
 )
 
 // PassphraseEnvVar is the environment variable for the master passphrase.
@@ -50,7 +50,7 @@ func Passphrase() (string, error) {
 		return p, nil
 	}
 
-	keyDir, err := workspace.MycelHome()
+	keyDir, err := home.MycelHome()
 	if err != nil {
 		return "", fmt.Errorf("cannot determine mycel home: %w", err)
 	}
@@ -82,10 +82,10 @@ func Passphrase() (string, error) {
 	return key, nil
 }
 
-// NewStore creates a new secrets store for the given workspace path.
+// NewStore creates a new secrets store for the given repo path.
 // The passphrase is used to derive the encryption key via PBKDF2.
-func NewStore(workspacePath, passphrase string) (*Store, error) {
-	dbPath := filepath.Join(workspacePath, ".bc", "secrets.db")
+func NewStore(repoPath, passphrase string) (*Store, error) {
+	dbPath := filepath.Join(repoPath, ".bc", "secrets.db")
 	d, err := db.Open(dbPath)
 	if err != nil {
 		return nil, fmt.Errorf("open secrets database: %w", err)

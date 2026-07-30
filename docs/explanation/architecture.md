@@ -15,8 +15,8 @@ mycel ships as a single binary. `mycel <verb>` subcommands are thin HTTP clients
               +-----------------+------------------+
               |                 |                   |
        +------v------+  +------v------+   +--------v-------+
-       |  mycel CLI  |  |  TUI        |   |  Web Browser   |
-       |  (Go binary)|  |  (React Ink)|   |                |
+       |  mycel CLI  |  | Web Browser |   |  Desktop app   |
+       |  (Go binary)|  | (React SPA) |   | (Wails shell)  |
        +------+------+  +------+------+   +--------+-------+
               |                 |                   |
               |  HTTP/JSON      |  HTTP/JSON        |  HTTP + SSE
@@ -39,22 +39,22 @@ mycel ships as a single binary. `mycel <verb>` subcommands are thin HTTP clients
        |  +-----v----------------v----------------v-------+  |
        |  |              Service Layer                     |  |
        |  |                                                |  |
-       |  |  AgentService       NotifyService              |  |
-       |  |  CostStore       SecretStore      EventLog     |  |
+       |  |  AgentService       NotifyService             |  |
+       |  |  CostService     SecretStore      EventLog     |  |
        |  |  RoleStore       ToolStore        MCPStore     |  |
-       |  |  WorkspaceManager                              |  |
+       |  |  GatewayManager (apps)                         |  |
        |  +-----+--------------------+--------------------+  |
        |        |                    |                        |
        |  +-----v---------+  +------v---------------------+  |
        |  | Runtime       |  | Storage                    |  |
        |  |               |  |                            |  |
-       |  | +----------+  |  | <ws>/.bc/bc.db (SQLite WAL |  |
-       |  | | tmux     |  |  |   or TimescaleDB)          |  |
-       |  | | sessions |  |  | <ws>/.bc/settings.json     |  |
-       |  | +----------+  |  | ~/.mycel/ global tree      |  |
-       |  | +----------+  |  |   (registry, secrets vault,|  |
-       |  | | Docker   |  |  |    costs.db, templates,    |  |
-       |  | |containers|  |  |    workspaces/<id>/agents) |  |
+       |  | +----------+  |  | ~/.mycel/mycel.db          |  |
+       |  | | tmux     |  |  |   (SQLite WAL or           |  |
+       |  | | sessions |  |  |    TimescaleDB)            |  |
+       |  | +----------+  |  | ~/.mycel/prefs.json        |  |
+       |  | +----------+  |  | ~/.mycel/secrets.vault     |  |
+       |  | | Docker   |  |  | ~/.mycel/agents/<name>/    |  |
+       |  | |containers|  |  |   (worktree, session, logs)|  |
        |  | +----------+  |  +----------------------------+  |
        |  +---------------+                                  |
        |                                                     |
@@ -85,10 +85,10 @@ The repo has two entry points under `cmd/`: `cmd/mycel` (the binary) and `cmd/ge
 
 ### Request Lifecycle
 
-1. **Client** (mycel CLI, Web UI, or TUI) sends an HTTP request to the server. Clients discover the address via `MYCEL_DAEMON_ADDR`, the `~/.mycel/daemon.addr` file written by `mycel up`, or the `127.0.0.1:9374` default.
+1. **Client** (mycel CLI, web UI, or desktop app) sends an HTTP request to the server. Clients discover the address via `MYCEL_DAEMON_ADDR`, the `~/.mycel/run/daemon.addr` file written by `mycel up`, or the `127.0.0.1:9374` default.
 2. **Middleware chain** processes (outermost first, from `server/server.go`): RateLimit (token bucket, 100 rps / burst 200) → APIKeyAuth (Bearer token, only when an API key is configured) → RequestID → RequestLogger → Recovery → Gzip → MaxBodySize (1 MB) → CORS → mux.
 3. **Handler** dispatches to the appropriate service method.
-4. **Service** performs business logic, interacts with runtime backends and the workspace database.
+4. **Service** performs business logic, interacts with runtime backends and the global database.
 5. **SSE Hub** broadcasts events to connected clients for real-time updates.
 6. **Response** returns JSON to the caller.
 
@@ -111,7 +111,7 @@ The REST surface is documented in the REST API reference; endpoint counts are de
      | git worktree add| | Write role     |
      | (pkg/worktree)  | | CLAUDE.md      |
      +---------+-------+ | .mcp.json      |
-               |         | settings.json  |
+               |         | hook settings  |
                |         +-------+--------+
                +---------+-------+
                          |
@@ -134,7 +134,7 @@ The REST surface is documented in the REST API reference; endpoint counts are de
 
 ### MCP Integration
 
-AI agents connect to the server via MCP (Model Context Protocol) for workspace operations:
+AI agents connect to the server via MCP (Model Context Protocol) for fleet operations:
 
 ```
 AI Agent (Claude Code)             mycel MCP Server
@@ -152,8 +152,7 @@ AI Agent (Claude Code)             mycel MCP Server
 ```
 
 HTTP transport is mounted under `/_mcp/`:
-- `/_mcp/<agent>/{sse,message}` — SSE stream plus client-request endpoint, agent identity in the path
-- `/_mcp/<wsID>/<agent>/…` — workspace-scoped form, dispatched via the WorkspaceManager
+- `/_mcp/<agent>` — streamable HTTP endpoint, agent identity in the path
 
 stdio transport is used by locally launched agent tooling.
 
@@ -164,7 +163,7 @@ stdio transport is used by locally launched agent tooling.
 `mycel` is one binary: subcommands are HTTP clients, and `mycel up` is the server. This means:
 - CLI commands start instantly (no DB connections, no state loading)
 - Multiple CLI invocations share the same server state
-- Web UI, TUI, and CLI all see the same data
+- Web UI and CLI all see the same data
 - The server maintains long-lived concerns (SSE, cost polling)
 - One artifact to build, version, and ship — the web UI is embedded in it
 
@@ -174,7 +173,7 @@ stdio transport is used by locally launched agent tooling.
 - WAL mode enables concurrent reads with a single writer
 - Local-first architecture matches the single-machine use case
 - Schema is created idempotently (`CREATE TABLE IF NOT EXISTS` per store) — no migration framework
-- For server deployments, the same stores run against TimescaleDB (Postgres 17) via `DATABASE_URL` or `storage.default` in settings.json — see `docs/explanation/database.md`
+- For server deployments, the same stores run against TimescaleDB (Postgres 17) via `DATABASE_URL` or `storage.default` in prefs.json — see `docs/explanation/database.md`
 
 ### Why tmux + Docker?
 
@@ -200,7 +199,7 @@ The React SPA is compiled and embedded in the binary via `server/web/dist/` (`//
 ### Why MCP?
 
 - Standard protocol for AI agent integration (JSON-RPC 2.0)
-- Agents can discover and call workspace tools dynamically
+- Agents can discover and call curated mycel tools dynamically
 - Curated tool subset prevents agents from performing admin operations
 - Supports both HTTP/SSE and stdio transports
 
@@ -216,9 +215,10 @@ server/
 
 pkg/ (self-contained, minimal cross-imports)
   agent/         -->  pkg/tmux/, pkg/container/, pkg/worktree/
-  notify/        -->  pkg/db/ (shared workspace DB)
-  cost/          -->  pkg/db/
-  workspace/     -->  config/
+  notify/        -->  pkg/db/ (shared global DB)
+  cost/          -->  pkg/provider/ (CostReader sources)
+  home/          -->  pkg/db/, pkg/app/
+  app/           -->  (descriptors; adapters in pkg/gateway/<name>)
   tmux/          -->  (external: tmux binary)
   container/     -->  (external: docker binary)
   worktree/      -->  (external: git binary)

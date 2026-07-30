@@ -15,12 +15,12 @@ type SQLiteLog struct {
 	db *db.DB
 }
 
-// NewSQLiteLog opens the events table on the given workspace database.
-// The handle is borrowed: callers (typically the per-workspace db
+// NewSQLiteLog opens the events table on the given database.
+// The handle is borrowed: callers (typically the global db
 // registry) own its lifecycle.
 func NewSQLiteLog(d *db.DB) (*SQLiteLog, error) {
 	if d == nil {
-		return nil, fmt.Errorf("events store requires a workspace database (nil handle)")
+		return nil, fmt.Errorf("events store requires a database (nil handle)")
 	}
 
 	schema := `
