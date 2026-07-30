@@ -124,7 +124,7 @@ function DeckPanel({
         <span className="deck-index text-5xl sm:text-6xl">{index}</span>
         <span className="deck-eyebrow pb-1">{eyebrow}</span>
       </div>
-      <h3 className="mt-6 font-headline text-3xl font-bold leading-[1.1] tracking-tight text-on-background sm:text-4xl lg:text-[2.75rem]">
+      <h3 className="mt-6 font-headline text-3xl font-semibold leading-[1.12] tracking-tight text-on-background sm:text-4xl lg:text-[2.75rem]">
         {title}
       </h3>
       <p className="mt-5 max-w-xl font-body text-[15px] leading-[1.8] text-on-surface-variant">
@@ -251,10 +251,10 @@ export default function Home() {
 
   return (
     <main className="min-h-screen overflow-x-hidden">
-      {/* Living mycelium network background — fixed, covers the page */}
+      {/* Drifting spore field — fixed, covers the page */}
       <AnimatedBackground />
       {/* Warm radial wash above the fold */}
-      <div className="pointer-events-none fixed inset-0 z-[1] bg-[radial-gradient(ellipse_80%_60%_at_50%_-20%,rgba(234,88,12,0.10),transparent)]" />
+      <div className="pointer-events-none fixed inset-0 z-[1] bg-[radial-gradient(ellipse_80%_60%_at_50%_-20%,color-mix(in_srgb,var(--primary)_10%,transparent),transparent)]" />
 
       <div className="relative z-[2]">
         <Nav />
@@ -271,7 +271,7 @@ export default function Home() {
             </FadeUp>
 
             <FadeUp delay={0.1}>
-              <h1 className="mt-6 font-headline text-4xl font-bold leading-[1.05] tracking-tight text-on-background md:text-6xl lg:text-[4.25rem]">
+              <h1 className="mt-6 font-headline text-4xl font-semibold leading-[1.08] tracking-tight text-on-background md:text-6xl lg:text-[4.25rem]">
                 Run a team of AI agents
                 <br className="hidden sm:block" />{" "}
                 like you run a{" "}
@@ -308,7 +308,7 @@ export default function Home() {
                   ))}
                 </div>
 
-                <div className="flex items-center gap-2 rounded-lg border border-outline-variant/30 bg-surface-container px-4 py-3 shadow-[0_0_60px_rgba(234,88,12,0.08),0_0_20px_rgba(234,88,12,0.04)]">
+                <div className="flex items-center gap-2 rounded-lg border border-outline-variant/30 bg-surface-container px-4 py-3 shadow-[0_0_60px_color-mix(in_srgb,var(--primary)_8%,transparent),0_0_20px_color-mix(in_srgb,var(--primary)_4%,transparent)]">
                   <span className="select-none font-label text-on-surface-variant">$</span>
                   <code className="scrollbar-none block min-w-0 flex-1 overflow-x-auto whitespace-nowrap font-label text-sm text-on-surface">
                     {installCommands[platform]}
@@ -344,11 +344,11 @@ export default function Home() {
                 </div>
                 <div className="flex flex-wrap items-center justify-center gap-2">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src="https://img.shields.io/github/stars/rpuneet/mycel?style=flat-square&color=ea580c&labelColor=1e1b18" alt="GitHub stars" className="h-5" />
+                  <img src="https://img.shields.io/github/stars/rpuneet/mycel?style=flat-square&color=a35d0a&labelColor=2a2118" alt="GitHub stars" className="h-5" />
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src="https://img.shields.io/github/license/rpuneet/mycel?style=flat-square&color=ea580c&labelColor=1e1b18" alt="License" className="h-5" />
+                  <img src="https://img.shields.io/github/license/rpuneet/mycel?style=flat-square&color=a35d0a&labelColor=2a2118" alt="License" className="h-5" />
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src="https://img.shields.io/github/last-commit/rpuneet/mycel?style=flat-square&color=ea580c&labelColor=1e1b18" alt="Last commit" className="h-5" />
+                  <img src="https://img.shields.io/github/last-commit/rpuneet/mycel?style=flat-square&color=a35d0a&labelColor=2a2118" alt="Last commit" className="h-5" />
                 </div>
               </div>
             </FadeUp>
@@ -402,7 +402,7 @@ export default function Home() {
           <div className="mx-auto max-w-7xl px-4 sm:px-6">
             <FadeUp className="mb-6 text-center">
               <span className="deck-eyebrow">What it does</span>
-              <h2 className="mx-auto mt-4 max-w-3xl font-headline text-3xl font-bold tracking-tight text-on-background md:text-5xl">
+              <h2 className="mx-auto mt-4 max-w-3xl font-headline text-3xl font-semibold tracking-tight text-on-background md:text-5xl">
                 A control plane for AI agents,
                 <br className="hidden sm:block" />{" "}
                 built for people who live in the terminal.
@@ -579,7 +579,7 @@ export default function Home() {
            ════════════════════════════════════════ */}
         <RevealSection className="py-14 sm:py-20">
           <div className="mx-auto max-w-3xl px-4 text-center sm:px-6">
-            <h2 className="font-headline text-2xl font-bold tracking-tight text-on-background md:text-4xl">
+            <h2 className="font-headline text-2xl font-semibold tracking-tight text-on-background md:text-4xl">
               Free, open source, and yours to run.
             </h2>
             <p className="mt-3 font-body text-lg text-on-surface-variant">
@@ -588,7 +588,7 @@ export default function Home() {
             <div className="mt-8 flex flex-col items-center justify-center gap-4 sm:flex-row">
               <Link
                 href="https://github.com/rpuneet/mycel"
-                className="inline-flex h-11 items-center gap-2 rounded-lg bg-primary px-8 text-sm font-semibold text-primary-foreground shadow-[var(--btn-shadow)] transition-all hover:shadow-[0_0_20px_rgba(234,88,12,0.3)] active:scale-[0.97]"
+                className="inline-flex h-11 items-center gap-2 rounded-lg bg-primary px-8 text-sm font-semibold text-primary-foreground shadow-[var(--btn-shadow)] transition-all hover:shadow-[0_0_20px_color-mix(in_srgb,var(--primary)_30%,transparent)] active:scale-[0.97]"
               >
                 <Github className="h-5 w-5" aria-hidden="true" />
                 View on GitHub

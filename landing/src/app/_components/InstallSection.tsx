@@ -106,26 +106,26 @@ function CodeBlock({ lines, id }: { lines: string[]; id: string }) {
   };
 
   return (
-    <div className="group relative rounded-lg border border-border bg-[#0d1117] p-4 pr-14 font-mono text-sm">
+    <div className="group terminal-glow relative rounded-lg border border-[var(--terminal-header-border)] bg-terminal-bg p-4 pr-14 font-mono text-sm">
       <button
         type="button"
         onClick={handleCopy}
         aria-label="Copy command"
-        className="absolute right-3 top-3 rounded-md border border-border bg-card/50 p-2 text-muted-foreground transition-colors hover:border-primary hover:text-primary"
+        className="absolute right-3 top-3 rounded-md border border-[var(--terminal-header-border)] bg-terminal-header p-2 text-terminal-muted transition-colors hover:border-terminal-prompt hover:text-terminal-prompt"
       >
         {copied ? (
-          <Check className="h-4 w-4 text-success" />
+          <Check className="h-4 w-4 text-terminal-success" />
         ) : (
           <Copy className="h-4 w-4" />
         )}
       </button>
-      <pre className="overflow-x-auto text-[13px] leading-relaxed text-[#c9d1d9]">
+      <pre className="overflow-x-auto text-[13px] leading-relaxed text-terminal-text">
         {lines.map((line, i) => (
           <div
             key={`${id}-${i}`}
-            className={`w-max min-w-full whitespace-pre ${line.startsWith("#") ? "text-[#8b949e]" : ""}`}
+            className={`w-max min-w-full whitespace-pre ${line.startsWith("#") ? "text-terminal-comment" : ""}`}
           >
-            {line.startsWith("#") ? line : <><span className="text-primary">$</span>{" "}{line}</>}
+            {line.startsWith("#") ? line : <><span className="text-terminal-prompt">$</span>{" "}{line}</>}
           </div>
         ))}
       </pre>
@@ -151,11 +151,11 @@ export function InstallSection() {
           viewport={{ once: true, margin: "-100px" }}
           transition={{ duration: 0.6 }}
         >
-          <span className="font-mono text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+          <span className="deck-eyebrow">
             Install
           </span>
           <div className="mt-3 flex flex-col items-start gap-3 sm:flex-row sm:items-end sm:justify-between">
-            <h2 className="text-3xl font-bold tracking-tight sm:text-5xl">
+            <h2 className="text-3xl font-semibold tracking-tight sm:text-5xl">
               Install in 30 seconds.
             </h2>
             <span className="inline-flex items-center gap-2 rounded-full border border-border bg-card/80 px-3 py-1 font-mono text-xs text-muted-foreground">
