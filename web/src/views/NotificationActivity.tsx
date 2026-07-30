@@ -29,7 +29,8 @@ import { LoadingSkeleton } from "../components/LoadingSkeleton";
 import { MessageContent } from "../components/MessageContent";
 import { DefaultAppIcon, PLATFORM_ICON_MAP } from "../components/notifications/PlatformIcons";
 import { channelLeaf } from "../components/notifications/NotificationsHome";
-import { agentColor, sourcePlatform } from "../components/notifications/messageUtils";
+import { sourcePlatform } from "../components/notifications/messageUtils";
+import { AgentCharacter } from "../components/agent-ui";
 import { parseActivityTs } from "../components/notifications/appStatus";
 import { formatRelative } from "../utils/time";
 
@@ -206,7 +207,6 @@ export function NotificationActivity() {
         ) : (
           <ul className="rounded-lg border border-mycel-border overflow-hidden divide-y divide-mycel-border bg-mycel-surface">
             {filtered.map((m) => {
-              const color = agentColor(m.sender);
               const sender = cleanSender(m.sender);
               return (
                 <li key={`${m.channel}:${String(m.id)}`}>
@@ -214,12 +214,8 @@ export function NotificationActivity() {
                     to={`/notifications/${m.channel}`}
                     className="flex gap-3 px-4 py-3 hover:bg-mycel-surface-hover transition-colors"
                   >
-                    <span
-                      className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold shrink-0"
-                      style={{ backgroundColor: `${color}20`, color }}
-                      aria-hidden
-                    >
-                      {sender.charAt(0).toUpperCase()}
+                    <span className="w-8 h-8 flex items-center justify-center shrink-0" aria-hidden>
+                      <AgentCharacter name={m.sender} size={28} />
                     </span>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2 min-w-0">

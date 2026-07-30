@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { StatusBadge } from "./StatusBadge";
+import { LiveAgentCharacter } from "./agent-ui";
 import type { Agent } from "../api/client";
 import { api } from "../api/client";
 import { usePolling } from "../hooks/usePolling";
@@ -104,6 +105,7 @@ export function AgentPeekPanel({ agentName, onClose }: AgentPeekPanelProps) {
       {/* Header */}
       <div className="px-4 py-2 border-b border-mycel-border bg-mycel-surface flex items-center justify-between">
         <div className="flex items-center gap-2 min-w-0">
+          <LiveAgentCharacter name={agentName} state={agent?.state ?? "idle"} size={20} />
           <span className="text-sm font-medium truncate">{agentName}</span>
           {agent && <StatusBadge status={agent.state} />}
         </div>

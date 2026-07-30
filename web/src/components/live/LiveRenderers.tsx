@@ -17,6 +17,7 @@ import {
   stateBadgeClass,
 } from "./liveHelpers";
 import { CopyButton, EventRow } from "./EventRow";
+import { LiveAgentCharacter } from "../agent-ui";
 
 // Shared row primitives live in EventRow.tsx; re-export for compatibility.
 export { CopyButton, ElapsedTimer, EventRow, RelativeTimestamp, SearchHighlight } from "./EventRow";
@@ -207,7 +208,7 @@ export function AgentDrillDown({
             </svg>
             Back
           </button>
-          <StateDot state={activity.state} />
+          <LiveAgentCharacter name={activity.name} state={activity.state} size={30} tool={activity.tool} />
           <span className="text-lg font-bold text-mycel-text">{activity.name}</span>
           {activity.role && activity.role !== "base" && (
             <span className="text-xs text-mycel-muted font-mono">({activity.role})</span>
@@ -368,7 +369,6 @@ export const AgentCard = memo(function AgentCard({
   const matchCount = searchTerm ? visibleNodes.length : 0;
   const showToolNodes = typeFilter !== "state";
 
-  const monogram = (activity.name ?? "?").charAt(0).toUpperCase();
   const cost = estimateCost(activity);
   const isIdle = activity.state === "idle" || activity.state === "stopped";
 
@@ -404,9 +404,14 @@ export const AgentCard = memo(function AgentCard({
           className="group flex-1 flex items-center gap-3 py-3 pr-4 hover:bg-mycel-surface-hover transition-colors text-left focus-visible:ring-2 focus-visible:ring-mycel-accent min-w-0 cursor-pointer"
           title={`Open ${activity.name} detail view`}
         >
-          {/* Monogram circle */}
-          <span className="inline-flex items-center justify-center h-8 w-8 rounded-full bg-mycel-accent-subtle text-mycel-accent font-bold text-sm shrink-0">
-            {monogram}
+          {/* Living character — reacts to state + event pulses */}
+          <span className="shrink-0">
+            <LiveAgentCharacter
+              name={activity.name}
+              state={activity.state}
+              size={30}
+              tool={activity.tool}
+            />
           </span>
 
           {/* Name + role + state */}

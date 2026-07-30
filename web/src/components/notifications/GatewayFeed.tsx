@@ -16,13 +16,13 @@ import {
   gatewayPlatform,
   formatRelativeTime,
   groupMessages,
-  agentColor,
   dateKey,
   formatDayLabel,
   parseGitHubCard,
   parseRSSCard,
   parseWebhookCard,
 } from "./messageUtils";
+import { AgentCharacter, LiveAgentCharacter } from "../agent-ui";
 import type { GitHubCard, RSSCard, WebhookCard } from "./messageUtils";
 
 /* ── Helpers ──────────────────────────────────────────────────── */
@@ -31,12 +31,6 @@ import type { GitHubCard, RSSCard, WebhookCard } from "./messageUtils";
 function cleanSender(sender: string): string {
   const match = sender.match(/^\[(?:telegram|slack|discord)\]\s*(.+)$/i);
   return match?.[1] ?? sender;
-}
-
-/** Get the first two letters for avatar, stripping platform prefix. */
-function senderInitials(sender: string): string {
-  const clean = cleanSender(sender);
-  return clean.slice(0, 2).toUpperCase();
 }
 
 /* ── File attachment detection ────────────────────────────────── */
@@ -853,25 +847,10 @@ export function GatewayFeed({
             }}
           >
             {subscribedAgents.length > 0 && (
-              <span className="flex">
+              <span className="flex items-center">
                 {subscribedAgents.slice(0, 3).map((a, i) => (
-                  <span
-                    key={a.name}
-                    className="flex items-center justify-center"
-                    style={{
-                      width: 14,
-                      height: 14,
-                      borderRadius: 3,
-                      background: agentColor(a.name),
-                      marginLeft: i === 0 ? 0 : -4,
-                      border: "1px solid var(--mycel-bg)",
-                      fontSize: 7.5,
-                      fontWeight: 700,
-                      color: "var(--mycel-bg)",
-                      fontFamily: "'JetBrains Mono', monospace",
-                    }}
-                  >
-                    {a.name.slice(0, 2).toUpperCase()}
+                  <span key={a.name} style={{ marginLeft: i === 0 ? 0 : -4 }}>
+                    <AgentCharacter name={a.name} state={a.state} size={16} />
                   </span>
                 ))}
               </span>
@@ -999,13 +978,10 @@ export function GatewayFeed({
                   {subscribedAgents.map((agent) => {
                     const sub = subMap.get(agent.name);
                     const isOnline = agent.state === "running" || agent.state === "working";
-                    const color = agentColor(agent.name);
                     return (
                       <motion.div key={agent.name} layout initial={{ opacity: 0, x: 8 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -8 }} transition={{ duration: 0.12 }} className="flex" style={{ gap: 10, padding: "8px 14px", cursor: "pointer" }}>
                         <div className="relative" style={{ width: 28, height: 28, minWidth: 28 }}>
-                          <span className="flex items-center justify-center" style={{ width: 28, height: 28, borderRadius: 6, background: color, color: "var(--mycel-bg)", fontWeight: 700, fontSize: 10.5, fontFamily: "'JetBrains Mono', monospace" }}>
-                            {agent.name.slice(0, 2).toUpperCase()}
-                          </span>
+                          <LiveAgentCharacter name={agent.name} state={agent.state} size={28} />
                           <span style={{ position: "absolute", bottom: -1, right: -1, width: 8, height: 8, borderRadius: 999, background: isOnline ? "var(--mycel-success)" : agent.state === "idle" ? "var(--mycel-warning)" : "var(--mycel-muted)", border: "2px solid var(--mycel-surface-2)", boxSizing: "content-box" }} />
                         </div>
                         <div className="flex-1 min-w-0">
@@ -1040,13 +1016,10 @@ export function GatewayFeed({
                   </div>
                   {availableAgents.map((agent) => {
                     const isOnline = agent.state === "running" || agent.state === "working";
-                    const color = agentColor(agent.name);
                     return (
-                      <motion.div key={agent.name} layout initial={{ opacity: 0, x: 8 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -8 }} transition={{ duration: 0.12 }} className="flex items-center hover:bg-mycel-surface-hover transition-colors" style={{ gap: 10, padding: "8px 14px", cursor: "pointer" }}>
+                      <motion.div key={agent.name} layout initial={{ opacity: 0, x: 8 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -8 }} transition={{ duration: 0.12 }} className="flex items-center hover:bg-mycel-surface-hover transition-colors" style={{ gap: 10, padding: "8px 14px", cursor: "pointer", opacity: 0.75 }}>
                         <div className="relative" style={{ width: 28, height: 28, minWidth: 28 }}>
-                          <span className="flex items-center justify-center" style={{ width: 28, height: 28, borderRadius: 6, background: `color-mix(in srgb, ${color} 25%, transparent)`, color: color, fontWeight: 700, fontSize: 10.5, fontFamily: "'JetBrains Mono', monospace" }}>
-                            {agent.name.slice(0, 2).toUpperCase()}
-                          </span>
+                          <LiveAgentCharacter name={agent.name} state={agent.state} size={28} />
                           <span style={{ position: "absolute", bottom: -1, right: -1, width: 8, height: 8, borderRadius: 999, background: isOnline ? "var(--mycel-success)" : agent.state === "idle" ? "var(--mycel-warning)" : "var(--mycel-muted)", border: "2px solid var(--mycel-surface-2)", boxSizing: "content-box" }} />
                         </div>
                         <div className="flex-1 min-w-0">
@@ -1116,11 +1089,8 @@ export function GatewayFeed({
                   fontFamily: "'JetBrains Mono', monospace",
                 }}
               >
-                <span
-                  className="flex items-center justify-center shrink-0"
-                  style={{ width: 18, height: 18, borderRadius: 4, background: agentColor(sender), color: "var(--mycel-bg)", fontWeight: 700, fontSize: 8, fontFamily: "'JetBrains Mono', monospace" }}
-                >
-                  {senderInitials(sender)}
+                <span className="flex items-center justify-center shrink-0">
+                  <AgentCharacter name={sender} size={18} />
                 </span>
                 <span className="truncate">{cleanSender(sender)}</span>
               </button>
@@ -1384,23 +1354,12 @@ export function GatewayFeed({
                   <div style={{ paddingTop: 10 }}>
                     {/* Sender line with avatar */}
                     <div className="flex" style={{ padding: "0 18px", gap: 10 }}>
-                      {/* Square avatar */}
+                      {/* Sender character */}
                       <span
                         className="flex items-center justify-center shrink-0"
-                        style={{
-                          width: 30,
-                          height: 30,
-                          minWidth: 30,
-                          borderRadius: 6,
-                          background: agentColor(group.sender),
-                          color: "var(--mycel-bg)",
-                          fontWeight: 700,
-                          fontSize: 10.5,
-                          fontFamily: "'JetBrains Mono', monospace",
-                          marginTop: 2,
-                        }}
+                        style={{ width: 30, height: 30, minWidth: 30, marginTop: 2 }}
                       >
-                        {senderInitials(group.sender)}
+                        <LiveAgentCharacter name={group.sender} size={30} />
                       </span>
                       <div className="flex-1 min-w-0">
                         {/* Name row */}
