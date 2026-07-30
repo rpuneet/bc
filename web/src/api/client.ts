@@ -904,9 +904,17 @@ export const api = {
   getNotificationsOverview: () =>
     request<NotificationsOverview>("/notifications/overview"),
 
-  getCostSummary: () => request<CostSummary>("/costs"),
-  getCostByAgent: () => request<AgentCostSummary[]>("/costs/agents"),
-  getCostByModel: () => request<ModelCostSummary[]>("/costs/models"),
+  // Cost summaries accept an optional `since` (RFC3339 or YYYY-MM-DD)
+  // to scope totals to a period; omitted = all time.
+  getCostSummary: (opts: { since?: string } = {}) =>
+    request<CostSummary>(`/costs${opts.since ? `?since=${encodeURIComponent(opts.since)}` : ""}`),
+  getCostByAgent: (opts: { since?: string; limit?: number } = {}) =>
+    request<AgentCostSummary[]>(`/costs/agents${qs({
+      ...(opts.since ? { since: opts.since } : {}),
+      ...(opts.limit ? { limit: String(opts.limit) } : {}),
+    })}`),
+  getCostByModel: (opts: { since?: string } = {}) =>
+    request<ModelCostSummary[]>(`/costs/models${qs(opts.since ? { since: opts.since } : {})}`),
   getCostDaily: (days = 14) =>
     request<DailyCost[]>(`/costs/daily?days=${days}`),
   getCostBudgets: () => request<BudgetStatus[]>("/costs/budgets"),
