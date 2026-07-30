@@ -1,5 +1,5 @@
 // Package handlers implements HTTP handlers for the bcd REST API.
-// Each handler file covers one resource (agents, channels, workspace, etc.).
+// Each handler file covers one resource (agents, channels, costs, etc.).
 package handlers
 
 import (

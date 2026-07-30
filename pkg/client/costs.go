@@ -89,8 +89,8 @@ type SetBudgetReq struct {
 	HardStop bool    `json:"hard_stop"`
 }
 
-// WorkspaceSummary returns the total cost summary for the workspace.
-func (c *CostsClient) WorkspaceSummary(ctx context.Context) (*CostSummary, error) {
+// TotalSummary returns the total cost summary for the workspace.
+func (c *CostsClient) TotalSummary(ctx context.Context) (*CostSummary, error) {
 	var s CostSummary
 	if err := c.client.get(ctx, "/api/costs", &s); err != nil {
 		return nil, err

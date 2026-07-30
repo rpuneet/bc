@@ -1,4 +1,4 @@
-// stats_collector.go — per-workspace background metric collectors.
+// stats_collector.go — background metric collectors.
 //
 // Split out of internal/cmd/serve.go in phase M2 so the factory in
 // build_services.go can start these goroutines as part of a

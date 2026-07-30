@@ -58,8 +58,8 @@ func TestSingleBundleBoot(t *testing.T) {
 	if err := json.Unmarshal(body, &repos); err != nil {
 		t.Fatalf("unmarshal /api/repos: %v (%s)", err, body)
 	}
-	if svc.WS == nil || repos.Default != svc.WS.RootDir {
-		t.Errorf("default repo = %q, want bundle root %q", repos.Default, svc.WS.RootDir)
+	if svc.Home == nil || repos.Default != svc.Home.RootDir {
+		t.Errorf("default repo = %q, want bundle root %q", repos.Default, svc.Home.RootDir)
 	}
 	found := false
 	for _, r := range repos.Repos {

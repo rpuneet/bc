@@ -1,5 +1,4 @@
-// Package workspace provides workspace/project management.
-package workspace
+package home
 
 import (
 	"encoding/json"
@@ -25,7 +24,7 @@ func PrefsPath() (string, error) {
 	return globalPath(PrefsFileName)
 }
 
-// Config represents the JSON-based workspace configuration for bc.
+// Config represents the JSON-based global mycel configuration (~/.mycel/prefs.json).
 type Config struct { //nolint:govet // field order matches JSON/API contract
 	User      UserConfig      `json:"user"`
 	Providers ProvidersConfig `json:"providers"`
@@ -122,7 +121,7 @@ type TimescaleStorageConfig struct {
 	Port     int    `json:"port"`
 }
 
-// DBStorageSettings converts the workspace storage config into the
+// DBStorageSettings converts the storage config into the
 // pkg/db settings shape consumed by the global connection. Returns nil
 // for a nil config so callers can pass it straight to db.Global.
 func (c *Config) DBStorageSettings() *db.StorageSettings {
@@ -155,7 +154,7 @@ type UIConfig struct {
 	DefaultView string `json:"default_view"`
 }
 
-// DefaultConfig returns sensible defaults for a new workspace.
+// DefaultConfig returns sensible defaults for a fresh mycel home.
 func DefaultConfig() Config {
 	return Config{
 		Version: ConfigVersion,

@@ -19,7 +19,7 @@ const (
 	ToolTypeProvider = "provider" // AI provider (claude, agy, cursor)
 )
 
-// Tool represents a configured tool in the workspace (CLI, MCP server, or AI provider).
+// Tool represents a configured tool (CLI, MCP server, or AI provider).
 type Tool struct {
 	CreatedAt    time.Time         `json:"created_at"`
 	Config       map[string]any    `json:"config,omitempty"`
@@ -128,8 +128,8 @@ type Store struct {
 	driver string         // "sqlite" or "timescale"
 }
 
-// NewStore creates a new tool store on the given workspace database. The
-// handle is borrowed: callers (typically the per-workspace db registry)
+// NewStore creates a new tool store on the given database. The
+// handle is borrowed: callers (typically the global db registry)
 // own its lifecycle. Call Open to initialize the schema and seed
 // built-in tools.
 func NewStore(d *db.DB, driver string) *Store {
@@ -140,7 +140,7 @@ func NewStore(d *db.DB, driver string) *Store {
 // Returns an error if the store was constructed without a database.
 func (s *Store) Open() error {
 	if s.db == nil {
-		return fmt.Errorf("tool store requires a workspace database (nil handle)")
+		return fmt.Errorf("tool store requires a database (nil handle)")
 	}
 
 	if s.driver == "timescale" {
@@ -163,7 +163,7 @@ func (s *Store) Open() error {
 	return nil
 }
 
-// Close is a no-op — the workspace DB is owned by the caller.
+// Close is a no-op — the global DB is owned by the caller.
 func (s *Store) Close() error {
 	if s.pg != nil {
 		return s.pg.Close()

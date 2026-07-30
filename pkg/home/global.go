@@ -1,4 +1,4 @@
-package workspace
+package home
 
 // global.go — path helpers for the entity-scoped ~/.mycel tree.
 //

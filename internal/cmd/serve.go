@@ -13,12 +13,12 @@ import (
 
 	bcdb "github.com/rpuneet/mycel/pkg/db"
 	bcdeps "github.com/rpuneet/mycel/pkg/deps"
+	"github.com/rpuneet/mycel/pkg/home"
 	"github.com/rpuneet/mycel/pkg/log"
 	bcmcp "github.com/rpuneet/mycel/pkg/mcp"
 	bcsecret "github.com/rpuneet/mycel/pkg/secret"
 	bcstats "github.com/rpuneet/mycel/pkg/stats"
 	bctemplate "github.com/rpuneet/mycel/pkg/template"
-	bcworkspace "github.com/rpuneet/mycel/pkg/workspace"
 	"github.com/rpuneet/mycel/server"
 	bcws "github.com/rpuneet/mycel/server/ws"
 )
@@ -28,33 +28,33 @@ import (
 // Services bundle via server.BuildServices, wires handlers, and blocks
 // until the context is canceled or a signal is received.
 //
-// wsRoot is the repo the daemon anchors on — new agents default their
+// repoRoot is the repo the daemon anchors on — new agents default their
 // repo to it. It may be empty: the server then boots against MycelHome
 // only (web UI + global APIs; no agent runtime until a repo exists).
-// A non-empty wsRoot that isn't initialized yet is bootstrapped in place
-// via workspace.Init — there is no separate init step.
-func RunServer(addr, wsRoot, corsOrigin, apiKey string) error {
+// A non-empty repoRoot that isn't initialized yet is bootstrapped in place
+// via home.Init — there is no separate init step.
+func RunServer(addr, repoRoot, corsOrigin, apiKey string) error {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
-	return RunServerCtx(ctx, addr, wsRoot, corsOrigin, apiKey)
+	return RunServerCtx(ctx, addr, repoRoot, corsOrigin, apiKey)
 }
 
 // RunServerCtx is RunServer with a caller-controlled lifetime: the server
 // runs until ctx is canceled, then shuts down gracefully (services close,
 // PID file removed). Used by embedders that own the process lifecycle —
 // e.g. the desktop app, which cancels ctx when the window closes.
-func RunServerCtx(ctx context.Context, addr, wsRoot, corsOrigin, apiKey string) error {
+func RunServerCtx(ctx context.Context, addr, repoRoot, corsOrigin, apiKey string) error {
 	// Normalize addr: ":8080" → "127.0.0.1:8080"
 	addr = normalizeAddr(addr)
 
-	// Bootstrap-or-load the global mycel state. wsRoot may be empty —
+	// Bootstrap-or-load the global mycel state. repoRoot may be empty —
 	// the daemon then boots without an anchor repo; agents carry their
 	// own repo paths and repos can be added later via the UI/API.
-	ws, err := bcworkspace.Open(wsRoot)
+	h, err := home.Open(repoRoot)
 	if err != nil {
 		return fmt.Errorf("bootstrap mycel: %w", err)
 	}
-	if ws.RootDir == "" {
+	if h.RootDir == "" {
 		log.Info("no anchor repo — agents must name their own repo (add repos via the web UI)")
 	}
 
@@ -63,18 +63,18 @@ func RunServerCtx(ctx context.Context, addr, wsRoot, corsOrigin, apiKey string) 
 	// surface at boot, and close it at shutdown.
 	defer bcdb.CloseGlobal() //nolint:errcheck
 	{
-		if _, driver, dbErr := bcdb.Global(ws.Config.DBStorageSettings()); dbErr != nil {
+		if _, driver, dbErr := bcdb.Global(h.Config.DBStorageSettings()); dbErr != nil {
 			log.Warn("failed to open global db", "error", dbErr)
 		} else {
 			configDriver := ""
-			if ws.Config != nil {
-				configDriver = ws.Config.Storage.Default
+			if h.Config != nil {
+				configDriver = h.Config.Storage.Default
 			}
 			log.Info("global database ready", "driver", driver, "config_driver", configDriver)
 		}
 	}
 
-	pidPath, pidErr := bcworkspace.DaemonPidPath()
+	pidPath, pidErr := home.DaemonPidPath()
 	if pidErr != nil {
 		log.Warn("failed to resolve daemon pid path", "error", pidErr)
 	} else if err := writePID(pidPath); err != nil {
@@ -92,7 +92,7 @@ func RunServerCtx(ctx context.Context, addr, wsRoot, corsOrigin, apiKey string) 
 	go globalHub.Run()
 	defer globalHub.Stop()
 
-	// Global stats store — TimescaleDB connection shared across workspaces.
+	// Global stats store — TimescaleDB connection shared across repos.
 	var statsStore *bcstats.Store
 	{
 		dsn := bcstats.StatsDSN()
@@ -107,18 +107,18 @@ func RunServerCtx(ctx context.Context, addr, wsRoot, corsOrigin, apiKey string) 
 
 	// Optional dependencies registry (bc-db, bc-code-server, bc-browser).
 	depsRegistry := bcdeps.NewRegistry()
-	bcCodeServer := bcdeps.NewBCCodeServer(ws.RootDir)
+	bcCodeServer := bcdeps.NewBCCodeServer(h.RootDir)
 	depsRegistry.Register(bcdeps.NewBCDB())
 	depsRegistry.Register(bcCodeServer)
 	depsRegistry.Register(bcdeps.NewBCBrowser())
 
 	// User-global template store at ~/.mycel/templates/. Seeded on first run;
-	// each workspace wraps this store with its own override directory.
+	// callers may wrap this store with an override directory.
 	var templatesStore *bctemplate.Store
-	if globalTmplDir, gtErr := bcworkspace.GlobalTemplatesDir(); gtErr != nil {
+	if globalTmplDir, gtErr := home.GlobalTemplatesDir(); gtErr != nil {
 		log.Warn("global templates dir unavailable", "error", gtErr)
 	} else {
-		if _, ensureErr := bcworkspace.EnsureGlobalDir(); ensureErr != nil {
+		if _, ensureErr := home.EnsureGlobalDir(); ensureErr != nil {
 			log.Warn("ensure global bc dir", "error", ensureErr)
 		}
 		if seedErr := bctemplate.SeedDefaults(globalTmplDir); seedErr != nil {
@@ -128,9 +128,9 @@ func RunServerCtx(ctx context.Context, addr, wsRoot, corsOrigin, apiKey string) 
 	}
 
 	// User-global secrets vault at ~/.mycel/secrets.vault. A single vault
-	// keeps ANTHROPIC_API_KEY and friends visible across every workspace.
+	// keeps ANTHROPIC_API_KEY and friends visible to every agent.
 	var globalVault *bcsecret.Store
-	if vaultPath, vpErr := bcworkspace.GlobalSecretsVault(); vpErr != nil {
+	if vaultPath, vpErr := home.GlobalSecretsVault(); vpErr != nil {
 		log.Warn("global secrets vault path unavailable", "error", vpErr)
 	} else if passphrase, passErr := bcsecret.Passphrase(); passErr != nil {
 		log.Warn("secret passphrase unavailable — global vault disabled", "error", passErr)
@@ -141,11 +141,11 @@ func RunServerCtx(ctx context.Context, addr, wsRoot, corsOrigin, apiKey string) 
 		defer gv.Close() //nolint:errcheck // best-effort
 	}
 
-	// User-global MCP registry at ~/.mycel/mcps.json. Workspaces still have
+	// User-global MCP registry at ~/.mycel/mcps.json. The DB layer still has
 	// their own SQLite-backed overrides; handlers and agent spawn logic
 	// compose the two at resolve time.
 	var mcpGlobal *bcmcp.GlobalStore
-	if mcpPath, mpErr := bcworkspace.GlobalMCPConfig(); mpErr != nil {
+	if mcpPath, mpErr := home.GlobalMCPConfig(); mpErr != nil {
 		log.Warn("global mcp config path unavailable", "error", mpErr)
 	} else {
 		mcpGlobal = bcmcp.NewGlobalStore(mcpPath)
@@ -167,12 +167,12 @@ func RunServerCtx(ctx context.Context, addr, wsRoot, corsOrigin, apiKey string) 
 	// Build the single service bundle. A repo-less boot still gets the
 	// full bundle — agents carry their own repo paths; the anchor repo
 	// is only the default for new agents.
-	built, buildErr := server.BuildServices(ctx, globals, ws.RootDir)
+	built, buildErr := server.BuildServices(ctx, globals, h.RootDir)
 	if buildErr != nil {
 		return fmt.Errorf("build services: %w", buildErr)
 	}
 	defer built.Close() //nolint:errcheck // best-effort
-	bcCodeServer.SetWorkspaceRoot(ws.RootDir)
+	bcCodeServer.SetRepoRoot(h.RootDir)
 	svc := *built
 
 	cfg := server.DefaultConfig()
@@ -191,7 +191,7 @@ func RunServerCtx(ctx context.Context, addr, wsRoot, corsOrigin, apiKey string) 
 	}
 
 	// Rewrite agent hook settings to point at the actual bcd address.
-	updateAgentHookPorts(ws, cfg.Addr)
+	updateAgentHookPorts(h, cfg.Addr)
 
 	srv := server.New(cfg, svc, globalHub, server.WebDist())
 	return srv.Start(ctx)
@@ -200,9 +200,9 @@ func RunServerCtx(ctx context.Context, addr, wsRoot, corsOrigin, apiKey string) 
 // updateAgentHookPorts rewrites agent hook settings to use the current bcd address.
 // This is necessary because existing tmux sessions don't inherit the MYCEL_DAEMON_ADDR
 // environment variable that is set in the bcd process env.
-func updateAgentHookPorts(ws *bcworkspace.Workspace, listenAddr string) {
+func updateAgentHookPorts(h *home.Home, listenAddr string) {
 	bcdURL := "http://" + listenAddr
-	agentsDir := filepath.Join(ws.StateDir(), "agents")
+	agentsDir := filepath.Join(h.StateDir(), "agents")
 	entries, err := os.ReadDir(agentsDir)
 	if err != nil {
 		return

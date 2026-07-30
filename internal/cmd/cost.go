@@ -198,7 +198,7 @@ func runCostShow(cmd *cobra.Command, args []string) error {
 		return runCostShowJSON(cmd, c, agentID)
 	}
 
-	// For table output, use the agent or workspace summary
+	// For table output, use the agent or total summary
 	if agentID != "" {
 		return runCostShowAgent(cmd, c, agentID)
 	}
@@ -235,7 +235,7 @@ func runCostShowJSON(cmd *cobra.Command, c *client.Client, agentID string) error
 		byModel[s.Model] = s.TotalCostUSD
 	}
 
-	ws, err := c.Costs.WorkspaceSummary(cmd.Context())
+	h, err := c.Costs.TotalSummary(cmd.Context())
 	if err != nil {
 		return fmt.Errorf("failed to get cost summary: %w", err)
 	}
@@ -244,9 +244,9 @@ func runCostShowJSON(cmd *cobra.Command, c *client.Client, agentID string) error
 		ByAgent:           byAgent,
 		ByTeam:            byTeam,
 		ByModel:           byModel,
-		TotalInputTokens:  ws.InputTokens,
-		TotalOutputTokens: ws.OutputTokens,
-		TotalCost:         ws.TotalCostUSD,
+		TotalInputTokens:  h.InputTokens,
+		TotalOutputTokens: h.OutputTokens,
+		TotalCost:         h.TotalCostUSD,
 	}
 
 	// Enrich with ccusage data (graceful — nil if unavailable)

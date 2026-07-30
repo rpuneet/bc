@@ -483,7 +483,7 @@ func TestCostBudgetShowNoBudgets(t *testing.T) {
 	resetBudgetFlags()
 	defer resetBudgetFlags()
 
-	// No budget configured for the workspace scope: the daemon answers
+	// No budget configured for the "workspace" scope: the daemon answers
 	// 404 and the CLI surfaces it.
 	_, _, err := executeIntegrationCmd("cost", "budget", "show")
 	if err == nil {
@@ -514,7 +514,7 @@ func TestCostBudgetShowWorkspace(t *testing.T) {
 		t.Errorf("expected budget amount in show output: %s", stdout)
 	}
 	if !strings.Contains(stdout, "workspace") {
-		t.Errorf("expected workspace scope in show output: %s", stdout)
+		t.Errorf("expected the workspace scope label in show output: %s", stdout)
 	}
 }
 

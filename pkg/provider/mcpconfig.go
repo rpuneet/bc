@@ -20,7 +20,7 @@ type mcpJSONEntry struct {
 // yield an empty, non-nil slice — MCP listing is best-effort and must
 // never fail a caller.
 func readMCPJSONFile(path string) []MCPServerInfo {
-	data, err := os.ReadFile(path) //nolint:gosec // path is derived from the workspace root, not user input
+	data, err := os.ReadFile(path) //nolint:gosec // path is derived from the repo root, not user input
 	if err != nil {
 		return []MCPServerInfo{}
 	}

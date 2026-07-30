@@ -10,7 +10,7 @@ import (
 	"strings"
 )
 
-// Provider represents an AI agent provider that can run in a bc workspace.
+// Provider represents an AI agent provider that can run under mycel.
 type Provider interface {
 	// Name returns the provider's unique identifier (e.g., "claude", "cursor")
 	Name() string

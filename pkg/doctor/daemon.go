@@ -48,7 +48,7 @@ func CheckDaemonAt(ctx context.Context, baseURL string) CategoryReport {
 	}
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		// Daemon down is not a workspace-health failure — skip gracefully.
+		// Daemon down is not a health failure — skip gracefully.
 		cat.Items = append(cat.Items, Item{
 			Name:     "daemon",
 			Message:  fmt.Sprintf("not reachable at %s — degraded-service check skipped", baseURL),

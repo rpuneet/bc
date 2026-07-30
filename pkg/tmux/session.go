@@ -9,7 +9,7 @@
 //
 // Create a session manager:
 //
-//	mgr := tmux.NewWorkspaceManager("bc-", "/path/to/workspace")
+//	mgr := tmux.NewManagerWithRepo("bc-", "/path/to/repo")
 //
 // Create a session:
 //
@@ -25,10 +25,10 @@
 //
 // # Session Naming
 //
-// Sessions are prefixed and optionally include a workspace hash for isolation:
+// Sessions are prefixed and optionally include a repo hash for isolation:
 //
-//	// With workspace hash: bc-a1b2c3-eng-01
-//	mgr := tmux.NewWorkspaceManager("bc-", "/path/to/workspace")
+//	// With repo hash: bc-a1b2c3-eng-01
+//	mgr := tmux.NewManagerWithRepo("bc-", "/path/to/repo")
 //
 //	// Without hash: bc-eng-01
 //	mgr := tmux.NewManager("bc-")
@@ -88,7 +88,7 @@ type Manager struct {
 	sessionLocks    map[string]*sync.Mutex
 	hasSessionCache map[string]bool // Cached session existence checks
 	SessionPrefix   string          // Prepended to all session names (e.g., "mycel-")
-	workspaceHash   string          // Included in session names for workspace isolation
+	repoHash        string          // Included in session names for repo isolation
 	sessionsCache   []Session       // Cached list of sessions
 	cacheTTL        time.Duration   // Cache TTL (default: 2 seconds)
 	cacheMu         sync.RWMutex    // Protects cache fields
@@ -139,13 +139,13 @@ func NewManager(prefix string) *Manager {
 	}
 }
 
-// NewWorkspaceManager creates a tmux manager scoped to a workspace.
-// Session names include a short hash of the workspace path for isolation.
-func NewWorkspaceManager(prefix, workspacePath string) *Manager {
-	h := sha256.Sum256([]byte(workspacePath))
+// NewManagerWithRepo creates a tmux manager scoped to a repo.
+// Session names include a short hash of the repo path for isolation.
+func NewManagerWithRepo(prefix, repoPath string) *Manager {
+	h := sha256.Sum256([]byte(repoPath))
 	return &Manager{
 		SessionPrefix:   prefix,
-		workspaceHash:   fmt.Sprintf("%x", h[:3]),
+		repoHash:        fmt.Sprintf("%x", h[:3]),
 		execCommand:     exec.Command,
 		hasSessionCache: make(map[string]bool),
 		cacheTTL:        DefaultCacheTTL,
@@ -169,10 +169,10 @@ func (m *Manager) WithExecCommand(fn func(string, ...string) *exec.Cmd) *Manager
 	return m
 }
 
-// SessionName returns the full session name with prefix (and workspace hash if set).
+// SessionName returns the full session name with prefix (and repo hash if set).
 func (m *Manager) SessionName(name string) string {
-	if m.workspaceHash != "" {
-		return m.SessionPrefix + m.workspaceHash + "-" + name
+	if m.repoHash != "" {
+		return m.SessionPrefix + m.repoHash + "-" + name
 	}
 	return m.SessionPrefix + name
 }
@@ -485,8 +485,8 @@ func (m *Manager) ListSessions(ctx context.Context) ([]Session, error) {
 
 	// Build the full prefix once — it doesn't depend on the current line.
 	fullPrefix := m.SessionPrefix
-	if m.workspaceHash != "" {
-		fullPrefix = m.SessionPrefix + m.workspaceHash + "-"
+	if m.repoHash != "" {
+		fullPrefix = m.SessionPrefix + m.repoHash + "-"
 	}
 
 	var sessions []Session

@@ -17,40 +17,40 @@ import (
 	"github.com/rpuneet/mycel/pkg/agent"
 	"github.com/rpuneet/mycel/pkg/client"
 	"github.com/rpuneet/mycel/pkg/container"
+	"github.com/rpuneet/mycel/pkg/home"
 	"github.com/rpuneet/mycel/pkg/log"
 	"github.com/rpuneet/mycel/pkg/provider"
 	"github.com/rpuneet/mycel/pkg/ui"
-	"github.com/rpuneet/mycel/pkg/workspace"
 )
 
 // newAgentManager creates an agent manager with the appropriate runtime backend.
-// Uses workspace config to determine the default backend. Both tmux and docker
+// Uses global config to determine the default backend. Both tmux and docker
 // backends are always available so agents can use either runtime.
-func newAgentManager(ws *workspace.Workspace) *agent.Manager {
+func newAgentManager(h *home.Home) *agent.Manager {
 	backend := ""
-	if ws.Config != nil {
-		backend = ws.Config.Runtime.Default
+	if h.Config != nil {
+		backend = h.Config.Runtime.Default
 	}
 
 	var mgr *agent.Manager
 	if backend == "docker" {
-		var wsCfg workspace.DockerRuntimeConfig
-		if ws.Config != nil {
-			wsCfg = ws.Config.Runtime.Docker
+		var homeCfg home.DockerRuntimeConfig
+		if h.Config != nil {
+			homeCfg = h.Config.Runtime.Docker
 		}
-		dockerCfg := container.ConfigFromWorkspace(wsCfg)
-		be, err := container.NewBackend(dockerCfg, agent.DefaultSessionPrefix, ws.RootDir, provider.DefaultRegistry)
+		dockerCfg := container.ConfigFromHome(homeCfg)
+		be, err := container.NewBackend(dockerCfg, agent.DefaultSessionPrefix, h.RootDir, provider.DefaultRegistry)
 		if err != nil {
 			log.Warn("Docker unavailable, falling back to tmux", "error", err)
 		} else {
-			mgr = agent.NewWorkspaceManagerWithRuntime(ws.AgentsDir(), ws.RootDir, be, "docker")
+			mgr = agent.NewManagerWithRuntime(h.AgentsDir(), h.RootDir, be, "docker")
 		}
 	}
 	if mgr == nil {
-		mgr = agent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
+		mgr = agent.NewManagerWithRepo(h.AgentsDir(), h.RootDir)
 	}
-	if ws.Config != nil {
-		mgr.ApplyWorkspaceConfig(ws.Config)
+	if h.Config != nil {
+		mgr.ApplyConfig(h.Config)
 	}
 	return mgr
 }
@@ -598,12 +598,12 @@ func runAgentList(cmd *cobra.Command, args []string) error {
 func runAgentAttach(cmd *cobra.Command, args []string) error {
 	agentName := args[0]
 
-	ws, err := getRepo()
+	h, err := getRepo()
 	if err != nil {
 		return errNoRepo(err)
 	}
 
-	mgr := newAgentManager(ws)
+	mgr := newAgentManager(h)
 	if loadErr := mgr.LoadState(); loadErr != nil {
 		log.Warn("failed to load agent state", "error", loadErr)
 	}
@@ -621,12 +621,12 @@ func runAgentPeek(cmd *cobra.Command, args []string) error {
 
 	// --follow mode: keep local tmux access
 	if agentPeekFollow {
-		ws, err := getRepo()
+		h, err := getRepo()
 		if err != nil {
 			return errNoRepo(err)
 		}
 
-		mgr := newAgentManager(ws)
+		mgr := newAgentManager(h)
 		if loadErr := mgr.LoadState(); loadErr != nil {
 			log.Warn("failed to load agent state", "error", loadErr)
 		}
@@ -879,9 +879,9 @@ func runAgentDelete(cmd *cobra.Command, args []string) error {
 
 	// Purge memory directory if requested (local file operation)
 	if agentDeletePurge {
-		ws, wsErr := getRepo()
-		if wsErr == nil {
-			memDir := filepath.Join(ws.StateDir(), "memory", agentName)
+		h, homeErr := getRepo()
+		if homeErr == nil {
+			memDir := filepath.Join(h.StateDir(), "memory", agentName)
 			if purgeErr := os.RemoveAll(memDir); purgeErr != nil {
 				fmt.Printf("Warning: failed to purge memory directory: %v\n", purgeErr)
 			} else {

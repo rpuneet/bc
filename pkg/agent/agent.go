@@ -8,7 +8,7 @@
 //
 // Create an agent manager:
 //
-//	mgr := agent.NewWorkspaceManager(".bc/agents", "/path/to/workspace")
+//	mgr := agent.NewManagerWithRepo(".bc/agents", "/path/to/repo")
 //	if err := mgr.LoadState(); err != nil {
 //	    log.Warn("failed to load state", "error", err)
 //	}
@@ -72,13 +72,13 @@ import (
 	_ "github.com/rpuneet/mycel/pkg/app/builtin"
 	"github.com/rpuneet/mycel/pkg/container"
 	"github.com/rpuneet/mycel/pkg/db"
+	"github.com/rpuneet/mycel/pkg/home"
 	"github.com/rpuneet/mycel/pkg/log"
 	"github.com/rpuneet/mycel/pkg/names"
 	"github.com/rpuneet/mycel/pkg/provider"
 	"github.com/rpuneet/mycel/pkg/runtime"
 	"github.com/rpuneet/mycel/pkg/secret"
 	"github.com/rpuneet/mycel/pkg/tmux"
-	"github.com/rpuneet/mycel/pkg/workspace"
 	"github.com/rpuneet/mycel/pkg/worktree"
 )
 
@@ -134,7 +134,7 @@ type Role string
 
 const (
 	// RoleRoot is the only hardcoded role - a singleton root agent.
-	// All other roles are defined in workspace .bc/roles/*.md files.
+	// All other roles are defined in repo .bc/roles/*.md files.
 	RoleRoot Role = "root"
 )
 
@@ -166,7 +166,7 @@ const (
 	PermViewLogs     Permission = "can_view_logs"     // Can view agent logs/output
 
 	// Configuration permissions
-	PermModifyConfig Permission = "can_modify_config" // Can modify workspace config
+	PermModifyConfig Permission = "can_modify_config" // Can modify global config
 	PermModifyRoles  Permission = "can_modify_roles"  // Can edit role definitions
 
 	// Channel permissions
@@ -237,14 +237,14 @@ func HasPermissionStr(permissions []string, required string) bool {
 
 // RoleCapabilities and RoleHierarchy are empty here.
 // All role definitions (capabilities, hierarchy, metadata) are loaded from
-// workspace .bc/roles/*.md files via RoleManager.
+// repo .bc/roles/*.md files via RoleManager.
 // Only the root role has hardcoded capabilities.
 var RoleCapabilities = map[Role][]Capability{
 	RoleRoot: {CapCreateAgents, CapAssignWork, CapCreateEpics, CapReviewWork}, // Root can do everything
 }
 
 var RoleHierarchy = map[Role][]Role{
-	// Root can create any role defined in workspace (checked at runtime)
+	// Root can create any role defined in roles (checked at runtime)
 	RoleRoot: {}, // Empty - all roles allowed, checked dynamically
 }
 
@@ -428,7 +428,7 @@ func (a *Agent) Level() int {
 func LoadRoleMemory(_ string, role Role) *AgentMemory {
 	// Load role via a RoleManager backed by the single global database —
 	// roles are global, not per-repo state.
-	rm, err := workspace.NewGlobalRoleManager(mycelHomeOrEmpty())
+	rm, err := home.NewGlobalRoleManager(mycelHomeOrEmpty())
 	if err != nil {
 		log.Debug("failed to open global role store", "role", role, "error", err)
 		return nil
@@ -473,8 +473,8 @@ type Manager struct { //nolint:govet // field order is intentional for readabili
 	// toolHealthCancel stops the background tool health check loop.
 	toolHealthCancel context.CancelFunc
 
-	// roleManager validates role existence (shared with workspace)
-	roleManager *workspace.RoleManager
+	// roleManager validates role existence (shared with the home)
+	roleManager *home.RoleManager
 
 	defaultBackend string // "tmux" or "docker"
 	stateDir       string
@@ -485,8 +485,8 @@ type Manager struct { //nolint:govet // field order is intentional for readabili
 	// defaultTool is the provider name for the default agentCmd (for BuildCommand)
 	defaultTool string
 
-	// Workspace path for env vars
-	workspacePath string
+	// Repo path for env vars
+	repoPath string
 
 	// BootstrapDelay is the time to wait before sending bootstrap prompts.
 	// If zero, DefaultBootstrapDelay is used.
@@ -496,20 +496,20 @@ type Manager struct { //nolint:govet // field order is intentional for readabili
 	// drive credential env-var injection and prompt documentation.
 	appsConfig map[string]app.InstanceConfig
 
-	// wsConfig points at the live workspace config so spawn paths can read
+	// wsConfig points at the live global config so spawn paths can read
 	// mycel-authored injected instructions. It is the same pointer the
 	// settings API mutates in place, so edits take effect on the next spawn.
-	wsConfig *workspace.Config
+	wsConfig *home.Config
 
-	// providersConfig holds the workspace's provider command overrides
+	// providersConfig holds the global provider command overrides
 	// (prefs.json `providers.<tool>.command`). Used by
 	// getAgentCommand to layer a user-supplied command on top of the
 	// provider's hardcoded BuildCommand — e.g. so `pi` can be pointed
-	// at AWS Bedrock via workspace config.
-	providersConfig *workspace.ProvidersConfig
+	// at AWS Bedrock via global config.
+	providersConfig *home.ProvidersConfig
 
 	// maxLogBytes is the maximum log file size before truncation.
-	// Defaults to DefaultMaxLogBytes; overridden by ApplyWorkspaceConfig.
+	// Defaults to DefaultMaxLogBytes; overridden by ApplyConfig.
 	maxLogBytes int64
 
 	mu           sync.RWMutex // protects maps (agents, agentLocks) only
@@ -525,13 +525,13 @@ func (m *Manager) SetOnStateChange(fn func(name string, state State, task string
 }
 
 // SetRoleManager sets the role manager used for role validation.
-func (m *Manager) SetRoleManager(rm *workspace.RoleManager) {
+func (m *Manager) SetRoleManager(rm *home.RoleManager) {
 	m.roleManager = rm
 }
 
-// ApplyWorkspaceConfig applies workspace-level configuration overrides to the manager.
-// This should be called after creating a manager to pick up workspace-specific settings.
-func (m *Manager) ApplyWorkspaceConfig(cfg *workspace.Config) {
+// ApplyConfig applies global configuration overrides to the manager.
+// This should be called after creating a manager to pick up global settings.
+func (m *Manager) ApplyConfig(cfg *home.Config) {
 	if cfg == nil {
 		return
 	}
@@ -616,7 +616,7 @@ func normalizeRuntime(rt string) string {
 	}
 }
 
-// NewManager creates a new agent manager with workspace-scoped tmux sessions.
+// NewManager creates a new agent manager with repo-scoped tmux sessions.
 func NewManager(stateDir string) *Manager {
 	cmd, tool := defaultAgentCmd()
 	tmuxBe := runtime.NewTmuxBackend(tmux.NewManager(DefaultSessionPrefix))
@@ -633,14 +633,14 @@ func NewManager(stateDir string) *Manager {
 	}
 }
 
-// NewWorkspaceManager creates an agent manager.
+// NewManagerWithRepo creates an agent manager.
 //
 // stateDir is the agent entity root (~/.mycel/agents): each agent owns
 // <stateDir>/<name>/ with worktree/, session/, logs/ and tmp/ inside.
-// workspacePath is the anchor repo new agents default to (may be "").
-func NewWorkspaceManager(stateDir, workspacePath string) *Manager {
+// repoPath is the anchor repo new agents default to (may be "").
+func NewManagerWithRepo(stateDir, repoPath string) *Manager {
 	cmd, tool := defaultAgentCmd()
-	tmuxBe := runtime.NewTmuxBackend(tmux.NewWorkspaceManager(DefaultSessionPrefix, workspacePath))
+	tmuxBe := runtime.NewTmuxBackend(tmux.NewManagerWithRepo(DefaultSessionPrefix, repoPath))
 	return &Manager{
 		agents:           make(map[string]*Agent),
 		agentLocks:       make(map[string]*sync.Mutex),
@@ -650,20 +650,20 @@ func NewWorkspaceManager(stateDir, workspacePath string) *Manager {
 		stateDir:         stateDir,
 		agentCmd:         cmd,
 		defaultTool:      tool,
-		workspacePath:    workspacePath,
+		repoPath:         repoPath,
 		maxLogBytes:      DefaultMaxLogBytes,
-		worktreeMgr:      entityWorktreeManager(workspacePath, stateDir),
+		worktreeMgr:      entityWorktreeManager(repoPath, stateDir),
 	}
 }
 
-// NewWorkspaceManagerWithRuntime creates an agent manager with a specific runtime backend.
+// NewManagerWithRuntime creates an agent manager with a specific runtime backend.
 // rtName should be "docker" or "tmux".
-func NewWorkspaceManagerWithRuntime(stateDir, workspacePath string, rt runtime.Backend, rtName string) *Manager {
+func NewManagerWithRuntime(stateDir, repoPath string, rt runtime.Backend, rtName string) *Manager {
 	cmd, tool := defaultAgentCmd()
 	bes := map[string]runtime.Backend{rtName: rt}
 	// Always register a tmux backend so agents with RuntimeBackend="tmux" work
 	if rtName != "tmux" {
-		bes["tmux"] = runtime.NewTmuxBackend(tmux.NewWorkspaceManager(DefaultSessionPrefix, workspacePath))
+		bes["tmux"] = runtime.NewTmuxBackend(tmux.NewManagerWithRepo(DefaultSessionPrefix, repoPath))
 	}
 	return &Manager{
 		agents:           make(map[string]*Agent),
@@ -674,9 +674,9 @@ func NewWorkspaceManagerWithRuntime(stateDir, workspacePath string, rt runtime.B
 		stateDir:         stateDir,
 		agentCmd:         cmd,
 		defaultTool:      tool,
-		workspacePath:    workspacePath,
+		repoPath:         repoPath,
 		maxLogBytes:      DefaultMaxLogBytes,
-		worktreeMgr:      entityWorktreeManager(workspacePath, stateDir),
+		worktreeMgr:      entityWorktreeManager(repoPath, stateDir),
 	}
 }
 
@@ -686,7 +686,7 @@ func NewWorkspaceManagerWithRuntime(stateDir, workspacePath string, rt runtime.B
 // ~/.mycel/agents; when empty it is resolved from the mycel home.
 func entityWorktreeManager(repoRoot, agentsRoot string) *worktree.Manager {
 	if agentsRoot == "" {
-		if dir, err := workspace.AgentsDir(); err == nil {
+		if dir, err := home.AgentsDir(); err == nil {
 			agentsRoot = dir
 		} else {
 			log.Warn("cannot resolve mycel agents dir", "error", err)
@@ -701,7 +701,7 @@ func (m *Manager) agentsRoot() string {
 	if m.stateDir != "" {
 		return m.stateDir
 	}
-	if dir, err := workspace.AgentsDir(); err == nil {
+	if dir, err := home.AgentsDir(); err == nil {
 		return dir
 	}
 	return ""
@@ -714,10 +714,10 @@ func (m *Manager) agentsRoot() string {
 // from the repo it is bound to — not from the boot repo.
 //
 // A repo that is not a git repository falls back to the shared manager:
-// older agent rows may carry stale/synthetic workspace values, and the
+// older agent rows may carry stale/synthetic repo values, and the
 // boot repo is the only safe source for them.
 func (m *Manager) worktreeManagerFor(repo string) *worktree.Manager {
-	if repo == "" || filepath.Clean(repo) == filepath.Clean(m.workspacePath) {
+	if repo == "" || filepath.Clean(repo) == filepath.Clean(m.repoPath) {
 		return m.worktreeMgr
 	}
 	// The repo value arrives from the create-agent API — clean it and
@@ -770,9 +770,9 @@ func storedWorktreeExists(worktreeDir string, wtMgr *worktree.Manager, name stri
 
 // mycelHomeOrEmpty resolves the mycel home directory, returning ""
 // when it cannot be determined. Used by package-level helpers that do
-// not have access to a *Workspace.
+// not have access to a *Home.
 func mycelHomeOrEmpty() string {
-	home, err := workspace.MycelHome()
+	home, err := home.MycelHome()
 	if err != nil {
 		log.Warn("cannot resolve mycel home", "error", err)
 		return ""
@@ -794,17 +794,17 @@ func defaultAgentCmd() (string, string) {
 }
 
 // getAgentCommand looks up the command for a tool from the manager's
-// provider registry, layering a workspace-level override on top when
-// the workspace's prefs.json defines one. The override path is
+// provider registry, layering a global override on top when
+// prefs.json defines one. The override path is
 // what makes a user able to spawn pi against AWS Bedrock by writing:
 //
 //	providers:
 //	  pi:
 //	    command: pi --provider amazon-bedrock --model anthropic.claude-…
 //
-// Resolution order: workspace ProvidersConfig command (if non-empty)
+// Resolution order: global ProvidersConfig command (if non-empty)
 // → provider's own BuildCommand. Session flags from the provider
-// (--continue / --session) are appended even when the workspace
+// (--continue / --session) are appended even when the global config
 // overrides the base command so resume still works.
 // SessionID takes priority over the resume flag when non-empty.
 func (m *Manager) getAgentCommand(toolName, agentName string, resume bool, sessionID, model string) (string, bool) {
@@ -821,7 +821,7 @@ func (m *Manager) getAgentCommand(toolName, agentName string, resume bool, sessi
 		SessionID: sessionID,
 		Model:     model,
 	}
-	// Apply workspace-level command override when present. We rebuild
+	// Apply global command override when present. We rebuild
 	// the session flags via the provider so we don't lose --continue
 	// or --session "<id>" handling.
 	if m.providersConfig != nil {
@@ -834,7 +834,7 @@ func (m *Manager) getAgentCommand(toolName, agentName string, resume bool, sessi
 
 // appendSessionFlags adds the same --continue / --session / --model
 // flags the provider's BuildCommand would, but to an arbitrary base
-// command. We keep the logic in one place so workspace overrides
+// command. We keep the logic in one place so config overrides
 // cooperate with resume and model selection cleanly. Both values land
 // in a `bash -c` line, where quoting alone can't stop `$()` expansion —
 // unsafe values are dropped. The model flag is a generic --model here
@@ -949,12 +949,12 @@ func GetAgentCommand(toolName string) (string, bool) {
 }
 
 // GetAgentCommandFromConfig returns the command for a tool name,
-// checking workspace ProvidersConfig first, then falling back to global config.
-// This enables per-workspace tool customization.
-func GetAgentCommandFromConfig(toolName string, wsCfg *workspace.Config) (string, bool) {
-	// Check workspace ProvidersConfig first
-	if wsCfg != nil {
-		if p := wsCfg.GetProvider(toolName); p != nil && p.Command != "" {
+// checking the global ProvidersConfig first, then falling back to global config.
+// This enables per-provider tool customization.
+func GetAgentCommandFromConfig(toolName string, homeCfg *home.Config) (string, bool) {
+	// Check the global ProvidersConfig first
+	if homeCfg != nil {
+		if p := homeCfg.GetProvider(toolName); p != nil && p.Command != "" {
 			return p.Command, true
 		}
 	}
@@ -991,20 +991,20 @@ type SpawnOptions struct {
 
 // SpawnAgent creates and starts a new agent.
 // Idempotent: if the agent already exists and its tmux session is alive, reuse it.
-func (m *Manager) SpawnAgent(ctx context.Context, name string, role Role, workspace string) (*Agent, error) {
-	return m.SpawnAgentWithOptions(ctx, SpawnOptions{Name: name, Role: role, Workspace: workspace})
+func (m *Manager) SpawnAgent(ctx context.Context, name string, role Role, repo string) (*Agent, error) {
+	return m.SpawnAgentWithOptions(ctx, SpawnOptions{Name: name, Role: role, Workspace: repo})
 }
 
 // SpawnAgentWithTool creates and starts a new agent with a specific tool.
 // If tool is empty, uses the manager's default agent command.
-func (m *Manager) SpawnAgentWithTool(ctx context.Context, name string, role Role, workspace string, tool string) (*Agent, error) {
-	return m.SpawnAgentWithOptions(ctx, SpawnOptions{Name: name, Role: role, Workspace: workspace, Tool: tool})
+func (m *Manager) SpawnAgentWithTool(ctx context.Context, name string, role Role, repo string, tool string) (*Agent, error) {
+	return m.SpawnAgentWithOptions(ctx, SpawnOptions{Name: name, Role: role, Workspace: repo, Tool: tool})
 }
 
 // SpawnAgentWithParent creates and starts a new agent with a parent relationship.
 // Idempotent: if the agent already exists and its tmux session is alive, reuse it.
-func (m *Manager) SpawnAgentWithParent(ctx context.Context, name string, role Role, workspace string, parentID string) (*Agent, error) {
-	return m.SpawnAgentWithOptions(ctx, SpawnOptions{Name: name, Role: role, Workspace: workspace, ParentID: parentID})
+func (m *Manager) SpawnAgentWithParent(ctx context.Context, name string, role Role, repo string, parentID string) (*Agent, error) {
+	return m.SpawnAgentWithOptions(ctx, SpawnOptions{Name: name, Role: role, Workspace: repo, ParentID: parentID})
 }
 
 // SpawnAgentWithOptions creates and starts a new agent with all options.
@@ -1013,7 +1013,7 @@ func (m *Manager) SpawnAgentWithParent(ctx context.Context, name string, role Ro
 func (m *Manager) SpawnAgentWithOptions(ctx context.Context, opts SpawnOptions) (*Agent, error) {
 	name := opts.Name
 	role := opts.Role
-	wsPath := opts.Workspace
+	repoPath := opts.Workspace
 	parentID := opts.ParentID
 
 	m.mu.Lock()
@@ -1043,7 +1043,7 @@ func (m *Manager) SpawnAgentWithOptions(ctx context.Context, opts SpawnOptions) 
 		opts.Name = name
 	}
 
-	log.Debug("spawning agent", "name", name, "role", role, "workspace", wsPath, "parentID", parentID, "tool", opts.Tool)
+	log.Debug("spawning agent", "name", name, "role", role, "repo", repoPath, "parentID", parentID, "tool", opts.Tool)
 
 	// Validate agent name format
 	if !IsValidAgentName(name) {
@@ -1058,7 +1058,7 @@ func (m *Manager) SpawnAgentWithOptions(ctx context.Context, opts SpawnOptions) 
 	}
 
 	// Validate role exists. Skip validation if no role manager is available
-	// (e.g., standalone agent manager without workspace). Built-in roles
+	// (e.g., standalone agent manager without a home). Built-in roles
 	// like "root" are always valid.
 	if role != RoleRoot && m.roleManager != nil {
 		if !m.roleManager.HasRole(string(role)) {
@@ -1069,7 +1069,7 @@ func (m *Manager) SpawnAgentWithOptions(ctx context.Context, opts SpawnOptions) 
 
 	// Enforce root singleton constraint
 	if role == RoleRoot {
-		if err := m.enforceRootSingleton(wsPath); err != nil {
+		if err := m.enforceRootSingleton(repoPath); err != nil {
 			m.mu.Unlock()
 			return nil, err
 		}
@@ -1133,11 +1133,11 @@ func (m *Manager) startAgent(ctx context.Context, name string, opts SpawnOptions
 	// Restarts happen in the repo the agent is bound to, never the
 	// caller's boot repo — opts.Workspace only fills in when the row
 	// has no repo recorded.
-	wsPath := existing.Repo
-	if wsPath == "" {
-		wsPath = opts.Workspace
+	repoPath := existing.Repo
+	if repoPath == "" {
+		repoPath = opts.Workspace
 	}
-	wtMgr := m.worktreeManagerFor(wsPath)
+	wtMgr := m.worktreeManagerFor(repoPath)
 
 	if opts.Runtime != "" {
 		existing.RuntimeBackend = normalizeRuntime(opts.Runtime)
@@ -1220,7 +1220,7 @@ func (m *Manager) startAgent(ctx context.Context, name string, opts SpawnOptions
 	env := map[string]string{
 		"MYCEL_AGENT_ID":      name,
 		"MYCEL_AGENT_ROLE":    string(existing.Role),
-		"MYCEL_WORKSPACE":     wsPath,
+		"MYCEL_WORKSPACE":     repoPath,
 		"MYCEL_AGENT_RUNTIME": agentRuntime,
 		"MYCEL_DAEMON_ADDR":   daemonAddrForRuntime(agentRuntime),
 		"MYCEL_WORKTREE_NAME": worktreeName,
@@ -1236,9 +1236,9 @@ func (m *Manager) startAgent(ctx context.Context, name string, opts SpawnOptions
 	if apiKey := os.Getenv("MYCEL_API_KEY"); apiKey != "" {
 		env["MYCEL_API_KEY"] = apiKey
 	}
-	injectEnv(env, wsPath, name, existing.EnvFile, existing.Env)
+	injectEnv(env, repoPath, name, existing.EnvFile, existing.Env)
 	injectAppEnv(env, m.appsConfig)
-	secretEnvKeys := injectVaultSecrets(env, wsPath, resolveRoleSecrets(wsPath, string(existing.Role)), m.appsConfig)
+	secretEnvKeys := injectVaultSecrets(env, repoPath, resolveRoleSecrets(repoPath, string(existing.Role)), m.appsConfig)
 
 	rt := m.runtimeForAgent(name)
 	m.mu.Unlock()
@@ -1299,12 +1299,12 @@ func (m *Manager) startAgent(ctx context.Context, name string, opts SpawnOptions
 	if err := m.writeActivityConfig(toolName, wtDir, name); err != nil {
 		log.Error("failed to write hook settings", "dir", wtDir, "error", err)
 	}
-	if setupErr := SetupAgentFromRoleWithRuntime(ctx, wsPath, name, string(existing.Role), wtDir, agentRuntime, existing.Tool); setupErr != nil {
+	if setupErr := SetupAgentFromRoleWithRuntime(ctx, repoPath, name, string(existing.Role), wtDir, agentRuntime, existing.Tool); setupErr != nil {
 		log.Warn("role setup failed on restart", "agent", name, "error", setupErr)
 	}
 	appendAppPrompt(wtDir, existing.Tool, m.appsConfig)
 	if err := appendInjectedInstructions(ctx, injectedPromptFile(wtDir, existing.Tool), m.wsConfig,
-		resolveRoleMCPServers(wsPath, string(existing.Role)), secretEnvKeys); err != nil {
+		resolveRoleMCPServers(repoPath, string(existing.Role)), secretEnvKeys); err != nil {
 		log.Warn("failed to append injected instructions", "agent", name, "error", err)
 	}
 
@@ -1320,7 +1320,7 @@ func (m *Manager) startAgent(ctx context.Context, name string, opts SpawnOptions
 			log.Warn("failed to resume pipe-pane", "agent", name, "error", pipeErr)
 		}
 	} else {
-		existing.LogFile = m.setupLogPipe(ctx, name, wsPath)
+		existing.LogFile = m.setupLogPipe(ctx, name, repoPath)
 	}
 
 	if existing.State == StateStopped || existing.State == StateError {
@@ -1350,11 +1350,11 @@ func (m *Manager) startAgent(ctx context.Context, name string, opts SpawnOptions
 func (m *Manager) createAgent(ctx context.Context, opts SpawnOptions) (*Agent, error) {
 	name := opts.Name
 	role := opts.Role
-	wsPath := opts.Workspace
+	repoPath := opts.Workspace
 	parentID := opts.ParentID
 	tool := opts.Tool
 	// Worktrees come from the repo the agent is bound to, not the boot repo.
-	wtMgr := m.worktreeManagerFor(wsPath)
+	wtMgr := m.worktreeManagerFor(repoPath)
 
 	// Phase 1: global lock — build command config, register agent in map
 	m.mu.Lock()
@@ -1440,8 +1440,8 @@ func (m *Manager) createAgent(ctx context.Context, opts SpawnOptions) (*Agent, e
 		Name:           name,
 		Role:           role,
 		State:          StateStarting,
-		Workspace:      wsPath,
-		Repo:           cleanRepoPath(wsPath),
+		Workspace:      repoPath,
+		Repo:           cleanRepoPath(repoPath),
 		Session:        name,
 		Tool:           effectiveTool,
 		Model:          opts.Model,
@@ -1464,7 +1464,7 @@ func (m *Manager) createAgent(ctx context.Context, opts SpawnOptions) (*Agent, e
 	env := map[string]string{
 		"MYCEL_AGENT_ID":      name,
 		"MYCEL_AGENT_ROLE":    string(role),
-		"MYCEL_WORKSPACE":     wsPath,
+		"MYCEL_WORKSPACE":     repoPath,
 		"MYCEL_AGENT_RUNTIME": agentRuntime,
 		"MYCEL_DAEMON_ADDR":   daemonAddrForRuntime(agentRuntime),
 		"MYCEL_WORKTREE_NAME": name,
@@ -1480,9 +1480,9 @@ func (m *Manager) createAgent(ctx context.Context, opts SpawnOptions) (*Agent, e
 	if apiKey := os.Getenv("MYCEL_API_KEY"); apiKey != "" {
 		env["MYCEL_API_KEY"] = apiKey
 	}
-	injectEnv(env, wsPath, name, opts.EnvFile, opts.Env)
+	injectEnv(env, repoPath, name, opts.EnvFile, opts.Env)
 	injectAppEnv(env, m.appsConfig)
-	secretEnvKeys := injectVaultSecrets(env, wsPath, resolveRoleSecrets(wsPath, string(role)), m.appsConfig)
+	secretEnvKeys := injectVaultSecrets(env, repoPath, resolveRoleSecrets(repoPath, string(role)), m.appsConfig)
 
 	rt := m.runtimeForAgent(name)
 	m.mu.Unlock()
@@ -1519,7 +1519,7 @@ func (m *Manager) createAgent(ctx context.Context, opts SpawnOptions) (*Agent, e
 	}
 
 	// Write role files (prompt, MCP, rules, etc.) to the worktree using provider adapter
-	if setupErr := SetupAgentFromRoleWithRuntime(ctx, wsPath, name, string(role), wtDir, agentRuntime, effectiveTool); setupErr != nil {
+	if setupErr := SetupAgentFromRoleWithRuntime(ctx, repoPath, name, string(role), wtDir, agentRuntime, effectiveTool); setupErr != nil {
 		log.Warn("role setup failed", "agent", name, "error", setupErr)
 		agent.Task = fmt.Sprintf("role setup failed: %v", setupErr)
 	}
@@ -1527,12 +1527,12 @@ func (m *Manager) createAgent(ctx context.Context, opts SpawnOptions) (*Agent, e
 	// Append platform credential instructions to the agent's prompt file
 	appendAppPrompt(wtDir, effectiveTool, m.appsConfig)
 	if err := appendInjectedInstructions(ctx, injectedPromptFile(wtDir, effectiveTool), m.wsConfig,
-		resolveRoleMCPServers(wsPath, string(role)), secretEnvKeys); err != nil {
+		resolveRoleMCPServers(repoPath, string(role)), secretEnvKeys); err != nil {
 		log.Warn("failed to append injected instructions", "agent", name, "error", err)
 	}
 
 	// Validate required tools before starting — fail fast with clear errors.
-	if toolErrs := validateAgentTools(wsPath, string(role)); len(toolErrs) > 0 {
+	if toolErrs := validateAgentTools(repoPath, string(role)); len(toolErrs) > 0 {
 		for _, te := range toolErrs {
 			log.Warn("tool validation failed", "agent", name, "error", te)
 		}
@@ -1548,7 +1548,7 @@ func (m *Manager) createAgent(ctx context.Context, opts SpawnOptions) (*Agent, e
 	}
 
 	// Start log streaming via pipe-pane
-	agent.LogFile = m.setupLogPipe(ctx, name, wsPath)
+	agent.LogFile = m.setupLogPipe(ctx, name, repoPath)
 
 	// Update state
 	agent.State = StateIdle
@@ -1617,7 +1617,7 @@ func truncateLogFile(path string, maxBytes int64) {
 	}
 	// Defense in depth: log paths are built from validated agent names,
 	// but reject traversal segments so this can never touch files
-	// outside the workspace log directory.
+	// outside the agent log directory.
 	path = filepath.Clean(path)
 	if strings.Contains(path, "..") {
 		log.Warn("refusing to truncate log with traversal path", "path", path)
@@ -1629,7 +1629,7 @@ func truncateLogFile(path string, maxBytes int64) {
 		return
 	}
 
-	data, err := os.ReadFile(path) //nolint:gosec // path constructed from trusted workspace root
+	data, err := os.ReadFile(path) //nolint:gosec // path constructed from trusted repo root
 	if err != nil {
 		log.Warn("failed to read log for truncation", "path", path, "error", err)
 		return
@@ -1645,21 +1645,21 @@ func truncateLogFile(path string, maxBytes int64) {
 		half++ // skip the newline
 	}
 
-	if err := os.WriteFile(path, data[half:], 0600); err != nil { //nolint:gosec // path constructed from trusted workspace root
+	if err := os.WriteFile(path, data[half:], 0600); err != nil { //nolint:gosec // path constructed from trusted repo root
 		log.Warn("failed to truncate log", "path", path, "error", err)
 	}
 }
 
 // SpawnChildAgent creates a child agent under a parent agent.
 // Validates that the parent has permission to create the child role.
-func (m *Manager) SpawnChildAgent(ctx context.Context, parentID, childName string, childRole Role, workspace string) (*Agent, error) {
-	return m.SpawnAgentWithOptions(ctx, SpawnOptions{Name: childName, Role: childRole, Workspace: workspace, ParentID: parentID})
+func (m *Manager) SpawnChildAgent(ctx context.Context, parentID, childName string, childRole Role, repo string) (*Agent, error) {
+	return m.SpawnAgentWithOptions(ctx, SpawnOptions{Name: childName, Role: childRole, Workspace: repo, ParentID: parentID})
 }
 
 // SpawnChildAgentWithTool creates a child agent under a parent agent with a specific tool.
 // Validates that the parent has permission to create the child role.
-func (m *Manager) SpawnChildAgentWithTool(ctx context.Context, parentID, childName string, childRole Role, workspace, tool string) (*Agent, error) {
-	return m.SpawnAgentWithOptions(ctx, SpawnOptions{Name: childName, Role: childRole, Workspace: workspace, ParentID: parentID, Tool: tool})
+func (m *Manager) SpawnChildAgentWithTool(ctx context.Context, parentID, childName string, childRole Role, repo, tool string) (*Agent, error) {
+	return m.SpawnAgentWithOptions(ctx, SpawnOptions{Name: childName, Role: childRole, Workspace: repo, ParentID: parentID, Tool: tool})
 }
 
 // removeFromParent removes an agent from its parent's children list.
@@ -1943,7 +1943,7 @@ type DeleteOptions struct {
 	Force bool
 }
 
-// DeleteAgent permanently removes an agent from the workspace.
+// DeleteAgent permanently removes an agent from the fleet.
 func (m *Manager) DeleteAgent(ctx context.Context, name string) error {
 	return m.DeleteAgentWithOptions(ctx, name, DeleteOptions{})
 }
@@ -2106,10 +2106,10 @@ func (m *Manager) RenameAgent(ctx context.Context, oldName, newName string) erro
 
 	// Snapshot and sanitize the paths the rename moves — never let a
 	// traversal sequence reach the os.Rename/os.MkdirAll calls below.
-	wsPath := filepath.Clean(m.workspacePath)
+	repoPath := filepath.Clean(m.repoPath)
 	agentsRoot := filepath.Clean(m.agentsRoot())
-	if strings.Contains(wsPath, "..") || strings.Contains(agentsRoot, "..") {
-		return fmt.Errorf("rename: unsafe workspace paths")
+	if strings.Contains(repoPath, "..") || strings.Contains(agentsRoot, "..") {
+		return fmt.Errorf("rename: unsafe repo paths")
 	}
 	oldEntityDir := filepath.Join(agentsRoot, oldName)
 	newEntityDir := filepath.Join(agentsRoot, newName)
@@ -2156,7 +2156,7 @@ func (m *Manager) RenameAgent(ctx context.Context, oldName, newName string) erro
 		if agentRuntime == "" {
 			agentRuntime = "tmux"
 		}
-		if setupErr := SetupAgentFromRoleWithRuntime(ctx, wsPath, newName, string(agent.Role), newWorktreeDir, agentRuntime, agent.Tool); setupErr != nil {
+		if setupErr := SetupAgentFromRoleWithRuntime(ctx, repoPath, newName, string(agent.Role), newWorktreeDir, agentRuntime, agent.Tool); setupErr != nil {
 			log.Warn("rename: failed to regenerate role files", "agent", newName, "error", setupErr)
 		}
 	}
@@ -2770,7 +2770,7 @@ func (m *Manager) LoadState() error {
 	// Auto-migrate JSON files if they exist
 	if needsMigration(m.stateDir) {
 		log.Info("migrating agent state from JSON to SQLite")
-		if migErr := migrateJSONToSQLite(store, m.stateDir, m.workspacePath); migErr != nil {
+		if migErr := migrateJSONToSQLite(store, m.stateDir, m.repoPath); migErr != nil {
 			log.Warn("migration had errors", "error", migErr)
 		}
 	}
@@ -2852,9 +2852,9 @@ func (m *Manager) Close() error {
 	return nil
 }
 
-// WorkspacePath returns the workspace root path for this manager.
-func (m *Manager) WorkspacePath() string {
-	return m.workspacePath
+// RepoPath returns the repo root path for this manager.
+func (m *Manager) RepoPath() string {
+	return m.repoPath
 }
 
 // WorktreePath returns the filesystem path for an agent's worktree directory.
@@ -2897,7 +2897,7 @@ func (m *Manager) RegisterStopped(a *Agent) error {
 	now := time.Now()
 	a.State = StateStopped
 	if a.Repo == "" {
-		a.Repo = cleanRepoPath(m.workspacePath)
+		a.Repo = cleanRepoPath(m.repoPath)
 	}
 	if a.CreatedAt.IsZero() {
 		a.CreatedAt = now
@@ -2947,7 +2947,7 @@ func (m *Manager) checkNameAvailable(ctx context.Context, name string) error {
 		owner = other.Workspace
 	}
 	if owner == "" {
-		owner = "another workspace"
+		owner = "another repo"
 	}
 	return fmt.Errorf("agent name %q is already in use by an agent in %s — agent names are global, pick a different name or delete that agent first", name, owner)
 }
@@ -3001,7 +3001,7 @@ func daemonAddrForRuntime(rt string) string {
 // agent's configured env map, then resolves ${secret:NAME} references.
 // Merge order: env file first, then userEnv (explicit config wins over the
 // file), with MYCEL_* system vars always protected via mergeUserEnv.
-func injectEnv(env map[string]string, workspacePath, agentName, envFile string, userEnv map[string]string) {
+func injectEnv(env map[string]string, repoPath, agentName, envFile string, userEnv map[string]string) {
 	// Agent env file
 	if envFile != "" {
 		parseEnvFile(env, envFile)
@@ -3009,7 +3009,7 @@ func injectEnv(env map[string]string, workspacePath, agentName, envFile string, 
 	// Per-agent configured env vars
 	mergeUserEnv(env, userEnv, agentName)
 	// Resolve ${secret:NAME} references in all env values
-	resolveSecretRefs(env, workspacePath)
+	resolveSecretRefs(env, repoPath)
 }
 
 // mergeUserEnv merges user-configured env vars into env. Keys starting
@@ -3086,7 +3086,7 @@ func appendAppPrompt(targetDir, toolName string, apps map[string]app.InstanceCon
 
 	adapter := resolveConfigAdapter(toolName)
 	promptFile := filepath.Join(targetDir, adapter.PromptFile())
-	f, err := os.OpenFile(promptFile, os.O_APPEND|os.O_WRONLY, 0600) //nolint:gosec // controlled agent workspace path
+	f, err := os.OpenFile(promptFile, os.O_APPEND|os.O_WRONLY, 0600) //nolint:gosec // controlled agent repo path
 	if err != nil {
 		log.Debug("cannot append app prompt, prompt file not writable", "path", promptFile, "error", err)
 		return
@@ -3110,7 +3110,7 @@ func injectedPromptFile(targetDir, toolName string) string {
 // agent has access to. Secret VALUES are never written — only key names.
 //
 // It is a no-op (returns nil) when no instructions are configured.
-func appendInjectedInstructions(ctx context.Context, promptFile string, cfg *workspace.Config, mcpServers, secretEnvKeys []string) error {
+func appendInjectedInstructions(ctx context.Context, promptFile string, cfg *home.Config, mcpServers, secretEnvKeys []string) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -3132,7 +3132,7 @@ func appendInjectedInstructions(ctx context.Context, promptFile string, cfg *wor
 	sb.WriteString("MCP servers: " + summarizeNames(mcpServers) + "\n")
 	sb.WriteString("Credential env vars: " + summarizeNames(secretEnvKeys) + "\n")
 
-	f, err := os.OpenFile(cleaned, os.O_APPEND|os.O_WRONLY, 0600) //nolint:gosec // controlled agent workspace path
+	f, err := os.OpenFile(cleaned, os.O_APPEND|os.O_WRONLY, 0600) //nolint:gosec // controlled agent repo path
 	if err != nil {
 		return fmt.Errorf("open prompt file: %w", err)
 	}
@@ -3191,12 +3191,12 @@ var wellKnownVaultTokens = []string{
 	"WHATSAPP_SESSION",
 }
 
-// openLayeredStore opens the global + workspace vault layers and returns a
+// openLayeredStore opens the global + repo vault layers and returns a
 // LayeredStore along with a closer function (never nil when ls != nil).
 // Either layer may be missing/unopenable; at least one must succeed or ls is nil.
 // The caller is responsible for calling closeFunc() when done.
-func openLayeredStore(wsPath, passphrase string) (ls *secret.LayeredStore, closeFunc func()) {
-	globalVaultPath, err := workspace.GlobalSecretsVault()
+func openLayeredStore(repoPath, passphrase string) (ls *secret.LayeredStore, closeFunc func()) {
+	globalVaultPath, err := home.GlobalSecretsVault()
 	if err != nil {
 		log.Debug("vault injection: global vault path unavailable", "error", err)
 	}
@@ -3210,20 +3210,20 @@ func openLayeredStore(wsPath, passphrase string) (ls *secret.LayeredStore, close
 		}
 	}
 
-	var wsStore *secret.Store
-	if wsPath != "" {
-		if ws, e := secret.NewStore(wsPath, passphrase); e == nil {
-			wsStore = ws
+	var repoStore *secret.Store
+	if repoPath != "" {
+		if h, e := secret.NewStore(repoPath, passphrase); e == nil {
+			repoStore = h
 		} else {
-			log.Debug("vault injection: workspace vault unavailable", "error", e)
+			log.Debug("vault injection: repo vault unavailable", "error", e)
 		}
 	}
 
-	if globalStore == nil && wsStore == nil {
+	if globalStore == nil && repoStore == nil {
 		return nil, nil
 	}
 
-	ls = secret.NewLayeredStore(globalStore, wsStore)
+	ls = secret.NewLayeredStore(globalStore, repoStore)
 	closeFunc = func() { _ = ls.Close() }
 	return ls, closeFunc
 }
@@ -3232,7 +3232,7 @@ func openLayeredStore(wsPath, passphrase string) (ls *secret.LayeredStore, close
 //
 // Precedence (highest → lowest):
 //  1. Existing value in env (set by agent env-file or injectAppEnv)
-//  2. Vault value (global ~/.mycel/secrets.vault + workspace <ws>/.bc/secrets.db, workspace wins)
+//  2. Vault value (global ~/.mycel/secrets.vault + repo <repo>/.bc/secrets.db, repo wins)
 //
 // Call AFTER injectEnv + injectAppEnv so that explicitly-set values are
 // never overwritten by vault copies.
@@ -3252,14 +3252,14 @@ func openLayeredStore(wsPath, passphrase string) (ls *secret.LayeredStore, close
 // The returned slice holds the NAMES of env keys populated from the vault
 // (never their values) so callers can summarize available credentials to the
 // agent without ever exposing the secrets themselves.
-func injectVaultSecrets(env map[string]string, wsPath string, roleSecrets []string, apps map[string]app.InstanceConfig) []string {
+func injectVaultSecrets(env map[string]string, repoPath string, roleSecrets []string, apps map[string]app.InstanceConfig) []string {
 	passphrase, err := secret.Passphrase()
 	if err != nil {
 		log.Warn("vault injection skipped: cannot read passphrase", "error", err)
 		return nil
 	}
 
-	ls, closeLS := openLayeredStore(wsPath, passphrase)
+	ls, closeLS := openLayeredStore(repoPath, passphrase)
 	if ls == nil {
 		return nil
 	}
@@ -3338,8 +3338,8 @@ func injectVaultSecrets(env map[string]string, wsPath string, roleSecrets []stri
 // resolveRoleSecrets returns the Secrets list for a named role via BFS
 // inheritance merge. Returns nil (no error) when the role cannot be loaded
 // so callers can proceed with an empty allowlist.
-func resolveRoleSecrets(wsPath, roleName string) []string {
-	rm, err := workspace.NewGlobalRoleManager(mycelHomeOrEmpty())
+func resolveRoleSecrets(repoPath, roleName string) []string {
+	rm, err := home.NewGlobalRoleManager(mycelHomeOrEmpty())
 	if err != nil {
 		log.Debug("resolveRoleSecrets: cannot open role manager", "error", err)
 		return nil
@@ -3355,8 +3355,8 @@ func resolveRoleSecrets(wsPath, roleName string) []string {
 // resolveRoleMCPServers returns the effective MCP server names an agent of the
 // named role receives. It returns the resolved role's MCPServers list only —
 // no implicit servers are added. Returns nil when the role cannot be loaded.
-func resolveRoleMCPServers(wsPath, roleName string) []string {
-	rm, err := workspace.NewGlobalRoleManager(mycelHomeOrEmpty())
+func resolveRoleMCPServers(repoPath, roleName string) []string {
+	rm, err := home.NewGlobalRoleManager(mycelHomeOrEmpty())
 	if err != nil {
 		log.Debug("resolveRoleMCPServers: cannot open role manager", "error", err)
 		return nil
@@ -3370,9 +3370,9 @@ func resolveRoleMCPServers(wsPath, roleName string) []string {
 }
 
 // resolveSecretRefs resolves ${secret:NAME} references in env values using the
-// layered vault (global + workspace). If neither vault can be opened, references
+// layered vault (global + repo). If neither vault can be opened, references
 // are left as-is.
-func resolveSecretRefs(env map[string]string, workspacePath string) {
+func resolveSecretRefs(env map[string]string, repoPath string) {
 	// Check if any values contain secret references before opening the store
 	hasRefs := false
 	for _, v := range env {
@@ -3391,7 +3391,7 @@ func resolveSecretRefs(env map[string]string, workspacePath string) {
 		return
 	}
 
-	ls, closeLS := openLayeredStore(workspacePath, passphrase)
+	ls, closeLS := openLayeredStore(repoPath, passphrase)
 	if ls == nil {
 		log.Warn("failed to open secret store for env resolution")
 		return

@@ -1,4 +1,4 @@
-package workspace
+package home
 
 import (
 	"os"
@@ -33,12 +33,12 @@ func TestFind_ResolvesViaGitRootWalk(t *testing.T) {
 		t.Fatalf(".bc marker should not exist in project dir, stat err = %v", err)
 	}
 
-	ws, err := Find(proj)
+	h, err := Find(proj)
 	if err != nil {
 		t.Fatalf("Find: %v", err)
 	}
-	if ws.RootDir != proj {
-		t.Errorf("Find returned wrong root: got %q want %q", ws.RootDir, proj)
+	if h.RootDir != proj {
+		t.Errorf("Find returned wrong root: got %q want %q", h.RootDir, proj)
 	}
 
 	// Subdirectories resolve to the same anchor repo via the walk.
@@ -46,11 +46,11 @@ func TestFind_ResolvesViaGitRootWalk(t *testing.T) {
 	if mkErr := os.MkdirAll(sub, 0o750); mkErr != nil {
 		t.Fatalf("mkdir: %v", mkErr)
 	}
-	ws, err = Find(sub)
+	h, err = Find(sub)
 	if err != nil {
 		t.Fatalf("Find from subdir: %v", err)
 	}
-	if ws.RootDir != proj {
-		t.Errorf("Find from subdir: got %q want %q", ws.RootDir, proj)
+	if h.RootDir != proj {
+		t.Errorf("Find from subdir: got %q want %q", h.RootDir, proj)
 	}
 }

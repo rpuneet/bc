@@ -18,7 +18,7 @@ var mcpCmd = &cobra.Command{
 	Long: `Manage Model Context Protocol (MCP) server configurations.
 
 MCP servers provide tools and resources to AI agents. Configurations are
-stored per-workspace and can be referenced by roles.
+stored in the global registry and can be referenced by roles.
 
 Examples:
   mycel mcp list                                     # List all MCP servers
@@ -286,9 +286,9 @@ func runMCPRemove(cmd *cobra.Command, args []string) error {
 	}
 
 	// Clean stale references from role files
-	ws, wsErr := getRepo()
-	if wsErr == nil && ws != nil {
-		rm := ws.RoleManager
+	h, homeErr := getRepo()
+	if homeErr == nil && h != nil {
+		rm := h.RoleManager
 		roles, loadErr := rm.LoadAllRoles()
 		if loadErr == nil {
 			for roleName, role := range roles {

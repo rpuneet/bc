@@ -13,7 +13,7 @@ import (
 // These tests seed agent state files directly to test display/query functionality.
 
 func TestAgentListEmptyIntegration(t *testing.T) {
-	_, cleanup := setupIntegrationWorkspace(t)
+	_, cleanup := setupIntegrationHome(t)
 	defer cleanup()
 
 	stdout, _, err := executeIntegrationCmd("agent", "list")
@@ -26,7 +26,7 @@ func TestAgentListEmptyIntegration(t *testing.T) {
 }
 
 func TestAgentListWithAgents(t *testing.T) {
-	wsDir, cleanup := setupIntegrationWorkspace(t)
+	wsDir, cleanup := setupIntegrationHome(t)
 	defer cleanup()
 
 	// Seed agents
@@ -63,7 +63,7 @@ func TestAgentListWithAgents(t *testing.T) {
 }
 
 func TestAgentListFilterByRole(t *testing.T) {
-	wsDir, cleanup := setupIntegrationWorkspace(t)
+	wsDir, cleanup := setupIntegrationHome(t)
 	defer cleanup()
 
 	// Seed agents with different roles
@@ -99,7 +99,7 @@ func TestAgentListFilterByRole(t *testing.T) {
 }
 
 func TestAgentListJSONIntegration(t *testing.T) {
-	wsDir, cleanup := setupIntegrationWorkspace(t)
+	wsDir, cleanup := setupIntegrationHome(t)
 	defer cleanup()
 
 	seedAgents(t, wsDir, map[string]*agent.Agent{
@@ -125,7 +125,7 @@ func TestAgentListJSONIntegration(t *testing.T) {
 }
 
 func TestAgentStopNotFound(t *testing.T) {
-	_, cleanup := setupIntegrationWorkspace(t)
+	_, cleanup := setupIntegrationHome(t)
 	defer cleanup()
 
 	_, _, err := executeIntegrationCmd("agent", "stop", "nonexistent-agent")
@@ -138,7 +138,7 @@ func TestAgentStopNotFound(t *testing.T) {
 }
 
 func TestAgentPeekNotFound(t *testing.T) {
-	_, cleanup := setupIntegrationWorkspace(t)
+	_, cleanup := setupIntegrationHome(t)
 	defer cleanup()
 
 	_, _, err := executeIntegrationCmd("agent", "peek", "nonexistent-agent")
@@ -149,7 +149,7 @@ func TestAgentPeekNotFound(t *testing.T) {
 }
 
 func TestAgentShowNotFound(t *testing.T) {
-	_, cleanup := setupIntegrationWorkspace(t)
+	_, cleanup := setupIntegrationHome(t)
 	defer cleanup()
 
 	_, _, err := executeIntegrationCmd("agent", "show", "nonexistent-agent")
@@ -162,7 +162,7 @@ func TestAgentShowNotFound(t *testing.T) {
 }
 
 func TestAgentShowWithAgent(t *testing.T) {
-	wsDir, cleanup := setupIntegrationWorkspace(t)
+	wsDir, cleanup := setupIntegrationHome(t)
 	defer cleanup()
 
 	// Seed an agent
@@ -190,7 +190,7 @@ func TestAgentShowWithAgent(t *testing.T) {
 }
 
 func TestAgentAttachNotFound(t *testing.T) {
-	_, cleanup := setupIntegrationWorkspace(t)
+	_, cleanup := setupIntegrationHome(t)
 	defer cleanup()
 
 	_, _, err := executeIntegrationCmd("agent", "attach", "nonexistent-agent")
@@ -201,7 +201,7 @@ func TestAgentAttachNotFound(t *testing.T) {
 }
 
 func TestAgentSendNotFound(t *testing.T) {
-	_, cleanup := setupIntegrationWorkspace(t)
+	_, cleanup := setupIntegrationHome(t)
 	defer cleanup()
 
 	_, _, err := executeIntegrationCmd("agent", "send", "nonexistent-agent", "hello")
@@ -214,7 +214,7 @@ func TestAgentSendNotFound(t *testing.T) {
 }
 
 func TestAgentSendToStoppedAgent(t *testing.T) {
-	wsDir, cleanup := setupIntegrationWorkspace(t)
+	wsDir, cleanup := setupIntegrationHome(t)
 	defer cleanup()
 
 	// Seed a stopped agent
@@ -241,7 +241,7 @@ func TestAgentSendToStoppedAgent(t *testing.T) {
 func TestAgentCreateInvalidRole(t *testing.T) {
 	// Only truly invalid role names (format) should error
 	// Any alphanumeric name with hyphens is valid (roles are custom)
-	_, cleanup := setupIntegrationWorkspace(t)
+	_, cleanup := setupIntegrationHome(t)
 	defer cleanup()
 
 	_, _, err := executeIntegrationCmd("agent", "create", "test-agent", "--role", "role@invalid")
@@ -254,7 +254,7 @@ func TestAgentCreateInvalidRole(t *testing.T) {
 }
 
 func TestAgentCreateInvalidTeam(t *testing.T) {
-	_, cleanup := setupIntegrationWorkspace(t)
+	_, cleanup := setupIntegrationHome(t)
 	defer cleanup()
 
 	_, _, err := executeIntegrationCmd("agent", "create", "test-agent", "--role", "null", "--team", "invalid team name!")
@@ -267,7 +267,7 @@ func TestAgentCreateInvalidTeam(t *testing.T) {
 }
 
 func TestAgentCreateUnknownTool(t *testing.T) {
-	_, cleanup := setupIntegrationWorkspace(t)
+	_, cleanup := setupIntegrationHome(t)
 	defer cleanup()
 
 	_, _, err := executeIntegrationCmd("agent", "create", "test-agent", "--role", "engineer", "--tool", "nonexistent-tool")
@@ -282,7 +282,7 @@ func TestAgentCreateUnknownTool(t *testing.T) {
 func TestAgentListOutsideRepo(t *testing.T) {
 	// agent list is daemon-first and CWD-free: outside any repo it still
 	// queries bcd. Errors, if any, come from the daemon — never from a
-	// missing workspace.
+	// missing repo.
 	origDir, err := os.Getwd()
 	if err != nil {
 		t.Fatalf("failed to get cwd: %v", err)
@@ -294,17 +294,17 @@ func TestAgentListOutsideRepo(t *testing.T) {
 	}
 	defer func() { _ = os.Chdir(origDir) }()
 
-	restoreEnv := clearWorkspaceEnv(t)
+	restoreEnv := clearRepoEnv(t)
 	defer restoreEnv()
 
 	_, _, execErr := executeIntegrationCmd("agent", "list")
 	if execErr != nil && strings.Contains(execErr.Error(), "not in a mycel-adopted repo") {
-		t.Errorf("agent list must not require a repo, got workspace error: %v", execErr)
+		t.Errorf("agent list must not require a repo, got repo error: %v", execErr)
 	}
 }
 
 func TestAgentHealthEmpty(t *testing.T) {
-	_, cleanup := setupIntegrationWorkspace(t)
+	_, cleanup := setupIntegrationHome(t)
 	defer cleanup()
 
 	stdout, _, err := executeIntegrationCmd("agent", "health")
@@ -317,7 +317,7 @@ func TestAgentHealthEmpty(t *testing.T) {
 }
 
 func TestAgentHealthWithAgents(t *testing.T) {
-	wsDir, cleanup := setupIntegrationWorkspace(t)
+	wsDir, cleanup := setupIntegrationHome(t)
 	defer cleanup()
 
 	// Seed agents
@@ -356,7 +356,7 @@ func TestAgentHealthWithAgents(t *testing.T) {
 }
 
 func TestAgentHealthSpecificAgent(t *testing.T) {
-	wsDir, cleanup := setupIntegrationWorkspace(t)
+	wsDir, cleanup := setupIntegrationHome(t)
 	defer cleanup()
 
 	seedAgents(t, wsDir, map[string]*agent.Agent{
@@ -380,7 +380,7 @@ func TestAgentHealthSpecificAgent(t *testing.T) {
 }
 
 func TestAgentHealthNotFound(t *testing.T) {
-	_, cleanup := setupIntegrationWorkspace(t)
+	_, cleanup := setupIntegrationHome(t)
 	defer cleanup()
 
 	_, _, err := executeIntegrationCmd("agent", "health", "nonexistent-agent")
@@ -393,7 +393,7 @@ func TestAgentHealthNotFound(t *testing.T) {
 }
 
 func TestAgentHealthJSONOutput(t *testing.T) {
-	wsDir, cleanup := setupIntegrationWorkspace(t)
+	wsDir, cleanup := setupIntegrationHome(t)
 	defer cleanup()
 
 	seedAgents(t, wsDir, map[string]*agent.Agent{
@@ -422,7 +422,7 @@ func TestAgentHealthJSONOutput(t *testing.T) {
 }
 
 func TestAgentHealthCustomTimeout(t *testing.T) {
-	wsDir, cleanup := setupIntegrationWorkspace(t)
+	wsDir, cleanup := setupIntegrationHome(t)
 	defer cleanup()
 
 	// Seed an agent with stale state
@@ -448,7 +448,7 @@ func TestAgentHealthCustomTimeout(t *testing.T) {
 }
 
 func TestAgentHealthDetectStuckFlag(t *testing.T) {
-	wsDir, cleanup := setupIntegrationWorkspace(t)
+	wsDir, cleanup := setupIntegrationHome(t)
 	defer cleanup()
 
 	// Seed an agent
@@ -475,7 +475,7 @@ func TestAgentHealthDetectStuckFlag(t *testing.T) {
 }
 
 func TestAgentHealthDetectStuckMaxFailures(t *testing.T) {
-	wsDir, cleanup := setupIntegrationWorkspace(t)
+	wsDir, cleanup := setupIntegrationHome(t)
 	defer cleanup()
 
 	// Seed an agent
@@ -502,7 +502,7 @@ func TestAgentHealthDetectStuckMaxFailures(t *testing.T) {
 }
 
 func TestAgentHealthDetectStuckWorkTimeout(t *testing.T) {
-	wsDir, cleanup := setupIntegrationWorkspace(t)
+	wsDir, cleanup := setupIntegrationHome(t)
 	defer cleanup()
 
 	// Seed an agent
@@ -529,7 +529,7 @@ func TestAgentHealthDetectStuckWorkTimeout(t *testing.T) {
 }
 
 func TestAgentStartMissingAgent(t *testing.T) {
-	_, cleanup := setupIntegrationWorkspace(t)
+	_, cleanup := setupIntegrationHome(t)
 	defer cleanup()
 
 	// Try to start non-existent agent - should fail
@@ -543,7 +543,7 @@ func TestAgentStartMissingAgent(t *testing.T) {
 }
 
 func TestAgentStartNotStopped(t *testing.T) {
-	wsDir, cleanup := setupIntegrationWorkspace(t)
+	wsDir, cleanup := setupIntegrationHome(t)
 	defer cleanup()
 
 	// Seed agent in running state (not stopped)
@@ -570,7 +570,7 @@ func TestAgentStartNotStopped(t *testing.T) {
 }
 
 func TestAgentStartStopped(t *testing.T) {
-	wsDir, cleanup := setupIntegrationWorkspace(t)
+	wsDir, cleanup := setupIntegrationHome(t)
 	defer cleanup()
 
 	// Seed stopped agent

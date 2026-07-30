@@ -10,10 +10,10 @@ import (
 	"time"
 
 	bccost "github.com/rpuneet/mycel/pkg/cost"
+	"github.com/rpuneet/mycel/pkg/home"
 	bcmcp "github.com/rpuneet/mycel/pkg/mcp"
 	bcsecret "github.com/rpuneet/mycel/pkg/secret"
 	bctemplate "github.com/rpuneet/mycel/pkg/template"
-	bcworkspace "github.com/rpuneet/mycel/pkg/workspace"
 )
 
 // TestM8WiringTemplatesGlobalStore verifies that BuildServices hands
@@ -232,7 +232,7 @@ func TestM8WiringCostsSourceDirect(t *testing.T) {
 		t.Fatalf("GetBudget = %+v, want monthly $25", budget)
 	}
 
-	prefsRaw, err := os.ReadFile(filepath.Join(bcHome, bcworkspace.PrefsFileName)) //nolint:gosec // test temp dir
+	prefsRaw, err := os.ReadFile(filepath.Join(bcHome, home.PrefsFileName)) //nolint:gosec // test temp dir
 	if err != nil {
 		t.Fatalf("read prefs.json: %v", err)
 	}

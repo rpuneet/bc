@@ -12,8 +12,8 @@ import (
 	"testing"
 
 	"github.com/rpuneet/mycel/pkg/gateway"
+	"github.com/rpuneet/mycel/pkg/home"
 	"github.com/rpuneet/mycel/pkg/secret"
-	"github.com/rpuneet/mycel/pkg/workspace"
 )
 
 // stubAdapter implements gateway.NotificationAdapter for testing.
@@ -165,7 +165,7 @@ func TestAppsCatalogPopulatesDynamicAdapterChannels(t *testing.T) {
 		}
 	}
 
-	// GET /api/apps: without workspace config the dynamic adapter still
+	// GET /api/apps: without global config the dynamic adapter still
 	// appears as an instance with its discovered channels and bot name.
 	h := &AppsHandler{gw: gw}
 
@@ -330,23 +330,23 @@ func openTestVault(t *testing.T) *secret.Store {
 	return v
 }
 
-// setupTestWorkspace creates a minimal workspace suitable for gateway
+// setupTestHome creates a minimal home suitable for gateway
 // config updates. Uses a sandboxed MYCEL_HOME so prefs.json and the
 // global database land in a throwaway dir, not the caller's ~/.mycel.
-func setupTestWorkspace(t *testing.T) *workspace.Workspace {
+func setupTestHome(t *testing.T) *home.Home {
 	t.Helper()
-	home := t.TempDir()
-	t.Setenv("HOME", home)
-	t.Setenv("MYCEL_HOME", filepath.Join(home, ".mycel"))
+	homeDir := t.TempDir()
+	t.Setenv("HOME", homeDir)
+	t.Setenv("MYCEL_HOME", filepath.Join(homeDir, ".mycel"))
 
 	dir := t.TempDir()
-	// workspace.Open requires a non-empty root to be a git repository.
+	// home.Open requires a non-empty root to be a git repository.
 	if err := os.MkdirAll(filepath.Join(dir, ".git"), 0o750); err != nil {
 		t.Fatalf("create .git: %v", err)
 	}
-	wks, err := workspace.Open(dir)
+	wks, err := home.Open(dir)
 	if err != nil {
-		t.Fatalf("workspace.Open: %v", err)
+		t.Fatalf("home.Open: %v", err)
 	}
 	return wks
 }

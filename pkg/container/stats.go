@@ -188,5 +188,5 @@ func (b *Backend) AgentStats(ctx context.Context, name string) (ContainerStats, 
 
 // AllStats collects stats for all running agents in this workspace.
 func (b *Backend) AllStats(ctx context.Context) ([]ContainerStats, error) {
-	return AllAgentStats(ctx, b.prefix+b.workspaceHash+"-")
+	return AllAgentStats(ctx, b.prefix+b.repoHash+"-")
 }

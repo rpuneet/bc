@@ -207,7 +207,7 @@ func matchesStatus(state State, status string) bool {
 func (s *AgentService) Create(ctx context.Context, opts CreateOptions) (*Agent, error) {
 	repo := opts.Repo
 	if repo == "" {
-		repo = s.manager.workspacePath
+		repo = s.manager.repoPath
 	}
 	a, err := s.manager.SpawnAgentWithOptions(ctx, SpawnOptions{
 		Name:      opts.Name,
@@ -256,7 +256,7 @@ func (s *AgentService) Start(ctx context.Context, name string, opts StartOptions
 	// Respawn in the repo the agent is bound to, not the boot repo.
 	repo := existing.Repo
 	if repo == "" {
-		repo = s.manager.workspacePath
+		repo = s.manager.repoPath
 	}
 	a, err := s.manager.SpawnAgentWithOptions(ctx, SpawnOptions{
 		Name:      name,

@@ -17,7 +17,7 @@ import (
 	"github.com/rpuneet/mycel/server/handlers"
 )
 
-// fakeResolver is a tiny WorkspaceResolver that always returns the
+// fakeResolver is a tiny RepoResolver that always returns the
 // same root.
 type fakeResolver struct {
 	root string

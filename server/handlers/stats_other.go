@@ -134,7 +134,7 @@ func parsePercentField(s string) float64 {
 
 // diskUsage returns total and used disk bytes for the filesystem containing path, via df.
 func diskUsage(ctx context.Context, path string) (total, used uint64) {
-	out, err := exec.CommandContext(ctx, "df", "-k", path).Output() //nolint:gosec // path is workspace root dir
+	out, err := exec.CommandContext(ctx, "df", "-k", path).Output() //nolint:gosec // path is repo root dir
 	if err != nil {
 		return 0, 0
 	}

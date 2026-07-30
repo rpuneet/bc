@@ -176,10 +176,10 @@ func (p *ClaudeProvider) ParseSessionID(output string) string {
 // force the .mcp.json fallback regardless of the host environment.
 var claudeLookPath = exec.LookPath
 
-// ReadMCPs lists the MCP servers Claude Code sees for the workspace at
+// ReadMCPs lists the MCP servers Claude Code sees for the repo at
 // rootDir. `claude mcp list` (run in rootDir when non-empty) wins; the
-// workspace .mcp.json is the fallback. An empty rootDir means no
-// workspace is loaded, so the file fallback returns nothing.
+// repo .mcp.json is the fallback. An empty rootDir means no
+// repo is loaded, so the file fallback returns nothing.
 func (p *ClaudeProvider) ReadMCPs(ctx context.Context, rootDir string) []MCPServerInfo {
 	if servers := p.readMCPsViaCLI(ctx, rootDir); servers != nil {
 		return servers

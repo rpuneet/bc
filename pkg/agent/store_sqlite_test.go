@@ -23,7 +23,7 @@ func TestSQLiteStore_SaveLoadDelete(t *testing.T) {
 		State:     StateIdle,
 		Tool:      "claude",
 		Model:     "fable",
-		Workspace: "/tmp/ws",
+		Workspace: "/tmp/repo",
 		CreatedAt: now,
 		StartedAt: now,
 		SessionID: "ses-abc123",
@@ -97,7 +97,7 @@ func TestSQLiteStore_LoadAll(t *testing.T) {
 			Name:      name,
 			Role:      Role("worker"),
 			State:     StateIdle,
-			Workspace: "/tmp/ws",
+			Workspace: "/tmp/repo",
 			StartedAt: time.Now(),
 		})
 	}
@@ -120,8 +120,8 @@ func TestSQLiteStore_SaveAll(t *testing.T) {
 	defer func() { _ = store.Close() }()
 
 	agents := map[string]*Agent{
-		"x": {Name: "x", Role: "worker", State: StateIdle, Workspace: "/ws", StartedAt: time.Now()},
-		"y": {Name: "y", Role: "engineer", State: StateWorking, Workspace: "/ws", StartedAt: time.Now()},
+		"x": {Name: "x", Role: "worker", State: StateIdle, Workspace: "/repo", StartedAt: time.Now()},
+		"y": {Name: "y", Role: "engineer", State: StateWorking, Workspace: "/repo", StartedAt: time.Now()},
 	}
 	if err := store.SaveAll(context.Background(), agents); err != nil {
 		t.Fatalf("SaveAll: %v", err)
@@ -141,7 +141,7 @@ func TestSQLiteStore_UpdateState(t *testing.T) {
 	}
 	defer func() { _ = store.Close() }()
 
-	_ = store.Save(context.Background(), &Agent{Name: "a", Role: "worker", State: StateIdle, Workspace: "/ws", StartedAt: time.Now()})
+	_ = store.Save(context.Background(), &Agent{Name: "a", Role: "worker", State: StateIdle, Workspace: "/repo", StartedAt: time.Now()})
 
 	if err := store.UpdateState(context.Background(), "a", StateWorking); err != nil {
 		t.Fatalf("UpdateState: %v", err)
@@ -166,7 +166,7 @@ func TestSQLiteStore_UpdateField(t *testing.T) {
 	}
 	defer func() { _ = store.Close() }()
 
-	_ = store.Save(context.Background(), &Agent{Name: "a", Role: "worker", State: StateIdle, Workspace: "/ws", StartedAt: time.Now()})
+	_ = store.Save(context.Background(), &Agent{Name: "a", Role: "worker", State: StateIdle, Workspace: "/repo", StartedAt: time.Now()})
 
 	if err := store.UpdateField(context.Background(), "a", "team", "alpha"); err != nil {
 		t.Fatalf("UpdateField: %v", err)
@@ -196,7 +196,7 @@ func TestSQLiteStore_RootFields(t *testing.T) {
 		Name:          "root",
 		Role:          RoleRoot,
 		State:         StateIdle,
-		Workspace:     "/ws",
+		Workspace:     "/repo",
 		StartedAt:     now,
 		IsRoot:        true,
 		CrashCount:    2,
@@ -242,10 +242,10 @@ func TestSQLiteStore_ConcurrentAccess(t *testing.T) {
 	defer func() { _ = s2.Close() }()
 
 	// s1 saves agent A
-	_ = s1.Save(context.Background(), &Agent{Name: "a", Role: "worker", State: StateIdle, Workspace: "/ws", StartedAt: time.Now()})
+	_ = s1.Save(context.Background(), &Agent{Name: "a", Role: "worker", State: StateIdle, Workspace: "/repo", StartedAt: time.Now()})
 
 	// s2 saves agent B
-	_ = s2.Save(context.Background(), &Agent{Name: "b", Role: "engineer", State: StateWorking, Workspace: "/ws", StartedAt: time.Now()})
+	_ = s2.Save(context.Background(), &Agent{Name: "b", Role: "engineer", State: StateWorking, Workspace: "/repo", StartedAt: time.Now()})
 
 	// Both should see both agents
 	all1, _ := s1.LoadAll(context.Background())
@@ -273,7 +273,7 @@ func TestSQLiteStore_SoftDelete(t *testing.T) {
 			Name:      name,
 			Role:      Role("worker"),
 			State:     StateIdle,
-			Workspace: "/tmp/ws",
+			Workspace: "/tmp/repo",
 			StartedAt: time.Now(),
 		})
 	}
@@ -333,7 +333,7 @@ func TestSQLiteStore_DeletedAtPersistence(t *testing.T) {
 		Name:      "zombie",
 		Role:      Role("worker"),
 		State:     StateIdle,
-		Workspace: "/tmp/ws",
+		Workspace: "/tmp/repo",
 		StartedAt: time.Now(),
 	})
 	if softErr := store1.SoftDelete(context.Background(), "zombie"); softErr != nil {
@@ -374,7 +374,7 @@ func TestSQLiteStore_EnvFilePersistence(t *testing.T) {
 		Role:      Role("engineer"),
 		State:     StateIdle,
 		Tool:      "claude",
-		Workspace: "/tmp/ws",
+		Workspace: "/tmp/repo",
 		CreatedAt: now,
 		StartedAt: now,
 		EnvFile:   testEnvPath,
@@ -406,7 +406,7 @@ func TestSQLiteStore_EnvFilePersistence(t *testing.T) {
 			Role:      Role("engineer"),
 			State:     StateIdle,
 			Tool:      "claude",
-			Workspace: "/tmp/ws",
+			Workspace: "/tmp/repo",
 			CreatedAt: now,
 			StartedAt: now,
 			EnvFile:   "/tmp/agent-1-env.json",
@@ -418,7 +418,7 @@ func TestSQLiteStore_EnvFilePersistence(t *testing.T) {
 			Role:      Role("manager"),
 			State:     StateWorking,
 			Tool:      "pi",
-			Workspace: "/tmp/ws2",
+			Workspace: "/tmp/repo2",
 			CreatedAt: now,
 			StartedAt: now,
 			EnvFile:   "/tmp/agent-2-env.json",

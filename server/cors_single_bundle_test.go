@@ -29,9 +29,9 @@ func buildTestBundle(t *testing.T) server.Services {
 	t.Setenv("MYCEL_HOME", filepath.Join(home, ".bc"))
 	t.Setenv("MYCEL_SECRET_PASSPHRASE", "unit-test")
 
-	wsDir := filepath.Join(t.TempDir(), "ws")
+	wsDir := filepath.Join(t.TempDir(), "h")
 	if err := os.MkdirAll(wsDir, 0o750); err != nil {
-		t.Fatalf("mkdir ws: %v", err)
+		t.Fatalf("mkdir h: %v", err)
 	}
 	gitInitDir(t, wsDir)
 

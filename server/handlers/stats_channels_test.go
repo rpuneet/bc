@@ -133,9 +133,9 @@ func TestStatsChannels(t *testing.T) {
 					t.Errorf("channel[%d] top_senders = %+v, want %+v", i, g.TopSenders, w.TopSenders)
 					continue
 				}
-				for j, ws := range w.TopSenders {
-					if g.TopSenders[j] != ws {
-						t.Errorf("channel[%d] top_senders[%d] = %+v, want %+v", i, j, g.TopSenders[j], ws)
+				for j, h := range w.TopSenders {
+					if g.TopSenders[j] != h {
+						t.Errorf("channel[%d] top_senders[%d] = %+v, want %+v", i, j, g.TopSenders[j], h)
 					}
 				}
 			}

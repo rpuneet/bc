@@ -55,7 +55,7 @@ func init() {
 func runStatus(cmd *cobra.Command, args []string) error {
 	log.Debug("status command started")
 
-	ws, err := getRepo()
+	h, err := getRepo()
 	if err != nil {
 		return errNoRepo(err)
 	}
@@ -95,7 +95,7 @@ func runStatus(cmd *cobra.Command, args []string) error {
 			Active    int                `json:"active"`
 			Working   int                `json:"working"`
 		}{
-			Workspace: filepath.Base(ws.RootDir),
+			Workspace: filepath.Base(h.RootDir),
 			Agents:    agentList,
 			Total:     len(agentList),
 			Active:    activeCount,
@@ -107,7 +107,7 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	}
 
 	// Summary header
-	wsName := filepath.Base(ws.RootDir)
+	wsName := filepath.Base(h.RootDir)
 	fmt.Printf("Repo: %s | Agents: %d | Active: %d | Working: %d\n", wsName, len(agentList), activeCount, workingCount)
 	fmt.Println(strings.Repeat("─", 60))
 	fmt.Println()

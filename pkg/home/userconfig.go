@@ -1,5 +1,4 @@
-// Package workspace provides workspace/project management.
-package workspace
+package home
 
 import (
 	"encoding/json"
@@ -19,7 +18,7 @@ func UserRCConfigPath() string {
 }
 
 // UserRCConfig represents user-level defaults stored in ~/.bcrc.
-// These values are merged with workspace config when loading.
+// These values are merged with the global config when loading.
 type UserRCConfig struct {
 	User     UserRCUserConfig     `json:"user"`
 	Defaults UserRCDefaultsConfig `json:"defaults"`
@@ -109,7 +108,7 @@ func UserRCExists() bool {
 	return err == nil
 }
 
-// MergeWithUserRC merges user-level defaults from .bcrc into a workspace config.
+// MergeWithUserRC merges user-level defaults from .bcrc into the global config.
 func (c *Config) MergeWithUserRC(rc *UserRCConfig) {
 	if rc == nil {
 		return

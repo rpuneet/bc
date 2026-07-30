@@ -6,26 +6,26 @@ import (
 	"testing"
 
 	bcapp "github.com/rpuneet/mycel/pkg/app"
-	bcworkspace "github.com/rpuneet/mycel/pkg/workspace"
+	"github.com/rpuneet/mycel/pkg/home"
 )
 
 // TestBuildGatewayManagerFromApps proves the data-driven loop: a config
 // with two instances — one buildable, one referencing an unknown app —
 // yields one registered adapter and one degraded entry.
 func TestBuildGatewayManagerFromApps(t *testing.T) {
-	cfg := bcworkspace.DefaultConfig()
+	cfg := home.DefaultConfig()
 	cfg.Apps = map[string]bcapp.InstanceConfig{
 		"webhook:ci": {App: "webhook", Enabled: true},
 		"bogus":      {App: "no-such-app", Enabled: true},
 		"rss:off":    {App: "rss", Enabled: false, Config: map[string]string{"url": "https://x/feed"}},
 	}
-	ws := &bcworkspace.Workspace{Config: &cfg, RootDir: t.TempDir()}
+	h := &home.Home{Config: &cfg, RootDir: t.TempDir()}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	var wg sync.WaitGroup
 	degraded := map[string]string{}
 
-	m := buildGatewayManager(ctx, ws, nil, nil, degraded, &wg)
+	m := buildGatewayManager(ctx, h, nil, nil, degraded, &wg)
 	if m == nil {
 		t.Fatal("manager is nil")
 	}
@@ -51,18 +51,18 @@ func TestBuildGatewayManagerFromApps(t *testing.T) {
 // (missing required secret with no vault) degrades the instance instead
 // of failing boot.
 func TestBuildGatewayManagerBuildFailureDegrades(t *testing.T) {
-	cfg := bcworkspace.DefaultConfig()
+	cfg := home.DefaultConfig()
 	cfg.Apps = map[string]bcapp.InstanceConfig{
 		// slack requires bot_token; no vault is wired, so Build must fail.
 		"slack": {App: "slack", Enabled: true},
 	}
-	ws := &bcworkspace.Workspace{Config: &cfg, RootDir: t.TempDir()}
+	h := &home.Home{Config: &cfg, RootDir: t.TempDir()}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	var wg sync.WaitGroup
 	degraded := map[string]string{}
 
-	m := buildGatewayManager(ctx, ws, nil, nil, degraded, &wg)
+	m := buildGatewayManager(ctx, h, nil, nil, degraded, &wg)
 	if m.GetAdapter("slack") != nil {
 		t.Error("slack adapter must not be registered without its secret")
 	}

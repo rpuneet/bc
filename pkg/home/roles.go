@@ -1,5 +1,4 @@
-// Package workspace provides workspace/project management.
-package workspace
+package home
 
 import (
 	"bytes"
@@ -57,7 +56,7 @@ func (r *Role) Description() string {
 	return ""
 }
 
-// RoleManager handles role operations for a workspace.
+// RoleManager handles role operations.
 // All role data is stored in SQL (SQLite or Postgres) via the RoleStore.
 // The rolesDir field is retained only for migration from legacy file-based storage.
 type RoleManager struct {
@@ -72,7 +71,7 @@ const DefaultBaseRole = `---
 name: base
 description: Base role — shared channel etiquette and commands for all agents
 prompt_create: |
-  You have been created as a new agent in a mycel workspace.
+  You have been created as a new agent in a mycel fleet.
   Check #all and #engineering channels for context and your initial assignment.
 prompt_start: |
   You are online. Check channels for any messages sent while you were offline.
@@ -102,7 +101,7 @@ rules:
 
 # bc Agent
 
-You are an agent in a **bc** workspace — a CLI-first AI agent orchestration system.
+You are an agent in **mycel** — a CLI-first AI agent orchestration system.
 
 ## Channels
 
@@ -122,7 +121,7 @@ You are an agent in a **bc** workspace — a CLI-first AI agent orchestration sy
 // DefaultRootRole returns the default content for root.md.
 const DefaultRootRole = `---
 name: root
-description: Root orchestrator — singleton workspace owner
+description: Root orchestrator — singleton fleet owner
 parent_roles:
   - base
 mcp_servers:
@@ -135,13 +134,13 @@ prompt_start: |
 
 # Root Agent
 
-You are the root agent for this mycel workspace.
+You are the root agent for this mycel fleet.
 
 ## Responsibilities
-- Oversee all workspace operations
+- Oversee all fleet operations
 - Create and coordinate agents
 - Handle merge queue for the main branch
-- Monitor workspace health and costs
+- Monitor fleet health and costs
 `
 
 // DefaultRoles contains the built-in role definitions for the bc agent team.
@@ -237,7 +236,7 @@ Update docs in the same PR as the feature. Use concrete examples.
 `,
 }
 
-// NewRoleManager creates a new role manager for the given workspace state directory.
+// NewRoleManager creates a new role manager for the given state directory.
 // It opens a SQLite-backed RoleStore at stateDir/bc.db automatically and performs
 // a best-effort migration of any .md files in the roles directory.
 // If the store cannot be opened, operations that require the store will return errors.

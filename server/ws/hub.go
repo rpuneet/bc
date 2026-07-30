@@ -40,7 +40,7 @@ type Hub struct {
 }
 
 // forwardTarget annotates and re-publishes events to a downstream hub.
-// Used for cross-workspace fan-in to the global /api/events stream.
+// Used for cross-repo fan-in to the global /api/events stream.
 type forwardTarget struct {
 	hub         *Hub
 	workspaceID string
@@ -61,15 +61,15 @@ func (h *Hub) SetWriter(w EventWriter) {
 }
 
 // ForwardTo configures the hub to also publish every event to `target`,
-// annotating it with {"workspace_id": wsID} so downstream consumers can
-// tell which workspace the event originated in. Pass target=nil to
+// annotating it with {"workspace_id": repoID} so downstream consumers can
+// tell which repo the event originated in. Pass target=nil to
 // disable forwarding.
-func (h *Hub) ForwardTo(target *Hub, wsID string) {
+func (h *Hub) ForwardTo(target *Hub, repoID string) {
 	h.mu.Lock()
 	if target == nil {
 		h.forward = nil
 	} else {
-		h.forward = &forwardTarget{hub: target, workspaceID: wsID}
+		h.forward = &forwardTarget{hub: target, workspaceID: repoID}
 	}
 	h.mu.Unlock()
 }

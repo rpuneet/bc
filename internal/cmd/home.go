@@ -12,8 +12,8 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/rpuneet/mycel/pkg/home"
 	"github.com/rpuneet/mycel/pkg/log"
-	"github.com/rpuneet/mycel/pkg/workspace"
 )
 
 // runHome is called from runRoot with no arguments in an interactive
@@ -56,7 +56,7 @@ func runHome(cmd *cobra.Command, _ []string) error {
 // ~/.mycel/run/daemon.addr (scheme + host:port, written by `mycel up`),
 // falling back to the default port.
 func daemonWebURL() string {
-	if p, err := workspace.DaemonAddrPath(); err == nil {
+	if p, err := home.DaemonAddrPath(); err == nil {
 		// #nosec G304 -- fixed path under ~/.mycel, not user input.
 		if b, readErr := os.ReadFile(p); readErr == nil {
 			if addr := strings.TrimSpace(string(b)); addr != "" {

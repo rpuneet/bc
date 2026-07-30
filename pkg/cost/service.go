@@ -133,8 +133,8 @@ func addEntry(sum *Summary, e provider.CostEntry) {
 	sum.RecordCount++
 }
 
-// WorkspaceSummary returns the total cost summary across all sources.
-func (s *Service) WorkspaceSummary(ctx context.Context) (*Summary, error) {
+// TotalSummary returns the total cost summary across all sources.
+func (s *Service) TotalSummary(ctx context.Context) (*Summary, error) {
 	entries, err := s.Entries(ctx)
 	if err != nil {
 		return nil, err

@@ -11,8 +11,8 @@ import (
 // MCPHandler handles /api/mcp routes.
 //
 // TODO(m8d-followup): the HTTP surface currently reads from the
-// workspace-scoped *mcp.Store. pkg/mcp now provides a GlobalStore
-// (~/.mycel/mcps.json) + LayeredView for workspace-over-global merging; a
+// DB-backed *mcp.Store. pkg/mcp now provides a GlobalStore
+// (~/.mycel/mcps.json) + LayeredView for DB-over-global merging; a
 // follow-up will teach this handler to return the merged view and
 // accept a scope query parameter for Add/Remove.
 type MCPHandler struct {

@@ -1,16 +1,17 @@
-// Discovery helpers for pkg/workspace - see workspace.go for the main package doc.
-// the web UI can offer to register them. It is deliberately separate from
-// pkg/workspace to avoid coupling registration concerns with filesystem
-// scanning or network calls.
+// Repo discovery helpers — see open.go for the main package doc.
+//
+// These scan for git repos the web UI can offer to adopt. They are
+// deliberately separate from the rest of pkg/home to avoid coupling
+// config concerns with filesystem scanning or network calls.
 //
 // Two source types are supported:
 //   - Local filesystem: walk a directory, emit every .git repo
 //   - GitHub: list the authenticated user's repositories via the REST API
 //
 // Each helper returns a slice of Candidate with a consistent shape so the
-// caller (handlers/workspaces.go) can serialize to JSON without additional
-// shaping.
-package workspace
+// caller (server/handlers/discovery.go) can serialize to JSON without
+// additional shaping.
+package home
 
 import (
 	"context"
@@ -62,7 +63,7 @@ var skipDirs = map[string]struct{}{
 	".terraform":   {},
 }
 
-// Candidate describes one discovered repository/workspace.
+// Candidate describes one discovered repository.
 type Candidate struct {
 	Path              string `json:"path"`
 	Name              string `json:"name"`
@@ -163,7 +164,7 @@ func ScanLocal(ctx context.Context, opts ScanOptions) ([]Candidate, error) {
 					Path: path,
 					Name: filepath.Base(path),
 				}
-				// .bc/ marker for already-initialized workspaces.
+				// .bc/ marker left by previously adopted repos.
 				if _, bcErr := os.Stat(filepath.Join(path, ".bc")); bcErr == nil {
 					c.HasBC = true
 				}

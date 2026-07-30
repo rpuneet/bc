@@ -61,7 +61,7 @@ func TestLayeredOverrideWins(t *testing.T) {
 		t.Fatalf("create global: %v", err)
 	}
 	// Workspace override
-	if err := s.Create(Template{Name: "shared", Description: "workspace version"}, "ws prompt", ScopeWorkspace); err != nil {
+	if err := s.Create(Template{Name: "shared", Description: "workspace version"}, "h prompt", ScopeWorkspace); err != nil {
 		t.Fatalf("create workspace override: %v", err)
 	}
 
@@ -75,7 +75,7 @@ func TestLayeredOverrideWins(t *testing.T) {
 	if got.Scope != ScopeWorkspace {
 		t.Errorf("scope = %q, want workspace", got.Scope)
 	}
-	if prompt != "ws prompt" {
+	if prompt != "h prompt" {
 		t.Errorf("prompt = %q", prompt)
 	}
 }
@@ -110,7 +110,7 @@ func TestLayeredListUnion(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Override beta in workspace; add gamma workspace-only.
-	if err := s.Create(Template{Name: "beta", Description: "ws"}, "", ScopeWorkspace); err != nil {
+	if err := s.Create(Template{Name: "beta", Description: "h"}, "", ScopeWorkspace); err != nil {
 		t.Fatal(err)
 	}
 	if err := s.Create(Template{Name: "gamma"}, "", ScopeWorkspace); err != nil {
@@ -132,7 +132,7 @@ func TestLayeredListUnion(t *testing.T) {
 	if byName["alpha"].Scope != ScopeGlobal {
 		t.Errorf("alpha scope = %q", byName["alpha"].Scope)
 	}
-	if byName["beta"].Scope != ScopeWorkspace || byName["beta"].Description != "ws" {
+	if byName["beta"].Scope != ScopeWorkspace || byName["beta"].Description != "h" {
 		t.Errorf("beta override lost: %+v", byName["beta"])
 	}
 	if byName["gamma"].Scope != ScopeWorkspace {
@@ -172,7 +172,7 @@ func TestLayeredDeleteDefaultPrefersWorkspace(t *testing.T) {
 	if err := s.Create(Template{Name: "both"}, "", ScopeGlobal); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.Create(Template{Name: "both", Description: "ws"}, "", ScopeWorkspace); err != nil {
+	if err := s.Create(Template{Name: "both", Description: "h"}, "", ScopeWorkspace); err != nil {
 		t.Fatal(err)
 	}
 

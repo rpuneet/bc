@@ -1,4 +1,4 @@
-// Package stats provides workspace metrics and statistics tracking.
+// Package stats provides fleet metrics and statistics tracking.
 package stats
 
 import (
@@ -40,15 +40,15 @@ type AgentStat struct {
 	Uptime time.Duration `json:"uptime"`
 }
 
-// Stats holds all workspace statistics.
+// Stats holds fleet statistics.
 type Stats struct {
-	CollectedAt   time.Time `json:"collected_at"`
-	path          string
-	WorkspacePath string       `json:"workspace_path"`
-	Agents        AgentMetrics `json:"agents"`
+	CollectedAt time.Time `json:"collected_at"`
+	path        string
+	RepoPath    string       `json:"workspace_path"`
+	Agents      AgentMetrics `json:"agents"`
 }
 
-// New creates a new Stats instance for the given workspace.
+// New creates a new Stats instance for the given state dir.
 func New(stateDir string) *Stats {
 	return &Stats{
 		path:        filepath.Join(stateDir, "stats.json"),
@@ -74,13 +74,13 @@ func Load(stateDir string) (*Stats, error) {
 	return s, nil
 }
 
-// refresh updates stats from current workspace state.
+// refresh updates stats from current state.
 func (s *Stats) refresh(stateDir string) error {
 	s.CollectedAt = time.Now()
-	s.WorkspacePath = filepath.Dir(stateDir)
+	s.RepoPath = filepath.Dir(stateDir)
 
 	// Load agents
-	mgr := agent.NewWorkspaceManager(
+	mgr := agent.NewManagerWithRepo(
 		filepath.Join(stateDir, "agents"),
 		filepath.Dir(stateDir),
 	)
@@ -177,7 +177,7 @@ func (s *Stats) Save() error {
 func (s *Stats) Summary() string {
 	var b strings.Builder
 
-	b.WriteString("=== Workspace Stats ===\n")
+	b.WriteString("=== mycel Stats ===\n")
 	b.WriteString(fmt.Sprintf("Collected: %s\n\n", s.CollectedAt.Format(time.RFC3339)))
 
 	// Agents

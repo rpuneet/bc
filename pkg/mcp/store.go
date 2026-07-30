@@ -57,12 +57,12 @@ func (s *Store) SetConfigLookup(fn ConfigLookupFunc) {
 	}
 }
 
-// NewStore creates a new MCP store on the given workspace database. The
-// handle is borrowed: callers (typically the per-workspace db registry)
+// NewStore creates a new MCP store on the given database. The
+// handle is borrowed: callers (typically the global db registry)
 // own its lifecycle.
 func NewStore(d *db.DB, driver string) (*Store, error) {
 	if d == nil {
-		return nil, fmt.Errorf("mcp store requires a workspace database (nil handle)")
+		return nil, fmt.Errorf("mcp store requires a database (nil handle)")
 	}
 
 	s := &Store{db: d, shared: true}
@@ -104,8 +104,8 @@ func (s *Store) initSchema() error {
 }
 
 // Close closes the database connection.
-// No-op when using the borrowed workspace DB — its owner (the
-// per-workspace registry) handles closing.
+// No-op when using the borrowed global DB — its owner (the
+// db registry) handles closing.
 func (s *Store) Close() error {
 	if s.pg != nil {
 		return s.pg.Close()

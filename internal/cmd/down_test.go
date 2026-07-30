@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/rpuneet/mycel/pkg/workspace"
+	"github.com/rpuneet/mycel/pkg/home"
 )
 
 // The daemon is user-scoped: `mycel down` no longer requires a repo (or
@@ -24,7 +24,7 @@ func TestDownIsCWDFree(t *testing.T) {
 	// clean up the pid file — no repo required.
 	t.Setenv("MYCEL_HOME", t.TempDir())
 
-	runDir, err := workspace.EnsureRunDir()
+	runDir, err := home.EnsureRunDir()
 	if err != nil {
 		t.Fatalf("ensure run dir: %v", err)
 	}

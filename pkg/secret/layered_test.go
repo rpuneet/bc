@@ -19,8 +19,8 @@ func mkGlobalVault(t *testing.T, passphrase string) *Store {
 	return s
 }
 
-// mkWorkspaceStore returns a workspace-scoped secret Store (legacy path).
-func mkWorkspaceStore(t *testing.T, passphrase string) *Store {
+// mkRepoStore returns a workspace-scoped secret Store (legacy path).
+func mkRepoStore(t *testing.T, passphrase string) *Store {
 	t.Helper()
 	dir := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(dir, ".bc"), 0750); err != nil {
@@ -36,12 +36,12 @@ func mkWorkspaceStore(t *testing.T, passphrase string) *Store {
 
 func TestLayeredReadPrefersWorkspace(t *testing.T) {
 	g := mkGlobalVault(t, "pass")
-	w := mkWorkspaceStore(t, "pass")
+	w := mkRepoStore(t, "pass")
 
 	if err := g.Set("API_KEY", "global-val", "global"); err != nil {
 		t.Fatal(err)
 	}
-	if err := w.Set("API_KEY", "ws-val", "workspace"); err != nil {
+	if err := w.Set("API_KEY", "h-val", "workspace"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -50,8 +50,8 @@ func TestLayeredReadPrefersWorkspace(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got != "ws-val" {
-		t.Errorf("value = %q, want ws-val", got)
+	if got != "h-val" {
+		t.Errorf("value = %q, want h-val", got)
 	}
 
 	meta, err := l.GetMeta("API_KEY")
@@ -65,7 +65,7 @@ func TestLayeredReadPrefersWorkspace(t *testing.T) {
 
 func TestLayeredFallbackToGlobal(t *testing.T) {
 	g := mkGlobalVault(t, "pass")
-	w := mkWorkspaceStore(t, "pass")
+	w := mkRepoStore(t, "pass")
 	if err := g.Set("GLOBAL_ONLY", "gv", "g"); err != nil {
 		t.Fatal(err)
 	}
@@ -89,7 +89,7 @@ func TestLayeredFallbackToGlobal(t *testing.T) {
 
 func TestLayeredSetDefaultsGlobal(t *testing.T) {
 	g := mkGlobalVault(t, "pass")
-	w := mkWorkspaceStore(t, "pass")
+	w := mkRepoStore(t, "pass")
 	l := NewLayeredStore(g, w)
 
 	if err := l.Set("NEW", "v", "d"); err != nil {
@@ -106,7 +106,7 @@ func TestLayeredSetDefaultsGlobal(t *testing.T) {
 
 func TestLayeredSetWorkspace(t *testing.T) {
 	g := mkGlobalVault(t, "pass")
-	w := mkWorkspaceStore(t, "pass")
+	w := mkRepoStore(t, "pass")
 	l := NewLayeredStore(g, w)
 
 	if err := l.SetWorkspace("WS_ONLY", "wv", ""); err != nil {
@@ -122,11 +122,11 @@ func TestLayeredSetWorkspace(t *testing.T) {
 
 func TestLayeredListReportsScopes(t *testing.T) {
 	g := mkGlobalVault(t, "pass")
-	w := mkWorkspaceStore(t, "pass")
+	w := mkRepoStore(t, "pass")
 
 	_ = g.Set("A", "a", "")
 	_ = g.Set("B", "b-global", "")
-	_ = w.Set("B", "b-ws", "")
+	_ = w.Set("B", "b-h", "")
 	_ = w.Set("C", "c", "")
 
 	l := NewLayeredStore(g, w)
@@ -155,7 +155,7 @@ func TestLayeredListReportsScopes(t *testing.T) {
 
 func TestLayeredDeleteScoped(t *testing.T) {
 	g := mkGlobalVault(t, "pass")
-	w := mkWorkspaceStore(t, "pass")
+	w := mkRepoStore(t, "pass")
 	if err := g.Set("K", "gv", ""); err != nil {
 		t.Fatal(err)
 	}
@@ -187,9 +187,9 @@ func TestLayeredDeleteScoped(t *testing.T) {
 
 func TestLayeredResolveEnv(t *testing.T) {
 	g := mkGlobalVault(t, "pass")
-	w := mkWorkspaceStore(t, "pass")
+	w := mkRepoStore(t, "pass")
 	_ = g.Set("API_KEY", "sk-global", "")
-	_ = w.Set("API_KEY", "sk-ws", "")
+	_ = w.Set("API_KEY", "sk-h", "")
 	_ = g.Set("MODE", "prod", "")
 
 	l := NewLayeredStore(g, w)
@@ -198,7 +198,7 @@ func TestLayeredResolveEnv(t *testing.T) {
 		"MODE":  "${secret:MODE}",
 		"PLAIN": "no-secret",
 	})
-	if out["AUTH"] != "sk-ws" {
+	if out["AUTH"] != "sk-h" {
 		t.Errorf("AUTH = %q (workspace should win)", out["AUTH"])
 	}
 	if out["MODE"] != "prod" {

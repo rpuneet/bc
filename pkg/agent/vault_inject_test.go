@@ -10,16 +10,16 @@ import (
 	"github.com/rpuneet/mycel/pkg/secret"
 )
 
-// seedWorkspaceVault writes a secret into the workspace vault under wsPath/.bc/secrets.db.
-func seedWorkspaceVault(t *testing.T, wsPath, name, value string) {
+// seedRepoVault writes a secret into the repo vault under repoPath/.bc/secrets.db.
+func seedRepoVault(t *testing.T, repoPath, name, value string) {
 	t.Helper()
-	ss, err := secret.NewStore(wsPath, "test-passphrase")
+	ss, err := secret.NewStore(repoPath, "test-passphrase")
 	if err != nil {
-		t.Fatalf("seedWorkspaceVault: NewStore: %v", err)
+		t.Fatalf("seedRepoVault: NewStore: %v", err)
 	}
 	defer func() { _ = ss.Close() }()
 	if err := ss.Set(name, value, ""); err != nil {
-		t.Fatalf("seedWorkspaceVault: Set %q: %v", name, err)
+		t.Fatalf("seedRepoVault: Set %q: %v", name, err)
 	}
 }
 
@@ -46,15 +46,15 @@ func TestInjectVaultSecrets(t *testing.T) {
 	t.Setenv("MYCEL_HOME", mycelHome)
 	t.Setenv(secret.PassphraseEnvVar, "test-passphrase")
 
-	wsPath := t.TempDir()
+	repoPath := t.TempDir()
 	globalVaultPath := filepath.Join(mycelHome, "secrets.vault")
 
-	seedWorkspaceVault(t, wsPath, "WS_SECRET", "ws-value")
-	seedWorkspaceVault(t, wsPath, "SLACK_BOT_TOKEN", "slack-ws-token")
-	seedWorkspaceVault(t, wsPath, "GITHUB_PERSONAL_ACCESS_TOKEN", "ghp-token-123")
+	seedRepoVault(t, repoPath, "WS_SECRET", "h-value")
+	seedRepoVault(t, repoPath, "SLACK_BOT_TOKEN", "slack-h-token")
+	seedRepoVault(t, repoPath, "GITHUB_PERSONAL_ACCESS_TOKEN", "ghp-token-123")
 	seedGlobalVault(t, globalVaultPath, "GLOBAL_SECRET", "global-value")
 	seedGlobalVault(t, globalVaultPath, "SHARED_SECRET", "global-shared")
-	seedWorkspaceVault(t, wsPath, "SHARED_SECRET", "ws-wins")
+	seedRepoVault(t, repoPath, "SHARED_SECRET", "h-wins")
 
 	tests := []struct {
 		name        string
@@ -65,11 +65,11 @@ func TestInjectVaultSecrets(t *testing.T) {
 		wantAbsent  []string
 	}{
 		{
-			name:        "role-declared secret injected from workspace vault",
+			name:        "role-declared secret injected from repo vault",
 			preEnv:      map[string]string{},
 			roleSecrets: []string{"WS_SECRET"},
 			wantKey:     "WS_SECRET",
-			wantValue:   "ws-value",
+			wantValue:   "h-value",
 		},
 		{
 			name:        "role-declared secret injected from global vault",
@@ -79,11 +79,11 @@ func TestInjectVaultSecrets(t *testing.T) {
 			wantValue:   "global-value",
 		},
 		{
-			name:        "workspace vault wins over global for same name",
+			name:        "repo vault wins over global for same name",
 			preEnv:      map[string]string{},
 			roleSecrets: []string{"SHARED_SECRET"},
 			wantKey:     "SHARED_SECRET",
-			wantValue:   "ws-wins",
+			wantValue:   "h-wins",
 		},
 		{
 			name:   "well-known gateway token auto-injected without role declaration",
@@ -91,7 +91,7 @@ func TestInjectVaultSecrets(t *testing.T) {
 			// SLACK_BOT_TOKEN not in roleSecrets — should still inject via wellKnownVaultTokens
 			roleSecrets: nil,
 			wantKey:     "SLACK_BOT_TOKEN",
-			wantValue:   "slack-ws-token",
+			wantValue:   "slack-h-token",
 		},
 		{
 			name: "existing env wins over vault (precedence)",
@@ -140,7 +140,7 @@ func TestInjectVaultSecrets(t *testing.T) {
 				env[k] = v
 			}
 
-			injectVaultSecrets(env, wsPath, tc.roleSecrets, nil)
+			injectVaultSecrets(env, repoPath, tc.roleSecrets, nil)
 
 			if tc.wantKey != "" {
 				if got := env[tc.wantKey]; got != tc.wantValue {
@@ -164,10 +164,10 @@ func TestInjectVaultSecretsAppCredentials(t *testing.T) {
 	t.Setenv("MYCEL_HOME", mycelHome)
 	t.Setenv(secret.PassphraseEnvVar, "test-passphrase")
 
-	wsPath := t.TempDir()
-	seedWorkspaceVault(t, wsPath, "app:slack:bot_token", "xoxb-app-vault")
-	seedWorkspaceVault(t, wsPath, "app:telegram:alerts:bot_token", "tg-app-vault")
-	seedWorkspaceVault(t, wsPath, "app:rss:blog:url", "should-not-inject") // rss url is not a Secret field
+	repoPath := t.TempDir()
+	seedRepoVault(t, repoPath, "app:slack:bot_token", "xoxb-app-vault")
+	seedRepoVault(t, repoPath, "app:telegram:alerts:bot_token", "tg-app-vault")
+	seedRepoVault(t, repoPath, "app:rss:blog:url", "should-not-inject") // rss url is not a Secret field
 
 	apps := map[string]app.InstanceConfig{
 		"slack":           {App: "slack", Enabled: true},
@@ -177,7 +177,7 @@ func TestInjectVaultSecretsAppCredentials(t *testing.T) {
 	}
 
 	env := map[string]string{}
-	injected := injectVaultSecrets(env, wsPath, nil, apps)
+	injected := injectVaultSecrets(env, repoPath, nil, apps)
 
 	if env["SLACK_BOT_TOKEN"] != "xoxb-app-vault" {
 		t.Errorf("SLACK_BOT_TOKEN = %q, want xoxb-app-vault", env["SLACK_BOT_TOKEN"])
@@ -238,9 +238,9 @@ func TestLoadSecrets_RealPassphrase(t *testing.T) {
 	t.Setenv("MYCEL_HOME", mycelHome)
 	t.Setenv(secret.PassphraseEnvVar, "strong-passphrase")
 
-	wsPath := t.TempDir()
+	repoPath := t.TempDir()
 	// Seed with the REAL passphrase.
-	ss, err := secret.NewStore(wsPath, "strong-passphrase")
+	ss, err := secret.NewStore(repoPath, "strong-passphrase")
 	if err != nil {
 		t.Fatalf("NewStore: %v", err)
 	}
@@ -249,7 +249,7 @@ func TestLoadSecrets_RealPassphrase(t *testing.T) {
 	}
 	_ = ss.Close()
 
-	got := loadSecrets(wsPath, []string{"MCP_API_KEY"})
+	got := loadSecrets(repoPath, []string{"MCP_API_KEY"})
 
 	if got["MCP_API_KEY"] != "the-real-value" {
 		t.Errorf("loadSecrets with real passphrase: MCP_API_KEY = %q, want %q",
@@ -258,13 +258,13 @@ func TestLoadSecrets_RealPassphrase(t *testing.T) {
 }
 
 // TestResolveSecretRefs_LayeredStore ensures resolveSecretRefs resolves refs
-// from the layered (global+workspace) vault, not just the workspace vault.
+// from the layered (global+repo) vault, not just the repo vault.
 func TestResolveSecretRefs_LayeredStore(t *testing.T) {
 	mycelHome := t.TempDir()
 	t.Setenv("MYCEL_HOME", mycelHome)
 	t.Setenv(secret.PassphraseEnvVar, "test-passphrase")
 
-	wsPath := t.TempDir()
+	repoPath := t.TempDir()
 	globalVaultPath := filepath.Join(mycelHome, "secrets.vault")
 
 	// Secret lives ONLY in the global vault.
@@ -274,7 +274,7 @@ func TestResolveSecretRefs_LayeredStore(t *testing.T) {
 		"MYCEL_AGENT_ID": "agent1",
 		"API_KEY":        "${secret:GLOBAL_API_KEY}",
 	}
-	resolveSecretRefs(env, wsPath)
+	resolveSecretRefs(env, repoPath)
 
 	if env["API_KEY"] != "global-resolved-value" {
 		t.Errorf("resolveSecretRefs from global vault: API_KEY = %q, want %q",

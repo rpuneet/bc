@@ -10,7 +10,7 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 
 	"github.com/rpuneet/mycel/pkg/db"
-	"github.com/rpuneet/mycel/pkg/workspace"
+	"github.com/rpuneet/mycel/pkg/home"
 )
 
 // ─── Severity ────────────────────────────────────────────────────────────────
@@ -95,12 +95,12 @@ func TestValidCategories(t *testing.T) {
 		t.Fatal("ValidCategories() returned empty slice")
 	}
 	want := map[string]bool{
-		"workspace": true,
-		"database":  true,
-		"agents":    true,
-		"tools":     true,
-		"git":       true,
-		"daemon":    true,
+		"home":     true,
+		"database": true,
+		"agents":   true,
+		"tools":    true,
+		"git":      true,
+		"daemon":   true,
 	}
 	for _, c := range cats {
 		if !want[c] {
@@ -153,37 +153,37 @@ func TestCheckEnvVar_ShortValue(t *testing.T) {
 	}
 }
 
-// ─── Test workspaces ─────────────────────────────────────────────────────────
+// ─── Test homes ──────────────────────────────────────────────────────────────
 
-// newBootstrappedWorkspace points MYCEL_HOME at a fresh temp dir and
+// newBootstrappedHome points MYCEL_HOME at a fresh temp dir and
 // bootstraps the full ~/.mycel structure (prefs.json, dirs, DB-backed
-// roles) via workspace.Open. Returns the workspace and the home dir.
-func newBootstrappedWorkspace(t *testing.T) (*workspace.Workspace, string) {
+// roles) via home.Open. Returns the Home and the home dir.
+func newBootstrappedHome(t *testing.T) (*home.Home, string) {
 	t.Helper()
-	home := t.TempDir()
-	t.Setenv("MYCEL_HOME", home)
-	ws, err := workspace.Open("")
+	homeDir := t.TempDir()
+	t.Setenv("MYCEL_HOME", homeDir)
+	h, err := home.Open("")
 	if err != nil {
-		t.Fatalf("workspace.Open: %v", err)
+		t.Fatalf("home.Open: %v", err)
 	}
-	return ws, home
+	return h, homeDir
 }
 
-// newEmptyHomeWorkspace points MYCEL_HOME at a path that does NOT exist
-// and returns a bare workspace value — used for missing-state scenarios.
-func newEmptyHomeWorkspace(t *testing.T) (*workspace.Workspace, string) {
+// newEmptyHome points MYCEL_HOME at a path that does NOT exist
+// and returns a bare Home value — used for missing-state scenarios.
+func newEmptyHome(t *testing.T) (*home.Home, string) {
 	t.Helper()
-	home := filepath.Join(t.TempDir(), "no-mycel-home")
-	t.Setenv("MYCEL_HOME", home)
-	return &workspace.Workspace{}, home
+	homeDir := filepath.Join(t.TempDir(), "no-mycel-home")
+	t.Setenv("MYCEL_HOME", homeDir)
+	return &home.Home{}, homeDir
 }
 
-// ─── CheckWorkspace ──────────────────────────────────────────────────────────
+// ─── CheckHome ──────────────────────────────────────────────────────────
 
-func TestCheckWorkspace_MissingHome(t *testing.T) {
-	ws, _ := newEmptyHomeWorkspace(t)
+func TestCheckHome_MissingHome(t *testing.T) {
+	h, _ := newEmptyHome(t)
 	// ~/.mycel does not exist — should fail immediately
-	cat := CheckWorkspace(ws)
+	cat := CheckHome(h)
 	if len(cat.Items) != 1 {
 		t.Fatalf("expected exactly one item, got %d: %+v", len(cat.Items), cat.Items)
 	}
@@ -192,14 +192,14 @@ func TestCheckWorkspace_MissingHome(t *testing.T) {
 	}
 }
 
-func TestCheckWorkspace_ValidStructure(t *testing.T) {
-	ws, _ := newBootstrappedWorkspace(t)
+func TestCheckHome_ValidStructure(t *testing.T) {
+	h, _ := newBootstrappedHome(t)
 
-	cat := CheckWorkspace(ws)
+	cat := CheckHome(h)
 
 	ok, _, fail := cat.Counts()
 	if fail > 0 {
-		t.Errorf("valid workspace: got %d failures, want 0", fail)
+		t.Errorf("valid home: got %d failures, want 0", fail)
 		for _, item := range cat.Items {
 			if item.Severity == SeverityFail {
 				t.Logf("  FAIL: %s — %s", item.Name, item.Message)
@@ -207,14 +207,14 @@ func TestCheckWorkspace_ValidStructure(t *testing.T) {
 		}
 	}
 	if ok == 0 {
-		t.Error("valid workspace: expected at least one ok item")
+		t.Error("valid home: expected at least one ok item")
 	}
 
 	// The bootstrapped home must report prefs.json and DB-backed roles ok.
 	var prefsOK, rolesOK, agentsOK bool
 	for _, item := range cat.Items {
 		switch item.Name {
-		case workspace.PrefsFileName:
+		case home.PrefsFileName:
 			prefsOK = item.Severity == SeverityOK
 		case "roles":
 			rolesOK = item.Severity == SeverityOK
@@ -223,7 +223,7 @@ func TestCheckWorkspace_ValidStructure(t *testing.T) {
 		}
 	}
 	if !prefsOK {
-		t.Errorf("expected ok item for %s", workspace.PrefsFileName)
+		t.Errorf("expected ok item for %s", home.PrefsFileName)
 	}
 	if !rolesOK {
 		t.Error("expected ok item for DB-backed roles (defaults seeded by Open)")
@@ -233,19 +233,19 @@ func TestCheckWorkspace_ValidStructure(t *testing.T) {
 	}
 }
 
-func TestCheckWorkspace_MissingPrefs(t *testing.T) {
-	ws, home := newBootstrappedWorkspace(t)
+func TestCheckHome_MissingPrefs(t *testing.T) {
+	h, homeDir := newBootstrappedHome(t)
 
 	// Remove the global prefs file — doctor must flag it as a failure.
-	if err := os.Remove(filepath.Join(home, workspace.PrefsFileName)); err != nil {
+	if err := os.Remove(filepath.Join(homeDir, home.PrefsFileName)); err != nil {
 		t.Fatal(err)
 	}
 
-	cat := CheckWorkspace(ws)
+	cat := CheckHome(h)
 
 	var foundPrefsFail bool
 	for _, item := range cat.Items {
-		if item.Name == workspace.PrefsFileName && item.Severity == SeverityFail {
+		if item.Name == home.PrefsFileName && item.Severity == SeverityFail {
 			foundPrefsFail = true
 			if item.Fix == "" {
 				t.Error("missing prefs.json fail item should carry a fix hint")
@@ -253,19 +253,19 @@ func TestCheckWorkspace_MissingPrefs(t *testing.T) {
 		}
 	}
 	if !foundPrefsFail {
-		t.Errorf("expected a fail item for missing %s", workspace.PrefsFileName)
+		t.Errorf("expected a fail item for missing %s", home.PrefsFileName)
 	}
 }
 
-func TestCheckWorkspace_MissingAgentsDir(t *testing.T) {
-	ws, home := newBootstrappedWorkspace(t)
+func TestCheckHome_MissingAgentsDir(t *testing.T) {
+	h, homeDir := newBootstrappedHome(t)
 
 	// Remove agents/ — doctor should warn, not fail.
-	if err := os.RemoveAll(filepath.Join(home, "agents")); err != nil {
+	if err := os.RemoveAll(filepath.Join(homeDir, "agents")); err != nil {
 		t.Fatal(err)
 	}
 
-	cat := CheckWorkspace(ws)
+	cat := CheckHome(h)
 
 	var foundAgentsWarn bool
 	for _, item := range cat.Items {
@@ -278,35 +278,35 @@ func TestCheckWorkspace_MissingAgentsDir(t *testing.T) {
 	}
 }
 
-func TestCheckWorkspace_InvalidConfig(t *testing.T) {
-	ws, _ := newBootstrappedWorkspace(t)
+func TestCheckHome_InvalidConfig(t *testing.T) {
+	h, _ := newBootstrappedHome(t)
 
-	// Point the workspace at an invalid config (bad version) — the
+	// Point the home at an invalid config (bad version) — the
 	// prefs.json file exists, so doctor validates the loaded config.
-	ws.Config = &workspace.Config{Version: 99}
+	h.Config = &home.Config{Version: 99}
 
-	cat := CheckWorkspace(ws)
+	cat := CheckHome(h)
 
 	var foundConfigFail bool
 	for _, item := range cat.Items {
-		if item.Name == workspace.PrefsFileName && item.Severity == SeverityFail {
+		if item.Name == home.PrefsFileName && item.Severity == SeverityFail {
 			foundConfigFail = true
 		}
 	}
 	if !foundConfigFail {
-		t.Errorf("expected a fail item for invalid %s", workspace.PrefsFileName)
+		t.Errorf("expected a fail item for invalid %s", home.PrefsFileName)
 	}
 }
 
 // ─── CheckDatabase ───────────────────────────────────────────────────────────
 
 func TestCheckDatabase_NoDB(t *testing.T) {
-	ws, home := newEmptyHomeWorkspace(t)
-	if err := os.MkdirAll(home, 0750); err != nil {
+	h, homeDir := newEmptyHome(t)
+	if err := os.MkdirAll(homeDir, 0750); err != nil {
 		t.Fatal(err)
 	}
 
-	cat := CheckDatabase(context.Background(), ws)
+	cat := CheckDatabase(context.Background(), h)
 
 	// With no mycel.db, we expect warnings (not found = will be created on use)
 	_, warn, fail := cat.Counts()
@@ -319,18 +319,18 @@ func TestCheckDatabase_NoDB(t *testing.T) {
 }
 
 func TestCheckDatabase_ValidDB(t *testing.T) {
-	ws, home := newEmptyHomeWorkspace(t)
-	if err := os.MkdirAll(home, 0750); err != nil {
+	h, homeDir := newEmptyHome(t)
+	if err := os.MkdirAll(homeDir, 0750); err != nil {
 		t.Fatal(err)
 	}
 
 	// Create a valid mycel.db with all required tables.
-	dbPath := filepath.Join(home, db.GlobalDBFileName)
+	dbPath := filepath.Join(homeDir, db.GlobalDBFileName)
 	if err := createTestDB(t, dbPath, "agents", "channels", "messages"); err != nil {
 		t.Fatal(err)
 	}
 
-	cat := CheckDatabase(context.Background(), ws)
+	cat := CheckDatabase(context.Background(), h)
 
 	_, _, fail := cat.Counts()
 	if fail > 0 {
@@ -354,18 +354,18 @@ func TestCheckDatabase_ValidDB(t *testing.T) {
 }
 
 func TestCheckDatabase_MissingTable(t *testing.T) {
-	ws, home := newEmptyHomeWorkspace(t)
-	if err := os.MkdirAll(home, 0750); err != nil {
+	h, homeDir := newEmptyHome(t)
+	if err := os.MkdirAll(homeDir, 0750); err != nil {
 		t.Fatal(err)
 	}
 
 	// Create mycel.db WITHOUT any tables.
-	dbPath := filepath.Join(home, db.GlobalDBFileName)
+	dbPath := filepath.Join(homeDir, db.GlobalDBFileName)
 	if err := createTestDB(t, dbPath /*, no tables*/); err != nil {
 		t.Fatal(err)
 	}
 
-	cat := CheckDatabase(context.Background(), ws)
+	cat := CheckDatabase(context.Background(), h)
 
 	var foundMissingTable bool
 	for _, item := range cat.Items {
@@ -474,10 +474,10 @@ func TestCheckTools_ANTHROPICAPIKey_OK(t *testing.T) {
 // ─── CheckAgents ─────────────────────────────────────────────────────────────
 
 func TestCheckAgents_FreshHome(t *testing.T) {
-	ws, _ := newBootstrappedWorkspace(t)
+	h, _ := newBootstrappedHome(t)
 
 	ctx := context.Background()
-	cat := CheckAgents(ctx, ws)
+	cat := CheckAgents(ctx, h)
 
 	if cat.Name != "Agents" {
 		t.Errorf("category name = %q, want %q", cat.Name, "Agents")
@@ -548,21 +548,21 @@ func TestParseWorktrees_Empty(t *testing.T) {
 // ─── CategoryByName ──────────────────────────────────────────────────────────
 
 func TestCategoryByName_Unknown(t *testing.T) {
-	ws, _ := newBootstrappedWorkspace(t)
+	h, _ := newBootstrappedHome(t)
 	ctx := context.Background()
 
-	result := CategoryByName(ctx, ws, "nonexistent")
+	result := CategoryByName(ctx, h, "nonexistent")
 	if result != nil {
 		t.Errorf("unknown category: expected nil, got %+v", result)
 	}
 }
 
 func TestCategoryByName_KnownCategories(t *testing.T) {
-	ws, _ := newBootstrappedWorkspace(t)
+	h, _ := newBootstrappedHome(t)
 	ctx := context.Background()
 
 	for _, name := range ValidCategories() {
-		result := CategoryByName(ctx, ws, name)
+		result := CategoryByName(ctx, h, name)
 		if result == nil {
 			t.Errorf("CategoryByName(%q) returned nil, want non-nil", name)
 		}
@@ -572,16 +572,16 @@ func TestCategoryByName_KnownCategories(t *testing.T) {
 // ─── Fix ─────────────────────────────────────────────────────────────────────
 
 func TestFix_DryRun_NoChanges(t *testing.T) {
-	ws, home := newBootstrappedWorkspace(t)
+	h, homeDir := newBootstrappedHome(t)
 
 	// Remove agents/ so a fix would have something to create.
-	if err := os.RemoveAll(filepath.Join(home, "agents")); err != nil {
+	if err := os.RemoveAll(filepath.Join(homeDir, "agents")); err != nil {
 		t.Fatal(err)
 	}
 
 	// Build a report with a missing agents/ dir
 	cat := CategoryReport{
-		Name: "Workspace",
+		Name: "Home",
 		Items: []Item{
 			{Name: "agents/", Severity: SeverityWarn, Message: "missing"},
 		},
@@ -589,7 +589,7 @@ func TestFix_DryRun_NoChanges(t *testing.T) {
 	report := &Report{Categories: []CategoryReport{cat}}
 
 	ctx := context.Background()
-	results := Fix(ctx, ws, report, true /* dryRun */)
+	results := Fix(ctx, h, report, true /* dryRun */)
 
 	// Dry-run should return results but NOT create the directory
 	for _, r := range results {
@@ -602,21 +602,21 @@ func TestFix_DryRun_NoChanges(t *testing.T) {
 	}
 
 	// Verify nothing was actually created
-	agentsDir := ws.AgentsDir()
+	agentsDir := h.AgentsDir()
 	if _, err := os.Stat(agentsDir); err == nil {
 		t.Error("dry-run should not have created agents/ directory")
 	}
 }
 
-func TestFix_WorkspaceDir_Creates(t *testing.T) {
-	ws, home := newBootstrappedWorkspace(t)
+func TestFix_HomeAgentsDir_Creates(t *testing.T) {
+	h, homeDir := newBootstrappedHome(t)
 
 	// agents/ is missing
-	if err := os.RemoveAll(filepath.Join(home, "agents")); err != nil {
+	if err := os.RemoveAll(filepath.Join(homeDir, "agents")); err != nil {
 		t.Fatal(err)
 	}
 	cat := CategoryReport{
-		Name: "Workspace",
+		Name: "Home",
 		Items: []Item{
 			{Name: "agents/", Severity: SeverityWarn, Message: "missing"},
 		},
@@ -624,7 +624,7 @@ func TestFix_WorkspaceDir_Creates(t *testing.T) {
 	report := &Report{Categories: []CategoryReport{cat}}
 
 	ctx := context.Background()
-	results := Fix(ctx, ws, report, false /* not dryRun */)
+	results := Fix(ctx, h, report, false /* not dryRun */)
 
 	if len(results) == 0 {
 		t.Error("expected at least one fix result")
@@ -636,7 +636,7 @@ func TestFix_WorkspaceDir_Creates(t *testing.T) {
 	}
 
 	// Verify agents/ was created
-	if _, err := os.Stat(ws.AgentsDir()); err != nil {
+	if _, err := os.Stat(h.AgentsDir()); err != nil {
 		t.Errorf("agents/ should have been created: %v", err)
 	}
 }

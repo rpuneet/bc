@@ -156,7 +156,7 @@ func TestCodeSearch_EmptyQueryReturns400(t *testing.T) {
 
 // TestCodeSearch_RejectsPathEscape guards the SafeJoin-backed subdir
 // scope. A query with `path=../../etc` must be refused, not silently
-// escape the workspace root.
+// escape the repo root.
 func TestCodeSearch_RejectsPathEscape(t *testing.T) {
 	srv, _ := newSearchServer(t)
 	defer srv.Close()

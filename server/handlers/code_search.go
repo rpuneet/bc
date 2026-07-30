@@ -85,7 +85,7 @@ func (h *CodeHandler) search(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if wtRoot == "" {
-		httpError(w, "workspace not resolved", http.StatusNotFound)
+		httpError(w, "repo not resolved", http.StatusNotFound)
 		return
 	}
 

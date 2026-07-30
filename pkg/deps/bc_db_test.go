@@ -153,12 +153,12 @@ func TestBCDBLogs(t *testing.T) {
 	}
 }
 
-func TestBCCodeServerStartSendsWorkspaceMount(t *testing.T) {
+func TestBCCodeServerStartSendsRepoMount(t *testing.T) {
 	m := &mockExec{responses: []mockResponse{
 		{}, // rm -f (ignored)
 		{}, // run succeeds
 	}}
-	d := NewBCCodeServerWithRunner("/opt/ws", m)
+	d := NewBCCodeServerWithRunner("/opt/repo", m)
 
 	if err := d.Start(context.Background()); err != nil {
 		t.Fatalf("Start err: %v", err)
@@ -167,34 +167,34 @@ func TestBCCodeServerStartSendsWorkspaceMount(t *testing.T) {
 		t.Fatalf("calls = %d, want 2 (rm+run)", len(m.calls))
 	}
 	runArgs := strings.Join(m.calls[1].args, " ")
-	if !strings.Contains(runArgs, "/opt/ws:/home/coder/workspace") {
-		t.Errorf("run args missing workspace mount: %s", runArgs)
+	if !strings.Contains(runArgs, "/opt/repo:/home/coder/workspace") {
+		t.Errorf("run args missing repo mount: %s", runArgs)
 	}
 	if !strings.Contains(runArgs, "--auth=none") {
 		t.Errorf("run args missing --auth=none: %s", runArgs)
 	}
 }
 
-func TestBCCodeServerStartRequiresWorkspace(t *testing.T) {
+func TestBCCodeServerStartRequiresRepo(t *testing.T) {
 	m := &mockExec{}
 	d := NewBCCodeServerWithRunner("", m)
 	if err := d.Start(context.Background()); err == nil {
-		t.Error("expected Start to fail without workspace root")
+		t.Error("expected Start to fail without a repo root")
 	}
 	if len(m.calls) != 0 {
 		t.Errorf("unexpected calls: %v", m.calls)
 	}
 }
 
-func TestBCCodeServerSetWorkspaceRoot(t *testing.T) {
+func TestBCCodeServerSetRepoRoot(t *testing.T) {
 	m := &mockExec{responses: []mockResponse{{}, {}}}
 	d := NewBCCodeServerWithRunner("/a", m)
-	d.SetWorkspaceRoot("/b")
+	d.SetRepoRoot("/b")
 	if err := d.Start(context.Background()); err != nil {
 		t.Fatalf("Start err: %v", err)
 	}
 	runArgs := strings.Join(m.calls[1].args, " ")
 	if !strings.Contains(runArgs, "/b:/home/coder/workspace") {
-		t.Errorf("run args should use updated workspace: %s", runArgs)
+		t.Errorf("run args should use the updated repo: %s", runArgs)
 	}
 }

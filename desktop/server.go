@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"github.com/rpuneet/mycel/internal/cmd"
+	"github.com/rpuneet/mycel/pkg/home"
 	"github.com/rpuneet/mycel/pkg/log"
-	"github.com/rpuneet/mycel/pkg/workspace"
 )
 
 // stopTimeout bounds how long window close waits for the server's
@@ -21,11 +21,11 @@ const stopTimeout = 15 * time.Second
 // `mycel up` (cmd.RunServerCtx), running in-process so the native
 // window and the browser URL share one daemon on one localhost port.
 type Server struct {
-	cancel context.CancelFunc
-	done   chan error
-	addr   string
-	wsRoot string
-	apiKey string
+	cancel   context.CancelFunc
+	done     chan error
+	addr     string
+	repoRoot string
+	apiKey   string
 }
 
 // NewServer resolves listen address and anchor repo the same way
@@ -36,15 +36,15 @@ type Server struct {
 // An optional --addr flag overrides everything (same semantics as
 // `mycel up --addr`), handy when another daemon already owns 9374.
 func NewServer() *Server {
-	wsRoot := resolveWorkspaceRoot()
-	addr := resolveListenAddr(wsRoot)
+	repoRoot := resolveRepoRoot()
+	addr := resolveListenAddr(repoRoot)
 	if override := addrFlag(); override != "" {
 		addr = override
 	}
 	return &Server{
-		addr:   addr,
-		wsRoot: wsRoot,
-		apiKey: os.Getenv("MYCEL_API_KEY"),
+		addr:     addr,
+		repoRoot: repoRoot,
+		apiKey:   os.Getenv("MYCEL_API_KEY"),
 	}
 }
 
@@ -73,7 +73,7 @@ func (s *Server) Start() {
 	publishDaemonAddr(s.URL())
 
 	go func() {
-		err := cmd.RunServerCtx(ctx, s.addr, s.wsRoot, "*", s.apiKey)
+		err := cmd.RunServerCtx(ctx, s.addr, s.repoRoot, "*", s.apiKey)
 		if err != nil {
 			log.Error("mycel server exited", "error", err)
 		}
@@ -96,11 +96,11 @@ func (s *Server) Stop() {
 	}
 }
 
-// resolveWorkspaceRoot mirrors the CLI's repo resolution: explicit
+// resolveRepoRoot mirrors the CLI's repo resolution: explicit
 // MYCEL_WORKSPACE wins, then the enclosing adopted repo of the
 // current directory. GUI launches usually have neither — empty means
 // a MycelHome-only boot.
-func resolveWorkspaceRoot() string {
+func resolveRepoRoot() string {
 	if p := os.Getenv("MYCEL_WORKSPACE"); p != "" {
 		return p
 	}
@@ -108,25 +108,25 @@ func resolveWorkspaceRoot() string {
 	if err != nil {
 		return ""
 	}
-	ws, err := workspace.Find(cwd)
-	if err != nil || ws == nil {
+	h, err := home.Find(cwd)
+	if err != nil || h == nil {
 		return ""
 	}
-	return ws.RootDir
+	return h.RootDir
 }
 
-// resolveListenAddr honors the workspace preferences (server.host /
+// resolveListenAddr honors the global preferences (server.host /
 // server.port) exactly like `mycel up` without --addr, falling back
 // to the stock 127.0.0.1:9374.
-func resolveListenAddr(wsRoot string) string {
+func resolveListenAddr(repoRoot string) string {
 	host, port := "127.0.0.1", 9374
-	if wsRoot != "" {
-		if ws, err := workspace.Load(wsRoot); err == nil && ws.Config != nil {
-			if ws.Config.Server.Host != "" {
-				host = ws.Config.Server.Host
+	if repoRoot != "" {
+		if h, err := home.Load(repoRoot); err == nil && h.Config != nil {
+			if h.Config.Server.Host != "" {
+				host = h.Config.Server.Host
 			}
-			if ws.Config.Server.Port > 0 {
-				port = ws.Config.Server.Port
+			if h.Config.Server.Port > 0 {
+				port = h.Config.Server.Port
 			}
 		}
 	}
@@ -141,11 +141,11 @@ func publishDaemonAddr(url string) {
 	if err := os.Setenv("MYCEL_DAEMON_ADDR", url); err != nil {
 		log.Warn("daemon addr: setenv failed", "error", err)
 	}
-	if _, err := workspace.EnsureGlobalDir(); err != nil {
+	if _, err := home.EnsureGlobalDir(); err != nil {
 		log.Warn("daemon addr: ensure ~/.mycel failed — CLI will fall back to default port", "error", err)
 		return
 	}
-	addrPath, err := workspace.DaemonAddrPath()
+	addrPath, err := home.DaemonAddrPath()
 	if err != nil {
 		log.Warn("daemon addr: resolve path failed — CLI will fall back to default port", "error", err)
 		return

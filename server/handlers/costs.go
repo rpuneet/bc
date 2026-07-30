@@ -42,9 +42,9 @@ func (h *CostHandler) summary(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.maybeRefresh(r)
-	s, err := h.svc.WorkspaceSummary(r.Context())
+	s, err := h.svc.TotalSummary(r.Context())
 	if err != nil {
-		httpInternalError(w, "workspace summary", err)
+		httpInternalError(w, "total summary", err)
 		return
 	}
 	writeJSON(w, http.StatusOK, s)

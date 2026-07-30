@@ -1,8 +1,8 @@
-// Package workspace manages the global mycel config and the repos
-// agents work against.
+// Package home manages the ~/.mycel home: the global mycel config and
+// the repos agents work against.
 //
 // mycel keeps ONE config (~/.mycel/prefs.json) and ONE database
-// (~/.mycel/mycel.db). A Workspace pairs that global config with an
+// (~/.mycel/mycel.db). A Home pairs that global config with an
 // optional anchor repo (a git repo new agents default to). Repos stay
 // pristine — all runtime state lives under ~/.mycel.
 //
@@ -10,16 +10,16 @@
 //
 // Bootstrap-or-load (idempotent — what `mycel up` does):
 //
-//	ws, err := workspace.Open("/path/to/repo") // or Open("") for no anchor repo
+//	h, err := home.Open("/path/to/repo") // or Open("") for no anchor repo
 //
 // Load strictly (fails when mycel was never set up):
 //
-//	ws, err := workspace.Load("/path/to/repo")
+//	h, err := home.Load("/path/to/repo")
 //
 // Find the enclosing git repo and load:
 //
-//	ws, err := workspace.Find(".")
-package workspace
+//	h, err := home.Find(".")
+package home
 
 import (
 	"fmt"
@@ -30,12 +30,12 @@ import (
 	"github.com/rpuneet/mycel/pkg/log"
 )
 
-// Workspace pairs the global mycel config with an optional anchor repo.
+// Home pairs the global mycel config with an optional anchor repo.
 //
 //   - RootDir: the anchor repo (a pristine git repo new agents default
 //     to). May be empty when the daemon boots outside any repo.
 //   - All runtime state lives under MycelHome() (~/.mycel/).
-type Workspace struct {
+type Home struct {
 	Config      *Config      // the one global config (~/.mycel/prefs.json)
 	RoleManager *RoleManager // Role manager (DB-backed)
 	RootDir     string       // Anchor repo root ("" = none)
@@ -46,7 +46,7 @@ type Workspace struct {
 // existing config afterwards. rootDir may be empty — the daemon then
 // runs without an anchor repo and agents must name their own repo.
 // A non-empty rootDir must be a git repository.
-func Open(rootDir string) (*Workspace, error) {
+func Open(rootDir string) (*Home, error) {
 	absRoot := ""
 	if rootDir != "" {
 		var err error
@@ -95,9 +95,9 @@ func Open(rootDir string) (*Workspace, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to init role manager: %w", err)
 	}
-	_ = closeStore // store stays open for workspace lifetime
+	_ = closeStore // store stays open for the process lifetime
 
-	return &Workspace{
+	return &Home{
 		RootDir:     absRoot,
 		Config:      cfg,
 		RoleManager: rm,
@@ -107,7 +107,7 @@ func Open(rootDir string) (*Workspace, error) {
 // Load loads the global mycel state strictly: ~/.mycel/prefs.json must
 // already exist (i.e. `mycel up` ran at least once). A non-empty
 // rootDir must be a git repository and becomes the anchor repo.
-func Load(rootDir string) (*Workspace, error) {
+func Load(rootDir string) (*Home, error) {
 	absRoot := ""
 	if rootDir != "" {
 		var err error
@@ -148,9 +148,9 @@ func Load(rootDir string) (*Workspace, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to load roles: %w", err)
 	}
-	_ = closeStore // store stays open for workspace lifetime
+	_ = closeStore // store stays open for the process lifetime
 
-	return &Workspace{
+	return &Home{
 		RootDir:     absRoot,
 		Config:      cfg,
 		RoleManager: rm,
@@ -160,7 +160,7 @@ func Load(rootDir string) (*Workspace, error) {
 // Find walks up from dir looking for the enclosing git repo root and
 // loads the global mycel state anchored on it. Errors when dir is not
 // inside a git repository or mycel was never set up.
-func Find(dir string) (*Workspace, error) {
+func Find(dir string) (*Home, error) {
 	absDir, err := filepath.Abs(dir)
 	if err != nil {
 		return nil, err
@@ -180,17 +180,17 @@ func Find(dir string) (*Workspace, error) {
 }
 
 // Save saves the configuration to ~/.mycel/prefs.json.
-func (w *Workspace) Save() error {
+func (h *Home) Save() error {
 	prefsPath, err := PrefsPath()
 	if err != nil {
 		return err
 	}
-	return w.Config.Save(prefsPath)
+	return h.Config.Save(prefsPath)
 }
 
 // StateDir returns the global state directory (~/.mycel). Kept as a
 // method so consumers don't each re-resolve MycelHome.
-func (w *Workspace) StateDir() string {
+func (h *Home) StateDir() string {
 	home, err := MycelHome()
 	if err != nil {
 		return ""
@@ -201,7 +201,7 @@ func (w *Workspace) StateDir() string {
 // SettingsFile returns the absolute path of the global preferences
 // file (~/.mycel/prefs.json). The path is returned whether or not the
 // file exists yet, so callers may safely write to it.
-func (w *Workspace) SettingsFile() string {
+func (h *Home) SettingsFile() string {
 	p, err := PrefsPath()
 	if err != nil {
 		return ""
@@ -210,46 +210,46 @@ func (w *Workspace) SettingsFile() string {
 }
 
 // AgentsDir returns the agent entity root (~/.mycel/agents).
-func (w *Workspace) AgentsDir() string {
-	return filepath.Join(w.StateDir(), globalAgentsDirName)
+func (h *Home) AgentsDir() string {
+	return filepath.Join(h.StateDir(), globalAgentsDirName)
 }
 
 // LogsDir returns the daemon/process logs directory. An absolute
 // Config.Logs.Path wins; a relative one is resolved under ~/.mycel;
 // empty means ~/.mycel/logs.
-func (w *Workspace) LogsDir() string {
-	if w.Config != nil && w.Config.Logs.Path != "" {
-		if filepath.IsAbs(w.Config.Logs.Path) {
-			return w.Config.Logs.Path
+func (h *Home) LogsDir() string {
+	if h.Config != nil && h.Config.Logs.Path != "" {
+		if filepath.IsAbs(h.Config.Logs.Path) {
+			return h.Config.Logs.Path
 		}
-		return filepath.Join(w.StateDir(), w.Config.Logs.Path)
+		return filepath.Join(h.StateDir(), h.Config.Logs.Path)
 	}
-	return filepath.Join(w.StateDir(), globalLogsDirName)
+	return filepath.Join(h.StateDir(), globalLogsDirName)
 }
 
 // RolesDir returns the legacy filesystem roles directory
 // (~/.mycel/roles). Roles live in the database; this directory is only
 // consulted as a migration source.
-func (w *Workspace) RolesDir() string {
-	return filepath.Join(w.StateDir(), "roles")
+func (h *Home) RolesDir() string {
+	return filepath.Join(h.StateDir(), "roles")
 }
 
 // GetRole returns a role by name, loading it if necessary.
-func (w *Workspace) GetRole(name string) (*Role, error) {
-	if w.RoleManager == nil {
+func (h *Home) GetRole(name string) (*Role, error) {
+	if h.RoleManager == nil {
 		return nil, fmt.Errorf("role manager not initialized")
 	}
 
-	if role, ok := w.RoleManager.GetRole(name); ok {
+	if role, ok := h.RoleManager.GetRole(name); ok {
 		return role, nil
 	}
 
-	return w.RoleManager.LoadRole(name)
+	return h.RoleManager.LoadRole(name)
 }
 
 // GetRolePrompt returns the prompt content for a role.
-func (w *Workspace) GetRolePrompt(name string) string {
-	role, err := w.GetRole(name)
+func (h *Home) GetRolePrompt(name string) string {
+	role, err := h.GetRole(name)
 	if err != nil {
 		return ""
 	}
@@ -271,7 +271,7 @@ func openRoleStore(cfg *Config) (*RoleStore, error) {
 // NewGlobalRoleManager creates a role manager backed by the single global
 // database. stateDir is only used to migrate any legacy filesystem roles
 // under <stateDir>/roles into the store. Package-level helpers that
-// resolve roles without a *Workspace must use this constructor.
+// resolve roles without a *Home must use this constructor.
 func NewGlobalRoleManager(stateDir string) (*RoleManager, error) {
 	store, err := openRoleStore(nil)
 	if err != nil {
@@ -345,17 +345,17 @@ func loadRoleManager(stateDir string, cfg *Config) (*RoleManager, func() error, 
 }
 
 // DefaultProvider returns the default provider name.
-func (w *Workspace) DefaultProvider() string {
-	if w.Config != nil {
-		return w.Config.GetDefaultProvider()
+func (h *Home) DefaultProvider() string {
+	if h.Config != nil {
+		return h.Config.GetDefaultProvider()
 	}
 	return "claude"
 }
 
 // DefaultProviderCommand returns the command for the default provider.
-func (w *Workspace) DefaultProviderCommand() string {
-	if w.Config != nil {
-		if p := w.Config.GetProvider(w.Config.GetDefaultProvider()); p != nil {
+func (h *Home) DefaultProviderCommand() string {
+	if h.Config != nil {
+		if p := h.Config.GetProvider(h.Config.GetDefaultProvider()); p != nil {
 			return p.Command
 		}
 	}
@@ -364,9 +364,9 @@ func (w *Workspace) DefaultProviderCommand() string {
 
 // Name returns the anchor repo name (derived from directory), or
 // "mycel" when no anchor repo is set.
-func (w *Workspace) Name() string {
-	if w.RootDir == "" {
+func (h *Home) Name() string {
+	if h.RootDir == "" {
 		return "mycel"
 	}
-	return filepath.Base(w.RootDir)
+	return filepath.Base(h.RootDir)
 }

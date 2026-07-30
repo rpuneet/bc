@@ -1,4 +1,4 @@
-package workspace
+package home
 
 import (
 	"os"
@@ -14,24 +14,24 @@ func TestOpen(t *testing.T) {
 	home := setTestHome(t)
 	dir := newTestRepo(t)
 
-	ws, err := Open(dir)
+	h, err := Open(dir)
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
 
-	if ws.RootDir == "" {
+	if h.RootDir == "" {
 		t.Error("RootDir is empty")
 	}
-	if ws.Config == nil {
+	if h.Config == nil {
 		t.Fatal("Config is nil")
 	}
-	if ws.Name() != filepath.Base(dir) {
-		t.Errorf("Name() = %q, want %q", ws.Name(), filepath.Base(dir))
+	if h.Name() != filepath.Base(dir) {
+		t.Errorf("Name() = %q, want %q", h.Name(), filepath.Base(dir))
 	}
 
 	// State is global: StateDir is MYCEL_HOME, not inside the repo.
-	if ws.StateDir() != home {
-		t.Errorf("StateDir() = %q, want %q", ws.StateDir(), home)
+	if h.StateDir() != home {
+		t.Errorf("StateDir() = %q, want %q", h.StateDir(), home)
 	}
 	if _, statErr := os.Stat(home); statErr != nil {
 		t.Errorf("mycel home not created: %v", statErr)
@@ -42,8 +42,8 @@ func TestOpen(t *testing.T) {
 	if _, statErr := os.Stat(prefsPath); statErr != nil {
 		t.Fatalf("prefs.json not written: %v", statErr)
 	}
-	if ws.SettingsFile() != prefsPath {
-		t.Errorf("SettingsFile() = %q, want %q", ws.SettingsFile(), prefsPath)
+	if h.SettingsFile() != prefsPath {
+		t.Errorf("SettingsFile() = %q, want %q", h.SettingsFile(), prefsPath)
 	}
 
 	// The repo stays pristine — no .bc/ marker.
@@ -55,17 +55,17 @@ func TestOpen(t *testing.T) {
 func TestOpenNoAnchorRepo(t *testing.T) {
 	home := setTestHome(t)
 
-	ws, err := Open("")
+	h, err := Open("")
 	if err != nil {
 		t.Fatalf(`Open(""): %v`, err)
 	}
-	if ws.RootDir != "" {
-		t.Errorf("RootDir = %q, want empty", ws.RootDir)
+	if h.RootDir != "" {
+		t.Errorf("RootDir = %q, want empty", h.RootDir)
 	}
-	if ws.Name() != "mycel" {
-		t.Errorf("Name() = %q, want %q", ws.Name(), "mycel")
+	if h.Name() != "mycel" {
+		t.Errorf("Name() = %q, want %q", h.Name(), "mycel")
 	}
-	if ws.Config == nil {
+	if h.Config == nil {
 		t.Fatal("Config is nil")
 	}
 	if _, statErr := os.Stat(filepath.Join(home, PrefsFileName)); statErr != nil {
@@ -106,12 +106,12 @@ func TestOpenPreservesExistingConfig(t *testing.T) {
 	setTestHome(t)
 	dir := newTestRepo(t)
 
-	ws, err := Open(dir)
+	h, err := Open(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
-	ws.Config.User.Name = "@custom-user"
-	if saveErr := ws.Save(); saveErr != nil {
+	h.Config.User.Name = "@custom-user"
+	if saveErr := h.Save(); saveErr != nil {
 		t.Fatal(saveErr)
 	}
 
@@ -134,19 +134,19 @@ func TestLoad(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ws, err := Load(dir)
+	h, err := Load(dir)
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	if ws.Config == nil {
+	if h.Config == nil {
 		t.Error("Config should not be nil")
 	}
 	absDir, err := filepath.Abs(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if ws.RootDir != absDir {
-		t.Errorf("RootDir = %q, want %q", ws.RootDir, absDir)
+	if h.RootDir != absDir {
+		t.Errorf("RootDir = %q, want %q", h.RootDir, absDir)
 	}
 }
 
@@ -199,7 +199,7 @@ func TestFindInCurrentDir(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ws, err := Find(dir)
+	h, err := Find(dir)
 	if err != nil {
 		t.Fatalf("Find: %v", err)
 	}
@@ -208,8 +208,8 @@ func TestFindInCurrentDir(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if ws.RootDir != absDir {
-		t.Errorf("RootDir = %q, want %q", ws.RootDir, absDir)
+	if h.RootDir != absDir {
+		t.Errorf("RootDir = %q, want %q", h.RootDir, absDir)
 	}
 }
 
@@ -226,7 +226,7 @@ func TestFindInParentDir(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ws, err := Find(child)
+	h, err := Find(child)
 	if err != nil {
 		t.Fatalf("Find from child: %v", err)
 	}
@@ -235,8 +235,8 @@ func TestFindInParentDir(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if ws.RootDir != absParent {
-		t.Errorf("RootDir = %q, want %q (parent)", ws.RootDir, absParent)
+	if h.RootDir != absParent {
+		t.Errorf("RootDir = %q, want %q (parent)", h.RootDir, absParent)
 	}
 }
 
@@ -256,7 +256,7 @@ func TestFindNestedRepos(t *testing.T) {
 	gitInitDir(t, inner)
 
 	// Find from inner should anchor on the inner repo, not outer
-	ws, err := Find(inner)
+	h, err := Find(inner)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -264,8 +264,8 @@ func TestFindNestedRepos(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if ws.RootDir != absInner {
-		t.Errorf("RootDir = %q, want inner %q", ws.RootDir, absInner)
+	if h.RootDir != absInner {
+		t.Errorf("RootDir = %q, want inner %q", h.RootDir, absInner)
 	}
 
 	// Find from a child of inner should still anchor on inner
@@ -300,13 +300,13 @@ func TestFindNoGitRepo(t *testing.T) {
 func TestSave(t *testing.T) {
 	home := setTestHome(t)
 	dir := newTestRepo(t)
-	ws, err := Open(dir)
+	h, err := Open(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	ws.Config.User.Name = "@saved-user"
-	if saveErr := ws.Save(); saveErr != nil {
+	h.Config.User.Name = "@saved-user"
+	if saveErr := h.Save(); saveErr != nil {
 		t.Fatalf("Save: %v", saveErr)
 	}
 
@@ -330,7 +330,7 @@ func TestSave(t *testing.T) {
 func TestPathHelpers(t *testing.T) {
 	home := setTestHome(t)
 	dir := newTestRepo(t)
-	ws, err := Open(dir)
+	h, err := Open(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -340,10 +340,10 @@ func TestPathHelpers(t *testing.T) {
 		got  string
 		want string
 	}{
-		{"StateDir", ws.StateDir(), home},
-		{"AgentsDir", ws.AgentsDir(), filepath.Join(home, "agents")},
-		{"LogsDir", ws.LogsDir(), filepath.Join(home, "logs")},
-		{"RolesDir", ws.RolesDir(), filepath.Join(home, "roles")},
+		{"StateDir", h.StateDir(), home},
+		{"AgentsDir", h.AgentsDir(), filepath.Join(home, "agents")},
+		{"LogsDir", h.LogsDir(), filepath.Join(home, "logs")},
+		{"RolesDir", h.RolesDir(), filepath.Join(home, "roles")},
 	}
 
 	for _, tt := range tests {
@@ -358,56 +358,56 @@ func TestPathHelpers(t *testing.T) {
 // --- LogsDir ---
 
 func TestLogsDirAbsoluteCustomPath(t *testing.T) {
-	ws, _ := openTestWorkspace(t)
+	h, _ := openTestHome(t)
 
 	custom := t.TempDir()
-	ws.Config = &Config{
+	h.Config = &Config{
 		Logs: LogsConfig{Path: custom},
 	}
 
-	if got := ws.LogsDir(); got != custom {
+	if got := h.LogsDir(); got != custom {
 		t.Errorf("LogsDir() = %q, want absolute custom %q", got, custom)
 	}
 }
 
 func TestLogsDirRelativeCustomPath(t *testing.T) {
-	ws, _ := openTestWorkspace(t)
+	h, _ := openTestHome(t)
 
 	// A relative path resolves under the global state dir (~/.mycel).
-	ws.Config = &Config{
+	h.Config = &Config{
 		Logs: LogsConfig{Path: "custom/logs"},
 	}
 
-	got := ws.LogsDir()
-	want := filepath.Join(ws.StateDir(), "custom/logs")
+	got := h.LogsDir()
+	want := filepath.Join(h.StateDir(), "custom/logs")
 	if got != want {
 		t.Errorf("LogsDir() = %q, want %q", got, want)
 	}
 }
 
 func TestLogsDirEmptyPath(t *testing.T) {
-	ws, _ := openTestWorkspace(t)
+	h, _ := openTestHome(t)
 
 	// Config exists but Logs.Path is empty — should fall back to StateDir/logs
-	ws.Config = &Config{
+	h.Config = &Config{
 		Logs: LogsConfig{Path: ""},
 	}
 
-	got := ws.LogsDir()
-	want := filepath.Join(ws.StateDir(), "logs")
+	got := h.LogsDir()
+	want := filepath.Join(h.StateDir(), "logs")
 	if got != want {
 		t.Errorf("LogsDir() = %q, want %q", got, want)
 	}
 }
 
 func TestLogsDirNilConfig(t *testing.T) {
-	ws, _ := openTestWorkspace(t)
+	h, _ := openTestHome(t)
 
 	// No Config — should use StateDir/logs
-	ws.Config = nil
+	h.Config = nil
 
-	got := ws.LogsDir()
-	want := filepath.Join(ws.StateDir(), "logs")
+	got := h.LogsDir()
+	want := filepath.Join(h.StateDir(), "logs")
 	if got != want {
 		t.Errorf("LogsDir() = %q, want %q", got, want)
 	}
@@ -436,21 +436,21 @@ func TestOpenCreatesGlobalStructure(t *testing.T) {
 // --- Roles ---
 
 func TestOpenSeedsDefaultRoles(t *testing.T) {
-	ws, _ := openTestWorkspace(t)
+	h, _ := openTestHome(t)
 
 	// Check RoleManager is initialized with a store
-	if ws.RoleManager == nil {
+	if h.RoleManager == nil {
 		t.Fatal("RoleManager is nil")
 	}
-	if ws.RoleManager.Store() == nil {
+	if h.RoleManager.Store() == nil {
 		t.Fatal("RoleManager.Store() is nil")
 	}
 
 	// Check default roles exist in the store
-	if !ws.RoleManager.HasRole("root") {
+	if !h.RoleManager.HasRole("root") {
 		t.Error("root role not found in store")
 	}
-	if !ws.RoleManager.HasRole("base") {
+	if !h.RoleManager.HasRole("base") {
 		t.Error("base role not found in store")
 	}
 }
@@ -463,23 +463,23 @@ func TestLoadRestoresRoles(t *testing.T) {
 	}
 
 	// Load it back
-	ws, err := Load(dir)
+	h, err := Load(dir)
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
 
-	if ws.Config == nil {
+	if h.Config == nil {
 		t.Fatal("Config is nil after load")
 	}
-	if ws.Config.Version != 2 {
-		t.Errorf("ConfigVersion = %d, want 2", ws.Config.Version)
+	if h.Config.Version != 2 {
+		t.Errorf("ConfigVersion = %d, want 2", h.Config.Version)
 	}
-	if ws.RoleManager == nil {
+	if h.RoleManager == nil {
 		t.Fatal("RoleManager is nil after load")
 	}
 
 	// Check that root role was loaded
-	role, ok := ws.RoleManager.GetRole("root")
+	role, ok := h.RoleManager.GetRole("root")
 	if !ok {
 		t.Fatal("root role should be loaded")
 	}
@@ -488,11 +488,11 @@ func TestLoadRestoresRoles(t *testing.T) {
 	}
 }
 
-func TestWorkspaceGetRole(t *testing.T) {
-	ws, _ := openTestWorkspace(t)
+func TestHomeGetRole(t *testing.T) {
+	h, _ := openTestHome(t)
 
 	// Get default root role
-	role, err := ws.GetRole("root")
+	role, err := h.GetRole("root")
 	if err != nil {
 		t.Fatalf("GetRole(root): %v", err)
 	}
@@ -501,22 +501,22 @@ func TestWorkspaceGetRole(t *testing.T) {
 	}
 
 	// Get nonexistent role
-	_, err = ws.GetRole("nonexistent")
+	_, err = h.GetRole("nonexistent")
 	if err == nil {
 		t.Error("GetRole should fail for nonexistent role")
 	}
 }
 
-func TestWorkspaceGetRolePrompt(t *testing.T) {
-	ws, _ := openTestWorkspace(t)
+func TestHomeGetRolePrompt(t *testing.T) {
+	h, _ := openTestHome(t)
 
-	prompt := ws.GetRolePrompt("root")
+	prompt := h.GetRolePrompt("root")
 	if prompt == "" {
 		t.Error("GetRolePrompt(root) should not be empty")
 	}
 
 	// Nonexistent role returns empty
-	prompt = ws.GetRolePrompt("nonexistent")
+	prompt = h.GetRolePrompt("nonexistent")
 	if prompt != "" {
 		t.Error("GetRolePrompt(nonexistent) should be empty")
 	}
@@ -524,26 +524,26 @@ func TestWorkspaceGetRolePrompt(t *testing.T) {
 
 // --- Providers ---
 
-func TestWorkspaceDefaultProvider(t *testing.T) {
-	ws, _ := openTestWorkspace(t)
+func TestHomeDefaultProvider(t *testing.T) {
+	h, _ := openTestHome(t)
 
-	if ws.DefaultProvider() != "claude" {
-		t.Errorf("DefaultProvider = %q, want %q", ws.DefaultProvider(), "claude")
+	if h.DefaultProvider() != "claude" {
+		t.Errorf("DefaultProvider = %q, want %q", h.DefaultProvider(), "claude")
 	}
 
-	cmd := ws.DefaultProviderCommand()
+	cmd := h.DefaultProviderCommand()
 	if cmd != "claude --dangerously-skip-permissions" {
 		t.Errorf("DefaultProviderCommand = %q, want %q", cmd, "claude --dangerously-skip-permissions")
 	}
 }
 
-func TestWorkspaceDefaultProviderCustom(t *testing.T) {
-	ws, _ := openTestWorkspace(t)
+func TestHomeDefaultProviderCustom(t *testing.T) {
+	h, _ := openTestHome(t)
 
 	// Set custom provider in config
-	ws.Config.Providers.Default = "cursor"
+	h.Config.Providers.Default = "cursor"
 
-	if ws.DefaultProvider() != "cursor" {
-		t.Errorf("DefaultProvider custom = %q, want cursor", ws.DefaultProvider())
+	if h.DefaultProvider() != "cursor" {
+		t.Errorf("DefaultProvider custom = %q, want cursor", h.DefaultProvider())
 	}
 }

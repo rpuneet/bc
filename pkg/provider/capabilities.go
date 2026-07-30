@@ -123,7 +123,7 @@ type MCPServerInfo struct {
 
 // MCPConfigReader is optionally implemented by providers whose configured
 // MCP servers can be read from the host (provider CLI or config files).
-// rootDir is the workspace root; implementations must return an empty
+// rootDir is the repo root; implementations must return an empty
 // result rather than touching relative paths when it is empty.
 type MCPConfigReader interface {
 	ReadMCPs(ctx context.Context, rootDir string) []MCPServerInfo

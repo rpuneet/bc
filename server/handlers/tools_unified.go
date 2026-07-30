@@ -7,9 +7,9 @@ import (
 	"strings"
 
 	"github.com/rpuneet/mycel/pkg/agent"
+	"github.com/rpuneet/mycel/pkg/home"
 	"github.com/rpuneet/mycel/pkg/mcp"
 	"github.com/rpuneet/mycel/pkg/tool"
-	"github.com/rpuneet/mycel/pkg/workspace"
 )
 
 // maxVersionLen is the maximum length for version strings in tool responses.
@@ -35,12 +35,12 @@ type UnifiedToolsHandler struct {
 	mcpStore  *mcp.Store
 	toolStore *tool.Store
 	agents    *agent.AgentService
-	ws        *workspace.Workspace
+	h         *home.Home
 }
 
 // NewUnifiedToolsHandler creates a UnifiedToolsHandler.
-func NewUnifiedToolsHandler(mcpStore *mcp.Store, toolStore *tool.Store, agents *agent.AgentService, ws *workspace.Workspace) *UnifiedToolsHandler {
-	return &UnifiedToolsHandler{mcpStore: mcpStore, toolStore: toolStore, agents: agents, ws: ws}
+func NewUnifiedToolsHandler(mcpStore *mcp.Store, toolStore *tool.Store, agents *agent.AgentService, h *home.Home) *UnifiedToolsHandler {
+	return &UnifiedToolsHandler{mcpStore: mcpStore, toolStore: toolStore, agents: agents, h: h}
 }
 
 // Register mounts unified tools routes.
@@ -131,8 +131,8 @@ func (h *UnifiedToolsHandler) list(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// CLI tools from role configs
-	if h.ws != nil && h.ws.RoleManager != nil {
-		roles, _ := h.ws.RoleManager.LoadAllRoles()
+	if h.h != nil && h.h.RoleManager != nil {
+		roles, _ := h.h.RoleManager.LoadAllRoles()
 		for _, role := range roles {
 			for _, t := range role.Metadata.CLITools {
 				if seen[t] {
@@ -228,8 +228,8 @@ func (h *UnifiedToolsHandler) checkAll(w http.ResponseWriter, r *http.Request) {
 
 	// Check CLI tools from roles
 	seen := make(map[string]bool)
-	if h.ws != nil && h.ws.RoleManager != nil {
-		roles, _ := h.ws.RoleManager.LoadAllRoles()
+	if h.h != nil && h.h.RoleManager != nil {
+		roles, _ := h.h.RoleManager.LoadAllRoles()
 		for _, role := range roles {
 			for _, t := range role.Metadata.CLITools {
 				if seen[t] {

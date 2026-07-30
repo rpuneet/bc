@@ -78,9 +78,9 @@ func TestStorageGlobalLifecycle(t *testing.T) {
 	})
 }
 
-// TestStorageSharedDBKeyIsolation replaces the old per-workspace file
+// TestStorageSharedDBKeyIsolation replaces the old per-repo file
 // isolation test (#3238/#3275): with the single global mycel.db, two
-// "workspaces" now SHARE one database. Isolation is provided by data
+// "repos" now SHARE one database. Isolation is provided by data
 // keys — channel names for subscriptions, globally-unique agent names,
 // and the repo column on agents — not by separate files.
 func TestStorageSharedDBKeyIsolation(t *testing.T) {
@@ -92,7 +92,7 @@ func TestStorageSharedDBKeyIsolation(t *testing.T) {
 		t.Fatalf("notify.OpenStore: %v", err)
 	}
 
-	// Subscriptions written by "workspace A" and "workspace B" land in
+	// Subscriptions written by "repo A" and "repo B" land in
 	// the same table; they are distinguished by channel and agent keys.
 	if subErr := ns.Subscribe(ctx, "#engineering", "agent-a", false); subErr != nil {
 		t.Fatalf("Subscribe A: %v", subErr)
@@ -116,14 +116,14 @@ func TestStorageSharedDBKeyIsolation(t *testing.T) {
 		t.Errorf("#ops subscribers = %+v, want [agent-b]", ops)
 	}
 
-	// A second Global call from "another workspace" returns the SAME
+	// A second Global call from "another repo" returns the SAME
 	// handle and sees the same data — the single-DB contract.
 	d2, _, err := db.Global(nil)
 	if err != nil {
-		t.Fatalf("Global (workspace B view): %v", err)
+		t.Fatalf("Global (repo B view): %v", err)
 	}
 	if d2 != d {
-		t.Fatal("expected both workspaces to share the one global handle")
+		t.Fatal("expected both repos to share the one global handle")
 	}
 	ns2, err := notify.OpenStore(d2, "sqlite")
 	if err != nil {
@@ -134,7 +134,7 @@ func TestStorageSharedDBKeyIsolation(t *testing.T) {
 		t.Fatalf("Subscribers via B: %v", err)
 	}
 	if len(shared) != 1 || shared[0].Agent != "agent-a" {
-		t.Errorf("workspace B must see the shared subscription, got %+v", shared)
+		t.Errorf("repo B must see the shared subscription, got %+v", shared)
 	}
 }
 
@@ -147,7 +147,7 @@ func TestStorageCrossStoreIntegration(t *testing.T) {
 	_ = dir
 	ctx := context.Background()
 
-	// Initialize all stores against the workspace DB.
+	// Initialize all stores against the global DB.
 	mcpStore, err := mcp.NewStore(d, "sqlite")
 	if err != nil {
 		t.Fatalf("mcp.NewStore: %v", err)
@@ -226,9 +226,9 @@ func TestStorageCrossStoreIntegration(t *testing.T) {
 	_ = toolStore.Close()
 	_ = eventsStore.Close()
 
-	// The workspace DB should still be usable after store Close calls.
+	// The global DB should still be usable after store Close calls.
 	if err := d.Ping(); err != nil {
-		t.Fatalf("workspace DB should still be pingable after store Close calls: %v", err)
+		t.Fatalf("global DB should still be pingable after store Close calls: %v", err)
 	}
 }
 
@@ -326,7 +326,7 @@ func TestStorageConfigValidation(t *testing.T) {
 			Default: "sqlite",
 		})
 		if err != nil {
-			t.Fatalf("OpenWorkspaceDBWithConfig: %v", err)
+			t.Fatalf("OpenGlobalDBWithConfig: %v", err)
 		}
 		defer func() { _ = sqlDB.Close() }()
 
@@ -342,7 +342,7 @@ func TestStorageConfigValidation(t *testing.T) {
 		dir := t.TempDir()
 		sqlDB, driver, err := db.OpenGlobalDBWithConfig(filepath.Join(dir, db.GlobalDBFileName), nil)
 		if err != nil {
-			t.Fatalf("OpenWorkspaceDBWithConfig: %v", err)
+			t.Fatalf("OpenGlobalDBWithConfig: %v", err)
 		}
 		defer func() { _ = sqlDB.Close() }()
 

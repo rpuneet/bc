@@ -50,12 +50,12 @@ func runStats(cmd *cobra.Command, _ []string) error {
 	}
 
 	// Fallback: direct pkg/stats access
-	ws, err := getRepo()
+	h, err := getRepo()
 	if err != nil {
 		return errNoRepo(err)
 	}
 
-	s, err := stats.Load(ws.StateDir())
+	s, err := stats.Load(h.StateDir())
 	if err != nil {
 		return fmt.Errorf("failed to load stats: %w", err)
 	}

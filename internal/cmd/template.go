@@ -7,8 +7,8 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/rpuneet/mycel/pkg/home"
 	"github.com/rpuneet/mycel/pkg/template"
-	"github.com/rpuneet/mycel/pkg/workspace"
 )
 
 var templateCmd = &cobra.Command{
@@ -65,7 +65,7 @@ func init() {
 // openTemplateStore returns the single user-global template store at
 // ~/.mycel/templates/.
 func openTemplateStore() (*template.Store, error) {
-	globalDir, err := workspace.GlobalTemplatesDir()
+	globalDir, err := home.GlobalTemplatesDir()
 	if err != nil {
 		return nil, fmt.Errorf("resolve global templates dir: %w", err)
 	}
@@ -173,7 +173,7 @@ func runTemplateCreate(_ *cobra.Command, args []string) error {
 	}
 
 	name := args[0]
-	if _, err := workspace.EnsureGlobalDir(); err != nil {
+	if _, err := home.EnsureGlobalDir(); err != nil {
 		return err
 	}
 

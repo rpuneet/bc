@@ -70,10 +70,10 @@ func init() {
 }
 
 // newAppsTestHandler assembles an AppsHandler with a real registry, a
-// temp-dir vault, a sandboxed workspace, and a started gateway manager.
+// temp-dir vault, a sandboxed home, and a started gateway manager.
 func newAppsTestHandler(t *testing.T) (*AppsHandler, *gateway.Manager) {
 	t.Helper()
-	wks := setupTestWorkspace(t)
+	wks := setupTestHome(t)
 	vault := openTestVault(t)
 
 	gw := gateway.NewManager()
@@ -87,7 +87,7 @@ func newAppsTestHandler(t *testing.T) (*AppsHandler, *gateway.Manager) {
 
 func TestAppsCatalog(t *testing.T) {
 	h, _ := newAppsTestHandler(t)
-	h.ws.Config.Apps = map[string]app.InstanceConfig{
+	h.h.Config.Apps = map[string]app.InstanceConfig{
 		"fakeapp:ci": {App: "fakeapp", Enabled: true, Config: map[string]string{"region": "eu"}},
 	}
 
@@ -156,7 +156,7 @@ func TestAppsCatalog(t *testing.T) {
 // attached to their instance.
 func TestAppsCatalogConfiguredSecretAndChannels(t *testing.T) {
 	h, gw := newAppsTestHandler(t)
-	h.ws.Config.Apps = map[string]app.InstanceConfig{
+	h.h.Config.Apps = map[string]app.InstanceConfig{
 		"fakeapp:ci": {App: "fakeapp", Enabled: true, Config: map[string]string{"region": "eu"}},
 	}
 	if err := h.vault.Set("app:fakeapp:ci:token", "sekret", "app credential"); err != nil {
@@ -225,7 +225,7 @@ func TestAppsUpdateSplitsSecretsFromConfig(t *testing.T) {
 	}
 
 	// Plain fields persisted in config; the secret did not.
-	ic, ok := h.ws.Config.Apps["fakeapp:ci"]
+	ic, ok := h.h.Config.Apps["fakeapp:ci"]
 	if !ok {
 		t.Fatal("instance not persisted in config")
 	}
@@ -240,7 +240,7 @@ func TestAppsUpdateSplitsSecretsFromConfig(t *testing.T) {
 	}
 
 	// The saved preferences file must never contain the secret value.
-	data, err := os.ReadFile(h.ws.SettingsFile())
+	data, err := os.ReadFile(h.h.SettingsFile())
 	if err != nil {
 		t.Fatalf("read settings: %v", err)
 	}
@@ -285,7 +285,7 @@ func TestAppsDeleteRemovesConfigVaultAndState(t *testing.T) {
 	h, _ := newAppsTestHandler(t)
 
 	// Seed: connected instance with vault secret and a state dir.
-	h.ws.Config.Apps = map[string]app.InstanceConfig{
+	h.h.Config.Apps = map[string]app.InstanceConfig{
 		"fakeapp:ci": {App: "fakeapp", Enabled: true, Config: map[string]string{"region": "eu"}},
 	}
 	if err := h.vault.Set("app:fakeapp:ci:token", "sekret", "app credential"); err != nil {
@@ -303,7 +303,7 @@ func TestAppsDeleteRemovesConfigVaultAndState(t *testing.T) {
 	if rr.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200; body = %s", rr.Code, rr.Body.String())
 	}
-	if _, ok := h.ws.Config.Apps["fakeapp:ci"]; ok {
+	if _, ok := h.h.Config.Apps["fakeapp:ci"]; ok {
 		t.Error("instance still in config after delete")
 	}
 	if _, err := h.vault.GetValue("app:fakeapp:ci:token"); err == nil {
@@ -343,7 +343,7 @@ func TestAppsAuthQRFlow(t *testing.T) {
 	if info.State != "qr_ready" || info.QRDataURL == "" {
 		t.Errorf("pair info = %+v, want qr_ready with QR data", info)
 	}
-	if _, ok := h.ws.Config.Apps["fakeqr"]; !ok {
+	if _, ok := h.h.Config.Apps["fakeqr"]; !ok {
 		t.Error("pair-first flow did not persist the instance")
 	}
 	if gw.GetAdapter("fakeqr") == nil {
@@ -369,7 +369,7 @@ func TestAppsAuthNotSupported(t *testing.T) {
 	if err := h.vault.Set("app:fakeapp:token", "tok", "app credential"); err != nil {
 		t.Fatalf("seed vault: %v", err)
 	}
-	h.ws.Config.Apps = map[string]app.InstanceConfig{
+	h.h.Config.Apps = map[string]app.InstanceConfig{
 		"fakeapp": {App: "fakeapp", Enabled: true, Config: map[string]string{"region": "eu"}},
 	}
 
@@ -449,5 +449,5 @@ func TestAppsRoutes(t *testing.T) {
 	}
 
 	// Filesystem cleanup for the pair-first instance state.
-	t.Cleanup(func() { _ = os.RemoveAll(filepath.Join(h.ws.StateDir(), "apps")) })
+	t.Cleanup(func() { _ = os.RemoveAll(filepath.Join(h.h.StateDir(), "apps")) })
 }

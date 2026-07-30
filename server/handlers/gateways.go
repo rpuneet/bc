@@ -7,9 +7,9 @@ import (
 	"strings"
 
 	"github.com/rpuneet/mycel/pkg/gateway"
+	"github.com/rpuneet/mycel/pkg/home"
 	"github.com/rpuneet/mycel/pkg/log"
 	"github.com/rpuneet/mycel/pkg/notify"
-	"github.com/rpuneet/mycel/pkg/workspace"
 )
 
 // GatewayHandler handles the channel, subscription, and activity
@@ -19,13 +19,13 @@ import (
 // that AppsHandler delegates here for /api/apps/{name}/...
 type GatewayHandler struct {
 	gw        *gateway.Manager
-	ws        *workspace.Workspace
+	h         *home.Home
 	notifySvc *notify.Service
 }
 
 // NewGatewayHandler creates a GatewayHandler.
-func NewGatewayHandler(gw *gateway.Manager, ws *workspace.Workspace) *GatewayHandler {
-	return &GatewayHandler{gw: gw, ws: ws}
+func NewGatewayHandler(gw *gateway.Manager, h *home.Home) *GatewayHandler {
+	return &GatewayHandler{gw: gw, h: h}
 }
 
 // SetNotifyService sets the notification service for subscription management.
