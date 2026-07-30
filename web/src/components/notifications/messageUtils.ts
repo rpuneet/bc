@@ -137,55 +137,8 @@ export function getRoleColor(role: string | undefined): { bg: string; text: stri
   return ROLE_COLORS[role] ?? DEFAULT_ROLE_COLOR;
 }
 
-/**
- * Generate a consistent color for an agent name.
- *
- * The first agent (by hash bucket 0) uses the *theme accent* so the
- * chart's most prominent series feels native to whatever theme is
- * active (the mycel orange accent in both dark and light themes).
- * The remaining agents draw from a hue palette chosen to stay
- * distinguishable across dark and light backgrounds — pastels are
- * avoided since they collapse into the muted grays on light theme.
- *
- * Cache is intentionally global — two different renders should give
- * the same agent the same color. Theme changes don't invalidate the
- * cache since the theme-accent slot is a `var(--mycel-accent)` string,
- * not a resolved hex.
- */
-const AGENT_COLOR_CACHE = new Map<string, string>();
-
-const AGENT_HUES = [
-  28, 45, 160, 195, 210, 260, 280, 320, 340, 15, 50, 140, 175, 230, 300,
-];
-
-function hashString(s: string): number {
-  let hash = 0;
-  for (let i = 0; i < s.length; i++) {
-    hash = ((hash << 5) - hash + s.charCodeAt(i)) | 0;
-  }
-  return Math.abs(hash);
-}
-
-export function agentColor(name: string): string {
-  if (AGENT_COLOR_CACHE.has(name)) return AGENT_COLOR_CACHE.get(name)!;
-  const bucket = hashString(name) % (AGENT_HUES.length + 1);
-  // Bucket 0 = theme accent so charts feel native to whichever theme is
-  // active. Any other bucket draws from the fixed hue palette.
-  const color = bucket === 0
-    ? "var(--mycel-accent)"
-    : `hsl(${AGENT_HUES[(bucket - 1) % AGENT_HUES.length]}, 65%, 65%)`;
-  AGENT_COLOR_CACHE.set(name, color);
-  return color;
-}
-
-export function agentColorMuted(name: string): string {
-  const bucket = hashString(name) % (AGENT_HUES.length + 1);
-  if (bucket === 0) {
-    return "color-mix(in srgb, var(--mycel-accent) 10%, transparent)";
-  }
-  const hue = AGENT_HUES[(bucket - 1) % AGENT_HUES.length];
-  return `hsla(${hue}, 40%, 50%, 0.08)`;
-}
+/* Agent avatar colors now come from the deterministic character
+   identity system — see components/agent-ui/identity.ts. */
 
 /* ── GitHub webhook card parsing ────────────────────────────── */
 

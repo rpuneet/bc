@@ -17,6 +17,7 @@ import {
   StatusDot,
 } from "./notifications/appStatus";
 import { Header } from "./Header";
+import { AgentNavTree } from "./AgentNavTree";
 import { SidebarToggle } from "./SidebarToggle";
 import { BrandMark } from "./BrandMark";
 import { HeaderSlotProvider, useHeaderSlotContext } from "../context/HeaderSlotContext";
@@ -802,15 +803,20 @@ function NavList({
   isMobile,
   notificationsExpanded,
   onToggleNotifications,
+  agentsExpanded,
+  onToggleAgents,
 }: {
   groups: ReadonlyArray<ReadonlyArray<NavItem>>;
   collapsed: boolean;
   isMobile: boolean;
   notificationsExpanded?: boolean;
   onToggleNotifications?: () => void;
+  agentsExpanded?: boolean;
+  onToggleAgents?: () => void;
 }) {
   const isIconOnly = collapsed && !isMobile;
   const showTree = !isIconOnly && notificationsExpanded;
+  const showAgentTree = !isIconOnly && agentsExpanded;
 
   return (
     <>
@@ -823,12 +829,13 @@ function NavList({
           <ul>
             {items.map(({ to, label, icon }) => {
               const isNotifications = label === "Notifications";
+              const isAgents = label === "Agents";
               const scopedTo = to;
               return (
                 <li key={to}>
                   <NavLink
                     to={scopedTo}
-                    end={!isNotifications}
+                    end={!isNotifications && !isAgents}
                     title={isIconOnly ? label : undefined}
                     className={({ isActive }) =>
                       `relative flex items-center gap-2.5 ${isIconOnly ? "justify-center px-2" : "pl-4 pr-3"} py-[7px] text-sm outline-none transition-colors duration-75 border-l-2 ${
@@ -866,8 +873,28 @@ function NavList({
                         </svg>
                       </button>
                     )}
+                    {isAgents && !isIconOnly && onToggleAgents && (
+                      <button
+                        type="button"
+                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); onToggleAgents(); }}
+                        className="ml-auto shrink-0 p-0.5 rounded-md text-mycel-muted hover:text-mycel-text transition-all"
+                        aria-label={agentsExpanded ? "Collapse agents" : "Expand agents"}
+                      >
+                        <svg
+                          width="12" height="12" viewBox="0 0 14 14" fill="none"
+                          stroke="currentColor" strokeWidth="1.5"
+                          style={{
+                            transform: agentsExpanded ? "rotate(90deg)" : "rotate(0deg)",
+                            transition: "transform 150ms ease",
+                          }}
+                        >
+                          <path d="M5 3l4 4-4 4" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      </button>
+                    )}
                   </NavLink>
                   {isNotifications && showTree && <NotificationNavTree />}
+                  {isAgents && showAgentTree && <AgentNavTree />}
                 </li>
               );
             })}
@@ -949,6 +976,15 @@ export function Layout() {
   const toggleNotifications = useCallback(() => {
     setNotifManualToggle((prev) => !(prev !== null ? prev : onNotifRoute));
   }, [onNotifRoute]);
+
+  // Agents tree — same auto-expand-on-route + manual-toggle pattern.
+  const agentsRoute = useMatch("/agents/*");
+  const onAgentsRoute = Boolean(agentsRoute);
+  const [agentsManualToggle, setAgentsManualToggle] = useState<boolean | null>(null);
+  const agentsExpanded = agentsManualToggle !== null ? agentsManualToggle : onAgentsRoute;
+  const toggleAgents = useCallback(() => {
+    setAgentsManualToggle((prev) => !(prev !== null ? prev : onAgentsRoute));
+  }, [onAgentsRoute]);
 
   const toggleCollapsed = useCallback(() => {
     setCollapsed((prev) => { const next = !prev; writeCollapsed(next); return next; });
@@ -1083,6 +1119,8 @@ export function Layout() {
             isMobile={isMobile}
             notificationsExpanded={notificationsExpanded}
             onToggleNotifications={toggleNotifications}
+            agentsExpanded={agentsExpanded}
+            onToggleAgents={toggleAgents}
           />
         </ul>
 

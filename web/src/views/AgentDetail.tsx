@@ -7,7 +7,7 @@ import { usePolling } from "../hooks/usePolling";
 import { useWebSocket } from "../hooks/useWebSocket";
 import { StatsTab as StatsTabComponent } from "../components/StatsTab";
 import { WebTerminal, type TerminalConnectionState, type TerminalConnectionDetail } from "../components/WebTerminal";
-import { AgentIcon } from "../components/agent-ui";
+import { LiveAgentCharacter } from "../components/agent-ui";
 import { MCPServerList } from "../components/shared/MCPServerList";
 import { McpEnvEditor } from "../components/shared/McpEnvEditor";
 import { SystemPromptEditor } from "../components/shared/SystemPromptEditor";
@@ -1212,7 +1212,7 @@ export function AgentDetail() {
                   <path d="M9 3l-4 4 4 4" />
                 </svg>
               </Link>
-              <AgentIcon state={agent.state} size={28} tool={agent.tool} />
+              <LiveAgentCharacter name={agent.name} state={agent.state} size={28} tool={agent.tool} />
               <span className="text-lg font-semibold text-mycel-text tracking-tight shrink-0">
                 {agent.name}
               </span>

@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { api } from "../../api/client";
 import type { Agent, NotifySubscription } from "../../api/client";
-import { getRoleColor, agentColorMuted, agentColor } from "./messageUtils";
+import { getRoleColor } from "./messageUtils";
+import { AgentChip } from "../agent-ui";
 
 function AgentRow({
   agent,
@@ -19,10 +20,8 @@ function AgentRow({
   onUnsubscribe: () => void;
   onToggleMention: () => void;
 }) {
-  const isOnline = agent.state === "running" || agent.state === "working";
   const isStopped = agent.state === "stopped";
   const roleColor = getRoleColor(agent.role);
-  const nameColor = agentColor(agent.name);
 
   return (
     <motion.div
@@ -34,28 +33,13 @@ function AgentRow({
       className={`px-3 py-2 transition-colors duration-100 hover:bg-mycel-surface-hover ${isStopped && !sub ? "opacity-50" : ""}`}
     >
       <div className="flex items-center gap-2">
-        {/* Avatar initial */}
-        <span
-          className="w-5 h-5 rounded-md flex items-center justify-center text-[9px] font-semibold shrink-0"
-          style={{
-            backgroundColor: agentColorMuted(agent.name),
-            color: nameColor,
-          }}
-        >
-          {agent.name.charAt(0).toUpperCase()}
-        </span>
-
-        {/* Name + status */}
-        <div className="flex-1 min-w-0 flex items-center gap-1.5">
-          <span
-            className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-              isOnline ? "bg-mycel-success" : isStopped ? "bg-mycel-muted" : "bg-mycel-warning"
-            }`}
-          />
-          <span className="text-sm text-mycel-text truncate font-medium">
-            {agent.name}
-          </span>
-        </div>
+        {/* Living character + name + status dot */}
+        <AgentChip
+          name={agent.name}
+          state={agent.state}
+          size={20}
+          className="flex-1 text-mycel-text"
+        />
 
         {/* Role */}
         <span

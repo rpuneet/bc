@@ -3,14 +3,14 @@ import { Virtuoso } from "react-virtuoso";
 import type { VirtuosoHandle } from "react-virtuoso";
 import type { ChannelMessage } from "../../api/client";
 import { MessageContent } from "../MessageContent";
-import { RoleBadge } from "./AgentAvatar";
+import { RoleBadge } from "./RoleBadge";
 import {
   groupMessages,
   formatRelativeTime,
   formatDayLabel,
   dateKey,
-  agentColor,
 } from "./messageUtils";
+import { LiveAgentCharacter } from "../agent-ui";
 import type { MessageGroup } from "./messageUtils";
 import { EmptyState } from "../EmptyState";
 
@@ -82,28 +82,19 @@ export function MessageList({
       const firstMsg = group.messages[0];
       if (!firstMsg) return null;
       const role = agentRoles[group.sender];
-      const nameColor = agentColor(group.sender);
 
       return (
         <div className="flex gap-3 py-2.5 px-1 hover:bg-mycel-surface rounded-md transition-colors" role="listitem">
-          {/* Colored avatar circle with sender initial */}
-          <span
-            className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold shrink-0"
-            style={{
-              backgroundColor: `${nameColor}20`,
-              color: nameColor,
-            }}
-            aria-label={group.sender}
-          >
-            {group.sender.charAt(0).toUpperCase()}
+          {/* Sender character — deterministic identity from the name */}
+          <span className="shrink-0" style={{ marginTop: 2 }}>
+            <LiveAgentCharacter name={group.sender} size={30} />
           </span>
           <div className="flex-1 min-w-0">
             <div className="flex items-baseline gap-2">
               <button
                 type="button"
                 onClick={() => onPeekAgent(group.sender)}
-                className="font-medium text-sm hover:underline cursor-pointer decoration-1 underline-offset-2 focus-visible:ring-1 focus-visible:ring-mycel-accent rounded-md"
-                style={{ color: nameColor }}
+                className="font-medium text-sm text-mycel-text hover:underline cursor-pointer decoration-1 underline-offset-2 focus-visible:ring-1 focus-visible:ring-mycel-accent rounded-md"
                 title={`Peek at ${group.sender}'s terminal`}
               >
                 {group.sender}

@@ -33,7 +33,8 @@ import { EmptyState } from "../EmptyState";
 import { LoadingSkeleton } from "../LoadingSkeleton";
 import { DefaultAppIcon, PLATFORM_ICON_MAP } from "./PlatformIcons";
 import { SetupWizard, PlatformChooser, PLATFORM_MAP } from "./SetupWizard";
-import { agentColor, sourcePlatform } from "./messageUtils";
+import { sourcePlatform } from "./messageUtils";
+import { AgentCharacter } from "../agent-ui";
 import { formatRelative } from "../../utils/time";
 import {
   disconnectReason,
@@ -259,23 +260,8 @@ function SubscriberAvatars({ subscribers, count }: { subscribers: string[]; coun
   return (
     <span className="flex items-center shrink-0" title={`${String(count)} subscribed agent${count === 1 ? "" : "s"}${subscribers.length > 0 ? ": " + subscribers.join(", ") : ""}`}>
       {subscribers.slice(0, 3).map((a, i) => (
-        <span
-          key={a}
-          className="flex items-center justify-center"
-          style={{
-            width: 16,
-            height: 16,
-            borderRadius: 4,
-            background: agentColor(a),
-            color: "var(--mycel-bg)",
-            fontSize: 8,
-            fontWeight: 700,
-            fontFamily: "'JetBrains Mono', monospace",
-            marginLeft: i === 0 ? 0 : -4,
-            border: "1px solid var(--mycel-surface)",
-          }}
-        >
-          {a.slice(0, 2).toUpperCase()}
+        <span key={a} style={{ marginLeft: i === 0 ? 0 : -4 }}>
+          <AgentCharacter name={a} size={16} />
         </span>
       ))}
       <span className="ml-1 text-[10.5px] text-mycel-muted tabular-nums">

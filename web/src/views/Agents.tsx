@@ -10,7 +10,7 @@ import { EventRow } from "../components/live/EventRow";
 import type { ToolNode } from "../components/live/liveTypes";
 import { truncate } from "../utils/text";
 import { formatAbsolute, formatRelative } from "../utils/time";
-import { AgentIcon } from "../components/agent-ui";
+import { LiveAgentCharacter } from "../components/agent-ui";
 import { CreateAgentModal } from "../components/CreateAgentModal";
 import { useHeaderSlot } from "../context/HeaderSlotContext";
 import { MONO } from "../utils/typography";
@@ -1231,7 +1231,7 @@ export function Agents() {
                     </td>
                     <td className="px-4 py-2">
                       <span className="inline-flex items-center gap-2 min-w-0">
-                        <AgentIcon state={a.state} size={28} tool={a.tool} />
+                        <LiveAgentCharacter name={a.name} state={a.state} size={28} tool={a.tool} />
                         <span className="flex flex-col leading-tight min-w-0">
                           <InlineAgentName agent={a} onRenamed={refresh} />
                           {/* Fix #7: Task folded here as a secondary muted line so the

@@ -1,91 +1,192 @@
-/* Agent shape animations — the shape is the agent's "head", it reacts to state + hook events */
+/* ── Agent character animation vocabulary ───────────────────────────
+   The character is the agent's body: continuous states map to ambient
+   full-body loops (cheap CSS keyframes — many instances on screen),
+   transient event pulses are short one-shots layered on top.
 
-/* ── State-based (continuous) ── */
-
-/* Idle: slow gentle blink */
-@keyframes agent-blink {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.55; }
+   Theme-aware body lightness for the identity palette (identity.ts
+   builds hsl() fills around these): */
+:root {
+  --agent-body-l: 62%;
+  --agent-deep-l: 40%;
+  --agent-ink: rgba(24, 20, 15, 0.82);
 }
-.agent-anim-idle {
-  animation: agent-blink 3s ease-in-out infinite;
+html.light {
+  --agent-body-l: 54%;
+  --agent-deep-l: 34%;
+  --agent-ink: rgba(22, 18, 13, 0.85);
 }
 
-/* Working: continuous rotation */
-@keyframes agent-rotate {
+.agent-character {
+  position: relative;
+}
+.agent-character svg .agent-body,
+.agent-character svg .agent-eyes,
+.agent-character svg .agent-orbit,
+.agent-character svg .agent-speech {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+/* The orbit ring spins around the body centre, not its own box. */
+.agent-character svg .agent-orbit {
+  transform-box: view-box;
+  transform-origin: 32px 34px;
+}
+
+/* ── Continuous states — full-body moods ─────────────────────────── */
+
+/* Idle: slow breathing; eyes blink occasionally (below). */
+@keyframes agent-breathe-loop {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.035); }
+}
+.agent-anim-idle .agent-body {
+  animation: agent-breathe-loop 4.2s ease-in-out infinite;
+}
+
+/* Blink — quick eyelid squeeze on a long loop (idle + waiting). */
+@keyframes agent-blink-eyes {
+  0%, 91%, 100% { transform: scaleY(1); }
+  94% { transform: scaleY(0.12); }
+  97% { transform: scaleY(1); }
+}
+.agent-anim-idle .agent-eyes,
+.agent-anim-waiting .agent-eyes {
+  animation: agent-blink-eyes 5.5s ease-in-out infinite;
+}
+
+/* Starting: hatch/unfurl — springy scale-in, then settle into breath. */
+@keyframes agent-hatch {
+  0% { transform: scale(0.55) rotate(-8deg); opacity: 0; }
+  60% { transform: scale(1.08) rotate(3deg); opacity: 1; }
+  100% { transform: scale(1) rotate(0deg); opacity: 1; }
+}
+.agent-anim-starting .agent-body {
+  animation:
+    agent-hatch 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) both,
+    agent-breathe-loop 3.2s ease-in-out 0.55s infinite;
+}
+
+/* Working: rhythmic pulse; the tool mote orbits the body. */
+@keyframes agent-work-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+}
+@keyframes agent-orbit-spin {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
 }
-.agent-anim-working {
-  animation: agent-rotate 2s linear infinite;
+.agent-anim-working .agent-body {
+  animation: agent-work-pulse 1.4s ease-in-out infinite;
+}
+.agent-anim-working .agent-orbit {
+  animation: agent-orbit-spin 2.6s linear infinite;
 }
 
-/* Stuck: amber wobble */
-@keyframes agent-wobble {
-  0%, 100% { transform: rotate(0deg); }
-  25% { transform: rotate(-8deg); }
-  75% { transform: rotate(8deg); }
+/* Done: one satisfied bounce, settling to calm. */
+@keyframes agent-done-bounce {
+  0% { transform: translateY(0) scale(1); }
+  30% { transform: translateY(-4px) scale(1.06); }
+  55% { transform: translateY(0) scale(0.97); }
+  75% { transform: translateY(-1.5px) scale(1.02); }
+  100% { transform: translateY(0) scale(1); }
+}
+.agent-anim-done .agent-body {
+  animation:
+    agent-done-bounce 0.7s ease-out 1,
+    agent-breathe-loop 4.2s ease-in-out 0.7s infinite;
+}
+
+/* Stuck: drooping wobble — tilted, slow, a bit deflated. */
+@keyframes agent-droop {
+  0%, 100% { transform: rotate(-5deg) translateY(1.5px) scale(0.98); }
+  50% { transform: rotate(3deg) translateY(0.5px) scale(0.98); }
+}
+.agent-anim-stuck .agent-body {
+  animation: agent-droop 2.2s ease-in-out infinite;
 }
 .agent-anim-stuck {
-  animation: agent-wobble 1.5s ease-in-out infinite;
-  filter: hue-rotate(-20deg) brightness(1.2);
+  filter: saturate(0.85) brightness(1.05);
 }
 
-/* Error: red shake */
+/* Error: sharp shake (finite), then a desaturated flush. */
 @keyframes agent-shake {
   0%, 100% { transform: translateX(0); }
-  20% { transform: translateX(-3px); }
-  40% { transform: translateX(3px); }
-  60% { transform: translateX(-2px); }
-  80% { transform: translateX(2px); }
+  20% { transform: translateX(-2.5px) rotate(-2deg); }
+  40% { transform: translateX(2.5px) rotate(2deg); }
+  60% { transform: translateX(-1.8px); }
+  80% { transform: translateX(1.8px); }
+}
+.agent-anim-error .agent-body {
+  animation: agent-shake 0.4s ease-in-out 2;
 }
 .agent-anim-error {
-  animation: agent-shake 0.5s ease-in-out infinite;
-  filter: hue-rotate(-60deg) saturate(2);
+  filter: saturate(0.35) brightness(0.92);
 }
 
-/* Waiting: warning glow pulse */
+/* Waiting: soft glow pulse — wants attention, politely. */
 @keyframes agent-glow {
-  0%, 100% { transform: scale(1); filter: drop-shadow(0 0 0 transparent); }
-  50% { transform: scale(1.1); filter: drop-shadow(0 0 6px var(--mycel-warning)); }
+  0%, 100% { filter: drop-shadow(0 0 0 transparent); }
+  50% { filter: drop-shadow(0 0 5px var(--mycel-warning)); }
 }
-.agent-anim-waiting {
-  animation: agent-glow 1.5s ease-in-out infinite;
+.agent-anim-waiting .agent-body {
+  animation: agent-glow 1.8s ease-in-out infinite;
 }
 
-/* Stopped: grayscale + dim */
+/* Stopped: dormant — grayscale, dim, eyes closed (rendered closed). */
 .agent-anim-stopped {
-  opacity: 0.4;
+  opacity: 0.45;
   filter: grayscale(1);
 }
 
-/* ── Hook event one-shots (applied via JS, removed after animationend) ──
- * These classes are intentionally not applied statically. They will be added
- * programmatically by the AgentIcon component when hook events arrive via SSE,
- * and removed again on `animationend`. Kept here for future implementation. */
+/* ── Transient event pulses — one-shots, rate-limited by the hook ── */
 
-@keyframes agent-tool-spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+/* Message arrives: perk up; speech dots flicker in above the head. */
+@keyframes agent-perk {
+  0% { transform: translateY(0) scale(1); }
+  35% { transform: translateY(-2.5px) scale(1.07); }
+  100% { transform: translateY(0) scale(1); }
 }
-.agent-event-tooluse {
-  animation: agent-tool-spin 0.4s ease-out;
+@keyframes agent-speech-flicker {
+  0% { opacity: 0; transform: translateY(3px) scale(0.6); }
+  30% { opacity: 1; transform: translateY(0) scale(1); }
+  80% { opacity: 1; }
+  100% { opacity: 0; }
+}
+.agent-pulse-message .agent-body {
+  animation: agent-perk 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) 1;
+}
+.agent-pulse-message .agent-speech {
+  animation: agent-speech-flicker 0.7s ease-out 1 both;
 }
 
-@keyframes agent-task-pop {
+/* Tool activity: quick orbit burst. */
+.agent-pulse-tool .agent-orbit {
+  animation: agent-orbit-spin 0.6s cubic-bezier(0.3, 0, 0.4, 1) 1;
+}
+
+/* State change: morph pop — the body squashes and re-settles. */
+@keyframes agent-morph {
   0% { transform: scale(1); }
-  50% { transform: scale(1.3); }
+  40% { transform: scale(0.9, 1.08); }
+  70% { transform: scale(1.06, 0.95); }
   100% { transform: scale(1); }
 }
-.agent-event-taskcreate {
-  animation: agent-task-pop 0.5s ease-out;
+.agent-pulse-state .agent-body {
+  animation: agent-morph 0.5s ease-out 1;
 }
 
-@keyframes agent-breathe {
-  0% { transform: scale(1); }
-  40% { transform: scale(0.85); }
-  100% { transform: scale(1); }
-}
-.agent-event-prompt {
-  animation: agent-breathe 0.4s ease-out;
+/* ── Reduced motion: opacity/color only ───────────────────────────
+   All transform loops and one-shots stop; state still reads through
+   the static color treatments (stopped gray, error desaturation,
+   stuck tint) and the status dot in chips. */
+@media (prefers-reduced-motion: reduce) {
+  .agent-character .agent-body,
+  .agent-character .agent-eyes,
+  .agent-character .agent-orbit,
+  .agent-character .agent-speech {
+    animation: none !important;
+  }
+  .agent-anim-waiting .agent-body {
+    filter: drop-shadow(0 0 3px var(--mycel-warning));
+  }
 }

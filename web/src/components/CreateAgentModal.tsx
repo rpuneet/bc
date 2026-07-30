@@ -1,7 +1,7 @@
-import { useState, useCallback, useEffect, useRef, memo } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { AgentIcon } from "./agent-ui";
-import type { AgentShape } from "./agent-ui";
+import { motion, AnimatePresence } from "framer-motion";
+import { AgentCharacter, prefersReducedMotion } from "./agent-ui";
 import { EnvVarsEditor, isValidEnvKey } from "./EnvVarsEditor";
 import type { EnvRow } from "./EnvVarsEditor";
 import { MONO } from "../utils/typography";
@@ -78,11 +78,6 @@ const DEFAULT_TEMPLATES = ["feature-dev", "reviewer", "manager", "blank"];
 const VALID_PROVIDERS = new Set<string>(["claude", "agy", "cursor", "codex", "pi", "openclaw"]);
 const VALID_RUNTIMES = new Set<string>(["docker", "tmux"]);
 
-const SHAPES: AgentShape[] = ["hexagon", "circle", "square"];
-
-// Memoized avatar so CSS animation ticks don't cause parent re-renders
-const MemoAgentIcon = memo(AgentIcon);
-
 const INPUT_CLS =
   "w-full bg-mycel-bg border border-mycel-border rounded-md px-3 py-2 text-sm text-mycel-text " +
   "placeholder:text-mycel-muted outline-none focus:border-mycel-accent transition-colors";
@@ -97,9 +92,6 @@ export function CreateAgentModal({
   defaultCloneFrom = "",
 }: CreateAgentModalProps) {
   const [name, setName] = useState(() => generateName(existingNames));
-  const [shape, setShape] = useState<AgentShape>(
-    () => SHAPES[Math.floor(Math.random() * SHAPES.length)] ?? "hexagon",
-  );
   const [template, setTemplate] = useState("feature-dev");
   const [templates, setTemplates] = useState<string[]>(DEFAULT_TEMPLATES);
   const [provider, setProvider] = useState<Provider>("claude");
@@ -199,7 +191,6 @@ export function CreateAgentModal({
     if (open && !prevOpenRef.current) {
       const newName = generateName(existingNames);
       setName(newName);
-      setShape(SHAPES[Math.floor(Math.random() * SHAPES.length)] ?? "hexagon");
       setTemplate("feature-dev");
       setProvider("claude");
       setModel("");
@@ -374,9 +365,44 @@ export function CreateAgentModal({
 
         {/* Body */}
         <div className="px-5 py-4 flex flex-col gap-4">
-          {/* Shape preview */}
-          <div className="flex justify-center">
-            <MemoAgentIcon shape={shape} state="idle" size={64} tool={provider} />
+          {/* Identity — the character is derived from the name. It
+              regenerates with a soft morph as you type; the regenerate
+              button doubles as "meet a different agent". */}
+          <div
+            className="flex flex-col items-center gap-1"
+            data-testid="agent-identity-preview"
+          >
+            <AnimatePresence mode="popLayout" initial={false}>
+              <motion.div
+                key={name.trim() || "unnamed"}
+                initial={
+                  prefersReducedMotion()
+                    ? { opacity: 0 }
+                    : { opacity: 0, scale: 0.75, rotate: -6 }
+                }
+                animate={
+                  prefersReducedMotion()
+                    ? { opacity: 1 }
+                    : { opacity: 1, scale: 1, rotate: 0 }
+                }
+                exit={
+                  prefersReducedMotion()
+                    ? { opacity: 0 }
+                    : { opacity: 0, scale: 0.85, rotate: 4 }
+                }
+                transition={{ duration: 0.22, ease: [0.34, 1.3, 0.64, 1] }}
+              >
+                <AgentCharacter
+                  name={name.trim() || "unnamed"}
+                  state="idle"
+                  size={96}
+                  tool={provider}
+                />
+              </motion.div>
+            </AnimatePresence>
+            <span className="text-[10px] text-mycel-muted">
+              Every name grows its own character
+            </span>
           </div>
 
           {/* Name + regen */}
@@ -399,7 +425,8 @@ export function CreateAgentModal({
               <button
                 type="button"
                 onClick={handleRegenerate}
-                title="Regenerate name"
+                title="Meet a different agent"
+                aria-label="Meet a different agent"
                 className="shrink-0 flex items-center justify-center w-8 h-8 rounded-md border border-mycel-border bg-mycel-bg text-mycel-muted hover:text-mycel-accent hover:border-mycel-accent transition-colors"
               >
                 <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -408,23 +435,6 @@ export function CreateAgentModal({
                 </svg>
               </button>
             </div>
-          </div>
-
-          {/* Shape dropdown */}
-          <div className="flex flex-col gap-1.5">
-            <label className="text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted">
-              Shape
-            </label>
-            <select
-              value={shape}
-              onChange={(e) => setShape(e.target.value as AgentShape)}
-              className={INPUT_CLS}
-              style={{ fontFamily: MONO }}
-            >
-              <option value="hexagon">hexagon</option>
-              <option value="circle">circle</option>
-              <option value="square">square</option>
-            </select>
           </div>
 
           {/* Repo — required. The repo is a property on the agent:
