@@ -1,0 +1,3 @@
+This placeholder keeps server/web/dist embeddable via //go:embed when the
+web UI has not been built (`make build-local-web`). Without at least one
+tracked file here, `go install github.com/rpuneet/mycel/cmd/bc` fails.
