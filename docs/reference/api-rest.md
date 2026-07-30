@@ -183,21 +183,6 @@ There is **no** `/api/gateways/{platform}/channels/{channel}/send` endpoint — 
 
 ---
 
-## Cron
-
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/api/cron` | List jobs (enriched with live `running` state). Paginated. |
-| POST | `/api/cron` | Create a job. Body is a job object; `command` or `prompt` is required. Returns `201`. |
-| GET | `/api/cron/{name}` | Get one job. |
-| DELETE | `/api/cron/{name}` | Delete a job. Returns `204`. |
-| POST | `/api/cron/{name}/enable` | Enable. Returns `{"enabled": true}`. |
-| POST | `/api/cron/{name}/disable` | Disable. Returns `{"enabled": false}`. |
-| POST | `/api/cron/{name}/run` | Trigger a manual run (job must be enabled). Returns `{"status":"triggered"}`. |
-| GET | `/api/cron/{name}/logs` | Recent run logs. Query: `last` (default 20, max 1000). |
-| GET | `/api/cron/{name}/logs/live` | **SSE** tail of the live log file for a running job; sends `event: done` when the job finishes. |
-
----
 
 ## Secrets
 
@@ -295,7 +280,7 @@ AI provider registry (claude, gemini, cursor, ...).
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/api/settings` | Full workspace configuration document. |
-| PATCH | `/api/settings` | Partial update. Body is an object whose top-level keys are config sections: `user`, `server`, `runtime`, `providers`, `gateways`, `cron`, `storage`, `logs`, `ui` (`version` is ignored; unknown sections are rejected with `400`). Each provided section **replaces** that section, except `gateways`, which is deep-merged per platform key. The merged config is validated before saving; the response echoes the saved config. |
+| PATCH | `/api/settings` | Partial update. Body is an object whose top-level keys are config sections: `user`, `server`, `runtime`, `providers`, `gateways`, `storage`, `logs`, `ui` (`version` is ignored; unknown sections are rejected with `400`). Each provided section **replaces** that section, except `gateways`, which is deep-merged per platform key. The merged config is validated before saving; the response echoes the saved config. |
 
 See [Settings API](api-settings.md) for the configuration schema.
 
@@ -477,7 +462,6 @@ Agent identity is carried by the path segment (injected as the `agent` query par
 | Channels & Notify | 8 |
 | Gateways (+ webhooks) | 15 |
 | Costs (incl. global) | 13 |
-| Cron | 9 |
 | Secrets | 5 |
 | MCP servers | 7 |
 | Tools (incl. unified) | 10 |

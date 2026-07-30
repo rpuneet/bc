@@ -7,7 +7,7 @@ import { EmptyState } from "../components/EmptyState";
 import { DependenciesSection } from "../components/settings/Dependencies";
 type SaveStatus = "idle" | "saving" | "saved" | "error";
 
-const SECTION_ORDER = ["server", "storage", "runtime", "providers", "cron", "logs"];
+const SECTION_ORDER = ["server", "storage", "runtime", "providers", "logs"];
 const RESTART_SECTIONS = new Set(["server", "storage", "runtime"]);
 
 function deepClone<T>(v: T): T {
@@ -87,10 +87,6 @@ const SECTION_META: Record<string, { icon: React.ReactNode; desc: string }> = {
   providers: {
     icon: <path strokeLinecap="round" strokeLinejoin="round" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />,
     desc: "AI provider commands",
-  },
-  cron: {
-    icon: <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />,
-    desc: "Scheduled job configuration",
   },
   logs: {
     icon: <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />,
@@ -258,16 +254,6 @@ function ProvidersSection({ data, onChange }: { data: Record<string, unknown>; o
         </Field>
       ))}
     </div>
-  );
-}
-
-function CronSection({ data, onChange }: { data: Record<string, unknown>; onChange: (path: string[], v: unknown) => void }) {
-  const c = (data.cron ?? {}) as Record<string, unknown>;
-  return (
-    <>
-      <Field label="Poll Interval" suffix="s"><input className={INPUT_CLS} type="number" value={Number(c.poll_interval_seconds ?? 30)} onChange={(e) => onChange(["cron", "poll_interval_seconds"], Number(e.target.value))} /></Field>
-      <Field label="Job Timeout" suffix="s"><input className={INPUT_CLS} type="number" value={Number(c.job_timeout_seconds ?? 300)} onChange={(e) => onChange(["cron", "job_timeout_seconds"], Number(e.target.value))} /></Field>
-    </>
   );
 }
 
@@ -527,11 +513,8 @@ export function Settings() {
         </Section>
       </div>
 
-      {/* Row 3: Cron + Logs side by side */}
+      {/* Row 3: Logs */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-        <Section title="cron" dirty={dirtySections.includes("cron")}>
-          <CronSection data={edited} onChange={handleChange} />
-        </Section>
         <Section title="logs" dirty={dirtySections.includes("logs")}>
           <LogsSection data={edited} onChange={handleChange} />
         </Section>

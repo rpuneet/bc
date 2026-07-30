@@ -63,7 +63,6 @@ function Icon({ name, size = 14 }: { name: string; size?: number }) {
     roles: <path d="M7 2.5l4.5 2.5v3.5L7 11 2.5 8.5V5z" />,
     templates: <><rect x="2.5" y="2.5" width="9" height="9" rx="1" /><path d="M5 5.5h4M5 7.5h4M5 9.5h2" opacity="0.5" /></>,
     tools: <path d="M9.5 2.5l3 3-7 7H2.5v-3z" />,
-    cron: <><circle cx="7" cy="7" r="4.5" /><path d="M7 4.5v2.5l1.5 1.5" /></>,
     secrets: <path d="M7 2.5a2 2 0 00-2 2V6H4v4.5h6V6H9V4.5a2 2 0 00-2-2zm0 5.5a.75.75 0 110 1.5.75.75 0 010-1.5z" />,
     metrics: <path d="M2 10l2.5-3.5 2 1.5L10 3" strokeLinecap="round" strokeLinejoin="round" />,
     code: <><path d="M5 3.5L1.5 7L5 10.5" strokeLinecap="round" strokeLinejoin="round" /><path d="M9 3.5L12.5 7L9 10.5" strokeLinecap="round" strokeLinejoin="round" /></>,
@@ -708,7 +707,7 @@ function NotificationNavTree() {
 
 // Primary nav — divider-separated groups, no captions. Group 1 holds the
 // daily surfaces; group 2 the configuration surfaces (Marketplace, the
-// host machine's tools, Cron, Secrets); group 3 the read-only analytics
+// host machine's tools, Secrets); group 3 the read-only analytics
 // (Metrics + Costs merged behind one "Insights" item). The /tools item
 // is labeled with the daemon host machine's name, resolved at runtime
 // from /api/system/info (fallback "Host" while loading/unavailable).
@@ -733,7 +732,6 @@ function buildNavGroups(hostLabel: string): readonly (readonly NavItem[])[] {
     [
       { to: "/marketplace", label: "Marketplace", icon: "templates" },
       { to: "/tools", label: hostLabel, icon: "tools" },
-      { to: "/cron", label: "Cron", icon: "cron" },
       { to: "/secrets", label: "Secrets", icon: "secrets" },
     ],
     [{ to: "/insights", label: "Insights", icon: "metrics" }],
@@ -882,7 +880,7 @@ function NavList({
 
 /* ── Degraded services banner ────────────────────────────────────────
    Slim amber strip shown when /api/health reports degraded services
-   (stores that failed to initialize at daemon boot — notify, cron,
+   (stores that failed to initialize at daemon boot — notify,
    secrets, …). One line, service names only; full reasons live in the
    hover tooltip and `mycel doctor`. Dismissible for the session. */
 export function DegradedBanner() {

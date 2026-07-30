@@ -95,7 +95,6 @@ Ground truth: `web/src/App.tsx`.
 | `/templates` | `Templates` | Agent/role templates |
 | `/tools` | `Tools` | Provider tooling on the host |
 | `/tools/:provider` | `ProviderDetail` | Single provider detail |
-| `/cron` | `Cron` | Scheduled jobs |
 | `/secrets` | `Secrets` | Secret metadata |
 | `/stats` | `Stats` | Metrics and usage statistics |
 | `/metrics` | `Stats` | Alias for `/stats` |
@@ -109,7 +108,7 @@ Ground truth: `web/src/App.tsx`.
 
 Navigation is defined statically in `web/src/components/Layout.tsx`:
 
-- `MAIN_NAV_ITEMS`: **Live, Agents, Notifications, Code, Templates, Tools, Cron, Secrets, Metrics (`/stats`), Costs**
+- `MAIN_NAV_ITEMS`: **Live, Agents, Notifications, Code, Templates, Tools, Secrets, Metrics (`/stats`), Costs**
 - `UTIL_NAV_ITEMS`: **Settings**
 - `/about` lives in the sidebar footer (next to the theme toggle), not in a nav list; `TITLE_ITEMS` extends the nav lists so it still resolves a document title.
 

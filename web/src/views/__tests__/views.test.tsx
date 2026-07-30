@@ -7,7 +7,6 @@ import { AgentDetail, lifecycleDisabled } from "../AgentDetail";
 import { Notifications } from "../Notifications";
 import { Tools } from "../Tools";
 import { Live } from "../Live";
-import { Cron } from "../Cron";
 import { Secrets } from "../Secrets";
 
 const fetchMock = globalThis.fetch as ReturnType<typeof vi.fn>;
@@ -448,32 +447,6 @@ describe("Live", () => {
     wrap(<Live />);
     await waitFor(() => {
       expect(screen.getByText("No activity yet")).toBeInTheDocument();
-    });
-  });
-});
-
-describe("Cron", () => {
-  it("renders skeleton loading then cron table", async () => {
-    fetchMock.mockReturnValue(
-      jsonResponse([
-        {
-          name: "nightly",
-          schedule: "0 0 * * *",
-          agent_name: "bot",
-          prompt: "",
-          command: "",
-          enabled: true,
-          run_count: 5,
-          last_run: null,
-          next_run: null,
-          created_at: "",
-        },
-      ]),
-    );
-    const { container } = wrap(<Cron />);
-    expectSkeletonLoading(container);
-    await waitFor(() => {
-      expect(screen.getByText(/nightly/)).toBeInTheDocument();
     });
   });
 });

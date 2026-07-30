@@ -200,10 +200,6 @@ func isSSERequest(r *http.Request) bool {
 		(strings.HasSuffix(r.URL.Path, "/output") || strings.HasSuffix(r.URL.Path, "/events")) {
 		return true
 	}
-	// /api/cron/{name}/logs/live is an SSE stream
-	if strings.HasPrefix(r.URL.Path, "/api/cron/") && strings.HasSuffix(r.URL.Path, "/logs/live") {
-		return true
-	}
 	// Generic: any request explicitly asking for event-stream
 	if strings.Contains(r.Header.Get("Accept"), "text/event-stream") {
 		return true

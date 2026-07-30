@@ -53,7 +53,6 @@ Command Groups (with short aliases):
   cost (co)                    Cost tracking and budgets
   config                       Configuration management
   doctor (dr)                  Health checks
-  cron (cr)                    Scheduled tasks
 
 Key Features:
   • Coordinate multiple AI coding agents in parallel

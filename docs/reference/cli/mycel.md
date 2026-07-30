@@ -27,7 +27,6 @@ Command Groups (with short aliases):
   cost (co)                    Cost tracking and budgets
   config                       Configuration management
   doctor (dr)                  Health checks
-  cron (cr)                    Scheduled tasks
 
 Key Features:
   • Coordinate multiple AI coding agents in parallel
@@ -68,7 +67,6 @@ mycel [flags]
 * [mycel completion](mycel_completion.md)	 - Generate shell completion scripts
 * [mycel config](mycel_config.md)	 - Manage repo configuration
 * [mycel cost](mycel_cost.md)	 - Show cost information
-* [mycel cron](mycel_cron.md)	 - Manage scheduled agent tasks
 * [mycel doctor](mycel_doctor.md)	 - Health checks and diagnostics
 * [mycel down](mycel_down.md)	 - Stop mycel services
 * [mycel logs](mycel_logs.md)	 - Show the event log

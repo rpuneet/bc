@@ -39,7 +39,7 @@ cd tui && bun test src/hooks/__tests__/useStatus.test.tsx
 ### Running a Specific Web Test
 
 ```bash
-cd web && bun run test -- --reporter=verbose src/components/CronTable.test.tsx
+cd web && bun run test -- --reporter=verbose src/components/AgentTable.test.tsx
 ```
 
 ### Full CI Pipeline Locally
@@ -211,12 +211,12 @@ Web component tests use vitest with React Testing Library:
 ```typescript
 import { render, screen } from "@testing-library/react";
 import { describe, it, expect } from "vitest";
-import { CronTable } from "./CronTable";
+import { AgentTable } from "./AgentTable";
 
-describe("CronTable", () => {
+describe("AgentTable", () => {
   it("renders empty state", () => {
-    render(<CronTable jobs={[]} />);
-    expect(screen.getByText("No cron jobs")).toBeInTheDocument();
+    render(<AgentTable agents={[]} />);
+    expect(screen.getByText("No agents")).toBeInTheDocument();
   });
 });
 ```

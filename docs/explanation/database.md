@@ -11,7 +11,7 @@ There is one global database. Isolation between repos comes from data keys (agen
 
 | Scope | Location | Contents |
 |-------|----------|----------|
-| Global database | `~/.mycel/mycel.db` | Agents, roles, notifications, cron, MCP servers, tools, events |
+| Global database | `~/.mycel/mycel.db` | Agents, roles, notifications, MCP servers, tools, events |
 | Cost ledger | `~/.mycel/costs.db` | Cost records with per-repo attribution |
 | Secrets | `~/.mycel/secrets.vault` | SQLite vault with encrypted values |
 | Per-repo runtime | `~/.mycel/workspaces/<id>/` | `preferences.json`, agent files, git worktrees, logs |
@@ -28,14 +28,13 @@ There is one global database. Isolation between repos comes from data keys (agen
 
 ## Shared Connection
 
-`db.Global(cfg)` opens the process-wide handle lazily on first use and returns it together with the driver string (`"sqlite"` or `"timescale"`). Stores (`pkg/notify`, `pkg/cron`, `pkg/mcp`, `pkg/tool`, `pkg/events`, roles, `pkg/cost`) all share this handle and never open the same file twice; the connection is cached for the life of the process and torn down only by `db.CloseGlobal()` at shutdown.
+`db.Global(cfg)` opens the process-wide handle lazily on first use and returns it together with the driver string (`"sqlite"` or `"timescale"`). Stores (`pkg/notify`, `pkg/mcp`, `pkg/tool`, `pkg/events`, roles, `pkg/cost`) all share this handle and never open the same file twice; the connection is cached for the life of the process and torn down only by `db.CloseGlobal()` at shutdown.
 
 ```mermaid
 graph LR
     subgraph "mycel process"
         S["db.Global() — lazy, cached"]
         N[notify store]
-        C[cron store]
         M[mcp store]
         T[tool store]
         E[events store]
@@ -87,7 +86,6 @@ The same JSON-column pattern applies elsewhere (provider settings, tool metadata
 | Group | Store | Tables (representative) |
 |-------|-------|------------------------|
 | Notifications | `pkg/notify` | `notify_subscriptions`, `notify_messages`, `notify_delivery_log`, `notify_gateways`, `notify_channels` |
-| Cron | `pkg/cron` | `cron_jobs`, `cron_logs` |
 | MCP | `pkg/mcp` | `mcp_servers` |
 | Tools | `pkg/tool` | tool registry tables |
 | Events | `pkg/events` | event log |
@@ -102,7 +100,7 @@ Timestamp conventions vary by store: most tables use `INTEGER` Unix milliseconds
 Postgres support is fully implemented:
 
 - `pkg/db/postgres.go` — connection handling, `DATABASE_URL` / DSN construction.
-- Per-store Postgres implementations: `pkg/cost/store_postgres.go`, `pkg/cron/store_postgres.go`, `pkg/events/store_postgres.go`, `pkg/mcp/store_postgres.go`, `pkg/secret/store_postgres.go`, `pkg/tool/store_postgres.go`; the role store switches dialect on the shared driver string.
+- Per-store Postgres implementations: `pkg/cost/store_postgres.go`, `pkg/events/store_postgres.go`, `pkg/mcp/store_postgres.go`, `pkg/secret/store_postgres.go`, `pkg/tool/store_postgres.go`; the role store switches dialect on the shared driver string.
 - `docker/Dockerfile.bcdb` builds `mycel-bcdb` from `timescale/timescaledb:2.19.1-pg17` (`POSTGRES_USER=bc`, `POSTGRES_DB=bc`, password injected at runtime; `pg_isready` healthcheck baked in).
 - Time-series data (costs, events) uses TimescaleDB hypertables; relational tables are plain Postgres.
 
@@ -110,7 +108,7 @@ Postgres support is fully implemented:
 
 ```
 ~/.mycel/                       # MycelHome (MYCEL_HOME overrides)
-  mycel.db                      # THE database: agents, roles, events, notify, cron, mcp, tools
+  mycel.db                      # THE database: agents, roles, events, notify, mcp, tools
   costs.db                      # Cost ledger (per-repo attribution)
   secrets.vault                 # Secret vault (SQLite, encrypted values)
   mcps.json                     # Global MCP server config

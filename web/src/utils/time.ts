@@ -1,7 +1,7 @@
 // Shared time-formatting helpers for the web UI.
 //
 // Consolidates six divergent helpers that existed across AgentActivityStream,
-// AgentDetail, liveHelpers, messageUtils, Cron, and Secrets (#3181). Every
+// AgentDetail, liveHelpers, messageUtils, and Secrets (#3181). Every
 // caller shares the same relative-time ladder, empty-value handling, and
 // fallback beyond the max-days horizon.
 

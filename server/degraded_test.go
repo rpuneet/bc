@@ -24,7 +24,7 @@ func TestAPIHealthDegradedShape(t *testing.T) {
 	cfg := Config{Addr: "127.0.0.1:0", CORS: true}
 	svc := Services{Degraded: map[string]string{
 		"notify": "notify store unavailable: no shared database",
-		"cron":   "cron store unavailable: disk full",
+		"events": "event log unavailable: disk full",
 	}}
 	ts := httptest.NewServer(New(cfg, svc, nil, nil).Handler())
 	defer ts.Close()

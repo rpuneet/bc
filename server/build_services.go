@@ -17,7 +17,6 @@ import (
 	bcagent "github.com/rpuneet/mycel/pkg/agent"
 	bccontainer "github.com/rpuneet/mycel/pkg/container"
 	"github.com/rpuneet/mycel/pkg/cost"
-	"github.com/rpuneet/mycel/pkg/cron"
 	bcdb "github.com/rpuneet/mycel/pkg/db"
 	bcdeps "github.com/rpuneet/mycel/pkg/deps"
 	bcevents "github.com/rpuneet/mycel/pkg/events"
@@ -222,26 +221,6 @@ func buildServicesFromWS(ctx context.Context, globals *Globals, ws *bcworkspace.
 	}
 	agentSvc := bcagent.NewAgentService(agentMgr, hub, costQuerier)
 
-	// Cron store + scheduler.
-	var cronStore *cron.Store
-	var cronSched *cron.Scheduler
-	if cr, err := cron.Open(wsDB, wsDriver); err != nil {
-		log.Warn("cron store unavailable", "error", err, "workspace", ws.RootDir)
-		degraded["cron"] = "cron store unavailable: " + err.Error()
-	} else {
-		cronStore = cr
-		addCloser(func() error { return cr.Close() })
-
-		cronLogDir := filepath.Join(ws.RootDir, ".bc", "logs", "cron")
-		cronSched = cron.NewSchedulerWithConfig(cr, cronLogDir,
-			ws.Config.Cron.PollIntervalSeconds, ws.Config.Cron.JobTimeoutSeconds)
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			cronSched.Run(svcCtx)
-		}()
-	}
-
 	// Secret store. Prefer the user-global vault (~/.mycel/secrets.vault)
 	// supplied by Globals so a single secret set once is visible across
 	// every workspace. When Globals.SecretsVault is unset (legacy
@@ -367,25 +346,23 @@ func buildServicesFromWS(ctx context.Context, globals *Globals, ws *bcworkspace.
 	_ = provider.DefaultRegistry
 
 	svc := &Services{
-		WS:            ws,
-		Agents:        agentSvc,
-		AgentMgr:      agentMgr,
-		EventLog:      eventLog,
-		EventWriter:   eventWriter,
-		Costs:         costStore,
-		CostImporter:  costImporter,
-		Cron:          cronStore,
-		CronScheduler: cronSched,
-		Secrets:       secretStore,
-		MCP:           mcpStore,
-		MCPGlobal:     globalMCPStore(globals),
-		Tools:         toolStore,
-		Templates:     tmplStore,
-		Gateway:       gwManager,
-		Notify:        notifyService,
-		Hub:           hub,
-		Degraded:      degraded,
-		lifecycle:     &serviceLifecycle{cancel: svcCancel, wg: &wg},
+		WS:           ws,
+		Agents:       agentSvc,
+		AgentMgr:     agentMgr,
+		EventLog:     eventLog,
+		EventWriter:  eventWriter,
+		Costs:        costStore,
+		CostImporter: costImporter,
+		Secrets:      secretStore,
+		MCP:          mcpStore,
+		MCPGlobal:    globalMCPStore(globals),
+		Tools:        toolStore,
+		Templates:    tmplStore,
+		Gateway:      gwManager,
+		Notify:       notifyService,
+		Hub:          hub,
+		Degraded:     degraded,
+		lifecycle:    &serviceLifecycle{cancel: svcCancel, wg: &wg},
 	}
 
 	// Propagate global-scoped stores onto the bundle so handlers can

@@ -136,7 +136,6 @@ func TestBuildServices_LazyGlobalDB(t *testing.T) {
 
 	for name, present := range map[string]bool{
 		"notify": svc.Notify != nil,
-		"cron":   svc.Cron != nil,
 		"mcp":    svc.MCP != nil,
 		"tools":  svc.Tools != nil,
 		"events": svc.EventLog != nil,

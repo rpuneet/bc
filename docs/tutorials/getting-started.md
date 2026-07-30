@@ -63,7 +63,7 @@ agents; add more repos at any time from the web UI.
 All state lives outside your repos, under `~/.mycel/`:
 
 - `mycel.db` — the single global database (agents, roles, events,
-  notifications, cron)
+  notifications)
 - `costs.db` — cost ledger with per-repo attribution
 - `worktrees/<agent-name>/` — each agent's git worktree
 - `agents/<agent-name>/` — each agent's state (Claude config, logs)

@@ -26,7 +26,6 @@ type Config struct { //nolint:govet // field order matches JSON/API contract
 	Runtime   RuntimeConfig   `json:"runtime"`
 	Storage   StorageConfig   `json:"storage"`
 	Server    ServerConfig    `json:"server"`
-	Cron      CronConfig      `json:"cron"`
 	Logs      LogsConfig      `json:"logs"`
 	UI        UIConfig        `json:"ui"`
 	// InjectedInstructions is mycel-authored guidance appended to every
@@ -86,12 +85,6 @@ type ProvidersConfig struct { //nolint:govet // field order matches JSON/API con
 // ProviderConfig defines an AI provider's configuration.
 type ProviderConfig struct {
 	Command string `json:"command"`
-}
-
-// CronConfig configures the cron/job scheduler.
-type CronConfig struct {
-	PollIntervalSeconds int `json:"poll_interval_seconds"`
-	JobTimeoutSeconds   int `json:"job_timeout_seconds"`
 }
 
 // StorageConfig configures persistent storage.
@@ -183,10 +176,6 @@ func DefaultConfig() Config {
 			},
 		},
 		Gateways: GatewaysConfig{},
-		Cron: CronConfig{
-			PollIntervalSeconds: 30,
-			JobTimeoutSeconds:   300,
-		},
 		Storage: StorageConfig{
 			Default: "sqlite",
 			SQLite: SQLiteStorageConfig{

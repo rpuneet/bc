@@ -39,7 +39,7 @@ mycel ships as a single binary. `mycel <verb>` subcommands are thin HTTP clients
        |  +-----v----------------v----------------v-------+  |
        |  |              Service Layer                     |  |
        |  |                                                |  |
-       |  |  AgentService    NotifyService    CronService  |  |
+       |  |  AgentService       NotifyService              |  |
        |  |  CostStore       SecretStore      EventLog     |  |
        |  |  RoleStore       ToolStore        MCPStore     |  |
        |  |  WorkspaceManager                              |  |
@@ -165,7 +165,7 @@ stdio transport is used by locally launched agent tooling.
 - CLI commands start instantly (no DB connections, no state loading)
 - Multiple CLI invocations share the same server state
 - Web UI, TUI, and CLI all see the same data
-- The server maintains long-lived concerns (SSE, cost polling, cron)
+- The server maintains long-lived concerns (SSE, cost polling)
 - One artifact to build, version, and ship — the web UI is embedded in it
 
 ### Why SQLite (with a TimescaleDB Option)?

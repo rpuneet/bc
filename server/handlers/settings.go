@@ -135,11 +135,6 @@ func (h *SettingsHandler) patch(w http.ResponseWriter, r *http.Request) {
 				httpError(w, "invalid gateways config: "+err.Error(), http.StatusBadRequest)
 				return
 			}
-		case "cron":
-			if err := json.Unmarshal(raw, &merged.Cron); err != nil {
-				httpError(w, "invalid cron config: "+err.Error(), http.StatusBadRequest)
-				return
-			}
 		case "storage":
 			if err := json.Unmarshal(raw, &merged.Storage); err != nil {
 				httpError(w, "invalid storage config: "+err.Error(), http.StatusBadRequest)

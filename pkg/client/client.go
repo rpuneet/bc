@@ -43,7 +43,6 @@ type Client struct {
 	Notify     *NotifyClient
 	Events     *EventsClient
 	Costs      *CostsClient
-	Cron       *CronClient
 	MCP        *MCPClient
 	Tools      *ToolsClient
 	Roles      *RolesClient
@@ -73,7 +72,6 @@ func New(addr string) *Client {
 	c.Notify = &NotifyClient{client: c}
 	c.Events = &EventsClient{client: c}
 	c.Costs = &CostsClient{client: c}
-	c.Cron = &CronClient{client: c}
 	c.MCP = &MCPClient{client: c}
 	c.Tools = &ToolsClient{client: c}
 	c.Roles = &RolesClient{client: c}

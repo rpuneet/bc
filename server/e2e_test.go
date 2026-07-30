@@ -19,7 +19,6 @@ import (
 
 	"github.com/rpuneet/mycel/pkg/agent"
 	"github.com/rpuneet/mycel/pkg/cost"
-	"github.com/rpuneet/mycel/pkg/cron"
 	bcdb "github.com/rpuneet/mycel/pkg/db"
 
 	"github.com/rpuneet/mycel/pkg/events"
@@ -94,13 +93,6 @@ func newE2EServer(t *testing.T) *e2eServer {
 		t.Cleanup(func() { _ = cs.Close() })
 	}
 
-	// Cron store
-	var cronStore *cron.Store
-	if cr, err := cron.Open(wsDB, wsDriver); err == nil {
-		cronStore = cr
-		t.Cleanup(func() { _ = cr.Close() })
-	}
-
 	// MCP store
 	var mcpStore *pkgmcp.Store
 	if ms, err := pkgmcp.NewStore(wsDB, wsDriver); err == nil {
@@ -132,7 +124,6 @@ func newE2EServer(t *testing.T) *e2eServer {
 	svc := server.Services{
 		Agents:   agentSvc,
 		Costs:    costStore,
-		Cron:     cronStore,
 		MCP:      mcpStore,
 		Tools:    toolStore,
 		EventLog: eventLog,
@@ -315,20 +306,6 @@ func TestE2E_Costs_Summary(t *testing.T) {
 	// Empty workspace — should return valid structure with zero costs
 	if body == nil {
 		t.Fatal("expected cost summary body")
-	}
-}
-
-// ─── Cron ────────────────────────────────────────────────────────────────────
-
-func TestE2E_Cron_ListEmpty(t *testing.T) {
-	s := newE2EServer(t)
-
-	code, jobs := s.getList(t, "/api/cron")
-	if code != 200 {
-		t.Fatalf("want 200, got %d", code)
-	}
-	if len(jobs) != 0 {
-		t.Fatalf("want 0 cron jobs, got %d", len(jobs))
 	}
 }
 

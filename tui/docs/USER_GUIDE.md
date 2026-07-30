@@ -99,24 +99,6 @@ Tracks API usage and costs:
 - Input/output token counts
 - Breakdown by agent, team, and model
 
-### Demons View
-
-Manages scheduled background tasks:
-
-| Column | Description |
-|--------|-------------|
-| NAME | Demon identifier |
-| SCHEDULE | Cron expression (human-readable) |
-| STATUS | Enabled or disabled |
-| RUNS | Total execution count |
-| LAST RUN | Time since last execution |
-| NEXT RUN | Time until next execution |
-
-Actions:
-- `e` - Enable selected demon
-- `d` - Disable selected demon
-- `x` - Run demon immediately
-
 ### Processes View
 
 Shows running processes with:

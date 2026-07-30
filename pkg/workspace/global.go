@@ -33,7 +33,7 @@ const (
 // ComputeWorkspaceID(absRootDir).
 //
 // This path holds every piece of runtime state for the workspace:
-// preferences.json, state.db, cron.db, agents/, logs/ — nothing lives
+// preferences.json, state.db, agents/, logs/ — nothing lives
 // under the project directory anymore.
 func DataDir(id string) (string, error) {
 	if id == "" {

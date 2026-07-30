@@ -13,7 +13,6 @@ const Templates = lazy(() => import("./views/Templates").then((m) => ({ default:
 const Marketplace = lazy(() => import("./views/Marketplace").then((m) => ({ default: m.Marketplace })));
 const Tools = lazy(() => import("./views/Tools").then((m) => ({ default: m.Tools })));
 const ProviderDetail = lazy(() => import("./views/ProviderDetail").then((m) => ({ default: m.ProviderDetail })));
-const Cron = lazy(() => import("./views/Cron").then((m) => ({ default: m.Cron })));
 const Secrets = lazy(() => import("./views/Secrets").then((m) => ({ default: m.Secrets })));
 const Insights = lazy(() => import("./views/Insights").then((m) => ({ default: m.Insights })));
 const Settings = lazy(() => import("./views/Settings").then((m) => ({ default: m.Settings })));
@@ -68,7 +67,6 @@ export function AppRoutes() {
         <Route path="tools" element={wrap(<Tools />)} />
         <Route path="tools/:provider" element={wrap(<ProviderDetail />)} />
         <Route path="providers" element={<Navigate to="/tools" replace />} />
-        <Route path="cron" element={wrap(<Cron />)} />
         <Route path="secrets" element={wrap(<Secrets />)} />
         <Route path="insights" element={wrap(<Insights />)} />
         {/* Metrics + Costs merged into the single /insights dashboard —

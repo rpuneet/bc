@@ -10,12 +10,12 @@ context, and the reasoning behind each choice.
 **Status:** Accepted
 
 **Context:** mycel needs persistent storage for notifications, costs, events,
-secrets, cron jobs, MCP servers, and tools. The storage must work out of the
+secrets, MCP servers, and tools. The storage must work out of the
 box for every developer without any setup steps.
 
 **Decision:** Use SQLite for all persistent storage: one global database at
 `~/.mycel/mycel.db` for every store (agents, roles, events, notifications,
-cron, MCP servers, tools), plus a `costs.db` ledger and a `secrets.vault`
+MCP servers, tools), plus a `costs.db` ledger and a `secrets.vault`
 alongside it.
 
 **Rationale:**

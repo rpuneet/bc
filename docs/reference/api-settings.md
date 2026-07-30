@@ -57,10 +57,6 @@ Returns the full configuration.
     "cors_origin": "*",
     "port": 9374
   },
-  "cron": {
-    "poll_interval_seconds": 30,
-    "job_timeout_seconds": 300
-  },
   "logs": {
     "path": "",
     "max_bytes": 10485760
@@ -80,7 +76,7 @@ Returns the full configuration.
 
 Partial update. The request body is a JSON object whose top-level keys are config sections; send only the sections you want to change. Unspecified sections remain unchanged. A `version` key in the body is ignored; any other unknown key is rejected with `400`.
 
-**Supported sections:** `user`, `server`, `runtime`, `providers`, `gateways`, `cron`, `storage`, `logs`, `ui`.
+**Supported sections:** `user`, `server`, `runtime`, `providers`, `gateways`, `storage`, `logs`, `ui`.
 
 Most sections are replaced wholesale by the patch value. The `gateways` section is deep-merged per platform key, so sending `{"gateways": {"discord": {...}}}` does not remove existing Slack or Telegram entries.
 
@@ -214,13 +210,6 @@ See [Set Up Notifications](../how-to/set-up-notifications.md) for connecting gat
 | `host`        | string | `127.0.0.1` | Listen address for bcd |
 | `port`        | int    | `9374`      | Listen port (1–65535) |
 | `cors_origin` | string | `*`         | Allowed CORS origin |
-
-### `cron`
-
-| Field                   | Type | Default | Description |
-|-------------------------|------|---------|-------------|
-| `poll_interval_seconds` | int  | `30`    | Seconds between scheduler polls |
-| `job_timeout_seconds`   | int  | `300`   | Seconds before a job is considered timed out |
 
 ### `logs`
 

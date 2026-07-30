@@ -139,13 +139,6 @@ mycel config set storage.timescale.port 5432
 }
 ```
 
-### Adjust the cron scheduler
-
-```bash
-mycel config set cron.poll_interval_seconds 60
-mycel config set cron.job_timeout_seconds 600
-```
-
 ### Configure session logs
 
 ```bash
@@ -245,10 +238,6 @@ A complete `preferences.json`:
     "host": "127.0.0.1",
     "port": 9374,
     "cors_origin": "*"
-  },
-  "cron": {
-    "poll_interval_seconds": 30,
-    "job_timeout_seconds": 300
   },
   "logs": {
     "path": "",

@@ -422,27 +422,6 @@ export interface EventLogEntry {
   created_at: string;
 }
 
-export interface CronJob {
-  name: string;
-  schedule: string;
-  command: string;
-  enabled: boolean;
-  running: boolean;
-  run_count: number;
-  last_run: string | null;
-  next_run: string | null;
-  created_at: string;
-}
-
-export interface CronLogEntry {
-  id: number;
-  job_name: string;
-  status: string;
-  output: string;
-  run_at: string;
-  duration_ms: number;
-}
-
 export interface Secret {
   name: string;
   description: string;
@@ -590,7 +569,6 @@ export interface SettingsConfig {
     discord?: { enabled: boolean; bot_token: string };
     slack?: { enabled: boolean; bot_token: string; app_token: string; mode: string };
   };
-  cron: { poll_interval_seconds: number; job_timeout_seconds: number };
   storage: {
     default: string;
     sqlite: { path: string };
@@ -951,23 +929,6 @@ export const api = {
     request<EventLogEntry[]>(
       `/logs?${new URLSearchParams({ tail: String(tail), agent })}`,
     ),
-  listCron: () => request<CronJob[]>("/cron"),
-  createCron: (job: { name: string; schedule: string; command: string }) =>
-    request<CronJob>("/cron", { method: "POST", body: JSON.stringify(job) }),
-  runCron: (name: string) =>
-    request<void>(`/cron/${encodeURIComponent(name)}/run`, { method: "POST" }),
-  enableCron: (name: string) =>
-    request<void>(`/cron/${encodeURIComponent(name)}/enable`, {
-      method: "POST",
-    }),
-  disableCron: (name: string) =>
-    request<void>(`/cron/${encodeURIComponent(name)}/disable`, {
-      method: "POST",
-    }),
-  deleteCron: (name: string) =>
-    request<void>(`/cron/${encodeURIComponent(name)}`, { method: "DELETE" }),
-  getCronLogs: (name: string) =>
-    request<CronLogEntry[]>(`/cron/${encodeURIComponent(name)}/logs`),
   listSecrets: () => request<Secret[]>("/secrets"),
   createSecret: (name: string, value: string, description?: string) =>
     request<Secret>("/secrets", {

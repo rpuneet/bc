@@ -49,7 +49,6 @@ export function useCommandPalette() {
       // Host tools — the sidebar shows the host machine's name; the
       // palette keeps a static label since it doesn't fetch system info.
       { id: "nav-tools", label: "Host", section: "Navigate", icon: "t", action: () => navigate("/tools") },
-      { id: "nav-cron", label: "Cron", section: "Navigate", icon: "@", action: () => navigate("/cron") },
       { id: "nav-secrets", label: "Secrets", section: "Navigate", icon: "#", action: () => navigate("/secrets") },
       { id: "nav-metrics", label: "Insights: Metrics", section: "Navigate", icon: "M", action: () => navigate("/insights?tab=metrics") },
       { id: "nav-costs", label: "Insights: Costs", section: "Navigate", icon: "$", action: () => navigate("/insights?tab=costs") },

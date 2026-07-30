@@ -678,9 +678,6 @@ func printConfig(cfg *workspace.Config) {
 	}
 	fmt.Println()
 
-	fmt.Println("[cron]")
-	fmt.Printf("  poll_interval_seconds: %d\n", cfg.Cron.PollIntervalSeconds)
-	fmt.Printf("  job_timeout_seconds: %d\n", cfg.Cron.JobTimeoutSeconds)
 	fmt.Println()
 
 	fmt.Println("[ui]")

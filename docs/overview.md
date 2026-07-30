@@ -51,7 +51,7 @@ Key properties:
 
 - **Single-tenant server** — one instance, flat `/api/<resource>` routes, no per-request scoping.
 - **One state home** — everything lives under `~/.mycel`; your repos stay pristine.
-- **One database** — `~/.mycel/mycel.db` (SQLite WAL) holds every store: agents, roles, events, notifications, cron, and more. `~/.mycel/costs.db` is a separate cost ledger with per-repo attribution.
+- **One database** — `~/.mycel/mycel.db` (SQLite WAL) holds every store: agents, roles, events, notifications, and more. `~/.mycel/costs.db` is a separate cost ledger with per-repo attribution.
 - **Repo-bound agents** — each agent carries a `repo` (absolute path) and works in its own git worktree checked out from that repo.
 - **Globally unique agent names** — the name is the database primary key across all repos.
 
@@ -59,7 +59,7 @@ Key properties:
 
 ```
 ~/.mycel/
-  mycel.db                    # THE database: agents, roles, events, notify, cron, ...
+  mycel.db                    # THE database: agents, roles, events, notify, ...
   costs.db                    # cost ledger (per-repo attribution)
   daemon.addr                 # server address, written by `mycel up`
   templates/                  # global agent templates
@@ -119,9 +119,9 @@ AES-256-GCM encrypted store. Reference secrets in agent env vars as `${secret:NA
 
 Automatic import from Claude Code JSONL session logs, recorded in the global ledger with per-repo and per-agent attribution. Budgets enforce spending limits; `GET /api/global/costs` rolls costs up per repo.
 
-### Cron, stats, and tools
+### Stats and tools
 
-Scheduled commands with execution history (`/api/cron`), system and per-agent metrics (`/api/stats/*`, `/api/system/*`), and a registry of MCP servers and CLI tools agents can use (`/api/mcp`, `/api/tools`).
+System and per-agent metrics (`/api/stats/*`, `/api/system/*`), and a registry of MCP servers and CLI tools agents can use (`/api/mcp`, `/api/tools`).
 
 ## Data flow
 

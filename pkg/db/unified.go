@@ -41,7 +41,7 @@ func mycelHome() (string, error) {
 }
 
 // GlobalDBPath returns the path of the single global database file:
-// <MycelHome>/mycel.db. Every store — agents, events, notify, cron,
+// <MycelHome>/mycel.db. Every store — agents, events, notify,
 // mcp, tools, roles — lives in this one database; isolation between
 // repos comes from data keys (agent name, repo path), not from
 // separate files.
@@ -202,7 +202,7 @@ func OpenGlobalDBWithConfig(sqlitePath string, cfg *StorageSettings) (*sql.DB, s
 			return db, "timescale", nil
 		}
 		// A dead TimescaleDB must not take every store down with it —
-		// nil stores mean notifications, cron, MCP, tools, and events all
+		// nil stores mean notifications, MCP, tools, and events all
 		// silently vanish. Fall back to SQLite and keep the daemon usable;
 		// data written during the fallback stays in SQLite and does not
 		// sync back once TimescaleDB returns.

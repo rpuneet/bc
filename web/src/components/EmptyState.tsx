@@ -57,7 +57,7 @@ function GlyphIcon({ kind }: { kind: string }) {
         </svg>
       );
     case "clock":
-      // Clock face + hour/minute hands — schedule / cron / recurring
+      // Clock face + hour/minute hands — schedule / recurring
       return (
         <svg {...common} aria-hidden>
           <circle cx="12" cy="12" r="9" />

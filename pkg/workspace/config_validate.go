@@ -59,12 +59,6 @@ func (c *Config) FillDefaults() {
 	if c.Runtime.Docker.DockerSocketPath == "" {
 		c.Runtime.Docker.DockerSocketPath = d.Runtime.Docker.DockerSocketPath
 	}
-	if c.Cron.PollIntervalSeconds == 0 {
-		c.Cron.PollIntervalSeconds = d.Cron.PollIntervalSeconds
-	}
-	if c.Cron.JobTimeoutSeconds == 0 {
-		c.Cron.JobTimeoutSeconds = d.Cron.JobTimeoutSeconds
-	}
 	if c.Storage.Default == "" {
 		c.Storage.Default = d.Storage.Default
 	}

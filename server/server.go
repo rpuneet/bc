@@ -27,7 +27,6 @@ import (
 	"github.com/rpuneet/mycel/pkg/agent"
 	"github.com/rpuneet/mycel/pkg/attachment"
 	"github.com/rpuneet/mycel/pkg/cost"
-	"github.com/rpuneet/mycel/pkg/cron"
 	"github.com/rpuneet/mycel/pkg/deps"
 	"github.com/rpuneet/mycel/pkg/events"
 	"github.com/rpuneet/mycel/pkg/gateway"
@@ -73,23 +72,21 @@ func DefaultConfig() Config {
 // bcd is single-tenant: exactly one Services value is built at boot
 // (see BuildServices) and lives for the process lifetime.
 type Services struct {
-	Agents        *agent.AgentService
-	AgentMgr      *agent.Manager
-	Costs         *cost.Store
-	CostImporter  *cost.Importer
-	Cron          *cron.Store
-	CronScheduler *cron.Scheduler
-	Secrets       *secret.Store
-	MCP           *mcp.Store
-	MCPGlobal     *mcp.GlobalStore // user-global MCP registry (~/.mycel/mcps.json)
-	Tools         *tool.Store
-	Templates     *template.Store
-	Stats         *stats.Store
-	EventLog      events.EventStore
-	EventWriter   *events.JSONLWriter
-	WS            *workspace.Workspace
-	Gateway       *gateway.Manager
-	Notify        *notify.Service
+	Agents       *agent.AgentService
+	AgentMgr     *agent.Manager
+	Costs        *cost.Store
+	CostImporter *cost.Importer
+	Secrets      *secret.Store
+	MCP          *mcp.Store
+	MCPGlobal    *mcp.GlobalStore // user-global MCP registry (~/.mycel/mcps.json)
+	Tools        *tool.Store
+	Templates    *template.Store
+	Stats        *stats.Store
+	EventLog     events.EventStore
+	EventWriter  *events.JSONLWriter
+	WS           *workspace.Workspace
+	Gateway      *gateway.Manager
+	Notify       *notify.Service
 	// Hub is the process-wide SSE hub the bundle publishes into.
 	Hub *ws.Hub
 	// Degraded maps service name → reason for services that failed to
@@ -312,9 +309,6 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 	}
 	if svc.Costs != nil {
 		handlers.NewCostHandler(svc.Costs, svc.CostImporter).Register(mux)
-	}
-	if svc.Cron != nil {
-		handlers.NewCronHandler(svc.Cron, svc.CronScheduler).Register(mux)
 	}
 	if svc.Secrets != nil {
 		handlers.NewSecretHandler(svc.Secrets).Register(mux)
