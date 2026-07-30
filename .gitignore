@@ -70,4 +70,3 @@ node_modules/
 .bc/tmp/
 .playwright-mcp/
 packages/bc-cli/bin/bc
-packages/mycel-agent-runner/dist/
