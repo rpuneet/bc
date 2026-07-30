@@ -265,13 +265,13 @@ function highlightSyntax(code: string, language?: string): React.ReactNode[] {
 
       if (best.type === "string") {
         tokens.push(
-          <span key={`t${li}-${tk++}`} className="text-[#22c55e]">
+          <span key={`t${li}-${tk++}`} className="text-terminal-success">
             {best.match}
           </span>,
         );
       } else if (best.type === "flag") {
         tokens.push(
-          <span key={`t${li}-${tk++}`} className="text-[#fdba74]">
+          <span key={`t${li}-${tk++}`} className="text-terminal-command">
             {best.match}
           </span>,
         );
@@ -1403,24 +1403,19 @@ export default function DocsContent({
     defaultItemId,
   );
 
-  // On first render in the browser, check hash if SSR couldn't
-  if (!initializedRef.current && activeItemId === null && allItems.length > 0) {
+  // After first render in the browser, check hash if SSR couldn't
+  useEffect(() => {
+    if (initializedRef.current || activeItemId !== null || allItems.length === 0)
+      return;
     initializedRef.current = true;
-    const hash =
-      typeof window !== "undefined" ? window.location.hash.slice(1) : "";
-    if (hash) {
-      const matchingItem = allItems.find(
-        (item) => item.id === hash || item.id === decodeURIComponent(hash),
-      );
-      if (matchingItem) {
-        setActiveItemId(matchingItem.id);
-      } else {
-        setActiveItemId(allItems[0].id);
-      }
-    } else {
-      setActiveItemId(allItems[0].id);
-    }
-  }
+    const hash = window.location.hash.slice(1);
+    const matchingItem = hash
+      ? allItems.find(
+          (item) => item.id === hash || item.id === decodeURIComponent(hash),
+        )
+      : undefined;
+    setActiveItemId(matchingItem ? matchingItem.id : allItems[0].id);
+  }, [activeItemId, allItems]);
 
   // Update URL hash when active item changes
   useEffect(() => {
