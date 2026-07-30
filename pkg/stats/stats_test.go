@@ -337,6 +337,7 @@ func TestCollectAgentMetricsUptime(t *testing.T) {
 }
 
 func TestLoadEmptyStateDir(t *testing.T) {
+	t.Setenv("MYCEL_HOME", t.TempDir()) // isolate from the real global agents table
 	wsRoot := t.TempDir()
 	stateDir := filepath.Join(wsRoot, ".bc")
 	if err := os.MkdirAll(stateDir, 0750); err != nil {
@@ -360,6 +361,7 @@ func TestLoadEmptyStateDir(t *testing.T) {
 }
 
 func TestLoadWithAgentsData(t *testing.T) {
+	t.Setenv("MYCEL_HOME", t.TempDir()) // isolate from the real global agents table
 	wsRoot := t.TempDir()
 	stateDir := filepath.Join(wsRoot, ".bc")
 
@@ -414,6 +416,7 @@ func TestSummaryIncludesDoneState(t *testing.T) {
 }
 
 func TestLoadInvalidAgentsFile(t *testing.T) {
+	t.Setenv("MYCEL_HOME", t.TempDir()) // isolate from the real global agents table
 	stateDir := t.TempDir()
 	agentsDir := filepath.Join(stateDir, "agents")
 	if err := os.MkdirAll(agentsDir, 0750); err != nil {
