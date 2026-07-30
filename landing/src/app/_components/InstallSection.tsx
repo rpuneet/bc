@@ -143,16 +143,16 @@ export function InstallSection() {
   return (
     <section
       id="install"
-      className="scroll-mt-24 py-16 sm:py-24 lg:py-32"
+      className="scroll-mt-24 py-14 sm:py-16"
     >
-      <div className="mx-auto max-w-5xl px-4 sm:px-6">
+      <div className="mx-auto max-w-4xl px-4 sm:px-6">
         <ScrollReveal distance={20}>
           <span className="deck-eyebrow">
-            Install
+            For your terminal
           </span>
           <div className="mt-3 flex flex-col items-start gap-3 sm:flex-row sm:items-end sm:justify-between">
-            <h2 className="text-3xl font-semibold tracking-tight sm:text-5xl">
-              Install in 30 seconds.
+            <h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">
+              Get mycel.
             </h2>
             <span className="inline-flex items-center gap-2 rounded-full border border-border bg-card/80 px-3 py-1 font-mono text-xs text-muted-foreground">
               <span className="h-1.5 w-1.5 rounded-full bg-success" />
@@ -160,7 +160,9 @@ export function InstallSection() {
             </span>
           </div>
           <p className="mt-4 max-w-2xl text-muted-foreground">
-            One binary. No login. No config. Pick your platform and copy the command.
+            One install, no sign-up. Pick your platform, copy the command, and{" "}
+            <code className="font-mono text-sm text-primary">mycel up</code>{" "}
+            opens the app.
           </p>
         </ScrollReveal>
 
@@ -222,11 +224,20 @@ export function InstallSection() {
             <CodeBlock
               id="after"
               lines={[
-                "mycel up            # Start server + web UI on localhost:9374",
-                "mycel agent create  # Spawn an AI agent",
+                "mycel up   # starts mycel — the app is at localhost:9374",
               ]}
             />
           </div>
+          <p className="mt-4 text-sm text-muted-foreground">
+            Full setup, first agent, and connecting your apps:{" "}
+            <a
+              href="/docs"
+              className="text-primary underline-offset-4 hover:underline"
+            >
+              read the docs
+            </a>
+            .
+          </p>
         </ScrollReveal>
       </div>
     </section>
