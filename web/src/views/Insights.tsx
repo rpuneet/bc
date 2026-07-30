@@ -1,36 +1,50 @@
 /**
  * Insights — spend, attribution, and activity for the whole fleet.
  *
- * The page answers four questions, in order, and nothing else:
+ * The page answers five questions, in order, and nothing else:
  *
  *   1. What is the fleet costing, and is it trending?   → stat band + daily bars
  *   2. Where is it going?                               → one breakdown, dim switch
  *   3. Why is the bill sane?                            → cache efficiency module
  *   4. What are the agents actually doing?              → recent activity chart
+ *   5. What is it doing to the machine?                 → live system row
  *
  * Every number is period-scoped off the cost ledger (computed directly
  * from provider transcripts) via `?since=` — no mixed lifetime/range
  * figures on one surface. Ledger days are UTC. /stats, /metrics and
  * /costs redirect here (see App.tsx).
+ *
+ * Depth is progressive disclosure, never upfront: the Tokens stat, every
+ * breakdown row and every system tile expand into an inline drill-down
+ * (see views/insights/*). Expanded state lives in the URL hash so a
+ * refresh restores it; drill-downs lazy-fetch on open.
  */
 
 import { useCallback, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import {
   BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer,
 } from "recharts";
 import { api } from "../api/client";
 import type {
-  CostSummary, AgentCostSummary, ModelCostSummary, DailyCost, AgentActivityItem,
+  Agent, CostSummary, AgentCostSummary, ModelCostSummary, DailyCost, AgentActivityItem,
 } from "../api/client";
 import { usePolling } from "../hooks/usePolling";
 import { LoadingSkeleton } from "../components/LoadingSkeleton";
 import { EmptyState } from "../components/EmptyState";
 import { SectionRule } from "../components/shared/SectionRule";
 import { fmtTokens } from "../components/shared/stats-primitives";
+import { AgentChip } from "../components/agent-ui";
 import { formatCost } from "../utils/format";
 import { useHeaderSlot } from "../context/HeaderSlotContext";
+import {
+  ACCENT, TICK, AX, TT_STYLE, fmtClock, fmtShortDate, stripAgentPrefix,
+} from "./insights/chrome";
+import type { ChartTooltipProps } from "./insights/chrome";
+import { Disclosure, Chevron, useHashPanel } from "./insights/disclosure";
+import { SystemRow } from "./insights/SystemRow";
+import { TokenPanel, buildTokenSeries } from "./insights/TokenPanel";
+import { AgentDetail, ModelDetail, RepoDetail } from "./insights/BreakdownDetail";
 
 // ── Periods ─────────────────────────────────────────────────────────────────
 //
@@ -61,50 +75,46 @@ function lastNDays(n: number): string[] {
   return out;
 }
 
-// ── Shared chart chrome ─────────────────────────────────────────────────────
-
-const ACCENT = "var(--mycel-accent)";
-const TICK = { fill: "var(--mycel-muted)", fontSize: 10 };
-const AX = { axisLine: false as const, tickLine: false as const };
-const TT_STYLE: React.CSSProperties = {
-  backgroundColor: "var(--mycel-surface-2)",
-  border: "1px solid var(--mycel-border)",
-  borderRadius: "6px",
-  color: "var(--mycel-text)",
-  fontSize: "12px",
-  boxShadow: "var(--mycel-shadow-lg)",
-};
-
-// Cost-ledger agent ids are namespaced "bc-<workspace>-<agent>". Show
-// the bare agent name; fall back to the raw id if stripping empties it.
-function stripAgentPrefix(id: string): string {
-  if (id.startsWith("bc-")) {
-    const rest = id.split("-").slice(2).join("-");
-    return rest || id;
-  }
-  return id;
-}
-
-const fmtShortDate = (d: string): string => {
-  // "2026-07-30" → "Jul 30" without timezone drift.
-  const [, m, day] = d.split("-");
-  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-  return `${months[Number(m) - 1]} ${Number(day)}`;
-};
-
-const fmtClock = (ms: number): string =>
-  new Date(ms).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-
 // ── Stat band ───────────────────────────────────────────────────────────────
 
-function StatCell({ label, value, sub }: { label: string; value: React.ReactNode; sub?: React.ReactNode }) {
-  return (
-    <div className="bg-mycel-surface p-4 min-w-0">
-      <div className="text-[10px] font-medium text-mycel-muted uppercase tracking-[0.08em] truncate">{label}</div>
+function StatCell({
+  label,
+  value,
+  sub,
+  onClick,
+  open,
+}: {
+  label: string;
+  value: React.ReactNode;
+  sub?: React.ReactNode;
+  /** Present = the cell is a drill-down trigger (chevron affordance). */
+  onClick?: () => void;
+  open?: boolean;
+}) {
+  const body = (
+    <>
+      <div className="flex items-center gap-1.5">
+        <span className="text-[10px] font-medium text-mycel-muted uppercase tracking-[0.08em] truncate">{label}</span>
+        {onClick && <Chevron open={open ?? false} />}
+      </div>
       <div className="mt-1 text-xl font-semibold tabular-nums text-mycel-text truncate">{value}</div>
       <div className="mt-0.5 text-[11px] text-mycel-muted truncate">{sub ?? " "}</div>
-    </div>
+    </>
   );
+  if (onClick) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        aria-expanded={open}
+        title={`${open ? "Collapse" : "Expand"} ${label} detail`}
+        className={`bg-mycel-surface p-4 min-w-0 text-left cursor-pointer transition-colors hover:bg-mycel-surface-hover ${open ? "bg-mycel-surface-hover" : ""}`}
+      >
+        {body}
+      </button>
+    );
+  }
+  return <div className="bg-mycel-surface p-4 min-w-0">{body}</div>;
 }
 
 /** "▲ 23% vs prior 30d" — quiet, never colored. No prior data → nothing.
@@ -125,13 +135,6 @@ interface SpendPoint {
   cost: number;
   tokens: number;
   records: number;
-}
-
-/** Minimal shape recharts passes to a custom tooltip `content`. */
-interface ChartTooltipProps {
-  active?: boolean;
-  label?: string | number;
-  payload?: { dataKey?: string | number; value?: number | string; payload?: unknown }[];
 }
 
 function SpendTooltip({ active, payload }: ChartTooltipProps) {
@@ -157,13 +160,15 @@ type Dimension = "agent" | "model" | "repo";
 interface BreakdownRow {
   name: string;
   cost: number;
-  /** Navigation target for agent rows. */
-  to?: string;
+  /** Stable drill-down id (`<dimension>:<entity>`); absent = not expandable. */
+  id?: string;
+  /** Live agent state — renders the row's living character chip. */
+  agentState?: string;
   muted?: boolean;
 }
 
 /** Top rows by cost with the tail folded into one muted "everything else". */
-function topRows(rows: { name: string; cost: number; to?: string }[], max = 8): BreakdownRow[] {
+function topRows(rows: BreakdownRow[], max = 8): BreakdownRow[] {
   const sorted = rows.filter((r) => r.cost > 0).sort((a, b) => b.cost - a.cost);
   if (sorted.length <= max) return sorted;
   const head: BreakdownRow[] = sorted.slice(0, max);
@@ -172,8 +177,20 @@ function topRows(rows: { name: string; cost: number; to?: string }[], max = 8): 
   return head;
 }
 
-function Breakdown({ rows, total }: { rows: BreakdownRow[]; total: number }) {
-  const navigate = useNavigate();
+function Breakdown({
+  rows,
+  total,
+  expandedId,
+  onToggle,
+  renderDetail,
+}: {
+  rows: BreakdownRow[];
+  total: number;
+  /** Currently expanded row id (from the URL hash), or null. */
+  expandedId: string | null;
+  onToggle: (id: string) => void;
+  renderDetail: (id: string) => React.ReactNode;
+}) {
   const max = rows.reduce((m, r) => Math.max(m, r.cost), 0);
   if (rows.length === 0) {
     return <div className="py-10 text-center text-sm text-mycel-muted">No spend in this period</div>;
@@ -183,10 +200,16 @@ function Breakdown({ rows, total }: { rows: BreakdownRow[]; total: number }) {
       {rows.map((r) => {
         const share = total > 0 ? (r.cost / total) * 100 : 0;
         const width = max > 0 ? Math.max((r.cost / max) * 100, 0.75) : 0;
+        const open = r.id !== undefined && r.id === expandedId;
         const inner = (
           <>
-            <span className={`truncate text-xs ${r.muted ? "text-mycel-muted italic" : "text-mycel-text"}`}>
-              {r.name}
+            <span className={`flex items-center gap-1.5 min-w-0 text-xs ${r.muted ? "text-mycel-muted italic" : "text-mycel-text"}`}>
+              {r.id !== undefined && <Chevron open={open} />}
+              {r.agentState !== undefined ? (
+                <AgentChip name={r.name} state={r.agentState} size={16} showDot={false} className="min-w-0" />
+              ) : (
+                <span className="truncate">{r.name}</span>
+              )}
             </span>
             <span className="relative h-2 rounded-full bg-mycel-border/40 overflow-hidden">
               <span
@@ -200,20 +223,27 @@ function Breakdown({ rows, total }: { rows: BreakdownRow[]; total: number }) {
             </span>
           </>
         );
-        const cls = "grid w-full items-center gap-3 px-1 py-1.5 rounded-md grid-cols-[minmax(7rem,11rem)_1fr_5rem_2.9rem]";
-        const to = r.to;
-        return to ? (
-          <button
-            key={r.name}
-            type="button"
-            onClick={() => navigate(to)}
-            className={`${cls} text-left hover:bg-mycel-surface-hover transition-colors cursor-pointer`}
-            title={`Open ${r.name}`}
-          >
-            {inner}
-          </button>
-        ) : (
-          <div key={r.name} className={cls}>{inner}</div>
+        const cls = "grid w-full items-center gap-3 px-1 py-1.5 rounded-md grid-cols-[minmax(7rem,12rem)_1fr_5rem_2.9rem]";
+        const id = r.id;
+        if (id === undefined) {
+          return <div key={r.name} className={cls}>{inner}</div>;
+        }
+        return (
+          <div key={id}>
+            <button
+              type="button"
+              onClick={() => onToggle(id)}
+              aria-expanded={open}
+              aria-label={`${open ? "Collapse" : "Expand"} ${r.name}`}
+              className={`${cls} text-left hover:bg-mycel-surface-hover transition-colors cursor-pointer ${open ? "bg-mycel-surface-hover" : ""}`}
+              title={`${open ? "Collapse" : "Expand"} ${r.name}`}
+            >
+              {inner}
+            </button>
+            <Disclosure open={open} onClose={() => onToggle(id)} label={`${r.name} detail`}>
+              <div className="pt-1">{renderDetail(id)}</div>
+            </Disclosure>
+          </div>
         );
       })}
     </div>
@@ -326,8 +356,9 @@ interface InsightsData {
   summary: CostSummary | null;
   byAgent: AgentCostSummary[];
   byModel: ModelCostSummary[];
-  byRepo: { label: string; total: number }[];
+  byRepo: { key: string; label: string; total: number }[];
   activity: AgentActivityItem[];
+  agents: Agent[];
 }
 
 // ── Main ────────────────────────────────────────────────────────────────────
@@ -335,6 +366,9 @@ interface InsightsData {
 export function Insights() {
   const [period, setPeriod] = useState<PeriodKey>("30d");
   const [dimension, setDimension] = useState<Dimension>("agent");
+  // Drill-down state lives in the URL hash so refresh restores it.
+  const [tokensOpen, setTokensOpen] = useHashPanel("tokens");
+  const [expandedRow, setExpandedRow] = useHashPanel("row");
 
   const cfg = PERIODS.find((p) => p.key === period) ?? PERIODS[1];
   const isAll = period === "all";
@@ -369,21 +403,23 @@ export function Insights() {
     // Daily ledger fetches double the window so the stat band can show
     // an honest delta vs the previous period.
     const dailyDays = isAll ? 365 : Math.min(cfg.days * 2, 365);
-    const [daily, summary, byAgent, byModel, repos, activity] = await Promise.allSettled([
+    const [daily, summary, byAgent, byModel, repos, activity, agents] = await Promise.allSettled([
       api.getCostDaily(dailyDays),
       api.getCostSummary({ since }),
       api.getCostByAgent({ since, limit: 200 }),
       api.getCostByModel({ since }),
       api.globalCosts({ start: since ?? "2000-01-01" }),
       api.getActivity(1000),
+      api.listAgents(),
     ]);
     return {
       daily: daily.status === "fulfilled" && Array.isArray(daily.value) ? daily.value : [],
       summary: summary.status === "fulfilled" ? summary.value : null,
       byAgent: byAgent.status === "fulfilled" ? (byAgent.value ?? []) : [],
       byModel: byModel.status === "fulfilled" ? (byModel.value ?? []) : [],
-      byRepo: repos.status === "fulfilled" ? (repos.value.rows ?? []).map((r) => ({ label: r.label, total: r.total })) : [],
+      byRepo: repos.status === "fulfilled" ? (repos.value.rows ?? []).map((r) => ({ key: r.key, label: r.label, total: r.total })) : [],
       activity: activity.status === "fulfilled" ? (activity.value ?? []) : [],
+      agents: agents.status === "fulfilled" && Array.isArray(agents.value) ? agents.value : [],
     };
   }, [since, isAll, cfg.days]);
 
@@ -453,17 +489,31 @@ export function Insights() {
 
   // ── Derived: breakdown ────────────────────────────────────────────────────
 
+  // Live agent states keyed by bare name — powers the living character
+  // chips on agent rows (the ledger also bills sessions that aren't
+  // fleet agents, e.g. observer-sessions; those stay plain text).
+  const agentStates = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const a of data?.agents ?? []) m.set(a.name, a.state);
+    return m;
+  }, [data?.agents]);
+
   const breakdown = useMemo(() => {
     let rows: BreakdownRow[];
     if (dimension === "agent") {
       rows = topRows(
         (data?.byAgent ?? []).map((a) => {
           const name = stripAgentPrefix(a.agent_id);
-          return { name, cost: a.total_cost_usd, to: `/agents/${encodeURIComponent(name)}` };
+          return {
+            name,
+            cost: a.total_cost_usd,
+            id: `agent:${a.agent_id}`,
+            agentState: agentStates.get(name),
+          };
         }),
       );
     } else if (dimension === "model") {
-      rows = topRows((data?.byModel ?? []).map((m) => ({ name: m.model, cost: m.total_cost_usd })));
+      rows = topRows((data?.byModel ?? []).map((m) => ({ name: m.model, cost: m.total_cost_usd, id: `model:${m.model}` })));
     } else {
       // Repos can appear under several historical paths with one label —
       // fold by label so the list reads as projects, not paths.
@@ -471,13 +521,62 @@ export function Insights() {
       for (const r of data?.byRepo ?? []) {
         byLabel.set(r.label, (byLabel.get(r.label) ?? 0) + r.total);
       }
-      rows = topRows([...byLabel.entries()].map(([name, total]) => ({ name, cost: total })));
+      rows = topRows([...byLabel.entries()].map(([name, total]) => ({ name, cost: total, id: `repo:${name}` })));
     }
     const total = rows.reduce((s, r) => s + r.cost, 0);
     return { rows, total };
-  }, [data?.byAgent, data?.byModel, data?.byRepo, dimension]);
+  }, [data?.byAgent, data?.byModel, data?.byRepo, dimension, agentStates]);
 
   const activity = useMemo(() => summarizeActivity(data?.activity ?? []), [data?.activity]);
+
+  // Recent-feed event counts per bare agent name, for the agent detail.
+  const activityCounts = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const item of data?.activity ?? []) {
+      if (item.agent) m.set(item.agent, (m.get(item.agent) ?? 0) + 1);
+    }
+    return m;
+  }, [data?.activity]);
+
+  // Token drill-down series shares the spend chart's day window.
+  const tokenSeries = useMemo(
+    () => buildTokenSeries(data?.daily ?? [], spendSeries.map((p) => p.date)),
+    [data?.daily, spendSeries],
+  );
+
+  // One breakdown drill-down at a time, keyed `<dimension>:<entity>`.
+  const renderBreakdownDetail = useCallback(
+    (id: string): React.ReactNode => {
+      const sep = id.indexOf(":");
+      const kind = id.slice(0, sep);
+      const entity = id.slice(sep + 1);
+      if (kind === "agent") {
+        const name = stripAgentPrefix(entity);
+        return (
+          <AgentDetail
+            agentId={entity}
+            name={name}
+            summary={(data?.byAgent ?? []).find((a) => a.agent_id === entity)}
+            fleetDaily={data?.daily ?? []}
+            days={spendSeries.map((p) => p.date)}
+            activityCount={activityCounts.get(name) ?? 0}
+          />
+        );
+      }
+      if (kind === "model") {
+        return <ModelDetail model={(data?.byModel ?? []).find((m) => m.model === entity)} />;
+      }
+      return (
+        <RepoDetail
+          label={entity}
+          paths={(data?.byRepo ?? [])
+            .filter((r) => r.label === entity)
+            .map((r) => ({ key: r.key, total: r.total }))}
+        />
+      );
+    },
+    [data?.byAgent, data?.byModel, data?.byRepo, data?.daily, spendSeries, activityCounts],
+  );
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -528,6 +627,8 @@ export function Insights() {
             label={`Tokens · ${periodLabel}`}
             value={fmtTokens((cache.input ?? 0) + (cache.output ?? 0))}
             sub={`${fmtTokens(cache.input)} in · ${fmtTokens(cache.output)} out`}
+            onClick={() => setTokensOpen("1")}
+            open={tokensOpen !== null}
           />
           <StatCell
             label="Cache hit rate"
@@ -535,6 +636,9 @@ export function Insights() {
             sub={cache.hasData ? `${fmtTokens(cache.read)} tokens read from cache` : undefined}
           />
         </div>
+        <Disclosure open={tokensOpen !== null} onClose={() => setTokensOpen(null)} label="Token composition">
+          <TokenPanel series={tokenSeries} summary={data.summary} periodLabel={periodLabel} />
+        </Disclosure>
       </div>
 
       {/* ── Spend over time ── */}
@@ -592,7 +696,13 @@ export function Insights() {
                 <button
                   key={d.key}
                   type="button"
-                  onClick={() => setDimension(d.key)}
+                  onClick={() => {
+                    setDimension(d.key);
+                    // A drill-down from another dimension can't render here.
+                    if (expandedRow !== null && !expandedRow.startsWith(`${d.key}:`)) {
+                      setExpandedRow(null);
+                    }
+                  }}
                   aria-pressed={dimension === d.key}
                   className={`px-2 py-0.5 text-[11px] rounded-md border transition-colors ${
                     dimension === d.key
@@ -608,7 +718,13 @@ export function Insights() {
         />
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
           <div className="lg:col-span-2">
-            <Breakdown rows={breakdown.rows} total={breakdown.total} />
+            <Breakdown
+              rows={breakdown.rows}
+              total={breakdown.total}
+              expandedId={expandedRow}
+              onToggle={setExpandedRow}
+              renderDetail={renderBreakdownDetail}
+            />
           </div>
 
           {/* Cache efficiency — why the bill stays sane. */}
@@ -707,6 +823,23 @@ export function Insights() {
             </ResponsiveContainer>
           </>
         )}
+      </section>
+
+      {/* ── System — the machine underneath, live ── */}
+      <section>
+        <SectionRule
+          label="System"
+          trailing={
+            <span className="inline-flex items-center gap-1.5 text-[11px] text-mycel-muted tabular-nums">
+              <span className="relative flex w-1.5 h-1.5" aria-hidden>
+                <span className="absolute inline-flex w-full h-full rounded-full bg-mycel-success opacity-60 animate-ping [animation-duration:3s]" />
+                <span className="relative inline-flex w-1.5 h-1.5 rounded-full bg-mycel-success" />
+              </span>
+              live · host machine
+            </span>
+          }
+        />
+        <SystemRow />
       </section>
     </div>
   );
