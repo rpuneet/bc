@@ -33,6 +33,7 @@ export function AnimatedBackground() {
     let scrollVelocity = 0;
     let mouseX = -1;
     let mouseY = -1;
+    let lastMouseMove = -Infinity;
     let hidden = document.hidden;
 
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -294,9 +295,11 @@ export function AnimatedBackground() {
       if (hidden) return; // resumes via visibilitychange
       drawField(time);
 
-      // Adaptive frame rate: 60fps when active, ~30fps when idle — the
-      // network keeps breathing, at half rate, when nothing else moves.
-      const hasMotion = Math.abs(scrollVelocity) > 0.1 || mouseX >= 0;
+      // Adaptive frame rate: full rate while the visitor scrolls or moves
+      // the mouse, ~30fps once everything rests — a cursor merely parked
+      // over the page counts as idle, so the loop always winds down.
+      const mouseActive = time - lastMouseMove < 1500;
+      const hasMotion = Math.abs(scrollVelocity) > 0.1 || mouseActive;
       if (hasMotion) {
         idleFrames = 0;
         animationId = requestAnimationFrame(frame);
@@ -321,6 +324,7 @@ export function AnimatedBackground() {
     function handleMouseMove(e: MouseEvent) {
       mouseX = e.clientX;
       mouseY = e.clientY;
+      lastMouseMove = performance.now();
     }
 
     function handleMouseLeave() {

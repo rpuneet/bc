@@ -276,21 +276,6 @@ h6 {
    UTILITY CLASSES
    ════════════════════════════════════════════ */
 
-/* Hero glow — warm radial gradient from the amber accent */
-.hero-glow {
-  background:
-    radial-gradient(
-      ellipse 80% 50% at 50% 0%,
-      color-mix(in srgb, var(--primary) 12%, transparent) 0%,
-      transparent 70%
-    ),
-    radial-gradient(
-      ellipse 60% 40% at 50% 10%,
-      color-mix(in srgb, var(--secondary) 6%, transparent) 0%,
-      transparent 60%
-    );
-}
-
 /* Glass panel — backdrop-blur + semi-transparent bg */
 .glass-panel {
   background: var(--glass-bg);
@@ -399,60 +384,6 @@ input:focus-visible,
    ANIMATIONS
    ═══════════════════════════════════════════ */
 
-@keyframes slide-x {
-  from {
-    transform: translateX(-100%);
-  }
-  to {
-    transform: translateX(200%);
-  }
-}
-
-@keyframes glow-pulse {
-  0%,
-  100% {
-    opacity: 0.4;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 0.7;
-    transform: scale(1.05);
-  }
-}
-
-@keyframes float {
-  0%,
-  100% {
-    transform: translateY(0px);
-  }
-  50% {
-    transform: translateY(-6px);
-  }
-}
-
-.animate-float {
-  animation: float 6s ease-in-out infinite;
-}
-
-@keyframes marquee {
-  0% {
-    transform: translateX(0);
-  }
-  100% {
-    transform: translateX(-50%);
-  }
-}
-
-@keyframes blink {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0;
-  }
-}
-
 @keyframes fadeIn {
   from {
     opacity: 0;
@@ -462,22 +393,6 @@ input:focus-visible,
     opacity: 1;
     transform: translateY(0);
   }
-}
-
-/* Blinking terminal cursor */
-@keyframes terminal-blink {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0;
-  }
-}
-.terminal-cursor::after {
-  content: "\25CB";
-  animation: terminal-blink 1s step-end infinite;
-  color: var(--primary);
 }
 
 /* ═══════════════════════════════════════════
@@ -519,60 +434,9 @@ input:focus-visible,
   background: color-mix(in srgb, var(--primary) 30%, transparent);
 }
 
-/* ── Method page — editorial typography ── */
-.method-page .method-body-text {
-  line-height: 1.85;
-  letter-spacing: 0.005em;
-}
-
-.method-divider-gradient {
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    var(--outline-variant) 20%,
-    var(--outline-variant) 80%,
-    transparent 100%
-  );
-  opacity: 0.2;
-}
-
-.method-page .method-principle-label {
-  letter-spacing: 0.3em;
-}
-
-/* Bento card hover glow — no borders, use warm shadow */
-.bento-card {
-  transition: all 0.2s ease;
-}
-.bento-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 30px color-mix(in srgb, var(--primary) 9%, transparent);
-}
-
 /* CTA button glow on hover */
 .cta-glow:hover {
   box-shadow: 0 0 20px color-mix(in srgb, var(--primary) 30%, transparent);
-}
-
-/* Hero spore breathing aura */
-@keyframes aura-breathe {
-  0%, 100% { transform: scale(1); opacity: 0.5; }
-  50% { transform: scale(1.15); opacity: 0.8; }
-}
-
-.hero-spore-aura {
-  position: absolute;
-  width: 300px;
-  height: 300px;
-  border-radius: 50%;
-  background: radial-gradient(
-    circle,
-    color-mix(in srgb, var(--primary) 15%, transparent) 0%,
-    color-mix(in srgb, var(--secondary) 5%, transparent) 50%,
-    transparent 70%
-  );
-  animation: aura-breathe 4s ease-in-out infinite;
-  pointer-events: none;
 }
 
 /* Section separator gradient */
@@ -599,17 +463,6 @@ input:focus-visible,
   );
 }
 
-/* Feature card hover glow */
-.feature-card {
-  transition: all 0.3s ease;
-  border: 1px solid transparent;
-}
-.feature-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 30px color-mix(in srgb, var(--primary) 10%, transparent);
-  border-color: color-mix(in srgb, var(--primary) 15%, transparent);
-}
-
 /* ═══════════════════════════════════════════
    DECK — slide-panel showcase
    ═══════════════════════════════════════════ */
@@ -633,6 +486,15 @@ input:focus-visible,
   letter-spacing: 0.28em;
   text-transform: uppercase;
   color: var(--primary-text);
+}
+
+/* Tighter tracking on narrow screens so eyebrows wrap on their own terms
+   instead of orphaning a single word */
+@media (max-width: 640px) {
+  .deck-eyebrow {
+    font-size: 0.625rem;
+    letter-spacing: 0.16em;
+  }
 }
 
 /* Editorial serif accent for connective pull-quotes */
@@ -667,14 +529,6 @@ input:focus-visible,
 }
 .ember-node {
   animation: node-pulse 2.8s ease-in-out infinite;
-}
-
-/* Panel artifact frame — soft amber lift */
-.deck-artifact {
-  box-shadow:
-    0 0 0 1px color-mix(in srgb, var(--primary) 8%, transparent),
-    0 30px 60px -30px rgba(23, 17, 12, 0.55),
-    0 0 80px -20px color-mix(in srgb, var(--primary) 12%, transparent);
 }
 
 /* ═══════════════════════════════════════════
