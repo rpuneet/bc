@@ -2,9 +2,11 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 
+	"github.com/rpuneet/mycel/pkg/app"
 	"github.com/rpuneet/mycel/pkg/workspace"
 )
 
@@ -130,9 +132,9 @@ func (h *SettingsHandler) patch(w http.ResponseWriter, r *http.Request) {
 				httpError(w, "invalid providers config: "+err.Error(), http.StatusBadRequest)
 				return
 			}
-		case "gateways":
-			if err := workspace.MergeGatewaysPatch(&merged.Gateways, raw); err != nil {
-				httpError(w, "invalid gateways config: "+err.Error(), http.StatusBadRequest)
+		case "apps":
+			if err := mergeAppsPatch(&merged, raw); err != nil {
+				httpError(w, "invalid apps config: "+err.Error(), http.StatusBadRequest)
 				return
 			}
 		case "storage":
@@ -177,5 +179,34 @@ func (h *SettingsHandler) patch(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, ws.Config)
 }
 
-// Gateway patches are deep-merged per platform key via
-// workspace.MergeGatewaysPatch.
+// mergeAppsPatch merges an "apps" settings patch per instance key so a
+// patch containing only {"slack": {...}} never wipes other instances.
+// Every submitted instance is validated against its app descriptor —
+// unknown apps, unknown config keys, and secret-typed fields are all
+// rejected: secrets never travel through /api/settings, they go through
+// POST /api/apps/{name} into the vault.
+func mergeAppsPatch(merged *workspace.Config, raw json.RawMessage) error {
+	var patch map[string]app.InstanceConfig
+	if err := json.Unmarshal(raw, &patch); err != nil {
+		return err
+	}
+
+	// Copy-on-write: merged shares the Apps map with the live config
+	// until the patch is fully validated.
+	apps := make(map[string]app.InstanceConfig, len(merged.Apps)+len(patch))
+	for k, v := range merged.Apps {
+		apps[k] = v
+	}
+	for name, ic := range patch {
+		plugin, ok := app.Get(ic.App)
+		if !ok {
+			return fmt.Errorf("unknown app %q for instance %q", ic.App, name)
+		}
+		if err := app.ValidateConfig(plugin.Describe(), ic.Config); err != nil {
+			return err
+		}
+		apps[name] = ic
+	}
+	merged.Apps = apps
+	return nil
+}

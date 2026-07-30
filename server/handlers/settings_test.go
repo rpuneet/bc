@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/rpuneet/mycel/pkg/app"
 	"github.com/rpuneet/mycel/pkg/workspace"
 )
 
@@ -70,6 +71,29 @@ func TestSettingsPatchSection(t *testing.T) {
 			wantErr:    "unknown section: bogus",
 		},
 		{
+			name:       "gateways section is gone",
+			body:       `{"gateways":{"slack":{"bot_token":"x"}}}`,
+			wantStatus: http.StatusBadRequest,
+			wantErr:    "unknown section: gateways",
+		},
+		{
+			name:       "patch apps section",
+			body:       `{"apps":{"fakeapp":{"app":"fakeapp","enabled":true,"config":{"region":"eu"}}}}`,
+			wantStatus: http.StatusOK,
+		},
+		{
+			name:       "apps patch with unknown app returns 400",
+			body:       `{"apps":{"ghost":{"app":"ghost","enabled":true}}}`,
+			wantStatus: http.StatusBadRequest,
+			wantErr:    "unknown app",
+		},
+		{
+			name:       "apps patch with secret field is rejected",
+			body:       `{"apps":{"fakeapp":{"app":"fakeapp","enabled":true,"config":{"region":"eu","token":"leak"}}}}`,
+			wantStatus: http.StatusBadRequest,
+			wantErr:    "must be stored in the vault",
+		},
+		{
 			name:       "invalid JSON returns 400",
 			body:       `{not json}`,
 			wantStatus: http.StatusBadRequest,
@@ -119,6 +143,33 @@ func TestSettingsPatchUpdatesConfig(t *testing.T) {
 
 	if ws.Config.User.Name != "bob" {
 		t.Errorf("config.User.Name = %q, want %q", ws.Config.User.Name, "bob")
+	}
+}
+
+// TestSettingsAppsPatchMerges verifies the per-instance merge: patching
+// one instance never wipes the others.
+func TestSettingsAppsPatchMerges(t *testing.T) {
+	ws := newTestWorkspace(t)
+	ws.Config.Apps = map[string]app.InstanceConfig{
+		"fakeqr": {App: "fakeqr", Enabled: true},
+	}
+	h := NewSettingsHandler(ws)
+	mux := http.NewServeMux()
+	h.Register(mux)
+
+	body := `{"apps":{"fakeapp:ci":{"app":"fakeapp","enabled":true,"config":{"region":"eu"}}}}`
+	req := httptest.NewRequest(http.MethodPatch, "/api/settings", strings.NewReader(body))
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body = %s", rec.Code, rec.Body.String())
+	}
+	if _, ok := ws.Config.Apps["fakeqr"]; !ok {
+		t.Error("existing instance wiped by unrelated patch")
+	}
+	if ic := ws.Config.Apps["fakeapp:ci"]; ic.App != "fakeapp" || ic.Config["region"] != "eu" {
+		t.Errorf("patched instance = %+v", ic)
 	}
 }
 

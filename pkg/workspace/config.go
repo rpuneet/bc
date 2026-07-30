@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/rpuneet/mycel/pkg/app"
 	"github.com/rpuneet/mycel/pkg/db"
 )
 
@@ -22,12 +23,15 @@ const PreferencesFileName = "preferences.json"
 type Config struct { //nolint:govet // field order matches JSON/API contract
 	User      UserConfig      `json:"user"`
 	Providers ProvidersConfig `json:"providers"`
-	Gateways  GatewaysConfig  `json:"gateways"`
-	Runtime   RuntimeConfig   `json:"runtime"`
-	Storage   StorageConfig   `json:"storage"`
-	Server    ServerConfig    `json:"server"`
-	Logs      LogsConfig      `json:"logs"`
-	UI        UIConfig        `json:"ui"`
+	// Apps holds connected external integrations keyed by instance name
+	// ("slack", "telegram:alerts"). Secret fields never appear here —
+	// they live in the vault under app:<instance>:<key>.
+	Apps    map[string]app.InstanceConfig `json:"apps,omitempty"`
+	Runtime RuntimeConfig                 `json:"runtime"`
+	Storage StorageConfig                 `json:"storage"`
+	Server  ServerConfig                  `json:"server"`
+	Logs    LogsConfig                    `json:"logs"`
+	UI      UIConfig                      `json:"ui"`
 	// InjectedInstructions is mycel-authored guidance appended to every
 	// agent's prompt file at spawn time. Never contains secret values.
 	InjectedInstructions string `json:"injected_instructions"`
@@ -175,7 +179,6 @@ func DefaultConfig() Config {
 				"agy":    {Command: "agy --dangerously-skip-permissions"},
 			},
 		},
-		Gateways: GatewaysConfig{},
 		Storage: StorageConfig{
 			Default: "sqlite",
 			SQLite: SQLiteStorageConfig{

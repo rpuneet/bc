@@ -15,28 +15,17 @@ import (
 	"time"
 
 	bcagent "github.com/rpuneet/mycel/pkg/agent"
+	bcapp "github.com/rpuneet/mycel/pkg/app"
+
+	// Ensure the built-in app plugins are registered before the gateway
+	// manager iterates cfg.Apps.
+	_ "github.com/rpuneet/mycel/pkg/app/builtin"
 	bccontainer "github.com/rpuneet/mycel/pkg/container"
 	"github.com/rpuneet/mycel/pkg/cost"
 	bcdb "github.com/rpuneet/mycel/pkg/db"
 	bcdeps "github.com/rpuneet/mycel/pkg/deps"
 	bcevents "github.com/rpuneet/mycel/pkg/events"
 	bcgateway "github.com/rpuneet/mycel/pkg/gateway"
-	bcdiscord "github.com/rpuneet/mycel/pkg/gateway/discord"
-	bcgithub "github.com/rpuneet/mycel/pkg/gateway/github"
-	bcimessage "github.com/rpuneet/mycel/pkg/gateway/imessage"
-	bcirc "github.com/rpuneet/mycel/pkg/gateway/irc"
-	bcmatrix "github.com/rpuneet/mycel/pkg/gateway/matrix"
-	bcmattermost "github.com/rpuneet/mycel/pkg/gateway/mattermost"
-	bcmqtt "github.com/rpuneet/mycel/pkg/gateway/mqtt"
-	bcnotion "github.com/rpuneet/mycel/pkg/gateway/notion"
-	bcreddit "github.com/rpuneet/mycel/pkg/gateway/reddit"
-	bcrss "github.com/rpuneet/mycel/pkg/gateway/rss"
-	bcsignal "github.com/rpuneet/mycel/pkg/gateway/signal"
-	bcslack "github.com/rpuneet/mycel/pkg/gateway/slack"
-	bctelegram "github.com/rpuneet/mycel/pkg/gateway/telegram"
-	bctwitter "github.com/rpuneet/mycel/pkg/gateway/twitter"
-	bcwebhook "github.com/rpuneet/mycel/pkg/gateway/webhook"
-	bcwhatsapp "github.com/rpuneet/mycel/pkg/gateway/whatsapp"
 	"github.com/rpuneet/mycel/pkg/log"
 	bcmcp "github.com/rpuneet/mycel/pkg/mcp"
 	bcnotify "github.com/rpuneet/mycel/pkg/notify"
@@ -333,8 +322,9 @@ func buildServicesFromWS(ctx context.Context, globals *Globals, ws *bcworkspace.
 		})
 	}
 
-	// Gateway manager (Telegram/Discord/Slack adapters).
-	gwManager := buildGatewayManager(svcCtx, ws, notifyService, &wg)
+	// Gateway manager: one adapter per enabled app instance in cfg.Apps,
+	// built through the app plugin registry with vault-backed secrets.
+	gwManager := buildGatewayManager(svcCtx, ws, notifyService, secretStore, degraded, &wg)
 	if gwManager != nil {
 		// Registered after the notify closer so it runs BEFORE it (closers
 		// run in reverse): adapters stop feeding messages, then in-flight
@@ -437,369 +427,50 @@ func newAgentManager(ws *bcworkspace.Workspace) (*bcagent.Manager, *bccontainer.
 	return mgr, be, "", nil
 }
 
-// buildGatewayManager constructs the gateway.Manager from workspace config
-// and registers adapters for any enabled platforms. Returns nil if no
-// adapters are enabled.
-func buildGatewayManager(ctx context.Context, ws *bcworkspace.Workspace, notifyService *bcnotify.Service, wg *sync.WaitGroup) *bcgateway.Manager {
-	gw := ws.Config.Gateways
-
-	dcEnabled := gw.Discord != nil && gw.Discord.Enabled && gw.Discord.BotToken != ""
-	slEnabled := gw.Slack != nil && gw.Slack.Enabled && gw.Slack.BotToken != "" && gw.Slack.AppToken != ""
-
-	// Count enabled Telegram bots from the Telegrams map.
-	var tgCount int
-	for _, tc := range gw.Telegrams {
-		if tc.Enabled && tc.BotToken != "" {
-			tgCount++
-		}
-	}
-
-	// Count enabled GitHub webhook adapters.
-	var ghCount int
-	for _, gc := range gw.GitHubs {
-		if gc.Enabled {
-			ghCount++
-		}
-	}
-
-	// Count enabled generic webhook adapters.
-	var whCount int
-	for _, wc := range gw.Webhooks {
-		if wc.Enabled {
-			whCount++
-		}
-	}
-
-	// Count enabled RSS feed adapters.
-	var rssCount int
-	for _, rc := range gw.RSSFeeds {
-		if rc.Enabled && rc.URL != "" {
-			rssCount++
-		}
-	}
-
-	// Count enabled Notion poll adapters.
-	var notionCount int
-	for _, c := range gw.Notions {
-		if c.Enabled && c.Token != "" {
-			notionCount++
-		}
-	}
-
-	// Count enabled WhatsApp webhook adapters.
-	var waCount int
-	for _, c := range gw.WhatsApps {
-		if c.Enabled {
-			waCount++
-		}
-	}
-
-	// Count enabled Matrix poll adapters.
-	var matrixCount int
-	for _, c := range gw.Matrices {
-		if c.Enabled && c.Token != "" {
-			matrixCount++
-		}
-	}
-
-	// Count enabled Mattermost webhook adapters.
-	var mmCount int
-	for _, c := range gw.Mattermosts {
-		if c.Enabled {
-			mmCount++
-		}
-	}
-
-	// Count enabled IRC socket adapters.
-	var ircCount int
-	for _, c := range gw.IRCs {
-		if c.Enabled {
-			ircCount++
-		}
-	}
-
-	// Count enabled MQTT socket adapters.
-	var mqttCount int
-	for _, c := range gw.MQTTs {
-		if c.Enabled {
-			mqttCount++
-		}
-	}
-
-	// Count enabled Twitter poll adapters.
-	var twitterCount int
-	for _, c := range gw.Twitters {
-		if c.Enabled && c.BearerToken != "" {
-			twitterCount++
-		}
-	}
-
-	// Count enabled Reddit poll adapters.
-	var redditCount int
-	for _, c := range gw.Reddits {
-		if c.Enabled && c.BearerToken != "" {
-			redditCount++
-		}
-	}
-
-	// Count enabled Signal poll adapters.
-	var signalCount int
-	for _, c := range gw.Signals {
-		if c.Enabled && c.APIURL != "" {
-			signalCount++
-		}
-	}
-
-	// Count enabled iMessage poll adapters.
-	var imessageCount int
-	for _, c := range gw.IMessages {
-		if c.Enabled && c.APIURL != "" {
-			imessageCount++
-		}
-	}
-
-	// Always construct a manager (even with zero adapters) so:
-	//  1. health endpoints never return "gateway manager not available" solely
-	//     because nothing was configured at boot, and
-	//  2. PATCH /api/gateways/{platform} can hot-start adapters without a
-	//     daemon restart (see GatewayHandler.ensureTelegramAdapter).
+// buildGatewayManager constructs the gateway.Manager and registers an
+// adapter for every enabled app instance in the workspace's "apps"
+// config. Each instance resolves its plugin from the app registry,
+// validates its config against the descriptor, resolves secret fields
+// from the vault, and Builds the live adapter. Unknown apps, invalid
+// config, and Build failures are recorded in degraded (key "app:<name>")
+// and skipped so one broken integration never takes the daemon down.
+//
+// A manager is always returned (even with zero adapters) so:
+//  1. health endpoints never report "gateway manager not available"
+//     solely because nothing was configured at boot, and
+//  2. POST /api/apps/{name} can hot-start adapters without a restart.
+func buildGatewayManager(ctx context.Context, ws *bcworkspace.Workspace, notifyService *bcnotify.Service, vault *bcsecret.Store, degraded map[string]string, wg *sync.WaitGroup) *bcgateway.Manager {
 	m := bcgateway.NewManager()
 	m.SetStartContext(ctx)
 	if notifyService != nil {
 		m.SetChannelStore(&channelPersister{store: notifyService.Store()})
 	}
 
-	if tgCount == 0 && !dcEnabled && !slEnabled && ghCount == 0 && whCount == 0 && rssCount == 0 &&
-		notionCount == 0 && waCount == 0 && matrixCount == 0 &&
-		mmCount == 0 && ircCount == 0 && mqttCount == 0 && twitterCount == 0 && redditCount == 0 &&
-		signalCount == 0 && imessageCount == 0 {
-		// Empty manager still needs Start so StartAdapter can share the
-		// process lifetime context.
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			if err := m.Start(ctx); err != nil && ctx.Err() == nil {
-				log.Error("gateway manager stopped", "error", err)
-			}
-		}()
-		return m
-	}
-
-	// Register Telegram adapters. Label "" → adapter name "telegram",
-	// label "foo" → adapter name "telegram:foo".
-	for label, tc := range gw.Telegrams {
-		if !tc.Enabled || tc.BotToken == "" {
+	for name, ic := range ws.Config.Apps {
+		if !ic.Enabled {
 			continue
 		}
-		adapterName := "telegram"
-		if label != "" {
-			adapterName = "telegram:" + label
-		}
-		tgAdapter := bctelegram.NewNamed(adapterName, tc.BotToken, tc.Mode)
-		if err := tgAdapter.DiscoverViaUpdate(); err != nil {
-			log.Warn("telegram: discovery failed", "adapter", adapterName, "error", err)
-		}
-		m.Register(tgAdapter)
-		log.Info("gateway: telegram adapter registered", "name", adapterName)
-	}
-	if dcEnabled {
-		m.Register(bcdiscord.New(gw.Discord.BotToken))
-		log.Info("gateway: discord adapter registered")
-	}
-	if slEnabled {
-		m.Register(bcslack.New(gw.Slack.BotToken, gw.Slack.AppToken))
-		log.Info("gateway: slack adapter registered")
-	}
-
-	// Register GitHub webhook adapters. Label "" → adapter name "github",
-	// label "bc" → adapter name "github:bc".
-	for label, gc := range gw.GitHubs {
-		if !gc.Enabled {
+		plugin, ok := bcapp.Get(ic.App)
+		if !ok {
+			degraded["app:"+name] = fmt.Sprintf("unknown app %q", ic.App)
 			continue
 		}
-		adapterName := "github"
-		if label != "" {
-			adapterName = "github:" + label
-		}
-		m.Register(bcgithub.NewNamed(adapterName, gc.Secret))
-		log.Info("gateway: github adapter registered", "name", adapterName)
-	}
-
-	// Register generic webhook adapters. Label "" → adapter name "webhook",
-	// label "deploy" → adapter name "webhook:deploy".
-	for label, wc := range gw.Webhooks {
-		if !wc.Enabled {
+		if err := bcapp.ValidateConfig(plugin.Describe(), ic.Config); err != nil {
+			degraded["app:"+name] = "invalid config: " + err.Error()
 			continue
 		}
-		adapterName := "webhook"
-		if label != "" {
-			adapterName = "webhook:" + label
+		var secrets bcapp.SecretSource
+		if vault != nil {
+			secrets = bcapp.VaultSecrets{Store: vault, Instance: name}
 		}
-		m.Register(bcwebhook.NewWithSecret(adapterName, wc.Secret))
-		log.Info("gateway: webhook adapter registered", "name", adapterName)
-	}
-
-	// Register RSS feed adapters. Label "" → adapter name "rss",
-	// label "blog" → adapter name "rss:blog".
-	for label, rc := range gw.RSSFeeds {
-		if !rc.Enabled || rc.URL == "" {
+		inst := bcapp.ResolveInstance(name, ic, secrets)
+		adapter, err := plugin.Build(inst, bcapp.Env{StateDir: appStateDir(ws, name)})
+		if err != nil {
+			degraded["app:"+name] = "build failed: " + err.Error()
 			continue
 		}
-		adapterName := "rss"
-		if label != "" {
-			adapterName = "rss:" + label
-		}
-		m.Register(bcrss.NewNamed(adapterName, rc.URL, rc.Interval))
-		log.Info("gateway: rss adapter registered", "name", adapterName, "url", rc.URL)
-	}
-
-	// Register Notion poll adapters.
-	for label, c := range gw.Notions {
-		if !c.Enabled || c.Token == "" {
-			continue
-		}
-		adapterName := "notion"
-		if label != "" {
-			adapterName = "notion:" + label
-		}
-		m.Register(bcnotion.NewNamed(adapterName, c.Token, c.Interval))
-		log.Info("gateway: notion adapter registered", "name", adapterName)
-	}
-
-	// Register WhatsApp webhook adapters.
-	for label, c := range gw.WhatsApps {
-		if !c.Enabled {
-			continue
-		}
-		adapterName := "whatsapp"
-		if label != "" {
-			adapterName = "whatsapp:" + label
-		}
-		waStateDir := filepath.Join(ws.StateDir(), "gateways", adapterName)
-		wa := bcwhatsapp.NewNamed(adapterName, waStateDir)
-		wa.SetIncludeSelfMessages(c.IncludeSelfMessages)
-		m.Register(wa)
-		log.Info("gateway: whatsapp adapter registered", "name", adapterName, "include_self", c.IncludeSelfMessages)
-	}
-
-	// Register Matrix poll adapters.
-	for label, c := range gw.Matrices {
-		if !c.Enabled || c.Token == "" {
-			continue
-		}
-		adapterName := "matrix"
-		if label != "" {
-			adapterName = "matrix:" + label
-		}
-		m.Register(bcmatrix.NewNamed(adapterName, c.Homeserver, c.Token, c.Interval))
-		log.Info("gateway: matrix adapter registered", "name", adapterName)
-	}
-
-	// Register Mattermost webhook adapters.
-	for label, c := range gw.Mattermosts {
-		if !c.Enabled {
-			continue
-		}
-		adapterName := "mattermost"
-		if label != "" {
-			adapterName = "mattermost:" + label
-		}
-		m.Register(bcmattermost.New(adapterName, bcmattermost.Config{
-			URL:   c.URL,
-			Token: c.Token,
-		}))
-		log.Info("gateway: mattermost adapter registered", "name", adapterName)
-	}
-
-	// Register IRC socket adapters.
-	for label, c := range gw.IRCs {
-		if !c.Enabled {
-			continue
-		}
-		adapterName := "irc"
-		if label != "" {
-			adapterName = "irc:" + label
-		}
-		m.Register(bcirc.New(adapterName, bcirc.Config{
-			Server:   c.Server,
-			Nick:     "bc-bot",
-			Channels: c.Channels,
-			UseTLS:   true,
-		}))
-		log.Info("gateway: irc adapter registered", "name", adapterName)
-	}
-
-	// Register MQTT socket adapters.
-	for label, c := range gw.MQTTs {
-		if !c.Enabled {
-			continue
-		}
-		adapterName := "mqtt"
-		if label != "" {
-			adapterName = "mqtt:" + label
-		}
-		topics := []string{c.Topic}
-		if c.Topic == "" {
-			topics = []string{"#"}
-		}
-		m.Register(bcmqtt.New(adapterName, bcmqtt.Config{
-			Broker:   c.BrokerURL,
-			ClientID: "bc-" + adapterName,
-			Topics:   topics,
-		}))
-		log.Info("gateway: mqtt adapter registered", "name", adapterName)
-	}
-
-	// Register Twitter poll adapters.
-	for label, c := range gw.Twitters {
-		if !c.Enabled || c.BearerToken == "" {
-			continue
-		}
-		adapterName := "twitter"
-		if label != "" {
-			adapterName = "twitter:" + label
-		}
-		m.Register(bctwitter.NewNamed(adapterName, c.BearerToken, c.UserID, c.Interval))
-		log.Info("gateway: twitter adapter registered", "name", adapterName)
-	}
-
-	// Register Signal poll adapters.
-	for label, c := range gw.Signals {
-		if !c.Enabled || c.APIURL == "" {
-			continue
-		}
-		adapterName := "signal"
-		if label != "" {
-			adapterName = "signal:" + label
-		}
-		m.Register(bcsignal.NewNamed(adapterName, c.APIURL, c.Interval))
-		log.Info("gateway: signal adapter registered", "name", adapterName)
-	}
-
-	// Register iMessage poll adapters.
-	for label, c := range gw.IMessages {
-		if !c.Enabled || c.APIURL == "" {
-			continue
-		}
-		adapterName := "imessage"
-		if label != "" {
-			adapterName = "imessage:" + label
-		}
-		m.Register(bcimessage.NewNamed(adapterName, c.APIURL, c.Password, c.Interval))
-		log.Info("gateway: imessage adapter registered", "name", adapterName)
-	}
-
-	// Register Reddit poll adapters.
-	for label, c := range gw.Reddits {
-		if !c.Enabled || c.BearerToken == "" {
-			continue
-		}
-		adapterName := "reddit"
-		if label != "" {
-			adapterName = "reddit:" + label
-		}
-		m.Register(bcreddit.NewNamed(adapterName, c.Subreddit, c.BearerToken, c.Interval))
-		log.Info("gateway: reddit adapter registered", "name", adapterName)
+		m.Register(adapter)
+		log.Info("gateway: app adapter registered", "name", name, "app", ic.App)
 	}
 
 	wg.Add(1)
@@ -810,6 +481,12 @@ func buildGatewayManager(ctx context.Context, ws *bcworkspace.Workspace, notifyS
 		}
 	}()
 	return m
+}
+
+// appStateDir returns the per-instance state directory for stateful apps
+// (WhatsApp session DB, caches): <state>/apps/<instance-name>/.
+func appStateDir(ws *bcworkspace.Workspace, instance string) string {
+	return filepath.Join(ws.StateDir(), "apps", instance)
 }
 
 // runCostImportLoop drains the cost importer once immediately, then every
