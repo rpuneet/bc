@@ -1,0 +1,19 @@
+{
+  "$schema": "https://wails.io/schemas/config.v2.json",
+  "name": "mycel",
+  "outputfilename": "mycel-desktop",
+  "frontend:install": "",
+  "frontend:build": "",
+  "frontend:dev:watcher": "",
+  "frontend:dev:serverUrl": "auto",
+  "author": {
+    "name": "mycel",
+    "email": "noreply@bc-infra.com"
+  },
+  "info": {
+    "productName": "mycel",
+    "productVersion": "0.1.0",
+    "copyright": "Copyright © 2026 mycel",
+    "comments": "mycel desktop — runs the mycel server and shows the web UI"
+  }
+}

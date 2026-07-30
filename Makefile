@@ -25,7 +25,7 @@
 # Top-level
 .PHONY: build build-local build-docker test lint fmt vet check clean deps release install
 # Go
-.PHONY: build-local-bc build-local-mycel test-go test-go-race test-go-fast lint-go fmt-go vet-go coverage-go bench-go deps-go check-go scan-go
+.PHONY: build-local-bc build-local-mycel build-local-desktop test-go test-go-race test-go-fast lint-go fmt-go vet-go coverage-go bench-go deps-go check-go scan-go
 .PHONY: release-local-bc release-local-mycel install-local-bc install-local-mycel
 # Docker
 .PHONY: build-docker-daemon build-docker-db build-docker-bcdb
@@ -112,6 +112,9 @@ build-local-mycel: build-local-web ## Build mycel (embeds web UI, server)
 	$(GO) build -ldflags="$(LDFLAGS_VERSION)" -o $(BUILD_DIR)/mycel ./cmd/mycel
 
 build-local-bc: build-local-mycel ## Deprecated alias for build-local-mycel
+
+build-local-desktop: build-local-web ## Build desktop app for the host OS (requires wails CLI)
+	cd desktop && wails build -ldflags "$(LDFLAGS_VERSION)"
 
 
 # =============================================================================

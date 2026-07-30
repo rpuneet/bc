@@ -35,6 +35,16 @@ import (
 // A non-empty wsRoot that isn't initialized yet is bootstrapped in place
 // via workspace.Init — there is no separate init step.
 func RunServer(addr, wsRoot, corsOrigin, apiKey string) error {
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+	return RunServerCtx(ctx, addr, wsRoot, corsOrigin, apiKey)
+}
+
+// RunServerCtx is RunServer with a caller-controlled lifetime: the server
+// runs until ctx is canceled, then shuts down gracefully (services close,
+// PID file removed). Used by embedders that own the process lifecycle —
+// e.g. the desktop app, which cancels ctx when the window closes.
+func RunServerCtx(ctx context.Context, addr, wsRoot, corsOrigin, apiKey string) error {
 	// Normalize addr: ":8080" → "127.0.0.1:8080"
 	addr = normalizeAddr(addr)
 
@@ -85,9 +95,6 @@ func RunServer(addr, wsRoot, corsOrigin, apiKey string) error {
 			_ = os.Remove(pidPath)
 		}
 	}()
-
-	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	defer stop()
 
 	// The one SSE hub — the bundle publishes into it and server.New()
 	// mounts it at /api/events.
