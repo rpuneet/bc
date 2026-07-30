@@ -37,12 +37,33 @@ func (h *CostHandler) maybeRefresh(r *http.Request) {
 	}
 }
 
+// parseSince parses the optional ?since= query param (RFC3339 or
+// YYYY-MM-DD). Empty input means "all time" (the zero time).
+func parseSince(r *http.Request) (time.Time, error) {
+	s := r.URL.Query().Get("since")
+	if s == "" {
+		return time.Time{}, nil
+	}
+	if t, err := time.Parse(time.RFC3339, s); err == nil {
+		return t, nil
+	}
+	if t, err := time.Parse("2006-01-02", s); err == nil {
+		return t, nil
+	}
+	return time.Time{}, errBadTime
+}
+
 func (h *CostHandler) summary(w http.ResponseWriter, r *http.Request) {
 	if !requireMethod(w, r, http.MethodGet) {
 		return
 	}
+	since, err := parseSince(r)
+	if err != nil {
+		httpError(w, "invalid since: "+err.Error(), http.StatusBadRequest)
+		return
+	}
 	h.maybeRefresh(r)
-	s, err := h.svc.TotalSummary(r.Context())
+	s, err := h.svc.GetSummarySince(r.Context(), since)
 	if err != nil {
 		httpInternalError(w, "total summary", err)
 		return
@@ -56,13 +77,15 @@ func (h *CostHandler) byResource(w http.ResponseWriter, r *http.Request) {
 
 	switch resource {
 	case "agents":
-		h.summaries(w, r, h.svc.SummaryByAgent)
+		h.summaries(w, r, h.svc.GetAgentSummarySince)
 
 	case "teams":
-		h.summaries(w, r, h.svc.SummaryByTeam)
+		h.summaries(w, r, func(ctx context.Context, _ time.Time) ([]*cost.Summary, error) {
+			return h.svc.SummaryByTeam(ctx)
+		})
 
 	case "models":
-		h.summaries(w, r, h.svc.SummaryByModel)
+		h.summaries(w, r, h.svc.GetModelSummarySince)
 
 	case "daily":
 		h.daily(w, r)
@@ -84,13 +107,19 @@ func (h *CostHandler) byResource(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// summaries serves a paginated grouped-summary listing.
-func (h *CostHandler) summaries(w http.ResponseWriter, r *http.Request, query func(context.Context) ([]*cost.Summary, error)) {
+// summaries serves a paginated grouped-summary listing, optionally
+// filtered to entries at or after ?since=.
+func (h *CostHandler) summaries(w http.ResponseWriter, r *http.Request, query func(context.Context, time.Time) ([]*cost.Summary, error)) {
 	if !requireMethod(w, r, http.MethodGet) {
 		return
 	}
+	since, err := parseSince(r)
+	if err != nil {
+		httpError(w, "invalid since: "+err.Error(), http.StatusBadRequest)
+		return
+	}
 	h.maybeRefresh(r)
-	summaries, err := query(r.Context())
+	summaries, err := query(r.Context(), since)
 	if err != nil {
 		httpInternalError(w, "operation failed", err)
 		return
