@@ -90,7 +90,9 @@ func setupService(store *notify.Store) (*notify.Service, *mockAgentSender) {
 }
 
 // setupHandler wires a GatewayHandler with a notify service and registers
-// all routes on a fresh ServeMux. Returns the httptest server.
+// all routes on a fresh ServeMux, plus the apps router that serves the
+// /api/apps/{name}/channels/... subscription routes. Returns the
+// httptest server.
 func setupHandler(t *testing.T, svc *notify.Service) *httptest.Server {
 	t.Helper()
 	h := handlers.NewGatewayHandler(nil, nil)
@@ -98,6 +100,7 @@ func setupHandler(t *testing.T, svc *notify.Service) *httptest.Server {
 
 	mux := http.NewServeMux()
 	h.Register(mux)
+	handlers.NewAppsHandler(h, nil, nil, nil).Register(mux)
 
 	ts := httptest.NewServer(mux)
 	t.Cleanup(ts.Close)
@@ -755,7 +758,7 @@ func TestGetNotifyActivity_NoChannel(t *testing.T) {
 	assertStatus(t, resp, http.StatusBadRequest)
 }
 
-// TestGatewayChannelAgentsGet — GET /api/gateways/{gw}/channels/{ch}/agents.
+// TestGatewayChannelAgentsGet — GET /api/apps/{name}/channels/{ch}/agents.
 func TestGatewayChannelAgentsGet(t *testing.T) {
 	tests := []struct {
 		setup      func(ctx context.Context, store *notify.Store)
@@ -796,7 +799,7 @@ func TestGatewayChannelAgentsGet(t *testing.T) {
 
 			tt.setup(context.Background(), store)
 
-			url := ts.URL + "/api/gateways/" + tt.gw + "/channels/" + tt.channel + "/agents"
+			url := ts.URL + "/api/apps/" + tt.gw + "/channels/" + tt.channel + "/agents"
 			resp := doJSON(t, http.MethodGet, url, nil) //nolint:bodyclose // closed via t.Cleanup in doJSON
 			assertStatus(t, resp, tt.wantStatus)
 
@@ -818,7 +821,7 @@ func TestGatewayChannelAgentsGet(t *testing.T) {
 	}
 }
 
-// TestGatewayChannelAgentsPost — POST /api/gateways/{gw}/channels/{ch}/agents.
+// TestGatewayChannelAgentsPost — POST /api/apps/{name}/channels/{ch}/agents.
 func TestGatewayChannelAgentsPost(t *testing.T) {
 	tests := []struct {
 		body        any
@@ -859,7 +862,7 @@ func TestGatewayChannelAgentsPost(t *testing.T) {
 			svc, _ := setupService(store)
 			ts := setupHandler(t, svc)
 
-			url := ts.URL + "/api/gateways/" + tt.gw + "/channels/" + tt.channel + "/agents"
+			url := ts.URL + "/api/apps/" + tt.gw + "/channels/" + tt.channel + "/agents"
 			resp := doJSON(t, http.MethodPost, url, tt.body)
 			assertStatus(t, resp, tt.wantStatus)
 
@@ -885,7 +888,7 @@ func TestGatewayChannelAgentsPost(t *testing.T) {
 	}
 }
 
-// TestGatewayChannelAgentsDelete — DELETE /api/gateways/{gw}/channels/{ch}/agents?agent=X.
+// TestGatewayChannelAgentsDelete — DELETE /api/apps/{name}/channels/{ch}/agents?agent=X.
 func TestGatewayChannelAgentsDelete(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -925,7 +928,7 @@ func TestGatewayChannelAgentsDelete(t *testing.T) {
 			channelKey := tt.gw + ":" + tt.channel
 			_ = store.Subscribe(ctx, channelKey, tt.subscribeAs, false)
 
-			url := ts.URL + "/api/gateways/" + tt.gw + "/channels/" + tt.channel + "/agents"
+			url := ts.URL + "/api/apps/" + tt.gw + "/channels/" + tt.channel + "/agents"
 			if tt.queryAgent != "" {
 				url += "?agent=" + tt.queryAgent
 			}
@@ -955,7 +958,7 @@ func TestGatewayChannelAgentsDelete(t *testing.T) {
 	}
 }
 
-// TestGatewayChannelAgentsPatch — PATCH /api/gateways/{gw}/channels/{ch}/agents/{agent}.
+// TestGatewayChannelAgentsPatch — PATCH /api/apps/{name}/channels/{ch}/agents/{agent}.
 func TestGatewayChannelAgentsPatch(t *testing.T) {
 	tests := []struct {
 		body        map[string]any
@@ -1000,7 +1003,7 @@ func TestGatewayChannelAgentsPatch(t *testing.T) {
 			initMO := !tt.wantMO // start opposite
 			_ = store.Subscribe(ctx, channelKey, tt.agent, initMO)
 
-			url := ts.URL + "/api/gateways/" + tt.gw + "/channels/" + tt.channel + "/agents/" + tt.agent
+			url := ts.URL + "/api/apps/" + tt.gw + "/channels/" + tt.channel + "/agents/" + tt.agent
 			resp := doJSON(t, http.MethodPatch, url, tt.body)
 			assertStatus(t, resp, tt.wantStatus)
 
@@ -1286,6 +1289,7 @@ func TestNotifyServiceUnavailable(t *testing.T) {
 
 	mux := http.NewServeMux()
 	h.Register(mux)
+	handlers.NewAppsHandler(h, nil, nil, nil).Register(mux)
 	ts := httptest.NewServer(mux)
 	defer ts.Close()
 
@@ -1299,8 +1303,8 @@ func TestNotifyServiceUnavailable(t *testing.T) {
 		{http.MethodDelete, "/api/notify/subscriptions/slack:eng"},
 		{http.MethodPatch, "/api/notify/subscriptions/slack:eng"},
 		{http.MethodGet, "/api/notify/activity/slack:eng"},
-		{http.MethodGet, "/api/gateways/slack/channels/eng/agents"},
-		{http.MethodPost, "/api/gateways/slack/channels/eng/agents"},
+		{http.MethodGet, "/api/apps/slack/channels/eng/agents"},
+		{http.MethodPost, "/api/apps/slack/channels/eng/agents"},
 	}
 
 	for _, ep := range endpoints {
@@ -1472,7 +1476,7 @@ func TestGatewayChannelAgents_MethodNotAllowed(t *testing.T) {
 	svc, _ := setupService(store)
 	ts := setupHandler(t, svc)
 
-	resp := doJSON(t, http.MethodPut, ts.URL+"/api/gateways/slack/channels/eng/agents", nil)
+	resp := doJSON(t, http.MethodPut, ts.URL+"/api/apps/slack/channels/eng/agents", nil)
 	defer func() { _ = resp.Body.Close() }()
 	assertStatus(t, resp, http.StatusMethodNotAllowed)
 }

@@ -29,14 +29,11 @@ type AppsHandler struct {
 	vault *secret.Store
 }
 
-// NewAppsHandler creates an AppsHandler and wires it into the gateway
-// handler so the transitional /api/gateways aliases can delegate.
+// NewAppsHandler creates an AppsHandler. The gateway handler serves the
+// shared per-instance routes (health, channels, proxy, reactions) that
+// the apps router delegates to.
 func NewAppsHandler(gh *GatewayHandler, gw *gateway.Manager, ws *workspace.Workspace, vault *secret.Store) *AppsHandler {
-	h := &AppsHandler{gh: gh, gw: gw, ws: ws, vault: vault}
-	if gh != nil {
-		gh.apps = h
-	}
-	return h
+	return &AppsHandler{gh: gh, gw: gw, ws: ws, vault: vault}
 }
 
 // Register mounts apps routes.

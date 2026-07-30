@@ -177,7 +177,7 @@ func TestNotificationsOverview_MethodAndNilService(t *testing.T) {
 	}
 }
 
-// TestRefreshChannelMetaEndpoint exercises POST /api/gateways/channels/refresh:
+// TestRefreshChannelMetaEndpoint exercises POST /api/apps/channels/refresh:
 // an inbound notification maps a channel, refresh re-resolves its identity.
 func TestRefreshChannelMetaEndpoint(t *testing.T) {
 	svc := newTestNotifyService(t)
@@ -202,7 +202,7 @@ func TestRefreshChannelMetaEndpoint(t *testing.T) {
 	h := NewGatewayHandler(gw, nil)
 	h.SetNotifyService(svc)
 
-	req := httptest.NewRequest(http.MethodPost, "/api/gateways/channels/refresh", nil)
+	req := httptest.NewRequest(http.MethodPost, "/api/apps/channels/refresh", nil)
 	rr := httptest.NewRecorder()
 	h.refreshChannelMeta(rr, req)
 
@@ -238,7 +238,7 @@ func TestRefreshChannelMetaEndpoint(t *testing.T) {
 
 	// GET is rejected.
 	rr = httptest.NewRecorder()
-	h.refreshChannelMeta(rr, httptest.NewRequest(http.MethodGet, "/api/gateways/channels/refresh", nil))
+	h.refreshChannelMeta(rr, httptest.NewRequest(http.MethodGet, "/api/apps/channels/refresh", nil))
 	if rr.Code != http.StatusMethodNotAllowed {
 		t.Fatalf("GET status = %d, want 405", rr.Code)
 	}
