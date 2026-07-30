@@ -362,6 +362,23 @@ export interface DailyCost {
   output_tokens: number;
 }
 
+/** One agent-scoped ledger day from GET /costs/agent/{id}. */
+export interface AgentDailyCost {
+  agent_id: string;
+  date: string;
+  cost_usd: number;
+  total_tokens: number;
+  record_count: number;
+  input_tokens: number;
+  output_tokens: number;
+}
+
+/** GET /costs/agent/{id} — lifetime summary + last-30d daily ledger. */
+export interface AgentCostDetail {
+  summary: AgentCostSummary | null;
+  daily: AgentDailyCost[] | null;
+}
+
 export interface BudgetStatus {
   scope: string;
   period: string;
@@ -917,6 +934,10 @@ export const api = {
     request<ModelCostSummary[]>(`/costs/models${qs(opts.since ? { since: opts.since } : {})}`),
   getCostDaily: (days = 14) =>
     request<DailyCost[]>(`/costs/daily?days=${days}`),
+  // Per-entity drill-down: lifetime summary + last-30d daily ledger for
+  // one ledger agent id (namespaced, e.g. "bc-bc-zen-zebra").
+  getCostAgentDetail: (agentId: string) =>
+    request<AgentCostDetail>(`/costs/agent/${encodeURIComponent(agentId)}`),
   getCostBudgets: () => request<BudgetStatus[]>("/costs/budgets"),
   createCostBudget: (budget: {
     scope: string;
