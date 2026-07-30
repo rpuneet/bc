@@ -69,11 +69,14 @@ export function WebTerminal({
       cursorBlink: true,
       fontSize: 13,
       fontFamily: "'Space Mono', 'Menlo', 'Consolas', monospace",
+      // Dark-roast terminal palette — matches the landing's terminal
+      // tokens (always dark, in both app themes): espresso ground,
+      // cream ink, chanterelle amber cursor.
       theme: {
-        background: "#0a0a0f",
-        foreground: "#e0e0e0",
-        cursor: "#e0e0e0",
-        selectionBackground: "#3a3a5a",
+        background: "#14100b",
+        foreground: "#f2eadc",
+        cursor: "#e8a33d",
+        selectionBackground: "#4a3b2a",
       },
     });
     const fitAddon = new FitAddon();

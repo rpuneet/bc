@@ -10,9 +10,20 @@ import { Panel, fmtTime, fmtBytes, fmtTokens } from "./shared/stats-primitives";
 
 // ── Constants ────────────────────────────────────────────────────────────────────
 
-// Chart palette — first entry follows the theme accent (see Stats.tsx).
+// Chart palette — first entry follows the theme accent; the rest are
+// the per-theme earthy chart tokens in canonical CVD-validated slot
+// order (see Stats.tsx and theme/tokens.css).
 const ACCENT = "var(--mycel-accent)";
-const COLORS = [ACCENT, "#3B82F6", "#10B981", "#A855F7", "#F59E0B", "#EC4899", "#06B6D4", "#84CC16"];
+const COLORS = [
+  ACCENT,
+  "var(--mycel-chart-1)", // spore blue
+  "var(--mycel-chart-2)", // dusty rose
+  "var(--mycel-chart-3)", // café gold
+  "var(--mycel-chart-4)", // spore lavender
+  "var(--mycel-chart-5)", // moss
+  "var(--mycel-chart-6)", // lichen teal
+  "var(--mycel-chart-7)", // olive
+];
 const RANGES = [
   { label: "1h", seconds: 3600 },
   { label: "6h", seconds: 21600 },
@@ -366,7 +377,7 @@ export function StatsTab({ agent }: { agent: Agent }) {
                   <XAxis dataKey="time" tick={TICK} {...AX} />
                   <YAxis tick={TICK} {...AX} />
                   <Tooltip contentStyle={TT} formatter={(v) => [`${Number(v ?? 0).toFixed(1)} MB`]} />
-                  <Area type="monotone" dataKey="mem" name="Memory MB" stroke="#3B82F6" fill="#3B82F6" fillOpacity={0.12} strokeWidth={1.5} dot={false} />
+                  <Area type="monotone" dataKey="mem" name="Memory MB" stroke="var(--mycel-chart-1)" fill="var(--mycel-chart-1)" fillOpacity={0.12} strokeWidth={1.5} dot={false} />
                 </AreaChart>
               </ResponsiveContainer>
             </Panel>
@@ -384,7 +395,7 @@ export function StatsTab({ agent }: { agent: Agent }) {
                 <XAxis dataKey="time" tick={TICK} {...AX} />
                 <YAxis tick={TICK} {...AX} tickFormatter={(v: number) => fmtBytes(v)} />
                 <Tooltip contentStyle={TT} formatter={(v) => [fmtBytes(Number(v ?? 0))]} />
-                <Area type="monotone" dataKey="rx" name="RX" stroke="#10B981" fill="#10B981" fillOpacity={0.12} strokeWidth={1.5} dot={false} />
+                <Area type="monotone" dataKey="rx" name="RX" stroke="var(--mycel-chart-5)" fill="var(--mycel-chart-5)" fillOpacity={0.12} strokeWidth={1.5} dot={false} />
                 <Area type="monotone" dataKey="tx" name="TX" stroke={ACCENT} fill={ACCENT} fillOpacity={0.12} strokeWidth={1.5} dot={false} />
               </AreaChart>
             </ResponsiveContainer>
@@ -407,7 +418,7 @@ export function StatsTab({ agent }: { agent: Agent }) {
                 <div className="grid grid-cols-2 gap-3 py-4">
                   <div className="text-center">
                     <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted">Net RX</p>
-                    <p className="text-lg font-bold tabular-nums text-[#10B981]">{fmtBytes(s.network?.rx_bytes ?? 0)}</p>
+                    <p className="text-lg font-bold tabular-nums text-mycel-chart-5">{fmtBytes(s.network?.rx_bytes ?? 0)}</p>
                   </div>
                   <div className="text-center">
                     <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted">Net TX</p>
@@ -415,11 +426,11 @@ export function StatsTab({ agent }: { agent: Agent }) {
                   </div>
                   <div className="text-center">
                     <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted">Disk Read</p>
-                    <p className="text-lg font-bold tabular-nums text-[#3B82F6]">{fmtBytes(s.disk?.read_bytes ?? 0)}</p>
+                    <p className="text-lg font-bold tabular-nums text-mycel-chart-1">{fmtBytes(s.disk?.read_bytes ?? 0)}</p>
                   </div>
                   <div className="text-center">
                     <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted">Disk Write</p>
-                    <p className="text-lg font-bold tabular-nums text-[#A855F7]">{fmtBytes(s.disk?.write_bytes ?? 0)}</p>
+                    <p className="text-lg font-bold tabular-nums text-mycel-chart-4">{fmtBytes(s.disk?.write_bytes ?? 0)}</p>
                   </div>
                 </div>
             </Panel>

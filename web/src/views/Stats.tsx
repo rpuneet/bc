@@ -33,24 +33,24 @@ export function calculateCost(model: string, inputTokens: number, outputTokens: 
 // ── Constants ───────────────────────────────────────────────────────────────────
 
 // Chart palette. First entry uses the theme accent token so charts feel
-// like they belong to the current theme (mycel orange in both Dark and
-// Light). The rest are theme-agnostic hues that stay readable in both.
+// like they belong to the current theme (chanterelle amber in both
+// Dark and Light).
 const ACCENT = "var(--mycel-accent)";
-// Categorical palette chosen for six-plus-series distinguishability
-// across both themes. First slot follows the theme accent; the
-// rest are picked from the Radix + Tailwind categorical palettes so
-// adjacent series never collide. Deuteranopia-checked pairs:
-// cobalt/emerald safe, rose/violet safe, amber/tangerine handled by
-// dash pattern rotation below.
+// Categorical palette — earthy chart tokens defined per theme in
+// theme/tokens.css (--mycel-chart-*), so each theme gets steps tuned
+// for its own ground: cream takes deeper cuts, espresso brighter ones.
+// The slot ORDER is the CVD-safety mechanism: adjacent-pair separation
+// validated (worst pair ΔE ≥ 17, tritan) in both themes, with the dash
+// pattern rotation below as secondary encoding.
 const COLORS = [
-  ACCENT,      // theme accent — var(--mycel-accent), orange in both themes
-  "#3B82F6",   // cobalt
-  "#EC4899",   // rose
-  "#F59E0B",   // amber
-  "#A855F7",   // violet
-  "#06B6D4",   // cyan
-  "#84CC16",   // lime
-  "#F97316",   // tangerine (only conflicts with the orange accent — kicked to slot 7)
+  ACCENT,                    // theme accent — chanterelle amber
+  "var(--mycel-chart-1)",    // spore blue
+  "var(--mycel-chart-2)",    // dusty rose
+  "var(--mycel-chart-3)",    // café gold
+  "var(--mycel-chart-4)",    // spore lavender
+  "var(--mycel-chart-5)",    // moss
+  "var(--mycel-chart-6)",    // lichen teal
+  "var(--mycel-chart-7)",    // olive
 ];
 
 // Dash-pattern palette for a11y — color-only encoding fails deuteranopia
@@ -709,7 +709,7 @@ export function Stats() {
                 <XAxis dataKey="time" tick={TICK_STYLE} {...AX} />
                 <YAxis tick={TICK_STYLE} {...AX} tickFormatter={(v: number) => fmtTokens(v)} />
                 <Tooltip contentStyle={TT} formatter={(v, n) => [Number(v ?? 0).toLocaleString(), n === "input" ? "Input" : "Output"]} />
-                <Area type="monotone" dataKey="input" name="Input" stroke="#3B82F6" fill="#3B82F6" fillOpacity={0.20} strokeWidth={1.75} stackId="1" dot={false} />
+                <Area type="monotone" dataKey="input" name="Input" stroke="var(--mycel-chart-1)" fill="var(--mycel-chart-1)" fillOpacity={0.20} strokeWidth={1.75} stackId="1" dot={false} />
                 <Area type="monotone" dataKey="output" name="Output" stroke={ACCENT} fill={ACCENT} fillOpacity={0.20} strokeWidth={1.75} stackId="1" dot={false} />
               </AreaChart>
             </ResponsiveContainer>
@@ -757,8 +757,8 @@ export function Stats() {
                   <YAxis type="category" dataKey="name" tick={{ ...TICK_STYLE, fill: "var(--mycel-text)", fontSize: 9 }} {...AX} width={60} />
                   <Tooltip contentStyle={TT} formatter={(v) => [fmtTokens(Number(v ?? 0))]} />
                   <Bar dataKey="tokens" radius={[0, 3, 3, 0]}>
-                    <Cell fill="#10B981" />
-                    <Cell fill="#F59E0B" />
+                    <Cell fill="var(--mycel-chart-5)" />
+                    <Cell fill="var(--mycel-chart-3)" />
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
@@ -773,7 +773,7 @@ export function Stats() {
                 <XAxis dataKey="name" tick={{ ...TICK_STYLE, fontSize: 9 }} {...AX} />
                 <YAxis tick={TICK_STYLE} {...AX} tickFormatter={(v: number) => fmtTokens(v)} />
                 <Tooltip contentStyle={TT} formatter={(v, n) => [fmtTokens(Number(v ?? 0)), n === "input" ? "Input" : "Output"]} />
-                <Bar dataKey="input" name="Input" fill="#3B82F6" radius={[3, 3, 0, 0]} />
+                <Bar dataKey="input" name="Input" fill="var(--mycel-chart-1)" radius={[3, 3, 0, 0]} />
                 <Bar dataKey="output" name="Output" fill={ACCENT} radius={[3, 3, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
@@ -869,7 +869,7 @@ export function Stats() {
                 <XAxis dataKey="time" tick={TICK_STYLE} {...AX} />
                 <YAxis tick={TICK_STYLE} {...AX} tickFormatter={(v: number) => fmtBytes(v)} />
                 <Tooltip contentStyle={TT} formatter={(v) => [fmtBytes(Number(v ?? 0))]} />
-                <Area type="monotone" dataKey="rx" name="RX" stroke="#10B981" fill="#10B981" fillOpacity={0.20} strokeWidth={1.75} dot={false} />
+                <Area type="monotone" dataKey="rx" name="RX" stroke="var(--mycel-chart-5)" fill="var(--mycel-chart-5)" fillOpacity={0.20} strokeWidth={1.75} dot={false} />
                 <Area type="monotone" dataKey="tx" name="TX" stroke={ACCENT} fill={ACCENT} fillOpacity={0.20} strokeWidth={1.75} dot={false} />
               </AreaChart>
             </ResponsiveContainer>
@@ -883,8 +883,8 @@ export function Stats() {
                 <XAxis dataKey="time" tick={TICK_STYLE} {...AX} />
                 <YAxis tick={TICK_STYLE} {...AX} tickFormatter={(v: number) => fmtBytes(v)} />
                 <Tooltip contentStyle={TT} formatter={(v) => [fmtBytes(Number(v ?? 0))]} />
-                <Area type="monotone" dataKey="read" name="Read" stroke="#3B82F6" fill="#3B82F6" fillOpacity={0.20} strokeWidth={1.75} dot={false} />
-                <Area type="monotone" dataKey="write" name="Write" stroke="#A855F7" fill="#A855F7" fillOpacity={0.20} strokeWidth={1.75} dot={false} />
+                <Area type="monotone" dataKey="read" name="Read" stroke="var(--mycel-chart-1)" fill="var(--mycel-chart-1)" fillOpacity={0.20} strokeWidth={1.75} dot={false} />
+                <Area type="monotone" dataKey="write" name="Write" stroke="var(--mycel-chart-4)" fill="var(--mycel-chart-4)" fillOpacity={0.20} strokeWidth={1.75} dot={false} />
               </AreaChart>
             </ResponsiveContainer>
           )}
