@@ -63,7 +63,7 @@ function ProviderHeader({
         </div>
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-xl font-bold">{provider.name}</h1>
+            <h1 className="font-display text-xl font-bold">{provider.name}</h1>
             <StatusBadge status={providerStatus(provider)} />
           </div>
           {provider.version && (

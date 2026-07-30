@@ -1106,7 +1106,7 @@ export function Layout() {
               <span className="shrink-0 flex items-center justify-center w-4">
                 <BrandMark size={18} />
               </span>
-              <span className="text-sm font-semibold tracking-tight truncate">mycel</span>
+              <span className="font-display text-[15px] font-semibold truncate">mycel</span>
             </NavLink>
             <span className="ml-auto">
               <SidebarToggle collapsed={false} onToggle={handleDrawerToggle} />
@@ -1314,7 +1314,7 @@ function BrandColumn({
             <span className="shrink-0 flex items-center justify-center w-4">
               <BrandMark size={18} />
             </span>
-            <span className="text-sm font-semibold tracking-tight truncate">mycel</span>
+            <span className="font-display text-[15px] font-semibold truncate">mycel</span>
           </NavLink>
           <span className="ml-auto pr-2">
             <SidebarToggle collapsed={false} onToggle={onToggle} />
