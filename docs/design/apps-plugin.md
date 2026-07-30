@@ -82,16 +82,31 @@ imports the enabled set for side effects. Adding an app = one new package +
 one import line.
 
 Optional capabilities stay runtime-asserted on the built adapter, exactly as
-today (`messageSender`, `fileSender`, `reactionSender`, `ChannelIdentity`) —
-plus two new ones asserted on the **plugin**:
+today (`messageSender`, `fileSender`, `reactionSender`, `ChannelIdentity`).
+QR pairing joins that list: pairing state (QR channel, session, connection)
+lives on the running adapter, so `QRPairer` is asserted on the adapter
+returned by `Build`, not on the plugin:
 
 ```go
-// QRPairer is implemented by apps that pair by QR (WhatsApp).
-type QRPairer interface {
-    StartPairing(ctx context.Context, inst Instance, env Env) (PairStatus, error)
-    PairStatus(inst Instance) PairStatus
+// PairInfo reports QR pairing progress.
+type PairInfo struct {
+    State     string // "idle", "qr_ready", "connected", "error"
+    QRDataURL string
+    Phone     string
+    Error     string
 }
 
+// QRPairer is implemented by built adapters whose app pairs by QR (WhatsApp).
+type QRPairer interface {
+    StartPairing(ctx context.Context) (PairInfo, error)
+    PairStatus() PairInfo
+}
+```
+
+OAuth remains a plugin-level capability (no live adapter exists before auth
+completes):
+
+```go
 // OAuthApp is implemented by apps that support a browser auth flow.
 // GitHub/Discord support localhost callbacks or device flow; apps that
 // can't (Slack requires an HTTPS redirect) stay AuthToken until a hosted
