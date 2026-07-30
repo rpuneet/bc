@@ -29,6 +29,7 @@ type Adapter struct {
 	name          string
 	lastError     string
 	chatMu        sync.RWMutex
+	stopOnce      sync.Once
 	connected     bool
 	messageCount  atomic.Int64
 }
@@ -82,7 +83,7 @@ func (a *Adapter) Start(ctx context.Context, handler func(gateway.Notification))
 	for {
 		select {
 		case <-ctx.Done():
-			bot.StopReceivingUpdates()
+			a.stopBot()
 			return nil
 		case update := <-updates:
 			if update.Message == nil {
@@ -182,10 +183,21 @@ func (a *Adapter) Start(ctx context.Context, handler func(gateway.Notification))
 
 // Stop gracefully disconnects.
 func (a *Adapter) Stop() error {
-	if a.bot != nil {
-		a.bot.StopReceivingUpdates()
-	}
+	a.stopBot()
 	return nil
+}
+
+// stopBot stops the bot's update polling exactly once. Both the
+// context-cancel path in Start and Stop route through it: the underlying
+// library closes a channel unconditionally, so a second call panics with
+// "close of closed channel" (seen when Services.Close cancels the gateway
+// context and then calls Manager.Stop during daemon shutdown).
+func (a *Adapter) stopBot() {
+	a.stopOnce.Do(func() {
+		if a.bot != nil {
+			a.bot.StopReceivingUpdates()
+		}
+	})
 }
 
 // HTTPHandler returns nil since Telegram uses polling, not webhooks.
