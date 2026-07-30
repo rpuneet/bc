@@ -3,16 +3,19 @@
 import { useEffect, useRef } from "react";
 
 /**
- * Drifting spore field — the living background of the page.
+ * Mycelial network field — the living background of the page.
  *
- * Small soft-glow particles wander on eased sine paths (two incommensurate
- * frequencies per axis, so the drift never visibly repeats). Occasionally a
- * spore "germinates": a fine hyphae thread grows along a curve toward a
- * nearby spore, holds for a breath, then fades away.
+ * Soft-glow spore nodes wander on eased sine paths (two incommensurate
+ * frequencies per axis, so the drift never visibly repeats). When two spores
+ * drift within reach of each other, a fine hyphae thread fades in between
+ * them — a gently curved filament whose opacity tracks proximity — and fades
+ * back out as they part. The whole field reads as one slow, breathing
+ * network: mycelium, not confetti.
  *
- * Performance: capped particle count, spatial work is O(n), adaptive frame
- * rate (~15fps when idle), rendering pauses entirely when the tab is hidden.
- * prefers-reduced-motion renders a single static faint spore field.
+ * Performance: capped particle count, pairwise link pass is O(n²) with a
+ * small n, adaptive frame rate when idle, rendering pauses entirely when the
+ * tab is hidden. prefers-reduced-motion renders a single static frame of the
+ * network with its links.
  */
 export function AnimatedBackground() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -34,20 +37,18 @@ export function AnimatedBackground() {
 
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
 
-    const SPORE_COUNT = 42;
+    const SPORE_COUNT = 48;
     const LAVENDER_EVERY = 7; // every 7th spore whispers lavender
     const MOUSE_RADIUS = 200;
     const MOUSE_STRENGTH = 0.012;
     let idleFrames = 0;
     const IDLE_THRESHOLD = 120; // ~2s at 60fps before throttling
 
-    /* Germination — a hyphae thread grows toward a neighbour, then fades */
-    const GERMINATE_MIN_GAP = 4000; // ms between germinations
-    const GERMINATE_MAX_GAP = 8000;
-    const THREAD_GROW_MS = 1700;
-    const THREAD_HOLD_MS = 600;
-    const THREAD_FADE_MS = 1100;
-    const THREAD_REACH = 260;
+    /* Proximity links — hyphae threads between spores that drift close.
+     * Opacity follows distance, so threads fade in as spores approach and
+     * fade out as they part; no timers, the network is continuous. */
+    const LINK_REACH = 150; // px — threads appear inside this distance
+    const LINK_MIN = 18; // px — too close reads as a blob; keep a gap
 
     interface Spore {
       x: number; // anchor position
@@ -75,18 +76,7 @@ export function AnimatedBackground() {
       twinklePhase: number;
     }
 
-    interface Thread {
-      from: number;
-      to: number;
-      start: number; // timestamp
-      // fixed control point so the curve doesn't swim while growing
-      cx: number;
-      cy: number;
-    }
-
     let spores: Spore[] = [];
-    let threads: Thread[] = [];
-    let nextGerminate = performance.now() + 2500;
     let width = 0;
     let height = 0;
 
@@ -130,7 +120,6 @@ export function AnimatedBackground() {
           twinklePhase: rand(0, Math.PI * 2),
         });
       }
-      threads = [];
     }
 
     /* Palette per theme. Light mode uses the deep chanterelle cut so faint
@@ -143,14 +132,14 @@ export function AnimatedBackground() {
             lavender: "169, 151, 189",
             glowPeak: 0.09,
             sporeAlpha: 0.5,
-            threadAlpha: 0.3,
+            threadAlpha: 0.38,
           }
         : {
             amber: "163, 93, 10",
             lavender: "141, 122, 158",
             glowPeak: 0.06,
             sporeAlpha: 0.42,
-            threadAlpha: 0.26,
+            threadAlpha: 0.32,
           };
     }
 
@@ -160,96 +149,41 @@ export function AnimatedBackground() {
         : colors.amber;
     }
 
-    function maybeGerminate(now: number) {
-      if (now < nextGerminate || threads.length >= 2) return;
-      // pick a random spore and its nearest neighbour within reach
-      const from = Math.floor(Math.random() * spores.length);
-      let best = -1;
-      let bestDist = THREAD_REACH;
+    /* Deterministic per-pair bend so each hyphae filament keeps its own
+     * gentle curve as the spores drift — organic, but stable. */
+    function pairBend(i: number, j: number) {
+      const seed = Math.sin(i * 127.1 + j * 311.7) * 43758.5453;
+      return ((seed - Math.floor(seed)) - 0.5) * 0.36;
+    }
+
+    /* Hyphae links — one pass over spore pairs. Thread opacity tracks
+     * proximity, so filaments breathe in and out as the network drifts. */
+    function drawLinks(colors: ReturnType<typeof palette>) {
+      ctx!.lineWidth = 0.6;
       for (let i = 0; i < spores.length; i++) {
-        if (i === from) continue;
-        const d = Math.hypot(
-          spores[i].dx - spores[from].dx,
-          spores[i].dy - spores[from].dy,
-        );
-        if (d > 24 && d < bestDist) {
-          bestDist = d;
-          best = i;
-        }
-      }
-      nextGerminate = now + rand(GERMINATE_MIN_GAP, GERMINATE_MAX_GAP);
-      if (best < 0) return;
-      const a = spores[from];
-      const b = spores[best];
-      const mx = (a.dx + b.dx) / 2;
-      const my = (a.dy + b.dy) / 2;
-      const nx = -(b.dy - a.dy);
-      const ny = b.dx - a.dx;
-      const bend = rand(-0.22, 0.22);
-      threads.push({
-        from,
-        to: best,
-        start: now,
-        cx: mx + nx * bend,
-        cy: my + ny * bend,
-      });
-    }
-
-    /* Ease-out cubic — organic growth, quick start then settling */
-    const easeOut = (t: number) => 1 - Math.pow(1 - t, 3);
-
-    function quadPoint(
-      x0: number,
-      y0: number,
-      cx: number,
-      cy: number,
-      x1: number,
-      y1: number,
-      t: number,
-    ) {
-      const u = 1 - t;
-      return {
-        x: u * u * x0 + 2 * u * t * cx + t * t * x1,
-        y: u * u * y0 + 2 * u * t * cy + t * t * y1,
-      };
-    }
-
-    function drawThreads(now: number, colors: ReturnType<typeof palette>) {
-      threads = threads.filter(
-        (t) => now - t.start < THREAD_GROW_MS + THREAD_HOLD_MS + THREAD_FADE_MS,
-      );
-      for (const t of threads) {
-        const age = now - t.start;
-        const a = spores[t.from];
-        const b = spores[t.to];
-        let alpha = colors.threadAlpha;
-        let growth = 1;
-        if (age < THREAD_GROW_MS) {
-          growth = easeOut(age / THREAD_GROW_MS);
-        } else if (age > THREAD_GROW_MS + THREAD_HOLD_MS) {
-          const fade =
-            (age - THREAD_GROW_MS - THREAD_HOLD_MS) / THREAD_FADE_MS;
-          alpha *= 1 - fade;
-        }
-        ctx!.strokeStyle = `rgba(${colors.amber}, ${alpha})`;
-        ctx!.lineWidth = 0.6;
-        ctx!.beginPath();
-        ctx!.moveTo(a.dx, a.dy);
-        // grow along the curve by sampling to the current growth fraction
-        const steps = 16;
-        for (let s = 1; s <= steps; s++) {
-          const tt = (s / steps) * growth;
-          const p = quadPoint(a.dx, a.dy, t.cx, t.cy, b.dx, b.dy, tt);
-          ctx!.lineTo(p.x, p.y);
-        }
-        ctx!.stroke();
-        // growing tip — a tiny bright bud
-        if (age < THREAD_GROW_MS) {
-          const tip = quadPoint(a.dx, a.dy, t.cx, t.cy, b.dx, b.dy, growth);
-          ctx!.fillStyle = `rgba(${colors.amber}, ${alpha * 2})`;
+        const a = spores[i];
+        for (let j = i + 1; j < spores.length; j++) {
+          const b = spores[j];
+          const ddx = b.dx - a.dx;
+          const ddy = b.dy - a.dy;
+          if (Math.abs(ddx) > LINK_REACH || Math.abs(ddy) > LINK_REACH) {
+            continue;
+          }
+          const d = Math.hypot(ddx, ddy);
+          if (d >= LINK_REACH || d < LINK_MIN) continue;
+          // smooth fade: 0 at reach, full at half-reach
+          const near = 1 - d / LINK_REACH;
+          const alpha =
+            colors.threadAlpha * near * near * (0.5 + (a.z + b.z) * 0.25);
+          if (alpha < 0.008) continue;
+          const bend = pairBend(i, j);
+          const cx = (a.dx + b.dx) / 2 - ddy * bend;
+          const cy = (a.dy + b.dy) / 2 + ddx * bend;
+          ctx!.strokeStyle = `rgba(${colors.amber}, ${alpha})`;
           ctx!.beginPath();
-          ctx!.arc(tip.x, tip.y, 1.1, 0, Math.PI * 2);
-          ctx!.fill();
+          ctx!.moveTo(a.dx, a.dy);
+          ctx!.quadraticCurveTo(cx, cy, b.dx, b.dy);
+          ctx!.stroke();
         }
       }
     }
@@ -257,7 +191,6 @@ export function AnimatedBackground() {
     function drawField(time: number, staticFrame = false) {
       ctx!.clearRect(0, 0, width, height);
       const colors = palette();
-      const now = performance.now();
 
       // Warm ambient glow centred above the fold
       {
@@ -352,25 +285,24 @@ export function AnimatedBackground() {
         ctx!.fill();
       }
 
-      if (!staticFrame) {
-        maybeGerminate(now);
-        drawThreads(now, colors);
-      }
+      // The network itself — hyphae threads between near neighbours.
+      // Drawn in the static frame too: the resting state is still a network.
+      drawLinks(colors);
     }
 
     function frame(time: number) {
       if (hidden) return; // resumes via visibilitychange
       drawField(time);
 
-      // Adaptive frame rate: 60fps when active, ~15fps when idle
-      const hasMotion =
-        Math.abs(scrollVelocity) > 0.1 || mouseX >= 0 || threads.length > 0;
+      // Adaptive frame rate: 60fps when active, ~30fps when idle — the
+      // network keeps breathing, at half rate, when nothing else moves.
+      const hasMotion = Math.abs(scrollVelocity) > 0.1 || mouseX >= 0;
       if (hasMotion) {
         idleFrames = 0;
         animationId = requestAnimationFrame(frame);
       } else {
         idleFrames++;
-        const delay = idleFrames > IDLE_THRESHOLD ? 66 : 0;
+        const delay = idleFrames > IDLE_THRESHOLD ? 33 : 0;
         if (delay > 0) {
           animationId = setTimeout(
             () => requestAnimationFrame(frame),

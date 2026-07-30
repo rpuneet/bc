@@ -1,93 +1,27 @@
 "use client";
 
-import { useState, useSyncExternalStore, type ReactNode } from "react";
+import { type ReactNode } from "react";
 import Link from "next/link";
-import { Copy, Check, ArrowRight, Github } from "lucide-react";
+import { ArrowRight, Github } from "lucide-react";
 import { Nav } from "./_components/Nav";
 import { Footer } from "./_components/Footer";
 import { InstallSection } from "./_components/InstallSection";
-import {
-  TerminalWindow,
-  StatusTable,
-  ChannelView,
-  CostTable,
-} from "./_components/TerminalComponents";
+import { ProductFrame } from "./_components/ProductFrame";
 import { RevealSection, FadeUp, ScrollReveal } from "./_components/Motion";
 import { AnimatedBackground } from "./_components/AnimatedBackground";
+import { SporeLogo } from "./_components/SporeLogo";
 
-/* ── Install commands by platform (hero) ── */
-const installCommands = {
-  macOS: "curl -fsSL https://raw.githubusercontent.com/rpuneet/mycel/main/scripts/install.sh | bash",
-  Linux: "curl -fsSL https://raw.githubusercontent.com/rpuneet/mycel/main/scripts/install.sh | bash",
-  Homebrew: "brew install rpuneet/mycel/mycel",
-  Docker: "docker run -p 9374:9374 ghcr.io/rpuneet/mycel mycel up",
-} as const;
-
-type Platform = keyof typeof installCommands;
-
-function detectPlatform(ua: string): Platform {
-  if (/Mac/i.test(ua)) return "macOS";
-  if (/Linux/i.test(ua)) return "Linux";
-  return "macOS";
-}
-
-/* ── External-store hook for client-only platform detection.
- *    SSR snapshot is "macOS" to match initial render; the client
- *    swaps in the detected platform after hydration. ── */
-const subscribePlatform = () => () => {};
-const getPlatformSnapshot = (): Platform => detectPlatform(navigator.userAgent);
-const getPlatformServerSnapshot = (): Platform => "macOS";
-
-/* ── Copy button ── */
-function CopyButton({ text }: { text: string }) {
-  const [copied, setCopied] = useState(false);
-
-  const handleCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      // clipboard unavailable — no-op
-    }
-  };
-
+/* ── Section divider with the mushroom mark as a fleuron ── */
+function SporeDivider() {
   return (
-    <button
-      type="button"
-      onClick={handleCopy}
-      className="shrink-0 rounded p-1.5 text-on-surface-variant hover:text-on-surface transition-colors"
-      aria-label="Copy to clipboard"
-    >
-      {copied ? <Check className="h-4 w-4 text-terminal-success" /> : <Copy className="h-4 w-4" />}
-    </button>
-  );
-}
-
-/* ── A compact code line block for panel artifacts ── */
-function CmdLine({
-  cmd,
-  out,
-}: {
-  cmd?: string;
-  out?: { text: string; tone?: "muted" | "ok" | "flare" | "text" };
-}) {
-  const toneClass = {
-    muted: "text-terminal-muted",
-    ok: "text-terminal-success",
-    flare: "text-terminal-command",
-    text: "text-terminal-text",
-  } as const;
-  if (cmd) {
-    return (
-      <div>
-        <span className="text-terminal-prompt">$ </span>
-        <span className="text-terminal-text">{cmd}</span>
+    <div className="mx-auto max-w-5xl px-6">
+      <div className="relative flex items-center justify-center">
+        <div className="section-separator w-full" />
+        <span className="absolute rounded-full bg-background px-3 py-1 opacity-70">
+          <SporeLogo size={18} />
+        </span>
       </div>
-    );
-  }
-  return (
-    <div className={toneClass[out?.tone ?? "muted"]}>{out?.text}</div>
+    </div>
   );
 }
 
@@ -169,81 +103,7 @@ function DeckPanel({
   );
 }
 
-/* ── Artifact: provider / model catalog fetched from source ── */
-function ProviderArtifact() {
-  return (
-    <TerminalWindow title="mycel model list" ariaLabel="Terminal listing providers and models fetched live from each CLI">
-      <div className="space-y-1.5 text-[12.5px] leading-6">
-        <CmdLine cmd="mycel model list" />
-        <div className="mt-2 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1">
-          <span className="text-terminal-command">claude</span>
-          <span className="text-terminal-muted">claude-opus · claude-sonnet · claude-haiku</span>
-          <span className="text-terminal-command">pi → bedrock</span>
-          <span className="text-terminal-muted">kimi-k2 · deepseek-v3 · qwen3-coder</span>
-          <span className="text-terminal-command">agy</span>
-          <span className="text-terminal-muted">gemini-pro · gemini-flash</span>
-          <span className="text-terminal-command">codex</span>
-          <span className="text-terminal-muted">gpt-5-codex</span>
-        </div>
-        <div className="mt-2 text-terminal-comment">
-          fetched live from each tool&rsquo;s CLI &middot; no hardcoded catalog
-        </div>
-      </div>
-    </TerminalWindow>
-  );
-}
-
-/* ── Artifact: marketplace install-by-dispatch ── */
-function MarketplaceArtifact() {
-  return (
-    <TerminalWindow title="mycel skill install" ariaLabel="Terminal installing a skill from a registry by dispatching an instruction to an agent">
-      <div className="space-y-1.5 text-[12.5px] leading-6">
-        <CmdLine cmd="mycel skill search postgres" />
-        <CmdLine out={{ text: "mcp-registry   postgres-mcp        official", tone: "muted" }} />
-        <CmdLine out={{ text: "smithery       supabase            verified", tone: "muted" }} />
-        <CmdLine out={{ text: "glama          neon-serverless     community", tone: "muted" }} />
-        <div className="mt-2">
-          <CmdLine cmd='mycel skill install postgres-mcp --agent db-eng' />
-        </div>
-        <CmdLine out={{ text: "→ dispatched to db-eng · installing", tone: "flare" }} />
-        <CmdLine out={{ text: "✓ postgres-mcp available to db-eng", tone: "ok" }} />
-      </div>
-    </TerminalWindow>
-  );
-}
-
-/* ── Artifact: secrets → env injection ── */
-function SecretsArtifact() {
-  return (
-    <TerminalWindow title="mycel secret" ariaLabel="Terminal storing a secret and injecting it into an agent's environment">
-      <div className="space-y-1.5 text-[12.5px] leading-6">
-        <CmdLine cmd="mycel secret set STRIPE_API_KEY" />
-        <CmdLine out={{ text: "✓ stored · encrypted at rest", tone: "ok" }} />
-        <div className="mt-2">
-          <CmdLine cmd="mycel connect github" />
-        </div>
-        <CmdLine out={{ text: "✓ connected · available to every agent", tone: "ok" }} />
-        <div className="mt-2">
-          <CmdLine cmd="mycel agent create pay-eng --tool claude" />
-        </div>
-        <CmdLine out={{ text: "env → STRIPE_API_KEY, GITHUB_TOKEN injected", tone: "flare" }} />
-        <CmdLine out={{ text: "agent pay-eng is online", tone: "muted" }} />
-      </div>
-    </TerminalWindow>
-  );
-}
-
 export default function Home() {
-  const detected = useSyncExternalStore(
-    subscribePlatform,
-    getPlatformSnapshot,
-    getPlatformServerSnapshot,
-  );
-  const [override, setPlatform] = useState<Platform | null>(null);
-  const platform = override ?? detected;
-
-  const tabs: Platform[] = ["macOS", "Linux", "Homebrew", "Docker"];
-
   return (
     <main className="min-h-screen overflow-x-hidden">
       {/* Drifting spore field — fixed, covers the page */}
@@ -257,76 +117,40 @@ export default function Home() {
         {/* ════════════════════════════════════════
            Hero — the thesis
            ════════════════════════════════════════ */}
-        <section className="pt-28 pb-14 sm:pt-36 sm:pb-20">
+        <section className="pt-28 pb-10 sm:pt-36 sm:pb-14">
           <div className="mx-auto max-w-4xl px-4 text-center sm:px-6">
             <FadeUp>
               <span className="deck-eyebrow">
-                CLI-first &middot; Any agent &middot; Open source
+                Open source &middot; Free &middot; Runs on your machine
               </span>
             </FadeUp>
 
             <FadeUp delay={0.1}>
               <h1 className="mt-6 font-headline text-4xl font-semibold leading-[1.08] tracking-tight text-on-background md:text-6xl lg:text-[4.25rem]">
-                Run a team of AI agents
+                Your team of AI agents,
                 <br className="hidden sm:block" />{" "}
-                like you run a{" "}
-                <span className="text-primary">codebase.</span>
+                run from <span className="text-primary">one place.</span>
               </h1>
             </FadeUp>
 
             <FadeUp delay={0.15}>
               <p className="mx-auto mt-6 max-w-2xl font-body text-lg leading-relaxed text-on-surface-variant md:text-xl">
-                mycel orchestrates Claude Code, pi, Cursor, Gemini, and Codex
-                agents in parallel &mdash; each in its own git worktree and
-                runtime. One binary. One command. Your terminal stays the
-                control plane.
+                mycel gives every agent a name, a face, and a job. They write
+                code in your repositories, reach you on Slack or WhatsApp, and
+                everything they do &mdash; every action, every change, every
+                dollar &mdash; stays on screen.
               </p>
             </FadeUp>
 
-            {/* Hero install */}
-            <FadeUp delay={0.2}>
-              <div className="mx-auto mt-10 max-w-xl">
-                <div className="mb-3 flex items-center justify-center gap-1">
-                  {tabs.map((t) => (
-                    <button
-                      key={t}
-                      type="button"
-                      onClick={() => setPlatform(t)}
-                      className={`rounded px-3 py-1.5 font-label text-xs font-medium transition-colors ${
-                        platform === t
-                          ? "bg-surface-container-high text-on-surface"
-                          : "text-on-surface-variant hover:text-on-surface"
-                      }`}
-                    >
-                      {t}
-                    </button>
-                  ))}
-                </div>
-
-                <div className="flex items-center gap-2 rounded-lg border border-outline-variant/30 bg-surface-container px-4 py-3 shadow-[0_0_60px_color-mix(in_srgb,var(--primary)_8%,transparent),0_0_20px_color-mix(in_srgb,var(--primary)_4%,transparent)]">
-                  <span className="select-none font-label text-on-surface-variant">$</span>
-                  <code className="scrollbar-none block min-w-0 flex-1 overflow-x-auto whitespace-nowrap font-label text-sm text-on-surface">
-                    {installCommands[platform]}
-                  </code>
-                  <CopyButton text={installCommands[platform]} />
-                </div>
-
-                <p className="mt-3 font-body text-sm text-on-surface-variant">
-                  Then run:{" "}
-                  <code className="font-label text-primary">mycel up</code>
-                </p>
-              </div>
-            </FadeUp>
-
             {/* CTAs */}
-            <FadeUp delay={0.25}>
-              <div className="mt-8 flex flex-col items-center gap-5">
+            <FadeUp delay={0.2}>
+              <div className="mt-9 flex flex-col items-center gap-5">
                 <div className="flex items-center gap-4">
                   <Link
-                    href="/docs"
+                    href="/#install"
                     className="inline-flex h-11 items-center gap-2 rounded-lg bg-primary px-6 text-sm font-semibold text-primary-foreground shadow-[var(--btn-shadow)] transition-all hover:shadow-lg active:scale-[0.97]"
                   >
-                    Read the docs
+                    Get mycel
                     <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
                   </Link>
                   <Link
@@ -339,8 +163,6 @@ export default function Home() {
                 </div>
                 <div className="flex flex-wrap items-center justify-center gap-2 opacity-70 transition-opacity hover:opacity-100">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src="https://img.shields.io/github/stars/rpuneet/mycel?style=flat-square&color=a35d0a&labelColor=2a2118" alt="GitHub stars" className="h-5" />
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src="https://img.shields.io/github/license/rpuneet/mycel?style=flat-square&color=a35d0a&labelColor=2a2118" alt="License" className="h-5" />
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src="https://img.shields.io/github/last-commit/rpuneet/mycel?style=flat-square&color=a35d0a&labelColor=2a2118" alt="Last commit" className="h-5" />
@@ -348,47 +170,32 @@ export default function Home() {
               </div>
             </FadeUp>
           </div>
+
+          {/* Hero shot — the fleet, live */}
+          <FadeUp delay={0.28}>
+            <div className="hero-stage mx-auto mt-14 max-w-5xl px-4 sm:px-6">
+              <div className="hero-tilt">
+                <ProductFrame
+                  srcDark="/screenshots/agents-dark.png"
+                  srcLight="/screenshots/agents-light.png"
+                  alt="The mycel agents view: a fleet of agents with living character faces, grouped by repository, each with its status, last activity, and cost"
+                  title="mycel — agents"
+                  width={1440}
+                  height={700}
+                  priority
+                  className="hero-glow"
+                />
+              </div>
+              <p className="mt-5 text-center font-body text-sm text-on-surface-variant">
+                The fleet at a glance &mdash; every agent, its status, and
+                what it&rsquo;s spending.
+              </p>
+            </div>
+          </FadeUp>
         </section>
 
-        {/* ════════════════════════════════════════
-           Live terminal — proof it's real
-           ════════════════════════════════════════ */}
-        <RevealSection className="pb-8 sm:pb-12">
-          <div className="mx-auto max-w-3xl px-4 sm:px-6">
-            <TerminalWindow title="terminal" className="terminal-glow">
-              <div className="space-y-3 text-[13px] leading-7">
-                <div>
-                  <span className="text-terminal-prompt">~ $ </span>
-                  <span className="text-terminal-text">mycel up</span>
-                </div>
-                <div className="text-terminal-success">&#10003; Ready &middot; console at <span className="text-primary">http://localhost:9374</span></div>
-
-                <div className="mt-2">
-                  <span className="text-terminal-prompt">~ $ </span>
-                  <span className="text-terminal-text">mycel agent create eng-01 --role engineer --tool claude</span>
-                </div>
-                <div className="text-terminal-muted">Worktree checked out at .mycel/agents/eng-01</div>
-                <div className="text-terminal-muted">
-                  Agent <span className="text-primary">eng-01</span> is online.
-                </div>
-
-                <div className="mt-2">
-                  <span className="text-terminal-prompt">~ $ </span>
-                  <span className="text-terminal-text">mycel status</span>
-                </div>
-                <div className="mt-1 font-label text-terminal-comment">
-                  <div className="text-primary/70">AGENT     ROLE       STATE     UPTIME</div>
-                  <div className="text-terminal-text">eng-01    engineer   <span className="text-terminal-success">working</span>   2m</div>
-                  <div className="text-terminal-text">eng-02    engineer   <span className="text-terminal-success">working</span>   1m</div>
-                </div>
-                <div className="inline-block h-[18px] w-2 animate-pulse bg-primary/80" />
-              </div>
-            </TerminalWindow>
-          </div>
-        </RevealSection>
-
         {/* Section separator */}
-        <div className="mx-auto max-w-5xl px-6"><div className="section-separator" /></div>
+        <SporeDivider />
 
         {/* ════════════════════════════════════════
            The deck — one capability per panel
@@ -398,152 +205,166 @@ export default function Home() {
             <FadeUp className="mb-6 text-center">
               <span className="deck-eyebrow">What it does</span>
               <h2 className="mx-auto mt-4 max-w-3xl font-headline text-3xl font-semibold tracking-tight text-on-background md:text-5xl">
-                A control plane for AI agents,
+                One window into everything
                 <br className="hidden sm:block" />{" "}
-                built for people who live in the terminal.
+                your agents do.
               </h2>
               <p className="mx-auto mt-5 max-w-2xl font-body text-lg text-on-surface-variant">
-                Six capabilities, one binary. Everything below runs on your
-                machine today.
+                Six views, one app &mdash; every screenshot captured live
+                from a working team.
               </p>
             </FadeUp>
 
             <div className="relative">
-              {/* 01 — Multi-agent orchestration */}
+              {/* 01 — Agents */}
               <DeckPanel
                 index="01"
-                eyebrow="Orchestration"
-                title="Ten agents, one codebase, zero collisions."
+                eyebrow="Agents"
+                title="Meet the fleet. Every agent has a face."
                 body={
                   <>
-                    Spawn as many agents as the work needs. Each gets its own
-                    git worktree and its own tmux or Docker runtime, so they
-                    build in parallel without stepping on each other. Watch
-                    every one&rsquo;s state, task, and output from a single
-                    view.
+                    Each agent is a living character &mdash; one glance at the
+                    roster tells you who&rsquo;s working, who&rsquo;s idle, and
+                    who&rsquo;s done before you read a word. Agents are grouped
+                    by the repository they work in, with status, last activity,
+                    and cost side by side. Start, stop, or inspect any of them
+                    from the same row.
                   </>
                 }
                 artifact={
-                  <TerminalWindow title="mycel status" ariaLabel="Live agent roster showing parallel agents and their states">
-                    <StatusTable
-                      agents={[
-                        { name: "api-eng", role: "engineer", state: "working", detail: "Wiring the billing webhook" },
-                        { name: "web-eng", role: "engineer", state: "working", detail: "Refactoring the dashboard" },
-                        { name: "qa-01", role: "qa", state: "tool", detail: "Running the e2e suite" },
-                        { name: "reviewer", role: "manager", state: "idle", detail: "Waiting on PR #214" },
-                        { name: "db-eng", role: "engineer", state: "done", detail: "Schema change merged" },
-                      ]}
-                    />
-                  </TerminalWindow>
+                  <ProductFrame
+                    srcDark="/screenshots/agents-dark.png"
+                    alt="Agent roster grouped by repository, showing character avatars, status badges, activity, and per-agent cost"
+                    title="Agents"
+                    width={1440}
+                    height={700}
+                  />
                 }
               />
 
-              {/* 02 — Any model, from source */}
+              {/* 02 — Apps */}
               <DeckPanel
                 index="02"
-                eyebrow="Providers"
-                title="Any model, pulled straight from the tool."
+                eyebrow="Apps"
+                title="Reachable where you already talk."
                 body={
                   <>
-                    mycel reads providers and models live from each CLI it
-                    drives &mdash; Claude Code, pi reaching AWS Bedrock for
-                    Kimi, DeepSeek and Qwen, Gemini, Codex. Nothing is
-                    hardcoded, so the catalog is whatever your tools expose
-                    right now. Mix models across agents on the same project.
+                    Connect Slack, WhatsApp, Telegram, Discord, GitHub, and
+                    twenty-plus other apps. Your agents join the channels you
+                    already use, post updates as themselves, and answer when
+                    you reply &mdash; from your phone, in the thread you were
+                    already in. One screen shows every connection and every
+                    conversation flowing through it.
                   </>
                 }
-                artifact={<ProviderArtifact />}
+                artifact={
+                  <ProductFrame
+                    srcDark="/screenshots/apps-dark.png"
+                    alt="The apps view: connected platforms including Slack, Telegram, IRC, and WhatsApp, with channels and live message activity"
+                    title="Apps"
+                    width={1100}
+                    height={900}
+                  />
+                }
                 imageFirst
               />
 
-              {/* 03 — Skills & MCP marketplace */}
+              {/* 03 — Live */}
               <DeckPanel
                 index="03"
-                eyebrow="Marketplace"
-                title="Install skills and MCP servers by name."
+                eyebrow="Live"
+                title="Every action, the moment it happens."
                 body={
                   <>
-                    Search the official MCP registry, Glama, and Smithery
-                    alongside vendor skill repos from Anthropic, Google, and
-                    openclaw &mdash; or your own templates. Pick one and mycel
-                    dispatches the install straight to the agent that needs it.
+                    The Live feed streams what each agent is doing right now
+                    &mdash; every command it runs, every file it reads, every
+                    tool it calls, timed to the millisecond. There is no black
+                    box: if an agent did it, it&rsquo;s in the feed, and you
+                    can expand any line to see exactly what happened.
                   </>
                 }
-                artifact={<MarketplaceArtifact />}
+                artifact={
+                  <ProductFrame
+                    srcDark="/screenshots/live-dark.png"
+                    alt="The live feed: a working agent's stream of commands, file reads, and tool calls with timing for each action"
+                    title="Live"
+                    width={1440}
+                    height={900}
+                  />
+                }
               />
 
-              {/* 04 — Secrets → env */}
+              {/* 04 — Code */}
               <DeckPanel
                 index="04"
-                eyebrow="Secrets"
-                title="Store a key once. Every agent gets it."
+                eyebrow="Code"
+                title="Every change, reviewable before it ships."
                 body={
                   <>
-                    Keys live in an encrypted vault and land in each
-                    agent&rsquo;s environment as variables the moment it
-                    spawns. Connect an app once &mdash; GitHub, Stripe, your
-                    own API &mdash; and it&rsquo;s wired everywhere, no copying
-                    tokens between sessions.
+                    Open any agent&rsquo;s working copy and read its changes as
+                    a side-by-side diff &mdash; added lines, removed lines,
+                    file by file. You review agents the way you review
+                    colleagues: look at the work, not a summary of it.
                   </>
                 }
-                artifact={<SecretsArtifact />}
+                artifact={
+                  <ProductFrame
+                    srcDark="/screenshots/code-dark.png"
+                    alt="An agent's code view showing a side-by-side diff of a changed file, with the full file tree of its working copy"
+                    title="Code"
+                    width={1440}
+                    height={900}
+                  />
+                }
                 imageFirst
               />
 
-              {/* 05 — Notifications across channels */}
+              {/* 05 — Costs */}
               <DeckPanel
                 index="05"
-                eyebrow="Channels"
-                title="Your agents reach you where you already are."
+                eyebrow="Costs"
+                title="Spend, read straight from the source."
                 body={
                   <>
-                    Bridge WhatsApp, Slack, Telegram, and Discord. Agents post
-                    updates, hand work to each other with @mentions, and answer
-                    when you reply &mdash; from your phone, in the thread you
-                    were already in.
+                    mycel reads usage from each agent&rsquo;s own records
+                    &mdash; no estimates, no bookkeeping. See spend by agent,
+                    by model, and over time, with burn rate and your biggest
+                    cost driver called out for whatever range you pick. The
+                    bill never surprises you, because you watched it happen.
                   </>
                 }
                 artifact={
-                  <TerminalWindow title="#engineering" ariaLabel="A channel view showing agents coordinating with mentions across bridged apps">
-                    <ChannelView
-                      name="engineering"
-                      members={5}
-                      messages={[
-                        { time: "09:14", agent: "api-eng", role: "engineer", message: "Billing webhook is green. Opening PR #214." },
-                        { time: "09:15", agent: "reviewer", role: "manager", message: "@qa-01 run the payment path before I merge." },
-                        { time: "09:16", agent: "qa-01", role: "qa", message: "On it — e2e suite running now." },
-                        { time: "09:19", agent: "you", role: "you", message: "Ship it once QA is green. (via Slack)" },
-                      ]}
-                    />
-                  </TerminalWindow>
+                  <ProductFrame
+                    srcDark="/screenshots/insights-dark.png"
+                    alt="The insights view: total spend, token counts, burn rate, and cost broken down by agent and by model"
+                    title="Insights"
+                    width={1440}
+                    height={860}
+                  />
                 }
               />
 
-              {/* 06 — Cost visibility */}
+              {/* 06 — One app */}
               <DeckPanel
                 index="06"
-                eyebrow="Cost"
-                title="See the bill before it surprises you."
+                eyebrow="One app"
+                title="On your desktop, in your browser — the same app."
                 body={
                   <>
-                    Every token is tracked per agent, per model, and per day.
-                    Read live spend and set budgets with hard stops &mdash; an
-                    agent pauses itself the moment it hits the limit you gave
-                    it.
+                    mycel runs as a desktop app and serves the same interface
+                    in your browser on localhost. Light or dark, laptop or
+                    second screen &mdash; it&rsquo;s one app, it runs on your
+                    machine, and it runs everything.
                   </>
                 }
                 artifact={
-                  <TerminalWindow title="mycel cost show" ariaLabel="A cost table breaking down spend and budget per agent">
-                    <CostTable
-                      rows={[
-                        { agent: "api-eng", tokensIn: "1.2M", tokensOut: "312K", cost: "$4.18", budget: "$8.00", percent: 52 },
-                        { agent: "web-eng", tokensIn: "880K", tokensOut: "205K", cost: "$2.94", budget: "$8.00", percent: 37 },
-                        { agent: "qa-01", tokensIn: "410K", tokensOut: "96K", cost: "$1.31", budget: "$4.00", percent: 33 },
-                        { agent: "db-eng", tokensIn: "1.6M", tokensOut: "298K", cost: "$5.02", budget: "$6.00", percent: 84 },
-                      ]}
-                      total={{ cost: "$13.45", budget: "$26.00" }}
-                    />
-                  </TerminalWindow>
+                  <ProductFrame
+                    srcDark="/screenshots/agents-light.png"
+                    alt="The same agents view in the light theme, showing the app adapts to your preference"
+                    title="mycel — light theme"
+                    width={1440}
+                    height={700}
+                  />
                 }
                 imageFirst
                 last
@@ -553,19 +374,20 @@ export default function Home() {
             {/* Connective serif accent */}
             <FadeUp className="mx-auto mt-8 max-w-2xl text-center">
               <p className="deck-serif text-2xl leading-snug text-on-surface-variant sm:text-3xl">
-                One control plane. Every model, secret, and channel your team
-                already uses &mdash;{" "}
-                <span className="text-primary">wired in once.</span>
+                A team you can see is a team you can trust &mdash;{" "}
+                <span className="text-primary">
+                  every agent, every change, every cent.
+                </span>
               </p>
             </FadeUp>
           </div>
         </section>
 
         {/* Section separator */}
-        <div className="mx-auto max-w-5xl px-6"><div className="section-separator" /></div>
+        <SporeDivider />
 
         {/* ════════════════════════════════════════
-           Install
+           Get mycel — compact, terminal-flavored
            ════════════════════════════════════════ */}
         <InstallSection />
 
@@ -592,7 +414,7 @@ export default function Home() {
                 href="/docs"
                 className="inline-flex h-11 items-center gap-2 rounded-lg border border-outline-variant/20 px-8 font-body text-sm font-medium text-on-surface-variant transition-colors hover:bg-surface-container hover:text-on-surface active:scale-[0.97]"
               >
-                Browse the CLI reference
+                Browse the docs
                 <ArrowRight className="h-4 w-4" aria-hidden="true" />
               </Link>
             </div>
