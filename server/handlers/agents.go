@@ -91,7 +91,7 @@ func (b *agentEventBroker) publish(agentName string, msg []byte) {
 // AgentHandler handles /api/agents routes.
 type AgentHandler struct {
 	svc        *agent.AgentService
-	costs      *cost.Store
+	costs      *cost.Service
 	ws         *workspace.Workspace
 	hub        *ws.Hub
 	events     events.EventStore
@@ -103,7 +103,7 @@ type AgentHandler struct {
 
 // NewAgentHandler creates an AgentHandler.
 // costs, ws, hub, and eventStore may be nil; enrichment fields will be omitted when unavailable.
-func NewAgentHandler(svc *agent.AgentService, costs *cost.Store, ws *workspace.Workspace, hub *ws.Hub) *AgentHandler {
+func NewAgentHandler(svc *agent.AgentService, costs *cost.Service, ws *workspace.Workspace, hub *ws.Hub) *AgentHandler {
 	h := &AgentHandler{svc: svc, costs: costs, ws: ws, hub: hub, broker: newAgentEventBroker()}
 	if svc != nil {
 		// The per-agent SSE broker stays handler-owned; the service invokes
@@ -236,7 +236,7 @@ func toDTO(a *agent.Agent) agentDTO {
 }
 
 // buildCostMap queries per-agent cost summaries and returns them keyed by agent ID.
-func buildCostMap(ctx context.Context, store *cost.Store) map[string]*cost.Summary {
+func buildCostMap(ctx context.Context, store *cost.Service) map[string]*cost.Summary {
 	summaries, err := store.SummaryByAgent(ctx)
 	if err != nil {
 		return nil

@@ -10,6 +10,7 @@ package server
 import (
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 	"sync"
 	"time"
@@ -48,7 +49,6 @@ type Globals struct {
 	Templates    *bctemplate.Store  // user-global template store (~/.mycel/templates/)
 	SecretsVault *bcsecret.Store    // user-global secrets vault (~/.mycel/secrets.vault)
 	MCPGlobal    *bcmcp.GlobalStore // user-global MCP registry (~/.mycel/mcps.json)
-	CostsGlobal  *cost.Store        // user-global cost ledger — shared process-wide
 	Build        BuildInfo
 }
 
@@ -172,45 +172,21 @@ func buildServicesFromWS(ctx context.Context, globals *Globals, ws *bcworkspace.
 	agentMgr.StartToolHealthLoop(svcCtx, bcagent.DefaultToolHealthInterval)
 	addCloser(func() error { agentMgr.StopToolHealthLoop(); return nil })
 
-	// Cost store + importer. Prefer the user-global ledger at
-	// ~/.mycel/costs.db when Globals.CostsGlobal is supplied — every
-	// record is tagged with the repo path via ScopedStore /
-	// Importer.SetRepo so cross-repo analytics work out of the box.
-	// Fall back to the per-workspace store for legacy callers / tests
-	// that assemble Globals by hand without the global ledger.
-	var costStore *cost.Store
-	var costImporter *cost.Importer
-	if globals != nil && globals.CostsGlobal != nil {
-		costStore = globals.CostsGlobal
-		// Ownership stays with whoever populated Globals; no closer.
-		costImporter = cost.NewImporter(costStore, ws.RootDir)
-		costImporter.SetRepo(ws.RootDir)
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			runCostImportLoop(svcCtx, costImporter)
-		}()
-	} else if cs, err := cost.OpenStore(wsDB, wsDriver, ws.RootDir); err != nil {
-		log.Warn("cost store unavailable", "error", err, "workspace", ws.RootDir)
-		degraded["costs"] = "cost store unavailable: " + err.Error()
-	} else {
-		costStore = cs
-		addCloser(func() error { return cs.Close() })
-
-		costImporter = cost.NewImporter(cs, ws.RootDir)
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			runCostImportLoop(svcCtx, costImporter)
-		}()
+	// Source-direct cost service: costs are computed from provider
+	// session files on demand (60s in-process cache, ?refresh=1 to
+	// invalidate) — there is no ledger. Budget thresholds live in
+	// prefs.json and are evaluated against the computed totals.
+	userHome, homeErr := os.UserHomeDir()
+	if homeErr != nil {
+		log.Warn("cannot resolve user home for cost sources", "error", homeErr)
 	}
+	costSvc := cost.NewService(provider.DefaultRegistry, cost.Options{
+		Home:      userHome,
+		AgentsDir: ws.AgentsDir(),
+	}, &prefsBudgetStore{ws: ws})
 
-	// Wire cost querier into agent service (after cost store is initialized).
-	var costQuerier bcagent.CostQuerier
-	if costStore != nil {
-		costQuerier = &costStoreAdapter{store: costStore}
-	}
-	agentSvc := bcagent.NewAgentService(agentMgr, hub, costQuerier)
+	// Wire cost querier into agent service.
+	agentSvc := bcagent.NewAgentService(agentMgr, hub, &costServiceAdapter{svc: costSvc})
 
 	// Secret store. Prefer the user-global vault (~/.mycel/secrets.vault)
 	// supplied by Globals so a single secret set once is visible across
@@ -334,23 +310,22 @@ func buildServicesFromWS(ctx context.Context, globals *Globals, ws *bcworkspace.
 	_ = provider.DefaultRegistry
 
 	svc := &Services{
-		WS:           ws,
-		Agents:       agentSvc,
-		AgentMgr:     agentMgr,
-		EventLog:     eventLog,
-		EventWriter:  eventWriter,
-		Costs:        costStore,
-		CostImporter: costImporter,
-		Secrets:      secretStore,
-		MCP:          mcpStore,
-		MCPGlobal:    globalMCPStore(globals),
-		Tools:        toolStore,
-		Templates:    tmplStore,
-		Gateway:      gwManager,
-		Notify:       notifyService,
-		Hub:          hub,
-		Degraded:     degraded,
-		lifecycle:    &serviceLifecycle{cancel: svcCancel, wg: &wg},
+		WS:          ws,
+		Agents:      agentSvc,
+		AgentMgr:    agentMgr,
+		EventLog:    eventLog,
+		EventWriter: eventWriter,
+		Costs:       costSvc,
+		Secrets:     secretStore,
+		MCP:         mcpStore,
+		MCPGlobal:   globalMCPStore(globals),
+		Tools:       toolStore,
+		Templates:   tmplStore,
+		Gateway:     gwManager,
+		Notify:      notifyService,
+		Hub:         hub,
+		Degraded:    degraded,
+		lifecycle:   &serviceLifecycle{cancel: svcCancel, wg: &wg},
 	}
 
 	// Propagate global-scoped stores onto the bundle so handlers can
@@ -487,30 +462,6 @@ func appStateDir(ws *bcworkspace.Workspace, instance string) string {
 	return filepath.Join(ws.StateDir(), "apps", instance)
 }
 
-// runCostImportLoop drains the cost importer once immediately, then every
-// 5 minutes until ctx is canceled.
-func runCostImportLoop(ctx context.Context, imp *cost.Importer) {
-	if n, err := imp.ImportAll(ctx); err != nil {
-		log.Warn("cost import failed", "error", err)
-	} else if n > 0 {
-		log.Info("cost import: imported records", "count", n)
-	}
-	ticker := time.NewTicker(5 * time.Minute)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ticker.C:
-			if n, err := imp.ImportAll(ctx); err != nil {
-				log.Warn("cost import failed", "error", err)
-			} else if n > 0 {
-				log.Info("cost import: imported records", "count", n)
-			}
-		case <-ctx.Done():
-			return
-		}
-	}
-}
-
 // eventPruneMaxPerAgent caps retained events per agent. 5,000 was too
 // small — a busy agent burned through it in about an hour and the Live
 // page lost history (#3279). The 24h TTL is the real bound; the cap is
@@ -593,13 +544,13 @@ func (p *channelPersister) UpsertChannelMeta(ctx context.Context, bcChannel, dis
 	return p.store.UpsertChannelMeta(ctx, bcChannel, displayName, kind, participantCount)
 }
 
-// costStoreAdapter bridges cost.Store → bcagent.CostQuerier.
-type costStoreAdapter struct {
-	store *cost.Store
+// costServiceAdapter bridges cost.Service → bcagent.CostQuerier.
+type costServiceAdapter struct {
+	svc *cost.Service
 }
 
-func (a *costStoreAdapter) AgentCostSummary(agentID string) (*bcagent.CostSummary, error) {
-	sum, err := a.store.AgentSummary(context.Background(), agentID)
+func (a *costServiceAdapter) AgentCostSummary(agentID string) (*bcagent.CostSummary, error) {
+	sum, err := a.svc.AgentSummary(context.Background(), agentID)
 	if err != nil {
 		return nil, err
 	}
@@ -611,4 +562,41 @@ func (a *costStoreAdapter) AgentCostSummary(agentID string) (*bcagent.CostSummar
 		TotalCostUSD: sum.TotalCostUSD,
 		RequestCount: sum.RecordCount,
 	}, nil
+}
+
+// prefsBudgetStore persists budget thresholds in the global prefs
+// (~/.mycel/prefs.json) via the workspace config.
+type prefsBudgetStore struct {
+	mu sync.Mutex
+	ws *bcworkspace.Workspace
+}
+
+func (p *prefsBudgetStore) All() (map[string]cost.BudgetConfig, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	out := make(map[string]cost.BudgetConfig, len(p.ws.Config.Budgets))
+	for scope, cfg := range p.ws.Config.Budgets {
+		out[scope] = cfg
+	}
+	return out, nil
+}
+
+func (p *prefsBudgetStore) Set(scope string, b cost.BudgetConfig) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.ws.Config.Budgets == nil {
+		p.ws.Config.Budgets = map[string]cost.BudgetConfig{}
+	}
+	p.ws.Config.Budgets[scope] = b
+	return p.ws.Save()
+}
+
+func (p *prefsBudgetStore) Delete(scope string) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if _, ok := p.ws.Config.Budgets[scope]; !ok {
+		return fmt.Errorf("budget not found for scope %q", scope)
+	}
+	delete(p.ws.Config.Budgets, scope)
+	return p.ws.Save()
 }

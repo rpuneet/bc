@@ -100,14 +100,14 @@ type ProviderHandler struct {
 	sf         singleflight.Group
 	registry   *provider.Registry
 	agents     *agent.AgentService
-	costs      *cost.Store
+	costs      *cost.Service
 	ws         *workspace.Workspace
 	modelCache map[string]modelCacheEntry
 	modelMu    sync.Mutex
 }
 
 // NewProviderHandler creates a ProviderHandler.
-func NewProviderHandler(registry *provider.Registry, agents *agent.AgentService, costs *cost.Store, ws *workspace.Workspace) *ProviderHandler {
+func NewProviderHandler(registry *provider.Registry, agents *agent.AgentService, costs *cost.Service, ws *workspace.Workspace) *ProviderHandler {
 	return &ProviderHandler{registry: registry, agents: agents, costs: costs, ws: ws, modelCache: make(map[string]modelCacheEntry)}
 }
 

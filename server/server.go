@@ -72,21 +72,22 @@ func DefaultConfig() Config {
 // bcd is single-tenant: exactly one Services value is built at boot
 // (see BuildServices) and lives for the process lifetime.
 type Services struct {
-	Agents       *agent.AgentService
-	AgentMgr     *agent.Manager
-	Costs        *cost.Store
-	CostImporter *cost.Importer
-	Secrets      *secret.Store
-	MCP          *mcp.Store
-	MCPGlobal    *mcp.GlobalStore // user-global MCP registry (~/.mycel/mcps.json)
-	Tools        *tool.Store
-	Templates    *template.Store
-	Stats        *stats.Store
-	EventLog     events.EventStore
-	EventWriter  *events.JSONLWriter
-	WS           *workspace.Workspace
-	Gateway      *gateway.Manager
-	Notify       *notify.Service
+	Agents   *agent.AgentService
+	AgentMgr *agent.Manager
+	// Costs computes analytics directly from provider session files
+	// (source-direct — no ledger).
+	Costs       *cost.Service
+	Secrets     *secret.Store
+	MCP         *mcp.Store
+	MCPGlobal   *mcp.GlobalStore // user-global MCP registry (~/.mycel/mcps.json)
+	Tools       *tool.Store
+	Templates   *template.Store
+	Stats       *stats.Store
+	EventLog    events.EventStore
+	EventWriter *events.JSONLWriter
+	WS          *workspace.Workspace
+	Gateway     *gateway.Manager
+	Notify      *notify.Service
 	// Hub is the process-wide SSE hub the bundle publishes into.
 	Hub *ws.Hub
 	// Degraded maps service name → reason for services that failed to
@@ -178,18 +179,6 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		if svc.Costs != nil {
-			if db := svc.Costs.DB(); db != nil {
-				ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
-				defer cancel()
-				var one int
-				if err := db.QueryRowContext(ctx, "SELECT 1").Scan(&one); err != nil {
-					w.WriteHeader(http.StatusServiceUnavailable)
-					fmt.Fprintf(w, `{"status":"unhealthy","db":"error: %s"}`, strings.ReplaceAll(err.Error(), `"`, `'`)) //nolint:errcheck
-					return
-				}
-			}
-		}
 		// version = semver tag when available (release builds), else commit
 		// hash so source builds still round-trip a meaningful identifier.
 		v := cfg.Build.Version
@@ -308,7 +297,7 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 		})
 	}
 	if svc.Costs != nil {
-		handlers.NewCostHandler(svc.Costs, svc.CostImporter).Register(mux)
+		handlers.NewCostHandler(svc.Costs).Register(mux)
 	}
 	if svc.Secrets != nil {
 		handlers.NewSecretHandler(svc.Secrets).Register(mux)

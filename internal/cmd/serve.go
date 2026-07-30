@@ -11,7 +11,6 @@ import (
 	"strings"
 	"syscall"
 
-	bccost "github.com/rpuneet/mycel/pkg/cost"
 	bcdb "github.com/rpuneet/mycel/pkg/db"
 	bcdeps "github.com/rpuneet/mycel/pkg/deps"
 	"github.com/rpuneet/mycel/pkg/log"
@@ -145,19 +144,8 @@ func RunServer(addr, wsRoot, corsOrigin, apiKey string) error {
 		mcpGlobal = bcmcp.NewGlobalStore(mcpPath)
 	}
 
-	// User-global cost ledger at ~/.mycel/costs.db. Records carry the
-	// repo path for cross-repo analytics. When the ledger
-	// cannot be opened, per-workspace stores continue to work via the
-	// build_services.go fallback.
-	var costsGlobal *bccost.Store
-	if home, cpErr := bcworkspace.MycelHome(); cpErr != nil {
-		log.Warn("global costs path unavailable", "error", cpErr)
-	} else if cs, openErr := bccost.OpenGlobalStore(filepath.Join(home, "costs.db")); openErr != nil {
-		log.Warn("global costs ledger unavailable", "error", openErr, "path", filepath.Join(home, "costs.db"))
-	} else {
-		costsGlobal = cs
-		defer cs.Close() //nolint:errcheck // best-effort
-	}
+	// Costs are source-direct: BuildServices constructs the cost
+	// service from provider session files — there is no ledger to open.
 
 	globals := &server.Globals{
 		Stats:        statsStore,
@@ -166,7 +154,6 @@ func RunServer(addr, wsRoot, corsOrigin, apiKey string) error {
 		Templates:    templatesStore,
 		SecretsVault: globalVault,
 		MCPGlobal:    mcpGlobal,
-		CostsGlobal:  costsGlobal,
 		Build:        server.BuildInfo{Version: version, Commit: commit, BuiltAt: date},
 	}
 

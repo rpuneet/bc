@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 
 	"github.com/rpuneet/mycel/pkg/app"
+	"github.com/rpuneet/mycel/pkg/cost"
 	"github.com/rpuneet/mycel/pkg/db"
 )
 
@@ -31,12 +32,16 @@ type Config struct { //nolint:govet // field order matches JSON/API contract
 	// Apps holds connected external integrations keyed by instance name
 	// ("slack", "telegram:alerts"). Secret fields never appear here —
 	// they live in the vault under app:<instance>:<key>.
-	Apps    map[string]app.InstanceConfig `json:"apps,omitempty"`
-	Runtime RuntimeConfig                 `json:"runtime"`
-	Storage StorageConfig                 `json:"storage"`
-	Server  ServerConfig                  `json:"server"`
-	Logs    LogsConfig                    `json:"logs"`
-	UI      UIConfig                      `json:"ui"`
+	Apps map[string]app.InstanceConfig `json:"apps,omitempty"`
+	// Budgets holds cost budget thresholds keyed by scope
+	// ("workspace", "agent:<id>"). Spend is computed from provider
+	// sources and evaluated against these limits.
+	Budgets map[string]cost.BudgetConfig `json:"budgets,omitempty"`
+	Runtime RuntimeConfig                `json:"runtime"`
+	Storage StorageConfig                `json:"storage"`
+	Server  ServerConfig                 `json:"server"`
+	Logs    LogsConfig                   `json:"logs"`
+	UI      UIConfig                     `json:"ui"`
 	// InjectedInstructions is mycel-authored guidance appended to every
 	// agent's prompt file at spawn time. Never contains secret values.
 	InjectedInstructions string `json:"injected_instructions"`

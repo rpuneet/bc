@@ -33,7 +33,7 @@ var serverStartTime = time.Now() //nolint:gochecknoglobals // intentional: track
 // StatsHandler handles /api/stats routes.
 type StatsHandler struct {
 	agents     *agent.AgentService
-	costs      *cost.Store
+	costs      *cost.Service
 	tools      *tool.Store
 	ws         *workspace.Workspace
 	statsStore *stats.Store
@@ -44,7 +44,7 @@ type StatsHandler struct {
 // NewStatsHandler creates a StatsHandler.
 func NewStatsHandler(
 	agents *agent.AgentService,
-	costs *cost.Store,
+	costs *cost.Service,
 	tools *tool.Store,
 	ws *workspace.Workspace,
 	statsStore *stats.Store,
