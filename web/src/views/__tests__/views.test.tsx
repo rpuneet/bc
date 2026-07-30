@@ -4,10 +4,19 @@ import { MemoryRouter, Routes, Route, useLocation } from "react-router-dom";
 import { HeaderSlotProvider, useHeaderSlotContext } from "../../context/HeaderSlotContext";
 import { Agents } from "../Agents";
 import { AgentDetail, lifecycleDisabled } from "../AgentDetail";
+import { CodeBrowser } from "../../components/code/CodeBrowser";
+import { EmptyState } from "../../components/EmptyState";
 import { Notifications } from "../Notifications";
 import { Tools } from "../Tools";
 import { Live } from "../Live";
 import { Secrets } from "../Secrets";
+
+// Monaco loads its editor bundle from a CDN at mount time — stub it out so
+// CodeBrowser can render under jsdom.
+vi.mock("@monaco-editor/react", () => ({
+  default: () => <div data-testid="monaco-editor" />,
+  DiffEditor: () => <div data-testid="monaco-diff-editor" />,
+}));
 
 const fetchMock = globalThis.fetch as ReturnType<typeof vi.fn>;
 
@@ -261,6 +270,119 @@ describe("AgentDetail tab navigation", () => {
     fireEvent.click(screen.getByRole("button", { name: "Code" }));
     await waitFor(() => {
       expect(screen.getByTestId("location").textContent).toBe("/agents/bot-1/code");
+    });
+  });
+
+  it("code tab embeds the CodeBrowser pinned to the agent worktree", async () => {
+    const treeCalls: string[] = [];
+    fetchMock.mockImplementation((url: RequestInfo | URL) => {
+      const u = String(url);
+      if (u.endsWith("/api/agents/bot-1")) {
+        return jsonResponse({
+          name: "bot-1",
+          role: "engineer",
+          tool: "claude",
+          state: "working",
+          total_cost_usd: 0,
+          created_at: "2026-07-01T00:00:00Z",
+          started_at: "2026-07-01T00:00:00Z",
+          updated_at: "2026-07-01T00:00:00Z",
+        });
+      }
+      if (u.includes("/api/code/tree")) {
+        treeCalls.push(u);
+        // Empty tree → agent has no worktree (or nothing in it).
+        return jsonResponse([]);
+      }
+      return jsonResponse([]);
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/agents/bot-1/code"]}>
+        <HeaderSlotProvider>
+          <HeaderSlotHost />
+          <Routes>
+            <Route path="agents/:name" element={<AgentDetail />} />
+            <Route path="agents/:name/*" element={<AgentDetail />} />
+          </Routes>
+        </HeaderSlotProvider>
+      </MemoryRouter>,
+    );
+
+    // The embedded browser fetched the tree for this agent's worktree.
+    await waitFor(() => {
+      expect(treeCalls.length).toBeGreaterThan(0);
+    });
+    expect(treeCalls[0]).toContain("worktree=bot-1");
+
+    // No worktree → the EmptyState pattern, not the old redirect stub.
+    await waitFor(() => {
+      expect(screen.getByText("No worktree to browse")).toBeInTheDocument();
+    });
+    expect(screen.queryByText("Open in Code view")).not.toBeInTheDocument();
+
+    // The "open full view" affordance links to /code with the worktree pinned.
+    const fullView = screen.getByRole("link", { name: /Full view/ });
+    expect(fullView).toHaveAttribute("href", "/code?worktree=bot-1");
+  });
+});
+
+describe("CodeBrowser", () => {
+  it("renders the file tree with the embedded header controls", async () => {
+    fetchMock.mockImplementation((url: RequestInfo | URL) => {
+      const u = String(url);
+      if (u.includes("/api/code/tree")) {
+        return jsonResponse([
+          { name: "src", path: "src", is_dir: true },
+          { name: "main.go", path: "main.go", is_dir: false, size: 42 },
+        ]);
+      }
+      return jsonResponse([]);
+    });
+
+    render(
+      <MemoryRouter>
+        <CodeBrowser
+          worktree="bot-1"
+          embedded
+          fullViewHref="/code?worktree=bot-1"
+        />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("src")).toBeInTheDocument();
+      expect(screen.getByText("main.go")).toBeInTheDocument();
+    });
+
+    // Embedded header: diff/plain toggle (diff is the default), full-view link.
+    expect(screen.getByRole("button", { name: "Diff" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Plain" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Full view/ })).toHaveAttribute(
+      "href",
+      "/code?worktree=bot-1",
+    );
+    // No worktree dropdown in embedded mode.
+    expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+    // No file selected yet → viewer shows the hint, no Monaco mounted.
+    expect(screen.getByText("Select a file from the tree")).toBeInTheDocument();
+  });
+
+  it("renders the provided emptyState when the worktree has no files", async () => {
+    fetchMock.mockReturnValue(jsonResponse([]));
+
+    render(
+      <MemoryRouter>
+        <CodeBrowser
+          worktree="bot-1"
+          embedded
+          emptyState={<EmptyState title="No worktree to browse" />}
+        />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("No worktree to browse")).toBeInTheDocument();
     });
   });
 });

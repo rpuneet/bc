@@ -14,6 +14,8 @@ import { SystemPromptEditor } from "../components/shared/SystemPromptEditor";
 import { SectionRule } from "../components/shared";
 import { AgentToolStream } from "../components/live/AgentToolStream";
 import { CreateAgentModal } from "../components/CreateAgentModal";
+import { CodeBrowser } from "../components/code/CodeBrowser";
+import { EmptyState } from "../components/EmptyState";
 import { SecretValueInput, isValidEnvKey } from "../components/EnvVarsEditor";
 import { formatAbsolute, formatRelative as sharedFormatRelative } from "../utils/time";
 import { MONO } from "../utils/typography";
@@ -1051,37 +1053,31 @@ function ConfigTab({ agent, agentsUrl }: { agent: Agent; agentsUrl: string }) {
    ═══════════════════════════════════════════════════════════════════ */
 
 /* ═══════════════════════════════════════════════════════════════════
-   Tab 5 — Code (placeholder)
-   Shows file tree + Monaco editor (or code-server iframe when available).
-   Full implementation in Phase 3 of the multi-workspace proposal.
+   Tab 5 — Code
+   Embedded CodeBrowser pinned to this agent's worktree. Defaults to
+   diff view (agent worktree vs main repo). The compact header carries
+   a "Full view" link to the top-level /code view.
    ═══════════════════════════════════════════════════════════════════ */
 
-function CodeTabPlaceholder({ agent }: { agent: Agent }) {
-  // Defers to the top-level Code view. Routes are flat — no workspace
-  // prefix — so the target is simply /code with the worktree preselected.
-  const target = `/code?worktree=${encodeURIComponent(agent.name)}&view=diff`;
-
+function CodeTab({ agent }: { agent: Agent }) {
   return (
-    <div className="flex-1 flex items-center justify-center p-6">
-      <div className="max-w-md text-center space-y-4">
-        <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted">
-          Agent code — diff view
-        </p>
-        <p className="text-sm text-mycel-muted leading-relaxed">
-          Open the Code view with <span className="text-mycel-text" style={{ fontFamily: MONO }}>{agent.name}</span>'s
-          worktree selected to see its uncommitted changes against the main repo.
-        </p>
-        <Link
-          to={target}
-          className="inline-flex items-center gap-2 h-9 px-4 rounded-md border border-mycel-accent bg-mycel-accent-subtle text-mycel-accent hover:bg-mycel-accent hover:text-mycel-accent-fg transition-colors text-xs font-medium"
-        >
-          Open in Code view
-          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.6">
-            <path d="M3 9l6-6M5 3h4v4" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </Link>
-      </div>
-    </div>
+    <CodeBrowser
+      key={agent.name}
+      worktree={agent.name}
+      embedded
+      fullViewHref={`/code?worktree=${encodeURIComponent(agent.name)}`}
+      emptyState={
+        <EmptyState
+          icon={
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <path d="m8 8-4 4 4 4M16 8l4 4-4 4M13 5l-2 14" />
+            </svg>
+          }
+          title="No worktree to browse"
+          description={`${agent.name} has no git worktree yet, or it is empty. Once the agent works on a repo, its uncommitted changes show up here as a diff against the main repo.`}
+        />
+      }
+    />
   );
 }
 
@@ -1377,7 +1373,7 @@ export function AgentDetail() {
         {activeTab === "attach" && <AttachTab agent={agent} />}
         {activeTab === "config" && <ConfigTab agent={agent} agentsUrl={agentsUrl} />}
         {activeTab === "metrics" && <MetricsTab agent={agent} />}
-        {activeTab === "code" && <CodeTabPlaceholder agent={agent} />}
+        {activeTab === "code" && <CodeTab agent={agent} />}
       </div>
 
     </div>
