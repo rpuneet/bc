@@ -48,6 +48,19 @@ const catalog = {
       docs: [],
     },
     { id: "whatsapp", label: "WhatsApp", auth: "qr", multi: false, fields: [], docs: ["Scan the QR"] },
+    {
+      id: "github",
+      label: "GitHub",
+      auth: "webhook-secret",
+      multi: true,
+      oauth_available: true,
+      fields: [
+        { key: "secret", label: "Webhook Secret", placeholder: "your-webhook-secret", secret: true, required: false },
+        { key: "oauth_client_id", label: "OAuth Client ID", placeholder: "Ov23li...", secret: false, required: false },
+        { key: "api_token", label: "API Token", placeholder: "ghp_...", secret: true, required: false },
+      ],
+      docs: [],
+    },
   ],
   instances: [
     { name: "slack", app: "slack", enabled: true, connected: true, config: { has_bot_token: true, has_app_token: false, mode: "socket" }, channels: [] },
@@ -217,6 +230,126 @@ describe("ConnectWizard", () => {
     await waitFor(() => {
       expect(screen.getByText("Unknown app: nope")).toBeInTheDocument();
     });
+  });
+});
+
+/* ── ConnectWizard — browser sign-in (OAuth device flow) ─────── */
+
+/** Mocks the catalog plus the OAuth begin/poll endpoints for github. */
+function mockOAuthEndpoints(opts: {
+  begin?: () => Promise<Response>;
+  status?: () => Promise<Response>;
+} = {}) {
+  fetchMock.mockImplementation((url: RequestInfo | URL, init?: RequestInit) => {
+    const u = String(url);
+    if (u === "/api/apps" && (!init?.method || init.method === "GET")) {
+      return jsonResponse(catalog);
+    }
+    if (u === "/api/apps/github/auth" && init?.method === "POST") {
+      return opts.begin
+        ? opts.begin()
+        : jsonResponse({
+            id: "sess-1",
+            kind: "device",
+            state: "pending",
+            verification_url: "https://github.com/login/device",
+            user_code: "ABCD-1234",
+            interval_seconds: 5,
+          });
+    }
+    if (u.startsWith("/api/apps/github/auth/status?session=")) {
+      return opts.status ? opts.status() : jsonResponse({ state: "pending" });
+    }
+    return jsonResponse([]);
+  });
+}
+
+describe("ConnectWizard OAuth", () => {
+  it("runs the device flow: sign in → user code → poll → agents step", async () => {
+    const onConnected = vi.fn();
+    mockOAuthEndpoints({ status: () => jsonResponse({ state: "complete" }) });
+    render(<ConnectWizard appId="github" onClose={() => undefined} onConnected={onConnected} />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Connect GitHub")).toBeInTheDocument();
+    });
+    // Manual fields remain available alongside the sign-in.
+    expect(screen.getByText("or configure manually")).toBeInTheDocument();
+
+    // Typed plain fields ride along with the begin request.
+    fireEvent.change(screen.getByPlaceholderText("Ov23li..."), { target: { value: "Ov23liTEST" } });
+    fireEvent.click(screen.getByRole("button", { name: "Sign in with GitHub" }));
+
+    // Device-flow UX: the user code plus the verification link.
+    await waitFor(() => {
+      expect(screen.getByTestId("oauth-user-code")).toHaveTextContent("ABCD-1234");
+    });
+    const link = screen.getByRole("link", { name: /github.com\/login\/device/ });
+    expect(link).toHaveAttribute("href", "https://github.com/login/device");
+    expect(screen.getByText("Waiting for authorization...")).toBeInTheDocument();
+
+    const begin = fetchMock.mock.calls.find(
+      (c) => String(c[0]) === "/api/apps/github/auth" && (c[1] as RequestInit | undefined)?.method === "POST",
+    );
+    expect(begin).toBeDefined();
+    const body = JSON.parse(String((begin![1] as RequestInit).body)) as { config: Record<string, string> };
+    expect(body.config).toEqual({ oauth_client_id: "Ov23liTEST" });
+
+    // First poll (2s) reports complete → wizard advances to agents.
+    await waitFor(() => {
+      expect(screen.getByText("Add agents to GitHub")).toBeInTheDocument();
+    }, { timeout: 4000 });
+    expect(onConnected).toHaveBeenCalled();
+  }, 10000);
+
+  it("surfaces begin failures with a retry", async () => {
+    mockOAuthEndpoints({
+      begin: () =>
+        Promise.resolve({
+          ok: false,
+          status: 400,
+          statusText: "Bad Request",
+          json: () => Promise.resolve({ error: "begin auth: github: oauth_client_id is not set" }),
+        } as Response),
+    });
+    render(<ConnectWizard appId="github" onClose={() => undefined} onConnected={() => undefined} />);
+    await waitFor(() => {
+      expect(screen.getByText("Connect GitHub")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Sign in with GitHub" }));
+    await waitFor(() => {
+      expect(screen.getByText(/oauth_client_id is not set/)).toBeInTheDocument();
+    });
+    expect(screen.getByRole("button", { name: "Retry sign in with GitHub" })).toBeInTheDocument();
+  });
+
+  it("surfaces poll errors (denied / expired codes)", async () => {
+    mockOAuthEndpoints({
+      status: () => jsonResponse({ state: "error", error: "access_denied" }),
+    });
+    render(<ConnectWizard appId="github" onClose={() => undefined} onConnected={() => undefined} />);
+    await waitFor(() => {
+      expect(screen.getByText("Connect GitHub")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Sign in with GitHub" }));
+    await waitFor(() => {
+      expect(screen.getByTestId("oauth-user-code")).toBeInTheDocument();
+    });
+    await waitFor(() => {
+      expect(screen.getByText("access_denied")).toBeInTheDocument();
+    }, { timeout: 4000 });
+    expect(screen.getByRole("button", { name: "Retry sign in with GitHub" })).toBeInTheDocument();
+  }, 10000);
+
+  it("keeps token apps without oauth_available on the manual path only", async () => {
+    mockCatalog();
+    render(<ConnectWizard appId="telegram" onClose={() => undefined} onConnected={() => undefined} />);
+    await waitFor(() => {
+      expect(screen.getByText("Connect Telegram")).toBeInTheDocument();
+    });
+    expect(screen.queryByTestId("oauth-panel")).not.toBeInTheDocument();
   });
 });
 
