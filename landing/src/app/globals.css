@@ -1,73 +1,85 @@
 @import "tailwindcss";
 
 /* ═══════════════════════════════════════════════════════════════════
-   SOLAR FLARE / RADIANT TERMINAL DESIGN SYSTEM
-   Warm obsidian · Tonal surface hierarchy · No solid borders
-   Dark-first palette with glass panels and terminal glow.
+   MYCEL — COFFEE & CREAM DESIGN SYSTEM
+   Porcelain cream → café-au-lait grounds · espresso/porcini depth
+   Chanterelle amber as the single bold accent · spore-lavender whisper
+   Warm-tinted shadows, hairlines on cream, glow-edges on espresso.
+
+   Core brand values:
+     porcelain    #FAF5EC   cream ground (light bg)
+     café-au-lait #E9DECB   raised cream surfaces
+     chanterelle  #A35D0A / #E8A33D   the accent voice (light / dark)
+     porcini      #5C4A38   warm outline brown
+     espresso     #17110C   dark ground
+     spore-lav    #8D7A9E / #A997BD   rare quiet secondary
    ═══════════════════════════════════════════════════════════════════ */
 
 :root {
-  /* ── Surface hierarchy (light mode) ── */
-  --background: #fbf7f2;
-  --surface: #fbf7f2;
-  --surface-container-lowest: #f5f0ea;
-  --surface-container-low: #efebe5;
-  --surface-container: #eae5df;
-  --surface-container-high: #e4dfd9;
-  --surface-container-highest: #dedad4;
+  /* ── Surface hierarchy (light mode — porcelain → café-au-lait) ── */
+  --background: #faf5ec;
+  --surface: #faf5ec;
+  --surface-container-lowest: #f4ede0;
+  --surface-container-low: #efe6d6;
+  --surface-container: #e9decb;
+  --surface-container-high: #e2d5bf;
+  --surface-container-highest: #dacbb1;
 
   /* ── On-surface text ── */
-  --on-background: #1e1a16;
-  --on-surface: #1e1a16;
-  --on-surface-variant: #78706a;
+  --on-background: #2a1f17;
+  --on-surface: #2a1f17;
+  --on-surface-variant: #695b4d;
 
-  /* ── Primary ── */
-  --primary: #ea580c;
-  --primary-text: #c2410c;
-  --primary-foreground: #ffffff;
-  --on-primary: #ffffff;
+  /* ── Primary — chanterelle amber, deep cut for cream grounds ── */
+  --primary: #a35d0a;
+  --primary-text: #8a4d06;
+  --primary-foreground: #fdfaf3;
+  --on-primary: #fdfaf3;
 
   /* ── Secondary / Accent ── */
-  --secondary: #fb923c;
-  --secondary-foreground: #1e1a16;
-  --accent: #fdba74;
-  --accent-foreground: #1e1a16;
+  --secondary: #c98a2c;
+  --secondary-foreground: #2a1f17;
+  --accent: #e3b664;
+  --accent-foreground: #2a1f17;
 
-  /* ── Outline (NO solid borders — use at 10-20% opacity) ── */
-  --outline-variant: #5a4138;
+  /* ── Spore lavender — rare, quiet ── */
+  --spore: #8d7a9e;
+
+  /* ── Outline (porcini brown — hairlines at 10-20% opacity) ── */
+  --outline-variant: #5c4a38;
 
   /* ── Legacy compat tokens ── */
-  --foreground: #1e1a16;
-  --muted: #f0ebe5;
-  --muted-foreground: #78706a;
-  --border: rgba(90, 65, 56, 0.12);
-  --input: rgba(90, 65, 56, 0.12);
-  --ring: #ea580c;
-  --card: #ffffff;
-  --card-foreground: #1e1a16;
-  --popover: #ffffff;
-  --popover-foreground: #1e1a16;
-  --destructive: #dc2626;
-  --destructive-foreground: #ffffff;
+  --foreground: #2a1f17;
+  --muted: #efe6d6;
+  --muted-foreground: #695b4d;
+  --border: rgba(92, 74, 56, 0.14);
+  --input: rgba(92, 74, 56, 0.14);
+  --ring: #a35d0a;
+  --card: #fdfaf3;
+  --card-foreground: #2a1f17;
+  --popover: #fdfaf3;
+  --popover-foreground: #2a1f17;
+  --destructive: #b3402e;
+  --destructive-foreground: #fdfaf3;
   --radius: 2px;
 
   /* ── Semantic colors ── */
-  --success: #16a34a;
-  --warning: #ea580c;
-  --error: #dc2626;
-  --info: #0ea5e9;
+  --success: #4e7a3a;
+  --warning: #a35d0a;
+  --error: #b3402e;
+  --info: #46688a;
 
-  /* ── Terminal palette (always dark) ── */
-  --terminal-bg: #151311;
-  --terminal-header-bg: #1e1b19;
-  --terminal-header-border: rgba(234, 88, 12, 0.1);
-  --terminal-text: #f5f0eb;
-  --terminal-muted: #8c7e72;
-  --terminal-prompt: #ea580c;
-  --terminal-success: #22c55e;
-  --terminal-error: #ef4444;
-  --terminal-command: #fb923c;
-  --terminal-comment: #5c524a;
+  /* ── Terminal palette (always dark roast) ── */
+  --terminal-bg: #14100b;
+  --terminal-header-bg: #1d1710;
+  --terminal-header-border: rgba(232, 163, 61, 0.1);
+  --terminal-text: #f2eadc;
+  --terminal-muted: #8f8171;
+  --terminal-prompt: #e8a33d;
+  --terminal-success: #97b573;
+  --terminal-error: #e5684f;
+  --terminal-command: #f0b45c;
+  --terminal-comment: #5e5344;
 
   /* ── Traffic-light dots (terminal chrome) ── */
   --traffic-red: #ff5f57;
@@ -75,89 +87,92 @@
   --traffic-green: #28c840;
 
   /* ── Navigation ── */
-  --nav-bg: rgba(251, 247, 242, 0.85);
+  --nav-bg: rgba(250, 245, 236, 0.85);
 
   /* ── Glass ── */
-  --glass-bg: rgba(251, 247, 242, 0.6);
-  --glass-border: rgba(90, 65, 56, 0.08);
+  --glass-bg: rgba(250, 245, 236, 0.6);
+  --glass-border: rgba(92, 74, 56, 0.08);
 
-  /* ── Component-specific ── */
-  --footer-bg: #f5f0ea;
-  --card-shadow: 0 20px 40px rgba(234, 88, 12, 0.04);
-  --btn-shadow: 0 1px 3px rgba(234, 88, 12, 0.2);
+  /* ── Component-specific (warm-tinted shadows, never gray) ── */
+  --footer-bg: #f4ede0;
+  --card-shadow: 0 20px 40px rgba(163, 93, 10, 0.05);
+  --btn-shadow: 0 1px 3px rgba(163, 93, 10, 0.25);
 
   /* ── Method page ── */
-  --method-muted: #6b635b;
+  --method-muted: #695b4d;
 }
 
 .dark {
-  /* ── Surface hierarchy (dark mode — warm obsidian) ── */
-  --background: #151311;
-  --surface: #151311;
-  --surface-container-lowest: #100e0c;
-  --surface-container-low: #1e1b19;
-  --surface-container: #221f1d;
-  --surface-container-high: #2c2927;
-  --surface-container-highest: #373431;
+  /* ── Surface hierarchy (dark mode — espresso) ── */
+  --background: #17110c;
+  --surface: #17110c;
+  --surface-container-lowest: #110c08;
+  --surface-container-low: #1f1812;
+  --surface-container: #241c15;
+  --surface-container-high: #2d241b;
+  --surface-container-highest: #372d22;
 
   /* ── On-surface text ── */
-  --on-background: #f5f0eb;
-  --on-surface: #f5f0eb;
-  --on-surface-variant: #a89e94;
+  --on-background: #f2eadc;
+  --on-surface: #f2eadc;
+  --on-surface-variant: #a79781;
 
-  /* ── Primary ── */
-  --primary: #ea580c;
-  --primary-text: #ffb599;
-  --primary-foreground: #f5f0eb;
-  --on-primary: #f5f0eb;
+  /* ── Primary — chanterelle amber, bright over espresso ── */
+  --primary: #e8a33d;
+  --primary-text: #f0b45c;
+  --primary-foreground: #241c15;
+  --on-primary: #241c15;
 
   /* ── Secondary / Accent ── */
-  --secondary: #fb923c;
-  --secondary-foreground: #151311;
-  --accent: #fdba74;
-  --accent-foreground: #151311;
+  --secondary: #c98a2c;
+  --secondary-foreground: #17110c;
+  --accent: #efcb8a;
+  --accent-foreground: #17110c;
+
+  /* ── Spore lavender ── */
+  --spore: #a997bd;
 
   /* ── Outline ── */
-  --outline-variant: #5a4138;
+  --outline-variant: #6b573f;
 
   /* ── Legacy compat tokens ── */
-  --foreground: #f5f0eb;
-  --muted: #1e1b19;
-  --muted-foreground: #a89e94;
-  --border: rgba(90, 65, 56, 0.15);
-  --input: rgba(90, 65, 56, 0.15);
-  --ring: #ea580c;
-  --card: #1e1b19;
-  --card-foreground: #f5f0eb;
-  --popover: #1e1b19;
-  --popover-foreground: #f5f0eb;
-  --destructive: #ef4444;
-  --destructive-foreground: #f5f0eb;
+  --foreground: #f2eadc;
+  --muted: #1f1812;
+  --muted-foreground: #a79781;
+  --border: rgba(107, 87, 63, 0.22);
+  --input: rgba(107, 87, 63, 0.22);
+  --ring: #e8a33d;
+  --card: #1f1812;
+  --card-foreground: #f2eadc;
+  --popover: #1f1812;
+  --popover-foreground: #f2eadc;
+  --destructive: #e5684f;
+  --destructive-foreground: #17110c;
 
   /* ── Semantic colors ── */
-  --success: #22c55e;
-  --warning: #fb923c;
-  --error: #ef4444;
-  --info: #38bdf8;
+  --success: #97b573;
+  --warning: #e8a33d;
+  --error: #e5684f;
+  --info: #7ba3c9;
 
   /* ── Terminal palette ── */
-  --terminal-bg: #151311;
-  --terminal-header-bg: #1e1b19;
+  --terminal-bg: #14100b;
+  --terminal-header-bg: #1d1710;
 
   /* ── Navigation ── */
-  --nav-bg: rgba(21, 19, 17, 0.85);
+  --nav-bg: rgba(23, 17, 12, 0.85);
 
   /* ── Glass ── */
-  --glass-bg: rgba(21, 19, 17, 0.6);
-  --glass-border: rgba(90, 65, 56, 0.1);
+  --glass-bg: rgba(23, 17, 12, 0.6);
+  --glass-border: rgba(232, 163, 61, 0.08);
 
   /* ── Component-specific ── */
-  --footer-bg: #100e0c;
-  --card-shadow: 0 20px 40px rgba(234, 88, 12, 0.08);
-  --btn-shadow: 0 1px 4px rgba(234, 88, 12, 0.3);
+  --footer-bg: #110c08;
+  --card-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+  --btn-shadow: 0 1px 4px rgba(232, 163, 61, 0.3);
 
   /* ── Method page ── */
-  --method-muted: #a89e94;
+  --method-muted: #a79781;
 }
 
 @theme inline {
@@ -176,6 +191,7 @@
   --color-muted-foreground: var(--muted-foreground);
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
+  --color-spore: var(--spore);
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
   --color-border: var(--border);
@@ -200,14 +216,14 @@
   --radius-md: 4px;
   --radius-sm: 2px;
 
-  /* ── Typography ── */
-  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
-  --font-heading: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
-  --font-mono: "Space Mono", ui-monospace, SFMono-Regular, Consolas, monospace;
-  --font-body: "Inter", ui-sans-serif, system-ui, sans-serif;
-  --font-headline: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
-  --font-label: "Space Mono", ui-monospace, SFMono-Regular, Consolas, monospace;
-  --font-accent: "Instrument Serif", Georgia, serif;
+  /* ── Typography — Fraunces display over a quiet grotesque body ── */
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-heading: var(--font-fraunces), Georgia, serif;
+  --font-mono: var(--font-space-mono), ui-monospace, SFMono-Regular, Consolas, monospace;
+  --font-body: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-headline: var(--font-fraunces), Georgia, serif;
+  --font-label: var(--font-space-mono), ui-monospace, SFMono-Regular, Consolas, monospace;
+  --font-accent: var(--font-fraunces), Georgia, serif;
 
   /* ── Semantic color tokens for Tailwind ── */
   --color-success: var(--success);
@@ -243,7 +259,7 @@ body {
     color 300ms ease;
 }
 
-/* ── Typography: headings use Space Grotesk ── */
+/* ── Typography: display headlines use Fraunces ── */
 h1,
 h2,
 h3,
@@ -251,24 +267,26 @@ h4,
 h5,
 h6 {
   font-family: var(--font-headline);
-  letter-spacing: -0.02em;
+  letter-spacing: -0.015em;
+  font-variation-settings: "SOFT" 40, "WONK" 0;
+  text-wrap: balance;
 }
 
 /* ════════════════════════════════════════════
    UTILITY CLASSES
    ════════════════════════════════════════════ */
 
-/* Hero glow — radial gradient from primary */
+/* Hero glow — warm radial gradient from the amber accent */
 .hero-glow {
   background:
     radial-gradient(
       ellipse 80% 50% at 50% 0%,
-      rgba(234, 88, 12, 0.12) 0%,
+      color-mix(in srgb, var(--primary) 12%, transparent) 0%,
       transparent 70%
     ),
     radial-gradient(
       ellipse 60% 40% at 50% 10%,
-      rgba(251, 146, 60, 0.06) 0%,
+      color-mix(in srgb, var(--secondary) 6%, transparent) 0%,
       transparent 60%
     );
 }
@@ -281,14 +299,14 @@ h6 {
   border: 1px solid var(--glass-border);
 }
 
-/* Terminal glow — primary-tinted shadow */
+/* Terminal glow — amber-tinted shadow */
 .terminal-glow {
-  box-shadow: 0 20px 40px rgba(234, 88, 12, 0.08);
+  box-shadow: 0 20px 40px color-mix(in srgb, var(--primary) 8%, transparent);
 }
 
-/* Accent Instrument Serif italic */
+/* Serif accent — Fraunces italic */
 .accent-instrument {
-  font-family: "Instrument Serif", Georgia, serif;
+  font-family: var(--font-accent);
   font-style: italic;
 }
 
@@ -312,7 +330,7 @@ h6 {
 .dark textarea,
 .dark select {
   background-color: var(--surface-container-low);
-  border-color: rgba(234, 88, 12, 0.1);
+  border-color: color-mix(in srgb, var(--primary) 10%, transparent);
   color: var(--foreground);
 }
 
@@ -330,12 +348,12 @@ h6 {
 
 /* ── Selection highlighting ── */
 ::selection {
-  background-color: rgba(234, 88, 12, 0.15);
+  background-color: color-mix(in srgb, var(--primary) 18%, transparent);
   color: inherit;
 }
 
 .dark ::selection {
-  background-color: rgba(234, 88, 12, 0.25);
+  background-color: color-mix(in srgb, var(--primary) 28%, transparent);
   color: inherit;
 }
 
@@ -493,12 +511,12 @@ input:focus-visible,
 }
 
 .docs-sidebar-scroll::-webkit-scrollbar-thumb {
-  background: rgba(234, 88, 12, 0.15);
+  background: color-mix(in srgb, var(--primary) 15%, transparent);
   border-radius: 4px;
 }
 
 .docs-sidebar-scroll::-webkit-scrollbar-thumb:hover {
-  background: rgba(234, 88, 12, 0.3);
+  background: color-mix(in srgb, var(--primary) 30%, transparent);
 }
 
 /* ── Method page — editorial typography ── */
@@ -522,18 +540,18 @@ input:focus-visible,
   letter-spacing: 0.3em;
 }
 
-/* Bento card hover glow — no borders, use shadow */
+/* Bento card hover glow — no borders, use warm shadow */
 .bento-card {
   transition: all 0.2s ease;
 }
 .bento-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 8px 30px rgba(234, 88, 12, 0.08);
+  box-shadow: 0 8px 30px color-mix(in srgb, var(--primary) 9%, transparent);
 }
 
 /* CTA button glow on hover */
 .cta-glow:hover {
-  box-shadow: 0 0 20px rgba(234, 88, 12, 0.3);
+  box-shadow: 0 0 20px color-mix(in srgb, var(--primary) 30%, transparent);
 }
 
 /* Hero spore breathing aura */
@@ -547,7 +565,12 @@ input:focus-visible,
   width: 300px;
   height: 300px;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(234, 88, 12, 0.15) 0%, rgba(251, 146, 60, 0.05) 50%, transparent 70%);
+  background: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--primary) 15%, transparent) 0%,
+    color-mix(in srgb, var(--secondary) 5%, transparent) 50%,
+    transparent 70%
+  );
   animation: aura-breathe 4s ease-in-out infinite;
   pointer-events: none;
 }
@@ -555,13 +578,25 @@ input:focus-visible,
 /* Section separator gradient */
 .section-separator {
   height: 1px;
-  background: linear-gradient(90deg, transparent 0%, rgba(234, 88, 12, 0.08) 30%, rgba(234, 88, 12, 0.08) 70%, transparent 100%);
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    color-mix(in srgb, var(--primary) 10%, transparent) 30%,
+    color-mix(in srgb, var(--primary) 10%, transparent) 70%,
+    transparent 100%
+  );
 }
 
 /* Footer gradient separator */
 .footer-separator {
   height: 1px;
-  background: linear-gradient(90deg, transparent 0%, rgba(234, 88, 12, 0.15) 30%, rgba(234, 88, 12, 0.15) 70%, transparent 100%);
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    color-mix(in srgb, var(--primary) 16%, transparent) 30%,
+    color-mix(in srgb, var(--primary) 16%, transparent) 70%,
+    transparent 100%
+  );
 }
 
 /* Feature card hover glow */
@@ -571,8 +606,8 @@ input:focus-visible,
 }
 .feature-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 8px 30px rgba(234, 88, 12, 0.1);
-  border-color: rgba(234, 88, 12, 0.15);
+  box-shadow: 0 8px 30px color-mix(in srgb, var(--primary) 10%, transparent);
+  border-color: color-mix(in srgb, var(--primary) 15%, transparent);
 }
 
 /* ═══════════════════════════════════════════
@@ -586,8 +621,8 @@ input:focus-visible,
   line-height: 0.8;
   letter-spacing: -0.04em;
   color: transparent;
-  -webkit-text-stroke: 1px rgba(234, 88, 12, 0.32);
-  text-stroke: 1px rgba(234, 88, 12, 0.32);
+  -webkit-text-stroke: 1px color-mix(in srgb, var(--primary) 40%, transparent);
+  text-stroke: 1px color-mix(in srgb, var(--primary) 40%, transparent);
 }
 
 /* Panel eyebrow label */
@@ -597,7 +632,7 @@ input:focus-visible,
   font-size: 0.6875rem;
   letter-spacing: 0.28em;
   text-transform: uppercase;
-  color: var(--primary);
+  color: var(--primary-text);
 }
 
 /* Editorial serif accent for connective pull-quotes */
@@ -607,26 +642,26 @@ input:focus-visible,
   letter-spacing: -0.01em;
 }
 
-/* Ember rail — vertical spine linking the deck panels */
+/* Hyphae rail — vertical spine linking the deck panels */
 .ember-rail {
   background: linear-gradient(
     to bottom,
     transparent 0%,
-    rgba(234, 88, 12, 0.28) 8%,
-    rgba(234, 88, 12, 0.28) 92%,
+    color-mix(in srgb, var(--primary) 32%, transparent) 8%,
+    color-mix(in srgb, var(--primary) 32%, transparent) 92%,
     transparent 100%
   );
 }
 
-/* Pulsing node on the ember rail */
+/* Pulsing node on the hyphae rail */
 @keyframes node-pulse {
   0%,
   100% {
-    box-shadow: 0 0 0 0 rgba(234, 88, 12, 0.45);
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--primary) 45%, transparent);
     opacity: 0.9;
   }
   50% {
-    box-shadow: 0 0 0 6px rgba(234, 88, 12, 0);
+    box-shadow: 0 0 0 6px transparent;
     opacity: 1;
   }
 }
@@ -634,12 +669,12 @@ input:focus-visible,
   animation: node-pulse 2.8s ease-in-out infinite;
 }
 
-/* Panel artifact frame — soft ember lift */
+/* Panel artifact frame — soft amber lift */
 .deck-artifact {
   box-shadow:
-    0 0 0 1px rgba(234, 88, 12, 0.08),
-    0 30px 60px -30px rgba(0, 0, 0, 0.6),
-    0 0 80px -20px rgba(234, 88, 12, 0.12);
+    0 0 0 1px color-mix(in srgb, var(--primary) 8%, transparent),
+    0 30px 60px -30px rgba(23, 17, 12, 0.55),
+    0 0 80px -20px color-mix(in srgb, var(--primary) 12%, transparent);
 }
 
 /* Grain / atmosphere veil for deck backdrop */
@@ -647,12 +682,12 @@ input:focus-visible,
   background:
     radial-gradient(
       60% 40% at 15% 0%,
-      rgba(234, 88, 12, 0.05),
+      color-mix(in srgb, var(--primary) 5%, transparent),
       transparent 70%
     ),
     radial-gradient(
       50% 40% at 90% 100%,
-      rgba(251, 146, 60, 0.04),
+      color-mix(in srgb, var(--spore) 5%, transparent),
       transparent 70%
     );
 }
