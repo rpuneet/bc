@@ -278,12 +278,19 @@ function useAgentSeries(key: SysKey | null): { series: AgentSeries | null; loadi
 
 // ── Drill-down panel ────────────────────────────────────────────────────────
 
+// Axis ticks stay integers ("0%", "25%"); tooltips keep one decimal.
+const pct = (v: number) => `${Number.isInteger(v) ? v : v.toFixed(1)}%`;
+
 const PANEL_META: Record<SysKey, { title: string; unit: (v: number) => string }> = {
-  cpu: { title: "CPU", unit: (v) => `${v.toFixed(v < 10 ? 1 : 0)}%` },
+  cpu: { title: "CPU", unit: pct },
   memory: { title: "Memory", unit: (v) => `${v.toFixed(1)} GB` },
   network: { title: "Network", unit: (v) => fmtBytes(v) },
-  disk: { title: "Disk", unit: (v) => `${v.toFixed(0)}%` },
+  disk: { title: "Disk", unit: pct },
 };
+
+/** HH:MM:SS — host samples land every 10s, so minute-only labels dupe. */
+const fmtClockSec = (ms: number): string =>
+  new Date(ms).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 
 function HostChart({ metric, hist }: { metric: SysKey; hist: SysSample[] }) {
   const data = useMemo(
@@ -312,15 +319,18 @@ function HostChart({ metric, hist }: { metric: SysKey; hist: SysSample[] }) {
           dataKey="t"
           tick={TICK}
           {...AX}
-          tickFormatter={(v: number) => fmtClock(v)}
+          tickFormatter={(v: number) => fmtClockSec(v)}
           interval="preserveStartEnd"
-          minTickGap={64}
+          minTickGap={88}
         />
         <YAxis tick={TICK} {...AX} width={48} domain={domain} tickFormatter={(v: number) => meta.unit(v)} />
         <Tooltip
           contentStyle={TT_STYLE}
-          labelFormatter={(v) => fmtClock(Number(v))}
-          formatter={(v) => [meta.unit(Number(v ?? 0)), meta.title]}
+          labelFormatter={(v) => fmtClockSec(Number(v))}
+          formatter={(v) => [
+            metric === "memory" ? `${Number(v ?? 0).toFixed(2)} GB` : `${Number(v ?? 0).toFixed(1)}%`,
+            meta.title,
+          ]}
         />
         <Area type="monotone" dataKey="v" stroke={ACCENT} fill={ACCENT} fillOpacity={0.12} strokeWidth={1.75} dot={false} isAnimationActive={false} />
       </AreaChart>
@@ -471,21 +481,20 @@ export function SystemRow() {
         <Disclosure open={openKey !== null} onClose={() => setOpen(null)} label="System detail">
           {openKey !== null && (
             <div className="border-t border-mycel-border bg-mycel-surface p-4 space-y-4">
-              <div className="flex items-baseline justify-between gap-2">
-                <span className="text-[10px] font-medium text-mycel-muted uppercase tracking-[0.08em]">
-                  {PANEL_META[openKey].title} · host
-                </span>
-                <span className="text-[11px] text-mycel-muted tabular-nums">
-                  last 15 min · sampled every {SAMPLE_MS / 1000}s
-                </span>
-              </div>
-              {openKey === "network" ? (
-                <p className="text-[11px] leading-relaxed text-mycel-muted">
-                  The host exposes no aggregate network counters — network I/O is
-                  tracked per agent by the metrics store below.
-                </p>
-              ) : (
-                <HostChart metric={openKey} hist={hist} />
+              {/* Network has no host-level counters, so its panel is
+                  per-agent only — no empty host section to scroll past. */}
+              {openKey !== "network" && (
+                <>
+                  <div className="flex items-baseline justify-between gap-2">
+                    <span className="text-[10px] font-medium text-mycel-muted uppercase tracking-[0.08em]">
+                      {PANEL_META[openKey].title} · host
+                    </span>
+                    <span className="text-[11px] text-mycel-muted tabular-nums">
+                      last 15 min · sampled every {SAMPLE_MS / 1000}s
+                    </span>
+                  </div>
+                  <HostChart metric={openKey} hist={hist} />
+                </>
               )}
 
               <div className="flex items-baseline justify-between gap-2 pt-1">
@@ -500,7 +509,9 @@ export function SystemRow() {
                 <AgentSplitChart metric={openKey} series={series} />
               ) : (
                 <div className="py-6 text-center text-sm text-mycel-muted">
-                  No per-agent samples — the metrics store (bc-db) is offline or agents are idle
+                  {openKey === "network"
+                    ? "Network I/O is tracked per agent by the metrics store (bc-db) — it's offline or the fleet is idle"
+                    : "No per-agent samples — the metrics store (bc-db) is offline or agents are idle"}
                 </div>
               )}
             </div>
