@@ -66,6 +66,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/rpuneet/mycel/pkg/app"
+	// Register the built-in app plugins so descriptor-driven env injection
+	// and prompt docs work in every binary that manages agents.
+	_ "github.com/rpuneet/mycel/pkg/app/builtin"
 	"github.com/rpuneet/mycel/pkg/container"
 	"github.com/rpuneet/mycel/pkg/db"
 	"github.com/rpuneet/mycel/pkg/log"
@@ -500,8 +504,9 @@ type Manager struct { //nolint:govet // field order is intentional for readabili
 	// If zero, DefaultBootstrapDelay is used.
 	BootstrapDelay time.Duration
 
-	// gatewayConfig holds gateway credentials for injection into agent env vars.
-	gatewayConfig *workspace.GatewaysConfig
+	// appsConfig holds connected app instances whose descriptor fields
+	// drive credential env-var injection and prompt documentation.
+	appsConfig map[string]app.InstanceConfig
 
 	// wsConfig points at the live workspace config so spawn paths can read
 	// mycel-authored injected instructions. It is the same pointer the
@@ -545,7 +550,7 @@ func (m *Manager) ApplyWorkspaceConfig(cfg *workspace.Config) {
 	if cfg.Logs.MaxBytes > 0 {
 		m.maxLogBytes = cfg.Logs.MaxBytes
 	}
-	m.gatewayConfig = &cfg.Gateways
+	m.appsConfig = cfg.Apps
 	m.providersConfig = &cfg.Providers
 	m.wsConfig = cfg
 }
@@ -1286,8 +1291,8 @@ func (m *Manager) startAgent(ctx context.Context, name string, opts SpawnOptions
 		env["MYCEL_API_KEY"] = apiKey
 	}
 	injectEnv(env, wsPath, name, existing.EnvFile, existing.Env)
-	injectGatewayEnv(env, m.gatewayConfig)
-	secretEnvKeys := injectVaultSecrets(env, wsPath, resolveRoleSecrets(wsPath, string(existing.Role)))
+	injectAppEnv(env, m.appsConfig)
+	secretEnvKeys := injectVaultSecrets(env, wsPath, resolveRoleSecrets(wsPath, string(existing.Role)), m.appsConfig)
 
 	rt := m.runtimeForAgent(name)
 	m.mu.Unlock()
@@ -1351,7 +1356,7 @@ func (m *Manager) startAgent(ctx context.Context, name string, opts SpawnOptions
 	if setupErr := SetupAgentFromRoleWithRuntime(ctx, wsPath, name, string(existing.Role), wtDir, agentRuntime, existing.Tool); setupErr != nil {
 		log.Warn("role setup failed on restart", "agent", name, "error", setupErr)
 	}
-	appendGatewayPrompt(wtDir, existing.Tool, m.gatewayConfig)
+	appendAppPrompt(wtDir, existing.Tool, m.appsConfig)
 	if err := appendInjectedInstructions(ctx, injectedPromptFile(wtDir, existing.Tool), m.wsConfig,
 		resolveRoleMCPServers(wsPath, string(existing.Role)), secretEnvKeys); err != nil {
 		log.Warn("failed to append injected instructions", "agent", name, "error", err)
@@ -1530,8 +1535,8 @@ func (m *Manager) createAgent(ctx context.Context, opts SpawnOptions) (*Agent, e
 		env["MYCEL_API_KEY"] = apiKey
 	}
 	injectEnv(env, wsPath, name, opts.EnvFile, opts.Env)
-	injectGatewayEnv(env, m.gatewayConfig)
-	secretEnvKeys := injectVaultSecrets(env, wsPath, resolveRoleSecrets(wsPath, string(role)))
+	injectAppEnv(env, m.appsConfig)
+	secretEnvKeys := injectVaultSecrets(env, wsPath, resolveRoleSecrets(wsPath, string(role)), m.appsConfig)
 
 	rt := m.runtimeForAgent(name)
 	m.mu.Unlock()
@@ -1574,7 +1579,7 @@ func (m *Manager) createAgent(ctx context.Context, opts SpawnOptions) (*Agent, e
 	}
 
 	// Append platform credential instructions to the agent's prompt file
-	appendGatewayPrompt(wtDir, effectiveTool, m.gatewayConfig)
+	appendAppPrompt(wtDir, effectiveTool, m.appsConfig)
 	if err := appendInjectedInstructions(ctx, injectedPromptFile(wtDir, effectiveTool), m.wsConfig,
 		resolveRoleMCPServers(wsPath, string(role)), secretEnvKeys); err != nil {
 		log.Warn("failed to append injected instructions", "agent", name, "error", err)
@@ -3148,271 +3153,29 @@ func mergeUserEnv(env, userEnv map[string]string, agentName string) {
 	}
 }
 
-// gatewayPromptInstructions generates markdown instructions that tell an agent
-// about available platform credentials injected as environment variables.
-// This is appended to the agent's CLAUDE.md so the agent knows how to use them.
-func gatewayPromptInstructions(cfg *workspace.GatewaysConfig) string {
-	if cfg == nil {
-		return ""
-	}
-
+// appPromptInstructions generates markdown instructions that tell an
+// agent about available platform credentials injected as environment
+// variables. Lines are derived generically from each connected app's
+// descriptor: every secret field plus every required plain field with a
+// configured value gets an env var documented here.
+func appPromptInstructions(apps map[string]app.InstanceConfig) string {
 	var lines []string
-	if cfg.Slack != nil && cfg.Slack.Enabled && cfg.Slack.BotToken != "" {
-		lines = append(lines, "- SLACK_BOT_TOKEN: Use Slack API (`chat.postMessage`, etc.). Set `username` param to your agent name (MYCEL_AGENT_ID env var) for identity.")
-	}
-	if cfg.Discord != nil && cfg.Discord.Enabled && cfg.Discord.BotToken != "" {
-		lines = append(lines, "- DISCORD_BOT_TOKEN: Use Discord API. Set `username` param to your agent name (MYCEL_AGENT_ID env var) for identity.")
-	}
-	for label, tc := range cfg.Telegrams {
-		if tc.Enabled && tc.BotToken != "" {
-			envKey := "TELEGRAM_BOT_TOKEN"
-			if label != "" {
-				envKey = "TELEGRAM_BOT_TOKEN_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
-			}
-			lines = append(lines, fmt.Sprintf("- %s: Use Telegram Bot API. Prefix messages with `[<your-agent-name>]: ` for identity.", envKey))
+	for name, ic := range apps {
+		if !ic.Enabled {
+			continue
 		}
-	}
-	for label, gc := range cfg.GitHubs {
-		if gc.Enabled && gc.Secret != "" {
-			envKey := "GITHUB_WEBHOOK_SECRET"
-			if label != "" {
-				envKey = "GITHUB_WEBHOOK_SECRET_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
-			}
-			lines = append(lines, fmt.Sprintf("- %s: GitHub webhook secret for signature verification.", envKey))
+		plugin, ok := app.Get(ic.App)
+		if !ok {
+			continue
 		}
-	}
-	for label, gc := range cfg.GitLabs {
-		if gc.Enabled && gc.Token != "" {
-			envKey := "GITLAB_TOKEN"
-			if label != "" {
-				envKey += "_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
+		d := plugin.Describe()
+		for _, f := range d.Fields {
+			switch {
+			case f.Secret:
+				lines = append(lines, fmt.Sprintf("- %s: %s %s.", app.EnvKey(name, f.Key), d.Label, f.Label))
+			case f.Required && ic.Config[f.Key] != "":
+				lines = append(lines, fmt.Sprintf("- %s: %s %s.", app.EnvKey(name, f.Key), d.Label, f.Label))
 			}
-			lines = append(lines, fmt.Sprintf("- %s: GitLab webhook token for authentication.", envKey))
-		}
-	}
-	for label, gc := range cfg.Bitbuckets {
-		if gc.Enabled && gc.Secret != "" {
-			envKey := "BITBUCKET_SECRET"
-			if label != "" {
-				envKey += "_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
-			}
-			lines = append(lines, fmt.Sprintf("- %s: Bitbucket webhook secret for signature verification.", envKey))
-		}
-	}
-	for label, gc := range cfg.Jiras {
-		if gc.Enabled && gc.Secret != "" {
-			envKey := "JIRA_SECRET"
-			if label != "" {
-				envKey += "_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
-			}
-			lines = append(lines, fmt.Sprintf("- %s: Jira webhook secret for signature verification.", envKey))
-		}
-	}
-	for label, gc := range cfg.Linears {
-		if gc.Enabled && gc.Secret != "" {
-			envKey := "LINEAR_SECRET"
-			if label != "" {
-				envKey += "_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
-			}
-			lines = append(lines, fmt.Sprintf("- %s: Linear webhook signing secret.", envKey))
-		}
-	}
-	for label, gc := range cfg.Sentries {
-		if gc.Enabled && gc.Secret != "" {
-			envKey := "SENTRY_SECRET"
-			if label != "" {
-				envKey += "_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
-			}
-			lines = append(lines, fmt.Sprintf("- %s: Sentry webhook secret for signature verification.", envKey))
-		}
-	}
-	for label, gc := range cfg.Stripes {
-		if gc.Enabled && gc.Secret != "" {
-			envKey := "STRIPE_SECRET"
-			if label != "" {
-				envKey += "_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
-			}
-			lines = append(lines, fmt.Sprintf("- %s: Stripe webhook signing secret.", envKey))
-		}
-	}
-	for label, gc := range cfg.PagerDuties {
-		if gc.Enabled && gc.Secret != "" {
-			envKey := "PAGERDUTY_SECRET"
-			if label != "" {
-				envKey += "_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
-			}
-			lines = append(lines, fmt.Sprintf("- %s: PagerDuty webhook secret.", envKey))
-		}
-	}
-	for label, gc := range cfg.Datadogs {
-		if gc.Enabled && gc.Secret != "" {
-			envKey := "DATADOG_SECRET"
-			if label != "" {
-				envKey += "_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
-			}
-			lines = append(lines, fmt.Sprintf("- %s: Datadog webhook secret.", envKey))
-		}
-	}
-	for label, gc := range cfg.Grafanas {
-		if gc.Enabled && gc.Token != "" {
-			envKey := "GRAFANA_TOKEN"
-			if label != "" {
-				envKey += "_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
-			}
-			lines = append(lines, fmt.Sprintf("- %s: Grafana webhook token.", envKey))
-		}
-	}
-	for label, gc := range cfg.Vercels {
-		if gc.Enabled && gc.Secret != "" {
-			envKey := "VERCEL_SECRET"
-			if label != "" {
-				envKey += "_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
-			}
-			lines = append(lines, fmt.Sprintf("- %s: Vercel webhook secret.", envKey))
-		}
-	}
-	for label, gc := range cfg.Netlifys {
-		if gc.Enabled && gc.Secret != "" {
-			envKey := "NETLIFY_SECRET"
-			if label != "" {
-				envKey += "_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
-			}
-			lines = append(lines, fmt.Sprintf("- %s: Netlify webhook secret.", envKey))
-		}
-	}
-	for label, gc := range cfg.Notions {
-		if gc.Enabled && gc.Token != "" {
-			envKey := "NOTION_TOKEN"
-			if label != "" {
-				envKey += "_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
-			}
-			lines = append(lines, fmt.Sprintf("- %s: Notion API token.", envKey))
-		}
-	}
-	for label, gc := range cfg.RSSFeeds {
-		if gc.Enabled && gc.URL != "" {
-			envKey := "RSS_URL"
-			if label != "" {
-				envKey += "_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
-			}
-			lines = append(lines, fmt.Sprintf("- %s: RSS/Atom feed URL.", envKey))
-		}
-	}
-	for label, gc := range cfg.Webhooks {
-		if gc.Enabled && gc.Secret != "" {
-			envKey := "WEBHOOK_SECRET"
-			if label != "" {
-				envKey += "_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
-			}
-			lines = append(lines, fmt.Sprintf("- %s: Generic webhook secret.", envKey))
-		}
-	}
-	for label, gc := range cfg.WhatsApps {
-		if gc.Enabled && gc.VerifyToken != "" {
-			envKey := "WHATSAPP_VERIFY_TOKEN"
-			if label != "" {
-				envKey += "_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
-			}
-			lines = append(lines, fmt.Sprintf("- %s: WhatsApp verify token.", envKey))
-		}
-	}
-	for label, gc := range cfg.Matrices {
-		if gc.Enabled && gc.Token != "" {
-			envKey := "MATRIX_TOKEN"
-			if label != "" {
-				envKey += "_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
-			}
-			lines = append(lines, fmt.Sprintf("- %s: Matrix access token.", envKey))
-		}
-	}
-	for label, gc := range cfg.MSTeams {
-		if gc.Enabled && gc.Secret != "" {
-			envKey := "MSTEAMS_SECRET"
-			if label != "" {
-				envKey += "_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
-			}
-			lines = append(lines, fmt.Sprintf("- %s: MS Teams webhook secret.", envKey))
-		}
-	}
-	for label, gc := range cfg.GoogleChats {
-		if gc.Enabled && gc.Secret != "" {
-			envKey := "GOOGLECHAT_SECRET"
-			if label != "" {
-				envKey += "_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
-			}
-			lines = append(lines, fmt.Sprintf("- %s: Google Chat webhook secret.", envKey))
-		}
-	}
-	for label, gc := range cfg.Lines {
-		if gc.Enabled && gc.Secret != "" {
-			envKey := "LINE_SECRET"
-			if label != "" {
-				envKey += "_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
-			}
-			lines = append(lines, fmt.Sprintf("- %s: LINE channel secret.", envKey))
-		}
-	}
-	for label, gc := range cfg.Feishus {
-		if gc.Enabled && gc.Secret != "" {
-			envKey := "FEISHU_SECRET"
-			if label != "" {
-				envKey += "_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
-			}
-			lines = append(lines, fmt.Sprintf("- %s: Feishu/Lark verification secret.", envKey))
-		}
-	}
-	for label, gc := range cfg.Mattermosts {
-		if gc.Enabled && gc.Token != "" {
-			envKey := "MATTERMOST_TOKEN"
-			if label != "" {
-				envKey += "_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
-			}
-			lines = append(lines, fmt.Sprintf("- %s: Mattermost outgoing webhook token.", envKey))
-		}
-	}
-	for label, gc := range cfg.Twitches {
-		if gc.Enabled && gc.Secret != "" {
-			envKey := "TWITCH_SECRET"
-			if label != "" {
-				envKey += "_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
-			}
-			lines = append(lines, fmt.Sprintf("- %s: Twitch EventSub secret.", envKey))
-		}
-	}
-	for label, gc := range cfg.Twitters {
-		if gc.Enabled && gc.BearerToken != "" {
-			envKey := "TWITTER_BEARER_TOKEN"
-			if label != "" {
-				envKey += "_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
-			}
-			lines = append(lines, fmt.Sprintf("- %s: Twitter API bearer token.", envKey))
-		}
-	}
-	for label, gc := range cfg.Reddits {
-		if gc.Enabled && gc.BearerToken != "" {
-			envKey := "REDDIT_BEARER_TOKEN"
-			if label != "" {
-				envKey += "_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
-			}
-			lines = append(lines, fmt.Sprintf("- %s: Reddit API bearer token.", envKey))
-		}
-	}
-	for label, gc := range cfg.HomeAssistants {
-		if gc.Enabled && gc.Token != "" {
-			envKey := "HOMEASSISTANT_TOKEN"
-			if label != "" {
-				envKey += "_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
-			}
-			lines = append(lines, fmt.Sprintf("- %s: Home Assistant long-lived access token.", envKey))
-		}
-	}
-	for label, gc := range cfg.IMessages {
-		if gc.Enabled && gc.Password != "" {
-			envKey := "IMESSAGE_PASSWORD"
-			if label != "" {
-				envKey += "_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
-			}
-			lines = append(lines, fmt.Sprintf("- %s: iMessage (BlueBubbles) password.", envKey))
 		}
 	}
 
@@ -3433,10 +3196,10 @@ func gatewayPromptInstructions(cfg *workspace.GatewaysConfig) string {
 	return sb.String()
 }
 
-// appendGatewayPrompt appends platform credential instructions to the agent's
-// CLAUDE.md (or provider-equivalent prompt file) if gateway credentials exist.
-func appendGatewayPrompt(targetDir, toolName string, cfg *workspace.GatewaysConfig) {
-	instructions := gatewayPromptInstructions(cfg)
+// appendAppPrompt appends platform credential instructions to the agent's
+// CLAUDE.md (or provider-equivalent prompt file) if connected apps exist.
+func appendAppPrompt(targetDir, toolName string, apps map[string]app.InstanceConfig) {
+	instructions := appPromptInstructions(apps)
 	if instructions == "" {
 		return
 	}
@@ -3445,7 +3208,7 @@ func appendGatewayPrompt(targetDir, toolName string, cfg *workspace.GatewaysConf
 	// reject traversal segments as defense in depth.
 	targetDir = filepath.Clean(targetDir)
 	if strings.Contains(targetDir, "..") {
-		log.Warn("refusing to append gateway prompt to traversal path", "dir", targetDir)
+		log.Warn("refusing to append app prompt to traversal path", "dir", targetDir)
 		return
 	}
 
@@ -3453,12 +3216,12 @@ func appendGatewayPrompt(targetDir, toolName string, cfg *workspace.GatewaysConf
 	promptFile := filepath.Join(targetDir, adapter.PromptFile())
 	f, err := os.OpenFile(promptFile, os.O_APPEND|os.O_WRONLY, 0600) //nolint:gosec // controlled agent workspace path
 	if err != nil {
-		log.Debug("cannot append gateway prompt, prompt file not writable", "path", promptFile, "error", err)
+		log.Debug("cannot append app prompt, prompt file not writable", "path", promptFile, "error", err)
 		return
 	}
 	defer f.Close() //nolint:errcheck
 	if _, err := f.WriteString(instructions); err != nil {
-		log.Warn("failed to append gateway prompt instructions", "path", promptFile, "error", err)
+		log.Warn("failed to append app prompt instructions", "path", promptFile, "error", err)
 	}
 }
 
@@ -3520,271 +3283,25 @@ func summarizeNames(names []string) string {
 	return strings.Join(sorted, ", ")
 }
 
-// injectGatewayEnv injects platform credentials from gateway config into agent
-// environment variables so agents can call platform APIs directly.
-func injectGatewayEnv(env map[string]string, gw *workspace.GatewaysConfig) {
-	if gw == nil {
-		return
-	}
-	if gw.Slack != nil && gw.Slack.Enabled && gw.Slack.BotToken != "" {
-		env["SLACK_BOT_TOKEN"] = gw.Slack.BotToken
-	}
-	if gw.Slack != nil && gw.Slack.AppToken != "" {
-		env["SLACK_APP_TOKEN"] = gw.Slack.AppToken
-	}
-	if gw.Discord != nil && gw.Discord.Enabled && gw.Discord.BotToken != "" {
-		env["DISCORD_BOT_TOKEN"] = gw.Discord.BotToken
-	}
-	for label, tc := range gw.Telegrams {
-		if tc.Enabled && tc.BotToken != "" {
-			key := "TELEGRAM_BOT_TOKEN"
-			if label != "" {
-				key = "TELEGRAM_BOT_TOKEN_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
-			}
-			env[key] = tc.BotToken
+// injectAppEnv injects non-secret required app config values (feed
+// URLs, homeservers, user IDs, ...) into agent environment variables.
+// Secret fields are resolved from the vault by injectVaultSecrets.
+func injectAppEnv(env map[string]string, apps map[string]app.InstanceConfig) {
+	for name, ic := range apps {
+		if !ic.Enabled {
+			continue
 		}
-	}
-	for label, gc := range gw.GitHubs {
-		if gc.Enabled && gc.Secret != "" {
-			key := "GITHUB_WEBHOOK_SECRET"
-			if label != "" {
-				key = "GITHUB_WEBHOOK_SECRET_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
-			}
-			env[key] = gc.Secret
+		plugin, ok := app.Get(ic.App)
+		if !ok {
+			continue
 		}
-	}
-	for label, gc := range gw.GitLabs {
-		if gc.Enabled && gc.Token != "" {
-			key := "GITLAB_TOKEN"
-			if label != "" {
-				key += "_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
+		for _, f := range plugin.Describe().Fields {
+			if f.Secret || !f.Required {
+				continue
 			}
-			env[key] = gc.Token
-		}
-	}
-	for label, gc := range gw.Bitbuckets {
-		if gc.Enabled && gc.Secret != "" {
-			key := "BITBUCKET_SECRET"
-			if label != "" {
-				key += "_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
+			if v := ic.Config[f.Key]; v != "" {
+				env[app.EnvKey(name, f.Key)] = v
 			}
-			env[key] = gc.Secret
-		}
-	}
-	for label, gc := range gw.Jiras {
-		if gc.Enabled && gc.Secret != "" {
-			key := "JIRA_SECRET"
-			if label != "" {
-				key += "_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
-			}
-			env[key] = gc.Secret
-		}
-	}
-	for label, gc := range gw.Linears {
-		if gc.Enabled && gc.Secret != "" {
-			key := "LINEAR_SECRET"
-			if label != "" {
-				key += "_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
-			}
-			env[key] = gc.Secret
-		}
-	}
-	for label, gc := range gw.Sentries {
-		if gc.Enabled && gc.Secret != "" {
-			key := "SENTRY_SECRET"
-			if label != "" {
-				key += "_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
-			}
-			env[key] = gc.Secret
-		}
-	}
-	for label, gc := range gw.Stripes {
-		if gc.Enabled && gc.Secret != "" {
-			key := "STRIPE_SECRET"
-			if label != "" {
-				key += "_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
-			}
-			env[key] = gc.Secret
-		}
-	}
-	for label, gc := range gw.PagerDuties {
-		if gc.Enabled && gc.Secret != "" {
-			key := "PAGERDUTY_SECRET"
-			if label != "" {
-				key += "_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
-			}
-			env[key] = gc.Secret
-		}
-	}
-	for label, gc := range gw.Datadogs {
-		if gc.Enabled && gc.Secret != "" {
-			key := "DATADOG_SECRET"
-			if label != "" {
-				key += "_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
-			}
-			env[key] = gc.Secret
-		}
-	}
-	for label, gc := range gw.Grafanas {
-		if gc.Enabled && gc.Token != "" {
-			key := "GRAFANA_TOKEN"
-			if label != "" {
-				key += "_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
-			}
-			env[key] = gc.Token
-		}
-	}
-	for label, gc := range gw.Vercels {
-		if gc.Enabled && gc.Secret != "" {
-			key := "VERCEL_SECRET"
-			if label != "" {
-				key += "_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
-			}
-			env[key] = gc.Secret
-		}
-	}
-	for label, gc := range gw.Netlifys {
-		if gc.Enabled && gc.Secret != "" {
-			key := "NETLIFY_SECRET"
-			if label != "" {
-				key += "_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
-			}
-			env[key] = gc.Secret
-		}
-	}
-	for label, gc := range gw.Notions {
-		if gc.Enabled && gc.Token != "" {
-			key := "NOTION_TOKEN"
-			if label != "" {
-				key += "_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
-			}
-			env[key] = gc.Token
-		}
-	}
-	for label, gc := range gw.RSSFeeds {
-		if gc.Enabled && gc.URL != "" {
-			key := "RSS_URL"
-			if label != "" {
-				key += "_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
-			}
-			env[key] = gc.URL
-		}
-	}
-	for label, gc := range gw.Webhooks {
-		if gc.Enabled && gc.Secret != "" {
-			key := "WEBHOOK_SECRET"
-			if label != "" {
-				key += "_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
-			}
-			env[key] = gc.Secret
-		}
-	}
-	for label, gc := range gw.WhatsApps {
-		if gc.Enabled && gc.VerifyToken != "" {
-			key := "WHATSAPP_VERIFY_TOKEN"
-			if label != "" {
-				key += "_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
-			}
-			env[key] = gc.VerifyToken
-		}
-	}
-	for label, gc := range gw.Matrices {
-		if gc.Enabled && gc.Token != "" {
-			key := "MATRIX_TOKEN"
-			if label != "" {
-				key += "_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
-			}
-			env[key] = gc.Token
-		}
-	}
-	for label, gc := range gw.MSTeams {
-		if gc.Enabled && gc.Secret != "" {
-			key := "MSTEAMS_SECRET"
-			if label != "" {
-				key += "_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
-			}
-			env[key] = gc.Secret
-		}
-	}
-	for label, gc := range gw.GoogleChats {
-		if gc.Enabled && gc.Secret != "" {
-			key := "GOOGLECHAT_SECRET"
-			if label != "" {
-				key += "_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
-			}
-			env[key] = gc.Secret
-		}
-	}
-	for label, gc := range gw.Lines {
-		if gc.Enabled && gc.Secret != "" {
-			key := "LINE_SECRET"
-			if label != "" {
-				key += "_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
-			}
-			env[key] = gc.Secret
-		}
-	}
-	for label, gc := range gw.Feishus {
-		if gc.Enabled && gc.Secret != "" {
-			key := "FEISHU_SECRET"
-			if label != "" {
-				key += "_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
-			}
-			env[key] = gc.Secret
-		}
-	}
-	for label, gc := range gw.Mattermosts {
-		if gc.Enabled && gc.Token != "" {
-			key := "MATTERMOST_TOKEN"
-			if label != "" {
-				key += "_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
-			}
-			env[key] = gc.Token
-		}
-	}
-	for label, gc := range gw.Twitches {
-		if gc.Enabled && gc.Secret != "" {
-			key := "TWITCH_SECRET"
-			if label != "" {
-				key += "_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
-			}
-			env[key] = gc.Secret
-		}
-	}
-	for label, gc := range gw.Twitters {
-		if gc.Enabled && gc.BearerToken != "" {
-			key := "TWITTER_BEARER_TOKEN"
-			if label != "" {
-				key += "_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
-			}
-			env[key] = gc.BearerToken
-		}
-	}
-	for label, gc := range gw.Reddits {
-		if gc.Enabled && gc.BearerToken != "" {
-			key := "REDDIT_BEARER_TOKEN"
-			if label != "" {
-				key += "_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
-			}
-			env[key] = gc.BearerToken
-		}
-	}
-	for label, gc := range gw.HomeAssistants {
-		if gc.Enabled && gc.Token != "" {
-			key := "HOMEASSISTANT_TOKEN"
-			if label != "" {
-				key += "_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
-			}
-			env[key] = gc.Token
-		}
-	}
-	for label, gc := range gw.IMessages {
-		if gc.Enabled && gc.Password != "" {
-			key := "IMESSAGE_PASSWORD"
-			if label != "" {
-				key += "_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
-			}
-			env[key] = gc.Password
 		}
 	}
 }
@@ -3842,16 +3359,18 @@ func openLayeredStore(wsPath, passphrase string) (ls *secret.LayeredStore, close
 // injectVaultSecrets injects vault secrets into the agent env map.
 //
 // Precedence (highest → lowest):
-//  1. Existing value in env (set by agent env-file or injectGatewayEnv)
+//  1. Existing value in env (set by agent env-file or injectAppEnv)
 //  2. Vault value (global ~/.mycel/secrets.vault + workspace <ws>/.bc/secrets.db, workspace wins)
 //
-// Call AFTER injectEnv + injectGatewayEnv so that gateway-config tokens
-// are never overwritten by vault copies.
+// Call AFTER injectEnv + injectAppEnv so that explicitly-set values are
+// never overwritten by vault copies.
 //
 // Role-scoped secrets (roleSecrets from ResolvedRole.Secrets) act as an
 // allowlist: vault values are not sprayed across every agent indiscriminately.
-// Well-known integration tokens (SLACK_BOT_TOKEN etc.) are also exported when
-// present as a convenience for agents that don't declare them in their role.
+// Connected-app credentials (descriptor Secret fields, stored under
+// app:<instance>:<key>) and well-known integration tokens (SLACK_BOT_TOKEN
+// etc.) are also exported when present as a convenience for agents that
+// don't declare them in their role.
 //
 // GITHUB_PERSONAL_ACCESS_TOKEN and GITHUB_TOKEN in the vault are aliased to
 // both GITHUB_TOKEN and GH_TOKEN so git/gh tooling works without manual wiring.
@@ -3861,7 +3380,7 @@ func openLayeredStore(wsPath, passphrase string) (ls *secret.LayeredStore, close
 // The returned slice holds the NAMES of env keys populated from the vault
 // (never their values) so callers can summarize available credentials to the
 // agent without ever exposing the secrets themselves.
-func injectVaultSecrets(env map[string]string, wsPath string, roleSecrets []string) []string {
+func injectVaultSecrets(env map[string]string, wsPath string, roleSecrets []string, apps map[string]app.InstanceConfig) []string {
 	passphrase, err := secret.Passphrase()
 	if err != nil {
 		log.Warn("vault injection skipped: cannot read passphrase", "error", err)
@@ -3895,6 +3414,24 @@ func injectVaultSecrets(env map[string]string, wsPath string, roleSecrets []stri
 	//    vault entries it receives.
 	for _, name := range roleSecrets {
 		injectIfAbsent(name, name)
+	}
+
+	// 1.5. Connected-app credentials — descriptor Secret fields resolve from
+	//      the vault under app:<instance>:<key> into conventional env names
+	//      (SLACK_BOT_TOKEN, TELEGRAM_BOT_TOKEN_ALERTS, ...).
+	for name, ic := range apps {
+		if !ic.Enabled {
+			continue
+		}
+		plugin, ok := app.Get(ic.App)
+		if !ok {
+			continue
+		}
+		for _, f := range plugin.Describe().Fields {
+			if f.Secret {
+				injectIfAbsent(app.EnvKey(name, f.Key), app.SecretName(name, f.Key))
+			}
+		}
 	}
 
 	// 2. Well-known integration tokens — convenience auto-export regardless of

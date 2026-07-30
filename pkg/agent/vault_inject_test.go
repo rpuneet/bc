@@ -3,8 +3,10 @@ package agent
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
+	"github.com/rpuneet/mycel/pkg/app"
 	"github.com/rpuneet/mycel/pkg/secret"
 )
 
@@ -94,7 +96,7 @@ func TestInjectVaultSecrets(t *testing.T) {
 		{
 			name: "existing env wins over vault (precedence)",
 			preEnv: map[string]string{
-				"SLACK_BOT_TOKEN": "gateway-token", // set by injectGatewayEnv
+				"SLACK_BOT_TOKEN": "gateway-token", // set by injectAppEnv
 			},
 			roleSecrets: []string{"SLACK_BOT_TOKEN"},
 			wantKey:     "SLACK_BOT_TOKEN",
@@ -138,7 +140,7 @@ func TestInjectVaultSecrets(t *testing.T) {
 				env[k] = v
 			}
 
-			injectVaultSecrets(env, wsPath, tc.roleSecrets)
+			injectVaultSecrets(env, wsPath, tc.roleSecrets, nil)
 
 			if tc.wantKey != "" {
 				if got := env[tc.wantKey]; got != tc.wantValue {
@@ -151,6 +153,79 @@ func TestInjectVaultSecrets(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// TestInjectVaultSecretsAppCredentials proves connected-app credentials
+// stored under app:<instance>:<key> are exported under their conventional
+// env names, driven by the app descriptor's Secret fields.
+func TestInjectVaultSecretsAppCredentials(t *testing.T) {
+	mycelHome := t.TempDir()
+	t.Setenv("MYCEL_HOME", mycelHome)
+	t.Setenv(secret.PassphraseEnvVar, "test-passphrase")
+
+	wsPath := t.TempDir()
+	seedWorkspaceVault(t, wsPath, "app:slack:bot_token", "xoxb-app-vault")
+	seedWorkspaceVault(t, wsPath, "app:telegram:alerts:bot_token", "tg-app-vault")
+	seedWorkspaceVault(t, wsPath, "app:rss:blog:url", "should-not-inject") // rss url is not a Secret field
+
+	apps := map[string]app.InstanceConfig{
+		"slack":           {App: "slack", Enabled: true},
+		"telegram:alerts": {App: "telegram", Enabled: true},
+		"telegram:off":    {App: "telegram", Enabled: false},
+		"rss:blog":        {App: "rss", Enabled: true, Config: map[string]string{"url": "https://x/feed"}},
+	}
+
+	env := map[string]string{}
+	injected := injectVaultSecrets(env, wsPath, nil, apps)
+
+	if env["SLACK_BOT_TOKEN"] != "xoxb-app-vault" {
+		t.Errorf("SLACK_BOT_TOKEN = %q, want xoxb-app-vault", env["SLACK_BOT_TOKEN"])
+	}
+	if env["TELEGRAM_BOT_TOKEN_ALERTS"] != "tg-app-vault" {
+		t.Errorf("TELEGRAM_BOT_TOKEN_ALERTS = %q, want tg-app-vault", env["TELEGRAM_BOT_TOKEN_ALERTS"])
+	}
+	if _, ok := env["TELEGRAM_BOT_TOKEN_OFF"]; ok {
+		t.Error("disabled instance credential must not be injected")
+	}
+	if _, ok := env["RSS_URL_BLOG"]; ok {
+		t.Error("non-secret field must not be injected from the vault")
+	}
+	if len(injected) == 0 {
+		t.Error("injected key names should be reported")
+	}
+}
+
+// TestAppEnvAndPromptInstructions covers plain-field env injection and the
+// descriptor-driven prompt documentation.
+func TestAppEnvAndPromptInstructions(t *testing.T) {
+	apps := map[string]app.InstanceConfig{
+		"rss:blog": {App: "rss", Enabled: true, Config: map[string]string{"url": "https://example.com/feed.xml", "interval": "60"}},
+		"slack":    {App: "slack", Enabled: true, Config: map[string]string{"mode": "socket"}},
+		"rss:off":  {App: "rss", Enabled: false, Config: map[string]string{"url": "https://off/feed"}},
+	}
+
+	env := map[string]string{}
+	injectAppEnv(env, apps)
+	if env["RSS_URL_BLOG"] != "https://example.com/feed.xml" {
+		t.Errorf("RSS_URL_BLOG = %q, want feed url", env["RSS_URL_BLOG"])
+	}
+	if _, ok := env["RSS_INTERVAL_BLOG"]; ok {
+		t.Error("optional plain field must not be injected")
+	}
+	if _, ok := env["RSS_URL_OFF"]; ok {
+		t.Error("disabled instance must not be injected")
+	}
+
+	doc := appPromptInstructions(apps)
+	if !strings.Contains(doc, "SLACK_BOT_TOKEN") {
+		t.Errorf("prompt docs missing SLACK_BOT_TOKEN:\n%s", doc)
+	}
+	if !strings.Contains(doc, "RSS_URL_BLOG") {
+		t.Errorf("prompt docs missing RSS_URL_BLOG:\n%s", doc)
+	}
+	if strings.Contains(doc, "RSS_URL_OFF") {
+		t.Errorf("prompt docs must skip disabled instances:\n%s", doc)
 	}
 }
 

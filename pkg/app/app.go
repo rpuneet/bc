@@ -7,9 +7,9 @@ package app
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/rpuneet/mycel/pkg/gateway"
-	"github.com/rpuneet/mycel/pkg/secret"
 )
 
 // AuthKind declares how an app authenticates.
@@ -120,10 +120,19 @@ type SecretSource interface {
 	Get(key string) (string, error)
 }
 
+// SecretValueStore resolves vault values by secret name. *secret.Store
+// and secret.LayeredStore implement it. Declared here as a minimal
+// interface so pkg/app does not import pkg/secret (which imports
+// pkg/workspace — pkg/workspace holds the Apps config and imports
+// pkg/app, so a direct dependency would cycle).
+type SecretValueStore interface {
+	GetValue(name string) (string, error)
+}
+
 // VaultSecrets resolves secret fields from the encrypted vault under
 // "app:<instance-name>:<field-key>".
 type VaultSecrets struct {
-	Store    *secret.Store
+	Store    SecretValueStore
 	Instance string
 }
 
@@ -135,6 +144,28 @@ func (v VaultSecrets) Get(key string) (string, error) {
 // SecretName returns the vault key for an instance's secret field.
 func SecretName(instance, key string) string {
 	return "app:" + instance + ":" + key
+}
+
+// EnvKey returns the conventional agent env-var name for an instance's
+// field: UPPER(app)_UPPER(field), with the instance label appended for
+// labeled instances ("telegram:alerts" + "bot_token" →
+// TELEGRAM_BOT_TOKEN_ALERTS).
+func EnvKey(instance, fieldKey string) string {
+	appID := instance
+	label := ""
+	if i := strings.Index(instance, ":"); i >= 0 {
+		appID, label = instance[:i], instance[i+1:]
+	}
+	key := envToken(appID) + "_" + envToken(fieldKey)
+	if label != "" {
+		key += "_" + envToken(label)
+	}
+	return key
+}
+
+// envToken uppercases a name segment for env-var use.
+func envToken(s string) string {
+	return strings.ToUpper(strings.NewReplacer("-", "_", ".", "_", ":", "_").Replace(s))
 }
 
 // MapSecrets is an in-memory SecretSource for tests.

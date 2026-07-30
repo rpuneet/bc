@@ -1,11 +1,23 @@
 package app
 
 import (
+	"fmt"
 	"strings"
 	"testing"
-
-	"github.com/rpuneet/mycel/pkg/secret"
 )
+
+// fakeValueStore is a map-backed SecretValueStore. A real vault-backed
+// store cannot be used here: pkg/secret imports pkg/workspace, whose
+// config imports pkg/app — a test-package import cycle.
+type fakeValueStore map[string]string
+
+func (f fakeValueStore) GetValue(name string) (string, error) {
+	v, ok := f[name]
+	if !ok {
+		return "", fmt.Errorf("secret %q not found", name)
+	}
+	return v, nil
+}
 
 func TestMapSecrets(t *testing.T) {
 	tests := []struct {
@@ -34,21 +46,9 @@ func TestMapSecrets(t *testing.T) {
 }
 
 func TestVaultSecrets(t *testing.T) {
-	store, err := secret.NewStore(t.TempDir(), "test-passphrase")
-	if err != nil {
-		t.Fatalf("NewStore: %v", err)
-	}
-	defer func() {
-		if err := store.Close(); err != nil {
-			t.Errorf("Close: %v", err)
-		}
-	}()
-
-	if err := store.Set(SecretName("slack", "bot_token"), "xoxb-vault", ""); err != nil {
-		t.Fatalf("Set: %v", err)
-	}
-	if err := store.Set(SecretName("telegram:alerts", "bot_token"), "tg-vault", ""); err != nil {
-		t.Fatalf("Set: %v", err)
+	store := fakeValueStore{
+		SecretName("slack", "bot_token"):           "xoxb-vault",
+		SecretName("telegram:alerts", "bot_token"): "tg-vault",
 	}
 
 	tests := []struct {
@@ -80,6 +80,25 @@ func TestVaultSecrets(t *testing.T) {
 func TestSecretName(t *testing.T) {
 	if got, want := SecretName("telegram:alerts", "bot_token"), "app:telegram:alerts:bot_token"; got != want {
 		t.Errorf("SecretName = %q, want %q", got, want)
+	}
+}
+
+func TestEnvKey(t *testing.T) {
+	tests := []struct {
+		instance string
+		fieldKey string
+		want     string
+	}{
+		{"slack", "bot_token", "SLACK_BOT_TOKEN"},
+		{"telegram:alerts", "bot_token", "TELEGRAM_BOT_TOKEN_ALERTS"},
+		{"telegram:trade-research", "bot_token", "TELEGRAM_BOT_TOKEN_TRADE_RESEARCH"},
+		{"rss:blog", "url", "RSS_URL_BLOG"},
+		{"webhook", "secret", "WEBHOOK_SECRET"},
+	}
+	for _, tt := range tests {
+		if got := EnvKey(tt.instance, tt.fieldKey); got != tt.want {
+			t.Errorf("EnvKey(%q, %q) = %q, want %q", tt.instance, tt.fieldKey, got, tt.want)
+		}
 	}
 }
 
