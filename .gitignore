@@ -1,7 +1,9 @@
 *.png
+!desktop/build/appicon.png
 # Build output
 /bin/
 /dist/
+desktop/build/bin/
 .claude/
 CLAUDE.md
 
