@@ -854,9 +854,6 @@ function NavList({
                     {(!collapsed || isMobile) && (
                       <span className="truncate mycel-fade-slide-in">{label}</span>
                     )}
-                    {label === "Live" && (
-                      <span className="w-1.5 h-1.5 rounded-full bg-mycel-live animate-pulse ml-auto" />
-                    )}
                     {isApps && !isIconOnly && onToggleNotifications && (
                       <button
                         type="button"
