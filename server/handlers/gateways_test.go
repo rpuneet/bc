@@ -63,7 +63,7 @@ func TestGatewayLegacyChannelHistoryLimitCapping(t *testing.T) {
 			req := httptest.NewRequest(http.MethodGet, url, nil)
 			rr := httptest.NewRecorder()
 
-			h.legacyChannelHistory(rr, req)
+			h.channelHistory(rr, req)
 
 			if rr.Code != http.StatusOK {
 				t.Fatalf("got status %d, want 200", rr.Code)
