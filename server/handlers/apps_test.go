@@ -109,11 +109,11 @@ func TestAppsCatalog(t *testing.T) {
 			} `json:"fields"`
 		} `json:"catalog"`
 		Instances []struct {
+			Config   map[string]any `json:"config"`
 			Name     string         `json:"name"`
 			App      string         `json:"app"`
-			Enabled  bool           `json:"enabled"`
-			Config   map[string]any `json:"config"`
 			Channels []string       `json:"channels"`
+			Enabled  bool           `json:"enabled"`
 		} `json:"instances"`
 	}
 	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
