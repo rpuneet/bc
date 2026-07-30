@@ -1103,8 +1103,8 @@ export function Layout() {
               aria-label="mycel home"
               className="flex items-center gap-2.5 select-none text-mycel-text min-w-0"
             >
-              <span className="shrink-0 flex items-center justify-center w-4">
-                <BrandMark size={18} />
+              <span className="shrink-0 flex items-center justify-center w-5">
+                <BrandMark size={20} />
               </span>
               <span className="font-display text-[15px] font-semibold truncate">mycel</span>
             </NavLink>
@@ -1311,8 +1311,8 @@ function BrandColumn({
             aria-label="mycel home"
             className="flex items-center gap-2.5 select-none text-mycel-text min-w-0 pl-4"
           >
-            <span className="shrink-0 flex items-center justify-center w-4">
-              <BrandMark size={18} />
+            <span className="shrink-0 flex items-center justify-center w-5">
+              <BrandMark size={20} />
             </span>
             <span className="font-display text-[15px] font-semibold truncate">mycel</span>
           </NavLink>

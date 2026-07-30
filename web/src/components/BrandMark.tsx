@@ -25,10 +25,10 @@ export function BrandMark({ size = 20 }: { size?: number }) {
       {/* Hyphae threads reaching down from the stem */}
       <g
         stroke="var(--mycel-accent)"
-        strokeWidth="26"
+        strokeWidth="34"
         strokeLinecap="round"
         fill="none"
-        opacity="0.6"
+        opacity="0.7"
       >
         <path d="M256 400 C 235 429 200 436 165 451" />
         <path d="M256 400 C 260 435 280 445 305 459" />
@@ -55,16 +55,16 @@ export function BrandMark({ size = 20 }: { size?: number }) {
 
       {/* Spore speckles on the cap — chanterelle amber */}
       <g fill="var(--mycel-accent)" opacity="0.95">
-        <circle cx="190" cy="200" r="24" />
-        <circle cx="278" cy="163" r="20" />
-        <circle cx="336" cy="228" r="17" />
+        <circle cx="190" cy="200" r="30" />
+        <circle cx="280" cy="162" r="25" />
+        <circle cx="338" cy="230" r="21" />
       </g>
 
       {/* Drifting spores */}
       <g fill="var(--mycel-accent)">
-        <circle cx="105" cy="373" r="16" />
-        <circle cx="410" cy="378" r="16" />
-        <circle cx="430" cy="332" r="10" opacity="0.75" />
+        <circle cx="103" cy="373" r="20" />
+        <circle cx="412" cy="378" r="20" />
+        <circle cx="434" cy="330" r="13" opacity="0.75" />
       </g>
     </svg>
   );

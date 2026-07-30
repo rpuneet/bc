@@ -34,7 +34,8 @@ export interface AgentCharacterProps {
 }
 
 const INK = "var(--agent-ink, rgba(24, 20, 15, 0.82))";
-const PAPER = "rgba(255, 255, 255, 0.85)";
+/* Warm cream, not pure white — eye glints stay in the brand's paper tone. */
+const PAPER = "rgba(253, 250, 243, 0.88)";
 
 /* ── Body silhouettes (64-unit viewBox, centred ~(32,36)) ─────────── */
 
@@ -192,7 +193,7 @@ function Highlight({ id }: { id: AgentIdentity }) {
       cy={y}
       rx="6"
       ry="3.6"
-      fill="#ffffff"
+      fill="#fdfaf3"
       opacity="0.18"
       transform={`rotate(-24 24 ${String(y)})`}
     />
