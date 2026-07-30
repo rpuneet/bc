@@ -2,26 +2,27 @@ package handlers
 
 import (
 	"encoding/json"
-	"io"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 
+	"github.com/rpuneet/mycel/pkg/app"
 	"github.com/rpuneet/mycel/pkg/gateway"
-	bctelegram "github.com/rpuneet/mycel/pkg/gateway/telegram"
-	bcwhatsapp "github.com/rpuneet/mycel/pkg/gateway/whatsapp"
 	"github.com/rpuneet/mycel/pkg/log"
 	"github.com/rpuneet/mycel/pkg/notify"
-	"github.com/rpuneet/mycel/pkg/secret"
 	"github.com/rpuneet/mycel/pkg/workspace"
 )
 
-// GatewayHandler handles /api/gateways routes.
+// GatewayHandler handles the transitional /api/gateways routes plus the
+// channel, subscription, and activity surface shared with /api/apps.
+// Platform CRUD and pairing moved to AppsHandler (apps.go); the
+// /api/gateways aliases delegate there.
 type GatewayHandler struct {
 	gw        *gateway.Manager
 	ws        *workspace.Workspace
 	notifySvc *notify.Service
-	vault     *secret.Store
+	apps      *AppsHandler
 }
 
 // NewGatewayHandler creates a GatewayHandler.
@@ -32,27 +33,6 @@ func NewGatewayHandler(gw *gateway.Manager, ws *workspace.Workspace) *GatewayHan
 // SetNotifyService sets the notification service for subscription management.
 func (h *GatewayHandler) SetNotifyService(svc *notify.Service) {
 	h.notifySvc = svc
-}
-
-// SetSecretStore wires the secrets vault so that gateway credentials are
-// mirrored into the vault under canonical env-var names whenever a platform
-// is connected or updated. The vault write is additive — preferences.json
-// continues to be written for backward compatibility.
-func (h *GatewayHandler) SetSecretStore(s *secret.Store) {
-	h.vault = s
-}
-
-// writeVaultSecret stores key=value in the vault (no-op when no vault is
-// wired or when value is empty). Values are intentionally not logged.
-func (h *GatewayHandler) writeVaultSecret(key, value string) {
-	if h.vault == nil || value == "" {
-		return
-	}
-	if err := h.vault.Set(key, value, "gateway credential"); err != nil {
-		log.Warn("gateway: failed to write secret to vault", "key", key, "error", err)
-		return
-	}
-	log.Debug("gateway: wrote credential to vault", "key", key)
 }
 
 // Register mounts gateway routes.
@@ -79,6 +59,7 @@ func (h *GatewayHandler) Register(mux *http.ServeMux) {
 }
 
 // gatewayRouter dispatches /api/gateways/{platform}/... routes.
+// transitional alias — removed when web moves to /api/apps (W2).
 func (h *GatewayHandler) gatewayRouter(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimPrefix(r.URL.Path, "/api/gateways/")
 	if path == "" {
@@ -94,11 +75,31 @@ func (h *GatewayHandler) gatewayRouter(w http.ResponseWriter, r *http.Request) {
 		rest = parts[1]
 	}
 
+	switch rest {
+	case "pair", "pair/status":
+		// transitional alias — removed when web moves to /api/apps (W2)
+		if h.apps == nil {
+			serviceUnavailable(w, r, "gateway", "apps handler not available")
+			return
+		}
+		if rest == "pair" {
+			h.apps.auth(w, r, platform)
+		} else {
+			h.apps.authStatus(w, r, platform)
+		}
+	default:
+		h.appScopedRoute(w, r, platform, rest)
+	}
+}
+
+// appScopedRoute serves the per-instance routes shared by
+// /api/apps/{name}/... and the transitional /api/gateways/{platform}/...
+// aliases: health, channel listing/subscriptions, the adapter API proxy,
+// and reactions.
+func (h *GatewayHandler) appScopedRoute(w http.ResponseWriter, r *http.Request, platform, rest string) {
 	switch {
 	case rest == "health":
 		h.gatewayHealth(w, r, platform)
-	case rest == "pair" || rest == "pair/status":
-		h.gatewayPair(w, r, platform, rest)
 	case rest == "channels" || strings.HasPrefix(rest, "channels/"):
 		h.gatewayChannels(w, r, platform, strings.TrimPrefix(rest, "channels"))
 	case rest == "api" || strings.HasPrefix(rest, "api/"):
@@ -106,8 +107,9 @@ func (h *GatewayHandler) gatewayRouter(w http.ResponseWriter, r *http.Request) {
 	case rest == "react":
 		h.gatewayReact(w, r, platform)
 	default:
-		// Existing: PATCH /api/gateways/{platform}
-		h.byPlatform(w, r)
+		// Platform CRUD (PATCH /api/gateways/{platform}) is superseded by
+		// POST /api/apps/{name}.
+		httpError(w, "not found", http.StatusNotFound)
 	}
 }
 
@@ -340,54 +342,32 @@ func (h *GatewayHandler) list(w http.ResponseWriter, r *http.Request) {
 
 	platforms := []gatewayStatus{}
 
+	// Connected instances from the apps config. Secret fields are
+	// reported as has_<field> booleans resolved against the vault —
+	// values never leave the server.
 	if h.ws != nil && h.ws.Config != nil {
-		gw := h.ws.Config.Gateways
-
-		// Multi-Telegram: iterate the Telegrams map (includes the legacy
-		// single "telegram" key as label="").
-		for label, tc := range gw.Telegrams {
-			name := "telegram"
-			if label != "" {
-				name = "telegram:" + label
+		names := make([]string, 0, len(h.ws.Config.Apps))
+		for name := range h.ws.Config.Apps {
+			names = append(names, name)
+		}
+		sort.Strings(names)
+		for _, name := range names {
+			ic := h.ws.Config.Apps[name]
+			cfgMap := make(map[string]any, len(ic.Config))
+			for k, v := range ic.Config {
+				cfgMap[k] = v
+			}
+			if plugin, ok := app.Get(ic.App); ok {
+				for _, f := range plugin.Describe().Fields {
+					if f.Secret {
+						cfgMap["has_"+f.Key] = h.apps.hasSecret(name, f.Key)
+					}
+				}
 			}
 			platforms = append(platforms, gatewayStatus{
 				Platform: name,
-				Enabled:  tc.Enabled,
-				Config: map[string]any{
-					"mode":      tc.Mode,
-					"has_token": tc.BotToken != "",
-				},
-			})
-		}
-		// Fallback for legacy single-telegram config
-		if len(gw.Telegrams) == 0 && gw.Telegram != nil {
-			platforms = append(platforms, gatewayStatus{
-				Platform: "telegram",
-				Enabled:  gw.Telegram.Enabled,
-				Config: map[string]any{
-					"mode":      gw.Telegram.Mode,
-					"has_token": gw.Telegram.BotToken != "",
-				},
-			})
-		}
-		if gw.Discord != nil {
-			platforms = append(platforms, gatewayStatus{
-				Platform: "discord",
-				Enabled:  gw.Discord.Enabled,
-				Config: map[string]any{
-					"has_token": gw.Discord.BotToken != "",
-				},
-			})
-		}
-		if gw.Slack != nil {
-			platforms = append(platforms, gatewayStatus{
-				Platform: "slack",
-				Enabled:  gw.Slack.Enabled,
-				Config: map[string]any{
-					"mode":          gw.Slack.Mode,
-					"has_bot_token": gw.Slack.BotToken != "",
-					"has_app_token": gw.Slack.AppToken != "",
-				},
+				Enabled:  ic.Enabled,
+				Config:   cfgMap,
 			})
 		}
 	}
@@ -436,172 +416,6 @@ func (h *GatewayHandler) list(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, platforms)
-}
-
-func (h *GatewayHandler) byPlatform(w http.ResponseWriter, r *http.Request) {
-	platform := strings.TrimPrefix(r.URL.Path, "/api/gateways/")
-	if platform == "" {
-		httpError(w, "platform name required", http.StatusBadRequest)
-		return
-	}
-
-	switch r.Method {
-	case http.MethodPatch:
-		h.updatePlatform(w, r, platform)
-	default:
-		methodNotAllowed(w)
-	}
-}
-
-func (h *GatewayHandler) updatePlatform(w http.ResponseWriter, r *http.Request, platform string) {
-	if h.ws == nil || h.ws.Config == nil {
-		httpError(w, "workspace not available", http.StatusServiceUnavailable)
-		return
-	}
-
-	body, err := io.ReadAll(io.LimitReader(r.Body, 1<<20))
-	if err != nil {
-		httpError(w, "failed to read body", http.StatusBadRequest)
-		return
-	}
-
-	cfg := h.ws.Config
-	switch {
-	case platform == "telegram":
-		if cfg.Gateways.Telegram == nil {
-			cfg.Gateways.Telegram = &workspace.TelegramGatewayConfig{}
-		}
-		if err := json.Unmarshal(body, cfg.Gateways.Telegram); err != nil {
-			httpError(w, "invalid telegram config: "+err.Error(), http.StatusBadRequest)
-			return
-		}
-		// Keep Telegrams map in sync — buildGatewayManager / hot-start iterate it.
-		if cfg.Gateways.Telegrams == nil {
-			cfg.Gateways.Telegrams = make(map[string]*workspace.TelegramGatewayConfig)
-		}
-		cfg.Gateways.Telegrams[""] = cfg.Gateways.Telegram
-	case strings.HasPrefix(platform, "telegram:"):
-		label := strings.TrimPrefix(platform, "telegram:")
-		if cfg.Gateways.Telegrams == nil {
-			cfg.Gateways.Telegrams = make(map[string]*workspace.TelegramGatewayConfig)
-		}
-		tc := cfg.Gateways.Telegrams[label]
-		if tc == nil {
-			tc = &workspace.TelegramGatewayConfig{}
-		}
-		if err := json.Unmarshal(body, tc); err != nil {
-			httpError(w, "invalid telegram config: "+err.Error(), http.StatusBadRequest)
-			return
-		}
-		cfg.Gateways.Telegrams[label] = tc
-	case platform == "discord":
-		if cfg.Gateways.Discord == nil {
-			cfg.Gateways.Discord = &workspace.DiscordGatewayConfig{}
-		}
-		if err := json.Unmarshal(body, cfg.Gateways.Discord); err != nil {
-			httpError(w, "invalid discord config: "+err.Error(), http.StatusBadRequest)
-			return
-		}
-	case platform == "slack":
-		if cfg.Gateways.Slack == nil {
-			cfg.Gateways.Slack = &workspace.SlackGatewayConfig{}
-		}
-		if err := json.Unmarshal(body, cfg.Gateways.Slack); err != nil {
-			httpError(w, "invalid slack config: "+err.Error(), http.StatusBadRequest)
-			return
-		}
-	default:
-		httpError(w, "unknown platform: "+platform, http.StatusBadRequest)
-		return
-	}
-
-	if err := cfg.Save(h.ws.SettingsFile()); err != nil {
-		httpInternalError(w, "save config", err)
-		return
-	}
-
-	// Mirror credentials into the secrets vault under canonical env names so
-	// injectVaultSecrets can pick them up when spinning up a new agent.
-	// Vault write is additive — preferences.json is still the authoritative
-	// source for the gateway manager.
-	switch {
-	case platform == "telegram":
-		if cfg.Gateways.Telegram != nil {
-			h.writeVaultSecret("TELEGRAM_BOT_TOKEN", cfg.Gateways.Telegram.BotToken)
-		}
-		if err := h.ensureTelegramAdapter(""); err != nil {
-			log.Warn("gateway: failed to hot-start telegram adapter", "error", err)
-			// Config is saved; surface a soft warning rather than failing the
-			// PATCH — operator can still restart if start fails (bad token etc).
-		}
-	case strings.HasPrefix(platform, "telegram:"):
-		label := strings.TrimPrefix(platform, "telegram:")
-		if tc := cfg.Gateways.Telegrams[label]; tc != nil {
-			key := "TELEGRAM_BOT_TOKEN_" + strings.ToUpper(strings.ReplaceAll(label, "-", "_"))
-			h.writeVaultSecret(key, tc.BotToken)
-		}
-		if err := h.ensureTelegramAdapter(label); err != nil {
-			log.Warn("gateway: failed to hot-start telegram adapter", "label", label, "error", err)
-		}
-	case platform == "discord":
-		if cfg.Gateways.Discord != nil {
-			h.writeVaultSecret("DISCORD_BOT_TOKEN", cfg.Gateways.Discord.BotToken)
-		}
-	case platform == "slack":
-		if cfg.Gateways.Slack != nil {
-			h.writeVaultSecret("SLACK_BOT_TOKEN", cfg.Gateways.Slack.BotToken)
-			h.writeVaultSecret("SLACK_APP_TOKEN", cfg.Gateways.Slack.AppToken)
-		}
-	}
-
-	writeJSON(w, http.StatusOK, map[string]string{"status": "updated", "platform": platform})
-}
-
-// ensureTelegramAdapter registers and starts a Telegram long-poll adapter
-// when credentials are saved while the daemon is already running.
-// label "" is the default bot (adapter name "telegram").
-func (h *GatewayHandler) ensureTelegramAdapter(label string) error {
-	if h.gw == nil {
-		return nil // no manager (should not happen after always-on manager)
-	}
-	if h.ws == nil || h.ws.Config == nil {
-		return nil
-	}
-
-	var tc *workspace.TelegramGatewayConfig
-	if label == "" {
-		tc = h.ws.Config.Gateways.Telegram
-		if tc == nil && h.ws.Config.Gateways.Telegrams != nil {
-			tc = h.ws.Config.Gateways.Telegrams[""]
-		}
-	} else if h.ws.Config.Gateways.Telegrams != nil {
-		tc = h.ws.Config.Gateways.Telegrams[label]
-	}
-	if tc == nil || !tc.Enabled || tc.BotToken == "" {
-		return nil
-	}
-
-	adapterName := "telegram"
-	if label != "" {
-		adapterName = "telegram:" + label
-	}
-	// Always build a new adapter from the saved token. Reusing GetAdapter would
-	// keep a stale bot token after rotation (token is fixed at NewNamed time).
-	if h.gw.GetAdapter(adapterName) != nil {
-		if err := h.gw.StopAdapter(adapterName); err != nil {
-			log.Warn("gateway: stop existing telegram adapter", "name", adapterName, "error", err)
-		}
-	}
-
-	adapter := bctelegram.NewNamed(adapterName, tc.BotToken, tc.Mode)
-	if err := adapter.DiscoverViaUpdate(); err != nil {
-		log.Warn("telegram: discovery failed during hot-start", "adapter", adapterName, "error", err)
-	}
-	if err := h.gw.StartAdapter(adapter); err != nil {
-		return err
-	}
-	log.Info("gateway: telegram adapter registered", "name", adapterName)
-	return nil
 }
 
 // legacyChannelList returns gateway channels in the old Channel format
@@ -1006,77 +820,4 @@ func (h *GatewayHandler) gatewayReact(w http.ResponseWriter, r *http.Request, pl
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok", "channel": req.Channel})
-}
-
-// gatewayPair handles QR-code-based pairing for adapters that support it
-// (currently WhatsApp). POST /api/gateways/{platform}/pair starts pairing
-// and returns a QR code image. GET /api/gateways/{platform}/pair/status
-// returns the current pairing state.
-func (h *GatewayHandler) gatewayPair(w http.ResponseWriter, r *http.Request, platform, route string) {
-	if h.gw == nil {
-		serviceUnavailable(w, r, "gateway", "gateway manager not available")
-		return
-	}
-
-	switch platform {
-	case "whatsapp":
-		h.whatsappPair(w, r, route)
-	default:
-		httpError(w, "pairing not supported for "+platform, http.StatusBadRequest)
-	}
-}
-
-func (h *GatewayHandler) whatsappPair(w http.ResponseWriter, r *http.Request, route string) {
-	adapter := h.gw.GetAdapter("whatsapp")
-
-	// If no adapter registered yet, create one on the fly.
-	if adapter == nil {
-		stateDir := ""
-		if h.ws != nil {
-			stateDir = h.ws.StateDir() + "/gateways/whatsapp"
-		}
-		if stateDir == "" {
-			httpError(w, "workspace not available", http.StatusServiceUnavailable)
-			return
-		}
-		wa := bcwhatsapp.New(stateDir)
-		h.gw.Register(wa)
-		adapter = wa
-	}
-
-	wa, ok := adapter.(*bcwhatsapp.Adapter)
-	if !ok {
-		httpError(w, "whatsapp adapter type mismatch", http.StatusInternalServerError)
-		return
-	}
-
-	// Always wire handler so messages flow into the notification system —
-	// needed both for fresh pairing and reconnection from saved session.
-	wa.SetHandler(func(n gateway.Notification) {
-		if h.gw != nil {
-			h.gw.HandleNotification("whatsapp", n)
-		}
-	})
-
-	switch {
-	case route == "pair" && r.Method == http.MethodPost:
-		status, err := wa.StartPairing(r.Context())
-		if err != nil {
-			httpError(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		// When pairing completes synchronously (device already paired / reconnect),
-		// write the authenticated JID (phone number) into the vault so agents can
-		// reference the session. Values are never logged.
-		if status.State == "connected" && status.Phone != "" {
-			h.writeVaultSecret("WHATSAPP_SESSION", status.Phone)
-		}
-		writeJSON(w, http.StatusOK, status)
-
-	case route == "pair/status" && r.Method == http.MethodGet:
-		writeJSON(w, http.StatusOK, wa.GetPairStatus())
-
-	default:
-		methodNotAllowed(w)
-	}
 }
