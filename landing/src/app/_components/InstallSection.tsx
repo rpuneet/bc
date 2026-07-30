@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { motion } from "framer-motion";
 import { Copy, Check, Terminal, Beer, Code2, Container, Package, GitBranch } from "lucide-react";
+
+import { ScrollReveal } from "./Motion";
 
 function useLatestVersion() {
   const [version, setVersion] = useState("latest");
@@ -145,12 +146,7 @@ export function InstallSection() {
       className="scroll-mt-24 py-16 sm:py-24 lg:py-32"
     >
       <div className="mx-auto max-w-5xl px-4 sm:px-6">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, margin: "-100px" }}
-          transition={{ duration: 0.6 }}
-        >
+        <ScrollReveal distance={20}>
           <span className="deck-eyebrow">
             Install
           </span>
@@ -166,15 +162,9 @@ export function InstallSection() {
           <p className="mt-4 max-w-2xl text-muted-foreground">
             One binary. No login. No config. Pick your platform and copy the command.
           </p>
-        </motion.div>
+        </ScrollReveal>
 
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, margin: "-100px" }}
-          transition={{ duration: 0.6, delay: 0.1 }}
-          className="mt-8"
-        >
+        <ScrollReveal distance={20} delay={0.1} className="mt-8">
           {/* Mobile select */}
           <label htmlFor="install-option-select" className="sr-only">
             Install option
@@ -222,15 +212,9 @@ export function InstallSection() {
           <div className="mt-3">
             <CodeBlock lines={current.commands} id={current.id} />
           </div>
-        </motion.div>
+        </ScrollReveal>
 
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, margin: "-100px" }}
-          transition={{ duration: 0.6, delay: 0.2 }}
-          className="mt-8"
-        >
+        <ScrollReveal distance={20} delay={0.2} className="mt-8">
           <div className="font-mono text-xs uppercase tracking-[0.15em] text-muted-foreground">
             Then run
           </div>
@@ -243,7 +227,7 @@ export function InstallSection() {
               ]}
             />
           </div>
-        </motion.div>
+        </ScrollReveal>
       </div>
     </section>
   );

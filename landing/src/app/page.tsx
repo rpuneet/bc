@@ -1,8 +1,7 @@
 "use client";
 
-import { useState, useSyncExternalStore, useRef, type ReactNode } from "react";
+import { useState, useSyncExternalStore, type ReactNode } from "react";
 import Link from "next/link";
-import { motion, useInView } from "framer-motion";
 import { Copy, Check, ArrowRight, Github } from "lucide-react";
 import { Nav } from "./_components/Nav";
 import { Footer } from "./_components/Footer";
@@ -13,7 +12,7 @@ import {
   ChannelView,
   CostTable,
 } from "./_components/TerminalComponents";
-import { RevealSection, FadeUp } from "./_components/Motion";
+import { RevealSection, FadeUp, ScrollReveal } from "./_components/Motion";
 import { AnimatedBackground } from "./_components/AnimatedBackground";
 
 /* ── Install commands by platform (hero) ── */
@@ -110,14 +109,10 @@ function DeckPanel({
   imageFirst?: boolean;
   last?: boolean;
 }) {
-  const ref = useRef(null);
-  const inView = useInView(ref, { once: true, margin: "-90px" });
-
   const text = (
-    <motion.div
-      initial={{ opacity: 0, x: imageFirst ? 40 : -40 }}
-      animate={inView ? { opacity: 1, x: 0 } : {}}
-      transition={{ duration: 0.7, ease: "easeOut" }}
+    <ScrollReveal
+      from={imageFirst ? "right" : "left"}
+      distance={40}
       className={imageFirst ? "lg:order-2" : ""}
     >
       <div className="flex items-baseline gap-4">
@@ -130,22 +125,22 @@ function DeckPanel({
       <p className="mt-5 max-w-xl font-body text-[15px] leading-[1.8] text-on-surface-variant">
         {body}
       </p>
-    </motion.div>
+    </ScrollReveal>
   );
 
   const art = (
-    <motion.div
-      initial={{ opacity: 0, y: 32 }}
-      animate={inView ? { opacity: 1, y: 0 } : {}}
-      transition={{ duration: 0.7, ease: "easeOut", delay: 0.12 }}
+    <ScrollReveal
+      from="up"
+      distance={32}
+      delay={0.12}
       className={imageFirst ? "lg:order-1" : ""}
     >
       <div className="deck-artifact rounded-xl">{artifact}</div>
-    </motion.div>
+    </ScrollReveal>
   );
 
   return (
-    <div ref={ref} className="relative">
+    <div className="relative">
       {/* Ember-rail node marker (desktop) */}
       <span
         aria-hidden="true"
