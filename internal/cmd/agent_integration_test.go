@@ -279,28 +279,27 @@ func TestAgentCreateUnknownTool(t *testing.T) {
 	}
 }
 
-func TestAgentNoWorkspace(t *testing.T) {
+func TestAgentListOutsideRepo(t *testing.T) {
+	// agent list is daemon-first and CWD-free: outside any repo it still
+	// queries bcd. Errors, if any, come from the daemon — never from a
+	// missing workspace.
 	origDir, err := os.Getwd()
 	if err != nil {
 		t.Fatalf("failed to get cwd: %v", err)
 	}
 
-	tmpDir := t.TempDir()
+	tmpDir := t.TempDir() // plain dir, not a git repo
 	if err = os.Chdir(tmpDir); err != nil {
 		t.Fatalf("failed to chdir: %v", err)
 	}
 	defer func() { _ = os.Chdir(origDir) }()
 
-	// Clear MYCEL_WORKSPACE to test directory-based workspace detection
 	restoreEnv := clearWorkspaceEnv(t)
 	defer restoreEnv()
 
 	_, _, execErr := executeIntegrationCmd("agent", "list")
-	if execErr == nil {
-		t.Error("expected error when not in workspace")
-	}
-	if !strings.Contains(execErr.Error(), "not in a mycel-adopted repo") {
-		t.Errorf("expected workspace error, got: %v", execErr)
+	if execErr != nil && strings.Contains(execErr.Error(), "not in a mycel-adopted repo") {
+		t.Errorf("agent list must not require a repo, got workspace error: %v", execErr)
 	}
 }
 

@@ -28,7 +28,7 @@ type Options struct {
 // Service computes cost analytics directly from provider session files.
 // Every read method operates on a briefly-cached merged entry list;
 // Refresh forces a re-scan.
-type Service struct {
+type Service struct { //nolint:govet // grouped by role (deps / cache) over 16 bytes of packing
 	registry *provider.Registry
 	budgets  BudgetStore
 	opts     Options

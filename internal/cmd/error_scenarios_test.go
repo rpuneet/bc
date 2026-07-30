@@ -332,7 +332,9 @@ func TestMissingRequiredArgs(t *testing.T) {
 
 // --- No Workspace Tests ---
 
-// TestNoWorkspace tests commands run outside a workspace
+// TestNoWorkspace tests the commands that still require an enclosing
+// mycel-adopted repo. Daemon-first commands (agent list, channel list,
+// logs, cost, ...) are CWD-free and covered elsewhere.
 func TestNoWorkspace(t *testing.T) {
 	origDir, err := os.Getwd()
 	if err != nil {
@@ -345,7 +347,7 @@ func TestNoWorkspace(t *testing.T) {
 	}
 	defer func() { _ = os.Chdir(origDir) }()
 
-	// Clear MYCEL_WORKSPACE to test directory-based workspace detection
+	// Clear MYCEL_WORKSPACE to test directory-based repo detection
 	restoreEnv := clearWorkspaceEnv(t)
 	defer restoreEnv()
 
@@ -354,15 +356,7 @@ func TestNoWorkspace(t *testing.T) {
 		args []string
 	}{
 		{
-			name: "agent list outside workspace",
-			args: []string{"agent", "list"},
-		},
-		{
-			name: "channel list outside workspace",
-			args: []string{"channel", "list"},
-		},
-		{
-			name: "status outside workspace",
+			name: "status outside repo",
 			args: []string{"status"},
 		},
 	}

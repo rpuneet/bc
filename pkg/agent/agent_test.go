@@ -80,8 +80,11 @@ func initGitRepo(t *testing.T, dir string) {
 
 // newTestManager creates a Manager with a unique tmux prefix and temp state dir.
 // The tmux manager uses a prefix that won't match any real sessions.
+// The test gets its own MYCEL_HOME so global-DB state (agents, roles)
+// never leaks between tests.
 func newTestManager(t *testing.T) *Manager {
 	t.Helper()
+	t.Setenv("MYCEL_HOME", t.TempDir())
 	dir := t.TempDir()
 
 	// Initialize a git repo so worktree operations work
@@ -118,7 +121,7 @@ func newTestManager(t *testing.T) *Manager {
 		store:          store,
 		agentCmd:       "/bin/true",
 		workspacePath:  dir,
-		worktreeMgr:    worktree.NewManager(dir),
+		worktreeMgr:    worktree.NewManager(dir, dir),
 		roleManager:    rm,
 	}
 }
@@ -505,8 +508,12 @@ func TestListAgents_SortOrder(t *testing.T) {
 // --- State persistence tests ---
 
 func TestSaveAndLoadState(t *testing.T) {
+	// LoadState always opens the single global DB at <MYCEL_HOME>/mycel.db,
+	// so the saving store must write to that same file.
+	home := t.TempDir()
+	t.Setenv("MYCEL_HOME", home)
 	tmpDir := t.TempDir()
-	dbPath := filepath.Join(tmpDir, "state.db")
+	dbPath := filepath.Join(home, "mycel.db")
 
 	store, err := NewSQLiteStore(dbPath)
 	if err != nil {
@@ -548,7 +555,7 @@ func TestSaveAndLoadState(t *testing.T) {
 
 	// Verify DB file exists
 	if _, err := os.Stat(dbPath); err != nil {
-		t.Fatalf("state.db not created: %v", err)
+		t.Fatalf("mycel.db not created: %v", err)
 	}
 
 	// Load into new manager
@@ -584,6 +591,7 @@ func TestSaveAndLoadState(t *testing.T) {
 }
 
 func TestLoadState_NoFile(t *testing.T) {
+	t.Setenv("MYCEL_HOME", t.TempDir())
 	tmpDir := t.TempDir()
 	m := &Manager{
 		agents:         make(map[string]*Agent),
@@ -591,10 +599,11 @@ func TestLoadState_NoFile(t *testing.T) {
 		defaultBackend: "tmux",
 		stateDir:       tmpDir,
 	}
-	// No agents.json exists, should return nil (not error)
+	// Fresh global DB, nothing to migrate — should load zero agents.
 	if err := m.LoadState(); err != nil {
-		t.Errorf("LoadState with no file should return nil, got: %v", err)
+		t.Errorf("LoadState with no prior state should return nil, got: %v", err)
 	}
+	defer func() { _ = m.Close() }()
 	if len(m.agents) != 0 {
 		t.Errorf("expected 0 agents, got %d", len(m.agents))
 	}
@@ -672,8 +681,10 @@ func TestSaveState_NilStore(t *testing.T) {
 }
 
 func TestSaveState_RoundTrip(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("MYCEL_HOME", home)
 	tmpDir := t.TempDir()
-	dbPath := filepath.Join(tmpDir, "state.db")
+	dbPath := filepath.Join(home, "mycel.db")
 
 	store, err := NewSQLiteStore(dbPath)
 	if err != nil {
@@ -732,6 +743,7 @@ func TestSaveState_RoundTrip(t *testing.T) {
 }
 
 func TestLoadState_MigratesCorruptJSON(t *testing.T) {
+	t.Setenv("MYCEL_HOME", t.TempDir())
 	tmpDir := t.TempDir()
 	stateFile := filepath.Join(tmpDir, "agents.json")
 	if err := os.WriteFile(stateFile, []byte("not json"), 0600); err != nil {
@@ -757,23 +769,24 @@ func TestLoadState_MigratesCorruptJSON(t *testing.T) {
 
 // --- LoadRoleMemory tests ---
 
+// LoadRoleMemory reads roles from the GLOBAL role store (the single DB
+// at <MYCEL_HOME>/mycel.db); its first argument is ignored. Legacy .md
+// files under <MYCEL_HOME>/roles are migrated into the store on open.
 func TestLoadRoleMemory(t *testing.T) {
-	tmpDir := t.TempDir()
-	rolesDir := filepath.Join(tmpDir, ".bc", "roles")
+	home := t.TempDir()
+	t.Setenv("MYCEL_HOME", home)
+	rolesDir := filepath.Join(home, "roles")
 	if err := os.MkdirAll(rolesDir, 0750); err != nil {
 		t.Fatal(err)
 	}
 
-	t.Run("file exists", func(t *testing.T) {
+	t.Run("role exists in global store", func(t *testing.T) {
 		content := "You are an engineer. Write code and tests."
-		// RoleManager expects YAML or Markdown with frontmatter or just prompt?
-		// Actually RoleManager might expect a specific format.
-		// Let's check RoleManager.LoadRole.
 		if err := os.WriteFile(filepath.Join(rolesDir, "engineer.md"), []byte(content), 0600); err != nil {
 			t.Fatal(err)
 		}
 
-		mem := LoadRoleMemory(tmpDir, Role("engineer"))
+		mem := LoadRoleMemory("", Role("engineer"))
 		if mem == nil {
 			t.Fatal("expected non-nil AgentMemory")
 		}
@@ -785,10 +798,10 @@ func TestLoadRoleMemory(t *testing.T) {
 		}
 	})
 
-	t.Run("file does not exist", func(t *testing.T) {
-		mem := LoadRoleMemory(tmpDir, Role("qa"))
+	t.Run("role does not exist", func(t *testing.T) {
+		mem := LoadRoleMemory("", Role("qa"))
 		if mem != nil {
-			t.Error("expected nil AgentMemory for missing file")
+			t.Error("expected nil AgentMemory for missing role")
 		}
 	})
 
@@ -798,7 +811,7 @@ func TestLoadRoleMemory(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		mem := LoadRoleMemory(tmpDir, Role("product-manager"))
+		mem := LoadRoleMemory("", Role("product-manager"))
 		if mem == nil {
 			t.Fatal("expected non-nil AgentMemory for product-manager")
 		}
@@ -807,23 +820,27 @@ func TestLoadRoleMemory(t *testing.T) {
 		}
 	})
 
-	t.Run("root role from prompts dir", func(t *testing.T) {
-		// Root role uses backward compatible prompts/root.md path
-		promptsDir := filepath.Join(tmpDir, "prompts")
-		if mkErr := os.MkdirAll(promptsDir, 0750); mkErr != nil {
-			t.Fatal(mkErr)
-		}
+	t.Run("root role from global store", func(t *testing.T) {
 		content := "You are the root coordinator."
-		if writeErr := os.WriteFile(filepath.Join(promptsDir, "root.md"), []byte(content), 0600); writeErr != nil {
+		if writeErr := os.WriteFile(filepath.Join(rolesDir, "root.md"), []byte(content), 0600); writeErr != nil {
 			t.Fatal(writeErr)
 		}
 
-		mem := LoadRoleMemory(tmpDir, RoleRoot)
+		mem := LoadRoleMemory("", RoleRoot)
 		if mem == nil {
 			t.Fatal("expected non-nil AgentMemory for root role")
 		}
 		if mem.RolePrompt != content {
 			t.Errorf("RolePrompt = %q, want %q", mem.RolePrompt, content)
+		}
+	})
+
+	t.Run("first argument is ignored", func(t *testing.T) {
+		// A bogus workspace path must not matter — the role comes from
+		// the global store.
+		mem := LoadRoleMemory("/nonexistent/workspace", Role("engineer"))
+		if mem == nil {
+			t.Fatal("expected role from global store regardless of first arg")
 		}
 	})
 
@@ -833,7 +850,7 @@ func TestLoadRoleMemory(t *testing.T) {
 			t.Fatal(writeErr)
 		}
 
-		mem := LoadRoleMemory(tmpDir, Role("empty"))
+		mem := LoadRoleMemory("", Role("empty"))
 		if mem != nil {
 			t.Error("expected nil AgentMemory for empty prompt file")
 		}
@@ -1311,8 +1328,10 @@ func TestRemoveFromParent(t *testing.T) {
 // --- State persistence round-trip with complex data ---
 
 func TestSaveLoadState_ComplexHierarchy(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("MYCEL_HOME", home)
 	tmpDir := t.TempDir()
-	dbPath := filepath.Join(tmpDir, "state.db")
+	dbPath := filepath.Join(home, "mycel.db")
 
 	store, err := NewSQLiteStore(dbPath)
 	if err != nil {
@@ -2798,71 +2817,6 @@ func TestRoleConstant(t *testing.T) {
 	}
 }
 
-// --- Additional LoadRoleMemory tests ---
-
-func TestLoadRoleMemory_RootRoleBackwardCompat(t *testing.T) {
-	tmpDir := t.TempDir()
-	promptsDir := filepath.Join(tmpDir, "prompts")
-	if err := os.MkdirAll(promptsDir, 0750); err != nil {
-		t.Fatal(err)
-	}
-
-	// Create root.md in the backward-compatible location
-	content := "You are the root orchestrator agent."
-	if err := os.WriteFile(filepath.Join(promptsDir, "root.md"), []byte(content), 0600); err != nil {
-		t.Fatal(err)
-	}
-
-	mem := LoadRoleMemory(tmpDir, RoleRoot)
-	if mem == nil {
-		t.Fatal("expected non-nil AgentMemory for root role")
-	}
-	if mem.RolePrompt != content {
-		t.Errorf("RolePrompt = %q, want %q", mem.RolePrompt, content)
-	}
-}
-
-func TestLoadRoleMemory_RootRoleFallsBackToRoleManager(t *testing.T) {
-	tmpDir := t.TempDir()
-	rolesDir := filepath.Join(tmpDir, ".bc", "roles")
-	if err := os.MkdirAll(rolesDir, 0750); err != nil {
-		t.Fatal(err)
-	}
-
-	// Create root.md in roles dir (not prompts dir)
-	content := "Root from roles directory."
-	if err := os.WriteFile(filepath.Join(rolesDir, "root.md"), []byte(content), 0600); err != nil {
-		t.Fatal(err)
-	}
-
-	// Should fall back to role manager since prompts/root.md doesn't exist
-	mem := LoadRoleMemory(tmpDir, RoleRoot)
-	if mem == nil {
-		t.Fatal("expected non-nil AgentMemory for root role from role manager")
-	}
-	if mem.RolePrompt != content {
-		t.Errorf("RolePrompt = %q, want %q", mem.RolePrompt, content)
-	}
-}
-
-func TestLoadRoleMemory_EmptyPrompt(t *testing.T) {
-	tmpDir := t.TempDir()
-	rolesDir := filepath.Join(tmpDir, ".bc", "roles")
-	if err := os.MkdirAll(rolesDir, 0750); err != nil {
-		t.Fatal(err)
-	}
-
-	// Create empty role file
-	if err := os.WriteFile(filepath.Join(rolesDir, "empty-role.md"), []byte(""), 0600); err != nil {
-		t.Fatal(err)
-	}
-
-	mem := LoadRoleMemory(tmpDir, Role("empty-role"))
-	if mem != nil {
-		t.Error("expected nil AgentMemory for empty prompt")
-	}
-}
-
 // --- UpdateAgentState error tests ---
 
 func TestUpdateAgentState_NotFound(t *testing.T) {
@@ -3316,6 +3270,7 @@ func (m mockProvider) Version(_ context.Context) string   { return m.version }
 
 func newTestManagerWithProvider(t *testing.T, p provider.Provider) *Manager {
 	t.Helper()
+	t.Setenv("MYCEL_HOME", t.TempDir())
 	reg := provider.NewRegistry()
 	reg.Register(p)
 	dir := t.TempDir()
@@ -3348,7 +3303,7 @@ func newTestManagerWithProvider(t *testing.T, p provider.Provider) *Manager {
 		stateDir:         dir,
 		agentCmd:         "/bin/true",
 		workspacePath:    dir,
-		worktreeMgr:      worktree.NewManager(dir),
+		worktreeMgr:      worktree.NewManager(dir, dir),
 	}
 }
 
@@ -3680,13 +3635,9 @@ func TestWorktreeManagerFor_CreatesWorktreeFromAgentRepo(t *testing.T) {
 		t.Errorf("worktree HEAD = %s, want agent repo HEAD %s", got, want)
 	}
 
-	// The worktree lands in the shared flat layout under the mycel home,
-	// keyed by bare agent name.
-	home, homeErr := workspace.MycelHome()
-	if homeErr != nil {
-		t.Fatalf("MycelHome: %v", homeErr)
-	}
-	if want := filepath.Join(home, "worktrees", "cross-repo-agent"); wtDir != want {
+	// The worktree lands in the agent's entity dir under the manager's
+	// agents root, keyed by bare agent name.
+	if want := filepath.Join(stateDir, "cross-repo-agent", "worktree"); wtDir != want {
 		t.Errorf("worktree dir = %q, want %q", wtDir, want)
 	}
 }
@@ -3698,6 +3649,7 @@ func TestWorktreeManagerFor_CreatesWorktreeFromAgentRepo(t *testing.T) {
 // CreateSessionWithEnv without a real Docker daemon.
 func newDockerMockManager(t *testing.T, boot string) (*Manager, *mockBackend) {
 	t.Helper()
+	t.Setenv("MYCEL_HOME", t.TempDir())
 	stateDir := filepath.Join(t.TempDir(), "state")
 	if err := os.MkdirAll(stateDir, 0750); err != nil {
 		t.Fatal(err)
@@ -3716,7 +3668,7 @@ func newDockerMockManager(t *testing.T, boot string) (*Manager, *mockBackend) {
 		store:          store,
 		agentCmd:       "/bin/true",
 		workspacePath:  boot,
-		worktreeMgr:    worktree.NewManagerWithDataDir(boot, stateDir),
+		worktreeMgr:    worktree.NewManager(boot, stateDir),
 	}
 	return m, docker
 }
@@ -3910,20 +3862,37 @@ func TestSeedHostClaudeTrust_NonClaudeToolIsNoop(t *testing.T) {
 	}
 }
 
-// The flat worktree manager must root worktrees and state under the
-// mycel home, not the per-workspace state dir.
-func TestFlatWorktreeManagerLayout(t *testing.T) {
+// The entity worktree manager roots everything an agent owns at
+// <agentsRoot>/<name>/: worktree/ and session/claude inside it.
+func TestEntityWorktreeManagerLayout(t *testing.T) {
+	agentsRoot := t.TempDir()
+
+	m := entityWorktreeManager("/repo", agentsRoot)
+	if got, want := m.AgentDir("eng-01"), filepath.Join(agentsRoot, "eng-01"); got != want {
+		t.Errorf("AgentDir() = %q, want %q", got, want)
+	}
+	if got, want := m.Path("eng-01"), filepath.Join(agentsRoot, "eng-01", "worktree"); got != want {
+		t.Errorf("Path() = %q, want %q", got, want)
+	}
+	if got, want := m.SessionDir("eng-01"), filepath.Join(agentsRoot, "eng-01", "session"); got != want {
+		t.Errorf("SessionDir() = %q, want %q", got, want)
+	}
+	if got, want := m.ClaudeDir("eng-01"), filepath.Join(agentsRoot, "eng-01", "session", "claude"); got != want {
+		t.Errorf("ClaudeDir() = %q, want %q", got, want)
+	}
+}
+
+// An empty agentsRoot resolves to the mycel home's agents dir
+// (<MYCEL_HOME>/agents).
+func TestEntityWorktreeManager_EmptyRootResolvesMycelHome(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("MYCEL_HOME", home)
 
-	m := flatWorktreeManager("/repo", "/unused/agents")
-	if got, want := m.Path("eng-01"), filepath.Join(home, "worktrees", "eng-01"); got != want {
+	m := entityWorktreeManager("/repo", "")
+	if got, want := m.Path("eng-01"), filepath.Join(home, "agents", "eng-01", "worktree"); got != want {
 		t.Errorf("Path() = %q, want %q", got, want)
 	}
-	if got, want := m.ClaudeDir("eng-01"), filepath.Join(home, "agents", "eng-01", "claude"); got != want {
+	if got, want := m.ClaudeDir("eng-01"), filepath.Join(home, "agents", "eng-01", "session", "claude"); got != want {
 		t.Errorf("ClaudeDir() = %q, want %q", got, want)
-	}
-	if got, want := m.Name("eng-01"), "eng-01"; got != want {
-		t.Errorf("Name() = %q, want %q", got, want)
 	}
 }

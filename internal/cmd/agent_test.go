@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"bytes"
 	"os"
 	"path/filepath"
 	"strings"
@@ -154,31 +153,12 @@ func TestAgentCreate_CustomRoles(t *testing.T) {
 }
 
 func TestAgentCreate_EmptyName(t *testing.T) {
-	// Setup temp workspace
-	dir := t.TempDir()
-	bcDir := filepath.Join(dir, ".bc")
-	if err := os.MkdirAll(bcDir, 0750); err != nil {
-		t.Fatal(err)
-	}
-
-	// Create minimal config
-	configPath := filepath.Join(bcDir, "settings.json")
-	if err := os.WriteFile(configPath, []byte(`{"version":2,"providers":{"default":"claude","providers":{"claude":{"command":"claude"}}},"server":{"host":"127.0.0.1","port":9374,"cors_origin":"*"},"runtime":{"default":"tmux"},"ui":{"theme":"dark","mode":"auto"}}`), 0600); err != nil {
-		t.Fatal(err)
-	}
-
-	// Test that empty name is rejected
+	// MaximumNArgs(1) allows an empty string arg — name validation
+	// happens later in runAgentCreate, not in Args.
 	cmd := agentCreateCmd
-	cmd.SetArgs([]string{""})
-
-	// Capture output
-	var buf bytes.Buffer
-	cmd.SetOut(&buf)
-	cmd.SetErr(&buf)
-
-	// This will fail because we're not in a real workspace, but we can test the args
-	// MaximumNArgs(1) allows empty string, validation happens in runAgentCreate
-	_ = cmd.Args(cmd, []string{""})
+	if err := cmd.Args(cmd, []string{""}); err != nil {
+		t.Errorf("Args should accept a single (empty) positional arg: %v", err)
+	}
 }
 
 // --- Agent Create Flags Tests ---
@@ -250,9 +230,9 @@ func TestAgentList_EmptyResult(t *testing.T) {
 // --- Agent Stop Tests ---
 
 func TestAgentStop_NonExistentAgent(t *testing.T) {
-	dir := t.TempDir()
-	bcDir := filepath.Join(dir, ".bc")
-	agentsDir := filepath.Join(bcDir, "agents")
+	// Agent entities live under an agents root (~/.mycel/agents in
+	// production); a fresh temp dir stands in for it here.
+	agentsDir := filepath.Join(t.TempDir(), "agents")
 	if err := os.MkdirAll(agentsDir, 0750); err != nil {
 		t.Fatal(err)
 	}
@@ -816,24 +796,8 @@ func TestAgentRenameCmd_CommandDefinition(t *testing.T) {
 }
 
 func TestAgentRename_RunEValidation(t *testing.T) {
-	// Test the validation logic via direct function call
-	// This tests the same-name check in runAgentRename
-	tmpDir := t.TempDir()
-	wsDir := filepath.Join(tmpDir, "workspace")
-	bcDir := filepath.Join(wsDir, ".bc")
-	if err := os.MkdirAll(bcDir, 0o750); err != nil {
-		t.Fatalf("failed to create .bc dir: %v", err)
-	}
-	if err := os.WriteFile(filepath.Join(bcDir, ".bcroot"), []byte(""), 0o600); err != nil {
-		t.Fatalf("failed to create .bcroot: %v", err)
-	}
-
-	// Change to workspace directory
-	oldDir, _ := os.Getwd()
-	_ = os.Chdir(wsDir)
-	defer func() { _ = os.Chdir(oldDir) }()
-
-	// Test same name error
+	// The same-name check in runAgentRename runs before any daemon or
+	// repo access, so it can be exercised via a direct call.
 	err := runAgentRename(nil, []string{"eng-01", "eng-01"})
 	if err == nil {
 		t.Error("expected error when renaming to same name")
@@ -869,10 +833,11 @@ func TestAgentCreate_RejectsRootRole(t *testing.T) {
 
 func TestAgentCreate_NonExistentTeam(t *testing.T) {
 	// Test that agent create fails if team doesn't exist
-	wsDir := setupTestWorkspace(t)
+	setupTestWorkspace(t)
 
-	// Create engineer role file first
-	rolesDir := filepath.Join(wsDir, ".bc", "roles")
+	// Create engineer role file in the global roles migration dir
+	// (~/.mycel/roles); the role store picks it up on load.
+	rolesDir := filepath.Join(os.Getenv("MYCEL_HOME"), "roles")
 	if err := os.MkdirAll(rolesDir, 0750); err != nil {
 		t.Fatalf("failed to create roles dir: %v", err)
 	}

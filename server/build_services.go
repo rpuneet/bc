@@ -567,8 +567,8 @@ func (a *costServiceAdapter) AgentCostSummary(agentID string) (*bcagent.CostSumm
 // prefsBudgetStore persists budget thresholds in the global prefs
 // (~/.mycel/prefs.json) via the workspace config.
 type prefsBudgetStore struct {
-	mu sync.Mutex
 	ws *bcworkspace.Workspace
+	mu sync.Mutex
 }
 
 func (p *prefsBudgetStore) All() (map[string]cost.BudgetConfig, error) {

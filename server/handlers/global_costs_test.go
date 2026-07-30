@@ -1,36 +1,60 @@
 package handlers
 
 import (
-	"context"
 	"encoding/json"
+	"fmt"
+	"math"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/rpuneet/mycel/pkg/cost"
+	"github.com/rpuneet/mycel/pkg/provider"
 )
 
-func newTestGlobalStore(t *testing.T) *cost.Store {
+// newTestCostService builds a source-direct cost.Service over a
+// throwaway home dir. Tests seed data by writing Claude Code JSONL
+// transcripts under <home>/.claude/projects/ (see seedUsage).
+func newTestCostService(t *testing.T) (*cost.Service, string) {
 	t.Helper()
-	store, err := cost.OpenGlobalStore(filepath.Join(t.TempDir(), "costs.db"))
-	if err != nil {
-		t.Fatalf("OpenGlobalStore: %v", err)
-	}
-	t.Cleanup(func() { _ = store.Close() })
-	return store
+	home := t.TempDir()
+	svc := cost.NewService(provider.DefaultRegistry, cost.Options{
+		Home:      home,
+		AgentsDir: filepath.Join(home, "agents"),
+	}, nil)
+	return svc, home
 }
 
-func seedCost(t *testing.T, store *cost.Store, wsID, agentID string, usd float64) {
+// usageCounter makes every seeded entry unique so the CostReader's
+// (session, timestamp, model, tokens) dedup never collapses fixtures.
+var usageCounter int
+
+// seedUsage writes one Claude Code JSONL transcript line whose "cwd" is
+// the repo the entry is attributed to. Returns the USD cost the claude
+// provider prices it at (claude-sonnet-4: $3/M input, $15/M output).
+func seedUsage(t *testing.T, home, repo string, inputTokens, outputTokens int64, ts time.Time) float64 {
 	t.Helper()
-	scoped := store.ScopedTo(wsID)
-	if _, err := scoped.Record(context.Background(), agentID, "", "claude", 1, 1, usd); err != nil {
-		t.Fatalf("Record: %v", err)
+	usageCounter++
+	session := fmt.Sprintf("s-%d", usageCounter)
+	line := fmt.Sprintf(`{"type":"assistant","sessionId":%q,"timestamp":%q,"cwd":%q,"message":{"model":"claude-sonnet-4-20250514","usage":{"input_tokens":%d,"output_tokens":%d,"cache_creation_input_tokens":0,"cache_read_input_tokens":0}}}`,
+		session, ts.UTC().Format(time.RFC3339), repo, inputTokens, outputTokens)
+
+	path := filepath.Join(home, ".claude", "projects", "p", session+".jsonl")
+	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
+		t.Fatal(err)
 	}
+	if err := os.WriteFile(path, []byte(line+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return float64(inputTokens)*3.0/1e6 + float64(outputTokens)*15.0/1e6
 }
 
-func TestGlobalCosts_NilStoreReturns503(t *testing.T) {
+func approxEq(a, b float64) bool { return math.Abs(a-b) < 1e-9 }
+
+func TestGlobalCosts_NilServiceReturns503(t *testing.T) {
 	h := NewGlobalCostsHandler(nil)
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/global/costs", nil)
@@ -41,7 +65,8 @@ func TestGlobalCosts_NilStoreReturns503(t *testing.T) {
 }
 
 func TestGlobalCosts_MethodNotAllowed(t *testing.T) {
-	h := NewGlobalCostsHandler(newTestGlobalStore(t))
+	svc, _ := newTestCostService(t)
+	h := NewGlobalCostsHandler(svc)
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/api/global/costs", nil)
 	h.ServeHTTP(rec, req)
@@ -51,7 +76,8 @@ func TestGlobalCosts_MethodNotAllowed(t *testing.T) {
 }
 
 func TestGlobalCosts_InvalidGroupBy(t *testing.T) {
-	h := NewGlobalCostsHandler(newTestGlobalStore(t))
+	svc, _ := newTestCostService(t)
+	h := NewGlobalCostsHandler(svc)
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/global/costs?groupBy=garbage", nil)
 	h.ServeHTTP(rec, req)
@@ -61,7 +87,8 @@ func TestGlobalCosts_InvalidGroupBy(t *testing.T) {
 }
 
 func TestGlobalCosts_InvalidStart(t *testing.T) {
-	h := NewGlobalCostsHandler(newTestGlobalStore(t))
+	svc, _ := newTestCostService(t)
+	h := NewGlobalCostsHandler(svc)
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/global/costs?start=not-a-date", nil)
 	h.ServeHTTP(rec, req)
@@ -71,13 +98,18 @@ func TestGlobalCosts_InvalidStart(t *testing.T) {
 }
 
 func TestGlobalCosts_GroupByRepo(t *testing.T) {
-	store := newTestGlobalStore(t)
-	seedCost(t, store, "/repos/alpha", "a1", 1.25)
-	seedCost(t, store, "/repos/alpha", "a2", 0.50)
-	seedCost(t, store, "/repos/beta", "a3", 2.00)
-	seedCost(t, store, "", "orphan", 0.10) // unattributed
+	svc, home := newTestCostService(t)
+	now := time.Now()
+	alphaUSD := seedUsage(t, home, "/repos/alpha", 300_000, 20_000, now)
+	alphaUSD += seedUsage(t, home, "/repos/alpha", 100_000, 10_000, now.Add(time.Minute))
+	betaUSD := seedUsage(t, home, "/repos/beta", 500_000, 40_000, now)
+	orphanUSD := seedUsage(t, home, "", 10_000, 1_000, now) // unattributed
 
-	h := NewGlobalCostsHandler(store)
+	if betaUSD <= alphaUSD || alphaUSD <= orphanUSD {
+		t.Fatalf("fixture ordering broken: beta=%v alpha=%v orphan=%v", betaUSD, alphaUSD, orphanUSD)
+	}
+
+	h := NewGlobalCostsHandler(svc)
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/global/costs", nil)
 	h.ServeHTTP(rec, req)
@@ -95,29 +127,33 @@ func TestGlobalCosts_GroupByRepo(t *testing.T) {
 	if len(rep.Rows) != 3 {
 		t.Fatalf("rows = %d, want 3; got %+v", len(rep.Rows), rep.Rows)
 	}
-	// Highest total first — /repos/beta at 2.00, labeled by basename.
+	// Highest total first — /repos/beta, labeled by basename.
 	if rep.Rows[0].Key != "/repos/beta" || rep.Rows[0].Label != "beta" {
 		t.Errorf("first row = %+v, want /repos/beta labeled beta", rep.Rows[0])
 	}
-	if rep.Rows[0].Total != 2.00 {
-		t.Errorf("first row total = %v, want 2.00", rep.Rows[0].Total)
+	if !approxEq(rep.Rows[0].Total, betaUSD) {
+		t.Errorf("first row total = %v, want %v", rep.Rows[0].Total, betaUSD)
 	}
-	// /repos/alpha second: 1.25 + 0.50 = 1.75
-	if rep.Rows[1].Key != "/repos/alpha" || rep.Rows[1].Total != 1.75 {
-		t.Errorf("second row = %+v, want /repos/alpha at 1.75", rep.Rows[1])
+	// /repos/alpha second (two entries summed).
+	if rep.Rows[1].Key != "/repos/alpha" || !approxEq(rep.Rows[1].Total, alphaUSD) {
+		t.Errorf("second row = %+v, want /repos/alpha at %v", rep.Rows[1], alphaUSD)
 	}
-	// Unattributed last
+	// Unattributed last.
 	if rep.Rows[2].Key != "unattributed" || rep.Rows[2].Label != "Unattributed" {
 		t.Errorf("third row = %+v, want unattributed", rep.Rows[2])
+	}
+	if !approxEq(rep.Rows[2].Total, orphanUSD) {
+		t.Errorf("third row total = %v, want %v", rep.Rows[2].Total, orphanUSD)
 	}
 }
 
 func TestGlobalCosts_GroupByProject(t *testing.T) {
-	store := newTestGlobalStore(t)
-	seedCost(t, store, "/repos/alpha", "a1", 1.00)
-	seedCost(t, store, "/repos/beta", "a2", 3.00)
+	svc, home := newTestCostService(t)
+	now := time.Now()
+	alphaUSD := seedUsage(t, home, "/repos/alpha", 100_000, 5_000, now)
+	betaUSD := seedUsage(t, home, "/repos/beta", 600_000, 50_000, now)
 
-	h := NewGlobalCostsHandler(store)
+	h := NewGlobalCostsHandler(svc)
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/global/costs?groupBy=project", nil)
 	h.ServeHTTP(rec, req)
@@ -135,20 +171,23 @@ func TestGlobalCosts_GroupByProject(t *testing.T) {
 	if len(rep.Rows) != 2 {
 		t.Fatalf("rows = %d, want 2; got %+v", len(rep.Rows), rep.Rows)
 	}
-	// Rows sorted by total desc: beta first (basename label)
-	if rep.Rows[0].Label != "beta" || rep.Rows[0].Total != 3.00 {
-		t.Errorf("first row = %+v, want beta at 3.00", rep.Rows[0])
+	// Rows sorted by total desc: beta first, keyed by project label.
+	if rep.Rows[0].Label != "beta" || !approxEq(rep.Rows[0].Total, betaUSD) {
+		t.Errorf("first row = %+v, want beta at %v", rep.Rows[0], betaUSD)
+	}
+	if rep.Rows[1].Label != "alpha" || !approxEq(rep.Rows[1].Total, alphaUSD) {
+		t.Errorf("second row = %+v, want alpha at %v", rep.Rows[1], alphaUSD)
 	}
 }
 
 func TestGlobalCosts_StartBoundsRespected(t *testing.T) {
-	store := newTestGlobalStore(t)
-	seedCost(t, store, "ws", "recent", 1.00)
+	svc, home := newTestCostService(t)
+	seedUsage(t, home, "/repos/ws", 100_000, 5_000, time.Now())
 
-	// Start far in the future — no records should match. Build a proper
+	// Start far in the future — no entries should match. Build a proper
 	// url.Values so the '+' offset doesn't get decoded as a space.
 	future := time.Now().Add(1 * time.Hour).UTC().Format(time.RFC3339)
-	h := NewGlobalCostsHandler(store)
+	h := NewGlobalCostsHandler(svc)
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/global/costs", nil)
 	q := req.URL.Query()

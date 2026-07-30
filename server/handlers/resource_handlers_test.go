@@ -3,6 +3,7 @@ package handlers_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -15,6 +16,7 @@ import (
 	"github.com/rpuneet/mycel/pkg/db"
 	"github.com/rpuneet/mycel/pkg/events"
 	"github.com/rpuneet/mycel/pkg/mcp"
+	"github.com/rpuneet/mycel/pkg/provider"
 	"github.com/rpuneet/mycel/pkg/secret"
 	"github.com/rpuneet/mycel/pkg/tool"
 	"github.com/rpuneet/mycel/pkg/workspace"
@@ -24,32 +26,102 @@ import (
 
 // --- helpers for building test servers with real services ---
 
-// sandboxBCHome points MYCEL_HOME (and HOME) at a per-test tempdir so any
-// global-registry writes land in a disposable sandbox instead of the
-// caller's real ~/.bc/workspaces.json. Without this, workspace.Init()
-// registers every t.TempDir() root in the user's production registry —
-// one leaked entry per test, growing the file forever.
+// sandboxBCHome points MYCEL_HOME (and HOME) at a per-test tempdir so
+// global state (prefs.json, mycel.db, agents/) lands in a disposable
+// sandbox instead of the caller's real ~/.mycel.
 func sandboxBCHome(t *testing.T) {
 	t.Helper()
 	home := t.TempDir()
 	t.Setenv("HOME", home)
-	t.Setenv("MYCEL_HOME", filepath.Join(home, ".bc"))
+	t.Setenv("MYCEL_HOME", filepath.Join(home, ".mycel"))
 }
 
 func setupWorkspace(t *testing.T) string {
 	t.Helper()
 	sandboxBCHome(t)
 	dir := t.TempDir()
-	// workspace.Init requires a git repo
+	// workspace.Open requires a non-empty root to be a git repo
 	if out, err := exec.CommandContext(context.Background(), "git", "init", dir).CombinedOutput(); err != nil { //nolint:gosec // dir is a t.TempDir(), not user input
 		t.Fatalf("git init: %v\n%s", err, out)
 	}
-	wks, err := workspace.Init(dir)
+	wks, err := workspace.Open(dir)
 	if err != nil {
-		t.Fatalf("init workspace: %v", err)
+		t.Fatalf("open workspace: %v", err)
 	}
 	_ = wks
 	return dir
+}
+
+// --- source-direct cost helpers ---
+
+// memBudgets is a tiny in-memory cost.BudgetStore for handler tests.
+type memBudgets struct {
+	m map[string]cost.BudgetConfig
+}
+
+func newMemBudgets() *memBudgets { return &memBudgets{m: map[string]cost.BudgetConfig{}} }
+
+func (b *memBudgets) All() (map[string]cost.BudgetConfig, error) {
+	out := make(map[string]cost.BudgetConfig, len(b.m))
+	for k, v := range b.m {
+		out[k] = v
+	}
+	return out, nil
+}
+
+func (b *memBudgets) Set(scope string, cfg cost.BudgetConfig) error {
+	b.m[scope] = cfg
+	return nil
+}
+
+func (b *memBudgets) Delete(scope string) error {
+	if _, ok := b.m[scope]; !ok {
+		return fmt.Errorf("budget not found for scope %q", scope)
+	}
+	delete(b.m, scope)
+	return nil
+}
+
+// newCostService builds a source-direct cost.Service over throwaway
+// source dirs (home + agents) backed by an in-memory budget store.
+// Returns the service plus the home dir so tests can drop Claude Code
+// JSONL fixtures under <home>/.claude/projects/.
+func newCostServiceAt(t *testing.T) (*cost.Service, string) {
+	t.Helper()
+	home := t.TempDir()
+	svc := cost.NewService(provider.DefaultRegistry, cost.Options{
+		Home:      home,
+		AgentsDir: filepath.Join(home, "agents"),
+	}, newMemBudgets())
+	return svc, home
+}
+
+func newCostService(t *testing.T) *cost.Service {
+	t.Helper()
+	svc, _ := newCostServiceAt(t)
+	return svc
+}
+
+// claudeUsageLine fabricates one Claude Code JSONL transcript line with
+// token usage the claude provider's CostReader parses and prices.
+func claudeUsageLine(session, ts, cwd, model string, in, out int64) string {
+	return fmt.Sprintf(`{"type":"assistant","sessionId":%q,"timestamp":%q,"cwd":%q,"message":{"model":%q,"usage":{"input_tokens":%d,"output_tokens":%d,"cache_creation_input_tokens":0,"cache_read_input_tokens":0}}}`,
+		session, ts, cwd, model, in, out)
+}
+
+// writeClaudeSession writes a JSONL session transcript at path.
+func writeClaudeSession(t *testing.T, path string, lines ...string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
+		t.Fatal(err)
+	}
+	content := ""
+	for _, l := range lines {
+		content += l + "\n"
+	}
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
 }
 
 // setupWorkspaceWithDB sets up a workspace whose database is opened
@@ -103,30 +175,32 @@ func readJSONArray(t *testing.T, resp *http.Response) []any {
 // --- Cost handler tests ---
 
 func TestCostHandler_Summary(t *testing.T) {
-	dir := setupWorkspace(t)
-	store := cost.NewStore(dir)
-	if err := store.Open(); err != nil {
-		t.Fatalf("open cost store: %v", err)
-	}
-	t.Cleanup(func() { _ = store.Close() })
+	svc, home := newCostServiceAt(t)
+	writeClaudeSession(t,
+		filepath.Join(home, ".claude", "projects", "p1", "11111111-aaaa-1111-1111-111111111111.jsonl"),
+		claudeUsageLine("s1", "2026-07-30T10:00:00Z", "/repos/proj", "claude-sonnet-4-20250514", 100, 50),
+	)
 
-	ts := buildTestServerWithServices(t, server.Services{Costs: store})
+	ts := buildTestServerWithServices(t, server.Services{Costs: svc})
 	defer ts.Close()
 
 	resp := get(t, ts.URL+"/api/costs")
+	defer func() { _ = resp.Body.Close() }()
 	assertStatus(t, resp, http.StatusOK)
-	_ = resp.Body.Close()
+	body := readJSON(t, resp)
+	// claude-sonnet-4: $3/M input + $15/M output.
+	wantUSD := 100*3.0/1e6 + 50*15.0/1e6
+	gotUSD, _ := body["total_cost_usd"].(float64)
+	if diff := gotUSD - wantUSD; diff > 1e-9 || diff < -1e-9 {
+		t.Fatalf("total_cost_usd = %v, want %v", gotUSD, wantUSD)
+	}
+	if body["record_count"] != float64(1) {
+		t.Fatalf("record_count = %v, want 1", body["record_count"])
+	}
 }
 
 func TestCostHandler_SummaryMethodNotAllowed(t *testing.T) {
-	dir := setupWorkspace(t)
-	store := cost.NewStore(dir)
-	if err := store.Open(); err != nil {
-		t.Fatalf("open cost store: %v", err)
-	}
-	t.Cleanup(func() { _ = store.Close() })
-
-	ts := buildTestServerWithServices(t, server.Services{Costs: store})
+	ts := buildTestServerWithServices(t, server.Services{Costs: newCostService(t)})
 	defer ts.Close()
 
 	resp := post(t, ts.URL+"/api/costs", "application/json", `{}`)
@@ -135,14 +209,7 @@ func TestCostHandler_SummaryMethodNotAllowed(t *testing.T) {
 }
 
 func TestCostHandler_ByResource(t *testing.T) {
-	dir := setupWorkspace(t)
-	store := cost.NewStore(dir)
-	if err := store.Open(); err != nil {
-		t.Fatalf("open cost store: %v", err)
-	}
-	t.Cleanup(func() { _ = store.Close() })
-
-	ts := buildTestServerWithServices(t, server.Services{Costs: store})
+	ts := buildTestServerWithServices(t, server.Services{Costs: newCostService(t)})
 	defer ts.Close()
 
 	tests := []struct {
@@ -171,22 +238,31 @@ func TestCostHandler_ByResource(t *testing.T) {
 }
 
 func TestCostHandler_AgentDetail(t *testing.T) {
-	dir := setupWorkspace(t)
-	store := cost.NewStore(dir)
-	if err := store.Open(); err != nil {
-		t.Fatalf("open cost store: %v", err)
-	}
-	t.Cleanup(func() { _ = store.Close() })
+	svc, home := newCostServiceAt(t)
+	// Agent-attributed source: <AgentsDir>/<name>/session/claude/projects.
+	writeClaudeSession(t,
+		filepath.Join(home, "agents", "test-agent", "session", "claude", "projects", "p", "22222222-aaaa-2222-2222-222222222222.jsonl"),
+		claudeUsageLine("s-agent", "2026-07-30T09:00:00Z", "/workspace", "claude-sonnet-4-20250514", 1000, 500),
+	)
 
-	ts := buildTestServerWithServices(t, server.Services{Costs: store})
+	ts := buildTestServerWithServices(t, server.Services{Costs: svc})
 	defer ts.Close()
 
 	resp := get(t, ts.URL+"/api/costs/agent/test-agent")
 	defer func() { _ = resp.Body.Close() }()
 	assertStatus(t, resp, http.StatusOK)
 	body := readJSON(t, resp)
-	if _, ok := body["summary"]; !ok {
+	summary, ok := body["summary"].(map[string]any)
+	if !ok {
 		t.Fatal("expected summary field in agent detail response")
+	}
+	if summary["agent_id"] != "test-agent" {
+		t.Fatalf("summary agent_id = %v, want test-agent", summary["agent_id"])
+	}
+	wantUSD := 1000*3.0/1e6 + 500*15.0/1e6
+	gotUSD, _ := summary["total_cost_usd"].(float64)
+	if diff := gotUSD - wantUSD; diff > 1e-9 || diff < -1e-9 {
+		t.Fatalf("summary total_cost_usd = %v, want %v", gotUSD, wantUSD)
 	}
 	if _, ok := body["daily"]; !ok {
 		t.Fatal("expected daily field in agent detail response")
@@ -194,14 +270,7 @@ func TestCostHandler_AgentDetail(t *testing.T) {
 }
 
 func TestCostHandler_Budgets_Create(t *testing.T) {
-	dir := setupWorkspace(t)
-	store := cost.NewStore(dir)
-	if err := store.Open(); err != nil {
-		t.Fatalf("open cost store: %v", err)
-	}
-	t.Cleanup(func() { _ = store.Close() })
-
-	ts := buildTestServerWithServices(t, server.Services{Costs: store})
+	ts := buildTestServerWithServices(t, server.Services{Costs: newCostService(t)})
 	defer ts.Close()
 
 	// Create budget
@@ -226,14 +295,7 @@ func TestCostHandler_Budgets_Create(t *testing.T) {
 }
 
 func TestCostHandler_Budgets_Validation(t *testing.T) {
-	dir := setupWorkspace(t)
-	store := cost.NewStore(dir)
-	if err := store.Open(); err != nil {
-		t.Fatalf("open cost store: %v", err)
-	}
-	t.Cleanup(func() { _ = store.Close() })
-
-	ts := buildTestServerWithServices(t, server.Services{Costs: store})
+	ts := buildTestServerWithServices(t, server.Services{Costs: newCostService(t)})
 	defer ts.Close()
 
 	tests := []struct {
@@ -256,14 +318,7 @@ func TestCostHandler_Budgets_Validation(t *testing.T) {
 }
 
 func TestCostHandler_Budgets_DeleteNoScope(t *testing.T) {
-	dir := setupWorkspace(t)
-	store := cost.NewStore(dir)
-	if err := store.Open(); err != nil {
-		t.Fatalf("open cost store: %v", err)
-	}
-	t.Cleanup(func() { _ = store.Close() })
-
-	ts := buildTestServerWithServices(t, server.Services{Costs: store})
+	ts := buildTestServerWithServices(t, server.Services{Costs: newCostService(t)})
 	defer ts.Close()
 
 	resp := doRequest(t, http.MethodDelete, ts.URL+"/api/costs/budgets", "", "")
@@ -273,14 +328,7 @@ func TestCostHandler_Budgets_DeleteNoScope(t *testing.T) {
 }
 
 func TestCostHandler_Budgets_MethodNotAllowed(t *testing.T) {
-	dir := setupWorkspace(t)
-	store := cost.NewStore(dir)
-	if err := store.Open(); err != nil {
-		t.Fatalf("open cost store: %v", err)
-	}
-	t.Cleanup(func() { _ = store.Close() })
-
-	ts := buildTestServerWithServices(t, server.Services{Costs: store})
+	ts := buildTestServerWithServices(t, server.Services{Costs: newCostService(t)})
 	defer ts.Close()
 
 	resp := doRequest(t, http.MethodPatch, ts.URL+"/api/costs/budgets", "application/json", `{}`)
@@ -288,31 +336,40 @@ func TestCostHandler_Budgets_MethodNotAllowed(t *testing.T) {
 	_ = resp.Body.Close()
 }
 
-func TestCostHandler_SyncNoImporter(t *testing.T) {
-	dir := setupWorkspace(t)
-	store := cost.NewStore(dir)
-	if err := store.Open(); err != nil {
-		t.Fatalf("open cost store: %v", err)
-	}
-	t.Cleanup(func() { _ = store.Close() })
+// TestCostHandler_Sync verifies POST /api/costs/sync re-scans the
+// provider session files and reports the merged entry count.
+func TestCostHandler_Sync(t *testing.T) {
+	svc, home := newCostServiceAt(t)
 
-	ts := buildTestServerWithServices(t, server.Services{Costs: store})
+	ts := buildTestServerWithServices(t, server.Services{Costs: svc})
 	defer ts.Close()
 
+	// No sources yet — sync succeeds with zero entries.
 	resp := post(t, ts.URL+"/api/costs/sync", "application/json", `{}`)
-	assertStatus(t, resp, http.StatusServiceUnavailable)
-	_ = resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
+	assertStatus(t, resp, http.StatusOK)
+	body := readJSON(t, resp)
+	if body["imported"] != float64(0) {
+		t.Fatalf("imported = %v, want 0", body["imported"])
+	}
+
+	// Drop a transcript on disk; sync must pick it up immediately
+	// (bypassing the 60s cache).
+	writeClaudeSession(t,
+		filepath.Join(home, ".claude", "projects", "p", "33333333-aaaa-3333-3333-333333333333.jsonl"),
+		claudeUsageLine("s-sync", "2026-07-30T11:00:00Z", "/repos/sync", "claude-sonnet-4-20250514", 10, 5),
+	)
+	resp = post(t, ts.URL+"/api/costs/sync", "application/json", `{}`)
+	defer func() { _ = resp.Body.Close() }()
+	assertStatus(t, resp, http.StatusOK)
+	body = readJSON(t, resp)
+	if body["imported"] != float64(1) {
+		t.Fatalf("imported = %v, want 1 after writing a transcript", body["imported"])
+	}
 }
 
 func TestCostHandler_SyncMethodNotAllowed(t *testing.T) {
-	dir := setupWorkspace(t)
-	store := cost.NewStore(dir)
-	if err := store.Open(); err != nil {
-		t.Fatalf("open cost store: %v", err)
-	}
-	t.Cleanup(func() { _ = store.Close() })
-
-	ts := buildTestServerWithServices(t, server.Services{Costs: store})
+	ts := buildTestServerWithServices(t, server.Services{Costs: newCostService(t)})
 	defer ts.Close()
 
 	resp := get(t, ts.URL+"/api/costs/sync")
@@ -321,14 +378,7 @@ func TestCostHandler_SyncMethodNotAllowed(t *testing.T) {
 }
 
 func TestCostHandler_AgentsMethodNotAllowed(t *testing.T) {
-	dir := setupWorkspace(t)
-	store := cost.NewStore(dir)
-	if err := store.Open(); err != nil {
-		t.Fatalf("open cost store: %v", err)
-	}
-	t.Cleanup(func() { _ = store.Close() })
-
-	ts := buildTestServerWithServices(t, server.Services{Costs: store})
+	ts := buildTestServerWithServices(t, server.Services{Costs: newCostService(t)})
 	defer ts.Close()
 
 	resp := post(t, ts.URL+"/api/costs/agents", "application/json", `{}`)
@@ -337,14 +387,7 @@ func TestCostHandler_AgentsMethodNotAllowed(t *testing.T) {
 }
 
 func TestCostHandler_BudgetNotFound(t *testing.T) {
-	dir := setupWorkspace(t)
-	store := cost.NewStore(dir)
-	if err := store.Open(); err != nil {
-		t.Fatalf("open cost store: %v", err)
-	}
-	t.Cleanup(func() { _ = store.Close() })
-
-	ts := buildTestServerWithServices(t, server.Services{Costs: store})
+	ts := buildTestServerWithServices(t, server.Services{Costs: newCostService(t)})
 	defer ts.Close()
 
 	resp := get(t, ts.URL+"/api/costs/budgets/nonexistent")
@@ -1317,12 +1360,8 @@ func TestStatsHandler_SummaryMethodNotAllowed(t *testing.T) {
 func TestStatsHandler_SummaryWithServices(t *testing.T) {
 	dir := setupWorkspaceWithDB(t)
 
-	// Set up costs
-	costStore := cost.NewStore(dir)
-	if err := costStore.Open(); err != nil {
-		t.Fatalf("open cost store: %v", err)
-	}
-	t.Cleanup(func() { _ = costStore.Close() })
+	// Set up costs (source-direct service over empty sources)
+	costStore := newCostService(t)
 
 	// Set up tools
 	toolStore := tool.NewStore(openWSDB(t, dir))
@@ -1920,11 +1959,7 @@ func TestAgentHandler_ListWithCosts(t *testing.T) {
 	stateDir := filepath.Join(dir, ".bc")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
-	costStore := cost.NewStore(dir)
-	if err := costStore.Open(); err != nil {
-		t.Fatalf("open cost store: %v", err)
-	}
-	t.Cleanup(func() { _ = costStore.Close() })
+	costStore := newCostService(t)
 
 	mgr := agent.NewManager(stateDir)
 	svc := agent.NewAgentService(mgr, nil, nil)
@@ -2037,14 +2072,7 @@ func TestToolHandler_CRUD(t *testing.T) {
 // --- Cost handler: budget valid periods ---
 
 func TestCostHandler_Budgets_AllPeriods(t *testing.T) {
-	dir := setupWorkspace(t)
-	store := cost.NewStore(dir)
-	if err := store.Open(); err != nil {
-		t.Fatalf("open cost store: %v", err)
-	}
-	t.Cleanup(func() { _ = store.Close() })
-
-	ts := buildTestServerWithServices(t, server.Services{Costs: store})
+	ts := buildTestServerWithServices(t, server.Services{Costs: newCostService(t)})
 	defer ts.Close()
 
 	for _, period := range []string{"daily", "weekly", "monthly"} {
@@ -2167,14 +2195,7 @@ func TestAgentHandler_CreateAgent(t *testing.T) {
 // --- Cost handler: by-resource method not allowed on various sub-resources ---
 
 func TestCostHandler_DailyMethodNotAllowed(t *testing.T) {
-	dir := setupWorkspace(t)
-	store := cost.NewStore(dir)
-	if err := store.Open(); err != nil {
-		t.Fatalf("open cost store: %v", err)
-	}
-	t.Cleanup(func() { _ = store.Close() })
-
-	ts := buildTestServerWithServices(t, server.Services{Costs: store})
+	ts := buildTestServerWithServices(t, server.Services{Costs: newCostService(t)})
 	defer ts.Close()
 
 	resp := post(t, ts.URL+"/api/costs/daily", "application/json", `{}`)
@@ -2183,14 +2204,7 @@ func TestCostHandler_DailyMethodNotAllowed(t *testing.T) {
 }
 
 func TestCostHandler_ProjectMethodNotAllowed(t *testing.T) {
-	dir := setupWorkspace(t)
-	store := cost.NewStore(dir)
-	if err := store.Open(); err != nil {
-		t.Fatalf("open cost store: %v", err)
-	}
-	t.Cleanup(func() { _ = store.Close() })
-
-	ts := buildTestServerWithServices(t, server.Services{Costs: store})
+	ts := buildTestServerWithServices(t, server.Services{Costs: newCostService(t)})
 	defer ts.Close()
 
 	resp := post(t, ts.URL+"/api/costs/project", "application/json", `{}`)
@@ -2199,14 +2213,7 @@ func TestCostHandler_ProjectMethodNotAllowed(t *testing.T) {
 }
 
 func TestCostHandler_AgentDetailMethodNotAllowed(t *testing.T) {
-	dir := setupWorkspace(t)
-	store := cost.NewStore(dir)
-	if err := store.Open(); err != nil {
-		t.Fatalf("open cost store: %v", err)
-	}
-	t.Cleanup(func() { _ = store.Close() })
-
-	ts := buildTestServerWithServices(t, server.Services{Costs: store})
+	ts := buildTestServerWithServices(t, server.Services{Costs: newCostService(t)})
 	defer ts.Close()
 
 	resp := post(t, ts.URL+"/api/costs/agent/test", "application/json", `{}`)
@@ -2215,14 +2222,7 @@ func TestCostHandler_AgentDetailMethodNotAllowed(t *testing.T) {
 }
 
 func TestCostHandler_TeamsMethodNotAllowed(t *testing.T) {
-	dir := setupWorkspace(t)
-	store := cost.NewStore(dir)
-	if err := store.Open(); err != nil {
-		t.Fatalf("open cost store: %v", err)
-	}
-	t.Cleanup(func() { _ = store.Close() })
-
-	ts := buildTestServerWithServices(t, server.Services{Costs: store})
+	ts := buildTestServerWithServices(t, server.Services{Costs: newCostService(t)})
 	defer ts.Close()
 
 	resp := post(t, ts.URL+"/api/costs/teams", "application/json", `{}`)
@@ -2231,14 +2231,7 @@ func TestCostHandler_TeamsMethodNotAllowed(t *testing.T) {
 }
 
 func TestCostHandler_ModelsMethodNotAllowed(t *testing.T) {
-	dir := setupWorkspace(t)
-	store := cost.NewStore(dir)
-	if err := store.Open(); err != nil {
-		t.Fatalf("open cost store: %v", err)
-	}
-	t.Cleanup(func() { _ = store.Close() })
-
-	ts := buildTestServerWithServices(t, server.Services{Costs: store})
+	ts := buildTestServerWithServices(t, server.Services{Costs: newCostService(t)})
 	defer ts.Close()
 
 	resp := post(t, ts.URL+"/api/costs/models", "application/json", `{}`)

@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -79,31 +80,41 @@ func TestAgentLifecycle_ListPositionalArg(t *testing.T) {
 	}
 }
 
-func TestAgentLifecycle_CreateNoWorkspace(t *testing.T) {
+func TestAgentLifecycle_CreateIsCWDFree(t *testing.T) {
+	// Agent commands are daemon-first: no repo is required, the CLI goes
+	// straight to bcd from any directory.
 	origDir, _ := os.Getwd()
-	tmpDir := t.TempDir()
+	tmpDir := t.TempDir() // plain dir, not a git repo
 	_ = os.Chdir(tmpDir)
 	defer func() { _ = os.Chdir(origDir) }()
 
-	// Clear MYCEL_WORKSPACE env var so workspace detection falls back to directory walking
-	origBCWorkspace := os.Getenv("MYCEL_WORKSPACE")
-	_ = os.Unsetenv("MYCEL_WORKSPACE")
-	defer func() {
-		if origBCWorkspace != "" {
-			_ = os.Setenv("MYCEL_WORKSPACE", origBCWorkspace)
-		}
-	}()
+	restoreEnv := clearWorkspaceEnv(t)
+	defer restoreEnv()
 
 	resetAgentFlags()
 	defer resetAgentFlags()
 
-	// Include --role flag so validation passes and we reach workspace check
-	_, err := executeCmd("agent", "create", "test-agent", "--role", "engineer")
-	if err == nil {
-		t.Fatal("expected error for missing workspace")
+	apiHit := false
+	handler := func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/health" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		if strings.HasPrefix(r.URL.Path, "/api/") {
+			apiHit = true
+		}
+		http.NotFound(w, r)
 	}
-	if !strings.Contains(err.Error(), "not in a mycel-adopted repo") {
-		t.Errorf("expected workspace error, got: %v", err)
+
+	_, _, err := executeIntegrationCmdT(t, handler, "agent", "create", "test-agent", "--role", "engineer")
+	if err == nil {
+		t.Fatal("expected daemon error from fake bcd, got nil")
+	}
+	if strings.Contains(err.Error(), "not in a mycel-adopted repo") {
+		t.Errorf("agent create must not require a repo, got workspace error: %v", err)
+	}
+	if !apiHit {
+		t.Error("agent create should reach bcd even outside a repo")
 	}
 }
 
@@ -535,95 +546,79 @@ func TestAgentCmdArgs_SendRequiresNameAndMessage(t *testing.T) {
 	}
 }
 
-// --- No Workspace Error Tests ---
+// --- CWD-free Command Tests ---
+//
+// Agent and channel commands are daemon-first: they need bcd, not a
+// repo, and work from any directory. The old "must fail outside a
+// workspace" behavior is gone.
 
-func TestNoWorkspace_AgentList(t *testing.T) {
+func TestCWDFree_AgentListSucceedsOutsideRepo(t *testing.T) {
 	origDir, _ := os.Getwd()
-	tmpDir := t.TempDir()
+	tmpDir := t.TempDir() // plain dir, not a git repo
 	_ = os.Chdir(tmpDir)
 	defer func() { _ = os.Chdir(origDir) }()
 
-	// Clear MYCEL_WORKSPACE env var to test directory-based workspace detection
 	restoreEnv := clearWorkspaceEnv(t)
 	defer restoreEnv()
 
-	_, err := executeCmd("agent", "list")
-	if err == nil {
-		t.Fatal("expected error for missing workspace")
+	handler := func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/agents" {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`[]`))
+			return
+		}
+		w.WriteHeader(http.StatusOK)
 	}
-	if !strings.Contains(err.Error(), "not in a mycel-adopted repo") {
-		t.Errorf("expected workspace error, got: %v", err)
+
+	stdout, _, err := executeIntegrationCmdT(t, handler, "agent", "list")
+	if err != nil {
+		t.Fatalf("agent list must be CWD-free, got: %v", err)
+	}
+	if !strings.Contains(stdout, "No agents") {
+		t.Errorf("expected empty agent listing, got: %s", stdout)
 	}
 }
 
-func TestNoWorkspace_AgentStop(t *testing.T) {
+func TestCWDFree_AgentCommandsReachDaemon(t *testing.T) {
 	origDir, _ := os.Getwd()
-	tmpDir := t.TempDir()
+	tmpDir := t.TempDir() // plain dir, not a git repo
 	_ = os.Chdir(tmpDir)
 	defer func() { _ = os.Chdir(origDir) }()
 
 	restoreEnv := clearWorkspaceEnv(t)
 	defer restoreEnv()
 
-	_, err := executeCmd("agent", "stop", "any-agent")
-	if err == nil {
-		t.Fatal("expected error for missing workspace")
+	tests := []struct {
+		name string
+		args []string
+	}{
+		{"agent stop", []string{"agent", "stop", "any-agent"}},
+		{"agent peek", []string{"agent", "peek", "any-agent"}},
+		{"agent send", []string{"agent", "send", "any-agent", "message"}},
+		{"channel create", []string{"channel", "create", "test"}},
 	}
-	if !strings.Contains(err.Error(), "not in a mycel-adopted repo") {
-		t.Errorf("expected workspace error, got: %v", err)
-	}
-}
 
-func TestNoWorkspace_AgentPeek(t *testing.T) {
-	origDir, _ := os.Getwd()
-	tmpDir := t.TempDir()
-	_ = os.Chdir(tmpDir)
-	defer func() { _ = os.Chdir(origDir) }()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			apiHit := false
+			handler := func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path == "/health" {
+					w.WriteHeader(http.StatusOK)
+					return
+				}
+				if strings.HasPrefix(r.URL.Path, "/api/") {
+					apiHit = true
+				}
+				http.NotFound(w, r)
+			}
 
-	restoreEnv := clearWorkspaceEnv(t)
-	defer restoreEnv()
-
-	_, err := executeCmd("agent", "peek", "any-agent")
-	if err == nil {
-		t.Fatal("expected error for missing workspace")
-	}
-	if !strings.Contains(err.Error(), "not in a mycel-adopted repo") {
-		t.Errorf("expected workspace error, got: %v", err)
-	}
-}
-
-func TestNoWorkspace_AgentSend(t *testing.T) {
-	origDir, _ := os.Getwd()
-	tmpDir := t.TempDir()
-	_ = os.Chdir(tmpDir)
-	defer func() { _ = os.Chdir(origDir) }()
-
-	restoreEnv := clearWorkspaceEnv(t)
-	defer restoreEnv()
-
-	_, err := executeCmd("agent", "send", "any-agent", "message")
-	if err == nil {
-		t.Fatal("expected error for missing workspace")
-	}
-	if !strings.Contains(err.Error(), "not in a mycel-adopted repo") {
-		t.Errorf("expected workspace error, got: %v", err)
-	}
-}
-
-func TestNoWorkspace_ChannelCreate(t *testing.T) {
-	origDir, _ := os.Getwd()
-	tmpDir := t.TempDir()
-	_ = os.Chdir(tmpDir)
-	defer func() { _ = os.Chdir(origDir) }()
-
-	restoreEnv := clearWorkspaceEnv(t)
-	defer restoreEnv()
-
-	_, err := executeCmd("channel", "create", "test")
-	if err == nil {
-		t.Fatal("expected error for missing workspace")
-	}
-	if !strings.Contains(err.Error(), "not in a mycel-adopted repo") {
-		t.Errorf("expected workspace error, got: %v", err)
+			_, _, err := executeIntegrationCmdT(t, handler, tt.args...)
+			if err != nil && strings.Contains(err.Error(), "not in a mycel-adopted repo") {
+				t.Errorf("%v must not require a repo, got workspace error: %v", tt.args, err)
+			}
+			if !apiHit {
+				t.Errorf("%v should reach bcd even outside a repo", tt.args)
+			}
+		})
 	}
 }

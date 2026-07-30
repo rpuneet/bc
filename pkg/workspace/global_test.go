@@ -7,71 +7,28 @@ import (
 	"testing"
 )
 
-func TestDataDir(t *testing.T) {
-	dir := t.TempDir()
-	withMycelHome(t, dir)
-
-	t.Run("valid-id", func(t *testing.T) {
-		got, err := DataDir("abcdef123456")
-		if err != nil {
-			t.Fatalf("DataDir: %v", err)
-		}
-		want := filepath.Join(dir, "workspaces", "abcdef123456")
-		if got != want {
-			t.Errorf("got %q, want %q", got, want)
-		}
-	})
-
-	t.Run("empty-id", func(t *testing.T) {
-		if _, err := DataDir(""); err == nil {
-			t.Fatal("expected error for empty id, got nil")
-		}
-	})
-
-	t.Run("matches-ComputeWorkspaceID", func(t *testing.T) {
-		absPath := filepath.Join(dir, "some", "project")
-		id := ComputeWorkspaceID(absPath)
-		got, err := DataDir(id)
-		if err != nil {
-			t.Fatalf("DataDir: %v", err)
-		}
-		if !strings.HasSuffix(got, filepath.Join("workspaces", id)) {
-			t.Errorf("expected suffix workspaces/%s, got %q", id, got)
-		}
-	})
-}
-
-// withMycelHome sets MYCEL_HOME for the duration of the test and restores it.
-func withMycelHome(t *testing.T, dir string) {
-	t.Helper()
-	prev, had := os.LookupEnv("MYCEL_HOME")
-	t.Setenv("MYCEL_HOME", dir)
-	t.Cleanup(func() {
-		if had {
-			_ = os.Setenv("MYCEL_HOME", prev)
-		} else {
-			_ = os.Unsetenv("MYCEL_HOME")
-		}
-	})
-}
-
 func TestGlobalPathsRespectMycelHome(t *testing.T) {
-	dir := t.TempDir()
-	withMycelHome(t, dir)
+	dir := setTestHome(t)
 
 	cases := []struct {
-		name string
 		fn   func() (string, error)
+		name string
 		rel  string
 	}{
-		{"templates", GlobalTemplatesDir, "templates"},
-		{"secrets", GlobalSecretsVault, "secrets.vault"},
-		{"mcp", GlobalMCPConfig, "mcps.json"},
-		{"costs", GlobalCostsDB, "costs.db"},
-		{"tools", GlobalToolsConfig, "tools.json"},
+		{GlobalTemplatesDir, "templates", "templates"},
+		{GlobalSecretsVault, "secrets", "secrets.vault"},
+		{GlobalMCPConfig, "mcp", "mcps.json"},
+		{GlobalToolsConfig, "tools", "tools.json"},
+		{AgentsDir, "agents", "agents"},
+		{AppsDir, "apps", "apps"},
+		{GlobalLogsDir, "logs", "logs"},
+		{RunDir, "run", "run"},
+		{PrefsPath, "prefs", "prefs.json"},
+		{DaemonPidPath, "daemon-pid", filepath.Join("run", "daemon.pid")},
+		{DaemonAddrPath, "daemon-addr", filepath.Join("run", "daemon.addr")},
+		{DaemonLogPath, "daemon-log", filepath.Join("logs", "daemon.log")},
 	}
 	for _, tc := range cases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			got, err := tc.fn()
 			if err != nil {
@@ -85,9 +42,108 @@ func TestGlobalPathsRespectMycelHome(t *testing.T) {
 	}
 }
 
+func TestAgentDirLayout(t *testing.T) {
+	dir := setTestHome(t)
+
+	agentDir, err := AgentDir("eng-01")
+	if err != nil {
+		t.Fatalf("AgentDir: %v", err)
+	}
+	if want := filepath.Join(dir, "agents", "eng-01"); agentDir != want {
+		t.Errorf("AgentDir = %q, want %q", agentDir, want)
+	}
+
+	subs := []struct {
+		fn  func(string) (string, error)
+		sub string
+	}{
+		{AgentWorktreeDir, "worktree"},
+		{AgentSessionDir, "session"},
+		{AgentLogsDir, "logs"},
+		{AgentTmpDir, "tmp"},
+	}
+	for _, tc := range subs {
+		got, err := tc.fn("eng-01")
+		if err != nil {
+			t.Fatalf("%s: %v", tc.sub, err)
+		}
+		if want := filepath.Join(agentDir, tc.sub); got != want {
+			t.Errorf("%s dir = %q, want %q", tc.sub, got, want)
+		}
+	}
+}
+
+// TestAgentDirRejectsUnsafeNames: name-keyed entity dirs must not allow
+// traversal out of ~/.mycel/agents/.
+func TestAgentDirRejectsUnsafeNames(t *testing.T) {
+	setTestHome(t)
+
+	for _, name := range []string{"", "../escape", "/abs", "a/../../b"} {
+		if _, err := AgentDir(name); err == nil {
+			t.Errorf("AgentDir(%q) accepted an unsafe name", name)
+		}
+		if _, err := AgentWorktreeDir(name); err == nil {
+			t.Errorf("AgentWorktreeDir(%q) accepted an unsafe name", name)
+		}
+	}
+}
+
+func TestEnsureMycelHomeCreatesStructure(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "mycel-home")
+	t.Setenv("MYCEL_HOME", dir)
+
+	if err := EnsureMycelHome(); err != nil {
+		t.Fatalf("EnsureMycelHome: %v", err)
+	}
+
+	for _, sub := range []string{"", "agents", "apps", "templates", "logs", "run"} {
+		p := filepath.Join(dir, sub)
+		info, err := os.Stat(p)
+		if err != nil {
+			t.Errorf("%q not created: %v", p, err)
+			continue
+		}
+		if !info.IsDir() {
+			t.Errorf("%q is not a directory", p)
+		}
+	}
+
+	// Idempotent
+	if err := EnsureMycelHome(); err != nil {
+		t.Fatalf("second EnsureMycelHome: %v", err)
+	}
+}
+
+func TestEnsureRunAndLogsDirs(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "mycel-home")
+	t.Setenv("MYCEL_HOME", dir)
+
+	run, err := EnsureRunDir()
+	if err != nil {
+		t.Fatalf("EnsureRunDir: %v", err)
+	}
+	if want := filepath.Join(dir, "run"); run != want {
+		t.Errorf("EnsureRunDir = %q, want %q", run, want)
+	}
+	if info, statErr := os.Stat(run); statErr != nil || !info.IsDir() {
+		t.Errorf("run dir not created: %v", statErr)
+	}
+
+	logs, err := EnsureGlobalLogsDir()
+	if err != nil {
+		t.Fatalf("EnsureGlobalLogsDir: %v", err)
+	}
+	if want := filepath.Join(dir, "logs"); logs != want {
+		t.Errorf("EnsureGlobalLogsDir = %q, want %q", logs, want)
+	}
+	if info, statErr := os.Stat(logs); statErr != nil || !info.IsDir() {
+		t.Errorf("logs dir not created: %v", statErr)
+	}
+}
+
 func TestEnsureGlobalDirCreatesWithSafeMode(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "bc-home")
-	withMycelHome(t, dir)
+	t.Setenv("MYCEL_HOME", dir)
 
 	home, err := EnsureGlobalDir()
 	if err != nil {
@@ -113,8 +169,7 @@ func TestEnsureGlobalDirCreatesWithSafeMode(t *testing.T) {
 }
 
 func TestEnsureGlobalDirIdempotent(t *testing.T) {
-	dir := t.TempDir()
-	withMycelHome(t, dir)
+	setTestHome(t)
 
 	if _, err := EnsureGlobalDir(); err != nil {
 		t.Fatalf("first EnsureGlobalDir: %v", err)
@@ -125,11 +180,12 @@ func TestEnsureGlobalDirIdempotent(t *testing.T) {
 }
 
 func TestGlobalPathsPlaceUnderMycelHome(t *testing.T) {
-	dir := t.TempDir()
-	withMycelHome(t, dir)
+	dir := setTestHome(t)
 
 	for _, fn := range []func() (string, error){
-		GlobalTemplatesDir, GlobalSecretsVault, GlobalMCPConfig, GlobalCostsDB, GlobalToolsConfig,
+		GlobalTemplatesDir, GlobalSecretsVault, GlobalMCPConfig, GlobalToolsConfig,
+		AgentsDir, AppsDir, GlobalLogsDir, RunDir, PrefsPath,
+		DaemonPidPath, DaemonAddrPath, DaemonLogPath,
 	} {
 		p, err := fn()
 		if err != nil {

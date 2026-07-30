@@ -6,27 +6,27 @@ import (
 	"testing"
 )
 
-// TestFind_ResolvesViaStateDirProbe locks the registry-free resolution
-// path: after Init, the ONLY marker for a workspace is its global state
-// dir at <MycelHome>/workspaces/<ComputeWorkspaceID(repo)>/ — there is
-// no workspaces.json and no .bc/ marker in the project dir. Find must
-// resolve the repo (and any subdirectory of it) purely by hashing the
-// walked path and probing for preferences.json.
-func TestFind_ResolvesViaStateDirProbe(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("HOME", home)
-	t.Setenv("MYCEL_HOME", filepath.Join(home, ".mycel"))
+// TestFind_ResolvesViaGitRootWalk locks the registry-free resolution
+// path: after Open, the ONLY global state is the flat ~/.mycel tree
+// (prefs.json + mycel.db) — there is no workspaces/ tree, no
+// workspaces.json, and no .bc/ marker in the project dir. Find must
+// resolve the repo (and any subdirectory of it) purely by walking up to
+// the nearest git root and loading the global state.
+func TestFind_ResolvesViaGitRootWalk(t *testing.T) {
+	home := setTestHome(t)
+	proj := newTestRepo(t)
 
-	proj := t.TempDir()
-	gitInitDir(t, proj)
-
-	if _, err := Init(proj); err != nil {
-		t.Fatalf("Init: %v", err)
+	if _, err := Open(proj); err != nil {
+		t.Fatalf("Open: %v", err)
 	}
 
 	// No registry file may exist — the registry is gone.
-	if _, err := os.Stat(filepath.Join(home, ".mycel", "workspaces.json")); !os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(home, "workspaces.json")); !os.IsNotExist(err) {
 		t.Fatalf("workspaces.json should not exist, stat err = %v", err)
+	}
+	// No per-workspace state tree — state is flat under ~/.mycel.
+	if _, err := os.Stat(filepath.Join(home, "workspaces")); !os.IsNotExist(err) {
+		t.Fatalf("workspaces/ tree should not exist, stat err = %v", err)
 	}
 	// No .bc/ marker in the project dir — the repo stays pristine.
 	if _, err := os.Stat(filepath.Join(proj, ".bc")); !os.IsNotExist(err) {
@@ -38,10 +38,10 @@ func TestFind_ResolvesViaStateDirProbe(t *testing.T) {
 		t.Fatalf("Find: %v", err)
 	}
 	if ws.RootDir != proj {
-		t.Errorf("Find returned wrong workspace: got %q want %q", ws.RootDir, proj)
+		t.Errorf("Find returned wrong root: got %q want %q", ws.RootDir, proj)
 	}
 
-	// Subdirectories resolve to the same workspace via the walk.
+	// Subdirectories resolve to the same anchor repo via the walk.
 	sub := filepath.Join(proj, "a", "b")
 	if mkErr := os.MkdirAll(sub, 0o750); mkErr != nil {
 		t.Fatalf("mkdir: %v", mkErr)

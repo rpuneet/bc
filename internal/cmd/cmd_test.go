@@ -3,12 +3,13 @@ package cmd
 import (
 	"bytes"
 	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/spf13/pflag"
+
+	"github.com/rpuneet/mycel/pkg/workspace"
 )
 
 // --- Test helpers ---
@@ -51,8 +52,9 @@ func executeCmd(args ...string) (string, error) {
 	return buf.String(), err
 }
 
-// setupTestWorkspace creates a temporary bc workspace and changes into it.
-// Returns the workspace root directory path (for use with demon.NewStore, etc.).
+// setupTestWorkspace creates an isolated MYCEL_HOME plus a temporary
+// git repo, bootstraps the global mycel state via workspace.Open, and
+// changes into the repo. Returns the repo root directory path.
 func setupTestWorkspace(t *testing.T) string {
 	t.Helper()
 
@@ -69,27 +71,15 @@ func setupTestWorkspace(t *testing.T) string {
 		t.Fatalf("failed to get cwd: %v", err)
 	}
 
-	// Clear MYCEL_WORKSPACE to ensure tests use the temp workspace, not outer workspace
-	origBCWorkspace := os.Getenv("MYCEL_WORKSPACE")
-	_ = os.Unsetenv("MYCEL_WORKSPACE")
-	t.Cleanup(func() {
-		if origBCWorkspace != "" {
-			_ = os.Setenv("MYCEL_WORKSPACE", origBCWorkspace)
-		}
-	})
+	// Isolate all global state (~/.mycel: prefs.json, mycel.db, agents/).
+	t.Setenv("MYCEL_HOME", t.TempDir())
 
 	tmpDir := t.TempDir()
-	bcDir := filepath.Join(tmpDir, ".bc")
-	if err := os.MkdirAll(filepath.Join(bcDir, "agents"), 0750); err != nil {
-		t.Fatalf("failed to create .bc/agents: %v", err)
+	gitInitDir(t, tmpDir)
+	if _, openErr := workspace.Open(tmpDir); openErr != nil {
+		t.Fatalf("failed to open workspace: %v", openErr)
 	}
-	// demons directory removed in CLI restructure (#1916)
-	// Create minimal settings.json for v2 workspace detection
-	configPath := filepath.Join(bcDir, "settings.json")
-	configContent := `{"version":2,"providers":{"default":"claude","providers":{"claude":{"command":"claude"}}},"server":{"host":"127.0.0.1","port":9374,"cors_origin":"*"},"runtime":{"default":"tmux"},"ui":{"theme":"dark","mode":"auto"}}`
-	if err := os.WriteFile(configPath, []byte(configContent), 0600); err != nil {
-		t.Fatalf("failed to write settings.json: %v", err)
-	}
+	t.Setenv("MYCEL_WORKSPACE", tmpDir)
 
 	if err := os.Chdir(tmpDir); err != nil {
 		t.Fatalf("failed to chdir: %v", err)
@@ -99,7 +89,7 @@ func setupTestWorkspace(t *testing.T) string {
 		_ = os.Chdir(origDir)
 	})
 
-	return tmpDir // Return workspace root, not .bc directory
+	return tmpDir
 }
 
 // --- formatDuration tests ---
