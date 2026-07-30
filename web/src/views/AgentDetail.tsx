@@ -1357,7 +1357,7 @@ export function AgentDetail() {
           to={agentsUrl}
           className="text-xs text-mycel-accent hover:underline"
         >
-          \u2190 back to agents
+          ← back to agents
         </Link>
       </div>
     );
