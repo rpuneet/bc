@@ -73,11 +73,17 @@ func (s *Server) URL() string { return "http://" + s.addr }
 // so a failed boot shows up as the window never leaving the "starting"
 // state plus a log line.
 func (s *Server) Start() {
-	if addr, ok := runningDaemonAddr(s.addr); ok {
-		s.addr = addr
-		s.attached = true
-		log.Info("attached to running mycel daemon", "url", s.URL())
-		return
+	// Probe a few times before booting: a daemon that is mid-restart
+	// (deploys swap the binary with down/up) answers a beat later, and
+	// booting into that gap causes a port fight the moment it returns.
+	for attempt := 0; attempt < 4; attempt++ {
+		if addr, ok := runningDaemonAddr(s.addr); ok {
+			s.addr = addr
+			s.attached = true
+			log.Info("attached to running mycel daemon", "url", s.URL())
+			return
+		}
+		time.Sleep(500 * time.Millisecond)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -88,6 +94,16 @@ func (s *Server) Start() {
 
 	go func() {
 		err := cmd.RunServerCtx(ctx, s.addr, s.repoRoot, "*", s.apiKey)
+		if err != nil && strings.Contains(err.Error(), "address already in use") {
+			// Lost the port race to a daemon that came up between the
+			// probe and the bind — become a client of it instead.
+			if daemonHealthy(s.URL()) {
+				s.attached = true
+				log.Info("lost the port race — attached to the running daemon", "url", s.URL())
+				s.done <- nil
+				return
+			}
+		}
 		if err != nil {
 			log.Error("mycel server exited", "error", err)
 		}
@@ -107,6 +123,25 @@ func (s *Server) Stop() {
 	case <-s.done:
 	case <-time.After(stopTimeout):
 		log.Warn("server shutdown timed out", "timeout", stopTimeout)
+	}
+	unpublishDaemonAddr(s.URL())
+}
+
+// unpublishDaemonAddr removes ~/.mycel/run/daemon.addr on shutdown,
+// but only if it still points at this instance — a daemon that took
+// over meanwhile owns the file.
+func unpublishDaemonAddr(url string) {
+	p, err := home.DaemonAddrPath()
+	if err != nil {
+		return
+	}
+	// #nosec G304 -- fixed path under ~/.mycel, not user input.
+	b, err := os.ReadFile(p)
+	if err != nil || strings.TrimSpace(string(b)) != url {
+		return
+	}
+	if err := os.Remove(p); err != nil {
+		log.Warn("daemon addr: cleanup failed", "error", err)
 	}
 }
 
