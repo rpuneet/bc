@@ -1,5 +1,5 @@
 /**
- * NotificationActivity — the full-page view behind the home page's
+ * AppsActivity — the full-page view behind the Apps home's
  * "Recent activity" rail (#3310 follow-up). It shows a richer, deeper
  * feed of the newest messages across every gateway channel with more
  * controls than the inline preview:
@@ -27,11 +27,11 @@ import { useHeaderSlot } from "../context/HeaderSlotContext";
 import { EmptyState } from "../components/EmptyState";
 import { LoadingSkeleton } from "../components/LoadingSkeleton";
 import { MessageContent } from "../components/MessageContent";
-import { DefaultAppIcon, PLATFORM_ICON_MAP } from "../components/notifications/PlatformIcons";
-import { channelLeaf } from "../components/notifications/NotificationsHome";
-import { sourcePlatform } from "../components/notifications/messageUtils";
+import { DefaultAppIcon, PLATFORM_ICON_MAP } from "../components/apps/PlatformIcons";
+import { channelLeaf } from "../components/apps/AppsHome";
+import { sourcePlatform } from "../components/apps/messageUtils";
 import { AgentCharacter } from "../components/agent-ui";
-import { parseActivityTs } from "../components/notifications/appStatus";
+import { parseActivityTs } from "../components/apps/appStatus";
 import { formatRelative } from "../utils/time";
 
 /* ── Config ──────────────────────────────────────────────────── */
@@ -59,7 +59,7 @@ function AppIcon({ base, size }: { base: string; size: number }) {
 
 /* ── Component ───────────────────────────────────────────────── */
 
-export function NotificationActivity() {
+export function AppsActivity() {
   const navigate = useNavigate();
 
   const fetcher = useCallback(async (): Promise<ActivityMessage[]> => {
@@ -211,7 +211,7 @@ export function NotificationActivity() {
               return (
                 <li key={`${m.channel}:${String(m.id)}`}>
                   <Link
-                    to={`/notifications/${m.channel}`}
+                    to={`/apps/${m.channel}`}
                     className="flex gap-3 px-4 py-3 hover:bg-mycel-surface-hover transition-colors"
                   >
                     <span className="w-8 h-8 flex items-center justify-center shrink-0" aria-hidden>

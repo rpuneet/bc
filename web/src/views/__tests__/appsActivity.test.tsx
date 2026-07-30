@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { HeaderSlotProvider, useHeaderSlotContext } from "../../context/HeaderSlotContext";
-import { NotificationActivity } from "../NotificationActivity";
+import { AppsActivity } from "../AppsActivity";
 
 const fetchMock = globalThis.fetch as ReturnType<typeof vi.fn>;
 
@@ -43,7 +43,7 @@ function mockRoutes() {
       return jsonResponse([]);
     }
     if (u.includes("/stats/channels")) return jsonResponse(stats);
-    if (u.includes("/api/channels")) return jsonResponse(sources);
+    if (u.includes("/api/apps/channels")) return jsonResponse(sources);
     return jsonResponse([]);
   });
 }
@@ -63,7 +63,7 @@ function renderPage() {
     <MemoryRouter>
       <HeaderSlotProvider>
         <HeaderHost />
-        <NotificationActivity />
+        <AppsActivity />
       </HeaderSlotProvider>
     </MemoryRouter>,
   );
@@ -73,7 +73,7 @@ beforeEach(() => {
   fetchMock.mockReset();
 });
 
-describe("NotificationActivity", () => {
+describe("AppsActivity", () => {
   it("renders messages across channels with search and filter controls", async () => {
     mockRoutes();
     renderPage();

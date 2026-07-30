@@ -4,18 +4,18 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useTheme, THEME_LABELS } from "../context/ThemeContext";
 import { useMediaQuery } from "../hooks/useMediaQuery";
 import { CommandPalette } from "./CommandPalette";
-import { api } from "../api/client";
+import { api, instancesToStatuses } from "../api/client";
 import type { NotificationSource, GatewayHealth, GatewayStatus, NotifySubscription } from "../api/client";
-import { sourcePlatform } from "./notifications/messageUtils";
-import { SetupWizard, PlatformChooser, PLATFORM_MAP } from "./notifications/SetupWizard";
-import { DefaultAppIcon, PLATFORM_ICON_MAP } from "./notifications/PlatformIcons";
+import { sourcePlatform } from "./apps/messageUtils";
+import { ConnectWizard, AppChooser } from "./apps/ConnectApp";
+import { DefaultAppIcon, PLATFORM_ICON_MAP } from "./apps/PlatformIcons";
 import {
   disconnectReason,
   formatAgoShort,
   getAppStatus,
   parseActivityTs,
   StatusDot,
-} from "./notifications/appStatus";
+} from "./apps/appStatus";
 import { Header } from "./Header";
 import { AgentNavTree } from "./AgentNavTree";
 import { SidebarToggle } from "./SidebarToggle";
@@ -60,11 +60,10 @@ function Icon({ name, size = 14 }: { name: string; size?: number }) {
       <path d="M3 11A6 6 0 0111 3" strokeLinecap="round" opacity="0.4" />
     </>,
     agents: <path d="M7 3.5a2 2 0 100 4 2 2 0 000-4zM3.5 11.5c0-1.8 1.6-3 3.5-3s3.5 1.2 3.5 3" />,
-    notifications: <><path d="M7 1.5a4 4 0 00-4 4v2.5l-1.5 2h11L11 8V5.5a4 4 0 00-4-4zM5.5 12a1.5 1.5 0 003 0" /></>,
+    apps: <><rect x="2" y="2" width="4.25" height="4.25" rx="1.25" /><rect x="7.75" y="2" width="4.25" height="4.25" rx="1.25" /><rect x="2" y="7.75" width="4.25" height="4.25" rx="1.25" /><rect x="7.75" y="7.75" width="4.25" height="4.25" rx="1.25" /></>,
     roles: <path d="M7 2.5l4.5 2.5v3.5L7 11 2.5 8.5V5z" />,
     templates: <><rect x="2.5" y="2.5" width="9" height="9" rx="1" /><path d="M5 5.5h4M5 7.5h4M5 9.5h2" opacity="0.5" /></>,
     tools: <path d="M9.5 2.5l3 3-7 7H2.5v-3z" />,
-    secrets: <path d="M7 2.5a2 2 0 00-2 2V6H4v4.5h6V6H9V4.5a2 2 0 00-2-2zm0 5.5a.75.75 0 110 1.5.75.75 0 010-1.5z" />,
     metrics: <path d="M2 10l2.5-3.5 2 1.5L10 3" strokeLinecap="round" strokeLinejoin="round" />,
     code: <><path d="M5 3.5L1.5 7L5 10.5" strokeLinecap="round" strokeLinejoin="round" /><path d="M9 3.5L12.5 7L9 10.5" strokeLinecap="round" strokeLinejoin="round" /></>,
     settings: <><circle cx="7" cy="7" r="2" /><path d="M7 1.5v1.5M7 11v1.5M1.5 7H3M11 7h1.5M3 3l1 1M10 10l1 1M3 11l1-1M10 4l1-1" opacity="0.5" /></>,
@@ -77,15 +76,14 @@ function Icon({ name, size = 14 }: { name: string; size?: number }) {
   );
 }
 
-/* ── Platform config ─────────────────────────────────────────── */
+/* ── App meta ────────────────────────────────────────────────── */
 
-function getPlatformMeta(p: string) {
-  // Handle compound keys like "telegram:gateway" — look up base platform
+function getAppMeta(p: string, labels: Record<string, string>) {
+  // Handle compound keys like "telegram:gateway" — look up the base app
   const base = p.includes(":") ? (p.split(":")[0] ?? p) : p;
-  const def = PLATFORM_MAP[base];
   const IconComponent = PLATFORM_ICON_MAP[base] ?? DefaultAppIcon;
-  if (def) return { base, label: def.label, color: def.color, IconComponent };
-  return { base, label: p, color: "var(--mycel-muted)", IconComponent };
+  const label = labels[base] ?? base.charAt(0).toUpperCase() + base.slice(1);
+  return { base, label, IconComponent };
 }
 
 /** Extract display channel name (last segment after platform and optional server). */
@@ -131,7 +129,7 @@ function ChannelRow({
   const badge = count > 0 ? count : ch.member_count > 0 ? ch.member_count : 0;
   return (
     <NavLink
-      to={`${prefix}/notifications/${ch.name}`}
+      to={`${prefix}/apps/${ch.name}`}
       className="block"
       title={count > 0 ? `${ch.name} · ${count} subscribed` : ch.name}
       onClick={() => onView(ch.name)}
@@ -347,36 +345,39 @@ function readViewedMap(): Record<string, number> {
   }
 }
 
-/* ── Notification tree (inline in nav) ───────────────────────── */
+/* ── Apps tree (inline in nav) ───────────────────────────────── */
 
-function NotificationNavTree() {
+function AppsNavTree() {
   const [sources, setSources] = useState<NotificationSource[]>([]);
   const [gateways, setGateways] = useState<GatewayStatus[]>([]);
+  const [labels, setLabels] = useState<Record<string, string>>({});
   const [subs, setSubs] = useState<NotifySubscription[]>([]);
   const [health, setHealth] = useState<Map<string, GatewayHealth>>(new Map());
   const [collapsedApps, setCollapsedApps] = useState<Set<string>>(readCollapsedApps);
   const [viewedMap, setViewedMap] = useState<Record<string, number>>(readViewedMap);
   const [filter, setFilter] = useState("");
-  const [setupPlatform, setSetupPlatform] = useState<string | null>(null);
+  const [connectAppId, setConnectAppId] = useState<string | null>(null);
   const [showConnectMenu, setShowConnectMenu] = useState(false);
 
   const fetchData = useCallback(async () => {
     try {
-      const [chs, gws, subList] = await Promise.all([
+      const [chs, apps, subList] = await Promise.all([
         api.listNotificationSources().catch(() => [] as NotificationSource[]),
-        api.listGateways().catch(() => [] as GatewayStatus[]),
+        api.getApps().catch(() => null),
         api.listSubscriptions().catch(() => [] as NotifySubscription[]),
       ]);
+      const gws = instancesToStatuses(apps?.instances ?? []);
       setSources(chs ?? []);
-      setGateways(gws ?? []);
+      setGateways(gws);
+      setLabels(Object.fromEntries((apps?.catalog ?? []).map((d) => [d.id, d.label])));
       setSubs(subList ?? []);
 
-      // Fetch health for each enabled gateway, keyed by the gateway's own
-      // platform key so compound keys ("telegram:trade_research") stay stable.
-      const enabledGws = (gws ?? []).filter((g) => g.enabled);
+      // Fetch health for each enabled instance, keyed by the instance's
+      // own name so compound keys ("telegram:trade_research") stay stable.
+      const enabledGws = gws.filter((g) => g.enabled);
       const healthEntries = await Promise.all(
         enabledGws.map(async (g) => {
-          const h = await api.getGatewayHealth(g.platform).catch(() => null);
+          const h = await api.getAppHealth(g.platform).catch(() => null);
           return h ? ([g.platform, h] as const) : null;
         }),
       );
@@ -443,7 +444,7 @@ function NotificationNavTree() {
   // connected apps first, then by platform name.
   const apps = [...bucketMap.entries()]
     .map(([platform, chs]) => {
-      const meta = getPlatformMeta(platform);
+      const meta = getAppMeta(platform, labels);
       const gwStatus = gwMap.get(platform);
       const gwHealth = health.get(platform);
       const status = getAppStatus(gwStatus, gwHealth);
@@ -467,7 +468,7 @@ function NotificationNavTree() {
       style={{
         // Indent rail sits under the nav icon column (pl-4 + w-4 icon —
         // icon centre ≈ 26px with the 2px active rail) so the channel
-        // tree reads as a child of the Notifications item.
+        // tree reads as a child of the Apps item.
         paddingLeft: 10,
         marginLeft: 25,
         borderLeft: "1px solid var(--mycel-border)",
@@ -626,7 +627,7 @@ function NotificationNavTree() {
             {status === "error" && (
               <button
                 type="button"
-                onClick={() => setSetupPlatform(meta.base)}
+                onClick={() => setConnectAppId(meta.base)}
                 className="w-full flex items-center"
                 title={gwHealth?.error || undefined}
                 style={{
@@ -691,14 +692,14 @@ function NotificationNavTree() {
       </button>
 
       {showConnectMenu && (
-        <PlatformChooser
-          onSelect={(key) => { setShowConnectMenu(false); setSetupPlatform(key); }}
+        <AppChooser
+          onSelect={(key) => { setShowConnectMenu(false); setConnectAppId(key); }}
           onClose={() => setShowConnectMenu(false)}
         />
       )}
 
-      {setupPlatform && setupPlatform !== "_choose" && (
-        <SetupWizard platform={setupPlatform} onClose={() => setSetupPlatform(null)} onConnected={() => void fetchData()} />
+      {connectAppId && (
+        <ConnectWizard appId={connectAppId} onClose={() => setConnectAppId(null)} onConnected={() => void fetchData()} />
       )}
     </div>
   );
@@ -727,13 +728,12 @@ function buildNavGroups(hostLabel: string): readonly (readonly NavItem[])[] {
     [
       { to: "/live", label: "Live", icon: "live" },
       { to: "/agents", label: "Agents", icon: "agents" },
-      { to: "/notifications", label: "Notifications", icon: "notifications" },
+      { to: "/apps", label: "Apps", icon: "apps" },
       { to: "/code", label: "Code", icon: "code" },
     ],
     [
       { to: "/marketplace", label: "Marketplace", icon: "templates" },
       { to: "/tools", label: hostLabel, icon: "tools" },
-      { to: "/secrets", label: "Secrets", icon: "secrets" },
     ],
     [{ to: "/insights", label: "Insights", icon: "metrics" }],
   ];
@@ -756,6 +756,9 @@ function titleFor(pathname: string, hostLabel: string): string {
     { to: "/stats", label: "Insights" },
     { to: "/metrics", label: "Insights" },
     { to: "/costs", label: "Insights" },
+    // Notifications became Apps; Secrets lives on the Apps home now.
+    { to: "/notifications", label: "Apps" },
+    { to: "/secrets", label: "Apps" },
   ];
   const match = items.find((item) => item.to.replace(/^\//, "") === firstSeg);
   return match ? `${match.label} — mycel` : "mycel";
@@ -828,14 +831,14 @@ function NavList({
           )}
           <ul>
             {items.map(({ to, label, icon }) => {
-              const isNotifications = label === "Notifications";
+              const isApps = label === "Apps";
               const isAgents = label === "Agents";
               const scopedTo = to;
               return (
                 <li key={to}>
                   <NavLink
                     to={scopedTo}
-                    end={!isNotifications && !isAgents}
+                    end={!isApps && !isAgents}
                     title={isIconOnly ? label : undefined}
                     className={({ isActive }) =>
                       `relative flex items-center gap-2.5 ${isIconOnly ? "justify-center px-2" : "pl-4 pr-3"} py-[7px] text-sm outline-none transition-colors duration-75 border-l-2 ${
@@ -854,7 +857,7 @@ function NavList({
                     {label === "Live" && (
                       <span className="w-1.5 h-1.5 rounded-full bg-mycel-live animate-pulse ml-auto" />
                     )}
-                    {isNotifications && !isIconOnly && onToggleNotifications && (
+                    {isApps && !isIconOnly && onToggleNotifications && (
                       <button
                         type="button"
                         onClick={(e) => { e.preventDefault(); e.stopPropagation(); onToggleNotifications(); }}
@@ -893,7 +896,7 @@ function NavList({
                       </button>
                     )}
                   </NavLink>
-                  {isNotifications && showTree && <NotificationNavTree />}
+                  {isApps && showTree && <AppsNavTree />}
                   {isAgents && showAgentTree && <AgentNavTree />}
                 </li>
               );
@@ -968,7 +971,7 @@ export function Layout() {
 
   // Notification tree collapse state — defaults to expanded when on the
   // Notifications route, but the user can toggle it by clicking the nav item.
-  const notificationsRoute = useMatch("/notifications/*");
+  const notificationsRoute = useMatch("/apps/*");
   const onNotifRoute = Boolean(notificationsRoute);
   const [notifManualToggle, setNotifManualToggle] = useState<boolean | null>(null);
   // Auto-expand when navigating to notifications, but respect manual toggle

@@ -1,11 +1,11 @@
 /**
- * Notifications Page E2E Tests
+ * Apps Page E2E Tests
  *
- * Tests the notifications page API endpoints end-to-end against a live bcd server
+ * Tests the Apps page API endpoints end-to-end against a live bcd server
  * at http://localhost:9374.
  *
  * Run with:
- *   cd web && npx vitest run src/__tests__/notifications-e2e.test.ts
+ *   cd web && npx vitest run src/__tests__/apps-e2e.test.ts
  *
  * Prerequisites: bcd must be running at http://localhost:9374
  *
@@ -113,7 +113,7 @@ beforeAll(async () => {
   vi.stubGlobal("fetch", realFetch);
 
   try {
-    const res = await realFetch(`${BASE}/gateways`, { signal: AbortSignal.timeout(3000) });
+    const res = await realFetch(`${BASE}/apps`, { signal: AbortSignal.timeout(3000) });
     serverAvailable = res.ok || res.status < 500;
   } catch {
     serverAvailable = false;
@@ -133,13 +133,13 @@ afterAll(async () => {
 
 // ── test suite ─────────────────────────────────────────────────────────────
 
-describe("Notifications Page E2E", () => {
+describe("Apps Page E2E", () => {
   // ── Notification Source List API ──────────────────────────────────────────
 
   describe("Notification Source List API", () => {
-    it("GET /api/channels returns 200 with an array", async () => {
+    it("GET /api/apps/channels returns 200 with an array", async () => {
       if (!serverAvailable) return;
-      const { status, body } = await apiFetch("/channels");
+      const { status, body } = await apiFetch("/apps/channels");
       expect(status).toBe(200);
       expect(Array.isArray(body)).toBe(true);
     });
@@ -148,7 +148,7 @@ describe("Notifications Page E2E", () => {
       if (!serverAvailable) return;
       // Subscribe a test agent to ensure at least one channel exists
       await subscribe(TEST_CHANNEL, TEST_AGENT_1);
-      const { status, body } = await apiFetch("/channels");
+      const { status, body } = await apiFetch("/apps/channels");
       expect(status).toBe(200);
       const list = body as Array<Record<string, unknown>>;
       expect(list.length).toBeGreaterThan(0);
@@ -165,7 +165,7 @@ describe("Notifications Page E2E", () => {
       if (!serverAvailable) return;
       // Subscribe to a gateway-scoped channel so it appears in the list
       await subscribe(TEST_CHANNEL, TEST_AGENT_1);
-      const { status, body } = await apiFetch("/channels");
+      const { status, body } = await apiFetch("/apps/channels");
       expect(status).toBe(200);
       const channels = body as Array<{ name: string }>;
       const hasGateway = channels.some((c) => c.name.includes(":"));
@@ -177,7 +177,7 @@ describe("Notifications Page E2E", () => {
       if (!serverAvailable) return;
       // After cleanup there may still be real gateway channels — just verify
       // the field is always an array, never null/undefined.
-      const { status, body } = await apiFetch("/channels");
+      const { status, body } = await apiFetch("/apps/channels");
       expect(status).toBe(200);
       expect(Array.isArray(body)).toBe(true);
     });
@@ -339,18 +339,18 @@ describe("Notifications Page E2E", () => {
     });
   });
 
-  // ── Gateway-scoped API (/api/gateways/{gw}/...) ───────────────────────────
+  // ── App-scoped API (/api/apps/{name}/...) ─────────────────────────────────
 
-  describe("Gateway-scoped API", () => {
+  describe("App-scoped API", () => {
     afterEach(async () => {
       await cleanupTestSubscriptions();
     });
 
     // Health endpoint
-    describe("GET /api/gateways/{gw}/health", () => {
+    describe("GET /api/apps/{name}/health", () => {
       it("returns 200 with platform, connected, status fields for slack", async () => {
         if (!serverAvailable) return;
-        const { status, body } = await apiFetch("/gateways/slack/health");
+        const { status, body } = await apiFetch("/apps/slack/health");
         expect(status).toBe(200);
         const resp = body as Record<string, unknown>;
         expect(resp.platform).toBe("slack");
@@ -361,7 +361,7 @@ describe("Notifications Page E2E", () => {
 
       it("returns 200 with platform=telegram for telegram health check", async () => {
         if (!serverAvailable) return;
-        const { status, body } = await apiFetch("/gateways/telegram/health");
+        const { status, body } = await apiFetch("/apps/telegram/health");
         expect(status).toBe(200);
         const resp = body as Record<string, unknown>;
         expect(resp.platform).toBe("telegram");
@@ -370,7 +370,7 @@ describe("Notifications Page E2E", () => {
 
       it("returns 200 with platform=discord for discord health check", async () => {
         if (!serverAvailable) return;
-        const { status, body } = await apiFetch("/gateways/discord/health");
+        const { status, body } = await apiFetch("/apps/discord/health");
         expect(status).toBe(200);
         const resp = body as Record<string, unknown>;
         expect(resp.platform).toBe("discord");
@@ -379,10 +379,10 @@ describe("Notifications Page E2E", () => {
     });
 
     // Gateway channel listing
-    describe("GET /api/gateways/{gw}/channels", () => {
+    describe("GET /api/apps/{name}/channels", () => {
       it("returns 200 with an array for slack", async () => {
         if (!serverAvailable) return;
-        const { status, body } = await apiFetch("/gateways/slack/channels");
+        const { status, body } = await apiFetch("/apps/slack/channels");
         expect(status).toBe(200);
         expect(Array.isArray(body)).toBe(true);
       });
@@ -392,7 +392,7 @@ describe("Notifications Page E2E", () => {
         // Ensure at least one slack channel by subscribing then checking legacy list
         // The gateway channels endpoint lists discovered channels, not subscriptions.
         // It may be empty if no Slack adapter is connected.
-        const { status, body } = await apiFetch("/gateways/slack/channels");
+        const { status, body } = await apiFetch("/apps/slack/channels");
         expect(status).toBe(200);
         const channels = body as Array<Record<string, unknown>>;
         // If any channels returned, verify shape
@@ -406,21 +406,21 @@ describe("Notifications Page E2E", () => {
 
       it("returns empty array (not null) when no slack channels discovered", async () => {
         if (!serverAvailable) return;
-        const { status, body } = await apiFetch("/gateways/slack/channels");
+        const { status, body } = await apiFetch("/apps/slack/channels");
         expect(status).toBe(200);
         expect(Array.isArray(body)).toBe(true);
       });
     });
 
     // Gateway channel agents (subscription via gateway-scoped API)
-    describe("POST /api/gateways/{gw}/channels/{ch}/agents", () => {
+    describe("POST /api/apps/{name}/channels/{ch}/agents", () => {
       it("subscribes an agent and returns 201 with status=subscribed", async () => {
         if (!serverAvailable) return;
         // TEST_CHANNEL = "slack:e2e-test-agent-channel"
         const gw = "slack";
         const ch = `${TEST_AGENT_PREFIX}-channel`;
         const { status, body } = await apiFetch(
-          `/gateways/${gw}/channels/${ch}/agents`,
+          `/apps/${gw}/channels/${ch}/agents`,
           {
             method: "POST",
             body: JSON.stringify({ agent: TEST_AGENT_1, mention_only: false }),
@@ -438,7 +438,7 @@ describe("Notifications Page E2E", () => {
         const gw = "slack";
         const ch = `${TEST_AGENT_PREFIX}-channel`;
         const { status } = await apiFetch(
-          `/gateways/${gw}/channels/${ch}/agents`,
+          `/apps/${gw}/channels/${ch}/agents`,
           {
             method: "POST",
             body: JSON.stringify({ mention_only: false }), // missing agent
@@ -448,22 +448,22 @@ describe("Notifications Page E2E", () => {
       });
     });
 
-    describe("GET /api/gateways/{gw}/channels/{ch}/agents", () => {
+    describe("GET /api/apps/{name}/channels/{ch}/agents", () => {
       it("lists subscribed agents for a channel", async () => {
         if (!serverAvailable) return;
         const gw = "slack";
         const ch = `${TEST_AGENT_PREFIX}-channel`;
         // Subscribe two agents
-        await apiFetch(`/gateways/${gw}/channels/${ch}/agents`, {
+        await apiFetch(`/apps/${gw}/channels/${ch}/agents`, {
           method: "POST",
           body: JSON.stringify({ agent: TEST_AGENT_1, mention_only: false }),
         });
-        await apiFetch(`/gateways/${gw}/channels/${ch}/agents`, {
+        await apiFetch(`/apps/${gw}/channels/${ch}/agents`, {
           method: "POST",
           body: JSON.stringify({ agent: TEST_AGENT_2, mention_only: true }),
         });
         const { status, body } = await apiFetch(
-          `/gateways/${gw}/channels/${ch}/agents`,
+          `/apps/${gw}/channels/${ch}/agents`,
         );
         expect(status).toBe(200);
         const subs = body as Array<Record<string, unknown>>;
@@ -478,7 +478,7 @@ describe("Notifications Page E2E", () => {
         const gw = "slack";
         const ch = `${TEST_AGENT_PREFIX}-never-subscribed`;
         const { status, body } = await apiFetch(
-          `/gateways/${gw}/channels/${ch}/agents`,
+          `/apps/${gw}/channels/${ch}/agents`,
         );
         expect(status).toBe(200);
         expect(Array.isArray(body)).toBe(true);
@@ -486,19 +486,19 @@ describe("Notifications Page E2E", () => {
       });
     });
 
-    describe("PATCH /api/gateways/{gw}/channels/{ch}/agents/{agent}", () => {
+    describe("PATCH /api/apps/{name}/channels/{ch}/agents/{agent}", () => {
       it("updates mention_only for a subscribed agent", async () => {
         if (!serverAvailable) return;
         const gw = "slack";
         const ch = `${TEST_AGENT_PREFIX}-channel`;
         // Subscribe with mention_only=false
-        await apiFetch(`/gateways/${gw}/channels/${ch}/agents`, {
+        await apiFetch(`/apps/${gw}/channels/${ch}/agents`, {
           method: "POST",
           body: JSON.stringify({ agent: TEST_AGENT_1, mention_only: false }),
         });
         // Patch to true
         const { status, body } = await apiFetch(
-          `/gateways/${gw}/channels/${ch}/agents/${encodeURIComponent(TEST_AGENT_1)}`,
+          `/apps/${gw}/channels/${ch}/agents/${encodeURIComponent(TEST_AGENT_1)}`,
           {
             method: "PATCH",
             body: JSON.stringify({ mention_only: true }),
@@ -509,7 +509,7 @@ describe("Notifications Page E2E", () => {
         expect(resp.status).toBe("updated");
         // Verify
         const { body: agentsBody } = await apiFetch(
-          `/gateways/${gw}/channels/${ch}/agents`,
+          `/apps/${gw}/channels/${ch}/agents`,
         );
         const subs = agentsBody as Array<Record<string, unknown>>;
         const updated = subs.find((s) => s.agent === TEST_AGENT_1);
@@ -517,17 +517,17 @@ describe("Notifications Page E2E", () => {
       });
     });
 
-    describe("DELETE /api/gateways/{gw}/channels/{ch}/agents/{agent}", () => {
+    describe("DELETE /api/apps/{name}/channels/{ch}/agents/{agent}", () => {
       it("unsubscribes an agent via path param and returns status=unsubscribed", async () => {
         if (!serverAvailable) return;
         const gw = "slack";
         const ch = `${TEST_AGENT_PREFIX}-channel`;
-        await apiFetch(`/gateways/${gw}/channels/${ch}/agents`, {
+        await apiFetch(`/apps/${gw}/channels/${ch}/agents`, {
           method: "POST",
           body: JSON.stringify({ agent: TEST_AGENT_1, mention_only: false }),
         });
         const { status, body } = await apiFetch(
-          `/gateways/${gw}/channels/${ch}/agents/${encodeURIComponent(TEST_AGENT_1)}`,
+          `/apps/${gw}/channels/${ch}/agents/${encodeURIComponent(TEST_AGENT_1)}`,
           { method: "DELETE" },
         );
         expect(status).toBe(200);
@@ -536,7 +536,7 @@ describe("Notifications Page E2E", () => {
         expect(resp.agent).toBe(TEST_AGENT_1);
         // Verify removal
         const { body: agentsBody } = await apiFetch(
-          `/gateways/${gw}/channels/${ch}/agents`,
+          `/apps/${gw}/channels/${ch}/agents`,
         );
         const subs = agentsBody as Array<Record<string, unknown>>;
         expect(subs.find((s) => s.agent === TEST_AGENT_1)).toBeUndefined();
@@ -546,12 +546,12 @@ describe("Notifications Page E2E", () => {
         if (!serverAvailable) return;
         const gw = "slack";
         const ch = `${TEST_AGENT_PREFIX}-channel`;
-        await apiFetch(`/gateways/${gw}/channels/${ch}/agents`, {
+        await apiFetch(`/apps/${gw}/channels/${ch}/agents`, {
           method: "POST",
           body: JSON.stringify({ agent: TEST_AGENT_2, mention_only: false }),
         });
         const { status } = await apiFetch(
-          `/gateways/${gw}/channels/${ch}/agents?agent=${encodeURIComponent(TEST_AGENT_2)}`,
+          `/apps/${gw}/channels/${ch}/agents?agent=${encodeURIComponent(TEST_AGENT_2)}`,
           { method: "DELETE" },
         );
         expect(status).toBe(200);
@@ -559,13 +559,13 @@ describe("Notifications Page E2E", () => {
     });
   });
 
-  // ── Message History (/api/channels/{name}/history) ────────────────────────
+  // ── Message History (/api/apps/channels/{name}/history) ───────────────────
 
   describe("Message History", () => {
-    it("GET /api/channels/{name}/history returns 200 with an array", async () => {
+    it("GET /api/apps/channels/{name}/history returns 200 with an array", async () => {
       if (!serverAvailable) return;
       const { status, body } = await apiFetch(
-        `/channels/${encodeURIComponent(TEST_CHANNEL)}/history`,
+        `/apps/channels/${encodeURIComponent(TEST_CHANNEL)}/history`,
       );
       expect(status).toBe(200);
       expect(Array.isArray(body)).toBe(true);
@@ -575,7 +575,7 @@ describe("Notifications Page E2E", () => {
       if (!serverAvailable) return;
       const emptyChannel = `slack:${TEST_AGENT_PREFIX}-empty`;
       const { status, body } = await apiFetch(
-        `/channels/${encodeURIComponent(emptyChannel)}/history`,
+        `/apps/channels/${encodeURIComponent(emptyChannel)}/history`,
       );
       expect(status).toBe(200);
       expect(Array.isArray(body)).toBe(true);
@@ -587,7 +587,7 @@ describe("Notifications Page E2E", () => {
       // This test passes vacuously when there are no messages — the structure
       // check only runs when messages exist
       const { body } = await apiFetch(
-        `/channels/${encodeURIComponent(TEST_CHANNEL)}/history`,
+        `/apps/channels/${encodeURIComponent(TEST_CHANNEL)}/history`,
       );
       const msgs = body as Array<Record<string, unknown>>;
       for (const msg of msgs) {
@@ -601,7 +601,7 @@ describe("Notifications Page E2E", () => {
     it("respects the limit query parameter", async () => {
       if (!serverAvailable) return;
       const { status, body } = await apiFetch(
-        `/channels/${encodeURIComponent(TEST_CHANNEL)}/history?limit=5`,
+        `/apps/channels/${encodeURIComponent(TEST_CHANNEL)}/history?limit=5`,
       );
       expect(status).toBe(200);
       expect(Array.isArray(body)).toBe(true);
@@ -613,14 +613,14 @@ describe("Notifications Page E2E", () => {
       if (!serverAvailable) return;
       // Fetch first page
       const { body: page1Body } = await apiFetch(
-        `/channels/${encodeURIComponent(TEST_CHANNEL)}/history?limit=10`,
+        `/apps/channels/${encodeURIComponent(TEST_CHANNEL)}/history?limit=10`,
       );
       const page1 = page1Body as Array<{ id: number }>;
       if (page1.length === 0) return; // no messages to paginate
       const oldestId = (page1[page1.length - 1] as { id: number }).id;
       // Fetch second page using oldest id as cursor
       const { status, body: page2Body } = await apiFetch(
-        `/channels/${encodeURIComponent(TEST_CHANNEL)}/history?limit=10&before=${oldestId}`,
+        `/apps/channels/${encodeURIComponent(TEST_CHANNEL)}/history?limit=10&before=${oldestId}`,
       );
       expect(status).toBe(200);
       const page2 = page2Body as Array<{ id: number }>;
@@ -634,7 +634,7 @@ describe("Notifications Page E2E", () => {
     it("also works with /messages suffix path variant", async () => {
       if (!serverAvailable) return;
       const { status, body } = await apiFetch(
-        `/channels/${encodeURIComponent(TEST_CHANNEL)}/messages`,
+        `/apps/channels/${encodeURIComponent(TEST_CHANNEL)}/messages`,
       );
       expect(status).toBe(200);
       expect(Array.isArray(body)).toBe(true);
@@ -689,89 +689,80 @@ describe("Notifications Page E2E", () => {
       expect((body as unknown[]).length).toBeLessThanOrEqual(3);
     });
 
-    it("GET /api/gateways/{gw}/channels/{ch}/activity delegates to notify/activity", async () => {
+    it("GET /api/apps/{name}/channels/{ch}/activity delegates to notify/activity", async () => {
       if (!serverAvailable) return;
       const gw = "slack";
       const ch = `${TEST_AGENT_PREFIX}-channel`;
       const { status, body } = await apiFetch(
-        `/gateways/${gw}/channels/${ch}/activity`,
+        `/apps/${gw}/channels/${ch}/activity`,
       );
       expect(status).toBe(200);
       expect(Array.isArray(body)).toBe(true);
     });
-
-    it("GET /api/gateways/activity aggregates across all gateway channels", async () => {
-      if (!serverAvailable) return;
-      const { status, body } = await apiFetch("/gateways/activity");
-      expect(status).toBe(200);
-      // May return empty array if no gateway channels are discovered
-      expect(Array.isArray(body)).toBe(true);
-    });
   });
 
-  // ── Gateway Status (/api/gateways) ────────────────────────────────────────
+  // ── Apps Catalog (/api/apps) ──────────────────────────────────────────────
 
-  describe("Gateway Status", () => {
-    it("GET /api/gateways returns 200 with an array of gateway statuses", async () => {
+  describe("Apps Catalog", () => {
+    it("GET /api/apps returns 200 with catalog and instances arrays", async () => {
       if (!serverAvailable) return;
-      const { status, body } = await apiFetch("/gateways");
+      const { status, body } = await apiFetch("/apps");
       expect(status).toBe(200);
-      expect(Array.isArray(body)).toBe(true);
+      const resp = body as { catalog: unknown; instances: unknown };
+      expect(Array.isArray(resp.catalog)).toBe(true);
+      expect(Array.isArray(resp.instances)).toBe(true);
     });
 
-    it("each gateway status has platform, enabled, channels fields", async () => {
+    it("each descriptor has id, label, auth, fields with secret flags", async () => {
       if (!serverAvailable) return;
-      const { body } = await apiFetch("/gateways");
-      const gateways = body as Array<Record<string, unknown>>;
-      for (const gw of gateways) {
-        expect(typeof gw.platform).toBe("string");
-        expect(typeof gw.enabled).toBe("boolean");
-        // channels may be null (e.g. Telegram before first message) or an array
-        expect(gw.channels === null || Array.isArray(gw.channels)).toBe(true);
+      const { body } = await apiFetch("/apps");
+      const resp = body as { catalog: Array<Record<string, unknown>> };
+      expect(resp.catalog.length).toBeGreaterThan(0);
+      for (const d of resp.catalog) {
+        expect(typeof d.id).toBe("string");
+        expect(typeof d.label).toBe("string");
+        expect(["token", "oauth", "qr", "webhook-secret", "none"]).toContain(d.auth);
+        expect(Array.isArray(d.fields)).toBe(true);
+        for (const f of d.fields as Array<Record<string, unknown>>) {
+          expect(typeof f.key).toBe("string");
+          expect(typeof f.secret).toBe("boolean");
+          expect(typeof f.required).toBe("boolean");
+        }
       }
     });
 
-    it("known platforms are slack, telegram, discord (including labeled variants)", async () => {
+    it("each instance has name, app, enabled, channels fields", async () => {
       if (!serverAvailable) return;
-      const { body } = await apiFetch("/gateways");
-      const gateways = body as Array<{ platform: string }>;
-      const platforms = gateways.map((g) => g.platform);
-      const knownBases = ["slack", "telegram", "discord", "github", "webhook", "whatsapp", "rss"];
-      for (const p of platforms) {
-        // Platform may be "telegram:label" — check base prefix
-        const base = p.split(":")[0];
-        expect(knownBases).toContain(base);
+      const { body } = await apiFetch("/apps");
+      const resp = body as { instances: Array<Record<string, unknown>> };
+      for (const inst of resp.instances) {
+        expect(typeof inst.name).toBe("string");
+        expect(typeof inst.app).toBe("string");
+        expect(typeof inst.enabled).toBe("boolean");
+        expect(Array.isArray(inst.channels)).toBe(true);
       }
     });
 
-    it("config field omits secrets (has_token or has_bot_token instead of raw token)", async () => {
+    it("instance config omits secrets (has_<field> booleans instead of raw values)", async () => {
       if (!serverAvailable) return;
-      const { body } = await apiFetch("/gateways");
-      const gateways = body as Array<{ platform: string; config?: Record<string, unknown> }>;
-      for (const gw of gateways) {
-        if (!gw.config) continue;
+      const { body } = await apiFetch("/apps");
+      const resp = body as { instances: Array<{ name: string; config?: Record<string, unknown> }> };
+      for (const inst of resp.instances) {
+        if (!inst.config) continue;
         // Raw token values should never be present
-        expect(gw.config.bot_token).toBeUndefined();
-        expect(gw.config.app_token).toBeUndefined();
-        // Instead expect boolean flag fields
-        const configKeys = Object.keys(gw.config);
-        const hasRedactedField = configKeys.some(
-          (k) => k.startsWith("has_") || k === "mode",
-        );
-        expect(hasRedactedField).toBe(true);
+        expect(inst.config.bot_token).toBeUndefined();
+        expect(inst.config.app_token).toBeUndefined();
+        expect(inst.config.token).toBeUndefined();
       }
     });
 
-    it("channels field lists gateway channel keys (platform:name) when adapters have discovered channels", async () => {
+    it("instance channels list channel keys scoped to the instance name", async () => {
       if (!serverAvailable) return;
-      const { body } = await apiFetch("/gateways");
-      const gateways = body as Array<{ platform: string; channels: string[] | null }>;
-      for (const gw of gateways) {
-        if (!gw.channels) continue; // channels may be null before discovery
-        // For labeled adapters like "telegram:kognivida", channel keys use the base platform
-        const basePlatform = gw.platform.split(":")[0];
-        for (const ch of gw.channels) {
-          expect(ch.startsWith(`${basePlatform}:`)).toBe(true);
+      const { body } = await apiFetch("/apps");
+      const resp = body as { instances: Array<{ name: string; channels: string[] }> };
+      for (const inst of resp.instances) {
+        for (const ch of inst.channels) {
+          expect(ch.startsWith(`${inst.name}:`)).toBe(true);
         }
       }
     });
@@ -792,16 +783,16 @@ describe("Notifications Page E2E", () => {
 
     it("method not allowed returns 405", async () => {
       if (!serverAvailable) return;
-      // /api/channels is GET-only
-      const { status } = await apiFetch("/channels", { method: "POST" });
+      // /api/apps/channels is GET-only
+      const { status } = await apiFetch("/apps/channels", { method: "POST" });
       expect(status).toBe(405);
     });
 
-    it("PATCH /api/gateways/{gw}/channels/{ch}/agents without agent in path returns 400", async () => {
+    it("PATCH /api/apps/{name}/channels/{ch}/agents without agent in path returns 400", async () => {
       if (!serverAvailable) return;
       // PATCH without agent subpath and body missing agent
       const { status } = await apiFetch(
-        "/gateways/slack/channels/some-channel/agents",
+        "/apps/slack/channels/some-channel/agents",
         {
           method: "PATCH",
           body: JSON.stringify({ mention_only: true }),

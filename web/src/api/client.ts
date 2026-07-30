@@ -101,9 +101,6 @@ export interface NotificationSource {
   member_count: number;
 }
 
-/** @deprecated Use NotificationSource instead */
-export type Channel = NotificationSource;
-
 export interface ChannelMessage {
   id: number;
   sender: string;
@@ -129,6 +126,62 @@ export interface DeliveryEntry {
   preview?: string;
 }
 
+/* ── Apps — external platform integrations (/api/apps) ─────────── */
+
+/** How an app authenticates, from its backend descriptor. */
+export type AppAuthKind = "token" | "oauth" | "qr" | "webhook-secret" | "none";
+
+/** One config/credential field of an app descriptor. Secret fields are
+ *  stored in the encrypted vault server-side and never echoed back. */
+export interface AppFieldSpec {
+  key: string;
+  label: string;
+  placeholder?: string;
+  secret: boolean;
+  required: boolean;
+}
+
+/** An app's static self-description from GET /api/apps — drives the
+ *  connect flow (fields, docs, auth kind); no per-app UI code. */
+export interface AppDescriptor {
+  id: string;
+  label: string;
+  auth: AppAuthKind;
+  /** Allows labeled instances ("telegram:alerts"). */
+  multi: boolean;
+  fields: AppFieldSpec[];
+  docs: string[];
+}
+
+/** One connected app instance with live adapter status. `config` holds
+ *  plain fields plus server-computed `has_<field>` booleans for secret
+ *  fields; `channels` are the adapter's discovered bc channel keys. */
+export interface AppInstance {
+  name: string;
+  app: string;
+  enabled: boolean;
+  config?: Record<string, string | boolean>;
+  connected: boolean;
+  bot_name?: string;
+  error?: string;
+  channels?: string[];
+}
+
+export interface AppsCatalog {
+  catalog: AppDescriptor[];
+  instances: AppInstance[];
+}
+
+/** QR/OAuth pairing progress from /api/apps/{name}/auth. */
+export interface AppPairInfo {
+  state: string;
+  qr_data_url?: string;
+  phone?: string;
+  error?: string;
+}
+
+/** Flattened per-instance view used by the drawer tree and Apps home —
+ *  derived from AppsCatalog.instances (platform = instance name). */
 export interface GatewayStatus {
   platform: string;
   enabled: boolean;
@@ -143,6 +196,16 @@ export interface GatewayHealth {
   status: string;
   error?: string;
   last_message_at?: string;
+}
+
+export function instancesToStatuses(instances: AppInstance[]): GatewayStatus[] {
+  return instances.map((i) => ({
+    platform: i.name,
+    enabled: i.enabled,
+    channels: i.channels ?? [],
+    bot_name: i.bot_name,
+    config: i.config,
+  }));
 }
 
 /** One connected/configured app on the notifications overview (#3310). */
@@ -696,9 +759,7 @@ export const api = {
   putAgentEnv: (name: string, vars: Array<{ key: string; value: string }>) =>
     request<Array<{ key: string; value: string }>>(`/agents/${encodeURIComponent(name)}/env`, { method: "PUT", body: JSON.stringify(vars) }),
 
-  listNotificationSources: () => request<NotificationSource[]>("/channels"),
-  /** @deprecated Use listNotificationSources instead */
-  listChannels: () => request<NotificationSource[]>("/channels"),
+  listNotificationSources: () => request<NotificationSource[]>("/apps/channels"),
   getChannelHistory: (
     name: string,
     limit = 50,
@@ -707,23 +768,23 @@ export const api = {
     const params = new URLSearchParams({ limit: String(limit) });
     if (before !== undefined) params.set("before", String(before));
     return request<ChannelMessage[]>(
-      `/channels/${encodeURIComponent(name)}/history?${params}`,
+      `/apps/channels/${encodeURIComponent(name)}/history?${params}`,
     );
   },
-  // Gateway-scoped subscription API (proposal-aligned)
+  // App-scoped subscription API — channels live under their app instance.
   listSubscriptions: () =>
     request<NotifySubscription[]>("/notify/subscriptions"),
   getChannelSubscriptions: (channel: string) => {
     const { gw, ch } = splitChannel(channel);
     if (gw && ch) {
-      return request<NotifySubscription[]>(`/gateways/${gw}/channels/${ch}/agents`);
+      return request<NotifySubscription[]>(`/apps/${gw}/channels/${ch}/agents`);
     }
     return request<NotifySubscription[]>(`/notify/subscriptions/${encodeURIComponent(channel)}`);
   },
   subscribe: (channel: string, agent: string, mentionOnly = false) => {
     const { gw, ch } = splitChannel(channel);
     if (gw && ch) {
-      return request<{ status: string }>(`/gateways/${gw}/channels/${ch}/agents`, {
+      return request<{ status: string }>(`/apps/${gw}/channels/${ch}/agents`, {
         method: "POST",
         body: JSON.stringify({ agent, mention_only: mentionOnly }),
       });
@@ -736,7 +797,7 @@ export const api = {
   unsubscribe: (channel: string, agent: string) => {
     const { gw, ch } = splitChannel(channel);
     if (gw && ch) {
-      return request<{ status: string }>(`/gateways/${gw}/channels/${ch}/agents/${encodeURIComponent(agent)}`, {
+      return request<{ status: string }>(`/apps/${gw}/channels/${ch}/agents/${encodeURIComponent(agent)}`, {
         method: "DELETE",
       });
     }
@@ -748,7 +809,7 @@ export const api = {
   setMentionOnly: (channel: string, agent: string, mentionOnly: boolean) => {
     const { gw, ch } = splitChannel(channel);
     if (gw && ch) {
-      return request<{ status: string }>(`/gateways/${gw}/channels/${ch}/agents/${encodeURIComponent(agent)}`, {
+      return request<{ status: string }>(`/apps/${gw}/channels/${ch}/agents/${encodeURIComponent(agent)}`, {
         method: "PATCH",
         body: JSON.stringify({ mention_only: mentionOnly }),
       });
@@ -761,15 +822,44 @@ export const api = {
   getChannelActivity: (channel: string, limit = 50) => {
     const { gw, ch } = splitChannel(channel);
     if (gw && ch) {
-      return request<DeliveryEntry[]>(`/gateways/${gw}/channels/${ch}/activity?limit=${limit}`);
+      return request<DeliveryEntry[]>(`/apps/${gw}/channels/${ch}/activity?limit=${limit}`);
     }
     return request<DeliveryEntry[]>(`/notify/activity/${encodeURIComponent(channel)}?limit=${limit}`);
   },
-  listGateways: () =>
-    request<GatewayStatus[]>("/gateways"),
-  getGatewayHealth: (platform: string) =>
-    request<GatewayHealth>(`/gateways/${encodeURIComponent(platform)}/health`),
-  /** Aggregated apps + channels for the notifications home (#3310).
+
+  /** Descriptor catalog + connected instances with live status. */
+  getApps: () => request<AppsCatalog>("/apps"),
+  /** Connect or update an app instance. The server splits secret fields
+   *  into the vault and plain fields into preferences, then hot-restarts
+   *  the adapter. Empty secret values keep the stored secret. */
+  connectApp: (
+    name: string,
+    opts: { app?: string; config: Record<string, string>; enabled?: boolean },
+  ) =>
+    request<{ status: string; name: string; app: string; enabled: boolean; warning?: string }>(
+      `/apps/${encodeURIComponent(name)}`,
+      { method: "POST", body: JSON.stringify(opts) },
+    ),
+  /** Disconnect an instance: stops the adapter, purges its vault keys
+   *  and state directory. */
+  disconnectApp: (name: string) =>
+    request<{ status: string; name: string }>(`/apps/${encodeURIComponent(name)}`, {
+      method: "DELETE",
+    }),
+  /** Begin the instance's auth flow (QR pairing for WhatsApp). */
+  startAppAuth: (name: string) =>
+    request<AppPairInfo>(`/apps/${encodeURIComponent(name)}/auth`, { method: "POST" }),
+  /** Poll pairing/auth progress on the running adapter. */
+  getAppAuthStatus: (name: string) =>
+    request<AppPairInfo>(`/apps/${encodeURIComponent(name)}/auth/status`),
+  /** Connected instances in the drawer/home's flattened shape. */
+  listAppInstances: async (): Promise<GatewayStatus[]> => {
+    const res = await request<AppsCatalog>("/apps");
+    return instancesToStatuses(res.instances ?? []);
+  },
+  getAppHealth: (name: string) =>
+    request<GatewayHealth>(`/apps/${encodeURIComponent(name)}/health`),
+  /** Aggregated apps + channels for the Apps home (#3310).
    *  Callers must tolerate the endpoint being absent and fall back to
    *  composing the same data from the individual endpoints. */
   getNotificationsOverview: () =>

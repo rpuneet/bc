@@ -1,24 +1,26 @@
 /**
- * NotificationsHome — the /notifications hub shown when no channel is
- * selected (#3310). Three sections built from data we already have:
+ * AppsHome — the /apps hub shown when no channel is selected. Four
+ * sections built from data we already have:
  *
- *   1. Apps strip — one card per connected/configured gateway with the
- *      same status semantics as the drawer (shared appStatus utils),
- *      plus a "+ Connect an app" card reusing the existing setup flow.
- *   2. Channels — all gateway channels grouped by app; WhatsApp splits
+ *   1. Apps strip — one pill per connected app instance with the same
+ *      status semantics as the drawer (shared appStatus utils), plus a
+ *      "+ Connect" pill opening the catalog-driven connect flow.
+ *   2. Channels — all app channels grouped by instance; WhatsApp splits
  *      into Groups / People. Search + Filters live in the header slot.
  *   3. Recent activity — the newest messages across active channels.
+ *   4. Custom Keys — the encrypted vault keys agents reference via
+ *      ${secret:NAME} (absorbed from the old standalone Secrets page).
  *
- * Data comes from GET /api/notifications/overview when available and
- * degrades gracefully to composing the same model from the individual
- * endpoints (channels, gateways, health, subscriptions, channel stats)
- * when the overview endpoint or its metadata fields are missing.
+ * Data comes from GET /api/apps (catalog + instances) enriched by
+ * GET /api/notifications/overview when available, and degrades
+ * gracefully when the overview endpoint or its metadata are missing.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { api } from "../../api/client";
+import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
+import { api, instancesToStatuses } from "../../api/client";
 import type {
+  AppsCatalog,
   ChannelMessage,
   ChannelStats,
   GatewayHealth,
@@ -32,7 +34,8 @@ import { useHeaderSlot } from "../../context/HeaderSlotContext";
 import { EmptyState } from "../EmptyState";
 import { LoadingSkeleton } from "../LoadingSkeleton";
 import { DefaultAppIcon, PLATFORM_ICON_MAP } from "./PlatformIcons";
-import { SetupWizard, PlatformChooser, PLATFORM_MAP } from "./SetupWizard";
+import { ConnectWizard, AppChooser } from "./ConnectApp";
+import { CustomKeysSection } from "./CustomKeys";
 import { sourcePlatform } from "./messageUtils";
 import { AgentCharacter } from "../agent-ui";
 import { formatRelative } from "../../utils/time";
@@ -101,9 +104,16 @@ export interface HomeSnapshot {
   overview: NotificationsOverview | null;
   sources: NotificationSource[];
   gateways: GatewayStatus[];
+  /** Descriptor labels by app id, from the /api/apps catalog. */
+  labels: Record<string, string>;
   health: Record<string, GatewayHealth>;
   subs: NotifySubscription[];
   stats: ChannelStats[];
+}
+
+/** "telegram" → "Telegram" when no catalog label exists. */
+function fallbackLabel(base: string): string {
+  return base.charAt(0).toUpperCase() + base.slice(1);
 }
 
 /** Build the page model, preferring overview metadata and falling back
@@ -184,11 +194,10 @@ export function buildHomeModel(snap: HomeSnapshot): { apps: AppItem[]; channels:
       null,
     );
 
-    const def = PLATFORM_MAP[base];
     return {
       key,
       base,
-      label: def?.label ?? base,
+      label: snap.labels[base] ?? fallbackLabel(base),
       botName: gw?.bot_name,
       status,
       reason,
@@ -315,21 +324,22 @@ function SubsectionLabel({ label, count }: { label: string; count: number }) {
 
 /* ── Component ───────────────────────────────────────────────── */
 
-export function NotificationsHome() {
+export function AppsHome() {
   const navigate = useNavigate();
 
   const fetcher = useCallback(async (): Promise<HomeSnapshot & { recent: RecentMessage[] }> => {
-    const [overview, sources, gateways, subs, stats] = await Promise.all([
+    const [overview, sources, apps, subs, stats] = await Promise.all([
       api.getNotificationsOverview().catch(() => null),
       api.listNotificationSources().catch(() => [] as NotificationSource[]),
-      api.listGateways().catch(() => [] as GatewayStatus[]),
+      api.getApps().catch(() => null as AppsCatalog | null),
       api.listSubscriptions().catch(() => [] as NotifySubscription[]),
       api.getStatsChannels().catch(() => [] as ChannelStats[]),
     ]);
-    const gws = gateways ?? [];
+    const gws = instancesToStatuses(apps?.instances ?? []);
+    const labels = Object.fromEntries((apps?.catalog ?? []).map((d) => [d.id, d.label]));
     const healthEntries = await Promise.all(
       gws.filter((g) => g.enabled).map(async (g) => {
-        const h = await api.getGatewayHealth(g.platform).catch(() => null);
+        const h = await api.getAppHealth(g.platform).catch(() => null);
         return h ? ([g.platform, h] as const) : null;
       }),
     );
@@ -362,6 +372,7 @@ export function NotificationsHome() {
       overview,
       sources: gwSources,
       gateways: gws,
+      labels,
       health,
       subs: subs ?? [],
       stats: stats ?? [],
@@ -378,7 +389,31 @@ export function NotificationsHome() {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const filtersRef = useRef<HTMLDivElement>(null);
   const [chooserOpen, setChooserOpen] = useState(false);
-  const [setupPlatform, setSetupPlatform] = useState<string | null>(null);
+  const [connectAppId, setConnectAppId] = useState<string | null>(null);
+
+  // Deep links: /apps?action=connect opens the catalog; /apps#custom-keys
+  // (the old /secrets bookmark) scrolls to the Custom Keys section.
+  const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
+  useEffect(() => {
+    if (searchParams.get("action") === "connect") {
+      setChooserOpen(true);
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        next.delete("action");
+        return next;
+      }, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+  useEffect(() => {
+    if (location.hash === "#custom-keys") {
+      // Wait a frame so the section exists after data render.
+      requestAnimationFrame(() => {
+        document.getElementById("custom-keys")?.scrollIntoView({ block: "start" });
+      });
+    }
+  }, [location.hash, data]);
 
   useEffect(() => {
     if (!filtersOpen) return;
@@ -431,7 +466,7 @@ export function NotificationsHome() {
   };
 
   const openChannel = useCallback((name: string) => {
-    navigate(`/notifications/${name}`);
+    navigate(`/apps/${name}`);
   }, [navigate]);
 
   const hasAnything = apps.length > 0 || channels.length > 0;
@@ -480,7 +515,7 @@ export function NotificationsHome() {
           </button>
           {filtersOpen && (
             <div
-              data-testid="notifications-filters-popover"
+              data-testid="apps-filters-popover"
               className="absolute right-0 top-full mt-1.5 z-50 w-60 rounded-lg border border-mycel-border bg-mycel-surface-2 shadow-mycel-lg p-3 space-y-2.5 text-sm"
             >
               {apps.length > 1 && (
@@ -552,14 +587,14 @@ export function NotificationsHome() {
   if (timedOut && !data) {
     return (
       <div className="p-6">
-        <EmptyState icon="!" title="Notifications took too long to load" description="The server may be unavailable." actionLabel="Retry" onAction={refresh} />
+        <EmptyState icon="!" title="Apps took too long to load" description="The server may be unavailable." actionLabel="Retry" onAction={refresh} />
       </div>
     );
   }
   if (error && !data) {
     return (
       <div className="p-6">
-        <EmptyState icon="!" title="Failed to load notifications" description={error} actionLabel="Retry" onAction={refresh} />
+        <EmptyState icon="!" title="Failed to load apps" description={error} actionLabel="Retry" onAction={refresh} />
       </div>
     );
   }
@@ -583,13 +618,13 @@ export function NotificationsHome() {
           </button>
         </div>
         {chooserOpen && (
-          <PlatformChooser
-            onSelect={(key) => { setChooserOpen(false); setSetupPlatform(key); }}
+          <AppChooser
+            onSelect={(key) => { setChooserOpen(false); setConnectAppId(key); }}
             onClose={() => { setChooserOpen(false); }}
           />
         )}
-        {setupPlatform && (
-          <SetupWizard platform={setupPlatform} onClose={() => { setSetupPlatform(null); }} onConnected={() => { refresh(); }} />
+        {connectAppId && (
+          <ConnectWizard appId={connectAppId} onClose={() => { setConnectAppId(null); }} onConnected={() => { refresh(); }} />
         )}
       </div>
     );
@@ -631,7 +666,7 @@ export function NotificationsHome() {
                 key={app.key}
                 type="button"
                 data-testid={`app-pill-${app.key}`}
-                onClick={() => { if (isError) { setSetupPlatform(app.base); } else { toggleApp(app.key); } }}
+                onClick={() => { if (isError) { setConnectAppId(app.base); } else { toggleApp(app.key); } }}
                 aria-label={aria}
                 aria-pressed={selected}
                 title={aria}
@@ -725,7 +760,7 @@ export function NotificationsHome() {
           {/* Right rail — recent activity across all channels */}
           <aside className="rounded-lg border border-mycel-border bg-mycel-surface overflow-hidden" aria-label="Recent activity">
             <Link
-              to="/notifications/activity"
+              to="/apps/activity"
               className="flex items-center gap-2 px-3 py-2 border-b border-mycel-border hover:bg-mycel-surface-hover transition-colors"
               aria-label="View all activity"
             >
@@ -760,15 +795,19 @@ export function NotificationsHome() {
           </aside>
         </div>
 
-      {/* Connect / reconnect flows — the existing setup components */}
+      {/* Custom Keys — encrypted vault keys agents reference via
+          ${secret:NAME}; absorbed from the old standalone Secrets page. */}
+      <CustomKeysSection />
+
+      {/* Connect / reconnect flows — the catalog-driven setup */}
       {chooserOpen && (
-        <PlatformChooser
-          onSelect={(key) => { setChooserOpen(false); setSetupPlatform(key); }}
+        <AppChooser
+          onSelect={(key) => { setChooserOpen(false); setConnectAppId(key); }}
           onClose={() => { setChooserOpen(false); }}
         />
       )}
-      {setupPlatform && (
-        <SetupWizard platform={setupPlatform} onClose={() => { setSetupPlatform(null); }} onConnected={() => { refresh(); }} />
+      {connectAppId && (
+        <ConnectWizard appId={connectAppId} onClose={() => { setConnectAppId(null); }} onConnected={() => { refresh(); }} />
       )}
     </div>
   );
