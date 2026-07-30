@@ -611,7 +611,7 @@ type authSessionJSON struct { //nolint:govet // field order matches JSON/API con
 // descriptor fields (e.g. oauth_client_id) which are persisted with the
 // instance — auth-first flows create the instance just like pair-first.
 func (h *AppsHandler) beginOAuth(w http.ResponseWriter, r *http.Request, name string, plugin app.Plugin, flow app.OAuthFlow) {
-	if h.ws == nil || h.ws.Config == nil {
+	if h.h == nil || h.h.Config == nil {
 		serviceUnavailable(w, r, "workspace", "workspace not available")
 		return
 	}
@@ -633,7 +633,7 @@ func (h *AppsHandler) beginOAuth(w http.ResponseWriter, r *http.Request, name st
 
 	// Merge submitted plain fields over the stored config and persist the
 	// instance, preserving an existing enabled state.
-	cfg := h.ws.Config
+	cfg := h.h.Config
 	existing, exists := cfg.Apps[name]
 	plain := make(map[string]string, len(existing.Config)+len(req.Config))
 	for k, v := range existing.Config {
@@ -661,7 +661,7 @@ func (h *AppsHandler) beginOAuth(w http.ResponseWriter, r *http.Request, name st
 		cfg.Apps = make(map[string]app.InstanceConfig)
 	}
 	cfg.Apps[name] = app.InstanceConfig{App: d.ID, Enabled: enabled, Config: plain}
-	if err := cfg.Save(h.ws.SettingsFile()); err != nil {
+	if err := cfg.Save(h.h.SettingsFile()); err != nil {
 		httpInternalError(w, "save config", err)
 		return
 	}
@@ -725,8 +725,8 @@ func (h *AppsHandler) pollOAuth(w http.ResponseWriter, r *http.Request, name str
 
 	// Enable the instance and hot-start its adapter with the fresh
 	// credentials.
-	if h.ws != nil && h.ws.Config != nil {
-		cfg := h.ws.Config
+	if h.h != nil && h.h.Config != nil {
+		cfg := h.h.Config
 		ic, exists := cfg.Apps[name]
 		if !exists {
 			ic = app.InstanceConfig{App: instanceApp(name)}
@@ -734,7 +734,7 @@ func (h *AppsHandler) pollOAuth(w http.ResponseWriter, r *http.Request, name str
 		if !exists || !ic.Enabled {
 			ic.Enabled = true
 			cfg.Apps[name] = ic
-			if err := cfg.Save(h.ws.SettingsFile()); err != nil {
+			if err := cfg.Save(h.h.SettingsFile()); err != nil {
 				httpInternalError(w, "save config", err)
 				return
 			}

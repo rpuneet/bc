@@ -147,7 +147,7 @@ func TestAppsOAuthBeginPollPersist(t *testing.T) {
 	if sess.UserCode != "WXYZ-9876" || sess.VerificationURL == "" || sess.IntervalSeconds != 5 {
 		t.Errorf("session UX fields = %+v", sess)
 	}
-	ic, ok := h.ws.Config.Apps["fakeoauth"]
+	ic, ok := h.h.Config.Apps["fakeoauth"]
 	if !ok || ic.Config["oauth_client_id"] != "Ov23liTEST" {
 		t.Fatalf("instance = %+v (ok %v), want persisted oauth_client_id", ic, ok)
 	}
@@ -178,7 +178,7 @@ func TestAppsOAuthBeginPollPersist(t *testing.T) {
 	if got, err := h.vault.GetValue("app:fakeoauth:api_token"); err != nil || got != "gho_oauth_token" {
 		t.Errorf("vault api_token = %q (err %v), want gho_oauth_token", got, err)
 	}
-	if ic := h.ws.Config.Apps["fakeoauth"]; !ic.Enabled {
+	if ic := h.h.Config.Apps["fakeoauth"]; !ic.Enabled {
 		t.Error("instance not enabled after completed auth")
 	}
 	if gw.GetAdapter("fakeoauth") == nil {
