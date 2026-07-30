@@ -4,6 +4,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { AgentCharacter, prefersReducedMotion } from "./agent-ui";
 import { EnvVarsEditor, isValidEnvKey } from "./EnvVarsEditor";
 import type { EnvRow } from "./EnvVarsEditor";
+import { AgentAppsPicker } from "./apps/AgentAppsPicker";
+import { api } from "../api/client";
 import { MONO } from "../utils/typography";
 
 // ── Name generation ───────────────────────────────────────────────────────────
@@ -105,6 +107,10 @@ export function CreateAgentModal({
   // ${secret:NAME} references resolved from the vault at spawn.
   const [envOpen, setEnvOpen] = useState(false);
   const [envRows, setEnvRows] = useState<EnvRow[]>([]);
+  // Apps — connected app channels this agent should listen to. The
+  // subscriptions are wired after the agent is created.
+  const [appsOpen, setAppsOpen] = useState(false);
+  const [appChannels, setAppChannels] = useState<Set<string>>(new Set());
   const [cloneFrom, setCloneFrom] = useState("");
   // Repo path the new agent binds to. Defaults to the daemon's default
   // repo (GET /api/repos) once loaded; known repos populate a dropdown.
@@ -198,6 +204,8 @@ export function CreateAgentModal({
       setTask("");
       setEnvOpen(false);
       setEnvRows([]);
+      setAppsOpen(false);
+      setAppChannels(new Set());
       setSubmitError(null);
       setSubmitting(false);
       // When opened from the Clone action, pre-select the source agent
@@ -321,13 +329,20 @@ export function CreateAgentModal({
         setSubmitting(false);
         return;
       }
+      // Wire the selected app channel subscriptions — best effort; the
+      // agent exists either way and the Config tab can fix any misses.
+      if (appChannels.size > 0) {
+        await Promise.allSettled(
+          [...appChannels].map((channel) => api.subscribe(channel, trimmed, false)),
+        );
+      }
       onClose();
       navigate(`/agents/${encodeURIComponent(trimmed)}`);
     } catch (e) {
       setSubmitError(e instanceof Error ? e.message : "Failed to create agent");
       setSubmitting(false);
     }
-  }, [name, template, provider, model, runtime, task, repo, envRows, existingNames, onClose, navigate]);
+  }, [name, template, provider, model, runtime, task, repo, envRows, appChannels, existingNames, onClose, navigate]);
 
   if (!open) return null;
 
@@ -688,6 +703,35 @@ export function CreateAgentModal({
               </span>
             </button>
             {envOpen && <EnvVarsEditor rows={envRows} onChange={setEnvRows} />}
+          </div>
+
+          {/* Apps — collapsible picker of connected app channels this
+              agent should subscribe to. Wired after create succeeds. */}
+          <div className="flex flex-col gap-1.5" data-testid="create-agent-apps-section">
+            <button
+              type="button"
+              onClick={() => setAppsOpen((prev) => !prev)}
+              aria-expanded={appsOpen}
+              className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted hover:text-mycel-text transition-colors w-fit"
+            >
+              <svg
+                width="8"
+                height="8"
+                viewBox="0 0 8 8"
+                fill="currentColor"
+                className={`transition-transform ${appsOpen ? "rotate-90" : ""}`}
+                aria-hidden="true"
+              >
+                <path d="M2 0l4 4-4 4z" />
+              </svg>
+              Apps{" "}
+              <span className="normal-case font-normal">
+                (optional{appChannels.size > 0 ? ` · ${appChannels.size} channel${appChannels.size === 1 ? "" : "s"}` : ""})
+              </span>
+            </button>
+            {appsOpen && (
+              <AgentAppsPicker selected={appChannels} onChange={setAppChannels} />
+            )}
           </div>
 
           {/* Initial task */}

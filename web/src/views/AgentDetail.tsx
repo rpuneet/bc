@@ -3,6 +3,7 @@ import { useParams, Link, useLocation, useNavigate } from "react-router-dom";
 import { useHeaderSlot } from "../context/HeaderSlotContext";
 import { api } from "../api/client";
 import type { Agent, AgentConfig } from "../api/client";
+import { AgentAppsCard } from "../components/apps/AgentAppsCard";
 import { usePolling } from "../hooks/usePolling";
 import { useWebSocket } from "../hooks/useWebSocket";
 import { StatsTab as StatsTabComponent } from "../components/StatsTab";
@@ -715,6 +716,16 @@ function ConfigTab({ agent, agentsUrl }: { agent: Agent; agentsUrl: string }) {
             <McpEnvEditor serverNames={mcpServers} />
           </section>
         )}
+
+        {/* ── APPS ── */}
+        <section>
+          <SectionRule>Apps</SectionRule>
+          <AgentAppsCard agentName={agent.name} />
+          <p className="mt-2 text-xs text-mycel-muted leading-relaxed">
+            App channels this agent listens to — messages route here from connected
+            platforms (Slack, Telegram, WhatsApp, …).
+          </p>
+        </section>
 
         {/* ── RUNTIME INFO ── */}
         <section>
