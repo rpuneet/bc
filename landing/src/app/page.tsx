@@ -17,8 +17,16 @@ function SporeDivider() {
     <div className="mx-auto max-w-5xl px-6">
       <div className="relative flex items-center justify-center">
         <div className="section-separator w-full" />
-        <span className="absolute rounded-full bg-background px-3 py-1 opacity-70">
-          <SporeLogo size={18} />
+        <span className="absolute flex items-center gap-3 rounded-full bg-background px-4 py-1.5">
+          <span
+            aria-hidden="true"
+            className="h-1 w-1 rounded-full bg-primary/60"
+          />
+          <SporeLogo size={28} className="opacity-90" />
+          <span
+            aria-hidden="true"
+            className="h-1 w-1 rounded-full bg-primary/60"
+          />
         </span>
       </div>
     </div>
@@ -69,7 +77,7 @@ function DeckPanel({
       delay={0.12}
       className={imageFirst ? "lg:order-1" : ""}
     >
-      <div className="deck-artifact rounded-xl">{artifact}</div>
+      {artifact}
     </ScrollReveal>
   );
 
@@ -144,36 +152,28 @@ export default function Home() {
 
             {/* CTAs */}
             <FadeUp delay={0.2}>
-              <div className="mt-9 flex flex-col items-center gap-5">
-                <div className="flex items-center gap-4">
-                  <Link
-                    href="/#install"
-                    className="inline-flex h-11 items-center gap-2 rounded-lg bg-primary px-6 text-sm font-semibold text-primary-foreground shadow-[var(--btn-shadow)] transition-all hover:shadow-lg active:scale-[0.97]"
-                  >
-                    Get mycel
-                    <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
-                  </Link>
-                  <Link
-                    href="https://github.com/rpuneet/mycel"
-                    className="inline-flex h-11 items-center gap-2 rounded-lg border border-outline-variant/20 px-6 font-body text-sm font-medium text-on-surface-variant transition-colors hover:border-primary/30 hover:bg-surface-container hover:text-primary active:scale-[0.97]"
-                  >
-                    <Github className="h-4 w-4" aria-hidden="true" />
-                    GitHub
-                  </Link>
-                </div>
-                <div className="flex flex-wrap items-center justify-center gap-2 opacity-70 transition-opacity hover:opacity-100">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src="https://img.shields.io/github/license/rpuneet/mycel?style=flat-square&color=a35d0a&labelColor=2a2118" alt="License" className="h-5" />
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src="https://img.shields.io/github/last-commit/rpuneet/mycel?style=flat-square&color=a35d0a&labelColor=2a2118" alt="Last commit" className="h-5" />
-                </div>
+              <div className="mt-9 flex items-center justify-center gap-4">
+                <Link
+                  href="/#install"
+                  className="inline-flex h-11 items-center gap-2 rounded-lg bg-primary px-6 text-sm font-semibold text-primary-foreground shadow-[var(--btn-shadow)] transition-all hover:shadow-lg active:scale-[0.97]"
+                >
+                  Get mycel
+                  <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+                </Link>
+                <Link
+                  href="https://github.com/rpuneet/mycel"
+                  className="inline-flex h-11 items-center gap-2 rounded-lg border border-outline-variant/20 px-6 font-body text-sm font-medium text-on-surface-variant transition-colors hover:border-primary/30 hover:bg-surface-container hover:text-primary active:scale-[0.97]"
+                >
+                  <Github className="h-4 w-4" aria-hidden="true" />
+                  GitHub
+                </Link>
               </div>
             </FadeUp>
           </div>
 
           {/* Hero shot — the fleet, live */}
           <FadeUp delay={0.28}>
-            <div className="hero-stage mx-auto mt-14 max-w-5xl px-4 sm:px-6">
+            <div className="hero-stage mx-auto mt-14 max-w-6xl px-4 sm:px-6">
               <div className="hero-tilt">
                 <ProductFrame
                   srcDark="/screenshots/agents-dark.png"
