@@ -7,7 +7,7 @@ import (
 )
 
 func TestPluginDescribe(t *testing.T) {
-	d := plugin{}.Describe()
+	d := (&plugin{}).Describe()
 	if d.ID != "github" || d.Label == "" {
 		t.Errorf("Describe() = ID %q, Label %q; want github, non-empty", d.ID, d.Label)
 	}
@@ -38,7 +38,7 @@ func TestPluginBuild(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			inst := app.Instance{App: "github", Name: "github:ci", Secrets: tt.secrets}
-			adapter, err := plugin{}.Build(inst, app.Env{})
+			adapter, err := (&plugin{}).Build(inst, app.Env{})
 			if err != nil {
 				t.Fatalf("Build: %v", err)
 			}

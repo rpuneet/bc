@@ -107,15 +107,29 @@ OAuth remains a plugin-level capability (no live adapter exists before auth
 completes):
 
 ```go
-// OAuthApp is implemented by apps that support a browser auth flow.
-// GitHub/Discord support localhost callbacks or device flow; apps that
-// can't (Slack requires an HTTPS redirect) stay AuthToken until a hosted
-// relay exists.
-type OAuthApp interface {
-    BeginAuth(inst Instance) (AuthSession, error) // returns URL or device code
-    CompleteAuth(inst Instance, callback url.Values) error
+// OAuthFlow is implemented by plugins whose app can authenticate via a
+// browser flow. GitHub ships the device flow (fully local: any OAuth
+// app's client ID, no client secret, no redirect URL). Apps that can't
+// run locally (Slack requires an HTTPS redirect) stay token-paste until
+// a hosted relay exists. Discord is deliberately not OAuth: its adapter
+// needs a bot token, which OAuth cannot mint (it only issues user/bearer
+// tokens) — a flow yielding an unusable credential would be fake.
+type OAuthFlow interface {
+    // BeginAuth starts the flow. Device flow returns VerificationURL +
+    // UserCode; callback flow returns AuthURL.
+    BeginAuth(ctx context.Context, inst Instance) (AuthSession, error)
+    // PollAuth reports progress; on success it returns the secrets to
+    // persist, keyed by descriptor Secret field keys. Sessions live
+    // in-memory on the plugin — a daemon restart aborts pending auths.
+    PollAuth(ctx context.Context, session AuthSession) (AuthResult, error)
 }
 ```
+
+The catalog response advertises the capability as `oauth_available` per
+app (keyed off the interface assertion, not the descriptor's AuthKind),
+and `POST /api/apps/{name}/auth` + `GET .../auth/status?session=<id>`
+drive it; on completion the server persists the returned secrets to the
+vault and hot-starts the adapter.
 
 ## Config: generic instances, secrets in the vault
 

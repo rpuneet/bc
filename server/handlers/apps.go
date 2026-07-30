@@ -6,11 +6,14 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/rpuneet/mycel/pkg/app"
 	"github.com/rpuneet/mycel/pkg/gateway"
@@ -61,6 +64,9 @@ type appDescriptorJSON struct { //nolint:govet // field order matches JSON/API c
 	Multi  bool           `json:"multi"`
 	Fields []appFieldJSON `json:"fields"`
 	Docs   []string       `json:"docs"`
+	// OAuthAvailable is true when the plugin implements app.OAuthFlow —
+	// the UI offers "Sign in with <app>" alongside manual fields.
+	OAuthAvailable bool `json:"oauth_available"`
 }
 
 // appInstanceJSON is the wire shape of one connected instance with its
@@ -78,7 +84,8 @@ type appInstanceJSON struct { //nolint:govet // field order matches JSON/API con
 	Channels  []string       `json:"channels"`
 }
 
-func descriptorJSON(d app.Descriptor) appDescriptorJSON {
+func descriptorJSON(p app.Plugin) appDescriptorJSON {
+	d := p.Describe()
 	fields := make([]appFieldJSON, 0, len(d.Fields))
 	for _, f := range d.Fields {
 		fields = append(fields, appFieldJSON{
@@ -93,13 +100,15 @@ func descriptorJSON(d app.Descriptor) appDescriptorJSON {
 	if docs == nil {
 		docs = []string{}
 	}
+	_, oauthAvailable := p.(app.OAuthFlow)
 	return appDescriptorJSON{
-		ID:     d.ID,
-		Label:  d.Label,
-		Auth:   string(d.Auth),
-		Multi:  d.Multi,
-		Fields: fields,
-		Docs:   docs,
+		ID:             d.ID,
+		Label:          d.Label,
+		Auth:           string(d.Auth),
+		Multi:          d.Multi,
+		Fields:         fields,
+		Docs:           docs,
+		OAuthAvailable: oauthAvailable,
 	}
 }
 
@@ -112,7 +121,7 @@ func (h *AppsHandler) catalog(w http.ResponseWriter, r *http.Request) {
 
 	catalog := make([]appDescriptorJSON, 0)
 	for _, p := range app.List() {
-		catalog = append(catalog, descriptorJSON(p.Describe()))
+		catalog = append(catalog, descriptorJSON(p))
 	}
 
 	var discovered []string
@@ -463,11 +472,18 @@ func (h *AppsHandler) delete(w http.ResponseWriter, r *http.Request, name string
 }
 
 // auth handles POST /api/apps/{name}/auth — begins the instance's auth
-// flow, dispatched on the built adapter's capabilities (QRPairer for QR
-// apps). No platform switch: any adapter implementing app.QRPairer works.
+// flow, dispatched on capabilities, never a platform switch: plugins
+// implementing app.OAuthFlow get a browser flow (auth happens before an
+// adapter exists), adapters implementing app.QRPairer get QR pairing.
 func (h *AppsHandler) auth(w http.ResponseWriter, r *http.Request, name string) {
 	if !requireMethod(w, r, http.MethodPost) {
 		return
+	}
+	if plugin, ok := app.Get(instanceApp(name)); ok {
+		if flow, isOAuth := plugin.(app.OAuthFlow); isOAuth {
+			h.beginOAuth(w, r, name, plugin, flow)
+			return
+		}
 	}
 	pairer, ok := h.ensurePairer(w, r, name)
 	if !ok {
@@ -491,11 +507,18 @@ func (h *AppsHandler) auth(w http.ResponseWriter, r *http.Request, name string) 
 	writeJSON(w, http.StatusOK, info)
 }
 
-// authStatus handles GET /api/apps/{name}/auth/status — polls pairing
-// progress on the running adapter.
+// authStatus handles GET /api/apps/{name}/auth/status — polls auth
+// progress: OAuth sessions via ?session=<id> on the plugin, QR pairing
+// on the running adapter.
 func (h *AppsHandler) authStatus(w http.ResponseWriter, r *http.Request, name string) {
 	if !requireMethod(w, r, http.MethodGet) {
 		return
+	}
+	if plugin, ok := app.Get(instanceApp(name)); ok {
+		if flow, isOAuth := plugin.(app.OAuthFlow); isOAuth {
+			h.pollOAuth(w, r, name, flow)
+			return
+		}
 	}
 	if h.gw == nil {
 		serviceUnavailable(w, r, "gateway", "gateway manager not available")
@@ -528,8 +551,7 @@ func (h *AppsHandler) ensurePairer(w http.ResponseWriter, r *http.Request, name 
 	}
 
 	appID := instanceApp(name)
-	plugin, ok := app.Get(appID)
-	if !ok {
+	if _, ok := app.Get(appID); !ok {
 		httpError(w, "unknown app: "+appID, http.StatusBadRequest)
 		return nil, false
 	}
@@ -564,9 +586,163 @@ func (h *AppsHandler) ensurePairer(w http.ResponseWriter, r *http.Request, name 
 
 	pairer, ok := adapter.(app.QRPairer)
 	if !ok {
-		_ = plugin // future: dispatch app.OAuthApp here
 		httpError(w, "auth flow not supported for "+appID, http.StatusBadRequest)
 		return nil, false
 	}
 	return pairer, true
+}
+
+// authSessionJSON is the wire shape of a begun OAuth session. Device
+// flow carries verification_url + user_code; callback flow carries
+// auth_url.
+type authSessionJSON struct { //nolint:govet // field order matches JSON/API contract
+	ID              string    `json:"id"`
+	Kind            string    `json:"kind"`
+	State           string    `json:"state"`
+	AuthURL         string    `json:"auth_url,omitempty"`
+	VerificationURL string    `json:"verification_url,omitempty"`
+	UserCode        string    `json:"user_code,omitempty"`
+	ExpiresAt       time.Time `json:"expires_at"`
+	IntervalSeconds int       `json:"interval_seconds"`
+}
+
+// beginOAuth handles POST /api/apps/{name}/auth for OAuth-capable
+// plugins. The optional request body {"config": {...}} carries plain
+// descriptor fields (e.g. oauth_client_id) which are persisted with the
+// instance — auth-first flows create the instance just like pair-first.
+func (h *AppsHandler) beginOAuth(w http.ResponseWriter, r *http.Request, name string, plugin app.Plugin, flow app.OAuthFlow) {
+	if h.ws == nil || h.ws.Config == nil {
+		serviceUnavailable(w, r, "workspace", "workspace not available")
+		return
+	}
+	d := plugin.Describe()
+	if instanceApp(name) != d.ID {
+		httpError(w, "instance name must be \""+d.ID+"\" or \""+d.ID+":<label>\"", http.StatusBadRequest)
+		return
+	}
+
+	var req struct {
+		Config map[string]string `json:"config"`
+	}
+	if r.Body != nil {
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil && !errors.Is(err, io.EOF) {
+			httpError(w, "invalid body: "+err.Error(), http.StatusBadRequest)
+			return
+		}
+	}
+
+	// Merge submitted plain fields over the stored config and persist the
+	// instance, preserving an existing enabled state.
+	cfg := h.ws.Config
+	existing, exists := cfg.Apps[name]
+	plain := make(map[string]string, len(existing.Config)+len(req.Config))
+	for k, v := range existing.Config {
+		plain[k] = v
+	}
+	for k, v := range req.Config {
+		if v == "" {
+			delete(plain, k)
+			continue
+		}
+		plain[k] = v
+	}
+	if len(plain) == 0 {
+		plain = nil
+	}
+	if err := app.ValidateConfig(d, plain); err != nil {
+		httpError(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	enabled := true
+	if exists {
+		enabled = existing.Enabled
+	}
+	if cfg.Apps == nil {
+		cfg.Apps = make(map[string]app.InstanceConfig)
+	}
+	cfg.Apps[name] = app.InstanceConfig{App: d.ID, Enabled: enabled, Config: plain}
+	if err := cfg.Save(h.ws.SettingsFile()); err != nil {
+		httpInternalError(w, "save config", err)
+		return
+	}
+
+	var secrets app.SecretSource
+	if h.vault != nil {
+		secrets = app.VaultSecrets{Store: h.vault, Instance: name}
+	}
+	inst := app.ResolveInstance(name, cfg.Apps[name], secrets)
+	session, err := flow.BeginAuth(r.Context(), inst)
+	if err != nil {
+		// Begin failures are actionable user/config errors (missing
+		// client ID, upstream rejection) — surface the message.
+		httpError(w, "begin auth: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+	writeJSON(w, http.StatusOK, authSessionJSON{
+		ID:              session.ID,
+		Kind:            session.Kind,
+		State:           app.AuthStatePending,
+		AuthURL:         session.AuthURL,
+		VerificationURL: session.VerificationURL,
+		UserCode:        session.UserCode,
+		ExpiresAt:       session.ExpiresAt,
+		IntervalSeconds: int(session.Interval / time.Second),
+	})
+}
+
+// pollOAuth handles GET /api/apps/{name}/auth/status?session=<id> for
+// OAuth-capable plugins. On completion the returned secrets are persisted
+// to the vault exactly like POST /api/apps/{name}, the instance is
+// enabled, and the adapter hot-started. Secrets never cross the wire.
+func (h *AppsHandler) pollOAuth(w http.ResponseWriter, r *http.Request, name string, flow app.OAuthFlow) {
+	sessionID := r.URL.Query().Get("session")
+	if sessionID == "" {
+		httpError(w, "session query parameter required", http.StatusBadRequest)
+		return
+	}
+	res, err := flow.PollAuth(r.Context(), app.AuthSession{ID: sessionID})
+	if err != nil {
+		httpInternalError(w, "poll auth", err)
+		return
+	}
+	if res.State != app.AuthStateComplete {
+		writeJSON(w, http.StatusOK, res)
+		return
+	}
+
+	if len(res.Secrets) > 0 {
+		if h.vault == nil {
+			serviceUnavailable(w, r, "secrets", "secrets vault not available")
+			return
+		}
+		for k, v := range res.Secrets {
+			if err := h.vault.Set(app.SecretName(name, k), v, "app credential"); err != nil {
+				httpInternalError(w, "store secret", err)
+				return
+			}
+		}
+	}
+
+	// Enable the instance and hot-start its adapter with the fresh
+	// credentials.
+	if h.ws != nil && h.ws.Config != nil {
+		cfg := h.ws.Config
+		ic, exists := cfg.Apps[name]
+		if !exists {
+			ic = app.InstanceConfig{App: instanceApp(name)}
+		}
+		if !exists || !ic.Enabled {
+			ic.Enabled = true
+			cfg.Apps[name] = ic
+			if err := cfg.Save(h.ws.SettingsFile()); err != nil {
+				httpInternalError(w, "save config", err)
+				return
+			}
+		}
+	}
+	resp := map[string]any{"state": app.AuthStateComplete}
+	if warning := h.restartAdapter(name, true); warning != "" {
+		resp["warning"] = warning
+	}
+	writeJSON(w, http.StatusOK, resp)
 }

@@ -21,7 +21,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { api } from "../../api/client";
-import type { Agent, AppDescriptor, AppInstance } from "../../api/client";
+import type { Agent, AppAuthSession, AppDescriptor, AppInstance } from "../../api/client";
 import { DefaultAppIcon, PLATFORM_ICON_MAP } from "./PlatformIcons";
 import { StatusDot } from "./appStatus";
 
@@ -89,6 +89,9 @@ const CATEGORY_ORDER = ["Chat", "Code & DevOps", "Monitoring", "Payments", "Cont
 
 /** Short auth-kind hint shown on catalog cards. */
 function authHint(d: AppDescriptor): { label: string; tone: "accent" | "warning" | "info" | "muted" } {
+  if (d.oauth_available && d.auth !== "qr") {
+    return { label: "Browser sign-in available", tone: "info" };
+  }
   switch (d.auth) {
     case "qr":
       return { label: "Scan QR to pair", tone: "accent" };
@@ -637,6 +640,11 @@ function linkifyDoc(text: string): React.ReactNode {
   );
 }
 
+/** Strip the scheme for human-readable URL labels ("github.com/login/device"). */
+function humanURL(url: string): string {
+  return url.replace(/^https?:\/\//, "").replace(/\/$/, "");
+}
+
 /** Normalize a user-typed instance label to the id-safe segment after ":". */
 export function sanitizeInstanceLabel(label: string): string {
   return label.trim().toLowerCase().replace(/[^a-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "");
@@ -665,6 +673,10 @@ export function ConnectWizard({
   const [pairState, setPairState] = useState<string>("idle");
   const qrPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const qrTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [oauthState, setOauthState] = useState<"idle" | "starting" | "pending" | "error">("idle");
+  const [oauthSession, setOauthSession] = useState<AppAuthSession | null>(null);
+  const oauthPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const oauthTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // The descriptor + this app's connected instances, from the catalog.
   useEffect(() => {
@@ -690,11 +702,13 @@ export function ConnectWizard({
     return () => { document.removeEventListener("keydown", handler); };
   }, [onClose]);
 
-  // Cleanup QR poll interval on unmount.
+  // Cleanup QR/OAuth poll intervals on unmount.
   useEffect(() => {
     return () => {
       if (qrPollRef.current) clearInterval(qrPollRef.current);
       if (qrTimeoutRef.current) clearTimeout(qrTimeoutRef.current);
+      if (oauthPollRef.current) clearInterval(oauthPollRef.current);
+      if (oauthTimeoutRef.current) clearTimeout(oauthTimeoutRef.current);
     };
   }, []);
 
@@ -733,6 +747,45 @@ export function ConnectWizard({
       const timeoutId = setTimeout(() => { clearInterval(pollId); qrPollRef.current = null; }, 120000);
       qrTimeoutRef.current = timeoutId;
     } catch (e) { setError(e instanceof Error ? e.message : String(e)); setPairState("error"); }
+  };
+
+  /** Begin the browser sign-in (OAuth). Plain fields already typed into
+   *  the form (e.g. the OAuth client ID) ride along and persist with the
+   *  instance; the server drives the flow and stores the credentials, so
+   *  on "complete" we advance straight to the agents step. */
+  const startOAuth = async () => {
+    if (!descriptor) return;
+    setOauthState("starting");
+    setError(null);
+    try {
+      const config: Record<string, string> = {};
+      for (const field of descriptor.fields) {
+        if (field.secret) continue;
+        const val = (values[field.key] ?? "").trim();
+        if (val !== "") config[field.key] = val;
+      }
+      const session = await api.beginAppOAuth(instanceName, config);
+      setOauthSession(session);
+      setOauthState("pending");
+      // Poll for completion. The plugin rate-limits upstream calls to the
+      // provider's interval, so a snappy local poll is safe.
+      const pollId = setInterval(() => {
+        void api.getAppOAuthStatus(instanceName, session.id).then((s) => {
+          if (s.state === "complete") {
+            clearInterval(pollId); oauthPollRef.current = null;
+            onConnected();
+            setStep("agents");
+          } else if (s.state === "error") {
+            clearInterval(pollId); oauthPollRef.current = null;
+            setOauthState("error"); setError(s.error ?? "Sign-in failed");
+          }
+        }).catch(() => { /* transient poll error — keep polling */ });
+      }, 2000);
+      oauthPollRef.current = pollId;
+      // Stop polling after 10 minutes (device codes expire well before).
+      const timeoutId = setTimeout(() => { clearInterval(pollId); oauthPollRef.current = null; }, 600000);
+      oauthTimeoutRef.current = timeoutId;
+    } catch (e) { setError(e instanceof Error ? e.message : String(e)); setOauthState("error"); }
   };
 
   const handleSave = async () => {
@@ -784,6 +837,7 @@ export function ConnectWizard({
   }
 
   const isQR = descriptor.auth === "qr";
+  const oauthAvailable = !isQR && descriptor.oauth_available === true;
 
   return createPortal(
     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-mycel-overlay backdrop-blur-sm" style={{ animation: "fadeIn 120ms ease-out" }}>
@@ -926,6 +980,69 @@ export function ConnectWizard({
                     {cleanLabel !== "" && (
                       <p className="mt-1 text-[11px] text-mycel-muted font-mono">{instanceName}</p>
                     )}
+                  </div>
+                )}
+
+                {/* Browser sign-in (OAuth) — offered when the backend
+                    plugin implements the flow; manual fields stay below. */}
+                {oauthAvailable && (
+                  <div data-testid="oauth-panel" className="rounded-md border border-mycel-border bg-mycel-surface p-4">
+                    {oauthState === "pending" && oauthSession ? (
+                      <div className="flex flex-col items-center gap-3">
+                        {oauthSession.user_code ? (
+                          <>
+                            <p className="text-xs text-mycel-muted text-center">
+                              Enter this code in your browser to authorize mycel
+                            </p>
+                            <div
+                              data-testid="oauth-user-code"
+                              className="font-mono text-2xl font-semibold tracking-[0.25em] text-mycel-text bg-mycel-surface-2 border border-mycel-border rounded-md px-5 py-2.5 select-all"
+                            >
+                              {oauthSession.user_code}
+                            </div>
+                          </>
+                        ) : (
+                          <p className="text-xs text-mycel-muted text-center">
+                            Continue the sign-in in your browser
+                          </p>
+                        )}
+                        {(oauthSession.verification_url ?? oauthSession.auth_url) && (
+                          <a
+                            href={oauthSession.verification_url ?? oauthSession.auth_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center h-9 px-4 bg-mycel-accent hover:bg-mycel-accent-hover text-mycel-accent-fg rounded-md font-medium text-sm shadow-mycel-sm transition-colors"
+                          >
+                            Open {humanURL(oauthSession.verification_url ?? oauthSession.auth_url ?? "")} &rarr;
+                          </a>
+                        )}
+                        <div className="flex items-center gap-2 text-xs text-mycel-muted">
+                          <span className="w-2 h-2 bg-mycel-warning rounded-full animate-pulse" />
+                          Waiting for authorization...
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => { void startOAuth(); }}
+                          disabled={oauthState === "starting"}
+                          className="inline-flex items-center h-9 px-6 bg-mycel-accent hover:bg-mycel-accent-hover text-mycel-accent-fg rounded-md font-medium text-sm shadow-mycel-sm transition-colors disabled:opacity-50"
+                        >
+                          {oauthState === "starting" ? "Starting sign-in..." : oauthState === "error" ? `Retry sign in with ${descriptor.label}` : `Sign in with ${descriptor.label}`}
+                        </button>
+                        <p className="text-[11px] text-mycel-muted text-center">
+                          Authorize in your browser — no token pasting needed
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+                {oauthAvailable && (
+                  <div className="flex items-center gap-3 text-[10px] uppercase tracking-[0.08em] text-mycel-muted">
+                    <span className="flex-1 border-t border-mycel-border" />
+                    or configure manually
+                    <span className="flex-1 border-t border-mycel-border" />
                   </div>
                 )}
 

@@ -151,6 +151,9 @@ export interface AppDescriptor {
   multi: boolean;
   fields: AppFieldSpec[];
   docs: string[];
+  /** True when the plugin supports browser sign-in (app.OAuthFlow) —
+   *  the wizard offers "Sign in with <app>" alongside manual fields. */
+  oauth_available?: boolean;
 }
 
 /** One connected app instance with live adapter status. `config` holds
@@ -178,6 +181,28 @@ export interface AppPairInfo {
   qr_data_url?: string;
   phone?: string;
   error?: string;
+}
+
+/** A begun browser-auth session from POST /api/apps/{name}/auth on an
+ *  OAuth-capable app. Device flow carries verification_url + user_code;
+ *  callback flow carries auth_url. */
+export interface AppAuthSession {
+  id: string;
+  kind: string;
+  state: string;
+  auth_url?: string;
+  verification_url?: string;
+  user_code?: string;
+  expires_at?: string;
+  interval_seconds?: number;
+}
+
+/** OAuth progress from GET /api/apps/{name}/auth/status?session=<id>.
+ *  Secrets never cross the wire — the server persists them to the vault. */
+export interface AppAuthResult {
+  state: string;
+  error?: string;
+  warning?: string;
 }
 
 /** Flattened per-instance view used by the drawer tree and Apps home —
@@ -852,6 +877,20 @@ export const api = {
   /** Poll pairing/auth progress on the running adapter. */
   getAppAuthStatus: (name: string) =>
     request<AppPairInfo>(`/apps/${encodeURIComponent(name)}/auth/status`),
+  /** Begin a browser sign-in (OAuth) for an OAuth-capable app. Plain
+   *  descriptor fields (e.g. oauth_client_id) ride along in config and
+   *  persist with the instance. */
+  beginAppOAuth: (name: string, config: Record<string, string>) =>
+    request<AppAuthSession>(`/apps/${encodeURIComponent(name)}/auth`, {
+      method: "POST",
+      body: JSON.stringify({ config }),
+    }),
+  /** Poll an OAuth session; on "complete" the server has already stored
+   *  the credentials and hot-started the adapter. */
+  getAppOAuthStatus: (name: string, sessionId: string) =>
+    request<AppAuthResult>(
+      `/apps/${encodeURIComponent(name)}/auth/status?session=${encodeURIComponent(sessionId)}`,
+    ),
   /** Connected instances in the drawer/home's flattened shape. */
   listAppInstances: async (): Promise<GatewayStatus[]> => {
     const res = await request<AppsCatalog>("/apps");
