@@ -1,11 +1,15 @@
 /**
- * BrandMark — the mycel logo mark.
+ * BrandMark — the mycel logo mark: the mushroom.
  *
- * mycel = mycelium: a small geometric network of four nodes joined by
- * thin branching lines (hyphae). The hub node is accent-filled; the
- * satellite nodes and strokes render in the current text color at
- * reduced opacity, so the mark works in both themes without any
- * theme-specific styling.
+ * Same silhouette family as the landing's SporeLogo and the desktop app
+ * icon (desktop/build/appicon.svg): domed cap, rooted stem, fine hyphae
+ * threads reaching down, and drifting spores. The cap + stem render in
+ * the current text color (espresso ink on cream, cream ink on espresso)
+ * while spores and hyphae carry the chanterelle amber accent — so the
+ * mark works in both themes without any theme-specific styling.
+ *
+ * Geometry is simplified from the 512-unit landing mark for legibility
+ * at drawer sizes (16–24px): fewer hyphae, chunkier spores.
  */
 
 export function BrandMark({ size = 20 }: { size?: number }) {
@@ -13,23 +17,55 @@ export function BrandMark({ size = 20 }: { size?: number }) {
     <svg
       width={size}
       height={size}
-      viewBox="0 0 20 20"
+      viewBox="0 0 512 512"
       fill="none"
       aria-hidden="true"
       className="shrink-0"
     >
-      {/* Hyphae — thin branching strokes from the hub */}
-      <g stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" opacity="0.4">
-        <path d="M8.5 11.5L4.5 15.5" />
-        <path d="M9.5 9.5L15 4.5" />
-        <path d="M11 11l4.5 2.5" />
+      {/* Hyphae threads reaching down from the stem */}
+      <g
+        stroke="var(--mycel-accent)"
+        strokeWidth="26"
+        strokeLinecap="round"
+        fill="none"
+        opacity="0.6"
+      >
+        <path d="M256 400 C 235 429 200 436 165 451" />
+        <path d="M256 400 C 260 435 280 445 305 459" />
+        <path d="M256 400 C 280 423 320 426 353 442" />
       </g>
-      {/* Satellite nodes */}
-      <circle cx="4.5" cy="15.5" r="1.7" fill="currentColor" opacity="0.55" />
-      <circle cx="15" cy="4.5" r="1.5" fill="currentColor" opacity="0.55" />
-      <circle cx="15.5" cy="13.5" r="1.5" fill="currentColor" opacity="0.55" />
-      {/* Hub node — the accent */}
-      <circle cx="10" cy="10.5" r="2.4" fill="var(--mycel-accent)" />
+
+      {/* Stem */}
+      <path
+        d="M224 294 L288 294 L280 382 C 278 403 267 412 256 412 C 245 412 234 403 232 382 Z"
+        fill="currentColor"
+        opacity="0.8"
+      />
+
+      {/* Cap */}
+      <path
+        d="M99 264
+           C 99 165 168 109 256 109
+           C 344 109 413 165 413 264
+           C 413 286 390 294 358 294
+           L 154 294
+           C 122 294 99 286 99 264 Z"
+        fill="currentColor"
+      />
+
+      {/* Spore speckles on the cap — chanterelle amber */}
+      <g fill="var(--mycel-accent)" opacity="0.95">
+        <circle cx="190" cy="200" r="24" />
+        <circle cx="278" cy="163" r="20" />
+        <circle cx="336" cy="228" r="17" />
+      </g>
+
+      {/* Drifting spores */}
+      <g fill="var(--mycel-accent)">
+        <circle cx="105" cy="373" r="16" />
+        <circle cx="410" cy="378" r="16" />
+        <circle cx="430" cy="332" r="10" opacity="0.75" />
+      </g>
     </svg>
   );
 }
