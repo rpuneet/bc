@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/rpuneet/mycel/pkg/provider"
+	"github.com/rpuneet/mycel/pkg/workspace"
 	"github.com/rpuneet/mycel/server/handlers"
 )
 
@@ -210,5 +211,148 @@ func TestProvidersModelsFetchSingleflight(t *testing.T) {
 	// (one real + one possible cache miss race) but never 5.
 	if got := fake.calls.Load(); got > 2 {
 		t.Errorf("ListModels called %d times for %d concurrent requests; want ≤2 (singleflight)", got, concurrency)
+	}
+}
+
+// newProvidersMuxWithWS builds a provider mux with a workspace attached so
+// handlers that pass the workspace root through can be verified.
+func newProvidersMuxWithWS(t *testing.T, reg *provider.Registry, ws *workspace.Workspace) http.Handler {
+	t.Helper()
+	mux := http.NewServeMux()
+	handlers.NewProviderHandler(reg, nil, nil, ws).Register(mux)
+	return mux
+}
+
+func TestProvidersCommandsCurated(t *testing.T) {
+	reg := provider.NewRegistry()
+	reg.Register(provider.NewClaudeProvider())
+	mux := newProvidersMux(t, reg)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/providers/claude/commands", nil)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	var cmds []struct {
+		Name        string `json:"name"`
+		Command     string `json:"command"`
+		Description string `json:"description"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &cmds); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	// Claude implements CommandLister; the curated list must come through.
+	if len(cmds) != 7 {
+		t.Fatalf("want 7 curated commands, got %d: %v", len(cmds), cmds)
+	}
+	if cmds[0].Name != "mcp add" {
+		t.Errorf("first command = %q, want %q", cmds[0].Name, "mcp add")
+	}
+}
+
+func TestProvidersCommandsGenericFallback(t *testing.T) {
+	reg := provider.NewRegistry()
+	reg.Register(&fakeSlowProvider{})
+	mux := newProvidersMux(t, reg)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/providers/fake-slow/commands", nil)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	var cmds []struct {
+		Name    string `json:"name"`
+		Command string `json:"command"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &cmds); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	// No CommandLister → generic run/version/help default keyed by name.
+	if len(cmds) != 3 {
+		t.Fatalf("want 3 generic commands, got %d: %v", len(cmds), cmds)
+	}
+	want := map[string]string{"run": "fake-slow", "version": "fake-slow --version", "help": "fake-slow --help"}
+	for _, c := range cmds {
+		if want[c.Name] != c.Command {
+			t.Errorf("command %q = %q, want %q", c.Name, c.Command, want[c.Name])
+		}
+	}
+}
+
+// stubMCPProvider implements Provider + MCPConfigReader and records the
+// rootDir the handler passes through.
+type stubMCPProvider struct {
+	gotRootDir atomic.Value
+}
+
+func (s *stubMCPProvider) Name() string                               { return "stub-mcp" }
+func (s *stubMCPProvider) Description() string                        { return "test" }
+func (s *stubMCPProvider) Command() string                            { return "stub" }
+func (s *stubMCPProvider) Binary() string                             { return "stub" }
+func (s *stubMCPProvider) InstallHint() string                        { return "" }
+func (s *stubMCPProvider) BuildCommand(_ provider.CommandOpts) string { return "stub" }
+func (s *stubMCPProvider) IsInstalled(_ context.Context) bool         { return false }
+func (s *stubMCPProvider) Version(_ context.Context) string           { return "" }
+
+func (s *stubMCPProvider) ReadMCPs(_ context.Context, rootDir string) []provider.MCPServerInfo {
+	s.gotRootDir.Store(rootDir)
+	return []provider.MCPServerInfo{
+		{Name: "bcd", Transport: "sse", URL: "http://localhost:9374/mcp/sse", Enabled: true},
+	}
+}
+
+func TestProvidersMCPsCapability(t *testing.T) {
+	stub := &stubMCPProvider{}
+	reg := provider.NewRegistry()
+	reg.Register(stub)
+	mux := newProvidersMuxWithWS(t, reg, &workspace.Workspace{RootDir: "/ws/root"})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/providers/stub-mcp/mcps", nil)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	var servers []struct {
+		Name      string `json:"name"`
+		Transport string `json:"transport"`
+		URL       string `json:"url"`
+		Enabled   bool   `json:"enabled"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &servers); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(servers) != 1 {
+		t.Fatalf("want 1 server, got %d: %v", len(servers), servers)
+	}
+	s := servers[0]
+	if s.Name != "bcd" || s.Transport != "sse" || s.URL != "http://localhost:9374/mcp/sse" || !s.Enabled {
+		t.Errorf("server = %+v", s)
+	}
+	if got := stub.gotRootDir.Load(); got != "/ws/root" {
+		t.Errorf("rootDir passed to ReadMCPs = %v, want /ws/root", got)
+	}
+}
+
+func TestProvidersMCPsNoCapability(t *testing.T) {
+	reg := provider.NewRegistry()
+	reg.Register(&fakeSlowProvider{})
+	mux := newProvidersMux(t, reg)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/providers/fake-slow/mcps", nil)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	// No MCPConfigReader → empty JSON array, never null.
+	if body := rec.Body.String(); body != "[]\n" && body != "[]" {
+		t.Errorf("body = %q, want empty array", body)
 	}
 }

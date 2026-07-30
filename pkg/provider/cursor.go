@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"path/filepath"
 )
 
 // CursorProvider implements the Provider interface for Cursor Agent.
@@ -12,6 +13,8 @@ type CursorProvider struct {
 	command     string
 	binary      string
 }
+
+func init() { Register(NewCursorProvider()) }
 
 // NewCursorProvider creates a new Cursor provider.
 func NewCursorProvider() *CursorProvider {
@@ -69,6 +72,15 @@ func (p *CursorProvider) Models() []string {
 	return []string{"auto", "gpt-5.3-codex", "gpt-5.3-codex-high", "gpt-5.2", "sonnet-4-thinking"}
 }
 
+// ReadMCPs lists the MCP servers from the workspace .cursor/mcp.json.
+// An empty rootDir means no workspace is loaded and yields nothing.
+func (p *CursorProvider) ReadMCPs(_ context.Context, rootDir string) []MCPServerInfo {
+	if rootDir == "" {
+		return []MCPServerInfo{}
+	}
+	return readMCPJSONFile(filepath.Join(rootDir, ".cursor", "mcp.json"))
+}
+
 // IsInstalled checks if the provider binary is available.
 func (p *CursorProvider) IsInstalled(ctx context.Context) bool {
 	return checkBinaryExists(ctx, p.binary)
@@ -82,3 +94,4 @@ func (p *CursorProvider) Version(ctx context.Context) string {
 // Ensure CursorProvider implements Provider interface.
 var _ Provider = (*CursorProvider)(nil)
 var _ ModelLister = (*CursorProvider)(nil)
+var _ MCPConfigReader = (*CursorProvider)(nil)

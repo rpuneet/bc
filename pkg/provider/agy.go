@@ -22,6 +22,8 @@ type AgyProvider struct {
 	binary           string
 }
 
+func init() { Register(NewAgyProvider()) }
+
 // NewAgyProvider creates a new Antigravity CLI provider.
 func NewAgyProvider() *AgyProvider {
 	return &AgyProvider{

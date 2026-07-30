@@ -48,6 +48,44 @@ type CostSource interface {
 	CostRoots(home, agentStateDir string) []string
 }
 
+// Command describes a CLI command a provider exposes for UI surfaces.
+type Command struct {
+	// Name is the short display name (e.g. "mcp add").
+	Name string
+	// Command is the full invocation shape (e.g. "claude mcp add <name> <command>").
+	Command string
+	// Description is a one-line human-readable summary.
+	Description string
+	// Args describes expected arguments, empty when the command takes none.
+	Args string
+}
+
+// CommandLister is optionally implemented by providers that expose a
+// curated list of CLI commands. Providers without it get a generic
+// run/version/help default from callers.
+type CommandLister interface {
+	Commands() []Command
+}
+
+// MCPServerInfo describes an MCP server configured for a provider.
+type MCPServerInfo struct {
+	Name      string
+	Transport string
+	// URL is set for remote (sse/http) transports.
+	URL string
+	// Command is set for stdio transports.
+	Command string
+	Enabled bool
+}
+
+// MCPConfigReader is optionally implemented by providers whose configured
+// MCP servers can be read from the host (provider CLI or config files).
+// rootDir is the workspace root; implementations must return an empty
+// result rather than touching relative paths when it is empty.
+type MCPConfigReader interface {
+	ReadMCPs(ctx context.Context, rootDir string) []MCPServerInfo
+}
+
 // DynamicModelLister is optionally implemented by providers that can
 // enumerate their available models at runtime (e.g. by querying an API or
 // the provider CLI), as opposed to the static curated list returned by

@@ -29,6 +29,8 @@ type PiProvider struct {
 	binary      string
 }
 
+func init() { Register(NewPiProvider()) }
+
 // NewPiProvider creates a new pi provider.
 func NewPiProvider() *PiProvider {
 	return &PiProvider{

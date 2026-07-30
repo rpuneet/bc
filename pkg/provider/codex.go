@@ -17,6 +17,8 @@ type CodexProvider struct {
 	binary      string
 }
 
+func init() { Register(NewCodexProvider()) }
+
 // NewCodexProvider creates a new Codex provider.
 func NewCodexProvider() *CodexProvider {
 	return &CodexProvider{
