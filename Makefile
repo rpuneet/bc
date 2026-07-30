@@ -25,19 +25,19 @@
 # Top-level
 .PHONY: build build-local build-docker test lint fmt vet check clean deps release install
 # Go
-.PHONY: build-local-bc build-local-mycel build-local-tui-bundle test-go test-go-race test-go-fast lint-go fmt-go vet-go coverage-go bench-go deps-go check-go scan-go
+.PHONY: build-local-bc build-local-mycel test-go test-go-race test-go-fast lint-go fmt-go vet-go coverage-go bench-go deps-go check-go scan-go
 .PHONY: release-local-bc release-local-mycel install-local-bc install-local-mycel
 # Docker
 .PHONY: build-docker-daemon build-docker-db build-docker-bcdb
 .PHONY: build-docker-agent-base build-docker-agent build-docker-agents build-docker-agent-infra build-docker-playwright stop-docker-playwright run-docker-playwright
 # TS
-.PHONY: build-local-tui build-local-web build-local-landing
-.PHONY: test-ts test-tui test-web test-web-unit test-web-e2e test-landing
-.PHONY: lint-ts lint-tui lint-web lint-landing
-.PHONY: fmt-ts fmt-tui fmt-web fmt-landing
-.PHONY: vet-ts vet-tui vet-web vet-landing
+.PHONY: build-local-web build-local-landing
+.PHONY: test-ts test-web test-web-unit test-web-e2e test-landing
+.PHONY: lint-ts lint-web lint-landing
+.PHONY: fmt-ts fmt-web fmt-landing
+.PHONY: vet-ts vet-web vet-landing
 .PHONY: coverage-ts bench-ts deps-ts check-ts scan-ts
-.PHONY: run-bc run-mycel run-web run-landing run-tui
+.PHONY: run-bc run-mycel run-web run-landing
 # CI
 .PHONY: ci-local ci-docker
 # Clean
@@ -106,32 +106,20 @@ clean: clean-local ## Remove all build artifacts
 
 build-local-go: build-local-mycel ## Build all Go binaries
 
-build-local-mycel: build-local-web build-local-tui-bundle ## Build mycel (embeds web UI, TUI bundle, server)
+build-local-mycel: build-local-web ## Build mycel (embeds web UI, server)
 	@mkdir -p $(BUILD_DIR)
 	@if [ ! -f server/web/dist/index.html ]; then mkdir -p server/web/dist && echo "<!-- stub -->" > server/web/dist/index.html; fi
 	$(GO) build -ldflags="$(LDFLAGS_VERSION)" -o $(BUILD_DIR)/mycel ./cmd/mycel
 
 build-local-bc: build-local-mycel ## Deprecated alias for build-local-mycel
 
-build-local-tui-bundle: ## Build single-file TUI bundle for embedding into mycel binary
-	@mkdir -p internal/cmd/tui-bundle
-	@if [ ! -f tui/node_modules/.package-lock.json ] && [ ! -d tui/node_modules/react-devtools-core ]; then \
-		echo "Installing TUI dependencies..."; \
-		cd tui && bun install; \
-	fi
-	cd tui && bun build --target=bun --minify \
-		--external react-devtools-core --external yoga-wasm-web \
-		--outfile=../internal/cmd/tui-bundle/index.js \
-		src/index.tsx
 
 # =============================================================================
 # Build — Local TypeScript
 # =============================================================================
 
-build-local-ts: build-local-tui build-local-web build-local-landing ## Build all TS packages
+build-local-ts: build-local-web build-local-landing ## Build all TS packages
 
-build-local-tui: ## Build TUI
-	cd tui && bun install && bun run build
 
 build-local-web: ## Build web UI → server/web/dist/
 	cd web && bun install && bun run build
@@ -208,10 +196,8 @@ test-go-fast: ## Run Go tests excluding slow packages
 	# NOTE: Keep SLOW list in sync with .github/workflows/ci.yml "Run fast tests" step
 	$(GO) test -race $$($(GO) list ./... | grep -v -F "$$(printf 'github.com/gh-curious-otter/bc/pkg/tmux\ngithub.com/gh-curious-otter/bc/pkg/secret\ngithub.com/gh-curious-otter/bc/pkg/doctor\ngithub.com/gh-curious-otter/bc/internal/cmd')")
 
-test-ts: test-tui test-web test-landing ## Run all TS tests
+test-ts: test-web test-landing ## Run all TS tests
 
-test-tui: ## Run TUI tests
-	cd tui && bun install && CI=true bun test
 
 test-web: ## Run web UI tests
 	cd web && bun install && bun run test
@@ -232,7 +218,6 @@ bench-go: ## Go benchmarks
 	$(GO) test -bench=. -benchmem -count=1 ./...
 
 coverage-ts: ## TS test coverage
-	cd tui && bun test --coverage || true
 	cd web && bun run test -- --coverage 2>/dev/null || true
 
 bench-ts: ## TS benchmarks (no-op)
@@ -251,18 +236,15 @@ fmt-go: ## Format Go code
 vet-go: ## Vet Go code
 	$(GO) vet ./...
 
-lint-ts: lint-tui lint-web lint-landing ## Lint all TS
-lint-tui: ; cd tui && bun run lint
+lint-ts: lint-web lint-landing ## Lint all TS
 lint-web: ; cd web && bun run lint
 lint-landing: ; cd landing && bun run lint
 
-fmt-ts: fmt-tui fmt-web fmt-landing ## Format all TS
-fmt-tui: ; cd tui && bunx prettier --write "src/**/*.{ts,tsx}"
+fmt-ts: fmt-web fmt-landing ## Format all TS
 fmt-web: ; cd web && bunx prettier --write "src/**/*.{ts,tsx,css}"
 fmt-landing: ; cd landing && bunx prettier --write "src/**/*.{ts,tsx,css}"
 
-vet-ts: vet-tui vet-web vet-landing ## Typecheck all TS
-vet-tui: ; cd tui && bun run typecheck
+vet-ts: vet-web vet-landing ## Typecheck all TS
 vet-web: ; cd web && bunx tsc -b --noEmit
 vet-landing: ; cd landing && bunx tsc --noEmit
 
@@ -301,7 +283,7 @@ ci-docker: ## Build all Docker images
 # Release
 # =============================================================================
 
-release-local-mycel: build-local-tui-bundle ## Build optimized mycel binary (embeds web + TUI)
+release-local-mycel: ## Build optimized mycel binary (embeds web UI)
 	@mkdir -p $(BUILD_DIR)
 	@if [ ! -f server/web/dist/index.html ]; then mkdir -p server/web/dist && echo "<!-- stub -->" > server/web/dist/index.html; fi
 	$(GO) build -ldflags="$(LDFLAGS_RELEASE)" -o $(BUILD_DIR)/mycel ./cmd/mycel
@@ -323,8 +305,6 @@ run-web: ## Run web UI dev server
 run-landing: ## Run landing dev server
 	cd landing && bun run dev
 
-run-tui: build-local-tui ## Run TUI dev mode
-	cd tui && bun run dev
 
 build-landing-prod: ## Production build for landing page (Cloudflare Pages)
 	cd landing && bun install && bun run build
@@ -346,7 +326,6 @@ deps-go: ## Go dependencies
 	$(GO) mod download && $(GO) mod tidy
 
 deps-ts: ## TS dependencies
-	cd tui && bun install
 	cd web && bun install
 	cd landing && bun install
 
@@ -358,7 +337,6 @@ scan-go: ## Go vulnerability scan
 	$(GO) run golang.org/x/vuln/cmd/govulncheck@latest ./...
 
 scan-ts: ## TS dependency audit
-	cd tui && bun audit || true
 	cd web && bun audit || true
 	cd landing && bun audit || true
 
@@ -368,8 +346,7 @@ scan-ts: ## TS dependency audit
 
 clean-local: ## Remove build artifacts
 	rm -rf $(BUILD_DIR)/ dist/ coverage.out coverage.html
-	rm -rf tui/dist tui/dist-bundle web/dist server/web/dist landing/.next landing/out
-	rm -rf internal/cmd/tui-bundle/index.js
+	rm -rf web/dist server/web/dist landing/.next landing/out
 
 clean-deps: clean-local ## Remove artifacts + node_modules
-	rm -rf tui/node_modules web/node_modules landing/node_modules
+	rm -rf web/node_modules landing/node_modules

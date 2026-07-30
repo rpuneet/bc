@@ -1,3 +1,0 @@
-[test]
-# Only run tests from src directory, ignore compiled output in dist/
-root = "src"

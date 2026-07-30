@@ -86,8 +86,6 @@ jobs:
       - name: Build web UI for embed
         run: cd web && bun install && bun run build && rm -rf ../server/web/dist && mkdir -p ../server/web && cp -r dist ../server/web/dist
 
-      - name: Build TUI bundle for embed
-        run: make build-local-tui-bundle
 
       - name: Verify release secrets
         env:
@@ -131,8 +129,6 @@ jobs:
       - name: Build web UI for embed
         run: cd web && bun install && bun run build && rm -rf ../server/web/dist && mkdir -p ../server/web && cp -r dist ../server/web/dist
 
-      - name: Build TUI bundle for embed
-        run: make build-local-tui-bundle
 
       - name: Build macOS binaries
         env:

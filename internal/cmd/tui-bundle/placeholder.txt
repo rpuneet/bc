@@ -1,3 +1,0 @@
-This placeholder keeps the tui-bundle directory embeddable via //go:embed
-when the real bundle (index.js, produced by `make build-local-tui-bundle`)
-has not been built. index.js is a build artifact and is not tracked in git.

@@ -61,7 +61,6 @@ server/web/dist/*
 # fails when the consumer hasn't run `bun run build`).
 !server/web/dist/placeholder.txt
 web/dist/
-tui/dist/
 landing/.next/
 landing/out/
 node_modules/
