@@ -60,8 +60,8 @@ func (m *Manager) deleteAgent(name string, force bool) error {
     // 3. Kill Docker container (docker rm -f)
     // 4. Remove git worktree (git worktree remove --force)
     // 5. Delete worktree branch (git branch -D)
-    // 6. Remove agent state dir (~/.mycel/workspaces/<id>/agents/<name>/)
-    // 7. Remove log file (~/.mycel/workspaces/<id>/logs/<name>.log)
+    // 6. Remove agent entity dir (~/.mycel/agents/<name>/)
+    // 7. Agent logs live inside the entity dir and go with it
     // 8. Update children's ParentID to ""
     // 9. Remove from parent's Children list
     // 10. DELETE FROM agents WHERE name = ?

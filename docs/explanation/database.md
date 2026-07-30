@@ -12,18 +12,19 @@ There is one global database. Isolation between repos comes from data keys (agen
 | Scope | Location | Contents |
 |-------|----------|----------|
 | Global database | `~/.mycel/mycel.db` | Agents, roles, notifications, MCP servers, tools, events |
-| Cost ledger | `~/.mycel/costs.db` | Cost records with per-repo attribution |
 | Secrets | `~/.mycel/secrets.vault` | SQLite vault with encrypted values |
-| Per-repo runtime | `~/.mycel/workspaces/<id>/` | `preferences.json`, agent files, git worktrees, logs |
+| Agent entities | `~/.mycel/agents/<name>/` | Worktree, session state, logs, tmp — everything one agent owns |
 
-`~/.mycel/` is resolved by `pkg/workspace.MycelHome()`: the `MYCEL_HOME` env var when set, otherwise `~/.mycel/`.
+Costs are **not** stored in any database — they are computed on demand from provider session files (see [Cost Data Pipeline](#cost-data-pipeline)).
+
+`~/.mycel/` is resolved by `pkg/home.MycelHome()`: the `MYCEL_HOME` env var when set, otherwise `~/.mycel/`.
 
 ## Backend Selection
 
 `pkg/db/unified.go` (`OpenGlobalDBWithConfig`) picks the backend at startup:
 
 1. **`DATABASE_URL` env var** — Postgres/TimescaleDB override for Docker and CI.
-2. **`preferences.json` `storage.default`** — `"timescale"` connects using `storage.timescale.{host,port,user,password,database}`; the password falls back to `MYCEL_DB_PASSWORD`. If TimescaleDB is unreachable, the daemon logs a warning and falls back to SQLite rather than starting with nil stores.
+2. **`prefs.json` `storage.default`** — `"timescale"` connects using `storage.timescale.{host,port,user,password,database}`; the password falls back to `MYCEL_DB_PASSWORD`. If TimescaleDB is unreachable, the daemon logs a warning and falls back to SQLite rather than starting with nil stores.
 3. **SQLite default** — `~/.mycel/mycel.db`. One process, one file: the `storage.sqlite.path` field is accepted for parsing but the database always lives at the global path.
 
 ## Shared Connection
@@ -67,7 +68,7 @@ The TimescaleDB image additionally seeds `docker/bcdb/init.sql` (relational tabl
 
 ## Roles: JSON Columns, Not Join Tables
 
-Roles are a single table (`pkg/workspace/role_store.go`). List- and map-valued fields are JSON-encoded TEXT columns — there are no `role_mcp_servers` / `role_secrets` join tables:
+Roles are a single table (`pkg/home/role_store.go`). List- and map-valued fields are JSON-encoded TEXT columns — there are no `role_mcp_servers` / `role_secrets` join tables:
 
 ```
 roles(
@@ -89,8 +90,7 @@ The same JSON-column pattern applies elsewhere (provider settings, tool metadata
 | MCP | `pkg/mcp` | `mcp_servers` |
 | Tools | `pkg/tool` | tool registry tables |
 | Events | `pkg/events` | event log |
-| Roles | `pkg/workspace` | `roles` |
-| Costs | `pkg/cost` | cost records (hypertable on TimescaleDB; `~/.mycel/costs.db` ledger on SQLite) |
+| Roles | `pkg/home` | `roles` |
 | Secrets | `pkg/secret` | encrypted secret rows in `~/.mycel/secrets.vault` |
 
 Timestamp conventions vary by store: most tables use `INTEGER` Unix milliseconds; the notification tables use `TEXT` ISO 8601 on SQLite and `TIMESTAMPTZ` on TimescaleDB.
@@ -108,19 +108,20 @@ Postgres support is fully implemented:
 
 ```
 ~/.mycel/                       # MycelHome (MYCEL_HOME overrides)
+  prefs.json                    # The one config file mycel reads
   mycel.db                      # THE database: agents, roles, events, notify, mcp, tools
-  costs.db                      # Cost ledger (per-repo attribution)
   secrets.vault                 # Secret vault (SQLite, encrypted values)
   mcps.json                     # Global MCP server config
   tools.json                    # Global tool registry
   templates/                    # Global agent templates
-  daemon.pid / daemon.log / daemon.addr   # Server process state
-  workspaces/<id>/              # Per-repo runtime dir (id = sha256(repo path)[:12])
-    preferences.json            # The one config file mycel reads
-    agents/<name>/
-      claude/                   # Provider state (mounted into containers as ~/.claude)
-      claude.json               # Provider app config (auth persistence)
-    logs/
+  agents/<name>/                # Agent entity dir — delete it, the agent's files are gone
+    worktree/                   # Git worktree checkout
+    session/                    # Provider session state (mounted into containers)
+    logs/                       # Agent logs
+    tmp/                        # Scratch space
+  apps/<name>/                  # Per-app-instance state (e.g. WhatsApp pairing data)
+  logs/                         # Server logs
+  run/                          # daemon.pid / daemon.log / daemon.addr
 ```
 
 ## Secret Encryption
@@ -142,11 +143,11 @@ graph LR
 
 ```mermaid
 graph LR
-    CLAUDE[Claude Code<br/>JSONL sessions] --> IMPORT[Cost Importer]
-    IMPORT --> PARSE[Parse tokens<br/>+ model pricing]
-    PARSE --> DB[(cost records)]
-    DB --> API[/api/costs/*]
-    API --> WEB[Web/TUI dashboards]
+    CLAUDE[Claude Code<br/>JSONL sessions] --> READER[Provider CostReader]
+    READER --> PARSE[Parse tokens<br/>+ model pricing]
+    PARSE --> SVC[pkg/cost Service<br/>60s cache]
+    SVC --> API[/api/costs/*]
+    API --> WEB[Web dashboard / CLI]
 ```
 
-The importer scans agent provider state for session JSONL files, extracts token usage, applies model pricing, and inserts with watermark dedup. On TimescaleDB, cost records go to the shared DB (hypertable); on SQLite they live in the `~/.mycel/costs.db` ledger, where every record carries a repo tag so costs roll up per repo and per agent.
+There is no cost database. `pkg/cost.Service` computes analytics directly from provider session files: providers that implement the `CostReader` capability (Claude Code today) scan their own session JSONL under the user home and under `~/.mycel/agents/<name>/session/`, extract token usage, and apply model pricing. Results are cached briefly (60 s TTL) and re-scanned on demand — nothing is imported, so there is no ledger to migrate and deleting an agent does not erase its history while the session files exist.

@@ -10,14 +10,15 @@ mycel is a CLI-first orchestration system for teams of AI coding agents. It ship
 graph TB
     subgraph Clients
         CLI[mycel CLI<br/>thin HTTP client]
-        WebUI[Web dashboard]
-        TUI[Terminal UI]
+        WebUI[Web dashboard<br/>embedded React]
+        Desktop[Desktop app<br/>Wails wrapper]
     end
 
     subgraph "mycel server :9374"
         REST[REST API<br/>/api/*]
         SSE[SSE hub<br/>/api/events]
         MCP[MCP server<br/>JSON-RPC 2.0]
+        Apps[Apps<br/>/api/apps]
     end
 
     subgraph "Agent sessions"
@@ -32,26 +33,26 @@ graph TB
 
     subgraph "~/.mycel"
         DB[(mycel.db<br/>SQLite WAL)]
-        Costs[(costs.db<br/>cost ledger)]
-        Prefs[preferences.json]
+        Vault[(secrets.vault)]
+        Prefs[prefs.json]
     end
 
     CLI -->|HTTP/JSON| REST
     WebUI -->|HTTP + SSE| REST
-    TUI -->|HTTP/JSON| REST
+    Desktop -->|HTTP + SSE| REST
     A1 & A2 -->|stdio / SSE| MCP
 
     REST --> DB
-    REST --> Costs
     A1 -->|worktree of| R1
     A2 -->|worktree of| R2
 ```
 
 Key properties:
 
-- **Single-tenant server** — one instance, flat `/api/<resource>` routes, no per-request scoping.
+- **Single-tenant server** — one instance, flat `/api/<resource>` routes, no per-request scoping. The daemon is CWD-free: it boots the same from anywhere.
 - **One state home** — everything lives under `~/.mycel`; your repos stay pristine.
-- **One database** — `~/.mycel/mycel.db` (SQLite WAL) holds every store: agents, roles, events, notifications, and more. `~/.mycel/costs.db` is a separate cost ledger with per-repo attribution.
+- **One database** — `~/.mycel/mycel.db` (SQLite WAL) holds every store: agents, roles, events, notifications, and more.
+- **Costs are computed, not recorded** — spend comes straight from provider sources (for example Claude Code's session logs) each time you ask; there is no separate cost ledger to maintain.
 - **Repo-bound agents** — each agent carries a `repo` (absolute path) and works in its own git worktree checked out from that repo.
 - **Globally unique agent names** — the name is the database primary key across all repos.
 
@@ -59,15 +60,23 @@ Key properties:
 
 ```
 ~/.mycel/
+  prefs.json                  # the one config file mycel reads
   mycel.db                    # THE database: agents, roles, events, notify, ...
-  costs.db                    # cost ledger (per-repo attribution)
-  daemon.addr                 # server address, written by `mycel up`
+  secrets.vault               # encrypted secret store (AES-256-GCM)
+  mcps.json                   # user-global MCP server registry
+  tools.json                  # user-global tool registry
+  agents/<name>/              # everything one agent owns (the agent entity)
+    worktree/                 #   its git worktree checkout
+    session/                  #   session state (provider session files)
+    logs/                     #   agent logs
+    tmp/                      #   scratch space
+  apps/<name>/                # per-app-instance state (e.g. WhatsApp pairing)
   templates/                  # global agent templates
-  workspaces/<id>/            # per-repo runtime state (id = sha256(repo path)[:12])
-    preferences.json          # the one config file mycel reads
-    agents/<name>/            # agent files + git worktree checkout
-    logs/
+  logs/                       # server logs
+  run/                        # daemon.pid, daemon.log, daemon.addr
 ```
+
+Deleting `~/.mycel/agents/<name>/` removes every piece of filesystem state that agent owns — state is *entity-scoped*, not scattered.
 
 `mycel up` bootstraps all of this on first run — there is no separate init step.
 
@@ -75,7 +84,7 @@ Key properties:
 
 ### CLI (`cmd/mycel`)
 
-Thin HTTP client; commands never touch the database or filesystem state directly. The bare `mycel` command opens the TUI when a server is reachable. Clients discover the server via `MYCEL_DAEMON_ADDR`, then `~/.mycel/daemon.addr`, then the `127.0.0.1:9374` default.
+Thin HTTP client; commands never touch the database or filesystem state directly. The bare `mycel` command boots the server if needed and opens the web UI. Clients discover the server via `MYCEL_DAEMON_ADDR`, then `~/.mycel/run/daemon.addr`, then the `127.0.0.1:9374` default.
 
 ### Server (`server/`)
 
@@ -96,7 +105,7 @@ Middleware chain (outermost first): RateLimit → APIKeyAuth (optional, `--api-k
 AI coding assistants in isolated sessions. Each agent has:
 
 - a **repo** — the absolute path of the git repository it works on
-- a **git worktree** — created and managed by mycel under `~/.mycel/workspaces/<id>/agents/<name>/`
+- a **git worktree** — created and managed by mycel under `~/.mycel/agents/<name>/worktree/`
 - a **runtime** — a tmux session (`mycel-<hash>-<name>`) or a Docker container
 - a **role and template** — prompt, MCP servers, and secrets
 - a **provider** — claude, codex, gemini, cursor, pi, or openclaw
@@ -107,17 +116,17 @@ You control the lifecycle from the agent header in the web UI (Start / Stop / Re
 
 The server tracks the repos agents are bound to. `GET /api/repos` lists them; the web UI adds repos via a folder picker, local filesystem discovery, or GitHub clone (`/api/repos/discover/*`, `/api/repos/clone`).
 
-### Notifications
+### Apps
 
-Inbound-only gateway bridging external platforms (Slack, Telegram, Discord, webhooks) to agents. Agents subscribe to sources (`platform:channel`); deliveries are injected into the agent session with mention filtering, self-skip, and delivery logging. See [Notification architecture](architecture-notifications.md).
+Plugin integrations with external platforms — Slack, Telegram, Discord, GitHub, Linear, PagerDuty, and 20+ more. Each app is a self-registering plugin (`pkg/app` descriptor + a `pkg/gateway/<name>` adapter) surfaced through `/api/apps`: the catalog lists every descriptor, instances are configured in `prefs.json` under `apps`, and secret fields land in the vault as `app:<instance>:<key>`. Connected apps feed the notification pipeline: agents subscribe to sources (`platform:channel`) and deliveries are injected into the agent session with mention filtering, self-skip, and delivery logging. See [Notification architecture](architecture-notifications.md).
 
 ### Secrets
 
-AES-256-GCM encrypted store. Reference secrets in agent env vars as `${secret:NAME}`; mycel resolves them at runtime.
+AES-256-GCM encrypted vault at `~/.mycel/secrets.vault`. Reference secrets in agent env vars as `${secret:NAME}`; mycel resolves them at runtime. App secrets use the `app:<instance>:<key>` naming scheme.
 
 ### Costs
 
-Automatic import from Claude Code JSONL session logs, recorded in the global ledger with per-repo and per-agent attribution. Budgets enforce spending limits; `GET /api/global/costs` rolls costs up per repo.
+Computed on demand from provider sources — providers that implement the `CostReader` capability (Claude Code today) read usage straight from their own session logs. Nothing is imported or double-booked; deleting an agent does not lose its spend history. Budgets in `prefs.json` enforce spending limits; `GET /api/global/costs` rolls costs up per repo.
 
 ### Stats and tools
 
@@ -167,7 +176,7 @@ sequenceDiagram
 
 ### Agent state via hooks
 
-Provider hooks report tool activity to the API; the server updates agent state in `mycel.db` and broadcasts `agent.state_changed` over SSE, which keeps the web UI and TUI live without polling.
+Provider hooks report tool activity to the API; the server updates agent state in `mycel.db` and broadcasts `agent.state_changed` over SSE, which keeps the web UI live without polling.
 
 ## Key design decisions
 
@@ -177,7 +186,7 @@ Provider hooks report tool activity to the API; the server updates agent state i
 | Single binary | `mycel up` runs the server | CLI stays fast; one process holds state and connections |
 | Single-tenant server | Flat routes, no request scoping | One server per machine is simpler to reason about and secure |
 | One global database | `mycel.db`, SQLite WAL | Zero-config, local-first, concurrent reads |
-| Separate cost ledger | `costs.db` with repo attribution | Cost history outlives agents and repos |
+| Source-direct costs | Computed from provider session logs | No ledger to migrate or drift; deleting an agent keeps its history |
 | Repo-bound agents | `repo` field, globally unique names | An agent's identity and its checkout are unambiguous |
 | mycel owns worktrees | All providers, uniform | Avoids nesting; consistent across providers |
 | Embedded web UI | Served from the binary | No separate web server; version-locked to the API |

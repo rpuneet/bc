@@ -42,8 +42,7 @@ func (h *GatewayHandler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/apps/channels/send", h.channelSend)
 	mux.HandleFunc("/api/apps/channels/", h.channelHistory)
 
-	// Same handlers at the historical paths — the Go CLI client and TUI
-	// still call /api/channels*.
+	// Same handlers at the historical paths — the Go CLI client still calls /api/channels*.
 	mux.HandleFunc("/api/channels", h.channelList)
 	mux.HandleFunc("/api/channels/send", h.channelSend)
 	mux.HandleFunc("/api/channels/", h.channelHistory)

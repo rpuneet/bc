@@ -101,7 +101,7 @@ stateDiagram-v2
 
 ## Volume Mounts
 
-Ground truth: `pkg/container/container.go`. Agent state lives at `~/.mycel/workspaces/<id>/agents/<name>/` on the host.
+Ground truth: `pkg/container/container.go`. Agent state lives at `~/.mycel/agents/<name>/` on the host.
 
 | Mount | Container path | Purpose |
 |-------|---------------|---------|
@@ -115,7 +115,7 @@ When the server itself runs in Docker (Docker-in-Docker), `MYCEL_HOST_WORKSPACE`
 
 ## Network Topology
 
-Default: the **`bc-net`** Docker network (`runtime.docker.network` in preferences.json; the backend falls back to `bridge` when unset).
+Default: the **`bc-net`** Docker network (`runtime.docker.network` in prefs.json; the backend falls back to `bridge` when unset).
 
 | Service | Port | Protocol |
 |---------|------|----------|
@@ -124,7 +124,7 @@ Default: the **`bc-net`** Docker network (`runtime.docker.network` in preference
 
 ## Resource Limits
 
-Defaults from `pkg/workspace/config.go`:
+Defaults from `pkg/home/config.go`:
 
 | Resource | Default | Config Key |
 |----------|---------|-----------|
@@ -143,4 +143,4 @@ Defaults from `pkg/workspace/config.go`:
 
 ## Local Dev (tmux mode)
 
-Set `runtime.default = "tmux"` in preferences.json — agents run as tmux sessions on the host (prefix `mycel-`), no Docker needed, SQLite for all storage. This is the local development fallback; `docker` is the default runtime.
+Set `runtime.default = "tmux"` in prefs.json — agents run as tmux sessions on the host (prefix `mycel-`), no Docker needed, SQLite for all storage. This is the local development fallback; `docker` is the default runtime.

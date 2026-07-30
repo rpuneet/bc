@@ -10,7 +10,7 @@ Coordinate multiple AI agents with predictable behavior and cost awareness.
 Supports Claude Code, Cursor, Codex, and other AI coding tools.
 
 Getting Started:
-  mycel up                                   # Start the server (bootstraps the workspace)
+  mycel up                                   # Start the server (bootstraps ~/.mycel)
   mycel agent create eng-01 --role engineer  # Create engineer agent
   mycel status                               # View agent status
 
@@ -38,10 +38,10 @@ Key Features:
 Environment Variables:
   MYCEL_AGENT_ID       Current agent name (set automatically in agent sessions)
   MYCEL_AGENT_ROLE     Current agent role
-  MYCEL_WORKSPACE      Path to workspace root
+  MYCEL_WORKSPACE      Path to the agent's repo root
   MYCEL_AGENT_WORKTREE Path to agent's worktree
   MYCEL_BIN            Path to mycel binary (default: mycel in PATH)
-  MYCEL_ROOT           Workspace root directory
+  MYCEL_ROOT           Override the mycel home root directory
   NO_COLOR          Disable colored output
 
 Documentation: https://github.com/rpuneet/mycel

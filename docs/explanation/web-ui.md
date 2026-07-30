@@ -1,18 +1,17 @@
 # Web Dashboard Architecture
 
-Architecture of the mycel web dashboard — a standalone React SPA served by the mycel server and one of four equal API clients (CLI, TUI, web, MCP agents).
+Architecture of the mycel web dashboard — a standalone React SPA served by the mycel server and one of three equal API clients (CLI, web, MCP agents). It is the only rich UI surface — the desktop app wraps this same SPA in a Wails shell.
 
 ---
 
 ## 1. System Context
 
-The web dashboard is one of four equal API consumers of the mycel server. It has no special access, no elevated privileges, and no server-side rendering. Every operation available in the web UI is available through the same REST + SSE API that the CLI, TUI, and MCP agents use.
+The web dashboard is one of three equal API consumers of the mycel server. It has no special access, no elevated privileges, and no server-side rendering. Every operation available in the web UI is available through the same REST + SSE API that the CLI and MCP agents use.
 
 ```mermaid
 graph TB
     subgraph Clients ["API Clients (equal peers)"]
         CLI["mycel CLI<br/><code>internal/cmd/</code><br/>Go binary, HTTP client"]
-        TUI["TUI<br/><code>tui/src/</code><br/>React/Ink terminal app"]
         Web["Web Dashboard<br/><code>web/src/</code><br/>React SPA in browser"]
         MCP["MCP Agents<br/><code>server/mcp/</code><br/>AI tool servers"]
     end
@@ -30,11 +29,9 @@ graph TB
     end
 
     CLI -->|"HTTP GET/POST"| REST
-    TUI -->|"HTTP GET/POST"| REST
     Web -->|"HTTP GET/POST"| REST
     MCP -->|"HTTP GET/POST"| REST
 
-    TUI -->|"EventSource"| SSE
     Web -->|"EventSource"| SSE
 
     REST --> DB
@@ -305,4 +302,3 @@ web/src/  --vite build-->  web/dist/  --cp-->  server/web/dist/  --go:embed-->  
 | `server/server.go` | Route registration, static serving, middleware |
 | `server/ws/hub.go` | SSE hub: subscriber management, event broadcast |
 | `docs/explanation/design-system.md` | Solar Flare design system specification |
-| `docs/explanation/tui.md` | TUI architecture (parallel reference) |

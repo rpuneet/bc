@@ -32,7 +32,7 @@ Examples:
   mycel agent report working "fixing auth bug"
   mycel agent report done "auth bug fixed"
   mycel agent report stuck "need database credentials"
-  mycel agent report stuck --reason "TUI freezes on channel select" --severity high`,
+  mycel agent report stuck --reason "build freezes on channel select" --severity high`,
 	Args: cobra.MinimumNArgs(1),
 	RunE: runReport,
 }

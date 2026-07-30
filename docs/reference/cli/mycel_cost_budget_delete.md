@@ -7,7 +7,7 @@ Delete a budget
 Delete a budget configuration.
 
 Examples:
-  mycel cost budget delete                  # Delete workspace budget
+  mycel cost budget delete                  # Delete the fleet-wide budget
   mycel cost budget delete --agent eng-01   # Delete agent budget
 
 ```

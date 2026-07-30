@@ -30,7 +30,7 @@ Examples:
   mycel cost budget show                  # Show budget status
 
 See Also:
-  mycel home           TUI dashboard with cost overview
+  Web UI (http://localhost:9374)  Costs dashboard
   mycel status         Agent status (includes cost info)`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: runCostShow,
@@ -165,7 +165,7 @@ func enrichWithCCUsage(resp *costShowResponse, report *ccusageDailyReport) {
 				modelSeen[m] = true
 			}
 		}
-		// Add models with zero cost — signals to TUI which models are in use
+		// Add models with zero cost — signals to the web UI which models are in use
 		for m := range modelSeen {
 			resp.ByModel[m] = 0
 		}

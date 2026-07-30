@@ -6,13 +6,13 @@
 graph TB
     CLI[mycel CLI] -->|HTTP REST| BCD[mycel server :9374]
     WEB[Web UI] -->|HTTP + SSE| BCD
-    TUI[TUI] -->|mycel CLI| CLI
+    DESK[Desktop app] -->|HTTP + SSE| BCD
     AGENT_MCP[AI Agents] -->|MCP stdio/SSE| BCD
 
     BCD -->|SQL| DB[(~/.mycel/mycel.db)]
     BCD -->|docker exec<br/>tmux send-keys| AGENTS[Agent Containers]
     BCD -->|SSE broadcast| WEB
-    BCD -->|SSE broadcast| TUI
+    BCD -->|SSE broadcast| DESK
 
     AGENTS -->|hook POST| BCD
 ```
@@ -119,14 +119,14 @@ middleware, so they are subject to the **1 MB** request body cap
 
 ## SSE Event System
 
-The mycel server maintains an in-memory SSE hub. All connected clients (web UI, TUI) receive real-time events.
+The mycel server maintains an in-memory SSE hub. All connected clients (web UI, desktop app) receive real-time events.
 
 ```mermaid
 graph LR
     subgraph Sources
         AGENT_SVC[Agent Service]
         NOTIFY_SVC[Notify Service]
-        COST_SVC[Cost Importer]
+        COST_SVC[Cost Service]
     end
 
     HUB[SSE Hub<br/>in-memory]
@@ -134,14 +134,12 @@ graph LR
     subgraph Subscribers
         WEB1[Web UI Client 1]
         WEB2[Web UI Client 2]
-        TUI1[TUI via CLI]
     end
 
     AGENT_SVC -->|agent.created<br/>agent.stopped<br/>agent.state| HUB
     NOTIFY_SVC -->|gateway.message<br/>gateway.delivery| HUB
     HUB --> WEB1
     HUB --> WEB2
-    HUB --> TUI1
 ```
 
 ### Event Types

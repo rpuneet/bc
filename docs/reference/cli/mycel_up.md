@@ -19,7 +19,7 @@ Examples:
   mycel up                              # Foreground (Docker/Railway)
   mycel up -d                           # Background daemon
   mycel up --addr 0.0.0.0:9374         # Custom listen address
-  mycel up --workspace /path/to/ws     # Explicit workspace
+  mycel up --workspace /path/to/repo  # Explicit anchor repo
 
 ```
 mycel up [flags]
@@ -33,7 +33,7 @@ mycel up [flags]
       --cors-origin string   CORS allowed origin (default "*")
   -d, --daemon               Run as background daemon
   -h, --help                 help for up
-      --workspace string     Workspace directory (defaults to current workspace)
+      --workspace string     Anchor repo directory (defaults to the enclosing git repo)
 ```
 
 ### Options inherited from parent commands

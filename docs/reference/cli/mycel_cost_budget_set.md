@@ -7,7 +7,7 @@ Set a cost budget
 Set a cost budget for the repo, agent, or team.
 
 Examples:
-  mycel cost budget set 100.00                          # Set workspace budget to $100
+  mycel cost budget set 100.00                          # Set the fleet-wide budget to $100
   mycel cost budget set 50.00 --agent engineer-01       # Set agent budget
   mycel cost budget set 500.00 --team engineering       # Set team budget
   mycel cost budget set 100.00 --period weekly          # Weekly budget

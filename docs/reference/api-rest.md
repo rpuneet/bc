@@ -26,7 +26,7 @@ The `X-API-Key: <key>` header is accepted as an alternative. Without a configure
 
 ### Single-tenant server
 
-Each `bcd` instance serves a single bundle anchored at one repo. All resources live at flat `/api/<resource>` paths — there is no per-request workspace selection. The former multi-tenant surfaces (`/api/workspaces...`, `X-BC-Workspace` header, `?workspace=` parameter) are gone and return `404`.
+Each `bcd` instance is single-tenant. All resources live at flat `/api/<resource>` paths — there is no per-request scoping. The former multi-tenant surfaces (`/api/workspaces...`, scoped headers and query parameters) are gone and return `404`.
 
 ### Pagination
 
@@ -55,7 +55,7 @@ Errors are JSON objects: `{"error": "<message>"}` with an appropriate status cod
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/api/agents` | List agents. Query: `includeArchived=1`, `onlyArchived=1`, `workspace=<absolute path>` (filters by the workspace path the agent is bound to), `include=stats` (adds live resource metrics), `limit`, `offset`. |
+| GET | `/api/agents` | List agents. Query: `includeArchived=1`, `onlyArchived=1`, `include=stats` (adds live resource metrics). |
 | POST | `/api/agents` | Create an agent. Body: `{"name","role","tool","runtime_backend","parent","template","avatar":{"variant","color"}}`. Role defaults to `base` when only a template is given. Returns `201` with the agent. |
 | GET | `/api/agents/generate-name` | Generate an unused agent name. Returns `{"name": "..."}`. |
 | POST | `/api/agents/broadcast` | Send a message to all running agents. Body: `{"message"}`. Returns `{"sent": <n>}`. |
@@ -66,7 +66,7 @@ Errors are JSON objects: `{"error": "<message>"}` with an appropriate status cod
 | GET | `/api/agents/health` | Per-agent health report (`healthy`/`degraded`/`unhealthy`, tmux liveness, state freshness). Query: `timeout=<duration>` (default `60s`), `agent=<name>`. |
 | GET | `/api/agents/activity` | Recent activity events across all agents (Live page hydration). Query: `limit` (default 200, max 2000). |
 
-Agent objects include `name`, `role`, `state`, `task`, `tool`, `runtime_backend`, `session`, `session_id`, `parent_id`, `children`, `created_at`/`started_at`/`updated_at`/`stopped_at`/`archived_at`, `repo_root`, `workspace`, `total_cost_usd`, `total_tokens`, and optional `stats`, `avatar`, `mcp_servers`.
+Agent objects include `name`, `role`, `state`, `task`, `tool`, `runtime_backend`, `session`, `session_id`, `parent_id`, `children`, `created_at`/`started_at`/`updated_at`/`stopped_at`/`archived_at`, `repo_root`, `workspace` (the agent's repo path — the field name is a wire-compat holdover), `total_cost_usd`, `total_tokens`, and optional `stats`, `avatar`, `mcp_servers`.
 
 ### Bulk operations
 
@@ -117,11 +117,11 @@ All bulk endpoints are `POST` and return `{"results": [{"agent","status":"ok"|"e
 
 ## Channels & Notify
 
-Channels are inbound gateway sources (e.g. `slack:general`). Notification routing is subscription-based.
+Channels are inbound app sources (e.g. `slack:general`). Notification routing is subscription-based.
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/api/channels` | List known gateway channels (discovered + subscribed) as `{name, description, members, member_count}`. |
+| GET | `/api/channels` | List known app channels (discovered + subscribed) as `{name, description, members, member_count}`. Also served at `/api/apps/channels`. |
 | GET | `/api/channels/{name}/history` | Message history from the notify store: `[{id, sender, content, created_at}]`. Query: `limit` (default 50, max 200), `before=<id>`. `/messages` suffix is accepted as an alias. |
 | GET | `/api/notify/subscriptions` | List all subscriptions. |
 | POST | `/api/notify/subscriptions` | Subscribe an agent to a channel. Body: `{"channel","agent","mention_only"}`. Returns `201`. |
@@ -132,34 +132,33 @@ Channels are inbound gateway sources (e.g. `slack:general`). Notification routin
 
 ---
 
-## Gateways
+## Apps
 
-Gateways bridge external platforms (Slack, Telegram, Discord, WhatsApp, webhook adapters, ...) into channels.
+Apps are plugin integrations that bridge external platforms (Slack, Telegram, Discord, WhatsApp, webhook adapters, ...) into channels. The catalog is descriptor-driven: 28 built-in plugins self-register from `pkg/app/builtin`.
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/api/gateways` | List configured/registered platforms with `{platform, enabled, bot_name, channels, config}` (config exposes only mode/token-presence flags, never token values). |
-| GET | `/api/gateways/activity` | Recent delivery-log activity across all gateway channels. Query: `limit`. |
-| PATCH | `/api/gateways/{platform}` | Update a platform's gateway config (`telegram`, `telegram:<label>`, `discord`, `slack`). Body is the platform's config object; persisted to the workspace config. |
-| GET | `/api/gateways/{platform}/health` | Live adapter status: `{platform, connected, status, error, last_message_at}`. |
-| POST | `/api/gateways/{platform}/pair` | Start QR pairing (WhatsApp only). Returns pairing status incl. QR code. |
-| GET | `/api/gateways/{platform}/pair/status` | Current pairing state (WhatsApp only). |
-| GET | `/api/gateways/{platform}/channels` | Channels discovered for this platform: `[{channel_key, name, platform}]`. |
-| GET | `/api/gateways/{platform}/channels/{channel}` | Channel detail with its subscriptions. |
-| GET | `/api/gateways/{platform}/channels/{channel}/agents` | List agent subscriptions on the channel. |
-| POST | `/api/gateways/{platform}/channels/{channel}/agents` | Subscribe an agent. Body: `{"agent","mention_only"}`. Returns `201`. |
-| PATCH | `/api/gateways/{platform}/channels/{channel}/agents/{agent}` | Update `{"mention_only": bool}`. |
-| DELETE | `/api/gateways/{platform}/channels/{channel}/agents/{agent}` | Unsubscribe (agent may also be given as `?agent=`). |
-| GET | `/api/gateways/{platform}/channels/{channel}/activity` | Delivery log for the channel (same as `/api/notify/activity/{channel}`). |
-| ANY | `/api/gateways/{platform}/api/*` | Proxy to the adapter's own HTTP handler (`501` if the adapter has none, `404` if the adapter isn't registered). |
-
-There is **no** `/api/gateways/{platform}/channels/{channel}/send` endpoint — the old send route was removed and now returns `404`. Outbound messages go through the platform APIs directly.
+| GET | `/api/apps` | Descriptor catalog (every registered app with auth kind, fields, docs) plus configured instances with status. Secret fields report presence only, never values. |
+| POST | `/api/apps/{instance}` | Create or update an app instance (`slack`, `telegram:alerts`). Body: `{"app","enabled","config":{...}}` — fields the descriptor marks secret are split out of `config` into the vault (`app:<instance>:<key>`); the rest lands in `prefs.json` `apps`. |
+| DELETE | `/api/apps/{instance}` | Disconnect: removes the instance config, its vault keys, and its state dir. |
+| POST | `/api/apps/{instance}/auth` | Start an auth flow — dispatches on the plugin's capability (QR pairing for WhatsApp, OAuth where supported). |
+| GET | `/api/apps/{instance}/auth/status` | Poll auth/pairing completion. |
+| GET | `/api/apps/{instance}/health` | Live adapter status: `{platform, connected, status, error, last_message_at}`. |
+| GET | `/api/apps/{instance}/channels` | Channels discovered for this instance: `[{channel_key, name, platform}]`. |
+| GET | `/api/apps/{instance}/channels/{channel}` | Channel detail with its subscriptions. |
+| POST | `/api/apps/{instance}/react` | Send a reaction via the adapter (where supported). |
+| ANY | `/api/apps/{instance}/api/*` | Proxy to the adapter's own HTTP handler (`501` if the adapter has none, `404` if the adapter isn't registered). |
+| GET | `/api/apps/channels` | Unified channel list across instances (also at `/api/channels`). |
+| POST | `/api/apps/channels/send` | Send a message into a channel. |
+| GET | `/api/apps/channels/{name}` | Message history for a channel. |
+| POST | `/api/apps/channels/refresh` | Re-resolve channel display metadata (names, kinds). |
+| GET | `/api/notifications/overview` | Connected apps + channels with resolved identities. |
 
 ### Inbound webhooks
 
 | Method | Path | Description |
 |--------|------|-------------|
-| POST | `/hooks/{name}` | Inbound webhook receiver for webhook-type gateway adapters (e.g. `/hooks/github`, `/hooks/webhook`). One route is mounted per adapter that exposes an HTTP handler. |
+| POST | `/hooks/{name}` | Inbound webhook receiver for webhook-type app adapters (e.g. `/hooks/github`, `/hooks/webhook`). One route is mounted per adapter that exposes an HTTP handler. |
 
 ---
 
@@ -167,19 +166,19 @@ There is **no** `/api/gateways/{platform}/channels/{channel}/send` endpoint — 
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/api/costs` | Workspace cost summary. |
+| GET | `/api/costs` | Total cost summary, computed from provider session files. |
 | GET | `/api/costs/agents` | Cost summaries grouped by agent. Paginated. |
 | GET | `/api/costs/teams` | Cost summaries grouped by team. Paginated. |
 | GET | `/api/costs/models` | Cost summaries grouped by model. Paginated. |
 | GET | `/api/costs/daily` | Daily cost series. Query: `days` (default 30, max 365). |
 | GET | `/api/costs/agent/{name}` | One agent's summary plus a 30-day daily breakdown: `{"summary", "daily"}`. |
 | GET | `/api/costs/project` | Cost projection. Query: `lookback_days` (default 30), `project_days` (default 30). |
-| POST | `/api/costs/sync` | Trigger a fresh import from provider JSONL usage files. Returns `{"imported": <n>}`. |
+| POST | `/api/costs/sync` | Force a fresh scan of provider session files (drops the read cache). |
 | GET | `/api/costs/budgets` | List all budgets. |
 | POST | `/api/costs/budgets` | Set a budget. Body: `{"scope","period":"daily"\|"weekly"\|"monthly","limit_usd","alert_at","hard_stop"}`. |
 | GET | `/api/costs/budgets/{scope}` | Budget check status for a scope; `404` when no budget is configured. |
 | DELETE | `/api/costs/budgets/{scope}` | Delete a budget. Returns `204`. |
-| GET | `/api/global/costs` | **Cross-workspace** cost rollup from the user-global ledger. Query: `start=<RFC3339 or YYYY-MM-DD>` (default 30 days ago), `groupBy=workspace\|project`. Not workspace-scoped; `503` when no global ledger is wired. |
+| GET | `/api/global/costs` | Cross-repo cost rollup computed from provider sources. Query: `start=<RFC3339 or YYYY-MM-DD>` (default 30 days ago), `groupBy=repo\|project`. |
 
 ---
 
@@ -200,7 +199,7 @@ Secret **values are never returned** — only metadata.
 
 ## MCP Servers
 
-Workspace-level MCP server registry (distinct from per-agent `.mcp.json`, see Agents).
+MCP server registry (distinct from per-agent `.mcp.json`, see Agents).
 
 | Method | Path | Description |
 |--------|------|-------------|
@@ -233,7 +232,7 @@ Workspace-level MCP server registry (distinct from per-agent `.mcp.json`, see Ag
 
 ## Templates
 
-Agent templates (system prompt + MCPs + policies). Stored layered: global `~/.bc/templates/` with per-workspace overrides.
+Agent templates (system prompt + MCPs + policies). Stored under the global `~/.mycel/templates/`, with optional repo-scoped overrides.
 
 | Method | Path | Description |
 |--------|------|-------------|
@@ -259,7 +258,7 @@ AI provider registry (claude, gemini, cursor, ...).
 | POST | `/api/providers/{name}/install` | Returns the install hint command (does not execute it). |
 | POST | `/api/providers/{name}/update` | Returns the update hint command. |
 | POST | `/api/providers/{name}/check-update` | Version check. Returns `{current_version, latest_version, update_available, update_command}`. |
-| PATCH | `/api/providers/{name}/config` | Override the provider's launch command in workspace settings. Body: `{"command"}`. |
+| PATCH | `/api/providers/{name}/config` | Override the provider's launch command in the global settings. Body: `{"command"}`. |
 
 ---
 
@@ -279,8 +278,8 @@ AI provider registry (claude, gemini, cursor, ...).
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/api/settings` | Full workspace configuration document. |
-| PATCH | `/api/settings` | Partial update. Body is an object whose top-level keys are config sections: `user`, `server`, `runtime`, `providers`, `gateways`, `storage`, `logs`, `ui` (`version` is ignored; unknown sections are rejected with `400`). Each provided section **replaces** that section, except `gateways`, which is deep-merged per platform key. The merged config is validated before saving; the response echoes the saved config. |
+| GET | `/api/settings` | Full global configuration document (`prefs.json`). |
+| PATCH | `/api/settings` | Partial update. Body is an object whose top-level keys are config sections: `user`, `server`, `runtime`, `providers`, `apps`, `storage`, `logs`, `ui`, `injected_instructions` (`version` is ignored; unknown sections are rejected with `400`). Each provided section **replaces** that section, except `apps`, which is merged per instance key and validated against each app's descriptor (secret-typed fields are rejected — they go through `/api/apps`). The merged config is validated before saving; the response echoes the saved config. |
 
 See [Settings API](api-settings.md) for the configuration schema.
 
@@ -322,7 +321,7 @@ All timeseries endpoints accept `from`/`to` (RFC3339, default: last hour) and `i
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/api/stats/summary` | Workspace overview: agent counts, channel/message totals, cost, roles, tools, uptime. |
+| GET | `/api/stats/summary` | Fleet overview: agent counts, channel/message totals, cost, roles, tools, uptime. |
 | GET | `/api/stats/system` | Host snapshot: hostname, OS/arch, CPU, memory, disk, Go version, goroutines, uptime. |
 | GET | `/api/system/info` | Minimal host info: `{hostname, os, arch}`. |
 
@@ -389,7 +388,7 @@ Repos the agents can be bound to. The server itself is anchored at one repo.
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/api/doctor` | Run all workspace health checks. |
+| GET | `/api/doctor` | Run all health checks. |
 | GET | `/api/doctor/{category}` | Run one category; `404` for unknown categories. |
 
 ---
@@ -422,7 +421,7 @@ Attachment upload/download (channel attachments and shared screenshots).
 
 ## Code
 
-Read-only code browsing for agent worktrees. All endpoints take `worktree=<agent name>` to target an agent's worktree (resolved against the scoped workspace).
+Read-only code browsing for agent worktrees. All endpoints take `worktree=<agent name>` to target an agent's worktree.
 
 | Method | Path | Description |
 |--------|------|-------------|
@@ -437,18 +436,13 @@ Read-only code browsing for agent worktrees. All endpoints take `worktree=<agent
 
 ## MCP Protocol (agent-facing)
 
-The MCP server (SSE transport) that agents connect to for `send_message` / `report_status` / `query_costs` tools. These paths bypass API-key auth.
+The MCP server agents connect to for `send_message` / `report_status` / `query_costs` and friends. These paths bypass API-key auth.
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/_mcp/ws/{workspaceID}/{agent}/sse` | Canonical scoped SSE connection for an agent in a specific workspace. |
-| POST | `/_mcp/ws/{workspaceID}/{agent}/message` | JSON-RPC requests (responses are delivered over the SSE stream). |
-| GET | `/_mcp/{agent}/sse` | Legacy agent-scoped path — rewritten in-flight to the active workspace's scoped path, with `Deprecation`/`Sunset` headers. |
-| POST | `/_mcp/{agent}/message` | Legacy agent-scoped message path (same rewrite). |
-| GET | `/_mcp/sse` | Legacy un-scoped SSE (no agent identity), targeting the launch workspace. |
-| POST | `/_mcp/message` | Legacy un-scoped message endpoint. |
+| ANY | `/_mcp/{agent}` | Streamable HTTP MCP endpoint (stateless, JSON responses). The path segment is the trusted agent identity. Unknown paths return a JSON `404`. |
 
-Agent identity is carried by the path segment (injected as the `agent` query parameter internally).
+See [MCP](../explanation/mcp.md) for the tool list and transport details.
 
 ---
 
@@ -460,7 +454,7 @@ Agent identity is carried by the path segment (injected as the `agent` query par
 | Agents (collection + bulk + per-agent) | 43 |
 | Agent stats timeseries | 8 |
 | Channels & Notify | 8 |
-| Gateways (+ webhooks) | 15 |
+| Apps (+ webhooks) | 16 |
 | Costs (incl. global) | 13 |
 | Secrets | 5 |
 | MCP servers | 7 |
@@ -471,10 +465,9 @@ Agent identity is carried by the path segment (injected as the `agent` query par
 | Settings | 2 |
 | Events, Logs & SSE | 6 |
 | Stats (summaries + system + channels) | 10 |
-| Workspaces registry (+ discovery/auth) | 12 |
-| Workspace (active) | 5 |
+| Repos (+ discovery/clone) | 12 |
 | Doctor | 2 |
 | Dependencies | 6 |
 | Files | 2 |
 | Code | 4 |
-| MCP protocol | 6 |
+| MCP protocol | 1 |

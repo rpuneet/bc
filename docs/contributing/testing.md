@@ -12,8 +12,7 @@ in the bc codebase.
 | `make test`            | All tests (Go + TypeScript)                      |
 | `make test-go`         | Go tests with race detector                      |
 | `make test-go-fast`    | Go tests excluding slow/E2E packages             |
-| `make test-ts`         | All TypeScript tests (TUI + web + landing)       |
-| `make test-tui`        | TUI tests (bun test)                             |
+| `make test-ts`         | All TypeScript tests (web + landing)             |
 | `make test-web`        | Web dashboard tests (vitest)                     |
 | `make test-web-e2e`    | Web E2E tests (Playwright, requires running bcd) |
 | `make test-landing`    | Landing page tests (Playwright)                  |
@@ -29,12 +28,6 @@ go test -race -run TestAgentStart ./pkg/agent/
 
 The `-race` flag enables the race detector and should always be used during
 development.
-
-### Running a Specific TUI Test
-
-```bash
-cd tui && bun test src/hooks/__tests__/useStatus.test.tsx
-```
 
 ### Running a Specific Web Test
 
@@ -78,8 +71,7 @@ open coverage.html
 make coverage-ts
 ```
 
-TUI coverage is provided by bun's built-in coverage. Web coverage requires
-`@vitest/coverage-v8`.
+Web coverage requires `@vitest/coverage-v8`.
 
 ## Where Tests Live
 
@@ -90,10 +82,10 @@ Go tests live alongside the code they test, following Go convention:
 | Location                         | What it tests                          |
 |----------------------------------|----------------------------------------|
 | `pkg/agent/*_test.go`            | Agent lifecycle, hooks, state machine  |
-| `pkg/workspace/*_test.go`        | Workspace loading, config parsing      |
+| `pkg/home/*_test.go`             | Home bootstrap, config parsing         |
 | `pkg/channel/*_test.go`          | Channel CRUD, message delivery         |
 | `pkg/secret/*_test.go`           | Encryption, secret store operations    |
-| `pkg/cost/*_test.go`             | Cost tracking, import                  |
+| `pkg/cost/*_test.go`             | Source-direct cost computation         |
 | `pkg/container/*_test.go`        | Docker backend, mount validation       |
 | `pkg/tmux/*_test.go`             | Tmux backend                           |
 | `internal/cmd/*_test.go`         | CLI command integration tests          |
@@ -106,7 +98,6 @@ Go tests live alongside the code they test, following Go convention:
 
 | Location                         | What it tests                          |
 |----------------------------------|----------------------------------------|
-| `tui/src/**/__tests__/*.test.tsx`| TUI component helpers and types        |
 | `web/src/**/*.test.ts(x)`        | Web dashboard components (vitest)      |
 | `web/e2e/`                       | Web E2E tests (Playwright)             |
 | `landing/e2e/`                   | Landing page E2E tests (Playwright)    |
@@ -126,14 +117,14 @@ func TestValidateMount(t *testing.T) {
         wantErr   bool
     }{
         {
-            name:  "valid mount within workspace",
-            mount: "/workspace/data:/data",
-            root:  "/workspace",
+            name:  "valid mount within repo",
+            mount: "/repo/data:/data",
+            root:  "/repo",
         },
         {
             name:    "path traversal rejected",
-            mount:   "/workspace/../etc/passwd:/etc/passwd",
-            root:    "/workspace",
+            mount:   "/repo/../etc/passwd:/etc/passwd",
+            root:    "/repo",
             wantErr: true,
         },
     }
@@ -190,11 +181,11 @@ func TestAgentHandler(t *testing.T) {
 
 ### Integration Tests
 
-Integration tests that need a real workspace use helper functions:
+Integration tests that need a real home + repo use helper functions:
 
-- `setupIntegrationWorkspace()` — creates a temp directory with `.bc/`
-  structure.
-- `seedAgents()` — populates the workspace with test agent state.
+- `setupIntegrationHome()` — points `MYCEL_HOME` at a temp dir and
+  bootstraps a git repo to anchor against.
+- `seedAgents()` — populates the store with test agent state.
 
 ### E2E Tests
 
@@ -231,22 +222,6 @@ make run-bc
 
 # Run e2e tests
 make test-web-e2e
-```
-
-## Writing TUI Tests
-
-The TUI uses React/Ink, which cannot be tested with DOM-based tools. Test
-exported helper functions and type interfaces rather than hooks directly:
-
-```typescript
-import { describe, it, expect } from "bun:test";
-import { formatDuration } from "../utils";
-
-describe("formatDuration", () => {
-  it("formats seconds", () => {
-    expect(formatDuration(45)).toBe("45s");
-  });
-});
 ```
 
 ## Best Practices

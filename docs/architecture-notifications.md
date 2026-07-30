@@ -42,7 +42,7 @@ generic outbound abstraction.
 
 When an agent needs to **send** a message to an external platform, the
 agent talks to the platform's API directly using credentials injected
-from `preferences.json` / the workspace secret store. Examples:
+from `prefs.json` / the secrets vault. Examples:
 
 - **Telegram**: `curl -H "Authorization: Bearer $TELEGRAM_BOT_TOKEN" https://api.telegram.org/bot.../sendMessage`
 - **Slack**: `chat.postMessage` via the Slack Web API using `$SLACK_BOT_TOKEN`
@@ -60,8 +60,8 @@ knows the shape.
 ### env.json — per-agent token slots
 
 Set once per agent. Values are `${secret:NAME}` refs; the actual
-secret lives in the workspace secret store (`.bc/secrets.db` or
-whichever backend the workspace is configured to use).
+secret lives in the encrypted vault (`~/.mycel/secrets.vault`), keyed
+`app:<instance>:<key>`.
 
 ```json
 {
@@ -161,7 +161,7 @@ an agent posts to a gateway channel through the server. Do **not** add
 30+ adapters deliberately have no `Send` method — that is correct per
 this design, **not** a missing feature or a bug.
 
-### `POST /api/gateways/{platform}/channels/{channel}/send` is removed
+### There is no per-gateway outbound send endpoint
 
 **Status: Removed.** (It was deprecated in v0.3.1 with RFC 8594
 Deprecation/Sunset headers and has since been deleted.)
@@ -314,7 +314,7 @@ github:bc             → bc repo webhooks
 github:trade          → trade repo webhooks
 ```
 
-The gateway manager registers each as a separate adapter. Subscriptions reference the full name (e.g., `telegram:trade:chat_group`), so agents subscribe to specific bots. Credentials are stored per-instance in workspace secrets.
+The gateway manager registers each as a separate adapter. Subscriptions reference the full name (e.g., `telegram:trade:chat_group`), so agents subscribe to specific bots. Credentials are stored per-instance in the secrets vault.
 
 ## Platform Integrations
 
@@ -395,11 +395,11 @@ flowchart LR
 
 1. The user enters platform credentials in the web UI setup wizard.
 2. `POST /api/secrets` encrypts them with AES-256-GCM via `pkg/secret`.
-3. When an agent starts, bc reads workspace secrets and injects them as environment variables.
+3. When an agent starts, mycel reads the secrets vault and injects them as environment variables.
 4. The agent's system prompt includes instructions on which env vars are available.
 5. The agent calls platform APIs directly using those credentials.
 
-Secrets are never stored in `settings.json`, never transmitted via SSE events, and never exposed in API responses.
+Secrets are never stored in `prefs.json`, never transmitted via SSE events, and never exposed in API responses.
 
 | Platform | Setup Steps |
 |----------|-------------|
@@ -705,15 +705,21 @@ gatewayMgr.Register(adapter)
 
 All endpoints are served by the mycel server at `http://127.0.0.1:9374`. Localhost-only by default; Bearer auth applies when the server is started with `--api-key`/`MYCEL_API_KEY`.
 
-### Gateway Management
+### App Management
 
 ```
-GET    /api/gateways                                              -- list all gateways + status
-PATCH  /api/gateways/{platform}                                   -- update tokens/settings
-GET    /api/gateways/{platform}/health                            -- live connection probe
-GET    /api/gateways/{platform}/channels                          -- discovered channels
-GET    /api/gateways/{platform}/channels/{channel}                -- channel detail + subscribers
+GET    /api/apps                                                  -- descriptor catalog + configured instances
+POST   /api/apps/{instance}                                       -- create/update an app instance
+DELETE /api/apps/{instance}                                       -- remove an app instance
+POST   /api/apps/{instance}/auth                                  -- start an auth flow (e.g. QR pairing)
+GET    /api/apps/{instance}/auth/status                           -- auth flow status
+GET    /api/apps/{instance}/health                                -- live connection probe
+GET    /api/apps/{instance}/channels                              -- discovered channels
+GET    /api/apps/{instance}/channels/{channel}                    -- channel detail + subscribers
 ```
+
+App config lives in `prefs.json` under `apps`; secret fields are written to
+the vault as `app:<instance>:<key>` and never appear in config responses.
 
 There is no outbound send endpoint — `POST .../channels/{channel}/send`
 has been removed (unknown sub-routes return `404`). Outbound messages are
@@ -731,15 +737,16 @@ GET    /api/notify/subscriptions/{channel}               -- list subscribers for
 DELETE /api/notify/subscriptions/{channel}?agent={agent} -- unsubscribe agent
 PATCH  /api/notify/subscriptions/{channel}               -- update subscription (toggle mention_only)
 GET    /api/notify/activity/{channel}                    -- delivery log entries
-GET    /api/gateways/activity                            -- aggregated activity across all gateways
+GET    /api/notifications/overview                       -- connected apps + channels with identities
 ```
 
-### Activity Feed
+### Channels
 
 ```
-GET    /api/gateways/activity                                     -- aggregate activity across all gateway channels
-GET    /api/channels                                              -- legacy channel list (gateway + subscribed)
-GET    /api/channels/{name}/history                               -- legacy message history
+GET    /api/apps/channels                                         -- unified channel list (also at /api/channels)
+POST   /api/apps/channels/send                                    -- send into a channel
+GET    /api/apps/channels/{name}                                  -- message history
+POST   /api/apps/channels/refresh                                 -- re-resolve channel display metadata
 ```
 
 ## Package Reference
