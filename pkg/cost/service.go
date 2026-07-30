@@ -176,7 +176,12 @@ func (s *Service) GetAgentSummarySince(ctx context.Context, since time.Time) ([]
 
 // SummaryByModel returns aggregated costs per model, highest cost first.
 func (s *Service) SummaryByModel(ctx context.Context) ([]*Summary, error) {
-	return s.groupedSummaries(ctx, time.Time{}, func(e provider.CostEntry) string { return e.Model },
+	return s.GetModelSummarySince(ctx, time.Time{})
+}
+
+// GetModelSummarySince returns per-model summaries since the given time.
+func (s *Service) GetModelSummarySince(ctx context.Context, since time.Time) ([]*Summary, error) {
+	return s.groupedSummaries(ctx, since, func(e provider.CostEntry) string { return e.Model },
 		func(sum *Summary, key string) { sum.Model = key })
 }
 

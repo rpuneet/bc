@@ -237,6 +237,52 @@ func TestCostHandler_ByResource(t *testing.T) {
 	}
 }
 
+// TestCostHandler_SinceFilter verifies that ?since= scopes the summary
+// and grouped-summary endpoints to entries at or after the cutoff.
+func TestCostHandler_SinceFilter(t *testing.T) {
+	svc, home := newCostServiceAt(t)
+	writeClaudeSession(t,
+		filepath.Join(home, ".claude", "projects", "p1", "33333333-aaaa-3333-3333-333333333333.jsonl"),
+		claudeUsageLine("s1", "2026-07-01T10:00:00Z", "/repos/proj", "claude-sonnet-4-20250514", 100, 50),
+		claudeUsageLine("s1", "2026-07-20T10:00:00Z", "/repos/proj", "claude-sonnet-4-20250514", 200, 100),
+	)
+
+	ts := buildTestServerWithServices(t, server.Services{Costs: svc})
+	defer ts.Close()
+
+	// Summary scoped to the second entry only.
+	resp := get(t, ts.URL+"/api/costs?since=2026-07-10")
+	defer func() { _ = resp.Body.Close() }()
+	assertStatus(t, resp, http.StatusOK)
+	body := readJSON(t, resp)
+	if body["record_count"] != float64(1) {
+		t.Fatalf("since summary record_count = %v, want 1", body["record_count"])
+	}
+
+	// Grouped endpoints accept since too (RFC3339 form).
+	for _, path := range []string{
+		"/api/costs/agents?since=2026-07-10T00:00:00Z",
+		"/api/costs/models?since=2026-07-10T00:00:00Z",
+	} {
+		gr := get(t, ts.URL+path)
+		assertStatus(t, gr, http.StatusOK)
+		rows := readJSONArray(t, gr)
+		_ = gr.Body.Close()
+		if len(rows) != 1 {
+			t.Fatalf("%s: got %d rows, want 1", path, len(rows))
+		}
+		row, _ := rows[0].(map[string]any)
+		if row["record_count"] != float64(1) {
+			t.Fatalf("%s: record_count = %v, want 1", path, row["record_count"])
+		}
+	}
+
+	// Malformed since → 400.
+	resp = get(t, ts.URL+"/api/costs?since=not-a-date")
+	assertStatus(t, resp, http.StatusBadRequest)
+	_ = resp.Body.Close()
+}
+
 func TestCostHandler_AgentDetail(t *testing.T) {
 	svc, home := newCostServiceAt(t)
 	// Agent-attributed source: <AgentsDir>/<name>/session/claude/projects.

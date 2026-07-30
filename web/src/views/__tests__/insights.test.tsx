@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { MemoryRouter, useLocation } from "react-router-dom";
-import { Insights } from "../Insights";
+import { Insights, summarizeActivity } from "../Insights";
 import { AppRoutes } from "../../App";
 import { HeaderSlotProvider } from "../../context/HeaderSlotContext";
 import { ThemeProvider } from "../../context/ThemeContext";
@@ -17,12 +17,16 @@ function jsonResponse(body: unknown) {
   } as Response);
 }
 
-/** Route-aware API mock for the single-page Stats dashboard. */
+/** UTC day key, matching the ledger's day bucketing. */
+function dayKey(offsetDays = 0): string {
+  return new Date(Date.now() - offsetDays * 86_400_000).toISOString().slice(0, 10);
+}
+
+/** Route-aware API mock for the redesigned Insights page. */
 function mockApi() {
   fetchMock.mockImplementation((url: RequestInfo | URL) => {
     const u = String(url);
-    // Per-agent cost ledger — the single source of truth for the agents
-    // table token/cost columns, Cost by Agent, and Agent Token Breakdown.
+    // Per-agent ledger — the "Where it goes" default dimension.
     if (u.includes("/api/costs/agents")) {
       return jsonResponse([
         {
@@ -47,7 +51,7 @@ function mockApi() {
         },
       ]);
     }
-    // Per-model cost ledger — Cost by Model + Model Usage (Tokens).
+    // Per-model ledger — the Models dimension.
     if (u.includes("/api/costs/models")) {
       return jsonResponse([
         {
@@ -58,37 +62,47 @@ function mockApi() {
           total_tokens: 1_150_000,
           record_count: 24,
         },
-        {
-          model: "claude-sonnet-4-6",
-          total_cost_usd: 2.34,
-          input_tokens: 300_000,
-          output_tokens: 50_000,
-          total_tokens: 350_000,
-          record_count: 18,
-        },
       ]);
     }
-    // Daily cost ledger — Cost Over Time, Token Throughput, Spend/Tokens/Burn.
+    // Daily ledger — spend chart + stat band.
     if (u.includes("/api/costs/daily")) {
       return jsonResponse([
-        { date: "2026-07-04", cost_usd: 5.0, total_tokens: 700_000, input_tokens: 560_000, output_tokens: 140_000, record_count: 20 },
-        { date: "2026-07-05", cost_usd: 7.34, total_tokens: 800_000, input_tokens: 640_000, output_tokens: 160_000, record_count: 22 },
+        { date: dayKey(1), cost_usd: 5.0, total_tokens: 700_000, input_tokens: 560_000, output_tokens: 140_000, record_count: 20 },
+        { date: dayKey(0), cost_usd: 7.34, total_tokens: 800_000, input_tokens: 640_000, output_tokens: 160_000, record_count: 22 },
       ]);
     }
-    // Cost summary — cache efficiency headline + totals.
+    // Per-repo rollup — the Repos dimension.
+    if (u.includes("/api/global/costs")) {
+      return jsonResponse({
+        range: { start: "2026-01-01T00:00:00Z" },
+        groupBy: "repo",
+        rows: [
+          { key: "/repos/alpha", label: "alpha", total: 9.0 },
+          { key: "/old/alpha", label: "alpha", total: 1.0 },
+          { key: "/repos/beta", label: "beta", total: 2.34 },
+        ],
+      });
+    }
+    // Recent hook events — the Activity chart.
+    if (u.includes("/api/agents/activity")) {
+      const now = Date.now();
+      return jsonResponse([
+        { timestamp: new Date(now).toISOString(), event: "PreToolUse", agent: "bot-1" },
+        { timestamp: new Date(now - 60_000).toISOString(), event: "PostToolUse", agent: "bot-1" },
+        { timestamp: new Date(now - 120_000).toISOString(), event: "UserPromptSubmit", agent: "bot-2" },
+      ]);
+    }
+    // Period-scoped cost summary — tokens + cache efficiency.
     if (u.includes("/api/costs")) {
       return jsonResponse({
-        input_tokens: 1_200_000,
+        input_tokens: 1_000_000,
         output_tokens: 300_000,
-        cache_read_tokens: 500_000,
+        cache_read_tokens: 9_000_000,
         cache_write_tokens: 70_000,
-        total_tokens: 1_500_000,
+        total_tokens: 1_300_000,
         total_cost_usd: 12.34,
         record_count: 42,
       });
-    }
-    if (u.includes("/api/system/info")) {
-      return jsonResponse({ hostname: "test-host", os: "darwin", arch: "arm64" });
     }
     if (u.includes("/api/health")) return jsonResponse({ status: "ok" });
     return jsonResponse([]);
@@ -117,46 +131,91 @@ beforeEach(() => {
 });
 
 describe("Insights", () => {
-  it("renders one dashboard with no tab bar", async () => {
+  it("renders the four-question stat band off the ledger", async () => {
     renderInsights();
 
-    // The old Metrics/Costs tab bar is gone.
-    expect(screen.queryByRole("tablist")).not.toBeInTheDocument();
-    expect(screen.queryByRole("tab")).not.toBeInTheDocument();
-
-    // Chart panels arrive once polling settles.
-    await waitFor(() => expect(screen.getByText("No CPU data")).toBeInTheDocument());
+    // Spend sums the daily ledger inside the window (5.00 + 7.34).
+    await waitFor(() => expect(screen.getByText("$12.34")).toBeInTheDocument());
+    expect(screen.getByText(/Spend · last 30d/i)).toBeInTheDocument();
+    expect(screen.getByText("Today")).toBeInTheDocument();
+    // Today's ledger day (7.34) renders in the Today cell.
+    expect(screen.getByText("$7.34")).toBeInTheDocument();
+    // Cache hit rate = 9M / (9M + 1M) fresh input; the figure shows in
+    // both the stat band and the cache-efficiency module.
+    expect(screen.getByText("Cache hit rate")).toBeInTheDocument();
+    expect(screen.getAllByText("90.0%").length).toBeGreaterThan(0);
+    // Tokens = input + output from the period summary.
+    expect(screen.getByText("1.3M")).toBeInTheDocument();
   });
 
-  it("shows the KPI strip", async () => {
+  it("scopes cost queries to the selected period via since", async () => {
     renderInsights();
+    await waitFor(() => expect(screen.getByText("$12.34")).toBeInTheDocument());
 
-    // The dashboard mounts once the first poll settles (a skeleton shows
-    // until then), so wait for a KPI tile label to appear.
-    await waitFor(() => expect(screen.getByText("Spend (this range)")).toBeInTheDocument());
-    expect(screen.getByText("Active agents")).toBeInTheDocument();
-    expect(screen.getByText("Burn rate")).toBeInTheDocument();
+    const urls = fetchMock.mock.calls.map((c) => String(c[0]));
+    const agentsCall = urls.find((u) => u.includes("/api/costs/agents"));
+    expect(agentsCall).toMatch(/since=\d{4}-\d{2}-\d{2}/);
+    // The daily fetch doubles the window for the period delta.
+    const dailyCall = urls.find((u) => u.includes("/api/costs/daily"));
+    expect(dailyCall).toContain("days=60");
   });
 
-  it("wires KPIs off the cost ledger", async () => {
+  it("breaks down spend by agent, model, and repo behind one switch", async () => {
     renderInsights();
 
-    // Spend sums the daily ledger (5.00 + 7.34 = 12.34); the top cost driver
-    // is the biggest per-agent spender with its "bc-bc-" prefix stripped.
-    await waitFor(() => expect(screen.getByText("Top cost driver")).toBeInTheDocument());
-    expect(screen.getByText("bot-1")).toBeInTheDocument();
-    expect(screen.getByText("$12.34")).toBeInTheDocument();
+    // Default dimension: agents, prefix-stripped, with share of total.
+    await waitFor(() => expect(screen.getByText("bot-1")).toBeInTheDocument());
+    expect(screen.getByText("bot-2")).toBeInTheDocument();
+    expect(screen.getByText("$8.50")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Models" }));
+    await waitFor(() => expect(screen.getByText("claude-opus-4-6")).toBeInTheDocument());
+
+    // Repo rows with the same label fold together (9.0 + 1.0).
+    fireEvent.click(screen.getByRole("button", { name: "Repos" }));
+    await waitFor(() => expect(screen.getByText("alpha")).toBeInTheDocument());
+    expect(screen.getByText("$10.00")).toBeInTheDocument();
   });
 
-  it("renders the grouped section headers", async () => {
+  it("labels the activity window honestly", async () => {
     renderInsights();
+    await waitFor(() => expect(screen.getByText(/3 events/)).toBeInTheDocument());
+    expect(screen.getByText("Tool calls")).toBeInTheDocument();
+  });
 
-    // Section headers double as anchor-nav targets; the pill labels and
-    // the headers share text, so each label appears at least once.
-    await waitFor(() => expect(screen.getByText("No CPU data")).toBeInTheDocument());
-    for (const label of ["Cost", "Usage", "System", "Activity"]) {
-      expect(screen.getAllByText(label).length).toBeGreaterThan(0);
+  it("drops the old KPI-soup dashboard", async () => {
+    renderInsights();
+    await waitFor(() => expect(screen.getByText("$12.34")).toBeInTheDocument());
+    for (const gone of ["Burn rate", "CPU by Agent (%)", "Notification Activity (Top 10)", "Active agents"]) {
+      expect(screen.queryByText(gone)).not.toBeInTheDocument();
     }
+  });
+});
+
+describe("summarizeActivity", () => {
+  it("buckets events by category over the covered window", () => {
+    const base = Date.parse("2026-07-30T10:00:00Z");
+    const items = [
+      { timestamp: new Date(base).toISOString(), event: "PreToolUse", agent: "a" },
+      { timestamp: new Date(base + 30_000).toISOString(), event: "PostToolUse", agent: "a" },
+      { timestamp: new Date(base + 60_000).toISOString(), event: "UserPromptSubmit", agent: "b" },
+      { timestamp: new Date(base + 90_000).toISOString(), event: "SubagentStop", agent: "a" },
+    ];
+    const s = summarizeActivity(items);
+    expect(s.eventCount).toBe(4);
+    expect(s.agentCount).toBe(2);
+    expect(s.bucketMinutes).toBe(1);
+    const totals = s.buckets.reduce(
+      (acc, b) => ({ tools: acc.tools + b.tools, prompts: acc.prompts + b.prompts, other: acc.other + b.other }),
+      { tools: 0, prompts: 0, other: 0 },
+    );
+    expect(totals).toEqual({ tools: 2, prompts: 1, other: 1 });
+  });
+
+  it("handles an empty feed", () => {
+    const s = summarizeActivity([]);
+    expect(s.buckets).toEqual([]);
+    expect(s.eventCount).toBe(0);
   });
 });
 
