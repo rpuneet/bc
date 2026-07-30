@@ -458,6 +458,60 @@ describe("AgentDetail lifecycle controls", () => {
     expect(stop).toBeEnabled();
     expect(restart).toBeEnabled();
   });
+
+  it("Config tab renders the Apps card with the agent's subscriptions", async () => {
+    fetchMock.mockImplementation((url: RequestInfo | URL) => {
+      const u = String(url);
+      if (u.endsWith("/api/agents/bot-1")) {
+        return jsonResponse({
+          name: "bot-1",
+          role: "engineer",
+          tool: "claude",
+          state: "working",
+          total_cost_usd: 0,
+          created_at: "2026-07-01T00:00:00Z",
+        });
+      }
+      if (u.endsWith("/api/agents/bot-1/config")) {
+        return jsonResponse({
+          system_prompt: "",
+          mcp_servers: [],
+          runtime_backend: "docker",
+          tool: "claude",
+          session: "bot-1",
+          worktree_path: "",
+          created_at: "2026-07-01T00:00:00Z",
+          started_at: "2026-07-01T00:00:00Z",
+        });
+      }
+      if (u.includes("/notify/subscriptions")) {
+        return jsonResponse([
+          { id: 1, channel: "slack:general", agent: "bot-1", mention_only: false, created_at: "2026-07-01T00:00:00Z" },
+        ]);
+      }
+      return jsonResponse([]);
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/agents/bot-1/config"]}>
+        <HeaderSlotProvider>
+          <HeaderSlotHost />
+          <Routes>
+            <Route path="agents/:name" element={<AgentDetail />} />
+            <Route path="agents/:name/*" element={<AgentDetail />} />
+          </Routes>
+        </HeaderSlotProvider>
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("agent-apps-card")).toBeInTheDocument();
+    });
+    // The agent's subscribed channel renders inside the card.
+    await waitFor(() => {
+      expect(screen.getByText("general")).toBeInTheDocument();
+    });
+  });
 });
 
 describe("Apps", () => {

@@ -369,9 +369,10 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 		if svc.Notify != nil {
 			gh.SetNotifyService(svc.Notify)
 		}
-		// /api/apps: descriptor catalog + instance CRUD + auth flows. The
-		// gateway handler keeps /api/gateways/* as transitional aliases
-		// delegating here until the web UI moves to /api/apps (W2).
+		// /api/apps: descriptor catalog + instance CRUD + auth flows.
+		// The gateway handler serves the channel/subscription surface
+		// (/api/apps/channels*, /api/notify/*) and the per-instance
+		// routes the apps router delegates to.
 		handlers.NewAppsHandler(gh, svc.Gateway, svc.WS, svc.Secrets).Register(mux)
 		gh.Register(mux)
 	}

@@ -139,7 +139,7 @@ func (h *GatewayHandler) notificationsOverview(w http.ResponseWriter, r *http.Re
 	})
 }
 
-// refreshChannelMeta handles POST /api/gateways/channels/refresh — re-resolves
+// refreshChannelMeta handles POST /api/apps/channels/refresh — re-resolves
 // display metadata (names, kinds, participant counts) for all known gateway
 // channels via adapters that support identity resolution.
 func (h *GatewayHandler) refreshChannelMeta(w http.ResponseWriter, r *http.Request) {

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { CreateAgentModal } from "../CreateAgentModal";
 
@@ -86,5 +86,84 @@ describe("CreateAgentModal identity", () => {
     const body = JSON.parse(String((post![1] as RequestInit).body)) as Record<string, unknown>;
     expect(body.name).toBe("bold-otter");
     expect("shape" in body).toBe(false);
+  });
+});
+
+describe("CreateAgentModal apps step", () => {
+  it("renders the Apps section with connected app channels", async () => {
+    fetchMock.mockImplementation((url: RequestInfo | URL) => {
+      const u = String(url);
+      if (u.includes("/api/repos")) return jsonResponse({ repos: [], default: "/tmp/repo" });
+      if (u === "/api/apps") {
+        return jsonResponse({
+          catalog: [],
+          instances: [
+            { name: "slack", app: "slack", enabled: true, connected: true, channels: ["slack:general", "slack:eng"] },
+          ],
+        });
+      }
+      return jsonResponse([]);
+    });
+    renderModal();
+
+    // The collapsed Apps section is present in the create flow.
+    const section = screen.getByTestId("create-agent-apps-section");
+    expect(section).toBeInTheDocument();
+
+    // Expanding it lists the connected app's channels as checkboxes.
+    fireEvent.click(within(section).getByRole("button", { name: /Apps/ }));
+    await waitFor(() => {
+      expect(screen.getByTestId("agent-apps-picker")).toBeInTheDocument();
+    });
+    expect(within(section).getByText("slack")).toBeInTheDocument();
+    expect(within(section).getByText("general")).toBeInTheDocument();
+    expect(within(section).getByText("eng")).toBeInTheDocument();
+  });
+
+  it("wires selected channel subscriptions after the agent is created", async () => {
+    fetchMock.mockImplementation((url: RequestInfo | URL, init?: RequestInit) => {
+      const u = String(url);
+      if (u.includes("/api/repos")) return jsonResponse({ repos: [], default: "/tmp/repo" });
+      if (u === "/api/apps") {
+        return jsonResponse({
+          catalog: [],
+          instances: [
+            { name: "slack", app: "slack", enabled: true, connected: true, channels: ["slack:general"] },
+          ],
+        });
+      }
+      if (u === "/api/agents" && init?.method === "POST") {
+        return jsonResponse({ name: "bold-otter" });
+      }
+      if (init?.method === "POST") return jsonResponse({ status: "subscribed" });
+      return jsonResponse([]);
+    });
+    renderModal();
+
+    const section = screen.getByTestId("create-agent-apps-section");
+    fireEvent.click(within(section).getByRole("button", { name: /Apps/ }));
+    await waitFor(() => {
+      expect(within(section).getByText("general")).toBeInTheDocument();
+    });
+    fireEvent.click(within(section).getByRole("checkbox"));
+
+    fireEvent.change(screen.getByPlaceholderText("agent-name"), {
+      target: { value: "bold-otter" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("/absolute/path/to/repo"), {
+      target: { value: "/tmp/repo" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Create agent" }));
+
+    await waitFor(() => {
+      const sub = fetchMock.mock.calls.find(
+        (c) =>
+          String(c[0]) === "/api/apps/slack/channels/general/agents" &&
+          (c[1] as RequestInit | undefined)?.method === "POST",
+      );
+      expect(sub).toBeDefined();
+      const body = JSON.parse(String((sub![1] as RequestInit).body)) as Record<string, unknown>;
+      expect(body.agent).toBe("bold-otter");
+    });
   });
 });

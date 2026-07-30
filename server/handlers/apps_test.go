@@ -381,58 +381,71 @@ func TestAppsAuthNotSupported(t *testing.T) {
 	}
 }
 
-// TestGatewaysAliasRoutes verifies the transitional /api/gateways/*
-// aliases reach the same handlers as /api/apps/{name}/*.
-func TestGatewaysAliasRoutes(t *testing.T) {
+// TestAppsRoutes verifies the /api/apps surface end to end through the
+// mux — auth flows, delegated per-instance routes, the channel surface
+// under /api/apps/channels, and that the removed /api/gateways aliases
+// really are gone.
+func TestAppsRoutes(t *testing.T) {
 	h, _ := newAppsTestHandler(t)
 	mux := http.NewServeMux()
 	h.Register(mux)
 	h.gh.Register(mux)
 
-	// Alias pair route dispatches the auth flow.
-	req := httptest.NewRequest(http.MethodPost, "/api/gateways/fakeqr/pair", nil)
+	// Auth flow through the mux.
+	req := httptest.NewRequest(http.MethodPost, "/api/apps/fakeqr/auth", nil)
 	rr := httptest.NewRecorder()
 	mux.ServeHTTP(rr, req)
 	if rr.Code != http.StatusOK {
-		t.Fatalf("alias pair status = %d, want 200; body = %s", rr.Code, rr.Body.String())
+		t.Fatalf("auth status = %d, want 200; body = %s", rr.Code, rr.Body.String())
 	}
 	if !strings.Contains(rr.Body.String(), "qr_ready") {
-		t.Errorf("alias pair body = %s, want qr_ready", rr.Body.String())
+		t.Errorf("auth body = %s, want qr_ready", rr.Body.String())
 	}
 
-	// Alias pair/status.
-	req2 := httptest.NewRequest(http.MethodGet, "/api/gateways/fakeqr/pair/status", nil)
+	// Auth status poll.
+	req2 := httptest.NewRequest(http.MethodGet, "/api/apps/fakeqr/auth/status", nil)
 	rr2 := httptest.NewRecorder()
 	mux.ServeHTTP(rr2, req2)
 	if rr2.Code != http.StatusOK {
-		t.Fatalf("alias pair/status = %d, want 200", rr2.Code)
-	}
-
-	// GET /api/gateways lists instances from the apps config.
-	req3 := httptest.NewRequest(http.MethodGet, "/api/gateways", nil)
-	rr3 := httptest.NewRecorder()
-	mux.ServeHTTP(rr3, req3)
-	if rr3.Code != http.StatusOK {
-		t.Fatalf("alias list = %d, want 200", rr3.Code)
-	}
-	if !strings.Contains(rr3.Body.String(), "fakeqr") {
-		t.Errorf("alias list body = %s, want fakeqr", rr3.Body.String())
-	}
-
-	// Superseded platform PATCH is gone.
-	req4 := httptest.NewRequest(http.MethodPatch, "/api/gateways/fakeapp", strings.NewReader(`{}`))
-	rr4 := httptest.NewRecorder()
-	mux.ServeHTTP(rr4, req4)
-	if rr4.Code != http.StatusNotFound {
-		t.Errorf("PATCH alias status = %d, want 404", rr4.Code)
+		t.Fatalf("auth/status = %d, want 200", rr2.Code)
 	}
 
 	// /api/apps/{name}/health delegates to the shared gateway route.
-	req5 := httptest.NewRequest(http.MethodGet, "/api/apps/fakeqr/health", nil)
+	req3 := httptest.NewRequest(http.MethodGet, "/api/apps/fakeqr/health", nil)
+	rr3 := httptest.NewRecorder()
+	mux.ServeHTTP(rr3, req3)
+	if rr3.Code != http.StatusOK {
+		t.Fatalf("apps health = %d, want 200; body = %s", rr3.Code, rr3.Body.String())
+	}
+
+	// The channel surface lives under /api/apps/channels — the longest
+	// pattern wins over the /api/apps/{name} instance router.
+	req4 := httptest.NewRequest(http.MethodGet, "/api/apps/channels", nil)
+	rr4 := httptest.NewRecorder()
+	mux.ServeHTTP(rr4, req4)
+	if rr4.Code != http.StatusOK {
+		t.Fatalf("apps channels = %d, want 200; body = %s", rr4.Code, rr4.Body.String())
+	}
+	req5 := httptest.NewRequest(http.MethodGet, "/api/apps/channels/fakeqr:x/history", nil)
 	rr5 := httptest.NewRecorder()
 	mux.ServeHTTP(rr5, req5)
 	if rr5.Code != http.StatusOK {
-		t.Fatalf("apps health = %d, want 200; body = %s", rr5.Code, rr5.Body.String())
+		t.Fatalf("apps channel history = %d, want 200; body = %s", rr5.Code, rr5.Body.String())
+	}
+
+	// The transitional /api/gateways/* aliases are gone.
+	for _, alias := range []string{
+		"/api/gateways",
+		"/api/gateways/fakeqr/pair",
+		"/api/gateways/fakeqr/health",
+		"/api/gateways/activity",
+	} {
+		reqA := httptest.NewRequest(http.MethodGet, alias, nil)
+		rrA := httptest.NewRecorder()
+		mux.ServeHTTP(rrA, reqA)
+		if rrA.Code != http.StatusNotFound {
+			t.Errorf("%s status = %d, want 404 (alias removed)", alias, rrA.Code)
+		}
 	}
 
 	// Filesystem cleanup for the pair-first instance state.

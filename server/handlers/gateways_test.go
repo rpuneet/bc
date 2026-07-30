@@ -99,7 +99,7 @@ func parseIntFmt(s string, n *int) (int, error) {
 
 func TestGatewayAPIProxyRequestCloning(t *testing.T) {
 	// Verify that gatewayAPIProxy clones the request so the original URL is not mutated.
-	originalPath := "/api/gateways/test/api/v1/messages"
+	originalPath := "/api/apps/test/api/v1/messages"
 
 	var proxiedPath string
 	proxyHandler := http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
@@ -132,8 +132,9 @@ func TestGatewayAPIProxyRequestCloning(t *testing.T) {
 	}
 }
 
-func TestGatewayListPopulatesChannels(t *testing.T) {
-	// Create a gateway manager with a stub adapter that has discovered channels.
+func TestAppsCatalogPopulatesDynamicAdapterChannels(t *testing.T) {
+	// A gateway manager with a stub adapter that has discovered channels
+	// but no config entry — the catalog must still surface it.
 	gw := gateway.NewManager()
 
 	adapter := &stubAdapter{
@@ -164,32 +165,34 @@ func TestGatewayListPopulatesChannels(t *testing.T) {
 		}
 	}
 
-	// Now test the list handler. Without workspace config, dynamic adapters appear
-	// but the enrichment loop for channels only runs for config-based platforms.
-	// Test that the dynamic adapter entry at least appears with correct metadata.
-	h := &GatewayHandler{gw: gw}
+	// GET /api/apps: without workspace config the dynamic adapter still
+	// appears as an instance with its discovered channels and bot name.
+	h := &AppsHandler{gw: gw}
 
-	req := httptest.NewRequest(http.MethodGet, "/api/gateways", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/apps", nil)
 	rr := httptest.NewRecorder()
-	h.list(rr, req)
+	h.catalog(rr, req)
 
 	if rr.Code != http.StatusOK {
 		t.Fatalf("got status %d, want 200", rr.Code)
 	}
 
-	var platforms []struct { //nolint:govet // test-only struct, field order matches JSON
-		Platform string   `json:"platform"`
-		Channels []string `json:"channels"`
-		BotName  string   `json:"bot_name"`
-		Enabled  bool     `json:"enabled"`
+	var resp struct {
+		Instances []struct { //nolint:govet // test-only struct, field order matches JSON
+			Name     string   `json:"name"`
+			App      string   `json:"app"`
+			Channels []string `json:"channels"`
+			BotName  string   `json:"bot_name"`
+			Enabled  bool     `json:"enabled"`
+		} `json:"instances"`
 	}
-	if err := json.NewDecoder(rr.Body).Decode(&platforms); err != nil {
+	if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
 		t.Fatalf("decode response: %v", err)
 	}
 
 	found := false
-	for _, p := range platforms {
-		if p.Platform == "slack" {
+	for _, p := range resp.Instances {
+		if p.Name == "slack" {
 			found = true
 			if p.BotName != "bc-bot" {
 				t.Errorf("bot_name = %q, want %q", p.BotName, "bc-bot")
@@ -197,20 +200,20 @@ func TestGatewayListPopulatesChannels(t *testing.T) {
 			if !p.Enabled {
 				t.Error("dynamically registered adapter should be enabled=true")
 			}
-			// Channels array must never be null
-			if p.Channels == nil {
-				t.Error("channels should not be nil (should be [] in JSON)")
+			if len(p.Channels) < 2 {
+				t.Errorf("expected at least 2 channels, got %d", len(p.Channels))
 			}
 		}
 	}
 	if !found {
-		t.Error("slack platform not found in gateway list")
+		t.Error("slack instance not found in apps catalog")
 	}
 
-	// Verify via the per-platform channels endpoint that channels are discoverable
-	req2 := httptest.NewRequest(http.MethodGet, "/api/gateways/slack/channels", nil)
+	// Verify via the per-instance channels endpoint that channels are discoverable
+	gh := &GatewayHandler{gw: gw}
+	req2 := httptest.NewRequest(http.MethodGet, "/api/apps/slack/channels", nil)
 	rr2 := httptest.NewRecorder()
-	h.gatewayChannels(rr2, req2, "slack", "")
+	gh.gatewayChannels(rr2, req2, "slack", "")
 
 	if rr2.Code != http.StatusOK {
 		t.Fatalf("channels endpoint: got status %d, want 200", rr2.Code)
@@ -238,8 +241,8 @@ func TestGatewayListPopulatesChannels(t *testing.T) {
 	}
 }
 
-func TestGatewayListNoNullChannels(t *testing.T) {
-	// Verify channels is never null in JSON output (always []).
+func TestAppsCatalogNoNullChannels(t *testing.T) {
+	// Verify instance channels are never null in JSON output (always []).
 	gw := gateway.NewManager()
 	adapter := &stubAdapter{
 		name:     "discord",
@@ -252,11 +255,11 @@ func TestGatewayListNoNullChannels(t *testing.T) {
 	cancel()
 	_ = gw.Start(ctx)
 
-	h := &GatewayHandler{gw: gw}
+	h := &AppsHandler{gw: gw}
 
-	req := httptest.NewRequest(http.MethodGet, "/api/gateways", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/apps", nil)
 	rr := httptest.NewRecorder()
-	h.list(rr, req)
+	h.catalog(rr, req)
 
 	body := rr.Body.String()
 	// Check that channels is [] not null
