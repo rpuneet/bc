@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
  * - URLs become clickable links (images rendered inline)
  * - **bold** text
  * - `code` backticks
- * - #channel references link to /notifications/<name>
+ * - #channel references link to /apps/<name>
  * - @mentions link to agent detail page
  * - [file:ID] attachment references rendered as inline images or download links
  */
@@ -140,12 +140,12 @@ function parseContent(text: string, agentNames?: Set<string>): ReactNode[] {
         </code>,
       );
     } else if (match[5]) {
-      // #channel reference → link to /notifications/<name>
+      // #channel reference → link to /apps/<name>
       const sourceName = full.slice(1);
       nodes.push(
         <a
           key={key}
-          href={`/notifications/${sourceName}`}
+          href={`/apps/${sourceName}`}
           className="text-mycel-accent font-medium hover:underline"
         >
           {full}

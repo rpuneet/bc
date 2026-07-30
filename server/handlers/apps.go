@@ -67,15 +67,18 @@ type appDescriptorJSON struct { //nolint:govet // field order matches JSON/API c
 }
 
 // appInstanceJSON is the wire shape of one connected instance with its
-// live adapter status.
+// live adapter status. Config holds the plain fields plus server-computed
+// has_<field> booleans for secret fields — secret values never leave the
+// server. Channels are the adapter's discovered bc channel keys.
 type appInstanceJSON struct { //nolint:govet // field order matches JSON/API contract
-	Name      string            `json:"name"`
-	App       string            `json:"app"`
-	Enabled   bool              `json:"enabled"`
-	Config    map[string]string `json:"config,omitempty"`
-	Connected bool              `json:"connected"`
-	BotName   string            `json:"bot_name,omitempty"`
-	Error     string            `json:"error,omitempty"`
+	Name      string         `json:"name"`
+	App       string         `json:"app"`
+	Enabled   bool           `json:"enabled"`
+	Config    map[string]any `json:"config,omitempty"`
+	Connected bool           `json:"connected"`
+	BotName   string         `json:"bot_name,omitempty"`
+	Error     string         `json:"error,omitempty"`
+	Channels  []string       `json:"channels"`
 }
 
 func descriptorJSON(d app.Descriptor) appDescriptorJSON {
@@ -115,7 +118,23 @@ func (h *AppsHandler) catalog(w http.ResponseWriter, r *http.Request) {
 		catalog = append(catalog, descriptorJSON(p.Describe()))
 	}
 
+	var discovered []string
+	if h.gw != nil {
+		discovered = h.gw.DiscoveredSources()
+	}
+	channelsFor := func(name string) []string {
+		chs := []string{}
+		prefix := name + ":"
+		for _, ch := range discovered {
+			if strings.HasPrefix(ch, prefix) {
+				chs = append(chs, ch)
+			}
+		}
+		return chs
+	}
+
 	instances := make([]appInstanceJSON, 0)
+	seen := make(map[string]bool)
 	if h.ws != nil && h.ws.Config != nil {
 		names := make([]string, 0, len(h.ws.Config.Apps))
 		for name := range h.ws.Config.Apps {
@@ -124,11 +143,26 @@ func (h *AppsHandler) catalog(w http.ResponseWriter, r *http.Request) {
 		sort.Strings(names)
 		for _, name := range names {
 			ic := h.ws.Config.Apps[name]
+			seen[name] = true
+			cfg := make(map[string]any, len(ic.Config))
+			for k, v := range ic.Config {
+				cfg[k] = v
+			}
+			// Secret fields surface as has_<field> booleans so the UI can
+			// render a "configured" state without ever seeing the value.
+			if plugin, ok := app.Get(ic.App); ok {
+				for _, f := range plugin.Describe().Fields {
+					if f.Secret {
+						cfg["has_"+f.Key] = h.hasSecret(name, f.Key)
+					}
+				}
+			}
 			inst := appInstanceJSON{
-				Name:    name,
-				App:     ic.App,
-				Enabled: ic.Enabled,
-				Config:  ic.Config,
+				Name:     name,
+				App:      ic.App,
+				Enabled:  ic.Enabled,
+				Config:   cfg,
+				Channels: channelsFor(name),
 			}
 			if h.gw != nil {
 				status := h.gw.AdapterStatus(name)
@@ -137,6 +171,26 @@ func (h *AppsHandler) catalog(w http.ResponseWriter, r *http.Request) {
 				inst.Error = status.Error
 			}
 			instances = append(instances, inst)
+		}
+	}
+
+	// Dynamically registered adapters not in config (e.g. an adapter
+	// started programmatically) still surface as instances.
+	if h.gw != nil {
+		for _, name := range h.gw.AdapterNames() {
+			if seen[name] {
+				continue
+			}
+			status := h.gw.AdapterStatus(name)
+			instances = append(instances, appInstanceJSON{
+				Name:      name,
+				App:       instanceApp(name),
+				Enabled:   true,
+				Connected: status.Connected,
+				BotName:   status.BotName,
+				Error:     status.Error,
+				Channels:  channelsFor(name),
+			})
 		}
 	}
 

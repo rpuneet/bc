@@ -912,7 +912,7 @@ export function Stats() {
                   cursor="pointer"
                   onClick={(entry) => {
                     const full = (entry as { fullName?: string }).fullName;
-                    if (full) navigate(`/notifications/${encodeURIComponent(full)}`);
+                    if (full) navigate(`/apps/${encodeURIComponent(full)}`);
                   }}
                 >
                   {notificationBarData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}

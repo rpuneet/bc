@@ -6,10 +6,10 @@ import { Agents } from "../Agents";
 import { AgentDetail, lifecycleDisabled } from "../AgentDetail";
 import { CodeBrowser } from "../../components/code/CodeBrowser";
 import { EmptyState } from "../../components/EmptyState";
-import { Notifications } from "../Notifications";
+import { Apps } from "../Apps";
 import { Tools } from "../Tools";
 import { Live } from "../Live";
-import { Secrets } from "../Secrets";
+import { CustomKeysSection } from "../../components/apps/CustomKeys";
 
 // Monaco loads its editor bundle from a CDN at mount time — stub it out so
 // CodeBrowser can render under jsdom.
@@ -460,20 +460,20 @@ describe("AgentDetail lifecycle controls", () => {
   });
 });
 
-describe("Notifications", () => {
-  it("renders skeleton loading then empty state when no gateway sources", async () => {
-    // An empty response means no gateway notification sources are connected yet.
+describe("Apps", () => {
+  it("renders skeleton loading then empty state when nothing is connected", async () => {
+    // An empty response means no apps or channels are connected yet.
     fetchMock.mockReturnValue(jsonResponse([]));
-    const { container } = wrap(<Notifications />);
+    const { container } = wrap(<Apps />);
     expectSkeletonLoading(container);
     await waitFor(() => {
-      // The Notifications view shows "Connect your first app" when no gateway sources exist.
+      // The Apps view shows "Connect your first app" when nothing exists.
       expect(screen.getByText("Connect your first app")).toBeInTheDocument();
     });
   });
 
-  it("renders the notifications home hub when no channel is selected", async () => {
-    // Simulate a slack gateway source — the hub lists it grouped by app.
+  it("renders the apps home hub when no channel is selected", async () => {
+    // Simulate a slack channel — the hub lists it grouped by app.
     fetchMock.mockImplementation((url: RequestInfo | URL) => {
       const u = String(url);
       if (u.includes("/notifications/overview")) {
@@ -484,16 +484,23 @@ describe("Notifications", () => {
           json: () => Promise.resolve({ error: "not found" }),
         } as Response);
       }
-      if (u.includes("/api/channels") && !u.includes("/history")) {
+      if (u.includes("/history")) return jsonResponse([]);
+      if (u.includes("/api/apps/channels")) {
         return jsonResponse([
           { name: "slack:general", description: "Gateway channel", members: [], member_count: 0 },
         ]);
       }
+      if (u.includes("/api/apps")) {
+        return jsonResponse({
+          catalog: [{ id: "slack", label: "Slack", auth: "token", multi: false, fields: [], docs: [] }],
+          instances: [{ name: "slack", app: "slack", enabled: true, connected: true, channels: [] }],
+        });
+      }
       return jsonResponse([]);
     });
-    wrap(<Notifications />);
+    wrap(<Apps />);
     await waitFor(() => {
-      // The hub renders the channel row (leaf name) and the connect card.
+      // The hub renders the channel row (leaf name) and the connect pill.
       expect(screen.getByText("general")).toBeInTheDocument();
     });
     expect(screen.getByRole("button", { name: /Connect an app/ })).toBeInTheDocument();
@@ -573,8 +580,8 @@ describe("Live", () => {
   });
 });
 
-describe("Secrets", () => {
-  it("renders skeleton loading then secrets table", async () => {
+describe("CustomKeysSection", () => {
+  it("renders skeleton loading then the custom keys list", async () => {
     fetchMock.mockReturnValue(
       jsonResponse([
         {
@@ -585,11 +592,13 @@ describe("Secrets", () => {
         },
       ]),
     );
-    const { container } = wrap(<Secrets />);
+    const { container } = wrap(<CustomKeysSection />);
     expectSkeletonLoading(container);
     await waitFor(() => {
       expect(screen.getByText("API_KEY")).toBeInTheDocument();
     });
+    // The ${secret:NAME} usage hint renders per key.
+    expect(screen.getByText("${secret:API_KEY}")).toBeInTheDocument();
   });
 });
 

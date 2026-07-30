@@ -109,9 +109,11 @@ func TestAppsCatalog(t *testing.T) {
 			} `json:"fields"`
 		} `json:"catalog"`
 		Instances []struct {
-			Name    string `json:"name"`
-			App     string `json:"app"`
-			Enabled bool   `json:"enabled"`
+			Name     string         `json:"name"`
+			App      string         `json:"app"`
+			Enabled  bool           `json:"enabled"`
+			Config   map[string]any `json:"config"`
+			Channels []string       `json:"channels"`
 		} `json:"instances"`
 	}
 	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
@@ -131,7 +133,77 @@ func TestAppsCatalog(t *testing.T) {
 		t.Error("catalog missing fakeapp descriptor")
 	}
 	if len(resp.Instances) != 1 || resp.Instances[0].Name != "fakeapp:ci" || !resp.Instances[0].Enabled {
-		t.Errorf("instances = %+v, want one enabled fakeapp:ci", resp.Instances)
+		t.Fatalf("instances = %+v, want one enabled fakeapp:ci", resp.Instances)
+	}
+
+	inst := resp.Instances[0]
+	// Channels is always an array, never null.
+	if inst.Channels == nil {
+		t.Error("instance channels should be [], not null")
+	}
+	// Secret fields surface as has_<field> booleans; the vault is empty
+	// here so the token reads as not configured.
+	if got, ok := inst.Config["has_token"]; !ok || got != false {
+		t.Errorf("config has_token = %v (present %v), want false", got, ok)
+	}
+	if inst.Config["region"] != "eu" {
+		t.Errorf("config region = %v, want eu", inst.Config["region"])
+	}
+}
+
+// TestAppsCatalogConfiguredSecretAndChannels verifies has_<field> flips
+// once the vault holds a value and that discovered adapter channels are
+// attached to their instance.
+func TestAppsCatalogConfiguredSecretAndChannels(t *testing.T) {
+	h, gw := newAppsTestHandler(t)
+	h.ws.Config.Apps = map[string]app.InstanceConfig{
+		"fakeapp:ci": {App: "fakeapp", Enabled: true, Config: map[string]string{"region": "eu"}},
+	}
+	if err := h.vault.Set("app:fakeapp:ci:token", "sekret", "app credential"); err != nil {
+		t.Fatalf("seed vault: %v", err)
+	}
+	// Seed a discovered channel for the instance via an inbound notification.
+	gw.Register(&stubAdapter{name: "fakeapp:ci"})
+	gw.HandleNotification("fakeapp:ci", gateway.Notification{
+		Channel: "ci-alerts", ChannelID: "C1", Platform: "fakeapp", Sender: "bot", Content: "hi",
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/apps", nil)
+	rr := httptest.NewRecorder()
+	h.catalog(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body = %s", rr.Code, rr.Body.String())
+	}
+
+	var resp struct {
+		Instances []struct {
+			Name     string         `json:"name"`
+			Config   map[string]any `json:"config"`
+			Channels []string       `json:"channels"`
+		} `json:"instances"`
+	}
+	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(resp.Instances) != 1 {
+		t.Fatalf("instances = %+v, want one", resp.Instances)
+	}
+	inst := resp.Instances[0]
+	if got := inst.Config["has_token"]; got != true {
+		t.Errorf("has_token = %v, want true", got)
+	}
+	found := false
+	for _, ch := range inst.Channels {
+		if strings.HasPrefix(ch, "fakeapp:ci:") {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("channels = %v, want one with fakeapp:ci: prefix", inst.Channels)
+	}
+	// The raw secret value never appears in the catalog payload.
+	if strings.Contains(rr.Body.String(), "sekret") {
+		t.Error("secret value leaked into catalog response")
 	}
 }
 

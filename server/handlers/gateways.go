@@ -37,10 +37,18 @@ func (h *GatewayHandler) SetNotifyService(svc *notify.Service) {
 
 // Register mounts gateway routes.
 func (h *GatewayHandler) Register(mux *http.ServeMux) {
-	// Channel list/history endpoints — primary API for the web UI and TUI.
-	mux.HandleFunc("/api/channels", h.legacyChannelList)
+	// Channel surface under the apps namespace — the web UI's primary
+	// paths. Longest-pattern matching keeps these ahead of the generic
+	// /api/apps/{name} instance router.
+	mux.HandleFunc("/api/apps/channels", h.channelList)
+	mux.HandleFunc("/api/apps/channels/send", h.channelSend)
+	mux.HandleFunc("/api/apps/channels/", h.channelHistory)
+
+	// Same handlers at the historical paths — the Go CLI client and TUI
+	// still call /api/channels*.
+	mux.HandleFunc("/api/channels", h.channelList)
 	mux.HandleFunc("/api/channels/send", h.channelSend)
-	mux.HandleFunc("/api/channels/", h.legacyChannelHistory)
+	mux.HandleFunc("/api/channels/", h.channelHistory)
 	mux.HandleFunc("/api/gateways/activity", h.activity)
 	mux.HandleFunc("/api/gateways", h.list)
 
@@ -418,10 +426,8 @@ func (h *GatewayHandler) list(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, platforms)
 }
 
-// legacyChannelList returns gateway channels in the old Channel format
-// so the frontend's listChannels() call still works after pkg/channel deletion.
-// channelSend handles POST /api/channels/send — routes a text message from a
-// named sender through the gateway to an external platform channel.
+// channelSend handles POST /api/apps/channels/send — routes a text message
+// from a named sender through the gateway to an external platform channel.
 // Body: {"channel": "...", "message": "...", "sender": "..."} (sender defaults to "api").
 // Returns 200 {"sent":true} when the gateway delivered the message, or
 // 200 {"sent":false} when no route is configured (not an error).
@@ -464,7 +470,9 @@ func (h *GatewayHandler) channelSend(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]bool{"sent": sent})
 }
 
-func (h *GatewayHandler) legacyChannelList(w http.ResponseWriter, r *http.Request) {
+// channelList handles GET /api/apps/channels — every known bc channel
+// (discovered gateway channels plus channels with notify subscriptions).
+func (h *GatewayHandler) channelList(w http.ResponseWriter, r *http.Request) {
 	if !requireMethod(w, r, http.MethodGet) {
 		return
 	}
@@ -512,14 +520,16 @@ func (h *GatewayHandler) legacyChannelList(w http.ResponseWriter, r *http.Reques
 	writeJSON(w, http.StatusOK, channels)
 }
 
-// legacyChannelHistory returns message history from notify_messages.
-func (h *GatewayHandler) legacyChannelHistory(w http.ResponseWriter, r *http.Request) {
+// channelHistory returns message history from notify_messages.
+// GET /api/apps/channels/{name}/history (and the /api/channels alias).
+func (h *GatewayHandler) channelHistory(w http.ResponseWriter, r *http.Request) {
 	if !requireMethod(w, r, http.MethodGet) {
 		return
 	}
 
-	// Extract channel name: /api/channels/{name}/history
-	path := strings.TrimPrefix(r.URL.Path, "/api/channels/")
+	// Extract channel name: .../channels/{name}/history
+	path := strings.TrimPrefix(r.URL.Path, "/api/apps/channels/")
+	path = strings.TrimPrefix(path, "/api/channels/")
 	path = strings.TrimSuffix(path, "/history")
 	path = strings.TrimSuffix(path, "/messages")
 	channelName := path

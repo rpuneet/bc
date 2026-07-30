@@ -4,15 +4,15 @@ import { api } from "../api/client";
 import type { NotificationSource } from "../api/client";
 import { usePolling } from "../hooks/usePolling";
 import { AgentPeekPanel } from "../components/AgentPeekPanel";
-import { GatewayFeed } from "../components/notifications/GatewayFeed";
-import { NotificationsHome } from "../components/notifications/NotificationsHome";
+import { GatewayFeed } from "../components/apps/GatewayFeed";
+import { AppsHome } from "../components/apps/AppsHome";
 
 /**
- * /notifications — the hub (NotificationsHome) when no channel is
- * selected; the existing channel feed when one is. The hub owns its own
- * data fetching, loading and empty states.
+ * /apps — the hub (AppsHome) when no channel is selected; the channel
+ * feed when one is. The hub owns its own data fetching, loading and
+ * empty states.
  */
-export function Notifications() {
+export function Apps() {
   // No page title in the header — the drawer names the section.
   // GatewayFeed contributes its channel breadcrumb when a channel is active.
   const { sourceName: paramSource } = useParams<{ sourceName: string }>();
@@ -25,7 +25,7 @@ export function Notifications() {
   const { data: sources } = usePolling(fetcher, 10000);
 
   if (!selected) {
-    return <NotificationsHome />;
+    return <AppsHome />;
   }
 
   const selectedSource = (sources ?? []).find((c: NotificationSource) => c.name === selected);

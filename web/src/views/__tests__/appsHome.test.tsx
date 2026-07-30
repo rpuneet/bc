@@ -3,12 +3,12 @@ import { render, screen, waitFor, fireEvent, within } from "@testing-library/rea
 import { MemoryRouter } from "react-router-dom";
 import { HeaderSlotProvider, useHeaderSlotContext } from "../../context/HeaderSlotContext";
 import {
-  NotificationsHome,
+  AppsHome,
   buildHomeModel,
   channelLeaf,
   resolveChannelKind,
   whatsappKindFromId,
-} from "../../components/notifications/NotificationsHome";
+} from "../../components/apps/AppsHome";
 
 const fetchMock = globalThis.fetch as ReturnType<typeof vi.fn>;
 
@@ -76,6 +76,20 @@ const gateways = [
   { platform: "slack", enabled: true, channels: [] },
 ];
 
+const labels = { whatsapp: "WhatsApp", slack: "Slack" };
+
+/** GET /api/apps payload the home composes its model from. */
+const appsCatalog = {
+  catalog: [
+    { id: "whatsapp", label: "WhatsApp", auth: "qr", multi: false, fields: [], docs: [] },
+    { id: "slack", label: "Slack", auth: "token", multi: false, fields: [], docs: [] },
+  ],
+  instances: [
+    { name: "whatsapp", app: "whatsapp", enabled: true, connected: true, channels: [] },
+    { name: "slack", app: "slack", enabled: true, connected: false, channels: [] },
+  ],
+};
+
 const subs = [
   { id: 1, channel: GROUP_CH, agent: "zen-zebra", mention_only: false, created_at: NOW },
 ];
@@ -99,16 +113,17 @@ function mockRoutes({ overviewBody = overview as unknown }: { overviewBody?: unk
     if (u.includes("/history")) {
       return jsonResponse(u.includes(encodeURIComponent(GROUP_CH)) || u.includes(GROUP_CH) ? groupHistory : []);
     }
-    if (/\/api\/gateways\/[^/]+\/health/.test(u)) {
+    if (/\/api\/apps\/[^/]+\/health/.test(u)) {
       if (u.includes("whatsapp")) {
         return jsonResponse({ platform: "whatsapp", connected: true, status: "connected", last_message_at: NOW });
       }
       return jsonResponse({ platform: "slack", connected: false, status: "error", error: "invalid_auth" });
     }
-    if (u.includes("/api/gateways")) return jsonResponse(gateways);
+    if (u.includes("/api/apps/channels")) return jsonResponse(sources);
+    if (u.includes("/api/apps")) return jsonResponse(appsCatalog);
     if (u.includes("/notify/subscriptions")) return jsonResponse(subs);
     if (u.includes("/stats/channels")) return jsonResponse(stats);
-    if (u.includes("/api/channels")) return jsonResponse(sources);
+    if (u.includes("/api/secrets")) return jsonResponse([]);
     return jsonResponse([]);
   });
 }
@@ -130,7 +145,7 @@ function renderHome() {
     <MemoryRouter>
       <HeaderSlotProvider>
         <HeaderHost />
-        <NotificationsHome />
+        <AppsHome />
       </HeaderSlotProvider>
     </MemoryRouter>,
   );
@@ -142,7 +157,7 @@ beforeEach(() => {
 
 /* ── Pure helpers ────────────────────────────────────────────── */
 
-describe("NotificationsHome helpers", () => {
+describe("AppsHome helpers", () => {
   it("classifies WhatsApp channels by JID shape", () => {
     expect(whatsappKindFromId(GROUP_CH)).toBe("group");
     expect(whatsappKindFromId(PERSON_CH)).toBe("person");
@@ -165,6 +180,7 @@ describe("NotificationsHome helpers", () => {
       overview,
       sources,
       gateways,
+      labels,
       health: {
         whatsapp: { platform: "whatsapp", connected: true, status: "connected", last_message_at: NOW },
       },
@@ -187,6 +203,7 @@ describe("NotificationsHome helpers", () => {
       overview: null,
       sources,
       gateways,
+      labels,
       health: {},
       subs,
       stats,
@@ -202,7 +219,7 @@ describe("NotificationsHome helpers", () => {
 
 /* ── Page ────────────────────────────────────────────────────── */
 
-describe("NotificationsHome", () => {
+describe("AppsHome", () => {
   it("renders apps strip and channels grouped by app from overview data", async () => {
     mockRoutes();
     renderHome();
@@ -313,6 +330,6 @@ describe("NotificationsHome", () => {
       expect(screen.getByText("Family Group")).toBeInTheDocument();
     });
     const viewAll = screen.getByRole("link", { name: /View all activity/i });
-    expect(viewAll).toHaveAttribute("href", "/notifications/activity");
+    expect(viewAll).toHaveAttribute("href", "/apps/activity");
   });
 });

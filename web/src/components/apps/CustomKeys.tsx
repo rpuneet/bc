@@ -1,12 +1,19 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { api } from "../api/client";
-import type { Secret } from "../api/client";
-import { usePolling } from "../hooks/usePolling";
-import { LoadingSkeleton } from "../components/LoadingSkeleton";
-import { EmptyState } from "../components/EmptyState";
+/**
+ * CustomKeysSection — encrypted vault keys agents reference via
+ * ${secret:NAME}, rendered as a section of the Apps home. App
+ * credentials live with their app (app:<instance>:<field> keys, managed
+ * by the connect flow); this section is for the user's own custom keys.
+ * Absorbed from the old standalone /secrets page — same add / update /
+ * delete flows against /api/secrets.
+ */
 
-import { useHeaderSlot } from "../context/HeaderSlotContext";
-import { formatRelative } from "../utils/time";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { api } from "../../api/client";
+import type { Secret } from "../../api/client";
+import { usePolling } from "../../hooks/usePolling";
+import { LoadingSkeleton } from "../LoadingSkeleton";
+import { EmptyState } from "../EmptyState";
+import { formatRelative } from "../../utils/time";
 
 const timeAgo = (dateStr: string): string => formatRelative(dateStr);
 
@@ -82,7 +89,7 @@ function AddSecretForm({
       className="rounded-lg border border-mycel-border bg-mycel-surface p-5 space-y-4 shadow-mycel"
     >
       <div className="flex items-center justify-between">
-        <h2 className="text-base font-semibold text-mycel-text">New Secret</h2>
+        <h2 className="text-base font-semibold text-mycel-text">New Custom Key</h2>
         <button
           type="button"
           onClick={() => { onClose(); setError(null); }}
@@ -151,7 +158,7 @@ function AddSecretForm({
         disabled={saving || !name.trim() || !value.trim()}
         className="inline-flex items-center h-9 px-3 rounded-md bg-mycel-accent text-mycel-accent-fg text-sm font-medium hover:bg-mycel-accent-hover shadow-mycel-sm disabled:opacity-50 transition-colors"
       >
-        {saving ? "Creating..." : "Create Secret"}
+        {saving ? "Creating..." : "Create Key"}
       </button>
     </form>
   );
@@ -377,9 +384,9 @@ function SecretCard({ secret, onChanged }: { secret: Secret; onChanged: () => vo
   );
 }
 
-// --- Main View ---
+// --- Section (Apps home) ---
 
-export function Secrets() {
+export function CustomKeysSection() {
   const fetcher = useCallback(() => api.listSecrets(), []);
   const {
     data: secrets,
@@ -390,87 +397,54 @@ export function Secrets() {
   } = usePolling(fetcher, 30000);
   const [addOpen, setAddOpen] = useState(false);
 
-  // Header slot — count + encryption note center-left, primary CTA
-  // right, following the Agents pattern. The encryption note moved up
-  // here from the page body so the header carries the full context.
-  useHeaderSlot({
-    title: secrets ? (
-      <span className="flex items-center gap-2 min-w-0 text-xs text-mycel-text-2">
-        <span className="tabular-nums shrink-0">{String(secrets.length)} secrets</span>
-        <span className="hidden sm:inline-flex items-center gap-2 text-mycel-muted min-w-0">
-          <span className="h-3 w-px bg-mycel-border shrink-0" aria-hidden />
-          <span className="truncate">AES-256-GCM encrypted · values never exposed via API</span>
-        </span>
-      </span>
-    ) : undefined,
-    actions: (
-      <button
-        type="button"
-        onClick={() => setAddOpen((v) => !v)}
-        className="shrink-0 inline-flex items-center h-8 px-3 rounded-md text-xs font-medium bg-mycel-accent text-mycel-accent-fg hover:bg-mycel-accent-hover shadow-mycel-sm transition-colors"
-        aria-label="Add new secret"
-      >
-        + Add Secret
-      </button>
-    ),
-  });
-
-  if (loading && !secrets) {
-    return (
-      <div className="p-6 space-y-4">
-        <div className="h-6 w-32 animate-pulse rounded-md bg-mycel-surface-hover" />
-        <LoadingSkeleton variant="table" rows={3} />
-      </div>
-    );
-  }
-
-  if (timedOut && !secrets) {
-    return (
-      <div className="p-6">
-        <EmptyState
-          icon="!"
-          title="Secrets took too long to load"
-          description="The server may be unavailable. Check your connection and try again."
-          actionLabel="Retry"
-          onAction={refresh}
-        />
-      </div>
-    );
-  }
-
-  if (error && !secrets) {
-    return (
-      <div className="p-6">
-        <EmptyState
-          icon="!"
-          title="Failed to load secrets"
-          description={error}
-          actionLabel="Retry"
-          onAction={refresh}
-        />
-      </div>
-    );
-  }
-
   const list = secrets ?? [];
 
   return (
-    <div className="p-6 space-y-5">
-      {/* Add form — opened from the + Add Secret button in the top bar.
-          Title, count and the encryption note all live in the header. */}
-      <AddSecretForm
-        open={addOpen}
-        onClose={() => setAddOpen(false)}
-        onCreated={refresh}
-      />
+    <section id="custom-keys" aria-label="Custom keys" className="space-y-3 scroll-mt-6">
+      {/* Section header — mirrors the channel-group headers above. */}
+      <div className="flex items-center gap-2">
+        <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.3" className="text-mycel-muted" aria-hidden>
+          <path d="M7 2.5a2 2 0 00-2 2V6H4v4.5h6V6H9V4.5a2 2 0 00-2-2zm0 5.5a.75.75 0 110 1.5.75.75 0 010-1.5z" />
+        </svg>
+        <h3 className="text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted">Custom Keys</h3>
+        {secrets && (
+          <span className="text-[11px] text-mycel-muted tabular-nums">{list.length}</span>
+        )}
+        <span className="hidden sm:inline text-[11px] text-mycel-muted">
+          · AES-256-GCM encrypted · reference as <code className="font-mono text-mycel-text-2">{"${secret:NAME}"}</code> in agent env
+        </span>
+        <button
+          type="button"
+          onClick={() => { setAddOpen((v) => !v); }}
+          className="ml-auto shrink-0 inline-flex items-center h-7 px-2.5 rounded-md text-[11px] font-medium bg-mycel-accent text-mycel-accent-fg hover:bg-mycel-accent-hover shadow-mycel-sm transition-colors"
+          aria-label="Add custom key"
+        >
+          + Add Key
+        </button>
+      </div>
 
-      {/* Secret cards */}
-      {list.length === 0 ? (
-        <EmptyState
-          icon="*"
-          title="No secrets stored"
-          description="Click '+ Add Secret' in the top bar or run 'mycel secret set <name> --value <value>'."
+      {addOpen && (
+        <AddSecretForm
+          open={addOpen}
+          onClose={() => { setAddOpen(false); }}
+          onCreated={refresh}
         />
+      )}
+
+      {loading && !secrets ? (
+        <LoadingSkeleton variant="table" rows={2} />
+      ) : (timedOut || error) && !secrets ? (
+        <EmptyState
+          icon="!"
+          title="Failed to load custom keys"
+          description={error ?? "The server may be unavailable."}
+          actionLabel="Retry"
+          onAction={refresh}
+        />
+      ) : list.length === 0 ? (
+        <div className="rounded-lg border border-mycel-border p-6 text-center text-xs text-mycel-muted">
+          No custom keys yet — add one here or run <code className="font-mono text-mycel-text-2">mycel secret set &lt;name&gt;</code>.
+        </div>
       ) : (
         <div className="grid gap-3">
           {list.map((s) => (
@@ -478,6 +452,6 @@ export function Secrets() {
           ))}
         </div>
       )}
-    </div>
+    </section>
   );
 }
