@@ -21,6 +21,9 @@ func (plugin) Describe() app.Descriptor {
 		ID:    "whatsapp",
 		Label: "WhatsApp",
 		Auth:  app.AuthQR,
+		Fields: []app.FieldSpec{
+			{Key: "include_self_messages", Label: "Include Self Messages", Placeholder: "false"},
+		},
 		Docs: []string{
 			"Click Connect to generate a QR code.",
 			"Scan it with WhatsApp → Linked Devices on your phone.",
@@ -30,7 +33,9 @@ func (plugin) Describe() app.Descriptor {
 }
 
 func (plugin) Build(inst app.Instance, env app.Env) (gateway.NotificationAdapter, error) {
-	return pairableAdapter{NewNamed(inst.Name, env.StateDir)}, nil
+	a := NewNamed(inst.Name, env.StateDir)
+	a.SetIncludeSelfMessages(inst.Config["include_self_messages"] == "true")
+	return pairableAdapter{a}, nil
 }
 
 // pairableAdapter exposes the adapter's QR pairing flow through the
