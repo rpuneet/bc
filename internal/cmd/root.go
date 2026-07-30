@@ -9,7 +9,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/rpuneet/mycel/pkg/log"
-	"github.com/rpuneet/mycel/pkg/ui"
 )
 
 var (
@@ -125,10 +124,10 @@ func Root() *cobra.Command {
 	return rootCmd
 }
 
-// runRoot handles the default bc command (no subcommand).
-// If workspace is initialized → open TUI home
-// If not initialized → point at `mycel up` (which bootstraps everything)
-// In non-interactive mode → show help
+// runRoot handles the default mycel command (no subcommand).
+// Interactive terminal → make sure the daemon runs and open the
+// dashboard (works from any directory; `mycel up` bootstraps ~/.mycel).
+// Non-interactive mode → show help.
 func runRoot(cmd *cobra.Command, args []string) error {
 	// Check for version flag
 	showVersion, err := cmd.Flags().GetBool("version")
@@ -143,23 +142,6 @@ func runRoot(cmd *cobra.Command, args []string) error {
 		return cmd.Help()
 	}
 
-	// Try to find workspace
-	ws, err := getRepo()
-	if err == nil && ws != nil {
-		// Workspace exists - open TUI home
-		log.Debug("workspace found, opening home", "root", ws.RootDir)
-		return runHome(cmd, args)
-	}
-
-	// No workspace yet — `mycel up` bootstraps everything, so just point there.
-	fmt.Println()
-	fmt.Printf("  %s\n", ui.BoldText("mycel - AI Agent Orchestration"))
-	fmt.Println()
-	fmt.Println("  No mycel-adopted repo found.")
-	fmt.Println()
-	fmt.Println("  Run 'mycel up' from your repo to start the server —")
-	fmt.Println("  it adopts the repo automatically (state lives under ~/.mycel).")
-	fmt.Println("  You can also add repos later from the web UI.")
-	fmt.Println()
-	return nil
+	// The daemon is CWD-free: boot it (if needed) and open the web UI.
+	return runHome(cmd, args)
 }

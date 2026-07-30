@@ -2,31 +2,29 @@ package handlers
 
 import (
 	"net/http"
-	"path/filepath"
 	"sort"
 	"time"
 
 	"github.com/rpuneet/mycel/pkg/cost"
 )
 
-// GlobalCostsHandler serves per-repo cost rollups from the user-global
-// ledger.
+// GlobalCostsHandler serves per-repo cost rollups computed directly
+// from provider session files.
 //
 // GET /api/global/costs?start=<RFC3339|YYYY-MM-DD>&groupBy=repo|project
 //
 //   - `start` defaults to 30 days ago when omitted.
-//   - `end` is not honored because the underlying store only accepts a
-//     lower bound (`since`); callers that need a window should narrow on
-//     the client. TODO(#250): widen pkg/cost to accept a full range.
+//   - Rows are keyed by the session working directory ("repo"); sources
+//     without a recorded working dir roll up under "unattributed".
 type GlobalCostsHandler struct {
-	store *cost.Store
+	svc *cost.Service
 }
 
-// NewGlobalCostsHandler builds a handler. If store is nil the endpoint
-// returns 503, keeping production test harnesses that don't wire a
-// global ledger from panicking.
-func NewGlobalCostsHandler(store *cost.Store) *GlobalCostsHandler {
-	return &GlobalCostsHandler{store: store}
+// NewGlobalCostsHandler builds a handler. If svc is nil the endpoint
+// returns 503, keeping test harnesses that don't wire costs from
+// panicking.
+func NewGlobalCostsHandler(svc *cost.Service) *GlobalCostsHandler {
+	return &GlobalCostsHandler{svc: svc}
 }
 
 // CostRow is one row of the /api/global/costs response.
@@ -51,8 +49,8 @@ func (h *GlobalCostsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		httpError(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	if h.store == nil {
-		httpError(w, "global cost ledger not configured", http.StatusServiceUnavailable)
+	if h.svc == nil {
+		httpError(w, "cost service not configured", http.StatusServiceUnavailable)
 		return
 	}
 
@@ -94,17 +92,15 @@ func (h *GlobalCostsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 // rollup returns rows keyed either by repo path or project name.
 func (h *GlobalCostsHandler) rollup(r *http.Request, groupBy string, since time.Time) ([]CostRow, error) {
-	sinceArg := sinceFormatter{t: since}
-
 	if groupBy == "repo" {
-		byRepo, err := h.store.SumByRepo(r.Context(), sinceArg)
+		byRepo, err := h.svc.SumByRepo(r.Context(), since)
 		if err != nil {
 			return nil, err
 		}
 		out := make([]CostRow, 0, len(byRepo))
 		for repo, total := range byRepo {
 			key := repo
-			label := h.resolveLabel(repo)
+			label := cost.RepoLabel(repo)
 			if repo == "" {
 				key = "unattributed"
 				label = "Unattributed"
@@ -115,8 +111,7 @@ func (h *GlobalCostsHandler) rollup(r *http.Request, groupBy string, since time.
 	}
 
 	// groupBy=project: resolver collapses by repo name.
-	resolve := func(repo string) string { return h.resolveLabel(repo) }
-	byProj, err := h.store.SumByProject(r.Context(), sinceArg, resolve)
+	byProj, err := h.svc.SumByProject(r.Context(), since, cost.RepoLabel)
 	if err != nil {
 		return nil, err
 	}
@@ -125,18 +120,6 @@ func (h *GlobalCostsHandler) rollup(r *http.Request, groupBy string, since time.
 		out = append(out, CostRow{Key: key, Label: key, Total: total})
 	}
 	return out, nil
-}
-
-// resolveLabel maps a repo path to a human-readable label: the repo
-// directory basename, or the path itself when it has no useful base.
-func (h *GlobalCostsHandler) resolveLabel(repo string) string {
-	if repo == "" {
-		return repo
-	}
-	if base := filepath.Base(repo); base != "." && base != string(filepath.Separator) {
-		return base
-	}
-	return repo
 }
 
 // parseCostStart parses start=... into a time. Accepts RFC3339 or
@@ -159,9 +142,3 @@ var errBadTime = &httpErr{Msg: "expected RFC3339 or YYYY-MM-DD"}
 type httpErr struct{ Msg string }
 
 func (e *httpErr) Error() string { return e.Msg }
-
-// sinceFormatter adapts time.Time to the interface{Format(string) string}
-// parameter required by (*cost.Store).SumByRepo / SumByProject.
-type sinceFormatter struct{ t time.Time }
-
-func (s sinceFormatter) Format(layout string) string { return s.t.Format(layout) }

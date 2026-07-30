@@ -1,6 +1,9 @@
 package provider
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 // Activity modes reported by ActivitySource.ActivityMode.
 const (
@@ -40,12 +43,52 @@ type ActivitySource interface {
 	TranscriptGlobs(cwd string) []string
 }
 
-// CostSource is optionally implemented by providers whose usage/cost data
-// can be imported from local files. CostRoots returns the directories the
-// cost importer should scan; home is the user's home directory and
-// agentStateDir is the agent's bc state directory (.bc/agents/<name>).
-type CostSource interface {
-	CostRoots(home, agentStateDir string) []string
+// CostEntry is one usage record read from a provider's local session
+// files (e.g. a Claude Code JSONL transcript line with token usage).
+type CostEntry struct {
+	// Timestamp is when the usage occurred.
+	Timestamp time.Time
+	// Agent is the mycel agent the usage is attributed to: the entity
+	// name when the session belongs to an agent dir, otherwise a loose
+	// session label (e.g. the working-dir basename).
+	Agent string
+	// Repo is the working directory the session ran in, used for
+	// repo-level attribution. May be a container path for docker
+	// agents and empty when the source doesn't record it.
+	Repo string
+	// Model is the provider model identifier.
+	Model string
+	// SessionID identifies the provider session the entry came from.
+	SessionID string
+	// Token counts. A "total" is never stored — it is always
+	// input+output; cache tokens are reported separately.
+	InputTokens      int64
+	OutputTokens     int64
+	CacheReadTokens  int64
+	CacheWriteTokens int64
+	// CostUSD is the provider-priced cost of this entry.
+	CostUSD float64
+}
+
+// CostReadOptions tells a CostReader where to look for session files.
+type CostReadOptions struct {
+	// Since filters out entries older than this timestamp when non-zero.
+	Since time.Time
+	// Home is the user's home directory (host sessions, e.g.
+	// ~/.claude/projects).
+	Home string
+	// AgentsDir is the mycel agent entity root (~/.mycel/agents).
+	// Docker agents persist provider state under
+	// <AgentsDir>/<name>/session/.
+	AgentsDir string
+}
+
+// CostReader is optionally implemented by providers whose usage/cost
+// data can be computed directly from local session files. Providers
+// without documented session formats simply don't implement it — the
+// UI shows what exists, no fakes.
+type CostReader interface {
+	ReadCosts(ctx context.Context, opts CostReadOptions) ([]CostEntry, error)
 }
 
 // Command describes a CLI command a provider exposes for UI surfaces.

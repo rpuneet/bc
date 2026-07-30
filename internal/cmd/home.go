@@ -20,8 +20,7 @@ import (
 // terminal. The web UI is the product's rich surface: make sure the daemon
 // is up, then open the dashboard in the browser.
 func runHome(cmd *cobra.Command, _ []string) error {
-	addr := daemonWebAddr()
-	url := "http://" + addr
+	url := daemonWebURL()
 
 	if !daemonReachable(cmd.Context(), url) {
 		fmt.Println("Starting mycel server...")
@@ -36,10 +35,9 @@ func runHome(cmd *cobra.Command, _ []string) error {
 		if err := up.Run(); err != nil {
 			return fmt.Errorf("mycel up -d: %w", err)
 		}
-		// The daemon writes daemon.addr once listening; poll briefly.
+		// The daemon writes run/daemon.addr once listening; poll briefly.
 		for range 20 {
-			addr = daemonWebAddr()
-			url = "http://" + addr
+			url = daemonWebURL()
 			if daemonReachable(cmd.Context(), url) {
 				break
 			}
@@ -54,18 +52,22 @@ func runHome(cmd *cobra.Command, _ []string) error {
 	return nil
 }
 
-// daemonWebAddr resolves the daemon's listen address from
-// ~/.mycel/daemon.addr, falling back to the default port.
-func daemonWebAddr() string {
+// daemonWebURL resolves the daemon's base URL from
+// ~/.mycel/run/daemon.addr (scheme + host:port, written by `mycel up`),
+// falling back to the default port.
+func daemonWebURL() string {
 	if p, err := workspace.DaemonAddrPath(); err == nil {
 		// #nosec G304 -- fixed path under ~/.mycel, not user input.
 		if b, readErr := os.ReadFile(p); readErr == nil {
 			if addr := strings.TrimSpace(string(b)); addr != "" {
+				if !strings.Contains(addr, "://") {
+					addr = "http://" + addr
+				}
 				return addr
 			}
 		}
 	}
-	return "127.0.0.1:9374"
+	return "http://127.0.0.1:9374"
 }
 
 // daemonReachable reports whether a mycel daemon answers at url.

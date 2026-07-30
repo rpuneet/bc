@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"encoding/json"
+	"net/http"
 	"os"
 	"strings"
 	"testing"
@@ -19,7 +20,7 @@ func TestConfigShow(t *testing.T) {
 
 	// Check that output contains expected sections
 	expectedSections := []string{
-		"[workspace]",
+		"[server]",
 		"[providers]",
 	}
 
@@ -74,7 +75,7 @@ func TestConfigGet(t *testing.T) {
 		expected string
 	}{
 		{"providers.default", "claude"},
-		{"workspace.name", "test"},
+		{"server.host", "127.0.0.1"},
 	}
 
 	for _, tt := range tests {
@@ -108,20 +109,20 @@ func TestConfigGetInvalidKey(t *testing.T) {
 func TestConfigSet(t *testing.T) {
 	_ = setupTestWorkspace(t)
 
-	// Set workspace.name (safe key that doesn't trigger provider validation issues)
-	stdout, _, err := executeIntegrationCmd("config", "set", "workspace.name", "newname")
+	// Set user.name (safe key that doesn't trigger provider validation issues)
+	stdout, _, err := executeIntegrationCmd("config", "set", "user.name", "newname")
 	if err != nil {
-		t.Fatalf("config set workspace.name=newname failed: %v", err)
+		t.Fatalf("config set user.name=newname failed: %v", err)
 	}
 
-	if !strings.Contains(stdout, "Set workspace.name") {
+	if !strings.Contains(stdout, "Set user.name") {
 		t.Errorf("expected confirmation message, got: %s", stdout)
 	}
 
 	// Verify the value was set
-	stdout, _, err = executeIntegrationCmd("config", "get", "workspace.name")
+	stdout, _, err = executeIntegrationCmd("config", "get", "user.name")
 	if err != nil {
-		t.Fatalf("config get workspace.name failed: %v", err)
+		t.Fatalf("config get user.name failed: %v", err)
 	}
 
 	stdout = strings.TrimSpace(stdout)
@@ -160,8 +161,8 @@ func TestConfigList(t *testing.T) {
 	}
 
 	expectedKeys := []string{
-		"workspace.name",
-		"workspace.version",
+		"user.name",
+		"server.host",
 		"providers.default",
 	}
 
@@ -191,15 +192,15 @@ func TestConfigListJSON(t *testing.T) {
 	}
 
 	// Check for expected keys
-	hasWorkspaceName := false
+	hasProvidersDefault := false
 	for _, key := range keys {
-		if key == "workspace.name" {
-			hasWorkspaceName = true
+		if key == "providers.default" {
+			hasProvidersDefault = true
 			break
 		}
 	}
-	if !hasWorkspaceName {
-		t.Error("expected 'workspace.name' in keys list")
+	if !hasProvidersDefault {
+		t.Error("expected 'providers.default' in keys list")
 	}
 }
 
@@ -217,14 +218,14 @@ func TestConfigValidate(t *testing.T) {
 }
 
 func TestConfigValidateInvalid(t *testing.T) {
-	projectDir := setupTestWorkspace(t)
+	setupTestWorkspace(t)
 
-	// Break the config by setting invalid version
-	configPath, cpErr := workspace.ConfigPath(projectDir)
-	if cpErr != nil {
-		t.Fatal(cpErr)
+	// Break the global config (~/.mycel/prefs.json) with an invalid version
+	prefsPath, ppErr := workspace.PrefsPath()
+	if ppErr != nil {
+		t.Fatal(ppErr)
 	}
-	if err := os.WriteFile(configPath, []byte(`{"version":99}`), 0600); err != nil {
+	if err := os.WriteFile(prefsPath, []byte(`{"version":99}`), 0600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -238,22 +239,33 @@ func TestConfigValidateInvalid(t *testing.T) {
 	}
 }
 
-func TestConfigNoWorkspace(t *testing.T) {
-	tmpDir := t.TempDir()
+func TestConfigShowIsCWDFree(t *testing.T) {
+	// Config is global (~/.mycel/prefs.json) and served by the daemon:
+	// `config show` works from any directory when bcd answers.
+	tmpDir := t.TempDir() // plain dir, not a git repo
 	origDir, _ := os.Getwd()
 	defer func() { _ = os.Chdir(origDir) }()
 
 	if err := os.Chdir(tmpDir); err != nil {
 		t.Fatal(err)
 	}
+	t.Setenv("MYCEL_WORKSPACE", "")
 
-	_, _, err := executeIntegrationCmd("config", "show")
-	if err == nil {
-		t.Fatal("expected error when not in workspace")
+	handler := func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/settings" {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"version":2,"providers":{"default":"claude","providers":{"claude":{"command":"claude"}}},"server":{"host":"127.0.0.1","port":9374}}`))
+			return
+		}
+		w.WriteHeader(http.StatusOK)
 	}
 
-	if !strings.Contains(err.Error(), "not in a mycel-adopted repo") {
-		t.Errorf("expected 'not in a mycel-adopted repo' error, got: %v", err)
+	stdout, _, err := executeIntegrationCmdT(t, handler, "config", "show")
+	if err != nil {
+		t.Fatalf("config show must be CWD-free via the daemon, got: %v", err)
+	}
+	if !strings.Contains(stdout, "[providers]") {
+		t.Errorf("expected providers section in output, got: %s", stdout)
 	}
 }
 

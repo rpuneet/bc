@@ -16,44 +16,26 @@ import (
 var downCmd = &cobra.Command{
 	Use:   "down",
 	Short: "Stop mycel services",
-	Long: `Stop the mycel daemon and database Docker containers for this repo.
+	Long: `Stop the mycel daemon and database Docker containers.
+
+The daemon is user-scoped — 'mycel down' works from any directory.
 
 Examples:
-  mycel down
-  mycel down --workspace /path/to/workspace`,
+  mycel down`,
 	RunE: runDown,
 }
 
-var downWorkspace string
-
 func init() {
-	downCmd.Flags().StringVar(&downWorkspace, "workspace", "", "Workspace directory (defaults to current workspace)")
 	rootCmd.AddCommand(downCmd)
 }
 
 func runDown(cmd *cobra.Command, _ []string) error {
-	var ws *workspace.Workspace
-	var err error
-	if downWorkspace != "" {
-		ws, err = workspace.Load(downWorkspace)
-		if err != nil {
-			return fmt.Errorf("cannot load repo at %s: %w", downWorkspace, err)
-		}
-	} else {
-		ws, err = getRepo()
-		if err != nil {
-			return errNoRepo(err)
-		}
-	}
-
 	ctx := cmd.Context()
 
-	fmt.Printf("Stopping mycel in %s\n\n", ws.RootDir)
+	fmt.Printf("Stopping mycel\n\n")
 
-	id := wsID(ws.RootDir)
-	daemonName := fmt.Sprintf("bc-%s-daemon", id)
-
-	// Stop local daemon if running via PID file
+	// Stop local daemon if running via PID file. The daemon is
+	// user-scoped, so no repo/CWD is required.
 	pidPath, pidErr := workspace.DaemonPidPath()
 	if pidErr != nil {
 		log.Warn("failed to resolve daemon pid path", "error", pidErr)
@@ -73,9 +55,9 @@ func runDown(cmd *cobra.Command, _ []string) error {
 		}
 	}
 
-	containers := []string{daemonName}
+	var containers []string
 	if !wasDaemon {
-		// Only stop bc-db in full Docker mode (bc up without -d)
+		// Only stop bc-db in full Docker mode (mycel up without -d)
 		containers = append(containers, "bc-db")
 	}
 
@@ -97,9 +79,9 @@ func runDown(cmd *cobra.Command, _ []string) error {
 		stopped++
 	}
 
-	if stopped == 0 {
+	if stopped == 0 && !wasDaemon {
 		fmt.Println("  No services running")
-	} else {
+	} else if stopped > 0 {
 		fmt.Println()
 		fmt.Printf("  %s Stopped %d service(s)\n", ui.GreenText("ok"), stopped)
 	}

@@ -23,8 +23,6 @@ COPY cmd/ cmd/
 COPY pkg/ pkg/
 COPY server/ server/
 COPY internal/ internal/
-# TODO: re-evaluate after redesign — prompts/ dir was removed; COPY kept for when it returns
-COPY prompt[s]/ prompts/
 COPY --from=web /app/web/dist /app/server/web/dist
 
 RUN CGO_ENABLED=1 go build -ldflags="-s -w" -o /mycel ./cmd/mycel

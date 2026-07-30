@@ -5,10 +5,10 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 	"testing"
 )
 
+// setupTestRepo creates a real git repo with one commit for worktree tests.
 func setupTestRepo(t *testing.T) string {
 	t.Helper()
 
@@ -39,64 +39,52 @@ func setupTestRepo(t *testing.T) string {
 	return dir
 }
 
-func TestNewManager(t *testing.T) {
-	t.Setenv("MYCEL_HOST_WORKSPACE", "")
-
-	dir := t.TempDir()
-	m := NewManager(dir)
-
-	if m.repoRoot != dir {
-		t.Errorf("repoRoot = %q, want %q", m.repoRoot, dir)
-	}
-
-	if m.hostBaseName != filepath.Base(dir) {
-		t.Errorf("hostBaseName = %q, want %q", m.hostBaseName, filepath.Base(dir))
-	}
-
-	expected := filepath.Join(dir, ".bc", "agents")
-	if m.agentsDir != expected {
-		t.Errorf("agentsDir = %q, want %q", m.agentsDir, expected)
-	}
+// newTestManager returns a manager rooted at a temp agents root, mirroring
+// ~/.mycel/agents without ever touching the real home.
+func newTestManager(t *testing.T, repoRoot string) (*Manager, string) {
+	t.Helper()
+	t.Setenv("MYCEL_HOME", t.TempDir())
+	agentsRoot := filepath.Join(os.Getenv("MYCEL_HOME"), "agents")
+	return NewManager(repoRoot, agentsRoot), agentsRoot
 }
 
-func TestNewManagerWithEnv(t *testing.T) {
-	t.Setenv("MYCEL_HOST_WORKSPACE", "my-project")
+// TestManagerLayout locks the entity-scoped layout: every agent owns one
+// directory <agentsRoot>/<name>/ containing worktree/ and session/.
+func TestManagerLayout(t *testing.T) {
+	m, agentsRoot := newTestManager(t, "/repo")
 
-	m := NewManager(t.TempDir())
-
-	if m.hostBaseName != "my-project" {
-		t.Errorf("hostBaseName = %q, want %q", m.hostBaseName, "my-project")
+	if got, want := m.AgentDir("eng-01"), filepath.Join(agentsRoot, "eng-01"); got != want {
+		t.Errorf("AgentDir() = %q, want %q", got, want)
 	}
-}
-
-func TestName(t *testing.T) {
-	t.Setenv("MYCEL_HOST_WORKSPACE", "myrepo")
-
-	m := NewManager("/tmp/myrepo")
-
-	got := m.Name("eng-01")
-	want := "bc-myrepo-eng-01"
-
-	if got != want {
-		t.Errorf("Name() = %q, want %q", got, want)
-	}
-}
-
-func TestPath(t *testing.T) {
-	dir := "/tmp/myrepo"
-	m := NewManager(dir)
-
-	got := m.Path("eng-01")
-	want := filepath.Join(dir, ".bc", "agents", "eng-01", "bc-"+filepath.Base(dir)+"-eng-01")
-
-	if got != want {
+	if got, want := m.Path("eng-01"), filepath.Join(agentsRoot, "eng-01", "worktree"); got != want {
 		t.Errorf("Path() = %q, want %q", got, want)
+	}
+	if got, want := m.SessionDir("eng-01"), filepath.Join(agentsRoot, "eng-01", "session"); got != want {
+		t.Errorf("SessionDir() = %q, want %q", got, want)
+	}
+	if got, want := m.ClaudeDir("eng-01"), filepath.Join(agentsRoot, "eng-01", "session", "claude"); got != want {
+		t.Errorf("ClaudeDir() = %q, want %q", got, want)
+	}
+}
+
+// TestManagerLayoutIsSiblingSafe: two agents' directories never overlap —
+// deleting one agent's dir cannot touch another's state.
+func TestManagerLayoutIsSiblingSafe(t *testing.T) {
+	m, agentsRoot := newTestManager(t, "/repo")
+
+	a := m.AgentDir("eng-01")
+	b := m.AgentDir("eng-02")
+	if a == b {
+		t.Fatalf("distinct agents share a directory: %q", a)
+	}
+	if filepath.Dir(a) != agentsRoot || filepath.Dir(b) != agentsRoot {
+		t.Errorf("agent dirs %q, %q are not direct children of %q", a, b, agentsRoot)
 	}
 }
 
 func TestCreateAndRemove(t *testing.T) {
 	repo := setupTestRepo(t)
-	m := NewManager(repo)
+	m, _ := newTestManager(t, repo)
 	ctx := context.Background()
 
 	// Create worktree
@@ -116,15 +104,8 @@ func TestCreateAndRemove(t *testing.T) {
 	}
 
 	// Verify it's a valid git worktree
-	//nolint:gosec // test with trusted paths
-	cmd := exec.CommandContext(ctx, "git", "-C", path, "rev-parse", "--is-inside-work-tree")
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Errorf("not a git worktree: %v: %s", err, out)
-	}
-
-	if strings.TrimSpace(string(out)) != "true" {
-		t.Errorf("rev-parse = %q, want %q", strings.TrimSpace(string(out)), "true")
+	if _, statErr := os.Stat(filepath.Join(path, ".git")); statErr != nil {
+		t.Errorf(".git missing in worktree: %v", statErr)
 	}
 
 	// Remove worktree
@@ -138,9 +119,21 @@ func TestCreateAndRemove(t *testing.T) {
 	}
 }
 
+func TestCreateRejectsInvalidAgentName(t *testing.T) {
+	repo := setupTestRepo(t)
+	m, _ := newTestManager(t, repo)
+	ctx := context.Background()
+
+	for _, name := range []string{"../escape", "/abs", ""} {
+		if _, err := m.Create(ctx, name); err == nil {
+			t.Errorf("Create(%q) accepted an invalid agent name", name)
+		}
+	}
+}
+
 func TestCreateIdempotent(t *testing.T) {
 	repo := setupTestRepo(t)
-	m := NewManager(repo)
+	m, _ := newTestManager(t, repo)
 	ctx := context.Background()
 
 	// Create twice — second call should not error
@@ -171,7 +164,7 @@ func TestCreateIdempotent(t *testing.T) {
 
 func TestExists(t *testing.T) {
 	repo := setupTestRepo(t)
-	m := NewManager(repo)
+	m, _ := newTestManager(t, repo)
 	ctx := context.Background()
 
 	// Should not exist before creation
@@ -202,7 +195,7 @@ func TestExists(t *testing.T) {
 
 func TestPrune(t *testing.T) {
 	repo := setupTestRepo(t)
-	m := NewManager(repo)
+	m, _ := newTestManager(t, repo)
 	ctx := context.Background()
 
 	// Prune on a clean repo should not error
@@ -211,27 +204,14 @@ func TestPrune(t *testing.T) {
 	}
 }
 
-func TestClaudeDir(t *testing.T) {
-	dir := "/tmp/myrepo"
-	m := NewManager(dir)
-
-	got := m.ClaudeDir("eng-01")
-	want := filepath.Join(dir, ".bc", "agents", "eng-01", "claude")
-
-	if got != want {
-		t.Errorf("ClaudeDir() = %q, want %q", got, want)
-	}
-}
-
 func TestEnsureClaudeDir(t *testing.T) {
-	dir := t.TempDir()
-	m := NewManager(dir)
+	m, agentsRoot := newTestManager(t, t.TempDir())
 
 	if err := m.EnsureClaudeDir("eng-01"); err != nil {
 		t.Fatalf("EnsureClaudeDir() error: %v", err)
 	}
 
-	claudeDir := m.ClaudeDir("eng-01")
+	claudeDir := filepath.Join(agentsRoot, "eng-01", "session", "claude")
 	info, err := os.Stat(claudeDir)
 	if os.IsNotExist(err) {
 		t.Fatal("claude dir does not exist after EnsureClaudeDir()")
@@ -247,88 +227,36 @@ func TestEnsureClaudeDir(t *testing.T) {
 	}
 }
 
-// --- flat layout ---
-
-func TestFlatManagerPaths(t *testing.T) {
-	wt := "/data/worktrees"
-	st := "/data/agents"
-	m := NewFlatManager("/repo", wt, st)
-
-	if got, want := m.Name("eng-01"), "eng-01"; got != want {
-		t.Errorf("Name() = %q, want %q", got, want)
-	}
-	if got, want := m.Path("eng-01"), filepath.Join(wt, "eng-01"); got != want {
-		t.Errorf("Path() = %q, want %q", got, want)
-	}
-	if got, want := m.ClaudeDir("eng-01"), filepath.Join(st, "eng-01", "claude"); got != want {
-		t.Errorf("ClaudeDir() = %q, want %q", got, want)
+func TestEnsureClaudeDirRejectsInvalidName(t *testing.T) {
+	m, _ := newTestManager(t, "/repo")
+	if err := m.EnsureClaudeDir("../escape"); err == nil {
+		t.Error("EnsureClaudeDir accepted an invalid agent name")
 	}
 }
 
-func TestFlatManagerCreateRemove(t *testing.T) {
+// TestManagerRemoveAt: RemoveAt targets an explicit stored path instead of
+// the recomputed layout path — used for agents whose WorktreeDir predates
+// the current layout.
+func TestManagerRemoveAt(t *testing.T) {
 	repo := setupTestRepo(t)
-	base := t.TempDir()
-	m := NewFlatManager(repo, filepath.Join(base, "worktrees"), filepath.Join(base, "agents"))
-
+	m, _ := newTestManager(t, repo)
 	ctx := context.Background()
+
 	path, err := m.Create(ctx, "eng-01")
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}
-	if want := filepath.Join(base, "worktrees", "eng-01"); path != want {
-		t.Errorf("Create path = %q, want %q", path, want)
-	}
-	if !m.Exists("eng-01") {
-		t.Error("Exists() = false after Create")
-	}
-	if _, err := os.Stat(filepath.Join(path, ".git")); err != nil {
-		t.Errorf(".git missing in flat worktree: %v", err)
-	}
 
-	if err := m.Remove(ctx, "eng-01"); err != nil {
-		t.Fatalf("Remove: %v", err)
-	}
-	if m.Exists("eng-01") {
-		t.Error("Exists() = true after Remove")
-	}
-}
-
-func TestFlatManagerEnsureClaudeDir(t *testing.T) {
-	base := t.TempDir()
-	m := NewFlatManager("/repo", filepath.Join(base, "worktrees"), filepath.Join(base, "agents"))
-
-	if err := m.EnsureClaudeDir("eng-01"); err != nil {
-		t.Fatalf("EnsureClaudeDir: %v", err)
-	}
-	info, err := os.Stat(filepath.Join(base, "agents", "eng-01", "claude"))
-	if err != nil || !info.IsDir() {
-		t.Fatalf("claude dir not created: %v", err)
-	}
-}
-
-func TestManagerRemoveAt(t *testing.T) {
-	repo := setupTestRepo(t)
-	base := t.TempDir()
-	// Create with a nested manager, remove via a flat one using the
-	// stored path — mirrors deleting a pre-migration agent.
-	nested := NewManagerWithDataDir(repo, base)
-	ctx := context.Background()
-	oldPath, err := nested.Create(ctx, "eng-01")
-	if err != nil {
-		t.Fatalf("Create: %v", err)
-	}
-
-	flat := NewFlatManager(repo, filepath.Join(base, "worktrees"), filepath.Join(base, "agents"))
-	if err := flat.RemoveAt(ctx, "eng-01", oldPath); err != nil {
+	if err := m.RemoveAt(ctx, "eng-01", path); err != nil {
 		t.Fatalf("RemoveAt: %v", err)
 	}
-	if _, err := os.Stat(oldPath); !os.IsNotExist(err) {
-		t.Errorf("old worktree still present at %q", oldPath)
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Errorf("worktree still present at %q", path)
 	}
 }
 
 func TestManagerRemoveAtRejectsUnsafePaths(t *testing.T) {
-	m := NewFlatManager("/repo", "/data/worktrees", "/data/agents")
+	m, _ := newTestManager(t, "/repo")
 	if err := m.RemoveAt(context.Background(), "eng-01", "relative/path"); err == nil {
 		t.Error("RemoveAt accepted a relative path")
 	}

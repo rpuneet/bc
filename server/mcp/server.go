@@ -27,7 +27,7 @@ import (
 type Config struct {
 	Workspace *workspace.Workspace
 	Agents    *agent.Manager
-	Costs     *cost.Store
+	Costs     *cost.Service
 	Gateway   *gateway.Manager
 	Notify    *notify.Service
 	Version   string

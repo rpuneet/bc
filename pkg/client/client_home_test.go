@@ -32,11 +32,11 @@ func writeFile(t *testing.T, path, content string) {
 }
 
 // TestReadDaemonAddrFile_Canonical: the CLI reads the canonical
-// ~/.mycel/daemon.addr written by `mycel up`.
+// ~/.mycel/run/daemon.addr written by `mycel up`.
 func TestReadDaemonAddrFile_Canonical(t *testing.T) {
 	tmp := setTestHome(t)
-	mkdirAll(t, filepath.Join(tmp, ".mycel"))
-	writeFile(t, filepath.Join(tmp, ".mycel", "daemon.addr"), "http://127.0.0.1:8080\n")
+	mkdirAll(t, filepath.Join(tmp, ".mycel", "run"))
+	writeFile(t, filepath.Join(tmp, ".mycel", "run", "daemon.addr"), "http://127.0.0.1:8080\n")
 
 	if got := readDaemonAddrFile(); got != "http://127.0.0.1:8080" {
 		t.Errorf("readDaemonAddrFile() = %q, want canonical ~/.mycel addr", got)
@@ -56,7 +56,7 @@ func TestReadDaemonAddrFile_NoFiles(t *testing.T) {
 // socket path is always returned.
 func TestDefaultSocketPath_CanonicalDefault(t *testing.T) {
 	tmp := setTestHome(t)
-	mkdirAll(t, filepath.Join(tmp, ".mycel"))
+	mkdirAll(t, filepath.Join(tmp, ".mycel", "run"))
 
 	want := filepath.Join(tmp, ".mycel", "bcd.sock")
 	if got := DefaultSocketPath(); got != want {

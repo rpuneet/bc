@@ -31,16 +31,12 @@ func errorAgentNotRunning(commandUsage string) error {
 }
 
 // newDaemonClient creates a client connected to the bcd daemon.
-// Returns an error if the daemon is not running.
-// Checks for a mycel-adopted repo first to provide clear error messages.
+// Returns an error if the daemon is not running. The daemon is
+// CWD-free, so no repo check is required to talk to it.
 func newDaemonClient(ctx context.Context) (*client.Client, error) {
-	// Verify we're in an adopted repo before trying to connect to daemon
-	if _, err := getRepo(); err != nil {
-		return nil, errNoRepo(err)
-	}
 	c := client.New("")
 	if err := c.Ping(ctx); err != nil {
-		return nil, fmt.Errorf("bcd is not running — start it with 'bcd' or 'mycel up' first\n(%w)", err)
+		return nil, fmt.Errorf("bcd is not running — start it with 'mycel up' first\n(%w)", err)
 	}
 	return c, nil
 }

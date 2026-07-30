@@ -15,8 +15,10 @@ import (
 	"github.com/rpuneet/mycel/pkg/workspace"
 )
 
-// setupLogsWorkspace creates a temporary bc workspace, changes into it,
-// and returns the root dir plus a cleanup function.
+// setupLogsWorkspace creates an isolated MYCEL_HOME plus a temporary
+// git repo, bootstraps the global mycel state via workspace.Open,
+// changes into the repo, and returns the root dir plus a cleanup
+// function.
 func setupLogsWorkspace(t *testing.T) (string, func()) {
 	t.Helper()
 
@@ -29,14 +31,14 @@ func setupLogsWorkspace(t *testing.T) (string, func()) {
 		t.Fatalf("failed to get cwd: %v", err)
 	}
 
+	t.Setenv("MYCEL_HOME", t.TempDir())
+
 	tmpDir := t.TempDir()
-	ws, err := workspace.Init(tmpDir)
-	if err != nil {
-		t.Fatalf("failed to init workspace: %v", err)
+	gitInitDir(t, tmpDir)
+	if _, err := workspace.Open(tmpDir); err != nil {
+		t.Fatalf("failed to open workspace: %v", err)
 	}
-	if err := ws.EnsureDirs(); err != nil {
-		t.Fatalf("failed to ensure dirs: %v", err)
-	}
+	t.Setenv("MYCEL_WORKSPACE", tmpDir)
 	if err := os.Chdir(tmpDir); err != nil {
 		t.Fatalf("failed to chdir: %v", err)
 	}
@@ -1029,22 +1031,24 @@ func TestParseSinceDuration_EdgeCases(t *testing.T) {
 
 // --- Error path tests ---
 
-func TestLogs_NoWorkspace(t *testing.T) {
-	// Run from temp dir without workspace
-	tmpDir := t.TempDir()
+func TestLogs_DaemonUnreachable(t *testing.T) {
+	// logs is daemon-first and CWD-free: without a reachable bcd it must
+	// fail with a daemon error (never a repo error), from any directory.
+	tmpDir := t.TempDir() // plain dir, not a git repo
 	origDir, _ := os.Getwd()
 	_ = os.Chdir(tmpDir)
 	defer func() { _ = os.Chdir(origDir) }()
 
-	// Ensure MYCEL_WORKSPACE doesn't bypass the workspace check
 	t.Setenv("MYCEL_WORKSPACE", "")
+	// Point the client at a dead address so the daemon ping fails.
+	t.Setenv("MYCEL_DAEMON_ADDR", "http://127.0.0.1:1")
 
 	_, err := runLogsCmd(t, "logs")
 	if err == nil {
-		t.Fatal("expected error for non-workspace dir")
+		t.Fatal("expected daemon-unreachable error")
 	}
-	if !strings.Contains(err.Error(), "repo") {
-		t.Errorf("expected repo error, got: %v", err)
+	if !strings.Contains(err.Error(), "bcd is not running") {
+		t.Errorf("expected 'bcd is not running' error, got: %v", err)
 	}
 }
 

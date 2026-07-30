@@ -1,14 +1,14 @@
 // Package worktree manages git worktree lifecycle for agent isolation.
 //
-// Two layouts are supported:
+// Layout is entity-scoped: every agent owns one directory at
+// <agentsRoot>/<name>/ (normally ~/.mycel/agents/<name>/) containing
 //
-//   - Flat (current): worktrees at <worktreesDir>/<name>/ and Claude state
-//     at <stateDir>/<name>/claude/. Agent names are globally unique (DB
-//     primary key), so flat name-keyed directories are safe. The daemon
-//     uses ~/.mycel/worktrees/ and ~/.mycel/agents/ for these.
-//   - Nested (legacy): worktrees at <dataDir>/agents/<name>/bc-<ws>-<name>/
-//     with Claude state alongside at <dataDir>/agents/<name>/claude/.
-//     Kept so existing agents and tests keep working from their old paths.
+//	worktree/  — the agent's git worktree
+//	session/   — provider state (e.g. the Claude home dir)
+//
+// Agent names are globally unique (DB primary key), so name-keyed
+// directories are safe. Deleting <agentsRoot>/<name>/ removes all of
+// the agent's filesystem state.
 package worktree
 
 import (
@@ -23,81 +23,34 @@ import (
 	"github.com/rpuneet/mycel/pkg/log"
 )
 
+// Subdirectories of an agent's entity directory.
+const (
+	worktreeDirName = "worktree"
+	sessionDirName  = "session"
+)
+
 // Manager handles git worktree lifecycle for agent isolation.
 type Manager struct {
-	repoRoot     string
-	agentsDir    string // nested layout: worktrees under <agentsDir>/<name>/
-	worktreesDir string // flat layout: worktrees at <worktreesDir>/<name>/
-	stateDir     string // flat layout: Claude state at <stateDir>/<name>/claude/
-	hostBaseName string
-	mu           sync.Mutex
-	flat         bool
+	repoRoot   string // git repo worktrees are created from
+	agentsRoot string // entity root: <agentsRoot>/<name>/{worktree,session}
+	mu         sync.Mutex
 }
 
-// NewManager creates a worktree manager whose worktrees live under the
-// legacy <repoRoot>/.bc/agents/ directory. Prefer NewManagerWithDataDir
-// for M11+ layouts where runtime state lives at ~/.mycel/workspaces/<id>/.
-//
-// This constructor is kept for older call sites and tests that still
-// operate on the legacy layout.
-func NewManager(repoRoot string) *Manager {
-	return NewManagerWithDataDir(repoRoot, filepath.Join(repoRoot, ".bc"))
+// NewManager creates a worktree manager that creates worktrees from
+// repoRoot under <agentsRoot>/<name>/worktree.
+func NewManager(repoRoot, agentsRoot string) *Manager {
+	return &Manager{repoRoot: repoRoot, agentsRoot: agentsRoot}
 }
 
-// NewManagerWithDataDir creates a worktree manager rooted at repoRoot
-// (the project git repo) whose worktrees live under <dataDir>/agents/.
-// This is the M11 constructor: dataDir is the per-workspace runtime
-// directory (~/.mycel/workspaces/<id>/) and repoRoot stays untouched.
-//
-// Reads MYCEL_HOST_WORKSPACE to determine the host base name for worktree
-// naming so containers mounting the host repo get the expected label.
-func NewManagerWithDataDir(repoRoot, dataDir string) *Manager {
-	hostBase := filepath.Base(repoRoot)
-	if hp := os.Getenv("MYCEL_HOST_WORKSPACE"); hp != "" {
-		hostBase = filepath.Base(hp)
-	}
-	if dataDir == "" {
-		dataDir = filepath.Join(repoRoot, ".bc")
-	}
-	return &Manager{
-		repoRoot:     repoRoot,
-		agentsDir:    filepath.Join(dataDir, "agents"),
-		hostBaseName: hostBase,
-	}
-}
-
-// NewFlatManager creates a worktree manager using the flat layout:
-// worktrees at <worktreesDir>/<agent>/ and Claude state at
-// <stateDir>/<agent>/claude/. Agent names are globally unique, so the
-// directories are keyed by bare agent name. This is the layout the
-// daemon uses: worktreesDir = ~/.mycel/worktrees, stateDir =
-// ~/.mycel/agents.
-func NewFlatManager(repoRoot, worktreesDir, stateDir string) *Manager {
-	return &Manager{
-		repoRoot:     repoRoot,
-		worktreesDir: worktreesDir,
-		stateDir:     stateDir,
-		flat:         true,
-	}
-}
-
-// Name returns the worktree name for an agent. Flat layout uses the bare
-// agent name; the nested legacy layout uses bc-<hostBaseName>-<agentName>.
-func (m *Manager) Name(agentName string) string {
-	if m.flat {
-		return agentName
-	}
-	return fmt.Sprintf("bc-%s-%s", m.hostBaseName, agentName)
+// AgentDir returns the agent's entity directory: <agentsRoot>/<name>.
+func (m *Manager) AgentDir(agentName string) string {
+	return filepath.Join(m.agentsRoot, agentName)
 }
 
 // Path returns the filesystem path for an agent's worktree:
-// <worktreesDir>/<agent> in the flat layout, or the nested
-// <agentsDir>/<agent>/bc-<ws>-<agent> in the legacy layout.
+// <agentsRoot>/<name>/worktree.
 func (m *Manager) Path(agentName string) string {
-	if m.flat {
-		return filepath.Join(m.worktreesDir, agentName)
-	}
-	return filepath.Join(m.agentsDir, agentName, m.Name(agentName))
+	return filepath.Join(m.agentsRoot, agentName, worktreeDirName)
 }
 
 // Create creates a git worktree for the given agent.
@@ -230,14 +183,17 @@ func (m *Manager) Prune(ctx context.Context) error {
 	return nil
 }
 
-// ClaudeDir returns the path to the Claude home directory for the given
-// agent: <stateDir>/<agent>/claude in the flat layout, or the nested
-// <agentsDir>/<agent>/claude in the legacy layout.
+// SessionDir returns the agent's provider-state directory:
+// <agentsRoot>/<name>/session. Provider config and transcripts (e.g.
+// the Claude home for docker agents) persist here on the host.
+func (m *Manager) SessionDir(agentName string) string {
+	return filepath.Join(m.agentsRoot, agentName, sessionDirName)
+}
+
+// ClaudeDir returns the Claude home directory inside the agent's
+// session dir: <agentsRoot>/<name>/session/claude.
 func (m *Manager) ClaudeDir(agentName string) string {
-	if m.flat {
-		return filepath.Join(m.stateDir, agentName, "claude")
-	}
-	return filepath.Join(m.agentsDir, agentName, "claude")
+	return filepath.Join(m.SessionDir(agentName), "claude")
 }
 
 // EnsureClaudeDir creates the Claude home directory for the given agent if it

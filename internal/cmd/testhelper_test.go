@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-// gitInitDir adds a minimal .git/ directory to dir so workspace.Init and
+// gitInitDir adds a minimal .git/ directory to dir so workspace.Open and
 // workspace.Load (which require a git repo) succeed in tests.
 func gitInitDir(t testing.TB, dir string) {
 	t.Helper()

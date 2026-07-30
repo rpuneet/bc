@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"os"
@@ -36,9 +37,11 @@ func resetFlags(cmd *cobra.Command) {
 	}
 }
 
-// setupIntegrationWorkspace creates a temporary bc workspace and changes into it.
-// Returns the workspace root path and a cleanup function that restores
-// the original working directory and MYCEL_WORKSPACE env var.
+// setupIntegrationWorkspace creates an isolated MYCEL_HOME plus a
+// temporary git repo, bootstraps the global mycel state via
+// workspace.Open (the `mycel up` bootstrap path), and changes into the
+// repo. Returns the repo root path and a cleanup function that restores
+// the original working directory.
 func setupIntegrationWorkspace(t *testing.T) (string, func()) {
 	t.Helper()
 
@@ -51,23 +54,24 @@ func setupIntegrationWorkspace(t *testing.T) (string, func()) {
 		t.Fatalf("failed to get cwd: %v", err)
 	}
 
+	// Isolate all global state (~/.mycel: prefs.json, mycel.db, agents/)
+	// in a throwaway home.
+	t.Setenv("MYCEL_HOME", t.TempDir())
+
 	tmpDir := t.TempDir()
+	gitInitDir(t, tmpDir)
 
-	// Initialize a workspace using the workspace package
-	ws, err := workspace.Init(tmpDir)
-	if err != nil {
-		t.Fatalf("failed to init workspace: %v", err)
-	}
-	if err := ws.EnsureDirs(); err != nil {
-		t.Fatalf("failed to ensure dirs: %v", err)
+	// Bootstrap the global mycel state anchored on the temp repo.
+	if _, err := workspace.Open(tmpDir); err != nil {
+		t.Fatalf("failed to open workspace: %v", err)
 	}
 
-	// Point MYCEL_WORKSPACE at the temp workspace so getRepo() finds it
+	// Point MYCEL_WORKSPACE at the temp repo so getRepo() finds it
 	// regardless of cwd races between parallel tests.
 	t.Setenv("MYCEL_WORKSPACE", tmpDir)
 
 	if err := os.Chdir(tmpDir); err != nil {
-		t.Fatalf("failed to chdir to temp workspace: %v", err)
+		t.Fatalf("failed to chdir to temp repo: %v", err)
 	}
 
 	return tmpDir, func() {
@@ -139,56 +143,53 @@ func executeIntegrationCmd(args ...string) (string, string, error) {
 	return buf.String(), stderr.String(), err
 }
 
-// seedAgents writes an agents.json file in the workspace's agents directory.
-// The Manager stores agents as map[string]*Agent.
-func seedAgents(t *testing.T, wsDir string, agents map[string]*agent.Agent) {
+// seedAgents writes agents into the single global agents table
+// (<MYCEL_HOME>/mycel.db) — the store every Manager loads from on boot.
+func seedAgents(t *testing.T, _ string, agents map[string]*agent.Agent) {
 	t.Helper()
-	agentsDir := filepath.Join(wsDir, ".bc", "agents")
-	if err := os.MkdirAll(agentsDir, 0750); err != nil {
-		t.Fatalf("failed to create agents dir: %v", err)
-	}
-	data, err := json.MarshalIndent(agents, "", "  ")
+	dbPath, err := db.GlobalDBPath()
 	if err != nil {
-		t.Fatalf("failed to marshal agents: %v", err)
+		t.Fatalf("failed to resolve global db path: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(agentsDir, "agents.json"), data, 0600); err != nil {
-		t.Fatalf("failed to write agents.json: %v", err)
+	store, err := agent.NewSQLiteStore(dbPath)
+	if err != nil {
+		t.Fatalf("failed to open agent store: %v", err)
+	}
+	defer func() { _ = store.Close() }()
+	if err := store.SaveAll(context.Background(), agents); err != nil {
+		t.Fatalf("failed to seed agents: %v", err)
 	}
 }
 
 // --- Agent Send command tests ---
 
-func TestAgentSendNoWorkspace(t *testing.T) {
+func TestAgentSendIsCWDFree(t *testing.T) {
+	// agent send is daemon-first: it works from any directory (no repo
+	// required) by POSTing to bcd.
 	origDir, err := os.Getwd()
 	if err != nil {
 		t.Fatalf("failed to get cwd: %v", err)
 	}
 
-	tmpDir := t.TempDir()
+	tmpDir := t.TempDir() // plain dir, not a git repo
 	if err = os.Chdir(tmpDir); err != nil {
 		t.Fatalf("failed to chdir: %v", err)
 	}
 	defer func() { _ = os.Chdir(origDir) }()
 
-	// Use the per-test handler variant so this test additionally asserts
-	// no bcd traffic is generated when there's no workspace: any request
-	// the CLI makes would be a bug (workspace check must run first).
-	bcdHit := false
+	sendHit := false
 	handler := func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/health" {
-			bcdHit = true
+		if r.Method == http.MethodPost && r.URL.Path == "/api/agents/worker-01/send" {
+			sendHit = true
 		}
 		w.WriteHeader(http.StatusOK)
 	}
 	_, _, err = executeIntegrationCmdT(t, handler, "agent", "send", "worker-01", "hello")
-	if err == nil {
-		t.Fatal("expected error when not in workspace, got nil")
+	if err != nil {
+		t.Fatalf("agent send must be CWD-free when the daemon accepts it, got: %v", err)
 	}
-	if !strings.Contains(err.Error(), "not in a mycel-adopted repo") {
-		t.Errorf("expected workspace error, got: %v", err)
-	}
-	if bcdHit {
-		t.Error("CLI should not contact bcd when there is no workspace")
+	if !sendHit {
+		t.Error("agent send should POST /api/agents/worker-01/send")
 	}
 }
 
@@ -247,29 +248,37 @@ func TestAgentReportInvalidState(t *testing.T) {
 	}
 }
 
-func TestAgentReportNoWorkspace(t *testing.T) {
+func TestAgentReportIsCWDFree(t *testing.T) {
+	// agent report is daemon-first: it POSTs the state to bcd and needs
+	// no repo at the caller's CWD.
 	origDir, err := os.Getwd()
 	if err != nil {
 		t.Fatalf("failed to get cwd: %v", err)
 	}
 
-	tmpDir := t.TempDir()
+	tmpDir := t.TempDir() // plain dir, not a git repo
 	if err = os.Chdir(tmpDir); err != nil {
 		t.Fatalf("failed to chdir: %v", err)
 	}
 	defer func() { _ = os.Chdir(origDir) }()
 
-	// Clear workspace env vars to ensure workspace lookup fails (#1668)
 	t.Setenv("MYCEL_WORKSPACE", "")
 	t.Setenv("MYCEL_AGENT_WORKTREE", "")
 	t.Setenv("MYCEL_AGENT_ID", "test-agent")
 
-	_, _, err = executeIntegrationCmd("agent", "report", "working", "testing")
-	if err == nil {
-		t.Fatal("expected error when not in workspace, got nil")
+	apiHit := false
+	handler := func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/api/") {
+			apiHit = true
+		}
+		w.WriteHeader(http.StatusOK)
 	}
-	if !strings.Contains(err.Error(), "not in a mycel-adopted repo") {
-		t.Errorf("expected workspace error, got: %v", err)
+	_, _, err = executeIntegrationCmdT(t, handler, "agent", "report", "working", "testing")
+	if err != nil && strings.Contains(err.Error(), "not in a mycel-adopted repo") {
+		t.Errorf("agent report must not require a repo, got workspace error: %v", err)
+	}
+	if !apiHit {
+		t.Error("agent report should reach bcd even outside a repo")
 	}
 }
 
@@ -340,13 +349,8 @@ func TestStatusNoWorkspace(t *testing.T) {
 }
 
 func TestStatusEmptyWorkspace(t *testing.T) {
-	wsDir, cleanup := setupIntegrationWorkspace(t)
+	_, cleanup := setupIntegrationWorkspace(t)
 	defer cleanup()
-
-	// Create agents dir so LoadState doesn't warn
-	if err := os.MkdirAll(filepath.Join(wsDir, ".bc", "agents"), 0750); err != nil {
-		t.Fatalf("failed to create agents dir: %v", err)
-	}
 
 	stdout, _, err := executeIntegrationCmd("status")
 	if err != nil {
@@ -439,24 +443,34 @@ func seedEvents(t *testing.T, wsDir string, evts []events.Event) {
 	}
 }
 
-func TestLogsNoWorkspace(t *testing.T) {
+func TestLogsIsCWDFree(t *testing.T) {
+	// logs is daemon-first: it reads events from bcd and needs no repo
+	// at the caller's CWD.
 	origDir, err := os.Getwd()
 	if err != nil {
 		t.Fatalf("failed to get cwd: %v", err)
 	}
 
-	tmpDir := t.TempDir()
+	tmpDir := t.TempDir() // plain dir, not a git repo
 	if err = os.Chdir(tmpDir); err != nil {
 		t.Fatalf("failed to chdir: %v", err)
 	}
 	defer func() { _ = os.Chdir(origDir) }()
 
-	_, _, err = executeIntegrationCmd("logs")
-	if err == nil {
-		t.Fatal("expected error when not in workspace, got nil")
+	handler := func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/api/logs") {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`[]`))
+			return
+		}
+		w.WriteHeader(http.StatusOK)
 	}
-	if !strings.Contains(err.Error(), "not in a mycel-adopted repo") {
-		t.Errorf("expected workspace error, got: %v", err)
+	stdout, _, err := executeIntegrationCmdT(t, handler, "logs")
+	if err != nil {
+		t.Fatalf("logs must be CWD-free when the daemon serves events, got: %v", err)
+	}
+	if !strings.Contains(stdout, "No events found") {
+		t.Errorf("expected 'No events found', got: %s", stdout)
 	}
 }
 
@@ -601,13 +615,8 @@ func TestStatsNoWorkspace(t *testing.T) {
 }
 
 func TestStatsEmptyWorkspace(t *testing.T) {
-	wsDir, cleanup := setupIntegrationWorkspace(t)
+	_, cleanup := setupIntegrationWorkspace(t)
 	defer cleanup()
-
-	// Create agents dir
-	if err := os.MkdirAll(filepath.Join(wsDir, ".bc", "agents"), 0750); err != nil {
-		t.Fatalf("failed to create agents dir: %v", err)
-	}
 
 	// Reset flags
 	statsJSON = false
@@ -623,12 +632,8 @@ func TestStatsEmptyWorkspace(t *testing.T) {
 }
 
 func TestStatsSave(t *testing.T) {
-	wsDir, cleanup := setupIntegrationWorkspace(t)
+	_, cleanup := setupIntegrationWorkspace(t)
 	defer cleanup()
-
-	if err := os.MkdirAll(filepath.Join(wsDir, ".bc", "agents"), 0750); err != nil {
-		t.Fatalf("failed to create agents dir: %v", err)
-	}
 
 	statsSave = true
 	statsJSON = false
@@ -642,10 +647,10 @@ func TestStatsSave(t *testing.T) {
 		t.Errorf("expected 'Stats saved' message, got: %s", stdout)
 	}
 
-	// Verify file was created
-	statsPath := filepath.Join(wsDir, ".bc", "stats.json")
+	// Verify the snapshot landed in the global state dir (~/.mycel).
+	statsPath := filepath.Join(os.Getenv("MYCEL_HOME"), "stats.json")
 	if _, err := os.Stat(statsPath); os.IsNotExist(err) {
-		t.Error("stats.json was not created")
+		t.Error("stats.json was not created in MYCEL_HOME")
 	}
 }
 
@@ -811,12 +816,8 @@ func TestLogsJSON(t *testing.T) {
 }
 
 func TestStatsJSON(t *testing.T) {
-	wsDir, cleanup := setupIntegrationWorkspace(t)
+	_, cleanup := setupIntegrationWorkspace(t)
 	defer cleanup()
-
-	if err := os.MkdirAll(filepath.Join(wsDir, ".bc", "agents"), 0750); err != nil {
-		t.Fatalf("failed to create agents dir: %v", err)
-	}
 
 	statsJSON = true
 	statsSave = false

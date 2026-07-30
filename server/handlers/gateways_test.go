@@ -330,24 +330,23 @@ func openTestVault(t *testing.T) *secret.Store {
 	return v
 }
 
-// setupTestWorkspace creates a minimal workspace directory suitable for
-// gateway config updates. Uses a sandboxed MYCEL_HOME to avoid polluting the
-// caller's real registry.
+// setupTestWorkspace creates a minimal workspace suitable for gateway
+// config updates. Uses a sandboxed MYCEL_HOME so prefs.json and the
+// global database land in a throwaway dir, not the caller's ~/.mycel.
 func setupTestWorkspace(t *testing.T) *workspace.Workspace {
 	t.Helper()
-	// Sandbox global state so workspace.Init doesn't write to the real registry.
 	home := t.TempDir()
 	t.Setenv("HOME", home)
-	t.Setenv("MYCEL_HOME", filepath.Join(home, ".bc"))
+	t.Setenv("MYCEL_HOME", filepath.Join(home, ".mycel"))
 
 	dir := t.TempDir()
-	// workspace.Init requires a git repository.
+	// workspace.Open requires a non-empty root to be a git repository.
 	if err := os.MkdirAll(filepath.Join(dir, ".git"), 0o750); err != nil {
 		t.Fatalf("create .git: %v", err)
 	}
-	wks, err := workspace.Init(dir)
+	wks, err := workspace.Open(dir)
 	if err != nil {
-		t.Fatalf("workspace.Init: %v", err)
+		t.Fatalf("workspace.Open: %v", err)
 	}
 	return wks
 }

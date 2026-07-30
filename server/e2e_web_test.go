@@ -11,9 +11,7 @@ import (
 	"io/fs"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 	"testing"
 	"testing/fstest"
@@ -23,6 +21,7 @@ import (
 	bcdb "github.com/rpuneet/mycel/pkg/db"
 	"github.com/rpuneet/mycel/pkg/events"
 	pkgmcp "github.com/rpuneet/mycel/pkg/mcp"
+	"github.com/rpuneet/mycel/pkg/provider"
 	"github.com/rpuneet/mycel/pkg/tool"
 	"github.com/rpuneet/mycel/pkg/workspace"
 	"github.com/rpuneet/mycel/server"
@@ -35,50 +34,35 @@ func newE2EServerWithWebUI(t *testing.T) *e2eServer {
 	t.Helper()
 
 	dir := t.TempDir()
-	// workspace.Load requires a git repo
+	// workspace.Open requires a non-empty root to be a git repo
 	if out, err := exec.CommandContext(context.Background(), "git", "init", dir).CombinedOutput(); err != nil { //nolint:gosec // dir is a t.TempDir(), not user input
 		t.Fatalf("git init: %v\n%s", err, out)
 	}
+	// Isolate global state under a throwaway MYCEL_HOME.
 	t.Setenv("MYCEL_HOME", t.TempDir())
-	stateDir, sdErr := workspace.GlobalStateDir(dir)
-	if sdErr != nil {
-		t.Fatal(sdErr)
-	}
-	if err := os.MkdirAll(filepath.Join(stateDir, "roles"), 0750); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.MkdirAll(filepath.Join(stateDir, "agents"), 0750); err != nil {
-		t.Fatal(err)
-	}
 
-	cfg := `{"version":2,"providers":{"default":"claude","providers":{"claude":{"command":"claude"}}},"server":{"host":"127.0.0.1","port":9374,"cors_origin":"*"},"runtime":{"default":"tmux"},"ui":{"theme":"dark","mode":"auto"}}`
-	if err := os.WriteFile(filepath.Join(stateDir, workspace.PreferencesFileName), []byte(cfg), 0600); err != nil {
-		t.Fatal(err)
-	}
-
-	ws, err := workspace.Load(dir)
+	ws, err := workspace.Open(dir)
 	if err != nil {
-		t.Fatalf("workspace load: %v", err)
+		t.Fatalf("workspace open: %v", err)
 	}
 
-	// Per-workspace database via the registry (production path).
+	// Single global database (production path).
 	wsDB, wsDriver, dbErr := bcdb.Global(nil)
 	if dbErr != nil {
-		t.Fatalf("open workspace db: %v", dbErr)
+		t.Fatalf("open global db: %v", dbErr)
 	}
 	t.Cleanup(func() { _ = bcdb.CloseGlobal() })
 
 	hub := ws_hub(t)
-	mgr := agent.NewWorkspaceManager(ws.StateDir(), ws.RootDir)
+	mgr := agent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
 	_ = mgr.LoadState()
 	agentSvc := agent.NewAgentService(mgr, hub, nil)
 
-	var costStore *cost.Store
-	cs := cost.NewStore(ws.RootDir)
-	if err := cs.Open(); err == nil {
-		costStore = cs
-		t.Cleanup(func() { _ = cs.Close() })
-	}
+	// Source-direct cost service over the sandboxed sources.
+	costSvc := cost.NewService(provider.DefaultRegistry, cost.Options{
+		Home:      t.TempDir(),
+		AgentsDir: ws.AgentsDir(),
+	}, nil)
 
 	var mcpStore *pkgmcp.Store
 	if ms, err := pkgmcp.NewStore(wsDB, wsDriver); err == nil {
@@ -101,7 +85,7 @@ func newE2EServerWithWebUI(t *testing.T) *e2eServer {
 
 	svc := server.Services{
 		Agents:   agentSvc,
-		Costs:    costStore,
+		Costs:    costSvc,
 		MCP:      mcpStore,
 		Tools:    toolStore,
 		EventLog: eventLog,

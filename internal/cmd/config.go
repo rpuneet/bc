@@ -19,7 +19,7 @@ import (
 var configCmd = &cobra.Command{
 	Use:   "config",
 	Short: "Manage repo configuration",
-	Long: `Commands for managing repo configuration (preferences.json).
+	Long: `Commands for managing repo configuration (prefs.json).
 
 Configuration uses a hierarchical key structure with dot notation:
   workspace.name
@@ -147,7 +147,7 @@ User configuration provides defaults that apply across all mycel repos:
   - Default role for new agents
   - Preferred AI tools
 
-Workspace config (preferences.json) takes precedence over user config.
+Workspace config (prefs.json) takes precedence over user config.
 
 Examples:
   mycel config user init   # Create ~/.bcrc with guided prompts

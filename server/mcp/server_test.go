@@ -101,14 +101,16 @@ func newTestSession(t *testing.T, cfg Config, agentName string) (*sdk.ClientSess
 
 func testWorkspace(t *testing.T) *workspace.Workspace {
 	t.Helper()
+	// Isolate global state (~/.mycel prefs + db) per test.
+	t.Setenv("MYCEL_HOME", t.TempDir())
 	dir := t.TempDir()
 	//nolint:gosec // dir is a t.TempDir()
 	if out, err := exec.CommandContext(t.Context(), "git", "init", dir).CombinedOutput(); err != nil {
 		t.Fatalf("git init: %v: %s", err, out)
 	}
-	ws, err := workspace.Init(dir)
+	ws, err := workspace.Open(dir)
 	if err != nil {
-		t.Fatalf("workspace.Init: %v", err)
+		t.Fatalf("workspace.Open: %v", err)
 	}
 	return ws
 }

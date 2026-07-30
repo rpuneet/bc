@@ -12,16 +12,17 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/rpuneet/mycel/pkg/cost"
+	"github.com/rpuneet/mycel/pkg/provider"
 	"github.com/rpuneet/mycel/pkg/workspace"
 )
 
-// costReportCmd rolls up the user-global cost ledger (~/.mycel/costs.db)
-// across repos. It is a direct-filesystem read — no daemon required —
-// so it works even when bcd is not running.
+// costReportCmd rolls up costs across repos, computed directly from
+// provider session files (source-direct). It is a filesystem read — no
+// daemon required — so it works even when bcd is not running.
 var costReportCmd = &cobra.Command{
 	Use:   "report",
 	Short: "Report cost totals across repos",
-	Long: `Report cost totals from the user-global cost ledger (~/.mycel/costs.db).
+	Long: `Report cost totals computed directly from provider session files.
 
 By default prints per-repo breakdown. Use --by to change grouping:
 
@@ -44,19 +45,16 @@ func init() {
 }
 
 func runCostReport(cmd *cobra.Command, _ []string) error {
-	path, err := workspace.GlobalCostsDB()
+	agentsDir, err := workspace.AgentsDir()
 	if err != nil {
-		return fmt.Errorf("resolve global costs path: %w", err)
+		return fmt.Errorf("resolve agents dir: %w", err)
 	}
-	if _, statErr := os.Stat(path); statErr != nil {
-		return fmt.Errorf("no user-global cost ledger at %s — start bcd once to create it", path)
-	}
+	userHome, _ := os.UserHomeDir() //nolint:errcheck // empty home just skips host sessions
 
-	store, err := cost.OpenGlobalStore(path)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = store.Close() }()
+	svc := cost.NewService(provider.DefaultRegistry, cost.Options{
+		Home:      userHome,
+		AgentsDir: agentsDir,
+	}, nil)
 
 	since, err := parseSinceFlag(costReportSince)
 	if err != nil {
@@ -65,16 +63,16 @@ func runCostReport(cmd *cobra.Command, _ []string) error {
 
 	switch costReportBy {
 	case "repo", "":
-		return printCostByRepo(cmd.Context(), store, since)
+		return printCostByRepo(cmd.Context(), svc, since)
 	case "project":
-		return printCostByProject(cmd.Context(), store, since)
+		return printCostByProject(cmd.Context(), svc, since)
 	default:
 		return fmt.Errorf("unknown --by %q (want: repo, project)", costReportBy)
 	}
 }
 
-func printCostByRepo(ctx context.Context, store *cost.Store, since time.Time) error {
-	byRepo, err := store.SumByRepo(ctx, since)
+func printCostByRepo(ctx context.Context, svc *cost.Service, since time.Time) error {
+	byRepo, err := svc.SumByRepo(ctx, since)
 	if err != nil {
 		return err
 	}
@@ -111,14 +109,14 @@ func repoLabel(repo string) string {
 	return repo
 }
 
-func printCostByProject(ctx context.Context, store *cost.Store, since time.Time) error {
+func printCostByProject(ctx context.Context, svc *cost.Service, since time.Time) error {
 	resolve := func(repo string) string {
 		if repo == "" {
 			return ""
 		}
 		return repoLabel(repo)
 	}
-	byProj, err := store.SumByProject(ctx, since, resolve)
+	byProj, err := svc.SumByProject(ctx, since, resolve)
 	if err != nil {
 		return err
 	}
