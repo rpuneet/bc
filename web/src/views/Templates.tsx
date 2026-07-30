@@ -223,7 +223,7 @@ function TemplateDetailPanel({
           ← Marketplace
         </button>
         <span className="text-mycel-muted">/</span>
-        <h1 className="text-xl font-semibold tracking-tight text-mycel-text">
+        <h1 className="font-display text-xl font-semibold text-mycel-text">
           {detail.name}
         </h1>
       </div>

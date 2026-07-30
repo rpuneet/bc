@@ -11,6 +11,10 @@ import "@fontsource/geist-sans/600.css";
 import "@fontsource/geist-mono/400.css";
 import "@fontsource/geist-mono/600.css";
 
+// Fraunces — the landing's display serif, used ONLY as a rare accent
+// (.font-display): drawer wordmark, page titles, empty-state headings.
+import "@fontsource-variable/fraunces";
+
 import "./theme/tokens.css";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(

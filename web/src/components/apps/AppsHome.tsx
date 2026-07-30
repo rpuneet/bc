@@ -605,7 +605,7 @@ export function AppsHome() {
       <div className="flex h-full items-center justify-center">
         <div className="max-w-lg text-center px-6">
           <div className="text-4xl mb-4 opacity-40">#</div>
-          <h2 className="text-xl font-semibold text-mycel-text mb-2">Connect your first app</h2>
+          <h2 className="font-display text-xl font-semibold text-mycel-text mb-2">Connect your first app</h2>
           <p className="text-sm text-mycel-muted mb-6">
             Link Slack, Telegram, WhatsApp, Discord and more to start routing messages to your agents.
           </p>
