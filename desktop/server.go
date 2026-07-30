@@ -5,7 +5,9 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/rpuneet/mycel/internal/cmd"
@@ -26,6 +28,7 @@ type Server struct {
 	addr     string
 	repoRoot string
 	apiKey   string
+	attached bool
 }
 
 // NewServer resolves listen address and anchor repo the same way
@@ -62,10 +65,21 @@ func addrFlag() string {
 // URL returns the browser-reachable base URL of the embedded server.
 func (s *Server) URL() string { return "http://" + s.addr }
 
-// Start launches the server goroutine. Errors surface on s.done;
-// the boot page keeps polling /api/health, so a failed boot shows
-// up as the window never leaving the "starting" state plus a log line.
+// Start attaches to an already-running daemon when one answers at the
+// resolved address (or at the address published in run/daemon.addr) —
+// the desktop window is then a pure client and closing it leaves the
+// daemon alone. Otherwise it launches the in-process server goroutine;
+// errors surface on s.done and the boot page keeps polling /api/health,
+// so a failed boot shows up as the window never leaving the "starting"
+// state plus a log line.
 func (s *Server) Start() {
+	if addr, ok := runningDaemonAddr(s.addr); ok {
+		s.addr = addr
+		s.attached = true
+		log.Info("attached to running mycel daemon", "url", s.URL())
+		return
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 	s.cancel = cancel
 	s.done = make(chan error, 1)
@@ -85,7 +99,7 @@ func (s *Server) Start() {
 // graceful shutdown to finish. Called from Wails OnShutdown when the
 // window closes or the app quits.
 func (s *Server) Stop() {
-	if s.cancel == nil {
+	if s.attached || s.cancel == nil {
 		return
 	}
 	s.cancel()
@@ -120,17 +134,61 @@ func resolveRepoRoot() string {
 // to the stock 127.0.0.1:9374.
 func resolveListenAddr(repoRoot string) string {
 	host, port := "127.0.0.1", 9374
-	if repoRoot != "" {
-		if h, err := home.Load(repoRoot); err == nil && h.Config != nil {
-			if h.Config.Server.Host != "" {
-				host = h.Config.Server.Host
-			}
-			if h.Config.Server.Port > 0 {
-				port = h.Config.Server.Port
-			}
+	if h, err := home.Load(repoRoot); err == nil && h.Config != nil {
+		if h.Config.Server.Host != "" {
+			host = h.Config.Server.Host
+		}
+		if h.Config.Server.Port > 0 {
+			port = h.Config.Server.Port
 		}
 	}
 	return fmt.Sprintf("%s:%d", host, port)
+}
+
+// runningDaemonAddr reports whether a mycel daemon already answers —
+// first at the candidate host:port, then at the address published in
+// ~/.mycel/run/daemon.addr (covers a daemon started with --addr).
+// Returns the reachable host:port.
+func runningDaemonAddr(candidate string) (string, bool) {
+	if daemonHealthy("http://" + candidate) {
+		return candidate, true
+	}
+	p, err := home.DaemonAddrPath()
+	if err != nil {
+		return "", false
+	}
+	// #nosec G304 -- fixed path under ~/.mycel, not user input.
+	b, err := os.ReadFile(p)
+	if err != nil {
+		return "", false
+	}
+	url := strings.TrimSpace(string(b))
+	if url == "" {
+		return "", false
+	}
+	if !strings.Contains(url, "://") {
+		url = "http://" + url
+	}
+	if daemonHealthy(url) {
+		return strings.TrimPrefix(url, "http://"), true
+	}
+	return "", false
+}
+
+// daemonHealthy is a 1s bounded /api/health probe.
+func daemonHealthy(url string) bool {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url+"/api/health", nil)
+	if err != nil {
+		return false
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return false
+	}
+	defer resp.Body.Close() //nolint:errcheck
+	return resp.StatusCode == http.StatusOK
 }
 
 // publishDaemonAddr replicates `mycel up`'s discovery side effects:
