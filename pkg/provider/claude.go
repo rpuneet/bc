@@ -19,6 +19,8 @@ type ClaudeProvider struct {
 	binary              string
 }
 
+func init() { Register(NewClaudeProvider()) }
+
 // NewClaudeProvider creates a new Claude provider.
 func NewClaudeProvider() *ClaudeProvider {
 	return &ClaudeProvider{

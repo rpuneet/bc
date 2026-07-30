@@ -39,6 +39,8 @@ type OpenclawProvider struct {
 	binary      string
 }
 
+func init() { Register(NewOpenclawProvider()) }
+
 // NewOpenclawProvider creates a new OpenClaw provider.
 func NewOpenclawProvider() *OpenclawProvider {
 	return &OpenclawProvider{

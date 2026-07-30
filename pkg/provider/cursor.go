@@ -13,6 +13,8 @@ type CursorProvider struct {
 	binary      string
 }
 
+func init() { Register(NewCursorProvider()) }
+
 // NewCursorProvider creates a new Cursor provider.
 func NewCursorProvider() *CursorProvider {
 	return &CursorProvider{
