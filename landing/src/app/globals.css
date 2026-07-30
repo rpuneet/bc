@@ -621,8 +621,8 @@ input:focus-visible,
   line-height: 0.8;
   letter-spacing: -0.04em;
   color: transparent;
-  -webkit-text-stroke: 1px color-mix(in srgb, var(--primary) 40%, transparent);
-  text-stroke: 1px color-mix(in srgb, var(--primary) 40%, transparent);
+  -webkit-text-stroke: 1px color-mix(in srgb, var(--primary) 58%, transparent);
+  text-stroke: 1px color-mix(in srgb, var(--primary) 58%, transparent);
 }
 
 /* Panel eyebrow label */

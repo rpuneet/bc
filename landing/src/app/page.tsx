@@ -337,7 +337,7 @@ export default function Home() {
                     GitHub
                   </Link>
                 </div>
-                <div className="flex flex-wrap items-center justify-center gap-2">
+                <div className="flex flex-wrap items-center justify-center gap-2 opacity-70 transition-opacity hover:opacity-100">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src="https://img.shields.io/github/stars/rpuneet/mycel?style=flat-square&color=a35d0a&labelColor=2a2118" alt="GitHub stars" className="h-5" />
                   {/* eslint-disable-next-line @next/next/no-img-element */}

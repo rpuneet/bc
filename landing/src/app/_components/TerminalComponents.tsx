@@ -22,7 +22,7 @@ export function TerminalWindow({
     <div
       role="img"
       aria-label={ariaLabel || `Terminal window showing ${title}`}
-      className={`overflow-hidden rounded-xl border border-border bg-terminal-bg shadow-2xl dark:border-[rgba(210,180,140,0.06)] ${className}`}
+      className={`overflow-hidden rounded-xl border border-border bg-terminal-bg shadow-2xl dark:border-[rgba(232,163,61,0.14)] ${className}`}
     >
       <div className="flex items-center gap-2 border-b border-[rgba(210,180,140,0.08)] bg-terminal-header px-4 py-2.5">
         <div className="flex gap-1.5" aria-hidden="true">
