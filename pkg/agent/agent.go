@@ -422,25 +422,13 @@ func (a *Agent) Level() int {
 	return RoleLevel(a.Role)
 }
 
-// LoadRoleMemory loads role-specific prompt content from .bc/roles/<role>.md.
-// For the root role, loads from .bc/prompts/root.md for backward compatibility.
-// Returns nil AgentMemory if the file doesn't exist.
-func LoadRoleMemory(workspacePath string, role Role) *AgentMemory {
-	// For root role, try backward compatible location first
-	if role == RoleRoot {
-		rootPromptPath := filepath.Join(workspacePath, "prompts", "root.md")
-		//nolint:gosec // path constructed from trusted workspace root
-		if data, err := os.ReadFile(rootPromptPath); err == nil {
-			return &AgentMemory{
-				RolePrompt: string(data),
-				LoadedAt:   time.Now(),
-			}
-		}
-	}
-
+// LoadRoleMemory loads role-specific prompt content from the global
+// role store. Returns nil AgentMemory when the role has neither a
+// prompt nor plugins.
+func LoadRoleMemory(_ string, role Role) *AgentMemory {
 	// Load role via a RoleManager backed by the single global database —
 	// roles are global, not per-repo state.
-	rm, err := workspace.NewGlobalRoleManager(workspaceStateDir(workspacePath))
+	rm, err := workspace.NewGlobalRoleManager(mycelHomeOrEmpty())
 	if err != nil {
 		log.Debug("failed to open global role store", "role", role, "error", err)
 		return nil
@@ -514,7 +502,7 @@ type Manager struct { //nolint:govet // field order is intentional for readabili
 	wsConfig *workspace.Config
 
 	// providersConfig holds the workspace's provider command overrides
-	// (preferences.json `providers.<tool>.command`). Used by
+	// (prefs.json `providers.<tool>.command`). Used by
 	// getAgentCommand to layer a user-supplied command on top of the
 	// provider's hardcoded BuildCommand — e.g. so `pi` can be pointed
 	// at AWS Bedrock via workspace config.
@@ -645,13 +633,11 @@ func NewManager(stateDir string) *Manager {
 	}
 }
 
-// NewWorkspaceManager creates an agent manager scoped to a workspace.
-// Session names will be unique per workspace to avoid collisions.
+// NewWorkspaceManager creates an agent manager.
 //
-// stateDir is the per-workspace runtime directory (pre-M11: <project>/.bc/;
-// M11+: ~/.mycel/workspaces/<id>/). New agents use the flat layout:
-// worktrees at <MycelHome>/worktrees/<name>/ and agent state at
-// <MycelHome>/agents/<name>/.
+// stateDir is the agent entity root (~/.mycel/agents): each agent owns
+// <stateDir>/<name>/ with worktree/, session/, logs/ and tmp/ inside.
+// workspacePath is the anchor repo new agents default to (may be "").
 func NewWorkspaceManager(stateDir, workspacePath string) *Manager {
 	cmd, tool := defaultAgentCmd()
 	tmuxBe := runtime.NewTmuxBackend(tmux.NewWorkspaceManager(DefaultSessionPrefix, workspacePath))
@@ -666,7 +652,7 @@ func NewWorkspaceManager(stateDir, workspacePath string) *Manager {
 		defaultTool:      tool,
 		workspacePath:    workspacePath,
 		maxLogBytes:      DefaultMaxLogBytes,
-		worktreeMgr:      flatWorktreeManager(workspacePath, stateDir),
+		worktreeMgr:      entityWorktreeManager(workspacePath, stateDir),
 	}
 }
 
@@ -690,40 +676,35 @@ func NewWorkspaceManagerWithRuntime(stateDir, workspacePath string, rt runtime.B
 		defaultTool:      tool,
 		workspacePath:    workspacePath,
 		maxLogBytes:      DefaultMaxLogBytes,
-		worktreeMgr:      flatWorktreeManager(workspacePath, stateDir),
+		worktreeMgr:      entityWorktreeManager(workspacePath, stateDir),
 	}
 }
 
-// flatWorktreeManager builds a worktree manager for the flat layout:
-// worktrees at <MycelHome>/worktrees/<name>/ and agent state (claude/,
-// claude.json, logs/) at <MycelHome>/agents/<name>/. Agent names are
-// globally unique (mycel.db primary key), so flat name-keyed dirs are
-// safe. Falls back to the nested per-workspace layout only when the
-// mycel home cannot be resolved.
-func flatWorktreeManager(repoRoot, stateDir string) *worktree.Manager {
-	home, err := workspace.MycelHome()
-	if err != nil {
-		log.Warn("cannot resolve mycel home — using nested worktree layout", "error", err)
-		return worktree.NewManagerWithDataDir(repoRoot, parentOfAgentsDir(stateDir))
+// entityWorktreeManager builds a worktree manager for the entity-scoped
+// layout: everything an agent owns lives at <agentsRoot>/<name>/
+// (worktree/, session/, logs/, tmp/). agentsRoot is normally
+// ~/.mycel/agents; when empty it is resolved from the mycel home.
+func entityWorktreeManager(repoRoot, agentsRoot string) *worktree.Manager {
+	if agentsRoot == "" {
+		if dir, err := workspace.AgentsDir(); err == nil {
+			agentsRoot = dir
+		} else {
+			log.Warn("cannot resolve mycel agents dir", "error", err)
+		}
 	}
-	return worktree.NewFlatManager(repoRoot,
-		filepath.Join(home, "worktrees"),
-		filepath.Join(home, "agents"))
+	return worktree.NewManager(repoRoot, agentsRoot)
 }
 
-// parentOfAgentsDir returns the workspace runtime data dir given an agents
-// dir path. Callers historically pass ws.AgentsDir() (which ends in
-// "/agents") as stateDir; the worktree manager wants the parent so it can
-// create its own agents subdir. When stateDir does NOT end in "/agents",
-// it is treated as a full DataDir already.
-func parentOfAgentsDir(stateDir string) string {
-	if stateDir == "" {
-		return ""
+// agentsRoot returns the agent entity root this manager operates on:
+// its configured stateDir, or ~/.mycel/agents when unset.
+func (m *Manager) agentsRoot() string {
+	if m.stateDir != "" {
+		return m.stateDir
 	}
-	if filepath.Base(stateDir) == "agents" {
-		return filepath.Dir(stateDir)
+	if dir, err := workspace.AgentsDir(); err == nil {
+		return dir
 	}
-	return stateDir
+	return ""
 }
 
 // worktreeManagerFor returns the worktree manager to use when spawning
@@ -752,7 +733,7 @@ func (m *Manager) worktreeManagerFor(repo string) *worktree.Manager {
 		return m.worktreeMgr
 	}
 	// Cross-repo managers share the same flat dirs — only repoRoot differs.
-	return flatWorktreeManager(repo, m.stateDir)
+	return entityWorktreeManager(repo, m.stateDir)
 }
 
 // seedHostClaudeTrust pre-trusts an agent's worktree in the claude.json a
@@ -787,48 +768,16 @@ func storedWorktreeExists(worktreeDir string, wtMgr *worktree.Manager, name stri
 	return wtMgr.Exists(name)
 }
 
-// workspaceStateDir returns the best-guess workspace runtime dir for a
-// project root. Prefers ~/.mycel/workspaces/<id>/ (M11+); falls back to the
-// legacy <root>/.bc/ sidecar for pre-migration workspaces. Used by
-// package-level helpers that do not have access to a *Workspace.
-//
-// The result feeds MkdirAll/RemoveAll sinks, so the input is cleaned
-// and traversal sequences are rejected before any path is derived.
-func workspaceStateDir(workspacePath string) string {
-	workspacePath = filepath.Clean(workspacePath)
-	if strings.Contains(workspacePath, "..") {
-		log.Warn("refusing to derive state dir from unsafe workspace path", "path", workspacePath)
+// mycelHomeOrEmpty resolves the mycel home directory, returning ""
+// when it cannot be determined. Used by package-level helpers that do
+// not have access to a *Workspace.
+func mycelHomeOrEmpty() string {
+	home, err := workspace.MycelHome()
+	if err != nil {
+		log.Warn("cannot resolve mycel home", "error", err)
 		return ""
 	}
-	dir := stateDirCandidate(workspacePath)
-	// Re-validate the derived dir: GlobalStateDir honors env overrides
-	// (MYCEL_STATE_DIR), so the candidate is cleaned and traversal
-	// sequences rejected before it reaches any filesystem sink.
-	dir = filepath.Clean(dir)
-	if strings.Contains(dir, "..") {
-		log.Warn("refusing unsafe state dir", "path", dir)
-		return ""
-	}
-	return dir
-}
-
-// stateDirCandidate picks the state dir location for a cleaned project
-// root: the global dir when it exists (or when no legacy sidecar does),
-// the legacy <root>/.bc/ sidecar otherwise.
-func stateDirCandidate(workspacePath string) string {
-	if globalDir, err := workspace.GlobalStateDir(workspacePath); err == nil {
-		if _, statErr := os.Stat(globalDir); statErr == nil {
-			return globalDir
-		}
-		// Global dir may not exist yet but is still the canonical
-		// location — return it if the legacy dir is absent too.
-		legacy := filepath.Join(workspacePath, ".bc")
-		if _, legacyErr := os.Stat(legacy); legacyErr != nil {
-			return globalDir
-		}
-		return legacy
-	}
-	return filepath.Join(workspacePath, ".bc")
+	return home
 }
 
 // defaultAgentCmd returns the command and tool name for the default provider.
@@ -846,7 +795,7 @@ func defaultAgentCmd() (string, string) {
 
 // getAgentCommand looks up the command for a tool from the manager's
 // provider registry, layering a workspace-level override on top when
-// the workspace's preferences.json defines one. The override path is
+// the workspace's prefs.json defines one. The override path is
 // what makes a user able to spawn pi against AWS Bedrock by writing:
 //
 //	providers:
@@ -1265,12 +1214,9 @@ func (m *Manager) startAgent(ctx context.Context, name string, opts SpawnOptions
 		}
 	}
 
-	// Worktree name follows the stored dir for existing agents so the
-	// in-container tmux session name stays stable across layouts.
-	worktreeName := wtMgr.Name(name)
-	if existing.WorktreeDir != "" {
-		worktreeName = filepath.Base(existing.WorktreeDir)
-	}
+	// The worktree label is the agent name — entity dirs are keyed by
+	// it, so the in-container tmux session name stays stable.
+	worktreeName := name
 	env := map[string]string{
 		"MYCEL_AGENT_ID":      name,
 		"MYCEL_AGENT_ROLE":    string(existing.Role),
@@ -1521,7 +1467,7 @@ func (m *Manager) createAgent(ctx context.Context, opts SpawnOptions) (*Agent, e
 		"MYCEL_WORKSPACE":     wsPath,
 		"MYCEL_AGENT_RUNTIME": agentRuntime,
 		"MYCEL_DAEMON_ADDR":   daemonAddrForRuntime(agentRuntime),
-		"MYCEL_WORKTREE_NAME": wtMgr.Name(name),
+		"MYCEL_WORKTREE_NAME": name,
 	}
 	if effectiveTool != "" {
 		env["MYCEL_AGENT_TOOL"] = effectiveTool
@@ -1630,26 +1576,16 @@ func (m *Manager) createAgent(ctx context.Context, opts SpawnOptions) (*Agent, e
 
 // setupLogPipe creates the logs directory and starts pipe-pane for the agent.
 // Returns the log file path.
-func (m *Manager) setupLogPipe(ctx context.Context, name, wsPath string) string {
+func (m *Manager) setupLogPipe(ctx context.Context, name, _ string) string {
 	// The agent name becomes a filename below — never let a crafted
 	// name escape the logs directory.
 	if !IsValidAgentName(name) {
 		log.Warn("refusing to pipe logs for unsafe agent name", "agent", name)
 		return ""
 	}
-	// Flat layout: logs live with the rest of the agent's state at
-	// <MycelHome>/agents/<name>/logs/. Fall back to the per-workspace
-	// logs dir only when the mycel home cannot be resolved.
-	var logsDir string
-	if home, err := workspace.MycelHome(); err == nil {
-		logsDir = filepath.Join(home, "agents", name, "logs")
-	} else {
-		base := workspaceStateDir(wsPath)
-		if base == "" {
-			return ""
-		}
-		logsDir = filepath.Join(base, "logs")
-	}
+	// Logs live with the rest of the agent's entity state at
+	// <agentsRoot>/<name>/logs/.
+	logsDir := filepath.Join(m.agentsRoot(), name, "logs")
 	if err := os.MkdirAll(logsDir, 0750); err != nil {
 		log.Warn("failed to create logs dir", "error", err)
 		return ""
@@ -1793,7 +1729,7 @@ func (m *Manager) captureSessionIDForAgent(ctx context.Context, ag *Agent, rt ru
 	// Fallback: read session ID from the most recent JSONL transcript filename.
 	// Claude Code writes transcripts to .bc/agents/<name>/claude/projects/*/<uuid>.jsonl
 	// where the UUID IS the session ID.
-	if id := findSessionIDFromTranscripts(m.stateDir, ag.Name); id != "" {
+	if id := findSessionIDFromTranscripts(m.agentsRoot(), ag.Name); id != "" {
 		log.Debug("captured session ID from JSONL transcript", "agent", ag.Name, "session_id", id)
 		return id
 	}
@@ -1802,10 +1738,11 @@ func (m *Manager) captureSessionIDForAgent(ctx context.Context, ag *Agent, rt ru
 }
 
 // findSessionIDFromTranscripts scans the agent's Claude projects directory
-// for the most recent .jsonl transcript and extracts the session ID from
-// the filename (which is the UUID session ID).
-func findSessionIDFromTranscripts(stateDir, agentName string) string {
-	projectsDir := filepath.Join(stateDir, "agents", agentName, "claude", "projects")
+// (<agentsRoot>/<name>/session/claude/projects) for the most recent .jsonl
+// transcript and extracts the session ID from the filename (which is the
+// UUID session ID).
+func findSessionIDFromTranscripts(agentsRoot, agentName string) string {
+	projectsDir := filepath.Join(agentsRoot, agentName, "session", "claude", "projects")
 	if _, err := os.Stat(projectsDir); err != nil {
 		return ""
 	}
@@ -1848,22 +1785,23 @@ func findSessionIDFromTranscripts(stateDir, agentName string) string {
 	return ""
 }
 
-// writeSessionIDFile persists the session ID to a plain-text file and archives
-// it in the session history directory alongside a timestamp.
+// writeSessionIDFile persists the session ID to a plain-text file under
+// the agent's session dir (<agentsRoot>/<name>/session/) and archives it
+// in the session history directory alongside a timestamp.
 // Permissions are 0600 (session IDs may grant conversation access).
-func writeSessionIDFile(stateDir, agentName, sessionID string) {
+func writeSessionIDFile(agentsRoot, agentName, sessionID string) {
 	// Agent names are validated at creation, but never allow a name to
 	// escape the agents directory via path separators or "..".
 	if !IsValidAgentName(agentName) {
 		log.Warn("refusing to write session_id for unsafe agent name", "agent", agentName)
 		return
 	}
-	stateDir = filepath.Clean(stateDir)
-	if strings.Contains(stateDir, "..") || !filepath.IsLocal(agentName) {
+	agentsRoot = filepath.Clean(agentsRoot)
+	if strings.Contains(agentsRoot, "..") || !filepath.IsLocal(agentName) {
 		log.Warn("refusing to write session_id for unsafe path", "agent", agentName)
 		return
 	}
-	agentDir := filepath.Join(stateDir, "agents", agentName)
+	agentDir := filepath.Join(agentsRoot, agentName, "session")
 	if err := os.MkdirAll(agentDir, 0750); err != nil {
 		log.Warn("failed to create agent dir for session_id", "error", err)
 		return
@@ -1898,7 +1836,7 @@ func (m *Manager) StopAgent(ctx context.Context, name string) error {
 		return fmt.Errorf("agent %s: %w", name, ErrNotFound)
 	}
 	rt := m.runtimeForAgent(name)
-	stateDir := m.stateDir
+	agentsRoot := m.agentsRoot()
 	m.mu.RUnlock()
 
 	// Phase 2: per-agent lock — slow I/O (capture session ID, kill session)
@@ -1908,7 +1846,7 @@ func (m *Manager) StopAgent(ctx context.Context, name string) error {
 	// Capture session ID from output before killing the session.
 	if sessionID := m.captureSessionIDForAgent(ctx, agent, rt); sessionID != "" {
 		agent.SessionID = sessionID
-		writeSessionIDFile(stateDir, name, sessionID)
+		writeSessionIDFile(agentsRoot, name, sessionID)
 		log.Debug("captured session ID on stop", "agent", name, "session_id", sessionID)
 	}
 
@@ -2031,17 +1969,15 @@ func (m *Manager) DeleteAgentWithOptions(ctx context.Context, name string, opts 
 		return fmt.Errorf("agent %s: %w", name, ErrNotFound)
 	}
 	rt := m.runtimeForAgent(name)
-	workspacePath := m.workspacePath
-	stateDir := m.stateDir
+	agentsRoot := m.agentsRoot()
 	logFile := agent.LogFile
 	m.mu.RUnlock()
 
-	// Deletion recursively removes directories built from these paths —
+	// Deletion recursively removes directories built from this path —
 	// never let a traversal sequence reach os.RemoveAll.
-	workspacePath = filepath.Clean(workspacePath)
-	stateDir = filepath.Clean(stateDir)
-	if strings.Contains(workspacePath, "..") || strings.Contains(stateDir, "..") {
-		return fmt.Errorf("refusing to delete agent %s: unsafe workspace paths", name)
+	agentsRoot = filepath.Clean(agentsRoot)
+	if strings.Contains(agentsRoot, "..") {
+		return fmt.Errorf("refusing to delete agent %s: unsafe agents root", name)
 	}
 
 	// Phase 2: per-agent lock — slow I/O (kill session, remove container, git cleanup)
@@ -2056,22 +1992,10 @@ func (m *Manager) DeleteAgentWithOptions(ctx context.Context, name string, opts 
 		_ = cb.RemoveSession(ctx, name) //nolint:errcheck // may not exist
 	}
 
-	// 3. Remove persistent volume (<DataDir>/volumes/<name>/). The name
-	// is regexp-validated above and the base dir rejects traversal, but
-	// re-verify the composed path before the recursive delete.
-	if base := workspaceStateDir(workspacePath); base != "" {
-		volumeDir := filepath.Clean(filepath.Join(base, "volumes", name))
-		if strings.Contains(volumeDir, "..") {
-			log.Warn("delete: refusing unsafe volume path", "agent", name, "path", volumeDir)
-		} else if err := os.RemoveAll(volumeDir); err != nil {
-			log.Warn("delete: failed to remove agent volume", "agent", name, "error", err)
-		}
-	}
-
-	// 4. Remove git worktree — via the repo the agent is bound to, so
+	// 3. Remove git worktree — via the repo the agent is bound to, so
 	// cross-repo agents unregister from THEIR repo's worktree list. The
-	// stored WorktreeDir wins over the manager-computed path: agents
-	// created under older layouts live at their old dirs until migrated.
+	// stored WorktreeDir wins over the manager-computed path so deletion
+	// targets the directory the agent actually used.
 	wtMgr := m.worktreeManagerFor(agent.Repo)
 	if agent.WorktreeDir != "" {
 		if err := wtMgr.RemoveAt(ctx, name, agent.WorktreeDir); err != nil {
@@ -2081,39 +2005,24 @@ func (m *Manager) DeleteAgentWithOptions(ctx context.Context, name string, opts 
 		log.Warn("failed to remove worktree", "agent", name, "error", err)
 	}
 
-	// 5. Remove log file
+	// 4. Remove log file when it lives outside the entity dir (the
+	// entity dir itself is removed wholesale below).
 	if logFile != "" {
 		if err := os.Remove(logFile); err != nil && !os.IsNotExist(err) {
 			log.Warn("delete: failed to remove log file", "agent", name, "path", logFile, "error", err)
 		}
 	}
 
-	// 6. Remove agent state directory (.bc/agents/<name>/ — auth, session
-	// history, etc.). stateDir is cleaned and the name regexp-validated
-	// above; re-verify the composed path before the recursive delete.
-	agentStateDir := filepath.Clean(filepath.Join(stateDir, "agents", name))
-	if strings.Contains(agentStateDir, "..") {
-		log.Warn("delete: refusing unsafe agent state path", "agent", name, "path", agentStateDir)
-	} else if err := os.RemoveAll(agentStateDir); err != nil {
-		log.Warn("delete: failed to remove agent state dir", "agent", name, "path", agentStateDir, "error", err)
-	}
-
-	// 7. Remove flat-layout dirs: <MycelHome>/agents/<name>/ (state) and
-	// <MycelHome>/worktrees/<name>/ (worktree leftovers — git-level
-	// removal already happened in step 4).
-	if home, homeErr := workspace.MycelHome(); homeErr == nil {
-		for _, dir := range []string{
-			filepath.Join(home, "agents", name),
-			filepath.Join(home, "worktrees", name),
-		} {
-			dir = filepath.Clean(dir)
-			if strings.Contains(dir, "..") {
-				log.Warn("delete: refusing unsafe flat state path", "agent", name, "path", dir)
-				continue
-			}
-			if err := os.RemoveAll(dir); err != nil {
-				log.Warn("delete: failed to remove flat agent dir", "agent", name, "path", dir, "error", err)
-			}
+	// 5. Remove the agent's entity directory (<agentsRoot>/<name>/ —
+	// worktree leftovers, session state, logs, tmp). agentsRoot is
+	// cleaned and the name regexp-validated above; re-verify the
+	// composed path before the recursive delete.
+	if agentsRoot != "" {
+		entityDir := filepath.Clean(filepath.Join(agentsRoot, name))
+		if strings.Contains(entityDir, "..") {
+			log.Warn("delete: refusing unsafe agent entity path", "agent", name, "path", entityDir)
+		} else if err := os.RemoveAll(entityDir); err != nil {
+			log.Warn("delete: failed to remove agent entity dir", "agent", name, "path", entityDir, "error", err)
 		}
 	}
 
@@ -2198,18 +2107,16 @@ func (m *Manager) RenameAgent(ctx context.Context, oldName, newName string) erro
 	// Snapshot and sanitize the paths the rename moves — never let a
 	// traversal sequence reach the os.Rename/os.MkdirAll calls below.
 	wsPath := filepath.Clean(m.workspacePath)
-	stateDir := filepath.Clean(m.stateDir)
-	if strings.Contains(wsPath, "..") || strings.Contains(stateDir, "..") {
+	agentsRoot := filepath.Clean(m.agentsRoot())
+	if strings.Contains(wsPath, "..") || strings.Contains(agentsRoot, "..") {
 		return fmt.Errorf("rename: unsafe workspace paths")
 	}
-	// The stored WorktreeDir wins for the source — pre-migration agents
-	// live at older layouts; the destination uses the current layout.
-	oldPath := filepath.Clean(agent.WorktreeDir)
-	if agent.WorktreeDir == "" {
-		oldPath = m.worktreeMgr.Path(oldName)
-	}
+	oldEntityDir := filepath.Join(agentsRoot, oldName)
+	newEntityDir := filepath.Join(agentsRoot, newName)
+	// The stored WorktreeDir wins for the source when it lives outside
+	// the entity dir; the destination always uses the current layout.
 	newPath := m.worktreeMgr.Path(newName)
-	if strings.Contains(oldPath, "..") || strings.Contains(newPath, "..") {
+	if strings.Contains(newPath, "..") {
 		return fmt.Errorf("rename: unsafe worktree paths")
 	}
 
@@ -2225,14 +2132,12 @@ func (m *Manager) RenameAgent(ctx context.Context, oldName, newName string) erro
 		// Non-fatal — session may already be dead (agent is stopped)
 	}
 
-	// Move worktree directory to preserve content instead of Remove+Create
-	var newWorktreeDir string
-	if err := os.MkdirAll(filepath.Dir(newPath), 0750); err != nil {
-		log.Warn("rename: failed to create new agent dir", "error", err)
-	}
-	if err := os.Rename(oldPath, newPath); err != nil {
-		log.Warn("rename: failed to move worktree", "error", err)
-		// Fall back to create new
+	// Move the whole entity dir (worktree/, session/, logs/, tmp/) in
+	// one rename, then re-create the worktree if the move failed.
+	newWorktreeDir := ""
+	if err := os.Rename(oldEntityDir, newEntityDir); err != nil {
+		log.Warn("rename: failed to move agent entity dir", "error", err)
+		// Fall back: drop the old worktree and create a fresh one.
 		_ = m.worktreeMgr.Remove(ctx, oldName)
 		newPath2, wtErr := m.worktreeMgr.Create(ctx, newName)
 		if wtErr != nil {
@@ -2256,36 +2161,13 @@ func (m *Manager) RenameAgent(ctx context.Context, oldName, newName string) erro
 		}
 	}
 
-	// Rename log file (legacy shared logs dir)
-	oldLogDir := filepath.Join(workspaceStateDir(wsPath), "logs")
-	oldLogFile := filepath.Join(oldLogDir, oldName+".log")
-	newLogFile := filepath.Join(oldLogDir, newName+".log")
-	if err := os.Rename(oldLogFile, newLogFile); err != nil && !os.IsNotExist(err) {
+	// Rename the log file inside the moved entity dir, tracking the
+	// agent's recorded log path.
+	oldLogFile := filepath.Join(oldEntityDir, "logs", oldName+".log")
+	newLogFile := filepath.Join(newEntityDir, "logs", newName+".log")
+	movedLog := filepath.Join(newEntityDir, "logs", oldName+".log")
+	if err := os.Rename(movedLog, newLogFile); err != nil && !os.IsNotExist(err) {
 		log.Warn("rename: failed to rename log file", "error", err)
-	}
-
-	// Rename agent state directory (legacy nested layout)
-	oldStateDir := filepath.Join(stateDir, "agents", oldName)
-	newStateDir := filepath.Join(stateDir, "agents", newName)
-	if err := os.Rename(oldStateDir, newStateDir); err != nil && !os.IsNotExist(err) {
-		log.Warn("rename: failed to rename state dir", "error", err)
-	}
-
-	// Rename flat-layout state dir (<MycelHome>/agents/<name>/) and the
-	// log file inside it, tracking the agent's recorded log path.
-	var flatOldLog, flatNewLog string
-	if home, homeErr := workspace.MycelHome(); homeErr == nil {
-		oldFlat := filepath.Join(home, "agents", oldName)
-		newFlat := filepath.Join(home, "agents", newName)
-		if err := os.Rename(oldFlat, newFlat); err != nil && !os.IsNotExist(err) {
-			log.Warn("rename: failed to rename flat state dir", "error", err)
-		}
-		flatOldLog = filepath.Join(oldFlat, "logs", oldName+".log")
-		flatNewLog = filepath.Join(newFlat, "logs", newName+".log")
-		movedLog := filepath.Join(newFlat, "logs", oldName+".log")
-		if err := os.Rename(movedLog, flatNewLog); err != nil && !os.IsNotExist(err) {
-			log.Warn("rename: failed to rename flat log file", "error", err)
-		}
 	}
 
 	agentLock.Unlock()
@@ -2304,8 +2186,6 @@ func (m *Manager) RenameAgent(ctx context.Context, oldName, newName string) erro
 	}
 	if agent.LogFile == oldLogFile {
 		agent.LogFile = newLogFile
-	} else if flatOldLog != "" && agent.LogFile == flatOldLog {
-		agent.LogFile = flatNewLog
 	}
 
 	// Update maps
@@ -2874,20 +2754,12 @@ func (m *Manager) LoadState() error {
 		return nil
 	}
 
-	// Open SQLite store — use the single global mycel.db when the
-	// workspace (repo) path is known, otherwise fall back to state.db in
-	// the agents dir (tests / standalone). Agents from every repo share
-	// the one database; this manager only materializes rows whose repo
-	// matches its own.
-	var dbPath string
-	if m.workspacePath != "" {
-		p, pathErr := db.GlobalDBPath()
-		if pathErr != nil {
-			return fmt.Errorf("resolve global db path: %w", pathErr)
-		}
-		dbPath = p
-	} else {
-		dbPath = filepath.Join(m.stateDir, "state.db")
+	// Open SQLite store on the single global mycel.db — agents from
+	// every repo share the one database. The anchor repo is only the
+	// default for new agents.
+	dbPath, pathErr := db.GlobalDBPath()
+	if pathErr != nil {
+		return fmt.Errorf("resolve global db path: %w", pathErr)
 	}
 	store, err := NewSQLiteStore(dbPath)
 	if err != nil {
@@ -3467,7 +3339,7 @@ func injectVaultSecrets(env map[string]string, wsPath string, roleSecrets []stri
 // inheritance merge. Returns nil (no error) when the role cannot be loaded
 // so callers can proceed with an empty allowlist.
 func resolveRoleSecrets(wsPath, roleName string) []string {
-	rm, err := workspace.NewGlobalRoleManager(workspaceStateDir(wsPath))
+	rm, err := workspace.NewGlobalRoleManager(mycelHomeOrEmpty())
 	if err != nil {
 		log.Debug("resolveRoleSecrets: cannot open role manager", "error", err)
 		return nil
@@ -3484,7 +3356,7 @@ func resolveRoleSecrets(wsPath, roleName string) []string {
 // named role receives. It returns the resolved role's MCPServers list only —
 // no implicit servers are added. Returns nil when the role cannot be loaded.
 func resolveRoleMCPServers(wsPath, roleName string) []string {
-	rm, err := workspace.NewGlobalRoleManager(workspaceStateDir(wsPath))
+	rm, err := workspace.NewGlobalRoleManager(mycelHomeOrEmpty())
 	if err != nil {
 		log.Debug("resolveRoleMCPServers: cannot open role manager", "error", err)
 		return nil

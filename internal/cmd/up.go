@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"context"
-	"crypto/sha256"
 	"fmt"
 	"net"
 	"os"
@@ -88,18 +87,17 @@ func runUp(cmd *cobra.Command, _ []string) error {
 		wsRoot = abs
 	}
 
-	// Read server config from preferences.json for defaults
-	if wsRoot != "" {
-		if ws, loadErr := workspace.Load(wsRoot); loadErr == nil && ws.Config != nil {
-			// Use preferences.json addr if --addr wasn't explicitly set
-			if !cmd.Flags().Changed("addr") {
-				host := ws.Config.Server.Host
+	// Use the prefs.json addr if --addr wasn't explicitly set.
+	if !cmd.Flags().Changed("addr") {
+		if prefsPath, pathErr := workspace.PrefsPath(); pathErr == nil {
+			if cfg, loadErr := workspace.LoadConfig(prefsPath); loadErr == nil {
+				host := cfg.Server.Host
 				if host == "" {
 					host = "127.0.0.1"
 				}
 				port := 9374
-				if ws.Config.Server.Port > 0 {
-					port = ws.Config.Server.Port
+				if cfg.Server.Port > 0 {
+					port = cfg.Server.Port
 				}
 				upAddr = fmt.Sprintf("%s:%d", host, port)
 			}
@@ -122,9 +120,9 @@ func runUp(cmd *cobra.Command, _ []string) error {
 	}
 	fmt.Printf("  addr: %s\n\n", upAddr)
 
-	// Lazy-start the bc-db container when the workspace is configured
-	// for TimescaleDB storage. SQLite (the default) needs nothing.
-	maybeBootstrapTimescale(wsRoot)
+	// Lazy-start the bc-db container when storage is configured for
+	// TimescaleDB. SQLite (the default) needs nothing.
+	maybeBootstrapTimescale()
 
 	// Set MYCEL_DAEMON_ADDR so agents inherit the correct server address for hooks.
 	// Without this, agents default to :9374 even when bcd runs on a different port.
@@ -133,13 +131,13 @@ func runUp(cmd *cobra.Command, _ []string) error {
 		fmt.Printf("  MYCEL_DAEMON_ADDR: %s\n", bcdAddr)
 	}
 
-	// Publish the listen address at ~/.mycel/daemon.addr so the mycel CLI and
-	// agents can find the daemon without MYCEL_DAEMON_ADDR when it runs on
-	// a non-default port. Best-effort — failure to write is not fatal,
-	// but each failure mode must warn so users aren't silently routed
-	// back to the hardcoded :9374 default (the exact bug #43 fixed).
-	if _, ensureErr := workspace.EnsureGlobalDir(); ensureErr != nil {
-		log.Warn("daemon addr: ensure ~/.mycel failed — CLI will fall back to default port", "error", ensureErr)
+	// Publish the listen address at ~/.mycel/run/daemon.addr so the mycel
+	// CLI and agents can find the daemon without MYCEL_DAEMON_ADDR when it
+	// runs on a non-default port. Best-effort — failure to write is not
+	// fatal, but each failure mode must warn so users aren't silently
+	// routed back to the hardcoded :9374 default (the exact bug #43 fixed).
+	if _, ensureErr := workspace.EnsureRunDir(); ensureErr != nil {
+		log.Warn("daemon addr: ensure ~/.mycel/run failed — CLI will fall back to default port", "error", ensureErr)
 	} else if addrPath, pathErr := workspace.DaemonAddrPath(); pathErr != nil {
 		log.Warn("daemon addr: resolve path failed — CLI will fall back to default port", "error", pathErr)
 	} else if writeErr := os.WriteFile(addrPath, []byte(bcdAddr+"\n"), 0o600); writeErr != nil {
@@ -188,20 +186,21 @@ func findGitRoot() string {
 }
 
 // maybeBootstrapTimescale starts the bc-db (TimescaleDB) container when
-// the workspace's storage.default is "timescale". Non-fatal: warns if
-// Docker is unavailable. SQLite workspaces (the default) skip this.
-func maybeBootstrapTimescale(wsRoot string) {
-	if wsRoot == "" {
+// prefs.json sets storage.default to "timescale". Non-fatal: warns if
+// Docker is unavailable. SQLite (the default) skips this.
+func maybeBootstrapTimescale() {
+	prefsPath, pathErr := workspace.PrefsPath()
+	if pathErr != nil {
 		return
 	}
-	ws, err := workspace.Load(wsRoot)
-	if err != nil || ws.Config == nil || ws.Config.Storage.Default != "timescale" {
+	cfg, err := workspace.LoadConfig(prefsPath)
+	if err != nil || cfg.Storage.Default != "timescale" {
 		return
 	}
 
 	// Honor the configured connection settings; only bootstrap the local
 	// container for a localhost target — a remote Timescale is the user's.
-	ts := ws.Config.Storage.Timescale
+	ts := cfg.Storage.Timescale
 	host := ts.Host
 	if host == "" {
 		host = "localhost"
@@ -234,11 +233,15 @@ func maybeBootstrapTimescale(wsRoot string) {
 	fmt.Printf("  %s database ready\n\n", ui.GreenText("ok"))
 }
 
-// runUpDaemon starts bc up in the background by re-executing the mycel binary.
-// Logs go to ~/.mycel/daemon.log, PID to ~/.mycel/daemon.pid.
+// runUpDaemon starts mycel up in the background by re-executing the mycel
+// binary. Logs go to ~/.mycel/logs/daemon.log, PID to
+// ~/.mycel/run/daemon.pid.
 func runUpDaemon(wsRoot string) error {
-	if _, err := workspace.EnsureGlobalDir(); err != nil {
-		return fmt.Errorf("ensure bc home: %w", err)
+	if _, err := workspace.EnsureRunDir(); err != nil {
+		return fmt.Errorf("ensure run dir: %w", err)
+	}
+	if _, err := workspace.EnsureGlobalLogsDir(); err != nil {
+		return fmt.Errorf("ensure logs dir: %w", err)
 	}
 
 	pidPath, err := workspace.DaemonPidPath()
@@ -325,12 +328,6 @@ func runUpDaemon(wsRoot string) error {
 	fmt.Println()
 
 	return nil
-}
-
-// wsID returns a short workspace hash for container naming.
-func wsID(path string) string {
-	h := sha256.Sum256([]byte(path))
-	return fmt.Sprintf("%x", h[:3])
 }
 
 // dockerRun starts a container if not already running.

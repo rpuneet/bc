@@ -61,12 +61,13 @@ type Globals struct {
 // goroutines and closes stores. The caller (RunServer) invokes Close() at
 // shutdown.
 func BuildServices(ctx context.Context, globals *Globals, wsRoot string) (*Services, error) {
-	ws, err := bcworkspace.Load(wsRoot)
+	// Open is idempotent: it bootstraps ~/.mycel (prefs.json, dirs) on
+	// first run and loads the existing config afterwards. wsRoot may be
+	// empty — the daemon then boots without an anchor repo and agents
+	// carry their own repo paths.
+	ws, err := bcworkspace.Open(wsRoot)
 	if err != nil {
-		ws, err = bcworkspace.Init(wsRoot)
-		if err != nil {
-			return nil, fmt.Errorf("init workspace %s: %w", wsRoot, err)
-		}
+		return nil, fmt.Errorf("open workspace %q: %w", wsRoot, err)
 	}
 	return buildServicesFromWS(ctx, globals, ws)
 }
@@ -120,8 +121,9 @@ func buildServicesFromWS(ctx context.Context, globals *Globals, ws *bcworkspace.
 		}
 	}
 
-	// Events JSONL writer (append-only).
-	eventsJSONL := filepath.Join(ws.StateDir(), "events.jsonl")
+	// Events JSONL writer (append-only) — lives with the other process
+	// logs at ~/.mycel/logs/.
+	eventsJSONL := filepath.Join(ws.LogsDir(), "events.jsonl")
 	eventWriter := bcevents.NewJSONLWriter(eventsJSONL, 0)
 
 	// The one SSE hub. bcd is single-tenant, so the bundle publishes
@@ -253,16 +255,12 @@ func buildServicesFromWS(ctx context.Context, globals *Globals, ws *bcworkspace.
 		}
 	}
 
-	// Template store: user-global (~/.mycel/templates/) with workspace
-	// override. If globals.Templates is nil (legacy callers that did not
-	// initialize it), fall back to a workspace-local single-layer store
-	// so existing behavior is preserved.
+	// Template store: the single user-global store (~/.mycel/templates/).
 	var tmplStore *bctemplate.Store
-	wsTemplatesDir := filepath.Join(ws.StateDir(), "templates")
 	if globals != nil && globals.Templates != nil {
-		tmplStore = globals.Templates.WithOverride(wsTemplatesDir)
+		tmplStore = globals.Templates
 	} else {
-		tmplStore = bctemplate.NewStore(wsTemplatesDir)
+		tmplStore = bctemplate.NewStore(filepath.Join(ws.StateDir(), "templates"))
 	}
 
 	// Event log (SQLite) + pruning loop.

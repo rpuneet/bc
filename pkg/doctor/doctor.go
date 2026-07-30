@@ -180,30 +180,30 @@ func ValidCategories() []string {
 
 // ─── Workspace ───────────────────────────────────────────────────────────────
 
-// CheckWorkspace checks the .bc/ directory structure, config validity, and roles.
+// CheckWorkspace checks the ~/.mycel directory structure, config validity, and roles.
 func CheckWorkspace(ws *workspace.Workspace) CategoryReport {
 	cat := CategoryReport{Name: "Workspace"}
 
 	stateDir := ws.StateDir()
 
-	// .bc/ directory
+	// ~/.mycel directory
 	if _, err := os.Stat(stateDir); err != nil {
 		cat.Items = append(cat.Items, Item{
-			Name:     ".bc/ directory",
+			Name:     "~/.mycel directory",
 			Message:  "missing",
 			Severity: SeverityFail,
-			Fix:      "run 'mycel up' from your repo to bootstrap the workspace",
+			Fix:      "run 'mycel up' to bootstrap mycel",
 		})
 		return cat
 	}
 	cat.Items = append(cat.Items, Item{
-		Name:     ".bc/ directory",
+		Name:     "~/.mycel directory",
 		Message:  "exists",
 		Severity: SeverityOK,
 	})
 
-	// Preferences file (preferences.json).
-	configPath := filepath.Join(stateDir, workspace.PreferencesFileName)
+	// Preferences file (prefs.json).
+	configPath := filepath.Join(stateDir, workspace.PrefsFileName)
 	configName := filepath.Base(configPath)
 	if _, err := os.Stat(configPath); err != nil {
 		cat.Items = append(cat.Items, Item{
@@ -237,40 +237,27 @@ func CheckWorkspace(ws *workspace.Workspace) CategoryReport {
 		}
 	}
 
-	// Roles directory
-	rolesDir := ws.RolesDir()
-	if _, err := os.Stat(rolesDir); err != nil {
-		cat.Items = append(cat.Items, Item{
-			Name:     "roles/",
-			Message:  "missing",
-			Severity: SeverityWarn,
-			Fix:      "run 'mycel up' from your repo to recreate role files",
-		})
-	} else {
-		entries, err := os.ReadDir(rolesDir)
-		if err != nil {
+	// Roles (DB-backed via the role manager).
+	if ws.RoleManager != nil {
+		roles, rolesErr := ws.RoleManager.LoadAllRoles()
+		switch {
+		case rolesErr != nil:
 			cat.Items = append(cat.Items, Item{
-				Name:     "roles/",
-				Message:  fmt.Sprintf("unreadable: %v", err),
+				Name:     "roles",
+				Message:  fmt.Sprintf("unreadable: %v", rolesErr),
 				Severity: SeverityWarn,
 			})
-		} else {
-			count := 0
-			for _, e := range entries {
-				if !e.IsDir() && filepath.Ext(e.Name()) == ".md" {
-					count++
-				}
-			}
-			msg := fmt.Sprintf("%d role file(s) defined", count)
-			sev := SeverityOK
-			if count == 0 {
-				sev = SeverityWarn
-				msg = "no role files found"
-			}
+		case len(roles) == 0:
 			cat.Items = append(cat.Items, Item{
-				Name:     "roles/",
-				Message:  msg,
-				Severity: sev,
+				Name:     "roles",
+				Message:  "no roles found",
+				Severity: SeverityWarn,
+			})
+		default:
+			cat.Items = append(cat.Items, Item{
+				Name:     "roles",
+				Message:  fmt.Sprintf("%d role(s) defined", len(roles)),
+				Severity: SeverityOK,
 			})
 		}
 	}
@@ -282,7 +269,7 @@ func CheckWorkspace(ws *workspace.Workspace) CategoryReport {
 			Name:     "agents/",
 			Message:  "missing",
 			Severity: SeverityWarn,
-			Fix:      "run 'mycel up' from your repo to recreate directory structure",
+			Fix:      "run 'mycel up' to recreate directory structure",
 		})
 	} else {
 		cat.Items = append(cat.Items, Item{
@@ -301,15 +288,10 @@ func CheckWorkspace(ws *workspace.Workspace) CategoryReport {
 func CheckDatabase(ctx context.Context, ws *workspace.Workspace) CategoryReport {
 	cat := CategoryReport{Name: "Database"}
 
-	stateDir := ws.StateDir()
-
-	// bc.db — agents table
-	stateDB := filepath.Join(stateDir, "bc.db")
-	cat.Items = append(cat.Items, checkSQLiteFile(ctx, stateDB, "bc.db", []string{"agents"})...)
-
-	// bc.db — channels/messages tables
-	channelsDB := filepath.Join(stateDir, "bc.db")
-	cat.Items = append(cat.Items, checkSQLiteFile(ctx, channelsDB, "bc.db", []string{"channels", "messages"})...)
+	// mycel.db — the single global database.
+	globalDB := filepath.Join(ws.StateDir(), db.GlobalDBFileName)
+	cat.Items = append(cat.Items, checkSQLiteFile(ctx, globalDB, db.GlobalDBFileName, []string{"agents"})...)
+	cat.Items = append(cat.Items, checkSQLiteFile(ctx, globalDB, db.GlobalDBFileName, []string{"channels", "messages"})...)
 
 	return cat
 }

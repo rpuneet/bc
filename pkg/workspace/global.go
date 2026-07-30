@@ -1,11 +1,22 @@
 package workspace
 
-// global.go — path helpers for user-global assets (~/.mycel/...).
+// global.go — path helpers for the entity-scoped ~/.mycel tree.
 //
-// Phase M8 of the multi-tenant refactor promotes templates, secrets, MCP
-// trust, and costs from per-workspace `.bc/` directories to a single
-// user-scoped `~/.mycel/` tree. These helpers centralize the path resolution
-// so tests can swap MYCEL_HOME and production code stays consistent.
+// The mycel home is flat and entity-scoped: deleting an entity's
+// directory (plus its db rows and vault keys) removes it completely.
+//
+//	~/.mycel/
+//	  prefs.json           # THE global config
+//	  mycel.db             # THE database
+//	  secrets.vault
+//	  agents/<name>/       # worktree/ session/ logs/ tmp/
+//	  apps/<name>/         # only stateful apps create one
+//	  templates/
+//	  logs/                # daemon + process logs
+//	  run/                 # daemon.pid, daemon.addr
+//
+// These helpers centralize path resolution so tests can swap MYCEL_HOME
+// and production code stays consistent.
 
 import (
 	"fmt"
@@ -15,96 +26,183 @@ import (
 
 // Subdirectories and files relative to MycelHome().
 const (
-	globalTemplatesDirName  = "templates"
-	globalSecretsFileName   = "secrets.vault"
-	globalMCPFileName       = "mcps.json"
-	globalCostsFileName     = "costs.db"
-	globalToolsFileName     = "tools.json"
-	globalWorkspacesDirName = "workspaces"
-	globalDaemonPidName     = "daemon.pid"
-	globalDaemonLogName     = "daemon.log"
-	globalDaemonAddrName    = "daemon.addr"
+	globalTemplatesDirName = "templates"
+	globalSecretsFileName  = "secrets.vault"
+	globalMCPFileName      = "mcps.json"
+	globalToolsFileName    = "tools.json"
+	globalAgentsDirName    = "agents"
+	globalAppsDirName      = "apps"
+	globalLogsDirName      = "logs"
+	globalRunDirName       = "run"
+	globalDaemonPidName    = "daemon.pid"
+	globalDaemonLogName    = "daemon.log"
+	globalDaemonAddrName   = "daemon.addr"
 )
 
-// DataDir returns the per-workspace runtime directory for a given
-// workspace ID.
-//
-// Returns ~/.mycel/workspaces/<id>/ (respecting MYCEL_HOME). Pass the ID from
-// ComputeWorkspaceID(absRootDir).
-//
-// This path holds every piece of runtime state for the workspace:
-// preferences.json, state.db, agents/, logs/ — nothing lives
-// under the project directory anymore.
-func DataDir(id string) (string, error) {
-	if id == "" {
-		return "", fmt.Errorf("workspace id is empty")
+// Agent entity subdirectories under agents/<name>/.
+const (
+	agentWorktreeDirName = "worktree"
+	agentSessionDirName  = "session"
+	agentLogsDirName     = "logs"
+	agentTmpDirName      = "tmp"
+)
+
+// AgentsDir returns the root of all agent entity directories
+// (~/.mycel/agents/).
+func AgentsDir() (string, error) {
+	return globalPath(globalAgentsDirName)
+}
+
+// AgentDir returns the entity directory for one agent
+// (~/.mycel/agents/<name>/). Deleting this directory removes every
+// piece of filesystem state the agent owns.
+func AgentDir(name string) (string, error) {
+	if name == "" || !filepath.IsLocal(name) {
+		return "", fmt.Errorf("invalid agent name %q", name)
 	}
-	home, err := MycelHome()
+	agents, err := AgentsDir()
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(home, globalWorkspacesDirName, id), nil
+	return filepath.Join(agents, name), nil
+}
+
+// AgentWorktreeDir returns the agent's git worktree directory
+// (~/.mycel/agents/<name>/worktree/).
+func AgentWorktreeDir(name string) (string, error) {
+	return agentSubdir(name, agentWorktreeDirName)
+}
+
+// AgentSessionDir returns the agent's provider-state directory
+// (~/.mycel/agents/<name>/session/). Provider config and transcripts
+// (e.g. the Claude home dir for docker agents) live here so they
+// persist on the host.
+func AgentSessionDir(name string) (string, error) {
+	return agentSubdir(name, agentSessionDirName)
+}
+
+// AgentLogsDir returns the agent's log directory
+// (~/.mycel/agents/<name>/logs/).
+func AgentLogsDir(name string) (string, error) {
+	return agentSubdir(name, agentLogsDirName)
+}
+
+// AgentTmpDir returns the agent's scratch directory
+// (~/.mycel/agents/<name>/tmp/).
+func AgentTmpDir(name string) (string, error) {
+	return agentSubdir(name, agentTmpDirName)
+}
+
+func agentSubdir(name, sub string) (string, error) {
+	dir, err := AgentDir(name)
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(dir, sub), nil
+}
+
+// AppsDir returns the root of app instance state directories
+// (~/.mycel/apps/). Only stateful apps create a subdirectory.
+func AppsDir() (string, error) {
+	return globalPath(globalAppsDirName)
 }
 
 // GlobalTemplatesDir returns the user-global templates directory
-// (~/.mycel/templates/). Templates here apply across all workspaces; each
-// workspace may override a template by placing a file with the same name
-// under its state dir's templates/ directory
-// (~/.mycel/workspaces/<id>/templates/).
+// (~/.mycel/templates/) — the single template store.
 func GlobalTemplatesDir() (string, error) {
 	return globalPath(globalTemplatesDirName)
 }
 
 // GlobalSecretsVault returns the path to the user-global secrets vault
 // (~/.mycel/secrets.vault). This is a SQLite database holding the user's
-// encrypted key/value secrets shared across workspaces.
+// encrypted key/value secrets.
 func GlobalSecretsVault() (string, error) {
 	return globalPath(globalSecretsFileName)
 }
 
 // GlobalMCPConfig returns the path to the user-global MCP trust config
-// (~/.mycel/mcps.json). Servers listed here are available to every
-// workspace unless the workspace overrides them locally.
+// (~/.mycel/mcps.json).
 func GlobalMCPConfig() (string, error) {
 	return globalPath(globalMCPFileName)
 }
 
-// GlobalCostsDB returns the path to the user-global cost ledger
-// (~/.mycel/costs.db). Every cost record is tagged with a repo path so
-// cross-workspace analytics work without data duplication.
-func GlobalCostsDB() (string, error) {
-	return globalPath(globalCostsFileName)
-}
-
 // GlobalToolsConfig returns the path to the user-global CLI tools
 // registry (~/.mycel/tools.json). Tools here describe machine-level
-// dependencies (claude, bun, docker helpers, etc.) — there is no
-// per-workspace override for this file.
+// dependencies (claude, bun, docker helpers, etc.).
 func GlobalToolsConfig() (string, error) {
 	return globalPath(globalToolsFileName)
 }
 
-// DaemonPidPath returns the path to the user-global bcd pid file
-// (~/.mycel/daemon.pid). The bcd daemon is user-scoped — a single process
-// serves every workspace — so its pid lives outside any per-workspace
-// directory.
+// GlobalLogsDir returns the daemon/process log directory
+// (~/.mycel/logs/).
+func GlobalLogsDir() (string, error) {
+	return globalPath(globalLogsDirName)
+}
+
+// RunDir returns the runtime-files directory (~/.mycel/run/) holding
+// daemon.pid and daemon.addr.
+func RunDir() (string, error) {
+	return globalPath(globalRunDirName)
+}
+
+// EnsureRunDir creates ~/.mycel/run/ (and its parents) if missing and
+// returns its path.
+func EnsureRunDir() (string, error) {
+	dir, err := RunDir()
+	if err != nil {
+		return "", err
+	}
+	if err := os.MkdirAll(dir, 0750); err != nil {
+		return "", fmt.Errorf("create run dir %s: %w", dir, err)
+	}
+	return dir, nil
+}
+
+// EnsureGlobalLogsDir creates ~/.mycel/logs/ if missing and returns its
+// path.
+func EnsureGlobalLogsDir() (string, error) {
+	dir, err := GlobalLogsDir()
+	if err != nil {
+		return "", err
+	}
+	if err := os.MkdirAll(dir, 0750); err != nil {
+		return "", fmt.Errorf("create logs dir %s: %w", dir, err)
+	}
+	return dir, nil
+}
+
+// DaemonPidPath returns the path to the daemon pid file
+// (~/.mycel/run/daemon.pid). The daemon is user-scoped — a single
+// process serves everything.
 func DaemonPidPath() (string, error) {
-	return globalPath(globalDaemonPidName)
+	dir, err := RunDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(dir, globalDaemonPidName), nil
 }
 
-// DaemonLogPath returns the path to the user-global bcd log file
-// (~/.mycel/daemon.log). Same rationale as DaemonPidPath: one bcd, one log.
+// DaemonLogPath returns the path to the daemon log file
+// (~/.mycel/logs/daemon.log).
 func DaemonLogPath() (string, error) {
-	return globalPath(globalDaemonLogName)
+	dir, err := GlobalLogsDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(dir, globalDaemonLogName), nil
 }
 
-// DaemonAddrPath returns the path to the user-global bcd address file
-// (~/.mycel/daemon.addr). `mycel up` writes the currently-listening address
-// (scheme + host:port, e.g. "http://127.0.0.1:8080") so the CLI and
-// agents can locate the daemon without requiring MYCEL_DAEMON_ADDR to be
-// set when the daemon runs on a non-default port.
+// DaemonAddrPath returns the path to the daemon address file
+// (~/.mycel/run/daemon.addr). `mycel up` writes the currently-listening
+// address (scheme + host:port, e.g. "http://127.0.0.1:8080") so the CLI
+// and agents can locate the daemon without requiring MYCEL_DAEMON_ADDR
+// when the daemon runs on a non-default port.
 func DaemonAddrPath() (string, error) {
-	return globalPath(globalDaemonAddrName)
+	dir, err := RunDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(dir, globalDaemonAddrName), nil
 }
 
 // EnsureGlobalDir makes sure ~/.mycel/ exists with 0750 permissions. It is

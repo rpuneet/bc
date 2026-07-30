@@ -51,7 +51,7 @@ func SetupAgentFromRole(ctx context.Context, workspacePath, agentName, roleName,
 }
 
 func setupAgentFromRole(ctx context.Context, workspacePath, agentName, roleName, targetDir, runtimeBackend, toolName string) error {
-	rm, err := workspace.NewGlobalRoleManager(workspaceStateDir(workspacePath))
+	rm, err := workspace.NewGlobalRoleManager(mycelHomeOrEmpty())
 	if err != nil {
 		log.Warn("failed to open global role store, skipping setup", "role", roleName, "error", err)
 		return nil
@@ -90,10 +90,12 @@ func setupAgentFromRole(ctx context.Context, workspacePath, agentName, roleName,
 		}
 	}
 
-	// Plugins via adapter
-	agentDir := filepath.Join(workspaceStateDir(workspacePath), "agents", agentName)
+	// Plugins via adapter — provider state lives in the agent's session
+	// dir (~/.mycel/agents/<name>/session/).
 	if len(resolved.Plugins) > 0 {
-		if e := adapter.SetupPlugins(agentDir, resolved.Plugins); e != nil {
+		if sessionDir, dirErr := workspace.AgentSessionDir(agentName); dirErr != nil {
+			errs = append(errs, dirErr.Error())
+		} else if e := adapter.SetupPlugins(sessionDir, resolved.Plugins); e != nil {
 			errs = append(errs, e.Error())
 		}
 	}
@@ -515,7 +517,7 @@ func validateAgentTools(workspacePath, roleName string) []string {
 	// Roles live in the single global database, not in the target repo's
 	// local state dir — resolve them from the global store so agents created
 	// against any repo validate correctly.
-	rm, err := workspace.NewGlobalRoleManager(workspaceStateDir(workspacePath))
+	rm, err := workspace.NewGlobalRoleManager(mycelHomeOrEmpty())
 	if err != nil {
 		return []string{fmt.Sprintf("role store unavailable: %v", err)}
 	}

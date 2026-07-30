@@ -14,10 +14,15 @@ import (
 // ConfigVersion is the current config schema version.
 const ConfigVersion = 2
 
-// PreferencesFileName is the workspace preferences filename. Every
-// workspace stores its config at <StateDir>/preferences.json — the one
-// and only config file bc reads.
-const PreferencesFileName = "preferences.json"
+// PrefsFileName is the global preferences filename. The one and only
+// config file mycel reads lives at ~/.mycel/prefs.json.
+const PrefsFileName = "prefs.json"
+
+// PrefsPath returns the absolute path of the global preferences file
+// (~/.mycel/prefs.json, respecting MYCEL_HOME).
+func PrefsPath() (string, error) {
+	return globalPath(PrefsFileName)
+}
 
 // Config represents the JSON-based workspace configuration for bc.
 type Config struct { //nolint:govet // field order matches JSON/API contract
@@ -207,8 +212,8 @@ func DefaultConfig() Config {
 // LoadConfig reads and parses a JSON config file.
 //
 // If path is a directory, LoadConfig treats it as a state dir and reads
-// <path>/preferences.json. Loading never writes to disk; preferences.json
-// is only written by an explicit Save().
+// <path>/prefs.json. Loading never writes to disk; prefs.json is only
+// written by an explicit Save().
 //
 // If path points at a file, it is read directly.
 func LoadConfig(path string) (*Config, error) {
@@ -222,9 +227,9 @@ func LoadConfig(path string) (*Config, error) {
 	return ParseConfig(data)
 }
 
-// loadConfigFromDir reads <stateDir>/preferences.json.
+// loadConfigFromDir reads <stateDir>/prefs.json.
 func loadConfigFromDir(stateDir string) (*Config, error) {
-	prefs := filepath.Join(stateDir, PreferencesFileName)
+	prefs := filepath.Join(stateDir, PrefsFileName)
 	data, err := os.ReadFile(prefs) //nolint:gosec // callsite-constructed
 	if err != nil {
 		return nil, fmt.Errorf("failed to read config %s: %w", prefs, err)
@@ -288,7 +293,7 @@ func (c *Config) Save(path string) error {
 	data = append(data, '\n')
 
 	// Write to temp file then rename for crash safety.
-	tmp, err := os.CreateTemp(dir, ".preferences-*.json.tmp")
+	tmp, err := os.CreateTemp(dir, ".prefs-*.json.tmp")
 	if err != nil {
 		return fmt.Errorf("failed to create temp config: %w", err)
 	}
@@ -318,14 +323,4 @@ func (c *Config) Save(path string) error {
 
 	success = true
 	return nil
-}
-
-// ConfigPath returns the config file path for a workspace root:
-// <GlobalStateDir(rootDir)>/preferences.json.
-func ConfigPath(rootDir string) (string, error) {
-	stateDir, err := GlobalStateDir(rootDir)
-	if err != nil {
-		return "", err
-	}
-	return filepath.Join(stateDir, PreferencesFileName), nil
 }

@@ -38,36 +38,27 @@ func RunServer(addr, wsRoot, corsOrigin, apiKey string) error {
 	// Normalize addr: ":8080" → "127.0.0.1:8080"
 	addr = normalizeAddr(addr)
 
-	var ws *bcworkspace.Workspace
-	if wsRoot != "" {
-		var err error
-		ws, err = bcworkspace.Load(wsRoot)
-		if err != nil {
-			ws, err = bcworkspace.Init(wsRoot)
-			if err != nil {
-				return fmt.Errorf("bootstrap repo %s: %w", wsRoot, err)
-			}
-			log.Info("workspace bootstrapped", "root", ws.RootDir, "state", ws.StateDir())
-		}
-	} else {
-		log.Info("no repo yet — run 'mycel up' inside a git repo to anchor the daemon")
+	// Bootstrap-or-load the global mycel state. wsRoot may be empty —
+	// the daemon then boots without an anchor repo; agents carry their
+	// own repo paths and repos can be added later via the UI/API.
+	ws, err := bcworkspace.Open(wsRoot)
+	if err != nil {
+		return fmt.Errorf("bootstrap mycel: %w", err)
+	}
+	if ws.RootDir == "" {
+		log.Info("no anchor repo — agents must name their own repo (add repos via the web UI)")
 	}
 
 	// The single global database (<MycelHome>/mycel.db) is opened lazily
-	// through pkg/db — including for a workspace-less boot where repos
-	// are added later via the API. Warm the connection eagerly so
-	// storage problems surface at boot, and close it at shutdown.
+	// through pkg/db. Warm the connection eagerly so storage problems
+	// surface at boot, and close it at shutdown.
 	defer bcdb.CloseGlobal() //nolint:errcheck
 	{
-		var cfg *bcdb.StorageSettings
-		if ws != nil {
-			cfg = ws.Config.DBStorageSettings()
-		}
-		if _, driver, dbErr := bcdb.Global(cfg); dbErr != nil {
+		if _, driver, dbErr := bcdb.Global(ws.Config.DBStorageSettings()); dbErr != nil {
 			log.Warn("failed to open global db", "error", dbErr)
 		} else {
 			configDriver := ""
-			if ws != nil && ws.Config != nil {
+			if ws.Config != nil {
 				configDriver = ws.Config.Storage.Default
 			}
 			log.Info("global database ready", "driver", driver, "config_driver", configDriver)
@@ -110,11 +101,7 @@ func RunServer(addr, wsRoot, corsOrigin, apiKey string) error {
 
 	// Optional dependencies registry (bc-db, bc-code-server, bc-browser).
 	depsRegistry := bcdeps.NewRegistry()
-	codeServerRoot := ""
-	if ws != nil {
-		codeServerRoot = ws.RootDir
-	}
-	bcCodeServer := bcdeps.NewBCCodeServer(codeServerRoot)
+	bcCodeServer := bcdeps.NewBCCodeServer(ws.RootDir)
 	depsRegistry.Register(bcdeps.NewBCDB())
 	depsRegistry.Register(bcCodeServer)
 	depsRegistry.Register(bcdeps.NewBCBrowser())
@@ -163,10 +150,10 @@ func RunServer(addr, wsRoot, corsOrigin, apiKey string) error {
 	// cannot be opened, per-workspace stores continue to work via the
 	// build_services.go fallback.
 	var costsGlobal *bccost.Store
-	if costsPath, cpErr := bcworkspace.GlobalCostsDB(); cpErr != nil {
+	if home, cpErr := bcworkspace.MycelHome(); cpErr != nil {
 		log.Warn("global costs path unavailable", "error", cpErr)
-	} else if cs, openErr := bccost.OpenGlobalStore(costsPath); openErr != nil {
-		log.Warn("global costs ledger unavailable", "error", openErr, "path", costsPath)
+	} else if cs, openErr := bccost.OpenGlobalStore(filepath.Join(home, "costs.db")); openErr != nil {
+		log.Warn("global costs ledger unavailable", "error", openErr, "path", filepath.Join(home, "costs.db"))
 	} else {
 		costsGlobal = cs
 		defer cs.Close() //nolint:errcheck // best-effort
@@ -183,25 +170,16 @@ func RunServer(addr, wsRoot, corsOrigin, apiKey string) error {
 		Build:        server.BuildInfo{Version: version, Commit: commit, BuiltAt: date},
 	}
 
-	// Build the single service bundle. A repo-less boot serves the web UI
-	// + global APIs only; everything else reports degraded until the
-	// daemon is restarted inside a repo.
-	svc := server.Services{
-		Stats: statsStore,
-		Deps:  depsRegistry,
-		Degraded: map[string]string{
-			"repos": "no repo adopted yet — run 'mycel up' inside a git repo, or create an agent with a repo path",
-		},
+	// Build the single service bundle. A repo-less boot still gets the
+	// full bundle — agents carry their own repo paths; the anchor repo
+	// is only the default for new agents.
+	built, buildErr := server.BuildServices(ctx, globals, ws.RootDir)
+	if buildErr != nil {
+		return fmt.Errorf("build services: %w", buildErr)
 	}
-	if ws != nil {
-		built, buildErr := server.BuildServices(ctx, globals, ws.RootDir)
-		if buildErr != nil {
-			return fmt.Errorf("build services: %w", buildErr)
-		}
-		defer built.Close() //nolint:errcheck // best-effort
-		bcCodeServer.SetWorkspaceRoot(ws.RootDir)
-		svc = *built
-	}
+	defer built.Close() //nolint:errcheck // best-effort
+	bcCodeServer.SetWorkspaceRoot(ws.RootDir)
+	svc := *built
 
 	cfg := server.DefaultConfig()
 	if addr != "" {
@@ -219,9 +197,7 @@ func RunServer(addr, wsRoot, corsOrigin, apiKey string) error {
 	}
 
 	// Rewrite agent hook settings to point at the actual bcd address.
-	if ws != nil {
-		updateAgentHookPorts(ws, cfg.Addr)
-	}
+	updateAgentHookPorts(ws, cfg.Addr)
 
 	srv := server.New(cfg, svc, globalHub, server.WebDist())
 	return srv.Start(ctx)

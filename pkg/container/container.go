@@ -148,60 +148,34 @@ func (b *Backend) containerName(name string) string {
 // names never reach path construction.
 var validContainerAgentName = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
 
-// containerAgentDir returns the agent's state directory inside the
-// container (bcd side). The flat layout at <MycelHome>/agents/<name>/
-// is canonical; agents whose state still lives at an older location
-// (nested per-workspace dir or the legacy <root>/.bc/ sidecar) keep
-// using it until migrated.
-func (b *Backend) containerAgentDir(agentName string) string {
+// agentSessionDir returns the agent's provider-state directory as bcd
+// sees it: <MycelHome>/agents/<name>/session/. Provider config and
+// transcripts persist here on the host across container restarts.
+func (b *Backend) agentSessionDir(agentName string) string {
 	if !validContainerAgentName.MatchString(agentName) {
 		return ""
 	}
-	var flat string
-	if home, err := workspace.MycelHome(); err == nil {
-		flat = filepath.Join(home, "agents", agentName)
-		if _, statErr := os.Stat(flat); statErr == nil {
-			return flat
-		}
+	dir, err := workspace.AgentSessionDir(agentName)
+	if err != nil {
+		return ""
 	}
-	// Existing agents may still live in older layouts.
-	if globalDir, err := workspace.GlobalStateDir(b.workspacePath); err == nil {
-		nested := filepath.Join(globalDir, "agents", agentName)
-		if _, statErr := os.Stat(nested); statErr == nil {
-			return nested
-		}
-	}
-	legacy := filepath.Join(b.workspacePath, ".bc", "agents", agentName)
-	if _, statErr := os.Stat(legacy); statErr == nil {
-		return legacy
-	}
-	if flat != "" {
-		return flat // canonical location for fresh agents
-	}
-	return legacy
+	return dir
 }
 
-// hostAgentDir returns the host path that maps to the agent's state
+// hostSessionDir returns the host path that maps to the agent's session
 // directory, used on the -v mount flag. For bcd running on the host this
-// mirrors containerAgentDir; for Docker-in-Docker setups the MYCEL_HOST_HOME
+// mirrors agentSessionDir; for Docker-in-Docker setups the MYCEL_HOST_HOME
 // env var (if set) translates the container's ~/.mycel/ to the host's.
-func (b *Backend) hostAgentDir(agentName, hostRoot string) string {
-	containerDir := b.containerAgentDir(agentName)
-	// Only translate when the path is under MYCEL_HOME (the M11 global dir).
+func (b *Backend) hostSessionDir(agentName string) string {
+	sessionDir := b.agentSessionDir(agentName)
 	bcHome, err := workspace.MycelHome()
-	if err == nil && strings.HasPrefix(containerDir, bcHome+string(filepath.Separator)) {
+	if err == nil && strings.HasPrefix(sessionDir, bcHome+string(filepath.Separator)) {
 		if hostBCHome := os.Getenv("MYCEL_HOST_HOME"); hostBCHome != "" {
-			rel := strings.TrimPrefix(containerDir, bcHome)
+			rel := strings.TrimPrefix(sessionDir, bcHome)
 			return filepath.Join(hostBCHome, rel)
 		}
-		return containerDir
 	}
-	// Legacy path (<root>/.bc/agents/<name>): translate via hostRoot.
-	rel, relErr := filepath.Rel(b.workspacePath, containerDir)
-	if relErr != nil {
-		return containerDir
-	}
-	return filepath.Join(hostRoot, rel)
+	return sessionDir
 }
 
 // resolveRepoMount picks the repository mounted at /workspace and the
@@ -328,7 +302,7 @@ func (b *Backend) CreateSessionWithCommand(ctx context.Context, name, dir, comma
 //
 // Mounts:
 //   - agent's repo → /workspace (project code; env MYCEL_WORKSPACE, boot workspace when unset)
-//   - .bc/volumes/<agent>/.claude → /home/agent/.claude (persistent Claude state)
+//   - ~/.mycel/agents/<agent>/session/claude → /home/agent/.claude (persistent Claude state)
 //   - bc-shared-tmp → /tmp/bc-shared (shared volume for cross-container file exchange)
 //
 // Env vars:
@@ -431,32 +405,27 @@ func (b *Backend) CreateSessionWithEnv(ctx context.Context, name, dir, command s
 	args = append(args, "-v", hostRepo+":/workspace")
 	args = append(args, "-w", containerWorkdir)
 
-	// Agent state (Mounts 2–3) always lives in the BOOT workspace's data
-	// dir regardless of which repo the agent is bound to, so state-dir
-	// host translation keys off the boot host root, not the repo mount.
-	hostRoot := b.hostWorkspacePath
-	if hostRoot == "" {
-		hostRoot = b.workspacePath
-	}
-
 	// Mount 2: Persistent Claude state (~/.claude/ dir)
 	// Use local (container) path for mkdir, host path for -v mount.
 	//
-	// Agent state lives at <MycelHome>/agents/<name>/ (flat layout);
-	// containerAgentDir keeps pre-migration agents on their older
-	// per-workspace dirs. The host path may differ when bcd runs in
+	// Provider state lives in the agent's session dir
+	// (<MycelHome>/agents/<name>/session/) so transcripts and config
+	// persist on the host. The host path may differ when bcd runs in
 	// Docker-in-Docker; honor MYCEL_HOST_HOME (if set) for the
 	// host-side mycel home.
-	localAgentDir := b.containerAgentDir(name)
-	hostAgentDir := b.hostAgentDir(name, hostRoot)
-	if err := os.MkdirAll(filepath.Join(localAgentDir, "claude"), 0750); err != nil {
-		log.Warn("failed to create agent volume dir", "agent", name, "error", err)
+	localSessionDir := b.agentSessionDir(name)
+	hostSessionDir := b.hostSessionDir(name)
+	if localSessionDir == "" || hostSessionDir == "" {
+		return fmt.Errorf("cannot resolve session dir for agent %q", name)
+	}
+	if err := os.MkdirAll(filepath.Join(localSessionDir, "claude"), 0750); err != nil {
+		log.Warn("failed to create agent session dir", "agent", name, "error", err)
 	} else {
-		args = append(args, "-v", filepath.Join(hostAgentDir, "claude")+":/home/agent/.claude")
+		args = append(args, "-v", filepath.Join(hostSessionDir, "claude")+":/home/agent/.claude")
 	}
 
 	// Mount 3: ~/.claude.json (app config with oauthAccount — needed for auth persistence)
-	localClaudeJSON := filepath.Join(localAgentDir, "claude.json")
+	localClaudeJSON := filepath.Join(localSessionDir, "claude.json")
 	if _, statErr := os.Stat(localClaudeJSON); os.IsNotExist(statErr) {
 		_ = os.WriteFile(localClaudeJSON, []byte("{}"), 0600) //nolint:errcheck // best-effort
 	}
@@ -465,7 +434,7 @@ func (b *Backend) CreateSessionWithEnv(ctx context.Context, name, dir, command s
 	if err := SeedClaudeTrust(localClaudeJSON, containerWorkdir); err != nil {
 		log.Warn("failed to seed claude trust", "agent", name, "error", err)
 	}
-	args = append(args, "-v", filepath.Join(hostAgentDir, "claude.json")+":/home/agent/.claude.json")
+	args = append(args, "-v", filepath.Join(hostSessionDir, "claude.json")+":/home/agent/.claude.json")
 
 	// Mount 4: Shared tmp volume for cross-container file exchange (e.g., Playwright screenshots).
 	// Uses a named Docker volume so all agent containers and the Playwright container share the same data.
@@ -483,7 +452,7 @@ func (b *Backend) CreateSessionWithEnv(ctx context.Context, name, dir, command s
 	// Pre-seed Claude settings to skip interactive theme selection prompt.
 	// Claude Code shows an interactive theme picker on first run when no
 	// settings exist, which blocks headless Docker agents indefinitely.
-	if err := SeedClaudeSettings(filepath.Join(localAgentDir, "claude")); err != nil {
+	if err := SeedClaudeSettings(filepath.Join(localSessionDir, "claude")); err != nil {
 		log.Warn("failed to seed claude settings", "agent", name, "error", err)
 	}
 

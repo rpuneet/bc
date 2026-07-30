@@ -44,10 +44,11 @@ func init() {
 }
 
 func runCostReport(cmd *cobra.Command, _ []string) error {
-	path, err := workspace.GlobalCostsDB()
+	home, err := workspace.MycelHome()
 	if err != nil {
 		return fmt.Errorf("resolve global costs path: %w", err)
 	}
+	path := filepath.Join(home, "costs.db")
 	if _, statErr := os.Stat(path); statErr != nil {
 		return fmt.Errorf("no user-global cost ledger at %s — start bcd once to create it", path)
 	}

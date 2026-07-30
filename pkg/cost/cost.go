@@ -165,19 +165,16 @@ type Store struct {
 	path    string
 }
 
-// NewStore creates a new cost store for the given workspace.
-//
-// The per-workspace ledger lives at ~/.mycel/workspaces/<id>/costs.db.
-// Callers that want the user-global ledger (~/.mycel/costs.db) should
-// use globalStore / OpenGlobalStore instead of NewStore.
-func NewStore(workspacePath string) *Store {
-	globalDir, err := workspace.GlobalStateDir(workspacePath)
+// NewStore creates a new cost store backed by the ledger at
+// ~/.mycel/costs.db.
+func NewStore(_ string) *Store {
+	home, err := workspace.MycelHome()
 	if err != nil {
 		// Home dir unresolvable — Open() will fail with a clear error.
 		return &Store{}
 	}
 	return &Store{
-		path: filepath.Join(globalDir, "costs.db"),
+		path: filepath.Join(home, "costs.db"),
 	}
 }
 

@@ -84,34 +84,18 @@ func (imp *Importer) claudeProjectsDirs() []string {
 		dirs = append(dirs, filepath.Join(home, ".claude", "projects"))
 	}
 
-	// Per-agent Docker auth directories. M11 moved runtime state to
-	// ~/.mycel/workspaces/<id>/agents/<name>/; scan both the global dir
-	// and the legacy sidecar so freshly-migrated and not-yet-migrated
-	// workspaces both work.
-	var agentsDirs []string
-	if globalDir, gErr := workspace.GlobalStateDir(imp.workspaceDir); gErr == nil {
-		agentsDirs = append(agentsDirs, filepath.Join(globalDir, "agents"))
-	}
-	agentsDirs = append(agentsDirs, filepath.Join(imp.workspaceDir, ".bc", "agents"))
-
-	for _, agentsDir := range agentsDirs {
+	// Per-agent Docker session directories at
+	// ~/.mycel/agents/<name>/session/claude/projects.
+	if agentsDir, aErr := workspace.AgentsDir(); aErr == nil {
 		entries, err := os.ReadDir(agentsDir)
-		if err != nil {
-			continue
-		}
-		for _, e := range entries {
-			if !e.IsDir() {
-				continue
-			}
-			// Check both paths: current layout and legacy
-			for _, subpath := range []string{
-				filepath.Join("claude", "projects"),          // current
-				filepath.Join("auth", ".claude", "projects"), // legacy Docker layout
-			} {
-				p := filepath.Join(agentsDir, e.Name(), subpath)
+		if err == nil {
+			for _, e := range entries {
+				if !e.IsDir() {
+					continue
+				}
+				p := filepath.Join(agentsDir, e.Name(), "session", "claude", "projects")
 				if _, err := os.Stat(p); err == nil {
 					dirs = append(dirs, p)
-					break
 				}
 			}
 		}
