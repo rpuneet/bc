@@ -1,65 +1,59 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
-  <rect width="512" height="512" rx="108" fill="#0C0A08"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- mycel mark: mushroom on an espresso field (coffee & cream palette) -->
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="38%" r="80%">
+      <stop offset="0%" stop-color="#241a10"/>
+      <stop offset="100%" stop-color="#120d08"/>
+    </radialGradient>
+    <linearGradient id="cap" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#f5efe3"/>
+      <stop offset="100%" stop-color="#ddd2bc"/>
+    </linearGradient>
+    <linearGradient id="stem" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#cfc4ac"/>
+      <stop offset="100%" stop-color="#b3a68d"/>
+    </linearGradient>
+  </defs>
 
-  <!-- Refined spore — organic curves radiating from center -->
-  <g stroke="#EA580C" stroke-width="4" stroke-linecap="round" fill="none">
-    <!-- Top tendril -->
-    <path d="M256 256 Q250 200 240 140 Q235 110 220 85" opacity="0.6"/>
-    <path d="M240 140 Q260 130 290 100" opacity="0.35"/>
+  <rect x="0" y="0" width="512" height="512" rx="112" fill="url(#bg)"/>
 
-    <!-- Top-right tendril -->
-    <path d="M256 256 Q300 220 350 180 Q370 165 395 145" opacity="0.6"/>
-    <path d="M350 180 Q360 200 390 210" opacity="0.35"/>
+  <g transform="translate(256,266) scale(1.22) translate(-256,-266)">
+    <!-- mycelium threads -->
+    <g stroke="#8a6a3b" stroke-width="6" stroke-linecap="round" fill="none" opacity="0.6">
+      <path d="M256 400 C 235 429 200 436 165 451"/>
+      <path d="M256 400 C 260 435 280 445 305 459"/>
+      <path d="M256 400 C 280 423 320 426 353 442"/>
+      <path d="M165 451 C 150 458 140 470 134 480" opacity="0.6"/>
+      <path d="M353 442 C 370 450 378 463 382 475" opacity="0.6"/>
+    </g>
 
-    <!-- Right tendril -->
-    <path d="M256 256 Q310 260 360 280 Q390 290 415 310" opacity="0.6"/>
-    <path d="M360 280 Q350 310 370 340" opacity="0.35"/>
+    <!-- stem -->
+    <path d="M224 294 L288 294 L280 382 C 278 403 267 412 256 412 C 245 412 234 403 232 382 Z" fill="url(#stem)"/>
 
-    <!-- Bottom-right tendril -->
-    <path d="M256 256 Q280 310 300 370 Q310 400 320 425" opacity="0.6"/>
-    <path d="M300 370 Q330 365 355 385" opacity="0.35"/>
+    <!-- cap -->
+    <path d="M99 264
+             C 99 165 168 109 256 109
+             C 344 109 413 165 413 264
+             C 413 286 390 294 358 294
+             L 154 294
+             C 122 294 99 286 99 264 Z" fill="url(#cap)"/>
 
-    <!-- Bottom tendril -->
-    <path d="M256 256 Q240 310 230 370 Q225 400 215 430" opacity="0.6"/>
-    <path d="M230 370 Q200 380 185 405" opacity="0.35"/>
+    <!-- spore speckles on the cap -->
+    <g fill="#120d08" opacity="0.22">
+      <circle cx="190" cy="200" r="18"/>
+      <circle cx="274" cy="165" r="15"/>
+      <circle cx="334" cy="226" r="13"/>
+      <circle cx="236" cy="249" r="10"/>
+      <circle cx="308" cy="270" r="7"/>
+    </g>
 
-    <!-- Left tendril -->
-    <path d="M256 256 Q200 250 150 235 Q120 225 95 210" opacity="0.6"/>
-    <path d="M150 235 Q145 260 120 275" opacity="0.35"/>
-
-    <!-- Top-left tendril -->
-    <path d="M256 256 Q210 220 170 175 Q150 155 130 130" opacity="0.6"/>
-    <path d="M170 175 Q145 180 125 170" opacity="0.35"/>
+    <!-- drifting spores — chanterelle amber -->
+    <g fill="#e8a33d">
+      <circle cx="102" cy="371" r="8"/>
+      <circle cx="134" cy="410" r="6" opacity="0.75"/>
+      <circle cx="411" cy="378" r="8"/>
+      <circle cx="432" cy="336" r="6" opacity="0.75"/>
+      <circle cx="392" cy="418" r="4.5" opacity="0.6"/>
+    </g>
   </g>
-
-  <!-- Spore nodes at branch tips -->
-  <g fill="#EA580C">
-    <circle cx="220" cy="85" r="5"/>
-    <circle cx="290" cy="100" r="4"/>
-    <circle cx="395" cy="145" r="5"/>
-    <circle cx="390" cy="210" r="4"/>
-    <circle cx="415" cy="310" r="5"/>
-    <circle cx="370" cy="340" r="4"/>
-    <circle cx="320" cy="425" r="5"/>
-    <circle cx="355" cy="385" r="4"/>
-    <circle cx="215" cy="430" r="5"/>
-    <circle cx="185" cy="405" r="4"/>
-    <circle cx="95" cy="210" r="5"/>
-    <circle cx="120" cy="275" r="4"/>
-    <circle cx="130" cy="130" r="5"/>
-    <circle cx="125" cy="170" r="4"/>
-    <!-- Junction nodes -->
-    <circle cx="240" cy="140" r="5" opacity="0.7"/>
-    <circle cx="350" cy="180" r="5" opacity="0.7"/>
-    <circle cx="360" cy="280" r="5" opacity="0.7"/>
-    <circle cx="300" cy="370" r="5" opacity="0.7"/>
-    <circle cx="230" cy="370" r="5" opacity="0.7"/>
-    <circle cx="150" cy="235" r="5" opacity="0.7"/>
-    <circle cx="170" cy="175" r="5" opacity="0.7"/>
-  </g>
-
-  <!-- Center spore body -->
-  <circle cx="256" cy="256" r="16" fill="#EA580C"/>
-  <circle cx="256" cy="256" r="32" fill="#EA580C" opacity="0.08"/>
-  <circle cx="256" cy="256" r="56" fill="#EA580C" opacity="0.04"/>
 </svg>
