@@ -7,6 +7,74 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-07-31
+
+The plugin era. mycel becomes a platform: every integration — the AI
+providers that power agents and the apps they talk through — is now a
+self-describing plugin, credentials live in the encrypted vault, the
+web UI is the product's single rich surface, and a native desktop app
+ships for macOS, Linux, and Windows. The fleet got faces.
+
+### Added
+- **Apps platform.** Notifications becomes Apps: 28 real integrations,
+  each a self-registering plugin (descriptor + build factory) with
+  auth-kind-aware connect flows — token, webhook-secret, QR pairing
+  (WhatsApp), and OAuth. Credentials never touch config files; they
+  live in the vault as `app:<name>:<key>` and inject into agent env.
+- **Sign in with GitHub.** RFC 8628 device-flow OAuth in the connect
+  wizard — user code, verification link, live polling; the minted token
+  vaults as `api_token` and reaches agents as `GITHUB_API_TOKEN`.
+- **Living agent identity.** Every agent gets a deterministic
+  mycelium-inspired character (form, hue, eyes, marks derived from its
+  name) that breathes, blinks, works, droops, and errors with its
+  state and pulses on live events — adopted across every surface, the
+  drawer agents tree, and the New Agent flow's morphing preview.
+- **Desktop app.** A Wails shell that runs the mycel server in-process
+  (or attaches to a running daemon), with the web UI in a native
+  window and on localhost — packaged for macOS, Linux, and Windows.
+- **Code tab.** The agent detail Code tab is a real embedded browser —
+  tree, Monaco editor, and diff view pinned to the agent's worktree.
+- **Insights.** Rebuilt around four questions — spend trend, where it
+  goes, activity, cache efficiency — period-scoped end-to-end, with
+  drill-downs: live system vitals (CPU/memory/network/disk), token
+  composition, and per-agent/model/repo detail.
+- **Per-agent apps.** Choose apps and channel subscriptions in the New
+  Agent flow and manage them from the agent's Config tab.
+
+### Changed
+- **Entity-scoped home.** `~/.mycel` flattens: one `prefs.json`, one
+  `mycel.db`, one vault; each agent owns `agents/<name>/{worktree,
+  session,logs,tmp}`; stateful apps own `apps/<name>/`. `mycel up`
+  works from any directory. One-shot migration:
+  `scripts/migrate-mycel-home.sh`.
+- **Source-direct costs.** The cost ledger is gone; costs compute on
+  read from provider transcripts via the `CostReader` capability
+  (claude implements it), cached in-process. Honest numbers, no drift.
+- **Providers self-register** with capability interfaces (commands,
+  MCP config, cost reading) — no hardcoded provider switches anywhere.
+- **Coffee & cream brand.** Mushroom mark, espresso/porcelain themes,
+  Fraunces display accents, and a product-first landing with real app
+  screenshots and a proximity-linked mycelial network background.
+- `pkg/workspace` is now `pkg/home`; the workspace vocabulary is gone
+  from code and docs.
+
+### Removed
+- **The TUI.** The web UI is the only rich surface; `mycel` with no
+  arguments starts the daemon and opens the dashboard.
+- **Cron.** Agents schedule their own work.
+- **Placeholder integrations** (nostr, homeassistant) and adapters that
+  could not ship honestly (msteams, googlechat, feishu without inbound
+  signature validation; twitter behind a paywalled API).
+- The standalone Secrets page (now Apps → Custom Keys), the legacy
+  `/api/gateways` surface, 45MB of tracked binaries and orphaned
+  screenshots, and the `costs.db` ledger.
+
+### Security
+- govulncheck clean in called code (Go 1.25.12, x/text 0.39); landing
+  and web dependency audits at zero known-vulnerable resolutions
+  (one documented N/A: react-router RSC-server CSRF — client-only SPA).
+
+
 ## [0.3.12] - 2026-07-05
 
 One header, real numbers. The web UI converges on a single shared header
