@@ -90,7 +90,7 @@ function mockApi() {
     if (u.includes("/api/costs/agents")) {
       return jsonResponse([
         {
-          agent_id: "bc-bc-bot-1",
+          agent_id: "mycel-ab12cd-bot-1",
           total_cost_usd: 8.5,
           input_tokens: 800_000,
           output_tokens: 200_000,
@@ -100,7 +100,7 @@ function mockApi() {
           record_count: 30,
         },
         {
-          agent_id: "bc-bc-bot-2",
+          agent_id: "mycel-ab12cd-bot-2",
           total_cost_usd: 3.84,
           input_tokens: 400_000,
           output_tokens: 100_000,
@@ -114,7 +114,7 @@ function mockApi() {
     if (u.includes("/api/costs/agent/")) {
       return jsonResponse({
         summary: {
-          agent_id: "bc-bc-bot-1",
+          agent_id: "mycel-ab12cd-bot-1",
           total_cost_usd: 42.0,
           input_tokens: 2_000_000,
           output_tokens: 500_000,
@@ -122,8 +122,8 @@ function mockApi() {
           record_count: 90,
         },
         daily: [
-          { agent_id: "bc-bc-bot-1", date: dayKey(1), cost_usd: 4.0, total_tokens: 350_000, record_count: 10, input_tokens: 280_000, output_tokens: 70_000 },
-          { agent_id: "bc-bc-bot-1", date: dayKey(0), cost_usd: 4.5, total_tokens: 380_000, record_count: 12, input_tokens: 300_000, output_tokens: 80_000 },
+          { agent_id: "mycel-ab12cd-bot-1", date: dayKey(1), cost_usd: 4.0, total_tokens: 350_000, record_count: 10, input_tokens: 280_000, output_tokens: 70_000 },
+          { agent_id: "mycel-ab12cd-bot-1", date: dayKey(0), cost_usd: 4.5, total_tokens: 380_000, record_count: 12, input_tokens: 300_000, output_tokens: 80_000 },
         ],
       });
     }
@@ -281,15 +281,15 @@ describe("breakdown drill-down", () => {
 
     // No agent-detail fetch before the row is opened.
     expect(fetchMock.mock.calls.map((c) => String(c[0]))).not.toContainEqual(
-      expect.stringContaining("/api/costs/agent/bc-bc-bot-1"),
+      expect.stringContaining("/api/costs/agent/mycel-ab12cd-bot-1"),
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Expand bot-1" }));
-    expect(window.location.hash).toBe("#row=agent%3Abc-bc-bot-1");
+    expect(window.location.hash).toBe("#row=agent%3Amycel-ab12cd-bot-1");
 
     await waitFor(() =>
       expect(fetchMock.mock.calls.map((c) => String(c[0]))).toContainEqual(
-        expect.stringContaining("/api/costs/agent/bc-bc-bot-1"),
+        expect.stringContaining("/api/costs/agent/mycel-ab12cd-bot-1"),
       ),
     );
     // Period-scoped stats from the breakdown fetch + the link row.
@@ -317,7 +317,7 @@ describe("breakdown drill-down", () => {
   });
 
   it("restores an expanded breakdown row from the URL hash", async () => {
-    setHash("#row=agent%3Abc-bc-bot-1");
+    setHash("#row=agent%3Amycel-ab12cd-bot-1");
     renderInsights();
     await waitFor(() => expect(screen.getByText("Spend over time")).toBeInTheDocument());
     expect(screen.getByRole("button", { name: "Collapse bot-1" })).toBeInTheDocument();

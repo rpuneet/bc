@@ -62,7 +62,7 @@ describe("compactPath", () => {
   });
 
   it("compacts long directories to the last two segments", () => {
-    const { dir, base } = compactPath("/Users/someone/Projects/bc/web/src/components/live/EventRow.tsx");
+    const { dir, base } = compactPath("/Users/someone/Projects/mycel/web/src/components/live/EventRow.tsx");
     expect(base).toBe("EventRow.tsx");
     expect(dir).toBe("…/components/live/");
   });
@@ -84,7 +84,7 @@ describe("flattenNodes", () => {
 describe("EventRow", () => {
   it("renders file paths with the basename emphasized and no emoji", () => {
     const { container } = render(
-      <EventRow node={node({ toolName: "Read", args: "/Users/x/Projects/bc/web/src/views/Live.tsx" })} />,
+      <EventRow node={node({ toolName: "Read", args: "/Users/x/Projects/mycel/web/src/views/Live.tsx" })} />,
     );
     expect(screen.getByText("Live.tsx")).toBeTruthy();
     // Monochrome glyphs only — no emoji anywhere in the row.

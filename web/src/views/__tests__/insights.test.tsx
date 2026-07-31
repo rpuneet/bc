@@ -30,7 +30,7 @@ function mockApi() {
     if (u.includes("/api/costs/agents")) {
       return jsonResponse([
         {
-          agent_id: "bc-bc-bot-1",
+          agent_id: "mycel-ab12cd-bot-1",
           total_cost_usd: 8.5,
           input_tokens: 800_000,
           output_tokens: 200_000,
@@ -40,7 +40,7 @@ function mockApi() {
           record_count: 30,
         },
         {
-          agent_id: "bc-bc-bot-2",
+          agent_id: "mycel-ab12cd-bot-2",
           total_cost_usd: 3.84,
           input_tokens: 400_000,
           output_tokens: 100_000,

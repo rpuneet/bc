@@ -16,7 +16,7 @@ import { useHeaderSlot } from "../context/HeaderSlotContext";
  * exactly three elements: presence, search, more.
  */
 
-export const SHOW_STOPPED_STORAGE_KEY = "bc-live-show-stopped";
+export const SHOW_STOPPED_STORAGE_KEY = "mycel-live-show-stopped";
 export const ACTIVE_STATES = new Set(["idle", "starting", "working", "stuck", "done"]);
 
 function readShowStopped(): boolean {
@@ -284,7 +284,7 @@ export function Live() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `bc-events-${Date.now()}.json`;
+    a.download = `mycel-events-${Date.now()}.json`;
     a.click();
     URL.revokeObjectURL(url);
   }, [activities, tasks, eventCount]);

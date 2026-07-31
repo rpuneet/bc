@@ -11,7 +11,7 @@
  *     breadcrumb, hidden toggle, link to the full /code view) and defaults
  *     to diff view since the worktree is always an agent worktree there.
  *
- * Backend endpoints used (bcd is single-tenant — the handler is
+ * Backend endpoints used (the daemon is single-tenant — the handler is
  * anchored at the boot repo root, no repo parameter needed):
  *   GET /api/code/tree?path=&worktree=&show_hidden=
  *   GET /api/code/file?path=&worktree=

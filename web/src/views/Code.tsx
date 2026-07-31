@@ -42,7 +42,7 @@ async function fetchCodeServerStatus(): Promise<{ running: boolean; endpoint: st
     const d = (await r.json()) as { state?: string };
     return {
       running: d.state === "running",
-      // Hardcoded for now — backend exposes on :8100 per bc_code_server.go
+      // Hardcoded for now — backend exposes on :8100 per pkg/deps/code_server.go
       endpoint: "http://localhost:8100/?folder=/home/coder/workspace",
     };
   } catch {

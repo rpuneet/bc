@@ -454,7 +454,7 @@ export function CreateAgentModal({
 
           {/* Repo — required. The repo is a property on the agent:
               every new agent binds to a git repo path. Defaults to the
-              repo bcd was booted against. */}
+              repo the daemon was booted against. */}
           <div className="flex flex-col gap-1.5">
             <label className="text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted">
               Repo <span className="text-mycel-error">*</span>

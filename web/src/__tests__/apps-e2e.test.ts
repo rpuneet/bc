@@ -1,13 +1,13 @@
 /**
  * Apps Page E2E Tests
  *
- * Tests the Apps page API endpoints end-to-end against a live bcd server
+ * Tests the Apps page API endpoints end-to-end against a live the daemon server
  * at http://localhost:9374.
  *
  * Run with:
  *   cd web && npx vitest run src/__tests__/apps-e2e.test.ts
  *
- * Prerequisites: bcd must be running at http://localhost:9374
+ * Prerequisites: the daemon must be running at http://localhost:9374
  *
  * These tests use the real HTTP API via fetch (not mocked). The vitest
  * environment is configured to use jsdom with setupFiles that mock
@@ -120,7 +120,7 @@ beforeAll(async () => {
   }
   if (!serverAvailable) {
     console.warn(
-      "⚠  bcd server not reachable at http://localhost:9374 — all E2E tests will be skipped",
+      "⚠  the daemon server not reachable at http://localhost:9374 — all E2E tests will be skipped",
     );
   }
   // Always clean up stale test data from previous runs
