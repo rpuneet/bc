@@ -4,7 +4,8 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
 import { api } from "../api/client";
-import type { Agent, AgentStatsSummary, AgentMetricTS, ComputedStats } from "../api/client";
+import type { Agent, AgentStatsSummary, AgentMetricTS, ComputedStats, AgentCostDetail, AgentCostSummary } from "../api/client";
+import { stripAgentPrefix } from "../views/insights/chrome";
 import { usePolling } from "../hooks/usePolling";
 import { Panel, fmtTime, fmtBytes, fmtTokens } from "./shared/stats-primitives";
 import { StatBand, StatCell } from "./shared/StatBand";
@@ -83,6 +84,8 @@ interface TabData {
   cpu: AgentMetricTS[];
   mem: AgentMetricTS[];
   net: AgentMetricTS[];
+  cost: AgentCostDetail | null;
+  costSummary: AgentCostSummary | null;
 }
 
 // ── Component ────────────────────────────────────────────────────────────────────
@@ -93,12 +96,26 @@ export function StatsTab({ agent }: { agent: Agent }) {
 
   const fetcher = useCallback(async (): Promise<TabData> => {
     const p = { from, agent: agent.name };
-    const [r0, r1, r2, r3, r4] = await Promise.allSettled([
+    // Costs are keyed by the recorded session id, which may be the plain
+    // agent name (fresh installs) or a legacy prefixed id. Resolve it from
+    // the fleet ledger by name / stripped-name / suffix match, then pull that
+    // agent's daily spend ledger.
+    const byAgent = await api.getCostByAgent().catch(() => [] as AgentCostSummary[]);
+    const costRow = byAgent.find(
+      (a) =>
+        a.agent_id === agent.name ||
+        stripAgentPrefix(a.agent_id) === agent.name ||
+        a.agent_id.endsWith(`-${agent.name}`),
+    );
+    const costId = costRow?.agent_id ?? agent.name;
+
+    const [r0, r1, r2, r3, r4, r5] = await Promise.allSettled([
       api.getAgentStatsSummary(agent.name, { from }),
       api.getAgentStats("cpu", p),
       api.getAgentStats("mem", p),
       api.getAgentStats("net", p),
       api.getAgentComputedStats(agent.name),
+      api.getCostAgentDetail(costId),
     ]);
     return {
       summary: r0.status === "fulfilled" ? r0.value : null,
@@ -106,6 +123,8 @@ export function StatsTab({ agent }: { agent: Agent }) {
       mem: r2.status === "fulfilled" ? (r2.value ?? []) : [],
       net: r3.status === "fulfilled" ? (r3.value ?? []) : [],
       computed: r4.status === "fulfilled" ? r4.value : null,
+      cost: r5.status === "fulfilled" ? r5.value : null,
+      costSummary: costRow ?? null,
     };
   }, [agent.name, from]);
 
@@ -162,6 +181,20 @@ export function StatsTab({ agent }: { agent: Agent }) {
   const netChart = useMemo(() =>
     (data?.net ?? []).map(m => ({ time: fmtTime(m.time), rx: m.net_rx_bytes, tx: m.net_tx_bytes })),
     [data?.net],
+  );
+
+  // Per-agent daily spend ledger (oldest→newest) for the spend-over-time chart.
+  const spendSeries = useMemo(() =>
+    [...(data?.cost?.daily ?? [])]
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .map(d => ({ date: d.date, cost: d.cost_usd })),
+    [data?.cost],
+  );
+
+  // Per-agent model breakdown, most expensive first.
+  const models = useMemo(() =>
+    [...(s?.models ?? [])].sort((a, b) => b.cost_usd - a.cost_usd),
+    [s?.models],
   );
 
   // Has any live data? Used to show a helpful banner when the stats store
@@ -326,6 +359,71 @@ export function StatsTab({ agent }: { agent: Agent }) {
           )}
         </div>
       )}
+
+      {/* Cost & usage — agent-scoped Insights: total spend, spend over time,
+          and a per-model breakdown, sharing the fleet Insights visual language. */}
+      {(() => {
+        // Prefer the resolved fleet-ledger summary (lifetime, accurate) over
+        // the range-scoped stats summary for the headline cost/token figures.
+        const cs = data?.costSummary;
+        const spend = cs?.total_cost_usd ?? totalCost;
+        const inTok = cs?.input_tokens ?? totalIn;
+        const outTok = cs?.output_tokens ?? totalOut;
+        const cacheRead = cs?.cache_read_tokens ?? s?.tokens?.cache_read ?? 0;
+        const cacheWrite = cs?.cache_write_tokens ?? s?.tokens?.cache_create ?? 0;
+        const sessions = cs?.record_count ?? 0;
+        const hasCost = spend > 0 || inTok + outTok > 0 || spendSeries.length > 0 || models.length > 0;
+        if (!hasCost) return null;
+        return (
+        <div className="space-y-3">
+          <SectionRule
+            label="Cost & usage"
+            trailing={<span className="text-[11px] text-mycel-muted tabular-nums">lifetime</span>}
+          />
+          <StatBand>
+            <StatCell label="Total spend" value={fmtCost(spend)} accent sub={`${sessions} sessions`} />
+            <StatCell label="Tokens" value={fmtTokens(inTok + outTok)} sub={`${fmtTokens(inTok)} in · ${fmtTokens(outTok)} out`} />
+            <StatCell label="Cache read" value={fmtTokens(cacheRead)} sub="reused context" />
+            <StatCell label="Cache write" value={fmtTokens(cacheWrite)} sub="written context" />
+          </StatBand>
+
+          {spendSeries.length >= 2 && (
+            <Panel title="Spend · last 30 days">
+              <ResponsiveContainer width="100%" height={180}>
+                <AreaChart data={spendSeries} margin={{ top: 4, right: 8, left: -6, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--mycel-border)" vertical={false} />
+                  <XAxis dataKey="date" tick={TICK} {...AX} tickFormatter={(d: string) => d.slice(5)} minTickGap={24} />
+                  <YAxis tick={TICK} {...AX} width={52} tickFormatter={(v: number) => fmtCost(v)} />
+                  <Tooltip contentStyle={TT} formatter={(v) => [fmtCost(Number(v ?? 0)), "spend"]} />
+                  <Area type="monotone" dataKey="cost" name="Spend" stroke={ACCENT} fill={ACCENT} fillOpacity={0.14} strokeWidth={1.5} dot={false} />
+                </AreaChart>
+              </ResponsiveContainer>
+            </Panel>
+          )}
+
+          {models.length > 0 && (
+            <div className="rounded-lg border border-mycel-border bg-mycel-surface p-4">
+              <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted mb-2">By model</p>
+              <div className="space-y-1.5">
+                {models.map((m, i) => {
+                  const maxCost = models[0]?.cost_usd || 1;
+                  const pct = Math.max(2, Math.round((m.cost_usd / maxCost) * 100));
+                  return (
+                    <div key={m.model} className="flex items-center gap-2">
+                      <span className="w-40 text-[11px] text-mycel-text truncate shrink-0 overflow-hidden text-ellipsis" title={m.model}>{m.model}</span>
+                      <div className="flex-1 h-1.5 rounded-full bg-mycel-surface-hover overflow-hidden">
+                        <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: COLORS[i % COLORS.length] }} />
+                      </div>
+                      <span className="text-[11px] text-mycel-muted w-16 text-right shrink-0 tabular-nums">{fmtCost(m.cost_usd)}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+        );
+      })()}
 
       {/* Resources — same hairline stat band as the fleet-wide Insights
           page, scoped to this one agent, with the time-range picker in
