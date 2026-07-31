@@ -149,7 +149,7 @@ func TestInjectEnv_UserEnvWinsOverEnvFile(t *testing.T) {
 
 // --- secret resolution at spawn ---
 
-// seedVault creates a secrets vault under repoPath/.bc and stores the given
+// seedVault creates a secrets vault under repoPath/.mycel and stores the given
 // secret. The passphrase is pinned via MYCEL_SECRET_PASSPHRASE so the spawn
 // path opens the same vault.
 func seedVault(t *testing.T, repoPath, name, value string) {

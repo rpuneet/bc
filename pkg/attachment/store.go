@@ -50,7 +50,7 @@ type Metadata struct {
 // Store manages attachment file storage on the local filesystem.
 type Store struct {
 	dir        string   // base directory for attachments
-	sharedDirs []string // additional directories to search for files (e.g., /tmp/bc-shared)
+	sharedDirs []string // additional directories to search for files (e.g., /tmp/mycel-shared)
 }
 
 // NewStore creates an attachment store rooted at the given directory.

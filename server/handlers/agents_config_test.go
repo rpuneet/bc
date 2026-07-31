@@ -19,7 +19,7 @@ import (
 // per-request resolved svc, causing 404s on non-launch repos.
 func TestAgentHandler_GetConfig(t *testing.T) {
 	dir := setupHome(t)
-	stateDir := filepath.Join(dir, ".bc")
+	stateDir := filepath.Join(dir, ".mycel")
 	if err := os.MkdirAll(filepath.Join(stateDir, "agents"), 0750); err != nil {
 		t.Fatalf("mkdir agents: %v", err)
 	}
@@ -109,7 +109,7 @@ func TestPatchAgentConfig(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			dir := setupHome(t)
-			stateDir := filepath.Join(dir, ".bc")
+			stateDir := filepath.Join(dir, ".mycel")
 			if err := os.MkdirAll(filepath.Join(stateDir, "agents"), 0750); err != nil {
 				t.Fatalf("mkdir agents: %v", err)
 			}
@@ -170,7 +170,7 @@ func TestPatchAgentConfig(t *testing.T) {
 // unknown agent (not a generic handler 404 leak).
 func TestAgentHandler_GetConfigNotFound(t *testing.T) {
 	dir := setupHome(t)
-	stateDir := filepath.Join(dir, ".bc")
+	stateDir := filepath.Join(dir, ".mycel")
 	if err := os.MkdirAll(filepath.Join(stateDir, "agents"), 0750); err != nil {
 		t.Fatalf("mkdir agents: %v", err)
 	}

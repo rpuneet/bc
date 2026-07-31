@@ -24,7 +24,7 @@ import (
 // Costs are source-direct: there is no ledger to seed. These tests
 // fabricate Claude Code JSONL session transcripts and serve them through
 // the REAL cost.Service + REAL /api/costs handlers wired into the
-// package-level fake bcd, so the full CLI → daemon → JSONL path is
+// package-level fake daemon, so the full CLI → daemon → JSONL path is
 // exercised without a live daemon.
 
 // resetCostFlags resets the cost command flags between tests
@@ -41,7 +41,7 @@ func resetBudgetFlags() {
 	budgetHardStop = false
 }
 
-// memBudgetStore is an in-memory cost.BudgetStore for the fake bcd.
+// memBudgetStore is an in-memory cost.BudgetStore for the fake daemon.
 type memBudgetStore struct {
 	m  map[string]cost.BudgetConfig
 	mu sync.Mutex
@@ -74,11 +74,11 @@ func (s *memBudgetStore) Delete(scope string) error {
 	return nil
 }
 
-// setupCostBcd points the package-level fake bcd at real /api/costs
+// setupCostDaemon points the package-level fake daemon at real /api/costs
 // handlers backed by a real cost.Service that reads Claude JSONL
 // transcripts from an isolated home. Returns the agents dir fixtures go
 // into (<home>/agents/<agent>/session/claude/projects/...).
-func setupCostBcd(t *testing.T) string {
+func setupCostDaemon(t *testing.T) string {
 	t.Helper()
 
 	home := t.TempDir()
@@ -99,7 +99,7 @@ func setupCostBcd(t *testing.T) string {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{"status":"ok"}`))
 	})
-	setTestBcdHandler(t, mux.ServeHTTP)
+	setTestDaemonHandler(t, mux.ServeHTTP)
 	return agentsDir
 }
 
@@ -160,7 +160,7 @@ func approxEqual(a, b float64) bool {
 // --- cost show (source-direct via daemon API) ---
 
 func TestCostShowEmpty(t *testing.T) {
-	setupCostBcd(t)
+	setupCostDaemon(t)
 
 	stdout, _, err := executeIntegrationCmd("cost", "show")
 	if err != nil {
@@ -172,7 +172,7 @@ func TestCostShowEmpty(t *testing.T) {
 }
 
 func TestCostShowWithRecords(t *testing.T) {
-	agentsDir := setupCostBcd(t)
+	agentsDir := setupCostDaemon(t)
 
 	writeAgentTranscript(t, agentsDir, "engineer-01", "s1.jsonl",
 		claudeUsageLine("s1", nowTS(), "/repo/a", "claude-sonnet-4-20250514", 1000, 500, 0, 0))
@@ -195,7 +195,7 @@ func TestCostShowWithRecords(t *testing.T) {
 }
 
 func TestCostShowByAgent(t *testing.T) {
-	agentsDir := setupCostBcd(t)
+	agentsDir := setupCostDaemon(t)
 
 	// engineer-01: 1000 in + 2000 out on sonnet-4 ($3/M in, $15/M out)
 	// = 0.003 + 0.030 = $0.0330
@@ -218,7 +218,7 @@ func TestCostShowByAgent(t *testing.T) {
 }
 
 func TestCostShowNonExistentAgent(t *testing.T) {
-	setupCostBcd(t)
+	setupCostDaemon(t)
 	resetCostFlags()
 	defer resetCostFlags()
 
@@ -232,7 +232,7 @@ func TestCostShowNonExistentAgent(t *testing.T) {
 }
 
 func TestCostShowNegativeLimit(t *testing.T) {
-	setupCostBcd(t)
+	setupCostDaemon(t)
 	resetCostFlags()
 	defer resetCostFlags()
 
@@ -246,7 +246,7 @@ func TestCostShowNegativeLimit(t *testing.T) {
 }
 
 func TestCostShowZeroLimit(t *testing.T) {
-	setupCostBcd(t)
+	setupCostDaemon(t)
 	resetCostFlags()
 	defer resetCostFlags()
 
@@ -260,7 +260,7 @@ func TestCostShowZeroLimit(t *testing.T) {
 }
 
 func TestCostShowJSON(t *testing.T) {
-	agentsDir := setupCostBcd(t)
+	agentsDir := setupCostDaemon(t)
 	failingCCUsage(t)
 	resetCostFlags()
 	defer resetCostFlags()
@@ -293,7 +293,7 @@ func TestCostShowJSON(t *testing.T) {
 }
 
 func TestCostShowJSON_HostSessionAttribution(t *testing.T) {
-	agentsDir := setupCostBcd(t)
+	agentsDir := setupCostDaemon(t)
 	failingCCUsage(t)
 
 	// Host (tmux) sessions live under <home>/.claude/projects and are
@@ -322,7 +322,7 @@ func TestCostShowJSON_HostSessionAttribution(t *testing.T) {
 // --- Budget tests ---
 
 func TestCostBudgetSetWorkspace(t *testing.T) {
-	setupCostBcd(t)
+	setupCostDaemon(t)
 	resetBudgetFlags()
 	defer resetBudgetFlags()
 
@@ -336,7 +336,7 @@ func TestCostBudgetSetWorkspace(t *testing.T) {
 }
 
 func TestCostBudgetSetAgent(t *testing.T) {
-	setupCostBcd(t)
+	setupCostDaemon(t)
 	resetBudgetFlags()
 	defer resetBudgetFlags()
 
@@ -353,7 +353,7 @@ func TestCostBudgetSetAgent(t *testing.T) {
 }
 
 func TestCostBudgetSetTeam(t *testing.T) {
-	setupCostBcd(t)
+	setupCostDaemon(t)
 	resetBudgetFlags()
 	defer resetBudgetFlags()
 
@@ -367,7 +367,7 @@ func TestCostBudgetSetTeam(t *testing.T) {
 }
 
 func TestCostBudgetSetPeriods(t *testing.T) {
-	setupCostBcd(t)
+	setupCostDaemon(t)
 
 	periods := []string{"daily", "weekly", "monthly"}
 	for _, period := range periods {
@@ -385,7 +385,7 @@ func TestCostBudgetSetPeriods(t *testing.T) {
 }
 
 func TestCostBudgetSetInvalidPeriod(t *testing.T) {
-	setupCostBcd(t)
+	setupCostDaemon(t)
 	resetBudgetFlags()
 	defer resetBudgetFlags()
 
@@ -396,7 +396,7 @@ func TestCostBudgetSetInvalidPeriod(t *testing.T) {
 }
 
 func TestCostBudgetSetAlertAt(t *testing.T) {
-	setupCostBcd(t)
+	setupCostDaemon(t)
 	resetBudgetFlags()
 	defer resetBudgetFlags()
 
@@ -410,7 +410,7 @@ func TestCostBudgetSetAlertAt(t *testing.T) {
 }
 
 func TestCostBudgetSetAlertAtInvalid(t *testing.T) {
-	setupCostBcd(t)
+	setupCostDaemon(t)
 
 	tests := []struct {
 		name    string
@@ -432,7 +432,7 @@ func TestCostBudgetSetAlertAtInvalid(t *testing.T) {
 }
 
 func TestCostBudgetSetHardStop(t *testing.T) {
-	setupCostBcd(t)
+	setupCostDaemon(t)
 	resetBudgetFlags()
 	defer resetBudgetFlags()
 
@@ -446,7 +446,7 @@ func TestCostBudgetSetHardStop(t *testing.T) {
 }
 
 func TestCostBudgetSetZeroAmount(t *testing.T) {
-	setupCostBcd(t)
+	setupCostDaemon(t)
 	resetBudgetFlags()
 	defer resetBudgetFlags()
 
@@ -457,7 +457,7 @@ func TestCostBudgetSetZeroAmount(t *testing.T) {
 }
 
 func TestCostBudgetSetNegativeAmount(t *testing.T) {
-	setupCostBcd(t)
+	setupCostDaemon(t)
 	resetBudgetFlags()
 	defer resetBudgetFlags()
 
@@ -468,7 +468,7 @@ func TestCostBudgetSetNegativeAmount(t *testing.T) {
 }
 
 func TestCostBudgetSetInvalidAmount(t *testing.T) {
-	setupCostBcd(t)
+	setupCostDaemon(t)
 	resetBudgetFlags()
 	defer resetBudgetFlags()
 
@@ -479,7 +479,7 @@ func TestCostBudgetSetInvalidAmount(t *testing.T) {
 }
 
 func TestCostBudgetShowNoBudgets(t *testing.T) {
-	setupCostBcd(t)
+	setupCostDaemon(t)
 	resetBudgetFlags()
 	defer resetBudgetFlags()
 
@@ -495,7 +495,7 @@ func TestCostBudgetShowNoBudgets(t *testing.T) {
 }
 
 func TestCostBudgetShowWorkspace(t *testing.T) {
-	setupCostBcd(t)
+	setupCostDaemon(t)
 	resetBudgetFlags()
 	defer resetBudgetFlags()
 
@@ -519,7 +519,7 @@ func TestCostBudgetShowWorkspace(t *testing.T) {
 }
 
 func TestCostBudgetShowWithSpending(t *testing.T) {
-	agentsDir := setupCostBcd(t)
+	agentsDir := setupCostDaemon(t)
 	resetBudgetFlags()
 	defer resetBudgetFlags()
 
@@ -544,7 +544,7 @@ func TestCostBudgetShowWithSpending(t *testing.T) {
 }
 
 func TestCostBudgetShowNearLimit(t *testing.T) {
-	agentsDir := setupCostBcd(t)
+	agentsDir := setupCostDaemon(t)
 	resetBudgetFlags()
 	defer resetBudgetFlags()
 
@@ -572,7 +572,7 @@ func TestCostBudgetShowNearLimit(t *testing.T) {
 }
 
 func TestCostBudgetShowOverBudget(t *testing.T) {
-	agentsDir := setupCostBcd(t)
+	agentsDir := setupCostDaemon(t)
 	resetBudgetFlags()
 	defer resetBudgetFlags()
 
@@ -600,7 +600,7 @@ func TestCostBudgetShowOverBudget(t *testing.T) {
 }
 
 func TestCostBudgetDelete(t *testing.T) {
-	setupCostBcd(t)
+	setupCostDaemon(t)
 	resetBudgetFlags()
 	defer resetBudgetFlags()
 
@@ -618,7 +618,7 @@ func TestCostBudgetDelete(t *testing.T) {
 }
 
 func TestCostBudgetDeleteAgent(t *testing.T) {
-	setupCostBcd(t)
+	setupCostDaemon(t)
 	resetBudgetFlags()
 	defer resetBudgetFlags()
 
@@ -646,7 +646,7 @@ func TestCostBudgetDeleteAgent(t *testing.T) {
 }
 
 func TestCostBudgetUpdateExisting(t *testing.T) {
-	setupCostBcd(t)
+	setupCostDaemon(t)
 	resetBudgetFlags()
 	defer resetBudgetFlags()
 
@@ -668,7 +668,7 @@ func TestCostBudgetUpdateExisting(t *testing.T) {
 }
 
 func TestCostBudgetSetMissingAmount(t *testing.T) {
-	setupCostBcd(t)
+	setupCostDaemon(t)
 	resetBudgetFlags()
 	defer resetBudgetFlags()
 
@@ -679,7 +679,7 @@ func TestCostBudgetSetMissingAmount(t *testing.T) {
 }
 
 func TestCostBudgetShowAgentSpecific(t *testing.T) {
-	setupCostBcd(t)
+	setupCostDaemon(t)
 	resetBudgetFlags()
 	defer resetBudgetFlags()
 
@@ -700,7 +700,7 @@ func TestCostBudgetShowAgentSpecific(t *testing.T) {
 }
 
 func TestCostBudgetShowTeamSpecific(t *testing.T) {
-	setupCostBcd(t)
+	setupCostDaemon(t)
 	resetBudgetFlags()
 	defer resetBudgetFlags()
 
@@ -1115,7 +1115,7 @@ func TestFetchCCUsageDailyReport_MockRunner(t *testing.T) {
 }
 
 func TestCostShowJSON_WithCCUsageEnrichment(t *testing.T) {
-	setupCostBcd(t) // no fixtures — sources are empty
+	setupCostDaemon(t) // no fixtures — sources are empty
 
 	// Mock ccusage runner
 	origRunner := ccusageRunner
@@ -1179,7 +1179,7 @@ func TestCostShowJSON_WithCCUsageEnrichment(t *testing.T) {
 }
 
 func TestCostShowJSON_CCUsageUnavailable(t *testing.T) {
-	agentsDir := setupCostBcd(t)
+	agentsDir := setupCostDaemon(t)
 	failingCCUsage(t)
 
 	// Seed a source-direct record: 1000 in + 500 out on sonnet-4 = $0.0105
@@ -1220,7 +1220,7 @@ func TestCostShowJSON_CCUsageUnavailable(t *testing.T) {
 }
 
 func TestCostShowJSON_MixedSourcesAndCCUsage(t *testing.T) {
-	agentsDir := setupCostBcd(t)
+	agentsDir := setupCostDaemon(t)
 
 	// Mock ccusage runner
 	origRunner := ccusageRunner

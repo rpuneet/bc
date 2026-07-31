@@ -1,4 +1,4 @@
-// Package agent provides agent lifecycle management for bc.
+// Package agent provides agent lifecycle management for mycel.
 //
 // An agent is an AI assistant running in an isolated tmux session with its own
 // git worktree. Agents have roles (engineer, manager, etc.) that determine
@@ -8,7 +8,7 @@
 //
 // Create an agent manager:
 //
-//	mgr := agent.NewManagerWithRepo(".bc/agents", "/path/to/repo")
+//	mgr := agent.NewManagerWithRepo(".mycel/agents", "/path/to/repo")
 //	if err := mgr.LoadState(); err != nil {
 //	    log.Warn("failed to load state", "error", err)
 //	}
@@ -87,14 +87,10 @@ const MaxAgentNameLength = 64
 
 // Default configuration constants.
 const (
-	// DefaultSessionPrefix is the tmux session / container name prefix for
-	// mycel agents (was "bc-" prior to v0.3.1). Sourced from pkg/tmux so
-	// there is a single source of truth for the rename.
+	// DefaultSessionPrefix is the tmux session / container name prefix
+	// for mycel agents. Sourced from pkg/tmux so there is a single
+	// source of truth.
 	DefaultSessionPrefix = tmux.DefaultPrefix
-
-	// LegacySessionPrefix is the pre-v0.3.1 prefix. Reader-side fallbacks
-	// use this so agents/sessions created before the rename keep working
-	// for one release cycle. Remove after v0.3.2.
 
 	// DefaultProvider is the default AI provider for new agents.
 	DefaultProvider = "claude"
@@ -134,7 +130,7 @@ type Role string
 
 const (
 	// RoleRoot is the only hardcoded role - a singleton root agent.
-	// All other roles are defined in repo .bc/roles/*.md files.
+	// All other roles are defined in repo .mycel/roles/*.md files.
 	RoleRoot Role = "root"
 )
 
@@ -237,7 +233,7 @@ func HasPermissionStr(permissions []string, required string) bool {
 
 // RoleCapabilities and RoleHierarchy are empty here.
 // All role definitions (capabilities, hierarchy, metadata) are loaded from
-// repo .bc/roles/*.md files via RoleManager.
+// repo .mycel/roles/*.md files via RoleManager.
 // Only the root role has hardcoded capabilities.
 var RoleCapabilities = map[Role][]Capability{
 	RoleRoot: {CapCreateAgents, CapAssignWork, CapCreateEpics, CapReviewWork}, // Root can do everything
@@ -277,7 +273,7 @@ func HasCapability(role Role, cap Capability) bool {
 }
 
 // RoleLevel returns the hierarchy level for built-in roles.
-// Custom roles loaded from .bc/roles/*.md return level 1 by default.
+// Custom roles loaded from .mycel/roles/*.md return level 1 by default.
 func RoleLevel(role Role) int {
 	switch role {
 	case RoleRoot:
@@ -319,7 +315,7 @@ func IsValidState(s string) bool {
 // validTransitions defines allowed state transitions. Internal transitions
 // (e.g. spawn setting starting→idle, stop setting →stopped) bypass this
 // validation and set state directly. This map governs transitions through
-// UpdateAgentState, which is called by bc report.
+// UpdateAgentState, which is called by mycel report.
 var validTransitions = map[State][]State{
 	StateStarting: {StateIdle, StateError, StateStopped},
 	StateIdle:     {StateIdle, StateWorking, StateDone, StateStuck, StateError, StateStopped},
@@ -1063,7 +1059,7 @@ func (m *Manager) SpawnAgentWithOptions(ctx context.Context, opts SpawnOptions) 
 	if role != RoleRoot && m.roleManager != nil {
 		if !m.roleManager.HasRole(string(role)) {
 			m.mu.Unlock()
-			return nil, fmt.Errorf("role %q does not exist; create it via the API or in .bc/roles/%s.md", role, role)
+			return nil, fmt.Errorf("role %q does not exist; create it via the API or in .mycel/roles/%s.md", role, role)
 		}
 	}
 
@@ -1232,7 +1228,7 @@ func (m *Manager) startAgent(ctx context.Context, name string, opts SpawnOptions
 		env["MYCEL_PARENT_ID"] = existing.ParentID
 	}
 	// Pass through MYCEL_API_KEY from the host environment so agents inside
-	// containers can authenticate back to bcd when --api-key is enabled.
+	// containers can authenticate back to the daemon when --api-key is enabled.
 	if apiKey := os.Getenv("MYCEL_API_KEY"); apiKey != "" {
 		env["MYCEL_API_KEY"] = apiKey
 	}
@@ -1328,7 +1324,7 @@ func (m *Manager) startAgent(ctx context.Context, name string, opts SpawnOptions
 		// Clear the task so the UI doesn't render the previous session's
 		// stale task next to a fresh "starting" badge. Lifecycle progress
 		// ("Starting…") is conveyed by State, never by Task — Task holds
-		// only what the agent itself reports via bc report/report_status.
+		// only what the agent itself reports via mycel report/report_status.
 		existing.Task = ""
 	}
 	existing.UpdatedAt = time.Now()
@@ -1476,7 +1472,7 @@ func (m *Manager) createAgent(ctx context.Context, opts SpawnOptions) (*Agent, e
 		env["MYCEL_PARENT_ID"] = parentID
 	}
 	// Pass through MYCEL_API_KEY from the host environment so agents inside
-	// containers can authenticate back to bcd when --api-key is enabled.
+	// containers can authenticate back to the daemon when --api-key is enabled.
 	if apiKey := os.Getenv("MYCEL_API_KEY"); apiKey != "" {
 		env["MYCEL_API_KEY"] = apiKey
 	}
@@ -1731,7 +1727,7 @@ func (m *Manager) captureSessionIDForAgent(ctx context.Context, ag *Agent, rt ru
 	}
 
 	// Fallback: read session ID from the most recent JSONL transcript filename.
-	// Claude Code writes transcripts to .bc/agents/<name>/claude/projects/*/<uuid>.jsonl
+	// Claude Code writes transcripts to .mycel/agents/<name>/claude/projects/*/<uuid>.jsonl
 	// where the UUID IS the session ID.
 	if id := findSessionIDFromTranscripts(m.agentsRoot(), ag.Name); id != "" {
 		log.Debug("captured session ID from JSONL transcript", "agent", ag.Name, "session_id", id)
@@ -2047,7 +2043,7 @@ func (m *Manager) DeleteAgentWithOptions(ctx context.Context, name string, opts 
 	m.removeFromParent(name)
 
 	// 10. Soft-delete in SQLite first (set deleted_at) so the agent won't be
-	// resurrected by LoadAll even if bcd crashes before the hard delete.
+	// resurrected by LoadAll even if the daemon crashes before the hard delete.
 	if m.store != nil {
 		if err := m.store.SoftDelete(ctx, name); err != nil {
 			log.Warn("delete: failed to soft-delete agent in store", "agent", name, "error", err)
@@ -2510,7 +2506,7 @@ func (m *Manager) SetAgentTask(ctx context.Context, name, task string) error {
 // preserving the agent's reported task. Lifecycle descriptions ("Turn
 // complete", "Session ended", …) belong in the activity/event stream, not
 // in the Task field — Task is reserved for the agent's own report
-// (bc report / report_status). The task is cleared when the agent stops
+// (mycel report / report_status). The task is cleared when the agent stops
 // so a dead agent doesn't keep advertising a stale task.
 // Returns an error if the transition is invalid per the state machine.
 func (m *Manager) SetAgentState(ctx context.Context, name string, state State) error {
@@ -2977,7 +2973,7 @@ func (m *Manager) enforceRootSingleton(_ string) error {
 	return nil
 }
 
-// daemonAddrForRuntime returns the bcd server address for the given runtime.
+// daemonAddrForRuntime returns the daemon server address for the given runtime.
 // Docker containers reach the host via host.docker.internal.
 // If MYCEL_DAEMON_ADDR is set in the environment, it is used as the base address
 // (with host.docker.internal substituted for Docker runtimes).
@@ -3236,7 +3232,7 @@ func openLayeredStore(repoPath, passphrase string) (ls *secret.LayeredStore, clo
 //
 // Precedence (highest → lowest):
 //  1. Existing value in env (set by agent env-file or injectAppEnv)
-//  2. Vault value (global ~/.mycel/secrets.vault + repo <repo>/.bc/secrets.db, repo wins)
+//  2. Vault value (global ~/.mycel/secrets.vault + repo <repo>/.mycel/secrets.db, repo wins)
 //
 // Call AFTER injectEnv + injectAppEnv so that explicitly-set values are
 // never overwritten by vault copies.

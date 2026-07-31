@@ -264,7 +264,7 @@ func sendStuckAlertViaClient(ctx context.Context, c *client.Client, channelName 
 	message := sb.String()
 
 	// Send via daemon channel API
-	_, sendErr := c.Channels.Send(ctx, channelName, "bc-health", message)
+	_, sendErr := c.Channels.Send(ctx, channelName, "mycel-health", message)
 	if sendErr != nil {
 		return fmt.Errorf("failed to send alert to channel %q: %w", channelName, sendErr)
 	}

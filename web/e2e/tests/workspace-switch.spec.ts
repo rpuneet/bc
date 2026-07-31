@@ -4,7 +4,7 @@
  * re-loads data.
  *
  * Requirements:
- *   - bcd running on localhost:9374 with at least two registered
+ *   - the daemon running on localhost:9374 with at least two registered
  *     workspaces (use `bc workspace add <path>` or register via API).
  *
  * The test is resilient to an empty registry: if fewer than two

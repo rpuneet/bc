@@ -882,7 +882,7 @@ func parseTimestamp(s string) (time.Time, error) {
 }
 
 // defaultNickname is the fallback sender name when no user nickname is configured.
-const defaultNickname = "@bc"
+const defaultNickname = "@mycel"
 
 // getUserSenderCtx returns the sender identity for channel messages.
 // If running as an agent, returns MYCEL_AGENT_ID.

@@ -192,10 +192,10 @@ func writeMCPJSON(ctx context.Context, repoPath, agentName string, resolved *hom
 	}
 
 	for _, name := range resolved.MCPServers {
-		// The bc server is this daemon itself — its address depends on the
+		// The mycel server is this daemon itself — its address depends on the
 		// live bind address and the agent's runtime, never on the store.
-		if name == "bc" {
-			cfg.MCPServers["bc"] = mcpServerEntry{URL: bcSelfURL(runtimeBackend, agentName), Type: "http"}
+		if name == "mycel" {
+			cfg.MCPServers["mycel"] = mcpServerEntry{URL: selfMCPURL(runtimeBackend, agentName), Type: "http"}
 			continue
 		}
 
@@ -268,10 +268,10 @@ func writeMCPJSON(ctx context.Context, repoPath, agentName string, resolved *hom
 		cfg.MCPServers[name] = entry
 	}
 
-	// Always ensure the bc MCP server is included with an agent-scoped URL.
+	// Always ensure the mycel MCP server is included with an agent-scoped URL.
 	// It carries send_message, report_status, and the other agent tools.
-	if _, hasBc := cfg.MCPServers["bc"]; !hasBc {
-		cfg.MCPServers["bc"] = mcpServerEntry{URL: bcSelfURL(runtimeBackend, agentName), Type: "http"}
+	if _, hasSelf := cfg.MCPServers["mycel"]; !hasSelf {
+		cfg.MCPServers["mycel"] = mcpServerEntry{URL: selfMCPURL(runtimeBackend, agentName), Type: "http"}
 	}
 
 	// Prefer claude CLI for MCP setup; fall back to .mcp.json file write.
@@ -284,12 +284,12 @@ func writeMCPJSON(ctx context.Context, repoPath, agentName string, resolved *hom
 	return writeJSONFile(targetDir, ".mcp.json", cfg)
 }
 
-// bcSelfURL returns this daemon's agent-scoped MCP endpoint (streamable
+// selfMCPURL returns this daemon's agent-scoped MCP endpoint (streamable
 // HTTP) for the given runtime. A URL stored in mcp_servers can't be right
 // for both runtimes at once (tmux needs 127.0.0.1, docker needs
 // host.docker.internal) nor track the actual bind port, so the self
 // endpoint is always derived from the live daemon address.
-func bcSelfURL(runtimeBackend, agentName string) string {
+func selfMCPURL(runtimeBackend, agentName string) string {
 	return daemonAddrForRuntime(runtimeBackend) + "/_mcp/" + agentName
 }
 
@@ -305,7 +305,7 @@ func rewriteDockerURL(u string) string {
 // ── Secrets ─────────────────────────────────────────────────────────────────
 
 // loadSecrets fetches secret values by name from the layered vault
-// (global ~/.mycel/secrets.vault + repo <repo>/.bc/secrets.db, repo wins).
+// (global ~/.mycel/secrets.vault + repo <repo>/.mycel/secrets.db, repo wins).
 // Uses the real passphrase so encrypted vaults are readable; an empty passphrase
 // was the previous bug that caused MCP ${secret:NAME} references to silently fail.
 func loadSecrets(repoPath string, names []string) map[string]string {

@@ -214,7 +214,7 @@ func EnsureGlobalDir() (string, error) {
 		return "", err
 	}
 	if err := os.MkdirAll(home, 0750); err != nil {
-		return "", fmt.Errorf("create bc home %s: %w", home, err)
+		return "", fmt.Errorf("create mycel home %s: %w", home, err)
 	}
 	return home, nil
 }

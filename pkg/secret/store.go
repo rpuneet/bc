@@ -85,7 +85,7 @@ func Passphrase() (string, error) {
 // NewStore creates a new secrets store for the given repo path.
 // The passphrase is used to derive the encryption key via PBKDF2.
 func NewStore(repoPath, passphrase string) (*Store, error) {
-	dbPath := filepath.Join(repoPath, ".bc", "secrets.db")
+	dbPath := filepath.Join(repoPath, ".mycel", "secrets.db")
 	d, err := db.Open(dbPath)
 	if err != nil {
 		return nil, fmt.Errorf("open secrets database: %w", err)

@@ -107,7 +107,7 @@ func runUp(cmd *cobra.Command, _ []string) error {
 	// Normalize addr: ":8080" → "127.0.0.1:8080"
 	upAddr = normalizeAddr(upAddr)
 
-	// Daemon mode: re-exec bc up in background
+	// Daemon mode: re-exec mycel up in background
 	if upDaemon {
 		return runUpDaemon(repoRoot)
 	}
@@ -120,15 +120,15 @@ func runUp(cmd *cobra.Command, _ []string) error {
 	}
 	fmt.Printf("  addr: %s\n\n", upAddr)
 
-	// Lazy-start the bc-db container when storage is configured for
+	// Lazy-start the mycel-db container when storage is configured for
 	// TimescaleDB. SQLite (the default) needs nothing.
 	maybeBootstrapTimescale()
 
 	// Set MYCEL_DAEMON_ADDR so agents inherit the correct server address for hooks.
-	// Without this, agents default to :9374 even when bcd runs on a different port.
-	bcdAddr := "http://" + upAddr
-	if err := os.Setenv("MYCEL_DAEMON_ADDR", bcdAddr); err == nil {
-		fmt.Printf("  MYCEL_DAEMON_ADDR: %s\n", bcdAddr)
+	// Without this, agents default to :9374 even when the daemon runs on a different port.
+	daemonAddr := "http://" + upAddr
+	if err := os.Setenv("MYCEL_DAEMON_ADDR", daemonAddr); err == nil {
+		fmt.Printf("  MYCEL_DAEMON_ADDR: %s\n", daemonAddr)
 	}
 
 	// Publish the listen address at ~/.mycel/run/daemon.addr so the mycel
@@ -140,7 +140,7 @@ func runUp(cmd *cobra.Command, _ []string) error {
 		log.Warn("daemon addr: ensure ~/.mycel/run failed — CLI will fall back to default port", "error", ensureErr)
 	} else if addrPath, pathErr := home.DaemonAddrPath(); pathErr != nil {
 		log.Warn("daemon addr: resolve path failed — CLI will fall back to default port", "error", pathErr)
-	} else if writeErr := os.WriteFile(addrPath, []byte(bcdAddr+"\n"), 0o600); writeErr != nil {
+	} else if writeErr := os.WriteFile(addrPath, []byte(daemonAddr+"\n"), 0o600); writeErr != nil {
 		log.Warn("daemon addr: write failed — CLI will fall back to default port", "path", addrPath, "error", writeErr)
 	}
 
@@ -185,7 +185,7 @@ func findGitRoot() string {
 	}
 }
 
-// maybeBootstrapTimescale starts the bc-db (TimescaleDB) container when
+// maybeBootstrapTimescale starts the mycel-db (TimescaleDB) container when
 // prefs.json sets storage.default to "timescale". Non-fatal: warns if
 // Docker is unavailable. SQLite (the default) skips this.
 func maybeBootstrapTimescale() {
@@ -214,20 +214,20 @@ func maybeBootstrapTimescale() {
 	}
 	password := ts.Password
 	if password == "" {
-		password = "bc"
+		password = "mycel"
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
-	if err := dockerRun(ctx, "bc-db", []string{
+	if err := dockerRun(ctx, "mycel-db", []string{
 		"-p", fmt.Sprintf("%d:5432", port),
 		"-e", "POSTGRES_PASSWORD=" + password,
-		"-v", "bc-db-data:/var/lib/postgresql/data",
+		"-v", "mycel-db-data:/var/lib/postgresql/data",
 		"--restart", "always",
-		"bc-bcdb:latest",
+		"mycel-db:latest",
 	}); err != nil {
-		fmt.Printf("  %s bc-db: %v\n", ui.YellowText("warning"), err)
+		fmt.Printf("  %s mycel-db: %v\n", ui.YellowText("warning"), err)
 		return
 	}
 	fmt.Printf("  %s database ready\n\n", ui.GreenText("ok"))

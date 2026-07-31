@@ -917,7 +917,7 @@ func TestStopAgent_WithWorktree(t *testing.T) {
 		Role:        Role("engineer"),
 		State:       StateWorking,
 		Workspace:   "/tmp/repo",
-		WorktreeDir: "/tmp/repo/.bc/worktrees/eng-1",
+		WorktreeDir: "/tmp/repo/.mycel/worktrees/eng-1",
 		Children:    []string{},
 	}
 
@@ -929,7 +929,7 @@ func TestStopAgent_WithWorktree(t *testing.T) {
 		t.Errorf("agent state = %s, want %s", m.agents["eng-1"].State, StateStopped)
 	}
 	// Worktree should be preserved (not cleared) so agent can resume work on restart
-	if m.agents["eng-1"].WorktreeDir != "/tmp/repo/.bc/worktrees/eng-1" {
+	if m.agents["eng-1"].WorktreeDir != "/tmp/repo/.mycel/worktrees/eng-1" {
 		t.Error("worktree dir should be preserved after stop, not cleared")
 	}
 }
@@ -1372,7 +1372,7 @@ func TestSaveLoadState_ComplexHierarchy(t *testing.T) {
 		ParentID:    "coord",
 		Children:    []string{},
 		HookedWork:  "work-001",
-		WorktreeDir: "/workspace/.bc/worktrees/mgr",
+		WorktreeDir: "/workspace/.mycel/worktrees/mgr",
 		Tool:        "claude",
 		StartedAt:   now,
 		UpdatedAt:   now,
@@ -1417,7 +1417,7 @@ func TestSaveLoadState_ComplexHierarchy(t *testing.T) {
 	if mgr.Tool != "claude" {
 		t.Errorf("mgr Tool = %q, want %q", mgr.Tool, "claude")
 	}
-	if mgr.WorktreeDir != "/workspace/.bc/worktrees/mgr" {
+	if mgr.WorktreeDir != "/workspace/.mycel/worktrees/mgr" {
 		t.Errorf("mgr WorktreeDir = %q, want expected", mgr.WorktreeDir)
 	}
 	if mgr.HookedWork != "work-001" {
@@ -1440,7 +1440,7 @@ func TestAgentJSON_RoundTrip(t *testing.T) {
 		ParentID:    "mgr",
 		Children:    []string{"sub1"},
 		HookedWork:  "work-099",
-		WorktreeDir: "/workspace/.bc/worktrees/eng-1",
+		WorktreeDir: "/workspace/.mycel/worktrees/eng-1",
 		StartedAt:   time.Now().Truncate(time.Second),
 		UpdatedAt:   time.Now().Truncate(time.Second),
 		RolePrompt: &AgentMemory{
@@ -3470,7 +3470,7 @@ func TestEffectiveToolExplicit(t *testing.T) {
 	}
 }
 
-func TestBcdAddrForRuntime_NormalizesEmptyHost(t *testing.T) {
+func TestDaemonAddrForRuntime_NormalizesEmptyHost(t *testing.T) {
 	tests := []struct {
 		name    string
 		envVal  string

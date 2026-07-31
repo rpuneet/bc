@@ -15,7 +15,7 @@ func TestSanitizeChannelName(t *testing.T) {
 		want  string
 	}{
 		{"Marketing", "marketing"},
-		{"All BC Infra", "all-bc-infra"},
+		{"All Mycel Infra", "all-mycel-infra"},
 		{"dev-chat", "dev-chat"},
 		{"hello_world", "hello_world"},
 		{"café ☕", "caf-"},
@@ -144,12 +144,12 @@ func newFakeChannelStore() *fakeChannelStore {
 	return &fakeChannelStore{saved: make(map[string]PersistedChannel)}
 }
 
-func (f *fakeChannelStore) SaveChannel(_ context.Context, bcChannel, platform, platformID string) error {
+func (f *fakeChannelStore) SaveChannel(_ context.Context, channel, platform, platformID string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	ch := f.saved[bcChannel]
-	ch.BCChannel, ch.Platform, ch.PlatformID = bcChannel, platform, platformID
-	f.saved[bcChannel] = ch
+	ch := f.saved[channel]
+	ch.Channel, ch.Platform, ch.PlatformID = channel, platform, platformID
+	f.saved[channel] = ch
 	return nil
 }
 
@@ -163,11 +163,11 @@ func (f *fakeChannelStore) LoadChannels(_ context.Context) ([]PersistedChannel, 
 	return out, nil
 }
 
-func (f *fakeChannelStore) UpsertChannelMeta(_ context.Context, bcChannel, displayName, kind string, participantCount int) error {
+func (f *fakeChannelStore) UpsertChannelMeta(_ context.Context, channel, displayName, kind string, participantCount int) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	ch := f.saved[bcChannel]
-	ch.BCChannel = bcChannel
+	ch := f.saved[channel]
+	ch.Channel = channel
 	if displayName != "" {
 		ch.DisplayName = displayName
 	}
@@ -177,24 +177,24 @@ func (f *fakeChannelStore) UpsertChannelMeta(_ context.Context, bcChannel, displ
 	if participantCount != 0 {
 		ch.ParticipantCount = participantCount
 	}
-	f.saved[bcChannel] = ch
+	f.saved[channel] = ch
 	return nil
 }
 
-func (f *fakeChannelStore) UpdateChannelPlatformID(_ context.Context, bcChannel, platformID string) error {
+func (f *fakeChannelStore) UpdateChannelPlatformID(_ context.Context, channel, platformID string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	if c, ok := f.saved[bcChannel]; ok {
+	if c, ok := f.saved[channel]; ok {
 		c.PlatformID = platformID
-		f.saved[bcChannel] = c
+		f.saved[channel] = c
 	}
 	return nil
 }
 
-func (f *fakeChannelStore) get(bcChannel string) (PersistedChannel, bool) {
+func (f *fakeChannelStore) get(channel string) (PersistedChannel, bool) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	ch, ok := f.saved[bcChannel]
+	ch, ok := f.saved[channel]
 	return ch, ok
 }
 

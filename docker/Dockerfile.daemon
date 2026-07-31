@@ -1,6 +1,6 @@
-# bc — bc server (API, web UI, agent management)
+# mycel daemon — API, web UI, agent management
 # Multi-stage build optimized for Docker layer caching.
-# Usage: docker build -t bc-daemon:latest -f docker/Dockerfile.bcd .
+# Usage: docker build -t mycel-daemon:latest -f docker/Dockerfile.daemon .
 
 # Stage 1: Build web UI
 FROM oven/bun:1.2 AS web
@@ -54,21 +54,21 @@ RUN curl -fsSL https://bun.sh/install | bash && \
     chmod +x /usr/local/bin/claude && \
     rm -rf /root/.local/share/claude /root/.claude && \
     git config --global --add safe.directory /workspace && \
-    git config --global --add safe.directory /home/agent/.bc
+    git config --global --add safe.directory /home/agent/.mycel
 
 COPY --from=go /mycel /usr/local/bin/mycel
 
 # Workspace architecture: project source is mounted at /workspace, while
-# workspace state lives under MYCEL_HOME (default ~/.bc/). The MYCEL_STATE_DIR
+# workspace state lives under MYCEL_HOME (default ~/.mycel/). The MYCEL_STATE_DIR
 # env var can override the per-workspace state path at runtime.
-ENV MYCEL_HOME=/home/agent/.bc
+ENV MYCEL_HOME=/home/agent/.mycel
 
-# Runs as root because bc needs access to the Docker socket
+# Runs as root because mycel needs access to the Docker socket
 # (/var/run/docker.sock) to manage agent containers.
 EXPOSE 9374
 HEALTHCHECK --interval=10s --timeout=3s --start-period=10s --retries=3 \
     CMD curl -sf http://localhost:9374/health
 
 WORKDIR /workspace
-ENTRYPOINT ["bash", "-c", "tmux new-session -d -s _bc_init 'sleep infinity' && exec mycel \"$@\"", "--"]
+ENTRYPOINT ["bash", "-c", "tmux new-session -d -s _mycel_init 'sleep infinity' && exec mycel \"$@\"", "--"]
 CMD ["up", "--addr", "0.0.0.0:9374", "--workspace", "/workspace"]

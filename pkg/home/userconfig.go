@@ -45,7 +45,7 @@ type UserRCToolsConfig struct {
 func DefaultUserRCConfig() UserRCConfig {
 	return UserRCConfig{
 		User: UserRCUserConfig{
-			Nickname: "@bc",
+			Nickname: "@mycel",
 		},
 		Defaults: UserRCDefaultsConfig{
 			DefaultRole:   "engineer",

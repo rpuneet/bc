@@ -43,7 +43,7 @@ type Store struct {
 	configLookup ConfigLookupFunc // optional fallback for config-only servers
 	db           *db.DB
 	pg           *PostgresStore // non-nil when using Postgres via OpenStore
-	shared       bool           // true when using shared bc.db (don't close on Close())
+	shared       bool           // true when using shared mycel.db (don't close on Close())
 }
 
 // SetConfigLookup registers a fallback function that resolves server configs

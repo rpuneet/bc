@@ -331,7 +331,7 @@ func (h *GatewayHandler) channelSend(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]bool{"sent": sent})
 }
 
-// channelList handles GET /api/apps/channels — every known bc channel
+// channelList handles GET /api/apps/channels — every known mycel channel
 // (discovered gateway channels plus channels with notify subscriptions).
 func (h *GatewayHandler) channelList(w http.ResponseWriter, r *http.Request) {
 	if !requireMethod(w, r, http.MethodGet) {
@@ -595,7 +595,7 @@ func (h *GatewayHandler) notifyActivity(w http.ResponseWriter, r *http.Request) 
 // Request body:
 //
 //	{
-//	  "channel":    "whatsapp:family",  // bc channel key
+//	  "channel":    "whatsapp:family",  // mycel channel key
 //	  "message_id": "<platform_msg_id>",
 //	  "sender_jid": "<platform_sender>", // required by WhatsApp; omit for other platforms
 //	  "emoji":      "👍"                 // empty string removes the reaction

@@ -13,18 +13,18 @@ func TestSaveChannel_PreservesPlatformID(t *testing.T) {
 	store := setupTestStore(t)
 	ctx := context.Background()
 
-	const bcChannel = "telegram:general"
+	const channel = "telegram:general"
 	const platform = "telegram"
 	const goodID = "123456789" // numeric chat_id
 	const fallbackID = "general"
 
 	// 1. First write: real platform_id stored.
-	if err := store.SaveChannel(ctx, bcChannel, platform, goodID); err != nil {
+	if err := store.SaveChannel(ctx, channel, platform, goodID); err != nil {
 		t.Fatalf("SaveChannel (initial): %v", err)
 	}
 
 	// 2. Second write with a fallback platform_id. Must NOT overwrite.
-	if err := store.SaveChannel(ctx, bcChannel, platform, fallbackID); err != nil {
+	if err := store.SaveChannel(ctx, channel, platform, fallbackID); err != nil {
 		t.Fatalf("SaveChannel (fallback): %v", err)
 	}
 
@@ -46,16 +46,16 @@ func TestSaveChannel_FillsEmptyPlatformID(t *testing.T) {
 	store := setupTestStore(t)
 	ctx := context.Background()
 
-	const bcChannel = "slack:general"
+	const channel = "slack:general"
 	const platform = "slack"
 
 	// 1. First write: empty platform_id.
-	if err := store.SaveChannel(ctx, bcChannel, platform, ""); err != nil {
+	if err := store.SaveChannel(ctx, channel, platform, ""); err != nil {
 		t.Fatalf("SaveChannel (empty): %v", err)
 	}
 
 	// 2. Second write with a real ID. Must populate the previously-empty value.
-	if err := store.SaveChannel(ctx, bcChannel, platform, "C0123ABC"); err != nil {
+	if err := store.SaveChannel(ctx, channel, platform, "C0123ABC"); err != nil {
 		t.Fatalf("SaveChannel (real): %v", err)
 	}
 
@@ -203,11 +203,11 @@ func TestUpsertChannelMeta_RoundTrip(t *testing.T) {
 	store := setupTestStore(t)
 	ctx := context.Background()
 
-	const bcChannel = "whatsapp:family-group"
-	if err := store.SaveChannel(ctx, bcChannel, "whatsapp", "1234@g.us"); err != nil {
+	const channel = "whatsapp:family-group"
+	if err := store.SaveChannel(ctx, channel, "whatsapp", "1234@g.us"); err != nil {
 		t.Fatalf("SaveChannel: %v", err)
 	}
-	if err := store.UpsertChannelMeta(ctx, bcChannel, "Family Group", "group", 12); err != nil {
+	if err := store.UpsertChannelMeta(ctx, channel, "Family Group", "group", 12); err != nil {
 		t.Fatalf("UpsertChannelMeta: %v", err)
 	}
 
@@ -227,7 +227,7 @@ func TestUpsertChannelMeta_RoundTrip(t *testing.T) {
 	}
 
 	// Empty values must not clobber previously-resolved metadata.
-	if upErr := store.UpsertChannelMeta(ctx, bcChannel, "", "", 0); upErr != nil {
+	if upErr := store.UpsertChannelMeta(ctx, channel, "", "", 0); upErr != nil {
 		t.Fatalf("UpsertChannelMeta (empty): %v", upErr)
 	}
 	channels, err = store.LoadChannels(ctx)
@@ -239,7 +239,7 @@ func TestUpsertChannelMeta_RoundTrip(t *testing.T) {
 	}
 
 	// New values replace old ones.
-	if upErr := store.UpsertChannelMeta(ctx, bcChannel, "Renamed Group", "group", 13); upErr != nil {
+	if upErr := store.UpsertChannelMeta(ctx, channel, "Renamed Group", "group", 13); upErr != nil {
 		t.Fatalf("UpsertChannelMeta (update): %v", upErr)
 	}
 	channels, err = store.LoadChannels(ctx)
@@ -292,28 +292,28 @@ func TestUpsertChannelMeta_PreservesMessages(t *testing.T) {
 	store := setupTestStore(t)
 	ctx := context.Background()
 
-	const bcChannel = "whatsapp:1234"
+	const channel = "whatsapp:1234"
 	for _, msg := range []string{"hello", "world"} {
-		if err := store.SaveMessage(ctx, bcChannel, "alice", msg); err != nil {
+		if err := store.SaveMessage(ctx, channel, "alice", msg); err != nil {
 			t.Fatalf("SaveMessage: %v", err)
 		}
 	}
-	if err := store.Subscribe(ctx, bcChannel, "eng-01", false); err != nil {
+	if err := store.Subscribe(ctx, channel, "eng-01", false); err != nil {
 		t.Fatalf("Subscribe: %v", err)
 	}
 
-	if err := store.UpsertChannelMeta(ctx, bcChannel, "Alice", "person", 0); err != nil {
+	if err := store.UpsertChannelMeta(ctx, channel, "Alice", "person", 0); err != nil {
 		t.Fatalf("UpsertChannelMeta: %v", err)
 	}
 
-	msgs, err := store.GetMessages(ctx, bcChannel, 10, 0)
+	msgs, err := store.GetMessages(ctx, channel, 10, 0)
 	if err != nil {
 		t.Fatalf("GetMessages: %v", err)
 	}
 	if len(msgs) != 2 {
 		t.Fatalf("expected 2 messages after meta upsert, got %d", len(msgs))
 	}
-	subs, err := store.Subscribers(ctx, bcChannel)
+	subs, err := store.Subscribers(ctx, channel)
 	if err != nil {
 		t.Fatalf("Subscribers: %v", err)
 	}

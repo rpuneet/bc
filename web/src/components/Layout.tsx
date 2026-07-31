@@ -22,7 +22,7 @@ import { SidebarToggle } from "./SidebarToggle";
 import { BrandMark } from "./BrandMark";
 import { HeaderSlotProvider, useHeaderSlotContext } from "../context/HeaderSlotContext";
 
-const SIDEBAR_KEY = "bc-sidebar-collapsed";
+const SIDEBAR_KEY = "mycel-sidebar-collapsed";
 
 /* ── Route transition wrapper ────────────────────────────────────────
    Subtle 120ms fade + 4px lift on every route change so navigating
@@ -565,7 +565,7 @@ function AppsNavTree() {
               {(() => {
                 const subLabel = gwStatus?.bot_name || (chs.length > 0 ? sourceGroup(chs[0]?.name ?? "") : null);
                 // When a bot/server name is present, show platform + bot for clarity
-                // (e.g., "Slack · bc_gateway"); otherwise just the platform label.
+                // (e.g., "Slack · mycel_gateway"); otherwise just the platform label.
                 if (subLabel && subLabel !== meta.label) {
                   return (
                     <span className="truncate flex items-baseline" style={{ gap: 5, minWidth: 0 }}>

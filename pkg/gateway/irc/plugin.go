@@ -47,7 +47,7 @@ func (plugin) Build(inst app.Instance, _ app.Env) (gateway.NotificationAdapter, 
 	}
 	return New(inst.Name, Config{
 		Server:   server,
-		Nick:     "bc-bot",
+		Nick:     "mycel-bot",
 		Channels: channels,
 		UseTLS:   true,
 	}), nil

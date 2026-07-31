@@ -24,7 +24,7 @@ func TestRoleStore_SaveAndLoad(t *testing.T) {
 		Metadata: RoleMetadata{
 			Name:         "engineer",
 			Description:  "Feature developer",
-			MCPServers:   []string{"bc", "github"},
+			MCPServers:   []string{"mycel", "github"},
 			ParentRoles:  []string{"base"},
 			Secrets:      []string{"GITHUB_TOKEN"},
 			Plugins:      []string{"typescript-lsp"},
@@ -235,7 +235,7 @@ func TestRoleStore_MigrateFromFiles(t *testing.T) {
 name: engineer
 description: Feature developer
 mcp_servers:
-  - bc
+  - mycel
   - github
 parent_roles:
   - base

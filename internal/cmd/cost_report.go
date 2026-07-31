@@ -18,7 +18,7 @@ import (
 
 // costReportCmd rolls up costs across repos, computed directly from
 // provider session files (source-direct). It is a filesystem read — no
-// daemon required — so it works even when bcd is not running.
+// daemon required — so it works even when the daemon is not running.
 var costReportCmd = &cobra.Command{
 	Use:   "report",
 	Short: "Report cost totals across repos",

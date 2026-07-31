@@ -3,7 +3,7 @@
  * works, clicking a file renders Monaco, and diff mode can be toggled.
  *
  * Requirements:
- *   - bcd running on localhost:9374 with ≥1 registered workspace that
+ *   - the daemon running on localhost:9374 with ≥1 registered workspace that
  *     has at least one worktree + a file.
  *
  * Skips when fixture data (worktrees / files) is absent.
@@ -15,7 +15,7 @@ test.describe("code view", () => {
   test("worktree dropdown loads and Monaco editor appears for a file", async ({ page, request }) => {
     const wsResp = await request.get("/api/workspaces");
     if (!wsResp.ok()) {
-      test.skip(true, "bcd not reachable");
+      test.skip(true, "the daemon not reachable");
       return;
     }
     const body: unknown = await wsResp.json();

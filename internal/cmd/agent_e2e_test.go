@@ -82,7 +82,7 @@ func TestAgentLifecycle_ListPositionalArg(t *testing.T) {
 
 func TestAgentLifecycle_CreateIsCWDFree(t *testing.T) {
 	// Agent commands are daemon-first: no repo is required, the CLI goes
-	// straight to bcd from any directory.
+	// straight to the daemon from any directory.
 	origDir, _ := os.Getwd()
 	tmpDir := t.TempDir() // plain dir, not a git repo
 	_ = os.Chdir(tmpDir)
@@ -108,13 +108,13 @@ func TestAgentLifecycle_CreateIsCWDFree(t *testing.T) {
 
 	_, _, err := executeIntegrationCmdT(t, handler, "agent", "create", "test-agent", "--role", "engineer")
 	if err == nil {
-		t.Fatal("expected daemon error from fake bcd, got nil")
+		t.Fatal("expected daemon error from fake daemon, got nil")
 	}
 	if strings.Contains(err.Error(), "not in a mycel-adopted repo") {
 		t.Errorf("agent create must not require a repo, got repo error: %v", err)
 	}
 	if !apiHit {
-		t.Error("agent create should reach bcd even outside a repo")
+		t.Error("agent create should reach the daemon even outside a repo")
 	}
 }
 
@@ -182,7 +182,7 @@ func TestAgentStateWorkflow_ManagerOperations(t *testing.T) {
 	defer resetAgentFlags()
 
 	// Create agent manager
-	mgr := agent.NewManagerWithRepo(filepath.Join(wsDir, ".bc", "agents"), wsDir)
+	mgr := agent.NewManagerWithRepo(filepath.Join(wsDir, ".mycel", "agents"), wsDir)
 	if err := mgr.LoadState(); err != nil {
 		t.Logf("initial load (expected to be empty): %v", err)
 	}
@@ -207,7 +207,7 @@ func TestAgentStateWorkflow_ManagerOperations(t *testing.T) {
 func TestAgentStateWorkflow_GetNonExistentAgent(t *testing.T) {
 	wsDir := setupTestHome(t)
 
-	mgr := agent.NewManagerWithRepo(filepath.Join(wsDir, ".bc", "agents"), wsDir)
+	mgr := agent.NewManagerWithRepo(filepath.Join(wsDir, ".mycel", "agents"), wsDir)
 	_ = mgr.LoadState()
 
 	// GetAgent should return nil for non-existent
@@ -548,7 +548,7 @@ func TestAgentCmdArgs_SendRequiresNameAndMessage(t *testing.T) {
 
 // --- CWD-free Command Tests ---
 //
-// Agent and channel commands are daemon-first: they need bcd, not a
+// Agent and channel commands are daemon-first: they need the daemon, not a
 // repo, and work from any directory. The old "must fail outside a
 // repo" behavior is gone.
 
@@ -617,7 +617,7 @@ func TestCWDFree_AgentCommandsReachDaemon(t *testing.T) {
 				t.Errorf("%v must not require a repo, got repo error: %v", tt.args, err)
 			}
 			if !apiHit {
-				t.Errorf("%v should reach bcd even outside a repo", tt.args)
+				t.Errorf("%v should reach the daemon even outside a repo", tt.args)
 			}
 		})
 	}

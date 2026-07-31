@@ -67,7 +67,7 @@ func init() {
 var _ gateway.NotificationAdapter = (*Adapter)(nil)
 
 // New creates a WhatsApp adapter. stateDir is where session data is stored
-// (typically .bc/gateways/whatsapp/).
+// (typically .mycel/gateways/whatsapp/).
 func New(stateDir string) *Adapter {
 	return &Adapter{name: "whatsapp", stateDir: stateDir}
 }
@@ -108,7 +108,7 @@ type PairStatus struct {
 }
 
 // StartPairing initiates a QR code pairing flow. Returns immediately with
-// the QR code as a data URL. Does not require bcd restart.
+// the QR code as a data URL. Does not require the daemon restart.
 func (a *Adapter) StartPairing(ctx context.Context) (*PairStatus, error) {
 	if err := os.MkdirAll(a.stateDir, 0o700); err != nil {
 		return nil, fmt.Errorf("whatsapp: create state dir: %w", err)
@@ -500,7 +500,7 @@ func (a *Adapter) handleMessage(msg *events.Message) {
 // message's ContextInfo.MentionedJID (e.g. "1234567890@s.whatsapp.net" → "1234567890").
 //
 // These phone numbers are passed as extraMentions to notify.Dispatch but will NOT
-// match bc agent names in the mention_only gate — agent names are strings like
+// match mycel agent names in the mention_only gate — agent names are strings like
 // "zen-zebra", not phone numbers. Agent mention filtering uses the text @name
 // extraction path (extractMentions in notify/service.go), which parses typed
 // "@agentname" tokens from the message content. The JID user parts are included in

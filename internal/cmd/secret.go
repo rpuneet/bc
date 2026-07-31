@@ -135,7 +135,7 @@ func openSecretStore() (*secret.Store, error) {
 }
 
 // openRepoSecretStore opens the repo-scoped secrets store at
-// <repo>/.bc/secrets.db, used for repo-scoped overrides (the CLI's
+// <repo>/.mycel/secrets.db, used for repo-scoped overrides (the CLI's
 // --workspace flag).
 func openRepoSecretStore() (*secret.Store, error) {
 	h, err := getRepo()

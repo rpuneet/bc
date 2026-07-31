@@ -143,7 +143,7 @@ func TestAppsCatalogPopulatesDynamicAdapterChannels(t *testing.T) {
 			{ID: "C001", Name: "engineering", Platform: "slack"},
 			{ID: "C002", Name: "general", Platform: "slack"},
 		},
-		status: gateway.AdapterStatus{Connected: true, BotName: "bc-bot"},
+		status: gateway.AdapterStatus{Connected: true, BotName: "mycel-bot"},
 	}
 	gw.Register(adapter)
 
@@ -194,8 +194,8 @@ func TestAppsCatalogPopulatesDynamicAdapterChannels(t *testing.T) {
 	for _, p := range resp.Instances {
 		if p.Name == "slack" {
 			found = true
-			if p.BotName != "bc-bot" {
-				t.Errorf("bot_name = %q, want %q", p.BotName, "bc-bot")
+			if p.BotName != "mycel-bot" {
+				t.Errorf("bot_name = %q, want %q", p.BotName, "mycel-bot")
 			}
 			if !p.Enabled {
 				t.Error("dynamically registered adapter should be enabled=true")

@@ -1,4 +1,4 @@
--- bc unified database schema — relational + time-series in one database
+-- mycel unified database schema — relational + time-series in one database
 -- Uses TimescaleDB extension for hypertables (time-series metrics)
 -- All tables use standard SQL compatible with both SQLite and Postgres
 
@@ -171,7 +171,7 @@ CREATE INDEX IF NOT EXISTS idx_events_timestamp ON events(timestamp);
 -- Time-series tables (TimescaleDB hypertables)
 -- ============================================================================
 
--- System Metrics — bc-daemon, bc-db containers
+-- System Metrics — mycel-daemon, mycel-db containers
 CREATE TABLE IF NOT EXISTS system_metrics (
     time             TIMESTAMPTZ NOT NULL,
     system_name      TEXT NOT NULL,

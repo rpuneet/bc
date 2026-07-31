@@ -78,12 +78,12 @@ func TestConfigFromHome_PartialOverride(t *testing.T) {
 
 func TestContainerName(t *testing.T) {
 	b := &Backend{
-		prefix:   "bc-",
+		prefix:   "mycel-",
 		repoHash: "a1b2c3",
 	}
 
 	got := b.containerName("alice")
-	want := "bc-a1b2c3-alice"
+	want := "mycel-a1b2c3-alice"
 	if got != want {
 		t.Errorf("containerName = %q, want %q", got, want)
 	}
@@ -91,19 +91,19 @@ func TestContainerName(t *testing.T) {
 
 func TestContainerName_SpecialChars(t *testing.T) {
 	b := &Backend{
-		prefix:   "bc-",
+		prefix:   "mycel-",
 		repoHash: "ff00ff",
 	}
 
 	// Agent names with hyphens and underscores
 	got := b.containerName("eng-01")
-	want := "bc-ff00ff-eng-01"
+	want := "mycel-ff00ff-eng-01"
 	if got != want {
 		t.Errorf("containerName = %q, want %q", got, want)
 	}
 
 	got = b.containerName("test_agent")
-	want = "bc-ff00ff-test_agent"
+	want = "mycel-ff00ff-test_agent"
 	if got != want {
 		t.Errorf("containerName = %q, want %q", got, want)
 	}
@@ -111,12 +111,12 @@ func TestContainerName_SpecialChars(t *testing.T) {
 
 func TestSessionName(t *testing.T) {
 	b := &Backend{
-		prefix:   "bc-",
+		prefix:   "mycel-",
 		repoHash: "abc123",
 	}
 
 	got := b.SessionName("worker")
-	want := "bc-abc123-worker"
+	want := "mycel-abc123-worker"
 	if got != want {
 		t.Errorf("SessionName = %q, want %q", got, want)
 	}
@@ -232,7 +232,7 @@ func TestImageForTool_RegistryMiss(t *testing.T) {
 
 func TestCreateSessionWithEnv_EmptyDir(t *testing.T) {
 	b := &Backend{
-		prefix:     "bc-",
+		prefix:     "mycel-",
 		repoHash:   "aabbcc",
 		repoPath:   t.TempDir(),
 		cfg:        Config{Image: "mycel-agent-claude:latest", Network: "bridge", CPUs: 2.0, MemoryMB: 2048},
@@ -251,7 +251,7 @@ func TestCreateSessionWithEnv_EmptyDir(t *testing.T) {
 func TestCreateSessionWithEnv_NoGitDir(t *testing.T) {
 	dir := t.TempDir() // temp dir with no .git
 	b := &Backend{
-		prefix:     "bc-",
+		prefix:     "mycel-",
 		repoHash:   "aabbcc",
 		repoPath:   dir,
 		cfg:        Config{Image: "mycel-agent-claude:latest", Network: "bridge", CPUs: 2.0, MemoryMB: 2048},
@@ -275,7 +275,7 @@ func TestCreateSessionWithEnv_ToolImageMismatch(t *testing.T) {
 	}
 
 	b := &Backend{
-		prefix:     "bc-",
+		prefix:     "mycel-",
 		repoHash:   "aabbcc",
 		repoPath:   dir,
 		cfg:        Config{Image: "mycel-agent-claude:latest", Network: "bridge", CPUs: 2.0, MemoryMB: 2048},
@@ -301,7 +301,7 @@ func TestCreateSessionWithEnv_ToolImageMatch(t *testing.T) {
 	}
 
 	b := &Backend{
-		prefix:     "bc-",
+		prefix:     "mycel-",
 		repoHash:   "aabbcc",
 		repoPath:   dir,
 		cfg:        Config{Image: "mycel-agent-claude:latest", Network: "bridge", CPUs: 2.0, MemoryMB: 2048},
@@ -320,7 +320,7 @@ func TestCreateSessionWithEnv_ToolImageMatch(t *testing.T) {
 
 func TestSetEnvironment(t *testing.T) {
 	b := &Backend{
-		prefix:   "bc-",
+		prefix:   "mycel-",
 		repoHash: "aabbcc",
 	}
 
@@ -376,7 +376,7 @@ func TestCreateSessionWithEnv_InvalidEnvVar(t *testing.T) {
 				t.Fatal(err)
 			}
 			b := &Backend{
-				prefix:     "bc-",
+				prefix:     "mycel-",
 				repoHash:   "aabbcc",
 				repoPath:   dir,
 				cfg:        Config{Image: "test:latest", Network: "none"},
@@ -433,7 +433,7 @@ func TestExtraMountsInDockerArgs(t *testing.T) {
 	}
 
 	b := &Backend{
-		prefix:     "bc-",
+		prefix:     "mycel-",
 		repoHash:   "aabbcc",
 		repoPath:   wsDir,
 		cfg:        cfg,
@@ -490,7 +490,7 @@ func TestExtraMountsAcceptsInsideRepo(t *testing.T) {
 func TestDockerArgsContainAddHost(t *testing.T) {
 	// Verify that --add-host=host.docker.internal:host-gateway is present
 	// in the Docker run args. This ensures Docker containers on Linux can
-	// resolve host.docker.internal to reach the host's bcd server.
+	// resolve host.docker.internal to reach the host's the daemon server.
 	flag := "--add-host=host.docker.internal:host-gateway"
 	if flag != "--add-host=host.docker.internal:host-gateway" {
 		t.Error("unexpected --add-host flag value")
@@ -505,12 +505,12 @@ func TestRepoHashDeterministic(t *testing.T) {
 	expectedHash := fmt.Sprintf("%x", h[:3])
 
 	b1 := &Backend{
-		prefix:   "bc-",
+		prefix:   "mycel-",
 		repoHash: expectedHash,
 		repoPath: repoPath,
 	}
 	b2 := &Backend{
-		prefix:   "bc-",
+		prefix:   "mycel-",
 		repoHash: expectedHash,
 		repoPath: repoPath,
 	}
@@ -528,7 +528,7 @@ func TestRepoHashDeterministic(t *testing.T) {
 	}
 
 	// Verify the full container name format
-	want := "bc-" + expectedHash + "-agent-x"
+	want := "mycel-" + expectedHash + "-agent-x"
 	if cn1 != want {
 		t.Errorf("containerName = %q, want %q", cn1, want)
 	}
@@ -567,23 +567,23 @@ func TestResolveRepoMount(t *testing.T) {
 			wantWorkdir: "/workspace",
 		},
 		{
-			name:        "boot repo, worktree under repo (legacy sidecar)",
-			dir:         boot + "/.bc/agents/zed/bc-boot-repo-zed",
+			name:        "boot repo, worktree under repo (sidecar)",
+			dir:         boot + "/.mycel/agents/zed/wt-zed",
 			wantRepo:    boot,
-			wantWorkdir: "/workspace/.bc/agents/zed/bc-boot-repo-zed",
+			wantWorkdir: "/workspace/.mycel/agents/zed/wt-zed",
 		},
 		{
 			name:        "boot repo, worktree outside repo (M11 data dir)",
-			dir:         "/home/user/.mycel/workspaces/ws1/agents/zed/bc-boot-repo-zed",
+			dir:         "/home/user/.mycel/workspaces/ws1/agents/zed/wt-zed",
 			wantRepo:    boot,
 			wantWorkdir: "/workspace",
 		},
 		{
 			name:        "MYCEL_WORKSPACE equal to boot repo behaves like boot",
 			env:         map[string]string{"MYCEL_WORKSPACE": boot},
-			dir:         boot + "/.bc/agents/zed/wt",
+			dir:         boot + "/.mycel/agents/zed/wt",
 			wantRepo:    boot,
-			wantWorkdir: "/workspace/.bc/agents/zed/wt",
+			wantWorkdir: "/workspace/.mycel/agents/zed/wt",
 		},
 		{
 			name:        "boot repo honors MYCEL_HOST_WORKSPACE translation",
@@ -595,16 +595,16 @@ func TestResolveRepoMount(t *testing.T) {
 		{
 			name:        "cross repo mounts the agent repo, not boot",
 			env:         map[string]string{"MYCEL_WORKSPACE": other},
-			dir:         "/home/user/.mycel/workspaces/ws1/agents/zed/bc-other-repo-zed",
+			dir:         "/home/user/.mycel/workspaces/ws1/agents/zed/wt-zed",
 			wantRepo:    other,
 			wantWorkdir: "/workspace",
 		},
 		{
 			name:        "cross repo with worktree under the agent repo",
 			env:         map[string]string{"MYCEL_WORKSPACE": other},
-			dir:         other + "/.bc/agents/zed/bc-other-repo-zed",
+			dir:         other + "/.mycel/agents/zed/wt-zed",
 			wantRepo:    other,
-			wantWorkdir: "/workspace/.bc/agents/zed/bc-other-repo-zed",
+			wantWorkdir: "/workspace/.mycel/agents/zed/wt-zed",
 		},
 		{
 			name:        "cross repo ignores boot MYCEL_HOST_WORKSPACE translation",
@@ -631,7 +631,7 @@ func TestResolveRepoMount(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			b := &Backend{
-				prefix:       "bc-",
+				prefix:       "mycel-",
 				repoHash:     "aabbcc",
 				repoPath:     boot,
 				hostRepoPath: tt.hostWS,
@@ -669,7 +669,7 @@ func TestCreateSessionWithEnv_RejectsUnsafeAgentRepo(t *testing.T) {
 	}
 
 	b := &Backend{
-		prefix:     "bc-",
+		prefix:     "mycel-",
 		repoHash:   "aabbcc",
 		repoPath:   "/host/boot-repo",
 		cfg:        Config{Image: "mycel-agent-claude:latest", Network: "bridge", CPUs: 2.0, MemoryMB: 2048},

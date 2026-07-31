@@ -1,4 +1,4 @@
-// Package handlers implements HTTP handlers for the bcd REST API.
+// Package handlers implements HTTP handlers for the daemon REST API.
 // Each handler file covers one resource (agents, channels, costs, etc.).
 package handlers
 
@@ -259,7 +259,7 @@ func CORSWithOrigin(allowedOrigin string, next http.Handler) http.Handler {
 }
 
 // CORS returns a middleware with permissive CORS headers (Allow-Origin: *).
-// Safe because bcd only binds to loopback by default.
+// Safe because the daemon only binds to loopback by default.
 func CORS(next http.Handler) http.Handler {
 	return CORSWithOrigin("*", next)
 }

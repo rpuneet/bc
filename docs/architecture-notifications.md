@@ -51,7 +51,7 @@ from `prefs.json` / the secrets vault. Examples:
 ## Outbound cookbook
 
 The four platforms below all follow the same pattern: the agent reads a
-bot token from its own `.bc/agents/<name>/env.json` via `${secret:NAME}`
+bot token from its own `.mycel/agents/<name>/env.json` via `${secret:NAME}`
 refs, and posts to the platform's official REST API with the agent's
 own `Bash` / `WebFetch` tool. No mycel-side wrapper is needed — this
 is what agents can already do, formalized as a cookbook so every role
@@ -263,7 +263,7 @@ Each notification wraps the complete platform payload as raw JSON. Agents parse 
 type Notification struct {
     Timestamp time.Time       `json:"timestamp"` // when bc received the event
     Raw       json.RawMessage `json:"raw"`       // ENTIRE platform payload — no parsing
-    Channel   string          `json:"channel"`   // "engineering", "bc-repo", "general"
+    Channel   string          `json:"channel"`   // "engineering", "repo-a", "general"
     Platform  string          `json:"platform"`  // "slack", "github", "telegram"
     Sender    string          `json:"sender"`    // extracted for self-skip filtering
     Content   string          `json:"content"`   // human-readable text for display/storage
@@ -478,7 +478,7 @@ erDiagram
     }
 
     notify_channels {
-        TEXT bc_channel PK
+        TEXT channel PK
         TEXT platform
         TEXT platform_id
         TEXT updated_at
@@ -490,7 +490,7 @@ erDiagram
 ```sql
 CREATE TABLE IF NOT EXISTS notify_subscriptions (
     id           INTEGER PRIMARY KEY AUTOINCREMENT,
-    channel      TEXT NOT NULL,          -- "slack:engineering", "telegram:bc-dev"
+    channel      TEXT NOT NULL,          -- "slack:engineering", "telegram:eng-dev"
     agent        TEXT NOT NULL,
     mention_only INTEGER NOT NULL DEFAULT 0,
     created_at   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
@@ -524,7 +524,7 @@ CREATE TABLE IF NOT EXISTS notify_gateways (
 );
 
 CREATE TABLE IF NOT EXISTS notify_channels (
-    bc_channel   TEXT PRIMARY KEY,
+    channel   TEXT PRIMARY KEY,
     platform     TEXT NOT NULL,
     platform_id  TEXT NOT NULL,
     updated_at   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
@@ -603,7 +603,7 @@ Settings are per-agent, per-channel.
 |   #infra          |  10:32  bob                              |                      |
 |                   |  @eng-01 take a look                     | * eng-02  (engineer) |
 | > Telegram    (1) |  -> delivered to eng-01                  |   [ ] all messages   |
-|   bc-dev          |                                          |   [Remove]           |
+|   eng-dev          |                                          |   [Remove]           |
 |                   |  10:35  eng-01                            |                      |
 | > Discord     (1) |  Looking now, will review                | o lead-01 (lead)     |
 |   #general        |  -> relayed to eng-02                    |   [Add]              |

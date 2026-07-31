@@ -1,4 +1,4 @@
-// single_bundle_test.go — boot coverage for single-tenant bcd: one
+// single_bundle_test.go — boot coverage for single-tenant the daemon: one
 // Services bundle built by BuildServices serves the flat /api surface,
 // /api/repos lists the anchor repo, and the retired multi-tenant routes
 // (/api/workspaces, scoped /_mcp/ws/…) are gone (JSON 404, not SPA).

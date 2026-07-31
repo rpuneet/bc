@@ -44,7 +44,7 @@ const overview = {
   ],
   channels: [
     {
-      bc_channel: GROUP_CH,
+      channel: GROUP_CH,
       platform: "whatsapp",
       display_name: "Family Group",
       kind: "group",
@@ -54,14 +54,14 @@ const overview = {
       last_activity: NOW,
     },
     {
-      bc_channel: PERSON_CH,
+      channel: PERSON_CH,
       platform: "whatsapp",
       display_name: "Puneet Rai",
       kind: "person",
       message_count: 7,
       last_activity: NOW,
     },
-    { bc_channel: SLACK_CH, platform: "slack", display_name: "general", message_count: 3, last_activity: NOW },
+    { channel: SLACK_CH, platform: "slack", display_name: "general", message_count: 3, last_activity: NOW },
   ],
 };
 

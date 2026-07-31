@@ -13,10 +13,10 @@ import (
 	"github.com/rpuneet/mycel/pkg/log"
 )
 
-// PersistedChannel is a saved bc_channel → platform_id mapping with
+// PersistedChannel is a saved channel → platform_id mapping with
 // optional display metadata.
 type PersistedChannel struct {
-	BCChannel        string
+	Channel          string
 	Platform         string
 	PlatformID       string
 	DisplayName      string
@@ -27,13 +27,13 @@ type PersistedChannel struct {
 // ChannelStore persists channel mappings so they survive server restarts.
 // Implemented by notify.Store via a wrapper.
 type ChannelStore interface {
-	SaveChannel(ctx context.Context, bcChannel, platform, platformID string) error
+	SaveChannel(ctx context.Context, channel, platform, platformID string) error
 	LoadChannels(ctx context.Context) ([]PersistedChannel, error)
-	UpsertChannelMeta(ctx context.Context, bcChannel, displayName, kind string, participantCount int) error
+	UpsertChannelMeta(ctx context.Context, channel, displayName, kind string, participantCount int) error
 	// UpdateChannelPlatformID force-overwrites a channel's platform id —
 	// used when a fallback route is upgraded to a native id (SaveChannel
 	// deliberately preserves existing non-empty ids).
-	UpdateChannelPlatformID(ctx context.Context, bcChannel, platformID string) error
+	UpdateChannelPlatformID(ctx context.Context, channel, platformID string) error
 }
 
 // messageSender is checked at runtime for adapters that support outbound messaging.
@@ -67,7 +67,7 @@ type Manager struct {
 	// Typically wired to ChannelService.Send + SSE hub.
 	// senderID carries the platform-native sender identifier (e.g. WhatsApp JID)
 	// so callers can use it for follow-up operations such as reactions.
-	onInbound    func(bcChannel, sender, senderID, content, messageID string, mentions []string, raw json.RawMessage)
+	onInbound    func(channel, sender, senderID, content, messageID string, mentions []string, raw json.RawMessage)
 	channelStore ChannelStore
 	mu           sync.RWMutex
 	// adapterWG tracks boot-time and hot-started adapter goroutines so Stop/
@@ -108,11 +108,11 @@ func (m *Manager) SetChannelStore(store ChannelStore) {
 }
 
 // SetInboundHandler sets the callback for inbound messages from external platforms.
-// The callback receives the bc channel name, sender display name, platform-native
+// The callback receives the mycel channel name, sender display name, platform-native
 // sender id (e.g. WhatsApp JID — used for follow-up reactions), text content,
 // platform-native message ID, pre-extracted mentions (e.g. WhatsApp JID user parts),
 // and the raw platform payload.
-func (m *Manager) SetInboundHandler(fn func(bcChannel, sender, senderID, content, messageID string, mentions []string, raw json.RawMessage)) {
+func (m *Manager) SetInboundHandler(fn func(channel, sender, senderID, content, messageID string, mentions []string, raw json.RawMessage)) {
 	m.onInbound = fn
 }
 
@@ -295,16 +295,16 @@ func (m *Manager) restorePersistedChannels(ctx context.Context) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	for _, ch := range saved {
-		if _, exists := m.channelMap[ch.BCChannel]; exists {
+		if _, exists := m.channelMap[ch.Channel]; exists {
 			continue
 		}
 		if a, ok := m.adapters[ch.Platform]; ok {
-			m.channelMap[ch.BCChannel] = channelRoute{
+			m.channelMap[ch.Channel] = channelRoute{
 				Platform:  ch.Platform,
 				ChannelID: ch.PlatformID,
 				Adapter:   a,
 			}
-			log.Info("gateway: restored channel", "bc_channel", ch.BCChannel, "platform_id", ch.PlatformID)
+			log.Info("gateway: restored channel", "channel", ch.Channel, "platform_id", ch.PlatformID)
 		}
 	}
 }
@@ -313,8 +313,8 @@ func (m *Manager) restorePersistedChannels(ctx context.Context) {
 func (m *Manager) discoverChannels(a NotificationAdapter) {
 	channels := a.Channels()
 	type discovered struct {
-		bc, platform, id string
-		meta             ChannelMeta
+		channel, platform, id string
+		meta                  ChannelMeta
 	}
 	toPersist := make([]discovered, 0, len(channels))
 	m.mu.Lock()
@@ -326,12 +326,12 @@ func (m *Manager) discoverChannels(a NotificationAdapter) {
 			Adapter:   a,
 		}
 		toPersist = append(toPersist, discovered{bcName, a.Name(), ch.ID, ChannelMeta{DisplayName: ch.Name, Kind: ch.Kind}})
-		log.Info("gateway: discovered channel", "bc_channel", bcName, "platform_id", ch.ID)
+		log.Info("gateway: discovered channel", "channel", bcName, "platform_id", ch.ID)
 	}
 	m.mu.Unlock()
 	for _, d := range toPersist {
-		m.persistChannel(d.bc, d.platform, d.id)
-		m.persistChannelMeta(a, d.bc, d.id, d.meta)
+		m.persistChannel(d.channel, d.platform, d.id)
+		m.persistChannelMeta(a, d.channel, d.id, d.meta)
 	}
 }
 
@@ -353,8 +353,8 @@ func (m *Manager) lateDiscovery(ctx context.Context) {
 	for _, a := range adapterList {
 		channels := a.Channels()
 		type lateDiscovered struct {
-			bc, platform, id string
-			meta             ChannelMeta
+			channel, platform, id string
+			meta                  ChannelMeta
 		}
 		var latePersist []lateDiscovered
 		m.mu.Lock()
@@ -367,13 +367,13 @@ func (m *Manager) lateDiscovery(ctx context.Context) {
 					Adapter:   a,
 				}
 				latePersist = append(latePersist, lateDiscovered{bcName, a.Name(), ch.ID, ChannelMeta{DisplayName: ch.Name, Kind: ch.Kind}})
-				log.Info("gateway: late-discovered channel", "bc_channel", bcName, "platform_id", ch.ID)
+				log.Info("gateway: late-discovered channel", "channel", bcName, "platform_id", ch.ID)
 			}
 		}
 		m.mu.Unlock()
 		for _, d := range latePersist {
-			m.persistChannel(d.bc, d.platform, d.id)
-			m.persistChannelMeta(a, d.bc, d.id, d.meta)
+			m.persistChannel(d.channel, d.platform, d.id)
+			m.persistChannelMeta(a, d.channel, d.id, d.meta)
 		}
 	}
 
@@ -400,7 +400,7 @@ func (m *Manager) resolveMissingMeta(ctx context.Context) {
 			continue
 		}
 		m.mu.RLock()
-		route, ok := m.channelMap[ch.BCChannel]
+		route, ok := m.channelMap[ch.Channel]
 		m.mu.RUnlock()
 		if !ok {
 			continue
@@ -408,7 +408,7 @@ func (m *Manager) resolveMissingMeta(ctx context.Context) {
 		if _, isResolver := route.Adapter.(ChannelIdentity); !isResolver {
 			continue
 		}
-		m.resolveAndStoreMeta(ctx, route.Adapter, ch.BCChannel, route.ChannelID, ChannelMeta{})
+		m.resolveAndStoreMeta(ctx, route.Adapter, ch.Channel, route.ChannelID, ChannelMeta{})
 	}
 }
 
@@ -459,52 +459,52 @@ func (m *Manager) Stop(_ context.Context) {
 	}
 }
 
-// Send routes a message from a bc channel to the appropriate external platform.
+// Send routes a message from a mycel channel to the appropriate external platform.
 // Returns true if the channel is an external gateway channel and was handled.
-func (m *Manager) Send(ctx context.Context, bcChannel, sender, content string) (bool, error) {
+func (m *Manager) Send(ctx context.Context, channel, sender, content string) (bool, error) {
 	m.mu.RLock()
-	route, ok := m.channelMap[bcChannel]
+	route, ok := m.channelMap[channel]
 	m.mu.RUnlock()
 	if !ok {
 		return false, nil // not a gateway channel
 	}
 
 	if route.Adapter == nil {
-		return true, fmt.Errorf("gateway send to %s: no adapter", bcChannel)
+		return true, fmt.Errorf("gateway send to %s: no adapter", channel)
 	}
 
 	ms, ok := route.Adapter.(messageSender)
 	if !ok {
-		return true, fmt.Errorf("gateway send to %s: adapter does not support outbound messaging", bcChannel)
+		return true, fmt.Errorf("gateway send to %s: adapter does not support outbound messaging", channel)
 	}
 
 	if err := ms.Send(ctx, route.ChannelID, sender, content); err != nil {
-		return true, fmt.Errorf("gateway send to %s: %w", bcChannel, err)
+		return true, fmt.Errorf("gateway send to %s: %w", channel, err)
 	}
 	return true, nil
 }
 
 // SendFile uploads a file to a gateway channel. Returns false if the channel
 // is not a gateway channel or the adapter doesn't support file uploads.
-func (m *Manager) SendFile(ctx context.Context, bcChannel, sender, filename string, data []byte, mimeType string) (bool, error) {
+func (m *Manager) SendFile(ctx context.Context, channel, sender, filename string, data []byte, mimeType string) (bool, error) {
 	m.mu.RLock()
-	route, ok := m.channelMap[bcChannel]
+	route, ok := m.channelMap[channel]
 	m.mu.RUnlock()
 	if !ok {
 		return false, nil
 	}
 
 	if route.Adapter == nil {
-		return true, fmt.Errorf("gateway %s: no adapter", bcChannel)
+		return true, fmt.Errorf("gateway %s: no adapter", channel)
 	}
 
 	fs, ok := route.Adapter.(fileSender)
 	if !ok {
-		return true, fmt.Errorf("gateway %s does not support file uploads", bcChannel)
+		return true, fmt.Errorf("gateway %s does not support file uploads", channel)
 	}
 
 	if err := fs.SendFile(ctx, route.ChannelID, sender, filename, data, mimeType); err != nil {
-		return true, fmt.Errorf("gateway send file to %s: %w", bcChannel, err)
+		return true, fmt.Errorf("gateway send file to %s: %w", channel, err)
 	}
 	return true, nil
 }
@@ -513,25 +513,25 @@ func (m *Manager) SendFile(ctx context.Context, bcChannel, sender, filename stri
 // senderJID is the platform-native id of the original message author (required by some
 // platforms, e.g. WhatsApp); pass empty string for platforms that don't need it.
 // Returns true if the channel is a gateway channel and the adapter handled the call.
-func (m *Manager) SendReaction(ctx context.Context, bcChannel, senderJID, messageID, emoji string) (bool, error) {
+func (m *Manager) SendReaction(ctx context.Context, channel, senderJID, messageID, emoji string) (bool, error) {
 	m.mu.RLock()
-	route, ok := m.channelMap[bcChannel]
+	route, ok := m.channelMap[channel]
 	m.mu.RUnlock()
 	if !ok {
 		return false, nil // not a gateway channel
 	}
 
 	if route.Adapter == nil {
-		return true, fmt.Errorf("gateway react to %s: no adapter", bcChannel)
+		return true, fmt.Errorf("gateway react to %s: no adapter", channel)
 	}
 
 	rs, ok := route.Adapter.(reactionSender)
 	if !ok {
-		return true, fmt.Errorf("gateway react to %s: adapter does not support reactions", bcChannel)
+		return true, fmt.Errorf("gateway react to %s: adapter does not support reactions", channel)
 	}
 
 	if err := rs.SendReaction(ctx, route.ChannelID, senderJID, messageID, emoji); err != nil {
-		return true, fmt.Errorf("gateway react to %s: %w", bcChannel, err)
+		return true, fmt.Errorf("gateway react to %s: %w", channel, err)
 	}
 	return true, nil
 }
@@ -545,15 +545,15 @@ func (m *Manager) IsGatewayChannel(name string) bool {
 }
 
 // persistChannel saves a channel mapping to the store (non-blocking, best-effort).
-func (m *Manager) persistChannel(bcChannel, platform, platformID string) {
+func (m *Manager) persistChannel(channel, platform, platformID string) {
 	if m.channelStore == nil {
 		return
 	}
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		if err := m.channelStore.SaveChannel(ctx, bcChannel, platform, platformID); err != nil {
-			log.Warn("gateway: failed to persist channel", "channel", bcChannel, "error", err)
+		if err := m.channelStore.SaveChannel(ctx, channel, platform, platformID); err != nil {
+			log.Warn("gateway: failed to persist channel", "channel", channel, "error", err)
 		}
 	}()
 }
@@ -561,25 +561,25 @@ func (m *Manager) persistChannel(bcChannel, platform, platformID string) {
 // persistChannelMeta resolves and saves display metadata for a channel
 // (non-blocking, best-effort). If the adapter implements ChannelIdentity the
 // resolved values win; otherwise the fallback (from discovery) is stored.
-func (m *Manager) persistChannelMeta(a NotificationAdapter, bcChannel, platformID string, fallback ChannelMeta) {
+func (m *Manager) persistChannelMeta(a NotificationAdapter, channel, platformID string, fallback ChannelMeta) {
 	if m.channelStore == nil {
 		return
 	}
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer cancel()
-		m.resolveAndStoreMeta(ctx, a, bcChannel, platformID, fallback)
+		m.resolveAndStoreMeta(ctx, a, channel, platformID, fallback)
 	}()
 }
 
 // resolveAndStoreMeta synchronously resolves channel metadata and upserts it.
-func (m *Manager) resolveAndStoreMeta(ctx context.Context, a NotificationAdapter, bcChannel, platformID string, fallback ChannelMeta) {
+func (m *Manager) resolveAndStoreMeta(ctx context.Context, a NotificationAdapter, channel, platformID string, fallback ChannelMeta) {
 	meta := m.resolveChannelMeta(ctx, a, platformID, fallback)
 	if meta == (ChannelMeta{}) {
 		return
 	}
-	if err := m.channelStore.UpsertChannelMeta(ctx, bcChannel, meta.DisplayName, meta.Kind, meta.ParticipantCount); err != nil {
-		log.Warn("gateway: failed to persist channel meta", "channel", bcChannel, "error", err)
+	if err := m.channelStore.UpsertChannelMeta(ctx, channel, meta.DisplayName, meta.Kind, meta.ParticipantCount); err != nil {
+		log.Warn("gateway: failed to persist channel meta", "channel", channel, "error", err)
 	}
 }
 
@@ -620,13 +620,13 @@ func (m *Manager) RefreshChannelMeta(ctx context.Context) (int, error) {
 	}
 
 	type entry struct {
-		bc    string
-		route channelRoute
+		channel string
+		route   channelRoute
 	}
 	m.mu.RLock()
 	entries := make([]entry, 0, len(m.channelMap))
-	for bc, route := range m.channelMap {
-		entries = append(entries, entry{bc, route})
+	for channel, route := range m.channelMap {
+		entries = append(entries, entry{channel, route})
 	}
 	m.mu.RUnlock()
 
@@ -647,8 +647,8 @@ func (m *Manager) RefreshChannelMeta(ctx context.Context) (int, error) {
 		if err != nil || meta == (ChannelMeta{}) {
 			continue
 		}
-		if err := m.channelStore.UpsertChannelMeta(ctx, e.bc, meta.DisplayName, meta.Kind, meta.ParticipantCount); err != nil {
-			log.Warn("gateway: failed to refresh channel meta", "channel", e.bc, "error", err)
+		if err := m.channelStore.UpsertChannelMeta(ctx, e.channel, meta.DisplayName, meta.Kind, meta.ParticipantCount); err != nil {
+			log.Warn("gateway: failed to refresh channel meta", "channel", e.channel, "error", err)
 			continue
 		}
 		refreshed++
@@ -667,13 +667,13 @@ func (m *Manager) DiscoveredSources() []string {
 	return names
 }
 
-// handleNotification processes an event from a NotificationAdapter into bc.
+// handleNotification processes an event from a NotificationAdapter into mycel.
 func (m *Manager) handleNotification(platform string, n Notification) {
 	channelName := n.Channel
 	if channelName == "" {
 		channelName = "default"
 	}
-	bcChannel := platform + ":" + sanitizeChannelName(channelName)
+	channel := platform + ":" + sanitizeChannelName(channelName)
 
 	// Determine the channel ID for routing. Prefer the platform-native id
 	// supplied by the adapter (e.g., WhatsApp JID). Otherwise, for platforms
@@ -700,7 +700,7 @@ func (m *Manager) handleNotification(platform string, n Notification) {
 	// adapter-supplied native id also upgrades a route that was created (or
 	// restored) with a fallback id, so identity resolution can work.
 	m.mu.Lock()
-	route, exists := m.channelMap[bcChannel]
+	route, exists := m.channelMap[channel]
 	needMeta := false
 	upgradedID := ""
 	if !exists {
@@ -709,33 +709,33 @@ func (m *Manager) handleNotification(platform string, n Notification) {
 			ChannelID: channelID,
 			Adapter:   m.adapters[platform],
 		}
-		m.channelMap[bcChannel] = route
+		m.channelMap[channel] = route
 		needMeta = true
-		log.Info("gateway: dynamically mapped notification channel", "bc_channel", bcChannel, "platform", platform, "channel_id", channelID)
+		log.Info("gateway: dynamically mapped notification channel", "channel", channel, "platform", platform, "channel_id", channelID)
 	} else if n.ChannelID != "" && route.ChannelID != n.ChannelID {
 		route.ChannelID = n.ChannelID
-		m.channelMap[bcChannel] = route
+		m.channelMap[channel] = route
 		needMeta = true
 		upgradedID = n.ChannelID
-		log.Info("gateway: upgraded channel route to native id", "bc_channel", bcChannel, "channel_id", n.ChannelID)
+		log.Info("gateway: upgraded channel route to native id", "channel", channel, "channel_id", n.ChannelID)
 	}
 	m.mu.Unlock()
 	if !exists {
-		m.persistChannel(bcChannel, platform, channelID)
+		m.persistChannel(channel, platform, channelID)
 	}
 	if upgradedID != "" && m.channelStore != nil {
 		// Persist the upgrade — without this a quiet channel reloads the
 		// stale fallback id after restart and identity resolution breaks.
-		go func(bc, id string) {
+		go func(channel, id string) {
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
-			if err := m.channelStore.UpdateChannelPlatformID(ctx, bc, id); err != nil {
-				log.Warn("gateway: failed to persist upgraded channel id", "channel", bc, "error", err)
+			if err := m.channelStore.UpdateChannelPlatformID(ctx, channel, id); err != nil {
+				log.Warn("gateway: failed to persist upgraded channel id", "channel", channel, "error", err)
 			}
-		}(bcChannel, upgradedID)
+		}(channel, upgradedID)
 	}
 	if needMeta {
-		m.persistChannelMeta(route.Adapter, bcChannel, route.ChannelID, ChannelMeta{})
+		m.persistChannelMeta(route.Adapter, channel, route.ChannelID, ChannelMeta{})
 	}
 
 	sender := fmt.Sprintf("[%s] %s", platform, n.Sender)
@@ -746,7 +746,7 @@ func (m *Manager) handleNotification(platform string, n Notification) {
 		content = string(n.Raw)
 	}
 	if m.onInbound != nil {
-		m.onInbound(bcChannel, sender, n.SenderID, content, n.MessageID, n.Mentions, n.Raw)
+		m.onInbound(channel, sender, n.SenderID, content, n.MessageID, n.Mentions, n.Raw)
 	}
 }
 
@@ -762,7 +762,7 @@ func (m *Manager) WebhookHandlers() map[string]http.Handler {
 	return handlers
 }
 
-// sanitizeChannelName converts a group name to a valid bc channel name.
+// sanitizeChannelName converts a group name to a valid mycel channel name.
 // Preserves ':' so adapters can pass compound names like
 // "guildName:channelName" (Discord) without the segments concatenating.
 func sanitizeChannelName(name string) string {

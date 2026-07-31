@@ -69,7 +69,7 @@ type Candidate struct {
 	Name              string `json:"name"`
 	GitRemote         string `json:"git_remote,omitempty"`
 	GithubURL         string `json:"github_url,omitempty"`
-	HasBC             bool   `json:"has_bc"`
+	HasMycel          bool   `json:"has_mycel"`
 	AlreadyRegistered bool   `json:"already_registered"`
 }
 
@@ -164,9 +164,9 @@ func ScanLocal(ctx context.Context, opts ScanOptions) ([]Candidate, error) {
 					Path: path,
 					Name: filepath.Base(path),
 				}
-				// .bc/ marker left by previously adopted repos.
-				if _, bcErr := os.Stat(filepath.Join(path, ".bc")); bcErr == nil {
-					c.HasBC = true
+				// .mycel/ marker left by previously adopted repos.
+				if _, bcErr := os.Stat(filepath.Join(path, ".mycel")); bcErr == nil {
+					c.HasMycel = true
 				}
 				c.GitRemote = readGitRemote(ctx, path)
 				c.GithubURL = githubURLFromRemote(c.GitRemote)

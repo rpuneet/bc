@@ -248,27 +248,19 @@ func buildCostMap(ctx context.Context, store *cost.Service) map[string]*cost.Sum
 	return m
 }
 
-// costForAgent aggregates ledger summaries for an agent. The ledger keys
+// costForAgent looks up the ledger summary for an agent. The ledger keys
 // agent_id by the worktree/session name the transcripts were imported
-// under: bare `<name>` (flat layout) or the legacy `bc-<repoBase>-<name>`.
-// Both candidates are derived exactly from the agent's own name and repo —
-// no suffix scanning, so `web` can never absorb `other-web`'s costs.
-func costForAgent(costMap map[string]*cost.Summary, name, repo string) (costUSD float64, tokens int64, found bool) {
+// under — the bare agent name in the flat layout. The id is derived
+// exactly from the agent's own name — no suffix scanning, so `web` can
+// never absorb `other-web`'s costs.
+func costForAgent(costMap map[string]*cost.Summary, name string) (costUSD float64, tokens int64, found bool) {
 	if name == "" {
 		return 0, 0, false
 	}
-	candidates := []string{name}
-	if repo != "" {
-		candidates = append(candidates, "bc-"+filepath.Base(repo)+"-"+name)
+	if s, ok := costMap[name]; ok {
+		return s.TotalCostUSD, s.TotalTokens, true
 	}
-	for _, id := range candidates {
-		if s, ok := costMap[id]; ok {
-			costUSD += s.TotalCostUSD
-			tokens += s.TotalTokens
-			found = true
-		}
-	}
-	return costUSD, tokens, found
+	return 0, 0, false
 }
 
 func (h *AgentHandler) list(w http.ResponseWriter, r *http.Request) {
@@ -296,7 +288,7 @@ func (h *AgentHandler) list(w http.ResponseWriter, r *http.Request) {
 		if costs != nil {
 			costMap := buildCostMap(r.Context(), costs)
 			for i := range dtos {
-				if costUSD, tokens, ok := costForAgent(costMap, dtos[i].Name, dtos[i].Repo); ok {
+				if costUSD, tokens, ok := costForAgent(costMap, dtos[i].Name); ok {
 					dtos[i].TotalCostUSD = costUSD
 					dtos[i].TotalTokens = tokens
 				}
@@ -305,7 +297,10 @@ func (h *AgentHandler) list(w http.ResponseWriter, r *http.Request) {
 
 		// Enrich with token usage from agent JSONL session files.
 		if homeRef != nil {
-			agentsDir := filepath.Join(homeRef.RootDir, ".bc", "agents")
+			agentsDir, agentsDirErr := home.AgentsDir()
+			if agentsDirErr != nil {
+				agentsDir = ""
+			}
 			usages, tokenErr := token.CollectAll(agentsDir)
 			if tokenErr == nil {
 				// Sum per agent across models
@@ -384,7 +379,7 @@ func (h *AgentHandler) list(w http.ResponseWriter, r *http.Request) {
 			Parent   string            `json:"parent"`
 			Template string            `json:"template,omitempty"`
 			// Repo is the absolute path of the git repo the agent binds
-			// to. Empty defaults to the repo bcd was booted against.
+			// to. Empty defaults to the repo the daemon was booted against.
 			Repo string `json:"repo,omitempty"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {

@@ -149,7 +149,7 @@ export function AgentDetail({
   days,
   activityCount,
 }: {
-  /** Namespaced ledger id, e.g. "bc-bc-zen-zebra". */
+  /** Namespaced ledger id, e.g. "mycel-a1b2c3-zen-zebra". */
   agentId: string;
   /** Bare display name. */
   name: string;

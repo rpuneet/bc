@@ -13,7 +13,7 @@ import (
 func setupSharedDB(t *testing.T) *db.DB {
 	t.Helper()
 	dir := t.TempDir()
-	dbPath := filepath.Join(dir, "bc.db")
+	dbPath := filepath.Join(dir, "mycel.db")
 	d, err := db.Open(dbPath)
 	if err != nil {
 		t.Fatalf("open test db: %v", err)

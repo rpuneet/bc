@@ -148,7 +148,7 @@ func (b *Backend) containerName(name string) string {
 // names never reach path construction.
 var validContainerAgentName = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
 
-// agentSessionDir returns the agent's provider-state directory as bcd
+// agentSessionDir returns the agent's provider-state directory as the daemon
 // sees it: <MycelHome>/agents/<name>/session/. Provider config and
 // transcripts persist here on the host across container restarts.
 func (b *Backend) agentSessionDir(agentName string) string {
@@ -163,7 +163,7 @@ func (b *Backend) agentSessionDir(agentName string) string {
 }
 
 // hostSessionDir returns the host path that maps to the agent's session
-// directory, used on the -v mount flag. For bcd running on the host this
+// directory, used on the -v mount flag. For the daemon running on the host this
 // mirrors agentSessionDir; for Docker-in-Docker setups the MYCEL_HOST_HOME
 // env var (if set) translates the container's ~/.mycel/ to the host's.
 func (b *Backend) hostSessionDir(agentName string) string {
@@ -189,7 +189,7 @@ func (b *Backend) hostSessionDir(agentName string) string {
 // boot repo.
 //
 // Returns the host-side mount source (for -v) and the container
-// workdir (for -w). dir is the agent's worktree as bcd sees it; when
+// workdir (for -w). dir is the agent's worktree as the daemon sees it; when
 // it lives under the mounted repo, the workdir points at it.
 func (b *Backend) resolveRepoMount(dir string, env map[string]string) (hostRepo, workdir string, err error) {
 	// Boot repo defaults. MYCEL_HOST_WORKSPACE (Docker-in-Docker) only
@@ -303,7 +303,7 @@ func (b *Backend) CreateSessionWithCommand(ctx context.Context, name, dir, comma
 // Mounts:
 //   - agent's repo → /workspace (project code; env MYCEL_WORKSPACE, boot repo when unset)
 //   - ~/.mycel/agents/<agent>/session/claude → /home/agent/.claude (persistent Claude state)
-//   - bc-shared-tmp → /tmp/bc-shared (shared volume for cross-container file exchange)
+//   - mycel-shared-tmp → /tmp/mycel-shared (shared volume for cross-container file exchange)
 //
 // Env vars:
 //   - From the env map (MYCEL_AGENT_ID, MYCEL_AGENT_ROLE, role secrets via bc env)
@@ -334,20 +334,17 @@ func (b *Backend) CreateSessionWithEnv(ctx context.Context, name, dir, command s
 	}
 
 	// Validate tool/image consistency — catch mismatches like running "agy"
-	// command inside a "bc-agent-claude" image (Exit 127).
+	// command inside a "mycel-agent-claude" image (Exit 127).
 	if toolName, ok := env["MYCEL_AGENT_TOOL"]; ok && toolName != "" {
 		cmdBin := strings.Fields(command)
 		if len(cmdBin) > 0 {
 			bin := cmdBin[0]
-			// If image is tool-specific (mycel-agent-<X> or legacy bc-agent-<X>)
-			// but command binary doesn't match, the binary likely doesn't exist
-			// in the image.
+			// If image is tool-specific (mycel-agent-<X>) but command
+			// binary doesn't match, the binary likely doesn't exist in
+			// the image.
 			var imageTool string
-			switch {
-			case strings.HasPrefix(image, "mycel-agent-"):
+			if strings.HasPrefix(image, "mycel-agent-") {
 				imageTool = strings.TrimSuffix(strings.TrimPrefix(image, "mycel-agent-"), ":latest")
-			case strings.HasPrefix(image, "bc-agent-"):
-				imageTool = strings.TrimSuffix(strings.TrimPrefix(image, "bc-agent-"), ":latest")
 			}
 			if imageTool != "" {
 				if bin != imageTool && bin != "bash" && bin != "sh" {
@@ -371,9 +368,9 @@ func (b *Backend) CreateSessionWithEnv(ctx context.Context, name, dir, command s
 	args := []string{
 		"run", "-d", "-t",
 		"--name", cn,
-		"--label", "bc.managed=true",
-		"--label", "bc.workspace=" + b.repoHash,
-		"--label", "bc.agent=" + name,
+		"--label", "mycel.managed=true",
+		"--label", "mycel.workspace=" + b.repoHash,
+		"--label", "mycel.agent=" + name,
 	}
 
 	// Resource limits
@@ -410,7 +407,7 @@ func (b *Backend) CreateSessionWithEnv(ctx context.Context, name, dir, command s
 	//
 	// Provider state lives in the agent's session dir
 	// (<MycelHome>/agents/<name>/session/) so transcripts and config
-	// persist on the host. The host path may differ when bcd runs in
+	// persist on the host. The host path may differ when the daemon runs in
 	// Docker-in-Docker; honor MYCEL_HOST_HOME (if set) for the
 	// host-side mycel home.
 	localSessionDir := b.agentSessionDir(name)
@@ -438,7 +435,7 @@ func (b *Backend) CreateSessionWithEnv(ctx context.Context, name, dir, command s
 
 	// Mount 4: Shared tmp volume for cross-container file exchange (e.g., Playwright screenshots).
 	// Uses a named Docker volume so all agent containers and the Playwright container share the same data.
-	args = append(args, "-v", "bc-shared-tmp:/tmp/bc-shared")
+	args = append(args, "-v", "mycel-shared-tmp:/tmp/mycel-shared")
 
 	// Extra mounts from global config (e.g., shared caches, tool binaries).
 	// Validate each mount source to prevent arbitrary host filesystem access.
@@ -458,7 +455,7 @@ func (b *Backend) CreateSessionWithEnv(ctx context.Context, name, dir, command s
 
 	// Environment variables — only from the env map.
 	// The env map contains MYCEL_* identity vars and role secrets resolved
-	// from bc env by the agent manager's injectEnv().
+	// from mycel env by the agent manager's injectEnv().
 	for k, v := range env {
 		if !validEnvVarName.MatchString(k) {
 			return fmt.Errorf("invalid environment variable name %q: must match [A-Za-z_][A-Za-z0-9_]*", k)
@@ -496,8 +493,8 @@ func (b *Backend) KillSession(ctx context.Context, name string) error {
 
 	// Stop container (10s timeout) — do NOT remove it.
 	// The container's volume preserves auth, plugins, MCP config, and sessions.
-	// bc agent start will restart the stopped container.
-	// bc agent delete handles removal.
+	// mycel agent start will restart the stopped container.
+	// mycel agent delete handles removal.
 	//nolint:gosec // trusted
 	stopCmd := exec.CommandContext(ctx, "docker", "stop", "-t", "10", cn)
 	output, err := stopCmd.CombinedOutput()
@@ -615,12 +612,12 @@ func (b *Backend) Capture(ctx context.Context, name string, lines int) (string, 
 	return string(output), nil
 }
 
-// ListSessions lists RUNNING BC-managed containers for this daemon.
+// ListSessions lists RUNNING mycel-managed containers for this daemon.
 func (b *Backend) ListSessions(ctx context.Context) ([]runtime.Session, error) {
 	//nolint:gosec // all args are trusted internal values
 	cmd := exec.CommandContext(ctx, "docker", "ps",
-		"--filter", "label=bc.managed=true",
-		"--filter", "label=bc.workspace="+b.repoHash,
+		"--filter", "label=mycel.managed=true",
+		"--filter", "label=mycel.workspace="+b.repoHash,
 		"--filter", "status=running",
 		"--format", "{{.Names}}|{{.CreatedAt}}|{{.Status}}")
 
@@ -669,12 +666,12 @@ func (b *Backend) IsRunning(ctx context.Context) bool {
 	return cmd.Run() == nil
 }
 
-// KillServer stops and removes all BC containers for this daemon.
+// KillServer stops and removes all mycel containers for this daemon.
 func (b *Backend) KillServer(ctx context.Context) error {
 	//nolint:gosec // all args are trusted internal values
 	cmd := exec.CommandContext(ctx, "docker", "ps", "-aq",
-		"--filter", "label=bc.managed=true",
-		"--filter", "label=bc.workspace="+b.repoHash)
+		"--filter", "label=mycel.managed=true",
+		"--filter", "label=mycel.workspace="+b.repoHash)
 
 	output, err := cmd.Output()
 	if err != nil {

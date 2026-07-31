@@ -446,7 +446,7 @@ function ConfigTab({ agent, agentsUrl }: { agent: Agent; agentsUrl: string }) {
   const [mcpList, setMcpList] = useState<string[] | null>(null);
   const [mcpLoading, setMcpLoading] = useState(true);
 
-  // Env vars state — persisted via API to .bc/agents/<name>/env.json
+  // Env vars state — persisted via API to .mycel/agents/<name>/env.json
   const [envVars, setEnvVars] = useState<Array<{ key: string; value: string }>>([]);
   const [newKey, setNewKey] = useState("");
   const [newValue, setNewValue] = useState("");

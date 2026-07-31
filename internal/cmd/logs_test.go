@@ -23,7 +23,7 @@ func setupLogsHome(t *testing.T) (string, func()) {
 	t.Helper()
 
 	if os.Getenv("MYCEL_TEST_DAEMON") == "" {
-		t.Skip("skipping: requires MYCEL_TEST_DAEMON=1 (dedicated test bcd instance)")
+		t.Skip("skipping: requires MYCEL_TEST_DAEMON=1 (dedicated test daemon instance)")
 	}
 
 	origDir, err := os.Getwd()
@@ -1032,7 +1032,7 @@ func TestParseSinceDuration_EdgeCases(t *testing.T) {
 // --- Error path tests ---
 
 func TestLogs_DaemonUnreachable(t *testing.T) {
-	// logs is daemon-first and CWD-free: without a reachable bcd it must
+	// logs is daemon-first and CWD-free: without a reachable the daemon it must
 	// fail with a daemon error (never a repo error), from any directory.
 	tmpDir := t.TempDir() // plain dir, not a git repo
 	origDir, _ := os.Getwd()
@@ -1047,8 +1047,8 @@ func TestLogs_DaemonUnreachable(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected daemon-unreachable error")
 	}
-	if !strings.Contains(err.Error(), "bcd is not running") {
-		t.Errorf("expected 'bcd is not running' error, got: %v", err)
+	if !strings.Contains(err.Error(), "the daemon is not running") {
+		t.Errorf("expected 'the daemon is not running' error, got: %v", err)
 	}
 }
 

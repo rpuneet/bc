@@ -142,7 +142,7 @@ func TestEnsureRunAndLogsDirs(t *testing.T) {
 }
 
 func TestEnsureGlobalDirCreatesWithSafeMode(t *testing.T) {
-	dir := filepath.Join(t.TempDir(), "bc-home")
+	dir := filepath.Join(t.TempDir(), "mycel-home")
 	t.Setenv("MYCEL_HOME", dir)
 
 	home, err := EnsureGlobalDir()
@@ -192,7 +192,7 @@ func TestGlobalPathsPlaceUnderMycelHome(t *testing.T) {
 			t.Fatalf("resolve path: %v", err)
 		}
 		if !strings.HasPrefix(p, dir+string(filepath.Separator)) && p != dir {
-			t.Errorf("path %q escapes bc home %q", p, dir)
+			t.Errorf("path %q escapes mycel home %q", p, dir)
 		}
 	}
 }

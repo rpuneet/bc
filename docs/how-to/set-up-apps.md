@@ -79,7 +79,7 @@ first real inbound message copies those subscriptions onto the real channel auto
 
 1. Create a GitHub App or configure a repository webhook at your repo's Settings > Webhooks.
 2. Select the events you want to receive (pull request comments, reviews, issues, pushes).
-3. Set the webhook URL to your bcd instance's hook endpoint (requires a tunnel for local development).
+3. Set the webhook URL to your daemon's hook endpoint (requires a tunnel for local development).
 4. Copy the token and webhook secret.
 
 ```bash
@@ -146,7 +146,7 @@ If an adapter shows disconnected:
 - Check that the bot is still invited to the platform channels.
 - For Slack: ensure Socket Mode is enabled and the app token is valid.
 - For Telegram: verify the bot token with `curl https://api.telegram.org/bot<TOKEN>/getMe`.
-- Restart bcd: `mycel down && mycel up`.
+- Restart the daemon: `mycel down && mycel up`.
 
 ### Agent not receiving notifications
 

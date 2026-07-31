@@ -1,4 +1,4 @@
-// Package db provides unified SQLite database management for bc CLI.
+// Package db provides unified SQLite database management for the mycel CLI.
 //
 // This package consolidates SQLite connection management, ensuring consistent
 // configuration across all database operations. It provides:
@@ -69,7 +69,7 @@ func DefaultConfig() Config {
 	}
 }
 
-// DB wraps a sql.DB with bc-specific functionality.
+// DB wraps a sql.DB with mycel-specific functionality.
 type DB struct {
 	*sql.DB
 	path   string

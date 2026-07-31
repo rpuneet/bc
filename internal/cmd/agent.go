@@ -73,7 +73,7 @@ Examples:
   mycel agent send-pattern "eng-*" "test"   # Send to matching agents
   mycel agent                               # List all agents (same as mycel agent list)
   mycel agent send-pattern "eng-*" "hello"  # Send to matching agents`,
-	// #925: Default to list for consistency with bc channel
+	// #925: Default to list for consistency with mycel channel
 	RunE: runAgentList,
 }
 
@@ -97,7 +97,7 @@ Examples:
 	RunE: runAgentCreate,
 }
 
-// agentListCmd lists all agents (enhanced bc status)
+// agentListCmd lists all agents (enhanced mycel status)
 var agentListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List all agents",
@@ -116,7 +116,7 @@ Examples:
 	RunE: runAgentList,
 }
 
-// agentAttachCmd attaches to an agent session (replaces bc attach)
+// agentAttachCmd attaches to an agent session (replaces mycel attach)
 var agentAttachCmd = &cobra.Command{
 	Use:   "attach <agent>",
 	Short: "Attach to an agent's session",
@@ -178,7 +178,7 @@ Examples:
 	RunE: runAgentStart,
 }
 
-// agentStopCmd stops a single agent (different from bc down which stops all)
+// agentStopCmd stops a single agent (different from mycel down which stops all)
 var agentStopCmd = &cobra.Command{
 	Use:   "stop <agent>",
 	Short: "Stop an agent",
@@ -191,7 +191,7 @@ Examples:
 	RunE: runAgentStop,
 }
 
-// agentSendCmd sends a message to an agent (replaces bc send)
+// agentSendCmd sends a message to an agent (replaces mycel send)
 var agentSendCmd = &cobra.Command{
 	Use:   "send <agent> <message>",
 	Short: "Send a message to an agent",
@@ -850,7 +850,7 @@ func runAgentDelete(cmd *cobra.Command, args []string) error {
 		if agentDeletePurge {
 			fmt.Println("  - memory directory (--purge)")
 		} else {
-			fmt.Printf("  Note: Memory preserved at .bc/memory/%s (use --purge to delete)\n", agentName)
+			fmt.Printf("  Note: Memory preserved at .mycel/memory/%s (use --purge to delete)\n", agentName)
 		}
 		fmt.Print("\nType 'yes' to confirm: ")
 
@@ -974,7 +974,7 @@ func parseRoleStr(roleStr string) (string, error) {
 	if roleStr == "null" {
 		return "null", nil
 	}
-	// All roles are now custom - loaded from .bc/roles/<role>.md files
+	// All roles are now custom - loaded from .mycel/roles/<role>.md files
 	// Just validate that the role name is sensible
 	if !isValidRoleName(roleStr) {
 		return "", fmt.Errorf("invalid role name %q (must be alphanumeric with hyphens)", roleStr)
@@ -1186,7 +1186,7 @@ var agentStatsCmd = &cobra.Command{
 	Short: "Show Docker resource stats for an agent",
 	Long: `Display recorded Docker CPU and memory stats for an agent.
 
-Stats are collected every 30 s by bcd while the agent is running with a
+Stats are collected every 30 s by the daemon while the agent is running with a
 Docker runtime backend. They are stored in the global mycel.db.
 
 Examples:

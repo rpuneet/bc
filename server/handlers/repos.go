@@ -1,10 +1,10 @@
-// repos.go — the minimal repo surface for single-tenant bcd.
+// repos.go — the minimal repo surface for single-tenant the daemon.
 //
 //	GET /api/repos
 //
 // Returns the distinct repos known to the daemon: every repo referenced
 // by an agent (agents carry their repo path as a property) plus the repo
-// bcd was booted against (`default`). List only — there are no IDs, no
+// the daemon was booted against (`default`). List only — there are no IDs, no
 // active state, and no registration endpoint: adding a repo IS creating
 // an agent with that repo path (or running `mycel up` inside it).
 //
@@ -34,7 +34,7 @@ type RepoView struct {
 // ReposHandler serves GET /api/repos.
 type ReposHandler struct {
 	svc *agent.AgentService
-	// defaultRepo is the repo bcd was booted against — new agents default
+	// defaultRepo is the repo the daemon was booted against — new agents default
 	// their repo to it. May be empty (repo-less boot).
 	defaultRepo string
 }

@@ -26,10 +26,10 @@ export interface ChartTooltipProps {
 export const fmtClock = (ms: number): string =>
   new Date(ms).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
-// Cost-ledger agent ids are namespaced "bc-<workspace>-<agent>". Show
+// Cost-ledger agent ids may be namespaced "mycel-<hash>-<agent>". Show
 // the bare agent name; fall back to the raw id if stripping empties it.
 export function stripAgentPrefix(id: string): string {
-  if (id.startsWith("bc-")) {
+  if (id.startsWith("mycel-")) {
     const rest = id.split("-").slice(2).join("-");
     return rest || id;
   }

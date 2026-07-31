@@ -170,9 +170,9 @@ func TestSummaryNoAgentStatsSection(t *testing.T) {
 func seedAgentsFile(t *testing.T, repoRoot string, agents map[string]*agent.Agent) {
 	t.Helper()
 	t.Setenv("MYCEL_HOME", filepath.Join(repoRoot, ".mycel-home"))
-	bcDir := filepath.Join(repoRoot, ".bc")
+	bcDir := filepath.Join(repoRoot, ".mycel")
 	if err := os.MkdirAll(filepath.Join(bcDir, "agents"), 0750); err != nil {
-		t.Fatalf("mkdir .bc/agents: %v", err)
+		t.Fatalf("mkdir .mycel/agents: %v", err)
 	}
 	dbPath, err := db.GlobalDBPath()
 	if err != nil {
@@ -195,7 +195,7 @@ func seedAgentsFile(t *testing.T, repoRoot string, agents map[string]*agent.Agen
 
 func TestCollectAgentMetricsEmpty(t *testing.T) {
 	repoRoot := t.TempDir()
-	stateDir := filepath.Join(repoRoot, ".bc")
+	stateDir := filepath.Join(repoRoot, ".mycel")
 	agentsDir := filepath.Join(stateDir, "agents")
 	if err := os.MkdirAll(agentsDir, 0750); err != nil {
 		t.Fatal(err)
@@ -219,7 +219,7 @@ func TestCollectAgentMetricsEmpty(t *testing.T) {
 
 func TestCollectAgentMetricsRoleCounts(t *testing.T) {
 	repoRoot := t.TempDir()
-	stateDir := filepath.Join(repoRoot, ".bc")
+	stateDir := filepath.Join(repoRoot, ".mycel")
 	agentsDir := filepath.Join(stateDir, "agents")
 
 	agents := map[string]*agent.Agent{
@@ -252,7 +252,7 @@ func TestCollectAgentMetricsRoleCounts(t *testing.T) {
 
 func TestCollectAgentMetricsStateCounts(t *testing.T) {
 	repoRoot := t.TempDir()
-	stateDir := filepath.Join(repoRoot, ".bc")
+	stateDir := filepath.Join(repoRoot, ".mycel")
 	agentsDir := filepath.Join(stateDir, "agents")
 
 	agents := map[string]*agent.Agent{
@@ -299,7 +299,7 @@ func TestCollectAgentMetricsStateCounts(t *testing.T) {
 
 func TestCollectAgentMetricsUptime(t *testing.T) {
 	repoRoot := t.TempDir()
-	stateDir := filepath.Join(repoRoot, ".bc")
+	stateDir := filepath.Join(repoRoot, ".mycel")
 	agentsDir := filepath.Join(stateDir, "agents")
 
 	startTime := time.Now().Add(-2 * time.Hour)
@@ -339,7 +339,7 @@ func TestCollectAgentMetricsUptime(t *testing.T) {
 func TestLoadEmptyStateDir(t *testing.T) {
 	t.Setenv("MYCEL_HOME", t.TempDir()) // isolate from the real global agents table
 	repoRoot := t.TempDir()
-	stateDir := filepath.Join(repoRoot, ".bc")
+	stateDir := filepath.Join(repoRoot, ".mycel")
 	if err := os.MkdirAll(stateDir, 0750); err != nil {
 		t.Fatal(err)
 	}
@@ -363,7 +363,7 @@ func TestLoadEmptyStateDir(t *testing.T) {
 func TestLoadWithAgentsData(t *testing.T) {
 	t.Setenv("MYCEL_HOME", t.TempDir()) // isolate from the real global agents table
 	repoRoot := t.TempDir()
-	stateDir := filepath.Join(repoRoot, ".bc")
+	stateDir := filepath.Join(repoRoot, ".mycel")
 
 	// Seed agents as already stopped
 	agents := map[string]*agent.Agent{

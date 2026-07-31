@@ -9,7 +9,7 @@
  *   - Badge shows "N active" and "M stopped (show)" counts.
  *   - Clicking "(show)" reveals the stopped agents.
  *   - The toggle persists across renders via localStorage
- *     (key "bc-live-show-stopped").
+ *     (key "mycel-live-show-stopped").
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";

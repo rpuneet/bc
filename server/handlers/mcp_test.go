@@ -14,7 +14,7 @@ import (
 func newTestMCPStore(t *testing.T) *mcp.Store {
 	t.Helper()
 	dir := t.TempDir()
-	d, err := db.Open(dir + "/bc.db")
+	d, err := db.Open(dir + "/mycel.db")
 	if err != nil {
 		t.Fatalf("db.Open: %v", err)
 	}

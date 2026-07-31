@@ -13,8 +13,8 @@ import (
 	"strings"
 	"testing"
 
-	bcagent "github.com/rpuneet/mycel/pkg/agent"
-	bcdb "github.com/rpuneet/mycel/pkg/db"
+	agentpkg "github.com/rpuneet/mycel/pkg/agent"
+	dbpkg "github.com/rpuneet/mycel/pkg/db"
 )
 
 // TestBuildServices_SharedGlobalDB asserts the single-database
@@ -25,7 +25,7 @@ func TestBuildServices_SharedGlobalDB(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("MYCEL_HOME", home)
 	t.Setenv("MYCEL_SECRET_PASSPHRASE", "unit-test")
-	t.Cleanup(func() { _ = bcdb.CloseGlobal() })
+	t.Cleanup(func() { _ = dbpkg.CloseGlobal() })
 	ctx := context.Background()
 
 	wsA, wsB := t.TempDir(), t.TempDir()
@@ -71,9 +71,9 @@ func TestBuildServices_SharedGlobalDB(t *testing.T) {
 
 	// Agents are isolated by repo key: an agent registered in A does
 	// not appear in B's manager.
-	if regErr := svcA.AgentMgr.RegisterStopped(&bcagent.Agent{
+	if regErr := svcA.AgentMgr.RegisterStopped(&agentpkg.Agent{
 		Name:      "shared-db-agent",
-		Role:      bcagent.Role("engineer"),
+		Role:      agentpkg.Role("engineer"),
 		Workspace: wsA,
 		Repo:      wsA,
 	}); regErr != nil {
@@ -85,9 +85,9 @@ func TestBuildServices_SharedGlobalDB(t *testing.T) {
 
 	// Agent names are globally unique: reusing the name from another
 	// repo must be rejected with a helpful error.
-	dupErr := svcB.AgentMgr.RegisterStopped(&bcagent.Agent{
+	dupErr := svcB.AgentMgr.RegisterStopped(&agentpkg.Agent{
 		Name:      "shared-db-agent",
-		Role:      bcagent.Role("engineer"),
+		Role:      agentpkg.Role("engineer"),
 		Workspace: wsB,
 		Repo:      wsB,
 	})
@@ -98,13 +98,13 @@ func TestBuildServices_SharedGlobalDB(t *testing.T) {
 		t.Errorf("duplicate-name error should identify the conflict, got: %v", dupErr)
 	}
 
-	// One database file at MYCEL_HOME — no per-repo bc.db files.
+	// One database file at MYCEL_HOME — no per-repo db file files.
 	if _, statErr := os.Stat(filepath.Join(home, "mycel.db")); statErr != nil {
 		t.Errorf("global mycel.db missing: %v", statErr)
 	}
 	for _, dir := range []string{wsA, wsB} {
-		if _, statErr := os.Stat(filepath.Join(dir, ".bc", "bc.db")); statErr == nil {
-			t.Errorf("per-repo bc.db must not be created anymore (%s)", dir)
+		if _, statErr := os.Stat(filepath.Join(dir, ".mycel", "bc.db")); statErr == nil {
+			t.Errorf("per-repo db file must not be created anymore (%s)", dir)
 		}
 	}
 }
@@ -117,7 +117,7 @@ func TestBuildServices_LazyGlobalDB(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("MYCEL_HOME", home)
 	t.Setenv("MYCEL_SECRET_PASSPHRASE", "unit-test")
-	t.Cleanup(func() { _ = bcdb.CloseGlobal() })
+	t.Cleanup(func() { _ = dbpkg.CloseGlobal() })
 	ctx := context.Background()
 
 	wsDir := t.TempDir()

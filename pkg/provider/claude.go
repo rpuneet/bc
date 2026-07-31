@@ -58,7 +58,7 @@ func (p *ClaudeProvider) InstallHint() string {
 }
 
 // BuildCommand returns the full command for a given runtime context.
-// Includes --dangerously-skip-permissions. bc manages worktrees itself and starts
+// Includes --dangerously-skip-permissions. mycel manages worktrees itself and starts
 // agents directly in the worktree directory, so no -w flag is needed.
 // --tmux is NOT included here — it's added by AdjustSessionCommand for Docker only.
 // For native tmux, claude auto-detects the tmux environment.
@@ -103,7 +103,7 @@ func (p *ClaudeProvider) Commands() []Command {
 var claudeSessionIDPattern = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
 
 // AdjustSessionCommand is a no-op for native tmux sessions.
-// Claude auto-detects the tmux environment when running inside a bc-managed tmux session.
+// Claude auto-detects the tmux environment when running inside a mycel-managed tmux session.
 func (p *ClaudeProvider) AdjustSessionCommand(command string) string {
 	return command
 }
@@ -245,7 +245,7 @@ func parseClaudeMCPList(output string) []MCPServerInfo {
 }
 
 // ActivityMode reports that Claude Code emits activity via lifecycle hooks
-// (configured in .claude/settings.json) that POST to bcd's hook endpoint.
+// (configured in .claude/settings.json) that POST to the daemon's hook endpoint.
 func (p *ClaudeProvider) ActivityMode() string { return ActivityModeHooks }
 
 // WriteHookConfig writes Claude Code hook settings into the agent worktree.

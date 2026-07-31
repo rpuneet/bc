@@ -16,7 +16,7 @@ import (
 func newTestHome(t *testing.T) *home.Home {
 	t.Helper()
 	dir := t.TempDir()
-	stateDir := filepath.Join(dir, ".bc")
+	stateDir := filepath.Join(dir, ".mycel")
 	if err := os.MkdirAll(stateDir, 0o750); err != nil {
 		t.Fatal(err)
 	}

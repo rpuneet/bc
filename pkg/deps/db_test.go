@@ -36,9 +36,9 @@ func (m *mockExec) Run(_ context.Context, cmd string, args ...string) ([]byte, e
 	return r.out, r.err
 }
 
-func TestBCDBStatusRunning(t *testing.T) {
+func TestDBStatusRunning(t *testing.T) {
 	m := &mockExec{responses: []mockResponse{{out: []byte("true\n")}}}
-	d := NewBCDBWithRunner(m)
+	d := NewDBWithRunner(m)
 
 	st, err := d.Status(context.Background())
 	if err != nil {
@@ -55,9 +55,9 @@ func TestBCDBStatusRunning(t *testing.T) {
 	}
 }
 
-func TestBCDBStatusNoContainer(t *testing.T) {
-	m := &mockExec{responses: []mockResponse{{err: errors.New("exit 1"), out: []byte("Error: No such object: bc-db\n")}}}
-	d := NewBCDBWithRunner(m)
+func TestDBStatusNoContainer(t *testing.T) {
+	m := &mockExec{responses: []mockResponse{{err: errors.New("exit 1"), out: []byte("Error: No such object: mycel-db\n")}}}
+	d := NewDBWithRunner(m)
 
 	st, err := d.Status(context.Background())
 	if err != nil {
@@ -68,14 +68,14 @@ func TestBCDBStatusNoContainer(t *testing.T) {
 	}
 }
 
-func TestBCDBStartNewContainer(t *testing.T) {
+func TestDBStartNewContainer(t *testing.T) {
 	m := &mockExec{responses: []mockResponse{
 		// inspect fails (not found)
 		{err: errors.New("no such object"), out: []byte("Error: No such object")},
 		// docker run succeeds
 		{out: []byte("abc123\n")},
 	}}
-	d := NewBCDBWithRunner(m)
+	d := NewDBWithRunner(m)
 
 	if err := d.Start(context.Background()); err != nil {
 		t.Fatalf("Start err: %v", err)
@@ -88,19 +88,19 @@ func TestBCDBStartNewContainer(t *testing.T) {
 		t.Errorf("second call expected docker run, got %v", second.args)
 	}
 	joined := strings.Join(second.args, " ")
-	for _, want := range []string{"--name", bcDBContainer, bcDBImage, "-p", "5432:5432"} {
+	for _, want := range []string{"--name", dbContainer, dbImage, "-p", "5432:5432"} {
 		if !strings.Contains(joined, want) {
 			t.Errorf("docker run args missing %q: %s", want, joined)
 		}
 	}
 }
 
-func TestBCDBStartExistingStopped(t *testing.T) {
+func TestDBStartExistingStopped(t *testing.T) {
 	m := &mockExec{responses: []mockResponse{
-		{out: []byte("false\n")}, // inspect says exists, stopped
-		{out: []byte("bc-db\n")}, // docker start
+		{out: []byte("false\n")},    // inspect says exists, stopped
+		{out: []byte("mycel-db\n")}, // docker start
 	}}
-	d := NewBCDBWithRunner(m)
+	d := NewDBWithRunner(m)
 
 	if err := d.Start(context.Background()); err != nil {
 		t.Fatalf("Start err: %v", err)
@@ -113,9 +113,9 @@ func TestBCDBStartExistingStopped(t *testing.T) {
 	}
 }
 
-func TestBCDBStartAlreadyRunning(t *testing.T) {
+func TestDBStartAlreadyRunning(t *testing.T) {
 	m := &mockExec{responses: []mockResponse{{out: []byte("true\n")}}}
-	d := NewBCDBWithRunner(m)
+	d := NewDBWithRunner(m)
 
 	if err := d.Start(context.Background()); err != nil {
 		t.Fatalf("Start err: %v", err)
@@ -125,9 +125,9 @@ func TestBCDBStartAlreadyRunning(t *testing.T) {
 	}
 }
 
-func TestBCDBStop(t *testing.T) {
-	m := &mockExec{responses: []mockResponse{{out: []byte("bc-db\n")}}}
-	d := NewBCDBWithRunner(m)
+func TestDBStop(t *testing.T) {
+	m := &mockExec{responses: []mockResponse{{out: []byte("mycel-db\n")}}}
+	d := NewDBWithRunner(m)
 
 	if err := d.Stop(context.Background()); err != nil {
 		t.Fatalf("Stop err: %v", err)
@@ -137,9 +137,9 @@ func TestBCDBStop(t *testing.T) {
 	}
 }
 
-func TestBCDBLogs(t *testing.T) {
+func TestDBLogs(t *testing.T) {
 	m := &mockExec{responses: []mockResponse{{out: []byte("line1\nline2\nline3\n")}}}
-	d := NewBCDBWithRunner(m)
+	d := NewDBWithRunner(m)
 
 	lines, err := d.Logs(context.Background(), 10)
 	if err != nil {
@@ -153,12 +153,12 @@ func TestBCDBLogs(t *testing.T) {
 	}
 }
 
-func TestBCCodeServerStartSendsRepoMount(t *testing.T) {
+func TestCodeServerStartSendsRepoMount(t *testing.T) {
 	m := &mockExec{responses: []mockResponse{
 		{}, // rm -f (ignored)
 		{}, // run succeeds
 	}}
-	d := NewBCCodeServerWithRunner("/opt/repo", m)
+	d := NewCodeServerWithRunner("/opt/repo", m)
 
 	if err := d.Start(context.Background()); err != nil {
 		t.Fatalf("Start err: %v", err)
@@ -175,9 +175,9 @@ func TestBCCodeServerStartSendsRepoMount(t *testing.T) {
 	}
 }
 
-func TestBCCodeServerStartRequiresRepo(t *testing.T) {
+func TestCodeServerStartRequiresRepo(t *testing.T) {
 	m := &mockExec{}
-	d := NewBCCodeServerWithRunner("", m)
+	d := NewCodeServerWithRunner("", m)
 	if err := d.Start(context.Background()); err == nil {
 		t.Error("expected Start to fail without a repo root")
 	}
@@ -186,9 +186,9 @@ func TestBCCodeServerStartRequiresRepo(t *testing.T) {
 	}
 }
 
-func TestBCCodeServerSetRepoRoot(t *testing.T) {
+func TestCodeServerSetRepoRoot(t *testing.T) {
 	m := &mockExec{responses: []mockResponse{{}, {}}}
-	d := NewBCCodeServerWithRunner("/a", m)
+	d := NewCodeServerWithRunner("/a", m)
 	d.SetRepoRoot("/b")
 	if err := d.Start(context.Background()); err != nil {
 		t.Fatalf("Start err: %v", err)

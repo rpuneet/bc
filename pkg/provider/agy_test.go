@@ -315,9 +315,9 @@ func TestWriteAgyHookSettings(t *testing.T) {
 	if err := json.Unmarshal(raw, &hooks); err != nil {
 		t.Fatalf("hooks.json is not valid JSON: %v", err)
 	}
-	bc, ok := hooks["bc-activity"]
+	entry, ok := hooks["mycel-activity"]
 	if !ok {
-		t.Fatal("missing bc-activity hook entry")
+		t.Fatal("missing mycel-activity hook entry")
 	}
 	var spec struct {
 		PreToolUse     []json.RawMessage `json:"PreToolUse"`
@@ -326,19 +326,19 @@ func TestWriteAgyHookSettings(t *testing.T) {
 		PostInvocation []json.RawMessage `json:"PostInvocation"`
 		Stop           []json.RawMessage `json:"Stop"`
 	}
-	if err := json.Unmarshal(bc, &spec); err != nil {
+	if err := json.Unmarshal(entry, &spec); err != nil {
 		t.Fatal(err)
 	}
 	if len(spec.PreToolUse) == 0 || len(spec.PostToolUse) == 0 ||
 		len(spec.PreInvocation) == 0 || len(spec.PostInvocation) == 0 || len(spec.Stop) == 0 {
-		t.Errorf("expected all five lifecycle events populated: %s", bc)
+		t.Errorf("expected all five lifecycle events populated: %s", entry)
 	}
-	// Hook commands must reference the bcd hook endpoint.
-	if !strings.Contains(string(bc), "/api/agents/${MYCEL_AGENT_ID}/hook") {
-		t.Error("hook command must POST to bcd hook endpoint")
+	// Hook commands must reference the daemon hook endpoint.
+	if !strings.Contains(string(entry), "/api/agents/${MYCEL_AGENT_ID}/hook") {
+		t.Error("hook command must POST to daemon hook endpoint")
 	}
 
-	// Merge preserves a user-defined hook and refreshes the bc entry.
+	// Merge preserves a user-defined hook and refreshes the mycel entry.
 	if err := os.WriteFile(filepath.Join(wt, ".agents", "hooks.json"),
 		[]byte(`{"user-lint":{"Stop":[{"type":"command","command":"echo hi"}]}}`), 0o600); err != nil {
 		t.Fatal(err)
@@ -353,8 +353,8 @@ func TestWriteAgyHookSettings(t *testing.T) {
 	if _, ok := hooks["user-lint"]; !ok {
 		t.Error("merge must preserve user-defined hooks")
 	}
-	if _, ok := hooks["bc-activity"]; !ok {
-		t.Error("merge must keep the bc-activity hook")
+	if _, ok := hooks["mycel-activity"]; !ok {
+		t.Error("merge must keep the mycel-activity hook")
 	}
 }
 
@@ -373,7 +373,7 @@ func TestAgyConfigAdapter(t *testing.T) {
 	// SetupMCP writes agy-native mcp_config.json (serverUrl for SSE).
 	dir := t.TempDir()
 	err := a.SetupMCP(context.Background(), dir, "eng-01", map[string]MCPEntry{
-		"bc":     {URL: "http://127.0.0.1:9374/mcp/sse", Transport: "sse"},
+		"mycel":  {URL: "http://127.0.0.1:9374/mcp/sse", Transport: "sse"},
 		"github": {Command: "github-mcp-server", Args: []string{"--stdio"}},
 	})
 	if err != nil {
@@ -389,7 +389,7 @@ func TestAgyConfigAdapter(t *testing.T) {
 	if err := json.Unmarshal(raw, &cfg); err != nil {
 		t.Fatal(err)
 	}
-	if _, ok := cfg.MCPServers["bc"]["serverUrl"]; !ok {
+	if _, ok := cfg.MCPServers["mycel"]["serverUrl"]; !ok {
 		t.Error("SSE server must use serverUrl key")
 	}
 	if cfg.MCPServers["github"]["command"] != "github-mcp-server" {

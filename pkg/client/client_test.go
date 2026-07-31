@@ -111,7 +111,7 @@ func TestNew_EnvAddr(t *testing.T) {
 	}
 }
 
-// TestNew_DaemonAddrFile exercises the file-over-default path that `bc up`
+// TestNew_DaemonAddrFile exercises the file-over-default path that `mycel up`
 // writes. Pins the round-trip: a file containing "http://127.0.0.1:8080\n"
 // must resolve to exactly that URL (trailing newline trimmed).
 func TestNew_DaemonAddrFile(t *testing.T) {
@@ -157,8 +157,8 @@ func TestDefaultSocketPath(t *testing.T) {
 	if p == "" {
 		t.Error("DefaultSocketPath() returned empty string")
 	}
-	if !strings.Contains(p, "bcd.sock") {
-		t.Errorf("DefaultSocketPath() = %q, expected to contain bcd.sock", p)
+	if !strings.Contains(p, "mycel.sock") {
+		t.Errorf("DefaultSocketPath() = %q, expected to contain mycel.sock", p)
 	}
 }
 

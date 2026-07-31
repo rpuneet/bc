@@ -58,21 +58,21 @@ function stateColor(state: string, deprecated: boolean): string {
 function DepIcon({ id }: { id: string }) {
   // Simple SVGs per dep; generic box as fallback.
   const common = "w-5 h-5 text-mycel-muted";
-  if (id === "bc-db") {
+  if (id === "mycel-db") {
     return (
       <svg className={common} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4" />
       </svg>
     );
   }
-  if (id === "bc-code-server") {
+  if (id === "mycel-code-server") {
     return (
       <svg className={common} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
       </svg>
     );
   }
-  if (id === "bc-browser") {
+  if (id === "mycel-browser") {
     return (
       <svg className={common} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
         <circle cx="12" cy="12" r="9" />

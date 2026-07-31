@@ -810,7 +810,7 @@ func TestAgentRename_RunEValidation(t *testing.T) {
 // --- Agent Create Validation Tests ---
 
 func TestAgentCreate_RejectsRootRole(t *testing.T) {
-	// Test that root role cannot be created via bc agent create
+	// Test that root role cannot be created via mycel agent create
 	setupTestHome(t)
 
 	// Reset flags to prevent leaking state from previous tests

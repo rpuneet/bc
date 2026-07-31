@@ -14,7 +14,7 @@ in the bc codebase.
 | `make test-go-fast`    | Go tests excluding slow/E2E packages             |
 | `make test-ts`         | All TypeScript tests (web + landing)             |
 | `make test-web`        | Web dashboard tests (vitest)                     |
-| `make test-web-e2e`    | Web E2E tests (Playwright, requires running bcd) |
+| `make test-web-e2e`    | Web E2E tests (Playwright, requires a running daemon) |
 | `make test-landing`    | Landing page tests (Playwright)                  |
 | `make coverage-go`     | Go coverage report with threshold check          |
 | `make bench-go`        | Go benchmarks                                    |
@@ -214,11 +214,11 @@ describe("AgentTable", () => {
 
 ### Playwright E2E Tests
 
-Web E2E tests live in `web/e2e/` and require a running bcd server:
+Web E2E tests live in `web/e2e/` and require a running daemon:
 
 ```bash
-# Start bcd first
-make run-bc
+# Start the daemon first
+make run-mycel
 
 # Run e2e tests
 make test-web-e2e

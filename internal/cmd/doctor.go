@@ -78,7 +78,7 @@ func init() {
 func runDoctor(cmd *cobra.Command, _ []string) error {
 	ctx := cmd.Context()
 
-	// Try bcd API first
+	// Try the daemon API first
 	c := getClient()
 	apiReport, apiErr := c.Doctor.RunAll(ctx)
 	if apiErr == nil && apiReport != nil {
@@ -124,7 +124,7 @@ func runDoctorCheck(cmd *cobra.Command, args []string) error {
 
 	name := args[0]
 
-	// Try bcd API first
+	// Try the daemon API first
 	c := getClient()
 	apiCat, apiErr := c.Doctor.ByCategory(ctx, name)
 	if apiErr == nil && apiCat != nil {

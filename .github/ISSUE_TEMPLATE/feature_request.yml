@@ -6,7 +6,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Describe the feature you'd like to see in bc. Use size to indicate scope — large features automatically become epics.
+        Describe the feature you'd like to see in mycel. Use size to indicate scope — large features automatically become epics.
 
   - type: textarea
     id: goal

@@ -236,7 +236,7 @@ Both web frontends consume tokens as CSS custom properties. The build generates 
 
 ### 4.2 TypeScript Constants
 
-The shared `@bc/design-tokens` package exports a TypeScript module with both hex values (for truecolor terminals) and ANSI color name mappings (for 16-color fallback), for any TypeScript consumer that renders outside the browser.
+The shared `@mycel/design-tokens` package exports a TypeScript module with both hex values (for truecolor terminals) and ANSI color name mappings (for 16-color fallback), for any TypeScript consumer that renders outside the browser.
 
 ### 4.3 Go Constants (CLI)
 
@@ -503,20 +503,20 @@ The ANSI 16 mapping serves as a fallback for restricted environments. Runtime de
 
 ---
 
-## 10. Shared Component Library (`@bc/ui`)
+## 10. Shared Component Library (`@mycel/ui`)
 
-This section is the design specification for a platform-agnostic component library: shared component interfaces with platform-specific renderers, so every surface shares the same component API. Today the frontends implement these components locally (only `@bc/design-tokens` is shared under `packages/`); the spec below defines the target API and rendering rules they follow.
+This section is the design specification for a platform-agnostic component library: shared component interfaces with platform-specific renderers, so every surface shares the same component API. Today the frontends implement these components locally (only `@mycel/design-tokens` is shared under `packages/`); the spec below defines the target API and rendering rules they follow.
 
 ### 10.1 Architecture
 
 ```mermaid
 flowchart TD
-    subgraph "@bc/ui-core"
+    subgraph "@mycel/ui-core"
         TYPES["Component interfaces\n(Props, State, Variants)"]
         TOKENS["Design tokens\n(re-exported)"]
     end
 
-    subgraph "@bc/ui-web"
+    subgraph "@mycel/ui-web"
         WEB_BUTTON["Button.tsx\n(HTML <button>)"]
         WEB_INPUT["Input.tsx\n(HTML <input>)"]
         WEB_TABLE["Table.tsx\n(HTML <table>)"]
@@ -527,7 +527,7 @@ flowchart TD
         WEB_SPINNER["Spinner.tsx\n(CSS animation)"]
     end
 
-    subgraph "@bc/ui-ink"
+    subgraph "@mycel/ui-ink"
         INK_BUTTON["Button.tsx\n(Ink <Box>+<Text>)"]
         INK_INPUT["Input.tsx\n(Ink <TextInput>)"]
         INK_TABLE["Table.tsx\n(Ink <Box> grid)"]

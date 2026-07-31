@@ -7,7 +7,7 @@ This document is the source of truth for how mycel's infrastructure is deployed.
 A deployment has up to three tiers coordinated by the host's Docker daemon:
 
 1. **mycel server** — `mycel up` serving the HTTP API and embedded web UI (host process, or the `mycel-daemon` container image)
-2. **bcdb** — optional TimescaleDB database (`mycel-bcdb`); SQLite is the default and needs no container
+2. **bcdb** — optional TimescaleDB database (`mycel-db`); SQLite is the default and needs no container
 3. **Agent containers** — one per agent, each running a provider CLI inside tmux
 
 ```mermaid
@@ -19,7 +19,7 @@ graph TB
 
     subgraph Infrastructure
         srv[mycel server :9374]
-        bcdb[(mycel-bcdb :5432)]
+        bcdb[(mycel-db :5432)]
     end
 
     subgraph Agents
@@ -53,9 +53,9 @@ graph TD
     BASE --> OPENCLAW[mycel-agent-openclaw]
     CLAUDE --> INFRA[mycel-agent-infra]
 
-    TS[timescale/timescaledb:2.19.1-pg17] --> BCDB[mycel-bcdb]
+    TS[timescale/timescaledb:2.19.1-pg17] --> BCDB[mycel-db]
     BUILD[oven/bun:1.2 + golang:1.25.11] --> DAEMON[mycel-daemon]
-    PW[Playwright] --> PWI[bc-playwright]
+    PW[Playwright] --> PWI[mycel-playwright]
 ```
 
 | Image | Dockerfile | Purpose |
@@ -63,9 +63,9 @@ graph TD
 | `mycel-agent-base` | `docker/Dockerfile.base` | Shared developer tooling for all agents |
 | `mycel-agent-claude/gemini/codex/cursor/openclaw` | `docker/Dockerfile.<provider>` | Base + one provider CLI |
 | `mycel-agent-infra` | `docker/Dockerfile.infra` | Extends claude with infra tooling |
-| `mycel-daemon` | `docker/Dockerfile.bcd` | Multi-stage: bun builds the web UI, Go 1.25.11 builds the binary |
-| `mycel-bcdb` | `docker/Dockerfile.bcdb` | TimescaleDB (`POSTGRES_USER=bc`, `POSTGRES_DB=bc`, password at runtime), seeds `docker/bcdb/init.sql` |
-| `bc-playwright` | `docker/Dockerfile.playwright` | Playwright MCP server (built separately) |
+| `mycel-daemon` | `docker/Dockerfile.daemon` | Multi-stage: bun builds the web UI, Go 1.25.11 builds the binary |
+| `mycel-db` | `docker/Dockerfile.db` | TimescaleDB (`POSTGRES_USER=mycel`, `POSTGRES_DB=mycel`, password at runtime), seeds `docker/db/init.sql` |
+| `mycel-playwright` | `docker/Dockerfile.playwright` | Playwright MCP server (built separately) |
 
 ### Base Image (`docker/Dockerfile.base`)
 
@@ -108,14 +108,14 @@ Ground truth: `pkg/container/container.go`. Agent state lives at `~/.mycel/agent
 | Agent's repo | `/workspace` | Full repo mounted so git worktrees resolve (`-w` is set to the agent's worktree subdirectory) |
 | `<agent-dir>/claude/` | `/home/agent/.claude` | Persistent provider state across restarts |
 | `<agent-dir>/claude.json` | `/home/agent/.claude.json` | Provider app config (OAuth account — auth persistence) |
-| Named volume `bc-shared-tmp` | `/tmp/bc-shared` | Cross-container file exchange (e.g. Playwright screenshots) |
+| Named volume `mycel-shared-tmp` | `/tmp/mycel-shared` | Cross-container file exchange (e.g. Playwright screenshots) |
 | `runtime.docker.extra_mounts` | as specified | User-defined mounts, validated against the repo root |
 
 When the server itself runs in Docker (Docker-in-Docker), `MYCEL_HOST_WORKSPACE` supplies the host-side path so `-v` mounts resolve correctly.
 
 ## Network Topology
 
-Default: the **`bc-net`** Docker network (`runtime.docker.network` in prefs.json; the backend falls back to `bridge` when unset).
+Default: the **`mycel-net`** Docker network (`runtime.docker.network` in prefs.json; the backend falls back to `bridge` when unset).
 
 | Service | Port | Protocol |
 |---------|------|----------|
@@ -130,7 +130,7 @@ Defaults from `pkg/home/config.go`:
 |----------|---------|-----------|
 | CPUs | 2.0 | `runtime.docker.cpus` |
 | Memory | 4096 MB | `runtime.docker.memory_mb` |
-| Network | `bc-net` | `runtime.docker.network` |
+| Network | `mycel-net` | `runtime.docker.network` |
 | Image | `mycel-agent-claude:latest` | `runtime.docker.image` |
 
 ## Health Checks

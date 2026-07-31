@@ -10,7 +10,7 @@ import (
 	"github.com/rpuneet/mycel/pkg/secret"
 )
 
-// seedRepoVault writes a secret into the repo vault under repoPath/.bc/secrets.db.
+// seedRepoVault writes a secret into the repo vault under repoPath/.mycel/secrets.db.
 func seedRepoVault(t *testing.T, repoPath, name, value string) {
 	t.Helper()
 	ss, err := secret.NewStore(repoPath, "test-passphrase")

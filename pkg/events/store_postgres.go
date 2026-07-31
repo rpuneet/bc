@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"time"
 
-	bcdb "github.com/rpuneet/mycel/pkg/db"
+	dbpkg "github.com/rpuneet/mycel/pkg/db"
 	"github.com/rpuneet/mycel/pkg/log"
 )
 
@@ -186,7 +186,7 @@ func pgNilStr(s string) *string {
 // OpenLog opens the event log on the given database handle (the single
 // global mycel.db, or its TimescaleDB equivalent). The handle is
 // borrowed: callers own its lifecycle.
-func OpenLog(d *bcdb.DB, driver string) (EventStore, error) {
+func OpenLog(d *dbpkg.DB, driver string) (EventStore, error) {
 	if d == nil {
 		return nil, fmt.Errorf("events store requires a database handle (nil handle)")
 	}

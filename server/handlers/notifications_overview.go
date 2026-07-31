@@ -21,7 +21,7 @@ type overviewApp struct {
 // overviewChannel is one gateway channel with resolved identity and activity.
 type overviewChannel struct {
 	LastActivity     time.Time `json:"last_activity"`
-	BCChannel        string    `json:"bc_channel"`
+	Channel          string    `json:"channel"`
 	Platform         string    `json:"platform"`
 	DisplayName      string    `json:"display_name"`
 	Kind             string    `json:"kind"`
@@ -51,8 +51,8 @@ func (h *GatewayHandler) notificationsOverview(w http.ResponseWriter, r *http.Re
 	}
 	byName := make(map[string]*overviewChannel, len(persisted))
 	for _, c := range persisted {
-		byName[c.BCChannel] = &overviewChannel{
-			BCChannel:        c.BCChannel,
+		byName[c.Channel] = &overviewChannel{
+			Channel:          c.Channel,
 			Platform:         c.Platform,
 			DisplayName:      c.DisplayName,
 			Kind:             c.Kind,
@@ -70,7 +70,7 @@ func (h *GatewayHandler) notificationsOverview(w http.ResponseWriter, r *http.Re
 			if i := strings.Index(name, ":"); i > 0 {
 				platform = name[:i]
 			}
-			byName[name] = &overviewChannel{BCChannel: name, Platform: platform}
+			byName[name] = &overviewChannel{Channel: name, Platform: platform}
 		}
 	}
 
@@ -93,8 +93,8 @@ func (h *GatewayHandler) notificationsOverview(w http.ResponseWriter, r *http.Re
 	channels := make([]overviewChannel, 0, len(byName))
 	for _, ch := range byName {
 		if ch.DisplayName == "" {
-			// Never show a blank name: fall back to the bc channel suffix.
-			ch.DisplayName = strings.TrimPrefix(ch.BCChannel, ch.Platform+":")
+			// Never show a blank name: fall back to the mycel channel suffix.
+			ch.DisplayName = strings.TrimPrefix(ch.Channel, ch.Platform+":")
 		}
 		channels = append(channels, *ch)
 	}
@@ -102,7 +102,7 @@ func (h *GatewayHandler) notificationsOverview(w http.ResponseWriter, r *http.Re
 		if channels[i].MessageCount != channels[j].MessageCount {
 			return channels[i].MessageCount > channels[j].MessageCount
 		}
-		return channels[i].BCChannel < channels[j].BCChannel
+		return channels[i].Channel < channels[j].Channel
 	})
 
 	apps := []overviewApp{}

@@ -26,7 +26,7 @@ The `X-API-Key: <key>` header is accepted as an alternative. Without a configure
 
 ### Single-tenant server
 
-Each `bcd` instance is single-tenant. All resources live at flat `/api/<resource>` paths — there is no per-request scoping. The former multi-tenant surfaces (`/api/workspaces...`, scoped headers and query parameters) are gone and return `404`.
+Each daemon instance is single-tenant. All resources live at flat `/api/<resource>` paths — there is no per-request scoping. The former multi-tenant surfaces (`/api/workspaces...`, scoped headers and query parameters) are gone and return `404`.
 
 ### Pagination
 
@@ -425,7 +425,7 @@ Read-only code browsing for agent worktrees. All endpoints take `worktree=<agent
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/api/code/tree` | Directory listing. Query: `path`, `worktree`, `show_hidden=1`. Returns `[{name, path, is_dir, size?}]` (`.git` and `.bc` hidden at top level by default). |
+| GET | `/api/code/tree` | Directory listing. Query: `path`, `worktree`, `show_hidden=1`. Returns `[{name, path, is_dir, size?}]` (`.git` and `.mycel` hidden at top level by default). |
 | GET | `/api/code/file` | File contents (max 2 MiB). Query: `path` (required), `worktree`. |
 | GET | `/api/code/diff` | `git diff main...HEAD` for the worktree as `text/plain`. Query: `worktree`, `path` (optional narrow). Empty body for the `main` worktree or missing `main` ref. |
 | GET | `/api/code/search` | ripgrep-backed search. Query: `q` (required, ≤1024 chars), `worktree`, `path` (subdir), `max` (default 500, max 2000), `case=1` (case-insensitive), `regex=1` (regex instead of literal). Returns `{"matches":[{path, line, col, text, before, after}], "truncated", "elapsed_ms"}`. |

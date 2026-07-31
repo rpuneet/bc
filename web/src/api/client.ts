@@ -32,7 +32,7 @@ export interface RepoView {
 
 export interface ReposResponse {
   repos: RepoView[];
-  /** The repo bcd was booted against — new agents default to it. */
+  /** The repo the daemon was booted against — new agents default to it. */
   default: string;
 }
 
@@ -248,7 +248,7 @@ export interface OverviewApp {
  *  metadata fields are optional — the page degrades to raw channel ids
  *  when the backend has not resolved identities yet. */
 export interface OverviewChannel {
-  bc_channel: string;
+  channel: string;
   platform: string;
   display_name?: string;
   /** "group" | "person" when the adapter could classify the channel. */
@@ -694,7 +694,7 @@ function splitChannel(channel: string): { gw: string; ch: string } {
 }
 
 export const api = {
-  /** List all agents. bcd is single-tenant: agents carry their repo as
+  /** List all agents. the daemon is single-tenant: agents carry their repo as
    *  a property, so the list is always global. */
   listAgents: () => request<Agent[]>("/agents"),
   getAgent: (name: string) =>
@@ -935,7 +935,7 @@ export const api = {
   getCostDaily: (days = 14) =>
     request<DailyCost[]>(`/costs/daily?days=${days}`),
   // Per-entity drill-down: lifetime summary + last-30d daily ledger for
-  // one ledger agent id (namespaced, e.g. "bc-bc-zen-zebra").
+  // one ledger agent id (namespaced, e.g. "mycel-a1b2c3-zen-zebra").
   getCostAgentDetail: (agentId: string) =>
     request<AgentCostDetail>(`/costs/agent/${encodeURIComponent(agentId)}`),
   getCostBudgets: () => request<BudgetStatus[]>("/costs/budgets"),

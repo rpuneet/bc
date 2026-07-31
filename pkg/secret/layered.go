@@ -16,12 +16,12 @@ const (
 	// ScopeGlobal is the user-global vault (~/.mycel/secrets.vault).
 	ScopeGlobal Scope = "global"
 	// ScopeWorkspace is the repo-scoped override
-	// (<h>/.bc/secrets.db).
+	// (<h>/.mycel/secrets.db).
 	ScopeWorkspace Scope = "workspace"
 )
 
 // OpenVaultFile opens a Store using an explicit SQLite path instead of
-// the conventional "<repo>/.bc/secrets.db". Used for the
+// the conventional "<repo>/.mycel/secrets.db". Used for the
 // user-global vault at ~/.mycel/secrets.vault where there is no
 // "workspace" to anchor against. Directory must exist.
 func OpenVaultFile(path, passphrase string) (*Store, error) {
@@ -165,7 +165,7 @@ func (l *LayeredStore) List() ([]*SecretMeta, error) {
 	return out, nil
 }
 
-// Set writes to the user-global vault (the default for bc secret add
+// Set writes to the user-global vault (the default for mycel secret add
 // KEY=VAL). Use SetWorkspace for repo-scoped overrides.
 func (l *LayeredStore) Set(name, value, description string) error {
 	if l.global == nil {

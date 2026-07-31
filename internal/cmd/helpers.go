@@ -6,7 +6,7 @@ import (
 	"github.com/rpuneet/mycel/pkg/client"
 )
 
-// getClient returns an HTTP client for the bcd server.
+// getClient returns an HTTP client for the daemon server.
 func getClient() *client.Client {
 	return client.New("")
 }

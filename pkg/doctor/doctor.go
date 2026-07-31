@@ -596,7 +596,7 @@ var listDockerImages = func(ctx context.Context) []string {
 }
 
 // checkAgentImages warns for each registered provider whose agent image
-// (mycel-agent-<name>, or the legacy bc-agent-<name>) is missing locally.
+// (mycel-agent-<name>) is missing locally.
 // No docker → no items; tmux-only setups shouldn't fail doctor over it.
 func checkAgentImages(ctx context.Context) []Item {
 	images := listDockerImages(ctx)
@@ -612,14 +612,10 @@ func checkAgentImages(ctx context.Context) []Item {
 	for _, p := range provider.ListProviders() {
 		name := p.Name()
 		modern := "mycel-agent-" + name + ":latest"
-		legacy := "bc-agent-" + name + ":latest"
 		item := Item{Name: "image:" + modern}
 		switch {
 		case have[modern]:
 			item.Message = "present"
-			item.Severity = SeverityOK
-		case have[legacy]:
-			item.Message = fmt.Sprintf("using legacy %s", legacy)
 			item.Severity = SeverityOK
 		default:
 			item.Message = "missing — docker agents with this tool cannot start"

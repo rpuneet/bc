@@ -120,10 +120,10 @@ func (h *CodeHandler) search(w http.ResponseWriter, r *http.Request) {
 		"--max-filesize", "10M",
 		"--no-messages",
 		// Default rg behavior already hides dotfiles; these globs are
-		// belt-and-braces for .git/ and .bc/ which we never want leaking
+		// belt-and-braces for .git/ and .mycel/ which we never want leaking
 		// into a Code-tab search result.
 		"-g", "!.git/",
-		"-g", "!.bc/",
+		"-g", "!.mycel/",
 	}
 	if caseI {
 		args = append(args, "-i")

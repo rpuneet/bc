@@ -44,7 +44,7 @@ func (plugin) Build(inst app.Instance, _ app.Env) (gateway.NotificationAdapter, 
 	}
 	return New(inst.Name, Config{
 		Broker:   broker,
-		ClientID: "bc-" + inst.Name,
+		ClientID: "mycel-" + inst.Name,
 		Topics:   topics,
 	}), nil
 }

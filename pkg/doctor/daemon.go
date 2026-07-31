@@ -1,4 +1,4 @@
-// daemon.go — health check against the running bcd daemon.
+// daemon.go — health check against the running mycel daemon.
 //
 // Queries /api/health and surfaces any degraded services (services that
 // failed to initialize at daemon boot and were silently left nil — see
@@ -76,7 +76,7 @@ func CheckDaemonAt(ctx context.Context, baseURL string) CategoryReport {
 			Name:     "daemon",
 			Message:  "reachable but unhealthy (database check failed)",
 			Severity: SeverityFail,
-			Fix:      "check bcd logs, then restart with 'mycel down && mycel up'",
+			Fix:      "check daemon logs, then restart with 'mycel down && mycel up'",
 		})
 		return cat
 	}

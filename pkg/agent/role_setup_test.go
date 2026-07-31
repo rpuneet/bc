@@ -11,7 +11,7 @@ import (
 // TestValidateAgentToolsResolvesGlobalRoles is a regression test for the
 // role-validation path reading the wrong store: roles live in the single
 // global database, so validating an agent created against a repo with no
-// local .bc/roles must still resolve a globally defined role.
+// local .mycel/roles must still resolve a globally defined role.
 func TestValidateAgentToolsResolvesGlobalRoles(t *testing.T) {
 	t.Setenv("MYCEL_HOME", t.TempDir())
 
@@ -28,7 +28,7 @@ func TestValidateAgentToolsResolvesGlobalRoles(t *testing.T) {
 		t.Fatalf("save role: %v", err)
 	}
 
-	// A repo with no .bc/roles at all — validation must still resolve the
+	// A repo with no .mycel/roles at all — validation must still resolve the
 	// global "base" role instead of reporting "role not found".
 	repo := t.TempDir()
 	issues := validateAgentTools(repo, "base")
@@ -90,16 +90,16 @@ func TestRewriteDockerURL(t *testing.T) {
 	}
 }
 
-// TestBcSelfURL verifies the bc MCP endpoint is derived from the live
+// TestSelfMCPURL verifies the mycel MCP endpoint is derived from the live
 // daemon address per runtime — never from the mcp_servers store, whose
 // single static URL can't be right for both tmux and docker at once.
-func TestBcSelfURL(t *testing.T) {
+func TestSelfMCPURL(t *testing.T) {
 	tests := []struct {
-		name    string
-		bcdAddr string // MYCEL_DAEMON_ADDR of the daemon process
-		runtime string
-		agent   string
-		want    string
+		name       string
+		daemonAddr string // MYCEL_DAEMON_ADDR of the daemon process
+		runtime    string
+		agent      string
+		want       string
 	}{
 		{"tmux uses host loopback", "http://127.0.0.1:8080", "tmux", "zeta", "http://127.0.0.1:8080/_mcp/zeta"},
 		{"docker rewrites loopback", "http://127.0.0.1:8080", "docker", "zeta", "http://host.docker.internal:8080/_mcp/zeta"},
@@ -110,9 +110,9 @@ func TestBcSelfURL(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Setenv("MYCEL_DAEMON_ADDR", tt.bcdAddr)
-			if got := bcSelfURL(tt.runtime, tt.agent); got != tt.want {
-				t.Errorf("bcSelfURL(%q, %q) = %q, want %q", tt.runtime, tt.agent, got, tt.want)
+			t.Setenv("MYCEL_DAEMON_ADDR", tt.daemonAddr)
+			if got := selfMCPURL(tt.runtime, tt.agent); got != tt.want {
+				t.Errorf("selfMCPURL(%q, %q) = %q, want %q", tt.runtime, tt.agent, got, tt.want)
 			}
 		})
 	}

@@ -21,6 +21,6 @@ func (realExec) Run(ctx context.Context, cmd string, args ...string) ([]byte, er
 	return exec.CommandContext(ctx, cmd, args...).CombinedOutput()
 }
 
-// defaultExec is the runner used by NewBCDB and NewBCCodeServer. Tests swap
+// defaultExec is the runner used by NewDB and NewCodeServer. Tests swap
 // it in via the exported constructors that accept an explicit runner.
 var defaultExec execRunner = realExec{}

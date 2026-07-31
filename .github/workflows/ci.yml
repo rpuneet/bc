@@ -205,12 +205,12 @@ jobs:
     needs: [build]
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-      - name: Build bcd image
-        run: docker build -t bc-daemon:latest -f docker/Dockerfile.bcd .
+      - name: Build daemon image
+        run: docker build -t mycel-daemon:latest -f docker/Dockerfile.daemon .
       - name: Scan with Trivy
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
-          image-ref: bc-daemon:latest
+          image-ref: mycel-daemon:latest
           format: sarif
           output: trivy-results.sarif
           # Full severity list: analyses must report every level or alerts from

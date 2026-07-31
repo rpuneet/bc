@@ -5,7 +5,7 @@ import (
 	"sync"
 	"testing"
 
-	bcapp "github.com/rpuneet/mycel/pkg/app"
+	apppkg "github.com/rpuneet/mycel/pkg/app"
 	"github.com/rpuneet/mycel/pkg/home"
 )
 
@@ -14,7 +14,7 @@ import (
 // yields one registered adapter and one degraded entry.
 func TestBuildGatewayManagerFromApps(t *testing.T) {
 	cfg := home.DefaultConfig()
-	cfg.Apps = map[string]bcapp.InstanceConfig{
+	cfg.Apps = map[string]apppkg.InstanceConfig{
 		"webhook:ci": {App: "webhook", Enabled: true},
 		"bogus":      {App: "no-such-app", Enabled: true},
 		"rss:off":    {App: "rss", Enabled: false, Config: map[string]string{"url": "https://x/feed"}},
@@ -52,7 +52,7 @@ func TestBuildGatewayManagerFromApps(t *testing.T) {
 // of failing boot.
 func TestBuildGatewayManagerBuildFailureDegrades(t *testing.T) {
 	cfg := home.DefaultConfig()
-	cfg.Apps = map[string]bcapp.InstanceConfig{
+	cfg.Apps = map[string]apppkg.InstanceConfig{
 		// slack requires bot_token; no vault is wired, so Build must fail.
 		"slack": {App: "slack", Enabled: true},
 	}

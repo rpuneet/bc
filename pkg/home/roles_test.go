@@ -11,7 +11,7 @@ import (
 func newTestRoleManager(t *testing.T) *RoleManager {
 	t.Helper()
 	stateDir := t.TempDir()
-	dbPath := filepath.Join(stateDir, "bc.db")
+	dbPath := filepath.Join(stateDir, "mycel.db")
 	store, err := NewRoleStore(dbPath)
 	if err != nil {
 		t.Fatalf("NewRoleStore: %v", err)
@@ -25,7 +25,7 @@ func newTestRoleManager(t *testing.T) *RoleManager {
 func newTestRoleManagerWithDir(t *testing.T) (*RoleManager, string) {
 	t.Helper()
 	stateDir := t.TempDir()
-	dbPath := filepath.Join(stateDir, "bc.db")
+	dbPath := filepath.Join(stateDir, "mycel.db")
 	store, err := NewRoleStore(dbPath)
 	if err != nil {
 		t.Fatalf("NewRoleStore: %v", err)
@@ -40,7 +40,7 @@ name: engineer
 parent_roles:
   - manager
 mcp_servers:
-  - bc
+  - mycel
   - github
 ---
 
@@ -181,7 +181,7 @@ func TestRoleManager_LoadRole(t *testing.T) {
 	role := &Role{
 		Metadata: RoleMetadata{
 			Name:       "qa",
-			MCPServers: []string{"bc"},
+			MCPServers: []string{"mycel"},
 		},
 		Prompt: "# QA Role\n\nYou are a QA agent.",
 	}
@@ -270,7 +270,7 @@ func TestRoleManager_WriteRole(t *testing.T) {
 	role := &Role{
 		Metadata: RoleMetadata{
 			Name:        "custom",
-			MCPServers:  []string{"bc"},
+			MCPServers:  []string{"mycel"},
 			ParentRoles: []string{"root"},
 		},
 		Prompt: "# Custom Role\n\nCustom prompt content.",
@@ -654,7 +654,7 @@ func TestResolveRole_NoParents(t *testing.T) {
 	role := &Role{
 		Metadata: RoleMetadata{
 			Name:       "standalone",
-			MCPServers: []string{"bc"},
+			MCPServers: []string{"mycel"},
 			Secrets:    []string{"MY_SECRET"},
 		},
 		Prompt: "# Standalone\n\nI have no parents.",
@@ -671,8 +671,8 @@ func TestResolveRole_NoParents(t *testing.T) {
 	if resolved.Prompt != role.Prompt {
 		t.Errorf("Prompt = %q, want %q", resolved.Prompt, role.Prompt)
 	}
-	if len(resolved.MCPServers) != 1 || resolved.MCPServers[0] != "bc" {
-		t.Errorf("MCPServers = %v, want [bc]", resolved.MCPServers)
+	if len(resolved.MCPServers) != 1 || resolved.MCPServers[0] != "mycel" {
+		t.Errorf("MCPServers = %v, want [mycel]", resolved.MCPServers)
 	}
 	if len(resolved.Secrets) != 1 || resolved.Secrets[0] != "MY_SECRET" {
 		t.Errorf("Secrets = %v, want [MY_SECRET]", resolved.Secrets)
@@ -694,7 +694,7 @@ func TestResolveRole_DefaultRootInheritsBase(t *testing.T) {
 	}
 
 	// Prompt must contain a distinctive base-role substring.
-	const baseSubstr = "bc Agent"
+	const baseSubstr = "mycel Agent"
 	if !strings.Contains(resolved.Prompt, baseSubstr) {
 		t.Errorf("resolved root prompt missing base substring %q", baseSubstr)
 	}
@@ -713,14 +713,14 @@ func TestResolveRole_DefaultRootInheritsBase(t *testing.T) {
 	}
 
 	// MCPServers must include "github" (from root). The base role no longer
-	// declares any MCP servers — the old "bc" server was removed.
+	// declares any MCP servers — the old standalone MCP server entry was removed.
 	hasGithub := false
 	for _, s := range resolved.MCPServers {
 		if s == "github" {
 			hasGithub = true
 		}
-		if s == "bc" {
-			t.Errorf("MCPServers must not contain removed 'bc' server; got %v", resolved.MCPServers)
+		if s == "mycel" {
+			t.Errorf("MCPServers must not contain the injected 'mycel' server; got %v", resolved.MCPServers)
 		}
 	}
 	if !hasGithub {

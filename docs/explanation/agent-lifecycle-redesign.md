@@ -101,7 +101,7 @@ func (m *Manager) lockAgent(name string) func() {
 ### Background RefreshState
 
 ```go
-// Start background reconciler in bcd main.go
+// Start background reconciler in mycel main.go
 go mgr.RunReconciler(ctx, 5*time.Second)
 
 func (m *Manager) RunReconciler(ctx context.Context, interval time.Duration) {
@@ -153,7 +153,7 @@ func (m *Manager) renameAgent(oldName, newName string) error {
 
 ### Phase 3: Background RefreshState
 - Add `RunReconciler()` method
-- Start in `cmd/bcd/main.go`
+- Start in `cmd/mycel/main.go`
 - Remove `RefreshState()` call from `handlers/agents.go:77`
 - **~30 lines changed across 3 files**
 

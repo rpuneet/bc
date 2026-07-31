@@ -72,7 +72,7 @@ type appDescriptorJSON struct { //nolint:govet // field order matches JSON/API c
 // appInstanceJSON is the wire shape of one connected instance with its
 // live adapter status. Config holds the plain fields plus server-computed
 // has_<field> booleans for secret fields — secret values never leave the
-// server. Channels are the adapter's discovered bc channel keys.
+// server. Channels are the adapter's discovered mycel channel keys.
 type appInstanceJSON struct { //nolint:govet // field order matches JSON/API contract
 	Name      string         `json:"name"`
 	App       string         `json:"app"`

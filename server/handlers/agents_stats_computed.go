@@ -12,20 +12,20 @@ import (
 	"time"
 
 	"github.com/rpuneet/mycel/pkg/agent"
-	bcstats "github.com/rpuneet/mycel/pkg/stats"
+	statspkg "github.com/rpuneet/mycel/pkg/stats"
 )
 
 // computedStatsSampler is the shared TmuxSampler used by the computed-stats
 // endpoint. Shared instance keeps the "no per-process network stats"
 // warning to once per process, matching the behavior of the collector.
 var (
-	computedStatsSampler     *bcstats.TmuxSampler
+	computedStatsSampler     *statspkg.TmuxSampler
 	computedStatsSamplerOnce sync.Once
 )
 
-func getComputedStatsSampler() *bcstats.TmuxSampler {
+func getComputedStatsSampler() *statspkg.TmuxSampler {
 	computedStatsSamplerOnce.Do(func() {
-		computedStatsSampler = bcstats.NewTmuxSampler(bcstats.DefaultTmuxProcRunner{})
+		computedStatsSampler = statspkg.NewTmuxSampler(statspkg.DefaultTmuxProcRunner{})
 	})
 	return computedStatsSampler
 }
@@ -190,32 +190,15 @@ func (h *AgentHandler) agentComputedStats(w http.ResponseWriter, r *http.Request
 		lastActive = lastTime.UTC().Format(time.RFC3339)
 	}
 
-	// Query cost store for token/cost data for this agent.
-	// Cost records may use different agent ID formats:
-	// "clever-urial" (short), "bc-trade-clever-urial" (worktree name), etc.
+	// Query cost store for token/cost data for this agent. The ledger
+	// keys agent_id by the bare agent name in the flat layout.
 	var inputTokens, outputTokens int64
 	var costUSD float64
 	if h.costs != nil {
-		// Try the agent name as-is first
 		if summary, err := h.costs.AgentSummary(r.Context(), name); err == nil && summary != nil {
 			inputTokens = summary.InputTokens
 			outputTokens = summary.OutputTokens
 			costUSD = summary.TotalCostUSD
-		}
-		// If no results, try common worktree-prefixed name patterns
-		if inputTokens == 0 && outputTokens == 0 {
-			wtPath := svc.Manager().WorktreePath(name)
-			if wtPath != "" {
-				// Extract the worktree directory name (e.g. "bc-trade-clever-urial")
-				wtDir := filepath.Base(wtPath)
-				if wtDir != name && wtDir != "." {
-					if summary, err := h.costs.AgentSummary(r.Context(), wtDir); err == nil && summary != nil {
-						inputTokens = summary.InputTokens
-						outputTokens = summary.OutputTokens
-						costUSD = summary.TotalCostUSD
-					}
-				}
-			}
 		}
 	}
 

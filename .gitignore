@@ -48,18 +48,18 @@ __debug_bin*
 tmp/
 .tmp/
 
-# bc workspace state (local, not committed)
+# mycel repo state (local, not committed)
+.mycel/
 .bc/
 
 # beads issue tracker state (local to each project)
 .beads/
 
 # Build artifacts
-bc
-bcd
+mycel
 server/web/dist/*
 # Keep a placeholder so //go:embed in server/embed.go has at least one
-# file to embed (otherwise `go install github.com/rpuneet/mycel/cmd/bc`
+# file to embed (otherwise `go install github.com/rpuneet/mycel/cmd/mycel`
 # fails when the consumer hasn't run `bun run build`).
 !server/web/dist/placeholder.txt
 web/dist/
@@ -69,7 +69,7 @@ node_modules/
 
 .mcp.json
 *.tsbuildinfo
-.bc/tmp/
+.mycel/tmp/
 .playwright-mcp/
-packages/bc-cli/bin/bc
+packages/mycel-cli/bin/mycel
 site/

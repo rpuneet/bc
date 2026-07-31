@@ -6,53 +6,53 @@ import (
 	"strings"
 )
 
-// bcDBContainer is the Docker container name used for the bc-db TimescaleDB
+// dbContainer is the Docker container name used for the mycel-db TimescaleDB
 // service. It matches the container lazy-started by `mycel up` for timescale storage
 // (see internal/cmd/up.go) so start/stop interact with the
 // already-running instance if any.
-const bcDBContainer = "bc-db"
+const dbContainer = "mycel-db"
 
-// bcDBImage is the image tag built by `make build-docker-db`.
-const bcDBImage = "bc-bcdb:latest"
+// dbImage is the image tag built by `make build-docker-db`.
+const dbImage = "mycel-db:latest"
 
-// BCDB wraps the bc-db (unified TimescaleDB) Docker container. It is a
+// DB wraps the mycel-db (unified TimescaleDB) Docker container. It is a
 // singleton per host — one container shared by all workspaces — matching
 // the design in docs/proposals/multi-workspace-and-code-tab.md §7.2.1.
-type BCDB struct {
+type DB struct {
 	runner execRunner
 }
 
-// NewBCDB constructs a BCDB dependency using the default exec runner.
-func NewBCDB() *BCDB {
-	return &BCDB{runner: defaultExec}
+// NewDB constructs a DB dependency using the default exec runner.
+func NewDB() *DB {
+	return &DB{runner: defaultExec}
 }
 
-// NewBCDBWithRunner is the constructor used in tests to inject a mock
+// NewDBWithRunner is the constructor used in tests to inject a mock
 // exec runner.
-func NewBCDBWithRunner(r execRunner) *BCDB {
+func NewDBWithRunner(r execRunner) *DB {
 	if r == nil {
 		r = defaultExec
 	}
-	return &BCDB{runner: r}
+	return &DB{runner: r}
 }
 
 // ID implements Dependency.
-func (*BCDB) ID() string { return "bc-db" }
+func (*DB) ID() string { return "mycel-db" }
 
 // DisplayName implements Dependency.
-func (*BCDB) DisplayName() string { return "bc-db" }
+func (*DB) DisplayName() string { return "mycel-db" }
 
 // Description implements Dependency.
-func (*BCDB) Description() string {
+func (*DB) Description() string {
 	return "Unified TimescaleDB for metrics, costs, and events"
 }
 
 // Deprecated implements Dependency.
-func (*BCDB) Deprecated() bool { return false }
+func (*DB) Deprecated() bool { return false }
 
 // Status inspects the container and reports running/stopped/unknown.
-func (d *BCDB) Status(ctx context.Context) (State, error) {
-	out, err := d.runner.Run(ctx, "docker", "inspect", "-f", "{{.State.Running}}", bcDBContainer)
+func (d *DB) Status(ctx context.Context) (State, error) {
+	out, err := d.runner.Run(ctx, "docker", "inspect", "-f", "{{.State.Running}}", dbContainer)
 	if err != nil {
 		// Most common case: container does not exist yet.
 		text := strings.ToLower(string(out))
@@ -73,17 +73,17 @@ func (d *BCDB) Status(ctx context.Context) (State, error) {
 	}
 }
 
-// Start ensures the bc-db container is running. If a container with the
+// Start ensures the mycel-db container is running. If a container with the
 // expected name already exists (running or stopped), it is reused via
 // `docker start`; otherwise a fresh `docker run` is issued.
-func (d *BCDB) Start(ctx context.Context) error {
+func (d *DB) Start(ctx context.Context) error {
 	// Probe whether the container already exists.
-	if out, err := d.runner.Run(ctx, "docker", "inspect", "-f", "{{.State.Running}}", bcDBContainer); err == nil {
+	if out, err := d.runner.Run(ctx, "docker", "inspect", "-f", "{{.State.Running}}", dbContainer); err == nil {
 		if strings.TrimSpace(string(out)) == "true" {
 			return nil
 		}
 		// Exists but stopped — start it.
-		if out2, sErr := d.runner.Run(ctx, "docker", "start", bcDBContainer); sErr != nil {
+		if out2, sErr := d.runner.Run(ctx, "docker", "start", dbContainer); sErr != nil {
 			return fmt.Errorf("docker start: %w (%s)", sErr, strings.TrimSpace(string(out2)))
 		}
 		return nil
@@ -91,12 +91,12 @@ func (d *BCDB) Start(ctx context.Context) error {
 	// Does not exist — create and run.
 	args := []string{
 		"run", "-d",
-		"--name", bcDBContainer,
+		"--name", dbContainer,
 		"-p", "5432:5432",
-		"-e", "POSTGRES_PASSWORD=bc",
-		"-v", "bc-db-data:/var/lib/postgresql/data",
+		"-e", "POSTGRES_PASSWORD=mycel",
+		"-v", "mycel-db-data:/var/lib/postgresql/data",
 		"--restart", "always",
-		bcDBImage,
+		dbImage,
 	}
 	if out, err := d.runner.Run(ctx, "docker", args...); err != nil {
 		return fmt.Errorf("docker run: %w (%s)", err, strings.TrimSpace(string(out)))
@@ -104,10 +104,10 @@ func (d *BCDB) Start(ctx context.Context) error {
 	return nil
 }
 
-// Stop stops the bc-db container but does not remove it so data is retained
+// Stop stops the mycel-db container but does not remove it so data is retained
 // on disk via the named volume.
-func (d *BCDB) Stop(ctx context.Context) error {
-	if out, err := d.runner.Run(ctx, "docker", "stop", bcDBContainer); err != nil {
+func (d *DB) Stop(ctx context.Context) error {
+	if out, err := d.runner.Run(ctx, "docker", "stop", dbContainer); err != nil {
 		text := strings.ToLower(string(out))
 		if strings.Contains(text, "no such") {
 			return nil
@@ -118,11 +118,11 @@ func (d *BCDB) Stop(ctx context.Context) error {
 }
 
 // Logs returns the last `tail` lines from `docker logs`.
-func (d *BCDB) Logs(ctx context.Context, tail int) ([]string, error) {
+func (d *DB) Logs(ctx context.Context, tail int) ([]string, error) {
 	if tail <= 0 {
 		tail = 200
 	}
-	out, err := d.runner.Run(ctx, "docker", "logs", "--tail", fmt.Sprintf("%d", tail), bcDBContainer)
+	out, err := d.runner.Run(ctx, "docker", "logs", "--tail", fmt.Sprintf("%d", tail), dbContainer)
 	if err != nil {
 		return nil, fmt.Errorf("docker logs: %w (%s)", err, strings.TrimSpace(string(out)))
 	}

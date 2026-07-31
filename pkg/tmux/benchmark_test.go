@@ -14,7 +14,7 @@ func mockCommand(_ string, _ ...string) *exec.Cmd {
 }
 
 func BenchmarkSessionName_NoHash(b *testing.B) {
-	m := NewManager("bc-")
+	m := NewManager("mycel-")
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		_ = m.SessionName("test-agent")
@@ -22,7 +22,7 @@ func BenchmarkSessionName_NoHash(b *testing.B) {
 }
 
 func BenchmarkSessionName_WithHash(b *testing.B) {
-	m := NewManagerWithRepo("bc-", "/path/to/workspace")
+	m := NewManagerWithRepo("mycel-", "/path/to/workspace")
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		_ = m.SessionName("test-agent")
@@ -85,13 +85,13 @@ func BenchmarkValidEnvVarName_LongName(b *testing.B) {
 
 func BenchmarkNewManager(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		_ = NewManager("bc-")
+		_ = NewManager("mycel-")
 	}
 }
 
 func BenchmarkNewManagerWithRepo(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		_ = NewManagerWithRepo("bc-", "/path/to/workspace")
+		_ = NewManagerWithRepo("mycel-", "/path/to/workspace")
 	}
 }
 
@@ -102,7 +102,7 @@ func BenchmarkNewDefaultManager(b *testing.B) {
 }
 
 func BenchmarkInvalidateCache(b *testing.B) {
-	m := NewManager("bc-")
+	m := NewManager("mycel-")
 	// Pre-populate cache
 	m.cacheMu.Lock()
 	m.hasSessionCache["test1"] = true
@@ -116,7 +116,7 @@ func BenchmarkInvalidateCache(b *testing.B) {
 }
 
 func BenchmarkHasSession_CacheHit(b *testing.B) {
-	m := NewManager("bc-")
+	m := NewManager("mycel-")
 	m.execCommand = mockCommand
 	// Pre-populate cache with recent timestamp to ensure cache hit
 	fullName := m.SessionName("test-session")
@@ -131,7 +131,7 @@ func BenchmarkHasSession_CacheHit(b *testing.B) {
 }
 
 func BenchmarkListSessions_CacheHit(b *testing.B) {
-	m := NewManager("bc-")
+	m := NewManager("mycel-")
 	m.execCommand = mockCommand
 	// Pre-populate cache with recent timestamp to ensure cache hit
 	m.cacheMu.Lock()
@@ -149,7 +149,7 @@ func BenchmarkListSessions_CacheHit(b *testing.B) {
 }
 
 func BenchmarkGetSessionLock_NewLock(b *testing.B) {
-	m := NewManager("bc-")
+	m := NewManager("mycel-")
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		// Reset locks each iteration to benchmark new lock creation
@@ -161,7 +161,7 @@ func BenchmarkGetSessionLock_NewLock(b *testing.B) {
 }
 
 func BenchmarkGetSessionLock_ExistingLock(b *testing.B) {
-	m := NewManager("bc-")
+	m := NewManager("mycel-")
 	// Create lock first
 	_ = m.getSessionLock("test-session")
 	b.ResetTimer()

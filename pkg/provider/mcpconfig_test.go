@@ -62,9 +62,9 @@ func TestParseClaudeMCPList(t *testing.T) {
 		},
 		{
 			name:   "sse and stdio lines",
-			output: "bc: sse http://localhost:9374/mcp/sse\nfiles: stdio npx -y file-server\n",
+			output: "mycel: sse http://localhost:9374/mcp/sse\nfiles: stdio npx -y file-server\n",
 			want: []MCPServerInfo{
-				{Name: "bc", Transport: "sse", URL: "http://localhost:9374/mcp/sse", Enabled: true},
+				{Name: "mycel", Transport: "sse", URL: "http://localhost:9374/mcp/sse", Enabled: true},
 				{Name: "files", Transport: "stdio", Command: "npx -y file-server", Enabled: true},
 			},
 		},
