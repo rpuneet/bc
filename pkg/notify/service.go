@@ -313,9 +313,11 @@ func (s *Service) ChannelSubscriptions(ctx context.Context, channel string) ([]S
 	return s.store.Subscribers(ctx, channel)
 }
 
-// ChannelActivity returns recent delivery log entries for a channel.
-func (s *Service) ChannelActivity(ctx context.Context, channel string, limit int) ([]DeliveryEntry, error) {
-	return s.store.RecentActivity(ctx, channel, limit)
+// ChannelActivity returns recent delivery log entries for a channel, newest
+// first. When before > 0, only entries older than that id are returned
+// (cursor pagination for older pages).
+func (s *Service) ChannelActivity(ctx context.Context, channel string, limit int, before int64) ([]DeliveryEntry, error) {
+	return s.store.RecentActivity(ctx, channel, limit, before)
 }
 
 // AllSubscriptions returns all subscriptions across all channels.

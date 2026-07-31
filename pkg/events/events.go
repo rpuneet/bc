@@ -52,6 +52,11 @@ type Event struct {
 	// resolves it from the agents table (events are agent-keyed and both
 	// tables live in the same mycel.db).
 	Repo string `json:"repo,omitempty"`
+	// ID is the store row id (SQLite/Postgres autoincrement). It is zero for
+	// events that have not been persisted (e.g. freshly constructed events)
+	// and is populated on read. It serves as the opaque cursor for the
+	// before=<id> pagination on the activity/log endpoints.
+	ID int64 `json:"id,omitempty"`
 }
 
 // EventStore is the interface for reading and writing events.
@@ -61,5 +66,11 @@ type EventStore interface {
 	Read() ([]Event, error)
 	ReadLast(n int) ([]Event, error)
 	ReadByAgent(name string) ([]Event, error)
+	// ReadByAgentPage returns the newest `limit` events for an agent, newest
+	// first. When beforeID > 0, only events with id < beforeID are returned,
+	// giving cursor pagination for older pages backed by the primary key.
+	// Unlike ReadByAgent it pushes the limit into the query, so a small page
+	// never materializes the full per-agent window.
+	ReadByAgentPage(name string, limit int, beforeID int64) ([]Event, error)
 	Close() error
 }

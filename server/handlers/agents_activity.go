@@ -61,23 +61,32 @@ func (h *AgentHandler) agentActivity(w http.ResponseWriter, r *http.Request, nam
 		return
 	}
 
-	evts, err := h.events.ReadByAgent(name)
-	if err != nil {
-		httpInternalError(w, "read activity", err)
-		return
-	}
-
-	// Reverse chronological (newest first), cap at requested limit (default 50)
-	// to keep the timeline readable. The UI handles ordering client-side.
+	// Bound the page (default 50) and push it into the query so a small
+	// timeline never materializes the full per-agent window. before=<id>
+	// pages older events (cursor is the event ID).
 	maxItems := 50
 	if limitStr := r.URL.Query().Get("limit"); limitStr != "" {
 		if n, err := strconv.Atoi(limitStr); err == nil && n > 0 && n <= 1000 {
 			maxItems = n
 		}
 	}
+	var before int64
+	if s := r.URL.Query().Get("before"); s != "" {
+		if n, err := strconv.ParseInt(s, 10, 64); err == nil && n > 0 {
+			before = n
+		}
+	}
+
+	evts, err := h.events.ReadByAgentPage(name, maxItems, before)
+	if err != nil {
+		httpInternalError(w, "read activity", err)
+		return
+	}
+
+	// ReadByAgentPage already returns newest-first; map straight through.
 	out := make([]activityItem, 0, len(evts))
-	for i := len(evts) - 1; i >= 0 && len(out) < maxItems; i-- {
-		out = append(out, toActivityItem(evts[i], false))
+	for _, e := range evts {
+		out = append(out, toActivityItem(e, false))
 	}
 	writeJSON(w, http.StatusOK, out)
 }
