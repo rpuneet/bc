@@ -149,7 +149,7 @@ describe("CostCharts", () => {
       seen.push(u);
       if (u.includes("/costs/agents")) {
         return jsonResponse([
-          { agent_id: "bc-bc-zen-zebra", total_cost_usd: 12.5, input_tokens: 0, output_tokens: 0, total_tokens: 0, record_count: 1 },
+          { agent_id: "mycel-bc-zen-zebra", total_cost_usd: 12.5, input_tokens: 0, output_tokens: 0, total_tokens: 0, record_count: 1 },
         ]);
       }
       if (u.includes("/costs/daily")) {
