@@ -385,7 +385,13 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 	// Degradation reasons for 503 responses (see serviceUnavailable).
 	handlers.SetDegraded(svc.Degraded)
 	// Code tab endpoints — anchored at the single bundle's repo root.
-	handlers.NewCodeHandler(handlers.NewStaticRepoResolver(rootDir)).Register(mux)
+	wtResolver := func(name string) string {
+		if svc.Agents == nil {
+			return ""
+		}
+		return svc.Agents.Manager().WorktreeDirFor(name)
+	}
+	handlers.NewCodeHandler(handlers.NewStaticRepoResolver(rootDir)).WithWorktreeResolver(wtResolver).Register(mux)
 	if svc.Home != nil {
 		handlers.NewRolesHandler(svc.Home).Register(mux)
 		handlers.NewDoctorHandler(svc.Home).Register(mux)

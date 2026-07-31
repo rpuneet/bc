@@ -2869,6 +2869,21 @@ func (m *Manager) WorktreePath(agentName string) string {
 	return m.worktreeMgr.Path(agentName)
 }
 
+// WorktreeDirFor returns an agent's authoritative worktree directory:
+// the stored WorktreeDir when set (it may live anywhere the agent's repo
+// is), else the manager-computed path. Empty if the agent is unknown and
+// no path can be computed.
+func (m *Manager) WorktreeDirFor(agentName string) string {
+	m.mu.RLock()
+	if a, ok := m.agents[agentName]; ok && a.WorktreeDir != "" {
+		dir := a.WorktreeDir
+		m.mu.RUnlock()
+		return dir
+	}
+	m.mu.RUnlock()
+	return m.WorktreePath(agentName)
+}
+
 // CreateWorktree creates a git worktree for the given agent name.
 // Returns the worktree path, or an error if no worktree manager is configured.
 func (m *Manager) CreateWorktree(ctx context.Context, agentName string) (string, error) {

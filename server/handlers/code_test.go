@@ -333,10 +333,17 @@ func TestCodeDiff_MainIsEmpty(t *testing.T) {
 
 func TestCodeDiff_WorktreeNotFound(t *testing.T) {
 	ts, _ := codeHarness(t)
+	// An agent with no worktree yet degrades to an empty diff (200), not
+	// a 400 — the Code tab shows a clean empty state instead of a console
+	// error.
 	resp := getCode(t, ts.URL+"/api/code/diff?worktree=no-such-agent")
 	defer func() { _ = resp.Body.Close() }()
-	if resp.StatusCode != http.StatusBadRequest {
-		t.Fatalf("want 400, got %d", resp.StatusCode)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("want 200 (empty), got %d", resp.StatusCode)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	if len(body) != 0 {
+		t.Fatalf("missing-worktree diff should be empty, got %q", string(body))
 	}
 }
 

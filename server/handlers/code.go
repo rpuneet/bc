@@ -47,11 +47,22 @@ type RepoResolver interface {
 // CodeHandler serves the read-only Code tab endpoints.
 type CodeHandler struct {
 	resolver RepoResolver
+	// worktreeFor resolves an agent name to its authoritative worktree
+	// directory (which may live outside ~/.mycel). Optional.
+	worktreeFor func(agentName string) string
 }
 
 // NewCodeHandler constructs a CodeHandler bound to a repo resolver.
 func NewCodeHandler(resolver RepoResolver) *CodeHandler {
 	return &CodeHandler{resolver: resolver}
+}
+
+// WithWorktreeResolver wires an agent-name→worktree-dir lookup so the
+// Code tab browses each agent's real worktree (e.g. a repo checkout),
+// not just the ~/.mycel/agents/<name>/worktree convention.
+func (h *CodeHandler) WithWorktreeResolver(fn func(agentName string) string) *CodeHandler {
+	h.worktreeFor = fn
+	return h
 }
 
 // Register mounts the handler on mux at /api/code/.
@@ -135,20 +146,33 @@ func (h *CodeHandler) resolveWorktreeRoot(r *http.Request) (repoRoot, wtRoot, wo
 	if !validWorktreeName.MatchString(worktreeName) {
 		return repoRoot, "", worktreeName, errors.New("invalid worktree name")
 	}
+
+	// Authoritative path: the agent's stored worktree dir (may be a repo
+	// checkout anywhere on disk). The dir comes from our own trusted
+	// record, so only reject traversal sequences as defense in depth.
+	if h.worktreeFor != nil {
+		if dir := h.worktreeFor(worktreeName); dir != "" {
+			dir = filepath.Clean(dir)
+			if !strings.Contains(dir, "..") {
+				if info, statErr := os.Stat(dir); statErr == nil && info.IsDir() {
+					return repoRoot, dir, worktreeName, nil
+				}
+			}
+		}
+	}
+
+	// Fallback: the ~/.mycel/agents/<name>/worktree convention.
 	agentsRoot, err := home.AgentsDir()
 	if err != nil {
 		return repoRoot, "", worktreeName, errNoWorktree
 	}
-	wtRoot = filepath.Join(agentsRoot, worktreeName, "worktree")
-	// Defense in depth: the composed root must stay inside the agents
-	// root after cleaning — reject anything else before it reaches git -C.
-	wtRoot = filepath.Clean(wtRoot)
+	wtRoot = filepath.Clean(filepath.Join(agentsRoot, worktreeName, "worktree"))
 	if strings.Contains(wtRoot, "..") || !strings.HasPrefix(wtRoot, agentsRoot+string(filepath.Separator)) {
 		return repoRoot, "", worktreeName, errors.New("invalid worktree path")
 	}
 	info, statErr := os.Stat(wtRoot)
 	if statErr != nil || !info.IsDir() {
-		return repoRoot, "", worktreeName, errors.New("worktree not found")
+		return repoRoot, "", worktreeName, errNoWorktree
 	}
 	return repoRoot, wtRoot, worktreeName, nil
 }
