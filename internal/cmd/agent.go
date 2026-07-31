@@ -850,7 +850,7 @@ func runAgentDelete(cmd *cobra.Command, args []string) error {
 		if agentDeletePurge {
 			fmt.Println("  - memory directory (--purge)")
 		} else {
-			fmt.Printf("  Note: Memory preserved at .bc/memory/%s (use --purge to delete)\n", agentName)
+			fmt.Printf("  Note: Memory preserved at .mycel/memory/%s (use --purge to delete)\n", agentName)
 		}
 		fmt.Print("\nType 'yes' to confirm: ")
 
@@ -974,7 +974,7 @@ func parseRoleStr(roleStr string) (string, error) {
 	if roleStr == "null" {
 		return "null", nil
 	}
-	// All roles are now custom - loaded from .bc/roles/<role>.md files
+	// All roles are now custom - loaded from .mycel/roles/<role>.md files
 	// Just validate that the role name is sensible
 	if !isValidRoleName(roleStr) {
 		return "", fmt.Errorf("invalid role name %q (must be alphanumeric with hyphens)", roleStr)

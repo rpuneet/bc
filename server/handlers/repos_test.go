@@ -15,7 +15,7 @@ import (
 // reposHarness wires a ReposHandler backed by an in-memory agent manager.
 func reposHarness(t *testing.T, defaultRepo string, agents ...*agent.Agent) *http.ServeMux {
 	t.Helper()
-	stateDir := filepath.Join(t.TempDir(), ".bc")
+	stateDir := filepath.Join(t.TempDir(), ".mycel")
 	if err := os.MkdirAll(filepath.Join(stateDir, "agents"), 0o750); err != nil {
 		t.Fatal(err)
 	}

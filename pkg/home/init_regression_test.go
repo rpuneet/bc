@@ -9,7 +9,7 @@ import (
 // TestFind_ResolvesViaGitRootWalk locks the registry-free resolution
 // path: after Open, the ONLY global state is the flat ~/.mycel tree
 // (prefs.json + mycel.db) — there is no workspaces/ tree, no
-// workspaces.json, and no .bc/ marker in the project dir. Find must
+// workspaces.json, and no .mycel/ marker in the project dir. Find must
 // resolve the repo (and any subdirectory of it) purely by walking up to
 // the nearest git root and loading the global state.
 func TestFind_ResolvesViaGitRootWalk(t *testing.T) {
@@ -28,9 +28,9 @@ func TestFind_ResolvesViaGitRootWalk(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(home, "workspaces")); !os.IsNotExist(err) {
 		t.Fatalf("workspaces/ tree should not exist, stat err = %v", err)
 	}
-	// No .bc/ marker in the project dir — the repo stays pristine.
-	if _, err := os.Stat(filepath.Join(proj, ".bc")); !os.IsNotExist(err) {
-		t.Fatalf(".bc marker should not exist in project dir, stat err = %v", err)
+	// No .mycel/ marker in the project dir — the repo stays pristine.
+	if _, err := os.Stat(filepath.Join(proj, ".mycel")); !os.IsNotExist(err) {
+		t.Fatalf(".mycel marker should not exist in project dir, stat err = %v", err)
 	}
 
 	h, err := Find(proj)

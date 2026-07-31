@@ -67,7 +67,7 @@ func init() {
 var _ gateway.NotificationAdapter = (*Adapter)(nil)
 
 // New creates a WhatsApp adapter. stateDir is where session data is stored
-// (typically .bc/gateways/whatsapp/).
+// (typically .mycel/gateways/whatsapp/).
 func New(stateDir string) *Adapter {
 	return &Adapter{name: "whatsapp", stateDir: stateDir}
 }

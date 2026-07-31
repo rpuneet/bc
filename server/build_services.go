@@ -191,7 +191,7 @@ func buildServicesFromHome(ctx context.Context, globals *Globals, h *home.Home) 
 	// Secret store. Prefer the user-global vault (~/.mycel/secrets.vault)
 	// supplied by Globals so a single secret set once is visible across
 	// every repo. When Globals.SecretsVault is unset (legacy
-	// callers), fall back to the repo-scoped <repo>/.bc/secrets.db.
+	// callers), fall back to the repo-scoped <repo>/.mycel/secrets.db.
 	var secretStore *secretpkg.Store
 	if globals != nil && globals.SecretsVault != nil {
 		secretStore = globals.SecretsVault

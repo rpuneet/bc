@@ -23,7 +23,7 @@ func mkGlobalVault(t *testing.T, passphrase string) *Store {
 func mkRepoStore(t *testing.T, passphrase string) *Store {
 	t.Helper()
 	dir := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(dir, ".bc"), 0750); err != nil {
+	if err := os.MkdirAll(filepath.Join(dir, ".mycel"), 0750); err != nil {
 		t.Fatal(err)
 	}
 	s, err := NewStore(dir, passphrase)

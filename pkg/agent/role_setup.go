@@ -305,7 +305,7 @@ func rewriteDockerURL(u string) string {
 // ── Secrets ─────────────────────────────────────────────────────────────────
 
 // loadSecrets fetches secret values by name from the layered vault
-// (global ~/.mycel/secrets.vault + repo <repo>/.bc/secrets.db, repo wins).
+// (global ~/.mycel/secrets.vault + repo <repo>/.mycel/secrets.db, repo wins).
 // Uses the real passphrase so encrypted vaults are readable; an empty passphrase
 // was the previous bug that caused MCP ${secret:NAME} references to silently fail.
 func loadSecrets(repoPath string, names []string) map[string]string {

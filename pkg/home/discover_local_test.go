@@ -42,10 +42,10 @@ func TestScanLocalFindsRepos(t *testing.T) {
 	}
 }
 
-func TestScanLocalHasBCFlag(t *testing.T) {
+func TestScanLocalHasMycelFlag(t *testing.T) {
 	root := t.TempDir()
 	mkRepo(t, filepath.Join(root, "has"))
-	if err := os.MkdirAll(filepath.Join(root, "has", ".bc"), 0o750); err != nil {
+	if err := os.MkdirAll(filepath.Join(root, "has", ".mycel"), 0o750); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
 
@@ -56,8 +56,8 @@ func TestScanLocalHasBCFlag(t *testing.T) {
 	if len(out) != 1 {
 		t.Fatalf("candidates = %d, want 1", len(out))
 	}
-	if !out[0].HasBC {
-		t.Error("HasBC should be true")
+	if !out[0].HasMycel {
+		t.Error("HasMycel should be true")
 	}
 }
 

@@ -146,7 +146,7 @@ You are the root agent for this mycel fleet.
 `
 
 // DefaultRoles contains the built-in role definitions for the mycel agent team.
-// These are written to .bc/roles/ if the files don't already exist.
+// These are written to .mycel/roles/ if the files don't already exist.
 var DefaultRoles = map[string]string{
 	"feature-dev": `---
 name: feature-dev

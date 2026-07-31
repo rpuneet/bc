@@ -62,7 +62,7 @@ func TestCodeTree_ListsRoot(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(root, ".git"), 0750); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.MkdirAll(filepath.Join(root, ".bc"), 0750); err != nil {
+	if err := os.MkdirAll(filepath.Join(root, ".mycel"), 0750); err != nil {
 		t.Fatal(err)
 	}
 
@@ -81,9 +81,9 @@ func TestCodeTree_ListsRoot(t *testing.T) {
 		names = append(names, e["name"].(string)) //nolint:errcheck,forcetypeassert
 	}
 
-	// .git and .bc should be hidden by default.
+	// .git and .mycel should be hidden by default.
 	for _, n := range names {
-		if n == ".git" || n == ".bc" {
+		if n == ".git" || n == ".mycel" {
 			t.Fatalf("hidden entry leaked: %v", names)
 		}
 	}
@@ -139,10 +139,10 @@ func TestCodeTree_ShowHidden(t *testing.T) {
 
 func TestCodeTree_DotPathHidesBC(t *testing.T) {
 	ts, root := codeHarness(t)
-	if err := os.MkdirAll(filepath.Join(root, ".bc"), 0750); err != nil {
+	if err := os.MkdirAll(filepath.Join(root, ".mycel"), 0750); err != nil {
 		t.Fatal(err)
 	}
-	// path=. should still hide .bc (treated as root)
+	// path=. should still hide .mycel (treated as root)
 	resp := getCode(t, ts.URL+"/api/code/tree?worktree=main&path=.")
 	defer func() { _ = resp.Body.Close() }()
 
@@ -151,8 +151,8 @@ func TestCodeTree_DotPathHidesBC(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, e := range entries {
-		if e["name"] == ".bc" {
-			t.Fatalf("path=. should hide .bc but it was included: %v", entries)
+		if e["name"] == ".mycel" {
+			t.Fatalf("path=. should hide .mycel but it was included: %v", entries)
 		}
 	}
 }

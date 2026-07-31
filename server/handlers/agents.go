@@ -297,7 +297,10 @@ func (h *AgentHandler) list(w http.ResponseWriter, r *http.Request) {
 
 		// Enrich with token usage from agent JSONL session files.
 		if homeRef != nil {
-			agentsDir := filepath.Join(homeRef.RootDir, ".bc", "agents")
+			agentsDir, agentsDirErr := home.AgentsDir()
+			if agentsDirErr != nil {
+				agentsDir = ""
+			}
 			usages, tokenErr := token.CollectAll(agentsDir)
 			if tokenErr == nil {
 				// Sum per agent across models

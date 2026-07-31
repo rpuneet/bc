@@ -17,7 +17,7 @@ import (
 // spawn is attempted.
 func TestAgentCreate_InvalidEnvName(t *testing.T) {
 	dir := setupHome(t)
-	stateDir := filepath.Join(dir, ".bc")
+	stateDir := filepath.Join(dir, ".mycel")
 
 	mgr := agent.NewManager(stateDir)
 	svc := agent.NewAgentService(mgr, nil, nil)
@@ -49,7 +49,7 @@ func TestAgentCreate_InvalidEnvName(t *testing.T) {
 // verbatim), and that invalid keys are rejected with 400.
 func TestAgentEnvEndpoint_RoundTrip(t *testing.T) {
 	dir := setupHome(t)
-	stateDir := filepath.Join(dir, ".bc")
+	stateDir := filepath.Join(dir, ".mycel")
 
 	mgr := agent.NewManager(stateDir)
 	svc := agent.NewAgentService(mgr, nil, nil)
@@ -99,7 +99,7 @@ func TestAgentEnvEndpoint_RoundTrip(t *testing.T) {
 // references verbatim — never resolved values.
 func TestAgentGet_EnvReturnsReferences(t *testing.T) {
 	dir := setupHome(t)
-	stateDir := filepath.Join(dir, ".bc")
+	stateDir := filepath.Join(dir, ".mycel")
 
 	mgr := agent.NewManager(stateDir)
 	svc := agent.NewAgentService(mgr, nil, nil)

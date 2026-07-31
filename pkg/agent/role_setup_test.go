@@ -11,7 +11,7 @@ import (
 // TestValidateAgentToolsResolvesGlobalRoles is a regression test for the
 // role-validation path reading the wrong store: roles live in the single
 // global database, so validating an agent created against a repo with no
-// local .bc/roles must still resolve a globally defined role.
+// local .mycel/roles must still resolve a globally defined role.
 func TestValidateAgentToolsResolvesGlobalRoles(t *testing.T) {
 	t.Setenv("MYCEL_HOME", t.TempDir())
 
@@ -28,7 +28,7 @@ func TestValidateAgentToolsResolvesGlobalRoles(t *testing.T) {
 		t.Fatalf("save role: %v", err)
 	}
 
-	// A repo with no .bc/roles at all — validation must still resolve the
+	// A repo with no .mycel/roles at all — validation must still resolve the
 	// global "base" role instead of reporting "role not found".
 	repo := t.TempDir()
 	issues := validateAgentTools(repo, "base")

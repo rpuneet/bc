@@ -7,7 +7,7 @@ package template
 // Scope is a runtime-only attribute set by the Store when loading a
 // template; it is never persisted to disk. It records which layer of a
 // LayeredStore the template came from ("global" for ~/.mycel/templates/,
-// "workspace" for the repo-scoped <repo>/.bc/templates/).
+// "workspace" for the repo-scoped <repo>/.mycel/templates/).
 type Template struct {
 	ToolPolicies     *ToolPolicies `json:"tool_policies,omitempty"`
 	Name             string        `json:"name"`

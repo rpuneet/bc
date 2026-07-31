@@ -14,7 +14,7 @@ type Scope string
 
 const (
 	// ScopeWorkspace is the repo-scoped override directory
-	// (<h>/.bc/templates/). Values here win when a name collides with
+	// (<h>/.mycel/templates/). Values here win when a name collides with
 	// the global scope.
 	ScopeWorkspace Scope = "workspace"
 

@@ -8,7 +8,7 @@
 //
 // Create an agent manager:
 //
-//	mgr := agent.NewManagerWithRepo(".bc/agents", "/path/to/repo")
+//	mgr := agent.NewManagerWithRepo(".mycel/agents", "/path/to/repo")
 //	if err := mgr.LoadState(); err != nil {
 //	    log.Warn("failed to load state", "error", err)
 //	}
@@ -130,7 +130,7 @@ type Role string
 
 const (
 	// RoleRoot is the only hardcoded role - a singleton root agent.
-	// All other roles are defined in repo .bc/roles/*.md files.
+	// All other roles are defined in repo .mycel/roles/*.md files.
 	RoleRoot Role = "root"
 )
 
@@ -233,7 +233,7 @@ func HasPermissionStr(permissions []string, required string) bool {
 
 // RoleCapabilities and RoleHierarchy are empty here.
 // All role definitions (capabilities, hierarchy, metadata) are loaded from
-// repo .bc/roles/*.md files via RoleManager.
+// repo .mycel/roles/*.md files via RoleManager.
 // Only the root role has hardcoded capabilities.
 var RoleCapabilities = map[Role][]Capability{
 	RoleRoot: {CapCreateAgents, CapAssignWork, CapCreateEpics, CapReviewWork}, // Root can do everything
@@ -273,7 +273,7 @@ func HasCapability(role Role, cap Capability) bool {
 }
 
 // RoleLevel returns the hierarchy level for built-in roles.
-// Custom roles loaded from .bc/roles/*.md return level 1 by default.
+// Custom roles loaded from .mycel/roles/*.md return level 1 by default.
 func RoleLevel(role Role) int {
 	switch role {
 	case RoleRoot:
@@ -1059,7 +1059,7 @@ func (m *Manager) SpawnAgentWithOptions(ctx context.Context, opts SpawnOptions) 
 	if role != RoleRoot && m.roleManager != nil {
 		if !m.roleManager.HasRole(string(role)) {
 			m.mu.Unlock()
-			return nil, fmt.Errorf("role %q does not exist; create it via the API or in .bc/roles/%s.md", role, role)
+			return nil, fmt.Errorf("role %q does not exist; create it via the API or in .mycel/roles/%s.md", role, role)
 		}
 	}
 
@@ -1723,7 +1723,7 @@ func (m *Manager) captureSessionIDForAgent(ctx context.Context, ag *Agent, rt ru
 	}
 
 	// Fallback: read session ID from the most recent JSONL transcript filename.
-	// Claude Code writes transcripts to .bc/agents/<name>/claude/projects/*/<uuid>.jsonl
+	// Claude Code writes transcripts to .mycel/agents/<name>/claude/projects/*/<uuid>.jsonl
 	// where the UUID IS the session ID.
 	if id := findSessionIDFromTranscripts(m.agentsRoot(), ag.Name); id != "" {
 		log.Debug("captured session ID from JSONL transcript", "agent", ag.Name, "session_id", id)
@@ -3228,7 +3228,7 @@ func openLayeredStore(repoPath, passphrase string) (ls *secret.LayeredStore, clo
 //
 // Precedence (highest → lowest):
 //  1. Existing value in env (set by agent env-file or injectAppEnv)
-//  2. Vault value (global ~/.mycel/secrets.vault + repo <repo>/.bc/secrets.db, repo wins)
+//  2. Vault value (global ~/.mycel/secrets.vault + repo <repo>/.mycel/secrets.db, repo wins)
 //
 // Call AFTER injectEnv + injectAppEnv so that explicitly-set values are
 // never overwritten by vault copies.

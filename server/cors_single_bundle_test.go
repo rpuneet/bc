@@ -26,7 +26,7 @@ func buildTestBundle(t *testing.T) server.Services {
 	t.Helper()
 	home := t.TempDir()
 	t.Setenv("HOME", home)
-	t.Setenv("MYCEL_HOME", filepath.Join(home, ".bc"))
+	t.Setenv("MYCEL_HOME", filepath.Join(home, ".mycel"))
 	t.Setenv("MYCEL_SECRET_PASSPHRASE", "unit-test")
 
 	wsDir := filepath.Join(t.TempDir(), "h")

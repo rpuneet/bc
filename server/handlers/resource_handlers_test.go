@@ -1462,7 +1462,7 @@ func TestStatsHandler_SystemWithRepo(t *testing.T) {
 
 func TestAgentHandler_ListEmpty(t *testing.T) {
 	dir := setupHome(t)
-	stateDir := filepath.Join(dir, ".bc")
+	stateDir := filepath.Join(dir, ".mycel")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
 	mgr := agent.NewManager(stateDir)
@@ -1482,7 +1482,7 @@ func TestAgentHandler_ListEmpty(t *testing.T) {
 
 func TestAgentHandler_MethodNotAllowed(t *testing.T) {
 	dir := setupHome(t)
-	stateDir := filepath.Join(dir, ".bc")
+	stateDir := filepath.Join(dir, ".mycel")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
 	mgr := agent.NewManager(stateDir)
@@ -1498,7 +1498,7 @@ func TestAgentHandler_MethodNotAllowed(t *testing.T) {
 
 func TestAgentHandler_CreateInvalidBody(t *testing.T) {
 	dir := setupHome(t)
-	stateDir := filepath.Join(dir, ".bc")
+	stateDir := filepath.Join(dir, ".mycel")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
 	mgr := agent.NewManager(stateDir)
@@ -1514,7 +1514,7 @@ func TestAgentHandler_CreateInvalidBody(t *testing.T) {
 
 func TestAgentHandler_GetNotFound(t *testing.T) {
 	dir := setupHome(t)
-	stateDir := filepath.Join(dir, ".bc")
+	stateDir := filepath.Join(dir, ".mycel")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
 	mgr := agent.NewManager(stateDir)
@@ -1530,7 +1530,7 @@ func TestAgentHandler_GetNotFound(t *testing.T) {
 
 func TestAgentHandler_EmptyName(t *testing.T) {
 	dir := setupHome(t)
-	stateDir := filepath.Join(dir, ".bc")
+	stateDir := filepath.Join(dir, ".mycel")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
 	mgr := agent.NewManager(stateDir)
@@ -1546,7 +1546,7 @@ func TestAgentHandler_EmptyName(t *testing.T) {
 
 func TestAgentHandler_UnknownAction(t *testing.T) {
 	dir := setupHome(t)
-	stateDir := filepath.Join(dir, ".bc")
+	stateDir := filepath.Join(dir, ".mycel")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
 	mgr := agent.NewManager(stateDir)
@@ -1562,7 +1562,7 @@ func TestAgentHandler_UnknownAction(t *testing.T) {
 
 func TestAgentHandler_GenerateName(t *testing.T) {
 	dir := setupHome(t)
-	stateDir := filepath.Join(dir, ".bc")
+	stateDir := filepath.Join(dir, ".mycel")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
 	mgr := agent.NewManager(stateDir)
@@ -1582,7 +1582,7 @@ func TestAgentHandler_GenerateName(t *testing.T) {
 
 func TestAgentHandler_GenerateNameMethodNotAllowed(t *testing.T) {
 	dir := setupHome(t)
-	stateDir := filepath.Join(dir, ".bc")
+	stateDir := filepath.Join(dir, ".mycel")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
 	mgr := agent.NewManager(stateDir)
@@ -1598,7 +1598,7 @@ func TestAgentHandler_GenerateNameMethodNotAllowed(t *testing.T) {
 
 func TestAgentHandler_BroadcastMethodNotAllowed(t *testing.T) {
 	dir := setupHome(t)
-	stateDir := filepath.Join(dir, ".bc")
+	stateDir := filepath.Join(dir, ".mycel")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
 	mgr := agent.NewManager(stateDir)
@@ -1614,7 +1614,7 @@ func TestAgentHandler_BroadcastMethodNotAllowed(t *testing.T) {
 
 func TestAgentHandler_BroadcastInvalidBody(t *testing.T) {
 	dir := setupHome(t)
-	stateDir := filepath.Join(dir, ".bc")
+	stateDir := filepath.Join(dir, ".mycel")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
 	mgr := agent.NewManager(stateDir)
@@ -1630,7 +1630,7 @@ func TestAgentHandler_BroadcastInvalidBody(t *testing.T) {
 
 func TestAgentHandler_SendRoleMethodNotAllowed(t *testing.T) {
 	dir := setupHome(t)
-	stateDir := filepath.Join(dir, ".bc")
+	stateDir := filepath.Join(dir, ".mycel")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
 	mgr := agent.NewManager(stateDir)
@@ -1646,7 +1646,7 @@ func TestAgentHandler_SendRoleMethodNotAllowed(t *testing.T) {
 
 func TestAgentHandler_SendRoleInvalidBody(t *testing.T) {
 	dir := setupHome(t)
-	stateDir := filepath.Join(dir, ".bc")
+	stateDir := filepath.Join(dir, ".mycel")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
 	mgr := agent.NewManager(stateDir)
@@ -1662,7 +1662,7 @@ func TestAgentHandler_SendRoleInvalidBody(t *testing.T) {
 
 func TestAgentHandler_SendPatternMethodNotAllowed(t *testing.T) {
 	dir := setupHome(t)
-	stateDir := filepath.Join(dir, ".bc")
+	stateDir := filepath.Join(dir, ".mycel")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
 	mgr := agent.NewManager(stateDir)
@@ -1678,7 +1678,7 @@ func TestAgentHandler_SendPatternMethodNotAllowed(t *testing.T) {
 
 func TestAgentHandler_SendPatternInvalidBody(t *testing.T) {
 	dir := setupHome(t)
-	stateDir := filepath.Join(dir, ".bc")
+	stateDir := filepath.Join(dir, ".mycel")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
 	mgr := agent.NewManager(stateDir)
@@ -1694,7 +1694,7 @@ func TestAgentHandler_SendPatternInvalidBody(t *testing.T) {
 
 func TestAgentHandler_StopAllMethodNotAllowed(t *testing.T) {
 	dir := setupHome(t)
-	stateDir := filepath.Join(dir, ".bc")
+	stateDir := filepath.Join(dir, ".mycel")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
 	mgr := agent.NewManager(stateDir)
@@ -1710,7 +1710,7 @@ func TestAgentHandler_StopAllMethodNotAllowed(t *testing.T) {
 
 func TestAgentHandler_StopAll(t *testing.T) {
 	dir := setupHome(t)
-	stateDir := filepath.Join(dir, ".bc")
+	stateDir := filepath.Join(dir, ".mycel")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
 	mgr := agent.NewManager(stateDir)
@@ -1730,7 +1730,7 @@ func TestAgentHandler_StopAll(t *testing.T) {
 
 func TestAgentHandler_Broadcast(t *testing.T) {
 	dir := setupHome(t)
-	stateDir := filepath.Join(dir, ".bc")
+	stateDir := filepath.Join(dir, ".mycel")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
 	mgr := agent.NewManager(stateDir)
@@ -1750,7 +1750,7 @@ func TestAgentHandler_Broadcast(t *testing.T) {
 
 func TestAgentHandler_SendOnNonexistent(t *testing.T) {
 	dir := setupHome(t)
-	stateDir := filepath.Join(dir, ".bc")
+	stateDir := filepath.Join(dir, ".mycel")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
 	mgr := agent.NewManager(stateDir)
@@ -1766,7 +1766,7 @@ func TestAgentHandler_SendOnNonexistent(t *testing.T) {
 
 func TestAgentHandler_SendInvalidBody(t *testing.T) {
 	dir := setupHome(t)
-	stateDir := filepath.Join(dir, ".bc")
+	stateDir := filepath.Join(dir, ".mycel")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
 	mgr := agent.NewManager(stateDir)
@@ -1782,7 +1782,7 @@ func TestAgentHandler_SendInvalidBody(t *testing.T) {
 
 func TestAgentHandler_HealthMethodNotAllowed(t *testing.T) {
 	dir := setupHome(t)
-	stateDir := filepath.Join(dir, ".bc")
+	stateDir := filepath.Join(dir, ".mycel")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
 	mgr := agent.NewManager(stateDir)
@@ -1798,7 +1798,7 @@ func TestAgentHandler_HealthMethodNotAllowed(t *testing.T) {
 
 func TestAgentHandler_HealthEmpty(t *testing.T) {
 	dir := setupHome(t)
-	stateDir := filepath.Join(dir, ".bc")
+	stateDir := filepath.Join(dir, ".mycel")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
 	mgr := agent.NewManager(stateDir)
@@ -1818,7 +1818,7 @@ func TestAgentHandler_HealthEmpty(t *testing.T) {
 
 func TestAgentHandler_HealthWithTimeout(t *testing.T) {
 	dir := setupHome(t)
-	stateDir := filepath.Join(dir, ".bc")
+	stateDir := filepath.Join(dir, ".mycel")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
 	mgr := agent.NewManager(stateDir)
@@ -1834,7 +1834,7 @@ func TestAgentHandler_HealthWithTimeout(t *testing.T) {
 
 func TestAgentHandler_StartNonexistent(t *testing.T) {
 	dir := setupHome(t)
-	stateDir := filepath.Join(dir, ".bc")
+	stateDir := filepath.Join(dir, ".mycel")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
 	mgr := agent.NewManager(stateDir)
@@ -1850,7 +1850,7 @@ func TestAgentHandler_StartNonexistent(t *testing.T) {
 
 func TestAgentHandler_StopNonexistent(t *testing.T) {
 	dir := setupHome(t)
-	stateDir := filepath.Join(dir, ".bc")
+	stateDir := filepath.Join(dir, ".mycel")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
 	mgr := agent.NewManager(stateDir)
@@ -1866,7 +1866,7 @@ func TestAgentHandler_StopNonexistent(t *testing.T) {
 
 func TestAgentHandler_DeleteNonexistent(t *testing.T) {
 	dir := setupHome(t)
-	stateDir := filepath.Join(dir, ".bc")
+	stateDir := filepath.Join(dir, ".mycel")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
 	mgr := agent.NewManager(stateDir)
@@ -1882,7 +1882,7 @@ func TestAgentHandler_DeleteNonexistent(t *testing.T) {
 
 func TestAgentHandler_PeekNonexistent(t *testing.T) {
 	dir := setupHome(t)
-	stateDir := filepath.Join(dir, ".bc")
+	stateDir := filepath.Join(dir, ".mycel")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
 	mgr := agent.NewManager(stateDir)
@@ -1898,7 +1898,7 @@ func TestAgentHandler_PeekNonexistent(t *testing.T) {
 
 func TestAgentHandler_SessionsNonexistent(t *testing.T) {
 	dir := setupHome(t)
-	stateDir := filepath.Join(dir, ".bc")
+	stateDir := filepath.Join(dir, ".mycel")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
 	mgr := agent.NewManager(stateDir)
@@ -1914,7 +1914,7 @@ func TestAgentHandler_SessionsNonexistent(t *testing.T) {
 
 func TestAgentHandler_RenameInvalidBody(t *testing.T) {
 	dir := setupHome(t)
-	stateDir := filepath.Join(dir, ".bc")
+	stateDir := filepath.Join(dir, ".mycel")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
 	mgr := agent.NewManager(stateDir)
@@ -1930,7 +1930,7 @@ func TestAgentHandler_RenameInvalidBody(t *testing.T) {
 
 func TestAgentHandler_HookInvalidBody(t *testing.T) {
 	dir := setupHome(t)
-	stateDir := filepath.Join(dir, ".bc")
+	stateDir := filepath.Join(dir, ".mycel")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
 	mgr := agent.NewManager(stateDir)
@@ -1946,7 +1946,7 @@ func TestAgentHandler_HookInvalidBody(t *testing.T) {
 
 func TestAgentHandler_HookUnknownEvent(t *testing.T) {
 	dir := setupHome(t)
-	stateDir := filepath.Join(dir, ".bc")
+	stateDir := filepath.Join(dir, ".mycel")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
 	mgr := agent.NewManager(stateDir)
@@ -1962,7 +1962,7 @@ func TestAgentHandler_HookUnknownEvent(t *testing.T) {
 
 func TestAgentHandler_ReportInvalidBody(t *testing.T) {
 	dir := setupHome(t)
-	stateDir := filepath.Join(dir, ".bc")
+	stateDir := filepath.Join(dir, ".mycel")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
 	mgr := agent.NewManager(stateDir)
@@ -1978,7 +1978,7 @@ func TestAgentHandler_ReportInvalidBody(t *testing.T) {
 
 func TestAgentHandler_ReportInvalidState(t *testing.T) {
 	dir := setupHome(t)
-	stateDir := filepath.Join(dir, ".bc")
+	stateDir := filepath.Join(dir, ".mycel")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
 	mgr := agent.NewManager(stateDir)
@@ -2002,7 +2002,7 @@ func TestAgentHandler_ReportInvalidState(t *testing.T) {
 
 func TestAgentHandler_ListWithCosts(t *testing.T) {
 	dir := setupHome(t)
-	stateDir := filepath.Join(dir, ".bc")
+	stateDir := filepath.Join(dir, ".mycel")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
 	costStore := newCostService(t)
@@ -2020,7 +2020,7 @@ func TestAgentHandler_ListWithCosts(t *testing.T) {
 
 func TestAgentHandler_ListWithRepo(t *testing.T) {
 	dir := setupHome(t)
-	stateDir := filepath.Join(dir, ".bc")
+	stateDir := filepath.Join(dir, ".mycel")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
 	wks, err := home.Load(dir)
@@ -2041,7 +2041,7 @@ func TestAgentHandler_ListWithRepo(t *testing.T) {
 
 func TestAgentHandler_ListPagination(t *testing.T) {
 	dir := setupHome(t)
-	stateDir := filepath.Join(dir, ".bc")
+	stateDir := filepath.Join(dir, ".mycel")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
 	mgr := agent.NewManager(stateDir)
@@ -2135,7 +2135,7 @@ func TestCostHandler_Budgets_AllPeriods(t *testing.T) {
 
 func TestAgentHandler_StatsNonexistent(t *testing.T) {
 	dir := setupHome(t)
-	stateDir := filepath.Join(dir, ".bc")
+	stateDir := filepath.Join(dir, ".mycel")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
 	mgr := agent.NewManager(stateDir)
@@ -2154,7 +2154,7 @@ func TestAgentHandler_StatsNonexistent(t *testing.T) {
 
 func TestAgentHandler_StatsWithLimit(t *testing.T) {
 	dir := setupHome(t)
-	stateDir := filepath.Join(dir, ".bc")
+	stateDir := filepath.Join(dir, ".mycel")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
 	mgr := agent.NewManager(stateDir)
@@ -2172,7 +2172,7 @@ func TestAgentHandler_StatsWithLimit(t *testing.T) {
 
 func TestAgentHandler_HealthWithFilter(t *testing.T) {
 	dir := setupHome(t)
-	stateDir := filepath.Join(dir, ".bc")
+	stateDir := filepath.Join(dir, ".mycel")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
 	mgr := agent.NewManager(stateDir)
@@ -2215,7 +2215,7 @@ func TestCORSMiddlewareDefault(t *testing.T) {
 
 func TestAgentHandler_CreateAgent(t *testing.T) {
 	dir := setupHome(t)
-	stateDir := filepath.Join(dir, ".bc")
+	stateDir := filepath.Join(dir, ".mycel")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
 	// Use NewManagerWithRepo so worktreeMgr is initialized and doesn't panic.

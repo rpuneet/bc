@@ -182,7 +182,7 @@ func TestAgentStateWorkflow_ManagerOperations(t *testing.T) {
 	defer resetAgentFlags()
 
 	// Create agent manager
-	mgr := agent.NewManagerWithRepo(filepath.Join(wsDir, ".bc", "agents"), wsDir)
+	mgr := agent.NewManagerWithRepo(filepath.Join(wsDir, ".mycel", "agents"), wsDir)
 	if err := mgr.LoadState(); err != nil {
 		t.Logf("initial load (expected to be empty): %v", err)
 	}
@@ -207,7 +207,7 @@ func TestAgentStateWorkflow_ManagerOperations(t *testing.T) {
 func TestAgentStateWorkflow_GetNonExistentAgent(t *testing.T) {
 	wsDir := setupTestHome(t)
 
-	mgr := agent.NewManagerWithRepo(filepath.Join(wsDir, ".bc", "agents"), wsDir)
+	mgr := agent.NewManagerWithRepo(filepath.Join(wsDir, ".mycel", "agents"), wsDir)
 	_ = mgr.LoadState()
 
 	// GetAgent should return nil for non-existent

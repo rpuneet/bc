@@ -533,7 +533,7 @@ func (s *AgentService) Sessions(_ context.Context, name string) ([]SessionEntry,
 		return entries, nil
 	}
 	// Claude CLI encodes the abs worktree path by replacing both
-	// '/' and '.' with '-', e.g. '/Users/p/.bc/x' → '-Users-p--bc-x'.
+	// '/' and '.' with '-', e.g. '/Users/p/.mycel/x' → '-Users-p--bc-x'.
 	encoded := strings.ReplaceAll(a.WorktreeDir, "/", "-")
 	encoded = strings.ReplaceAll(encoded, ".", "-")
 	projDir := filepath.Join(home, ".claude", "projects", encoded)

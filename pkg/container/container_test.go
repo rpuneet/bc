@@ -568,9 +568,9 @@ func TestResolveRepoMount(t *testing.T) {
 		},
 		{
 			name:        "boot repo, worktree under repo (sidecar)",
-			dir:         boot + "/.bc/agents/zed/wt-zed",
+			dir:         boot + "/.mycel/agents/zed/wt-zed",
 			wantRepo:    boot,
-			wantWorkdir: "/workspace/.bc/agents/zed/wt-zed",
+			wantWorkdir: "/workspace/.mycel/agents/zed/wt-zed",
 		},
 		{
 			name:        "boot repo, worktree outside repo (M11 data dir)",
@@ -581,9 +581,9 @@ func TestResolveRepoMount(t *testing.T) {
 		{
 			name:        "MYCEL_WORKSPACE equal to boot repo behaves like boot",
 			env:         map[string]string{"MYCEL_WORKSPACE": boot},
-			dir:         boot + "/.bc/agents/zed/wt",
+			dir:         boot + "/.mycel/agents/zed/wt",
 			wantRepo:    boot,
-			wantWorkdir: "/workspace/.bc/agents/zed/wt",
+			wantWorkdir: "/workspace/.mycel/agents/zed/wt",
 		},
 		{
 			name:        "boot repo honors MYCEL_HOST_WORKSPACE translation",
@@ -602,9 +602,9 @@ func TestResolveRepoMount(t *testing.T) {
 		{
 			name:        "cross repo with worktree under the agent repo",
 			env:         map[string]string{"MYCEL_WORKSPACE": other},
-			dir:         other + "/.bc/agents/zed/wt-zed",
+			dir:         other + "/.mycel/agents/zed/wt-zed",
 			wantRepo:    other,
-			wantWorkdir: "/workspace/.bc/agents/zed/wt-zed",
+			wantWorkdir: "/workspace/.mycel/agents/zed/wt-zed",
 		},
 		{
 			name:        "cross repo ignores boot MYCEL_HOST_WORKSPACE translation",

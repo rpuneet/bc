@@ -100,7 +100,7 @@ func migrateJSONToSQLite(store *SQLiteStore, stateDir, repo string) error {
 		}
 	}
 
-	// 3. Migrate per-agent JSON files in .bc/agents/*.json
+	// 3. Migrate per-agent JSON files in .mycel/agents/*.json
 	entries, err := os.ReadDir(agentsDir)
 	if err == nil {
 		for _, entry := range entries {

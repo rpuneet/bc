@@ -226,7 +226,7 @@ lint-go: ## Lint Go code
 	golangci-lint run ./...
 
 fmt-go: ## Format Go code
-	find . -name '*.go' -not -path './.bc/*' -not -path './vendor/*' | xargs gofmt -s -w
+	find . -name '*.go' -not -path './.mycel/*' -not -path './vendor/*' | xargs gofmt -s -w
 
 vet-go: ## Vet Go code
 	$(GO) vet ./...

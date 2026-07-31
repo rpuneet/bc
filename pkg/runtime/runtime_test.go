@@ -1013,7 +1013,7 @@ func TestMockBackendUsage(t *testing.T) {
 func TestListSessionsConversion(t *testing.T) {
 	// Mock tmux output with attached and detached sessions
 	sessionOutput := "mycel-root|Mon Jan 1 10:00:00 2024|1|3|/home/user/project\n" +
-		"mycel-eng-01|Mon Jan 1 10:05:00 2024|0|1|/home/user/project/.bc/worktrees/eng-01\n"
+		"mycel-eng-01|Mon Jan 1 10:05:00 2024|0|1|/home/user/project/.mycel/worktrees/eng-01\n"
 
 	backend := newMockBackend("mycel-", sessionOutput, "", 0)
 	ctx := context.Background()

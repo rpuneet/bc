@@ -103,7 +103,7 @@ func TestBuildServices_SharedGlobalDB(t *testing.T) {
 		t.Errorf("global mycel.db missing: %v", statErr)
 	}
 	for _, dir := range []string{wsA, wsB} {
-		if _, statErr := os.Stat(filepath.Join(dir, ".bc", "bc.db")); statErr == nil {
+		if _, statErr := os.Stat(filepath.Join(dir, ".mycel", "bc.db")); statErr == nil {
 			t.Errorf("per-repo db file must not be created anymore (%s)", dir)
 		}
 	}

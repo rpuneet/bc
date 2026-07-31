@@ -46,9 +46,9 @@ func TestOpen(t *testing.T) {
 		t.Errorf("SettingsFile() = %q, want %q", h.SettingsFile(), prefsPath)
 	}
 
-	// The repo stays pristine — no .bc/ marker.
-	if _, statErr := os.Stat(filepath.Join(dir, ".bc")); !os.IsNotExist(statErr) {
-		t.Errorf(".bc marker should not exist in repo, stat err = %v", statErr)
+	// The repo stays pristine — no .mycel/ marker.
+	if _, statErr := os.Stat(filepath.Join(dir, ".mycel")); !os.IsNotExist(statErr) {
+		t.Errorf(".mycel marker should not exist in repo, stat err = %v", statErr)
 	}
 }
 

@@ -9,7 +9,7 @@ import (
 func setupTestStore(t *testing.T, passphrase string) *Store {
 	t.Helper()
 	dir := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(dir, ".bc"), 0750); err != nil {
+	if err := os.MkdirAll(filepath.Join(dir, ".mycel"), 0750); err != nil {
 		t.Fatal(err)
 	}
 	s, err := NewStore(dir, passphrase)
@@ -166,7 +166,7 @@ func TestStore_ResolveEnv_MissingSecret(t *testing.T) {
 
 func TestStore_WrongPassphrase(t *testing.T) {
 	dir := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(dir, ".bc"), 0750); err != nil {
+	if err := os.MkdirAll(filepath.Join(dir, ".mycel"), 0750); err != nil {
 		t.Fatal(err)
 	}
 

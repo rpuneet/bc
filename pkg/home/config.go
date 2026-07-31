@@ -191,7 +191,7 @@ func DefaultConfig() Config {
 		Storage: StorageConfig{
 			Default: "sqlite",
 			SQLite: SQLiteStorageConfig{
-				Path: ".bc",
+				Path: ".mycel",
 			},
 			Timescale: TimescaleStorageConfig{
 				Host:     "localhost",

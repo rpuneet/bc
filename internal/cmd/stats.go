@@ -64,7 +64,7 @@ func runStats(cmd *cobra.Command, _ []string) error {
 		if err := s.Save(); err != nil {
 			return fmt.Errorf("failed to save stats: %w", err)
 		}
-		fmt.Println("Stats saved to .bc/stats.json")
+		fmt.Println("Stats saved to .mycel/stats.json")
 	}
 
 	if statsJSON {

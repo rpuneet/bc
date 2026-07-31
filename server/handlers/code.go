@@ -9,7 +9,7 @@
 // anchored at the one bundle repo root supplied at construction time.
 //
 // Every filesystem read is sandboxed via pkg/files.SafeJoin; .git/
-// and .bc/ subdirs are hidden by default; file reads cap at 2 MiB.
+// and .mycel/ subdirs are hidden by default; file reads cap at 2 MiB.
 package handlers
 
 import (
@@ -230,14 +230,14 @@ func (h *CodeHandler) tree(w http.ResponseWriter, r *http.Request) {
 }
 
 // isHiddenEntry reports whether name should be skipped in tree listings.
-// We hide .git (always) and .bc (repo metadata) at the top level.
+// We hide .git (always) and .mycel (repo metadata) at the top level.
 // A deeper path (e.g. inside a node_modules/.git) is still shown —
 // traversal into such dirs is the user's choice.
 func isHiddenEntry(name, parentRel string) bool {
 	if parentRel != "" && parentRel != "." {
 		return false
 	}
-	return name == ".git" || name == ".bc"
+	return name == ".git" || name == ".mycel"
 }
 
 // ------------------------------------------------------------------ /file
