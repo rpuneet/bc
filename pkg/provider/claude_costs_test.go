@@ -150,3 +150,102 @@ func TestResolveClaudeAgentWorktreeMatch(t *testing.T) {
 		t.Errorf("empty cwd = %q, want unknown", got)
 	}
 }
+
+// TestClaudeReadCostsMtimeCache is the regression guard for the cost-scan
+// CPU burn: repeated ReadCosts scans must not re-parse transcript files
+// whose mtime and size are unchanged. We prove the cache is served (not
+// re-parsed) by rewriting a file's bytes while preserving its size and
+// mtime — a re-parse would surface the new content, a cache hit keeps the
+// original entries. A genuine mtime bump must invalidate the cache.
+func TestClaudeReadCostsMtimeCache(t *testing.T) {
+	home := t.TempDir()
+	file := filepath.Join(home, ".claude", "projects", "p1", "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa.jsonl")
+	writeJSONL(t, file, usageLine("s1", "2026-07-01T10:00:00Z", "/repo", "claude-sonnet-4", 1000, 500, 0, 0))
+
+	p := NewClaudeProvider()
+	opts := CostReadOptions{Home: home}
+
+	first, err := p.ReadCosts(context.Background(), opts)
+	if err != nil {
+		t.Fatalf("first ReadCosts: %v", err)
+	}
+	if len(first) != 1 || first[0].InputTokens != 1000 {
+		t.Fatalf("first scan wrong: %+v", first)
+	}
+
+	info, err := os.Stat(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	orig := info.ModTime()
+
+	// Overwrite with different token counts but the SAME byte length,
+	// then restore the original mtime so the stat fingerprint matches.
+	changed := usageLine("s1", "2026-07-01T10:00:00Z", "/repo", "claude-sonnet-4", 2000, 500, 0, 0)
+	if len(changed) != len(usageLine("s1", "2026-07-01T10:00:00Z", "/repo", "claude-sonnet-4", 1000, 500, 0, 0)) {
+		t.Fatalf("test setup: rewritten line changed length, cache test invalid")
+	}
+	if writeErr := os.WriteFile(file, []byte(changed+"\n"), 0o600); writeErr != nil {
+		t.Fatal(writeErr)
+	}
+	if chErr := os.Chtimes(file, orig, orig); chErr != nil {
+		t.Fatal(chErr)
+	}
+
+	cached, err := p.ReadCosts(context.Background(), opts)
+	if err != nil {
+		t.Fatalf("cached ReadCosts: %v", err)
+	}
+	if len(cached) != 1 || cached[0].InputTokens != 1000 {
+		t.Errorf("expected cache hit (InputTokens=1000), got %+v — file was re-parsed despite unchanged mtime/size", cached)
+	}
+
+	// Bump the mtime forward: the cache must invalidate and re-parse.
+	future := orig.Add(2 * time.Second)
+	if chErr := os.Chtimes(file, future, future); chErr != nil {
+		t.Fatal(chErr)
+	}
+	fresh, err := p.ReadCosts(context.Background(), opts)
+	if err != nil {
+		t.Fatalf("fresh ReadCosts: %v", err)
+	}
+	if len(fresh) != 1 || fresh[0].InputTokens != 2000 {
+		t.Errorf("expected re-parse after mtime bump (InputTokens=2000), got %+v", fresh)
+	}
+}
+
+// TestClaudeReadCostsCachePrune verifies that transcripts which vanish
+// between scans are evicted from the in-process cache, keeping it bounded
+// for a long-running daemon.
+func TestClaudeReadCostsCachePrune(t *testing.T) {
+	home := t.TempDir()
+	file := filepath.Join(home, ".claude", "projects", "p1", "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb.jsonl")
+	writeJSONL(t, file, usageLine("s1", "2026-07-01T10:00:00Z", "/repo", "claude-sonnet-4", 100, 50, 0, 0))
+
+	p := NewClaudeProvider()
+	opts := CostReadOptions{Home: home}
+	if _, err := p.ReadCosts(context.Background(), opts); err != nil {
+		t.Fatalf("first ReadCosts: %v", err)
+	}
+
+	p.costCacheMu.Lock()
+	cachedAfterFirst := len(p.costCache)
+	p.costCacheMu.Unlock()
+	if cachedAfterFirst != 1 {
+		t.Fatalf("cache should hold 1 file, got %d", cachedAfterFirst)
+	}
+
+	if err := os.Remove(file); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := p.ReadCosts(context.Background(), opts); err != nil {
+		t.Fatalf("second ReadCosts: %v", err)
+	}
+
+	p.costCacheMu.Lock()
+	cachedAfterPrune := len(p.costCache)
+	p.costCacheMu.Unlock()
+	if cachedAfterPrune != 0 {
+		t.Errorf("deleted file should be pruned from cache, still holds %d", cachedAfterPrune)
+	}
+}

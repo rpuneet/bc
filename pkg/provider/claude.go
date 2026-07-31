@@ -8,16 +8,34 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 )
 
 // ClaudeProvider implements the Provider interface for Claude Code.
 // Claude Code is the Anthropic CLI for Claude.
-type ClaudeProvider struct {
+type ClaudeProvider struct { //nolint:govet // trailing cost cache grouped by role; padding is negligible for a singleton
 	ClaudeConfigAdapter // embeds ConfigAdapter implementation
 	name                string
 	description         string
 	command             string
 	binary              string
+
+	// costCache memoizes parsed session transcripts by file path so
+	// repeated ReadCosts scans only re-read files whose mtime or size
+	// changed. Without it, every cost query full-reparsed tens of
+	// thousands of JSONL entries (~10s, ~1 full CPU core), which the
+	// 60s TTL + UI polling turned into a sustained multi-core burn.
+	costCacheMu sync.Mutex
+	costCache   map[string]claudeFileCacheEntry
+}
+
+// claudeFileCacheEntry is a parsed transcript file plus the stat
+// fingerprint that validates it. A file is re-parsed only when its
+// mtime or size differs from the cached fingerprint.
+type claudeFileCacheEntry struct {
+	entries []claudeSessionEntry
+	modTime int64 // UnixNano
+	size    int64
 }
 
 func init() { Register(NewClaudeProvider()) }
