@@ -57,7 +57,10 @@ export function AgentNavTree() {
         borderLeft: "1px solid var(--mycel-border)",
         marginTop: 2,
         marginBottom: 4,
-        maxHeight: 280,
+        // Bound to its own scroll region, capped relative to the viewport
+        // so a long fleet scrolls in place rather than pushing the Apps
+        // tree and footer off the bottom of the drawer.
+        maxHeight: "min(280px, 38vh)",
         overflowY: "auto",
       }}
     >
@@ -89,7 +92,7 @@ export function AgentNavTree() {
             minWidth: 0,
           })}
         >
-          <AgentChip name={a.name} state={a.state} size={18} className="w-full" />
+          <AgentChip name={a.name} state={a.state} size={18} className="w-full" preview previewSeed={a} />
         </NavLink>
       ))}
       {stoppedCount > 0 && (

@@ -478,7 +478,11 @@ function AppsNavTree() {
         borderLeft: "1px solid var(--mycel-border)",
         marginTop: 2,
         marginBottom: 4,
-        maxHeight: 320,
+        // Bound the tree to its own scroll region and cap it relative to
+        // the viewport so a long channel list (or two expanded trees on a
+        // short screen) scrolls in place instead of stretching the drawer
+        // past the fold and leaving dead space below the footer.
+        maxHeight: "min(320px, 42vh)",
         overflowY: "auto",
       }}
     >
