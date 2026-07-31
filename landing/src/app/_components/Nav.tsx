@@ -8,9 +8,10 @@ import { useState, useRef, useEffect } from "react";
 import { Menu, X, Copy, Check, Apple, Monitor, Container } from "lucide-react";
 import { ThemeToggle } from "./ThemeToggle";
 
-// Single-page site: the logo is Home and the page IS the product, so no
-// Home/Product tabs. Only cross-destinations remain.
+// The logo is Home and the page IS the product, so no Home/Product tabs.
+// Method is the editorial deep-dive; Docs and GitHub are cross-destinations.
 const links = [
+  { href: "/method", label: "Method" },
   { href: "/docs", label: "Docs" },
   { href: "https://github.com/rpuneet/mycel", label: "GitHub" },
 ];

@@ -272,6 +272,11 @@ h6 {
   text-wrap: balance;
 }
 
+/* Paragraphs avoid single-word orphan lines */
+p {
+  text-wrap: pretty;
+}
+
 /* ════════════════════════════════════════════
    UTILITY CLASSES
    ════════════════════════════════════════════ */
@@ -595,6 +600,85 @@ html:not(.dark) .product-frame img.shot-light { display: block; }
     0 0 0 1px color-mix(in srgb, var(--primary) 12%, transparent),
     0 40px 80px -40px rgba(23, 17, 12, 0.6),
     0 0 120px -20px color-mix(in srgb, var(--primary) 18%, transparent);
+}
+
+/* ═══════════════════════════════════════════
+   METHOD — editorial essay page
+   ═══════════════════════════════════════════ */
+
+/* Long-form body text: generous leading, editorial measure */
+.method-body {
+  line-height: 1.85;
+  letter-spacing: 0.004em;
+  color: var(--method-muted);
+}
+
+/* Wide gradient divider between movements */
+.method-divider {
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    color-mix(in srgb, var(--primary) 26%, transparent) 50%,
+    transparent 100%
+  );
+}
+
+/* Short divider between principles */
+.method-divider-short {
+  height: 1px;
+  width: 6rem;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--primary) 38%, transparent),
+    transparent
+  );
+}
+
+/* Hyphae spine — the vertical thread that grows down the walkthrough */
+.method-rail {
+  background: linear-gradient(
+    to bottom,
+    transparent 0%,
+    color-mix(in srgb, var(--primary) 38%, transparent) 4%,
+    color-mix(in srgb, var(--primary) 38%, transparent) 96%,
+    transparent 100%
+  );
+}
+
+/* Node on the spine — one per step */
+.method-node {
+  background: var(--primary);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--primary) 14%, transparent);
+}
+
+/* "In practice" ledger line — mono, tick-marked, grounds each conviction */
+.method-practice {
+  font-family: var(--font-label);
+  font-size: 0.8125rem;
+  line-height: 1.7;
+  color: var(--on-surface-variant);
+  border-left: 2px solid color-mix(in srgb, var(--primary) 45%, transparent);
+  padding-left: 1rem;
+}
+.method-practice strong {
+  color: var(--primary-text);
+  font-weight: 700;
+}
+
+/* Inline command chip — always dark roast, like the terminal */
+.method-cmd {
+  font-family: var(--font-label);
+  font-size: 0.8125rem;
+  background: var(--terminal-bg);
+  color: var(--terminal-text);
+  border: 1px solid var(--terminal-header-border);
+  border-radius: 6px;
+  padding: 0.3rem 0.65rem;
+  white-space: nowrap;
+}
+.method-cmd .prompt {
+  color: var(--terminal-prompt);
 }
 
 /* Grain / atmosphere veil for deck backdrop */
