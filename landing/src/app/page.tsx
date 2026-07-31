@@ -142,9 +142,6 @@ export default function Home() {
         <section className="pt-28 pb-10 sm:pt-32 sm:pb-14">
           <div className="mx-auto max-w-4xl px-4 text-center sm:px-6">
             <FadeUp>
-              <div className="mb-7 flex justify-center">
-                <SporeLogo size={68} className="drop-shadow-sm" />
-              </div>
               <div className="mb-6 flex justify-center">
                 <ChangelogPill />
               </div>
