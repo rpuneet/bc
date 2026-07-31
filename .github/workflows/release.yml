@@ -168,10 +168,17 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # Covers the common desktop set:
+        #   darwin arm64 (Apple Silicon, native) + amd64 (Intel, cross-built on
+        #   Apple Silicon via `wails build -platform darwin/amd64`)
+        #   linux amd64 (native) + arm64 (native on GitHub's ubuntu-24.04-arm)
+        #   windows amd64 (native)
         include:
-          - { os: darwin,  runner: macos-latest,   artifact: mycel-desktop_darwin_arm64 }
-          - { os: linux,   runner: ubuntu-latest,  artifact: mycel-desktop_linux_amd64 }
-          - { os: windows, runner: windows-latest, artifact: mycel-desktop_windows_amd64 }
+          - { os: darwin,  arch: arm64, runner: macos-latest,     artifact: mycel-desktop_darwin_arm64 }
+          - { os: darwin,  arch: amd64, runner: macos-latest,     artifact: mycel-desktop_darwin_amd64 }
+          - { os: linux,   arch: amd64, runner: ubuntu-latest,    artifact: mycel-desktop_linux_amd64 }
+          - { os: linux,   arch: arm64, runner: ubuntu-24.04-arm, artifact: mycel-desktop_linux_arm64 }
+          - { os: windows, arch: amd64, runner: windows-latest,   artifact: mycel-desktop_windows_amd64 }
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -202,13 +209,88 @@ jobs:
       - name: Build desktop app
         shell: bash
         working-directory: desktop
+        env:
+          PLATFORM: ${{ matrix.os }}/${{ matrix.arch }}
         run: |
-          # webkit2gtk 4.1 on ubuntu-latest; wails v2 defaults to 4.0 pkg-config
-          if [ "${{ matrix.os }}" = "linux" ]; then
-            wails build -tags webkit2_41
+          case "${{ matrix.os }}" in
+            linux)
+              # webkit2gtk 4.1 on the ubuntu runners; wails v2 defaults to 4.0 pkg-config
+              wails build -tags webkit2_41 -platform "$PLATFORM" ;;
+            *)
+              # darwin/amd64 cross-builds on Apple Silicon runners; others are native
+              wails build -platform "$PLATFORM" ;;
+          esac
+
+      # ── macOS code-signing + notarization (gated on secrets) ───────────
+      # When the Developer ID secrets are absent (fork PRs, no-secret runs) the
+      # app ships ad-hoc/self-signed and these steps are skipped — the workflow
+      # never fails for missing secrets. See desktop/README.md for the secret
+      # names the owner must add. The step-output gate is used because the
+      # `secrets` context cannot be referenced from a step-level `if`.
+      - name: Check macOS signing secrets
+        id: signing
+        if: matrix.os == 'darwin'
+        shell: bash
+        env:
+          MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
+        run: |
+          if [ -n "$MACOS_CERTIFICATE" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
           else
-            wails build
+            echo "enabled=false (no MACOS_CERTIFICATE secret — shipping ad-hoc)"
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
           fi
+
+      - name: Import Developer ID certificate
+        if: matrix.os == 'darwin' && steps.signing.outputs.enabled == 'true'
+        shell: bash
+        env:
+          MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
+          MACOS_CERTIFICATE_PWD: ${{ secrets.MACOS_CERTIFICATE_PWD }}
+        run: |
+          KEYCHAIN="$RUNNER_TEMP/signing.keychain-db"
+          KEYCHAIN_PWD="$(openssl rand -base64 24)"
+          security create-keychain -p "$KEYCHAIN_PWD" "$KEYCHAIN"
+          security set-keychain-settings -lut 3600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PWD" "$KEYCHAIN"
+          echo "$MACOS_CERTIFICATE" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security import "$RUNNER_TEMP/cert.p12" -k "$KEYCHAIN" \
+            -P "$MACOS_CERTIFICATE_PWD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: \
+            -s -k "$KEYCHAIN_PWD" "$KEYCHAIN" >/dev/null
+          # Prepend the signing keychain to the search list so codesign finds it.
+          security list-keychains -d user -s "$KEYCHAIN" \
+            $(security list-keychains -d user | sed s/\"//g)
+          rm -f "$RUNNER_TEMP/cert.p12"
+
+      - name: Sign macOS app
+        if: matrix.os == 'darwin' && steps.signing.outputs.enabled == 'true'
+        shell: bash
+        working-directory: desktop/build/bin
+        env:
+          MACOS_SIGNING_IDENTITY: ${{ secrets.MACOS_SIGNING_IDENTITY }}
+        run: |
+          codesign --deep --force --options runtime --timestamp \
+            --sign "$MACOS_SIGNING_IDENTITY" mycel.app
+          codesign --verify --strict --verbose=2 mycel.app
+
+      - name: Notarize and staple macOS app
+        if: matrix.os == 'darwin' && steps.signing.outputs.enabled == 'true'
+        shell: bash
+        working-directory: desktop/build/bin
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+        run: |
+          ditto -c -k --keepParent mycel.app notarize.zip
+          xcrun notarytool submit notarize.zip \
+            --apple-id "$APPLE_ID" \
+            --team-id "$APPLE_TEAM_ID" \
+            --password "$APPLE_APP_PASSWORD" \
+            --wait
+          xcrun stapler staple mycel.app
+          rm -f notarize.zip
 
       - name: Package
         shell: bash
