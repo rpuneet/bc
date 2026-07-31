@@ -11,16 +11,19 @@
 export function SporeLogo({
   size = 28,
   className = "",
+  alive = false,
 }: {
   size?: number;
   className?: string;
+  // Adds a slow "breathing" sway so the mark reads as a living creature.
+  alive?: boolean;
 }) {
   return (
     <svg
       viewBox="0 0 512 512"
       width={size}
       height={size}
-      className={`spore-mark ${className}`}
+      className={`spore-mark ${alive ? "spore-alive" : ""} ${className}`}
       aria-hidden="true"
     >
       <style>{`
@@ -41,6 +44,13 @@ export function SporeLogo({
         .spore-mark .drift-c { animation: spore-drift-c 9s ease-in-out infinite; }
         .spore-mark { transition: transform 400ms cubic-bezier(0.22, 1, 0.36, 1); }
         .spore-mark:hover { transform: scale(1.08) rotate(-2deg); }
+        @keyframes spore-breathe {
+          0%, 100% { transform: scale(1) rotate(0deg); }
+          35%      { transform: scale(1.035) rotate(-1.4deg); }
+          70%      { transform: scale(0.985) rotate(1deg); }
+        }
+        .spore-alive { transform-origin: 52% 82%; animation: spore-breathe 5.2s ease-in-out infinite; }
+        .spore-alive:hover { transform: scale(1.08) rotate(-2deg); }
       `}</style>
 
       {/* Hyphae threads reaching down from the stem */}

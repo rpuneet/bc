@@ -18,6 +18,7 @@ import { ChatThread } from "./_components/ChatThread";
 import { RevealSection, FadeUp, ScrollReveal } from "./_components/Motion";
 import { AnimatedBackground } from "./_components/AnimatedBackground";
 import { SporeLogo } from "./_components/SporeLogo";
+import { HeroLogo } from "./_components/HeroLogo";
 
 /* ── Section divider with the mushroom mark as a fleuron ── */
 function SporeDivider() {
@@ -139,30 +140,31 @@ export default function Home() {
         {/* ════════════════════════════════════════
            Hero — the thesis, the download, the live product
            ════════════════════════════════════════ */}
-        <section className="pt-28 pb-10 sm:pt-32 sm:pb-14">
-          <div className="mx-auto max-w-4xl px-4 text-center sm:px-6">
+        <section className="pt-24 pb-8 sm:pt-28 sm:pb-12">
+          {/* Shares the nav's max-w-6xl container so the mark's left edge
+             lines up with the header slot it docks into on scroll. */}
+          <div className="mx-auto max-w-6xl px-4 sm:px-6">
+            {/* Left-aligned, dense header block. The mark sits top-left and
+               travels up into the nav as you scroll (HeroLogo). */}
             <FadeUp>
-              <div className="mb-7 flex justify-center">
-                <SporeLogo size={68} className="drop-shadow-sm" />
-              </div>
-              <div className="mb-6 flex justify-center">
+              <HeroLogo />
+              <div className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-2">
                 <ChangelogPill />
+                <span className="deck-eyebrow">
+                  Open source &middot; Free &middot; Runs on your machine
+                </span>
               </div>
-              <span className="deck-eyebrow">
-                Open source &middot; Free &middot; Runs on your machine
-              </span>
             </FadeUp>
 
             <FadeUp delay={0.1}>
-              <h1 className="mt-6 font-headline text-4xl font-semibold leading-[1.08] tracking-tight text-on-background md:text-6xl lg:text-[4.25rem]">
-                Your team of AI agents,
-                <br className="hidden sm:block" />{" "}
+              <h1 className="mt-5 max-w-3xl font-headline text-4xl font-semibold leading-[1.06] tracking-tight text-on-background md:text-6xl lg:text-[4.25rem]">
+                Your team of AI agents,{" "}
                 run from <span className="text-primary">one place.</span>
               </h1>
             </FadeUp>
 
             <FadeUp delay={0.15}>
-              <p className="mx-auto mt-6 max-w-2xl font-body text-lg leading-relaxed text-on-surface-variant md:text-xl">
+              <p className="mt-4 max-w-2xl font-body text-lg leading-relaxed text-on-surface-variant md:text-xl">
                 Every agent gets a name, a face, and a job &mdash; writing code
                 in your repositories, reaching you on Slack or WhatsApp, with
                 every action, every change, and every dollar on screen.
@@ -171,11 +173,9 @@ export default function Home() {
 
             {/* Primary conversion: download the desktop app (decision #3) */}
             <FadeUp delay={0.2}>
-              <div className="mt-9">
+              <div className="mt-7 flex flex-wrap items-center gap-x-6 gap-y-3">
                 <DownloadButtons />
-              </div>
-              <div className="mt-5 flex flex-col items-center gap-2">
-                <div className="flex items-center gap-5">
+                <div className="flex items-center gap-4">
                   <Link
                     href="https://github.com/rpuneet/mycel"
                     className="inline-flex items-center gap-1.5 font-body text-sm text-on-surface-variant transition-colors hover:text-primary"
@@ -193,25 +193,20 @@ export default function Home() {
                     Prefer the terminal? Install the CLI
                   </Link>
                 </div>
-                {/* Honest cost line (decision #5 — pricing page removed). */}
-                <p className="font-body text-xs text-on-surface-variant/70">
-                  Free and open source &mdash; you only pay your model
-                  providers.
-                </p>
               </div>
-            </FadeUp>
-
-            {/* Social proof: live GitHub numbers (decision #2) */}
-            <FadeUp delay={0.26}>
-              <div className="mt-8">
+              {/* Honest cost line + live GitHub numbers on one dense row. */}
+              <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-2">
                 <SocialProof />
+                <p className="font-body text-xs text-on-surface-variant/70">
+                  Free and open source &mdash; you only pay your model providers.
+                </p>
               </div>
             </FadeUp>
           </div>
 
           {/* The centerpiece: tabbed, live product frame (decision #1) */}
-          <FadeUp delay={0.32}>
-            <div className="mt-14 px-4 sm:px-6">
+          <FadeUp delay={0.28}>
+            <div className="mx-auto mt-10 max-w-6xl px-4 sm:px-6">
               <HeroShowcase />
             </div>
           </FadeUp>

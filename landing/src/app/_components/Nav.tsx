@@ -14,10 +14,20 @@ const links = [
   { href: "https://github.com/rpuneet/mycel", label: "GitHub" },
 ];
 
-function Logo() {
+function Logo({ reserved = false }: { reserved?: boolean }) {
   return (
     <div className="flex items-center gap-2">
-      <SporeLogo size={28} />
+      {reserved ? (
+        // On the home page the hero mark travels up and docks into this slot
+        // (see HeroLogo); reserve its box so the wordmark doesn't shift.
+        <span
+          aria-hidden="true"
+          className="block"
+          style={{ width: 26, height: 26 }}
+        />
+      ) : (
+        <SporeLogo size={28} />
+      )}
       <span className="font-headline text-lg font-bold tracking-tight text-on-background">mycel</span>
     </div>
   );
@@ -228,7 +238,7 @@ export function Nav() {
           className="focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
           aria-label="mycel home page"
         >
-          <Logo />
+          <Logo reserved={pathname === "/"} />
         </Link>
 
         {/* Center: Nav links */}
