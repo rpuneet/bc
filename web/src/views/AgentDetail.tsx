@@ -1375,6 +1375,7 @@ export function AgentDetail() {
             agentName={agent.name}
             agentState={agent.state}
             agentTask={agent.task}
+            agentTool={agent.tool}
             stoppedAt={agent.stopped_at}
             updatedAt={agent.updated_at}
             startedAt={agent.started_at}
