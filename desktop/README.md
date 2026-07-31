@@ -56,7 +56,7 @@ cd desktop && wails build
 
 Output lands in `desktop/build/bin/`:
 
-- macOS: `mycel.app` (self-signed ad-hoc)
+- macOS: `mycel.app`
 - Linux: `mycel-desktop` binary
 - Windows: `mycel-desktop.exe`
 
@@ -64,33 +64,68 @@ The web UI must be built first (`make build-local-web`) — the server
 package embeds `server/web/dist` at compile time, and the desktop binary
 inherits that embed.
 
-## CI cross-build (follow-up — workflow not added yet)
+## Installing the desktop app
 
-Wails cannot cross-compile between OSes (native webview toolchains), so CI
-should use a GitHub Actions matrix, one job per OS:
+Release builds are ad-hoc / self-signed unless the maintainer's signing
+secrets are configured (see below), so a fresh download will trip the OS
+first-run gate. To open it:
 
-```yaml
-strategy:
-  matrix:
-    include:
-      - os: macos-latest      # produces mycel.app (universal via -platform darwin/universal)
-      - os: ubuntu-latest     # needs libgtk-3-dev libwebkit2gtk-4.0-dev
-      - os: windows-latest    # produces mycel-desktop.exe (NSIS installer via -nsis)
-runs-on: ${{ matrix.os }}
-steps:
-  - uses: actions/checkout@v4
-  - uses: actions/setup-go@v5
-  - uses: oven-sh/setup-bun@v2
-  - run: make build-local-web
-  - run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
-  - run: cd desktop && wails build
-  - uses: actions/upload-artifact@v4
-    with: { path: desktop/build/bin/* }
-```
+**macOS** — Gatekeeper blocks an unnotarized `.app` on first launch. Either:
 
-macOS distribution beyond ad-hoc signing needs a Developer ID certificate +
-notarization; Linux packaging (deb/rpm/AppImage) and a Windows NSIS
-installer are follow-ups.
+- Right-click `mycel.app` → **Open**, then confirm **Open** in the dialog; or
+- Clear the quarantine flag from a terminal:
+
+  ```bash
+  xattr -dr com.apple.quarantine /Applications/mycel.app
+  ```
+
+**Windows** — SmartScreen shows "Windows protected your PC" for an
+unsigned `.exe`. Click **More info → Run anyway**.
+
+Once the maintainer procures a Developer ID certificate (macOS) and an EV /
+OV code-signing certificate (Windows), signed + notarized builds open with
+no warning and these steps become unnecessary.
+
+## Release CI
+
+Desktop apps are built by the `release-desktop` job in
+`.github/workflows/release.yml` — Wails cannot cross-compile between OSes
+(native webview toolchains), so it uses a matrix, one job per target.
+
+Architectures covered:
+
+| OS      | arm64                          | amd64                                    |
+|---------|--------------------------------|------------------------------------------|
+| macOS   | native (`macos-latest`)        | cross-built on Apple Silicon (`-platform darwin/amd64`) |
+| Linux   | native (`ubuntu-24.04-arm`)    | native (`ubuntu-latest`)                 |
+| Windows | —                              | native (`windows-latest`)                |
+
+Linux arm64 relies on GitHub's `ubuntu-24.04-arm` hosted runners. Windows
+arm64 is not built yet (no native runner + webview toolchain); it is the
+one deferred target.
+
+## Code-signing & notarization (release secrets)
+
+The macOS legs of `release-desktop` sign and notarize `mycel.app` **only
+when the signing secrets are present**. On fork PRs or any run without the
+secrets the app ships ad-hoc and the signing steps are skipped — the
+workflow never fails for missing secrets.
+
+To enable signed + notarized macOS builds, the owner adds these repository
+secrets (Settings → Secrets and variables → Actions):
+
+| Secret | What it is / how to obtain it |
+|--------|-------------------------------|
+| `MACOS_CERTIFICATE` | Your **Developer ID Application** certificate exported as a `.p12`, then base64-encoded. In Keychain Access export the cert+key to `cert.p12`, then `base64 -i cert.p12 \| pbcopy`. |
+| `MACOS_CERTIFICATE_PWD` | The password you set when exporting the `.p12`. |
+| `MACOS_SIGNING_IDENTITY` | The identity string `codesign` matches, e.g. `Developer ID Application: Your Name (TEAMID)`. Find it with `security find-identity -v -p codesigning`. |
+| `APPLE_ID` | The Apple ID email of your Apple Developer account (used by `notarytool`). |
+| `APPLE_TEAM_ID` | Your 10-character Team ID, from the [Apple Developer membership page](https://developer.apple.com/account#MembershipDetailsCard). |
+| `APPLE_APP_PASSWORD` | An **app-specific password** for that Apple ID, generated at [appleid.apple.com](https://appleid.apple.com) → Sign-In and Security → App-Specific Passwords. Not your account password. |
+
+Windows code-signing is a separate certificate (EV/OV code-signing cert
+from a CA) and is **not wired up yet** — a future addition once the cert is
+procured.
 
 ## Follow-ups
 
@@ -98,4 +133,5 @@ installer are follow-ups.
   Wails v3 or add a platform tray library.
 - Replace the placeholder spore icon (`build/appicon.svg` → `appicon.png`)
   with final branding.
-- Release CI matrix (above) + signing/notarization.
+- Windows code-signing (needs an EV/OV cert) and Windows arm64 build.
+- Linux packaging (deb/rpm/AppImage).
