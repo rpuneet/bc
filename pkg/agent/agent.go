@@ -1580,14 +1580,17 @@ func (m *Manager) setupLogPipe(ctx context.Context, name, _ string) string {
 		return ""
 	}
 	// Logs live with the rest of the agent's entity state at
-	// <agentsRoot>/<name>/logs/.
-	logsDir := filepath.Join(m.agentsRoot(), name, "logs")
+	// <agentsRoot>/<name>/logs/. filepath.Base strips any path
+	// separators from the (already-validated) name so it can never
+	// escape the agents root — a recognized path-traversal barrier.
+	safeName := filepath.Base(name)
+	logsDir := filepath.Join(m.agentsRoot(), safeName, "logs")
 	if err := os.MkdirAll(logsDir, 0750); err != nil {
 		log.Warn("failed to create logs dir", "error", err)
 		return ""
 	}
 
-	logPath := filepath.Clean(filepath.Join(logsDir, name+".log"))
+	logPath := filepath.Clean(filepath.Join(logsDir, safeName+".log"))
 	if !strings.HasPrefix(logPath, filepath.Clean(m.agentsRoot())+string(filepath.Separator)) {
 		log.Warn("refusing log path outside agents root", "path", logPath)
 		return ""

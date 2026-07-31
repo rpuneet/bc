@@ -719,6 +719,14 @@ func (b *Backend) PipePane(ctx context.Context, name, logPath string) error {
 		if strings.Contains(logPath, "..") {
 			return fmt.Errorf("unsafe log path: %s", logPath)
 		}
+		// Containment barrier: the log file must live under ~/.mycel.
+		// Rejects any absolute path escaping the mycel home even if it
+		// has no ".." — a recognized path-traversal sanitizer.
+		if mh, err := home.MycelHome(); err == nil {
+			if !strings.HasPrefix(logPath, filepath.Clean(mh)+string(filepath.Separator)) {
+				return fmt.Errorf("log path outside mycel home: %s", logPath)
+			}
+		}
 	}
 	cn := b.containerName(name)
 
