@@ -142,6 +142,7 @@ func (h *AppsHandler) catalog(w http.ResponseWriter, r *http.Request) {
 	instances := make([]appInstanceJSON, 0)
 	seen := make(map[string]bool)
 	if h.h != nil && h.h.Config != nil {
+		h.h.ConfigMu.RLock()
 		names := make([]string, 0, len(h.h.Config.Apps))
 		for name := range h.h.Config.Apps {
 			names = append(names, name)
@@ -178,6 +179,7 @@ func (h *AppsHandler) catalog(w http.ResponseWriter, r *http.Request) {
 			}
 			instances = append(instances, inst)
 		}
+		h.h.ConfigMu.RUnlock()
 	}
 
 	// Dynamically registered adapters not in config (e.g. an adapter
@@ -325,7 +327,10 @@ func (h *AppsHandler) update(w http.ResponseWriter, r *http.Request, name string
 	}
 
 	// Start from the existing plain config so partial updates don't wipe
-	// unrelated fields.
+	// unrelated fields. Write lock: this mutates cfg.Apps while the
+	// catalog handler may be ranging it.
+	h.h.ConfigMu.Lock()
+	defer h.h.ConfigMu.Unlock()
 	cfg := h.h.Config
 	existing, exists := cfg.Apps[name]
 	plain := make(map[string]string, len(req.Config))
@@ -382,14 +387,15 @@ func (h *AppsHandler) update(w http.ResponseWriter, r *http.Request, name string
 	if cfg.Apps == nil {
 		cfg.Apps = make(map[string]app.InstanceConfig)
 	}
-	cfg.Apps[name] = app.InstanceConfig{App: d.ID, Enabled: enabled, Config: plain}
+	saved := app.InstanceConfig{App: d.ID, Enabled: enabled, Config: plain}
+	cfg.Apps[name] = saved
 	if err := cfg.Save(h.h.SettingsFile()); err != nil {
 		httpInternalError(w, "save config", err)
 		return
 	}
 
 	resp := map[string]any{"status": "updated", "name": name, "app": d.ID, "enabled": enabled}
-	if warning := h.restartAdapter(name, enabled); warning != "" {
+	if warning := h.restartAdapter(name, saved, enabled); warning != "" {
 		resp["warning"] = warning
 	}
 	writeJSON(w, http.StatusOK, resp)
@@ -399,7 +405,7 @@ func (h *AppsHandler) update(w http.ResponseWriter, r *http.Request, name string
 // enabled, builds and hot-starts a fresh one from the saved config.
 // Returns a warning message instead of failing the request — config is
 // already persisted, and a bad token should be visible, not fatal.
-func (h *AppsHandler) restartAdapter(name string, enabled bool) string {
+func (h *AppsHandler) restartAdapter(name string, ic app.InstanceConfig, enabled bool) string {
 	if h.gw == nil || h.h == nil || h.h.Config == nil {
 		return ""
 	}
@@ -409,7 +415,7 @@ func (h *AppsHandler) restartAdapter(name string, enabled bool) string {
 	if !enabled {
 		return ""
 	}
-	adapter, err := h.buildAdapter(name)
+	adapter, err := h.buildAdapter(name, ic)
 	if err != nil {
 		return "adapter build failed: " + err.Error()
 	}
@@ -421,9 +427,10 @@ func (h *AppsHandler) restartAdapter(name string, enabled bool) string {
 }
 
 // buildAdapter builds the live adapter for a configured instance using
-// its plugin and the vault-backed secret source.
-func (h *AppsHandler) buildAdapter(name string) (gateway.NotificationAdapter, error) {
-	ic := h.h.Config.Apps[name]
+// its plugin and the vault-backed secret source. Callers pass the
+// InstanceConfig snapshot they read under ConfigMu — this function must
+// not touch Config (update() calls it while holding the write lock).
+func (h *AppsHandler) buildAdapter(name string, ic app.InstanceConfig) (gateway.NotificationAdapter, error) {
 	plugin, _ := app.Get(ic.App)
 	var secrets app.SecretSource
 	if h.vault != nil {
@@ -440,6 +447,8 @@ func (h *AppsHandler) delete(w http.ResponseWriter, r *http.Request, name string
 		serviceUnavailable(w, r, "home", "global config not available")
 		return
 	}
+	h.h.ConfigMu.Lock()
+	defer h.h.ConfigMu.Unlock()
 	cfg := h.h.Config
 	if _, ok := cfg.Apps[name]; !ok {
 		httpError(w, "app instance not found: "+name, http.StatusNotFound)
@@ -565,8 +574,9 @@ func (h *AppsHandler) ensurePairer(w http.ResponseWriter, r *http.Request, name 
 		return nil, false
 	}
 
+	h.h.ConfigMu.Lock()
 	cfg := h.h.Config
-	if _, exists := cfg.Apps[name]; !exists {
+	if _, exists := cfg.Apps[name]; !exists { //nolint:nestif // pair-first bootstrap
 		// Pair-first flow (e.g. WhatsApp): create the instance so the
 		// paired session survives daemon restarts.
 		if cfg.Apps == nil {
@@ -574,14 +584,17 @@ func (h *AppsHandler) ensurePairer(w http.ResponseWriter, r *http.Request, name 
 		}
 		cfg.Apps[name] = app.InstanceConfig{App: appID, Enabled: true}
 		if err := cfg.Save(h.h.SettingsFile()); err != nil {
+			h.h.ConfigMu.Unlock()
 			httpInternalError(w, "save config", err)
 			return nil, false
 		}
 	}
+	pairIC := cfg.Apps[name]
+	h.h.ConfigMu.Unlock()
 
 	adapter := h.gw.GetAdapter(name)
 	if adapter == nil {
-		built, err := h.buildAdapter(name)
+		built, err := h.buildAdapter(name, pairIC)
 		if err != nil {
 			httpInternalError(w, "build adapter", err)
 			return nil, false
@@ -642,6 +655,7 @@ func (h *AppsHandler) beginOAuth(w http.ResponseWriter, r *http.Request, name st
 
 	// Merge submitted plain fields over the stored config and persist the
 	// instance, preserving an existing enabled state.
+	h.h.ConfigMu.Lock()
 	cfg := h.h.Config
 	existing, exists := cfg.Apps[name]
 	plain := make(map[string]string, len(existing.Config)+len(req.Config))
@@ -659,6 +673,7 @@ func (h *AppsHandler) beginOAuth(w http.ResponseWriter, r *http.Request, name st
 		plain = nil
 	}
 	if err := app.ValidateConfig(d, plain); err != nil {
+		h.h.ConfigMu.Unlock()
 		httpError(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -671,15 +686,18 @@ func (h *AppsHandler) beginOAuth(w http.ResponseWriter, r *http.Request, name st
 	}
 	cfg.Apps[name] = app.InstanceConfig{App: d.ID, Enabled: enabled, Config: plain}
 	if err := cfg.Save(h.h.SettingsFile()); err != nil {
+		h.h.ConfigMu.Unlock()
 		httpInternalError(w, "save config", err)
 		return
 	}
+	inst0 := cfg.Apps[name]
+	h.h.ConfigMu.Unlock()
 
 	var secrets app.SecretSource
 	if h.vault != nil {
 		secrets = app.VaultSecrets{Store: h.vault, Instance: name}
 	}
-	inst := app.ResolveInstance(name, cfg.Apps[name], secrets)
+	inst := app.ResolveInstance(name, inst0, secrets)
 	session, err := flow.BeginAuth(r.Context(), inst)
 	if err != nil {
 		// Begin failures are actionable user/config errors (missing
@@ -734,7 +752,9 @@ func (h *AppsHandler) pollOAuth(w http.ResponseWriter, r *http.Request, name str
 
 	// Enable the instance and hot-start its adapter with the fresh
 	// credentials.
+	var oauthIC app.InstanceConfig
 	if h.h != nil && h.h.Config != nil {
+		h.h.ConfigMu.Lock()
 		cfg := h.h.Config
 		ic, exists := cfg.Apps[name]
 		if !exists {
@@ -742,15 +762,21 @@ func (h *AppsHandler) pollOAuth(w http.ResponseWriter, r *http.Request, name str
 		}
 		if !exists || !ic.Enabled {
 			ic.Enabled = true
+			if cfg.Apps == nil {
+				cfg.Apps = make(map[string]app.InstanceConfig)
+			}
 			cfg.Apps[name] = ic
 			if err := cfg.Save(h.h.SettingsFile()); err != nil {
+				h.h.ConfigMu.Unlock()
 				httpInternalError(w, "save config", err)
 				return
 			}
 		}
+		oauthIC = ic
+		h.h.ConfigMu.Unlock()
 	}
 	resp := map[string]any{"state": app.AuthStateComplete}
-	if warning := h.restartAdapter(name, true); warning != "" {
+	if warning := h.restartAdapter(name, oauthIC, true); warning != "" {
 		resp["warning"] = warning
 	}
 	writeJSON(w, http.StatusOK, resp)

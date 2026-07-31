@@ -20,7 +20,7 @@ const timeAgo = (dateStr: string): string => formatRelative(dateStr);
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
   const handleCopy = () => {
-    navigator.clipboard.writeText(text).then(() => {
+    navigator.clipboard.writeText(text).catch(() => { /* clipboard permission denied */ }).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     });

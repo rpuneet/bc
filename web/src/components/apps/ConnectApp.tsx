@@ -685,8 +685,26 @@ export function ConnectWizard({
       .getApps()
       .then((res) => {
         if (cancelled) return;
-        setDescriptor((res.catalog ?? []).find((d) => d.id === appId) ?? null);
-        setInstances((res.instances ?? []).filter((i) => i.app === appId));
+        const desc = (res.catalog ?? []).find((d) => d.id === appId) ?? null;
+        const mine = (res.instances ?? []).filter((i) => i.app === appId);
+        setDescriptor(desc);
+        setInstances(mine);
+        // Seed plain fields from the connected instance so reopening an
+        // app doesn't present blank required inputs (secrets stay blank —
+        // replace-only semantics).
+        const current = mine.find((i) => i.name === appId) ?? mine[0];
+        if (current?.config) {
+          setValues((prev) => {
+            const seeded = { ...prev };
+            for (const f of desc?.fields ?? []) {
+              const v = current.config?.[f.key];
+              if (!f.secret && seeded[f.key] === undefined && v !== undefined && v !== "") {
+                seeded[f.key] = String(v);
+              }
+            }
+            return seeded;
+          });
+        }
       })
       .catch(() => { /* handled by the unknown-app state */ })
       .finally(() => { if (!cancelled) setCatalogLoading(false); });
@@ -797,9 +815,13 @@ export function ConnectWizard({
       for (const field of descriptor.fields) {
         const val = (values[field.key] ?? "").trim();
         if (val === "") {
-          // A stored secret stays valid when the input is left blank —
-          // replace-only semantics.
-          if (field.required && !(field.secret && hasStoredSecret(field.key))) {
+          // A stored value stays valid when the input is left blank —
+          // secrets by replace-only semantics, plain fields because the
+          // server merges from the existing instance config.
+          const stored = field.secret
+            ? hasStoredSecret(field.key)
+            : Boolean(existing?.config?.[field.key]);
+          if (field.required && !stored) {
             setError(`${field.label} is required`);
             setSaving(false);
             return;

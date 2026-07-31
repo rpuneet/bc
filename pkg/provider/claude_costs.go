@@ -172,7 +172,9 @@ func parseClaudeSessionReader(r io.Reader) ([]claudeSessionEntry, error) {
 
 		ts, _ := time.Parse(time.RFC3339Nano, evt.Timestamp)
 		if ts.IsZero() {
-			ts = time.Now()
+			// A now() fallback would misattribute the cost to today AND
+			// defeat the timestamp-keyed sidechain dedup (double count).
+			continue
 		}
 
 		entries = append(entries, claudeSessionEntry{

@@ -254,7 +254,37 @@ func TestProjectCost(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if proj.DaysAnalyzed != 2 || math.Abs(proj.DailyAvgCost-3.0) > 1e-9 || math.Abs(proj.ProjectedCost-30.0) > 1e-9 {
+	// The average spreads over the elapsed calendar window (clamped to the
+	// observed span), NOT just active days — an active-day average
+	// projected over calendar days over-estimates idle fleets. $6 over an
+	// ~2-day span → ~$3/day here; the invariant that matters is that a
+	// sparse history is never averaged as if every day were active.
+	if proj.DaysAnalyzed != 2 || proj.TotalHistorical != 6.0 {
 		t.Errorf("projection wrong: %+v", proj)
+	}
+	if proj.DailyAvgCost > 3.01 || proj.DailyAvgCost < 6.0/30 {
+		t.Errorf("daily avg outside sane bounds: %+v", proj)
+	}
+	if math.Abs(proj.ProjectedCost-proj.DailyAvgCost*10) > 1e-9 {
+		t.Errorf("projection must be dailyAvg x days: %+v", proj)
+	}
+}
+
+func TestProjectCostIdleFleetNotOverestimated(t *testing.T) {
+	now := time.Now().UTC()
+	// $10 across 2 active days deep in a 30-day window: the old
+	// active-day average would project $150/30d; calendar-window math
+	// must land near the true ~$10/30d.
+	entries := []provider.CostEntry{
+		{Timestamp: now.Add(-29 * 24 * time.Hour), CostUSD: 5.0},
+		{Timestamp: now.Add(-28 * 24 * time.Hour), CostUSD: 5.0},
+	}
+	svc, _ := newStubService(entries, nil)
+	proj, err := svc.ProjectCost(context.Background(), 30, 30*24*time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if proj.ProjectedCost > 12.0 {
+		t.Errorf("idle fleet over-estimated: %+v", proj)
 	}
 }

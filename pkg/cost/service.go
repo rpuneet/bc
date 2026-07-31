@@ -329,12 +329,41 @@ func (s *Service) ProjectCost(ctx context.Context, lookbackDays int, projectDura
 	for _, dc := range dailyCosts {
 		proj.TotalHistorical += dc.CostUSD
 	}
-	proj.DailyAvgCost = proj.TotalHistorical / float64(len(dailyCosts))
+	// Average over the CALENDAR window, not just active days — dailyCosts
+	// only contains days with activity, and projecting an active-day
+	// average over calendar days over-estimates idle fleets. Clamp the
+	// window to the observed span so short histories don't under-estimate.
+	windowDays := float64(lookbackDays)
+	if first := earliestDay(dailyCosts); !first.IsZero() {
+		if elapsed := time.Since(first).Hours() / 24; elapsed >= 1 && elapsed < windowDays {
+			windowDays = elapsed
+		}
+	}
+	if windowDays < 1 {
+		windowDays = 1
+	}
+	proj.DailyAvgCost = proj.TotalHistorical / windowDays
 
 	projectDays := projectDuration.Hours() / 24
 	proj.ProjectedCost = proj.DailyAvgCost * projectDays
 
 	return proj, nil
+}
+
+// earliestDay returns the oldest day present in the slice (dates are
+// YYYY-MM-DD strings; unparseable entries are ignored).
+func earliestDay(days []*DailyCost) time.Time {
+	var first time.Time
+	for _, d := range days {
+		t, err := time.Parse("2006-01-02", d.Date)
+		if err != nil {
+			continue
+		}
+		if first.IsZero() || t.Before(first) {
+			first = t
+		}
+	}
+	return first
 }
 
 // ─── Repo rollups ────────────────────────────────────────────────────────────

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 
 	"github.com/rpuneet/mycel/pkg/app"
 	"github.com/rpuneet/mycel/pkg/home"
@@ -198,6 +199,12 @@ func mergeAppsPatch(merged *home.Config, raw json.RawMessage) error {
 		apps[k] = v
 	}
 	for name, ic := range patch {
+		if !app.ValidInstanceName(name) {
+			return fmt.Errorf("invalid instance name %q", name)
+		}
+		if got := strings.SplitN(name, ":", 2)[0]; ic.App != "" && ic.App != got {
+			return fmt.Errorf("instance %q cannot belong to app %q", name, ic.App)
+		}
 		plugin, ok := app.Get(ic.App)
 		if !ok {
 			return fmt.Errorf("unknown app %q for instance %q", ic.App, name)

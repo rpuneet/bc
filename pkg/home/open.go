@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 
 	"github.com/rpuneet/mycel/pkg/db"
 	"github.com/rpuneet/mycel/pkg/log"
@@ -39,6 +40,11 @@ type Home struct {
 	Config      *Config      // the one global config (~/.mycel/prefs.json)
 	RoleManager *RoleManager // Role manager (DB-backed)
 	RootDir     string       // Anchor repo root ("" = none)
+
+	// ConfigMu guards Config for handlers that read and mutate it
+	// concurrently (apps CRUD + catalog + settings PATCH). Readers take
+	// RLock, writers Lock; Go maps hard-crash on unsynchronized access.
+	ConfigMu sync.RWMutex
 }
 
 // Open bootstraps-or-loads the global mycel state. Idempotent: creates
