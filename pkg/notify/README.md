@@ -1,6 +1,6 @@
 # pkg/notify
 
-Notification dispatch and subscription management for bc.
+Notification dispatch and subscription management for mycel.
 
 ## Overview
 

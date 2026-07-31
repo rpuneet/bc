@@ -240,7 +240,7 @@ bc/
     │   ├── hooks/       # React hooks (useAgents, useChannels, etc.)
     │   │   └── __tests__/ # Hook tests
     │   ├── navigation/  # Tab bar, keyboard navigation
-    │   ├── services/    # BC CLI wrapper (bc.ts)
+    │   ├── services/    # mycel CLI wrapper (mycel.ts)
     │   ├── views/       # Full-screen views (14 views)
     │   │   └── __tests__/ # View tests
     │   └── app.tsx      # Main TUI application

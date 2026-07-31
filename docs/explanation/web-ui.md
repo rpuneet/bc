@@ -232,7 +232,7 @@ The dashboard ships **three themes**:
 | `light` | Light |
 
 - `ThemeMode = "solar-flare" | "dark" | "light"`; the toggle cycles through all three (`CYCLE` array).
-- Preference persists to `localStorage("bc-theme")`.
+- Preference persists to `localStorage("mycel-theme")`.
 - `applyTheme()` swaps a theme class on the document root; all colors resolve through CSS custom properties.
 
 ### 5.2 Token Layer
@@ -287,7 +287,7 @@ web/src/  --vite build-->  web/dist/  --cp-->  server/web/dist/  --go:embed-->  
 | `web/src/App.tsx` | Provider tree, lazy route definitions, 404 |
 | `web/src/components/Layout.tsx` | App shell: sidebar nav (`MAIN_NAV_ITEMS`, `UTIL_NAV_ITEMS`) + content outlet |
 | `web/src/components/ErrorBoundary.tsx` | React error boundary with retry UI |
-| `web/src/context/ThemeContext.tsx` | 3-theme provider, `localStorage("bc-theme")` |
+| `web/src/context/ThemeContext.tsx` | 3-theme provider, `localStorage("mycel-theme")` |
 | `web/src/context/HeaderSlotContext.tsx` | Lets views render content into the shared header |
 | `web/src/api/client.ts` | REST API client (`request<T>` on `/api`) |
 | `web/src/api/types.ts` | API response and SSE event types |

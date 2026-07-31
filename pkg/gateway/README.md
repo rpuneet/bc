@@ -49,7 +49,7 @@ secret store (e.g. `$SLACK_BOT_TOKEN`, `$TELEGRAM_BOT_TOKEN`). New
 adapters should **not** implement `Send`.
 
 The `Send` methods on the Slack, Telegram, and Discord adapters are a
-legacy exception, retained as a convenience for bcd's internal notify
+legacy exception, retained as a convenience for the daemon's internal notify
 dispatch path. They are not part of the `NotificationAdapter` contract.
 Most adapters (WhatsApp, Matrix, IRC, Signal, etc.) deliberately have
 no `Send` method — that is correct, not a missing feature.
