@@ -7,6 +7,8 @@ import type { EnvRow } from "./EnvVarsEditor";
 import { AgentAppsPicker } from "./apps/AgentAppsPicker";
 import { api } from "../api/client";
 import { MONO } from "../utils/typography";
+import { useReadiness } from "../hooks/useReadiness";
+import { CopyButton } from "./CopyButton";
 
 // ── Name generation ───────────────────────────────────────────────────────────
 
@@ -126,6 +128,11 @@ export function CreateAgentModal({
   const [candidates, setCandidates] = useState<RepoCandidate[] | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  // Machine readiness for the selected provider/runtime — probed only
+  // while the modal is open. Powers a non-blocking pre-flight warning so
+  // the user isn't surprised by a confusing failure after submitting.
+  const { data: readiness, loaded: readinessLoaded } = useReadiness(open);
 
   const firstInputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
@@ -343,6 +350,39 @@ export function CreateAgentModal({
       setSubmitting(false);
     }
   }, [name, template, provider, model, runtime, task, repo, envRows, appChannels, existingNames, onClose, navigate]);
+
+  // ── Pre-flight readiness warnings ──────────────────────────────────
+  // Surfaced inline before submit so the fix is one copy away. Non-blocking
+  // — the user can still create the agent (deps may have changed since the
+  // probe, or they may plan to install right after).
+  const preflight: { message: string; fix?: string }[] = [];
+  if (readinessLoaded && readiness) {
+    const providerItem = readiness.groups
+      .find((g) => g.id === "providers")
+      ?.items.find((i) => i.key === provider);
+    if (!readiness.providers[provider]) {
+      preflight.push({
+        message: `${providerItem?.label ?? provider} isn't installed on this machine — the agent can't start until it is.`,
+        fix: providerItem?.fix,
+      });
+    }
+    if (!readiness.anyRuntime) {
+      preflight.push({
+        message: "No runtime backend is available (neither tmux nor Docker) — agents cannot start.",
+      });
+    } else if (runtime === "docker" && !readiness.dockerOk) {
+      preflight.push({
+        message: readiness.tmuxOk
+          ? "Docker isn't available, but this agent is set to the Docker runtime — it may fail to start. Switch Runtime to tmux, or start Docker."
+          : "Docker isn't available — start Docker or pick a different runtime.",
+      });
+    } else if (runtime === "tmux" && !readiness.tmuxOk) {
+      preflight.push({
+        message: "tmux wasn't found, but this agent is set to the tmux runtime — it may fail to start.",
+        fix: "brew install tmux  OR  apt install tmux",
+      });
+    }
+  }
 
   if (!open) return null;
 
@@ -672,6 +712,42 @@ export function CreateAgentModal({
               )}
             </div>
           </div>
+
+          {/* Pre-flight readiness warnings — non-blocking, contextual to
+              the provider/runtime just chosen. */}
+          {preflight.length > 0 && (
+            <div
+              role="status"
+              className="flex flex-col gap-2 rounded-md border border-mycel-warning bg-mycel-warning-subtle px-3 py-2.5"
+            >
+              {preflight.map((w, i) => (
+                <div key={i} className="flex flex-col gap-1.5">
+                  <div className="flex items-start gap-2 text-[11px] text-mycel-warning">
+                    <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" className="shrink-0 mt-0.5">
+                      <path d="M7 1.5l6 11H1z" strokeLinejoin="round" />
+                      <path d="M7 6v3M7 10.8v.01" strokeLinecap="round" />
+                    </svg>
+                    <span className="leading-relaxed">{w.message}</span>
+                  </div>
+                  {w.fix && (
+                    <div className="ml-[18px] flex items-center gap-1.5 rounded border border-mycel-border bg-mycel-bg pl-2 pr-0.5 py-1">
+                      <code className="flex-1 min-w-0 font-mono text-[10px] text-mycel-text overflow-x-auto whitespace-nowrap">
+                        {w.fix}
+                      </code>
+                      <CopyButton text={w.fix} />
+                    </div>
+                  )}
+                </div>
+              ))}
+              <button
+                type="button"
+                onClick={() => { onClose(); navigate("/readiness"); }}
+                className="text-[10px] text-mycel-warning underline decoration-dotted underline-offset-2 hover:opacity-80 w-fit"
+              >
+                Open System readiness →
+              </button>
+            </div>
+          )}
 
           {/* Environment — collapsible key/value editor with secret
               reference autocomplete. Collapsed by default. */}

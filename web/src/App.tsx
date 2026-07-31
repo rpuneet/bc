@@ -17,6 +17,7 @@ const Insights = lazy(() => import("./views/Insights").then((m) => ({ default: m
 const Settings = lazy(() => import("./views/Settings").then((m) => ({ default: m.Settings })));
 const Code = lazy(() => import("./views/Code").then((m) => ({ default: m.Code })));
 const About = lazy(() => import("./views/About").then((m) => ({ default: m.About })));
+const Readiness = lazy(() => import("./views/Readiness").then((m) => ({ default: m.Readiness })));
 
 function Loading() {
   return <div className="p-6 text-mycel-muted">Loading...</div>;
@@ -91,6 +92,9 @@ export function AppRoutes() {
         <Route path="code/*" element={wrap(<Code />)} />
         <Route path="settings" element={wrap(<Settings />)} />
         <Route path="about" element={wrap(<About />)} />
+        <Route path="readiness" element={wrap(<Readiness />)} />
+        {/* "setup" is the friendlier alias surfaced in nudges/CTAs. */}
+        <Route path="setup" element={<Navigate to="/readiness" replace />} />
 
         {/* Old builds 301'd /<page> → /w/<hash>/<page>; browsers
             cached that redirect, so route it back to flat URLs. */}
