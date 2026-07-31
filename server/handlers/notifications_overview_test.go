@@ -30,12 +30,12 @@ type notifyStoreChannelStore struct {
 	store *notify.Store
 }
 
-func (p *notifyStoreChannelStore) SaveChannel(ctx context.Context, bcChannel, platform, platformID string) error {
-	return p.store.SaveChannel(ctx, bcChannel, platform, platformID)
+func (p *notifyStoreChannelStore) SaveChannel(ctx context.Context, channel, platform, platformID string) error {
+	return p.store.SaveChannel(ctx, channel, platform, platformID)
 }
 
-func (p *notifyStoreChannelStore) UpdateChannelPlatformID(ctx context.Context, bcChannel, platformID string) error {
-	return p.store.UpdateChannelPlatformID(ctx, bcChannel, platformID)
+func (p *notifyStoreChannelStore) UpdateChannelPlatformID(ctx context.Context, channel, platformID string) error {
+	return p.store.UpdateChannelPlatformID(ctx, channel, platformID)
 }
 
 func (p *notifyStoreChannelStore) LoadChannels(ctx context.Context) ([]gateway.PersistedChannel, error) {
@@ -46,7 +46,7 @@ func (p *notifyStoreChannelStore) LoadChannels(ctx context.Context) ([]gateway.P
 	result := make([]gateway.PersistedChannel, len(ncs))
 	for i, c := range ncs {
 		result[i] = gateway.PersistedChannel{
-			BCChannel:        c.BCChannel,
+			Channel:        c.Channel,
 			Platform:         c.Platform,
 			PlatformID:       c.PlatformID,
 			DisplayName:      c.DisplayName,
@@ -57,8 +57,8 @@ func (p *notifyStoreChannelStore) LoadChannels(ctx context.Context) ([]gateway.P
 	return result, nil
 }
 
-func (p *notifyStoreChannelStore) UpsertChannelMeta(ctx context.Context, bcChannel, displayName, kind string, participantCount int) error {
-	return p.store.UpsertChannelMeta(ctx, bcChannel, displayName, kind, participantCount)
+func (p *notifyStoreChannelStore) UpsertChannelMeta(ctx context.Context, channel, displayName, kind string, participantCount int) error {
+	return p.store.UpsertChannelMeta(ctx, channel, displayName, kind, participantCount)
 }
 
 type overviewResponse struct {
@@ -70,7 +70,7 @@ type overviewResponse struct {
 		Connected        bool   `json:"connected"`
 	} `json:"apps"`
 	Channels []struct {
-		BCChannel        string `json:"bc_channel"`
+		Channel        string `json:"channel"`
 		Platform         string `json:"platform"`
 		DisplayName      string `json:"display_name"`
 		Kind             string `json:"kind"`
@@ -147,13 +147,13 @@ func TestNotificationsOverview(t *testing.T) {
 	}
 	// Sorted by message count desc: whatsapp:family first.
 	fam := resp.Channels[0]
-	if fam.BCChannel != "whatsapp:family" || fam.DisplayName != "Family Group" ||
+	if fam.Channel != "whatsapp:family" || fam.DisplayName != "Family Group" ||
 		fam.Kind != "group" || fam.ParticipantCount != 12 ||
 		fam.MessageCount != 3 || fam.SubscriberCount != 1 {
 		t.Fatalf("whatsapp:family = %+v", fam)
 	}
 	gen := resp.Channels[1]
-	if gen.BCChannel != "slack:general" || gen.DisplayName != "general" || gen.Kind != "" {
+	if gen.Channel != "slack:general" || gen.DisplayName != "general" || gen.Kind != "" {
 		t.Fatalf("slack:general = %+v", gen)
 	}
 }
@@ -225,7 +225,7 @@ func TestRefreshChannelMetaEndpoint(t *testing.T) {
 	}
 	var found bool
 	for _, c := range channels {
-		if c.BCChannel == "whatsapp:family" {
+		if c.Channel == "whatsapp:family" {
 			found = true
 			if c.DisplayName != "Family Group" || c.Kind != "group" || c.ParticipantCount != 7 {
 				t.Fatalf("meta not refreshed: %+v", c)

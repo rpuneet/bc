@@ -121,7 +121,7 @@ function fallbackLabel(base: string): string {
 export function buildHomeModel(snap: HomeSnapshot): { apps: AppItem[]; channels: ChannelItem[] } {
   const ovChannels = snap.overview?.channels ?? [];
   const ovApps = snap.overview?.apps ?? [];
-  const ovByName = new Map(ovChannels.map((c) => [c.bc_channel, c]));
+  const ovByName = new Map(ovChannels.map((c) => [c.channel, c]));
   const statByName = new Map(snap.stats.map((s) => [s.name, s]));
 
   const subsByChannel = new Map<string, string[]>();
@@ -135,9 +135,9 @@ export function buildHomeModel(snap: HomeSnapshot): { apps: AppItem[]; channels:
   const names: string[] = snap.sources.map((s) => s.name);
   const seen = new Set(names);
   for (const c of ovChannels) {
-    if (!seen.has(c.bc_channel)) {
-      seen.add(c.bc_channel);
-      names.push(c.bc_channel);
+    if (!seen.has(c.channel)) {
+      seen.add(c.channel);
+      names.push(c.channel);
     }
   }
 

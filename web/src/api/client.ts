@@ -248,7 +248,7 @@ export interface OverviewApp {
  *  metadata fields are optional — the page degrades to raw channel ids
  *  when the backend has not resolved identities yet. */
 export interface OverviewChannel {
-  bc_channel: string;
+  channel: string;
   platform: string;
   display_name?: string;
   /** "group" | "person" when the adapter could classify the channel. */

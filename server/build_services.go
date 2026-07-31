@@ -513,12 +513,12 @@ type channelPersister struct {
 	store *notifypkg.Store
 }
 
-func (p *channelPersister) SaveChannel(ctx context.Context, bcChannel, platform, platformID string) error {
-	return p.store.SaveChannel(ctx, bcChannel, platform, platformID)
+func (p *channelPersister) SaveChannel(ctx context.Context, channel, platform, platformID string) error {
+	return p.store.SaveChannel(ctx, channel, platform, platformID)
 }
 
-func (p *channelPersister) UpdateChannelPlatformID(ctx context.Context, bcChannel, platformID string) error {
-	return p.store.UpdateChannelPlatformID(ctx, bcChannel, platformID)
+func (p *channelPersister) UpdateChannelPlatformID(ctx context.Context, channel, platformID string) error {
+	return p.store.UpdateChannelPlatformID(ctx, channel, platformID)
 }
 
 func (p *channelPersister) LoadChannels(ctx context.Context) ([]gatewaypkg.PersistedChannel, error) {
@@ -529,7 +529,7 @@ func (p *channelPersister) LoadChannels(ctx context.Context) ([]gatewaypkg.Persi
 	result := make([]gatewaypkg.PersistedChannel, len(ncs))
 	for i, c := range ncs {
 		result[i] = gatewaypkg.PersistedChannel{
-			BCChannel:        c.BCChannel,
+			Channel:        c.Channel,
 			Platform:         c.Platform,
 			PlatformID:       c.PlatformID,
 			DisplayName:      c.DisplayName,
@@ -540,8 +540,8 @@ func (p *channelPersister) LoadChannels(ctx context.Context) ([]gatewaypkg.Persi
 	return result, nil
 }
 
-func (p *channelPersister) UpsertChannelMeta(ctx context.Context, bcChannel, displayName, kind string, participantCount int) error {
-	return p.store.UpsertChannelMeta(ctx, bcChannel, displayName, kind, participantCount)
+func (p *channelPersister) UpsertChannelMeta(ctx context.Context, channel, displayName, kind string, participantCount int) error {
+	return p.store.UpsertChannelMeta(ctx, channel, displayName, kind, participantCount)
 }
 
 // costServiceAdapter bridges cost.Service → agentpkg.CostQuerier.
