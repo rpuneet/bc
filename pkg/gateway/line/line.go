@@ -77,7 +77,7 @@ func (a *Adapter) HTTPHandler() http.Handler {
 			}
 		}
 
-		eventType, sender := extractEvent(body)
+		eventType, sender, content := extractEvent(body)
 		now := time.Now()
 
 		a.mu.Lock()
@@ -98,6 +98,7 @@ func (a *Adapter) HTTPHandler() http.Handler {
 				Channel:   eventType,
 				Platform:  "line",
 				Sender:    sender,
+				Content:   content,
 				Timestamp: now,
 				Raw:       body,
 			})
@@ -141,14 +142,19 @@ func validateSignature(secret, signature string, body []byte) bool {
 	return hmac.Equal([]byte(signature), []byte(expected))
 }
 
-// extractEvent pulls the first event type and source user from a LINE payload.
-func extractEvent(body []byte) (string, string) {
+// extractEvent pulls the first event's type, source user, and message text
+// from a LINE payload. For message events the text lives in event.message.text;
+// for non-message events (follow, postback, …) the content is empty.
+func extractEvent(body []byte) (eventType, sender, content string) {
 	var payload struct {
 		Events []struct {
 			Type   string `json:"type"`
 			Source struct {
 				UserID string `json:"userId"`
 			} `json:"source"`
+			Message struct {
+				Text string `json:"text"`
+			} `json:"message"`
 		} `json:"events"`
 	}
 	if err := json.Unmarshal(body, &payload); err == nil && len(payload.Events) > 0 {
@@ -160,7 +166,7 @@ func extractEvent(body []byte) (string, string) {
 		if s == "" {
 			s = "line"
 		}
-		return t, s
+		return t, s, payload.Events[0].Message.Text
 	}
-	return "unknown", "line"
+	return "unknown", "line", ""
 }

@@ -21,12 +21,12 @@ func (plugin) Describe() app.Descriptor {
 		Auth:  app.AuthWebhookSecret,
 		Multi: true,
 		Fields: []app.FieldSpec{
-			{Key: "secret", Label: "Webhook Secret", Placeholder: "datadog-webhook-secret", Secret: true},
+			{Key: "secret", Label: "Shared Secret", Placeholder: "datadog-shared-secret", Secret: true},
 		},
 		Docs: []string{
 			"Go to Datadog → Integrations → Webhooks.",
-			"Create a webhook pointing to /hooks/datadog on your mycel server.",
-			"Set a shared secret here for payload verification.",
+			"Datadog has NO built-in HMAC signing. To authenticate, put the same secret you set here into the webhook: either append it to the URL as /hooks/datadog?secret=<secret>, or add \"secret\": \"<secret>\" to the custom payload template.",
+			"Leave the secret blank to accept the webhook unauthenticated.",
 		},
 	}
 }

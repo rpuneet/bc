@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
 )
 
@@ -66,6 +67,20 @@ func (p *CursorProvider) BuildCommand(opts CommandOpts) string {
 	return cmd
 }
 
+// AdjustSessionCommand is a no-op for native tmux sessions: cursor-agent runs
+// directly inside the mycel-managed tmux pane.
+func (p *CursorProvider) AdjustSessionCommand(command string) string { return command }
+
+// AdjustContainerCommand wraps the command in a tmux session for Docker so
+// mycel can drive it via SendKeys. Double quotes let bash expand
+// $MYCEL_WORKTREE_NAME for the session name.
+func (p *CursorProvider) AdjustContainerCommand(command string) string {
+	return fmt.Sprintf(`tmux new-session -s "$MYCEL_WORKTREE_NAME" "%s"`, command)
+}
+
+// DockerImage returns empty to use the default image-name convention.
+func (p *CursorProvider) DockerImage() string { return "" }
+
 // Models returns the curated model list for the Cursor Agent CLI,
 // taken from `cursor-agent --list-models`.
 func (p *CursorProvider) Models() []string {
@@ -95,3 +110,5 @@ func (p *CursorProvider) Version(ctx context.Context) string {
 var _ Provider = (*CursorProvider)(nil)
 var _ ModelLister = (*CursorProvider)(nil)
 var _ MCPConfigReader = (*CursorProvider)(nil)
+var _ ContainerCustomizer = (*CursorProvider)(nil)
+var _ SessionCustomizer = (*CursorProvider)(nil)

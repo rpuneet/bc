@@ -27,23 +27,46 @@ func TestPluginDescribe(t *testing.T) {
 	}
 }
 
+func TestPluginRequiredFields(t *testing.T) {
+	d := plugin{}.Describe()
+	required := map[string]bool{}
+	for _, f := range d.Fields {
+		required[f.Key] = f.Required
+	}
+	if !required["url"] {
+		t.Error("url field must be Required")
+	}
+	if !required["token"] {
+		t.Error("token field must be Required")
+	}
+}
+
 func TestPluginBuild(t *testing.T) {
 	tests := []struct {
 		secrets app.MapSecrets
+		config  map[string]string
 		name    string
+		wantErr bool
 	}{
-		{name: "with token", secrets: app.MapSecrets{"token": "abc123"}},
-		{name: "without token", secrets: app.MapSecrets{}},
+		{name: "with url and token", config: map[string]string{"url": "https://mm.example.com"}, secrets: app.MapSecrets{"token": "abc123"}},
+		{name: "missing token", config: map[string]string{"url": "https://mm.example.com"}, secrets: app.MapSecrets{}, wantErr: true},
+		{name: "missing url", config: map[string]string{}, secrets: app.MapSecrets{"token": "abc123"}, wantErr: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			inst := app.Instance{
 				App:     "mattermost",
 				Name:    "mattermost",
-				Config:  map[string]string{"url": "https://mm.example.com"},
+				Config:  tt.config,
 				Secrets: tt.secrets,
 			}
 			adapter, err := plugin{}.Build(inst, app.Env{})
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("Build: expected error, got nil")
+				}
+				return
+			}
 			if err != nil {
 				t.Fatalf("Build: %v", err)
 			}

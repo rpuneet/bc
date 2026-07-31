@@ -1,0 +1,21 @@
+# Pi coding assistant (pi) agent image.
+# Usage: docker build -t mycel-agent-pi:latest -f docker/Dockerfile.pi .
+# Requires: mycel-agent-base:latest
+# Base images pinned — update versions in Dependabot PRs or manually.
+#
+# pi is an npm-published CLI (package `@earendil-works/pi-coding-agent`, bin
+# `pi`). Installed the same way as cursor: a bun builder stage installs the
+# global package, then the resolved node_modules are copied into the shared
+# base image and the declared bin symlinks are exposed on PATH.
+
+FROM oven/bun:1.2 AS builder
+RUN bun install -g @earendil-works/pi-coding-agent
+
+FROM mycel-agent-base:latest
+USER root
+COPY --from=builder /root/.bun/install/global/node_modules /usr/local/lib/node_modules
+# bun links each package's declared bin into node_modules/.bin; expose them on PATH.
+RUN for f in /usr/local/lib/node_modules/.bin/*; do ln -sf "$f" /usr/local/bin/ 2>/dev/null || true; done
+USER agent
+WORKDIR /workspace
+ENTRYPOINT ["bash", "-c"]
