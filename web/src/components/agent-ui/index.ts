@@ -5,6 +5,8 @@ export type { AgentCharacterProps } from "./AgentCharacter";
 export { AgentChip } from "./AgentChip";
 export type { AgentChipProps } from "./AgentChip";
 export { AgentHoverCard } from "./AgentHoverCard";
+export { AgentSelect } from "./AgentSelect";
+export type { AgentSelectProps, AgentOption } from "./AgentSelect";
 export { AgentCard } from "./AgentCard";
 export type { AgentCardProps } from "./AgentCard";
 export { AgentStatusBadge } from "./AgentStatusBadge";

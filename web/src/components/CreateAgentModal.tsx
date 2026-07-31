@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { AgentCharacter, prefersReducedMotion } from "./agent-ui";
+import { AgentCharacter, AgentSelect, prefersReducedMotion } from "./agent-ui";
 import { EnvVarsEditor, isValidEnvKey } from "./EnvVarsEditor";
 import type { EnvRow } from "./EnvVarsEditor";
 import { AgentAppsPicker } from "./apps/AgentAppsPicker";
@@ -596,19 +596,14 @@ export function CreateAgentModal({
                 Clone config from{" "}
                 <span className="normal-case font-normal text-mycel-muted">(optional)</span>
               </label>
-              <select
+              <AgentSelect
+                agents={existingAgents.map((a) => ({ name: a.name, state: a.state, tool: a.tool }))}
                 value={cloneFrom}
-                onChange={(e) => setCloneFrom(e.target.value)}
-                className={INPUT_CLS}
-                style={{ fontFamily: MONO }}
-              >
-                <option value="">— none —</option>
-                {existingAgents.map((a) => (
-                  <option key={a.name} value={a.name}>
-                    {a.name}{a.state ? ` · ${a.state}` : ""}
-                  </option>
-                ))}
-              </select>
+                onChange={setCloneFrom}
+                allowNone
+                placeholder="— none —"
+                ariaLabel="Clone config from agent"
+              />
             </div>
           )}
 
