@@ -7,7 +7,7 @@ export type { AgentChipProps } from "./AgentChip";
 export { AgentCard } from "./AgentCard";
 export type { AgentCardProps } from "./AgentCard";
 export { AgentStatusBadge } from "./AgentStatusBadge";
-export { deriveIdentity, hashName, stateAnimClass } from "./identity";
+export { deriveIdentity, hashName, stateAnimClass, ALL_FORMS } from "./identity";
 export type { AgentIdentity, BodyForm, EyeStyle } from "./identity";
 export { useAgentPulse, prefersReducedMotion, PULSE_MS } from "./useAgentPulse";
 export { handleAgentEvent, subscribeAgentPulse, ANY_AGENT } from "./agentEventBus";
