@@ -695,3 +695,124 @@ html:not(.dark) .product-frame img.shot-light { display: block; }
       transparent 70%
     );
 }
+
+/* ═══════════════════════════════════════════
+   HERO SHOWCASE — the tabbed, animated product frame
+   ═══════════════════════════════════════════ */
+
+/* Panel body: fixed-ratio stage the tab content fills. object-cover +
+   object-top crops tall screenshots cleanly to the 16:10 frame. */
+.hero-panel {
+  position: relative;
+  background: var(--surface-container-lowest);
+}
+.hero-panel > img {
+  position: absolute;
+  inset: 0;
+}
+
+/* Momentum panning on touch when a screenshot overflows on mobile */
+.hero-panel-scroll {
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.hero-panel-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+/* Crossfade whenever the active tab changes (keyed remount) */
+.hero-panel {
+  animation: hero-fade-in 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes hero-fade-in {
+  from {
+    opacity: 0;
+    transform: scale(0.995);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* ── The animated Live panel ── */
+
+/* Each row slides down from the top as it is prepended. Only newly mounted
+   rows animate (stable React keys), so existing rows sit still. */
+.live-row {
+  animation: live-row-in 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes live-row-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+    background: color-mix(in srgb, var(--primary) 10%, transparent);
+  }
+  60% {
+    background: color-mix(in srgb, var(--primary) 6%, transparent);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    background: transparent;
+  }
+}
+
+/* Expandable tool-call detail opens as it arrives */
+.live-detail {
+  overflow: hidden;
+  animation: live-detail-open 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes live-detail-open {
+  from {
+    max-height: 0;
+    opacity: 0;
+  }
+  to {
+    max-height: 6rem;
+    opacity: 1;
+  }
+}
+
+/* Working status dot — a slow, calm pulse (the only looping motion here) */
+.live-pulse {
+  animation: live-pulse 1.8s ease-in-out infinite;
+}
+@keyframes live-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--success) 45%, transparent);
+  }
+  50% {
+    opacity: 0.7;
+    box-shadow: 0 0 0 4px transparent;
+  }
+}
+
+/* Tool chips — mono label pills coloured by tool family */
+.live-chip {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 4px;
+  padding: 0.05rem 0.4rem;
+  font-size: 10px;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+.live-chip-amber {
+  color: var(--primary-text);
+  background: color-mix(in srgb, var(--primary) 14%, transparent);
+}
+.live-chip-green {
+  color: var(--success);
+  background: color-mix(in srgb, var(--success) 15%, transparent);
+}
+.live-chip-blue {
+  color: var(--info);
+  background: color-mix(in srgb, var(--info) 15%, transparent);
+}
+.live-chip-lav {
+  color: var(--spore);
+  background: color-mix(in srgb, var(--spore) 18%, transparent);
+}
