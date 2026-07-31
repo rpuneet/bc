@@ -21,7 +21,7 @@ type overviewApp struct {
 // overviewChannel is one gateway channel with resolved identity and activity.
 type overviewChannel struct {
 	LastActivity     time.Time `json:"last_activity"`
-	Channel        string    `json:"channel"`
+	Channel          string    `json:"channel"`
 	Platform         string    `json:"platform"`
 	DisplayName      string    `json:"display_name"`
 	Kind             string    `json:"kind"`
@@ -52,7 +52,7 @@ func (h *GatewayHandler) notificationsOverview(w http.ResponseWriter, r *http.Re
 	byName := make(map[string]*overviewChannel, len(persisted))
 	for _, c := range persisted {
 		byName[c.Channel] = &overviewChannel{
-			Channel:        c.Channel,
+			Channel:          c.Channel,
 			Platform:         c.Platform,
 			DisplayName:      c.DisplayName,
 			Kind:             c.Kind,

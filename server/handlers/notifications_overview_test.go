@@ -46,7 +46,7 @@ func (p *notifyStoreChannelStore) LoadChannels(ctx context.Context) ([]gateway.P
 	result := make([]gateway.PersistedChannel, len(ncs))
 	for i, c := range ncs {
 		result[i] = gateway.PersistedChannel{
-			Channel:        c.Channel,
+			Channel:          c.Channel,
 			Platform:         c.Platform,
 			PlatformID:       c.PlatformID,
 			DisplayName:      c.DisplayName,
@@ -70,7 +70,7 @@ type overviewResponse struct {
 		Connected        bool   `json:"connected"`
 	} `json:"apps"`
 	Channels []struct {
-		Channel        string `json:"channel"`
+		Channel          string `json:"channel"`
 		Platform         string `json:"platform"`
 		DisplayName      string `json:"display_name"`
 		Kind             string `json:"kind"`

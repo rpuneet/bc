@@ -69,7 +69,7 @@ type Candidate struct {
 	Name              string `json:"name"`
 	GitRemote         string `json:"git_remote,omitempty"`
 	GithubURL         string `json:"github_url,omitempty"`
-	HasMycel             bool   `json:"has_mycel"`
+	HasMycel          bool   `json:"has_mycel"`
 	AlreadyRegistered bool   `json:"already_registered"`
 }
 

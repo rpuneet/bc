@@ -11,7 +11,7 @@ import (
 )
 
 // DefaultPostgresDSN is the connection string for the mycel-db (TimescaleDB) container.
-const DefaultPostgresDSN = "postgres://mycel:mycel@localhost:5432/mycel"
+const DefaultPostgresDSN = "postgres://mycel:mycel@localhost:5432/mycel" //nolint:gosec // not a credential, it's a default local DSN
 
 // PostgresDSN returns the Postgres connection string from DATABASE_URL env var,
 // or the default mycel-db DSN if not set.

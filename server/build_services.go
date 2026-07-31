@@ -529,7 +529,7 @@ func (p *channelPersister) LoadChannels(ctx context.Context) ([]gatewaypkg.Persi
 	result := make([]gatewaypkg.PersistedChannel, len(ncs))
 	for i, c := range ncs {
 		result[i] = gatewaypkg.PersistedChannel{
-			Channel:        c.Channel,
+			Channel:          c.Channel,
 			Platform:         c.Platform,
 			PlatformID:       c.PlatformID,
 			DisplayName:      c.DisplayName,

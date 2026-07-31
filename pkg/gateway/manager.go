@@ -16,7 +16,7 @@ import (
 // PersistedChannel is a saved channel → platform_id mapping with
 // optional display metadata.
 type PersistedChannel struct {
-	Channel        string
+	Channel          string
 	Platform         string
 	PlatformID       string
 	DisplayName      string

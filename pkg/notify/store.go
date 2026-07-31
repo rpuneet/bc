@@ -506,7 +506,7 @@ func (s *Store) GetMessages(ctx context.Context, channel string, limit int, befo
 // PersistedChannel is a saved channel → platform_id mapping with
 // resolved display metadata.
 type PersistedChannel struct {
-	Channel        string
+	Channel          string
 	Platform         string
 	PlatformID       string
 	DisplayName      string
