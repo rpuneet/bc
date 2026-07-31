@@ -7,6 +7,10 @@ import { Nav } from "./_components/Nav";
 import { Footer } from "./_components/Footer";
 import { InstallSection } from "./_components/InstallSection";
 import { ProductFrame } from "./_components/ProductFrame";
+import { HeroShowcase } from "./_components/HeroShowcase";
+import { SocialProof } from "./_components/SocialProof";
+import { DownloadButtons } from "./_components/DownloadButtons";
+import { MethodTeaser } from "./_components/MethodTeaser";
 import { RevealSection, FadeUp, ScrollReveal } from "./_components/Motion";
 import { AnimatedBackground } from "./_components/AnimatedBackground";
 import { SporeLogo } from "./_components/SporeLogo";
@@ -42,6 +46,7 @@ function DeckPanel({
   artifact,
   imageFirst = false,
   last = false,
+  showNode = true,
 }: {
   index: string;
   eyebrow: string;
@@ -50,6 +55,8 @@ function DeckPanel({
   artifact: ReactNode;
   imageFirst?: boolean;
   last?: boolean;
+  // A lone panel (no series) shouldn't carry the hyphae-rail node marker.
+  showNode?: boolean;
 }) {
   const text = (
     <ScrollReveal
@@ -83,11 +90,13 @@ function DeckPanel({
 
   return (
     <div className="relative">
-      {/* Ember-rail node marker (desktop) */}
-      <span
-        aria-hidden="true"
-        className="ember-node absolute left-1/2 top-16 hidden h-3 w-3 -translate-x-1/2 rounded-full bg-primary lg:block"
-      />
+      {/* Ember-rail node marker (desktop) — only within a panel series */}
+      {showNode && (
+        <span
+          aria-hidden="true"
+          className="ember-node absolute left-1/2 top-16 hidden h-3 w-3 -translate-x-1/2 rounded-full bg-primary lg:block"
+        />
+      )}
       <div className="grid items-center gap-10 py-16 sm:py-20 lg:grid-cols-2 lg:gap-20">
         {imageFirst ? (
           <>
@@ -114,7 +123,8 @@ function DeckPanel({
 export default function Home() {
   return (
     <main className="min-h-screen overflow-x-hidden">
-      {/* Drifting spore field — fixed, covers the page */}
+      {/* Drifting spore field — fixed, covers the page. Calmed (decision #4)
+         so it never competes with the animated hero below. */}
       <AnimatedBackground />
       {/* Warm radial wash above the fold */}
       <div className="pointer-events-none fixed inset-0 z-[1] bg-[radial-gradient(ellipse_80%_60%_at_50%_-20%,color-mix(in_srgb,var(--primary)_10%,transparent),transparent)]" />
@@ -123,9 +133,9 @@ export default function Home() {
         <Nav />
 
         {/* ════════════════════════════════════════
-           Hero — the thesis
+           Hero — the thesis, the download, the live product
            ════════════════════════════════════════ */}
-        <section className="pt-28 pb-10 sm:pt-36 sm:pb-14">
+        <section className="pt-28 pb-10 sm:pt-32 sm:pb-14">
           <div className="mx-auto max-w-4xl px-4 text-center sm:px-6">
             <FadeUp>
               <span className="deck-eyebrow">
@@ -150,58 +160,50 @@ export default function Home() {
               </p>
             </FadeUp>
 
-            {/* CTAs */}
+            {/* Primary conversion: download the desktop app (decision #3) */}
             <FadeUp delay={0.2}>
-              <div className="mt-9 flex items-center justify-center gap-4">
-                <Link
-                  href="/#install"
-                  className="inline-flex h-11 items-center gap-2 rounded-lg bg-primary px-6 text-sm font-semibold text-primary-foreground shadow-[var(--btn-shadow)] transition-all hover:shadow-lg active:scale-[0.97]"
-                >
-                  Get mycel
-                  <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
-                </Link>
-                <Link
-                  href="https://github.com/rpuneet/mycel"
-                  className="inline-flex h-11 items-center gap-2 rounded-lg border border-outline-variant/20 px-6 font-body text-sm font-medium text-on-surface-variant transition-colors hover:border-primary/30 hover:bg-surface-container hover:text-primary active:scale-[0.97]"
-                >
-                  <Github className="h-4 w-4" aria-hidden="true" />
-                  GitHub
-                </Link>
+              <div className="mt-9">
+                <DownloadButtons />
               </div>
-              <div className="mt-5">
-                <Link
-                  href="/method"
-                  className="group inline-flex items-center gap-1.5 font-body text-sm text-on-surface-variant transition-colors hover:text-primary"
-                >
-                  See how it works &mdash; the mycel method
-                  <ArrowRight
-                    className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5"
-                    aria-hidden="true"
-                  />
-                </Link>
+              <div className="mt-5 flex flex-col items-center gap-2">
+                <div className="flex items-center gap-5">
+                  <Link
+                    href="https://github.com/rpuneet/mycel"
+                    className="inline-flex items-center gap-1.5 font-body text-sm text-on-surface-variant transition-colors hover:text-primary"
+                  >
+                    <Github className="h-4 w-4" aria-hidden="true" />
+                    GitHub
+                  </Link>
+                  <span aria-hidden="true" className="text-outline-variant/30">
+                    ·
+                  </span>
+                  <Link
+                    href="/#install"
+                    className="inline-flex items-center gap-1.5 font-body text-sm text-on-surface-variant transition-colors hover:text-primary"
+                  >
+                    Prefer the terminal? Install the CLI
+                  </Link>
+                </div>
+                {/* Honest cost line (decision #5 — pricing page removed). */}
+                <p className="font-body text-xs text-on-surface-variant/70">
+                  Free and open source &mdash; you only pay your model
+                  providers.
+                </p>
+              </div>
+            </FadeUp>
+
+            {/* Social proof: live GitHub numbers (decision #2) */}
+            <FadeUp delay={0.26}>
+              <div className="mt-8">
+                <SocialProof />
               </div>
             </FadeUp>
           </div>
 
-          {/* Hero shot — the fleet, live */}
-          <FadeUp delay={0.28}>
-            <div className="hero-stage mx-auto mt-14 max-w-6xl px-4 sm:px-6">
-              <div className="hero-tilt">
-                <ProductFrame
-                  srcDark="/screenshots/agents-dark.png"
-                  srcLight="/screenshots/agents-light.png"
-                  alt="The mycel agents view: a fleet of agents with living character faces, grouped by repository, each with its status, last activity, and cost"
-                  title="mycel — agents"
-                  width={1440}
-                  height={700}
-                  priority
-                  className="hero-glow"
-                />
-              </div>
-              <p className="mt-5 text-center font-body text-sm text-on-surface-variant">
-                The fleet at a glance &mdash; every agent, its status, and
-                what it&rsquo;s spending.
-              </p>
+          {/* The centerpiece: tabbed, live product frame (decision #1) */}
+          <FadeUp delay={0.32}>
+            <div className="mt-14 px-4 sm:px-6">
+              <HeroShowcase />
             </div>
           </FadeUp>
         </section>
@@ -210,53 +212,28 @@ export default function Home() {
         <SporeDivider />
 
         {/* ════════════════════════════════════════
-           The deck — one capability per panel
+           Beyond the dashboard — reachable everywhere
            ════════════════════════════════════════ */}
         <section id="product" className="deck-veil scroll-mt-24 py-14 sm:py-20">
           <div className="mx-auto max-w-7xl px-4 sm:px-6">
             <FadeUp className="mb-6 text-center">
-              <span className="deck-eyebrow">What it does</span>
+              <span className="deck-eyebrow">More than a window</span>
               <h2 className="mx-auto mt-4 max-w-3xl font-headline text-3xl font-semibold tracking-tight text-on-background md:text-5xl">
-                One window into everything
+                Not just a place to watch.
                 <br className="hidden sm:block" />{" "}
-                your agents do.
+                A place your team lives.
               </h2>
               <p className="mx-auto mt-5 max-w-2xl font-body text-lg text-on-surface-variant">
-                Six views, one app &mdash; every screenshot captured live
-                from a working team.
+                The four views above are one app. It also reaches into the
+                tools your team already uses.
               </p>
             </FadeUp>
 
             <div className="relative">
-              {/* 01 — Agents */}
+              {/* Apps — the one view not in the hero tabs, and a real
+                 differentiator: agents reachable where you already talk. */}
               <DeckPanel
                 index="01"
-                eyebrow="Agents"
-                title="Meet the fleet. Every agent has a face."
-                body={
-                  <>
-                    Each agent is a living character &mdash; one glance at the
-                    roster tells you who&rsquo;s working, who&rsquo;s idle, and
-                    who&rsquo;s done before you read a word. Agents are grouped
-                    by the repository they work in, with status, last activity,
-                    and cost side by side. Start, stop, or inspect any of them
-                    from the same row.
-                  </>
-                }
-                artifact={
-                  <ProductFrame
-                    srcDark="/screenshots/agents-dark.png"
-                    alt="Agent roster grouped by repository, showing character avatars, status badges, activity, and per-agent cost"
-                    title="Agents"
-                    width={1440}
-                    height={700}
-                  />
-                }
-              />
-
-              {/* 02 — Apps */}
-              <DeckPanel
-                index="02"
                 eyebrow="Apps"
                 title="Reachable where you already talk."
                 body={
@@ -267,6 +244,24 @@ export default function Home() {
                     you reply &mdash; from your phone, in the thread you were
                     already in. One screen shows every connection and every
                     conversation flowing through it.
+                    <span className="mt-6 flex flex-wrap gap-2">
+                      {[
+                        "Slack",
+                        "WhatsApp",
+                        "Telegram",
+                        "Discord",
+                        "GitHub",
+                        "IRC",
+                        "+20 more",
+                      ].map((p) => (
+                        <span
+                          key={p}
+                          className="inline-flex items-center rounded-full border border-outline-variant/20 bg-surface-container/50 px-3 py-1 font-label text-[11px] text-on-surface-variant"
+                        >
+                          {p}
+                        </span>
+                      ))}
+                    </span>
                   </>
                 }
                 artifact={
@@ -278,138 +273,33 @@ export default function Home() {
                     height={900}
                   />
                 }
-                imageFirst
-              />
-
-              {/* 03 — Live */}
-              <DeckPanel
-                index="03"
-                eyebrow="Live"
-                title="Every action, the moment it happens."
-                body={
-                  <>
-                    The Live feed streams what each agent is doing right now
-                    &mdash; every command it runs, every file it reads, every
-                    tool it calls, timed to the millisecond. There is no black
-                    box: if an agent did it, it&rsquo;s in the feed, and you
-                    can expand any line to see exactly what happened.
-                  </>
-                }
-                artifact={
-                  <ProductFrame
-                    srcDark="/screenshots/live-dark.png"
-                    alt="The live feed: a working agent's stream of commands, file reads, and tool calls with timing for each action"
-                    title="Live"
-                    width={1440}
-                    height={900}
-                  />
-                }
-              />
-
-              {/* 04 — Code */}
-              <DeckPanel
-                index="04"
-                eyebrow="Code"
-                title="Every change, reviewable before it ships."
-                body={
-                  <>
-                    Open any agent&rsquo;s working copy and read its changes as
-                    a side-by-side diff &mdash; added lines, removed lines,
-                    file by file. You review agents the way you review
-                    colleagues: look at the work, not a summary of it.
-                  </>
-                }
-                artifact={
-                  <ProductFrame
-                    srcDark="/screenshots/code-dark.png"
-                    alt="An agent's code view showing a side-by-side diff of a changed file, with the full file tree of its working copy"
-                    title="Code"
-                    width={1440}
-                    height={900}
-                  />
-                }
-                imageFirst
-              />
-
-              {/* 05 — Costs */}
-              <DeckPanel
-                index="05"
-                eyebrow="Costs"
-                title="Spend, read straight from the source."
-                body={
-                  <>
-                    mycel reads usage from each agent&rsquo;s own records
-                    &mdash; no estimates, no bookkeeping. See spend by agent,
-                    by model, and over time, with burn rate and your biggest
-                    cost driver called out for whatever range you pick. The
-                    bill never surprises you, because you watched it happen.
-                  </>
-                }
-                artifact={
-                  <ProductFrame
-                    srcDark="/screenshots/insights-dark.png"
-                    alt="The insights view: total spend, token counts, burn rate, and cost broken down by agent and by model"
-                    title="Insights"
-                    width={1440}
-                    height={860}
-                  />
-                }
-              />
-
-              {/* 06 — One app */}
-              <DeckPanel
-                index="06"
-                eyebrow="One app"
-                title="On your desktop, in your browser — the same app."
-                body={
-                  <>
-                    mycel runs as a desktop app and serves the same interface
-                    in your browser on localhost. Light or dark, laptop or
-                    second screen &mdash; it&rsquo;s one app, it runs on your
-                    machine, and it runs everything.
-                  </>
-                }
-                artifact={
-                  <ProductFrame
-                    srcDark="/screenshots/agents-light.png"
-                    alt="The same agents view in the light theme, showing the app adapts to your preference"
-                    title="mycel — light theme"
-                    width={1440}
-                    height={700}
-                  />
-                }
-                imageFirst
                 last
+                showNode={false}
               />
             </div>
 
-            {/* Connective serif accent */}
-            <FadeUp className="mx-auto mt-10 max-w-2xl text-center">
+            {/* One-app parity — a short callout, not a redundant screenshot */}
+            <FadeUp className="mx-auto mt-6 max-w-2xl text-center">
               <p className="deck-serif text-2xl leading-snug text-on-surface-variant sm:text-3xl">
-                A team you can see is a team you can trust &mdash;{" "}
+                On your desktop or in your browser, light or dark &mdash;{" "}
                 <span className="text-primary">
-                  every agent, every change, every cent.
+                  it&rsquo;s one app, and it runs on your machine.
                 </span>
               </p>
-              <Link
-                href="/method"
-                className="group mt-6 inline-flex items-center gap-1.5 font-body text-sm text-on-surface-variant transition-colors hover:text-primary"
-              >
-                Why it&rsquo;s built this way &mdash; read the method
-                <ArrowRight
-                  className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5"
-                  aria-hidden="true"
-                />
-              </Link>
             </FadeUp>
           </div>
         </section>
+
+        {/* ════════════════════════════════════════
+           The convictions — teaser into the Method essay
+           ════════════════════════════════════════ */}
+        <MethodTeaser />
 
         {/* Section separator */}
         <SporeDivider />
 
         {/* ════════════════════════════════════════
-           Get mycel — compact, terminal-flavored
+           Get mycel — CLI power-user path (demoted below the download hero)
            ════════════════════════════════════════ */}
         <InstallSection />
 
@@ -421,8 +311,12 @@ export default function Home() {
             <h2 className="font-headline text-3xl font-semibold tracking-tight text-on-background md:text-4xl">
               Free, open source, and yours to run.
             </h2>
+            {/* Honest cost signal — the old /pricing page (Cloud/Enterprise
+               tiers that don't exist) was removed (decision #5). Pricing
+               returns as its own surface when mycel-cloud ships. */}
             <p className="mt-3 font-body text-lg text-on-surface-variant">
-              MIT licensed. No cloud account. It runs on your machine.
+              MIT licensed. No cloud account, no sign-up. You only pay your
+              model providers.
             </p>
             <div className="mt-8 flex flex-col items-center justify-center gap-4 sm:flex-row">
               <Link
