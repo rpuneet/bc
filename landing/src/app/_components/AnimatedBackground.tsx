@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react";
 
 /**
- * Mycelial network field — the living background of the page.
+ * Mycelial network field — the *quiet* living background of the page.
  *
  * Soft-glow spore nodes wander on eased sine paths (two incommensurate
  * frequencies per axis, so the drift never visibly repeats). When two spores
@@ -11,6 +11,11 @@ import { useEffect, useRef } from "react";
  * them — a gently curved filament whose opacity tracks proximity — and fades
  * back out as they part. The whole field reads as one slow, breathing
  * network: mycelium, not confetti.
+ *
+ * Motion budget (owner decision #4): the background is deliberately *calm* so
+ * it never competes with the animated product hero. Far fewer nodes, slower
+ * drift, lower opacity, gentler glow — an ambient accent, not a spectacle.
+ * The real motion budget lives in the hero tabs and the streaming Live panel.
  *
  * Performance: capped particle count, pairwise link pass is O(n²) with a
  * small n, adaptive frame rate when idle, rendering pauses entirely when the
@@ -38,17 +43,19 @@ export function AnimatedBackground() {
 
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
 
-    const SPORE_COUNT = 48;
+    // Calmed field (owner decision #4): roughly half the nodes, a shorter
+    // reach so the network stays sparse, and a weaker mouse pull.
+    const SPORE_COUNT = 22;
     const LAVENDER_EVERY = 7; // every 7th spore whispers lavender
-    const MOUSE_RADIUS = 200;
-    const MOUSE_STRENGTH = 0.012;
+    const MOUSE_RADIUS = 170;
+    const MOUSE_STRENGTH = 0.007;
     let idleFrames = 0;
-    const IDLE_THRESHOLD = 120; // ~2s at 60fps before throttling
+    const IDLE_THRESHOLD = 90; // ~1.5s at 60fps before throttling down
 
     /* Proximity links — hyphae threads between spores that drift close.
      * Opacity follows distance, so threads fade in as spores approach and
      * fade out as they part; no timers, the network is continuous. */
-    const LINK_REACH = 150; // px — threads appear inside this distance
+    const LINK_REACH = 130; // px — threads appear inside this distance
     const LINK_MIN = 18; // px — too close reads as a blob; keep a gap
 
     interface Spore {
@@ -127,20 +134,22 @@ export function AnimatedBackground() {
      * spores stay visible on cream; dark mode glows bright amber. */
     function palette() {
       const isDark = document.documentElement.classList.contains("dark");
+      // Lower opacity across the board so the field recedes behind the
+      // product — a whisper, not a wash.
       return isDark
         ? {
             amber: "232, 163, 61",
             lavender: "169, 151, 189",
-            glowPeak: 0.09,
-            sporeAlpha: 0.5,
-            threadAlpha: 0.38,
+            glowPeak: 0.055,
+            sporeAlpha: 0.3,
+            threadAlpha: 0.22,
           }
         : {
             amber: "163, 93, 10",
             lavender: "141, 122, 158",
-            glowPeak: 0.06,
-            sporeAlpha: 0.42,
-            threadAlpha: 0.32,
+            glowPeak: 0.038,
+            sporeAlpha: 0.26,
+            threadAlpha: 0.2,
           };
     }
 
@@ -219,9 +228,10 @@ export function AnimatedBackground() {
         const p = spores[i];
 
         if (!staticFrame) {
-          // slow constant fall + lateral creep, scaled by depth
-          p.x += 0.02 * (0.4 + p.z);
-          p.y -= 0.015 * (0.4 + p.z); // spores rise, like dust in light
+          // very slow constant fall + lateral creep, scaled by depth —
+          // halved from the old field so the drift barely registers
+          p.x += 0.01 * (0.4 + p.z);
+          p.y -= 0.008 * (0.4 + p.z); // spores rise, like dust in light
           // scroll influence
           p.oy += scrollVelocity * 0.015 * p.z;
           // mouse influence — gentle pull
@@ -259,7 +269,7 @@ export function AnimatedBackground() {
 
         const color = sporeColor(i, colors);
         const twinkle =
-          0.75 + 0.25 * Math.sin(tSec * 0.6 * Math.PI + p.twinklePhase);
+          0.82 + 0.18 * Math.sin(tSec * 0.4 * Math.PI + p.twinklePhase);
         const alpha = colors.sporeAlpha * (0.35 + p.z * 0.65) * twinkle;
         const r = p.r;
 
