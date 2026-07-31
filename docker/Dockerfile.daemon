@@ -11,7 +11,7 @@ COPY web/ .
 RUN bun run build
 
 # Stage 2: Build Go binary
-FROM golang:1.25.11 AS go
+FROM golang:1.25.12 AS go
 WORKDIR /app
 
 # Cache Go modules (changes rarely)
@@ -27,7 +27,8 @@ COPY --from=web /app/web/dist /app/server/web/dist
 
 RUN CGO_ENABLED=1 go build -ldflags="-s -w" -o /mycel ./cmd/mycel
 
-# Stage 3: Runtime (includes dev toolchain for cron build jobs)
+# Stage 3: Runtime (bundles the Go toolchain so tmux-mode agents can build
+# Go projects in-container; see pkg/tool "go" tool)
 FROM ubuntu:24.04
 # upgrade picks up OS security patches the base tag hasn't rolled up yet —
 # the container scan flags every unpatched CVE in the stale layer otherwise.
