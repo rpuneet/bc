@@ -168,6 +168,18 @@ export default function Home() {
                   GitHub
                 </Link>
               </div>
+              <div className="mt-5">
+                <Link
+                  href="/method"
+                  className="group inline-flex items-center gap-1.5 font-body text-sm text-on-surface-variant transition-colors hover:text-primary"
+                >
+                  See how it works &mdash; the mycel method
+                  <ArrowRight
+                    className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5"
+                    aria-hidden="true"
+                  />
+                </Link>
+              </div>
             </FadeUp>
           </div>
 
@@ -372,13 +384,23 @@ export default function Home() {
             </div>
 
             {/* Connective serif accent */}
-            <FadeUp className="mx-auto mt-8 max-w-2xl text-center">
+            <FadeUp className="mx-auto mt-10 max-w-2xl text-center">
               <p className="deck-serif text-2xl leading-snug text-on-surface-variant sm:text-3xl">
                 A team you can see is a team you can trust &mdash;{" "}
                 <span className="text-primary">
                   every agent, every change, every cent.
                 </span>
               </p>
+              <Link
+                href="/method"
+                className="group mt-6 inline-flex items-center gap-1.5 font-body text-sm text-on-surface-variant transition-colors hover:text-primary"
+              >
+                Why it&rsquo;s built this way &mdash; read the method
+                <ArrowRight
+                  className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5"
+                  aria-hidden="true"
+                />
+              </Link>
             </FadeUp>
           </div>
         </section>
@@ -396,7 +418,7 @@ export default function Home() {
            ════════════════════════════════════════ */}
         <RevealSection className="py-14 sm:py-20">
           <div className="mx-auto max-w-3xl px-4 text-center sm:px-6">
-            <h2 className="font-headline text-2xl font-semibold tracking-tight text-on-background md:text-4xl">
+            <h2 className="font-headline text-3xl font-semibold tracking-tight text-on-background md:text-4xl">
               Free, open source, and yours to run.
             </h2>
             <p className="mt-3 font-body text-lg text-on-surface-variant">
