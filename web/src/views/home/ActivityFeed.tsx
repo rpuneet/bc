@@ -79,7 +79,17 @@ export function ActivityFeed() {
       {data === null ? (
         <div className="py-4 text-center text-[11px] text-mycel-muted">Loading…</div>
       ) : messages.length === 0 ? (
-        <div className="py-4 text-center text-[11px] text-mycel-muted">No app activity yet</div>
+        <div className="flex flex-col items-center gap-1.5 py-6 text-center">
+          <span className="text-mycel-muted" aria-hidden>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+            </svg>
+          </span>
+          <span className="text-[11px] text-mycel-muted">No app activity yet</span>
+          <Link to="/apps" className="text-[11px] text-mycel-accent hover:underline">
+            Connect an app →
+          </Link>
+        </div>
       ) : (
         <ul className="-m-1">
           {messages.map((m) => (
