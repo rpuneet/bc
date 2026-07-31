@@ -143,6 +143,84 @@ func TestSQLiteLog_ReadByAgent_NewestWindowOldestFirst(t *testing.T) {
 	}
 }
 
+// TestSQLiteLog_ReadByAgentPage verifies the recent-first paged reader:
+// it returns newest events first, honors the limit at the SQL level, carries
+// row IDs, and pages older events via the before cursor.
+func TestSQLiteLog_ReadByAgentPage(t *testing.T) {
+	log, err := NewSQLiteLog(setupSharedDB(t))
+	if err != nil {
+		t.Fatalf("NewSQLiteLog: %v", err)
+	}
+	defer func() { _ = log.Close() }()
+
+	base := time.Now().Add(-time.Hour).Truncate(time.Second)
+	const total = 25
+	for i := 0; i < total; i++ {
+		if appendErr := log.Append(Event{
+			Type:      AgentReport,
+			Agent:     "eng-01",
+			Message:   "msg",
+			Timestamp: base.Add(time.Duration(i) * time.Second),
+		}); appendErr != nil {
+			t.Fatalf("append %d: %v", i, appendErr)
+		}
+	}
+	// An unrelated agent must not leak into the page.
+	_ = log.Append(Event{Type: AgentReport, Agent: "eng-02"})
+
+	page, err := log.ReadByAgentPage("eng-01", 10, 0)
+	if err != nil {
+		t.Fatalf("ReadByAgentPage: %v", err)
+	}
+	if len(page) != 10 {
+		t.Fatalf("first page = %d events, want 10 (limit pushed to SQL)", len(page))
+	}
+	// Newest first.
+	if !page[0].Timestamp.After(page[len(page)-1].Timestamp) {
+		t.Error("ReadByAgentPage should return newest first")
+	}
+	// IDs must be populated (they are the pagination cursor).
+	if page[0].ID == 0 {
+		t.Fatal("event ID not populated; cursor pagination would break")
+	}
+	if page[0].ID <= page[len(page)-1].ID {
+		t.Error("newest event must have the largest ID")
+	}
+
+	// Page older events using the oldest ID from the first page as cursor.
+	cursor := page[len(page)-1].ID
+	older, err := log.ReadByAgentPage("eng-01", 10, cursor)
+	if err != nil {
+		t.Fatalf("ReadByAgentPage older: %v", err)
+	}
+	if len(older) != 10 {
+		t.Fatalf("second page = %d, want 10", len(older))
+	}
+	for _, e := range older {
+		if e.ID >= cursor {
+			t.Errorf("older page leaked event id %d >= cursor %d", e.ID, cursor)
+		}
+	}
+}
+
+// TestSQLiteLog_IndexesPresent asserts the events schema self-creates the
+// indexes the hot read paths rely on (SEARCH not SCAN).
+func TestSQLiteLog_IndexesPresent(t *testing.T) {
+	d := setupSharedDB(t)
+	if _, err := NewSQLiteLog(d); err != nil {
+		t.Fatalf("NewSQLiteLog: %v", err)
+	}
+	want := []string{"idx_events_agent", "idx_events_repo", "idx_events_timestamp"}
+	for _, name := range want {
+		var got string
+		err := d.QueryRowContext(context.Background(),
+			"SELECT name FROM sqlite_master WHERE type='index' AND name=?", name).Scan(&got)
+		if err != nil {
+			t.Errorf("expected index %q to exist: %v", name, err)
+		}
+	}
+}
+
 func TestSQLiteLog_EventData(t *testing.T) {
 	log, err := NewSQLiteLog(setupSharedDB(t))
 	if err != nil {

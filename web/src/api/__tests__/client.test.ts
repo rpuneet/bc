@@ -81,3 +81,33 @@ describe("api.request", () => {
     expect(url).toContain("tail=25");
   });
 });
+
+describe("shared cache wiring", () => {
+  it("listAgents collapses a concurrent mount storm into one fetch", async () => {
+    fetchMock.mockReturnValue(jsonResponse([{ name: "a" }]));
+    // drawer + page + palette mounting together.
+    await Promise.all([api.listAgents(), api.listAgents(), api.listAgents()]);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("listAgents serves the cached list on a follow-up call", async () => {
+    fetchMock.mockReturnValue(jsonResponse([{ name: "a" }]));
+    await api.listAgents();
+    await api.listAgents();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("a mutation invalidates the agents cache so the next read refetches", async () => {
+    fetchMock.mockReturnValue(jsonResponse([{ name: "a" }]));
+    await api.listAgents();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    await api.stopAgent("a"); // mutating call -> invalidates "agents"
+    await api.listAgents();
+    // stopAgent fetch + the post-invalidation listAgents fetch.
+    const listCalls = fetchMock.mock.calls.filter(
+      ([u]) => (u as string) === "/api/agents",
+    );
+    expect(listCalls).toHaveLength(2);
+  });
+});

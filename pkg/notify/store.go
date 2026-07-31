@@ -119,6 +119,9 @@ CREATE INDEX IF NOT EXISTS idx_notify_subs_channel ON notify_subscriptions(chann
 CREATE INDEX IF NOT EXISTS idx_notify_subs_agent ON notify_subscriptions(agent);
 CREATE INDEX IF NOT EXISTS idx_notify_delivery_channel ON notify_delivery_log(channel, id DESC);
 CREATE INDEX IF NOT EXISTS idx_notify_messages_channel ON notify_messages(channel, id DESC);
+-- Covering index for ChannelStats' per-(channel,sender) aggregation: turns the
+-- GROUP BY channel, sender scan into a covering-index walk with no temp b-tree.
+CREATE INDEX IF NOT EXISTS idx_notify_messages_chan_sender ON notify_messages(channel, sender);
 `
 
 const schemaPostgres = `
@@ -171,6 +174,7 @@ CREATE INDEX IF NOT EXISTS idx_notify_subs_channel ON notify_subscriptions(chann
 CREATE INDEX IF NOT EXISTS idx_notify_subs_agent ON notify_subscriptions(agent);
 CREATE INDEX IF NOT EXISTS idx_notify_delivery_channel ON notify_delivery_log(channel, id DESC);
 CREATE INDEX IF NOT EXISTS idx_notify_messages_channel ON notify_messages(channel, id DESC);
+CREATE INDEX IF NOT EXISTS idx_notify_messages_chan_sender ON notify_messages(channel, sender);
 `
 
 // Subscribe adds an agent to a channel. If already subscribed, this is a no-op.
@@ -265,18 +269,32 @@ func (s *Store) LogDelivery(ctx context.Context, e DeliveryEntry) error {
 	return err
 }
 
-// RecentActivity returns the most recent delivery log entries for a channel.
-func (s *Store) RecentActivity(ctx context.Context, channel string, limit int) ([]DeliveryEntry, error) {
+// RecentActivity returns the most recent delivery log entries for a channel,
+// newest first. When before > 0, only entries with id < before are returned,
+// enabling cursor pagination for older pages (the id column is indexed).
+func (s *Store) RecentActivity(ctx context.Context, channel string, limit int, before int64) ([]DeliveryEntry, error) {
 	if limit <= 0 {
 		limit = 50
 	}
-	rows, err := s.db.QueryContext(ctx, s.q(
-		`SELECT id, logged_at, channel, agent, status, COALESCE(error, ''), COALESCE(preview, '')
-		 FROM notify_delivery_log
-		 WHERE channel = ?
-		 ORDER BY id DESC
-		 LIMIT ?`),
-		channel, limit)
+	var rows *sql.Rows
+	var err error
+	if before > 0 {
+		rows, err = s.db.QueryContext(ctx, s.q(
+			`SELECT id, logged_at, channel, agent, status, COALESCE(error, ''), COALESCE(preview, '')
+			 FROM notify_delivery_log
+			 WHERE channel = ? AND id < ?
+			 ORDER BY id DESC
+			 LIMIT ?`),
+			channel, before, limit)
+	} else {
+		rows, err = s.db.QueryContext(ctx, s.q(
+			`SELECT id, logged_at, channel, agent, status, COALESCE(error, ''), COALESCE(preview, '')
+			 FROM notify_delivery_log
+			 WHERE channel = ?
+			 ORDER BY id DESC
+			 LIMIT ?`),
+			channel, limit)
+	}
 	if err != nil {
 		return nil, err
 	}

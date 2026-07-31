@@ -81,7 +81,7 @@ func (p *PostgresLog) Append(event Event) error {
 // Read returns all events ordered by timestamp.
 func (p *PostgresLog) Read() ([]Event, error) {
 	rows, err := p.db.QueryContext(context.Background(),
-		"SELECT type, agent, message, data, repo, timestamp FROM events ORDER BY id ASC LIMIT 1000",
+		"SELECT id, type, agent, message, data, repo, timestamp FROM events ORDER BY id ASC LIMIT 1000",
 	)
 	if err != nil {
 		return nil, fmt.Errorf("read events: %w", err)
@@ -94,7 +94,7 @@ func (p *PostgresLog) Read() ([]Event, error) {
 // ReadLast returns the last n events.
 func (p *PostgresLog) ReadLast(n int) ([]Event, error) {
 	rows, err := p.db.QueryContext(context.Background(),
-		"SELECT type, agent, message, data, repo, timestamp FROM events ORDER BY id DESC LIMIT $1", n,
+		"SELECT id, type, agent, message, data, repo, timestamp FROM events ORDER BY id DESC LIMIT $1", n,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("read last events: %w", err)
@@ -119,7 +119,7 @@ func (p *PostgresLog) ReadLast(n int) ([]Event, error) {
 // like "last active" at whatever the 1000th oldest event was.
 func (p *PostgresLog) ReadByAgent(name string) ([]Event, error) {
 	rows, err := p.db.QueryContext(context.Background(),
-		"SELECT type, agent, message, data, repo, timestamp FROM events WHERE agent = $1 ORDER BY id DESC LIMIT 1000", name,
+		"SELECT id, type, agent, message, data, repo, timestamp FROM events WHERE agent = $1 ORDER BY id DESC LIMIT 1000", name,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("read events by agent: %w", err)
@@ -138,6 +138,37 @@ func (p *PostgresLog) ReadByAgent(name string) ([]Event, error) {
 	return events, nil
 }
 
+// ReadByAgentPage returns the newest `limit` events for an agent, newest
+// first, pushing the bound into the query. When beforeID > 0 only events
+// older than that id are returned (cursor pagination).
+func (p *PostgresLog) ReadByAgentPage(name string, limit int, beforeID int64) ([]Event, error) {
+	if limit <= 0 {
+		limit = 50
+	}
+	if limit > DefaultReadLimit {
+		limit = DefaultReadLimit
+	}
+	var (
+		rows *sql.Rows
+		err  error
+	)
+	if beforeID > 0 {
+		rows, err = p.db.QueryContext(context.Background(),
+			"SELECT id, type, agent, message, data, repo, timestamp FROM events WHERE agent = $1 AND id < $2 ORDER BY id DESC LIMIT $3",
+			name, beforeID, limit)
+	} else {
+		rows, err = p.db.QueryContext(context.Background(),
+			"SELECT id, type, agent, message, data, repo, timestamp FROM events WHERE agent = $1 ORDER BY id DESC LIMIT $2",
+			name, limit)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("read events by agent page: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	return pgScanEventRows(rows)
+}
+
 // Close is a no-op — the shared DB is owned by the caller.
 func (p *PostgresLog) Close() error {
 	return nil
@@ -153,7 +184,7 @@ func pgScanEventRows(rows *sql.Rows) ([]Event, error) {
 		var agent, message, dataJSON, repo *string
 		var ts time.Time
 
-		if err := rows.Scan(&evType, &agent, &message, &dataJSON, &repo, &ts); err != nil {
+		if err := rows.Scan(&ev.ID, &evType, &agent, &message, &dataJSON, &repo, &ts); err != nil {
 			return nil, fmt.Errorf("scan event: %w", err)
 		}
 

@@ -577,8 +577,14 @@ func (h *GatewayHandler) notifyActivity(w http.ResponseWriter, r *http.Request) 
 		}
 	}
 	limit = clampInt(limit, 1, 200)
+	var before int64
+	if s := r.URL.Query().Get("before"); s != "" {
+		if n, err := strconv.ParseInt(s, 10, 64); err == nil {
+			before = n
+		}
+	}
 
-	entries, err := h.notifySvc.ChannelActivity(r.Context(), channel, limit)
+	entries, err := h.notifySvc.ChannelActivity(r.Context(), channel, limit, before)
 	if err != nil {
 		httpInternalError(w, "channel activity", err)
 		return

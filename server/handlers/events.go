@@ -82,7 +82,24 @@ func (h *EventHandler) byAgent(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, []events.Event{})
 		return
 	}
-	evts, err := store.ReadByAgent(name)
+
+	// Default preserves the historical DefaultReadLimit window; a limit param
+	// bounds the page and before=<id> pages older events (newest first).
+	limit := events.DefaultReadLimit
+	if s := r.URL.Query().Get("limit"); s != "" {
+		if n, err := strconv.Atoi(s); err == nil && n > 0 {
+			limit = n
+		}
+	}
+	limit = clampInt(limit, 1, events.DefaultReadLimit)
+	var before int64
+	if s := r.URL.Query().Get("before"); s != "" {
+		if n, err := strconv.ParseInt(s, 10, 64); err == nil && n > 0 {
+			before = n
+		}
+	}
+
+	evts, err := store.ReadByAgentPage(name, limit, before)
 	if err != nil {
 		httpInternalError(w, "read events", err)
 		return

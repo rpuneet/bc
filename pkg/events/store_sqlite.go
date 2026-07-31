@@ -2,6 +2,7 @@ package events
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -85,7 +86,7 @@ func (l *SQLiteLog) Append(event Event) error {
 // Read returns all events ordered by timestamp.
 func (l *SQLiteLog) Read() ([]Event, error) {
 	rows, err := l.db.QueryContext(context.Background(),
-		"SELECT type, agent, message, data, repo, timestamp FROM events ORDER BY id ASC LIMIT 1000",
+		"SELECT id, type, agent, message, data, repo, timestamp FROM events ORDER BY id ASC LIMIT 1000",
 	)
 	if err != nil {
 		return nil, err
@@ -98,7 +99,7 @@ func (l *SQLiteLog) Read() ([]Event, error) {
 // ReadLast returns the last n events.
 func (l *SQLiteLog) ReadLast(n int) ([]Event, error) {
 	rows, err := l.db.QueryContext(context.Background(),
-		"SELECT type, agent, message, data, repo, timestamp FROM events ORDER BY id DESC LIMIT ?", n,
+		"SELECT id, type, agent, message, data, repo, timestamp FROM events ORDER BY id DESC LIMIT ?", n,
 	)
 	if err != nil {
 		return nil, err
@@ -123,7 +124,7 @@ func (l *SQLiteLog) ReadLast(n int) ([]Event, error) {
 // like "last active" at whatever the 1000th oldest event was.
 func (l *SQLiteLog) ReadByAgent(name string) ([]Event, error) {
 	rows, err := l.db.QueryContext(context.Background(),
-		"SELECT type, agent, message, data, repo, timestamp FROM events WHERE agent = ? ORDER BY id DESC LIMIT 1000", name,
+		"SELECT id, type, agent, message, data, repo, timestamp FROM events WHERE agent = ? ORDER BY id DESC LIMIT 1000", name,
 	)
 	if err != nil {
 		return nil, err
@@ -140,6 +141,38 @@ func (l *SQLiteLog) ReadByAgent(name string) ([]Event, error) {
 		events[i], events[j] = events[j], events[i]
 	}
 	return events, nil
+}
+
+// ReadByAgentPage returns the newest `limit` events for an agent, newest
+// first, pushing the bound into the query. When beforeID > 0 only events
+// older than that id are returned (cursor pagination). Backed by
+// idx_events_agent plus the primary-key ordering.
+func (l *SQLiteLog) ReadByAgentPage(name string, limit int, beforeID int64) ([]Event, error) {
+	if limit <= 0 {
+		limit = 50
+	}
+	if limit > DefaultReadLimit {
+		limit = DefaultReadLimit
+	}
+	var (
+		rows *sql.Rows
+		err  error
+	)
+	if beforeID > 0 {
+		rows, err = l.db.QueryContext(context.Background(),
+			"SELECT id, type, agent, message, data, repo, timestamp FROM events WHERE agent = ? AND id < ? ORDER BY id DESC LIMIT ?",
+			name, beforeID, limit)
+	} else {
+		rows, err = l.db.QueryContext(context.Background(),
+			"SELECT id, type, agent, message, data, repo, timestamp FROM events WHERE agent = ? ORDER BY id DESC LIMIT ?",
+			name, limit)
+	}
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	return scanEventRows(rows)
 }
 
 // Prune deletes events older than maxAge and trims per-agent events to maxPerAgent.
@@ -211,7 +244,7 @@ func scanEventRows(rows sqlRows) ([]Event, error) {
 		var agent, message, dataJSON, repo *string
 		var ts string
 
-		if err := rows.Scan(&evType, &agent, &message, &dataJSON, &repo, &ts); err != nil {
+		if err := rows.Scan(&ev.ID, &evType, &agent, &message, &dataJSON, &repo, &ts); err != nil {
 			return nil, fmt.Errorf("scan event: %w", err)
 		}
 
