@@ -190,7 +190,7 @@ function makeAgent(state: string) {
     updated_at: "2025-01-01T00:00:00Z",
     stopped_at: state === "stopped" ? "2025-01-01T00:00:00Z" : undefined,
     task: "",
-    session: "bc-alice",
+    session: "mycel-alice",
     mcp_servers: [],
   };
 }

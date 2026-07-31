@@ -34,7 +34,7 @@ make install
 
 ## Build Commands
 
-Naming convention: `make <verb>[-<runtime>]-<component>` where `runtime` = `local` (host) | `docker` (container), `component` = `bc` | `bcd` | `tui` | `web` | `landing`. `go` and `ts` are language aggregates for CI/CD convenience.
+Naming convention: `make <verb>[-<runtime>]-<component>` where `runtime` = `local` (host) | `docker` (container), `component` = `mycel` | `tui` | `web` | `landing`. `go` and `ts` are language aggregates for CI/CD convenience.
 
 ### Build (local)
 
@@ -42,24 +42,24 @@ Naming convention: `make <verb>[-<runtime>]-<component>` where `runtime` = `loca
 |---------|-------------|
 | `make build` | Build everything (local + docker) |
 | `make build-local` | Build all local binaries (go + ts) |
-| `make build-local-go` | Build all Go binaries (mycel + bcd) |
-| `make build-local-bc` | Build mycel CLI binary to `bin/mycel` |
-| `make build-local-bcd` | Build bcd server binary (embeds web UI) |
+| `make build-local-go` | Build all Go binaries (mycel + the daemon) |
+| `make build-local-mycel` | Build mycel CLI binary to `bin/mycel` |
+| `make build-local-mycel` | Build the daemon binary (embeds web UI) |
 | `make build-local-ts` | Build all TS packages (tui + web + landing) |
 | `make build-local-tui` | Build TUI package |
 | `make build-local-web` | Build React web UI → `server/web/dist/` |
 | `make build-local-landing` | Build Next.js landing page |
 | `make release` | Build optimized release binaries (stripped symbols) |
-| `make install-local-bc` | Install mycel to `$GOPATH/bin` |
+| `make install-local-mycel` | Install mycel to `$GOPATH/bin` |
 
 ### Build (Docker)
 
 | Command | Description |
 |---------|-------------|
-| `make build-docker` | Build all Docker images (db, bcd, playwright) |
-| `make build-docker-daemon` | Build bcd server Docker image |
-| `make build-docker-db` | Build bc-db (unified TimescaleDB) Docker image |
-| `make build-docker-bcdb` | Build bcdb Postgres Docker image (alias) |
+| `make build-docker` | Build all Docker images (db, daemon, playwright) |
+| `make build-docker-daemon` | Build daemon Docker image |
+| `make build-docker-db` | Build mycel-db (unified TimescaleDB) Docker image |
+| `make build-docker-db` | Build mycel-db (TimescaleDB) Docker image |
 | `make build-docker-agent` | Build default agent Docker image (claude) |
 | `make build-docker-agents` | Build all agent Docker images |
 
@@ -96,7 +96,7 @@ Naming convention: `make <verb>[-<runtime>]-<component>` where `runtime` = `loca
 
 | Command | Description |
 |---------|-------------|
-| `make run-bc` | Run mycel CLI from source (`go run`) |
+| `make run-mycel` | Run mycel CLI from source (`go run`) |
 | `make run-web` | Run web UI dev server (hot reload) |
 | `make run-landing` | Run landing dev server (hot reload) |
 | `make run-tui` | Run TUI in dev mode |
@@ -110,7 +110,7 @@ Naming convention: `make <verb>[-<runtime>]-<component>` where `runtime` = `loca
 | `make deps-ts` | Install all TS dependencies (bun install) |
 | `make scan-go` | Run govulncheck for Go vulnerabilities |
 | `make scan-ts` | Run TS dependency audit |
-| `make install-local-bc` | Install mycel to `$GOPATH/bin` |
+| `make install-local-mycel` | Install mycel to `$GOPATH/bin` |
 | `make clean` | Remove all build artifacts |
 | `make clean-deps` | Remove build artifacts + node_modules |
 
@@ -227,7 +227,7 @@ bc/
 │   ├── ui/              # CLI output formatting (colors, tables)
 │   ├── workspace/       # Workspace config (settings.json v2)
 │   └── worktree/        # Git worktree operations
-├── server/              # bcd server (API, web UI, MCP)
+├── server/              # the daemon (API, web UI, MCP)
 │   └── web/             # Embedded web UI (React)
 │       └── dist/        # Built web assets
 ├── prompts/             # Default role prompt templates
@@ -240,7 +240,7 @@ bc/
     │   ├── hooks/       # React hooks (useAgents, useChannels, etc.)
     │   │   └── __tests__/ # Hook tests
     │   ├── navigation/  # Tab bar, keyboard navigation
-    │   ├── services/    # BC CLI wrapper (bc.ts)
+    │   ├── services/    # mycel CLI wrapper (mycel.ts)
     │   ├── views/       # Full-screen views (14 views)
     │   │   └── __tests__/ # View tests
     │   └── app.tsx      # Main TUI application
@@ -275,9 +275,9 @@ bc/
 Key concepts to understand before contributing:
 
 - **Agents**: AI assistants running in isolated tmux sessions, each with its own git worktree
-- **Workspace**: Project directory with `.bc/` containing config, state, and per-agent data
+- **Workspace**: Project directory with `.mycel/` containing config, state, and per-agent data
 - **Channels**: SQLite-backed inter-agent communication with persistent history
-- **Roles**: Agent capabilities defined in `.bc/roles/*.md` (engineer, manager, etc.)
+- **Roles**: Agent capabilities defined in `.mycel/roles/*.md` (engineer, manager, etc.)
 - **Memory**: Per-agent persistent knowledge (experiences, learnings)
 
 See `CLAUDE.md` for detailed architecture patterns and package documentation.

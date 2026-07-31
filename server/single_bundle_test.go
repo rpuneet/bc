@@ -1,4 +1,4 @@
-// single_bundle_test.go — boot coverage for single-tenant bcd: one
+// single_bundle_test.go — boot coverage for single-tenant the daemon: one
 // Services bundle built by BuildServices serves the flat /api surface,
 // /api/repos lists the anchor repo, and the retired multi-tenant routes
 // (/api/workspaces, scoped /_mcp/ws/…) are gone (JSON 404, not SPA).
@@ -58,8 +58,8 @@ func TestSingleBundleBoot(t *testing.T) {
 	if err := json.Unmarshal(body, &repos); err != nil {
 		t.Fatalf("unmarshal /api/repos: %v (%s)", err, body)
 	}
-	if svc.WS == nil || repos.Default != svc.WS.RootDir {
-		t.Errorf("default repo = %q, want bundle root %q", repos.Default, svc.WS.RootDir)
+	if svc.Home == nil || repos.Default != svc.Home.RootDir {
+		t.Errorf("default repo = %q, want bundle root %q", repos.Default, svc.Home.RootDir)
 	}
 	found := false
 	for _, r := range repos.Repos {

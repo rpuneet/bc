@@ -5,11 +5,11 @@
 //	GET /api/code/diff?worktree=[&path=]
 //
 // The routes are registered at /api/code/ and dispatched by ServeHTTP
-// based on the first path segment. bcd is single-tenant: the handler is
+// based on the first path segment. the daemon is single-tenant: the handler is
 // anchored at the one bundle repo root supplied at construction time.
 //
 // Every filesystem read is sandboxed via pkg/files.SafeJoin; .git/
-// and .bc/ subdirs are hidden by default; file reads cap at 2 MiB.
+// and .mycel/ subdirs are hidden by default; file reads cap at 2 MiB.
 package handlers
 
 import (
@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/rpuneet/mycel/pkg/files"
+	"github.com/rpuneet/mycel/pkg/home"
 	"github.com/rpuneet/mycel/pkg/log"
 )
 
@@ -35,9 +36,9 @@ import (
 // accepted — never separators, dots, or shell metacharacters.
 var validWorktreeName = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
 
-// WorkspaceResolver supplies the repo root the Code handler serves. It is
+// RepoResolver supplies the repo root the Code handler serves. It is
 // an interface so tests can supply lightweight implementations.
-type WorkspaceResolver interface {
+type RepoResolver interface {
 	// ActiveRoot returns the filesystem root of the bundle repo, or ""
 	// when the daemon booted without one.
 	ActiveRoot() string
@@ -45,12 +46,23 @@ type WorkspaceResolver interface {
 
 // CodeHandler serves the read-only Code tab endpoints.
 type CodeHandler struct {
-	resolver WorkspaceResolver
+	resolver RepoResolver
+	// worktreeFor resolves an agent name to its authoritative worktree
+	// directory (which may live outside ~/.mycel). Optional.
+	worktreeFor func(agentName string) string
 }
 
-// NewCodeHandler constructs a CodeHandler bound to a workspace resolver.
-func NewCodeHandler(resolver WorkspaceResolver) *CodeHandler {
+// NewCodeHandler constructs a CodeHandler bound to a repo resolver.
+func NewCodeHandler(resolver RepoResolver) *CodeHandler {
 	return &CodeHandler{resolver: resolver}
+}
+
+// WithWorktreeResolver wires an agent-name→worktree-dir lookup so the
+// Code tab browses each agent's real worktree (e.g. a repo checkout),
+// not just the ~/.mycel/agents/<name>/worktree convention.
+func (h *CodeHandler) WithWorktreeResolver(fn func(agentName string) string) *CodeHandler {
+	h.worktreeFor = fn
+	return h
 }
 
 // Register mounts the handler on mux at /api/code/.
@@ -87,31 +99,37 @@ func (h *CodeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 // ------------------------------------------------------------------ root resolution
 
-// resolveWorkspaceRoot returns the absolute repo root for this request.
+// resolveRepoRoot returns the absolute repo root for this request.
 // The root comes from boot configuration, but it is cleaned and traversal
 // segments are rejected so nothing built on it can escape sideways.
-func (h *CodeHandler) resolveWorkspaceRoot(_ *http.Request) (string, error) {
+func (h *CodeHandler) resolveRepoRoot(_ *http.Request) (string, error) {
 	if h.resolver == nil {
-		return "", errors.New("workspace resolver not configured")
+		return "", errors.New("repo resolver not configured")
 	}
 	root := h.resolver.ActiveRoot()
 	if root == "" {
-		return "", errors.New("no workspace available")
+		return "", errors.New("no repo available")
 	}
 	root = filepath.Clean(root)
 	if strings.Contains(root, "..") {
-		return "", errors.New("invalid workspace root")
+		return "", errors.New("invalid repo root")
 	}
 	return root, nil
 }
 
 // resolveWorktreeRoot resolves the user-supplied worktree name onto a
-// filesystem path. "main" (the default) maps to the workspace root;
-// any other value is treated as an agent name and maps to
-// <wsRoot>/.bc/agents/<name>/bc-<ws-basename>-<name>/ — the same path
-// layout that pkg/worktree.Manager uses.
-func (h *CodeHandler) resolveWorktreeRoot(r *http.Request) (wsRoot, wtRoot, worktreeName string, err error) {
-	wsRoot, err = h.resolveWorkspaceRoot(r)
+// filesystem path. "main" (the default) maps to the repo root; any
+// other value is treated as an agent name and maps to
+// ~/.mycel/agents/<name>/worktree/ — the same path layout that
+// pkg/worktree.Manager uses.
+// errNoWorktree signals a valid agent name whose worktree directory
+// does not exist yet (the agent hasn't worked on a repo). Callers return
+// an empty result with 200 rather than a 400 so the Code tab shows a
+// clean empty state instead of a console error.
+var errNoWorktree = errors.New("worktree not found")
+
+func (h *CodeHandler) resolveWorktreeRoot(r *http.Request) (repoRoot, wtRoot, worktreeName string, err error) {
+	repoRoot, err = h.resolveRepoRoot(r)
 	if err != nil {
 		return "", "", "", err
 	}
@@ -120,39 +138,43 @@ func (h *CodeHandler) resolveWorktreeRoot(r *http.Request) (wsRoot, wtRoot, work
 		worktreeName = "main"
 	}
 	if worktreeName == "main" {
-		return wsRoot, wsRoot, worktreeName, nil
+		return repoRoot, repoRoot, worktreeName, nil
 	}
 	// Worktree names are agent names — they become path components below
 	// and a git -C argument later, so allowlist identifier characters
 	// only (no separators, dots, or metacharacters).
 	if !validWorktreeName.MatchString(worktreeName) {
-		return wsRoot, "", worktreeName, errors.New("invalid worktree name")
+		return repoRoot, "", worktreeName, errors.New("invalid worktree name")
 	}
-	wtRoot = agentWorktreePath(wsRoot, worktreeName)
-	// Defense in depth: the composed root must stay inside wsRoot after
-	// cleaning — reject anything else before it reaches git -C.
-	wtRoot = filepath.Clean(wtRoot)
-	if strings.Contains(wtRoot, "..") || !strings.HasPrefix(wtRoot, wsRoot+string(filepath.Separator)) {
-		return wsRoot, "", worktreeName, errors.New("invalid worktree path")
+
+	// Authoritative path: the agent's stored worktree dir (may be a repo
+	// checkout anywhere on disk). The dir comes from our own trusted
+	// record, so only reject traversal sequences as defense in depth.
+	if h.worktreeFor != nil {
+		if dir := h.worktreeFor(worktreeName); dir != "" {
+			dir = filepath.Clean(dir)
+			if !strings.Contains(dir, "..") {
+				if info, statErr := os.Stat(dir); statErr == nil && info.IsDir() {
+					return repoRoot, dir, worktreeName, nil
+				}
+			}
+		}
+	}
+
+	// Fallback: the ~/.mycel/agents/<name>/worktree convention.
+	agentsRoot, err := home.AgentsDir()
+	if err != nil {
+		return repoRoot, "", worktreeName, errNoWorktree
+	}
+	wtRoot = filepath.Clean(filepath.Join(agentsRoot, worktreeName, "worktree"))
+	if strings.Contains(wtRoot, "..") || !strings.HasPrefix(wtRoot, agentsRoot+string(filepath.Separator)) {
+		return repoRoot, "", worktreeName, errors.New("invalid worktree path")
 	}
 	info, statErr := os.Stat(wtRoot)
 	if statErr != nil || !info.IsDir() {
-		return wsRoot, "", worktreeName, errors.New("worktree not found")
+		return repoRoot, "", worktreeName, errNoWorktree
 	}
-	return wsRoot, wtRoot, worktreeName, nil
-}
-
-// agentWorktreePath mirrors pkg/worktree.Manager.Path for the given
-// agent, honoring MYCEL_HOST_WORKSPACE if set. Accepting the workspace
-// root as an argument keeps this logic testable without building a
-// full Manager.
-func agentWorktreePath(wsRoot, agentName string) string {
-	hostBase := filepath.Base(wsRoot)
-	if hp := os.Getenv("MYCEL_HOST_WORKSPACE"); hp != "" {
-		hostBase = filepath.Base(hp)
-	}
-	name := "bc-" + hostBase + "-" + agentName
-	return filepath.Join(wsRoot, ".bc", "agents", agentName, name)
+	return repoRoot, wtRoot, worktreeName, nil
 }
 
 // ------------------------------------------------------------------ /tree
@@ -166,6 +188,10 @@ type treeEntry struct {
 
 func (h *CodeHandler) tree(w http.ResponseWriter, r *http.Request) {
 	_, wtRoot, worktreeName, err := h.resolveWorktreeRoot(r)
+	if errors.Is(err, errNoWorktree) {
+		writeJSON(w, http.StatusOK, []treeEntry{})
+		return
+	}
 	if err != nil {
 		httpError(w, err.Error(), http.StatusBadRequest)
 		return
@@ -238,14 +264,14 @@ func (h *CodeHandler) tree(w http.ResponseWriter, r *http.Request) {
 }
 
 // isHiddenEntry reports whether name should be skipped in tree listings.
-// We hide .git (always) and .bc (repo metadata) at the top level.
+// We hide .git (always) and .mycel (repo metadata) at the top level.
 // A deeper path (e.g. inside a node_modules/.git) is still shown —
 // traversal into such dirs is the user's choice.
 func isHiddenEntry(name, parentRel string) bool {
 	if parentRel != "" && parentRel != "." {
 		return false
 	}
-	return name == ".git" || name == ".bc"
+	return name == ".git" || name == ".mycel"
 }
 
 // ------------------------------------------------------------------ /file
@@ -318,12 +344,12 @@ func (h *CodeHandler) file(w http.ResponseWriter, r *http.Request) {
 	contentType := http.DetectContentType(sniff)
 	binary := !isTextual(contentType)
 
-	w.Header().Set("X-BC-Size", itoa(info.Size()))
+	w.Header().Set("X-Mycel-Size", itoa(info.Size()))
 	if truncated {
-		w.Header().Set("X-BC-Truncated", "true")
+		w.Header().Set("X-Mycel-Truncated", "true")
 	}
 	if binary {
-		w.Header().Set("X-BC-Binary", "true")
+		w.Header().Set("X-Mycel-Binary", "true")
 		w.Header().Set("Content-Type", "application/octet-stream")
 		w.WriteHeader(http.StatusOK)
 		if _, writeErr := w.Write(data); writeErr != nil {
@@ -389,6 +415,10 @@ const diffTimeout = 10 * time.Second
 
 func (h *CodeHandler) diff(w http.ResponseWriter, r *http.Request) {
 	_, wtRoot, worktreeName, err := h.resolveWorktreeRoot(r)
+	if errors.Is(err, errNoWorktree) {
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		return
+	}
 	if err != nil {
 		httpError(w, err.Error(), http.StatusBadRequest)
 		return
@@ -438,7 +468,7 @@ func (h *CodeHandler) diff(w http.ResponseWriter, r *http.Request) {
 			if strings.Contains(stderrStr, "unknown revision") ||
 				strings.Contains(stderrStr, "bad revision") {
 				w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-				w.Header().Set("X-BC-Diff-Empty", "no-main-ref")
+				w.Header().Set("X-Mycel-Diff-Empty", "no-main-ref")
 				w.WriteHeader(http.StatusOK)
 				return
 			}
@@ -481,16 +511,16 @@ func itoa(n int64) string {
 	return string(b[i:])
 }
 
-// staticWorkspaceResolver is a WorkspaceResolver pinned to one root —
-// the single-bundle repo bcd was booted against.
-type staticWorkspaceResolver struct {
+// staticRepoResolver is a RepoResolver pinned to one root —
+// the single-bundle repo the daemon was booted against.
+type staticRepoResolver struct {
 	root string
 }
 
-// NewStaticWorkspaceResolver builds a resolver pinned to root (may be "").
-func NewStaticWorkspaceResolver(root string) WorkspaceResolver {
-	return &staticWorkspaceResolver{root: root}
+// NewStaticRepoResolver builds a resolver pinned to root (may be "").
+func NewStaticRepoResolver(root string) RepoResolver {
+	return &staticRepoResolver{root: root}
 }
 
 // ActiveRoot returns the pinned root or "".
-func (r *staticWorkspaceResolver) ActiveRoot() string { return r.root }
+func (r *staticRepoResolver) ActiveRoot() string { return r.root }

@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"bytes"
 	"os"
 	"path/filepath"
 	"strings"
@@ -154,31 +153,12 @@ func TestAgentCreate_CustomRoles(t *testing.T) {
 }
 
 func TestAgentCreate_EmptyName(t *testing.T) {
-	// Setup temp workspace
-	dir := t.TempDir()
-	bcDir := filepath.Join(dir, ".bc")
-	if err := os.MkdirAll(bcDir, 0750); err != nil {
-		t.Fatal(err)
-	}
-
-	// Create minimal config
-	configPath := filepath.Join(bcDir, "settings.json")
-	if err := os.WriteFile(configPath, []byte(`{"version":2,"providers":{"default":"claude","providers":{"claude":{"command":"claude"}}},"server":{"host":"127.0.0.1","port":9374,"cors_origin":"*"},"runtime":{"default":"tmux"},"ui":{"theme":"dark","mode":"auto"}}`), 0600); err != nil {
-		t.Fatal(err)
-	}
-
-	// Test that empty name is rejected
+	// MaximumNArgs(1) allows an empty string arg — name validation
+	// happens later in runAgentCreate, not in Args.
 	cmd := agentCreateCmd
-	cmd.SetArgs([]string{""})
-
-	// Capture output
-	var buf bytes.Buffer
-	cmd.SetOut(&buf)
-	cmd.SetErr(&buf)
-
-	// This will fail because we're not in a real workspace, but we can test the args
-	// MaximumNArgs(1) allows empty string, validation happens in runAgentCreate
-	_ = cmd.Args(cmd, []string{""})
+	if err := cmd.Args(cmd, []string{""}); err != nil {
+		t.Errorf("Args should accept a single (empty) positional arg: %v", err)
+	}
 }
 
 // --- Agent Create Flags Tests ---
@@ -250,9 +230,9 @@ func TestAgentList_EmptyResult(t *testing.T) {
 // --- Agent Stop Tests ---
 
 func TestAgentStop_NonExistentAgent(t *testing.T) {
-	dir := t.TempDir()
-	bcDir := filepath.Join(dir, ".bc")
-	agentsDir := filepath.Join(bcDir, "agents")
+	// Agent entities live under an agents root (~/.mycel/agents in
+	// production); a fresh temp dir stands in for it here.
+	agentsDir := filepath.Join(t.TempDir(), "agents")
 	if err := os.MkdirAll(agentsDir, 0750); err != nil {
 		t.Fatal(err)
 	}
@@ -404,7 +384,7 @@ func TestAgentStopFlags(t *testing.T) {
 // --- Integration Tests using executeCmd ---
 
 func TestAgentListEmpty(t *testing.T) {
-	setupTestWorkspace(t)
+	setupTestHome(t)
 
 	// Command should succeed even with no agents
 	_, err := executeCmd("agent", "list")
@@ -414,7 +394,7 @@ func TestAgentListEmpty(t *testing.T) {
 }
 
 func TestAgentListJSON(t *testing.T) {
-	setupTestWorkspace(t)
+	setupTestHome(t)
 
 	// Command should succeed with --json flag
 	_, err := executeCmd("agent", "list", "--json")
@@ -424,7 +404,7 @@ func TestAgentListJSON(t *testing.T) {
 }
 
 func TestAgentStopNonexistent(t *testing.T) {
-	setupTestWorkspace(t)
+	setupTestHome(t)
 
 	_, err := executeCmd("agent", "stop", "nonexistent-agent")
 	if err == nil {
@@ -436,7 +416,7 @@ func TestAgentStopNonexistent(t *testing.T) {
 }
 
 func TestAgentSendNonexistent(t *testing.T) {
-	setupTestWorkspace(t)
+	setupTestHome(t)
 
 	_, err := executeCmd("agent", "send", "nonexistent-agent", "hello")
 	if err == nil {
@@ -448,7 +428,7 @@ func TestAgentSendNonexistent(t *testing.T) {
 }
 
 func TestAgentPeekNonexistent(t *testing.T) {
-	setupTestWorkspace(t)
+	setupTestHome(t)
 
 	_, err := executeCmd("agent", "peek", "nonexistent-agent")
 	if err == nil {
@@ -457,7 +437,7 @@ func TestAgentPeekNonexistent(t *testing.T) {
 }
 
 func TestAgentAttachNonexistent(t *testing.T) {
-	setupTestWorkspace(t)
+	setupTestHome(t)
 
 	_, err := executeCmd("agent", "attach", "nonexistent-agent")
 	if err == nil {
@@ -466,7 +446,7 @@ func TestAgentAttachNonexistent(t *testing.T) {
 }
 
 func TestAgentListWithRoleFilter(t *testing.T) {
-	setupTestWorkspace(t)
+	setupTestHome(t)
 
 	// Should succeed with valid role filter
 	_, err := executeCmd("agent", "list", "--role", "engineer")
@@ -476,7 +456,7 @@ func TestAgentListWithRoleFilter(t *testing.T) {
 }
 
 func TestAgentListInvalidRole(t *testing.T) {
-	setupTestWorkspace(t)
+	setupTestHome(t)
 
 	// Only truly invalid role names (format) should error
 	// "invalid-role" is valid now (all roles are custom)
@@ -547,7 +527,7 @@ func TestAgentSendPattern_InsufficientArgs(t *testing.T) {
 }
 
 func TestAgentBroadcast_NoAgents(t *testing.T) {
-	setupTestWorkspace(t)
+	setupTestHome(t)
 
 	// Should succeed with no agents
 	_, err := executeCmd("agent", "broadcast", "hello")
@@ -557,7 +537,7 @@ func TestAgentBroadcast_NoAgents(t *testing.T) {
 }
 
 func TestAgentSendPattern_NoMatches(t *testing.T) {
-	setupTestWorkspace(t)
+	setupTestHome(t)
 
 	// Should succeed with no matching agents (no error)
 	_, err := executeCmd("agent", "send-pattern", "nonexistent-*", "hello")
@@ -634,7 +614,7 @@ func TestAgentHealthFlags(t *testing.T) {
 }
 
 func TestAgentHealthAlertRequiresDetectStuck(t *testing.T) {
-	setupTestWorkspace(t)
+	setupTestHome(t)
 
 	// Set alert without detect-stuck
 	agentHealthAlert = "engineering"
@@ -654,7 +634,7 @@ func TestAgentHealthAlertRequiresDetectStuck(t *testing.T) {
 }
 
 func TestAgentHealthNoAgents(t *testing.T) {
-	setupTestWorkspace(t)
+	setupTestHome(t)
 
 	// Should succeed with no agents
 	_, err := executeCmd("agent", "health")
@@ -664,7 +644,7 @@ func TestAgentHealthNoAgents(t *testing.T) {
 }
 
 func TestAgentHealthJSON(t *testing.T) {
-	setupTestWorkspace(t)
+	setupTestHome(t)
 
 	// Should succeed with --json flag
 	_, err := executeCmd("agent", "health", "--json")
@@ -770,7 +750,7 @@ func TestAgentDelete_RequiresName(t *testing.T) {
 }
 
 func TestAgentDelete_NonexistentAgent(t *testing.T) {
-	setupTestWorkspace(t)
+	setupTestHome(t)
 
 	_, err := executeCmd("agent", "delete", "nonexistent-agent", "--force")
 	if err == nil {
@@ -816,24 +796,8 @@ func TestAgentRenameCmd_CommandDefinition(t *testing.T) {
 }
 
 func TestAgentRename_RunEValidation(t *testing.T) {
-	// Test the validation logic via direct function call
-	// This tests the same-name check in runAgentRename
-	tmpDir := t.TempDir()
-	wsDir := filepath.Join(tmpDir, "workspace")
-	bcDir := filepath.Join(wsDir, ".bc")
-	if err := os.MkdirAll(bcDir, 0o750); err != nil {
-		t.Fatalf("failed to create .bc dir: %v", err)
-	}
-	if err := os.WriteFile(filepath.Join(bcDir, ".bcroot"), []byte(""), 0o600); err != nil {
-		t.Fatalf("failed to create .bcroot: %v", err)
-	}
-
-	// Change to workspace directory
-	oldDir, _ := os.Getwd()
-	_ = os.Chdir(wsDir)
-	defer func() { _ = os.Chdir(oldDir) }()
-
-	// Test same name error
+	// The same-name check in runAgentRename runs before any daemon or
+	// repo access, so it can be exercised via a direct call.
 	err := runAgentRename(nil, []string{"eng-01", "eng-01"})
 	if err == nil {
 		t.Error("expected error when renaming to same name")
@@ -846,8 +810,8 @@ func TestAgentRename_RunEValidation(t *testing.T) {
 // --- Agent Create Validation Tests ---
 
 func TestAgentCreate_RejectsRootRole(t *testing.T) {
-	// Test that root role cannot be created via bc agent create
-	setupTestWorkspace(t)
+	// Test that root role cannot be created via mycel agent create
+	setupTestHome(t)
 
 	// Reset flags to prevent leaking state from previous tests
 	agentCreateTeam = ""
@@ -869,10 +833,11 @@ func TestAgentCreate_RejectsRootRole(t *testing.T) {
 
 func TestAgentCreate_NonExistentTeam(t *testing.T) {
 	// Test that agent create fails if team doesn't exist
-	wsDir := setupTestWorkspace(t)
+	setupTestHome(t)
 
-	// Create engineer role file first
-	rolesDir := filepath.Join(wsDir, ".bc", "roles")
+	// Create engineer role file in the global roles migration dir
+	// (~/.mycel/roles); the role store picks it up on load.
+	rolesDir := filepath.Join(os.Getenv("MYCEL_HOME"), "roles")
 	if err := os.MkdirAll(rolesDir, 0750); err != nil {
 		t.Fatalf("failed to create roles dir: %v", err)
 	}

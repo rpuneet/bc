@@ -17,10 +17,10 @@ var doctorCmd = &cobra.Command{
 	Short:   "Health checks and diagnostics",
 	Long: `Run health checks on your mycel repo and dependencies.
 
-Checks workspace config, agent state, databases, tools, and git worktrees.
+Checks the global config, agent state, databases, tools, and git worktrees.
 
 Categories:
-  workspace   state directory, preferences.json, role files
+  home        ~/.mycel state, prefs.json, roles
   database    SQLite integrity and table existence
   agents      Running agents, stale sessions, missing worktrees
   tools       tmux, git, and AI provider installations
@@ -28,7 +28,7 @@ Categories:
 
 Examples:
   mycel doctor                          # Full health check
-  mycel doctor check workspace          # Check specific category
+  mycel doctor check home               # Check specific category
   mycel doctor fix                      # Auto-fix fixable issues
   mycel doctor fix --dry-run            # Preview fixes
   mycel doctor fix --category git       # Fix specific category
@@ -55,7 +55,7 @@ var doctorFixCmd = &cobra.Command{
 
 Fixable issues include:
   - Orphaned git worktrees
-  - Missing workspace directories
+  - Missing ~/.mycel directories
 
 Use --dry-run to preview actions without making changes.
 
@@ -78,7 +78,7 @@ func init() {
 func runDoctor(cmd *cobra.Command, _ []string) error {
 	ctx := cmd.Context()
 
-	// Try bcd API first
+	// Try the daemon API first
 	c := getClient()
 	apiReport, apiErr := c.Doctor.RunAll(ctx)
 	if apiErr == nil && apiReport != nil {
@@ -91,9 +91,9 @@ func runDoctor(cmd *cobra.Command, _ []string) error {
 	}
 
 	// Offline fallback: use direct pkg/doctor
-	ws, err := getRepo()
+	h, err := getRepo()
 	if err != nil {
-		// No workspace: run tools-only check
+		// No adopted repo: run tools-only check
 		fmt.Println("mycel doctor")
 		fmt.Println(strings.Repeat("─", 40))
 		fmt.Println()
@@ -105,7 +105,7 @@ func runDoctor(cmd *cobra.Command, _ []string) error {
 		return nil
 	}
 
-	report := doctor.RunAll(ctx, ws)
+	report := doctor.RunAll(ctx, h)
 	printReport(report)
 
 	_, _, fail := report.Summary()
@@ -124,7 +124,7 @@ func runDoctorCheck(cmd *cobra.Command, args []string) error {
 
 	name := args[0]
 
-	// Try bcd API first
+	// Try the daemon API first
 	c := getClient()
 	apiCat, apiErr := c.Doctor.ByCategory(ctx, name)
 	if apiErr == nil && apiCat != nil {
@@ -138,19 +138,19 @@ func runDoctorCheck(cmd *cobra.Command, args []string) error {
 	}
 
 	// Offline fallback
-	ws, wsErr := getRepo()
+	h, homeErr := getRepo()
 
-	// Tools check works without a workspace
-	if wsErr != nil && name != "tools" {
-		return errNoRepo(wsErr)
+	// Tools check works without an adopted repo
+	if homeErr != nil && name != "tools" {
+		return errNoRepo(homeErr)
 	}
 
 	var cat *doctor.CategoryReport
-	if wsErr != nil {
+	if homeErr != nil {
 		c := doctor.CheckTools(ctx, nil)
 		cat = &c
 	} else {
-		cat = doctor.CategoryByName(ctx, ws, name)
+		cat = doctor.CategoryByName(ctx, h, name)
 		if cat == nil {
 			return fmt.Errorf("unknown category %q — valid categories: %s",
 				name, strings.Join(doctor.ValidCategories(), ", "))
@@ -179,10 +179,10 @@ func runDoctorFix(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
-	// Fix always uses direct pkg/doctor (requires local workspace access)
-	ws, wsErr := requireRepo()
-	if wsErr != nil {
-		return wsErr
+	// Fix always uses direct pkg/doctor (requires local ~/.mycel access)
+	h, homeErr := requireRepo()
+	if homeErr != nil {
+		return homeErr
 	}
 
 	if dryRun {
@@ -193,15 +193,15 @@ func runDoctorFix(cmd *cobra.Command, _ []string) error {
 	var fixes []doctor.FixResult
 
 	if categoryFilter != "" {
-		cat := doctor.CategoryByName(ctx, ws, categoryFilter)
+		cat := doctor.CategoryByName(ctx, h, categoryFilter)
 		if cat == nil {
 			return fmt.Errorf("unknown category %q — valid categories: %s",
 				categoryFilter, strings.Join(doctor.ValidCategories(), ", "))
 		}
-		fixes = doctor.FixCategory(ctx, ws, cat, dryRun)
+		fixes = doctor.FixCategory(ctx, h, cat, dryRun)
 	} else {
-		report := doctor.RunAll(ctx, ws)
-		fixes = doctor.Fix(ctx, ws, report, dryRun)
+		report := doctor.RunAll(ctx, h)
+		fixes = doctor.Fix(ctx, h, report, dryRun)
 	}
 
 	if len(fixes) == 0 {

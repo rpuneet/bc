@@ -276,7 +276,7 @@ func runChannelList(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 	if jsonOutput {
-		// Build enhanced channel list with member counts and descriptions for TUI
+		// Build enhanced channel list with member counts and descriptions for the web UI
 		type ChannelSummary struct {
 			Name        string   `json:"name"`
 			Description string   `json:"description,omitempty"`
@@ -581,7 +581,7 @@ func runChannelHistory(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	if jsonOutput {
-		// Wrap in object for TUI compatibility
+		// Wrap in object for web UI compatibility
 		response := struct {
 			Channel  string               `json:"channel"`
 			Messages []client.MessageInfo `json:"messages"`
@@ -882,7 +882,7 @@ func parseTimestamp(s string) (time.Time, error) {
 }
 
 // defaultNickname is the fallback sender name when no user nickname is configured.
-const defaultNickname = "@bc"
+const defaultNickname = "@mycel"
 
 // getUserSenderCtx returns the sender identity for channel messages.
 // If running as an agent, returns MYCEL_AGENT_ID.

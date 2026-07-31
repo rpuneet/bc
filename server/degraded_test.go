@@ -14,7 +14,7 @@ import (
 	"strings"
 	"testing"
 
-	bcdb "github.com/rpuneet/mycel/pkg/db"
+	dbpkg "github.com/rpuneet/mycel/pkg/db"
 )
 
 // TestAPIHealthDegradedShape verifies that /api/health reports
@@ -24,7 +24,7 @@ func TestAPIHealthDegradedShape(t *testing.T) {
 	cfg := Config{Addr: "127.0.0.1:0", CORS: true}
 	svc := Services{Degraded: map[string]string{
 		"notify": "notify store unavailable: no shared database",
-		"cron":   "cron store unavailable: disk full",
+		"events": "event log unavailable: disk full",
 	}}
 	ts := httptest.NewServer(New(cfg, svc, nil, nil).Handler())
 	defer ts.Close()
@@ -96,8 +96,8 @@ func TestAPIHealthOKShapeUnchanged(t *testing.T) {
 // TestBuildServicesGlobalDBFailure verifies that when the
 // single global database cannot open (broken MYCEL_HOME), the factory
 // fails loudly instead of silently coming up with nil stores. With the
-// per-workspace databases gone, a dead mycel.db is fatal for the
-// workspace bundle — workspace init itself needs the roles table.
+// per-repo databases gone, a dead mycel.db is fatal for the
+// service bundle — home init itself needs the roles table.
 func TestBuildServicesGlobalDBFailure(t *testing.T) {
 	t.Setenv("MYCEL_SECRET_PASSPHRASE", "unit-test")
 
@@ -109,7 +109,7 @@ func TestBuildServicesGlobalDBFailure(t *testing.T) {
 		t.Fatalf("plant home file: %v", err)
 	}
 	t.Setenv("MYCEL_HOME", homeFile)
-	t.Cleanup(func() { _ = bcdb.CloseGlobal() })
+	t.Cleanup(func() { _ = dbpkg.CloseGlobal() })
 
 	wsDir := t.TempDir()
 	gitInitDir(t, wsDir)
@@ -123,7 +123,7 @@ func TestBuildServicesGlobalDBFailure(t *testing.T) {
 func TestDegradedMapSurfacedByHealth(t *testing.T) {
 	t.Setenv("MYCEL_HOME", t.TempDir())
 	t.Setenv("MYCEL_SECRET_PASSPHRASE", "unit-test")
-	t.Cleanup(func() { _ = bcdb.CloseGlobal() })
+	t.Cleanup(func() { _ = dbpkg.CloseGlobal() })
 
 	wsDir := t.TempDir()
 	gitInitDir(t, wsDir)

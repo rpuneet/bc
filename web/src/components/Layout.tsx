@@ -1,27 +1,29 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { NavLink, Outlet, useLocation, useMatch } from "react-router-dom";
+import { Link, NavLink, Outlet, useLocation, useMatch } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useTheme, THEME_LABELS } from "../context/ThemeContext";
 import { useMediaQuery } from "../hooks/useMediaQuery";
 import { CommandPalette } from "./CommandPalette";
-import { api } from "../api/client";
+import { api, instancesToStatuses } from "../api/client";
 import type { NotificationSource, GatewayHealth, GatewayStatus, NotifySubscription } from "../api/client";
-import { sourcePlatform } from "./notifications/messageUtils";
-import { SetupWizard, PlatformChooser, PLATFORM_MAP } from "./notifications/SetupWizard";
-import { DefaultAppIcon, PLATFORM_ICON_MAP } from "./notifications/PlatformIcons";
+import { sourcePlatform } from "./apps/messageUtils";
+import { ConnectWizard, AppChooser } from "./apps/ConnectApp";
+import { DefaultAppIcon, PLATFORM_ICON_MAP } from "./apps/PlatformIcons";
 import {
   disconnectReason,
   formatAgoShort,
   getAppStatus,
   parseActivityTs,
   StatusDot,
-} from "./notifications/appStatus";
+} from "./apps/appStatus";
 import { Header } from "./Header";
+import { AgentNavTree } from "./AgentNavTree";
+import { SetupNudge } from "./SetupNudge";
 import { SidebarToggle } from "./SidebarToggle";
 import { BrandMark } from "./BrandMark";
 import { HeaderSlotProvider, useHeaderSlotContext } from "../context/HeaderSlotContext";
 
-const SIDEBAR_KEY = "bc-sidebar-collapsed";
+const SIDEBAR_KEY = "mycel-sidebar-collapsed";
 
 /* ── Route transition wrapper ────────────────────────────────────────
    Subtle 120ms fade + 4px lift on every route change so navigating
@@ -58,13 +60,15 @@ function Icon({ name, size = 14 }: { name: string; size?: number }) {
       <circle cx="7" cy="7" r="2" fill="currentColor" opacity="0.8" />
       <path d="M3 11A6 6 0 0111 3" strokeLinecap="round" opacity="0.4" />
     </>,
+    home: <>
+      <path d="M2.5 6.5L7 3l4.5 3.5v4.5a.5.5 0 01-.5.5H3a.5.5 0 01-.5-.5z" strokeLinejoin="round" />
+      <path d="M5.75 11.5V8h2.5v3.5" strokeLinejoin="round" />
+    </>,
     agents: <path d="M7 3.5a2 2 0 100 4 2 2 0 000-4zM3.5 11.5c0-1.8 1.6-3 3.5-3s3.5 1.2 3.5 3" />,
-    notifications: <><path d="M7 1.5a4 4 0 00-4 4v2.5l-1.5 2h11L11 8V5.5a4 4 0 00-4-4zM5.5 12a1.5 1.5 0 003 0" /></>,
+    apps: <><rect x="2" y="2" width="4.25" height="4.25" rx="1.25" /><rect x="7.75" y="2" width="4.25" height="4.25" rx="1.25" /><rect x="2" y="7.75" width="4.25" height="4.25" rx="1.25" /><rect x="7.75" y="7.75" width="4.25" height="4.25" rx="1.25" /></>,
     roles: <path d="M7 2.5l4.5 2.5v3.5L7 11 2.5 8.5V5z" />,
     templates: <><rect x="2.5" y="2.5" width="9" height="9" rx="1" /><path d="M5 5.5h4M5 7.5h4M5 9.5h2" opacity="0.5" /></>,
     tools: <path d="M9.5 2.5l3 3-7 7H2.5v-3z" />,
-    cron: <><circle cx="7" cy="7" r="4.5" /><path d="M7 4.5v2.5l1.5 1.5" /></>,
-    secrets: <path d="M7 2.5a2 2 0 00-2 2V6H4v4.5h6V6H9V4.5a2 2 0 00-2-2zm0 5.5a.75.75 0 110 1.5.75.75 0 010-1.5z" />,
     metrics: <path d="M2 10l2.5-3.5 2 1.5L10 3" strokeLinecap="round" strokeLinejoin="round" />,
     code: <><path d="M5 3.5L1.5 7L5 10.5" strokeLinecap="round" strokeLinejoin="round" /><path d="M9 3.5L12.5 7L9 10.5" strokeLinecap="round" strokeLinejoin="round" /></>,
     settings: <><circle cx="7" cy="7" r="2" /><path d="M7 1.5v1.5M7 11v1.5M1.5 7H3M11 7h1.5M3 3l1 1M10 10l1 1M3 11l1-1M10 4l1-1" opacity="0.5" /></>,
@@ -77,15 +81,14 @@ function Icon({ name, size = 14 }: { name: string; size?: number }) {
   );
 }
 
-/* ── Platform config ─────────────────────────────────────────── */
+/* ── App meta ────────────────────────────────────────────────── */
 
-function getPlatformMeta(p: string) {
-  // Handle compound keys like "telegram:gateway" — look up base platform
+function getAppMeta(p: string, labels: Record<string, string>) {
+  // Handle compound keys like "telegram:gateway" — look up the base app
   const base = p.includes(":") ? (p.split(":")[0] ?? p) : p;
-  const def = PLATFORM_MAP[base];
   const IconComponent = PLATFORM_ICON_MAP[base] ?? DefaultAppIcon;
-  if (def) return { base, label: def.label, color: def.color, IconComponent };
-  return { base, label: p, color: "var(--mycel-muted)", IconComponent };
+  const label = labels[base] ?? base.charAt(0).toUpperCase() + base.slice(1);
+  return { base, label, IconComponent };
 }
 
 /** Extract display channel name (last segment after platform and optional server). */
@@ -131,7 +134,7 @@ function ChannelRow({
   const badge = count > 0 ? count : ch.member_count > 0 ? ch.member_count : 0;
   return (
     <NavLink
-      to={`${prefix}/notifications/${ch.name}`}
+      to={`${prefix}/apps/${ch.name}`}
       className="block"
       title={count > 0 ? `${ch.name} · ${count} subscribed` : ch.name}
       onClick={() => onView(ch.name)}
@@ -347,36 +350,39 @@ function readViewedMap(): Record<string, number> {
   }
 }
 
-/* ── Notification tree (inline in nav) ───────────────────────── */
+/* ── Apps tree (inline in nav) ───────────────────────────────── */
 
-function NotificationNavTree() {
+function AppsNavTree() {
   const [sources, setSources] = useState<NotificationSource[]>([]);
   const [gateways, setGateways] = useState<GatewayStatus[]>([]);
+  const [labels, setLabels] = useState<Record<string, string>>({});
   const [subs, setSubs] = useState<NotifySubscription[]>([]);
   const [health, setHealth] = useState<Map<string, GatewayHealth>>(new Map());
   const [collapsedApps, setCollapsedApps] = useState<Set<string>>(readCollapsedApps);
   const [viewedMap, setViewedMap] = useState<Record<string, number>>(readViewedMap);
   const [filter, setFilter] = useState("");
-  const [setupPlatform, setSetupPlatform] = useState<string | null>(null);
+  const [connectAppId, setConnectAppId] = useState<string | null>(null);
   const [showConnectMenu, setShowConnectMenu] = useState(false);
 
   const fetchData = useCallback(async () => {
     try {
-      const [chs, gws, subList] = await Promise.all([
+      const [chs, apps, subList] = await Promise.all([
         api.listNotificationSources().catch(() => [] as NotificationSource[]),
-        api.listGateways().catch(() => [] as GatewayStatus[]),
+        api.getApps().catch(() => null),
         api.listSubscriptions().catch(() => [] as NotifySubscription[]),
       ]);
+      const gws = instancesToStatuses(apps?.instances ?? []);
       setSources(chs ?? []);
-      setGateways(gws ?? []);
+      setGateways(gws);
+      setLabels(Object.fromEntries((apps?.catalog ?? []).map((d) => [d.id, d.label])));
       setSubs(subList ?? []);
 
-      // Fetch health for each enabled gateway, keyed by the gateway's own
-      // platform key so compound keys ("telegram:trade_research") stay stable.
-      const enabledGws = (gws ?? []).filter((g) => g.enabled);
+      // Fetch health for each enabled instance, keyed by the instance's
+      // own name so compound keys ("telegram:trade_research") stay stable.
+      const enabledGws = gws.filter((g) => g.enabled);
       const healthEntries = await Promise.all(
         enabledGws.map(async (g) => {
-          const h = await api.getGatewayHealth(g.platform).catch(() => null);
+          const h = await api.getAppHealth(g.platform).catch(() => null);
           return h ? ([g.platform, h] as const) : null;
         }),
       );
@@ -443,7 +449,7 @@ function NotificationNavTree() {
   // connected apps first, then by platform name.
   const apps = [...bucketMap.entries()]
     .map(([platform, chs]) => {
-      const meta = getPlatformMeta(platform);
+      const meta = getAppMeta(platform, labels);
       const gwStatus = gwMap.get(platform);
       const gwHealth = health.get(platform);
       const status = getAppStatus(gwStatus, gwHealth);
@@ -467,13 +473,17 @@ function NotificationNavTree() {
       style={{
         // Indent rail sits under the nav icon column (pl-4 + w-4 icon —
         // icon centre ≈ 26px with the 2px active rail) so the channel
-        // tree reads as a child of the Notifications item.
+        // tree reads as a child of the Apps item.
         paddingLeft: 10,
         marginLeft: 25,
         borderLeft: "1px solid var(--mycel-border)",
         marginTop: 2,
         marginBottom: 4,
-        maxHeight: 320,
+        // Bound the tree to its own scroll region and cap it relative to
+        // the viewport so a long channel list (or two expanded trees on a
+        // short screen) scrolls in place instead of stretching the drawer
+        // past the fold and leaving dead space below the footer.
+        maxHeight: "min(320px, 42vh)",
         overflowY: "auto",
       }}
     >
@@ -564,7 +574,7 @@ function NotificationNavTree() {
               {(() => {
                 const subLabel = gwStatus?.bot_name || (chs.length > 0 ? sourceGroup(chs[0]?.name ?? "") : null);
                 // When a bot/server name is present, show platform + bot for clarity
-                // (e.g., "Slack · bc_gateway"); otherwise just the platform label.
+                // (e.g., "Slack · mycel_gateway"); otherwise just the platform label.
                 if (subLabel && subLabel !== meta.label) {
                   return (
                     <span className="truncate flex items-baseline" style={{ gap: 5, minWidth: 0 }}>
@@ -626,7 +636,7 @@ function NotificationNavTree() {
             {status === "error" && (
               <button
                 type="button"
-                onClick={() => setSetupPlatform(meta.base)}
+                onClick={() => setConnectAppId(meta.base)}
                 className="w-full flex items-center"
                 title={gwHealth?.error || undefined}
                 style={{
@@ -691,14 +701,14 @@ function NotificationNavTree() {
       </button>
 
       {showConnectMenu && (
-        <PlatformChooser
-          onSelect={(key) => { setShowConnectMenu(false); setSetupPlatform(key); }}
+        <AppChooser
+          onSelect={(key) => { setShowConnectMenu(false); setConnectAppId(key); }}
           onClose={() => setShowConnectMenu(false)}
         />
       )}
 
-      {setupPlatform && setupPlatform !== "_choose" && (
-        <SetupWizard platform={setupPlatform} onClose={() => setSetupPlatform(null)} onConnected={() => void fetchData()} />
+      {connectAppId && (
+        <ConnectWizard appId={connectAppId} onClose={() => setConnectAppId(null)} onConnected={() => void fetchData()} />
       )}
     </div>
   );
@@ -708,7 +718,7 @@ function NotificationNavTree() {
 
 // Primary nav — divider-separated groups, no captions. Group 1 holds the
 // daily surfaces; group 2 the configuration surfaces (Marketplace, the
-// host machine's tools, Cron, Secrets); group 3 the read-only analytics
+// host machine's tools, Secrets); group 3 the read-only analytics
 // (Metrics + Costs merged behind one "Insights" item). The /tools item
 // is labeled with the daemon host machine's name, resolved at runtime
 // from /api/system/info (fallback "Host" while loading/unavailable).
@@ -723,20 +733,17 @@ export function prettifyHostname(h: string): string {
 }
 
 function buildNavGroups(hostLabel: string): readonly (readonly NavItem[])[] {
+  // One flat group — no inter-group divider. Code lives as a tab on the
+  // agent detail page now (the /code route stays reachable via the Code
+  // tab's "full view" link), so it is no longer a top-level nav item.
   return [
     [
-      { to: "/live", label: "Live", icon: "live" },
+      { to: "/", label: "Home", icon: "home" },
       { to: "/agents", label: "Agents", icon: "agents" },
-      { to: "/notifications", label: "Notifications", icon: "notifications" },
-      { to: "/code", label: "Code", icon: "code" },
-    ],
-    [
+      { to: "/apps", label: "Apps", icon: "apps" },
       { to: "/marketplace", label: "Marketplace", icon: "templates" },
       { to: "/tools", label: hostLabel, icon: "tools" },
-      { to: "/cron", label: "Cron", icon: "cron" },
-      { to: "/secrets", label: "Secrets", icon: "secrets" },
     ],
-    [{ to: "/insights", label: "Insights", icon: "metrics" }],
   ];
 }
 
@@ -752,11 +759,22 @@ function titleFor(pathname: string, hostLabel: string): string {
   const firstSeg = pathname.replace(/^\//, "").split("/")[0] ?? "";
   const items = [
     ...buildNavGroups(hostLabel).flat(),
+    // Code left the sidebar (it's an agent-detail tab now) but the route
+    // still resolves via the tab's "full view" link — keep its title.
+    { to: "/code", label: "Code" },
+    // Home answers "/", "/home", and the legacy "/live" redirect.
+    { to: "/home", label: "Home" },
+    { to: "/live", label: "Home" },
     { to: "/settings", label: "Settings" },
     { to: "/about", label: "About" },
+    // Insights lives in the drawer footer now, not the primary nav.
+    { to: "/insights", label: "Insights" },
     { to: "/stats", label: "Insights" },
     { to: "/metrics", label: "Insights" },
     { to: "/costs", label: "Insights" },
+    // Notifications became Apps; Secrets lives on the Apps home now.
+    { to: "/notifications", label: "Apps" },
+    { to: "/secrets", label: "Apps" },
   ];
   const match = items.find((item) => item.to.replace(/^\//, "") === firstSeg);
   return match ? `${match.label} — mycel` : "mycel";
@@ -804,15 +822,20 @@ function NavList({
   isMobile,
   notificationsExpanded,
   onToggleNotifications,
+  agentsExpanded,
+  onToggleAgents,
 }: {
   groups: ReadonlyArray<ReadonlyArray<NavItem>>;
   collapsed: boolean;
   isMobile: boolean;
   notificationsExpanded?: boolean;
   onToggleNotifications?: () => void;
+  agentsExpanded?: boolean;
+  onToggleAgents?: () => void;
 }) {
   const isIconOnly = collapsed && !isMobile;
   const showTree = !isIconOnly && notificationsExpanded;
+  const showAgentTree = !isIconOnly && agentsExpanded;
 
   return (
     <>
@@ -824,13 +847,14 @@ function NavList({
           )}
           <ul>
             {items.map(({ to, label, icon }) => {
-              const isNotifications = label === "Notifications";
+              const isApps = label === "Apps";
+              const isAgents = label === "Agents";
               const scopedTo = to;
               return (
                 <li key={to}>
                   <NavLink
                     to={scopedTo}
-                    end={!isNotifications}
+                    end={!isApps && !isAgents}
                     title={isIconOnly ? label : undefined}
                     className={({ isActive }) =>
                       `relative flex items-center gap-2.5 ${isIconOnly ? "justify-center px-2" : "pl-4 pr-3"} py-[7px] text-sm outline-none transition-colors duration-75 border-l-2 ${
@@ -846,10 +870,7 @@ function NavList({
                     {(!collapsed || isMobile) && (
                       <span className="truncate mycel-fade-slide-in">{label}</span>
                     )}
-                    {label === "Live" && (
-                      <span className="w-1.5 h-1.5 rounded-full bg-mycel-live animate-pulse ml-auto" />
-                    )}
-                    {isNotifications && !isIconOnly && onToggleNotifications && (
+                    {isApps && !isIconOnly && onToggleNotifications && (
                       <button
                         type="button"
                         onClick={(e) => { e.preventDefault(); e.stopPropagation(); onToggleNotifications(); }}
@@ -868,8 +889,28 @@ function NavList({
                         </svg>
                       </button>
                     )}
+                    {isAgents && !isIconOnly && onToggleAgents && (
+                      <button
+                        type="button"
+                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); onToggleAgents(); }}
+                        className="ml-auto shrink-0 p-0.5 rounded-md text-mycel-muted hover:text-mycel-text transition-all"
+                        aria-label={agentsExpanded ? "Collapse agents" : "Expand agents"}
+                      >
+                        <svg
+                          width="12" height="12" viewBox="0 0 14 14" fill="none"
+                          stroke="currentColor" strokeWidth="1.5"
+                          style={{
+                            transform: agentsExpanded ? "rotate(90deg)" : "rotate(0deg)",
+                            transition: "transform 150ms ease",
+                          }}
+                        >
+                          <path d="M5 3l4 4-4 4" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      </button>
+                    )}
                   </NavLink>
-                  {isNotifications && showTree && <NotificationNavTree />}
+                  {isApps && showTree && <AppsNavTree />}
+                  {isAgents && showAgentTree && <AgentNavTree />}
                 </li>
               );
             })}
@@ -882,7 +923,7 @@ function NavList({
 
 /* ── Degraded services banner ────────────────────────────────────────
    Slim amber strip shown when /api/health reports degraded services
-   (stores that failed to initialize at daemon boot — notify, cron,
+   (stores that failed to initialize at daemon boot — notify,
    secrets, …). One line, service names only; full reasons live in the
    hover tooltip and `mycel doctor`. Dismissible for the session. */
 export function DegradedBanner() {
@@ -916,12 +957,18 @@ export function DegradedBanner() {
         <path d="M7 6v3M7 10.8v.01" strokeLinecap="round" />
       </svg>
       <span className="truncate">
-        Degraded services: <span className="font-medium">{names}</span> — some features are unavailable, run mycel doctor for details
+        Degraded services: <span className="font-medium">{names}</span> — some features are unavailable.
       </span>
+      <Link
+        to="/readiness"
+        className="ml-auto shrink-0 underline decoration-dotted underline-offset-2 font-medium hover:opacity-80"
+      >
+        Check setup
+      </Link>
       <button
         type="button"
         onClick={() => setDismissed(true)}
-        className="ml-auto shrink-0 p-0.5 rounded-md text-mycel-warning hover:opacity-80 transition-colors"
+        className="shrink-0 p-0.5 rounded-md text-mycel-warning hover:opacity-80 transition-colors"
         aria-label="Dismiss degraded services banner"
       >
         <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5">
@@ -943,7 +990,7 @@ export function Layout() {
 
   // Notification tree collapse state — defaults to expanded when on the
   // Notifications route, but the user can toggle it by clicking the nav item.
-  const notificationsRoute = useMatch("/notifications/*");
+  const notificationsRoute = useMatch("/apps/*");
   const onNotifRoute = Boolean(notificationsRoute);
   const [notifManualToggle, setNotifManualToggle] = useState<boolean | null>(null);
   // Auto-expand when navigating to notifications, but respect manual toggle
@@ -951,6 +998,15 @@ export function Layout() {
   const toggleNotifications = useCallback(() => {
     setNotifManualToggle((prev) => !(prev !== null ? prev : onNotifRoute));
   }, [onNotifRoute]);
+
+  // Agents tree — same auto-expand-on-route + manual-toggle pattern.
+  const agentsRoute = useMatch("/agents/*");
+  const onAgentsRoute = Boolean(agentsRoute);
+  const [agentsManualToggle, setAgentsManualToggle] = useState<boolean | null>(null);
+  const agentsExpanded = agentsManualToggle !== null ? agentsManualToggle : onAgentsRoute;
+  const toggleAgents = useCallback(() => {
+    setAgentsManualToggle((prev) => !(prev !== null ? prev : onAgentsRoute));
+  }, [onAgentsRoute]);
 
   const toggleCollapsed = useCallback(() => {
     setCollapsed((prev) => { const next = !prev; writeCollapsed(next); return next; });
@@ -1037,6 +1093,7 @@ export function Layout() {
         onToggle={handleDrawerToggle}
       />
       <DegradedBanner />
+      <SetupNudge />
 
       <div className="flex flex-1 min-h-0 relative">
       {mobileOpen && <div className="fixed inset-0 z-40 bg-mycel-overlay md:hidden" onClick={() => setMobileOpen(false)} />}
@@ -1066,10 +1123,10 @@ export function Layout() {
               aria-label="mycel home"
               className="flex items-center gap-2.5 select-none text-mycel-text min-w-0"
             >
-              <span className="shrink-0 flex items-center justify-center w-4">
-                <BrandMark size={18} />
+              <span className="shrink-0 flex items-center justify-center w-5">
+                <BrandMark size={20} />
               </span>
-              <span className="text-sm font-semibold tracking-tight truncate">mycel</span>
+              <span className="font-display text-[15px] font-semibold truncate">mycel</span>
             </NavLink>
             <span className="ml-auto">
               <SidebarToggle collapsed={false} onToggle={handleDrawerToggle} />
@@ -1085,6 +1142,8 @@ export function Layout() {
             isMobile={isMobile}
             notificationsExpanded={notificationsExpanded}
             onToggleNotifications={toggleNotifications}
+            agentsExpanded={agentsExpanded}
+            onToggleAgents={toggleAgents}
           />
         </ul>
 
@@ -1168,6 +1227,23 @@ function DrawerFooter({ iconOnly }: { iconOnly: boolean }) {
           </>
         )}
       </button>
+      <NavLink to="/insights" className={linkClass} title={iconOnly ? "Insights" : undefined}>
+        <span className="shrink-0 flex items-center justify-center w-4 opacity-70">
+          <Icon name="metrics" size={15} />
+        </span>
+        {!iconOnly && <span className="truncate mycel-fade-slide-in">Insights</span>}
+      </NavLink>
+      <NavLink to="/readiness" className={linkClass} title={iconOnly ? "Setup" : undefined}>
+        <span className="shrink-0 flex items-center justify-center w-4 opacity-70">
+          {/* Checklist glyph — machine setup / readiness. */}
+          <svg width="15" height="15" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4">
+            <path d="M2 3.5l1.2 1.2L5.5 2.4" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M2 8l1.2 1.2L5.5 6.9" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M7.5 3.5H12M7.5 8H12" strokeLinecap="round" />
+          </svg>
+        </span>
+        {!iconOnly && <span className="truncate mycel-fade-slide-in">Setup</span>}
+      </NavLink>
       <NavLink to="/settings" className={linkClass} title={iconOnly ? "Settings" : undefined}>
         <span className="shrink-0 flex items-center justify-center w-4 opacity-70">
           <Icon name="settings" size={15} />
@@ -1272,10 +1348,10 @@ function BrandColumn({
             aria-label="mycel home"
             className="flex items-center gap-2.5 select-none text-mycel-text min-w-0 pl-4"
           >
-            <span className="shrink-0 flex items-center justify-center w-4">
-              <BrandMark size={18} />
+            <span className="shrink-0 flex items-center justify-center w-5">
+              <BrandMark size={20} />
             </span>
-            <span className="text-sm font-semibold tracking-tight truncate">mycel</span>
+            <span className="font-display text-[15px] font-semibold truncate">mycel</span>
           </NavLink>
           <span className="ml-auto pr-2">
             <SidebarToggle collapsed={false} onToggle={onToggle} />

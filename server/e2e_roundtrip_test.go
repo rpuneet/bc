@@ -1,4 +1,4 @@
-// Package server_test — round-trip integration tests for bcd HTTP API.
+// Package server_test — round-trip integration tests for the daemon HTTP API.
 //
 // These tests exercise full create→read→verify cycles through the HTTP API
 // backed by real SQLite storage, proving the path:
@@ -125,7 +125,7 @@ func TestE2E_Costs_StructureValid(t *testing.T) {
 		t.Fatalf("want 200, got %d", code)
 	}
 
-	// Cost summary should have a total_cost field (zero for empty workspace)
+	// Cost summary should have a total_cost field (zero for a fresh home)
 	if body == nil {
 		t.Fatal("expected non-nil cost summary")
 	}
@@ -177,5 +177,5 @@ func TestE2E_ChannelCreateDeleteVerify(t *testing.T) {
 	if channelsCode != 200 {
 		t.Fatalf("list channels: want 200, got %d", channelsCode)
 	}
-	_ = channels // empty workspace has no active gateway channels
+	_ = channels // fresh home has no active gateway channels
 }

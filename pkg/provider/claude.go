@@ -4,20 +4,41 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 )
 
 // ClaudeProvider implements the Provider interface for Claude Code.
 // Claude Code is the Anthropic CLI for Claude.
-type ClaudeProvider struct {
+type ClaudeProvider struct { //nolint:govet // trailing cost cache grouped by role; padding is negligible for a singleton
 	ClaudeConfigAdapter // embeds ConfigAdapter implementation
 	name                string
 	description         string
 	command             string
 	binary              string
+
+	// costCache memoizes parsed session transcripts by file path so
+	// repeated ReadCosts scans only re-read files whose mtime or size
+	// changed. Without it, every cost query full-reparsed tens of
+	// thousands of JSONL entries (~10s, ~1 full CPU core), which the
+	// 60s TTL + UI polling turned into a sustained multi-core burn.
+	costCacheMu sync.Mutex
+	costCache   map[string]claudeFileCacheEntry
 }
+
+// claudeFileCacheEntry is a parsed transcript file plus the stat
+// fingerprint that validates it. A file is re-parsed only when its
+// mtime or size differs from the cached fingerprint.
+type claudeFileCacheEntry struct {
+	entries []claudeSessionEntry
+	modTime int64 // UnixNano
+	size    int64
+}
+
+func init() { Register(NewClaudeProvider()) }
 
 // NewClaudeProvider creates a new Claude provider.
 func NewClaudeProvider() *ClaudeProvider {
@@ -55,7 +76,7 @@ func (p *ClaudeProvider) InstallHint() string {
 }
 
 // BuildCommand returns the full command for a given runtime context.
-// Includes --dangerously-skip-permissions. bc manages worktrees itself and starts
+// Includes --dangerously-skip-permissions. mycel manages worktrees itself and starts
 // agents directly in the worktree directory, so no -w flag is needed.
 // --tmux is NOT included here — it's added by AdjustSessionCommand for Docker only.
 // For native tmux, claude auto-detects the tmux environment.
@@ -81,13 +102,26 @@ func (p *ClaudeProvider) Models() []string {
 	return []string{"fable", "opus", "opusplan", "sonnet", "haiku"}
 }
 
+// Commands returns the curated CLI command list for Claude Code.
+func (p *ClaudeProvider) Commands() []Command {
+	return []Command{
+		{Name: "mcp add", Command: "claude mcp add <name> <command>", Description: "Add MCP server", Args: "<name> <command|url>"},
+		{Name: "mcp list", Command: "claude mcp list", Description: "List MCP servers"},
+		{Name: "mcp remove", Command: "claude mcp remove <name>", Description: "Remove MCP server", Args: "<name>"},
+		{Name: "config set", Command: "claude config set <key> <value>", Description: "Set config value", Args: "<key> <value>"},
+		{Name: "config list", Command: "claude config list", Description: "List config values"},
+		{Name: "version", Command: "claude --version", Description: "Show version"},
+		{Name: "resume", Command: "claude --resume <id>", Description: "Resume session", Args: "<session-id>"},
+	}
+}
+
 // claudeSessionIDPattern is the full-string UUID shape of a Claude session
 // ID. The ID is spliced into a shell command line, so anything else —
 // including an empty string — is rejected rather than quoted.
 var claudeSessionIDPattern = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
 
 // AdjustSessionCommand is a no-op for native tmux sessions.
-// Claude auto-detects the tmux environment when running inside a bc-managed tmux session.
+// Claude auto-detects the tmux environment when running inside a mycel-managed tmux session.
 func (p *ClaudeProvider) AdjustSessionCommand(command string) string {
 	return command
 }
@@ -156,8 +190,80 @@ func (p *ClaudeProvider) ParseSessionID(output string) string {
 	return m[1]
 }
 
+// claudeLookPath resolves the claude binary; overridable in tests to
+// force the .mcp.json fallback regardless of the host environment.
+var claudeLookPath = exec.LookPath
+
+// ReadMCPs lists the MCP servers Claude Code sees for the repo at
+// rootDir. `claude mcp list` (run in rootDir when non-empty) wins; the
+// repo .mcp.json is the fallback. An empty rootDir means no
+// repo is loaded, so the file fallback returns nothing.
+func (p *ClaudeProvider) ReadMCPs(ctx context.Context, rootDir string) []MCPServerInfo {
+	if servers := p.readMCPsViaCLI(ctx, rootDir); servers != nil {
+		return servers
+	}
+	if rootDir == "" {
+		return []MCPServerInfo{}
+	}
+	return readMCPJSONFile(filepath.Join(rootDir, ".mcp.json"))
+}
+
+// readMCPsViaCLI runs `claude mcp list` and parses its output. Returns
+// nil (not empty) when the CLI is unavailable or fails, so the caller
+// falls through to the file-based config.
+func (p *ClaudeProvider) readMCPsViaCLI(ctx context.Context, rootDir string) []MCPServerInfo {
+	claudePath, err := claudeLookPath("claude")
+	if err != nil {
+		return nil
+	}
+
+	cmd := exec.CommandContext(ctx, claudePath, "mcp", "list") //nolint:gosec // trusted binary
+	if rootDir != "" {
+		cmd.Dir = rootDir
+	}
+	output, err := cmd.Output()
+	if err != nil {
+		return nil
+	}
+	return parseClaudeMCPList(string(output))
+}
+
+// parseClaudeMCPList parses `claude mcp list` text output where each
+// line is "<name>: <type> <url/command>". Returns nil for output with
+// no parseable lines.
+func parseClaudeMCPList(output string) []MCPServerInfo {
+	var servers []MCPServerInfo
+	for _, line := range strings.Split(strings.TrimSpace(output), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		parts := strings.SplitN(line, ":", 2)
+		if len(parts) < 2 {
+			continue
+		}
+		sName := strings.TrimSpace(parts[0])
+		rest := strings.TrimSpace(parts[1])
+
+		s := MCPServerInfo{Name: sName, Enabled: true}
+		switch {
+		case strings.HasPrefix(rest, "sse"), strings.HasPrefix(rest, "SSE"):
+			s.Transport = "sse"
+			s.URL = strings.TrimSpace(strings.TrimPrefix(strings.TrimPrefix(rest, "sse"), "SSE"))
+		case strings.HasPrefix(rest, "stdio"), strings.HasPrefix(rest, "STDIO"):
+			s.Transport = "stdio"
+			s.Command = strings.TrimSpace(strings.TrimPrefix(strings.TrimPrefix(rest, "stdio"), "STDIO"))
+		default:
+			s.Transport = "stdio"
+			s.Command = rest
+		}
+		servers = append(servers, s)
+	}
+	return servers
+}
+
 // ActivityMode reports that Claude Code emits activity via lifecycle hooks
-// (configured in .claude/settings.json) that POST to bcd's hook endpoint.
+// (configured in .claude/settings.json) that POST to the daemon's hook endpoint.
 func (p *ClaudeProvider) ActivityMode() string { return ActivityModeHooks }
 
 // WriteHookConfig writes Claude Code hook settings into the agent worktree.
@@ -188,3 +294,5 @@ var _ ContainerCustomizer = (*ClaudeProvider)(nil)
 var _ SessionCustomizer = (*ClaudeProvider)(nil)
 var _ SessionResumer = (*ClaudeProvider)(nil)
 var _ ActivitySource = (*ClaudeProvider)(nil)
+var _ CommandLister = (*ClaudeProvider)(nil)
+var _ MCPConfigReader = (*ClaudeProvider)(nil)

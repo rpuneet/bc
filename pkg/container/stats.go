@@ -146,13 +146,13 @@ func parseStats(name string, raw *dockerStatsOneShot) ContainerStats {
 }
 
 // AllAgentStats collects resource metrics for all running containers matching the prefix.
-// The prefix should be the bc container prefix (e.g., "bc-<hash>-") to scope results
+// The prefix should be the mycel container prefix (e.g., "mycel-<hash>-") to scope results
 // to a single workspace.
 func AllAgentStats(ctx context.Context, containerPrefix string) ([]ContainerStats, error) {
 	// List running containers matching the prefix using docker ps.
 	//nolint:gosec // containerPrefix is from trusted internal sources
 	cmd := exec.CommandContext(ctx, "docker", "ps",
-		"--filter", "label=bc.managed=true",
+		"--filter", "label=mycel.managed=true",
 		"--filter", "status=running",
 		"--format", "{{.Names}}")
 
@@ -188,5 +188,5 @@ func (b *Backend) AgentStats(ctx context.Context, name string) (ContainerStats, 
 
 // AllStats collects stats for all running agents in this workspace.
 func (b *Backend) AllStats(ctx context.Context) ([]ContainerStats, error) {
-	return AllAgentStats(ctx, b.prefix+b.workspaceHash+"-")
+	return AllAgentStats(ctx, b.prefix+b.repoHash+"-")
 }

@@ -1,8 +1,8 @@
-// Package doctor provides workspace health checks and diagnostics for bc.
+// Package doctor provides mycel health checks and diagnostics.
 //
 // Run a full health check:
 //
-//	report := doctor.RunAll(ctx, ws)
+//	report := doctor.RunAll(ctx, h)
 //	for _, cat := range report.Categories {
 //	    fmt.Println(cat.Name)
 //	    for _, item := range cat.Items {
@@ -12,11 +12,11 @@
 //
 // Run a single category:
 //
-//	cat := doctor.CheckWorkspace(ws)
-//	cat := doctor.CheckDatabase(ctx, ws)
-//	cat := doctor.CheckAgents(ctx, ws)
+//	cat := doctor.CheckHome(h)
+//	cat := doctor.CheckDatabase(ctx, h)
+//	cat := doctor.CheckAgents(ctx, h)
 //	cat := doctor.CheckTools(ctx)
-//	cat := doctor.CheckGit(ctx, ws)
+//	cat := doctor.CheckGit(ctx, h)
 package doctor
 
 import (
@@ -34,9 +34,9 @@ import (
 
 	"github.com/rpuneet/mycel/pkg/agent"
 	"github.com/rpuneet/mycel/pkg/db"
+	"github.com/rpuneet/mycel/pkg/home"
 	"github.com/rpuneet/mycel/pkg/provider"
 	"github.com/rpuneet/mycel/pkg/tool"
-	"github.com/rpuneet/mycel/pkg/workspace"
 )
 
 // Severity indicates the outcome of a single health check item.
@@ -134,13 +134,13 @@ func (r *Report) Summary() (ok, warn, fail int) {
 }
 
 // RunAll runs all health check categories and returns a combined report.
-func RunAll(ctx context.Context, ws *workspace.Workspace) *Report {
+func RunAll(ctx context.Context, h *home.Home) *Report {
 	cats := []CategoryReport{
-		CheckWorkspace(ws),
-		CheckDatabase(ctx, ws),
-		CheckAgents(ctx, ws),
-		CheckTools(ctx, ws),
-		CheckGit(ctx, ws),
+		CheckHome(h),
+		CheckDatabase(ctx, h),
+		CheckAgents(ctx, h),
+		CheckTools(ctx, h),
+		CheckGit(ctx, h),
 		CheckDaemon(ctx),
 	}
 	return &Report{Categories: cats}
@@ -148,22 +148,22 @@ func RunAll(ctx context.Context, ws *workspace.Workspace) *Report {
 
 // CategoryByName runs a single named category check.
 // Returns nil if the category name is unknown.
-func CategoryByName(ctx context.Context, ws *workspace.Workspace, name string) *CategoryReport {
+func CategoryByName(ctx context.Context, h *home.Home, name string) *CategoryReport {
 	switch strings.ToLower(name) {
-	case "workspace":
-		c := CheckWorkspace(ws)
+	case "home":
+		c := CheckHome(h)
 		return &c
 	case "database", "db":
-		c := CheckDatabase(ctx, ws)
+		c := CheckDatabase(ctx, h)
 		return &c
 	case "agents", "agent":
-		c := CheckAgents(ctx, ws)
+		c := CheckAgents(ctx, h)
 		return &c
 	case "tools", "tool":
-		c := CheckTools(ctx, ws)
+		c := CheckTools(ctx, h)
 		return &c
 	case "git":
-		c := CheckGit(ctx, ws)
+		c := CheckGit(ctx, h)
 		return &c
 	case "daemon":
 		c := CheckDaemon(ctx)
@@ -175,46 +175,46 @@ func CategoryByName(ctx context.Context, ws *workspace.Workspace, name string) *
 
 // ValidCategories returns the list of valid category names.
 func ValidCategories() []string {
-	return []string{"workspace", "database", "agents", "tools", "git", "daemon"}
+	return []string{"home", "database", "agents", "tools", "git", "daemon"}
 }
 
-// ─── Workspace ───────────────────────────────────────────────────────────────
+// ─── Home ────────────────────────────────────────────────────────────────────
 
-// CheckWorkspace checks the .bc/ directory structure, config validity, and roles.
-func CheckWorkspace(ws *workspace.Workspace) CategoryReport {
-	cat := CategoryReport{Name: "Workspace"}
+// CheckHome checks the ~/.mycel directory structure, config validity, and roles.
+func CheckHome(h *home.Home) CategoryReport {
+	cat := CategoryReport{Name: "Home"}
 
-	stateDir := ws.StateDir()
+	stateDir := h.StateDir()
 
-	// .bc/ directory
+	// ~/.mycel directory
 	if _, err := os.Stat(stateDir); err != nil {
 		cat.Items = append(cat.Items, Item{
-			Name:     ".bc/ directory",
+			Name:     "~/.mycel directory",
 			Message:  "missing",
 			Severity: SeverityFail,
-			Fix:      "run 'mycel up' from your repo to bootstrap the workspace",
+			Fix:      "run 'mycel up' to bootstrap mycel",
 		})
 		return cat
 	}
 	cat.Items = append(cat.Items, Item{
-		Name:     ".bc/ directory",
+		Name:     "~/.mycel directory",
 		Message:  "exists",
 		Severity: SeverityOK,
 	})
 
-	// Preferences file (preferences.json).
-	configPath := filepath.Join(stateDir, workspace.PreferencesFileName)
+	// Preferences file (prefs.json).
+	configPath := filepath.Join(stateDir, home.PrefsFileName)
 	configName := filepath.Base(configPath)
 	if _, err := os.Stat(configPath); err != nil {
 		cat.Items = append(cat.Items, Item{
 			Name:     configName,
 			Message:  "missing",
 			Severity: SeverityFail,
-			Fix:      "run 'mycel up' from your repo to bootstrap the workspace",
+			Fix:      "run 'mycel up' from your repo to bootstrap ~/.mycel",
 		})
 	} else {
-		if ws.Config != nil {
-			if err := ws.Config.Validate(); err != nil {
+		if h.Config != nil {
+			if err := h.Config.Validate(); err != nil {
 				cat.Items = append(cat.Items, Item{
 					Name:     configName,
 					Message:  fmt.Sprintf("invalid: %v", err),
@@ -224,7 +224,7 @@ func CheckWorkspace(ws *workspace.Workspace) CategoryReport {
 			} else {
 				cat.Items = append(cat.Items, Item{
 					Name:     configName,
-					Message:  fmt.Sprintf("valid (workspace: %s)", ws.Name()),
+					Message:  fmt.Sprintf("valid (repo: %s)", h.Name()),
 					Severity: SeverityOK,
 				})
 			}
@@ -237,52 +237,39 @@ func CheckWorkspace(ws *workspace.Workspace) CategoryReport {
 		}
 	}
 
-	// Roles directory
-	rolesDir := ws.RolesDir()
-	if _, err := os.Stat(rolesDir); err != nil {
-		cat.Items = append(cat.Items, Item{
-			Name:     "roles/",
-			Message:  "missing",
-			Severity: SeverityWarn,
-			Fix:      "run 'mycel up' from your repo to recreate role files",
-		})
-	} else {
-		entries, err := os.ReadDir(rolesDir)
-		if err != nil {
+	// Roles (DB-backed via the role manager).
+	if h.RoleManager != nil {
+		roles, rolesErr := h.RoleManager.LoadAllRoles()
+		switch {
+		case rolesErr != nil:
 			cat.Items = append(cat.Items, Item{
-				Name:     "roles/",
-				Message:  fmt.Sprintf("unreadable: %v", err),
+				Name:     "roles",
+				Message:  fmt.Sprintf("unreadable: %v", rolesErr),
 				Severity: SeverityWarn,
 			})
-		} else {
-			count := 0
-			for _, e := range entries {
-				if !e.IsDir() && filepath.Ext(e.Name()) == ".md" {
-					count++
-				}
-			}
-			msg := fmt.Sprintf("%d role file(s) defined", count)
-			sev := SeverityOK
-			if count == 0 {
-				sev = SeverityWarn
-				msg = "no role files found"
-			}
+		case len(roles) == 0:
 			cat.Items = append(cat.Items, Item{
-				Name:     "roles/",
-				Message:  msg,
-				Severity: sev,
+				Name:     "roles",
+				Message:  "no roles found",
+				Severity: SeverityWarn,
+			})
+		default:
+			cat.Items = append(cat.Items, Item{
+				Name:     "roles",
+				Message:  fmt.Sprintf("%d role(s) defined", len(roles)),
+				Severity: SeverityOK,
 			})
 		}
 	}
 
 	// agents/ directory
-	agentsDir := ws.AgentsDir()
+	agentsDir := h.AgentsDir()
 	if _, err := os.Stat(agentsDir); err != nil {
 		cat.Items = append(cat.Items, Item{
 			Name:     "agents/",
 			Message:  "missing",
 			Severity: SeverityWarn,
-			Fix:      "run 'mycel up' from your repo to recreate directory structure",
+			Fix:      "run 'mycel up' to recreate directory structure",
 		})
 	} else {
 		cat.Items = append(cat.Items, Item{
@@ -298,18 +285,13 @@ func CheckWorkspace(ws *workspace.Workspace) CategoryReport {
 // ─── Database ────────────────────────────────────────────────────────────────
 
 // CheckDatabase checks SQLite integrity and table existence.
-func CheckDatabase(ctx context.Context, ws *workspace.Workspace) CategoryReport {
+func CheckDatabase(ctx context.Context, h *home.Home) CategoryReport {
 	cat := CategoryReport{Name: "Database"}
 
-	stateDir := ws.StateDir()
-
-	// bc.db — agents table
-	stateDB := filepath.Join(stateDir, "bc.db")
-	cat.Items = append(cat.Items, checkSQLiteFile(ctx, stateDB, "bc.db", []string{"agents"})...)
-
-	// bc.db — channels/messages tables
-	channelsDB := filepath.Join(stateDir, "bc.db")
-	cat.Items = append(cat.Items, checkSQLiteFile(ctx, channelsDB, "bc.db", []string{"channels", "messages"})...)
+	// mycel.db — the single global database.
+	globalDB := filepath.Join(h.StateDir(), db.GlobalDBFileName)
+	cat.Items = append(cat.Items, checkSQLiteFile(ctx, globalDB, db.GlobalDBFileName, []string{"agents"})...)
+	cat.Items = append(cat.Items, checkSQLiteFile(ctx, globalDB, db.GlobalDBFileName, []string{"channels", "messages"})...)
 
 	return cat
 }
@@ -399,10 +381,10 @@ func checkSQLiteFile(ctx context.Context, path, label string, requiredTables []s
 const staleAgentThreshold = 2 * time.Hour
 
 // CheckAgents checks for orphaned sessions and stale agents.
-func CheckAgents(ctx context.Context, ws *workspace.Workspace) CategoryReport {
+func CheckAgents(ctx context.Context, h *home.Home) CategoryReport {
 	cat := CategoryReport{Name: "Agents"}
 
-	mgr := agent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
+	mgr := agent.NewManagerWithRepo(h.AgentsDir(), h.RootDir)
 	if err := mgr.LoadState(); err != nil {
 		cat.Items = append(cat.Items, Item{
 			Name:     "agent state",
@@ -484,9 +466,9 @@ func CheckAgents(ctx context.Context, ws *workspace.Workspace) CategoryReport {
 // ─── Tools ───────────────────────────────────────────────────────────────────
 
 // CheckTools checks binary installations: tmux, git, registered providers, and env vars.
-// ws may be nil (tools-only check outside a workspace) — the MCP server
-// section is skipped in that case since it needs the workspace database.
-func CheckTools(ctx context.Context, ws *workspace.Workspace) CategoryReport {
+// h may be nil (tools-only check outside a repo) — the MCP server
+// section is skipped in that case since it needs the global database.
+func CheckTools(ctx context.Context, h *home.Home) CategoryReport {
 	cat := CategoryReport{Name: "Tools"}
 
 	// Required tools
@@ -526,10 +508,10 @@ func CheckTools(ctx context.Context, ws *workspace.Workspace) CategoryReport {
 	// without its mycel-agent-<name> image fails at container creation.
 	cat.Items = append(cat.Items, checkAgentImages(ctx)...)
 
-	// Check MCP servers from the workspace tool store (requires a workspace).
+	// Check MCP servers from the tool store (requires an adopted repo).
 	var toolStore *tool.Store
-	if ws != nil {
-		if wsDB, wsDriver, dbErr := db.Global(ws.Config.DBStorageSettings()); dbErr == nil {
+	if h != nil {
+		if wsDB, wsDriver, dbErr := db.Global(h.Config.DBStorageSettings()); dbErr == nil {
 			toolStore = tool.NewStore(wsDB, wsDriver)
 		}
 	}
@@ -614,7 +596,7 @@ var listDockerImages = func(ctx context.Context) []string {
 }
 
 // checkAgentImages warns for each registered provider whose agent image
-// (mycel-agent-<name>, or the legacy bc-agent-<name>) is missing locally.
+// (mycel-agent-<name>) is missing locally.
 // No docker → no items; tmux-only setups shouldn't fail doctor over it.
 func checkAgentImages(ctx context.Context) []Item {
 	images := listDockerImages(ctx)
@@ -630,14 +612,10 @@ func checkAgentImages(ctx context.Context) []Item {
 	for _, p := range provider.ListProviders() {
 		name := p.Name()
 		modern := "mycel-agent-" + name + ":latest"
-		legacy := "bc-agent-" + name + ":latest"
 		item := Item{Name: "image:" + modern}
 		switch {
 		case have[modern]:
 			item.Message = "present"
-			item.Severity = SeverityOK
-		case have[legacy]:
-			item.Message = fmt.Sprintf("using legacy %s", legacy)
 			item.Severity = SeverityOK
 		default:
 			item.Message = "missing — docker agents with this tool cannot start"
@@ -690,8 +668,8 @@ func binaryVersion(ctx context.Context, name string) string {
 
 // ─── Git ─────────────────────────────────────────────────────────────────────
 
-// CheckGit checks git worktree health for the workspace.
-func CheckGit(ctx context.Context, ws *workspace.Workspace) CategoryReport {
+// CheckGit checks git worktree health for the anchor repo.
+func CheckGit(ctx context.Context, h *home.Home) CategoryReport {
 	cat := CategoryReport{Name: "Git"}
 
 	// Verify git is available
@@ -706,7 +684,7 @@ func CheckGit(ctx context.Context, ws *workspace.Workspace) CategoryReport {
 	}
 
 	// List worktrees via git
-	cmd := exec.CommandContext(ctx, "git", "-C", ws.RootDir, "worktree", "list", "--porcelain") //nolint:gosec // G204: args are derived from workspace config, not user input
+	cmd := exec.CommandContext(ctx, "git", "-C", h.RootDir, "worktree", "list", "--porcelain") //nolint:gosec // G204: args are derived from global config, not user input
 	out, err := cmd.Output()
 	if err != nil {
 		cat.Items = append(cat.Items, Item{
@@ -717,7 +695,7 @@ func CheckGit(ctx context.Context, ws *workspace.Workspace) CategoryReport {
 		return cat
 	}
 
-	valid, orphaned := parseWorktrees(string(out), ws.RootDir)
+	valid, orphaned := parseWorktrees(string(out), h.RootDir)
 
 	cat.Items = append(cat.Items, Item{
 		Name:     "git worktrees",
@@ -778,32 +756,32 @@ type FixResult struct {
 
 // Fix runs auto-fix actions for all fixable issues found in report.
 // If dryRun is true no changes are made; actions are described instead.
-func Fix(ctx context.Context, ws *workspace.Workspace, report *Report, dryRun bool) []FixResult {
+func Fix(ctx context.Context, h *home.Home, report *Report, dryRun bool) []FixResult {
 	results := make([]FixResult, 0, len(report.Categories))
 	for i := range report.Categories {
-		results = append(results, fixCategory(ctx, ws, &report.Categories[i], dryRun)...)
+		results = append(results, fixCategory(ctx, h, &report.Categories[i], dryRun)...)
 	}
 	return results
 }
 
 // FixCategory runs auto-fix actions for issues in a single category.
-func FixCategory(ctx context.Context, ws *workspace.Workspace, cat *CategoryReport, dryRun bool) []FixResult {
-	return fixCategory(ctx, ws, cat, dryRun)
+func FixCategory(ctx context.Context, h *home.Home, cat *CategoryReport, dryRun bool) []FixResult {
+	return fixCategory(ctx, h, cat, dryRun)
 }
 
-func fixCategory(ctx context.Context, ws *workspace.Workspace, cat *CategoryReport, dryRun bool) []FixResult {
+func fixCategory(ctx context.Context, h *home.Home, cat *CategoryReport, dryRun bool) []FixResult {
 	var results []FixResult
 	switch cat.Name {
 	case "Git":
-		results = append(results, fixOrphanedWorktrees(ctx, ws, cat, dryRun)...)
-	case "Workspace":
-		results = append(results, fixWorkspace(ws, cat, dryRun)...)
+		results = append(results, fixOrphanedWorktrees(ctx, h, cat, dryRun)...)
+	case "Home":
+		results = append(results, fixHome(h, cat, dryRun)...)
 	}
 	return results
 }
 
 // fixOrphanedWorktrees removes orphaned git worktrees.
-func fixOrphanedWorktrees(ctx context.Context, ws *workspace.Workspace, cat *CategoryReport, dryRun bool) []FixResult {
+func fixOrphanedWorktrees(ctx context.Context, h *home.Home, cat *CategoryReport, dryRun bool) []FixResult {
 	var results []FixResult
 	for _, item := range cat.Items {
 		if item.Name != "orphaned worktree" {
@@ -815,7 +793,7 @@ func fixOrphanedWorktrees(ctx context.Context, ws *workspace.Workspace, cat *Cat
 			results = append(results, FixResult{Action: action, Success: true, Message: "[dry-run]"})
 			continue
 		}
-		cmd := exec.CommandContext(ctx, "git", "-C", ws.RootDir, "worktree", "remove", "--force", path) //nolint:gosec // G204: path comes from git worktree list output
+		cmd := exec.CommandContext(ctx, "git", "-C", h.RootDir, "worktree", "remove", "--force", path) //nolint:gosec // G204: path comes from git worktree list output
 		if err := cmd.Run(); err != nil {
 			results = append(results, FixResult{Action: action, Success: false, Message: err.Error()})
 		} else {
@@ -825,8 +803,8 @@ func fixOrphanedWorktrees(ctx context.Context, ws *workspace.Workspace, cat *Cat
 	return results
 }
 
-// fixWorkspace re-creates missing workspace directories.
-func fixWorkspace(ws *workspace.Workspace, cat *CategoryReport, dryRun bool) []FixResult {
+// fixHome re-creates missing ~/.mycel directories.
+func fixHome(h *home.Home, cat *CategoryReport, dryRun bool) []FixResult {
 	var results []FixResult
 	for _, item := range cat.Items {
 		if item.Severity != SeverityFail && item.Severity != SeverityWarn {
@@ -839,9 +817,9 @@ func fixWorkspace(ws *workspace.Workspace, cat *CategoryReport, dryRun bool) []F
 		var dir string
 		switch item.Name {
 		case "agents/":
-			dir = ws.AgentsDir()
+			dir = h.AgentsDir()
 		case "roles/":
-			dir = ws.RolesDir()
+			dir = h.RolesDir()
 		}
 
 		action := fmt.Sprintf("mkdir -p %s", dir)

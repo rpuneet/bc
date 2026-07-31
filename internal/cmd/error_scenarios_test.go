@@ -10,7 +10,7 @@ import (
 
 // TestInputValidation_SpecialCharacters tests that special characters in names are rejected
 func TestInputValidation_SpecialCharacters(t *testing.T) {
-	_, cleanup := setupIntegrationWorkspace(t)
+	_, cleanup := setupIntegrationHome(t)
 	defer cleanup()
 
 	tests := []struct {
@@ -59,7 +59,7 @@ func TestInputValidation_SpecialCharacters(t *testing.T) {
 
 // TestInputValidation_SQLInjection tests that SQL injection patterns are handled safely
 func TestInputValidation_SQLInjection(t *testing.T) {
-	_, cleanup := setupIntegrationWorkspace(t)
+	_, cleanup := setupIntegrationHome(t)
 	defer cleanup()
 
 	// These inputs should either be rejected or handled safely (no SQL errors)
@@ -88,7 +88,7 @@ func TestInputValidation_SQLInjection(t *testing.T) {
 
 // TestInputValidation_EmptyInputs tests that empty inputs are properly rejected
 func TestInputValidation_EmptyInputs(t *testing.T) {
-	_, cleanup := setupIntegrationWorkspace(t)
+	_, cleanup := setupIntegrationHome(t)
 	defer cleanup()
 
 	tests := []struct {
@@ -120,7 +120,7 @@ func TestInputValidation_EmptyInputs(t *testing.T) {
 
 // TestInputValidation_LongStrings tests handling of very long input strings
 func TestInputValidation_LongStrings(t *testing.T) {
-	_, cleanup := setupIntegrationWorkspace(t)
+	_, cleanup := setupIntegrationHome(t)
 	defer cleanup()
 
 	// Create a very long string (1000+ chars)
@@ -158,7 +158,7 @@ func TestInputValidation_LongStrings(t *testing.T) {
 
 // TestNonExistentAgent tests operations on non-existent agents
 func TestNonExistentAgent(t *testing.T) {
-	_, cleanup := setupIntegrationWorkspace(t)
+	_, cleanup := setupIntegrationHome(t)
 	defer cleanup()
 
 	tests := []struct {
@@ -204,7 +204,7 @@ func TestNonExistentAgent(t *testing.T) {
 
 // TestNonExistentChannel tests operations on non-existent channels
 func TestNonExistentChannel(t *testing.T) {
-	_, cleanup := setupIntegrationWorkspace(t)
+	_, cleanup := setupIntegrationHome(t)
 	defer cleanup()
 
 	tests := []struct {
@@ -251,7 +251,7 @@ func TestNonExistentChannel(t *testing.T) {
 
 // TestEmptyLists tests listing resources when none exist
 func TestEmptyLists(t *testing.T) {
-	_, cleanup := setupIntegrationWorkspace(t)
+	_, cleanup := setupIntegrationHome(t)
 	defer cleanup()
 
 	tests := []struct {
@@ -289,7 +289,7 @@ func TestEmptyLists(t *testing.T) {
 
 // TestMissingRequiredArgs tests commands with missing required arguments
 func TestMissingRequiredArgs(t *testing.T) {
-	_, cleanup := setupIntegrationWorkspace(t)
+	_, cleanup := setupIntegrationHome(t)
 	defer cleanup()
 
 	tests := []struct {
@@ -330,10 +330,12 @@ func TestMissingRequiredArgs(t *testing.T) {
 
 // --- Unicode and Special Data Tests ---
 
-// --- No Workspace Tests ---
+// --- No Repo Tests ---
 
-// TestNoWorkspace tests commands run outside a workspace
-func TestNoWorkspace(t *testing.T) {
+// TestNoRepo tests the commands that still require an enclosing
+// mycel-adopted repo. Daemon-first commands (agent list, channel list,
+// logs, cost, ...) are CWD-free and covered elsewhere.
+func TestNoRepo(t *testing.T) {
 	origDir, err := os.Getwd()
 	if err != nil {
 		t.Fatalf("failed to get cwd: %v", err)
@@ -345,8 +347,8 @@ func TestNoWorkspace(t *testing.T) {
 	}
 	defer func() { _ = os.Chdir(origDir) }()
 
-	// Clear MYCEL_WORKSPACE to test directory-based workspace detection
-	restoreEnv := clearWorkspaceEnv(t)
+	// Clear MYCEL_WORKSPACE to test directory-based repo detection
+	restoreEnv := clearRepoEnv(t)
 	defer restoreEnv()
 
 	tests := []struct {
@@ -354,15 +356,7 @@ func TestNoWorkspace(t *testing.T) {
 		args []string
 	}{
 		{
-			name: "agent list outside workspace",
-			args: []string{"agent", "list"},
-		},
-		{
-			name: "channel list outside workspace",
-			args: []string{"channel", "list"},
-		},
-		{
-			name: "status outside workspace",
+			name: "status outside repo",
 			args: []string{"status"},
 		},
 	}
@@ -371,7 +365,7 @@ func TestNoWorkspace(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			_, _, err := executeIntegrationCmd(tt.args...)
 			if err == nil {
-				t.Errorf("expected workspace error for %v, got nil", tt.args)
+				t.Errorf("expected repo error for %v, got nil", tt.args)
 				return
 			}
 			if !strings.Contains(strings.ToLower(err.Error()), "repo") {

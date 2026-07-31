@@ -5,11 +5,10 @@ import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { SporeLogo } from "./SporeLogo";
 import { useState, useRef, useEffect } from "react";
-import { Menu, X, Copy, Check, Apple, Monitor, Container } from "lucide-react";
+import { Menu, X, Copy, Check, Apple, Monitor, Container, Download } from "lucide-react";
 import { ThemeToggle } from "./ThemeToggle";
 
-// Single-page site: the logo is Home and the page IS the product, so no
-// Home/Product tabs. Only cross-destinations remain.
+// The logo is Home and the page IS the product, so no Home/Product tabs.
 const links = [
   { href: "/docs", label: "Docs" },
   { href: "https://github.com/rpuneet/mycel", label: "GitHub" },
@@ -218,7 +217,11 @@ export function Nav() {
           : "bg-transparent"
       }`}
     >
-      <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:px-6">
+      <div
+        className={`mx-auto flex max-w-6xl items-center justify-between px-4 transition-all duration-300 sm:px-6 ${
+          scrolled ? "py-2" : "py-3.5"
+        }`}
+      >
         {/* Left: Logo */}
         <Link
           href="/"
@@ -261,8 +264,26 @@ export function Nav() {
           <GetStartedDropdown />
         </div>
 
-        {/* Mobile: hamburger */}
+        {/* Mobile: persistent install CTA (appears once scrolled) + hamburger */}
         <div className="md:hidden flex items-center gap-2">
+          <AnimatePresence>
+            {scrolled && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.9 }}
+                transition={{ duration: 0.18 }}
+              >
+                <Link
+                  href="/#install"
+                  className="inline-flex items-center gap-1.5 rounded-sm bg-primary px-3 py-1.5 text-[12px] font-semibold text-primary-foreground transition-all active:scale-[0.98]"
+                >
+                  <Download className="h-3.5 w-3.5" aria-hidden="true" />
+                  Install
+                </Link>
+              </motion.div>
+            )}
+          </AnimatePresence>
           <ThemeToggle />
           <button
             onClick={() => setIsOpen(!isOpen)}

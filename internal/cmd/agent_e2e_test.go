@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -24,7 +25,7 @@ func resetAgentFlags() {
 // --- Agent Lifecycle E2E Tests ---
 
 func TestAgentLifecycle_ListEmpty(t *testing.T) {
-	setupTestWorkspace(t)
+	setupTestHome(t)
 	resetAgentFlags()
 	defer resetAgentFlags()
 
@@ -37,7 +38,7 @@ func TestAgentLifecycle_ListEmpty(t *testing.T) {
 }
 
 func TestAgentLifecycle_ListWithRoleFilter(t *testing.T) {
-	setupTestWorkspace(t)
+	setupTestHome(t)
 	resetAgentFlags()
 	defer resetAgentFlags()
 
@@ -50,7 +51,7 @@ func TestAgentLifecycle_ListWithRoleFilter(t *testing.T) {
 }
 
 func TestAgentLifecycle_ListInvalidRole(t *testing.T) {
-	setupTestWorkspace(t)
+	setupTestHome(t)
 	resetAgentFlags()
 	defer resetAgentFlags()
 
@@ -62,7 +63,7 @@ func TestAgentLifecycle_ListInvalidRole(t *testing.T) {
 }
 
 func TestAgentLifecycle_ListPositionalArg(t *testing.T) {
-	setupTestWorkspace(t)
+	setupTestHome(t)
 	resetAgentFlags()
 	defer resetAgentFlags()
 
@@ -79,36 +80,46 @@ func TestAgentLifecycle_ListPositionalArg(t *testing.T) {
 	}
 }
 
-func TestAgentLifecycle_CreateNoWorkspace(t *testing.T) {
+func TestAgentLifecycle_CreateIsCWDFree(t *testing.T) {
+	// Agent commands are daemon-first: no repo is required, the CLI goes
+	// straight to the daemon from any directory.
 	origDir, _ := os.Getwd()
-	tmpDir := t.TempDir()
+	tmpDir := t.TempDir() // plain dir, not a git repo
 	_ = os.Chdir(tmpDir)
 	defer func() { _ = os.Chdir(origDir) }()
 
-	// Clear MYCEL_WORKSPACE env var so workspace detection falls back to directory walking
-	origBCWorkspace := os.Getenv("MYCEL_WORKSPACE")
-	_ = os.Unsetenv("MYCEL_WORKSPACE")
-	defer func() {
-		if origBCWorkspace != "" {
-			_ = os.Setenv("MYCEL_WORKSPACE", origBCWorkspace)
-		}
-	}()
+	restoreEnv := clearRepoEnv(t)
+	defer restoreEnv()
 
 	resetAgentFlags()
 	defer resetAgentFlags()
 
-	// Include --role flag so validation passes and we reach workspace check
-	_, err := executeCmd("agent", "create", "test-agent", "--role", "engineer")
-	if err == nil {
-		t.Fatal("expected error for missing workspace")
+	apiHit := false
+	handler := func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/health" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		if strings.HasPrefix(r.URL.Path, "/api/") {
+			apiHit = true
+		}
+		http.NotFound(w, r)
 	}
-	if !strings.Contains(err.Error(), "not in a mycel-adopted repo") {
-		t.Errorf("expected workspace error, got: %v", err)
+
+	_, _, err := executeIntegrationCmdT(t, handler, "agent", "create", "test-agent", "--role", "engineer")
+	if err == nil {
+		t.Fatal("expected daemon error from fake daemon, got nil")
+	}
+	if strings.Contains(err.Error(), "not in a mycel-adopted repo") {
+		t.Errorf("agent create must not require a repo, got repo error: %v", err)
+	}
+	if !apiHit {
+		t.Error("agent create should reach the daemon even outside a repo")
 	}
 }
 
 func TestAgentLifecycle_StopNotFound(t *testing.T) {
-	setupTestWorkspace(t)
+	setupTestHome(t)
 	resetAgentFlags()
 	defer resetAgentFlags()
 
@@ -122,7 +133,7 @@ func TestAgentLifecycle_StopNotFound(t *testing.T) {
 }
 
 func TestAgentLifecycle_PeekNotFound(t *testing.T) {
-	setupTestWorkspace(t)
+	setupTestHome(t)
 	resetAgentFlags()
 	defer resetAgentFlags()
 
@@ -136,7 +147,7 @@ func TestAgentLifecycle_PeekNotFound(t *testing.T) {
 }
 
 func TestAgentLifecycle_SendNotFound(t *testing.T) {
-	setupTestWorkspace(t)
+	setupTestHome(t)
 	resetAgentFlags()
 	defer resetAgentFlags()
 
@@ -150,7 +161,7 @@ func TestAgentLifecycle_SendNotFound(t *testing.T) {
 }
 
 func TestAgentLifecycle_AttachNotRunning(t *testing.T) {
-	setupTestWorkspace(t)
+	setupTestHome(t)
 	resetAgentFlags()
 	defer resetAgentFlags()
 
@@ -166,12 +177,12 @@ func TestAgentLifecycle_AttachNotRunning(t *testing.T) {
 // --- Agent State Workflow Tests ---
 
 func TestAgentStateWorkflow_ManagerOperations(t *testing.T) {
-	wsDir := setupTestWorkspace(t)
+	wsDir := setupTestHome(t)
 	resetAgentFlags()
 	defer resetAgentFlags()
 
-	// Create workspace manager
-	mgr := agent.NewWorkspaceManager(filepath.Join(wsDir, ".bc", "agents"), wsDir)
+	// Create agent manager
+	mgr := agent.NewManagerWithRepo(filepath.Join(wsDir, ".mycel", "agents"), wsDir)
 	if err := mgr.LoadState(); err != nil {
 		t.Logf("initial load (expected to be empty): %v", err)
 	}
@@ -194,9 +205,9 @@ func TestAgentStateWorkflow_ManagerOperations(t *testing.T) {
 }
 
 func TestAgentStateWorkflow_GetNonExistentAgent(t *testing.T) {
-	wsDir := setupTestWorkspace(t)
+	wsDir := setupTestHome(t)
 
-	mgr := agent.NewWorkspaceManager(filepath.Join(wsDir, ".bc", "agents"), wsDir)
+	mgr := agent.NewManagerWithRepo(filepath.Join(wsDir, ".mycel", "agents"), wsDir)
 	_ = mgr.LoadState()
 
 	// GetAgent should return nil for non-existent
@@ -211,7 +222,7 @@ func TestAgentStateWorkflow_GetNonExistentAgent(t *testing.T) {
 // So we test that commands succeed/fail appropriately, not output content
 
 func TestChannelWorkflow_CreateAndList(t *testing.T) {
-	setupTestWorkspace(t)
+	setupTestHome(t)
 
 	ch := uniqueChannelName(t, "")
 	// Create a channel (should succeed without error)
@@ -231,7 +242,7 @@ func TestChannelWorkflow_CreateAndList(t *testing.T) {
 }
 
 func TestChannelWorkflow_AddRemoveMembers(t *testing.T) {
-	setupTestWorkspace(t)
+	setupTestHome(t)
 
 	ch := uniqueChannelName(t, "")
 	// Create channel via command
@@ -257,7 +268,7 @@ func TestChannelWorkflow_AddRemoveMembers(t *testing.T) {
 }
 
 func TestChannelWorkflow_JoinWithoutAgentID(t *testing.T) {
-	setupTestWorkspace(t)
+	setupTestHome(t)
 
 	ch := uniqueChannelName(t, "join")
 	// Create channel via command
@@ -284,7 +295,7 @@ func TestChannelWorkflow_JoinWithoutAgentID(t *testing.T) {
 }
 
 func TestChannelWorkflow_JoinWithAgentID(t *testing.T) {
-	setupTestWorkspace(t)
+	setupTestHome(t)
 
 	ch := uniqueChannelName(t, "join")
 	// Create channel via command
@@ -307,7 +318,7 @@ func TestChannelWorkflow_JoinWithAgentID(t *testing.T) {
 }
 
 func TestChannelWorkflow_LeaveChannel(t *testing.T) {
-	setupTestWorkspace(t)
+	setupTestHome(t)
 
 	ch := uniqueChannelName(t, "leave")
 	// Create channel and add member via commands
@@ -335,7 +346,7 @@ func TestChannelWorkflow_LeaveChannel(t *testing.T) {
 }
 
 func TestChannelWorkflow_SendToEmptyChannel(t *testing.T) {
-	setupTestWorkspace(t)
+	setupTestHome(t)
 
 	ch := uniqueChannelName(t, "empty")
 	// Create empty channel via command
@@ -355,7 +366,7 @@ func TestChannelWorkflow_SendToEmptyChannel(t *testing.T) {
 }
 
 func TestChannelWorkflow_DeleteChannel(t *testing.T) {
-	setupTestWorkspace(t)
+	setupTestHome(t)
 
 	ch := uniqueChannelName(t, "del")
 	// Create channel via command
@@ -372,7 +383,7 @@ func TestChannelWorkflow_DeleteChannel(t *testing.T) {
 }
 
 func TestChannelWorkflow_DeleteNonExistent(t *testing.T) {
-	setupTestWorkspace(t)
+	setupTestHome(t)
 
 	_, err := executeCmd("channel", "delete", "nonexistent-e2e-wf-xyz")
 	if err == nil {
@@ -381,7 +392,7 @@ func TestChannelWorkflow_DeleteNonExistent(t *testing.T) {
 }
 
 func TestChannelWorkflow_HistoryEmpty(t *testing.T) {
-	setupTestWorkspace(t)
+	setupTestHome(t)
 
 	ch := uniqueChannelName(t, "hist")
 	// Create channel via command
@@ -401,7 +412,7 @@ func TestChannelWorkflow_HistoryEmpty(t *testing.T) {
 }
 
 func TestChannelWorkflow_HistoryNonExistent(t *testing.T) {
-	setupTestWorkspace(t)
+	setupTestHome(t)
 
 	_, err := executeCmd("channel", "history", "nonexistent-e2e-wf-xyz")
 	if err == nil {
@@ -535,95 +546,79 @@ func TestAgentCmdArgs_SendRequiresNameAndMessage(t *testing.T) {
 	}
 }
 
-// --- No Workspace Error Tests ---
+// --- CWD-free Command Tests ---
+//
+// Agent and channel commands are daemon-first: they need the daemon, not a
+// repo, and work from any directory. The old "must fail outside a
+// repo" behavior is gone.
 
-func TestNoWorkspace_AgentList(t *testing.T) {
+func TestCWDFree_AgentListSucceedsOutsideRepo(t *testing.T) {
 	origDir, _ := os.Getwd()
-	tmpDir := t.TempDir()
+	tmpDir := t.TempDir() // plain dir, not a git repo
 	_ = os.Chdir(tmpDir)
 	defer func() { _ = os.Chdir(origDir) }()
 
-	// Clear MYCEL_WORKSPACE env var to test directory-based workspace detection
-	restoreEnv := clearWorkspaceEnv(t)
+	restoreEnv := clearRepoEnv(t)
 	defer restoreEnv()
 
-	_, err := executeCmd("agent", "list")
-	if err == nil {
-		t.Fatal("expected error for missing workspace")
+	handler := func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/agents" {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`[]`))
+			return
+		}
+		w.WriteHeader(http.StatusOK)
 	}
-	if !strings.Contains(err.Error(), "not in a mycel-adopted repo") {
-		t.Errorf("expected workspace error, got: %v", err)
+
+	stdout, _, err := executeIntegrationCmdT(t, handler, "agent", "list")
+	if err != nil {
+		t.Fatalf("agent list must be CWD-free, got: %v", err)
+	}
+	if !strings.Contains(stdout, "No agents") {
+		t.Errorf("expected empty agent listing, got: %s", stdout)
 	}
 }
 
-func TestNoWorkspace_AgentStop(t *testing.T) {
+func TestCWDFree_AgentCommandsReachDaemon(t *testing.T) {
 	origDir, _ := os.Getwd()
-	tmpDir := t.TempDir()
+	tmpDir := t.TempDir() // plain dir, not a git repo
 	_ = os.Chdir(tmpDir)
 	defer func() { _ = os.Chdir(origDir) }()
 
-	restoreEnv := clearWorkspaceEnv(t)
+	restoreEnv := clearRepoEnv(t)
 	defer restoreEnv()
 
-	_, err := executeCmd("agent", "stop", "any-agent")
-	if err == nil {
-		t.Fatal("expected error for missing workspace")
+	tests := []struct {
+		name string
+		args []string
+	}{
+		{"agent stop", []string{"agent", "stop", "any-agent"}},
+		{"agent peek", []string{"agent", "peek", "any-agent"}},
+		{"agent send", []string{"agent", "send", "any-agent", "message"}},
+		{"channel create", []string{"channel", "create", "test"}},
 	}
-	if !strings.Contains(err.Error(), "not in a mycel-adopted repo") {
-		t.Errorf("expected workspace error, got: %v", err)
-	}
-}
 
-func TestNoWorkspace_AgentPeek(t *testing.T) {
-	origDir, _ := os.Getwd()
-	tmpDir := t.TempDir()
-	_ = os.Chdir(tmpDir)
-	defer func() { _ = os.Chdir(origDir) }()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			apiHit := false
+			handler := func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path == "/health" {
+					w.WriteHeader(http.StatusOK)
+					return
+				}
+				if strings.HasPrefix(r.URL.Path, "/api/") {
+					apiHit = true
+				}
+				http.NotFound(w, r)
+			}
 
-	restoreEnv := clearWorkspaceEnv(t)
-	defer restoreEnv()
-
-	_, err := executeCmd("agent", "peek", "any-agent")
-	if err == nil {
-		t.Fatal("expected error for missing workspace")
-	}
-	if !strings.Contains(err.Error(), "not in a mycel-adopted repo") {
-		t.Errorf("expected workspace error, got: %v", err)
-	}
-}
-
-func TestNoWorkspace_AgentSend(t *testing.T) {
-	origDir, _ := os.Getwd()
-	tmpDir := t.TempDir()
-	_ = os.Chdir(tmpDir)
-	defer func() { _ = os.Chdir(origDir) }()
-
-	restoreEnv := clearWorkspaceEnv(t)
-	defer restoreEnv()
-
-	_, err := executeCmd("agent", "send", "any-agent", "message")
-	if err == nil {
-		t.Fatal("expected error for missing workspace")
-	}
-	if !strings.Contains(err.Error(), "not in a mycel-adopted repo") {
-		t.Errorf("expected workspace error, got: %v", err)
-	}
-}
-
-func TestNoWorkspace_ChannelCreate(t *testing.T) {
-	origDir, _ := os.Getwd()
-	tmpDir := t.TempDir()
-	_ = os.Chdir(tmpDir)
-	defer func() { _ = os.Chdir(origDir) }()
-
-	restoreEnv := clearWorkspaceEnv(t)
-	defer restoreEnv()
-
-	_, err := executeCmd("channel", "create", "test")
-	if err == nil {
-		t.Fatal("expected error for missing workspace")
-	}
-	if !strings.Contains(err.Error(), "not in a mycel-adopted repo") {
-		t.Errorf("expected workspace error, got: %v", err)
+			_, _, err := executeIntegrationCmdT(t, handler, tt.args...)
+			if err != nil && strings.Contains(err.Error(), "not in a mycel-adopted repo") {
+				t.Errorf("%v must not require a repo, got repo error: %v", tt.args, err)
+			}
+			if !apiHit {
+				t.Errorf("%v should reach the daemon even outside a repo", tt.args)
+			}
+		})
 	}
 }

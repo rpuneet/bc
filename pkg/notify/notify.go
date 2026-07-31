@@ -1,6 +1,6 @@
 // Package notify implements the notification gateway for delivering
 // external platform events (Slack, Telegram, Discord, etc.) to subscribed
-// bc agents via tmux send-keys.
+// mycel agents via tmux send-keys.
 package notify
 
 import (

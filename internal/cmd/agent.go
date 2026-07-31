@@ -17,40 +17,40 @@ import (
 	"github.com/rpuneet/mycel/pkg/agent"
 	"github.com/rpuneet/mycel/pkg/client"
 	"github.com/rpuneet/mycel/pkg/container"
+	"github.com/rpuneet/mycel/pkg/home"
 	"github.com/rpuneet/mycel/pkg/log"
 	"github.com/rpuneet/mycel/pkg/provider"
 	"github.com/rpuneet/mycel/pkg/ui"
-	"github.com/rpuneet/mycel/pkg/workspace"
 )
 
 // newAgentManager creates an agent manager with the appropriate runtime backend.
-// Uses workspace config to determine the default backend. Both tmux and docker
+// Uses global config to determine the default backend. Both tmux and docker
 // backends are always available so agents can use either runtime.
-func newAgentManager(ws *workspace.Workspace) *agent.Manager {
+func newAgentManager(h *home.Home) *agent.Manager {
 	backend := ""
-	if ws.Config != nil {
-		backend = ws.Config.Runtime.Default
+	if h.Config != nil {
+		backend = h.Config.Runtime.Default
 	}
 
 	var mgr *agent.Manager
 	if backend == "docker" {
-		var wsCfg workspace.DockerRuntimeConfig
-		if ws.Config != nil {
-			wsCfg = ws.Config.Runtime.Docker
+		var homeCfg home.DockerRuntimeConfig
+		if h.Config != nil {
+			homeCfg = h.Config.Runtime.Docker
 		}
-		dockerCfg := container.ConfigFromWorkspace(wsCfg)
-		be, err := container.NewBackend(dockerCfg, agent.DefaultSessionPrefix, ws.RootDir, provider.DefaultRegistry)
+		dockerCfg := container.ConfigFromHome(homeCfg)
+		be, err := container.NewBackend(dockerCfg, agent.DefaultSessionPrefix, h.RootDir, provider.DefaultRegistry)
 		if err != nil {
 			log.Warn("Docker unavailable, falling back to tmux", "error", err)
 		} else {
-			mgr = agent.NewWorkspaceManagerWithRuntime(ws.AgentsDir(), ws.RootDir, be, "docker")
+			mgr = agent.NewManagerWithRuntime(h.AgentsDir(), h.RootDir, be, "docker")
 		}
 	}
 	if mgr == nil {
-		mgr = agent.NewWorkspaceManager(ws.AgentsDir(), ws.RootDir)
+		mgr = agent.NewManagerWithRepo(h.AgentsDir(), h.RootDir)
 	}
-	if ws.Config != nil {
-		mgr.ApplyWorkspaceConfig(ws.Config)
+	if h.Config != nil {
+		mgr.ApplyConfig(h.Config)
 	}
 	return mgr
 }
@@ -73,7 +73,7 @@ Examples:
   mycel agent send-pattern "eng-*" "test"   # Send to matching agents
   mycel agent                               # List all agents (same as mycel agent list)
   mycel agent send-pattern "eng-*" "hello"  # Send to matching agents`,
-	// #925: Default to list for consistency with bc channel
+	// #925: Default to list for consistency with mycel channel
 	RunE: runAgentList,
 }
 
@@ -97,7 +97,7 @@ Examples:
 	RunE: runAgentCreate,
 }
 
-// agentListCmd lists all agents (enhanced bc status)
+// agentListCmd lists all agents (enhanced mycel status)
 var agentListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List all agents",
@@ -116,7 +116,7 @@ Examples:
 	RunE: runAgentList,
 }
 
-// agentAttachCmd attaches to an agent session (replaces bc attach)
+// agentAttachCmd attaches to an agent session (replaces mycel attach)
 var agentAttachCmd = &cobra.Command{
 	Use:   "attach <agent>",
 	Short: "Attach to an agent's session",
@@ -178,7 +178,7 @@ Examples:
 	RunE: runAgentStart,
 }
 
-// agentStopCmd stops a single agent (different from bc down which stops all)
+// agentStopCmd stops a single agent (different from mycel down which stops all)
 var agentStopCmd = &cobra.Command{
 	Use:   "stop <agent>",
 	Short: "Stop an agent",
@@ -191,7 +191,7 @@ Examples:
 	RunE: runAgentStop,
 }
 
-// agentSendCmd sends a message to an agent (replaces bc send)
+// agentSendCmd sends a message to an agent (replaces mycel send)
 var agentSendCmd = &cobra.Command{
 	Use:   "send <agent> <message>",
 	Short: "Send a message to an agent",
@@ -598,12 +598,12 @@ func runAgentList(cmd *cobra.Command, args []string) error {
 func runAgentAttach(cmd *cobra.Command, args []string) error {
 	agentName := args[0]
 
-	ws, err := getRepo()
+	h, err := getRepo()
 	if err != nil {
 		return errNoRepo(err)
 	}
 
-	mgr := newAgentManager(ws)
+	mgr := newAgentManager(h)
 	if loadErr := mgr.LoadState(); loadErr != nil {
 		log.Warn("failed to load agent state", "error", loadErr)
 	}
@@ -621,12 +621,12 @@ func runAgentPeek(cmd *cobra.Command, args []string) error {
 
 	// --follow mode: keep local tmux access
 	if agentPeekFollow {
-		ws, err := getRepo()
+		h, err := getRepo()
 		if err != nil {
 			return errNoRepo(err)
 		}
 
-		mgr := newAgentManager(ws)
+		mgr := newAgentManager(h)
 		if loadErr := mgr.LoadState(); loadErr != nil {
 			log.Warn("failed to load agent state", "error", loadErr)
 		}
@@ -850,7 +850,7 @@ func runAgentDelete(cmd *cobra.Command, args []string) error {
 		if agentDeletePurge {
 			fmt.Println("  - memory directory (--purge)")
 		} else {
-			fmt.Printf("  Note: Memory preserved at .bc/memory/%s (use --purge to delete)\n", agentName)
+			fmt.Printf("  Note: Memory preserved at .mycel/memory/%s (use --purge to delete)\n", agentName)
 		}
 		fmt.Print("\nType 'yes' to confirm: ")
 
@@ -879,9 +879,9 @@ func runAgentDelete(cmd *cobra.Command, args []string) error {
 
 	// Purge memory directory if requested (local file operation)
 	if agentDeletePurge {
-		ws, wsErr := getRepo()
-		if wsErr == nil {
-			memDir := filepath.Join(ws.StateDir(), "memory", agentName)
+		h, homeErr := getRepo()
+		if homeErr == nil {
+			memDir := filepath.Join(h.StateDir(), "memory", agentName)
 			if purgeErr := os.RemoveAll(memDir); purgeErr != nil {
 				fmt.Printf("Warning: failed to purge memory directory: %v\n", purgeErr)
 			} else {
@@ -974,7 +974,7 @@ func parseRoleStr(roleStr string) (string, error) {
 	if roleStr == "null" {
 		return "null", nil
 	}
-	// All roles are now custom - loaded from .bc/roles/<role>.md files
+	// All roles are now custom - loaded from .mycel/roles/<role>.md files
 	// Just validate that the role name is sensible
 	if !isValidRoleName(roleStr) {
 		return "", fmt.Errorf("invalid role name %q (must be alphanumeric with hyphens)", roleStr)
@@ -1186,8 +1186,8 @@ var agentStatsCmd = &cobra.Command{
 	Short: "Show Docker resource stats for an agent",
 	Long: `Display recorded Docker CPU and memory stats for an agent.
 
-Stats are collected every 30 s by bcd while the agent is running with a
-Docker runtime backend. They are stored in .bc/bc.db.
+Stats are collected every 30 s by the daemon while the agent is running with a
+Docker runtime backend. They are stored in the global mycel.db.
 
 Examples:
   mycel agent stats eng-01              # Human-readable table

@@ -1,4 +1,4 @@
-// Package secret provides encrypted secrets management for bc workspaces.
+// Package secret provides encrypted secrets management for mycel workspaces.
 package secret
 
 import (

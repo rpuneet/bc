@@ -20,10 +20,10 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/rpuneet/mycel/pkg/home"
 	"github.com/rpuneet/mycel/pkg/log"
 	"github.com/rpuneet/mycel/pkg/provider"
 	"github.com/rpuneet/mycel/pkg/runtime"
-	"github.com/rpuneet/mycel/pkg/workspace"
 )
 
 // validEnvVarName matches valid POSIX environment variable names:
@@ -33,8 +33,8 @@ var validEnvVarName = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 
 // validateMount checks that a Docker mount spec (src:dst[:opts]) has a safe
 // source path. It rejects path traversal (../) and absolute paths outside
-// the workspace root. workspaceRoot must be an absolute, cleaned path.
-func validateMount(mount, workspaceRoot string) error {
+// the repo root. repoRoot must be an absolute, cleaned path.
+func validateMount(mount, repoRoot string) error {
 	parts := strings.SplitN(mount, ":", 2)
 	if len(parts) < 2 {
 		return fmt.Errorf("invalid mount format %q: expected src:dst", mount)
@@ -47,14 +47,14 @@ func validateMount(mount, workspaceRoot string) error {
 	if !filepath.IsAbs(cleaned) {
 		return fmt.Errorf("mount source %q must be an absolute path", src)
 	}
-	// Resolve symlinks to prevent bypass (e.g., workspace/escape -> /etc)
+	// Resolve symlinks to prevent bypass (e.g., repo/escape -> /etc)
 	resolved, err := filepath.EvalSymlinks(cleaned)
 	if err != nil {
 		// Path may not exist yet — fall back to cleaned path check
 		resolved = cleaned
 	}
-	if !strings.HasPrefix(resolved, workspaceRoot+string(filepath.Separator)) && resolved != workspaceRoot {
-		return fmt.Errorf("mount source %q resolves outside workspace root %q", src, workspaceRoot)
+	if !strings.HasPrefix(resolved, repoRoot+string(filepath.Separator)) && resolved != repoRoot {
+		return fmt.Errorf("mount source %q resolves outside repo root %q", src, repoRoot)
 	}
 	return nil
 }
@@ -71,8 +71,8 @@ type Config struct {
 	MemoryMB    int64
 }
 
-// ConfigFromWorkspace converts workspace DockerRuntimeConfig to container Config.
-func ConfigFromWorkspace(dcfg workspace.DockerRuntimeConfig) Config {
+// ConfigFromHome converts the global DockerRuntimeConfig to container Config.
+func ConfigFromHome(dcfg home.DockerRuntimeConfig) Config {
 	cfg := Config{
 		Image:       dcfg.Image,
 		Network:     dcfg.Network,
@@ -98,19 +98,19 @@ func ConfigFromWorkspace(dcfg workspace.DockerRuntimeConfig) Config {
 // Backend manages Docker containers as agent sessions.
 // Each container runs tmux internally for interactive session management.
 type Backend struct {
-	logCancels        map[string]context.CancelFunc
-	providerRegistry  *provider.Registry
-	prefix            string
-	workspaceHash     string
-	workspacePath     string
-	hostWorkspacePath string // host path for Docker-in-Docker mounts (from MYCEL_HOST_WORKSPACE)
-	cfg               Config
-	mu                sync.RWMutex
+	logCancels       map[string]context.CancelFunc
+	providerRegistry *provider.Registry
+	prefix           string
+	repoHash         string
+	repoPath         string
+	hostRepoPath     string // host path for Docker-in-Docker mounts (from MYCEL_HOST_WORKSPACE)
+	cfg              Config
+	mu               sync.RWMutex
 }
 
 // NewBackend creates a Docker runtime backend.
 // Returns an error if the Docker daemon is not reachable.
-func NewBackend(cfg Config, prefix, workspacePath string, registry *provider.Registry) (*Backend, error) {
+func NewBackend(cfg Config, prefix, repoPath string, registry *provider.Registry) (*Backend, error) {
 	ctx := context.Background()
 	cmd := exec.CommandContext(ctx, "docker", "info") //nolint:gosec // trusted binary
 	cmd.Stdout = io.Discard
@@ -119,28 +119,28 @@ func NewBackend(cfg Config, prefix, workspacePath string, registry *provider.Reg
 		return nil, fmt.Errorf("docker daemon not available: %w", err)
 	}
 
-	// Use host workspace path for volume mounts in Docker-in-Docker setups.
+	// Use host repo path for volume mounts in Docker-in-Docker setups.
 	// MYCEL_HOST_WORKSPACE is set by `bc up` when the daemon runs in Docker.
-	hostPath := workspacePath
+	hostPath := repoPath
 	if hp := os.Getenv("MYCEL_HOST_WORKSPACE"); hp != "" {
 		hostPath = hp
 	}
 
 	h := sha256.Sum256([]byte(hostPath))
 	return &Backend{
-		cfg:               cfg,
-		prefix:            prefix,
-		workspaceHash:     fmt.Sprintf("%x", h[:3]),
-		workspacePath:     workspacePath,
-		hostWorkspacePath: hostPath,
-		providerRegistry:  registry,
-		logCancels:        make(map[string]context.CancelFunc),
+		cfg:              cfg,
+		prefix:           prefix,
+		repoHash:         fmt.Sprintf("%x", h[:3]),
+		repoPath:         repoPath,
+		hostRepoPath:     hostPath,
+		providerRegistry: registry,
+		logCancels:       make(map[string]context.CancelFunc),
 	}, nil
 }
 
 // containerName returns the Docker container name for an agent.
 func (b *Backend) containerName(name string) string {
-	return b.prefix + b.workspaceHash + "-" + name
+	return b.prefix + b.repoHash + "-" + name
 }
 
 // validContainerAgentName is the same identifier barrier pkg/agent
@@ -148,60 +148,34 @@ func (b *Backend) containerName(name string) string {
 // names never reach path construction.
 var validContainerAgentName = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
 
-// containerAgentDir returns the agent's state directory inside the
-// container (bcd side). The flat layout at <MycelHome>/agents/<name>/
-// is canonical; agents whose state still lives at an older location
-// (nested per-workspace dir or the legacy <root>/.bc/ sidecar) keep
-// using it until migrated.
-func (b *Backend) containerAgentDir(agentName string) string {
+// agentSessionDir returns the agent's provider-state directory as the daemon
+// sees it: <MycelHome>/agents/<name>/session/. Provider config and
+// transcripts persist here on the host across container restarts.
+func (b *Backend) agentSessionDir(agentName string) string {
 	if !validContainerAgentName.MatchString(agentName) {
 		return ""
 	}
-	var flat string
-	if home, err := workspace.MycelHome(); err == nil {
-		flat = filepath.Join(home, "agents", agentName)
-		if _, statErr := os.Stat(flat); statErr == nil {
-			return flat
-		}
+	dir, err := home.AgentSessionDir(agentName)
+	if err != nil {
+		return ""
 	}
-	// Existing agents may still live in older layouts.
-	if globalDir, err := workspace.GlobalStateDir(b.workspacePath); err == nil {
-		nested := filepath.Join(globalDir, "agents", agentName)
-		if _, statErr := os.Stat(nested); statErr == nil {
-			return nested
-		}
-	}
-	legacy := filepath.Join(b.workspacePath, ".bc", "agents", agentName)
-	if _, statErr := os.Stat(legacy); statErr == nil {
-		return legacy
-	}
-	if flat != "" {
-		return flat // canonical location for fresh agents
-	}
-	return legacy
+	return dir
 }
 
-// hostAgentDir returns the host path that maps to the agent's state
-// directory, used on the -v mount flag. For bcd running on the host this
-// mirrors containerAgentDir; for Docker-in-Docker setups the MYCEL_HOST_HOME
+// hostSessionDir returns the host path that maps to the agent's session
+// directory, used on the -v mount flag. For the daemon running on the host this
+// mirrors agentSessionDir; for Docker-in-Docker setups the MYCEL_HOST_HOME
 // env var (if set) translates the container's ~/.mycel/ to the host's.
-func (b *Backend) hostAgentDir(agentName, hostRoot string) string {
-	containerDir := b.containerAgentDir(agentName)
-	// Only translate when the path is under MYCEL_HOME (the M11 global dir).
-	bcHome, err := workspace.MycelHome()
-	if err == nil && strings.HasPrefix(containerDir, bcHome+string(filepath.Separator)) {
+func (b *Backend) hostSessionDir(agentName string) string {
+	sessionDir := b.agentSessionDir(agentName)
+	bcHome, err := home.MycelHome()
+	if err == nil && strings.HasPrefix(sessionDir, bcHome+string(filepath.Separator)) {
 		if hostBCHome := os.Getenv("MYCEL_HOST_HOME"); hostBCHome != "" {
-			rel := strings.TrimPrefix(containerDir, bcHome)
+			rel := strings.TrimPrefix(sessionDir, bcHome)
 			return filepath.Join(hostBCHome, rel)
 		}
-		return containerDir
 	}
-	// Legacy path (<root>/.bc/agents/<name>): translate via hostRoot.
-	rel, relErr := filepath.Rel(b.workspacePath, containerDir)
-	if relErr != nil {
-		return containerDir
-	}
-	return filepath.Join(hostRoot, rel)
+	return sessionDir
 }
 
 // resolveRepoMount picks the repository mounted at /workspace and the
@@ -209,24 +183,24 @@ func (b *Backend) hostAgentDir(agentName, hostRoot string) string {
 //
 // The agent's repo arrives via env["MYCEL_WORKSPACE"], which the agent
 // manager sets from Agent.Repo (mirroring worktreeManagerFor on the
-// tmux path). An empty value — or the boot workspace path itself —
+// tmux path). An empty value — or the boot repo path itself —
 // means the boot repo. Any other repo is mounted instead, so agents
 // bound to a different repo get THEIR repo at /workspace, not the
 // boot repo.
 //
 // Returns the host-side mount source (for -v) and the container
-// workdir (for -w). dir is the agent's worktree as bcd sees it; when
+// workdir (for -w). dir is the agent's worktree as the daemon sees it; when
 // it lives under the mounted repo, the workdir points at it.
 func (b *Backend) resolveRepoMount(dir string, env map[string]string) (hostRepo, workdir string, err error) {
 	// Boot repo defaults. MYCEL_HOST_WORKSPACE (Docker-in-Docker) only
-	// translates the boot workspace path.
-	repoRoot := b.workspacePath
-	hostRepo = b.hostWorkspacePath
+	// translates the boot repo path.
+	repoRoot := b.repoPath
+	hostRepo = b.hostRepoPath
 	if hostRepo == "" {
-		hostRepo = b.workspacePath
+		hostRepo = b.repoPath
 	}
 
-	if agentRepo := env["MYCEL_WORKSPACE"]; agentRepo != "" && filepath.Clean(agentRepo) != filepath.Clean(b.workspacePath) {
+	if agentRepo := env["MYCEL_WORKSPACE"]; agentRepo != "" && filepath.Clean(agentRepo) != filepath.Clean(b.repoPath) {
 		// The repo value originates from the create-agent API — require
 		// an absolute, traversal-free path before it becomes a -v mount
 		// source. Like validateMount, ".." is checked on the raw value
@@ -327,9 +301,9 @@ func (b *Backend) CreateSessionWithCommand(ctx context.Context, name, dir, comma
 // CreateSessionWithEnv creates a fully isolated Docker container for an agent.
 //
 // Mounts:
-//   - agent's repo → /workspace (project code; env MYCEL_WORKSPACE, boot workspace when unset)
-//   - .bc/volumes/<agent>/.claude → /home/agent/.claude (persistent Claude state)
-//   - bc-shared-tmp → /tmp/bc-shared (shared volume for cross-container file exchange)
+//   - agent's repo → /workspace (project code; env MYCEL_WORKSPACE, boot repo when unset)
+//   - ~/.mycel/agents/<agent>/session/claude → /home/agent/.claude (persistent Claude state)
+//   - mycel-shared-tmp → /tmp/mycel-shared (shared volume for cross-container file exchange)
 //
 // Env vars:
 //   - From the env map (MYCEL_AGENT_ID, MYCEL_AGENT_ROLE, role secrets via bc env)
@@ -340,16 +314,16 @@ func (b *Backend) CreateSessionWithEnv(ctx context.Context, name, dir, command s
 	if !validContainerAgentName.MatchString(name) {
 		return fmt.Errorf("invalid agent name %q", name)
 	}
-	// Validate workspace path — containers without a workspace mount will fail
+	// Validate repo path — containers without a repo mount will fail
 	// with "--worktree requires a git repository" inside the container.
 	if dir == "" {
-		return fmt.Errorf("workspace path is required for container %q: empty dir would leave container with no git state", name)
+		return fmt.Errorf("repo path is required for container %q: empty dir would leave container with no git state", name)
 	}
 
 	// Verify dir contains a git repository (regular .git dir or worktree .git file)
 	gitPath := filepath.Join(dir, ".git")
 	if _, err := os.Stat(gitPath); err != nil {
-		return fmt.Errorf("workspace %q is not a git repository (no .git found): %w", dir, err)
+		return fmt.Errorf("repo %q is not a git repository (no .git found): %w", dir, err)
 	}
 
 	// Resolve image once per session — avoids double docker probe
@@ -360,20 +334,17 @@ func (b *Backend) CreateSessionWithEnv(ctx context.Context, name, dir, command s
 	}
 
 	// Validate tool/image consistency — catch mismatches like running "agy"
-	// command inside a "bc-agent-claude" image (Exit 127).
+	// command inside a "mycel-agent-claude" image (Exit 127).
 	if toolName, ok := env["MYCEL_AGENT_TOOL"]; ok && toolName != "" {
 		cmdBin := strings.Fields(command)
 		if len(cmdBin) > 0 {
 			bin := cmdBin[0]
-			// If image is tool-specific (mycel-agent-<X> or legacy bc-agent-<X>)
-			// but command binary doesn't match, the binary likely doesn't exist
-			// in the image.
+			// If image is tool-specific (mycel-agent-<X>) but command
+			// binary doesn't match, the binary likely doesn't exist in
+			// the image.
 			var imageTool string
-			switch {
-			case strings.HasPrefix(image, "mycel-agent-"):
+			if strings.HasPrefix(image, "mycel-agent-") {
 				imageTool = strings.TrimSuffix(strings.TrimPrefix(image, "mycel-agent-"), ":latest")
-			case strings.HasPrefix(image, "bc-agent-"):
-				imageTool = strings.TrimSuffix(strings.TrimPrefix(image, "bc-agent-"), ":latest")
 			}
 			if imageTool != "" {
 				if bin != imageTool && bin != "bash" && bin != "sh" {
@@ -397,9 +368,9 @@ func (b *Backend) CreateSessionWithEnv(ctx context.Context, name, dir, command s
 	args := []string{
 		"run", "-d", "-t",
 		"--name", cn,
-		"--label", "bc.managed=true",
-		"--label", "bc.workspace=" + b.workspaceHash,
-		"--label", "bc.agent=" + name,
+		"--label", "mycel.managed=true",
+		"--label", "mycel.workspace=" + b.repoHash,
+		"--label", "mycel.agent=" + name,
 	}
 
 	// Resource limits
@@ -431,32 +402,27 @@ func (b *Backend) CreateSessionWithEnv(ctx context.Context, name, dir, command s
 	args = append(args, "-v", hostRepo+":/workspace")
 	args = append(args, "-w", containerWorkdir)
 
-	// Agent state (Mounts 2–3) always lives in the BOOT workspace's data
-	// dir regardless of which repo the agent is bound to, so state-dir
-	// host translation keys off the boot host root, not the repo mount.
-	hostRoot := b.hostWorkspacePath
-	if hostRoot == "" {
-		hostRoot = b.workspacePath
-	}
-
 	// Mount 2: Persistent Claude state (~/.claude/ dir)
 	// Use local (container) path for mkdir, host path for -v mount.
 	//
-	// Agent state lives at <MycelHome>/agents/<name>/ (flat layout);
-	// containerAgentDir keeps pre-migration agents on their older
-	// per-workspace dirs. The host path may differ when bcd runs in
+	// Provider state lives in the agent's session dir
+	// (<MycelHome>/agents/<name>/session/) so transcripts and config
+	// persist on the host. The host path may differ when the daemon runs in
 	// Docker-in-Docker; honor MYCEL_HOST_HOME (if set) for the
 	// host-side mycel home.
-	localAgentDir := b.containerAgentDir(name)
-	hostAgentDir := b.hostAgentDir(name, hostRoot)
-	if err := os.MkdirAll(filepath.Join(localAgentDir, "claude"), 0750); err != nil {
-		log.Warn("failed to create agent volume dir", "agent", name, "error", err)
+	localSessionDir := b.agentSessionDir(name)
+	hostSessionDir := b.hostSessionDir(name)
+	if localSessionDir == "" || hostSessionDir == "" {
+		return fmt.Errorf("cannot resolve session dir for agent %q", name)
+	}
+	if err := os.MkdirAll(filepath.Join(localSessionDir, "claude"), 0750); err != nil {
+		log.Warn("failed to create agent session dir", "agent", name, "error", err)
 	} else {
-		args = append(args, "-v", filepath.Join(hostAgentDir, "claude")+":/home/agent/.claude")
+		args = append(args, "-v", filepath.Join(hostSessionDir, "claude")+":/home/agent/.claude")
 	}
 
 	// Mount 3: ~/.claude.json (app config with oauthAccount — needed for auth persistence)
-	localClaudeJSON := filepath.Join(localAgentDir, "claude.json")
+	localClaudeJSON := filepath.Join(localSessionDir, "claude.json")
 	if _, statErr := os.Stat(localClaudeJSON); os.IsNotExist(statErr) {
 		_ = os.WriteFile(localClaudeJSON, []byte("{}"), 0600) //nolint:errcheck // best-effort
 	}
@@ -465,16 +431,16 @@ func (b *Backend) CreateSessionWithEnv(ctx context.Context, name, dir, command s
 	if err := SeedClaudeTrust(localClaudeJSON, containerWorkdir); err != nil {
 		log.Warn("failed to seed claude trust", "agent", name, "error", err)
 	}
-	args = append(args, "-v", filepath.Join(hostAgentDir, "claude.json")+":/home/agent/.claude.json")
+	args = append(args, "-v", filepath.Join(hostSessionDir, "claude.json")+":/home/agent/.claude.json")
 
 	// Mount 4: Shared tmp volume for cross-container file exchange (e.g., Playwright screenshots).
 	// Uses a named Docker volume so all agent containers and the Playwright container share the same data.
-	args = append(args, "-v", "bc-shared-tmp:/tmp/bc-shared")
+	args = append(args, "-v", "mycel-shared-tmp:/tmp/mycel-shared")
 
-	// Extra mounts from workspace config (e.g., shared caches, tool binaries).
+	// Extra mounts from global config (e.g., shared caches, tool binaries).
 	// Validate each mount source to prevent arbitrary host filesystem access.
 	for _, mount := range b.cfg.ExtraMounts {
-		if err := validateMount(mount, b.workspacePath); err != nil {
+		if err := validateMount(mount, b.repoPath); err != nil {
 			return fmt.Errorf("extra mount rejected: %w", err)
 		}
 		args = append(args, "-v", mount)
@@ -483,13 +449,13 @@ func (b *Backend) CreateSessionWithEnv(ctx context.Context, name, dir, command s
 	// Pre-seed Claude settings to skip interactive theme selection prompt.
 	// Claude Code shows an interactive theme picker on first run when no
 	// settings exist, which blocks headless Docker agents indefinitely.
-	if err := SeedClaudeSettings(filepath.Join(localAgentDir, "claude")); err != nil {
+	if err := SeedClaudeSettings(filepath.Join(localSessionDir, "claude")); err != nil {
 		log.Warn("failed to seed claude settings", "agent", name, "error", err)
 	}
 
 	// Environment variables — only from the env map.
 	// The env map contains MYCEL_* identity vars and role secrets resolved
-	// from bc env by the agent manager's injectEnv().
+	// from mycel env by the agent manager's injectEnv().
 	for k, v := range env {
 		if !validEnvVarName.MatchString(k) {
 			return fmt.Errorf("invalid environment variable name %q: must match [A-Za-z_][A-Za-z0-9_]*", k)
@@ -527,8 +493,8 @@ func (b *Backend) KillSession(ctx context.Context, name string) error {
 
 	// Stop container (10s timeout) — do NOT remove it.
 	// The container's volume preserves auth, plugins, MCP config, and sessions.
-	// bc agent start will restart the stopped container.
-	// bc agent delete handles removal.
+	// mycel agent start will restart the stopped container.
+	// mycel agent delete handles removal.
 	//nolint:gosec // trusted
 	stopCmd := exec.CommandContext(ctx, "docker", "stop", "-t", "10", cn)
 	output, err := stopCmd.CombinedOutput()
@@ -646,12 +612,12 @@ func (b *Backend) Capture(ctx context.Context, name string, lines int) (string, 
 	return string(output), nil
 }
 
-// ListSessions lists RUNNING BC-managed containers for this workspace.
+// ListSessions lists RUNNING mycel-managed containers for this daemon.
 func (b *Backend) ListSessions(ctx context.Context) ([]runtime.Session, error) {
 	//nolint:gosec // all args are trusted internal values
 	cmd := exec.CommandContext(ctx, "docker", "ps",
-		"--filter", "label=bc.managed=true",
-		"--filter", "label=bc.workspace="+b.workspaceHash,
+		"--filter", "label=mycel.managed=true",
+		"--filter", "label=mycel.workspace="+b.repoHash,
 		"--filter", "status=running",
 		"--format", "{{.Names}}|{{.CreatedAt}}|{{.Status}}")
 
@@ -661,7 +627,7 @@ func (b *Backend) ListSessions(ctx context.Context) ([]runtime.Session, error) {
 	}
 
 	var sessions []runtime.Session
-	fullPrefix := b.prefix + b.workspaceHash + "-"
+	fullPrefix := b.prefix + b.repoHash + "-"
 	for _, line := range strings.Split(strings.TrimSpace(string(output)), "\n") {
 		if line == "" {
 			continue
@@ -700,12 +666,12 @@ func (b *Backend) IsRunning(ctx context.Context) bool {
 	return cmd.Run() == nil
 }
 
-// KillServer stops and removes all BC containers for this workspace.
+// KillServer stops and removes all mycel containers for this daemon.
 func (b *Backend) KillServer(ctx context.Context) error {
 	//nolint:gosec // all args are trusted internal values
 	cmd := exec.CommandContext(ctx, "docker", "ps", "-aq",
-		"--filter", "label=bc.managed=true",
-		"--filter", "label=bc.workspace="+b.workspaceHash)
+		"--filter", "label=mycel.managed=true",
+		"--filter", "label=mycel.workspace="+b.repoHash)
 
 	output, err := cmd.Output()
 	if err != nil {
@@ -752,6 +718,14 @@ func (b *Backend) PipePane(ctx context.Context, name, logPath string) error {
 		logPath = filepath.Clean(logPath)
 		if strings.Contains(logPath, "..") {
 			return fmt.Errorf("unsafe log path: %s", logPath)
+		}
+		// Containment barrier: the log file must live under ~/.mycel.
+		// Rejects any absolute path escaping the mycel home even if it
+		// has no ".." — a recognized path-traversal sanitizer.
+		if mh, err := home.MycelHome(); err == nil {
+			if !strings.HasPrefix(logPath, filepath.Clean(mh)+string(filepath.Separator)) {
+				return fmt.Errorf("log path outside mycel home: %s", logPath)
+			}
 		}
 	}
 	cn := b.containerName(name)

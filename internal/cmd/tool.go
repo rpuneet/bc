@@ -200,13 +200,13 @@ func completeToolNames(_ *cobra.Command, _ []string, _ string) ([]string, cobra.
 }
 
 // openToolStore opens the tool store on the single global database
-// (works offline, without bcd).
+// (works offline, without the daemon).
 func openToolStore() (*tool.Store, error) {
-	ws, err := getRepo()
+	h, err := getRepo()
 	if err != nil {
 		return nil, errNoRepo(err)
 	}
-	wsDB, driver, dbErr := db.Global(ws.Config.DBStorageSettings())
+	wsDB, driver, dbErr := db.Global(h.Config.DBStorageSettings())
 	if dbErr != nil {
 		return nil, fmt.Errorf("failed to open global database: %w", dbErr)
 	}
@@ -311,7 +311,7 @@ func checkBinaryInstalled(ctx context.Context, name string) (installed bool, ver
 func runToolList(cmd *cobra.Command, _ []string) error {
 	ctx := cmd.Context()
 
-	// Try bcd API first
+	// Try the daemon API first
 	c := getClient()
 	tools, apiErr := c.Tools.List(ctx)
 	if apiErr == nil {
@@ -338,7 +338,7 @@ func runToolList(cmd *cobra.Command, _ []string) error {
 		return nil
 	}
 
-	// Fallback: try workspace store, then provider registry
+	// Fallback: try the tool store, then provider registry
 	s, storeErr := openToolStore()
 	if storeErr == nil {
 		defer s.Close() //nolint:errcheck // best-effort close
@@ -371,7 +371,7 @@ func runToolList(cmd *cobra.Command, _ []string) error {
 		return nil
 	}
 
-	// No workspace — show provider registry
+	// No adopted repo — show provider registry
 	providers := provider.ListProviders()
 	sort.Slice(providers, func(i, j int) bool {
 		return providers[i].Name() < providers[j].Name()
@@ -423,7 +423,7 @@ func runToolShow(cmd *cobra.Command, args []string) error {
 	ctx := cmd.Context()
 	name := args[0]
 
-	// Try bcd API first
+	// Try the daemon API first
 	c := getClient()
 	apiTool, apiErr := c.Tools.Get(ctx, name)
 	if apiErr == nil && apiTool != nil {
@@ -505,7 +505,7 @@ func runToolStatus(cmd *cobra.Command, args []string) error {
 	ctx := cmd.Context()
 	name := args[0]
 
-	// Try bcd API first for tool info
+	// Try the daemon API first for tool info
 	var t *tool.Tool
 	c := getClient()
 	apiTool, apiErr := c.Tools.Get(ctx, name)
@@ -568,7 +568,7 @@ func runToolAdd(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Try bcd API first
+	// Try the daemon API first
 	c := getClient()
 	apiTool := &client.ToolInfo{
 		Name:       name,
@@ -668,11 +668,11 @@ func runToolSetup(cmd *cobra.Command, args []string) error {
 				if sErr == nil {
 					defer s.Close() //nolint:errcheck // best-effort close
 					if enErr := s.SetEnabled(ctx, name, true); enErr == nil {
-						fmt.Printf("Enabled %s in workspace.\n", name)
+						fmt.Printf("Enabled %s.\n", name)
 					}
 				}
 			} else {
-				fmt.Printf("Enabled %s in workspace.\n", name)
+				fmt.Printf("Enabled %s.\n", name)
 			}
 		}
 		return nil
@@ -768,7 +768,7 @@ func runToolEdit(cmd *cobra.Command, args []string) error {
 	ctx := cmd.Context()
 	name := args[0]
 
-	// Try bcd API first
+	// Try the daemon API first
 	c := getClient()
 	apiTool, apiErr := c.Tools.Get(ctx, name)
 	if apiErr == nil && apiTool != nil {
@@ -891,7 +891,7 @@ func runToolDelete(cmd *cobra.Command, args []string) error {
 	ctx := cmd.Context()
 	name := args[0]
 
-	// Try bcd API first
+	// Try the daemon API first
 	c := getClient()
 	apiTool, apiErr := c.Tools.Get(ctx, name)
 	if apiErr == nil && apiTool != nil {
@@ -941,7 +941,7 @@ func runToolRun(cmd *cobra.Command, args []string) error {
 	name := args[0]
 	extraArgs := args[1:]
 
-	// Try bcd API first for tool info
+	// Try the daemon API first for tool info
 	var cmdStr string
 	c := getClient()
 	apiTool, apiErr := c.Tools.Get(ctx, name)

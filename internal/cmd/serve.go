@@ -11,70 +11,70 @@ import (
 	"strings"
 	"syscall"
 
-	bccost "github.com/rpuneet/mycel/pkg/cost"
-	bcdb "github.com/rpuneet/mycel/pkg/db"
-	bcdeps "github.com/rpuneet/mycel/pkg/deps"
+	dbpkg "github.com/rpuneet/mycel/pkg/db"
+	depspkg "github.com/rpuneet/mycel/pkg/deps"
+	"github.com/rpuneet/mycel/pkg/home"
 	"github.com/rpuneet/mycel/pkg/log"
-	bcmcp "github.com/rpuneet/mycel/pkg/mcp"
-	bcsecret "github.com/rpuneet/mycel/pkg/secret"
-	bcstats "github.com/rpuneet/mycel/pkg/stats"
-	bctemplate "github.com/rpuneet/mycel/pkg/template"
-	bcworkspace "github.com/rpuneet/mycel/pkg/workspace"
+	mcppkg "github.com/rpuneet/mycel/pkg/mcp"
+	secretpkg "github.com/rpuneet/mycel/pkg/secret"
+	statspkg "github.com/rpuneet/mycel/pkg/stats"
+	templatepkg "github.com/rpuneet/mycel/pkg/template"
 	"github.com/rpuneet/mycel/server"
-	bcws "github.com/rpuneet/mycel/server/ws"
+	wspkg "github.com/rpuneet/mycel/server/ws"
 )
 
-// RunServer starts the mycel server (formerly bcd) in the foreground.
-// bcd is single-tenant: it constructs shared Globals, builds the one
+// RunServer starts the mycel server (formerly the daemon) in the foreground.
+// the daemon is single-tenant: it constructs shared Globals, builds the one
 // Services bundle via server.BuildServices, wires handlers, and blocks
 // until the context is canceled or a signal is received.
 //
-// wsRoot is the repo the daemon anchors on — new agents default their
+// repoRoot is the repo the daemon anchors on — new agents default their
 // repo to it. It may be empty: the server then boots against MycelHome
 // only (web UI + global APIs; no agent runtime until a repo exists).
-// A non-empty wsRoot that isn't initialized yet is bootstrapped in place
-// via workspace.Init — there is no separate init step.
-func RunServer(addr, wsRoot, corsOrigin, apiKey string) error {
+// A non-empty repoRoot that isn't initialized yet is bootstrapped in place
+// via home.Init — there is no separate init step.
+func RunServer(addr, repoRoot, corsOrigin, apiKey string) error {
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+	return RunServerCtx(ctx, addr, repoRoot, corsOrigin, apiKey)
+}
+
+// RunServerCtx is RunServer with a caller-controlled lifetime: the server
+// runs until ctx is canceled, then shuts down gracefully (services close,
+// PID file removed). Used by embedders that own the process lifecycle —
+// e.g. the desktop app, which cancels ctx when the window closes.
+func RunServerCtx(ctx context.Context, addr, repoRoot, corsOrigin, apiKey string) error {
 	// Normalize addr: ":8080" → "127.0.0.1:8080"
 	addr = normalizeAddr(addr)
 
-	var ws *bcworkspace.Workspace
-	if wsRoot != "" {
-		var err error
-		ws, err = bcworkspace.Load(wsRoot)
-		if err != nil {
-			ws, err = bcworkspace.Init(wsRoot)
-			if err != nil {
-				return fmt.Errorf("bootstrap repo %s: %w", wsRoot, err)
-			}
-			log.Info("workspace bootstrapped", "root", ws.RootDir, "state", ws.StateDir())
-		}
-	} else {
-		log.Info("no repo yet — run 'mycel up' inside a git repo to anchor the daemon")
+	// Bootstrap-or-load the global mycel state. repoRoot may be empty —
+	// the daemon then boots without an anchor repo; agents carry their
+	// own repo paths and repos can be added later via the UI/API.
+	h, err := home.Open(repoRoot)
+	if err != nil {
+		return fmt.Errorf("bootstrap mycel: %w", err)
+	}
+	if h.RootDir == "" {
+		log.Info("no anchor repo — agents must name their own repo (add repos via the web UI)")
 	}
 
 	// The single global database (<MycelHome>/mycel.db) is opened lazily
-	// through pkg/db — including for a workspace-less boot where repos
-	// are added later via the API. Warm the connection eagerly so
-	// storage problems surface at boot, and close it at shutdown.
-	defer bcdb.CloseGlobal() //nolint:errcheck
+	// through pkg/db. Warm the connection eagerly so storage problems
+	// surface at boot, and close it at shutdown.
+	defer dbpkg.CloseGlobal() //nolint:errcheck
 	{
-		var cfg *bcdb.StorageSettings
-		if ws != nil {
-			cfg = ws.Config.DBStorageSettings()
-		}
-		if _, driver, dbErr := bcdb.Global(cfg); dbErr != nil {
+		if _, driver, dbErr := dbpkg.Global(h.Config.DBStorageSettings()); dbErr != nil {
 			log.Warn("failed to open global db", "error", dbErr)
 		} else {
 			configDriver := ""
-			if ws != nil && ws.Config != nil {
-				configDriver = ws.Config.Storage.Default
+			if h.Config != nil {
+				configDriver = h.Config.Storage.Default
 			}
 			log.Info("global database ready", "driver", driver, "config_driver", configDriver)
 		}
 	}
 
-	pidPath, pidErr := bcworkspace.DaemonPidPath()
+	pidPath, pidErr := home.DaemonPidPath()
 	if pidErr != nil {
 		log.Warn("failed to resolve daemon pid path", "error", pidErr)
 	} else if err := writePID(pidPath); err != nil {
@@ -86,20 +86,17 @@ func RunServer(addr, wsRoot, corsOrigin, apiKey string) error {
 		}
 	}()
 
-	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	defer stop()
-
 	// The one SSE hub — the bundle publishes into it and server.New()
 	// mounts it at /api/events.
-	globalHub := bcws.NewHub()
+	globalHub := wspkg.NewHub()
 	go globalHub.Run()
 	defer globalHub.Stop()
 
-	// Global stats store — TimescaleDB connection shared across workspaces.
-	var statsStore *bcstats.Store
+	// Global stats store — TimescaleDB connection shared across repos.
+	var statsStore *statspkg.Store
 	{
-		dsn := bcstats.StatsDSN()
-		if ss, err := bcstats.NewStore(dsn); err != nil {
+		dsn := statspkg.StatsDSN()
+		if ss, err := statspkg.NewStore(dsn); err != nil {
 			log.Warn("stats store unavailable (TimescaleDB)", "error", err, "dsn", redactDSN(dsn))
 		} else {
 			statsStore = ss
@@ -108,69 +105,54 @@ func RunServer(addr, wsRoot, corsOrigin, apiKey string) error {
 		}
 	}
 
-	// Optional dependencies registry (bc-db, bc-code-server, bc-browser).
-	depsRegistry := bcdeps.NewRegistry()
-	codeServerRoot := ""
-	if ws != nil {
-		codeServerRoot = ws.RootDir
-	}
-	bcCodeServer := bcdeps.NewBCCodeServer(codeServerRoot)
-	depsRegistry.Register(bcdeps.NewBCDB())
+	// Optional dependencies registry (mycel-db, mycel-code-server, mycel-browser).
+	depsRegistry := depspkg.NewRegistry()
+	bcCodeServer := depspkg.NewCodeServer(h.RootDir)
+	depsRegistry.Register(depspkg.NewDB())
 	depsRegistry.Register(bcCodeServer)
-	depsRegistry.Register(bcdeps.NewBCBrowser())
+	depsRegistry.Register(depspkg.NewBrowser())
 
 	// User-global template store at ~/.mycel/templates/. Seeded on first run;
-	// each workspace wraps this store with its own override directory.
-	var templatesStore *bctemplate.Store
-	if globalTmplDir, gtErr := bcworkspace.GlobalTemplatesDir(); gtErr != nil {
+	// callers may wrap this store with an override directory.
+	var templatesStore *templatepkg.Store
+	if globalTmplDir, gtErr := home.GlobalTemplatesDir(); gtErr != nil {
 		log.Warn("global templates dir unavailable", "error", gtErr)
 	} else {
-		if _, ensureErr := bcworkspace.EnsureGlobalDir(); ensureErr != nil {
-			log.Warn("ensure global bc dir", "error", ensureErr)
+		if _, ensureErr := home.EnsureGlobalDir(); ensureErr != nil {
+			log.Warn("ensure global mycel dir", "error", ensureErr)
 		}
-		if seedErr := bctemplate.SeedDefaults(globalTmplDir); seedErr != nil {
+		if seedErr := templatepkg.SeedDefaults(globalTmplDir); seedErr != nil {
 			log.Warn("seed global template defaults", "error", seedErr)
 		}
-		templatesStore = bctemplate.NewStore(globalTmplDir)
+		templatesStore = templatepkg.NewStore(globalTmplDir)
 	}
 
 	// User-global secrets vault at ~/.mycel/secrets.vault. A single vault
-	// keeps ANTHROPIC_API_KEY and friends visible across every workspace.
-	var globalVault *bcsecret.Store
-	if vaultPath, vpErr := bcworkspace.GlobalSecretsVault(); vpErr != nil {
+	// keeps ANTHROPIC_API_KEY and friends visible to every agent.
+	var globalVault *secretpkg.Store
+	if vaultPath, vpErr := home.GlobalSecretsVault(); vpErr != nil {
 		log.Warn("global secrets vault path unavailable", "error", vpErr)
-	} else if passphrase, passErr := bcsecret.Passphrase(); passErr != nil {
+	} else if passphrase, passErr := secretpkg.Passphrase(); passErr != nil {
 		log.Warn("secret passphrase unavailable — global vault disabled", "error", passErr)
-	} else if gv, openErr := bcsecret.OpenVaultFile(vaultPath, passphrase); openErr != nil {
+	} else if gv, openErr := secretpkg.OpenVaultFile(vaultPath, passphrase); openErr != nil {
 		log.Warn("global secrets vault unavailable", "error", openErr, "path", vaultPath)
 	} else {
 		globalVault = gv
 		defer gv.Close() //nolint:errcheck // best-effort
 	}
 
-	// User-global MCP registry at ~/.mycel/mcps.json. Workspaces still have
+	// User-global MCP registry at ~/.mycel/mcps.json. The DB layer still has
 	// their own SQLite-backed overrides; handlers and agent spawn logic
 	// compose the two at resolve time.
-	var mcpGlobal *bcmcp.GlobalStore
-	if mcpPath, mpErr := bcworkspace.GlobalMCPConfig(); mpErr != nil {
+	var mcpGlobal *mcppkg.GlobalStore
+	if mcpPath, mpErr := home.GlobalMCPConfig(); mpErr != nil {
 		log.Warn("global mcp config path unavailable", "error", mpErr)
 	} else {
-		mcpGlobal = bcmcp.NewGlobalStore(mcpPath)
+		mcpGlobal = mcppkg.NewGlobalStore(mcpPath)
 	}
 
-	// User-global cost ledger at ~/.mycel/costs.db. Records carry the
-	// repo path for cross-repo analytics. When the ledger
-	// cannot be opened, per-workspace stores continue to work via the
-	// build_services.go fallback.
-	var costsGlobal *bccost.Store
-	if costsPath, cpErr := bcworkspace.GlobalCostsDB(); cpErr != nil {
-		log.Warn("global costs path unavailable", "error", cpErr)
-	} else if cs, openErr := bccost.OpenGlobalStore(costsPath); openErr != nil {
-		log.Warn("global costs ledger unavailable", "error", openErr, "path", costsPath)
-	} else {
-		costsGlobal = cs
-		defer cs.Close() //nolint:errcheck // best-effort
-	}
+	// Costs are source-direct: BuildServices constructs the cost
+	// service from provider session files — there is no ledger to open.
 
 	globals := &server.Globals{
 		Stats:        statsStore,
@@ -179,29 +161,19 @@ func RunServer(addr, wsRoot, corsOrigin, apiKey string) error {
 		Templates:    templatesStore,
 		SecretsVault: globalVault,
 		MCPGlobal:    mcpGlobal,
-		CostsGlobal:  costsGlobal,
 		Build:        server.BuildInfo{Version: version, Commit: commit, BuiltAt: date},
 	}
 
-	// Build the single service bundle. A repo-less boot serves the web UI
-	// + global APIs only; everything else reports degraded until the
-	// daemon is restarted inside a repo.
-	svc := server.Services{
-		Stats: statsStore,
-		Deps:  depsRegistry,
-		Degraded: map[string]string{
-			"repos": "no repo adopted yet — run 'mycel up' inside a git repo, or create an agent with a repo path",
-		},
+	// Build the single service bundle. A repo-less boot still gets the
+	// full bundle — agents carry their own repo paths; the anchor repo
+	// is only the default for new agents.
+	built, buildErr := server.BuildServices(ctx, globals, h.RootDir)
+	if buildErr != nil {
+		return fmt.Errorf("build services: %w", buildErr)
 	}
-	if ws != nil {
-		built, buildErr := server.BuildServices(ctx, globals, ws.RootDir)
-		if buildErr != nil {
-			return fmt.Errorf("build services: %w", buildErr)
-		}
-		defer built.Close() //nolint:errcheck // best-effort
-		bcCodeServer.SetWorkspaceRoot(ws.RootDir)
-		svc = *built
-	}
+	defer built.Close() //nolint:errcheck // best-effort
+	bcCodeServer.SetRepoRoot(h.RootDir)
+	svc := *built
 
 	cfg := server.DefaultConfig()
 	if addr != "" {
@@ -218,21 +190,19 @@ func RunServer(addr, wsRoot, corsOrigin, apiKey string) error {
 		BuiltAt: date,
 	}
 
-	// Rewrite agent hook settings to point at the actual bcd address.
-	if ws != nil {
-		updateAgentHookPorts(ws, cfg.Addr)
-	}
+	// Rewrite agent hook settings to point at the actual the daemon address.
+	updateAgentHookPorts(h, cfg.Addr)
 
 	srv := server.New(cfg, svc, globalHub, server.WebDist())
 	return srv.Start(ctx)
 }
 
-// updateAgentHookPorts rewrites agent hook settings to use the current bcd address.
+// updateAgentHookPorts rewrites agent hook settings to use the current the daemon address.
 // This is necessary because existing tmux sessions don't inherit the MYCEL_DAEMON_ADDR
-// environment variable that is set in the bcd process env.
-func updateAgentHookPorts(ws *bcworkspace.Workspace, listenAddr string) {
-	bcdURL := "http://" + listenAddr
-	agentsDir := filepath.Join(ws.StateDir(), "agents")
+// environment variable that is set in the daemon process env.
+func updateAgentHookPorts(h *home.Home, listenAddr string) {
+	daemonURL := "http://" + listenAddr
+	agentsDir := filepath.Join(h.StateDir(), "agents")
 	entries, err := os.ReadDir(agentsDir)
 	if err != nil {
 		return
@@ -251,15 +221,15 @@ func updateAgentHookPorts(ws *bcworkspace.Workspace, listenAddr string) {
 				continue
 			}
 			content := string(data)
-			updated := strings.ReplaceAll(content, "http://127.0.0.1:9374", bcdURL)
-			updated = strings.ReplaceAll(updated, "${MYCEL_DAEMON_ADDR:-http://127.0.0.1:9374}", bcdURL)
+			updated := strings.ReplaceAll(content, "http://127.0.0.1:9374", daemonURL)
+			updated = strings.ReplaceAll(updated, "${MYCEL_DAEMON_ADDR:-http://127.0.0.1:9374}", daemonURL)
 
 			if updated != content {
 				if writeErr := os.WriteFile(settingsPath, []byte(updated), 0644); writeErr != nil { //nolint:gosec // agent settings file
 					log.Warn("failed to update hook port", "path", settingsPath, "error", writeErr)
 					continue
 				}
-				log.Info("updated hook port", "agent", agentName, "addr", bcdURL)
+				log.Info("updated hook port", "agent", agentName, "addr", daemonURL)
 			}
 		}
 	}

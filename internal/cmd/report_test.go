@@ -9,7 +9,7 @@ import (
 // --- Report Command Unit Tests ---
 
 func TestReport_NoAgentID(t *testing.T) {
-	setupTestWorkspace(t)
+	setupTestHome(t)
 
 	// Clear MYCEL_AGENT_ID env var
 	origAgentID := os.Getenv("MYCEL_AGENT_ID")
@@ -25,13 +25,13 @@ func TestReport_NoAgentID(t *testing.T) {
 	if err == nil {
 		t.Error("expected error when MYCEL_AGENT_ID not set")
 	}
-	if err != nil && !strings.Contains(err.Error(), "this command can only be run by agents in the bc system") {
+	if err != nil && !strings.Contains(err.Error(), "this command can only be run by agents in the mycel system") {
 		t.Errorf("expected agent-only command error, got: %v", err)
 	}
 }
 
 func TestReport_InvalidState(t *testing.T) {
-	setupTestWorkspace(t)
+	setupTestHome(t)
 
 	// Set MYCEL_AGENT_ID
 	origAgentID := os.Getenv("MYCEL_AGENT_ID")

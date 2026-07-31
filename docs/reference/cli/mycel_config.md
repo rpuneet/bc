@@ -4,10 +4,10 @@ Manage repo configuration
 
 ### Synopsis
 
-Commands for managing repo configuration (preferences.json).
+Commands for managing repo configuration (prefs.json).
 
 Configuration uses a hierarchical key structure with dot notation:
-  workspace.name
+  user.name
   providers.claude.command
   providers.default
 

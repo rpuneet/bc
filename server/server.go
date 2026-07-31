@@ -1,6 +1,6 @@
-// Package server implements the bcd HTTP API server.
+// Package server implements the mycel daemon HTTP API server.
 //
-// The server exposes workspace state over HTTP so the bc CLI can operate as a
+// The server exposes mycel state over HTTP so the bc CLI can operate as a
 // thin client. It binds to localhost only by default and serves:
 //
 //   - REST API at /api/…  (JSON, one handler file per resource)
@@ -27,10 +27,10 @@ import (
 	"github.com/rpuneet/mycel/pkg/agent"
 	"github.com/rpuneet/mycel/pkg/attachment"
 	"github.com/rpuneet/mycel/pkg/cost"
-	"github.com/rpuneet/mycel/pkg/cron"
 	"github.com/rpuneet/mycel/pkg/deps"
 	"github.com/rpuneet/mycel/pkg/events"
 	"github.com/rpuneet/mycel/pkg/gateway"
+	"github.com/rpuneet/mycel/pkg/home"
 	"github.com/rpuneet/mycel/pkg/log"
 	"github.com/rpuneet/mycel/pkg/marketplace"
 	"github.com/rpuneet/mycel/pkg/mcp"
@@ -40,7 +40,6 @@ import (
 	"github.com/rpuneet/mycel/pkg/stats"
 	"github.com/rpuneet/mycel/pkg/template"
 	"github.com/rpuneet/mycel/pkg/tool"
-	"github.com/rpuneet/mycel/pkg/workspace"
 	"github.com/rpuneet/mycel/server/handlers"
 	servermcp "github.com/rpuneet/mycel/server/mcp"
 	"github.com/rpuneet/mycel/server/ws"
@@ -70,34 +69,33 @@ func DefaultConfig() Config {
 }
 
 // Services bundles all service/store dependencies for the handlers.
-// bcd is single-tenant: exactly one Services value is built at boot
+// the daemon is single-tenant: exactly one Services value is built at boot
 // (see BuildServices) and lives for the process lifetime.
 type Services struct {
-	Agents        *agent.AgentService
-	AgentMgr      *agent.Manager
-	Costs         *cost.Store
-	CostImporter  *cost.Importer
-	Cron          *cron.Store
-	CronScheduler *cron.Scheduler
-	Secrets       *secret.Store
-	MCP           *mcp.Store
-	MCPGlobal     *mcp.GlobalStore // user-global MCP registry (~/.mycel/mcps.json)
-	Tools         *tool.Store
-	Templates     *template.Store
-	Stats         *stats.Store
-	EventLog      events.EventStore
-	EventWriter   *events.JSONLWriter
-	WS            *workspace.Workspace
-	Gateway       *gateway.Manager
-	Notify        *notify.Service
+	Agents   *agent.AgentService
+	AgentMgr *agent.Manager
+	// Costs computes analytics directly from provider session files
+	// (source-direct — no ledger).
+	Costs       *cost.Service
+	Secrets     *secret.Store
+	MCP         *mcp.Store
+	MCPGlobal   *mcp.GlobalStore // user-global MCP registry (~/.mycel/mcps.json)
+	Tools       *tool.Store
+	Templates   *template.Store
+	Stats       *stats.Store
+	EventLog    events.EventStore
+	EventWriter *events.JSONLWriter
+	Home        *home.Home
+	Gateway     *gateway.Manager
+	Notify      *notify.Service
 	// Hub is the process-wide SSE hub the bundle publishes into.
 	Hub *ws.Hub
 	// Degraded maps service name → reason for services that failed to
 	// initialize and were left nil (see BuildServices).
 	// Surfaced by /api/health so degradation is loud, not silent.
 	Degraded map[string]string
-	// Deps is the optional dependencies registry (bc-db, bc-code-server,
-	// bc-browser). May be nil in tests; when nil the /api/deps handler
+	// Deps is the optional dependencies registry (mycel-db, mycel-code-server,
+	// mycel-browser). May be nil in tests; when nil the /api/deps handler
 	// returns an empty list and 404 for detail routes.
 	Deps *deps.Registry
 
@@ -147,14 +145,14 @@ func (s *Services) Close() error {
 	return err
 }
 
-// Server is the bcd HTTP server.
+// Server is the mycel daemon HTTP server.
 type Server struct {
 	httpServer *http.Server
 	handler    http.Handler
 	addr       string
 }
 
-// New creates a bcd server with the given config, services, SSE hub, and optional static files.
+// New creates a daemon server with the given config, services, SSE hub, and optional static files.
 func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 	if cfg.Addr == "" {
 		cfg.Addr = defaultAddr
@@ -181,18 +179,6 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		if svc.Costs != nil {
-			if db := svc.Costs.DB(); db != nil {
-				ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
-				defer cancel()
-				var one int
-				if err := db.QueryRowContext(ctx, "SELECT 1").Scan(&one); err != nil {
-					w.WriteHeader(http.StatusServiceUnavailable)
-					fmt.Fprintf(w, `{"status":"unhealthy","db":"error: %s"}`, strings.ReplaceAll(err.Error(), `"`, `'`)) //nolint:errcheck
-					return
-				}
-			}
-		}
 		// version = semver tag when available (release builds), else commit
 		// hash so source builds still round-trip a meaningful identifier.
 		v := cfg.Build.Version
@@ -229,7 +215,7 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 
 		// Check database connectivity
 		if svc.Costs != nil {
-			if _, err := svc.Costs.WorkspaceSummary(r.Context()); err != nil {
+			if _, err := svc.Costs.TotalSummary(r.Context()); err != nil {
 				checks["db"] = "error: " + err.Error()
 				status = "degraded"
 			} else {
@@ -264,21 +250,21 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 
 	// Resource handlers (only registered when service is available)
 	if svc.Agents != nil {
-		ah := handlers.NewAgentHandler(svc.Agents, svc.Costs, svc.WS, hub)
+		ah := handlers.NewAgentHandler(svc.Agents, svc.Costs, svc.Home, hub)
 		if svc.EventLog != nil {
 			ah.SetEventStore(svc.EventLog)
 		}
 		if svc.Stats != nil {
 			ah.SetStatsStore(svc.Stats)
 		}
-		if svc.WS != nil {
+		if svc.Home != nil {
 			// Prefer the layered store populated by BuildServices;
-			// fall back to a single-layer per-workspace store for callers
+			// fall back to a single-layer repo-scoped store for callers
 			// that construct Services manually (eg. legacy tests).
 			if svc.Templates != nil {
 				ah.SetTemplateStore(svc.Templates)
 			} else {
-				templatesDir := filepath.Join(svc.WS.StateDir(), "templates")
+				templatesDir := filepath.Join(svc.Home.StateDir(), "templates")
 				ah.SetTemplateStore(template.NewStore(templatesDir))
 			}
 		}
@@ -311,10 +297,7 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 		})
 	}
 	if svc.Costs != nil {
-		handlers.NewCostHandler(svc.Costs, svc.CostImporter).Register(mux)
-	}
-	if svc.Cron != nil {
-		handlers.NewCronHandler(svc.Cron, svc.CronScheduler).Register(mux)
+		handlers.NewCostHandler(svc.Costs).Register(mux)
 	}
 	if svc.Secrets != nil {
 		handlers.NewSecretHandler(svc.Secrets).Register(mux)
@@ -350,10 +333,10 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 		handlers.NewToolHandler(svc.Tools).Register(mux)
 	}
 	// Unified tools endpoint (MCP + CLI) — always registered
-	handlers.NewUnifiedToolsHandler(svc.MCP, svc.Tools, svc.Agents, svc.WS).Register(mux)
+	handlers.NewUnifiedToolsHandler(svc.MCP, svc.Tools, svc.Agents, svc.Home).Register(mux)
 
 	// Provider registry endpoint — always registered
-	handlers.NewProviderHandler(provider.DefaultRegistry, svc.Agents, svc.Costs, svc.WS).Register(mux)
+	handlers.NewProviderHandler(provider.DefaultRegistry, svc.Agents, svc.Costs, svc.Home).Register(mux)
 	if svc.EventLog != nil || svc.EventWriter != nil {
 		eh := handlers.NewEventHandler(svc.EventLog)
 		if svc.EventWriter != nil {
@@ -369,15 +352,17 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 	}
 	// Register gateway handler when a gateway manager is present OR when notify
 	// service is available — notify subscription routes must be accessible even
-	// in workspaces without an active gateway adapter.
+	// when no gateway adapter is active.
 	if svc.Gateway != nil || svc.Notify != nil {
-		gh := handlers.NewGatewayHandler(svc.Gateway, svc.WS)
+		gh := handlers.NewGatewayHandler(svc.Gateway, svc.Home)
 		if svc.Notify != nil {
 			gh.SetNotifyService(svc.Notify)
 		}
-		if svc.Secrets != nil {
-			gh.SetSecretStore(svc.Secrets)
-		}
+		// /api/apps: descriptor catalog + instance CRUD + auth flows.
+		// The gateway handler serves the channel/subscription surface
+		// (/api/apps/channels*, /api/notify/*) and the per-instance
+		// routes the apps router delegates to.
+		handlers.NewAppsHandler(gh, svc.Gateway, svc.Home, svc.Secrets).Register(mux)
 		gh.Register(mux)
 	}
 	// Repo listing + discovery scanners for the folder picker. The repos
@@ -385,12 +370,12 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 	// repo IS creating an agent with that repo path, so there is no
 	// registration surface.
 	rootDir := ""
-	if svc.WS != nil {
-		rootDir = svc.WS.RootDir
+	if svc.Home != nil {
+		rootDir = svc.Home.RootDir
 	}
 	handlers.NewReposHandler(svc.Agents, rootDir).Register(mux)
 	handlers.NewDiscoveryHandler().Register(mux)
-	// Optional dependencies manager (bc-db, bc-code-server, bc-browser).
+	// Optional dependencies manager (mycel-db, mycel-code-server, mycel-browser).
 	// Always registered so the UI can render an empty list when no deps
 	// are configured; the handler is nil-safe internally.
 	handlers.NewDepsHandler(svc.Deps).Register(mux)
@@ -400,25 +385,31 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 	// Degradation reasons for 503 responses (see serviceUnavailable).
 	handlers.SetDegraded(svc.Degraded)
 	// Code tab endpoints — anchored at the single bundle's repo root.
-	handlers.NewCodeHandler(handlers.NewStaticWorkspaceResolver(rootDir)).Register(mux)
-	if svc.WS != nil {
-		handlers.NewRolesHandler(svc.WS).Register(mux)
-		handlers.NewDoctorHandler(svc.WS).Register(mux)
-		handlers.NewSettingsHandler(svc.WS).Register(mux)
+	wtResolver := func(name string) string {
+		if svc.Agents == nil {
+			return ""
+		}
+		return svc.Agents.Manager().WorktreeDirFor(name)
+	}
+	handlers.NewCodeHandler(handlers.NewStaticRepoResolver(rootDir)).WithWorktreeResolver(wtResolver).Register(mux)
+	if svc.Home != nil {
+		handlers.NewRolesHandler(svc.Home).Register(mux)
+		handlers.NewDoctorHandler(svc.Home).Register(mux)
+		handlers.NewSettingsHandler(svc.Home).Register(mux)
 
 		// Templates — prefer the layered store from BuildServices
-		// (global ~/.mycel/templates/ + per-workspace override). Fallback to
-		// a single-layer workspace store for legacy test callers that
+		// (global ~/.mycel/templates/ + repo-scoped override). Fallback to
+		// a single-layer store for legacy test callers that
 		// assemble Services by hand.
 		tmplStore := svc.Templates
-		templatesDir := filepath.Join(svc.WS.StateDir(), "templates")
+		templatesDir := filepath.Join(svc.Home.StateDir(), "templates")
 		if tmplStore == nil {
 			tmplStore = template.NewStore(templatesDir)
 			if seedErr := template.SeedDefaults(templatesDir); seedErr != nil {
 				log.Warn("seed default templates", "error", seedErr)
 			}
 		}
-		if migrErr := migrateRolesToTemplates(svc.WS.RolesDir(), templatesDir); migrErr != nil {
+		if migrErr := migrateRolesToTemplates(svc.Home.RolesDir(), templatesDir); migrErr != nil {
 			log.Warn("migrate roles to templates", "error", migrErr)
 		}
 		handlers.NewTemplateHandler(tmplStore).Register(mux)
@@ -434,13 +425,13 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 		handlers.NewMarketplaceHandler(marketplace.NewAggregator(tmplStore, nil), mktSender).Register(mux)
 
 		// File upload/download for channel attachments + shared screenshots
-		fileStore := attachment.NewStore(svc.WS.StateDir())
-		fileStore.AddSharedDir("/tmp/bc-shared")
+		fileStore := attachment.NewStore(svc.Home.StateDir())
+		fileStore.AddSharedDir("/tmp/mycel-shared")
 		handlers.NewFileHandler(fileStore).Register(mux)
 	}
 
 	// Stats endpoints (always registered; nil-safe internally)
-	sh := handlers.NewStatsHandler(svc.Agents, svc.Costs, svc.Tools, svc.WS, svc.Stats)
+	sh := handlers.NewStatsHandler(svc.Agents, svc.Costs, svc.Tools, svc.Home, svc.Stats)
 	if svc.Gateway != nil {
 		sh.SetGateway(svc.Gateway)
 	}
@@ -451,13 +442,13 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 
 	// Agent-facing MCP server (streamable HTTP), mounted at /_mcp/{agent}.
 	// The path segment is the trusted sender identity for agent tools.
-	if svc.WS != nil {
+	if svc.Home != nil {
 		mcpCfg := servermcp.Config{
-			Workspace: svc.WS,
-			Costs:     svc.Costs,
-			Gateway:   svc.Gateway,
-			Notify:    svc.Notify,
-			Version:   cfg.Build.Version,
+			Home:    svc.Home,
+			Costs:   svc.Costs,
+			Gateway: svc.Gateway,
+			Notify:  svc.Notify,
+			Version: cfg.Build.Version,
 		}
 		if svc.Agents != nil {
 			mcpCfg.Agents = svc.Agents.Manager()
@@ -573,7 +564,7 @@ func migrateRolesToTemplates(rolesDir, templatesDir string) error {
 		t := template.Template{
 			Name:        name,
 			Description: "Migrated from role: " + name,
-			MCPs:        []string{"bc"},
+			MCPs:        []string{"mycel"},
 		}
 		if createErr := tmplStore.Create(t, string(data), template.ScopeGlobal); createErr != nil {
 			log.Warn("migrate roles: failed to create template", "role", name, "error", createErr)
@@ -602,7 +593,7 @@ func (s *Server) Start(ctx context.Context) error {
 	}
 	s.addr = ln.Addr().String()
 
-	log.Info("bcd listening", "addr", s.addr)
+	log.Info("daemon listening", "addr", s.addr)
 
 	go func() {
 		<-ctx.Done()

@@ -3,6 +3,7 @@ package handlers_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -12,61 +13,131 @@ import (
 
 	"github.com/rpuneet/mycel/pkg/agent"
 	"github.com/rpuneet/mycel/pkg/cost"
-	"github.com/rpuneet/mycel/pkg/cron"
 	"github.com/rpuneet/mycel/pkg/db"
 	"github.com/rpuneet/mycel/pkg/events"
+	"github.com/rpuneet/mycel/pkg/home"
 	"github.com/rpuneet/mycel/pkg/mcp"
+	"github.com/rpuneet/mycel/pkg/provider"
 	"github.com/rpuneet/mycel/pkg/secret"
 	"github.com/rpuneet/mycel/pkg/tool"
-	"github.com/rpuneet/mycel/pkg/workspace"
 	"github.com/rpuneet/mycel/server"
 	"github.com/rpuneet/mycel/server/ws"
 )
 
 // --- helpers for building test servers with real services ---
 
-// sandboxBCHome points MYCEL_HOME (and HOME) at a per-test tempdir so any
-// global-registry writes land in a disposable sandbox instead of the
-// caller's real ~/.bc/workspaces.json. Without this, workspace.Init()
-// registers every t.TempDir() root in the user's production registry —
-// one leaked entry per test, growing the file forever.
+// sandboxBCHome points MYCEL_HOME (and HOME) at a per-test tempdir so
+// global state (prefs.json, mycel.db, agents/) lands in a disposable
+// sandbox instead of the caller's real ~/.mycel.
 func sandboxBCHome(t *testing.T) {
 	t.Helper()
 	home := t.TempDir()
 	t.Setenv("HOME", home)
-	t.Setenv("MYCEL_HOME", filepath.Join(home, ".bc"))
+	t.Setenv("MYCEL_HOME", filepath.Join(home, ".mycel"))
 }
 
-func setupWorkspace(t *testing.T) string {
+func setupHome(t *testing.T) string {
 	t.Helper()
 	sandboxBCHome(t)
 	dir := t.TempDir()
-	// workspace.Init requires a git repo
+	// home.Open requires a non-empty root to be a git repo
 	if out, err := exec.CommandContext(context.Background(), "git", "init", dir).CombinedOutput(); err != nil { //nolint:gosec // dir is a t.TempDir(), not user input
 		t.Fatalf("git init: %v\n%s", err, out)
 	}
-	wks, err := workspace.Init(dir)
+	wks, err := home.Open(dir)
 	if err != nil {
-		t.Fatalf("init workspace: %v", err)
+		t.Fatalf("open home: %v", err)
 	}
 	_ = wks
 	return dir
 }
 
-// setupWorkspaceWithDB sets up a workspace whose database is opened
-// lazily via the per-workspace registry (see openWSDB).
-func setupWorkspaceWithDB(t *testing.T) string {
-	t.Helper()
-	return setupWorkspace(t)
+// --- source-direct cost helpers ---
+
+// memBudgets is a tiny in-memory cost.BudgetStore for handler tests.
+type memBudgets struct {
+	m map[string]cost.BudgetConfig
 }
 
-// openWSDB returns the per-workspace database handle + driver for the
-// given workspace root, mirroring how BuildServices resolves it.
+func newMemBudgets() *memBudgets { return &memBudgets{m: map[string]cost.BudgetConfig{}} }
+
+func (b *memBudgets) All() (map[string]cost.BudgetConfig, error) {
+	out := make(map[string]cost.BudgetConfig, len(b.m))
+	for k, v := range b.m {
+		out[k] = v
+	}
+	return out, nil
+}
+
+func (b *memBudgets) Set(scope string, cfg cost.BudgetConfig) error {
+	b.m[scope] = cfg
+	return nil
+}
+
+func (b *memBudgets) Delete(scope string) error {
+	if _, ok := b.m[scope]; !ok {
+		return fmt.Errorf("budget not found for scope %q", scope)
+	}
+	delete(b.m, scope)
+	return nil
+}
+
+// newCostService builds a source-direct cost.Service over throwaway
+// source dirs (home + agents) backed by an in-memory budget store.
+// Returns the service plus the home dir so tests can drop Claude Code
+// JSONL fixtures under <home>/.claude/projects/.
+func newCostServiceAt(t *testing.T) (*cost.Service, string) {
+	t.Helper()
+	home := t.TempDir()
+	svc := cost.NewService(provider.DefaultRegistry, cost.Options{
+		Home:      home,
+		AgentsDir: filepath.Join(home, "agents"),
+	}, newMemBudgets())
+	return svc, home
+}
+
+func newCostService(t *testing.T) *cost.Service {
+	t.Helper()
+	svc, _ := newCostServiceAt(t)
+	return svc
+}
+
+// claudeUsageLine fabricates one Claude Code JSONL transcript line with
+// token usage the claude provider's CostReader parses and prices.
+func claudeUsageLine(session, ts, cwd, model string, in, out int64) string {
+	return fmt.Sprintf(`{"type":"assistant","sessionId":%q,"timestamp":%q,"cwd":%q,"message":{"model":%q,"usage":{"input_tokens":%d,"output_tokens":%d,"cache_creation_input_tokens":0,"cache_read_input_tokens":0}}}`,
+		session, ts, cwd, model, in, out)
+}
+
+// writeClaudeSession writes a JSONL session transcript at path.
+func writeClaudeSession(t *testing.T, path string, lines ...string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
+		t.Fatal(err)
+	}
+	content := ""
+	for _, l := range lines {
+		content += l + "\n"
+	}
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// setupHomeWithDB sets up a home whose database is opened
+// lazily via the db registry (see openWSDB).
+func setupHomeWithDB(t *testing.T) string {
+	t.Helper()
+	return setupHome(t)
+}
+
+// openWSDB returns the database handle + driver for the
+// given repo root, mirroring how BuildServices resolves it.
 func openWSDB(t *testing.T, dir string) (*db.DB, string) {
 	t.Helper()
 	d, driver, err := db.Global(nil)
 	if err != nil {
-		t.Fatalf("open workspace db: %v", err)
+		t.Fatalf("open db: %v", err)
 	}
 	t.Cleanup(func() { _ = db.CloseGlobal() })
 	return d, driver
@@ -104,30 +175,32 @@ func readJSONArray(t *testing.T, resp *http.Response) []any {
 // --- Cost handler tests ---
 
 func TestCostHandler_Summary(t *testing.T) {
-	dir := setupWorkspace(t)
-	store := cost.NewStore(dir)
-	if err := store.Open(); err != nil {
-		t.Fatalf("open cost store: %v", err)
-	}
-	t.Cleanup(func() { _ = store.Close() })
+	svc, home := newCostServiceAt(t)
+	writeClaudeSession(t,
+		filepath.Join(home, ".claude", "projects", "p1", "11111111-aaaa-1111-1111-111111111111.jsonl"),
+		claudeUsageLine("s1", "2026-07-30T10:00:00Z", "/repos/proj", "claude-sonnet-4-20250514", 100, 50),
+	)
 
-	ts := buildTestServerWithServices(t, server.Services{Costs: store})
+	ts := buildTestServerWithServices(t, server.Services{Costs: svc})
 	defer ts.Close()
 
 	resp := get(t, ts.URL+"/api/costs")
+	defer func() { _ = resp.Body.Close() }()
 	assertStatus(t, resp, http.StatusOK)
-	_ = resp.Body.Close()
+	body := readJSON(t, resp)
+	// claude-sonnet-4: $3/M input + $15/M output.
+	wantUSD := 100*3.0/1e6 + 50*15.0/1e6
+	gotUSD, _ := body["total_cost_usd"].(float64)
+	if diff := gotUSD - wantUSD; diff > 1e-9 || diff < -1e-9 {
+		t.Fatalf("total_cost_usd = %v, want %v", gotUSD, wantUSD)
+	}
+	if body["record_count"] != float64(1) {
+		t.Fatalf("record_count = %v, want 1", body["record_count"])
+	}
 }
 
 func TestCostHandler_SummaryMethodNotAllowed(t *testing.T) {
-	dir := setupWorkspace(t)
-	store := cost.NewStore(dir)
-	if err := store.Open(); err != nil {
-		t.Fatalf("open cost store: %v", err)
-	}
-	t.Cleanup(func() { _ = store.Close() })
-
-	ts := buildTestServerWithServices(t, server.Services{Costs: store})
+	ts := buildTestServerWithServices(t, server.Services{Costs: newCostService(t)})
 	defer ts.Close()
 
 	resp := post(t, ts.URL+"/api/costs", "application/json", `{}`)
@@ -136,14 +209,7 @@ func TestCostHandler_SummaryMethodNotAllowed(t *testing.T) {
 }
 
 func TestCostHandler_ByResource(t *testing.T) {
-	dir := setupWorkspace(t)
-	store := cost.NewStore(dir)
-	if err := store.Open(); err != nil {
-		t.Fatalf("open cost store: %v", err)
-	}
-	t.Cleanup(func() { _ = store.Close() })
-
-	ts := buildTestServerWithServices(t, server.Services{Costs: store})
+	ts := buildTestServerWithServices(t, server.Services{Costs: newCostService(t)})
 	defer ts.Close()
 
 	tests := []struct {
@@ -171,23 +237,78 @@ func TestCostHandler_ByResource(t *testing.T) {
 	}
 }
 
-func TestCostHandler_AgentDetail(t *testing.T) {
-	dir := setupWorkspace(t)
-	store := cost.NewStore(dir)
-	if err := store.Open(); err != nil {
-		t.Fatalf("open cost store: %v", err)
-	}
-	t.Cleanup(func() { _ = store.Close() })
+// TestCostHandler_SinceFilter verifies that ?since= scopes the summary
+// and grouped-summary endpoints to entries at or after the cutoff.
+func TestCostHandler_SinceFilter(t *testing.T) {
+	svc, home := newCostServiceAt(t)
+	writeClaudeSession(t,
+		filepath.Join(home, ".claude", "projects", "p1", "33333333-aaaa-3333-3333-333333333333.jsonl"),
+		claudeUsageLine("s1", "2026-07-01T10:00:00Z", "/repos/proj", "claude-sonnet-4-20250514", 100, 50),
+		claudeUsageLine("s1", "2026-07-20T10:00:00Z", "/repos/proj", "claude-sonnet-4-20250514", 200, 100),
+	)
 
-	ts := buildTestServerWithServices(t, server.Services{Costs: store})
+	ts := buildTestServerWithServices(t, server.Services{Costs: svc})
+	defer ts.Close()
+
+	// Summary scoped to the second entry only.
+	resp := get(t, ts.URL+"/api/costs?since=2026-07-10")
+	defer func() { _ = resp.Body.Close() }()
+	assertStatus(t, resp, http.StatusOK)
+	body := readJSON(t, resp)
+	if body["record_count"] != float64(1) {
+		t.Fatalf("since summary record_count = %v, want 1", body["record_count"])
+	}
+
+	// Grouped endpoints accept since too (RFC3339 form).
+	for _, path := range []string{
+		"/api/costs/agents?since=2026-07-10T00:00:00Z",
+		"/api/costs/models?since=2026-07-10T00:00:00Z",
+	} {
+		gr := get(t, ts.URL+path)
+		assertStatus(t, gr, http.StatusOK)
+		rows := readJSONArray(t, gr)
+		_ = gr.Body.Close()
+		if len(rows) != 1 {
+			t.Fatalf("%s: got %d rows, want 1", path, len(rows))
+		}
+		row, _ := rows[0].(map[string]any)
+		if row["record_count"] != float64(1) {
+			t.Fatalf("%s: record_count = %v, want 1", path, row["record_count"])
+		}
+	}
+
+	// Malformed since → 400.
+	resp = get(t, ts.URL+"/api/costs?since=not-a-date")
+	assertStatus(t, resp, http.StatusBadRequest)
+	_ = resp.Body.Close()
+}
+
+func TestCostHandler_AgentDetail(t *testing.T) {
+	svc, home := newCostServiceAt(t)
+	// Agent-attributed source: <AgentsDir>/<name>/session/claude/projects.
+	writeClaudeSession(t,
+		filepath.Join(home, "agents", "test-agent", "session", "claude", "projects", "p", "22222222-aaaa-2222-2222-222222222222.jsonl"),
+		claudeUsageLine("s-agent", "2026-07-30T09:00:00Z", "/workspace", "claude-sonnet-4-20250514", 1000, 500),
+	)
+
+	ts := buildTestServerWithServices(t, server.Services{Costs: svc})
 	defer ts.Close()
 
 	resp := get(t, ts.URL+"/api/costs/agent/test-agent")
 	defer func() { _ = resp.Body.Close() }()
 	assertStatus(t, resp, http.StatusOK)
 	body := readJSON(t, resp)
-	if _, ok := body["summary"]; !ok {
+	summary, ok := body["summary"].(map[string]any)
+	if !ok {
 		t.Fatal("expected summary field in agent detail response")
+	}
+	if summary["agent_id"] != "test-agent" {
+		t.Fatalf("summary agent_id = %v, want test-agent", summary["agent_id"])
+	}
+	wantUSD := 1000*3.0/1e6 + 500*15.0/1e6
+	gotUSD, _ := summary["total_cost_usd"].(float64)
+	if diff := gotUSD - wantUSD; diff > 1e-9 || diff < -1e-9 {
+		t.Fatalf("summary total_cost_usd = %v, want %v", gotUSD, wantUSD)
 	}
 	if _, ok := body["daily"]; !ok {
 		t.Fatal("expected daily field in agent detail response")
@@ -195,14 +316,7 @@ func TestCostHandler_AgentDetail(t *testing.T) {
 }
 
 func TestCostHandler_Budgets_Create(t *testing.T) {
-	dir := setupWorkspace(t)
-	store := cost.NewStore(dir)
-	if err := store.Open(); err != nil {
-		t.Fatalf("open cost store: %v", err)
-	}
-	t.Cleanup(func() { _ = store.Close() })
-
-	ts := buildTestServerWithServices(t, server.Services{Costs: store})
+	ts := buildTestServerWithServices(t, server.Services{Costs: newCostService(t)})
 	defer ts.Close()
 
 	// Create budget
@@ -227,14 +341,7 @@ func TestCostHandler_Budgets_Create(t *testing.T) {
 }
 
 func TestCostHandler_Budgets_Validation(t *testing.T) {
-	dir := setupWorkspace(t)
-	store := cost.NewStore(dir)
-	if err := store.Open(); err != nil {
-		t.Fatalf("open cost store: %v", err)
-	}
-	t.Cleanup(func() { _ = store.Close() })
-
-	ts := buildTestServerWithServices(t, server.Services{Costs: store})
+	ts := buildTestServerWithServices(t, server.Services{Costs: newCostService(t)})
 	defer ts.Close()
 
 	tests := []struct {
@@ -257,14 +364,7 @@ func TestCostHandler_Budgets_Validation(t *testing.T) {
 }
 
 func TestCostHandler_Budgets_DeleteNoScope(t *testing.T) {
-	dir := setupWorkspace(t)
-	store := cost.NewStore(dir)
-	if err := store.Open(); err != nil {
-		t.Fatalf("open cost store: %v", err)
-	}
-	t.Cleanup(func() { _ = store.Close() })
-
-	ts := buildTestServerWithServices(t, server.Services{Costs: store})
+	ts := buildTestServerWithServices(t, server.Services{Costs: newCostService(t)})
 	defer ts.Close()
 
 	resp := doRequest(t, http.MethodDelete, ts.URL+"/api/costs/budgets", "", "")
@@ -274,14 +374,7 @@ func TestCostHandler_Budgets_DeleteNoScope(t *testing.T) {
 }
 
 func TestCostHandler_Budgets_MethodNotAllowed(t *testing.T) {
-	dir := setupWorkspace(t)
-	store := cost.NewStore(dir)
-	if err := store.Open(); err != nil {
-		t.Fatalf("open cost store: %v", err)
-	}
-	t.Cleanup(func() { _ = store.Close() })
-
-	ts := buildTestServerWithServices(t, server.Services{Costs: store})
+	ts := buildTestServerWithServices(t, server.Services{Costs: newCostService(t)})
 	defer ts.Close()
 
 	resp := doRequest(t, http.MethodPatch, ts.URL+"/api/costs/budgets", "application/json", `{}`)
@@ -289,31 +382,40 @@ func TestCostHandler_Budgets_MethodNotAllowed(t *testing.T) {
 	_ = resp.Body.Close()
 }
 
-func TestCostHandler_SyncNoImporter(t *testing.T) {
-	dir := setupWorkspace(t)
-	store := cost.NewStore(dir)
-	if err := store.Open(); err != nil {
-		t.Fatalf("open cost store: %v", err)
-	}
-	t.Cleanup(func() { _ = store.Close() })
+// TestCostHandler_Sync verifies POST /api/costs/sync re-scans the
+// provider session files and reports the merged entry count.
+func TestCostHandler_Sync(t *testing.T) {
+	svc, home := newCostServiceAt(t)
 
-	ts := buildTestServerWithServices(t, server.Services{Costs: store})
+	ts := buildTestServerWithServices(t, server.Services{Costs: svc})
 	defer ts.Close()
 
+	// No sources yet — sync succeeds with zero entries.
 	resp := post(t, ts.URL+"/api/costs/sync", "application/json", `{}`)
-	assertStatus(t, resp, http.StatusServiceUnavailable)
-	_ = resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
+	assertStatus(t, resp, http.StatusOK)
+	body := readJSON(t, resp)
+	if body["imported"] != float64(0) {
+		t.Fatalf("imported = %v, want 0", body["imported"])
+	}
+
+	// Drop a transcript on disk; sync must pick it up immediately
+	// (bypassing the 60s cache).
+	writeClaudeSession(t,
+		filepath.Join(home, ".claude", "projects", "p", "33333333-aaaa-3333-3333-333333333333.jsonl"),
+		claudeUsageLine("s-sync", "2026-07-30T11:00:00Z", "/repos/sync", "claude-sonnet-4-20250514", 10, 5),
+	)
+	resp = post(t, ts.URL+"/api/costs/sync", "application/json", `{}`)
+	defer func() { _ = resp.Body.Close() }()
+	assertStatus(t, resp, http.StatusOK)
+	body = readJSON(t, resp)
+	if body["imported"] != float64(1) {
+		t.Fatalf("imported = %v, want 1 after writing a transcript", body["imported"])
+	}
 }
 
 func TestCostHandler_SyncMethodNotAllowed(t *testing.T) {
-	dir := setupWorkspace(t)
-	store := cost.NewStore(dir)
-	if err := store.Open(); err != nil {
-		t.Fatalf("open cost store: %v", err)
-	}
-	t.Cleanup(func() { _ = store.Close() })
-
-	ts := buildTestServerWithServices(t, server.Services{Costs: store})
+	ts := buildTestServerWithServices(t, server.Services{Costs: newCostService(t)})
 	defer ts.Close()
 
 	resp := get(t, ts.URL+"/api/costs/sync")
@@ -322,14 +424,7 @@ func TestCostHandler_SyncMethodNotAllowed(t *testing.T) {
 }
 
 func TestCostHandler_AgentsMethodNotAllowed(t *testing.T) {
-	dir := setupWorkspace(t)
-	store := cost.NewStore(dir)
-	if err := store.Open(); err != nil {
-		t.Fatalf("open cost store: %v", err)
-	}
-	t.Cleanup(func() { _ = store.Close() })
-
-	ts := buildTestServerWithServices(t, server.Services{Costs: store})
+	ts := buildTestServerWithServices(t, server.Services{Costs: newCostService(t)})
 	defer ts.Close()
 
 	resp := post(t, ts.URL+"/api/costs/agents", "application/json", `{}`)
@@ -338,14 +433,7 @@ func TestCostHandler_AgentsMethodNotAllowed(t *testing.T) {
 }
 
 func TestCostHandler_BudgetNotFound(t *testing.T) {
-	dir := setupWorkspace(t)
-	store := cost.NewStore(dir)
-	if err := store.Open(); err != nil {
-		t.Fatalf("open cost store: %v", err)
-	}
-	t.Cleanup(func() { _ = store.Close() })
-
-	ts := buildTestServerWithServices(t, server.Services{Costs: store})
+	ts := buildTestServerWithServices(t, server.Services{Costs: newCostService(t)})
 	defer ts.Close()
 
 	resp := get(t, ts.URL+"/api/costs/budgets/nonexistent")
@@ -353,363 +441,10 @@ func TestCostHandler_BudgetNotFound(t *testing.T) {
 	_ = resp.Body.Close()
 }
 
-// --- Cron handler tests ---
-
-func TestCronHandler_ListEmpty(t *testing.T) {
-	dir := setupWorkspaceWithDB(t)
-	store, err := cron.Open(openWSDB(t, dir))
-	if err != nil {
-		t.Fatalf("open cron store: %v", err)
-	}
-	t.Cleanup(func() { _ = store.Close() })
-
-	ts := buildTestServerWithServices(t, server.Services{Cron: store})
-	defer ts.Close()
-
-	resp := get(t, ts.URL+"/api/cron")
-	defer func() { _ = resp.Body.Close() }()
-	assertStatus(t, resp, http.StatusOK)
-	arr := readJSONArray(t, resp)
-	if len(arr) != 0 {
-		t.Fatalf("expected empty jobs, got %d", len(arr))
-	}
-}
-
-func TestCronHandler_CreateAndGet(t *testing.T) {
-	dir := setupWorkspaceWithDB(t)
-	store, err := cron.Open(openWSDB(t, dir))
-	if err != nil {
-		t.Fatalf("open cron store: %v", err)
-	}
-	t.Cleanup(func() { _ = store.Close() })
-
-	ts := buildTestServerWithServices(t, server.Services{Cron: store})
-	defer ts.Close()
-
-	// Create a job
-	resp := post(t, ts.URL+"/api/cron", "application/json",
-		`{"name":"test-job","schedule":"*/5 * * * *","command":"echo hello","enabled":true}`)
-	defer func() { _ = resp.Body.Close() }()
-	assertStatus(t, resp, http.StatusCreated)
-	body := readJSON(t, resp)
-	if body["name"] != "test-job" {
-		t.Fatalf("expected name test-job, got %v", body["name"])
-	}
-
-	// Get the job
-	resp = get(t, ts.URL+"/api/cron/test-job")
-	defer func() { _ = resp.Body.Close() }()
-	assertStatus(t, resp, http.StatusOK)
-	body = readJSON(t, resp)
-	if body["name"] != "test-job" {
-		t.Fatalf("expected name test-job, got %v", body["name"])
-	}
-}
-
-func TestCronHandler_CreateMissingCommandAndPrompt(t *testing.T) {
-	dir := setupWorkspaceWithDB(t)
-	store, err := cron.Open(openWSDB(t, dir))
-	if err != nil {
-		t.Fatalf("open cron store: %v", err)
-	}
-	t.Cleanup(func() { _ = store.Close() })
-
-	ts := buildTestServerWithServices(t, server.Services{Cron: store})
-	defer ts.Close()
-
-	resp := post(t, ts.URL+"/api/cron", "application/json",
-		`{"name":"bad-job","schedule":"*/5 * * * *"}`)
-	assertStatus(t, resp, http.StatusBadRequest)
-	_ = resp.Body.Close()
-}
-
-func TestCronHandler_CreateInvalidBody(t *testing.T) {
-	dir := setupWorkspaceWithDB(t)
-	store, err := cron.Open(openWSDB(t, dir))
-	if err != nil {
-		t.Fatalf("open cron store: %v", err)
-	}
-	t.Cleanup(func() { _ = store.Close() })
-
-	ts := buildTestServerWithServices(t, server.Services{Cron: store})
-	defer ts.Close()
-
-	resp := post(t, ts.URL+"/api/cron", "application/json", `{invalid}`)
-	assertStatus(t, resp, http.StatusBadRequest)
-	_ = resp.Body.Close()
-}
-
-func TestCronHandler_Delete(t *testing.T) {
-	dir := setupWorkspaceWithDB(t)
-	store, err := cron.Open(openWSDB(t, dir))
-	if err != nil {
-		t.Fatalf("open cron store: %v", err)
-	}
-	t.Cleanup(func() { _ = store.Close() })
-
-	ts := buildTestServerWithServices(t, server.Services{Cron: store})
-	defer ts.Close()
-
-	resp := post(t, ts.URL+"/api/cron", "application/json",
-		`{"name":"del-job","schedule":"*/5 * * * *","command":"echo hello"}`)
-	_ = resp.Body.Close()
-
-	resp = doRequest(t, http.MethodDelete, ts.URL+"/api/cron/del-job", "", "")
-	assertStatus(t, resp, http.StatusNoContent)
-	_ = resp.Body.Close()
-}
-
-func TestCronHandler_EnableDisable(t *testing.T) {
-	dir := setupWorkspaceWithDB(t)
-	store, err := cron.Open(openWSDB(t, dir))
-	if err != nil {
-		t.Fatalf("open cron store: %v", err)
-	}
-	t.Cleanup(func() { _ = store.Close() })
-
-	ts := buildTestServerWithServices(t, server.Services{Cron: store})
-	defer ts.Close()
-
-	resp := post(t, ts.URL+"/api/cron", "application/json",
-		`{"name":"toggle-job","schedule":"*/5 * * * *","command":"echo hello","enabled":true}`)
-	_ = resp.Body.Close()
-
-	// Disable
-	resp = post(t, ts.URL+"/api/cron/toggle-job/disable", "application/json", ``)
-	defer func() { _ = resp.Body.Close() }()
-	assertStatus(t, resp, http.StatusOK)
-	body := readJSON(t, resp)
-	if body["enabled"] != false {
-		t.Fatalf("expected enabled=false, got %v", body["enabled"])
-	}
-
-	// Enable
-	resp = post(t, ts.URL+"/api/cron/toggle-job/enable", "application/json", ``)
-	defer func() { _ = resp.Body.Close() }()
-	assertStatus(t, resp, http.StatusOK)
-	body = readJSON(t, resp)
-	if body["enabled"] != true {
-		t.Fatalf("expected enabled=true, got %v", body["enabled"])
-	}
-}
-
-func TestCronHandler_RunDisabledJob(t *testing.T) {
-	dir := setupWorkspaceWithDB(t)
-	store, err := cron.Open(openWSDB(t, dir))
-	if err != nil {
-		t.Fatalf("open cron store: %v", err)
-	}
-	t.Cleanup(func() { _ = store.Close() })
-
-	ts := buildTestServerWithServices(t, server.Services{Cron: store})
-	defer ts.Close()
-
-	// Create a disabled job
-	resp := post(t, ts.URL+"/api/cron", "application/json",
-		`{"name":"disabled-job","schedule":"*/5 * * * *","command":"echo hello","enabled":false}`)
-	_ = resp.Body.Close()
-
-	// Try to run it
-	resp = post(t, ts.URL+"/api/cron/disabled-job/run", "application/json", ``)
-	assertStatus(t, resp, http.StatusBadRequest)
-	_ = resp.Body.Close()
-}
-
-func TestCronHandler_RunEnabledJob(t *testing.T) {
-	dir := setupWorkspaceWithDB(t)
-	store, err := cron.Open(openWSDB(t, dir))
-	if err != nil {
-		t.Fatalf("open cron store: %v", err)
-	}
-	t.Cleanup(func() { _ = store.Close() })
-
-	ts := buildTestServerWithServices(t, server.Services{Cron: store})
-	defer ts.Close()
-
-	// Create an enabled job
-	resp := post(t, ts.URL+"/api/cron", "application/json",
-		`{"name":"enabled-job","schedule":"*/5 * * * *","command":"echo hello","enabled":true}`)
-	_ = resp.Body.Close()
-
-	// Run it
-	resp = post(t, ts.URL+"/api/cron/enabled-job/run", "application/json", ``)
-	defer func() { _ = resp.Body.Close() }()
-	assertStatus(t, resp, http.StatusOK)
-	body := readJSON(t, resp)
-	if body["status"] != "triggered" {
-		t.Fatalf("expected status triggered, got %v", body["status"])
-	}
-}
-
-func TestCronHandler_RunNonexistent(t *testing.T) {
-	dir := setupWorkspaceWithDB(t)
-	store, err := cron.Open(openWSDB(t, dir))
-	if err != nil {
-		t.Fatalf("open cron store: %v", err)
-	}
-	t.Cleanup(func() { _ = store.Close() })
-
-	ts := buildTestServerWithServices(t, server.Services{Cron: store})
-	defer ts.Close()
-
-	resp := post(t, ts.URL+"/api/cron/nonexistent/run", "application/json", ``)
-	assertStatus(t, resp, http.StatusNotFound)
-	_ = resp.Body.Close()
-}
-
-func TestCronHandler_Logs(t *testing.T) {
-	dir := setupWorkspaceWithDB(t)
-	store, err := cron.Open(openWSDB(t, dir))
-	if err != nil {
-		t.Fatalf("open cron store: %v", err)
-	}
-	t.Cleanup(func() { _ = store.Close() })
-
-	ts := buildTestServerWithServices(t, server.Services{Cron: store})
-	defer ts.Close()
-
-	resp := post(t, ts.URL+"/api/cron", "application/json",
-		`{"name":"log-job","schedule":"*/5 * * * *","command":"echo hello"}`)
-	_ = resp.Body.Close()
-
-	resp = get(t, ts.URL+"/api/cron/log-job/logs")
-	assertStatus(t, resp, http.StatusOK)
-	_ = resp.Body.Close()
-
-	// With last param
-	resp = get(t, ts.URL+"/api/cron/log-job/logs?last=5")
-	assertStatus(t, resp, http.StatusOK)
-	_ = resp.Body.Close()
-}
-
-func TestCronHandler_MethodNotAllowed(t *testing.T) {
-	dir := setupWorkspaceWithDB(t)
-	store, err := cron.Open(openWSDB(t, dir))
-	if err != nil {
-		t.Fatalf("open cron store: %v", err)
-	}
-	t.Cleanup(func() { _ = store.Close() })
-
-	ts := buildTestServerWithServices(t, server.Services{Cron: store})
-	defer ts.Close()
-
-	resp := doRequest(t, http.MethodPut, ts.URL+"/api/cron", "application/json", `{}`)
-	assertStatus(t, resp, http.StatusMethodNotAllowed)
-	_ = resp.Body.Close()
-}
-
-func TestCronHandler_EmptyName(t *testing.T) {
-	dir := setupWorkspaceWithDB(t)
-	store, err := cron.Open(openWSDB(t, dir))
-	if err != nil {
-		t.Fatalf("open cron store: %v", err)
-	}
-	t.Cleanup(func() { _ = store.Close() })
-
-	ts := buildTestServerWithServices(t, server.Services{Cron: store})
-	defer ts.Close()
-
-	resp := get(t, ts.URL+"/api/cron/")
-	assertStatus(t, resp, http.StatusBadRequest)
-	_ = resp.Body.Close()
-}
-
-func TestCronHandler_UnknownSub(t *testing.T) {
-	dir := setupWorkspaceWithDB(t)
-	store, err := cron.Open(openWSDB(t, dir))
-	if err != nil {
-		t.Fatalf("open cron store: %v", err)
-	}
-	t.Cleanup(func() { _ = store.Close() })
-
-	ts := buildTestServerWithServices(t, server.Services{Cron: store})
-	defer ts.Close()
-
-	resp := post(t, ts.URL+"/api/cron", "application/json",
-		`{"name":"sub-job","schedule":"*/5 * * * *","command":"echo hello"}`)
-	_ = resp.Body.Close()
-
-	resp = get(t, ts.URL+"/api/cron/sub-job/unknown")
-	assertStatus(t, resp, http.StatusNotFound)
-	_ = resp.Body.Close()
-}
-
-func TestCronHandler_JobMethodNotAllowed(t *testing.T) {
-	dir := setupWorkspaceWithDB(t)
-	store, err := cron.Open(openWSDB(t, dir))
-	if err != nil {
-		t.Fatalf("open cron store: %v", err)
-	}
-	t.Cleanup(func() { _ = store.Close() })
-
-	ts := buildTestServerWithServices(t, server.Services{Cron: store})
-	defer ts.Close()
-
-	resp := post(t, ts.URL+"/api/cron", "application/json",
-		`{"name":"mna-job","schedule":"*/5 * * * *","command":"echo hello"}`)
-	_ = resp.Body.Close()
-
-	resp = doRequest(t, http.MethodPatch, ts.URL+"/api/cron/mna-job", "application/json", `{}`)
-	assertStatus(t, resp, http.StatusMethodNotAllowed)
-	_ = resp.Body.Close()
-}
-
-func TestCronHandler_EnableMethodNotAllowed(t *testing.T) {
-	dir := setupWorkspaceWithDB(t)
-	store, err := cron.Open(openWSDB(t, dir))
-	if err != nil {
-		t.Fatalf("open cron store: %v", err)
-	}
-	t.Cleanup(func() { _ = store.Close() })
-
-	ts := buildTestServerWithServices(t, server.Services{Cron: store})
-	defer ts.Close()
-
-	resp := post(t, ts.URL+"/api/cron", "application/json",
-		`{"name":"emna-job","schedule":"*/5 * * * *","command":"echo hello"}`)
-	_ = resp.Body.Close()
-
-	resp = get(t, ts.URL+"/api/cron/emna-job/enable")
-	assertStatus(t, resp, http.StatusMethodNotAllowed)
-	_ = resp.Body.Close()
-}
-
-func TestCronHandler_RunMethodNotAllowed(t *testing.T) {
-	dir := setupWorkspaceWithDB(t)
-	store, err := cron.Open(openWSDB(t, dir))
-	if err != nil {
-		t.Fatalf("open cron store: %v", err)
-	}
-	t.Cleanup(func() { _ = store.Close() })
-
-	ts := buildTestServerWithServices(t, server.Services{Cron: store})
-	defer ts.Close()
-
-	resp := get(t, ts.URL+"/api/cron/some-job/run")
-	assertStatus(t, resp, http.StatusMethodNotAllowed)
-	_ = resp.Body.Close()
-}
-
-func TestCronHandler_LogsMethodNotAllowed(t *testing.T) {
-	dir := setupWorkspaceWithDB(t)
-	store, err := cron.Open(openWSDB(t, dir))
-	if err != nil {
-		t.Fatalf("open cron store: %v", err)
-	}
-	t.Cleanup(func() { _ = store.Close() })
-
-	ts := buildTestServerWithServices(t, server.Services{Cron: store})
-	defer ts.Close()
-
-	resp := post(t, ts.URL+"/api/cron/some-job/logs", "application/json", ``)
-	assertStatus(t, resp, http.StatusMethodNotAllowed)
-	_ = resp.Body.Close()
-}
-
 // --- Secret handler tests ---
 
 func TestSecretHandler_ListEmpty(t *testing.T) {
-	dir := setupWorkspace(t)
+	dir := setupHome(t)
 	store, err := secret.NewStore(dir, "test-passphrase")
 	if err != nil {
 		t.Fatalf("create secret store: %v", err)
@@ -729,7 +464,7 @@ func TestSecretHandler_ListEmpty(t *testing.T) {
 }
 
 func TestSecretHandler_CRUD(t *testing.T) {
-	dir := setupWorkspace(t)
+	dir := setupHome(t)
 	store, err := secret.NewStore(dir, "test-passphrase")
 	if err != nil {
 		t.Fatalf("create secret store: %v", err)
@@ -776,7 +511,7 @@ func TestSecretHandler_CRUD(t *testing.T) {
 }
 
 func TestSecretHandler_GetNotFound(t *testing.T) {
-	dir := setupWorkspace(t)
+	dir := setupHome(t)
 	store, err := secret.NewStore(dir, "test-passphrase")
 	if err != nil {
 		t.Fatalf("create secret store: %v", err)
@@ -792,7 +527,7 @@ func TestSecretHandler_GetNotFound(t *testing.T) {
 }
 
 func TestSecretHandler_MethodNotAllowed(t *testing.T) {
-	dir := setupWorkspace(t)
+	dir := setupHome(t)
 	store, err := secret.NewStore(dir, "test-passphrase")
 	if err != nil {
 		t.Fatalf("create secret store: %v", err)
@@ -808,7 +543,7 @@ func TestSecretHandler_MethodNotAllowed(t *testing.T) {
 }
 
 func TestSecretHandler_EmptyName(t *testing.T) {
-	dir := setupWorkspace(t)
+	dir := setupHome(t)
 	store, err := secret.NewStore(dir, "test-passphrase")
 	if err != nil {
 		t.Fatalf("create secret store: %v", err)
@@ -824,7 +559,7 @@ func TestSecretHandler_EmptyName(t *testing.T) {
 }
 
 func TestSecretHandler_CreateInvalidBody(t *testing.T) {
-	dir := setupWorkspace(t)
+	dir := setupHome(t)
 	store, err := secret.NewStore(dir, "test-passphrase")
 	if err != nil {
 		t.Fatalf("create secret store: %v", err)
@@ -840,7 +575,7 @@ func TestSecretHandler_CreateInvalidBody(t *testing.T) {
 }
 
 func TestSecretHandler_UpdateInvalidBody(t *testing.T) {
-	dir := setupWorkspace(t)
+	dir := setupHome(t)
 	store, err := secret.NewStore(dir, "test-passphrase")
 	if err != nil {
 		t.Fatalf("create secret store: %v", err)
@@ -856,7 +591,7 @@ func TestSecretHandler_UpdateInvalidBody(t *testing.T) {
 }
 
 func TestSecretHandler_ByNameMethodNotAllowed(t *testing.T) {
-	dir := setupWorkspace(t)
+	dir := setupHome(t)
 	store, err := secret.NewStore(dir, "test-passphrase")
 	if err != nil {
 		t.Fatalf("create secret store: %v", err)
@@ -874,7 +609,7 @@ func TestSecretHandler_ByNameMethodNotAllowed(t *testing.T) {
 // --- MCP handler tests ---
 
 func TestMCPHandler_ListEmpty(t *testing.T) {
-	dir := setupWorkspaceWithDB(t)
+	dir := setupHomeWithDB(t)
 	store, err := mcp.NewStore(openWSDB(t, dir))
 	if err != nil {
 		t.Fatalf("create mcp store: %v", err)
@@ -894,7 +629,7 @@ func TestMCPHandler_ListEmpty(t *testing.T) {
 }
 
 func TestMCPHandler_CRUD(t *testing.T) {
-	dir := setupWorkspaceWithDB(t)
+	dir := setupHomeWithDB(t)
 	store, err := mcp.NewStore(openWSDB(t, dir))
 	if err != nil {
 		t.Fatalf("create mcp store: %v", err)
@@ -947,7 +682,7 @@ func TestMCPHandler_CRUD(t *testing.T) {
 }
 
 func TestMCPHandler_GetNotFound(t *testing.T) {
-	dir := setupWorkspaceWithDB(t)
+	dir := setupHomeWithDB(t)
 	store, err := mcp.NewStore(openWSDB(t, dir))
 	if err != nil {
 		t.Fatalf("create mcp store: %v", err)
@@ -963,7 +698,7 @@ func TestMCPHandler_GetNotFound(t *testing.T) {
 }
 
 func TestMCPHandler_MethodNotAllowed(t *testing.T) {
-	dir := setupWorkspaceWithDB(t)
+	dir := setupHomeWithDB(t)
 	store, err := mcp.NewStore(openWSDB(t, dir))
 	if err != nil {
 		t.Fatalf("create mcp store: %v", err)
@@ -979,7 +714,7 @@ func TestMCPHandler_MethodNotAllowed(t *testing.T) {
 }
 
 func TestMCPHandler_EmptyName(t *testing.T) {
-	dir := setupWorkspaceWithDB(t)
+	dir := setupHomeWithDB(t)
 	store, err := mcp.NewStore(openWSDB(t, dir))
 	if err != nil {
 		t.Fatalf("create mcp store: %v", err)
@@ -995,7 +730,7 @@ func TestMCPHandler_EmptyName(t *testing.T) {
 }
 
 func TestMCPHandler_UnknownSub(t *testing.T) {
-	dir := setupWorkspaceWithDB(t)
+	dir := setupHomeWithDB(t)
 	store, err := mcp.NewStore(openWSDB(t, dir))
 	if err != nil {
 		t.Fatalf("create mcp store: %v", err)
@@ -1015,7 +750,7 @@ func TestMCPHandler_UnknownSub(t *testing.T) {
 }
 
 func TestMCPHandler_CreateInvalidBody(t *testing.T) {
-	dir := setupWorkspaceWithDB(t)
+	dir := setupHomeWithDB(t)
 	store, err := mcp.NewStore(openWSDB(t, dir))
 	if err != nil {
 		t.Fatalf("create mcp store: %v", err)
@@ -1031,7 +766,7 @@ func TestMCPHandler_CreateInvalidBody(t *testing.T) {
 }
 
 func TestMCPHandler_ServerMethodNotAllowed(t *testing.T) {
-	dir := setupWorkspaceWithDB(t)
+	dir := setupHomeWithDB(t)
 	store, err := mcp.NewStore(openWSDB(t, dir))
 	if err != nil {
 		t.Fatalf("create mcp store: %v", err)
@@ -1053,7 +788,7 @@ func TestMCPHandler_ServerMethodNotAllowed(t *testing.T) {
 }
 
 func TestMCPHandler_EnableMethodNotAllowed(t *testing.T) {
-	dir := setupWorkspaceWithDB(t)
+	dir := setupHomeWithDB(t)
 	store, err := mcp.NewStore(openWSDB(t, dir))
 	if err != nil {
 		t.Fatalf("create mcp store: %v", err)
@@ -1071,7 +806,7 @@ func TestMCPHandler_EnableMethodNotAllowed(t *testing.T) {
 // --- Tool handler tests ---
 
 func TestToolHandler_List(t *testing.T) {
-	dir := setupWorkspaceWithDB(t)
+	dir := setupHomeWithDB(t)
 	store := tool.NewStore(openWSDB(t, dir))
 	if err := store.Open(); err != nil {
 		t.Fatalf("open tool store: %v", err)
@@ -1089,7 +824,7 @@ func TestToolHandler_List(t *testing.T) {
 }
 
 func TestToolHandler_GetNotFound(t *testing.T) {
-	dir := setupWorkspaceWithDB(t)
+	dir := setupHomeWithDB(t)
 	store := tool.NewStore(openWSDB(t, dir))
 	if err := store.Open(); err != nil {
 		t.Fatalf("open tool store: %v", err)
@@ -1105,7 +840,7 @@ func TestToolHandler_GetNotFound(t *testing.T) {
 }
 
 func TestToolHandler_MethodNotAllowed(t *testing.T) {
-	dir := setupWorkspaceWithDB(t)
+	dir := setupHomeWithDB(t)
 	store := tool.NewStore(openWSDB(t, dir))
 	if err := store.Open(); err != nil {
 		t.Fatalf("open tool store: %v", err)
@@ -1123,7 +858,7 @@ func TestToolHandler_MethodNotAllowed(t *testing.T) {
 }
 
 func TestToolHandler_EmptyName(t *testing.T) {
-	dir := setupWorkspaceWithDB(t)
+	dir := setupHomeWithDB(t)
 	store := tool.NewStore(openWSDB(t, dir))
 	if err := store.Open(); err != nil {
 		t.Fatalf("open tool store: %v", err)
@@ -1139,7 +874,7 @@ func TestToolHandler_EmptyName(t *testing.T) {
 }
 
 func TestToolHandler_UnknownSub(t *testing.T) {
-	dir := setupWorkspaceWithDB(t)
+	dir := setupHomeWithDB(t)
 	store := tool.NewStore(openWSDB(t, dir))
 	if err := store.Open(); err != nil {
 		t.Fatalf("open tool store: %v", err)
@@ -1155,7 +890,7 @@ func TestToolHandler_UnknownSub(t *testing.T) {
 }
 
 func TestToolHandler_EnableDisableMethodNotAllowed(t *testing.T) {
-	dir := setupWorkspaceWithDB(t)
+	dir := setupHomeWithDB(t)
 	store := tool.NewStore(openWSDB(t, dir))
 	if err := store.Open(); err != nil {
 		t.Fatalf("open tool store: %v", err)
@@ -1171,7 +906,7 @@ func TestToolHandler_EnableDisableMethodNotAllowed(t *testing.T) {
 }
 
 func TestToolHandler_PutInvalidBody(t *testing.T) {
-	dir := setupWorkspaceWithDB(t)
+	dir := setupHomeWithDB(t)
 	store := tool.NewStore(openWSDB(t, dir))
 	if err := store.Open(); err != nil {
 		t.Fatalf("open tool store: %v", err)
@@ -1187,7 +922,7 @@ func TestToolHandler_PutInvalidBody(t *testing.T) {
 }
 
 func TestToolHandler_ToolMethodNotAllowed(t *testing.T) {
-	dir := setupWorkspaceWithDB(t)
+	dir := setupHomeWithDB(t)
 	store := tool.NewStore(openWSDB(t, dir))
 	if err := store.Open(); err != nil {
 		t.Fatalf("open tool store: %v", err)
@@ -1207,7 +942,7 @@ func TestToolHandler_ToolMethodNotAllowed(t *testing.T) {
 // --- Event handler tests ---
 
 func TestEventHandler_ListEmpty(t *testing.T) {
-	dir := setupWorkspaceWithDB(t)
+	dir := setupHomeWithDB(t)
 	store, _ := events.NewSQLiteLog(openWSSQLite(t, dir))
 	t.Cleanup(func() { _ = store.Close() })
 
@@ -1224,7 +959,7 @@ func TestEventHandler_ListEmpty(t *testing.T) {
 }
 
 func TestEventHandler_AppendAndList(t *testing.T) {
-	dir := setupWorkspaceWithDB(t)
+	dir := setupHomeWithDB(t)
 	store, _ := events.NewSQLiteLog(openWSSQLite(t, dir))
 	t.Cleanup(func() { _ = store.Close() })
 
@@ -1252,7 +987,7 @@ func TestEventHandler_AppendAndList(t *testing.T) {
 }
 
 func TestEventHandler_ByAgent(t *testing.T) {
-	dir := setupWorkspaceWithDB(t)
+	dir := setupHomeWithDB(t)
 	store, _ := events.NewSQLiteLog(openWSSQLite(t, dir))
 	t.Cleanup(func() { _ = store.Close() })
 
@@ -1279,7 +1014,7 @@ func TestEventHandler_ByAgent(t *testing.T) {
 }
 
 func TestEventHandler_MethodNotAllowed(t *testing.T) {
-	dir := setupWorkspaceWithDB(t)
+	dir := setupHomeWithDB(t)
 	store, _ := events.NewSQLiteLog(openWSSQLite(t, dir))
 	t.Cleanup(func() { _ = store.Close() })
 
@@ -1292,7 +1027,7 @@ func TestEventHandler_MethodNotAllowed(t *testing.T) {
 }
 
 func TestEventHandler_AppendInvalidBody(t *testing.T) {
-	dir := setupWorkspaceWithDB(t)
+	dir := setupHomeWithDB(t)
 	store, _ := events.NewSQLiteLog(openWSSQLite(t, dir))
 	t.Cleanup(func() { _ = store.Close() })
 
@@ -1305,7 +1040,7 @@ func TestEventHandler_AppendInvalidBody(t *testing.T) {
 }
 
 func TestEventHandler_EmptyAgentName(t *testing.T) {
-	dir := setupWorkspaceWithDB(t)
+	dir := setupHomeWithDB(t)
 	store, _ := events.NewSQLiteLog(openWSSQLite(t, dir))
 	t.Cleanup(func() { _ = store.Close() })
 
@@ -1318,7 +1053,7 @@ func TestEventHandler_EmptyAgentName(t *testing.T) {
 }
 
 func TestEventHandler_ByAgentMethodNotAllowed(t *testing.T) {
-	dir := setupWorkspaceWithDB(t)
+	dir := setupHomeWithDB(t)
 	store, _ := events.NewSQLiteLog(openWSSQLite(t, dir))
 	t.Cleanup(func() { _ = store.Close() })
 
@@ -1333,13 +1068,13 @@ func TestEventHandler_ByAgentMethodNotAllowed(t *testing.T) {
 // --- Doctor handler tests ---
 
 func TestDoctorHandler_RunAll(t *testing.T) {
-	dir := setupWorkspace(t)
-	wks, err := workspace.Load(dir)
+	dir := setupHome(t)
+	wks, err := home.Load(dir)
 	if err != nil {
-		t.Fatalf("load workspace: %v", err)
+		t.Fatalf("load home: %v", err)
 	}
 
-	ts := buildTestServerWithServices(t, server.Services{WS: wks})
+	ts := buildTestServerWithServices(t, server.Services{Home: wks})
 	defer ts.Close()
 
 	resp := get(t, ts.URL+"/api/doctor")
@@ -1352,28 +1087,28 @@ func TestDoctorHandler_RunAll(t *testing.T) {
 }
 
 func TestDoctorHandler_ByCategory(t *testing.T) {
-	dir := setupWorkspace(t)
-	wks, err := workspace.Load(dir)
+	dir := setupHome(t)
+	wks, err := home.Load(dir)
 	if err != nil {
-		t.Fatalf("load workspace: %v", err)
+		t.Fatalf("load home: %v", err)
 	}
 
-	ts := buildTestServerWithServices(t, server.Services{WS: wks})
+	ts := buildTestServerWithServices(t, server.Services{Home: wks})
 	defer ts.Close()
 
-	resp := get(t, ts.URL+"/api/doctor/workspace")
+	resp := get(t, ts.URL+"/api/doctor/home")
 	assertStatus(t, resp, http.StatusOK)
 	_ = resp.Body.Close()
 }
 
 func TestDoctorHandler_UnknownCategory(t *testing.T) {
-	dir := setupWorkspace(t)
-	wks, err := workspace.Load(dir)
+	dir := setupHome(t)
+	wks, err := home.Load(dir)
 	if err != nil {
-		t.Fatalf("load workspace: %v", err)
+		t.Fatalf("load home: %v", err)
 	}
 
-	ts := buildTestServerWithServices(t, server.Services{WS: wks})
+	ts := buildTestServerWithServices(t, server.Services{Home: wks})
 	defer ts.Close()
 
 	resp := get(t, ts.URL+"/api/doctor/nonexistent")
@@ -1382,13 +1117,13 @@ func TestDoctorHandler_UnknownCategory(t *testing.T) {
 }
 
 func TestDoctorHandler_EmptyCategory(t *testing.T) {
-	dir := setupWorkspace(t)
-	wks, err := workspace.Load(dir)
+	dir := setupHome(t)
+	wks, err := home.Load(dir)
 	if err != nil {
-		t.Fatalf("load workspace: %v", err)
+		t.Fatalf("load home: %v", err)
 	}
 
-	ts := buildTestServerWithServices(t, server.Services{WS: wks})
+	ts := buildTestServerWithServices(t, server.Services{Home: wks})
 	defer ts.Close()
 
 	resp := get(t, ts.URL+"/api/doctor/")
@@ -1397,13 +1132,13 @@ func TestDoctorHandler_EmptyCategory(t *testing.T) {
 }
 
 func TestDoctorHandler_MethodNotAllowed(t *testing.T) {
-	dir := setupWorkspace(t)
-	wks, err := workspace.Load(dir)
+	dir := setupHome(t)
+	wks, err := home.Load(dir)
 	if err != nil {
-		t.Fatalf("load workspace: %v", err)
+		t.Fatalf("load home: %v", err)
 	}
 
-	ts := buildTestServerWithServices(t, server.Services{WS: wks})
+	ts := buildTestServerWithServices(t, server.Services{Home: wks})
 	defer ts.Close()
 
 	resp := post(t, ts.URL+"/api/doctor", "application/json", `{}`)
@@ -1412,16 +1147,16 @@ func TestDoctorHandler_MethodNotAllowed(t *testing.T) {
 }
 
 func TestDoctorHandler_ByCategoryMethodNotAllowed(t *testing.T) {
-	dir := setupWorkspace(t)
-	wks, err := workspace.Load(dir)
+	dir := setupHome(t)
+	wks, err := home.Load(dir)
 	if err != nil {
-		t.Fatalf("load workspace: %v", err)
+		t.Fatalf("load home: %v", err)
 	}
 
-	ts := buildTestServerWithServices(t, server.Services{WS: wks})
+	ts := buildTestServerWithServices(t, server.Services{Home: wks})
 	defer ts.Close()
 
-	resp := post(t, ts.URL+"/api/doctor/workspace", "application/json", `{}`)
+	resp := post(t, ts.URL+"/api/doctor/home", "application/json", `{}`)
 	assertStatus(t, resp, http.StatusMethodNotAllowed)
 	_ = resp.Body.Close()
 }
@@ -1429,13 +1164,13 @@ func TestDoctorHandler_ByCategoryMethodNotAllowed(t *testing.T) {
 // --- Roles handler tests ---
 
 func TestRolesHandler_ListRoles(t *testing.T) {
-	dir := setupWorkspace(t)
-	wks, err := workspace.Load(dir)
+	dir := setupHome(t)
+	wks, err := home.Load(dir)
 	if err != nil {
-		t.Fatalf("load workspace: %v", err)
+		t.Fatalf("load home: %v", err)
 	}
 
-	ts := buildTestServerWithServices(t, server.Services{WS: wks})
+	ts := buildTestServerWithServices(t, server.Services{Home: wks})
 	defer ts.Close()
 
 	resp := get(t, ts.URL+"/api/roles")
@@ -1444,13 +1179,13 @@ func TestRolesHandler_ListRoles(t *testing.T) {
 }
 
 func TestRolesHandler_CreateAndGetRole(t *testing.T) {
-	dir := setupWorkspace(t)
-	wks, err := workspace.Load(dir)
+	dir := setupHome(t)
+	wks, err := home.Load(dir)
 	if err != nil {
-		t.Fatalf("load workspace: %v", err)
+		t.Fatalf("load home: %v", err)
 	}
 
-	ts := buildTestServerWithServices(t, server.Services{WS: wks})
+	ts := buildTestServerWithServices(t, server.Services{Home: wks})
 	defer ts.Close()
 
 	// Create
@@ -1477,13 +1212,13 @@ func TestRolesHandler_CreateAndGetRole(t *testing.T) {
 }
 
 func TestRolesHandler_CreateDuplicate(t *testing.T) {
-	dir := setupWorkspace(t)
-	wks, err := workspace.Load(dir)
+	dir := setupHome(t)
+	wks, err := home.Load(dir)
 	if err != nil {
-		t.Fatalf("load workspace: %v", err)
+		t.Fatalf("load home: %v", err)
 	}
 
-	ts := buildTestServerWithServices(t, server.Services{WS: wks})
+	ts := buildTestServerWithServices(t, server.Services{Home: wks})
 	defer ts.Close()
 
 	resp := post(t, ts.URL+"/api/roles", "application/json",
@@ -1498,13 +1233,13 @@ func TestRolesHandler_CreateDuplicate(t *testing.T) {
 }
 
 func TestRolesHandler_CreateMissingName(t *testing.T) {
-	dir := setupWorkspace(t)
-	wks, err := workspace.Load(dir)
+	dir := setupHome(t)
+	wks, err := home.Load(dir)
 	if err != nil {
-		t.Fatalf("load workspace: %v", err)
+		t.Fatalf("load home: %v", err)
 	}
 
-	ts := buildTestServerWithServices(t, server.Services{WS: wks})
+	ts := buildTestServerWithServices(t, server.Services{Home: wks})
 	defer ts.Close()
 
 	resp := post(t, ts.URL+"/api/roles", "application/json",
@@ -1514,13 +1249,13 @@ func TestRolesHandler_CreateMissingName(t *testing.T) {
 }
 
 func TestRolesHandler_GetNotFound(t *testing.T) {
-	dir := setupWorkspace(t)
-	wks, err := workspace.Load(dir)
+	dir := setupHome(t)
+	wks, err := home.Load(dir)
 	if err != nil {
-		t.Fatalf("load workspace: %v", err)
+		t.Fatalf("load home: %v", err)
 	}
 
-	ts := buildTestServerWithServices(t, server.Services{WS: wks})
+	ts := buildTestServerWithServices(t, server.Services{Home: wks})
 	defer ts.Close()
 
 	resp := get(t, ts.URL+"/api/roles/nonexistent")
@@ -1529,13 +1264,13 @@ func TestRolesHandler_GetNotFound(t *testing.T) {
 }
 
 func TestRolesHandler_MethodNotAllowed(t *testing.T) {
-	dir := setupWorkspace(t)
-	wks, err := workspace.Load(dir)
+	dir := setupHome(t)
+	wks, err := home.Load(dir)
 	if err != nil {
-		t.Fatalf("load workspace: %v", err)
+		t.Fatalf("load home: %v", err)
 	}
 
-	ts := buildTestServerWithServices(t, server.Services{WS: wks})
+	ts := buildTestServerWithServices(t, server.Services{Home: wks})
 	defer ts.Close()
 
 	resp := doRequest(t, http.MethodPatch, ts.URL+"/api/roles", "application/json", `{}`)
@@ -1544,13 +1279,13 @@ func TestRolesHandler_MethodNotAllowed(t *testing.T) {
 }
 
 func TestRolesHandler_EmptyName(t *testing.T) {
-	dir := setupWorkspace(t)
-	wks, err := workspace.Load(dir)
+	dir := setupHome(t)
+	wks, err := home.Load(dir)
 	if err != nil {
-		t.Fatalf("load workspace: %v", err)
+		t.Fatalf("load home: %v", err)
 	}
 
-	ts := buildTestServerWithServices(t, server.Services{WS: wks})
+	ts := buildTestServerWithServices(t, server.Services{Home: wks})
 	defer ts.Close()
 
 	resp := get(t, ts.URL+"/api/roles/")
@@ -1559,13 +1294,13 @@ func TestRolesHandler_EmptyName(t *testing.T) {
 }
 
 func TestRolesHandler_CreateInvalidBody(t *testing.T) {
-	dir := setupWorkspace(t)
-	wks, err := workspace.Load(dir)
+	dir := setupHome(t)
+	wks, err := home.Load(dir)
 	if err != nil {
-		t.Fatalf("load workspace: %v", err)
+		t.Fatalf("load home: %v", err)
 	}
 
-	ts := buildTestServerWithServices(t, server.Services{WS: wks})
+	ts := buildTestServerWithServices(t, server.Services{Home: wks})
 	defer ts.Close()
 
 	resp := post(t, ts.URL+"/api/roles", "application/json", `{invalid}`)
@@ -1574,13 +1309,13 @@ func TestRolesHandler_CreateInvalidBody(t *testing.T) {
 }
 
 func TestRolesHandler_PutInvalidBody(t *testing.T) {
-	dir := setupWorkspace(t)
-	wks, err := workspace.Load(dir)
+	dir := setupHome(t)
+	wks, err := home.Load(dir)
 	if err != nil {
-		t.Fatalf("load workspace: %v", err)
+		t.Fatalf("load home: %v", err)
 	}
 
-	ts := buildTestServerWithServices(t, server.Services{WS: wks})
+	ts := buildTestServerWithServices(t, server.Services{Home: wks})
 	defer ts.Close()
 
 	// Create the role first
@@ -1594,13 +1329,13 @@ func TestRolesHandler_PutInvalidBody(t *testing.T) {
 }
 
 func TestRolesHandler_ByNameMethodNotAllowed(t *testing.T) {
-	dir := setupWorkspace(t)
-	wks, err := workspace.Load(dir)
+	dir := setupHome(t)
+	wks, err := home.Load(dir)
 	if err != nil {
-		t.Fatalf("load workspace: %v", err)
+		t.Fatalf("load home: %v", err)
 	}
 
-	ts := buildTestServerWithServices(t, server.Services{WS: wks})
+	ts := buildTestServerWithServices(t, server.Services{Home: wks})
 	defer ts.Close()
 
 	resp := doRequest(t, http.MethodPatch, ts.URL+"/api/roles/test", "application/json", `{}`)
@@ -1669,14 +1404,10 @@ func TestStatsHandler_SummaryMethodNotAllowed(t *testing.T) {
 }
 
 func TestStatsHandler_SummaryWithServices(t *testing.T) {
-	dir := setupWorkspaceWithDB(t)
+	dir := setupHomeWithDB(t)
 
-	// Set up costs
-	costStore := cost.NewStore(dir)
-	if err := costStore.Open(); err != nil {
-		t.Fatalf("open cost store: %v", err)
-	}
-	t.Cleanup(func() { _ = costStore.Close() })
+	// Set up costs (source-direct service over empty sources)
+	costStore := newCostService(t)
 
 	// Set up tools
 	toolStore := tool.NewStore(openWSDB(t, dir))
@@ -1685,16 +1416,16 @@ func TestStatsHandler_SummaryWithServices(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = toolStore.Close() })
 
-	// Set up workspace
-	wks, err := workspace.Load(dir)
+	// Set up home
+	wks, err := home.Load(dir)
 	if err != nil {
-		t.Fatalf("load workspace: %v", err)
+		t.Fatalf("load home: %v", err)
 	}
 
 	ts := buildTestServerWithServices(t, server.Services{
 		Costs: costStore,
 		Tools: toolStore,
-		WS:    wks,
+		Home:  wks,
 	})
 	defer ts.Close()
 
@@ -1702,20 +1433,20 @@ func TestStatsHandler_SummaryWithServices(t *testing.T) {
 	defer func() { _ = resp.Body.Close() }()
 	assertStatus(t, resp, http.StatusOK)
 	body := readJSON(t, resp)
-	// All counts should be 0 for fresh workspace
+	// All counts should be 0 for a fresh home
 	if body["agents_total"] != float64(0) {
 		t.Fatalf("expected agents_total=0, got %v", body["agents_total"])
 	}
 }
 
-func TestStatsHandler_SystemWithWorkspace(t *testing.T) {
-	dir := setupWorkspace(t)
-	wks, err := workspace.Load(dir)
+func TestStatsHandler_SystemWithRepo(t *testing.T) {
+	dir := setupHome(t)
+	wks, err := home.Load(dir)
 	if err != nil {
-		t.Fatalf("load workspace: %v", err)
+		t.Fatalf("load home: %v", err)
 	}
 
-	ts := buildTestServerWithServices(t, server.Services{WS: wks})
+	ts := buildTestServerWithServices(t, server.Services{Home: wks})
 	defer ts.Close()
 
 	resp := get(t, ts.URL+"/api/stats/system")
@@ -1730,8 +1461,8 @@ func TestStatsHandler_SystemWithWorkspace(t *testing.T) {
 // --- Agent handler tests (limited, since AgentService needs real tmux) ---
 
 func TestAgentHandler_ListEmpty(t *testing.T) {
-	dir := setupWorkspace(t)
-	stateDir := filepath.Join(dir, ".bc")
+	dir := setupHome(t)
+	stateDir := filepath.Join(dir, ".mycel")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
 	mgr := agent.NewManager(stateDir)
@@ -1750,8 +1481,8 @@ func TestAgentHandler_ListEmpty(t *testing.T) {
 }
 
 func TestAgentHandler_MethodNotAllowed(t *testing.T) {
-	dir := setupWorkspace(t)
-	stateDir := filepath.Join(dir, ".bc")
+	dir := setupHome(t)
+	stateDir := filepath.Join(dir, ".mycel")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
 	mgr := agent.NewManager(stateDir)
@@ -1766,8 +1497,8 @@ func TestAgentHandler_MethodNotAllowed(t *testing.T) {
 }
 
 func TestAgentHandler_CreateInvalidBody(t *testing.T) {
-	dir := setupWorkspace(t)
-	stateDir := filepath.Join(dir, ".bc")
+	dir := setupHome(t)
+	stateDir := filepath.Join(dir, ".mycel")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
 	mgr := agent.NewManager(stateDir)
@@ -1782,8 +1513,8 @@ func TestAgentHandler_CreateInvalidBody(t *testing.T) {
 }
 
 func TestAgentHandler_GetNotFound(t *testing.T) {
-	dir := setupWorkspace(t)
-	stateDir := filepath.Join(dir, ".bc")
+	dir := setupHome(t)
+	stateDir := filepath.Join(dir, ".mycel")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
 	mgr := agent.NewManager(stateDir)
@@ -1798,8 +1529,8 @@ func TestAgentHandler_GetNotFound(t *testing.T) {
 }
 
 func TestAgentHandler_EmptyName(t *testing.T) {
-	dir := setupWorkspace(t)
-	stateDir := filepath.Join(dir, ".bc")
+	dir := setupHome(t)
+	stateDir := filepath.Join(dir, ".mycel")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
 	mgr := agent.NewManager(stateDir)
@@ -1814,8 +1545,8 @@ func TestAgentHandler_EmptyName(t *testing.T) {
 }
 
 func TestAgentHandler_UnknownAction(t *testing.T) {
-	dir := setupWorkspace(t)
-	stateDir := filepath.Join(dir, ".bc")
+	dir := setupHome(t)
+	stateDir := filepath.Join(dir, ".mycel")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
 	mgr := agent.NewManager(stateDir)
@@ -1830,8 +1561,8 @@ func TestAgentHandler_UnknownAction(t *testing.T) {
 }
 
 func TestAgentHandler_GenerateName(t *testing.T) {
-	dir := setupWorkspace(t)
-	stateDir := filepath.Join(dir, ".bc")
+	dir := setupHome(t)
+	stateDir := filepath.Join(dir, ".mycel")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
 	mgr := agent.NewManager(stateDir)
@@ -1850,8 +1581,8 @@ func TestAgentHandler_GenerateName(t *testing.T) {
 }
 
 func TestAgentHandler_GenerateNameMethodNotAllowed(t *testing.T) {
-	dir := setupWorkspace(t)
-	stateDir := filepath.Join(dir, ".bc")
+	dir := setupHome(t)
+	stateDir := filepath.Join(dir, ".mycel")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
 	mgr := agent.NewManager(stateDir)
@@ -1866,8 +1597,8 @@ func TestAgentHandler_GenerateNameMethodNotAllowed(t *testing.T) {
 }
 
 func TestAgentHandler_BroadcastMethodNotAllowed(t *testing.T) {
-	dir := setupWorkspace(t)
-	stateDir := filepath.Join(dir, ".bc")
+	dir := setupHome(t)
+	stateDir := filepath.Join(dir, ".mycel")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
 	mgr := agent.NewManager(stateDir)
@@ -1882,8 +1613,8 @@ func TestAgentHandler_BroadcastMethodNotAllowed(t *testing.T) {
 }
 
 func TestAgentHandler_BroadcastInvalidBody(t *testing.T) {
-	dir := setupWorkspace(t)
-	stateDir := filepath.Join(dir, ".bc")
+	dir := setupHome(t)
+	stateDir := filepath.Join(dir, ".mycel")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
 	mgr := agent.NewManager(stateDir)
@@ -1898,8 +1629,8 @@ func TestAgentHandler_BroadcastInvalidBody(t *testing.T) {
 }
 
 func TestAgentHandler_SendRoleMethodNotAllowed(t *testing.T) {
-	dir := setupWorkspace(t)
-	stateDir := filepath.Join(dir, ".bc")
+	dir := setupHome(t)
+	stateDir := filepath.Join(dir, ".mycel")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
 	mgr := agent.NewManager(stateDir)
@@ -1914,8 +1645,8 @@ func TestAgentHandler_SendRoleMethodNotAllowed(t *testing.T) {
 }
 
 func TestAgentHandler_SendRoleInvalidBody(t *testing.T) {
-	dir := setupWorkspace(t)
-	stateDir := filepath.Join(dir, ".bc")
+	dir := setupHome(t)
+	stateDir := filepath.Join(dir, ".mycel")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
 	mgr := agent.NewManager(stateDir)
@@ -1930,8 +1661,8 @@ func TestAgentHandler_SendRoleInvalidBody(t *testing.T) {
 }
 
 func TestAgentHandler_SendPatternMethodNotAllowed(t *testing.T) {
-	dir := setupWorkspace(t)
-	stateDir := filepath.Join(dir, ".bc")
+	dir := setupHome(t)
+	stateDir := filepath.Join(dir, ".mycel")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
 	mgr := agent.NewManager(stateDir)
@@ -1946,8 +1677,8 @@ func TestAgentHandler_SendPatternMethodNotAllowed(t *testing.T) {
 }
 
 func TestAgentHandler_SendPatternInvalidBody(t *testing.T) {
-	dir := setupWorkspace(t)
-	stateDir := filepath.Join(dir, ".bc")
+	dir := setupHome(t)
+	stateDir := filepath.Join(dir, ".mycel")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
 	mgr := agent.NewManager(stateDir)
@@ -1962,8 +1693,8 @@ func TestAgentHandler_SendPatternInvalidBody(t *testing.T) {
 }
 
 func TestAgentHandler_StopAllMethodNotAllowed(t *testing.T) {
-	dir := setupWorkspace(t)
-	stateDir := filepath.Join(dir, ".bc")
+	dir := setupHome(t)
+	stateDir := filepath.Join(dir, ".mycel")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
 	mgr := agent.NewManager(stateDir)
@@ -1978,8 +1709,8 @@ func TestAgentHandler_StopAllMethodNotAllowed(t *testing.T) {
 }
 
 func TestAgentHandler_StopAll(t *testing.T) {
-	dir := setupWorkspace(t)
-	stateDir := filepath.Join(dir, ".bc")
+	dir := setupHome(t)
+	stateDir := filepath.Join(dir, ".mycel")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
 	mgr := agent.NewManager(stateDir)
@@ -1998,8 +1729,8 @@ func TestAgentHandler_StopAll(t *testing.T) {
 }
 
 func TestAgentHandler_Broadcast(t *testing.T) {
-	dir := setupWorkspace(t)
-	stateDir := filepath.Join(dir, ".bc")
+	dir := setupHome(t)
+	stateDir := filepath.Join(dir, ".mycel")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
 	mgr := agent.NewManager(stateDir)
@@ -2018,8 +1749,8 @@ func TestAgentHandler_Broadcast(t *testing.T) {
 }
 
 func TestAgentHandler_SendOnNonexistent(t *testing.T) {
-	dir := setupWorkspace(t)
-	stateDir := filepath.Join(dir, ".bc")
+	dir := setupHome(t)
+	stateDir := filepath.Join(dir, ".mycel")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
 	mgr := agent.NewManager(stateDir)
@@ -2034,8 +1765,8 @@ func TestAgentHandler_SendOnNonexistent(t *testing.T) {
 }
 
 func TestAgentHandler_SendInvalidBody(t *testing.T) {
-	dir := setupWorkspace(t)
-	stateDir := filepath.Join(dir, ".bc")
+	dir := setupHome(t)
+	stateDir := filepath.Join(dir, ".mycel")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
 	mgr := agent.NewManager(stateDir)
@@ -2050,8 +1781,8 @@ func TestAgentHandler_SendInvalidBody(t *testing.T) {
 }
 
 func TestAgentHandler_HealthMethodNotAllowed(t *testing.T) {
-	dir := setupWorkspace(t)
-	stateDir := filepath.Join(dir, ".bc")
+	dir := setupHome(t)
+	stateDir := filepath.Join(dir, ".mycel")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
 	mgr := agent.NewManager(stateDir)
@@ -2066,8 +1797,8 @@ func TestAgentHandler_HealthMethodNotAllowed(t *testing.T) {
 }
 
 func TestAgentHandler_HealthEmpty(t *testing.T) {
-	dir := setupWorkspace(t)
-	stateDir := filepath.Join(dir, ".bc")
+	dir := setupHome(t)
+	stateDir := filepath.Join(dir, ".mycel")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
 	mgr := agent.NewManager(stateDir)
@@ -2086,8 +1817,8 @@ func TestAgentHandler_HealthEmpty(t *testing.T) {
 }
 
 func TestAgentHandler_HealthWithTimeout(t *testing.T) {
-	dir := setupWorkspace(t)
-	stateDir := filepath.Join(dir, ".bc")
+	dir := setupHome(t)
+	stateDir := filepath.Join(dir, ".mycel")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
 	mgr := agent.NewManager(stateDir)
@@ -2102,8 +1833,8 @@ func TestAgentHandler_HealthWithTimeout(t *testing.T) {
 }
 
 func TestAgentHandler_StartNonexistent(t *testing.T) {
-	dir := setupWorkspace(t)
-	stateDir := filepath.Join(dir, ".bc")
+	dir := setupHome(t)
+	stateDir := filepath.Join(dir, ".mycel")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
 	mgr := agent.NewManager(stateDir)
@@ -2118,8 +1849,8 @@ func TestAgentHandler_StartNonexistent(t *testing.T) {
 }
 
 func TestAgentHandler_StopNonexistent(t *testing.T) {
-	dir := setupWorkspace(t)
-	stateDir := filepath.Join(dir, ".bc")
+	dir := setupHome(t)
+	stateDir := filepath.Join(dir, ".mycel")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
 	mgr := agent.NewManager(stateDir)
@@ -2134,8 +1865,8 @@ func TestAgentHandler_StopNonexistent(t *testing.T) {
 }
 
 func TestAgentHandler_DeleteNonexistent(t *testing.T) {
-	dir := setupWorkspace(t)
-	stateDir := filepath.Join(dir, ".bc")
+	dir := setupHome(t)
+	stateDir := filepath.Join(dir, ".mycel")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
 	mgr := agent.NewManager(stateDir)
@@ -2150,8 +1881,8 @@ func TestAgentHandler_DeleteNonexistent(t *testing.T) {
 }
 
 func TestAgentHandler_PeekNonexistent(t *testing.T) {
-	dir := setupWorkspace(t)
-	stateDir := filepath.Join(dir, ".bc")
+	dir := setupHome(t)
+	stateDir := filepath.Join(dir, ".mycel")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
 	mgr := agent.NewManager(stateDir)
@@ -2166,8 +1897,8 @@ func TestAgentHandler_PeekNonexistent(t *testing.T) {
 }
 
 func TestAgentHandler_SessionsNonexistent(t *testing.T) {
-	dir := setupWorkspace(t)
-	stateDir := filepath.Join(dir, ".bc")
+	dir := setupHome(t)
+	stateDir := filepath.Join(dir, ".mycel")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
 	mgr := agent.NewManager(stateDir)
@@ -2182,8 +1913,8 @@ func TestAgentHandler_SessionsNonexistent(t *testing.T) {
 }
 
 func TestAgentHandler_RenameInvalidBody(t *testing.T) {
-	dir := setupWorkspace(t)
-	stateDir := filepath.Join(dir, ".bc")
+	dir := setupHome(t)
+	stateDir := filepath.Join(dir, ".mycel")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
 	mgr := agent.NewManager(stateDir)
@@ -2198,8 +1929,8 @@ func TestAgentHandler_RenameInvalidBody(t *testing.T) {
 }
 
 func TestAgentHandler_HookInvalidBody(t *testing.T) {
-	dir := setupWorkspace(t)
-	stateDir := filepath.Join(dir, ".bc")
+	dir := setupHome(t)
+	stateDir := filepath.Join(dir, ".mycel")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
 	mgr := agent.NewManager(stateDir)
@@ -2214,8 +1945,8 @@ func TestAgentHandler_HookInvalidBody(t *testing.T) {
 }
 
 func TestAgentHandler_HookUnknownEvent(t *testing.T) {
-	dir := setupWorkspace(t)
-	stateDir := filepath.Join(dir, ".bc")
+	dir := setupHome(t)
+	stateDir := filepath.Join(dir, ".mycel")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
 	mgr := agent.NewManager(stateDir)
@@ -2230,8 +1961,8 @@ func TestAgentHandler_HookUnknownEvent(t *testing.T) {
 }
 
 func TestAgentHandler_ReportInvalidBody(t *testing.T) {
-	dir := setupWorkspace(t)
-	stateDir := filepath.Join(dir, ".bc")
+	dir := setupHome(t)
+	stateDir := filepath.Join(dir, ".mycel")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
 	mgr := agent.NewManager(stateDir)
@@ -2246,8 +1977,8 @@ func TestAgentHandler_ReportInvalidBody(t *testing.T) {
 }
 
 func TestAgentHandler_ReportInvalidState(t *testing.T) {
-	dir := setupWorkspace(t)
-	stateDir := filepath.Join(dir, ".bc")
+	dir := setupHome(t)
+	stateDir := filepath.Join(dir, ".mycel")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
 	mgr := agent.NewManager(stateDir)
@@ -2270,15 +2001,11 @@ func TestAgentHandler_ReportInvalidState(t *testing.T) {
 // --- Agent handler with cost enrichment ---
 
 func TestAgentHandler_ListWithCosts(t *testing.T) {
-	dir := setupWorkspace(t)
-	stateDir := filepath.Join(dir, ".bc")
+	dir := setupHome(t)
+	stateDir := filepath.Join(dir, ".mycel")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
-	costStore := cost.NewStore(dir)
-	if err := costStore.Open(); err != nil {
-		t.Fatalf("open cost store: %v", err)
-	}
-	t.Cleanup(func() { _ = costStore.Close() })
+	costStore := newCostService(t)
 
 	mgr := agent.NewManager(stateDir)
 	svc := agent.NewAgentService(mgr, nil, nil)
@@ -2291,20 +2018,20 @@ func TestAgentHandler_ListWithCosts(t *testing.T) {
 	_ = resp.Body.Close()
 }
 
-func TestAgentHandler_ListWithWorkspace(t *testing.T) {
-	dir := setupWorkspace(t)
-	stateDir := filepath.Join(dir, ".bc")
+func TestAgentHandler_ListWithRepo(t *testing.T) {
+	dir := setupHome(t)
+	stateDir := filepath.Join(dir, ".mycel")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
-	wks, err := workspace.Load(dir)
+	wks, err := home.Load(dir)
 	if err != nil {
-		t.Fatalf("load workspace: %v", err)
+		t.Fatalf("load home: %v", err)
 	}
 
 	mgr := agent.NewManager(stateDir)
 	svc := agent.NewAgentService(mgr, nil, nil)
 
-	ts := buildTestServerWithServices(t, server.Services{Agents: svc, WS: wks})
+	ts := buildTestServerWithServices(t, server.Services{Agents: svc, Home: wks})
 	defer ts.Close()
 
 	resp := get(t, ts.URL+"/api/agents")
@@ -2313,8 +2040,8 @@ func TestAgentHandler_ListWithWorkspace(t *testing.T) {
 }
 
 func TestAgentHandler_ListPagination(t *testing.T) {
-	dir := setupWorkspace(t)
-	stateDir := filepath.Join(dir, ".bc")
+	dir := setupHome(t)
+	stateDir := filepath.Join(dir, ".mycel")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
 	mgr := agent.NewManager(stateDir)
@@ -2335,7 +2062,7 @@ func TestAgentHandler_ListPagination(t *testing.T) {
 // --- Tool CRUD via API ---
 
 func TestToolHandler_CRUD(t *testing.T) {
-	dir := setupWorkspaceWithDB(t)
+	dir := setupHomeWithDB(t)
 	store := tool.NewStore(openWSDB(t, dir))
 	if err := store.Open(); err != nil {
 		t.Fatalf("open tool store: %v", err)
@@ -2391,14 +2118,7 @@ func TestToolHandler_CRUD(t *testing.T) {
 // --- Cost handler: budget valid periods ---
 
 func TestCostHandler_Budgets_AllPeriods(t *testing.T) {
-	dir := setupWorkspace(t)
-	store := cost.NewStore(dir)
-	if err := store.Open(); err != nil {
-		t.Fatalf("open cost store: %v", err)
-	}
-	t.Cleanup(func() { _ = store.Close() })
-
-	ts := buildTestServerWithServices(t, server.Services{Costs: store})
+	ts := buildTestServerWithServices(t, server.Services{Costs: newCostService(t)})
 	defer ts.Close()
 
 	for _, period := range []string{"daily", "weekly", "monthly"} {
@@ -2414,8 +2134,8 @@ func TestCostHandler_Budgets_AllPeriods(t *testing.T) {
 // --- Agent handler: stats endpoint ---
 
 func TestAgentHandler_StatsNonexistent(t *testing.T) {
-	dir := setupWorkspace(t)
-	stateDir := filepath.Join(dir, ".bc")
+	dir := setupHome(t)
+	stateDir := filepath.Join(dir, ".mycel")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
 	mgr := agent.NewManager(stateDir)
@@ -2433,8 +2153,8 @@ func TestAgentHandler_StatsNonexistent(t *testing.T) {
 }
 
 func TestAgentHandler_StatsWithLimit(t *testing.T) {
-	dir := setupWorkspace(t)
-	stateDir := filepath.Join(dir, ".bc")
+	dir := setupHome(t)
+	stateDir := filepath.Join(dir, ".mycel")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
 	mgr := agent.NewManager(stateDir)
@@ -2451,8 +2171,8 @@ func TestAgentHandler_StatsWithLimit(t *testing.T) {
 // --- Agent health with agent filter ---
 
 func TestAgentHandler_HealthWithFilter(t *testing.T) {
-	dir := setupWorkspace(t)
-	stateDir := filepath.Join(dir, ".bc")
+	dir := setupHome(t)
+	stateDir := filepath.Join(dir, ".mycel")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
 	mgr := agent.NewManager(stateDir)
@@ -2494,12 +2214,12 @@ func TestCORSMiddlewareDefault(t *testing.T) {
 // --- Agent handler: create agent (exercises success paths) ---
 
 func TestAgentHandler_CreateAgent(t *testing.T) {
-	dir := setupWorkspace(t)
-	stateDir := filepath.Join(dir, ".bc")
+	dir := setupHome(t)
+	stateDir := filepath.Join(dir, ".mycel")
 	_ = os.MkdirAll(filepath.Join(stateDir, "agents"), 0750)
 
-	// Use NewWorkspaceManager so worktreeMgr is initialized and doesn't panic.
-	mgr := agent.NewWorkspaceManager(stateDir, dir)
+	// Use NewManagerWithRepo so worktreeMgr is initialized and doesn't panic.
+	mgr := agent.NewManagerWithRepo(stateDir, dir)
 	svc := agent.NewAgentService(mgr, nil, nil)
 
 	ts := buildTestServerWithServices(t, server.Services{Agents: svc})
@@ -2518,35 +2238,10 @@ func TestAgentHandler_CreateAgent(t *testing.T) {
 
 // --- Settings PUT with invalid section content triggers specific validation ---
 
-// --- Cron handler: get nonexistent job ---
-
-func TestCronHandler_GetNotFound(t *testing.T) {
-	dir := setupWorkspaceWithDB(t)
-	store, err := cron.Open(openWSDB(t, dir))
-	if err != nil {
-		t.Fatalf("open cron store: %v", err)
-	}
-	t.Cleanup(func() { _ = store.Close() })
-
-	ts := buildTestServerWithServices(t, server.Services{Cron: store})
-	defer ts.Close()
-
-	resp := get(t, ts.URL+"/api/cron/nonexistent")
-	assertStatus(t, resp, http.StatusNotFound)
-	_ = resp.Body.Close()
-}
-
 // --- Cost handler: by-resource method not allowed on various sub-resources ---
 
 func TestCostHandler_DailyMethodNotAllowed(t *testing.T) {
-	dir := setupWorkspace(t)
-	store := cost.NewStore(dir)
-	if err := store.Open(); err != nil {
-		t.Fatalf("open cost store: %v", err)
-	}
-	t.Cleanup(func() { _ = store.Close() })
-
-	ts := buildTestServerWithServices(t, server.Services{Costs: store})
+	ts := buildTestServerWithServices(t, server.Services{Costs: newCostService(t)})
 	defer ts.Close()
 
 	resp := post(t, ts.URL+"/api/costs/daily", "application/json", `{}`)
@@ -2555,14 +2250,7 @@ func TestCostHandler_DailyMethodNotAllowed(t *testing.T) {
 }
 
 func TestCostHandler_ProjectMethodNotAllowed(t *testing.T) {
-	dir := setupWorkspace(t)
-	store := cost.NewStore(dir)
-	if err := store.Open(); err != nil {
-		t.Fatalf("open cost store: %v", err)
-	}
-	t.Cleanup(func() { _ = store.Close() })
-
-	ts := buildTestServerWithServices(t, server.Services{Costs: store})
+	ts := buildTestServerWithServices(t, server.Services{Costs: newCostService(t)})
 	defer ts.Close()
 
 	resp := post(t, ts.URL+"/api/costs/project", "application/json", `{}`)
@@ -2571,14 +2259,7 @@ func TestCostHandler_ProjectMethodNotAllowed(t *testing.T) {
 }
 
 func TestCostHandler_AgentDetailMethodNotAllowed(t *testing.T) {
-	dir := setupWorkspace(t)
-	store := cost.NewStore(dir)
-	if err := store.Open(); err != nil {
-		t.Fatalf("open cost store: %v", err)
-	}
-	t.Cleanup(func() { _ = store.Close() })
-
-	ts := buildTestServerWithServices(t, server.Services{Costs: store})
+	ts := buildTestServerWithServices(t, server.Services{Costs: newCostService(t)})
 	defer ts.Close()
 
 	resp := post(t, ts.URL+"/api/costs/agent/test", "application/json", `{}`)
@@ -2587,14 +2268,7 @@ func TestCostHandler_AgentDetailMethodNotAllowed(t *testing.T) {
 }
 
 func TestCostHandler_TeamsMethodNotAllowed(t *testing.T) {
-	dir := setupWorkspace(t)
-	store := cost.NewStore(dir)
-	if err := store.Open(); err != nil {
-		t.Fatalf("open cost store: %v", err)
-	}
-	t.Cleanup(func() { _ = store.Close() })
-
-	ts := buildTestServerWithServices(t, server.Services{Costs: store})
+	ts := buildTestServerWithServices(t, server.Services{Costs: newCostService(t)})
 	defer ts.Close()
 
 	resp := post(t, ts.URL+"/api/costs/teams", "application/json", `{}`)
@@ -2603,14 +2277,7 @@ func TestCostHandler_TeamsMethodNotAllowed(t *testing.T) {
 }
 
 func TestCostHandler_ModelsMethodNotAllowed(t *testing.T) {
-	dir := setupWorkspace(t)
-	store := cost.NewStore(dir)
-	if err := store.Open(); err != nil {
-		t.Fatalf("open cost store: %v", err)
-	}
-	t.Cleanup(func() { _ = store.Close() })
-
-	ts := buildTestServerWithServices(t, server.Services{Costs: store})
+	ts := buildTestServerWithServices(t, server.Services{Costs: newCostService(t)})
 	defer ts.Close()
 
 	resp := post(t, ts.URL+"/api/costs/models", "application/json", `{}`)

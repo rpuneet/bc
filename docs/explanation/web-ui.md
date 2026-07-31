@@ -1,18 +1,17 @@
 # Web Dashboard Architecture
 
-Architecture of the mycel web dashboard — a standalone React SPA served by the mycel server and one of four equal API clients (CLI, TUI, web, MCP agents).
+Architecture of the mycel web dashboard — a standalone React SPA served by the mycel server and one of three equal API clients (CLI, web, MCP agents). It is the only rich UI surface — the desktop app wraps this same SPA in a Wails shell.
 
 ---
 
 ## 1. System Context
 
-The web dashboard is one of four equal API consumers of the mycel server. It has no special access, no elevated privileges, and no server-side rendering. Every operation available in the web UI is available through the same REST + SSE API that the CLI, TUI, and MCP agents use.
+The web dashboard is one of three equal API consumers of the mycel server. It has no special access, no elevated privileges, and no server-side rendering. Every operation available in the web UI is available through the same REST + SSE API that the CLI and MCP agents use.
 
 ```mermaid
 graph TB
     subgraph Clients ["API Clients (equal peers)"]
         CLI["mycel CLI<br/><code>internal/cmd/</code><br/>Go binary, HTTP client"]
-        TUI["TUI<br/><code>tui/src/</code><br/>React/Ink terminal app"]
         Web["Web Dashboard<br/><code>web/src/</code><br/>React SPA in browser"]
         MCP["MCP Agents<br/><code>server/mcp/</code><br/>AI tool servers"]
     end
@@ -30,11 +29,9 @@ graph TB
     end
 
     CLI -->|"HTTP GET/POST"| REST
-    TUI -->|"HTTP GET/POST"| REST
     Web -->|"HTTP GET/POST"| REST
     MCP -->|"HTTP GET/POST"| REST
 
-    TUI -->|"EventSource"| SSE
     Web -->|"EventSource"| SSE
 
     REST --> DB
@@ -46,7 +43,7 @@ graph TB
 
 **Key principle:** The web dashboard is a thin view layer. All business logic, persistence, agent orchestration, and event publishing live in the server. The dashboard only renders state received over HTTP and SSE.
 
-**Key structure:** `web/` is a standalone Vite application — its own `package.json`, its own build, no monorepo UI framework. The only shared package under `packages/` relevant to the UI is `packages/design-tokens` (`@bc/design-tokens`), which holds the canonical Solar Flare palette, typography, and spacing values.
+**Key structure:** `web/` is a standalone Vite application — its own `package.json`, its own build, no monorepo UI framework. The only shared package under `packages/` relevant to the UI is `packages/design-tokens` (`@mycel/design-tokens`), which holds the canonical Solar Flare palette, typography, and spacing values.
 
 ### Tech Stack
 
@@ -95,7 +92,6 @@ Ground truth: `web/src/App.tsx`.
 | `/templates` | `Templates` | Agent/role templates |
 | `/tools` | `Tools` | Provider tooling on the host |
 | `/tools/:provider` | `ProviderDetail` | Single provider detail |
-| `/cron` | `Cron` | Scheduled jobs |
 | `/secrets` | `Secrets` | Secret metadata |
 | `/stats` | `Stats` | Metrics and usage statistics |
 | `/metrics` | `Stats` | Alias for `/stats` |
@@ -109,7 +105,7 @@ Ground truth: `web/src/App.tsx`.
 
 Navigation is defined statically in `web/src/components/Layout.tsx`:
 
-- `MAIN_NAV_ITEMS`: **Live, Agents, Notifications, Code, Templates, Tools, Cron, Secrets, Metrics (`/stats`), Costs**
+- `MAIN_NAV_ITEMS`: **Live, Agents, Notifications, Code, Templates, Tools, Secrets, Metrics (`/stats`), Costs**
 - `UTIL_NAV_ITEMS`: **Settings**
 - `/about` lives in the sidebar footer (next to the theme toggle), not in a nav list; `TITLE_ITEMS` extends the nav lists so it still resolves a document title.
 
@@ -236,7 +232,7 @@ The dashboard ships **three themes**:
 | `light` | Light |
 
 - `ThemeMode = "solar-flare" | "dark" | "light"`; the toggle cycles through all three (`CYCLE` array).
-- Preference persists to `localStorage("bc-theme")`.
+- Preference persists to `localStorage("mycel-theme")`.
 - `applyTheme()` swaps a theme class on the document root; all colors resolve through CSS custom properties.
 
 ### 5.2 Token Layer
@@ -262,7 +258,7 @@ The dashboard ships **three themes**:
 
 The Tailwind config maps `mycel-*` color names to these variables, so components use classes like `bg-mycel-surface`, `text-mycel-accent`, `border-mycel-border` and pick up the active theme automatically.
 
-The canonical palette also lives in `packages/design-tokens` (`@bc/design-tokens`) — colors, semantic mappings, terminal mappings, typography, and spacing — as the shared source for all mycel frontends. The web app's `tokens.css` is the web-side expression of that palette.
+The canonical palette also lives in `packages/design-tokens` (`@mycel/design-tokens`) — colors, semantic mappings, terminal mappings, typography, and spacing — as the shared source for all mycel frontends. The web app's `tokens.css` is the web-side expression of that palette.
 
 ---
 
@@ -276,7 +272,7 @@ web/src/  --vite build-->  web/dist/  --cp-->  server/web/dist/  --go:embed-->  
 
 - `make build-local-web` runs `bun run build` in `web/` and copies `web/dist` to `server/web/dist/`.
 - `server/embed.go` embeds it: `//go:embed web/dist`.
-- `make build-local-bc` builds the web UI first, then the Go binary — always build the web UI before shipping the binary, or the embedded frontend goes stale.
+- `make build-local-mycel` builds the web UI first, then the Go binary — always build the web UI before shipping the binary, or the embedded frontend goes stale.
 - At runtime, `mycel up` serves the SPA at `/`, with API routes under `/api/` taking precedence. Unknown paths fall through to `index.html` so client-side routing works on refresh.
 
 **Dev mode:** `make run-web` starts the Vite dev server with hot reload; `web/vite.config.ts` proxies `/api` to a locally running server (`http://localhost:9375` by default in the proxy config — point a dev server instance there, or adjust).
@@ -291,7 +287,7 @@ web/src/  --vite build-->  web/dist/  --cp-->  server/web/dist/  --go:embed-->  
 | `web/src/App.tsx` | Provider tree, lazy route definitions, 404 |
 | `web/src/components/Layout.tsx` | App shell: sidebar nav (`MAIN_NAV_ITEMS`, `UTIL_NAV_ITEMS`) + content outlet |
 | `web/src/components/ErrorBoundary.tsx` | React error boundary with retry UI |
-| `web/src/context/ThemeContext.tsx` | 3-theme provider, `localStorage("bc-theme")` |
+| `web/src/context/ThemeContext.tsx` | 3-theme provider, `localStorage("mycel-theme")` |
 | `web/src/context/HeaderSlotContext.tsx` | Lets views render content into the shared header |
 | `web/src/api/client.ts` | REST API client (`request<T>` on `/api`) |
 | `web/src/api/types.ts` | API response and SSE event types |
@@ -301,9 +297,8 @@ web/src/  --vite build-->  web/dist/  --cp-->  server/web/dist/  --go:embed-->  
 | `web/src/theme/tokens.css` | `--mycel-*` custom properties for all three themes |
 | `web/tailwind.config.*` | Maps `mycel-*` classes to CSS vars |
 | `web/vite.config.ts` | Dev proxy, build output |
-| `packages/design-tokens/` | `@bc/design-tokens` — shared Solar Flare palette |
+| `packages/design-tokens/` | `@mycel/design-tokens` — shared Solar Flare palette |
 | `server/embed.go` | `//go:embed web/dist` |
 | `server/server.go` | Route registration, static serving, middleware |
 | `server/ws/hub.go` | SSE hub: subscriber management, event broadcast |
 | `docs/explanation/design-system.md` | Solar Flare design system specification |
-| `docs/explanation/tui.md` | TUI architecture (parallel reference) |

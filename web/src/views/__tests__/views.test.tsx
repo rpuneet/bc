@@ -4,11 +4,19 @@ import { MemoryRouter, Routes, Route, useLocation } from "react-router-dom";
 import { HeaderSlotProvider, useHeaderSlotContext } from "../../context/HeaderSlotContext";
 import { Agents } from "../Agents";
 import { AgentDetail, lifecycleDisabled } from "../AgentDetail";
-import { Notifications } from "../Notifications";
+import { CodeBrowser } from "../../components/code/CodeBrowser";
+import { EmptyState } from "../../components/EmptyState";
+import { Apps } from "../Apps";
 import { Tools } from "../Tools";
-import { Live } from "../Live";
-import { Cron } from "../Cron";
-import { Secrets } from "../Secrets";
+import { Home } from "../Home";
+import { CustomKeysSection } from "../../components/apps/CustomKeys";
+
+// Monaco loads its editor bundle from a CDN at mount time — stub it out so
+// CodeBrowser can render under jsdom.
+vi.mock("@monaco-editor/react", () => ({
+  default: () => <div data-testid="monaco-editor" />,
+  DiffEditor: () => <div data-testid="monaco-diff-editor" />,
+}));
 
 const fetchMock = globalThis.fetch as ReturnType<typeof vi.fn>;
 
@@ -264,6 +272,119 @@ describe("AgentDetail tab navigation", () => {
       expect(screen.getByTestId("location").textContent).toBe("/agents/bot-1/code");
     });
   });
+
+  it("code tab embeds the CodeBrowser pinned to the agent worktree", async () => {
+    const treeCalls: string[] = [];
+    fetchMock.mockImplementation((url: RequestInfo | URL) => {
+      const u = String(url);
+      if (u.endsWith("/api/agents/bot-1")) {
+        return jsonResponse({
+          name: "bot-1",
+          role: "engineer",
+          tool: "claude",
+          state: "working",
+          total_cost_usd: 0,
+          created_at: "2026-07-01T00:00:00Z",
+          started_at: "2026-07-01T00:00:00Z",
+          updated_at: "2026-07-01T00:00:00Z",
+        });
+      }
+      if (u.includes("/api/code/tree")) {
+        treeCalls.push(u);
+        // Empty tree → agent has no worktree (or nothing in it).
+        return jsonResponse([]);
+      }
+      return jsonResponse([]);
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/agents/bot-1/code"]}>
+        <HeaderSlotProvider>
+          <HeaderSlotHost />
+          <Routes>
+            <Route path="agents/:name" element={<AgentDetail />} />
+            <Route path="agents/:name/*" element={<AgentDetail />} />
+          </Routes>
+        </HeaderSlotProvider>
+      </MemoryRouter>,
+    );
+
+    // The embedded browser fetched the tree for this agent's worktree.
+    await waitFor(() => {
+      expect(treeCalls.length).toBeGreaterThan(0);
+    });
+    expect(treeCalls[0]).toContain("worktree=bot-1");
+
+    // No worktree → the EmptyState pattern, not the old redirect stub.
+    await waitFor(() => {
+      expect(screen.getByText("No worktree to browse")).toBeInTheDocument();
+    });
+    expect(screen.queryByText("Open in Code view")).not.toBeInTheDocument();
+
+    // The "open full view" affordance links to /code with the worktree pinned.
+    const fullView = screen.getByRole("link", { name: /Full view/ });
+    expect(fullView).toHaveAttribute("href", "/code?worktree=bot-1");
+  });
+});
+
+describe("CodeBrowser", () => {
+  it("renders the file tree with the embedded header controls", async () => {
+    fetchMock.mockImplementation((url: RequestInfo | URL) => {
+      const u = String(url);
+      if (u.includes("/api/code/tree")) {
+        return jsonResponse([
+          { name: "src", path: "src", is_dir: true },
+          { name: "main.go", path: "main.go", is_dir: false, size: 42 },
+        ]);
+      }
+      return jsonResponse([]);
+    });
+
+    render(
+      <MemoryRouter>
+        <CodeBrowser
+          worktree="bot-1"
+          embedded
+          fullViewHref="/code?worktree=bot-1"
+        />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("src")).toBeInTheDocument();
+      expect(screen.getByText("main.go")).toBeInTheDocument();
+    });
+
+    // Embedded header: diff/plain toggle (diff is the default), full-view link.
+    expect(screen.getByRole("button", { name: "Diff" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Plain" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Full view/ })).toHaveAttribute(
+      "href",
+      "/code?worktree=bot-1",
+    );
+    // No worktree dropdown in embedded mode.
+    expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+    // No file selected yet → viewer shows the hint, no Monaco mounted.
+    expect(screen.getByText("Select a file from the tree")).toBeInTheDocument();
+  });
+
+  it("renders the provided emptyState when the worktree has no files", async () => {
+    fetchMock.mockReturnValue(jsonResponse([]));
+
+    render(
+      <MemoryRouter>
+        <CodeBrowser
+          worktree="bot-1"
+          embedded
+          emptyState={<EmptyState title="No worktree to browse" />}
+        />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("No worktree to browse")).toBeInTheDocument();
+    });
+  });
 });
 
 describe("AgentDetail lifecycle controls", () => {
@@ -337,22 +458,76 @@ describe("AgentDetail lifecycle controls", () => {
     expect(stop).toBeEnabled();
     expect(restart).toBeEnabled();
   });
+
+  it("Config tab renders the Apps card with the agent's subscriptions", async () => {
+    fetchMock.mockImplementation((url: RequestInfo | URL) => {
+      const u = String(url);
+      if (u.endsWith("/api/agents/bot-1")) {
+        return jsonResponse({
+          name: "bot-1",
+          role: "engineer",
+          tool: "claude",
+          state: "working",
+          total_cost_usd: 0,
+          created_at: "2026-07-01T00:00:00Z",
+        });
+      }
+      if (u.endsWith("/api/agents/bot-1/config")) {
+        return jsonResponse({
+          system_prompt: "",
+          mcp_servers: [],
+          runtime_backend: "docker",
+          tool: "claude",
+          session: "bot-1",
+          worktree_path: "",
+          created_at: "2026-07-01T00:00:00Z",
+          started_at: "2026-07-01T00:00:00Z",
+        });
+      }
+      if (u.includes("/notify/subscriptions")) {
+        return jsonResponse([
+          { id: 1, channel: "slack:general", agent: "bot-1", mention_only: false, created_at: "2026-07-01T00:00:00Z" },
+        ]);
+      }
+      return jsonResponse([]);
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/agents/bot-1/config"]}>
+        <HeaderSlotProvider>
+          <HeaderSlotHost />
+          <Routes>
+            <Route path="agents/:name" element={<AgentDetail />} />
+            <Route path="agents/:name/*" element={<AgentDetail />} />
+          </Routes>
+        </HeaderSlotProvider>
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("agent-apps-card")).toBeInTheDocument();
+    });
+    // The agent's subscribed channel renders inside the card.
+    await waitFor(() => {
+      expect(screen.getByText("general")).toBeInTheDocument();
+    });
+  });
 });
 
-describe("Notifications", () => {
-  it("renders skeleton loading then empty state when no gateway sources", async () => {
-    // An empty response means no gateway notification sources are connected yet.
+describe("Apps", () => {
+  it("renders skeleton loading then empty state when nothing is connected", async () => {
+    // An empty response means no apps or channels are connected yet.
     fetchMock.mockReturnValue(jsonResponse([]));
-    const { container } = wrap(<Notifications />);
+    const { container } = wrap(<Apps />);
     expectSkeletonLoading(container);
     await waitFor(() => {
-      // The Notifications view shows "Connect your first app" when no gateway sources exist.
+      // The Apps view shows "Connect your first app" when nothing exists.
       expect(screen.getByText("Connect your first app")).toBeInTheDocument();
     });
   });
 
-  it("renders the notifications home hub when no channel is selected", async () => {
-    // Simulate a slack gateway source — the hub lists it grouped by app.
+  it("renders the apps home hub when no channel is selected", async () => {
+    // Simulate a slack channel — the hub lists it grouped by app.
     fetchMock.mockImplementation((url: RequestInfo | URL) => {
       const u = String(url);
       if (u.includes("/notifications/overview")) {
@@ -363,16 +538,23 @@ describe("Notifications", () => {
           json: () => Promise.resolve({ error: "not found" }),
         } as Response);
       }
-      if (u.includes("/api/channels") && !u.includes("/history")) {
+      if (u.includes("/history")) return jsonResponse([]);
+      if (u.includes("/api/apps/channels")) {
         return jsonResponse([
           { name: "slack:general", description: "Gateway channel", members: [], member_count: 0 },
         ]);
       }
+      if (u.includes("/api/apps")) {
+        return jsonResponse({
+          catalog: [{ id: "slack", label: "Slack", auth: "token", multi: false, fields: [], docs: [] }],
+          instances: [{ name: "slack", app: "slack", enabled: true, connected: true, channels: [] }],
+        });
+      }
       return jsonResponse([]);
     });
-    wrap(<Notifications />);
+    wrap(<Apps />);
     await waitFor(() => {
-      // The hub renders the channel row (leaf name) and the connect card.
+      // The hub renders the channel row (leaf name) and the connect pill.
       expect(screen.getByText("general")).toBeInTheDocument();
     });
     expect(screen.getByRole("button", { name: /Connect an app/ })).toBeInTheDocument();
@@ -438,48 +620,22 @@ describe("Tools", () => {
   });
 });
 
-describe("Live", () => {
+describe("Home", () => {
   it("renders without crashing", async () => {
     fetchMock.mockImplementation((url: string) => {
       if (url.includes("/agents")) return jsonResponse([]);
       if (url.includes("/logs")) return jsonResponse([]);
       return jsonResponse([]);
     });
-    wrap(<Live />);
+    wrap(<Home />);
     await waitFor(() => {
       expect(screen.getByText("No activity yet")).toBeInTheDocument();
     });
   });
 });
 
-describe("Cron", () => {
-  it("renders skeleton loading then cron table", async () => {
-    fetchMock.mockReturnValue(
-      jsonResponse([
-        {
-          name: "nightly",
-          schedule: "0 0 * * *",
-          agent_name: "bot",
-          prompt: "",
-          command: "",
-          enabled: true,
-          run_count: 5,
-          last_run: null,
-          next_run: null,
-          created_at: "",
-        },
-      ]),
-    );
-    const { container } = wrap(<Cron />);
-    expectSkeletonLoading(container);
-    await waitFor(() => {
-      expect(screen.getByText(/nightly/)).toBeInTheDocument();
-    });
-  });
-});
-
-describe("Secrets", () => {
-  it("renders skeleton loading then secrets table", async () => {
+describe("CustomKeysSection", () => {
+  it("renders skeleton loading then the custom keys list", async () => {
     fetchMock.mockReturnValue(
       jsonResponse([
         {
@@ -490,11 +646,13 @@ describe("Secrets", () => {
         },
       ]),
     );
-    const { container } = wrap(<Secrets />);
+    const { container } = wrap(<CustomKeysSection />);
     expectSkeletonLoading(container);
     await waitFor(() => {
       expect(screen.getByText("API_KEY")).toBeInTheDocument();
     });
+    // The ${secret:NAME} usage hint renders per key.
+    expect(screen.getByText("${secret:API_KEY}")).toBeInTheDocument();
   });
 });
 

@@ -253,7 +253,7 @@ func TestDeliveryLog(t *testing.T) {
 		}
 	}
 
-	entries, err := store.RecentActivity(ctx, "slack:eng", 3)
+	entries, err := store.RecentActivity(ctx, "slack:eng", 3, 0)
 	if err != nil {
 		t.Fatal(err)
 	}

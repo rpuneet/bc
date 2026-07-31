@@ -10,21 +10,21 @@ import (
 	"github.com/rpuneet/mycel/pkg/agent"
 )
 
-// testBcdHandler is the handler used by the package-level fake bcd server.
-// Tests can swap it via setTestBcdHandler / resetTestBcdHandler to assert
-// against bcd interactions; the default returns 404 for every path so that
-// "no agent found" / "not in workspace" code paths are exercised without
-// reaching a real bcd.
+// testDaemonHandler is the handler used by the package-level fake daemon server.
+// Tests can swap it via setTestDaemonHandler / resetTestDaemonHandler to assert
+// against the daemon interactions; the default returns 404 for every path so that
+// "no agent found" / "not in a repo" code paths are exercised without
+// reaching a real daemon.
 //
-// IMPORTANT: this server protects production bcd from `go test` runs.
+// IMPORTANT: this server protects production the daemon from `go test` runs.
 // Without it, executeIntegrationCmd would resolve MYCEL_DAEMON_ADDR to the
 // real daemon at 127.0.0.1:9374 and hammer it during CI / dev test runs.
-var testBcdHandler atomic.Value // stores http.HandlerFunc
+var testDaemonHandler atomic.Value // stores http.HandlerFunc
 
-func defaultTestBcdHandler() http.HandlerFunc {
+func defaultTestDaemonHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// /health must succeed so newDaemonClient.Ping() doesn't fail
-		// before workspace checks complete.
+		// before repo checks complete.
 		if r.URL.Path == "/health" {
 			w.WriteHeader(http.StatusOK)
 			_, _ = w.Write([]byte(`{"status":"ok"}`))
@@ -34,28 +34,28 @@ func defaultTestBcdHandler() http.HandlerFunc {
 	}
 }
 
-// setTestBcdHandler swaps the active fake-bcd handler for the duration
+// setTestDaemonHandler swaps the active fake-the daemon handler for the duration
 // of the test, restoring the default on cleanup.
-func setTestBcdHandler(t *testing.T, h http.HandlerFunc) {
+func setTestDaemonHandler(t *testing.T, h http.HandlerFunc) {
 	t.Helper()
-	prev := testBcdHandler.Load()
-	testBcdHandler.Store(h)
+	prev := testDaemonHandler.Load()
+	testDaemonHandler.Store(h)
 	t.Cleanup(func() {
 		if prev != nil {
-			testBcdHandler.Store(prev)
+			testDaemonHandler.Store(prev)
 		} else {
-			testBcdHandler.Store(defaultTestBcdHandler())
+			testDaemonHandler.Store(defaultTestDaemonHandler())
 		}
 	})
 }
 
 func TestMain(m *testing.M) {
-	// Start a fake bcd server for the entire test process so no test
-	// accidentally reaches the real bcd. Individual tests can override
-	// the handler via setTestBcdHandler.
-	testBcdHandler.Store(defaultTestBcdHandler())
+	// Start a fake daemon server for the entire test process so no test
+	// accidentally reaches the real daemon. Individual tests can override
+	// the handler via setTestDaemonHandler.
+	testDaemonHandler.Store(defaultTestDaemonHandler())
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		h, _ := testBcdHandler.Load().(http.HandlerFunc)
+		h, _ := testDaemonHandler.Load().(http.HandlerFunc)
 		if h == nil {
 			http.NotFound(w, r)
 			return
@@ -64,14 +64,14 @@ func TestMain(m *testing.M) {
 	}))
 	defer srv.Close()
 
-	// Force the bc client to talk to our fake server, not the real bcd.
+	// Force the mycel client to talk to our fake server, not the real daemon.
 	_ = os.Setenv("MYCEL_DAEMON_ADDR", srv.URL)
 
-	// Clear workspace env vars inherited from the dev's shell so tests
-	// that intentionally chdir to a tmpDir (and expect "not in a bc
+	// Clear repo env vars inherited from the dev's shell so tests
+	// that intentionally chdir to a tmpDir (and expect "not in a mycel
 	// workspace") don't accidentally pick up the developer's MYCEL_WORKSPACE
-	// pointing at the bc repo. Tests that need a workspace set this
-	// explicitly via t.Setenv in setupIntegrationWorkspace.
+	// pointing at the mycel repo. Tests that need a repo set this
+	// explicitly via t.Setenv in setupIntegrationHome.
 	_ = os.Unsetenv("MYCEL_WORKSPACE")
 	_ = os.Unsetenv("MYCEL_AGENT_WORKTREE")
 

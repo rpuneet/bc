@@ -40,7 +40,7 @@ func init() {
 func runStats(cmd *cobra.Command, _ []string) error {
 	ctx := cmd.Context()
 
-	// Try bcd API first (skip when --save is used, as save requires local access)
+	// Try the daemon API first (skip when --save is used, as save requires local access)
 	if !statsSave {
 		c := getClient()
 		summary, apiErr := c.Stats.Summary(ctx)
@@ -50,12 +50,12 @@ func runStats(cmd *cobra.Command, _ []string) error {
 	}
 
 	// Fallback: direct pkg/stats access
-	ws, err := getRepo()
+	h, err := getRepo()
 	if err != nil {
 		return errNoRepo(err)
 	}
 
-	s, err := stats.Load(ws.StateDir())
+	s, err := stats.Load(h.StateDir())
 	if err != nil {
 		return fmt.Errorf("failed to load stats: %w", err)
 	}
@@ -64,7 +64,7 @@ func runStats(cmd *cobra.Command, _ []string) error {
 		if err := s.Save(); err != nil {
 			return fmt.Errorf("failed to save stats: %w", err)
 		}
-		fmt.Println("Stats saved to .bc/stats.json")
+		fmt.Println("Stats saved to .mycel/stats.json")
 	}
 
 	if statsJSON {

@@ -5,7 +5,7 @@ Common issues and solutions for mycel.
 Start with the built-in health checks — they catch most problems automatically:
 
 ```bash
-mycel doctor                 # Full health check (workspace, database, agents, tools, git)
+mycel doctor                 # Full health check (home, database, agents, tools, git)
 mycel doctor check agents    # Check a specific category
 mycel doctor fix             # Auto-fix fixable issues
 mycel doctor fix --dry-run   # Preview fixes first
@@ -63,7 +63,7 @@ make clean && make build-local-mycel
 
 ## Repo & Configuration Issues
 
-### "not in a mycel workspace"
+### "not in a mycel-adopted repo"
 
 **Cause**: Running a repo-scoped mycel command outside a git repo that mycel knows about, or `MYCEL_WORKSPACE` not set.
 
@@ -78,8 +78,8 @@ export MYCEL_WORKSPACE=/path/to/repo
 
 ### Config File Errors
 
-**Cause**: Invalid JSON in `preferences.json` (config lives at
-`~/.mycel/workspaces/<id>/preferences.json`).
+**Cause**: Invalid JSON in `prefs.json` (config lives at
+`~/.mycel/prefs.json`).
 
 **Solution**:
 ```bash
@@ -194,7 +194,7 @@ mycel notify status
 # Verify credentials are present (names only, values stay encrypted)
 mycel secret list
 
-# Restart the server to reconnect gateways
+# Restart the server to reconnect apps
 mycel down && mycel up -d
 ```
 
@@ -210,47 +210,23 @@ pgrep -f mycel
 # Wait a moment, then retry
 ```
 
-## TUI Issues
+## Web UI Issues
 
-### TUI Won't Start
+### Dashboard Won't Open
 
-The TUI opens when you run `mycel` with no arguments and a server is reachable.
+Running `mycel` with no arguments boots the server (if needed) and opens
+the web UI in your browser.
 
 **Causes**:
-1. Node.js or Bun not installed
-2. Terminal too small
+1. The server failed to start (port in use, bad config)
+2. No browser available in the environment
 
 **Solutions**:
 ```bash
-# Check for a JS runtime
-node --version
-bun --version
-
-# Check terminal size (need at least 80x24)
-echo "Columns: $COLUMNS, Lines: $LINES"
+mycel up          # boot in the foreground and read the logs
+mycel status      # confirm the server answers
+open http://localhost:9374
 ```
-
-### Display Garbled
-
-**Cause**: Terminal encoding or color issues.
-
-**Solution**:
-```bash
-# Set proper terminal
-export TERM=xterm-256color
-
-# Disable colors if needed
-NO_COLOR=1 mycel
-```
-
-### Keyboard Shortcuts Not Working
-
-**Cause**: Terminal capturing keys before mycel.
-
-**Solution**:
-- Check if running inside tmux (prefix key conflicts)
-- Try a different terminal emulator
-- Check the keybinding help inside the TUI
 
 ## Git/Worktree Issues
 
@@ -368,7 +344,7 @@ ls -la ~/.mycel/
 sudo chown -R $USER:$USER ~/.mycel/
 ```
 
-### "bcd is not running"
+### "the daemon is not running"
 
 **Cause**: A command needs the mycel server, but it isn't running.
 

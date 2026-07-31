@@ -19,11 +19,11 @@ import (
 	"github.com/rpuneet/mycel/pkg/agent"
 	"github.com/rpuneet/mycel/pkg/cost"
 	"github.com/rpuneet/mycel/pkg/events"
+	"github.com/rpuneet/mycel/pkg/home"
 	"github.com/rpuneet/mycel/pkg/log"
 	"github.com/rpuneet/mycel/pkg/stats"
 	"github.com/rpuneet/mycel/pkg/template"
 	"github.com/rpuneet/mycel/pkg/token"
-	"github.com/rpuneet/mycel/pkg/workspace"
 	"github.com/rpuneet/mycel/server/ws"
 )
 
@@ -91,8 +91,8 @@ func (b *agentEventBroker) publish(agentName string, msg []byte) {
 // AgentHandler handles /api/agents routes.
 type AgentHandler struct {
 	svc        *agent.AgentService
-	costs      *cost.Store
-	ws         *workspace.Workspace
+	costs      *cost.Service
+	home       *home.Home
 	hub        *ws.Hub
 	events     events.EventStore
 	terminal   *TerminalHandler
@@ -102,9 +102,9 @@ type AgentHandler struct {
 }
 
 // NewAgentHandler creates an AgentHandler.
-// costs, ws, hub, and eventStore may be nil; enrichment fields will be omitted when unavailable.
-func NewAgentHandler(svc *agent.AgentService, costs *cost.Store, ws *workspace.Workspace, hub *ws.Hub) *AgentHandler {
-	h := &AgentHandler{svc: svc, costs: costs, ws: ws, hub: hub, broker: newAgentEventBroker()}
+// costs, home, hub, and eventStore may be nil; enrichment fields will be omitted when unavailable.
+func NewAgentHandler(svc *agent.AgentService, costs *cost.Service, home *home.Home, hub *ws.Hub) *AgentHandler {
+	h := &AgentHandler{svc: svc, costs: costs, home: home, hub: hub, broker: newAgentEventBroker()}
 	if svc != nil {
 		// The per-agent SSE broker stays handler-owned; the service invokes
 		// this callback after each successfully ingested hook event so
@@ -236,7 +236,7 @@ func toDTO(a *agent.Agent) agentDTO {
 }
 
 // buildCostMap queries per-agent cost summaries and returns them keyed by agent ID.
-func buildCostMap(ctx context.Context, store *cost.Store) map[string]*cost.Summary {
+func buildCostMap(ctx context.Context, store *cost.Service) map[string]*cost.Summary {
 	summaries, err := store.SummaryByAgent(ctx)
 	if err != nil {
 		return nil
@@ -248,33 +248,25 @@ func buildCostMap(ctx context.Context, store *cost.Store) map[string]*cost.Summa
 	return m
 }
 
-// costForAgent aggregates ledger summaries for an agent. The ledger keys
+// costForAgent looks up the ledger summary for an agent. The ledger keys
 // agent_id by the worktree/session name the transcripts were imported
-// under: bare `<name>` (flat layout) or the legacy `bc-<repoBase>-<name>`.
-// Both candidates are derived exactly from the agent's own name and repo —
-// no suffix scanning, so `web` can never absorb `other-web`'s costs.
-func costForAgent(costMap map[string]*cost.Summary, name, repo string) (costUSD float64, tokens int64, found bool) {
+// under — the bare agent name in the flat layout. The id is derived
+// exactly from the agent's own name — no suffix scanning, so `web` can
+// never absorb `other-web`'s costs.
+func costForAgent(costMap map[string]*cost.Summary, name string) (costUSD float64, tokens int64, found bool) {
 	if name == "" {
 		return 0, 0, false
 	}
-	candidates := []string{name}
-	if repo != "" {
-		candidates = append(candidates, "bc-"+filepath.Base(repo)+"-"+name)
+	if s, ok := costMap[name]; ok {
+		return s.TotalCostUSD, s.TotalTokens, true
 	}
-	for _, id := range candidates {
-		if s, ok := costMap[id]; ok {
-			costUSD += s.TotalCostUSD
-			tokens += s.TotalTokens
-			found = true
-		}
-	}
-	return costUSD, tokens, found
+	return 0, 0, false
 }
 
 func (h *AgentHandler) list(w http.ResponseWriter, r *http.Request) {
 	svc := h.svc
 	costs := h.costs
-	wsRef := h.ws
+	homeRef := h.home
 	switch r.Method {
 	case http.MethodGet:
 		// State is driven by hooks — no polling or reconciler needed.
@@ -296,7 +288,7 @@ func (h *AgentHandler) list(w http.ResponseWriter, r *http.Request) {
 		if costs != nil {
 			costMap := buildCostMap(r.Context(), costs)
 			for i := range dtos {
-				if costUSD, tokens, ok := costForAgent(costMap, dtos[i].Name, dtos[i].Repo); ok {
+				if costUSD, tokens, ok := costForAgent(costMap, dtos[i].Name); ok {
 					dtos[i].TotalCostUSD = costUSD
 					dtos[i].TotalTokens = tokens
 				}
@@ -304,8 +296,11 @@ func (h *AgentHandler) list(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Enrich with token usage from agent JSONL session files.
-		if wsRef != nil {
-			agentsDir := filepath.Join(wsRef.RootDir, ".bc", "agents")
+		if homeRef != nil {
+			agentsDir, agentsDirErr := home.AgentsDir()
+			if agentsDirErr != nil {
+				agentsDir = ""
+			}
 			usages, tokenErr := token.CollectAll(agentsDir)
 			if tokenErr == nil {
 				// Sum per agent across models
@@ -347,10 +342,10 @@ func (h *AgentHandler) list(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Enrich with resolved MCP servers from the agent's role.
-		if wsRef != nil && wsRef.RoleManager != nil {
+		if homeRef != nil && homeRef.RoleManager != nil {
 			for i := range dtos {
 				if dtos[i].Role != "" {
-					resolved, resolveErr := wsRef.RoleManager.ResolveRole(dtos[i].Role)
+					resolved, resolveErr := homeRef.RoleManager.ResolveRole(dtos[i].Role)
 					if resolveErr == nil && len(resolved.MCPServers) > 0 {
 						dtos[i].MCPServers = resolved.MCPServers
 					}
@@ -384,7 +379,7 @@ func (h *AgentHandler) list(w http.ResponseWriter, r *http.Request) {
 			Parent   string            `json:"parent"`
 			Template string            `json:"template,omitempty"`
 			// Repo is the absolute path of the git repo the agent binds
-			// to. Empty defaults to the repo bcd was booted against.
+			// to. Empty defaults to the repo the daemon was booted against.
 			Repo string `json:"repo,omitempty"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -1098,7 +1093,7 @@ func (h *AgentHandler) applyTemplate(svc *agent.AgentService, a *agent.Agent, tm
 	// Write system prompt as CLAUDE.md when the template has one.
 	if prompt != "" {
 		claudePath := filepath.Join(wtDir, "CLAUDE.md")
-		if writeErr := os.WriteFile(claudePath, []byte(prompt), 0600); writeErr != nil { //nolint:gosec // trusted workspace path
+		if writeErr := os.WriteFile(claudePath, []byte(prompt), 0600); writeErr != nil { //nolint:gosec // trusted repo path
 			return fmt.Errorf("write CLAUDE.md: %w", writeErr)
 		}
 		log.Debug("template CLAUDE.md written", "agent", a.Name, "template", tmplName)
@@ -1115,7 +1110,7 @@ func (h *AgentHandler) applyTemplate(svc *agent.AgentService, a *agent.Agent, tm
 
 		// Read existing config; ignore missing file.
 		existing := agentMCPFile{MCPServers: make(map[string]agentMCPEntry)}
-		if raw, readErr := os.ReadFile(mcpPath); readErr == nil { //nolint:gosec // trusted workspace path
+		if raw, readErr := os.ReadFile(mcpPath); readErr == nil { //nolint:gosec // trusted repo path
 			// Best-effort parse; ignore corrupt files.
 			_ = json.Unmarshal(raw, &existing)
 			if existing.MCPServers == nil {
@@ -1136,7 +1131,7 @@ func (h *AgentHandler) applyTemplate(svc *agent.AgentService, a *agent.Agent, tm
 		if marshalErr != nil {
 			return fmt.Errorf("marshal .mcp.json: %w", marshalErr)
 		}
-		if writeErr := os.WriteFile(mcpPath, b, 0600); writeErr != nil { //nolint:gosec // trusted workspace path
+		if writeErr := os.WriteFile(mcpPath, b, 0600); writeErr != nil { //nolint:gosec // trusted repo path
 			return fmt.Errorf("write .mcp.json: %w", writeErr)
 		}
 		log.Debug("template .mcp.json merged", "agent", a.Name, "template", tmplName, "added", added, "total", len(existing.MCPServers))
@@ -1217,7 +1212,7 @@ func readMCPFile(wtDir string) (agentMCPFile, error) {
 	cfg.MCPServers = make(map[string]agentMCPEntry)
 
 	mcpPath := filepath.Join(wtDir, ".mcp.json")
-	data, err := os.ReadFile(mcpPath) //nolint:gosec // trusted workspace path
+	data, err := os.ReadFile(mcpPath) //nolint:gosec // trusted repo path
 	if err != nil {
 		if os.IsNotExist(err) {
 			return cfg, nil
@@ -1271,8 +1266,8 @@ func (h *AgentHandler) listAgentMCPs(w http.ResponseWriter, _ *http.Request, a *
 	}
 
 	// Fall back to role-resolved MCP servers if .mcp.json is empty.
-	if len(servers) == 0 && h.ws != nil && h.ws.RoleManager != nil && string(a.Role) != "" {
-		if resolved, resolveErr := h.ws.RoleManager.ResolveRole(string(a.Role)); resolveErr == nil {
+	if len(servers) == 0 && h.home != nil && h.home.RoleManager != nil && string(a.Role) != "" {
+		if resolved, resolveErr := h.home.RoleManager.ResolveRole(string(a.Role)); resolveErr == nil {
 			for _, name := range resolved.MCPServers {
 				servers = append(servers, mcpServerDTO{Name: name})
 			}

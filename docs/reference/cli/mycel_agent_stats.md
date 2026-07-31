@@ -6,8 +6,8 @@ Show Docker resource stats for an agent
 
 Display recorded Docker CPU and memory stats for an agent.
 
-Stats are collected every 30 s by bcd while the agent is running with a
-Docker runtime backend. They are stored in .bc/bc.db.
+Stats are collected every 30 s by the daemon while the agent is running with a
+Docker runtime backend. They are stored in the global mycel.db.
 
 Examples:
   mycel agent stats eng-01              # Human-readable table

@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/rpuneet/mycel/pkg/home"
 	"github.com/rpuneet/mycel/pkg/provider"
-	"github.com/rpuneet/mycel/pkg/workspace"
 )
 
 // TestGetAgentCommandModel verifies the model reaches the provider's
@@ -44,14 +44,14 @@ func TestGetAgentCommandModel(t *testing.T) {
 	}
 }
 
-// TestGetAgentCommandModelWithOverride verifies the workspace command
+// TestGetAgentCommandModelWithOverride verifies the global command
 // override path still injects a generic --model flag (gated on
 // SafeModelName) via appendSessionFlags.
 func TestGetAgentCommandModelWithOverride(t *testing.T) {
 	m := &Manager{
 		providerRegistry: provider.DefaultRegistry,
-		providersConfig: &workspace.ProvidersConfig{
-			Providers: map[string]workspace.ProviderConfig{
+		providersConfig: &home.ProvidersConfig{
+			Providers: map[string]home.ProviderConfig{
 				"pi": {Command: "pi --provider amazon-bedrock"},
 			},
 		},

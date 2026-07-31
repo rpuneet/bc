@@ -1,4 +1,4 @@
-// Package db provides unified SQLite database management for bc CLI.
+// Package db provides unified SQLite database management for the mycel CLI.
 //
 // This package consolidates SQLite connection management, ensuring consistent
 // configuration across all database operations. It provides:
@@ -34,8 +34,13 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
-
-	_ "github.com/mattn/go-sqlite3" // SQLite driver
+	// The "sqlite3" driver is registered in a build-tagged file:
+	//   - sqlite_cgo.go   (cgo builds)   → github.com/mattn/go-sqlite3 (C driver)
+	//   - sqlite_nocgo.go (nocgo builds) → modernc.org/sqlite (pure Go)
+	// Both register under the name "sqlite3", so sql.Open("sqlite3", …) is
+	// identical on every platform. All PRAGMAs are applied post-open via
+	// db.Exec (see applyPragmas), which is driver-agnostic — this avoids the
+	// divergent DSN pragma syntax between the two drivers.
 )
 
 // DefaultBusyTimeout is the default timeout for SQLite busy handling.
@@ -69,7 +74,7 @@ func DefaultConfig() Config {
 	}
 }
 
-// DB wraps a sql.DB with bc-specific functionality.
+// DB wraps a sql.DB with mycel-specific functionality.
 type DB struct {
 	*sql.DB
 	path   string
@@ -130,30 +135,49 @@ func (d *DB) Path() string {
 	return d.path
 }
 
-// buildConnectionString constructs the SQLite connection string with pragmas.
+// buildConnectionString constructs the SQLite connection string.
+//
+// PRAGMAs are intentionally NOT encoded in the DSN: mattn/go-sqlite3 and
+// modernc.org/sqlite use incompatible DSN pragma syntax, so we apply them
+// post-open via applyPragmas instead (driver-agnostic). The only DSN option
+// we still need is read-only mode, which both drivers accept as `mode=ro`.
 func buildConnectionString(path string, cfg Config) string {
-	params := fmt.Sprintf("?_foreign_keys=on&_journal_mode=WAL&_busy_timeout=%d",
-		cfg.BusyTimeout)
-
 	if cfg.ReadOnly {
-		params += "&mode=ro"
+		// The file: URI form is required for the mode query parameter to be
+		// honored by both drivers.
+		return "file:" + path + "?mode=ro"
 	}
-
-	return path + params
+	return path
 }
 
-// applyPragmas applies performance pragmas to the database.
+// applyPragmas applies connection and performance pragmas to the database.
+//
+// These run as plain PRAGMA statements (not DSN parameters) so the behavior is
+// identical on both the CGO (mattn) and pure-Go (modernc) drivers. With a
+// single-connection pool (see OpenWithConfig) these settings persist for the
+// lifetime of the handle.
 func applyPragmas(db *sql.DB, cfg Config) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	pragmas := fmt.Sprintf(`
-		PRAGMA synchronous = NORMAL;
-		PRAGMA cache_size = -%d;
-		PRAGMA temp_store = MEMORY;
-		PRAGMA mmap_size = 268435456;
-	`, cfg.CacheSize)
+	// Connection-scoped pragmas that are safe on read-only handles too.
+	stmts := []string{
+		"PRAGMA foreign_keys = ON",
+		fmt.Sprintf("PRAGMA busy_timeout = %d", cfg.BusyTimeout),
+		"PRAGMA synchronous = NORMAL",
+		fmt.Sprintf("PRAGMA cache_size = -%d", cfg.CacheSize),
+		"PRAGMA temp_store = MEMORY",
+		"PRAGMA mmap_size = 268435456",
+	}
+	// WAL mutates the database file header, so only set it on writable handles.
+	if !cfg.ReadOnly {
+		stmts = append(stmts, "PRAGMA journal_mode = WAL")
+	}
 
-	_, err := db.ExecContext(ctx, pragmas)
-	return err
+	for _, stmt := range stmts {
+		if _, err := db.ExecContext(ctx, stmt); err != nil {
+			return fmt.Errorf("%s: %w", stmt, err)
+		}
+	}
+	return nil
 }

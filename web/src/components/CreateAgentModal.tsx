@@ -1,10 +1,14 @@
-import { useState, useCallback, useEffect, useRef, memo } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { AgentIcon } from "./agent-ui";
-import type { AgentShape } from "./agent-ui";
+import { motion, AnimatePresence } from "framer-motion";
+import { AgentCharacter, AgentSelect, prefersReducedMotion } from "./agent-ui";
 import { EnvVarsEditor, isValidEnvKey } from "./EnvVarsEditor";
 import type { EnvRow } from "./EnvVarsEditor";
+import { AgentAppsPicker } from "./apps/AgentAppsPicker";
+import { api } from "../api/client";
 import { MONO } from "../utils/typography";
+import { useReadiness } from "../hooks/useReadiness";
+import { CopyButton } from "./CopyButton";
 
 // ── Name generation ───────────────────────────────────────────────────────────
 
@@ -78,11 +82,6 @@ const DEFAULT_TEMPLATES = ["feature-dev", "reviewer", "manager", "blank"];
 const VALID_PROVIDERS = new Set<string>(["claude", "agy", "cursor", "codex", "pi", "openclaw"]);
 const VALID_RUNTIMES = new Set<string>(["docker", "tmux"]);
 
-const SHAPES: AgentShape[] = ["hexagon", "circle", "square"];
-
-// Memoized avatar so CSS animation ticks don't cause parent re-renders
-const MemoAgentIcon = memo(AgentIcon);
-
 const INPUT_CLS =
   "w-full bg-mycel-bg border border-mycel-border rounded-md px-3 py-2 text-sm text-mycel-text " +
   "placeholder:text-mycel-muted outline-none focus:border-mycel-accent transition-colors";
@@ -97,9 +96,6 @@ export function CreateAgentModal({
   defaultCloneFrom = "",
 }: CreateAgentModalProps) {
   const [name, setName] = useState(() => generateName(existingNames));
-  const [shape, setShape] = useState<AgentShape>(
-    () => SHAPES[Math.floor(Math.random() * SHAPES.length)] ?? "hexagon",
-  );
   const [template, setTemplate] = useState("feature-dev");
   const [templates, setTemplates] = useState<string[]>(DEFAULT_TEMPLATES);
   const [provider, setProvider] = useState<Provider>("claude");
@@ -113,6 +109,10 @@ export function CreateAgentModal({
   // ${secret:NAME} references resolved from the vault at spawn.
   const [envOpen, setEnvOpen] = useState(false);
   const [envRows, setEnvRows] = useState<EnvRow[]>([]);
+  // Apps — connected app channels this agent should listen to. The
+  // subscriptions are wired after the agent is created.
+  const [appsOpen, setAppsOpen] = useState(false);
+  const [appChannels, setAppChannels] = useState<Set<string>>(new Set());
   const [cloneFrom, setCloneFrom] = useState("");
   // Repo path the new agent binds to. Defaults to the daemon's default
   // repo (GET /api/repos) once loaded; known repos populate a dropdown.
@@ -128,6 +128,11 @@ export function CreateAgentModal({
   const [candidates, setCandidates] = useState<RepoCandidate[] | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  // Machine readiness for the selected provider/runtime — probed only
+  // while the modal is open. Powers a non-blocking pre-flight warning so
+  // the user isn't surprised by a confusing failure after submitting.
+  const { data: readiness, loaded: readinessLoaded } = useReadiness(open);
 
   const firstInputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
@@ -199,7 +204,6 @@ export function CreateAgentModal({
     if (open && !prevOpenRef.current) {
       const newName = generateName(existingNames);
       setName(newName);
-      setShape(SHAPES[Math.floor(Math.random() * SHAPES.length)] ?? "hexagon");
       setTemplate("feature-dev");
       setProvider("claude");
       setModel("");
@@ -207,6 +211,8 @@ export function CreateAgentModal({
       setTask("");
       setEnvOpen(false);
       setEnvRows([]);
+      setAppsOpen(false);
+      setAppChannels(new Set());
       setSubmitError(null);
       setSubmitting(false);
       // When opened from the Clone action, pre-select the source agent
@@ -330,13 +336,53 @@ export function CreateAgentModal({
         setSubmitting(false);
         return;
       }
+      // Wire the selected app channel subscriptions — best effort; the
+      // agent exists either way and the Config tab can fix any misses.
+      if (appChannels.size > 0) {
+        await Promise.allSettled(
+          [...appChannels].map((channel) => api.subscribe(channel, trimmed, false)),
+        );
+      }
       onClose();
       navigate(`/agents/${encodeURIComponent(trimmed)}`);
     } catch (e) {
       setSubmitError(e instanceof Error ? e.message : "Failed to create agent");
       setSubmitting(false);
     }
-  }, [name, template, provider, model, runtime, task, repo, envRows, existingNames, onClose, navigate]);
+  }, [name, template, provider, model, runtime, task, repo, envRows, appChannels, existingNames, onClose, navigate]);
+
+  // ── Pre-flight readiness warnings ──────────────────────────────────
+  // Surfaced inline before submit so the fix is one copy away. Non-blocking
+  // — the user can still create the agent (deps may have changed since the
+  // probe, or they may plan to install right after).
+  const preflight: { message: string; fix?: string }[] = [];
+  if (readinessLoaded && readiness) {
+    const providerItem = readiness.groups
+      .find((g) => g.id === "providers")
+      ?.items.find((i) => i.key === provider);
+    if (!readiness.providers[provider]) {
+      preflight.push({
+        message: `${providerItem?.label ?? provider} isn't installed on this machine — the agent can't start until it is.`,
+        fix: providerItem?.fix,
+      });
+    }
+    if (!readiness.anyRuntime) {
+      preflight.push({
+        message: "No runtime backend is available (neither tmux nor Docker) — agents cannot start.",
+      });
+    } else if (runtime === "docker" && !readiness.dockerOk) {
+      preflight.push({
+        message: readiness.tmuxOk
+          ? "Docker isn't available, but this agent is set to the Docker runtime — it may fail to start. Switch Runtime to tmux, or start Docker."
+          : "Docker isn't available — start Docker or pick a different runtime.",
+      });
+    } else if (runtime === "tmux" && !readiness.tmuxOk) {
+      preflight.push({
+        message: "tmux wasn't found, but this agent is set to the tmux runtime — it may fail to start.",
+        fix: "brew install tmux  OR  apt install tmux",
+      });
+    }
+  }
 
   if (!open) return null;
 
@@ -374,9 +420,44 @@ export function CreateAgentModal({
 
         {/* Body */}
         <div className="px-5 py-4 flex flex-col gap-4">
-          {/* Shape preview */}
-          <div className="flex justify-center">
-            <MemoAgentIcon shape={shape} state="idle" size={64} tool={provider} />
+          {/* Identity — the character is derived from the name. It
+              regenerates with a soft morph as you type; the regenerate
+              button doubles as "meet a different agent". */}
+          <div
+            className="flex flex-col items-center gap-1"
+            data-testid="agent-identity-preview"
+          >
+            <AnimatePresence mode="popLayout" initial={false}>
+              <motion.div
+                key={name.trim() || "unnamed"}
+                initial={
+                  prefersReducedMotion()
+                    ? { opacity: 0 }
+                    : { opacity: 0, scale: 0.75, rotate: -6 }
+                }
+                animate={
+                  prefersReducedMotion()
+                    ? { opacity: 1 }
+                    : { opacity: 1, scale: 1, rotate: 0 }
+                }
+                exit={
+                  prefersReducedMotion()
+                    ? { opacity: 0 }
+                    : { opacity: 0, scale: 0.85, rotate: 4 }
+                }
+                transition={{ duration: 0.22, ease: [0.34, 1.3, 0.64, 1] }}
+              >
+                <AgentCharacter
+                  name={name.trim() || "unnamed"}
+                  state="idle"
+                  size={96}
+                  tool={provider}
+                />
+              </motion.div>
+            </AnimatePresence>
+            <span className="text-[10px] text-mycel-muted">
+              Every name grows its own character
+            </span>
           </div>
 
           {/* Name + regen */}
@@ -399,7 +480,8 @@ export function CreateAgentModal({
               <button
                 type="button"
                 onClick={handleRegenerate}
-                title="Regenerate name"
+                title="Meet a different agent"
+                aria-label="Meet a different agent"
                 className="shrink-0 flex items-center justify-center w-8 h-8 rounded-md border border-mycel-border bg-mycel-bg text-mycel-muted hover:text-mycel-accent hover:border-mycel-accent transition-colors"
               >
                 <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -410,26 +492,9 @@ export function CreateAgentModal({
             </div>
           </div>
 
-          {/* Shape dropdown */}
-          <div className="flex flex-col gap-1.5">
-            <label className="text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted">
-              Shape
-            </label>
-            <select
-              value={shape}
-              onChange={(e) => setShape(e.target.value as AgentShape)}
-              className={INPUT_CLS}
-              style={{ fontFamily: MONO }}
-            >
-              <option value="hexagon">hexagon</option>
-              <option value="circle">circle</option>
-              <option value="square">square</option>
-            </select>
-          </div>
-
           {/* Repo — required. The repo is a property on the agent:
               every new agent binds to a git repo path. Defaults to the
-              repo bcd was booted against. */}
+              repo the daemon was booted against. */}
           <div className="flex flex-col gap-1.5">
             <label className="text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted">
               Repo <span className="text-mycel-error">*</span>
@@ -571,19 +636,14 @@ export function CreateAgentModal({
                 Clone config from{" "}
                 <span className="normal-case font-normal text-mycel-muted">(optional)</span>
               </label>
-              <select
+              <AgentSelect
+                agents={existingAgents.map((a) => ({ name: a.name, state: a.state, tool: a.tool }))}
                 value={cloneFrom}
-                onChange={(e) => setCloneFrom(e.target.value)}
-                className={INPUT_CLS}
-                style={{ fontFamily: MONO }}
-              >
-                <option value="">— none —</option>
-                {existingAgents.map((a) => (
-                  <option key={a.name} value={a.name}>
-                    {a.name}{a.state ? ` · ${a.state}` : ""}
-                  </option>
-                ))}
-              </select>
+                onChange={setCloneFrom}
+                allowNone
+                placeholder="— none —"
+                ariaLabel="Clone config from agent"
+              />
             </div>
           )}
 
@@ -653,6 +713,42 @@ export function CreateAgentModal({
             </div>
           </div>
 
+          {/* Pre-flight readiness warnings — non-blocking, contextual to
+              the provider/runtime just chosen. */}
+          {preflight.length > 0 && (
+            <div
+              role="status"
+              className="flex flex-col gap-2 rounded-md border border-mycel-warning bg-mycel-warning-subtle px-3 py-2.5"
+            >
+              {preflight.map((w, i) => (
+                <div key={i} className="flex flex-col gap-1.5">
+                  <div className="flex items-start gap-2 text-[11px] text-mycel-warning">
+                    <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" className="shrink-0 mt-0.5">
+                      <path d="M7 1.5l6 11H1z" strokeLinejoin="round" />
+                      <path d="M7 6v3M7 10.8v.01" strokeLinecap="round" />
+                    </svg>
+                    <span className="leading-relaxed">{w.message}</span>
+                  </div>
+                  {w.fix && (
+                    <div className="ml-[18px] flex items-center gap-1.5 rounded border border-mycel-border bg-mycel-bg pl-2 pr-0.5 py-1">
+                      <code className="flex-1 min-w-0 font-mono text-[10px] text-mycel-text overflow-x-auto whitespace-nowrap">
+                        {w.fix}
+                      </code>
+                      <CopyButton text={w.fix} />
+                    </div>
+                  )}
+                </div>
+              ))}
+              <button
+                type="button"
+                onClick={() => { onClose(); navigate("/readiness"); }}
+                className="text-[10px] text-mycel-warning underline decoration-dotted underline-offset-2 hover:opacity-80 w-fit"
+              >
+                Open System readiness →
+              </button>
+            </div>
+          )}
+
           {/* Environment — collapsible key/value editor with secret
               reference autocomplete. Collapsed by default. */}
           <div className="flex flex-col gap-1.5">
@@ -678,6 +774,35 @@ export function CreateAgentModal({
               </span>
             </button>
             {envOpen && <EnvVarsEditor rows={envRows} onChange={setEnvRows} />}
+          </div>
+
+          {/* Apps — collapsible picker of connected app channels this
+              agent should subscribe to. Wired after create succeeds. */}
+          <div className="flex flex-col gap-1.5" data-testid="create-agent-apps-section">
+            <button
+              type="button"
+              onClick={() => setAppsOpen((prev) => !prev)}
+              aria-expanded={appsOpen}
+              className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted hover:text-mycel-text transition-colors w-fit"
+            >
+              <svg
+                width="8"
+                height="8"
+                viewBox="0 0 8 8"
+                fill="currentColor"
+                className={`transition-transform ${appsOpen ? "rotate-90" : ""}`}
+                aria-hidden="true"
+              >
+                <path d="M2 0l4 4-4 4z" />
+              </svg>
+              Apps{" "}
+              <span className="normal-case font-normal">
+                (optional{appChannels.size > 0 ? ` · ${appChannels.size} channel${appChannels.size === 1 ? "" : "s"}` : ""})
+              </span>
+            </button>
+            {appsOpen && (
+              <AgentAppsPicker selected={appChannels} onChange={setAppChannels} />
+            )}
           </div>
 
           {/* Initial task */}

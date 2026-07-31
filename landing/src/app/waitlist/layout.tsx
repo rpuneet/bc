@@ -4,14 +4,14 @@ import { absoluteUrl } from "../../lib/site";
 export const metadata: Metadata = {
   title: "Join the Waitlist - mycel",
   description:
-    "Orchestrate AI agents from your terminal. Join the waitlist for mycel Cloud — the local-first, provider-agnostic network layer for developers.",
+    "Run a team of AI agents from one place. Join the waitlist for mycel Cloud — the local-first, provider-agnostic network layer for developers.",
   alternates: {
     canonical: "/waitlist",
   },
   openGraph: {
     title: "mycel Waitlist — Multi-Agent Orchestration",
     description:
-      "Join the waitlist for mycel Cloud. Orchestrate AI agents from your terminal.",
+      "Join the waitlist for mycel Cloud. Run a team of AI agents from one place.",
     url: absoluteUrl("/waitlist"),
     siteName: "mycel",
     type: "website",
@@ -28,7 +28,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "mycel Waitlist — Multi-Agent Orchestration",
     description:
-      "Join the waitlist for mycel Cloud. Orchestrate AI agents from your terminal.",
+      "Join the waitlist for mycel Cloud. Run a team of AI agents from one place.",
     images: [absoluteUrl("/og-image.png")],
     creator: "@mycel_dev",
   },

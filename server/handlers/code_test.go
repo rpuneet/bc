@@ -17,7 +17,7 @@ import (
 	"github.com/rpuneet/mycel/server/handlers"
 )
 
-// fakeResolver is a tiny WorkspaceResolver that always returns the
+// fakeResolver is a tiny RepoResolver that always returns the
 // same root.
 type fakeResolver struct {
 	root string
@@ -62,7 +62,7 @@ func TestCodeTree_ListsRoot(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(root, ".git"), 0750); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.MkdirAll(filepath.Join(root, ".bc"), 0750); err != nil {
+	if err := os.MkdirAll(filepath.Join(root, ".mycel"), 0750); err != nil {
 		t.Fatal(err)
 	}
 
@@ -81,9 +81,9 @@ func TestCodeTree_ListsRoot(t *testing.T) {
 		names = append(names, e["name"].(string)) //nolint:errcheck,forcetypeassert
 	}
 
-	// .git and .bc should be hidden by default.
+	// .git and .mycel should be hidden by default.
 	for _, n := range names {
-		if n == ".git" || n == ".bc" {
+		if n == ".git" || n == ".mycel" {
 			t.Fatalf("hidden entry leaked: %v", names)
 		}
 	}
@@ -139,10 +139,10 @@ func TestCodeTree_ShowHidden(t *testing.T) {
 
 func TestCodeTree_DotPathHidesBC(t *testing.T) {
 	ts, root := codeHarness(t)
-	if err := os.MkdirAll(filepath.Join(root, ".bc"), 0750); err != nil {
+	if err := os.MkdirAll(filepath.Join(root, ".mycel"), 0750); err != nil {
 		t.Fatal(err)
 	}
-	// path=. should still hide .bc (treated as root)
+	// path=. should still hide .mycel (treated as root)
 	resp := getCode(t, ts.URL+"/api/code/tree?worktree=main&path=.")
 	defer func() { _ = resp.Body.Close() }()
 
@@ -151,8 +151,8 @@ func TestCodeTree_DotPathHidesBC(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, e := range entries {
-		if e["name"] == ".bc" {
-			t.Fatalf("path=. should hide .bc but it was included: %v", entries)
+		if e["name"] == ".mycel" {
+			t.Fatalf("path=. should hide .mycel but it was included: %v", entries)
 		}
 	}
 }
@@ -211,7 +211,7 @@ func TestCodeFile_ReadsText(t *testing.T) {
 	if !strings.HasPrefix(ct, "text/plain") {
 		t.Fatalf("want text/plain, got %q", ct)
 	}
-	if resp.Header.Get("X-BC-Binary") != "" {
+	if resp.Header.Get("X-Mycel-Binary") != "" {
 		t.Fatalf("text file flagged binary")
 	}
 	body, err := io.ReadAll(resp.Body)
@@ -235,7 +235,7 @@ func TestCodeFile_BinaryDetection(t *testing.T) {
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("status = %d", resp.StatusCode)
 	}
-	if resp.Header.Get("X-BC-Binary") != "true" {
+	if resp.Header.Get("X-Mycel-Binary") != "true" {
 		t.Fatalf("binary file not flagged: headers=%v", resp.Header)
 	}
 	if ct := resp.Header.Get("Content-Type"); ct != "application/octet-stream" {
@@ -255,8 +255,8 @@ func TestCodeFile_SizeCap(t *testing.T) {
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("status = %d", resp.StatusCode)
 	}
-	if resp.Header.Get("X-BC-Truncated") != "true" {
-		t.Fatalf("X-BC-Truncated not set")
+	if resp.Header.Get("X-Mycel-Truncated") != "true" {
+		t.Fatalf("X-Mycel-Truncated not set")
 	}
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -333,10 +333,17 @@ func TestCodeDiff_MainIsEmpty(t *testing.T) {
 
 func TestCodeDiff_WorktreeNotFound(t *testing.T) {
 	ts, _ := codeHarness(t)
+	// An agent with no worktree yet degrades to an empty diff (200), not
+	// a 400 — the Code tab shows a clean empty state instead of a console
+	// error.
 	resp := getCode(t, ts.URL+"/api/code/diff?worktree=no-such-agent")
 	defer func() { _ = resp.Body.Close() }()
-	if resp.StatusCode != http.StatusBadRequest {
-		t.Fatalf("want 400, got %d", resp.StatusCode)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("want 200 (empty), got %d", resp.StatusCode)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	if len(body) != 0 {
+		t.Fatalf("missing-worktree diff should be empty, got %q", string(body))
 	}
 }
 
@@ -373,9 +380,12 @@ func TestCodeDiff_AgainstMain(t *testing.T) {
 	run(root, "add", ".")
 	run(root, "commit", "-m", "init")
 
-	// Create an agent worktree at the path our handler expects.
+	// Create an agent worktree at the path our handler expects
+	// (~/.mycel/agents/<name>/worktree, anchored via MYCEL_HOME).
 	agentName := "tester"
-	wtPath := filepath.Join(root, ".bc", "agents", agentName, "bc-"+filepath.Base(root)+"-"+agentName)
+	mycelHome := t.TempDir()
+	t.Setenv("MYCEL_HOME", mycelHome)
+	wtPath := filepath.Join(mycelHome, "agents", agentName, "worktree")
 	if err := os.MkdirAll(filepath.Dir(wtPath), 0750); err != nil {
 		t.Fatal(err)
 	}
@@ -398,7 +408,7 @@ func TestCodeDiff_AgainstMain(t *testing.T) {
 	}
 	// Either we get a real diff or an empty-with-header response
 	// (if main cannot be resolved). The first is the expected path.
-	if len(body) == 0 && resp.Header.Get("X-BC-Diff-Empty") == "" {
+	if len(body) == 0 && resp.Header.Get("X-Mycel-Diff-Empty") == "" {
 		t.Fatalf("empty diff without empty-marker header: %v", resp.Header)
 	}
 	if len(body) > 0 && !strings.Contains(string(body), "hello.txt") {

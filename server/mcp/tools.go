@@ -37,7 +37,7 @@ var readOnly = &sdk.ToolAnnotations{ReadOnlyHint: true}
 func addTools(s *sdk.Server, cfg Config, agentName string) {
 	sdk.AddTool(s, &sdk.Tool{
 		Name:        "whoami",
-		Description: "Returns the current agent's identity, role, state, and workspace",
+		Description: "Returns the current agent's identity, role, state, and repo",
 		Annotations: readOnly,
 	}, func(ctx context.Context, _ *sdk.CallToolRequest, _ emptyIn) (*sdk.CallToolResult, whoamiOut, error) {
 		return nil, whoami(cfg, agentName), nil
@@ -45,7 +45,7 @@ func addTools(s *sdk.Server, cfg Config, agentName string) {
 
 	sdk.AddTool(s, &sdk.Tool{
 		Name:        "list_agents",
-		Description: "List all agents in the workspace with their status and role",
+		Description: "List all agents with their status and role",
 		Annotations: readOnly,
 	}, func(ctx context.Context, _ *sdk.CallToolRequest, in listAgentsIn) (*sdk.CallToolResult, listAgentsOut, error) {
 		return listAgents(cfg, in)
@@ -90,7 +90,7 @@ func addTools(s *sdk.Server, cfg Config, agentName string) {
 
 	sdk.AddTool(s, &sdk.Tool{
 		Name:        "query_costs",
-		Description: "Query token usage and cost, for one agent or the whole workspace",
+		Description: "Query token usage and cost, for one agent or the whole fleet",
 		Annotations: readOnly,
 	}, func(ctx context.Context, _ *sdk.CallToolRequest, in queryCostsIn) (*sdk.CallToolResult, queryCostsOut, error) {
 		return queryCosts(ctx, cfg, in)
@@ -110,7 +110,7 @@ type whoamiOut struct {
 }
 
 func whoami(cfg Config, agentName string) whoamiOut {
-	out := whoamiOut{Agent: agentName, Workspace: cfg.Workspace.Name()}
+	out := whoamiOut{Agent: agentName, Workspace: cfg.Home.Name()}
 	if cfg.Agents != nil {
 		if ag := cfg.Agents.GetAgent(agentName); ag != nil {
 			out.Role = string(ag.Role)
@@ -347,7 +347,7 @@ func sendFile(ctx context.Context, cfg Config, agentName string, in sendFileIn) 
 
 // validateFilePath resolves p — including symlinks, so a link inside an
 // allowed root can't point the read at a file outside it — and ensures it
-// stays under the workspace root or /tmp, preventing the tool from
+// stays under the repo root or /tmp, preventing the tool from
 // exfiltrating arbitrary host files.
 func validateFilePath(cfg Config, p string) (string, error) {
 	absPath, err := filepath.Abs(p)
@@ -359,12 +359,12 @@ func validateFilePath(cfg Config, p string) (string, error) {
 		return "", fmt.Errorf("file not found: %w", err)
 	}
 	// Resolve the root too (macOS /tmp and /var are themselves symlinks).
-	wsRoot := cfg.Workspace.RootDir
-	if r, err := filepath.EvalSymlinks(wsRoot); err == nil {
-		wsRoot = r
+	repoRoot := cfg.Home.RootDir
+	if r, err := filepath.EvalSymlinks(repoRoot); err == nil {
+		repoRoot = r
 	}
-	if !underDir(resolved, wsRoot) && !underDir(resolved, "/tmp") && !underDir(resolved, "/private/tmp") {
-		return "", fmt.Errorf("file path %q is outside workspace root %q", resolved, wsRoot)
+	if !underDir(resolved, repoRoot) && !underDir(resolved, "/tmp") && !underDir(resolved, "/private/tmp") {
+		return "", fmt.Errorf("file path %q is outside repo root %q", resolved, repoRoot)
 	}
 	return resolved, nil
 }
@@ -461,15 +461,15 @@ func queryCosts(ctx context.Context, cfg Config, in queryCostsIn) (*sdk.CallTool
 		}}
 		return nil, out, nil
 	}
-	ws, err := cfg.Costs.WorkspaceSummary(ctx)
+	h, err := cfg.Costs.TotalSummary(ctx)
 	if err != nil {
 		return nil, out, fmt.Errorf("query failed: %w", err)
 	}
 	out.Workspace = &costSummary{
-		InputTokens:  ws.InputTokens,
-		OutputTokens: ws.OutputTokens,
-		TotalTokens:  ws.TotalTokens,
-		TotalCostUSD: ws.TotalCostUSD,
+		InputTokens:  h.InputTokens,
+		OutputTokens: h.OutputTokens,
+		TotalTokens:  h.TotalTokens,
+		TotalCostUSD: h.TotalCostUSD,
 	}
 	byAgent, err := cfg.Costs.SummaryByAgent(ctx)
 	if err != nil {

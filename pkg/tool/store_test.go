@@ -9,11 +9,11 @@ import (
 	"github.com/rpuneet/mycel/pkg/db"
 )
 
-// setupSharedDB creates a temporary SQLite workspace database for tests.
+// setupSharedDB creates a temporary SQLite database for tests.
 func setupSharedDB(t *testing.T) *db.DB {
 	t.Helper()
 	dir := t.TempDir()
-	dbPath := filepath.Join(dir, "bc.db")
+	dbPath := filepath.Join(dir, "mycel.db")
 	d, err := db.Open(dbPath)
 	if err != nil {
 		t.Fatalf("open test db: %v", err)
@@ -232,10 +232,10 @@ func TestStore_RequiredFields(t *testing.T) {
 }
 
 func TestStore_SharedDBRequired(t *testing.T) {
-	// Without a workspace DB handle, Open should return an error
+	// Without a global DB handle, Open should return an error
 	s := NewStore(nil, "")
 	if err := s.Open(); err == nil {
-		t.Error("expected error when no workspace DB is provided")
+		t.Error("expected error when no DB is provided")
 	}
 }
 

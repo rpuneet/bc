@@ -338,10 +338,16 @@ func TestContainerCustomizer(t *testing.T) {
 		t.Errorf("DockerImage() = %q, want empty", img)
 	}
 
-	// Codex does NOT implement ContainerCustomizer (uses the generic adapter)
+	// Codex now implements ContainerCustomizer so it can be tmux-wrapped and
+	// driven under the Docker runtime (was previously unimplemented, leaving
+	// codex undrivable in containers).
 	codex := NewCodexProvider()
-	if _, ok := interface{}(codex).(ContainerCustomizer); ok {
-		t.Error("CodexProvider should not implement ContainerCustomizer")
+	cc2, ok := interface{}(codex).(ContainerCustomizer)
+	if !ok {
+		t.Fatal("CodexProvider should implement ContainerCustomizer")
+	}
+	if adjusted := cc2.AdjustContainerCommand("codex --full-auto"); !strings.Contains(adjusted, "tmux new-session") {
+		t.Errorf("AdjustContainerCommand() should wrap in tmux, got %q", adjusted)
 	}
 }
 

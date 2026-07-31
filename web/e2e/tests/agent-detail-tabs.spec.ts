@@ -3,7 +3,7 @@
  * shortcuts on the agent detail page update the tab sub-path.
  *
  * Requirements:
- *   - bcd running on localhost:9374 with ≥1 registered workspace and
+ *   - the daemon running on localhost:9374 with ≥1 registered workspace and
  *     ≥1 agent in that workspace.
  */
 

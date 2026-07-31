@@ -13,13 +13,13 @@ import (
 type Scope string
 
 const (
-	// ScopeWorkspace is the per-workspace override directory
-	// (<ws>/.bc/templates/). Values here win when a name collides with
+	// ScopeWorkspace is the repo-scoped override directory
+	// (<h>/.mycel/templates/). Values here win when a name collides with
 	// the global scope.
 	ScopeWorkspace Scope = "workspace"
 
 	// ScopeGlobal is the user-global directory (~/.mycel/templates/). It is
-	// the default for writes unless the caller asks for a workspace
+	// the default for writes unless the caller asks for a repo-scoped
 	// override explicitly.
 	ScopeGlobal Scope = "global"
 )
@@ -32,17 +32,17 @@ var ErrWrongScope = errors.New("template exists only in a different scope")
 // Store is a file-based template store. Each template is stored as
 // <name>.json (metadata) and an optional <name>.md (system prompt).
 //
-// When both a workspace dir and a global dir are configured, List/Get
-// merge the two with workspace overrides winning on name collision.
+// When both an override dir and a global dir are configured, List/Get
+// merge the two with the override layer winning on name collision.
 // Create defaults to writing the global dir; callers may pass
 // ScopeWorkspace to write into the override dir instead. This keeps
-// single-layer callers (legacy workspace-only code) working by passing
+// single-layer callers (legacy single-layer code) working by passing
 // only one directory.
 type Store struct {
 	// dir is the default write layer. For legacy NewStore callers this
 	// is the only layer; for LayeredStore it is the global dir.
 	dir string
-	// overrideDir, when non-empty, is the workspace-scoped override. Reads
+	// overrideDir, when non-empty, is the repo-scoped override. Reads
 	// check it first; writes do not go here unless the caller asks.
 	overrideDir string
 }
@@ -50,48 +50,48 @@ type Store struct {
 // NewStore creates a single-layer Store rooted at dir. The directory is
 // created on first write. This is retained for backwards compatibility
 // with callers that operate in a single-tenant model (eg. legacy
-// per-workspace usage). Prefer NewLayeredStore for new code.
+// per-repo usage). Prefer NewLayeredStore for new code.
 func NewStore(dir string) *Store {
 	return &Store{dir: dir}
 }
 
 // NewLayeredStore creates a two-layer Store. globalDir is the default
-// write target and the fallback read source; workspaceDir, when
+// write target and the fallback read source; overrideDir, when
 // non-empty, overrides globalDir on reads and is the write target only
 // when scope == ScopeWorkspace.
 //
 // Either argument may be empty: an empty globalDir degrades to a
-// workspace-only store, and an empty workspaceDir degrades to a
+// override-only store, and an empty overrideDir degrades to a
 // global-only store. At least one must be non-empty.
-func NewLayeredStore(globalDir, workspaceDir string) *Store {
-	return &Store{dir: globalDir, overrideDir: workspaceDir}
+func NewLayeredStore(globalDir, overrideDir string) *Store {
+	return &Store{dir: globalDir, overrideDir: overrideDir}
 }
 
 // WithOverride returns a new Store that inherits the receiver's global
-// dir but uses workspaceDir as its override layer. The receiver is
+// dir but uses overrideDir as its override layer. The receiver is
 // unchanged so it remains safe for concurrent use with multiple
-// workspace scopes.
-func (s *Store) WithOverride(workspaceDir string) *Store {
-	return &Store{dir: s.dir, overrideDir: workspaceDir}
+// override dirs.
+func (s *Store) WithOverride(overrideDir string) *Store {
+	return &Store{dir: s.dir, overrideDir: overrideDir}
 }
 
 // GlobalDir returns the configured global directory (empty when the
-// store is workspace-only).
+// store is override-only).
 func (s *Store) GlobalDir() string { return s.dir }
 
-// WorkspaceDir returns the configured workspace override directory
+// OverrideDir returns the configured repo-scoped override directory
 // (empty when the store is single-layer).
-func (s *Store) WorkspaceDir() string { return s.overrideDir }
+func (s *Store) OverrideDir() string { return s.overrideDir }
 
 // List returns all templates visible through the store. When a
-// workspace override dir is configured its templates shadow any
+// override dir is configured its templates shadow any
 // global template with the same name; the Scope is reported on the
 // returned Template for the UI / CLI.
 func (s *Store) List() ([]Template, error) {
 	byName := map[string]Template{}
 	order := []string{}
 
-	// Global layer first so workspace entries can overwrite.
+	// Global layer first so override entries can overwrite.
 	if s.dir != "" {
 		if err := collectInto(s.dir, ScopeGlobal, byName, &order); err != nil {
 			return nil, err
@@ -111,7 +111,7 @@ func (s *Store) List() ([]Template, error) {
 }
 
 // collectInto reads templates from dir and merges them into the result
-// map. A template already present in the map is overwritten (workspace
+// map. A template already present in the map is overwritten (override
 // overrides global), and its name is not re-appended to order.
 func collectInto(dir string, scope Scope, byName map[string]Template, order *[]string) error {
 	entries, err := os.ReadDir(dir)
@@ -154,7 +154,7 @@ func validName(name string) bool {
 }
 
 // Get returns the template and its system prompt markdown content.
-// The workspace override is checked first; if not present there, the
+// The override layer is checked first; if not present there, the
 // lookup falls back to the global layer. The system prompt is empty
 // string when no .md file exists.
 func (s *Store) Get(name string) (*Template, string, error) {
@@ -162,7 +162,7 @@ func (s *Store) Get(name string) (*Template, string, error) {
 		return nil, "", fmt.Errorf("template name %q is invalid", name)
 	}
 
-	// Workspace override wins.
+	// Override layer wins.
 	if s.overrideDir != "" {
 		if t, prompt, err := readFrom(s.overrideDir, name); err == nil {
 			t.Scope = ScopeWorkspace
@@ -183,7 +183,7 @@ func (s *Store) Get(name string) (*Template, string, error) {
 }
 
 // Create writes a new template. If scope is empty it defaults to
-// ScopeGlobal when a global dir is configured, otherwise ScopeWorkspace.
+// ScopeGlobal when a global dir is configured, otherwise ScopeWorkspace ("workspace").
 // Returns an error if the template already exists in the target scope.
 func (s *Store) Create(t Template, systemPrompt string, scope Scope) error {
 	if !validName(t.Name) {
@@ -214,7 +214,7 @@ func (s *Store) Create(t Template, systemPrompt string, scope Scope) error {
 
 // Update overwrites an existing template. The write goes to whichever
 // scope currently owns the template — if both layers have it, the
-// workspace copy is updated, preserving user-global defaults.
+// override copy is updated, preserving user-global defaults.
 func (s *Store) Update(name string, t Template, systemPrompt string) error {
 	if !validName(name) {
 		return fmt.Errorf("template name %q is invalid", name)
@@ -231,7 +231,7 @@ func (s *Store) Update(name string, t Template, systemPrompt string) error {
 
 // Delete removes both the .json and .md files for the named template.
 // If scope is empty the delete targets whichever layer owns the template,
-// preferring the workspace override. When the caller asks for
+// preferring the override layer. When the caller asks for
 // ScopeWorkspace but the template exists only in the global layer, the
 // call fails with ErrWrongScope so the CLI can suggest --global.
 func (s *Store) Delete(name string, scope Scope) error {
@@ -242,7 +242,7 @@ func (s *Store) Delete(name string, scope Scope) error {
 	switch scope {
 	case ScopeWorkspace:
 		if s.overrideDir == "" {
-			return fmt.Errorf("no workspace override configured for template %q", name)
+			return fmt.Errorf("no repo-scoped override configured for template %q", name)
 		}
 		if _, err := os.Stat(filepath.Join(s.overrideDir, name+".json")); os.IsNotExist(err) {
 			if s.dir != "" {
@@ -262,7 +262,7 @@ func (s *Store) Delete(name string, scope Scope) error {
 		}
 		return removeTemplate(s.dir, name)
 	case "":
-		// Default: prefer workspace, fall back to global.
+		// Default: prefer the override layer, fall back to global.
 		if s.overrideDir != "" {
 			if _, err := os.Stat(filepath.Join(s.overrideDir, name+".json")); err == nil {
 				return removeTemplate(s.overrideDir, name)
@@ -284,7 +284,7 @@ func (s *Store) resolveWriteDir(scope Scope) (string, error) {
 	switch scope {
 	case ScopeWorkspace:
 		if s.overrideDir == "" {
-			return "", fmt.Errorf("no workspace override configured")
+			return "", fmt.Errorf("no repo-scoped override configured")
 		}
 		return s.overrideDir, nil
 	case ScopeGlobal:
@@ -306,7 +306,7 @@ func (s *Store) resolveWriteDir(scope Scope) (string, error) {
 }
 
 // resolveOwningDir returns the dir that owns the named template,
-// preferring the workspace override when both layers have it.
+// preferring the override layer when both layers have it.
 func (s *Store) resolveOwningDir(name string) (string, error) {
 	if s.overrideDir != "" {
 		if _, err := os.Stat(filepath.Join(s.overrideDir, name+".json")); err == nil {
@@ -337,22 +337,22 @@ func SeedDefaults(dir string) error {
 		{
 			Name:        "feature-dev",
 			Description: "Full-stack feature development",
-			MCPs:        []string{"bc", "github"},
+			MCPs:        []string{"mycel", "github"},
 		},
 		{
 			Name:        "reviewer",
 			Description: "Code review specialist",
-			MCPs:        []string{"bc"},
+			MCPs:        []string{"mycel"},
 		},
 		{
 			Name:        "manager",
 			Description: "Task orchestration and delegation",
-			MCPs:        []string{"bc"},
+			MCPs:        []string{"mycel"},
 		},
 		{
 			Name:        "blank",
 			Description: "Empty starting point",
-			MCPs:        []string{"bc"},
+			MCPs:        []string{"mycel"},
 		},
 	}
 

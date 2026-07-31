@@ -48,6 +48,13 @@ export default {
           info: 'var(--mycel-info)',
           'info-subtle': 'var(--mycel-info-subtle)',
           overlay: 'var(--mycel-overlay)',
+          'chart-1': 'var(--mycel-chart-1)',
+          'chart-2': 'var(--mycel-chart-2)',
+          'chart-3': 'var(--mycel-chart-3)',
+          'chart-4': 'var(--mycel-chart-4)',
+          'chart-5': 'var(--mycel-chart-5)',
+          'chart-6': 'var(--mycel-chart-6)',
+          'chart-7': 'var(--mycel-chart-7)',
         },
       },
       boxShadow: {

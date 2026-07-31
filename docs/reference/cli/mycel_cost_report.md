@@ -4,7 +4,7 @@ Report cost totals across repos
 
 ### Synopsis
 
-Report cost totals from the user-global cost ledger (~/.mycel/costs.db).
+Report cost totals computed directly from provider session files.
 
 By default prints per-repo breakdown. Use --by to change grouping:
 

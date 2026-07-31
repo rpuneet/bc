@@ -22,6 +22,8 @@ type AgyProvider struct {
 	binary           string
 }
 
+func init() { Register(NewAgyProvider()) }
+
 // NewAgyProvider creates a new Antigravity CLI provider.
 func NewAgyProvider() *AgyProvider {
 	return &AgyProvider{
@@ -49,7 +51,7 @@ func (p *AgyProvider) InstallHint() string {
 	return "curl -fsSL https://antigravity.google/install.sh | sh"
 }
 
-// agyDefaultModel is the model bc selects for a new agy agent when none is
+// agyDefaultModel is the model mycel selects for a new agy agent when none is
 // specified. It is a valid `agy models` entry.
 const agyDefaultModel = "Gemini 3 Flash"
 
@@ -149,7 +151,7 @@ func (p *AgyProvider) ListModels(ctx context.Context) ([]string, error) {
 }
 
 // AdjustSessionCommand is a no-op for native tmux sessions; agy runs directly
-// in the bc-managed tmux pane.
+// in the mycel-managed tmux pane.
 func (p *AgyProvider) AdjustSessionCommand(command string) string { return command }
 
 // AdjustContainerCommand wraps the command in a tmux session for Docker so
@@ -204,7 +206,7 @@ func agyConversationsDir(home string) string {
 // HasResumableSession reports whether agy has at least one stored conversation
 // that `agy --continue` could pick up. agy's --continue resumes the most
 // recent conversation; when no conversation exists it has nothing to continue,
-// so bc must not emit the flag (mirroring the Claude provider's gate). agy
+// so mycel must not emit the flag (mirroring the Claude provider's gate). agy
 // keeps conversations globally as ~/.gemini/antigravity/conversations/<uuid>.db
 // (not keyed by working directory), so this is a global has-any check.
 func (p *AgyProvider) HasResumableSession(_ string) bool {
@@ -225,7 +227,7 @@ func (p *AgyProvider) HasResumableSession(_ string) bool {
 }
 
 // ActivityMode reports that agy emits activity via lifecycle hooks
-// (.agents/hooks.json) that POST to bcd's hook endpoint, exactly like Claude.
+// (.agents/hooks.json) that POST to the daemon's hook endpoint, exactly like Claude.
 func (p *AgyProvider) ActivityMode() string { return ActivityModeHooks }
 
 // WriteHookConfig writes agy lifecycle-hook settings into the agent worktree.

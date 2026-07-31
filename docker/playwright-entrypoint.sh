@@ -13,15 +13,15 @@ x11vnc -display :99 -forever -nopw -shared -rfbport 5900 2>/dev/null &
 websockify --web=/usr/share/novnc 6080 localhost:5900 2>/dev/null &
 
 # Shared volume for screenshots
-mkdir -p /tmp/bc-shared
-chmod 777 /tmp/bc-shared
-export PLAYWRIGHT_OUTPUT_DIR=/tmp/bc-shared
+mkdir -p /tmp/mycel-shared
+chmod 777 /tmp/mycel-shared
+export PLAYWRIGHT_OUTPUT_DIR=/tmp/mycel-shared
 
 # Symlink Playwright MCP default output dir to shared volume
 # Playwright MCP restricts file access to /.playwright-mcp/, so symlink it
 # to the shared volume so all containers can access screenshots
 rm -rf /.playwright-mcp 2>/dev/null
-ln -s /tmp/bc-shared /.playwright-mcp
+ln -s /tmp/mycel-shared /.playwright-mcp
 
 # Playwright MCP server (headed — visible in VNC)
 # --host 0.0.0.0     : accept external connections
@@ -34,4 +34,4 @@ exec npx -y @playwright/mcp \
   --port 3000 \
   --allowed-hosts '*' \
   --no-sandbox \
-  --output-dir /tmp/bc-shared
+  --output-dir /tmp/mycel-shared

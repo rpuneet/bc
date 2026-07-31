@@ -1,4 +1,4 @@
-/** WebSocket event types from bcd */
+/** WebSocket event types from the daemon */
 export type WSEventType =
   | "agent.created"
   | "agent.started"

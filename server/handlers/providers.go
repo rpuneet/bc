@@ -4,9 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
-	"os"
-	"os/exec"
-	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
@@ -16,8 +13,8 @@ import (
 
 	"github.com/rpuneet/mycel/pkg/agent"
 	"github.com/rpuneet/mycel/pkg/cost"
+	"github.com/rpuneet/mycel/pkg/home"
 	"github.com/rpuneet/mycel/pkg/provider"
-	"github.com/rpuneet/mycel/pkg/workspace"
 )
 
 // ModelInfo describes a single provider model with its availability status.
@@ -103,15 +100,15 @@ type ProviderHandler struct {
 	sf         singleflight.Group
 	registry   *provider.Registry
 	agents     *agent.AgentService
-	costs      *cost.Store
-	ws         *workspace.Workspace
+	costs      *cost.Service
+	h          *home.Home
 	modelCache map[string]modelCacheEntry
 	modelMu    sync.Mutex
 }
 
 // NewProviderHandler creates a ProviderHandler.
-func NewProviderHandler(registry *provider.Registry, agents *agent.AgentService, costs *cost.Store, ws *workspace.Workspace) *ProviderHandler {
-	return &ProviderHandler{registry: registry, agents: agents, costs: costs, ws: ws, modelCache: make(map[string]modelCacheEntry)}
+func NewProviderHandler(registry *provider.Registry, agents *agent.AgentService, costs *cost.Service, h *home.Home) *ProviderHandler {
+	return &ProviderHandler{registry: registry, agents: agents, costs: costs, h: h, modelCache: make(map[string]modelCacheEntry)}
 }
 
 // Register mounts provider routes on mux.
@@ -300,26 +297,21 @@ func (h *ProviderHandler) detail(w http.ResponseWriter, r *http.Request, name st
 
 // commands returns available CLI commands for a provider.
 func (h *ProviderHandler) commands(w http.ResponseWriter, _ *http.Request, name string) {
-	_, ok := h.registry.Get(name)
+	p, ok := h.registry.Get(name)
 	if !ok {
 		httpError(w, "unknown provider: "+name, http.StatusNotFound)
 		return
 	}
 
 	var cmds []ProviderCommand
-
-	switch name {
-	case "claude":
-		cmds = []ProviderCommand{
-			{Name: "mcp add", Command: "claude mcp add <name> <command>", Description: "Add MCP server", Args: "<name> <command|url>"},
-			{Name: "mcp list", Command: "claude mcp list", Description: "List MCP servers"},
-			{Name: "mcp remove", Command: "claude mcp remove <name>", Description: "Remove MCP server", Args: "<name>"},
-			{Name: "config set", Command: "claude config set <key> <value>", Description: "Set config value", Args: "<key> <value>"},
-			{Name: "config list", Command: "claude config list", Description: "List config values"},
-			{Name: "version", Command: "claude --version", Description: "Show version"},
-			{Name: "resume", Command: "claude --resume <id>", Description: "Resume session", Args: "<session-id>"},
+	if cl, ok := p.(provider.CommandLister); ok {
+		listed := cl.Commands()
+		cmds = make([]ProviderCommand, 0, len(listed))
+		for _, c := range listed {
+			cmds = append(cmds, ProviderCommand{Name: c.Name, Command: c.Command, Description: c.Description, Args: c.Args})
 		}
-	default:
+	} else {
+		// Generic default for providers without a curated command list.
 		binary := name
 		cmds = []ProviderCommand{
 			{Name: "run", Command: binary, Description: "Run " + name},
@@ -331,23 +323,30 @@ func (h *ProviderHandler) commands(w http.ResponseWriter, _ *http.Request, name 
 	writeJSON(w, http.StatusOK, cmds)
 }
 
-// listMCPs returns MCP servers configured for a provider.
+// listMCPs returns MCP servers configured for a provider. Providers
+// without the MCPConfigReader capability list as empty.
 func (h *ProviderHandler) listMCPs(w http.ResponseWriter, r *http.Request, name string) {
-	_, ok := h.registry.Get(name)
+	p, ok := h.registry.Get(name)
 	if !ok {
 		httpError(w, "unknown provider: "+name, http.StatusNotFound)
 		return
 	}
 
-	var servers []MCPServer
-
-	switch name {
-	case "claude":
-		servers = h.readClaudeMCPs(r.Context())
-	case "cursor":
-		servers = h.readCursorMCPs()
-	default:
-		servers = []MCPServer{}
+	servers := []MCPServer{}
+	if mr, ok := p.(provider.MCPConfigReader); ok {
+		rootDir := ""
+		if h.h != nil {
+			rootDir = h.h.RootDir
+		}
+		for _, s := range mr.ReadMCPs(r.Context(), rootDir) {
+			servers = append(servers, MCPServer{
+				Name:      s.Name,
+				Transport: s.Transport,
+				URL:       s.URL,
+				Command:   s.Command,
+				Enabled:   s.Enabled,
+			})
+		}
 	}
 
 	writeJSON(w, http.StatusOK, servers)
@@ -380,8 +379,8 @@ func (h *ProviderHandler) addMCP(w http.ResponseWriter, r *http.Request, name st
 		return
 	}
 
-	if h.ws == nil {
-		httpError(w, "workspace not available", http.StatusServiceUnavailable)
+	if h.h == nil {
+		httpError(w, "global config not available", http.StatusServiceUnavailable)
 		return
 	}
 
@@ -408,7 +407,7 @@ func (h *ProviderHandler) addMCP(w http.ResponseWriter, r *http.Request, name st
 		URL:       req.URL,
 		Command:   req.Command,
 	}
-	if err := adapter.SetupMCP(r.Context(), h.ws.RootDir, "", map[string]provider.MCPEntry{req.Name: entry}); err != nil {
+	if err := adapter.SetupMCP(r.Context(), h.h.RootDir, "", map[string]provider.MCPEntry{req.Name: entry}); err != nil {
 		httpInternalError(w, "add mcp server", err)
 		return
 	}
@@ -476,10 +475,10 @@ func (h *ProviderHandler) hintResponse(w http.ResponseWriter, name, action strin
 	})
 }
 
-// patchConfig updates the provider's command in workspace settings.
+// patchConfig updates the provider's command in the global settings.
 func (h *ProviderHandler) patchConfig(w http.ResponseWriter, r *http.Request, name string) {
-	if h.ws == nil || h.ws.Config == nil {
-		httpError(w, "workspace not available", http.StatusServiceUnavailable)
+	if h.h == nil || h.h.Config == nil {
+		httpError(w, "global config not available", http.StatusServiceUnavailable)
 		return
 	}
 
@@ -497,12 +496,12 @@ func (h *ProviderHandler) patchConfig(w http.ResponseWriter, r *http.Request, na
 		return
 	}
 
-	if h.ws.Config.Providers.Providers == nil {
-		h.ws.Config.Providers.Providers = make(map[string]workspace.ProviderConfig)
+	if h.h.Config.Providers.Providers == nil {
+		h.h.Config.Providers.Providers = make(map[string]home.ProviderConfig)
 	}
-	h.ws.Config.Providers.Providers[name] = workspace.ProviderConfig{Command: req.Command}
+	h.h.Config.Providers.Providers[name] = home.ProviderConfig{Command: req.Command}
 
-	if err := h.ws.Save(); err != nil {
+	if err := h.h.Save(); err != nil {
 		httpInternalError(w, "save config", err)
 		return
 	}
@@ -529,15 +528,15 @@ func (h *ProviderHandler) buildProviderInfo(
 	}
 
 	command := p.Command()
-	if h.ws != nil && h.ws.Config != nil {
-		if cfg := h.ws.Config.GetProvider(p.Name()); cfg != nil {
+	if h.h != nil && h.h.Config != nil {
+		if cfg := h.h.Config.GetProvider(p.Name()); cfg != nil {
 			command = cfg.Command
 		}
 	}
 
 	enabled := installed
-	if h.ws != nil && h.ws.Config != nil {
-		_, enabled = h.ws.Config.Providers.Providers[p.Name()]
+	if h.h != nil && h.h.Config != nil {
+		_, enabled = h.h.Config.Providers.Providers[p.Name()]
 		if !enabled {
 			enabled = installed
 		}
@@ -676,137 +675,20 @@ func (h *ProviderHandler) costByModelForProvider(ctx context.Context, name strin
 	return models
 }
 
-// providerConfig returns the workspace config for a provider as a string map.
+// providerConfig returns the global config for a provider as a string map.
 func (h *ProviderHandler) providerConfig(name string) map[string]string {
 	cfg := make(map[string]string)
-	if h.ws == nil || h.ws.Config == nil {
+	if h.h == nil || h.h.Config == nil {
 		return cfg
 	}
 
-	if p := h.ws.Config.GetProvider(name); p != nil {
+	if p := h.h.Config.GetProvider(name); p != nil {
 		cfg["command"] = p.Command
 	}
 
-	if h.ws.Config.Providers.Default == name {
+	if h.h.Config.Providers.Default == name {
 		cfg["default"] = "true"
 	}
 
 	return cfg
-}
-
-// readClaudeMCPs reads MCP servers from claude mcp list or .mcp.json.
-func (h *ProviderHandler) readClaudeMCPs(ctx context.Context) []MCPServer {
-	// Try claude mcp list first
-	if servers := h.readClaudeMCPsViaCLI(ctx); servers != nil {
-		return servers
-	}
-	// Fallback: read .mcp.json from workspace root
-	return h.readMCPJSON()
-}
-
-// readClaudeMCPsViaCLI runs claude mcp list and parses the output.
-func (h *ProviderHandler) readClaudeMCPsViaCLI(ctx context.Context) []MCPServer {
-	claudePath, err := exec.LookPath("claude")
-	if err != nil {
-		return nil
-	}
-
-	cmd := exec.CommandContext(ctx, claudePath, "mcp", "list") //nolint:gosec // trusted binary
-	if h.ws != nil {
-		cmd.Dir = h.ws.RootDir
-	}
-	output, err := cmd.Output()
-	if err != nil {
-		return nil
-	}
-
-	// Parse the text output: each line is "<name>: <type> <url/command>"
-	var servers []MCPServer
-	for _, line := range strings.Split(strings.TrimSpace(string(output)), "\n") {
-		line = strings.TrimSpace(line)
-		if line == "" {
-			continue
-		}
-		parts := strings.SplitN(line, ":", 2)
-		if len(parts) < 2 {
-			continue
-		}
-		sName := strings.TrimSpace(parts[0])
-		rest := strings.TrimSpace(parts[1])
-
-		s := MCPServer{Name: sName, Enabled: true}
-		if strings.HasPrefix(rest, "sse") || strings.HasPrefix(rest, "SSE") {
-			s.Transport = "sse"
-			s.URL = strings.TrimSpace(strings.TrimPrefix(strings.TrimPrefix(rest, "sse"), "SSE"))
-		} else if strings.HasPrefix(rest, "stdio") || strings.HasPrefix(rest, "STDIO") {
-			s.Transport = "stdio"
-			s.Command = strings.TrimSpace(strings.TrimPrefix(strings.TrimPrefix(rest, "stdio"), "STDIO"))
-		} else {
-			s.Transport = "stdio"
-			s.Command = rest
-		}
-		servers = append(servers, s)
-	}
-
-	return servers
-}
-
-// mcpJSONEntry represents one server entry in an mcp.json config file.
-type mcpJSONEntry struct {
-	Command string   `json:"command,omitempty"`
-	URL     string   `json:"url,omitempty"`
-	Type    string   `json:"type,omitempty"`
-	Args    []string `json:"args,omitempty"`
-}
-
-// readMCPJSON reads .mcp.json from workspace root.
-func (h *ProviderHandler) readMCPJSON() []MCPServer {
-	return h.parseMCPJSONFile(".mcp.json")
-}
-
-// readCursorMCPs reads .cursor/mcp.json from workspace root.
-func (h *ProviderHandler) readCursorMCPs() []MCPServer {
-	return h.parseMCPJSONFile(filepath.Join(".cursor", "mcp.json"))
-}
-
-// parseMCPJSONFile reads and parses an mcp.json file at the given relative path.
-func (h *ProviderHandler) parseMCPJSONFile(relPath string) []MCPServer {
-	if h.ws == nil {
-		return []MCPServer{}
-	}
-
-	data, err := os.ReadFile(filepath.Join(h.ws.RootDir, relPath)) //nolint:gosec // controlled workspace path
-	if err != nil {
-		return []MCPServer{}
-	}
-
-	var cfg struct {
-		MCPServers map[string]mcpJSONEntry `json:"mcpServers"`
-	}
-	if err := json.Unmarshal(data, &cfg); err != nil {
-		return []MCPServer{}
-	}
-
-	servers := make([]MCPServer, 0, len(cfg.MCPServers))
-	for name, entry := range cfg.MCPServers {
-		s := MCPServer{Name: name, Enabled: true}
-		if entry.Type == "sse" || entry.URL != "" {
-			s.Transport = "sse"
-			s.URL = entry.URL
-		} else {
-			s.Transport = "stdio"
-			cmd := entry.Command
-			if len(entry.Args) > 0 {
-				cmd += " " + strings.Join(entry.Args, " ")
-			}
-			s.Command = cmd
-		}
-		servers = append(servers, s)
-	}
-
-	sort.Slice(servers, func(i, j int) bool {
-		return servers[i].Name < servers[j].Name
-	})
-
-	return servers
 }

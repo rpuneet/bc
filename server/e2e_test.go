@@ -1,6 +1,6 @@
-// Package server_test provides E2E tests for the bcd HTTP API.
+// Package server_test provides E2E tests for the daemon HTTP API.
 //
-// These tests spin up a full bcd server in-process using httptest,
+// These tests spin up a full the daemon server in-process using httptest,
 // backed by real SQLite databases in a temp directory. No external
 // services or running daemon required — suitable for CI.
 package server_test
@@ -12,94 +12,71 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"os/exec"
-	"path/filepath"
 	"testing"
 
 	"github.com/rpuneet/mycel/pkg/agent"
 	"github.com/rpuneet/mycel/pkg/cost"
-	"github.com/rpuneet/mycel/pkg/cron"
-	bcdb "github.com/rpuneet/mycel/pkg/db"
+	dbpkg "github.com/rpuneet/mycel/pkg/db"
 
 	"github.com/rpuneet/mycel/pkg/events"
+	"github.com/rpuneet/mycel/pkg/home"
 	pkgmcp "github.com/rpuneet/mycel/pkg/mcp"
 	"github.com/rpuneet/mycel/pkg/notify"
+	"github.com/rpuneet/mycel/pkg/provider"
 	"github.com/rpuneet/mycel/pkg/tool"
-	"github.com/rpuneet/mycel/pkg/workspace"
 	"github.com/rpuneet/mycel/server"
 	"github.com/rpuneet/mycel/server/ws"
 )
 
 // ─── Test Harness ────────────────────────────────────────────────────────────
 
-// e2eServer is a fully wired bcd test server backed by real stores.
+// e2eServer is a fully wired the daemon test server backed by real stores.
 type e2eServer struct {
 	*httptest.Server
-	ws *workspace.Workspace
+	h *home.Home
 }
 
-// newE2EServer creates a bcd server with all services wired to temp SQLite DBs.
+// newE2EServer creates a daemon server with all services wired to a
+// sandboxed ~/.mycel (temp MYCEL_HOME) and real SQLite storage.
 func newE2EServer(t *testing.T) *e2eServer {
 	t.Helper()
 
 	dir := t.TempDir()
-	// workspace.Load requires a git repo
+	// home.Open requires a non-empty root to be a git repo
 	if out, err := exec.CommandContext(context.Background(), "git", "init", dir).CombinedOutput(); err != nil { //nolint:gosec // dir is a t.TempDir(), not user input
 		t.Fatalf("git init: %v\n%s", err, out)
 	}
+	// Isolate global state: ONE prefs.json + ONE mycel.db under a
+	// throwaway MYCEL_HOME.
 	t.Setenv("MYCEL_HOME", t.TempDir())
-	stateDir, sdErr := workspace.GlobalStateDir(dir)
-	if sdErr != nil {
-		t.Fatal(sdErr)
-	}
-	if err := os.MkdirAll(filepath.Join(stateDir, "roles"), 0750); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.MkdirAll(filepath.Join(stateDir, "agents"), 0750); err != nil {
-		t.Fatal(err)
-	}
 
-	// Write minimal valid workspace config
-	cfg := `{"version":2,"providers":{"default":"claude","providers":{"claude":{"command":"claude"}}},"server":{"host":"127.0.0.1","port":9374,"cors_origin":"*"},"runtime":{"default":"tmux"},"ui":{"theme":"dark","mode":"auto"}}`
-	if err := os.WriteFile(filepath.Join(stateDir, workspace.PreferencesFileName), []byte(cfg), 0600); err != nil {
-		t.Fatal(err)
-	}
-
-	ws, err := workspace.Load(dir)
+	// Open bootstraps ~/.mycel (prefs.json with defaults, agents/, logs/).
+	h, err := home.Open(dir)
 	if err != nil {
-		t.Fatalf("workspace load: %v", err)
+		t.Fatalf("home open: %v", err)
 	}
 
 	// Single global database (production path).
-	wsDB, wsDriver, dbErr := bcdb.Global(nil)
+	wsDB, wsDriver, dbErr := dbpkg.Global(nil)
 	if dbErr != nil {
 		t.Fatalf("open global db: %v", dbErr)
 	}
-	t.Cleanup(func() { _ = bcdb.CloseGlobal() })
+	t.Cleanup(func() { _ = dbpkg.CloseGlobal() })
 
 	// SSE hub
 	hub := ws_hub(t)
 
 	// Agent service (no runtime backend — just state management)
-	mgr := agent.NewWorkspaceManager(ws.StateDir(), ws.RootDir)
+	mgr := agent.NewManagerWithRepo(h.AgentsDir(), h.RootDir)
 	_ = mgr.LoadState()
 	agentSvc := agent.NewAgentService(mgr, hub, nil)
 
-	// Cost store
-	var costStore *cost.Store
-	cs := cost.NewStore(ws.RootDir)
-	if err := cs.Open(); err == nil {
-		costStore = cs
-		t.Cleanup(func() { _ = cs.Close() })
-	}
-
-	// Cron store
-	var cronStore *cron.Store
-	if cr, err := cron.Open(wsDB, wsDriver); err == nil {
-		cronStore = cr
-		t.Cleanup(func() { _ = cr.Close() })
-	}
+	// Source-direct cost service over the sandboxed sources.
+	costSvc := cost.NewService(provider.DefaultRegistry, cost.Options{
+		Home:      t.TempDir(),
+		AgentsDir: h.AgentsDir(),
+	}, nil)
 
 	// MCP store
 	var mcpStore *pkgmcp.Store
@@ -131,13 +108,12 @@ func newE2EServer(t *testing.T) *e2eServer {
 
 	svc := server.Services{
 		Agents:   agentSvc,
-		Costs:    costStore,
-		Cron:     cronStore,
+		Costs:    costSvc,
 		MCP:      mcpStore,
 		Tools:    toolStore,
 		EventLog: eventLog,
 		Notify:   notifySvc,
-		WS:       ws,
+		Home:     h,
 	}
 
 	srvCfg := server.Config{Addr: "127.0.0.1:0", CORS: true}
@@ -145,7 +121,7 @@ func newE2EServer(t *testing.T) *e2eServer {
 	ts2 := httptest.NewServer(srv.Handler())
 	t.Cleanup(ts2.Close)
 
-	return &e2eServer{Server: ts2, ws: ws}
+	return &e2eServer{Server: ts2, h: h}
 }
 
 func ws_hub(t *testing.T) *ws.Hub {
@@ -312,23 +288,9 @@ func TestE2E_Costs_Summary(t *testing.T) {
 	if code != 200 {
 		t.Fatalf("want 200, got %d", code)
 	}
-	// Empty workspace — should return valid structure with zero costs
+	// Fresh home — should return valid structure with zero costs
 	if body == nil {
 		t.Fatal("expected cost summary body")
-	}
-}
-
-// ─── Cron ────────────────────────────────────────────────────────────────────
-
-func TestE2E_Cron_ListEmpty(t *testing.T) {
-	s := newE2EServer(t)
-
-	code, jobs := s.getList(t, "/api/cron")
-	if code != 200 {
-		t.Fatalf("want 200, got %d", code)
-	}
-	if len(jobs) != 0 {
-		t.Fatalf("want 0 cron jobs, got %d", len(jobs))
 	}
 }
 
@@ -341,7 +303,7 @@ func TestE2E_Tools_List(t *testing.T) {
 	if code != 200 {
 		t.Fatalf("want 200, got %d", code)
 	}
-	// Default workspace has provider tools registered
+	// Default install has provider tools registered
 	_ = tools // may be empty or populated depending on config
 }
 

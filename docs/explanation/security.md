@@ -68,8 +68,7 @@ Containers receive exactly two mounts by default:
 
 1. **Agent's repo** → `/workspace` (project source code).
 2. **Persistent Claude state** → `/home/agent/.claude` (auth, plugins,
-   sessions). Stored at `~/.mycel/workspaces/<id>/agents/<name>/claude/` on
-   the host.
+   sessions). Stored at `~/.mycel/agents/<name>/session/` on the host.
 
 ### Mount Validation
 
@@ -87,8 +86,8 @@ by `validateMount()` before being passed to `docker run`:
 
 ### Network
 
-The default Docker network is `bc-net` (`runtime.docker.network` in
-`preferences.json`; the backend falls back to `bridge` when unset). To fully
+The default Docker network is `mycel-net` (`runtime.docker.network` in
+`prefs.json`; the backend falls back to `bridge` when unset). To fully
 isolate agents from the network, set the network to `none`.
 
 ### Resource Limits

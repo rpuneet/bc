@@ -13,16 +13,16 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/rpuneet/mycel/pkg/client"
-	"github.com/rpuneet/mycel/pkg/workspace"
+	"github.com/rpuneet/mycel/pkg/home"
 )
 
 var configCmd = &cobra.Command{
 	Use:   "config",
 	Short: "Manage repo configuration",
-	Long: `Commands for managing repo configuration (preferences.json).
+	Long: `Commands for managing repo configuration (prefs.json).
 
 Configuration uses a hierarchical key structure with dot notation:
-  workspace.name
+  user.name
   providers.claude.command
   providers.default
 
@@ -59,7 +59,7 @@ var configGetCmd = &cobra.Command{
 	Long: `Get a specific configuration value using dot notation.
 
 Examples:
-  mycel config get workspace.name
+  mycel config get user.name
   mycel config get providers.default
   mycel config get providers.claude.command
   mycel config get tools.claude.command`,
@@ -147,7 +147,7 @@ User configuration provides defaults that apply across all mycel repos:
   - Default role for new agents
   - Preferred AI tools
 
-Workspace config (preferences.json) takes precedence over user config.
+Global config (prefs.json) takes precedence over user config.
 
 Examples:
   mycel config user init   # Create ~/.bcrc with guided prompts
@@ -213,26 +213,26 @@ func init() {
 	rootCmd.AddCommand(configCmd)
 }
 
-func loadWorkspaceConfig() (*workspace.Config, string, error) {
-	ws, err := getRepo()
+func loadGlobalConfig() (*home.Config, string, error) {
+	h, err := getRepo()
 	if err != nil {
 		return nil, "", fmt.Errorf("not in a mycel-adopted repo: %w", err)
 	}
 
-	if ws.Config == nil {
+	if h.Config == nil {
 		return nil, "", fmt.Errorf("repo is using v1 config format. Run 'mycel up' from your repo to bootstrap v2 config")
 	}
 
-	return ws.Config, ws.SettingsFile(), nil
+	return h.Config, h.SettingsFile(), nil
 }
 
-// loadConfigViaAPI tries to load workspace config through the daemon API,
+// loadConfigViaAPI tries to load global config through the daemon API,
 // falling back to direct file read when the daemon is not running.
-func loadConfigViaAPI(ctx context.Context) (*workspace.Config, error) {
+func loadConfigViaAPI(ctx context.Context) (*home.Config, error) {
 	c, err := newDaemonClient(ctx)
 	if err != nil && client.IsDaemonNotRunning(err) {
 		// Offline fallback
-		cfg, _, loadErr := loadWorkspaceConfig()
+		cfg, _, loadErr := loadGlobalConfig()
 		return cfg, loadErr
 	}
 	if err != nil {
@@ -244,7 +244,7 @@ func loadConfigViaAPI(ctx context.Context) (*workspace.Config, error) {
 		return nil, err
 	}
 
-	var cfg workspace.Config
+	var cfg home.Config
 	if err := json.Unmarshal(raw, &cfg); err != nil {
 		return nil, fmt.Errorf("decode settings: %w", err)
 	}
@@ -319,7 +319,7 @@ func runConfigSet(cmd *cobra.Command, args []string) error {
 		if getErr != nil {
 			return getErr
 		}
-		var cfg workspace.Config
+		var cfg home.Config
 		if err := json.Unmarshal(raw, &cfg); err != nil {
 			return fmt.Errorf("decode settings: %w", err)
 		}
@@ -347,7 +347,7 @@ func runConfigSet(cmd *cobra.Command, args []string) error {
 	}
 
 	// Offline fallback: direct file modification
-	cfg, configPath, err := loadWorkspaceConfig()
+	cfg, configPath, err := loadGlobalConfig()
 	if err != nil {
 		return err
 	}
@@ -390,7 +390,7 @@ func runConfigList(cmd *cobra.Command, _ []string) error {
 }
 
 func runConfigEdit(cmd *cobra.Command, args []string) error {
-	_, configPath, err := loadWorkspaceConfig()
+	_, configPath, err := loadGlobalConfig()
 	if err != nil {
 		return err
 	}
@@ -410,7 +410,7 @@ func runConfigEdit(cmd *cobra.Command, args []string) error {
 }
 
 func runConfigValidate(cmd *cobra.Command, _ []string) error {
-	cfg, configPath, err := loadWorkspaceConfig()
+	cfg, configPath, err := loadGlobalConfig()
 	if err != nil {
 		return err
 	}
@@ -427,12 +427,12 @@ func runConfigValidate(cmd *cobra.Command, _ []string) error {
 }
 
 func runConfigReset(cmd *cobra.Command, args []string) error {
-	ws, err := getRepo()
+	h, err := getRepo()
 	if err != nil {
 		return errNoRepo(err)
 	}
 
-	configPath := ws.SettingsFile()
+	configPath := h.SettingsFile()
 
 	if !configForce {
 		fmt.Printf("⚠️  This will overwrite your config at: %s\n", configPath)
@@ -452,7 +452,7 @@ func runConfigReset(cmd *cobra.Command, args []string) error {
 	}
 
 	// Create default config
-	defaultCfg := workspace.DefaultConfig()
+	defaultCfg := home.DefaultConfig()
 
 	// Save it
 	if err := defaultCfg.Save(configPath); err != nil {
@@ -466,7 +466,7 @@ func runConfigReset(cmd *cobra.Command, args []string) error {
 
 // Helper functions
 
-func getConfigValue(cfg *workspace.Config, key string) (any, error) {
+func getConfigValue(cfg *home.Config, key string) (any, error) {
 	parts := strings.Split(key, ".")
 	v := reflect.ValueOf(*cfg)
 
@@ -491,7 +491,7 @@ func getConfigValue(cfg *workspace.Config, key string) (any, error) {
 	return v.Interface(), nil
 }
 
-func setConfigValue(cfg *workspace.Config, key, valueStr string) error {
+func setConfigValue(cfg *home.Config, key, valueStr string) error {
 	parts := strings.Split(key, ".")
 	v := reflect.ValueOf(cfg).Elem()
 
@@ -579,7 +579,7 @@ func findField(v reflect.Value, name string) reflect.Value {
 	return reflect.Value{}
 }
 
-func listConfigKeys(cfg *workspace.Config, prefix string) []string {
+func listConfigKeys(cfg *home.Config, prefix string) []string {
 	var keys []string
 	v := reflect.ValueOf(*cfg)
 	t := v.Type()
@@ -649,7 +649,7 @@ func listStructKeys(v reflect.Value, prefix string) []string {
 	return keys
 }
 
-func printConfig(cfg *workspace.Config) {
+func printConfig(cfg *home.Config) {
 	fmt.Println("Repo Configuration")
 	fmt.Println(strings.Repeat("=", 60))
 	fmt.Println()
@@ -678,9 +678,6 @@ func printConfig(cfg *workspace.Config) {
 	}
 	fmt.Println()
 
-	fmt.Println("[cron]")
-	fmt.Printf("  poll_interval_seconds: %d\n", cfg.Cron.PollIntervalSeconds)
-	fmt.Printf("  job_timeout_seconds: %d\n", cfg.Cron.JobTimeoutSeconds)
 	fmt.Println()
 
 	fmt.Println("[ui]")
@@ -749,13 +746,13 @@ func formatValue(value any) string {
 func runConfigUserInit(cmd *cobra.Command, _ []string) error {
 	quick, _ := cmd.Flags().GetBool("quick")
 
-	path := workspace.UserRCConfigPath()
+	path := home.UserRCConfigPath()
 	if path == "" {
 		return fmt.Errorf("could not determine home directory")
 	}
 
 	// Check if already exists
-	if workspace.UserRCExists() {
+	if home.UserRCExists() {
 		fmt.Printf("⚠️  User config already exists at %s\n", path)
 		fmt.Print("Overwrite? [y/N]: ")
 
@@ -772,11 +769,11 @@ func runConfigUserInit(cmd *cobra.Command, _ []string) error {
 		}
 	}
 
-	var cfg workspace.UserRCConfig
+	var cfg home.UserRCConfig
 
 	if quick {
 		// Quick mode: use defaults
-		cfg = workspace.DefaultUserRCConfig()
+		cfg = home.DefaultUserRCConfig()
 	} else {
 		// Interactive mode
 		var err error
@@ -799,8 +796,8 @@ func runConfigUserInit(cmd *cobra.Command, _ []string) error {
 	return nil
 }
 
-func runConfigUserInitWizard() (workspace.UserRCConfig, error) {
-	cfg := workspace.DefaultUserRCConfig()
+func runConfigUserInitWizard() (home.UserRCConfig, error) {
+	cfg := home.DefaultUserRCConfig()
 
 	fmt.Println()
 	fmt.Println("mycel - User Configuration Setup")
@@ -808,10 +805,10 @@ func runConfigUserInitWizard() (workspace.UserRCConfig, error) {
 	fmt.Println()
 
 	// Nickname
-	fmt.Printf("Your nickname [%s]: ", "@bc")
+	fmt.Printf("Your nickname [%s]: ", "@mycel")
 	var input string
 	if _, err := fmt.Scanln(&input); err == nil && input != "" {
-		nickname, err := workspace.NormalizeNickname(input)
+		nickname, err := home.NormalizeNickname(input)
 		if err != nil {
 			fmt.Printf("⚠️  %s, using default\n", err)
 		} else {
@@ -846,13 +843,13 @@ func runConfigUserInitWizard() (workspace.UserRCConfig, error) {
 }
 
 func runConfigUserShow(_ *cobra.Command, _ []string) error {
-	cfg, err := workspace.LoadUserRCConfig()
+	cfg, err := home.LoadUserRCConfig()
 	if err != nil {
 		return err
 	}
 
 	if cfg == nil {
-		path := workspace.UserRCConfigPath()
+		path := home.UserRCConfigPath()
 		fmt.Printf("No user config found at %s\n", path)
 		fmt.Println("Run 'mycel config user init' to create one.")
 		return nil
@@ -866,8 +863,8 @@ func runConfigUserShow(_ *cobra.Command, _ []string) error {
 }
 
 func runConfigUserPath(_ *cobra.Command, _ []string) error {
-	path := workspace.UserRCConfigPath()
-	exists := workspace.UserRCExists()
+	path := home.UserRCConfigPath()
+	exists := home.UserRCExists()
 
 	fmt.Printf("User config: %s", path)
 	if exists {
@@ -879,7 +876,7 @@ func runConfigUserPath(_ *cobra.Command, _ []string) error {
 	return nil
 }
 
-func printUserRCConfig(cfg *workspace.UserRCConfig) {
+func printUserRCConfig(cfg *home.UserRCConfig) {
 	fmt.Println("[user]")
 	fmt.Printf("  nickname = %q\n", cfg.User.Nickname)
 	fmt.Println()

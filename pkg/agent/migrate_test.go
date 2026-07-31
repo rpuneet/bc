@@ -19,11 +19,11 @@ func TestMigrateJSONToSQLite_AgentsJSON(t *testing.T) {
 	agents := map[string]*Agent{
 		"eng-01": {
 			Name: "eng-01", Role: "engineer", State: StateIdle,
-			Workspace: "/ws", StartedAt: time.Now(),
+			Workspace: "/h", StartedAt: time.Now(),
 		},
 		"eng-02": {
 			Name: "eng-02", Role: "worker", State: StateWorking,
-			Workspace: "/ws", StartedAt: time.Now(), Tool: "cursor",
+			Workspace: "/h", StartedAt: time.Now(), Tool: "cursor",
 		},
 	}
 	data, _ := json.MarshalIndent(agents, "", "  ")
@@ -36,7 +36,7 @@ func TestMigrateJSONToSQLite_AgentsJSON(t *testing.T) {
 	}
 	defer func() { _ = store.Close() }()
 
-	if migErr := migrateJSONToSQLite(store, stateDir, "/ws"); migErr != nil {
+	if migErr := migrateJSONToSQLite(store, stateDir, "/h"); migErr != nil {
 		t.Fatalf("migrateJSONToSQLite: %v", migErr)
 	}
 
@@ -85,7 +85,7 @@ func TestMigrateJSONToSQLite_RootJSON(t *testing.T) {
 	}
 	defer func() { _ = store.Close() }()
 
-	if err := migrateJSONToSQLite(store, stateDir, "/ws"); err != nil {
+	if err := migrateJSONToSQLite(store, stateDir, "/h"); err != nil {
 		t.Fatalf("migrateJSONToSQLite: %v", err)
 	}
 
@@ -121,7 +121,7 @@ func TestMigrateJSONToSQLite_PerAgentJSON(t *testing.T) {
 	}
 	defer func() { _ = store.Close() }()
 
-	if err := migrateJSONToSQLite(store, stateDir, "/ws"); err != nil {
+	if err := migrateJSONToSQLite(store, stateDir, "/h"); err != nil {
 		t.Fatalf("migrateJSONToSQLite: %v", err)
 	}
 

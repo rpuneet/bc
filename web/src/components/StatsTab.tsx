@@ -7,12 +7,26 @@ import { api } from "../api/client";
 import type { Agent, AgentStatsSummary, AgentMetricTS, ComputedStats } from "../api/client";
 import { usePolling } from "../hooks/usePolling";
 import { Panel, fmtTime, fmtBytes, fmtTokens } from "./shared/stats-primitives";
+import { StatBand, StatCell } from "./shared/StatBand";
+import { SectionRule } from "./shared/SectionRule";
+import { TT_STYLE, TICK as CHART_TICK, AX as CHART_AX } from "../views/insights/chrome";
 
 // ── Constants ────────────────────────────────────────────────────────────────────
 
-// Chart palette — first entry follows the theme accent (see Stats.tsx).
+// Chart palette — first entry follows the theme accent; the rest are
+// the per-theme earthy chart tokens in canonical CVD-validated slot
+// order (see Stats.tsx and theme/tokens.css).
 const ACCENT = "var(--mycel-accent)";
-const COLORS = [ACCENT, "#3B82F6", "#10B981", "#A855F7", "#F59E0B", "#EC4899", "#06B6D4", "#84CC16"];
+const COLORS = [
+  ACCENT,
+  "var(--mycel-chart-1)", // spore blue
+  "var(--mycel-chart-2)", // dusty rose
+  "var(--mycel-chart-3)", // café gold
+  "var(--mycel-chart-4)", // spore lavender
+  "var(--mycel-chart-5)", // moss
+  "var(--mycel-chart-6)", // lichen teal
+  "var(--mycel-chart-7)", // olive
+];
 const RANGES = [
   { label: "1h", seconds: 3600 },
   { label: "6h", seconds: 21600 },
@@ -20,13 +34,11 @@ const RANGES = [
   { label: "24h", seconds: 86400 },
 ] as const;
 
-const TT: React.CSSProperties = {
-  backgroundColor: "var(--mycel-surface-2)", border: "1px solid var(--mycel-border)",
-  borderRadius: "6px", color: "var(--mycel-text)", fontSize: "12px",
-  boxShadow: "var(--mycel-shadow-lg)",
-};
-const AX = { axisLine: false as const, tickLine: false as const };
-const TICK = { fill: "var(--mycel-text-2)", fontSize: 10 };
+// Chart chrome shared with the Insights page so agent-level charts read
+// with the same tooltip / axis language as the fleet-wide view.
+const TT = TT_STYLE;
+const AX = CHART_AX;
+const TICK = CHART_TICK;
 
 // ── Helpers ──────────────────────────────────────────────────────────────────────
 
@@ -215,6 +227,15 @@ export function StatsTab({ agent }: { agent: Agent }) {
 
   return (
     <div className="space-y-4">
+      {/* Agent-level heading — distinguishes this from the fleet-wide
+          Insights page while sharing its visual language. */}
+      <SectionRule
+        label="This agent"
+        trailing={
+          <span className="text-[11px] text-mycel-muted tabular-nums">{agent.name}</span>
+        }
+      />
+
       {/* Empty-state banner when stats store is unreachable or agent never recorded data */}
       {!hasAnyData && !loading && (
         <div className="rounded-lg border border-mycel-border bg-mycel-surface p-4 text-xs text-mycel-muted leading-relaxed">
@@ -235,7 +256,7 @@ export function StatsTab({ agent }: { agent: Agent }) {
       {/* Hook-based stats — shown when TimescaleDB is empty but SQLite events exist */}
       {hasComputedData && !loading && (
         <div className="space-y-3">
-          <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted">Activity (from hook events)</p>
+          <SectionRule label="Activity · from hook events" />
 
           {/* Summary cards */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -256,28 +277,28 @@ export function StatsTab({ agent }: { agent: Agent }) {
           </div>
 
           {/* Disk Usage and Notification Activity */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <StatCard
+          <StatBand>
+            <StatCell
               label="Disk Usage"
               value={fmtDiskBytes(computed?.disk_bytes ?? 0)}
               sub="worktree size"
             />
-            <StatCard
+            <StatCell
               label="Notifications Sent"
               value={String(computed?.channel_sent ?? 0)}
               sub="messages sent"
             />
-            <StatCard
+            <StatCell
               label="Notifications Received"
               value={String(computed?.channel_received ?? 0)}
               sub="messages received"
             />
-            <StatCard
+            <StatCell
               label="Network I/O"
               value="—"
               sub={computed?.network_note ?? "container runtime only"}
             />
-          </div>
+          </StatBand>
 
           {/* Tool breakdown */}
           {toolBreakdownData.length > 0 && (
@@ -306,29 +327,31 @@ export function StatsTab({ agent }: { agent: Agent }) {
         </div>
       )}
 
-      {/* Time range selector */}
-      <div className="flex items-center justify-between">
-        <span className="text-sm font-medium text-mycel-muted">{agent.name}</span>
-        <div className="flex gap-1">
-          {RANGES.map((r, i) => (
-            <button key={r.label} type="button" onClick={() => setRange(i)}
-              className={`px-2.5 py-1 text-xs font-medium rounded-md border transition-colors ${
-                i === range
-                  ? "border-mycel-accent text-mycel-accent"
-                  : "border-mycel-border text-mycel-muted hover:text-mycel-text hover:border-mycel-muted"
-              }`}
-            >{r.label}</button>
-          ))}
-        </div>
-      </div>
-
-      {/* Row 1: Summary Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <StatCard label="CPU" value={`${cpuAvg.toFixed(1)}%`} sub={`max ${cpuMax.toFixed(1)}%`} />
-        <StatCard label="Memory" value={`${memAvgMB} MB`} sub={`max ${memMaxMB} MB`} />
-        <StatCard label="Tokens" value={fmtTokens(totalIn + totalOut)} sub={`In: ${fmtTokens(totalIn)} / Out: ${fmtTokens(totalOut)}`} />
-        <StatCard label="Cost" value={fmtCost(totalCost)} accent />
-      </div>
+      {/* Resources — same hairline stat band as the fleet-wide Insights
+          page, scoped to this one agent, with the time-range picker in
+          the section rule's trailing slot. */}
+      <SectionRule
+        label="Resources"
+        trailing={
+          <div className="flex gap-1">
+            {RANGES.map((r, i) => (
+              <button key={r.label} type="button" onClick={() => setRange(i)}
+                className={`px-2 py-0.5 text-[11px] font-medium rounded-md border transition-colors ${
+                  i === range
+                    ? "border-mycel-accent text-mycel-accent"
+                    : "border-mycel-border text-mycel-muted hover:text-mycel-text hover:border-mycel-muted"
+                }`}
+              >{r.label}</button>
+            ))}
+          </div>
+        }
+      />
+      <StatBand>
+        <StatCell label="CPU" value={`${cpuAvg.toFixed(1)}%`} sub={`max ${cpuMax.toFixed(1)}%`} />
+        <StatCell label="Memory" value={`${memAvgMB} MB`} sub={`max ${memMaxMB} MB`} />
+        <StatCell label="Tokens" value={fmtTokens(totalIn + totalOut)} sub={`${fmtTokens(totalIn)} in · ${fmtTokens(totalOut)} out`} />
+        <StatCell label="Cost" value={fmtCost(totalCost)} accent sub="total" />
+      </StatBand>
 
       {/* TimescaleDB notice — scoped to the historical charts section only.
           The live sampler feeds the CPU/Mem cards above without TSDB, so
@@ -366,7 +389,7 @@ export function StatsTab({ agent }: { agent: Agent }) {
                   <XAxis dataKey="time" tick={TICK} {...AX} />
                   <YAxis tick={TICK} {...AX} />
                   <Tooltip contentStyle={TT} formatter={(v) => [`${Number(v ?? 0).toFixed(1)} MB`]} />
-                  <Area type="monotone" dataKey="mem" name="Memory MB" stroke="#3B82F6" fill="#3B82F6" fillOpacity={0.12} strokeWidth={1.5} dot={false} />
+                  <Area type="monotone" dataKey="mem" name="Memory MB" stroke="var(--mycel-chart-1)" fill="var(--mycel-chart-1)" fillOpacity={0.12} strokeWidth={1.5} dot={false} />
                 </AreaChart>
               </ResponsiveContainer>
             </Panel>
@@ -384,7 +407,7 @@ export function StatsTab({ agent }: { agent: Agent }) {
                 <XAxis dataKey="time" tick={TICK} {...AX} />
                 <YAxis tick={TICK} {...AX} tickFormatter={(v: number) => fmtBytes(v)} />
                 <Tooltip contentStyle={TT} formatter={(v) => [fmtBytes(Number(v ?? 0))]} />
-                <Area type="monotone" dataKey="rx" name="RX" stroke="#10B981" fill="#10B981" fillOpacity={0.12} strokeWidth={1.5} dot={false} />
+                <Area type="monotone" dataKey="rx" name="RX" stroke="var(--mycel-chart-5)" fill="var(--mycel-chart-5)" fillOpacity={0.12} strokeWidth={1.5} dot={false} />
                 <Area type="monotone" dataKey="tx" name="TX" stroke={ACCENT} fill={ACCENT} fillOpacity={0.12} strokeWidth={1.5} dot={false} />
               </AreaChart>
             </ResponsiveContainer>
@@ -407,7 +430,7 @@ export function StatsTab({ agent }: { agent: Agent }) {
                 <div className="grid grid-cols-2 gap-3 py-4">
                   <div className="text-center">
                     <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted">Net RX</p>
-                    <p className="text-lg font-bold tabular-nums text-[#10B981]">{fmtBytes(s.network?.rx_bytes ?? 0)}</p>
+                    <p className="text-lg font-bold tabular-nums text-mycel-chart-5">{fmtBytes(s.network?.rx_bytes ?? 0)}</p>
                   </div>
                   <div className="text-center">
                     <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted">Net TX</p>
@@ -415,11 +438,11 @@ export function StatsTab({ agent }: { agent: Agent }) {
                   </div>
                   <div className="text-center">
                     <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted">Disk Read</p>
-                    <p className="text-lg font-bold tabular-nums text-[#3B82F6]">{fmtBytes(s.disk?.read_bytes ?? 0)}</p>
+                    <p className="text-lg font-bold tabular-nums text-mycel-chart-1">{fmtBytes(s.disk?.read_bytes ?? 0)}</p>
                   </div>
                   <div className="text-center">
                     <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted">Disk Write</p>
-                    <p className="text-lg font-bold tabular-nums text-[#A855F7]">{fmtBytes(s.disk?.write_bytes ?? 0)}</p>
+                    <p className="text-lg font-bold tabular-nums text-mycel-chart-4">{fmtBytes(s.disk?.write_bytes ?? 0)}</p>
                   </div>
                 </div>
             </Panel>

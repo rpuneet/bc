@@ -7,7 +7,7 @@ Get a configuration value
 Get a specific configuration value using dot notation.
 
 Examples:
-  mycel config get workspace.name
+  mycel config get user.name
   mycel config get providers.default
   mycel config get providers.claude.command
   mycel config get tools.claude.command

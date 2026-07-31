@@ -57,7 +57,7 @@ function GlyphIcon({ kind }: { kind: string }) {
         </svg>
       );
     case "clock":
-      // Clock face + hour/minute hands — schedule / cron / recurring
+      // Clock face + hour/minute hands — schedule / recurring
       return (
         <svg {...common} aria-hidden>
           <circle cx="12" cy="12" r="9" />
@@ -98,7 +98,7 @@ export function EmptyState({
           {iconNode}
         </span>
       )}
-      <h3 className="text-sm font-medium text-mycel-text">{title}</h3>
+      <h3 className="font-display text-[15px] font-medium text-mycel-text">{title}</h3>
       {description && (
         <p className="mt-1 text-xs text-mycel-muted max-w-sm">{description}</p>
       )}

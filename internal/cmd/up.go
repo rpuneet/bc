@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"context"
-	"crypto/sha256"
 	"fmt"
 	"net"
 	"os"
@@ -13,9 +12,9 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/rpuneet/mycel/pkg/home"
 	"github.com/rpuneet/mycel/pkg/log"
 	"github.com/rpuneet/mycel/pkg/ui"
-	"github.com/rpuneet/mycel/pkg/workspace"
 )
 
 // normalizeAddr ensures the host part of a host:port address is not empty.
@@ -49,21 +48,21 @@ Examples:
   mycel up                              # Foreground (Docker/Railway)
   mycel up -d                           # Background daemon
   mycel up --addr 0.0.0.0:9374         # Custom listen address
-  mycel up --workspace /path/to/ws     # Explicit workspace`,
+  mycel up --workspace /path/to/repo  # Explicit anchor repo`,
 	RunE: runUp,
 }
 
 var (
-	upAddr      string
-	upWorkspace string
-	upDaemon    bool
-	upCORS      string
-	upAPIKey    string
+	upAddr   string
+	upRepo   string
+	upDaemon bool
+	upCORS   string
+	upAPIKey string
 )
 
 func init() {
 	upCmd.Flags().StringVar(&upAddr, "addr", "127.0.0.1:9374", "Listen address (host:port)")
-	upCmd.Flags().StringVar(&upWorkspace, "workspace", "", "Workspace directory (defaults to current workspace)")
+	upCmd.Flags().StringVar(&upRepo, "workspace", "", "Anchor repo directory (defaults to the enclosing git repo)")
 	upCmd.Flags().BoolVarP(&upDaemon, "daemon", "d", false, "Run as background daemon")
 	upCmd.Flags().StringVar(&upCORS, "cors-origin", "*", "CORS allowed origin")
 	upCmd.Flags().StringVar(&upAPIKey, "api-key", os.Getenv("MYCEL_API_KEY"), "API key for Bearer token auth (or set MYCEL_API_KEY)")
@@ -71,35 +70,34 @@ func init() {
 }
 
 func runUp(cmd *cobra.Command, _ []string) error {
-	wsRoot := upWorkspace
-	if wsRoot == "" {
-		wsRoot = resolveUpWorkspace()
+	repoRoot := upRepo
+	if repoRoot == "" {
+		repoRoot = resolveUpRepo()
 	} else {
-		// Validate the workspace path: it must exist and be a git repo.
+		// Validate the repo path: it must exist and be a git repo.
 		// It does NOT need to be initialized — the server bootstraps
-		// uninitialized repos via workspace.Init (idempotent).
-		abs, absErr := filepath.Abs(wsRoot)
+		// uninitialized repos via home.Init (idempotent).
+		abs, absErr := filepath.Abs(repoRoot)
 		if absErr != nil {
-			return fmt.Errorf("cannot resolve repo path %s: %w", wsRoot, absErr)
+			return fmt.Errorf("cannot resolve repo path %s: %w", repoRoot, absErr)
 		}
 		if _, statErr := os.Stat(filepath.Join(abs, ".git")); statErr != nil {
 			return fmt.Errorf("%s is not a git repository (mycel needs git for agent worktrees)", abs)
 		}
-		wsRoot = abs
+		repoRoot = abs
 	}
 
-	// Read server config from preferences.json for defaults
-	if wsRoot != "" {
-		if ws, loadErr := workspace.Load(wsRoot); loadErr == nil && ws.Config != nil {
-			// Use preferences.json addr if --addr wasn't explicitly set
-			if !cmd.Flags().Changed("addr") {
-				host := ws.Config.Server.Host
+	// Use the prefs.json addr if --addr wasn't explicitly set.
+	if !cmd.Flags().Changed("addr") {
+		if prefsPath, pathErr := home.PrefsPath(); pathErr == nil {
+			if cfg, loadErr := home.LoadConfig(prefsPath); loadErr == nil {
+				host := cfg.Server.Host
 				if host == "" {
 					host = "127.0.0.1"
 				}
 				port := 9374
-				if ws.Config.Server.Port > 0 {
-					port = ws.Config.Server.Port
+				if cfg.Server.Port > 0 {
+					port = cfg.Server.Port
 				}
 				upAddr = fmt.Sprintf("%s:%d", host, port)
 			}
@@ -109,57 +107,57 @@ func runUp(cmd *cobra.Command, _ []string) error {
 	// Normalize addr: ":8080" → "127.0.0.1:8080"
 	upAddr = normalizeAddr(upAddr)
 
-	// Daemon mode: re-exec bc up in background
+	// Daemon mode: re-exec mycel up in background
 	if upDaemon {
-		return runUpDaemon(wsRoot)
+		return runUpDaemon(repoRoot)
 	}
 
 	// Foreground mode: run server directly
-	if wsRoot != "" {
-		fmt.Printf("Starting mycel server in %s\n", wsRoot)
+	if repoRoot != "" {
+		fmt.Printf("Starting mycel server in %s\n", repoRoot)
 	} else {
 		fmt.Println("Starting mycel server (no repo yet — add one from the web UI, or run 'mycel up' inside a git repo)")
 	}
 	fmt.Printf("  addr: %s\n\n", upAddr)
 
-	// Lazy-start the bc-db container when the workspace is configured
-	// for TimescaleDB storage. SQLite (the default) needs nothing.
-	maybeBootstrapTimescale(wsRoot)
+	// Lazy-start the mycel-db container when storage is configured for
+	// TimescaleDB. SQLite (the default) needs nothing.
+	maybeBootstrapTimescale()
 
 	// Set MYCEL_DAEMON_ADDR so agents inherit the correct server address for hooks.
-	// Without this, agents default to :9374 even when bcd runs on a different port.
-	bcdAddr := "http://" + upAddr
-	if err := os.Setenv("MYCEL_DAEMON_ADDR", bcdAddr); err == nil {
-		fmt.Printf("  MYCEL_DAEMON_ADDR: %s\n", bcdAddr)
+	// Without this, agents default to :9374 even when the daemon runs on a different port.
+	daemonAddr := "http://" + upAddr
+	if err := os.Setenv("MYCEL_DAEMON_ADDR", daemonAddr); err == nil {
+		fmt.Printf("  MYCEL_DAEMON_ADDR: %s\n", daemonAddr)
 	}
 
-	// Publish the listen address at ~/.mycel/daemon.addr so the mycel CLI and
-	// agents can find the daemon without MYCEL_DAEMON_ADDR when it runs on
-	// a non-default port. Best-effort — failure to write is not fatal,
-	// but each failure mode must warn so users aren't silently routed
-	// back to the hardcoded :9374 default (the exact bug #43 fixed).
-	if _, ensureErr := workspace.EnsureGlobalDir(); ensureErr != nil {
-		log.Warn("daemon addr: ensure ~/.mycel failed — CLI will fall back to default port", "error", ensureErr)
-	} else if addrPath, pathErr := workspace.DaemonAddrPath(); pathErr != nil {
+	// Publish the listen address at ~/.mycel/run/daemon.addr so the mycel
+	// CLI and agents can find the daemon without MYCEL_DAEMON_ADDR when it
+	// runs on a non-default port. Best-effort — failure to write is not
+	// fatal, but each failure mode must warn so users aren't silently
+	// routed back to the hardcoded :9374 default (the exact bug #43 fixed).
+	if _, ensureErr := home.EnsureRunDir(); ensureErr != nil {
+		log.Warn("daemon addr: ensure ~/.mycel/run failed — CLI will fall back to default port", "error", ensureErr)
+	} else if addrPath, pathErr := home.DaemonAddrPath(); pathErr != nil {
 		log.Warn("daemon addr: resolve path failed — CLI will fall back to default port", "error", pathErr)
-	} else if writeErr := os.WriteFile(addrPath, []byte(bcdAddr+"\n"), 0o600); writeErr != nil {
+	} else if writeErr := os.WriteFile(addrPath, []byte(daemonAddr+"\n"), 0o600); writeErr != nil {
 		log.Warn("daemon addr: write failed — CLI will fall back to default port", "path", addrPath, "error", writeErr)
 	}
 
-	return RunServer(upAddr, wsRoot, upCORS, upAPIKey)
+	return RunServer(upAddr, repoRoot, upCORS, upAPIKey)
 }
 
-// resolveUpWorkspace picks the anchor repo for `mycel up`. The daemon is
+// resolveUpRepo picks the anchor repo for `mycel up`. The daemon is
 // single-tenant and only needs MycelHome to boot; the repo is the default
 // that new agents bind to:
 //
-//  1. MYCEL_WORKSPACE or a known workspace enclosing cwd
+//  1. MYCEL_WORKSPACE or a known repo enclosing cwd
 //  2. the enclosing git repo root — adopted as the anchor repo
-//     (the server runs workspace.Init, which is idempotent)
+//     (the server runs home.Init, which is idempotent)
 //  3. "" — boot against MycelHome only; new agents must name a repo
-func resolveUpWorkspace() string {
-	if ws, err := getRepo(); err == nil && ws != nil {
-		return ws.RootDir
+func resolveUpRepo() string {
+	if h, err := getRepo(); err == nil && h != nil {
+		return h.RootDir
 	}
 	if root := findGitRoot(); root != "" {
 		return root
@@ -187,21 +185,22 @@ func findGitRoot() string {
 	}
 }
 
-// maybeBootstrapTimescale starts the bc-db (TimescaleDB) container when
-// the workspace's storage.default is "timescale". Non-fatal: warns if
-// Docker is unavailable. SQLite workspaces (the default) skip this.
-func maybeBootstrapTimescale(wsRoot string) {
-	if wsRoot == "" {
+// maybeBootstrapTimescale starts the mycel-db (TimescaleDB) container when
+// prefs.json sets storage.default to "timescale". Non-fatal: warns if
+// Docker is unavailable. SQLite (the default) skips this.
+func maybeBootstrapTimescale() {
+	prefsPath, pathErr := home.PrefsPath()
+	if pathErr != nil {
 		return
 	}
-	ws, err := workspace.Load(wsRoot)
-	if err != nil || ws.Config == nil || ws.Config.Storage.Default != "timescale" {
+	cfg, err := home.LoadConfig(prefsPath)
+	if err != nil || cfg.Storage.Default != "timescale" {
 		return
 	}
 
 	// Honor the configured connection settings; only bootstrap the local
 	// container for a localhost target — a remote Timescale is the user's.
-	ts := ws.Config.Storage.Timescale
+	ts := cfg.Storage.Timescale
 	host := ts.Host
 	if host == "" {
 		host = "localhost"
@@ -215,33 +214,37 @@ func maybeBootstrapTimescale(wsRoot string) {
 	}
 	password := ts.Password
 	if password == "" {
-		password = "bc"
+		password = "mycel"
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
-	if err := dockerRun(ctx, "bc-db", []string{
+	if err := dockerRun(ctx, "mycel-db", []string{
 		"-p", fmt.Sprintf("%d:5432", port),
 		"-e", "POSTGRES_PASSWORD=" + password,
-		"-v", "bc-db-data:/var/lib/postgresql/data",
+		"-v", "mycel-db-data:/var/lib/postgresql/data",
 		"--restart", "always",
-		"bc-bcdb:latest",
+		"mycel-db:latest",
 	}); err != nil {
-		fmt.Printf("  %s bc-db: %v\n", ui.YellowText("warning"), err)
+		fmt.Printf("  %s mycel-db: %v\n", ui.YellowText("warning"), err)
 		return
 	}
 	fmt.Printf("  %s database ready\n\n", ui.GreenText("ok"))
 }
 
-// runUpDaemon starts bc up in the background by re-executing the mycel binary.
-// Logs go to ~/.mycel/daemon.log, PID to ~/.mycel/daemon.pid.
-func runUpDaemon(wsRoot string) error {
-	if _, err := workspace.EnsureGlobalDir(); err != nil {
-		return fmt.Errorf("ensure bc home: %w", err)
+// runUpDaemon starts mycel up in the background by re-executing the mycel
+// binary. Logs go to ~/.mycel/logs/daemon.log, PID to
+// ~/.mycel/run/daemon.pid.
+func runUpDaemon(repoRoot string) error {
+	if _, err := home.EnsureRunDir(); err != nil {
+		return fmt.Errorf("ensure run dir: %w", err)
+	}
+	if _, err := home.EnsureGlobalLogsDir(); err != nil {
+		return fmt.Errorf("ensure logs dir: %w", err)
 	}
 
-	pidPath, err := workspace.DaemonPidPath()
+	pidPath, err := home.DaemonPidPath()
 	if err != nil {
 		return fmt.Errorf("resolve daemon pid path: %w", err)
 	}
@@ -263,7 +266,7 @@ func runUpDaemon(wsRoot string) error {
 		return fmt.Errorf("cannot find mycel binary: %w", err)
 	}
 
-	logPath, err := workspace.DaemonLogPath()
+	logPath, err := home.DaemonLogPath()
 	if err != nil {
 		return fmt.Errorf("resolve daemon log path: %w", err)
 	}
@@ -274,8 +277,8 @@ func runUpDaemon(wsRoot string) error {
 		"--addr", upAddr,
 		"--cors-origin", upCORS,
 	}
-	if wsRoot != "" {
-		args = append(args, "--workspace", wsRoot)
+	if repoRoot != "" {
+		args = append(args, "--workspace", repoRoot)
 	}
 	if upAPIKey != "" {
 		args = append(args, "--api-key", upAPIKey)
@@ -297,7 +300,7 @@ func runUpDaemon(wsRoot string) error {
 	cmd.Stdin = nullFile
 	cmd.Stdout = logFile
 	cmd.Stderr = logFile
-	cmd.Dir = wsRoot
+	cmd.Dir = repoRoot
 	cmd.Env = os.Environ()
 	// Start in a new session so SIGHUP from terminal close doesn't propagate (no-op on Windows).
 	detachSession(cmd)
@@ -325,12 +328,6 @@ func runUpDaemon(wsRoot string) error {
 	fmt.Println()
 
 	return nil
-}
-
-// wsID returns a short workspace hash for container naming.
-func wsID(path string) string {
-	h := sha256.Sum256([]byte(path))
-	return fmt.Sprintf("%x", h[:3])
 }
 
 // dockerRun starts a container if not already running.

@@ -143,6 +143,22 @@ export function summarizeArgs(evt: HookEvent): string {
   return "";
 }
 
+/* ── Path helpers ──────────────────────────────────────────────────── */
+
+/** Compact a long absolute path: keep the basename intact, shorten the
+ *  directory to its last two segments. */
+export function compactPath(path: string): { dir: string; base: string } {
+  const idx = path.lastIndexOf("/");
+  if (idx <= 0) return { dir: "", base: path };
+  let dir = path.slice(0, idx + 1);
+  const base = path.slice(idx + 1);
+  if (dir.length > 40) {
+    const segs = dir.split("/").filter(Boolean);
+    dir = "…/" + segs.slice(-2).join("/") + "/";
+  }
+  return { dir, base };
+}
+
 /* ── Array / time utilities ────────────────────────────────────────── */
 
 export function findLastIdx<T>(arr: T[], pred: (v: T) => boolean): number {

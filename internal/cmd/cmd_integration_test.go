@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"os"
@@ -16,8 +17,8 @@ import (
 	"github.com/rpuneet/mycel/pkg/agent"
 	"github.com/rpuneet/mycel/pkg/db"
 	"github.com/rpuneet/mycel/pkg/events"
+	"github.com/rpuneet/mycel/pkg/home"
 	"github.com/rpuneet/mycel/pkg/ui"
-	"github.com/rpuneet/mycel/pkg/workspace"
 )
 
 func durationFromSeconds(s int) time.Duration {
@@ -36,14 +37,16 @@ func resetFlags(cmd *cobra.Command) {
 	}
 }
 
-// setupIntegrationWorkspace creates a temporary bc workspace and changes into it.
-// Returns the workspace root path and a cleanup function that restores
-// the original working directory and MYCEL_WORKSPACE env var.
-func setupIntegrationWorkspace(t *testing.T) (string, func()) {
+// setupIntegrationHome creates an isolated MYCEL_HOME plus a
+// temporary git repo, bootstraps the global mycel state via
+// home.Open (the `mycel up` bootstrap path), and changes into the
+// repo. Returns the repo root path and a cleanup function that restores
+// the original working directory.
+func setupIntegrationHome(t *testing.T) (string, func()) {
 	t.Helper()
 
 	if os.Getenv("MYCEL_TEST_DAEMON") == "" {
-		t.Skip("skipping: requires MYCEL_TEST_DAEMON=1 (dedicated test bcd instance)")
+		t.Skip("skipping: requires MYCEL_TEST_DAEMON=1 (dedicated test daemon instance)")
 	}
 
 	origDir, err := os.Getwd()
@@ -51,23 +54,24 @@ func setupIntegrationWorkspace(t *testing.T) (string, func()) {
 		t.Fatalf("failed to get cwd: %v", err)
 	}
 
+	// Isolate all global state (~/.mycel: prefs.json, mycel.db, agents/)
+	// in a throwaway home.
+	t.Setenv("MYCEL_HOME", t.TempDir())
+
 	tmpDir := t.TempDir()
+	gitInitDir(t, tmpDir)
 
-	// Initialize a workspace using the workspace package
-	ws, err := workspace.Init(tmpDir)
-	if err != nil {
-		t.Fatalf("failed to init workspace: %v", err)
-	}
-	if err := ws.EnsureDirs(); err != nil {
-		t.Fatalf("failed to ensure dirs: %v", err)
+	// Bootstrap the global mycel state anchored on the temp repo.
+	if _, err := home.Open(tmpDir); err != nil {
+		t.Fatalf("failed to open home: %v", err)
 	}
 
-	// Point MYCEL_WORKSPACE at the temp workspace so getRepo() finds it
+	// Point MYCEL_WORKSPACE at the temp repo so getRepo() finds it
 	// regardless of cwd races between parallel tests.
 	t.Setenv("MYCEL_WORKSPACE", tmpDir)
 
 	if err := os.Chdir(tmpDir); err != nil {
-		t.Fatalf("failed to chdir to temp workspace: %v", err)
+		t.Fatalf("failed to chdir to temp repo: %v", err)
 	}
 
 	return tmpDir, func() {
@@ -75,20 +79,20 @@ func setupIntegrationWorkspace(t *testing.T) (string, func()) {
 	}
 }
 
-// executeIntegrationCmdT runs rootCmd with an isolated fake bcd server.
-// If handler is non-nil, it overrides the package-level fake bcd handler
+// executeIntegrationCmdT runs rootCmd with an isolated fake daemon server.
+// If handler is non-nil, it overrides the package-level fake daemon handler
 // for the duration of the test. The default handler (set in TestMain)
 // returns 200 on /health and 404 elsewhere — enough to exercise CLI
-// error paths without ever reaching the real bcd at :9374.
+// error paths without ever reaching the real daemon at :9374.
 //
 // Prefer this over executeIntegrationCmd when a test wants to assert
-// against bcd responses (e.g. a successful agent send). Otherwise the
+// against the daemon responses (e.g. a successful agent send). Otherwise the
 // plain executeIntegrationCmd is fine — TestMain pins MYCEL_DAEMON_ADDR
 // at the fake server for the whole test process.
 func executeIntegrationCmdT(t *testing.T, handler http.HandlerFunc, args ...string) (string, string, error) {
 	t.Helper()
 	if handler != nil {
-		setTestBcdHandler(t, handler)
+		setTestDaemonHandler(t, handler)
 	}
 	return executeIntegrationCmd(args...)
 }
@@ -97,7 +101,7 @@ func executeIntegrationCmdT(t *testing.T, handler http.HandlerFunc, args ...stri
 // Commands use fmt.Printf/Println (writing to os.Stdout), so we redirect
 // os.Stdout to a pipe to capture output. Returns captured stdout and any error.
 //
-// All callers are automatically isolated from the production bcd: TestMain
+// All callers are automatically isolated from the production the daemon: TestMain
 // starts a fake httptest.Server and pins MYCEL_DAEMON_ADDR to it for the
 // entire test process.
 func executeIntegrationCmd(args ...string) (string, string, error) {
@@ -139,61 +143,58 @@ func executeIntegrationCmd(args ...string) (string, string, error) {
 	return buf.String(), stderr.String(), err
 }
 
-// seedAgents writes an agents.json file in the workspace's agents directory.
-// The Manager stores agents as map[string]*Agent.
-func seedAgents(t *testing.T, wsDir string, agents map[string]*agent.Agent) {
+// seedAgents writes agents into the single global agents table
+// (<MYCEL_HOME>/mycel.db) — the store every Manager loads from on boot.
+func seedAgents(t *testing.T, _ string, agents map[string]*agent.Agent) {
 	t.Helper()
-	agentsDir := filepath.Join(wsDir, ".bc", "agents")
-	if err := os.MkdirAll(agentsDir, 0750); err != nil {
-		t.Fatalf("failed to create agents dir: %v", err)
-	}
-	data, err := json.MarshalIndent(agents, "", "  ")
+	dbPath, err := db.GlobalDBPath()
 	if err != nil {
-		t.Fatalf("failed to marshal agents: %v", err)
+		t.Fatalf("failed to resolve global db path: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(agentsDir, "agents.json"), data, 0600); err != nil {
-		t.Fatalf("failed to write agents.json: %v", err)
+	store, err := agent.NewSQLiteStore(dbPath)
+	if err != nil {
+		t.Fatalf("failed to open agent store: %v", err)
+	}
+	defer func() { _ = store.Close() }()
+	if err := store.SaveAll(context.Background(), agents); err != nil {
+		t.Fatalf("failed to seed agents: %v", err)
 	}
 }
 
 // --- Agent Send command tests ---
 
-func TestAgentSendNoWorkspace(t *testing.T) {
+func TestAgentSendIsCWDFree(t *testing.T) {
+	// agent send is daemon-first: it works from any directory (no repo
+	// required) by POSTing to the daemon.
 	origDir, err := os.Getwd()
 	if err != nil {
 		t.Fatalf("failed to get cwd: %v", err)
 	}
 
-	tmpDir := t.TempDir()
+	tmpDir := t.TempDir() // plain dir, not a git repo
 	if err = os.Chdir(tmpDir); err != nil {
 		t.Fatalf("failed to chdir: %v", err)
 	}
 	defer func() { _ = os.Chdir(origDir) }()
 
-	// Use the per-test handler variant so this test additionally asserts
-	// no bcd traffic is generated when there's no workspace: any request
-	// the CLI makes would be a bug (workspace check must run first).
-	bcdHit := false
+	sendHit := false
 	handler := func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/health" {
-			bcdHit = true
+		if r.Method == http.MethodPost && r.URL.Path == "/api/agents/worker-01/send" {
+			sendHit = true
 		}
 		w.WriteHeader(http.StatusOK)
 	}
 	_, _, err = executeIntegrationCmdT(t, handler, "agent", "send", "worker-01", "hello")
-	if err == nil {
-		t.Fatal("expected error when not in workspace, got nil")
+	if err != nil {
+		t.Fatalf("agent send must be CWD-free when the daemon accepts it, got: %v", err)
 	}
-	if !strings.Contains(err.Error(), "not in a mycel-adopted repo") {
-		t.Errorf("expected workspace error, got: %v", err)
-	}
-	if bcdHit {
-		t.Error("CLI should not contact bcd when there is no workspace")
+	if !sendHit {
+		t.Error("agent send should POST /api/agents/worker-01/send")
 	}
 }
 
 func TestAgentSendAgentNotFound(t *testing.T) {
-	_, cleanup := setupIntegrationWorkspace(t)
+	_, cleanup := setupIntegrationHome(t)
 	defer cleanup()
 
 	_, _, err := executeIntegrationCmd("agent", "send", "nonexistent-agent", "hello")
@@ -247,29 +248,37 @@ func TestAgentReportInvalidState(t *testing.T) {
 	}
 }
 
-func TestAgentReportNoWorkspace(t *testing.T) {
+func TestAgentReportIsCWDFree(t *testing.T) {
+	// agent report is daemon-first: it POSTs the state to the daemon and needs
+	// no repo at the caller's CWD.
 	origDir, err := os.Getwd()
 	if err != nil {
 		t.Fatalf("failed to get cwd: %v", err)
 	}
 
-	tmpDir := t.TempDir()
+	tmpDir := t.TempDir() // plain dir, not a git repo
 	if err = os.Chdir(tmpDir); err != nil {
 		t.Fatalf("failed to chdir: %v", err)
 	}
 	defer func() { _ = os.Chdir(origDir) }()
 
-	// Clear workspace env vars to ensure workspace lookup fails (#1668)
 	t.Setenv("MYCEL_WORKSPACE", "")
 	t.Setenv("MYCEL_AGENT_WORKTREE", "")
 	t.Setenv("MYCEL_AGENT_ID", "test-agent")
 
-	_, _, err = executeIntegrationCmd("agent", "report", "working", "testing")
-	if err == nil {
-		t.Fatal("expected error when not in workspace, got nil")
+	apiHit := false
+	handler := func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/api/") {
+			apiHit = true
+		}
+		w.WriteHeader(http.StatusOK)
 	}
-	if !strings.Contains(err.Error(), "not in a mycel-adopted repo") {
-		t.Errorf("expected workspace error, got: %v", err)
+	_, _, err = executeIntegrationCmdT(t, handler, "agent", "report", "working", "testing")
+	if err != nil && strings.Contains(err.Error(), "not in a mycel-adopted repo") {
+		t.Errorf("agent report must not require a repo, got repo error: %v", err)
+	}
+	if !apiHit {
+		t.Error("agent report should reach the daemon even outside a repo")
 	}
 }
 
@@ -279,12 +288,12 @@ func TestAgentReportValidStates(t *testing.T) {
 	for _, state := range validStates {
 		t.Run(state, func(t *testing.T) {
 			t.Setenv("MYCEL_AGENT_ID", "test-agent")
-			t.Setenv("MYCEL_WORKSPACE", "")      // Clear workspace env to test cwd-based discovery
+			t.Setenv("MYCEL_WORKSPACE", "")      // Clear MYCEL_WORKSPACE to test cwd-based discovery
 			t.Setenv("MYCEL_AGENT_WORKTREE", "") // Clear worktree env to avoid spurious warnings (#1668)
 
-			// State validation happens before workspace lookup, but
+			// State validation happens before repo lookup, but
 			// invalid states are rejected. Valid states proceed to
-			// workspace lookup, which we test fails correctly outside a workspace.
+			// repo lookup, which we test fails correctly outside a repo.
 			origDir, err := os.Getwd()
 			if err != nil {
 				t.Fatalf("failed to get cwd: %v", err)
@@ -296,9 +305,9 @@ func TestAgentReportValidStates(t *testing.T) {
 			defer func() { _ = os.Chdir(origDir) }()
 
 			_, _, err = executeIntegrationCmd("agent", "report", state, "test message")
-			// Should fail with workspace error, NOT invalid state error
+			// Should fail with repo error, NOT invalid state error
 			if err == nil {
-				t.Fatal("expected workspace error, got nil")
+				t.Fatal("expected repo error, got nil")
 			}
 			if strings.Contains(err.Error(), "invalid state") {
 				t.Errorf("state %q should be valid but got invalid state error", state)
@@ -316,8 +325,8 @@ func TestAgentReportRequiresArgs(t *testing.T) {
 
 // --- Status command tests ---
 
-func TestStatusNoWorkspace(t *testing.T) {
-	t.Setenv("MYCEL_WORKSPACE", "") // Clear workspace env to test cwd-based discovery
+func TestStatusNoRepo(t *testing.T) {
+	t.Setenv("MYCEL_WORKSPACE", "") // Clear MYCEL_WORKSPACE to test cwd-based discovery
 
 	origDir, err := os.Getwd()
 	if err != nil {
@@ -332,21 +341,16 @@ func TestStatusNoWorkspace(t *testing.T) {
 
 	_, _, err = executeIntegrationCmd("status")
 	if err == nil {
-		t.Fatal("expected error when not in workspace, got nil")
+		t.Fatal("expected error when not in a repo, got nil")
 	}
 	if !strings.Contains(err.Error(), "not in a mycel-adopted repo") {
-		t.Errorf("expected workspace error, got: %v", err)
+		t.Errorf("expected repo error, got: %v", err)
 	}
 }
 
-func TestStatusEmptyWorkspace(t *testing.T) {
-	wsDir, cleanup := setupIntegrationWorkspace(t)
+func TestStatusEmptyRepo(t *testing.T) {
+	_, cleanup := setupIntegrationHome(t)
 	defer cleanup()
-
-	// Create agents dir so LoadState doesn't warn
-	if err := os.MkdirAll(filepath.Join(wsDir, ".bc", "agents"), 0750); err != nil {
-		t.Fatalf("failed to create agents dir: %v", err)
-	}
 
 	stdout, _, err := executeIntegrationCmd("status")
 	if err != nil {
@@ -420,7 +424,7 @@ func TestColorStateStr_Default(t *testing.T) {
 
 // --- Logs command tests ---
 
-// seedEvents writes events to the workspace state.db SQLite database.
+// seedEvents writes events to the state database.
 func seedEvents(t *testing.T, wsDir string, evts []events.Event) {
 	t.Helper()
 	d, _, err := db.Global(nil)
@@ -439,29 +443,39 @@ func seedEvents(t *testing.T, wsDir string, evts []events.Event) {
 	}
 }
 
-func TestLogsNoWorkspace(t *testing.T) {
+func TestLogsIsCWDFree(t *testing.T) {
+	// logs is daemon-first: it reads events from the daemon and needs no repo
+	// at the caller's CWD.
 	origDir, err := os.Getwd()
 	if err != nil {
 		t.Fatalf("failed to get cwd: %v", err)
 	}
 
-	tmpDir := t.TempDir()
+	tmpDir := t.TempDir() // plain dir, not a git repo
 	if err = os.Chdir(tmpDir); err != nil {
 		t.Fatalf("failed to chdir: %v", err)
 	}
 	defer func() { _ = os.Chdir(origDir) }()
 
-	_, _, err = executeIntegrationCmd("logs")
-	if err == nil {
-		t.Fatal("expected error when not in workspace, got nil")
+	handler := func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/api/logs") {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`[]`))
+			return
+		}
+		w.WriteHeader(http.StatusOK)
 	}
-	if !strings.Contains(err.Error(), "not in a mycel-adopted repo") {
-		t.Errorf("expected workspace error, got: %v", err)
+	stdout, _, err := executeIntegrationCmdT(t, handler, "logs")
+	if err != nil {
+		t.Fatalf("logs must be CWD-free when the daemon serves events, got: %v", err)
+	}
+	if !strings.Contains(stdout, "No events found") {
+		t.Errorf("expected 'No events found', got: %s", stdout)
 	}
 }
 
 func TestLogsEmpty(t *testing.T) {
-	_, cleanup := setupIntegrationWorkspace(t)
+	_, cleanup := setupIntegrationHome(t)
 	defer cleanup()
 
 	stdout, _, err := executeIntegrationCmd("logs")
@@ -474,7 +488,7 @@ func TestLogsEmpty(t *testing.T) {
 }
 
 func TestLogsWithEvents(t *testing.T) {
-	wsDir, cleanup := setupIntegrationWorkspace(t)
+	wsDir, cleanup := setupIntegrationHome(t)
 	defer cleanup()
 
 	seedEvents(t, wsDir, []events.Event{
@@ -514,7 +528,7 @@ func TestLogsWithEvents(t *testing.T) {
 }
 
 func TestLogsTail(t *testing.T) {
-	wsDir, cleanup := setupIntegrationWorkspace(t)
+	wsDir, cleanup := setupIntegrationHome(t)
 	defer cleanup()
 
 	// Seed 5 events
@@ -553,7 +567,7 @@ func TestLogsTail(t *testing.T) {
 }
 
 func TestLogsAgentFilter(t *testing.T) {
-	wsDir, cleanup := setupIntegrationWorkspace(t)
+	wsDir, cleanup := setupIntegrationHome(t)
 	defer cleanup()
 
 	seedEvents(t, wsDir, []events.Event{
@@ -580,7 +594,7 @@ func TestLogsAgentFilter(t *testing.T) {
 
 // --- Stats command tests ---
 
-func TestStatsNoWorkspace(t *testing.T) {
+func TestStatsNoRepo(t *testing.T) {
 	origDir, err := os.Getwd()
 	if err != nil {
 		t.Fatalf("failed to get cwd: %v", err)
@@ -593,21 +607,16 @@ func TestStatsNoWorkspace(t *testing.T) {
 	defer func() { _ = os.Chdir(origDir) }()
 
 	_, _, err = executeIntegrationCmd("stats")
-	// When bcd is running, stats works via API even without a local workspace.
-	// When bcd is not running, should fail with workspace error.
+	// When the daemon is running, stats works via API even without a local repo.
+	// When the daemon is not running, should fail with repo error.
 	if err != nil && !strings.Contains(err.Error(), "not in a mycel-adopted repo") {
-		t.Errorf("expected either success (bcd running) or workspace error, got: %v", err)
+		t.Errorf("expected either success (the daemon running) or repo error, got: %v", err)
 	}
 }
 
-func TestStatsEmptyWorkspace(t *testing.T) {
-	wsDir, cleanup := setupIntegrationWorkspace(t)
+func TestStatsEmptyRepo(t *testing.T) {
+	_, cleanup := setupIntegrationHome(t)
 	defer cleanup()
-
-	// Create agents dir
-	if err := os.MkdirAll(filepath.Join(wsDir, ".bc", "agents"), 0750); err != nil {
-		t.Fatalf("failed to create agents dir: %v", err)
-	}
 
 	// Reset flags
 	statsJSON = false
@@ -615,20 +624,16 @@ func TestStatsEmptyWorkspace(t *testing.T) {
 
 	stdout, _, err := executeIntegrationCmd("stats")
 	if err != nil {
-		t.Fatalf("workspace stats returned error: %v", err)
+		t.Fatalf("stats returned error: %v", err)
 	}
-	if !strings.Contains(stdout, "Workspace Stats") && !strings.Contains(stdout, "Stats") {
+	if !strings.Contains(stdout, "mycel Stats") && !strings.Contains(stdout, "Stats") {
 		t.Errorf("expected stats output, got: %s", stdout)
 	}
 }
 
 func TestStatsSave(t *testing.T) {
-	wsDir, cleanup := setupIntegrationWorkspace(t)
+	_, cleanup := setupIntegrationHome(t)
 	defer cleanup()
-
-	if err := os.MkdirAll(filepath.Join(wsDir, ".bc", "agents"), 0750); err != nil {
-		t.Fatalf("failed to create agents dir: %v", err)
-	}
 
 	statsSave = true
 	statsJSON = false
@@ -636,23 +641,23 @@ func TestStatsSave(t *testing.T) {
 
 	stdout, _, err := executeIntegrationCmd("stats", "--save")
 	if err != nil {
-		t.Fatalf("workspace stats --save returned error: %v", err)
+		t.Fatalf("stats --save returned error: %v", err)
 	}
 	if !strings.Contains(stdout, "Stats saved") {
 		t.Errorf("expected 'Stats saved' message, got: %s", stdout)
 	}
 
-	// Verify file was created
-	statsPath := filepath.Join(wsDir, ".bc", "stats.json")
+	// Verify the snapshot landed in the global state dir (~/.mycel).
+	statsPath := filepath.Join(os.Getenv("MYCEL_HOME"), "stats.json")
 	if _, err := os.Stat(statsPath); os.IsNotExist(err) {
-		t.Error("stats.json was not created")
+		t.Error("stats.json was not created in MYCEL_HOME")
 	}
 }
 
-// --- Report command tests (with workspace) ---
+// --- Report command tests (with repo) ---
 
-func TestReportWorkingInWorkspace(t *testing.T) {
-	wsDir, cleanup := setupIntegrationWorkspace(t)
+func TestReportWorkingInRepo(t *testing.T) {
+	wsDir, cleanup := setupIntegrationHome(t)
 	defer cleanup()
 
 	seedAgents(t, wsDir, map[string]*agent.Agent{
@@ -676,8 +681,8 @@ func TestReportWorkingInWorkspace(t *testing.T) {
 	}
 }
 
-func TestReportDoneInWorkspace(t *testing.T) {
-	wsDir, cleanup := setupIntegrationWorkspace(t)
+func TestReportDoneInRepo(t *testing.T) {
+	wsDir, cleanup := setupIntegrationHome(t)
 	defer cleanup()
 
 	seedAgents(t, wsDir, map[string]*agent.Agent{
@@ -730,8 +735,8 @@ func TestReportDoneInWorkspace(t *testing.T) {
 	}
 }
 
-func TestReportStuckInWorkspace(t *testing.T) {
-	wsDir, cleanup := setupIntegrationWorkspace(t)
+func TestReportStuckInRepo(t *testing.T) {
+	wsDir, cleanup := setupIntegrationHome(t)
 	defer cleanup()
 
 	seedAgents(t, wsDir, map[string]*agent.Agent{
@@ -789,7 +794,7 @@ func TestVersionOutput(t *testing.T) {
 // --- JSON output tests ---
 
 func TestLogsJSON(t *testing.T) {
-	wsDir, cleanup := setupIntegrationWorkspace(t)
+	wsDir, cleanup := setupIntegrationHome(t)
 	defer cleanup()
 
 	seedEvents(t, wsDir, []events.Event{
@@ -811,12 +816,8 @@ func TestLogsJSON(t *testing.T) {
 }
 
 func TestStatsJSON(t *testing.T) {
-	wsDir, cleanup := setupIntegrationWorkspace(t)
+	_, cleanup := setupIntegrationHome(t)
 	defer cleanup()
-
-	if err := os.MkdirAll(filepath.Join(wsDir, ".bc", "agents"), 0750); err != nil {
-		t.Fatalf("failed to create agents dir: %v", err)
-	}
 
 	statsJSON = true
 	statsSave = false
@@ -832,7 +833,7 @@ func TestStatsJSON(t *testing.T) {
 	if err := json.Unmarshal([]byte(stdout), &result); err != nil {
 		t.Fatalf("output is not valid JSON: %v\noutput: %s", err, stdout)
 	}
-	// When bcd is running, API returns agents_total; otherwise local stats returns agents
+	// When the daemon is running, API returns agents_total; otherwise local stats returns agents
 	_, hasAgents := result["agents"]
 	_, hasAgentsTotal := result["agents_total"]
 	if !hasAgents && !hasAgentsTotal {
@@ -855,7 +856,7 @@ func TestInitCommandRemoved(t *testing.T) {
 // --- Send command tests (more coverage) ---
 
 func TestSendToStoppedAgent(t *testing.T) {
-	wsDir, cleanup := setupIntegrationWorkspace(t)
+	wsDir, cleanup := setupIntegrationHome(t)
 	defer cleanup()
 
 	seedAgents(t, wsDir, map[string]*agent.Agent{
@@ -878,7 +879,7 @@ func TestSendToStoppedAgent(t *testing.T) {
 }
 
 func TestStatusWithAgents(t *testing.T) {
-	wsDir, cleanup := setupIntegrationWorkspace(t)
+	wsDir, cleanup := setupIntegrationHome(t)
 	defer cleanup()
 
 	seedAgents(t, wsDir, map[string]*agent.Agent{
@@ -886,14 +887,14 @@ func TestStatusWithAgents(t *testing.T) {
 			Name:      "coordinator",
 			Role:      agent.RoleRoot,
 			State:     agent.StateStopped,
-			Session:   "bc-coord",
+			Session:   "mycel-coord",
 			StartedAt: time.Now().Add(-1 * time.Hour),
 		},
 		"worker-01": {
 			Name:      "worker-01",
 			Role:      agent.Role("worker"),
 			State:     agent.StateStopped,
-			Session:   "bc-worker-01",
+			Session:   "mycel-worker-01",
 			Task:      "fixing auth",
 			StartedAt: time.Now().Add(-30 * time.Minute),
 		},

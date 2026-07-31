@@ -62,11 +62,12 @@ agents; add more repos at any time from the web UI.
 
 All state lives outside your repos, under `~/.mycel/`:
 
+- `prefs.json` — the one config file mycel reads
 - `mycel.db` — the single global database (agents, roles, events,
-  notifications, cron)
-- `costs.db` — cost ledger with per-repo attribution
-- `worktrees/<agent-name>/` — each agent's git worktree
-- `agents/<agent-name>/` — each agent's state (Claude config, logs)
+  notifications)
+- `secrets.vault` — the encrypted secret store
+- `agents/<agent-name>/` — everything one agent owns: its git worktree
+  (`worktree/`), provider session state (`session/`), logs, and tmp
 
 Each agent is bound to a repo and works in its own git worktree checked
 out from that repo — your working copy stays pristine.
@@ -96,7 +97,8 @@ mycel agent send eng-01 "Implement the login feature per issue #42"
 
 ### Step 5: Monitor Progress
 
-Run `mycel` with no arguments to open the TUI dashboard:
+Run `mycel` with no arguments to boot the server and open the web
+dashboard:
 
 ```bash
 mycel
@@ -155,8 +157,8 @@ mycel cost dashboard      # Rich cost dashboard
 ## Next Steps
 
 - Learn about the [Architecture](../overview.md) to understand the system
-- [Configure mycel](../how-to/configure-workspace.md) — providers, runtimes, budgets
-- Set up [Notifications](../how-to/set-up-notifications.md) for platform event routing
+- [Configure mycel](../how-to/configure.md) — providers, runtimes, budgets
+- Set up [Notifications](../how-to/set-up-apps.md) for platform event routing
 - Explore the [REST API](../reference/api-rest.md) for programmatic access
 
 ## Troubleshooting

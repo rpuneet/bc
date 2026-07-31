@@ -39,6 +39,8 @@ type OpenclawProvider struct {
 	binary      string
 }
 
+func init() { Register(NewOpenclawProvider()) }
+
 // NewOpenclawProvider creates a new OpenClaw provider.
 func NewOpenclawProvider() *OpenclawProvider {
 	return &OpenclawProvider{
@@ -95,7 +97,7 @@ func (p *OpenclawProvider) BuildCommand(opts CommandOpts) string {
 }
 
 // AdjustSessionCommand is a no-op for native tmux sessions: OpenClaw's TUI runs
-// directly inside the bc-managed tmux session.
+// directly inside the mycel-managed tmux session.
 func (p *OpenclawProvider) AdjustSessionCommand(command string) string {
 	return command
 }

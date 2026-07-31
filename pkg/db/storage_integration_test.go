@@ -7,9 +7,7 @@ import (
 	"path/filepath"
 	"sync"
 	"testing"
-	"time"
 
-	"github.com/rpuneet/mycel/pkg/cron"
 	"github.com/rpuneet/mycel/pkg/db"
 	"github.com/rpuneet/mycel/pkg/events"
 	"github.com/rpuneet/mycel/pkg/mcp"
@@ -80,9 +78,9 @@ func TestStorageGlobalLifecycle(t *testing.T) {
 	})
 }
 
-// TestStorageSharedDBKeyIsolation replaces the old per-workspace file
+// TestStorageSharedDBKeyIsolation replaces the old per-repo file
 // isolation test (#3238/#3275): with the single global mycel.db, two
-// "workspaces" now SHARE one database. Isolation is provided by data
+// "repos" now SHARE one database. Isolation is provided by data
 // keys — channel names for subscriptions, globally-unique agent names,
 // and the repo column on agents — not by separate files.
 func TestStorageSharedDBKeyIsolation(t *testing.T) {
@@ -94,7 +92,7 @@ func TestStorageSharedDBKeyIsolation(t *testing.T) {
 		t.Fatalf("notify.OpenStore: %v", err)
 	}
 
-	// Subscriptions written by "workspace A" and "workspace B" land in
+	// Subscriptions written by "repo A" and "repo B" land in
 	// the same table; they are distinguished by channel and agent keys.
 	if subErr := ns.Subscribe(ctx, "#engineering", "agent-a", false); subErr != nil {
 		t.Fatalf("Subscribe A: %v", subErr)
@@ -118,14 +116,14 @@ func TestStorageSharedDBKeyIsolation(t *testing.T) {
 		t.Errorf("#ops subscribers = %+v, want [agent-b]", ops)
 	}
 
-	// A second Global call from "another workspace" returns the SAME
+	// A second Global call from "another repo" returns the SAME
 	// handle and sees the same data — the single-DB contract.
 	d2, _, err := db.Global(nil)
 	if err != nil {
-		t.Fatalf("Global (workspace B view): %v", err)
+		t.Fatalf("Global (repo B view): %v", err)
 	}
 	if d2 != d {
-		t.Fatal("expected both workspaces to share the one global handle")
+		t.Fatal("expected both repos to share the one global handle")
 	}
 	ns2, err := notify.OpenStore(d2, "sqlite")
 	if err != nil {
@@ -136,7 +134,7 @@ func TestStorageSharedDBKeyIsolation(t *testing.T) {
 		t.Fatalf("Subscribers via B: %v", err)
 	}
 	if len(shared) != 1 || shared[0].Agent != "agent-a" {
-		t.Errorf("workspace B must see the shared subscription, got %+v", shared)
+		t.Errorf("repo B must see the shared subscription, got %+v", shared)
 	}
 }
 
@@ -149,13 +147,7 @@ func TestStorageCrossStoreIntegration(t *testing.T) {
 	_ = dir
 	ctx := context.Background()
 
-	// Initialize all stores against the workspace DB.
-	cronStore, err := cron.Open(d, "sqlite")
-	if err != nil {
-		t.Fatalf("cron.Open: %v", err)
-	}
-	t.Cleanup(func() { _ = cronStore.Close() })
-
+	// Initialize all stores against the global DB.
 	mcpStore, err := mcp.NewStore(d, "sqlite")
 	if err != nil {
 		t.Fatalf("mcp.NewStore: %v", err)
@@ -175,24 +167,6 @@ func TestStorageCrossStoreIntegration(t *testing.T) {
 	t.Cleanup(func() { _ = eventsStore.Close() })
 
 	// Verify each store can CRUD independently.
-
-	// Cron: add and retrieve a job.
-	err = cronStore.AddJob(ctx, &cron.Job{
-		Name:     "cross-test-job",
-		Schedule: "*/5 * * * *",
-		Prompt:   "hello",
-		Enabled:  true,
-	})
-	if err != nil {
-		t.Fatalf("cron AddJob: %v", err)
-	}
-	job, err := cronStore.GetJob(ctx, "cross-test-job")
-	if err != nil {
-		t.Fatalf("cron GetJob: %v", err)
-	}
-	if job == nil || job.Name != "cross-test-job" {
-		t.Fatalf("expected cron job 'cross-test-job', got %v", job)
-	}
 
 	// MCP: add and retrieve a server config.
 	err = mcpStore.Add(&mcp.ServerConfig{
@@ -248,14 +222,13 @@ func TestStorageCrossStoreIntegration(t *testing.T) {
 	}
 
 	// Verify stores don't close the shared connection (Close is no-op for shared stores).
-	_ = cronStore.Close()
 	_ = mcpStore.Close()
 	_ = toolStore.Close()
 	_ = eventsStore.Close()
 
-	// The workspace DB should still be usable after store Close calls.
+	// The global DB should still be usable after store Close calls.
 	if err := d.Ping(); err != nil {
-		t.Fatalf("workspace DB should still be pingable after store Close calls: %v", err)
+		t.Fatalf("global DB should still be pingable after store Close calls: %v", err)
 	}
 }
 
@@ -266,13 +239,6 @@ func TestStorageCrossStoreIntegration(t *testing.T) {
 func TestStorageIsolationConcurrent(t *testing.T) {
 	dir, d := setupSharedDB(t)
 	_ = dir
-	ctx := context.Background()
-
-	cronStore, err := cron.Open(d, "sqlite")
-	if err != nil {
-		t.Fatalf("cron.Open: %v", err)
-	}
-	t.Cleanup(func() { _ = cronStore.Close() })
 
 	mcpStore, err := mcp.NewStore(d, "sqlite")
 	if err != nil {
@@ -288,25 +254,7 @@ func TestStorageIsolationConcurrent(t *testing.T) {
 
 	const iterations = 20
 	var wg sync.WaitGroup
-	errs := make(chan error, iterations*3)
-
-	// Concurrent cron writes.
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		for i := range iterations {
-			name := fmt.Sprintf("concurrent-cron-%d", i)
-			if addErr := cronStore.AddJob(ctx, &cron.Job{
-				Name:     name,
-				Schedule: "0 * * * *",
-				Prompt:   "test",
-				Enabled:  true,
-			}); addErr != nil {
-				errs <- fmt.Errorf("cron AddJob %s: %w", name, addErr)
-				return
-			}
-		}
-	}()
+	errs := make(chan error, iterations*2)
 
 	// Concurrent MCP writes.
 	wg.Add(1)
@@ -350,14 +298,6 @@ func TestStorageIsolationConcurrent(t *testing.T) {
 	}
 
 	// Verify all rows landed.
-	jobs, err := cronStore.ListJobs(ctx)
-	if err != nil {
-		t.Fatalf("cron ListJobs: %v", err)
-	}
-	if len(jobs) < iterations {
-		t.Errorf("expected at least %d cron jobs, got %d", iterations, len(jobs))
-	}
-
 	mcpList, err := mcpStore.List()
 	if err != nil {
 		t.Fatalf("mcp List: %v", err)
@@ -386,7 +326,7 @@ func TestStorageConfigValidation(t *testing.T) {
 			Default: "sqlite",
 		})
 		if err != nil {
-			t.Fatalf("OpenWorkspaceDBWithConfig: %v", err)
+			t.Fatalf("OpenGlobalDBWithConfig: %v", err)
 		}
 		defer func() { _ = sqlDB.Close() }()
 
@@ -402,7 +342,7 @@ func TestStorageConfigValidation(t *testing.T) {
 		dir := t.TempDir()
 		sqlDB, driver, err := db.OpenGlobalDBWithConfig(filepath.Join(dir, db.GlobalDBFileName), nil)
 		if err != nil {
-			t.Fatalf("OpenWorkspaceDBWithConfig: %v", err)
+			t.Fatalf("OpenGlobalDBWithConfig: %v", err)
 		}
 		defer func() { _ = sqlDB.Close() }()
 
@@ -462,7 +402,7 @@ func TestStorageConfigValidation(t *testing.T) {
 			{
 				name:     "all defaults",
 				settings: db.TimescaleSettings{},
-				want:     "postgres://bc:bc@localhost:5432/bc",
+				want:     "postgres://mycel:mycel@localhost:5432/mycel",
 			},
 			{
 				name: "custom values",
@@ -481,7 +421,7 @@ func TestStorageConfigValidation(t *testing.T) {
 					Host: "custom-host",
 					Port: 5434,
 				},
-				want: "postgres://bc:bc@custom-host:5434/bc",
+				want: "postgres://mycel:mycel@custom-host:5434/mycel",
 			},
 		}
 		for _, tt := range tests {
@@ -498,111 +438,6 @@ func TestStorageConfigValidation(t *testing.T) {
 // ---------------------------------------------------------------------------
 // 5. Store-specific smoke tests
 // ---------------------------------------------------------------------------
-
-func TestStorageCronSmoke(t *testing.T) {
-	_, d := setupSharedDB(t)
-	ctx := context.Background()
-
-	store, err := cron.Open(d, "sqlite")
-	if err != nil {
-		t.Fatalf("cron.Open: %v", err)
-	}
-	t.Cleanup(func() { _ = store.Close() })
-
-	// AddJob
-	err = store.AddJob(ctx, &cron.Job{
-		Name:      "smoke-job",
-		Schedule:  "0 12 * * *",
-		AgentName: "agent-1",
-		Prompt:    "do lint",
-		Enabled:   true,
-	})
-	if err != nil {
-		t.Fatalf("AddJob: %v", err)
-	}
-
-	// GetJob
-	job, err := store.GetJob(ctx, "smoke-job")
-	if err != nil {
-		t.Fatalf("GetJob: %v", err)
-	}
-	if job == nil {
-		t.Fatal("expected job, got nil")
-	}
-	if job.Schedule != "0 12 * * *" {
-		t.Errorf("Schedule = %q, want %q", job.Schedule, "0 12 * * *")
-	}
-	if job.AgentName != "agent-1" {
-		t.Errorf("AgentName = %q, want %q", job.AgentName, "agent-1")
-	}
-
-	// ListJobs
-	jobs, err := store.ListJobs(ctx)
-	if err != nil {
-		t.Fatalf("ListJobs: %v", err)
-	}
-	if len(jobs) != 1 {
-		t.Errorf("ListJobs returned %d jobs, want 1", len(jobs))
-	}
-
-	// SetEnabled (disable)
-	if setErr := store.SetEnabled(ctx, "smoke-job", false); setErr != nil {
-		t.Fatalf("SetEnabled(false): %v", setErr)
-	}
-	job, _ = store.GetJob(ctx, "smoke-job")
-	if job.Enabled {
-		t.Error("expected job to be disabled")
-	}
-
-	// SetEnabled (re-enable)
-	if setErr := store.SetEnabled(ctx, "smoke-job", true); setErr != nil {
-		t.Fatalf("SetEnabled(true): %v", setErr)
-	}
-	job, _ = store.GetJob(ctx, "smoke-job")
-	if !job.Enabled {
-		t.Error("expected job to be enabled")
-	}
-
-	// RecordRun
-	err = store.RecordRun(ctx, &cron.LogEntry{
-		JobName:    "smoke-job",
-		Status:     "success",
-		DurationMS: 150,
-		CostUSD:    0.01,
-		Output:     "all good",
-		RunAt:      time.Now(),
-	})
-	if err != nil {
-		t.Fatalf("RecordRun: %v", err)
-	}
-
-	// GetLogs
-	logs, err := store.GetLogs(ctx, "smoke-job", 10)
-	if err != nil {
-		t.Fatalf("GetLogs: %v", err)
-	}
-	if len(logs) != 1 {
-		t.Errorf("GetLogs returned %d entries, want 1", len(logs))
-	}
-	if logs[0].Status != "success" {
-		t.Errorf("log status = %q, want %q", logs[0].Status, "success")
-	}
-
-	// Verify run count was incremented.
-	job, _ = store.GetJob(ctx, "smoke-job")
-	if job.RunCount != 1 {
-		t.Errorf("RunCount = %d, want 1", job.RunCount)
-	}
-
-	// DeleteJob
-	if err := store.DeleteJob(ctx, "smoke-job"); err != nil {
-		t.Fatalf("DeleteJob: %v", err)
-	}
-	job, _ = store.GetJob(ctx, "smoke-job")
-	if job != nil {
-		t.Error("expected job to be nil after delete")
-	}
-}
 
 func TestStorageMCPSmoke(t *testing.T) {
 	_, d := setupSharedDB(t)

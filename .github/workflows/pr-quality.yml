@@ -30,7 +30,7 @@ jobs:
             let warnings = [];
 
             // Conventional commit title (blocking)
-            const conventionalRegex = /^(feat|fix|docs|style|refactor|test|chore|build|ci|perf|revert|deps)(\([^)]+\))?: .+/;
+            const conventionalRegex = /^(feat|fix|docs|style|refactor|test|chore|build|ci|perf|revert|deps)(\([^)]+\))?!?: .+/;
             if (!conventionalRegex.test(title)) {
               errors.push('Title must follow conventional commit format: type(scope): description');
             }

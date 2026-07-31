@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 /**
  * Returns true once the component has mounted in the browser.
@@ -12,7 +12,7 @@ import { useEffect, useState } from "react";
  * mount keeps the server-rendered markup fully visible and treats the animation
  * as a pure enhancement: content first, motion second.
  */
-function useMounted(): boolean {
+export function useMounted(): boolean {
   const [mounted, setMounted] = useState(false);
   useEffect(() => {
     // Flip on the next tick rather than synchronously in the effect body,
@@ -21,6 +21,84 @@ function useMounted(): boolean {
     return () => clearTimeout(id);
   }, []);
   return mounted;
+}
+
+/**
+ * Scroll-reveal with a visible-by-default guarantee.
+ *
+ * Server markup renders fully visible. On the client an effect "arms" the
+ * hidden state and an IntersectionObserver reveals the element when it
+ * enters the viewport. If the observer is unavailable, reduced motion is
+ * requested, or the trigger somehow never fires, a safety timeout unhides
+ * the content — it can never be stuck invisible.
+ */
+export function ScrollReveal({
+  children,
+  className = "",
+  delay = 0,
+  from = "up",
+  distance = 28,
+}: {
+  children: React.ReactNode;
+  className?: string;
+  delay?: number;
+  from?: "up" | "left" | "right";
+  distance?: number;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [armed, setArmed] = useState(false);
+  const [revealed, setRevealed] = useState(false);
+
+  useEffect(() => {
+    const el = ref.current;
+    const reduced = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+    if (!el || reduced || typeof IntersectionObserver === "undefined") {
+      setRevealed(true);
+      return;
+    }
+    setArmed(true);
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) {
+          setRevealed(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: "-60px 0px" },
+    );
+    observer.observe(el);
+    // Safety net: never leave content hidden if the trigger misfires.
+    const failsafe = setTimeout(() => setRevealed(true), 3000);
+    return () => {
+      observer.disconnect();
+      clearTimeout(failsafe);
+    };
+  }, []);
+
+  const hidden = armed && !revealed;
+  const offset =
+    from === "left"
+      ? `translateX(-${distance}px)`
+      : from === "right"
+        ? `translateX(${distance}px)`
+        : `translateY(${distance}px)`;
+
+  return (
+    <div
+      ref={ref}
+      className={className}
+      style={{
+        opacity: hidden ? 0 : 1,
+        transform: hidden ? offset : "none",
+        transition: `opacity 0.7s cubic-bezier(0.22, 1, 0.36, 1) ${delay}s, transform 0.7s cubic-bezier(0.22, 1, 0.36, 1) ${delay}s`,
+        willChange: hidden ? "transform, opacity" : undefined,
+      }}
+    >
+      {children}
+    </div>
+  );
 }
 
 /** Fade-in on scroll using whileInView */

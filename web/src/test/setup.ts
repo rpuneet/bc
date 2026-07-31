@@ -1,7 +1,15 @@
 import "@testing-library/jest-dom/vitest";
-import { vi } from "vitest";
+import { vi, beforeEach } from "vitest";
+import { __resetCache } from "../api/cache";
 
 globalThis.fetch = vi.fn();
+
+// The module-level API cache persists across tests (it's shared app state).
+// Reset it before each test so a cached read from one test never masks a
+// fetch the next test asserts on.
+beforeEach(() => {
+  __resetCache();
+});
 
 class FakeEventSource {
   onopen: (() => void) | null = null;

@@ -2,6 +2,8 @@ package provider
 
 import (
 	"context"
+	"fmt"
+	"path/filepath"
 )
 
 // CursorProvider implements the Provider interface for Cursor Agent.
@@ -12,6 +14,8 @@ type CursorProvider struct {
 	command     string
 	binary      string
 }
+
+func init() { Register(NewCursorProvider()) }
 
 // NewCursorProvider creates a new Cursor provider.
 func NewCursorProvider() *CursorProvider {
@@ -63,10 +67,33 @@ func (p *CursorProvider) BuildCommand(opts CommandOpts) string {
 	return cmd
 }
 
+// AdjustSessionCommand is a no-op for native tmux sessions: cursor-agent runs
+// directly inside the mycel-managed tmux pane.
+func (p *CursorProvider) AdjustSessionCommand(command string) string { return command }
+
+// AdjustContainerCommand wraps the command in a tmux session for Docker so
+// mycel can drive it via SendKeys. Double quotes let bash expand
+// $MYCEL_WORKTREE_NAME for the session name.
+func (p *CursorProvider) AdjustContainerCommand(command string) string {
+	return fmt.Sprintf(`tmux new-session -s "$MYCEL_WORKTREE_NAME" "%s"`, command)
+}
+
+// DockerImage returns empty to use the default image-name convention.
+func (p *CursorProvider) DockerImage() string { return "" }
+
 // Models returns the curated model list for the Cursor Agent CLI,
 // taken from `cursor-agent --list-models`.
 func (p *CursorProvider) Models() []string {
 	return []string{"auto", "gpt-5.3-codex", "gpt-5.3-codex-high", "gpt-5.2", "sonnet-4-thinking"}
+}
+
+// ReadMCPs lists the MCP servers from the workspace .cursor/mcp.json.
+// An empty rootDir means no workspace is loaded and yields nothing.
+func (p *CursorProvider) ReadMCPs(_ context.Context, rootDir string) []MCPServerInfo {
+	if rootDir == "" {
+		return []MCPServerInfo{}
+	}
+	return readMCPJSONFile(filepath.Join(rootDir, ".cursor", "mcp.json"))
 }
 
 // IsInstalled checks if the provider binary is available.
@@ -82,3 +109,6 @@ func (p *CursorProvider) Version(ctx context.Context) string {
 // Ensure CursorProvider implements Provider interface.
 var _ Provider = (*CursorProvider)(nil)
 var _ ModelLister = (*CursorProvider)(nil)
+var _ MCPConfigReader = (*CursorProvider)(nil)
+var _ ContainerCustomizer = (*CursorProvider)(nil)
+var _ SessionCustomizer = (*CursorProvider)(nil)

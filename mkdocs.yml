@@ -76,8 +76,12 @@ nav:
     - Your first agent: tutorials/first-agent.md
   - How To:
     - how-to/index.md
-    - Configure mycel: how-to/configure-workspace.md
-    - Set up notifications: how-to/set-up-notifications.md
+    - Configure mycel: how-to/configure.md
+    - Set up apps: how-to/set-up-apps.md
+    - Manage secrets: how-to/manage-secrets.md
+    - Inject instructions: how-to/inject-instructions.md
+    - Browse the marketplace: how-to/browse-the-marketplace.md
+    - Read insights: how-to/read-insights.md
     - Troubleshoot: how-to/troubleshoot.md
   - Explanation:
     - explanation/index.md
@@ -86,7 +90,6 @@ nav:
     - Agent lifecycle redesign: explanation/agent-lifecycle-redesign.md
     - Database: explanation/database.md
     - Web UI: explanation/web-ui.md
-    - Terminal UI: explanation/tui.md
     - Design system: explanation/design-system.md
     - Networking: explanation/networking.md
     - Notification architecture: architecture-notifications.md

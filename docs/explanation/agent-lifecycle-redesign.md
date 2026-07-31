@@ -60,8 +60,8 @@ func (m *Manager) deleteAgent(name string, force bool) error {
     // 3. Kill Docker container (docker rm -f)
     // 4. Remove git worktree (git worktree remove --force)
     // 5. Delete worktree branch (git branch -D)
-    // 6. Remove agent state dir (~/.mycel/workspaces/<id>/agents/<name>/)
-    // 7. Remove log file (~/.mycel/workspaces/<id>/logs/<name>.log)
+    // 6. Remove agent entity dir (~/.mycel/agents/<name>/)
+    // 7. Agent logs live inside the entity dir and go with it
     // 8. Update children's ParentID to ""
     // 9. Remove from parent's Children list
     // 10. DELETE FROM agents WHERE name = ?
@@ -101,7 +101,7 @@ func (m *Manager) lockAgent(name string) func() {
 ### Background RefreshState
 
 ```go
-// Start background reconciler in bcd main.go
+// Start background reconciler in mycel main.go
 go mgr.RunReconciler(ctx, 5*time.Second)
 
 func (m *Manager) RunReconciler(ctx context.Context, interval time.Duration) {
@@ -153,7 +153,7 @@ func (m *Manager) renameAgent(oldName, newName string) error {
 
 ### Phase 3: Background RefreshState
 - Add `RunReconciler()` method
-- Start in `cmd/bcd/main.go`
+- Start in `cmd/mycel/main.go`
 - Remove `RefreshState()` call from `handlers/agents.go:77`
 - **~30 lines changed across 3 files**
 

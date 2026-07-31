@@ -118,7 +118,7 @@ func runCostSummary(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	allTime, err := c.Costs.WorkspaceSummary(cmd.Context())
+	allTime, err := c.Costs.TotalSummary(cmd.Context())
 	if err != nil {
 		return err
 	}
@@ -380,7 +380,7 @@ func runCostDashboard(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	allTime, err := c.Costs.WorkspaceSummary(cmd.Context())
+	allTime, err := c.Costs.TotalSummary(cmd.Context())
 	if err != nil {
 		return err
 	}

@@ -10,9 +10,9 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/rpuneet/mycel/pkg/client"
+	"github.com/rpuneet/mycel/pkg/home"
 	"github.com/rpuneet/mycel/pkg/secret"
 	"github.com/rpuneet/mycel/pkg/ui"
-	"github.com/rpuneet/mycel/pkg/workspace"
 )
 
 var secretCmd = &cobra.Command{
@@ -117,27 +117,28 @@ func init() {
 }
 
 // openSecretStore returns the user-global vault by default (daemon-less
-// --reveal and `secret get` paths). Callers that want the workspace
-// override call openWorkspaceSecretStore instead.
+// --reveal and `secret get` paths). Callers that want the repo-scoped
+// override call openRepoSecretStore instead.
 func openSecretStore() (*secret.Store, error) {
 	passphrase, err := secret.Passphrase()
 	if err != nil {
 		return nil, fmt.Errorf("resolve secret passphrase: %w", err)
 	}
-	vaultPath, err := workspace.GlobalSecretsVault()
+	vaultPath, err := home.GlobalSecretsVault()
 	if err != nil {
 		return nil, fmt.Errorf("resolve global vault path: %w", err)
 	}
-	if _, ensureErr := workspace.EnsureGlobalDir(); ensureErr != nil {
+	if _, ensureErr := home.EnsureGlobalDir(); ensureErr != nil {
 		return nil, fmt.Errorf("ensure global mycel dir: %w", ensureErr)
 	}
 	return secret.OpenVaultFile(vaultPath, passphrase)
 }
 
-// openWorkspaceSecretStore opens the per-workspace secrets store at
-// <ws>/.bc/secrets.db, used for workspace-scoped overrides.
-func openWorkspaceSecretStore() (*secret.Store, error) {
-	ws, err := getRepo()
+// openRepoSecretStore opens the repo-scoped secrets store at
+// <repo>/.mycel/secrets.db, used for repo-scoped overrides (the CLI's
+// --workspace flag).
+func openRepoSecretStore() (*secret.Store, error) {
+	h, err := getRepo()
 	if err != nil {
 		return nil, errNoRepo(err)
 	}
@@ -145,7 +146,7 @@ func openWorkspaceSecretStore() (*secret.Store, error) {
 	if err != nil {
 		return nil, fmt.Errorf("resolve secret passphrase: %w", err)
 	}
-	return secret.NewStore(ws.RootDir, passphrase)
+	return secret.NewStore(h.RootDir, passphrase)
 }
 
 // resolveSecretValue extracts the secret value from flags or stdin.
@@ -190,10 +191,10 @@ func runSecretSet(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	// Workspace-scoped writes bypass the daemon and target the
-	// per-workspace store directly — the daemon API is global-only.
+	// Repo-scoped writes bypass the daemon and target the
+	// repo-scoped store directly — the daemon API is global-only.
 	if secretSetWorkspace {
-		store, storeErr := openWorkspaceSecretStore()
+		store, storeErr := openRepoSecretStore()
 		if storeErr != nil {
 			return storeErr
 		}
@@ -343,7 +344,7 @@ func runSecretDelete(cmd *cobra.Command, args []string) error {
 	}
 
 	if secretDeleteWS {
-		store, storeErr := openWorkspaceSecretStore()
+		store, storeErr := openRepoSecretStore()
 		if storeErr != nil {
 			return storeErr
 		}

@@ -2,7 +2,7 @@ package client
 
 import "context"
 
-// StatsClient provides system and workspace stats via the daemon.
+// StatsClient provides system and fleet stats via the daemon.
 type StatsClient struct {
 	client *Client
 }
@@ -25,7 +25,7 @@ type SystemStats struct {
 	Goroutines       int     `json:"goroutines"`
 }
 
-// SummaryStats represents workspace-level summary metrics.
+// SummaryStats represents fleet-level summary metrics.
 type SummaryStats struct {
 	AgentsTotal   int     `json:"agents_total"`
 	AgentsRunning int     `json:"agents_running"`
@@ -47,7 +47,7 @@ func (s *StatsClient) System(ctx context.Context) (*SystemStats, error) {
 	return &stats, nil
 }
 
-// Summary returns workspace-level summary metrics.
+// Summary returns fleet-level summary metrics.
 func (s *StatsClient) Summary(ctx context.Context) (*SummaryStats, error) {
 	var stats SummaryStats
 	if err := s.client.get(ctx, "/api/stats/summary", &stats); err != nil {

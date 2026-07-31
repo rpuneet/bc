@@ -6,7 +6,9 @@ export default defineConfig({
   server: {
     port: 9374,
     proxy: {
-      '/api': 'http://localhost:9375',
+      // MYCEL_API_PROXY lets dev sessions point at any running daemon
+      // (e.g. http://127.0.0.1:8080) without editing this file.
+      '/api': process.env.MYCEL_API_PROXY ?? 'http://localhost:9375',
     },
   },
   build: {

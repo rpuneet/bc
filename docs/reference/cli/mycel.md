@@ -10,7 +10,7 @@ Coordinate multiple AI agents with predictable behavior and cost awareness.
 Supports Claude Code, Cursor, Codex, and other AI coding tools.
 
 Getting Started:
-  mycel up                                   # Start the server (bootstraps the workspace)
+  mycel up                                   # Start the server (bootstraps ~/.mycel)
   mycel agent create eng-01 --role engineer  # Create engineer agent
   mycel status                               # View agent status
 
@@ -27,7 +27,6 @@ Command Groups (with short aliases):
   cost (co)                    Cost tracking and budgets
   config                       Configuration management
   doctor (dr)                  Health checks
-  cron (cr)                    Scheduled tasks
 
 Key Features:
   • Coordinate multiple AI coding agents in parallel
@@ -39,10 +38,10 @@ Key Features:
 Environment Variables:
   MYCEL_AGENT_ID       Current agent name (set automatically in agent sessions)
   MYCEL_AGENT_ROLE     Current agent role
-  MYCEL_WORKSPACE      Path to workspace root
+  MYCEL_WORKSPACE      Path to the agent's repo root
   MYCEL_AGENT_WORKTREE Path to agent's worktree
   MYCEL_BIN            Path to mycel binary (default: mycel in PATH)
-  MYCEL_ROOT           Workspace root directory
+  MYCEL_ROOT           Override the mycel home root directory
   NO_COLOR          Disable colored output
 
 Documentation: https://github.com/rpuneet/mycel
@@ -68,7 +67,6 @@ mycel [flags]
 * [mycel completion](mycel_completion.md)	 - Generate shell completion scripts
 * [mycel config](mycel_config.md)	 - Manage repo configuration
 * [mycel cost](mycel_cost.md)	 - Show cost information
-* [mycel cron](mycel_cron.md)	 - Manage scheduled agent tasks
 * [mycel doctor](mycel_doctor.md)	 - Health checks and diagnostics
 * [mycel down](mycel_down.md)	 - Stop mycel services
 * [mycel logs](mycel_logs.md)	 - Show the event log

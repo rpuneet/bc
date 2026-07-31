@@ -41,22 +41,21 @@ export function useCommandPalette() {
   const items: CommandItem[] = useMemo(
     () => [
       // Navigation — mirrors the sidebar order exactly.
-      { id: "nav-live", label: "Live", section: "Navigate", icon: "~", action: () => navigate("/live") },
+      { id: "nav-home", label: "Home", section: "Navigate", icon: "~", action: () => navigate("/") },
       { id: "nav-agents", label: "Agents", section: "Navigate", icon: "A", action: () => navigate("/agents") },
-      { id: "nav-notifications", label: "Notifications", section: "Navigate", icon: "N", action: () => navigate("/notifications") },
+      { id: "nav-apps", label: "Apps", section: "Navigate", icon: "A", action: () => navigate("/apps") },
       { id: "nav-code", label: "Code", section: "Navigate", icon: "<", action: () => navigate("/code") },
       { id: "nav-templates", label: "Marketplace", section: "Navigate", icon: "T", action: () => navigate("/templates") },
       // Host tools — the sidebar shows the host machine's name; the
       // palette keeps a static label since it doesn't fetch system info.
       { id: "nav-tools", label: "Host", section: "Navigate", icon: "t", action: () => navigate("/tools") },
-      { id: "nav-cron", label: "Cron", section: "Navigate", icon: "@", action: () => navigate("/cron") },
-      { id: "nav-secrets", label: "Secrets", section: "Navigate", icon: "#", action: () => navigate("/secrets") },
+      { id: "nav-custom-keys", label: "Custom Keys", section: "Navigate", icon: "#", action: () => navigate("/apps#custom-keys") },
       { id: "nav-metrics", label: "Insights: Metrics", section: "Navigate", icon: "M", action: () => navigate("/insights?tab=metrics") },
       { id: "nav-costs", label: "Insights: Costs", section: "Navigate", icon: "$", action: () => navigate("/insights?tab=costs") },
       { id: "nav-settings", label: "Settings", section: "Navigate", icon: "\u2699", action: () => navigate("/settings") },
       // Actions
       { id: "act-create-agent", label: "Create Agent", section: "Action", icon: "+", action: () => navigate("/agents?action=create") },
-      { id: "act-create-notification", label: "Create Notification", section: "Action", icon: "+", action: () => navigate("/notifications?action=create") },
+      { id: "act-connect-app", label: "Connect App", section: "Action", icon: "+", action: () => navigate("/apps?action=connect") },
     ],
     [navigate],
   );

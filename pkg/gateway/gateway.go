@@ -1,5 +1,5 @@
 // Package gateway provides external messaging platform integrations.
-// It bridges bc channels to platforms like Telegram, Discord, and Slack.
+// It bridges mycel channels to platforms like Telegram, Discord, and Slack.
 package gateway
 
 import (
@@ -15,9 +15,9 @@ type AdapterType string
 const (
 	// AdapterSocket is a long-lived connection (WebSocket, polling loop).
 	AdapterSocket AdapterType = "socket"
-	// AdapterWebhook is an HTTP endpoint where the platform POSTs events to bc.
+	// AdapterWebhook is an HTTP endpoint where the platform POSTs events to mycel.
 	AdapterWebhook AdapterType = "webhook"
-	// AdapterPoll is timer-based polling where bc fetches new events.
+	// AdapterPoll is timer-based polling where mycel fetches new events.
 	AdapterPoll AdapterType = "poll"
 )
 

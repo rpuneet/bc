@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/exec"
 	"regexp"
@@ -28,6 +29,8 @@ type PiProvider struct {
 	command     string
 	binary      string
 }
+
+func init() { Register(NewPiProvider()) }
 
 // NewPiProvider creates a new pi provider.
 func NewPiProvider() *PiProvider {
@@ -160,6 +163,20 @@ func (p *PiProvider) ListModels(ctx context.Context) ([]string, error) {
 	return models, nil
 }
 
+// AdjustSessionCommand is a no-op for native tmux sessions: pi runs directly
+// inside the mycel-managed tmux pane.
+func (p *PiProvider) AdjustSessionCommand(command string) string { return command }
+
+// AdjustContainerCommand wraps the command in a tmux session for Docker so
+// mycel can drive it via SendKeys. Double quotes let bash expand
+// $MYCEL_WORKTREE_NAME for the session name.
+func (p *PiProvider) AdjustContainerCommand(command string) string {
+	return fmt.Sprintf(`tmux new-session -s "$MYCEL_WORKTREE_NAME" "%s"`, command)
+}
+
+// DockerImage returns empty to use the default image-name convention.
+func (p *PiProvider) DockerImage() string { return "" }
+
 // IsInstalled checks if the provider binary is available.
 func (p *PiProvider) IsInstalled(ctx context.Context) bool {
 	return checkBinaryExists(ctx, p.binary)
@@ -181,3 +198,5 @@ func (p *PiProvider) Version(ctx context.Context) string {
 var _ Provider = (*PiProvider)(nil)
 var _ ModelLister = (*PiProvider)(nil)
 var _ DynamicModelLister = (*PiProvider)(nil)
+var _ ContainerCustomizer = (*PiProvider)(nil)
+var _ SessionCustomizer = (*PiProvider)(nil)

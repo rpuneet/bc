@@ -35,7 +35,7 @@ func TestApplyTemplate_NoEmptyMCPEntries(t *testing.T) {
 	wtDir := t.TempDir()
 	tmplDir := t.TempDir()
 
-	seedTemplate(t, tmplDir, "feature-dev", []string{"bc", "github"})
+	seedTemplate(t, tmplDir, "feature-dev", []string{"mycel", "github"})
 
 	h := newAgentHandlerForTest(t, tmplDir)
 	a := &agent.Agent{Name: "test-agent", WorktreeDir: wtDir}
@@ -56,14 +56,14 @@ func TestApplyTemplate_NoEmptyMCPEntries(t *testing.T) {
 	}
 
 	if len(cfg.MCPServers) != 2 {
-		t.Errorf("want 2 MCP entries (bc, github), got %d", len(cfg.MCPServers))
+		t.Errorf("want 2 MCP entries (mycel, github), got %d", len(cfg.MCPServers))
 	}
 	// Stubs are written with empty URL/Type — that is expected for name-only
 	// entries. Critically they must NOT contain empty literal strings for url
 	// that override a real config. We verify the fields are their zero values
 	// and that no extra keys sneak in.
 	for name, entry := range cfg.MCPServers {
-		if name != "bc" && name != "github" {
+		if name != "mycel" && name != "github" {
 			t.Errorf("unexpected MCP key %q", name)
 		}
 		// omitempty means marshaled fields won't appear, but let's confirm
@@ -83,7 +83,7 @@ func TestApplyTemplate_PreservesExistingMCPConfig(t *testing.T) {
 	// Pre-populate .mcp.json with a real config entry.
 	existing := agentMCPFile{
 		MCPServers: map[string]agentMCPEntry{
-			"bc": {
+			"mycel": {
 				URL:  "http://localhost:9374/mcp/sse",
 				Type: "sse",
 			},
@@ -95,8 +95,8 @@ func TestApplyTemplate_PreservesExistingMCPConfig(t *testing.T) {
 		t.Fatalf("write pre-existing .mcp.json: %v", err)
 	}
 
-	// Template includes "bc" (already configured) and "github" (new stub).
-	seedTemplate(t, tmplDir, "eng", []string{"bc", "github"})
+	// Template includes "mycel" (already configured) and "github" (new stub).
+	seedTemplate(t, tmplDir, "eng", []string{"mycel", "github"})
 	h := newAgentHandlerForTest(t, tmplDir)
 	a := &agent.Agent{Name: "test-agent", WorktreeDir: wtDir}
 
@@ -113,12 +113,12 @@ func TestApplyTemplate_PreservesExistingMCPConfig(t *testing.T) {
 		t.Fatalf("parse .mcp.json: %v", err)
 	}
 
-	if cfg.MCPServers["bc"].URL != "http://localhost:9374/mcp/sse" {
-		t.Errorf("bc URL was clobbered; got %q, want %q",
-			cfg.MCPServers["bc"].URL, "http://localhost:9374/mcp/sse")
+	if cfg.MCPServers["mycel"].URL != "http://localhost:9374/mcp/sse" {
+		t.Errorf("mycel URL was clobbered; got %q, want %q",
+			cfg.MCPServers["mycel"].URL, "http://localhost:9374/mcp/sse")
 	}
-	if cfg.MCPServers["bc"].Type != "sse" {
-		t.Errorf("bc Type was clobbered; got %q, want sse", cfg.MCPServers["bc"].Type)
+	if cfg.MCPServers["mycel"].Type != "sse" {
+		t.Errorf("bc Type was clobbered; got %q, want sse", cfg.MCPServers["mycel"].Type)
 	}
 	// github should have been added as a stub.
 	if _, ok := cfg.MCPServers["github"]; !ok {
@@ -134,7 +134,7 @@ func TestApplyTemplate_NoMCPs(t *testing.T) {
 
 	existing := agentMCPFile{
 		MCPServers: map[string]agentMCPEntry{
-			"bc": {URL: "http://localhost:9374/mcp/sse", Type: "sse"},
+			"mycel": {URL: "http://localhost:9374/mcp/sse", Type: "sse"},
 		},
 	}
 	raw, _ := json.MarshalIndent(existing, "", "  ")

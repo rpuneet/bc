@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/rpuneet/mycel/pkg/workspace"
+	"github.com/rpuneet/mycel/pkg/home"
 )
 
 // writeEmptyPromptFile creates an empty prompt file so appendInjectedInstructions
@@ -24,7 +24,7 @@ func writeEmptyPromptFile(t *testing.T) string {
 
 func TestAppendInjectedInstructions_AppendsBlock(t *testing.T) {
 	p := writeEmptyPromptFile(t)
-	cfg := &workspace.Config{
+	cfg := &home.Config{
 		InjectedInstructions: "Always report status before and after work.",
 	}
 
@@ -32,7 +32,7 @@ func TestAppendInjectedInstructions_AppendsBlock(t *testing.T) {
 		context.Background(),
 		p,
 		cfg,
-		[]string{"github", "bc"},                // intentionally unsorted
+		[]string{"mycel", "github"},             // intentionally unsorted
 		[]string{"SLACK_BOT_TOKEN", "GH_TOKEN"}, // key NAMES only
 	)
 	if err != nil {
@@ -50,7 +50,7 @@ func TestAppendInjectedInstructions_AppendsBlock(t *testing.T) {
 		"## mycel instructions",                          // block header
 		"Always report status before and after work.",    // authored text
 		"### Available resources",                        // resources sub-header
-		"MCP servers: bc, github",                        // sorted MCP names
+		"MCP servers: github, mycel",                     // sorted MCP names
 		"Credential env vars: GH_TOKEN, SLACK_BOT_TOKEN", // sorted key NAMES
 	} {
 		if !strings.Contains(got, want) {
@@ -64,7 +64,7 @@ func TestAppendInjectedInstructions_AppendsBlock(t *testing.T) {
 // never reach the prompt because the function only ever receives names.
 func TestAppendInjectedInstructions_NoSecretValues(t *testing.T) {
 	p := writeEmptyPromptFile(t)
-	cfg := &workspace.Config{InjectedInstructions: "Do the thing."}
+	cfg := &home.Config{InjectedInstructions: "Do the thing."}
 
 	const secretValue = "xoxb-super-secret-token-value" //nolint:gosec // fake token used to assert non-leakage
 
@@ -104,12 +104,12 @@ func TestAppendInjectedInstructions_EmptyIsNoop(t *testing.T) {
 	}
 
 	// Empty / whitespace-only instructions must not touch the file.
-	for _, cfg := range []*workspace.Config{
+	for _, cfg := range []*home.Config{
 		nil,
 		{InjectedInstructions: ""},
 		{InjectedInstructions: "   \n\t "},
 	} {
-		if appendErr := appendInjectedInstructions(context.Background(), p, cfg, []string{"bc"}, []string{"GH_TOKEN"}); appendErr != nil {
+		if appendErr := appendInjectedInstructions(context.Background(), p, cfg, []string{"mycel"}, []string{"GH_TOKEN"}); appendErr != nil {
 			t.Fatalf("appendInjectedInstructions: %v", appendErr)
 		}
 	}

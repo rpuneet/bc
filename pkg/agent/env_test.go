@@ -42,7 +42,7 @@ func TestSQLiteStore_EnvRoundTrip(t *testing.T) {
 		Name:      "env-agent",
 		Role:      Role("engineer"),
 		State:     StateStopped,
-		Workspace: "/ws",
+		Workspace: "/h",
 		Env: map[string]string{
 			"FOO":     "bar",
 			"API_KEY": "${secret:MY_TOKEN}",
@@ -109,7 +109,7 @@ func TestSQLiteStore_EnvEmpty(t *testing.T) {
 func TestMergeUserEnv_ReservedBCKeysWin(t *testing.T) {
 	env := map[string]string{
 		"MYCEL_AGENT_ID":  "real-agent",
-		"MYCEL_WORKSPACE": "/real/ws",
+		"MYCEL_WORKSPACE": "/real/h",
 	}
 	mergeUserEnv(env, map[string]string{
 		"MYCEL_AGENT_ID": "spoofed",
@@ -149,13 +149,13 @@ func TestInjectEnv_UserEnvWinsOverEnvFile(t *testing.T) {
 
 // --- secret resolution at spawn ---
 
-// seedVault creates a secrets vault under wsPath/.bc and stores the given
+// seedVault creates a secrets vault under repoPath/.mycel and stores the given
 // secret. The passphrase is pinned via MYCEL_SECRET_PASSPHRASE so the spawn
 // path opens the same vault.
-func seedVault(t *testing.T, wsPath, name, value string) {
+func seedVault(t *testing.T, repoPath, name, value string) {
 	t.Helper()
 	t.Setenv(secret.PassphraseEnvVar, "test-passphrase")
-	ss, err := secret.NewStore(wsPath, "test-passphrase")
+	ss, err := secret.NewStore(repoPath, "test-passphrase")
 	if err != nil {
 		t.Fatalf("secret.NewStore: %v", err)
 	}
@@ -166,11 +166,11 @@ func seedVault(t *testing.T, wsPath, name, value string) {
 }
 
 func TestInjectEnv_ResolvesSecretRefs(t *testing.T) {
-	ws := t.TempDir()
-	seedVault(t, ws, "MY_TOKEN", "s3cr3t-value")
+	h := t.TempDir()
+	seedVault(t, h, "MY_TOKEN", "s3cr3t-value")
 
 	env := map[string]string{"MYCEL_AGENT_ID": "a1"}
-	injectEnv(env, ws, "a1", "", map[string]string{
+	injectEnv(env, h, "a1", "", map[string]string{
 		"API_KEY": "${secret:MY_TOKEN}",
 		"PLAIN":   "not-a-ref",
 	})
@@ -264,8 +264,8 @@ func TestStartAgent_ReinjectsStoredEnv(t *testing.T) {
 	t.Setenv("MYCEL_HOME", t.TempDir())
 	// Restart resolves the worktree manager from the agent's repo, which
 	// must be a real git repo for worktreeManagerFor to anchor there.
-	ws := gitInit(t)
-	seedVault(t, ws, "ROTATED", "rotated-value")
+	h := gitInit(t)
+	seedVault(t, h, "ROTATED", "rotated-value")
 
 	// Fake worktree that passes the .git existence checks.
 	wtDir := filepath.Join(t.TempDir(), "wt")
@@ -282,7 +282,7 @@ func TestStartAgent_ReinjectsStoredEnv(t *testing.T) {
 		Name:           "env-restart",
 		Role:           Role("engineer"),
 		State:          StateStopped,
-		Workspace:      ws,
+		Workspace:      h,
 		WorktreeDir:    wtDir,
 		RuntimeBackend: "docker",
 		Env: map[string]string{
@@ -295,7 +295,7 @@ func TestStartAgent_ReinjectsStoredEnv(t *testing.T) {
 	if _, err := m.SpawnAgentWithOptions(context.Background(), SpawnOptions{
 		Name:      "env-restart",
 		Role:      Role("engineer"),
-		Workspace: ws,
+		Workspace: h,
 	}); err != nil {
 		t.Fatalf("restart SpawnAgentWithOptions: %v", err)
 	}

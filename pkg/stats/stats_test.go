@@ -30,7 +30,7 @@ func TestSaveAndLoad(t *testing.T) {
 	dir := t.TempDir()
 
 	s := New(dir)
-	s.WorkspacePath = "/test/workspace"
+	s.RepoPath = "/test/workspace"
 	s.Agents.TotalAgents = 3
 
 	if err := s.Save(); err != nil {
@@ -52,8 +52,8 @@ func TestSaveAndLoad(t *testing.T) {
 		t.Fatalf("Unmarshal: %v", err)
 	}
 
-	if loaded.WorkspacePath != "/test/workspace" {
-		t.Errorf("WorkspacePath = %q, want %q", loaded.WorkspacePath, "/test/workspace")
+	if loaded.RepoPath != "/test/workspace" {
+		t.Errorf("RepoPath = %q, want %q", loaded.RepoPath, "/test/workspace")
 	}
 }
 
@@ -139,7 +139,7 @@ func TestSummaryContainsExpectedSections(t *testing.T) {
 	summary := s.Summary()
 
 	expectedParts := []string{
-		"Workspace Stats",
+		"mycel Stats",
 		"Agents",
 		"Total:  3 (2 active)",
 		"Per Agent:",
@@ -167,12 +167,12 @@ func TestSummaryNoAgentStatsSection(t *testing.T) {
 // seedAgentsFile writes agent data to the single global mycel.db
 // (pinned to a per-test MYCEL_HOME) tagged with the given workspace
 // root so a repo-scoped manager loads exactly these agents.
-func seedAgentsFile(t *testing.T, workspaceRoot string, agents map[string]*agent.Agent) {
+func seedAgentsFile(t *testing.T, repoRoot string, agents map[string]*agent.Agent) {
 	t.Helper()
-	t.Setenv("MYCEL_HOME", filepath.Join(workspaceRoot, ".mycel-home"))
-	bcDir := filepath.Join(workspaceRoot, ".bc")
+	t.Setenv("MYCEL_HOME", filepath.Join(repoRoot, ".mycel-home"))
+	bcDir := filepath.Join(repoRoot, ".mycel")
 	if err := os.MkdirAll(filepath.Join(bcDir, "agents"), 0750); err != nil {
-		t.Fatalf("mkdir .bc/agents: %v", err)
+		t.Fatalf("mkdir .mycel/agents: %v", err)
 	}
 	dbPath, err := db.GlobalDBPath()
 	if err != nil {
@@ -185,7 +185,7 @@ func seedAgentsFile(t *testing.T, workspaceRoot string, agents map[string]*agent
 	defer func() { _ = store.Close() }()
 	for _, a := range agents {
 		if a.Repo == "" {
-			a.Repo = workspaceRoot
+			a.Repo = repoRoot
 		}
 	}
 	if err := store.SaveAll(context.Background(), agents); err != nil {
@@ -194,15 +194,15 @@ func seedAgentsFile(t *testing.T, workspaceRoot string, agents map[string]*agent
 }
 
 func TestCollectAgentMetricsEmpty(t *testing.T) {
-	wsRoot := t.TempDir()
-	stateDir := filepath.Join(wsRoot, ".bc")
+	repoRoot := t.TempDir()
+	stateDir := filepath.Join(repoRoot, ".mycel")
 	agentsDir := filepath.Join(stateDir, "agents")
 	if err := os.MkdirAll(agentsDir, 0750); err != nil {
 		t.Fatal(err)
 	}
 
 	s := New(stateDir)
-	mgr := agent.NewWorkspaceManager(agentsDir, wsRoot)
+	mgr := agent.NewManagerWithRepo(agentsDir, repoRoot)
 
 	s.collectAgentMetrics(mgr)
 
@@ -218,8 +218,8 @@ func TestCollectAgentMetricsEmpty(t *testing.T) {
 }
 
 func TestCollectAgentMetricsRoleCounts(t *testing.T) {
-	wsRoot := t.TempDir()
-	stateDir := filepath.Join(wsRoot, ".bc")
+	repoRoot := t.TempDir()
+	stateDir := filepath.Join(repoRoot, ".mycel")
 	agentsDir := filepath.Join(stateDir, "agents")
 
 	agents := map[string]*agent.Agent{
@@ -229,9 +229,9 @@ func TestCollectAgentMetricsRoleCounts(t *testing.T) {
 		"eng-02":   {Name: "eng-02", Role: agent.Role("worker"), State: agent.StateWorking, StartedAt: time.Now()},
 		"eng-03":   {Name: "eng-03", Role: agent.Role("worker"), State: agent.StateDone, StartedAt: time.Now()},
 	}
-	seedAgentsFile(t, wsRoot, agents)
+	seedAgentsFile(t, repoRoot, agents)
 
-	mgr := agent.NewWorkspaceManager(agentsDir, wsRoot)
+	mgr := agent.NewManagerWithRepo(agentsDir, repoRoot)
 	if err := mgr.LoadState(); err != nil {
 		t.Fatalf("LoadState: %v", err)
 	}
@@ -251,8 +251,8 @@ func TestCollectAgentMetricsRoleCounts(t *testing.T) {
 }
 
 func TestCollectAgentMetricsStateCounts(t *testing.T) {
-	wsRoot := t.TempDir()
-	stateDir := filepath.Join(wsRoot, ".bc")
+	repoRoot := t.TempDir()
+	stateDir := filepath.Join(repoRoot, ".mycel")
 	agentsDir := filepath.Join(stateDir, "agents")
 
 	agents := map[string]*agent.Agent{
@@ -263,9 +263,9 @@ func TestCollectAgentMetricsStateCounts(t *testing.T) {
 		"a5": {Name: "a5", Role: agent.Role("worker"), State: agent.StateError},
 		"a6": {Name: "a6", Role: agent.Role("worker"), State: agent.StateStopped},
 	}
-	seedAgentsFile(t, wsRoot, agents)
+	seedAgentsFile(t, repoRoot, agents)
 
-	mgr := agent.NewWorkspaceManager(agentsDir, wsRoot)
+	mgr := agent.NewManagerWithRepo(agentsDir, repoRoot)
 	if err := mgr.LoadState(); err != nil {
 		t.Fatalf("LoadState: %v", err)
 	}
@@ -298,8 +298,8 @@ func TestCollectAgentMetricsStateCounts(t *testing.T) {
 }
 
 func TestCollectAgentMetricsUptime(t *testing.T) {
-	wsRoot := t.TempDir()
-	stateDir := filepath.Join(wsRoot, ".bc")
+	repoRoot := t.TempDir()
+	stateDir := filepath.Join(repoRoot, ".mycel")
 	agentsDir := filepath.Join(stateDir, "agents")
 
 	startTime := time.Now().Add(-2 * time.Hour)
@@ -308,9 +308,9 @@ func TestCollectAgentMetricsUptime(t *testing.T) {
 		"stopped": {Name: "stopped", Role: agent.Role("worker"), State: agent.StateStopped, StartedAt: startTime},
 		"no-time": {Name: "no-time", Role: agent.Role("worker"), State: agent.StateIdle},
 	}
-	seedAgentsFile(t, wsRoot, agents)
+	seedAgentsFile(t, repoRoot, agents)
 
-	mgr := agent.NewWorkspaceManager(agentsDir, wsRoot)
+	mgr := agent.NewManagerWithRepo(agentsDir, repoRoot)
 	if err := mgr.LoadState(); err != nil {
 		t.Fatalf("LoadState: %v", err)
 	}
@@ -337,8 +337,9 @@ func TestCollectAgentMetricsUptime(t *testing.T) {
 }
 
 func TestLoadEmptyStateDir(t *testing.T) {
-	wsRoot := t.TempDir()
-	stateDir := filepath.Join(wsRoot, ".bc")
+	t.Setenv("MYCEL_HOME", t.TempDir()) // isolate from the real global agents table
+	repoRoot := t.TempDir()
+	stateDir := filepath.Join(repoRoot, ".mycel")
 	if err := os.MkdirAll(stateDir, 0750); err != nil {
 		t.Fatal(err)
 	}
@@ -354,14 +355,15 @@ func TestLoadEmptyStateDir(t *testing.T) {
 	if s.CollectedAt.IsZero() {
 		t.Error("CollectedAt should not be zero")
 	}
-	if s.WorkspacePath != wsRoot {
-		t.Errorf("WorkspacePath = %q, want %q", s.WorkspacePath, wsRoot)
+	if s.RepoPath != repoRoot {
+		t.Errorf("RepoPath = %q, want %q", s.RepoPath, repoRoot)
 	}
 }
 
 func TestLoadWithAgentsData(t *testing.T) {
-	wsRoot := t.TempDir()
-	stateDir := filepath.Join(wsRoot, ".bc")
+	t.Setenv("MYCEL_HOME", t.TempDir()) // isolate from the real global agents table
+	repoRoot := t.TempDir()
+	stateDir := filepath.Join(repoRoot, ".mycel")
 
 	// Seed agents as already stopped
 	agents := map[string]*agent.Agent{
@@ -369,7 +371,7 @@ func TestLoadWithAgentsData(t *testing.T) {
 		"eng-1": {Name: "eng-1", Role: agent.Role("worker"), State: agent.StateStopped},
 		"eng-2": {Name: "eng-2", Role: agent.Role("worker"), State: agent.StateStopped},
 	}
-	seedAgentsFile(t, wsRoot, agents)
+	seedAgentsFile(t, repoRoot, agents)
 
 	s, err := Load(stateDir)
 	if err != nil {
@@ -414,6 +416,7 @@ func TestSummaryIncludesDoneState(t *testing.T) {
 }
 
 func TestLoadInvalidAgentsFile(t *testing.T) {
+	t.Setenv("MYCEL_HOME", t.TempDir()) // isolate from the real global agents table
 	stateDir := t.TempDir()
 	agentsDir := filepath.Join(stateDir, "agents")
 	if err := os.MkdirAll(agentsDir, 0750); err != nil {

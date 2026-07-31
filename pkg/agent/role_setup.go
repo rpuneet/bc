@@ -13,12 +13,12 @@ import (
 	"time"
 
 	pkgdb "github.com/rpuneet/mycel/pkg/db"
+	"github.com/rpuneet/mycel/pkg/home"
 	"github.com/rpuneet/mycel/pkg/log"
 	pkgmcp "github.com/rpuneet/mycel/pkg/mcp"
 	"github.com/rpuneet/mycel/pkg/provider"
 	"github.com/rpuneet/mycel/pkg/secret"
 	pkgtool "github.com/rpuneet/mycel/pkg/tool"
-	"github.com/rpuneet/mycel/pkg/workspace"
 )
 
 // SetupAgentFromRole resolves a role via BFS inheritance and writes all
@@ -33,25 +33,25 @@ import (
 //   - .claude/rules/*.md     ← topic-specific rules
 //   - REVIEW.md              ← code review checklist
 //
-// SetupAgentFromRoleWithRuntime sets up agent workspace files for the given role,
+// SetupAgentFromRoleWithRuntime sets up agent worktree files for the given role,
 // runtime backend, and tool provider. Uses ConfigAdapter for provider-specific
 // file layout (prompt file, config dir, MCP setup, plugins).
-func SetupAgentFromRoleWithRuntime(ctx context.Context, workspacePath, agentName, roleName, targetDir, runtimeBackend string, toolName ...string) error {
+func SetupAgentFromRoleWithRuntime(ctx context.Context, repoPath, agentName, roleName, targetDir, runtimeBackend string, toolName ...string) error {
 	tool := ""
 	if len(toolName) > 0 {
 		tool = toolName[0]
 	}
-	return setupAgentFromRole(ctx, workspacePath, agentName, roleName, targetDir, runtimeBackend, tool)
+	return setupAgentFromRole(ctx, repoPath, agentName, roleName, targetDir, runtimeBackend, tool)
 }
 
-// SetupAgentFromRole sets up agent workspace files for the given role.
+// SetupAgentFromRole sets up agent worktree files for the given role.
 // Defaults to tmux runtime (all MCP transports available).
-func SetupAgentFromRole(ctx context.Context, workspacePath, agentName, roleName, targetDir string) error {
-	return setupAgentFromRole(ctx, workspacePath, agentName, roleName, targetDir, "tmux", "")
+func SetupAgentFromRole(ctx context.Context, repoPath, agentName, roleName, targetDir string) error {
+	return setupAgentFromRole(ctx, repoPath, agentName, roleName, targetDir, "tmux", "")
 }
 
-func setupAgentFromRole(ctx context.Context, workspacePath, agentName, roleName, targetDir, runtimeBackend, toolName string) error {
-	rm, err := workspace.NewGlobalRoleManager(workspaceStateDir(workspacePath))
+func setupAgentFromRole(ctx context.Context, repoPath, agentName, roleName, targetDir, runtimeBackend, toolName string) error {
+	rm, err := home.NewGlobalRoleManager(mycelHomeOrEmpty())
 	if err != nil {
 		log.Warn("failed to open global role store, skipping setup", "role", roleName, "error", err)
 		return nil
@@ -66,7 +66,7 @@ func setupAgentFromRole(ctx context.Context, workspacePath, agentName, roleName,
 	// Resolve the ConfigAdapter for this provider.
 	adapter := resolveConfigAdapter(toolName)
 
-	secrets := loadSecrets(workspacePath, resolved.Secrets)
+	secrets := loadSecrets(repoPath, resolved.Secrets)
 	var errs []string
 
 	// Write prompt file (CLAUDE.md, .cursorrules, GEMINI.md, etc.)
@@ -78,7 +78,7 @@ func setupAgentFromRole(ctx context.Context, workspacePath, agentName, roleName,
 	}
 
 	// MCP config via adapter (claude mcp add, .mcp.json, .cursor/mcp.json, etc.)
-	if e := writeMCPJSON(ctx, workspacePath, agentName, resolved, secrets, targetDir, runtimeBackend); e != nil {
+	if e := writeMCPJSON(ctx, repoPath, agentName, resolved, secrets, targetDir, runtimeBackend); e != nil {
 		errs = append(errs, e.Error())
 	}
 
@@ -90,10 +90,12 @@ func setupAgentFromRole(ctx context.Context, workspacePath, agentName, roleName,
 		}
 	}
 
-	// Plugins via adapter
-	agentDir := filepath.Join(workspaceStateDir(workspacePath), "agents", agentName)
+	// Plugins via adapter — provider state lives in the agent's session
+	// dir (~/.mycel/agents/<name>/session/).
 	if len(resolved.Plugins) > 0 {
-		if e := adapter.SetupPlugins(agentDir, resolved.Plugins); e != nil {
+		if sessionDir, dirErr := home.AgentSessionDir(agentName); dirErr != nil {
+			errs = append(errs, dirErr.Error())
+		} else if e := adapter.SetupPlugins(sessionDir, resolved.Plugins); e != nil {
 			errs = append(errs, e.Error())
 		}
 	}
@@ -157,7 +159,7 @@ type mcpServerEntry struct {
 
 var secretRefPattern = regexp.MustCompile(`\$\{secret:([^}]+)\}`)
 
-func writeMCPJSON(ctx context.Context, workspacePath, agentName string, resolved *workspace.ResolvedRole, secrets map[string]string, targetDir, runtimeBackend string) error {
+func writeMCPJSON(ctx context.Context, repoPath, agentName string, resolved *home.ResolvedRole, secrets map[string]string, targetDir, runtimeBackend string) error {
 	isDocker := runtimeBackend == "docker"
 	cfg := mcpConfig{MCPServers: make(map[string]mcpServerEntry)}
 
@@ -190,10 +192,10 @@ func writeMCPJSON(ctx context.Context, workspacePath, agentName string, resolved
 	}
 
 	for _, name := range resolved.MCPServers {
-		// The bc server is this daemon itself — its address depends on the
+		// The mycel server is this daemon itself — its address depends on the
 		// live bind address and the agent's runtime, never on the store.
-		if name == "bc" {
-			cfg.MCPServers["bc"] = mcpServerEntry{URL: bcSelfURL(runtimeBackend, agentName), Type: "http"}
+		if name == "mycel" {
+			cfg.MCPServers["mycel"] = mcpServerEntry{URL: selfMCPURL(runtimeBackend, agentName), Type: "http"}
 			continue
 		}
 
@@ -266,10 +268,10 @@ func writeMCPJSON(ctx context.Context, workspacePath, agentName string, resolved
 		cfg.MCPServers[name] = entry
 	}
 
-	// Always ensure the bc MCP server is included with an agent-scoped URL.
+	// Always ensure the mycel MCP server is included with an agent-scoped URL.
 	// It carries send_message, report_status, and the other agent tools.
-	if _, hasBc := cfg.MCPServers["bc"]; !hasBc {
-		cfg.MCPServers["bc"] = mcpServerEntry{URL: bcSelfURL(runtimeBackend, agentName), Type: "http"}
+	if _, hasSelf := cfg.MCPServers["mycel"]; !hasSelf {
+		cfg.MCPServers["mycel"] = mcpServerEntry{URL: selfMCPURL(runtimeBackend, agentName), Type: "http"}
 	}
 
 	// Prefer claude CLI for MCP setup; fall back to .mcp.json file write.
@@ -282,12 +284,12 @@ func writeMCPJSON(ctx context.Context, workspacePath, agentName string, resolved
 	return writeJSONFile(targetDir, ".mcp.json", cfg)
 }
 
-// bcSelfURL returns this daemon's agent-scoped MCP endpoint (streamable
+// selfMCPURL returns this daemon's agent-scoped MCP endpoint (streamable
 // HTTP) for the given runtime. A URL stored in mcp_servers can't be right
 // for both runtimes at once (tmux needs 127.0.0.1, docker needs
 // host.docker.internal) nor track the actual bind port, so the self
 // endpoint is always derived from the live daemon address.
-func bcSelfURL(runtimeBackend, agentName string) string {
+func selfMCPURL(runtimeBackend, agentName string) string {
 	return daemonAddrForRuntime(runtimeBackend) + "/_mcp/" + agentName
 }
 
@@ -303,10 +305,10 @@ func rewriteDockerURL(u string) string {
 // ── Secrets ─────────────────────────────────────────────────────────────────
 
 // loadSecrets fetches secret values by name from the layered vault
-// (global ~/.mycel/secrets.vault + workspace <ws>/.bc/secrets.db, workspace wins).
+// (global ~/.mycel/secrets.vault + repo <repo>/.mycel/secrets.db, repo wins).
 // Uses the real passphrase so encrypted vaults are readable; an empty passphrase
 // was the previous bug that caused MCP ${secret:NAME} references to silently fail.
-func loadSecrets(workspacePath string, names []string) map[string]string {
+func loadSecrets(repoPath string, names []string) map[string]string {
 	m := make(map[string]string)
 	if len(names) == 0 {
 		return m
@@ -317,7 +319,7 @@ func loadSecrets(workspacePath string, names []string) map[string]string {
 		return m
 	}
 
-	ls, closeLS := openLayeredStore(workspacePath, passphrase)
+	ls, closeLS := openLayeredStore(repoPath, passphrase)
 	if closeLS != nil {
 		defer closeLS()
 	}
@@ -450,9 +452,9 @@ func mergeSettingsJSON(dir string, roleSettings map[string]any) error {
 	}
 	settingsPath := filepath.Join(dir, "settings.json")
 
-	// Read existing settings (may contain hooks from WriteWorkspaceHookSettings).
+	// Read existing settings (may contain hooks from WriteClaudeHookSettings).
 	existing := make(map[string]any)
-	data, err := os.ReadFile(settingsPath) //nolint:gosec // controlled agent workspace path
+	data, err := os.ReadFile(settingsPath) //nolint:gosec // controlled agent repo path
 	if err == nil {
 		_ = json.Unmarshal(data, &existing) //nolint:errcheck // if malformed, start fresh
 	}
@@ -466,7 +468,7 @@ func mergeSettingsJSON(dir string, roleSettings map[string]any) error {
 	}
 
 	// Restore hooks if they existed and role settings didn't explicitly set them,
-	// or merge them back so hooks from WriteWorkspaceHookSettings are not lost.
+	// or merge them back so hooks from WriteClaudeHookSettings are not lost.
 	if hasHooks {
 		if _, roleHasHooks := roleSettings["hooks"]; !roleHasHooks {
 			existing["hooks"] = savedHooks
@@ -507,7 +509,7 @@ func writeMDFiles(dir string, files map[string]string) error {
 
 // validateAgentTools checks that CLI tools listed in the role config are available.
 // Returns a list of issues found (empty = all good).
-func validateAgentTools(workspacePath, roleName string) []string {
+func validateAgentTools(repoPath, roleName string) []string {
 	if roleName == "" {
 		return nil
 	}
@@ -515,7 +517,7 @@ func validateAgentTools(workspacePath, roleName string) []string {
 	// Roles live in the single global database, not in the target repo's
 	// local state dir — resolve them from the global store so agents created
 	// against any repo validate correctly.
-	rm, err := workspace.NewGlobalRoleManager(workspaceStateDir(workspacePath))
+	rm, err := home.NewGlobalRoleManager(mycelHomeOrEmpty())
 	if err != nil {
 		return []string{fmt.Sprintf("role store unavailable: %v", err)}
 	}

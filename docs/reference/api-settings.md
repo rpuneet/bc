@@ -1,6 +1,6 @@
 # Settings API
 
-The Settings API reads and updates mycel configuration via the bcd HTTP server. The configuration is a JSON document persisted to `preferences.json` in the per-repo runtime state directory (`~/.mycel/workspaces/<id>/`).
+The Settings API reads and updates mycel configuration via the the daemon HTTP server. The configuration is a JSON document persisted to `~/.mycel/prefs.json`.
 
 Base URL: `http://localhost:9374`
 
@@ -24,13 +24,13 @@ Returns the full configuration.
       "gemini": { "command": "gemini --yolo" }
     }
   },
-  "gateways": {},
+  "apps": {},
   "runtime": {
     "default": "docker",
     "docker": {
       "extra_mounts": null,
       "image": "mycel-agent-claude:latest",
-      "network": "bc-net",
+      "network": "mycel-net",
       "docker_socket_path": "/var/run/docker.sock",
       "memory_mb": 4096,
       "cpus": 2
@@ -43,7 +43,7 @@ Returns the full configuration.
   },
   "storage": {
     "default": "sqlite",
-    "sqlite": { "path": ".bc" },
+    "sqlite": { "path": ".mycel" },
     "timescale": {
       "host": "localhost",
       "user": "bc",
@@ -56,10 +56,6 @@ Returns the full configuration.
     "host": "127.0.0.1",
     "cors_origin": "*",
     "port": 9374
-  },
-  "cron": {
-    "poll_interval_seconds": 30,
-    "job_timeout_seconds": 300
   },
   "logs": {
     "path": "",
@@ -80,11 +76,11 @@ Returns the full configuration.
 
 Partial update. The request body is a JSON object whose top-level keys are config sections; send only the sections you want to change. Unspecified sections remain unchanged. A `version` key in the body is ignored; any other unknown key is rejected with `400`.
 
-**Supported sections:** `user`, `server`, `runtime`, `providers`, `gateways`, `cron`, `storage`, `logs`, `ui`.
+**Supported sections:** `user`, `server`, `runtime`, `providers`, `apps`, `storage`, `logs`, `ui`, `injected_instructions`.
 
-Most sections are replaced wholesale by the patch value. The `gateways` section is deep-merged per platform key, so sending `{"gateways": {"discord": {...}}}` does not remove existing Slack or Telegram entries.
+Most sections are replaced wholesale by the patch value. The `apps` section is merged per instance key, so sending `{"apps": {"discord": {...}}}` does not remove existing Slack or Telegram instances. Each submitted instance is validated against its app descriptor — unknown apps, unknown config keys, and secret-typed fields are all rejected (secrets go through `POST /api/apps/{instance}`).
 
-The merged config is validated before saving. On success it is persisted to `preferences.json` and the full updated config is returned.
+The merged config is validated before saving. On success it is persisted to `prefs.json` and the full updated config is returned.
 
 **Example: change the UI theme**
 
@@ -141,24 +137,26 @@ Each entry in the `providers` map:
 
 Default commands: `claude` → `claude --dangerously-skip-permissions`, `gemini` → `gemini --yolo`.
 
-### `gateways`
+### `apps`
 
-Map of platform key to gateway config. Keys follow a `platform` or `platform:label` convention (e.g. `telegram`, `telegram:alerts`) so a platform can be registered more than once under different labels.
+Map of instance name to app instance config. Keys follow an `app` or `app:label` convention (e.g. `telegram`, `telegram:alerts`) so an app can be connected more than once under different labels.
 
-Supported platform keys: `slack`, `telegram`, `discord`, `github`, `gitlab`, `webhook`, `rss`, `jira`, `linear`, `sentry`, `stripe`, `bitbucket`, `pagerduty`, `datadog`, `grafana`, `vercel`, `netlify`, `notion`, `whatsapp`, `signal`, `matrix`, `msteams`, `googlechat`, `line`, `feishu`, `mattermost`, `irc`, `nostr`, `twitch`, `imessage`, `mqtt`, `twitter`, `reddit`, `homeassistant`.
+Registered app IDs (28 built-in plugins): `bitbucket`, `datadog`, `discord`, `github`, `gitlab`, `grafana`, `imessage`, `irc`, `jira`, `line`, `linear`, `matrix`, `mattermost`, `mqtt`, `netlify`, `notion`, `pagerduty`, `reddit`, `rss`, `sentry`, `signal`, `slack`, `stripe`, `telegram`, `twitch`, `vercel`, `webhook`, `whatsapp`.
 
-Every gateway config has an `enabled` (bool) field plus platform-specific credentials, for example:
+Every instance has one generic shape:
 
-| Platform   | Fields |
-|------------|--------|
-| `slack`    | `bot_token`, `app_token`, `mode`, `enabled` |
-| `telegram` | `bot_token`, `mode`, `enabled` |
-| `discord`  | `bot_token`, `enabled` |
-| `github`   | `secret`, `enabled` |
-| `webhook`  | `secret`, `enabled` |
-| `rss`      | `url`, `interval` (seconds), `enabled` |
+```json
+{
+  "apps": {
+    "slack":           { "app": "slack",    "enabled": true, "config": { "mode": "socket" } },
+    "telegram:alerts": { "app": "telegram", "enabled": true, "config": { "mode": "poll" } }
+  }
+}
+```
 
-See [Set Up Notifications](../how-to/set-up-notifications.md) for connecting gateways.
+Config keys are validated against the app's descriptor (`GET /api/apps` lists every field). **Secret-typed fields never appear here** — they live in the encrypted vault as `app:<instance>:<key>` and are written via `POST /api/apps/{instance}`.
+
+See [Set Up Apps](../how-to/set-up-apps.md) for connecting apps.
 
 ### `runtime`
 
@@ -171,7 +169,7 @@ See [Set Up Notifications](../how-to/set-up-notifications.md) for connecting gat
 | Field                | Type     | Default                     | Description |
 |----------------------|----------|-----------------------------|-------------|
 | `image`              | string   | `mycel-agent-claude:latest` | Docker image for agent containers |
-| `network`            | string   | `bc-net`                    | Docker network name |
+| `network`            | string   | `mycel-net`                    | Docker network name |
 | `docker_socket_path` | string   | `/var/run/docker.sock`      | Docker socket mounted into containers |
 | `extra_mounts`       | []string | `[]`                        | Additional volume mounts |
 | `memory_mb`          | int      | `4096`                      | Memory limit per container (MB) |
@@ -195,7 +193,7 @@ See [Set Up Notifications](../how-to/set-up-notifications.md) for connecting gat
 
 | Field  | Type   | Default | Description |
 |--------|--------|---------|-------------|
-| `path` | string | `.bc`   | Directory for SQLite database files |
+| `path` | string | `.mycel`   | Directory for SQLite database files |
 
 `storage.timescale`:
 
@@ -211,16 +209,9 @@ See [Set Up Notifications](../how-to/set-up-notifications.md) for connecting gat
 
 | Field         | Type   | Default     | Description |
 |---------------|--------|-------------|-------------|
-| `host`        | string | `127.0.0.1` | Listen address for bcd |
+| `host`        | string | `127.0.0.1` | Listen address for the daemon |
 | `port`        | int    | `9374`      | Listen port (1–65535) |
 | `cors_origin` | string | `*`         | Allowed CORS origin |
-
-### `cron`
-
-| Field                   | Type | Default | Description |
-|-------------------------|------|---------|-------------|
-| `poll_interval_seconds` | int  | `30`    | Seconds between scheduler polls |
-| `job_timeout_seconds`   | int  | `300`   | Seconds before a job is considered timed out |
 
 ### `logs`
 

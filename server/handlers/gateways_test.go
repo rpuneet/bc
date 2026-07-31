@@ -12,8 +12,8 @@ import (
 	"testing"
 
 	"github.com/rpuneet/mycel/pkg/gateway"
+	"github.com/rpuneet/mycel/pkg/home"
 	"github.com/rpuneet/mycel/pkg/secret"
-	"github.com/rpuneet/mycel/pkg/workspace"
 )
 
 // stubAdapter implements gateway.NotificationAdapter for testing.
@@ -63,7 +63,7 @@ func TestGatewayLegacyChannelHistoryLimitCapping(t *testing.T) {
 			req := httptest.NewRequest(http.MethodGet, url, nil)
 			rr := httptest.NewRecorder()
 
-			h.legacyChannelHistory(rr, req)
+			h.channelHistory(rr, req)
 
 			if rr.Code != http.StatusOK {
 				t.Fatalf("got status %d, want 200", rr.Code)
@@ -99,7 +99,7 @@ func parseIntFmt(s string, n *int) (int, error) {
 
 func TestGatewayAPIProxyRequestCloning(t *testing.T) {
 	// Verify that gatewayAPIProxy clones the request so the original URL is not mutated.
-	originalPath := "/api/gateways/test/api/v1/messages"
+	originalPath := "/api/apps/test/api/v1/messages"
 
 	var proxiedPath string
 	proxyHandler := http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
@@ -132,8 +132,9 @@ func TestGatewayAPIProxyRequestCloning(t *testing.T) {
 	}
 }
 
-func TestGatewayListPopulatesChannels(t *testing.T) {
-	// Create a gateway manager with a stub adapter that has discovered channels.
+func TestAppsCatalogPopulatesDynamicAdapterChannels(t *testing.T) {
+	// A gateway manager with a stub adapter that has discovered channels
+	// but no config entry — the catalog must still surface it.
 	gw := gateway.NewManager()
 
 	adapter := &stubAdapter{
@@ -142,7 +143,7 @@ func TestGatewayListPopulatesChannels(t *testing.T) {
 			{ID: "C001", Name: "engineering", Platform: "slack"},
 			{ID: "C002", Name: "general", Platform: "slack"},
 		},
-		status: gateway.AdapterStatus{Connected: true, BotName: "bc-bot"},
+		status: gateway.AdapterStatus{Connected: true, BotName: "mycel-bot"},
 	}
 	gw.Register(adapter)
 
@@ -164,53 +165,55 @@ func TestGatewayListPopulatesChannels(t *testing.T) {
 		}
 	}
 
-	// Now test the list handler. Without workspace config, dynamic adapters appear
-	// but the enrichment loop for channels only runs for config-based platforms.
-	// Test that the dynamic adapter entry at least appears with correct metadata.
-	h := &GatewayHandler{gw: gw}
+	// GET /api/apps: without global config the dynamic adapter still
+	// appears as an instance with its discovered channels and bot name.
+	h := &AppsHandler{gw: gw}
 
-	req := httptest.NewRequest(http.MethodGet, "/api/gateways", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/apps", nil)
 	rr := httptest.NewRecorder()
-	h.list(rr, req)
+	h.catalog(rr, req)
 
 	if rr.Code != http.StatusOK {
 		t.Fatalf("got status %d, want 200", rr.Code)
 	}
 
-	var platforms []struct { //nolint:govet // test-only struct, field order matches JSON
-		Platform string   `json:"platform"`
-		Channels []string `json:"channels"`
-		BotName  string   `json:"bot_name"`
-		Enabled  bool     `json:"enabled"`
+	var resp struct {
+		Instances []struct { //nolint:govet // test-only struct, field order matches JSON
+			Name     string   `json:"name"`
+			App      string   `json:"app"`
+			Channels []string `json:"channels"`
+			BotName  string   `json:"bot_name"`
+			Enabled  bool     `json:"enabled"`
+		} `json:"instances"`
 	}
-	if err := json.NewDecoder(rr.Body).Decode(&platforms); err != nil {
+	if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
 		t.Fatalf("decode response: %v", err)
 	}
 
 	found := false
-	for _, p := range platforms {
-		if p.Platform == "slack" {
+	for _, p := range resp.Instances {
+		if p.Name == "slack" {
 			found = true
-			if p.BotName != "bc-bot" {
-				t.Errorf("bot_name = %q, want %q", p.BotName, "bc-bot")
+			if p.BotName != "mycel-bot" {
+				t.Errorf("bot_name = %q, want %q", p.BotName, "mycel-bot")
 			}
 			if !p.Enabled {
 				t.Error("dynamically registered adapter should be enabled=true")
 			}
-			// Channels array must never be null
-			if p.Channels == nil {
-				t.Error("channels should not be nil (should be [] in JSON)")
+			if len(p.Channels) < 2 {
+				t.Errorf("expected at least 2 channels, got %d", len(p.Channels))
 			}
 		}
 	}
 	if !found {
-		t.Error("slack platform not found in gateway list")
+		t.Error("slack instance not found in apps catalog")
 	}
 
-	// Verify via the per-platform channels endpoint that channels are discoverable
-	req2 := httptest.NewRequest(http.MethodGet, "/api/gateways/slack/channels", nil)
+	// Verify via the per-instance channels endpoint that channels are discoverable
+	gh := &GatewayHandler{gw: gw}
+	req2 := httptest.NewRequest(http.MethodGet, "/api/apps/slack/channels", nil)
 	rr2 := httptest.NewRecorder()
-	h.gatewayChannels(rr2, req2, "slack", "")
+	gh.gatewayChannels(rr2, req2, "slack", "")
 
 	if rr2.Code != http.StatusOK {
 		t.Fatalf("channels endpoint: got status %d, want 200", rr2.Code)
@@ -238,8 +241,8 @@ func TestGatewayListPopulatesChannels(t *testing.T) {
 	}
 }
 
-func TestGatewayListNoNullChannels(t *testing.T) {
-	// Verify channels is never null in JSON output (always []).
+func TestAppsCatalogNoNullChannels(t *testing.T) {
+	// Verify instance channels are never null in JSON output (always []).
 	gw := gateway.NewManager()
 	adapter := &stubAdapter{
 		name:     "discord",
@@ -252,11 +255,11 @@ func TestGatewayListNoNullChannels(t *testing.T) {
 	cancel()
 	_ = gw.Start(ctx)
 
-	h := &GatewayHandler{gw: gw}
+	h := &AppsHandler{gw: gw}
 
-	req := httptest.NewRequest(http.MethodGet, "/api/gateways", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/apps", nil)
 	rr := httptest.NewRecorder()
-	h.list(rr, req)
+	h.catalog(rr, req)
 
 	body := rr.Body.String()
 	// Check that channels is [] not null
@@ -327,134 +330,25 @@ func openTestVault(t *testing.T) *secret.Store {
 	return v
 }
 
-// setupTestWorkspace creates a minimal workspace directory suitable for
-// gateway config updates. Uses a sandboxed MYCEL_HOME to avoid polluting the
-// caller's real registry.
-func setupTestWorkspace(t *testing.T) *workspace.Workspace {
+// setupTestHome creates a minimal home suitable for gateway
+// config updates. Uses a sandboxed MYCEL_HOME so prefs.json and the
+// global database land in a throwaway dir, not the caller's ~/.mycel.
+func setupTestHome(t *testing.T) *home.Home {
 	t.Helper()
-	// Sandbox global state so workspace.Init doesn't write to the real registry.
-	home := t.TempDir()
-	t.Setenv("HOME", home)
-	t.Setenv("MYCEL_HOME", filepath.Join(home, ".bc"))
+	homeDir := t.TempDir()
+	t.Setenv("HOME", homeDir)
+	t.Setenv("MYCEL_HOME", filepath.Join(homeDir, ".mycel"))
 
 	dir := t.TempDir()
-	// workspace.Init requires a git repository.
+	// home.Open requires a non-empty root to be a git repository.
 	if err := os.MkdirAll(filepath.Join(dir, ".git"), 0o750); err != nil {
 		t.Fatalf("create .git: %v", err)
 	}
-	wks, err := workspace.Init(dir)
+	wks, err := home.Open(dir)
 	if err != nil {
-		t.Fatalf("workspace.Init: %v", err)
+		t.Fatalf("home.Open: %v", err)
 	}
 	return wks
-}
-
-// TestUpdatePlatformSlackWritesVault verifies that a Slack PATCH persists
-// SLACK_BOT_TOKEN and SLACK_APP_TOKEN in the vault.
-func TestUpdatePlatformSlackWritesVault(t *testing.T) {
-	wks := setupTestWorkspace(t)
-	vault := openTestVault(t)
-
-	h := &GatewayHandler{ws: wks, vault: vault}
-
-	body := `{"bot_token":"xoxb-bot-token","app_token":"xapp-app-token","enabled":true}`
-	req := httptest.NewRequest(http.MethodPatch, "/api/gateways/slack", strings.NewReader(body))
-	rr := httptest.NewRecorder()
-	h.updatePlatform(rr, req, "slack")
-
-	if rr.Code != http.StatusOK {
-		t.Fatalf("status = %d, want 200; body = %s", rr.Code, rr.Body.String())
-	}
-
-	if got, err := vault.GetValue("SLACK_BOT_TOKEN"); err != nil || got != "xoxb-bot-token" {
-		t.Errorf("SLACK_BOT_TOKEN = %q (err %v), want %q", got, err, "xoxb-bot-token")
-	}
-	if got, err := vault.GetValue("SLACK_APP_TOKEN"); err != nil || got != "xapp-app-token" {
-		t.Errorf("SLACK_APP_TOKEN = %q (err %v), want %q", got, err, "xapp-app-token")
-	}
-}
-
-// TestUpdatePlatformDiscordWritesVault verifies that a Discord PATCH persists
-// DISCORD_BOT_TOKEN in the vault.
-func TestUpdatePlatformDiscordWritesVault(t *testing.T) {
-	wks := setupTestWorkspace(t)
-	vault := openTestVault(t)
-
-	h := &GatewayHandler{ws: wks, vault: vault}
-
-	body := `{"bot_token":"discord-bot-token","enabled":true}`
-	req := httptest.NewRequest(http.MethodPatch, "/api/gateways/discord", strings.NewReader(body))
-	rr := httptest.NewRecorder()
-	h.updatePlatform(rr, req, "discord")
-
-	if rr.Code != http.StatusOK {
-		t.Fatalf("status = %d, want 200; body = %s", rr.Code, rr.Body.String())
-	}
-
-	if got, err := vault.GetValue("DISCORD_BOT_TOKEN"); err != nil || got != "discord-bot-token" {
-		t.Errorf("DISCORD_BOT_TOKEN = %q (err %v), want %q", got, err, "discord-bot-token")
-	}
-}
-
-// TestUpdatePlatformTelegramWritesVault verifies that a plain Telegram PATCH
-// persists TELEGRAM_BOT_TOKEN in the vault.
-func TestUpdatePlatformTelegramWritesVault(t *testing.T) {
-	wks := setupTestWorkspace(t)
-	vault := openTestVault(t)
-
-	h := &GatewayHandler{ws: wks, vault: vault}
-
-	body := `{"bot_token":"tg-bot-token","enabled":true}`
-	req := httptest.NewRequest(http.MethodPatch, "/api/gateways/telegram", strings.NewReader(body))
-	rr := httptest.NewRecorder()
-	h.updatePlatform(rr, req, "telegram")
-
-	if rr.Code != http.StatusOK {
-		t.Fatalf("status = %d, want 200; body = %s", rr.Code, rr.Body.String())
-	}
-
-	if got, err := vault.GetValue("TELEGRAM_BOT_TOKEN"); err != nil || got != "tg-bot-token" {
-		t.Errorf("TELEGRAM_BOT_TOKEN = %q (err %v), want %q", got, err, "tg-bot-token")
-	}
-}
-
-// TestUpdatePlatformTelegramLabelWritesVault verifies that a labeled Telegram
-// PATCH persists TELEGRAM_BOT_TOKEN_<LABEL> in the vault.
-func TestUpdatePlatformTelegramLabelWritesVault(t *testing.T) {
-	wks := setupTestWorkspace(t)
-	vault := openTestVault(t)
-
-	h := &GatewayHandler{ws: wks, vault: vault}
-
-	body := `{"bot_token":"tg-label-token","enabled":true}`
-	req := httptest.NewRequest(http.MethodPatch, "/api/gateways/telegram:mybot", strings.NewReader(body))
-	rr := httptest.NewRecorder()
-	h.updatePlatform(rr, req, "telegram:mybot")
-
-	if rr.Code != http.StatusOK {
-		t.Fatalf("status = %d, want 200; body = %s", rr.Code, rr.Body.String())
-	}
-
-	if got, err := vault.GetValue("TELEGRAM_BOT_TOKEN_MYBOT"); err != nil || got != "tg-label-token" {
-		t.Errorf("TELEGRAM_BOT_TOKEN_MYBOT = %q (err %v), want %q", got, err, "tg-label-token")
-	}
-}
-
-// TestUpdatePlatformNoVaultIsNoop verifies that updatePlatform succeeds and
-// does not panic when no vault is wired.
-func TestUpdatePlatformNoVaultIsNoop(t *testing.T) {
-	wks := setupTestWorkspace(t)
-
-	h := &GatewayHandler{ws: wks} // no vault
-
-	body := `{"bot_token":"xoxb-no-vault","app_token":"xapp-no-vault","enabled":true}`
-	req := httptest.NewRequest(http.MethodPatch, "/api/gateways/slack", strings.NewReader(body))
-	rr := httptest.NewRecorder()
-	h.updatePlatform(rr, req, "slack")
-
-	if rr.Code != http.StatusOK {
-		t.Fatalf("status = %d, want 200; body = %s", rr.Code, rr.Body.String())
-	}
 }
 
 // ─── channelSend ─────────────────────────────────────────────────────────────

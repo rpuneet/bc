@@ -66,7 +66,7 @@ func TestWriteClaudeHookSettings_MergesExisting(t *testing.T) {
 	if err := os.MkdirAll(claudeDir, 0750); err != nil {
 		t.Fatal(err)
 	}
-	// Use a non-bc-managed custom hook key — bc hooks overwrite, custom hooks are preserved.
+	// Use a non-mycel-managed custom hook key — bc hooks overwrite, custom hooks are preserved.
 	existing := `{"hooks":{"CustomHook":[{"hooks":[{"type":"command","command":"echo hi"}]}]}}`
 	if err := os.WriteFile(filepath.Join(claudeDir, "settings.json"), []byte(existing), 0600); err != nil {
 		t.Fatal(err)
@@ -94,7 +94,7 @@ func TestWriteClaudeHookSettings_PreservesUserCustomizedHooks(t *testing.T) {
 	if err := os.MkdirAll(claudeDir, 0750); err != nil {
 		t.Fatal(err)
 	}
-	// User has customized PreToolUse with their own command (not bc-managed).
+	// User has customized PreToolUse with their own command (not mycel-managed).
 	existing := `{"hooks":{"PreToolUse":[{"hooks":[{"type":"command","command":"echo my-custom-hook"}]}]}}`
 	if err := os.WriteFile(filepath.Join(claudeDir, "settings.json"), []byte(existing), 0600); err != nil {
 		t.Fatal(err)
@@ -107,9 +107,9 @@ func TestWriteClaudeHookSettings_PreservesUserCustomizedHooks(t *testing.T) {
 		t.Fatalf("settings.json not found: %v", err)
 	}
 	content := string(data)
-	// User's custom hook should be preserved, not overwritten by bc
+	// User's custom hook should be preserved, not overwritten by mycel
 	if !strings.Contains(content, "my-custom-hook") {
-		t.Error("user-customized PreToolUse hook was overwritten by bc")
+		t.Error("user-customized PreToolUse hook was overwritten by mycel")
 	}
 }
 
@@ -120,7 +120,7 @@ func TestWriteClaudeHookSettings_RemovesInvalidKeys(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Simulate old settings with StopFailure (invalid Claude Code hook key)
-	// PreToolUse has a bc-managed hook (contains /api/agents/) that should be overwritten.
+	// PreToolUse has a mycel-managed hook (contains /api/agents/) that should be overwritten.
 	existing := `{"hooks":{"StopFailure":[{"hooks":[{"type":"command","command":"old"}]}],"PreToolUse":[{"hooks":[{"type":"command","command":"curl /api/agents/old/hook"}]}]}}`
 	if err := os.WriteFile(filepath.Join(claudeDir, "settings.json"), []byte(existing), 0600); err != nil {
 		t.Fatal(err)
@@ -136,7 +136,7 @@ func TestWriteClaudeHookSettings_RemovesInvalidKeys(t *testing.T) {
 	if strings.Contains(content, "StopFailure") {
 		t.Error("StopFailure should have been removed from settings")
 	}
-	// PreToolUse should be overwritten with new bc hook, not preserved as "old"
+	// PreToolUse should be overwritten with new mycel hook, not preserved as "old"
 	if strings.Contains(content, `"old"`) {
 		t.Error("old hook commands should have been overwritten")
 	}
@@ -181,7 +181,7 @@ func TestWriteClaudeHookSettingsPreservesUnknownKeys(t *testing.T) {
 	if got := string(full["model"]); got != `"opus"` {
 		t.Errorf("model = %s, want \"opus\"", got)
 	}
-	// The user's own SessionStart hook survives alongside the bc hook.
+	// The user's own SessionStart hook survives alongside the mycel hook.
 	var hooks map[string][]claudeHookMatcher
 	if err := json.Unmarshal(full["hooks"], &hooks); err != nil {
 		t.Fatal(err)

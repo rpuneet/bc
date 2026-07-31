@@ -42,7 +42,7 @@ func slugify(name string) string {
 
 // channelKey builds the canonical channel name "<guild>:<channel>" from raw
 // Discord names. The gateway manager prepends the "discord:" platform prefix,
-// yielding the canonical bc channel "discord:<guild>:<channel>".
+// yielding the canonical mycel channel "discord:<guild>:<channel>".
 //
 // The guild is always included (even for single-guild bots) so keys stay
 // stable when the bot joins additional guilds, and the sidebar can show
@@ -206,8 +206,13 @@ func (a *Adapter) handleReady(_ *discordgo.Session, r *discordgo.Ready) {
 				if key == "" {
 					key = ch.ID
 				}
+				// discordgo re-fires Ready on every gateway reconnect, so
+				// only log genuinely new channels — otherwise a flapping
+				// connection spams an Info line per channel per reconnect.
+				if _, known := a.guildChannels[ch.ID]; !known {
+					log.Info("discord: discovered channel", "channel", key, "id", ch.ID)
+				}
 				a.guildChannels[ch.ID] = key
-				log.Info("discord: discovered channel", "channel", key, "id", ch.ID)
 			}
 		}
 		a.chatMu.Unlock()

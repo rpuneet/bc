@@ -205,4 +205,68 @@ func TestPragmasApplied(t *testing.T) {
 	if foreignKeys != 1 {
 		t.Errorf("foreign_keys = %d, want 1", foreignKeys)
 	}
+
+	// Check busy_timeout matches the configured default.
+	var busyTimeout int
+	if err := db.QueryRowContext(ctx, "PRAGMA busy_timeout").Scan(&busyTimeout); err != nil {
+		t.Fatalf("PRAGMA busy_timeout error = %v", err)
+	}
+	if busyTimeout != DefaultBusyTimeout {
+		t.Errorf("busy_timeout = %d, want %d", busyTimeout, DefaultBusyTimeout)
+	}
+
+	// Check synchronous = NORMAL (1).
+	var synchronous int
+	if err := db.QueryRowContext(ctx, "PRAGMA synchronous").Scan(&synchronous); err != nil {
+		t.Fatalf("PRAGMA synchronous error = %v", err)
+	}
+	if synchronous != 1 {
+		t.Errorf("synchronous = %d, want 1 (NORMAL)", synchronous)
+	}
+}
+
+// TestWALWriteRead exercises a real WAL-mode write+read roundtrip. Run with
+// CGO_ENABLED=0 it verifies the pure-Go modernc.org/sqlite driver (the Windows
+// release path); run with CGO it verifies the mattn C driver. Either way the
+// pragmas and driver name ("sqlite3") must behave identically.
+func TestWALWriteRead(t *testing.T) {
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "wal.db")
+
+	db, err := Open(dbPath)
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+
+	ctx := context.Background()
+
+	// Confirm WAL is active before we write.
+	var journalMode string
+	if err := db.QueryRowContext(ctx, "PRAGMA journal_mode").Scan(&journalMode); err != nil {
+		t.Fatalf("PRAGMA journal_mode error = %v", err)
+	}
+	if journalMode != "wal" {
+		t.Fatalf("journal_mode = %q, want wal", journalMode)
+	}
+
+	if _, err := db.ExecContext(ctx, "CREATE TABLE kv (k TEXT PRIMARY KEY, v TEXT)"); err != nil {
+		t.Fatalf("CREATE TABLE error = %v", err)
+	}
+	if _, err := db.ExecContext(ctx, "INSERT INTO kv (k, v) VALUES (?, ?)", "hello", "world"); err != nil {
+		t.Fatalf("INSERT error = %v", err)
+	}
+
+	var got string
+	if err := db.QueryRowContext(ctx, "SELECT v FROM kv WHERE k = ?", "hello").Scan(&got); err != nil {
+		t.Fatalf("SELECT error = %v", err)
+	}
+	if got != "world" {
+		t.Errorf("SELECT v = %q, want %q", got, "world")
+	}
+
+	// WAL mode creates a -wal sidecar file; confirm it exists.
+	if _, err := os.Stat(dbPath + "-wal"); err != nil {
+		t.Errorf("expected WAL sidecar file at %s-wal: %v", dbPath, err)
+	}
 }

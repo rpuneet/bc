@@ -1,0 +1,35 @@
+// Package builtin registers the built-in app plugins with the default
+// registry via side-effect imports. Adding an app = one new plugin
+// package + one import line here.
+package builtin
+
+import (
+	_ "github.com/rpuneet/mycel/pkg/gateway/bitbucket"
+	_ "github.com/rpuneet/mycel/pkg/gateway/datadog"
+	_ "github.com/rpuneet/mycel/pkg/gateway/discord"
+	_ "github.com/rpuneet/mycel/pkg/gateway/github"
+	_ "github.com/rpuneet/mycel/pkg/gateway/gitlab"
+	_ "github.com/rpuneet/mycel/pkg/gateway/grafana"
+	_ "github.com/rpuneet/mycel/pkg/gateway/imessage"
+	_ "github.com/rpuneet/mycel/pkg/gateway/irc"
+	_ "github.com/rpuneet/mycel/pkg/gateway/jira"
+	_ "github.com/rpuneet/mycel/pkg/gateway/line"
+	_ "github.com/rpuneet/mycel/pkg/gateway/linear"
+	_ "github.com/rpuneet/mycel/pkg/gateway/matrix"
+	_ "github.com/rpuneet/mycel/pkg/gateway/mattermost"
+	_ "github.com/rpuneet/mycel/pkg/gateway/mqtt"
+	_ "github.com/rpuneet/mycel/pkg/gateway/netlify"
+	_ "github.com/rpuneet/mycel/pkg/gateway/notion"
+	_ "github.com/rpuneet/mycel/pkg/gateway/pagerduty"
+	_ "github.com/rpuneet/mycel/pkg/gateway/reddit"
+	_ "github.com/rpuneet/mycel/pkg/gateway/rss"
+	_ "github.com/rpuneet/mycel/pkg/gateway/sentry"
+	_ "github.com/rpuneet/mycel/pkg/gateway/signal"
+	_ "github.com/rpuneet/mycel/pkg/gateway/slack"
+	_ "github.com/rpuneet/mycel/pkg/gateway/stripe"
+	_ "github.com/rpuneet/mycel/pkg/gateway/telegram"
+	_ "github.com/rpuneet/mycel/pkg/gateway/twitch"
+	_ "github.com/rpuneet/mycel/pkg/gateway/vercel"
+	_ "github.com/rpuneet/mycel/pkg/gateway/webhook"
+	_ "github.com/rpuneet/mycel/pkg/gateway/whatsapp"
+)

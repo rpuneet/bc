@@ -17,6 +17,9 @@ updates:
       - infrastructure
     commit-message:
       prefix: "deps(go):"
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
     groups:
       go-minor:
         update-types: [minor, patch]
@@ -46,6 +49,9 @@ updates:
       - dependencies
     commit-message:
       prefix: "deps(tui):"
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
     groups:
       tui-deps:
         update-types: [minor, patch]
@@ -60,6 +66,9 @@ updates:
       - dependencies
     commit-message:
       prefix: "deps(web):"
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
     groups:
       web-deps:
         update-types: [minor, patch]
@@ -74,6 +83,9 @@ updates:
       - dependencies
     commit-message:
       prefix: "deps(landing):"
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
     groups:
       landing-deps:
         update-types: [minor, patch]

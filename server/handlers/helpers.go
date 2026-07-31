@@ -1,5 +1,5 @@
-// Package handlers implements HTTP handlers for the bcd REST API.
-// Each handler file covers one resource (agents, channels, workspace, etc.).
+// Package handlers implements HTTP handlers for the daemon REST API.
+// Each handler file covers one resource (agents, channels, costs, etc.).
 package handlers
 
 import (
@@ -200,10 +200,6 @@ func isSSERequest(r *http.Request) bool {
 		(strings.HasSuffix(r.URL.Path, "/output") || strings.HasSuffix(r.URL.Path, "/events")) {
 		return true
 	}
-	// /api/cron/{name}/logs/live is an SSE stream
-	if strings.HasPrefix(r.URL.Path, "/api/cron/") && strings.HasSuffix(r.URL.Path, "/logs/live") {
-		return true
-	}
 	// Generic: any request explicitly asking for event-stream
 	if strings.Contains(r.Header.Get("Accept"), "text/event-stream") {
 		return true
@@ -263,7 +259,7 @@ func CORSWithOrigin(allowedOrigin string, next http.Handler) http.Handler {
 }
 
 // CORS returns a middleware with permissive CORS headers (Allow-Origin: *).
-// Safe because bcd only binds to loopback by default.
+// Safe because the daemon only binds to loopback by default.
 func CORS(next http.Handler) http.Handler {
 	return CORSWithOrigin("*", next)
 }

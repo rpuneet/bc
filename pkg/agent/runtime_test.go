@@ -254,7 +254,7 @@ func TestSQLiteStore_RuntimeBackend_Save(t *testing.T) {
 		Name:           "root",
 		Role:           RoleRoot,
 		State:          StateIdle,
-		Workspace:      "/ws",
+		Workspace:      "/repo",
 		RuntimeBackend: "tmux",
 		StartedAt:      time.Now(),
 	}
@@ -285,7 +285,7 @@ func TestSQLiteStore_RuntimeBackend_SaveAll(t *testing.T) {
 			Name:           "root",
 			Role:           RoleRoot,
 			State:          StateIdle,
-			Workspace:      "/ws",
+			Workspace:      "/repo",
 			RuntimeBackend: "tmux",
 			StartedAt:      time.Now(),
 		},
@@ -293,7 +293,7 @@ func TestSQLiteStore_RuntimeBackend_SaveAll(t *testing.T) {
 			Name:           "eng-01",
 			Role:           Role("engineer"),
 			State:          StateWorking,
-			Workspace:      "/ws",
+			Workspace:      "/repo",
 			RuntimeBackend: "docker",
 			StartedAt:      time.Now(),
 		},
@@ -301,7 +301,7 @@ func TestSQLiteStore_RuntimeBackend_SaveAll(t *testing.T) {
 			Name:           "eng-02",
 			Role:           Role("engineer"),
 			State:          StateIdle,
-			Workspace:      "/ws",
+			Workspace:      "/repo",
 			RuntimeBackend: "", // empty = default
 			StartedAt:      time.Now(),
 		},
@@ -339,7 +339,7 @@ func TestSQLiteStore_RuntimeBackend_UpdateField(t *testing.T) {
 		Name:           "root",
 		Role:           RoleRoot,
 		State:          StateIdle,
-		Workspace:      "/ws",
+		Workspace:      "/repo",
 		RuntimeBackend: "docker",
 		StartedAt:      time.Now(),
 	})
@@ -367,7 +367,7 @@ func TestSQLiteStore_RuntimeBackend_LoadRoot(t *testing.T) {
 		Name:           "root",
 		Role:           RoleRoot,
 		State:          StateIdle,
-		Workspace:      "/ws",
+		Workspace:      "/repo",
 		IsRoot:         true,
 		RuntimeBackend: "tmux",
 		StartedAt:      time.Now(),
@@ -398,7 +398,7 @@ func TestManager_RuntimeBackend_RoundTrip(t *testing.T) {
 		Name:           "root",
 		Role:           RoleRoot,
 		State:          StateIdle,
-		Workspace:      "/ws",
+		Workspace:      "/repo",
 		RuntimeBackend: "tmux",
 		IsRoot:         true,
 		StartedAt:      time.Now(),
@@ -408,7 +408,7 @@ func TestManager_RuntimeBackend_RoundTrip(t *testing.T) {
 		Name:           "eng-01",
 		Role:           Role("engineer"),
 		State:          StateWorking,
-		Workspace:      "/ws",
+		Workspace:      "/repo",
 		RuntimeBackend: "docker",
 		StartedAt:      time.Now(),
 		Children:       []string{},
@@ -537,11 +537,11 @@ func TestRuntimeForAgent_ConcurrentReadWrite(t *testing.T) {
 
 	mgr.agents["root"] = &Agent{
 		Name: "root", RuntimeBackend: "tmux", Role: RoleRoot,
-		State: StateIdle, Workspace: "/ws", StartedAt: time.Now(), Children: []string{},
+		State: StateIdle, Workspace: "/repo", StartedAt: time.Now(), Children: []string{},
 	}
 	mgr.agents["eng-01"] = &Agent{
 		Name: "eng-01", RuntimeBackend: "docker", Role: Role("engineer"),
-		State: StateWorking, Workspace: "/ws", StartedAt: time.Now(), Children: []string{},
+		State: StateWorking, Workspace: "/repo", StartedAt: time.Now(), Children: []string{},
 	}
 
 	var wg sync.WaitGroup
@@ -582,9 +582,9 @@ func TestRuntimeForAgent_ConcurrentReadWrite(t *testing.T) {
 
 // --- Manager constructors ---
 
-func TestNewWorkspaceManagerWithRuntime_RegistersTmuxFallback(t *testing.T) {
+func TestNewManagerWithRuntime_RegistersTmuxFallback(t *testing.T) {
 	dockerBe := newMockBackend("docker")
-	mgr := NewWorkspaceManagerWithRuntime(t.TempDir(), "/tmp/ws", dockerBe, "docker")
+	mgr := NewManagerWithRuntime(t.TempDir(), "/tmp/repo", dockerBe, "docker")
 
 	// Should have both docker (explicit) and tmux (fallback)
 	if _, ok := mgr.backends["docker"]; !ok {
@@ -598,9 +598,9 @@ func TestNewWorkspaceManagerWithRuntime_RegistersTmuxFallback(t *testing.T) {
 	}
 }
 
-func TestNewWorkspaceManagerWithRuntime_TmuxDefault(t *testing.T) {
+func TestNewManagerWithRuntime_TmuxDefault(t *testing.T) {
 	tmuxBe := newMockBackend("tmux")
-	mgr := NewWorkspaceManagerWithRuntime(t.TempDir(), "/tmp/ws", tmuxBe, "tmux")
+	mgr := NewManagerWithRuntime(t.TempDir(), "/tmp/repo", tmuxBe, "tmux")
 
 	// Only tmux, no duplicate
 	if len(mgr.backends) != 1 {

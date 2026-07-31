@@ -137,7 +137,7 @@ export function About() {
 
   const channels: ChannelStatus[] = [
     {
-      label: "Daemon (bcd)",
+      label: "Daemon",
       version: health?.version ?? undefined,
       detail: health ? `db: ${health.db}` : "unavailable",
       state: health ? "ok" : "error",

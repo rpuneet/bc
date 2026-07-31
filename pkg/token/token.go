@@ -40,7 +40,7 @@ type Entry struct {
 // CollectAll scans all agent directories under agentsDir and returns
 // aggregated token usage per agent. The expected layout is:
 //
-//	agentsDir/<agent>/claude/projects/*/*.jsonl
+//	agentsDir/<agent>/session/claude/projects/*/*.jsonl
 func CollectAll(agentsDir string) ([]Usage, error) {
 	agents, err := os.ReadDir(agentsDir)
 	if err != nil {
@@ -53,7 +53,7 @@ func CollectAll(agentsDir string) ([]Usage, error) {
 			continue
 		}
 		name := agent.Name()
-		projectsDir := filepath.Join(agentsDir, name, "claude", "projects")
+		projectsDir := filepath.Join(agentsDir, name, "session", "claude", "projects")
 		if _, statErr := os.Stat(projectsDir); statErr != nil {
 			continue
 		}
@@ -163,7 +163,7 @@ type jsonlUsage struct {
 }
 
 func parseSessionFile(agentName, path string) ([]Entry, error) {
-	f, err := os.Open(path) //nolint:gosec // path from workspace dir
+	f, err := os.Open(path) //nolint:gosec // path from the mycel home
 	if err != nil {
 		return nil, err
 	}

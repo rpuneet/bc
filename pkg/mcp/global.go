@@ -16,14 +16,14 @@ type Scope string
 const (
 	// ScopeGlobal is the user-global MCP registry (~/.mycel/mcps.json).
 	ScopeGlobal Scope = "global"
-	// ScopeWorkspace is a per-workspace override (SQLite mcp_servers
-	// table in the workspace state DB).
+	// ScopeWorkspace is a repo-scoped override (SQLite mcp_servers
+	// table in the global mycel.db).
 	ScopeWorkspace Scope = "workspace"
 )
 
 // GlobalStore is a JSON-file-backed registry of user-trusted MCP
 // servers. It lives at ~/.mycel/mcps.json and is shared across all bc
-// workspaces. Concurrency is handled with a file read/write under a
+// agents. Concurrency is handled with a file read/write under a
 // mutex; a serving process that needs ticker-level freshness should
 // re-read on each access.
 type GlobalStore struct {
@@ -209,17 +209,17 @@ func (g *GlobalStore) SetEnabled(name string, enabled bool) error {
 	return fmt.Errorf("mcp server %q not found", name)
 }
 
-// LayeredView composes the global registry with an optional per-workspace
-// Store. Reads merge the two with workspace-overrides winning; writes
+// LayeredView composes the global registry with an optional DB-backed
+// Store. Reads merge the two with DB overrides winning; writes
 // go to whichever layer the caller selects via the scope argument.
 // This view is read-mostly and intentionally thin — handlers continue
 // to use either GlobalStore or *Store directly depending on scope.
 type LayeredView struct {
-	Global    *GlobalStore
-	Workspace *Store
+	Global *GlobalStore
+	DB     *Store
 }
 
-// List returns the union of both layers, workspace wins on name
+// List returns the union of both layers, the DB layer wins on name
 // collision. Each returned ServerConfig has no Scope field (the
 // ServerConfig struct is used on-disk too); callers who need the
 // owning scope should call ListScoped.
@@ -236,12 +236,12 @@ func (v *LayeredView) List() ([]*ServerConfig, error) {
 			order = append(order, s.Name)
 		}
 	}
-	if v.Workspace != nil {
-		ws, err := v.Workspace.List()
+	if v.DB != nil {
+		h, err := v.DB.List()
 		if err != nil {
 			return nil, err
 		}
-		for _, s := range ws {
+		for _, s := range h {
 			if _, seen := byName[s.Name]; !seen {
 				order = append(order, s.Name)
 			}
@@ -261,7 +261,7 @@ type ScopedServer struct {
 	Scope  Scope
 }
 
-// ListScoped returns the union annotated with owning scope. Workspace
+// ListScoped returns the union annotated with owning scope. DB entries
 // entries override global when a name collides.
 func (v *LayeredView) ListScoped() ([]ScopedServer, error) {
 	byName := map[string]ScopedServer{}
@@ -276,12 +276,12 @@ func (v *LayeredView) ListScoped() ([]ScopedServer, error) {
 			order = append(order, s.Name)
 		}
 	}
-	if v.Workspace != nil {
-		ws, err := v.Workspace.List()
+	if v.DB != nil {
+		h, err := v.DB.List()
 		if err != nil {
 			return nil, err
 		}
-		for _, s := range ws {
+		for _, s := range h {
 			if _, seen := byName[s.Name]; !seen {
 				order = append(order, s.Name)
 			}
@@ -295,10 +295,10 @@ func (v *LayeredView) ListScoped() ([]ScopedServer, error) {
 	return out, nil
 }
 
-// Get returns the workspace entry when present, else the global.
+// Get returns the DB entry when present, else the global.
 func (v *LayeredView) Get(name string) (*ServerConfig, Scope, error) {
-	if v.Workspace != nil {
-		if s, err := v.Workspace.Get(name); err == nil && s != nil {
+	if v.DB != nil {
+		if s, err := v.DB.Get(name); err == nil && s != nil {
 			return s, ScopeWorkspace, nil
 		}
 	}

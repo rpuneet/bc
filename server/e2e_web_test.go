@@ -1,6 +1,6 @@
-// Package server_test — web UI smoke tests for bcd HTTP API (Phase 3).
+// Package server_test — web UI smoke tests for the daemon HTTP API (Phase 3).
 //
-// These tests verify that the bcd server correctly serves the embedded web UI
+// These tests verify that the daemon server correctly serves the embedded web UI
 // (SPA fallback, static files) and that all API endpoints the web UI depends on
 // return valid responses. Uses httptest with real server infrastructure.
 package server_test
@@ -11,81 +11,58 @@ import (
 	"io/fs"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 	"testing"
 	"testing/fstest"
 
 	"github.com/rpuneet/mycel/pkg/agent"
 	"github.com/rpuneet/mycel/pkg/cost"
-	"github.com/rpuneet/mycel/pkg/cron"
-	bcdb "github.com/rpuneet/mycel/pkg/db"
+	dbpkg "github.com/rpuneet/mycel/pkg/db"
 	"github.com/rpuneet/mycel/pkg/events"
+	"github.com/rpuneet/mycel/pkg/home"
 	pkgmcp "github.com/rpuneet/mycel/pkg/mcp"
+	"github.com/rpuneet/mycel/pkg/provider"
 	"github.com/rpuneet/mycel/pkg/tool"
-	"github.com/rpuneet/mycel/pkg/workspace"
 	"github.com/rpuneet/mycel/server"
 )
 
-// newE2EServerWithWebUI creates a bcd server with a synthetic web UI filesystem
+// newE2EServerWithWebUI creates a daemon server with a synthetic web UI filesystem
 // for testing SPA serving behavior. The filesystem contains a minimal
 // index.html and a static asset.
 func newE2EServerWithWebUI(t *testing.T) *e2eServer {
 	t.Helper()
 
 	dir := t.TempDir()
-	// workspace.Load requires a git repo
+	// home.Open requires a non-empty root to be a git repo
 	if out, err := exec.CommandContext(context.Background(), "git", "init", dir).CombinedOutput(); err != nil { //nolint:gosec // dir is a t.TempDir(), not user input
 		t.Fatalf("git init: %v\n%s", err, out)
 	}
+	// Isolate global state under a throwaway MYCEL_HOME.
 	t.Setenv("MYCEL_HOME", t.TempDir())
-	stateDir, sdErr := workspace.GlobalStateDir(dir)
-	if sdErr != nil {
-		t.Fatal(sdErr)
-	}
-	if err := os.MkdirAll(filepath.Join(stateDir, "roles"), 0750); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.MkdirAll(filepath.Join(stateDir, "agents"), 0750); err != nil {
-		t.Fatal(err)
-	}
 
-	cfg := `{"version":2,"providers":{"default":"claude","providers":{"claude":{"command":"claude"}}},"server":{"host":"127.0.0.1","port":9374,"cors_origin":"*"},"runtime":{"default":"tmux"},"ui":{"theme":"dark","mode":"auto"}}`
-	if err := os.WriteFile(filepath.Join(stateDir, workspace.PreferencesFileName), []byte(cfg), 0600); err != nil {
-		t.Fatal(err)
-	}
-
-	ws, err := workspace.Load(dir)
+	h, err := home.Open(dir)
 	if err != nil {
-		t.Fatalf("workspace load: %v", err)
+		t.Fatalf("home open: %v", err)
 	}
 
-	// Per-workspace database via the registry (production path).
-	wsDB, wsDriver, dbErr := bcdb.Global(nil)
+	// Single global database (production path).
+	wsDB, wsDriver, dbErr := dbpkg.Global(nil)
 	if dbErr != nil {
-		t.Fatalf("open workspace db: %v", dbErr)
+		t.Fatalf("open global db: %v", dbErr)
 	}
-	t.Cleanup(func() { _ = bcdb.CloseGlobal() })
+	t.Cleanup(func() { _ = dbpkg.CloseGlobal() })
 
 	hub := ws_hub(t)
-	mgr := agent.NewWorkspaceManager(ws.StateDir(), ws.RootDir)
+	mgr := agent.NewManagerWithRepo(h.AgentsDir(), h.RootDir)
 	_ = mgr.LoadState()
 	agentSvc := agent.NewAgentService(mgr, hub, nil)
 
-	var costStore *cost.Store
-	cs := cost.NewStore(ws.RootDir)
-	if err := cs.Open(); err == nil {
-		costStore = cs
-		t.Cleanup(func() { _ = cs.Close() })
-	}
-
-	var cronStore *cron.Store
-	if cr, err := cron.Open(wsDB, wsDriver); err == nil {
-		cronStore = cr
-		t.Cleanup(func() { _ = cr.Close() })
-	}
+	// Source-direct cost service over the sandboxed sources.
+	costSvc := cost.NewService(provider.DefaultRegistry, cost.Options{
+		Home:      t.TempDir(),
+		AgentsDir: h.AgentsDir(),
+	}, nil)
 
 	var mcpStore *pkgmcp.Store
 	if ms, err := pkgmcp.NewStore(wsDB, wsDriver); err == nil {
@@ -108,12 +85,11 @@ func newE2EServerWithWebUI(t *testing.T) *e2eServer {
 
 	svc := server.Services{
 		Agents:   agentSvc,
-		Costs:    costStore,
-		Cron:     cronStore,
+		Costs:    costSvc,
 		MCP:      mcpStore,
 		Tools:    toolStore,
 		EventLog: eventLog,
-		WS:       ws,
+		Home:     h,
 	}
 
 	// Synthetic web UI filesystem for SPA testing
@@ -124,17 +100,17 @@ func newE2EServerWithWebUI(t *testing.T) *e2eServer {
 	ts2 := httptest.NewServer(srv.Handler())
 	t.Cleanup(ts2.Close)
 
-	return &e2eServer{Server: ts2, ws: ws}
+	return &e2eServer{Server: ts2, h: h}
 }
 
 // syntheticWebUI returns an in-memory filesystem that mimics a built web UI.
 func syntheticWebUI() fs.FS {
 	return fstest.MapFS{
 		"index.html": &fstest.MapFile{
-			Data: []byte("<!DOCTYPE html><html><head><title>bc</title></head><body><div id=\"root\"></div></body></html>"),
+			Data: []byte("<!DOCTYPE html><html><head><title>mycel</title></head><body><div id=\"root\"></div></body></html>"),
 		},
 		"assets/app.js": &fstest.MapFile{
-			Data: []byte("console.log('bc')"),
+			Data: []byte("console.log('mycel')"),
 		},
 		"assets/style.css": &fstest.MapFile{
 			Data: []byte("body { margin: 0; }"),

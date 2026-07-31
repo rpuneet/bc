@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"fmt"
 	"regexp"
 )
 
@@ -16,6 +17,8 @@ type CodexProvider struct {
 	command     string
 	binary      string
 }
+
+func init() { Register(NewCodexProvider()) }
 
 // NewCodexProvider creates a new Codex provider.
 func NewCodexProvider() *CodexProvider {
@@ -56,6 +59,12 @@ func (p *CodexProvider) InstallHint() string {
 // BuildCommand returns the full command for a given runtime context.
 // Supports --model <m> for model selection; the value is spliced into a
 // shell command line, so unsafe values are dropped.
+//
+// Resume is intentionally NOT wired: `codex --full-auto` starts a fresh
+// autonomous session and exposes no verified session-id flag for this exec
+// mode (resume is a separate interactive `codex resume` subcommand). Rather
+// than emit an unverified flag, CodexProvider does not implement
+// SessionResumer, and opts.SessionID/opts.Resume are ignored here.
 func (p *CodexProvider) BuildCommand(opts CommandOpts) string {
 	cmd := p.command
 	if SafeModelName(opts.Model) {
@@ -63,6 +72,20 @@ func (p *CodexProvider) BuildCommand(opts CommandOpts) string {
 	}
 	return cmd
 }
+
+// AdjustSessionCommand is a no-op for native tmux sessions: codex runs directly
+// inside the mycel-managed tmux pane.
+func (p *CodexProvider) AdjustSessionCommand(command string) string { return command }
+
+// AdjustContainerCommand wraps the command in a tmux session for Docker so
+// mycel can drive it via SendKeys. Double quotes let bash expand
+// $MYCEL_WORKTREE_NAME for the session name.
+func (p *CodexProvider) AdjustContainerCommand(command string) string {
+	return fmt.Sprintf(`tmux new-session -s "$MYCEL_WORKTREE_NAME" "%s"`, command)
+}
+
+// DockerImage returns empty to use the default image-name convention.
+func (p *CodexProvider) DockerImage() string { return "" }
 
 // Models returns the curated model list for the Codex CLI.
 func (p *CodexProvider) Models() []string {
@@ -90,3 +113,5 @@ func (p *CodexProvider) Version(ctx context.Context) string {
 // Ensure CodexProvider implements Provider interface.
 var _ Provider = (*CodexProvider)(nil)
 var _ ModelLister = (*CodexProvider)(nil)
+var _ ContainerCustomizer = (*CodexProvider)(nil)
+var _ SessionCustomizer = (*CodexProvider)(nil)

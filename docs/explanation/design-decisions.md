@@ -10,13 +10,13 @@ context, and the reasoning behind each choice.
 **Status:** Accepted
 
 **Context:** mycel needs persistent storage for notifications, costs, events,
-secrets, cron jobs, MCP servers, and tools. The storage must work out of the
+secrets, MCP servers, and tools. The storage must work out of the
 box for every developer without any setup steps.
 
 **Decision:** Use SQLite for all persistent storage: one global database at
 `~/.mycel/mycel.db` for every store (agents, roles, events, notifications,
-cron, MCP servers, tools), plus a `costs.db` ledger and a `secrets.vault`
-alongside it.
+MCP servers, tools), plus a `secrets.vault` alongside it. Costs are not
+persisted at all — they are computed from provider session files on demand.
 
 **Rationale:**
 
@@ -46,7 +46,7 @@ tools (Claude Code, Gemini, etc.) that expect a terminal. The system must
 work for local development and for isolated, reproducible builds.
 
 **Decision:** Support two runtime backends — Docker (isolated, the default)
-and tmux (local) — selectable via `runtime.default` in `preferences.json`.
+and tmux (local) — selectable via `runtime.default` in `prefs.json`.
 
 **Rationale:**
 
@@ -75,7 +75,7 @@ and tmux (local) — selectable via `runtime.default` in `preferences.json`.
 
 **Status:** Accepted
 
-**Context:** The web dashboard and TUI need real-time updates when agent
+**Context:** The web dashboard needs real-time updates when agent
 state changes, channel messages arrive, or costs are recorded.
 
 **Decision:** Use Server-Sent Events (SSE) at `/api/events` instead of
@@ -157,7 +157,7 @@ from the `MYCEL_DAEMON_ADDR` env var set per agent.
 
 - **Instant updates**: state changes reach the server the moment the event
   fires — no poll cycle. The server updates `mycel.db` and broadcasts over
-  SSE, so the web UI and TUI stay live.
+  SSE, so the web UI stays live.
 - **Full payload preserved**: the hook command reads Claude's raw stdin
   JSON, merges in mycel's `event`/`state`/`task` fields with `jq`, and
   POSTs everything — tool names, tool input, and session IDs included.
@@ -167,7 +167,7 @@ from the `MYCEL_DAEMON_ADDR` env var set per agent.
   server never blocks or breaks the agent.
 - **Claude Code integration**: hooks are configured in
   `.claude/settings.json` using Claude Code's native hook system. The
-  `WriteWorkspaceHookSettings()` function generates the settings
+  `WriteClaudeHookSettings()` function generates the settings
   idempotently, merging with any existing user hooks.
 
 **Tradeoffs:**

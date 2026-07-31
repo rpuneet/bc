@@ -3,25 +3,26 @@ package cmd
 import (
 	"bytes"
 	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/spf13/pflag"
+
+	"github.com/rpuneet/mycel/pkg/home"
 )
 
 // --- Test helpers ---
 
-// clearWorkspaceEnv clears MYCEL_WORKSPACE env var and returns a cleanup function.
-// Use this in tests that expect no workspace to be found.
-func clearWorkspaceEnv(t *testing.T) func() {
+// clearRepoEnv clears MYCEL_WORKSPACE env var and returns a cleanup function.
+// Use this in tests that expect no repo to be found.
+func clearRepoEnv(t *testing.T) func() {
 	t.Helper()
-	origBCWorkspace := os.Getenv("MYCEL_WORKSPACE")
+	origRepoEnv := os.Getenv("MYCEL_WORKSPACE")
 	_ = os.Unsetenv("MYCEL_WORKSPACE")
 	return func() {
-		if origBCWorkspace != "" {
-			_ = os.Setenv("MYCEL_WORKSPACE", origBCWorkspace)
+		if origRepoEnv != "" {
+			_ = os.Setenv("MYCEL_WORKSPACE", origRepoEnv)
 		}
 	}
 }
@@ -51,17 +52,18 @@ func executeCmd(args ...string) (string, error) {
 	return buf.String(), err
 }
 
-// setupTestWorkspace creates a temporary bc workspace and changes into it.
-// Returns the workspace root directory path (for use with demon.NewStore, etc.).
-func setupTestWorkspace(t *testing.T) string {
+// setupTestHome creates an isolated MYCEL_HOME plus a temporary
+// git repo, bootstraps the global mycel state via home.Open, and
+// changes into the repo. Returns the repo root directory path.
+func setupTestHome(t *testing.T) string {
 	t.Helper()
 
-	// These tests use the global rootCmd which connects to bcd at :9374.
-	// They can't work reliably: if bcd is running they hit the live instance,
+	// These tests use the global rootCmd which connects to the daemon at :9374.
+	// They can't work reliably: if the daemon is running they hit the live instance,
 	// if not they fail with "daemon not running". Skip unless a test-specific
 	// daemon is available (indicated by MYCEL_TEST_DAEMON=1).
 	if os.Getenv("MYCEL_TEST_DAEMON") == "" {
-		t.Skip("skipping: requires MYCEL_TEST_DAEMON=1 (dedicated test bcd instance)")
+		t.Skip("skipping: requires MYCEL_TEST_DAEMON=1 (dedicated test daemon instance)")
 	}
 
 	origDir, err := os.Getwd()
@@ -69,27 +71,15 @@ func setupTestWorkspace(t *testing.T) string {
 		t.Fatalf("failed to get cwd: %v", err)
 	}
 
-	// Clear MYCEL_WORKSPACE to ensure tests use the temp workspace, not outer workspace
-	origBCWorkspace := os.Getenv("MYCEL_WORKSPACE")
-	_ = os.Unsetenv("MYCEL_WORKSPACE")
-	t.Cleanup(func() {
-		if origBCWorkspace != "" {
-			_ = os.Setenv("MYCEL_WORKSPACE", origBCWorkspace)
-		}
-	})
+	// Isolate all global state (~/.mycel: prefs.json, mycel.db, agents/).
+	t.Setenv("MYCEL_HOME", t.TempDir())
 
 	tmpDir := t.TempDir()
-	bcDir := filepath.Join(tmpDir, ".bc")
-	if err := os.MkdirAll(filepath.Join(bcDir, "agents"), 0750); err != nil {
-		t.Fatalf("failed to create .bc/agents: %v", err)
+	gitInitDir(t, tmpDir)
+	if _, openErr := home.Open(tmpDir); openErr != nil {
+		t.Fatalf("failed to open home: %v", openErr)
 	}
-	// demons directory removed in CLI restructure (#1916)
-	// Create minimal settings.json for v2 workspace detection
-	configPath := filepath.Join(bcDir, "settings.json")
-	configContent := `{"version":2,"providers":{"default":"claude","providers":{"claude":{"command":"claude"}}},"server":{"host":"127.0.0.1","port":9374,"cors_origin":"*"},"runtime":{"default":"tmux"},"ui":{"theme":"dark","mode":"auto"}}`
-	if err := os.WriteFile(configPath, []byte(configContent), 0600); err != nil {
-		t.Fatalf("failed to write settings.json: %v", err)
-	}
+	t.Setenv("MYCEL_WORKSPACE", tmpDir)
 
 	if err := os.Chdir(tmpDir); err != nil {
 		t.Fatalf("failed to chdir: %v", err)
@@ -99,7 +89,7 @@ func setupTestWorkspace(t *testing.T) string {
 		_ = os.Chdir(origDir)
 	})
 
-	return tmpDir // Return workspace root, not .bc directory
+	return tmpDir
 }
 
 // --- formatDuration tests ---
@@ -201,17 +191,17 @@ func TestSetVersionInfo(t *testing.T) {
 
 // --- Channel command tests ---
 
-func TestChannelCommand_NoWorkspace(t *testing.T) {
+func TestChannelCommand_NoRepo(t *testing.T) {
 	origDir, _ := os.Getwd()
 	tmpDir := t.TempDir()
 	_ = os.Chdir(tmpDir)
 	defer func() { _ = os.Chdir(origDir) }()
 
-	restoreEnv := clearWorkspaceEnv(t)
+	restoreEnv := clearRepoEnv(t)
 	defer restoreEnv()
 
 	_, err := executeCmd("channel", "list")
 	if err == nil {
-		t.Fatal("expected error for missing workspace")
+		t.Fatal("expected error for a missing repo")
 	}
 }

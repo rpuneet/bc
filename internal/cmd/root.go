@@ -9,7 +9,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/rpuneet/mycel/pkg/log"
-	"github.com/rpuneet/mycel/pkg/ui"
 )
 
 var (
@@ -36,7 +35,7 @@ Coordinate multiple AI agents with predictable behavior and cost awareness.
 Supports Claude Code, Cursor, Codex, and other AI coding tools.
 
 Getting Started:
-  mycel up                                   # Start the server (bootstraps the workspace)
+  mycel up                                   # Start the server (bootstraps ~/.mycel)
   mycel agent create eng-01 --role engineer  # Create engineer agent
   mycel status                               # View agent status
 
@@ -53,7 +52,6 @@ Command Groups (with short aliases):
   cost (co)                    Cost tracking and budgets
   config                       Configuration management
   doctor (dr)                  Health checks
-  cron (cr)                    Scheduled tasks
 
 Key Features:
   • Coordinate multiple AI coding agents in parallel
@@ -65,10 +63,10 @@ Key Features:
 Environment Variables:
   MYCEL_AGENT_ID       Current agent name (set automatically in agent sessions)
   MYCEL_AGENT_ROLE     Current agent role
-  MYCEL_WORKSPACE      Path to workspace root
+  MYCEL_WORKSPACE      Path to the agent's repo root
   MYCEL_AGENT_WORKTREE Path to agent's worktree
   MYCEL_BIN            Path to mycel binary (default: mycel in PATH)
-  MYCEL_ROOT           Workspace root directory
+  MYCEL_ROOT           Override the mycel home root directory
   NO_COLOR          Disable colored output
 
 Documentation: https://github.com/rpuneet/mycel
@@ -126,10 +124,10 @@ func Root() *cobra.Command {
 	return rootCmd
 }
 
-// runRoot handles the default bc command (no subcommand).
-// If workspace is initialized → open TUI home
-// If not initialized → point at `mycel up` (which bootstraps everything)
-// In non-interactive mode → show help
+// runRoot handles the default mycel command (no subcommand).
+// Interactive terminal → make sure the daemon runs and open the
+// dashboard (works from any directory; `mycel up` bootstraps ~/.mycel).
+// Non-interactive mode → show help.
 func runRoot(cmd *cobra.Command, args []string) error {
 	// Check for version flag
 	showVersion, err := cmd.Flags().GetBool("version")
@@ -144,23 +142,6 @@ func runRoot(cmd *cobra.Command, args []string) error {
 		return cmd.Help()
 	}
 
-	// Try to find workspace
-	ws, err := getRepo()
-	if err == nil && ws != nil {
-		// Workspace exists - open TUI home
-		log.Debug("workspace found, opening home", "root", ws.RootDir)
-		return runHome(cmd, args)
-	}
-
-	// No workspace yet — `mycel up` bootstraps everything, so just point there.
-	fmt.Println()
-	fmt.Printf("  %s\n", ui.BoldText("mycel - AI Agent Orchestration"))
-	fmt.Println()
-	fmt.Println("  No mycel-adopted repo found.")
-	fmt.Println()
-	fmt.Println("  Run 'mycel up' from your repo to start the server —")
-	fmt.Println("  it adopts the repo automatically (state lives under ~/.mycel).")
-	fmt.Println("  You can also add repos later from the web UI.")
-	fmt.Println()
-	return nil
+	// The daemon is CWD-free: boot it (if needed) and open the web UI.
+	return runHome(cmd, args)
 }

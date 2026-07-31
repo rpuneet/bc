@@ -1,0 +1,74 @@
+# mycel daemon — API, web UI, agent management
+# Multi-stage build optimized for Docker layer caching.
+# Usage: docker build -t mycel-daemon:latest -f docker/Dockerfile.daemon .
+
+# Stage 1: Build web UI
+FROM oven/bun:1.2 AS web
+WORKDIR /app/web
+COPY web/package.json web/bun.lock ./
+RUN bun install --frozen-lockfile
+COPY web/ .
+RUN bun run build
+
+# Stage 2: Build Go binary
+FROM golang:1.25.11 AS go
+WORKDIR /app
+
+# Cache Go modules (changes rarely)
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Copy source (changes often, but after module cache)
+COPY cmd/ cmd/
+COPY pkg/ pkg/
+COPY server/ server/
+COPY internal/ internal/
+COPY --from=web /app/web/dist /app/server/web/dist
+
+RUN CGO_ENABLED=1 go build -ldflags="-s -w" -o /mycel ./cmd/mycel
+
+# Stage 3: Runtime (includes dev toolchain for cron build jobs)
+FROM ubuntu:24.04
+# upgrade picks up OS security patches the base tag hasn't rolled up yet —
+# the container scan flags every unpatched CVE in the stale layer otherwise.
+RUN apt-get update && \
+    apt-get upgrade -y && \
+    apt-get install -y --no-install-recommends \
+        ca-certificates tmux git curl sqlite3 jq docker.io \
+        make gcc libc6-dev python3 python3-pip unzip && \
+    rm -rf /var/lib/apt/lists/*
+
+# Install Go (same version as build stage)
+COPY --from=go /usr/local/go /usr/local/go
+ENV PATH="/usr/local/go/bin:${PATH}"
+
+# Install Bun (for TypeScript builds) and Claude Code (for tmux agents)
+# SECURITY(#2616): curl-pipe-bash without checksum is a supply chain risk.
+# TODO: pin Bun version and verify checksum when available.
+# TODO: add checksum verification when Anthropic provides signed releases.
+SHELL ["/bin/bash", "-c"]
+RUN curl -fsSL https://bun.sh/install | bash && \
+    ln -s /root/.bun/bin/bun /usr/local/bin/bun && \
+    curl -fsSL https://claude.ai/install.sh | bash && \
+    cp /root/.local/share/claude/versions/* /usr/local/bin/claude && \
+    chmod +x /usr/local/bin/claude && \
+    rm -rf /root/.local/share/claude /root/.claude && \
+    git config --global --add safe.directory /workspace && \
+    git config --global --add safe.directory /home/agent/.mycel
+
+COPY --from=go /mycel /usr/local/bin/mycel
+
+# Workspace architecture: project source is mounted at /workspace, while
+# workspace state lives under MYCEL_HOME (default ~/.mycel/). The MYCEL_STATE_DIR
+# env var can override the per-workspace state path at runtime.
+ENV MYCEL_HOME=/home/agent/.mycel
+
+# Runs as root because mycel needs access to the Docker socket
+# (/var/run/docker.sock) to manage agent containers.
+EXPOSE 9374
+HEALTHCHECK --interval=10s --timeout=3s --start-period=10s --retries=3 \
+    CMD curl -sf http://localhost:9374/health
+
+WORKDIR /workspace
+ENTRYPOINT ["bash", "-c", "tmux new-session -d -s _mycel_init 'sleep infinity' && exec mycel \"$@\"", "--"]
+CMD ["up", "--addr", "0.0.0.0:9374", "--workspace", "/workspace"]

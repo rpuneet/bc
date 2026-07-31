@@ -20,7 +20,7 @@ const ThemeContext = createContext<ThemeContextValue>({
   toggle: () => {},
 });
 
-const STORAGE_KEY = "bc-theme";
+const STORAGE_KEY = "mycel-theme";
 
 const LABELS: Record<ThemeMode, string> = {
   dark: "Dark",

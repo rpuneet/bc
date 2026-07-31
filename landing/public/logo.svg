@@ -1,6 +1,23 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 48" fill="none">
-  <style>
-    @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@700');
-  </style>
-  <text x="0" y="38" font-family="'Space Grotesk',sans-serif" font-weight="700" font-size="44" letter-spacing="-2" fill="#EA580C">mycel</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 64">
+  <!-- mycel lockup: mushroom mark + wordmark (espresso on transparent) -->
+  <g transform="translate(4,2) scale(0.117)">
+    <g stroke="#a35d0a" stroke-width="12" stroke-linecap="round" fill="none" opacity="0.65">
+      <path d="M256 400 C 235 429 200 436 165 451"/>
+      <path d="M256 400 C 260 435 280 445 305 459"/>
+      <path d="M256 400 C 280 423 320 426 353 442"/>
+    </g>
+    <path d="M224 294 L288 294 L280 382 C 278 403 267 412 256 412 C 245 412 234 403 232 382 Z" fill="#2a1f17" opacity="0.82"/>
+    <path d="M99 264 C 99 165 168 109 256 109 C 344 109 413 165 413 264 C 413 286 390 294 358 294 L 154 294 C 122 294 99 286 99 264 Z" fill="#2a1f17"/>
+    <g fill="#a35d0a" opacity="0.9">
+      <circle cx="190" cy="200" r="17"/>
+      <circle cx="274" cy="165" r="14"/>
+      <circle cx="334" cy="226" r="12"/>
+    </g>
+    <g fill="#a35d0a">
+      <circle cx="102" cy="371" r="9"/>
+      <circle cx="411" cy="378" r="9"/>
+      <circle cx="432" cy="336" r="6" opacity="0.75"/>
+    </g>
+  </g>
+  <text x="68" y="44" font-family="Georgia, 'Times New Roman', serif" font-weight="600" font-size="38" letter-spacing="-1" fill="#2a1f17">mycel</text>
 </svg>

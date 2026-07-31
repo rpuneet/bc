@@ -56,7 +56,7 @@ type CreateOptions struct {
 	Parent  string
 	Team    string
 	// Repo is the absolute path of the git repo the agent is bound to.
-	// Empty means "the repo bcd was booted against" (the default repo).
+	// Empty means "the repo the daemon was booted against" (the default repo).
 	Repo string
 }
 
@@ -207,7 +207,7 @@ func matchesStatus(state State, status string) bool {
 func (s *AgentService) Create(ctx context.Context, opts CreateOptions) (*Agent, error) {
 	repo := opts.Repo
 	if repo == "" {
-		repo = s.manager.workspacePath
+		repo = s.manager.repoPath
 	}
 	a, err := s.manager.SpawnAgentWithOptions(ctx, SpawnOptions{
 		Name:      opts.Name,
@@ -242,7 +242,7 @@ func (s *AgentService) Start(ctx context.Context, name string, opts StartOptions
 	}
 
 	if existing.State != StateStopped && existing.State != StateError {
-		// Reconcile: container may have died without bcd noticing
+		// Reconcile: container may have died without the daemon noticing
 		if !s.manager.runtimeForAgent(name).HasSession(ctx, name) {
 			log.Info("reconciling dead agent for restart", "agent", name, "state", existing.State)
 			existing.State = StateStopped
@@ -256,7 +256,7 @@ func (s *AgentService) Start(ctx context.Context, name string, opts StartOptions
 	// Respawn in the repo the agent is bound to, not the boot repo.
 	repo := existing.Repo
 	if repo == "" {
-		repo = s.manager.workspacePath
+		repo = s.manager.repoPath
 	}
 	a, err := s.manager.SpawnAgentWithOptions(ctx, SpawnOptions{
 		Name:      name,
@@ -302,7 +302,7 @@ func (s *AgentService) Delete(ctx context.Context, name string, force bool) erro
 		return fmt.Errorf("agent %q: %w", name, ErrNotFound)
 	}
 	if !force && a.State != StateStopped {
-		// Reconcile: container may have died without bcd noticing
+		// Reconcile: container may have died without the daemon noticing
 		if !s.manager.runtimeForAgent(name).HasSession(ctx, name) {
 			a.State = StateStopped
 			a.UpdatedAt = time.Now()
@@ -533,7 +533,7 @@ func (s *AgentService) Sessions(_ context.Context, name string) ([]SessionEntry,
 		return entries, nil
 	}
 	// Claude CLI encodes the abs worktree path by replacing both
-	// '/' and '.' with '-', e.g. '/Users/p/.bc/x' → '-Users-p--bc-x'.
+	// '/' and '.' with '-', e.g. '/Users/p/.mycel/x' → '-Users-p--bc-x'.
 	encoded := strings.ReplaceAll(a.WorktreeDir, "/", "-")
 	encoded = strings.ReplaceAll(encoded, ".", "-")
 	projDir := filepath.Join(home, ".claude", "projects", encoded)

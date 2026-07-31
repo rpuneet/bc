@@ -29,7 +29,7 @@ func TestToolList_OutputFormat(t *testing.T) {
 	if !strings.Contains(tableOutput, "STATUS") {
 		t.Error("expected STATUS header in output")
 	}
-	// When bcd is running, shows ENABLED; when using provider registry, shows VERSION
+	// When the daemon is running, shows ENABLED; when using provider registry, shows VERSION
 	if !strings.Contains(tableOutput, "VERSION") && !strings.Contains(tableOutput, "ENABLED") {
 		t.Error("expected VERSION or ENABLED header in output")
 	}

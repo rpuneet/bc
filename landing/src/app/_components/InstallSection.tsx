@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { motion } from "framer-motion";
 import { Copy, Check, Terminal, Beer, Code2, Container, Package, GitBranch } from "lucide-react";
+
+import { ScrollReveal } from "./Motion";
 
 function useLatestVersion() {
   const [version, setVersion] = useState("latest");
@@ -106,26 +107,26 @@ function CodeBlock({ lines, id }: { lines: string[]; id: string }) {
   };
 
   return (
-    <div className="group relative rounded-lg border border-border bg-[#0d1117] p-4 pr-14 font-mono text-sm">
+    <div className="group terminal-glow relative rounded-lg border border-[var(--terminal-header-border)] bg-terminal-bg p-4 pr-14 font-mono text-sm">
       <button
         type="button"
         onClick={handleCopy}
         aria-label="Copy command"
-        className="absolute right-3 top-3 rounded-md border border-border bg-card/50 p-2 text-muted-foreground transition-colors hover:border-primary hover:text-primary"
+        className="absolute right-3 top-3 rounded-md border border-[var(--terminal-header-border)] bg-terminal-header p-2 text-terminal-muted transition-colors hover:border-terminal-prompt hover:text-terminal-prompt"
       >
         {copied ? (
-          <Check className="h-4 w-4 text-success" />
+          <Check className="h-4 w-4 text-terminal-success" />
         ) : (
           <Copy className="h-4 w-4" />
         )}
       </button>
-      <pre className="overflow-x-auto text-[13px] leading-relaxed text-[#c9d1d9]">
+      <pre className="overflow-x-auto text-[13px] leading-relaxed text-terminal-text">
         {lines.map((line, i) => (
           <div
             key={`${id}-${i}`}
-            className={`w-max min-w-full whitespace-pre ${line.startsWith("#") ? "text-[#8b949e]" : ""}`}
+            className={`w-max min-w-full whitespace-pre ${line.startsWith("#") ? "text-terminal-comment" : ""}`}
           >
-            {line.startsWith("#") ? line : <><span className="text-primary">$</span>{" "}{line}</>}
+            {line.startsWith("#") ? line : <><span className="text-terminal-prompt">$</span>{" "}{line}</>}
           </div>
         ))}
       </pre>
@@ -142,21 +143,16 @@ export function InstallSection() {
   return (
     <section
       id="install"
-      className="scroll-mt-24 py-16 sm:py-24 lg:py-32"
+      className="scroll-mt-24 py-14 sm:py-16"
     >
-      <div className="mx-auto max-w-5xl px-4 sm:px-6">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, margin: "-100px" }}
-          transition={{ duration: 0.6 }}
-        >
-          <span className="font-mono text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-            Install
+      <div className="mx-auto max-w-4xl px-4 sm:px-6">
+        <ScrollReveal distance={20}>
+          <span className="deck-eyebrow">
+            Prefer the command line?
           </span>
           <div className="mt-3 flex flex-col items-start gap-3 sm:flex-row sm:items-end sm:justify-between">
-            <h2 className="text-3xl font-bold tracking-tight sm:text-5xl">
-              Install in 30 seconds.
+            <h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">
+              There&rsquo;s a CLI too.
             </h2>
             <span className="inline-flex items-center gap-2 rounded-full border border-border bg-card/80 px-3 py-1 font-mono text-xs text-muted-foreground">
               <span className="h-1.5 w-1.5 rounded-full bg-success" />
@@ -164,17 +160,14 @@ export function InstallSection() {
             </span>
           </div>
           <p className="mt-4 max-w-2xl text-muted-foreground">
-            One binary. No login. No config. Pick your platform and copy the command.
+            The app is all you need &mdash; but if you live in the terminal,
+            install the binary and{" "}
+            <code className="font-mono text-sm text-primary">mycel up</code>{" "}
+            runs the same thing. Full command reference is in the docs.
           </p>
-        </motion.div>
+        </ScrollReveal>
 
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, margin: "-100px" }}
-          transition={{ duration: 0.6, delay: 0.1 }}
-          className="mt-8"
-        >
+        <ScrollReveal distance={20} delay={0.1} className="mt-8">
           {/* Mobile select */}
           <label htmlFor="install-option-select" className="sr-only">
             Install option
@@ -222,15 +215,9 @@ export function InstallSection() {
           <div className="mt-3">
             <CodeBlock lines={current.commands} id={current.id} />
           </div>
-        </motion.div>
+        </ScrollReveal>
 
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, margin: "-100px" }}
-          transition={{ duration: 0.6, delay: 0.2 }}
-          className="mt-8"
-        >
+        <ScrollReveal distance={20} delay={0.2} className="mt-8">
           <div className="font-mono text-xs uppercase tracking-[0.15em] text-muted-foreground">
             Then run
           </div>
@@ -238,12 +225,21 @@ export function InstallSection() {
             <CodeBlock
               id="after"
               lines={[
-                "mycel up            # Start server + web UI on localhost:9374",
-                "mycel agent create  # Spawn an AI agent",
+                "mycel up   # same as opening the app — dashboard at localhost:9374",
               ]}
             />
           </div>
-        </motion.div>
+          <p className="mt-4 text-sm text-muted-foreground">
+            Full setup, first agent, and connecting your apps:{" "}
+            <a
+              href="/docs"
+              className="text-primary underline-offset-4 hover:underline"
+            >
+              read the docs
+            </a>
+            .
+          </p>
+        </ScrollReveal>
       </div>
     </section>
   );

@@ -4,7 +4,7 @@
 // a real /api/agents request must reach the handler (no 404), and OPTIONS
 // preflight must short-circuit with 204.
 //
-// Formerly this exercised the multi-tenant WorkspaceScope middleware; bcd
+// Formerly this exercised the multi-tenant WorkspaceScope middleware; the daemon
 // is single-tenant now, so the test boots the one service bundle via
 // BuildServices and asserts the same two concerns against flat routes.
 package server_test
@@ -17,7 +17,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	bcdb "github.com/rpuneet/mycel/pkg/db"
+	dbpkg "github.com/rpuneet/mycel/pkg/db"
 	"github.com/rpuneet/mycel/server"
 )
 
@@ -26,17 +26,17 @@ func buildTestBundle(t *testing.T) server.Services {
 	t.Helper()
 	home := t.TempDir()
 	t.Setenv("HOME", home)
-	t.Setenv("MYCEL_HOME", filepath.Join(home, ".bc"))
+	t.Setenv("MYCEL_HOME", filepath.Join(home, ".mycel"))
 	t.Setenv("MYCEL_SECRET_PASSPHRASE", "unit-test")
 
-	wsDir := filepath.Join(t.TempDir(), "ws")
+	wsDir := filepath.Join(t.TempDir(), "h")
 	if err := os.MkdirAll(wsDir, 0o750); err != nil {
-		t.Fatalf("mkdir ws: %v", err)
+		t.Fatalf("mkdir h: %v", err)
 	}
 	gitInitDir(t, wsDir)
 
 	// BuildServices resolves the global db lazily; release it after.
-	t.Cleanup(func() { _ = bcdb.CloseGlobal() })
+	t.Cleanup(func() { _ = dbpkg.CloseGlobal() })
 
 	svc, err := server.BuildServices(context.Background(), &server.Globals{}, wsDir)
 	if err != nil {
@@ -46,7 +46,7 @@ func buildTestBundle(t *testing.T) server.Services {
 	return *svc
 }
 
-// TestCORS_SingleBundle_Coexist boots a bcd server with CORS enabled (the
+// TestCORS_SingleBundle_Coexist boots a daemon server with CORS enabled (the
 // default dev flow) and verifies /api/agents is dispatched with the CORS
 // headers present — i.e. the CORS wrapper is in the chain and does not
 // bypass routing.

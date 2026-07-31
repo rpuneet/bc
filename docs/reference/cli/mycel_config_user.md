@@ -11,7 +11,7 @@ User configuration provides defaults that apply across all mycel repos:
   - Default role for new agents
   - Preferred AI tools
 
-Workspace config (preferences.json) takes precedence over user config.
+Global config (prefs.json) takes precedence over user config.
 
 Examples:
   mycel config user init   # Create ~/.bcrc with guided prompts

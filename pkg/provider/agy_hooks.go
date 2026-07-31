@@ -2,7 +2,7 @@ package provider
 
 // Antigravity CLI (`agy`) lifecycle-hook writer. This is the agy analog of
 // claude_hooks.go: it writes .agents/hooks.json so an agy agent reports its
-// lifecycle to bcd's /api/agents/{name}/hook endpoint. The event and state
+// lifecycle to the daemon's /api/agents/{name}/hook endpoint. The event and state
 // names embedded in the generated commands are the wire vocabulary of that
 // endpoint (see pkg/agent/hooks.go for the ingestion side).
 //
@@ -54,16 +54,16 @@ type agyHookSpec struct {
 const agyHookTimeoutSecs = 5
 
 // agyHookCommand builds the shell command an agy hook runs. It drains stdin
-// (agy pipes the payload in), POSTs a bc hook event to the daemon, and prints
+// (agy pipes the payload in), POSTs a mycel hook event to the daemon, and prints
 // the JSON result agy expects on stdout. daemonAddr and agentID are resolved
 // at runtime from the MYCEL_DAEMON_ADDR / MYCEL_AGENT_ID environment variables
 // set on the agent session, matching the claude provider.
 func agyHookCommand(event, state, task, stdout string) string {
-	const bcdAddr = "${MYCEL_DAEMON_ADDR:-http://127.0.0.1:9374}"
+	const daemonAddr = "${MYCEL_DAEMON_ADDR:-http://127.0.0.1:9374}"
 	payload := fmt.Sprintf(`{"event":"%s","state":"%s","task":"%s"}`, event, state, task)
 	return fmt.Sprintf(
 		`cat >/dev/null 2>&1; curl -sX POST "%s/api/agents/${MYCEL_AGENT_ID}/hook" -H "Content-Type: application/json" -d '%s' >/dev/null 2>&1; printf '%%s' '%s'`,
-		bcdAddr, payload, stdout,
+		daemonAddr, payload, stdout,
 	)
 }
 
@@ -72,10 +72,10 @@ func agyHandler(event, state, task, stdout string) agyHookHandler {
 }
 
 // WriteAgyHookSettings writes .agents/hooks.json into the agent worktree so the
-// agy CLI reports lifecycle transitions to bcd. It is idempotent: the bc hook
+// agy CLI reports lifecycle transitions to the daemon. It is idempotent: the mycel hook
 // entry is overwritten while any other user-defined hooks are preserved.
 func WriteAgyHookSettings(worktreeRoot string) error {
-	// worktreeRoot is derived from validated workspace/agent config, but reject
+	// worktreeRoot is derived from validated agent config, but reject
 	// traversal segments so hook settings can never be written outside the
 	// intended directory.
 	worktreeRoot = filepath.Clean(worktreeRoot)
@@ -101,23 +101,23 @@ func WriteAgyHookSettings(worktreeRoot string) error {
 		PostToolUse:    []agyHookGroup{{Matcher: "*", Hooks: []agyHookHandler{agyHandler("PostToolUse", "", "Tool completed", empty)}}},
 	}
 
-	const bcHookName = "bc-activity"
+	const hookName = "mycel-activity"
 	hooksPath := filepath.Join(agentsDir, "hooks.json")
 
 	// Merge into an existing hooks.json if present, replacing only the
-	// bc-managed entry and round-tripping every other named hook untouched.
+	// mycel-managed entry and round-tripping every other named hook untouched.
 	hooks := map[string]json.RawMessage{}
-	if raw, err := os.ReadFile(hooksPath); err == nil { //nolint:gosec // workspace-relative
+	if raw, err := os.ReadFile(hooksPath); err == nil { //nolint:gosec // worktree-relative
 		if err := json.Unmarshal(raw, &hooks); err != nil {
 			// Unparseable file: rewrite fresh rather than fail the agent.
 			hooks = map[string]json.RawMessage{}
 		}
 	}
-	bcJSON, err := json.Marshal(bcHook)
+	hookJSON, err := json.Marshal(bcHook)
 	if err != nil {
 		return fmt.Errorf("marshal agy hook: %w", err)
 	}
-	hooks[bcHookName] = bcJSON
+	hooks[hookName] = hookJSON
 
 	data, err := json.MarshalIndent(hooks, "", "  ")
 	if err != nil {

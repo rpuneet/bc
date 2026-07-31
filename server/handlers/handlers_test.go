@@ -220,7 +220,6 @@ func TestUnregisteredResourceEndpoints_404(t *testing.T) {
 		"/api/channels",
 		"/api/channels/general",
 		"/api/costs",
-		"/api/cron",
 		"/api/secrets",
 		"/api/mcp",
 		"/api/tools",

@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"time"
 
-	bcdb "github.com/rpuneet/mycel/pkg/db"
+	dbpkg "github.com/rpuneet/mycel/pkg/db"
 	"github.com/rpuneet/mycel/pkg/log"
 )
 
@@ -256,8 +256,8 @@ func findIndex(s, substr string) int {
 // OpenStore opens the secrets store on the given workspace database.
 // The handle is borrowed: callers own its lifecycle. The secret store
 // keeps encryption isolation — its own salt and key derivation. In
-// SQLite mode it still uses its own file under workspacePath.
-func OpenStore(d *bcdb.DB, driver, workspacePath, passphrase string) (*Store, error) {
+// SQLite mode it still uses its own file under repoPath.
+func OpenStore(d *dbpkg.DB, driver, repoPath, passphrase string) (*Store, error) {
 	if d != nil && driver == "timescale" {
 		pg := NewPostgresStore(d.DB)
 		if schemaErr := pg.InitSchema(); schemaErr != nil {
@@ -271,5 +271,5 @@ func OpenStore(d *bcdb.DB, driver, workspacePath, passphrase string) (*Store, er
 	}
 
 	// SQLite fallback (still uses its own file for encryption isolation)
-	return NewStore(workspacePath, passphrase)
+	return NewStore(repoPath, passphrase)
 }

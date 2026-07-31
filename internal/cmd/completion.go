@@ -49,7 +49,7 @@ func CompleteChannelNames(cmd *cobra.Command, args []string, toComplete string) 
 }
 
 // CompleteRoleNames returns a completion function for role names.
-// Uses the daemon API to get role names (roles are managed by bcd, not local files).
+// Uses the daemon API to get role names (roles are managed by the daemon, not local files).
 func CompleteRoleNames(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 	c, err := newDaemonClient(cmd.Context())
 	if err != nil {

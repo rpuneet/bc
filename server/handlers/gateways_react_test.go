@@ -45,13 +45,23 @@ func (r *reactionStub) getCalls() []reactionCall {
 	return out
 }
 
-// buildReactRequest builds a POST /api/gateways/whatsapp/react request.
+// buildReactRequest builds a POST /api/apps/whatsapp/react request.
 func buildReactRequest(t *testing.T, body map[string]any) *http.Request {
 	t.Helper()
 	b, _ := json.Marshal(body) //nolint:errcheck
-	req := httptest.NewRequest(http.MethodPost, "/api/gateways/whatsapp/react", bytes.NewReader(b))
+	req := httptest.NewRequest(http.MethodPost, "/api/apps/whatsapp/react", bytes.NewReader(b))
 	req.Header.Set("Content-Type", "application/json")
 	return req
+}
+
+// reactMux registers the apps router (which serves /api/apps/{name}/react
+// by delegating to the gateway handler) plus the gateway routes.
+func reactMux(mgr *gateway.Manager) *http.ServeMux {
+	h := NewGatewayHandler(mgr, nil)
+	mux := http.NewServeMux()
+	h.Register(mux)
+	NewAppsHandler(h, mgr, nil, nil).Register(mux)
+	return mux
 }
 
 // TestGatewayReact_OK verifies that a well-formed react request calls the adapter.
@@ -71,9 +81,7 @@ func TestGatewayReact_OK(t *testing.T) {
 		Content:   "hi",
 	})
 
-	h := NewGatewayHandler(mgr, nil)
-	mux := http.NewServeMux()
-	h.Register(mux)
+	mux := reactMux(mgr)
 
 	req := buildReactRequest(t, map[string]any{
 		"channel":    "whatsapp:family",
@@ -118,23 +126,21 @@ type reactMissingFieldCase struct {
 // is the documented way to remove a reaction (whatsmeow BuildReaction(..., "")).
 func TestGatewayReact_MissingFields(t *testing.T) {
 	mgr := gateway.NewManager()
-	h := NewGatewayHandler(mgr, nil)
-	mux := http.NewServeMux()
-	h.Register(mux)
+	mux := reactMux(mgr)
 
 	tests := []reactMissingFieldCase{
 		{map[string]any{"message_id": "mid", "emoji": "👍"}, "missing channel"},
 		{map[string]any{"channel": "whatsapp:family", "emoji": "👍"}, "missing message_id"},
 		{map[string]any{"channel": "whatsapp:family", "message_id": "mid", "emoji": "👍"}, "platform mismatch"},
 	}
-	// Override URL for the platform-mismatch case: POST to /api/gateways/telegram/react
+	// Override URL for the platform-mismatch case: POST to /api/apps/telegram/react
 	// while body says channel="whatsapp:family".
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var req *http.Request
 			if tt.name == "platform mismatch" {
 				b, _ := json.Marshal(tt.body) //nolint:errcheck
-				req = httptest.NewRequest(http.MethodPost, "/api/gateways/telegram/react", bytes.NewReader(b))
+				req = httptest.NewRequest(http.MethodPost, "/api/apps/telegram/react", bytes.NewReader(b))
 				req.Header.Set("Content-Type", "application/json")
 			} else {
 				req = buildReactRequest(t, tt.body)
@@ -165,9 +171,7 @@ func TestGatewayReact_RemoveReaction(t *testing.T) {
 		Content:   "hi",
 	})
 
-	h := NewGatewayHandler(mgr, nil)
-	mux := http.NewServeMux()
-	h.Register(mux)
+	mux := reactMux(mgr)
 
 	req := buildReactRequest(t, map[string]any{
 		"channel":    "whatsapp:family",
@@ -193,9 +197,7 @@ func TestGatewayReact_RemoveReaction(t *testing.T) {
 // TestGatewayReact_UnknownChannel verifies 404 when channel is not a gateway channel.
 func TestGatewayReact_UnknownChannel(t *testing.T) {
 	mgr := gateway.NewManager()
-	h := NewGatewayHandler(mgr, nil)
-	mux := http.NewServeMux()
-	h.Register(mux)
+	mux := reactMux(mgr)
 
 	rr := httptest.NewRecorder()
 	mux.ServeHTTP(rr, buildReactRequest(t, map[string]any{
@@ -225,9 +227,7 @@ func TestGatewayReact_AdapterError(t *testing.T) {
 		Content:   "hi",
 	})
 
-	h := NewGatewayHandler(mgr, nil)
-	mux := http.NewServeMux()
-	h.Register(mux)
+	mux := reactMux(mgr)
 
 	rr := httptest.NewRecorder()
 	mux.ServeHTTP(rr, buildReactRequest(t, map[string]any{
@@ -243,11 +243,9 @@ func TestGatewayReact_AdapterError(t *testing.T) {
 // TestGatewayReact_MethodNotAllowed verifies non-POST methods are rejected.
 func TestGatewayReact_MethodNotAllowed(t *testing.T) {
 	mgr := gateway.NewManager()
-	h := NewGatewayHandler(mgr, nil)
-	mux := http.NewServeMux()
-	h.Register(mux)
+	mux := reactMux(mgr)
 
-	req := httptest.NewRequest(http.MethodGet, "/api/gateways/whatsapp/react", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/apps/whatsapp/react", nil)
 	rr := httptest.NewRecorder()
 	mux.ServeHTTP(rr, req)
 	if rr.Code != http.StatusMethodNotAllowed {

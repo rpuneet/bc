@@ -77,9 +77,6 @@ func TestNew(t *testing.T) {
 	if c.Costs == nil {
 		t.Error("Costs client is nil")
 	}
-	if c.Cron == nil {
-		t.Error("Cron client is nil")
-	}
 	if c.MCP == nil {
 		t.Error("MCP client is nil")
 	}
@@ -97,7 +94,7 @@ func TestNew(t *testing.T) {
 func TestNew_EmptyAddr(t *testing.T) {
 	// With no env var AND no addr file, should use default.
 	// Point HOME at an empty tempdir so the test doesn't see the
-	// developer's live ~/.mycel/daemon.addr.
+	// developer's live ~/.mycel/run/daemon.addr.
 	os.Unsetenv("MYCEL_DAEMON_ADDR") //nolint:errcheck
 	t.Setenv("HOME", t.TempDir())
 	c := New("")
@@ -114,14 +111,14 @@ func TestNew_EnvAddr(t *testing.T) {
 	}
 }
 
-// TestNew_DaemonAddrFile exercises the file-over-default path that `bc up`
+// TestNew_DaemonAddrFile exercises the file-over-default path that `mycel up`
 // writes. Pins the round-trip: a file containing "http://127.0.0.1:8080\n"
 // must resolve to exactly that URL (trailing newline trimmed).
 func TestNew_DaemonAddrFile(t *testing.T) {
 	os.Unsetenv("MYCEL_DAEMON_ADDR") //nolint:errcheck
 	tmp := t.TempDir()
 	t.Setenv("HOME", tmp)
-	bcDir := filepath.Join(tmp, ".mycel")
+	bcDir := filepath.Join(tmp, ".mycel", "run")
 	if err := os.MkdirAll(bcDir, 0o750); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
@@ -136,12 +133,12 @@ func TestNew_DaemonAddrFile(t *testing.T) {
 }
 
 // TestNew_EnvWinsOverFile pins the precedence: MYCEL_DAEMON_ADDR must beat
-// the addr file so a developer with a stale ~/.mycel/daemon.addr can still
+// the addr file so a developer with a stale ~/.mycel/run/daemon.addr can still
 // override via env without deleting the file.
 func TestNew_EnvWinsOverFile(t *testing.T) {
 	tmp := t.TempDir()
 	t.Setenv("HOME", tmp)
-	bcDir := filepath.Join(tmp, ".mycel")
+	bcDir := filepath.Join(tmp, ".mycel", "run")
 	if err := os.MkdirAll(bcDir, 0o750); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
@@ -160,8 +157,8 @@ func TestDefaultSocketPath(t *testing.T) {
 	if p == "" {
 		t.Error("DefaultSocketPath() returned empty string")
 	}
-	if !strings.Contains(p, "bcd.sock") {
-		t.Errorf("DefaultSocketPath() = %q, expected to contain bcd.sock", p)
+	if !strings.Contains(p, "mycel.sock") {
+		t.Errorf("DefaultSocketPath() = %q, expected to contain mycel.sock", p)
 	}
 }
 
@@ -918,14 +915,14 @@ func TestChannels_Status(t *testing.T) {
 
 // --- Costs tests ---
 
-func TestCosts_WorkspaceSummary(t *testing.T) {
+func TestCosts_TotalSummary(t *testing.T) {
 	summary := CostSummary{TotalCostUSD: 42.5, TotalTokens: 1000}
 	ts := mockServer(t, jsonHandler(200, summary))
 	c := New(ts.URL)
 
-	result, err := c.Costs.WorkspaceSummary(context.Background())
+	result, err := c.Costs.TotalSummary(context.Background())
 	if err != nil {
-		t.Fatalf("WorkspaceSummary() error = %v", err)
+		t.Fatalf("TotalSummary() error = %v", err)
 	}
 	if result.TotalCostUSD != 42.5 {
 		t.Errorf("TotalCostUSD = %v, want 42.5", result.TotalCostUSD)
@@ -1105,139 +1102,6 @@ func TestCosts_Sync(t *testing.T) {
 	}
 	if imported != 42 {
 		t.Errorf("imported = %d, want 42", imported)
-	}
-}
-
-// --- Cron tests ---
-
-func TestCron_List(t *testing.T) {
-	jobs := []CronJob{
-		{Name: "backup", Schedule: "0 0 * * *", Enabled: true},
-		{Name: "cleanup", Schedule: "0 */6 * * *", Enabled: false},
-	}
-	ts := mockServer(t, jsonHandler(200, jobs))
-	c := New(ts.URL)
-
-	result, err := c.Cron.List(context.Background())
-	if err != nil {
-		t.Fatalf("List() error = %v", err)
-	}
-	if len(result) != 2 {
-		t.Errorf("got %d jobs, want 2", len(result))
-	}
-}
-
-func TestCron_List_Error(t *testing.T) {
-	ts := mockServer(t, jsonHandler(500, map[string]string{"error": "db error"}))
-	c := New(ts.URL)
-
-	_, err := c.Cron.List(context.Background())
-	if err == nil {
-		t.Error("expected error, got nil")
-	}
-}
-
-func TestCron_Get(t *testing.T) {
-	job := CronJob{Name: "backup", Schedule: "0 0 * * *", Enabled: true}
-	ts := mockServer(t, jsonHandler(200, job))
-	c := New(ts.URL)
-
-	result, err := c.Cron.Get(context.Background(), "backup")
-	if err != nil {
-		t.Fatalf("Get() error = %v", err)
-	}
-	if result.Name != "backup" {
-		t.Errorf("Name = %q, want backup", result.Name)
-	}
-}
-
-func TestCron_Add(t *testing.T) {
-	handler, cap := capturingHandler(t, http.MethodPost, 200, CronJob{Name: "backup", Schedule: "0 0 * * *"})
-	ts := mockServer(t, handler)
-	c := New(ts.URL)
-
-	result, err := c.Cron.Add(context.Background(), &CronJob{Name: "backup", Schedule: "0 0 * * *"})
-	if err != nil {
-		t.Fatalf("Add() error = %v", err)
-	}
-	if result.Name != "backup" {
-		t.Errorf("Name = %q, want backup", result.Name)
-	}
-	if cap.Body["name"] != "backup" {
-		t.Errorf("body name = %v, want backup", cap.Body["name"])
-	}
-}
-
-func TestCron_Delete(t *testing.T) {
-	handler, cap := capturingHandler(t, http.MethodDelete, 204, nil)
-	ts := mockServer(t, handler)
-	c := New(ts.URL)
-
-	err := c.Cron.Delete(context.Background(), "backup")
-	if err != nil {
-		t.Fatalf("Delete() error = %v", err)
-	}
-	if !strings.Contains(cap.Path, "/api/cron/backup") {
-		t.Errorf("path = %q, want to contain /api/cron/backup", cap.Path)
-	}
-}
-
-func TestCron_Enable(t *testing.T) {
-	handler, cap := capturingHandler(t, http.MethodPost, 204, nil)
-	ts := mockServer(t, handler)
-	c := New(ts.URL)
-
-	err := c.Cron.Enable(context.Background(), "backup")
-	if err != nil {
-		t.Fatalf("Enable() error = %v", err)
-	}
-	if !strings.Contains(cap.Path, "/api/cron/backup/enable") {
-		t.Errorf("path = %q, want to contain /api/cron/backup/enable", cap.Path)
-	}
-}
-
-func TestCron_Disable(t *testing.T) {
-	handler, cap := capturingHandler(t, http.MethodPost, 204, nil)
-	ts := mockServer(t, handler)
-	c := New(ts.URL)
-
-	err := c.Cron.Disable(context.Background(), "backup")
-	if err != nil {
-		t.Fatalf("Disable() error = %v", err)
-	}
-	if !strings.Contains(cap.Path, "/api/cron/backup/disable") {
-		t.Errorf("path = %q, want to contain /api/cron/backup/disable", cap.Path)
-	}
-}
-
-func TestCron_Run(t *testing.T) {
-	handler, cap := capturingHandler(t, http.MethodPost, 204, nil)
-	ts := mockServer(t, handler)
-	c := New(ts.URL)
-
-	err := c.Cron.Run(context.Background(), "backup")
-	if err != nil {
-		t.Fatalf("Run() error = %v", err)
-	}
-	if !strings.Contains(cap.Path, "/api/cron/backup/run") {
-		t.Errorf("path = %q, want to contain /api/cron/backup/run", cap.Path)
-	}
-}
-
-func TestCron_Logs(t *testing.T) {
-	entries := []CronLogEntry{
-		{Status: "success", DurationMS: 1200},
-		{Status: "failed", DurationMS: 500},
-	}
-	ts := mockServer(t, jsonHandler(200, entries))
-	c := New(ts.URL)
-
-	result, err := c.Cron.Logs(context.Background(), "backup", 10)
-	if err != nil {
-		t.Fatalf("Logs() error = %v", err)
-	}
-	if len(result) != 2 {
-		t.Errorf("got %d entries, want 2", len(result))
 	}
 }
 

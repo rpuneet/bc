@@ -9,8 +9,7 @@ mycel template create <name> [flags]
 ### Options
 
 ```
-  -h, --help        help for create
-      --workspace   Write template as a workspace-local override (default: user-global)
+  -h, --help   help for create
 ```
 
 ### Options inherited from parent commands

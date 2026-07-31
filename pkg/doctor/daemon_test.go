@@ -16,7 +16,7 @@ func TestCheckDaemonAt_Degraded(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"status":"degraded","db":"ok","degraded":{` +
 			`"notify":"notify store unavailable: no shared database",` +
-			`"cron":"cron store unavailable: disk full"}}`))
+			`"events":"event log unavailable: disk full"}}`))
 	}))
 	defer srv.Close()
 
@@ -27,8 +27,8 @@ func TestCheckDaemonAt_Degraded(t *testing.T) {
 	if len(cat.Items) != 2 {
 		t.Fatalf("items = %d, want 2 (one per degraded service): %+v", len(cat.Items), cat.Items)
 	}
-	// Sorted by service name: cron before notify.
-	if cat.Items[0].Name != "service: cron" || cat.Items[1].Name != "service: notify" {
+	// Sorted by service name: events before notify.
+	if cat.Items[0].Name != "service: events" || cat.Items[1].Name != "service: notify" {
 		t.Errorf("unexpected item names: %q, %q", cat.Items[0].Name, cat.Items[1].Name)
 	}
 	for _, it := range cat.Items {

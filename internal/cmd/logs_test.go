@@ -11,17 +11,19 @@ import (
 
 	"github.com/rpuneet/mycel/pkg/db"
 	"github.com/rpuneet/mycel/pkg/events"
+	"github.com/rpuneet/mycel/pkg/home"
 	"github.com/rpuneet/mycel/pkg/ui"
-	"github.com/rpuneet/mycel/pkg/workspace"
 )
 
-// setupLogsWorkspace creates a temporary bc workspace, changes into it,
-// and returns the root dir plus a cleanup function.
-func setupLogsWorkspace(t *testing.T) (string, func()) {
+// setupLogsHome creates an isolated MYCEL_HOME plus a temporary
+// git repo, bootstraps the global mycel state via home.Open,
+// changes into the repo, and returns the root dir plus a cleanup
+// function.
+func setupLogsHome(t *testing.T) (string, func()) {
 	t.Helper()
 
 	if os.Getenv("MYCEL_TEST_DAEMON") == "" {
-		t.Skip("skipping: requires MYCEL_TEST_DAEMON=1 (dedicated test bcd instance)")
+		t.Skip("skipping: requires MYCEL_TEST_DAEMON=1 (dedicated test daemon instance)")
 	}
 
 	origDir, err := os.Getwd()
@@ -29,14 +31,14 @@ func setupLogsWorkspace(t *testing.T) (string, func()) {
 		t.Fatalf("failed to get cwd: %v", err)
 	}
 
+	t.Setenv("MYCEL_HOME", t.TempDir())
+
 	tmpDir := t.TempDir()
-	ws, err := workspace.Init(tmpDir)
-	if err != nil {
-		t.Fatalf("failed to init workspace: %v", err)
+	gitInitDir(t, tmpDir)
+	if _, err := home.Open(tmpDir); err != nil {
+		t.Fatalf("failed to open home: %v", err)
 	}
-	if err := ws.EnsureDirs(); err != nil {
-		t.Fatalf("failed to ensure dirs: %v", err)
-	}
+	t.Setenv("MYCEL_WORKSPACE", tmpDir)
 	if err := os.Chdir(tmpDir); err != nil {
 		t.Fatalf("failed to chdir: %v", err)
 	}
@@ -44,7 +46,7 @@ func setupLogsWorkspace(t *testing.T) (string, func()) {
 	return tmpDir, func() { _ = os.Chdir(origDir) }
 }
 
-// seedLogsEvents writes events to the workspace state.db SQLite database.
+// seedLogsEvents writes events to the state database.
 func seedLogsEvents(t *testing.T, wsDir string, evts []events.Event) {
 	t.Helper()
 	d, _, err := db.Global(nil)
@@ -183,7 +185,7 @@ func TestParseSinceDuration(t *testing.T) {
 // --- Integration tests for --type flag ---
 
 func TestLogs_TypeFilter(t *testing.T) {
-	wsDir, cleanup := setupLogsWorkspace(t)
+	wsDir, cleanup := setupLogsHome(t)
 	defer cleanup()
 
 	seedLogsEvents(t, wsDir, []events.Event{
@@ -210,7 +212,7 @@ func TestLogs_TypeFilter(t *testing.T) {
 }
 
 func TestLogs_TypeFilter_NoMatch(t *testing.T) {
-	wsDir, cleanup := setupLogsWorkspace(t)
+	wsDir, cleanup := setupLogsHome(t)
 	defer cleanup()
 
 	seedLogsEvents(t, wsDir, []events.Event{
@@ -230,7 +232,7 @@ func TestLogs_TypeFilter_NoMatch(t *testing.T) {
 // --- Integration tests for --since flag ---
 
 func TestLogs_SinceFilter(t *testing.T) {
-	wsDir, cleanup := setupLogsWorkspace(t)
+	wsDir, cleanup := setupLogsHome(t)
 	defer cleanup()
 
 	seedLogsEvents(t, wsDir, []events.Event{
@@ -256,7 +258,7 @@ func TestLogs_SinceFilter(t *testing.T) {
 }
 
 func TestLogs_SinceFilter_InvalidDuration(t *testing.T) {
-	_, cleanup := setupLogsWorkspace(t)
+	_, cleanup := setupLogsHome(t)
 	defer cleanup()
 
 	_, err := runLogsCmd(t, "logs", "--since", "notaduration")
@@ -271,7 +273,7 @@ func TestLogs_SinceFilter_InvalidDuration(t *testing.T) {
 // --- Integration tests for message truncation ---
 
 func TestLogs_MessageTruncation(t *testing.T) {
-	wsDir, cleanup := setupLogsWorkspace(t)
+	wsDir, cleanup := setupLogsHome(t)
 	defer cleanup()
 
 	longMsg := strings.Repeat("x", 120)
@@ -294,7 +296,7 @@ func TestLogs_MessageTruncation(t *testing.T) {
 }
 
 func TestLogs_FullFlag_NoTruncation(t *testing.T) {
-	wsDir, cleanup := setupLogsWorkspace(t)
+	wsDir, cleanup := setupLogsHome(t)
 	defer cleanup()
 
 	longMsg := strings.Repeat("y", 120)
@@ -313,7 +315,7 @@ func TestLogs_FullFlag_NoTruncation(t *testing.T) {
 }
 
 func TestLogs_ShortMessage_NoTruncation(t *testing.T) {
-	wsDir, cleanup := setupLogsWorkspace(t)
+	wsDir, cleanup := setupLogsHome(t)
 	defer cleanup()
 
 	shortMsg := "short message"
@@ -334,7 +336,7 @@ func TestLogs_ShortMessage_NoTruncation(t *testing.T) {
 // --- Composable filters tests ---
 
 func TestLogs_AgentAndType(t *testing.T) {
-	wsDir, cleanup := setupLogsWorkspace(t)
+	wsDir, cleanup := setupLogsHome(t)
 	defer cleanup()
 
 	seedLogsEvents(t, wsDir, []events.Event{
@@ -360,7 +362,7 @@ func TestLogs_AgentAndType(t *testing.T) {
 }
 
 func TestLogs_AgentAndTypeAndSince(t *testing.T) {
-	wsDir, cleanup := setupLogsWorkspace(t)
+	wsDir, cleanup := setupLogsHome(t)
 	defer cleanup()
 
 	seedLogsEvents(t, wsDir, []events.Event{
@@ -390,7 +392,7 @@ func TestLogs_AgentAndTypeAndSince(t *testing.T) {
 }
 
 func TestLogs_AllFiltersComposed(t *testing.T) {
-	wsDir, cleanup := setupLogsWorkspace(t)
+	wsDir, cleanup := setupLogsHome(t)
 	defer cleanup()
 
 	// Seed 10 recent agent.report events from eng-01
@@ -438,7 +440,7 @@ func TestLogs_AllFiltersComposed(t *testing.T) {
 // --- Edge cases ---
 
 func TestLogs_EmptyLog(t *testing.T) {
-	_, cleanup := setupLogsWorkspace(t)
+	_, cleanup := setupLogsHome(t)
 	defer cleanup()
 
 	stdout, err := runLogsCmd(t, "logs")
@@ -452,7 +454,7 @@ func TestLogs_EmptyLog(t *testing.T) {
 }
 
 func TestLogs_TailOnly(t *testing.T) {
-	wsDir, cleanup := setupLogsWorkspace(t)
+	wsDir, cleanup := setupLogsHome(t)
 	defer cleanup()
 
 	for i := 0; i < 10; i++ {
@@ -479,7 +481,7 @@ func TestLogs_TailOnly(t *testing.T) {
 }
 
 func TestLogs_SinceFilter_AllOld(t *testing.T) {
-	wsDir, cleanup := setupLogsWorkspace(t)
+	wsDir, cleanup := setupLogsHome(t)
 	defer cleanup()
 
 	seedLogsEvents(t, wsDir, []events.Event{
@@ -553,7 +555,7 @@ func TestLogs_AgentFilter(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			wsDir, cleanup := setupLogsWorkspace(t)
+			wsDir, cleanup := setupLogsHome(t)
 			defer cleanup()
 
 			// Seed events for each agent
@@ -599,7 +601,7 @@ func TestLogs_AgentFilter_SpecialNames(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			wsDir, cleanup := setupLogsWorkspace(t)
+			wsDir, cleanup := setupLogsHome(t)
 			defer cleanup()
 
 			seedLogsEvents(t, wsDir, []events.Event{
@@ -621,7 +623,7 @@ func TestLogs_AgentFilter_SpecialNames(t *testing.T) {
 // --- JSON output tests ---
 
 func TestLogs_JSONOutput(t *testing.T) {
-	wsDir, cleanup := setupLogsWorkspace(t)
+	wsDir, cleanup := setupLogsHome(t)
 	defer cleanup()
 
 	seedLogsEvents(t, wsDir, []events.Event{
@@ -646,7 +648,7 @@ func TestLogs_JSONOutput(t *testing.T) {
 }
 
 func TestLogs_JSONOutput_Empty(t *testing.T) {
-	_, cleanup := setupLogsWorkspace(t)
+	_, cleanup := setupLogsHome(t)
 	defer cleanup()
 
 	stdout, err := runLogsCmd(t, "logs", "--json")
@@ -666,7 +668,7 @@ func TestLogs_JSONOutput_Empty(t *testing.T) {
 }
 
 func TestLogs_JSONOutput_WithFilters(t *testing.T) {
-	wsDir, cleanup := setupLogsWorkspace(t)
+	wsDir, cleanup := setupLogsHome(t)
 	defer cleanup()
 
 	seedLogsEvents(t, wsDir, []events.Event{
@@ -708,7 +710,7 @@ func TestLogs_TypeFilter_AllTypes(t *testing.T) {
 
 	for _, eventType := range types {
 		t.Run(string(eventType), func(t *testing.T) {
-			wsDir, cleanup := setupLogsWorkspace(t)
+			wsDir, cleanup := setupLogsHome(t)
 			defer cleanup()
 
 			// Seed one event of each type
@@ -740,7 +742,7 @@ func TestLogs_TypeFilter_AllTypes(t *testing.T) {
 // --- Ordering tests ---
 
 func TestLogs_Ordering_Chronological(t *testing.T) {
-	wsDir, cleanup := setupLogsWorkspace(t)
+	wsDir, cleanup := setupLogsHome(t)
 	defer cleanup()
 
 	// Seed events in specific order
@@ -772,7 +774,7 @@ func TestLogs_Ordering_Chronological(t *testing.T) {
 }
 
 func TestLogs_Ordering_TailReversed(t *testing.T) {
-	wsDir, cleanup := setupLogsWorkspace(t)
+	wsDir, cleanup := setupLogsHome(t)
 	defer cleanup()
 
 	// Seed 10 events
@@ -801,7 +803,7 @@ func TestLogs_Ordering_TailReversed(t *testing.T) {
 // --- Message formatting tests ---
 
 func TestLogs_MessageSent_Format(t *testing.T) {
-	wsDir, cleanup := setupLogsWorkspace(t)
+	wsDir, cleanup := setupLogsHome(t)
 	defer cleanup()
 
 	seedLogsEvents(t, wsDir, []events.Event{
@@ -829,7 +831,7 @@ func TestLogs_MessageSent_Format(t *testing.T) {
 }
 
 func TestLogs_MessageSent_NoRecipient(t *testing.T) {
-	wsDir, cleanup := setupLogsWorkspace(t)
+	wsDir, cleanup := setupLogsHome(t)
 	defer cleanup()
 
 	seedLogsEvents(t, wsDir, []events.Event{
@@ -869,7 +871,7 @@ func TestLogs_UnicodeMessages(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			wsDir, cleanup := setupLogsWorkspace(t)
+			wsDir, cleanup := setupLogsHome(t)
 			defer cleanup()
 
 			seedLogsEvents(t, wsDir, []events.Event{
@@ -902,7 +904,7 @@ func TestLogs_SpecialCharacters(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			wsDir, cleanup := setupLogsWorkspace(t)
+			wsDir, cleanup := setupLogsHome(t)
 			defer cleanup()
 
 			seedLogsEvents(t, wsDir, []events.Event{
@@ -925,7 +927,7 @@ func TestLogs_SpecialCharacters(t *testing.T) {
 // --- Boundary tests ---
 
 func TestLogs_TailExceedsEventCount(t *testing.T) {
-	wsDir, cleanup := setupLogsWorkspace(t)
+	wsDir, cleanup := setupLogsHome(t)
 	defer cleanup()
 
 	// Seed 3 events
@@ -948,7 +950,7 @@ func TestLogs_TailExceedsEventCount(t *testing.T) {
 }
 
 func TestLogs_SingleEvent(t *testing.T) {
-	wsDir, cleanup := setupLogsWorkspace(t)
+	wsDir, cleanup := setupLogsHome(t)
 	defer cleanup()
 
 	seedLogsEvents(t, wsDir, []events.Event{
@@ -966,7 +968,7 @@ func TestLogs_SingleEvent(t *testing.T) {
 }
 
 func TestLogs_ManyEvents(t *testing.T) {
-	wsDir, cleanup := setupLogsWorkspace(t)
+	wsDir, cleanup := setupLogsHome(t)
 	defer cleanup()
 
 	// Seed 100 events
@@ -1029,29 +1031,31 @@ func TestParseSinceDuration_EdgeCases(t *testing.T) {
 
 // --- Error path tests ---
 
-func TestLogs_NoWorkspace(t *testing.T) {
-	// Run from temp dir without workspace
-	tmpDir := t.TempDir()
+func TestLogs_DaemonUnreachable(t *testing.T) {
+	// logs is daemon-first and CWD-free: without a reachable the daemon it must
+	// fail with a daemon error (never a repo error), from any directory.
+	tmpDir := t.TempDir() // plain dir, not a git repo
 	origDir, _ := os.Getwd()
 	_ = os.Chdir(tmpDir)
 	defer func() { _ = os.Chdir(origDir) }()
 
-	// Ensure MYCEL_WORKSPACE doesn't bypass the workspace check
 	t.Setenv("MYCEL_WORKSPACE", "")
+	// Point the client at a dead address so the daemon ping fails.
+	t.Setenv("MYCEL_DAEMON_ADDR", "http://127.0.0.1:1")
 
 	_, err := runLogsCmd(t, "logs")
 	if err == nil {
-		t.Fatal("expected error for non-workspace dir")
+		t.Fatal("expected daemon-unreachable error")
 	}
-	if !strings.Contains(err.Error(), "repo") {
-		t.Errorf("expected repo error, got: %v", err)
+	if !strings.Contains(err.Error(), "the daemon is not running") {
+		t.Errorf("expected 'the daemon is not running' error, got: %v", err)
 	}
 }
 
 // --- Combined filter tests ---
 
 func TestLogs_CombinedFilters_AllMatch(t *testing.T) {
-	wsDir, cleanup := setupLogsWorkspace(t)
+	wsDir, cleanup := setupLogsHome(t)
 	defer cleanup()
 
 	now := time.Now()
@@ -1070,7 +1074,7 @@ func TestLogs_CombinedFilters_AllMatch(t *testing.T) {
 }
 
 func TestLogs_CombinedFilters_NoneMatch(t *testing.T) {
-	wsDir, cleanup := setupLogsWorkspace(t)
+	wsDir, cleanup := setupLogsHome(t)
 	defer cleanup()
 
 	now := time.Now()
@@ -1090,7 +1094,7 @@ func TestLogs_CombinedFilters_NoneMatch(t *testing.T) {
 }
 
 func TestLogs_FilterOrder_AgentThenType(t *testing.T) {
-	wsDir, cleanup := setupLogsWorkspace(t)
+	wsDir, cleanup := setupLogsHome(t)
 	defer cleanup()
 
 	seedLogsEvents(t, wsDir, []events.Event{
@@ -1142,7 +1146,7 @@ func TestTruncateMessage_EdgeCases(t *testing.T) {
 // --- Timestamp format tests ---
 
 func TestLogs_TimestampFormat(t *testing.T) {
-	wsDir, cleanup := setupLogsWorkspace(t)
+	wsDir, cleanup := setupLogsHome(t)
 	defer cleanup()
 
 	seedLogsEvents(t, wsDir, []events.Event{
@@ -1163,7 +1167,7 @@ func TestLogs_TimestampFormat(t *testing.T) {
 // --- Additional filter edge cases ---
 
 func TestLogs_TypeFilter_InvalidType(t *testing.T) {
-	wsDir, cleanup := setupLogsWorkspace(t)
+	wsDir, cleanup := setupLogsHome(t)
 	defer cleanup()
 
 	seedLogsEvents(t, wsDir, []events.Event{
@@ -1181,7 +1185,7 @@ func TestLogs_TypeFilter_InvalidType(t *testing.T) {
 }
 
 func TestLogs_SinceFilter_VeryShort(t *testing.T) {
-	wsDir, cleanup := setupLogsWorkspace(t)
+	wsDir, cleanup := setupLogsHome(t)
 	defer cleanup()
 
 	seedLogsEvents(t, wsDir, []events.Event{
@@ -1199,7 +1203,7 @@ func TestLogs_SinceFilter_VeryShort(t *testing.T) {
 }
 
 func TestLogs_SinceFilter_VeryLong(t *testing.T) {
-	wsDir, cleanup := setupLogsWorkspace(t)
+	wsDir, cleanup := setupLogsHome(t)
 	defer cleanup()
 
 	seedLogsEvents(t, wsDir, []events.Event{
@@ -1219,7 +1223,7 @@ func TestLogs_SinceFilter_VeryLong(t *testing.T) {
 // --- Tail edge cases ---
 
 func TestLogs_TailOne(t *testing.T) {
-	wsDir, cleanup := setupLogsWorkspace(t)
+	wsDir, cleanup := setupLogsHome(t)
 	defer cleanup()
 
 	seedLogsEvents(t, wsDir, []events.Event{
@@ -1242,7 +1246,7 @@ func TestLogs_TailOne(t *testing.T) {
 }
 
 func TestLogs_TailLarge(t *testing.T) {
-	wsDir, cleanup := setupLogsWorkspace(t)
+	wsDir, cleanup := setupLogsHome(t)
 	defer cleanup()
 
 	seedLogsEvents(t, wsDir, []events.Event{
@@ -1262,7 +1266,7 @@ func TestLogs_TailLarge(t *testing.T) {
 // --- Full flag tests ---
 
 func TestLogs_FullFlag_VeryLongMessage(t *testing.T) {
-	wsDir, cleanup := setupLogsWorkspace(t)
+	wsDir, cleanup := setupLogsHome(t)
 	defer cleanup()
 
 	longMsg := strings.Repeat("x", 500)
@@ -1283,7 +1287,7 @@ func TestLogs_FullFlag_VeryLongMessage(t *testing.T) {
 // --- JSON with all flags ---
 
 func TestLogs_JSON_WithTail(t *testing.T) {
-	wsDir, cleanup := setupLogsWorkspace(t)
+	wsDir, cleanup := setupLogsHome(t)
 	defer cleanup()
 
 	for i := 0; i < 5; i++ {
@@ -1308,7 +1312,7 @@ func TestLogs_JSON_WithTail(t *testing.T) {
 }
 
 func TestLogs_JSON_WithSince(t *testing.T) {
-	wsDir, cleanup := setupLogsWorkspace(t)
+	wsDir, cleanup := setupLogsHome(t)
 	defer cleanup()
 
 	seedLogsEvents(t, wsDir, []events.Event{
@@ -1334,7 +1338,7 @@ func TestLogs_JSON_WithSince(t *testing.T) {
 // --- Event with metadata ---
 
 func TestLogs_EventWithData(t *testing.T) {
-	wsDir, cleanup := setupLogsWorkspace(t)
+	wsDir, cleanup := setupLogsHome(t)
 	defer cleanup()
 
 	seedLogsEvents(t, wsDir, []events.Event{
@@ -1358,7 +1362,7 @@ func TestLogs_EventWithData(t *testing.T) {
 }
 
 func TestLogs_EventWithData_JSON(t *testing.T) {
-	wsDir, cleanup := setupLogsWorkspace(t)
+	wsDir, cleanup := setupLogsHome(t)
 	defer cleanup()
 
 	seedLogsEvents(t, wsDir, []events.Event{
@@ -1384,7 +1388,7 @@ func TestLogs_EventWithData_JSON(t *testing.T) {
 // --- Multiple agents ---
 
 func TestLogs_MultipleAgents(t *testing.T) {
-	wsDir, cleanup := setupLogsWorkspace(t)
+	wsDir, cleanup := setupLogsHome(t)
 	defer cleanup()
 
 	agents := []string{"eng-01", "eng-02", "eng-03", "manager-01", "tech-lead-01"}
@@ -1409,7 +1413,7 @@ func TestLogs_MultipleAgents(t *testing.T) {
 // --- Empty message ---
 
 func TestLogs_EmptyMessage(t *testing.T) {
-	wsDir, cleanup := setupLogsWorkspace(t)
+	wsDir, cleanup := setupLogsHome(t)
 	defer cleanup()
 
 	seedLogsEvents(t, wsDir, []events.Event{

@@ -105,7 +105,7 @@ export default function WaitlistPage() {
             Orchestrate{" "}
             <span className="font-bold">AI agents</span>
             <br />
-            <span className="font-headline">from your terminal.</span>
+            <span className="font-headline">from one place.</span>
           </h1>
         </FadeUp>
 

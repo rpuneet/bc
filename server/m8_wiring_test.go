@@ -2,20 +2,25 @@ package server
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
-	bccost "github.com/rpuneet/mycel/pkg/cost"
-	bcmcp "github.com/rpuneet/mycel/pkg/mcp"
-	bcsecret "github.com/rpuneet/mycel/pkg/secret"
-	bctemplate "github.com/rpuneet/mycel/pkg/template"
+	costpkg "github.com/rpuneet/mycel/pkg/cost"
+	"github.com/rpuneet/mycel/pkg/home"
+	mcppkg "github.com/rpuneet/mycel/pkg/mcp"
+	secretpkg "github.com/rpuneet/mycel/pkg/secret"
+	templatepkg "github.com/rpuneet/mycel/pkg/template"
 )
 
-// TestM8WiringTemplatesGlobalOverride verifies that BuildServices
-// hands back a Templates store whose List() sees a user-global template
-// unioned with a per-workspace override.
-func TestM8WiringTemplatesGlobalOverride(t *testing.T) {
+// TestM8WiringTemplatesGlobalStore verifies that BuildServices hands
+// back the single user-global template store: a Globals-supplied store
+// is used as-is, and without one the bundle falls back to
+// <MycelHome>/templates.
+func TestM8WiringTemplatesGlobalStore(t *testing.T) {
 	bcHome := t.TempDir()
 	t.Setenv("MYCEL_HOME", bcHome)
 	t.Setenv("MYCEL_SECRET_PASSPHRASE", "unit-test")
@@ -25,14 +30,14 @@ func TestM8WiringTemplatesGlobalOverride(t *testing.T) {
 	if err := os.MkdirAll(globalDir, 0o750); err != nil {
 		t.Fatal(err)
 	}
-	globalTmpl := bctemplate.Template{Name: "user-t", Description: "global"}
-	if err := bctemplate.NewStore(globalDir).Create(globalTmpl, "global prompt", bctemplate.ScopeGlobal); err != nil {
+	globalTmpl := templatepkg.Template{Name: "user-t", Description: "global"}
+	if err := templatepkg.NewStore(globalDir).Create(globalTmpl, "global prompt", templatepkg.ScopeGlobal); err != nil {
 		t.Fatalf("seed global template: %v", err)
 	}
 
 	// Build a Globals with the user-global template store wired.
 	globals := &Globals{
-		Templates: bctemplate.NewStore(globalDir),
+		Templates: templatepkg.NewStore(globalDir),
 	}
 
 	wsDir := t.TempDir()
@@ -43,8 +48,8 @@ func TestM8WiringTemplatesGlobalOverride(t *testing.T) {
 	}
 	defer svc.Close() //nolint:errcheck
 
-	if svc.Templates == nil {
-		t.Fatal("svc.Templates nil")
+	if svc.Templates != globals.Templates {
+		t.Fatal("svc.Templates is not the Globals-supplied global store")
 	}
 
 	// List should see the global template.
@@ -54,7 +59,7 @@ func TestM8WiringTemplatesGlobalOverride(t *testing.T) {
 	}
 	foundGlobal := false
 	for _, tt := range list {
-		if tt.Name == "user-t" && tt.Scope == bctemplate.ScopeGlobal {
+		if tt.Name == "user-t" && tt.Scope == templatepkg.ScopeGlobal {
 			foundGlobal = true
 		}
 	}
@@ -62,23 +67,19 @@ func TestM8WiringTemplatesGlobalOverride(t *testing.T) {
 		t.Errorf("global template not visible via svc.Templates.List(): %+v", list)
 	}
 
-	// Add a workspace override and confirm it wins.
-	if createErr := svc.Templates.Create(
-		bctemplate.Template{Name: "user-t", Description: "workspace override"},
-		"ws prompt",
-		bctemplate.ScopeWorkspace,
-	); createErr != nil {
-		t.Fatalf("create ws override: %v", createErr)
-	}
-	got, _, err := svc.Templates.Get("user-t")
+	// A bundle built WITHOUT Globals.Templates must fall back to the
+	// same <MycelHome>/templates directory (still ONE global store).
+	svc2, err := BuildServices(context.Background(), &Globals{}, wsDir)
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("build without globals templates: %v", err)
 	}
-	if got.Scope != bctemplate.ScopeWorkspace {
-		t.Errorf("scope = %q, want workspace", got.Scope)
+	defer svc2.Close() //nolint:errcheck
+	got, _, err := svc2.Templates.Get("user-t")
+	if err != nil {
+		t.Fatalf("fallback store Get: %v", err)
 	}
-	if got.Description != "workspace override" {
-		t.Errorf("description = %q (override lost)", got.Description)
+	if got.Description != "global" {
+		t.Errorf("fallback store description = %q, want global", got.Description)
 	}
 }
 
@@ -89,7 +90,7 @@ func TestM8WiringSecretsPreferGlobalVault(t *testing.T) {
 	t.Setenv("MYCEL_HOME", bcHome)
 	t.Setenv("MYCEL_SECRET_PASSPHRASE", "unit-test")
 
-	vault, err := bcsecret.OpenVaultFile(filepath.Join(bcHome, "secrets.vault"), "unit-test")
+	vault, err := secretpkg.OpenVaultFile(filepath.Join(bcHome, "secrets.vault"), "unit-test")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -127,8 +128,8 @@ func TestM8WiringMCPGlobalView(t *testing.T) {
 	t.Setenv("MYCEL_SECRET_PASSPHRASE", "unit-test")
 
 	mcpPath := filepath.Join(bcHome, "mcps.json")
-	gs := bcmcp.NewGlobalStore(mcpPath)
-	if err := gs.Add(&bcmcp.ServerConfig{Name: "trusted-gh", Transport: bcmcp.TransportStdio, Command: "npx"}); err != nil {
+	gs := mcppkg.NewGlobalStore(mcpPath)
+	if err := gs.Add(&mcppkg.ServerConfig{Name: "trusted-gh", Transport: mcppkg.TransportStdio, Command: "npx"}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -160,61 +161,88 @@ func TestM8WiringMCPGlobalView(t *testing.T) {
 	}
 }
 
-// TestM8WiringCostsGlobalLedger confirms svc.Costs points at the
-// user-global ledger when Globals.CostsGlobal is supplied.
-func TestM8WiringCostsGlobalLedger(t *testing.T) {
+// TestM8WiringCostsSourceDirect confirms BuildServices wires a
+// source-direct cost.Service that (a) reads agent session transcripts
+// from <MycelHome>/agents/<name>/session/claude/projects and (b)
+// persists budget thresholds into the global prefs.json.
+func TestM8WiringCostsSourceDirect(t *testing.T) {
 	bcHome := t.TempDir()
 	t.Setenv("MYCEL_HOME", bcHome)
+	// Point HOME at an empty dir so the host ~/.claude of the developer
+	// running the tests never leaks into the scan.
+	t.Setenv("HOME", t.TempDir())
 	t.Setenv("MYCEL_SECRET_PASSPHRASE", "unit-test")
 
-	costs, err := bccost.OpenGlobalStore(filepath.Join(bcHome, "costs.db"))
-	if err != nil {
+	// Fabricate one agent-attributed Claude Code transcript.
+	repo := filepath.Join(t.TempDir(), "m8-repo")
+	sessionFile := filepath.Join(bcHome, "agents", "cost-agent", "session", "claude", "projects", "p", "aaaaaaaa-1111-2222-3333-444444444444.jsonl")
+	if err := os.MkdirAll(filepath.Dir(sessionFile), 0o750); err != nil {
 		t.Fatal(err)
 	}
-	defer costs.Close() //nolint:errcheck
+	line := fmt.Sprintf(`{"type":"assistant","sessionId":"s-m8","timestamp":"2026-07-30T10:00:00Z","cwd":%q,"message":{"model":"claude-sonnet-4-20250514","usage":{"input_tokens":1000,"output_tokens":500,"cache_creation_input_tokens":0,"cache_read_input_tokens":0}}}`, repo)
+	if err := os.WriteFile(sessionFile, []byte(line+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
 
-	globals := &Globals{CostsGlobal: costs}
 	wsDir := t.TempDir()
 	gitInitDir(t, wsDir)
-	svc, err := BuildServices(context.Background(), globals, wsDir)
+	svc, err := BuildServices(context.Background(), &Globals{}, wsDir)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer svc.Close() //nolint:errcheck
 
-	// svc.Costs is the same pointer as the global ledger.
-	if svc.Costs != costs {
-		t.Errorf("svc.Costs does not reference Globals.CostsGlobal")
+	if svc.Costs == nil {
+		t.Fatal("svc.Costs nil")
 	}
-	// The importer should have picked up the repo path.
-	if svc.CostImporter == nil {
-		t.Fatal("CostImporter nil")
-	}
-	// We can't reach imp.repo directly; indirect verification via
-	// inserting a scoped record and rolling up.
-	scoped := svc.Costs.ScopedTo(wsDir)
-	if _, recErr := scoped.Record(context.Background(), "agent", "", "model", 1, 1, 0.50); recErr != nil {
-		t.Fatalf("Record: %v", recErr)
-	}
-	byRepo, err := svc.Costs.SumByRepo(context.Background(), timeZero())
+	ctx := context.Background()
+
+	// Repo rollup attributes the entry to the session cwd.
+	byRepo, err := svc.Costs.SumByRepo(ctx, time.Time{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	// The importer may sweep in unrelated JSONL files from the developer's
-	// host ~/.claude directory — we only assert that the scoped record
-	// landed under the repo path, not the exact total (host import
-	// amplifies it).
-	if _, ok := byRepo[wsDir]; !ok {
-		t.Errorf("ledger did not attribute scoped record: %+v", byRepo)
+	wantUSD := 1000*3.0/1e6 + 500*15.0/1e6 // claude-sonnet-4 pricing
+	got, ok := byRepo[repo]
+	if !ok {
+		t.Fatalf("SumByRepo missing seeded repo %q: %+v", repo, byRepo)
+	}
+	if diff := got - wantUSD; diff > 1e-9 || diff < -1e-9 {
+		t.Errorf("SumByRepo[%q] = %v, want %v", repo, got, wantUSD)
+	}
+
+	// Agent attribution comes from the agents-dir entity name.
+	agentSum, err := svc.Costs.AgentSummary(ctx, "cost-agent")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if agentSum.RecordCount != 1 || agentSum.InputTokens != 1000 || agentSum.OutputTokens != 500 {
+		t.Errorf("AgentSummary = %+v, want 1 record with 1000/500 tokens", agentSum)
+	}
+
+	// Budgets are configuration persisted in ~/.mycel/prefs.json.
+	if _, setErr := svc.Costs.SetBudget(ctx, "workspace", costpkg.BudgetPeriodMonthly, 25, 0.8, false); setErr != nil {
+		t.Fatalf("SetBudget: %v", setErr)
+	}
+	budget, err := svc.Costs.GetBudget(ctx, "workspace")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if budget == nil || budget.LimitUSD != 25 || budget.Period != costpkg.BudgetPeriodMonthly {
+		t.Fatalf("GetBudget = %+v, want monthly $25", budget)
+	}
+
+	prefsRaw, err := os.ReadFile(filepath.Join(bcHome, home.PrefsFileName)) //nolint:gosec // test temp dir
+	if err != nil {
+		t.Fatalf("read prefs.json: %v", err)
+	}
+	var prefs struct {
+		Budgets map[string]costpkg.BudgetConfig `json:"budgets"`
+	}
+	if err := json.Unmarshal(prefsRaw, &prefs); err != nil {
+		t.Fatalf("parse prefs.json: %v", err)
+	}
+	if cfg, ok := prefs.Budgets["workspace"]; !ok || cfg.LimitUSD != 25 {
+		t.Errorf("budget not persisted in prefs.json: %+v", prefs.Budgets)
 	}
 }
-
-func timeZero() interface{ Format(string) string } {
-	// A tiny helper so the test can pass an always-before time to
-	// SumByRepo without importing "time" at the test call site.
-	return zeroTime{}
-}
-
-type zeroTime struct{}
-
-func (zeroTime) Format(string) string { return "0000-01-01T00:00:00Z" }

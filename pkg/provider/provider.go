@@ -10,7 +10,7 @@ import (
 	"strings"
 )
 
-// Provider represents an AI agent provider that can run in a bc workspace.
+// Provider represents an AI agent provider that can run under mycel.
 type Provider interface {
 	// Name returns the provider's unique identifier (e.g., "claude", "cursor")
 	Name() string
@@ -145,17 +145,16 @@ func (r *Registry) ListInstalled(ctx context.Context) []Provider {
 	return installed
 }
 
-// DefaultRegistry is the global provider registry with all built-in providers.
+// DefaultRegistry is the global provider registry. Each built-in provider
+// self-registers into it from its own file's init(); there is no central
+// registration list. Package-level vars initialize before init() runs, so
+// the registry always exists when providers register.
 var DefaultRegistry = NewRegistry()
 
-func init() {
-	// Register built-in providers.
-	DefaultRegistry.Register(NewClaudeProvider())
-	DefaultRegistry.Register(NewCodexProvider())
-	DefaultRegistry.Register(NewAgyProvider())
-	DefaultRegistry.Register(NewCursorProvider())
-	DefaultRegistry.Register(NewPiProvider())
-	DefaultRegistry.Register(NewOpenclawProvider())
+// Register adds a provider to the DefaultRegistry. Provider files call
+// this from init() to self-register.
+func Register(p Provider) {
+	DefaultRegistry.Register(p)
 }
 
 // checkBinaryExists checks if a binary exists in PATH.

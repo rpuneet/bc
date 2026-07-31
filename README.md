@@ -25,12 +25,12 @@ go install github.com/rpuneet/mycel/cmd/mycel@latest
 git clone https://github.com/rpuneet/mycel && cd mycel && make install-local-mycel
 ```
 
-**Prerequisites:** Go 1.25+, tmux, git. For TUI: Bun.
+**Prerequisites:** Go 1.25+, tmux, git. For the web UI / desktop app: Bun.
 
 ## Quick Start
 
 ```bash
-mycel up                      # Start server + web UI on localhost:9374 (bootstraps the workspace)
+mycel up                      # Start server + web UI on localhost:9374 (bootstraps ~/.mycel)
 mycel agent create eng-01 \
   --role engineer \
   --tool claude               # Spawn an agent
@@ -53,7 +53,7 @@ Open **http://localhost:9374** for the web dashboard.
 
 2. **Structured communication** — Agents talk through persistent channels with mentions, reviews, and handoffs. Not through you.
 
-3. **Full visibility** — Costs, activity, resource usage — all in real time through CLI, TUI, or web dashboard.
+3. **Full visibility** — Costs, activity, resource usage — all in real time through the CLI, web dashboard, or desktop app.
 
 ## Supported Agents
 
@@ -71,12 +71,12 @@ Open **http://localhost:9374** for the web dashboard.
 
 | Command | Description |
 |---------|-------------|
-| `mycel` | Open TUI dashboard |
-| `mycel up` | Start server (foreground); bootstraps the workspace |
+| `mycel` | Boot the server and open the web dashboard |
+| `mycel up` | Start server (foreground); bootstraps `~/.mycel` |
 | `mycel up -d` | Start server (daemon) |
 | `mycel down` | Stop server |
 | `mycel status` | Show agent status |
-| `mycel doctor` | Diagnose workspace issues |
+| `mycel doctor` | Diagnose setup issues |
 
 ### Agents
 
@@ -99,14 +99,13 @@ Open **http://localhost:9374** for the web dashboard.
 | `mycel channel send <ch> <msg>` | Send message |
 | `mycel channel history <ch>` | View history |
 
-### Cost & Scheduling
+### Costs
 
 | Command | Description |
 |---------|-------------|
-| `mycel cost show` | Show cost records |
+| `mycel cost show` | Cost summary (computed from provider session logs) |
 | `mycel cost budget show` | Budget status |
-| `mycel cron add <name>` | Schedule recurring task |
-| `mycel cron list` | List scheduled tasks |
+| `mycel cost daily` | Daily spend series |
 
 ### Configuration
 
@@ -117,7 +116,7 @@ Open **http://localhost:9374** for the web dashboard.
 | `mycel secret set <name>` | Store encrypted secret |
 | `mycel tool list` | List available tools |
 | `mycel mcp list` | List MCP servers |
-| `mycel role list` | List agent roles |
+| `mycel template list` | List agent templates |
 
 Full reference: `mycel --help` or `mycel <command> --help`
 
@@ -127,22 +126,22 @@ Full reference: `mycel --help` or `mycel <command> --help`
 ┌─────────────────────────────────────────────────┐
 │                  mycel binary                    │
 │                                                  │
-│  ┌──────────┐  ┌──────────┐  ┌───────────────┐  │
-│  │   CLI    │  │   TUI    │  │  HTTP Server  │  │
-│  │ (Cobra)  │  │ (Ink/    │  │  + Web UI     │  │
-│  │          │  │  React)  │  │  + MCP + SSE  │  │
-│  └────┬─────┘  └────┬─────┘  └───────┬───────┘  │
-│       │              │                │          │
-│  ┌────┴──────────────┴────────────────┴───────┐  │
+│  ┌──────────┐  ┌───────────────────────────┐    │
+│  │   CLI    │  │  HTTP Server              │    │
+│  │ (Cobra)  │  │  + embedded Web UI        │    │
+│  │          │  │  + MCP + SSE + Apps       │    │
+│  └────┬─────┘  └────────────┬──────────────┘    │
+│       │                     │                    │
+│  ┌────┴─────────────────────┴─────────────────┐  │
 │  │              pkg/ (Go packages)            │  │
-│  │  agent · channel · cost · cron · mcp       │  │
-│  │  provider · runtime · secret · workspace   │  │
+│  │  agent · app · cost · gateway · mcp        │  │
+│  │  provider · runtime · secret · home        │  │
 │  └────────────────────┬───────────────────────┘  │
 │                       │                          │
 │  ┌────────────────────┴───────────────────────┐  │
 │  │           Agent Runtimes                   │  │
 │  │     tmux sessions │ Docker containers      │  │
-│  │     git worktrees │ isolated .bc/ state    │  │
+│  │     git worktrees │ ~/.mycel entity state  │  │
 │  └────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────┘
                         │
@@ -154,15 +153,15 @@ Full reference: `mycel --help` or `mycel <command> --help`
 - **Single binary** — CLI, server, web UI, MCP all in one
 - **SQLite storage** — zero external dependencies
 - **Agent isolation** — each agent gets its own git worktree and tmux/Docker session
-- **Gateway integrations** — Slack, Telegram, Discord for notifications
+- **Apps** — 28 plugin integrations (Slack, Telegram, Discord, GitHub, …) with credentials in an encrypted vault
 
 ## Configuration
 
-Workspace config lives in `.bc/settings.json`:
+Everything lives under `~/.mycel/` — your repos stay pristine. Config is one file, `~/.mycel/prefs.json`:
 
 ```json
 {
-  "version": "2",
+  "version": 2,
   "server": {
     "host": "127.0.0.1",
     "port": 9374
@@ -171,7 +170,7 @@ Workspace config lives in `.bc/settings.json`:
     "default": "claude"
   },
   "runtime": {
-    "default": "tmux"
+    "default": "docker"
   },
   "storage": {
     "default": "sqlite"

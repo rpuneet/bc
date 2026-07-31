@@ -10,7 +10,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// Issue #1875: bc cost usage — wraps ccusage for Claude Code token analytics
+// Issue #1875: mycel cost usage — wraps ccusage for Claude Code token analytics
 
 var costUsageCmd = &cobra.Command{
 	Use:   "usage",

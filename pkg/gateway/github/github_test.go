@@ -183,9 +183,9 @@ func TestAdapterInterface(t *testing.T) {
 }
 
 func TestNamedAdapter(t *testing.T) {
-	a := NewNamed("github:bc", "secret")
-	if a.Name() != "github:bc" {
-		t.Errorf("Name() = %q, want %q", a.Name(), "github:bc")
+	a := NewNamed("github:mycel", "secret")
+	if a.Name() != "github:mycel" {
+		t.Errorf("Name() = %q, want %q", a.Name(), "github:mycel")
 	}
 }
 

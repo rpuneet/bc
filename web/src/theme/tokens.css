@@ -6,63 +6,84 @@
    mycel Design System — Theme Tokens
    Two themes: Dark (default) and Light.
 
-   Palette: Radix Colors (https://www.radix-ui.com/colors) — Sand
-   neutrals for mycel's warm identity, Orange as the brand accent, and
-   the 9/11 semantic steps (grass/amber/red/cyan) tuned per theme for
-   contrast. Every color below is an exact Radix scale value, not an
-   ad-hoc pick.
+   Palette: the mycel "coffee & cream over mushroom earth" brand, shared
+   with the landing page (landing/src/app/globals.css) and the desktop
+   app icon (desktop/build/appicon.svg):
+
+     porcelain    #FAF5EC   cream ground (light bg)
+     café-au-lait #E9DECB   raised cream surfaces
+     chanterelle  #A35D0A / #E8A33D   the accent voice (light / dark)
+     porcini      #5C4A38   warm outline brown
+     espresso     #17110C   dark ground
+     spore-lav    #8D7A9E / #A997BD   rare quiet secondary
+
+   Semantics stay in the earthy family — moss green, honey amber, brick
+   red, dusty spore blue — tuned per theme for AA contrast on each
+   ground. Shadows are warm-tinted (espresso/porcini), never gray.
 
    Elevation: three layered shadow steps per theme. Dark builds depth
-   with deeper blacks; light with soft warm ambient shadows. Raised
-   surfaces additionally step up one neutral (surface → surface-2).
+   with deep roast blacks plus glow-edges; light with soft porcini-
+   tinted ambient shadows and hairline borders. Raised surfaces
+   additionally step up one neutral (surface → surface-2).
    ═══════════════════════════════════════════════════════════════════════ */
 
-/* ── Dark (default) — Sand Dark + Orange Dark ────────────────────────── */
+/* ── Dark (default) — espresso ground, cream ink, amber voice ────────── */
 :root {
-  /* Neutrals (Radix sandDark) */
-  --mycel-bg: #111110;             /* sand1  — app canvas            */
-  --mycel-surface: #191918;        /* sand2  — cards, panels         */
-  --mycel-surface-2: #222221;      /* sand3  — modals, popovers      */
-  --mycel-surface-hover: #2a2a28;  /* sand4  — hover on surfaces     */
-  --mycel-border: #3b3a37;         /* sand6  — hairlines             */
-  --mycel-border-strong: #494844;  /* sand7  — inputs, emphasis      */
-  --mycel-text: #eeeeec;           /* sand12 — primary text          */
-  --mycel-text-2: #b5b3ad;         /* sand11 — secondary text        */
-  --mycel-muted: #7c7b74;          /* sand10 — placeholders, hints   */
+  /* Neutrals (espresso roast scale) */
+  --mycel-bg: #17110c;             /* espresso — app canvas          */
+  --mycel-surface: #1f1812;        /* cards, panels                  */
+  --mycel-surface-2: #241c15;      /* modals, popovers               */
+  --mycel-surface-hover: #2d241b;  /* hover on surfaces              */
+  --mycel-border: #372d22;         /* hairlines                      */
+  --mycel-border-strong: #4a3c2c;  /* inputs, emphasis               */
+  --mycel-text: #f2eadc;           /* cream ink — primary text       */
+  --mycel-text-2: #a79781;         /* warm taupe — secondary text    */
+  --mycel-muted: #857662;          /* placeholders, hints            */
 
-  /* Brand accent (Radix orangeDark) */
-  --mycel-accent: #f76b15;         /* orange9  — actions, selection  */
-  --mycel-accent-hover: #ff801f;   /* orange10                       */
-  --mycel-accent-subtle: #331e0b;  /* orange3  — selected/badge bg   */
-  --mycel-accent-fg: #ffffff;      /* text on accent fills           */
+  /* Brand accent — chanterelle amber, bright over espresso */
+  --mycel-accent: #e8a33d;         /* actions, selection             */
+  --mycel-accent-hover: #f0b45c;
+  --mycel-accent-subtle: #33240f;  /* selected/badge bg              */
+  --mycel-accent-fg: #241c15;      /* espresso ink on amber fills    */
 
-  /* Semantics (Radix *Dark step 9) */
-  --mycel-success: #46a758;        /* grass9                         */
-  --mycel-warning: #ffc53d;        /* amber9                         */
-  --mycel-error: #e5484d;          /* red9                           */
-  --mycel-live: #e5484d;           /* red9                           */
-  --mycel-info: #00a2c7;           /* cyan9                          */
+  /* Semantics — earthy family, step-9 grade over espresso */
+  --mycel-success: #97b573;        /* moss                           */
+  --mycel-warning: #e5c065;        /* honey                          */
+  --mycel-error: #e5684f;          /* brick                          */
+  --mycel-live: #e5684f;           /* brick                          */
+  --mycel-info: #7ba3c9;           /* dusty spore blue               */
 
-  /* Semantic tints (Radix *Dark step 3) — badge/pill backgrounds.
-     Tailwind 3 cannot alpha-modify var() colors, so the step-3 tint
-     is a first-class token, mirroring --mycel-accent-subtle. */
-  --mycel-success-subtle: #1b2a1e; /* grass3                         */
-  --mycel-warning-subtle: #302008; /* amber3                         */
-  --mycel-error-subtle: #3b1219;   /* red3                           */
-  --mycel-info-subtle: #082c36;    /* cyan3                          */
+  /* Semantic tints — badge/pill backgrounds. Tailwind 3 cannot
+     alpha-modify var() colors, so the tint is a first-class token,
+     mirroring --mycel-accent-subtle. */
+  --mycel-success-subtle: #212a17;
+  --mycel-warning-subtle: #322909;
+  --mycel-error-subtle: #3a1b12;
+  --mycel-info-subtle: #16232e;
 
-  /* Elevation — layered, key + ambient */
-  --mycel-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.45);
+  /* Chart series (recharts) — earthy categorical slots validated for
+     lightness band, chroma floor, adjacent-pair CVD separation and
+     3:1 contrast on the dark surface. Slot 0 is --mycel-accent. */
+  --mycel-chart-1: #4285c8;        /* spore blue                     */
+  --mycel-chart-2: #c25667;        /* dusty rose                     */
+  --mycel-chart-3: #b57f1e;        /* café gold                      */
+  --mycel-chart-4: #8d77d1;        /* spore lavender                 */
+  --mycel-chart-5: #6d9b4a;        /* moss                           */
+  --mycel-chart-6: #16a198;        /* lichen teal                    */
+  --mycel-chart-7: #909426;        /* olive                          */
+
+  /* Elevation — layered, key + ambient; deep roast, never gray */
+  --mycel-shadow-sm: 0 1px 2px rgba(10, 6, 2, 0.5);
   --mycel-shadow:
-    0 2px 8px rgba(0, 0, 0, 0.4),
-    0 1px 2px rgba(0, 0, 0, 0.35);
+    0 2px 8px rgba(10, 6, 2, 0.45),
+    0 1px 2px rgba(10, 6, 2, 0.4);
   --mycel-shadow-lg:
-    0 16px 40px rgba(0, 0, 0, 0.55),
-    0 4px 12px rgba(0, 0, 0, 0.4);
+    0 16px 40px rgba(8, 5, 2, 0.6),
+    0 4px 12px rgba(10, 6, 2, 0.45);
 
   /* Scrims + scrollbars follow the theme */
-  --mycel-overlay: rgba(0, 0, 0, 0.6);
-  --mycel-scrollbar-thumb: rgba(238, 238, 236, 0.09);
+  --mycel-overlay: rgba(10, 6, 2, 0.65);
+  --mycel-scrollbar-thumb: rgba(242, 234, 220, 0.09);
 
   /* Geist Sans for body copy; falls back to ui-sans-serif so the
      dashboard stays readable if @fontsource fails to load. JetBrains
@@ -82,50 +103,67 @@ samp {
   font-family: "Geist Mono", "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
 }
 
-/* ── Light — Sand + Orange ───────────────────────────────────────────── */
+/* Display accent — Fraunces, the landing's headline serif. Applied
+   sparingly: the drawer wordmark, page titles, empty-state headings.
+   This is an app, not a magazine. */
+.font-display {
+  font-family: "Fraunces Variable", Fraunces, Georgia, serif;
+  letter-spacing: -0.015em;
+}
+
+/* ── Light — porcelain cream ground, espresso ink, deep amber ────────── */
 html.light {
-  /* Neutrals (Radix sand). Canvas is sand2 so white cards read as
-     raised surfaces under the light shadow scale. */
-  --mycel-bg: #f9f9f8;             /* sand2                          */
-  --mycel-surface: #ffffff;        /* white — cards, panels          */
-  --mycel-surface-2: #ffffff;      /* white — modals, popovers       */
-  --mycel-surface-hover: #f1f0ef;  /* sand3                          */
-  --mycel-border: #dad9d6;         /* sand6                          */
-  --mycel-border-strong: #cfceca;  /* sand7                          */
-  --mycel-text: #21201c;           /* sand12                         */
-  --mycel-text-2: #63635e;         /* sand11                         */
-  --mycel-muted: #8d8d86;          /* sand9                          */
+  /* Neutrals (porcelain → café-au-lait). Canvas is porcelain so warm
+     cream cards read as raised surfaces under the light shadow scale. */
+  --mycel-bg: #faf5ec;             /* porcelain                      */
+  --mycel-surface: #fdfaf3;        /* warm cream — cards, panels     */
+  --mycel-surface-2: #fffdf8;      /* modals, popovers               */
+  --mycel-surface-hover: #f2ebdc;  /* café-au-lait wash              */
+  --mycel-border: #e5dbc8;         /* porcini hairlines              */
+  --mycel-border-strong: #d3c5ac;  /* inputs, emphasis               */
+  --mycel-text: #2a1f17;           /* espresso ink                   */
+  --mycel-text-2: #695b4d;         /* taupe                          */
+  --mycel-muted: #8f8171;          /* placeholders, hints            */
 
-  /* Brand accent — orange10/11 for AA contrast on light             */
-  --mycel-accent: #ef5f00;         /* orange10                       */
-  --mycel-accent-hover: #cc4e00;   /* orange11                       */
-  --mycel-accent-subtle: #ffefd6;  /* orange3                        */
-  --mycel-accent-fg: #ffffff;
+  /* Brand accent — chanterelle amber, deep cut for cream grounds */
+  --mycel-accent: #a35d0a;
+  --mycel-accent-hover: #8a4d06;
+  --mycel-accent-subtle: #f4e5c9;
+  --mycel-accent-fg: #fdfaf3;
 
-  /* Semantics (Radix step 11 — text-grade contrast on light)        */
-  --mycel-success: #2a7e3b;        /* grass11                        */
-  --mycel-warning: #ab6400;        /* amber11                        */
-  --mycel-error: #ce2c31;          /* red11                          */
-  --mycel-live: #ce2c31;           /* red11                          */
-  --mycel-info: #107d98;           /* cyan11                         */
+  /* Semantics — earthy family, text-grade contrast on cream */
+  --mycel-success: #4e7a3a;        /* moss                           */
+  --mycel-warning: #8f6400;        /* honey, deep                    */
+  --mycel-error: #b3402e;          /* brick                          */
+  --mycel-live: #b3402e;           /* brick                          */
+  --mycel-info: #46688a;           /* dusty spore blue               */
 
-  /* Semantic tints (Radix step 3) — badge/pill backgrounds          */
-  --mycel-success-subtle: #e9f6e9; /* grass3                         */
-  --mycel-warning-subtle: #fff7c2; /* amber3                         */
-  --mycel-error-subtle: #feebec;   /* red3                           */
-  --mycel-info-subtle: #def7f9;    /* cyan3                          */
+  /* Semantic tints — badge/pill backgrounds in the cream family */
+  --mycel-success-subtle: #e7edda;
+  --mycel-warning-subtle: #f6ebc7;
+  --mycel-error-subtle: #f8e1d8;
+  --mycel-info-subtle: #e0e9ef;
 
-  /* Elevation — soft warm ambient (shadow color is sand12)          */
-  --mycel-shadow-sm: 0 1px 2px rgba(33, 32, 28, 0.07);
+  /* Chart series — same slots, stepped for the cream surface */
+  --mycel-chart-1: #3d7fc1;        /* spore blue                     */
+  --mycel-chart-2: #c25060;        /* dusty rose                     */
+  --mycel-chart-3: #9c7a00;        /* café gold                      */
+  --mycel-chart-4: #7d63c1;        /* spore lavender                 */
+  --mycel-chart-5: #5c8f3e;        /* moss                           */
+  --mycel-chart-6: #0e9287;        /* lichen teal                    */
+  --mycel-chart-7: #7f8b1d;        /* olive                          */
+
+  /* Elevation — soft porcini/amber ambient, never gray */
+  --mycel-shadow-sm: 0 1px 2px rgba(92, 58, 16, 0.08);
   --mycel-shadow:
-    0 4px 12px rgba(33, 32, 28, 0.08),
-    0 1px 3px rgba(33, 32, 28, 0.06);
+    0 4px 12px rgba(122, 76, 22, 0.09),
+    0 1px 3px rgba(92, 58, 16, 0.07);
   --mycel-shadow-lg:
-    0 16px 48px rgba(33, 32, 28, 0.16),
-    0 4px 12px rgba(33, 32, 28, 0.08);
+    0 16px 48px rgba(122, 76, 22, 0.16),
+    0 4px 12px rgba(92, 58, 16, 0.08);
 
-  --mycel-overlay: rgba(33, 32, 28, 0.4);
-  --mycel-scrollbar-thumb: rgba(33, 32, 28, 0.14);
+  --mycel-overlay: rgba(42, 31, 23, 0.4);
+  --mycel-scrollbar-thumb: rgba(92, 74, 56, 0.18);
 
   color-scheme: light;
 }
@@ -170,13 +208,23 @@ textarea:focus-visible,
   border-radius: 4px;
 }
 
-/* Smooth theme transitions */
+/* Smooth theme + hover transitions — color and shadow ease alongside
+   the surfaces so accent hovers and elevation lifts never snap. */
 *,
 *::before,
 *::after {
-  transition-property: background-color, border-color;
+  transition-property: background-color, border-color, color, box-shadow;
   transition-duration: 150ms;
   transition-timing-function: ease;
+}
+
+/* Selection follows the amber voice */
+::selection {
+  background-color: rgba(163, 93, 10, 0.22);
+  color: inherit;
+}
+:root:not(.light) ::selection {
+  background-color: rgba(232, 163, 61, 0.3);
 }
 
 /* Scrollbar styling */
