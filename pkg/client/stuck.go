@@ -1,6 +1,7 @@
 package client
 
 import (
+	"strconv"
 	"time"
 )
 
@@ -84,7 +85,7 @@ func DetectStuck(events []EventInfo, config StuckConfig) StuckDetection {
 	if failureCount >= config.MaxFailures {
 		detection.IsStuck = true
 		detection.Reason = StuckRepeatedFailures
-		detection.Details = "task failed " + string(rune('0'+failureCount)) + " times"
+		detection.Details = "task failed " + strconv.Itoa(failureCount) + " times"
 		return detection
 	}
 
