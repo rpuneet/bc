@@ -148,11 +148,11 @@ export function InstallSection() {
       <div className="mx-auto max-w-4xl px-4 sm:px-6">
         <ScrollReveal distance={20}>
           <span className="deck-eyebrow">
-            For your terminal
+            Prefer the command line?
           </span>
           <div className="mt-3 flex flex-col items-start gap-3 sm:flex-row sm:items-end sm:justify-between">
             <h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">
-              Get mycel.
+              There&rsquo;s a CLI too.
             </h2>
             <span className="inline-flex items-center gap-2 rounded-full border border-border bg-card/80 px-3 py-1 font-mono text-xs text-muted-foreground">
               <span className="h-1.5 w-1.5 rounded-full bg-success" />
@@ -160,9 +160,10 @@ export function InstallSection() {
             </span>
           </div>
           <p className="mt-4 max-w-2xl text-muted-foreground">
-            One install, no sign-up. Pick your platform, copy the command, and{" "}
+            The app is all you need &mdash; but if you live in the terminal,
+            install the binary and{" "}
             <code className="font-mono text-sm text-primary">mycel up</code>{" "}
-            opens the app.
+            runs the same thing. Full command reference is in the docs.
           </p>
         </ScrollReveal>
 
@@ -224,7 +225,7 @@ export function InstallSection() {
             <CodeBlock
               id="after"
               lines={[
-                "mycel up   # starts mycel — the app is at localhost:9374",
+                "mycel up   # same as opening the app — dashboard at localhost:9374",
               ]}
             />
           </div>

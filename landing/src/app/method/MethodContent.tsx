@@ -28,16 +28,16 @@ type Step = {
 const STEPS: Step[] = [
   {
     number: "01",
-    title: "Start it",
+    title: "Open it",
     body: (
       <>
-        One command:{" "}
+        Launch the desktop app &mdash; it runs everything and opens your
+        dashboard. No cloud account, no sign-up, nothing leaves your machine.
+        Prefer the terminal? One command,{" "}
         <code className="method-cmd">
           <span className="prompt">$</span> mycel up
         </code>
-        . The app opens on localhost &mdash; no cloud account, no sign-up,
-        nothing leaves your machine. Run it as a desktop app or in your
-        browser; it&rsquo;s the same app either way.
+        , does the same and serves it in your browser.
       </>
     ),
   },
@@ -49,7 +49,7 @@ const STEPS: Step[] = [
         Point mycel at a repository and create an agent. It gets a name, a
         face, and its own git worktree &mdash; a full working copy of your
         repo on its own branch. Choose the tool it runs (Claude Code, Gemini,
-        Codex, Cursor, Aider), give it a job, and it starts working.
+        Codex, Cursor, and more), give it a job, and it starts working.
       </>
     ),
     artifact: (
@@ -281,7 +281,7 @@ export function MethodContent() {
               id="method-shape"
               part="Part one"
               title="The shape of it"
-              lede="From an empty terminal to a reviewed diff. Five steps, in the order they happen."
+              lede="From opening the app to a reviewed diff. Five steps, in the order they happen."
             />
 
             {/* The hyphae spine threads the steps together */}

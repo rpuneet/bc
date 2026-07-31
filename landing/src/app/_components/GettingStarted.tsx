@@ -13,11 +13,11 @@ const STEPS = [
   {
     n: "01",
     icon: Download,
-    title: "Install it",
+    title: "Download the app",
     body: (
       <>
-        One line for your platform — <code className="gs-code">curl</code>,{" "}
-        <code className="gs-code">brew</code>, or the desktop app. No sign-up.
+        Get mycel for macOS, Linux, or Windows. It runs everything — nothing
+        else to install, no sign-up.
       </>
     ),
     href: "/docs#installation",
@@ -26,11 +26,12 @@ const STEPS = [
   {
     n: "02",
     icon: Play,
-    title: "Run mycel up",
+    title: "Open it",
     body: (
       <>
-        <code className="gs-code">mycel up</code> starts everything and opens the
-        app at <code className="gs-code">localhost:9374</code>.
+        The app starts the whole system and opens your dashboard — no terminal,
+        no setup. Prefer the CLI? <code className="gs-code">mycel up</code> does
+        the same.
       </>
     ),
     href: "/docs#your-first-agent",
@@ -64,8 +65,8 @@ export function GettingStarted() {
             Up and running in three steps.
           </h2>
           <p className="mt-4 max-w-2xl font-body text-on-surface-variant">
-            From an empty terminal to your first working agent. Each step links
-            straight into the docs.
+            From download to your first working agent. Each step links straight
+            into the docs.
           </p>
         </FadeUp>
 
