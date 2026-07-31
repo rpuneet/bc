@@ -211,14 +211,21 @@ jobs:
         working-directory: desktop
         env:
           PLATFORM: ${{ matrix.os }}/${{ matrix.arch }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+          COMMIT: ${{ github.sha }}
         run: |
+          # Inject the release version so the app's About/info shows it instead
+          # of the "dev" default, and sync the Wails product version so the
+          # bundle metadata (macOS Info.plist / Windows file info) matches.
+          LDFLAGS="-X main.version=${VERSION} -X main.commit=${COMMIT} -X main.date=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          sed -i.bak "s/\"productVersion\": \"[^\"]*\"/\"productVersion\": \"${VERSION}\"/" wails.json && rm -f wails.json.bak
           case "${{ matrix.os }}" in
             linux)
               # webkit2gtk 4.1 on the ubuntu runners; wails v2 defaults to 4.0 pkg-config
-              wails build -tags webkit2_41 -platform "$PLATFORM" ;;
+              wails build -tags webkit2_41 -platform "$PLATFORM" -ldflags "$LDFLAGS" ;;
             *)
               # darwin/amd64 cross-builds on Apple Silicon runners; others are native
-              wails build -platform "$PLATFORM" ;;
+              wails build -platform "$PLATFORM" -ldflags "$LDFLAGS" ;;
           esac
 
       # ── macOS code-signing + notarization (gated on secrets) ───────────
