@@ -1,5 +1,5 @@
 /**
- * Live.test.tsx — unit tests for the Live view's "show stopped" toggle.
+ * Home.test.tsx — unit tests for the Home view's "show stopped" toggle.
  *
  * Covers the real-time activity stream filter that hides stopped/errored
  * agents by default so the stream isn't swamped by idle noise.
@@ -15,7 +15,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, fireEvent, act } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { Live, SHOW_STOPPED_STORAGE_KEY } from "./Live";
+import { Home, SHOW_STOPPED_STORAGE_KEY } from "./Home";
 import { HeaderSlotProvider, useHeaderSlotContext } from "../context/HeaderSlotContext";
 
 const fetchMock = globalThis.fetch as ReturnType<typeof vi.fn>;
@@ -50,7 +50,7 @@ function mockAgentsApi(list: ReturnType<typeof agent>[]) {
 }
 
 /** Renders the header-slot content the way Layout's full-width bar does —
- *  Live's presence line + controls now live there, not in the page body. */
+ *  Home's presence line + controls now live there, not in the page body. */
 function HeaderHost() {
   const { slot } = useHeaderSlotContext();
   return (
@@ -61,12 +61,12 @@ function HeaderHost() {
   );
 }
 
-function renderLive() {
+function renderHome() {
   return render(
     <MemoryRouter>
       <HeaderSlotProvider>
         <HeaderHost />
-        <Live />
+        <Home />
       </HeaderSlotProvider>
     </MemoryRouter>,
   );
@@ -125,7 +125,7 @@ beforeEach(() => {
   window.localStorage.clear();
 });
 
-describe("Live — show-stopped toggle", () => {
+describe("Home — show-stopped toggle", () => {
   it("hides stopped and error agents by default, shows active ones", async () => {
     mockAgentsApi([
       agent("alice", "working"),
@@ -134,7 +134,7 @@ describe("Live — show-stopped toggle", () => {
       agent("dave", "error"),
     ]);
 
-    renderLive();
+    renderHome();
 
     await waitForAgentCard("alice");
 
@@ -164,7 +164,7 @@ describe("Live — show-stopped toggle", () => {
       agent("dave", "error"),
     ]);
 
-    renderLive();
+    renderHome();
 
     await waitForAgentCard("alice");
     expect(agentCardVisible("carol")).toBe(false);
@@ -186,7 +186,7 @@ describe("Live — show-stopped toggle", () => {
       agent("carol", "stopped"),
     ]);
 
-    const { unmount } = renderLive();
+    const { unmount } = renderHome();
 
     await waitForAgentCard("alice");
 
@@ -200,7 +200,7 @@ describe("Live — show-stopped toggle", () => {
 
     // Remount: the setting should survive.
     unmount();
-    renderLive();
+    renderHome();
 
     await waitForAgentCard("alice");
     // Stopped agent visible immediately on second mount — no toggle click needed.
@@ -215,7 +215,7 @@ describe("Live — show-stopped toggle", () => {
       agent("carol", "stopped"),
     ]);
 
-    renderLive();
+    renderHome();
 
     await waitForAgentCard("alice");
     // Stopped agent is visible because localStorage said so.
@@ -223,11 +223,11 @@ describe("Live — show-stopped toggle", () => {
   });
 });
 
-describe("Live — header ⋯ menu", () => {
+describe("Home — header ⋯ menu", () => {
   it("opens, fires actions, and closes on outside click and Escape", async () => {
     mockAgentsApi([agent("alice", "working")]);
 
-    renderLive();
+    renderHome();
     await waitForAgentCard("alice");
 
     const moreButton = screen.getByRole("button", { name: "More options" });

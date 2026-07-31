@@ -6,14 +6,23 @@ import { flattenNodes, nodeMatchesSearch } from "../components/live/liveHelpers"
 import { AgentCard, AgentDrillDown } from "../components/live/LiveRenderers";
 
 import { useHeaderSlot } from "../context/HeaderSlotContext";
+import { OverviewStrip } from "./home/OverviewStrip";
+import { ActivityFeed } from "./home/ActivityFeed";
+import { CostCharts } from "./home/CostCharts";
+import { SystemPulse } from "./home/SystemPulse";
 
-/* ── Live ──────────────────────────────────────────────────────────────
+/* ── Home ───────────────────────────────────────────────────────────────
  *
- * Calm control room. The page answers one question at a glance — "what
- * are my agents doing right now" — with a single presence sentence and
- * the agent cards themselves. Everything secondary (pause, export, type
- * filter, shortcuts) lives behind one ⋯ menu so the default surface has
- * exactly three elements: presence, search, more.
+ * The command-center home. The live agent stream (the AgentCard stream,
+ * unchanged from the old /live view) is the centerpiece column; a dense,
+ * live-streaming grid wraps around it — an overview strip up top, then an
+ * activity feed, two cost charts and a system pulse in the right rail.
+ * Everything ticks without a page reload: the stream + event counters run
+ * on SSE, the feed polls, the cost modules refresh every 60s.
+ *
+ * Every capability from the old Live view survives (presence, search,
+ * pause, type filter, export, drill-down, keyboard shortcuts) — they live
+ * in the stream module's own header row and the full-width top bar.
  */
 
 export const SHOW_STOPPED_STORAGE_KEY = "bc-live-show-stopped";
@@ -138,7 +147,7 @@ function PresenceLine({
   );
 }
 
-export function Live() {
+export function Home() {
   const { activities, tasks, rawEventsRef, connected, reconnecting, eventCount } = useAgentActivity();
   const [typeFilter, setTypeFilter] = useState<FilterType>("all");
   const [searchFilter, setSearchFilter] = useState("");
@@ -176,17 +185,28 @@ export function Live() {
   }, []);
 
   const summary = useMemo(() => {
-    let idle = 0, working = 0, errored = 0, stopped = 0;
+    let idle = 0, working = 0, errored = 0, stopped = 0, total = 0;
     for (const a of activities.values()) {
+      total++;
       if (!ACTIVE_STATES.has(a.state)) stopped++;
       if (a.state === "idle") idle++;
       else if (a.state === "working" || a.state === "starting") working++;
       else if (a.state === "error" || a.state === "stuck") errored++;
     }
-    return { idle, working, errored, stopped };
+    return { idle, working, errored, stopped, total };
   }, [activities]);
   const stoppedCount = summary.stopped;
   const activeCount = summary.working + summary.idle;
+  const fleetSummary = useMemo(
+    () => ({
+      working: summary.working,
+      idle: summary.idle,
+      stuck: summary.errored,
+      stopped: summary.stopped,
+      total: summary.total,
+    }),
+    [summary],
+  );
 
   const sorted = useMemo(() => {
     const filtered = Array.from(activities.values())
@@ -471,105 +491,128 @@ export function Live() {
   }
 
   return (
-    <div className="p-6 flex flex-col h-full relative">
-      {/* Controls live in the full-width header (presence · search · ⋯) */}
+    <div className="flex flex-col h-full min-h-0 p-4 gap-3">
+      {/* ── Overview strip — full-width live counters ── */}
+      <OverviewStrip summary={fleetSummary} eventCount={eventCount} connected={connected} />
 
-      {/* Keyboard Shortcuts Overlay */}
-      {showShortcuts && (
-        <div className="absolute top-16 right-6 z-50 bg-mycel-surface-2 border border-mycel-border rounded-lg shadow-mycel-lg p-4 w-64">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-sm font-semibold text-mycel-text">Keyboard Shortcuts</span>
+      {/* ── Dense grid: agents stream (≈60%) + right rail ──
+          Single column on mobile; the rail drops below the stream. */}
+      <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] gap-3">
+        {/* Agents live stream — the centerpiece, unchanged behavior. */}
+        <div className="min-h-0 flex flex-col rounded-lg border border-mycel-border bg-mycel-surface overflow-hidden relative">
+          <div className="shrink-0 flex items-center gap-2 px-3 py-1.5 border-b border-mycel-border bg-mycel-bg">
+            <span className="text-[10px] font-semibold text-mycel-muted uppercase tracking-widest">
+              Agents live
+            </span>
+            <span className="ml-auto">
+              <SystemPulse />
+            </span>
+          </div>
+
+          {/* Keyboard Shortcuts Overlay */}
+          {showShortcuts && (
+            <div className="absolute top-12 right-3 z-50 bg-mycel-surface-2 border border-mycel-border rounded-lg shadow-mycel-lg p-4 w-64">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-sm font-semibold text-mycel-text">Keyboard Shortcuts</span>
+                <button
+                  type="button"
+                  onClick={() => setShowShortcuts(false)}
+                  className="text-mycel-muted hover:text-mycel-text text-sm"
+                >
+                  &times;
+                </button>
+              </div>
+              <div className="space-y-1.5 text-xs">
+                {[
+                  ["/", "Focus search"],
+                  ["Esc", "Clear search / close"],
+                  ["j", "Next agent card"],
+                  ["k", "Previous agent card"],
+                  ["Enter", "Expand/collapse focused card"],
+                  ["?", "Toggle this help"],
+                ].map(([key, desc]) => (
+                  <div key={key} className="flex items-center gap-2">
+                    <kbd className="inline-flex items-center justify-center min-w-[24px] h-5 px-1.5 rounded bg-mycel-bg border border-mycel-border text-mycel-text font-mono text-[11px]">
+                      {key}
+                    </kbd>
+                    <span className="text-mycel-muted">{desc}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Agent activity cards — the agents ARE the dashboard.
+              overflow-anchor: none stops the browser auto-scrolling when a
+              card above the viewport changes height. */}
+          <div
+            ref={scrollContainerRef}
+            className="flex-1 overflow-y-auto min-h-0 space-y-2.5 relative p-3"
+            style={{ overflowAnchor: "none", scrollbarGutter: "stable" }}
+          >
+            {sorted.length === 0 ? (
+              !showStopped && activeCount === 0 && stoppedCount > 0 ? (
+                <EmptyState
+                  icon=">"
+                  title="No active agents"
+                  description={`${stoppedCount} stopped or errored ${stoppedCount === 1 ? "agent is" : "agents are"} hidden — click "(hidden)" above to reveal.`}
+                />
+              ) : (
+                <EmptyState
+                  icon=">"
+                  title="No activity yet"
+                  description="Events will stream here in real-time as agents work."
+                />
+              )
+            ) : (
+              sorted.map((activity, idx) => (
+                <div
+                  key={activity.name}
+                  className={focusedCardIdx === idx ? "ring-2 ring-mycel-accent rounded-lg" : ""}
+                >
+                  <AgentCard
+                    activity={activity}
+                    onToggle={() => toggleAgent(activity.name)}
+                    onDrillDown={() => setDrillDownAgent(activity.name)}
+                    isFilterActive={false}
+                    searchTerm={searchFilter}
+                    typeFilter={typeFilter}
+                  />
+                </div>
+              ))
+            )}
+          </div>
+
+          {/* Back-to-latest pill. The feed is newest-first, so "latest" is
+              at the TOP — the pill floats top-center and the arrow points
+              up. It turns accent when events arrived while scrolled away. */}
+          {showJumpToLatest && (
             <button
               type="button"
-              onClick={() => setShowShortcuts(false)}
-              className="text-mycel-muted hover:text-mycel-text text-sm"
+              onClick={jumpToLatest}
+              className={`absolute top-14 left-1/2 -translate-x-1/2 z-20 inline-flex items-center gap-1.5 h-8 px-3.5 rounded-full text-xs font-medium shadow-mycel-lg transition-colors ${
+                newEventsSinceScroll > 0
+                  ? "bg-mycel-accent text-mycel-accent-fg hover:bg-mycel-accent-hover"
+                  : "border border-mycel-border bg-mycel-surface-2 text-mycel-text-2 hover:text-mycel-text hover:bg-mycel-surface-hover"
+              }`}
             >
-              &times;
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="M8 13V3M3.5 7.5L8 3l4.5 4.5" />
+              </svg>
+              {newEventsSinceScroll > 0
+                ? `${newEventsSinceScroll} new event${newEventsSinceScroll === 1 ? "" : "s"}`
+                : "Back to latest"}
             </button>
-          </div>
-          <div className="space-y-1.5 text-xs">
-            {[
-              ["/", "Focus search"],
-              ["Esc", "Clear search / close"],
-              ["j", "Next agent card"],
-              ["k", "Previous agent card"],
-              ["Enter", "Expand/collapse focused card"],
-              ["?", "Toggle this help"],
-            ].map(([key, desc]) => (
-              <div key={key} className="flex items-center gap-2">
-                <kbd className="inline-flex items-center justify-center min-w-[24px] h-5 px-1.5 rounded bg-mycel-bg border border-mycel-border text-mycel-text font-mono text-[11px]">
-                  {key}
-                </kbd>
-                <span className="text-mycel-muted">{desc}</span>
-              </div>
-            ))}
-          </div>
+          )}
         </div>
-      )}
 
-      {/* Agent activity cards — the agents ARE the dashboard.
-          overflow-anchor: none stops the browser auto-scrolling when a
-          card above the viewport changes height. */}
-      <div
-        ref={scrollContainerRef}
-        className="flex-1 overflow-y-auto min-h-0 space-y-3 relative max-h-full"
-        style={{ overflowAnchor: "none", scrollbarGutter: "stable" }}
-      >
-        {sorted.length === 0 ? (
-          !showStopped && activeCount === 0 && stoppedCount > 0 ? (
-            <EmptyState
-              icon=">"
-              title="No active agents"
-              description={`${stoppedCount} stopped or errored ${stoppedCount === 1 ? "agent is" : "agents are"} hidden — click "(hidden)" above to reveal.`}
-            />
-          ) : (
-            <EmptyState
-              icon=">"
-              title="No activity yet"
-              description="Events will stream here in real-time as agents work."
-            />
-          )
-        ) : (
-          sorted.map((activity, idx) => (
-            <div
-              key={activity.name}
-              className={focusedCardIdx === idx ? "ring-2 ring-mycel-accent rounded-lg" : ""}
-            >
-              <AgentCard
-                activity={activity}
-                onToggle={() => toggleAgent(activity.name)}
-                onDrillDown={() => setDrillDownAgent(activity.name)}
-                isFilterActive={false}
-                searchTerm={searchFilter}
-                typeFilter={typeFilter}
-              />
-            </div>
-          ))
-        )}
+        {/* Right rail — activity feed + cost charts. Scrolls with the
+            page on mobile; owns its own scroll on desktop. */}
+        <div className="min-h-0 lg:overflow-y-auto flex flex-col gap-3" style={{ scrollbarGutter: "stable" }}>
+          <ActivityFeed />
+          <CostCharts />
+        </div>
       </div>
-
-      {/* Back-to-latest pill. The feed is newest-first, so "latest" is at
-          the TOP — the pill floats top-center (like chat apps' new-message
-          pills) and the arrow points up. It turns accent when events
-          arrived while scrolled away. */}
-      {showJumpToLatest && (
-        <button
-          type="button"
-          onClick={jumpToLatest}
-          className={`absolute top-3 left-1/2 -translate-x-1/2 z-20 inline-flex items-center gap-1.5 h-8 px-3.5 rounded-full text-xs font-medium shadow-mycel-lg transition-colors ${
-            newEventsSinceScroll > 0
-              ? "bg-mycel-accent text-mycel-accent-fg hover:bg-mycel-accent-hover"
-              : "border border-mycel-border bg-mycel-surface-2 text-mycel-text-2 hover:text-mycel-text hover:bg-mycel-surface-hover"
-          }`}
-        >
-          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-            <path d="M8 13V3M3.5 7.5L8 3l4.5 4.5" />
-          </svg>
-          {newEventsSinceScroll > 0
-            ? `${newEventsSinceScroll} new event${newEventsSinceScroll === 1 ? "" : "s"}`
-            : "Back to latest"}
-        </button>
-      )}
     </div>
   );
 }

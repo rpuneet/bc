@@ -8,7 +8,7 @@ import { CodeBrowser } from "../../components/code/CodeBrowser";
 import { EmptyState } from "../../components/EmptyState";
 import { Apps } from "../Apps";
 import { Tools } from "../Tools";
-import { Live } from "../Live";
+import { Home } from "../Home";
 import { CustomKeysSection } from "../../components/apps/CustomKeys";
 
 // Monaco loads its editor bundle from a CDN at mount time — stub it out so
@@ -620,14 +620,14 @@ describe("Tools", () => {
   });
 });
 
-describe("Live", () => {
+describe("Home", () => {
   it("renders without crashing", async () => {
     fetchMock.mockImplementation((url: string) => {
       if (url.includes("/agents")) return jsonResponse([]);
       if (url.includes("/logs")) return jsonResponse([]);
       return jsonResponse([]);
     });
-    wrap(<Live />);
+    wrap(<Home />);
     await waitFor(() => {
       expect(screen.getByText("No activity yet")).toBeInTheDocument();
     });

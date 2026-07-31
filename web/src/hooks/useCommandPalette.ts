@@ -41,7 +41,7 @@ export function useCommandPalette() {
   const items: CommandItem[] = useMemo(
     () => [
       // Navigation — mirrors the sidebar order exactly.
-      { id: "nav-live", label: "Live", section: "Navigate", icon: "~", action: () => navigate("/live") },
+      { id: "nav-home", label: "Home", section: "Navigate", icon: "~", action: () => navigate("/") },
       { id: "nav-agents", label: "Agents", section: "Navigate", icon: "A", action: () => navigate("/agents") },
       { id: "nav-apps", label: "Apps", section: "Navigate", icon: "A", action: () => navigate("/apps") },
       { id: "nav-code", label: "Code", section: "Navigate", icon: "<", action: () => navigate("/code") },
