@@ -22,6 +22,7 @@ function Logo({ reserved = false }: { reserved?: boolean }) {
         // (see HeroLogo); reserve its box so the wordmark doesn't shift.
         <span
           aria-hidden="true"
+          data-dock-slot
           className="block"
           style={{ width: 26, height: 26 }}
         />

@@ -51,6 +51,10 @@ export function SporeLogo({
         }
         .spore-alive { transform-origin: 52% 82%; animation: spore-breathe 5.2s ease-in-out infinite; }
         .spore-alive:hover { transform: scale(1.08) rotate(-2deg); }
+        @media (prefers-reduced-motion: reduce) {
+          .spore-mark .drift-a, .spore-mark .drift-b, .spore-mark .drift-c { animation: none; }
+          .spore-alive { animation: none; }
+        }
       `}</style>
 
       {/* Hyphae threads reaching down from the stem */}

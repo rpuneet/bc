@@ -62,6 +62,7 @@ export function SocialProof() {
         }
         .badge-alive { animation: badge-bob 3.6s ease-in-out infinite; will-change: transform; }
         .badge-alive:hover { animation-play-state: paused; }
+        @media (prefers-reduced-motion: reduce) { .badge-alive { animation: none; } }
       `}</style>
       <Badge icon={Star} value={compact(stars)} label="stars" href={repoUrl} index={0} />
       <Badge

@@ -17,9 +17,9 @@ import { SporeLogo } from "./SporeLogo";
  * and vertical position animate. Fully responsive-safe.
  */
 
-const HERO_SIZE = 60;
-const NAV_SIZE = 26;
-const NAV_TOP = 15; // viewport-y where the mark docks in the scrolled nav
+const HERO_SIZE = 84;
+const NAV_SIZE = 26; // fallback if the nav slot can't be measured
+const NAV_TOP = 15; // fallback dock y
 const TRAVEL = 200; // px of scroll over which it fully docks
 
 export function HeroLogo() {
@@ -37,13 +37,18 @@ export function HeroLogo() {
       const el = anchorRef.current;
       if (!el) return;
       const r = el.getBoundingClientRect(); // viewport coords, tracks scroll
+      // Measure the nav's reserved slot live so the dock target follows the
+      // header exactly across breakpoints and the scrolled/unscrolled states —
+      // no duplicated layout constants.
+      const slotEl = document.querySelector<HTMLElement>("[data-dock-slot]");
+      const slot = slotEl?.getBoundingClientRect();
+      const dockLeft = slot ? slot.left : r.left;
+      const dockTop = slot ? slot.top : NAV_TOP;
+      const dockSize = slot ? slot.width : NAV_SIZE;
       const p = Math.min(1, Math.max(0, window.scrollY / TRAVEL));
-      const size = HERO_SIZE + (NAV_SIZE - HERO_SIZE) * p;
-      // Hero anchor and nav spacer both sit at the container's left edge, so
-      // the mark's left edge stays put and it shrinks toward its top-left,
-      // landing exactly on the nav's reserved slot.
-      const left = r.left;
-      const top = r.top + (NAV_TOP - r.top) * p;
+      const size = HERO_SIZE + (dockSize - HERO_SIZE) * p;
+      const left = r.left + (dockLeft - r.left) * p;
+      const top = r.top + (dockTop - r.top) * p;
       setPos({ left, top, size });
     }
     function onScroll() {

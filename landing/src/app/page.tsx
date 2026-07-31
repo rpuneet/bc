@@ -147,8 +147,8 @@ export default function Home() {
             {/* Icon in a left gutter, dense text block to its right. The mark
                sits at the container's left edge and travels up into the nav on
                scroll (HeroLogo). */}
-            <div className="flex items-start gap-4 sm:gap-7">
-              <FadeUp>
+            <div className="flex items-start gap-4 sm:gap-6">
+              <FadeUp className="shrink-0 pt-1">
                 <HeroLogo />
               </FadeUp>
 
