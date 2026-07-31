@@ -75,7 +75,7 @@ export function ActivityFeed() {
   const messages = data ?? [];
 
   return (
-    <HomeModule label="Activity" to="/apps/activity" testId="home-activity">
+    <HomeModule label="Activity" to="/apps/activity" testId="home-activity" fill>
       {data === null ? (
         <div className="py-4 text-center text-[11px] text-mycel-muted">Loading…</div>
       ) : messages.length === 0 ? (

@@ -14,6 +14,7 @@ export function HomeModule({
   toLabel,
   children,
   testId,
+  fill,
 }: {
   label: string;
   trailing?: React.ReactNode;
@@ -22,13 +23,19 @@ export function HomeModule({
   toLabel?: string;
   children: React.ReactNode;
   testId?: string;
+  /** When true the module flexes to fill its parent and its body scrolls
+   *  internally — used so a long feed never pushes sibling modules off
+   *  the fold. */
+  fill?: boolean;
 }) {
   return (
     <section
       data-testid={testId}
-      className="rounded-lg border border-mycel-border bg-mycel-surface shadow-mycel-sm overflow-hidden shrink-0"
+      className={`rounded-lg border border-mycel-border bg-mycel-surface shadow-mycel-sm overflow-hidden ${
+        fill ? "flex flex-col min-h-0 flex-1" : "shrink-0"
+      }`}
     >
-      <header className="flex items-center gap-2 px-3 py-1.5 border-b border-mycel-border bg-mycel-bg">
+      <header className="shrink-0 flex items-center gap-2 px-3 py-1.5 border-b border-mycel-border bg-mycel-bg">
         <span
           className="text-[10px] font-semibold text-mycel-muted uppercase tracking-widest truncate"
           style={{ fontFamily: MONO }}
@@ -47,7 +54,7 @@ export function HomeModule({
           )}
         </span>
       </header>
-      <div className="p-2.5">{children}</div>
+      <div className={`p-2.5 ${fill ? "flex-1 min-h-0 overflow-y-auto" : ""}`}>{children}</div>
     </section>
   );
 }

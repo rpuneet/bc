@@ -606,9 +606,9 @@ export function Home() {
           )}
         </div>
 
-        {/* Right rail — activity feed + cost charts. Scrolls with the
-            page on mobile; owns its own scroll on desktop. */}
-        <div className="min-h-0 lg:overflow-y-auto flex flex-col gap-3" style={{ scrollbarGutter: "stable" }}>
+        {/* Right rail — activity feed (fills + scrolls internally) with the
+            two cost charts pinned below so they stay on the fold. */}
+        <div className="min-h-0 flex flex-col gap-3">
           <ActivityFeed />
           <CostCharts />
         </div>
