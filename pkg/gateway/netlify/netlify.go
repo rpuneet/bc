@@ -3,10 +3,15 @@ package netlify
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -47,18 +52,21 @@ func (a *Adapter) HTTPHandler() http.Handler {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
-		// Netlify signs with a JWT in X-Webhook-Signature; check presence if secret is set.
-		if a.secret != "" {
-			sig := r.Header.Get("X-Webhook-Signature")
-			if sig == "" {
-				http.Error(w, "missing signature", http.StatusUnauthorized)
-				return
-			}
-		}
 		body, err := io.ReadAll(r.Body)
 		if err != nil {
 			http.Error(w, "failed to read body", http.StatusBadRequest)
 			return
+		}
+		// Netlify signs outgoing webhooks with a JWS (JWT, HS256) in the
+		// X-Webhook-Signature header, keyed by the configured secret. The
+		// JWT's "sha256" claim is the hex SHA-256 of the request body, so we
+		// verify both the signature and that the body hash matches.
+		if a.secret != "" {
+			sig := r.Header.Get("X-Webhook-Signature")
+			if !validateSignature(a.secret, sig, body) {
+				http.Error(w, "invalid signature", http.StatusUnauthorized)
+				return
+			}
 		}
 		eventType := r.Header.Get("X-Netlify-Event")
 		if eventType == "" {
@@ -93,6 +101,42 @@ func (a *Adapter) Status() gateway.AdapterStatus {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	return gateway.AdapterStatus{Connected: a.connected, LastMessageAt: a.lastMessageAt, Error: a.lastError, MessageCount: a.messageCount.Load()}
+}
+
+// validateSignature verifies Netlify's X-Webhook-Signature JWS (a compact JWT
+// signed with HS256 using the shared secret). It checks the HMAC over the
+// signing input and, when present, that the token's "sha256" claim equals the
+// hex SHA-256 of the request body. Any malformed token fails closed.
+func validateSignature(secret, token string, body []byte) bool {
+	parts := strings.Split(token, ".")
+	if len(parts) != 3 { //nolint:mnd // a compact JWS always has exactly 3 dot-separated parts
+		return false
+	}
+	signingInput := parts[0] + "." + parts[1]
+	mac := hmac.New(sha256.New, []byte(secret))
+	mac.Write([]byte(signingInput))
+	expectedSig := base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
+	if !hmac.Equal([]byte(parts[2]), []byte(expectedSig)) {
+		return false
+	}
+	payloadJSON, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return false
+	}
+	var claims struct {
+		SHA256 string `json:"sha256"`
+	}
+	if err := json.Unmarshal(payloadJSON, &claims); err != nil {
+		return false
+	}
+	// The body-hash claim is optional; when set it must match the payload.
+	if claims.SHA256 != "" {
+		sum := sha256.Sum256(body)
+		if !hmac.Equal([]byte(claims.SHA256), []byte(hex.EncodeToString(sum[:]))) {
+			return false
+		}
+	}
+	return true
 }
 
 func extractSender(body []byte) string {

@@ -3,9 +3,7 @@ package datadog
 
 import (
 	"context"
-	"crypto/hmac"
-	"crypto/sha256"
-	"encoding/hex"
+	"crypto/subtle"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -55,10 +53,13 @@ func (a *Adapter) HTTPHandler() http.Handler {
 			http.Error(w, "failed to read body", http.StatusBadRequest)
 			return
 		}
+		// Datadog webhooks have NO built-in HMAC signature. The real
+		// mechanism is a shared secret placed in the webhook URL query
+		// (?secret=...) or the custom payload template ("secret": "..."),
+		// which we compare in constant time when a secret is configured.
 		if a.secret != "" {
-			sig := r.Header.Get("X-Datadog-Signature")
-			if !validateSignature(a.secret, sig, body) {
-				http.Error(w, "invalid signature", http.StatusUnauthorized)
+			if !validateSecret(a.secret, r.URL.Query().Get("secret"), body) {
+				http.Error(w, "invalid secret", http.StatusUnauthorized)
 				return
 			}
 		}
@@ -93,14 +94,21 @@ func (a *Adapter) Status() gateway.AdapterStatus {
 	return gateway.AdapterStatus{Connected: a.connected, LastMessageAt: a.lastMessageAt, Error: a.lastError, MessageCount: a.messageCount.Load()}
 }
 
-func validateSignature(secret, signature string, body []byte) bool {
-	if signature == "" {
-		return false
+// validateSecret reports whether the configured shared secret matches the
+// secret supplied by the request — either the ?secret= query value or a
+// top-level "secret" field in the JSON payload. Comparison is constant time.
+func validateSecret(secret, querySecret string, body []byte) bool {
+	if querySecret != "" && subtle.ConstantTimeCompare([]byte(querySecret), []byte(secret)) == 1 {
+		return true
 	}
-	mac := hmac.New(sha256.New, []byte(secret))
-	mac.Write(body)
-	expected := hex.EncodeToString(mac.Sum(nil))
-	return hmac.Equal([]byte(signature), []byte(expected))
+	var p struct {
+		Secret string `json:"secret"`
+	}
+	if err := json.Unmarshal(body, &p); err == nil && p.Secret != "" &&
+		subtle.ConstantTimeCompare([]byte(p.Secret), []byte(secret)) == 1 {
+		return true
+	}
+	return false
 }
 
 func extractEventType(body []byte) string {

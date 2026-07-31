@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -101,6 +102,9 @@ func validateSignature(secret, signature string, body []byte) bool {
 	if signature == "" {
 		return false
 	}
+	// Bitbucket sends "X-Hub-Signature: sha256=<hex>". Strip the algorithm
+	// prefix before comparing against our bare hex HMAC.
+	signature = strings.TrimPrefix(signature, "sha256=")
 	mac := hmac.New(sha256.New, []byte(secret))
 	mac.Write(body)
 	expected := hex.EncodeToString(mac.Sum(nil))
