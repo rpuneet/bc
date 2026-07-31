@@ -29,7 +29,7 @@ Costs are **not** stored in any database — they are computed on demand from pr
 
 ## Shared Connection
 
-`db.Global(cfg)` opens the process-wide handle lazily on first use and returns it together with the driver string (`"sqlite"` or `"timescale"`). Stores (`pkg/notify`, `pkg/mcp`, `pkg/tool`, `pkg/events`, roles, `pkg/cost`) all share this handle and never open the same file twice; the connection is cached for the life of the process and torn down only by `db.CloseGlobal()` at shutdown.
+`db.Global(cfg)` opens the process-wide handle lazily on first use and returns it together with the driver string (`"sqlite"` or `"timescale"`). Stores (`pkg/notify`, `pkg/mcp`, `pkg/tool`, `pkg/events`, roles, `pkg/cost` (TimescaleDB path only)) all share this handle and never open the same file twice; the connection is cached for the life of the process and torn down only by `db.CloseGlobal()` at shutdown.
 
 ```mermaid
 graph LR
@@ -106,7 +106,7 @@ Postgres support is fully implemented:
 
 ## Filesystem Layout
 
-```
+```text
 ~/.mycel/                       # MycelHome (MYCEL_HOME overrides)
   prefs.json                    # The one config file mycel reads
   mycel.db                      # THE database: agents, roles, events, notify, mcp, tools

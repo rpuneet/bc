@@ -217,6 +217,10 @@ func (h *AppsHandler) router(w http.ResponseWriter, r *http.Request) {
 	}
 	parts := strings.SplitN(path, "/", 2)
 	name := parts[0]
+	if !app.ValidInstanceName(name) {
+		httpError(w, "invalid app instance name", http.StatusBadRequest)
+		return
+	}
 	rest := ""
 	if len(parts) > 1 {
 		rest = parts[1]
@@ -266,10 +270,15 @@ func (h *AppsHandler) hasSecret(instance, key string) bool {
 
 // stateDir returns the per-instance state directory.
 func (h *AppsHandler) stateDir(instance string) string {
-	if h.h == nil {
+	if h.h == nil || !app.ValidInstanceName(instance) {
 		return ""
 	}
-	return filepath.Join(h.h.StateDir(), "apps", instance)
+	root := filepath.Join(h.h.StateDir(), "apps")
+	dir := filepath.Clean(filepath.Join(root, instance))
+	if !strings.HasPrefix(dir, root+string(filepath.Separator)) {
+		return ""
+	}
+	return dir
 }
 
 // update handles POST /api/apps/{name} — connect or update an instance.

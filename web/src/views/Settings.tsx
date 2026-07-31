@@ -514,7 +514,7 @@ export function Settings() {
       </div>
 
       {/* Row 3: Logs */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3">
         <Section title="logs" dirty={dirtySections.includes("logs")}>
           <LogsSection data={edited} onChange={handleChange} />
         </Section>

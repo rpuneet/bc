@@ -1,6 +1,10 @@
 package app
 
-import "fmt"
+import (
+	"fmt"
+	"regexp"
+	"strings"
+)
 
 // InstanceConfig is the persisted shape of one connected app in
 // preferences ("apps" section). Secret fields never appear in Config —
@@ -48,4 +52,21 @@ func ValidateConfig(d Descriptor, cfg map[string]string) error {
 		}
 	}
 	return nil
+}
+
+// instanceNamePart matches one segment of an instance name: the app ID
+// or a multi-instance label. Lowercase alphanumerics with interior
+// dashes/underscores — never path separators or dots, because instance
+// names become vault key prefixes and state-directory names.
+var instanceNamePart = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{0,63}$`)
+
+// ValidInstanceName reports whether name is a safe instance name:
+// "slack" or "telegram:alerts". Callers MUST reject anything else
+// before using the name in vault keys or filesystem paths.
+func ValidInstanceName(name string) bool {
+	app, label, ok := strings.Cut(name, ":")
+	if !instanceNamePart.MatchString(app) {
+		return false
+	}
+	return !ok || instanceNamePart.MatchString(label)
 }

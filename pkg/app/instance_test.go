@@ -120,3 +120,19 @@ func TestResolveInstance(t *testing.T) {
 		})
 	}
 }
+
+func TestValidInstanceName(t *testing.T) {
+	valid := []string{"slack", "telegram:alerts", "a1", "irc", "x:y_z-2"}
+	for _, n := range valid {
+		if !ValidInstanceName(n) {
+			t.Errorf("ValidInstanceName(%q) = false, want true", n)
+		}
+	}
+	invalid := []string{"", "../etc", "a/b", "a:b:c", ":label", "app:",
+		"UPPER", "a b", ".hidden", "app:..", "-lead", "app:/x"}
+	for _, n := range invalid {
+		if ValidInstanceName(n) {
+			t.Errorf("ValidInstanceName(%q) = true, want false", n)
+		}
+	}
+}

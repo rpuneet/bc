@@ -1591,7 +1591,11 @@ func (m *Manager) setupLogPipe(ctx context.Context, name, _ string) string {
 		return ""
 	}
 
-	logPath := filepath.Join(logsDir, name+".log")
+	logPath := filepath.Clean(filepath.Join(logsDir, name+".log"))
+	if !strings.HasPrefix(logPath, filepath.Clean(m.agentsRoot())+string(filepath.Separator)) {
+		log.Warn("refusing log path outside agents root", "path", logPath)
+		return ""
+	}
 
 	// Truncate if over max size
 	truncateLogFile(logPath, m.maxLogBytes)

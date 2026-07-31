@@ -58,7 +58,7 @@ Key properties:
 
 ## State on disk
 
-```
+```text
 ~/.mycel/
   prefs.json                  # the one config file mycel reads
   mycel.db                    # THE database: agents, roles, events, notify, ...

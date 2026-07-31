@@ -101,7 +101,6 @@ jobs:
   test-full:
     name: Test (full)
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
@@ -109,18 +108,20 @@ jobs:
           go-version: ${{ env.GO_VERSION }}
           cache: true
 
+      - name: Install tmux for e2e tests
+        run: sudo apt-get update && sudo apt-get install -y tmux
+
       - name: Create web dist stub for embed
         run: mkdir -p server/web/dist && echo '<!-- stub -->' > server/web/dist/index.html
 
-      - name: Run all tests including slow packages
+      - name: Run all tests including slow packages (race, e2e)
         run: |
-          go test -race -timeout 5m ./...
+          go test -race -timeout 8m ./...
 
-  # ── Go: Security (main only) ─────────────────────────────────────────
+  # ── Go: Security ─────────────────────────────────────────────────────
   security:
     name: Security
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
