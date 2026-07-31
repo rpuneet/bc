@@ -43,7 +43,7 @@ graph TB
 
 **Key principle:** The web dashboard is a thin view layer. All business logic, persistence, agent orchestration, and event publishing live in the server. The dashboard only renders state received over HTTP and SSE.
 
-**Key structure:** `web/` is a standalone Vite application — its own `package.json`, its own build, no monorepo UI framework. The only shared package under `packages/` relevant to the UI is `packages/design-tokens` (`@bc/design-tokens`), which holds the canonical Solar Flare palette, typography, and spacing values.
+**Key structure:** `web/` is a standalone Vite application — its own `package.json`, its own build, no monorepo UI framework. The only shared package under `packages/` relevant to the UI is `packages/design-tokens` (`@mycel/design-tokens`), which holds the canonical Solar Flare palette, typography, and spacing values.
 
 ### Tech Stack
 
@@ -258,7 +258,7 @@ The dashboard ships **three themes**:
 
 The Tailwind config maps `mycel-*` color names to these variables, so components use classes like `bg-mycel-surface`, `text-mycel-accent`, `border-mycel-border` and pick up the active theme automatically.
 
-The canonical palette also lives in `packages/design-tokens` (`@bc/design-tokens`) — colors, semantic mappings, terminal mappings, typography, and spacing — as the shared source for all mycel frontends. The web app's `tokens.css` is the web-side expression of that palette.
+The canonical palette also lives in `packages/design-tokens` (`@mycel/design-tokens`) — colors, semantic mappings, terminal mappings, typography, and spacing — as the shared source for all mycel frontends. The web app's `tokens.css` is the web-side expression of that palette.
 
 ---
 
@@ -272,7 +272,7 @@ web/src/  --vite build-->  web/dist/  --cp-->  server/web/dist/  --go:embed-->  
 
 - `make build-local-web` runs `bun run build` in `web/` and copies `web/dist` to `server/web/dist/`.
 - `server/embed.go` embeds it: `//go:embed web/dist`.
-- `make build-local-bc` builds the web UI first, then the Go binary — always build the web UI before shipping the binary, or the embedded frontend goes stale.
+- `make build-local-mycel` builds the web UI first, then the Go binary — always build the web UI before shipping the binary, or the embedded frontend goes stale.
 - At runtime, `mycel up` serves the SPA at `/`, with API routes under `/api/` taking precedence. Unknown paths fall through to `index.html` so client-side routing works on refresh.
 
 **Dev mode:** `make run-web` starts the Vite dev server with hot reload; `web/vite.config.ts` proxies `/api` to a locally running server (`http://localhost:9375` by default in the proxy config — point a dev server instance there, or adjust).
@@ -297,7 +297,7 @@ web/src/  --vite build-->  web/dist/  --cp-->  server/web/dist/  --go:embed-->  
 | `web/src/theme/tokens.css` | `--mycel-*` custom properties for all three themes |
 | `web/tailwind.config.*` | Maps `mycel-*` classes to CSS vars |
 | `web/vite.config.ts` | Dev proxy, build output |
-| `packages/design-tokens/` | `@bc/design-tokens` — shared Solar Flare palette |
+| `packages/design-tokens/` | `@mycel/design-tokens` — shared Solar Flare palette |
 | `server/embed.go` | `//go:embed web/dist` |
 | `server/server.go` | Route registration, static serving, middleware |
 | `server/ws/hub.go` | SSE hub: subscriber management, event broadcast |

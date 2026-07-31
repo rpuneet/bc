@@ -344,7 +344,7 @@ ls -la ~/.mycel/
 sudo chown -R $USER:$USER ~/.mycel/
 ```
 
-### "bcd is not running"
+### "the daemon is not running"
 
 **Cause**: A command needs the mycel server, but it isn't running.
 

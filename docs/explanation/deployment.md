@@ -63,7 +63,7 @@ graph TD
 | `mycel-agent-base` | `docker/Dockerfile.base` | Shared developer tooling for all agents |
 | `mycel-agent-claude/gemini/codex/cursor/openclaw` | `docker/Dockerfile.<provider>` | Base + one provider CLI |
 | `mycel-agent-infra` | `docker/Dockerfile.infra` | Extends claude with infra tooling |
-| `mycel-daemon` | `docker/Dockerfile.bcd` | Multi-stage: bun builds the web UI, Go 1.25.11 builds the binary |
+| `mycel-daemon` | `docker/Dockerfile.daemon` | Multi-stage: bun builds the web UI, Go 1.25.11 builds the binary |
 | `mycel-db` | `docker/Dockerfile.db` | TimescaleDB (`POSTGRES_USER=mycel`, `POSTGRES_DB=mycel`, password at runtime), seeds `docker/db/init.sql` |
 | `mycel-playwright` | `docker/Dockerfile.playwright` | Playwright MCP server (built separately) |
 

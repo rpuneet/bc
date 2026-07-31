@@ -4,17 +4,17 @@
 
 ```mermaid
 graph TB
-    CLI[mycel CLI] -->|HTTP REST| BCD[mycel server :9374]
-    WEB[Web UI] -->|HTTP + SSE| BCD
-    DESK[Desktop app] -->|HTTP + SSE| BCD
-    AGENT_MCP[AI Agents] -->|MCP stdio/SSE| BCD
+    CLI[mycel CLI] -->|HTTP REST| DAEMON[mycel server :9374]
+    WEB[Web UI] -->|HTTP + SSE| DAEMON
+    DESK[Desktop app] -->|HTTP + SSE| DAEMON
+    AGENT_MCP[AI Agents] -->|MCP stdio/SSE| DAEMON
 
-    BCD -->|SQL| DB[(~/.mycel/mycel.db)]
-    BCD -->|docker exec<br/>tmux send-keys| AGENTS[Agent Containers]
-    BCD -->|SSE broadcast| WEB
-    BCD -->|SSE broadcast| DESK
+    DAEMON -->|SQL| DB[(~/.mycel/mycel.db)]
+    DAEMON -->|docker exec<br/>tmux send-keys| AGENTS[Agent Containers]
+    DAEMON -->|SSE broadcast| WEB
+    DAEMON -->|SSE broadcast| DESK
 
-    AGENTS -->|hook POST| BCD
+    AGENTS -->|hook POST| DAEMON
 ```
 
 All communication flows through the **mycel server** as the central hub. No component talks directly to another.
@@ -110,7 +110,7 @@ sequenceDiagram
 
 | Transport | Connection | Use Case |
 |-----------|-----------|----------|
-| **stdio** | bcd stdio proxy via `.mcp.json` | Claude Code agents (local) |
+| **stdio** | daemon stdio proxy via `.mcp.json` | Claude Code agents (local) |
 | **SSE** | `GET /_mcp/{agent}/sse` + `POST /_mcp/{agent}/message` | Remote/browser MCP clients |
 
 Messages sent over the SSE transport go through the server's global HTTP

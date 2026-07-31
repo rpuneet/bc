@@ -15,7 +15,7 @@ There is exactly one config — mycel state is global, not per-repo.
 You can change configuration four ways:
 
 1. **CLI** — `mycel config` commands (work online via the daemon or offline against the file)
-2. **API** — `GET`/`PATCH /api/settings` on the bcd server (see [Settings API](../reference/api-settings.md))
+2. **API** — `GET`/`PATCH /api/settings` on the daemon server (see [Settings API](../reference/api-settings.md))
 3. **Web UI** — Settings page at `http://localhost:9374`
 4. **Editor** — `mycel config edit` opens the file directly
 
@@ -225,7 +225,7 @@ A complete `prefs.json`:
   },
   "storage": {
     "default": "sqlite",
-    "sqlite": { "path": ".bc" },
+    "sqlite": { "path": ".mycel" },
     "timescale": {
       "host": "localhost",
       "port": 5432,

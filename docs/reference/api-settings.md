@@ -1,6 +1,6 @@
 # Settings API
 
-The Settings API reads and updates mycel configuration via the bcd HTTP server. The configuration is a JSON document persisted to `~/.mycel/prefs.json`.
+The Settings API reads and updates mycel configuration via the the daemon HTTP server. The configuration is a JSON document persisted to `~/.mycel/prefs.json`.
 
 Base URL: `http://localhost:9374`
 
@@ -43,7 +43,7 @@ Returns the full configuration.
   },
   "storage": {
     "default": "sqlite",
-    "sqlite": { "path": ".bc" },
+    "sqlite": { "path": ".mycel" },
     "timescale": {
       "host": "localhost",
       "user": "bc",
@@ -193,7 +193,7 @@ See [Set Up Apps](../how-to/set-up-apps.md) for connecting apps.
 
 | Field  | Type   | Default | Description |
 |--------|--------|---------|-------------|
-| `path` | string | `.bc`   | Directory for SQLite database files |
+| `path` | string | `.mycel`   | Directory for SQLite database files |
 
 `storage.timescale`:
 
@@ -209,7 +209,7 @@ See [Set Up Apps](../how-to/set-up-apps.md) for connecting apps.
 
 | Field         | Type   | Default     | Description |
 |---------------|--------|-------------|-------------|
-| `host`        | string | `127.0.0.1` | Listen address for bcd |
+| `host`        | string | `127.0.0.1` | Listen address for the daemon |
 | `port`        | int    | `9374`      | Listen port (1–65535) |
 | `cors_origin` | string | `*`         | Allowed CORS origin |
 

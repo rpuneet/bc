@@ -46,13 +46,13 @@ We take security seriously. If you discover a security vulnerability in bc, plea
 This policy applies to:
 
 - The **mycel CLI** tool (`cmd/mycel`, `internal/cmd`, `pkg/`)
-- The **bcd server** (`server/`) including the REST API, WebSocket, and MCP SSE endpoints
+- The **daemon** (`server/`) including the REST API, WebSocket, and MCP SSE endpoints
 - The **TUI** interface (`tui/`)
-- The **web dashboard** (`web/`) embedded in bcd
+- The **web dashboard** (`web/`) embedded in the daemon
 - **Docker agent images** (`docker/`, `Dockerfile.agent`)
 - Agent communication protocols (channels, MCP)
 - Secret storage and injection (`pkg/secret`)
-- Configuration and credential handling (`.bc/`, `settings.json`)
+- Configuration and credential handling (`.mycel/`, `settings.json`)
 
 ### Out of Scope
 
@@ -66,11 +66,11 @@ This policy applies to:
 
 mycel stores secrets in an encrypted, per-workspace store under the mycel state directory. Secrets are injected into agent sessions at startup via environment variables and are never written to disk in plaintext. Use `mycel secret set` to manage secrets instead of placing them in `.env`.
 
-Sensitive patterns (API keys, tokens, DSNs) are redacted from WebSocket streams by the bcd server before reaching the web dashboard.
+Sensitive patterns (API keys, tokens, DSNs) are redacted from WebSocket streams by the daemon before reaching the web dashboard.
 
 ### Agent Isolation
 
-Each agent runs in its own tmux session (local) or Docker container (production) with a dedicated git worktree. Agents communicate only through the bcd API and SQLite-backed channels -- never via shared filesystem state.
+Each agent runs in its own tmux session (local) or Docker container (production) with a dedicated git worktree. Agents communicate only through the daemon API and SQLite-backed channels -- never via shared filesystem state.
 
 ### Docker Hardening
 
@@ -81,7 +81,7 @@ Each agent runs in its own tmux session (local) or Docker container (production)
 
 ### Network & API
 
-- The bcd server binds to `localhost:9374` by default
+- The the daemon server binds to `localhost:9374` by default
 - CORS, request body size limits, and rate limiting are enforced
 - MCP SSE endpoints identify the calling agent via query parameter (`?agent=<name>`)
 
@@ -102,4 +102,4 @@ When using bc:
 - Restrict agent capabilities to the minimum required via role definitions
 - Monitor agent costs and set appropriate budgets
 - Run agents in Docker runtime for production workloads (stronger isolation)
-- Audit `.bc/agents/` directory periodically for stale worktrees
+- Audit `.mycel/agents/` directory periodically for stale worktrees

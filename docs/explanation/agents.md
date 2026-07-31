@@ -189,13 +189,13 @@ Values support `${secret:NAME}` placeholders: resolved from the secrets vault at
 
 Set a value to `${secret:MY_SECRET_NAME}` to reference a vault secret.
 At spawn, mycel resolves the reference from the layered vault
-(global `~/.mycel/secrets.vault` + repo-scoped `<repo>/.bc/secrets.db`; the repo layer wins).
+(global `~/.mycel/secrets.vault` + repo-scoped `<repo>/.mycel/secrets.db`; the repo layer wins).
 The reference is stored verbatim — the resolved value never persists to disk.
 
 ### Cloud provider credentials (e.g. AWS Bedrock)
 
 There is no special-case AWS injection in mycel. To use a cloud provider:
-1. Store credentials in `~/.aws/credentials` or set `AWS_PROFILE`/`AWS_REGION` in the host environment before starting `bcd`.
+1. Store credentials in `~/.aws/credentials` or set `AWS_PROFILE`/`AWS_REGION` in the host environment before starting the daemon (`mycel up`).
 2. Or configure them per-agent via the env map: set `AWS_PROFILE` and `AWS_REGION` in the agent's environment variables panel in the web UI (or via the API).
 
 This works for any cloud provider — AWS, Azure, GCP — without any provider-specific code in mycel.
