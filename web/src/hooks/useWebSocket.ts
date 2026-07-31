@@ -1,7 +1,19 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import type { WSEvent, WSEventType } from "../api/types";
+import { invalidateAgents } from "../api/client";
 
 type Listener = (event: WSEvent) => void;
+
+// Agent lifecycle events change the shared /api/agents list, so clear its
+// cache the moment one arrives — the SSE stream is the real-time source of
+// truth and any stale cached list must yield to it immediately.
+const AGENT_CACHE_INVALIDATORS: ReadonlySet<WSEventType> = new Set([
+  "agent.created",
+  "agent.started",
+  "agent.stopped",
+  "agent.deleted",
+  "agent.state_changed",
+]);
 
 export function useWebSocket() {
   const esRef = useRef<EventSource | null>(null);
@@ -27,6 +39,9 @@ export function useWebSocket() {
     es.onmessage = (e: MessageEvent) => {
       try {
         const event = JSON.parse(e.data as string) as WSEvent;
+        if (AGENT_CACHE_INVALIDATORS.has(event.type)) {
+          invalidateAgents();
+        }
         const listeners = listenersRef.current.get(event.type);
         listeners?.forEach((fn) => fn(event));
       } catch {

@@ -1,4 +1,32 @@
+import { cachedGet, invalidate } from "./cache";
+
 const BASE = "/api";
+
+// Cache keys for the hot, shared GETs routed through the module-level cache.
+// Kept here so mutations and the SSE layer can invalidate them by name.
+export const CACHE_KEYS = {
+  agents: "agents",
+  apps: "apps",
+} as const;
+
+/** Invalidate the shared agents-list cache after a mutation or SSE event. */
+export function invalidateAgents(): void {
+  invalidate(CACHE_KEYS.agents);
+}
+
+/** Invalidate the shared apps-catalog cache. */
+export function invalidateApps(): void {
+  invalidate(CACHE_KEYS.apps);
+}
+
+// tap invalidates the given cache keys once a mutating request resolves, so a
+// follow-up read (or poll) never serves data the mutation just changed.
+function tap<T>(p: Promise<T>, keys: string[]): Promise<T> {
+  return p.then((v) => {
+    for (const k of keys) invalidate(k);
+    return v;
+  });
+}
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const headers: Record<string, string> = {
@@ -696,7 +724,8 @@ function splitChannel(channel: string): { gw: string; ch: string } {
 export const api = {
   /** List all agents. bcd is single-tenant: agents carry their repo as
    *  a property, so the list is always global. */
-  listAgents: () => request<Agent[]>("/agents"),
+  listAgents: () =>
+    cachedGet(CACHE_KEYS.agents, () => request<Agent[]>("/agents")),
   getAgent: (name: string) =>
     request<Agent>(`/agents/${encodeURIComponent(name)}`),
   getAgentPeek: (name: string, lines = 50) =>
@@ -704,13 +733,19 @@ export const api = {
       `/agents/${encodeURIComponent(name)}/peek?${new URLSearchParams({ lines: String(lines) })}`,
     ),
   startAgent: (name: string) =>
-    request<Agent>(`/agents/${encodeURIComponent(name)}/start`, {
-      method: "POST",
-    }),
+    tap(
+      request<Agent>(`/agents/${encodeURIComponent(name)}/start`, {
+        method: "POST",
+      }),
+      [CACHE_KEYS.agents],
+    ),
   stopAgent: (name: string) =>
-    request<void>(`/agents/${encodeURIComponent(name)}/stop`, {
-      method: "POST",
-    }),
+    tap(
+      request<void>(`/agents/${encodeURIComponent(name)}/stop`, {
+        method: "POST",
+      }),
+      [CACHE_KEYS.agents],
+    ),
   createAgent: (opts: {
     name?: string;
     role: string;
@@ -721,25 +756,40 @@ export const api = {
      *  `${secret:NAME}` references resolved from the vault at spawn. */
     env?: Record<string, string>;
   }) =>
-    request<Agent>("/agents", {
-      method: "POST",
-      body: JSON.stringify(opts),
-    }),
+    tap(
+      request<Agent>("/agents", {
+        method: "POST",
+        body: JSON.stringify(opts),
+      }),
+      [CACHE_KEYS.agents],
+    ),
   generateAgentName: () => request<{ name: string }>("/agents/generate-name"),
   deleteAgent: (name: string, force = false) =>
-    request<void>(
-      `/agents/${encodeURIComponent(name)}${force ? "?force=true" : ""}`,
-      { method: "DELETE" },
+    tap(
+      request<void>(
+        `/agents/${encodeURIComponent(name)}${force ? "?force=true" : ""}`,
+        { method: "DELETE" },
+      ),
+      [CACHE_KEYS.agents],
     ),
   renameAgent: (name: string, newName: string) =>
-    request<Agent>(`/agents/${encodeURIComponent(name)}/rename`, {
-      method: "POST",
-      body: JSON.stringify({ new_name: newName }),
-    }),
+    tap(
+      request<Agent>(`/agents/${encodeURIComponent(name)}/rename`, {
+        method: "POST",
+        body: JSON.stringify({ new_name: newName }),
+      }),
+      [CACHE_KEYS.agents],
+    ),
   archiveAgent: (name: string) =>
-    request<void>(`/agents/${encodeURIComponent(name)}/archive`, { method: "POST" }),
+    tap(
+      request<void>(`/agents/${encodeURIComponent(name)}/archive`, { method: "POST" }),
+      [CACHE_KEYS.agents],
+    ),
   unarchiveAgent: (name: string) =>
-    request<void>(`/agents/${encodeURIComponent(name)}/unarchive`, { method: "POST" }),
+    tap(
+      request<void>(`/agents/${encodeURIComponent(name)}/unarchive`, { method: "POST" }),
+      [CACHE_KEYS.agents],
+    ),
 
   // Cross-repo cost rollup.
   globalCosts: (opts: { start?: string; groupBy?: "repo" | "project" } = {}) => {
@@ -753,24 +803,34 @@ export const api = {
       rows: Array<{ key: string; label: string; total: number }>;
     }>(`/global/costs${qs ? "?" + qs : ""}`);
   },
-  stopAllAgents: () => request<void>("/agents/stop-all", { method: "POST" }),
+  stopAllAgents: () =>
+    tap(request<void>("/agents/stop-all", { method: "POST" }), [CACHE_KEYS.agents]),
 
   // Bulk agent operations — parallel ops with per-agent results
   bulkStartAgents: (agents: string[]) =>
-    request<{ results: BulkResult[] }>("/agents/bulk/start", {
-      method: "POST",
-      body: JSON.stringify({ agents }),
-    }),
+    tap(
+      request<{ results: BulkResult[] }>("/agents/bulk/start", {
+        method: "POST",
+        body: JSON.stringify({ agents }),
+      }),
+      [CACHE_KEYS.agents],
+    ),
   bulkStopAgents: (agents: string[]) =>
-    request<{ results: BulkResult[] }>("/agents/bulk/stop", {
-      method: "POST",
-      body: JSON.stringify({ agents }),
-    }),
+    tap(
+      request<{ results: BulkResult[] }>("/agents/bulk/stop", {
+        method: "POST",
+        body: JSON.stringify({ agents }),
+      }),
+      [CACHE_KEYS.agents],
+    ),
   bulkDeleteAgents: (agents: string[], force = false) =>
-    request<{ results: BulkResult[] }>("/agents/bulk/delete", {
-      method: "POST",
-      body: JSON.stringify({ agents, force }),
-    }),
+    tap(
+      request<{ results: BulkResult[] }>("/agents/bulk/delete", {
+        method: "POST",
+        body: JSON.stringify({ agents, force }),
+      }),
+      [CACHE_KEYS.agents],
+    ),
   bulkMessageAgents: (agents: string[], message: string) =>
     request<{ results: BulkResult[] }>("/agents/bulk/message", {
       method: "POST",
@@ -870,7 +930,8 @@ export const api = {
   },
 
   /** Descriptor catalog + connected instances with live status. */
-  getApps: () => request<AppsCatalog>("/apps"),
+  getApps: () =>
+    cachedGet(CACHE_KEYS.apps, () => request<AppsCatalog>("/apps"), 10000),
   /** Connect or update an app instance. The server splits secret fields
    *  into the vault and plain fields into preferences, then hot-restarts
    *  the adapter. Empty secret values keep the stored secret. */
