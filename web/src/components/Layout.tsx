@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { NavLink, Outlet, useLocation, useMatch } from "react-router-dom";
+import { Link, NavLink, Outlet, useLocation, useMatch } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useTheme, THEME_LABELS } from "../context/ThemeContext";
 import { useMediaQuery } from "../hooks/useMediaQuery";
@@ -18,6 +18,7 @@ import {
 } from "./apps/appStatus";
 import { Header } from "./Header";
 import { AgentNavTree } from "./AgentNavTree";
+import { SetupNudge } from "./SetupNudge";
 import { SidebarToggle } from "./SidebarToggle";
 import { BrandMark } from "./BrandMark";
 import { HeaderSlotProvider, useHeaderSlotContext } from "../context/HeaderSlotContext";
@@ -956,12 +957,18 @@ export function DegradedBanner() {
         <path d="M7 6v3M7 10.8v.01" strokeLinecap="round" />
       </svg>
       <span className="truncate">
-        Degraded services: <span className="font-medium">{names}</span> — some features are unavailable, run mycel doctor for details
+        Degraded services: <span className="font-medium">{names}</span> — some features are unavailable.
       </span>
+      <Link
+        to="/readiness"
+        className="ml-auto shrink-0 underline decoration-dotted underline-offset-2 font-medium hover:opacity-80"
+      >
+        Check setup
+      </Link>
       <button
         type="button"
         onClick={() => setDismissed(true)}
-        className="ml-auto shrink-0 p-0.5 rounded-md text-mycel-warning hover:opacity-80 transition-colors"
+        className="shrink-0 p-0.5 rounded-md text-mycel-warning hover:opacity-80 transition-colors"
         aria-label="Dismiss degraded services banner"
       >
         <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5">
@@ -1086,6 +1093,7 @@ export function Layout() {
         onToggle={handleDrawerToggle}
       />
       <DegradedBanner />
+      <SetupNudge />
 
       <div className="flex flex-1 min-h-0 relative">
       {mobileOpen && <div className="fixed inset-0 z-40 bg-mycel-overlay md:hidden" onClick={() => setMobileOpen(false)} />}
@@ -1224,6 +1232,17 @@ function DrawerFooter({ iconOnly }: { iconOnly: boolean }) {
           <Icon name="metrics" size={15} />
         </span>
         {!iconOnly && <span className="truncate mycel-fade-slide-in">Insights</span>}
+      </NavLink>
+      <NavLink to="/readiness" className={linkClass} title={iconOnly ? "Setup" : undefined}>
+        <span className="shrink-0 flex items-center justify-center w-4 opacity-70">
+          {/* Checklist glyph — machine setup / readiness. */}
+          <svg width="15" height="15" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4">
+            <path d="M2 3.5l1.2 1.2L5.5 2.4" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M2 8l1.2 1.2L5.5 6.9" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M7.5 3.5H12M7.5 8H12" strokeLinecap="round" />
+          </svg>
+        </span>
+        {!iconOnly && <span className="truncate mycel-fade-slide-in">Setup</span>}
       </NavLink>
       <NavLink to="/settings" className={linkClass} title={iconOnly ? "Settings" : undefined}>
         <span className="shrink-0 flex items-center justify-center w-4 opacity-70">

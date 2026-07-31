@@ -712,6 +712,38 @@ export interface SettingsConfig {
   ui: { theme: string; mode: string; default_view: string };
 }
 
+/* ── Doctor / health ──────────────────────────────────────────────────
+   The daemon's machine-readiness report (GET /api/doctor) and the
+   degraded-services health probe (GET /api/health). Shapes mirror
+   pkg/doctor and server/server.go's apiHealth handler. */
+
+export type DoctorSeverity = "ok" | "warn" | "fail";
+
+export interface DoctorItem {
+  name: string;
+  message: string;
+  fix?: string;
+  severity: DoctorSeverity;
+}
+
+export interface DoctorCategory {
+  name: string;
+  items: DoctorItem[];
+}
+
+export interface DoctorReport {
+  categories: DoctorCategory[];
+}
+
+export interface HealthReport {
+  status: "ok" | "degraded";
+  db?: string;
+  version?: string;
+  commit?: string;
+  /** service name → reason, present only when status is "degraded". */
+  degraded?: Record<string, string>;
+}
+
 /** Split "slack:eng" into { gw: "slack", ch: "eng" }. Any "platform:channel" pattern works. */
 function splitChannel(channel: string): { gw: string; ch: string } {
   const idx = channel.indexOf(":");
@@ -1202,6 +1234,11 @@ export const api = {
 
   /** Get file download URL. */
   getFileUrl: (id: string) => `${BASE}/files/${encodeURIComponent(id)}`,
+
+  /** Full machine-readiness report — tmux, git, provider CLIs, docker images. */
+  getDoctor: () => request<DoctorReport>("/doctor"),
+  /** Daemon health incl. degraded-service reasons (e.g. docker runtime fallback). */
+  getHealth: () => request<HealthReport>("/health"),
 
   getSystemInfo: () => request<{ hostname: string; os: string; arch: string }>("/system/info"),
   getSettings: () => request<SettingsConfig>("/settings"),
