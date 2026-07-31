@@ -59,6 +59,10 @@ function Icon({ name, size = 14 }: { name: string; size?: number }) {
       <circle cx="7" cy="7" r="2" fill="currentColor" opacity="0.8" />
       <path d="M3 11A6 6 0 0111 3" strokeLinecap="round" opacity="0.4" />
     </>,
+    home: <>
+      <path d="M2.5 6.5L7 3l4.5 3.5v4.5a.5.5 0 01-.5.5H3a.5.5 0 01-.5-.5z" strokeLinejoin="round" />
+      <path d="M5.75 11.5V8h2.5v3.5" strokeLinejoin="round" />
+    </>,
     agents: <path d="M7 3.5a2 2 0 100 4 2 2 0 000-4zM3.5 11.5c0-1.8 1.6-3 3.5-3s3.5 1.2 3.5 3" />,
     apps: <><rect x="2" y="2" width="4.25" height="4.25" rx="1.25" /><rect x="7.75" y="2" width="4.25" height="4.25" rx="1.25" /><rect x="2" y="7.75" width="4.25" height="4.25" rx="1.25" /><rect x="7.75" y="7.75" width="4.25" height="4.25" rx="1.25" /></>,
     roles: <path d="M7 2.5l4.5 2.5v3.5L7 11 2.5 8.5V5z" />,
@@ -726,7 +730,7 @@ export function prettifyHostname(h: string): string {
 function buildNavGroups(hostLabel: string): readonly (readonly NavItem[])[] {
   return [
     [
-      { to: "/live", label: "Live", icon: "live" },
+      { to: "/", label: "Home", icon: "home" },
       { to: "/agents", label: "Agents", icon: "agents" },
       { to: "/apps", label: "Apps", icon: "apps" },
       { to: "/code", label: "Code", icon: "code" },
@@ -735,7 +739,6 @@ function buildNavGroups(hostLabel: string): readonly (readonly NavItem[])[] {
       { to: "/marketplace", label: "Marketplace", icon: "templates" },
       { to: "/tools", label: hostLabel, icon: "tools" },
     ],
-    [{ to: "/insights", label: "Insights", icon: "metrics" }],
   ];
 }
 
@@ -751,8 +754,13 @@ function titleFor(pathname: string, hostLabel: string): string {
   const firstSeg = pathname.replace(/^\//, "").split("/")[0] ?? "";
   const items = [
     ...buildNavGroups(hostLabel).flat(),
+    // Home answers "/", "/home", and the legacy "/live" redirect.
+    { to: "/home", label: "Home" },
+    { to: "/live", label: "Home" },
     { to: "/settings", label: "Settings" },
     { to: "/about", label: "About" },
+    // Insights lives in the drawer footer now, not the primary nav.
+    { to: "/insights", label: "Insights" },
     { to: "/stats", label: "Insights" },
     { to: "/metrics", label: "Insights" },
     { to: "/costs", label: "Insights" },
@@ -1204,6 +1212,12 @@ function DrawerFooter({ iconOnly }: { iconOnly: boolean }) {
           </>
         )}
       </button>
+      <NavLink to="/insights" className={linkClass} title={iconOnly ? "Insights" : undefined}>
+        <span className="shrink-0 flex items-center justify-center w-4 opacity-70">
+          <Icon name="metrics" size={15} />
+        </span>
+        {!iconOnly && <span className="truncate mycel-fade-slide-in">Insights</span>}
+      </NavLink>
       <NavLink to="/settings" className={linkClass} title={iconOnly ? "Settings" : undefined}>
         <span className="shrink-0 flex items-center justify-center w-4 opacity-70">
           <Icon name="settings" size={15} />

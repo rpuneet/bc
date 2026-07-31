@@ -4,7 +4,7 @@ import { Layout } from "./components/Layout";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { ThemeProvider } from "./context/ThemeContext";
 
-const Live = lazy(() => import("./views/Live").then((m) => ({ default: m.Live })));
+const Home = lazy(() => import("./views/Home").then((m) => ({ default: m.Home })));
 const Agents = lazy(() => import("./views/Agents").then((m) => ({ default: m.Agents })));
 const AgentDetail = lazy(() => import("./views/AgentDetail").then((m) => ({ default: m.AgentDetail })));
 const Apps = lazy(() => import("./views/Apps").then((m) => ({ default: m.Apps })));
@@ -60,8 +60,10 @@ export function AppRoutes() {
   return (
     <Routes>
       <Route element={<Layout />}>
-        <Route index element={wrap(<Live />)} />
-        <Route path="live" element={wrap(<Live />)} />
+        <Route index element={wrap(<Home />)} />
+        <Route path="home" element={wrap(<Home />)} />
+        {/* Live view became the Home page — old links/bookmarks redirect. */}
+        <Route path="live" element={<Navigate to="/" replace />} />
         <Route path="agents" element={wrap(<Agents />)} />
         <Route path="agents/:name" element={wrap(<AgentDetail />)} />
         <Route path="agents/:name/*" element={wrap(<AgentDetail />)} />

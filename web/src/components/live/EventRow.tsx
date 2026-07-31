@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import type { ToolNode } from "./liveTypes";
 import {
+  compactPath,
   elapsed,
   durationPillClass,
   mcpBadgeColors,
@@ -10,6 +11,11 @@ import {
   redactValue,
   relativeTime,
 } from "./liveHelpers";
+import { DetailSection, RichToolInput, RichToolOutput } from "./ToolDetail";
+
+// Shared primitives moved to sibling modules; re-export for compatibility.
+export { CopyButton } from "./ToolDetail";
+export { compactPath } from "./liveHelpers";
 
 /* ── EventRow ────────────────────────────────────────────────────────
    The shared hook-event row used by both the Live page agent cards and
@@ -44,29 +50,6 @@ export function RelativeTimestamp({ ts }: { ts: number }) {
     <span title={new Date(ts).toISOString()} className="text-[10px] text-mycel-muted font-mono tabular-nums">
       {relativeTime(ts)}
     </span>
-  );
-}
-
-/* ── Copy button ───────────────────────────────────────────────────── */
-
-export function CopyButton({ text }: { text: string }) {
-  const [copied, setCopied] = useState(false);
-  const handleCopy = useCallback(() => {
-    navigator.clipboard.writeText(text).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    }).catch(() => {});
-  }, [text]);
-
-  return (
-    <button
-      type="button"
-      onClick={(e) => { e.stopPropagation(); handleCopy(); }}
-      className="text-[10px] text-mycel-muted hover:text-mycel-text px-1.5 py-0.5 rounded-md border border-mycel-border hover:border-mycel-accent transition-colors shrink-0"
-      aria-label="Copy to clipboard"
-    >
-      {copied ? "Copied" : "Copy"}
-    </button>
   );
 }
 
@@ -236,20 +219,6 @@ export function EventGlyph({ kind, size = 13, className }: { kind: EventKind; si
 
 /* ── Rich summaries ────────────────────────────────────────────────── */
 
-/** Compact a long absolute path: keep the basename intact, shorten the
- *  directory to its last two segments. */
-export function compactPath(path: string): { dir: string; base: string } {
-  const idx = path.lastIndexOf("/");
-  if (idx <= 0) return { dir: "", base: path };
-  let dir = path.slice(0, idx + 1);
-  const base = path.slice(idx + 1);
-  if (dir.length > 40) {
-    const segs = dir.split("/").filter(Boolean);
-    dir = "…/" + segs.slice(-2).join("/") + "/";
-  }
-  return { dir, base };
-}
-
 /** True when args look like a single filesystem path. */
 function looksLikePath(args: string): boolean {
   return args.length > 0 && args.includes("/") && !args.includes(" ") && !args.includes("\n");
@@ -401,23 +370,15 @@ export function EventRow({ node, searchQuery = "" }: { node: ToolNode; searchQue
       )}
 
       {expanded && !!node.fullInput && (
-        <div className="text-[11px] font-mono px-3 py-2 bg-mycel-surface mx-3 mb-1 rounded-md overflow-x-auto max-h-48 overflow-y-auto">
-          <div className="flex items-center justify-between mb-1">
-            <span className="text-[10px] text-mycel-muted uppercase tracking-wide font-semibold">Input</span>
-            <CopyButton text={inputJson} />
-          </div>
-          <pre className="whitespace-pre-wrap break-all text-mycel-muted">{inputJson}</pre>
-        </div>
+        <DetailSection label="Input" tone="muted" json={inputJson} toolName={node.toolName}>
+          <RichToolInput toolName={node.toolName} input={node.fullInput} />
+        </DetailSection>
       )}
 
       {expanded && !!node.fullOutput && (
-        <div className="text-[11px] font-mono px-3 py-2 bg-mycel-surface mx-3 mb-1 rounded-md overflow-x-auto max-h-48 overflow-y-auto">
-          <div className="flex items-center justify-between mb-1">
-            <span className="text-[10px] text-mycel-success uppercase tracking-wide font-semibold">Output</span>
-            <CopyButton text={outputJson} />
-          </div>
-          <pre className="whitespace-pre-wrap break-all text-mycel-success">{outputJson}</pre>
-        </div>
+        <DetailSection label="Output" tone="success" json={outputJson} toolName={node.toolName}>
+          <RichToolOutput toolName={node.toolName} output={node.fullOutput} />
+        </DetailSection>
       )}
     </div>
   );

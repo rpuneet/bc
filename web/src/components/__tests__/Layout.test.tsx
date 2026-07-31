@@ -31,10 +31,10 @@ function mockApi(hostname: string | null) {
 function renderLayout() {
   return render(
     <ThemeProvider>
-      <MemoryRouter initialEntries={["/live"]}>
+      <MemoryRouter initialEntries={["/"]}>
         <Routes>
           <Route element={<Layout />}>
-            <Route path="live" element={<div data-testid="page" />} />
+            <Route index element={<div data-testid="page" />} />
           </Route>
         </Routes>
       </MemoryRouter>
