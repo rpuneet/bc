@@ -402,7 +402,7 @@ func TestStorageConfigValidation(t *testing.T) {
 			{
 				name:     "all defaults",
 				settings: db.TimescaleSettings{},
-				want:     "postgres://bc:bc@localhost:5432/bc",
+				want:     "postgres://mycel:mycel@localhost:5432/mycel",
 			},
 			{
 				name: "custom values",
@@ -421,7 +421,7 @@ func TestStorageConfigValidation(t *testing.T) {
 					Host: "custom-host",
 					Port: 5434,
 				},
-				want: "postgres://bc:bc@custom-host:5434/bc",
+				want: "postgres://mycel:mycel@custom-host:5434/mycel",
 			},
 		}
 		for _, tt := range tests {

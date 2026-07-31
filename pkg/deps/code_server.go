@@ -8,72 +8,72 @@ import (
 	"sync"
 )
 
-// bcCodeServerContainer is the docker container name.
-const bcCodeServerContainer = "bc-code-server"
+// codeServerContainer is the docker container name.
+const codeServerContainer = "mycel-code-server"
 
-// bcCodeServerImage is the upstream image used to run VS Code in the browser.
-const bcCodeServerImage = "codercom/code-server:latest"
+// codeServerImage is the upstream image used to run VS Code in the browser.
+const codeServerImage = "codercom/code-server:latest"
 
-// bcCodeServerPort is the host port mapping; the container listens on 8080
+// codeServerPort is the host port mapping; the container listens on 8080
 // internally (code-server default).
-const bcCodeServerPort = "8100"
+const codeServerPort = "8100"
 
-// BCCodeServer wraps a code-server container that mounts the currently
+// CodeServer wraps a code-server container that mounts the currently
 // active repo root at /home/coder/workspace.
 //
 // The repoRoot is mutable because the active repo can change while
-// bcd is running — callers update it via SetRepoRoot.
-type BCCodeServer struct {
+// the daemon is running — callers update it via SetRepoRoot.
+type CodeServer struct {
 	runner   execRunner
 	repoRoot string
 	mu       sync.RWMutex
 }
 
-// NewBCCodeServer constructs the dependency bound to repoRoot.
-func NewBCCodeServer(repoRoot string) *BCCodeServer {
-	return &BCCodeServer{runner: defaultExec, repoRoot: repoRoot}
+// NewCodeServer constructs the dependency bound to repoRoot.
+func NewCodeServer(repoRoot string) *CodeServer {
+	return &CodeServer{runner: defaultExec, repoRoot: repoRoot}
 }
 
-// NewBCCodeServerWithRunner is used by tests.
-func NewBCCodeServerWithRunner(repoRoot string, r execRunner) *BCCodeServer {
+// NewCodeServerWithRunner is used by tests.
+func NewCodeServerWithRunner(repoRoot string, r execRunner) *CodeServer {
 	if r == nil {
 		r = defaultExec
 	}
-	return &BCCodeServer{runner: r, repoRoot: repoRoot}
+	return &CodeServer{runner: r, repoRoot: repoRoot}
 }
 
 // SetRepoRoot updates the directory that will be bind-mounted on the
 // next Start. It does NOT restart an already-running container.
-func (d *BCCodeServer) SetRepoRoot(path string) {
+func (d *CodeServer) SetRepoRoot(path string) {
 	d.mu.Lock()
 	d.repoRoot = path
 	d.mu.Unlock()
 }
 
 // RepoRoot returns the currently configured repo root.
-func (d *BCCodeServer) RepoRoot() string {
+func (d *CodeServer) RepoRoot() string {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 	return d.repoRoot
 }
 
 // ID implements Dependency.
-func (*BCCodeServer) ID() string { return "bc-code-server" }
+func (*CodeServer) ID() string { return "mycel-code-server" }
 
 // DisplayName implements Dependency.
-func (*BCCodeServer) DisplayName() string { return "bc-code-server" }
+func (*CodeServer) DisplayName() string { return "mycel-code-server" }
 
 // Description implements Dependency.
-func (*BCCodeServer) Description() string {
+func (*CodeServer) Description() string {
 	return "VS Code in the browser, bind-mounted to the active repo"
 }
 
 // Deprecated implements Dependency.
-func (*BCCodeServer) Deprecated() bool { return false }
+func (*CodeServer) Deprecated() bool { return false }
 
 // Status reports the container state. Unknown if docker is unreachable.
-func (d *BCCodeServer) Status(ctx context.Context) (State, error) {
-	out, err := d.runner.Run(ctx, "docker", "inspect", "-f", "{{.State.Running}}", bcCodeServerContainer)
+func (d *CodeServer) Status(ctx context.Context) (State, error) {
+	out, err := d.runner.Run(ctx, "docker", "inspect", "-f", "{{.State.Running}}", codeServerContainer)
 	if err != nil {
 		text := strings.ToLower(string(out))
 		if strings.Contains(text, "no such") {
@@ -95,21 +95,21 @@ func (d *BCCodeServer) Status(ctx context.Context) (State, error) {
 //
 // Since the bind-mounted directory depends on the active repo, any
 // existing container is removed so the new mount takes effect.
-func (d *BCCodeServer) Start(ctx context.Context) error {
+func (d *CodeServer) Start(ctx context.Context) error {
 	root := d.RepoRoot()
 	if root == "" {
-		return errors.New("bc-code-server: repo root not configured")
+		return errors.New("mycel-code-server: repo root not configured")
 	}
 
 	// Remove any prior container so a stale mount doesn't linger.
-	_, _ = d.runner.Run(ctx, "docker", "rm", "-f", bcCodeServerContainer)
+	_, _ = d.runner.Run(ctx, "docker", "rm", "-f", codeServerContainer)
 
 	args := []string{
 		"run", "-d",
-		"--name", bcCodeServerContainer,
-		"-p", bcCodeServerPort + ":8080",
+		"--name", codeServerContainer,
+		"-p", codeServerPort + ":8080",
 		"-v", fmt.Sprintf("%s:/home/coder/workspace", root),
-		bcCodeServerImage,
+		codeServerImage,
 		"--auth=none",
 	}
 	if out, err := d.runner.Run(ctx, "docker", args...); err != nil {
@@ -119,24 +119,24 @@ func (d *BCCodeServer) Start(ctx context.Context) error {
 }
 
 // Stop stops and removes the container so Start can pick up a new mount.
-func (d *BCCodeServer) Stop(ctx context.Context) error {
-	if out, err := d.runner.Run(ctx, "docker", "stop", bcCodeServerContainer); err != nil {
+func (d *CodeServer) Stop(ctx context.Context) error {
+	if out, err := d.runner.Run(ctx, "docker", "stop", codeServerContainer); err != nil {
 		text := strings.ToLower(string(out))
 		if !strings.Contains(text, "no such") {
 			return fmt.Errorf("docker stop: %w (%s)", err, strings.TrimSpace(string(out)))
 		}
 	}
 	// Remove so a later Start can remount if the repo changed.
-	_, _ = d.runner.Run(ctx, "docker", "rm", bcCodeServerContainer)
+	_, _ = d.runner.Run(ctx, "docker", "rm", codeServerContainer)
 	return nil
 }
 
 // Logs returns the last `tail` lines from `docker logs`.
-func (d *BCCodeServer) Logs(ctx context.Context, tail int) ([]string, error) {
+func (d *CodeServer) Logs(ctx context.Context, tail int) ([]string, error) {
 	if tail <= 0 {
 		tail = 200
 	}
-	out, err := d.runner.Run(ctx, "docker", "logs", "--tail", fmt.Sprintf("%d", tail), bcCodeServerContainer)
+	out, err := d.runner.Run(ctx, "docker", "logs", "--tail", fmt.Sprintf("%d", tail), codeServerContainer)
 	if err != nil {
 		return nil, fmt.Errorf("docker logs: %w (%s)", err, strings.TrimSpace(string(out)))
 	}

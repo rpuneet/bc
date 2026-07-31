@@ -30,7 +30,7 @@ Returns the full configuration.
     "docker": {
       "extra_mounts": null,
       "image": "mycel-agent-claude:latest",
-      "network": "bc-net",
+      "network": "mycel-net",
       "docker_socket_path": "/var/run/docker.sock",
       "memory_mb": 4096,
       "cpus": 2
@@ -169,7 +169,7 @@ See [Set Up Apps](../how-to/set-up-apps.md) for connecting apps.
 | Field                | Type     | Default                     | Description |
 |----------------------|----------|-----------------------------|-------------|
 | `image`              | string   | `mycel-agent-claude:latest` | Docker image for agent containers |
-| `network`            | string   | `bc-net`                    | Docker network name |
+| `network`            | string   | `mycel-net`                    | Docker network name |
 | `docker_socket_path` | string   | `/var/run/docker.sock`      | Docker socket mounted into containers |
 | `extra_mounts`       | []string | `[]`                        | Additional volume mounts |
 | `memory_mb`          | int      | `4096`                      | Memory limit per container (MB) |

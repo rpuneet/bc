@@ -12,20 +12,20 @@ import (
 	"time"
 
 	"github.com/rpuneet/mycel/pkg/agent"
-	bcstats "github.com/rpuneet/mycel/pkg/stats"
+	statspkg "github.com/rpuneet/mycel/pkg/stats"
 )
 
 // computedStatsSampler is the shared TmuxSampler used by the computed-stats
 // endpoint. Shared instance keeps the "no per-process network stats"
 // warning to once per process, matching the behavior of the collector.
 var (
-	computedStatsSampler     *bcstats.TmuxSampler
+	computedStatsSampler     *statspkg.TmuxSampler
 	computedStatsSamplerOnce sync.Once
 )
 
-func getComputedStatsSampler() *bcstats.TmuxSampler {
+func getComputedStatsSampler() *statspkg.TmuxSampler {
 	computedStatsSamplerOnce.Do(func() {
-		computedStatsSampler = bcstats.NewTmuxSampler(bcstats.DefaultTmuxProcRunner{})
+		computedStatsSampler = statspkg.NewTmuxSampler(statspkg.DefaultTmuxProcRunner{})
 	})
 	return computedStatsSampler
 }

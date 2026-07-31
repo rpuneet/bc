@@ -510,8 +510,8 @@ export function SystemRow() {
               ) : (
                 <div className="py-6 text-center text-sm text-mycel-muted">
                   {openKey === "network"
-                    ? "Network I/O is tracked per agent by the metrics store (bc-db) — it's offline or the fleet is idle"
-                    : "No per-agent samples — the metrics store (bc-db) is offline or agents are idle"}
+                    ? "Network I/O is tracked per agent by the metrics store (mycel-db) — it's offline or the fleet is idle"
+                    : "No per-agent samples — the metrics store (mycel-db) is offline or agents are idle"}
                 </div>
               )}
             </div>

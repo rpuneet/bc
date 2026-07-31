@@ -15,14 +15,14 @@ import (
 const GlobalDBFileName = "mycel.db"
 
 // DefaultPassword returns the database password from MYCEL_DB_PASSWORD env var,
-// falling back to "bc" for local development with a warning log.
+// falling back to "mycel" for local development with a warning log.
 // Production deployments should always set MYCEL_DB_PASSWORD.
 func DefaultPassword() string {
 	if pw := os.Getenv("MYCEL_DB_PASSWORD"); pw != "" {
 		return pw
 	}
 	log.Warn("MYCEL_DB_PASSWORD not set — using default password (not suitable for production)")
-	return "bc"
+	return "mycel"
 }
 
 // mycelHome resolves the global mycel home directory: the MYCEL_HOME
@@ -163,7 +163,7 @@ func (p TimescaleSettings) DSN() string {
 	}
 	user := p.User
 	if user == "" {
-		user = "bc"
+		user = "mycel"
 	}
 	pw := p.Password
 	if pw == "" {
@@ -171,7 +171,7 @@ func (p TimescaleSettings) DSN() string {
 	}
 	db := p.Database
 	if db == "" {
-		db = "bc"
+		db = "mycel"
 	}
 	return fmt.Sprintf("postgres://%s:%s@%s:%d/%s", user, url.PathEscape(pw), host, port, db)
 }

@@ -15,40 +15,40 @@ import (
 	"sync"
 	"time"
 
-	bcagent "github.com/rpuneet/mycel/pkg/agent"
-	bcapp "github.com/rpuneet/mycel/pkg/app"
+	agentpkg "github.com/rpuneet/mycel/pkg/agent"
+	apppkg "github.com/rpuneet/mycel/pkg/app"
 
 	// Ensure the built-in app plugins are registered before the gateway
 	// manager iterates cfg.Apps.
 	_ "github.com/rpuneet/mycel/pkg/app/builtin"
-	bccontainer "github.com/rpuneet/mycel/pkg/container"
+	containerpkg "github.com/rpuneet/mycel/pkg/container"
 	"github.com/rpuneet/mycel/pkg/cost"
-	bcdb "github.com/rpuneet/mycel/pkg/db"
-	bcdeps "github.com/rpuneet/mycel/pkg/deps"
-	bcevents "github.com/rpuneet/mycel/pkg/events"
-	bcgateway "github.com/rpuneet/mycel/pkg/gateway"
+	dbpkg "github.com/rpuneet/mycel/pkg/db"
+	depspkg "github.com/rpuneet/mycel/pkg/deps"
+	eventspkg "github.com/rpuneet/mycel/pkg/events"
+	gatewaypkg "github.com/rpuneet/mycel/pkg/gateway"
 	"github.com/rpuneet/mycel/pkg/home"
 	"github.com/rpuneet/mycel/pkg/log"
-	bcmcp "github.com/rpuneet/mycel/pkg/mcp"
-	bcnotify "github.com/rpuneet/mycel/pkg/notify"
+	mcppkg "github.com/rpuneet/mycel/pkg/mcp"
+	notifypkg "github.com/rpuneet/mycel/pkg/notify"
 	"github.com/rpuneet/mycel/pkg/provider"
-	bcsecret "github.com/rpuneet/mycel/pkg/secret"
-	bcstats "github.com/rpuneet/mycel/pkg/stats"
-	bctemplate "github.com/rpuneet/mycel/pkg/template"
-	bctool "github.com/rpuneet/mycel/pkg/tool"
-	bcws "github.com/rpuneet/mycel/server/ws"
+	secretpkg "github.com/rpuneet/mycel/pkg/secret"
+	statspkg "github.com/rpuneet/mycel/pkg/stats"
+	templatepkg "github.com/rpuneet/mycel/pkg/template"
+	toolpkg "github.com/rpuneet/mycel/pkg/tool"
+	wspkg "github.com/rpuneet/mycel/server/ws"
 )
 
 // Globals holds dependencies that are process-wide and independent of the
 // bundle's anchor repo. bcd builds one Globals at boot and hands it to
 // BuildServices exactly once.
 type Globals struct {
-	Stats        *bcstats.Store     // nil when TSDB unavailable
-	Deps         *bcdeps.Registry   // optional dependencies registry (bc-db, etc.)
-	Hub          *bcws.Hub          // the one SSE hub for /api/events (owned by the caller)
-	Templates    *bctemplate.Store  // user-global template store (~/.mycel/templates/)
-	SecretsVault *bcsecret.Store    // user-global secrets vault (~/.mycel/secrets.vault)
-	MCPGlobal    *bcmcp.GlobalStore // user-global MCP registry (~/.mycel/mcps.json)
+	Stats        *statspkg.Store     // nil when TSDB unavailable
+	Deps         *depspkg.Registry   // optional dependencies registry (mycel-db, etc.)
+	Hub          *wspkg.Hub          // the one SSE hub for /api/events (owned by the caller)
+	Templates    *templatepkg.Store  // user-global template store (~/.mycel/templates/)
+	SecretsVault *secretpkg.Store    // user-global secrets vault (~/.mycel/secrets.vault)
+	MCPGlobal    *mcppkg.GlobalStore // user-global MCP registry (~/.mycel/mcps.json)
 	Build        BuildInfo
 }
 
@@ -98,7 +98,7 @@ func buildServicesFromHome(ctx context.Context, globals *Globals, h *home.Home) 
 	// path), not from separate files. The handle is cached process-wide
 	// and stays open across service eviction; stores borrow it and
 	// never close it.
-	wsDB, wsDriver, dbErr := bcdb.Global(h.Config.DBStorageSettings())
+	wsDB, wsDriver, dbErr := dbpkg.Global(h.Config.DBStorageSettings())
 	if dbErr != nil {
 		log.Warn("global database unavailable", "error", dbErr, "repo", h.RootDir)
 		degraded["storage"] = "global database unavailable: " + dbErr.Error()
@@ -124,17 +124,17 @@ func buildServicesFromHome(ctx context.Context, globals *Globals, h *home.Home) 
 	// Events JSONL writer (append-only) — lives with the other process
 	// logs at ~/.mycel/logs/.
 	eventsJSONL := filepath.Join(h.LogsDir(), "events.jsonl")
-	eventWriter := bcevents.NewJSONLWriter(eventsJSONL, 0)
+	eventWriter := eventspkg.NewJSONLWriter(eventsJSONL, 0)
 
 	// The one SSE hub. bcd is single-tenant, so the bundle publishes
 	// straight into the process-wide hub supplied via Globals (owned by
 	// the caller — no closer). Legacy callers/tests that don't wire a
 	// hub get a private one that the closer tears down.
-	var hub *bcws.Hub
+	var hub *wspkg.Hub
 	if globals != nil && globals.Hub != nil {
 		hub = globals.Hub
 	} else {
-		hub = bcws.NewHub()
+		hub = wspkg.NewHub()
 		go hub.Run()
 		addCloser(func() error { hub.Stop(); return nil })
 	}
@@ -169,7 +169,7 @@ func buildServicesFromHome(ctx context.Context, globals *Globals, h *home.Home) 
 	}
 
 	// Tool health loop.
-	agentMgr.StartToolHealthLoop(svcCtx, bcagent.DefaultToolHealthInterval)
+	agentMgr.StartToolHealthLoop(svcCtx, agentpkg.DefaultToolHealthInterval)
 	addCloser(func() error { agentMgr.StopToolHealthLoop(); return nil })
 
 	// Source-direct cost service: costs are computed from provider
@@ -186,21 +186,21 @@ func buildServicesFromHome(ctx context.Context, globals *Globals, h *home.Home) 
 	}, &prefsBudgetStore{h: h})
 
 	// Wire cost querier into agent service.
-	agentSvc := bcagent.NewAgentService(agentMgr, hub, &costServiceAdapter{svc: costSvc})
+	agentSvc := agentpkg.NewAgentService(agentMgr, hub, &costServiceAdapter{svc: costSvc})
 
 	// Secret store. Prefer the user-global vault (~/.mycel/secrets.vault)
 	// supplied by Globals so a single secret set once is visible across
 	// every repo. When Globals.SecretsVault is unset (legacy
 	// callers), fall back to the repo-scoped <repo>/.bc/secrets.db.
-	var secretStore *bcsecret.Store
+	var secretStore *secretpkg.Store
 	if globals != nil && globals.SecretsVault != nil {
 		secretStore = globals.SecretsVault
 		// Don't register a closer: ownership stays with whoever
 		// populated Globals (typically RunServer).
-	} else if passphrase, passErr := bcsecret.Passphrase(); passErr != nil {
+	} else if passphrase, passErr := secretpkg.Passphrase(); passErr != nil {
 		log.Warn("secret passphrase unavailable — secret store disabled", "error", passErr)
 		degraded["secrets"] = "secret passphrase unavailable: " + passErr.Error()
-	} else if ss, err := bcsecret.NewStore(h.RootDir, passphrase); err != nil {
+	} else if ss, err := secretpkg.NewStore(h.RootDir, passphrase); err != nil {
 		log.Warn("secret store unavailable", "error", err, "repo", h.RootDir)
 		degraded["secrets"] = "secret store unavailable: " + err.Error()
 	} else {
@@ -209,8 +209,8 @@ func buildServicesFromHome(ctx context.Context, globals *Globals, h *home.Home) 
 	}
 
 	// MCP store.
-	var mcpStore *bcmcp.Store
-	if ms, err := bcmcp.NewStore(wsDB, wsDriver); err != nil {
+	var mcpStore *mcppkg.Store
+	if ms, err := mcppkg.NewStore(wsDB, wsDriver); err != nil {
 		log.Warn("mcp store unavailable", "error", err, "repo", h.RootDir)
 		degraded["mcp"] = "mcp store unavailable: " + err.Error()
 	} else {
@@ -219,9 +219,9 @@ func buildServicesFromHome(ctx context.Context, globals *Globals, h *home.Home) 
 	}
 
 	// Tool store.
-	var toolStore *bctool.Store
+	var toolStore *toolpkg.Store
 	{
-		ts := bctool.NewStore(wsDB, wsDriver)
+		ts := toolpkg.NewStore(wsDB, wsDriver)
 		if err := ts.Open(); err != nil {
 			log.Warn("tool store unavailable", "error", err, "repo", h.RootDir)
 			degraded["tools"] = "tool store unavailable: " + err.Error()
@@ -232,22 +232,22 @@ func buildServicesFromHome(ctx context.Context, globals *Globals, h *home.Home) 
 	}
 
 	// Template store: the single user-global store (~/.mycel/templates/).
-	var tmplStore *bctemplate.Store
+	var tmplStore *templatepkg.Store
 	if globals != nil && globals.Templates != nil {
 		tmplStore = globals.Templates
 	} else {
-		tmplStore = bctemplate.NewStore(filepath.Join(h.StateDir(), "templates"))
+		tmplStore = templatepkg.NewStore(filepath.Join(h.StateDir(), "templates"))
 	}
 
 	// Event log (SQLite) + pruning loop.
-	var eventLog bcevents.EventStore
-	if el, err := bcevents.OpenLog(wsDB, wsDriver); err != nil {
+	var eventLog eventspkg.EventStore
+	if el, err := eventspkg.OpenLog(wsDB, wsDriver); err != nil {
 		log.Warn("event log unavailable", "error", err, "repo", h.RootDir)
 		degraded["events"] = "event log unavailable: " + err.Error()
 	} else {
 		eventLog = el
 		addCloser(func() error { return el.Close() })
-		if prunable, ok := el.(*bcevents.SQLiteLog); ok {
+		if prunable, ok := el.(*eventspkg.SQLiteLog); ok {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
@@ -273,12 +273,12 @@ func buildServicesFromHome(ctx context.Context, globals *Globals, h *home.Home) 
 	}
 
 	// Notify service (channel subscriptions + delivery).
-	var notifyService *bcnotify.Service
-	if ns, err := bcnotify.OpenStore(wsDB, wsDriver); err != nil {
+	var notifyService *notifypkg.Service
+	if ns, err := notifypkg.OpenStore(wsDB, wsDriver); err != nil {
 		log.Warn("notify store unavailable", "error", err, "repo", h.RootDir)
 		degraded["notify"] = "notify store unavailable: " + err.Error()
 	} else {
-		notifyService = bcnotify.NewServiceWithContext(svcCtx, ns, agentSvc, hub)
+		notifyService = notifypkg.NewServiceWithContext(svcCtx, ns, agentSvc, hub)
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -352,7 +352,7 @@ func buildServicesFromHome(ctx context.Context, globals *Globals, h *home.Home) 
 // globalMCPStore returns the Globals.MCPGlobal pointer, or nil when
 // globals itself is nil. Kept as a helper so the composite literal in
 // BuildServices stays compact.
-func globalMCPStore(g *Globals) *bcmcp.GlobalStore {
+func globalMCPStore(g *Globals) *mcppkg.GlobalStore {
 	if g == nil {
 		return nil
 	}
@@ -363,29 +363,29 @@ func globalMCPStore(g *Globals) *bcmcp.GlobalStore {
 // registries for the bundle. Callers use it to list / resolve servers
 // with local overrides winning. Returns nil when neither layer is
 // available.
-func (s *Services) MCPLayeredView() *bcmcp.LayeredView {
+func (s *Services) MCPLayeredView() *mcppkg.LayeredView {
 	if s == nil {
 		return nil
 	}
 	if s.MCPGlobal == nil && s.MCP == nil {
 		return nil
 	}
-	return &bcmcp.LayeredView{Global: s.MCPGlobal, DB: s.MCP}
+	return &mcppkg.LayeredView{Global: s.MCPGlobal, DB: s.MCP}
 }
 
 // newAgentManager mirrors the helper that used to live in serve.go.
 // The third return value is a non-empty degradation reason when the
 // docker runtime was expected but unavailable and agents silently fall
 // back to tmux.
-func newAgentManager(h *home.Home) (*bcagent.Manager, *bccontainer.Backend, string, error) {
+func newAgentManager(h *home.Home) (*agentpkg.Manager, *containerpkg.Backend, string, error) {
 	var homeCfg home.DockerRuntimeConfig
 	runtimeDefault := ""
 	if h.Config != nil {
 		homeCfg = h.Config.Runtime.Docker
 		runtimeDefault = h.Config.Runtime.Default
 	}
-	dockerCfg := bccontainer.ConfigFromHome(homeCfg)
-	be, err := bccontainer.NewBackend(dockerCfg, bcagent.DefaultSessionPrefix, h.RootDir, provider.DefaultRegistry)
+	dockerCfg := containerpkg.ConfigFromHome(homeCfg)
+	be, err := containerpkg.NewBackend(dockerCfg, agentpkg.DefaultSessionPrefix, h.RootDir, provider.DefaultRegistry)
 	if err != nil {
 		log.Warn("Docker not available — agents will use tmux runtime only", "error", err, "repo", h.RootDir)
 		reason := ""
@@ -394,9 +394,9 @@ func newAgentManager(h *home.Home) (*bcagent.Manager, *bccontainer.Backend, stri
 			// runtime — an explicit tmux default is working as intended.
 			reason = fmt.Sprintf("docker runtime unavailable — agents fall back to tmux: %v", err)
 		}
-		return bcagent.NewManagerWithRepo(h.AgentsDir(), h.RootDir), nil, reason, nil
+		return agentpkg.NewManagerWithRepo(h.AgentsDir(), h.RootDir), nil, reason, nil
 	}
-	mgr := bcagent.NewManagerWithRuntime(h.AgentsDir(), h.RootDir, be, "docker")
+	mgr := agentpkg.NewManagerWithRuntime(h.AgentsDir(), h.RootDir, be, "docker")
 	return mgr, be, "", nil
 }
 
@@ -412,8 +412,8 @@ func newAgentManager(h *home.Home) (*bcagent.Manager, *bccontainer.Backend, stri
 //  1. health endpoints never report "gateway manager not available"
 //     solely because nothing was configured at boot, and
 //  2. POST /api/apps/{name} can hot-start adapters without a restart.
-func buildGatewayManager(ctx context.Context, h *home.Home, notifyService *bcnotify.Service, vault *bcsecret.Store, degraded map[string]string, wg *sync.WaitGroup) *bcgateway.Manager {
-	m := bcgateway.NewManager()
+func buildGatewayManager(ctx context.Context, h *home.Home, notifyService *notifypkg.Service, vault *secretpkg.Store, degraded map[string]string, wg *sync.WaitGroup) *gatewaypkg.Manager {
+	m := gatewaypkg.NewManager()
 	m.SetStartContext(ctx)
 	if notifyService != nil {
 		m.SetChannelStore(&channelPersister{store: notifyService.Store()})
@@ -423,21 +423,21 @@ func buildGatewayManager(ctx context.Context, h *home.Home, notifyService *bcnot
 		if !ic.Enabled {
 			continue
 		}
-		plugin, ok := bcapp.Get(ic.App)
+		plugin, ok := apppkg.Get(ic.App)
 		if !ok {
 			degraded["app:"+name] = fmt.Sprintf("unknown app %q", ic.App)
 			continue
 		}
-		if err := bcapp.ValidateConfig(plugin.Describe(), ic.Config); err != nil {
+		if err := apppkg.ValidateConfig(plugin.Describe(), ic.Config); err != nil {
 			degraded["app:"+name] = "invalid config: " + err.Error()
 			continue
 		}
-		var secrets bcapp.SecretSource
+		var secrets apppkg.SecretSource
 		if vault != nil {
-			secrets = bcapp.VaultSecrets{Store: vault, Instance: name}
+			secrets = apppkg.VaultSecrets{Store: vault, Instance: name}
 		}
-		inst := bcapp.ResolveInstance(name, ic, secrets)
-		adapter, err := plugin.Build(inst, bcapp.Env{StateDir: appStateDir(h, name)})
+		inst := apppkg.ResolveInstance(name, ic, secrets)
+		adapter, err := plugin.Build(inst, apppkg.Env{StateDir: appStateDir(h, name)})
 		if err != nil {
 			degraded["app:"+name] = "build failed: " + err.Error()
 			continue
@@ -470,7 +470,7 @@ const eventPruneMaxPerAgent = 50000
 
 // runEventPruneLoop prunes stale events (TTL 24h, max
 // eventPruneMaxPerAgent per agent) every hour.
-func runEventPruneLoop(ctx context.Context, prunable *bcevents.SQLiteLog) {
+func runEventPruneLoop(ctx context.Context, prunable *eventspkg.SQLiteLog) {
 	if n, err := prunable.Prune(24*time.Hour, eventPruneMaxPerAgent); err != nil {
 		log.Warn("event prune failed", "error", err)
 	} else if n > 0 {
@@ -493,7 +493,7 @@ func runEventPruneLoop(ctx context.Context, prunable *bcevents.SQLiteLog) {
 }
 
 // runNotifyPruneLoop keeps the last 1000 delivery-log entries per channel.
-func runNotifyPruneLoop(ctx context.Context, svc *bcnotify.Service) {
+func runNotifyPruneLoop(ctx context.Context, svc *notifypkg.Service) {
 	ticker := time.NewTicker(1 * time.Hour)
 	defer ticker.Stop()
 	for {
@@ -510,7 +510,7 @@ func runNotifyPruneLoop(ctx context.Context, svc *bcnotify.Service) {
 
 // channelPersister bridges notify.Store → gateway.ChannelStore.
 type channelPersister struct {
-	store *bcnotify.Store
+	store *notifypkg.Store
 }
 
 func (p *channelPersister) SaveChannel(ctx context.Context, bcChannel, platform, platformID string) error {
@@ -521,14 +521,14 @@ func (p *channelPersister) UpdateChannelPlatformID(ctx context.Context, bcChanne
 	return p.store.UpdateChannelPlatformID(ctx, bcChannel, platformID)
 }
 
-func (p *channelPersister) LoadChannels(ctx context.Context) ([]bcgateway.PersistedChannel, error) {
+func (p *channelPersister) LoadChannels(ctx context.Context) ([]gatewaypkg.PersistedChannel, error) {
 	ncs, err := p.store.LoadChannels(ctx)
 	if err != nil {
 		return nil, err
 	}
-	result := make([]bcgateway.PersistedChannel, len(ncs))
+	result := make([]gatewaypkg.PersistedChannel, len(ncs))
 	for i, c := range ncs {
-		result[i] = bcgateway.PersistedChannel{
+		result[i] = gatewaypkg.PersistedChannel{
 			BCChannel:        c.BCChannel,
 			Platform:         c.Platform,
 			PlatformID:       c.PlatformID,
@@ -544,17 +544,17 @@ func (p *channelPersister) UpsertChannelMeta(ctx context.Context, bcChannel, dis
 	return p.store.UpsertChannelMeta(ctx, bcChannel, displayName, kind, participantCount)
 }
 
-// costServiceAdapter bridges cost.Service → bcagent.CostQuerier.
+// costServiceAdapter bridges cost.Service → agentpkg.CostQuerier.
 type costServiceAdapter struct {
 	svc *cost.Service
 }
 
-func (a *costServiceAdapter) AgentCostSummary(agentID string) (*bcagent.CostSummary, error) {
+func (a *costServiceAdapter) AgentCostSummary(agentID string) (*agentpkg.CostSummary, error) {
 	sum, err := a.svc.AgentSummary(context.Background(), agentID)
 	if err != nil {
 		return nil, err
 	}
-	return &bcagent.CostSummary{
+	return &agentpkg.CostSummary{
 		AgentID:      sum.AgentID,
 		InputTokens:  sum.InputTokens,
 		OutputTokens: sum.OutputTokens,

@@ -17,7 +17,7 @@ import (
 
 	"github.com/rpuneet/mycel/pkg/agent"
 	"github.com/rpuneet/mycel/pkg/cost"
-	bcdb "github.com/rpuneet/mycel/pkg/db"
+	dbpkg "github.com/rpuneet/mycel/pkg/db"
 
 	"github.com/rpuneet/mycel/pkg/events"
 	"github.com/rpuneet/mycel/pkg/home"
@@ -58,11 +58,11 @@ func newE2EServer(t *testing.T) *e2eServer {
 	}
 
 	// Single global database (production path).
-	wsDB, wsDriver, dbErr := bcdb.Global(nil)
+	wsDB, wsDriver, dbErr := dbpkg.Global(nil)
 	if dbErr != nil {
 		t.Fatalf("open global db: %v", dbErr)
 	}
-	t.Cleanup(func() { _ = bcdb.CloseGlobal() })
+	t.Cleanup(func() { _ = dbpkg.CloseGlobal() })
 
 	// SSE hub
 	hub := ws_hub(t)

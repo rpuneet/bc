@@ -69,7 +69,7 @@ func DefaultConfig() Config {
 	}
 }
 
-// DB wraps a sql.DB with bc-specific functionality.
+// DB wraps a sql.DB with mycel-specific functionality.
 type DB struct {
 	*sql.DB
 	path   string

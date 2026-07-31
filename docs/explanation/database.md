@@ -5,7 +5,7 @@
 mycel uses two storage backends behind a single abstraction:
 
 - **SQLite** (default) — zero-configuration, local-first. The single global database lives at `~/.mycel/mycel.db`.
-- **TimescaleDB** (Postgres 17) — implemented and shipping as the `mycel-bcdb` Docker image (`timescale/timescaledb:2.19.1-pg17`). Selected via config or environment (see below).
+- **TimescaleDB** (Postgres 17) — implemented and shipping as the `mycel-db` Docker image (`timescale/timescaledb:2.19.1-pg17`). Selected via config or environment (see below).
 
 There is one global database. Isolation between repos comes from data keys (agent name, repo path), not from separate files:
 
@@ -64,7 +64,7 @@ From `pkg/db/db.go` (`Open` + pragmas):
 
 There is no migration framework. Every store owns its schema and creates it idempotently at startup with `CREATE TABLE IF NOT EXISTS` (each store's `InitSchema()`), with driver-appropriate column types — e.g. `TIMESTAMPTZ DEFAULT NOW()` on TimescaleDB vs `TEXT`/`INTEGER` timestamps on SQLite. Schema changes are additive; column additions use guarded `ALTER TABLE` where needed.
 
-The TimescaleDB image additionally seeds `docker/bcdb/init.sql` (relational tables plus hypertables) on first container start.
+The TimescaleDB image additionally seeds `docker/db/init.sql` (relational tables plus hypertables) on first container start.
 
 ## Roles: JSON Columns, Not Join Tables
 
@@ -101,7 +101,7 @@ Postgres support is fully implemented:
 
 - `pkg/db/postgres.go` — connection handling, `DATABASE_URL` / DSN construction.
 - Per-store Postgres implementations: `pkg/cost/store_postgres.go`, `pkg/events/store_postgres.go`, `pkg/mcp/store_postgres.go`, `pkg/secret/store_postgres.go`, `pkg/tool/store_postgres.go`; the role store switches dialect on the shared driver string.
-- `docker/Dockerfile.bcdb` builds `mycel-bcdb` from `timescale/timescaledb:2.19.1-pg17` (`POSTGRES_USER=bc`, `POSTGRES_DB=bc`, password injected at runtime; `pg_isready` healthcheck baked in).
+- `docker/Dockerfile.db` builds `mycel-db` from `timescale/timescaledb:2.19.1-pg17` (`POSTGRES_USER=mycel`, `POSTGRES_DB=mycel`, password injected at runtime; `pg_isready` healthcheck baked in).
 - Time-series data (costs, events) uses TimescaleDB hypertables; relational tables are plain Postgres.
 
 ## Filesystem Layout

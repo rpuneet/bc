@@ -13,8 +13,8 @@ import (
 	"strings"
 	"testing"
 
-	bcagent "github.com/rpuneet/mycel/pkg/agent"
-	bcdb "github.com/rpuneet/mycel/pkg/db"
+	agentpkg "github.com/rpuneet/mycel/pkg/agent"
+	dbpkg "github.com/rpuneet/mycel/pkg/db"
 )
 
 // TestBuildServices_SharedGlobalDB asserts the single-database
@@ -25,7 +25,7 @@ func TestBuildServices_SharedGlobalDB(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("MYCEL_HOME", home)
 	t.Setenv("MYCEL_SECRET_PASSPHRASE", "unit-test")
-	t.Cleanup(func() { _ = bcdb.CloseGlobal() })
+	t.Cleanup(func() { _ = dbpkg.CloseGlobal() })
 	ctx := context.Background()
 
 	wsA, wsB := t.TempDir(), t.TempDir()
@@ -71,9 +71,9 @@ func TestBuildServices_SharedGlobalDB(t *testing.T) {
 
 	// Agents are isolated by repo key: an agent registered in A does
 	// not appear in B's manager.
-	if regErr := svcA.AgentMgr.RegisterStopped(&bcagent.Agent{
+	if regErr := svcA.AgentMgr.RegisterStopped(&agentpkg.Agent{
 		Name:      "shared-db-agent",
-		Role:      bcagent.Role("engineer"),
+		Role:      agentpkg.Role("engineer"),
 		Workspace: wsA,
 		Repo:      wsA,
 	}); regErr != nil {
@@ -85,9 +85,9 @@ func TestBuildServices_SharedGlobalDB(t *testing.T) {
 
 	// Agent names are globally unique: reusing the name from another
 	// repo must be rejected with a helpful error.
-	dupErr := svcB.AgentMgr.RegisterStopped(&bcagent.Agent{
+	dupErr := svcB.AgentMgr.RegisterStopped(&agentpkg.Agent{
 		Name:      "shared-db-agent",
-		Role:      bcagent.Role("engineer"),
+		Role:      agentpkg.Role("engineer"),
 		Workspace: wsB,
 		Repo:      wsB,
 	})
@@ -117,7 +117,7 @@ func TestBuildServices_LazyGlobalDB(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("MYCEL_HOME", home)
 	t.Setenv("MYCEL_SECRET_PASSPHRASE", "unit-test")
-	t.Cleanup(func() { _ = bcdb.CloseGlobal() })
+	t.Cleanup(func() { _ = dbpkg.CloseGlobal() })
 	ctx := context.Background()
 
 	wsDir := t.TempDir()

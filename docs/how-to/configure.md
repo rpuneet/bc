@@ -96,7 +96,7 @@ mycel config set runtime.docker.memory_mb 8192
     "default": "docker",
     "docker": {
       "image": "mycel-agent-claude:latest",
-      "network": "bc-net",
+      "network": "mycel-net",
       "cpus": 4,
       "memory_mb": 8192
     }
@@ -211,7 +211,7 @@ A complete `prefs.json`:
     "default": "docker",
     "docker": {
       "image": "mycel-agent-claude:latest",
-      "network": "bc-net",
+      "network": "mycel-net",
       "docker_socket_path": "/var/run/docker.sock",
       "extra_mounts": [],
       "memory_mb": 4096,

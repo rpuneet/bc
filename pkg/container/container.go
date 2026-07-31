@@ -303,7 +303,7 @@ func (b *Backend) CreateSessionWithCommand(ctx context.Context, name, dir, comma
 // Mounts:
 //   - agent's repo → /workspace (project code; env MYCEL_WORKSPACE, boot repo when unset)
 //   - ~/.mycel/agents/<agent>/session/claude → /home/agent/.claude (persistent Claude state)
-//   - bc-shared-tmp → /tmp/bc-shared (shared volume for cross-container file exchange)
+//   - mycel-shared-tmp → /tmp/mycel-shared (shared volume for cross-container file exchange)
 //
 // Env vars:
 //   - From the env map (MYCEL_AGENT_ID, MYCEL_AGENT_ROLE, role secrets via bc env)
@@ -334,20 +334,17 @@ func (b *Backend) CreateSessionWithEnv(ctx context.Context, name, dir, command s
 	}
 
 	// Validate tool/image consistency — catch mismatches like running "agy"
-	// command inside a "bc-agent-claude" image (Exit 127).
+	// command inside a "mycel-agent-claude" image (Exit 127).
 	if toolName, ok := env["MYCEL_AGENT_TOOL"]; ok && toolName != "" {
 		cmdBin := strings.Fields(command)
 		if len(cmdBin) > 0 {
 			bin := cmdBin[0]
-			// If image is tool-specific (mycel-agent-<X> or legacy bc-agent-<X>)
-			// but command binary doesn't match, the binary likely doesn't exist
-			// in the image.
+			// If image is tool-specific (mycel-agent-<X>) but command
+			// binary doesn't match, the binary likely doesn't exist in
+			// the image.
 			var imageTool string
-			switch {
-			case strings.HasPrefix(image, "mycel-agent-"):
+			if strings.HasPrefix(image, "mycel-agent-") {
 				imageTool = strings.TrimSuffix(strings.TrimPrefix(image, "mycel-agent-"), ":latest")
-			case strings.HasPrefix(image, "bc-agent-"):
-				imageTool = strings.TrimSuffix(strings.TrimPrefix(image, "bc-agent-"), ":latest")
 			}
 			if imageTool != "" {
 				if bin != imageTool && bin != "bash" && bin != "sh" {
@@ -371,9 +368,9 @@ func (b *Backend) CreateSessionWithEnv(ctx context.Context, name, dir, command s
 	args := []string{
 		"run", "-d", "-t",
 		"--name", cn,
-		"--label", "bc.managed=true",
-		"--label", "bc.workspace=" + b.repoHash,
-		"--label", "bc.agent=" + name,
+		"--label", "mycel.managed=true",
+		"--label", "mycel.workspace=" + b.repoHash,
+		"--label", "mycel.agent=" + name,
 	}
 
 	// Resource limits
@@ -438,7 +435,7 @@ func (b *Backend) CreateSessionWithEnv(ctx context.Context, name, dir, command s
 
 	// Mount 4: Shared tmp volume for cross-container file exchange (e.g., Playwright screenshots).
 	// Uses a named Docker volume so all agent containers and the Playwright container share the same data.
-	args = append(args, "-v", "bc-shared-tmp:/tmp/bc-shared")
+	args = append(args, "-v", "mycel-shared-tmp:/tmp/mycel-shared")
 
 	// Extra mounts from global config (e.g., shared caches, tool binaries).
 	// Validate each mount source to prevent arbitrary host filesystem access.
@@ -619,8 +616,8 @@ func (b *Backend) Capture(ctx context.Context, name string, lines int) (string, 
 func (b *Backend) ListSessions(ctx context.Context) ([]runtime.Session, error) {
 	//nolint:gosec // all args are trusted internal values
 	cmd := exec.CommandContext(ctx, "docker", "ps",
-		"--filter", "label=bc.managed=true",
-		"--filter", "label=bc.workspace="+b.repoHash,
+		"--filter", "label=mycel.managed=true",
+		"--filter", "label=mycel.workspace="+b.repoHash,
 		"--filter", "status=running",
 		"--format", "{{.Names}}|{{.CreatedAt}}|{{.Status}}")
 
@@ -673,8 +670,8 @@ func (b *Backend) IsRunning(ctx context.Context) bool {
 func (b *Backend) KillServer(ctx context.Context) error {
 	//nolint:gosec // all args are trusted internal values
 	cmd := exec.CommandContext(ctx, "docker", "ps", "-aq",
-		"--filter", "label=bc.managed=true",
-		"--filter", "label=bc.workspace="+b.repoHash)
+		"--filter", "label=mycel.managed=true",
+		"--filter", "label=mycel.workspace="+b.repoHash)
 
 	output, err := cmd.Output()
 	if err != nil {

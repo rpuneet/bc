@@ -1,4 +1,4 @@
-// Package server implements the bcd HTTP API server.
+// Package server implements the mycel daemon HTTP API server.
 //
 // The server exposes mycel state over HTTP so the bc CLI can operate as a
 // thin client. It binds to localhost only by default and serves:
@@ -69,7 +69,7 @@ func DefaultConfig() Config {
 }
 
 // Services bundles all service/store dependencies for the handlers.
-// bcd is single-tenant: exactly one Services value is built at boot
+// the daemon is single-tenant: exactly one Services value is built at boot
 // (see BuildServices) and lives for the process lifetime.
 type Services struct {
 	Agents   *agent.AgentService
@@ -94,8 +94,8 @@ type Services struct {
 	// initialize and were left nil (see BuildServices).
 	// Surfaced by /api/health so degradation is loud, not silent.
 	Degraded map[string]string
-	// Deps is the optional dependencies registry (bc-db, bc-code-server,
-	// bc-browser). May be nil in tests; when nil the /api/deps handler
+	// Deps is the optional dependencies registry (mycel-db, mycel-code-server,
+	// mycel-browser). May be nil in tests; when nil the /api/deps handler
 	// returns an empty list and 404 for detail routes.
 	Deps *deps.Registry
 
@@ -145,14 +145,14 @@ func (s *Services) Close() error {
 	return err
 }
 
-// Server is the bcd HTTP server.
+// Server is the mycel daemon HTTP server.
 type Server struct {
 	httpServer *http.Server
 	handler    http.Handler
 	addr       string
 }
 
-// New creates a bcd server with the given config, services, SSE hub, and optional static files.
+// New creates a daemon server with the given config, services, SSE hub, and optional static files.
 func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 	if cfg.Addr == "" {
 		cfg.Addr = defaultAddr
@@ -375,7 +375,7 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 	}
 	handlers.NewReposHandler(svc.Agents, rootDir).Register(mux)
 	handlers.NewDiscoveryHandler().Register(mux)
-	// Optional dependencies manager (bc-db, bc-code-server, bc-browser).
+	// Optional dependencies manager (mycel-db, mycel-code-server, mycel-browser).
 	// Always registered so the UI can render an empty list when no deps
 	// are configured; the handler is nil-safe internally.
 	handlers.NewDepsHandler(svc.Deps).Register(mux)
@@ -420,7 +420,7 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 
 		// File upload/download for channel attachments + shared screenshots
 		fileStore := attachment.NewStore(svc.Home.StateDir())
-		fileStore.AddSharedDir("/tmp/bc-shared")
+		fileStore.AddSharedDir("/tmp/mycel-shared")
 		handlers.NewFileHandler(fileStore).Register(mux)
 	}
 
@@ -587,7 +587,7 @@ func (s *Server) Start(ctx context.Context) error {
 	}
 	s.addr = ln.Addr().String()
 
-	log.Info("bcd listening", "addr", s.addr)
+	log.Info("daemon listening", "addr", s.addr)
 
 	go func() {
 		<-ctx.Done()

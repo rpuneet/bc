@@ -642,8 +642,8 @@ func TestFix_HomeAgentsDir_Creates(t *testing.T) {
 }
 
 // TestCheckAgentImages covers the docker agent-image doctor check: a
-// provider without its mycel-agent image (or the legacy bc-agent name)
-// warns with a build hint; no docker → no items at all.
+// provider without its mycel-agent image warns with a build hint; no
+// docker → no items at all.
 func TestCheckAgentImages(t *testing.T) {
 	ctx := context.Background()
 	orig := listDockerImages
@@ -658,7 +658,7 @@ func TestCheckAgentImages(t *testing.T) {
 
 	t.Run("missing and present images", func(t *testing.T) {
 		listDockerImages = func(context.Context) []string {
-			return []string{"mycel-agent-claude:latest", "bc-agent-agy:latest", "ubuntu:24.04"}
+			return []string{"mycel-agent-claude:latest", "mycel-agent-agy:latest", "ubuntu:24.04"}
 		}
 		items := checkAgentImages(ctx)
 		if len(items) == 0 {
@@ -672,7 +672,7 @@ func TestCheckAgentImages(t *testing.T) {
 			t.Errorf("claude image severity = %v, want OK", got)
 		}
 		if got := bySeverity["image:mycel-agent-agy:latest"]; got != SeverityOK {
-			t.Errorf("agy legacy image severity = %v, want OK", got)
+			t.Errorf("agy image severity = %v, want OK", got)
 		}
 		if got := bySeverity["image:mycel-agent-cursor:latest"]; got != SeverityWarn {
 			t.Errorf("cursor missing image severity = %v, want Warn", got)

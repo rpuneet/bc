@@ -79,13 +79,13 @@ func TestRegistryRegisterOverwrites(t *testing.T) {
 	}
 }
 
-func TestBCBrowserDeprecated(t *testing.T) {
-	b := NewBCBrowser()
+func TestBrowserDeprecated(t *testing.T) {
+	b := NewBrowser()
 	if !b.Deprecated() {
-		t.Error("bc-browser should be deprecated")
+		t.Error("mycel-browser should be deprecated")
 	}
 	if err := b.Start(context.Background()); err == nil {
-		t.Error("bc-browser Start should fail")
+		t.Error("mycel-browser Start should fail")
 	}
 	st, err := b.Status(context.Background())
 	if err != nil {

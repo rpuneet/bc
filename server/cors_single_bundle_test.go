@@ -17,7 +17,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	bcdb "github.com/rpuneet/mycel/pkg/db"
+	dbpkg "github.com/rpuneet/mycel/pkg/db"
 	"github.com/rpuneet/mycel/server"
 )
 
@@ -36,7 +36,7 @@ func buildTestBundle(t *testing.T) server.Services {
 	gitInitDir(t, wsDir)
 
 	// BuildServices resolves the global db lazily; release it after.
-	t.Cleanup(func() { _ = bcdb.CloseGlobal() })
+	t.Cleanup(func() { _ = dbpkg.CloseGlobal() })
 
 	svc, err := server.BuildServices(context.Background(), &server.Globals{}, wsDir)
 	if err != nil {

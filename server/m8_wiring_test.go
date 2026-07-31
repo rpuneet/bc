@@ -9,11 +9,11 @@ import (
 	"testing"
 	"time"
 
-	bccost "github.com/rpuneet/mycel/pkg/cost"
+	costpkg "github.com/rpuneet/mycel/pkg/cost"
 	"github.com/rpuneet/mycel/pkg/home"
-	bcmcp "github.com/rpuneet/mycel/pkg/mcp"
-	bcsecret "github.com/rpuneet/mycel/pkg/secret"
-	bctemplate "github.com/rpuneet/mycel/pkg/template"
+	mcppkg "github.com/rpuneet/mycel/pkg/mcp"
+	secretpkg "github.com/rpuneet/mycel/pkg/secret"
+	templatepkg "github.com/rpuneet/mycel/pkg/template"
 )
 
 // TestM8WiringTemplatesGlobalStore verifies that BuildServices hands
@@ -30,14 +30,14 @@ func TestM8WiringTemplatesGlobalStore(t *testing.T) {
 	if err := os.MkdirAll(globalDir, 0o750); err != nil {
 		t.Fatal(err)
 	}
-	globalTmpl := bctemplate.Template{Name: "user-t", Description: "global"}
-	if err := bctemplate.NewStore(globalDir).Create(globalTmpl, "global prompt", bctemplate.ScopeGlobal); err != nil {
+	globalTmpl := templatepkg.Template{Name: "user-t", Description: "global"}
+	if err := templatepkg.NewStore(globalDir).Create(globalTmpl, "global prompt", templatepkg.ScopeGlobal); err != nil {
 		t.Fatalf("seed global template: %v", err)
 	}
 
 	// Build a Globals with the user-global template store wired.
 	globals := &Globals{
-		Templates: bctemplate.NewStore(globalDir),
+		Templates: templatepkg.NewStore(globalDir),
 	}
 
 	wsDir := t.TempDir()
@@ -59,7 +59,7 @@ func TestM8WiringTemplatesGlobalStore(t *testing.T) {
 	}
 	foundGlobal := false
 	for _, tt := range list {
-		if tt.Name == "user-t" && tt.Scope == bctemplate.ScopeGlobal {
+		if tt.Name == "user-t" && tt.Scope == templatepkg.ScopeGlobal {
 			foundGlobal = true
 		}
 	}
@@ -90,7 +90,7 @@ func TestM8WiringSecretsPreferGlobalVault(t *testing.T) {
 	t.Setenv("MYCEL_HOME", bcHome)
 	t.Setenv("MYCEL_SECRET_PASSPHRASE", "unit-test")
 
-	vault, err := bcsecret.OpenVaultFile(filepath.Join(bcHome, "secrets.vault"), "unit-test")
+	vault, err := secretpkg.OpenVaultFile(filepath.Join(bcHome, "secrets.vault"), "unit-test")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -128,8 +128,8 @@ func TestM8WiringMCPGlobalView(t *testing.T) {
 	t.Setenv("MYCEL_SECRET_PASSPHRASE", "unit-test")
 
 	mcpPath := filepath.Join(bcHome, "mcps.json")
-	gs := bcmcp.NewGlobalStore(mcpPath)
-	if err := gs.Add(&bcmcp.ServerConfig{Name: "trusted-gh", Transport: bcmcp.TransportStdio, Command: "npx"}); err != nil {
+	gs := mcppkg.NewGlobalStore(mcpPath)
+	if err := gs.Add(&mcppkg.ServerConfig{Name: "trusted-gh", Transport: mcppkg.TransportStdio, Command: "npx"}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -221,14 +221,14 @@ func TestM8WiringCostsSourceDirect(t *testing.T) {
 	}
 
 	// Budgets are configuration persisted in ~/.mycel/prefs.json.
-	if _, setErr := svc.Costs.SetBudget(ctx, "workspace", bccost.BudgetPeriodMonthly, 25, 0.8, false); setErr != nil {
+	if _, setErr := svc.Costs.SetBudget(ctx, "workspace", costpkg.BudgetPeriodMonthly, 25, 0.8, false); setErr != nil {
 		t.Fatalf("SetBudget: %v", setErr)
 	}
 	budget, err := svc.Costs.GetBudget(ctx, "workspace")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if budget == nil || budget.LimitUSD != 25 || budget.Period != bccost.BudgetPeriodMonthly {
+	if budget == nil || budget.LimitUSD != 25 || budget.Period != costpkg.BudgetPeriodMonthly {
 		t.Fatalf("GetBudget = %+v, want monthly $25", budget)
 	}
 
@@ -237,7 +237,7 @@ func TestM8WiringCostsSourceDirect(t *testing.T) {
 		t.Fatalf("read prefs.json: %v", err)
 	}
 	var prefs struct {
-		Budgets map[string]bccost.BudgetConfig `json:"budgets"`
+		Budgets map[string]costpkg.BudgetConfig `json:"budgets"`
 	}
 	if err := json.Unmarshal(prefsRaw, &prefs); err != nil {
 		t.Fatalf("parse prefs.json: %v", err)

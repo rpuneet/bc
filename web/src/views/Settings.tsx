@@ -525,7 +525,7 @@ export function Settings() {
         <InjectedInstructionsSection />
       </Section>
 
-      {/* Row 5: Optional dependencies (bc-db, bc-code-server, bc-browser) */}
+      {/* Row 5: Optional dependencies (mycel-db, mycel-code-server, mycel-browser) */}
       <Section title="dependencies" dirty={false}>
         <DependenciesSection />
       </Section>

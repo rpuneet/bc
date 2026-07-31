@@ -16,16 +16,16 @@ import (
 	"strings"
 	"time"
 
-	bcagent "github.com/rpuneet/mycel/pkg/agent"
-	bccontainer "github.com/rpuneet/mycel/pkg/container"
+	agentpkg "github.com/rpuneet/mycel/pkg/agent"
+	containerpkg "github.com/rpuneet/mycel/pkg/container"
 	"github.com/rpuneet/mycel/pkg/log"
-	bcstats "github.com/rpuneet/mycel/pkg/stats"
+	statspkg "github.com/rpuneet/mycel/pkg/stats"
 )
 
 // tmuxSampler is shared across sampling ticks so the one-time
 // "no per-process network stats on this platform" warning stays
 // one-time across the life of the collector.
-var tmuxSampler = bcstats.NewTmuxSampler(bcstats.DefaultTmuxProcRunner{})
+var tmuxSampler = statspkg.NewTmuxSampler(statspkg.DefaultTmuxProcRunner{})
 
 // dockerStatsEntry represents one line of `docker stats --no-stream --format '{{json .}}'`.
 type dockerStatsEntry struct {
@@ -41,20 +41,20 @@ type dockerStatsEntry struct {
 // runStatsCollector periodically samples system and agent metrics into TimescaleDB.
 //
 //nolint:gocyclo // Single pass over docker stats output; splitting obscures flow.
-func runStatsCollector(ctx context.Context, ss *bcstats.Store, agents *bcagent.AgentService) {
+func runStatsCollector(ctx context.Context, ss *statspkg.Store, agents *agentpkg.AgentService) {
 	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
 
-	agentLookup := func() map[string]*bcagent.Agent {
+	agentLookup := func() map[string]*agentpkg.Agent {
 		if agents == nil {
 			return nil
 		}
-		list, err := agents.List(ctx, bcagent.ListOptions{})
+		list, err := agents.List(ctx, agentpkg.ListOptions{})
 		if err != nil {
 			log.Debug("stats: agent list failed", "error", err)
 			return nil
 		}
-		m := make(map[string]*bcagent.Agent, len(list))
+		m := make(map[string]*agentpkg.Agent, len(list))
 		for _, a := range list {
 			m[a.Name] = a
 		}
@@ -79,7 +79,7 @@ func runStatsCollector(ctx context.Context, ss *bcstats.Store, agents *bcagent.A
 				name := e.Name
 				switch {
 				case isSystemContainer(name):
-					if err := ss.RecordSystem(ctx, bcstats.SystemMetric{
+					if err := ss.RecordSystem(ctx, statspkg.SystemMetric{
 						Time:           now,
 						SystemName:     name,
 						CPUPercent:     cpu,
@@ -101,7 +101,7 @@ func runStatsCollector(ctx context.Context, ss *bcstats.Store, agents *bcagent.A
 						tool = a.Tool
 						state = string(a.State)
 					}
-					if err := ss.RecordAgent(ctx, bcstats.AgentMetric{
+					if err := ss.RecordAgent(ctx, statspkg.AgentMetric{
 						Time:           now,
 						AgentName:      agentName,
 						Role:           role,
@@ -172,7 +172,7 @@ func collectDockerStats(ctx context.Context) []dockerStatsEntry {
 //
 // Previous implementation grepped `ps aux` for the session name, which
 // both over-matched (any command line containing the name) and
-// under-matched (agents whose session string differed from the bc-hashed
+// under-matched (agents whose session string differed from the hashed
 // tmux name). We now use pkg/stats.TmuxSampler which resolves the pane
 // PID via `tmux list-panes` and walks children via `pgrep -P`.
 //
@@ -181,7 +181,7 @@ func collectDockerStats(ctx context.Context) []dockerStatsEntry {
 // are container-wide rather than per-process. The UI renders "Network
 // tracking requires container runtime" in that case. We log a one-time
 // warning so operators know why the chart is flat.
-func collectTmuxAgentStats(ctx context.Context, agentName string, a *bcagent.Agent) (*bcstats.AgentMetric, error) {
+func collectTmuxAgentStats(ctx context.Context, agentName string, a *agentpkg.Agent) (*statspkg.AgentMetric, error) {
 	sessionName := a.Session
 	if sessionName == "" {
 		sessionName = agentName
@@ -196,7 +196,7 @@ func collectTmuxAgentStats(ctx context.Context, agentName string, a *bcagent.Age
 		log.Debug("stats: tmux agents have no per-process network counters; NetRx/NetTx will be 0")
 	})
 
-	return &bcstats.AgentMetric{
+	return &statspkg.AgentMetric{
 		Time:         time.Now().UTC(),
 		AgentName:    agentName,
 		Role:         string(a.Role),
@@ -210,7 +210,7 @@ func collectTmuxAgentStats(ctx context.Context, agentName string, a *bcagent.Age
 
 // runContainerStatsCollector samples Docker container metrics via the
 // backend API and persists them in SQLite agent_stats (for /api/agents/{name}/stats).
-func runContainerStatsCollector(ctx context.Context, be *bccontainer.Backend, mgr *bcagent.Manager) {
+func runContainerStatsCollector(ctx context.Context, be *containerpkg.Backend, mgr *agentpkg.Manager) {
 	const interval = 30 * time.Second
 	const bytesToMB = 1024 * 1024
 
@@ -227,7 +227,7 @@ func runContainerStatsCollector(ctx context.Context, be *bccontainer.Backend, mg
 			}
 			for _, cs := range allStats {
 				agentName := extractAgentName(cs.Name)
-				rec := &bcagent.AgentStatsRecord{
+				rec := &agentpkg.AgentStatsRecord{
 					AgentName:    agentName,
 					CollectedAt:  time.Now().UTC(),
 					CPUPct:       cs.CPUPercent,
@@ -248,16 +248,15 @@ func runContainerStatsCollector(ctx context.Context, be *bccontainer.Backend, mg
 	}
 }
 
-// agentContainerPrefixes are all container-name prefixes that identify an
-// agent container. "mycel-" is the canonical v0.3.1+ prefix; "bc-" is kept
-// for one release cycle so pre-rename containers keep reporting stats.
-var agentContainerPrefixes = []string{"mycel-", "bc-"}
+// agentContainerPrefixes are the container-name prefixes that identify an
+// agent container.
+var agentContainerPrefixes = []string{"mycel-"}
 
 // systemContainerNames identifies infrastructure containers that should be
 // recorded via RecordSystem rather than RecordAgent.
 func isSystemContainer(name string) bool {
 	switch name {
-	case "mycel-db", "mycel-playwright", "bc-db", "bc-playwright":
+	case "mycel-db", "mycel-playwright":
 		return true
 	}
 	return strings.Contains(name, "-daemon")
@@ -269,7 +268,7 @@ func isAgentContainer(name string) bool {
 			continue
 		}
 		rest := name[len(p):]
-		// Require a `<hash>-<agent>` suffix — bare "mycel-" / "bc-" aren't agents.
+		// Require a `<hash>-<agent>` suffix — a bare "mycel-" isn't an agent.
 		if i := strings.Index(rest, "-"); i > 0 && i < len(rest)-1 {
 			return !isSystemContainer(name)
 		}

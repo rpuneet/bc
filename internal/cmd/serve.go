@@ -11,16 +11,16 @@ import (
 	"strings"
 	"syscall"
 
-	bcdb "github.com/rpuneet/mycel/pkg/db"
-	bcdeps "github.com/rpuneet/mycel/pkg/deps"
+	dbpkg "github.com/rpuneet/mycel/pkg/db"
+	depspkg "github.com/rpuneet/mycel/pkg/deps"
 	"github.com/rpuneet/mycel/pkg/home"
 	"github.com/rpuneet/mycel/pkg/log"
-	bcmcp "github.com/rpuneet/mycel/pkg/mcp"
-	bcsecret "github.com/rpuneet/mycel/pkg/secret"
-	bcstats "github.com/rpuneet/mycel/pkg/stats"
-	bctemplate "github.com/rpuneet/mycel/pkg/template"
+	mcppkg "github.com/rpuneet/mycel/pkg/mcp"
+	secretpkg "github.com/rpuneet/mycel/pkg/secret"
+	statspkg "github.com/rpuneet/mycel/pkg/stats"
+	templatepkg "github.com/rpuneet/mycel/pkg/template"
 	"github.com/rpuneet/mycel/server"
-	bcws "github.com/rpuneet/mycel/server/ws"
+	wspkg "github.com/rpuneet/mycel/server/ws"
 )
 
 // RunServer starts the mycel server (formerly bcd) in the foreground.
@@ -61,9 +61,9 @@ func RunServerCtx(ctx context.Context, addr, repoRoot, corsOrigin, apiKey string
 	// The single global database (<MycelHome>/mycel.db) is opened lazily
 	// through pkg/db. Warm the connection eagerly so storage problems
 	// surface at boot, and close it at shutdown.
-	defer bcdb.CloseGlobal() //nolint:errcheck
+	defer dbpkg.CloseGlobal() //nolint:errcheck
 	{
-		if _, driver, dbErr := bcdb.Global(h.Config.DBStorageSettings()); dbErr != nil {
+		if _, driver, dbErr := dbpkg.Global(h.Config.DBStorageSettings()); dbErr != nil {
 			log.Warn("failed to open global db", "error", dbErr)
 		} else {
 			configDriver := ""
@@ -88,15 +88,15 @@ func RunServerCtx(ctx context.Context, addr, repoRoot, corsOrigin, apiKey string
 
 	// The one SSE hub — the bundle publishes into it and server.New()
 	// mounts it at /api/events.
-	globalHub := bcws.NewHub()
+	globalHub := wspkg.NewHub()
 	go globalHub.Run()
 	defer globalHub.Stop()
 
 	// Global stats store — TimescaleDB connection shared across repos.
-	var statsStore *bcstats.Store
+	var statsStore *statspkg.Store
 	{
-		dsn := bcstats.StatsDSN()
-		if ss, err := bcstats.NewStore(dsn); err != nil {
+		dsn := statspkg.StatsDSN()
+		if ss, err := statspkg.NewStore(dsn); err != nil {
 			log.Warn("stats store unavailable (TimescaleDB)", "error", err, "dsn", redactDSN(dsn))
 		} else {
 			statsStore = ss
@@ -105,36 +105,36 @@ func RunServerCtx(ctx context.Context, addr, repoRoot, corsOrigin, apiKey string
 		}
 	}
 
-	// Optional dependencies registry (bc-db, bc-code-server, bc-browser).
-	depsRegistry := bcdeps.NewRegistry()
-	bcCodeServer := bcdeps.NewBCCodeServer(h.RootDir)
-	depsRegistry.Register(bcdeps.NewBCDB())
+	// Optional dependencies registry (mycel-db, mycel-code-server, mycel-browser).
+	depsRegistry := depspkg.NewRegistry()
+	bcCodeServer := depspkg.NewCodeServer(h.RootDir)
+	depsRegistry.Register(depspkg.NewDB())
 	depsRegistry.Register(bcCodeServer)
-	depsRegistry.Register(bcdeps.NewBCBrowser())
+	depsRegistry.Register(depspkg.NewBrowser())
 
 	// User-global template store at ~/.mycel/templates/. Seeded on first run;
 	// callers may wrap this store with an override directory.
-	var templatesStore *bctemplate.Store
+	var templatesStore *templatepkg.Store
 	if globalTmplDir, gtErr := home.GlobalTemplatesDir(); gtErr != nil {
 		log.Warn("global templates dir unavailable", "error", gtErr)
 	} else {
 		if _, ensureErr := home.EnsureGlobalDir(); ensureErr != nil {
 			log.Warn("ensure global bc dir", "error", ensureErr)
 		}
-		if seedErr := bctemplate.SeedDefaults(globalTmplDir); seedErr != nil {
+		if seedErr := templatepkg.SeedDefaults(globalTmplDir); seedErr != nil {
 			log.Warn("seed global template defaults", "error", seedErr)
 		}
-		templatesStore = bctemplate.NewStore(globalTmplDir)
+		templatesStore = templatepkg.NewStore(globalTmplDir)
 	}
 
 	// User-global secrets vault at ~/.mycel/secrets.vault. A single vault
 	// keeps ANTHROPIC_API_KEY and friends visible to every agent.
-	var globalVault *bcsecret.Store
+	var globalVault *secretpkg.Store
 	if vaultPath, vpErr := home.GlobalSecretsVault(); vpErr != nil {
 		log.Warn("global secrets vault path unavailable", "error", vpErr)
-	} else if passphrase, passErr := bcsecret.Passphrase(); passErr != nil {
+	} else if passphrase, passErr := secretpkg.Passphrase(); passErr != nil {
 		log.Warn("secret passphrase unavailable — global vault disabled", "error", passErr)
-	} else if gv, openErr := bcsecret.OpenVaultFile(vaultPath, passphrase); openErr != nil {
+	} else if gv, openErr := secretpkg.OpenVaultFile(vaultPath, passphrase); openErr != nil {
 		log.Warn("global secrets vault unavailable", "error", openErr, "path", vaultPath)
 	} else {
 		globalVault = gv
@@ -144,11 +144,11 @@ func RunServerCtx(ctx context.Context, addr, repoRoot, corsOrigin, apiKey string
 	// User-global MCP registry at ~/.mycel/mcps.json. The DB layer still has
 	// their own SQLite-backed overrides; handlers and agent spawn logic
 	// compose the two at resolve time.
-	var mcpGlobal *bcmcp.GlobalStore
+	var mcpGlobal *mcppkg.GlobalStore
 	if mcpPath, mpErr := home.GlobalMCPConfig(); mpErr != nil {
 		log.Warn("global mcp config path unavailable", "error", mpErr)
 	} else {
-		mcpGlobal = bcmcp.NewGlobalStore(mcpPath)
+		mcpGlobal = mcppkg.NewGlobalStore(mcpPath)
 	}
 
 	// Costs are source-direct: BuildServices constructs the cost

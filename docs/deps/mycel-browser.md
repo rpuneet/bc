@@ -1,4 +1,4 @@
-# bc-browser — Deprecated Optional Dependency
+# mycel-browser — Deprecated Optional Dependency
 
 > **Status:** Documented / deprioritized &nbsp;|&nbsp; **Updated:** 2026-04-16
 >
@@ -6,7 +6,7 @@
 
 ## Summary
 
-`bc-browser` was planned as an optional dependency that runs a headed Playwright
+`mycel-browser` was planned as an optional dependency that runs a headed Playwright
 (visible browser) service inside Docker, intended to let agents drive a browser
 for web automation tasks. It is **no longer a priority** because:
 
@@ -22,11 +22,11 @@ for web automation tasks. It is **no longer a priority** because:
 
 - The make target `build-docker-playwright` still builds the headless image used
   by the Playwright MCP server; no changes.
-- In the Dependencies manager UI (Settings → Dependencies), `bc-browser` appears
+- In the Dependencies manager UI (Settings → Dependencies), `mycel-browser` appears
   but is labeled **Deprecated** and its start button is disabled.
-- `POST /api/deps/bc-browser/start` returns `409 Conflict` with the body:
+- `POST /api/deps/mycel-browser/start` returns `409 Conflict` with the body:
   ```json
-  { "error": "bc-browser is deprecated; use Claude Code's built-in browser plugin instead", "doc": "docs/deps/bc-browser.md" }
+  { "error": "mycel-browser is deprecated; use Claude Code's built-in browser plugin instead", "doc": "docs/deps/mycel-browser.md" }
   ```
 
 ## If you still need a headed browser

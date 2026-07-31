@@ -2,7 +2,7 @@
 // docs/proposals/multi-workspace-and-code-tab.md §7.
 //
 // A Dependency is a named external service (e.g. a database container or a
-// code-server instance) that the user can optionally start from the bcd
+// code-server instance) that the user can optionally start from the the daemon
 // Settings UI. The Registry holds the known dependencies; each one is a
 // self-contained implementation that knows how to report its status and
 // start/stop itself, typically by shelling out to `docker`.
@@ -41,7 +41,7 @@ const (
 // work inside the interface methods so the registry itself can be built
 // eagerly at server boot without side effects.
 type Dependency interface {
-	// ID is the stable short identifier, e.g. "bc-db".
+	// ID is the stable short identifier, e.g. "mycel-db".
 	ID() string
 	// DisplayName is the human-friendly name shown in the UI.
 	DisplayName() string

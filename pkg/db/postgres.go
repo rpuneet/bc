@@ -10,11 +10,11 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib" // Postgres driver via pgx
 )
 
-// DefaultPostgresDSN is the connection string for the bcdb (TimescaleDB) container.
-const DefaultPostgresDSN = "postgres://bc:bc@localhost:5432/bc"
+// DefaultPostgresDSN is the connection string for the mycel-db (TimescaleDB) container.
+const DefaultPostgresDSN = "postgres://mycel:mycel@localhost:5432/mycel"
 
 // PostgresDSN returns the Postgres connection string from DATABASE_URL env var,
-// or the default bcdb DSN if not set.
+// or the default mycel-db DSN if not set.
 func PostgresDSN() string {
 	if dsn := os.Getenv("DATABASE_URL"); dsn != "" {
 		return dsn
@@ -28,7 +28,7 @@ func IsPostgresEnabled() bool {
 }
 
 // OpenPostgres opens a connection pool to Postgres using the given DSN.
-// The DSN should be a postgres:// URL (e.g. postgres://bc:bc@localhost:5432/bc).
+// The DSN should be a postgres:// URL (e.g. postgres://mycel:mycel@localhost:5432/mycel).
 func OpenPostgres(dsn string) (*sql.DB, error) {
 	db, err := sql.Open("pgx", dsn)
 	if err != nil {

@@ -37,7 +37,7 @@ interface WorktreeOption {
 
 async function fetchCodeServerStatus(): Promise<{ running: boolean; endpoint: string }> {
   try {
-    const r = await fetch("/api/deps/bc-code-server/status");
+    const r = await fetch("/api/deps/mycel-code-server/status");
     if (!r.ok) return { running: false, endpoint: "" };
     const d = (await r.json()) as { state?: string };
     return {
@@ -214,7 +214,7 @@ export function Code() {
         {/* Show hidden toggle */}
         <HiddenToggle showHidden={showHidden} onToggle={toggleHidden} />
 
-        {/* Edit in VS Code (only when bc-code-server dep is running) */}
+        {/* Edit in VS Code (only when mycel-code-server dep is running) */}
         {codeServer.running && (
           <button
             type="button"

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# test-install.sh — end-to-end smoke test for every bc install method.
+# test-install.sh — end-to-end smoke test for every mycel install method.
 #
 # Tests:
-#   1. Build from source via `make install-local-bc` and run `bc version`.
+#   1. Build from source via `make install-local-mycel` and run `mycel version`.
 #   2. Dry-run verify scripts/install.sh URL patterns without touching the host.
 #   3. `go install github.com/rpuneet/mycel/cmd/mycel@latest` into a throwaway GOPATH.
 #   4. Pull + run ghcr.io/rpuneet/mycel:v0.1.0 Docker image.
@@ -60,7 +60,7 @@ skip() {
 # Test 1: Build from source.
 # -----------------------------------------------------------------------------
 test_build_from_source() {
-    header "Test 1: build from source (make install-local-bc)"
+    header "Test 1: build from source (make install-local-mycel)"
     if ! command -v make >/dev/null 2>&1; then
         skip "build-from-source" "make not installed"
         return
@@ -76,9 +76,9 @@ test_build_from_source() {
         gobin="$(go env GOPATH)/bin"
     fi
 
-    ( cd "$REPO_ROOT" && make install-local-bc ) >/tmp/bc-test-install-build.log 2>&1
+    ( cd "$REPO_ROOT" && make install-local-mycel ) >/tmp/mycel-test-install-build.log 2>&1
     if [[ $? -ne 0 ]]; then
-        echo "  see /tmp/bc-test-install-build.log for details"
+        echo "  see /tmp/mycel-test-install-build.log for details"
         fail "build-from-source"
         return
     fi
@@ -89,8 +89,8 @@ test_build_from_source() {
         return
     fi
 
-    if ! "${gobin}/mycel" version >/tmp/bc-test-install-version.log 2>&1; then
-        echo "  mycel version failed, see /tmp/bc-test-install-version.log"
+    if ! "${gobin}/mycel" version >/tmp/mycel-test-install-version.log 2>&1; then
+        echo "  mycel version failed, see /tmp/mycel-test-install-version.log"
         fail "build-from-source"
         return
     fi
@@ -108,7 +108,7 @@ test_install_sh_dry_run() {
         return
     fi
 
-    if ! bash -n "$INSTALL_SH" 2>/tmp/bc-test-install-shcheck.log; then
+    if ! bash -n "$INSTALL_SH" 2>/tmp/mycel-test-install-shcheck.log; then
         echo "  shell syntax error in $INSTALL_SH"
         fail "install-sh-syntax"
         return
@@ -140,13 +140,13 @@ test_go_install() {
     fi
 
     local tmp_gopath
-    tmp_gopath="$(mktemp -d -t bc-test-gopath.XXXXXX)"
+    tmp_gopath="$(mktemp -d -t mycel-test-gopath.XXXXXX)"
     trap 'rm -rf "$tmp_gopath"' RETURN
 
     GOPATH="$tmp_gopath" GOBIN="$tmp_gopath/bin" \
-        go install "$GO_PKG" >/tmp/bc-test-install-goinstall.log 2>&1
+        go install "$GO_PKG" >/tmp/mycel-test-install-goinstall.log 2>&1
     if [[ $? -ne 0 ]]; then
-        echo "  go install failed, see /tmp/bc-test-install-goinstall.log"
+        echo "  go install failed, see /tmp/mycel-test-install-goinstall.log"
         fail "go-install"
         return
     fi
@@ -157,8 +157,8 @@ test_go_install() {
         return
     fi
 
-    if ! "${tmp_gopath}/bin/mycel" version >/tmp/bc-test-install-govers.log 2>&1; then
-        echo "  installed mycel version failed, see /tmp/bc-test-install-govers.log"
+    if ! "${tmp_gopath}/bin/mycel" version >/tmp/mycel-test-install-govers.log 2>&1; then
+        echo "  installed mycel version failed, see /tmp/mycel-test-install-govers.log"
         fail "go-install"
         return
     fi
@@ -180,14 +180,14 @@ test_docker() {
         return
     fi
 
-    if ! docker pull "$DOCKER_IMAGE" >/tmp/bc-test-install-dockerpull.log 2>&1; then
-        echo "  docker pull failed, see /tmp/bc-test-install-dockerpull.log"
+    if ! docker pull "$DOCKER_IMAGE" >/tmp/mycel-test-install-dockerpull.log 2>&1; then
+        echo "  docker pull failed, see /tmp/mycel-test-install-dockerpull.log"
         fail "docker-pull"
         return
     fi
 
-    if ! docker run --rm "$DOCKER_IMAGE" mycel version >/tmp/bc-test-install-dockerrun.log 2>&1; then
-        echo "  docker run failed, see /tmp/bc-test-install-dockerrun.log"
+    if ! docker run --rm "$DOCKER_IMAGE" mycel version >/tmp/mycel-test-install-dockerrun.log 2>&1; then
+        echo "  docker run failed, see /tmp/mycel-test-install-dockerrun.log"
         fail "docker-run"
         return
     fi

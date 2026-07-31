@@ -14,7 +14,7 @@ import (
 	"strings"
 	"testing"
 
-	bcdb "github.com/rpuneet/mycel/pkg/db"
+	dbpkg "github.com/rpuneet/mycel/pkg/db"
 )
 
 // TestAPIHealthDegradedShape verifies that /api/health reports
@@ -109,7 +109,7 @@ func TestBuildServicesGlobalDBFailure(t *testing.T) {
 		t.Fatalf("plant home file: %v", err)
 	}
 	t.Setenv("MYCEL_HOME", homeFile)
-	t.Cleanup(func() { _ = bcdb.CloseGlobal() })
+	t.Cleanup(func() { _ = dbpkg.CloseGlobal() })
 
 	wsDir := t.TempDir()
 	gitInitDir(t, wsDir)
@@ -123,7 +123,7 @@ func TestBuildServicesGlobalDBFailure(t *testing.T) {
 func TestDegradedMapSurfacedByHealth(t *testing.T) {
 	t.Setenv("MYCEL_HOME", t.TempDir())
 	t.Setenv("MYCEL_SECRET_PASSPHRASE", "unit-test")
-	t.Cleanup(func() { _ = bcdb.CloseGlobal() })
+	t.Cleanup(func() { _ = dbpkg.CloseGlobal() })
 
 	wsDir := t.TempDir()
 	gitInitDir(t, wsDir)

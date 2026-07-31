@@ -86,7 +86,7 @@ by `validateMount()` before being passed to `docker run`:
 
 ### Network
 
-The default Docker network is `bc-net` (`runtime.docker.network` in
+The default Docker network is `mycel-net` (`runtime.docker.network` in
 `prefs.json`; the backend falls back to `bridge` when unset). To fully
 isolate agents from the network, set the network to `none`.
 

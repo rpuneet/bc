@@ -52,7 +52,7 @@ type UserConfig struct {
 	Name string `json:"name"`
 }
 
-// ServerConfig configures the bcd HTTP server.
+// ServerConfig configures the daemon HTTP server.
 type ServerConfig struct {
 	Host       string `json:"host"`
 	CORSOrigin string `json:"cors_origin"`
@@ -170,7 +170,7 @@ func DefaultConfig() Config {
 			Default: "docker",
 			Docker: DockerRuntimeConfig{
 				Image:            "mycel-agent-claude:latest",
-				Network:          "bc-net",
+				Network:          "mycel-net",
 				DockerSocketPath: "/var/run/docker.sock",
 				CPUs:             2,
 				MemoryMB:         4096,
@@ -196,9 +196,9 @@ func DefaultConfig() Config {
 			Timescale: TimescaleStorageConfig{
 				Host:     "localhost",
 				Port:     5432,
-				User:     "bc",
-				Password: "bc",
-				Database: "bc",
+				User:     "mycel",
+				Password: "mycel",
+				Database: "mycel",
 			},
 		},
 		Logs: LogsConfig{

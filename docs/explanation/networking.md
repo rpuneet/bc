@@ -203,6 +203,6 @@ Wildcard CORS is acceptable because the server binds to `127.0.0.1` by default. 
 | Port | Service | Binding |
 |------|---------|---------|
 | 9374 | mycel server (REST + SSE + MCP + Web UI) | `127.0.0.1` (default) |
-| 5432 | bc-db (TimescaleDB/Postgres, optional) | `127.0.0.1` |
+| 5432 | mycel-db (TimescaleDB/Postgres, optional) | `127.0.0.1` |
 
 A single port serves everything: REST API, SSE events, MCP protocol, and embedded web UI (SPA with client-side routing).

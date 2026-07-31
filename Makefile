@@ -2,7 +2,7 @@
 #
 # Structure:
 #   build-local-*    Host machine binaries (Go, TS)
-#   build-docker-*   Docker images (bcd, db, agents)
+#   build-docker-*   Docker images (daemon, db, agents)
 #   test-*           Tests
 #   lint-*           Linters
 #   check-*          Quality gates (lint + test)
@@ -25,10 +25,10 @@
 # Top-level
 .PHONY: build build-local build-docker test lint fmt vet check clean deps release install
 # Go
-.PHONY: build-local-bc build-local-mycel build-local-desktop test-go test-go-race test-go-fast lint-go fmt-go vet-go coverage-go bench-go deps-go check-go scan-go
-.PHONY: release-local-bc release-local-mycel install-local-bc install-local-mycel
+.PHONY: build-local-mycel build-local-desktop test-go test-go-race test-go-fast lint-go fmt-go vet-go coverage-go bench-go deps-go check-go scan-go
+.PHONY: release-local-mycel install-local-mycel
 # Docker
-.PHONY: build-docker-daemon build-docker-db build-docker-bcdb
+.PHONY: build-docker-daemon build-docker-db
 .PHONY: build-docker-agent-base build-docker-agent build-docker-agents build-docker-agent-infra build-docker-playwright stop-docker-playwright run-docker-playwright
 # TS
 .PHONY: build-local-web build-local-landing
@@ -37,7 +37,7 @@
 .PHONY: fmt-ts fmt-web fmt-landing
 .PHONY: vet-ts vet-web vet-landing
 .PHONY: coverage-ts bench-ts deps-ts check-ts scan-ts
-.PHONY: run-bc run-mycel run-web run-landing
+.PHONY: run-mycel run-web run-landing
 # CI
 .PHONY: ci-local ci-docker
 # Clean
@@ -56,7 +56,6 @@ BUILD_DIR ?= bin
 GO ?= go
 
 REGISTRY ?= mycel
-LEGACY_REGISTRY ?= bc
 IMAGE_TAG ?= latest
 AGENT_PROVIDERS := claude gemini codex cursor openclaw
 
@@ -88,7 +87,7 @@ version: ## Show version info
 
 build: build-local build-docker ## Build everything (local + docker)
 build-local: build-local-go build-local-ts ## Build local binaries (go + ts)
-build-docker: build-docker-db build-docker-daemon build-docker-playwright ## Build Docker images (db, bcd, playwright)
+build-docker: build-docker-db build-docker-daemon build-docker-playwright ## Build Docker images (db, daemon, playwright)
 
 test: test-go test-ts ## Run all tests
 lint: lint-go lint-ts ## Run all linters
@@ -111,7 +110,6 @@ build-local-mycel: build-local-web ## Build mycel (embeds web UI, server)
 	@if [ ! -f server/web/dist/index.html ]; then mkdir -p server/web/dist && echo "<!-- stub -->" > server/web/dist/index.html; fi
 	$(GO) build -ldflags="$(LDFLAGS_VERSION)" -o $(BUILD_DIR)/mycel ./cmd/mycel
 
-build-local-bc: build-local-mycel ## Deprecated alias for build-local-mycel
 
 build-local-desktop: build-local-web ## Build desktop app for the host OS (requires wails CLI)
 	cd desktop && wails build -ldflags "$(LDFLAGS_VERSION)"
@@ -137,52 +135,46 @@ build-local-landing: ## Build landing page
 # Build — Docker
 # =============================================================================
 
-build-docker-daemon: ## Build bcd Docker image
-	docker build -t $(REGISTRY)-daemon:$(IMAGE_TAG) -f docker/Dockerfile.bcd .
+build-docker-daemon: ## Build daemon Docker image
+	docker build -t $(REGISTRY)-daemon:$(IMAGE_TAG) -f docker/Dockerfile.daemon .
 
-build-docker-db: ## Build bc-db (unified TimescaleDB) Docker image
-	docker build -t $(REGISTRY)-bcdb:$(IMAGE_TAG) -f docker/Dockerfile.bcdb .
+build-docker-db: ## Build mycel-db (unified TimescaleDB) Docker image
+	docker build -t $(REGISTRY)-db:$(IMAGE_TAG) -f docker/Dockerfile.db .
 
-build-docker-bcdb: build-docker-db ## Alias: Build bcdb (Postgres) Docker image
 
 build-docker-agent-base: ## Build agent base image
 	docker build -t $(REGISTRY)-agent-base:$(IMAGE_TAG) -f docker/Dockerfile.base .
-	docker tag $(REGISTRY)-agent-base:$(IMAGE_TAG) $(LEGACY_REGISTRY)-agent-base:$(IMAGE_TAG)
 
 build-docker-agent: build-docker-agent-base ## Build default agent image (claude)
 	docker build -t $(REGISTRY)-agent-claude:$(IMAGE_TAG) -f docker/Dockerfile.claude .
-	docker tag $(REGISTRY)-agent-claude:$(IMAGE_TAG) $(LEGACY_REGISTRY)-agent-claude:$(IMAGE_TAG)
 
 build-docker-agent-%: build-docker-agent-base ## Build agent image for provider
 	docker build -t $(REGISTRY)-agent-$*:$(IMAGE_TAG) -f docker/Dockerfile.$* .
-	docker tag $(REGISTRY)-agent-$*:$(IMAGE_TAG) $(LEGACY_REGISTRY)-agent-$*:$(IMAGE_TAG)
 
 build-docker-agents: build-docker-agent-base ## Build all agent images
 	@for p in $(AGENT_PROVIDERS); do \
 		echo "Building $(REGISTRY)-agent-$$p..."; \
 		docker build -t $(REGISTRY)-agent-$$p:$(IMAGE_TAG) -f docker/Dockerfile.$$p . || exit 1; \
-		docker tag $(REGISTRY)-agent-$$p:$(IMAGE_TAG) $(LEGACY_REGISTRY)-agent-$$p:$(IMAGE_TAG); \
 	done
 
 build-docker-agent-infra: build-docker-agent ## Build infra agent image (extends claude)
 	docker build -t $(REGISTRY)-agent-infra:$(IMAGE_TAG) -f docker/Dockerfile.infra .
-	docker tag $(REGISTRY)-agent-infra:$(IMAGE_TAG) $(LEGACY_REGISTRY)-agent-infra:$(IMAGE_TAG)
 
 build-docker-playwright: ## Build Playwright MCP Docker image (separate from main build)
-	docker build -t bc-playwright:latest -f docker/Dockerfile.playwright .
+	docker build -t mycel-playwright:latest -f docker/Dockerfile.playwright .
 
 stop-docker-playwright: ## Stop and remove Playwright container
-	docker stop bc-playwright 2>/dev/null || true
-	docker rm bc-playwright 2>/dev/null || true
+	docker stop mycel-playwright 2>/dev/null || true
+	docker rm mycel-playwright 2>/dev/null || true
 
 run-docker-playwright: stop-docker-playwright ## Run Playwright MCP container (VNC :6080, MCP :3000)
-	docker run -d --name bc-playwright \
+	docker run -d --name mycel-playwright \
 		--init --ipc=host \
 		-p 3000:3000 -p 6080:6080 \
-		-v bc-shared-tmp:/tmp/bc-shared \
+		-v mycel-shared-tmp:/tmp/mycel-shared \
 		-e DISPLAY=:99 \
 		--restart unless-stopped \
-		bc-playwright:latest
+		mycel-playwright:latest
 	@echo "  Playwright MCP: http://localhost:3000/sse"
 	@echo "  VNC viewer:     http://localhost:6080"
 
@@ -197,7 +189,7 @@ test-go-race: test-go ## Alias for test-go (always uses -race)
 
 test-go-fast: ## Run Go tests excluding slow packages
 	# NOTE: Keep SLOW list in sync with .github/workflows/ci.yml "Run fast tests" step
-	$(GO) test -race $$($(GO) list ./... | grep -v -F "$$(printf 'github.com/gh-curious-otter/bc/pkg/tmux\ngithub.com/gh-curious-otter/bc/pkg/secret\ngithub.com/gh-curious-otter/bc/pkg/doctor\ngithub.com/gh-curious-otter/bc/internal/cmd')")
+	$(GO) test -race $$($(GO) list ./... | grep -v -F "$$(printf 'github.com/rpuneet/mycel/pkg/tmux\ngithub.com/rpuneet/mycel/pkg/secret\ngithub.com/rpuneet/mycel/pkg/doctor\ngithub.com/rpuneet/mycel/internal/cmd')")
 
 test-ts: test-web test-landing ## Run all TS tests
 
@@ -207,7 +199,7 @@ test-web: ## Run web UI tests
 
 test-web-unit: test-web ## Alias for test-web (vitest unit suite)
 
-test-web-e2e: ## Run web e2e tests (needs running bcd)
+test-web-e2e: ## Run web e2e tests (needs a running daemon)
 	cd web && bunx playwright test --config=e2e/playwright.config.ts
 
 test-landing: ## Run landing tests (no-op: no tests configured yet)
@@ -259,7 +251,7 @@ check-go: vet-go lint-go test-go ## Go quality gate
 check-ts: vet-ts lint-ts test-ts ## TS quality gate
 
 ci-local: ## Full CI pipeline locally
-	@printf "\n$(_BOLD)bc CI$(_RESET) ($(VERSION))\n\n"
+	@printf "\n$(_BOLD)mycel CI$(_RESET) ($(VERSION))\n\n"
 	@FAIL=0; \
 	printf "$(_CYAN)[go]$(_RESET) deps\n";    $(MAKE) --no-print-directory deps-go       || FAIL=1; \
 	printf "$(_CYAN)[go]$(_RESET) check\n";   $(MAKE) --no-print-directory check-go      || FAIL=1; \
@@ -273,10 +265,10 @@ ci-local: ## Full CI pipeline locally
 	else printf "$(_RED)$(_BOLD)CI FAILED$(_RESET)\n\n"; exit 1; fi
 
 ci-docker: ## Build all Docker images
-	@printf "\n$(_BOLD)bc Docker CI$(_RESET)\n\n"
+	@printf "\n$(_BOLD)mycel Docker CI$(_RESET)\n\n"
 	@FAIL=0; \
 	printf "$(_CYAN)[docker]$(_RESET) db\n";       $(MAKE) --no-print-directory build-docker-db         || FAIL=1; \
-	printf "$(_CYAN)[docker]$(_RESET) bcd\n";      $(MAKE) --no-print-directory build-docker-daemon       || FAIL=1; \
+	printf "$(_CYAN)[docker]$(_RESET) daemon\n";      $(MAKE) --no-print-directory build-docker-daemon       || FAIL=1; \
 	printf "$(_CYAN)[docker]$(_RESET) agents\n";   $(MAKE) --no-print-directory build-docker-agents    || FAIL=1; \
 	printf "\n"; \
 	if [ $$FAIL -eq 0 ]; then printf "$(_GREEN)$(_BOLD)Docker CI PASSED$(_RESET)\n\n"; \
@@ -291,7 +283,6 @@ release-local-mycel: ## Build optimized mycel binary (embeds web UI)
 	@if [ ! -f server/web/dist/index.html ]; then mkdir -p server/web/dist && echo "<!-- stub -->" > server/web/dist/index.html; fi
 	$(GO) build -ldflags="$(LDFLAGS_RELEASE)" -o $(BUILD_DIR)/mycel ./cmd/mycel
 
-release-local-bc: release-local-mycel ## Deprecated alias for release-local-mycel
 
 # =============================================================================
 # Run (dev, foreground)
@@ -300,7 +291,6 @@ release-local-bc: release-local-mycel ## Deprecated alias for release-local-myce
 run-mycel: ## Run mycel CLI from source
 	$(GO) run ./cmd/mycel
 
-run-bc: run-mycel ## Deprecated alias for run-mycel
 
 run-web: ## Run web UI dev server
 	cd web && bun run dev
@@ -319,7 +309,6 @@ build-landing-prod: ## Production build for landing page (Cloudflare Pages)
 install-local-mycel: build-local-mycel ## Install mycel to $GOPATH/bin
 	cp $(BUILD_DIR)/mycel $(shell $(GO) env GOPATH)/bin/
 
-install-local-bc: install-local-mycel ## Deprecated alias for install-local-mycel
 
 # =============================================================================
 # Dependencies
