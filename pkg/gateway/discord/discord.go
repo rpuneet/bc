@@ -206,8 +206,13 @@ func (a *Adapter) handleReady(_ *discordgo.Session, r *discordgo.Ready) {
 				if key == "" {
 					key = ch.ID
 				}
+				// discordgo re-fires Ready on every gateway reconnect, so
+				// only log genuinely new channels — otherwise a flapping
+				// connection spams an Info line per channel per reconnect.
+				if _, known := a.guildChannels[ch.ID]; !known {
+					log.Info("discord: discovered channel", "channel", key, "id", ch.ID)
+				}
 				a.guildChannels[ch.ID] = key
-				log.Info("discord: discovered channel", "channel", key, "id", ch.ID)
 			}
 		}
 		a.chatMu.Unlock()

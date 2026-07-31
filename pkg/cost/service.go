@@ -8,12 +8,18 @@ import (
 	"sync"
 	"time"
 
+	"golang.org/x/sync/singleflight"
+
 	"github.com/rpuneet/mycel/pkg/provider"
 )
 
 // DefaultCacheTTL is how long a merged entry scan stays fresh before
-// the next query re-reads the sources.
-const DefaultCacheTTL = 60 * time.Second
+// the next query re-reads the sources. Scanning is source-direct
+// (re-parsing provider transcripts), so a short TTL under UI polling
+// meant near-continuous re-scans. The per-file mtime cache in the
+// Claude reader makes warm scans cheap, and a several-minute TTL keeps
+// idle daemons quiet; ?refresh=1 forces an immediate re-read.
+const DefaultCacheTTL = 5 * time.Minute
 
 // Options configures a Service.
 type Options struct {
@@ -37,6 +43,11 @@ type Service struct { //nolint:govet // grouped by role (deps / cache) over 16 b
 	mu        sync.Mutex
 	entries   []provider.CostEntry
 	scannedAt time.Time
+	// sf collapses concurrent cache-miss scans into a single scan whose
+	// result every caller shares — a page load fires the drawer, agent
+	// list, and cost widgets at once, and without this each would kick
+	// off its own multi-second transcript re-parse.
+	sf singleflight.Group
 }
 
 // NewService creates a Service reading from every provider in registry
@@ -70,25 +81,46 @@ func (s *Service) Refresh(ctx context.Context) (int, error) {
 }
 
 // Entries returns the merged entry list, re-scanning the sources when
-// the cache is older than the TTL.
+// the cache is older than the TTL. Concurrent cache misses are collapsed
+// into a single scan via singleflight so a burst of requests can never
+// launch parallel transcript re-parses.
 func (s *Service) Entries(ctx context.Context) ([]provider.CostEntry, error) {
-	s.mu.Lock()
-	if !s.scannedAt.IsZero() && time.Since(s.scannedAt) < s.ttl {
-		entries := s.entries
-		s.mu.Unlock()
+	if entries, ok := s.cachedEntries(); ok {
 		return entries, nil
 	}
-	s.mu.Unlock()
 
-	entries, err := s.scan(ctx)
+	v, err, _ := s.sf.Do("scan", func() (interface{}, error) {
+		// Re-check under the flight: a scan that finished while we
+		// waited for the singleflight slot may have refreshed the cache.
+		if entries, ok := s.cachedEntries(); ok {
+			return entries, nil
+		}
+		entries, scanErr := s.scan(ctx)
+		if scanErr != nil {
+			return nil, scanErr
+		}
+		s.mu.Lock()
+		s.entries = entries
+		s.scannedAt = time.Now()
+		s.mu.Unlock()
+		return entries, nil
+	})
 	if err != nil {
 		return nil, err
 	}
-	s.mu.Lock()
-	s.entries = entries
-	s.scannedAt = time.Now()
-	s.mu.Unlock()
+	entries, _ := v.([]provider.CostEntry) //nolint:errcheck // scan always returns []provider.CostEntry or an error
 	return entries, nil
+}
+
+// cachedEntries returns the cached entry list when it is still within
+// the TTL, reporting false when a re-scan is due.
+func (s *Service) cachedEntries() ([]provider.CostEntry, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if !s.scannedAt.IsZero() && time.Since(s.scannedAt) < s.ttl {
+		return s.entries, true
+	}
+	return nil, false
 }
 
 // scan fans out to every CostReader provider and merges the results.

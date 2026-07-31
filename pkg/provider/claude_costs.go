@@ -239,6 +239,7 @@ func (p *ClaudeProvider) ReadCosts(ctx context.Context, opts CostReadOptions) ([
 	}
 
 	seen := make(map[claudeUsageKey]struct{})
+	scanned := make(map[string]struct{}) // files touched this scan, for cache pruning
 	var out []CostEntry
 	for _, root := range roots {
 		if _, err := os.Stat(root.dir); err != nil {
@@ -248,7 +249,8 @@ func (p *ClaudeProvider) ReadCosts(ctx context.Context, opts CostReadOptions) ([
 			if err := ctx.Err(); err != nil {
 				return out, err
 			}
-			entries, err := parseClaudeSessionFile(file)
+			scanned[file] = struct{}{}
+			entries, err := p.parseSessionFileCached(file)
 			if err != nil {
 				continue // unreadable file — skip, sources are best-effort
 			}
@@ -285,7 +287,56 @@ func (p *ClaudeProvider) ReadCosts(ctx context.Context, opts CostReadOptions) ([
 			}
 		}
 	}
+	p.pruneCostCache(scanned)
 	return out, nil
+}
+
+// parseSessionFileCached returns the parsed entries for a transcript
+// file, serving them from the in-process cache when the file's mtime and
+// size are unchanged since the last scan. Parsing happens outside the
+// lock, so a concurrent first-touch of the same file may parse twice —
+// harmless, since results are identical and the entries are read-only
+// downstream.
+func (p *ClaudeProvider) parseSessionFileCached(path string) ([]claudeSessionEntry, error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		return nil, err
+	}
+	mod, size := info.ModTime().UnixNano(), info.Size()
+
+	p.costCacheMu.Lock()
+	if ce, ok := p.costCache[path]; ok && ce.modTime == mod && ce.size == size {
+		entries := ce.entries
+		p.costCacheMu.Unlock()
+		return entries, nil
+	}
+	p.costCacheMu.Unlock()
+
+	entries, err := parseClaudeSessionFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	p.costCacheMu.Lock()
+	if p.costCache == nil {
+		p.costCache = make(map[string]claudeFileCacheEntry)
+	}
+	p.costCache[path] = claudeFileCacheEntry{modTime: mod, size: size, entries: entries}
+	p.costCacheMu.Unlock()
+	return entries, nil
+}
+
+// pruneCostCache drops cache entries for files that were not seen in the
+// most recent scan (deleted or rotated transcripts), keeping the cache
+// bounded to the live file set for a long-running daemon.
+func (p *ClaudeProvider) pruneCostCache(scanned map[string]struct{}) {
+	p.costCacheMu.Lock()
+	defer p.costCacheMu.Unlock()
+	for path := range p.costCache {
+		if _, ok := scanned[path]; !ok {
+			delete(p.costCache, path)
+		}
+	}
 }
 
 // claudeUsageKey dedups identical usage entries across files.

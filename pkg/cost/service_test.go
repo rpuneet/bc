@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -171,6 +173,87 @@ func TestEntriesCacheAndRefresh(t *testing.T) {
 	}
 	if n != 4 || stub.reads != 2 {
 		t.Errorf("refresh: n=%d reads=%d", n, stub.reads)
+	}
+}
+
+// slowProvider is a CostReader whose scan blocks briefly and counts its
+// invocations atomically, so concurrent Entries callers can assert the
+// scan was single-flighted rather than run once per caller.
+type slowProvider struct {
+	entries []provider.CostEntry
+	reads   atomic.Int64
+	delay   time.Duration
+}
+
+func (s *slowProvider) Name() string                             { return "slow" }
+func (s *slowProvider) Description() string                      { return "slow" }
+func (s *slowProvider) Command() string                          { return "slow" }
+func (s *slowProvider) Binary() string                           { return "slow" }
+func (s *slowProvider) InstallHint() string                      { return "" }
+func (s *slowProvider) BuildCommand(provider.CommandOpts) string { return "slow" }
+func (s *slowProvider) IsInstalled(context.Context) bool         { return true }
+func (s *slowProvider) Version(context.Context) string           { return "1" }
+func (s *slowProvider) ReadCosts(_ context.Context, _ provider.CostReadOptions) ([]provider.CostEntry, error) {
+	s.reads.Add(1)
+	time.Sleep(s.delay)
+	return s.entries, nil
+}
+
+// TestEntriesSingleFlight asserts that a burst of concurrent cache-miss
+// Entries calls collapses into exactly one underlying scan. This guards
+// the fix for the multi-core cost-scan burn: without single-flight, a
+// page load (drawer + agent list + cost widgets) launched N parallel
+// full transcript re-parses.
+func TestEntriesSingleFlight(t *testing.T) {
+	slow := &slowProvider{entries: sampleEntries(), delay: 50 * time.Millisecond}
+	reg := provider.NewRegistry()
+	reg.Register(slow)
+	svc := NewService(reg, Options{}, nil)
+	ctx := context.Background()
+
+	const n = 20
+	var wg sync.WaitGroup
+	wg.Add(n)
+	for i := 0; i < n; i++ {
+		go func() {
+			defer wg.Done()
+			if _, err := svc.Entries(ctx); err != nil {
+				t.Errorf("Entries: %v", err)
+			}
+		}()
+	}
+	wg.Wait()
+
+	if got := slow.reads.Load(); got != 1 {
+		t.Errorf("concurrent cache-miss scans: %d reads, want 1 (single-flight)", got)
+	}
+}
+
+// TestEntriesTTLExpiry asserts the cache serves repeat reads without
+// re-scanning until the TTL lapses, then re-scans exactly once.
+func TestEntriesTTLExpiry(t *testing.T) {
+	slow := &slowProvider{entries: sampleEntries()}
+	reg := provider.NewRegistry()
+	reg.Register(slow)
+	svc := NewService(reg, Options{CacheTTL: 40 * time.Millisecond}, nil)
+	ctx := context.Background()
+
+	if _, err := svc.Entries(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.Entries(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if got := slow.reads.Load(); got != 1 {
+		t.Fatalf("within TTL: %d reads, want 1", got)
+	}
+
+	time.Sleep(60 * time.Millisecond)
+	if _, err := svc.Entries(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if got := slow.reads.Load(); got != 2 {
+		t.Errorf("after TTL: %d reads, want 2", got)
 	}
 }
 
