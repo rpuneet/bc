@@ -1,0 +1,20 @@
+# Antigravity CLI (agy) agent image — Google's terminal agent (Gemini family).
+# Usage: docker build -t mycel-agent-agy:latest -f docker/Dockerfile.agy .
+# Requires: mycel-agent-base:latest (docker build -f docker/Dockerfile.base .)
+
+FROM mycel-agent-base:latest
+
+USER root
+
+# Install the Antigravity CLI (`agy`) native binary.
+# SECURITY: curl-pipe-sh without checksum is a supply chain risk. Google does
+# not currently publish checksums for the install script.
+# TODO: add checksum verification when signed releases are available.
+SHELL ["/bin/bash", "-c"]
+RUN curl -fsSL https://antigravity.google/install.sh | sh && \
+    if [ -x /root/.local/bin/agy ]; then cp /root/.local/bin/agy /usr/local/bin/agy; fi && \
+    chmod +x /usr/local/bin/agy
+
+USER agent
+WORKDIR /workspace
+ENTRYPOINT ["bash", "-c"]
