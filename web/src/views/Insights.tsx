@@ -206,7 +206,7 @@ function Breakdown({
             <span className={`flex items-center gap-1.5 min-w-0 text-xs ${r.muted ? "text-mycel-muted italic" : "text-mycel-text"}`}>
               {r.id !== undefined && <Chevron open={open} />}
               {r.agentState !== undefined ? (
-                <AgentChip name={r.name} state={r.agentState} size={16} showDot={false} className="min-w-0" />
+                <AgentChip name={r.name} state={r.agentState} size={16} showDot={false} className="min-w-0" preview />
               ) : (
                 <span className="truncate">{r.name}</span>
               )}
