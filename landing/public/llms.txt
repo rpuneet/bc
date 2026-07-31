@@ -24,6 +24,7 @@ mycel ships built-in providers for:
 ## Pages
 
 - [Home](https://bc-infra.com/): Product tour with real app screenshots — agents, apps, live feed, code review, costs — and install guide
+- [Method](https://bc-infra.com/method): How mycel works step by step, and the six design convictions behind it (isolation, communication, visibility, cost, persistence, openness)
 - [Documentation](https://bc-infra.com/docs): CLI reference, configuration, and quick start guide
 - [Waitlist](https://bc-infra.com/waitlist): Sign up for early access to the open beta
 - [Privacy Policy](https://bc-infra.com/privacy): Data collection and usage practices
