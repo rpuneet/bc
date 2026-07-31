@@ -359,6 +359,12 @@ const sendTimeout = 30 * time.Second
 // next inbound message from that chat.
 func parseSendJID(channelID string) (types.JID, error) {
 	if !strings.Contains(channelID, "@") {
+		// A bare, all-digit id is a phone number addressed directly (e.g. a
+		// 1:1 contact the caller wants to message without a prior inbound).
+		// Default it to the standard user server so `whatsapp:<number>` routes.
+		if isPhoneNumber(channelID) {
+			return types.NewJID(channelID, types.DefaultUserServer), nil
+		}
 		return types.JID{}, fmt.Errorf("whatsapp: channel id %q has no JID server — wait for an inbound message to upgrade the route", channelID)
 	}
 	jid, err := types.ParseJID(channelID)
@@ -369,6 +375,20 @@ func parseSendJID(channelID string) (types.JID, error) {
 		return types.JID{}, fmt.Errorf("whatsapp: invalid JID %q: empty user", channelID)
 	}
 	return jid, nil
+}
+
+// isPhoneNumber reports whether s is a non-empty string of ASCII digits — a
+// bare WhatsApp phone-number user part (no server, no '+').
+func isPhoneNumber(s string) bool {
+	if s == "" {
+		return false
+	}
+	for _, r := range s {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 // SendReaction sends a reaction emoji to a previously-received message.

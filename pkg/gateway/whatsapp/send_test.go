@@ -33,9 +33,13 @@ func TestParseSendJID(t *testing.T) {
 			wantSrv:   "g.us",
 		},
 		{
-			name:      "bare id rejected",
-			channelID: "30507219845203",
-			wantErr:   "no JID server",
+			// A bare, all-digit id is treated as a phone number and defaulted
+			// to the user server — this is what lets `whatsapp:<number>` reach
+			// a 1:1 contact directly.
+			name:      "bare phone number → user server",
+			channelID: "918051005416",
+			wantUser:  "918051005416",
+			wantSrv:   "s.whatsapp.net",
 		},
 		{
 			name:      "channel name rejected",

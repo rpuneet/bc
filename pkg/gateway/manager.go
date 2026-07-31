@@ -466,6 +466,22 @@ func (m *Manager) Send(ctx context.Context, channel, sender, content string) (bo
 	route, ok := m.channelMap[channel]
 	m.mu.RUnlock()
 	if !ok {
+		// No pre-registered channel. Fall back to routing "<platform>:<id>"
+		// straight to that platform's adapter, so a caller can reach a native
+		// destination that hasn't produced an inbound message yet — e.g. a
+		// WhatsApp 1:1 contact addressed by phone number. The adapter decides
+		// whether the raw id is routable.
+		if platform, id, found := strings.Cut(channel, ":"); found && id != "" {
+			m.mu.RLock()
+			adapter := m.adapters[platform]
+			m.mu.RUnlock()
+			if ms, isSender := adapter.(messageSender); isSender {
+				if err := ms.Send(ctx, id, sender, content); err != nil {
+					return true, fmt.Errorf("gateway send to %s: %w", channel, err)
+				}
+				return true, nil
+			}
+		}
 		return false, nil // not a gateway channel
 	}
 
