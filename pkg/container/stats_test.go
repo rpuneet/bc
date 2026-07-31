@@ -163,22 +163,22 @@ func TestParseStats_EmptyRaw(t *testing.T) {
 
 func TestParseStats_Name(t *testing.T) {
 	raw := &dockerStatsOneShot{}
-	cs := parseStats("bc-a1b2c3-alice", raw)
+	cs := parseStats("mycel-a1b2c3-alice", raw)
 
-	if cs.Name != "bc-a1b2c3-alice" {
-		t.Errorf("Name = %q, want %q", cs.Name, "bc-a1b2c3-alice")
+	if cs.Name != "mycel-a1b2c3-alice" {
+		t.Errorf("Name = %q, want %q", cs.Name, "mycel-a1b2c3-alice")
 	}
 }
 
 func TestBackendAgentStats_ContainerName(t *testing.T) {
 	b := &Backend{
-		prefix:   "bc-",
+		prefix:   "mycel-",
 		repoHash: "aabbcc",
 	}
 
 	// Verify the container name used for stats lookup matches the convention
 	cn := b.containerName("alice")
-	want := "bc-aabbcc-alice"
+	want := "mycel-aabbcc-alice"
 	if cn != want {
 		t.Errorf("containerName = %q, want %q", cn, want)
 	}

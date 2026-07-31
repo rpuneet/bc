@@ -26,7 +26,7 @@ import (
 // tests can inject a fake without needing a real tmux server.
 type TmuxProcRunner interface {
 	// PanePIDs returns the pane PIDs for the given tmux session. The
-	// session name is resolved by the caller (e.g. `bc-<hash>-<agent>`).
+	// session name is resolved by the caller (e.g. `mycel-<hash>-<agent>`).
 	// Returns an empty slice (and nil error) when the session does not
 	// exist — callers treat that as "agent not running, record 0".
 	PanePIDs(ctx context.Context, session string) ([]int, error)
@@ -82,7 +82,7 @@ func (s *TmuxSampler) Sample(ctx context.Context, session, agentName string) (Tm
 	panePIDs, err := s.runner.PanePIDs(ctx, session)
 	if err != nil || len(panePIDs) == 0 {
 		// Retry via list-sessions: the caller may have passed the
-		// bare agent name while the real session is `bc-<hash>-<name>`.
+		// bare agent name while the real session is `mycel-<hash>-<name>`.
 		sessions, lsErr := s.runner.ListSessions(ctx)
 		if lsErr != nil {
 			return TmuxSample{}, nil //nolint:nilerr // no session = 0, not an error

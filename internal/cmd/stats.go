@@ -40,7 +40,7 @@ func init() {
 func runStats(cmd *cobra.Command, _ []string) error {
 	ctx := cmd.Context()
 
-	// Try bcd API first (skip when --save is used, as save requires local access)
+	// Try the daemon API first (skip when --save is used, as save requires local access)
 	if !statsSave {
 		c := getClient()
 		summary, apiErr := c.Stats.Summary(ctx)

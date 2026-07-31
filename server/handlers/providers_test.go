@@ -301,7 +301,7 @@ func (s *stubMCPProvider) Version(_ context.Context) string           { return "
 func (s *stubMCPProvider) ReadMCPs(_ context.Context, rootDir string) []provider.MCPServerInfo {
 	s.gotRootDir.Store(rootDir)
 	return []provider.MCPServerInfo{
-		{Name: "bcd", Transport: "sse", URL: "http://localhost:9374/mcp/sse", Enabled: true},
+		{Name: "the daemon", Transport: "sse", URL: "http://localhost:9374/mcp/sse", Enabled: true},
 	}
 }
 
@@ -331,7 +331,7 @@ func TestProvidersMCPsCapability(t *testing.T) {
 		t.Fatalf("want 1 server, got %d: %v", len(servers), servers)
 	}
 	s := servers[0]
-	if s.Name != "bcd" || s.Transport != "sse" || s.URL != "http://localhost:9374/mcp/sse" || !s.Enabled {
+	if s.Name != "the daemon" || s.Transport != "sse" || s.URL != "http://localhost:9374/mcp/sse" || !s.Enabled {
 		t.Errorf("server = %+v", s)
 	}
 	if got := stub.gotRootDir.Load(); got != "/h/root" {

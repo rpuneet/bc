@@ -165,7 +165,7 @@ func (l *LayeredStore) List() ([]*SecretMeta, error) {
 	return out, nil
 }
 
-// Set writes to the user-global vault (the default for bc secret add
+// Set writes to the user-global vault (the default for mycel secret add
 // KEY=VAL). Use SetWorkspace for repo-scoped overrides.
 func (l *LayeredStore) Set(name, value, description string) error {
 	if l.global == nil {

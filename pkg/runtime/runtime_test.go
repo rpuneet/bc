@@ -138,9 +138,9 @@ func TestTmuxBackendSessionName(t *testing.T) {
 	}{
 		{
 			name:   "standard prefix",
-			prefix: "bc-",
+			prefix: "mycel-",
 			input:  "agent-1",
-			want:   "bc-agent-1",
+			want:   "mycel-agent-1",
 		},
 		{
 			name:   "empty prefix",
@@ -156,9 +156,9 @@ func TestTmuxBackendSessionName(t *testing.T) {
 		},
 		{
 			name:   "empty name",
-			prefix: "bc-",
+			prefix: "mycel-",
 			input:  "",
-			want:   "bc-",
+			want:   "mycel-",
 		},
 	}
 
@@ -199,7 +199,7 @@ func TestTmuxBackendHasSession(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			backend := newMockBackend("bc-", "", "", tt.exitCode)
+			backend := newMockBackend("mycel-", "", "", tt.exitCode)
 			ctx := context.Background()
 
 			got := backend.HasSession(ctx, "test-agent")
@@ -245,7 +245,7 @@ func TestTmuxBackendCreateSession(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			backend := newMockBackend("bc-", "", tt.stderr, tt.exitCode)
+			backend := newMockBackend("mycel-", "", tt.stderr, tt.exitCode)
 			ctx := context.Background()
 
 			err := backend.CreateSession(ctx, "agent-1", tt.dir)
@@ -280,7 +280,7 @@ func TestTmuxBackendCreateSessionWithCommand(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			backend := newMockBackend("bc-", "", "", tt.exitCode)
+			backend := newMockBackend("mycel-", "", "", tt.exitCode)
 			ctx := context.Background()
 
 			err := backend.CreateSessionWithCommand(ctx, "agent-1", "/tmp", "echo hello")
@@ -336,7 +336,7 @@ func TestTmuxBackendCreateSessionWithEnv(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			backend := newMockBackend("bc-", "", "", tt.exitCode)
+			backend := newMockBackend("mycel-", "", "", tt.exitCode)
 			ctx := context.Background()
 
 			err := backend.CreateSessionWithEnv(ctx, "agent-1", "/tmp", "echo hi", tt.env)
@@ -371,7 +371,7 @@ func TestTmuxBackendKillSession(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			backend := newMockBackend("bc-", "", "", tt.exitCode)
+			backend := newMockBackend("mycel-", "", "", tt.exitCode)
 			ctx := context.Background()
 
 			err := backend.KillSession(ctx, "agent-1")
@@ -406,7 +406,7 @@ func TestTmuxBackendRenameSession(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			backend := newMockBackend("bc-", "", "", tt.exitCode)
+			backend := newMockBackend("mycel-", "", "", tt.exitCode)
 			ctx := context.Background()
 
 			err := backend.RenameSession(ctx, "old-name", "new-name")
@@ -441,7 +441,7 @@ func TestTmuxBackendSendKeys(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			backend := newMockBackend("bc-", "", "", tt.exitCode)
+			backend := newMockBackend("mycel-", "", "", tt.exitCode)
 			ctx := context.Background()
 
 			err := backend.SendKeys(ctx, "agent-1", "echo hello")
@@ -496,7 +496,7 @@ func TestTmuxBackendSendKeysWithSubmit(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			backend := newMockBackend("bc-", "", "", tt.exitCode)
+			backend := newMockBackend("mycel-", "", "", tt.exitCode)
 			ctx := context.Background()
 
 			err := backend.SendKeysWithSubmit(ctx, "agent-1", tt.keys, tt.submitKey)
@@ -544,7 +544,7 @@ func TestTmuxBackendCapture(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			backend := newMockBackend("bc-", tt.stdout, "", tt.exitCode)
+			backend := newMockBackend("mycel-", tt.stdout, "", tt.exitCode)
 			ctx := context.Background()
 
 			output, err := backend.Capture(ctx, "agent-1", tt.lines)
@@ -573,7 +573,7 @@ func TestTmuxBackendListSessions(t *testing.T) {
 	}{
 		{
 			name:      "multiple sessions",
-			stdout:    "bc-agent-1|Mon Jan 1 00:00:00 2024|0|1|/tmp/a\nbc-agent-2|Tue Jan 2 00:00:00 2024|1|2|/tmp/b\n",
+			stdout:    "mycel-agent-1|Mon Jan 1 00:00:00 2024|0|1|/tmp/a\nmycel-agent-2|Tue Jan 2 00:00:00 2024|1|2|/tmp/b\n",
 			exitCode:  0,
 			wantCount: 2,
 			wantErr:   false,
@@ -593,7 +593,7 @@ func TestTmuxBackendListSessions(t *testing.T) {
 		},
 		{
 			name:      "sessions with different prefix filtered out",
-			stdout:    "other-agent|Mon Jan 1|0|1|/tmp\nbc-mine|Tue Jan 2|1|1|/home\n",
+			stdout:    "other-agent|Mon Jan 1|0|1|/tmp\nmycel-mine|Tue Jan 2|1|1|/home\n",
 			exitCode:  0,
 			wantCount: 1,
 			wantErr:   false,
@@ -606,7 +606,7 @@ func TestTmuxBackendListSessions(t *testing.T) {
 		},
 		{
 			name:      "malformed line skipped",
-			stdout:    "bc-good|date|0|1|/tmp\ntoo|few|fields\n",
+			stdout:    "mycel-good|date|0|1|/tmp\ntoo|few|fields\n",
 			exitCode:  0,
 			wantCount: 1,
 			wantErr:   false,
@@ -615,7 +615,7 @@ func TestTmuxBackendListSessions(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			backend := newMockBackend("bc-", tt.stdout, "", tt.exitCode)
+			backend := newMockBackend("mycel-", tt.stdout, "", tt.exitCode)
 			ctx := context.Background()
 
 			sessions, err := backend.ListSessions(ctx)
@@ -649,7 +649,7 @@ func TestTmuxBackendListSessions(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestTmuxBackendAttachCmd(t *testing.T) {
-	backend := newMockBackend("bc-", "", "", 0)
+	backend := newMockBackend("mycel-", "", "", 0)
 	ctx := context.Background()
 
 	cmd := backend.AttachCmd(ctx, "agent-1")
@@ -690,7 +690,7 @@ func TestTmuxBackendIsRunning(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			backend := newMockBackend("bc-", "", tt.stderr, tt.exitCode)
+			backend := newMockBackend("mycel-", "", tt.stderr, tt.exitCode)
 			ctx := context.Background()
 
 			got := backend.IsRunning(ctx)
@@ -725,7 +725,7 @@ func TestTmuxBackendKillServer(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			backend := newMockBackend("bc-", "", "", tt.exitCode)
+			backend := newMockBackend("mycel-", "", "", tt.exitCode)
 			ctx := context.Background()
 
 			err := backend.KillServer(ctx)
@@ -787,7 +787,7 @@ func TestTmuxBackendSetEnvironment(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			backend := newMockBackend("bc-", "", "", tt.exitCode)
+			backend := newMockBackend("mycel-", "", "", tt.exitCode)
 			ctx := context.Background()
 
 			err := backend.SetEnvironment(ctx, "agent-1", tt.key, tt.value)
@@ -837,7 +837,7 @@ func TestTmuxBackendPipePane(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			backend := newMockBackend("bc-", "", "", tt.exitCode)
+			backend := newMockBackend("mycel-", "", "", tt.exitCode)
 			ctx := context.Background()
 
 			err := backend.PipePane(ctx, "agent-1", tt.logPath)
@@ -1012,10 +1012,10 @@ func TestMockBackendUsage(t *testing.T) {
 
 func TestListSessionsConversion(t *testing.T) {
 	// Mock tmux output with attached and detached sessions
-	sessionOutput := "bc-root|Mon Jan 1 10:00:00 2024|1|3|/home/user/project\n" +
-		"bc-eng-01|Mon Jan 1 10:05:00 2024|0|1|/home/user/project/.bc/worktrees/eng-01\n"
+	sessionOutput := "mycel-root|Mon Jan 1 10:00:00 2024|1|3|/home/user/project\n" +
+		"mycel-eng-01|Mon Jan 1 10:05:00 2024|0|1|/home/user/project/.bc/worktrees/eng-01\n"
 
-	backend := newMockBackend("bc-", sessionOutput, "", 0)
+	backend := newMockBackend("mycel-", sessionOutput, "", 0)
 	ctx := context.Background()
 
 	sessions, err := backend.ListSessions(ctx)

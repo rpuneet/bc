@@ -337,22 +337,22 @@ func SeedDefaults(dir string) error {
 		{
 			Name:        "feature-dev",
 			Description: "Full-stack feature development",
-			MCPs:        []string{"bc", "github"},
+			MCPs:        []string{"mycel", "github"},
 		},
 		{
 			Name:        "reviewer",
 			Description: "Code review specialist",
-			MCPs:        []string{"bc"},
+			MCPs:        []string{"mycel"},
 		},
 		{
 			Name:        "manager",
 			Description: "Task orchestration and delegation",
-			MCPs:        []string{"bc"},
+			MCPs:        []string{"mycel"},
 		},
 		{
 			Name:        "blank",
 			Description: "Empty starting point",
-			MCPs:        []string{"bc"},
+			MCPs:        []string{"mycel"},
 		},
 	}
 

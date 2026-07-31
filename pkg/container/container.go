@@ -148,7 +148,7 @@ func (b *Backend) containerName(name string) string {
 // names never reach path construction.
 var validContainerAgentName = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
 
-// agentSessionDir returns the agent's provider-state directory as bcd
+// agentSessionDir returns the agent's provider-state directory as the daemon
 // sees it: <MycelHome>/agents/<name>/session/. Provider config and
 // transcripts persist here on the host across container restarts.
 func (b *Backend) agentSessionDir(agentName string) string {
@@ -163,7 +163,7 @@ func (b *Backend) agentSessionDir(agentName string) string {
 }
 
 // hostSessionDir returns the host path that maps to the agent's session
-// directory, used on the -v mount flag. For bcd running on the host this
+// directory, used on the -v mount flag. For the daemon running on the host this
 // mirrors agentSessionDir; for Docker-in-Docker setups the MYCEL_HOST_HOME
 // env var (if set) translates the container's ~/.mycel/ to the host's.
 func (b *Backend) hostSessionDir(agentName string) string {
@@ -189,7 +189,7 @@ func (b *Backend) hostSessionDir(agentName string) string {
 // boot repo.
 //
 // Returns the host-side mount source (for -v) and the container
-// workdir (for -w). dir is the agent's worktree as bcd sees it; when
+// workdir (for -w). dir is the agent's worktree as the daemon sees it; when
 // it lives under the mounted repo, the workdir points at it.
 func (b *Backend) resolveRepoMount(dir string, env map[string]string) (hostRepo, workdir string, err error) {
 	// Boot repo defaults. MYCEL_HOST_WORKSPACE (Docker-in-Docker) only
@@ -407,7 +407,7 @@ func (b *Backend) CreateSessionWithEnv(ctx context.Context, name, dir, command s
 	//
 	// Provider state lives in the agent's session dir
 	// (<MycelHome>/agents/<name>/session/) so transcripts and config
-	// persist on the host. The host path may differ when bcd runs in
+	// persist on the host. The host path may differ when the daemon runs in
 	// Docker-in-Docker; honor MYCEL_HOST_HOME (if set) for the
 	// host-side mycel home.
 	localSessionDir := b.agentSessionDir(name)
@@ -455,7 +455,7 @@ func (b *Backend) CreateSessionWithEnv(ctx context.Context, name, dir, command s
 
 	// Environment variables — only from the env map.
 	// The env map contains MYCEL_* identity vars and role secrets resolved
-	// from bc env by the agent manager's injectEnv().
+	// from mycel env by the agent manager's injectEnv().
 	for k, v := range env {
 		if !validEnvVarName.MatchString(k) {
 			return fmt.Errorf("invalid environment variable name %q: must match [A-Za-z_][A-Za-z0-9_]*", k)
@@ -493,8 +493,8 @@ func (b *Backend) KillSession(ctx context.Context, name string) error {
 
 	// Stop container (10s timeout) — do NOT remove it.
 	// The container's volume preserves auth, plugins, MCP config, and sessions.
-	// bc agent start will restart the stopped container.
-	// bc agent delete handles removal.
+	// mycel agent start will restart the stopped container.
+	// mycel agent delete handles removal.
 	//nolint:gosec // trusted
 	stopCmd := exec.CommandContext(ctx, "docker", "stop", "-t", "10", cn)
 	output, err := stopCmd.CombinedOutput()
@@ -612,7 +612,7 @@ func (b *Backend) Capture(ctx context.Context, name string, lines int) (string, 
 	return string(output), nil
 }
 
-// ListSessions lists RUNNING BC-managed containers for this daemon.
+// ListSessions lists RUNNING mycel-managed containers for this daemon.
 func (b *Backend) ListSessions(ctx context.Context) ([]runtime.Session, error) {
 	//nolint:gosec // all args are trusted internal values
 	cmd := exec.CommandContext(ctx, "docker", "ps",
@@ -666,7 +666,7 @@ func (b *Backend) IsRunning(ctx context.Context) bool {
 	return cmd.Run() == nil
 }
 
-// KillServer stops and removes all BC containers for this daemon.
+// KillServer stops and removes all mycel containers for this daemon.
 func (b *Backend) KillServer(ctx context.Context) error {
 	//nolint:gosec // all args are trusted internal values
 	cmd := exec.CommandContext(ctx, "docker", "ps", "-aq",

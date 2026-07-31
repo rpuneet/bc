@@ -58,7 +58,7 @@ func TestDefaultSocketPath_CanonicalDefault(t *testing.T) {
 	tmp := setTestHome(t)
 	mkdirAll(t, filepath.Join(tmp, ".mycel", "run"))
 
-	want := filepath.Join(tmp, ".mycel", "bcd.sock")
+	want := filepath.Join(tmp, ".mycel", "mycel.sock")
 	if got := DefaultSocketPath(); got != want {
 		t.Errorf("DefaultSocketPath() = %q, want %q", got, want)
 	}

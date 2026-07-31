@@ -3470,7 +3470,7 @@ func TestEffectiveToolExplicit(t *testing.T) {
 	}
 }
 
-func TestBcdAddrForRuntime_NormalizesEmptyHost(t *testing.T) {
+func TestDaemonAddrForRuntime_NormalizesEmptyHost(t *testing.T) {
 	tests := []struct {
 		name    string
 		envVal  string

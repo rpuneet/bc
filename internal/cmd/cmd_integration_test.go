@@ -46,7 +46,7 @@ func setupIntegrationHome(t *testing.T) (string, func()) {
 	t.Helper()
 
 	if os.Getenv("MYCEL_TEST_DAEMON") == "" {
-		t.Skip("skipping: requires MYCEL_TEST_DAEMON=1 (dedicated test bcd instance)")
+		t.Skip("skipping: requires MYCEL_TEST_DAEMON=1 (dedicated test daemon instance)")
 	}
 
 	origDir, err := os.Getwd()
@@ -79,20 +79,20 @@ func setupIntegrationHome(t *testing.T) (string, func()) {
 	}
 }
 
-// executeIntegrationCmdT runs rootCmd with an isolated fake bcd server.
-// If handler is non-nil, it overrides the package-level fake bcd handler
+// executeIntegrationCmdT runs rootCmd with an isolated fake daemon server.
+// If handler is non-nil, it overrides the package-level fake daemon handler
 // for the duration of the test. The default handler (set in TestMain)
 // returns 200 on /health and 404 elsewhere — enough to exercise CLI
-// error paths without ever reaching the real bcd at :9374.
+// error paths without ever reaching the real daemon at :9374.
 //
 // Prefer this over executeIntegrationCmd when a test wants to assert
-// against bcd responses (e.g. a successful agent send). Otherwise the
+// against the daemon responses (e.g. a successful agent send). Otherwise the
 // plain executeIntegrationCmd is fine — TestMain pins MYCEL_DAEMON_ADDR
 // at the fake server for the whole test process.
 func executeIntegrationCmdT(t *testing.T, handler http.HandlerFunc, args ...string) (string, string, error) {
 	t.Helper()
 	if handler != nil {
-		setTestBcdHandler(t, handler)
+		setTestDaemonHandler(t, handler)
 	}
 	return executeIntegrationCmd(args...)
 }
@@ -101,7 +101,7 @@ func executeIntegrationCmdT(t *testing.T, handler http.HandlerFunc, args ...stri
 // Commands use fmt.Printf/Println (writing to os.Stdout), so we redirect
 // os.Stdout to a pipe to capture output. Returns captured stdout and any error.
 //
-// All callers are automatically isolated from the production bcd: TestMain
+// All callers are automatically isolated from the production the daemon: TestMain
 // starts a fake httptest.Server and pins MYCEL_DAEMON_ADDR to it for the
 // entire test process.
 func executeIntegrationCmd(args ...string) (string, string, error) {
@@ -165,7 +165,7 @@ func seedAgents(t *testing.T, _ string, agents map[string]*agent.Agent) {
 
 func TestAgentSendIsCWDFree(t *testing.T) {
 	// agent send is daemon-first: it works from any directory (no repo
-	// required) by POSTing to bcd.
+	// required) by POSTing to the daemon.
 	origDir, err := os.Getwd()
 	if err != nil {
 		t.Fatalf("failed to get cwd: %v", err)
@@ -249,7 +249,7 @@ func TestAgentReportInvalidState(t *testing.T) {
 }
 
 func TestAgentReportIsCWDFree(t *testing.T) {
-	// agent report is daemon-first: it POSTs the state to bcd and needs
+	// agent report is daemon-first: it POSTs the state to the daemon and needs
 	// no repo at the caller's CWD.
 	origDir, err := os.Getwd()
 	if err != nil {
@@ -278,7 +278,7 @@ func TestAgentReportIsCWDFree(t *testing.T) {
 		t.Errorf("agent report must not require a repo, got repo error: %v", err)
 	}
 	if !apiHit {
-		t.Error("agent report should reach bcd even outside a repo")
+		t.Error("agent report should reach the daemon even outside a repo")
 	}
 }
 
@@ -444,7 +444,7 @@ func seedEvents(t *testing.T, wsDir string, evts []events.Event) {
 }
 
 func TestLogsIsCWDFree(t *testing.T) {
-	// logs is daemon-first: it reads events from bcd and needs no repo
+	// logs is daemon-first: it reads events from the daemon and needs no repo
 	// at the caller's CWD.
 	origDir, err := os.Getwd()
 	if err != nil {
@@ -607,10 +607,10 @@ func TestStatsNoRepo(t *testing.T) {
 	defer func() { _ = os.Chdir(origDir) }()
 
 	_, _, err = executeIntegrationCmd("stats")
-	// When bcd is running, stats works via API even without a local repo.
-	// When bcd is not running, should fail with repo error.
+	// When the daemon is running, stats works via API even without a local repo.
+	// When the daemon is not running, should fail with repo error.
 	if err != nil && !strings.Contains(err.Error(), "not in a mycel-adopted repo") {
-		t.Errorf("expected either success (bcd running) or repo error, got: %v", err)
+		t.Errorf("expected either success (the daemon running) or repo error, got: %v", err)
 	}
 }
 
@@ -833,7 +833,7 @@ func TestStatsJSON(t *testing.T) {
 	if err := json.Unmarshal([]byte(stdout), &result); err != nil {
 		t.Fatalf("output is not valid JSON: %v\noutput: %s", err, stdout)
 	}
-	// When bcd is running, API returns agents_total; otherwise local stats returns agents
+	// When the daemon is running, API returns agents_total; otherwise local stats returns agents
 	_, hasAgents := result["agents"]
 	_, hasAgentsTotal := result["agents_total"]
 	if !hasAgents && !hasAgentsTotal {
@@ -887,14 +887,14 @@ func TestStatusWithAgents(t *testing.T) {
 			Name:      "coordinator",
 			Role:      agent.RoleRoot,
 			State:     agent.StateStopped,
-			Session:   "bc-coord",
+			Session:   "mycel-coord",
 			StartedAt: time.Now().Add(-1 * time.Hour),
 		},
 		"worker-01": {
 			Name:      "worker-01",
 			Role:      agent.Role("worker"),
 			State:     agent.StateStopped,
-			Session:   "bc-worker-01",
+			Session:   "mycel-worker-01",
 			Task:      "fixing auth",
 			StartedAt: time.Now().Add(-30 * time.Minute),
 		},

@@ -341,7 +341,7 @@ func TestSQLiteStore_DeletedAtPersistence(t *testing.T) {
 	}
 	_ = store1.Close()
 
-	// Second session: simulate bcd restart
+	// Second session: simulate the daemon restart
 	store2, err := NewSQLiteStore(dbPath)
 	if err != nil {
 		t.Fatalf("NewSQLiteStore after restart: %v", err)

@@ -119,7 +119,7 @@ async function fetchFile(
       return { content: "", binary: false, ok: true, notFound: true };
     }
     if (!r.ok) return EMPTY_FILE;
-    const binary = r.headers.get("X-BC-Binary") === "true";
+    const binary = r.headers.get("X-Mycel-Binary") === "true";
     if (binary) {
       return { content: "", binary: true, ok: true, notFound: false };
     }

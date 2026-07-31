@@ -558,7 +558,7 @@ func migrateRolesToTemplates(rolesDir, templatesDir string) error {
 		t := template.Template{
 			Name:        name,
 			Description: "Migrated from role: " + name,
-			MCPs:        []string{"bc"},
+			MCPs:        []string{"mycel"},
 		}
 		if createErr := tmplStore.Create(t, string(data), template.ScopeGlobal); createErr != nil {
 			log.Warn("migrate roles: failed to create template", "role", name, "error", createErr)

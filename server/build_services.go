@@ -1,6 +1,6 @@
-// build_services.go — factory for the single bcd service bundle.
+// build_services.go — factory for the single the daemon service bundle.
 //
-// bcd is single-tenant: one Services bundle is built at boot against the
+// the daemon is single-tenant: one Services bundle is built at boot against the
 // one global database (db.Global) and lives for the process lifetime.
 // A single call to BuildServices(ctx, globals, repoRoot) produces the
 // fully-initialized bundle including background goroutines. Its Close()
@@ -40,7 +40,7 @@ import (
 )
 
 // Globals holds dependencies that are process-wide and independent of the
-// bundle's anchor repo. bcd builds one Globals at boot and hands it to
+// bundle's anchor repo. the daemon builds one Globals at boot and hands it to
 // BuildServices exactly once.
 type Globals struct {
 	Stats        *statspkg.Store     // nil when TSDB unavailable
@@ -53,7 +53,7 @@ type Globals struct {
 }
 
 // BuildServices constructs the single fully-initialized Services bundle
-// anchored at repoRoot (the repo bcd was booted against — new agents default
+// anchored at repoRoot (the repo the daemon was booted against — new agents default
 // their repo to it). All background goroutines are started under an
 // internal context that Close() cancels.
 //
@@ -126,7 +126,7 @@ func buildServicesFromHome(ctx context.Context, globals *Globals, h *home.Home) 
 	eventsJSONL := filepath.Join(h.LogsDir(), "events.jsonl")
 	eventWriter := eventspkg.NewJSONLWriter(eventsJSONL, 0)
 
-	// The one SSE hub. bcd is single-tenant, so the bundle publishes
+	// The one SSE hub. the daemon is single-tenant, so the bundle publishes
 	// straight into the process-wide hub supplied via Globals (owned by
 	// the caller — no closer). Legacy callers/tests that don't wire a
 	// hub get a private one that the closer tears down.

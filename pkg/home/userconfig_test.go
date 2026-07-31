@@ -20,8 +20,8 @@ func TestUserRCConfigPath(t *testing.T) {
 }
 func TestDefaultUserRCConfig(t *testing.T) {
 	cfg := DefaultUserRCConfig()
-	if cfg.User.Nickname != "@bc" {
-		t.Errorf("expected default nickname %s, got: %s", "@bc", cfg.User.Nickname)
+	if cfg.User.Nickname != "@mycel" {
+		t.Errorf("expected default nickname %s, got: %s", "@mycel", cfg.User.Nickname)
 	}
 	if cfg.Defaults.DefaultRole != "engineer" {
 		t.Errorf("expected default role 'engineer', got: %s", cfg.Defaults.DefaultRole)

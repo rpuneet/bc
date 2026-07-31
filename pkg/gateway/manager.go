@@ -108,7 +108,7 @@ func (m *Manager) SetChannelStore(store ChannelStore) {
 }
 
 // SetInboundHandler sets the callback for inbound messages from external platforms.
-// The callback receives the bc channel name, sender display name, platform-native
+// The callback receives the mycel channel name, sender display name, platform-native
 // sender id (e.g. WhatsApp JID — used for follow-up reactions), text content,
 // platform-native message ID, pre-extracted mentions (e.g. WhatsApp JID user parts),
 // and the raw platform payload.
@@ -313,8 +313,8 @@ func (m *Manager) restorePersistedChannels(ctx context.Context) {
 func (m *Manager) discoverChannels(a NotificationAdapter) {
 	channels := a.Channels()
 	type discovered struct {
-		bc, platform, id string
-		meta             ChannelMeta
+		channel, platform, id string
+		meta                  ChannelMeta
 	}
 	toPersist := make([]discovered, 0, len(channels))
 	m.mu.Lock()
@@ -330,8 +330,8 @@ func (m *Manager) discoverChannels(a NotificationAdapter) {
 	}
 	m.mu.Unlock()
 	for _, d := range toPersist {
-		m.persistChannel(d.bc, d.platform, d.id)
-		m.persistChannelMeta(a, d.bc, d.id, d.meta)
+		m.persistChannel(d.channel, d.platform, d.id)
+		m.persistChannelMeta(a, d.channel, d.id, d.meta)
 	}
 }
 
@@ -353,8 +353,8 @@ func (m *Manager) lateDiscovery(ctx context.Context) {
 	for _, a := range adapterList {
 		channels := a.Channels()
 		type lateDiscovered struct {
-			bc, platform, id string
-			meta             ChannelMeta
+			channel, platform, id string
+			meta                  ChannelMeta
 		}
 		var latePersist []lateDiscovered
 		m.mu.Lock()
@@ -372,8 +372,8 @@ func (m *Manager) lateDiscovery(ctx context.Context) {
 		}
 		m.mu.Unlock()
 		for _, d := range latePersist {
-			m.persistChannel(d.bc, d.platform, d.id)
-			m.persistChannelMeta(a, d.bc, d.id, d.meta)
+			m.persistChannel(d.channel, d.platform, d.id)
+			m.persistChannelMeta(a, d.channel, d.id, d.meta)
 		}
 	}
 
@@ -459,7 +459,7 @@ func (m *Manager) Stop(_ context.Context) {
 	}
 }
 
-// Send routes a message from a bc channel to the appropriate external platform.
+// Send routes a message from a mycel channel to the appropriate external platform.
 // Returns true if the channel is an external gateway channel and was handled.
 func (m *Manager) Send(ctx context.Context, bcChannel, sender, content string) (bool, error) {
 	m.mu.RLock()
@@ -620,13 +620,13 @@ func (m *Manager) RefreshChannelMeta(ctx context.Context) (int, error) {
 	}
 
 	type entry struct {
-		bc    string
-		route channelRoute
+		channel string
+		route   channelRoute
 	}
 	m.mu.RLock()
 	entries := make([]entry, 0, len(m.channelMap))
-	for bc, route := range m.channelMap {
-		entries = append(entries, entry{bc, route})
+	for channel, route := range m.channelMap {
+		entries = append(entries, entry{channel, route})
 	}
 	m.mu.RUnlock()
 
@@ -647,8 +647,8 @@ func (m *Manager) RefreshChannelMeta(ctx context.Context) (int, error) {
 		if err != nil || meta == (ChannelMeta{}) {
 			continue
 		}
-		if err := m.channelStore.UpsertChannelMeta(ctx, e.bc, meta.DisplayName, meta.Kind, meta.ParticipantCount); err != nil {
-			log.Warn("gateway: failed to refresh channel meta", "channel", e.bc, "error", err)
+		if err := m.channelStore.UpsertChannelMeta(ctx, e.channel, meta.DisplayName, meta.Kind, meta.ParticipantCount); err != nil {
+			log.Warn("gateway: failed to refresh channel meta", "channel", e.channel, "error", err)
 			continue
 		}
 		refreshed++
@@ -667,7 +667,7 @@ func (m *Manager) DiscoveredSources() []string {
 	return names
 }
 
-// handleNotification processes an event from a NotificationAdapter into bc.
+// handleNotification processes an event from a NotificationAdapter into mycel.
 func (m *Manager) handleNotification(platform string, n Notification) {
 	channelName := n.Channel
 	if channelName == "" {
@@ -726,11 +726,11 @@ func (m *Manager) handleNotification(platform string, n Notification) {
 	if upgradedID != "" && m.channelStore != nil {
 		// Persist the upgrade — without this a quiet channel reloads the
 		// stale fallback id after restart and identity resolution breaks.
-		go func(bc, id string) {
+		go func(channel, id string) {
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
-			if err := m.channelStore.UpdateChannelPlatformID(ctx, bc, id); err != nil {
-				log.Warn("gateway: failed to persist upgraded channel id", "channel", bc, "error", err)
+			if err := m.channelStore.UpdateChannelPlatformID(ctx, channel, id); err != nil {
+				log.Warn("gateway: failed to persist upgraded channel id", "channel", channel, "error", err)
 			}
 		}(bcChannel, upgradedID)
 	}
@@ -762,7 +762,7 @@ func (m *Manager) WebhookHandlers() map[string]http.Handler {
 	return handlers
 }
 
-// sanitizeChannelName converts a group name to a valid bc channel name.
+// sanitizeChannelName converts a group name to a valid mycel channel name.
 // Preserves ':' so adapters can pass compound names like
 // "guildName:channelName" (Discord) without the segments concatenating.
 func sanitizeChannelName(name string) string {

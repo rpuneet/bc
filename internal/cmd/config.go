@@ -805,7 +805,7 @@ func runConfigUserInitWizard() (home.UserRCConfig, error) {
 	fmt.Println()
 
 	// Nickname
-	fmt.Printf("Your nickname [%s]: ", "@bc")
+	fmt.Printf("Your nickname [%s]: ", "@mycel")
 	var input string
 	if _, err := fmt.Scanln(&input); err == nil && input != "" {
 		nickname, err := home.NormalizeNickname(input)

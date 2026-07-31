@@ -8,6 +8,8 @@ import (
 	"strings"
 
 	"gopkg.in/yaml.v3"
+
+	"github.com/rpuneet/mycel/pkg/db"
 )
 
 // RoleMetadata contains the parsed frontmatter from a role file.
@@ -99,7 +101,7 @@ rules:
     Do not spam #all with routine updates.
 ---
 
-# bc Agent
+# mycel Agent
 
 You are an agent in **mycel** — a CLI-first AI agent orchestration system.
 
@@ -143,7 +145,7 @@ You are the root agent for this mycel fleet.
 - Monitor fleet health and costs
 `
 
-// DefaultRoles contains the built-in role definitions for the bc agent team.
+// DefaultRoles contains the built-in role definitions for the mycel agent team.
 // These are written to .bc/roles/ if the files don't already exist.
 var DefaultRoles = map[string]string{
 	"feature-dev": `---
@@ -237,7 +239,8 @@ Update docs in the same PR as the feature. Use concrete examples.
 }
 
 // NewRoleManager creates a new role manager for the given state directory.
-// It opens a SQLite-backed RoleStore at stateDir/bc.db automatically and performs
+// It opens a SQLite-backed RoleStore at the global database (stateDir/mycel.db)
+// automatically and performs
 // a best-effort migration of any .md files in the roles directory.
 // If the store cannot be opened, operations that require the store will return errors.
 func NewRoleManager(stateDir string) *RoleManager {
@@ -247,7 +250,7 @@ func NewRoleManager(stateDir string) *RoleManager {
 		roles:    make(map[string]*Role),
 	}
 
-	dbPath := filepath.Join(stateDir, "bc.db")
+	dbPath := filepath.Join(stateDir, db.GlobalDBFileName)
 	store, err := NewRoleStore(dbPath)
 	if err == nil {
 		rm.store = store

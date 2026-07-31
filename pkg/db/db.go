@@ -1,4 +1,4 @@
-// Package db provides unified SQLite database management for bc CLI.
+// Package db provides unified SQLite database management for the mycel CLI.
 //
 // This package consolidates SQLite connection management, ensuring consistent
 // configuration across all database operations. It provides:

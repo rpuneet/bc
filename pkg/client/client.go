@@ -1,4 +1,4 @@
-// Package client provides an HTTP client for the bcd daemon.
+// Package client provides an HTTP client for the daemon daemon.
 //
 // Commands use this client to communicate with the daemon instead of
 // calling pkg/ packages directly. This enables the daemon architecture
@@ -23,19 +23,19 @@ import (
 	"github.com/rpuneet/mycel/pkg/log"
 )
 
-// DefaultSocketPath returns the default Unix socket path for bcd.
+// DefaultSocketPath returns the default Unix socket path for the daemon.
 func DefaultSocketPath() string {
 	home, err := home.MycelHome()
 	if err != nil {
-		return "/tmp/bcd.sock"
+		return "/tmp/mycel.sock"
 	}
-	return filepath.Join(home, "bcd.sock")
+	return filepath.Join(home, "mycel.sock")
 }
 
-// DefaultHTTPAddr is the fallback HTTP address for bcd.
+// DefaultHTTPAddr is the fallback HTTP address for the daemon.
 const DefaultHTTPAddr = "http://127.0.0.1:9374"
 
-// Client is the HTTP client for the bcd daemon.
+// Client is the HTTP client for the daemon daemon.
 type Client struct {
 	HTTPClient *http.Client
 	Agents     *AgentsClient
@@ -53,7 +53,7 @@ type Client struct {
 	BaseURL    string
 }
 
-// New creates a new bcd client with the given base URL.
+// New creates a new the daemon client with the given base URL.
 // If addr is empty, it tries to auto-discover the daemon.
 func New(addr string) *Client {
 	if addr == "" {
@@ -139,7 +139,7 @@ func discoverDaemon() string {
 
 // readDaemonAddrFile reads <mycel home>/daemon.addr (written by
 // `mycel up`) and returns a trimmed, non-empty scheme+host:port string.
-// Returns "" when the file is absent (bcd never started). Real I/O
+// Returns "" when the file is absent (the daemon never started). Real I/O
 // errors — permission denied, corrupted file — log a warning so users
 // aren't silently routed to the hardcoded default.
 func readDaemonAddrFile() string {

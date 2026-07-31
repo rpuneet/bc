@@ -9,10 +9,10 @@ import (
 const (
 	// ActivityModeHooks means the provider emits lifecycle events by
 	// invoking configured hook commands (e.g. Claude Code hooks that POST
-	// to bcd's /api/agents/{name}/hook endpoint).
+	// to the daemon's /api/agents/{name}/hook endpoint).
 	ActivityModeHooks = "hooks"
 	// ActivityModeTranscript means the provider writes a session
-	// transcript on disk that bcd tails to derive lifecycle events.
+	// transcript on disk that the daemon tails to derive lifecycle events.
 	ActivityModeTranscript = "transcript"
 	// ActivityModeNone means the provider exposes no activity signal;
 	// agent state is not updated from provider output.
@@ -20,7 +20,7 @@ const (
 )
 
 // ActivitySource is optionally implemented by providers that expose a
-// stream of agent activity (lifecycle/tool events). It tells bcd how to
+// stream of agent activity (lifecycle/tool events). It tells the daemon how to
 // observe an agent driven by this provider: via push (hooks POSTing to the
 // daemon) or via pull (tailing a transcript file).
 type ActivitySource interface {
@@ -30,7 +30,7 @@ type ActivitySource interface {
 
 	// WriteHookConfig writes the provider-specific hook configuration into
 	// the agent's worktree so the provider reports lifecycle events to the
-	// daemon. daemonAddr is the base URL of the bcd HTTP API and agentID is
+	// daemon. daemonAddr is the base URL of the daemon HTTP API and agentID is
 	// the agent's identifier; implementations may ignore them when the
 	// generated config resolves these at runtime (e.g. via environment
 	// variables). Only meaningful when ActivityMode is ActivityModeHooks.

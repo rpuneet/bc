@@ -1,6 +1,6 @@
 package agent
 
-// HookEvent is a lifecycle event type — either a Claude Code hook or a bc-internal event.
+// HookEvent is a lifecycle event type — either a Claude Code hook or a mycel-internal event.
 type HookEvent string
 
 // ── Claude Code hook events (configured in .claude/settings.json) ──
@@ -40,7 +40,7 @@ const (
 	HookPostInvocation HookEvent = "PostInvocation"
 )
 
-// ── bc-internal events (POSTed by bcd Go code, not Claude Code hooks) ──
+// ── mycel-internal events (POSTed by the daemon Go code, not Claude Code hooks) ──
 
 const (
 	HookChannelMessage HookEvent = "ChannelMessage"

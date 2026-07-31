@@ -93,7 +93,7 @@ func (h *GatewayHandler) notificationsOverview(w http.ResponseWriter, r *http.Re
 	channels := make([]overviewChannel, 0, len(byName))
 	for _, ch := range byName {
 		if ch.DisplayName == "" {
-			// Never show a blank name: fall back to the bc channel suffix.
+			// Never show a blank name: fall back to the mycel channel suffix.
 			ch.DisplayName = strings.TrimPrefix(ch.BCChannel, ch.Platform+":")
 		}
 		channels = append(channels, *ch)

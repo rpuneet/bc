@@ -58,12 +58,12 @@ func executeCmd(args ...string) (string, error) {
 func setupTestHome(t *testing.T) string {
 	t.Helper()
 
-	// These tests use the global rootCmd which connects to bcd at :9374.
-	// They can't work reliably: if bcd is running they hit the live instance,
+	// These tests use the global rootCmd which connects to the daemon at :9374.
+	// They can't work reliably: if the daemon is running they hit the live instance,
 	// if not they fail with "daemon not running". Skip unless a test-specific
 	// daemon is available (indicated by MYCEL_TEST_DAEMON=1).
 	if os.Getenv("MYCEL_TEST_DAEMON") == "" {
-		t.Skip("skipping: requires MYCEL_TEST_DAEMON=1 (dedicated test bcd instance)")
+		t.Skip("skipping: requires MYCEL_TEST_DAEMON=1 (dedicated test daemon instance)")
 	}
 
 	origDir, err := os.Getwd()

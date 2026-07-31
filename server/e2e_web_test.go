@@ -1,6 +1,6 @@
-// Package server_test — web UI smoke tests for bcd HTTP API (Phase 3).
+// Package server_test — web UI smoke tests for the daemon HTTP API (Phase 3).
 //
-// These tests verify that the bcd server correctly serves the embedded web UI
+// These tests verify that the daemon server correctly serves the embedded web UI
 // (SPA fallback, static files) and that all API endpoints the web UI depends on
 // return valid responses. Uses httptest with real server infrastructure.
 package server_test
@@ -27,7 +27,7 @@ import (
 	"github.com/rpuneet/mycel/server"
 )
 
-// newE2EServerWithWebUI creates a bcd server with a synthetic web UI filesystem
+// newE2EServerWithWebUI creates a daemon server with a synthetic web UI filesystem
 // for testing SPA serving behavior. The filesystem contains a minimal
 // index.html and a static asset.
 func newE2EServerWithWebUI(t *testing.T) *e2eServer {
@@ -107,10 +107,10 @@ func newE2EServerWithWebUI(t *testing.T) *e2eServer {
 func syntheticWebUI() fs.FS {
 	return fstest.MapFS{
 		"index.html": &fstest.MapFile{
-			Data: []byte("<!DOCTYPE html><html><head><title>bc</title></head><body><div id=\"root\"></div></body></html>"),
+			Data: []byte("<!DOCTYPE html><html><head><title>mycel</title></head><body><div id=\"root\"></div></body></html>"),
 		},
 		"assets/app.js": &fstest.MapFile{
-			Data: []byte("console.log('bc')"),
+			Data: []byte("console.log('mycel')"),
 		},
 		"assets/style.css": &fstest.MapFile{
 			Data: []byte("body { margin: 0; }"),

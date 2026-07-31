@@ -32,7 +32,7 @@ func TestAppendInjectedInstructions_AppendsBlock(t *testing.T) {
 		context.Background(),
 		p,
 		cfg,
-		[]string{"github", "bc"},                // intentionally unsorted
+		[]string{"mycel", "github"},             // intentionally unsorted
 		[]string{"SLACK_BOT_TOKEN", "GH_TOKEN"}, // key NAMES only
 	)
 	if err != nil {
@@ -50,7 +50,7 @@ func TestAppendInjectedInstructions_AppendsBlock(t *testing.T) {
 		"## mycel instructions",                          // block header
 		"Always report status before and after work.",    // authored text
 		"### Available resources",                        // resources sub-header
-		"MCP servers: bc, github",                        // sorted MCP names
+		"MCP servers: github, mycel",                     // sorted MCP names
 		"Credential env vars: GH_TOKEN, SLACK_BOT_TOKEN", // sorted key NAMES
 	} {
 		if !strings.Contains(got, want) {
@@ -109,7 +109,7 @@ func TestAppendInjectedInstructions_EmptyIsNoop(t *testing.T) {
 		{InjectedInstructions: ""},
 		{InjectedInstructions: "   \n\t "},
 	} {
-		if appendErr := appendInjectedInstructions(context.Background(), p, cfg, []string{"bc"}, []string{"GH_TOKEN"}); appendErr != nil {
+		if appendErr := appendInjectedInstructions(context.Background(), p, cfg, []string{"mycel"}, []string{"GH_TOKEN"}); appendErr != nil {
 			t.Fatalf("appendInjectedInstructions: %v", appendErr)
 		}
 	}

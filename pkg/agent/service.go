@@ -56,7 +56,7 @@ type CreateOptions struct {
 	Parent  string
 	Team    string
 	// Repo is the absolute path of the git repo the agent is bound to.
-	// Empty means "the repo bcd was booted against" (the default repo).
+	// Empty means "the repo the daemon was booted against" (the default repo).
 	Repo string
 }
 
@@ -242,7 +242,7 @@ func (s *AgentService) Start(ctx context.Context, name string, opts StartOptions
 	}
 
 	if existing.State != StateStopped && existing.State != StateError {
-		// Reconcile: container may have died without bcd noticing
+		// Reconcile: container may have died without the daemon noticing
 		if !s.manager.runtimeForAgent(name).HasSession(ctx, name) {
 			log.Info("reconciling dead agent for restart", "agent", name, "state", existing.State)
 			existing.State = StateStopped
@@ -302,7 +302,7 @@ func (s *AgentService) Delete(ctx context.Context, name string, force bool) erro
 		return fmt.Errorf("agent %q: %w", name, ErrNotFound)
 	}
 	if !force && a.State != StateStopped {
-		// Reconcile: container may have died without bcd noticing
+		// Reconcile: container may have died without the daemon noticing
 		if !s.manager.runtimeForAgent(name).HasSession(ctx, name) {
 			a.State = StateStopped
 			a.UpdatedAt = time.Now()

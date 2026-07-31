@@ -15,7 +15,7 @@ func TestSanitizeChannelName(t *testing.T) {
 		want  string
 	}{
 		{"Marketing", "marketing"},
-		{"All BC Infra", "all-bc-infra"},
+		{"All Mycel Infra", "all-mycel-infra"},
 		{"dev-chat", "dev-chat"},
 		{"hello_world", "hello_world"},
 		{"café ☕", "caf-"},

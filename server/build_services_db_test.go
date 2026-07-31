@@ -98,13 +98,13 @@ func TestBuildServices_SharedGlobalDB(t *testing.T) {
 		t.Errorf("duplicate-name error should identify the conflict, got: %v", dupErr)
 	}
 
-	// One database file at MYCEL_HOME — no per-repo bc.db files.
+	// One database file at MYCEL_HOME — no per-repo db file files.
 	if _, statErr := os.Stat(filepath.Join(home, "mycel.db")); statErr != nil {
 		t.Errorf("global mycel.db missing: %v", statErr)
 	}
 	for _, dir := range []string{wsA, wsB} {
 		if _, statErr := os.Stat(filepath.Join(dir, ".bc", "bc.db")); statErr == nil {
-			t.Errorf("per-repo bc.db must not be created anymore (%s)", dir)
+			t.Errorf("per-repo db file must not be created anymore (%s)", dir)
 		}
 	}
 }

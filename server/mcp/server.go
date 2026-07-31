@@ -23,7 +23,7 @@ import (
 )
 
 // Config holds the daemon-owned dependencies the tool handlers dispatch to.
-// All stores are shared with bcd; the MCP layer owns no connections.
+// All stores are shared with the daemon; the MCP layer owns no connections.
 type Config struct {
 	Home    *home.Home
 	Agents  *agent.Manager

@@ -11,7 +11,7 @@ func setupTestStore(t *testing.T) *Store {
 	t.Helper()
 	// Set up shared SQLite DB (required after fallback removal)
 	dir := t.TempDir()
-	d, err := db.Open(dir + "/bc.db")
+	d, err := db.Open(dir + "/mycel.db")
 	if err != nil {
 		t.Fatal(err)
 	}

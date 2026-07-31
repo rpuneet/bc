@@ -23,8 +23,8 @@ import (
 	wspkg "github.com/rpuneet/mycel/server/ws"
 )
 
-// RunServer starts the mycel server (formerly bcd) in the foreground.
-// bcd is single-tenant: it constructs shared Globals, builds the one
+// RunServer starts the mycel server (formerly the daemon) in the foreground.
+// the daemon is single-tenant: it constructs shared Globals, builds the one
 // Services bundle via server.BuildServices, wires handlers, and blocks
 // until the context is canceled or a signal is received.
 //
@@ -119,7 +119,7 @@ func RunServerCtx(ctx context.Context, addr, repoRoot, corsOrigin, apiKey string
 		log.Warn("global templates dir unavailable", "error", gtErr)
 	} else {
 		if _, ensureErr := home.EnsureGlobalDir(); ensureErr != nil {
-			log.Warn("ensure global bc dir", "error", ensureErr)
+			log.Warn("ensure global mycel dir", "error", ensureErr)
 		}
 		if seedErr := templatepkg.SeedDefaults(globalTmplDir); seedErr != nil {
 			log.Warn("seed global template defaults", "error", seedErr)
@@ -190,18 +190,18 @@ func RunServerCtx(ctx context.Context, addr, repoRoot, corsOrigin, apiKey string
 		BuiltAt: date,
 	}
 
-	// Rewrite agent hook settings to point at the actual bcd address.
+	// Rewrite agent hook settings to point at the actual the daemon address.
 	updateAgentHookPorts(h, cfg.Addr)
 
 	srv := server.New(cfg, svc, globalHub, server.WebDist())
 	return srv.Start(ctx)
 }
 
-// updateAgentHookPorts rewrites agent hook settings to use the current bcd address.
+// updateAgentHookPorts rewrites agent hook settings to use the current the daemon address.
 // This is necessary because existing tmux sessions don't inherit the MYCEL_DAEMON_ADDR
-// environment variable that is set in the bcd process env.
+// environment variable that is set in the daemon process env.
 func updateAgentHookPorts(h *home.Home, listenAddr string) {
-	bcdURL := "http://" + listenAddr
+	daemonURL := "http://" + listenAddr
 	agentsDir := filepath.Join(h.StateDir(), "agents")
 	entries, err := os.ReadDir(agentsDir)
 	if err != nil {
@@ -221,15 +221,15 @@ func updateAgentHookPorts(h *home.Home, listenAddr string) {
 				continue
 			}
 			content := string(data)
-			updated := strings.ReplaceAll(content, "http://127.0.0.1:9374", bcdURL)
-			updated = strings.ReplaceAll(updated, "${MYCEL_DAEMON_ADDR:-http://127.0.0.1:9374}", bcdURL)
+			updated := strings.ReplaceAll(content, "http://127.0.0.1:9374", daemonURL)
+			updated = strings.ReplaceAll(updated, "${MYCEL_DAEMON_ADDR:-http://127.0.0.1:9374}", daemonURL)
 
 			if updated != content {
 				if writeErr := os.WriteFile(settingsPath, []byte(updated), 0644); writeErr != nil { //nolint:gosec // agent settings file
 					log.Warn("failed to update hook port", "path", settingsPath, "error", writeErr)
 					continue
 				}
-				log.Info("updated hook port", "agent", agentName, "addr", bcdURL)
+				log.Info("updated hook port", "agent", agentName, "addr", daemonURL)
 			}
 		}
 	}

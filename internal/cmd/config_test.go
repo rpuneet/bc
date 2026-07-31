@@ -241,7 +241,7 @@ func TestConfigValidateInvalid(t *testing.T) {
 
 func TestConfigShowIsCWDFree(t *testing.T) {
 	// Config is global (~/.mycel/prefs.json) and served by the daemon:
-	// `config show` works from any directory when bcd answers.
+	// `config show` works from any directory when the daemon answers.
 	tmpDir := t.TempDir() // plain dir, not a git repo
 	origDir, _ := os.Getwd()
 	defer func() { _ = os.Chdir(origDir) }()

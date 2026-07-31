@@ -63,7 +63,7 @@ func (f *fakeRunner) PSStats(_ context.Context, pids []int) (float64, int64, err
 func TestTmuxSampler_SumsPIDTree(t *testing.T) {
 	// Tree: pane (1000) → shell (1001) → claude (1002) → claude-worker (1003)
 	r := &fakeRunner{
-		panes: map[string][]int{"bc-abc-eng-01": {1000}},
+		panes: map[string][]int{"mycel-abc-eng-01": {1000}},
 		children: map[int][]int{
 			1000: {1001},
 			1001: {1002},
@@ -73,7 +73,7 @@ func TestTmuxSampler_SumsPIDTree(t *testing.T) {
 		rssByPID: map[int]int64{1000: 1_000_000, 1001: 2_000_000, 1002: 300_000_000, 1003: 50_000_000},
 	}
 	s := NewTmuxSampler(r)
-	got, err := s.Sample(context.Background(), "bc-abc-eng-01", "eng-01")
+	got, err := s.Sample(context.Background(), "mycel-abc-eng-01", "eng-01")
 	if err != nil {
 		t.Fatalf("Sample: %v", err)
 	}
@@ -94,7 +94,7 @@ func TestTmuxSampler_StoppedAgentReturnsZero(t *testing.T) {
 	// Session doesn't exist and list-sessions is empty: "agent not running".
 	r := &fakeRunner{}
 	s := NewTmuxSampler(r)
-	got, err := s.Sample(context.Background(), "bc-abc-ghost", "ghost")
+	got, err := s.Sample(context.Background(), "mycel-abc-ghost", "ghost")
 	if err != nil {
 		t.Fatalf("Sample: %v, want nil for stopped agent", err)
 	}
@@ -105,11 +105,11 @@ func TestTmuxSampler_StoppedAgentReturnsZero(t *testing.T) {
 
 func TestTmuxSampler_PanePIDErrorFallsBackToListSessions(t *testing.T) {
 	// First PanePIDs call errors (session literal name missed); list-sessions
-	// finds the bc-hashed variant and the retry succeeds.
+	// finds the prefix-hashed variant and the retry succeeds.
 	r := &fakeRunner{
-		sessions: []string{"bc-abc-eng-01"},
+		sessions: []string{"mycel-abc-eng-01"},
 		panes: map[string][]int{
-			"bc-abc-eng-01": {2000},
+			"mycel-abc-eng-01": {2000},
 		},
 		children: map[int][]int{2000: {2001}},
 		cpuByPID: map[int]float64{2000: 1, 2001: 9},
@@ -147,7 +147,7 @@ func TestTmuxSampler_NilRunnerReturnsError(t *testing.T) {
 func TestTmuxSampler_ChildrenErrorPartialWalk(t *testing.T) {
 	// Simulate pgrep failing for an intermediate PID — sampler keeps what it has.
 	r := &fakeRunner{
-		panes:    map[string][]int{"bc-sess": {3000}},
+		panes:    map[string][]int{"mycel-sess": {3000}},
 		children: map[int][]int{3000: {3001}},
 		childrenErr: map[int]error{
 			3001: errors.New("pgrep crashed"),
@@ -156,7 +156,7 @@ func TestTmuxSampler_ChildrenErrorPartialWalk(t *testing.T) {
 		rssByPID: map[int]int64{3000: 500, 3001: 1500},
 	}
 	s := NewTmuxSampler(r)
-	got, err := s.Sample(context.Background(), "bc-sess", "sess")
+	got, err := s.Sample(context.Background(), "mycel-sess", "sess")
 	if err != nil {
 		t.Fatalf("Sample: %v", err)
 	}
@@ -172,11 +172,11 @@ func TestTmuxSampler_ChildrenErrorPartialWalk(t *testing.T) {
 func TestTmuxSampler_EmptyPIDsSkipsPSCall(t *testing.T) {
 	// List-sessions returns a match but it has no panes — treat as stopped.
 	r := &fakeRunner{
-		sessions: []string{"bc-abc-eng-01"},
+		sessions: []string{"mycel-abc-eng-01"},
 		panes:    map[string][]int{}, // session exists but no panes
 	}
 	s := NewTmuxSampler(r)
-	got, err := s.Sample(context.Background(), "bc-abc-eng-01", "eng-01")
+	got, err := s.Sample(context.Background(), "mycel-abc-eng-01", "eng-01")
 	if err != nil {
 		t.Fatalf("Sample: %v", err)
 	}

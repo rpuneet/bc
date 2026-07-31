@@ -1,4 +1,4 @@
-// Package server_test — round-trip integration tests for bcd HTTP API.
+// Package server_test — round-trip integration tests for the daemon HTTP API.
 //
 // These tests exercise full create→read→verify cycles through the HTTP API
 // backed by real SQLite storage, proving the path:

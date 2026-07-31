@@ -42,7 +42,7 @@ func slugify(name string) string {
 
 // channelKey builds the canonical channel name "<guild>:<channel>" from raw
 // Discord names. The gateway manager prepends the "discord:" platform prefix,
-// yielding the canonical bc channel "discord:<guild>:<channel>".
+// yielding the canonical mycel channel "discord:<guild>:<channel>".
 //
 // The guild is always included (even for single-guild bots) so keys stay
 // stable when the bot joins additional guilds, and the sidebar can show

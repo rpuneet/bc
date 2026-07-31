@@ -192,7 +192,7 @@ func ValidateNickname(nickname string) error {
 func NormalizeNickname(nickname string) (string, error) {
 	nickname = strings.TrimSpace(nickname)
 	if nickname == "" {
-		return "@bc", nil
+		return "@mycel", nil
 	}
 	if !strings.HasPrefix(nickname, "@") {
 		nickname = "@" + nickname

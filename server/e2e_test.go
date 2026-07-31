@@ -1,6 +1,6 @@
-// Package server_test provides E2E tests for the bcd HTTP API.
+// Package server_test provides E2E tests for the daemon HTTP API.
 //
-// These tests spin up a full bcd server in-process using httptest,
+// These tests spin up a full the daemon server in-process using httptest,
 // backed by real SQLite databases in a temp directory. No external
 // services or running daemon required — suitable for CI.
 package server_test
@@ -31,13 +31,13 @@ import (
 
 // ─── Test Harness ────────────────────────────────────────────────────────────
 
-// e2eServer is a fully wired bcd test server backed by real stores.
+// e2eServer is a fully wired the daemon test server backed by real stores.
 type e2eServer struct {
 	*httptest.Server
 	h *home.Home
 }
 
-// newE2EServer creates a bcd server with all services wired to a
+// newE2EServer creates a daemon server with all services wired to a
 // sandboxed ~/.mycel (temp MYCEL_HOME) and real SQLite storage.
 func newE2EServer(t *testing.T) *e2eServer {
 	t.Helper()

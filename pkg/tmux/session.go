@@ -1,6 +1,6 @@
 // Package tmux provides tmux session management for agent orchestration.
 //
-// Each bc agent runs in an isolated tmux session, allowing for:
+// Each mycel agent runs in an isolated tmux session, allowing for:
 //   - Concurrent agent execution
 //   - Session persistence across restarts
 //   - Direct terminal access for debugging
@@ -9,7 +9,7 @@
 //
 // Create a session manager:
 //
-//	mgr := tmux.NewManagerWithRepo("bc-", "/path/to/repo")
+//	mgr := tmux.NewManagerWithRepo("mycel-", "/path/to/repo")
 //
 // Create a session:
 //
@@ -27,11 +27,11 @@
 //
 // Sessions are prefixed and optionally include a repo hash for isolation:
 //
-//	// With repo hash: bc-a1b2c3-eng-01
-//	mgr := tmux.NewManagerWithRepo("bc-", "/path/to/repo")
+//	// With repo hash: mycel-a1b2c3-eng-01
+//	mgr := tmux.NewManagerWithRepo("mycel-", "/path/to/repo")
 //
-//	// Without hash: bc-eng-01
-//	mgr := tmux.NewManager("bc-")
+//	// Without hash: mycel-eng-01
+//	mgr := tmux.NewManager("mycel-")
 //
 // # Caching
 //
@@ -371,7 +371,7 @@ func (m *Manager) SendKeysWithSubmit(ctx context.Context, name, keys, submitKey 
 		}
 		bufferName := "s" + strings.ReplaceAll(sessionID, "-", "") + "-" + generateBufferName()
 
-		tmpDir := filepath.Join(os.TempDir(), "bc-tmux")
+		tmpDir := filepath.Join(os.TempDir(), "mycel-tmux")
 		if err := os.MkdirAll(tmpDir, 0700); err != nil {
 			return fmt.Errorf("failed to create temp dir: %w", err)
 		}
@@ -611,5 +611,5 @@ func (m *Manager) PipePane(ctx context.Context, name, logPath string) error {
 func generateBufferName() string {
 	b := make([]byte, 8)
 	_, _ = rand.Read(b) //nolint:errcheck // crypto/rand.Read always returns len(b), nil
-	return "bc-" + hex.EncodeToString(b)
+	return "mycel-" + hex.EncodeToString(b)
 }

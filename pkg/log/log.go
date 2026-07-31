@@ -1,4 +1,4 @@
-// Package log provides structured logging for bc using log/slog.
+// Package log provides structured logging for mycel using log/slog.
 package log
 
 import (

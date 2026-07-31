@@ -107,7 +107,7 @@ func runUp(cmd *cobra.Command, _ []string) error {
 	// Normalize addr: ":8080" → "127.0.0.1:8080"
 	upAddr = normalizeAddr(upAddr)
 
-	// Daemon mode: re-exec bc up in background
+	// Daemon mode: re-exec mycel up in background
 	if upDaemon {
 		return runUpDaemon(repoRoot)
 	}
