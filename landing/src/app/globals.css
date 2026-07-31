@@ -681,6 +681,17 @@ html:not(.dark) .product-frame img.shot-light { display: block; }
   color: var(--terminal-prompt);
 }
 
+/* Inline code chip for the getting-started bridge — tinted, not full terminal */
+.gs-code {
+  font-family: var(--font-label);
+  font-size: 0.8125em;
+  color: var(--primary-text);
+  background: color-mix(in srgb, var(--primary) 12%, transparent);
+  border-radius: 4px;
+  padding: 0.05em 0.35em;
+  white-space: nowrap;
+}
+
 /* Grain / atmosphere veil for deck backdrop */
 .deck-veil {
   background:

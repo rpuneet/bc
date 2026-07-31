@@ -11,6 +11,10 @@ import { HeroShowcase } from "./_components/HeroShowcase";
 import { SocialProof } from "./_components/SocialProof";
 import { DownloadButtons } from "./_components/DownloadButtons";
 import { MethodTeaser } from "./_components/MethodTeaser";
+import { WhyMycel } from "./_components/WhyMycel";
+import { GettingStarted } from "./_components/GettingStarted";
+import { ChangelogPill } from "./_components/ChangelogPill";
+import { ChatThread } from "./_components/ChatThread";
 import { RevealSection, FadeUp, ScrollReveal } from "./_components/Motion";
 import { AnimatedBackground } from "./_components/AnimatedBackground";
 import { SporeLogo } from "./_components/SporeLogo";
@@ -138,6 +142,9 @@ export default function Home() {
         <section className="pt-28 pb-10 sm:pt-32 sm:pb-14">
           <div className="mx-auto max-w-4xl px-4 text-center sm:px-6">
             <FadeUp>
+              <div className="mb-6 flex justify-center">
+                <ChangelogPill />
+              </div>
               <span className="deck-eyebrow">
                 Open source &middot; Free &middot; Runs on your machine
               </span>
@@ -212,6 +219,14 @@ export default function Home() {
         <SporeDivider />
 
         {/* ════════════════════════════════════════
+           Why mycel — the positioning beat (team, not one agent)
+           ════════════════════════════════════════ */}
+        <WhyMycel />
+
+        {/* Section separator */}
+        <SporeDivider />
+
+        {/* ════════════════════════════════════════
            Beyond the dashboard — reachable everywhere
            ════════════════════════════════════════ */}
         <section id="product" className="deck-veil scroll-mt-24 py-14 sm:py-20">
@@ -265,13 +280,21 @@ export default function Home() {
                   </>
                 }
                 artifact={
-                  <ProductFrame
-                    srcDark="/screenshots/apps-dark.png"
-                    alt="The apps view: connected platforms including Slack, Telegram, IRC, and WhatsApp, with channels and live message activity"
-                    title="Apps"
-                    width={1100}
-                    height={900}
-                  />
+                  <div className="relative">
+                    <ProductFrame
+                      srcDark="/screenshots/apps-dark.png"
+                      alt="The apps view: connected platforms including Slack, Telegram, IRC, and WhatsApp, with channels and live message activity"
+                      title="Apps"
+                      width={1100}
+                      height={900}
+                    />
+                    {/* Concrete proof (teardown #14): a real ping→reply thread,
+                       overlapping the screenshot so the "reachable where you
+                       talk" claim reads as tangible, not abstract. */}
+                    <div className="relative z-10 -mt-10 ml-auto w-[94%] sm:-mt-16 sm:w-[78%]">
+                      <ChatThread />
+                    </div>
+                  </div>
                 }
                 last
                 showNode={false}
@@ -297,6 +320,11 @@ export default function Home() {
 
         {/* Section separator */}
         <SporeDivider />
+
+        {/* ════════════════════════════════════════
+           Getting started — the 3-step bridge into the docs
+           ════════════════════════════════════════ */}
+        <GettingStarted />
 
         {/* ════════════════════════════════════════
            Get mycel — CLI power-user path (demoted below the download hero)

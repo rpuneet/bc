@@ -61,6 +61,19 @@ export function MethodTeaser() {
           ))}
         </div>
 
+        {/* A real pull-quote from the manifesto — the essay is the site's
+           strongest asset, so give people a reason to open it. */}
+        <FadeUp className="mx-auto mt-12 max-w-3xl border-l-2 border-primary/40 pl-6 sm:mt-14 sm:pl-8">
+          <blockquote className="deck-serif text-2xl leading-snug text-on-surface-variant sm:text-3xl">
+            &ldquo;The difference between an assistant and a collaborator is what
+            happens after the first failure. An assistant stops.{" "}
+            <span className="text-primary">A collaborator adapts and continues.</span>&rdquo;
+          </blockquote>
+          <cite className="mt-4 block font-label text-[11px] uppercase not-italic tracking-[0.2em] text-on-surface-variant">
+            From the method &middot; Conviction 05, Persistence
+          </cite>
+        </FadeUp>
+
         <FadeUp className="mt-9 text-center">
           <Link
             href="/method"
