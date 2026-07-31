@@ -3,7 +3,21 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { AgentCharacter } from "../AgentCharacter";
 import { AgentChip } from "../AgentChip";
 import { handleAgentEvent } from "../agentEventBus";
+import { ALL_FORMS, deriveIdentity } from "../identity";
+import type { BodyForm } from "../identity";
 import { PULSE_MS, useAgentPulse } from "../useAgentPulse";
+
+/** One representative agent name per species, found by probing the
+ *  deterministic hash — keeps the suite honest if the mapping changes. */
+function speciesRepresentatives(): Map<BodyForm, string> {
+  const reps = new Map<BodyForm, string>();
+  for (let i = 0; reps.size < ALL_FORMS.length && i < 100000; i++) {
+    const name = `probe-${String(i)}`;
+    const { form } = deriveIdentity(name);
+    if (!reps.has(form)) reps.set(form, name);
+  }
+  return reps;
+}
 
 afterEach(() => {
   cleanup();
@@ -42,6 +56,59 @@ describe("AgentCharacter", () => {
     );
     expect(small.querySelectorAll("text").length).toBe(0);
     expect(large.querySelectorAll("text").length).toBe(1); // tool glyph chip
+  });
+
+  it("finds a representative name for every one of the ten species", () => {
+    expect([...speciesRepresentatives().keys()].sort()).toEqual([...ALL_FORMS].sort());
+  });
+
+  for (const size of [16, 28, 96]) {
+    it(`renders every species at ${String(size)}px with a face and correct layering`, () => {
+      for (const [form, name] of speciesRepresentatives()) {
+        const { container, unmount } = render(
+          <AgentCharacter name={name} state="idle" size={size} tool="claude" />,
+        );
+        const root = container.firstChild as HTMLElement;
+        expect(root.getAttribute("data-agent-form")).toBe(form);
+        // Body silhouette and eyes exist on every species at every size.
+        expect(container.querySelector(".agent-body")).not.toBeNull();
+        expect(container.querySelector(".agent-eyes")).not.toBeNull();
+        // Tool chip (the only <text>) appears at ≥56px only.
+        expect(container.querySelectorAll("text").length).toBe(size >= 56 ? 1 : 0);
+        unmount();
+      }
+    });
+  }
+
+  it("closes the eyes when stopped, on every species", () => {
+    for (const [, name] of speciesRepresentatives()) {
+      const { container, unmount } = render(
+        <AgentCharacter name={name} state="stopped" size={32} />,
+      );
+      const eyes = container.querySelector(".agent-eyes");
+      expect(eyes?.querySelectorAll("path").length).toBe(2);
+      unmount();
+    }
+  });
+
+  it("applies each state animation class on every species", () => {
+    const states = [
+      ["idle", "agent-anim-idle"],
+      ["working", "agent-anim-working"],
+      ["stuck", "agent-anim-stuck"],
+      ["error", "agent-anim-error"],
+      ["waiting", "agent-anim-waiting"],
+      ["stopped", "agent-anim-stopped"],
+    ] as const;
+    for (const [, name] of speciesRepresentatives()) {
+      for (const [state, cls] of states) {
+        const { container, unmount } = render(
+          <AgentCharacter name={name} state={state} size={32} />,
+        );
+        expect((container.firstChild as HTMLElement).className).toContain(cls);
+        unmount();
+      }
+    }
   });
 
   it("shows speech dots on a message pulse", () => {

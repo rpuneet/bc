@@ -1,11 +1,21 @@
 /* ── Agent identity derivation ──────────────────────────────────────
    Every agent gets a deterministic organic character derived from its
    name alone: same name → same creature everywhere, zero configuration.
-   The hash picks a body silhouette from a small family of mycelium
-   forms, a hue rotated within the mycel palette, an eye style and a few
-   distinguishing surface marks. */
+   The hash picks a body silhouette from a family of ten mycelium
+   species, a hue rotated within the mycel palette, an eye style and a
+   few distinguishing surface marks. */
 
-export type BodyForm = "spore" | "cap" | "sprout";
+export type BodyForm =
+  | "spore"
+  | "cap"
+  | "sprout"
+  | "morel"
+  | "puffball"
+  | "chanterelle"
+  | "bracket"
+  | "coral"
+  | "enoki"
+  | "lichen";
 export type EyeStyle = "round" | "bead" | "oval";
 
 export interface AgentMark {
@@ -37,7 +47,21 @@ export function hashName(name: string): number {
   return h >>> 0;
 }
 
-const FORMS: BodyForm[] = ["spore", "cap", "sprout"];
+/* The original three species. Their assignment (hash % 3) predates the
+   ten-species expansion and is preserved verbatim: see the roll logic in
+   deriveIdentity. Do not reorder. */
+const LEGACY_FORMS: BodyForm[] = ["spore", "cap", "sprout"];
+/* The seven expansion species. Do not reorder — index feeds the roll. */
+const EXPANSION_FORMS: BodyForm[] = [
+  "morel",
+  "puffball",
+  "chanterelle",
+  "bracket",
+  "coral",
+  "enoki",
+  "lichen",
+];
+export const ALL_FORMS: BodyForm[] = [...LEGACY_FORMS, ...EXPANSION_FORMS];
 const EYE_STYLES: EyeStyle[] = ["round", "bead", "oval"];
 
 /* Hue family rotated around the mycel orange accent (~24°) plus the
@@ -70,6 +94,55 @@ const MARK_ZONES: Record<BodyForm, { x: number; y: number }[]> = {
     { x: 39, y: 47 },
     { x: 32, y: 26 },
   ],
+  morel: [
+    { x: 28, y: 25 },
+    { x: 36, y: 25 },
+    { x: 32, y: 16 },
+    { x: 29, y: 20 },
+    { x: 35, y: 20 },
+  ],
+  puffball: [
+    { x: 25, y: 30 },
+    { x: 39, y: 30 },
+    { x: 32, y: 28 },
+    { x: 20, y: 39 },
+    { x: 44, y: 39 },
+  ],
+  chanterelle: [
+    { x: 26, y: 24 },
+    { x: 38, y: 24 },
+    { x: 32, y: 19 },
+    { x: 26, y: 44 },
+    { x: 38, y: 44 },
+  ],
+  bracket: [
+    { x: 26, y: 33 },
+    { x: 38, y: 33 },
+    { x: 32, y: 21 },
+    { x: 22, y: 35 },
+    { x: 42, y: 35 },
+  ],
+  coral: [
+    { x: 24, y: 35 },
+    { x: 40, y: 35 },
+    { x: 32, y: 34 },
+    { x: 20, y: 42 },
+    { x: 44, y: 42 },
+  ],
+  enoki: [
+    { x: 21, y: 44 },
+    { x: 43, y: 44 },
+    { x: 24, y: 51 },
+    { x: 40, y: 51 },
+    { x: 21, y: 48 },
+  ],
+  lichen: [
+    { x: 25, y: 25 },
+    { x: 39, y: 25 },
+    { x: 32, y: 47 },
+    { x: 24, y: 44 },
+    { x: 40, y: 44 },
+  ],
 };
 
 const IDENTITY_CACHE = new Map<string, AgentIdentity>();
@@ -79,7 +152,19 @@ export function deriveIdentity(name: string): AgentIdentity {
   if (cached) return cached;
 
   const h = hashName(name);
-  const form = FORMS[h % FORMS.length]!;
+  /* Species roll. Continuity contract with the pre-expansion system:
+     the original release picked from three forms via `h % 3`. We now
+     roll a SEPARATE hash byte (bits 24-31, untouched by the old form
+     pick) across all ten species. When the roll lands in the legacy
+     band (< 3) the species is decided by the ORIGINAL `h % 3` — so
+     every name whose roll lands there keeps exactly the character it
+     had before the expansion (~30% of existing agents). Distribution
+     stays uniform: each species gets ~1/10 of the namespace. */
+  const roll = (h >>> 24) % ALL_FORMS.length;
+  const form =
+    roll < LEGACY_FORMS.length
+      ? LEGACY_FORMS[h % LEGACY_FORMS.length]!
+      : EXPANSION_FORMS[roll - LEGACY_FORMS.length]!;
   const hue = HUES[(h >>> 2) % HUES.length]!;
   const sat = SATS[(h >>> 6) % SATS.length]!;
   const eyes = EYE_STYLES[(h >>> 9) % EYE_STYLES.length]!;
