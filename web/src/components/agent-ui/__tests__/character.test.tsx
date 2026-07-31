@@ -1,4 +1,4 @@
-import { act, cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AgentCharacter } from "../AgentCharacter";
 import { AgentChip } from "../AgentChip";
@@ -133,6 +133,49 @@ describe("AgentChip", () => {
     render(<AgentChip name="lucid-meerkat" state="idle" onClick={onClick} />);
     screen.getByRole("button", { name: /lucid-meerkat/ }).click();
     expect(onClick).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not render a hover card without the preview prop", () => {
+    render(<AgentChip name="lucid-meerkat" state="idle" />);
+    expect(screen.queryByTestId("agent-hover-card")).toBeNull();
+  });
+
+  it("shows a hover card with state, task and provider after hovering when preview is set", () => {
+    vi.useFakeTimers();
+    const seed = {
+      name: "lucid-meerkat",
+      role: "engineer",
+      tool: "claude",
+      model: "fable",
+      state: "working",
+      total_cost_usd: 1.23,
+      started_at: "",
+      created_at: "",
+      updated_at: "",
+      task: "Refactoring the drawer",
+    };
+    render(<AgentChip name="lucid-meerkat" state="working" preview previewSeed={seed} />);
+    // Not shown until the hover intent debounce elapses.
+    expect(screen.queryByTestId("agent-hover-card")).toBeNull();
+
+    const chip = screen.getByTitle("lucid-meerkat");
+    act(() => {
+      fireEvent.mouseEnter(chip);
+      vi.advanceTimersByTime(300);
+    });
+
+    const card = screen.getByTestId("agent-hover-card");
+    expect(card).toBeInTheDocument();
+    expect(card).toHaveTextContent("Refactoring the drawer");
+    expect(card).toHaveTextContent("claude · fable");
+    expect(card).toHaveTextContent("$1.23");
+
+    // Dismisses on mouse-leave.
+    act(() => {
+      fireEvent.mouseLeave(chip);
+    });
+    expect(screen.queryByTestId("agent-hover-card")).toBeNull();
+    vi.useRealTimers();
   });
 });
 

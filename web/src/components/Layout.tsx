@@ -478,7 +478,11 @@ function AppsNavTree() {
         borderLeft: "1px solid var(--mycel-border)",
         marginTop: 2,
         marginBottom: 4,
-        maxHeight: 320,
+        // Bound the tree to its own scroll region and cap it relative to
+        // the viewport so a long channel list (or two expanded trees on a
+        // short screen) scrolls in place instead of stretching the drawer
+        // past the fold and leaving dead space below the footer.
+        maxHeight: "min(320px, 42vh)",
         overflowY: "auto",
       }}
     >
@@ -728,14 +732,14 @@ export function prettifyHostname(h: string): string {
 }
 
 function buildNavGroups(hostLabel: string): readonly (readonly NavItem[])[] {
+  // One flat group — no inter-group divider. Code lives as a tab on the
+  // agent detail page now (the /code route stays reachable via the Code
+  // tab's "full view" link), so it is no longer a top-level nav item.
   return [
     [
       { to: "/", label: "Home", icon: "home" },
       { to: "/agents", label: "Agents", icon: "agents" },
       { to: "/apps", label: "Apps", icon: "apps" },
-      { to: "/code", label: "Code", icon: "code" },
-    ],
-    [
       { to: "/marketplace", label: "Marketplace", icon: "templates" },
       { to: "/tools", label: hostLabel, icon: "tools" },
     ],
@@ -754,6 +758,9 @@ function titleFor(pathname: string, hostLabel: string): string {
   const firstSeg = pathname.replace(/^\//, "").split("/")[0] ?? "";
   const items = [
     ...buildNavGroups(hostLabel).flat(),
+    // Code left the sidebar (it's an agent-detail tab now) but the route
+    // still resolves via the tab's "full view" link — keep its title.
+    { to: "/code", label: "Code" },
     // Home answers "/", "/home", and the legacy "/live" redirect.
     { to: "/home", label: "Home" },
     { to: "/live", label: "Home" },

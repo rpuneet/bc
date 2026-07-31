@@ -4,8 +4,10 @@
    drawer. Compact by design — characters at 16-20px still read via
    silhouette + face. */
 
-import { memo } from "react";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
+import type { Agent } from "../../api/client";
 import { LiveAgentCharacter } from "./AgentCharacter";
+import { AgentHoverCard } from "./AgentHoverCard";
 
 const DOT_COLORS: Record<string, string> = {
   running: "var(--mycel-success)",
@@ -28,7 +30,16 @@ export interface AgentChipProps {
   showDot?: boolean;
   className?: string;
   onClick?: () => void;
+  /** Show a hover popover (state, task, provider, spend) on mouse-over. */
+  preview?: boolean;
+  /** Pre-fetched agent data for the preview, when the caller has it. */
+  previewSeed?: Agent;
 }
+
+/** Delay before the hover card appears — long enough that a cursor
+ *  passing over a list doesn't flash cards, short enough to feel instant
+ *  on a deliberate hover. */
+const PREVIEW_DELAY_MS = 240;
 
 export const AgentChip = memo(function AgentChip({
   name,
@@ -37,8 +48,51 @@ export const AgentChip = memo(function AgentChip({
   showDot = true,
   className = "",
   onClick,
+  preview = false,
+  previewSeed,
 }: AgentChipProps) {
   const dot = DOT_COLORS[state ?? ""] ?? "var(--mycel-muted)";
+  const [hoverRect, setHoverRect] = useState<DOMRect | null>(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout>>();
+  const anchorRef = useRef<HTMLElement>(null);
+
+  const openPreview = useCallback(() => {
+    clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => {
+      const el = anchorRef.current;
+      if (el) setHoverRect(el.getBoundingClientRect());
+    }, PREVIEW_DELAY_MS);
+  }, []);
+  const closePreview = useCallback(() => {
+    clearTimeout(timerRef.current);
+    setHoverRect(null);
+  }, []);
+
+  // Clear a pending open timer if the chip unmounts mid-hover.
+  useEffect(() => () => clearTimeout(timerRef.current), []);
+
+  // While the card is open, dismiss it on scroll/resize — the anchor rect
+  // is captured once, so a moving list would otherwise leave a stale card
+  // floating in place. Capture-phase catches inner scroll containers too.
+  useEffect(() => {
+    if (!hoverRect) return;
+    const dismiss = () => closePreview();
+    window.addEventListener("scroll", dismiss, true);
+    window.addEventListener("resize", dismiss);
+    return () => {
+      window.removeEventListener("scroll", dismiss, true);
+      window.removeEventListener("resize", dismiss);
+    };
+  }, [hoverRect, closePreview]);
+
+  const previewHandlers = preview
+    ? {
+        onMouseEnter: openPreview,
+        onMouseLeave: closePreview,
+        onFocus: openPreview,
+        onBlur: closePreview,
+      }
+    : {};
   const body = (
     <>
       <LiveAgentCharacter name={name} state={state ?? "idle"} size={size} />
@@ -60,16 +114,32 @@ export const AgentChip = memo(function AgentChip({
     </>
   );
   const cls = `inline-flex items-center gap-1.5 min-w-0 ${className}`.trim();
+  const card = preview && hoverRect && (
+    <AgentHoverCard name={name} rect={hoverRect} seed={previewSeed} />
+  );
   if (onClick) {
     return (
-      <button type="button" onClick={onClick} className={cls} title={name}>
-        {body}
-      </button>
+      <>
+        <button
+          type="button"
+          ref={anchorRef as React.RefObject<HTMLButtonElement>}
+          onClick={onClick}
+          className={cls}
+          title={name}
+          {...previewHandlers}
+        >
+          {body}
+        </button>
+        {card}
+      </>
     );
   }
   return (
-    <span className={cls} title={name}>
-      {body}
-    </span>
+    <>
+      <span ref={anchorRef as React.RefObject<HTMLSpanElement>} className={cls} title={name} {...previewHandlers}>
+        {body}
+      </span>
+      {card}
+    </>
   );
 });
