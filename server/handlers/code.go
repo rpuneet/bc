@@ -111,6 +111,12 @@ func (h *CodeHandler) resolveRepoRoot(_ *http.Request) (string, error) {
 // other value is treated as an agent name and maps to
 // ~/.mycel/agents/<name>/worktree/ — the same path layout that
 // pkg/worktree.Manager uses.
+// errNoWorktree signals a valid agent name whose worktree directory
+// does not exist yet (the agent hasn't worked on a repo). Callers return
+// an empty result with 200 rather than a 400 so the Code tab shows a
+// clean empty state instead of a console error.
+var errNoWorktree = errors.New("worktree not found")
+
 func (h *CodeHandler) resolveWorktreeRoot(r *http.Request) (repoRoot, wtRoot, worktreeName string, err error) {
 	repoRoot, err = h.resolveRepoRoot(r)
 	if err != nil {
@@ -131,7 +137,7 @@ func (h *CodeHandler) resolveWorktreeRoot(r *http.Request) (repoRoot, wtRoot, wo
 	}
 	agentsRoot, err := home.AgentsDir()
 	if err != nil {
-		return repoRoot, "", worktreeName, errors.New("worktree not found")
+		return repoRoot, "", worktreeName, errNoWorktree
 	}
 	wtRoot = filepath.Join(agentsRoot, worktreeName, "worktree")
 	// Defense in depth: the composed root must stay inside the agents
@@ -158,6 +164,10 @@ type treeEntry struct {
 
 func (h *CodeHandler) tree(w http.ResponseWriter, r *http.Request) {
 	_, wtRoot, worktreeName, err := h.resolveWorktreeRoot(r)
+	if errors.Is(err, errNoWorktree) {
+		writeJSON(w, http.StatusOK, []treeEntry{})
+		return
+	}
 	if err != nil {
 		httpError(w, err.Error(), http.StatusBadRequest)
 		return
@@ -381,6 +391,10 @@ const diffTimeout = 10 * time.Second
 
 func (h *CodeHandler) diff(w http.ResponseWriter, r *http.Request) {
 	_, wtRoot, worktreeName, err := h.resolveWorktreeRoot(r)
+	if errors.Is(err, errNoWorktree) {
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		return
+	}
 	if err != nil {
 		httpError(w, err.Error(), http.StatusBadRequest)
 		return

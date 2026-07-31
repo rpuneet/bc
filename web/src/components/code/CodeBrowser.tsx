@@ -301,6 +301,9 @@ export function CodeBrowser({
   fullViewHref,
   emptyState,
 }: CodeBrowserProps) {
+  const editorRef = useRef<{ dispose?: () => void } | null>(null);
+  useEffect(() => () => { editorRef.current?.dispose?.(); }, []);
+
   const { mode: themeMode } = useTheme();
 
   const [internalState, setInternalState] = useState<CodeBrowserState>({
@@ -538,6 +541,7 @@ export function CodeBrowser({
               worktree !== "main" &&
               viewMode === "diff" && (
                 <DiffEditor
+                  onMount={(editor) => { editorRef.current = editor as unknown as { dispose?: () => void }; }}
                   theme={monacoTheme}
                   language={language}
                   original={baseContent.content}
@@ -559,6 +563,7 @@ export function CodeBrowser({
               !fileContent.binary &&
               (worktree === "main" || viewMode === "plain") && (
                 <Editor
+                  onMount={(editor) => { editorRef.current = editor as unknown as { dispose?: () => void }; }}
                   theme={monacoTheme}
                   language={language}
                   value={fileContent.content}
