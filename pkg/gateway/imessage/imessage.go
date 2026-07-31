@@ -129,7 +129,8 @@ func (a *Adapter) poll(ctx context.Context) {
 			Handle struct {
 				Address string `json:"address"`
 			} `json:"handle"`
-			DateCreated int64 `json:"dateCreated"`
+			Text        string `json:"text"`
+			DateCreated int64  `json:"dateCreated"`
 		} `json:"data"`
 	}
 	if err := json.Unmarshal(body, &result); err != nil {
@@ -156,6 +157,7 @@ func (a *Adapter) poll(ctx context.Context) {
 				Channel:   "messages",
 				Platform:  "imessage",
 				Sender:    sender,
+				Content:   msg.Text,
 				Timestamp: time.Now(),
 				Raw:       raw,
 			})

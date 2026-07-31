@@ -1,6 +1,8 @@
 package mattermost
 
 import (
+	"fmt"
+
 	"github.com/rpuneet/mycel/pkg/app"
 	"github.com/rpuneet/mycel/pkg/gateway"
 )
@@ -21,8 +23,8 @@ func (plugin) Describe() app.Descriptor {
 		Auth:  app.AuthToken,
 		Multi: true,
 		Fields: []app.FieldSpec{
-			{Key: "url", Label: "Server URL", Placeholder: "https://mattermost.example.com"},
-			{Key: "token", Label: "Personal Access Token", Placeholder: "abc123...", Secret: true},
+			{Key: "url", Label: "Server URL", Placeholder: "https://mattermost.example.com", Required: true},
+			{Key: "token", Label: "Personal Access Token", Placeholder: "abc123...", Secret: true, Required: true},
 		},
 		Docs: []string{
 			"Mattermost docs → https://docs.mattermost.com/developer/personal-access-tokens.html",
@@ -32,8 +34,13 @@ func (plugin) Describe() app.Descriptor {
 }
 
 func (plugin) Build(inst app.Instance, _ app.Env) (gateway.NotificationAdapter, error) {
-	return New(inst.Name, Config{
-		URL:   inst.Config["url"],
-		Token: inst.OptionalSecret("token"),
-	}), nil
+	url := inst.Config["url"]
+	if url == "" {
+		return nil, fmt.Errorf("app %s: required field %q is missing", inst.Name, "url")
+	}
+	token, err := inst.RequiredSecret("token")
+	if err != nil {
+		return nil, err
+	}
+	return New(inst.Name, Config{URL: url, Token: token}), nil
 }

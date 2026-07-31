@@ -147,6 +147,7 @@ func (a *Adapter) poll(ctx context.Context) {
 				Channel:   "messages",
 				Platform:  "signal",
 				Sender:    sender,
+				Content:   msg.Envelope.DataMessage.Message,
 				Timestamp: time.Now(),
 				Raw:       raw,
 			})

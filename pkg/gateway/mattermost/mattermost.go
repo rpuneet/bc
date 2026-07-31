@@ -32,6 +32,7 @@ type Adapter struct {
 	lastMessageAt time.Time
 	name          string
 	lastError     string
+	botUserID     string // the bot's own user id, resolved via /users/me; used to skip its own posts
 	mu            sync.Mutex
 	connected     bool
 	messageCount  atomic.Int64
@@ -77,12 +78,16 @@ func (a *Adapter) Start(ctx context.Context, handler func(gateway.Notification))
 		return fmt.Errorf("mattermost: auth: %w", err)
 	}
 
+	// Resolve the bot's own user id so we never echo its own posts.
+	botID := a.fetchBotUserID(ctx)
+
 	a.mu.Lock()
 	a.conn = conn
 	a.connected = true
 	a.lastError = ""
+	a.botUserID = botID
 	a.mu.Unlock()
-	log.Info("mattermost: connected", "url", a.cfg.URL)
+	log.Info("mattermost: connected", "url", a.cfg.URL, "bot_user_id", botID)
 
 	// Close conn when context is canceled (unblocks ReadMessage).
 	go func() {
@@ -134,6 +139,30 @@ func (a *Adapter) Status() gateway.AdapterStatus {
 	}
 }
 
+// fetchBotUserID resolves the bot's own user id via GET /api/v4/users/me.
+// Best effort: on any failure it returns "" and self-filtering is skipped.
+func (a *Adapter) fetchBotUserID(ctx context.Context) string {
+	url := strings.TrimRight(a.cfg.URL, "/") + "/api/v4/users/me"
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return ""
+	}
+	req.Header.Set("Authorization", "Bearer "+a.cfg.Token)
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return ""
+	}
+	defer resp.Body.Close() //nolint:errcheck
+	var me struct {
+		ID string `json:"id"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&me); err != nil {
+		return ""
+	}
+	return me.ID
+}
+
 func (a *Adapter) handleRaw(msg []byte) {
 	var evt struct {
 		Event string `json:"event"`
@@ -156,6 +185,14 @@ func (a *Adapter) handleRaw(msg []byte) {
 		UserID    string `json:"user_id"`
 	}
 	if err := json.Unmarshal([]byte(evt.Data.Post), &post); err != nil {
+		return
+	}
+
+	// Skip the bot's own posts to avoid feedback loops.
+	a.mu.Lock()
+	botID := a.botUserID
+	a.mu.Unlock()
+	if botID != "" && post.UserID == botID {
 		return
 	}
 

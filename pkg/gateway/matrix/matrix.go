@@ -26,6 +26,7 @@ type Adapter struct { //nolint:govet
 	name         string
 	homeserver   string
 	token        string
+	userID       string // the bot's own MXID, resolved lazily via /whoami; used to skip its own echoes
 	nextBatch    string
 	lastError    string
 	messageCount atomic.Int64
@@ -103,6 +104,11 @@ func (a *Adapter) poll(ctx context.Context) {
 		url += "&since=" + a.nextBatch
 	}
 
+	// Resolve the bot's own MXID once so we can skip echoing its own messages.
+	if a.userID == "" {
+		a.userID = a.fetchUserID(ctx)
+	}
+
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		a.setError(fmt.Sprintf("build request: %v", err))
@@ -129,52 +135,105 @@ func (a *Adapter) poll(ctx context.Context) {
 	a.lastError = ""
 	a.mu.Unlock()
 
+	notes, nextBatch, err := parseSync(body, a.userID)
+	if err != nil {
+		return
+	}
+
+	a.mu.Lock()
+	a.nextBatch = nextBatch
+	a.mu.Unlock()
+
+	for _, n := range notes {
+		a.messageCount.Add(1)
+		if a.handler != nil {
+			a.handler(n)
+		}
+	}
+
+	log.Debug("matrix: poll complete", "adapter", a.name, "events", len(notes))
+}
+
+// fetchUserID resolves the bot's own MXID via the /whoami endpoint. Best
+// effort: on any failure it returns "" and self-filtering is simply skipped
+// for that poll (the next poll retries).
+func (a *Adapter) fetchUserID(ctx context.Context) string {
+	url := fmt.Sprintf("%s/_matrix/client/v3/account/whoami", a.homeserver)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return ""
+	}
+	req.Header.Set("Authorization", "Bearer "+a.token)
+	resp, err := a.httpClient.Do(req)
+	if err != nil {
+		return ""
+	}
+	defer resp.Body.Close() //nolint:errcheck
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return ""
+	}
+	var who struct {
+		UserID string `json:"user_id"`
+	}
+	if err := json.Unmarshal(body, &who); err != nil {
+		return ""
+	}
+	return who.UserID
+}
+
+// parseSync decodes a Matrix /sync response into notifications. It keeps only
+// m.room.message events, skips messages sent by botUserID (the bot's own
+// echoes), sets Content from the event's content.body, and preserves the FULL
+// raw event JSON in Raw. It returns the notifications and the next_batch token.
+func parseSync(body []byte, botUserID string) (notes []gateway.Notification, nextBatch string, err error) {
 	var syncResp struct { //nolint:govet // inline JSON decode struct; field order matches JSON schema
 		NextBatch string `json:"next_batch"`
 		Rooms     struct {
 			Join map[string]struct {
 				Timeline struct {
-					Events []struct {
-						Type   string `json:"type"`
-						Sender string `json:"sender"`
-					} `json:"events"`
+					Events []json.RawMessage `json:"events"`
 				} `json:"timeline"`
 			} `json:"join"`
 		} `json:"rooms"`
 	}
 	if err := json.Unmarshal(body, &syncResp); err != nil {
-		return
+		return nil, "", err
 	}
 
-	a.mu.Lock()
-	a.nextBatch = syncResp.NextBatch
-	a.mu.Unlock()
-
-	var count int
 	for roomID, room := range syncResp.Rooms.Join {
-		for _, evt := range room.Timeline.Events {
+		for _, rawEvt := range room.Timeline.Events {
+			var evt struct {
+				Type    string `json:"type"`
+				Sender  string `json:"sender"`
+				Content struct {
+					Body string `json:"body"`
+				} `json:"content"`
+			}
+			if err := json.Unmarshal(rawEvt, &evt); err != nil {
+				continue
+			}
+			if evt.Type != "m.room.message" {
+				continue // ignore membership, typing, receipts, etc.
+			}
+			if botUserID != "" && evt.Sender == botUserID {
+				continue // don't echo the bot's own messages
+			}
 			sender := evt.Sender
 			if sender == "" {
 				sender = "matrix"
 			}
-
-			raw, _ := json.Marshal(evt) //nolint:errcheck
-			a.messageCount.Add(1)
-			count++
-
-			if a.handler != nil {
-				a.handler(gateway.Notification{
-					Channel:   roomID,
-					Platform:  "matrix",
-					Sender:    sender,
-					Timestamp: time.Now(),
-					Raw:       raw,
-				})
-			}
+			notes = append(notes, gateway.Notification{
+				Channel:   roomID,
+				Platform:  "matrix",
+				Sender:    sender,
+				Content:   evt.Content.Body,
+				Timestamp: time.Now(),
+				Raw:       append(json.RawMessage(nil), rawEvt...),
+			})
 		}
 	}
-
-	log.Debug("matrix: poll complete", "adapter", a.name, "events", count)
+	return notes, syncResp.NextBatch, nil
 }
 
 func (a *Adapter) setError(msg string) {
