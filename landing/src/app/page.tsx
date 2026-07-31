@@ -144,64 +144,73 @@ export default function Home() {
           {/* Shares the nav's max-w-6xl container so the mark's left edge
              lines up with the header slot it docks into on scroll. */}
           <div className="mx-auto max-w-6xl px-4 sm:px-6">
-            {/* Left-aligned, dense header block. The mark sits top-left and
-               travels up into the nav as you scroll (HeroLogo). */}
-            <FadeUp>
-              <HeroLogo />
-              <div className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-2">
-                <ChangelogPill />
-                <span className="deck-eyebrow">
-                  Open source &middot; Free &middot; Runs on your machine
-                </span>
-              </div>
-            </FadeUp>
+            {/* Icon in a left gutter, dense text block to its right. The mark
+               sits at the container's left edge and travels up into the nav on
+               scroll (HeroLogo). */}
+            <div className="flex items-start gap-4 sm:gap-7">
+              <FadeUp>
+                <HeroLogo />
+              </FadeUp>
 
-            <FadeUp delay={0.1}>
-              <h1 className="mt-5 max-w-3xl font-headline text-4xl font-semibold leading-[1.06] tracking-tight text-on-background md:text-6xl lg:text-[4.25rem]">
-                Your team of AI agents,{" "}
-                run from <span className="text-primary">one place.</span>
-              </h1>
-            </FadeUp>
+              <div className="min-w-0 flex-1">
+                <FadeUp>
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                    <ChangelogPill />
+                    <span className="deck-eyebrow">
+                      Open source &middot; Free &middot; Runs on your machine
+                    </span>
+                  </div>
+                </FadeUp>
 
-            <FadeUp delay={0.15}>
-              <p className="mt-4 max-w-2xl font-body text-lg leading-relaxed text-on-surface-variant md:text-xl">
-                Every agent gets a name, a face, and a job &mdash; writing code
-                in your repositories, reaching you on Slack or WhatsApp, with
-                every action, every change, and every dollar on screen.
-              </p>
-            </FadeUp>
+                <FadeUp delay={0.1}>
+                  <h1 className="mt-4 max-w-3xl font-headline text-4xl font-semibold leading-[1.06] tracking-tight text-on-background md:text-6xl lg:text-[4.25rem]">
+                    Your team of AI agents,{" "}
+                    run from <span className="text-primary">one place.</span>
+                  </h1>
+                </FadeUp>
 
-            {/* Primary conversion: download the desktop app (decision #3) */}
-            <FadeUp delay={0.2}>
-              <div className="mt-7 flex flex-wrap items-center gap-x-6 gap-y-3">
-                <DownloadButtons />
-                <div className="flex items-center gap-4">
-                  <Link
-                    href="https://github.com/rpuneet/mycel"
-                    className="inline-flex items-center gap-1.5 font-body text-sm text-on-surface-variant transition-colors hover:text-primary"
-                  >
-                    <Github className="h-4 w-4" aria-hidden="true" />
-                    GitHub
-                  </Link>
-                  <span aria-hidden="true" className="text-outline-variant/30">
-                    ·
-                  </span>
-                  <Link
-                    href="/#install"
-                    className="inline-flex items-center gap-1.5 font-body text-sm text-on-surface-variant transition-colors hover:text-primary"
-                  >
-                    Prefer the terminal? Install the CLI
-                  </Link>
-                </div>
+                <FadeUp delay={0.15}>
+                  <p className="mt-4 max-w-2xl font-body text-lg leading-relaxed text-on-surface-variant md:text-xl">
+                    Every agent gets a name, a face, and a job &mdash; writing
+                    code in your repositories, reaching you on Slack or WhatsApp,
+                    with every action, every change, and every dollar on screen.
+                  </p>
+                </FadeUp>
+
+                {/* Primary conversion: download the desktop app (decision #3) */}
+                <FadeUp delay={0.2}>
+                  <div className="mt-7 flex flex-wrap items-center gap-x-6 gap-y-3">
+                    <DownloadButtons />
+                    <div className="flex items-center gap-4">
+                      <Link
+                        href="https://github.com/rpuneet/mycel"
+                        className="inline-flex items-center gap-1.5 font-body text-sm text-on-surface-variant transition-colors hover:text-primary"
+                      >
+                        <Github className="h-4 w-4" aria-hidden="true" />
+                        GitHub
+                      </Link>
+                      <span aria-hidden="true" className="text-outline-variant/30">
+                        ·
+                      </span>
+                      <Link
+                        href="/#install"
+                        className="inline-flex items-center gap-1.5 font-body text-sm text-on-surface-variant transition-colors hover:text-primary"
+                      >
+                        Prefer the terminal? Install the CLI
+                      </Link>
+                    </div>
+                  </div>
+                  {/* Honest cost line + live GitHub numbers on one dense row. */}
+                  <div className="mt-5 flex flex-wrap items-center gap-x-6 gap-y-3">
+                    <SocialProof />
+                    <p className="font-body text-xs text-on-surface-variant/70">
+                      Free and open source &mdash; you only pay your model
+                      providers.
+                    </p>
+                  </div>
+                </FadeUp>
               </div>
-              {/* Honest cost line + live GitHub numbers on one dense row. */}
-              <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-2">
-                <SocialProof />
-                <p className="font-body text-xs text-on-surface-variant/70">
-                  Free and open source &mdash; you only pay your model providers.
-                </p>
-              </div>
-            </FadeUp>
+            </div>
           </div>
 
           {/* The centerpiece: tabbed, live product frame (decision #1) */}

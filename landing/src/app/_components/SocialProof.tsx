@@ -15,24 +15,27 @@ function Badge({
   value,
   label,
   href,
+  index = 0,
 }: {
   icon: React.ComponentType<{ className?: string }>;
   value: string;
   label: string;
   href: string;
+  index?: number;
 }) {
   return (
     <Link
       href={href}
       target="_blank"
       rel="noopener noreferrer"
-      className="group inline-flex items-center gap-2 rounded-full border border-outline-variant/20 bg-surface-container/60 px-3.5 py-1.5 transition-colors hover:border-primary/40 hover:bg-surface-container"
+      style={{ animationDelay: `${index * 0.6}s` }}
+      className="badge-alive group inline-flex items-center gap-2 rounded-full border border-outline-variant/25 bg-surface-container/60 px-4 py-2 transition-colors hover:border-primary/40 hover:bg-surface-container"
     >
-      <Icon className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
-      <span className="font-headline text-sm font-semibold tabular-nums text-on-background">
+      <Icon className="h-4 w-4 text-primary" aria-hidden="true" />
+      <span className="font-headline text-[15px] font-semibold tabular-nums text-on-background">
         {value}
       </span>
-      <span className="font-body text-xs text-on-surface-variant">{label}</span>
+      <span className="font-body text-sm text-on-surface-variant">{label}</span>
     </Link>
   );
 }
@@ -49,30 +52,38 @@ export function SocialProof() {
   const repoUrl = `https://github.com/${REPO}`;
 
   return (
-    <div className="flex flex-wrap items-center justify-center gap-2.5 sm:gap-3">
-      <Badge
-        icon={Star}
-        value={compact(stars)}
-        label="stars"
-        href={repoUrl}
-      />
+    <div className="flex flex-wrap items-center gap-2.5 sm:gap-3">
+      {/* Subtle staggered bob so the row feels alive; motion is disabled by
+         the global prefers-reduced-motion rule. */}
+      <style>{`
+        @keyframes badge-bob {
+          0%, 100% { transform: translateY(0); }
+          50%      { transform: translateY(-3px); }
+        }
+        .badge-alive { animation: badge-bob 3.6s ease-in-out infinite; will-change: transform; }
+        .badge-alive:hover { animation-play-state: paused; }
+      `}</style>
+      <Badge icon={Star} value={compact(stars)} label="stars" href={repoUrl} index={0} />
       <Badge
         icon={Users}
         value={`${contributors}`}
         label="contributors"
         href={`${repoUrl}/graphs/contributors`}
+        index={1}
       />
       <Badge
         icon={Tag}
         value={version}
         label="latest"
         href={`${repoUrl}/releases/latest`}
+        index={2}
       />
       <Badge
         icon={Scale}
         value="MIT"
         label="open source"
         href={`${repoUrl}/blob/main/LICENSE`}
+        index={3}
       />
     </div>
   );
