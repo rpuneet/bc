@@ -10,7 +10,7 @@ import { ProductFrame } from "./_components/ProductFrame";
 import { HeroShowcase } from "./_components/HeroShowcase";
 import { SocialProof } from "./_components/SocialProof";
 import { DownloadButtons } from "./_components/DownloadButtons";
-import { MethodTeaser } from "./_components/MethodTeaser";
+import { Convictions } from "./_components/Convictions";
 import { WhyMycel } from "./_components/WhyMycel";
 import { GettingStarted } from "./_components/GettingStarted";
 import { ChangelogPill } from "./_components/ChangelogPill";
@@ -316,9 +316,9 @@ export default function Home() {
         </section>
 
         {/* ════════════════════════════════════════
-           The convictions — teaser into the Method essay
+           The six convictions — dense, in-product, no essay
            ════════════════════════════════════════ */}
-        <MethodTeaser />
+        <Convictions />
 
         {/* Section separator */}
         <SporeDivider />

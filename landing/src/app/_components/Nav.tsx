@@ -9,9 +9,7 @@ import { Menu, X, Copy, Check, Apple, Monitor, Container, Download } from "lucid
 import { ThemeToggle } from "./ThemeToggle";
 
 // The logo is Home and the page IS the product, so no Home/Product tabs.
-// Method is the editorial deep-dive; Docs and GitHub are cross-destinations.
 const links = [
-  { href: "/method", label: "Method" },
   { href: "/docs", label: "Docs" },
   { href: "https://github.com/rpuneet/mycel", label: "GitHub" },
 ];
