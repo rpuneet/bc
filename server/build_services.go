@@ -544,14 +544,15 @@ func (p *channelPersister) LoadChannels(ctx context.Context) ([]gatewaypkg.Persi
 			PlatformID:       c.PlatformID,
 			DisplayName:      c.DisplayName,
 			Kind:             c.Kind,
+			AvatarURL:        c.AvatarURL,
 			ParticipantCount: c.ParticipantCount,
 		}
 	}
 	return result, nil
 }
 
-func (p *channelPersister) UpsertChannelMeta(ctx context.Context, channel, displayName, kind string, participantCount int) error {
-	return p.store.UpsertChannelMeta(ctx, channel, displayName, kind, participantCount)
+func (p *channelPersister) UpsertChannelMeta(ctx context.Context, channel, displayName, kind, avatarURL string, participantCount int) error {
+	return p.store.UpsertChannelMeta(ctx, channel, displayName, kind, avatarURL, participantCount)
 }
 
 // costServiceAdapter bridges cost.Service → agentpkg.CostQuerier.

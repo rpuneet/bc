@@ -93,7 +93,7 @@ func TestStatsChannels(t *testing.T) {
 				svc := newTestNotifyService(t)
 				ctx := context.Background()
 				for _, m := range tt.msgs {
-					if err := svc.Store().SaveMessage(ctx, m.channel, m.sender, "hi"); err != nil {
+					if err := svc.Store().SaveMessage(ctx, m.channel, m.sender, "", "hi"); err != nil {
 						t.Fatalf("SaveMessage: %v", err)
 					}
 				}

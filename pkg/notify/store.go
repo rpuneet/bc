@@ -65,8 +65,19 @@ func (s *Store) initSchema() error {
 	// startup before any request context exists; threading ctx through would
 	// force a public API change on OpenStore and dozens of call sites across
 	// tests/services for no operational benefit (schema DDL is fire-and-forget).
-	_, err := s.db.ExecContext(context.TODO(), schema)
-	return err
+	if _, err := s.db.ExecContext(context.TODO(), schema); err != nil {
+		return err
+	}
+	// Additive column migrations for databases created before real-identity
+	// avatars landed. Both are idempotent — the error is ignored when the
+	// column already exists (mirrors pkg/home.RoleStore's ALTER pattern).
+	for _, alter := range []string{
+		`ALTER TABLE notify_channels ADD COLUMN avatar_url TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE notify_messages ADD COLUMN sender_avatar TEXT NOT NULL DEFAULT ''`,
+	} {
+		_, _ = s.db.ExecContext(context.TODO(), alter) //nolint:errcheck // ignore if column already exists
+	}
+	return nil
 }
 
 const schemaSQLite = `
@@ -101,6 +112,7 @@ CREATE TABLE IF NOT EXISTS notify_messages (
     id        INTEGER PRIMARY KEY AUTOINCREMENT,
     channel   TEXT NOT NULL,
     sender    TEXT NOT NULL,
+    sender_avatar TEXT NOT NULL DEFAULT '',
     content   TEXT NOT NULL,
     created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
 );
@@ -111,6 +123,7 @@ CREATE TABLE IF NOT EXISTS notify_channels (
     platform_id  TEXT NOT NULL,
     display_name TEXT NOT NULL DEFAULT '',
     kind         TEXT NOT NULL DEFAULT '',
+    avatar_url   TEXT NOT NULL DEFAULT '',
     participant_count INTEGER NOT NULL DEFAULT 0,
     updated_at   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
 );
@@ -156,6 +169,7 @@ CREATE TABLE IF NOT EXISTS notify_messages (
     id        BIGSERIAL PRIMARY KEY,
     channel   TEXT NOT NULL,
     sender    TEXT NOT NULL,
+    sender_avatar TEXT NOT NULL DEFAULT '',
     content   TEXT NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -166,6 +180,7 @@ CREATE TABLE IF NOT EXISTS notify_channels (
     platform_id  TEXT NOT NULL,
     display_name TEXT NOT NULL DEFAULT '',
     kind         TEXT NOT NULL DEFAULT '',
+    avatar_url   TEXT NOT NULL DEFAULT '',
     participant_count INTEGER NOT NULL DEFAULT 0,
     updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -473,15 +488,18 @@ type MessageRecord struct {
 	CreatedAt time.Time `json:"created_at"`
 	Channel   string    `json:"channel"`
 	Sender    string    `json:"sender"`
+	AvatarURL string    `json:"avatar_url,omitempty"` // raw platform avatar URL for the sender, "" when none
 	Content   string    `json:"content"`
 	ID        int64     `json:"id"`
 }
 
 // SaveMessage stores an inbound gateway message for the activity feed.
-func (s *Store) SaveMessage(ctx context.Context, channel, sender, content string) error {
+// senderAvatar is the raw platform avatar URL for the sender ("" when the
+// adapter could not resolve one).
+func (s *Store) SaveMessage(ctx context.Context, channel, sender, senderAvatar, content string) error {
 	_, err := s.db.ExecContext(ctx, s.q(
-		`INSERT INTO notify_messages (channel, sender, content) VALUES (?, ?, ?)`),
-		channel, sender, content)
+		`INSERT INTO notify_messages (channel, sender, sender_avatar, content) VALUES (?, ?, ?, ?)`),
+		channel, sender, senderAvatar, content)
 	return err
 }
 
@@ -494,12 +512,12 @@ func (s *Store) GetMessages(ctx context.Context, channel string, limit int, befo
 	var err error
 	if before > 0 {
 		rows, err = s.db.QueryContext(ctx, s.q(
-			`SELECT id, channel, sender, content, created_at FROM notify_messages
+			`SELECT id, channel, sender, sender_avatar, content, created_at FROM notify_messages
 			 WHERE channel = ? AND id < ? ORDER BY id DESC LIMIT ?`),
 			channel, before, limit)
 	} else {
 		rows, err = s.db.QueryContext(ctx, s.q(
-			`SELECT id, channel, sender, content, created_at FROM notify_messages
+			`SELECT id, channel, sender, sender_avatar, content, created_at FROM notify_messages
 			 WHERE channel = ? ORDER BY id DESC LIMIT ?`),
 			channel, limit)
 	}
@@ -512,7 +530,7 @@ func (s *Store) GetMessages(ctx context.Context, channel string, limit int, befo
 	for rows.Next() {
 		var m MessageRecord
 		var createdStr string
-		if err := rows.Scan(&m.ID, &m.Channel, &m.Sender, &m.Content, &createdStr); err != nil {
+		if err := rows.Scan(&m.ID, &m.Channel, &m.Sender, &m.AvatarURL, &m.Content, &createdStr); err != nil {
 			return nil, err
 		}
 		m.CreatedAt, _ = time.Parse(time.RFC3339, createdStr) //nolint:errcheck // DB-written timestamp
@@ -529,13 +547,14 @@ type PersistedChannel struct {
 	PlatformID       string
 	DisplayName      string
 	Kind             string // group | person | channel | feed | other
+	AvatarURL        string // raw platform avatar URL (person photo / group icon), "" when none
 	ParticipantCount int
 }
 
 // LoadChannels returns all persisted channel mappings.
 func (s *Store) LoadChannels(ctx context.Context) ([]PersistedChannel, error) {
 	rows, err := s.db.QueryContext(ctx, s.q(
-		`SELECT channel, platform, platform_id, display_name, kind, participant_count FROM notify_channels`))
+		`SELECT channel, platform, platform_id, display_name, kind, avatar_url, participant_count FROM notify_channels`))
 	if err != nil {
 		return nil, err
 	}
@@ -544,7 +563,7 @@ func (s *Store) LoadChannels(ctx context.Context) ([]PersistedChannel, error) {
 	var channels []PersistedChannel
 	for rows.Next() {
 		var c PersistedChannel
-		if err := rows.Scan(&c.Channel, &c.Platform, &c.PlatformID, &c.DisplayName, &c.Kind, &c.ParticipantCount); err != nil {
+		if err := rows.Scan(&c.Channel, &c.Platform, &c.PlatformID, &c.DisplayName, &c.Kind, &c.AvatarURL, &c.ParticipantCount); err != nil {
 			return nil, err
 		}
 		channels = append(channels, c)
@@ -587,16 +606,16 @@ func (s *Store) SaveChannel(ctx context.Context, channel, platform, platformID s
 // UpsertChannelMeta stores resolved display metadata for a channel. The row
 // is created if the mapping does not exist yet (platform derived from the
 // channel prefix); existing platform/platform_id values are never touched.
-// Empty display_name/kind and a zero participant_count never clobber
-// previously-resolved values.
-func (s *Store) UpsertChannelMeta(ctx context.Context, channel, displayName, kind string, participantCount int) error {
+// Empty display_name/kind/avatar_url and a zero participant_count never
+// clobber previously-resolved values.
+func (s *Store) UpsertChannelMeta(ctx context.Context, channel, displayName, kind, avatarURL string, participantCount int) error {
 	platform := channel
 	if i := strings.Index(channel, ":"); i > 0 {
 		platform = channel[:i]
 	}
 	_, err := s.db.ExecContext(ctx, s.q(
-		`INSERT INTO notify_channels (channel, platform, platform_id, display_name, kind, participant_count, updated_at)
-		 VALUES (?, ?, '', ?, ?, ?, ?)
+		`INSERT INTO notify_channels (channel, platform, platform_id, display_name, kind, avatar_url, participant_count, updated_at)
+		 VALUES (?, ?, '', ?, ?, ?, ?, ?)
 		 ON CONFLICT(channel) DO UPDATE SET
 		   display_name = CASE
 		     WHEN excluded.display_name = '' THEN notify_channels.display_name
@@ -606,12 +625,16 @@ func (s *Store) UpsertChannelMeta(ctx context.Context, channel, displayName, kin
 		     WHEN excluded.kind = '' THEN notify_channels.kind
 		     ELSE excluded.kind
 		   END,
+		   avatar_url = CASE
+		     WHEN excluded.avatar_url = '' THEN notify_channels.avatar_url
+		     ELSE excluded.avatar_url
+		   END,
 		   participant_count = CASE
 		     WHEN excluded.participant_count = 0 THEN notify_channels.participant_count
 		     ELSE excluded.participant_count
 		   END,
 		   updated_at = excluded.updated_at`),
-		channel, platform, displayName, kind, participantCount, time.Now().UTC().Format(time.RFC3339))
+		channel, platform, displayName, kind, avatarURL, participantCount, time.Now().UTC().Format(time.RFC3339))
 	return err
 }
 

@@ -106,7 +106,7 @@ func extractMentions(content string) []string {
 // extraMentions carries pre-extracted platform mentions (e.g. WhatsApp JID user
 // parts) that the text-based mention regex cannot capture; they are merged with
 // the standard @name extraction from content.
-func (s *Service) Dispatch(channel, platform, sender, senderID, content, messageID string, extraMentions []string, attachments []Attachment, raw json.RawMessage) {
+func (s *Service) Dispatch(channel, platform, sender, senderID, senderAvatar, content, messageID string, extraMentions []string, attachments []Attachment, raw json.RawMessage) {
 	s.dispatches.Add(1)
 	go func() {
 		defer s.dispatches.Done()
@@ -119,7 +119,7 @@ func (s *Service) Dispatch(channel, platform, sender, senderID, content, message
 		ctx := s.ctx
 
 		// Store message for activity feed history
-		if saveErr := s.store.SaveMessage(ctx, channel, sender, content); saveErr != nil {
+		if saveErr := s.store.SaveMessage(ctx, channel, sender, senderAvatar, content); saveErr != nil {
 			log.Warn("notify: save message failed", "channel", channel, "error", saveErr)
 		}
 

@@ -1088,7 +1088,7 @@ func TestMessageStorage(t *testing.T) {
 			ctx := context.Background()
 
 			for _, m := range tt.messages {
-				if err := store.SaveMessage(ctx, m.channel, m.sender, m.content); err != nil {
+				if err := store.SaveMessage(ctx, m.channel, m.sender, "", m.content); err != nil {
 					t.Fatalf("SaveMessage: %v", err)
 				}
 			}
@@ -1134,7 +1134,7 @@ func TestMessageStorage_Before(t *testing.T) {
 
 	// Save 5 messages
 	for i := range 5 {
-		_ = store.SaveMessage(ctx, "slack:eng", "sender", "msg")
+		_ = store.SaveMessage(ctx, "slack:eng", "sender", "", "msg")
 		_ = i // suppress unused warning
 	}
 
@@ -1198,7 +1198,7 @@ func TestDispatchMentionFilter_ViaHTTP(t *testing.T) {
 		sender.calls = nil
 		sender.mu.Unlock()
 
-		svc.Dispatch("slack:eng", "slack", "external-user", "U001",
+		svc.Dispatch("slack:eng", "slack", "external-user", "U001", "",
 			"hey everyone, new deployment done", "msg-no-mention", nil, nil, nil)
 		time.Sleep(150 * time.Millisecond)
 
@@ -1216,7 +1216,7 @@ func TestDispatchMentionFilter_ViaHTTP(t *testing.T) {
 		sender.calls = nil
 		sender.mu.Unlock()
 
-		svc.Dispatch("slack:eng", "slack", "external-user", "U001",
+		svc.Dispatch("slack:eng", "slack", "external-user", "U001", "",
 			"@eng-02 please review the PR", "msg-with-mention", nil, nil, nil)
 		time.Sleep(150 * time.Millisecond)
 
@@ -1269,7 +1269,7 @@ func TestSelfSkip_ViaHTTP(t *testing.T) {
 	}
 
 	// eng-01 sends — should NOT receive it back (self-skip)
-	svc.Dispatch("slack:eng", "slack", "[slack] eng-01", "U001",
+	svc.Dispatch("slack:eng", "slack", "[slack] eng-01", "U001", "",
 		"I just pushed a fix", "msg-self", nil, nil, nil)
 	time.Sleep(150 * time.Millisecond)
 

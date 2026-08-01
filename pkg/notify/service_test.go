@@ -196,7 +196,7 @@ func TestDispatchMentionFilter(t *testing.T) {
 	}
 
 	// Message mentions eng-01 only — eng-02 (mention_only) should be skipped
-	svc.Dispatch("slack:eng", "slack", "alice", "U123", "hey @eng-01 review this", "msg1", nil, nil, nil)
+	svc.Dispatch("slack:eng", "slack", "alice", "U123", "", "hey @eng-01 review this", "msg1", nil, nil, nil)
 
 	time.Sleep(100 * time.Millisecond)
 
@@ -224,7 +224,7 @@ func TestDispatchSelfSkip(t *testing.T) {
 	}
 
 	// eng-01 sends — should NOT be delivered back to eng-01
-	svc.Dispatch("slack:eng", "slack", "[slack] eng-01", "U456", "I just pushed a fix", "msg2", nil, nil, nil)
+	svc.Dispatch("slack:eng", "slack", "[slack] eng-01", "U456", "", "I just pushed a fix", "msg2", nil, nil, nil)
 
 	time.Sleep(100 * time.Millisecond)
 
@@ -277,7 +277,7 @@ func TestMentionOnlyModeSwitch(t *testing.T) {
 	}
 
 	// A message with no mention — zen-zebra must NOT receive it.
-	svc.Dispatch("whatsapp:family", "whatsapp", "alice", "", "good morning everyone", "m1", nil, nil, nil)
+	svc.Dispatch("whatsapp:family", "whatsapp", "alice", "", "", "good morning everyone", "m1", nil, nil, nil)
 	time.Sleep(80 * time.Millisecond)
 	if calls := sender.getCalls(); len(calls) != 0 {
 		t.Fatalf("mention-only mode: expected 0 deliveries, got %d", len(calls))
@@ -289,7 +289,7 @@ func TestMentionOnlyModeSwitch(t *testing.T) {
 	}
 
 	// Same message without @mention must now be delivered.
-	svc.Dispatch("whatsapp:family", "whatsapp", "alice", "", "good morning everyone", "m2", nil, nil, nil)
+	svc.Dispatch("whatsapp:family", "whatsapp", "alice", "", "", "good morning everyone", "m2", nil, nil, nil)
 	time.Sleep(80 * time.Millisecond)
 	calls := sender.getCalls()
 	if len(calls) != 1 {
@@ -316,7 +316,7 @@ func TestDispatchExtraMentions(t *testing.T) {
 	}
 
 	// Message content has no @name mention — but the platform supplies the JID.
-	svc.Dispatch("whatsapp:family", "whatsapp", "alice", "",
+	svc.Dispatch("whatsapp:family", "whatsapp", "alice", "", "",
 		"hey look at this", // no text @mention
 		"m1",
 		[]string{"918051005416"}, // pre-extracted from ContextInfo.MentionedJID
@@ -354,7 +354,7 @@ func TestMentionOnlyTextName(t *testing.T) {
 	}
 
 	// Message with no @mention — zen-zebra must be skipped, helper-bot delivered.
-	svc.Dispatch("whatsapp:family", "whatsapp", "alice", "", "good morning", "m1", nil, nil, nil)
+	svc.Dispatch("whatsapp:family", "whatsapp", "alice", "", "", "good morning", "m1", nil, nil, nil)
 	time.Sleep(80 * time.Millisecond)
 	calls := sender.getCalls()
 	if len(calls) != 1 || calls[0].Name != "helper-bot" {
@@ -362,7 +362,7 @@ func TestMentionOnlyTextName(t *testing.T) {
 	}
 
 	// Message with typed "@zen-zebra" — both must be delivered.
-	svc.Dispatch("whatsapp:family", "whatsapp", "alice", "", "hey @zen-zebra check this", "m2", nil, nil, nil)
+	svc.Dispatch("whatsapp:family", "whatsapp", "alice", "", "", "hey @zen-zebra check this", "m2", nil, nil, nil)
 	time.Sleep(80 * time.Millisecond)
 	calls = sender.getCalls()
 	// Expect 2 more calls (total 3): helper-bot and zen-zebra for m2.
@@ -416,7 +416,7 @@ func TestDrainDispatches(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	svc.Dispatch("slack:eng", "slack", "user", "U1", "hello", "m1", nil, nil, nil)
+	svc.Dispatch("slack:eng", "slack", "user", "U1", "", "hello", "m1", nil, nil, nil)
 
 	// The dispatch is blocked inside Send — draining must time out.
 	if svc.DrainDispatches(50 * time.Millisecond) {
@@ -444,7 +444,7 @@ func TestMigratePlaceholderSubsOnDispatch(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	svc.Dispatch("telegram:ab010300", "telegram", "[telegram] Agni", "", "ping", "", nil, nil, nil)
+	svc.Dispatch("telegram:ab010300", "telegram", "[telegram] Agni", "", "", "ping", "", nil, nil, nil)
 
 	if !svc.DrainDispatches(2 * time.Second) {
 		t.Fatal("dispatch did not finish")
@@ -485,7 +485,7 @@ func TestMigratePlaceholderSubsNoOpWhenRealHasSubs(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	svc.Dispatch("telegram:ab010300", "telegram", "user", "", "hi", "", nil, nil, nil)
+	svc.Dispatch("telegram:ab010300", "telegram", "user", "", "", "hi", "", nil, nil, nil)
 	if !svc.DrainDispatches(2 * time.Second) {
 		t.Fatal("dispatch timeout")
 	}

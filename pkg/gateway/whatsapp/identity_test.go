@@ -15,9 +15,18 @@ import (
 type fakeIdentityClient struct {
 	groups       map[string]*types.GroupInfo
 	contacts     map[string]types.ContactInfo
+	avatars      map[string]string
 	mu           sync.Mutex
 	groupCalls   int
 	contactCalls int
+	avatarCalls  int
+}
+
+func (f *fakeIdentityClient) ProfilePictureURL(_ context.Context, jid types.JID) string {
+	f.mu.Lock()
+	f.avatarCalls++
+	f.mu.Unlock()
+	return f.avatars[jid.String()]
 }
 
 func (f *fakeIdentityClient) GetGroupInfo(_ context.Context, jid types.JID) (*types.GroupInfo, error) {
@@ -120,6 +129,38 @@ func TestResolveChannel_PersonNameFallbacks(t *testing.T) {
 				t.Fatalf("kind = %q, want person", meta.Kind)
 			}
 		})
+	}
+}
+
+func TestResolveChannel_ResolvesAvatar(t *testing.T) {
+	fake := &fakeIdentityClient{
+		contacts: map[string]types.ContactInfo{
+			"14155551234@s.whatsapp.net": {Found: true, FullName: "Alice Smith"},
+		},
+		avatars: map[string]string{
+			"14155551234@s.whatsapp.net": "https://pps.whatsapp.net/v/alice.jpg",
+			"1234@g.us":                  "https://pps.whatsapp.net/v/group.jpg",
+		},
+		groups: map[string]*types.GroupInfo{
+			"1234@g.us": groupInfo("Family Group", 3),
+		},
+	}
+	a := newTestAdapter(t, fake)
+
+	person, err := a.ResolveChannel(context.Background(), "14155551234@s.whatsapp.net")
+	if err != nil {
+		t.Fatalf("ResolveChannel person: %v", err)
+	}
+	if person.AvatarURL != "https://pps.whatsapp.net/v/alice.jpg" {
+		t.Fatalf("person avatar = %q, want alice.jpg", person.AvatarURL)
+	}
+
+	group, err := a.ResolveChannel(context.Background(), "1234@g.us")
+	if err != nil {
+		t.Fatalf("ResolveChannel group: %v", err)
+	}
+	if group.AvatarURL != "https://pps.whatsapp.net/v/group.jpg" {
+		t.Fatalf("group avatar = %q, want group.jpg", group.AvatarURL)
 	}
 }
 

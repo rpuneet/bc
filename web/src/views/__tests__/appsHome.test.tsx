@@ -50,6 +50,7 @@ const overview = {
       platform: "whatsapp",
       display_name: "Family Group",
       kind: "group",
+      avatar_url: "/api/apps/avatar?u=Z3JvdXA",
       participant_count: 12,
       subscriber_count: 1,
       message_count: 42,
@@ -192,6 +193,10 @@ describe("AppsHome helpers", () => {
     const group = channels.find((c) => c.name === GROUP_CH);
     expect(group?.displayName).toBe("Family Group");
     expect(group?.kind).toBe("group");
+    // Resolved channel avatar (a proxied path, never a raw CDN URL) flows through.
+    expect(group?.avatarUrl).toBe("/api/apps/avatar?u=Z3JvdXA");
+    const person = channels.find((c) => c.name === PERSON_CH);
+    expect(person?.avatarUrl).toBe(""); // no avatar resolved → initials fallback
     expect(group?.participantCount).toBe(12);
     expect(group?.subscribers).toEqual(["zen-zebra"]);
     expect(group?.messageCount).toBe(42);

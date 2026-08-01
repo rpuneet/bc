@@ -157,7 +157,7 @@ func TestChannelStats(t *testing.T) {
 			store := setupTestStore(t)
 			ctx := context.Background()
 			for _, m := range tt.msgs {
-				if err := store.SaveMessage(ctx, m.channel, m.sender, "hi"); err != nil {
+				if err := store.SaveMessage(ctx, m.channel, m.sender, "", "hi"); err != nil {
 					t.Fatalf("SaveMessage: %v", err)
 				}
 			}
@@ -207,7 +207,7 @@ func TestUpsertChannelMeta_RoundTrip(t *testing.T) {
 	if err := store.SaveChannel(ctx, channel, "whatsapp", "1234@g.us"); err != nil {
 		t.Fatalf("SaveChannel: %v", err)
 	}
-	if err := store.UpsertChannelMeta(ctx, channel, "Family Group", "group", 12); err != nil {
+	if err := store.UpsertChannelMeta(ctx, channel, "Family Group", "group", "", 12); err != nil {
 		t.Fatalf("UpsertChannelMeta: %v", err)
 	}
 
@@ -227,7 +227,7 @@ func TestUpsertChannelMeta_RoundTrip(t *testing.T) {
 	}
 
 	// Empty values must not clobber previously-resolved metadata.
-	if upErr := store.UpsertChannelMeta(ctx, channel, "", "", 0); upErr != nil {
+	if upErr := store.UpsertChannelMeta(ctx, channel, "", "", "", 0); upErr != nil {
 		t.Fatalf("UpsertChannelMeta (empty): %v", upErr)
 	}
 	channels, err = store.LoadChannels(ctx)
@@ -239,7 +239,7 @@ func TestUpsertChannelMeta_RoundTrip(t *testing.T) {
 	}
 
 	// New values replace old ones.
-	if upErr := store.UpsertChannelMeta(ctx, channel, "Renamed Group", "group", 13); upErr != nil {
+	if upErr := store.UpsertChannelMeta(ctx, channel, "Renamed Group", "group", "", 13); upErr != nil {
 		t.Fatalf("UpsertChannelMeta (update): %v", upErr)
 	}
 	channels, err = store.LoadChannels(ctx)
@@ -257,7 +257,7 @@ func TestUpsertChannelMeta_InsertsMissingRow(t *testing.T) {
 	store := setupTestStore(t)
 	ctx := context.Background()
 
-	if err := store.UpsertChannelMeta(ctx, "slack:general", "general", "channel", 0); err != nil {
+	if err := store.UpsertChannelMeta(ctx, "slack:general", "general", "channel", "", 0); err != nil {
 		t.Fatalf("UpsertChannelMeta: %v", err)
 	}
 	channels, err := store.LoadChannels(ctx)
@@ -294,7 +294,7 @@ func TestUpsertChannelMeta_PreservesMessages(t *testing.T) {
 
 	const channel = "whatsapp:1234"
 	for _, msg := range []string{"hello", "world"} {
-		if err := store.SaveMessage(ctx, channel, "alice", msg); err != nil {
+		if err := store.SaveMessage(ctx, channel, "alice", "", msg); err != nil {
 			t.Fatalf("SaveMessage: %v", err)
 		}
 	}
@@ -302,7 +302,7 @@ func TestUpsertChannelMeta_PreservesMessages(t *testing.T) {
 		t.Fatalf("Subscribe: %v", err)
 	}
 
-	if err := store.UpsertChannelMeta(ctx, channel, "Alice", "person", 0); err != nil {
+	if err := store.UpsertChannelMeta(ctx, channel, "Alice", "person", "", 0); err != nil {
 		t.Fatalf("UpsertChannelMeta: %v", err)
 	}
 

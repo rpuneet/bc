@@ -56,6 +56,8 @@ func (h *GatewayHandler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/notifications/overview", h.notificationsOverview)
 	// Manual re-resolution of channel display metadata (names, kinds).
 	mux.HandleFunc("/api/apps/channels/refresh", h.refreshChannelMeta)
+	// Loopback-guarded image proxy for platform avatars (never leaks tokens).
+	mux.HandleFunc("/api/apps/avatar", h.avatarProxy)
 }
 
 // appScopedRoute serves the per-instance routes AppsHandler delegates
@@ -420,9 +422,11 @@ func (h *GatewayHandler) channelHistory(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	// Convert to legacy format
+	// Convert to legacy format. AvatarURL is wrapped in the loopback image
+	// proxy so the browser loads it without seeing the raw platform CDN URL.
 	type legacyMessage struct {
 		Sender    string `json:"sender"`
+		AvatarURL string `json:"avatar_url,omitempty"`
 		Content   string `json:"content"`
 		CreatedAt string `json:"created_at"`
 		ID        int64  `json:"id"`
@@ -432,6 +436,7 @@ func (h *GatewayHandler) channelHistory(w http.ResponseWriter, r *http.Request) 
 		result[i] = legacyMessage{
 			ID:        m.ID,
 			Sender:    m.Sender,
+			AvatarURL: avatarProxyPath(m.AvatarURL),
 			Content:   m.Content,
 			CreatedAt: m.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
 		}
