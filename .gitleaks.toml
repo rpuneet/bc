@@ -1,0 +1,15 @@
+# gitleaks configuration for mycel.
+#
+# Extends the built-in gitleaks default ruleset and adds a project
+# allowlist. The gitleaks-action (CI "Security" job) auto-detects this
+# file at the repository root.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "mycel allowlisted values that are public, not secrets"
+# Public GitHub device-flow OAuth client ID — not a secret (embedded like
+# the gh CLI does; device-flow client IDs have no paired secret).
+regexes = [
+  '''Ov23liP7jwMEwOZtM2b5''',
+]

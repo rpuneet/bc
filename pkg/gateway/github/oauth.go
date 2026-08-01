@@ -33,7 +33,7 @@ const (
 	// it here gives every user one-click "Sign in with GitHub" with zero
 	// setup. Users may still override it with their own OAuth app's
 	// client ID (advanced: their own org, higher rate limits).
-	DefaultOAuthClientID = "Ov23liP7jwMEwOZtM2b5"
+	DefaultOAuthClientID = "Ov23liP7jwMEwOZtM2b5" // gitleaks:allow -- public GitHub device-flow client ID, not a secret
 )
 
 // deviceFlow implements app.OAuthFlow via the GitHub device flow.
