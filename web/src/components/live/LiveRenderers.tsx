@@ -7,12 +7,14 @@ import type {
   FilterType,
   RawEvent,
   TaskItem,
+  ToolNode,
 } from "./liveTypes";
 import {
   estimateCost,
   flattenNodes,
   idleDuration,
   nodeMatchesSearch,
+  partitionRunning,
   redactValue,
   stateBadgeClass,
 } from "./liveHelpers";
@@ -42,6 +44,53 @@ export function StateDot({ state }: { state: string }) {
   if (state === "error" || state === "stopped")
     return <span className="inline-flex h-2.5 w-2.5 rounded-full bg-mycel-error" />;
   return <span className="inline-flex h-2.5 w-2.5 rounded-full bg-mycel-muted" />;
+}
+
+/* ── Pinned "Running" section ──────────────────────────────────────── */
+
+/**
+ * A pinned band of currently-running rows kept above the chronological
+ * stream, so in-flight tool calls and still-executing subagents stay
+ * visible instead of being pushed down as new events arrive. When a row
+ * completes it drops out of `nodes` (status flips off "running") and
+ * takes its normal chronological place below — rows are keyed by node id,
+ * so React just moves the existing DOM node, no reorder animation.
+ *
+ * `sticky` keeps the band anchored to the top of a scrollable feed (the
+ * agent-detail Live tab). In the compact Live card there is no scroll
+ * container, so it renders inline at the top instead.
+ */
+export function RunningSection({
+  nodes,
+  searchQuery = "",
+  sticky = false,
+}: {
+  nodes: ToolNode[];
+  searchQuery?: string;
+  sticky?: boolean;
+}) {
+  if (nodes.length === 0) return null;
+  return (
+    <div className={sticky ? "sticky top-0 z-10" : ""}>
+      <div className="flex items-center gap-2 px-3 py-1 bg-mycel-surface/95 backdrop-blur-sm border-b border-mycel-border">
+        <span className="relative flex h-2 w-2 shrink-0" aria-hidden>
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-mycel-accent opacity-60 motion-reduce:hidden" />
+          <span className="relative inline-flex h-2 w-2 rounded-full bg-mycel-accent" />
+        </span>
+        <span className="text-[10px] uppercase tracking-wide font-semibold text-mycel-accent">
+          Running
+        </span>
+        <span className="text-[10px] text-mycel-muted font-mono tabular-nums">
+          {nodes.length}
+        </span>
+      </div>
+      <div className="bg-mycel-accent-subtle/30 border-b-2 border-mycel-accent-subtle">
+        {nodes.map((node) => (
+          <EventRow key={node.id} node={node} searchQuery={searchQuery} />
+        ))}
+      </div>
+    </div>
+  );
 }
 
 /* ── Idle Timer ───────────────────────────────────────────────────── */
@@ -176,6 +225,13 @@ export function AgentDrillDown({
     return flattenNodes(activity.nodes).sort((a, b) => b.startTime - a.startTime);
   }, [activity.nodes]);
 
+  // Running rows are pinned above the chronological stream; a completed
+  // row leaves the pinned band and re-joins the list in time order.
+  const { running: runningNodes, rest: restNodes } = useMemo(
+    () => partitionRunning(allNodes),
+    [allNodes],
+  );
+
   const toggleRawExpanded = useCallback((key: string) => {
     setRawExpanded((prev) => {
       const next = new Set(prev);
@@ -261,9 +317,12 @@ export function AgentDrillDown({
                 No tool events yet for this agent.
               </div>
             ) : (
-              allNodes.map((node) => (
-                <EventRow key={node.id} node={node} />
-              ))
+              <>
+                <RunningSection nodes={runningNodes} sticky />
+                {restNodes.map((node) => (
+                  <EventRow key={node.id} node={node} />
+                ))}
+              </>
             )}
           </div>
         )}
@@ -361,10 +420,16 @@ export const AgentCard = memo(function AgentCard({
     return flatNodes.filter((n) => nodeMatchesSearch(n, q));
   }, [flatNodes, searchTerm]);
 
-  const shownNodes = visibleNodes.slice(0, LIVE_CARD_MAX_ROWS);
-  const hiddenCount = visibleNodes.length - shownNodes.length;
+  // Pin running rows above the chronological list; only the completed
+  // rows are subject to the row cap, so an in-flight call is never hidden.
+  const { running: runningNodes, rest: restNodes } = useMemo(
+    () => partitionRunning(visibleNodes),
+    [visibleNodes],
+  );
+  const shownNodes = restNodes.slice(0, LIVE_CARD_MAX_ROWS);
+  const hiddenCount = restNodes.length - shownNodes.length;
 
-  const runningCount = flatNodes.filter((n) => n.status === "running").length;
+  const runningCount = runningNodes.length;
   const errorCount = flatNodes.filter((n) => n.status === "failed").length;
   const matchCount = searchTerm ? visibleNodes.length : 0;
   const showToolNodes = typeFilter !== "state";
@@ -489,7 +554,7 @@ export const AgentCard = memo(function AgentCard({
       </div>
 
       <AnimatePresence initial={false}>
-        {!activity.collapsed && showToolNodes && shownNodes.length > 0 && (
+        {!activity.collapsed && showToolNodes && (shownNodes.length > 0 || runningNodes.length > 0) && (
           <motion.div
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: "auto", opacity: 1 }}
@@ -497,9 +562,10 @@ export const AgentCard = memo(function AgentCard({
             transition={{ duration: 0.2, ease: "easeOut" }}
             className="border-t border-mycel-border overflow-hidden"
           >
-            {/* Flat event stream — newest first. Rows are keyed by event
-                id and never animate position, so new events prepend
-                without reflowing everything below them. */}
+            {/* Flat event stream — newest first. Running rows pin to the
+                top; completed rows are keyed by event id and never animate
+                position, so new events prepend without reflowing below. */}
+            <RunningSection nodes={runningNodes} searchQuery={searchTerm} />
             {shownNodes.map((node) => (
               <EventRow key={node.id} node={node} searchQuery={searchTerm} />
             ))}

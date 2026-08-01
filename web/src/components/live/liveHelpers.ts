@@ -1,5 +1,6 @@
 import { formatDuration, formatRelative } from "../../utils/time";
 
+import type { AgentActivityItem } from "../../api/client";
 import type {
   AgentActivity,
   HookEvent,
@@ -230,6 +231,70 @@ export function flattenNodes(nodes: ToolNode[]): ToolNode[] {
   };
   walk(nodes);
   return out;
+}
+
+/** Split a flat node list into currently-running rows and everything
+ *  else, preserving input order within each bucket. Running rows get
+ *  pinned above the chronological stream so long feeds never bury an
+ *  in-flight tool call or subagent. */
+export function partitionRunning(nodes: ToolNode[]): { running: ToolNode[]; rest: ToolNode[] } {
+  const running: ToolNode[] = [];
+  const rest: ToolNode[] = [];
+  for (const n of nodes) {
+    if (n.status === "running") running.push(n);
+    else rest.push(n);
+  }
+  return { running, rest };
+}
+
+/* ── Historical activity → ToolNode ─────────────────────────────────── */
+
+/**
+ * Turn a persisted activity row into a ToolNode for the Live feed.
+ *
+ * Historical rows come from the append-only event log, so they carry
+ * whatever the hook recorded — `tool_name`, `tool_input`, `error` — but
+ * never a `tool_response` (results are not persisted) and no Pre/Post
+ * pairing, so duration is unknown. We surface every field that IS stored
+ * and gracefully omit the rest: the row expands to show its input and any
+ * error, and simply has no Output section. This is the same ToolNode shape
+ * the live stream builds, so both render through one EventRow.
+ */
+export function activityItemToNode(item: AgentActivityItem): ToolNode {
+  const data = (item.data ?? {}) as Record<string, unknown>;
+  const dataToolName = typeof data.tool_name === "string" ? data.tool_name : "";
+  const toolName = dataToolName || parseHistoricalToolName(item) || item.event || "unknown";
+
+  const toolInput = data.tool_input ?? null;
+  const error = typeof data.error === "string" && data.error ? data.error : undefined;
+
+  const args = toolInput
+    ? extractToolMetadata(toolName, toolInput)
+    : item.message || "";
+
+  return {
+    id: nextId(),
+    toolName,
+    args,
+    fullInput: toolInput,
+    fullOutput: null,
+    startTime: item.timestamp ? new Date(item.timestamp).getTime() : Date.now(),
+    endTime: undefined,
+    status: error ? "failed" : "completed",
+    error,
+    children: [],
+  };
+}
+
+/** Derive a tool name from a historical row's message ("Bash: cmd" or a
+ *  bare word) when the structured tool_name field is absent. */
+function parseHistoricalToolName(item: AgentActivityItem): string {
+  if (!item.message) return "";
+  const colonIdx = item.message.indexOf(":");
+  if (colonIdx > 0) return item.message.slice(0, colonIdx).trim();
+  const spaceIdx = item.message.indexOf(" ");
+  if (spaceIdx > 0) return item.message.slice(0, spaceIdx).trim();
+  return item.message;
 }
 
 /* ── Task parsing helpers ──────────────────────────────────────────── */

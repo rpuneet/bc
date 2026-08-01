@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../api/client";
 import { useWebSocket } from "./useWebSocket";
-import type { AgentActivityItem } from "../api/client";
 import type {
   AgentActivity,
   HookEvent,
@@ -9,33 +8,6 @@ import type {
   TaskItem,
   ToolNode,
 } from "../components/live/liveTypes";
-
-// Turn a persisted activity row into a ToolNode for the Live card.
-// Historical rows lack Pre/Post pairing so we mark them completed with
-// unknown duration — same approach as the per-agent hydration path.
-function activityItemToNode(item: AgentActivityItem): ToolNode {
-  const toolName = (() => {
-    if (item.message) {
-      const colonIdx = item.message.indexOf(":");
-      if (colonIdx > 0) return item.message.slice(0, colonIdx).trim();
-      const spaceIdx = item.message.indexOf(" ");
-      if (spaceIdx > 0) return item.message.slice(0, spaceIdx).trim();
-      return item.message;
-    }
-    return item.event || "unknown";
-  })();
-  return {
-    id: nextId(),
-    toolName,
-    args: item.message || "",
-    fullInput: null,
-    fullOutput: null,
-    startTime: item.timestamp ? new Date(item.timestamp).getTime() : Date.now(),
-    endTime: undefined,
-    status: "completed" as const,
-    children: [],
-  };
-}
 import {
   AUTO_COLLAPSE_MS,
   FLUSH_INTERVAL,
@@ -65,6 +37,7 @@ function finalizeRunningNodes(nodes: ToolNode[], endTime: number): ToolNode[] {
 const TERMINAL_STATES = new Set(["idle", "stopped", "done", "error"]);
 
 import {
+  activityItemToNode,
   findLastIdx,
   nextId,
   parseTaskCreate,
