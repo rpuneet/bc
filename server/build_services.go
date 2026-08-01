@@ -272,6 +272,16 @@ func buildServicesFromHome(ctx context.Context, globals *Globals, h *home.Home) 
 		}()
 	}
 
+	// Transcript tailer — captures Live activity for providers that write a
+	// readable session log instead of invoking hooks (ActivityModeTranscript,
+	// e.g. pi). Parsed activity flows through the same IngestHookEvent path as
+	// HTTP hooks, so both feed one Live feed.
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		runTranscriptTailer(svcCtx, agentSvc)
+	}()
+
 	// Notify service (channel subscriptions + delivery).
 	var notifyService *notifypkg.Service
 	if ns, err := notifypkg.OpenStore(wsDB, wsDriver); err != nil {
