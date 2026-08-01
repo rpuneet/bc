@@ -7,6 +7,7 @@ import type {
   ProviderCommand,
   ProviderMCPServer,
   ProviderInstallEvent,
+  ModelInfo,
 } from "../api/client";
 import { installDep } from "../wizard/installStream";
 import { usePolling } from "../hooks/usePolling";
@@ -14,8 +15,20 @@ import { LoadingSkeleton } from "../components/LoadingSkeleton";
 import { EmptyState } from "../components/EmptyState";
 import { StatusBadge } from "../components/StatusBadge";
 import { CopyButton } from "../components/CopyButton";
+import { ConfirmButton } from "../components/shared";
 import { ToastContainer, useToast } from "../components/Toast";
 import { formatCost, formatTokens } from "../utils/format";
+
+// Vault key each provider reads for headless (API-key) auth. Mirrors
+// SECRET_KEY in wizard/steps/StepProviders.tsx — the same two providers
+// support a documented env-var API key today; every other provider's only
+// auth path is its own interactive CLI login, so SignInAction shows an
+// honest copyable "<binary> login" command instead of a fake key field for
+// those.
+const SECRET_KEY: Record<string, string> = {
+  claude: "ANTHROPIC_API_KEY",
+  codex: "OPENAI_API_KEY",
+};
 
 const inputCls =
   "w-full px-2.5 py-1.5 text-sm rounded border border-mycel-border bg-mycel-bg text-mycel-text focus:outline-none focus:ring-1 focus:ring-mycel-accent";
@@ -228,6 +241,179 @@ function UpdateAction({
   );
 }
 
+/* Removes an already-installed provider for real via POST
+ * /api/providers/:name/uninstall, which derives an uninstall command from
+ * the provider's vetted install hint and streams live NDJSON output — same
+ * console UX as Install/Update. Destructive, so it sits behind the shared
+ * two-click ConfirmButton. Only ever rendered for installed, non-default
+ * providers — see the `installed && !isDefault` guard at the call site,
+ * which mirrors the server's own isRequiredProvider refusal. */
+function UninstallAction({
+  providerName,
+  onUninstalled,
+}: {
+  providerName: string;
+  onUninstalled: () => void;
+}) {
+  const [state, setState] = useState<RunState>("idle");
+  const [lines, setLines] = useState<string[]>([]);
+  const [err, setErr] = useState<string | null>(null);
+  const runningRef = useRef(false);
+  useEffect(() => () => { runningRef.current = false; }, []);
+
+  const run = async () => {
+    setState("running");
+    setLines([]);
+    setErr(null);
+    runningRef.current = true;
+    try {
+      const code = await api.streamProviderUninstall(providerName, (ev: ProviderInstallEvent) => {
+        if (!runningRef.current) return;
+        if (ev.type === "start") setLines((l) => [...l, `$ ${ev.command}`]);
+        else if (ev.type === "log") setLines((l) => [...l, ev.line]);
+      });
+      if (!runningRef.current) return;
+      if (code === 0) {
+        setState("ok");
+        onUninstalled();
+      } else {
+        setState("error");
+        setErr(`Uninstall exited with code ${code}.`);
+      }
+    } catch (e) {
+      if (!runningRef.current) return;
+      setState("error");
+      setErr(e instanceof Error ? e.message : "Uninstall failed.");
+    } finally {
+      runningRef.current = false;
+    }
+  };
+
+  return (
+    <div className="space-y-1.5">
+      <ConfirmButton
+        label="Remove"
+        confirmLabel="Confirm remove"
+        onConfirm={() => void run()}
+        loading={state === "running"}
+        variant="danger"
+        className="min-h-[44px] sm:min-h-0"
+      />
+      <StreamConsole state={state} lines={lines} err={err} />
+    </div>
+  );
+}
+
+/* Sign-in / credential affordance next to Install/Update/Uninstall.
+ *
+ * Two honest shapes, gated on SECRET_KEY membership:
+ *  - API-key providers (claude, codex): a password field that stores the
+ *    key straight into the vault via the same createSecret/updateSecret
+ *    calls StepProviders.tsx uses for the wizard, so the two surfaces never
+ *    drift on how a key gets in.
+ *  - Everything else: no fake button — mycel has no OAuth flow wired up for
+ *    them yet, so the only real path is the CLI's own interactive login. We
+ *    show that command, copyable, with an "Interactive" badge rather than a
+ *    button that would silently do nothing. */
+function SignInAction({
+  provider,
+  onToast,
+}: {
+  provider: ProviderDetailResponse;
+  onToast: (level: "success" | "error" | "info", msg: string) => void;
+}) {
+  const secretName = SECRET_KEY[provider.name];
+  const [open, setOpen] = useState(false);
+  const [apiKey, setApiKey] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  if (!secretName) {
+    const loginCmd = `${provider.binary || provider.name} login`;
+    return (
+      <div className="flex items-center gap-1.5">
+        <span
+          className="inline-flex items-center gap-1 px-2 py-1 rounded text-[10.5px] font-medium text-mycel-muted border border-mycel-border"
+          title="Interactive command — needs a terminal, not an API key"
+        >
+          Interactive
+        </span>
+        <code className="px-2.5 py-1.5 text-sm font-mono rounded bg-mycel-surface border border-mycel-border text-mycel-text-2 truncate max-w-[10rem]">
+          {loginCmd}
+        </code>
+        <CopyButton text={loginCmd} />
+      </div>
+    );
+  }
+
+  const save = async () => {
+    const value = apiKey.trim();
+    if (!value) return;
+    setSaving(true);
+    try {
+      try {
+        await api.createSecret(secretName, value, `${provider.name} API key`);
+      } catch {
+        await api.updateSecret(secretName, value);
+      }
+      setSaved(true);
+      setApiKey("");
+      setOpen(false);
+      onToast("success", `${secretName} saved to the vault`);
+    } catch (e) {
+      onToast("error", e instanceof Error ? e.message : `Failed to save ${secretName}`);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="min-h-[44px] sm:min-h-0 px-3 py-1.5 text-sm rounded border border-mycel-border text-mycel-text-2 hover:text-mycel-text hover:bg-mycel-surface-hover transition-colors"
+        aria-label={saved ? `Update ${secretName}` : `Sign in — store ${secretName}`}
+      >
+        {saved ? "Update key" : "Sign in"}
+      </button>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-1.5">
+      <label className="sr-only" htmlFor={`signin-key-${provider.name}`}>
+        {secretName}
+      </label>
+      <input
+        id={`signin-key-${provider.name}`}
+        type="password"
+        value={apiKey}
+        onChange={(e) => setApiKey(e.target.value)}
+        placeholder={secretName}
+        autoComplete="off"
+        className={`${inputCls} max-w-[11rem]`}
+      />
+      <button
+        type="button"
+        onClick={() => void save()}
+        disabled={saving || !apiKey.trim()}
+        className="min-h-[44px] sm:min-h-0 px-3 py-1.5 text-sm rounded bg-mycel-accent text-mycel-accent-fg font-medium disabled:opacity-50 transition-colors"
+      >
+        {saving ? "Saving…" : "Save"}
+      </button>
+      <button
+        type="button"
+        onClick={() => { setOpen(false); setApiKey(""); }}
+        disabled={saving}
+        className="min-h-[44px] sm:min-h-0 px-3 py-1.5 text-sm rounded border border-mycel-border text-mycel-muted hover:text-mycel-text transition-colors disabled:opacity-50"
+      >
+        Cancel
+      </button>
+    </div>
+  );
+}
+
 /* ── Section: Header ── */
 
 function ProviderHeader({
@@ -235,16 +421,25 @@ function ProviderHeader({
   onInstalled,
   onCheckUpdate,
   onUpdated,
+  onUninstalled,
   checking,
   updateResult,
+  onToast,
 }: {
   provider: ProviderDetailResponse;
   onInstalled: () => void;
   onCheckUpdate: () => void;
   onUpdated: () => void;
+  onUninstalled: () => void;
   checking: boolean;
   updateResult: { checked: boolean; current: string; latest: string; available: boolean } | null;
+  onToast: (level: "success" | "error" | "info", msg: string) => void;
 }) {
+  // A required/default provider — the one every new agent spawns with
+  // unless told otherwise — can't be uninstalled (mirrors the server's own
+  // isRequiredProvider refusal in server/handlers/providers.go).
+  const isDefault = provider.config?.default === "true";
+
   return (
     <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
       <div className="flex items-center gap-3">
@@ -261,9 +456,21 @@ function ProviderHeader({
           </span>
         </div>
         <div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <h1 className="font-display text-xl font-bold">{provider.name}</h1>
             <StatusBadge status={providerStatus(provider)} />
+            <span
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-medium ${
+                provider.enabled
+                  ? "bg-mycel-success-subtle text-mycel-success"
+                  : "bg-mycel-surface-hover text-mycel-text-2"
+              }`}
+            >
+              <span
+                className={`w-2 h-2 rounded-full ${provider.enabled ? "bg-mycel-success" : "bg-mycel-muted"}`}
+              />
+              {provider.enabled ? "Enabled" : "Disabled"}
+            </span>
           </div>
           {provider.version && (
             <span className="inline-block mt-0.5 px-2 py-0.5 rounded text-xs font-mono bg-mycel-surface border border-mycel-border text-mycel-muted">
@@ -272,8 +479,8 @@ function ProviderHeader({
           )}
         </div>
       </div>
-      <div className="flex flex-col items-end gap-2">
-        <div className="flex items-center gap-2">
+      <div className="flex flex-col items-end gap-2 sm:min-w-[16rem]">
+        <div className="flex flex-wrap items-center justify-end gap-2">
           {!provider.installed && (
             <InstallAction providerName={provider.name} installHint={provider.install_hint} onInstalled={onInstalled} />
           )}
@@ -283,25 +490,17 @@ function ProviderHeader({
                 type="button"
                 onClick={onCheckUpdate}
                 disabled={checking}
-                className="px-3 py-1.5 text-sm rounded bg-mycel-info-subtle text-mycel-info transition-colors disabled:opacity-50"
+                className="min-h-[44px] sm:min-h-0 px-3 py-1.5 text-sm rounded bg-mycel-info-subtle text-mycel-info transition-colors disabled:opacity-50"
               >
                 {checking ? "Checking..." : "Check for Update"}
               </button>
               <UpdateAction providerName={provider.name} installHint={provider.install_hint} onUpdated={onUpdated} />
             </>
           )}
-          <span
-            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-medium ${
-              provider.enabled
-                ? "bg-mycel-success-subtle text-mycel-success"
-                : "bg-mycel-surface-hover text-mycel-text-2"
-            }`}
-          >
-            <span
-              className={`w-2 h-2 rounded-full ${provider.enabled ? "bg-mycel-success" : "bg-mycel-muted"}`}
-            />
-            {provider.enabled ? "Enabled" : "Disabled"}
-          </span>
+          <SignInAction provider={provider} onToast={onToast} />
+          {provider.installed && !isDefault && (
+            <UninstallAction providerName={provider.name} onUninstalled={onUninstalled} />
+          )}
         </div>
         {updateResult && (
           <p className="text-xs text-mycel-muted text-right">
@@ -415,6 +614,65 @@ function ConfigPanel({
           </button>
         </div>
       </div>
+    </section>
+  );
+}
+
+/* ── Section: Models ── */
+
+/* Read-only list of a provider's curated models with live availability —
+ * the same ModelInfo the /tools ProviderDefaults picker consumes, and the
+ * same "available" semantics: a green dot means the provider CLI confirmed
+ * the model live (auth verified); a muted dot means it's a static fallback
+ * the user can still pick but that mycel couldn't verify. No actions here —
+ * model selection itself lives in the fleet-default picker on the Tools page. */
+function ModelsSection({ providerName, models }: { providerName: string; models: ModelInfo[] }) {
+  return (
+    <section>
+      <h2 className="text-xs font-medium text-mycel-muted uppercase tracking-widest mb-3">
+        Models ({models.length})
+      </h2>
+      {models.length === 0 ? (
+        <EmptyState
+          icon="◇"
+          title="No models"
+          description={`${providerName} exposes no curated model list — its own default is used.`}
+        />
+      ) : (
+        <div className="rounded border border-mycel-border overflow-hidden">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-mycel-border bg-mycel-surface text-[11px] text-mycel-muted uppercase tracking-wider">
+                <th className="px-4 py-2 font-medium text-left">Model</th>
+                <th className="px-4 py-2 font-medium text-left">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {models.map((m) => (
+                <tr key={m.id} className="border-b border-mycel-border last:border-b-0 hover:bg-mycel-surface-hover transition-colors">
+                  <td className="px-4 py-2.5 font-mono text-xs">{m.id}</td>
+                  <td className="px-4 py-2.5">
+                    {m.available ? (
+                      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-medium bg-mycel-success-subtle text-mycel-success">
+                        <span className="w-1.5 h-1.5 rounded-full bg-mycel-success" />
+                        Verified
+                      </span>
+                    ) : (
+                      <span
+                        className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-medium bg-mycel-surface-hover text-mycel-muted"
+                        title="Static fallback — provider sign-in not confirmed"
+                      >
+                        <span className="w-1.5 h-1.5 rounded-full bg-mycel-muted" />
+                        Unverified — static fallback
+                      </span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </section>
   );
 }
@@ -1012,11 +1270,19 @@ export function ProviderDetail() {
   }, [providerName]);
   const { data: mcpServers, refresh: refreshMCPs } = usePolling<ProviderMCPServer[]>(mcpFetcher, 15000);
 
-  // The install/update actions themselves (InstallAction / UpdateAction) run
-  // for real via the streamed NDJSON endpoints; this just refreshes the
-  // provider detail once they land so version/status pick up immediately.
+  const modelsFetcher = useCallback(async () => {
+    if (!providerName) throw new Error("No provider name");
+    return api.getProviderModels(providerName);
+  }, [providerName]);
+  const { data: models } = usePolling<ModelInfo[]>(modelsFetcher, 30000);
+
+  // The install/update/uninstall actions themselves (InstallAction /
+  // UpdateAction / UninstallAction) run for real via the streamed NDJSON
+  // endpoints; this just refreshes the provider detail once they land so
+  // version/status pick up immediately.
   const handleInstalled = () => refresh();
   const handleUpdated = () => { setUpdateResult(null); refresh(); };
+  const handleUninstalled = () => refresh();
 
   const handleCheckUpdate = async () => {
     if (!providerName) return;
@@ -1092,15 +1358,19 @@ export function ProviderDetail() {
         onInstalled={handleInstalled}
         onCheckUpdate={() => void handleCheckUpdate()}
         onUpdated={handleUpdated}
+        onUninstalled={handleUninstalled}
         checking={checkingUpdate}
         updateResult={updateResult}
+        onToast={addToast}
       />
 
       {/* 2-column layout on desktop */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left column: Config + MCP + Commands */}
+        {/* Left column: Config + Models + MCP + Commands */}
         <div className="lg:col-span-2 space-y-8">
           <ConfigPanel provider={provider} onSave={handleSaveConfig} />
+
+          <ModelsSection providerName={provider.name} models={models ?? []} />
 
           <MCPSection
             providerName={provider.name}
