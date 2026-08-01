@@ -5,9 +5,11 @@
  *   1. Apps strip — one pill per connected app instance with the same
  *      status semantics as the drawer (shared appStatus utils), plus a
  *      "+ Connect" pill opening the catalog-driven connect flow.
- *   2. Channels — all app channels grouped by instance; WhatsApp splits
- *      into Groups / People. Search + Filters live in the header slot.
- *   3. Recent activity — the newest messages across active channels.
+ *   2. Notifications — the newest messages across active channels; the
+ *      primary column on the left.
+ *   3. Channels — all app channels grouped by instance (slim secondary
+ *      column); WhatsApp splits into Groups / People. Search + Filters
+ *      live in the header slot.
  *   4. Custom Keys — the encrypted vault keys agents reference via
  *      ${secret:NAME} (absorbed from the old standalone Secrets page).
  *
@@ -700,8 +702,46 @@ export function AppsHome() {
           </button>
         </div>
 
-        {/* ── Channels + recent activity ─────────────────────── */}
-        <div className="grid gap-6 items-start lg:grid-cols-[minmax(0,1fr)_320px]">
+        {/* ── Notifications (primary) + channels (secondary) ─── */}
+        <div className="grid gap-6 items-start lg:grid-cols-[minmax(0,1fr)_340px]">
+          {/* Notifications — the primary stream: newest messages across every channel */}
+          <aside className="rounded-lg border border-mycel-border bg-mycel-surface overflow-hidden" aria-label="Notifications">
+            <Link
+              to="/apps/activity"
+              className="flex items-center gap-2 px-4 py-2.5 border-b border-mycel-border hover:bg-mycel-surface-hover transition-colors"
+              aria-label="View all"
+            >
+              <h3 className="text-xs font-semibold uppercase tracking-[0.08em] text-mycel-text">Notifications</h3>
+              <span className="ml-auto text-[11px] font-medium text-mycel-accent">View all →</span>
+            </Link>
+            <div className="divide-y divide-mycel-border">
+              {recent.length === 0 && (
+                <div className="px-4 py-10 text-center text-xs text-mycel-muted">No messages yet</div>
+              )}
+              {recent.map((m) => (
+                <button
+                  key={`${m.channel}:${String(m.id)}`}
+                  type="button"
+                  onClick={() => { openChannel(m.channel); }}
+                  className="w-full text-left px-4 py-2.5 hover:bg-mycel-surface-hover transition-colors"
+                >
+                  <div className="flex items-center gap-1.5 mb-0.5 min-w-0">
+                    <AppIcon base={sourcePlatform(m.channel)} size={11} />
+                    <span className="truncate text-[11px] text-mycel-text-2">{channelLeaf(m.channel)}</span>
+                    <span className="ml-auto shrink-0 text-[10.5px] text-mycel-muted tabular-nums">
+                      {formatRelative(m.created_at)}
+                    </span>
+                  </div>
+                  <div className="truncate text-[13px] text-mycel-text-2">
+                    <span className="font-medium text-mycel-text">{cleanSender(m.sender)}</span>{" "}
+                    {oneLine(m.content)}
+                  </div>
+                </button>
+              ))}
+            </div>
+          </aside>
+
+          {/* Channels — slim secondary column, grouped by app */}
           <div className="space-y-5 min-w-0">
             {sectionApps.length === 0 && (
               <div className="rounded-lg border border-mycel-border p-6 text-center text-xs text-mycel-muted">
@@ -756,43 +796,6 @@ export function AppsHome() {
               );
             })}
           </div>
-
-          {/* Right rail — recent activity across all channels */}
-          <aside className="rounded-lg border border-mycel-border bg-mycel-surface overflow-hidden" aria-label="Recent activity">
-            <Link
-              to="/apps/activity"
-              className="flex items-center gap-2 px-3 py-2 border-b border-mycel-border hover:bg-mycel-surface-hover transition-colors"
-              aria-label="View all activity"
-            >
-              <h3 className="text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted">Recent activity</h3>
-              <span className="ml-auto text-[11px] font-medium text-mycel-accent">View all →</span>
-            </Link>
-            <div className="divide-y divide-mycel-border">
-              {recent.length === 0 && (
-                <div className="px-3 py-6 text-center text-xs text-mycel-muted">No messages yet</div>
-              )}
-              {recent.map((m) => (
-                <button
-                  key={`${m.channel}:${String(m.id)}`}
-                  type="button"
-                  onClick={() => { openChannel(m.channel); }}
-                  className="w-full text-left px-3 py-2 hover:bg-mycel-surface-hover transition-colors"
-                >
-                  <div className="flex items-center gap-1.5 mb-0.5 min-w-0">
-                    <AppIcon base={sourcePlatform(m.channel)} size={10} />
-                    <span className="truncate text-[10.5px] text-mycel-text-2">{channelLeaf(m.channel)}</span>
-                    <span className="ml-auto shrink-0 text-[10px] text-mycel-muted tabular-nums">
-                      {formatRelative(m.created_at)}
-                    </span>
-                  </div>
-                  <div className="truncate text-xs text-mycel-text-2">
-                    <span className="font-medium text-mycel-text">{cleanSender(m.sender)}</span>{" "}
-                    {oneLine(m.content)}
-                  </div>
-                </button>
-              ))}
-            </div>
-          </aside>
         </div>
 
       {/* Custom Keys — encrypted vault keys agents reference via

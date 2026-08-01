@@ -11,10 +11,11 @@ import { formatRelative } from "../../utils/time";
 import { HomeModule } from "./Module";
 
 /* ── ActivityFeed ───────────────────────────────────────────────────
-   The Home right-rail feed: newest messages across every connected
+   The Home "Notifications" feed: newest messages across every connected
    app channel, compact one-line rows (app icon · sender · channel ·
-   snippet · relative time). Same endpoints as the Apps Activity page,
-   just a narrower net; the header links to the full feed. Polls 15s.
+   snippet · relative time). Same endpoints as the Apps Notifications
+   page, just a narrower net; the header links to the full feed. Polls
+   15s.
 ─────────────────────────────────────────────────────────────────── */
 
 const CHANNEL_LIMIT = 10;
@@ -75,7 +76,7 @@ export function ActivityFeed() {
   const messages = data ?? [];
 
   return (
-    <HomeModule label="Activity" to="/apps/activity" testId="home-activity" fill>
+    <HomeModule label="Notifications" to="/apps/activity" testId="home-activity" fill>
       {data === null ? (
         <div className="py-4 text-center text-[11px] text-mycel-muted">Loading…</div>
       ) : messages.length === 0 ? (
@@ -85,7 +86,7 @@ export function ActivityFeed() {
               <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
             </svg>
           </span>
-          <span className="text-[11px] text-mycel-muted">No app activity yet</span>
+          <span className="text-[11px] text-mycel-muted">No notifications yet</span>
           <Link to="/apps" className="text-[11px] text-mycel-accent hover:underline">
             Connect an app →
           </Link>

@@ -323,13 +323,15 @@ describe("AppsHome", () => {
     expect(screen.getByText("Mom")).toBeInTheDocument();
   });
 
-  it("links recent activity out to the full activity page", async () => {
+  it("links the Notifications column out to the full notifications page", async () => {
     mockRoutes();
     renderHome();
     await waitFor(() => {
       expect(screen.getByText("Family Group")).toBeInTheDocument();
     });
-    const viewAll = screen.getByRole("link", { name: /View all activity/i });
+    // The primary column is labelled "Notifications".
+    expect(screen.getByRole("complementary", { name: "Notifications" })).toBeInTheDocument();
+    const viewAll = screen.getByRole("link", { name: /View all/i });
     expect(viewAll).toHaveAttribute("href", "/apps/activity");
   });
 });
