@@ -51,10 +51,10 @@ export function SetupNudge() {
         <span className="font-medium">{data.headline}.</span> {data.subline}
       </span>
       <Link
-        to="/readiness"
+        to="/welcome"
         className="ml-auto shrink-0 underline decoration-dotted underline-offset-2 font-medium hover:opacity-80"
       >
-        Check setup
+        Resume setup
       </Link>
       <button
         type="button"

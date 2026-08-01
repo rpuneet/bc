@@ -1,8 +1,9 @@
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { BrowserRouter, Routes, Route, Link, Navigate, useParams } from "react-router-dom";
 import { Layout } from "./components/Layout";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { ThemeProvider } from "./context/ThemeContext";
+import { api } from "./api/client";
 
 const Home = lazy(() => import("./views/Home").then((m) => ({ default: m.Home })));
 const Agents = lazy(() => import("./views/Agents").then((m) => ({ default: m.Agents })));
@@ -18,9 +19,37 @@ const Settings = lazy(() => import("./views/Settings").then((m) => ({ default: m
 const Code = lazy(() => import("./views/Code").then((m) => ({ default: m.Code })));
 const About = lazy(() => import("./views/About").then((m) => ({ default: m.About })));
 const Readiness = lazy(() => import("./views/Readiness").then((m) => ({ default: m.Readiness })));
+const Welcome = lazy(() => import("./wizard/Welcome").then((m) => ({ default: m.Welcome })));
 
 function Loading() {
   return <div className="p-6 text-mycel-muted">Loading...</div>;
+}
+
+/**
+ * HomeGate — routes a fresh install to the setup wizard. It renders Home
+ * immediately (so the common, already-set-up case never flashes a loader)
+ * and only redirects to /welcome once it positively learns this is a first
+ * run. Any probe failure falls back to Home, so a daemon hiccup never traps
+ * the user in onboarding.
+ */
+function HomeGate() {
+  const [redirect, setRedirect] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .getOnboardingState()
+      .then((s) => {
+        if (!cancelled && s.firstRun) setRedirect(true);
+      })
+      .catch(() => {
+        /* stay on Home */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  if (redirect) return <Navigate to="/welcome" replace />;
+  return <Home />;
 }
 
 function LegacyWorkspaceRedirect() {
@@ -60,9 +89,11 @@ const wrap = (node: React.ReactNode) => (
 export function AppRoutes() {
   return (
     <Routes>
+      {/* Full-screen first-run wizard — lives outside the app chrome. */}
+      <Route path="welcome" element={wrap(<Welcome />)} />
       <Route element={<Layout />}>
-        <Route index element={wrap(<Home />)} />
-        <Route path="home" element={wrap(<Home />)} />
+        <Route index element={wrap(<HomeGate />)} />
+        <Route path="home" element={wrap(<HomeGate />)} />
         {/* Live view became the Home page — old links/bookmarks redirect. */}
         <Route path="live" element={<Navigate to="/" replace />} />
         <Route path="agents" element={wrap(<Agents />)} />

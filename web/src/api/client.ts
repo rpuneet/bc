@@ -710,6 +710,20 @@ export interface SettingsConfig {
   };
   logs: { path: string; max_bytes: number };
   ui: { theme: string; mode: string; default_view: string };
+  onboarding?: { step: string; completed: string[] };
+}
+
+/* ── Onboarding — first-run setup wizard state (/api/onboarding) ─────── */
+
+export interface OnboardingState {
+  /** True when the app should route to /welcome instead of Home. */
+  firstRun: boolean;
+  hasAgents: boolean;
+  prefsValid: boolean;
+  /** Ids of finished steps; ends with "done" once the wizard completes. */
+  completed: string[];
+  /** Id of the last-visited step, for resume. */
+  step: string;
 }
 
 /* ── Doctor / health ──────────────────────────────────────────────────
@@ -1247,6 +1261,12 @@ export const api = {
       method: "PATCH",
       body: JSON.stringify(patch),
     }),
+
+  /** First-run setup state: whether to show the wizard and where to resume. */
+  getOnboardingState: () => request<OnboardingState>("/onboarding/state"),
+  /** Persist wizard progress. Writes only the onboarding config section. */
+  saveOnboarding: (step: string, completed: string[]) =>
+    api.updateSettings({ onboarding: { step, completed } }),
 
   getInjectedInstructions: () =>
     request<{ injected_instructions: string }>("/settings/injected-instructions"),

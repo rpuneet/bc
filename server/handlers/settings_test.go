@@ -77,6 +77,11 @@ func TestSettingsPatchSection(t *testing.T) {
 			wantErr:    "unknown section: gateways",
 		},
 		{
+			name:       "patch onboarding section",
+			body:       `{"onboarding":{"step":"runtime","completed":["welcome","system"]}}`,
+			wantStatus: http.StatusOK,
+		},
+		{
 			name:       "patch apps section",
 			body:       `{"apps":{"fakeapp":{"app":"fakeapp","enabled":true,"config":{"region":"eu"}}}}`,
 			wantStatus: http.StatusOK,

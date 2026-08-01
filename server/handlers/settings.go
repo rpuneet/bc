@@ -153,6 +153,11 @@ func (h *SettingsHandler) patch(w http.ResponseWriter, r *http.Request) {
 				httpError(w, "invalid ui config: "+err.Error(), http.StatusBadRequest)
 				return
 			}
+		case "onboarding":
+			if err := json.Unmarshal(raw, &merged.Onboarding); err != nil {
+				httpError(w, "invalid onboarding config: "+err.Error(), http.StatusBadRequest)
+				return
+			}
 		case "injected_instructions":
 			if err := json.Unmarshal(raw, &merged.InjectedInstructions); err != nil {
 				httpError(w, "invalid injected_instructions: "+err.Error(), http.StatusBadRequest)

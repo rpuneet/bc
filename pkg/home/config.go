@@ -41,10 +41,33 @@ type Config struct { //nolint:govet // field order matches JSON/API contract
 	Server  ServerConfig                 `json:"server"`
 	Logs    LogsConfig                   `json:"logs"`
 	UI      UIConfig                     `json:"ui"`
+	// Onboarding tracks the first-run setup wizard's progress so it can
+	// resume where the user left off. Config-only — the wizard never
+	// touches agents, secrets, or the database.
+	Onboarding OnboardingConfig `json:"onboarding"`
 	// InjectedInstructions is mycel-authored guidance appended to every
 	// agent's prompt file at spawn time. Never contains secret values.
 	InjectedInstructions string `json:"injected_instructions"`
 	Version              int    `json:"version"`
+}
+
+// OnboardingConfig records where the user is in the first-run setup wizard.
+// Step is the id of the last-visited step ("welcome", "runtime", …);
+// Completed lists the steps the user finished, ending with "done" once the
+// wizard is fully complete.
+type OnboardingConfig struct {
+	Step      string   `json:"step"`
+	Completed []string `json:"completed"`
+}
+
+// OnboardingComplete reports whether the wizard has been marked finished.
+func (c *OnboardingConfig) OnboardingComplete() bool {
+	for _, s := range c.Completed {
+		if s == "done" {
+			return true
+		}
+	}
+	return false
 }
 
 // UserConfig holds user identity settings.
