@@ -764,7 +764,6 @@ export function Settings() {
     return <div className="p-6"><EmptyState icon="!" title="Failed to load settings" description={error} actionLabel="Retry" onAction={refresh} /></div>;
   if (!config || !edited || !original) return null;
 
-  const version = edited.version;
   const isDirty = (...keys: string[]) => keys.some((k) => dirtySections.includes(k));
   const userName = String(((edited.user ?? {}) as Record<string, unknown>).name ?? "");
 
@@ -775,13 +774,6 @@ export function Settings() {
           <h1 className="font-display text-[26px] leading-none text-mycel-text">Settings</h1>
           <p className="mt-2 text-[13px] text-mycel-text-2">The config that has no other home — grouped for day-to-day use.</p>
         </div>
-        <span className="inline-flex items-center gap-1.5 text-[10px] font-mono px-2 py-1 rounded-md border border-mycel-border bg-mycel-surface-hover text-mycel-muted tabular-nums">
-          <svg width="10" height="10" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-            <path d="M3 1.5h5l3 3v8H3z" />
-            <path d="M8 1.5v3h3" />
-          </svg>
-          preferences.json{typeof version !== "undefined" ? ` · v${version}` : ""}
-        </span>
       </header>
 
       {saveStatus === "saved" && dirtySections.length === 0 && (
