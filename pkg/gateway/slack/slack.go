@@ -6,7 +6,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"hash/fnv"
 	"net/http"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -22,20 +24,23 @@ import (
 // Adapter implements gateway.NotificationAdapter for Slack using Socket Mode.
 // It also supports outbound messaging via Send and SendFile methods.
 type Adapter struct {
-	lastMessageAt time.Time
-	api           *slack.Client
-	sm            *socketmode.Client
-	handler       func(gateway.Notification)
-	channelMap    map[string]string
-	userCache     map[string]string
-	botToken      string
-	appToken      string
-	botUserID     string
-	botName       string
-	lastError     string
-	chatMu        sync.RWMutex
-	connected     bool
-	messageCount  atomic.Int64
+	lastMessageAt  time.Time
+	api            *slack.Client
+	sm             *socketmode.Client
+	handler        func(gateway.Notification)
+	channelMap     map[string]string
+	userCache      map[string]string
+	botUserID      string
+	appToken       string
+	botToken       string
+	botName        string
+	lastError      string
+	messageCount   atomic.Int64
+	chatMu         sync.RWMutex
+	scopeWarnOnce  sync.Once
+	customizeScope atomic.Bool
+	scopesSeen     atomic.Bool
+	connected      bool
 }
 
 var _ gateway.NotificationAdapter = (*Adapter)(nil)
@@ -62,6 +67,9 @@ func (a *Adapter) Start(ctx context.Context, handler func(gateway.Notification))
 	api := slack.New(
 		a.botToken,
 		slack.OptionAppLevelToken(a.appToken),
+		// Learn the granted OAuth scopes from every response so we can tell
+		// whether per-agent username/icon attribution will actually stick.
+		slack.OptionOnResponseHeaders(a.observeScopes),
 	)
 	a.api = api
 
@@ -137,16 +145,31 @@ func (a *Adapter) Status() gateway.AdapterStatus {
 
 // --- MessageSender + FileSender (outbound messaging) ---
 
-// Send delivers a message to a Slack channel.
+// Send delivers a message to a Slack channel, attributed to the sending agent.
+//
+// The agent's name (sender) is used verbatim as the Slack message username so
+// each post shows up as the agent that produced it, not the shared bot. Keeping
+// it byte-identical to the agent name also lets the inbound path
+// (handleMessageEvent) recognize our own bot-impersonation posts and skip the
+// echo back to the sender.
+//
+// The icon is a stable per-agent emoji derived from the agent name.
+//
+// follow-up: show the agent's real mushroom avatar via MsgOptionIconURL once we
+// have a publicly-reachable image URL for it. That URL is part of the future
+// mycel-cloud hosted asset set and isn't available locally, so we deliberately
+// do not fake one here.
 func (a *Adapter) Send(ctx context.Context, channelID, sender, content string) error {
 	if a.api == nil {
 		return fmt.Errorf("slack: not connected")
 	}
 
+	a.warnIfCustomizeMissing(sender)
+
 	_, _, err := a.api.PostMessageContext(ctx, channelID,
 		slack.MsgOptionText(content, false),
 		slack.MsgOptionUsername(sender),
-		slack.MsgOptionIconEmoji(":robot_face:"),
+		slack.MsgOptionIconEmoji(agentIconEmoji(sender)),
 	)
 	if err != nil {
 		return fmt.Errorf("slack: send failed: %w", err)
@@ -154,6 +177,66 @@ func (a *Adapter) Send(ctx context.Context, channelID, sender, content string) e
 
 	log.Info("slack: sent message", "channel_id", channelID, "sender", sender)
 	return nil
+}
+
+// observeScopes records, from an API response's X-OAuth-Scopes header, whether
+// the bot token holds chat:write.customize — the scope required for the
+// per-agent username/icon override to take effect.
+func (a *Adapter) observeScopes(_ string, headers http.Header) {
+	raw := headers.Get("X-OAuth-Scopes")
+	if raw == "" {
+		return
+	}
+	a.scopesSeen.Store(true)
+	for _, s := range strings.Split(raw, ",") {
+		if strings.TrimSpace(s) == "chat:write.customize" {
+			a.customizeScope.Store(true)
+			return
+		}
+	}
+	a.customizeScope.Store(false)
+}
+
+// warnIfCustomizeMissing logs a single honest warning if we have observed the
+// token's scopes and chat:write.customize is absent. In that case Slack ignores
+// the username/icon override and posts under the app's identity, so agent
+// attribution silently degrades. We still send the message.
+func (a *Adapter) warnIfCustomizeMissing(sender string) {
+	if !a.scopesSeen.Load() || a.customizeScope.Load() {
+		return
+	}
+	a.scopeWarnOnce.Do(func() {
+		log.Warn("slack: bot token lacks chat:write.customize scope — "+
+			"per-agent username/icon attribution will be ignored by Slack; "+
+			"messages will post under the app's identity",
+			"sender", sender)
+	})
+}
+
+// agentIconEmoji returns a stable emoji for an agent, chosen deterministically
+// from its name so the same agent always gets the same icon. This is only a
+// placeholder until real avatars land (see the follow-up note on Send).
+func agentIconEmoji(sender string) string {
+	if sender == "" {
+		return ":robot_face:"
+	}
+	h := fnv.New32a()
+	_, _ = h.Write([]byte(sender))
+	// Modulo by an untyped constant keeps the index in uint32 space (no
+	// int↔uint32 conversion), which also guards against overflow.
+	return agentEmojiPalette[h.Sum32()%agentEmojiPaletteSize]
+}
+
+// agentEmojiPaletteSize must equal len(agentEmojiPalette); a test asserts it.
+const agentEmojiPaletteSize = 16
+
+// agentEmojiPalette is a small set of neutral, visually distinct emoji used to
+// give each agent a consistent icon. Standard Slack emoji names only.
+var agentEmojiPalette = []string{
+	":fox_face:", ":cat:", ":dog:", ":koala:", ":tiger:",
+	":panda_face:", ":owl:", ":frog:", ":hedgehog:", ":otter:",
+	":rabbit:", ":bear:", ":wolf:", ":unicorn_face:", ":dragon_face:",
+	":robot_face:",
 }
 
 // SendFile uploads a file to a Slack channel.
