@@ -333,7 +333,7 @@ function LinkCard({ to, ariaLabel, icon, title, body }: { to: string; ariaLabel:
   return (
     <Link
       to={to}
-      aria-label={ariaLabel}
+      aria-label={`${ariaLabel} — ${title}`}
       className="group flex items-center gap-3 rounded-lg border border-mycel-border bg-mycel-bg px-3 py-2.5 hover:border-mycel-accent hover:bg-mycel-surface-hover transition-colors"
     >
       <span className="grid place-items-center w-8 h-8 rounded-lg bg-mycel-surface text-mycel-text-2 shrink-0 group-hover:text-mycel-accent transition-colors">

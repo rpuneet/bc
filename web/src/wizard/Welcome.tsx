@@ -65,12 +65,9 @@ function FilamentRail({
                 }`}
               />
             )}
-            <button
-              type="button"
-              disabled={!reachable}
-              onClick={() => reachable && onJump(i)}
-              aria-current={active ? "step" : undefined}
-              className={`relative z-10 mt-0.5 grid place-items-center w-3.5 h-3.5 rounded-full shrink-0 ${reachable ? "cursor-pointer" : "cursor-default"}`}
+            <span
+              aria-hidden
+              className="relative z-10 mt-0.5 grid place-items-center w-3.5 h-3.5 rounded-full shrink-0"
             >
               {active && (
                 <span className="absolute -inset-1 rounded-full bg-mycel-accent-subtle motion-reduce:hidden" />
@@ -92,11 +89,12 @@ function FilamentRail({
                 )}
                 {active && <span className="w-1 h-1 rounded-full bg-mycel-accent" />}
               </span>
-            </button>
+            </span>
             <button
               type="button"
               disabled={!reachable}
               onClick={() => reachable && onJump(i)}
+              aria-current={active ? "step" : undefined}
               className={`text-left -mt-0.5 ${reachable ? "cursor-pointer" : "cursor-default"}`}
             >
               <div className={`font-mono text-[10px] tracking-wider tabular-nums ${active ? "text-mycel-accent" : "text-mycel-muted"}`}>
