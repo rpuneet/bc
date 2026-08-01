@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { LiveStream } from "./LiveStream";
+import { MotionShot } from "./MotionShot";
 
 /**
  * The tabbed product hero (owner decision #1): the page centerpiece. One
@@ -29,6 +30,9 @@ type Tab = {
   title: string;
   caption: string;
   shot?: { dark: string; light: string; alt: string };
+  /** public/motion/<motion>-{dark,light}.{webm,mp4}: a live recording of
+   * this view, played in place of the static screenshot. */
+  motion?: { name: string; alt: string };
 };
 
 const TABS: Tab[] = [
@@ -38,10 +42,9 @@ const TABS: Tab[] = [
     title: "mycel — agents",
     caption:
       "Meet the fleet — every agent has a face, a status, and a running cost.",
-    shot: {
-      dark: "/screenshots/agents-dark.png",
-      light: "/screenshots/agents-light.png",
-      alt: "The mycel agents view: a fleet of agents with living character faces, grouped by repository, each with status, last activity, and cost",
+    motion: {
+      name: "agents",
+      alt: "The mycel agents view, live: a fleet of agents with breathing, blinking character faces, grouped by repository, each with status, last activity, and cost",
     },
   },
   {
@@ -69,10 +72,9 @@ const TABS: Tab[] = [
     title: "mycel — insights",
     caption:
       "Spend read straight from the source — by agent, by model, over time.",
-    shot: {
-      dark: "/screenshots/insights-dark.png",
-      light: "/screenshots/insights-light.png",
-      alt: "The insights view: total spend, token counts, burn rate, and cost broken down by agent and by model",
+    motion: {
+      name: "insights",
+      alt: "The insights view, live: total spend, tokens, and cache hit rate recomputing as the period switches between 7, 30, and 90 days",
     },
   },
 ];
@@ -137,7 +139,28 @@ export function HeroShowcase() {
                 aria-labelledby={`hero-tab-${active}`}
                 className="hero-panel aspect-[16/10] min-w-[680px] sm:min-w-0"
               >
-                {tab.shot ? (
+                {tab.motion ? (
+                  <>
+                    <MotionShot
+                      name={tab.motion.name}
+                      theme="dark"
+                      alt={tab.motion.alt}
+                      width={1440}
+                      height={900}
+                      priority={active === "agents"}
+                      className="shot-dark h-full w-full object-cover object-top"
+                    />
+                    <MotionShot
+                      name={tab.motion.name}
+                      theme="light"
+                      alt=""
+                      ariaHidden
+                      width={1440}
+                      height={900}
+                      className="shot-light h-full w-full object-cover object-top"
+                    />
+                  </>
+                ) : tab.shot ? (
                   <>
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
@@ -175,7 +198,7 @@ export function HeroShowcase() {
         <p className="font-body text-sm text-on-surface-variant">
           {tab.caption}
         </p>
-        {tab.shot && (
+        {(tab.shot || tab.motion) && (
           <p className="mt-1 font-label text-[11px] text-on-surface-variant/60 sm:hidden">
             swipe the panel to explore ›
           </p>
