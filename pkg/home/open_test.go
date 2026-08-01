@@ -471,8 +471,8 @@ func TestLoadRestoresRoles(t *testing.T) {
 	if h.Config == nil {
 		t.Fatal("Config is nil after load")
 	}
-	if h.Config.Version != 2 {
-		t.Errorf("ConfigVersion = %d, want 2", h.Config.Version)
+	if h.Config.Version != ConfigVersion {
+		t.Errorf("ConfigVersion = %d, want %d", h.Config.Version, ConfigVersion)
 	}
 	if h.RoleManager == nil {
 		t.Fatal("RoleManager is nil after load")

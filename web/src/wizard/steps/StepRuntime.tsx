@@ -1,13 +1,13 @@
 import { useEffect, useState } from "react";
 import { api } from "../../api/client";
 import { useReadiness } from "../../hooks/useReadiness";
+import { AdvancedToggle, RuntimePicker, type RuntimeChoice as RT } from "../../settings/controls";
 import { WizardFooter } from "../WizardFooter";
 import type { StepProps } from "../types";
 
 /* Step 2 — Runtime. Docker (isolated containers) or tmux (local sessions),
- * with an advanced expander. Writes prefs.runtime. */
-
-type RT = "docker" | "tmux";
+ * with an advanced expander. The runtime picker + advanced toggle are shared
+ * with Settings → Runtime (web/src/settings/controls). Writes prefs.runtime. */
 
 const NUM = "w-24 bg-mycel-bg border border-mycel-border rounded-md px-2 py-1 text-[12px] text-mycel-text font-mono outline-none focus:border-mycel-accent";
 const TXT = "w-full bg-mycel-bg border border-mycel-border rounded-md px-2 py-1 text-[12px] text-mycel-text font-mono outline-none focus:border-mycel-accent";
@@ -75,30 +75,6 @@ export function StepRuntime({ nav, draft, setDraft, settings, reloadSettings }: 
     }
   };
 
-  const Option = ({ id, title, body, recommended }: { id: RT; title: string; body: string; recommended?: boolean }) => {
-    const active = choice === id;
-    return (
-      <button
-        type="button"
-        onClick={() => setChoice(id)}
-        aria-pressed={active}
-        className={`flex-1 text-left flex flex-col gap-1 rounded-lg border p-4 transition-colors ${
-          active ? "border-mycel-accent bg-mycel-accent-subtle" : "border-mycel-border bg-mycel-surface hover:border-mycel-accent"
-        }`}
-      >
-        <div className="flex items-center gap-2">
-          <span className="text-[14px] font-semibold text-mycel-text">{title}</span>
-          {recommended && (
-            <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-mycel-accent-subtle text-mycel-accent">
-              Recommended
-            </span>
-          )}
-        </div>
-        <span className="text-[12px] text-mycel-text-2 leading-relaxed">{body}</span>
-      </button>
-    );
-  };
-
   return (
     <div className="flex flex-col gap-5">
       <p className="text-[14px] leading-relaxed text-mycel-text-2 max-w-prose">
@@ -106,10 +82,7 @@ export function StepRuntime({ nav, draft, setDraft, settings, reloadSettings }: 
         any time in Settings.
       </p>
 
-      <div className="flex flex-col sm:flex-row gap-3">
-        <Option id="docker" title="Docker" recommended body="Each agent gets a clean, isolated container. Safest default." />
-        <Option id="tmux" title="tmux" body="Agents run in local shell sessions on this machine. Lightweight, no Docker needed." />
-      </div>
+      <RuntimePicker value={choice} onChange={setChoice} />
 
       {choice === "docker" && dockerDown && (
         <div className="rounded-md border border-mycel-warning bg-mycel-warning-subtle px-3 py-2 text-[12px] text-mycel-warning">
@@ -118,13 +91,7 @@ export function StepRuntime({ nav, draft, setDraft, settings, reloadSettings }: 
         </div>
       )}
 
-      <button
-        type="button"
-        onClick={() => setAdvanced((v) => !v)}
-        className="self-start text-[12px] text-mycel-muted hover:text-mycel-text transition-colors"
-      >
-        {advanced ? "▾ Hide advanced" : "▸ Advanced settings"}
-      </button>
+      <AdvancedToggle open={advanced} onToggle={() => setAdvanced((v) => !v)} />
 
       {advanced && (
         <div className="rounded-lg border border-mycel-border bg-mycel-surface p-4 flex flex-col gap-4">

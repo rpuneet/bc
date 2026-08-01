@@ -1,15 +1,48 @@
 import { useCallback, useState, useEffect, useMemo } from "react";
 import { Link } from "react-router-dom";
-import { api } from "../api/client";
+import { api, type ProviderInfo, type BudgetStatus, type OnboardingState } from "../api/client";
 import { usePolling } from "../hooks/usePolling";
 import { LoadingSkeleton } from "../components/LoadingSkeleton";
 import { EmptyState } from "../components/EmptyState";
+import { useTheme } from "../context/ThemeContext";
+import { PROVIDER_LABELS } from "./readiness/readiness";
+import { WIZARD_STEPS } from "../wizard/types";
+import { ThemePicker, RuntimePicker, AdvancedToggle, systemPrefersDark, type ThemeChoice, type RuntimeChoice } from "../settings/controls";
 
-import { DependenciesSection } from "../components/settings/Dependencies";
 type SaveStatus = "idle" | "saving" | "saved" | "error";
 
-const SECTION_ORDER = ["server", "storage", "runtime", "providers", "logs"];
+/* ── Settings ──────────────────────────────────────────────────────────
+ *
+ * The ongoing-control mirror of the first-run wizard: the same options,
+ * grouped for day-to-day use. Each section leads with a simple default and
+ * tucks power-user knobs behind an Advanced expander (the same "▸ Advanced
+ * settings" affordance the wizard uses). Setup lives at the top so the
+ * wizard is a first-class part of Settings, not a link buried elsewhere.
+ *
+ * Settings is deliberately slim: it holds only config that has no other
+ * home. Surfaces that already own a top-level page — Providers/Tools
+ * (/tools) and Apps + notifications + keys (/apps) — appear as compact link
+ * cards that summarize and route out, never as duplicate config UI.
+ *
+ * Dirty-tracking, per-section PATCH, restart detection, and the floating
+ * save bar are preserved: edits to the config-backed sections (Profile,
+ * Runtime, Advanced) flow through handleSaveAll. Budgets and Setup manage
+ * their own state via their own endpoints. */
+
+// Config top-level keys the save bar tracks and PATCHes. Order drives the
+// "Unsaved: …" summary.
+const SECTION_ORDER = ["user", "ui", "runtime", "storage", "server", "logs"];
+// Sections whose changes require a daemon restart to take effect.
 const RESTART_SECTIONS = new Set(["server", "storage", "runtime"]);
+// Friendly names for the save bar (several config keys map to one UI section).
+const SECTION_LABELS: Record<string, string> = {
+  user: "Profile",
+  ui: "Profile",
+  runtime: "Runtime",
+  storage: "Storage",
+  server: "Server",
+  logs: "Logs",
+};
 
 function deepClone<T>(v: T): T {
   return JSON.parse(JSON.stringify(v));
@@ -20,10 +53,11 @@ function deepEqual(a: unknown, b: unknown): boolean {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Shared components                                                   */
+/*  Shared primitives                                                   */
 /* ------------------------------------------------------------------ */
 
 const INPUT_CLS = "w-full px-2 py-0.5 text-xs rounded-md border border-mycel-border bg-mycel-bg text-mycel-text font-mono focus:outline-none focus:ring-1 focus:ring-mycel-accent";
+const LINK_CLS = "inline-flex items-center h-8 px-3 rounded-md text-xs font-medium bg-mycel-surface border border-mycel-border text-mycel-text hover:bg-mycel-surface-hover transition-colors";
 
 function Field({ label, children, suffix }: { label: string; children: React.ReactNode; suffix?: string }) {
   return (
@@ -68,38 +102,51 @@ function PasswordField({ value, onChange }: { value: string; onChange: (v: strin
   );
 }
 
+/** A collapsed power-user block inside a section — the wizard's advanced card. */
+function Advanced({ children, label }: { children: React.ReactNode; label?: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="pt-1 space-y-2">
+      <AdvancedToggle open={open} onToggle={() => setOpen((v) => !v)} label={label} />
+      {open && (
+        <div className="rounded-lg border border-mycel-border bg-mycel-bg p-3 space-y-1.5">{children}</div>
+      )}
+    </div>
+  );
+}
+
 /* ------------------------------------------------------------------ */
 /*  Section wrapper                                                     */
 /* ------------------------------------------------------------------ */
 
 const SECTION_META: Record<string, { icon: React.ReactNode; desc: string }> = {
-  server: {
-    icon: <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2" />,
-    desc: "Host, port, and CORS settings",
+  setup: {
+    icon: <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />,
+    desc: "First-run wizard",
   },
-  storage: {
-    icon: <path strokeLinecap="round" strokeLinejoin="round" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4" />,
-    desc: "Database backend configuration",
+  profile: {
+    icon: <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />,
+    desc: "Name and theme",
+  },
+  "providers & tools": {
+    icon: <path strokeLinecap="round" strokeLinejoin="round" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />,
+    desc: "Agent tools and default model",
   },
   runtime: {
     icon: <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />,
-    desc: "Agent execution environment",
+    desc: "Where agents run",
   },
-  providers: {
-    icon: <path strokeLinecap="round" strokeLinejoin="round" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />,
-    desc: "AI provider commands",
+  apps: {
+    icon: <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" />,
+    desc: "Integrations, notifications, keys",
   },
-  logs: {
-    icon: <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />,
-    desc: "Log file location and rotation",
+  budgets: {
+    icon: <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />,
+    desc: "Cost caps",
   },
-  dependencies: {
-    icon: <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />,
-    desc: "Optional supporting services",
-  },
-  "injected instructions": {
-    icon: <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.129.166 2.27.293 3.423.379.35.026.67.21.865.501L12 21l2.755-4.133a1.14 1.14 0 01.865-.501 48.172 48.172 0 003.423-.379c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018z" />,
-    desc: "Sent to every agent at spawn",
+  advanced: {
+    icon: <path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" />,
+    desc: "Storage, server, logs, instructions",
   },
 };
 
@@ -107,12 +154,14 @@ function Section({
   title,
   dirty,
   children,
+  defaultOpen = true,
 }: {
   title: string;
   dirty: boolean;
   children: React.ReactNode;
+  defaultOpen?: boolean;
 }) {
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(defaultOpen);
   const meta = SECTION_META[title];
 
   return (
@@ -132,42 +181,254 @@ function Section({
           <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
         </svg>
       </button>
-      {open && <div className="px-3 pb-3 pt-1.5 space-y-1.5 border-t border-mycel-border">{children}</div>}
+      {open && <div className="px-3 pb-3 pt-2 space-y-2 border-t border-mycel-border">{children}</div>}
     </div>
   );
 }
 
 /* ------------------------------------------------------------------ */
-/*  Per-section renderers                                               */
+/*  Setup — onboarding progress + resume/re-run                          */
 /* ------------------------------------------------------------------ */
 
-function ServerSection({ data, onChange }: { data: Record<string, unknown>; onChange: (path: string[], v: unknown) => void }) {
-  const s = (data.server ?? {}) as Record<string, unknown>;
-  const configuredPort = Number(s.port ?? 0);
-  // The Settings page renders the *configured* port from settings.json,
-  // but the daemon may be running on an override (MYCEL_DAEMON_ADDR, --addr flag,
-  // or the legacy 9374 default if neither is set). Surface the actual
-  // listen port from the browser's connection so users see the live
-  // value alongside the editable config value.
-  const actualPort = typeof window !== "undefined" && window.location.port
-    ? Number(window.location.port)
-    : 0;
-  const portDrift = actualPort > 0 && actualPort !== configuredPort;
+function SetupSection() {
+  const [state, setState] = useState<OnboardingState | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    api.getOnboardingState()
+      .then((s) => { if (alive) setState(s); })
+      .catch(() => { /* Setup still offers Re-run without live state. */ });
+    return () => { alive = false; };
+  }, []);
+
+  const total = WIZARD_STEPS.length;
+  const done = (state?.completed ?? []).includes("done");
+  const finished = (state?.completed ?? []).filter((s) => s !== "done").length;
+  const pct = done ? 100 : Math.round((Math.min(finished, total) / total) * 100);
+  const complete = done || pct >= 100;
+
   return (
-    <>
-      <Field label="Host"><input className={INPUT_CLS} value={String(s.host ?? "")} onChange={(e) => onChange(["server", "host"], e.target.value)} /></Field>
-      <Field
-        label="Port"
-        suffix={portDrift ? `running on ${actualPort}` : actualPort > 0 ? "live" : undefined}
-      >
-        <input className={INPUT_CLS} type="number" value={configuredPort} onChange={(e) => onChange(["server", "port"], Number(e.target.value))} />
-      </Field>
-      <Field label="CORS Origin"><input className={INPUT_CLS} value={String(s.cors_origin ?? "")} onChange={(e) => onChange(["server", "cors_origin"], e.target.value)} /></Field>
-    </>
+    <div className="space-y-3">
+      <div className="flex items-start justify-between gap-3">
+        <p className="text-xs text-mycel-text-2 max-w-prose">
+          {complete
+            ? "Setup is complete. Re-run it any time to reconfigure — it only rewrites config and never touches your agents or connected apps."
+            : "Finish first-run setup — machine checks, runtime, an agent tool, and your first agent. It only writes config; your agents and apps are left untouched."}
+        </p>
+        <Link to="/welcome" className={`${LINK_CLS} shrink-0`}>
+          {complete ? "Re-run setup" : "Resume setup"}
+        </Link>
+      </div>
+
+      <div className="space-y-1.5">
+        <div className="flex items-center justify-between text-[10px] text-mycel-muted">
+          <span>{complete ? "Complete" : `Step ${Math.min(finished + 1, total)} of ${total}`}</span>
+          <span>{pct}%</span>
+        </div>
+        <div className="h-1.5 rounded-full bg-mycel-bg border border-mycel-border overflow-hidden">
+          <div className="h-full bg-mycel-accent transition-all" style={{ width: `${pct}%` }} />
+        </div>
+      </div>
+    </div>
   );
 }
 
-function StorageSection({ data, onChange }: { data: Record<string, unknown>; onChange: (path: string[], v: unknown) => void }) {
+/* ------------------------------------------------------------------ */
+/*  Link cards — surfaces that own a top-level page. Settings summarizes  */
+/*  and points; it never duplicates their config UI.                     */
+/* ------------------------------------------------------------------ */
+
+function ProvidersToolsCard({ data }: { data: Record<string, unknown> }) {
+  const p = (data.providers ?? {}) as Record<string, unknown>;
+  const defaultProvider = String(p.default ?? "claude");
+  const [installed, setInstalled] = useState<number | null>(null);
+  const [total, setTotal] = useState<number | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    api.listProviders()
+      .then((list: ProviderInfo[]) => {
+        if (!alive) return;
+        setTotal(list.length);
+        setInstalled(list.filter((pi) => pi.installed).length);
+      })
+      .catch(() => { /* summary degrades to the default provider alone */ });
+    return () => { alive = false; };
+  }, []);
+
+  const counts = installed !== null && total !== null ? ` · ${installed}/${total} installed` : "";
+
+  return (
+    <div className="flex items-center justify-between gap-3 min-h-[28px]">
+      <p className="text-xs text-mycel-text-2">
+        <span className="text-mycel-text font-medium">Default: {PROVIDER_LABELS[defaultProvider] ?? defaultProvider}</span>
+        {counts}. Install tools, sign in, and set the default model on the Tools page.
+      </p>
+      <Link to="/tools" className={`${LINK_CLS} shrink-0`}>Open Tools &amp; Providers →</Link>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Runtime                                                             */
+/* ------------------------------------------------------------------ */
+
+function RuntimeSection({ data, onChange }: { data: Record<string, unknown>; onChange: (path: string[], v: unknown) => void }) {
+  const r = (data.runtime ?? {}) as Record<string, unknown>;
+  const mode = (String(r.default ?? "docker") === "docker" ? "docker" : "tmux") as RuntimeChoice;
+  const docker = (r.docker ?? {}) as Record<string, unknown>;
+  const tmux = (r.tmux ?? {}) as Record<string, unknown>;
+
+  // The runtime pref stores "local" for tmux historically; map picker → pref.
+  const setRuntime = (choice: RuntimeChoice) =>
+    onChange(["runtime", "default"], choice === "docker" ? "docker" : "tmux");
+
+  return (
+    <div className="space-y-3">
+      <RuntimePicker value={mode} onChange={setRuntime} />
+      <Advanced label={mode === "docker" ? "Docker tuning" : "tmux tuning"}>
+        {mode === "docker" ? (
+          <>
+            <Field label="Image"><input className={INPUT_CLS} value={String(docker.image ?? "")} onChange={(e) => onChange(["runtime", "docker", "image"], e.target.value)} /></Field>
+            <Field label="Network"><input className={INPUT_CLS} value={String(docker.network ?? "")} onChange={(e) => onChange(["runtime", "docker", "network"], e.target.value)} /></Field>
+            <Field label="Docker Socket"><input className={INPUT_CLS} value={String(docker.docker_socket_path ?? "")} onChange={(e) => onChange(["runtime", "docker", "docker_socket_path"], e.target.value)} /></Field>
+            <Field label="CPUs"><input className={INPUT_CLS} type="number" value={Number(docker.cpus ?? 2)} onChange={(e) => onChange(["runtime", "docker", "cpus"], Number(e.target.value))} /></Field>
+            <Field label="Memory" suffix="MB"><input className={INPUT_CLS} type="number" value={Number(docker.memory_mb ?? 4096)} onChange={(e) => onChange(["runtime", "docker", "memory_mb"], Number(e.target.value))} /></Field>
+          </>
+        ) : (
+          <>
+            <Field label="Session Prefix"><input className={INPUT_CLS} value={String(tmux.session_prefix ?? "")} onChange={(e) => onChange(["runtime", "tmux", "session_prefix"], e.target.value)} /></Field>
+            <Field label="History Limit"><input className={INPUT_CLS} type="number" value={Number(tmux.history_limit ?? 10000)} onChange={(e) => onChange(["runtime", "tmux", "history_limit"], Number(e.target.value))} /></Field>
+            <Field label="Default Shell"><input className={INPUT_CLS} value={String(tmux.default_shell ?? "")} onChange={(e) => onChange(["runtime", "tmux", "default_shell"], e.target.value)} /></Field>
+          </>
+        )}
+      </Advanced>
+    </div>
+  );
+}
+
+function AppsCard() {
+  const [count, setCount] = useState<number | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    api.getApps()
+      .then((res) => { if (alive) setCount((res.instances ?? []).filter((i) => i.connected).length); })
+      .catch(() => { if (alive) setCount(0); });
+    return () => { alive = false; };
+  }, []);
+
+  const summary =
+    count === null ? "Loading…"
+      : count === 0 ? "No apps connected"
+        : `${count} app${count === 1 ? "" : "s"} connected`;
+
+  return (
+    <div className="flex items-center justify-between gap-3 min-h-[28px]">
+      <p className="text-xs text-mycel-text-2">
+        <span className="text-mycel-text font-medium">{summary}.</span>{" "}
+        Manage integrations, notification delivery, and API keys on the Apps page.
+      </p>
+      <Link to="/apps" className={`${LINK_CLS} shrink-0`}>Manage apps →</Link>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Budgets — cost caps (own endpoints, not the settings PATCH)         */
+/* ------------------------------------------------------------------ */
+
+function BudgetsSection() {
+  const fetcher = useCallback(() => api.getCostBudgets(), []);
+  const { data, refresh } = usePolling<BudgetStatus[]>(fetcher, 30000);
+  const budgets = data ?? [];
+  const workspace = budgets.find((b) => b.scope === "workspace");
+
+  const [limit, setLimit] = useState("");
+  const [status, setStatus] = useState<SaveStatus>("idle");
+
+  const wsLimit = workspace?.limit_usd;
+  useEffect(() => {
+    if (wsLimit !== undefined) setLimit(String(wsLimit));
+  }, [wsLimit]);
+
+  const save = async () => {
+    const value = Number(limit);
+    setStatus("saving");
+    try {
+      if (!limit.trim() || value <= 0) {
+        await api.deleteCostBudget("workspace").catch(() => { /* nothing to remove */ });
+      } else {
+        await api.createCostBudget({ scope: "workspace", period: "monthly", limit_usd: value, alert_at: 0.8 });
+      }
+      refresh();
+      setStatus("saved");
+      setTimeout(() => setStatus("idle"), 2000);
+    } catch {
+      setStatus("error");
+    }
+  };
+
+  const perAgent = budgets.filter((b) => b.scope.startsWith("agent:"));
+
+  return (
+    <div className="space-y-3">
+      <Field label="Monthly cap" suffix="alerts at 80%">
+        <div className="flex items-center gap-1.5 flex-1">
+          <span className="text-xs text-mycel-muted">$</span>
+          <input
+            type="number"
+            min={0}
+            step={5}
+            value={limit}
+            placeholder="No limit"
+            onChange={(e) => setLimit(e.target.value)}
+            className={INPUT_CLS}
+          />
+          <button
+            type="button"
+            onClick={save}
+            disabled={status === "saving"}
+            className="shrink-0 inline-flex items-center h-7 px-2.5 rounded-md text-xs font-medium bg-mycel-accent text-mycel-accent-fg hover:bg-mycel-accent-hover shadow-mycel-sm transition-all disabled:opacity-50"
+          >
+            {status === "saving" ? "Saving…" : "Save"}
+          </button>
+        </div>
+      </Field>
+      {status === "saved" && <p className="text-[11px] text-mycel-success">Budget saved.</p>}
+      {status === "error" && <p className="text-[11px] text-mycel-error">Couldn&apos;t save the budget.</p>}
+
+      {perAgent.length > 0 && (
+        <div className="rounded-lg border border-mycel-border bg-mycel-bg divide-y divide-mycel-border overflow-hidden">
+          {perAgent.map((b) => (
+            <div key={b.scope} className="flex items-center justify-between gap-3 px-3 py-2 text-xs">
+              <span className="text-mycel-text truncate">{b.scope.replace(/^agent:/, "")}</span>
+              <span className="text-mycel-muted shrink-0">${b.limit_usd}/{b.period}</span>
+              <button
+                type="button"
+                onClick={() => void api.deleteCostBudget(b.scope).then(refresh)}
+                className="text-mycel-muted hover:text-mycel-error shrink-0"
+                title="Remove cap"
+              >
+                Remove
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+      <p className="text-[11px] text-mycel-muted">
+        Set per-agent caps from an agent&apos;s page. Caps compare against spend computed from provider
+        usage.
+      </p>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Advanced — storage, server, logs, injected instructions             */
+/* ------------------------------------------------------------------ */
+
+function StorageFields({ data, onChange }: { data: Record<string, unknown>; onChange: (path: string[], v: unknown) => void }) {
   const s = (data.storage ?? {}) as Record<string, unknown>;
   const backend = String(s.default ?? "sqlite");
   const ts = (s.timescale ?? {}) as Record<string, unknown>;
@@ -177,8 +438,8 @@ function StorageSection({ data, onChange }: { data: Record<string, unknown>; onC
     <>
       <Field label="Backend">
         <select value={backend} onChange={(e) => onChange(["storage", "default"], e.target.value)} className={INPUT_CLS}>
+          <option value="sqlite">SQLite (default)</option>
           <option value="timescale">TimescaleDB</option>
-          <option value="sqlite">SQLite</option>
         </select>
       </Field>
       {backend === "timescale" ? (
@@ -196,69 +457,27 @@ function StorageSection({ data, onChange }: { data: Record<string, unknown>; onC
   );
 }
 
-function RuntimeSection({ data, onChange }: { data: Record<string, unknown>; onChange: (path: string[], v: unknown) => void }) {
-  const r = (data.runtime ?? {}) as Record<string, unknown>;
-  const mode = String(r.default ?? "docker");
-  const docker = (r.docker ?? {}) as Record<string, unknown>;
-  const tmux = (r.tmux ?? {}) as Record<string, unknown>;
-
+function ServerFields({ data, onChange }: { data: Record<string, unknown>; onChange: (path: string[], v: unknown) => void }) {
+  const s = (data.server ?? {}) as Record<string, unknown>;
+  const configuredPort = Number(s.port ?? 0);
+  const actualPort = typeof window !== "undefined" && window.location.port ? Number(window.location.port) : 0;
+  const portDrift = actualPort > 0 && actualPort !== configuredPort;
   return (
     <>
-      <Field label="Runtime">
-        <select value={mode} onChange={(e) => onChange(["runtime", "default"], e.target.value)} className={INPUT_CLS}>
-          <option value="docker">Docker</option>
-          <option value="local">Local (tmux)</option>
-          <option disabled>Kubernetes (coming soon)</option>
-        </select>
+      <p className="text-[11px] text-mycel-muted">
+        The daemon binds loopback (127.0.0.1) by default and the desktop app fixes it there. Only
+        change these if you run mycel as a shared server.
+      </p>
+      <Field label="Host"><input className={INPUT_CLS} value={String(s.host ?? "")} onChange={(e) => onChange(["server", "host"], e.target.value)} /></Field>
+      <Field label="Port" suffix={portDrift ? `running on ${actualPort}` : actualPort > 0 ? "live" : undefined}>
+        <input className={INPUT_CLS} type="number" value={configuredPort} onChange={(e) => onChange(["server", "port"], Number(e.target.value))} />
       </Field>
-      {mode === "docker" ? (
-        <>
-          <Field label="Image"><input className={INPUT_CLS} value={String(docker.image ?? "")} onChange={(e) => onChange(["runtime", "docker", "image"], e.target.value)} /></Field>
-          <Field label="Network"><input className={INPUT_CLS} value={String(docker.network ?? "")} onChange={(e) => onChange(["runtime", "docker", "network"], e.target.value)} /></Field>
-          <Field label="Docker Socket"><input className={INPUT_CLS} value={String(docker.docker_socket_path ?? "")} onChange={(e) => onChange(["runtime", "docker", "docker_socket_path"], e.target.value)} /></Field>
-          <Field label="CPUs"><input className={INPUT_CLS} type="number" value={Number(docker.cpus ?? 2)} onChange={(e) => onChange(["runtime", "docker", "cpus"], Number(e.target.value))} /></Field>
-          <Field label="Memory" suffix="MB"><input className={INPUT_CLS} type="number" value={Number(docker.memory_mb ?? 4096)} onChange={(e) => onChange(["runtime", "docker", "memory_mb"], Number(e.target.value))} /></Field>
-        </>
-      ) : (
-        <>
-          <Field label="Session Prefix"><input className={INPUT_CLS} value={String(tmux.session_prefix ?? "")} onChange={(e) => onChange(["runtime", "tmux", "session_prefix"], e.target.value)} /></Field>
-          <Field label="History Limit"><input className={INPUT_CLS} type="number" value={Number(tmux.history_limit ?? 10000)} onChange={(e) => onChange(["runtime", "tmux", "history_limit"], Number(e.target.value))} /></Field>
-          <Field label="Default Shell"><input className={INPUT_CLS} value={String(tmux.default_shell ?? "")} onChange={(e) => onChange(["runtime", "tmux", "default_shell"], e.target.value)} /></Field>
-        </>
-      )}
+      <Field label="CORS Origin"><input className={INPUT_CLS} value={String(s.cors_origin ?? "")} onChange={(e) => onChange(["server", "cors_origin"], e.target.value)} /></Field>
     </>
   );
 }
 
-function ProvidersSection({ data, onChange }: { data: Record<string, unknown>; onChange: (path: string[], v: unknown) => void }) {
-  const p = (data.providers ?? {}) as Record<string, unknown>;
-  const defaultProvider = String(p.default ?? "claude");
-  const providers = (p.providers ?? {}) as Record<string, Record<string, unknown>>;
-  const providerKeys = Object.keys(providers);
-
-  return (
-    <div className="space-y-1.5">
-      <Field label="Default">
-        <select value={defaultProvider} onChange={(e) => onChange(["providers", "default"], e.target.value)} className={INPUT_CLS}>
-          {providerKeys.map((k) => <option key={k} value={k}>{k}</option>)}
-        </select>
-      </Field>
-      {providerKeys.map((k) => (
-        <Field key={k} label={k}>
-          <input
-            className={INPUT_CLS}
-            value={String(providers[k]?.command ?? "")}
-            title={String(providers[k]?.command ?? "") || "command"}
-            onChange={(e) => onChange(["providers", "providers", k, "command"], e.target.value)}
-            placeholder="command"
-          />
-        </Field>
-      ))}
-    </div>
-  );
-}
-
-function LogsSection({ data, onChange }: { data: Record<string, unknown>; onChange: (path: string[], v: unknown) => void }) {
+function LogsFields({ data, onChange }: { data: Record<string, unknown>; onChange: (path: string[], v: unknown) => void }) {
   const l = (data.logs ?? {}) as Record<string, unknown>;
   const maxBytes = Number(l.max_bytes ?? 0);
   const maxMB = Math.round(maxBytes / 1048576);
@@ -269,10 +488,6 @@ function LogsSection({ data, onChange }: { data: Record<string, unknown>; onChan
     </>
   );
 }
-
-/* ------------------------------------------------------------------ */
-/*  Injected instructions — mycel-authored text pushed to every agent   */
-/* ------------------------------------------------------------------ */
 
 function InjectedInstructionsSection() {
   const [text, setText] = useState("");
@@ -310,23 +525,18 @@ function InjectedInstructionsSection() {
   return (
     <div className="space-y-2">
       <p className="text-[11px] text-mycel-muted">
-        Appended to every agent&apos;s prompt file at spawn, followed by an
-        auto-generated summary of its available MCP servers and credential
-        env var names. Secret values are never included.
+        Appended to every agent&apos;s prompt file at spawn, followed by an auto-generated summary of
+        its MCP servers and credential env var names. Secret values are never included.
       </p>
       <textarea
-        className={`${INPUT_CLS} h-40 resize-y leading-relaxed`}
+        className={`${INPUT_CLS} h-32 resize-y leading-relaxed`}
         placeholder="e.g. Always report status before and after work. Prefer small PRs."
         value={text}
         onChange={(e) => setText(e.target.value)}
       />
       <div className="flex items-center justify-end gap-2">
-        {status === "saved" && (
-          <span className="text-xs text-mycel-success">Saved</span>
-        )}
-        {status === "error" && (
-          <span className="text-xs text-mycel-error">Save failed</span>
-        )}
+        {status === "saved" && <span className="text-xs text-mycel-success">Saved</span>}
+        {status === "error" && <span className="text-xs text-mycel-error">Save failed</span>}
         <button
           type="button"
           onClick={handleSave}
@@ -347,6 +557,7 @@ function InjectedInstructionsSection() {
 export function Settings() {
   const fetcher = useCallback(() => api.getSettings(), []);
   const { data: config, loading, error, refresh, timedOut } = usePolling(fetcher, 30000);
+  const { setTheme } = useTheme();
 
   const [edited, setEdited] = useState<Record<string, unknown> | null>(null);
   const [original, setOriginal] = useState<Record<string, unknown> | null>(null);
@@ -368,6 +579,12 @@ export function Settings() {
     );
   }, [edited, original]);
 
+  // De-duplicated friendly labels for the save bar (user+ui → one "Profile").
+  const dirtyLabels = useMemo(
+    () => Array.from(new Set(dirtySections.map((k) => SECTION_LABELS[k] ?? k))),
+    [dirtySections],
+  );
+
   const handleChange = (path: string[], newValue: unknown) => {
     if (!edited || path.length === 0) return;
     const next = deepClone(edited);
@@ -381,6 +598,31 @@ export function Settings() {
     }
     cursor[path[path.length - 1]!] = newValue;
     setEdited(next);
+  };
+
+  // Theme lives in two coupled fields (ui.theme + ui.mode). Set both in one
+  // clone and preview live so the page reflects the choice immediately.
+  const handleThemeChange = (choice: ThemeChoice) => {
+    if (!edited) return;
+    const resolved = choice === "system" ? (systemPrefersDark() ? "dark" : "light") : choice;
+    setTheme(resolved);
+    const next = deepClone(edited);
+    const ui = (typeof next.ui === "object" && next.ui !== null ? next.ui : {}) as Record<string, unknown>;
+    next.ui = { ...ui, theme: resolved, mode: choice === "system" ? "auto" : resolved };
+    setEdited(next);
+  };
+
+  const currentThemeChoice = ((): ThemeChoice => {
+    const ui = (edited?.ui ?? {}) as Record<string, unknown>;
+    if (String(ui.mode ?? "") === "auto") return "system";
+    const t = String(ui.theme ?? "dark");
+    return t === "light" ? "light" : "dark";
+  })();
+
+  const revertTheme = () => {
+    const ui = (original?.ui ?? {}) as Record<string, unknown>;
+    const t = String(ui.theme ?? "dark");
+    setTheme(t === "light" ? "light" : "dark");
   };
 
   const handleSaveAll = async () => {
@@ -419,13 +661,11 @@ export function Settings() {
   if (!config || !edited || !original) return null;
 
   const version = edited.version;
+  const isDirty = (...keys: string[]) => keys.some((k) => dirtySections.includes(k));
+  const userName = String(((edited.user ?? {}) as Record<string, unknown>).name ?? "");
 
   return (
-    <div className="p-4 md:p-6 space-y-3">
-      {/* File metadata badge — the source of truth for what these
-          settings map to on disk. Small chip with a bordered file
-          glyph so it reads as chrome, not as a subtitle competing
-          with the page header above. */}
+    <div className="p-4 md:p-6 space-y-3 max-w-3xl mx-auto">
       <div className="flex items-center gap-2">
         <span className="inline-flex items-center gap-1.5 text-[10px] font-mono px-2 py-1 rounded-md border border-mycel-border bg-mycel-surface-hover text-mycel-muted">
           <svg width="10" height="10" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
@@ -436,8 +676,6 @@ export function Settings() {
         </span>
       </div>
 
-      {/* Saved confirmation toast — visible briefly after a successful save
-          when no other sections are dirty. */}
       {saveStatus === "saved" && dirtySections.length === 0 && (
         <div className="fixed bottom-4 right-4 z-30 rounded-lg border border-mycel-success bg-mycel-success-subtle px-3 py-2 text-xs text-mycel-success shadow-mycel-lg">
           Saved
@@ -449,7 +687,7 @@ export function Settings() {
         <div className="sticky top-0 z-20 rounded-lg border border-mycel-accent bg-mycel-accent-subtle backdrop-blur px-3 py-2 flex items-center justify-between gap-3 shadow-mycel">
           <div className="text-xs text-mycel-text min-w-0">
             <span className="font-medium">Unsaved:</span>{" "}
-            <span className="text-mycel-muted">{dirtySections.join(", ")}</span>
+            <span className="text-mycel-muted">{dirtyLabels.join(", ")}</span>
             {dirtySections.some((k) => RESTART_SECTIONS.has(k)) && (
               <span className="ml-2 text-mycel-accent">Restart required after save</span>
             )}
@@ -459,6 +697,7 @@ export function Settings() {
               type="button"
               onClick={() => {
                 if (original) setEdited(deepClone(original));
+                revertTheme();
                 setSaveStatus("idle");
               }}
               disabled={saveStatus === "saving"}
@@ -482,69 +721,67 @@ export function Settings() {
         </div>
       )}
 
-      {saveStatus === "saved" && dirtySections.length === 0 && !restartWarning && (
-        <div className="rounded-md border border-mycel-success bg-mycel-success-subtle px-3 py-1.5 text-xs text-mycel-success">
-          Changes saved.
-        </div>
-      )}
-
       {restartWarning && (
         <div className="rounded-md border border-mycel-error bg-mycel-error-subtle px-3 py-1.5 text-xs text-mycel-error">
           Changes saved. Restart mycel to apply (<code className="font-mono">mycel down &amp;&amp; mycel up -d</code>)
         </div>
       )}
 
-      {/* Row 1: Server + Storage side by side */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-        <Section title="server" dirty={dirtySections.includes("server")}>
-          <ServerSection data={edited} onChange={handleChange} />
-        </Section>
-        <Section title="storage" dirty={dirtySections.includes("storage")}>
-          <StorageSection data={edited} onChange={handleChange} />
-        </Section>
-      </div>
-
-      {/* Row 2: Runtime + Providers side by side */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-        <Section title="runtime" dirty={dirtySections.includes("runtime")}>
-          <RuntimeSection data={edited} onChange={handleChange} />
-        </Section>
-        <Section title="providers" dirty={dirtySections.includes("providers")}>
-          <ProvidersSection data={edited} onChange={handleChange} />
-        </Section>
-      </div>
-
-      {/* Row 3: Logs */}
-      <div className="grid grid-cols-1 gap-3">
-        <Section title="logs" dirty={dirtySections.includes("logs")}>
-          <LogsSection data={edited} onChange={handleChange} />
-        </Section>
-      </div>
-
-      {/* Row 4: Injected instructions (sent to every agent) */}
-      <Section title="injected instructions" dirty={false}>
-        <InjectedInstructionsSection />
-      </Section>
-
-      {/* Row 5: Optional dependencies (mycel-db, mycel-code-server, mycel-browser) */}
-      <Section title="dependencies" dirty={false}>
-        <DependenciesSection />
-      </Section>
-
-      {/* Row 6: Re-run the first-run setup wizard. */}
       <Section title="setup" dirty={false}>
-        <div className="flex items-center justify-between gap-3 min-h-[28px]">
-          <p className="text-xs text-mycel-text-2">
-            Walk through first-run setup again — checks, runtime, provider, and your first agent.
-            It only writes config; your agents and connected apps are left untouched.
-          </p>
-          <Link
-            to="/welcome"
-            className="shrink-0 inline-flex items-center h-8 px-3 rounded-md text-xs font-medium bg-mycel-surface border border-mycel-border text-mycel-text hover:bg-mycel-surface-hover transition-colors"
-          >
-            Re-run setup
-          </Link>
+        <SetupSection />
+      </Section>
+
+      <Section title="profile" dirty={isDirty("user", "ui")}>
+        <Field label="Name">
+          <input
+            className={INPUT_CLS}
+            value={userName}
+            maxLength={30}
+            placeholder="Your name"
+            onChange={(e) => handleChange(["user", "name"], e.target.value)}
+          />
+        </Field>
+        <div className="flex items-start gap-2 min-h-[28px] pt-1">
+          <label className="text-xs text-mycel-text-2 w-28 shrink-0">Theme</label>
+          <ThemePicker value={currentThemeChoice} onChange={handleThemeChange} />
         </div>
+      </Section>
+
+      {/* Providers/Tools own the /tools page; Settings only summarizes. The
+          default-model + per-provider controls that write prefs.providers
+          live there (follow-up PR). */}
+      <Section title="providers & tools" dirty={false}>
+        <ProvidersToolsCard data={edited} />
+      </Section>
+
+      <Section title="runtime" dirty={isDirty("runtime")}>
+        <RuntimeSection data={edited} onChange={handleChange} />
+      </Section>
+
+      <Section title="budgets" dirty={false}>
+        <BudgetsSection />
+      </Section>
+
+      {/* Apps owns integrations, notification delivery, and API keys on the
+          /apps page; Settings only summarizes and links out. The
+          prefs.notifications{} controls surface there (follow-up PR). */}
+      <Section title="apps" dirty={false}>
+        <AppsCard />
+      </Section>
+
+      <Section title="advanced" dirty={isDirty("storage", "server", "logs")} defaultOpen={false}>
+        <Advanced label="Storage">
+          <StorageFields data={edited} onChange={handleChange} />
+        </Advanced>
+        <Advanced label="Server">
+          <ServerFields data={edited} onChange={handleChange} />
+        </Advanced>
+        <Advanced label="Logs">
+          <LogsFields data={edited} onChange={handleChange} />
+        </Advanced>
+        <Advanced label="Injected instructions">
+          <InjectedInstructionsSection />
+        </Advanced>
       </Section>
     </div>
   );
