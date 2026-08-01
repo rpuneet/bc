@@ -429,7 +429,6 @@ export const AgentCard = memo(function AgentCard({
   const shownNodes = restNodes.slice(0, LIVE_CARD_MAX_ROWS);
   const hiddenCount = restNodes.length - shownNodes.length;
 
-  const runningCount = runningNodes.length;
   const errorCount = flatNodes.filter((n) => n.status === "failed").length;
   const matchCount = searchTerm ? visibleNodes.length : 0;
   const showToolNodes = typeFilter !== "state";
@@ -448,7 +447,7 @@ export const AgentCard = memo(function AgentCard({
         <button
           type="button"
           onClick={(e) => { e.stopPropagation(); onToggle(); }}
-          className="flex items-center gap-3 px-3 py-3 hover:bg-mycel-surface-hover transition-colors text-left focus-visible:ring-2 focus-visible:ring-mycel-accent shrink-0"
+          className="flex items-center justify-center min-h-[44px] min-w-[44px] hover:bg-mycel-surface-hover transition-colors focus-visible:ring-2 focus-visible:ring-mycel-accent shrink-0"
           aria-label={`${activity.collapsed ? "Expand" : "Collapse"} ${activity.name} tool list`}
         >
           <motion.svg
@@ -522,31 +521,27 @@ export const AgentCard = memo(function AgentCard({
             </span>
           )}
 
-          <span className="ml-auto flex items-center gap-3 shrink-0">
-            {runningCount > 0 && (
-              <span className="text-[11px] text-mycel-accent font-mono tabular-nums">
-                {runningCount} running
-              </span>
-            )}
-            {/* Cost -- prominent */}
+          {/* Quiet secondary metadata — cost + tokens as muted, right-
+              aligned figures (tabular-nums so they don't jitter). The
+              running count is intentionally NOT shown here: the pinned
+              "Running n" section header below already labels it, and
+              duplicating it in the toolbar was noise. */}
+          <span className="ml-auto flex items-center gap-3 shrink-0 text-[11px] font-mono tabular-nums text-mycel-muted">
             {cost > 0 && (
-              <span className="text-xs font-semibold text-mycel-success font-mono tabular-nums px-1.5 py-0.5 rounded bg-mycel-success-subtle" title={activity.costUsd > 0 ? "From API" : "Estimated from tokens"}>
+              <span className="text-mycel-text-2" title={activity.costUsd > 0 ? "From API" : "Estimated from tokens"}>
                 ${cost.toFixed(2)}
               </span>
             )}
-            {/* Tokens */}
             {activity.tokens > 0 && (
-              <span className="text-[11px] text-mycel-muted font-mono tabular-nums">
-                {activity.tokens.toLocaleString()} tok
-              </span>
+              <span>{activity.tokens.toLocaleString()} tok</span>
             )}
             {/* Idle chip */}
             {isIdle && activity.lastEventTime > 0 && (
-              <span className="text-[10px] text-mycel-muted font-mono px-1.5 py-0.5 rounded bg-mycel-surface-hover">
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-mycel-surface-hover">
                 <IdleTimer lastEventTime={activity.lastEventTime} />
               </span>
             )}
-            <span className="text-[11px] text-mycel-muted group-hover:text-mycel-accent transition-colors hidden sm:inline">
+            <span className="text-mycel-muted group-hover:text-mycel-accent transition-colors hidden sm:inline">
               &rarr;
             </span>
           </span>
