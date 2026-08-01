@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 )
@@ -53,6 +54,33 @@ func TestAvatarHostAllowed(t *testing.T) {
 		if got := avatarHostAllowed(tt.host); got != tt.want {
 			t.Errorf("avatarHostAllowed(%q) = %v, want %v", tt.host, got, tt.want)
 		}
+	}
+}
+
+func TestAvatarCheckRedirect(t *testing.T) {
+	mkReq := func(rawURL string) *http.Request {
+		u, err := url.Parse(rawURL)
+		if err != nil {
+			t.Fatalf("parse %q: %v", rawURL, err)
+		}
+		return &http.Request{URL: u}
+	}
+
+	// Redirect that stays on an allowlisted host is followed.
+	if err := avatarCheckRedirect(mkReq("https://media.whatsapp.net/x.jpg"), nil); err != nil {
+		t.Fatalf("allowlisted redirect rejected: %v", err)
+	}
+	// Redirect to a non-allowlisted host is blocked (SSRF via 30x).
+	if err := avatarCheckRedirect(mkReq("https://169.254.169.254/latest/meta-data/"), nil); err == nil {
+		t.Fatal("redirect to disallowed host should be blocked")
+	}
+	if err := avatarCheckRedirect(mkReq("https://evil.com/steal"), nil); err == nil {
+		t.Fatal("redirect to evil.com should be blocked")
+	}
+	// Redirect chains are capped even when every hop is allowlisted.
+	via := make([]*http.Request, 5)
+	if err := avatarCheckRedirect(mkReq("https://pps.whatsapp.net/x.jpg"), via); err == nil {
+		t.Fatal("redirect chain over the cap should be blocked")
 	}
 }
 
