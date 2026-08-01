@@ -7,6 +7,7 @@ import { useWebSocket } from "../hooks/useWebSocket";
 import { StatusBadge } from "../components/StatusBadge";
 import { EmptyState } from "../components/EmptyState";
 import { EventRow } from "../components/live/EventRow";
+import { activityItemToNode } from "../components/live/liveHelpers";
 import type { ToolNode } from "../components/live/liveTypes";
 import { truncate } from "../utils/text";
 import { formatAbsolute, formatRelative } from "../utils/time";
@@ -162,29 +163,15 @@ function formatCostCompact(n: number): string {
 const PEEK_EVENT_LIMIT = 12;
 
 /** Turn a persisted activity row into a ToolNode for the shared EventRow.
- *  Same normalization the Live hydration path uses: tool_name from the
- *  event data when present, message stripped of its "Tool: " prefix as
- *  the summary, raw event data as the expandable input JSON. */
-function peekItemToNode(item: AgentActivityItem, idx: number): ToolNode {
-  const toolName =
-    typeof item.data?.tool_name === "string" && item.data.tool_name !== ""
-      ? item.data.tool_name
-      : item.event || "unknown";
-  let args = item.message ?? "";
-  if (args.startsWith(`${toolName}: `)) args = args.slice(toolName.length + 2);
-  else if (args === toolName) args = "";
-  const ts = item.timestamp ? Date.parse(item.timestamp) : NaN;
-  return {
-    id: `peek-${item.timestamp}-${String(idx)}`,
-    toolName,
-    args,
-    fullInput: item.data ?? null,
-    fullOutput: item.data?.tool_response ?? null,
-    status: "completed",
-    startTime: Number.isNaN(ts) ? Date.now() : ts,
-    endTime: undefined,
-    children: [],
-  };
+ *  Delegates to the same `activityItemToNode` the Live hydration path uses
+ *  so a row reads identically here and in the full Live/Raw stream —
+ *  preferring the human-written `tool_input.description` (e.g. a Bash
+ *  call's one-line summary) over the raw command, and falling back to the
+ *  historical message only when no structured tool_input is present. Only
+ *  the id is re-keyed so peek rows stay stable within this feed. */
+export function peekItemToNode(item: AgentActivityItem, idx: number): ToolNode {
+  const node = activityItemToNode(item);
+  return { ...node, id: `peek-${item.timestamp}-${String(idx)}` };
 }
 
 /** The ⊕-row content: the agent's recent hook events rendered with the

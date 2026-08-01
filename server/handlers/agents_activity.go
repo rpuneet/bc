@@ -19,15 +19,21 @@ type activityItem struct { //nolint:govet // field order matches JSON contract
 
 // toActivityItem normalizes an events.Event into the timeline DTO consumed by
 // both the per-agent activity timeline and the cross-agent Live hydration
-// endpoint. The mapping rules (tool_name + tool_input.command > message, plus
-// hook./agent. prefix stripping) live here so both surfaces stay in sync.
+// endpoint. The mapping rules (tool_name + tool_input.description/command >
+// message, plus hook./agent. prefix stripping) live here so both surfaces
+// stay in sync.
 func toActivityItem(e events.Event, includeAgent bool) activityItem {
 	msg := ""
 	if e.Data != nil {
 		if toolName, ok := e.Data["tool_name"].(string); ok && toolName != "" {
 			msg = toolName
 			if toolInput, ok2 := e.Data["tool_input"].(map[string]any); ok2 {
-				if cmd, ok3 := toolInput["command"].(string); ok3 && cmd != "" {
+				// Prefer the human-written description (e.g. a Bash call's
+				// one-line summary) over the raw command — it is the richer
+				// title and is what the web UI's row title should show.
+				if desc, ok3 := toolInput["description"].(string); ok3 && desc != "" {
+					msg += ": " + desc
+				} else if cmd, ok3 := toolInput["command"].(string); ok3 && cmd != "" {
 					msg += ": " + cmd
 				}
 			}
