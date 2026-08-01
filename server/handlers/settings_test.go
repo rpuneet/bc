@@ -185,6 +185,29 @@ func TestSettingsPatchProviderDefaultModel(t *testing.T) {
 	if _, ok := h.Config.Providers.Providers["claude"]; !ok {
 		t.Error("providers map wiped by a default_model-only patch")
 	}
+
+	// A patch that omits `default` must leave the existing default provider
+	// intact. Decoding into the already-populated ProvidersConfig only sets
+	// fields present in the JSON, so `default` is preserved on omission —
+	// this pins that so the map + default survive a model-only update.
+	body2 := `{"providers":{"default_model":"claude-opus-4"}}`
+	req2 := httptest.NewRequest(http.MethodPatch, "/api/settings", strings.NewReader(body2))
+	req2.Header.Set("Content-Type", "application/json")
+	rec2 := httptest.NewRecorder()
+	mux.ServeHTTP(rec2, req2)
+
+	if rec2.Code != http.StatusOK {
+		t.Fatalf("model-only patch status = %d, want 200; body = %s", rec2.Code, rec2.Body.String())
+	}
+	if got := h.Config.Providers.DefaultModel; got != "claude-opus-4" {
+		t.Errorf("default_model after model-only patch = %q, want %q", got, "claude-opus-4")
+	}
+	if h.Config.Providers.Default != "claude" {
+		t.Errorf("default provider changed by a model-only patch: got %q, want claude", h.Config.Providers.Default)
+	}
+	if _, ok := h.Config.Providers.Providers["claude"]; !ok {
+		t.Error("providers map wiped by a default_model-only patch")
+	}
 }
 
 // TestSettingsAppsPatchMerges verifies the per-instance merge: patching

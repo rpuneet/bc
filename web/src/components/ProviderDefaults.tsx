@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { api } from "../api/client";
 import type { ProviderInfo } from "../api/client";
@@ -78,6 +78,17 @@ export function ProviderDefaults({ providers }: { providers: ProviderInfo[] }) {
   // leaving them showing a choice that never persisted.
   const [committed, setCommitted] = useState<{ provider: string; model: string }>({ provider: "", model: "" });
 
+  // Guards against two async hazards on the PATCH path:
+  //  - `mounted`: never setState after unmount (a slow save resolving late).
+  //  - `saveGen`: request-generation counter so an older save that resolves
+  //    after a newer one can't clobber the newer result (out-of-order writes).
+  const mounted = useRef(true);
+  const saveGen = useRef(0);
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
+
   useEffect(() => {
     let alive = true;
     api
@@ -111,14 +122,21 @@ export function ProviderDefaults({ providers }: { providers: ProviderInfo[] }) {
 
   const persist = useCallback(
     async (next: { provider: string; model: string }) => {
+      const gen = ++saveGen.current;
+      // Only the newest in-flight save may touch state, and only while mounted.
+      const isStale = () => !mounted.current || gen !== saveGen.current;
       setSave("saving");
       setSaveError(null);
       try {
         await api.setProviderDefaults({ default: next.provider, default_model: next.model });
+        if (isStale()) return;
         setCommitted(next);
         setSave("saved");
-        setTimeout(() => setSave("idle"), 1800);
+        setTimeout(() => {
+          if (!isStale()) setSave("idle");
+        }, 1800);
       } catch (err) {
+        if (isStale()) return;
         // Revert to the last value that actually reached disk.
         setDefaultProvider(committed.provider);
         setDefaultModel(committed.model);

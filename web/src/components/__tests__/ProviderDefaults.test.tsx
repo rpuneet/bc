@@ -89,4 +89,34 @@ describe("ProviderDefaults", () => {
       expect(last.providers.default_model).toBe("");
     });
   });
+
+  it("shows the error state and reverts the selection when the PATCH fails", async () => {
+    // GET loads defaults (model ""); the PATCH rejects.
+    fetchMock.mockImplementation((url: RequestInfo | URL, init?: RequestInit) => {
+      const u = String(url);
+      if (u.endsWith("/api/settings") && init?.method === "PATCH") {
+        return Promise.resolve({
+          ok: false,
+          status: 500,
+          statusText: "Internal Server Error",
+          json: () => Promise.resolve({ error: "boom" }),
+        } as Response);
+      }
+      if (u.endsWith("/api/settings")) return jsonResponse(settingsBody);
+      if (u.endsWith("/api/system/info")) return jsonResponse({ hostname: "test.local", os: "darwin", arch: "arm64" });
+      return jsonResponse({});
+    });
+
+    render(<ProviderDefaults providers={providers} />);
+    const modelSelect = (await screen.findByLabelText("Default model")) as HTMLSelectElement;
+    await waitFor(() => expect((screen.getByLabelText("Default provider") as HTMLSelectElement).value).toBe("claude"));
+
+    // Pick a model that the failing PATCH would have persisted.
+    fireEvent.change(modelSelect, { target: { value: "claude-sonnet-4" } });
+
+    // Error surfaced with the server message …
+    await waitFor(() => expect(screen.getByText("boom")).toBeTruthy());
+    // … and the selection reverted to the last value that reached disk ("").
+    await waitFor(() => expect((screen.getByLabelText("Default model") as HTMLSelectElement).value).toBe(""));
+  });
 });
