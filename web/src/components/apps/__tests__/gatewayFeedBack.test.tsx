@@ -1,14 +1,14 @@
 /**
- * GatewayFeed's "Go back" control must land on a known page, not rely on
- * history.back(). A channel view (/apps/:sourceName) is reachable via a
- * direct deep link or bookmark, so there is no guaranteed prior in-app
- * history entry — navigate(-1) could pop the user out of the SPA entirely.
- * navigate("/apps") always resolves to the Apps hub.
+ * GatewayFeed used to grow its own "Go back" control because a channel
+ * view (/apps/:sourceName) is reachable via a direct deep link or
+ * bookmark with no guaranteed prior in-app history entry. That's now the
+ * header's job (HistoryNavButtons, one control for the whole app) — this
+ * view must not resurrect a page-level back button.
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor, fireEvent } from "@testing-library/react";
-import { MemoryRouter, Routes, Route, useLocation } from "react-router-dom";
+import { render, screen } from "@testing-library/react";
+import { MemoryRouter, Routes, Route } from "react-router-dom";
 import { HeaderSlotProvider, useHeaderSlotContext } from "../../../context/HeaderSlotContext";
 import { GatewayFeed } from "../GatewayFeed";
 
@@ -48,16 +48,9 @@ beforeEach(() => {
 });
 
 describe("GatewayFeed", () => {
-  it("'Go back' navigates to /apps directly, even with no prior in-app history entry", async () => {
-    let lastPathname = "";
-    function LocationSpy() {
-      lastPathname = useLocation().pathname;
-      return null;
-    }
-
+  it("no longer renders its own 'Go back' button — the header owns back/forward", async () => {
     render(
       <MemoryRouter initialEntries={["/apps/slack:general"]}>
-        <LocationSpy />
         <HeaderSlotProvider>
           <HeaderHost />
           <Routes>
@@ -71,12 +64,7 @@ describe("GatewayFeed", () => {
       </MemoryRouter>,
     );
 
-    const backBtn = await screen.findByRole("button", { name: "Go back" });
-    fireEvent.click(backBtn);
-
-    await waitFor(() => {
-      expect(lastPathname).toBe("/apps");
-    });
-    expect(screen.getByText("Apps Home")).toBeInTheDocument();
+    await screen.findByTestId("header-host");
+    expect(screen.queryByRole("button", { name: "Go back" })).not.toBeInTheDocument();
   });
 });

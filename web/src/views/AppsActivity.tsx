@@ -15,7 +15,7 @@
  */
 
 import { useCallback, useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { api } from "../api/client";
 import type {
   ChannelMessage,
@@ -56,8 +56,6 @@ function cleanSender(sender: string): string {
 /* ── Component ───────────────────────────────────────────────── */
 
 export function AppsActivity() {
-  const navigate = useNavigate();
-
   const fetcher = useCallback(async (): Promise<ActivityMessage[]> => {
     const [sources, stats] = await Promise.all([
       api.listNotificationSources().catch(() => [] as NotificationSource[]),
@@ -125,25 +123,12 @@ export function AppsActivity() {
     setChannel("");
   }, []);
 
-  /* ── Header slot: back + count · search · platform · channel ─── */
-  // Navigates to the known parent (/apps) rather than navigate(-1): this
-  // view is reachable via a replace-redirect (/notifications/activity) and
-  // via direct deep link, so there is no guaranteed prior in-app history
-  // entry — history.back() could pop the user out of the SPA entirely.
+  /* ── Header slot: count · search · platform · channel ─────────
+     Back/forward now lives once, in the header (HistoryNavButtons) —
+     this view no longer grows its own back button. */
   useHeaderSlot({
     title: (
       <div className="flex items-center min-w-0 gap-2">
-        <button
-          type="button"
-          onClick={() => { navigate("/apps"); }}
-          className="flex items-center justify-center shrink-0 w-[22px] h-[22px] rounded-md text-mycel-muted hover:text-mycel-text"
-          title="Go back"
-          aria-label="Go back"
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-            <polyline points="15 18 9 12 15 6" />
-          </svg>
-        </button>
         <span className="truncate text-[13px] font-semibold text-mycel-text">Notifications</span>
         <span className="shrink-0 text-xs text-mycel-muted tabular-nums">
           {hasFilters ? `${String(filtered.length)} of ${String(messages.length)}` : `${String(messages.length)} message${messages.length === 1 ? "" : "s"}`}

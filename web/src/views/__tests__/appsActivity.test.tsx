@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
-import { MemoryRouter, Routes, Route, useLocation } from "react-router-dom";
+import { MemoryRouter, Routes, Route } from "react-router-dom";
 import { HeaderSlotProvider, useHeaderSlotContext } from "../../context/HeaderSlotContext";
 import { AppsActivity } from "../AppsActivity";
 
@@ -118,21 +118,15 @@ describe("AppsActivity", () => {
     expect(screen.queryByText("ship it")).not.toBeInTheDocument();
   });
 
-  it("'Go back' navigates to /apps directly, not history.back(), even with no prior in-app entry", async () => {
+  it("no longer renders its own 'Go back' button — the header owns back/forward", async () => {
     // /apps/activity is reachable via a replace-redirect (/notifications/activity)
-    // and via direct deep link — a single-entry MemoryRouter simulates that.
-    // navigate(-1) would have nowhere in-app to land; navigate("/apps") always
-    // resolves to a known page.
+    // and via direct deep link, so this view used to grow its own back
+    // button that skipped history.back(). That's now the header's job
+    // (HistoryNavButtons, one control for the whole app).
     mockRoutes();
-    let lastPathname = "";
-    function LocationSpy() {
-      lastPathname = useLocation().pathname;
-      return null;
-    }
 
     render(
       <MemoryRouter initialEntries={["/apps/activity"]}>
-        <LocationSpy />
         <HeaderSlotProvider>
           <HeaderHost />
           <Routes>
@@ -143,12 +137,7 @@ describe("AppsActivity", () => {
       </MemoryRouter>,
     );
 
-    const backBtn = await screen.findByRole("button", { name: "Go back" });
-    fireEvent.click(backBtn);
-
-    await waitFor(() => {
-      expect(lastPathname).toBe("/apps");
-    });
-    expect(screen.getByText("Apps Home")).toBeInTheDocument();
+    await screen.findByText("Notifications");
+    expect(screen.queryByRole("button", { name: "Go back" })).not.toBeInTheDocument();
   });
 });
