@@ -744,6 +744,7 @@ function buildNavGroups(): readonly (readonly NavItem[])[] {
       { to: "/", label: "Home", icon: "home" },
       { to: "/agents", label: "Agents", icon: "agents" },
       { to: "/apps", label: "Apps", icon: "apps" },
+      { to: "/templates", label: "Templates", icon: "roles" },
       { to: "/marketplace", label: "Marketplace", icon: "templates" },
     ],
   ];

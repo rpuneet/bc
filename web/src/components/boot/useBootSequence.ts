@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api, type DoctorReport, type HealthReport } from "../../api/client";
 import { deriveReadiness } from "../../views/readiness/readiness";
 
@@ -31,6 +31,14 @@ export interface BootSequence {
   healthy: boolean;
   /** Newest-last stream of real readiness/log lines. */
   lines: BootLine[];
+  /**
+   * True once health probes have failed for `stallMs` without a single
+   * success. Lets the splash escape the "connecting…" spinner instead of
+   * retrying silently forever when the daemon never comes up.
+   */
+  stalled: boolean;
+  /** Reset the stall flag and restart the probe loop immediately. */
+  retry: () => void;
 }
 
 export interface BootTimings {
@@ -38,9 +46,15 @@ export interface BootTimings {
   pollMs: number;
   /** Stagger between appended readiness lines, for the streaming cascade. */
   paceMs: number;
+  /**
+   * Time with no successful health probe before surfacing a stall state.
+   * Optional so existing partial timing objects (e.g. in tests) keep
+   * compiling; defaults to 9s when omitted.
+   */
+  stallMs?: number;
 }
 
-export const DEFAULT_BOOT_TIMINGS: BootTimings = { pollMs: 500, paceMs: 130 };
+export const DEFAULT_BOOT_TIMINGS: BootTimings = { pollMs: 500, paceMs: 130, stallMs: 9000 };
 
 function rStatusToBoot(s: "ok" | "warn" | "fail"): BootStatus {
   return s;
@@ -57,10 +71,20 @@ export function useBootSequence(
 ): BootSequence {
   const [healthy, setHealthy] = useState(false);
   const [lines, setLines] = useState<BootLine[]>([]);
+  const [stalled, setStalled] = useState(false);
+  // Bumped by retry() to restart the probe effect below.
+  const [retryNonce, setRetryNonce] = useState(0);
   const idRef = useRef(0);
   // Guards so React 18 StrictMode's double-invoke doesn't double-stream.
   const readyHandled = useRef(false);
   const startedWaiting = useRef(false);
+
+  const retry = useCallback(() => {
+    readyHandled.current = false;
+    startedWaiting.current = false;
+    setStalled(false);
+    setRetryNonce((n) => n + 1);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -84,11 +108,21 @@ export function useBootSequence(
       push({ status: "info", label: "connecting to the mycel daemon" });
     }
 
+    // Surface a fallback state after a long stretch of failed probes —
+    // otherwise a daemon that never comes up leaves the splash spinning
+    // silently forever with no escape.
+    const stallMs = timings.stallMs ?? 9000;
+    const stallTimer = setTimeout(() => {
+      if (!cancelled && !readyHandled.current) setStalled(true);
+    }, stallMs);
+    timers.push(stallTimer);
+
     async function onReady() {
       if (readyHandled.current) return;
       readyHandled.current = true;
       if (cancelled) return;
       setHealthy(true);
+      setStalled(false);
       push({ status: "ok", label: "daemon online", detail: "http responding" });
 
       // Derive the real readiness model and stream it line by line.
@@ -152,9 +186,10 @@ export function useBootSequence(
       for (const t of timers) clearTimeout(t);
     };
     // Timings are stable module constants in practice; re-running on a new
-    // object would restart the probe needlessly.
+    // object would restart the probe needlessly. retryNonce is the one
+    // deliberate re-run trigger, bumped by retry().
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [retryNonce]);
 
-  return { healthy, lines };
+  return { healthy, lines, stalled, retry };
 }
