@@ -482,8 +482,10 @@ func (s *AgentService) publishEvent(eventType string, data map[string]any) {
 	// Persist agent lifecycle events so every agent has an activity
 	// timeline from birth — hook-less providers (cursor, agy, pi) would
 	// otherwise show an empty Live section forever (#37). Hook events
-	// persist separately in IngestHookEvent.
-	if s.hookStore == nil {
+	// (agent.hook) are persisted separately in IngestHookEvent with richer
+	// structured Data (tool_input/tool_response), so skip them here — else
+	// each hook event lands in the timeline twice.
+	if s.hookStore == nil || eventType == "agent.hook" {
 		return
 	}
 	agentName, _ := data["name"].(string)
