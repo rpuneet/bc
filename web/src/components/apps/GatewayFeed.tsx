@@ -758,12 +758,15 @@ export function GatewayFeed({
     (a) => a.state === "running" || a.state === "working",
   ).length;
 
+  // Navigates to the known parent (/apps) rather than navigate(-1): a
+  // channel can be reached by direct deep link (/apps/:sourceName) with no
+  // prior in-app history entry, so history.back() could pop out of the SPA.
   const headerTitle = useMemo(
     () => (
       <div className="flex items-center min-w-0" style={{ gap: 8 }}>
         <button
           type="button"
-          onClick={() => navigate(-1)}
+          onClick={() => navigate("/apps")}
           className="flex items-center justify-center shrink-0"
           style={{
             width: 22,

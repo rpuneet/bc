@@ -126,12 +126,16 @@ export function AppsActivity() {
   }, []);
 
   /* ── Header slot: back + count · search · platform · channel ─── */
+  // Navigates to the known parent (/apps) rather than navigate(-1): this
+  // view is reachable via a replace-redirect (/notifications/activity) and
+  // via direct deep link, so there is no guaranteed prior in-app history
+  // entry — history.back() could pop the user out of the SPA entirely.
   useHeaderSlot({
     title: (
       <div className="flex items-center min-w-0 gap-2">
         <button
           type="button"
-          onClick={() => { navigate(-1); }}
+          onClick={() => { navigate("/apps"); }}
           className="flex items-center justify-center shrink-0 w-[22px] h-[22px] rounded-md text-mycel-muted hover:text-mycel-text"
           title="Go back"
           aria-label="Go back"

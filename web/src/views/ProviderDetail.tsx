@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { api } from "../api/client";
 import type {
@@ -984,6 +984,7 @@ function CommandsSection({ providerName, commands }: { providerName: string; com
 
 export function ProviderDetail() {
   const { provider: providerName } = useParams<{ provider: string }>();
+  const navigate = useNavigate();
   const { toasts, addToast, dismiss } = useToast();
   const [checkingUpdate, setCheckingUpdate] = useState(false);
   const [updateResult, setUpdateResult] = useState<{ checked: boolean; current: string; latest: string; available: boolean } | null>(null);
@@ -1071,7 +1072,11 @@ export function ProviderDetail() {
           title="Failed to load provider"
           description={error}
           actionLabel="Back to Tools"
-          onAction={() => window.history.back()}
+          // Navigate to the known parent (/tools) instead of
+          // window.history.back(): a deep-linked or bookmarked
+          // /tools/:provider URL has no guaranteed prior in-app history
+          // entry, so history.back() could exit the SPA entirely.
+          onAction={() => navigate("/tools")}
         />
       </div>
     );
