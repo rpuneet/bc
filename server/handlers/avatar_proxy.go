@@ -117,20 +117,30 @@ func (h *GatewayHandler) avatarProxy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// SSRF barrier: the request below may only ever target an allowlisted avatar
-	// CDN. This MUST be an inline equality comparison of parsed.Hostname()
-	// against string literals: CodeQL's request-forgery query recognizes exactly
-	// that shape (== / != on url.Hostname() vs a constant) as a sanitizer for
-	// the URL that flows into the request — a suffix check, a helper call, or an
-	// intervening ToLower are all NOT tracked and leave the alert live. Keep
-	// these literals in sync with avatarAllowedHosts. Hostnames from these CDNs
-	// are lowercase; a mixed-case host fails closed here (403), which is safe.
+	// SSRF barrier: map the requested host to a *constant* scheme://host/ base.
+	// The switch is an exact-equality allowlist (unlisted host → 403), and the
+	// outbound URL is then rebuilt as base + path + query where `base` is a
+	// string literal. Because the authority comes entirely from that constant
+	// prefix and the attacker-influenced data is confined to the path/query
+	// after the first "/", the fetch destination can never be steered off an
+	// allowlisted avatar CDN — this is the "sanitizing prefix" shape CodeQL's
+	// request-forgery analysis recognizes as a barrier. Keep in sync with
+	// avatarAllowedHosts. Hosts are lowercase from these CDNs; a mixed-case host
+	// falls through to 403, which is safe.
 	host := parsed.Hostname()
-	if host != "pps.whatsapp.net" &&
-		host != "media.whatsapp.net" &&
-		host != "avatars.slack-edge.com" &&
-		host != "a.slack-edge.com" &&
-		host != "secure.gravatar.com" {
+	var base string
+	switch host {
+	case "pps.whatsapp.net":
+		base = "https://pps.whatsapp.net/"
+	case "media.whatsapp.net":
+		base = "https://media.whatsapp.net/"
+	case "avatars.slack-edge.com":
+		base = "https://avatars.slack-edge.com/"
+	case "a.slack-edge.com":
+		base = "https://a.slack-edge.com/"
+	case "secure.gravatar.com":
+		base = "https://secure.gravatar.com/"
+	default:
 		httpError(w, "avatar host not allowed", http.StatusForbidden)
 		return
 	}
@@ -145,10 +155,15 @@ func (h *GatewayHandler) avatarProxy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// The URL handed to the client is parsed.String() — the same *url.URL whose
-	// host the guard above validated — so the fetch destination is provably
-	// constrained to the allowlist.
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, parsed.String(), nil)
+	// Rebuild from the constant base: only url.Parse-separated path/query (never
+	// the raw string, and never anything that could carry an authority) follow
+	// the constant "https://<host>/" prefix.
+	fetchURL := base + strings.TrimPrefix(parsed.EscapedPath(), "/")
+	if parsed.RawQuery != "" {
+		fetchURL += "?" + parsed.RawQuery
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fetchURL, nil)
 	if err != nil {
 		httpError(w, "avatar request failed", http.StatusBadGateway)
 		return
