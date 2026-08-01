@@ -218,6 +218,23 @@ textarea:focus-visible,
   transition-timing-function: ease;
 }
 
+/* Reduced-motion: collapse all animation + transition to near-instant so
+   staggered reveals, hovers and theme tweens settle immediately. Elements
+   animating from opacity:0 land on their final (visible) frame — never
+   stuck hidden. Ping/pulse decorations opt out separately via
+   `motion-reduce:hidden`. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 /* Selection follows the amber voice */
 ::selection {
   background-color: rgba(163, 93, 10, 0.22);

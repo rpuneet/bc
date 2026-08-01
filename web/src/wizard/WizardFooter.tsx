@@ -28,7 +28,7 @@ export function WizardFooter({
         type="button"
         onClick={nav.back}
         disabled={nav.isFirst}
-        className="text-[13px] px-3 py-2 rounded-md text-mycel-muted hover:text-mycel-text transition-colors disabled:opacity-0 disabled:pointer-events-none"
+        className="text-[13px] px-3 py-2 rounded-md text-mycel-muted hover:text-mycel-text cursor-pointer transition-colors disabled:opacity-0 disabled:pointer-events-none"
       >
         &larr; Back
       </button>
@@ -37,7 +37,7 @@ export function WizardFooter({
           <button
             type="button"
             onClick={nav.skip}
-            className="text-[13px] px-3 py-2 rounded-md text-mycel-muted hover:text-mycel-text transition-colors"
+            className="text-[13px] px-3 py-2 rounded-md text-mycel-muted hover:text-mycel-text cursor-pointer transition-colors"
           >
             {skipLabel}
           </button>
@@ -46,7 +46,7 @@ export function WizardFooter({
           type="button"
           onClick={onPrimary ?? nav.next}
           disabled={primaryDisabled}
-          className="text-[13px] font-medium px-4 py-2 rounded-md bg-mycel-accent text-mycel-accent-fg hover:bg-mycel-accent-hover shadow-mycel-sm transition-colors disabled:opacity-50 disabled:pointer-events-none"
+          className="text-[13px] font-medium px-4 py-2 rounded-md bg-mycel-accent text-mycel-accent-fg hover:bg-mycel-accent-hover cursor-pointer shadow-mycel-sm transition-all active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none"
         >
           {primaryLabel}
         </button>

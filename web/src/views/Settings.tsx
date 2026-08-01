@@ -56,13 +56,18 @@ function deepEqual(a: unknown, b: unknown): boolean {
 /*  Shared primitives                                                   */
 /* ------------------------------------------------------------------ */
 
-const INPUT_CLS = "w-full px-2 py-0.5 text-xs rounded-md border border-mycel-border bg-mycel-bg text-mycel-text font-mono focus:outline-none focus:ring-1 focus:ring-mycel-accent";
-const LINK_CLS = "inline-flex items-center h-8 px-3 rounded-md text-xs font-medium bg-mycel-surface border border-mycel-border text-mycel-text hover:bg-mycel-surface-hover transition-colors";
+// Sans by default — a settings page is read prose, not a config dump. Taller
+// hit target, a border that firms up and an accent ring on focus.
+const INPUT_CLS = "w-full px-2.5 py-1.5 text-[13px] rounded-md border border-mycel-border bg-mycel-bg text-mycel-text placeholder:text-mycel-muted focus:outline-none focus:border-mycel-accent focus:ring-1 focus:ring-mycel-accent transition-colors";
+// Mono variant — reserved for genuinely technical values (paths, images,
+// sockets, shells) where character alignment actually helps.
+const MONO_INPUT_CLS = `${INPUT_CLS} font-mono`;
+const LINK_CLS = "inline-flex items-center h-8 px-3 rounded-md text-xs font-medium bg-mycel-surface border border-mycel-border text-mycel-text hover:bg-mycel-surface-hover hover:border-mycel-accent transition-colors";
 
 function Field({ label, children, suffix }: { label: string; children: React.ReactNode; suffix?: string }) {
   return (
-    <div className="flex items-center gap-2 min-h-[28px]">
-      <label className="text-xs text-mycel-text-2 w-28 shrink-0 truncate" title={label}>{label}</label>
+    <div className="flex items-center gap-3 min-h-[34px]">
+      <label className="text-[12px] text-mycel-text-2 w-28 shrink-0 truncate" title={label}>{label}</label>
       <div className="flex-1 flex items-center gap-1.5 min-w-0">
         {children}
         {suffix && <span className="text-[10px] text-mycel-muted shrink-0">{suffix}</span>}
@@ -155,33 +160,48 @@ function Section({
   dirty,
   children,
   defaultOpen = true,
+  index = 0,
 }: {
   title: string;
   dirty: boolean;
   children: React.ReactNode;
   defaultOpen?: boolean;
+  index?: number;
 }) {
   const [open, setOpen] = useState(defaultOpen);
   const meta = SECTION_META[title];
 
   return (
-    <div className={`rounded-lg border ${dirty ? "border-mycel-accent" : "border-mycel-border"} bg-mycel-surface shadow-mycel`}>
+    <div
+      className={`animate-reveal rounded-xl border ${dirty ? "border-mycel-accent" : "border-mycel-border"} bg-mycel-surface shadow-mycel overflow-hidden`}
+      style={{ animationDelay: `${index * 45}ms` }}
+    >
       <button
         type="button"
         onClick={() => setOpen(!open)}
-        className="w-full flex items-center gap-2 px-3 py-2 hover:bg-mycel-surface-hover transition-colors"
+        aria-expanded={open}
+        className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-mycel-surface-hover transition-colors"
       >
-        <svg className="w-3.5 h-3.5 text-mycel-muted shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-          {meta?.icon}
-        </svg>
-        <span className="text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-text">{title}</span>
-        {meta?.desc && <span className="text-[10px] text-mycel-muted ml-auto mr-2 hidden sm:inline">{meta.desc}</span>}
-        {dirty && <span className="w-1.5 h-1.5 rounded-full bg-mycel-accent" />}
-        <svg className={`w-3 h-3 text-mycel-muted transition-transform ${open ? "rotate-90" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <span className={`grid place-items-center w-8 h-8 rounded-lg shrink-0 transition-colors ${open ? "bg-mycel-accent-subtle text-mycel-accent" : "bg-mycel-bg text-mycel-muted"}`}>
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.6}>
+            {meta?.icon}
+          </svg>
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-[13.5px] font-semibold capitalize tracking-tight text-mycel-text leading-tight">{title}</span>
+          {meta?.desc && <span className="block text-[11px] text-mycel-muted truncate">{meta.desc}</span>}
+        </span>
+        {dirty && (
+          <span className="inline-flex items-center gap-1.5 shrink-0 text-[10px] font-medium text-mycel-accent">
+            <span className="w-1.5 h-1.5 rounded-full bg-mycel-accent" />
+            Edited
+          </span>
+        )}
+        <svg className={`w-4 h-4 text-mycel-muted shrink-0 transition-transform duration-200 ${open ? "rotate-90" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
         </svg>
       </button>
-      {open && <div className="px-3 pb-3 pt-2 space-y-2 border-t border-mycel-border">{children}</div>}
+      {open && <div className="px-4 pb-4 pt-3 space-y-2.5 border-t border-mycel-border">{children}</div>}
     </div>
   );
 }
@@ -221,12 +241,22 @@ function SetupSection() {
       </div>
 
       <div className="space-y-1.5">
-        <div className="flex items-center justify-between text-[10px] text-mycel-muted">
-          <span>{complete ? "Complete" : `Step ${Math.min(finished + 1, total)} of ${total}`}</span>
-          <span>{pct}%</span>
+        <div className="flex items-center justify-between text-[11px]">
+          <span className={`inline-flex items-center gap-1.5 font-medium ${complete ? "text-mycel-success" : "text-mycel-text-2"}`}>
+            {complete && (
+              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="M20 6L9 17l-5-5" />
+              </svg>
+            )}
+            {complete ? "Complete" : `Step ${Math.min(finished + 1, total)} of ${total}`}
+          </span>
+          <span className="text-mycel-muted tabular-nums">{pct}%</span>
         </div>
-        <div className="h-1.5 rounded-full bg-mycel-bg border border-mycel-border overflow-hidden">
-          <div className="h-full bg-mycel-accent transition-all" style={{ width: `${pct}%` }} />
+        <div className="h-2 rounded-full bg-mycel-bg border border-mycel-border overflow-hidden">
+          <div
+            className={`h-full rounded-full transition-all duration-500 ease-out ${complete ? "bg-mycel-success" : "bg-gradient-to-r from-mycel-accent to-mycel-accent-hover"}`}
+            style={{ width: `${Math.max(pct, 4)}%` }}
+          />
         </div>
       </div>
     </div>
@@ -259,13 +289,34 @@ function ProvidersToolsCard({ data }: { data: Record<string, unknown> }) {
   const counts = installed !== null && total !== null ? ` · ${installed}/${total} installed` : "";
 
   return (
-    <div className="flex items-center justify-between gap-3 min-h-[28px]">
-      <p className="text-xs text-mycel-text-2">
-        <span className="text-mycel-text font-medium">Default: {PROVIDER_LABELS[defaultProvider] ?? defaultProvider}</span>
-        {counts}. Install tools, sign in, and set the default model on the Tools page.
-      </p>
-      <Link to="/tools" className={`${LINK_CLS} shrink-0`}>Open Tools &amp; Providers →</Link>
-    </div>
+    <LinkCard
+      to="/tools"
+      ariaLabel="Open Tools & Providers"
+      icon={<path strokeLinecap="round" strokeLinejoin="round" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />}
+      title={`Default: ${PROVIDER_LABELS[defaultProvider] ?? defaultProvider}${counts}`}
+      body="Install tools, sign in, and set the default model."
+    />
+  );
+}
+
+/* A whole-card link to a surface that owns its own page. Mirrors the
+ * wizard's NextCard so Settings and setup feel like one product. */
+function LinkCard({ to, ariaLabel, icon, title, body }: { to: string; ariaLabel: string; icon: React.ReactNode; title: string; body: string }) {
+  return (
+    <Link
+      to={to}
+      aria-label={ariaLabel}
+      className="group flex items-center gap-3 rounded-lg border border-mycel-border bg-mycel-bg px-3 py-2.5 hover:border-mycel-accent hover:bg-mycel-surface-hover transition-colors"
+    >
+      <span className="grid place-items-center w-8 h-8 rounded-lg bg-mycel-surface text-mycel-text-2 shrink-0 group-hover:text-mycel-accent transition-colors">
+        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.6}>{icon}</svg>
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-[13px] font-medium text-mycel-text truncate">{title}</span>
+        <span className="block text-[11.5px] text-mycel-muted truncate">{body}</span>
+      </span>
+      <span className="shrink-0 text-mycel-muted group-hover:text-mycel-accent group-hover:translate-x-0.5 transition-all" aria-hidden>→</span>
+    </Link>
   );
 }
 
@@ -289,17 +340,17 @@ function RuntimeSection({ data, onChange }: { data: Record<string, unknown>; onC
       <Advanced label={mode === "docker" ? "Docker tuning" : "tmux tuning"}>
         {mode === "docker" ? (
           <>
-            <Field label="Image"><input className={INPUT_CLS} value={String(docker.image ?? "")} onChange={(e) => onChange(["runtime", "docker", "image"], e.target.value)} /></Field>
-            <Field label="Network"><input className={INPUT_CLS} value={String(docker.network ?? "")} onChange={(e) => onChange(["runtime", "docker", "network"], e.target.value)} /></Field>
-            <Field label="Docker Socket"><input className={INPUT_CLS} value={String(docker.docker_socket_path ?? "")} onChange={(e) => onChange(["runtime", "docker", "docker_socket_path"], e.target.value)} /></Field>
+            <Field label="Image"><input className={MONO_INPUT_CLS} value={String(docker.image ?? "")} onChange={(e) => onChange(["runtime", "docker", "image"], e.target.value)} /></Field>
+            <Field label="Network"><input className={MONO_INPUT_CLS} value={String(docker.network ?? "")} onChange={(e) => onChange(["runtime", "docker", "network"], e.target.value)} /></Field>
+            <Field label="Docker Socket"><input className={MONO_INPUT_CLS} value={String(docker.docker_socket_path ?? "")} onChange={(e) => onChange(["runtime", "docker", "docker_socket_path"], e.target.value)} /></Field>
             <Field label="CPUs"><input className={INPUT_CLS} type="number" value={Number(docker.cpus ?? 2)} onChange={(e) => onChange(["runtime", "docker", "cpus"], Number(e.target.value))} /></Field>
             <Field label="Memory" suffix="MB"><input className={INPUT_CLS} type="number" value={Number(docker.memory_mb ?? 4096)} onChange={(e) => onChange(["runtime", "docker", "memory_mb"], Number(e.target.value))} /></Field>
           </>
         ) : (
           <>
-            <Field label="Session Prefix"><input className={INPUT_CLS} value={String(tmux.session_prefix ?? "")} onChange={(e) => onChange(["runtime", "tmux", "session_prefix"], e.target.value)} /></Field>
+            <Field label="Session Prefix"><input className={MONO_INPUT_CLS} value={String(tmux.session_prefix ?? "")} onChange={(e) => onChange(["runtime", "tmux", "session_prefix"], e.target.value)} /></Field>
             <Field label="History Limit"><input className={INPUT_CLS} type="number" value={Number(tmux.history_limit ?? 10000)} onChange={(e) => onChange(["runtime", "tmux", "history_limit"], Number(e.target.value))} /></Field>
-            <Field label="Default Shell"><input className={INPUT_CLS} value={String(tmux.default_shell ?? "")} onChange={(e) => onChange(["runtime", "tmux", "default_shell"], e.target.value)} /></Field>
+            <Field label="Default Shell"><input className={MONO_INPUT_CLS} value={String(tmux.default_shell ?? "")} onChange={(e) => onChange(["runtime", "tmux", "default_shell"], e.target.value)} /></Field>
           </>
         )}
       </Advanced>
@@ -324,13 +375,13 @@ function AppsCard() {
         : `${count} app${count === 1 ? "" : "s"} connected`;
 
   return (
-    <div className="flex items-center justify-between gap-3 min-h-[28px]">
-      <p className="text-xs text-mycel-text-2">
-        <span className="text-mycel-text font-medium">{summary}.</span>{" "}
-        Manage integrations, notification delivery, and API keys on the Apps page.
-      </p>
-      <Link to="/apps" className={`${LINK_CLS} shrink-0`}>Manage apps →</Link>
-    </div>
+    <LinkCard
+      to="/apps"
+      ariaLabel="Manage apps"
+      icon={<path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" />}
+      title={summary}
+      body="Integrations, notification delivery, and API keys."
+    />
   );
 }
 
@@ -389,7 +440,7 @@ function BudgetsSection() {
             type="button"
             onClick={save}
             disabled={status === "saving"}
-            className="shrink-0 inline-flex items-center h-7 px-2.5 rounded-md text-xs font-medium bg-mycel-accent text-mycel-accent-fg hover:bg-mycel-accent-hover shadow-mycel-sm transition-all disabled:opacity-50"
+            className="shrink-0 inline-flex items-center h-8 px-3 rounded-md text-xs font-medium bg-mycel-accent text-mycel-accent-fg hover:bg-mycel-accent-hover active:scale-[0.98] shadow-mycel-sm transition-all disabled:opacity-60"
           >
             {status === "saving" ? "Saving…" : "Save"}
           </button>
@@ -403,7 +454,7 @@ function BudgetsSection() {
           {perAgent.map((b) => (
             <div key={b.scope} className="flex items-center justify-between gap-3 px-3 py-2 text-xs">
               <span className="text-mycel-text truncate">{b.scope.replace(/^agent:/, "")}</span>
-              <span className="text-mycel-muted shrink-0">${b.limit_usd}/{b.period}</span>
+              <span className="text-mycel-muted shrink-0 tabular-nums">${b.limit_usd}/{b.period}</span>
               <button
                 type="button"
                 onClick={() => void api.deleteCostBudget(b.scope).then(refresh)}
@@ -451,7 +502,7 @@ function StorageFields({ data, onChange }: { data: Record<string, unknown>; onCh
           <Field label="Database"><input className={INPUT_CLS} value={String(ts.database ?? "")} onChange={(e) => onChange(["storage", "timescale", "database"], e.target.value)} /></Field>
         </>
       ) : (
-        <Field label="Path"><input className={INPUT_CLS} value={String(sq.path ?? "")} onChange={(e) => onChange(["storage", "sqlite", "path"], e.target.value)} /></Field>
+        <Field label="Path"><input className={MONO_INPUT_CLS} value={String(sq.path ?? "")} onChange={(e) => onChange(["storage", "sqlite", "path"], e.target.value)} /></Field>
       )}
     </>
   );
@@ -468,11 +519,11 @@ function ServerFields({ data, onChange }: { data: Record<string, unknown>; onCha
         The daemon binds loopback (127.0.0.1) by default and the desktop app fixes it there. Only
         change these if you run mycel as a shared server.
       </p>
-      <Field label="Host"><input className={INPUT_CLS} value={String(s.host ?? "")} onChange={(e) => onChange(["server", "host"], e.target.value)} /></Field>
+      <Field label="Host"><input className={MONO_INPUT_CLS} value={String(s.host ?? "")} onChange={(e) => onChange(["server", "host"], e.target.value)} /></Field>
       <Field label="Port" suffix={portDrift ? `running on ${actualPort}` : actualPort > 0 ? "live" : undefined}>
         <input className={INPUT_CLS} type="number" value={configuredPort} onChange={(e) => onChange(["server", "port"], Number(e.target.value))} />
       </Field>
-      <Field label="CORS Origin"><input className={INPUT_CLS} value={String(s.cors_origin ?? "")} onChange={(e) => onChange(["server", "cors_origin"], e.target.value)} /></Field>
+      <Field label="CORS Origin"><input className={MONO_INPUT_CLS} value={String(s.cors_origin ?? "")} onChange={(e) => onChange(["server", "cors_origin"], e.target.value)} /></Field>
     </>
   );
 }
@@ -483,7 +534,7 @@ function LogsFields({ data, onChange }: { data: Record<string, unknown>; onChang
   const maxMB = Math.round(maxBytes / 1048576);
   return (
     <>
-      <Field label="Path"><input className={INPUT_CLS} value={String(l.path ?? "")} onChange={(e) => onChange(["logs", "path"], e.target.value)} /></Field>
+      <Field label="Path"><input className={MONO_INPUT_CLS} value={String(l.path ?? "")} onChange={(e) => onChange(["logs", "path"], e.target.value)} /></Field>
       <Field label="Max Size" suffix="MB"><input className={INPUT_CLS} type="number" value={maxMB} onChange={(e) => onChange(["logs", "max_bytes"], Number(e.target.value) * 1048576)} /></Field>
     </>
   );
@@ -541,9 +592,9 @@ function InjectedInstructionsSection() {
           type="button"
           onClick={handleSave}
           disabled={status === "saving" || !dirty}
-          className="inline-flex items-center h-8 px-3 rounded-md text-xs font-medium bg-mycel-accent text-mycel-accent-fg hover:bg-mycel-accent-hover shadow-mycel-sm transition-all disabled:opacity-50"
+          className="inline-flex items-center h-8 px-3 rounded-md text-xs font-medium bg-mycel-accent text-mycel-accent-fg hover:bg-mycel-accent-hover active:scale-[0.98] shadow-mycel-sm transition-all disabled:opacity-50"
         >
-          {status === "saving" ? "Saving..." : "Save"}
+          {status === "saving" ? "Saving…" : "Save"}
         </button>
       </div>
     </div>
@@ -665,16 +716,20 @@ export function Settings() {
   const userName = String(((edited.user ?? {}) as Record<string, unknown>).name ?? "");
 
   return (
-    <div className="p-4 md:p-6 space-y-3 max-w-3xl mx-auto">
-      <div className="flex items-center gap-2">
-        <span className="inline-flex items-center gap-1.5 text-[10px] font-mono px-2 py-1 rounded-md border border-mycel-border bg-mycel-surface-hover text-mycel-muted">
-          <svg width="10" height="10" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
+    <div className="p-4 md:p-6 space-y-4 max-w-3xl mx-auto">
+      <header className="flex items-end justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="font-display text-[26px] leading-none text-mycel-text">Settings</h1>
+          <p className="mt-2 text-[13px] text-mycel-text-2">The config that has no other home — grouped for day-to-day use.</p>
+        </div>
+        <span className="inline-flex items-center gap-1.5 text-[10px] font-mono px-2 py-1 rounded-md border border-mycel-border bg-mycel-surface-hover text-mycel-muted tabular-nums">
+          <svg width="10" height="10" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
             <path d="M3 1.5h5l3 3v8H3z" />
             <path d="M8 1.5v3h3" />
           </svg>
           preferences.json{typeof version !== "undefined" ? ` · v${version}` : ""}
         </span>
-      </div>
+      </header>
 
       {saveStatus === "saved" && dirtySections.length === 0 && (
         <div className="fixed bottom-4 right-4 z-30 rounded-lg border border-mycel-success bg-mycel-success-subtle px-3 py-2 text-xs text-mycel-success shadow-mycel-lg">
@@ -684,7 +739,7 @@ export function Settings() {
 
       {/* Floating save bar */}
       {dirtySections.length > 0 && (
-        <div className="sticky top-0 z-20 rounded-lg border border-mycel-accent bg-mycel-accent-subtle backdrop-blur px-3 py-2 flex items-center justify-between gap-3 shadow-mycel">
+        <div className="animate-fade-in sticky top-0 z-20 rounded-lg border border-mycel-accent bg-mycel-accent-subtle backdrop-blur px-3 py-2 flex items-center justify-between gap-3 shadow-mycel-lg">
           <div className="text-xs text-mycel-text min-w-0">
             <span className="font-medium">Unsaved:</span>{" "}
             <span className="text-mycel-muted">{dirtyLabels.join(", ")}</span>
@@ -701,7 +756,7 @@ export function Settings() {
                 setSaveStatus("idle");
               }}
               disabled={saveStatus === "saving"}
-              className="inline-flex items-center h-8 px-3 rounded-md text-xs font-medium bg-mycel-surface border border-mycel-border text-mycel-text-2 hover:text-mycel-text hover:bg-mycel-surface-hover transition-colors disabled:opacity-50"
+              className="inline-flex items-center h-8 px-3 rounded-md text-xs font-medium bg-mycel-surface border border-mycel-border text-mycel-text-2 hover:text-mycel-text hover:bg-mycel-surface-hover active:scale-[0.98] transition-all disabled:opacity-50"
               title="Discard unsaved changes"
             >
               Discard
@@ -709,13 +764,19 @@ export function Settings() {
             <button
               onClick={handleSaveAll}
               disabled={saveStatus === "saving"}
-              className={`inline-flex items-center h-8 px-3 rounded-md text-xs font-medium transition-all disabled:opacity-50 ${
+              className={`inline-flex items-center gap-1.5 h-8 px-3 rounded-md text-xs font-medium transition-all active:scale-[0.98] disabled:opacity-60 ${
                 saveStatus === "error"
                   ? "bg-mycel-error text-white hover:opacity-90 shadow-mycel-sm"
                   : "bg-mycel-accent text-mycel-accent-fg hover:bg-mycel-accent-hover shadow-mycel-sm"
               }`}
             >
-              {saveStatus === "saving" ? "Saving..." : saveStatus === "error" ? "Retry" : "Save"}
+              {saveStatus === "saving" && (
+                <svg className="w-3.5 h-3.5 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden>
+                  <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="3" opacity="0.25" />
+                  <path d="M21 12a9 9 0 00-9-9" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+                </svg>
+              )}
+              {saveStatus === "saving" ? "Saving…" : saveStatus === "error" ? "Retry" : "Save"}
             </button>
           </div>
         </div>
@@ -727,11 +788,11 @@ export function Settings() {
         </div>
       )}
 
-      <Section title="setup" dirty={false}>
+      <Section title="setup" dirty={false} index={0}>
         <SetupSection />
       </Section>
 
-      <Section title="profile" dirty={isDirty("user", "ui")}>
+      <Section title="profile" dirty={isDirty("user", "ui")} index={1}>
         <Field label="Name">
           <input
             className={INPUT_CLS}
@@ -750,26 +811,26 @@ export function Settings() {
       {/* Providers/Tools own the /tools page; Settings only summarizes. The
           default-model + per-provider controls that write prefs.providers
           live there (follow-up PR). */}
-      <Section title="providers & tools" dirty={false}>
+      <Section title="providers & tools" dirty={false} index={2}>
         <ProvidersToolsCard data={edited} />
       </Section>
 
-      <Section title="runtime" dirty={isDirty("runtime")}>
+      <Section title="runtime" dirty={isDirty("runtime")} index={3}>
         <RuntimeSection data={edited} onChange={handleChange} />
       </Section>
 
-      <Section title="budgets" dirty={false}>
+      <Section title="budgets" dirty={false} index={4}>
         <BudgetsSection />
       </Section>
 
       {/* Apps owns integrations, notification delivery, and API keys on the
           /apps page; Settings only summarizes and links out. The
           prefs.notifications{} controls surface there (follow-up PR). */}
-      <Section title="apps" dirty={false}>
+      <Section title="apps" dirty={false} index={5}>
         <AppsCard />
       </Section>
 
-      <Section title="advanced" dirty={isDirty("storage", "server", "logs")} defaultOpen={false}>
+      <Section title="advanced" dirty={isDirty("storage", "server", "logs")} defaultOpen={false} index={6}>
         <Advanced label="Storage">
           <StorageFields data={edited} onChange={handleChange} />
         </Advanced>

@@ -39,13 +39,18 @@ export function ThemePicker({
             type="button"
             onClick={() => onChange(c.id)}
             aria-pressed={active}
-            className={`flex flex-col items-start gap-0.5 px-3.5 py-2 rounded-lg border text-left transition-colors ${
+            className={`relative flex flex-col items-start gap-0.5 px-3.5 py-2 rounded-lg border text-left cursor-pointer transition-all active:scale-[0.98] ${
               active
-                ? "border-mycel-accent bg-mycel-accent-subtle"
-                : "border-mycel-border bg-mycel-surface hover:border-mycel-accent"
+                ? "border-mycel-accent bg-mycel-accent-subtle shadow-mycel-sm"
+                : "border-mycel-border bg-mycel-surface hover:border-mycel-accent hover:bg-mycel-surface-hover"
             }`}
           >
-            <span className="text-[13px] font-medium text-mycel-text">{c.label}</span>
+            {active && (
+              <span className="absolute top-2 right-2 text-mycel-accent" aria-hidden>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg>
+              </span>
+            )}
+            <span className="text-[13px] font-medium text-mycel-text pr-4">{c.label}</span>
             <span className="text-[11px] text-mycel-muted">{c.hint}</span>
           </button>
         );
@@ -81,11 +86,14 @@ export function RuntimePicker({
         type="button"
         onClick={() => onChange(id)}
         aria-pressed={active}
-        className={`flex-1 text-left flex flex-col gap-1 rounded-lg border p-4 transition-colors ${
-          active ? "border-mycel-accent bg-mycel-accent-subtle" : "border-mycel-border bg-mycel-surface hover:border-mycel-accent"
+        className={`flex-1 text-left flex flex-col gap-1 rounded-lg border p-4 cursor-pointer transition-all active:scale-[0.99] ${
+          active ? "border-mycel-accent bg-mycel-accent-subtle shadow-mycel-sm" : "border-mycel-border bg-mycel-surface hover:border-mycel-accent hover:bg-mycel-surface-hover"
         }`}
       >
         <div className="flex items-center gap-2">
+          <span className={`grid place-items-center w-4 h-4 rounded-full border-2 shrink-0 transition-colors ${active ? "border-mycel-accent bg-mycel-accent" : "border-mycel-border-strong"}`} aria-hidden>
+            {active && <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="var(--mycel-accent-fg)" strokeWidth={4} strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg>}
+          </span>
           <span className="text-[14px] font-semibold text-mycel-text">{title}</span>
           {recommended && (
             <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-mycel-accent-subtle text-mycel-accent">
@@ -93,7 +101,7 @@ export function RuntimePicker({
             </span>
           )}
         </div>
-        <span className="text-[12px] text-mycel-text-2 leading-relaxed">{body}</span>
+        <span className="text-[12px] text-mycel-text-2 leading-relaxed pl-6">{body}</span>
       </button>
     );
   };

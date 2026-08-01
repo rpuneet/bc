@@ -60,7 +60,7 @@ function FilamentRail({
             {i < WIZARD_STEPS.length - 1 && (
               <span
                 aria-hidden
-                className={`absolute left-[7px] top-4 w-px h-[calc(100%-0.5rem)] ${
+                className={`absolute left-[6.5px] top-4 w-[1.5px] h-[calc(100%-0.5rem)] transition-colors ${
                   i < current ? "bg-mycel-accent" : "bg-mycel-border"
                 }`}
               />
@@ -70,31 +70,39 @@ function FilamentRail({
               disabled={!reachable}
               onClick={() => reachable && onJump(i)}
               aria-current={active ? "step" : undefined}
-              className="relative z-10 mt-0.5 grid place-items-center w-3.5 h-3.5 rounded-full shrink-0 disabled:cursor-default"
+              className={`relative z-10 mt-0.5 grid place-items-center w-3.5 h-3.5 rounded-full shrink-0 ${reachable ? "cursor-pointer" : "cursor-default"}`}
             >
+              {active && (
+                <span className="absolute -inset-1 rounded-full bg-mycel-accent-subtle motion-reduce:hidden" />
+              )}
               {active && (
                 <span className="absolute inline-flex w-full h-full rounded-full bg-mycel-accent opacity-40 animate-ping [animation-duration:2.5s] motion-reduce:hidden" />
               )}
               <span
-                className={`relative w-3.5 h-3.5 rounded-full border-2 transition-colors ${
+                className={`relative grid place-items-center w-3.5 h-3.5 rounded-full border-2 transition-all ${
                   done
                     ? "bg-mycel-accent border-mycel-accent"
                     : active
-                      ? "bg-mycel-bg border-mycel-accent"
+                      ? "bg-mycel-bg border-mycel-accent scale-110"
                       : "bg-mycel-bg border-mycel-border"
                 }`}
-              />
+              >
+                {done && (
+                  <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="var(--mycel-accent-fg)" strokeWidth={4} strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M20 6L9 17l-5-5" /></svg>
+                )}
+                {active && <span className="w-1 h-1 rounded-full bg-mycel-accent" />}
+              </span>
             </button>
             <button
               type="button"
               disabled={!reachable}
               onClick={() => reachable && onJump(i)}
-              className="text-left -mt-0.5 disabled:cursor-default"
+              className={`text-left -mt-0.5 ${reachable ? "cursor-pointer" : "cursor-default"}`}
             >
-              <div className={`font-mono text-[10px] tracking-wider ${active ? "text-mycel-accent" : "text-mycel-muted"}`}>
+              <div className={`font-mono text-[10px] tracking-wider tabular-nums ${active ? "text-mycel-accent" : "text-mycel-muted"}`}>
                 {pad(i + 1)}
               </div>
-              <div className={`text-[12px] leading-tight ${active ? "text-mycel-text font-medium" : done ? "text-mycel-text-2" : "text-mycel-muted"}`}>
+              <div className={`text-[12px] leading-tight transition-colors ${active ? "text-mycel-text font-semibold" : done ? "text-mycel-text-2" : "text-mycel-muted"}`}>
                 {step.eyebrow}
               </div>
             </button>
@@ -210,13 +218,16 @@ export function Welcome() {
       <div className="min-h-full flex flex-col">
         <header className="flex items-center justify-between px-5 sm:px-8 py-4 border-b border-mycel-border">
           <div className="flex items-center gap-2">
-            <span className="text-[15px] font-semibold tracking-tight text-mycel-text">mycel</span>
+            <span className="grid place-items-center w-5 h-5 rounded-full bg-mycel-accent-subtle" aria-hidden>
+              <span className="w-2 h-2 rounded-full bg-mycel-accent" />
+            </span>
+            <span className="font-display text-[18px] text-mycel-text">mycel</span>
             <span className="text-[11px] text-mycel-muted font-mono">setup</span>
           </div>
           <button
             type="button"
             onClick={() => nav.exit()}
-            className="text-[12px] text-mycel-muted hover:text-mycel-text transition-colors"
+            className="text-[12px] text-mycel-muted hover:text-mycel-text cursor-pointer transition-colors"
           >
             Skip setup →
           </button>
@@ -236,17 +247,19 @@ export function Welcome() {
           </div>
 
           <main className="min-w-0 max-w-2xl">
-            <div className="font-mono text-[11px] tracking-widest text-mycel-accent uppercase">
-              Step {pad(idx + 1)} / {pad(WIZARD_STEPS.length)} · {step.eyebrow}
-            </div>
-            <h1 className="mt-2 text-[26px] sm:text-[30px] font-semibold tracking-tight text-mycel-text leading-tight">
-              {step.title}
-            </h1>
-            <div className="mt-6">
-              {ready && (
-                <StepComponent nav={nav} draft={draft} setDraft={setDraft} settings={settings} reloadSettings={reloadSettings} />
-              )}
-              {!ready && <div className="text-sm text-mycel-muted py-8">Loading setup…</div>}
+            <div key={step.id} className="animate-reveal">
+              <div className="font-mono text-[11px] tracking-widest text-mycel-accent uppercase tabular-nums">
+                Step {pad(idx + 1)} / {pad(WIZARD_STEPS.length)} · {step.eyebrow}
+              </div>
+              <h1 className="mt-2 font-display text-[28px] sm:text-[34px] text-mycel-text leading-[1.1]">
+                {step.title}
+              </h1>
+              <div className="mt-6">
+                {ready && (
+                  <StepComponent nav={nav} draft={draft} setDraft={setDraft} settings={settings} reloadSettings={reloadSettings} />
+                )}
+                {!ready && <div className="text-sm text-mycel-muted py-8">Loading setup…</div>}
+              </div>
             </div>
           </main>
         </div>

@@ -282,7 +282,7 @@ function ChannelRowButton({ ch, onOpen }: { ch: ChannelItem; onOpen: (name: stri
     <button
       type="button"
       onClick={() => { onOpen(ch.name); }}
-      className="w-full flex items-center gap-3 px-3 py-2 bg-mycel-surface hover:bg-mycel-surface-hover text-left transition-colors"
+      className="w-full flex items-center gap-3 px-3 py-2 bg-mycel-surface hover:bg-mycel-surface-hover text-left cursor-pointer transition-colors"
       title={ch.name}
     >
       <IdentityAvatar name={ch.displayName} kind={ch.kind} size={28} />
@@ -596,18 +596,23 @@ export function AppsHome() {
   if (!hasAnything) {
     return (
       <div className="flex h-full items-center justify-center">
-        <div className="max-w-lg text-center px-6">
-          <div className="text-4xl mb-4 opacity-40">#</div>
-          <h2 className="font-display text-xl font-semibold text-mycel-text mb-2">Connect your first app</h2>
-          <p className="text-sm text-mycel-muted mb-6">
+        <div className="animate-reveal max-w-lg text-center px-6">
+          <span className="mx-auto mb-5 grid place-items-center w-14 h-14 rounded-2xl bg-mycel-accent-subtle text-mycel-accent" aria-hidden>
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z" />
+            </svg>
+          </span>
+          <h2 className="font-display text-2xl text-mycel-text mb-2">Connect your first app</h2>
+          <p className="text-sm text-mycel-text-2 mb-6 max-w-sm mx-auto leading-relaxed">
             Link Slack, Telegram, WhatsApp, Discord and more to start routing messages to your agents.
           </p>
           <button
             type="button"
             onClick={() => { setChooserOpen(true); }}
-            className="inline-flex items-center h-8 px-3 rounded-md text-xs font-medium bg-mycel-accent text-mycel-accent-fg hover:bg-mycel-accent-hover shadow-mycel-sm transition-colors"
+            className="inline-flex items-center gap-1.5 h-9 px-4 rounded-md text-sm font-medium bg-mycel-accent text-mycel-accent-fg hover:bg-mycel-accent-hover cursor-pointer shadow-mycel-sm transition-all active:scale-[0.98]"
           >
-            + Connect an app
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+            Connect an app
           </button>
         </div>
         {chooserOpen && (
@@ -663,10 +668,10 @@ export function AppsHome() {
                 aria-label={aria}
                 aria-pressed={selected}
                 title={aria}
-                className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm transition-colors ${
+                className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm cursor-pointer transition-all active:scale-[0.97] ${
                   selected
-                    ? "border-mycel-accent bg-mycel-surface-hover text-mycel-text"
-                    : "border-mycel-border bg-mycel-surface hover:bg-mycel-surface-hover text-mycel-text"
+                    ? "border-mycel-accent bg-mycel-surface-hover text-mycel-text shadow-mycel-sm"
+                    : "border-mycel-border bg-mycel-surface hover:bg-mycel-surface-hover hover:border-mycel-border-strong text-mycel-text"
                 }`}
               >
                 <StatusDot status={app.status} title={statusLabel} />
@@ -684,7 +689,7 @@ export function AppsHome() {
             type="button"
             onClick={() => { setChooserOpen(true); }}
             aria-label="Connect an app"
-            className="inline-flex items-center gap-1.5 rounded-full border border-dashed border-mycel-border bg-mycel-surface px-3 py-1.5 text-sm text-mycel-muted hover:text-mycel-text hover:border-mycel-accent hover:bg-mycel-surface-hover transition-colors"
+            className="inline-flex items-center gap-1.5 rounded-full border border-dashed border-mycel-border bg-mycel-surface px-3 py-1.5 text-sm text-mycel-muted hover:text-mycel-accent hover:border-mycel-accent hover:bg-mycel-surface-hover cursor-pointer transition-all active:scale-[0.97]"
           >
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden>
               <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
@@ -707,7 +712,15 @@ export function AppsHome() {
             </Link>
             <div className="divide-y divide-mycel-border">
               {recent.length === 0 && (
-                <div className="px-4 py-10 text-center text-xs text-mycel-muted">No messages yet</div>
+                <div className="px-4 py-12 flex flex-col items-center text-center">
+                  <span className="mb-3 grid place-items-center w-10 h-10 rounded-full bg-mycel-bg text-mycel-muted" aria-hidden>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 01-3.4 0" />
+                    </svg>
+                  </span>
+                  <p className="text-[13px] font-medium text-mycel-text-2">No messages yet</p>
+                  <p className="mt-1 text-xs text-mycel-muted max-w-[15rem]">Messages from your connected apps land here as they arrive.</p>
+                </div>
               )}
               {recent.map((m) => {
                 const sender = cleanSender(m.sender);
@@ -716,7 +729,7 @@ export function AppsHome() {
                     key={`${m.channel}:${String(m.id)}`}
                     type="button"
                     onClick={() => { openChannel(m.channel); }}
-                    className="w-full text-left px-4 py-2.5 flex items-start gap-2.5 hover:bg-mycel-surface-hover transition-colors"
+                    className="w-full text-left px-4 py-2.5 flex items-start gap-2.5 hover:bg-mycel-surface-hover cursor-pointer transition-colors"
                   >
                     {/* Real chat participant — initials avatar, never an agent mushroom */}
                     <IdentityAvatar name={sender} size={26} className="mt-0.5" />
@@ -742,13 +755,27 @@ export function AppsHome() {
           {/* Channels — slim secondary column, grouped by app */}
           <div className="space-y-5 min-w-0">
             {sectionApps.length === 0 && (
-              <div className="rounded-lg border border-dashed border-mycel-border bg-mycel-surface px-6 py-10 text-center">
+              <div className="rounded-lg border border-dashed border-mycel-border bg-mycel-surface px-6 py-10 flex flex-col items-center text-center">
+                <span className="mb-3 grid place-items-center w-10 h-10 rounded-full bg-mycel-bg text-mycel-muted" aria-hidden>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z" />
+                  </svg>
+                </span>
                 <p className="text-sm font-medium text-mycel-text-2">
                   {hasFilters ? "No chats match your filters" : "No chats yet"}
                 </p>
-                <p className="mt-1 text-xs text-mycel-muted">
+                <p className="mt-1 text-xs text-mycel-muted max-w-[16rem]">
                   {hasFilters ? "Try clearing a filter or search term." : "Chats appear here automatically as messages arrive."}
                 </p>
+                {hasFilters && (
+                  <button
+                    type="button"
+                    onClick={clearFilters}
+                    className="mt-4 inline-flex items-center h-8 px-3 rounded-md text-xs font-medium border border-mycel-border bg-mycel-bg text-mycel-text-2 hover:text-mycel-text hover:border-mycel-accent cursor-pointer transition-colors"
+                  >
+                    Clear filters
+                  </button>
+                )}
               </div>
             )}
             {sectionApps.map((app) => {
