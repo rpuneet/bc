@@ -379,6 +379,9 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 	// Always registered so the UI can render an empty list when no deps
 	// are configured; the handler is nil-safe internally.
 	handlers.NewDepsHandler(svc.Deps).Register(mux)
+	// Streamed host-dependency installer used by the setup wizard. Loopback
+	// only; runs vetted install commands and streams their output.
+	handlers.NewDepsInstallHandler().Register(mux)
 	// Per-repo cost rollup. Handler is nil-safe and returns 503 when the
 	// global ledger isn't wired.
 	mux.Handle("/api/global/costs", handlers.NewGlobalCostsHandler(svc.Costs))
@@ -396,6 +399,14 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 		handlers.NewRolesHandler(svc.Home).Register(mux)
 		handlers.NewDoctorHandler(svc.Home).Register(mux)
 		handlers.NewSettingsHandler(svc.Home).Register(mux)
+		// First-run setup wizard state. Agent count comes from the live
+		// manager (nil-safe closure).
+		handlers.NewOnboardingHandler(svc.Home, func() int {
+			if svc.AgentMgr != nil {
+				return svc.AgentMgr.AgentCount()
+			}
+			return 0
+		}).Register(mux)
 
 		// Templates — prefer the layered store from BuildServices
 		// (global ~/.mycel/templates/ + repo-scoped override). Fallback to

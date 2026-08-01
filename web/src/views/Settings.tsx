@@ -1,4 +1,5 @@
 import { useCallback, useState, useEffect, useMemo } from "react";
+import { Link } from "react-router-dom";
 import { api } from "../api/client";
 import { usePolling } from "../hooks/usePolling";
 import { LoadingSkeleton } from "../components/LoadingSkeleton";
@@ -528,6 +529,22 @@ export function Settings() {
       {/* Row 5: Optional dependencies (mycel-db, mycel-code-server, mycel-browser) */}
       <Section title="dependencies" dirty={false}>
         <DependenciesSection />
+      </Section>
+
+      {/* Row 6: Re-run the first-run setup wizard. */}
+      <Section title="setup" dirty={false}>
+        <div className="flex items-center justify-between gap-3 min-h-[28px]">
+          <p className="text-xs text-mycel-text-2">
+            Walk through first-run setup again — checks, runtime, provider, and your first agent.
+            It only writes config; your agents and connected apps are left untouched.
+          </p>
+          <Link
+            to="/welcome"
+            className="shrink-0 inline-flex items-center h-8 px-3 rounded-md text-xs font-medium bg-mycel-surface border border-mycel-border text-mycel-text hover:bg-mycel-surface-hover transition-colors"
+          >
+            Re-run setup
+          </Link>
+        </div>
       </Section>
     </div>
   );

@@ -37,6 +37,37 @@ func TestConfigAppsRoundTrip(t *testing.T) {
 	}
 }
 
+// TestConfigOnboardingRoundTrip verifies the onboarding section survives a
+// marshal/unmarshal cycle and that OnboardingComplete tracks the "done"
+// sentinel.
+func TestConfigOnboardingRoundTrip(t *testing.T) {
+	cfg := DefaultConfig()
+	if cfg.Onboarding.OnboardingComplete() {
+		t.Fatal("fresh config should not be marked onboarding-complete")
+	}
+
+	cfg.Onboarding = OnboardingConfig{Step: "runtime", Completed: []string{"welcome", "system"}}
+	data, err := json.Marshal(&cfg)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	parsed, err := ParseConfig(data)
+	if err != nil {
+		t.Fatalf("ParseConfig: %v", err)
+	}
+	if parsed.Onboarding.Step != "runtime" || len(parsed.Onboarding.Completed) != 2 {
+		t.Errorf("onboarding round-trip mismatch: %+v", parsed.Onboarding)
+	}
+	if parsed.Onboarding.OnboardingComplete() {
+		t.Error("OnboardingComplete = true without a done sentinel")
+	}
+
+	parsed.Onboarding.Completed = append(parsed.Onboarding.Completed, "done")
+	if !parsed.Onboarding.OnboardingComplete() {
+		t.Error("OnboardingComplete = false after appending done")
+	}
+}
+
 // TestConfigAppsAbsent verifies configs without an apps section parse to
 // an empty map-safe zero value.
 func TestConfigAppsAbsent(t *testing.T) {
