@@ -760,5 +760,5 @@ POST   /api/apps/channels/refresh                                 -- re-resolve 
 
 ## What's Next
 
-- [Agent Lifecycle](explanation/agents.md) -- how agents start, receive credentials, and run
-- [MCP Protocol](explanation/mcp.md) -- Model Context Protocol integration
+- [Agent Lifecycle](agents.md) -- how agents start, receive credentials, and run
+- [MCP Protocol](mcp.md) -- Model Context Protocol integration

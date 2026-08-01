@@ -57,9 +57,6 @@ markdown_extensions:
   - toc:
       permalink: true
 
-# Skip underscore-prefixed archive drafts (rehabilitated notifications
-# page has been renamed to architecture-notifications.md and is wired
-# into the nav below).
 exclude_docs: |
   _*
   README.md
@@ -86,12 +83,12 @@ nav:
     - explanation/index.md
     - Architecture: explanation/architecture.md
     - Agents: explanation/agents.md
-    - Agent lifecycle redesign: explanation/agent-lifecycle-redesign.md
     - Database: explanation/database.md
+    - Apps: explanation/apps.md
     - Web UI: explanation/web-ui.md
     - Design system: explanation/design-system.md
     - Networking: explanation/networking.md
-    - Notification architecture: architecture-notifications.md
+    - Notification architecture: explanation/notifications.md
     - Security: explanation/security.md
     - Deployment: explanation/deployment.md
     - CI / CD: explanation/ci-cd.md
@@ -102,8 +99,6 @@ nav:
     - Settings API: reference/api-settings.md
   - Contributing:
     - Testing guide: contributing/testing.md
-  - ADR:
-    - 0001 — CLI architecture: adr/0001-cli-architecture.md
 
 extra:
   social:

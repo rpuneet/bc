@@ -43,7 +43,6 @@ jobs:
             const docsSurfaces = [
               /^docs\//,
               /^README\.md$/,
-              /^VISION\.md$/,
               /^CONTRIBUTING\.md$/,
               /^CLAUDE\.md$/,
               /^\.claude\/CLAUDE\.md$/,

@@ -1,25 +1,10 @@
 # Apps: the plugin platform for external integrations
 
-Status: **shipped** (Waves 1–3 of the plugin-era program) — this page is the
-design record, updated where the implementation deviated.
-
-Notifications, gateway credentials, and the standalone secrets concept merge
-into one product surface: **Apps**. You connect an app (Slack, GitHub,
-WhatsApp, Telegram, …); the app owns its credentials, its transport, its
-channels, and its per-agent wiring. Adding a new integration to mycel means
-writing one self-contained plugin package — no central switch statements.
-
-## Why (the pre-Apps state this replaced)
-
-Before Apps, the pieces existed but weren't a platform:
-
-- `server/build_services.go` constructed every adapter in a ~300-line
-  hand-written chain — one block per platform, 28 constructor calls.
-- A 981-line config file declared 34 per-platform config structs with custom
-  JSON marshaling, all carrying **plaintext tokens inside the config file**.
-- `pkg/secret` was a clean encrypted vault, but gateway credentials bypassed it.
-- Platform-specific behavior leaked into handlers
-  (`gateways.go: switch platform` for pairing, per-platform PATCH cases).
+Notifications, gateway credentials, and secrets for external platforms are
+one product surface: **Apps**. You connect an app (Slack, GitHub, WhatsApp,
+Telegram, …); the app owns its credentials, its transport, its channels, and
+its per-agent wiring. Adding a new integration to mycel means writing one
+self-contained plugin package — no central switch statements.
 
 ## The App plugin contract (`pkg/app`)
 
@@ -232,27 +217,24 @@ HTTP surface (replaces `/api/gateways/*`, keeps `gateway.Manager` runtime):
 | `GET  /api/apps/{name}/auth/status` | poll pairing/auth completion |
 | existing channel/subscription routes | unchanged, re-rooted under `/api/apps/{name}/channels` |
 
-`pkg/notify` remains the fan-out layer (subscriptions, delivery, history) —
-unchanged in W1 except the merged `Notification` type moves to one
-definition.
+`pkg/notify` remains the fan-out layer: subscriptions, delivery, history,
+one `Notification` type.
 
-## How it landed
+## Built-in plugins
 
-1. `pkg/app` core shipped as designed: types, registry, instance resolution,
-   vault-backed `SecretSource` (`VaultSecrets`), tests.
-2. **28 built-in plugins** are registered via side-effect imports in
-   `pkg/app/builtin/builtin.go` — bitbucket, datadog, discord, github,
-   gitlab, grafana, imessage, irc, jira, line, linear, matrix, mattermost,
-   mqtt, netlify, notion, pagerduty, reddit, rss, sentry, signal, slack,
-   stripe, telegram, twitch, vercel, webhook, whatsapp.
-3. `buildGatewayManager` is data-driven over `prefs.json` `apps`; the
-   hardcoded chain, per-platform config structs, and handler switches are
-   gone. `/api/apps` serves the catalog, instance CRUD, and auth flows.
-4. `QRPairer` is asserted on the **built adapter** (pairing state lives on
-   the running adapter), exactly as specced above.
-5. `pkg/notify` remains the fan-out layer, unchanged.
+**28 built-in plugins** are registered via side-effect imports in
+`pkg/app/builtin/builtin.go` — bitbucket, datadog, discord, github, gitlab,
+grafana, imessage, irc, jira, line, linear, matrix, mattermost, mqtt,
+netlify, notion, pagerduty, reddit, rss, sentry, signal, slack, stripe,
+telegram, twitch, vercel, webhook, whatsapp.
 
-## Non-goals (still true)
+`buildGatewayManager` is entirely data-driven over `prefs.json`'s `apps`
+section — there is no hardcoded per-platform chain, no per-platform config
+structs, and no handler switches. `/api/apps` serves the catalog, instance
+CRUD, and auth flows. `QRPairer` is asserted on the **built adapter**
+(pairing state lives on the running adapter), not on the plugin.
+
+## Non-goals
 
 - No hosted OAuth relay.
 - No change to notify subscription semantics or delivery.

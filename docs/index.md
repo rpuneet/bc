@@ -42,7 +42,8 @@ How mycel works under the hood and why it is built this way.
 - [Architecture](explanation/architecture.md) — the server, clients, and data flow
 - [Agents](explanation/agents.md) — lifecycle, repos, worktrees, and roles
 - [Database](explanation/database.md) — the global store and cost ledger
-- [Notifications](architecture-notifications.md) — apps, subscriptions, delivery
+- [Apps](explanation/apps.md) — the plugin platform for external integrations
+- [Notifications](explanation/notifications.md) — apps, subscriptions, delivery
 - [Web UI](explanation/web-ui.md) · [MCP](explanation/mcp.md)
 - [Networking](explanation/networking.md) · [Security](explanation/security.md) · [Deployment](explanation/deployment.md)
 - [Design decisions](explanation/design-decisions.md) — the reasoning behind key choices
