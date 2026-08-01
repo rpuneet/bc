@@ -22,6 +22,9 @@ const metaCacheTTL = 15 * time.Minute
 type identityClient interface {
 	GetGroupInfo(ctx context.Context, jid types.JID) (*types.GroupInfo, error)
 	GetContact(ctx context.Context, jid types.JID) (types.ContactInfo, error)
+	// ProfilePictureURL returns the downloadable URL of the profile picture
+	// for a user or group JID, or "" when none exists / is not visible.
+	ProfilePictureURL(ctx context.Context, jid types.JID) string
 }
 
 // waIdentityClient adapts *whatsmeow.Client to identityClient.
@@ -35,6 +38,17 @@ func (w waIdentityClient) GetGroupInfo(ctx context.Context, jid types.JID) (*typ
 
 func (w waIdentityClient) GetContact(ctx context.Context, jid types.JID) (types.ContactInfo, error) {
 	return w.c.Store.Contacts.GetContact(ctx, jid)
+}
+
+// ProfilePictureURL asks WhatsApp for the (thumbnail) profile-picture URL.
+// A missing picture or a privacy setting returns nil,nil or an error from
+// whatsmeow; either way we degrade to "" and the UI keeps the initials chip.
+func (w waIdentityClient) ProfilePictureURL(ctx context.Context, jid types.JID) string {
+	info, err := w.c.GetProfilePictureInfo(ctx, jid, &whatsmeow.GetProfilePictureParams{Preview: true})
+	if err != nil || info == nil {
+		return ""
+	}
+	return info.URL
 }
 
 // cachedMeta is a resolved ChannelMeta with its resolution time.
@@ -118,6 +132,7 @@ func resolveJID(ctx context.Context, client identityClient, jid types.JID) (gate
 		return gateway.ChannelMeta{
 			DisplayName:      name,
 			Kind:             gateway.ChannelKindGroup,
+			AvatarURL:        client.ProfilePictureURL(ctx, jid),
 			ParticipantCount: count,
 		}, nil
 
@@ -129,6 +144,7 @@ func resolveJID(ctx context.Context, client identityClient, jid types.JID) (gate
 		if meta.DisplayName == "" {
 			meta.DisplayName = formatPhone(jid.User)
 		}
+		meta.AvatarURL = client.ProfilePictureURL(ctx, jid)
 		return meta, nil
 
 	default:

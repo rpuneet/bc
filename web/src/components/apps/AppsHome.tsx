@@ -81,6 +81,9 @@ export interface ChannelItem {
   app: string;
   platform: string;
   displayName: string;
+  /** Loopback image-proxy path for the channel's real picture, or "" when
+   *  the platform provided none (→ initials fallback). */
+  avatarUrl: string;
   kind: ChannelKind;
   participantCount: number | null;
   subscribers: string[];
@@ -172,6 +175,7 @@ export function buildHomeModel(snap: HomeSnapshot): { apps: AppItem[]; channels:
       app,
       platform,
       displayName: ov?.display_name?.trim() ? ov.display_name : channelLeaf(name),
+      avatarUrl: ov?.avatar_url ?? "",
       kind: resolveChannelKind(name, platform, ov?.kind),
       participantCount: ov?.participant_count ?? null,
       subscribers,
@@ -285,7 +289,7 @@ function ChannelRowButton({ ch, onOpen, index = 0 }: { ch: ChannelItem; onOpen: 
       className="mycel-item-reveal w-full flex items-center gap-3 px-3 py-2 bg-mycel-surface hover:bg-mycel-surface-hover text-left transition-colors"
       title={ch.name}
     >
-      <IdentityAvatar name={ch.displayName} kind={ch.kind} size={28} />
+      <IdentityAvatar name={ch.displayName} src={ch.avatarUrl || undefined} kind={ch.kind} size={28} />
       <span className="min-w-0 flex-1 flex items-baseline gap-2">
         <span className={`truncate text-[13px] font-medium text-mycel-text ${hasDisplayName ? "" : "font-mono"}`}>
           {ch.displayName}
@@ -774,8 +778,10 @@ export function AppsHome() {
                     style={{ animationDelay: `${String(Math.min(i, 12) * 22)}ms` }}
                     className="mycel-item-reveal w-full text-left px-4 py-2.5 flex items-start gap-2.5 hover:bg-mycel-surface-hover transition-colors"
                   >
-                    {/* Real chat participant — initials avatar, never an agent mushroom */}
-                    <IdentityAvatar name={sender} size={26} className="mt-0.5" />
+                    {/* Real chat participant — resolved platform photo when
+                        available (e.g. Slack), else an initials chip; never an
+                        agent mushroom. */}
+                    <IdentityAvatar name={sender} src={m.avatar_url || undefined} size={26} className="mt-0.5" />
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-1.5 mb-0.5 min-w-0">
                         <AppIcon base={sourcePlatform(m.channel)} size={11} />

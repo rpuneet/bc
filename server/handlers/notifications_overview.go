@@ -25,6 +25,7 @@ type overviewChannel struct {
 	Platform         string    `json:"platform"`
 	DisplayName      string    `json:"display_name"`
 	Kind             string    `json:"kind"`
+	AvatarURL        string    `json:"avatar_url,omitempty"`
 	ParticipantCount int       `json:"participant_count"`
 	SubscriberCount  int       `json:"subscriber_count"`
 	MessageCount     int       `json:"message_count"`
@@ -56,6 +57,7 @@ func (h *GatewayHandler) notificationsOverview(w http.ResponseWriter, r *http.Re
 			Platform:         c.Platform,
 			DisplayName:      c.DisplayName,
 			Kind:             c.Kind,
+			AvatarURL:        avatarProxyPath(c.AvatarURL),
 			ParticipantCount: c.ParticipantCount,
 		}
 	}

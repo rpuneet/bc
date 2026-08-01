@@ -52,16 +52,17 @@ type NotificationAdapter interface {
 // Notification is a normalized inbound event from an external platform.
 // The Raw field contains the complete platform payload as JSON.
 type Notification struct {
-	Timestamp time.Time       `json:"timestamp"`
-	Raw       json.RawMessage `json:"raw"`
-	Channel   string          `json:"channel"`
-	ChannelID string          `json:"channel_id,omitempty"` // platform-native channel id (e.g. WhatsApp JID), if known
-	Platform  string          `json:"platform"`
-	Sender    string          `json:"sender"`
-	SenderID  string          `json:"sender_id,omitempty"`  // platform-native sender id (e.g. WhatsApp JID)
-	Content   string          `json:"content"`              // human-readable text for display/storage
-	MessageID string          `json:"message_id,omitempty"` // platform-native message id (for reactions, threading)
-	Mentions  []string        `json:"mentions"`
+	Timestamp    time.Time       `json:"timestamp"`
+	Raw          json.RawMessage `json:"raw"`
+	Channel      string          `json:"channel"`
+	ChannelID    string          `json:"channel_id,omitempty"` // platform-native channel id (e.g. WhatsApp JID), if known
+	Platform     string          `json:"platform"`
+	Sender       string          `json:"sender"`
+	SenderID     string          `json:"sender_id,omitempty"`     // platform-native sender id (e.g. WhatsApp JID)
+	SenderAvatar string          `json:"sender_avatar,omitempty"` // raw platform avatar URL for the sender, when the adapter cheaply has one
+	Content      string          `json:"content"`                 // human-readable text for display/storage
+	MessageID    string          `json:"message_id,omitempty"`    // platform-native message id (for reactions, threading)
+	Mentions     []string        `json:"mentions"`
 }
 
 // ChannelInfo represents a discovered channel on a platform.
@@ -82,9 +83,14 @@ const (
 )
 
 // ChannelMeta is human-readable display metadata for a platform channel.
+// AvatarURL, when set, is the raw platform URL of the channel's picture
+// (a person's profile photo or a group's icon). It is stored as-is; the
+// server wraps it in a loopback image-proxy URL before exposing it to the
+// web UI so tokens/expiring URLs never reach the browser directly.
 type ChannelMeta struct {
 	DisplayName      string
 	Kind             string // group | person | channel | feed | other
+	AvatarURL        string
 	ParticipantCount int
 }
 

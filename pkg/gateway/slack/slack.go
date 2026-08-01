@@ -29,7 +29,7 @@ type Adapter struct {
 	sm             *socketmode.Client
 	handler        func(gateway.Notification)
 	channelMap     map[string]string
-	userCache      map[string]string
+	userCache      map[string]slackUser
 	botUserID      string
 	appToken       string
 	botToken       string
@@ -45,13 +45,21 @@ type Adapter struct {
 
 var _ gateway.NotificationAdapter = (*Adapter)(nil)
 
+// slackUser is a resolved Slack user: display name plus the raw profile
+// image URL Slack serves (public, tokenless CDN). Cached per user id so a
+// busy channel resolves each author with a single users.info call.
+type slackUser struct {
+	name   string
+	avatar string
+}
+
 // New creates a new Slack adapter using Socket Mode.
 func New(botToken, appToken string) *Adapter {
 	return &Adapter{
 		botToken:   botToken,
 		appToken:   appToken,
 		channelMap: make(map[string]string),
-		userCache:  make(map[string]string),
+		userCache:  make(map[string]slackUser),
 	}
 }
 
@@ -431,28 +439,32 @@ func (a *Adapter) handleMessageEvent(ev *slackevents.MessageEvent, rawPayload js
 		}
 	}
 
-	// Resolve user name. For bot_message posts the impersonation
+	// Resolve user name + avatar. For bot_message posts the impersonation
 	// Username is the sender — the gate above already verified the
 	// event came from our own bot user, so Username is trusted.
 	sender := ev.User
+	senderAvatar := ""
 	if ev.SubType == "bot_message" && ev.User == a.botUserID && ev.Username != "" {
 		sender = ev.Username
 	} else if a.api != nil {
 		a.chatMu.RLock()
-		cachedName, cached := a.userCache[ev.User]
+		cached, ok := a.userCache[ev.User]
 		a.chatMu.RUnlock()
-		if cached {
-			sender = cachedName
+		if ok {
+			sender = cached.name
+			senderAvatar = cached.avatar
 		} else if userInfo, err := a.api.GetUserInfo(ev.User); err == nil {
 			sender = userInfo.RealName
 			if sender == "" {
 				sender = userInfo.Name
 			}
+			// Prefer the 192px avatar; fall back through the smaller sizes.
+			senderAvatar = firstNonEmpty(userInfo.Profile.Image192, userInfo.Profile.Image72, userInfo.Profile.Image512)
 			a.chatMu.Lock()
 			if a.userCache == nil {
-				a.userCache = make(map[string]string)
+				a.userCache = make(map[string]slackUser)
 			}
-			a.userCache[ev.User] = sender
+			a.userCache[ev.User] = slackUser{name: sender, avatar: senderAvatar}
 			a.chatMu.Unlock()
 		} else {
 			log.Warn("slack: failed to resolve user", "user_id", ev.User, "error", err)
@@ -481,12 +493,14 @@ func (a *Adapter) handleMessageEvent(ev *slackevents.MessageEvent, rawPayload js
 			return
 		}
 		a.handler(gateway.Notification{
-			Channel:   channelName,
-			Platform:  "slack",
-			Sender:    sender,
-			Content:   content,
-			Timestamp: now,
-			Raw:       raw,
+			Channel:      channelName,
+			Platform:     "slack",
+			Sender:       sender,
+			SenderID:     ev.User,
+			SenderAvatar: senderAvatar,
+			Content:      content,
+			Timestamp:    now,
+			Raw:          raw,
 		})
 	}
 }
@@ -523,6 +537,16 @@ func extractSlackFiles(rawPayload json.RawMessage) []string {
 		lines = append(lines, fmt.Sprintf("\U0001F4CE %s (%s) [%s]", name, humanSize(f.Size), f.Mimetype))
 	}
 	return lines
+}
+
+// firstNonEmpty returns the first non-empty string.
+func firstNonEmpty(values ...string) string {
+	for _, v := range values {
+		if v != "" {
+			return v
+		}
+	}
+	return ""
 }
 
 // humanSize formats bytes into a human-readable string.

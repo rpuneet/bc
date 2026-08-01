@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/rpuneet/mycel/pkg/gateway"
@@ -57,8 +58,8 @@ func (p *notifyStoreChannelStore) LoadChannels(ctx context.Context) ([]gateway.P
 	return result, nil
 }
 
-func (p *notifyStoreChannelStore) UpsertChannelMeta(ctx context.Context, channel, displayName, kind string, participantCount int) error {
-	return p.store.UpsertChannelMeta(ctx, channel, displayName, kind, participantCount)
+func (p *notifyStoreChannelStore) UpsertChannelMeta(ctx context.Context, channel, displayName, kind, avatarURL string, participantCount int) error {
+	return p.store.UpsertChannelMeta(ctx, channel, displayName, kind, avatarURL, participantCount)
 }
 
 type overviewResponse struct {
@@ -74,6 +75,7 @@ type overviewResponse struct {
 		Platform         string `json:"platform"`
 		DisplayName      string `json:"display_name"`
 		Kind             string `json:"kind"`
+		AvatarURL        string `json:"avatar_url"`
 		ParticipantCount int    `json:"participant_count"`
 		SubscriberCount  int    `json:"subscriber_count"`
 		MessageCount     int    `json:"message_count"`
@@ -91,11 +93,11 @@ func TestNotificationsOverview(t *testing.T) {
 	if err := store.SaveChannel(ctx, "whatsapp:family", "whatsapp", "1234@g.us"); err != nil {
 		t.Fatal(err)
 	}
-	if err := store.UpsertChannelMeta(ctx, "whatsapp:family", "Family Group", "group", 12); err != nil {
+	if err := store.UpsertChannelMeta(ctx, "whatsapp:family", "Family Group", "group", "https://pps.whatsapp.net/v/group.jpg", 12); err != nil {
 		t.Fatal(err)
 	}
 	for range 3 {
-		if err := store.SaveMessage(ctx, "whatsapp:family", "alice", "hi"); err != nil {
+		if err := store.SaveMessage(ctx, "whatsapp:family", "alice", "", "hi"); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -151,6 +153,12 @@ func TestNotificationsOverview(t *testing.T) {
 		fam.Kind != "group" || fam.ParticipantCount != 12 ||
 		fam.MessageCount != 3 || fam.SubscriberCount != 1 {
 		t.Fatalf("whatsapp:family = %+v", fam)
+	}
+	// The resolved avatar is surfaced as a loopback image-proxy path — never
+	// the raw platform URL — so no CDN URL/token ever reaches the browser.
+	if fam.AvatarURL == "" || !strings.HasPrefix(fam.AvatarURL, "/api/apps/avatar?u=") ||
+		strings.Contains(fam.AvatarURL, "pps.whatsapp.net") {
+		t.Fatalf("whatsapp:family avatar_url = %q, want proxied /api/apps/avatar path", fam.AvatarURL)
 	}
 	gen := resp.Channels[1]
 	if gen.Channel != "slack:general" || gen.DisplayName != "general" || gen.Kind != "" {

@@ -141,6 +141,9 @@ export interface NotificationSource {
 export interface ChannelMessage {
   id: number;
   sender: string;
+  /** Loopback image-proxy path for the sender's real avatar, when the
+   *  platform resolved one (e.g. Slack users.info). Absent → initials. */
+  avatar_url?: string;
   content: string;
   created_at: string;
 }
@@ -290,6 +293,9 @@ export interface OverviewChannel {
   display_name?: string;
   /** "group" | "person" when the adapter could classify the channel. */
   kind?: string;
+  /** Loopback image-proxy path for the channel's real picture (a person's
+   *  profile photo or a group icon), when the adapter resolved one. */
+  avatar_url?: string;
   participant_count?: number;
   subscriber_count?: number;
   message_count?: number;

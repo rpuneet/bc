@@ -163,7 +163,7 @@ func (f *fakeChannelStore) LoadChannels(_ context.Context) ([]PersistedChannel, 
 	return out, nil
 }
 
-func (f *fakeChannelStore) UpsertChannelMeta(_ context.Context, channel, displayName, kind string, participantCount int) error {
+func (f *fakeChannelStore) UpsertChannelMeta(_ context.Context, channel, displayName, kind, avatarURL string, participantCount int) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	ch := f.saved[channel]
@@ -173,6 +173,9 @@ func (f *fakeChannelStore) UpsertChannelMeta(_ context.Context, channel, display
 	}
 	if kind != "" {
 		ch.Kind = kind
+	}
+	if avatarURL != "" {
+		ch.AvatarURL = avatarURL
 	}
 	if participantCount != 0 {
 		ch.ParticipantCount = participantCount
@@ -239,7 +242,7 @@ func TestDiscoverChannels_PersistsResolvedMeta(t *testing.T) {
 		mockNotifAdapter: mockNotifAdapter{name: "whatsapp"},
 		channels:         []ChannelInfo{{ID: "1234@g.us", Name: "family", Platform: "whatsapp"}},
 		meta: map[string]ChannelMeta{
-			"1234@g.us": {DisplayName: "Family Group", Kind: ChannelKindGroup, ParticipantCount: 12},
+			"1234@g.us": {DisplayName: "Family Group", Kind: ChannelKindGroup, AvatarURL: "https://pps.whatsapp.net/v/group.jpg", ParticipantCount: 12},
 		},
 	}
 	m.Register(a)
@@ -247,7 +250,8 @@ func TestDiscoverChannels_PersistsResolvedMeta(t *testing.T) {
 
 	waitFor(t, func() bool {
 		ch, ok := store.get("whatsapp:family")
-		return ok && ch.DisplayName == "Family Group" && ch.Kind == "group" && ch.ParticipantCount == 12
+		return ok && ch.DisplayName == "Family Group" && ch.Kind == "group" &&
+			ch.AvatarURL == "https://pps.whatsapp.net/v/group.jpg" && ch.ParticipantCount == 12
 	})
 }
 

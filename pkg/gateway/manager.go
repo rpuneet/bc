@@ -21,6 +21,7 @@ type PersistedChannel struct {
 	PlatformID       string
 	DisplayName      string
 	Kind             string
+	AvatarURL        string
 	ParticipantCount int
 }
 
@@ -29,7 +30,7 @@ type PersistedChannel struct {
 type ChannelStore interface {
 	SaveChannel(ctx context.Context, channel, platform, platformID string) error
 	LoadChannels(ctx context.Context) ([]PersistedChannel, error)
-	UpsertChannelMeta(ctx context.Context, channel, displayName, kind string, participantCount int) error
+	UpsertChannelMeta(ctx context.Context, channel, displayName, kind, avatarURL string, participantCount int) error
 	// UpdateChannelPlatformID force-overwrites a channel's platform id —
 	// used when a fallback route is upgraded to a native id (SaveChannel
 	// deliberately preserves existing non-empty ids).
@@ -67,7 +68,9 @@ type Manager struct {
 	// Typically wired to ChannelService.Send + SSE hub.
 	// senderID carries the platform-native sender identifier (e.g. WhatsApp JID)
 	// so callers can use it for follow-up operations such as reactions.
-	onInbound    func(channel, sender, senderID, content, messageID string, mentions []string, raw json.RawMessage)
+	// senderAvatar is the raw platform avatar URL for the sender when the
+	// adapter cheaply resolved one (empty otherwise → initials fallback).
+	onInbound    func(channel, sender, senderID, senderAvatar, content, messageID string, mentions []string, raw json.RawMessage)
 	channelStore ChannelStore
 	mu           sync.RWMutex
 	// adapterWG tracks boot-time and hot-started adapter goroutines so Stop/
@@ -112,7 +115,7 @@ func (m *Manager) SetChannelStore(store ChannelStore) {
 // sender id (e.g. WhatsApp JID — used for follow-up reactions), text content,
 // platform-native message ID, pre-extracted mentions (e.g. WhatsApp JID user parts),
 // and the raw platform payload.
-func (m *Manager) SetInboundHandler(fn func(channel, sender, senderID, content, messageID string, mentions []string, raw json.RawMessage)) {
+func (m *Manager) SetInboundHandler(fn func(channel, sender, senderID, senderAvatar, content, messageID string, mentions []string, raw json.RawMessage)) {
 	m.onInbound = fn
 }
 
@@ -594,7 +597,7 @@ func (m *Manager) resolveAndStoreMeta(ctx context.Context, a NotificationAdapter
 	if meta == (ChannelMeta{}) {
 		return
 	}
-	if err := m.channelStore.UpsertChannelMeta(ctx, channel, meta.DisplayName, meta.Kind, meta.ParticipantCount); err != nil {
+	if err := m.channelStore.UpsertChannelMeta(ctx, channel, meta.DisplayName, meta.Kind, meta.AvatarURL, meta.ParticipantCount); err != nil {
 		log.Warn("gateway: failed to persist channel meta", "channel", channel, "error", err)
 	}
 }
@@ -620,6 +623,9 @@ func (m *Manager) resolveChannelMeta(ctx context.Context, a NotificationAdapter,
 	}
 	if resolved.Kind != "" {
 		meta.Kind = resolved.Kind
+	}
+	if resolved.AvatarURL != "" {
+		meta.AvatarURL = resolved.AvatarURL
 	}
 	if resolved.ParticipantCount > 0 {
 		meta.ParticipantCount = resolved.ParticipantCount
@@ -663,7 +669,7 @@ func (m *Manager) RefreshChannelMeta(ctx context.Context) (int, error) {
 		if err != nil || meta == (ChannelMeta{}) {
 			continue
 		}
-		if err := m.channelStore.UpsertChannelMeta(ctx, e.channel, meta.DisplayName, meta.Kind, meta.ParticipantCount); err != nil {
+		if err := m.channelStore.UpsertChannelMeta(ctx, e.channel, meta.DisplayName, meta.Kind, meta.AvatarURL, meta.ParticipantCount); err != nil {
 			log.Warn("gateway: failed to refresh channel meta", "channel", e.channel, "error", err)
 			continue
 		}
@@ -762,7 +768,7 @@ func (m *Manager) handleNotification(platform string, n Notification) {
 		content = string(n.Raw)
 	}
 	if m.onInbound != nil {
-		m.onInbound(channel, sender, n.SenderID, content, n.MessageID, n.Mentions, n.Raw)
+		m.onInbound(channel, sender, n.SenderID, n.SenderAvatar, content, n.MessageID, n.Mentions, n.Raw)
 	}
 }
 

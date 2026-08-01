@@ -36,7 +36,7 @@ func TestGetMessages_CursorPagination(t *testing.T) {
 
 	const channel = "slack:eng"
 	for i := 0; i < 30; i++ {
-		if err := store.SaveMessage(ctx, channel, "alice", "m"); err != nil {
+		if err := store.SaveMessage(ctx, channel, "alice", "", "m"); err != nil {
 			t.Fatalf("SaveMessage %d: %v", i, err)
 		}
 	}
