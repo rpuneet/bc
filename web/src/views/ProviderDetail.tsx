@@ -249,10 +249,10 @@ function ProviderHeader({
     <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
       <div className="flex items-center gap-3">
         <Link
-          to="/tools"
+          to="/settings"
           className="text-mycel-muted hover:text-mycel-text text-sm shrink-0"
         >
-          &larr; Tools
+          &larr; Settings
         </Link>
         {/* Monogram */}
         <div className="w-9 h-9 rounded-full bg-mycel-accent-subtle flex items-center justify-center shrink-0">
@@ -1071,12 +1071,13 @@ export function ProviderDetail() {
           icon="!"
           title="Failed to load provider"
           description={error}
-          actionLabel="Back to Tools"
-          // Navigate to the known parent (/tools) instead of
+          actionLabel="Back to Settings"
+          // Navigate to the known parent (/settings) instead of
           // window.history.back(): a deep-linked or bookmarked
-          // /tools/:provider URL has no guaranteed prior in-app history
-          // entry, so history.back() could exit the SPA entirely.
-          onAction={() => navigate("/tools")}
+          // /settings/providers/:provider URL has no guaranteed prior
+          // in-app history entry, so history.back() could exit the SPA
+          // entirely.
+          onAction={() => navigate("/settings")}
         />
       </div>
     );

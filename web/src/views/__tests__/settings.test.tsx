@@ -47,7 +47,20 @@ function mockApi(overrides: Record<string, unknown> = {}) {
     if (url.includes("/settings/injected-instructions")) return jsonResponse({ injected_instructions: "" });
     if (url.includes("/settings")) return jsonResponse(SETTINGS);
     if (url.includes("/system/info")) return jsonResponse({ hostname: "test-host", os: "darwin", arch: "arm64" });
-    if (url.includes("/providers")) return jsonResponse([{ name: "claude", models: [{ id: "claude-sonnet-4", available: true }] }]);
+    if (url.includes("/providers")) {
+      return jsonResponse([
+        {
+          name: "claude",
+          installed: true,
+          agent_count: 1,
+          total_tokens: 1000,
+          total_cost_usd: 0.01,
+          version: "1.0.0",
+          install_hint: "",
+          models: [{ id: "claude-sonnet-4", available: true }],
+        },
+      ]);
+    }
     if (url.includes("/costs/budgets")) return jsonResponse([]);
     if (url.includes("/apps")) return jsonResponse({ catalog: [], instances: [] });
     if (url.includes("/deps")) return jsonResponse({ deps: [] });
@@ -76,20 +89,19 @@ describe("Settings redesign", () => {
     }
     // Budgets moved to Insights — it is no longer a Settings section.
     expect(screen.queryByText("budgets")).not.toBeInTheDocument();
-    // Drilldown summaries route out to the full managers instead of
-    // duplicating config: a footer link per surface.
-    const toolsLinks = screen.getAllByRole("link").filter((a) => a.getAttribute("href") === "/tools");
-    expect(toolsLinks.length).toBeGreaterThan(0);
+    // Apps still summarizes and drills out to its own full manager.
     const appsLinks = screen.getAllByRole("link").filter((a) => a.getAttribute("href") === "/apps");
     expect(appsLinks.length).toBeGreaterThan(0);
   });
 
-  it("Tools & Providers summary drills into the flat /tools page", async () => {
+  it("Providers & Tools is folded in directly — a full list, not a drilldown summary", async () => {
     mockApi();
     renderSettings();
     await screen.findByText("providers & tools");
-    const toolsLinks = screen.getAllByRole("link").filter((a) => a.getAttribute("href") === "/tools");
-    expect(toolsLinks.length).toBeGreaterThan(0);
+    // The provider renders inline as a real table row (list-only, no card
+    // grid) — no more "drill into /tools" indirection.
+    expect(await screen.findByText("claude")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /install tools, sign in/i })).not.toBeInTheDocument();
   });
 
   it("reads onboarding state into the Setup section", async () => {

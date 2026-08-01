@@ -208,7 +208,7 @@ func DefaultConfig() Config {
 			CORSOrigin: "*",
 		},
 		Runtime: RuntimeConfig{
-			Default: "docker",
+			Default: "tmux",
 			Docker: DockerRuntimeConfig{
 				Image:            "mycel-agent-claude:latest",
 				Network:          "mycel-net",

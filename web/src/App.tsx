@@ -13,7 +13,6 @@ const Apps = lazy(() => import("./views/Apps").then((m) => ({ default: m.Apps })
 const AppsActivity = lazy(() => import("./views/AppsActivity").then((m) => ({ default: m.AppsActivity })));
 const Templates = lazy(() => import("./views/Templates").then((m) => ({ default: m.Templates })));
 const Marketplace = lazy(() => import("./views/Marketplace").then((m) => ({ default: m.Marketplace })));
-const Tools = lazy(() => import("./views/Tools").then((m) => ({ default: m.Tools })));
 const ProviderDetail = lazy(() => import("./views/ProviderDetail").then((m) => ({ default: m.ProviderDetail })));
 const Insights = lazy(() => import("./views/Insights").then((m) => ({ default: m.Insights })));
 const Settings = lazy(() => import("./views/Settings").then((m) => ({ default: m.Settings })));
@@ -68,15 +67,15 @@ function LegacyNotificationsRedirect() {
 }
 
 /**
- * The Settings "Providers & Tools" drill-down now resolves to the proven
- * flat /tools routes. Mounting the Tools view under a nested /settings/tools
- * path caused a remount loop that hammered /api/providers + /api/tools/unified
- * and left the page stuck on skeletons; the flat /tools route renders cleanly.
- * These redirects preserve any deep-linked :provider param.
+ * Providers/Tools folded into Settings as a list-only section (no more
+ * standalone /tools page). Old /tools and /tools/:provider bookmarks — and
+ * the earlier /settings/tools(/:provider) mounts — all resolve to the new
+ * home: /settings for the list, /settings/providers/:name for detail. These
+ * are permanent redirects so old links and bookmarks keep working.
  */
-function SettingsProviderRedirect() {
+function ToolsProviderRedirect() {
   const { provider } = useParams();
-  return <Navigate to={provider ? `/tools/${provider}` : "/tools"} replace />;
+  return <Navigate to={provider ? `/settings/providers/${provider}` : "/settings"} replace />;
 }
 
 function NotFound() {
@@ -123,16 +122,16 @@ export function AppRoutes() {
         <Route path="notifications/:sourceName" element={<LegacyNotificationsRedirect />} />
         <Route path="templates" element={wrap(<Templates />)} />
         <Route path="marketplace" element={wrap(<Marketplace />)} />
-        <Route path="tools" element={wrap(<Tools />)} />
-        <Route path="tools/:provider" element={wrap(<ProviderDetail />)} />
-        {/* Tools/Providers are reached FROM Settings, but the drill-down
-            resolves to the flat /tools route — the proven single mount. The
-            nested /settings/tools mount remounted in a loop and never settled,
-            so every entry point redirects to /tools. */}
-        <Route path="settings/tools" element={<Navigate to="/tools" replace />} />
-        <Route path="settings/tools/:provider" element={<SettingsProviderRedirect />} />
-        <Route path="settings/providers" element={<Navigate to="/tools" replace />} />
-        <Route path="providers" element={<Navigate to="/tools" replace />} />
+        {/* Providers/Tools folded into Settings — no standalone page.
+            Bookmarked /tools links get a permanent redirect; the real
+            per-provider detail view now mounts under /settings/providers. */}
+        <Route path="tools" element={<Navigate to="/settings" replace />} />
+        <Route path="tools/:provider" element={<ToolsProviderRedirect />} />
+        <Route path="settings/tools" element={<Navigate to="/settings" replace />} />
+        <Route path="settings/tools/:provider" element={<ToolsProviderRedirect />} />
+        <Route path="settings/providers" element={<Navigate to="/settings" replace />} />
+        <Route path="settings/providers/:provider" element={wrap(<ProviderDetail />)} />
+        <Route path="providers" element={<Navigate to="/settings" replace />} />
         {/* Secrets became the Custom Keys section on the Apps home. */}
         <Route path="secrets" element={<Navigate to="/apps#custom-keys" replace />} />
         <Route path="insights" element={wrap(<Insights />)} />

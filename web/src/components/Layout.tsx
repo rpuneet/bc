@@ -766,8 +766,9 @@ function titleFor(pathname: string): string {
   const firstSeg = pathname.replace(/^\//, "").split("/")[0] ?? "";
   const items = [
     ...buildNavGroups().flat(),
-    // Tools/Providers moved under Settings but the routes still resolve.
-    { to: "/tools", label: "Tools" },
+    // Tools/Providers folded into Settings — the old flat route redirects.
+    { to: "/tools", label: "Settings" },
+    { to: "/providers", label: "Settings" },
     { to: "/readiness", label: "Setup" },
     // Code left the sidebar (it's an agent-detail tab now) but the route
     // still resolves via the tab's "full view" link — keep its title.

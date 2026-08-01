@@ -105,16 +105,16 @@ describe("Back skips redirect/alias routes", () => {
     await pressBackOnceAndExpect("/home");
   });
 
-  it("/settings/tools -> /tools: Back lands on the prior page in one step", async () => {
-    renderStack(["/settings", "/settings/tools"], 1);
-    await waitFor(() => expect(lastLocation).toBe("/tools"));
+  it("/settings/tools -> /settings: Back lands on the prior page in one step", async () => {
+    renderStack(["/home", "/settings/tools"], 1);
+    await waitFor(() => expect(lastLocation).toBe("/settings"));
 
-    await pressBackOnceAndExpect("/settings");
+    await pressBackOnceAndExpect("/home");
   });
 
-  it("/providers -> /tools: Back lands on the prior page in one step", async () => {
+  it("/providers -> /settings: Back lands on the prior page in one step", async () => {
     renderStack(["/home", "/providers"], 1);
-    await waitFor(() => expect(lastLocation).toBe("/tools"));
+    await waitFor(() => expect(lastLocation).toBe("/settings"));
 
     await pressBackOnceAndExpect("/home");
   });

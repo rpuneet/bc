@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { api } from "../api/client";
 import type { Tool } from "../api/client";
@@ -14,7 +13,21 @@ import { RegistrySearch } from "../components/RegistrySearch";
 import { CopyButton } from "../components/CopyButton";
 import { ToastContainer, useToast } from "../components/Toast";
 import type { ToastLevel } from "../components/Toast";
-import { useHeaderSlot } from "../context/HeaderSlotContext";
+
+/* ── ProvidersToolsSection ─────────────────────────────────────────────
+ *
+ * The Settings "Providers & Tools" section — list-only. It folds in what
+ * used to be the standalone /tools page: fleet defaults, a providers table,
+ * and CLI dependency management. There is no card/grid mode anywhere here —
+ * table/list only, and a row click drills into /settings/providers/:name for
+ * the full per-provider manager (install/update, config, MCP servers,
+ * commands, cost breakdown, agents).
+ *
+ * Both lists (providers, CLI tools) load in parallel via independent
+ * usePolling calls; each keeps its last-known-good data on every background
+ * refresh (usePolling never clears `data` while re-fetching), so periodic
+ * polling never flashes a skeleton over content that's already on screen.
+ */
 
 const STATUS_CONFIG: Record<string, { dot: string; label: string; textColor: string }> = {
   connected:     { dot: "bg-mycel-success", label: "Connected",     textColor: "text-mycel-success" },
@@ -271,7 +284,7 @@ function CLIDepsRow({ tool, onToggle, onRemove, toggling, removing, expanded, on
             <span className={`text-xs ${cfg.textColor}`}>{tool.version || cfg.label}</span>
           </span>
         </td>
-        <td className="px-4 py-2.5 text-xs text-mycel-muted font-mono max-w-[180px] truncate" title={tool.version || ""}>{tool.version || "\u2014"}</td>
+        <td className="px-4 py-2.5 text-xs text-mycel-muted font-mono max-w-[180px] truncate" title={tool.version || ""}>{tool.version || "—"}</td>
         <td className="px-4 py-2.5 text-xs">
           {tool.required ? (
             <span className="px-1.5 py-0.5 rounded-md bg-mycel-accent-subtle text-mycel-accent text-[10px] font-medium">Yes</span>
@@ -434,13 +447,12 @@ function Spinner() {
   );
 }
 
-export function Tools() {
-  const navigate = useNavigate();
+export function ProvidersToolsSection() {
   const providerFetcher = useCallback(() => api.listProviders(), []);
   const { data: providers, loading: providersLoading } = usePolling(providerFetcher, 10000);
 
   const fetcher = useCallback(() => api.listTools(), []);
-  const { data: tools, loading, error, refresh, timedOut } = usePolling(fetcher, 10000);
+  const { data: tools, loading: toolsLoading, error, refresh, timedOut } = usePolling(fetcher, 10000);
   const [showAddForm, setShowAddForm] = useState(false);
   const [checking, setChecking] = useState(false);
   const [checkedTools, setCheckedTools] = useState<Tool[] | null>(null);
@@ -502,78 +514,6 @@ export function Tools() {
   }, [allTools, searchLower]);
 
   const providerList = providers ?? [];
-
-  const totalCount = providerList.length + allTools.length;
-  const matchCount = providerList.filter((p) => !searchLower || p.name.toLowerCase().includes(searchLower)).length + filteredCli.length;
-
-  useHeaderSlot({
-    title: (
-      <span className="text-xs text-mycel-text-2 tabular-nums truncate">
-        {searchLower
-          ? `${matchCount} of ${totalCount} tools`
-          : <>{providerList.length} Providers &middot; {cliTools.length} CLI{checkedTools && " · checked"}</>
-        }
-      </span>
-    ),
-    actions: (
-      <div className="flex items-center gap-2">
-        {/* Search with magnifying glass icon */}
-        <div className="relative">
-          <svg
-            className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-mycel-muted pointer-events-none"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={2}
-          >
-            <circle cx="11" cy="11" r="8" />
-            <path strokeLinecap="round" d="M21 21l-4.35-4.35" />
-          </svg>
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search tools..."
-            className="w-40 sm:w-52 pl-7 pr-7 py-1.5 text-sm rounded-md border border-mycel-border bg-mycel-bg text-mycel-text placeholder:text-mycel-muted focus:outline-none focus:ring-1 focus:ring-mycel-accent"
-          />
-          {search && (
-            <button
-              type="button"
-              onClick={() => setSearch("")}
-              className="absolute right-1.5 top-1/2 -translate-y-1/2 text-mycel-muted hover:text-mycel-text text-sm leading-none px-1"
-              aria-label="Clear search"
-            >
-              &times;
-            </button>
-          )}
-        </div>
-        <button type="button" onClick={() => void handleCheck()} disabled={checking}
-          className="inline-flex items-center gap-1.5 h-8 px-3 text-sm rounded-md bg-mycel-surface border border-mycel-border text-mycel-text-2 hover:text-mycel-text hover:bg-mycel-surface-hover transition-colors disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-mycel-accent">
-          {checking ? <Spinner /> : null}
-          {checking ? "Checking..." : "Health Check"}
-        </button>
-        <button type="button" onClick={() => setShowAddForm(!showAddForm)}
-          className="inline-flex items-center h-8 px-3 text-sm font-medium rounded-md bg-mycel-accent text-mycel-accent-fg hover:bg-mycel-accent-hover shadow-mycel-sm transition-colors focus-visible:ring-2 focus-visible:ring-mycel-accent">
-          + CLI Tool
-        </button>
-      </div>
-    ),
-  });
-
-  if (loading && !tools && providersLoading && !providers) {
-    return (
-      <div className="p-6 space-y-6">
-        <div className="h-6 w-32 animate-pulse rounded-md bg-mycel-surface-hover" />
-        <LoadingSkeleton variant="cards" rows={4} />
-      </div>
-    );
-  }
-  if (timedOut && !tools) {
-    return <div className="p-6"><EmptyState icon="!" title="Tools timed out" actionLabel="Retry" onAction={refresh} /></div>;
-  }
-  if (error && !tools) {
-    return <div className="p-6"><EmptyState icon="!" title="Failed to load tools" description={error} actionLabel="Retry" onAction={refresh} /></div>;
-  }
 
   const handleToggle = async (tool: Tool) => {
     // A not-installed tool has nothing to "enable" — flipping the DB flag
@@ -648,21 +588,80 @@ export function Tools() {
     }
   };
 
+  // Both lists load in parallel (two independent usePolling calls above);
+  // only show the full-section skeleton before either has ever landed.
+  const initialLoading = providersLoading && providers == null && toolsLoading && tools == null;
+
+  if (initialLoading) {
+    return (
+      <div className="space-y-6">
+        <div className="h-6 w-32 animate-pulse rounded-md bg-mycel-surface-hover" />
+        <LoadingSkeleton variant="cards" rows={4} />
+      </div>
+    );
+  }
+  if (timedOut && !tools) {
+    return <EmptyState icon="!" title="Tools timed out" actionLabel="Retry" onAction={refresh} />;
+  }
+  if (error && !tools) {
+    return <EmptyState icon="!" title="Failed to load tools" description={error} actionLabel="Retry" onAction={refresh} />;
+  }
+
   return (
-    <div className="p-6 space-y-8">
+    <div className="space-y-8">
+      {/* Search + health check + add-tool controls */}
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <div className="relative">
+          <svg
+            className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-mycel-muted pointer-events-none"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2}
+          >
+            <circle cx="11" cy="11" r="8" />
+            <path strokeLinecap="round" d="M21 21l-4.35-4.35" />
+          </svg>
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search providers & tools..."
+            className="w-48 sm:w-64 pl-7 pr-7 py-1.5 text-sm rounded-md border border-mycel-border bg-mycel-bg text-mycel-text placeholder:text-mycel-muted focus:outline-none focus:ring-1 focus:ring-mycel-accent"
+          />
+          {search && (
+            <button
+              type="button"
+              onClick={() => setSearch("")}
+              className="absolute right-1.5 top-1/2 -translate-y-1/2 text-mycel-muted hover:text-mycel-text text-sm leading-none px-1"
+              aria-label="Clear search"
+            >
+              &times;
+            </button>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <button type="button" onClick={() => void handleCheck()} disabled={checking}
+            className="inline-flex items-center gap-1.5 h-8 px-3 text-sm rounded-md bg-mycel-surface border border-mycel-border text-mycel-text-2 hover:text-mycel-text hover:bg-mycel-surface-hover transition-colors disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-mycel-accent">
+            {checking ? <Spinner /> : null}
+            {checking ? "Checking..." : "Health Check"}
+          </button>
+          <button type="button" onClick={() => setShowAddForm(!showAddForm)}
+            className="inline-flex items-center h-8 px-3 text-sm font-medium rounded-md bg-mycel-accent text-mycel-accent-fg hover:bg-mycel-accent-hover shadow-mycel-sm transition-colors focus-visible:ring-2 focus-visible:ring-mycel-accent">
+            + CLI Tool
+          </button>
+        </div>
+      </div>
+
       <AnimatePresence>
         {showAddForm && <AddCLIToolForm onClose={() => setShowAddForm(false)} onAdded={() => { setCheckedTools(null); refresh(); }} onToast={addToast} />}
       </AnimatePresence>
 
       <section>
-        {/* Section header: single sentence, no redundant count in a
-            "5 providers" chip elsewhere on the page. Keep it a quiet
-            editorial rule + label. */}
         <div className="flex items-baseline gap-2 mb-3">
           <h2 className="text-[11px] font-medium text-mycel-muted uppercase tracking-[0.08em]">
             AI Model Providers
           </h2>
-          {/* Only show count when data has arrived — avoids "0" flashing during load. */}
           {providers !== null && providers !== undefined && (
             <span className="text-[11px] text-mycel-muted tabular-nums">
               {providerList.length}
@@ -670,9 +669,6 @@ export function Tools() {
           )}
           <span className="flex-1 h-px bg-mycel-border self-center" aria-hidden />
         </div>
-        {/* Fix #1: Show loading skeleton while fetching; only show empty state after data arrives.
-            Previously, providerList defaulted to [] even while loading, rendering a false
-            "No providers" state during the initial fetch. */}
         {providersLoading && providers == null ? (
           <LoadingSkeleton variant="cards" rows={2} />
         ) : providerList.length === 0 && !search ? (
@@ -680,8 +676,6 @@ export function Tools() {
             icon="*"
             title="No AI providers configured"
             description="Connect Claude, Gemini, Cursor or another provider to start spinning up agents."
-            actionLabel="Configure in Settings →"
-            onAction={() => navigate("/settings")}
           />
         ) : (
           <>
@@ -717,11 +711,12 @@ export function Tools() {
           <p className="text-[10.5px] text-mycel-muted uppercase tracking-[0.08em] mb-1.5">Search a registry</p>
           <RegistrySearch />
         </div>
-        {filteredCli.length === 0 ? (
+        {toolsLoading && tools == null ? (
+          <LoadingSkeleton variant="cards" rows={2} />
+        ) : filteredCli.length === 0 ? (
           searchLower ? (
             <EmptyState icon=">" title="No matching CLI tools" description="Try a different search term." />
           ) : (
-            /* Fix #2: Actionable empty state with install-command hint. */
             <EmptyState
               icon=">"
               title="No CLI dependencies tracked"

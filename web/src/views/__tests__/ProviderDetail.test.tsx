@@ -82,9 +82,9 @@ function renderDetail(provider: ReturnType<typeof baseProvider>) {
   });
 
   return render(
-    <MemoryRouter initialEntries={[`/tools/${provider.name}`]}>
+    <MemoryRouter initialEntries={[`/settings/providers/${provider.name}`]}>
       <Routes>
-        <Route path="/tools/:provider" element={<ProviderDetail />} />
+        <Route path="/settings/providers/:provider" element={<ProviderDetail />} />
       </Routes>
     </MemoryRouter>,
   );
@@ -159,9 +159,9 @@ describe("ProviderDetail update", () => {
     });
 
     render(
-      <MemoryRouter initialEntries={["/tools/codex"]}>
+      <MemoryRouter initialEntries={["/settings/providers/codex"]}>
         <Routes>
-          <Route path="/tools/:provider" element={<ProviderDetail />} />
+          <Route path="/settings/providers/:provider" element={<ProviderDetail />} />
         </Routes>
       </MemoryRouter>,
     );
@@ -174,11 +174,12 @@ describe("ProviderDetail update", () => {
 });
 
 describe("ProviderDetail error state", () => {
-  it("'Back to Tools' navigates to /tools directly instead of relying on history.back()", async () => {
-    // A deep-linked / bookmarked /tools/:provider URL has no guaranteed
-    // prior in-app history entry (single-entry MemoryRouter simulates
-    // that). window.history.back() would have no in-app destination to
-    // land on; navigate("/tools") always resolves to a known page.
+  it("'Back to Settings' navigates to /settings directly instead of relying on history.back()", async () => {
+    // A deep-linked / bookmarked /settings/providers/:provider URL has no
+    // guaranteed prior in-app history entry (single-entry MemoryRouter
+    // simulates that). window.history.back() would have no in-app
+    // destination to land on; navigate("/settings") always resolves to a
+    // known page.
     fetchMock.mockImplementation((url: RequestInfo | URL) => {
       const u = String(url);
       if (u === "/api/providers/ghost") return Promise.reject(new Error("not found"));
@@ -192,21 +193,21 @@ describe("ProviderDetail error state", () => {
     }
 
     render(
-      <MemoryRouter initialEntries={["/tools/ghost"]}>
+      <MemoryRouter initialEntries={["/settings/providers/ghost"]}>
         <LocationSpy />
         <Routes>
-          <Route path="/tools" element={<div>Tools Page</div>} />
-          <Route path="/tools/:provider" element={<ProviderDetail />} />
+          <Route path="/settings" element={<div>Settings Page</div>} />
+          <Route path="/settings/providers/:provider" element={<ProviderDetail />} />
         </Routes>
       </MemoryRouter>,
     );
 
-    const backBtn = await screen.findByRole("button", { name: "Back to Tools" });
+    const backBtn = await screen.findByRole("button", { name: "Back to Settings" });
     fireEvent.click(backBtn);
 
     await waitFor(() => {
-      expect(lastPathname).toBe("/tools");
+      expect(lastPathname).toBe("/settings");
     });
-    expect(screen.getByText("Tools Page")).toBeInTheDocument();
+    expect(screen.getByText("Settings Page")).toBeInTheDocument();
   });
 });
