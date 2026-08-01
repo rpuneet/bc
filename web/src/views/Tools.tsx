@@ -7,6 +7,7 @@ import { usePolling } from "../hooks/usePolling";
 import { LoadingSkeleton } from "../components/LoadingSkeleton";
 import { EmptyState } from "../components/EmptyState";
 import { ProvidersTable } from "../components/ProvidersTable";
+import { ProviderDefaults } from "../components/ProviderDefaults";
 import { CopyButton } from "../components/CopyButton";
 import { ToastContainer, useToast } from "../components/Toast";
 import type { ToastLevel } from "../components/Toast";
@@ -454,7 +455,13 @@ export function Tools() {
             onAction={() => navigate("/settings")}
           />
         ) : (
-          <ProvidersTable providers={providerList} search={search} />
+          <>
+            {/* Fleet-wide default provider + model — persists to
+                prefs.providers and reloads live. Rendered only once
+                provider data has arrived (never over a skeleton). */}
+            {providerList.length > 0 && <ProviderDefaults providers={providerList} />}
+            <ProvidersTable providers={providerList} search={search} />
+          </>
         )}
       </section>
 

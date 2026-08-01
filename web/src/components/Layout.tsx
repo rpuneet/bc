@@ -33,8 +33,17 @@ const SIDEBAR_KEY = "mycel-sidebar-collapsed";
    transition. Honors prefers-reduced-motion. */
 function RouteTransition({ children }: { children: React.ReactNode }) {
   const location = useLocation();
-  const segments = location.pathname.split("/").filter(Boolean).slice(0, 1);
-  const key = "/" + segments.join("/");
+  // Transitions are keyed by the top-level section so navigating *within* a
+  // section (agent → agent, app → app) doesn't re-animate the whole page.
+  // Settings is the exception: its drill-downs (/settings/tools, …) are
+  // full sibling pages, not in-section detail. Keying them only by the
+  // "settings" segment collapsed them onto the Settings page's key, so the
+  // page-transition treated the drill-down as the same page. Keep two
+  // segments under /settings so each drill-down mounts and animates as the
+  // distinct page it is.
+  const parts = location.pathname.split("/").filter(Boolean);
+  const depth = parts[0] === "settings" ? 2 : 1;
+  const key = "/" + parts.slice(0, depth).join("/");
   return (
     <AnimatePresence mode="wait" initial={false}>
       <motion.div
