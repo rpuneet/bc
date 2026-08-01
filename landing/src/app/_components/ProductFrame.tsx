@@ -53,6 +53,7 @@ export function ProductFrame({
             width={width}
             height={height}
             priority={priority}
+            matchTheme={Boolean(srcLight)}
             className={srcLight ? "shot-dark" : undefined}
           />
           {srcLight && (

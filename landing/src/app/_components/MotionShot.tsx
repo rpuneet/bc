@@ -27,6 +27,7 @@ export function MotionShot({
   height,
   priority = false,
   ariaHidden = false,
+  matchTheme = true,
   className = "",
 }: {
   name: string;
@@ -36,6 +37,11 @@ export function MotionShot({
   height: number;
   priority?: boolean;
   ariaHidden?: boolean;
+  // When true (paired light/dark clips), the variant only mounts a <video>
+  // while the site theme matches `theme`. When false (a solo clip with no
+  // opposite-theme pair), the gate is bypassed so the clip plays in either
+  // site theme instead of freezing as a poster on the non-matching theme.
+  matchTheme?: boolean;
   className?: string;
 }) {
   const poster = `/screenshots/${name}-${theme}.png`;
@@ -60,7 +66,7 @@ export function MotionShot({
     return () => mo.disconnect();
   }, [theme]);
 
-  if (!motionOk || !themeActive) {
+  if (!motionOk || (matchTheme && !themeActive)) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
       <img
