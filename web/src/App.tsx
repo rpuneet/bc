@@ -27,29 +27,31 @@ function Loading() {
 }
 
 /**
- * HomeGate — routes a fresh install to the setup wizard. It renders Home
- * immediately (so the common, already-set-up case never flashes a loader)
- * and only redirects to /welcome once it positively learns this is a first
- * run. Any probe failure falls back to Home, so a daemon hiccup never traps
- * the user in onboarding.
+ * HomeGate — routes a fresh install to the setup wizard. While the
+ * onboarding probe is in flight it renders a blank/skeleton frame — not
+ * the real Home — so a first run never flashes the empty dashboard before
+ * bouncing to /welcome. Any probe failure (or a positive "not first run")
+ * falls through to Home, so a daemon hiccup never traps the user in
+ * onboarding.
  */
-function HomeGate() {
-  const [redirect, setRedirect] = useState(false);
+export function HomeGate() {
+  const [status, setStatus] = useState<"pending" | "home" | "welcome">("pending");
   useEffect(() => {
     let cancelled = false;
     api
       .getOnboardingState()
       .then((s) => {
-        if (!cancelled && s.firstRun) setRedirect(true);
+        if (!cancelled) setStatus(s.firstRun ? "welcome" : "home");
       })
       .catch(() => {
-        /* stay on Home */
+        if (!cancelled) setStatus("home");
       });
     return () => {
       cancelled = true;
     };
   }, []);
-  if (redirect) return <Navigate to="/welcome" replace />;
+  if (status === "pending") return <Loading />;
+  if (status === "welcome") return <Navigate to="/welcome" replace />;
   return <Home />;
 }
 

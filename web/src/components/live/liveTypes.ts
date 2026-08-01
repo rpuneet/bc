@@ -44,6 +44,17 @@ export interface HookEvent {
   input_tokens?: number;
   output_tokens?: number;
   prompt?: string;
+  /** mycel-internal event fields (ChannelMessage/Sent, AgentMessage,
+   *  CostUpdate, Notification, ConfigChange, Worktree*, …). */
+  channel?: string;
+  sender?: string;
+  message?: string;
+  mentions?: string[];
+  cost_usd?: number;
+  file?: string;
+  model?: string;
+  state?: string;
+  task_title?: string;
 }
 
 export interface TaskItem {
