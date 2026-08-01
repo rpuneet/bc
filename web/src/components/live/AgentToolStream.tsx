@@ -17,10 +17,12 @@ interface AgentToolStreamProps {
   stoppedAt?: string;
 }
 
-// Providers that emit lifecycle/tool hooks the Live feed is built from
-// (ActivityMode: hooks). Other providers don't report activity yet, so the
-// stream stays empty — say so honestly instead of "waiting for events".
-const HOOK_PROVIDERS = new Set(["claude", "agy"]);
+// Providers whose activity mycel captures for the Live feed: hook-based
+// providers (claude, agy) POST lifecycle events; transcript-based providers
+// (pi) have their session log tailed by the daemon. Providers not listed here
+// expose no readable activity yet, so the stream stays empty — say so honestly
+// instead of pretending events are coming.
+const CAPTURE_PROVIDERS = new Set(["claude", "agy", "pi"]);
 
 export function AgentToolStream({ agentName, agentTool }: AgentToolStreamProps) {
   const { activities, tasks, rawEventsRef } = useAgentActivity(agentName);
@@ -29,7 +31,7 @@ export function AgentToolStream({ agentName, agentTool }: AgentToolStreamProps) 
   const rawEvents = rawEventsRef.current.get(agentName) ?? [];
 
   if (!activity) {
-    const reportsActivity = !agentTool || HOOK_PROVIDERS.has(agentTool);
+    const reportsActivity = !agentTool || CAPTURE_PROVIDERS.has(agentTool);
     return (
       <div className="flex-1 flex items-center justify-center p-6">
         <p className="max-w-sm text-center text-sm text-mycel-muted italic leading-relaxed">
@@ -37,7 +39,7 @@ export function AgentToolStream({ agentName, agentTool }: AgentToolStreamProps) 
             "No activity yet — waiting for events"
           ) : (
             <>
-              Live activity isn&rsquo;t reported by{" "}
+              Live capture isn&rsquo;t available for{" "}
               <span className="not-italic font-medium">{agentTool}</span> agents
               yet. Use the <span className="not-italic font-medium">Attach</span>{" "}
               tab to watch this agent&rsquo;s terminal.
