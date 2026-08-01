@@ -109,20 +109,37 @@ type modelCacheEntry struct {
 	models []ModelInfo
 }
 
+// statusCacheEntry caches a provider's IsInstalled/Version result to avoid
+// re-exec'ing LookPath + "<binary> --version" on every GET /api/providers.
+type statusCacheEntry struct {
+	at        time.Time
+	version   string
+	installed bool
+}
+
 // ProviderHandler handles /api/providers routes.
 type ProviderHandler struct {
-	sf         singleflight.Group
-	registry   *provider.Registry
-	agents     *agent.AgentService
-	costs      *cost.Service
-	h          *home.Home
-	modelCache map[string]modelCacheEntry
-	modelMu    sync.Mutex
+	sf          singleflight.Group
+	registry    *provider.Registry
+	agents      *agent.AgentService
+	costs       *cost.Service
+	h           *home.Home
+	modelCache  map[string]modelCacheEntry
+	statusCache map[string]statusCacheEntry
+	modelMu     sync.Mutex
+	statusMu    sync.Mutex
 }
 
 // NewProviderHandler creates a ProviderHandler.
 func NewProviderHandler(registry *provider.Registry, agents *agent.AgentService, costs *cost.Service, h *home.Home) *ProviderHandler {
-	return &ProviderHandler{registry: registry, agents: agents, costs: costs, h: h, modelCache: make(map[string]modelCacheEntry)}
+	return &ProviderHandler{
+		registry:    registry,
+		agents:      agents,
+		costs:       costs,
+		h:           h,
+		modelCache:  make(map[string]modelCacheEntry),
+		statusCache: make(map[string]statusCacheEntry),
+	}
 }
 
 // Register mounts provider routes on mux.
@@ -196,6 +213,48 @@ func (h *ProviderHandler) fetchModels(ctx context.Context, p provider.Provider) 
 		return []ModelInfo{}
 	}
 	return ms
+}
+
+// fetchInstallStatus returns provider p's IsInstalled/Version, cached for 60
+// seconds so buildProviderInfo doesn't re-exec LookPath + "<binary>
+// --version" on every request. Mirrors fetchModels' cache+singleflight
+// shape: concurrent callers for the same provider share one in-flight
+// check, and a "status:" key prefix keeps this singleflight.Group entry
+// distinct from fetchModels' same-name key on the shared h.sf group.
+func (h *ProviderHandler) fetchInstallStatus(ctx context.Context, p provider.Provider) (installed bool, version string) {
+	const ttl = 60 * time.Second
+
+	h.statusMu.Lock()
+	if e, ok := h.statusCache[p.Name()]; ok && time.Since(e.at) < ttl {
+		h.statusMu.Unlock()
+		return e.installed, e.version
+	}
+	h.statusMu.Unlock()
+
+	raw, _, _ := h.sf.Do("status:"+p.Name(), func() (any, error) { //nolint:errcheck // sf.Do error is forwarded; closure never returns non-nil
+		h.statusMu.Lock()
+		if e, ok := h.statusCache[p.Name()]; ok && time.Since(e.at) < ttl {
+			h.statusMu.Unlock()
+			return e, nil
+		}
+		h.statusMu.Unlock()
+
+		e := statusCacheEntry{at: time.Now(), installed: p.IsInstalled(ctx)}
+		if e.installed {
+			e.version = p.Version(ctx)
+		}
+
+		h.statusMu.Lock()
+		h.statusCache[p.Name()] = e
+		h.statusMu.Unlock()
+
+		return e, nil
+	})
+	e, ok := raw.(statusCacheEntry)
+	if !ok {
+		return false, ""
+	}
+	return e.installed, e.version
 }
 
 // listModels returns live models for a provider (with caching).
@@ -272,6 +331,8 @@ func (h *ProviderHandler) byName(w http.ResponseWriter, r *http.Request) {
 		h.install(w, r, name)
 	case r.Method == http.MethodPost && action == "update":
 		h.update(w, r, name)
+	case r.Method == http.MethodPost && action == "uninstall":
+		h.uninstall(w, r, name)
 	case r.Method == http.MethodPost && action == "check-update":
 		h.checkUpdate(w, r, name)
 	case r.Method == http.MethodPatch && action == "config":
@@ -625,6 +686,74 @@ func (h *ProviderHandler) update(w http.ResponseWriter, r *http.Request, name st
 	streamInstall(r.Context(), hint, emit)
 }
 
+// isRequiredProvider reports whether name is mycel's currently configured
+// default provider (providers.default in prefs.json) — the one every new
+// agent spawns with unless told otherwise. Uninstalling it out from under a
+// running daemon would strand that default, so uninstall refuses it; the
+// user can uninstall it after switching the default provider elsewhere.
+func isRequiredProvider(h *home.Home, name string) bool {
+	if h == nil {
+		return false
+	}
+	return strings.EqualFold(h.DefaultProvider(), name)
+}
+
+// uninstall removes a provider's CLI by deriving a remove command from its
+// vetted InstallHint (npm-global or Homebrew — the same two package
+// managers resolveUninstall in deps_install.go supports) and streaming live
+// output back as NDJSON, mirroring update's execution model. Refuses the
+// configured default provider (isRequiredProvider) and any hint that
+// doesn't map to an unambiguous uninstall command. Loopback-only: it shells
+// out on the host.
+func (h *ProviderHandler) uninstall(w http.ResponseWriter, r *http.Request, name string) {
+	if !checkLoopback(w, r) {
+		return
+	}
+
+	p, ok := h.registry.Get(name)
+	if !ok {
+		httpError(w, "unknown provider: "+name, http.StatusNotFound)
+		return
+	}
+
+	if isRequiredProvider(h.h, name) {
+		httpError(w, name+" is the default provider and cannot be uninstalled", http.StatusBadRequest)
+		return
+	}
+
+	cmd, ok := deriveUninstall(p.InstallHint())
+	if !ok {
+		httpError(w, "no automatic uninstaller for "+name, http.StatusBadRequest)
+		return
+	}
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		httpError(w, "streaming not supported", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/x-ndjson")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.WriteHeader(http.StatusOK)
+
+	emit := func(v any) bool {
+		payload, mErr := json.Marshal(v)
+		if mErr != nil {
+			return false
+		}
+		if _, wErr := w.Write(append(payload, '\n')); wErr != nil {
+			return false
+		}
+		flusher.Flush()
+		return true
+	}
+
+	emit(map[string]string{"type": "start", "command": cmd})
+	streamInstall(r.Context(), cmd, emit)
+}
+
 // hintResponse returns the install/update hint for a provider.
 func (h *ProviderHandler) hintResponse(w http.ResponseWriter, name, action string) {
 	p, ok := h.registry.Get(name)
@@ -687,11 +816,7 @@ func (h *ProviderHandler) buildProviderInfo(
 	agentCounts map[string]int,
 	costByProvider map[string]*costAgg,
 ) ProviderInfo {
-	installed := p.IsInstalled(ctx)
-	version := ""
-	if installed {
-		version = p.Version(ctx)
-	}
+	installed, version := h.fetchInstallStatus(ctx, p)
 
 	status := "not_installed"
 	if installed {

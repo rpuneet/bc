@@ -228,6 +228,16 @@ func buildServicesFromHome(ctx context.Context, globals *Globals, h *home.Home) 
 		} else {
 			toolStore = ts
 			addCloser(func() error { return ts.Close() })
+			// Background auto-check: verifies install status for every tool
+			// once at boot and every toolHealthCheckInterval after, so
+			// GET /api/tools always serves recently-verified status instead
+			// of the seed-time default (#3423). Runs in its own goroutine —
+			// BuildServices returns without waiting for the first pass.
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				runToolHealthLoop(svcCtx, ts)
+			}()
 		}
 	}
 
@@ -499,6 +509,35 @@ func runEventPruneLoop(ctx context.Context, prunable *eventspkg.SQLiteLog) {
 		case <-ctx.Done():
 			return
 		}
+	}
+}
+
+// toolHealthCheckInterval is how often the background tool auto-check
+// re-verifies install status after its initial boot-time pass.
+const toolHealthCheckInterval = 10 * time.Minute
+
+// runToolHealthLoop runs store.CheckAll once immediately (off the request
+// path, so it never delays daemon startup) and then on a fixed interval,
+// keeping every tool's health_status fresh without requiring a manual
+// POST /api/tools/check. See tool.Store.CheckAll for the check itself and
+// ToolHandler.checkAll for the manual force-refresh that shares it.
+func runToolHealthLoop(ctx context.Context, store *toolpkg.Store) {
+	checkToolsOnce(ctx, store)
+	ticker := time.NewTicker(toolHealthCheckInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			checkToolsOnce(ctx, store)
+		case <-ctx.Done():
+			return
+		}
+	}
+}
+
+func checkToolsOnce(ctx context.Context, store *toolpkg.Store) {
+	if _, err := store.CheckAll(ctx); err != nil {
+		log.Warn("tool health auto-check failed", "error", err)
 	}
 }
 

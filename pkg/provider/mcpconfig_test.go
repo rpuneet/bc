@@ -36,8 +36,8 @@ const mcpJSONFixture = `{
 
 func TestClaudeCommands(t *testing.T) {
 	cmds := NewClaudeProvider().Commands()
-	if len(cmds) != 7 {
-		t.Fatalf("len(Commands()) = %d, want 7", len(cmds))
+	if len(cmds) != 8 {
+		t.Fatalf("len(Commands()) = %d, want 8", len(cmds))
 	}
 	if cmds[0].Name != "mcp add" || cmds[0].Args != "<name> <command|url>" {
 		t.Errorf("first command = %+v, want mcp add", cmds[0])
