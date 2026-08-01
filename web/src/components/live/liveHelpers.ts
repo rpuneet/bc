@@ -49,7 +49,7 @@ export function parseToolName(name: string): ParsedTool {
 export function mcpBadgeColors(server: string): string {
   if (server === "playwright" || server === "playwright2") return "bg-mycel-info-subtle text-mycel-info";
   if (server === "github") return "bg-mycel-surface-hover text-mycel-text-2";
-  if (server === "bc") return "bg-mycel-accent-subtle text-mycel-accent";
+  if (server === "mycel") return "bg-mycel-accent-subtle text-mycel-accent";
   return "bg-mycel-surface-hover text-mycel-text-2";
 }
 

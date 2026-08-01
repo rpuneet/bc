@@ -281,7 +281,7 @@ function TemplateDetailPanel({
               value={mcpsRaw}
               onChange={(e) => setMcpsRaw(e.target.value)}
               className="w-full px-3 py-2 rounded-md border border-mycel-border bg-mycel-bg text-mycel-text text-sm focus:outline-none focus:ring-2 focus:ring-mycel-accent"
-              placeholder="bc, github"
+              placeholder="mycel, github"
               aria-label="MCP servers (comma-separated)"
               style={{ fontFamily: MONO }}
             />
@@ -432,7 +432,7 @@ function CreateTemplateForm({
       setName("");
       setDescription("");
       setSystemPrompt("");
-      setMcpsRaw("bc");
+      setMcpsRaw("mycel");
       setSecretsRaw("");
       setPluginsRaw("");
       onClose();
@@ -507,7 +507,7 @@ function CreateTemplateForm({
             type="text"
             value={mcpsRaw}
             onChange={(e) => setMcpsRaw(e.target.value)}
-            placeholder="bc, github"
+            placeholder="mycel, github"
             className="w-full px-3 py-2 rounded-md border border-mycel-border bg-mycel-bg text-mycel-text text-sm focus:outline-none focus:ring-2 focus:ring-mycel-accent"
             style={{ fontFamily: MONO }}
           />

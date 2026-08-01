@@ -63,7 +63,7 @@ const EMPTY_FILE: FileResult = {
 // Users can still inspect them by toggling `Show hidden`.
 const HIDDEN_DIRS = new Set([
   ".git",
-  ".bc",
+  ".mycel",
   "node_modules",
   "dist",
   "build",
@@ -234,7 +234,7 @@ export function HiddenToggle({
       className={`text-[10px] uppercase tracking-wider transition-colors ${
         showHidden ? "text-mycel-accent" : "text-mycel-muted hover:text-mycel-text"
       }`}
-      title="Toggle .git / .bc entries"
+      title="Toggle .git / .mycel entries"
     >
       {showHidden ? "Hide hidden" : "Show hidden"}
     </button>
