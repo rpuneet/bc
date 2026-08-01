@@ -39,11 +39,14 @@ func TestAvatarHostAllowed(t *testing.T) {
 		want bool
 	}{
 		{"avatars.slack-edge.com", true},
-		{"files.slack.com", true},
+		{"a.slack-edge.com", true},
 		{"secure.gravatar.com", true},
 		{"pps.whatsapp.net", true},
 		{"media.whatsapp.net", true},
-		// SSRF attempts that must be rejected.
+		{"PPS.WhatsApp.net", true}, // case-insensitive
+		// Not on the exact allowlist / SSRF attempts — all rejected.
+		{"files.slack.com", false},
+		{"evil.slack-edge.com", false},
 		{"evil.com", false},
 		{"169.254.169.254", false},
 		{"localhost", false},

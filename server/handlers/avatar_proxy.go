@@ -16,30 +16,27 @@ import (
 // upstream response can't exhaust daemon memory.
 const avatarMaxBytes = 5 << 20 // 5 MiB
 
-// avatarHostSuffixes is the SSRF allowlist for the avatar proxy: the only
-// hosts it will ever fetch. Platform avatar CDNs serve public, tokenless URLs,
-// so proxying them leaks nothing — but the daemon must never be tricked into
-// fetching an arbitrary URL slipped into ?u=, so every hop is checked against
-// this list. Leading dots make these strict subdomain suffixes.
-var avatarHostSuffixes = []string{
-	".slack-edge.com", // Slack profile images (avatars-*.slack-edge.com)
-	".slack.com",
-	".gravatar.com", // Slack's default gravatar fallbacks (secure.gravatar.com)
-	".whatsapp.net", // WhatsApp profile pics (pps./media./mmg.whatsapp.net)
+// avatarAllowedHosts is the exact-match SSRF allowlist for the avatar proxy:
+// the only hosts it will ever fetch. Platform avatar CDNs serve public,
+// tokenless URLs, so proxying them leaks nothing — but the daemon must never be
+// tricked into fetching an arbitrary URL slipped into ?u=. Exact hostnames
+// (not suffixes) are used so a lookalike like "whatsapp.net.attacker.com" can
+// never match. Keep in sync with the inline == guard in avatarProxy, which must
+// stay literal for CodeQL's request-forgery barrier to recognize it.
+var avatarAllowedHosts = map[string]bool{
+	"pps.whatsapp.net":       true, // WhatsApp profile pictures
+	"media.whatsapp.net":     true, // WhatsApp media (thumbnails)
+	"avatars.slack-edge.com": true, // Slack uploaded avatars
+	"a.slack-edge.com":       true, // Slack alt avatar host
+	"secure.gravatar.com":    true, // Slack default (gravatar) avatars
 }
 
-// avatarHostAllowed reports whether host is one of the platform avatar CDNs we
-// proxy. Matching is exact-suffix on a leading dot so "evil-whatsapp.net" and
-// "whatsapp.net.attacker.com" are both rejected. It is the barrier guard the
-// avatarProxy flow relies on: nothing is dialed unless the host clears it.
+// avatarHostAllowed reports whether host is an allowlisted avatar CDN. Used by
+// the redirect guard and tests; the primary request path uses an inline literal
+// == check (see avatarProxy) because CodeQL only recognizes equality-against-
+// constant on url.Hostname() as a request-forgery barrier.
 func avatarHostAllowed(host string) bool {
-	host = strings.ToLower(strings.TrimSuffix(host, "."))
-	for _, s := range avatarHostSuffixes {
-		if strings.HasSuffix(host, s) {
-			return true
-		}
-	}
-	return false
+	return avatarAllowedHosts[strings.ToLower(host)]
 }
 
 // avatarHostResolvesPublic reports whether an already-allowlisted host resolves
@@ -121,21 +118,19 @@ func (h *GatewayHandler) avatarProxy(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// SSRF barrier: the request below may only ever target an allowlisted avatar
-	// CDN. The check is written as inline strings.HasSuffix guards applied
-	// *directly* to parsed.Hostname() — no intervening ToLower/Trim, which would
-	// sever the value from the URL — because that is the exact sanitizer shape
-	// CodeQL's request-forgery analysis recognizes as a barrier for the request
-	// on `parsed` below. A helper/loop (avatarHostAllowed, used by the redirect
-	// guard) is not tracked across the call boundary. Keep these literals in
-	// sync with avatarHostSuffixes; the leading dots make them strict subdomain
-	// suffixes, so "whatsapp.net.attacker.com"/"evil-whatsapp.net" are rejected.
-	// Hostnames are effectively lowercase from these CDNs; a mixed-case host
-	// simply fails closed here (403), which is safe.
-	hostAllowed := strings.HasSuffix(parsed.Hostname(), ".slack-edge.com") ||
-		strings.HasSuffix(parsed.Hostname(), ".slack.com") ||
-		strings.HasSuffix(parsed.Hostname(), ".gravatar.com") ||
-		strings.HasSuffix(parsed.Hostname(), ".whatsapp.net")
-	if !hostAllowed {
+	// CDN. This MUST be an inline equality comparison of parsed.Hostname()
+	// against string literals: CodeQL's request-forgery query recognizes exactly
+	// that shape (== / != on url.Hostname() vs a constant) as a sanitizer for
+	// the URL that flows into the request — a suffix check, a helper call, or an
+	// intervening ToLower are all NOT tracked and leave the alert live. Keep
+	// these literals in sync with avatarAllowedHosts. Hostnames from these CDNs
+	// are lowercase; a mixed-case host fails closed here (403), which is safe.
+	host := parsed.Hostname()
+	if host != "pps.whatsapp.net" &&
+		host != "media.whatsapp.net" &&
+		host != "avatars.slack-edge.com" &&
+		host != "a.slack-edge.com" &&
+		host != "secure.gravatar.com" {
 		httpError(w, "avatar host not allowed", http.StatusForbidden)
 		return
 	}
@@ -145,7 +140,7 @@ func (h *GatewayHandler) avatarProxy(w http.ResponseWriter, r *http.Request) {
 
 	// Even an allowlisted name must not resolve into an internal IP range
 	// (DNS-rebinding / internal-service SSRF).
-	if !avatarHostResolvesPublic(ctx, parsed.Hostname()) {
+	if !avatarHostResolvesPublic(ctx, host) {
 		httpError(w, "avatar host not allowed", http.StatusForbidden)
 		return
 	}
