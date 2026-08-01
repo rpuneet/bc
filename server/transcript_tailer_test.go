@@ -143,7 +143,7 @@ func TestTranscriptTailer_LiveCapture(t *testing.T) {
 	}
 }
 
-// TestTranscriptTailer_CodexLiveCapture is the codex analogue of the pi live
+// TestTranscriptTailer_CodexLiveCapture is the codex counterpart of the pi live
 // check: it seeds a real-shape codex rollout at EOF, appends a user turn plus a
 // paired shell tool call/output (whose result line carries only the call_id),
 // and asserts the session-based path publishes PreToolUse/PostToolUse with the
