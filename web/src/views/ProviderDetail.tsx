@@ -629,18 +629,30 @@ function CommandRow({ providerName, command }: { providerName: string; command: 
   const [state, setState] = useState<"idle" | "running" | "done" | "error">("idle");
   const [output, setOutput] = useState<string>("");
   const [exitCode, setExitCode] = useState<number | null>(null);
+  const [truncated, setTruncated] = useState(false);
+  const [timedOut, setTimedOut] = useState(false);
   const [errMsg, setErrMsg] = useState<string | null>(null);
+
+  // The reason a command can't be run inline — used as both the visible/aria
+  // explanation and the pointer tooltip (title alone isn't keyboard/SR-accessible).
+  const notRunnableReason = command.interactive
+    ? "Interactive command (needs a terminal / auth) — copy and run it yourself."
+    : "Takes arguments — copy and run it yourself.";
 
   const run = async () => {
     setState("running");
     setOutput("");
     setErrMsg(null);
     setExitCode(null);
+    setTruncated(false);
+    setTimedOut(false);
     try {
       const res = await api.runProviderCommand(providerName, command.name);
       setOutput(res.output.trimEnd());
       setExitCode(res.exit_code);
-      setState(res.exit_code === 0 ? "done" : "error");
+      setTruncated(res.truncated);
+      setTimedOut(res.timed_out);
+      setState(res.exit_code === 0 && !res.timed_out ? "done" : "error");
     } catch (e) {
       setErrMsg(e instanceof Error ? e.message : "Command failed to run.");
       setState("error");
@@ -674,7 +686,8 @@ function CommandRow({ providerName, command }: { providerName: string; command: 
           ) : (
             <span
               className="inline-flex items-center gap-1 text-[10.5px] text-mycel-muted"
-              title={command.interactive ? "Needs a terminal (interactive / auth). Copy and run it yourself." : "Takes arguments — copy and run it yourself."}
+              aria-label={notRunnableReason}
+              title={notRunnableReason}
             >
               <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
                 <rect x="3" y="4" width="18" height="16" rx="2" /><path strokeLinecap="round" strokeLinejoin="round" d="M7 9l3 3-3 3M13 15h4" />
@@ -691,16 +704,19 @@ function CommandRow({ providerName, command }: { providerName: string; command: 
               <p className="text-xs text-mycel-error">{errMsg}</p>
             ) : (
               <div className="space-y-1">
-                <div className="flex items-center gap-2 text-[10.5px] text-mycel-muted">
+                <div className="flex items-center gap-2 text-[10.5px] text-mycel-muted flex-wrap">
                   <span className="font-mono text-mycel-accent">$ {command.command}</span>
-                  {exitCode !== null && (
+                  {timedOut ? (
+                    <span className="text-mycel-error">timed out</span>
+                  ) : exitCode !== null && (
                     <span className={exitCode === 0 ? "text-mycel-success" : "text-mycel-error"}>
                       exit {exitCode}
                     </span>
                   )}
+                  {truncated && <span className="text-mycel-warning">output truncated</span>}
                 </div>
                 <pre className="max-h-56 overflow-auto rounded border border-mycel-border bg-mycel-surface px-2.5 py-1.5 font-mono text-[11px] leading-relaxed text-mycel-text-2 whitespace-pre-wrap">
-                  {state === "running" ? "Running…" : output || "(no output)"}
+                  {state === "running" ? "Running…" : output || (timedOut ? "(no output — command timed out)" : "(no output)")}
                 </pre>
               </div>
             )}

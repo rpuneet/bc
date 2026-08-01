@@ -44,6 +44,11 @@ type PackageManager struct {
 	// UI can drive (e.g. `brew search`, `npm search`). Honest metadata:
 	// managers without a usable search are labeled so rather than faked.
 	Searchable bool `json:"searchable"`
+	// DirectInstall is true when the server can install a searched package
+	// via this manager directly (no sudo, non-interactive — brew/npm/cargo).
+	// The UI reads this instead of hard-coding the set, so its Install
+	// affordance never drifts from the backend installSpecs.
+	DirectInstall bool `json:"direct_install"`
 }
 
 // pmCandidate describes a manager to probe: its binary and the args that print
@@ -126,11 +131,12 @@ func (h *PackageManagersHandler) detect(ctx context.Context) []PackageManager {
 			version = v
 		}
 		found = append(found, PackageManager{
-			ID:         c.id,
-			Name:       c.name,
-			Version:    version,
-			Available:  true,
-			Searchable: pkgManagerSearchable(c.id),
+			ID:            c.id,
+			Name:          c.name,
+			Version:       version,
+			Available:     true,
+			Searchable:    pkgManagerSearchable(c.id),
+			DirectInstall: pkgManagerDirectInstall(c.id),
 		})
 	}
 	sort.Slice(found, func(i, j int) bool { return found[i].ID < found[j].ID })

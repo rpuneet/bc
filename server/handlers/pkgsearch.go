@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"io"
@@ -55,9 +56,16 @@ const (
 var pkgQueryPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$`)
 
 // pkgNamePattern is the charset an installable package name must match. It
-// additionally allows a leading '@' and an internal '/' for npm scoped
-// packages (e.g. @scope/pkg).
-var pkgNamePattern = regexp.MustCompile(`^@?[A-Za-z0-9][A-Za-z0-9._+/-]{0,127}$`)
+// accepts exactly two documented shapes and nothing else:
+//   - a plain package name: leading alphanumeric, then name characters (no '/')
+//   - a proper npm scope: "@scope/name", a single '/' separating one anchored
+//     scope segment from one anchored name segment
+//
+// Because each segment must start with an alphanumeric and '/' only appears
+// between an anchored scope and name, this rejects leading '-' (argv flag
+// injection like "-g"/"--force"), bare or duplicate '/', trailing '/', '..'
+// path traversal ("a/../../b"), and absolute/relative paths ("/etc/x", "./x").
+var pkgNamePattern = regexp.MustCompile(`^(@[A-Za-z0-9][A-Za-z0-9._-]{0,63}/)?[A-Za-z0-9][A-Za-z0-9._+-]{0,127}$`)
 
 // searchResult is one registry hit.
 type searchResult struct {
@@ -113,16 +121,60 @@ func pkgManagerSearchable(id string) bool {
 	return ok
 }
 
-// pkgSearchRunner runs a search command and returns capped combined output.
+// pkgManagerDirectInstall reports whether the server can install a searched
+// package via this manager directly (no sudo). Single source of truth for the
+// UI's Install affordance, derived from installSpecs so it can't drift.
+func pkgManagerDirectInstall(id string) bool {
+	_, ok := installSpecs[id]
+	return ok
+}
+
+// limitedWriter writes at most n bytes to w and silently discards the rest,
+// always reporting a full write so the child process is never killed by a
+// short-write error. It bounds captured memory *during* the read rather than
+// buffering the whole subprocess output and truncating afterwards.
+type limitedWriter struct {
+	w         io.Writer
+	n         int
+	truncated bool
+}
+
+func (l *limitedWriter) Write(p []byte) (int, error) {
+	keep := p
+	if len(keep) > l.n {
+		keep = keep[:l.n]
+		l.truncated = true
+	}
+	if l.n > 0 {
+		if _, err := l.w.Write(keep); err != nil {
+			return 0, err
+		}
+		l.n -= len(keep)
+	}
+	return len(p), nil
+}
+
+// runCapped runs cmd, capturing at most limit bytes of combined stdout+stderr
+// via a limitedWriter so a chatty subprocess can't balloon memory, and reports
+// whether output was truncated. WaitDelay bounds the wait so a killed child that
+// leaked a pipe to a grandchild can't wedge the read indefinitely.
+func runCapped(cmd *exec.Cmd, limit int) (out []byte, truncated bool, err error) {
+	var buf bytes.Buffer
+	lw := &limitedWriter{w: &buf, n: limit}
+	cmd.Stdout = lw
+	cmd.Stderr = lw
+	cmd.WaitDelay = 2 * time.Second
+	err = cmd.Run()
+	return buf.Bytes(), lw.truncated, err
+}
+
+// pkgSearchRunner runs a search command and returns bounded combined output.
 // Package var so tests can inject a stub host.
 var pkgSearchRunner = func(ctx context.Context, bin string, args []string) ([]byte, error) {
 	cctx, cancel := context.WithTimeout(ctx, pkgSearchTimeout)
 	defer cancel()
 	cmd := exec.CommandContext(cctx, bin, args...) //nolint:gosec // bin is a constant from searchSpecs; args carry a charset-validated query as a slice element (no shell)
-	out, err := cmd.CombinedOutput()
-	if len(out) > pkgSearchOutputCap {
-		out = out[:pkgSearchOutputCap]
-	}
+	out, _, err := runCapped(cmd, pkgSearchOutputCap)
 	return out, err
 }
 

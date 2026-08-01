@@ -31,31 +31,37 @@ type providerRunResponse struct { //nolint:govet // field order matches JSON/API
 	TimedOut  bool   `json:"timed_out"`
 }
 
-// providerRunRunner executes bin with args and returns combined output and the
-// exit code. It is a package var so tests can substitute a harmless command
-// without shelling out to a real provider CLI.
+// providerRunRunner executes bin with args and returns combined output, the
+// exit code, and whether the run hit the timeout. It is a package var so tests
+// can substitute a harmless command without shelling out to a real provider CLI.
 //
 // Security: bin and args come verbatim from the provider's curated Commands()
-// table (see resolveRunnable) — never from the request body, which only
+// table (see resolveRunnableArgv) — never from the request body, which only
 // selects which allowlisted entry to run. The command is exec'd directly with
 // an argument slice (no shell, no `sh -c`), so no request data is ever
 // interpreted by a shell. This is the CodeQL-recommended shape for
 // go/command-line-injection.
-var providerRunRunner = func(ctx context.Context, bin string, args []string) (string, int, error) {
+//
+// Output is captured through a bounded writer (runCapped) so a chatty command
+// can't balloon memory, and WaitDelay bounds the wait so a leaked grandchild
+// pipe can't wedge the read.
+var providerRunRunner = func(ctx context.Context, bin string, args []string) (out string, code int, timedOut, truncated bool, err error) {
 	cctx, cancel := context.WithTimeout(ctx, providerRunTimeout)
 	defer cancel()
 	cmd := exec.CommandContext(cctx, bin, args...) //nolint:gosec // bin+args are a constant argv from the provider's curated Commands() allowlist, not request input
-	out, err := cmd.CombinedOutput()
-	code := 0
-	if err != nil {
+	raw, trunc, runErr := runCapped(cmd, providerRunOutputCap)
+	timedOut = errors.Is(cctx.Err(), context.DeadlineExceeded)
+	code = 0
+	if runErr != nil {
 		var ee *exec.ExitError
-		if errors.As(err, &ee) {
+		if errors.As(runErr, &ee) {
 			code = ee.ExitCode()
-		} else {
-			return string(out), -1, err
+		} else if !timedOut {
+			// A non-timeout failure to even start/collect the command.
+			return string(raw), -1, false, trunc, runErr
 		}
 	}
-	return string(out), code, nil
+	return string(raw), code, timedOut, trunc, nil
 }
 
 // runCommand handles POST /api/providers/{name}/run. It executes a single
@@ -102,16 +108,10 @@ func (h *ProviderHandler) runCommand(w http.ResponseWriter, r *http.Request, nam
 		return
 	}
 
-	out, code, runErr := providerRunRunner(r.Context(), bin, args)
+	out, code, timedOut, truncated, runErr := providerRunRunner(r.Context(), bin, args)
 	if runErr != nil {
 		httpError(w, "failed to run command: "+runErr.Error(), http.StatusBadGateway)
 		return
-	}
-
-	truncated := false
-	if len(out) > providerRunOutputCap {
-		out = out[:providerRunOutputCap]
-		truncated = true
 	}
 
 	writeJSON(w, http.StatusOK, providerRunResponse{
@@ -119,6 +119,7 @@ func (h *ProviderHandler) runCommand(w http.ResponseWriter, r *http.Request, nam
 		Output:    out,
 		ExitCode:  code,
 		Truncated: truncated,
+		TimedOut:  timedOut,
 	})
 }
 

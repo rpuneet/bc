@@ -136,6 +136,12 @@ func streamInstall(ctx context.Context, cmdLine string, emit func(any) bool) {
 // identical NDJSON progress to the UI.
 func streamCmd(cmd *exec.Cmd, emit func(any) bool) {
 	pr, pw := io.Pipe()
+	// Closing the reader on the way out makes any further child writes fail
+	// with io.ErrClosedPipe instead of blocking forever — so when a client
+	// disconnects mid-stream (emit returns false and we return early), the
+	// child's next write errors, cmd.Wait() completes, and the waiter
+	// goroutine + process don't leak.
+	defer func() { _ = pr.Close() }()
 	cmd.Stdout = pw
 	cmd.Stderr = pw
 

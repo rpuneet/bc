@@ -132,7 +132,14 @@ func TestPackageInstallRejectsInjection(t *testing.T) {
 	}
 
 	mux := pkgSearchMux()
-	for _, pkg := range []string{"foo; rm -rf /", "$(id)", "foo bar", "foo|sh", ""} {
+	// Includes argv-level attacks the charset must stop: leading-hyphen flag
+	// injection (-g / --force), bare or traversal paths (owner/repo, a/../../b,
+	// ./x, /etc/x) — none are the documented plain-name or @scope/name forms.
+	for _, pkg := range []string{
+		"foo; rm -rf /", "$(id)", "foo bar", "foo|sh", "",
+		"--force", "-g", "a/../../b", "owner/repo", "./x", "/etc/x",
+		"foo/", "/foo", "a//b", "@/x", "@scope//pkg",
+	} {
 		body, _ := json.Marshal(map[string]string{"manager": "brew", "package": pkg})
 		rec := httptest.NewRecorder()
 		mux.ServeHTTP(rec, loopbackPost("/api/system/package-install", string(body)))
@@ -142,6 +149,16 @@ func TestPackageInstallRejectsInjection(t *testing.T) {
 	}
 	if ran {
 		t.Fatalf("install command ran despite an invalid package name")
+	}
+	// The two documented shapes must still pass validation (they reach the
+	// stubbed runner, so no real install happens).
+	for _, pkg := range []string{"ripgrep", "@scope/pkg", "foo.bar_baz+1"} {
+		body, _ := json.Marshal(map[string]string{"manager": "npm", "package": pkg})
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, loopbackPost("/api/system/package-install", string(body)))
+		if rec.Code != http.StatusOK {
+			t.Errorf("valid package %q: status = %d, want 200", pkg, rec.Code)
+		}
 	}
 }
 

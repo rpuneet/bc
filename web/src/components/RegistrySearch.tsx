@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
-import { api, DIRECT_INSTALL_MANAGERS } from "../api/client";
+import { api } from "../api/client";
 import type { PackageManager, PackageSearchResult } from "../api/client";
 import { installPackage } from "../wizard/installStream";
 import { CopyButton } from "./CopyButton";
@@ -22,8 +22,10 @@ import { CopyButton } from "./CopyButton";
 // explain why before making a doomed request.
 const QUERY_RE = /^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$/;
 
-// Copyable install command for managers we don't run directly. Honest,
-// terminal-ready lines; `{p}` is replaced with the (already validated) name.
+// Copyable install command per manager, for the ones the server won't install
+// directly (sudo / non-standard). Honest, terminal-ready lines; `{p}` is
+// replaced with the (already validated) name. The trailing default covers any
+// manager not listed so a copy never yields a bare package name.
 const COPY_INSTALL: Record<string, string> = {
   apt: "sudo apt-get install -y {p}",
   dnf: "sudo dnf install {p}",
@@ -33,10 +35,15 @@ const COPY_INSTALL: Record<string, string> = {
   winget: "winget install {p}",
 };
 
+function copyInstallCmd(manager: string, name: string): string {
+  return (COPY_INSTALL[manager] ?? `${manager} install {p}`).replace("{p}", name);
+}
+
 type SearchState = "idle" | "searching" | "done" | "error";
 
 export function RegistrySearch() {
   const [managers, setManagers] = useState<PackageManager[]>([]);
+  const [loadingManagers, setLoadingManagers] = useState(true);
   const [manager, setManager] = useState("");
   const [query, setQuery] = useState("");
   const [state, setState] = useState<SearchState>("idle");
@@ -53,9 +60,12 @@ export function RegistrySearch() {
         setManagers(searchable);
         if (searchable.length > 0 && searchable[0]) setManager(searchable[0].id);
       })
-      .catch(() => { /* leave picker empty — the empty-state copy covers it */ });
+      .catch(() => { /* leave picker empty — the empty-state copy covers it */ })
+      .finally(() => { if (alive) setLoadingManagers(false); });
     return () => { alive = false; };
   }, []);
+
+  const directInstall = managers.find((m) => m.id === manager)?.direct_install ?? false;
 
   const queryValid = QUERY_RE.test(query.trim());
 
@@ -75,6 +85,12 @@ export function RegistrySearch() {
       setState("error");
     }
   };
+
+  if (loadingManagers) {
+    return (
+      <div className="h-8 w-64 animate-pulse rounded-md bg-mycel-surface-hover" aria-busy aria-label="Detecting package managers" />
+    );
+  }
 
   if (managers.length === 0) {
     return (
@@ -135,8 +151,8 @@ export function RegistrySearch() {
 
       {results.length > 0 && (
         <ul className="rounded-lg border border-mycel-border divide-y divide-mycel-border overflow-hidden">
-          {results.map((r) => (
-            <ResultRow key={`${manager}:${r.name}`} manager={manager} result={r} />
+          {results.map((r, i) => (
+            <ResultRow key={`${manager}:${r.name}:${i}`} manager={manager} direct={directInstall} result={r} />
           ))}
         </ul>
       )}
@@ -144,9 +160,8 @@ export function RegistrySearch() {
   );
 }
 
-function ResultRow({ manager, result }: { manager: string; result: PackageSearchResult }) {
-  const direct = DIRECT_INSTALL_MANAGERS.has(manager);
-  const copyCmd = (COPY_INSTALL[manager] ?? "{p}").replace("{p}", result.name);
+function ResultRow({ manager, direct, result }: { manager: string; direct: boolean; result: PackageSearchResult }) {
+  const copyCmd = copyInstallCmd(manager, result.name);
 
   return (
     <li className="px-3 py-2 bg-mycel-surface">

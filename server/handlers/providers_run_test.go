@@ -34,9 +34,9 @@ func TestProviderRunRunnable(t *testing.T) {
 
 	var gotBin string
 	var gotArgs []string
-	providerRunRunner = func(_ context.Context, bin string, args []string) (string, int, error) {
+	providerRunRunner = func(_ context.Context, bin string, args []string) (string, int, bool, bool, error) {
 		gotBin, gotArgs = bin, args
-		return "claude 1.2.3\n", 0, nil
+		return "claude 1.2.3\n", 0, false, false, nil
 	}
 
 	rec := httptest.NewRecorder()
@@ -66,9 +66,9 @@ func TestProviderRunRejectsInteractiveAndArgs(t *testing.T) {
 	orig := providerRunRunner
 	t.Cleanup(func() { providerRunRunner = orig })
 	ran := false
-	providerRunRunner = func(_ context.Context, _ string, _ []string) (string, int, error) {
+	providerRunRunner = func(_ context.Context, _ string, _ []string) (string, int, bool, bool, error) {
 		ran = true
-		return "", 0, nil
+		return "", 0, false, false, nil
 	}
 
 	mux := providerRunMux()
@@ -100,10 +100,10 @@ func TestProviderRunArgvIsConstant(t *testing.T) {
 	var calls int
 	var gotBin string
 	var gotArgs []string
-	providerRunRunner = func(_ context.Context, bin string, args []string) (string, int, error) {
+	providerRunRunner = func(_ context.Context, bin string, args []string) (string, int, bool, bool, error) {
 		calls++
 		gotBin, gotArgs = bin, args
-		return "ok", 0, nil
+		return "ok", 0, false, false, nil
 	}
 
 	mux := providerRunMux()
@@ -134,6 +134,79 @@ func TestProviderRunArgvIsConstant(t *testing.T) {
 	}
 	if gotBin != "claude" || strings.Join(gotArgs, " ") != "--version" {
 		t.Fatalf("argv = %q %q, want exactly claude [--version]", gotBin, gotArgs)
+	}
+}
+
+// TestProviderRunNonZeroExit returns the CLI's exit code without failing the
+// request — a non-zero exit is a legitimate command result, not a 5xx.
+func TestProviderRunNonZeroExit(t *testing.T) {
+	orig := providerRunRunner
+	t.Cleanup(func() { providerRunRunner = orig })
+	providerRunRunner = func(_ context.Context, _ string, _ []string) (string, int, bool, bool, error) {
+		return "not logged in\n", 3, false, false, nil
+	}
+
+	rec := httptest.NewRecorder()
+	providerRunMux().ServeHTTP(rec, runReq("version"))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	var resp struct {
+		ExitCode int  `json:"exit_code"`
+		TimedOut bool `json:"timed_out"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if resp.ExitCode != 3 || resp.TimedOut {
+		t.Fatalf("exit_code = %d timed_out = %v, want 3 / false", resp.ExitCode, resp.TimedOut)
+	}
+}
+
+// TestProviderRunTruncated propagates the runner's truncation flag.
+func TestProviderRunTruncated(t *testing.T) {
+	orig := providerRunRunner
+	t.Cleanup(func() { providerRunRunner = orig })
+	providerRunRunner = func(_ context.Context, _ string, _ []string) (string, int, bool, bool, error) {
+		return strings.Repeat("x", providerRunOutputCap), 0, false, true, nil
+	}
+
+	rec := httptest.NewRecorder()
+	providerRunMux().ServeHTTP(rec, runReq("version"))
+	var resp struct {
+		Output    string `json:"output"`
+		Truncated bool   `json:"truncated"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(resp.Output) != providerRunOutputCap || !resp.Truncated {
+		t.Fatalf("output len = %d, truncated = %v; want cap / true", len(resp.Output), resp.Truncated)
+	}
+}
+
+// TestProviderRunTimedOut surfaces a timeout as timed_out=true (not a bogus
+// exit code) so the UI can explain the cause.
+func TestProviderRunTimedOut(t *testing.T) {
+	orig := providerRunRunner
+	t.Cleanup(func() { providerRunRunner = orig })
+	providerRunRunner = func(_ context.Context, _ string, _ []string) (string, int, bool, bool, error) {
+		return "", -1, true, false, nil
+	}
+
+	rec := httptest.NewRecorder()
+	providerRunMux().ServeHTTP(rec, runReq("version"))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	var resp struct {
+		TimedOut bool `json:"timed_out"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if !resp.TimedOut {
+		t.Fatalf("timed_out = false, want true")
 	}
 }
 

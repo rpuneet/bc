@@ -492,6 +492,10 @@ export interface PackageManager {
   available: boolean;
   /** true = this manager exposes a registry search the UI could drive. */
   searchable: boolean;
+  /** true = the server can install a searched package via this manager directly
+   *  (no sudo, non-interactive). Authoritative — the UI reads this instead of
+   *  hard-coding a manager set, so its Install affordance can't drift. */
+  direct_install: boolean;
 }
 
 export interface PackageManagersResponse {
@@ -513,10 +517,6 @@ export interface PackageSearchResponse {
   /** Present when the search command errored or found nothing. */
   error?: string;
 }
-
-/** Managers whose install the server runs directly (no sudo, non-interactive).
- *  Others surface a copyable command instead. Mirrors the backend installSpecs. */
-export const DIRECT_INSTALL_MANAGERS = new Set(["brew", "npm", "cargo"]);
 
 /** A provider model with live availability status. */
 export interface ModelInfo {
