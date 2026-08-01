@@ -64,6 +64,18 @@ function LegacyNotificationsRedirect() {
   return <Navigate to={source ? `/apps/${source}` : "/apps"} replace />;
 }
 
+/**
+ * The Settings "Providers & Tools" drill-down now resolves to the proven
+ * flat /tools routes. Mounting the Tools view under a nested /settings/tools
+ * path caused a remount loop that hammered /api/providers + /api/tools/unified
+ * and left the page stuck on skeletons; the flat /tools route renders cleanly.
+ * These redirects preserve any deep-linked :provider param.
+ */
+function SettingsProviderRedirect() {
+  const { provider } = useParams();
+  return <Navigate to={provider ? `/tools/${provider}` : "/tools"} replace />;
+}
+
 function NotFound() {
   return (
     <div className="flex-1 flex flex-col items-center justify-center p-6">
@@ -110,13 +122,14 @@ export function AppRoutes() {
         <Route path="marketplace" element={wrap(<Marketplace />)} />
         <Route path="tools" element={wrap(<Tools />)} />
         <Route path="tools/:provider" element={wrap(<ProviderDetail />)} />
-        {/* Tools/Providers are now reached FROM Settings (Settings is the
-            config hub). Mounted under /settings/* so the IA reads as a
-            drill-down; the flat /tools routes stay for deep links. */}
-        <Route path="settings/tools" element={wrap(<Tools />)} />
-        <Route path="settings/tools/:provider" element={wrap(<ProviderDetail />)} />
-        <Route path="settings/providers" element={<Navigate to="/settings/tools" replace />} />
-        <Route path="providers" element={<Navigate to="/settings/tools" replace />} />
+        {/* Tools/Providers are reached FROM Settings, but the drill-down
+            resolves to the flat /tools route — the proven single mount. The
+            nested /settings/tools mount remounted in a loop and never settled,
+            so every entry point redirects to /tools. */}
+        <Route path="settings/tools" element={<Navigate to="/tools" replace />} />
+        <Route path="settings/tools/:provider" element={<SettingsProviderRedirect />} />
+        <Route path="settings/providers" element={<Navigate to="/tools" replace />} />
+        <Route path="providers" element={<Navigate to="/tools" replace />} />
         {/* Secrets became the Custom Keys section on the Apps home. */}
         <Route path="secrets" element={<Navigate to="/apps#custom-keys" replace />} />
         <Route path="insights" element={wrap(<Insights />)} />

@@ -81,10 +81,10 @@ describe("Settings redesign", () => {
     expect(screen.getByRole("link", { name: /Manage apps/i })).toBeInTheDocument();
   });
 
-  it("Tools & Providers card drills down under /settings", async () => {
+  it("Tools & Providers card links to the flat /tools page", async () => {
     mockApi();
     renderSettings();
-    expect(await screen.findByRole("link", { name: /Open Tools & Providers/i })).toHaveAttribute("href", "/settings/tools");
+    expect(await screen.findByRole("link", { name: /Open Tools & Providers/i })).toHaveAttribute("href", "/tools");
   });
 
   it("reads onboarding state into the Setup section", async () => {

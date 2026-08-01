@@ -7,8 +7,12 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/rpuneet/mycel/pkg/db"
+	"github.com/rpuneet/mycel/pkg/tool"
 )
 
 func TestInstallCommand(t *testing.T) {
@@ -164,5 +168,78 @@ func TestDepsInstallLoopbackGuard(t *testing.T) {
 	mux.ServeHTTP(rec, req)
 	if rec.Code != http.StatusForbidden {
 		t.Errorf("status = %d, want 403 for a non-loopback caller", rec.Code)
+	}
+}
+
+// resolveTestStore returns an open tools store seeded with one registered CLI
+// tool that carries both an install and an upgrade command.
+func resolveTestStore(t *testing.T) *tool.Store {
+	t.Helper()
+	d, err := db.Open(filepath.Join(t.TempDir(), "mycel.db"))
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	t.Cleanup(func() { _ = d.Close() })
+	s := tool.NewStore(d, "sqlite")
+	if err := s.Open(); err != nil {
+		t.Fatalf("open store: %v", err)
+	}
+	t.Cleanup(func() { _ = s.Close() })
+	if err := s.Add(context.Background(), &tool.Tool{
+		Name:       "acmecli",
+		Type:       tool.ToolTypeCLI,
+		Command:    "acmecli",
+		InstallCmd: "brew install acmecli",
+		UpgradeCmd: "brew upgrade acmecli",
+		Enabled:    true,
+	}); err != nil {
+		t.Fatalf("seed tool: %v", err)
+	}
+	return s
+}
+
+func TestResolveCommand(t *testing.T) {
+	h := NewDepsInstallHandler().SetToolStore(resolveTestStore(t))
+	ctx := context.Background()
+
+	tests := []struct {
+		name, id, mode, want string
+		wantOK               bool
+	}{
+		// Vetted table still wins for install of a table item.
+		{"vetted git install", "git", "install", "", true},
+		// Registered CLI tool: install uses install_cmd (not in the table).
+		{"tool install_cmd", "acmecli", "install", "brew install acmecli", true},
+		// Registered CLI tool: update prefers upgrade_cmd.
+		{"tool upgrade_cmd", "acmecli", "update", "brew upgrade acmecli", true},
+		// Unknown id with no installer.
+		{"unknown", "nonesuch", "install", "", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, ok := h.resolveCommand(ctx, tt.id, tt.mode)
+			if ok != tt.wantOK {
+				t.Fatalf("ok = %v, want %v (got %q)", ok, tt.wantOK, got)
+			}
+			// For the git case we only assert non-empty (the exact line is
+			// OS-dependent and covered by TestInstallCommand).
+			if tt.want != "" && got != tt.want {
+				t.Errorf("cmd = %q, want %q", got, tt.want)
+			}
+			if tt.wantOK && got == "" {
+				t.Errorf("expected a non-empty command for %q", tt.id)
+			}
+		})
+	}
+}
+
+// A nil tool store must degrade to the vetted table only, never panic.
+func TestResolveCommandNilStore(t *testing.T) {
+	h := NewDepsInstallHandler()
+	if _, ok := h.resolveCommand(context.Background(), "gh", "install"); ok {
+		t.Error("expected no installer for gh without a tool store")
+	}
+	if _, ok := h.resolveCommand(context.Background(), "git", "install"); !ok {
+		t.Error("expected the vetted git installer to still resolve")
 	}
 }

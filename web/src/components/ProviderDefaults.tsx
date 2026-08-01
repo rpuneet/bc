@@ -65,7 +65,19 @@ function SavePill({ state, error }: { state: SaveState; error: string | null }) 
   return null;
 }
 
-export function ProviderDefaults({ providers }: { providers: ProviderInfo[] }) {
+export function ProviderDefaults({
+  providers,
+  onChange,
+  showHost = true,
+}: {
+  providers: ProviderInfo[];
+  /** Notified after a successful persist — lets a host (e.g. the setup
+   *  wizard) mirror the fleet default into its own draft/summary. */
+  onChange?: (next: { provider: string; model: string }) => void;
+  /** The host readout is folded in on the Tools page; the wizard hides it
+   *  (its System step already covers the machine). */
+  showHost?: boolean;
+}) {
   const reduceMotion = useReducedMotion();
   const [defaultProvider, setDefaultProvider] = useState<string>("");
   const [defaultModel, setDefaultModel] = useState<string>("");
@@ -131,6 +143,7 @@ export function ProviderDefaults({ providers }: { providers: ProviderInfo[] }) {
         await api.setProviderDefaults({ default: next.provider, default_model: next.model });
         if (isStale()) return;
         setCommitted(next);
+        onChange?.(next);
         setSave("saved");
         setTimeout(() => {
           if (!isStale()) setSave("idle");
@@ -144,7 +157,7 @@ export function ProviderDefaults({ providers }: { providers: ProviderInfo[] }) {
         setSave("error");
       }
     },
-    [committed],
+    [committed, onChange],
   );
 
   const onProviderChange = (name: string) => {
@@ -226,6 +239,7 @@ export function ProviderDefaults({ providers }: { providers: ProviderInfo[] }) {
       </div>
 
       {/* Host machine — folded in so the manager answers "what am I on?". */}
+      {showHost && (
       <div className="flex items-center gap-2 mt-3 pt-3 border-t border-mycel-border text-[11px] text-mycel-muted">
         <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.6} aria-hidden>
           <rect x="3" y="4" width="18" height="12" rx="1.5" /><path strokeLinecap="round" d="M8 20h8M12 16v4" />
@@ -238,6 +252,7 @@ export function ProviderDefaults({ providers }: { providers: ProviderInfo[] }) {
           <span>Resolving host machine…</span>
         )}
       </div>
+      )}
     </motion.div>
   );
 }
