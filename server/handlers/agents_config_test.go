@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/rpuneet/mycel/pkg/agent"
@@ -253,6 +254,73 @@ func TestPatchAgentConfig_Resources(t *testing.T) {
 	}
 	defer func() { _ = resp2.Body.Close() }()
 	assertStatus(t, resp2, http.StatusBadRequest)
+}
+
+// TestPatchAgentConfig_ConcurrentPartial verifies that two concurrent
+// partial PATCHes — one setting only cpus, the other only memory_mb —
+// both survive. This is the regression guard for the lost-update race:
+// the merge must happen under the manager lock, not against a snapshot
+// read before the write.
+func TestPatchAgentConfig_ConcurrentPartial(t *testing.T) {
+	dir := setupHome(t)
+	stateDir := filepath.Join(dir, ".mycel")
+	if err := os.MkdirAll(filepath.Join(stateDir, "agents"), 0750); err != nil {
+		t.Fatalf("mkdir agents: %v", err)
+	}
+	wtDir := filepath.Join(dir, "wt", "zen-zebra")
+	if err := os.MkdirAll(wtDir, 0750); err != nil {
+		t.Fatalf("mkdir worktree: %v", err)
+	}
+
+	mgr := agent.NewManager(stateDir)
+	svc := agent.NewAgentService(mgr, nil, nil)
+	if err := mgr.RegisterStopped(&agent.Agent{
+		Name:           "zen-zebra",
+		Role:           agent.Role("engineer"),
+		Workspace:      dir,
+		Tool:           "claude",
+		RuntimeBackend: "docker",
+		WorktreeDir:    wtDir,
+	}); err != nil {
+		t.Fatalf("register agent: %v", err)
+	}
+
+	ts := buildTestServerWithServices(t, server.Services{Agents: svc})
+	defer ts.Close()
+
+	patch := func(body string) {
+		req, _ := http.NewRequestWithContext(context.Background(), http.MethodPatch,
+			ts.URL+"/api/agents/zen-zebra/config", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Errorf("patch %s: %v", body, err)
+			return
+		}
+		_ = resp.Body.Close()
+	}
+
+	// Hammer cpus-only and memory-only PATCHes concurrently. Under the old
+	// snapshot-merge, the later writer overwrote the other field back to its
+	// stale value; under the locked partial merge, both must stick.
+	var wg sync.WaitGroup
+	for i := 0; i < 25; i++ {
+		wg.Add(2)
+		go func() { defer wg.Done(); patch(`{"cpus":3}`) }()
+		go func() { defer wg.Done(); patch(`{"memory_mb":5120}`) }()
+	}
+	wg.Wait()
+
+	a := mgr.GetAgent("zen-zebra")
+	if a == nil {
+		t.Fatal("agent gone after concurrent patch")
+	}
+	if a.CPUs != 3 {
+		t.Errorf("cpus = %v, want 3 (lost update)", a.CPUs)
+	}
+	if a.MemoryMB != 5120 {
+		t.Errorf("memory_mb = %v, want 5120 (lost update)", a.MemoryMB)
+	}
 }
 
 // TestAgentHandler_GetConfigNotFound verifies /config returns 404 for an

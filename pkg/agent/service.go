@@ -448,6 +448,23 @@ func (s *AgentService) SetResources(ctx context.Context, name string, cpus float
 	return nil
 }
 
+// SetResourcesPartial atomically merges the supplied CPU/memory overrides
+// into the agent's current caps (nil = leave that field untouched). Unlike
+// SetResources, the merge happens under the manager lock, so concurrent
+// partial PATCHes cannot clobber each other. Publishes the merged values.
+func (s *AgentService) SetResourcesPartial(ctx context.Context, name string, cpus *float64, memoryMB *int64) error {
+	resolvedCPUs, resolvedMemoryMB, err := s.manager.SetAgentResourcesPartial(ctx, name, cpus, memoryMB)
+	if err != nil {
+		return err
+	}
+	s.publishEvent("agent.resources_updated", map[string]any{
+		"name":      name,
+		"cpus":      resolvedCPUs,
+		"memory_mb": resolvedMemoryMB,
+	})
+	return nil
+}
+
 // Get returns a single agent by name.
 func (s *AgentService) Get(ctx context.Context, name string) (*Agent, error) {
 	a := s.manager.GetAgent(name)

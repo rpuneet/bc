@@ -10,7 +10,7 @@
  * is honest about showing configured caps, with a clear seam for usage.
  */
 
-import { useCallback } from "react";
+import { useCallback, type ReactNode } from "react";
 import { api, type Agent, type SettingsConfig } from "../../api/client";
 import { usePolling } from "../../hooks/usePolling";
 import { SectionRule } from "../../components/shared/SectionRule";
@@ -18,7 +18,7 @@ import { stripAgentPrefix } from "./chrome";
 
 interface ResourceData {
   agents: Agent[];
-  settings: SettingsConfig | null;
+  settings: SettingsConfig;
 }
 
 /** MB → human ("2048 MB" → "2.0 GB"). */
@@ -28,19 +28,68 @@ function fmtMem(mb: number): string {
   return `${mb} MB`;
 }
 
+/** Frame the panel with its section header so error/loading states keep the
+ *  same shell as the loaded panel. */
+function ResourceShell({ children }: { children: ReactNode }) {
+  return (
+    <section>
+      <SectionRule
+        label="Resource budget"
+        trailing={<span className="text-[11px] text-mycel-muted">committed caps · Docker agents</span>}
+      />
+      <div className="rounded-lg border border-mycel-border bg-mycel-surface shadow-mycel-sm p-4 space-y-3">
+        {children}
+      </div>
+    </section>
+  );
+}
+
 export function ResourcePanel() {
+  // Both sources must succeed: a failed listAgents would understate agents,
+  // and a failed getSettings would drop the fleet defaults and understate
+  // committed caps. Reject on either so usePolling exposes the error state
+  // instead of silently rendering "no resources".
   const fetcher = useCallback(async (): Promise<ResourceData> => {
-    const [agents, settings] = await Promise.allSettled([
+    const [agents, settings] = await Promise.all([
       api.listAgents(),
       api.getSettings(),
     ]);
     return {
-      agents: agents.status === "fulfilled" && Array.isArray(agents.value) ? agents.value : [],
-      settings: settings.status === "fulfilled" ? settings.value : null,
+      agents: Array.isArray(agents) ? agents : [],
+      settings,
     };
   }, []);
 
-  const { data } = usePolling<ResourceData>(fetcher, 30000);
+  const { data, loading, error, refresh } = usePolling<ResourceData>(fetcher, 30000);
+
+  // First-load error (no data yet) → an explicit unavailable state with a
+  // retry, never a misleading empty panel.
+  if (error && !data) {
+    return (
+      <ResourceShell>
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-xs text-mycel-muted">Couldn&apos;t load resource budget.</p>
+          <button
+            type="button"
+            onClick={refresh}
+            className="inline-flex items-center h-7 px-2.5 rounded-md text-[11px] font-medium border border-mycel-border text-mycel-text-2 hover:text-mycel-text hover:border-mycel-muted transition-colors"
+          >
+            Retry
+          </button>
+        </div>
+      </ResourceShell>
+    );
+  }
+
+  // First load in flight → a quiet placeholder, not a "no agents" claim.
+  if (loading && !data) {
+    return (
+      <ResourceShell>
+        <p className="text-xs text-mycel-muted">Loading resource budget…</p>
+      </ResourceShell>
+    );
+  }
+
   const agents = data?.agents ?? [];
   const settings = data?.settings ?? null;
 
@@ -64,12 +113,8 @@ export function ResourcePanel() {
   const totalMem = rows.reduce((s, r) => s + r.memoryMB, 0);
 
   return (
-    <section>
-      <SectionRule
-        label="Resource budget"
-        trailing={<span className="text-[11px] text-mycel-muted">committed caps · Docker agents</span>}
-      />
-      <div className="rounded-lg border border-mycel-border bg-mycel-surface shadow-mycel-sm p-4 space-y-3">
+    <ResourceShell>
+      <>
         {/* Committed totals */}
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-px bg-mycel-border rounded-md overflow-hidden">
           <div className="bg-mycel-surface p-3">
@@ -116,7 +161,7 @@ export function ResourcePanel() {
           (actual CPU/memory consumed) are coming soon — this panel shows committed caps.
           {/* follow-up: aggregate agent_stats samples into a live fleet usage figure. */}
         </p>
-      </div>
-    </section>
+      </>
+    </ResourceShell>
   );
 }

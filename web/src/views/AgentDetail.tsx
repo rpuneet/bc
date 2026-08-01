@@ -565,7 +565,7 @@ function ProviderModelSection({
       </div>
       <p className="mt-2 text-xs text-mycel-muted leading-relaxed">
         {models.length === 0
-          ? "This provider exposes no model list — its own default is used."
+          ? "This provider exposes no model list — its own default is used. "
           : "Model applies on the agent’s next restart. "}
         Switching provider isn’t supported in place — clone the agent onto a different
         provider instead.
@@ -649,7 +649,6 @@ function ResourceLimitsSection({
             min={0}
             step={0.5}
             value={cpuInput}
-            disabled={!isDocker}
             onChange={(e) => setCpuInput(e.target.value)}
             placeholder={defaults ? `default ${defaults.cpus}` : "default"}
             aria-label="CPU cores cap"
@@ -664,7 +663,6 @@ function ResourceLimitsSection({
             min={0}
             step={256}
             value={memInput}
-            disabled={!isDocker}
             onChange={(e) => setMemInput(e.target.value)}
             placeholder={defaults ? `default ${defaults.memory_mb}` : "default"}
             aria-label="Memory MB cap"
@@ -674,7 +672,7 @@ function ResourceLimitsSection({
         </label>
         <button
           type="button"
-          disabled={!isDocker || !dirty || invalid || save === "saving"}
+          disabled={!dirty || invalid || save === "saving"}
           onClick={() => { void handleSave(); }}
           className="inline-flex items-center h-9 px-3 rounded-md text-xs font-medium bg-mycel-accent text-mycel-accent-fg hover:bg-mycel-accent-hover active:scale-[0.98] shadow-mycel-sm transition-all disabled:opacity-40 disabled:pointer-events-none"
         >

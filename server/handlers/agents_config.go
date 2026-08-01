@@ -169,16 +169,10 @@ func (h *AgentHandler) patchAgentConfig(w http.ResponseWriter, r *http.Request, 
 	}
 
 	// Resource caps — persisted on the agent record; applied on next restart.
+	// The partial merge happens under the manager lock (not against the
+	// snapshot `a`), so two concurrent partial PATCHes can't lose an update.
 	if req.CPUs != nil || req.MemoryMB != nil {
-		cpus := a.CPUs
-		if req.CPUs != nil {
-			cpus = *req.CPUs
-		}
-		memoryMB := a.MemoryMB
-		if req.MemoryMB != nil {
-			memoryMB = *req.MemoryMB
-		}
-		if setErr := svc.SetResources(r.Context(), name, cpus, memoryMB); setErr != nil {
+		if setErr := svc.SetResourcesPartial(r.Context(), name, req.CPUs, req.MemoryMB); setErr != nil {
 			httpInternalError(w, "set agent resources", setErr)
 			return
 		}

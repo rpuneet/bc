@@ -2487,6 +2487,34 @@ func (m *Manager) SetAgentResources(ctx context.Context, name string, cpus float
 	return nil
 }
 
+// SetAgentResourcesPartial atomically merges the supplied CPU/memory
+// overrides into the agent's current stored values under a single lock.
+// Nil pointers leave the corresponding field untouched, so two concurrent
+// partial updates (one setting only cpus, the other only memory_mb) cannot
+// lose each other's change — the read and write happen inside the same lock,
+// never against a snapshot taken before it. Returns the merged values.
+func (m *Manager) SetAgentResourcesPartial(ctx context.Context, name string, cpus *float64, memoryMB *int64) (resolvedCPUs float64, resolvedMemoryMB int64, err error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	a, exists := m.agents[name]
+	if !exists {
+		return 0, 0, fmt.Errorf("agent %s: %w", name, ErrNotFound)
+	}
+	if cpus != nil {
+		a.CPUs = *cpus
+	}
+	if memoryMB != nil {
+		a.MemoryMB = *memoryMB
+	}
+	a.UpdatedAt = time.Now()
+
+	if saveErr := m.saveState(ctx); saveErr != nil {
+		return 0, 0, fmt.Errorf("save agent state: %w", saveErr)
+	}
+	return a.CPUs, a.MemoryMB, nil
+}
+
 // SetAgentModel sets the provider model identifier the agent runs with.
 // An empty string clears the override, restoring the provider default. The
 // new model is reused on the next session (re)start — the running session

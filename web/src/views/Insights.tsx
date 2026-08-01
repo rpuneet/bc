@@ -594,9 +594,11 @@ export function Insights() {
   if (!hasLedger && data.daily.length === 0 && data.byAgent.length === 0) {
     // A quiet period on a fleet with history is real data (zeros), but a
     // window with no ledger at all gets one clear explanation instead of
-    // four empty panels.
+    // four empty cost panels. The resource budget is independent of cost —
+    // a brand-new fleet can already have configured Docker caps — so it
+    // still renders here.
     return (
-      <div className="p-6">
+      <div className="p-6 max-w-6xl mx-auto space-y-8">
         <EmptyState
           icon="$"
           title={isAll ? "No cost data yet" : `No spend in the ${periodLabel}`}
@@ -604,6 +606,7 @@ export function Insights() {
           actionLabel={isAll ? undefined : "View all time"}
           onAction={isAll ? undefined : () => setPeriod("all")}
         />
+        <ResourcePanel />
       </div>
     );
   }
