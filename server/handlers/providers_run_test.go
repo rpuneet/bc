@@ -89,6 +89,54 @@ func TestProviderRunRejectsInteractiveAndArgs(t *testing.T) {
 	}
 }
 
+// TestProviderRunArgvIsConstant asserts the executed argv comes only from the
+// curated Commands() literal — a crafted command field (extra tokens, shell
+// metacharacters, or a name that merely resembles a real one) can never alter
+// or extend the argv. The request only ever *selects* an allowlisted entry.
+func TestProviderRunArgvIsConstant(t *testing.T) {
+	orig := providerRunRunner
+	t.Cleanup(func() { providerRunRunner = orig })
+
+	var calls int
+	var gotBin string
+	var gotArgs []string
+	providerRunRunner = func(_ context.Context, bin string, args []string) (string, int, error) {
+		calls++
+		gotBin, gotArgs = bin, args
+		return "ok", 0, nil
+	}
+
+	mux := providerRunMux()
+
+	// Crafted selectors that must NOT match any curated entry Name → 400, no exec.
+	for _, crafted := range []string{
+		"version; rm -rf /",
+		"version --dangerous",
+		"version\n--evil",
+		"VERSION",
+		"claude --version",
+	} {
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, runReq(crafted))
+		if rec.Code != http.StatusBadRequest {
+			t.Errorf("crafted %q: status = %d, want 400 (no match)", crafted, rec.Code)
+		}
+	}
+	if calls != 0 {
+		t.Fatalf("runner executed for a crafted selector — argv could be influenced by the request")
+	}
+
+	// The exact allowlisted name runs the exact constant argv, nothing more.
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, runReq("version"))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	if gotBin != "claude" || strings.Join(gotArgs, " ") != "--version" {
+		t.Fatalf("argv = %q %q, want exactly claude [--version]", gotBin, gotArgs)
+	}
+}
+
 // TestProviderRunLoopbackGuard rejects non-loopback callers.
 func TestProviderRunLoopbackGuard(t *testing.T) {
 	body, _ := json.Marshal(map[string]string{"command": "version"})

@@ -96,7 +96,7 @@ func (h *ProviderHandler) runCommand(w http.ResponseWriter, r *http.Request, nam
 		return
 	}
 
-	bin, args, ok := resolveRunnable(p, name, req.Command)
+	bin, args, ok := resolveRunnableArgv(p, req.Command)
 	if !ok {
 		httpError(w, "command is not runnable from the UI (unknown, interactive, or requires arguments): "+req.Command, http.StatusBadRequest)
 		return
@@ -122,19 +122,34 @@ func (h *ProviderHandler) runCommand(w http.ResponseWriter, r *http.Request, nam
 	})
 }
 
-// resolveRunnable finds the curated command entry named cmdName for provider p
-// and, if it is Runnable() (not interactive, no required args), returns the
-// binary and argument slice to exec. It looks the entry up by its display Name
-// in the provider's own allowlist, so the request only ever selects a
-// pre-vetted command — it can never inject a binary or arguments.
-func resolveRunnable(p provider.Provider, name, cmdName string) (string, []string, bool) {
-	for _, c := range providerCommands(p, name) {
+// resolveRunnableArgv returns the exact binary + argument slice to exec for the
+// curated command whose display Name equals cmdName.
+//
+// CodeQL barrier (go/command-injection): the executed argv is built ONLY from
+// the provider's own curated Commands() literals — constant strings compiled
+// into the binary (see commands.go / claude.go). The request-derived cmdName is
+// used solely in the `c.Name != cmdName` equality check to *select* an entry;
+// it never populates the returned bin/args. The generic default in
+// providerCommands (which interpolates the request-derived provider name into a
+// command string) is deliberately NOT consulted here — providers without a
+// CommandLister expose no runnable commands, so no request-derived string can
+// ever reach exec. This makes the taint barrier explicit for the analyzer.
+func resolveRunnableArgv(p provider.Provider, cmdName string) (string, []string, bool) {
+	cl, ok := p.(provider.CommandLister)
+	if !ok {
+		// Only curated constant command lists are executable. Providers with
+		// only the generic (name-interpolated) default are never run.
+		return "", nil, false
+	}
+	for _, c := range cl.Commands() {
 		if c.Name != cmdName {
 			continue
 		}
-		if !c.Runnable {
+		if !c.Runnable() {
 			return "", nil, false
 		}
+		// c.Command is a constant literal from the curated table; splitting it
+		// yields a constant argv with no request-derived data.
 		fields := strings.Fields(c.Command)
 		if len(fields) == 0 {
 			return "", nil, false

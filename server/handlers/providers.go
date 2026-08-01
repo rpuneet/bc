@@ -314,12 +314,19 @@ func (h *ProviderHandler) commands(w http.ResponseWriter, _ *http.Request, name 
 	writeJSON(w, http.StatusOK, providerCommands(p, name))
 }
 
-// providerCommands returns p's curated command list (or a generic default),
-// with Interactive/Runnable resolved for the UI. Shared by the commands and
-// run endpoints so both agree on which entries exist and which are runnable.
+// providerCommands returns p's curated command list (or a generic default) for
+// display. Interactive/Runnable are resolved for the UI.
+//
+// Only providers exposing a curated CommandLister get runnable=true entries:
+// their commands are constant literals safe to execute via the guarded /run
+// endpoint. The generic default interpolates the provider name into its command
+// strings, so those entries are always reported runnable=false — the run
+// endpoint (resolveRunnableArgv) likewise refuses non-CommandLister providers,
+// keeping the display flag and the execution policy in lockstep.
 func providerCommands(p provider.Provider, name string) []ProviderCommand {
+	cl, isCurated := p.(provider.CommandLister)
 	var listed []provider.Command
-	if cl, ok := p.(provider.CommandLister); ok {
+	if isCurated {
 		listed = cl.Commands()
 	} else {
 		// Generic default for providers without a curated command list.
@@ -338,7 +345,7 @@ func providerCommands(p provider.Provider, name string) []ProviderCommand {
 			Description: c.Description,
 			Args:        c.Args,
 			Interactive: c.Interactive,
-			Runnable:    c.Runnable(),
+			Runnable:    isCurated && c.Runnable(),
 		})
 	}
 	return cmds
