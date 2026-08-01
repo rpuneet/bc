@@ -25,12 +25,11 @@ import type {
 import { usePolling } from "../hooks/usePolling";
 import { useHeaderSlot } from "../context/HeaderSlotContext";
 import { EmptyState } from "../components/EmptyState";
-import { LoadingSkeleton } from "../components/LoadingSkeleton";
 import { MessageContent } from "../components/MessageContent";
 import { DefaultAppIcon, PLATFORM_ICON_MAP } from "../components/apps/PlatformIcons";
 import { channelLeaf } from "../components/apps/AppsHome";
 import { sourcePlatform } from "../components/apps/messageUtils";
-import { AgentCharacter } from "../components/agent-ui";
+import { IdentityAvatar } from "../components/apps/IdentityAvatar";
 import { parseActivityTs } from "../components/apps/appStatus";
 import { formatRelative } from "../utils/time";
 
@@ -123,6 +122,12 @@ export function AppsActivity() {
 
   const hasFilters = query !== "" || platform !== "" || channel !== "";
 
+  const clearFilters = useCallback(() => {
+    setSearch("");
+    setPlatform("");
+    setChannel("");
+  }, []);
+
   /* ── Header slot: back + count · search · platform · channel ─── */
   useHeaderSlot({
     title: (
@@ -184,8 +189,20 @@ export function AppsActivity() {
 
   if (loading && !data) {
     return (
-      <div className="p-6">
-        <LoadingSkeleton variant="text" rows={10} />
+      <div className="h-full overflow-y-auto">
+        <div className="mx-auto max-w-3xl p-6" aria-busy="true" aria-label="Loading notifications">
+          <ul className="rounded-lg border border-mycel-border overflow-hidden divide-y divide-mycel-border bg-mycel-surface">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <li key={i} className="flex gap-3 px-4 py-3">
+                <div className="h-8 w-8 shrink-0 animate-pulse rounded-full bg-mycel-surface-hover" />
+                <div className="min-w-0 flex-1 space-y-2 py-0.5">
+                  <div className="h-3 w-32 animate-pulse rounded bg-mycel-surface-hover" />
+                  <div className="h-3.5 animate-pulse rounded bg-mycel-surface-hover" style={{ width: `${String(84 - (i % 4) * 12)}%` }} />
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
       </div>
     );
   }
@@ -201,22 +218,35 @@ export function AppsActivity() {
     <div className="h-full overflow-y-auto">
       <div className="mx-auto max-w-3xl p-6 pb-24">
         {filtered.length === 0 ? (
-          <div className="rounded-lg border border-mycel-border p-10 text-center text-sm text-mycel-muted">
-            {hasFilters ? "No messages match the current filters." : "No messages yet."}
+          <div className="rounded-lg border border-mycel-border bg-mycel-surface">
+            <EmptyState
+              icon={hasFilters ? "*" : "~"}
+              title={hasFilters ? "No matching notifications" : "No notifications yet"}
+              description={
+                hasFilters
+                  ? "No messages match your search or filters. Try widening them."
+                  : "Messages from your connected apps will appear here as they arrive."
+              }
+              actionLabel={hasFilters ? "Clear filters" : undefined}
+              onAction={hasFilters ? clearFilters : undefined}
+            />
           </div>
         ) : (
           <ul className="rounded-lg border border-mycel-border overflow-hidden divide-y divide-mycel-border bg-mycel-surface">
-            {filtered.map((m) => {
+            {filtered.map((m, i) => {
               const sender = cleanSender(m.sender);
               return (
-                <li key={`${m.channel}:${String(m.id)}`}>
+                <li
+                  key={`${m.channel}:${String(m.id)}`}
+                  className="mycel-item-reveal"
+                  style={{ animationDelay: `${String(Math.min(i, 14) * 18)}ms` }}
+                >
                   <Link
                     to={`/apps/${m.channel}`}
                     className="flex gap-3 px-4 py-3 hover:bg-mycel-surface-hover transition-colors"
                   >
-                    <span className="w-8 h-8 flex items-center justify-center shrink-0" aria-hidden>
-                      <AgentCharacter name={m.sender} size={28} />
-                    </span>
+                    {/* Real chat participant — initials avatar, never an agent mushroom */}
+                    <IdentityAvatar name={sender} size={30} className="mt-0.5" />
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2 min-w-0">
                         <span className="font-medium text-sm text-mycel-text truncate">{sender}</span>
