@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/rpuneet/mycel/pkg/events"
 	"github.com/rpuneet/mycel/pkg/log"
 	"github.com/rpuneet/mycel/pkg/names"
 )
@@ -478,6 +479,26 @@ func (s *AgentService) publishEvent(eventType string, data map[string]any) {
 	if s.events != nil {
 		s.events.Publish(eventType, data)
 	}
+	// Persist agent lifecycle events so every agent has an activity
+	// timeline from birth — hook-less providers (cursor, agy, pi) would
+	// otherwise show an empty Live section forever (#37). Hook events
+	// persist separately in IngestHookEvent.
+	if s.hookStore == nil {
+		return
+	}
+	agentName, _ := data["name"].(string)
+	if agentName == "" {
+		agentName, _ = data["agent"].(string)
+	}
+	if agentName == "" {
+		return
+	}
+	_ = s.hookStore.Append(events.Event{ //nolint:errcheck // best-effort logging
+		Timestamp: time.Now().UTC(),
+		Type:      events.EventType(eventType),
+		Agent:     agentName,
+		Data:      data,
+	})
 }
 
 // SyncSessions reconciles in-memory agent state with actual runtime sessions.
