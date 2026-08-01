@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, Routes, Route, useLocation } from "react-router-dom";
 import { HeaderSlotProvider, useHeaderSlotContext } from "../../context/HeaderSlotContext";
 import { AppsActivity } from "../AppsActivity";
 
@@ -116,5 +116,39 @@ describe("AppsActivity", () => {
     fireEvent.change(screen.getByLabelText("Filter by app"), { target: { value: "telegram" } });
     expect(screen.getByText("standup in 5")).toBeInTheDocument();
     expect(screen.queryByText("ship it")).not.toBeInTheDocument();
+  });
+
+  it("'Go back' navigates to /apps directly, not history.back(), even with no prior in-app entry", async () => {
+    // /apps/activity is reachable via a replace-redirect (/notifications/activity)
+    // and via direct deep link — a single-entry MemoryRouter simulates that.
+    // navigate(-1) would have nowhere in-app to land; navigate("/apps") always
+    // resolves to a known page.
+    mockRoutes();
+    let lastPathname = "";
+    function LocationSpy() {
+      lastPathname = useLocation().pathname;
+      return null;
+    }
+
+    render(
+      <MemoryRouter initialEntries={["/apps/activity"]}>
+        <LocationSpy />
+        <HeaderSlotProvider>
+          <HeaderHost />
+          <Routes>
+            <Route path="/apps" element={<div>Apps Home</div>} />
+            <Route path="/apps/activity" element={<AppsActivity />} />
+          </Routes>
+        </HeaderSlotProvider>
+      </MemoryRouter>,
+    );
+
+    const backBtn = await screen.findByRole("button", { name: "Go back" });
+    fireEvent.click(backBtn);
+
+    await waitFor(() => {
+      expect(lastPathname).toBe("/apps");
+    });
+    expect(screen.getByText("Apps Home")).toBeInTheDocument();
   });
 });

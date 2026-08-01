@@ -12,7 +12,7 @@
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
-import { MemoryRouter, Routes, Route } from "react-router-dom";
+import { MemoryRouter, Routes, Route, useLocation } from "react-router-dom";
 import { ProviderDetail } from "../ProviderDetail";
 
 const fetchMock = globalThis.fetch as ReturnType<typeof vi.fn>;
@@ -170,5 +170,43 @@ describe("ProviderDetail update", () => {
     fireEvent.click(checkBtn);
 
     await waitFor(() => expect(screen.getByText(/couldn't verify the latest release automatically/)).toBeTruthy());
+  });
+});
+
+describe("ProviderDetail error state", () => {
+  it("'Back to Tools' navigates to /tools directly instead of relying on history.back()", async () => {
+    // A deep-linked / bookmarked /tools/:provider URL has no guaranteed
+    // prior in-app history entry (single-entry MemoryRouter simulates
+    // that). window.history.back() would have no in-app destination to
+    // land on; navigate("/tools") always resolves to a known page.
+    fetchMock.mockImplementation((url: RequestInfo | URL) => {
+      const u = String(url);
+      if (u === "/api/providers/ghost") return Promise.reject(new Error("not found"));
+      return jsonResponse([]);
+    });
+
+    let lastPathname = "";
+    function LocationSpy() {
+      lastPathname = useLocation().pathname;
+      return null;
+    }
+
+    render(
+      <MemoryRouter initialEntries={["/tools/ghost"]}>
+        <LocationSpy />
+        <Routes>
+          <Route path="/tools" element={<div>Tools Page</div>} />
+          <Route path="/tools/:provider" element={<ProviderDetail />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    const backBtn = await screen.findByRole("button", { name: "Back to Tools" });
+    fireEvent.click(backBtn);
+
+    await waitFor(() => {
+      expect(lastPathname).toBe("/tools");
+    });
+    expect(screen.getByText("Tools Page")).toBeInTheDocument();
   });
 });
