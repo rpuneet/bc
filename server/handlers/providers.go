@@ -3,7 +3,10 @@ package handlers
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"io"
 	"net/http"
+	"net/url"
 	"sort"
 	"strings"
 	"sync"
@@ -88,11 +91,16 @@ type MCPServer struct {
 }
 
 // UpdateCheck holds the result of a provider version check.
-type UpdateCheck struct {
-	CurrentVersion  string `json:"current_version"`
-	LatestVersion   string `json:"latest_version"`
-	UpdateCommand   string `json:"update_command"`
-	UpdateAvailable bool   `json:"update_available"`
+type UpdateCheck struct { //nolint:govet // field order matches JSON/API contract
+	CurrentVersion string `json:"current_version"`
+	LatestVersion  string `json:"latest_version"`
+	UpdateCommand  string `json:"update_command"`
+	// Checked is true when LatestVersion/UpdateAvailable come from a real,
+	// freshly-fetched registry lookup. False means the provider's install
+	// mechanism has no queryable registry (e.g. a curl-piped script or a
+	// bare download URL) — the UI must not claim "up to date" in that case.
+	Checked         bool `json:"checked"`
+	UpdateAvailable bool `json:"update_available"`
 }
 
 // modelCacheEntry caches DynamicModelLister results to avoid shelling out per request.
@@ -447,7 +455,14 @@ func (h *ProviderHandler) addMCP(w http.ResponseWriter, r *http.Request, name st
 	})
 }
 
-// checkUpdate checks if a newer version is available for the provider.
+// checkUpdate performs a real latest-version check for the provider and
+// reports whether an update is available. Providers whose InstallHint is an
+// npm/npx install line are checked against the public npm registry — the
+// same "compare a live upstream to the installed version" approach
+// About.tsx uses for the daemon itself (npm + GitHub releases). Providers
+// installed via a non-registry mechanism (curl-piped script, bare download
+// URL) have no queryable source of truth; UpdateCheck.Checked is false for
+// those and the UI must show current-version-only, never a false "latest".
 func (h *ProviderHandler) checkUpdate(w http.ResponseWriter, r *http.Request, name string) {
 	p, ok := h.registry.Get(name)
 	if !ok {
@@ -461,25 +476,153 @@ func (h *ProviderHandler) checkUpdate(w http.ResponseWriter, r *http.Request, na
 		return
 	}
 
-	// Return current version info with install hint as update command.
-	// Actual latest version checking requires network calls to package registries
-	// which can be added per-provider in the future.
-	writeJSON(w, http.StatusOK, UpdateCheck{
-		CurrentVersion:  currentVersion,
-		LatestVersion:   currentVersion,
-		UpdateAvailable: false,
-		UpdateCommand:   p.InstallHint(),
-	})
+	hint := p.InstallHint()
+	result := UpdateCheck{
+		CurrentVersion: currentVersion,
+		UpdateCommand:  hint,
+	}
+
+	if pkg, ok := npmPackageForHint(hint); ok {
+		if latest, err := fetchNpmLatestVersion(r.Context(), pkg); err == nil && latest != "" {
+			result.LatestVersion = latest
+			result.Checked = true
+			result.UpdateAvailable = normalizeVersion(latest) != normalizeVersion(currentVersion)
+		}
+	}
+
+	writeJSON(w, http.StatusOK, result)
 }
 
-// install returns the install hint for the provider.
+// runnableInstallHint reports whether hint is safe to execute directly as a
+// shell command (npm/npx/curl/brew/…) rather than being a bare URL a human
+// must open manually (e.g. cursor's "https://cursor.sh"). Mirrors
+// providerInstallCmd's predicate in deps_install.go so the install and
+// update paths agree on what's automatable.
+func runnableInstallHint(hint string) bool {
+	h := strings.TrimSpace(hint)
+	return h != "" && !strings.HasPrefix(h, "http://") && !strings.HasPrefix(h, "https://")
+}
+
+// npmPackageForHint extracts the npm package name from a provider's install
+// hint when the hint is an npm/npx install line ("npm install -g <pkg>",
+// "npm i -g <pkg>", "npx -y <pkg>", "npx <pkg>"). Returns ok=false for any
+// other install mechanism — those have no npm registry entry to query.
+func npmPackageForHint(hint string) (string, bool) {
+	h := strings.TrimSpace(hint)
+	for _, pfx := range []string{"npm install -g ", "npm i -g ", "npx -y ", "npx "} {
+		if !strings.HasPrefix(h, pfx) {
+			continue
+		}
+		pkg := strings.TrimSpace(strings.TrimPrefix(h, pfx))
+		if sp := strings.IndexByte(pkg, ' '); sp >= 0 {
+			pkg = pkg[:sp]
+		}
+		if pkg != "" {
+			return pkg, true
+		}
+	}
+	return "", false
+}
+
+// normalizeVersion strips a leading "v" so "v1.2.3" and "1.2.3" compare equal.
+func normalizeVersion(v string) string {
+	return strings.TrimPrefix(strings.TrimSpace(v), "v")
+}
+
+// npmRegistryBaseURL and npmHTTPClient are package vars so tests can point
+// checkUpdate at a local httptest.Server instead of the real npm registry.
+var npmRegistryBaseURL = "https://registry.npmjs.org/"
+var npmHTTPClient = &http.Client{Timeout: 5 * time.Second}
+
+// fetchNpmLatestVersion queries the public npm registry for pkg's current
+// "latest" dist-tag version — a real network check, not a guess.
+func fetchNpmLatestVersion(ctx context.Context, pkg string) (string, error) {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, npmRegistryBaseURL+url.PathEscape(pkg)+"/latest", nil)
+	if err != nil {
+		return "", err
+	}
+	resp, err := npmHTTPClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("npm registry returned %d for %s", resp.StatusCode, pkg)
+	}
+
+	var body struct {
+		Version string `json:"version"`
+	}
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<16)).Decode(&body); err != nil {
+		return "", err
+	}
+	if body.Version == "" {
+		return "", fmt.Errorf("npm registry: empty version for %s", pkg)
+	}
+	return body.Version, nil
+}
+
+// install returns the install hint for the provider. The web UI prefers the
+// real streamed installer at POST /api/deps/install (id=<provider name>,
+// which resolves the same InstallHint via providerInstallCmd in
+// deps_install.go); this endpoint remains for API callers that just want the
+// hint text.
 func (h *ProviderHandler) install(w http.ResponseWriter, _ *http.Request, name string) {
 	h.hintResponse(w, name, "install")
 }
 
-// update returns the upgrade hint for the provider.
-func (h *ProviderHandler) update(w http.ResponseWriter, _ *http.Request, name string) {
-	h.hintResponse(w, name, "update")
+// update performs a real update by re-running the provider's install command
+// (e.g. "npm install -g <pkg>", which always resolves to the latest
+// published version) and streaming live output back as NDJSON — the same
+// on-host execution model install-via-deps and /api/deps/install use
+// (streamInstall, shared within this package). Loopback-only: it shells out
+// on the host.
+func (h *ProviderHandler) update(w http.ResponseWriter, r *http.Request, name string) {
+	if !checkLoopback(w, r) {
+		return
+	}
+
+	p, ok := h.registry.Get(name)
+	if !ok {
+		httpError(w, "unknown provider: "+name, http.StatusNotFound)
+		return
+	}
+
+	hint := strings.TrimSpace(p.InstallHint())
+	if !runnableInstallHint(hint) {
+		httpError(w, "no automatic updater for "+name, http.StatusBadRequest)
+		return
+	}
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		httpError(w, "streaming not supported", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/x-ndjson")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.WriteHeader(http.StatusOK)
+
+	emit := func(v any) bool {
+		payload, mErr := json.Marshal(v)
+		if mErr != nil {
+			return false
+		}
+		if _, wErr := w.Write(append(payload, '\n')); wErr != nil {
+			return false
+		}
+		flusher.Flush()
+		return true
+	}
+
+	emit(map[string]string{"type": "start", "command": hint})
+	streamInstall(r.Context(), hint, emit)
 }
 
 // hintResponse returns the install/update hint for a provider.

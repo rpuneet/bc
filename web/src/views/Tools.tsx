@@ -251,6 +251,7 @@ function CLIDepsRow({ tool, onToggle, onRemove, toggling, removing, expanded, on
   const [confirmRemove, setConfirmRemove] = useState(false);
   const cfg = getStatusConfig(tool.status);
   const isDisabled = tool.status === "disabled";
+  const isNotInstalled = tool.status === "not_installed";
 
   return (
     <>
@@ -281,10 +282,11 @@ function CLIDepsRow({ tool, onToggle, onRemove, toggling, removing, expanded, on
         <td className="px-4 py-2.5 text-right" onClick={(e) => e.stopPropagation()}>
           <div className="flex items-center justify-end gap-1.5">
             <button type="button" onClick={onToggle} disabled={toggling}
-              role="switch" aria-checked={!isDisabled}
-              aria-label={isDisabled ? `Enable ${tool.name}` : `Disable ${tool.name}`}
-              className={`text-[11px] px-2 py-0.5 rounded-md transition-colors focus-visible:ring-2 focus-visible:ring-mycel-accent disabled:opacity-50 ${isDisabled ? "bg-mycel-surface-hover text-mycel-text-2 hover:bg-mycel-border" : "bg-mycel-success-subtle text-mycel-success"}`}>
-              {toggling ? "..." : isDisabled ? "Enable" : "Disable"}
+              role="switch" aria-checked={!isDisabled && !isNotInstalled}
+              aria-label={isNotInstalled ? `Install and enable ${tool.name}` : isDisabled ? `Enable ${tool.name}` : `Disable ${tool.name}`}
+              title={isNotInstalled ? "Not installed — installs the binary, then enables it" : undefined}
+              className={`text-[11px] px-2 py-0.5 rounded-md transition-colors focus-visible:ring-2 focus-visible:ring-mycel-accent disabled:opacity-50 ${isDisabled || isNotInstalled ? "bg-mycel-surface-hover text-mycel-text-2 hover:bg-mycel-border" : "bg-mycel-success-subtle text-mycel-success"}`}>
+              {toggling ? "..." : isNotInstalled ? "Install" : isDisabled ? "Enable" : "Disable"}
             </button>
             {!tool.required && (
               confirmRemove ? (
@@ -574,8 +576,33 @@ export function Tools() {
   }
 
   const handleToggle = async (tool: Tool) => {
-    const wasDisabled = tool.status === "disabled" || tool.status === "not_installed";
-    const newStatus = wasDisabled ? "installed" : "disabled";
+    // A not-installed tool has nothing to "enable" — flipping the DB flag
+    // would just lie about its state. Route through the real streamed
+    // installer first (same mechanism CLIInstallAction uses), then enable
+    // once the binary actually lands.
+    if (tool.status === "not_installed") {
+      setTogglingSet((prev) => new Set(prev).add(tool.name));
+      try {
+        const code = await installDep(tool.name, () => {}, { mode: "install" });
+        if (code !== 0) {
+          addToast("error", `Install failed (exit ${code}) — ${tool.name} was not enabled`);
+          return;
+        }
+        await api.enableTool(tool.name);
+        addToast("success", `${tool.name} installed and enabled`);
+        setCheckedTools(null);
+        refresh();
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : `Failed to install ${tool.name}`;
+        addToast("error", msg);
+      } finally {
+        setTogglingSet((prev) => { const next = new Set(prev); next.delete(tool.name); return next; });
+      }
+      return;
+    }
+
+    const wasDisabled = tool.status === "disabled";
+    const newStatus = "installed";
     const oldStatus = tool.status;
 
     setOptimisticToggles((prev) => new Map(prev).set(tool.name, newStatus));
