@@ -161,6 +161,46 @@ func TestLoopbackProviderError(t *testing.T) {
 	}
 }
 
+// TestLoopbackCallbackNoReflectedInput proves the browser-facing callback
+// page never reflects attacker-controlled query params (reflected XSS): a
+// crafted error/error_description must not appear in the HTML, while the
+// error stays available on the trusted daemon-side poll path.
+func TestLoopbackCallbackNoReflectedInput(t *testing.T) {
+	f := testFlow("https://unused.test/token", fixedCreds)
+	sess, err := f.BeginAuth(context.Background(), app.Instance{Name: "x"})
+	if err != nil {
+		t.Fatalf("BeginAuth: %v", err)
+	}
+
+	const marker = "XSSMARKER_31337"
+	inject := url.Values{
+		"error":             {"<script>alert('" + marker + "')</script>"},
+		"error_description": {"<img src=x onerror=alert('" + marker + "')>"},
+		"state":             {stateOf(t, sess.AuthURL)},
+	}.Encode()
+	cb := callbackURL(t, sess.AuthURL, inject)
+	resp, err := http.Get(cb) //nolint:noctx,gosec // test loopback URL
+	if err != nil {
+		t.Fatalf("callback GET: %v", err)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	_ = resp.Body.Close()
+
+	page := string(body)
+	if strings.Contains(page, marker) {
+		t.Errorf("callback page reflected injected input:\n%s", page)
+	}
+	if strings.Contains(page, "<script>alert") || strings.Contains(page, "onerror=") {
+		t.Errorf("callback page contains an unescaped injected tag:\n%s", page)
+	}
+
+	// The real error is still surfaced on the trusted poll path.
+	res, _ := pollUntil(t, f, sess.ID, app.AuthStateError)
+	if res.State != app.AuthStateError || !strings.Contains(res.Error, marker) {
+		t.Errorf("poll error = %+v, want the raw provider error daemon-side", res)
+	}
+}
+
 // TestLoopbackUnknownSession reports an error for an unknown session ID.
 func TestLoopbackUnknownSession(t *testing.T) {
 	f := testFlow("https://unused.test/token", fixedCreds)

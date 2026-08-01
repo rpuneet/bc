@@ -19,6 +19,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"html"
 	"net"
 	"net/http"
 	"sync"
@@ -176,12 +177,15 @@ func (f *LoopbackFlow) handleCallback(w http.ResponseWriter, r *http.Request, id
 	sess, ok := f.sessions[id]
 	if !ok {
 		f.mu.Unlock()
-		writePage(w, "This sign-in session has expired. Return to mycel and start again.")
+		writePage(w, pageExpired)
 		return
 	}
 
 	switch {
 	case q.Get("error") != "":
+		// The provider error/description are attacker-influenced query params.
+		// Keep them daemon-side only (surfaced via PollAuth → auth/status,
+		// a trusted JSON path); never reflect them into the browser HTML.
 		sess.errMsg = oauthErr(q.Get("error"), q.Get("error_description"))
 	case q.Get("state") != sess.state:
 		sess.errMsg = "state mismatch — the sign-in could not be verified; start again"
@@ -190,7 +194,7 @@ func (f *LoopbackFlow) handleCallback(w http.ResponseWriter, r *http.Request, id
 	default:
 		sess.code = q.Get("code")
 	}
-	msg := sess.errMsg
+	failed := sess.errMsg != ""
 	f.mu.Unlock()
 
 	// The listener has done its job either way; shut it down in the
@@ -198,11 +202,14 @@ func (f *LoopbackFlow) handleCallback(w http.ResponseWriter, r *http.Request, id
 	// until PollAuth reads the code (or error) and reaches a terminal state.
 	go f.closeListener(id)
 
-	if msg != "" {
-		writePage(w, "Sign-in failed: "+msg+" You can close this window.")
+	// The browser page is always one of a fixed set of static strings — no
+	// query input is ever echoed (guards against reflected XSS on the
+	// OAuth callback).
+	if failed {
+		writePage(w, pageFailed)
 		return
 	}
-	writePage(w, "Sign-in complete. You can close this window and return to mycel.")
+	writePage(w, pageComplete)
 }
 
 // PollAuth reports progress and, once the code has arrived, exchanges it for
@@ -294,8 +301,17 @@ func (f *LoopbackFlow) pruneLocked() {
 	}
 }
 
+// Static browser-facing messages for the callback page. These are the only
+// strings writePage ever renders — no request input is echoed.
+const (
+	pageComplete = "Sign-in complete. You can close this window and return to mycel."
+	pageFailed   = "Sign-in failed. Return to mycel for details, then start the sign-in again."
+	pageExpired  = "This sign-in session has expired. Return to mycel and start again."
+)
+
 // writePage renders a minimal HTML page shown in the user's browser after the
-// redirect.
+// redirect. The message is HTML-escaped as defense-in-depth so no caller can
+// ever reflect untrusted input into the response.
 func writePage(w http.ResponseWriter, msg string) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
@@ -304,7 +320,7 @@ func writePage(w http.ResponseWriter, msg string) {
 			"<body style=\"font-family:system-ui,sans-serif;background:#f5efe6;color:#3a2f28;"+
 			"display:flex;align-items:center;justify-content:center;height:100vh;margin:0\">"+
 			"<p style=\"max-width:28rem;text-align:center;font-size:1rem;line-height:1.5\">%s</p>"+
-			"</body></html>", msg)
+			"</body></html>", html.EscapeString(msg))
 }
 
 // randToken returns a random 128-bit hex token for session/state IDs.
