@@ -298,7 +298,7 @@ describe("ConnectWizard OAuth", () => {
     await waitFor(() => {
       expect(screen.getByTestId("oauth-user-code")).toHaveTextContent("ABCD-1234");
     });
-    const link = screen.getByRole("link", { name: /github.com\/login\/device/ });
+    const link = screen.getByRole("link", { name: /\bgithub\.com\/login\/device/ });
     expect(link).toHaveAttribute("href", "https://github.com/login/device");
     expect(screen.getByText("Waiting for authorization...")).toBeInTheDocument();
 
@@ -386,7 +386,7 @@ describe("ConnectWizard OAuth", () => {
 
     // Callback-flow UX: a link to open the Google consent page (no code).
     await waitFor(() => {
-      expect(screen.getByRole("link", { name: /accounts.google.com/ })).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: /\baccounts\.google\.com\// })).toBeInTheDocument();
     });
     expect(screen.queryByTestId("oauth-user-code")).not.toBeInTheDocument();
 
