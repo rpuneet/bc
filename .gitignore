@@ -75,3 +75,10 @@ node_modules/
 .playwright-mcp/
 packages/mycel-cli/bin/mycel
 site/
+
+# Stray build binaries (old bc/bcd names) — build outputs, never committed
+/bc
+/bcd
+# Leftover dist dirs from removed components
+/tui/
+/packages/mycel-agent-runner/
