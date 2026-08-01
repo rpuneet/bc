@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { LoadingSkeleton } from "../components/LoadingSkeleton";
 import { EmptyState } from "../components/EmptyState";
 import { usePolling } from "../hooks/usePolling";
@@ -750,8 +751,8 @@ export function Templates() {
         />
       )}
 
-      {/* Table — local templates, distinguished from the (future)
-          community marketplace content below. */}
+      {/* Table — local templates, distinguished from the marketplace
+          link below. */}
       {filteredTemplates !== null && filteredTemplates.length > 0 && (
         <div>
           <div className="pb-2 text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted select-none">
@@ -781,67 +782,47 @@ export function Templates() {
         </div>
       )}
 
-      {/* Marketplace preview — the community marketplace ships in a
-          later release; these quiet placeholder cards frame the page
-          without dominating it. */}
-      <MarketplacePreview />
+      {/* Marketplace link — community templates & shared roles/workflows
+          are a real, shipped feature at /marketplace, not a future one. */}
+      <MarketplaceLink />
     </div>
   );
 }
 
-/* ── Marketplace preview ─────────────────────────────────────────────
-   Restrained coming-soon strip for the future community features.
-   Muted cards on the token system — an appetite-whetter, not an
-   empty state. */
-const MARKETPLACE_PREVIEWS = [
-  {
-    title: "Browse community templates",
-    description: "Discover agent templates shared by other mycel users.",
-  },
-  {
-    title: "Install shared roles & workflows",
-    description: "Pull ready-made roles and multi-agent workflows into your fleet.",
-  },
-] as const;
-
-function MarketplacePreview() {
+/* ── Marketplace link ─────────────────────────────────────────────────
+   Points at the real /marketplace route (community templates, shared
+   roles & workflows) instead of duplicating or mis-stating its status. */
+function MarketplaceLink() {
   return (
     <div className="pt-2">
       <div className="pb-2 text-[11px] font-medium uppercase tracking-[0.08em] text-mycel-muted select-none">
         Marketplace
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        {MARKETPLACE_PREVIEWS.map((p) => (
-          <div
-            key={p.title}
-            className="flex items-start gap-3 rounded-lg border border-dashed border-mycel-border bg-mycel-surface px-4 py-3"
-          >
-            {/* Small mark — a quiet node glyph, not a hero icon. */}
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 14 14"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.3"
-              className="shrink-0 mt-0.5 text-mycel-muted"
-              aria-hidden
-            >
-              <circle cx="7" cy="7" r="2" />
-              <path d="M8.5 5.5L11 3M5.5 8.5L3 11M9 8.5l2.5 1.5" strokeLinecap="round" opacity="0.6" />
-            </svg>
-            <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-medium text-mycel-text-2 truncate">{p.title}</span>
-                <span className="shrink-0 rounded-full border border-mycel-border bg-mycel-bg px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.06em] text-mycel-muted">
-                  Coming soon
-                </span>
-              </div>
-              <p className="mt-0.5 text-xs text-mycel-muted">{p.description}</p>
-            </div>
-          </div>
-        ))}
-      </div>
+      <Link
+        to="/marketplace"
+        className="flex items-start gap-3 rounded-lg border border-mycel-border bg-mycel-surface px-4 py-3 hover:bg-mycel-surface-hover transition-colors"
+      >
+        {/* Small mark — a quiet node glyph, not a hero icon. */}
+        <svg
+          width="16"
+          height="16"
+          viewBox="0 0 14 14"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.3"
+          className="shrink-0 mt-0.5 text-mycel-muted"
+          aria-hidden
+        >
+          <circle cx="7" cy="7" r="2" />
+          <path d="M8.5 5.5L11 3M5.5 8.5L3 11M9 8.5l2.5 1.5" strokeLinecap="round" opacity="0.6" />
+        </svg>
+        <div className="min-w-0">
+          <span className="text-sm font-medium text-mycel-text-2">Browse the marketplace</span>
+          <p className="mt-0.5 text-xs text-mycel-muted">
+            Discover community templates and install shared roles & workflows into your fleet.
+          </p>
+        </div>
+      </Link>
     </div>
   );
 }

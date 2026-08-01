@@ -59,7 +59,7 @@ export function BootSplash({
   const riseMs = reduce ? 0 : timings.riseMs;
   const fadeMs = reduce ? 60 : timings.fadeMs;
 
-  const { healthy, lines } = useBootSequence(timings.boot);
+  const { healthy, lines, stalled, retry } = useBootSequence(timings.boot);
   const [phase, setPhase] = useState<Phase>("draw");
   const [minReached, setMinReached] = useState(false);
   const onReadyRef = useRef(onReady);
@@ -126,6 +126,67 @@ export function BootSplash({
           </div>
         ))}
       </div>
+
+      {/* Stall fallback — the daemon never answered a health probe within
+          the stall window. Escape the silent spinner with a clear message
+          plus a way forward, instead of retrying invisibly forever. */}
+      {stalled && !healthy && (
+        <div
+          data-testid="boot-stall"
+          style={{
+            position: "fixed",
+            top: "calc(50% + 96px)",
+            left: "50%",
+            transform: "translateX(-50%)",
+            width: "min(420px, 88vw)",
+            textAlign: "center",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            gap: "0.75rem",
+          }}
+        >
+          <p style={{ margin: 0, fontSize: 13, color: "var(--mycel-text-2)" }}>
+            Still trying to reach the daemon&hellip; it may have failed to start.
+          </p>
+          <div style={{ display: "flex", gap: "0.5rem" }}>
+            <button
+              type="button"
+              onClick={retry}
+              style={{
+                font: "inherit",
+                fontSize: 12.5,
+                fontWeight: 600,
+                padding: "0.4rem 0.9rem",
+                borderRadius: 6,
+                border: "1px solid var(--mycel-border)",
+                background: "var(--mycel-surface)",
+                color: "var(--mycel-text)",
+                cursor: "pointer",
+              }}
+            >
+              Retry
+            </button>
+            <button
+              type="button"
+              onClick={() => onReadyRef.current()}
+              style={{
+                font: "inherit",
+                fontSize: 12.5,
+                padding: "0.4rem 0.9rem",
+                borderRadius: 6,
+                border: "1px solid transparent",
+                background: "transparent",
+                color: "var(--mycel-text-2)",
+                cursor: "pointer",
+                textDecoration: "underline",
+              }}
+            >
+              Continue anyway
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

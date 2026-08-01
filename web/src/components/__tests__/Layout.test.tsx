@@ -104,6 +104,9 @@ describe("Layout chrome", () => {
 
     expect(screen.getByRole("link", { name: /Marketplace/ })).toHaveAttribute("href", "/marketplace");
     expect(screen.getByRole("link", { name: /Insights/ })).toHaveAttribute("href", "/insights");
+    // Templates is a real CRUD feature and gets its own primary-nav entry,
+    // distinct from the community Marketplace.
+    expect(screen.getByRole("link", { name: /Templates/ })).toHaveAttribute("href", "/templates");
     // Old separate items and captions are gone.
     expect(screen.queryByText("Configure")).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Metrics" })).not.toBeInTheDocument();
