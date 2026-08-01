@@ -10,7 +10,10 @@ import { useEffect, useState } from "react";
  *
  * Progressive enhancement: the server renders the static poster <img>;
  * after hydration the video takes over — unless the visitor prefers
- * reduced motion, in which case the poster simply stays.
+ * reduced motion, in which case the poster simply stays. Only the variant
+ * matching the visitor's current theme mounts a <video> (the other stays
+ * a poster <img>, hidden by CSS), so the hidden theme's clip is never
+ * downloaded; a theme switch swaps which variant carries the video.
  *
  * Assets live in public/motion/<name>-<theme>.{webm,mp4} (VP9 primary,
  * H.264 fallback — each clip is ~100–350 KB, far lighter than a GIF)
@@ -37,6 +40,7 @@ export function MotionShot({
 }) {
   const poster = `/screenshots/${name}-${theme}.png`;
   const [motionOk, setMotionOk] = useState(false);
+  const [themeActive, setThemeActive] = useState(false);
 
   useEffect(() => {
     const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -46,7 +50,17 @@ export function MotionShot({
     return () => mq.removeEventListener("change", update);
   }, []);
 
-  if (!motionOk) {
+  useEffect(() => {
+    const root = document.documentElement;
+    const update = () =>
+      setThemeActive(root.classList.contains("dark") === (theme === "dark"));
+    update();
+    const mo = new MutationObserver(update);
+    mo.observe(root, { attributes: true, attributeFilter: ["class"] });
+    return () => mo.disconnect();
+  }, [theme]);
+
+  if (!motionOk || !themeActive) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
       <img
