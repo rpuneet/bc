@@ -1,7 +1,9 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -23,6 +25,7 @@ Examples:
   mycel template list                    # List all templates
   mycel template show feature-dev        # Show template details
   mycel template create my-template      # Scaffold a new template
+  mycel template import ./my-tmpl.json   # Import a template from a file
   mycel template delete my-template      # Delete a template`,
 	RunE: runTemplateList,
 }
@@ -54,10 +57,41 @@ var templateDeleteCmd = &cobra.Command{
 	RunE:  runTemplateDelete,
 }
 
+var templateImportCmd = &cobra.Command{
+	Use:   "import <source>",
+	Short: "Import a template from a file, URL, or the marketplace catalog",
+	Long: `Import a template into the global template store (~/.mycel/templates/).
+
+<source> may be:
+  - a path to a local JSON file describing the template
+  - an http(s) URL to a template JSON document
+  - the name of a template already known to the marketplace catalog
+    (mycel marketplace list --type template)
+
+The JSON document has the same shape as 'mycel template show', plus an
+optional "system_prompt" string field carrying the system prompt text:
+
+  {
+    "name": "my-template",
+    "description": "...",
+    "mcps": ["mycel"],
+    "system_prompt": "You are..."
+  }
+
+Importing a name that already exists in the store updates it in place;
+pass --force to allow the overwrite.`,
+	Args: cobra.ExactArgs(1),
+	RunE: runTemplateImport,
+}
+
 func init() {
+	templateImportCmd.Flags().Bool("force", false, "overwrite an existing template with the same name")
+	templateImportCmd.Flags().String("name", "", "override the imported template's name")
+
 	templateCmd.AddCommand(templateListCmd)
 	templateCmd.AddCommand(templateShowCmd)
 	templateCmd.AddCommand(templateCreateCmd)
+	templateCmd.AddCommand(templateImportCmd)
 	templateCmd.AddCommand(templateDeleteCmd)
 	rootCmd.AddCommand(templateCmd)
 }
@@ -204,4 +238,92 @@ func runTemplateDelete(_ *cobra.Command, args []string) error {
 
 	fmt.Printf("Deleted template %s\n", name)
 	return nil
+}
+
+// runTemplateImport implements `mycel template import <source>`. source can
+// be a local JSON file path, an http(s) URL to a template JSON document, or
+// the name of a template already listed in the marketplace catalog.
+func runTemplateImport(cmd *cobra.Command, args []string) error {
+	source := args[0]
+	force, err := cmd.Flags().GetBool("force")
+	if err != nil {
+		return err
+	}
+	nameOverride, err := cmd.Flags().GetString("name")
+	if err != nil {
+		return err
+	}
+
+	store, err := openTemplateStore()
+	if err != nil {
+		return err
+	}
+	if _, dirErr := home.EnsureGlobalDir(); dirErr != nil {
+		return dirErr
+	}
+
+	t, prompt, err := resolveImportSource(cmd.Context(), store, source)
+	if err != nil {
+		return err
+	}
+
+	if nameOverride != "" {
+		t.Name = nameOverride
+	}
+	if t.Name == "" {
+		return fmt.Errorf("imported template has no name; pass --name to set one")
+	}
+	t.Scope = ""
+
+	if _, _, getErr := store.Get(t.Name); getErr == nil {
+		if !force {
+			return fmt.Errorf("template %q already exists; re-run with --force to update it", t.Name)
+		}
+		if err := store.Update(t.Name, t, prompt); err != nil {
+			return fmt.Errorf("update template %q: %w", t.Name, err)
+		}
+		fmt.Printf("Updated template %q from %s\n", t.Name, source)
+		return nil
+	}
+
+	if err := store.Create(t, prompt, template.ScopeGlobal); err != nil {
+		return fmt.Errorf("import template %q: %w", t.Name, err)
+	}
+	fmt.Printf("Imported template %q from %s\n", t.Name, source)
+	return nil
+}
+
+// resolveImportSource resolves source into a Template + system prompt. It
+// tries, in order: an http(s) URL, a local file path, and finally a lookup
+// by name against this store directly. The last case covers "known
+// marketplace item name": the marketplace catalog's "mycel" source (see
+// pkg/marketplace.Aggregator.fetchMycel) lists exactly this store's own
+// templates, so resolving a bare name against the store is equivalent to
+// resolving it via the aggregator today, without paying for a live fetch
+// across every other registry the aggregator knows about.
+func resolveImportSource(ctx context.Context, store *template.Store, source string) (template.Template, string, error) {
+	if strings.HasPrefix(source, "http://") || strings.HasPrefix(source, "https://") {
+		t, prompt, err := template.FetchImportDoc(ctx, nil, source)
+		if err != nil {
+			return template.Template{}, "", fmt.Errorf("fetch template from %s: %w", source, err)
+		}
+		return t, prompt, nil
+	}
+
+	if info, statErr := os.Stat(source); statErr == nil && !info.IsDir() {
+		data, err := os.ReadFile(source) //nolint:gosec // source is an explicit user-supplied CLI argument
+		if err != nil {
+			return template.Template{}, "", fmt.Errorf("read %s: %w", source, err)
+		}
+		t, prompt, err := template.ParseImportDoc(data)
+		if err != nil {
+			return template.Template{}, "", fmt.Errorf("%s: %w", source, err)
+		}
+		return t, prompt, nil
+	}
+
+	if t, prompt, err := store.Get(source); err == nil {
+		return *t, prompt, nil
+	}
+	return template.Template{}, "", fmt.Errorf("%q is not a local file, a URL, or a known template in the store", source)
 }

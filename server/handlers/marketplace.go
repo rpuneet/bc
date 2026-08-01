@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/rpuneet/mycel/pkg/marketplace"
+	"github.com/rpuneet/mycel/pkg/template"
 )
 
 // AgentSender is the minimal interface needed to dispatch a message to a named
@@ -18,8 +19,9 @@ type AgentSender interface {
 
 // MarketplaceHandler handles /api/marketplace routes.
 type MarketplaceHandler struct { //nolint:govet // readability over fieldalignment
-	agg    *marketplace.Aggregator
-	sender AgentSender // may be nil; install endpoint returns 503 when nil
+	agg       *marketplace.Aggregator
+	sender    AgentSender     // may be nil; agent-dispatch install path returns 503 when nil
+	tmplStore *template.Store // may be nil; when set, template installs write directly instead of dispatching
 }
 
 // NewMarketplaceHandler creates a MarketplaceHandler backed by the given
@@ -27,6 +29,15 @@ type MarketplaceHandler struct { //nolint:govet // readability over fieldalignme
 // no sender is wired (e.g. during integration tests that omit the agent service).
 func NewMarketplaceHandler(agg *marketplace.Aggregator, sender AgentSender) *MarketplaceHandler {
 	return &MarketplaceHandler{agg: agg, sender: sender}
+}
+
+// WithTemplateStore wires a template store into the handler so that
+// installs of TypeTemplate items write directly to the store — a
+// deterministic action — instead of dispatching a command an agent must
+// run. Returns the receiver for chaining.
+func (h *MarketplaceHandler) WithTemplateStore(store *template.Store) *MarketplaceHandler {
+	h.tmplStore = store
+	return h
 }
 
 // Register mounts marketplace routes on mux.
@@ -80,18 +91,16 @@ type installResponse struct { //nolint:govet // field order matches API contract
 
 // install handles POST /api/marketplace/install.
 //
-// It composes a clear install-instruction message for the item and dispatches
-// it to each named agent via the existing AgentSender (same code path as
-// POST /api/agents/{name}/send). The agent then runs the install using its
-// own native command.
+// For TypeTemplate items with a template store wired (WithTemplateStore),
+// the install writes directly to the global template store — a
+// deterministic action that does not depend on any agent being reachable.
+// Every other item type falls back to the original behavior: composing a
+// clear install-instruction message and dispatching it to each named agent
+// via the existing AgentSender (same code path as POST /api/agents/{name}/send),
+// which then runs the install using its own native command.
 func (h *MarketplaceHandler) install(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		methodNotAllowed(w)
-		return
-	}
-
-	if h.sender == nil {
-		httpError(w, "agent service unavailable", http.StatusServiceUnavailable)
 		return
 	}
 
@@ -118,6 +127,20 @@ func (h *MarketplaceHandler) install(w http.ResponseWriter, r *http.Request) {
 	req.ItemSourceURL = newlineReplacer.Replace(req.ItemSourceURL)
 	req.ItemID = newlineReplacer.Replace(req.ItemID)
 
+	if marketplace.ItemType(req.ItemType) == marketplace.TypeTemplate && h.tmplStore != nil {
+		if err := h.installTemplate(r.Context(), req); err != nil {
+			httpError(w, "install template: "+err.Error(), http.StatusBadGateway)
+			return
+		}
+		writeJSON(w, http.StatusOK, installResponse{Dispatched: len(req.Agents)})
+		return
+	}
+
+	if h.sender == nil {
+		httpError(w, "agent service unavailable", http.StatusServiceUnavailable)
+		return
+	}
+
 	msg := composeInstallMessage(req)
 
 	dispatched := 0
@@ -139,6 +162,38 @@ func (h *MarketplaceHandler) install(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, installResponse{Dispatched: dispatched, Errors: sendErrs})
+}
+
+// installTemplate resolves req into a Template and upserts it into the
+// wired template store. When req.ItemSourceURL is set it is fetched as an
+// import document (see pkg/template.FetchImportDoc); otherwise req.ItemName
+// is looked up directly in the store, since the "mycel" marketplace source
+// only ever lists templates that already live there.
+func (h *MarketplaceHandler) installTemplate(ctx context.Context, req installRequest) error {
+	var (
+		t      template.Template
+		prompt string
+	)
+
+	if req.ItemSourceURL != "" {
+		fetched, fetchedPrompt, err := template.FetchImportDoc(ctx, nil, req.ItemSourceURL)
+		if err != nil {
+			return fmt.Errorf("fetch %s: %w", req.ItemSourceURL, err)
+		}
+		t, prompt = fetched, fetchedPrompt
+	} else {
+		existing, existingPrompt, err := h.tmplStore.Get(req.ItemName)
+		if err != nil {
+			return fmt.Errorf("no source URL provided and %q is not a known template: %w", req.ItemName, err)
+		}
+		t, prompt = *existing, existingPrompt
+	}
+	t.Scope = ""
+
+	if _, _, err := h.tmplStore.Get(t.Name); err == nil {
+		return h.tmplStore.Update(t.Name, t, prompt)
+	}
+	return h.tmplStore.Create(t, prompt, template.ScopeGlobal)
 }
 
 // composeInstallMessage builds the human-readable install instruction sent to
@@ -201,13 +256,23 @@ func composeInstallMessage(req installRequest) string {
 			sb.WriteString(fmt.Sprintf("  claude plugin install %q\n", req.ItemName+"@"+marketplaceName))
 		}
 	case marketplace.TypeTemplate:
-		// A template entry names a template that is already on the machine: the
-		// mycel source lists ~/.mycel/templates itself, so there is nothing to
-		// fetch. The old instruction asked for `mycel template import`, a
-		// command that has never existed — an agent that did as it was told got
-		// "unknown command", which is the failure the Glama branch above goes
-		// out of its way to avoid. What a template is *for* is creating an
-		// agent, so that is what is asked for.
+		// This is the fallback for when no template store is wired; with one,
+		// install writes to the store itself and never composes a message.
+		//
+		// Which command depends on where the template is. An entry from the
+		// mycel source names a template already in ~/.mycel/templates, so
+		// importing it is a no-op and what is actually wanted is an agent made
+		// from it. An entry from anywhere else has to be fetched first.
+		//
+		// Either way the command has to exist: this used to name `mycel
+		// template import` when there was no such subcommand, so an agent that
+		// did as it was told got "unknown command" (#3538).
+		if req.ItemSourceURL != "" {
+			sb.WriteString("  Import the template, then create an agent from it:\n")
+			sb.WriteString(fmt.Sprintf("  mycel template import %q\n", req.ItemSourceURL))
+			sb.WriteString("  mycel agent create <agent-name> --template <imported-name>\n")
+			break
+		}
 		template := strings.TrimPrefix(req.ItemID, "mycel:")
 		if template == "" {
 			template = req.ItemName
