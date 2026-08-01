@@ -40,6 +40,7 @@ mycel agent [flags]
 * [mycel](mycel.md)	 - A simpler, more controllable agent orchestrator
 * [mycel agent attach](mycel_agent_attach.md)	 - Attach to an agent's session
 * [mycel agent auth](mycel_agent_auth.md)	 - Authenticate an agent for Docker containers
+* [mycel agent avatar](mycel_agent_avatar.md)	 - Generate agent AgentCharacter avatar images (for public hosting)
 * [mycel agent broadcast](mycel_agent_broadcast.md)	 - Send a message to all running agents
 * [mycel agent cost](mycel_agent_cost.md)	 - Show per-agent cost breakdown
 * [mycel agent create](mycel_agent_create.md)	 - Create a new agent

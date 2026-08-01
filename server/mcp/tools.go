@@ -10,6 +10,8 @@ import (
 
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"github.com/rpuneet/mycel/pkg/avatar"
+	"github.com/rpuneet/mycel/pkg/home"
 	"github.com/rpuneet/mycel/pkg/log"
 )
 
@@ -37,7 +39,7 @@ var readOnly = &sdk.ToolAnnotations{ReadOnlyHint: true}
 func addTools(s *sdk.Server, cfg Config, agentName string) {
 	sdk.AddTool(s, &sdk.Tool{
 		Name:        "whoami",
-		Description: "Returns the current agent's identity, role, state, and repo",
+		Description: "Returns the current agent's identity: name, display_name, role, state, provider/model, its AgentCharacter avatar_url, and a Slack hint (username + icon_url) for posting as itself via chat.postMessage",
 		Annotations: readOnly,
 	}, func(ctx context.Context, _ *sdk.CallToolRequest, _ emptyIn) (*sdk.CallToolResult, whoamiOut, error) {
 		return nil, whoami(cfg, agentName), nil
@@ -101,24 +103,102 @@ type emptyIn struct{}
 
 // ─── whoami ─────────────────────────────────────────────────────────────────
 
+// slackHint tells an agent exactly how to post to Slack as itself — its own
+// AgentCharacter avatar and name — via chat.postMessage directly with the bot
+// token, rather than routing through the gateway. Requires the bot token to
+// hold the chat:write.customize scope for username/icon_url to take effect.
+type slackHint struct {
+	Method   string `json:"method" jsonschema:"the Slack Web API method to call"`
+	Username string `json:"username" jsonschema:"pass as chat.postMessage username"`
+	IconURL  string `json:"icon_url,omitempty" jsonschema:"pass as chat.postMessage icon_url (this agent's avatar); empty until a public avatar base is configured"`
+	Scope    string `json:"scope" jsonschema:"OAuth scope the bot token must hold for username/icon_url to apply"`
+	Note     string `json:"note" jsonschema:"guidance on posting as this agent"`
+}
+
 type whoamiOut struct {
-	Agent     string `json:"agent" jsonschema:"the agent's name"`
-	Workspace string `json:"workspace,omitempty" jsonschema:"the workspace name"`
-	Role      string `json:"role,omitempty" jsonschema:"the agent's role"`
-	State     string `json:"state,omitempty" jsonschema:"the agent's lifecycle state"`
-	Task      string `json:"task,omitempty" jsonschema:"the agent's current task line"`
+	Slack       *slackHint `json:"slack,omitempty" jsonschema:"how to post to Slack as this agent"`
+	Agent       string     `json:"agent" jsonschema:"the agent's name"`
+	DisplayName string     `json:"display_name" jsonschema:"human-friendly name for display (e.g. Slack)"`
+	Workspace   string     `json:"workspace,omitempty" jsonschema:"the workspace name"`
+	Role        string     `json:"role,omitempty" jsonschema:"the agent's role"`
+	State       string     `json:"state,omitempty" jsonschema:"the agent's lifecycle state"`
+	Task        string     `json:"task,omitempty" jsonschema:"the agent's current task line"`
+	Provider    string     `json:"provider,omitempty" jsonschema:"the AI provider/tool backing this agent (e.g. claude)"`
+	Model       string     `json:"model,omitempty" jsonschema:"the provider model, if pinned (empty means provider default)"`
+	AvatarURL   string     `json:"avatar_url" jsonschema:"URL of this agent's AgentCharacter avatar (PNG). Public when a public avatar base is configured, else the local daemon endpoint"`
+	AvatarLocal string     `json:"avatar_local_url" jsonschema:"the daemon-local avatar endpoint, always reachable from the mycel UI"`
+}
+
+// displayName humanizes an agent name for display: "zen-zebra" → "Zen Zebra".
+func displayName(name string) string {
+	words := strings.FieldsFunc(name, func(r rune) bool { return r == '-' || r == '_' })
+	for i, w := range words {
+		if w == "" {
+			continue
+		}
+		words[i] = strings.ToUpper(w[:1]) + w[1:]
+	}
+	if len(words) == 0 {
+		return name
+	}
+	return strings.Join(words, " ")
 }
 
 func whoami(cfg Config, agentName string) whoamiOut {
-	out := whoamiOut{Agent: agentName, Workspace: cfg.Home.Name()}
+	local := localAvatarURL(cfg, agentName)
+	public := avatar.PublicURL(agentName)
+
+	out := whoamiOut{
+		Agent:       agentName,
+		DisplayName: displayName(agentName),
+		Workspace:   cfg.Home.Name(),
+		AvatarLocal: local,
+	}
+	// avatar_url prefers the genuinely public URL (Slack can fetch it); it
+	// falls back to the daemon-local endpoint honestly when no public base is
+	// configured — the local one works in the mycel UI but not from Slack.
+	if public != "" {
+		out.AvatarURL = public
+	} else {
+		out.AvatarURL = local
+	}
 	if cfg.Agents != nil {
 		if ag := cfg.Agents.GetAgent(agentName); ag != nil {
 			out.Role = string(ag.Role)
 			out.State = string(ag.State)
 			out.Task = ag.Task
+			out.Provider = ag.Tool
+			out.Model = ag.Model
 		}
 	}
+
+	hint := &slackHint{
+		Method:   "chat.postMessage",
+		Username: agentName,
+		IconURL:  public, // only a public URL is usable as Slack icon_url
+		Scope:    "chat:write.customize",
+		Note:     "Post directly with the bot token: chat.postMessage with username and icon_url set to these values. If icon_url is empty, a public avatar base is not yet configured — post with username only.",
+	}
+	out.Slack = hint
 	return out
+}
+
+// localAvatarURL builds the daemon-local avatar endpoint for an agent, using
+// the address `mycel up` recorded in ~/.mycel/run/daemon.addr so it points at
+// the port the daemon actually listens on. Reachable from the mycel UI; not
+// from Slack (loopback), which is why avatar_url prefers the public URL.
+func localAvatarURL(cfg Config, agentName string) string {
+	base := "http://127.0.0.1:9374"
+	if p, err := home.DaemonAddrPath(); err == nil {
+		// p is a fixed daemon-owned path (~/.mycel/run/daemon.addr), never
+		// user input — no path-traversal surface.
+		if b, err := os.ReadFile(p); err == nil { //nolint:gosec // trusted daemon path
+			if s := strings.TrimSpace(string(b)); s != "" {
+				base = s
+			}
+		}
+	}
+	return strings.TrimRight(base, "/") + "/api/agents/" + agentName + "/avatar.png"
 }
 
 // ─── list_agents ────────────────────────────────────────────────────────────

@@ -6,7 +6,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"hash/fnv"
 	"net/http"
 	"strings"
 	"sync"
@@ -17,6 +16,7 @@ import (
 	"github.com/slack-go/slack/slackevents"
 	"github.com/slack-go/slack/socketmode"
 
+	"github.com/rpuneet/mycel/pkg/avatar"
 	"github.com/rpuneet/mycel/pkg/gateway"
 	"github.com/rpuneet/mycel/pkg/log"
 )
@@ -161,12 +161,13 @@ func (a *Adapter) Status() gateway.AdapterStatus {
 // (handleMessageEvent) recognize our own bot-impersonation posts and skip the
 // echo back to the sender.
 //
-// The icon is a stable per-agent emoji derived from the agent name.
-//
-// follow-up: show the agent's real mushroom avatar via MsgOptionIconURL once we
-// have a publicly-reachable image URL for it. That URL is part of the future
-// mycel-cloud hosted asset set and isn't available locally, so we deliberately
-// do not fake one here.
+// The icon is the sender agent's real AgentCharacter avatar, shown via
+// MsgOptionIconURL and sourced from the shared avatar system (avatar.PublicURL,
+// keyed by agent name). The avatar is single-sourced: the same per-agent
+// creature the mycel UI and whoami surface. When no public avatar base is
+// configured the URL is empty and we post with the username only (no icon) —
+// never a hardcoded generic emoji. Both the username and icon require the bot
+// token to hold chat:write.customize (warnIfCustomizeMissing surfaces that).
 func (a *Adapter) Send(ctx context.Context, channelID, sender, content string) error {
 	if a.api == nil {
 		return fmt.Errorf("slack: not connected")
@@ -174,11 +175,15 @@ func (a *Adapter) Send(ctx context.Context, channelID, sender, content string) e
 
 	a.warnIfCustomizeMissing(sender)
 
-	_, _, err := a.api.PostMessageContext(ctx, channelID,
+	opts := []slack.MsgOption{
 		slack.MsgOptionText(content, false),
 		slack.MsgOptionUsername(sender),
-		slack.MsgOptionIconEmoji(agentIconEmoji(sender)),
-	)
+	}
+	if iconURL := avatar.PublicURL(sender); iconURL != "" {
+		opts = append(opts, slack.MsgOptionIconURL(iconURL))
+	}
+
+	_, _, err := a.api.PostMessageContext(ctx, channelID, opts...)
 	if err != nil {
 		return fmt.Errorf("slack: send failed: %w", err)
 	}
@@ -219,32 +224,6 @@ func (a *Adapter) warnIfCustomizeMissing(sender string) {
 			"messages will post under the app's identity",
 			"sender", sender)
 	})
-}
-
-// agentIconEmoji returns a stable emoji for an agent, chosen deterministically
-// from its name so the same agent always gets the same icon. This is only a
-// placeholder until real avatars land (see the follow-up note on Send).
-func agentIconEmoji(sender string) string {
-	if sender == "" {
-		return ":robot_face:"
-	}
-	h := fnv.New32a()
-	_, _ = h.Write([]byte(sender))
-	// Modulo by an untyped constant keeps the index in uint32 space (no
-	// int↔uint32 conversion), which also guards against overflow.
-	return agentEmojiPalette[h.Sum32()%agentEmojiPaletteSize]
-}
-
-// agentEmojiPaletteSize must equal len(agentEmojiPalette); a test asserts it.
-const agentEmojiPaletteSize = 16
-
-// agentEmojiPalette is a small set of neutral, visually distinct emoji used to
-// give each agent a consistent icon. Standard Slack emoji names only.
-var agentEmojiPalette = []string{
-	":fox_face:", ":cat:", ":dog:", ":koala:", ":tiger:",
-	":panda_face:", ":owl:", ":frog:", ":hedgehog:", ":otter:",
-	":rabbit:", ":bear:", ":wolf:", ":unicorn_face:", ":dragon_face:",
-	":robot_face:",
 }
 
 // SendFile uploads a file to a Slack channel.
