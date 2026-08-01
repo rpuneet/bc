@@ -570,6 +570,17 @@ function ProviderModelSection({
         Switching provider isn’t supported in place — clone the agent onto a different
         provider instead.
         {/* follow-up: a real per-agent provider switch needs a container re-image. */}
+        {tool && (
+          <>
+            {" "}
+            <Link
+              to={`/tools/${encodeURIComponent(tool)}`}
+              className="text-mycel-accent hover:underline"
+            >
+              Manage {tool} (commands, MCP, install) →
+            </Link>
+          </>
+        )}
       </p>
     </section>
   );

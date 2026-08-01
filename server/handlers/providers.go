@@ -70,6 +70,12 @@ type ProviderCommand struct {
 	Command     string `json:"command"`
 	Description string `json:"description"`
 	Args        string `json:"args,omitempty"`
+	// Interactive is true when the command needs a TTY or mutates auth/session
+	// state; the UI must not auto-run it (offer copy + "run in your terminal").
+	Interactive bool `json:"interactive"`
+	// Runnable is true when the command is safe to execute inline via the
+	// guarded run endpoint (no TTY, no required args).
+	Runnable bool `json:"runnable"`
 }
 
 // MCPServer describes an MCP server configured for a provider.
@@ -248,6 +254,8 @@ func (h *ProviderHandler) byName(w http.ResponseWriter, r *http.Request) {
 		h.listModels(w, r, name)
 	case r.Method == http.MethodGet && action == "commands":
 		h.commands(w, r, name)
+	case r.Method == http.MethodPost && action == "run":
+		h.runCommand(w, r, name)
 	case r.Method == http.MethodGet && action == "mcps":
 		h.listMCPs(w, r, name)
 	case r.Method == http.MethodPost && action == "mcps":
@@ -303,24 +311,44 @@ func (h *ProviderHandler) commands(w http.ResponseWriter, _ *http.Request, name 
 		return
 	}
 
-	var cmds []ProviderCommand
-	if cl, ok := p.(provider.CommandLister); ok {
-		listed := cl.Commands()
-		cmds = make([]ProviderCommand, 0, len(listed))
-		for _, c := range listed {
-			cmds = append(cmds, ProviderCommand{Name: c.Name, Command: c.Command, Description: c.Description, Args: c.Args})
-		}
+	writeJSON(w, http.StatusOK, providerCommands(p, name))
+}
+
+// providerCommands returns p's curated command list (or a generic default) for
+// display. Interactive/Runnable are resolved for the UI.
+//
+// Only providers exposing a curated CommandLister get runnable=true entries:
+// their commands are constant literals safe to execute via the guarded /run
+// endpoint. The generic default interpolates the provider name into its command
+// strings, so those entries are always reported runnable=false — the run
+// endpoint (resolveRunnableArgv) likewise refuses non-CommandLister providers,
+// keeping the display flag and the execution policy in lockstep.
+func providerCommands(p provider.Provider, name string) []ProviderCommand {
+	cl, isCurated := p.(provider.CommandLister)
+	var listed []provider.Command
+	if isCurated {
+		listed = cl.Commands()
 	} else {
 		// Generic default for providers without a curated command list.
 		binary := name
-		cmds = []ProviderCommand{
-			{Name: "run", Command: binary, Description: "Run " + name},
+		listed = []provider.Command{
+			{Name: "run", Command: binary, Description: "Run " + name, Interactive: true},
 			{Name: "version", Command: binary + " --version", Description: "Show version"},
 			{Name: "help", Command: binary + " --help", Description: "Show help"},
 		}
 	}
-
-	writeJSON(w, http.StatusOK, cmds)
+	cmds := make([]ProviderCommand, 0, len(listed))
+	for _, c := range listed {
+		cmds = append(cmds, ProviderCommand{
+			Name:        c.Name,
+			Command:     c.Command,
+			Description: c.Description,
+			Args:        c.Args,
+			Interactive: c.Interactive,
+			Runnable:    isCurated && c.Runnable(),
+		})
+	}
+	return cmds
 }
 
 // listMCPs returns MCP servers configured for a provider. Providers

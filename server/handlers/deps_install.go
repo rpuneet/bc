@@ -125,8 +125,23 @@ func (h *DepsInstallHandler) install(w http.ResponseWriter, r *http.Request) {
 // streamInstall runs cmdLine, emitting one {"type":"log","line":…} record
 // per output line and a final {"type":"done","code":N} (or "error").
 func streamInstall(ctx context.Context, cmdLine string, emit func(any) bool) {
-	cmd := installRunner(ctx, cmdLine)
+	streamCmd(installRunner(ctx, cmdLine), emit)
+}
+
+// streamCmd runs an already-built *exec.Cmd, emitting one
+// {"type":"log","line":…} record per output line and a final
+// {"type":"done","code":N} (or {"type":"error",…}). It is the shared engine
+// behind both the vetted-table installer (streamInstall, via `sh -c`) and the
+// registry package installer (pkgsearch, via a direct argv), so both surface
+// identical NDJSON progress to the UI.
+func streamCmd(cmd *exec.Cmd, emit func(any) bool) {
 	pr, pw := io.Pipe()
+	// Closing the reader on the way out makes any further child writes fail
+	// with io.ErrClosedPipe instead of blocking forever — so when a client
+	// disconnects mid-stream (emit returns false and we return early), the
+	// child's next write errors, cmd.Wait() completes, and the waiter
+	// goroutine + process don't leak.
+	defer func() { _ = pr.Close() }()
 	cmd.Stdout = pw
 	cmd.Stderr = pw
 

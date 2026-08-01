@@ -111,3 +111,24 @@ describe("shared cache wiring", () => {
     expect(listCalls).toHaveLength(2);
   });
 });
+
+describe("tools seams API", () => {
+  it("searchPackages POSTs manager + query to the guarded endpoint", async () => {
+    fetchMock.mockReturnValue(jsonResponse({ manager: "brew", query: "ripgrep", results: [] }));
+    await api.searchPackages("brew", "ripgrep");
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("/api/system/package-search");
+    expect(init.method).toBe("POST");
+    expect(JSON.parse(init.body as string)).toEqual({ manager: "brew", query: "ripgrep" });
+  });
+
+  it("runProviderCommand POSTs the selected command name to the run endpoint", async () => {
+    fetchMock.mockReturnValue(jsonResponse({ command: "claude --version", output: "1.0", exit_code: 0, truncated: false, timed_out: false }));
+    const res = await api.runProviderCommand("claude", "version");
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("/api/providers/claude/run");
+    expect(init.method).toBe("POST");
+    expect(JSON.parse(init.body as string)).toEqual({ command: "version" });
+    expect(res.exit_code).toBe(0);
+  });
+});

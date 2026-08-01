@@ -492,12 +492,30 @@ export interface PackageManager {
   available: boolean;
   /** true = this manager exposes a registry search the UI could drive. */
   searchable: boolean;
+  /** true = the server can install a searched package via this manager directly
+   *  (no sudo, non-interactive). Authoritative — the UI reads this instead of
+   *  hard-coding a manager set, so its Install affordance can't drift. */
+  direct_install: boolean;
 }
 
 export interface PackageManagersResponse {
   os: string;
   arch: string;
   managers: PackageManager[];
+}
+
+/** One registry search hit. */
+export interface PackageSearchResult {
+  name: string;
+  description: string;
+}
+
+export interface PackageSearchResponse {
+  manager: string;
+  query: string;
+  results: PackageSearchResult[];
+  /** Present when the search command errored or found nothing. */
+  error?: string;
 }
 
 /** A provider model with live availability status. */
@@ -559,6 +577,19 @@ export interface ProviderCommand {
   command: string;
   description: string;
   args?: string;
+  /** true = needs a TTY / mutates auth state; the UI must not auto-run it. */
+  interactive: boolean;
+  /** true = safe to execute inline via runProviderCommand (no TTY, no args). */
+  runnable: boolean;
+}
+
+/** Result of running one allowlisted provider subcommand inline. */
+export interface ProviderRunResult {
+  command: string;
+  output: string;
+  exit_code: number;
+  truncated: boolean;
+  timed_out: boolean;
 }
 
 export interface ProviderMCPServer {
@@ -1296,6 +1327,26 @@ export const api = {
   /** Autodetected host package managers (brew/apt/npm/…) with versions. */
   getPackageManagers: () =>
     request<PackageManagersResponse>("/system/package-managers"),
+  /**
+   * Guarded registry search. The server validates the query charset, runs the
+   * manager's own `search` subcommand with an argv slice (no shell), times it
+   * out, and caps results. Managers without a vetted search spec 400.
+   */
+  searchPackages: (manager: string, query: string) =>
+    request<PackageSearchResponse>("/system/package-search", {
+      method: "POST",
+      body: JSON.stringify({ manager, query }),
+    }),
+  /**
+   * Run one allowlisted, non-interactive, no-argument provider subcommand and
+   * return its output inline. Interactive/arg commands are refused by the
+   * server (the UI must not offer Run for them).
+   */
+  runProviderCommand: (name: string, command: string) =>
+    request<ProviderRunResult>(`/providers/${encodeURIComponent(name)}/run`, {
+      method: "POST",
+      body: JSON.stringify({ command }),
+    }),
   getSettings: () => request<SettingsConfig>("/settings"),
   updateSettings: (patch: Record<string, unknown>) =>
     request<SettingsConfig>("/settings", {

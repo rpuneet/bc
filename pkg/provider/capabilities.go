@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"strings"
 	"time"
 )
 
@@ -101,6 +102,28 @@ type Command struct {
 	Description string
 	// Args describes expected arguments, empty when the command takes none.
 	Args string
+	// Interactive is true when the command needs a TTY (login/auth device
+	// flows, TUIs, starting the agent) or mutates session/auth state. Such
+	// commands are never auto-run from the web UI — the surface offers a
+	// copy-command + "run in your terminal" instead. Only commands with
+	// Interactive=false AND no required Args are safe to execute inline.
+	Interactive bool
+}
+
+// Runnable reports whether a command is safe to execute non-interactively
+// from a UI surface: it needs no TTY, takes no required arguments, and carries
+// no unresolved placeholder in its invocation. Callers use this to gate the
+// guarded /api/providers/{name}/run endpoint and to label which commands the
+// browser may run vs. which must be run in a terminal.
+func (c Command) Runnable() bool {
+	if c.Interactive || c.Args != "" {
+		return false
+	}
+	// Defensive: an entry with an angle-bracket placeholder in Command but no
+	// matching Args would otherwise be exec'd with a literal "<name>" token.
+	// Reject it so the gate is self-enforcing rather than relying on authors
+	// keeping Command and Args in sync.
+	return !strings.ContainsAny(c.Command, "<>")
 }
 
 // CommandLister is optionally implemented by providers that expose a
