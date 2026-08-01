@@ -212,6 +212,12 @@ func TestResolveCommand(t *testing.T) {
 		{"tool install_cmd", "acmecli", "install", "brew install acmecli", true},
 		// Registered CLI tool: update prefers upgrade_cmd.
 		{"tool upgrade_cmd", "acmecli", "update", "brew upgrade acmecli", true},
+		// Registered CLI tool: uninstall derives from its brew install_cmd.
+		{"tool uninstall", "acmecli", "uninstall", "brew uninstall acmecli", true},
+		// Provider CLI: uninstall derives from its npm install hint.
+		{"provider uninstall", "codex", "uninstall", "npm uninstall -g @openai/codex", true},
+		// Core system deps are never auto-uninstalled.
+		{"core dep uninstall refused", "git", "uninstall", "", false},
 		// Unknown id with no installer.
 		{"unknown", "nonesuch", "install", "", false},
 	}
@@ -230,6 +236,28 @@ func TestResolveCommand(t *testing.T) {
 				t.Errorf("expected a non-empty command for %q", tt.id)
 			}
 		})
+	}
+}
+
+func TestDeriveUninstall(t *testing.T) {
+	tests := []struct {
+		in     string
+		want   string
+		wantOK bool
+	}{
+		{"npm install -g @openai/codex", "npm uninstall -g @openai/codex", true},
+		{"npm i -g cursor-agent", "npm uninstall -g cursor-agent", true},
+		{"brew install acmecli", "brew uninstall acmecli", true},
+		{"curl -fsSL https://antigravity.google/install.sh | sh", "", false},
+		{"sudo apt-get update && sudo apt-get install -y git", "", false},
+		{"", "", false},
+		{"npm install -g ", "", false},
+	}
+	for _, tt := range tests {
+		got, ok := deriveUninstall(tt.in)
+		if ok != tt.wantOK || got != tt.want {
+			t.Errorf("deriveUninstall(%q) = (%q,%v), want (%q,%v)", tt.in, got, ok, tt.want, tt.wantOK)
+		}
 	}
 }
 

@@ -76,15 +76,20 @@ describe("Settings redesign", () => {
     }
     // Budgets moved to Insights — it is no longer a Settings section.
     expect(screen.queryByText("budgets")).not.toBeInTheDocument();
-    // Link cards route out instead of duplicating config.
-    expect(screen.getByRole("link", { name: /Open Tools & Providers/i })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Manage apps/i })).toBeInTheDocument();
+    // Drilldown summaries route out to the full managers instead of
+    // duplicating config: a footer link per surface.
+    const toolsLinks = screen.getAllByRole("link").filter((a) => a.getAttribute("href") === "/tools");
+    expect(toolsLinks.length).toBeGreaterThan(0);
+    const appsLinks = screen.getAllByRole("link").filter((a) => a.getAttribute("href") === "/apps");
+    expect(appsLinks.length).toBeGreaterThan(0);
   });
 
-  it("Tools & Providers card links to the flat /tools page", async () => {
+  it("Tools & Providers summary drills into the flat /tools page", async () => {
     mockApi();
     renderSettings();
-    expect(await screen.findByRole("link", { name: /Open Tools & Providers/i })).toHaveAttribute("href", "/tools");
+    await screen.findByText("providers & tools");
+    const toolsLinks = screen.getAllByRole("link").filter((a) => a.getAttribute("href") === "/tools");
+    expect(toolsLinks.length).toBeGreaterThan(0);
   });
 
   it("reads onboarding state into the Setup section", async () => {

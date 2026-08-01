@@ -195,6 +195,14 @@ func isSSERequest(r *http.Request) bool {
 	if r.URL.Path == "/api/events" || strings.HasPrefix(r.URL.Path, "/_mcp/") {
 		return true
 	}
+	// The dependency installer streams NDJSON and relies on http.Flusher to
+	// push each line as it arrives. gzipResponseWriter doesn't implement
+	// Flusher, so wrapping this route would make the handler fall back to
+	// "streaming not supported" for any browser (which always sends
+	// Accept-Encoding: gzip). Exempt it so install/update/uninstall stream.
+	if r.URL.Path == "/api/deps/install" {
+		return true
+	}
 	// /api/agents/{name}/output and /api/agents/{name}/events are SSE streams
 	if strings.HasPrefix(r.URL.Path, "/api/agents/") &&
 		(strings.HasSuffix(r.URL.Path, "/output") || strings.HasSuffix(r.URL.Path, "/events")) {

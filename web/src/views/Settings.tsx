@@ -1,6 +1,6 @@
 import { useCallback, useState, useEffect, useMemo } from "react";
-import { Link } from "react-router-dom";
-import { api, type ProviderInfo, type OnboardingState } from "../api/client";
+import { Link, useNavigate } from "react-router-dom";
+import { api, type ProviderInfo, type OnboardingState, type AppInstance, type Tool } from "../api/client";
 import { usePolling } from "../hooks/usePolling";
 import { LoadingSkeleton } from "../components/LoadingSkeleton";
 import { EmptyState } from "../components/EmptyState";
@@ -277,41 +277,156 @@ function SetupSection() {
 /*  and points; it never duplicates their config UI.                     */
 /* ------------------------------------------------------------------ */
 
+/* A quiet status dot + label for the compact summary tables. */
+function MiniStatus({ ok, label }: { ok: boolean; label: string }) {
+  return (
+    <span className={`inline-flex items-center gap-1.5 text-[11px] ${ok ? "text-mycel-success" : "text-mycel-muted"}`}>
+      <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${ok ? "bg-mycel-success" : "bg-mycel-muted"}`} aria-hidden />
+      {label}
+    </span>
+  );
+}
+
+/* The compact table shell used by every drilldown summary: a bordered,
+ * rounded table whose header sits on the surface tint. */
+function SummaryTable({ head, children }: { head: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <div className="rounded-lg border border-mycel-border overflow-hidden">
+      <table className="w-full text-left">
+        <thead>
+          <tr className="bg-mycel-bg border-b border-mycel-border text-[10px] text-mycel-muted uppercase tracking-[0.08em]">
+            {head}
+          </tr>
+        </thead>
+        <tbody>{children}</tbody>
+      </table>
+    </div>
+  );
+}
+
+/* The "Open the full manager →" footer link every summary table drills into. */
+function DrilldownFooter({ to, label }: { to: string; label: string }) {
+  return (
+    <Link
+      to={to}
+      className="group flex items-center justify-between gap-2 rounded-md px-2 py-1.5 text-[11.5px] text-mycel-text-2 hover:text-mycel-accent hover:bg-mycel-surface-hover transition-colors"
+    >
+      <span>{label}</span>
+      <span className="text-mycel-muted group-hover:text-mycel-accent group-hover:translate-x-0.5 transition-all" aria-hidden>→</span>
+    </Link>
+  );
+}
+
+/* Providers + CLI tools drilldown: two compact tables that summarize the
+ * /tools manager. Provider rows drill into per-provider detail; the whole
+ * area drills into /tools. The fleet-default provider is marked with its
+ * model so Settings answers "what runs by default?" at a glance. */
 function ProvidersToolsCard({ data }: { data: Record<string, unknown> }) {
+  const navigate = useNavigate();
   const p = (data.providers ?? {}) as Record<string, unknown>;
   const defaultProvider = String(p.default ?? "claude");
-  const [installed, setInstalled] = useState<number | null>(null);
-  const [total, setTotal] = useState<number | null>(null);
+  const defaultModel = String(p.default_model ?? "");
+  const [providers, setProviders] = useState<ProviderInfo[] | null>(null);
+  const [tools, setTools] = useState<Tool[] | null>(null);
   const [host, setHost] = useState<{ hostname: string; os: string; arch: string } | null>(null);
 
   useEffect(() => {
     let alive = true;
     api.listProviders()
-      .then((list: ProviderInfo[]) => {
-        if (!alive) return;
-        setTotal(list.length);
-        setInstalled(list.filter((pi) => pi.installed).length);
-      })
-      .catch(() => { /* summary degrades to the default provider alone */ });
+      .then((list) => { if (alive) setProviders(list); })
+      .catch(() => { if (alive) setProviders([]); });
+    api.listTools()
+      .then((list) => { if (alive) setTools(list.filter((t) => t.type !== "provider" && t.type !== "mcp")); })
+      .catch(() => { if (alive) setTools([]); });
     api.getSystemInfo()
       .then((info) => { if (alive) setHost(info); })
       .catch(() => { /* host line is optional */ });
     return () => { alive = false; };
   }, []);
 
-  const counts = installed !== null && total !== null ? ` · ${installed}/${total} installed` : "";
-
   return (
-    <div className="space-y-2.5">
-      <LinkCard
-        to="/tools"
-        ariaLabel="Open Tools & Providers"
-        icon={<path strokeLinecap="round" strokeLinejoin="round" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />}
-        title={`Default: ${PROVIDER_LABELS[defaultProvider] ?? defaultProvider}${counts}`}
-        body="Install tools, sign in, and set the default model."
-      />
+    <div className="space-y-3">
+      {/* Providers table */}
+      <div className="space-y-1.5">
+        <p className="text-[10.5px] text-mycel-muted uppercase tracking-[0.08em]">Providers</p>
+        {providers === null ? (
+          <div className="h-16 animate-pulse rounded-lg bg-mycel-surface-hover" />
+        ) : providers.length === 0 ? (
+          <p className="text-[11.5px] text-mycel-muted px-1">No providers found.</p>
+        ) : (
+          <SummaryTable
+            head={<>
+              <th className="px-3 py-1.5 font-medium">Provider</th>
+              <th className="px-3 py-1.5 font-medium">Status</th>
+              <th className="px-3 py-1.5 font-medium">Default</th>
+            </>}
+          >
+            {providers.map((pi) => {
+              const isDefault = pi.name === defaultProvider;
+              return (
+                <tr
+                  key={pi.name}
+                  onClick={() => navigate(`/tools/${encodeURIComponent(pi.name)}`)}
+                  className="border-b border-mycel-border last:border-0 hover:bg-mycel-surface-hover cursor-pointer transition-colors"
+                >
+                  <td className="px-3 py-1.5 text-[12px] font-medium text-mycel-text">{PROVIDER_LABELS[pi.name] ?? pi.name}</td>
+                  <td className="px-3 py-1.5"><MiniStatus ok={pi.installed} label={pi.installed ? "Installed" : "Not installed"} /></td>
+                  <td className="px-3 py-1.5 text-[11px]">
+                    {isDefault ? (
+                      <span className="inline-flex items-center gap-1.5">
+                        <span className="px-1.5 py-0.5 rounded bg-mycel-accent-subtle text-mycel-accent text-[10px] font-medium">Default</span>
+                        <span className="text-mycel-muted font-mono truncate max-w-[120px]" title={defaultModel || "provider default"}>
+                          {defaultModel || "provider default"}
+                        </span>
+                      </span>
+                    ) : (
+                      <span className="text-mycel-muted">—</span>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </SummaryTable>
+        )}
+      </div>
+
+      {/* CLI tools table */}
+      <div className="space-y-1.5">
+        <p className="text-[10.5px] text-mycel-muted uppercase tracking-[0.08em]">CLI tools</p>
+        {tools === null ? (
+          <div className="h-10 animate-pulse rounded-lg bg-mycel-surface-hover" />
+        ) : tools.length === 0 ? (
+          <p className="text-[11.5px] text-mycel-muted px-1">No CLI tools tracked.</p>
+        ) : (
+          <SummaryTable
+            head={<>
+              <th className="px-3 py-1.5 font-medium">Tool</th>
+              <th className="px-3 py-1.5 font-medium">Status</th>
+              <th className="px-3 py-1.5 font-medium">Version</th>
+            </>}
+          >
+            {tools.map((t) => {
+              const ok = t.status !== "not_installed" && t.status !== "error";
+              return (
+                <tr
+                  key={t.name}
+                  onClick={() => navigate("/tools")}
+                  className="border-b border-mycel-border last:border-0 hover:bg-mycel-surface-hover cursor-pointer transition-colors"
+                >
+                  <td className="px-3 py-1.5 text-[12px] font-medium text-mycel-text">{t.name}</td>
+                  <td className="px-3 py-1.5"><MiniStatus ok={ok} label={ok ? "Installed" : t.status === "error" ? "Error" : "Not installed"} /></td>
+                  <td className="px-3 py-1.5 text-[11px] font-mono text-mycel-muted truncate max-w-[140px]" title={t.version || ""}>{t.version || "—"}</td>
+                </tr>
+              );
+            })}
+          </SummaryTable>
+        )}
+      </div>
+
+      <DrilldownFooter to="/tools" label="Install tools, sign in, set the default model" />
+
       {/* Host machine — folded in from the old hostname nav item. */}
-      <div className="flex items-center gap-2 px-3 text-[11px] text-mycel-muted">
+      <div className="flex items-center gap-2 px-1 text-[11px] text-mycel-muted">
         <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.6} aria-hidden>
           <rect x="3" y="4" width="18" height="12" rx="1.5" /><path strokeLinecap="round" d="M8 20h8M12 16v4" />
         </svg>
@@ -324,27 +439,6 @@ function ProvidersToolsCard({ data }: { data: Record<string, unknown> }) {
         )}
       </div>
     </div>
-  );
-}
-
-/* A whole-card link to a surface that owns its own page. Mirrors the
- * wizard's NextCard so Settings and setup feel like one product. */
-function LinkCard({ to, ariaLabel, icon, title, body }: { to: string; ariaLabel: string; icon: React.ReactNode; title: string; body: string }) {
-  return (
-    <Link
-      to={to}
-      aria-label={`${ariaLabel} — ${title}`}
-      className="group flex items-center gap-3 rounded-lg border border-mycel-border bg-mycel-bg px-3 py-2.5 hover:border-mycel-accent hover:bg-mycel-surface-hover transition-colors"
-    >
-      <span className="grid place-items-center w-8 h-8 rounded-lg bg-mycel-surface text-mycel-text-2 shrink-0 group-hover:text-mycel-accent transition-colors">
-        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.6}>{icon}</svg>
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="block text-[13px] font-medium text-mycel-text truncate">{title}</span>
-        <span className="block text-[11.5px] text-mycel-muted truncate">{body}</span>
-      </span>
-      <span className="shrink-0 text-mycel-muted group-hover:text-mycel-accent group-hover:translate-x-0.5 transition-all" aria-hidden>→</span>
-    </Link>
   );
 }
 
@@ -386,30 +480,51 @@ function RuntimeSection({ data, onChange }: { data: Record<string, unknown>; onC
   );
 }
 
+/* Apps drilldown: a compact table of connected integrations (platform ·
+ * status), summarizing the /apps manager. Rows and footer drill into /apps. */
 function AppsCard() {
-  const [count, setCount] = useState<number | null>(null);
+  const navigate = useNavigate();
+  const [instances, setInstances] = useState<AppInstance[] | null>(null);
 
   useEffect(() => {
     let alive = true;
     api.getApps()
-      .then((res) => { if (alive) setCount((res.instances ?? []).filter((i) => i.connected).length); })
-      .catch(() => { if (alive) setCount(0); });
+      .then((res) => { if (alive) setInstances(res.instances ?? []); })
+      .catch(() => { if (alive) setInstances([]); });
     return () => { alive = false; };
   }, []);
 
-  const summary =
-    count === null ? "Loading…"
-      : count === 0 ? "No apps connected"
-        : `${count} app${count === 1 ? "" : "s"} connected`;
-
   return (
-    <LinkCard
-      to="/apps"
-      ariaLabel="Manage apps"
-      icon={<path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" />}
-      title={summary}
-      body="Integrations, notification delivery, and API keys."
-    />
+    <div className="space-y-2.5">
+      {instances === null ? (
+        <div className="h-16 animate-pulse rounded-lg bg-mycel-surface-hover" />
+      ) : instances.length === 0 ? (
+        <p className="text-[11.5px] text-mycel-muted px-1">No apps connected yet.</p>
+      ) : (
+        <SummaryTable
+          head={<>
+            <th className="px-3 py-1.5 font-medium">App</th>
+            <th className="px-3 py-1.5 font-medium">Platform</th>
+            <th className="px-3 py-1.5 font-medium">Status</th>
+          </>}
+        >
+          {instances.map((inst) => (
+            <tr
+              key={inst.name}
+              onClick={() => navigate("/apps")}
+              className="border-b border-mycel-border last:border-0 hover:bg-mycel-surface-hover cursor-pointer transition-colors"
+            >
+              <td className="px-3 py-1.5 text-[12px] font-medium text-mycel-text">{inst.name}</td>
+              <td className="px-3 py-1.5 text-[11px] text-mycel-muted">{inst.app}</td>
+              <td className="px-3 py-1.5">
+                <MiniStatus ok={inst.connected} label={inst.connected ? "Connected" : inst.error ? "Error" : "Disconnected"} />
+              </td>
+            </tr>
+          ))}
+        </SummaryTable>
+      )}
+      <DrilldownFooter to="/apps" label="Integrations, notification delivery, and API keys" />
+    </div>
   );
 }
 
