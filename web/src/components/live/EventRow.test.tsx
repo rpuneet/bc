@@ -12,9 +12,10 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { EventRow, compactPath, eventGlyphKind } from "./EventRow";
-import { flattenNodes } from "./liveHelpers";
+import { RunningSection } from "./LiveRenderers";
+import { activityItemToNode, flattenNodes, partitionRunning } from "./liveHelpers";
 import type { ToolNode } from "./liveTypes";
 
 function node(overrides: Partial<ToolNode>): ToolNode {
@@ -108,5 +109,105 @@ describe("EventRow", () => {
     render(<EventRow node={node({ toolName: "mcp__github__create_pr", args: "open PR" })} />);
     expect(screen.getByText("github")).toBeTruthy();
     expect(screen.getByText("create_pr")).toBeTruthy();
+  });
+});
+
+/* ── Fix 1: pinned running section ─────────────────────────────────── */
+
+describe("partitionRunning", () => {
+  it("splits running rows from the rest, preserving order", () => {
+    const nodes = [
+      node({ id: "a", status: "completed" }),
+      node({ id: "b", status: "running", endTime: undefined }),
+      node({ id: "c", status: "failed" }),
+      node({ id: "d", status: "running", endTime: undefined }),
+    ];
+    const { running, rest } = partitionRunning(nodes);
+    expect(running.map((n) => n.id)).toEqual(["b", "d"]);
+    expect(rest.map((n) => n.id)).toEqual(["a", "c"]);
+  });
+
+  it("moves a row out of the running bucket once it completes", () => {
+    const running = node({ id: "x", toolName: "Bash", status: "running", endTime: undefined });
+    expect(partitionRunning([running]).running.map((n) => n.id)).toEqual(["x"]);
+    // Same node id, now completed — it leaves the pinned bucket.
+    const done = { ...running, status: "completed" as const, endTime: Date.now() };
+    const after = partitionRunning([done]);
+    expect(after.running).toEqual([]);
+    expect(after.rest.map((n) => n.id)).toEqual(["x"]);
+  });
+});
+
+describe("RunningSection", () => {
+  it("renders the pinned Running header with a count when rows are running", () => {
+    render(
+      <RunningSection
+        nodes={[node({ id: "r1", toolName: "Bash", status: "running", endTime: undefined })]}
+      />,
+    );
+    expect(screen.getByText("Running")).toBeTruthy();
+    expect(screen.getByText("1")).toBeTruthy();
+  });
+
+  it("renders nothing when there are no running rows", () => {
+    const { container } = render(<RunningSection nodes={[]} />);
+    expect(container.firstChild).toBeNull();
+  });
+});
+
+/* ── Fix 2: historical rows expand with their available details ────── */
+
+describe("activityItemToNode + historical expansion", () => {
+  it("carries tool_input from the persisted event data", () => {
+    const n = activityItemToNode({
+      timestamp: "2026-07-30T10:00:00.000Z",
+      event: "PreToolUse",
+      message: "Bash: git status",
+      data: { tool_name: "Bash", tool_input: { command: "git status", description: "Show status" } },
+    });
+    expect(n.toolName).toBe("Bash");
+    expect(n.fullInput).toEqual({ command: "git status", description: "Show status" });
+    expect(n.status).toBe("completed");
+    // Duration is genuinely unknown for historical rows.
+    expect(n.endTime).toBeUndefined();
+  });
+
+  it("marks a historical row failed when the event recorded an error", () => {
+    const n = activityItemToNode({
+      timestamp: "2026-07-30T10:00:00.000Z",
+      event: "PostToolUseFailure",
+      message: "Bash",
+      data: { tool_name: "Bash", tool_input: { command: "false" }, error: "exit status 1" },
+    });
+    expect(n.status).toBe("failed");
+    expect(n.error).toBe("exit status 1");
+  });
+
+  it("degrades gracefully when only a message is stored (no data)", () => {
+    const n = activityItemToNode({
+      timestamp: "2026-07-30T10:00:00.000Z",
+      event: "Stop",
+      message: "Turn complete",
+    });
+    expect(n.fullInput).toBeNull();
+    expect(n.status).toBe("completed");
+  });
+
+  it("expands a historical row to show its input, a copy control, and no Output section", () => {
+    const n = activityItemToNode({
+      timestamp: "2026-07-30T10:00:00.000Z",
+      event: "PreToolUse",
+      message: "Bash: git status --short",
+      data: { tool_name: "Bash", tool_input: { command: "git status --short", description: "Show status" } },
+    });
+    render(<EventRow node={n} />);
+    // Chevron affordance present (has details) — expand it.
+    fireEvent.click(screen.getByRole("button", { name: /Expand Bash event/ }));
+    expect(screen.getByText("git status --short")).toBeTruthy();
+    expect(screen.getByText("Input")).toBeTruthy();
+    // Copy control present inside the expanded row.
+    expect(screen.getAllByRole("button", { name: "Copy to clipboard" }).length).toBeGreaterThan(0);
+    // No tool_response is persisted historically → no Output section.
+    expect(screen.queryByText("Output")).toBeNull();
   });
 });

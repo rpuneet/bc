@@ -3,6 +3,9 @@ import { compactPath, redactSecrets, redactValue } from "./liveHelpers";
 
 /* ── Copy button ───────────────────────────────────────────────────── */
 
+/** Compact icon-only copy control: a clipboard glyph that swaps to a
+ *  check on success, then settles back. Shares the row-control sizing so
+ *  it reads as part of the expanded row, not a bolted-on button. */
 export function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
   const handleCopy = useCallback(() => {
@@ -16,10 +19,24 @@ export function CopyButton({ text }: { text: string }) {
     <button
       type="button"
       onClick={(e) => { e.stopPropagation(); handleCopy(); }}
-      className="text-[10px] text-mycel-muted hover:text-mycel-text px-1.5 py-0.5 rounded-md border border-mycel-border hover:border-mycel-accent transition-colors shrink-0"
+      className={`inline-flex items-center justify-center h-[22px] w-[22px] rounded-md transition-colors shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mycel-accent ${
+        copied
+          ? "text-mycel-success"
+          : "text-mycel-muted hover:text-mycel-text hover:bg-mycel-surface-hover"
+      }`}
       aria-label="Copy to clipboard"
+      title={copied ? "Copied" : "Copy JSON"}
     >
-      {copied ? "Copied" : "Copy"}
+      {copied ? (
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <path d="M3.5 8.5l3 3 6-7" />
+        </svg>
+      ) : (
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <rect x="5.5" y="5.5" width="8" height="8" rx="1.5" />
+          <path d="M10.5 5.5V4a1.5 1.5 0 00-1.5-1.5H4A1.5 1.5 0 002.5 4v5A1.5 1.5 0 004 10.5h1.5" />
+        </svg>
+      )}
     </button>
   );
 }
@@ -417,30 +434,45 @@ export function DetailSection({
   children: React.ReactNode;
 }) {
   const [raw, setRaw] = useState(false);
+  const lowerLabel = label.toLowerCase();
   return (
     <div className="text-[11px] font-mono px-3 py-2 bg-mycel-surface mx-3 mb-1 rounded-md overflow-x-auto">
       <div className="flex items-center justify-between mb-1 gap-2">
         <span className={`text-[10px] uppercase tracking-wide font-semibold ${tone === "success" ? "text-mycel-success" : "text-mycel-muted"}`}>
           {label}
         </span>
-        <span className="flex items-center gap-1.5">
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              setRaw((v) => !v);
-            }}
-            aria-pressed={raw}
-            aria-label={`Toggle raw JSON for ${toolName} ${label.toLowerCase()}`}
-            title={raw ? "Show parsed view" : "Show raw JSON"}
-            className={`text-[10px] px-1.5 py-0.5 rounded-md border transition-colors shrink-0 ${
-              raw
-                ? "border-mycel-accent text-mycel-accent"
-                : "border-mycel-border text-mycel-muted hover:text-mycel-text hover:border-mycel-accent"
-            }`}
+        {/* One tidy control set: a segmented Formatted/Raw view switch and
+            an icon copy — grouped so they read as part of the row. */}
+        <span className="flex items-center gap-1">
+          <span
+            role="group"
+            aria-label={`${toolName} ${lowerLabel} view`}
+            className="inline-flex items-center rounded-md border border-mycel-border overflow-hidden text-[10px] leading-none"
           >
-            {"{}"}
-          </button>
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); setRaw(false); }}
+              aria-pressed={!raw}
+              title="Formatted view"
+              className={`px-1.5 py-1 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mycel-accent focus-visible:ring-inset ${
+                raw ? "text-mycel-muted hover:text-mycel-text hover:bg-mycel-surface-hover" : "bg-mycel-accent-subtle text-mycel-accent"
+              }`}
+            >
+              Formatted
+            </button>
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); setRaw(true); }}
+              aria-pressed={raw}
+              aria-label={`Toggle raw JSON for ${toolName} ${lowerLabel}`}
+              title="Raw JSON"
+              className={`px-1.5 py-1 border-l border-mycel-border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mycel-accent focus-visible:ring-inset ${
+                raw ? "bg-mycel-accent-subtle text-mycel-accent" : "text-mycel-muted hover:text-mycel-text hover:bg-mycel-surface-hover"
+              }`}
+            >
+              Raw
+            </button>
+          </span>
           <CopyButton text={json} />
         </span>
       </div>
