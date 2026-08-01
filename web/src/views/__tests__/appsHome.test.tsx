@@ -10,7 +10,7 @@ import {
   resolveChannelKind,
   whatsappKindFromId,
 } from "../../components/apps/AppsHome";
-import { avatarColor, initialsFor } from "../../components/apps/IdentityAvatar";
+import { IdentityAvatar, avatarColor, initialsFor } from "../../components/apps/IdentityAvatar";
 
 const fetchMock = globalThis.fetch as ReturnType<typeof vi.fn>;
 
@@ -208,9 +208,14 @@ describe("AppsHome helpers", () => {
     expect(isConnectableApp("slack")).toBe(true);
     expect(isConnectableApp("telegram:alerts")).toBe(true);
 
-    const { apps } = buildHomeModel({
+    // A pseudo-app source with a matching gateway must be excluded from
+    // BOTH the app buckets and the channel list.
+    const { apps, channels } = buildHomeModel({
       overview: null,
-      sources,
+      sources: [
+        ...sources,
+        { name: "secrets:vault", description: "", members: [], member_count: 0 },
+      ],
       gateways: [
         ...gateways,
         { platform: "notifications", enabled: true, channels: [] },
@@ -225,16 +230,48 @@ describe("AppsHome helpers", () => {
     expect(keys).toContain("slack");
     expect(keys).not.toContain("notifications");
     expect(keys).not.toContain("secrets");
+    // The secrets:vault "channel" never enters the channel list.
+    expect(channels.some((c) => c.app === "secrets")).toBe(false);
+    expect(channels.some((c) => c.name === "secrets:vault")).toBe(false);
   });
 
-  it("derives deterministic initials and colours for real identities", () => {
+  it("derives deterministic, Unicode-safe initials and legible colours", () => {
     expect(initialsFor("Puneet Rai")).toBe("PR");
     expect(initialsFor("zen-zebra")).toBe("ZZ");
     expect(initialsFor("general")).toBe("GE");
     expect(initialsFor("  ")).toBe("?");
+    // Multibyte names select whole code points, never half a glyph.
+    // 𝐀𝐁𝐂 are astral (surrogate-pair) letters — a raw slice(0,2) would
+    // return a broken half-pair; Array.from keeps them intact.
+    expect(initialsFor("𝐀𝐁𝐂")).toBe("𝐀𝐁");
+    expect(initialsFor("𝐀lpha 𝐁eta")).toBe("𝐀𝐁");
+    expect(initialsFor("日本語")).toBe("日本");
     // Stable across calls, differs by name.
     expect(avatarColor("Puneet Rai")).toBe(avatarColor("Puneet Rai"));
     expect(avatarColor("Puneet Rai")).not.toBe(avatarColor("Someone Else"));
+    // Lightness stays dark enough for white text — including the yellow
+    // hue band that a naive 45%+ lightness would wash out.
+    for (const n of ["a", "b", "yellowish", "Puneet Rai", "zzz"]) {
+      const m = /hsl\(\d+ \d+% (\d+)%\)/.exec(avatarColor(n));
+      expect(m).not.toBeNull();
+      expect(Number(m?.[1])).toBeLessThanOrEqual(42);
+    }
+  });
+
+  it("IdentityAvatar falls back to initials when the image fails to load", () => {
+    const { container } = render(<IdentityAvatar name="Puneet Rai" src="https://example.com/broken.png" />);
+    const img = container.querySelector("img");
+    expect(img).not.toBeNull();
+    // Successful load keeps the <img> — only onError swaps to initials.
+    expect(screen.queryByText("PR")).not.toBeInTheDocument();
+    fireEvent.error(img as HTMLImageElement);
+    expect(container.querySelector("img")).toBeNull();
+    expect(screen.getByText("PR")).toBeInTheDocument();
+  });
+
+  it("IdentityAvatar renders initials directly when no src is given", () => {
+    render(<IdentityAvatar name="zen-zebra" />);
+    expect(screen.getByText("ZZ")).toBeInTheDocument();
   });
 
   it("buildHomeModel degrades without overview data", () => {

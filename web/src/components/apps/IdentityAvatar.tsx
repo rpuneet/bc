@@ -13,27 +13,36 @@
  * appear with zero further changes here.
  */
 
+import { useState } from "react";
 import { hashName } from "../agent-ui/identity";
 import type { ChannelKind } from "./AppsHome";
 
-/** First one-or-two letters of a human name: "Puneet Rai" → "PR",
+/** First code point of a word, Unicode-safe (handles emoji/multibyte). */
+function firstCodePoint(word: string): string {
+  return Array.from(word)[0] ?? "";
+}
+
+/** First one-or-two glyphs of a human name: "Puneet Rai" → "PR",
  *  "zen-zebra" → "ZZ", "general" → "GE". Non-alphanumerics separate
- *  words; a single word contributes its first two letters. */
+ *  words; a single word contributes its first two code points. Uses
+ *  code-point iteration so multibyte/emoji names never split a glyph. */
 export function initialsFor(name: string): string {
   const words = name.trim().split(/[^\p{L}\p{N}]+/u).filter(Boolean);
   if (words.length === 0) return "?";
   if (words.length === 1) {
-    const w = words[0] ?? "";
-    return (w.slice(0, 2) || "?").toUpperCase();
+    const w = Array.from(words[0] ?? "").slice(0, 2).join("");
+    return (w || "?").toUpperCase();
   }
-  return ((words[0]?.[0] ?? "") + (words[1]?.[0] ?? "")).toUpperCase();
+  return (firstCodePoint(words[0] ?? "") + firstCodePoint(words[1] ?? "")).toUpperCase();
 }
 
-/** Deterministic mid-tone HSL that keeps white text legible in both
- *  light and dark themes (fixed saturation/lightness, hue from name). */
+/** Deterministic HSL that keeps white text legible in both light and
+ *  dark themes: hue/saturation come from the name hash, but lightness is
+ *  clamped dark enough (38%) that even the yellow band (hue ≈ 60) clears
+ *  contrast against the white initials. */
 export function avatarColor(name: string): string {
   const hue = hashName(name) % 360;
-  return `hsl(${String(hue)} 52% 45%)`;
+  return `hsl(${String(hue)} 52% 38%)`;
 }
 
 export interface IdentityAvatarProps {
@@ -49,6 +58,8 @@ export interface IdentityAvatarProps {
 }
 
 export function IdentityAvatar({ name, src, size = 20, kind = null, title, className = "" }: IdentityAvatarProps) {
+  // A broken/failed profile-picture URL falls back to the initials chip.
+  const [imgFailed, setImgFailed] = useState(false);
   const radius = kind === "group" ? Math.round(size * 0.28) : size / 2;
   const shared = {
     width: size,
@@ -56,13 +67,14 @@ export function IdentityAvatar({ name, src, size = 20, kind = null, title, class
     borderRadius: radius,
   } as const;
 
-  if (src) {
+  if (src && !imgFailed) {
     return (
       <img
         src={src}
         alt={name}
         title={title ?? name}
         loading="lazy"
+        onError={() => { setImgFailed(true); }}
         className={`shrink-0 object-cover bg-mycel-surface-hover ${className}`}
         style={shared}
       />

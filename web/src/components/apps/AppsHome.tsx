@@ -161,7 +161,9 @@ export function buildHomeModel(snap: HomeSnapshot): { apps: AppItem[]; channels:
   const channels: ChannelItem[] = [];
   for (const name of names) {
     const app = appKeyFor(name);
-    if (app === "internal") continue;
+    // Skip every non-connectable pseudo-app (internal, notifications,
+    // secrets) — the same guard that keeps them out of the pill list.
+    if (!isConnectableApp(app)) continue;
     const ov = ovByName.get(name);
     const st = statByName.get(name);
     const platform = ov?.platform ?? sourcePlatform(name);
