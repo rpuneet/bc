@@ -17,11 +17,18 @@ export default {
           '0%': { opacity: '0', maxHeight: '0' },
           '100%': { opacity: '1', maxHeight: '500px' },
         },
+        // Staggered mount: fade + small rise. fill-mode both holds the
+        // start frame through any animation-delay so there's no flash.
+        'reveal': {
+          '0%': { opacity: '0', transform: 'translateY(6px)' },
+          '100%': { opacity: '1', transform: 'none' },
+        },
       },
       animation: {
         'slide-in': 'slide-in 0.2s ease-out',
         'fade-in': 'fade-in 0.25s ease-out',
         'expand-height': 'expand-height 0.3s ease-out',
+        'reveal': 'reveal 0.4s cubic-bezier(0.16, 1, 0.3, 1) both',
       },
       colors: {
         mycel: {

@@ -70,8 +70,6 @@ describe("Layout chrome", () => {
     // The desktop drawer no longer carries its own brand row.
     const nav = screen.getByRole("navigation");
     expect(within(nav).queryByText("mycel")).not.toBeInTheDocument();
-
-    await waitFor(() => expect(screen.getByText("test-host")).toBeInTheDocument());
   });
 
   it("collapses to an icon rail via the header toggle; the wordmark hides", async () => {
@@ -110,31 +108,20 @@ describe("Layout chrome", () => {
     expect(screen.queryByText("Configure")).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Metrics" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Costs" })).not.toBeInTheDocument();
-    await waitFor(() => expect(screen.getByText("test-host")).toBeInTheDocument());
   });
 
-  it("labels the tools item with the prettified hostname from /api/system/info", async () => {
+  it("drops the host-named Tools item from the primary nav (it lives in Settings now)", async () => {
     mockApi("Puneets-MacBook-Pro.local");
     renderLayout();
 
-    const link = await screen.findByRole("link", { name: /Puneets-MacBook-Pro/ });
-    expect(link).toHaveAttribute("href", "/tools");
-    expect(screen.queryByText("Puneets-MacBook-Pro.local")).not.toBeInTheDocument();
+    // The old hostname/Tools nav item is gone from the top nav entirely.
+    await waitFor(() => expect(screen.getByRole("link", { name: /Marketplace/ })).toBeInTheDocument());
+    expect(screen.queryByRole("link", { name: /Puneets-MacBook-Pro/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /^Host$/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /^Tools$/ })).not.toBeInTheDocument();
   });
 
-  it("falls back to the 'Host' label when system info is unavailable", async () => {
-    mockApi(null);
-    renderLayout();
-
-    const link = screen.getByRole("link", { name: /Host/ });
-    expect(link).toHaveAttribute("href", "/tools");
-    // Stays on the fallback after the failed fetch settles.
-    await waitFor(() =>
-      expect(screen.getByRole("link", { name: /Host/ })).toBeInTheDocument(),
-    );
-  });
-
-  it("keeps Theme, Settings and About in the drawer footer", async () => {
+  it("keeps Theme, Settings and About in the drawer footer, without a Setup entry", async () => {
     mockApi("test-host");
     renderLayout();
 
@@ -142,6 +129,7 @@ describe("Layout chrome", () => {
     expect(within(nav).getByRole("button", { name: /Switch theme/ })).toBeInTheDocument();
     expect(within(nav).getByRole("link", { name: "Settings" })).toHaveAttribute("href", "/settings");
     expect(within(nav).getByRole("link", { name: "About" })).toHaveAttribute("href", "/about");
-    await waitFor(() => expect(screen.getByText("test-host")).toBeInTheDocument());
+    // Setup moved into Settings — no standalone footer entry.
+    expect(within(nav).queryByRole("link", { name: "Setup" })).not.toBeInTheDocument();
   });
 });

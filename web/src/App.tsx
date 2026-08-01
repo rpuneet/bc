@@ -110,7 +110,13 @@ export function AppRoutes() {
         <Route path="marketplace" element={wrap(<Marketplace />)} />
         <Route path="tools" element={wrap(<Tools />)} />
         <Route path="tools/:provider" element={wrap(<ProviderDetail />)} />
-        <Route path="providers" element={<Navigate to="/tools" replace />} />
+        {/* Tools/Providers are now reached FROM Settings (Settings is the
+            config hub). Mounted under /settings/* so the IA reads as a
+            drill-down; the flat /tools routes stay for deep links. */}
+        <Route path="settings/tools" element={wrap(<Tools />)} />
+        <Route path="settings/tools/:provider" element={wrap(<ProviderDetail />)} />
+        <Route path="settings/providers" element={<Navigate to="/settings/tools" replace />} />
+        <Route path="providers" element={<Navigate to="/settings/tools" replace />} />
         {/* Secrets became the Custom Keys section on the Apps home. */}
         <Route path="secrets" element={<Navigate to="/apps#custom-keys" replace />} />
         <Route path="insights" element={wrap(<Insights />)} />
