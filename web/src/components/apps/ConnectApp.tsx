@@ -65,6 +65,7 @@ export const APP_PRESENTATION: Record<string, AppPresentation> = {
   // Payments
   stripe: { icon: "\u{1F4B3}", color: "#635BFF", category: "Payments", description: "Payment and subscription events" },
   // Content
+  gmail: { icon: "✉️", color: "#EA4335", category: "Content", description: "Email via one-click Google sign-in (or token)" },
   rss: { icon: "\u{1F4E1}", color: "#F78422", category: "Content", description: "Subscribe to any RSS or Atom feed" },
   notion: { icon: "\u{1F4DD}", color: "#9CA3AF", category: "Content", description: "Database and page change polling" },
   reddit: { icon: "\u{1F4E2}", color: "#FF4500", category: "Content", description: "Subreddit and post monitoring" },
@@ -740,6 +741,34 @@ export function ConnectWizard({
   const hasStoredSecret = (key: string): boolean =>
     existing?.config?.[`has_${key}`] === true;
 
+  /** One descriptor field → labeled input (secret fields are password
+   *  inputs with replace-only, never-echoed semantics). */
+  const renderField = (field: AppDescriptor["fields"][number]) => {
+    const configured = field.secret && hasStoredSecret(field.key);
+    return (
+      <div key={field.key}>
+        <label className="block text-sm font-medium text-mycel-text-2 mb-1">
+          {field.label}
+          {!field.required && <span className="text-mycel-muted ml-1 font-normal">(optional)</span>}
+          {configured && (
+            <span className="ml-2 inline-flex items-center gap-1 text-[10px] font-medium text-mycel-success">
+              <span className="w-1 h-1 rounded-full bg-mycel-success" />
+              configured
+            </span>
+          )}
+        </label>
+        <input
+          type={field.secret ? "password" : "text"}
+          value={values[field.key] ?? ""}
+          onChange={(e) => { setValues((v) => ({ ...v, [field.key]: e.target.value })); }}
+          placeholder={configured ? "•••••• — leave blank to keep" : field.placeholder}
+          autoComplete={field.secret ? "new-password" : "off"}
+          className="w-full px-3 py-2 bg-mycel-surface border border-mycel-border rounded-md text-sm text-mycel-text placeholder:text-mycel-muted focus:border-mycel-accent focus:outline-none transition-colors"
+        />
+      </div>
+    );
+  };
+
   const startQRPairing = async () => {
     setPairState("loading");
     setError(null);
@@ -1060,44 +1089,30 @@ export function ConnectWizard({
                     )}
                   </div>
                 )}
-                {oauthAvailable && (
-                  <div className="flex items-center gap-3 text-[10px] uppercase tracking-[0.08em] text-mycel-muted">
-                    <span className="flex-1 border-t border-mycel-border" />
-                    or configure manually
-                    <span className="flex-1 border-t border-mycel-border" />
-                  </div>
-                )}
-
-                {descriptor.fields.map((field) => {
-                  const configured = field.secret && hasStoredSecret(field.key);
-                  return (
-                    <div key={field.key}>
-                      <label className="block text-sm font-medium text-mycel-text-2 mb-1">
-                        {field.label}
-                        {!field.required && <span className="text-mycel-muted ml-1 font-normal">(optional)</span>}
-                        {configured && (
-                          <span className="ml-2 inline-flex items-center gap-1 text-[10px] font-medium text-mycel-success">
-                            <span className="w-1 h-1 rounded-full bg-mycel-success" />
-                            configured
-                          </span>
-                        )}
-                      </label>
-                      <input
-                        type={field.secret ? "password" : "text"}
-                        value={values[field.key] ?? ""}
-                        onChange={(e) => { setValues((v) => ({ ...v, [field.key]: e.target.value })); }}
-                        placeholder={configured ? "•••••• — leave blank to keep" : field.placeholder}
-                        autoComplete={field.secret ? "new-password" : "off"}
-                        className="w-full px-3 py-2 bg-mycel-surface border border-mycel-border rounded-md text-sm text-mycel-text placeholder:text-mycel-muted focus:border-mycel-accent focus:outline-none transition-colors"
-                      />
+                {/* Manual config fields. When browser sign-in is available
+                    they collapse under an Advanced disclosure so the
+                    one-click path stays front-and-centre; otherwise they are
+                    the primary path and render inline. */}
+                {oauthAvailable ? (
+                  <details data-testid="manual-config" className="mycel-disclosure">
+                    <summary className="flex items-center gap-3 text-[10px] uppercase tracking-[0.08em] text-mycel-muted cursor-pointer select-none list-none marker:content-none hover:text-mycel-text-2 transition-colors">
+                      <span className="flex-1 border-t border-mycel-border" />
+                      <span className="whitespace-nowrap">Advanced — configure manually or paste a token</span>
+                      <span className="flex-1 border-t border-mycel-border" />
+                    </summary>
+                    <div className="space-y-3 pt-3">
+                      {descriptor.fields.map(renderField)}
                     </div>
-                  );
-                })}
-
-                {descriptor.fields.length === 0 && (
-                  <p className="text-xs text-mycel-muted">
-                    No configuration needed — connect to start receiving events.
-                  </p>
+                  </details>
+                ) : (
+                  <>
+                    {descriptor.fields.map(renderField)}
+                    {descriptor.fields.length === 0 && (
+                      <p className="text-xs text-mycel-muted">
+                        No configuration needed — connect to start receiving events.
+                      </p>
+                    )}
+                  </>
                 )}
               </div>
             )}

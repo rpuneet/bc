@@ -74,3 +74,17 @@ type OAuthFlow interface {
 	// session's interval themselves.
 	PollAuth(ctx context.Context, session AuthSession) (AuthResult, error)
 }
+
+// OAuthConfigured is an optional capability on an OAuthFlow plugin. It
+// reports whether the browser flow is actually usable right now — e.g. the
+// server-side OAuth client credentials are present. When it returns false,
+// the catalog reports oauth_available=false so the connect UI shows the
+// honest token-paste fallback instead of a "Connect" button that would fail.
+//
+// A plugin whose flow needs only per-instance config the user pastes (like
+// the GitHub device flow's client ID) does not implement this — its flow is
+// always "available" and BeginAuth surfaces any missing field.
+type OAuthConfigured interface {
+	// OAuthConfigured reports whether the browser sign-in can run now.
+	OAuthConfigured() bool
+}

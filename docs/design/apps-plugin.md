@@ -131,6 +131,56 @@ and `POST /api/apps/{name}/auth` + `GET .../auth/status?session=<id>`
 drive it; on completion the server persists the returned secrets to the
 vault and hot-starts the adapter.
 
+### Loopback (localhost redirect) flow — Google / Gmail
+
+The generic authorization-code + PKCE flow lives in `pkg/oauth`
+(`LoopbackFlow`). On `BeginAuth` the daemon opens a short-lived listener on
+`http://127.0.0.1:<port>/oauth/callback` (an ephemeral port), returns the
+provider consent URL (`AuthURL`, `Kind == "callback"`), and the web UI opens
+it in the user's browser. Google redirects back to the loopback listener with
+the `code`; `PollAuth` exchanges it (with the PKCE verifier) for access +
+refresh tokens and hands them back as vault secrets. This is fully local — no
+hosted redirect, no cloud — which is exactly what Google "Desktop app" OAuth
+clients permit.
+
+Gmail wires this flow (`pkg/gateway/gmail`) with the `gmail.readonly` +
+`gmail.send` scopes and `access_type=offline` + `prompt=consent` so Google
+always returns a refresh token. The server-side Google client is read from
+`GOOGLE_OAUTH_CLIENT_ID` / `GOOGLE_OAUTH_CLIENT_SECRET`. When they are unset,
+the plugin's optional `OAuthConfigured` capability reports `false`, so
+`oauth_available` is `false` and the connect UI shows the honest
+client-id/secret/refresh-token paste fallback instead of a button that would
+fail.
+
+```go
+// OAuthConfigured is an optional capability an OAuthFlow plugin implements to
+// report whether its browser flow is usable right now (server-side client
+// creds present). false → the catalog reports oauth_available=false.
+type OAuthConfigured interface {
+    OAuthConfigured() bool
+}
+```
+
+**Registering the Google "Desktop app" client (owner, one-time):**
+
+1. Google Cloud Console → *APIs & Services* → **Enable** the Gmail API for the
+   project.
+2. *APIs & Services* → *OAuth consent screen* → add the scopes
+   `https://www.googleapis.com/auth/gmail.readonly` and
+   `https://www.googleapis.com/auth/gmail.send`; add your Google account as a
+   test user (or publish the app).
+3. *APIs & Services* → *Credentials* → *Create credentials* → *OAuth client ID*
+   → application type **Desktop app**. Desktop clients allow the loopback
+   redirect `http://127.0.0.1:<port>/oauth/callback` (any port), so no fixed
+   redirect URL needs registering.
+4. Export the client on the machine running the daemon:
+   `GOOGLE_OAUTH_CLIENT_ID=<id>.apps.googleusercontent.com` and
+   `GOOGLE_OAUTH_CLIENT_SECRET=GOCSPX-…`, then restart `mycel up`. Gmail's
+   connect modal now shows one-click **Sign in with Gmail**.
+
+Slack-type apps that need a fixed HTTPS redirect stay on token paste; real
+Slack OAuth is deferred to a future hosted-redirect ("mycel cloud").
+
 ## Config: generic instances, secrets in the vault
 
 The old `gateways` config section is replaced by `apps` in `prefs.json`:
