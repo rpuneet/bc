@@ -3,11 +3,18 @@
 //
 // Hook-based providers (Claude, agy) POST lifecycle events to the daemon's
 // /api/agents/{name}/hook endpoint, which flow into the Live feed via
-// AgentService.IngestHookEvent. Providers in ActivityModeTranscript (e.g. pi)
+// AgentService.IngestHookEvent. Providers in ActivityModeTranscript (pi, codex)
 // have no such push channel — they write a JSONL session log on disk. This
 // collector tails those logs, parses newly-appended lines into the same hook
-// events (via provider.TranscriptParser), and ingests them through the exact
-// same path, so both kinds of provider feed one Live feed with no parallel UI.
+// events, and ingests them through the exact same path, so both kinds of
+// provider feed one Live feed with no parallel UI.
+//
+// A provider's transcript is turned into events by either a stateless
+// provider.TranscriptParser (pi — each line self-describing) or a stateful
+// provider.TranscriptSession created per file (codex — its result lines
+// reference an earlier call by id and carry no tool name). The file to follow is
+// located by a cwd-encoded path glob (pi) or a provider.TranscriptFileSelector
+// that reads the cwd out of the file (codex).
 package server
 
 import (
@@ -36,9 +43,13 @@ const (
 )
 
 // tailCursor tracks how far the tailer has consumed one transcript file.
+// session holds per-file parse state for session-based providers (codex) and is
+// nil for stateless ones (pi); it is recreated whenever the followed file
+// rotates so state never leaks across sessions.
 type tailCursor struct {
-	path   string
-	offset int64
+	session provider.TranscriptSession
+	path    string
+	offset  int64
 }
 
 // runTranscriptTailer polls transcript-mode agents and ingests newly-written
@@ -75,15 +86,15 @@ func tailTranscriptsOnce(ctx context.Context, agents *agentpkg.AgentService, cur
 	live := make(map[string]struct{}, len(list))
 	for _, a := range list {
 		live[a.Name] = struct{}{}
-		parser, globs := transcriptParserFor(a)
-		if parser == nil || len(globs) == 0 {
+		p := transcriptProviderFor(a)
+		if p == nil {
 			continue
 		}
-		newest := newestMatch(globs)
-		if newest == "" {
+		file := resolveTranscriptFile(p, a.WorktreeDir)
+		if file == "" {
 			continue
 		}
-		tailAgentFile(ctx, agents, cursors, a.Name, newest, parser)
+		tailAgentFile(ctx, agents, cursors, a.Name, file, p)
 	}
 	// Drop cursors for agents that no longer exist so the map can't grow
 	// unbounded across the daemon's lifetime.
@@ -94,26 +105,62 @@ func tailTranscriptsOnce(ctx context.Context, agents *agentpkg.AgentService, cur
 	}
 }
 
-// transcriptParserFor returns the transcript parser and glob patterns for an
-// agent, or (nil, nil) when the agent's provider is not a parseable
-// transcript source.
-func transcriptParserFor(a *agentpkg.Agent) (provider.TranscriptParser, []string) {
+// transcriptProviderFor returns the agent's provider when it is a parseable
+// transcript source (ActivityModeTranscript with a stateless TranscriptParser or
+// a stateful TranscriptSessionParser), or nil otherwise.
+func transcriptProviderFor(a *agentpkg.Agent) provider.Provider {
 	if a == nil || a.Tool == "" || a.WorktreeDir == "" {
-		return nil, nil
+		return nil
 	}
 	p, ok := provider.DefaultRegistry.Get(a.Tool)
 	if !ok {
-		return nil, nil
+		return nil
 	}
 	src, ok := p.(provider.ActivitySource)
 	if !ok || src.ActivityMode() != provider.ActivityModeTranscript {
-		return nil, nil
+		return nil
 	}
-	parser, ok := p.(provider.TranscriptParser)
-	if !ok {
-		return nil, nil
+	_, stateless := p.(provider.TranscriptParser)
+	_, session := p.(provider.TranscriptSessionParser)
+	if !stateless && !session {
+		return nil
 	}
-	return parser, src.TranscriptGlobs(a.WorktreeDir)
+	return p
+}
+
+// resolveTranscriptFile locates the transcript file to tail for a provider whose
+// agent works in cwd. Providers that record cwd inside the file implement
+// TranscriptFileSelector (codex); the rest are located by a cwd-encoded path
+// glob (pi).
+func resolveTranscriptFile(p provider.Provider, cwd string) string {
+	if sel, ok := p.(provider.TranscriptFileSelector); ok {
+		return sel.SelectTranscript(cwd)
+	}
+	if src, ok := p.(provider.ActivitySource); ok {
+		return newestMatch(src.TranscriptGlobs(cwd))
+	}
+	return ""
+}
+
+// newTranscriptSession returns a fresh per-file session for a session-based
+// provider, or nil for a stateless one.
+func newTranscriptSession(p provider.Provider) provider.TranscriptSession {
+	if sp, ok := p.(provider.TranscriptSessionParser); ok {
+		return sp.NewTranscriptSession()
+	}
+	return nil
+}
+
+// parseTranscriptLine dispatches one line to the cursor's per-file session
+// (session-based providers) or the provider's stateless parser.
+func parseTranscriptLine(cur *tailCursor, p provider.Provider, line []byte) ([]provider.TranscriptActivity, error) {
+	if cur.session != nil {
+		return cur.session.ParseLine(line)
+	}
+	if sp, ok := p.(provider.TranscriptParser); ok {
+		return sp.ParseTranscriptLine(line)
+	}
+	return nil, nil
 }
 
 // newestMatch returns the most-recently-modified file matching any glob, or
@@ -151,7 +198,7 @@ func tailAgentFile(
 	agents *agentpkg.AgentService,
 	cursors map[string]*tailCursor,
 	name, path string,
-	parser provider.TranscriptParser,
+	p provider.Provider,
 ) {
 	fi, err := os.Stat(path)
 	if err != nil {
@@ -164,15 +211,19 @@ func tailAgentFile(
 	case !ok:
 		// First sighting for this agent: start at EOF so we don't backfill a
 		// pre-existing session's history as if it just happened.
-		cursors[name] = &tailCursor{path: path, offset: size}
+		cursors[name] = &tailCursor{path: path, offset: size, session: newTranscriptSession(p)}
 		return
 	case cur.path != path:
-		// A newer session file appeared: capture it from the start.
+		// A newer session file appeared: capture it from the start with fresh
+		// per-file state.
 		cur.path = path
 		cur.offset = 0
+		cur.session = newTranscriptSession(p)
 	case cur.offset > size:
-		// File was truncated/rotated in place: restart from the top.
+		// File was truncated/rotated in place: restart from the top and reset
+		// per-file state.
 		cur.offset = 0
+		cur.session = newTranscriptSession(p)
 	}
 
 	if cur.offset >= size {
@@ -186,7 +237,7 @@ func tailAgentFile(
 	}
 
 	for _, line := range lines {
-		acts, perr := parser.ParseTranscriptLine(line)
+		acts, perr := parseTranscriptLine(cur, p, line)
 		if perr != nil || len(acts) == 0 {
 			continue
 		}

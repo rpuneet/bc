@@ -49,3 +49,40 @@ type TranscriptParser interface {
 	// can skip them without aborting the stream.
 	ParseTranscriptLine(line []byte) ([]TranscriptActivity, error)
 }
+
+// TranscriptSession parses one provider transcript file with per-file state.
+// Unlike TranscriptParser (stateless, each line independent), the tailer
+// creates one session per file it follows and feeds that file's lines to it in
+// order, so the session can correlate lines that reference each other. codex
+// needs this: its tool-result lines carry only the originating call's id and no
+// tool name, so the session resolves each result against the call it recorded
+// earlier to emit a correctly-paired PostToolUse.
+type TranscriptSession interface {
+	// ParseLine parses one transcript line into zero or more activity events.
+	// Like TranscriptParser it must tolerate malformed or unrecognized lines by
+	// returning (nil, nil) rather than an error.
+	ParseLine(line []byte) ([]TranscriptActivity, error)
+}
+
+// TranscriptSessionParser is implemented by transcript providers that need
+// per-file state to parse correctly (e.g. codex). Providers whose lines are
+// independently parseable implement the simpler stateless TranscriptParser
+// instead; a provider implements at most one of the two.
+type TranscriptSessionParser interface {
+	// NewTranscriptSession returns a fresh session bound to a single transcript
+	// file. The tailer calls it once when it starts following a file and again
+	// when the file rotates, never sharing a session across files.
+	NewTranscriptSession() TranscriptSession
+}
+
+// TranscriptFileSelector is implemented by transcript providers whose active
+// session file cannot be located by a cwd-encoded path glob because the working
+// directory is recorded inside the file rather than in its path. codex keys its
+// files by date (sessions/YYYY/MM/DD/rollout-*.jsonl) and records the cwd in a
+// session_meta line, so the tailer calls SelectTranscript to resolve the file
+// instead of globbing TranscriptGlobs.
+type TranscriptFileSelector interface {
+	// SelectTranscript returns the path to the newest transcript belonging to
+	// the agent working in cwd, or "" when none matches.
+	SelectTranscript(cwd string) string
+}
