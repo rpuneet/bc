@@ -12,7 +12,7 @@ import { Link } from "react-router-dom";
 import { api } from "../../api/client";
 import type { NotificationSource, NotifySubscription } from "../../api/client";
 import { sourcePlatform } from "./messageUtils";
-import { DefaultAppIcon, PLATFORM_ICON_MAP } from "./PlatformIcons";
+import { AppIcon } from "./PlatformIcons";
 
 function channelLeaf(ch: string): string {
   const i = ch.lastIndexOf(":");
@@ -20,8 +20,7 @@ function channelLeaf(ch: string): string {
 }
 
 function ChannelGlyph({ channel }: { channel: string }) {
-  const Icon = PLATFORM_ICON_MAP[sourcePlatform(channel)] ?? DefaultAppIcon;
-  return <Icon size={13} />;
+  return <AppIcon base={sourcePlatform(channel)} size={13} />;
 }
 
 export function AgentAppsCard({ agentName }: { agentName: string }) {

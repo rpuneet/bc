@@ -34,7 +34,7 @@ import type {
 import { usePolling } from "../../hooks/usePolling";
 import { useHeaderSlot } from "../../context/HeaderSlotContext";
 import { EmptyState } from "../EmptyState";
-import { DefaultAppIcon, PLATFORM_ICON_MAP } from "./PlatformIcons";
+import { AppIcon } from "./PlatformIcons";
 import { ConnectWizard, AppChooser } from "./ConnectApp";
 import { CustomKeysSection } from "./CustomKeys";
 import { sourcePlatform } from "./messageUtils";
@@ -256,11 +256,8 @@ function oneLine(content: string): string {
 }
 
 /* ── Small render helpers ────────────────────────────────────── */
-
-function AppIcon({ base, size }: { base: string; size: number }) {
-  const Icon = PLATFORM_ICON_MAP[base] ?? DefaultAppIcon;
-  return <Icon size={size} />;
-}
+/* AppIcon (brand SVG → emoji → generic dot) now lives in PlatformIcons.tsx
+   so every app-icon consumer shares one fallback chain. */
 
 function SubscriberAvatars({ subscribers, count }: { subscribers: string[]; count: number }) {
   if (count <= 0) return null;

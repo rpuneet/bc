@@ -6,7 +6,7 @@ import { useMediaQuery } from "../hooks/useMediaQuery";
 import { CommandPalette } from "./CommandPalette";
 import { api, instancesToStatuses } from "../api/client";
 import type { NotificationSource, GatewayHealth, GatewayStatus, NotifySubscription } from "../api/client";
-import { sourcePlatform } from "./apps/messageUtils";
+import { registerAppBases, sourcePlatform } from "./apps/messageUtils";
 import { ConnectWizard, AppChooser } from "./apps/ConnectApp";
 import { DefaultAppIcon, PLATFORM_ICON_MAP } from "./apps/PlatformIcons";
 import {
@@ -382,6 +382,10 @@ function AppsNavTree() {
       setGateways(gws);
       setLabels(Object.fromEntries((apps?.catalog ?? []).map((d) => [d.id, d.label])));
       setSubs(subList ?? []);
+      // Keep gateway detection (sourcePlatform/isGatewaySource) in sync
+      // with whatever apps the server actually has registered, so it
+      // can never silently drift out of date from a hardcoded list.
+      registerAppBases((apps?.catalog ?? []).map((d) => d.id));
 
       // Fetch health for each enabled instance, keyed by the instance's
       // own name so compound keys ("telegram:trade_research") stay stable.

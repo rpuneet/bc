@@ -1,31 +1,57 @@
 import type { ChannelMessage } from "../../api/client";
 import { formatRelative } from "../../utils/time";
 
-/** Gateway notification sources are bridges to external platforms — read-only activity feeds. */
-export const GATEWAY_PREFIXES = [
-  "slack:", "telegram:", "discord:", "whatsapp:", "github:", "webhook:",
-  "rss:", "mqtt:", "irc:", "matrix:", "mattermost:", "reddit:", "twitter:",
-  "notion:", "signal:", "nostr:", "homeassistant:", "imessage:",
+/**
+ * Base names of every built-in app gateway (one gateway package per app —
+ * see pkg/app/builtin/builtin.go). Gateway notification sources are
+ * bridges to external platforms — read-only activity feeds — prefixed
+ * "<base>:" on the channel/source name.
+ *
+ * This array is only the bootstrap default, used before the live catalog
+ * has loaded. `registerAppBases()` below replaces it with the actual
+ * GET /api/apps catalog (called once by Layout's AppsNavTree on load), so
+ * this can't silently drift out of sync with the real registry the way a
+ * hardcoded, hand-maintained list did before.
+ */
+export const GATEWAY_BASES = [
+  "bitbucket", "datadog", "discord", "github", "gitlab", "gmail", "grafana",
+  "imessage", "irc", "jira", "line", "linear", "matrix", "mattermost", "mqtt",
+  "netlify", "notion", "pagerduty", "reddit", "rss", "sentry", "signal",
+  "slack", "stripe", "telegram", "twitch", "vercel", "webhook", "whatsapp",
 ];
 
+let knownAppBases = new Set(GATEWAY_BASES);
+
+/**
+ * Replace the known-gateway base set with the app IDs from the live
+ * /api/apps catalog. Called once the catalog has loaded so gateway
+ * detection always reflects whatever apps are actually registered
+ * server-side, instead of a hardcoded list that can go stale.
+ */
+export function registerAppBases(ids: string[]): void {
+  if (ids.length === 0) return;
+  knownAppBases = new Set(ids);
+}
+
+function baseOf(name: string): string | null {
+  const i = name.indexOf(":");
+  if (i === -1) return null;
+  const base = name.slice(0, i);
+  return knownAppBases.has(base) ? base : null;
+}
+
 export function isGatewaySource(name: string): boolean {
-  return GATEWAY_PREFIXES.some((p) => name.startsWith(p));
+  return baseOf(name) !== null;
 }
 
 /** Extract platform name from gateway source for display. */
 export function gatewayPlatform(name: string): string | null {
-  for (const p of GATEWAY_PREFIXES) {
-    if (name.startsWith(p)) return p.slice(0, -1);
-  }
-  return null;
+  return baseOf(name);
 }
 
 /** Derive platform bucket key from source name. */
 export function sourcePlatform(name: string): string {
-  for (const p of GATEWAY_PREFIXES) {
-    if (name.startsWith(p)) return p.slice(0, -1);
-  }
-  return "internal";
+  return baseOf(name) ?? "internal";
 }
 
 export interface MessageGroup {

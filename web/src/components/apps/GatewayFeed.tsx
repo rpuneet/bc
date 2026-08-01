@@ -23,6 +23,7 @@ import {
   parseWebhookCard,
 } from "./messageUtils";
 import { AgentCharacter, LiveAgentCharacter } from "../agent-ui";
+import { IdentityAvatar } from "./IdentityAvatar";
 import type { GitHubCard, RSSCard, WebhookCard } from "./messageUtils";
 
 /* ── Helpers ──────────────────────────────────────────────────── */
@@ -1090,7 +1091,11 @@ export function GatewayFeed({
                 }}
               >
                 <span className="flex items-center justify-center shrink-0">
-                  <AgentCharacter name={sender} size={18} />
+                  {platform ? (
+                    <IdentityAvatar name={cleanSender(sender)} size={18} />
+                  ) : (
+                    <AgentCharacter name={sender} size={18} />
+                  )}
                 </span>
                 <span className="truncate">{cleanSender(sender)}</span>
               </button>
@@ -1354,32 +1359,55 @@ export function GatewayFeed({
                   <div style={{ paddingTop: 10 }}>
                     {/* Sender line with avatar */}
                     <div className="flex" style={{ padding: "0 18px", gap: 10 }}>
-                      {/* Sender character */}
+                      {/* Sender character — a real chat participant on gateway
+                          channels (identity avatar, never the mycel mushroom),
+                          or an agent on internal channels. */}
                       <span
                         className="flex items-center justify-center shrink-0"
                         style={{ width: 30, height: 30, minWidth: 30, marginTop: 2 }}
                       >
-                        <LiveAgentCharacter name={group.sender} size={30} />
+                        {platform ? (
+                          <IdentityAvatar
+                            name={cleanSender(group.sender)}
+                            src={group.messages[0]?.avatar_url || undefined}
+                            size={30}
+                          />
+                        ) : (
+                          <LiveAgentCharacter name={group.sender} size={30} />
+                        )}
                       </span>
                       <div className="flex-1 min-w-0">
                         {/* Name row */}
                         <div className="flex items-baseline flex-wrap" style={{ gap: 7, marginBottom: 1 }}>
-                          <button
-                            type="button"
-                            onClick={() => onPeekAgent(group.sender)}
-                            className="hover:underline cursor-pointer decoration-1 underline-offset-2"
-                            style={{
-                              fontSize: 13.5,
-                              fontWeight: 600,
-                              color: "var(--mycel-text)",
-                              fontFamily: "'JetBrains Mono', monospace",
-                              background: "none",
-                              border: "none",
-                              padding: 0,
-                            }}
-                          >
-                            {cleanSender(group.sender)}
-                          </button>
+                          {platform ? (
+                            <span
+                              style={{
+                                fontSize: 13.5,
+                                fontWeight: 600,
+                                color: "var(--mycel-text)",
+                                fontFamily: "'JetBrains Mono', monospace",
+                              }}
+                            >
+                              {cleanSender(group.sender)}
+                            </span>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => onPeekAgent(group.sender)}
+                              className="hover:underline cursor-pointer decoration-1 underline-offset-2"
+                              style={{
+                                fontSize: 13.5,
+                                fontWeight: 600,
+                                color: "var(--mycel-text)",
+                                fontFamily: "'JetBrains Mono', monospace",
+                                background: "none",
+                                border: "none",
+                                padding: 0,
+                              }}
+                            >
+                              {cleanSender(group.sender)}
+                            </button>
+                          )}
                           <span
                             style={{
                               fontSize: 11,

@@ -150,7 +150,7 @@ function AddSecretForm({
       </div>
 
       {error && (
-        <p className="text-xs text-mycel-error">{error}</p>
+        <p role="alert" className="text-xs text-mycel-error">{error}</p>
       )}
 
       <button
@@ -354,7 +354,7 @@ function SecretCard({ secret, onChanged }: { secret: Secret; onChanged: () => vo
             >
               Cancel
             </button>
-            {saveError && <span className="text-xs text-mycel-error">{saveError}</span>}
+            {saveError && <span role="alert" className="text-xs text-mycel-error">{saveError}</span>}
           </div>
         </div>
       )}
