@@ -87,6 +87,11 @@ func TestSettingsPatchSection(t *testing.T) {
 			wantStatus: http.StatusOK,
 		},
 		{
+			name:       "patch notifications section",
+			body:       `{"notifications":{"default_channel":"slack:general","enabled":true}}`,
+			wantStatus: http.StatusOK,
+		},
+		{
 			name:       "apps patch with unknown app returns 400",
 			body:       `{"apps":{"ghost":{"app":"ghost","enabled":true}}}`,
 			wantStatus: http.StatusBadRequest,

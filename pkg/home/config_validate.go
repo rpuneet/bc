@@ -19,7 +19,7 @@ const NameMaxLength = 30
 
 // Validation errors.
 var (
-	ErrInvalidVersion          = errors.New("version must be 2")
+	ErrInvalidVersion          = errors.New("version must be 3")
 	ErrMissingDefaultProvider  = errors.New("providers.default is required")
 	ErrDefaultProviderNotFound = errors.New("providers.default references undefined provider")
 	ErrInvalidTheme            = errors.New("ui.theme must be one of: dark, light, matrix, synthwave, high-contrast")
@@ -32,7 +32,11 @@ var (
 func (c *Config) FillDefaults() {
 	d := DefaultConfig()
 
-	if c.Version == 0 {
+	// Upgrade older (or unset) schema versions to the current one. The
+	// realignment is additive — older prefs decode cleanly and any dropped
+	// fields (e.g. the retired runtime.k8s placeholder) are simply ignored —
+	// so bumping the version keeps a loaded config valid without a migration.
+	if c.Version < d.Version {
 		c.Version = d.Version
 	}
 	if c.Server.Host == "" {

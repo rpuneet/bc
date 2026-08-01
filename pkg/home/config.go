@@ -12,7 +12,7 @@ import (
 )
 
 // ConfigVersion is the current config schema version.
-const ConfigVersion = 2
+const ConfigVersion = 3
 
 // PrefsFileName is the global preferences filename. The one and only
 // config file mycel reads lives at ~/.mycel/prefs.json.
@@ -41,6 +41,9 @@ type Config struct { //nolint:govet // field order matches JSON/API contract
 	Server  ServerConfig                 `json:"server"`
 	Logs    LogsConfig                   `json:"logs"`
 	UI      UIConfig                     `json:"ui"`
+	// Notifications holds delivery preferences: which connected channel
+	// should reach the operator, and whether delivery is on at all.
+	Notifications NotificationsConfig `json:"notifications"`
 	// Onboarding tracks the first-run setup wizard's progress so it can
 	// resume where the user left off. Config-only — the wizard never
 	// touches agents, secrets, or the database.
@@ -89,8 +92,7 @@ func (s ServerConfig) Addr() string {
 
 // RuntimeConfig configures the agent session backend.
 type RuntimeConfig struct { //nolint:govet // field order matches JSON/API contract
-	K8s     json.RawMessage     `json:"k8s,omitempty"` // future
-	Default string              `json:"default"`       // "tmux" or "docker"
+	Default string              `json:"default"` // "tmux" or "docker"
 	Docker  DockerRuntimeConfig `json:"docker"`
 	Tmux    TmuxRuntimeConfig   `json:"tmux"`
 }
@@ -114,8 +116,11 @@ type TmuxRuntimeConfig struct {
 
 // ProvidersConfig configures AI agent providers.
 type ProvidersConfig struct { //nolint:govet // field order matches JSON/API contract
-	Default   string                    `json:"default"`
-	Providers map[string]ProviderConfig `json:"providers,omitempty"`
+	Default string `json:"default"`
+	// DefaultModel is the provider model id new agents use when none is
+	// chosen (e.g. "claude-sonnet-4"). Empty = the provider's own default.
+	DefaultModel string                    `json:"default_model,omitempty"`
+	Providers    map[string]ProviderConfig `json:"providers,omitempty"`
 }
 
 // ProviderConfig defines an AI provider's configuration.
@@ -177,6 +182,19 @@ type UIConfig struct {
 	DefaultView string `json:"default_view"`
 }
 
+// NotificationsConfig holds the operator's delivery preferences. It records
+// which connected channel ("slack:general", "telegram:alerts") should reach
+// the operator and whether delivery is enabled. Channel identities and
+// per-agent subscriptions live in the DB — only the top-level preference
+// lives here.
+type NotificationsConfig struct {
+	// DefaultChannel is the "app:channel" key notifications route to by
+	// default. Empty = no default chosen yet ("decide later").
+	DefaultChannel string `json:"default_channel"`
+	// Enabled turns operator delivery on or off globally.
+	Enabled bool `json:"enabled"`
+}
+
 // DefaultConfig returns sensible defaults for a fresh mycel home.
 func DefaultConfig() Config {
 	return Config{
@@ -232,6 +250,9 @@ func DefaultConfig() Config {
 			Theme:       "dark",
 			Mode:        "auto",
 			DefaultView: "dashboard",
+		},
+		Notifications: NotificationsConfig{
+			Enabled: true,
 		},
 	}
 }

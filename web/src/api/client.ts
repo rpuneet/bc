@@ -695,6 +695,8 @@ export interface SettingsConfig {
   };
   providers: {
     default: string;
+    /** Persisted default model id; empty = provider's own default. */
+    default_model?: string;
     providers: Record<string, { command: string }>;
   };
   gateways: {
@@ -710,6 +712,8 @@ export interface SettingsConfig {
   };
   logs: { path: string; max_bytes: number };
   ui: { theme: string; mode: string; default_view: string };
+  /** Operator delivery preferences: which channel reaches you, on/off. */
+  notifications?: { default_channel: string; enabled: boolean };
   onboarding?: { step: string; completed: string[] };
 }
 

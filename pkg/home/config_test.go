@@ -2,6 +2,7 @@ package home
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/rpuneet/mycel/pkg/app"
@@ -65,6 +66,85 @@ func TestConfigOnboardingRoundTrip(t *testing.T) {
 	parsed.Onboarding.Completed = append(parsed.Onboarding.Completed, "done")
 	if !parsed.Onboarding.OnboardingComplete() {
 		t.Error("OnboardingComplete = false after appending done")
+	}
+}
+
+// TestConfigRealignmentNonDestructive proves the v2→v3 realignment is
+// non-destructive: an older prefs blob — carrying the retired
+// runtime.k8s placeholder and none of the new fields (default_model,
+// notifications) — loads cleanly, upgrades its version via FillDefaults,
+// passes Validate, and re-serializes without the dropped k8s field.
+func TestConfigRealignmentNonDestructive(t *testing.T) {
+	// A realistic pre-realignment prefs.json: version 2, a stray
+	// runtime.k8s "future" placeholder, and no new fields.
+	old := `{
+		"version": 2,
+		"user": {"name": "dana"},
+		"providers": {"default": "claude", "providers": {"claude": {"command": "claude"}}},
+		"runtime": {"default": "docker", "k8s": {"cluster": "prod"}},
+		"storage": {"default": "sqlite", "sqlite": {"path": ".mycel"}},
+		"ui": {"theme": "dark", "mode": "auto", "default_view": "dashboard"}
+	}`
+
+	cfg, err := ParseConfig([]byte(old))
+	if err != nil {
+		t.Fatalf("ParseConfig on old prefs: %v", err)
+	}
+	// Unknown fields (k8s) are dropped by the decoder, not an error.
+	if cfg.User.Name != "dana" {
+		t.Errorf("user.name = %q, want dana", cfg.User.Name)
+	}
+	if cfg.Providers.DefaultModel != "" {
+		t.Errorf("default_model should be empty on an old blob, got %q", cfg.Providers.DefaultModel)
+	}
+
+	// FillDefaults upgrades the version and fills the new fields' zero values.
+	cfg.FillDefaults()
+	if cfg.Version != ConfigVersion {
+		t.Errorf("version = %d after FillDefaults, want %d", cfg.Version, ConfigVersion)
+	}
+	if valErr := cfg.Validate(); valErr != nil {
+		t.Fatalf("upgraded config failed Validate: %v", valErr)
+	}
+
+	// Re-serialize: the dropped k8s field must not reappear, and the new
+	// sections round-trip.
+	data, err := json.Marshal(cfg)
+	if err != nil {
+		t.Fatalf("marshal upgraded config: %v", err)
+	}
+	if strings.Contains(string(data), "k8s") {
+		t.Errorf("re-serialized config still carries k8s: %s", data)
+	}
+	reparsed, err := ParseConfig(data)
+	if err != nil {
+		t.Fatalf("re-parse upgraded config: %v", err)
+	}
+	if reparsed.Version != ConfigVersion {
+		t.Errorf("reparsed version = %d, want %d", reparsed.Version, ConfigVersion)
+	}
+}
+
+// TestConfigNotificationsRoundTrip verifies the new notifications section
+// survives a marshal/unmarshal cycle.
+func TestConfigNotificationsRoundTrip(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.Notifications = NotificationsConfig{DefaultChannel: "slack:general", Enabled: true}
+	cfg.Providers.DefaultModel = "claude-sonnet-4"
+
+	data, err := json.Marshal(&cfg)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	parsed, err := ParseConfig(data)
+	if err != nil {
+		t.Fatalf("ParseConfig: %v", err)
+	}
+	if parsed.Notifications.DefaultChannel != "slack:general" || !parsed.Notifications.Enabled {
+		t.Errorf("notifications round-trip mismatch: %+v", parsed.Notifications)
+	}
+	if parsed.Providers.DefaultModel != "claude-sonnet-4" {
+		t.Errorf("default_model round-trip mismatch: %q", parsed.Providers.DefaultModel)
 	}
 }
 
