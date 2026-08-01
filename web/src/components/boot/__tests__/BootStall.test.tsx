@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, act } from "@testing-library/react";
 import { BootSplash, type SplashTimings } from "../BootSplash";
 
 const fetchMock = globalThis.fetch as ReturnType<typeof vi.fn>;
@@ -70,5 +70,25 @@ describe("BootSplash stall fallback", () => {
 
     await waitFor(() => expect(screen.queryByTestId("boot-stall")).not.toBeInTheDocument());
     await waitFor(() => expect(screen.getByText("daemon online")).toBeInTheDocument());
+  });
+
+  it("re-arms the stall timeout when the caller changes timing props", async () => {
+    // Daemon never answers, so the stall timer is what governs the UI.
+    fetchMock.mockImplementation(() => Promise.reject(new Error("connection refused")));
+
+    // Mount with a long stall window — no fallback should appear yet.
+    const LONG: SplashTimings = { ...STALL_FAST, boot: { pollMs: 5, paceMs: 0, stallMs: 100000 } };
+    const { rerender } = render(<BootSplash onReady={vi.fn()} timings={LONG} />);
+
+    await waitFor(() => expect(screen.getByText(/connecting to the mycel daemon/i)).toBeInTheDocument());
+    expect(screen.queryByTestId("boot-stall")).not.toBeInTheDocument();
+
+    // Re-render with a tiny stall window: the probe effect must restart and
+    // surface the fallback quickly, proving timing changes take effect.
+    act(() => {
+      rerender(<BootSplash onReady={vi.fn()} timings={STALL_FAST} />);
+    });
+
+    await waitFor(() => expect(screen.getByTestId("boot-stall")).toBeInTheDocument());
   });
 });

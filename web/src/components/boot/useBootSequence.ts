@@ -185,11 +185,12 @@ export function useBootSequence(
       cancelled = true;
       for (const t of timers) clearTimeout(t);
     };
-    // Timings are stable module constants in practice; re-running on a new
-    // object would restart the probe needlessly. retryNonce is the one
-    // deliberate re-run trigger, bumped by retry().
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [retryNonce]);
+    // Depend on the primitive timing fields (not the `timings` object,
+    // which callers may recreate each render) so a genuine change to
+    // polling/pacing/stall restarts the probe with the new values.
+    // retryNonce is the one deliberate manual re-run trigger, bumped by
+    // retry().
+  }, [retryNonce, timings.pollMs, timings.paceMs, timings.stallMs]);
 
   return { healthy, lines, stalled, retry };
 }
