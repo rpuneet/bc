@@ -72,8 +72,7 @@ func TestTranscriptTailer_LiveCapture(t *testing.T) {
 	if !ok {
 		t.Fatal("pi provider not registered")
 	}
-	parser, ok := pi.(provider.TranscriptParser)
-	if !ok {
+	if _, isParser := pi.(provider.TranscriptParser); !isParser {
 		t.Fatal("pi provider does not implement TranscriptParser")
 	}
 
@@ -91,7 +90,7 @@ func TestTranscriptTailer_LiveCapture(t *testing.T) {
 	cursors := map[string]*tailCursor{}
 
 	// First tick: seeds the cursor at EOF, captures nothing.
-	tailAgentFile(ctx, svc, cursors, "pilot", transcript, parser)
+	tailAgentFile(ctx, svc, cursors, "pilot", transcript, pi)
 	if got := pub.snapshot(); len(got) != 0 {
 		t.Fatalf("first tick published %d events, want 0 (seed-at-EOF)", len(got))
 	}
@@ -110,7 +109,7 @@ func TestTranscriptTailer_LiveCapture(t *testing.T) {
 	_ = f.Close()
 
 	// Second tick: captures the appended activity.
-	tailAgentFile(ctx, svc, cursors, "pilot", transcript, parser)
+	tailAgentFile(ctx, svc, cursors, "pilot", transcript, pi)
 
 	got := pub.snapshot()
 	byEvent := map[string]map[string]any{}
@@ -141,6 +140,78 @@ func TestTranscriptTailer_LiveCapture(t *testing.T) {
 	}
 	if post["tool_name"] != "bash" {
 		t.Errorf("PostToolUse tool_name = %v, want bash", post["tool_name"])
+	}
+}
+
+// TestTranscriptTailer_CodexLiveCapture is the codex counterpart of the pi live
+// check: it seeds a real-shape codex rollout at EOF, appends a user turn plus a
+// paired shell tool call/output (whose result line carries only the call_id),
+// and asserts the session-based path publishes PreToolUse/PostToolUse with the
+// tool name correctly carried across onto the agent.hook feed.
+func TestTranscriptTailer_CodexLiveCapture(t *testing.T) {
+	repo := t.TempDir()
+	t.Setenv("MYCEL_HOME", t.TempDir())
+	mgr := agentpkg.NewManagerWithRepo(filepath.Join(t.TempDir(), "agents"), repo)
+	pub := &recordingPublisher{}
+	svc := agentpkg.NewAgentService(mgr, pub, nil)
+
+	codex, ok := provider.DefaultRegistry.Get("codex")
+	if !ok {
+		t.Fatal("codex provider not registered")
+	}
+	if _, isSession := codex.(provider.TranscriptSessionParser); !isSession {
+		t.Fatal("codex provider does not implement TranscriptSessionParser")
+	}
+
+	transcript := filepath.Join(t.TempDir(), "rollout.jsonl")
+	// Seed with the session_meta header already present — the tailer must start
+	// at EOF and not replay it.
+	seed := `{"timestamp":"2026-05-02T08:29:51.690Z","type":"session_meta","payload":{"cwd":"/wt/eng","originator":"codex-tui"}}` + "\n"
+	if err := os.WriteFile(transcript, []byte(seed), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	ctx := context.Background()
+	cursors := map[string]*tailCursor{}
+
+	tailAgentFile(ctx, svc, cursors, "pilot", transcript, codex)
+	if got := pub.snapshot(); len(got) != 0 {
+		t.Fatalf("first tick published %d events, want 0 (seed-at-EOF)", len(got))
+	}
+
+	appended := `{"timestamp":"2026-05-02T08:30:00Z","type":"event_msg","payload":{"type":"user_message","message":"list files"}}` + "\n" +
+		`{"timestamp":"2026-05-02T08:30:01Z","type":"response_item","payload":{"type":"function_call","name":"shell_command","arguments":"{\"command\":\"ls\"}","call_id":"call_A"}}` + "\n" +
+		`{"timestamp":"2026-05-02T08:30:02Z","type":"response_item","payload":{"type":"function_call_output","call_id":"call_A","output":"Exit code: 0\nWall time: 0.1 seconds\nOutput:\nREADME.md\n"}}` + "\n"
+	f, err := os.OpenFile(transcript, os.O_APPEND|os.O_WRONLY, 0o600) //nolint:gosec // test-controlled temp path
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.WriteString(appended); err != nil {
+		t.Fatal(err)
+	}
+	_ = f.Close()
+
+	tailAgentFile(ctx, svc, cursors, "pilot", transcript, codex)
+
+	byEvent := map[string]map[string]any{}
+	for _, e := range pub.snapshot() {
+		if ev, _ := e["event"].(string); ev != "" {
+			byEvent[ev] = e
+		}
+	}
+	pre, ok := byEvent["PreToolUse"]
+	if !ok {
+		t.Fatalf("missing PreToolUse; got %v", eventNames(pub.snapshot()))
+	}
+	if pre["tool_name"] != "shell_command" {
+		t.Errorf("PreToolUse tool_name = %v, want shell_command", pre["tool_name"])
+	}
+	post, ok := byEvent["PostToolUse"]
+	if !ok {
+		t.Fatalf("missing PostToolUse; got %v", eventNames(pub.snapshot()))
+	}
+	if post["tool_name"] != "shell_command" {
+		t.Errorf("PostToolUse tool_name = %v, want shell_command (paired via call_id)", post["tool_name"])
 	}
 }
 

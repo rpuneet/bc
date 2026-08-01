@@ -19,10 +19,15 @@ interface AgentToolStreamProps {
 
 // Providers whose activity mycel captures for the Live feed: hook-based
 // providers (claude, agy) POST lifecycle events; transcript-based providers
-// (pi) have their session log tailed by the daemon. Providers not listed here
-// expose no readable activity yet, so the stream stays empty — say so honestly
-// instead of pretending events are coming.
-const CAPTURE_PROVIDERS = new Set(["claude", "agy", "pi"]);
+// (pi, codex) have their session log tailed by the daemon. Providers not listed
+// here expose no readable activity yet, so the stream stays empty — say so
+// honestly instead of pretending events are coming.
+//
+// cursor is deliberately absent: cursor-agent writes an on-disk transcript, but
+// it records user prompts and tool *invocations* only — never tool *results* or
+// a reliable turn-completion marker — so it cannot yield paired PreToolUse/
+// PostToolUse activity (tool calls would appear stuck "running" forever).
+const CAPTURE_PROVIDERS = new Set(["claude", "agy", "pi", "codex"]);
 
 export function AgentToolStream({ agentName, agentTool }: AgentToolStreamProps) {
   const { activities, tasks, rawEventsRef } = useAgentActivity(agentName);
