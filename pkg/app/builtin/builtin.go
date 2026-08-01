@@ -9,6 +9,7 @@ import (
 	_ "github.com/rpuneet/mycel/pkg/gateway/discord"
 	_ "github.com/rpuneet/mycel/pkg/gateway/github"
 	_ "github.com/rpuneet/mycel/pkg/gateway/gitlab"
+	_ "github.com/rpuneet/mycel/pkg/gateway/gmail"
 	_ "github.com/rpuneet/mycel/pkg/gateway/grafana"
 	_ "github.com/rpuneet/mycel/pkg/gateway/imessage"
 	_ "github.com/rpuneet/mycel/pkg/gateway/irc"
