@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/rpuneet/mycel/pkg/events"
 )
@@ -151,6 +152,29 @@ func TestBoundedToolResponse(t *testing.T) {
 		}
 		if len(s) != maxToolResponseBytes+len(toolResponseTruncatedSuffix) {
 			t.Errorf("truncated length = %d, want %d", len(s), maxToolResponseBytes+len(toolResponseTruncatedSuffix))
+		}
+	})
+
+	t.Run("oversized multi-byte string stays valid UTF-8", func(t *testing.T) {
+		// "тест" is 4 Cyrillic runes = 8 bytes; repeating it past the cap
+		// guarantees the byte cap lands mid-rune, so a naive byte slice
+		// would emit invalid UTF-8.
+		big := strings.Repeat("тест", maxToolResponseBytes/8+100)
+		got, ok := boundedToolResponse(big).(string)
+		if !ok {
+			t.Fatalf("expected string result, got %T", got)
+		}
+		if !utf8.ValidString(got) {
+			t.Error("truncated multi-byte string is not valid UTF-8")
+		}
+		if !strings.HasSuffix(got, toolResponseTruncatedSuffix) {
+			t.Errorf("truncated string missing suffix marker: %q", got[len(got)-30:])
+		}
+		// The body (minus the multi-byte suffix marker) must not exceed the
+		// byte cap — the rune-boundary backup only ever shrinks it.
+		body := strings.TrimSuffix(got, toolResponseTruncatedSuffix)
+		if len(body) > maxToolResponseBytes {
+			t.Errorf("truncated body length = %d, exceeds cap %d", len(body), maxToolResponseBytes)
 		}
 	})
 }

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"time"
+	"unicode/utf8"
 
 	"github.com/rpuneet/mycel/pkg/events"
 	"github.com/rpuneet/mycel/pkg/log"
@@ -164,7 +165,7 @@ func boundedToolResponse(v any) any {
 		if len(s) <= maxToolResponseBytes {
 			return s
 		}
-		return s[:maxToolResponseBytes] + toolResponseTruncatedSuffix
+		return truncateToRuneBoundary(s, maxToolResponseBytes) + toolResponseTruncatedSuffix
 	}
 	b, err := json.Marshal(v)
 	if err != nil {
@@ -175,7 +176,22 @@ func boundedToolResponse(v any) any {
 	if len(b) <= maxToolResponseBytes {
 		return v
 	}
-	return string(b[:maxToolResponseBytes]) + toolResponseTruncatedSuffix
+	return truncateToRuneBoundary(string(b), maxToolResponseBytes) + toolResponseTruncatedSuffix
+}
+
+// truncateToRuneBoundary returns s cut to at most maxBytes bytes without
+// splitting a multi-byte UTF-8 rune: if the byte cap lands in the middle of
+// a rune, it backs up to the start of that rune so the result is always
+// valid UTF-8.
+func truncateToRuneBoundary(s string, maxBytes int) string {
+	if len(s) <= maxBytes {
+		return s
+	}
+	cut := maxBytes
+	for cut > 0 && !utf8.RuneStart(s[cut]) {
+		cut--
+	}
+	return s[:cut]
 }
 
 // hookPayloadFields extracts the optional structured fields shared by the
