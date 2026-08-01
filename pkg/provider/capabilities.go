@@ -101,6 +101,20 @@ type Command struct {
 	Description string
 	// Args describes expected arguments, empty when the command takes none.
 	Args string
+	// Interactive is true when the command needs a TTY (login/auth device
+	// flows, TUIs, starting the agent) or mutates session/auth state. Such
+	// commands are never auto-run from the web UI — the surface offers a
+	// copy-command + "run in your terminal" instead. Only commands with
+	// Interactive=false AND no required Args are safe to execute inline.
+	Interactive bool
+}
+
+// Runnable reports whether a command is safe to execute non-interactively
+// from a UI surface: it needs no TTY and takes no required arguments. Callers
+// use this to gate the guarded /api/providers/{name}/run endpoint and to label
+// which commands the browser may run vs. which must be run in a terminal.
+func (c Command) Runnable() bool {
+	return !c.Interactive && c.Args == ""
 }
 
 // CommandLister is optionally implemented by providers that expose a

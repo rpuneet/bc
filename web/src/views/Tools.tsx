@@ -10,6 +10,7 @@ import { EmptyState } from "../components/EmptyState";
 import { ProvidersTable } from "../components/ProvidersTable";
 import { ProviderDefaults } from "../components/ProviderDefaults";
 import { PackageManagers } from "../components/PackageManagers";
+import { RegistrySearch } from "../components/RegistrySearch";
 import { CopyButton } from "../components/CopyButton";
 import { ToastContainer, useToast } from "../components/Toast";
 import type { ToastLevel } from "../components/Toast";
@@ -681,6 +682,13 @@ export function Tools() {
         <div className="mb-3">
           <p className="text-[10.5px] text-mycel-muted uppercase tracking-[0.08em] mb-1.5">Detected package managers</p>
           <PackageManagers />
+        </div>
+        {/* Guarded registry search — browse a manager's registry and install a
+            hit. brew/npm/cargo install inline; the rest give a copyable
+            terminal command (honest about sudo). */}
+        <div className="mb-4">
+          <p className="text-[10.5px] text-mycel-muted uppercase tracking-[0.08em] mb-1.5">Search a registry</p>
+          <RegistrySearch />
         </div>
         {filteredCli.length === 0 ? (
           searchLower ? (

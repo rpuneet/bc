@@ -46,30 +46,31 @@ type PackageManager struct {
 	Searchable bool `json:"searchable"`
 }
 
-// pmCandidate describes a manager to probe: its binary, the args that print a
-// version, and whether it has a searchable registry.
+// pmCandidate describes a manager to probe: its binary and the args that print
+// a version. Whether it has a searchable registry is not stored here — it is
+// derived from pkgManagerSearchable (searchSpecs) so the "searchable" bit can
+// never drift from what the search endpoint actually wires.
 type pmCandidate struct {
 	id, name, binary, versionArg string
 	// oses restricts a candidate to specific runtime.GOOS values; empty
 	// means every OS.
-	oses       []string
-	searchable bool
+	oses []string
 }
 
 // pmCandidates is the vetted set of managers we probe. Cross-platform tools
 // (npm, pipx, cargo) are probed everywhere; OS-native managers are gated to
 // the platforms they ship on so a Linux box isn't asked about winget.
 var pmCandidates = []pmCandidate{
-	{id: "brew", name: "Homebrew", binary: "brew", versionArg: "--version", searchable: true, oses: []string{"darwin", "linux"}},
-	{id: "apt", name: "APT", binary: "apt-get", versionArg: "--version", searchable: true, oses: []string{"linux"}},
-	{id: "dnf", name: "DNF", binary: "dnf", versionArg: "--version", searchable: true, oses: []string{"linux"}},
-	{id: "yum", name: "YUM", binary: "yum", versionArg: "--version", searchable: true, oses: []string{"linux"}},
-	{id: "pacman", name: "pacman", binary: "pacman", versionArg: "--version", searchable: true, oses: []string{"linux"}},
-	{id: "zypper", name: "Zypper", binary: "zypper", versionArg: "--version", searchable: true, oses: []string{"linux"}},
-	{id: "winget", name: "winget", binary: "winget", versionArg: "--version", searchable: true, oses: []string{"windows"}},
-	{id: "npm", name: "npm", binary: "npm", versionArg: "--version", searchable: true},
-	{id: "pipx", name: "pipx", binary: "pipx", versionArg: "--version", searchable: false},
-	{id: "cargo", name: "Cargo", binary: "cargo", versionArg: "--version", searchable: true},
+	{id: "brew", name: "Homebrew", binary: "brew", versionArg: "--version", oses: []string{"darwin", "linux"}},
+	{id: "apt", name: "APT", binary: "apt-get", versionArg: "--version", oses: []string{"linux"}},
+	{id: "dnf", name: "DNF", binary: "dnf", versionArg: "--version", oses: []string{"linux"}},
+	{id: "yum", name: "YUM", binary: "yum", versionArg: "--version", oses: []string{"linux"}},
+	{id: "pacman", name: "pacman", binary: "pacman", versionArg: "--version", oses: []string{"linux"}},
+	{id: "zypper", name: "Zypper", binary: "zypper", versionArg: "--version", oses: []string{"linux"}},
+	{id: "winget", name: "winget", binary: "winget", versionArg: "--version", oses: []string{"windows"}},
+	{id: "npm", name: "npm", binary: "npm", versionArg: "--version"},
+	{id: "pipx", name: "pipx", binary: "pipx", versionArg: "--version"},
+	{id: "cargo", name: "Cargo", binary: "cargo", versionArg: "--version"},
 }
 
 // pmLookPath and pmRunVersion are package vars so tests can inject a stub host
@@ -129,7 +130,7 @@ func (h *PackageManagersHandler) detect(ctx context.Context) []PackageManager {
 			Name:       c.name,
 			Version:    version,
 			Available:  true,
-			Searchable: c.searchable,
+			Searchable: pkgManagerSearchable(c.id),
 		})
 	}
 	sort.Slice(found, func(i, j int) bool { return found[i].ID < found[j].ID })

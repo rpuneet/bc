@@ -33,6 +33,36 @@ export async function installDep(
     signal: opts?.signal,
   });
 
+  return consumeInstallStream(res, onEvent);
+}
+
+/**
+ * installPackage streams the install of a registry-searched package via an
+ * allowlisted manager (brew / npm / cargo) over POST /api/system/package-install
+ * — the same NDJSON stream shape as installDep. The server validates the
+ * package-name charset and execs the manager directly with an argv slice.
+ */
+export async function installPackage(
+  manager: string,
+  pkg: string,
+  onEvent: (ev: InstallEvent) => void,
+  opts?: { signal?: AbortSignal },
+): Promise<number> {
+  const res = await fetch("/api/system/package-install", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ manager, package: pkg }),
+    signal: opts?.signal,
+  });
+  return consumeInstallStream(res, onEvent);
+}
+
+/** Reads an NDJSON install stream, dispatching each event and resolving with
+ *  the process exit code. Throws on transport errors or an error event. */
+async function consumeInstallStream(
+  res: Response,
+  onEvent: (ev: InstallEvent) => void,
+): Promise<number> {
   if (!res.ok || !res.body) {
     let msg = `Install failed: ${res.status}`;
     try {

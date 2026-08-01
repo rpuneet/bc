@@ -387,6 +387,10 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 	// Read-only autodetect of host OS + package managers (brew/apt/npm/…)
 	// with versions. Shells out only to each manager's own --version probe.
 	handlers.NewPackageManagersHandler().Register(mux)
+	// Guarded registry search + install: `brew search`/`npm search`/… behind
+	// strict input validation, argv-slice exec (no shell), timeouts, result
+	// caps, and a loopback gate. Install streams NDJSON like the deps installer.
+	handlers.NewPackageSearchHandler().Register(mux)
 	// Per-repo cost rollup. Handler is nil-safe and returns 503 when the
 	// global ledger isn't wired.
 	mux.Handle("/api/global/costs", handlers.NewGlobalCostsHandler(svc.Costs))
