@@ -1,15 +1,15 @@
 /**
- * Tools.tsx's "Enable" toggle for a not-installed CLI tool must not just
- * flip a DB flag — there is nothing installed to enable. Clicking it should
- * route through the real streamed installer (the same POST /api/deps/install
- * mechanism CLIInstallAction uses) and only call enableTool once the
- * install actually succeeds.
+ * ProvidersToolsSection's "Enable" toggle for a not-installed CLI tool must
+ * not just flip a DB flag — there is nothing installed to enable. Clicking
+ * it should route through the real streamed installer (the same POST
+ * /api/deps/install mechanism CLIInstallAction uses) and only call
+ * enableTool once the install actually succeeds.
  */
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { Tools } from "../Tools";
+import { ProvidersToolsSection } from "../../settings/ProvidersToolsSection";
 
 const fetchMock = globalThis.fetch as ReturnType<typeof vi.fn>;
 
@@ -45,7 +45,7 @@ beforeEach(() => {
   fetchMock.mockReset();
 });
 
-function renderTools() {
+function renderSection() {
   fetchMock.mockImplementation((url: RequestInfo | URL, init?: RequestInit) => {
     const u = String(url);
     if (u === "/api/providers") return jsonResponse([]);
@@ -65,14 +65,46 @@ function renderTools() {
 
   return render(
     <MemoryRouter>
-      <Tools />
+      <ProvidersToolsSection />
     </MemoryRouter>,
   );
 }
 
-describe("Tools CLI dependency toggle", () => {
+describe("ProvidersToolsSection providers list", () => {
+  it("renders providers as a list/table with no card/grid view toggle", async () => {
+    fetchMock.mockImplementation((url: RequestInfo | URL) => {
+      const u = String(url);
+      if (u === "/api/providers") {
+        return jsonResponse([
+          { name: "claude", installed: true, agent_count: 1, total_tokens: 1000, total_cost_usd: 0.01, models: [] },
+        ]);
+      }
+      if (u === "/api/tools/unified") return jsonResponse([]);
+      if (u === "/api/system/package-managers") return jsonResponse({ os: "darwin", arch: "arm64", managers: [] });
+      return jsonResponse({});
+    });
+
+    const { container } = render(
+      <MemoryRouter>
+        <ProvidersToolsSection />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("claude")).toBeInTheDocument();
+    });
+
+    // Table/list only — no card-grid view and no view-mode toggle.
+    expect(container.querySelector("table")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Card view")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Table view")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Sort providers")).not.toBeInTheDocument();
+  });
+});
+
+describe("ProvidersToolsSection CLI dependency toggle", () => {
   it("routes a not-installed tool's Enable through a real install, then enables it", async () => {
-    renderTools();
+    renderSection();
 
     const installBtn = await screen.findByRole("switch", { name: "Install and enable wrangler" });
     expect(installBtn.textContent).toBe("Install");
@@ -106,7 +138,7 @@ describe("Tools CLI dependency toggle", () => {
 
     render(
       <MemoryRouter>
-        <Tools />
+        <ProvidersToolsSection />
       </MemoryRouter>,
     );
 

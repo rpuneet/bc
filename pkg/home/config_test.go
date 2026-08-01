@@ -38,6 +38,18 @@ func TestConfigAppsRoundTrip(t *testing.T) {
 	}
 }
 
+// TestDefaultConfigRuntimeIsTmux verifies fresh installs default to the tmux
+// runtime (the RuntimePicker in the web UI labels tmux "Recommended", and the
+// owner decided the fresh-install default should agree with that label).
+// Docker remains fully supported — this only changes what a brand-new
+// ~/.mycel/prefs.json starts with.
+func TestDefaultConfigRuntimeIsTmux(t *testing.T) {
+	cfg := DefaultConfig()
+	if cfg.Runtime.Default != "tmux" {
+		t.Fatalf("DefaultConfig().Runtime.Default = %q, want %q", cfg.Runtime.Default, "tmux")
+	}
+}
+
 // TestConfigOnboardingRoundTrip verifies the onboarding section survives a
 // marshal/unmarshal cycle and that OnboardingComplete tracks the "done"
 // sentinel.

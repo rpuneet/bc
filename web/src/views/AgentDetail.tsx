@@ -574,7 +574,7 @@ function ProviderModelSection({
           <>
             {" "}
             <Link
-              to={`/tools/${encodeURIComponent(tool)}`}
+              to={`/settings/providers/${encodeURIComponent(tool)}`}
               className="text-mycel-accent hover:underline"
             >
               Manage {tool} (commands, MCP, install) →

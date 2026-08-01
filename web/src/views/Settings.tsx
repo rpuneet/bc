@@ -1,13 +1,13 @@
 import { useCallback, useState, useEffect, useMemo } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { api, type ProviderInfo, type OnboardingState, type AppInstance, type Tool } from "../api/client";
+import { api, type OnboardingState, type AppInstance } from "../api/client";
 import { usePolling } from "../hooks/usePolling";
 import { LoadingSkeleton } from "../components/LoadingSkeleton";
 import { EmptyState } from "../components/EmptyState";
 import { useTheme } from "../context/ThemeContext";
-import { PROVIDER_LABELS } from "./readiness/readiness";
 import { WIZARD_STEPS } from "../wizard/types";
 import { ThemePicker, RuntimePicker, AdvancedToggle, systemPrefersDark, type ThemeChoice, type RuntimeChoice } from "../settings/controls";
+import { ProvidersToolsSection } from "../settings/ProvidersToolsSection";
 
 type SaveStatus = "idle" | "saving" | "saved" | "error";
 
@@ -46,11 +46,6 @@ const SECTION_LABELS: Record<string, string> = {
 
 function deepClone<T>(v: T): T {
   return JSON.parse(JSON.stringify(v));
-}
-
-/** Strip noisy mDNS suffixes ("Foo.local" → "Foo") for the host readout. */
-function prettifyHostname(h: string): string {
-  return h.replace(/\.(local|lan)$/i, "");
 }
 
 function deepEqual(a: unknown, b: unknown): boolean {
@@ -317,134 +312,55 @@ function DrilldownFooter({ to, label }: { to: string; label: string }) {
   );
 }
 
-/* Providers + CLI tools drilldown: two compact tables that summarize the
- * /tools manager. Provider rows drill into per-provider detail; the whole
- * area drills into /tools. The fleet-default provider is marked with its
- * model so Settings answers "what runs by default?" at a glance. */
-function ProvidersToolsCard({ data }: { data: Record<string, unknown> }) {
-  const navigate = useNavigate();
-  const p = (data.providers ?? {}) as Record<string, unknown>;
-  const defaultProvider = String(p.default ?? "claude");
-  const defaultModel = String(p.default_model ?? "");
-  const [providers, setProviders] = useState<ProviderInfo[] | null>(null);
-  const [tools, setTools] = useState<Tool[] | null>(null);
-  const [host, setHost] = useState<{ hostname: string; os: string; arch: string } | null>(null);
-
-  useEffect(() => {
-    let alive = true;
-    api.listProviders()
-      .then((list) => { if (alive) setProviders(list); })
-      .catch(() => { if (alive) setProviders([]); });
-    api.listTools()
-      .then((list) => { if (alive) setTools(list.filter((t) => t.type !== "provider" && t.type !== "mcp")); })
-      .catch(() => { if (alive) setTools([]); });
-    api.getSystemInfo()
-      .then((info) => { if (alive) setHost(info); })
-      .catch(() => { /* host line is optional */ });
-    return () => { alive = false; };
-  }, []);
-
-  return (
-    <div className="space-y-3">
-      {/* Providers table */}
-      <div className="space-y-1.5">
-        <p className="text-[10.5px] text-mycel-muted uppercase tracking-[0.08em]">Providers</p>
-        {providers === null ? (
-          <div className="h-16 animate-pulse rounded-lg bg-mycel-surface-hover" />
-        ) : providers.length === 0 ? (
-          <p className="text-[11.5px] text-mycel-muted px-1">No providers found.</p>
-        ) : (
-          <SummaryTable
-            head={<>
-              <th className="px-3 py-1.5 font-medium">Provider</th>
-              <th className="px-3 py-1.5 font-medium">Status</th>
-              <th className="px-3 py-1.5 font-medium">Default</th>
-            </>}
-          >
-            {providers.map((pi) => {
-              const isDefault = pi.name === defaultProvider;
-              return (
-                <tr
-                  key={pi.name}
-                  onClick={() => navigate(`/tools/${encodeURIComponent(pi.name)}`)}
-                  className="border-b border-mycel-border last:border-0 hover:bg-mycel-surface-hover cursor-pointer transition-colors"
-                >
-                  <td className="px-3 py-1.5 text-[12px] font-medium text-mycel-text">{PROVIDER_LABELS[pi.name] ?? pi.name}</td>
-                  <td className="px-3 py-1.5"><MiniStatus ok={pi.installed} label={pi.installed ? "Installed" : "Not installed"} /></td>
-                  <td className="px-3 py-1.5 text-[11px]">
-                    {isDefault ? (
-                      <span className="inline-flex items-center gap-1.5">
-                        <span className="px-1.5 py-0.5 rounded bg-mycel-accent-subtle text-mycel-accent text-[10px] font-medium">Default</span>
-                        <span className="text-mycel-muted font-mono truncate max-w-[120px]" title={defaultModel || "provider default"}>
-                          {defaultModel || "provider default"}
-                        </span>
-                      </span>
-                    ) : (
-                      <span className="text-mycel-muted">—</span>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
-          </SummaryTable>
-        )}
-      </div>
-
-      {/* CLI tools table */}
-      <div className="space-y-1.5">
-        <p className="text-[10.5px] text-mycel-muted uppercase tracking-[0.08em]">CLI tools</p>
-        {tools === null ? (
-          <div className="h-10 animate-pulse rounded-lg bg-mycel-surface-hover" />
-        ) : tools.length === 0 ? (
-          <p className="text-[11.5px] text-mycel-muted px-1">No CLI tools tracked.</p>
-        ) : (
-          <SummaryTable
-            head={<>
-              <th className="px-3 py-1.5 font-medium">Tool</th>
-              <th className="px-3 py-1.5 font-medium">Status</th>
-              <th className="px-3 py-1.5 font-medium">Version</th>
-            </>}
-          >
-            {tools.map((t) => {
-              const ok = t.status !== "not_installed" && t.status !== "error";
-              return (
-                <tr
-                  key={t.name}
-                  onClick={() => navigate("/tools")}
-                  className="border-b border-mycel-border last:border-0 hover:bg-mycel-surface-hover cursor-pointer transition-colors"
-                >
-                  <td className="px-3 py-1.5 text-[12px] font-medium text-mycel-text">{t.name}</td>
-                  <td className="px-3 py-1.5"><MiniStatus ok={ok} label={ok ? "Installed" : t.status === "error" ? "Error" : "Not installed"} /></td>
-                  <td className="px-3 py-1.5 text-[11px] font-mono text-mycel-muted truncate max-w-[140px]" title={t.version || ""}>{t.version || "—"}</td>
-                </tr>
-              );
-            })}
-          </SummaryTable>
-        )}
-      </div>
-
-      <DrilldownFooter to="/tools" label="Install tools, sign in, set the default model" />
-
-      {/* Host machine — folded in from the old hostname nav item. */}
-      <div className="flex items-center gap-2 px-1 text-[11px] text-mycel-muted">
-        <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.6} aria-hidden>
-          <rect x="3" y="4" width="18" height="12" rx="1.5" /><path strokeLinecap="round" d="M8 20h8M12 16v4" />
-        </svg>
-        {host ? (
-          <span className="tabular-nums">
-            Running on <span className="text-mycel-text-2 font-medium">{prettifyHostname(host.hostname)}</span> · {host.os}/{host.arch}
-          </span>
-        ) : (
-          <span>Resolving host machine…</span>
-        )}
-      </div>
-    </div>
-  );
-}
-
 /* ------------------------------------------------------------------ */
 /*  Runtime                                                             */
 /* ------------------------------------------------------------------ */
+
+/** Repeatable host:container[:ro] bind-mount list for the Docker runtime.
+ *  Each row is a free-form mount spec (docker -v syntax); rows can be added,
+ *  edited in place, or removed. Empty rows are dropped on blur. */
+function ExtraMountsField({ mounts, onChange }: { mounts: string[]; onChange: (next: string[]) => void }) {
+  const setRow = (i: number, v: string) => {
+    const next = [...mounts];
+    next[i] = v;
+    onChange(next);
+  };
+  const removeRow = (i: number) => onChange(mounts.filter((_, idx) => idx !== i));
+  const addRow = () => onChange([...mounts, ""]);
+
+  return (
+    <div className="space-y-1.5">
+      <label className="text-[12px] text-mycel-text-2 block">Extra Mounts</label>
+      <div className="space-y-1.5">
+        {mounts.map((m, i) => (
+          <div key={i} className="flex items-center gap-1.5">
+            <input
+              className={MONO_INPUT_CLS}
+              value={m}
+              placeholder="/host/path:/container/path[:ro]"
+              onChange={(e) => setRow(i, e.target.value)}
+            />
+            <button
+              type="button"
+              onClick={() => removeRow(i)}
+              aria-label={`Remove mount ${i + 1}`}
+              className="shrink-0 text-mycel-muted hover:text-mycel-error text-sm px-1.5 py-1 rounded-md border border-mycel-border hover:border-mycel-error transition-colors"
+            >
+              &times;
+            </button>
+          </div>
+        ))}
+      </div>
+      <button
+        type="button"
+        onClick={addRow}
+        className="text-[11.5px] text-mycel-accent hover:underline"
+      >
+        + Add mount
+      </button>
+    </div>
+  );
+}
 
 function RuntimeSection({ data, onChange }: { data: Record<string, unknown>; onChange: (path: string[], v: unknown) => void }) {
   const r = (data.runtime ?? {}) as Record<string, unknown>;
@@ -467,6 +383,10 @@ function RuntimeSection({ data, onChange }: { data: Record<string, unknown>; onC
             <Field label="Docker Socket"><input className={MONO_INPUT_CLS} value={String(docker.docker_socket_path ?? "")} onChange={(e) => onChange(["runtime", "docker", "docker_socket_path"], e.target.value)} /></Field>
             <Field label="CPUs"><input className={INPUT_CLS} type="number" value={Number(docker.cpus ?? 2)} onChange={(e) => onChange(["runtime", "docker", "cpus"], Number(e.target.value))} /></Field>
             <Field label="Memory" suffix="MB"><input className={INPUT_CLS} type="number" value={Number(docker.memory_mb ?? 4096)} onChange={(e) => onChange(["runtime", "docker", "memory_mb"], Number(e.target.value))} /></Field>
+            <ExtraMountsField
+              mounts={Array.isArray(docker.extra_mounts) ? (docker.extra_mounts as string[]) : []}
+              onChange={(next) => onChange(["runtime", "docker", "extra_mounts"], next)}
+            />
           </>
         ) : (
           <>
@@ -851,13 +771,24 @@ export function Settings() {
           <label className="text-xs text-mycel-text-2 w-28 shrink-0">Theme</label>
           <ThemePicker value={currentThemeChoice} onChange={handleThemeChange} />
         </div>
+        <Field label="Default view">
+          <select
+            className={INPUT_CLS}
+            value={String(((edited.ui ?? {}) as Record<string, unknown>).default_view ?? "home")}
+            onChange={(e) => handleChange(["ui", "default_view"], e.target.value)}
+          >
+            <option value="home">Home</option>
+            <option value="agents">Agents</option>
+            <option value="insights">Insights</option>
+          </select>
+        </Field>
       </Section>
 
-      {/* Providers/Tools own the /tools page; Settings only summarizes. The
-          default-model + per-provider controls that write prefs.providers
-          live there (follow-up PR). */}
+      {/* Providers/Tools folded into Settings as a list-only section — no
+          more standalone /tools page. Per-provider drill-down still lives at
+          /settings/providers/:name. */}
       <Section title="providers & tools" dirty={false} index={2}>
-        <ProvidersToolsCard data={edited} />
+        <ProvidersToolsSection />
       </Section>
 
       <Section title="runtime" dirty={isDirty("runtime")} index={3}>

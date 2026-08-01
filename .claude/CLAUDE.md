@@ -128,7 +128,7 @@ make clean-deps            # Remove artifacts + node_modules
 - **Home**: The single global state root `~/.mycel` (override with `MYCEL_HOME`): `prefs.json` (the one config), `mycel.db` (the one database), `secrets.vault`, `mcps.json`, `tools.json`, `templates/`, `apps/<instance>/`, `logs/`, `run/`. Repos stay pristine — mycel never writes runtime state into them. `pkg/home.Open` bootstraps-or-loads it.
 - **Apps**: Plugin integrations with external platforms (28 built-ins). One descriptor per app drives the connect UI and config validation; instances live in `prefs.json` under `apps`, secret fields in the vault as `app:<instance>:<key>`. Served at `/api/apps`.
 - **Costs**: Computed on demand from provider sources — providers implementing the `CostReader` capability scan their own session logs. There is no cost database.
-- **Runtime backends**: Agents run in Docker containers (default) or tmux sessions, configured via `runtime` in prefs.json.
+- **Runtime backends**: Agents run in tmux sessions (default) or Docker containers, configured via `runtime` in prefs.json.
 - **Roles**: DB-backed (roles table) with capabilities and inheritance; role prompts and MCP servers are written into the agent worktree on spawn.
 
 ## Implementation Details

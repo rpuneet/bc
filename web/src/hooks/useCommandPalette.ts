@@ -46,9 +46,8 @@ export function useCommandPalette() {
       { id: "nav-apps", label: "Apps", section: "Navigate", icon: "A", action: () => navigate("/apps") },
       { id: "nav-code", label: "Code", section: "Navigate", icon: "<", action: () => navigate("/code") },
       { id: "nav-templates", label: "Marketplace", section: "Navigate", icon: "T", action: () => navigate("/templates") },
-      // Host tools — the sidebar shows the host machine's name; the
-      // palette keeps a static label since it doesn't fetch system info.
-      { id: "nav-tools", label: "Host", section: "Navigate", icon: "t", action: () => navigate("/tools") },
+      // Providers/Tools + host info folded into Settings — no standalone page.
+      { id: "nav-tools", label: "Providers & Tools", section: "Navigate", icon: "t", action: () => navigate("/settings") },
       { id: "nav-custom-keys", label: "Custom Keys", section: "Navigate", icon: "#", action: () => navigate("/apps#custom-keys") },
       { id: "nav-metrics", label: "Insights: Metrics", section: "Navigate", icon: "M", action: () => navigate("/insights?tab=metrics") },
       { id: "nav-costs", label: "Insights: Costs", section: "Navigate", icon: "$", action: () => navigate("/insights?tab=costs") },
