@@ -166,10 +166,23 @@ describe("activityItemToNode + historical expansion", () => {
       data: { tool_name: "Bash", tool_input: { command: "git status", description: "Show status" } },
     });
     expect(n.toolName).toBe("Bash");
+    // The description is the richer title (#3423) — the raw command still
+    // rides along in fullInput for the expanded detail view.
+    expect(n.args).toBe("Show status");
     expect(n.fullInput).toEqual({ command: "git status", description: "Show status" });
     expect(n.status).toBe("completed");
     // Duration is genuinely unknown for historical rows.
     expect(n.endTime).toBeUndefined();
+  });
+
+  it("falls back to the raw command when a Bash tool_input has no description", () => {
+    const n = activityItemToNode({
+      timestamp: "2026-07-30T10:00:00.000Z",
+      event: "PreToolUse",
+      message: "Bash: git status",
+      data: { tool_name: "Bash", tool_input: { command: "git status" } },
+    });
+    expect(n.args).toBe("git status");
   });
 
   it("marks a historical row failed when the event recorded an error", () => {
