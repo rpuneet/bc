@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect, useState } from "react";
 import { BrowserRouter, Routes, Route, Link, Navigate, useParams } from "react-router-dom";
 import { Layout } from "./components/Layout";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import { BootGate } from "./components/boot/BootGate";
 import { ThemeProvider } from "./context/ThemeContext";
 import { api } from "./api/client";
 
@@ -160,7 +161,9 @@ export function App() {
     <ErrorBoundary>
       <ThemeProvider>
         <BrowserRouter>
-          <AppRoutes />
+          <BootGate>
+            <AppRoutes />
+          </BootGate>
         </BrowserRouter>
       </ThemeProvider>
     </ErrorBoundary>
