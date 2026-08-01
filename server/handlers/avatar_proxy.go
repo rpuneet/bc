@@ -121,18 +121,20 @@ func (h *GatewayHandler) avatarProxy(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// SSRF barrier: the request below may only ever target an allowlisted avatar
-	// CDN. This host check is written as inline strings.HasSuffix guards on
-	// parsed.Hostname() — the very URL that flows into the request — because
-	// that is the exact sanitizer shape CodeQL's request-forgery analysis
-	// recognizes; a helper/loop (avatarHostAllowed, used by the redirect guard)
-	// is not tracked across the call boundary. Keep these literals in sync with
-	// avatarHostSuffixes. Leading dots make them strict subdomain suffixes, so
-	// "whatsapp.net.attacker.com" and "evil-whatsapp.net" are rejected.
-	host := strings.ToLower(strings.TrimSuffix(parsed.Hostname(), "."))
-	hostAllowed := strings.HasSuffix(host, ".slack-edge.com") ||
-		strings.HasSuffix(host, ".slack.com") ||
-		strings.HasSuffix(host, ".gravatar.com") ||
-		strings.HasSuffix(host, ".whatsapp.net")
+	// CDN. The check is written as inline strings.HasSuffix guards applied
+	// *directly* to parsed.Hostname() — no intervening ToLower/Trim, which would
+	// sever the value from the URL — because that is the exact sanitizer shape
+	// CodeQL's request-forgery analysis recognizes as a barrier for the request
+	// on `parsed` below. A helper/loop (avatarHostAllowed, used by the redirect
+	// guard) is not tracked across the call boundary. Keep these literals in
+	// sync with avatarHostSuffixes; the leading dots make them strict subdomain
+	// suffixes, so "whatsapp.net.attacker.com"/"evil-whatsapp.net" are rejected.
+	// Hostnames are effectively lowercase from these CDNs; a mixed-case host
+	// simply fails closed here (403), which is safe.
+	hostAllowed := strings.HasSuffix(parsed.Hostname(), ".slack-edge.com") ||
+		strings.HasSuffix(parsed.Hostname(), ".slack.com") ||
+		strings.HasSuffix(parsed.Hostname(), ".gravatar.com") ||
+		strings.HasSuffix(parsed.Hostname(), ".whatsapp.net")
 	if !hostAllowed {
 		httpError(w, "avatar host not allowed", http.StatusForbidden)
 		return
@@ -143,7 +145,7 @@ func (h *GatewayHandler) avatarProxy(w http.ResponseWriter, r *http.Request) {
 
 	// Even an allowlisted name must not resolve into an internal IP range
 	// (DNS-rebinding / internal-service SSRF).
-	if !avatarHostResolvesPublic(ctx, host) {
+	if !avatarHostResolvesPublic(ctx, parsed.Hostname()) {
 		httpError(w, "avatar host not allowed", http.StatusForbidden)
 		return
 	}
