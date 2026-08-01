@@ -179,7 +179,7 @@ function peekItemToNode(item: AgentActivityItem, idx: number): ToolNode {
     toolName,
     args,
     fullInput: item.data ?? null,
-    fullOutput: null,
+    fullOutput: item.data?.tool_response ?? null,
     status: "completed",
     startTime: Number.isNaN(ts) ? Date.now() : ts,
     endTime: undefined,

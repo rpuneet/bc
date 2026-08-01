@@ -253,12 +253,11 @@ export function partitionRunning(nodes: ToolNode[]): { running: ToolNode[]; rest
  * Turn a persisted activity row into a ToolNode for the Live feed.
  *
  * Historical rows come from the append-only event log, so they carry
- * whatever the hook recorded — `tool_name`, `tool_input`, `error` — but
- * never a `tool_response` (results are not persisted) and no Pre/Post
- * pairing, so duration is unknown. We surface every field that IS stored
- * and gracefully omit the rest: the row expands to show its input and any
- * error, and simply has no Output section. This is the same ToolNode shape
- * the live stream builds, so both render through one EventRow.
+ * whatever the hook recorded — `tool_name`, `tool_input`, `tool_response`,
+ * `error` — but no Pre/Post pairing, so duration is unknown. We surface
+ * every field that IS stored and gracefully omit the rest. This is the same
+ * ToolNode shape the live stream builds, so both render through one
+ * EventRow.
  */
 export function activityItemToNode(item: AgentActivityItem): ToolNode {
   const data = (item.data ?? {}) as Record<string, unknown>;
@@ -266,6 +265,7 @@ export function activityItemToNode(item: AgentActivityItem): ToolNode {
   const toolName = dataToolName || parseHistoricalToolName(item) || item.event || "unknown";
 
   const toolInput = data.tool_input ?? null;
+  const toolResponse = data.tool_response ?? null;
   const error = typeof data.error === "string" && data.error ? data.error : undefined;
 
   const args = toolInput
@@ -277,7 +277,7 @@ export function activityItemToNode(item: AgentActivityItem): ToolNode {
     toolName,
     args,
     fullInput: toolInput,
-    fullOutput: null,
+    fullOutput: toolResponse,
     startTime: item.timestamp ? new Date(item.timestamp).getTime() : Date.now(),
     endTime: undefined,
     status: error ? "failed" : "completed",
