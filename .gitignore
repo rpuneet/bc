@@ -1,5 +1,7 @@
 *.png
 !desktop/build/appicon.png
+# Agent AgentCharacter avatars are deployed as public assets (bc-infra.com/avatars).
+!landing/public/avatars/*.png
 # Build output
 /bin/
 /dist/

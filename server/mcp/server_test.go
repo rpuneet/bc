@@ -154,6 +154,45 @@ func TestE2E_Whoami(t *testing.T) {
 	if out["agent"] != "zen-zebra" {
 		t.Errorf("agent = %v, want zen-zebra", out["agent"])
 	}
+	if out["display_name"] != "Zen Zebra" {
+		t.Errorf("display_name = %v, want Zen Zebra", out["display_name"])
+	}
+	// The identity must carry an avatar URL for this agent's AgentCharacter.
+	avatarURL, _ := out["avatar_url"].(string)
+	if avatarURL == "" || !strings.Contains(avatarURL, "zen-zebra") || !strings.Contains(avatarURL, "avatar") {
+		t.Errorf("avatar_url = %q, want a zen-zebra avatar URL", avatarURL)
+	}
+	// The Slack hint tells the agent how to post as itself.
+	slack, ok := out["slack"].(map[string]any)
+	if !ok {
+		t.Fatalf("slack hint missing or wrong type: %T", out["slack"])
+	}
+	if slack["username"] != "zen-zebra" {
+		t.Errorf("slack.username = %v, want zen-zebra", slack["username"])
+	}
+	if slack["scope"] != "chat:write.customize" {
+		t.Errorf("slack.scope = %v, want chat:write.customize", slack["scope"])
+	}
+}
+
+// TestE2E_Whoami_PublicAvatar verifies avatar_url prefers a configured public
+// base (Slack-fetchable) over the loopback endpoint.
+func TestE2E_Whoami_PublicAvatar(t *testing.T) {
+	t.Setenv("MYCEL_AVATAR_PUBLIC_BASE", "https://bc-infra.com/avatars")
+	session, _ := newTestSession(t, Config{Home: testRepo(t)}, "zen-zebra")
+
+	res, err := session.CallTool(t.Context(), &sdk.CallToolParams{Name: "whoami"})
+	if err != nil {
+		t.Fatalf("CallTool: %v", err)
+	}
+	out := structured(t, res)
+	if got, want := out["avatar_url"], "https://bc-infra.com/avatars/zen-zebra.png"; got != want {
+		t.Errorf("avatar_url = %v, want %v", got, want)
+	}
+	slack, _ := out["slack"].(map[string]any)
+	if got, want := slack["icon_url"], "https://bc-infra.com/avatars/zen-zebra.png"; got != want {
+		t.Errorf("slack.icon_url = %v, want %v", got, want)
+	}
 }
 
 func TestE2E_SendMessage_IdentityEnforced(t *testing.T) {

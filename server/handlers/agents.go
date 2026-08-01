@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/rpuneet/mycel/pkg/agent"
+	"github.com/rpuneet/mycel/pkg/avatar"
 	"github.com/rpuneet/mycel/pkg/cost"
 	"github.com/rpuneet/mycel/pkg/events"
 	"github.com/rpuneet/mycel/pkg/home"
@@ -483,6 +484,9 @@ func (h *AgentHandler) byName(w http.ResponseWriter, r *http.Request) {
 	case action == "activity":
 		h.agentActivity(w, r, name)
 
+	case r.Method == http.MethodGet && (action == "avatar.svg" || action == "avatar.png"):
+		h.agentAvatar(w, r, name, action)
+
 	case r.Method == http.MethodPost && action == "start":
 		var req struct {
 			Runtime  string `json:"runtime"`
@@ -702,6 +706,35 @@ func (h *AgentHandler) byName(w http.ResponseWriter, r *http.Request) {
 	default:
 		httpError(w, "not found", http.StatusNotFound)
 	}
+}
+
+// avatarDefaultSize is the rendered dimension (px) for agent avatars. 256 is
+// comfortably above Slack's display size and stays crisp when scaled down.
+const avatarDefaultSize = 256
+
+// agentAvatar serves GET /api/agents/{name}/avatar.{svg,png} — the agent's
+// deterministic AgentCharacter, the same creature the mycel UI draws. It is
+// read-only and derived purely from the name (no agent lookup, no user input
+// reaching exec or a URL), so it is safe to serve for any valid agent name and
+// is aggressively cacheable.
+func (h *AgentHandler) agentAvatar(w http.ResponseWriter, _ *http.Request, name, action string) {
+	size := avatarDefaultSize
+	if action == "avatar.svg" {
+		w.Header().Set("Content-Type", "image/svg+xml")
+		w.Header().Set("Cache-Control", "public, max-age=86400, immutable")
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		_, _ = io.WriteString(w, avatar.SVG(name, size)) //nolint:errcheck // client may disconnect mid-stream
+		return
+	}
+	png, err := avatar.PNG(name, size)
+	if err != nil {
+		httpInternalError(w, "avatar render failed", err)
+		return
+	}
+	w.Header().Set("Content-Type", "image/png")
+	w.Header().Set("Cache-Control", "public, max-age=86400, immutable")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	_, _ = w.Write(png) //nolint:errcheck // client may disconnect mid-stream
 }
 
 func (h *AgentHandler) generateName(w http.ResponseWriter, r *http.Request) {
