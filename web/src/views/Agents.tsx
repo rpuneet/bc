@@ -239,22 +239,27 @@ function InlineAgentName({
   const [editing, setEditing] = useState(false);
   const [newName, setNewName] = useState(agent.name);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleSave = async () => {
     const trimmed = newName.trim();
     if (!trimmed || trimmed === agent.name) {
       setEditing(false);
       setNewName(agent.name);
+      setError(null);
       return;
     }
     setSaving(true);
     try {
       await api.renameAgent(agent.name, trimmed);
       setEditing(false);
+      setError(null);
       onRenamed();
-    } catch {
-      setNewName(agent.name);
-      setEditing(false);
+    } catch (err) {
+      // Keep editing open with the attempted name so the failure is
+      // visible and the user can correct or retry rather than having
+      // their edit silently discarded.
+      setError(err instanceof Error ? err.message : "Rename failed");
     } finally {
       setSaving(false);
     }
@@ -262,24 +267,42 @@ function InlineAgentName({
 
   if (editing) {
     return (
-      <input
-        type="text"
-        value={newName}
-        onChange={(e) => setNewName(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") handleSave();
-          if (e.key === "Escape") {
-            setEditing(false);
-            setNewName(agent.name);
-          }
-        }}
-        onBlur={handleSave}
-        disabled={saving}
-        autoFocus
-        onClick={(e) => e.stopPropagation()}
-        className="px-1 py-0.5 text-sm font-medium rounded-md border border-mycel-accent bg-mycel-bg text-mycel-text focus:outline-none focus:ring-1 focus:ring-mycel-accent w-32"
-        aria-label="Rename agent"
-      />
+      <span className="inline-flex flex-col">
+        <input
+          type="text"
+          value={newName}
+          onChange={(e) => {
+            setNewName(e.target.value);
+            if (error) setError(null);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") handleSave();
+            if (e.key === "Escape") {
+              setEditing(false);
+              setNewName(agent.name);
+              setError(null);
+            }
+          }}
+          onBlur={() => {
+            if (!error) handleSave();
+          }}
+          disabled={saving}
+          autoFocus
+          onClick={(e) => e.stopPropagation()}
+          className={`px-1 py-0.5 text-sm font-medium rounded-md border bg-mycel-bg text-mycel-text focus:outline-none focus:ring-1 w-32 ${
+            error
+              ? "border-mycel-error focus:ring-mycel-error"
+              : "border-mycel-accent focus:ring-mycel-accent"
+          }`}
+          aria-label="Rename agent"
+          aria-invalid={error ? true : undefined}
+        />
+        {error && (
+          <span className="mt-0.5 text-[10px] text-mycel-error" role="alert">
+            {error}
+          </span>
+        )}
+      </span>
     );
   }
 
