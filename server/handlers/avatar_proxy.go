@@ -128,18 +128,35 @@ func (h *GatewayHandler) avatarProxy(w http.ResponseWriter, r *http.Request) {
 	// avatarAllowedHosts. Hosts are lowercase from these CDNs; a mixed-case host
 	// falls through to 403, which is safe.
 	host := parsed.Hostname()
-	var base string
+
+	// suffix is the attacker-influenced tail — only url.Parse-separated path and
+	// query, never anything that could carry an authority. It is concatenated
+	// AFTER a constant "https://<host>/" literal below, so it can only ever
+	// populate the path/query, not the host.
+	suffix := strings.TrimPrefix(parsed.EscapedPath(), "/")
+	if parsed.RawQuery != "" {
+		suffix += "?" + parsed.RawQuery
+	}
+
+	// Exact-host allowlist AND URL construction in one step: each case prepends
+	// a string *literal* "https://<host>/" directly to the tainted suffix. This
+	// sanitizing-prefix concatenation is the shape CodeQL's request-forgery
+	// analysis recognizes as a barrier — the destination host comes entirely
+	// from the literal, so it can never be steered off an allowlisted avatar
+	// CDN. Keep in sync with avatarAllowedHosts. Hosts from these CDNs are
+	// lowercase; a mixed-case host falls through to 403, which is safe.
+	var fetchURL string
 	switch host {
 	case "pps.whatsapp.net":
-		base = "https://pps.whatsapp.net/"
+		fetchURL = "https://pps.whatsapp.net/" + suffix
 	case "media.whatsapp.net":
-		base = "https://media.whatsapp.net/"
+		fetchURL = "https://media.whatsapp.net/" + suffix
 	case "avatars.slack-edge.com":
-		base = "https://avatars.slack-edge.com/"
+		fetchURL = "https://avatars.slack-edge.com/" + suffix
 	case "a.slack-edge.com":
-		base = "https://a.slack-edge.com/"
+		fetchURL = "https://a.slack-edge.com/" + suffix
 	case "secure.gravatar.com":
-		base = "https://secure.gravatar.com/"
+		fetchURL = "https://secure.gravatar.com/" + suffix
 	default:
 		httpError(w, "avatar host not allowed", http.StatusForbidden)
 		return
@@ -153,14 +170,6 @@ func (h *GatewayHandler) avatarProxy(w http.ResponseWriter, r *http.Request) {
 	if !avatarHostResolvesPublic(ctx, host) {
 		httpError(w, "avatar host not allowed", http.StatusForbidden)
 		return
-	}
-
-	// Rebuild from the constant base: only url.Parse-separated path/query (never
-	// the raw string, and never anything that could carry an authority) follow
-	// the constant "https://<host>/" prefix.
-	fetchURL := base + strings.TrimPrefix(parsed.EscapedPath(), "/")
-	if parsed.RawQuery != "" {
-		fetchURL += "?" + parsed.RawQuery
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fetchURL, nil)
