@@ -12,18 +12,30 @@ import (
 	"strings"
 
 	"github.com/rpuneet/mycel/pkg/provider"
+	"github.com/rpuneet/mycel/pkg/tool"
 )
 
 // DepsInstallHandler runs a single dependency's install command on the host
-// and streams its output back to the setup wizard as newline-delimited JSON.
+// and streams its output back to the UI as newline-delimited JSON.
 //
 // Security: this executes a shell command, so it is loopback-only (same
-// gate as the deps start/stop routes) and only ever runs commands from the
-// vetted table in installCommand — never arbitrary user input.
-type DepsInstallHandler struct{}
+// gate as the deps start/stop routes) and only ever runs commands sourced
+// from a vetted table (installCommand) or the persisted tools registry —
+// never a command supplied in the request body.
+type DepsInstallHandler struct {
+	tools *tool.Store
+}
 
 // NewDepsInstallHandler constructs a DepsInstallHandler.
 func NewDepsInstallHandler() *DepsInstallHandler { return &DepsInstallHandler{} }
+
+// SetToolStore wires the tools registry so registered CLI tools (gh, aws, …)
+// can be installed/updated from their stored install_cmd / upgrade_cmd. Nil
+// is fine — resolution then falls back to the vetted table only.
+func (h *DepsInstallHandler) SetToolStore(s *tool.Store) *DepsInstallHandler {
+	h.tools = s
+	return h
+}
 
 // Register mounts POST /api/deps/install. It is a more specific pattern than
 // the DepsHandler's "/api/deps/" prefix, so ServeMux routes it here.
@@ -31,10 +43,12 @@ func (h *DepsInstallHandler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/deps/install", h.install)
 }
 
-// depInstallRequest is the POST body: the readiness item id to install
-// ("git", "tmux", "claude", …).
+// depInstallRequest is the POST body: the readiness item / tool id to act on
+// ("git", "tmux", "claude", "gh", …) and the action ("install" or "update";
+// empty means install).
 type depInstallRequest struct {
-	ID string `json:"id"`
+	ID   string `json:"id"`
+	Mode string `json:"mode,omitempty"`
 }
 
 // installRunner builds the command that runs a resolved install line. It is
@@ -68,9 +82,13 @@ func (h *DepsInstallHandler) install(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cmdLine, ok := installCommand(req.ID, runtime.GOOS)
+	cmdLine, ok := h.resolveCommand(r.Context(), req.ID, req.Mode)
 	if !ok {
-		httpError(w, "no automatic installer for "+req.ID, http.StatusBadRequest)
+		verb := "installer"
+		if req.Mode == "update" {
+			verb = "updater"
+		}
+		httpError(w, "no automatic "+verb+" for "+req.ID, http.StatusBadRequest)
 		return
 	}
 
@@ -142,6 +160,50 @@ func streamInstall(ctx context.Context, cmdLine string, emit func(any) bool) {
 		return
 	}
 	emit(map[string]any{"type": "done", "code": 0})
+}
+
+// resolveCommand picks the shell command to run for id + mode.
+//
+//   - update: prefer the registered tool's upgrade_cmd, then its install_cmd,
+//     then the vetted install table.
+//   - install (default): prefer the vetted install table, then the registered
+//     tool's install_cmd.
+//
+// Every command originates from a vetted source (the table or the persisted
+// tools registry), never from the request body.
+func (h *DepsInstallHandler) resolveCommand(ctx context.Context, id, mode string) (string, bool) {
+	if mode == "update" {
+		if t := h.lookupTool(ctx, id); t != nil {
+			if cmd := strings.TrimSpace(t.UpgradeCmd); cmd != "" {
+				return cmd, true
+			}
+			if cmd := strings.TrimSpace(t.InstallCmd); cmd != "" {
+				return cmd, true
+			}
+		}
+	}
+	if cmd, ok := installCommand(id, runtime.GOOS); ok {
+		return cmd, true
+	}
+	if t := h.lookupTool(ctx, id); t != nil {
+		if cmd := strings.TrimSpace(t.InstallCmd); cmd != "" {
+			return cmd, true
+		}
+	}
+	return "", false
+}
+
+// lookupTool returns the registered tool named id, or nil when the store is
+// absent or the tool is unknown.
+func (h *DepsInstallHandler) lookupTool(ctx context.Context, id string) *tool.Tool {
+	if h.tools == nil {
+		return nil
+	}
+	t, err := h.tools.Get(ctx, id)
+	if err != nil {
+		return nil
+	}
+	return t
 }
 
 // installCommand resolves a readiness item id to a runnable install command

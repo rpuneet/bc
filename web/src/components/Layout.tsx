@@ -35,15 +35,12 @@ function RouteTransition({ children }: { children: React.ReactNode }) {
   const location = useLocation();
   // Transitions are keyed by the top-level section so navigating *within* a
   // section (agent → agent, app → app) doesn't re-animate the whole page.
-  // Settings is the exception: its drill-downs (/settings/tools, …) are
-  // full sibling pages, not in-section detail. Keying them only by the
-  // "settings" segment collapsed them onto the Settings page's key, so the
-  // page-transition treated the drill-down as the same page. Keep two
-  // segments under /settings so each drill-down mounts and animates as the
-  // distinct page it is.
+  // Settings has no in-app drill-downs anymore — Providers & Tools resolve to
+  // the flat /tools route — so first-segment keying is correct for every
+  // page. (An earlier 2-segment /settings special case fed the nested
+  // /settings/tools mount an unstable key and contributed to a remount loop.)
   const parts = location.pathname.split("/").filter(Boolean);
-  const depth = parts[0] === "settings" ? 2 : 1;
-  const key = "/" + parts.slice(0, depth).join("/");
+  const key = "/" + (parts[0] ?? "");
   return (
     <AnimatePresence mode="wait" initial={false}>
       <motion.div

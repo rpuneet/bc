@@ -13,21 +13,24 @@ export type InstallEvent =
   | { type: "error"; error: string };
 
 /**
- * installDep streams the install of one readiness item (git, tmux, a
- * provider CLI…). It calls onEvent for every record and resolves with the
- * process exit code (0 = success). Throws on transport errors or an
- * explicit error event.
+ * installDep streams the install (or update) of one readiness item / tool
+ * (git, tmux, a provider CLI, a registered CLI tool…). It calls onEvent for
+ * every record and resolves with the process exit code (0 = success). Throws
+ * on transport errors or an explicit error event.
+ *
+ * mode "update" runs the tool's upgrade command when the registry defines
+ * one; it falls back to the install command otherwise.
  */
 export async function installDep(
   id: string,
   onEvent: (ev: InstallEvent) => void,
-  signal?: AbortSignal,
+  opts?: { signal?: AbortSignal; mode?: "install" | "update" },
 ): Promise<number> {
   const res = await fetch("/api/deps/install", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ id }),
-    signal,
+    body: JSON.stringify({ id, mode: opts?.mode ?? "install" }),
+    signal: opts?.signal,
   });
 
   if (!res.ok || !res.body) {

@@ -379,9 +379,10 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 	// Always registered so the UI can render an empty list when no deps
 	// are configured; the handler is nil-safe internally.
 	handlers.NewDepsHandler(svc.Deps).Register(mux)
-	// Streamed host-dependency installer used by the setup wizard. Loopback
-	// only; runs vetted install commands and streams their output.
-	handlers.NewDepsInstallHandler().Register(mux)
+	// Streamed host-dependency installer used by the setup wizard and the
+	// Tools page. Loopback only; runs vetted install/upgrade commands (from
+	// the table or the tools registry) and streams their output.
+	handlers.NewDepsInstallHandler().SetToolStore(svc.Tools).Register(mux)
 	// Per-repo cost rollup. Handler is nil-safe and returns 503 when the
 	// global ledger isn't wired.
 	mux.Handle("/api/global/costs", handlers.NewGlobalCostsHandler(svc.Costs))

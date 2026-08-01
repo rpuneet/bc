@@ -1,8 +1,9 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { api } from "../api/client";
 import type { Tool } from "../api/client";
+import { installDep } from "../wizard/installStream";
 import { usePolling } from "../hooks/usePolling";
 import { LoadingSkeleton } from "../components/LoadingSkeleton";
 import { EmptyState } from "../components/EmptyState";
@@ -44,9 +45,158 @@ function ChevronIcon({ expanded }: { expanded: boolean }) {
   );
 }
 
-function CLIDepsRow({ tool, onToggle, onRemove, toggling, removing, expanded, onExpand }: {
+/* ── In-surface install / update ──────────────────────────────────────
+ *
+ * Streams a CLI tool's install (or update) command over POST /api/deps/install
+ * — the same loopback-guarded NDJSON stream the setup wizard uses — into a
+ * live console with an honest running → success/error progression. The stream
+ * carries no percentage, so progress is an indeterminate bar while running and
+ * a resolved (green/red) bar on completion; the line count is the concrete
+ * "how far along" signal. */
+type RunState = "idle" | "running" | "ok" | "error";
+
+function CLIInstallAction({ tool, onDone }: { tool: Tool; onDone: () => void }) {
+  const reduceMotion = useReducedMotion();
+  const [state, setState] = useState<RunState>("idle");
+  const [lines, setLines] = useState<string[]>([]);
+  const [err, setErr] = useState<string | null>(null);
+  const consoleRef = useRef<HTMLDivElement>(null);
+  const runningRef = useRef(false);
+
+  const isInstalled = tool.status !== "not_installed";
+  const mode: "install" | "update" = isInstalled ? "update" : "install";
+  const canRun = mode === "install"
+    ? Boolean(tool.install_cmd)
+    : Boolean(tool.upgrade_cmd || tool.install_cmd);
+
+  useEffect(() => {
+    const el = consoleRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [lines]);
+
+  // Guard against setState after unmount when a slow stream resolves late.
+  useEffect(() => () => { runningRef.current = false; }, []);
+
+  const run = async () => {
+    setState("running");
+    setLines([]);
+    setErr(null);
+    runningRef.current = true;
+    try {
+      const code = await installDep(
+        tool.name,
+        (ev) => {
+          if (!runningRef.current) return;
+          if (ev.type === "start") setLines((l) => [...l, `$ ${ev.command}`]);
+          else if (ev.type === "log") setLines((l) => [...l, ev.line]);
+        },
+        { mode },
+      );
+      if (!runningRef.current) return;
+      if (code === 0) {
+        setState("ok");
+        onDone();
+      } else {
+        setState("error");
+        setErr(`${mode === "update" ? "Update" : "Install"} exited with code ${code}.`);
+      }
+    } catch (e) {
+      if (!runningRef.current) return;
+      setState("error");
+      setErr(e instanceof Error ? e.message : `${mode} failed.`);
+    } finally {
+      runningRef.current = false;
+    }
+  };
+
+  const label = mode === "update" ? "Update" : "Install";
+  const barTone = state === "ok" ? "bg-mycel-success" : state === "error" ? "bg-mycel-error" : "bg-mycel-accent";
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-2 flex-wrap">
+        {canRun ? (
+          <button
+            type="button"
+            onClick={() => void run()}
+            disabled={state === "running"}
+            className="inline-flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-1 rounded-md border border-mycel-accent bg-mycel-accent-subtle text-mycel-accent hover:bg-mycel-accent hover:text-mycel-accent-fg transition-colors disabled:opacity-60 focus-visible:ring-2 focus-visible:ring-mycel-accent"
+          >
+            {state === "running" && <Spinner />}
+            {state === "running"
+              ? `${label === "Update" ? "Updating" : "Installing"}…`
+              : state === "ok"
+                ? `${label} again`
+                : state === "error"
+                  ? `Retry ${label.toLowerCase()}`
+                  : label}
+          </button>
+        ) : (
+          <span className="inline-flex items-center gap-1.5 text-[11px] text-mycel-muted">
+            <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden>
+              <circle cx="7" cy="7" r="5.5" />
+              <path d="M7 4.5v.01M6 6.5h1v3h1" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            No automatic {mode === "update" ? "updater" : "installer"} — copy the command above to run it yourself.
+          </span>
+        )}
+        {state === "ok" && (
+          <span className="inline-flex items-center gap-1 text-[11px] text-mycel-success" role="status">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <path d="M20 6L9 17l-5-5" />
+            </svg>
+            {mode === "update" ? "Updated" : "Installed"}. Re-checking…
+          </span>
+        )}
+        {state === "error" && err && (
+          <span className="inline-flex items-center gap-1 text-[11px] text-mycel-error" role="alert">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <path d="M12 8v4M12 16h.01M10.3 3.9L1.8 18a2 2 0 001.7 3h17a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z" />
+            </svg>
+            <span className="truncate max-w-xs">{err}</span>
+          </span>
+        )}
+      </div>
+
+      {(state === "running" || state === "ok" || state === "error") && (
+        <div className="space-y-1.5">
+          {/* Progress: indeterminate while running (honest — the stream has no
+              percent), resolved to a full green/red bar on completion. */}
+          <div className="h-1 rounded-full bg-mycel-border overflow-hidden" role="progressbar" aria-label={`${label} progress`} aria-busy={state === "running"}>
+            {state === "running" ? (
+              <div
+                className={`h-full w-1/3 rounded-full ${barTone} ${reduceMotion ? "" : "animate-indeterminate"}`}
+              />
+            ) : (
+              <div className={`h-full w-full rounded-full ${barTone}`} />
+            )}
+          </div>
+          {lines.length > 0 && (
+            <div
+              ref={consoleRef}
+              className="max-h-40 overflow-auto rounded-md border border-mycel-border bg-mycel-bg px-2.5 py-1.5 font-mono text-[11px] leading-relaxed text-mycel-text-2 whitespace-pre-wrap"
+            >
+              {lines.map((l, i) => (
+                <div key={i} className={l.startsWith("$ ") ? "text-mycel-accent" : ""}>
+                  {l}
+                </div>
+              ))}
+              {state === "running" && <div className="text-mycel-muted">▍</div>}
+            </div>
+          )}
+          <div className="text-[10.5px] text-mycel-muted tabular-nums">
+            {state === "running" ? `${lines.length} line${lines.length === 1 ? "" : "s"}…` : `${lines.length} line${lines.length === 1 ? "" : "s"}`}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CLIDepsRow({ tool, onToggle, onRemove, toggling, removing, expanded, onExpand, onChanged }: {
   tool: Tool; onToggle: () => void; onRemove: () => void;
   toggling: boolean; removing: boolean; expanded: boolean; onExpand: () => void;
+  onChanged: () => void;
 }) {
   const [confirmRemove, setConfirmRemove] = useState(false);
   const cfg = getStatusConfig(tool.status);
@@ -116,7 +266,9 @@ function CLIDepsRow({ tool, onToggle, onRemove, toggling, removing, expanded, on
                 transition={{ duration: 0.2, ease: "easeOut" }}
                 className="overflow-hidden bg-mycel-surface"
               >
-                <div className="px-8 py-3 space-y-2">
+                <div className="px-8 py-3 space-y-3">
+                  {/* In-surface install / update — streamed, loopback-guarded. */}
+                  <CLIInstallAction tool={tool} onDone={onChanged} />
                   {tool.install_cmd && (
                     <div className="flex items-center gap-2">
                       <span className="text-xs text-mycel-muted shrink-0">Install:</span>
@@ -509,6 +661,7 @@ export function Tools() {
                     onRemove={() => void handleRemove(t)}
                     toggling={togglingSet.has(t.name)}
                     removing={removingSet.has(t.name)}
+                    onChanged={() => { setCheckedTools(null); refresh(); }}
                   />
                 ))}
               </tbody>
