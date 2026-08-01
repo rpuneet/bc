@@ -167,6 +167,10 @@ interface BreakdownRow {
   /** Live agent state — renders the row's living character chip. */
   agentState?: string;
   muted?: boolean;
+  /** Number of distinct historical paths folded into this row (repo
+   *  dimension only). Set only when >1, so a "×N" badge can flag rows
+   *  that silently merged two differently-located repos of the same name. */
+  foldCount?: number;
 }
 
 /** Top rows by cost with the tail folded into one muted "everything else". */
@@ -211,6 +215,14 @@ function Breakdown({
                 <AgentChip name={r.name} state={r.agentState} size={16} showDot={false} className="min-w-0" preview />
               ) : (
                 <span className="truncate">{r.name}</span>
+              )}
+              {r.foldCount !== undefined && r.foldCount > 1 && (
+                <span
+                  className="shrink-0 rounded-full border border-mycel-border px-1 text-[10px] leading-4 text-mycel-muted"
+                  title={`${r.foldCount} different repo paths share this name`}
+                >
+                  ×{r.foldCount}
+                </span>
               )}
             </span>
             <span className="relative h-2 rounded-full bg-mycel-border/40 overflow-hidden">
@@ -518,12 +530,23 @@ export function Insights() {
       rows = topRows((data?.byModel ?? []).map((m) => ({ name: m.model, cost: m.total_cost_usd, id: `model:${m.model}` })));
     } else {
       // Repos can appear under several historical paths with one label —
-      // fold by label so the list reads as projects, not paths.
-      const byLabel = new Map<string, number>();
+      // fold by label so the list reads as projects, not paths. Track how
+      // many distinct paths fold into each label so a "×N" badge can flag
+      // when two unrelated repos (e.g. two different "api" checkouts)
+      // silently merged into one row.
+      const byLabel = new Map<string, { total: number; count: number }>();
       for (const r of data?.byRepo ?? []) {
-        byLabel.set(r.label, (byLabel.get(r.label) ?? 0) + r.total);
+        const cur = byLabel.get(r.label) ?? { total: 0, count: 0 };
+        byLabel.set(r.label, { total: cur.total + r.total, count: cur.count + 1 });
       }
-      rows = topRows([...byLabel.entries()].map(([name, total]) => ({ name, cost: total, id: `repo:${name}` })));
+      rows = topRows(
+        [...byLabel.entries()].map(([name, v]) => ({
+          name,
+          cost: v.total,
+          id: `repo:${name}`,
+          foldCount: v.count > 1 ? v.count : undefined,
+        })),
+      );
     }
     const total = rows.reduce((s, r) => s + r.cost, 0);
     return { rows, total };

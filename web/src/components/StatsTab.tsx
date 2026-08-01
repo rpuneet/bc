@@ -55,8 +55,8 @@ const fmtDiskBytes = (b: number): string => {
   return `${b} B`;
 };
 // Cost formatting delegates to the canonical util so comma grouping,
-// sub-cent handling, and zero fallback stay consistent across Stats,
-// StatsTab, and CostsGlobal.
+// sub-cent handling, and zero fallback stay consistent across Stats
+// and StatsTab.
 import { formatCost } from "../utils/format";
 const fmtCost = (v: number): string => {
   if (!isFinite(v)) return "$0.00";
@@ -153,13 +153,37 @@ export function StatsTab({ agent }: { agent: Agent }) {
     memAvgMB
   );
 
-  // Token totals: prefer TimescaleDB summary; fall back to cost-store computed stats; then agent record fields.
+  // Token in/out split: the cost engine records a real per-entry prompt/completion
+  // split, so prefer it wherever it's available, in order of freshness/reliability —
+  // TimescaleDB summary, hook-event computed stats, the resolved fleet-ledger
+  // summary (byAgent / agent-detail), then the per-model cost breakdown (which
+  // also carries real input/output counts). Only agent.total_tokens is a
+  // combined-only field with no split — and we never invent one for it (no more
+  // fabricated 80/20 divide).
   const computedInputTokens = data?.computed?.input_tokens ?? 0;
   const computedOutputTokens = data?.computed?.output_tokens ?? 0;
+  const ledgerSummary = data?.costSummary ?? data?.cost?.summary ?? null;
+  const modelsInputSum = (data?.models ?? []).reduce((acc, m) => acc + (m.input_tokens ?? 0), 0);
+  const modelsOutputSum = (data?.models ?? []).reduce((acc, m) => acc + (m.output_tokens ?? 0), 0);
+  const hasTokenSplit =
+    s?.tokens?.input != null ||
+    computedInputTokens > 0 || computedOutputTokens > 0 ||
+    ledgerSummary != null ||
+    modelsInputSum > 0 || modelsOutputSum > 0;
   const totalIn = s?.tokens?.input
-    ?? (computedInputTokens > 0 ? computedInputTokens : (agent.total_tokens ? Math.floor(agent.total_tokens * 0.8) : 0));
+    ?? (computedInputTokens > 0
+      ? computedInputTokens
+      : ledgerSummary != null
+        ? ledgerSummary.input_tokens
+        : modelsInputSum);
   const totalOut = s?.tokens?.output
-    ?? (computedOutputTokens > 0 ? computedOutputTokens : (agent.total_tokens ? Math.floor(agent.total_tokens * 0.2) : 0));
+    ?? (computedOutputTokens > 0
+      ? computedOutputTokens
+      : ledgerSummary != null
+        ? ledgerSummary.output_tokens
+        : modelsOutputSum);
+  const totalTokensCombined = hasTokenSplit ? totalIn + totalOut : (agent.total_tokens ?? 0);
+  const tokenSplitSub = hasTokenSplit ? `${fmtTokens(totalIn)} in · ${fmtTokens(totalOut)} out` : "—";
   // Cost: prefer TimescaleDB summary; fall back to cost-store computed stats; then agent.cost_usd.
   const summaryTotalUSD = s?.cost?.total_usd ?? 0;
   const computedCostUSD = data?.computed?.cost_usd ?? 0;
@@ -222,8 +246,7 @@ export function StatsTab({ agent }: { agent: Agent }) {
   const hasAnyData =
     hasTimescaleData ||
     hasComputedData ||
-    totalIn > 0 ||
-    totalOut > 0 ||
+    totalTokensCombined > 0 ||
     totalCost > 0;
 
   // Tool breakdown sorted by count descending, capped at 8 entries.
@@ -373,12 +396,16 @@ export function StatsTab({ agent }: { agent: Agent }) {
         // the range-scoped stats summary for the headline cost/token figures.
         const cs = data?.costSummary;
         const spend = cs?.total_cost_usd ?? totalCost;
+        // cs (fleet ledger) always carries a real in/out split when present;
+        // otherwise fall back to the honest (never-fabricated) totalIn/totalOut.
+        const hasSplit = cs != null || hasTokenSplit;
         const inTok = cs?.input_tokens ?? totalIn;
         const outTok = cs?.output_tokens ?? totalOut;
+        const tokenTotal = cs?.total_tokens ?? totalTokensCombined;
         const cacheRead = cs?.cache_read_tokens ?? s?.tokens?.cache_read ?? 0;
         const cacheWrite = cs?.cache_write_tokens ?? s?.tokens?.cache_create ?? 0;
         const sessions = cs?.record_count ?? 0;
-        const hasCost = spend > 0 || inTok + outTok > 0 || spendSeries.length > 0 || models.length > 0;
+        const hasCost = spend > 0 || tokenTotal > 0 || spendSeries.length > 0 || models.length > 0;
         if (!hasCost) return null;
         return (
         <div className="space-y-3">
@@ -388,7 +415,7 @@ export function StatsTab({ agent }: { agent: Agent }) {
           />
           <StatBand>
             <StatCell label="Total spend" value={fmtCost(spend)} accent sub={`${sessions} sessions`} />
-            <StatCell label="Tokens" value={fmtTokens(inTok + outTok)} sub={`${fmtTokens(inTok)} in · ${fmtTokens(outTok)} out`} />
+            <StatCell label="Tokens" value={fmtTokens(tokenTotal)} sub={hasSplit ? `${fmtTokens(inTok)} in · ${fmtTokens(outTok)} out` : "—"} />
             <StatCell label="Cache read" value={fmtTokens(cacheRead)} sub="reused context" />
             <StatCell label="Cache write" value={fmtTokens(cacheWrite)} sub="written context" />
           </StatBand>
@@ -453,7 +480,7 @@ export function StatsTab({ agent }: { agent: Agent }) {
       <StatBand>
         <StatCell label="CPU" value={`${cpuAvg.toFixed(1)}%`} sub={`max ${cpuMax.toFixed(1)}%`} />
         <StatCell label="Memory" value={`${memAvgMB} MB`} sub={`max ${memMaxMB} MB`} />
-        <StatCell label="Tokens" value={fmtTokens(totalIn + totalOut)} sub={`${fmtTokens(totalIn)} in · ${fmtTokens(totalOut)} out`} />
+        <StatCell label="Tokens" value={fmtTokens(totalTokensCombined)} sub={tokenSplitSub} />
         <StatCell label="Cost" value={fmtCost(totalCost)} accent sub="total" />
       </StatBand>
 

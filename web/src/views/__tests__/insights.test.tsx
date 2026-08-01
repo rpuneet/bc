@@ -171,10 +171,15 @@ describe("Insights", () => {
     fireEvent.click(screen.getByRole("button", { name: "Models" }));
     await waitFor(() => expect(screen.getByText("claude-opus-4-6")).toBeInTheDocument());
 
-    // Repo rows with the same label fold together (9.0 + 1.0).
+    // Repo rows with the same label fold together (9.0 + 1.0), and since
+    // that merges two distinct historical paths, the row is flagged with
+    // a "×2" badge so the fold isn't silent.
     fireEvent.click(screen.getByRole("button", { name: "Repos" }));
     await waitFor(() => expect(screen.getByText("alpha")).toBeInTheDocument());
     expect(screen.getByText("$10.00")).toBeInTheDocument();
+    expect(screen.getByText("×2")).toBeInTheDocument();
+    // beta has only one folded path, so it gets no badge.
+    expect(screen.getByText("beta")).toBeInTheDocument();
   });
 
   it("labels the activity window honestly", async () => {
