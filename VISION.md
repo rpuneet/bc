@@ -25,7 +25,7 @@ Humans remain in control:
 - Set budgets and spending limits
 - Define roles and capabilities
 - Review and merge PRs
-- Monitor agent activity via TUI
+- Monitor agent activity via the CLI, web dashboard, or desktop app
 
 ## Unique Differentiators
 
@@ -40,16 +40,16 @@ Humans remain in control:
 
 ## Roadmap
 
-### Near-term
-- [ ] Homebrew installation
-- [ ] Demo GIF/video for README
-- [ ] Plugin system for custom roles
-- [ ] WebSocket-based agent monitoring
+### Shipped
+- [x] Homebrew installation (`brew install rpuneet/mycel/mycel`)
+- [x] Apps plugin platform (28 built-in integrations: Slack, GitHub, and more)
+- [x] Real-time agent monitoring via the embedded web dashboard (SSE)
+- [x] Agent templates
+- [x] Desktop app (Wails, wraps the same web UI)
 
-### Medium-term
+### Near-term
 - [ ] Multi-repository orchestration
-- [ ] Agent templates and presets
-- [ ] Integration with CI/CD pipelines
+- [ ] Deeper CI/CD pipeline integrations
 - [ ] Cost optimization recommendations
 
 ### Long-term

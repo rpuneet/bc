@@ -1,8 +1,6 @@
 # mycel-browser — Deprecated Optional Dependency
 
 > **Status:** Documented / deprioritized &nbsp;|&nbsp; **Updated:** 2026-04-16
->
-> Related: [docs/proposals/multi-workspace-and-code-tab.md §7](../proposals/multi-workspace-and-code-tab.md)
 
 ## Summary
 
@@ -40,7 +38,7 @@ for web automation tasks. It is **no longer a priority** because:
    make build-docker-playwright
    ```
 3. For local development with a visible browser, just use your host's browser
-   with the `chrome-devtools` MCP or similar — no extra bc service required.
+   with the `chrome-devtools` MCP or similar — no extra mycel service required.
 
 ## Revisiting
 
@@ -48,7 +46,7 @@ If a strong use-case emerges (e.g. a remote multi-tenant scenario where agents
 truly need a sandboxed headed browser and the Claude Code plugin is unsuitable),
 this dependency can be un-deprecated by:
 
-1. Adding a proper implementation to `pkg/deps/bc_browser.go`
+1. Adding a proper implementation to `pkg/deps/browser.go`
 2. Wiring the Start/Stop/Status/Logs interface against the
    `docker/playwright-visible/` Dockerfile (when/if it exists and is stable)
 3. Removing the `409 Conflict` response in the deps API

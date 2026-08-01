@@ -161,7 +161,7 @@ Everything lives under `~/.mycel/` — your repos stay pristine. Config is one f
 
 ```json
 {
-  "version": 2,
+  "version": 3,
   "server": {
     "host": "127.0.0.1",
     "port": 9374

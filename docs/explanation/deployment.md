@@ -138,7 +138,7 @@ Defaults from `pkg/home/config.go`:
 | Service | Method |
 |---------|--------|
 | mycel server | `GET /health` → `{"status":"ok"}` |
-| bcdb | `pg_isready -U bc -d bc` (baked into the image) |
+| mycel-db | `pg_isready -U mycel -d mycel` (baked into the image) |
 | Agents | `docker inspect` + `docker exec tmux list-sessions` |
 
 ## Local Dev (tmux mode)

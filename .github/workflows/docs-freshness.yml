@@ -1,0 +1,118 @@
+name: Docs Freshness
+
+# Advisory-only nudge: if a PR touches a code surface that usually needs a
+# matching doc update (CLI commands, pkg public API, server handlers) but
+# doesn't touch any docs, leave one PR comment pointing at what to check.
+# Never fails the check — this is a reminder, not a gate.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  pull-requests: write
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  docs-freshness:
+    name: Check docs freshness
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.user.login != 'dependabot[bot]'
+    steps:
+      - name: Compare changed surfaces
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const marker = '<!-- docs-freshness-bot -->';
+
+            // Surfaces whose behavior/API is user- or contributor-facing.
+            // Keep this narrow: test files and internal-only helpers don't count.
+            const codeSurfaces = [
+              /^internal\/cmd\/.*\.go$/,
+              /^pkg\/[^/]+\/[^/]+\.go$/,   // pkg/**/*.go (top-level files per package, not deeply nested internals)
+              /^server\/handlers\/.*\.go$/,
+            ];
+            const isTestFile = (f) => f.endsWith('_test.go');
+
+            // Anything under docs/, or the high-visibility root docs, counts as
+            // "docs were touched" for this PR.
+            const docsSurfaces = [
+              /^docs\//,
+              /^README\.md$/,
+              /^VISION\.md$/,
+              /^CONTRIBUTING\.md$/,
+              /^CLAUDE\.md$/,
+              /^\.claude\/CLAUDE\.md$/,
+              /^AGENTS\.md$/,
+              /^SECURITY\.md$/,
+              /^[^/]+\/README\.md$/,       // per-package READMEs, e.g. pkg/notify/README.md
+              /^pkg\/[^/]+\/README\.md$/,
+            ];
+
+            const files = await github.paginate(github.rest.pulls.listFiles, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number,
+              per_page: 100,
+            });
+            const paths = files.map((f) => f.filename);
+
+            const touchedCode = paths.filter(
+              (p) => !isTestFile(p) && codeSurfaces.some((re) => re.test(p))
+            );
+            const touchedDocs = paths.filter((p) => docsSurfaces.some((re) => re.test(p)));
+
+            const needsNudge = touchedCode.length > 0 && touchedDocs.length === 0;
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            const existing = comments.find((c) => c.body.includes(marker));
+
+            if (!needsNudge) {
+              core.info('Docs freshness: no nudge needed.');
+              if (existing) {
+                await github.rest.issues.deleteComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  comment_id: existing.id,
+                });
+              }
+              return;
+            }
+
+            const list = touchedCode.slice(0, 20).map((p) => `- \`${p}\``).join('\n');
+            const more = touchedCode.length > 20 ? `\n…and ${touchedCode.length - 20} more.` : '';
+
+            const body = `${marker}
+            ### 📚 Docs freshness reminder
+
+            This PR changes a surface that usually needs a matching doc update (CLI commands, \`pkg/**\` public API, or \`server/handlers/**\`), but doesn't touch \`docs/**\` or a README:
+
+            ${list}${more}
+
+            If the change is user- or contributor-facing, consider updating \`docs/reference/cli\` (regenerate with \`go run ./cmd/gendocs\`), \`docs/explanation/*\`, or the package README. If nothing here needs docs (internal refactor, test-only, etc.), no action needed — this is advisory only and does not block merge.`;
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }
+
+            core.warning('Docs freshness: code surfaces changed without a matching docs update. See PR comment.');

@@ -3,7 +3,7 @@
 - **Status:** Accepted — implemented; superseded in part by later work
 - **Date:** 2026-04-17
 - **Issue:** #3002
-- **Related:** #3000 (bc tunnel), PR #3003 (agents revamp)
+- **Related:** #3000 (remote tunnel access, proposed), PR #3003 (agents revamp)
 
 > **Outcome note (2026-07):** the API-backed single-binary direction shipped.
 > Reality diverged from two details below: the terminal UI was removed
@@ -14,10 +14,10 @@
 
 ## Context
 
-The `mycel` binary currently mixes three responsibilities: CLI command handling, TUI rendering (via an embedded React bundle), and hosting the `the daemon` daemon. Subcommands are inconsistent — some go over HTTP to `the daemon`, some reach into `pkg/` packages directly, some poke the filesystem. As the surface grows this drift becomes painful:
+The `mycel` binary currently mixes three responsibilities: CLI command handling, TUI rendering (via an embedded React bundle), and hosting the daemon. Subcommands are inconsistent — some go over HTTP to the daemon, some reach into `pkg/` packages directly, some poke the filesystem. As the surface grows this drift becomes painful:
 
 - CLI and web UI can diverge because they don't share code paths.
-- Remote access (#3000 bc tunnel) is blocked on any CLI subcommand that doesn't already speak HTTP.
+- Remote access (#3000, remote tunnel access) is blocked on any CLI subcommand that doesn't already speak HTTP.
 - Tests for CLI behaviour need a full workspace on disk instead of a `httptest.Server`.
 
 This ADR locks in the approach so subsequent PRs can execute it phase-by-phase.
@@ -26,28 +26,28 @@ This ADR locks in the approach so subsequent PRs can execute it phase-by-phase.
 
 ### 1. Process lifecycle owns `~/.mycel/settings.json`
 
-`mycel up`, `mycel down`, `mycel restart` are the **only** commands that don't require a running `the daemon`. They read user preferences from `~/.mycel/settings.json`:
+`mycel up`, `mycel down`, `mycel restart` are the **only** commands that don't require a running daemon. They read user preferences from `~/.mycel/settings.json`:
 
 - default addr / port (pairs with `~/.mycel/daemon.addr` writer, #43)
 - default workspace
 - autostart flag
 - per-dep toggles (mycel-db, mycel-code-server)
 
-These commands manage the daemon's lifecycle, so talking to its API is a chicken-and-egg problem. Every other subcommand assumes `the daemon` is running.
+These commands manage the daemon's lifecycle, so talking to its API is a chicken-and-egg problem. Every other subcommand assumes the daemon is running.
 
 ### 2. All other subcommands go over HTTP
 
 Agent lifecycle, cost queries, templates, secrets, MCP, workspace registry, code browsing, deps status, stats — every non-lifecycle `mycel <subcmd>` routes through `http://127.0.0.1:<port>/api/...` using `pkg/client`. Rationale:
 
 - **Single source of truth.** Handlers are exercised by the web UI, CLI, and (later) `mycel tunnel` against the same code path.
-- **Remote-friendly.** Once `mycel tunnel` exists, the same CLI works against a remote the daemon with a single env var or flag.
+- **Remote-friendly.** Once `mycel tunnel` exists, the same CLI works against a remote daemon with a single env var or flag.
 - **Testable.** CLI tests run against `httptest.Server` instead of constructing workspaces on disk.
 
 ### 3. Render in Go, not Node
 
 Stay in pure Go with [bubbletea](https://github.com/charmbracelet/bubbletea) + [lipgloss](https://github.com/charmbracelet/lipgloss) + [bubbles](https://github.com/charmbracelet/bubbles) for interactive pieces (streaming agent attach, spinners, progress bars). Reject Ink despite the web-UI component-sharing appeal because:
 
-- One 25 MB static binary keeps the install story (`brew install bc`, `curl | sh`, docker) trivial.
+- One statically-linked Go binary keeps the install story (`brew install rpuneet/mycel/mycel`, `curl | sh`, docker) trivial.
 - Node runtime dependency or bundling with `pkg`/`nexe`/`sea` adds install friction and a second language in the release matrix.
 - bubbletea is proven (gh, glow, soft-serve) and covers the interactive surface we actually need.
 
@@ -70,7 +70,7 @@ The current React TUI bundle (`internal/cmd/tui-bundle/`) will be **deprecated**
 | # | Question | Decision |
 |---|---|---|
 | Q1 | Should `mycel up` require running the daemon, or start it? | **Start it.** `mycel up` is a lifecycle command (§1) — it writes `~/.mycel/daemon.{pid,log,addr}` and begins the listener. |
-| Q2 | the daemon-unreachable fallback for non-lifecycle commands? | **Clear error + hint.** `mycel agent list` with the daemon down exits non-zero with `the daemon is not running — start it with 'mycel up'`. Do not auto-start (surprising side effect) and do not serve from disk read-only (adds a second code path that can drift). |
+| Q2 | Daemon-unreachable fallback for non-lifecycle commands? | **Clear error + hint.** `mycel agent list` with the daemon down exits non-zero with `daemon is not running — start it with 'mycel up'`. Do not auto-start (surprising side effect) and do not serve from disk read-only (adds a second code path that can drift). |
 | Q3 | Does `--json` apply to `--help`? | **Yes.** `mycel agent send --help --json` emits the JSON Schema for the subcommand. Useful for shell completion generators and documentation pipelines. |
 | Q4 | Does `mycel tunnel` (#3000) piggyback on this? | **Yes.** `mycel tunnel` exposes the same `/api/...` surface over the relay. A remote CLI connects by pointing `MYCEL_DAEMON_ADDR` at the relay URL — no new protocol. |
 | Q5 | Keep the React TUI bundle? | **Deprecate after parity.** Keep rendering the dashboard via the current bundle until the Go bubbletea path handles the live view; then drop the Node embed and reclaim ~3 MB from the binary. |
@@ -95,7 +95,7 @@ Guardrail: no phase ships without CI green on `feat/agents-revamp`-style lint an
 ## Non-goals
 
 - **Rewriting the web UI in bubbletea.** Web stays React. Bubbletea is for the terminal.
-- **Porting the daemon to a non-Go language.** `the daemon` stays Go; only the *presentation* layer is under discussion.
+- **Porting the daemon to a non-Go language.** The daemon stays Go; only the *presentation* layer is under discussion.
 - **Generic plugin architecture.** If we need scriptable subcommands later, we add them via `mycel exec <script>` reading from `~/.mycel/plugins/`. Not in scope here.
 
 ## Consequences
@@ -114,6 +114,5 @@ Guardrail: no phase ships without CI green on `feat/agents-revamp`-style lint an
 ## References
 
 - Issue #3002 — CLI architecture discussion
-- Issue #3000 — bc tunnel
+- Issue #3000 — remote tunnel access (proposed, not yet built)
 - PR #3003 — agents revamp (ships #43 daemon.addr, precondition for §1)
-- `docs/proposals/bc-layout-v2.md` — on-disk layout (interacts with settings.json absorption)

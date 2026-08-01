@@ -1,7 +1,7 @@
 # Testing Guide
 
 This guide covers how to run tests, write new tests, and maintain coverage
-in the bc codebase.
+in the mycel codebase.
 
 ## Running Tests
 
