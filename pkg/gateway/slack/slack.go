@@ -6,7 +6,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"hash/fnv"
 	"net/http"
 	"strings"
 	"sync"
@@ -221,30 +220,12 @@ func (a *Adapter) warnIfCustomizeMissing(sender string) {
 	})
 }
 
-// agentIconEmoji returns a stable emoji for an agent, chosen deterministically
-// from its name so the same agent always gets the same icon. This is only a
-// placeholder until real avatars land (see the follow-up note on Send).
-func agentIconEmoji(sender string) string {
-	if sender == "" {
-		return ":robot_face:"
-	}
-	h := fnv.New32a()
-	_, _ = h.Write([]byte(sender))
-	// Modulo by an untyped constant keeps the index in uint32 space (no
-	// int↔uint32 conversion), which also guards against overflow.
-	return agentEmojiPalette[h.Sum32()%agentEmojiPaletteSize]
-}
-
-// agentEmojiPaletteSize must equal len(agentEmojiPalette); a test asserts it.
-const agentEmojiPaletteSize = 16
-
-// agentEmojiPalette is a small set of neutral, visually distinct emoji used to
-// give each agent a consistent icon. Standard Slack emoji names only.
-var agentEmojiPalette = []string{
-	":fox_face:", ":cat:", ":dog:", ":koala:", ":tiger:",
-	":panda_face:", ":owl:", ":frog:", ":hedgehog:", ":otter:",
-	":rabbit:", ":bear:", ":wolf:", ":unicorn_face:", ":dragon_face:",
-	":robot_face:",
+// agentIconEmoji returns the mycel mushroom for every agent so outbound Slack
+// posts read as mycel rather than a random animal. The real per-agent avatar —
+// each agent's mushroom-character image — needs a publicly reachable URL and is
+// deferred to the hosted-avatar follow-up (see the note on Send).
+func agentIconEmoji(string) string {
+	return ":mushroom:"
 }
 
 // SendFile uploads a file to a Slack channel.

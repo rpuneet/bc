@@ -55,22 +55,11 @@ func TestSendAttributesAgentUsername(t *testing.T) {
 	}
 }
 
-func TestAgentIconEmojiDeterministic(t *testing.T) {
-	if a, b := agentIconEmoji("zen-zebra"), agentIconEmoji("zen-zebra"); a != b {
-		t.Errorf("agentIconEmoji not deterministic: %q vs %q", a, b)
-	}
-	// Empty sender falls back to the default icon.
-	if e := agentIconEmoji(""); e != ":robot_face:" {
-		t.Errorf("agentIconEmoji(\"\") = %q, want :robot_face:", e)
-	}
-	if len(agentEmojiPalette) != agentEmojiPaletteSize {
-		t.Fatalf("agentEmojiPaletteSize = %d, want len(palette) = %d",
-			agentEmojiPaletteSize, len(agentEmojiPalette))
-	}
-	// Every palette entry is a well-formed :emoji: token.
-	for _, e := range agentEmojiPalette {
-		if len(e) < 3 || e[0] != ':' || e[len(e)-1] != ':' {
-			t.Errorf("malformed palette emoji %q", e)
+func TestAgentIconEmojiMushroom(t *testing.T) {
+	// Every agent posts under the mycel mushroom, regardless of name.
+	for _, name := range []string{"zen-zebra", "lucid-meerkat", ""} {
+		if got := agentIconEmoji(name); got != ":mushroom:" {
+			t.Errorf("agentIconEmoji(%q) = %q, want :mushroom:", name, got)
 		}
 	}
 }
