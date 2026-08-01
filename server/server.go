@@ -383,6 +383,9 @@ func New(cfg Config, svc Services, hub *ws.Hub, staticFiles fs.FS) *Server {
 	// Tools page. Loopback only; runs vetted install/upgrade commands (from
 	// the table or the tools registry) and streams their output.
 	handlers.NewDepsInstallHandler().SetToolStore(svc.Tools).Register(mux)
+	// Read-only autodetect of host OS + package managers (brew/apt/npm/…)
+	// with versions. Shells out only to each manager's own --version probe.
+	handlers.NewPackageManagersHandler().Register(mux)
 	// Per-repo cost rollup. Handler is nil-safe and returns 503 when the
 	// global ledger isn't wired.
 	mux.Handle("/api/global/costs", handlers.NewGlobalCostsHandler(svc.Costs))

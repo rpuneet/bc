@@ -44,8 +44,8 @@ func (h *DepsInstallHandler) Register(mux *http.ServeMux) {
 }
 
 // depInstallRequest is the POST body: the readiness item / tool id to act on
-// ("git", "tmux", "claude", "gh", …) and the action ("install" or "update";
-// empty means install).
+// ("git", "tmux", "claude", "gh", …) and the action ("install", "update", or
+// "uninstall"; empty means install).
 type depInstallRequest struct {
 	ID   string `json:"id"`
 	Mode string `json:"mode,omitempty"`
@@ -85,8 +85,11 @@ func (h *DepsInstallHandler) install(w http.ResponseWriter, r *http.Request) {
 	cmdLine, ok := h.resolveCommand(r.Context(), req.ID, req.Mode)
 	if !ok {
 		verb := "installer"
-		if req.Mode == "update" {
+		switch req.Mode {
+		case "update":
 			verb = "updater"
+		case "uninstall":
+			verb = "uninstaller"
 		}
 		httpError(w, "no automatic "+verb+" for "+req.ID, http.StatusBadRequest)
 		return
@@ -166,13 +169,17 @@ func streamInstall(ctx context.Context, cmdLine string, emit func(any) bool) {
 //
 //   - update: prefer the registered tool's upgrade_cmd, then its install_cmd,
 //     then the vetted install table.
+//   - uninstall: derive a remove command from the vetted install source
+//     (npm/brew only); core system deps (git/tmux/docker) are never
+//     auto-uninstalled.
 //   - install (default): prefer the vetted install table, then the registered
 //     tool's install_cmd.
 //
 // Every command originates from a vetted source (the table or the persisted
 // tools registry), never from the request body.
 func (h *DepsInstallHandler) resolveCommand(ctx context.Context, id, mode string) (string, bool) {
-	if mode == "update" {
+	switch mode {
+	case "update":
 		if t := h.lookupTool(ctx, id); t != nil {
 			if cmd := strings.TrimSpace(t.UpgradeCmd); cmd != "" {
 				return cmd, true
@@ -181,6 +188,8 @@ func (h *DepsInstallHandler) resolveCommand(ctx context.Context, id, mode string
 				return cmd, true
 			}
 		}
+	case "uninstall":
+		return h.resolveUninstall(ctx, id)
 	}
 	if cmd, ok := installCommand(id, runtime.GOOS); ok {
 		return cmd, true
@@ -189,6 +198,68 @@ func (h *DepsInstallHandler) resolveCommand(ctx context.Context, id, mode string
 		if cmd := strings.TrimSpace(t.InstallCmd); cmd != "" {
 			return cmd, true
 		}
+	}
+	return "", false
+}
+
+// coreSystemDeps are host tools mycel itself relies on. Auto-uninstalling them
+// would break the daemon, so uninstall is refused for these ids.
+var coreSystemDeps = map[string]bool{"git": true, "tmux": true, "docker": true}
+
+// resolveUninstall derives a remove command for id from its vetted install
+// source. Only npm-global and Homebrew installs map cleanly to an uninstall;
+// curl-piped and apt installers return false so the UI shows an honest
+// "no automatic uninstaller" rather than guessing a destructive command.
+func (h *DepsInstallHandler) resolveUninstall(ctx context.Context, id string) (string, bool) {
+	if coreSystemDeps[id] {
+		return "", false
+	}
+	// Registered tool first (gh, aws, wrangler, …), then a provider CLI.
+	if t := h.lookupTool(ctx, id); t != nil {
+		if cmd, ok := deriveUninstall(t.InstallCmd); ok {
+			return cmd, true
+		}
+	}
+	if hint, ok := providerInstallCmd(id); ok {
+		if cmd, ok := deriveUninstall(hint); ok {
+			return cmd, true
+		}
+	}
+	return "", false
+}
+
+// deriveUninstall converts a vetted install command into its uninstall
+// counterpart for the two package managers whose grammar is unambiguous:
+//
+//	npm install -g <pkg>   → npm uninstall -g <pkg>
+//	brew install <pkg>     → brew uninstall <pkg>
+//
+// Anything else (curl | sh, apt-get, pip, …) returns false — we never invent a
+// remove command we can't be sure is safe.
+func deriveUninstall(installCmd string) (string, bool) {
+	cmd := strings.TrimSpace(installCmd)
+	if cmd == "" {
+		return "", false
+	}
+	switch {
+	case strings.HasPrefix(cmd, "npm install -g "):
+		pkg := strings.TrimSpace(strings.TrimPrefix(cmd, "npm install -g "))
+		if pkg == "" {
+			return "", false
+		}
+		return "npm uninstall -g " + pkg, true
+	case strings.HasPrefix(cmd, "npm i -g "):
+		pkg := strings.TrimSpace(strings.TrimPrefix(cmd, "npm i -g "))
+		if pkg == "" {
+			return "", false
+		}
+		return "npm uninstall -g " + pkg, true
+	case strings.HasPrefix(cmd, "brew install "):
+		pkg := strings.TrimSpace(strings.TrimPrefix(cmd, "brew install "))
+		if pkg == "" {
+			return "", false
+		}
+		return "brew uninstall " + pkg, true
 	}
 	return "", false
 }

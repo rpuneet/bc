@@ -24,7 +24,7 @@ export type InstallEvent =
 export async function installDep(
   id: string,
   onEvent: (ev: InstallEvent) => void,
-  opts?: { signal?: AbortSignal; mode?: "install" | "update" },
+  opts?: { signal?: AbortSignal; mode?: "install" | "update" | "uninstall" },
 ): Promise<number> {
   const res = await fetch("/api/deps/install", {
     method: "POST",

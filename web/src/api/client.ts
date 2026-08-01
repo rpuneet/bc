@@ -478,6 +478,22 @@ export interface Tool {
   upgrade_cmd?: string;
 }
 
+/** One detected host package manager. */
+export interface PackageManager {
+  id: string;
+  name: string;
+  version: string;
+  available: boolean;
+  /** true = this manager exposes a registry search the UI could drive. */
+  searchable: boolean;
+}
+
+export interface PackageManagersResponse {
+  os: string;
+  arch: string;
+  managers: PackageManager[];
+}
+
 /** A provider model with live availability status. */
 export interface ModelInfo {
   id: string;
@@ -1271,6 +1287,9 @@ export const api = {
   getHealth: () => request<HealthReport>("/health"),
 
   getSystemInfo: () => request<{ hostname: string; os: string; arch: string }>("/system/info"),
+  /** Autodetected host package managers (brew/apt/npm/…) with versions. */
+  getPackageManagers: () =>
+    request<PackageManagersResponse>("/system/package-managers"),
   getSettings: () => request<SettingsConfig>("/settings"),
   updateSettings: (patch: Record<string, unknown>) =>
     request<SettingsConfig>("/settings", {

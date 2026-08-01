@@ -214,6 +214,7 @@ func TestIsSSERequest(t *testing.T) {
 		{"mcp message", "/_mcp/message", "", true},
 		{"agent output", "/api/agents/alice/output", "", true},
 		{"accept event-stream", "/api/anything", "text/event-stream", true},
+		{"deps install stream", "/api/deps/install", "", true},
 		{"normal API", "/api/agents", "", false},
 		{"health", "/health", "", false},
 		{"agent non-output", "/api/agents/alice/stats", "", false},

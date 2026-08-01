@@ -9,6 +9,7 @@ import { LoadingSkeleton } from "../components/LoadingSkeleton";
 import { EmptyState } from "../components/EmptyState";
 import { ProvidersTable } from "../components/ProvidersTable";
 import { ProviderDefaults } from "../components/ProviderDefaults";
+import { PackageManagers } from "../components/PackageManagers";
 import { CopyButton } from "../components/CopyButton";
 import { ToastContainer, useToast } from "../components/Toast";
 import type { ToastLevel } from "../components/Toast";
@@ -45,29 +46,47 @@ function ChevronIcon({ expanded }: { expanded: boolean }) {
   );
 }
 
-/* ── In-surface install / update ──────────────────────────────────────
+/* ── In-surface streamed command ──────────────────────────────────────
  *
- * Streams a CLI tool's install (or update) command over POST /api/deps/install
- * — the same loopback-guarded NDJSON stream the setup wizard uses — into a
- * live console with an honest running → success/error progression. The stream
- * carries no percentage, so progress is an indeterminate bar while running and
- * a resolved (green/red) bar on completion; the line count is the concrete
- * "how far along" signal. */
+ * Streams a CLI tool's install / update / uninstall command over POST
+ * /api/deps/install — the same loopback-guarded NDJSON stream the setup
+ * wizard uses — into a live console with an honest running → success/error
+ * progression. The stream carries no percentage, so progress is an
+ * indeterminate bar while running and a resolved (green/red) bar on
+ * completion; the line count is the concrete "how far along" signal. */
 type RunState = "idle" | "running" | "ok" | "error";
+type RunMode = "install" | "update" | "uninstall";
 
-function CLIInstallAction({ tool, onDone }: { tool: Tool; onDone: () => void }) {
+const RUN_VERBS: Record<RunMode, { idle: string; gerund: string; done: string }> = {
+  install: { idle: "Install", gerund: "Installing", done: "Installed" },
+  update: { idle: "Update", gerund: "Updating", done: "Updated" },
+  uninstall: { idle: "Uninstall", gerund: "Uninstalling", done: "Uninstalled" },
+};
+
+/* A single streamed action button + live console. Reused for install,
+ * update, and uninstall so all three share one honest state machine. */
+function StreamedAction({
+  toolName,
+  mode,
+  canRun,
+  disabledHint,
+  destructive = false,
+  onDone,
+}: {
+  toolName: string;
+  mode: RunMode;
+  canRun: boolean;
+  disabledHint: string;
+  destructive?: boolean;
+  onDone: () => void;
+}) {
   const reduceMotion = useReducedMotion();
   const [state, setState] = useState<RunState>("idle");
   const [lines, setLines] = useState<string[]>([]);
   const [err, setErr] = useState<string | null>(null);
   const consoleRef = useRef<HTMLDivElement>(null);
   const runningRef = useRef(false);
-
-  const isInstalled = tool.status !== "not_installed";
-  const mode: "install" | "update" = isInstalled ? "update" : "install";
-  const canRun = mode === "install"
-    ? Boolean(tool.install_cmd)
-    : Boolean(tool.upgrade_cmd || tool.install_cmd);
+  const verbs = RUN_VERBS[mode];
 
   useEffect(() => {
     const el = consoleRef.current;
@@ -84,7 +103,7 @@ function CLIInstallAction({ tool, onDone }: { tool: Tool; onDone: () => void }) 
     runningRef.current = true;
     try {
       const code = await installDep(
-        tool.name,
+        toolName,
         (ev) => {
           if (!runningRef.current) return;
           if (ev.type === "start") setLines((l) => [...l, `$ ${ev.command}`]);
@@ -98,7 +117,7 @@ function CLIInstallAction({ tool, onDone }: { tool: Tool; onDone: () => void }) 
         onDone();
       } else {
         setState("error");
-        setErr(`${mode === "update" ? "Update" : "Install"} exited with code ${code}.`);
+        setErr(`${verbs.idle} exited with code ${code}.`);
       }
     } catch (e) {
       if (!runningRef.current) return;
@@ -109,27 +128,24 @@ function CLIInstallAction({ tool, onDone }: { tool: Tool; onDone: () => void }) 
     }
   };
 
-  const label = mode === "update" ? "Update" : "Install";
-  const barTone = state === "ok" ? "bg-mycel-success" : state === "error" ? "bg-mycel-error" : "bg-mycel-accent";
+  const barTone = state === "ok" ? "bg-mycel-success" : state === "error" ? "bg-mycel-error" : destructive ? "bg-mycel-error" : "bg-mycel-accent";
+  const btnCls = destructive
+    ? "inline-flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-1 rounded-md border border-mycel-error text-mycel-error hover:bg-mycel-error hover:text-white transition-colors disabled:opacity-60 focus-visible:ring-2 focus-visible:ring-mycel-error"
+    : "inline-flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-1 rounded-md border border-mycel-accent bg-mycel-accent-subtle text-mycel-accent hover:bg-mycel-accent hover:text-mycel-accent-fg transition-colors disabled:opacity-60 focus-visible:ring-2 focus-visible:ring-mycel-accent";
 
   return (
     <div className="space-y-2">
       <div className="flex items-center gap-2 flex-wrap">
         {canRun ? (
-          <button
-            type="button"
-            onClick={() => void run()}
-            disabled={state === "running"}
-            className="inline-flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-1 rounded-md border border-mycel-accent bg-mycel-accent-subtle text-mycel-accent hover:bg-mycel-accent hover:text-mycel-accent-fg transition-colors disabled:opacity-60 focus-visible:ring-2 focus-visible:ring-mycel-accent"
-          >
+          <button type="button" onClick={() => void run()} disabled={state === "running"} className={btnCls}>
             {state === "running" && <Spinner />}
             {state === "running"
-              ? `${label === "Update" ? "Updating" : "Installing"}…`
+              ? `${verbs.gerund}…`
               : state === "ok"
-                ? `${label} again`
+                ? `${verbs.idle} again`
                 : state === "error"
-                  ? `Retry ${label.toLowerCase()}`
-                  : label}
+                  ? `Retry ${verbs.idle.toLowerCase()}`
+                  : verbs.idle}
           </button>
         ) : (
           <span className="inline-flex items-center gap-1.5 text-[11px] text-mycel-muted">
@@ -137,7 +153,7 @@ function CLIInstallAction({ tool, onDone }: { tool: Tool; onDone: () => void }) 
               <circle cx="7" cy="7" r="5.5" />
               <path d="M7 4.5v.01M6 6.5h1v3h1" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
-            No automatic {mode === "update" ? "updater" : "installer"} — copy the command above to run it yourself.
+            {disabledHint}
           </span>
         )}
         {state === "ok" && (
@@ -145,7 +161,7 @@ function CLIInstallAction({ tool, onDone }: { tool: Tool; onDone: () => void }) 
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
               <path d="M20 6L9 17l-5-5" />
             </svg>
-            {mode === "update" ? "Updated" : "Installed"}. Re-checking…
+            {verbs.done}. Re-checking…
           </span>
         )}
         {state === "error" && err && (
@@ -162,11 +178,9 @@ function CLIInstallAction({ tool, onDone }: { tool: Tool; onDone: () => void }) 
         <div className="space-y-1.5">
           {/* Progress: indeterminate while running (honest — the stream has no
               percent), resolved to a full green/red bar on completion. */}
-          <div className="h-1 rounded-full bg-mycel-border overflow-hidden" role="progressbar" aria-label={`${label} progress`} aria-busy={state === "running"}>
+          <div className="h-1 rounded-full bg-mycel-border overflow-hidden" role="progressbar" aria-label={`${verbs.idle} progress`} aria-busy={state === "running"}>
             {state === "running" ? (
-              <div
-                className={`h-full w-1/3 rounded-full ${barTone} ${reduceMotion ? "" : "animate-indeterminate"}`}
-              />
+              <div className={`h-full w-1/3 rounded-full ${barTone} ${reduceMotion ? "" : "animate-indeterminate"}`} />
             ) : (
               <div className={`h-full w-full rounded-full ${barTone}`} />
             )}
@@ -185,9 +199,44 @@ function CLIInstallAction({ tool, onDone }: { tool: Tool; onDone: () => void }) 
             </div>
           )}
           <div className="text-[10.5px] text-mycel-muted tabular-nums">
-            {state === "running" ? `${lines.length} line${lines.length === 1 ? "" : "s"}…` : `${lines.length} line${lines.length === 1 ? "" : "s"}`}
+            {`${lines.length} line${lines.length === 1 ? "" : "s"}${state === "running" ? "…" : ""}`}
           </div>
         </div>
+      )}
+    </div>
+  );
+}
+
+/* Install-or-update for a CLI tool, plus an uninstall path for installed,
+ * non-required tools. Mode is chosen from the tool's current status. */
+function CLIInstallAction({ tool, onDone }: { tool: Tool; onDone: () => void }) {
+  const isInstalled = tool.status !== "not_installed";
+  const mode: RunMode = isInstalled ? "update" : "install";
+  const canRun = mode === "install"
+    ? Boolean(tool.install_cmd)
+    : Boolean(tool.upgrade_cmd || tool.install_cmd);
+
+  return (
+    <div className="space-y-2">
+      <StreamedAction
+        toolName={tool.name}
+        mode={mode}
+        canRun={canRun}
+        disabledHint={`No automatic ${mode === "update" ? "updater" : "installer"} — copy the command above to run it yourself.`}
+        onDone={onDone}
+      />
+      {/* Uninstall the binary — distinct from "Remove" (which only forgets the
+          registry entry). Offered only for installed, non-required tools; the
+          backend refuses core system deps and returns an honest error. */}
+      {isInstalled && !tool.required && (
+        <StreamedAction
+          toolName={tool.name}
+          mode="uninstall"
+          canRun
+          disabledHint=""
+          destructive
+          onDone={onDone}
+        />
       )}
     </div>
   );
@@ -626,6 +675,12 @@ export function Tools() {
             {filteredCli.length}{searchLower ? `/${cliTools.length}` : ""}
           </span>
           <span className="flex-1 h-px bg-mycel-border self-center" aria-hidden />
+        </div>
+        {/* Detected host package managers — the honest picture of what
+            install/update/uninstall commands can actually use. */}
+        <div className="mb-3">
+          <p className="text-[10.5px] text-mycel-muted uppercase tracking-[0.08em] mb-1.5">Detected package managers</p>
+          <PackageManagers />
         </div>
         {filteredCli.length === 0 ? (
           searchLower ? (
