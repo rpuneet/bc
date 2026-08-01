@@ -85,6 +85,9 @@ describe("AppsActivity", () => {
     // Telegram sender prefix is cleaned.
     expect(screen.getByText("Bob")).toBeInTheDocument();
 
+    // The page is titled "Notifications" in the header slot.
+    expect(screen.getByText("Notifications")).toBeInTheDocument();
+
     // Controls live in the shared header slot.
     expect(screen.getByLabelText("Search messages")).toBeInTheDocument();
     expect(screen.getByLabelText("Filter by app")).toBeInTheDocument();

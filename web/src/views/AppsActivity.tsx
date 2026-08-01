@@ -1,6 +1,6 @@
 /**
  * AppsActivity — the full-page view behind the Apps home's
- * "Recent activity" rail (#3310 follow-up). It shows a richer, deeper
+ * "Notifications" column (#3310 follow-up). It shows a richer, deeper
  * feed of the newest messages across every gateway channel with more
  * controls than the inline preview:
  *
@@ -138,7 +138,7 @@ export function AppsActivity() {
             <polyline points="15 18 9 12 15 6" />
           </svg>
         </button>
-        <span className="truncate text-[13px] font-semibold text-mycel-text">Activity</span>
+        <span className="truncate text-[13px] font-semibold text-mycel-text">Notifications</span>
         <span className="shrink-0 text-xs text-mycel-muted tabular-nums">
           {hasFilters ? `${String(filtered.length)} of ${String(messages.length)}` : `${String(messages.length)} message${messages.length === 1 ? "" : "s"}`}
         </span>
