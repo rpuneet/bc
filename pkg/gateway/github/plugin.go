@@ -31,14 +31,19 @@ func (*plugin) Describe() app.Descriptor {
 		Multi: true,
 		Fields: []app.FieldSpec{
 			{Key: "secret", Label: "Webhook Secret", Placeholder: "your-webhook-secret", Secret: true},
-			{Key: "oauth_client_id", Label: "OAuth Client ID", Placeholder: "Ov23li... (from your GitHub OAuth app)"},
+			{
+				Key:         "oauth_client_id",
+				Label:       "OAuth Client ID (advanced)",
+				Placeholder: "Ov23li... (leave blank to use mycel's built-in sign-in)",
+			},
 			{Key: "api_token", Label: "API Token", Placeholder: "ghp_... (or use Sign in with GitHub)", Secret: true},
 		},
 		Docs: []string{
 			"Create a webhook → your repo → Settings → Webhooks.",
 			"Set the payload URL to your mycel server's /hooks/github endpoint.",
 			"Set the secret here to match the webhook secret.",
-			"Optional API access: sign in with GitHub (device flow) to mint an api_token for outbound calls (comments, statuses). Any GitHub OAuth app's client ID works — create one at https://github.com/settings/applications/new; the device flow needs no client secret and no redirect URL.",
+			"Sign in with GitHub works out of the box — no setup needed — using mycel's built-in OAuth app to mint an api_token for outbound calls (comments, statuses).",
+			"Optional: paste your own GitHub OAuth app's client ID (advanced — for your own org, or higher rate limits). Create one at https://github.com/settings/applications/new; the device flow needs no client secret and no redirect URL. Leave blank to use mycel's built-in sign-in.",
 		},
 	}
 }
