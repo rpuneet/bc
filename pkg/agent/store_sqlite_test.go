@@ -5,7 +5,58 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/rpuneet/mycel/pkg/db"
 )
+
+// TestEnsureAgentColumns_Migration guards the regression where an existing
+// mycel.db (created before the cpus/memory_mb columns) would break every agent
+// SELECT — CREATE TABLE IF NOT EXISTS is a no-op on an existing table, so the
+// new columns must be added via ALTER.
+func TestEnsureAgentColumns_Migration(t *testing.T) {
+	ctx := context.Background()
+	d, err := db.Open(filepath.Join(t.TempDir(), "old.db"))
+	if err != nil {
+		t.Fatalf("db.Open: %v", err)
+	}
+	// A pre-resource-limits agents table: no cpus/memory_mb.
+	if _, err := d.ExecContext(ctx, `CREATE TABLE agents (
+		name TEXT PRIMARY KEY, role TEXT NOT NULL DEFAULT '',
+		started_at TEXT NOT NULL DEFAULT '', updated_at TEXT NOT NULL DEFAULT '')`); err != nil {
+		t.Fatalf("create legacy table: %v", err)
+	}
+	if err := ensureAgentColumns(ctx, d); err != nil {
+		t.Fatalf("ensureAgentColumns: %v", err)
+	}
+	cols := agentTableColumns(ctx, t, d)
+	if !cols["cpus"] || !cols["memory_mb"] {
+		t.Fatalf("migration did not add columns: %v", cols)
+	}
+	// Idempotent: a second run against the now-migrated table must not error.
+	if err := ensureAgentColumns(ctx, d); err != nil {
+		t.Fatalf("ensureAgentColumns not idempotent: %v", err)
+	}
+}
+
+func agentTableColumns(ctx context.Context, t *testing.T, d *db.DB) map[string]bool {
+	t.Helper()
+	rows, err := d.QueryContext(ctx, `PRAGMA table_info(agents)`)
+	if err != nil {
+		t.Fatalf("PRAGMA table_info: %v", err)
+	}
+	defer func() { _ = rows.Close() }()
+	cols := map[string]bool{}
+	for rows.Next() {
+		var cid, notnull, pk int
+		var name, ctype string
+		var dflt any
+		if err := rows.Scan(&cid, &name, &ctype, &notnull, &dflt, &pk); err != nil {
+			t.Fatalf("scan column: %v", err)
+		}
+		cols[name] = true
+	}
+	return cols
+}
 
 func TestSQLiteStore_SaveLoadDelete(t *testing.T) {
 	dir := t.TempDir()

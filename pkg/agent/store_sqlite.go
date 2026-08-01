@@ -86,6 +86,15 @@ func createAgentsTable(d *db.DB) error {
 		return fmt.Errorf("create agents table: %w", err)
 	}
 
+	// Pre-resource-limits DBs (created before cpus/memory_mb existed) keep
+	// their old columns — CREATE TABLE IF NOT EXISTS is a no-op on an existing
+	// table. Add any missing columns idempotently so agent reads don't break
+	// on upgrade (otherwise every SELECT referencing cpus/memory_mb errors and
+	// the whole fleet vanishes from the API).
+	if err := ensureAgentColumns(ctx, d); err != nil {
+		return err
+	}
+
 	// agent_stats: time-series Docker resource samples.
 	statsSchema := `
 		CREATE TABLE IF NOT EXISTS agent_stats (
@@ -107,6 +116,43 @@ func createAgentsTable(d *db.DB) error {
 		return fmt.Errorf("create agent_stats table: %w", err)
 	}
 
+	return nil
+}
+
+// ensureAgentColumns adds columns introduced after the original schema to a
+// pre-existing agents table. SQLite has no ADD COLUMN IF NOT EXISTS, so we
+// inspect the current columns via PRAGMA and ALTER only the missing ones.
+func ensureAgentColumns(ctx context.Context, d *db.DB) error {
+	rows, err := d.QueryContext(ctx, `PRAGMA table_info(agents)`)
+	if err != nil {
+		return fmt.Errorf("inspect agents columns: %w", err)
+	}
+	have := map[string]bool{}
+	for rows.Next() {
+		var cid, notnull, pk int
+		var name, ctype string
+		var dflt sql.NullString
+		if err := rows.Scan(&cid, &name, &ctype, &notnull, &dflt, &pk); err != nil {
+			_ = rows.Close()
+			return fmt.Errorf("scan agents column: %w", err)
+		}
+		have[name] = true
+	}
+	_ = rows.Close()
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("iterate agents columns: %w", err)
+	}
+	for _, add := range []struct{ col, ddl string }{
+		{"cpus", "ALTER TABLE agents ADD COLUMN cpus REAL NOT NULL DEFAULT 0"},
+		{"memory_mb", "ALTER TABLE agents ADD COLUMN memory_mb INTEGER NOT NULL DEFAULT 0"},
+	} {
+		if have[add.col] {
+			continue
+		}
+		if _, err := d.ExecContext(ctx, add.ddl); err != nil {
+			return fmt.Errorf("add agents.%s column: %w", add.col, err)
+		}
+	}
 	return nil
 }
 
