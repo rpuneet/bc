@@ -88,11 +88,47 @@ func deviceOK() map[string]any {
 	}
 }
 
-func TestBeginAuthRequiresClientID(t *testing.T) {
-	f := newDeviceFlow()
+func TestBeginAuthDefaultsClientIDWhenUnset(t *testing.T) {
+	stub := &stubGitHub{t: t, deviceResponse: deviceOK()}
+	_, f := stub.start()
+
+	// No oauth_client_id in the instance config: BeginAuth must fall back
+	// to mycel's built-in client ID rather than erroring — this is what
+	// gives users "Sign in with GitHub" with zero setup.
 	_, err := f.BeginAuth(context.Background(), app.Instance{App: "github", Name: "github"})
-	if err == nil || !strings.Contains(err.Error(), "oauth_client_id") {
-		t.Fatalf("err = %v, want oauth_client_id guidance", err)
+	if err != nil {
+		t.Fatalf("BeginAuth: %v, want no error (should default to DefaultOAuthClientID)", err)
+	}
+
+	f.mu.Lock()
+	var gotClientID string
+	for _, s := range f.sessions {
+		gotClientID = s.clientID
+	}
+	f.mu.Unlock()
+	if gotClientID != DefaultOAuthClientID {
+		t.Errorf("session clientID = %q, want %q", gotClientID, DefaultOAuthClientID)
+	}
+}
+
+func TestBeginAuthOverridesDefaultClientID(t *testing.T) {
+	stub := &stubGitHub{t: t, deviceResponse: deviceOK()}
+	_, f := stub.start()
+
+	sess, err := f.BeginAuth(context.Background(), testInstance())
+	if err != nil {
+		t.Fatalf("BeginAuth: %v", err)
+	}
+
+	f.mu.Lock()
+	gotClientID := f.sessions[sess.ID].clientID
+	f.mu.Unlock()
+	const pastedClientID = "Ov23liTESTID"
+	if gotClientID != pastedClientID {
+		t.Errorf("session clientID = %q, want pasted %q (override the default)", gotClientID, pastedClientID)
+	}
+	if gotClientID == DefaultOAuthClientID {
+		t.Error("pasted client ID was overridden by the default — override should win")
 	}
 }
 

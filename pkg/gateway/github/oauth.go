@@ -27,6 +27,13 @@ const (
 	deviceScope = "repo"
 	// pollTimeout bounds a single upstream poll request.
 	pollTimeout = 15 * time.Second
+	// DefaultOAuthClientID is mycel's own registered GitHub OAuth App
+	// (device flow enabled). Device-flow client IDs are public — like the
+	// gh CLI's own client ID, there is no secret to protect — so shipping
+	// it here gives every user one-click "Sign in with GitHub" with zero
+	// setup. Users may still override it with their own OAuth app's
+	// client ID (advanced: their own org, higher rate limits).
+	DefaultOAuthClientID = "Ov23liP7jwMEwOZtM2b5"
 )
 
 // deviceFlow implements app.OAuthFlow via the GitHub device flow.
@@ -63,8 +70,9 @@ func newDeviceFlow() *deviceFlow {
 func (f *deviceFlow) BeginAuth(ctx context.Context, inst app.Instance) (app.AuthSession, error) {
 	clientID := strings.TrimSpace(inst.Config["oauth_client_id"])
 	if clientID == "" {
-		return app.AuthSession{}, fmt.Errorf(
-			"github: oauth_client_id is not set — create a GitHub OAuth app (github.com/settings/applications/new) and paste its client ID; the device flow needs no client secret")
+		// No override pasted: fall back to mycel's own public OAuth app so
+		// sign-in works out of the box.
+		clientID = DefaultOAuthClientID
 	}
 
 	form := url.Values{"client_id": {clientID}, "scope": {deviceScope}}
