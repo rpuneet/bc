@@ -478,6 +478,32 @@ func (s *Store) Update(ctx context.Context, t *Tool) error {
 	return nil
 }
 
+// UpdateHealth persists a fresh health_status + last_checked timestamp for
+// a tool without touching its other mutable fields. Used by the manual
+// /api/tools/check force-refresh and the background auto-check loop, so
+// GET /api/tools always serves recently-verified status instead of the
+// seed-time default.
+func (s *Store) UpdateHealth(ctx context.Context, name, status, lastChecked string) error {
+	if s.pg != nil {
+		return s.pg.UpdateHealth(ctx, name, status, lastChecked)
+	}
+	res, err := s.db.ExecContext(ctx,
+		`UPDATE tools SET health_status=?, last_checked=? WHERE name=?`,
+		status, lastChecked, name,
+	)
+	if err != nil {
+		return err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return fmt.Errorf("tool %q not found", name)
+	}
+	return nil
+}
+
 // Delete removes a tool by name.
 func (s *Store) Delete(ctx context.Context, name string) error {
 	if s.pg != nil {

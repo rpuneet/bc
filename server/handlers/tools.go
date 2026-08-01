@@ -3,7 +3,6 @@ package handlers
 import (
 	"encoding/json"
 	"net/http"
-	"os/exec"
 	"strings"
 
 	"github.com/rpuneet/mycel/pkg/tool"
@@ -76,53 +75,21 @@ func (h *ToolHandler) list(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// checkAll runs health checks on all tools.
+// checkAll is the manual force-refresh: it runs a fresh health check on
+// every tool right now and persists the result via store.CheckAll,
+// independent of the background auto-check loop's own schedule (see
+// runToolHealthLoop in server/build_services.go).
 func (h *ToolHandler) checkAll(w http.ResponseWriter, r *http.Request) {
-	store := h.store
 	if !requireMethod(w, r, http.MethodPost) {
 		return
 	}
-	tools, err := store.List(r.Context())
+	results, err := h.store.CheckAll(r.Context())
 	if err != nil {
-		httpInternalError(w, "list tools", err)
+		httpInternalError(w, "check tools", err)
 		return
 	}
-
-	type checkResult struct {
-		Name   string `json:"name"`
-		Type   string `json:"type"`
-		Status string `json:"status"`
-		Error  string `json:"error,omitempty"`
-	}
-	var results []checkResult
-	for _, t := range tools {
-		r := checkResult{Name: t.Name, Type: t.Type, Status: "ok"}
-		switch t.Type {
-		case tool.ToolTypeMCP:
-			if t.Transport == "stdio" && t.Command != "" {
-				cmd := strings.Fields(t.Command)[0]
-				if _, err := exec.LookPath(cmd); err != nil {
-					r.Status = "error"
-					r.Error = "command not found: " + cmd
-				}
-			}
-		case tool.ToolTypeCLI:
-			if _, err := exec.LookPath(t.Command); err != nil {
-				r.Status = "not_installed"
-				r.Error = "not found in PATH"
-			} else {
-				r.Status = "installed"
-			}
-		case tool.ToolTypeProvider:
-			cmd := strings.Fields(t.Command)[0]
-			if _, err := exec.LookPath(cmd); err != nil {
-				r.Status = "not_installed"
-				r.Error = "not found in PATH"
-			} else {
-				r.Status = "installed"
-			}
-		}
-		results = append(results, r)
+	if results == nil {
+		results = []tool.HealthResult{}
 	}
 	writeJSON(w, http.StatusOK, results)
 }

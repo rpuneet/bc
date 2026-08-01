@@ -50,6 +50,8 @@ func (p *PostgresStore) InitSchema() error {
 		`ALTER TABLE tools ADD COLUMN IF NOT EXISTS version_cmd TEXT`,
 		`ALTER TABLE tools ADD COLUMN IF NOT EXISTS transport TEXT`,
 		`ALTER TABLE tools ADD COLUMN IF NOT EXISTS url TEXT`,
+		`ALTER TABLE tools ADD COLUMN IF NOT EXISTS health_status TEXT DEFAULT 'unknown'`,
+		`ALTER TABLE tools ADD COLUMN IF NOT EXISTS last_checked TEXT`,
 	}
 	for _, m := range migrations {
 		if _, err := p.db.ExecContext(ctx, m); err != nil {
@@ -129,11 +131,14 @@ func (p *PostgresStore) Add(ctx context.Context, t *Tool) error {
 	return p.add(ctx, t)
 }
 
+// pgToolColumns is the shared column list for Get/List so both stay in sync
+// with pgScanToolFrom's Scan order.
+const pgToolColumns = `name, type, command, install_cmd, upgrade_cmd, version_cmd, transport, url, slash_cmds, mcp_servers, config, health_status, last_checked, builtin, enabled, created_at`
+
 // Get returns a tool by name. Returns nil, nil if not found.
 func (p *PostgresStore) Get(ctx context.Context, name string) (*Tool, error) {
 	row := p.db.QueryRowContext(ctx,
-		`SELECT name, type, command, install_cmd, upgrade_cmd, version_cmd, transport, url, slash_cmds, mcp_servers, config, builtin, enabled, created_at
-		 FROM tools WHERE name = $1`, name)
+		`SELECT `+pgToolColumns+` FROM tools WHERE name = $1`, name)
 	return pgScanToolFrom(row)
 }
 
@@ -146,12 +151,14 @@ type pgToolScanner interface {
 func pgScanToolFrom(sc pgToolScanner) (*Tool, error) {
 	var t Tool
 	var toolType, installCmd, upgradeCmd, versionCmd, transport, url, slashCmds, mcpServers, config sql.NullString
+	var healthStatus, lastChecked sql.NullString
 	var createdAt time.Time
 	if err := sc.Scan(
 		&t.Name, &toolType, &t.Command,
 		&installCmd, &upgradeCmd, &versionCmd,
 		&transport, &url,
 		&slashCmds, &mcpServers, &config,
+		&healthStatus, &lastChecked,
 		&t.Builtin, &t.Enabled, &createdAt,
 	); err != nil {
 		if err == sql.ErrNoRows {
@@ -169,14 +176,15 @@ func pgScanToolFrom(sc pgToolScanner) (*Tool, error) {
 	t.SlashCmds = unmarshalStrings(slashCmds.String)
 	t.MCPServers = unmarshalStrings(mcpServers.String)
 	t.Config = unmarshalMap(config.String)
+	t.HealthStatus = healthStatus.String
+	t.LastChecked = lastChecked.String
 	return &t, nil
 }
 
 // List returns all tools.
 func (p *PostgresStore) List(ctx context.Context) ([]*Tool, error) {
 	rows, err := p.db.QueryContext(ctx,
-		`SELECT name, type, command, install_cmd, upgrade_cmd, version_cmd, transport, url, slash_cmds, mcp_servers, config, builtin, enabled, created_at
-		 FROM tools ORDER BY builtin DESC, name ASC`)
+		`SELECT `+pgToolColumns+` FROM tools ORDER BY builtin DESC, name ASC`)
 	if err != nil {
 		return nil, err
 	}
@@ -229,6 +237,26 @@ func (p *PostgresStore) Update(ctx context.Context, t *Tool) error {
 	}
 	if n == 0 {
 		return fmt.Errorf("tool %q not found", t.Name)
+	}
+	return nil
+}
+
+// UpdateHealth persists a fresh health_status + last_checked timestamp for
+// a tool without touching its other mutable fields.
+func (p *PostgresStore) UpdateHealth(ctx context.Context, name, status, lastChecked string) error {
+	res, err := p.db.ExecContext(ctx,
+		`UPDATE tools SET health_status=$1, last_checked=$2 WHERE name=$3`,
+		status, lastChecked, name,
+	)
+	if err != nil {
+		return err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return fmt.Errorf("tool %q not found", name)
 	}
 	return nil
 }

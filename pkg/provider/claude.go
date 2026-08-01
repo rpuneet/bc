@@ -111,6 +111,7 @@ func (p *ClaudeProvider) Commands() []Command {
 		{Name: "config set", Command: "claude config set <key> <value>", Description: "Set config value", Args: "<key> <value>"},
 		{Name: "config list", Command: "claude config list", Description: "List config values"},
 		{Name: "version", Command: "claude --version", Description: "Show version"},
+		{Name: "help", Command: "claude --help", Description: "Show CLI help"},
 		{Name: "resume", Command: "claude --resume <id>", Description: "Resume session", Args: "<session-id>", Interactive: true},
 	}
 }

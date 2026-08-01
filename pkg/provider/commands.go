@@ -29,6 +29,7 @@ func (p *CodexProvider) Commands() []Command {
 		{Name: "mcp list", Command: "codex mcp list", Description: "List configured MCP servers"},
 		{Name: "mcp add", Command: "codex mcp add <name> -- <command>", Description: "Add an MCP server", Args: "<name> -- <command>"},
 		{Name: "version", Command: "codex --version", Description: "Show version"},
+		{Name: "help", Command: "codex --help", Description: "Show CLI help"},
 	}
 }
 
@@ -43,6 +44,7 @@ func (p *PiProvider) Commands() []Command {
 		{Name: "resume", Command: "pi --resume", Description: "Pick a session to resume", Interactive: true},
 		{Name: "session", Command: "pi --session <id>", Description: "Resume a specific session", Args: "<session-id>"},
 		{Name: "version", Command: "pi --version", Description: "Show version"},
+		{Name: "help", Command: "pi --help", Description: "Show CLI help"},
 	}
 }
 
@@ -55,6 +57,7 @@ func (p *AgyProvider) Commands() []Command {
 		{Name: "continue", Command: "agy --continue", Description: "Continue the previous conversation", Interactive: true},
 		{Name: "conversation", Command: "agy --conversation <uuid>", Description: "Resume a specific conversation", Args: "<uuid>"},
 		{Name: "version", Command: "agy --version", Description: "Show version"},
+		{Name: "help", Command: "agy --help", Description: "Show CLI help"},
 	}
 }
 
@@ -68,6 +71,7 @@ func (p *CursorProvider) Commands() []Command {
 		{Name: "model", Command: "cursor-agent --model <model>", Description: "Run with a specific model", Args: "<model>"},
 		{Name: "resume", Command: "cursor-agent --resume <id>", Description: "Resume a session", Args: "<session-id>"},
 		{Name: "version", Command: "cursor-agent --version", Description: "Show version"},
+		{Name: "help", Command: "cursor-agent --help", Description: "Show CLI help"},
 	}
 }
 

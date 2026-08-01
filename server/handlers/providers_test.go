@@ -244,8 +244,8 @@ func TestProvidersCommandsCurated(t *testing.T) {
 		t.Fatalf("decode: %v", err)
 	}
 	// Claude implements CommandLister; the curated list must come through.
-	if len(cmds) != 7 {
-		t.Fatalf("want 7 curated commands, got %d: %v", len(cmds), cmds)
+	if len(cmds) != 8 {
+		t.Fatalf("want 8 curated commands, got %d: %v", len(cmds), cmds)
 	}
 	if cmds[0].Name != "mcp add" {
 		t.Errorf("first command = %q, want %q", cmds[0].Name, "mcp add")
