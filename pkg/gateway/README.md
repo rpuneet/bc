@@ -54,10 +54,10 @@ dispatch path. They are not part of the `NotificationAdapter` contract.
 Most adapters (WhatsApp, Matrix, IRC, Signal, etc.) deliberately have
 no `Send` method — that is correct, not a missing feature.
 
-See [docs/architecture-notifications.md](../../docs/architecture-notifications.md#gateway-adapters-are-inbound-only)
+See [docs/explanation/notifications.md](../../docs/explanation/notifications.md#gateway-adapters-are-inbound-only)
 for the full rationale, message flow diagrams, credential injection,
 and how to add new adapters.
 
 ## Architecture
 
-See [docs/architecture-notifications.md](../../docs/architecture-notifications.md) for the full notification architecture, including message flow diagrams, credential injection, and how to add new adapters.
+See [docs/explanation/notifications.md](../../docs/explanation/notifications.md) for the full notification architecture, including message flow diagrams, credential injection, and how to add new adapters.

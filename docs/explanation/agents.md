@@ -34,6 +34,39 @@ stateDiagram-v2
 | stopped | Session terminated |
 | error | Failed to start or unrecoverable |
 
+## Lifecycle Internals
+
+`pkg/agent.Manager` splits agent creation from starting it, so callers can
+persist an agent record without paying for a runtime session:
+
+- **`createAgent`** — validates name/role/repo, inserts the DB row, runs
+  `git worktree add --detach`, writes role files (CLAUDE.md, `.mcp.json`).
+  Returns the agent in `stopped` state; no session is started.
+- **`startAgent`** — builds the provider command, creates the tmux/Docker
+  session, and starts log streaming. Transitions `stopped` -> `starting` ->
+  `idle`.
+- **`SpawnAgentWithOptions`** calls `createAgent` then `startAgent` — the
+  common case of "create and run immediately".
+
+Concurrency uses a lock per agent (`Manager.agentLocks`) plus a `sync.RWMutex`
+that guards only the in-memory maps (`Manager.mu`). Map reads/writes
+(`ListAgents`, `GetAgent`, registering/removing an agent) take the map lock
+briefly; slow I/O (Docker/tmux calls, `git worktree` operations) runs under
+the per-agent lock so one agent's slow session start or teardown never blocks
+operations on other agents.
+
+**Delete** (`DeleteAgentWithOptions`) is comprehensive: it kills the runtime
+session, removes the Docker container (if any), removes the git worktree,
+deletes the log file and the agent's entire entity directory
+(`~/.mycel/agents/<name>/`), orphans any child agents (`ParentID = ""`), and
+soft-deletes then hard-deletes the DB row. Partial failures are logged, not
+fatal — deletion always proceeds to completion.
+
+**Rename** (`RenameAgent`) requires the agent to be stopped first, then
+renames the runtime session (tmux/Docker), moves the entity directory,
+regenerates role files under the new name, and updates child agents'
+`ParentID` and channel memberships.
+
 ## Runtime Backends
 
 ### Tmux

@@ -118,7 +118,7 @@ The server tracks the repos agents are bound to. `GET /api/repos` lists them; th
 
 ### Apps
 
-Plugin integrations with external platforms — Slack, Telegram, Discord, GitHub, Linear, PagerDuty, and 20+ more. Each app is a self-registering plugin (`pkg/app` descriptor + a `pkg/gateway/<name>` adapter) surfaced through `/api/apps`: the catalog lists every descriptor, instances are configured in `prefs.json` under `apps`, and secret fields land in the vault as `app:<instance>:<key>`. Connected apps feed the notification pipeline: agents subscribe to sources (`platform:channel`) and deliveries are injected into the agent session with mention filtering, self-skip, and delivery logging. See [Notification architecture](architecture-notifications.md).
+Plugin integrations with external platforms — Slack, Telegram, Discord, GitHub, Linear, PagerDuty, and 20+ more. Each app is a self-registering plugin (`pkg/app` descriptor + a `pkg/gateway/<name>` adapter) surfaced through `/api/apps`: the catalog lists every descriptor, instances are configured in `prefs.json` under `apps`, and secret fields land in the vault as `app:<instance>:<key>`. Connected apps feed the notification pipeline: agents subscribe to sources (`platform:channel`) and deliveries are injected into the agent session with mention filtering, self-skip, and delivery logging. See [Apps](explanation/apps.md) and [Notification architecture](explanation/notifications.md).
 
 ### Secrets
 

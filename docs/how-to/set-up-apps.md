@@ -184,11 +184,11 @@ Notifications are one-way in — mycel does not proxy agent replies back
 to the platform. When an agent needs to post to Slack / Telegram /
 Discord / WhatsApp, it calls the platform's official REST API
 directly with a bot token loaded from its own `env.json`. See the
-[**Outbound cookbook**](../architecture-notifications.md#outbound-cookbook)
+[**Outbound cookbook**](../explanation/notifications.md#outbound-cookbook)
 in the Notification architecture doc for the exact curl invocations
 and the `env.json` template.
 
 ## Next Steps
 
-- Read the [Notifications architecture](../architecture-notifications.md) for the full system design + outbound cookbook.
+- Read the [Notifications architecture](../explanation/notifications.md) for the full system design + outbound cookbook.
 - See the [REST API reference](../reference/api-rest.md) for app and subscription endpoints.

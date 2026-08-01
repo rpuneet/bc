@@ -178,6 +178,28 @@ Everything lives under `~/.mycel/` — your repos stay pristine. Config is one f
 }
 ```
 
+## Vision
+
+mycel treats agents as team members, not scripts:
+
+- **Dedicated worktree** — an isolated git workspace per agent, so parallel work never conflicts
+- **Defined role** — engineer, manager, reviewer, etc., with capabilities scoped to the role
+- **Structured collaboration** — agents communicate through channels, not ad hoc chat
+- **Human oversight** — you set budgets, define roles, review and merge PRs, and monitor activity from the CLI, web dashboard, or desktop app
+
+| Feature | mycel | Single-agent tools |
+|---------|-------|---------------------|
+| Multiple parallel agents | Yes | No |
+| Role-based hierarchy | Yes | No |
+| Inter-agent communication | Yes | No |
+| Git worktree isolation | Yes | No |
+| Cost tracking per agent | Yes | Limited |
+| Persistent agent memory | Yes | Session-only |
+
+Design principles: isolation by default, explicit (logged) inter-agent communication, cost awareness on every action, human-in-the-loop for critical decisions, and a CLI-first architecture with no infrastructure to stand up.
+
+**Roadmap:** multi-repository orchestration, deeper CI/CD pipeline integrations, cost optimization recommendations, and (longer-term) distributed agent execution, cross-team agent collaboration, and enterprise features (SSO, audit logs).
+
 ## Development
 
 ```bash

@@ -8,13 +8,14 @@ Understanding-oriented documentation that explains how and why mycel works the w
 |----------|-------------|
 | [Architecture](architecture.md) | Component diagram, data flow, MCP integration, and package dependencies |
 | [Design Decisions](design-decisions.md) | Architecture Decision Records (ADRs) for key technical choices |
-| [Agent Lifecycle Redesign](agent-lifecycle-redesign.md) | Draft proposal for refactoring agent lifecycle management |
 
 ## Subsystems
 
 | Document | Description |
 |----------|-------------|
 | [Agents](agents.md) | Agent state machine, runtime backends, worktree management, and roles |
+| [Apps](apps.md) | The plugin platform for external integrations (Slack, GitHub, WhatsApp, …) |
+| [Notifications](notifications.md) | Notification routing, subscriptions, and delivery |
 | [MCP Server](mcp.md) | Resources, tools, transports, and notifications |
 | [Database](database.md) | Storage backends, schema management, encryption, and filesystem layout |
 | [Networking](networking.md) | Client-server communication protocols, SSE events, MCP transports |
