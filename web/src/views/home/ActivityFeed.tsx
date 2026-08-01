@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { api } from "../../api/client";
 import type { ChannelMessage, ChannelStats, NotificationSource } from "../../api/client";
 import { usePolling } from "../../hooks/usePolling";
-import { DefaultAppIcon, PLATFORM_ICON_MAP } from "../../components/apps/PlatformIcons";
+import { AppIcon } from "../../components/apps/PlatformIcons";
 import { channelLeaf } from "../../components/apps/AppsHome";
 import { sourcePlatform } from "../../components/apps/messageUtils";
 import { parseActivityTs } from "../../components/apps/appStatus";
@@ -38,10 +38,7 @@ function snippet(content: string): string {
   return s.length > 140 ? s.slice(0, 137) + "…" : s;
 }
 
-function AppIcon({ base, size }: { base: string; size: number }) {
-  const Icon = PLATFORM_ICON_MAP[base] ?? DefaultAppIcon;
-  return <Icon size={size} />;
-}
+/* AppIcon (brand SVG → emoji → generic dot) lives in PlatformIcons.tsx. */
 
 export function ActivityFeed() {
   const fetcher = useCallback(async (): Promise<FeedMessage[]> => {

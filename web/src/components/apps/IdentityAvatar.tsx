@@ -7,10 +7,9 @@
  * AgentCharacter mushroom: notifications and channels surface real
  * chat participants, which have nothing to do with mycel agents.
  *
- * No avatar URLs are exposed by the notifications/channels API today,
- * so the initials fallback is what renders in practice — when the
- * backend starts resolving real profile pictures, pass `src` and they
- * appear with zero further changes here.
+ * Platforms that expose a profile photo (e.g. Slack) surface it via
+ * `avatar_url` on the message/source; pass it as `src` and it renders
+ * directly. Platforms that don't fall back to the initials chip.
  */
 
 import { useState } from "react";

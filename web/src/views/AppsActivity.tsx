@@ -26,7 +26,7 @@ import { usePolling } from "../hooks/usePolling";
 import { useHeaderSlot } from "../context/HeaderSlotContext";
 import { EmptyState } from "../components/EmptyState";
 import { MessageContent } from "../components/MessageContent";
-import { DefaultAppIcon, PLATFORM_ICON_MAP } from "../components/apps/PlatformIcons";
+import { AppIcon } from "../components/apps/PlatformIcons";
 import { channelLeaf } from "../components/apps/AppsHome";
 import { sourcePlatform } from "../components/apps/messageUtils";
 import { IdentityAvatar } from "../components/apps/IdentityAvatar";
@@ -51,10 +51,7 @@ function cleanSender(sender: string): string {
   return match?.[1] ?? sender;
 }
 
-function AppIcon({ base, size }: { base: string; size: number }) {
-  const Icon = PLATFORM_ICON_MAP[base] ?? DefaultAppIcon;
-  return <Icon size={size} />;
-}
+/* AppIcon (brand SVG → emoji → generic dot) lives in PlatformIcons.tsx. */
 
 /* ── Component ───────────────────────────────────────────────── */
 
@@ -245,8 +242,9 @@ export function AppsActivity() {
                     to={`/apps/${m.channel}`}
                     className="flex gap-3 px-4 py-3 hover:bg-mycel-surface-hover transition-colors"
                   >
-                    {/* Real chat participant — initials avatar, never an agent mushroom */}
-                    <IdentityAvatar name={sender} size={30} className="mt-0.5" />
+                    {/* Real chat participant — resolved platform photo when
+                        available, else an initials chip; never an agent mushroom */}
+                    <IdentityAvatar name={sender} src={m.avatar_url || undefined} size={30} className="mt-0.5" />
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2 min-w-0">
                         <span className="font-medium text-sm text-mycel-text truncate">{sender}</span>

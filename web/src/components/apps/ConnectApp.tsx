@@ -22,69 +22,14 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { api } from "../../api/client";
 import type { Agent, AppAuthSession, AppDescriptor, AppInstance } from "../../api/client";
-import { DefaultAppIcon, PLATFORM_ICON_MAP } from "./PlatformIcons";
+import { AppIcon, presentationFor } from "./PlatformIcons";
 import { StatusDot } from "./appStatus";
 
-/* ── Presentation-only metadata (backend owns the rest) ──────── */
-
-export interface AppPresentation {
-  /** Emoji fallback when no brand SVG exists in PLATFORM_ICON_MAP. */
-  icon: string;
-  /** Brand accent color. */
-  color: string;
-  category: string;
-  /** One-line description for the catalog card. */
-  description: string;
-}
-
-export const APP_PRESENTATION: Record<string, AppPresentation> = {
-  // Chat
-  slack: { icon: "\u{1F4AC}", color: "#E01E5A", category: "Chat", description: "Team messaging via Socket Mode" },
-  telegram: { icon: "✈️", color: "#26A5E4", category: "Chat", description: "Bot messages via long polling" },
-  discord: { icon: "\u{1F3AE}", color: "#5865F2", category: "Chat", description: "Bot messages from Discord servers" },
-  whatsapp: { icon: "\u{1F4F1}", color: "#25D366", category: "Chat", description: "Personal WhatsApp via QR code pairing" },
-  signal: { icon: "\u{1F510}", color: "#3A76F0", category: "Chat", description: "Private encrypted messaging" },
-  matrix: { icon: "\u{1F30D}", color: "#0DBD8B", category: "Chat", description: "Decentralized chat via client-server API" },
-  line: { icon: "\u{1F4AC}", color: "#06C755", category: "Chat", description: "Line Messaging API" },
-  mattermost: { icon: "\u{1F5E8}️", color: "#0058CC", category: "Chat", description: "Self-hosted team messaging via WebSocket" },
-  irc: { icon: "\u{1F4DF}", color: "#6B7280", category: "Chat", description: "Connect to any IRC server with TLS" },
-  imessage: { icon: "\u{1F4AC}", color: "#34C759", category: "Chat", description: "iMessage via BlueBubbles API (macOS only)" },
-  // Code & DevOps
-  github: { icon: "\u{1F419}", color: "#8B949E", category: "Code & DevOps", description: "PR, issue, and push webhooks" },
-  gitlab: { icon: "\u{1F98A}", color: "#FC6D26", category: "Code & DevOps", description: "Merge request and pipeline webhooks" },
-  bitbucket: { icon: "\u{1FAA3}", color: "#0052CC", category: "Code & DevOps", description: "Push and PR webhooks" },
-  vercel: { icon: "▲", color: "#9CA3AF", category: "Code & DevOps", description: "Deployment and build webhooks" },
-  netlify: { icon: "◆", color: "#00C7B7", category: "Code & DevOps", description: "Deploy and build notifications" },
-  jira: { icon: "\u{1F4CB}", color: "#0052CC", category: "Code & DevOps", description: "Issue and workflow webhooks" },
-  linear: { icon: "\u{1F4D0}", color: "#5E6AD2", category: "Code & DevOps", description: "Issue tracking webhooks" },
-  // Monitoring
-  sentry: { icon: "\u{1F41B}", color: "#7C6BA8", category: "Monitoring", description: "Error and issue alerts" },
-  pagerduty: { icon: "\u{1F6A8}", color: "#06AC38", category: "Monitoring", description: "Incident and alert webhooks" },
-  datadog: { icon: "\u{1F415}", color: "#632CA6", category: "Monitoring", description: "Monitor and event webhooks" },
-  grafana: { icon: "\u{1F4CA}", color: "#F46800", category: "Monitoring", description: "Alert notifications" },
-  // Payments
-  stripe: { icon: "\u{1F4B3}", color: "#635BFF", category: "Payments", description: "Payment and subscription events" },
-  // Content
-  gmail: { icon: "✉️", color: "#EA4335", category: "Content", description: "Email via one-click Google sign-in (or token)" },
-  rss: { icon: "\u{1F4E1}", color: "#F78422", category: "Content", description: "Subscribe to any RSS or Atom feed" },
-  notion: { icon: "\u{1F4DD}", color: "#9CA3AF", category: "Content", description: "Database and page change polling" },
-  reddit: { icon: "\u{1F4E2}", color: "#FF4500", category: "Content", description: "Subreddit and post monitoring" },
-  twitch: { icon: "\u{1F3AE}", color: "#9146FF", category: "Content", description: "Stream and chat events" },
-  // Custom
-  webhook: { icon: "\u{1F517}", color: "#8c7e72", category: "Custom", description: "Receive any JSON webhook payload" },
-  mqtt: { icon: "\u{1F4E1}", color: "#660066", category: "Custom", description: "Subscribe to any MQTT broker topics" },
-};
-
-const DEFAULT_PRESENTATION: AppPresentation = {
-  icon: "\u{1F50C}",
-  color: "var(--mycel-muted)",
-  category: "Other",
-  description: "",
-};
-
-export function presentationFor(appId: string): AppPresentation {
-  return APP_PRESENTATION[appId] ?? DEFAULT_PRESENTATION;
-}
+/* ── Presentation-only metadata (backend owns the rest) ──────────────
+   App icon/color/category/description metadata lives in PlatformIcons.tsx
+   (APP_PRESENTATION / presentationFor) alongside the brand SVG map, so
+   every app-icon consumer shares one source of truth instead of each
+   view re-deriving its own fallback chain. */
 
 const CATEGORY_ORDER = ["Chat", "Code & DevOps", "Monitoring", "Payments", "Content", "Custom", "Other"];
 
@@ -108,19 +53,11 @@ function authHint(d: AppDescriptor): { label: string; tone: "accent" | "warning"
 }
 
 function AppGlyph({ appId, size }: { appId: string; size: number }) {
-  const Icon = PLATFORM_ICON_MAP[appId];
-  if (Icon) {
-    return (
-      <span className="flex items-center justify-center">
-        <Icon size={size} />
-      </span>
-    );
-  }
-  const pres = APP_PRESENTATION[appId];
-  if (pres) {
-    return <span className="leading-none select-none" style={{ fontSize: size }}>{pres.icon}</span>;
-  }
-  return <DefaultAppIcon size={size} />;
+  return (
+    <span className="flex items-center justify-center">
+      <AppIcon base={appId} size={size} />
+    </span>
+  );
 }
 
 /* ── App chooser — full-screen catalog modal ─────────────────── */
@@ -1119,7 +1056,7 @@ export function ConnectWizard({
 
             {/* Error */}
             {error && (
-              <div className="mx-4 mb-3 px-3 py-2 bg-mycel-error-subtle border border-mycel-error rounded-md text-xs text-mycel-error">
+              <div role="alert" className="mx-4 mb-3 px-3 py-2 bg-mycel-error-subtle border border-mycel-error rounded-md text-xs text-mycel-error">
                 {error}
               </div>
             )}
