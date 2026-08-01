@@ -207,7 +207,27 @@ describe("activityItemToNode + historical expansion", () => {
     expect(screen.getByText("Input")).toBeTruthy();
     // Copy control present inside the expanded row.
     expect(screen.getAllByRole("button", { name: "Copy to clipboard" }).length).toBeGreaterThan(0);
-    // No tool_response is persisted historically → no Output section.
+    // This row's persisted event data has no tool_response → no Output section.
     expect(screen.queryByText("Output")).toBeNull();
+  });
+
+  it("carries tool_response from the persisted event data and renders an Output section", () => {
+    const n = activityItemToNode({
+      timestamp: "2026-07-30T10:00:00.000Z",
+      event: "PostToolUse",
+      message: "Bash: echo hi",
+      data: {
+        tool_name: "Bash",
+        tool_input: { command: "echo hi" },
+        tool_response: { stdout: "hi\n", stderr: "" },
+      },
+    });
+    expect(n.fullOutput).toEqual({ stdout: "hi\n", stderr: "" });
+
+    render(<EventRow node={n} />);
+    fireEvent.click(screen.getByRole("button", { name: /Expand Bash event/ }));
+    expect(screen.getByText("Input")).toBeTruthy();
+    expect(screen.getByText("Output")).toBeTruthy();
+    expect(screen.getByText("hi")).toBeTruthy();
   });
 });

@@ -96,6 +96,7 @@ func IsKnownEvent(ev HookEvent) bool {
 // Different events populate different fields.
 type HookPayload struct {
 	ToolInput    any            `json:"tool_input,omitempty"`
+	ToolResponse any            `json:"tool_response,omitempty"`
 	Metadata     map[string]any `json:"metadata,omitempty"`
 	SubagentID   string         `json:"subagent_id,omitempty"`
 	Channel      string         `json:"channel,omitempty"`

@@ -138,6 +138,46 @@ func (s *AgentService) IngestHookEvent(ctx context.Context, name string, payload
 	return nil
 }
 
+// maxToolResponseBytes bounds how much of a tool's response we persist into
+// the event log and broadcast to live subscribers. PostToolUse responses
+// (file contents, command output, MCP results, …) can be arbitrarily large;
+// without a cap a single verbose tool call could bloat the event store or a
+// DB row. 16KB keeps enough of the response to be useful in the raw stream
+// while staying well clear of pathological growth.
+const maxToolResponseBytes = 16 * 1024
+
+// toolResponseTruncatedSuffix is appended when a response is cut down to
+// maxToolResponseBytes, so the UI and any consumer can tell the value was
+// shortened rather than naturally ending there.
+const toolResponseTruncatedSuffix = "…[truncated]"
+
+// boundedToolResponse caps a tool_response value to maxToolResponseBytes
+// before it is persisted or broadcast. String responses are truncated
+// directly; structured responses (maps/arrays) are marshaled to measure
+// their size and, if oversized, replaced with a truncated JSON string so the
+// bound is enforced regardless of shape.
+func boundedToolResponse(v any) any {
+	if v == nil {
+		return nil
+	}
+	if s, ok := v.(string); ok {
+		if len(s) <= maxToolResponseBytes {
+			return s
+		}
+		return s[:maxToolResponseBytes] + toolResponseTruncatedSuffix
+	}
+	b, err := json.Marshal(v)
+	if err != nil {
+		// Unmarshalable value (shouldn't happen for JSON-decoded payloads) —
+		// pass it through unchanged rather than dropping it.
+		return v
+	}
+	if len(b) <= maxToolResponseBytes {
+		return v
+	}
+	return string(b[:maxToolResponseBytes]) + toolResponseTruncatedSuffix
+}
+
 // hookPayloadFields extracts the optional structured fields shared by the
 // event-log Data map and the SSE payload. Message is intentionally absent:
 // it goes to the event log only, never the SSE payload.
@@ -148,6 +188,9 @@ func hookPayloadFields(payload HookPayload) map[string]any {
 	}
 	if payload.ToolInput != nil {
 		fields["tool_input"] = payload.ToolInput
+	}
+	if payload.ToolResponse != nil {
+		fields["tool_response"] = boundedToolResponse(payload.ToolResponse)
 	}
 	if payload.Error != "" {
 		fields["error"] = payload.Error
