@@ -39,7 +39,7 @@ import { DefaultAppIcon, PLATFORM_ICON_MAP } from "./PlatformIcons";
 import { ConnectWizard, AppChooser } from "./ConnectApp";
 import { CustomKeysSection } from "./CustomKeys";
 import { sourcePlatform } from "./messageUtils";
-import { AgentCharacter } from "../agent-ui";
+import { IdentityAvatar } from "./IdentityAvatar";
 import { formatRelative } from "../../utils/time";
 import {
   disconnectReason,
@@ -118,6 +118,16 @@ function fallbackLabel(base: string): string {
   return base.charAt(0).toUpperCase() + base.slice(1);
 }
 
+/** Internal, non-connectable surfaces that must never show up as an app
+ *  pill or filter option — they are page sections, not external apps. */
+const NON_CONNECTABLE_APPS = new Set(["notifications", "secrets", "internal"]);
+
+/** True when a bucket key is a real, connectable external app. */
+export function isConnectableApp(keyOrBase: string): boolean {
+  const base = keyOrBase.includes(":") ? (keyOrBase.split(":")[0] ?? keyOrBase) : keyOrBase;
+  return !NON_CONNECTABLE_APPS.has(keyOrBase) && !NON_CONNECTABLE_APPS.has(base);
+}
+
 /** Build the page model, preferring overview metadata and falling back
  *  to the composed endpoints field by field. Pure — unit tested. */
 export function buildHomeModel(snap: HomeSnapshot): { apps: AppItem[]; channels: ChannelItem[] } {
@@ -172,8 +182,10 @@ export function buildHomeModel(snap: HomeSnapshot): { apps: AppItem[]; channels:
   }
 
   // App buckets: every gateway plus every bucket that has channels.
-  const bucketKeys = new Set<string>(snap.gateways.map((g) => g.platform));
-  for (const ch of channels) bucketKeys.add(ch.app);
+  // Internal surfaces (notifications, secrets) are page sections, not
+  // connectable apps — they never earn a pill or a filter option.
+  const bucketKeys = new Set<string>(snap.gateways.map((g) => g.platform).filter(isConnectableApp));
+  for (const ch of channels) if (isConnectableApp(ch.app)) bucketKeys.add(ch.app);
 
   const apps: AppItem[] = [...bucketKeys].map((key) => {
     const base = key.includes(":") ? (key.split(":")[0] ?? key) : key;
@@ -245,34 +257,13 @@ function AppIcon({ base, size }: { base: string; size: number }) {
   return <Icon size={size} />;
 }
 
-function KindGlyph({ kind }: { kind: ChannelKind }) {
-  if (kind === "group") {
-    return (
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-        <circle cx="9" cy="7" r="4" />
-        <path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
-      </svg>
-    );
-  }
-  if (kind === "person") {
-    return (
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-        <circle cx="12" cy="7" r="4" />
-      </svg>
-    );
-  }
-  return <span className="font-mono text-[12px] leading-none">#</span>;
-}
-
 function SubscriberAvatars({ subscribers, count }: { subscribers: string[]; count: number }) {
   if (count <= 0) return null;
   return (
     <span className="flex items-center shrink-0" title={`${String(count)} subscribed agent${count === 1 ? "" : "s"}${subscribers.length > 0 ? ": " + subscribers.join(", ") : ""}`}>
       {subscribers.slice(0, 3).map((a, i) => (
-        <span key={a} style={{ marginLeft: i === 0 ? 0 : -4 }}>
-          <AgentCharacter name={a} size={16} />
+        <span key={a} className="ring-1 ring-mycel-surface rounded-full" style={{ marginLeft: i === 0 ? 0 : -5 }}>
+          <IdentityAvatar name={a} size={16} />
         </span>
       ))}
       <span className="ml-1 text-[10.5px] text-mycel-muted tabular-nums">
@@ -292,9 +283,7 @@ function ChannelRowButton({ ch, onOpen }: { ch: ChannelItem; onOpen: (name: stri
       className="w-full flex items-center gap-3 px-3 py-2 bg-mycel-surface hover:bg-mycel-surface-hover text-left transition-colors"
       title={ch.name}
     >
-      <span className="shrink-0 flex items-center justify-center w-4 text-mycel-muted">
-        <KindGlyph kind={ch.kind} />
-      </span>
+      <IdentityAvatar name={ch.displayName} kind={ch.kind} size={28} />
       <span className="min-w-0 flex-1 flex items-baseline gap-2">
         <span className={`truncate text-[13px] font-medium text-mycel-text ${hasDisplayName ? "" : "font-mono"}`}>
           {ch.displayName}
@@ -317,9 +306,9 @@ function ChannelRowButton({ ch, onOpen }: { ch: ChannelItem; onOpen: (name: stri
 
 function SubsectionLabel({ label, count }: { label: string; count: number }) {
   return (
-    <div className="flex items-center gap-2 px-3 py-1.5 bg-mycel-bg">
-      <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-mycel-muted">{label}</span>
-      <span className="text-[10px] text-mycel-muted tabular-nums">{count}</span>
+    <div className="flex items-center gap-2 px-3 py-2 bg-mycel-bg">
+      <span className="text-[10.5px] font-semibold uppercase tracking-[0.09em] text-mycel-text-2">{label}</span>
+      <span className="inline-flex items-center justify-center min-w-[18px] h-[16px] px-1 rounded-full bg-mycel-surface-hover text-[10px] font-medium text-mycel-muted tabular-nums">{count}</span>
     </div>
   );
 }
@@ -718,34 +707,46 @@ export function AppsHome() {
               {recent.length === 0 && (
                 <div className="px-4 py-10 text-center text-xs text-mycel-muted">No messages yet</div>
               )}
-              {recent.map((m) => (
-                <button
-                  key={`${m.channel}:${String(m.id)}`}
-                  type="button"
-                  onClick={() => { openChannel(m.channel); }}
-                  className="w-full text-left px-4 py-2.5 hover:bg-mycel-surface-hover transition-colors"
-                >
-                  <div className="flex items-center gap-1.5 mb-0.5 min-w-0">
-                    <AppIcon base={sourcePlatform(m.channel)} size={11} />
-                    <span className="truncate text-[11px] text-mycel-text-2">{channelLeaf(m.channel)}</span>
-                    <span className="ml-auto shrink-0 text-[10.5px] text-mycel-muted tabular-nums">
-                      {formatRelative(m.created_at)}
-                    </span>
-                  </div>
-                  <div className="truncate text-[13px] text-mycel-text-2">
-                    <span className="font-medium text-mycel-text">{cleanSender(m.sender)}</span>{" "}
-                    {oneLine(m.content)}
-                  </div>
-                </button>
-              ))}
+              {recent.map((m) => {
+                const sender = cleanSender(m.sender);
+                return (
+                  <button
+                    key={`${m.channel}:${String(m.id)}`}
+                    type="button"
+                    onClick={() => { openChannel(m.channel); }}
+                    className="w-full text-left px-4 py-2.5 flex items-start gap-2.5 hover:bg-mycel-surface-hover transition-colors"
+                  >
+                    {/* Real chat participant — initials avatar, never an agent mushroom */}
+                    <IdentityAvatar name={sender} size={26} className="mt-0.5" />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5 mb-0.5 min-w-0">
+                        <AppIcon base={sourcePlatform(m.channel)} size={11} />
+                        <span className="truncate text-[11px] text-mycel-text-2">{channelLeaf(m.channel)}</span>
+                        <span className="ml-auto shrink-0 text-[10.5px] text-mycel-muted tabular-nums">
+                          {formatRelative(m.created_at)}
+                        </span>
+                      </div>
+                      <div className="truncate text-[13px] text-mycel-text-2">
+                        <span className="font-medium text-mycel-text">{sender}</span>{" "}
+                        {oneLine(m.content)}
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           </aside>
 
           {/* Channels — slim secondary column, grouped by app */}
           <div className="space-y-5 min-w-0">
             {sectionApps.length === 0 && (
-              <div className="rounded-lg border border-mycel-border p-6 text-center text-xs text-mycel-muted">
-                {hasFilters ? "No channels match the current filters." : "No channels yet — messages create channels automatically."}
+              <div className="rounded-lg border border-dashed border-mycel-border bg-mycel-surface px-6 py-10 text-center">
+                <p className="text-sm font-medium text-mycel-text-2">
+                  {hasFilters ? "No chats match your filters" : "No chats yet"}
+                </p>
+                <p className="mt-1 text-xs text-mycel-muted">
+                  {hasFilters ? "Try clearing a filter or search term." : "Chats appear here automatically as messages arrive."}
+                </p>
               </div>
             )}
             {sectionApps.map((app) => {
@@ -771,7 +772,7 @@ export function AppsHome() {
                       <>
                         {groups.length > 0 && (
                           <>
-                            <SubsectionLabel label="Groups" count={groups.length} />
+                            <SubsectionLabel label="Group chats" count={groups.length} />
                             {groups.map((ch) => <ChannelRowButton key={ch.name} ch={ch} onOpen={openChannel} />)}
                           </>
                         )}

@@ -6,9 +6,11 @@ import {
   AppsHome,
   buildHomeModel,
   channelLeaf,
+  isConnectableApp,
   resolveChannelKind,
   whatsappKindFromId,
 } from "../../components/apps/AppsHome";
+import { avatarColor, initialsFor } from "../../components/apps/IdentityAvatar";
 
 const fetchMock = globalThis.fetch as ReturnType<typeof vi.fn>;
 
@@ -198,6 +200,43 @@ describe("AppsHome helpers", () => {
     expect(wa?.channelCount).toBe(2);
   });
 
+  it("excludes internal pseudo-apps from the app pill/filter list", () => {
+    // notifications + secrets are page sections, not connectable apps.
+    expect(isConnectableApp("notifications")).toBe(false);
+    expect(isConnectableApp("secrets")).toBe(false);
+    expect(isConnectableApp("internal")).toBe(false);
+    expect(isConnectableApp("slack")).toBe(true);
+    expect(isConnectableApp("telegram:alerts")).toBe(true);
+
+    const { apps } = buildHomeModel({
+      overview: null,
+      sources,
+      gateways: [
+        ...gateways,
+        { platform: "notifications", enabled: true, channels: [] },
+        { platform: "secrets", enabled: true, channels: [] },
+      ],
+      labels,
+      health: {},
+      subs,
+      stats,
+    });
+    const keys = apps.map((a) => a.key);
+    expect(keys).toContain("slack");
+    expect(keys).not.toContain("notifications");
+    expect(keys).not.toContain("secrets");
+  });
+
+  it("derives deterministic initials and colours for real identities", () => {
+    expect(initialsFor("Puneet Rai")).toBe("PR");
+    expect(initialsFor("zen-zebra")).toBe("ZZ");
+    expect(initialsFor("general")).toBe("GE");
+    expect(initialsFor("  ")).toBe("?");
+    // Stable across calls, differs by name.
+    expect(avatarColor("Puneet Rai")).toBe(avatarColor("Puneet Rai"));
+    expect(avatarColor("Puneet Rai")).not.toBe(avatarColor("Someone Else"));
+  });
+
   it("buildHomeModel degrades without overview data", () => {
     const { channels } = buildHomeModel({
       overview: null,
@@ -253,16 +292,16 @@ describe("AppsHome", () => {
     renderHome();
 
     await waitFor(() => {
-      expect(screen.getByText("Groups")).toBeInTheDocument();
+      expect(screen.getByText("Group chats")).toBeInTheDocument();
     });
     expect(screen.getByText("People")).toBeInTheDocument();
 
     const waSection = screen.getByRole("region", { name: "WhatsApp channels" });
     expect(within(waSection).getByText("Family Group")).toBeInTheDocument();
     expect(within(waSection).getByText("Puneet Rai")).toBeInTheDocument();
-    // Slack channels get no Groups/People split.
+    // Slack channels get no Group chats/People split.
     const slackSection = screen.getByRole("region", { name: "Slack channels" });
-    expect(within(slackSection).queryByText("Groups")).not.toBeInTheDocument();
+    expect(within(slackSection).queryByText("Group chats")).not.toBeInTheDocument();
   });
 
   it("degrades gracefully when the overview endpoint is missing", async () => {
@@ -274,8 +313,8 @@ describe("AppsHome", () => {
     await waitFor(() => {
       expect(screen.getAllByText("12345-67890@g.us").length).toBeGreaterThan(0);
     });
-    // …but the Groups/People split still works via JID shape,
-    expect(screen.getByText("Groups")).toBeInTheDocument();
+    // …but the Group chats/People split still works via JID shape,
+    expect(screen.getByText("Group chats")).toBeInTheDocument();
     expect(screen.getByText("People")).toBeInTheDocument();
     // and message counts still come from the stats endpoint.
     expect(screen.getByText("42 msgs")).toBeInTheDocument();
