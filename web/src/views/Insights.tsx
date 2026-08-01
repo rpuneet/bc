@@ -45,6 +45,7 @@ import { Disclosure, Chevron, useHashPanel } from "./insights/disclosure";
 import { SystemRow } from "./insights/SystemRow";
 import { TokenPanel, buildTokenSeries } from "./insights/TokenPanel";
 import { AgentDetail, ModelDetail, RepoDetail } from "./insights/BreakdownDetail";
+import { BudgetPanel } from "./insights/BudgetPanel";
 
 // ── Periods ─────────────────────────────────────────────────────────────────
 //
@@ -640,6 +641,10 @@ export function Insights() {
           <TokenPanel series={tokenSeries} summary={data.summary} periodLabel={periodLabel} />
         </Disclosure>
       </div>
+
+      {/* ── Budget cap — moved here from Settings; it governs the spend
+          shown above. ── */}
+      <BudgetPanel />
 
       {/* ── Spend over time ── */}
       <section>

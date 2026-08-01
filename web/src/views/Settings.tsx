@@ -1,6 +1,6 @@
 import { useCallback, useState, useEffect, useMemo } from "react";
 import { Link } from "react-router-dom";
-import { api, type ProviderInfo, type BudgetStatus, type OnboardingState } from "../api/client";
+import { api, type ProviderInfo, type OnboardingState } from "../api/client";
 import { usePolling } from "../hooks/usePolling";
 import { LoadingSkeleton } from "../components/LoadingSkeleton";
 import { EmptyState } from "../components/EmptyState";
@@ -46,6 +46,11 @@ const SECTION_LABELS: Record<string, string> = {
 
 function deepClone<T>(v: T): T {
   return JSON.parse(JSON.stringify(v));
+}
+
+/** Strip noisy mDNS suffixes ("Foo.local" → "Foo") for the host readout. */
+function prettifyHostname(h: string): string {
+  return h.replace(/\.(local|lan)$/i, "");
 }
 
 function deepEqual(a: unknown, b: unknown): boolean {
@@ -224,8 +229,12 @@ function SetupSection() {
   const total = WIZARD_STEPS.length;
   const done = (state?.completed ?? []).includes("done");
   const finished = (state?.completed ?? []).filter((s) => s !== "done").length;
-  const pct = done ? 100 : Math.round((Math.min(finished, total) / total) * 100);
-  const complete = done || pct >= 100;
+  // An established install — one that already runs agents — has, by
+  // definition, finished setup. Treat that as complete so a user with a
+  // live fleet is never nagged to "resume" a wizard they never need.
+  const hasAgents = state?.hasAgents ?? false;
+  const complete = done || hasAgents || finished >= total;
+  const pct = complete ? 100 : Math.round((Math.min(finished, total) / total) * 100);
 
   return (
     <div className="space-y-3">
@@ -273,6 +282,7 @@ function ProvidersToolsCard({ data }: { data: Record<string, unknown> }) {
   const defaultProvider = String(p.default ?? "claude");
   const [installed, setInstalled] = useState<number | null>(null);
   const [total, setTotal] = useState<number | null>(null);
+  const [host, setHost] = useState<{ hostname: string; os: string; arch: string } | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -283,19 +293,37 @@ function ProvidersToolsCard({ data }: { data: Record<string, unknown> }) {
         setInstalled(list.filter((pi) => pi.installed).length);
       })
       .catch(() => { /* summary degrades to the default provider alone */ });
+    api.getSystemInfo()
+      .then((info) => { if (alive) setHost(info); })
+      .catch(() => { /* host line is optional */ });
     return () => { alive = false; };
   }, []);
 
   const counts = installed !== null && total !== null ? ` · ${installed}/${total} installed` : "";
 
   return (
-    <LinkCard
-      to="/tools"
-      ariaLabel="Open Tools & Providers"
-      icon={<path strokeLinecap="round" strokeLinejoin="round" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />}
-      title={`Default: ${PROVIDER_LABELS[defaultProvider] ?? defaultProvider}${counts}`}
-      body="Install tools, sign in, and set the default model."
-    />
+    <div className="space-y-2.5">
+      <LinkCard
+        to="/settings/tools"
+        ariaLabel="Open Tools & Providers"
+        icon={<path strokeLinecap="round" strokeLinejoin="round" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />}
+        title={`Default: ${PROVIDER_LABELS[defaultProvider] ?? defaultProvider}${counts}`}
+        body="Install tools, sign in, and set the default model."
+      />
+      {/* Host machine — folded in from the old hostname nav item. */}
+      <div className="flex items-center gap-2 px-3 text-[11px] text-mycel-muted">
+        <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.6} aria-hidden>
+          <rect x="3" y="4" width="18" height="12" rx="1.5" /><path strokeLinecap="round" d="M8 20h8M12 16v4" />
+        </svg>
+        {host ? (
+          <span className="tabular-nums">
+            Running on <span className="text-mycel-text-2 font-medium">{prettifyHostname(host.hostname)}</span> · {host.os}/{host.arch}
+          </span>
+        ) : (
+          <span>Resolving host machine…</span>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -382,96 +410,6 @@ function AppsCard() {
       title={summary}
       body="Integrations, notification delivery, and API keys."
     />
-  );
-}
-
-/* ------------------------------------------------------------------ */
-/*  Budgets — cost caps (own endpoints, not the settings PATCH)         */
-/* ------------------------------------------------------------------ */
-
-function BudgetsSection() {
-  const fetcher = useCallback(() => api.getCostBudgets(), []);
-  const { data, refresh } = usePolling<BudgetStatus[]>(fetcher, 30000);
-  const budgets = data ?? [];
-  const workspace = budgets.find((b) => b.scope === "workspace");
-
-  const [limit, setLimit] = useState("");
-  const [status, setStatus] = useState<SaveStatus>("idle");
-
-  const wsLimit = workspace?.limit_usd;
-  useEffect(() => {
-    if (wsLimit !== undefined) setLimit(String(wsLimit));
-  }, [wsLimit]);
-
-  const save = async () => {
-    const value = Number(limit);
-    setStatus("saving");
-    try {
-      if (!limit.trim() || value <= 0) {
-        await api.deleteCostBudget("workspace").catch(() => { /* nothing to remove */ });
-      } else {
-        await api.createCostBudget({ scope: "workspace", period: "monthly", limit_usd: value, alert_at: 0.8 });
-      }
-      refresh();
-      setStatus("saved");
-      setTimeout(() => setStatus("idle"), 2000);
-    } catch {
-      setStatus("error");
-    }
-  };
-
-  const perAgent = budgets.filter((b) => b.scope.startsWith("agent:"));
-
-  return (
-    <div className="space-y-3">
-      <Field label="Monthly cap" suffix="alerts at 80%">
-        <div className="flex items-center gap-1.5 flex-1">
-          <span className="text-xs text-mycel-muted">$</span>
-          <input
-            type="number"
-            min={0}
-            step={5}
-            value={limit}
-            placeholder="No limit"
-            onChange={(e) => setLimit(e.target.value)}
-            className={INPUT_CLS}
-          />
-          <button
-            type="button"
-            onClick={save}
-            disabled={status === "saving"}
-            className="shrink-0 inline-flex items-center h-8 px-3 rounded-md text-xs font-medium bg-mycel-accent text-mycel-accent-fg hover:bg-mycel-accent-hover active:scale-[0.98] shadow-mycel-sm transition-all disabled:opacity-60"
-          >
-            {status === "saving" ? "Saving…" : "Save"}
-          </button>
-        </div>
-      </Field>
-      {status === "saved" && <p className="text-[11px] text-mycel-success">Budget saved.</p>}
-      {status === "error" && <p className="text-[11px] text-mycel-error">Couldn&apos;t save the budget.</p>}
-
-      {perAgent.length > 0 && (
-        <div className="rounded-lg border border-mycel-border bg-mycel-bg divide-y divide-mycel-border overflow-hidden">
-          {perAgent.map((b) => (
-            <div key={b.scope} className="flex items-center justify-between gap-3 px-3 py-2 text-xs">
-              <span className="text-mycel-text truncate">{b.scope.replace(/^agent:/, "")}</span>
-              <span className="text-mycel-muted shrink-0 tabular-nums">${b.limit_usd}/{b.period}</span>
-              <button
-                type="button"
-                onClick={() => void api.deleteCostBudget(b.scope).then(refresh)}
-                className="text-mycel-muted hover:text-mycel-error shrink-0"
-                title="Remove cap"
-              >
-                Remove
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-      <p className="text-[11px] text-mycel-muted">
-        Set per-agent caps from an agent&apos;s page. Caps compare against spend computed from provider
-        usage.
-      </p>
-    </div>
   );
 }
 
@@ -819,18 +757,14 @@ export function Settings() {
         <RuntimeSection data={edited} onChange={handleChange} />
       </Section>
 
-      <Section title="budgets" dirty={false} index={4}>
-        <BudgetsSection />
-      </Section>
-
       {/* Apps owns integrations, notification delivery, and API keys on the
           /apps page; Settings only summarizes and links out. The
           prefs.notifications{} controls surface there (follow-up PR). */}
-      <Section title="apps" dirty={false} index={5}>
+      <Section title="apps" dirty={false} index={4}>
         <AppsCard />
       </Section>
 
-      <Section title="advanced" dirty={isDirty("storage", "server", "logs")} defaultOpen={false} index={6}>
+      <Section title="advanced" dirty={isDirty("storage", "server", "logs")} defaultOpen={false} index={5}>
         <Advanced label="Storage">
           <StorageFields data={edited} onChange={handleChange} />
         </Advanced>

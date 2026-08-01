@@ -156,9 +156,9 @@ function AddSecretForm({
       <button
         type="submit"
         disabled={saving || !name.trim() || !value.trim()}
-        className="inline-flex items-center h-9 px-3 rounded-md bg-mycel-accent text-mycel-accent-fg text-sm font-medium hover:bg-mycel-accent-hover cursor-pointer shadow-mycel-sm disabled:opacity-50 transition-all active:scale-[0.98]"
+        className="inline-flex items-center h-9 px-3 rounded-md bg-mycel-accent text-mycel-accent-fg text-sm font-medium hover:bg-mycel-accent-hover shadow-mycel-sm disabled:opacity-50 transition-colors"
       >
-        {saving ? "Creating…" : "Create Key"}
+        {saving ? "Creating..." : "Create Key"}
       </button>
     </form>
   );
@@ -416,7 +416,7 @@ export function CustomKeysSection() {
         <button
           type="button"
           onClick={() => { setAddOpen((v) => !v); }}
-          className="ml-auto shrink-0 inline-flex items-center h-7 px-2.5 rounded-md text-[11px] font-medium bg-mycel-accent text-mycel-accent-fg hover:bg-mycel-accent-hover cursor-pointer shadow-mycel-sm transition-all active:scale-[0.97]"
+          className="ml-auto shrink-0 inline-flex items-center h-7 px-2.5 rounded-md text-[11px] font-medium bg-mycel-accent text-mycel-accent-fg hover:bg-mycel-accent-hover shadow-mycel-sm transition-colors"
           aria-label="Add custom key"
         >
           + Add Key

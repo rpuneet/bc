@@ -125,6 +125,52 @@ func TestConfigRealignmentNonDestructive(t *testing.T) {
 	}
 }
 
+// TestFillDefaultsBackfillsDockerAndProviders verifies FillDefaults repairs
+// a config whose runtime.default is "docker" but which carries no docker
+// block and no provider entries — the shape an older or hand-edited
+// prefs.json can take. Without the backfill, agents would spawn with an
+// empty image / zero limits and Validate would reject the empty provider map.
+func TestFillDefaultsBackfillsDockerAndProviders(t *testing.T) {
+	partial := `{
+		"version": 3,
+		"providers": {"default": "claude"},
+		"runtime": {"default": "docker"},
+		"storage": {"default": "sqlite", "sqlite": {"path": ".mycel"}},
+		"ui": {"theme": "dark", "mode": "auto", "default_view": "dashboard"}
+	}`
+
+	cfg, err := ParseConfig([]byte(partial))
+	if err != nil {
+		t.Fatalf("ParseConfig: %v", err)
+	}
+	if cfg.Runtime.Docker.Image != "" || cfg.Runtime.Docker.CPUs != 0 {
+		t.Fatalf("precondition: expected empty docker block, got %+v", cfg.Runtime.Docker)
+	}
+
+	cfg.FillDefaults()
+	d := DefaultConfig()
+
+	if cfg.Runtime.Docker.Image != d.Runtime.Docker.Image {
+		t.Errorf("docker.image = %q, want %q", cfg.Runtime.Docker.Image, d.Runtime.Docker.Image)
+	}
+	if cfg.Runtime.Docker.Network != d.Runtime.Docker.Network {
+		t.Errorf("docker.network = %q, want %q", cfg.Runtime.Docker.Network, d.Runtime.Docker.Network)
+	}
+	if cfg.Runtime.Docker.CPUs != d.Runtime.Docker.CPUs {
+		t.Errorf("docker.cpus = %v, want %v", cfg.Runtime.Docker.CPUs, d.Runtime.Docker.CPUs)
+	}
+	if cfg.Runtime.Docker.MemoryMB != d.Runtime.Docker.MemoryMB {
+		t.Errorf("docker.memory_mb = %v, want %v", cfg.Runtime.Docker.MemoryMB, d.Runtime.Docker.MemoryMB)
+	}
+	if len(cfg.Providers.Providers) == 0 {
+		t.Error("providers map should be seeded when empty")
+	}
+	// The repaired config must pass Validate (previously ErrDefaultProviderNotFound).
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("repaired config failed Validate: %v", err)
+	}
+}
+
 // TestConfigNotificationsRoundTrip verifies the new notifications section
 // survives a marshal/unmarshal cycle.
 func TestConfigNotificationsRoundTrip(t *testing.T) {

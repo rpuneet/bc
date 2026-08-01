@@ -716,23 +716,20 @@ function AppsNavTree() {
 
 /* ── Nav items ───────────────────────────────────────────────── */
 
-// Primary nav — divider-separated groups, no captions. Group 1 holds the
-// daily surfaces; group 2 the configuration surfaces (Marketplace, the
-// host machine's tools, Secrets); group 3 the read-only analytics
-// (Metrics + Costs merged behind one "Insights" item). The /tools item
-// is labeled with the daemon host machine's name, resolved at runtime
-// from /api/system/info (fallback "Host" while loading/unavailable).
-// Settings, About and the theme toggle live in the drawer footer.
+// Primary nav — the daily surfaces only. Tools/Providers and the host
+// machine's dependencies now live INSIDE Settings (Settings is the config
+// hub; Tools drills down from there), so neither the host-named item nor a
+// standalone Tools item appears in the top nav. Settings, About, Insights
+// and the theme toggle live in the drawer footer.
 type NavItem = { to: string; label: string; icon: string };
 
-const HOST_LABEL_FALLBACK = "Host";
-
-/** Strip noisy mDNS suffixes ("Foo.local" → "Foo"); otherwise keep as-is. */
+/** Strip noisy mDNS suffixes ("Foo.local" → "Foo"); otherwise keep as-is.
+ *  Still used by Settings to label the folded-in host section. */
 export function prettifyHostname(h: string): string {
   return h.replace(/\.(local|lan)$/i, "");
 }
 
-function buildNavGroups(hostLabel: string): readonly (readonly NavItem[])[] {
+function buildNavGroups(): readonly (readonly NavItem[])[] {
   // One flat group — no inter-group divider. Code lives as a tab on the
   // agent detail page now (the /code route stays reachable via the Code
   // tab's "full view" link), so it is no longer a top-level nav item.
@@ -742,7 +739,6 @@ function buildNavGroups(hostLabel: string): readonly (readonly NavItem[])[] {
       { to: "/agents", label: "Agents", icon: "agents" },
       { to: "/apps", label: "Apps", icon: "apps" },
       { to: "/marketplace", label: "Marketplace", icon: "templates" },
-      { to: "/tools", label: hostLabel, icon: "tools" },
     ],
   ];
 }
@@ -752,13 +748,16 @@ function buildNavGroups(hostLabel: string): readonly (readonly NavItem[])[] {
  * plus the non-nav top-level routes (Settings/About in the drawer
  * footer, and the /stats /metrics /costs redirects into /insights).
  */
-function titleFor(pathname: string, hostLabel: string): string {
+function titleFor(pathname: string): string {
   // Compare ONLY the first URL segment so sub-routes such as
   // /agents/<name>/live keep their parent ("Agents") title rather than
   // incorrectly resolving to a same-named top-level tab ("Live").
   const firstSeg = pathname.replace(/^\//, "").split("/")[0] ?? "";
   const items = [
-    ...buildNavGroups(hostLabel).flat(),
+    ...buildNavGroups().flat(),
+    // Tools/Providers moved under Settings but the routes still resolve.
+    { to: "/tools", label: "Tools" },
+    { to: "/readiness", label: "Setup" },
     // Code left the sidebar (it's an agent-detail tab now) but the route
     // still resolves via the tab's "full view" link — keep its title.
     { to: "/code", label: "Code" },
@@ -1042,25 +1041,12 @@ export function Layout() {
     document.addEventListener("mouseup", onUp);
   }, []);
 
-  // Host machine name for the /tools nav item — resolved from the daemon
-  // (/api/system/info carries os.Hostname()); "Host" until it arrives.
-  const [hostLabel, setHostLabel] = useState(HOST_LABEL_FALLBACK);
-  useEffect(() => {
-    let cancelled = false;
-    api
-      .getSystemInfo()
-      .then((info) => {
-        if (!cancelled && info?.hostname) setHostLabel(prettifyHostname(info.hostname));
-      })
-      .catch(() => { /* keep fallback label */ });
-    return () => { cancelled = true; };
-  }, []);
-  const navGroups = useMemo(() => buildNavGroups(hostLabel), [hostLabel]);
+  const navGroups = useMemo(() => buildNavGroups(), []);
 
   useEffect(() => { if (isMobile) setCollapsed(true); }, [isMobile]);
   useEffect(() => {
-    document.title = titleFor(location.pathname, hostLabel);
-  }, [location.pathname, hostLabel]);
+    document.title = titleFor(location.pathname);
+  }, [location.pathname]);
   useEffect(() => { setMobileOpen(false); }, [location.pathname]);
 
   const isIconOnly = collapsed && !isMobile;
@@ -1233,17 +1219,8 @@ function DrawerFooter({ iconOnly }: { iconOnly: boolean }) {
         </span>
         {!iconOnly && <span className="truncate mycel-fade-slide-in">Insights</span>}
       </NavLink>
-      <NavLink to="/readiness" className={linkClass} title={iconOnly ? "Setup" : undefined}>
-        <span className="shrink-0 flex items-center justify-center w-4 opacity-70">
-          {/* Checklist glyph — machine setup / readiness. */}
-          <svg width="15" height="15" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4">
-            <path d="M2 3.5l1.2 1.2L5.5 2.4" strokeLinecap="round" strokeLinejoin="round" />
-            <path d="M2 8l1.2 1.2L5.5 6.9" strokeLinecap="round" strokeLinejoin="round" />
-            <path d="M7.5 3.5H12M7.5 8H12" strokeLinecap="round" />
-          </svg>
-        </span>
-        {!iconOnly && <span className="truncate mycel-fade-slide-in">Setup</span>}
-      </NavLink>
+      {/* Setup no longer has its own footer entry — it lives inside Settings
+          (the Setup section) and the first-run wizard at /welcome. */}
       <NavLink to="/settings" className={linkClass} title={iconOnly ? "Settings" : undefined}>
         <span className="shrink-0 flex items-center justify-center w-4 opacity-70">
           <Icon name="settings" size={15} />

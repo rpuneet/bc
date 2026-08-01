@@ -35,15 +35,18 @@ const SETTINGS = {
   notifications: { default_channel: "", enabled: true },
 };
 
-const ONBOARDING = { firstRun: false, hasAgents: true, prefsValid: true, completed: ["welcome", "system", "runtime"], step: "providers" };
+// A partway-through, agent-less install: setup genuinely unfinished.
+const ONBOARDING = { firstRun: false, hasAgents: false, prefsValid: true, completed: ["welcome", "system", "runtime"], step: "providers" };
 
 /** Route every GET the page fans out to a sane payload. */
 function mockApi(overrides: Record<string, unknown> = {}) {
+  const onboarding = (overrides.onboarding as object) ?? ONBOARDING;
   fetchMock.mockImplementation((url: string, init?: RequestInit) => {
     if (init?.method === "PATCH") return jsonResponse({ ...SETTINGS, ...(overrides.patched as object) });
-    if (url.includes("/onboarding/state")) return jsonResponse(ONBOARDING);
+    if (url.includes("/onboarding/state")) return jsonResponse(onboarding);
     if (url.includes("/settings/injected-instructions")) return jsonResponse({ injected_instructions: "" });
     if (url.includes("/settings")) return jsonResponse(SETTINGS);
+    if (url.includes("/system/info")) return jsonResponse({ hostname: "test-host", os: "darwin", arch: "arm64" });
     if (url.includes("/providers")) return jsonResponse([{ name: "claude", models: [{ id: "claude-sonnet-4", available: true }] }]);
     if (url.includes("/costs/budgets")) return jsonResponse([]);
     if (url.includes("/apps")) return jsonResponse({ catalog: [], instances: [] });
@@ -65,23 +68,40 @@ beforeEach(() => {
 });
 
 describe("Settings redesign", () => {
-  it("renders the slim section set (5 config sections + 2 link cards)", async () => {
+  it("renders the slim section set (4 config sections + link cards)", async () => {
     mockApi();
     renderSettings();
-    for (const label of ["setup", "profile", "providers & tools", "runtime", "budgets", "apps", "advanced"]) {
+    for (const label of ["setup", "profile", "providers & tools", "runtime", "apps", "advanced"]) {
       expect(await screen.findByText(label)).toBeInTheDocument();
     }
+    // Budgets moved to Insights — it is no longer a Settings section.
+    expect(screen.queryByText("budgets")).not.toBeInTheDocument();
     // Link cards route out instead of duplicating config.
     expect(screen.getByRole("link", { name: /Open Tools & Providers/i })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Manage apps/i })).toBeInTheDocument();
   });
 
+  it("Tools & Providers card drills down under /settings", async () => {
+    mockApi();
+    renderSettings();
+    expect(await screen.findByRole("link", { name: /Open Tools & Providers/i })).toHaveAttribute("href", "/settings/tools");
+  });
+
   it("reads onboarding state into the Setup section", async () => {
     mockApi();
     renderSettings();
-    // 3 of 8 steps completed → "Step 4 of 8".
+    // 3 of 8 steps completed, no agents yet → "Step 4 of 8".
     expect(await screen.findByText(/Step 4 of 8/)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /resume setup/i })).toBeInTheDocument();
+  });
+
+  it("treats an install that already runs agents as setup-complete (no nag)", async () => {
+    mockApi({ onboarding: { firstRun: false, hasAgents: true, prefsValid: true, completed: [], step: "welcome" } });
+    renderSettings();
+    // Even with completed:[] and step "welcome", a live fleet means done.
+    expect(await screen.findByText(/Complete/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /re-run setup/i })).toBeInTheDocument();
+    expect(screen.queryByText(/Step 1 of 8/)).not.toBeInTheDocument();
   });
 
   it("raises the save bar and PATCHes on edit + save", async () => {

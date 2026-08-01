@@ -68,9 +68,11 @@ describe("Layout readiness surfacing", () => {
     expect(screen.queryByText(/run mycel doctor/i)).not.toBeInTheDocument();
   });
 
-  it("exposes a Setup entry in the drawer footer", async () => {
+  it("no longer exposes a standalone Setup entry in the drawer footer", async () => {
     renderLayout();
-    const setup = await screen.findByRole("link", { name: "Setup" });
-    expect(setup.getAttribute("href")).toBe("/readiness");
+    // Setup folded into Settings (the Setup section) + the /welcome wizard;
+    // the drawer footer no longer carries its own Setup link.
+    await screen.findByRole("link", { name: "Settings" });
+    expect(screen.queryByRole("link", { name: "Setup" })).not.toBeInTheDocument();
   });
 });

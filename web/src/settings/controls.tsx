@@ -108,8 +108,8 @@ export function RuntimePicker({
 
   return (
     <div className="flex flex-col sm:flex-row gap-3">
-      <Option id="docker" title="Docker" recommended body="Each agent gets a clean, isolated container. Safest default." />
-      <Option id="tmux" title="tmux" body="Agents run in local shell sessions on this machine. Lightweight, no Docker needed." />
+      <Option id="tmux" title="tmux" recommended body="Agents run in local shell sessions on this machine. Fast, lightweight, no Docker needed." />
+      <Option id="docker" title="Docker" body="Each agent gets a clean, isolated container. Best when you want strong sandboxing." />
     </div>
   );
 }

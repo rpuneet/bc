@@ -63,6 +63,22 @@ func (c *Config) FillDefaults() {
 	if c.Runtime.Docker.DockerSocketPath == "" {
 		c.Runtime.Docker.DockerSocketPath = d.Runtime.Docker.DockerSocketPath
 	}
+	// A pre-docker-block prefs.json (or one with runtime.default flipped to
+	// docker but no docker settings) would otherwise spawn agents with an
+	// empty image and zero CPU/memory limits. Backfill each zero field —
+	// none of these has a meaningful zero value.
+	if c.Runtime.Docker.Image == "" {
+		c.Runtime.Docker.Image = d.Runtime.Docker.Image
+	}
+	if c.Runtime.Docker.Network == "" {
+		c.Runtime.Docker.Network = d.Runtime.Docker.Network
+	}
+	if c.Runtime.Docker.CPUs == 0 {
+		c.Runtime.Docker.CPUs = d.Runtime.Docker.CPUs
+	}
+	if c.Runtime.Docker.MemoryMB == 0 {
+		c.Runtime.Docker.MemoryMB = d.Runtime.Docker.MemoryMB
+	}
 	if c.Storage.Default == "" {
 		c.Storage.Default = d.Storage.Default
 	}
@@ -86,6 +102,12 @@ func (c *Config) FillDefaults() {
 	}
 	if c.Providers.Default == "" {
 		c.Providers.Default = d.Providers.Default
+	}
+	// Without at least one provider entry, Validate rejects the config
+	// (ErrDefaultProviderNotFound) and the daemon can't boot. Seed the
+	// built-in providers so a providers-less prefs.json stays loadable.
+	if len(c.Providers.Providers) == 0 {
+		c.Providers.Providers = d.Providers.Providers
 	}
 }
 
