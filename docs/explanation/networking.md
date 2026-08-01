@@ -95,7 +95,7 @@ sequenceDiagram
     Agent->>MCP: initialize (protocol handshake)
     MCP->>Agent: capabilities (resources + tools)
 
-    Agent->>MCP: resources/read bc://agents
+    Agent->>MCP: resources/read mycel://agents
     MCP->>Svc: List agents
     Svc->>MCP: Agent data
     MCP->>Agent: JSON response

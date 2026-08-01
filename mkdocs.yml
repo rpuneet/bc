@@ -64,7 +64,6 @@ exclude_docs: |
   _*
   README.md
   screenshots/
-  proposals/
   deps/
 
 nav:

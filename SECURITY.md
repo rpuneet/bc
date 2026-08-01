@@ -4,11 +4,14 @@
 
 | Version | Supported |
 | ------- | --------- |
-| 0.1.x   | Yes       |
+| 0.4.x   | Yes       |
+| < 0.4   | No        |
+
+mycel is pre-1.0; only the latest minor release receives security fixes.
 
 ## Reporting a Vulnerability
 
-We take security seriously. If you discover a security vulnerability in bc, please report it responsibly.
+We take security seriously. If you discover a security vulnerability in mycel, please report it responsibly.
 
 ### How to Report
 
@@ -46,10 +49,9 @@ We take security seriously. If you discover a security vulnerability in bc, plea
 This policy applies to:
 
 - The **mycel CLI** tool (`cmd/mycel`, `internal/cmd`, `pkg/`)
-- The **daemon** (`server/`) including the REST API, WebSocket, and MCP SSE endpoints
-- The **TUI** interface (`tui/`)
-- The **web dashboard** (`web/`) embedded in the daemon
-- **Docker agent images** (`docker/`, `Dockerfile.agent`)
+- The **daemon** (`server/`) including the REST API, SSE hub, and MCP SSE endpoints
+- The **web dashboard** (`web/`) and **desktop app** (`desktop/`), both embedding the same web UI
+- **Docker agent images** (`docker/`)
 - Agent communication protocols (channels, MCP)
 - Secret storage and injection (`pkg/secret`)
 - Configuration and credential handling (`.mycel/`, `settings.json`)
@@ -64,7 +66,7 @@ This policy applies to:
 
 ### Secret Management
 
-mycel stores secrets in an encrypted, per-workspace store under the mycel state directory. Secrets are injected into agent sessions at startup via environment variables and are never written to disk in plaintext. Use `mycel secret set` to manage secrets instead of placing them in `.env`.
+mycel stores secrets in an encrypted vault (`~/.mycel/secrets.vault`) under the global `~/.mycel` home, with optional per-repo overrides. Secrets are injected into agent sessions at startup via environment variables and are never written to disk in plaintext. Use `mycel secret set` to manage secrets instead of placing them in `.env`.
 
 Sensitive patterns (API keys, tokens, DSNs) are redacted from WebSocket streams by the daemon before reaching the web dashboard.
 
@@ -81,7 +83,7 @@ Each agent runs in its own tmux session (local) or Docker container (production)
 
 ### Network & API
 
-- The the daemon server binds to `localhost:9374` by default
+- The daemon server binds to `localhost:9374` by default
 - CORS, request body size limits, and rate limiting are enforced
 - MCP SSE endpoints identify the calling agent via query parameter (`?agent=<name>`)
 
@@ -93,7 +95,7 @@ Each agent runs in its own tmux session (local) or Docker container (production)
 
 ## Security Best Practices
 
-When using bc:
+When using mycel:
 
 - Keep mycel updated to the latest version
 - Store API keys and tokens via `mycel secret set`, not in `.env` or shell history

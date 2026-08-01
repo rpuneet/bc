@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-This project is **mycel** - an AI agent orchestration platform. Previously called `bc`, it helps coordinate multiple AI agents (Claude, Gemini, Cursor, etc.) in isolated environments.
+This project is **mycel** - a CLI-first AI agent orchestration platform with an embedded React web UI. It coordinates multiple AI agents (Claude, Gemini, Cursor, etc.) working in isolated tmux sessions or Docker containers, each with its own git worktree.
 
 ## Quick Start
 

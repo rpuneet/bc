@@ -131,9 +131,9 @@ mycel config set storage.timescale.port 5432
     "timescale": {
       "host": "localhost",
       "port": 5432,
-      "user": "bc",
-      "password": "bc",
-      "database": "bc"
+      "user": "mycel",
+      "password": "mycel",
+      "database": "mycel"
     }
   }
 }
@@ -229,9 +229,9 @@ A complete `prefs.json`:
     "timescale": {
       "host": "localhost",
       "port": 5432,
-      "user": "bc",
-      "password": "bc",
-      "database": "bc"
+      "user": "mycel",
+      "password": "mycel",
+      "database": "mycel"
     }
   },
   "server": {
@@ -248,7 +248,7 @@ A complete `prefs.json`:
     "mode": "auto",
     "default_view": "dashboard"
   },
-  "version": 2
+  "version": 3
 }
 ```
 

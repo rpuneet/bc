@@ -59,7 +59,7 @@ If the npm postinstall doesn't work (corporate firewalls, CI restrictions, etc.)
 brew install rpuneet/mycel/mycel
 
 # From source
-git clone https://github.com/rpuneet/mycel && cd mycel && make install-local-bc
+git clone https://github.com/rpuneet/mycel && cd mycel && make install-local-mycel
 
 # Direct download
 # https://github.com/rpuneet/mycel/releases/latest

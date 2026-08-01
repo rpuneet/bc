@@ -1,23 +1,24 @@
-# Contributing to bc
+# Contributing to mycel
 
-Thank you for your interest in contributing to bc! This document provides guidelines and instructions for contributing.
+Thank you for your interest in contributing to mycel! This document provides guidelines and instructions for contributing.
 
 ## Development Setup
 
 ### Prerequisites
 
 - Go 1.25.4+
-- Bun (for TUI development)
 - tmux
 - golangci-lint
 - make
+- Bun (for the web UI and landing page)
+- the Wails CLI (only needed for the desktop app)
 
 ### Getting Started
 
 ```bash
 # Clone the repository
 git clone https://github.com/rpuneet/mycel.git
-cd bc
+cd mycel
 
 # Install dependencies
 make deps
@@ -29,27 +30,27 @@ make build
 make test
 
 # Install locally
-make install
+make install-local-mycel
 ```
 
 ## Build Commands
 
-Naming convention: `make <verb>[-<runtime>]-<component>` where `runtime` = `local` (host) | `docker` (container), `component` = `mycel` | `tui` | `web` | `landing`. `go` and `ts` are language aggregates for CI/CD convenience.
+Naming convention: `make <verb>-<runtime>-<component>` where `verb` = `build` | `test` | `run` | `release` | `install` | `clean`, `runtime` = `local` (host) | `docker` (container), `component` = `mycel` | `web` | `landing` | `desktop`. `go` and `ts` are language aggregates for CI/CD convenience.
 
 ### Build (local)
 
 | Command | Description |
 |---------|-------------|
 | `make build` | Build everything (local + docker) |
-| `make build-local` | Build all local binaries (go + ts) |
-| `make build-local-go` | Build all Go binaries (mycel + the daemon) |
-| `make build-local-mycel` | Build mycel CLI binary to `bin/mycel` |
-| `make build-local-mycel` | Build the daemon binary (embeds web UI) |
-| `make build-local-ts` | Build all TS packages (tui + web + landing) |
-| `make build-local-tui` | Build TUI package |
-| `make build-local-web` | Build React web UI → `server/web/dist/` |
-| `make build-local-landing` | Build Next.js landing page |
+| `make build-local` | Build local binaries (go + ts) |
+| `make build-local-go` | Build all Go binaries |
+| `make build-local-mycel` | Build the mycel binary (embeds web UI, server) |
+| `make build-local-ts` | Build all TS packages (web + landing) |
+| `make build-local-web` | Build the web UI → `server/web/dist/` |
+| `make build-local-landing` | Build the landing page |
+| `make build-local-desktop` | Build the desktop app for the host OS (requires the Wails CLI) |
 | `make release` | Build optimized release binaries (stripped symbols) |
+| `make release-local-mycel` | Build an optimized mycel binary (embeds web UI) |
 | `make install-local-mycel` | Install mycel to `$GOPATH/bin` |
 
 ### Build (Docker)
@@ -57,11 +58,12 @@ Naming convention: `make <verb>[-<runtime>]-<component>` where `runtime` = `loca
 | Command | Description |
 |---------|-------------|
 | `make build-docker` | Build all Docker images (db, daemon, playwright) |
-| `make build-docker-daemon` | Build daemon Docker image |
+| `make build-docker-daemon` | Build the daemon Docker image |
 | `make build-docker-db` | Build mycel-db (unified TimescaleDB) Docker image |
-| `make build-docker-db` | Build mycel-db (TimescaleDB) Docker image |
-| `make build-docker-agent` | Build default agent Docker image (claude) |
-| `make build-docker-agents` | Build all agent Docker images |
+| `make build-docker-agent` | Build the default agent image (claude) |
+| `make build-docker-agents` | Build all agent images |
+| `make build-docker-agent-base` | Build the agent base image |
+| `make build-docker-playwright` | Build the Playwright MCP Docker image |
 
 ### Test
 
@@ -69,11 +71,12 @@ Naming convention: `make <verb>[-<runtime>]-<component>` where `runtime` = `loca
 |---------|-------------|
 | `make test` | Run all tests (go + ts) |
 | `make test-go` | Run Go tests with race detector |
-| `make test-ts` | Run all TS tests (tui + web + landing) |
-| `make test-tui` | Run TUI tests |
+| `make test-go-fast` | Go tests excluding slow packages (tmux, secret, doctor, internal/cmd) |
+| `make test-ts` | Run all TS tests (web + landing) |
 | `make test-web` | Run web UI tests (vitest) |
-| `make test-landing` | Run landing page tests |
-| `make coverage-go` | Run Go tests with coverage report (60% threshold) |
+| `make test-web-e2e` | Web e2e tests (Playwright, needs a running daemon) |
+| `make test-landing` | Run landing tests |
+| `make coverage-go` | Go test coverage report |
 | `make bench-go` | Run Go benchmarks |
 
 ### Lint & Quality
@@ -82,24 +85,22 @@ Naming convention: `make <verb>[-<runtime>]-<component>` where `runtime` = `loca
 |---------|-------------|
 | `make lint` | Run all linters (go + ts) |
 | `make lint-go` | Run golangci-lint on Go code |
-| `make lint-ts` | Run all TS linters (tui + web + landing) |
+| `make lint-ts` | Run all TS linters (web + landing) |
 | `make fmt-go` | Format Go code with gofmt |
-| `make fmt-ts` | Format all TS code |
 | `make vet-go` | Run go vet |
-| `make vet-ts` | Typecheck all TS |
 | `make check` | Full quality gate (go + ts) |
-| `make check-go` | Go quality gate (gen + fmt + vet + lint + test) |
-| `make check-ts` | TS quality gate (lint + test) |
+| `make check-go` | Go quality gate: vet + lint + test |
+| `make check-ts` | TS quality gate: typecheck + lint + test |
 | `make ci-local` | Full CI pipeline locally |
+| `make ci-docker` | Build all Docker images |
 
-### Run & Deploy
+### Run
 
 | Command | Description |
 |---------|-------------|
-| `make run-mycel` | Run mycel CLI from source (`go run`) |
-| `make run-web` | Run web UI dev server (hot reload) |
-| `make run-landing` | Run landing dev server (hot reload) |
-| `make run-tui` | Run TUI in dev mode |
+| `make run-mycel` | Run the mycel CLI from source (`go run`) |
+| `make run-web` | Run the web UI dev server (hot reload) |
+| `make run-landing` | Run the landing dev server (hot reload) |
 
 ### Utilities
 
@@ -110,50 +111,18 @@ Naming convention: `make <verb>[-<runtime>]-<component>` where `runtime` = `loca
 | `make deps-ts` | Install all TS dependencies (bun install) |
 | `make scan-go` | Run govulncheck for Go vulnerabilities |
 | `make scan-ts` | Run TS dependency audit |
-| `make install-local-mycel` | Install mycel to `$GOPATH/bin` |
 | `make clean` | Remove all build artifacts |
+| `make clean-local` | Remove build artifacts |
 | `make clean-deps` | Remove build artifacts + node_modules |
 
-Or directly with Bun (from `tui/`, `web/`, or `landing/`):
+Or directly with Bun (from `web/` or `landing/`):
 
 ```bash
-cd tui
+cd web
 bun install        # Install dependencies
 bun run build      # Build to dist/
 bun test           # Run tests
 bun run lint       # Lint code
-```
-
-### TUI Testing
-
-The TUI uses `bun:test` for testing. Key patterns:
-
-**Testing Hooks Without DOM**
-
-React hooks in Ink/terminal environment don't have DOM access. Test exported helper functions and type interfaces instead of hook behavior:
-
-```typescript
-// Test helper functions directly
-import { getSeverityColor } from '../useLogs';
-expect(getSeverityColor('error')).toBe('red');
-
-// Validate type exports
-import type { UseStatusOptions } from '../useStatus';
-const options: UseStatusOptions = { pollInterval: 5000 };
-expect(options.pollInterval).toBe(5000);
-```
-
-**Test File Location**
-
-- Hooks: `tui/src/hooks/__tests__/*.test.tsx`
-- Views: `tui/src/views/__tests__/*.test.tsx`
-- Components: `tui/src/__tests__/components/*.test.tsx`
-
-**Running Specific Tests**
-
-```bash
-bun test src/hooks/__tests__/useStatus.test.tsx
-bun test --watch  # Watch mode
 ```
 
 ## Code Style
@@ -164,88 +133,78 @@ We use `golangci-lint` with strict settings. All code must pass linting before m
 
 ```bash
 # Run linter
-make lint
+make lint-go
 
 # Configuration is in .golangci.yml
 ```
 
 ### Key Lint Rules
 
-- **errcheck**: All errors must be handled
-- **gosec**: Security issues must be addressed
-- **govet**: No shadowed variables
-- **noctx**: Context must be propagated
-- **fieldalignment**: Struct fields optimally aligned
+- **errcheck**: All errors must be handled (type assertions too)
+- **gosec**: Security issues must be addressed (G104 excluded)
+- **govet**: `enable-all` — no shadowed variables, struct field alignment enforced
+- **noctx**: Context must be propagated through all call chains
+- **staticcheck, bodyclose, prealloc, unconvert, misspell, ineffassign, unused**: also enforced
 
 ### Code Guidelines
 
 1. **Error Handling**: Never ignore errors. Use explicit handling or `//nolint:errcheck` with justification.
-
 2. **Context Propagation**: Pass `context.Context` through all call chains.
-
 3. **Testing**: Write tests for new functionality. Use table-driven tests where appropriate.
-
 4. **Documentation**: Document exported functions and types.
-
 5. **Naming Conventions**:
-   - Short receiver names: `w` for workspace, `a` for agent, `c` for channel
-   - Avoid package-level variables except for cobra commands
-   - Use descriptive but concise variable names
-
-6. **Struct Alignment**: Run `make lint` to catch fieldalignment issues.
+   - Short receiver names: `h` for Home and handlers, `a` for agent, `m` for manager
+   - Avoid package-level variables except for Cobra commands
+   - gofmt with `-s` (simplify); goimports with local prefix `github.com/rpuneet/mycel`
+6. **Struct Alignment**: Run `make lint-go` to catch fieldalignment issues.
 
 ## Project Structure
 
 ```
-bc/
-├── cmd/mycel/           # CLI entry point (main.go)
-├── config/              # Generated config code (cfgx)
+mycel/
+├── cmd/
+│   ├── mycel/           # CLI entry point (main.go)
+│   └── gendocs/         # Regenerates docs/reference/cli from the Cobra tree
 ├── internal/
-│   └── cmd/             # Cobra command implementations
-├── pkg/                 # Reusable packages
-│   ├── agent/           # Agent lifecycle, roles, tmux sessions
+│   └── cmd/             # Cobra command implementations (agent, channel, config, cost, …)
+├── pkg/                 # Reusable packages, self-contained (never imported by cmd in reverse)
+│   ├── agent/           # Agent lifecycle, Manager, SpawnOptions, role setup
+│   ├── app/             # Apps plugin platform (28 built-in integrations)
 │   ├── attachment/      # File attachment handling
-│   ├── channel/         # SQLite-backed communication
-│   ├── client/          # API client
-│   ├── container/       # Docker container management
-│   ├── cost/            # Cost tracking and budgets
-│   ├── cron/            # Scheduled task management
-│   ├── db/              # Database abstraction
-│   ├── doctor/          # System health diagnostics
-│   ├── events/          # Event logging
-│   ├── gateway/         # External gateway integrations
+│   ├── client/          # HTTP client for the daemon API
+│   ├── container/       # Docker runtime backend
+│   ├── cost/            # Cost analytics computed from provider session files
+│   ├── db/              # The single global database (~/.mycel/mycel.db)
+│   ├── deps/             # Managed external dependencies (code-server, db containers)
+│   ├── doctor/          # Health diagnostics (`mycel doctor`)
+│   ├── events/          # Event log store
+│   ├── gateway/         # Per-platform adapters (slack, telegram, discord, whatsapp, …)
+│   ├── home/            # The ~/.mycel home: prefs.json, layout paths, roles, repo discovery
 │   ├── log/             # Structured logging
-│   ├── mcp/             # MCP protocol support
+│   ├── marketplace/     # Template/plugin marketplace
+│   ├── mcp/             # MCP registry and client plumbing
 │   ├── names/           # Agent name generation
-│   ├── provider/        # AI provider registry
-│   ├── runtime/         # Runtime backends (tmux, docker)
-│   ├── secret/          # Secret management
-│   ├── stats/           # Workspace statistics
-│   ├── tmux/            # tmux session control
-│   ├── token/           # Token management
-│   ├── tool/            # Tool management
-│   ├── ui/              # CLI output formatting (colors, tables)
-│   ├── workspace/       # Workspace config (settings.json v2)
-│   └── worktree/        # Git worktree operations
-├── server/              # the daemon (API, web UI, MCP)
-│   └── web/             # Embedded web UI (React)
-│       └── dist/        # Built web assets
-├── prompts/             # Default role prompt templates
-├── web/                 # Web UI source (React/Vite)
-├── landing/             # Landing page (Next.js)
-└── tui/                 # TypeScript/React TUI (Ink)
-    ├── src/
-    │   ├── __tests__/   # Component and integration tests
-    │   ├── components/  # Reusable UI components
-    │   ├── hooks/       # React hooks (useAgents, useChannels, etc.)
-    │   │   └── __tests__/ # Hook tests
-    │   ├── navigation/  # Tab bar, keyboard navigation
-    │   ├── services/    # mycel CLI wrapper (mycel.ts)
-    │   ├── views/       # Full-screen views (14 views)
-    │   │   └── __tests__/ # View tests
-    │   └── app.tsx      # Main TUI application
-    └── dist/            # Compiled output (CommonJS)
+│   ├── notify/          # Notification fan-out: subscriptions, delivery, history
+│   ├── provider/        # AI provider registry (claude, gemini, cursor, …)
+│   ├── runtime/         # Runtime backend interface (tmux, docker)
+│   ├── secret/          # Encrypted vault (~/.mycel/secrets.vault)
+│   ├── stats/           # Usage statistics and metrics
+│   ├── template/        # Agent templates
+│   ├── tmux/            # tmux session management
+│   ├── token/           # Token counting
+│   ├── tool/            # Tool registry and execution
+│   ├── ui/              # Terminal output utilities for the CLI
+│   └── worktree/        # Git worktree management
+├── server/              # The daemon: HTTP server, handlers, agent-facing MCP, SSE hub
+│   └── web/dist/        # Embedded, built web assets
+├── web/                 # Web UI source (React/Vite) — the only rich surface
+├── desktop/             # Wails desktop app wrapping the same web UI
+├── landing/             # Landing page
+├── packages/            # Shared TS packages (mycel-cli npm wrapper)
+└── docker/              # Per-provider agent Dockerfiles plus daemon/db/playwright images
 ```
+
+See `CLAUDE.md` (or `.claude/CLAUDE.md`) for detailed architecture patterns and package documentation.
 
 ## Pull Request Process
 
@@ -268,17 +227,17 @@ bc/
    - Related issue numbers
    - Test plan
 
-5. **Review**: Address all review feedback
+5. **Review**: Address all review feedback. If your PR changes `internal/cmd/**`, `pkg/**` public API, or `server/**` without a matching update under `docs/**` or the relevant README, the docs-freshness CI check will leave an advisory comment — update the docs or explain why none are needed.
 
 ## Architecture Overview
 
 Key concepts to understand before contributing:
 
-- **Agents**: AI assistants running in isolated tmux sessions, each with its own git worktree
-- **Workspace**: Project directory with `.mycel/` containing config, state, and per-agent data
-- **Channels**: SQLite-backed inter-agent communication with persistent history
-- **Roles**: Agent capabilities defined in `.mycel/roles/*.md` (engineer, manager, etc.)
-- **Memory**: Per-agent persistent knowledge (experiences, learnings)
+- **Agents**: AI assistants running in isolated tmux sessions or Docker containers, each with its own git worktree
+- **Home**: The single global state root `~/.mycel` — `prefs.json` (config), `mycel.db` (database), `secrets.vault`, `mcps.json`, `templates/`
+- **Apps**: Plugin integrations with external platforms (Slack, GitHub, etc.), served at `/api/apps`
+- **Roles**: DB-backed capabilities and inheritance; role prompts and MCP servers are written into the agent worktree on spawn
+- **Providers**: AI agent CLIs (Claude, Gemini, Cursor, …) registered behind a common interface in `pkg/provider`
 
 See `CLAUDE.md` for detailed architecture patterns and package documentation.
 
@@ -307,8 +266,8 @@ Releases are cut manually via GitHub Actions. CI/CD is fully automated from tag 
 
 1. Ensure `main` is green. Check https://github.com/rpuneet/mycel/actions/workflows/ci.yml
 2. Go to **Actions → Release → Run workflow**
-3. Enter version in semver format: `vMAJOR.MINOR.PATCH` (e.g. `v0.1.0`)
-   - Alpha/RC allowed: `v0.2.0-alpha`, `v1.0.0-rc.1`
+3. Enter version in semver format: `vMAJOR.MINOR.PATCH` (e.g. `v0.4.4`)
+   - Alpha/RC allowed: `v0.5.0-alpha`, `v1.0.0-rc.1`
 4. Click **Run workflow**
 
 ### What happens
@@ -316,7 +275,7 @@ Releases are cut manually via GitHub Actions. CI/CD is fully automated from tag 
 The release workflow:
 
 1. **Prepare** — validates version format, creates and pushes git tag
-2. **CI** — full test suite (lint, test, TUI, web, landing, build gate, security, container scan)
+2. **CI** — full test suite (lint, test, web, landing, build gate, security, container scan)
 3. **Release Linux** — GoReleaser builds `linux/amd64`, creates archive + checksums, publishes GitHub release
 4. **Release macOS** — Native CGO builds for `darwin/amd64` and `darwin/arm64`, uploads to release
 5. **Release Docker** — Pushes `ghcr.io/rpuneet/mycel:<version>` and `:latest` to GHCR
@@ -324,7 +283,7 @@ The release workflow:
 
 ### Homebrew tap publish
 
-Requires `HOMEBREW_TAP_TOKEN` repo secret (GitHub PAT with repo scope for `rpuneet/homebrew-bc`). If unset, Homebrew publish is skipped automatically.
+Requires the `HOMEBREW_TAP_TOKEN` repo secret (GitHub PAT with repo scope for `rpuneet/homebrew-mycel`). If unset, Homebrew publish is skipped automatically.
 
 ### Continuous deployment
 

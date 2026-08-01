@@ -35,4 +35,4 @@ This package receives inbound events from `pkg/gateway` adapters and routes them
 
 ## Architecture
 
-See [docs/architecture/notifications.md](../../docs/architecture/notifications.md) for the full notification architecture, including the 3-part adapter pattern, filtering logic, and database schema.
+See [docs/architecture-notifications.md](../../docs/architecture-notifications.md) for the full notification architecture, including the 3-part adapter pattern, filtering logic, and database schema.

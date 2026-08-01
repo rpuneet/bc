@@ -16,7 +16,7 @@ flowchart LR
         More["...40+ more"]
     end
 
-    subgraph bc["bc (notification router)"]
+    subgraph mycel["mycel (notification router)"]
         GW["Gateway Adapters"]
         NS["Notify Service"]
     end
@@ -186,7 +186,7 @@ All 37+ platform adapters follow one of three connection patterns:
 | Pattern | Examples | Mechanism |
 |---------|----------|-----------|
 | **Socket** | Slack, Discord, Telegram, Matrix, IRC, Mattermost, Twitch, MQTT | Long-lived connection. `Start()` blocks, events stream in. |
-| **Webhook** | GitHub, GitLab, Stripe, Sentry, PagerDuty, Datadog, Generic | bc exposes an HTTP endpoint. The platform POSTs events. |
+| **Webhook** | GitHub, GitLab, Stripe, Sentry, PagerDuty, Datadog, Generic | mycel exposes an HTTP endpoint. The platform POSTs events. |
 | **Poll** | RSS, Notion, Reddit, Gmail | Timer-based fetch. `Start()` polls on interval, forwards new items. |
 
 ## NotificationAdapter Interface
@@ -201,8 +201,8 @@ type AdapterType string
 
 const (
     AdapterSocket  AdapterType = "socket"   // long-lived connection (WebSocket, polling loop)
-    AdapterWebhook AdapterType = "webhook"  // HTTP endpoint — platform POSTs events to bc
-    AdapterPoll    AdapterType = "poll"     // timer-based polling — bc fetches new events
+    AdapterWebhook AdapterType = "webhook"  // HTTP endpoint — platform POSTs events to mycel
+    AdapterPoll    AdapterType = "poll"     // timer-based polling — mycel fetches new events
 )
 
 // NotificationAdapter handles the platform connection lifecycle.
@@ -210,7 +210,7 @@ type NotificationAdapter interface {
     // Name returns the adapter identifier ("slack", "github", "telegram").
     Name() string
 
-    // Type returns the connection pattern. Determines how bc wires the adapter:
+    // Type returns the connection pattern. Determines how mycel wires the adapter:
     //   socket  → goroutine running Start()
     //   webhook → HTTPHandler() mounted on the server HTTP mux at /hooks/{name}
     //   poll    → goroutine running Start() with internal ticker
@@ -261,7 +261,7 @@ Each notification wraps the complete platform payload as raw JSON. Agents parse 
 // Located in: pkg/gateway/gateway.go
 
 type Notification struct {
-    Timestamp time.Time       `json:"timestamp"` // when bc received the event
+    Timestamp time.Time       `json:"timestamp"` // when mycel received the event
     Raw       json.RawMessage `json:"raw"`       // ENTIRE platform payload — no parsing
     Channel   string          `json:"channel"`   // "engineering", "repo-a", "general"
     Platform  string          `json:"platform"`  // "slack", "github", "telegram"
@@ -278,7 +278,7 @@ type Notification struct {
 | `Sender` | Extracted from raw payload (one field per adapter). Used for self-skip filtering. |
 | `Content` | Human-readable text extracted by the adapter for display and storage. Falls back to raw JSON. |
 | `Mentions` | Extracted via regex `@[a-zA-Z][a-zA-Z0-9_-]*` across the raw JSON bytes. Used for `mention_only` filtering. |
-| `Timestamp` | When bc received the event. |
+| `Timestamp` | When mycel received the event. |
 | `Raw` | Complete platform payload, unmodified. The agent receives the full JSON and parses what it needs. |
 
 Example notification delivered to an agent:

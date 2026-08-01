@@ -22,9 +22,9 @@ make build-local-ts                # Build all TS packages (web + landing)
 make build-local-web               # Build web UI → server/web/dist/
 make build-local-landing           # Build landing page
 make build-local-desktop           # Build desktop app for the host OS (requires wails CLI)
-make build-docker                  # Build Docker images (db, bcd, playwright)
-make build-docker-daemon           # Build bcd Docker image
-make build-docker-db               # Build bc-db (unified TimescaleDB) Docker image
+make build-docker                  # Build Docker images (db, daemon, playwright)
+make build-docker-daemon           # Build the daemon Docker image
+make build-docker-db               # Build mycel-db (unified TimescaleDB) Docker image
 make build-docker-agent            # Build default agent image (claude)
 make build-docker-agents           # Build all agent images
 make build-docker-agent-base       # Build agent base image
@@ -40,7 +40,7 @@ make test-go-fast                               # Go tests excluding slow packag
 go test -race -run TestAgentStart ./pkg/agent/  # Run a specific Go test
 make test-ts                                    # Run all TS tests (web + landing)
 make test-web                                   # Run web UI tests (vitest)
-make test-web-e2e                               # Web e2e tests (Playwright, needs running bcd)
+make test-web-e2e                               # Web e2e tests (Playwright, needs a running daemon)
 make test-landing                               # Run landing tests
 make coverage-go                                # Go coverage report
 make bench-go                                   # Run Go benchmarks
@@ -91,7 +91,7 @@ make clean-deps            # Remove artifacts + node_modules
   - **agent/** → agent lifecycle, Manager, SpawnOptions, role setup
   - **app/** → the Apps plugin platform: descriptors, registry, instance resolution, vault-backed secrets; `app/builtin` imports the 28 built-in plugins
   - **attachment/** → file attachment handling
-  - **client/** → HTTP client for the bcd API
+  - **client/** → HTTP client for the daemon API
   - **container/** → Docker runtime backend
   - **cost/** → cost analytics computed directly from provider session files (no ledger, no import)
   - **db/** → the single global database (`~/.mycel/mycel.db`, SQLite WAL or TimescaleDB)
@@ -115,12 +115,12 @@ make clean-deps            # Remove artifacts + node_modules
   - **tool/** → tool registry and execution
   - **ui/** → terminal output utilities for the CLI
   - **worktree/** → git worktree management
-- **server/** → bcd HTTP server, handlers, agent-facing MCP (`/_mcp/{agent}`), SSE hub (`server/ws`), embedded web UI
+- **server/** → the daemon's HTTP server, handlers, agent-facing MCP (`/_mcp/{agent}`), SSE hub (`server/ws`), embedded web UI
 - **web/** → web UI (React/Vite), embedded into the binary via `server/web/dist/`
 - **desktop/** → Wails desktop app wrapping the same web UI
 - **landing/** → landing page
-- **packages/** → shared TS packages (`@bc/design-tokens`)
-- **docker/** → per-provider agent Dockerfiles plus bcd/db/playwright images
+- **packages/** → shared TS packages (`packages/mycel-cli` — the npm-published `mycel-cli` wrapper)
+- **docker/** → per-provider agent Dockerfiles plus daemon/db/playwright images
 
 ### Key Concepts
 
@@ -151,7 +151,7 @@ make clean-deps            # Remove artifacts + node_modules
 - `TestMain()` in `internal/cmd/` and `pkg/agent/` sets up global `RoleCapabilities` and `RoleHierarchy` maps
 - Integration tests use `setupIntegrationHome()` (points `MYCEL_HOME` at a temp dir and bootstraps a git repo) and `seedAgents()` helpers
 - E2E tests use live tmux sessions (agent_e2e_test.go, channel_e2e_test.go); server e2e tests wire real stores against a temp home (`server/e2e_test.go`)
-- Web: vitest for units, Playwright for e2e (`make test-web-e2e` needs a running bcd)
+- Web: vitest for units, Playwright for e2e (`make test-web-e2e` needs a running daemon)
 
 ### Error Handling
 - Never ignore errors — use explicit handling or `//nolint:errcheck` with justification

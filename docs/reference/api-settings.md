@@ -46,9 +46,9 @@ Returns the full configuration.
     "sqlite": { "path": ".mycel" },
     "timescale": {
       "host": "localhost",
-      "user": "bc",
-      "password": "bc",
-      "database": "bc",
+      "user": "mycel",
+      "password": "mycel",
+      "database": "mycel",
       "port": 5432
     }
   },
@@ -66,7 +66,7 @@ Returns the full configuration.
     "mode": "auto",
     "default_view": "dashboard"
   },
-  "version": 2
+  "version": 3
 }
 ```
 
@@ -201,9 +201,9 @@ See [Set Up Apps](../how-to/set-up-apps.md) for connecting apps.
 |------------|--------|-------------|-------------|
 | `host`     | string | `localhost` | TimescaleDB (Postgres) host |
 | `port`     | int    | `5432`      | Port (1–65535) |
-| `user`     | string | `bc`        | Database user |
-| `password` | string | `bc`        | Database password |
-| `database` | string | `bc`        | Database name |
+| `user`     | string | `mycel`     | Database user |
+| `password` | string | `mycel`     | Database password |
+| `database` | string | `mycel`     | Database name |
 
 ### `server`
 
