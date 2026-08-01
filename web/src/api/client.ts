@@ -1266,6 +1266,15 @@ export const api = {
       body: JSON.stringify(patch),
     }),
 
+  /**
+   * Persist the fleet-wide provider defaults — the provider (and optionally
+   * the model) new agents inherit when none is given. A partial providers
+   * patch: the server leaves the per-provider `providers` map untouched, so
+   * this never clobbers per-provider command overrides.
+   */
+  setProviderDefaults: (patch: { default?: string; default_model?: string }) =>
+    api.updateSettings({ providers: patch }),
+
   /** First-run setup state: whether to show the wizard and where to resume. */
   getOnboardingState: () => request<OnboardingState>("/onboarding/state"),
   /** Persist wizard progress. Writes only the onboarding config section. */

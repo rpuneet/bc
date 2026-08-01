@@ -156,6 +156,37 @@ func TestSettingsPatchUpdatesConfig(t *testing.T) {
 	}
 }
 
+// TestSettingsPatchProviderDefaultModel verifies the fleet-default provider
+// picker's contract: a partial providers patch persists default_model and
+// leaves the per-provider `providers` map intact (so it never clobbers
+// command overrides). This backs the /settings/tools default-model UI.
+func TestSettingsPatchProviderDefaultModel(t *testing.T) {
+	h := newTestHome(t)
+	sh := NewSettingsHandler(h)
+	mux := http.NewServeMux()
+	sh.Register(mux)
+
+	body := `{"providers":{"default":"claude","default_model":"claude-sonnet-4"}}`
+	req := httptest.NewRequest(http.MethodPatch, "/api/settings", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body = %s", rec.Code, rec.Body.String())
+	}
+	if got := h.Config.Providers.DefaultModel; got != "claude-sonnet-4" {
+		t.Errorf("default_model = %q, want %q", got, "claude-sonnet-4")
+	}
+	if h.Config.Providers.Default != "claude" {
+		t.Errorf("default provider = %q, want claude", h.Config.Providers.Default)
+	}
+	// The partial patch must not wipe the per-provider command map.
+	if _, ok := h.Config.Providers.Providers["claude"]; !ok {
+		t.Error("providers map wiped by a default_model-only patch")
+	}
+}
+
 // TestSettingsAppsPatchMerges verifies the per-instance merge: patching
 // one instance never wipes the others.
 func TestSettingsAppsPatchMerges(t *testing.T) {
