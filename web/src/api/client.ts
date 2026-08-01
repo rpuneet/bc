@@ -109,6 +109,10 @@ export interface Agent {
    *  `${secret:NAME}` references are returned as the reference — the
    *  daemon never sends resolved secret values. */
   env?: Record<string, string>;
+  /** Per-agent Docker CPU cap in cores (0/absent = inherit fleet default). */
+  cpus?: number;
+  /** Per-agent Docker memory cap in MB (0/absent = inherit fleet default). */
+  memory_mb?: number;
 }
 
 export interface AgentConfig {
@@ -116,10 +120,15 @@ export interface AgentConfig {
   mcp_servers: string[];
   runtime_backend: string;
   tool: string;
+  model: string;
   session: string;
   worktree_path: string;
   created_at: string;
   started_at: string;
+  /** Per-agent Docker CPU cap in cores; 0 = inherit the fleet default. */
+  cpus: number;
+  /** Per-agent Docker memory cap in MB; 0 = inherit the fleet default. */
+  memory_mb: number;
 }
 
 export interface NotificationSource {
@@ -898,8 +907,11 @@ export const api = {
 
   getAgentConfig: (name: string) =>
     request<AgentConfig>(`/agents/${encodeURIComponent(name)}/config`),
-  patchAgentConfig: (name: string, patch: { system_prompt?: string }) =>
-    request<void>(`/agents/${encodeURIComponent(name)}/config`, { method: "PATCH", body: JSON.stringify(patch) }),
+  patchAgentConfig: (
+    name: string,
+    patch: { system_prompt?: string; model?: string; cpus?: number; memory_mb?: number },
+  ) =>
+    request<AgentConfig>(`/agents/${encodeURIComponent(name)}/config`, { method: "PATCH", body: JSON.stringify(patch) }),
   getAgentMcps: (name: string) =>
     request<Array<{ name: string }>>(`/agents/${encodeURIComponent(name)}/mcps`),
   addAgentMcp: (name: string, mcpName: string) =>

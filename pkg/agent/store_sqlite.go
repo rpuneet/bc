@@ -67,6 +67,8 @@ func createAgentsTable(d *db.DB) error {
 			last_crash_time TEXT,
 			recovered_from  TEXT,
 			runtime_backend TEXT,
+			cpus          REAL    NOT NULL DEFAULT 0,
+			memory_mb     INTEGER NOT NULL DEFAULT 0,
 			ttl           INTEGER NOT NULL DEFAULT 0,
 			created_at    TEXT,
 			stopped_at    TEXT,
@@ -130,8 +132,8 @@ func (s *SQLiteStore) Save(ctx context.Context, a *Agent) error {
 		 worktree_dir, log_file, env_file, env_vars, hooked_work, children,
 		 is_root, crash_count, last_crash_time, recovered_from,
 		 runtime_backend, session_id, created_at, stopped_at, deleted_at,
-		 started_at, updated_at, repo, model)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		 started_at, updated_at, repo, model, cpus, memory_mb)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		a.Name, string(a.Role), string(a.State),
 		nullStr(a.Tool), nullStr(a.ParentID), nullStr(a.Team), nullStr(a.Task),
 		nullStr(a.Session), a.Workspace,
@@ -141,7 +143,7 @@ func (s *SQLiteStore) Save(ctx context.Context, a *Agent) error {
 		nullTime(a.LastCrashTime), nullStr(a.RecoveredFrom),
 		nullStr(a.RuntimeBackend), nullStr(a.SessionID),
 		formatTime(createdAt), nullTime(a.StoppedAt), nullTime(a.DeletedAt),
-		formatTime(a.StartedAt), formatTime(now), a.Repo, a.Model,
+		formatTime(a.StartedAt), formatTime(now), a.Repo, a.Model, a.CPUs, a.MemoryMB,
 	)
 	return err
 }
@@ -267,8 +269,8 @@ func (s *SQLiteStore) SaveAll(ctx context.Context, agents map[string]*Agent) err
 		 worktree_dir, log_file, env_file, env_vars, hooked_work, children,
 		 is_root, crash_count, last_crash_time, recovered_from,
 		 runtime_backend, session_id, created_at, stopped_at, deleted_at,
-		 started_at, updated_at, repo, model)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+		 started_at, updated_at, repo, model, cpus, memory_mb)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
 	if err != nil {
 		return err
 	}
@@ -298,7 +300,7 @@ func (s *SQLiteStore) SaveAll(ctx context.Context, agents map[string]*Agent) err
 			nullTime(a.LastCrashTime), nullStr(a.RecoveredFrom),
 			nullStr(a.RuntimeBackend), nullStr(a.SessionID),
 			formatTime(createdAt), nullTime(a.StoppedAt), nullTime(a.DeletedAt),
-			formatTime(a.StartedAt), formatTime(now), a.Repo, a.Model,
+			formatTime(a.StartedAt), formatTime(now), a.Repo, a.Model, a.CPUs, a.MemoryMB,
 		)
 		if err != nil {
 			return fmt.Errorf("save agent %s: %w", a.Name, err)
@@ -360,7 +362,7 @@ const agentSelectCols = `SELECT name, role, state, tool, parent_id, team, task, 
 	       worktree_dir, log_file, env_file, env_vars, hooked_work, children,
 	       is_root, crash_count, last_crash_time, recovered_from,
 	       runtime_backend, session_id, created_at, stopped_at, deleted_at,
-	       started_at, updated_at, repo, model`
+	       started_at, updated_at, repo, model, cpus, memory_mb`
 
 func scanAgentRow(s interface{ Scan(...any) error }) (*Agent, error) {
 	var a Agent
@@ -371,6 +373,8 @@ func scanAgentRow(s interface{ Scan(...any) error }) (*Agent, error) {
 	var createdAt, stoppedAt, deletedAt *string
 	var startedAt, updatedAt string
 	var isRoot, crashCount int
+	var cpus float64
+	var memoryMB int64
 
 	err := s.Scan(
 		&a.Name, &role, &state,
@@ -378,7 +382,7 @@ func scanAgentRow(s interface{ Scan(...any) error }) (*Agent, error) {
 		&worktreeDir, &logFile, &envFile, &envVars, &hookedWork, &childrenJSON,
 		&isRoot, &crashCount, &lastCrashTime, &recoveredFrom,
 		&runtimeBackend, &sessionID, &createdAt, &stoppedAt, &deletedAt,
-		&startedAt, &updatedAt, &repo, &model,
+		&startedAt, &updatedAt, &repo, &model, &cpus, &memoryMB,
 	)
 	if err != nil {
 		return nil, err
@@ -406,6 +410,8 @@ func scanAgentRow(s interface{ Scan(...any) error }) (*Agent, error) {
 	a.RuntimeBackend = deref(runtimeBackend)
 	a.Repo = repo
 	a.Model = model
+	a.CPUs = cpus
+	a.MemoryMB = memoryMB
 
 	if childrenJSON != nil && *childrenJSON != "" {
 		_ = json.Unmarshal([]byte(*childrenJSON), &a.Children) //nolint:errcheck // best-effort

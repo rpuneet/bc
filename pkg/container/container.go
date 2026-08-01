@@ -17,6 +17,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -373,12 +374,26 @@ func (b *Backend) CreateSessionWithEnv(ctx context.Context, name, dir, command s
 		"--label", "mycel.agent=" + name,
 	}
 
-	// Resource limits
-	if b.cfg.CPUs > 0 {
-		args = append(args, "--cpus", fmt.Sprintf("%.1f", b.cfg.CPUs))
+	// Resource limits. Default to the fleet-wide config, but let a
+	// per-agent override (plumbed via MYCEL_CPUS / MYCEL_MEMORY_MB by the
+	// agent manager) take precedence for this one container.
+	cpus := b.cfg.CPUs
+	if v, ok := env["MYCEL_CPUS"]; ok {
+		if parsed, perr := strconv.ParseFloat(v, 64); perr == nil && parsed > 0 {
+			cpus = parsed
+		}
 	}
-	if b.cfg.MemoryMB > 0 {
-		args = append(args, "--memory", fmt.Sprintf("%dm", b.cfg.MemoryMB))
+	memoryMB := b.cfg.MemoryMB
+	if v, ok := env["MYCEL_MEMORY_MB"]; ok {
+		if parsed, perr := strconv.ParseInt(v, 10, 64); perr == nil && parsed > 0 {
+			memoryMB = parsed
+		}
+	}
+	if cpus > 0 {
+		args = append(args, "--cpus", strconv.FormatFloat(cpus, 'f', -1, 64))
+	}
+	if memoryMB > 0 {
+		args = append(args, "--memory", fmt.Sprintf("%dm", memoryMB))
 	}
 
 	// Network

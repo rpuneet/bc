@@ -37,8 +37,14 @@ type agentConfigDTO struct { //nolint:govet // field order matches JSON/API cont
 	SystemPrompt   string   `json:"system_prompt"`
 	RuntimeBackend string   `json:"runtime_backend,omitempty"`
 	Tool           string   `json:"tool,omitempty"`
+	Model          string   `json:"model,omitempty"`
 	Session        string   `json:"session,omitempty"`
 	MCPServers     []string `json:"mcp_servers,omitempty"`
+	// CPUs / MemoryMB are the agent's per-agent Docker resource caps.
+	// Zero means "inherit the fleet default" — the UI shows the fleet
+	// value as the placeholder in that case. Enforced only for Docker.
+	CPUs     float64 `json:"cpus"`
+	MemoryMB int64   `json:"memory_mb"`
 }
 
 // getAgentConfig handles GET /api/agents/{name}/config.
@@ -61,8 +67,11 @@ func (h *AgentHandler) getAgentConfig(w http.ResponseWriter, r *http.Request, na
 		WorktreePath:   wtDir,
 		RuntimeBackend: a.RuntimeBackend,
 		Tool:           a.Tool,
+		Model:          a.Model,
 		Session:        a.Session,
 		MCPServers:     []string{},
+		CPUs:           a.CPUs,
+		MemoryMB:       a.MemoryMB,
 	}
 
 	// Read the per-tool prompt file (CLAUDE.md / GEMINI.md / .cursorrules / ...)
@@ -96,11 +105,28 @@ func (h *AgentHandler) patchAgentConfig(w http.ResponseWriter, r *http.Request, 
 		return
 	}
 
+	// All fields are optional so a caller can update just the resource caps
+	// without clobbering the system prompt (and vice-versa). Pointers let us
+	// tell "field omitted" apart from "field set to zero/empty".
 	var req struct {
-		SystemPrompt string `json:"system_prompt"`
+		SystemPrompt *string  `json:"system_prompt"`
+		Model        *string  `json:"model"`
+		CPUs         *float64 `json:"cpus"`
+		MemoryMB     *int64   `json:"memory_mb"`
 	}
 	if decErr := json.NewDecoder(r.Body).Decode(&req); decErr != nil {
 		httpError(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	// Reject nonsensical caps up front — a negative limit would silently
+	// disable the docker flag, which is not what the caller asked for.
+	if req.CPUs != nil && *req.CPUs < 0 {
+		httpError(w, "cpus must be >= 0", http.StatusBadRequest)
+		return
+	}
+	if req.MemoryMB != nil && *req.MemoryMB < 0 {
+		httpError(w, "memory_mb must be >= 0", http.StatusBadRequest)
 		return
 	}
 
@@ -109,28 +135,58 @@ func (h *AgentHandler) patchAgentConfig(w http.ResponseWriter, r *http.Request, 
 	if wtDir == "" {
 		wtDir = svc.Manager().WorktreePath(name)
 	}
-	if wtDir == "" {
-		httpError(w, "worktree path not available for this agent", http.StatusUnprocessableEntity)
-		return
-	}
 	wtDir = filepath.Clean(wtDir)
 	if strings.Contains(wtDir, "..") {
 		httpError(w, "unsafe worktree path", http.StatusBadRequest)
 		return
 	}
 
-	// Ensure directory exists.
-	if mkErr := os.MkdirAll(wtDir, 0750); mkErr != nil {
-		httpInternalError(w, "create worktree dir", mkErr)
-		return
+	// System prompt — only touched when provided (writes the per-tool file).
+	if req.SystemPrompt != nil {
+		if wtDir == "" || wtDir == "." {
+			httpError(w, "worktree path not available for this agent", http.StatusUnprocessableEntity)
+			return
+		}
+		if mkErr := os.MkdirAll(wtDir, 0750); mkErr != nil {
+			httpInternalError(w, "create worktree dir", mkErr)
+			return
+		}
+		promptFile := promptFileForTool(a.Tool)
+		promptPath := filepath.Join(wtDir, promptFile)
+		//nolint:gosec // trusted path under repo root
+		if writeErr := os.WriteFile(promptPath, []byte(*req.SystemPrompt), 0600); writeErr != nil {
+			httpInternalError(w, "write "+promptFile, writeErr)
+			return
+		}
 	}
 
-	promptFile := promptFileForTool(a.Tool)
-	promptPath := filepath.Join(wtDir, promptFile)
-	//nolint:gosec // trusted path under repo root
-	if writeErr := os.WriteFile(promptPath, []byte(req.SystemPrompt), 0600); writeErr != nil {
-		httpInternalError(w, "write "+promptFile, writeErr)
-		return
+	// Model override — persisted on the agent record; reused on next restart.
+	if req.Model != nil {
+		if setErr := svc.Manager().SetAgentModel(r.Context(), name, *req.Model); setErr != nil {
+			httpInternalError(w, "set agent model", setErr)
+			return
+		}
+	}
+
+	// Resource caps — persisted on the agent record; applied on next restart.
+	if req.CPUs != nil || req.MemoryMB != nil {
+		cpus := a.CPUs
+		if req.CPUs != nil {
+			cpus = *req.CPUs
+		}
+		memoryMB := a.MemoryMB
+		if req.MemoryMB != nil {
+			memoryMB = *req.MemoryMB
+		}
+		if setErr := svc.SetResources(r.Context(), name, cpus, memoryMB); setErr != nil {
+			httpInternalError(w, "set agent resources", setErr)
+			return
+		}
+	}
+
+	// Re-read so the response reflects the persisted record (model/caps).
+	if updated, getErr := svc.Get(r.Context(), name); getErr == nil {
+		a = updated
 	}
 
 	// Return the updated config as the response body.
@@ -138,9 +194,14 @@ func (h *AgentHandler) patchAgentConfig(w http.ResponseWriter, r *http.Request, 
 		WorktreePath:   wtDir,
 		RuntimeBackend: a.RuntimeBackend,
 		Tool:           a.Tool,
+		Model:          a.Model,
 		Session:        a.Session,
-		SystemPrompt:   req.SystemPrompt,
 		MCPServers:     []string{},
+		CPUs:           a.CPUs,
+		MemoryMB:       a.MemoryMB,
+	}
+	if req.SystemPrompt != nil {
+		dto.SystemPrompt = *req.SystemPrompt
 	}
 	if hm != nil && hm.RoleManager != nil && string(a.Role) != "" {
 		if resolved, resolveErr := hm.RoleManager.ResolveRole(string(a.Role)); resolveErr == nil && len(resolved.MCPServers) > 0 {

@@ -433,6 +433,21 @@ func (s *AgentService) SetEnv(ctx context.Context, name string, env map[string]s
 	return nil
 }
 
+// SetResources sets a per-agent Docker CPU/memory cap (cores / MB). Zero
+// clears the override, restoring the fleet default. Takes effect on the
+// next agent (re)start.
+func (s *AgentService) SetResources(ctx context.Context, name string, cpus float64, memoryMB int64) error {
+	if err := s.manager.SetAgentResources(ctx, name, cpus, memoryMB); err != nil {
+		return err
+	}
+	s.publishEvent("agent.resources_updated", map[string]any{
+		"name":      name,
+		"cpus":      cpus,
+		"memory_mb": memoryMB,
+	})
+	return nil
+}
+
 // Get returns a single agent by name.
 func (s *AgentService) Get(ctx context.Context, name string) (*Agent, error) {
 	a := s.manager.GetAgent(name)

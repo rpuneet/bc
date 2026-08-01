@@ -46,6 +46,7 @@ import { SystemRow } from "./insights/SystemRow";
 import { TokenPanel, buildTokenSeries } from "./insights/TokenPanel";
 import { AgentDetail, ModelDetail, RepoDetail } from "./insights/BreakdownDetail";
 import { BudgetPanel } from "./insights/BudgetPanel";
+import { ResourcePanel } from "./insights/ResourcePanel";
 
 // ── Periods ─────────────────────────────────────────────────────────────────
 //
@@ -645,6 +646,10 @@ export function Insights() {
       {/* ── Budget cap — moved here from Settings; it governs the spend
           shown above. ── */}
       <BudgetPanel />
+
+      {/* ── Resource budget — committed CPU/memory caps per agent, the
+          compute counterpart to the cost cap above. ── */}
+      <ResourcePanel />
 
       {/* ── Spend over time ── */}
       <section>

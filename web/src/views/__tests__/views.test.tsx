@@ -253,14 +253,14 @@ describe("AgentDetail tab navigation", () => {
       expect(screen.getByText("bot-1")).toBeInTheDocument();
     });
 
-    // Attach (default) → Config
-    fireEvent.click(screen.getByRole("button", { name: "Config" }));
+    // Attach (default) → Settings
+    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
     await waitFor(() => {
-      expect(screen.getByTestId("location")).toHaveTextContent("/agents/bot-1/config");
+      expect(screen.getByTestId("location")).toHaveTextContent("/agents/bot-1/settings");
     });
 
-    // Config → Metrics: the old relative builder produced
-    // /agents/bot-1/config/metrics here.
+    // Settings → Metrics: the old relative builder produced
+    // /agents/bot-1/settings/metrics here.
     fireEvent.click(screen.getByRole("button", { name: "Metrics" }));
     await waitFor(() => {
       expect(screen.getByTestId("location").textContent).toBe("/agents/bot-1/metrics");
@@ -459,7 +459,7 @@ describe("AgentDetail lifecycle controls", () => {
     expect(restart).toBeEnabled();
   });
 
-  it("Config tab renders the Apps card with the agent's subscriptions", async () => {
+  it("Settings tab renders the Apps card with the agent's subscriptions", async () => {
     fetchMock.mockImplementation((url: RequestInfo | URL) => {
       const u = String(url);
       if (u.endsWith("/api/agents/bot-1")) {

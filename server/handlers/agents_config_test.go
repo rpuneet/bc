@@ -166,6 +166,95 @@ func TestPatchAgentConfig(t *testing.T) {
 	}
 }
 
+// TestPatchAgentConfig_Resources verifies PATCH /api/agents/{name}/config
+// persists the per-agent Docker CPU/memory caps and the model override,
+// echoes them back, and leaves an unrelated field (system prompt) untouched
+// when it is omitted from the request.
+func TestPatchAgentConfig_Resources(t *testing.T) {
+	dir := setupHome(t)
+	stateDir := filepath.Join(dir, ".mycel")
+	if err := os.MkdirAll(filepath.Join(stateDir, "agents"), 0750); err != nil {
+		t.Fatalf("mkdir agents: %v", err)
+	}
+	wtDir := filepath.Join(dir, "wt", "zen-zebra")
+	if err := os.MkdirAll(wtDir, 0750); err != nil {
+		t.Fatalf("mkdir worktree: %v", err)
+	}
+	const prompt = "keep me"
+	if err := os.WriteFile(filepath.Join(wtDir, "CLAUDE.md"), []byte(prompt), 0600); err != nil {
+		t.Fatalf("write CLAUDE.md: %v", err)
+	}
+
+	mgr := agent.NewManager(stateDir)
+	svc := agent.NewAgentService(mgr, nil, nil)
+	if err := mgr.RegisterStopped(&agent.Agent{
+		Name:           "zen-zebra",
+		Role:           agent.Role("engineer"),
+		Workspace:      dir,
+		Tool:           "claude",
+		RuntimeBackend: "docker",
+		WorktreeDir:    wtDir,
+	}); err != nil {
+		t.Fatalf("register agent: %v", err)
+	}
+
+	ts := buildTestServerWithServices(t, server.Services{Agents: svc})
+	defer ts.Close()
+
+	// PATCH only cpus/memory_mb/model — system_prompt omitted.
+	payload := `{"cpus":1.5,"memory_mb":3072,"model":"fable"}`
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPatch,
+		ts.URL+"/api/agents/zen-zebra/config", strings.NewReader(payload))
+	if err != nil {
+		t.Fatalf("new req: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("do: %v", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	assertStatus(t, resp, http.StatusOK)
+
+	var dto struct {
+		Model    string  `json:"model"`
+		CPUs     float64 `json:"cpus"`
+		MemoryMB int64   `json:"memory_mb"`
+	}
+	if decErr := json.NewDecoder(resp.Body).Decode(&dto); decErr != nil {
+		t.Fatalf("decode config dto: %v", decErr)
+	}
+	if dto.CPUs != 1.5 || dto.MemoryMB != 3072 || dto.Model != "fable" {
+		t.Fatalf("response = %+v, want cpus=1.5 mem=3072 model=fable", dto)
+	}
+
+	// Persisted on the in-memory record.
+	a := mgr.GetAgent("zen-zebra")
+	if a == nil {
+		t.Fatal("agent gone after patch")
+	}
+	if a.CPUs != 1.5 || a.MemoryMB != 3072 || a.Model != "fable" {
+		t.Fatalf("record = {cpus:%v mem:%v model:%q}, want {1.5 3072 fable}", a.CPUs, a.MemoryMB, a.Model)
+	}
+
+	// Omitted system_prompt must be left untouched on disk.
+	got, err := os.ReadFile(filepath.Join(wtDir, "CLAUDE.md")) //nolint:gosec // trusted test path
+	if err != nil || string(got) != prompt {
+		t.Fatalf("CLAUDE.md = %q (err=%v), want it unchanged (%q)", string(got), err, prompt)
+	}
+
+	// A negative cap is rejected.
+	req2, _ := http.NewRequestWithContext(context.Background(), http.MethodPatch,
+		ts.URL+"/api/agents/zen-zebra/config", strings.NewReader(`{"cpus":-1}`))
+	req2.Header.Set("Content-Type", "application/json")
+	resp2, err := http.DefaultClient.Do(req2)
+	if err != nil {
+		t.Fatalf("do negative: %v", err)
+	}
+	defer func() { _ = resp2.Body.Close() }()
+	assertStatus(t, resp2, http.StatusBadRequest)
+}
+
 // TestAgentHandler_GetConfigNotFound verifies /config returns 404 for an
 // unknown agent (not a generic handler 404 leak).
 func TestAgentHandler_GetConfigNotFound(t *testing.T) {
