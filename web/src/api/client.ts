@@ -886,7 +886,7 @@ export const api = {
     ),
   renameAgent: (name: string, newName: string) =>
     tap(
-      request<Agent>(`/agents/${encodeURIComponent(name)}/rename`, {
+      request<{ status: string; name: string }>(`/agents/${encodeURIComponent(name)}/rename`, {
         method: "POST",
         body: JSON.stringify({ new_name: newName }),
       }),

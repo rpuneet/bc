@@ -22,6 +22,7 @@ import (
 	"github.com/rpuneet/mycel/pkg/events"
 	"github.com/rpuneet/mycel/pkg/home"
 	"github.com/rpuneet/mycel/pkg/log"
+	mcppkg "github.com/rpuneet/mycel/pkg/mcp"
 	"github.com/rpuneet/mycel/pkg/stats"
 	"github.com/rpuneet/mycel/pkg/template"
 	"github.com/rpuneet/mycel/pkg/token"
@@ -1343,6 +1344,36 @@ func (h *AgentHandler) addAgentMCP(w http.ResponseWriter, r *http.Request, a *ag
 		return
 	}
 
+	// The web UI's "Add MCP" control sends only a name — resolve the real
+	// command/url/env from the user-global MCP registry
+	// (~/.mycel/mcps.json) rather than writing an empty, non-functional
+	// stanza that can never connect. Callers that already supply a
+	// command or url (e.g. a future advanced form) are trusted as-is.
+	// Unknown names are rejected outright.
+	if req.URL == "" && req.Command == "" {
+		def, resolveErr := resolveGlobalMCPDef(req.Name)
+		if resolveErr != nil {
+			httpInternalError(w, "resolve mcp definition", resolveErr)
+			return
+		}
+		if def == nil {
+			httpError(w, fmt.Sprintf("unknown MCP server %q: no definition in the global MCP registry", req.Name), http.StatusUnprocessableEntity)
+			return
+		}
+		req.URL = def.URL
+		req.Command = def.Command
+		if req.Type == "" {
+			req.Type = string(def.Transport)
+		}
+		if req.Env == nil {
+			req.Env = def.Env
+		}
+		if req.URL == "" && req.Command == "" {
+			httpError(w, fmt.Sprintf("MCP server %q has no command or url configured in the global registry", req.Name), http.StatusUnprocessableEntity)
+			return
+		}
+	}
+
 	cfg, err := readMCPFile(wtDir)
 	if err != nil {
 		httpInternalError(w, "read mcp config", err)
@@ -1384,6 +1415,22 @@ func (h *AgentHandler) addAgentMCP(w http.ResponseWriter, r *http.Request, a *ag
 		Type:    req.Type,
 		Env:     req.Env,
 	})
+}
+
+// resolveGlobalMCPDef looks up name in the user-global MCP registry
+// (~/.mycel/mcps.json). It returns (nil, nil) when the registry has no
+// entry for name — callers must treat that as "unknown server" rather
+// than falling back to an empty definition.
+func resolveGlobalMCPDef(name string) (*mcppkg.ServerConfig, error) {
+	path, err := home.GlobalMCPConfig()
+	if err != nil {
+		return nil, fmt.Errorf("resolve global mcp registry path: %w", err)
+	}
+	cfg, err := mcppkg.NewGlobalStore(path).Get(name)
+	if err != nil {
+		return nil, fmt.Errorf("read global mcp registry: %w", err)
+	}
+	return cfg, nil
 }
 
 // deleteAgentMCP handles DELETE /api/agents/{name}/mcps/{mcp}.

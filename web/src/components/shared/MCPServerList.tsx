@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import type { MCPServer } from "../../api/client";
 import { MONO } from "../../utils/typography";
 
 interface MCPServerListProps {
@@ -7,27 +8,22 @@ interface MCPServerListProps {
   onAdd?: (name: string) => Promise<void>;
   onRemove?: (name: string) => Promise<void>;
   className?: string;
+  /** Real MCP server definitions from the global registry (`GET /api/mcp`).
+   *  Drives the autocomplete — only names with an actual command/url can
+   *  ever connect, so the picker should never suggest anything else. */
+  registry?: MCPServer[];
+  /** Surfaces the most recent add failure (e.g. an unknown server name
+   *  the backend rejected rather than writing an empty stanza). */
+  addError?: string | null;
 }
 
-const KNOWN_MCPS = [
-  { name: "github", description: "GitHub API (create_pr, list_issues, authenticate)" },
-  { name: "slack", description: "Slack messaging" },
-  { name: "linear", description: "Linear issue tracker" },
-  { name: "notion", description: "Notion pages and databases" },
-  { name: "postgres", description: "PostgreSQL database queries" },
-  { name: "sqlite", description: "SQLite database queries" },
-  { name: "filesystem", description: "File system operations" },
-  { name: "fetch", description: "HTTP fetch/API calls" },
-  { name: "puppeteer", description: "Browser automation" },
-  { name: "playwright", description: "Browser testing" },
-  { name: "docker", description: "Docker container management" },
-  { name: "kubernetes", description: "Kubernetes cluster operations" },
-  { name: "aws", description: "AWS CLI operations" },
-  { name: "gcp", description: "Google Cloud operations" },
-  { name: "stripe", description: "Stripe payment API" },
-  { name: "sentry", description: "Sentry error tracking" },
-  { name: "datadog", description: "Datadog monitoring" },
-];
+/** One-line summary of how a registry entry connects, shown as the
+ *  suggestion subtitle in place of a hardcoded description. */
+function summarize(m: MCPServer): string {
+  if (m.command) return `stdio · ${m.command}`;
+  if (m.url) return `${m.transport || "sse"} · ${m.url}`;
+  return m.transport || "";
+}
 
 export function MCPServerList({
   servers,
@@ -35,23 +31,28 @@ export function MCPServerList({
   onAdd,
   onRemove,
   className,
+  registry = [],
+  addError,
 }: MCPServerListProps) {
   const [input, setInput] = useState("");
   const [adding, setAdding] = useState(false);
   const [removing, setRemoving] = useState<string | null>(null);
   const [showDropdown, setShowDropdown] = useState(false);
+  const [localError, setLocalError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Normalise server names for comparison (strip mcp__ prefix)
   const normalised = servers.map((s) => s.replace(/^mcp__/, ""));
 
-  const suggestions = KNOWN_MCPS.filter((m) => {
+  const suggestions = registry.filter((m) => {
     if (normalised.includes(m.name)) return false;
     if (!input.trim()) return true;
     const q = input.toLowerCase();
-    return m.name.includes(q) || m.description.toLowerCase().includes(q);
+    return m.name.toLowerCase().includes(q) || summarize(m).toLowerCase().includes(q);
   });
+
+  const error = addError ?? localError;
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -74,12 +75,13 @@ export function MCPServerList({
     if (!trimmed || !onAdd) return;
     setAdding(true);
     setShowDropdown(false);
+    setLocalError(null);
     onAdd(trimmed)
       .then(() => {
         setInput("");
       })
-      .catch(() => {
-        /* best-effort */
+      .catch((err: unknown) => {
+        setLocalError(err instanceof Error ? err.message : "Failed to add MCP server");
       })
       .finally(() => {
         setAdding(false);
@@ -151,6 +153,7 @@ export function MCPServerList({
               onChange={(e) => {
                 setInput(e.target.value);
                 setShowDropdown(true);
+                if (localError) setLocalError(null);
               }}
               onFocus={() => setShowDropdown(true)}
               onKeyDown={(e) => {
@@ -159,7 +162,10 @@ export function MCPServerList({
               }}
               placeholder="Search or type a server name…"
               disabled={adding}
-              className="flex-1 max-w-[300px] rounded border border-mycel-border bg-mycel-bg px-2.5 py-1 text-[11px] text-mycel-text placeholder:text-mycel-muted outline-none focus:border-mycel-accent transition-colors disabled:opacity-40"
+              aria-invalid={error ? true : undefined}
+              className={`flex-1 max-w-[300px] rounded border bg-mycel-bg px-2.5 py-1 text-[11px] text-mycel-text placeholder:text-mycel-muted outline-none transition-colors disabled:opacity-40 ${
+                error ? "border-mycel-error focus:border-mycel-error" : "border-mycel-border focus:border-mycel-accent"
+              }`}
               style={{ fontFamily: MONO }}
             />
             <button
@@ -204,7 +210,7 @@ export function MCPServerList({
                       className="block text-[10px] text-mycel-muted truncate"
                       style={{ fontFamily: MONO }}
                     >
-                      {m.description}
+                      {summarize(m)}
                     </span>
                   </div>
                 </button>
@@ -212,9 +218,15 @@ export function MCPServerList({
             </div>
           )}
 
-          <p className="mt-1.5 text-[10px] text-mycel-muted" style={{ fontFamily: MONO }}>
-            Select from the list or press Enter to add a custom server name.
-          </p>
+          {error ? (
+            <p className="mt-1.5 text-[10px] text-mycel-error" style={{ fontFamily: MONO }} role="alert">
+              {error}
+            </p>
+          ) : (
+            <p className="mt-1.5 text-[10px] text-mycel-muted" style={{ fontFamily: MONO }}>
+              Select a server from the registry — only names with a real command or url can connect.
+            </p>
+          )}
         </div>
       )}
     </div>

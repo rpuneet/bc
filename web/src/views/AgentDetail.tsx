@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, Link, useLocation, useNavigate } from "react-router-dom";
 import { useHeaderSlot } from "../context/HeaderSlotContext";
 import { api } from "../api/client";
-import type { Agent, AgentConfig } from "../api/client";
+import type { Agent, AgentConfig, MCPServer } from "../api/client";
 import { AgentAppsCard } from "../components/apps/AgentAppsCard";
 import { usePolling } from "../hooks/usePolling";
 import { useWebSocket } from "../hooks/useWebSocket";
@@ -723,6 +723,8 @@ function SettingsTab({ agent, agentsUrl }: { agent: Agent; agentsUrl: string }) 
   // MCP server management state
   const [mcpList, setMcpList] = useState<string[] | null>(null);
   const [mcpLoading, setMcpLoading] = useState(true);
+  const [mcpRegistry, setMcpRegistry] = useState<MCPServer[]>([]);
+  const [mcpAddError, setMcpAddError] = useState<string | null>(null);
 
   // Env vars state — persisted via API to .mycel/agents/<name>/env.json
   const [envVars, setEnvVars] = useState<Array<{ key: string; value: string }>>([]);
@@ -787,6 +789,23 @@ function SettingsTab({ agent, agentsUrl }: { agent: Agent; agentsUrl: string }) 
   useEffect(() => {
     fetchMcps();
   }, [fetchMcps]);
+
+  // Real MCP server definitions from the global registry — used to power
+  // the "Add MCP" suggestions instead of a hardcoded, disconnected list.
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .listMCP()
+      .then((servers) => {
+        if (!cancelled) setMcpRegistry(servers);
+      })
+      .catch(() => {
+        if (!cancelled) setMcpRegistry([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Load templates list on mount.
   useEffect(() => {
@@ -884,8 +903,18 @@ function SettingsTab({ agent, agentsUrl }: { agent: Agent; agentsUrl: string }) 
   };
 
   const handleMcpAdd = async (mcpName: string) => {
-    await api.addAgentMcp(agent.name, mcpName);
-    fetchMcps();
+    setMcpAddError(null);
+    try {
+      await api.addAgentMcp(agent.name, mcpName);
+      fetchMcps();
+    } catch (err) {
+      // The backend resolves mcpName against the global MCP registry and
+      // rejects names with no known command/url definition rather than
+      // writing an empty stanza — surface that (or any other) failure
+      // instead of swallowing it.
+      setMcpAddError(err instanceof Error ? err.message : "Failed to add MCP server");
+      throw err;
+    }
   };
 
   const handleMcpRemove = async (mcpName: string) => {
@@ -1005,6 +1034,8 @@ function SettingsTab({ agent, agentsUrl }: { agent: Agent; agentsUrl: string }) 
             loading={mcpLoading}
             onAdd={useLiveMcp ? handleMcpAdd : undefined}
             onRemove={useLiveMcp ? handleMcpRemove : undefined}
+            registry={mcpRegistry}
+            addError={mcpAddError}
           />
           <p className="mt-2 text-xs text-mycel-muted leading-relaxed">
             {isTmux
